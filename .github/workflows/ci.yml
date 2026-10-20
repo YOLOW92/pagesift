@@ -1,9 +1,9 @@
-name: CI
+name: macOS
 
+# 日常检查在本地用 scripts/ci.sh 跑；这里只测本机测不到的 macOS。
 on:
   push:
     branches: [main]
-  pull_request:
 
 env:
   CARGO_TERM_COLOR: always
@@ -11,42 +11,9 @@ env:
 
 jobs:
   test:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
-      - uses: Swatinem/rust-cache@v2
-      # Ubuntu 24.04 的 AppArmor 默认禁止非特权 user namespace，Chrome 沙箱需要它。
-      # 只放开这台临时 runner 的限制；pagesift 不会用 --no-sandbox 绕过沙箱。
-      - if: runner.os == 'Linux'
-        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-      - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets
-      - run: cargo test --workspace
-
-  perf:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo run --release -p pagesift-content --example perf_gate
-
-  msrv:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.88
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo check --workspace
-
-  deny:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      - run: cargo test --workspace --locked
