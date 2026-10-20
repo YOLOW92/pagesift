@@ -530,15 +530,14 @@ async fn readiness_ignores_polling_workers_and_abandoned_documents() {
         "{:?}",
         worker.timings
     );
-    // 以前会一直等原文档的 DOMContentLoaded，直到整体超时。
-    let redirect = pool
-        .render(&format!("{base}/js-redirect"), &opts())
-        .await
-        .unwrap();
+    // 以前会一直等原文档的 DOMContentLoaded，直到整体超时；现在很快报导航失败，
+    // 不把浏览器的错误页当正文返回。
+    let start = std::time::Instant::now();
+    let redirect = pool.render(&format!("{base}/js-redirect"), &opts()).await;
     assert!(
-        redirect.timings.total < Duration::from_secs(5),
-        "{:?}",
-        redirect.timings
+        matches!(redirect, Err(Error::Navigation(_))),
+        "{redirect:?}"
     );
+    assert!(start.elapsed() < Duration::from_secs(5));
     shutdown(pool).await;
 }

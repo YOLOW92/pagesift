@@ -412,6 +412,12 @@ pub(crate) async fn render_page(
     timings.html = html_start.elapsed();
     timings.iframes = captured.iframe_time;
     let final_url = captured.url;
+    // 页面用脚本跳到了打不开的地址：剩下的是浏览器自己的错误页，不是正文。
+    if final_url.starts_with("chrome-error:") {
+        return Err(Error::Navigation(
+            "the page navigated to an address that could not be loaded".into(),
+        ));
+    }
     check_interception(&shared)?;
     let status = *shared.status.lock().unwrap();
     let blocked_requests = shared
