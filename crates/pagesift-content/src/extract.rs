@@ -7,63 +7,28 @@ use pagesift_html::{Element, Html, Tag};
 use crate::dom::{NodeR, element, is_hidden, is_non_content_tag};
 use crate::markdown::is_block_tag;
 
-const POSITIVE: &[&str] = &[
-    "article",
-    "content",
-    "entry",
-    "main",
-    "post",
-    "text",
-    "blog",
-    "story",
-    "markdown",
-    "prose",
-    "doc",
-    "docs",
-    "documentation",
-    "body",
-];
+/// 正文容器常用的词。
+const POS: u8 = 1;
+/// 页面框架（导航、页脚、广告、分享……）常用的词。
+const NEG: u8 = 2;
+/// 页内跳转链接（"skip to content"）的词，同时也算框架词。
+const JUMP: u8 = 4;
 
-const NEGATIVE: &[&str] = &[
-    "nav",
-    "navbar",
-    "navigation",
-    "menu",
-    "footer",
-    "sidebar",
-    "aside",
-    "breadcrumb",
-    "breadcrumbs",
-    "share",
-    "sharing",
-    "social",
-    "related",
-    "recommend",
-    "recommended",
-    "comment",
-    "comments",
-    "cookie",
-    "cookies",
-    "consent",
-    "banner",
-    "advert",
-    "advertisement",
-    "ad",
-    "ads",
-    "sponsor",
-    "sponsored",
-    "newsletter",
-    "subscribe",
-    "popup",
-    "modal",
-    "promo",
-    "toolbar",
-    "pagination",
-    "editsection",
-    "skip",
-    "jump",
-    "catlinks",
-];
+/// 一个小写词属于哪些类。写成 `match`：编译器先按长度分支再比字节，每个词只判定一次。
+fn word_class(w: &str) -> u8 {
+    match w {
+        "article" | "content" | "entry" | "main" | "post" | "text" | "blog" | "story"
+        | "markdown" | "prose" | "doc" | "docs" | "documentation" | "body" => POS,
+        "nav" | "navbar" | "navigation" | "menu" | "footer" | "sidebar" | "aside"
+        | "breadcrumb" | "breadcrumbs" | "share" | "sharing" | "social" | "related"
+        | "recommend" | "recommended" | "comment" | "comments" | "cookie" | "cookies"
+        | "consent" | "banner" | "advert" | "advertisement" | "ad" | "ads" | "sponsor"
+        | "sponsored" | "newsletter" | "subscribe" | "popup" | "modal" | "promo" | "toolbar"
+        | "pagination" | "editsection" | "catlinks" => NEG,
+        "skip" | "jump" => NEG | JUMP,
+        _ => 0,
+    }
+}
 
 const SKIP_ROLES: &[&str] = &[
     "navigation",
@@ -75,27 +40,30 @@ const SKIP_ROLES: &[&str] = &[
     "alertdialog",
 ];
 
-/// class 和 id 拆成词，按词（不分大小写）匹配，避免 "header" 命中 "head" 这类误伤。
-/// 对每个集合返回是否命中。词先转小写放进栈上的缓冲区，比和每个候选词逐一忽略大小写比较快。
-fn token_hits<const N: usize>(el: Element<'_>, sets: [&[&str]; N]) -> [bool; N] {
-    let mut hits = [false; N];
+/// class 和 id 拆成词，按词（不分大小写）分类，返回所有词的类别并集。
+/// 按词匹配避免 "header" 命中 "head" 这类误伤；词先转小写放进栈上的缓冲区。
+fn token_class(el: Element<'_>) -> u8 {
+    let mut class = 0;
     let mut buf = [0u8; MAX_TOKEN];
     for value in [el.attr("class"), el.attr("id")].into_iter().flatten() {
-        for t in value.split(|c: char| !c.is_ascii_alphanumeric()) {
-            if t.is_empty() || t.len() > MAX_TOKEN {
+        // 按字节找 ASCII 字母数字片段：非 ASCII 字节（含多字节字符）都是分隔符
+        let mut len = 0usize;
+        for &c in value.as_bytes().iter().chain(std::iter::once(&b' ')) {
+            if c.is_ascii_alphanumeric() {
+                if len < MAX_TOKEN {
+                    buf[len] = c.to_ascii_lowercase();
+                }
+                len += 1;
                 continue;
             }
-            let lower = &mut buf[..t.len()];
-            lower.copy_from_slice(t.as_bytes());
-            lower.make_ascii_lowercase();
-            // 只含 ASCII 字母数字，必然是合法 UTF-8
-            let w = std::str::from_utf8(lower).unwrap_or_default();
-            for (hit, set) in hits.iter_mut().zip(sets) {
-                *hit |= set.contains(&w);
+            if (1..=MAX_TOKEN).contains(&len) {
+                // 只含 ASCII 字母数字，必然是合法 UTF-8
+                class |= word_class(std::str::from_utf8(&buf[..len]).unwrap_or_default());
             }
+            len = 0;
         }
     }
-    hits
+    class
 }
 
 /// 比所有候选词都长的词不可能命中。
@@ -148,7 +116,7 @@ fn is_skip_link(node: &NodeR<'_>, el: Element<'_>) -> bool {
     {
         return false;
     }
-    if token_hits(el, [&["skip", "jump"]]) == [true] {
+    if token_class(el) & JUMP != 0 {
         return true;
     }
     let text: String = node
@@ -300,7 +268,7 @@ impl Skipper {
         let soft = link_block
             || (tag == Tag::Header && node.descendants().any(|d| d.tag() == Some(Tag::Nav)))
             || el.attr("role").is_some_and(|r| SKIP_ROLES.contains(&r))
-            || token_hits(el, [NEGATIVE, POSITIVE]) == [true, false];
+            || token_class(el) & (NEG | POS) == NEG;
         soft && vis.chars < self.protect_chars
     }
 }
