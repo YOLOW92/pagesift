@@ -178,7 +178,13 @@ pub fn run(args: Args) -> Result<()> {
             continue;
         }
         labeled += 1;
-        let lies = phrases(&row.lie_text, LIE_MIN_CHARS);
+        // 噪声短语如果也出现在正文里（目录里的章节名同时是正文的小标题），保留它才是对的，
+        // 不能算泄漏；评测集里约 7% 的噪声短语是这种情况
+        let truth_norm = normalize(&row.truth_text.to_lowercase());
+        let lies: Vec<String> = phrases(&row.lie_text, LIE_MIN_CHARS)
+            .into_iter()
+            .filter(|p| !truth_norm.contains(normalize(p).as_str()))
+            .collect();
         let meta = metas.get(&row.id);
         let snapshot = args.dir.join(format!("snapshots/{}.html", row.id));
         let error = meta.and_then(|m| m.error.as_deref());

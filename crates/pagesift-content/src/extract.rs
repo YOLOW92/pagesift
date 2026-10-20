@@ -66,6 +66,16 @@ fn token_class(el: Element<'_>) -> u8 {
     class
 }
 
+/// 在 `<main>`、`<article>` 或 `role="main"` 里面：这里的页头、导航是正文的一部分
+/// （文章标题区、日历插件的视图切换），不是页面框架。
+fn in_content_area(node: &NodeR<'_>) -> bool {
+    node.ancestors().any(|a| {
+        a.as_element().is_some_and(|e| {
+            matches!(e.tag(), Tag::Main | Tag::Article) || e.attr("role") == Some("main")
+        })
+    })
+}
+
 /// 比所有候选词都长的词不可能命中。
 const MAX_TOKEN: usize = 16;
 
@@ -238,37 +248,64 @@ impl Skipper {
     }
 
     fn decide(&self, node: &NodeR<'_>) -> bool {
-        let Some(el) = element(node) else {
-            return false;
-        };
+        self.reason(node).is_some()
+    }
+
+    /// 跳过这个元素的原因；不跳过时为 `None`。诊断工具用它解释每个被删掉的块。
+    pub(crate) fn reason(&self, node: &NodeR<'_>) -> Option<&'static str> {
+        let el = element(node)?;
         let tag = el.tag();
-        if is_hard_skip(el) {
-            return true;
+        if is_non_content_tag(tag) {
+            return Some("non-content tag");
+        }
+        if is_hidden(el) {
+            return Some("hidden");
         }
         if !self.only_main {
-            return false;
+            return None;
         }
         if matches!(tag, Tag::Nav | Tag::Aside | Tag::Footer) {
-            return true;
+            return Some("nav/aside/footer");
         }
         if tag == Tag::A {
-            return is_skip_link(node, el);
+            return is_skip_link(node, el).then_some("skip link");
         }
         if self.relaxed || matches!(tag, Tag::Body | Tag::Html) {
-            return false;
+            return None;
         }
         let vis = self
             .visible
             .get(node.id().index())
             .copied()
             .unwrap_or_default();
+        if vis.chars >= self.protect_chars {
+            return None;
+        }
         let link_block = vis.links >= LINK_BLOCK_MIN_LINKS
             && vis.link_chars as f64 >= vis.chars as f64 * LINK_BLOCK_MIN_SHARE
             && (vis.link_chars as f64 / vis.links as f64) <= LINK_BLOCK_MAX_AVG_CHARS;
-        let soft = link_block
-            || (tag == Tag::Header && node.descendants().any(|d| d.tag() == Some(Tag::Nav)))
-            || el.attr("role").is_some_and(|r| SKIP_ROLES.contains(&r))
-            || token_class(el) & (NEG | POS) == NEG;
-        soft && vis.chars < self.protect_chars
+        if link_block {
+            Some("link block")
+        } else if tag == Tag::Header
+            && !in_content_area(node)
+            && node.descendants().any(|d| d.tag() == Some(Tag::Nav))
+        {
+            Some("header with nav")
+        } else if el.attr("role").is_some_and(|r| SKIP_ROLES.contains(&r)) {
+            Some("skip role")
+        } else if token_class(el) & (NEG | POS) == NEG {
+            Some("negative class/id")
+        } else {
+            None
+        }
+    }
+
+    /// 元素自身的可见文字数（只算未被硬跳过的部分；只取正文时才有）。
+    pub(crate) fn visible_chars(&self, node: &NodeR<'_>) -> usize {
+        self.visible.get(node.id().index()).map_or(0, |v| v.chars)
+    }
+
+    pub(crate) fn is_relaxed(&self) -> bool {
+        self.relaxed
     }
 }

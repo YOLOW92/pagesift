@@ -158,3 +158,68 @@ fn effective_base(dom: &Html<'_>, given: Option<&Url>) -> Option<Url> {
         (None, g) => g.cloned(),
     }
 }
+
+/// 只取正文时被跳过的一个块（最外层的那个，子孙不再列出）。诊断用。
+#[derive(Debug, Clone)]
+pub struct SkippedBlock {
+    /// 标签名，带上 id 和 class，例如 `div#main.sidebar.left`。
+    pub element: String,
+    /// 命中的规则。
+    pub reason: &'static str,
+    /// 块里可见文字的非空白字符数。
+    pub chars: usize,
+    /// 文字开头一段。
+    pub snippet: String,
+}
+
+/// 解释只取正文时删掉了什么：和 [`process`] 一样的流程（包括结果太短时放宽规则重试），
+/// 返回是否放宽了规则，以及每个被跳过的最外层块和原因。只用于调试提取规则，不在正常流程里调用。
+#[doc(hidden)]
+pub fn explain_skips(html: &str) -> (bool, Vec<SkippedBlock>) {
+    let dom = Html::parse(html);
+    let mut skipper = extract::Skipper::new(&dom, true);
+    let body = dom.get(body_or_root(&dom));
+    let render = |skipper: &extract::Skipper| {
+        markdown::Renderer {
+            base: None,
+            skipper,
+        }
+        .render(&[body])
+    };
+    let markdown = render(&skipper);
+    let chars = markdown.chars().filter(|c| !c.is_whitespace()).count();
+    if chars < FALLBACK_MAX_CHARS
+        && (chars as f64) < skipper.total_chars() as f64 * FALLBACK_MAX_SHARE
+    {
+        skipper.relax();
+    }
+    let mut out = Vec::new();
+    let mut stack = vec![body];
+    while let Some(node) = stack.pop() {
+        if let Some(reason) = skipper.reason(&node) {
+            if let Some(el) = node.as_element() {
+                let mut name = el.name().to_string();
+                if let Some(id) = el.attr("id") {
+                    name.push('#');
+                    name.push_str(id);
+                }
+                for c in el.attr("class").unwrap_or_default().split_whitespace() {
+                    name.push('.');
+                    name.push_str(c);
+                }
+                let text = dom::collapse_whitespace(&node.text());
+                out.push(SkippedBlock {
+                    element: name,
+                    reason,
+                    chars: skipper.visible_chars(&node),
+                    snippet: text.trim().chars().take(100).collect(),
+                });
+            }
+            continue;
+        }
+        let start = stack.len();
+        stack.extend(node.children());
+        stack[start..].reverse();
+    }
+    (skipper.is_relaxed(), out)
+}
