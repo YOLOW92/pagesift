@@ -1,6 +1,6 @@
 """Crawl4AI 整站爬取：对每个站点做 BFS 深度爬取（同一个 AsyncWebCrawler，所有站点并发）。
 
-python crawl4ai_crawl.py <port> <hosts> <pages> <interval-ms> <http|browser> [per-host]
+python crawl4ai_crawl.py <port> <hosts> <pages> <interval-ms> <http|browser> [per-host] [first-host]
 礼貌规则和 pagesift 对齐：检查 robots.txt；每个域名的请求间隔固定为 interval（mean_delay，max_range=0）；
 全局并发 = hosts × per-host。
 """
@@ -13,6 +13,7 @@ async def main():
     port, hosts, pages, interval = (int(x) for x in sys.argv[1:5])
     mode = sys.argv[5]
     per_host = int(sys.argv[6]) if len(sys.argv) > 6 else 2
+    first = int(sys.argv[7]) if len(sys.argv) > 7 else 0
     kwargs = {}
     raw_errors = collections.Counter()
     if mode == "http":
@@ -48,7 +49,7 @@ async def main():
                     err += 1
                     reasons[(r.status_code, (r.error_message or '')[-300:])] += 1
                     print(f"  failed {r.url}", file=sys.stderr)
-        await asyncio.gather(*(site(h) for h in range(hosts)))
+        await asyncio.gather(*(site(h) for h in range(first, first + hosts)))
     s = time.monotonic() - t
     for k, v in raw_errors.most_common(3):
         print(f"  raw error x{v}: {k}", file=sys.stderr)

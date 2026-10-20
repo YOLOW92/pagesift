@@ -47,7 +47,7 @@ for every tool, so a run cut short still reports a rate.
 | pagesift | `crawl_bench` example: `Scraper::crawl` per site, all concurrent | `default_interval`, `per_host_concurrency` |
 | crw | `crw serve` (one process), one `/v1/crawl` job per site, polled | `per_host_min_interval_ms`, `per_host_max_concurrent`, robots on |
 | Spider | `spider_crawl`: one `Website` per site, Markdown via `spider_transformations` | `with_delay`, `with_concurrency_limit` (at least 2: with a limit of 1 Spider visits only 5 links per site; with a delay it still sends one request at a time), robots on; anti-detection features off |
-| Crawl4AI | `crawl4ai_crawl.py`: BFS deep crawl per site on one `AsyncWebCrawler`, HTTP and browser strategies | `mean_delay`, `max_range=0`, `semaphore_count`, `check_robots_txt=True` |
+| Crawl4AI | `crawl4ai_crawl.py`: BFS deep crawl per site on one `AsyncWebCrawler`, HTTP and browser strategies; `crawl4ai_multi.py` splits the sites over N processes (N = min(cores, (available memory − 2 GB) / 2.5 GB)), since one Python process tops out near 15 pages/s whatever the concurrency | `mean_delay`, `max_range=0`, `semaphore_count`, `check_robots_txt=True` |
 
 `measure.py` records wall time, CPU time and the peak RSS summed over the whole process
 tree (so Crawl4AI's browser processes and crw's server are counted). Report every metric

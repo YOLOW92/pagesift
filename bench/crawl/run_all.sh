@@ -32,6 +32,7 @@ run() { # 场景名 hosts pages interval per_host latency 工具...
             # 所以给 2，实际仍是每主机一个请求接一个
             spider) python3 -I measure.py "$label" -- target/release/spider_crawl $PORT "$hosts" "$pages" "$interval" "$(( per_host < 2 ? 2 : per_host ))" ;;
             crawl4ai-http) python3 -I measure.py "$label" -- "$C4A" crawl4ai_crawl.py $PORT "$hosts" "$pages" "$interval" http "$per_host" ;;
+            crawl4ai-multi) python3 -I measure.py "$label" -- python3 -I crawl4ai_multi.py "$C4A" $PORT "$hosts" "$pages" "$interval" http "$per_host" ;;
             crawl4ai-browser) python3 -I measure.py "$label" -- "$C4A" crawl4ai_crawl.py $PORT "$hosts" "$pages" "$interval" browser "$per_host" ;;
         esac
     done
@@ -41,8 +42,8 @@ run() { # 场景名 hosts pages interval per_host latency 工具...
 for s in "${@:-wide huge}"; do
     for one in $s; do
         case $one in
-            wide)   run wide 200 100 0 8 10 pagesift crw spider crawl4ai-http crawl4ai-browser ;;
-            huge)   run huge 1000 50 0 4 10 pagesift crw spider crawl4ai-http ;;
+            wide)   run wide 200 100 0 8 10 pagesift crw spider crawl4ai-http crawl4ai-multi crawl4ai-browser ;;
+            huge)   run huge 1000 50 0 4 10 pagesift crw spider crawl4ai-http crawl4ai-multi ;;
             polite) run polite 100 50 1000 1 50 pagesift crw spider crawl4ai-http crawl4ai-browser ;;
         esac
     done
