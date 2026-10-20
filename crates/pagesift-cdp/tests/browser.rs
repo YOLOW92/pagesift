@@ -543,6 +543,8 @@ async fn concurrency_stays_within_limits() {
                     &url,
                     &RenderOptions {
                         wait_for: Duration::from_millis(200),
+                        // 超时包含排队时间：10 个任务排 4 个标签页，慢的 CI 虚拟机上要多等几波
+                        timeout: Duration::from_secs(120),
                         ..opts()
                     },
                 )

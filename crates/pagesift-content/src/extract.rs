@@ -61,7 +61,6 @@ const NEGATIVE: &[&str] = &[
     "promo",
     "toolbar",
     "pagination",
-    "edit",
     "editsection",
     "skip",
     "jump",
@@ -99,7 +98,7 @@ fn has_token(tokens: &[String], set: &[&str]) -> bool {
 ///
 /// 两类规则：
 /// - 硬跳过：脚本、样式、隐藏元素，以及只取正文时的 `<nav>`、`<aside>`、`<footer>`；
-/// - 软跳过（只取正文时）：`<form>`、带导航的 `<header>`、导航类 `role`、类名或 id 命中噪声词、
+/// - 软跳过（只取正文时）：带导航的 `<header>`、导航类 `role`、类名或 id 命中噪声词、
 ///   链接密集的块（没打标签的菜单、相关推荐、页脚链接）。
 ///   软跳过的元素如果装着全页大部分文字，说明它其实是正文的外层容器，不跳过。
 pub(crate) struct Skipper {
@@ -248,7 +247,6 @@ impl Skipper {
             && vis.link_chars as f64 >= vis.chars as f64 * LINK_BLOCK_MIN_SHARE
             && (vis.link_chars as f64 / vis.links as f64) <= LINK_BLOCK_MAX_AVG_CHARS;
         let soft = link_block
-            || name == "form"
             || (name == "header" && node.descendants().any(|d| tag(&d) == Some("nav")))
             || el.attr("role").is_some_and(|r| SKIP_ROLES.contains(&r))
             || {
