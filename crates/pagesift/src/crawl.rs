@@ -41,6 +41,11 @@ pub fn normalize(url: &Url, ignore_query: bool) -> String {
     u.to_string()
 }
 
+/// 去重用的键：在 [`normalize`] 的基础上把 `www.` 视为同一主机，避免同一页面因写法不同被抓两次。
+fn dedup_key(url: &Url, ignore_query: bool) -> String {
+    normalize(url, ignore_query).replacen("://www.", "://", 1)
+}
+
 /// 爬取范围：哪些发现的 URL 可以进入队列。
 pub(crate) struct Scope {
     host: String,
@@ -213,9 +218,8 @@ impl Scraper {
         let mut links: Vec<String> = Vec::new();
         for u in std::iter::once(start.clone()).chain(found) {
             if scope.allows(&u) {
-                let key = normalize(&u, req.ignore_query_parameters);
-                if seen.insert(key.clone()) {
-                    links.push(key);
+                if seen.insert(dedup_key(&u, req.ignore_query_parameters)) {
+                    links.push(normalize(&u, req.ignore_query_parameters));
                 }
             }
         }
@@ -263,14 +267,14 @@ impl Scraper {
 
         let mut seen: HashSet<String> = HashSet::new();
         let mut queue: VecDeque<(Url, usize)> = VecDeque::new();
-        seen.insert(normalize(&start, req.ignore_query_parameters));
+        seen.insert(dedup_key(&start, req.ignore_query_parameters));
         queue.push_back((start.clone(), 0));
         if req.sitemap != "skip" {
             for u in self
                 .sitemap_urls(&start, mode, req.limit.saturating_mul(2))
                 .await
             {
-                if scope.allows(&u) && seen.insert(normalize(&u, req.ignore_query_parameters)) {
+                if scope.allows(&u) && seen.insert(dedup_key(&u, req.ignore_query_parameters)) {
                     queue.push_back((u, 0));
                 }
             }
@@ -325,7 +329,7 @@ impl Scraper {
                         for link in doc.links.iter().flatten() {
                             let Ok(u) = base.join(link) else { continue };
                             if scope.allows(&u)
-                                && seen.insert(normalize(&u, req.ignore_query_parameters))
+                                && seen.insert(dedup_key(&u, req.ignore_query_parameters))
                             {
                                 queue.push_back((u, depth + 1));
                             }
@@ -440,6 +444,18 @@ mod tests {
         assert_eq!(
             normalize(&u("https://example.com/b?z=1"), true),
             "https://example.com/b"
+        );
+    }
+
+    #[test]
+    fn www_variants_dedup_to_one_key() {
+        assert_eq!(
+            dedup_key(&u("https://www.example.com/a"), false),
+            dedup_key(&u("https://example.com/a"), false)
+        );
+        assert_ne!(
+            dedup_key(&u("https://wwwexample.com/a"), false),
+            dedup_key(&u("https://example.com/a"), false)
         );
     }
 
