@@ -66,7 +66,11 @@ impl RateLimiter {
         let (slots, gate) = self.host(host);
         let host_permit = slots.acquire_owned().await.expect("semaphore never closed");
         let mut last = gate.lock().await;
-        if let Some(prev) = *last {
+        // 截止时间已过就直接放行：进定时器至少要等到下一个 1 ms 刻度，
+        // 同一主机的请求排在这道门后面，会被串成每毫秒一个
+        if let Some(prev) = *last
+            && prev + interval > Instant::now()
+        {
             tokio::time::sleep_until(prev + interval).await;
         }
         let global = self

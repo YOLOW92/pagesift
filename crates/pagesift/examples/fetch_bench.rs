@@ -63,14 +63,22 @@ fn main() {
         let opts: ScrapeOptions =
             serde_json::from_value(serde_json::json!({ "engine": "http" })).unwrap();
         let errors = AtomicUsize::new(0);
+        let stages = std::sync::Mutex::new(std::collections::BTreeMap::<String, f64>::new());
         let bytes = AtomicUsize::new(0);
         let t = Instant::now();
         futures_util::stream::iter(0..requests)
             .for_each_concurrent(concurrency, |i| {
-                let (scraper, opts, base, errors, bytes) = (&scraper, &opts, &base, &errors, &bytes);
+                let (scraper, opts, base, errors, bytes, stages) =
+                    (&scraper, &opts, &base, &errors, &bytes, &stages);
                 async move {
                     match scraper.scrape(&format!("{base}/p/{i}"), opts).await {
                         Ok(d) => {
+                            if let Some(p) = &d.metadata.pagesift {
+                                let mut st = stages.lock().unwrap();
+                                for (k, v) in &p.timings {
+                                    *st.entry(k.clone()).or_default() += v;
+                                }
+                            }
                             bytes.fetch_add(d.markdown.map_or(0, |m| m.len()), Ordering::Relaxed);
                         }
                         Err(e) => {
@@ -89,5 +97,9 @@ fn main() {
             errors.load(Ordering::Relaxed),
             bytes.load(Ordering::Relaxed) as f64 / 1e6
         );
+        let ok = (requests - errors.load(Ordering::Relaxed)).max(1) as f64;
+        for (k, v) in stages.lock().unwrap().iter() {
+            println!("  {k:>8}: {:.2} ms mean", v / ok);
+        }
     });
 }
