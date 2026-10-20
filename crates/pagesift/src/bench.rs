@@ -68,6 +68,8 @@ pub struct Args {
     pub emit_inputs: Option<PathBuf>,
     /// 不跑 pagesift，改为给其他工具的输出打分（JSON lines：id、markdown、ms）。
     pub external: Option<PathBuf>,
+    /// 吞吐量测试的线程数；0 表示用上所有核。
+    pub jobs: usize,
 }
 
 #[derive(Deserialize)]
@@ -140,6 +142,7 @@ pub fn run(args: Args) -> Result<()> {
     let mut leak_sum = 0.0;
     let mut leak_pages = 0usize;
     let mut times: Vec<f64> = Vec::new();
+    let mut workload: Vec<(String, Options)> = Vec::new();
     let mut bytes_total = 0usize;
     let mut pdfs = 0usize;
 
@@ -253,6 +256,7 @@ pub fn run(args: Args) -> Result<()> {
                     best = best.min(t.elapsed().as_secs_f64() * 1000.0);
                     markdown = doc.markdown;
                 }
+                workload.push((html.clone(), opts.clone()));
             }
             times.push(best);
             result.process_ms = (best * 1000.0).round() / 1000.0;
@@ -355,7 +359,46 @@ pub fn run(args: Args) -> Result<()> {
         times.last().copied().unwrap_or(0.0),
         times.iter().sum::<f64>()
     );
+    // 大页面先处理，避免最后剩一个大页面拖长墙钟时间
+    workload.sort_by_key(|(html, _)| std::cmp::Reverse(html.len()));
+    if !workload.is_empty() {
+        let threads = if args.jobs == 0 {
+            std::thread::available_parallelism().map_or(1, usize::from)
+        } else {
+            args.jobs
+        };
+        let wall = (0..2)
+            .map(|_| throughput(&workload, threads))
+            .fold(f64::MAX, f64::min);
+        println!(
+            "  throughput: {threads} threads, {:.0} pages/s ({} pages in {:.0} ms wall)",
+            workload.len() as f64 / (wall / 1000.0),
+            workload.len(),
+            wall
+        );
+    }
     Ok(())
+}
+
+/// 多线程处理全部页面，返回墙钟耗时（毫秒）。
+fn throughput(workload: &[(String, Options)], threads: usize) -> f64 {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let next = AtomicUsize::new(0);
+    let start = Instant::now();
+    std::thread::scope(|scope| {
+        for _ in 0..threads {
+            scope.spawn(|| {
+                loop {
+                    let i = next.fetch_add(1, Ordering::Relaxed);
+                    let Some((html, opts)) = workload.get(i) else {
+                        break;
+                    };
+                    std::hint::black_box(process(html, opts));
+                }
+            });
+        }
+    });
+    start.elapsed().as_secs_f64() * 1000.0
 }
 
 /// 为 `bench --auto` 准备渲染快照：HTTP 快照上正文少于 [`AUTO_RENDER_MIN_CHARS`] 的页面，

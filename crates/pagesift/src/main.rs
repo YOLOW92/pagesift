@@ -70,6 +70,9 @@ enum Command {
         /// Score another tool's output (JSON lines with id, markdown, ms) instead of pagesift
         #[arg(long)]
         external: Option<PathBuf>,
+        /// Threads for the throughput run; 0 uses every core
+        #[arg(long, default_value_t = 0)]
+        jobs: usize,
     },
     /// Render thin snapshots with a browser for `bench --auto`
     #[command(hide = true)]
@@ -123,6 +126,7 @@ fn run(command: Command) -> Result<ExitCode> {
             auto,
             emit_inputs,
             external,
+            jobs,
         } => {
             bench::run(bench::Args {
                 dir,
@@ -132,6 +136,7 @@ fn run(command: Command) -> Result<ExitCode> {
                 auto,
                 emit_inputs,
                 external,
+                jobs,
             })?;
             Ok(ExitCode::SUCCESS)
         }
