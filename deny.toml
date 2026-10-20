@@ -18,14 +18,6 @@ allow = [
     "Unlicense",
     "CC0-1.0",
 ]
-exceptions = [
-    # Servo 的 CSS 选择器实现（scraper 依赖）。MPL-2.0 是文件级 copyleft，
-    # 不修改这些 crate 的源码就没有额外义务。
-    { allow = ["MPL-2.0"], crate = "selectors" },
-    { allow = ["MPL-2.0"], crate = "cssparser" },
-    { allow = ["MPL-2.0"], crate = "cssparser-macros" },
-    { allow = ["MPL-2.0"], crate = "dtoa-short" },
-]
 
 [bans]
 multiple-versions = "allow"

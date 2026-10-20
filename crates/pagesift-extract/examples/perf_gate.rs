@@ -11,7 +11,7 @@ use pagesift_extract::{
     Bm25Options, BuiltinPattern, ChunkStrategy, JsonCssExtractor, JsonXPathExtractor,
     RegexExtractor, Schema, bm25_filter, chunk,
 };
-use scraper::Html;
+use pagesift_html::Html;
 
 const RUNS: usize = 30;
 const LIMIT: Duration = Duration::from_millis(5);
@@ -103,7 +103,7 @@ fn main() -> ExitCode {
     let css = JsonCssExtractor::new(&css_schema).expect("valid css");
     let xpath = JsonXPathExtractor::new(&xpath_schema).expect("valid xpath");
     let regex = RegexExtractor::new::<&str, &str>(BuiltinPattern::ALL, &[]).expect("valid regex");
-    let doc = Html::parse_document(&html);
+    let doc = Html::parse(&html);
     let items = css.extract_document(&doc).len();
     assert_eq!(
         items,
@@ -158,9 +158,9 @@ fn main() -> ExitCode {
         println!("{name:<28} {:>8.3} ms  {gate}", d.as_secs_f64() * 1e3);
     };
     report(
-        "html parse (scraper)",
+        "html parse (pagesift-html)",
         false,
-        median(|| drop(black_box(Html::parse_document(&html)))),
+        median(|| drop(black_box(Html::parse(&html)))),
     );
     report(
         "css extract",

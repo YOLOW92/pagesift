@@ -9,6 +9,3 @@ rust-version.workspace = true
 
 [dependencies]
 memchr = "2.8.3"
-
-[dev-dependencies]
-scraper = "0.27.0"
