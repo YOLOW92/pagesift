@@ -92,6 +92,7 @@ pub fn run(args: Args) -> Result<()> {
     let mut leak_pages = 0usize;
     let mut times: Vec<f64> = Vec::new();
     let mut bytes_total = 0usize;
+    let mut pdfs = 0usize;
 
     for row in rows.iter().take(args.limit.unwrap_or(usize::MAX)) {
         let truth = phrases(&row.truth_text, TRUTH_MIN_CHARS);
@@ -123,6 +124,16 @@ pub fn run(args: Args) -> Result<()> {
         if error.is_none()
             && let Ok(bytes) = std::fs::read(&snapshot)
         {
+            if is_pdf(&bytes, meta.and_then(|m| m.content_type.as_deref())) {
+                // PDF 走 pagesift-pdf，不算进 HTML 提取的评测
+                pdfs += 1;
+                result.error = Some("pdf");
+                if let Some(w) = out.as_mut() {
+                    serde_json::to_writer(&mut *w, &result)?;
+                    w.write_all(b"\n")?;
+                }
+                continue;
+            }
             fetched += 1;
             result.snapshot = true;
             bytes_total += bytes.len();
@@ -203,7 +214,9 @@ pub fn run(args: Args) -> Result<()> {
             .unwrap_or(0.0)
     };
 
-    println!("pages with truth phrases: {labeled}, with snapshot: {fetched}");
+    println!(
+        "pages with truth phrases: {labeled}, with HTML snapshot: {fetched}, PDF (not evaluated): {pdfs}"
+    );
     println!();
     println!("crw metric (truth phrase hit >= 30%)");
     println!(
@@ -236,6 +249,11 @@ pub fn run(args: Args) -> Result<()> {
         times.iter().sum::<f64>()
     );
     Ok(())
+}
+
+fn is_pdf(bytes: &[u8], content_type: Option<&str>) -> bool {
+    bytes.starts_with(b"%PDF-")
+        || content_type.is_some_and(|c| c.to_ascii_lowercase().contains("application/pdf"))
 }
 
 fn read_rows(path: &Path) -> Result<Vec<Row>> {

@@ -131,18 +131,6 @@ impl Renderer<'_> {
         out
     }
 
-    /// 标题元素的单行文本，用于把正文外的文章标题补回来。
-    pub(crate) fn heading_text(&self, node: NodeR<'_>) -> String {
-        single_line(&self.inline_children(node))
-    }
-
-    /// 节点自身或任一祖先会被跳过。
-    pub(crate) fn skipped(&self, node: &NodeR<'_>) -> bool {
-        std::iter::once(*node)
-            .chain(node.ancestors())
-            .any(|n| n.value().is_element() && self.skipper.skip(&n))
-    }
-
     fn skip(&self, node: &NodeR<'_>) -> bool {
         node.value().is_element() && self.skipper.skip(node) || node.value().is_comment()
     }

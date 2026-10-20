@@ -158,7 +158,7 @@ fn images_links_and_base_href() {
     let html = r##"<html><head><base href="https://cdn.example.org/blog/"></head><body><article>
     <p>An illustrated paragraph that is long enough to be selected as the main content block.</p>
     <p><img src="img/a b.png" alt="A [diagram]"> <img src="data:image/png;base64,AAAA" alt="inline"></p>
-    <p><a href="javascript:void(0)">fake</a> <a href="#top">anchor</a> <a href="post(1)">paren</a></p>
+    <p>Links in running text: a <a href="javascript:void(0)">fake</a> one, an <a href="#top">anchor</a>, and a real <a href="post(1)">paren</a> link to another article on this site.</p>
     </article></body></html>"##;
     let doc = process(html, &opts("https://example.com/page"));
     let m = doc.markdown;
@@ -168,7 +168,7 @@ fn images_links_and_base_href() {
     );
     assert!(!m.contains("data:image"));
     assert!(
-        m.contains("fake anchor [paren](https://cdn.example.org/blog/post%281%29)"),
+        m.contains("a fake one, an anchor, and a real [paren](https://cdn.example.org/blog/post%281%29) link"),
         "{m}"
     );
 }

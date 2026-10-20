@@ -45,71 +45,17 @@ pub fn process(html: &str, opts: &Options) -> Document {
     let dom = Html::parse_document(html);
     let base = effective_base(&dom, opts.base_url.as_ref());
     let skipper = extract::Skipper::new(&dom, opts.only_main_content);
-    let root_ids = if opts.only_main_content {
-        extract::main_roots(&dom, &skipper)
-    } else {
-        vec![body_or_root(&dom)]
-    };
-    let roots: Vec<_> = root_ids
-        .iter()
-        .map(|id| dom.tree.get(*id).expect("root node exists"))
-        .collect();
+    // 只取正文靠跳过规则去掉页面框架（导航、页眉页脚、侧边栏、链接密集块），其余整页保留。
+    // 评测集上这比 Readability 式的"挑一个正文节点"更好：首页、产品页、落地页没有单一的文章节点，
+    // 文章页的"文章信号"（og:type、单个 <article>）也不可靠。
+    let body = dom.tree.get(body_or_root(&dom)).expect("body node exists");
     let renderer = markdown::Renderer {
         base: base.as_ref(),
         skipper: &skipper,
     };
     let metadata = metadata::extract(&dom, base.as_ref());
-    let mut markdown = renderer.render(&roots);
-    if opts.only_main_content
-        && let Some(title) = outside_title(&dom, &roots, &metadata, &renderer)
-    {
-        markdown = if markdown.is_empty() {
-            format!("# {title}\n")
-        } else {
-            format!("# {title}\n\n{markdown}")
-        };
-    }
+    let markdown = renderer.render(&[body]);
     Document { markdown, metadata }
-}
-
-/// 很多站点把文章标题放在正文容器外面（和正文是兄弟节点）。
-/// 正文里没有和 `<title>` 对得上的 h1/h2、而正文前面有时，把它补到开头。
-fn outside_title(
-    dom: &Html,
-    roots: &[ego_tree::NodeRef<'_, scraper::Node>],
-    metadata: &Metadata,
-    renderer: &markdown::Renderer<'_>,
-) -> Option<String> {
-    let is_heading = |n: &ego_tree::NodeRef<'_, scraper::Node>| {
-        n.value()
-            .as_element()
-            .is_some_and(|e| matches!(e.name(), "h1" | "h2"))
-    };
-    let page_title = metadata.title.as_deref()?.to_lowercase();
-    let matches_title = |n: ego_tree::NodeRef<'_, scraper::Node>| {
-        let text = renderer.heading_text(n);
-        (text.chars().count() >= 4 && page_title.contains(&text.to_lowercase())).then_some(text)
-    };
-    if roots
-        .iter()
-        .flat_map(|r| r.descendants())
-        .any(|n| is_heading(&n) && matches_title(n).is_some())
-    {
-        return None;
-    }
-    let first = roots.first()?.id();
-    for node in dom.tree.root().descendants() {
-        if node.id() == first {
-            break;
-        }
-        if !is_heading(&node) || renderer.skipped(&node) {
-            continue;
-        }
-        if let Some(text) = matches_title(node) {
-            return Some(text);
-        }
-    }
-    None
 }
 
 fn body_or_root(dom: &Html) -> ego_tree::NodeId {
