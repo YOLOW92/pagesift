@@ -12,7 +12,9 @@
 
 #![forbid(unsafe_code)]
 
+mod crawl;
 mod engine;
 
+pub use crawl::normalize as normalize_url;
 pub use engine::{AUTO_RENDER_MIN_CHARS, Scraper, ScraperConfig};
 pub use pagesift_api as api;

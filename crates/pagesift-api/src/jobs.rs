@@ -7,8 +7,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use tokio::sync::{Mutex, Semaphore};
 
-use crate::engine::Engine;
-use crate::types::{Document, JobError, ScrapeOptions};
+use crate::engine::{BoxFuture, CrawlSink, Engine};
+use crate::error::ApiError;
+use crate::types::{CrawlRequest, Document, JobError, ScrapeOptions};
 
 /// Firecrawl 的任务结果保留 24 小时。
 pub const JOB_TTL: Duration = Duration::from_secs(24 * 3600);
@@ -18,6 +19,7 @@ pub enum JobState {
     Scraping,
     Completed,
     Cancelled,
+    Failed,
 }
 
 impl JobState {
@@ -26,6 +28,7 @@ impl JobState {
             JobState::Scraping => "scraping",
             JobState::Completed => "completed",
             JobState::Cancelled => "cancelled",
+            JobState::Failed => "failed",
         }
     }
 }
@@ -133,18 +136,7 @@ impl Jobs {
                     job.completed += 1;
                     match result {
                         Ok(doc) => job.data.push(doc),
-                        Err(e) => {
-                            if e.code == crate::error::ErrorCode::RobotsDisallowed {
-                                job.robots_blocked.push(url.clone());
-                            }
-                            job.errors.push(JobError {
-                                id: uuid::Uuid::new_v4().to_string(),
-                                timestamp: rfc3339(SystemTime::now()),
-                                url,
-                                code: e.code.as_str().to_string(),
-                                error: e.message,
-                            });
-                        }
+                        Err(e) => record_error(job, url, &e),
                     }
                 });
             }
@@ -158,12 +150,107 @@ impl Jobs {
         id
     }
 
+    /// 启动整站爬取，立即返回任务 id。
+    pub async fn start_crawl(&self, engine: Arc<dyn Engine>, req: CrawlRequest) -> String {
+        let id = uuid::Uuid::new_v4().to_string();
+        self.inner.lock().await.insert(
+            id.clone(),
+            Job {
+                state: JobState::Scraping,
+                total: 0,
+                completed: 0,
+                data: Vec::new(),
+                errors: Vec::new(),
+                robots_blocked: Vec::new(),
+                created: SystemTime::now(),
+            },
+        );
+        let sink = Arc::new(JobSink {
+            jobs: self.clone(),
+            id: id.clone(),
+        });
+        let jobs = self.clone();
+        let job_id = id.clone();
+        tokio::spawn(async move {
+            let result = engine.crawl(&req, sink).await;
+            let mut map = jobs.inner.lock().await;
+            if let Some(job) = map.get_mut(&job_id)
+                && job.state == JobState::Scraping
+            {
+                match result {
+                    Ok(()) => job.state = JobState::Completed,
+                    Err(e) => {
+                        job.state = JobState::Failed;
+                        job.errors.push(job_error(req.url.clone(), &e));
+                    }
+                }
+            }
+        });
+        id
+    }
+
     async fn is_cancelled(&self, id: &str) -> bool {
         self.inner
             .lock()
             .await
             .get(id)
             .is_none_or(|j| j.state == JobState::Cancelled)
+    }
+}
+
+fn job_error(url: String, e: &ApiError) -> JobError {
+    JobError {
+        id: uuid::Uuid::new_v4().to_string(),
+        timestamp: rfc3339(SystemTime::now()),
+        url,
+        code: e.code.as_str().to_string(),
+        error: e.message.clone(),
+    }
+}
+
+fn record_error(job: &mut Job, url: String, e: &ApiError) {
+    if e.code == crate::error::ErrorCode::RobotsDisallowed {
+        job.robots_blocked.push(url.clone());
+    }
+    job.errors.push(job_error(url, e));
+}
+
+struct JobSink {
+    jobs: Jobs,
+    id: String,
+}
+
+impl CrawlSink for JobSink {
+    fn page(&self, doc: Document) -> BoxFuture<'_, ()> {
+        Box::pin(async move {
+            if let Some(job) = self.jobs.inner.lock().await.get_mut(&self.id) {
+                job.completed += 1;
+                job.data.push(doc);
+                job.total = job.total.max(job.completed);
+            }
+        })
+    }
+
+    fn error<'a>(&'a self, url: &'a str, err: ApiError) -> BoxFuture<'a, ()> {
+        Box::pin(async move {
+            if let Some(job) = self.jobs.inner.lock().await.get_mut(&self.id) {
+                job.completed += 1;
+                job.total = job.total.max(job.completed);
+                record_error(job, url.to_string(), &err);
+            }
+        })
+    }
+
+    fn total(&self, total: usize) -> BoxFuture<'_, ()> {
+        Box::pin(async move {
+            if let Some(job) = self.jobs.inner.lock().await.get_mut(&self.id) {
+                job.total = total.max(job.completed);
+            }
+        })
+    }
+
+    fn cancelled(&self) -> BoxFuture<'_, bool> {
+        Box::pin(self.jobs.is_cancelled(&self.id))
     }
 }
 

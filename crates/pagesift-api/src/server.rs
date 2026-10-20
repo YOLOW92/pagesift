@@ -287,14 +287,37 @@ async fn map(
 }
 
 async fn crawl_start(
-    State(_s): State<AppState>,
+    State(s): State<AppState>,
+    headers: HeaderMap,
     req: Result<Json<CrawlRequest>, JsonRejection>,
 ) -> Result<Json<JobStarted>, ApiError> {
     let req = body(req)?;
     check_url(&req.url)?;
-    Err(ApiError::unsupported(
-        "crawl is not available in this build yet",
-    ))
+    check_scrape_options(&req.scrape_options, s.engine.as_ref())?;
+    if req.webhook.is_some() {
+        return Err(ApiError::unsupported(
+            "webhooks are not available in this build",
+        ));
+    }
+    for pattern in req.include_paths.iter().chain(&req.exclude_paths) {
+        regex_check(pattern)?;
+    }
+    let id = s.jobs.start_crawl(s.engine.clone(), req).await;
+    Ok(Json(JobStarted {
+        success: true,
+        url: format!("{}/v2/crawl/{id}", base_url(&s, &headers)),
+        id,
+        invalid_urls: None,
+    }))
+}
+
+/// includePaths 和 excludePaths 是正则；写错时在启动任务前就报错。
+fn regex_check(pattern: &str) -> Result<(), ApiError> {
+    regex::RegexBuilder::new(pattern)
+        .size_limit(1 << 20)
+        .build()
+        .map(|_| ())
+        .map_err(|e| ApiError::invalid(format!("invalid path pattern {pattern:?}: {e}")))
 }
 
 async fn metrics(State(s): State<AppState>) -> impl IntoResponse {

@@ -11,6 +11,6 @@ mod server;
 pub mod types;
 mod validate;
 
-pub use engine::{BoxFuture, Engine};
+pub use engine::{BoxFuture, CrawlSink, Engine};
 pub use error::{ApiError, ErrorCode};
 pub use server::{Config, router};

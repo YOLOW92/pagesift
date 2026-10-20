@@ -72,11 +72,25 @@ impl Scraper {
     }
 
     pub async fn scrape(&self, url: &str, opts: &ScrapeOptions) -> Result<Document, ApiError> {
-        let started = Instant::now();
         let mode = self
             .policy
             .robots_mode(RequestKind::Scrape, opts.ignore_robots_txt)
             .map_err(policy_error)?;
+        self.scrape_with(url, opts, mode).await
+    }
+
+    pub(crate) fn policy(&self) -> &Policy {
+        &self.policy
+    }
+
+    /// 按给定的 robots 模式抓一页；整站爬取和 map 用它，robots 模式由调用方按请求类型决定。
+    pub(crate) async fn scrape_with(
+        &self,
+        url: &str,
+        opts: &ScrapeOptions,
+        mode: RobotsMode,
+    ) -> Result<Document, ApiError> {
+        let started = Instant::now();
         let choice = match opts.engine.as_deref() {
             Some("http") => EngineChoice::Http,
             Some("browser") => EngineChoice::Browser,
@@ -271,6 +285,21 @@ impl Engine for Scraper {
         Box::pin(Scraper::scrape(self, url, opts))
     }
 
+    fn map<'a>(
+        &'a self,
+        req: &'a pagesift_api::types::MapRequest,
+    ) -> BoxFuture<'a, Result<Vec<pagesift_api::types::MapLink>, ApiError>> {
+        Box::pin(Scraper::map(self, req))
+    }
+
+    fn crawl<'a>(
+        &'a self,
+        req: &'a pagesift_api::types::CrawlRequest,
+        sink: Arc<dyn pagesift_api::CrawlSink>,
+    ) -> BoxFuture<'a, Result<(), ApiError>> {
+        Box::pin(Scraper::crawl(self, req, sink))
+    }
+
     fn supported_formats(&self) -> &'static [&'static str] {
         &["markdown", "html", "rawHtml", "links", "images"]
     }
@@ -413,7 +442,7 @@ fn is_pdf(body: &[u8], content_type: Option<&str>) -> bool {
         || content_type.is_some_and(|c| c.to_ascii_lowercase().contains("application/pdf"))
 }
 
-fn policy_error(e: pagesift_policy::Error) -> ApiError {
+pub(crate) fn policy_error(e: pagesift_policy::Error) -> ApiError {
     use pagesift_policy::ErrorCode as P;
     let code = match e.code() {
         P::RobotsDisallowed => ErrorCode::RobotsDisallowed,

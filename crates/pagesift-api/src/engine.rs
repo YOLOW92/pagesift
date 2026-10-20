@@ -2,9 +2,10 @@
 
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 
 use crate::error::ApiError;
-use crate::types::{Document, MapLink, MapRequest, ScrapeOptions};
+use crate::types::{CrawlRequest, Document, MapLink, MapRequest, ScrapeOptions};
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
@@ -19,6 +20,19 @@ pub trait Engine: Send + Sync + 'static {
         Box::pin(async { Err(ApiError::unsupported("map is not available in this build")) })
     }
 
+    /// 整站爬取：抓到一页、出错一页、发现新 URL 时都通过 `sink` 回报，直到爬完或被取消。
+    fn crawl<'a>(
+        &'a self,
+        _req: &'a CrawlRequest,
+        _sink: Arc<dyn CrawlSink>,
+    ) -> BoxFuture<'a, Result<(), ApiError>> {
+        Box::pin(async {
+            Err(ApiError::unsupported(
+                "crawl is not available in this build",
+            ))
+        })
+    }
+
     /// 引擎支持的 `formats`；请求了不支持的格式时返回 UNSUPPORTED_OPTION，不悄悄忽略。
     fn supported_formats(&self) -> &'static [&'static str] {
         &["markdown", "html", "rawHtml", "links", "images"]
@@ -28,4 +42,13 @@ pub trait Engine: Send + Sync + 'static {
     fn supports_actions(&self) -> bool {
         false
     }
+}
+
+/// 整站爬取的进度回报，由 API 层的任务管理实现。
+pub trait CrawlSink: Send + Sync {
+    fn page(&self, doc: Document) -> BoxFuture<'_, ()>;
+    fn error<'a>(&'a self, url: &'a str, err: ApiError) -> BoxFuture<'a, ()>;
+    /// 已经确定要抓的页面总数（随着发现新链接增长）。
+    fn total(&self, total: usize) -> BoxFuture<'_, ()>;
+    fn cancelled(&self) -> BoxFuture<'_, bool>;
 }
