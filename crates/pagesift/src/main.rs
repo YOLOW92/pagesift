@@ -169,6 +169,7 @@ enum Command {
 }
 
 fn main() -> ExitCode {
+    pagesift_sys::tune_allocator();
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_env("PAGESIFT_LOG"))
         .with_writer(std::io::stderr)

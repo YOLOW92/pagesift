@@ -290,7 +290,7 @@ impl Scraper {
                 .await;
         }
 
-        let resp = self
+        let mut resp = self
             .policy
             .fetch(fetch_request(url, opts)?, mode)
             .await
@@ -331,9 +331,8 @@ impl Scraper {
         if is_pdf(&resp.body, resp.content_type()) {
             let t = Instant::now();
             let body = resp.body;
-            let pdf = tokio::task::spawn_blocking(move || pagesift_pdf::extract(&body))
-                .await
-                .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?
+            let pdf = cpu_task(move || pagesift_pdf::extract(&body))
+                .await?
                 .map_err(|e| {
                     ApiError::new(ErrorCode::UpstreamError, format!("could not read PDF: {e}"))
                 })?;
@@ -358,7 +357,7 @@ impl Scraper {
             ));
         }
 
-        let html = resp.text().text;
+        let html = resp.take_text().text;
         let t = Instant::now();
         let (doc, html) = process_html(html, &resp.final_url, Some(resp.status), opts).await?;
         timings.insert("extract".into(), ms(t.elapsed()));
@@ -689,7 +688,21 @@ async fn process_html(
         fingerprints: true,
         ..Default::default()
     };
-    tokio::task::spawn_blocking(move || (pagesift_content::process(&html, &copts), html))
+    cpu_task(move || (pagesift_content::process(&html, &copts), html)).await
+}
+
+/// 同时进行的 CPU 密集任务（正文提取、PDF 解析）不超过核数。
+/// 不加限制时，每个并发请求都会占一个阻塞线程，几十个线程各自持有一块 malloc arena，
+/// 释放的内存分散在各处还不回系统，峰值内存成倍增加；超过核数的并发也换不来吞吐。
+static CPU_SLOTS: std::sync::LazyLock<tokio::sync::Semaphore> = std::sync::LazyLock::new(|| {
+    tokio::sync::Semaphore::new(std::thread::available_parallelism().map_or(4, |n| n.get()))
+});
+
+async fn cpu_task<T: Send + 'static>(
+    f: impl FnOnce() -> T + Send + 'static,
+) -> Result<T, ApiError> {
+    let _slot = CPU_SLOTS.acquire().await.expect("semaphore never closed");
+    tokio::task::spawn_blocking(f)
         .await
         .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))
 }

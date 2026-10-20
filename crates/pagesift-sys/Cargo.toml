@@ -1,0 +1,11 @@
+[package]
+description = "Process-level tuning for the pagesift binary (glibc allocator thresholds)."
+name = "pagesift-sys"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[target.'cfg(all(target_os = "linux", target_env = "gnu"))'.dependencies]
+libc = "0.2.191"

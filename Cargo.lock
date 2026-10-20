@@ -1488,6 +1488,7 @@ dependencies = [
  "pagesift-policy",
  "pagesift-search",
  "pagesift-store",
+ "pagesift-sys",
  "quick-xml",
  "regex",
  "serde",
@@ -1689,6 +1690,13 @@ dependencies = [
  "tempfile",
  "tokio",
  "zstd 0.13.3",
+]
+
+[[package]]
+name = "pagesift-sys"
+version = "0.0.1"
+dependencies = [
+ "libc",
 ]
 
 [[package]]

@@ -1,0 +1,16 @@
+# 整站爬取对决用的独立项目：本地多站点源站和对手爬虫的适配程序。
+# 不属于 pagesift workspace，也不随 pagesift 发布。
+[package]
+name = "pagesift-crawl-bench"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+axum = "0.8.9"
+tokio = { version = "1.54.0", features = ["rt-multi-thread", "macros", "net", "time"] }
+
+[profile.release]
+debug = "line-tables-only"

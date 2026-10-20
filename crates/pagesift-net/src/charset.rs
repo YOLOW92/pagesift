@@ -25,6 +25,28 @@ pub struct Decoded {
 const PRESCAN_BYTES: usize = 4096;
 
 /// 把响应体解码成 UTF-8。`tld` 是主机的顶级域（如 `b"jp"`），给启发式猜测做提示。
+/// 和 [`decode`] 一样，但接管字节：已经是合法 UTF-8 时直接变成 `String`，不复制。
+/// 页面通常有几百 KB 到几 MB，少一份拷贝，峰值内存就少一份页面大小。
+pub fn decode_owned(mut bytes: Vec<u8>, content_type: Option<&str>, tld: Option<&[u8]>) -> Decoded {
+    let (encoding, source, skip) = detect(&bytes, content_type, tld);
+    if encoding == UTF_8 && std::str::from_utf8(&bytes[skip..]).is_ok() {
+        bytes.drain(..skip);
+        return Decoded {
+            text: String::from_utf8(bytes).unwrap_or_default(),
+            encoding,
+            source,
+            had_errors: false,
+        };
+    }
+    let (text, had_errors) = encoding.decode_without_bom_handling(&bytes[skip..]);
+    Decoded {
+        text: text.into_owned(),
+        encoding,
+        source,
+        had_errors,
+    }
+}
+
 pub fn decode(bytes: &[u8], content_type: Option<&str>, tld: Option<&[u8]>) -> Decoded {
     let (encoding, source, skip) = detect(bytes, content_type, tld);
     let (text, had_errors) = encoding.decode_without_bom_handling(&bytes[skip..]);

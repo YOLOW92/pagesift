@@ -228,12 +228,21 @@ impl FetchResponse {
 
     /// 按 BOM > Content-Type > meta > 启发式 解码成 UTF-8。
     pub fn text(&self) -> Decoded {
-        let tld = self
-            .final_url
+        charset::decode(&self.body, self.content_type(), self.tld())
+    }
+
+    /// 解码并取走响应体（之后 `body` 为空）。合法 UTF-8 时不复制。
+    pub fn take_text(&mut self) -> Decoded {
+        let body = std::mem::take(&mut self.body);
+        let content_type = self.content_type().map(str::to_owned);
+        charset::decode_owned(body, content_type.as_deref(), self.tld())
+    }
+
+    fn tld(&self) -> Option<&[u8]> {
+        self.final_url
             .domain()
             .and_then(|d| d.trim_end_matches('.').rsplit('.').next())
-            .map(str::as_bytes);
-        charset::decode(&self.body, self.content_type(), tld)
+            .map(str::as_bytes)
     }
 }
 
@@ -523,7 +532,11 @@ async fn read_body(
     max: usize,
     deadline: Instant,
 ) -> Result<(Vec<u8>, bool)> {
-    let mut body = Vec::new();
+    // 有 Content-Length 就一次分配到位，免得边读边扩容（扩容会多占一倍并反复拷贝）
+    let hint = resp
+        .content_length()
+        .map_or(0, |n| n.min(max as u64) as usize);
+    let mut body = Vec::with_capacity(hint);
     loop {
         let chunk = match timeout_at(deadline, resp.chunk()).await {
             Err(_) => return Err(Error::Timeout(TimeoutPhase::Total)),
