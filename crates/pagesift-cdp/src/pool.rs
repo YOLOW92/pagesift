@@ -32,6 +32,8 @@ pub struct PoolConfig {
     /// 浏览器需要在 stdout/stderr 打印 `ws://` 开头的 DevTools 地址。
     pub args_override: Option<Vec<String>>,
     pub extra_args: Vec<String>,
+    /// 0 表示按可用内存和 CPU 核数自动决定（见 [`auto_browsers`]）。
+    /// 一个浏览器的吞吐受它的 UI 线程限制，几个标签页就能占满，要更高的并发得多开浏览器。
     pub max_browsers: usize,
     pub max_tabs_per_browser: usize,
     /// 每个浏览器处理这么多页面后回收；0 表示不回收。
@@ -42,6 +44,9 @@ pub struct PoolConfig {
     pub health_check_interval: Duration,
     pub launch_timeout: Duration,
     pub allow_execute_javascript: bool,
+    /// 开新标签页或启动浏览器前，系统至少要剩这么多可用内存（Linux 的 MemAvailable，MB），
+    /// 不够就等别的页面结束。池里没有页面在渲染时不检查，保证总能前进。0 表示不检查。
+    pub min_available_memory_mb: u64,
 }
 
 impl Default for PoolConfig {
@@ -50,13 +55,14 @@ impl Default for PoolConfig {
             source: BrowserSource::Auto,
             args_override: None,
             extra_args: Vec::new(),
-            max_browsers: 2,
+            max_browsers: 0,
             max_tabs_per_browser: 4,
             recycle_after_pages: 100,
             min_browsers: 0,
             health_check_interval: Duration::from_secs(30),
             launch_timeout: Duration::from_secs(20),
             allow_execute_javascript: false,
+            min_available_memory_mb: 1024,
         }
     }
 }
@@ -103,8 +109,42 @@ impl Slot {
 #[derive(Default)]
 struct PoolState {
     slots: Vec<Slot>,
+    /// 正在锁外启动的浏览器数。
+    launching: usize,
     next_id: u64,
     closed: bool,
+}
+
+/// 一个标签页和一个浏览器大概要多占多少内存（MB），按本机压测的 PSS 估的。
+const TAB_MEMORY_MB: u64 = 200;
+const BROWSER_MEMORY_MB: u64 = 300;
+/// 因为内存不够在等时，隔多久重新看一次（内存可能被别的进程释放，不一定有归还事件）。
+const MEMORY_RECHECK: Duration = Duration::from_millis(250);
+
+/// 自动的浏览器数：可用内存（扣掉 `reserve_mb`）够开几个满载的浏览器，最多每 4 个核一个
+/// （每个浏览器的 UI 线程、渲染进程和 GPU 进程大约要占满一个多核）。读不到内存时按核数算。
+pub fn auto_browsers(tabs_per_browser: usize, reserve_mb: u64) -> usize {
+    let cores = std::thread::available_parallelism().map_or(1, usize::from);
+    let by_cpu = (cores / 4).max(1);
+    let per_browser = BROWSER_MEMORY_MB + TAB_MEMORY_MB * tabs_per_browser as u64;
+    let by_memory = mem_available_mb().map_or(by_cpu, |avail| {
+        (avail.saturating_sub(reserve_mb) / per_browser) as usize
+    });
+    by_memory.clamp(1, by_cpu)
+}
+
+/// Linux 的 MemAvailable（MB）；读不到时返回 `None`，不做限制。
+fn mem_available_mb() -> Option<u64> {
+    let s = std::fs::read_to_string("/proc/meminfo").ok()?;
+    let kb: u64 = s
+        .lines()
+        .find_map(|l| l.strip_prefix("MemAvailable:"))?
+        .trim()
+        .trim_end_matches("kB")
+        .trim()
+        .parse()
+        .ok()?;
+    Some(kb / 1024)
 }
 
 enum Source {
@@ -130,10 +170,19 @@ pub struct BrowserPool {
 impl BrowserPool {
     /// 需要在 tokio 运行时里调用。不会立即启动浏览器，除非 `min_browsers > 0`。
     pub async fn new(cfg: PoolConfig, guard: Arc<dyn RequestGuard>) -> Result<BrowserPool> {
-        if cfg.max_browsers == 0 || cfg.max_tabs_per_browser == 0 {
+        if cfg.max_tabs_per_browser == 0 {
             return Err(Error::InvalidOptions(
-                "max_browsers and max_tabs_per_browser must be > 0".into(),
+                "max_tabs_per_browser must be > 0".into(),
             ));
+        }
+        let mut cfg = cfg;
+        if cfg.max_browsers == 0 {
+            cfg.max_browsers = match cfg.source {
+                // 远程端点的资源不归本机管，保持保守。
+                BrowserSource::Remote(_) => 2,
+                _ => auto_browsers(cfg.max_tabs_per_browser, cfg.min_available_memory_mb),
+            };
+            tracing::debug!(browsers = cfg.max_browsers, "browser pool size");
         }
         let source = match &cfg.source {
             BrowserSource::Remote(url) => Source::Remote(url.clone()),
@@ -189,10 +238,12 @@ impl BrowserPool {
             render_page(&l.conn, &mut l.res, &env, url, opts, &mut timings).await
         })
         .await;
+        let close_start = Instant::now();
         if let Some(l) = lease {
             l.finish().await;
         }
         let mut page = r.map_err(|_| Error::Timeout)??;
+        page.timings.close = close_start.elapsed();
         page.timings.total = start.elapsed();
         Ok(page)
     }
@@ -305,56 +356,62 @@ impl PoolInner {
         out
     }
 
+    /// 系统可用内存够不够再开 `need_mb`。
+    fn memory_allows(&self, need_mb: u64) -> bool {
+        let min = self.cfg.min_available_memory_mb;
+        min == 0 || mem_available_mb().is_none_or(|avail| avail >= min + need_mb)
+    }
+
+    fn lease(self: &Arc<Self>, s: &mut Slot) -> Lease {
+        let recycle = self.cfg.recycle_after_pages;
+        s.in_use += 1;
+        s.served += 1;
+        if recycle > 0 && s.served >= recycle {
+            s.retiring = true;
+        }
+        Lease {
+            pool: self.clone(),
+            slot_id: s.id,
+            conn: s.conn.clone(),
+            user_agent: s.user_agent.clone(),
+            res: PageResources::default(),
+            done: false,
+        }
+    }
+
     async fn acquire(self: Arc<Self>) -> Result<Lease> {
         loop {
             let notified = self.notify.notified();
             tokio::pin!(notified);
             notified.as_mut().enable();
+            let mut launch = None;
             let (lease, finished) = {
                 let mut st = self.state.lock().await;
                 if st.closed {
                     return Err(Error::PoolClosed);
                 }
                 let finished = Self::take_idle_finished(&mut st);
+                let idle = st.launching == 0 && st.slots.iter().all(|s| s.in_use == 0);
                 let max_tabs = self.cfg.max_tabs_per_browser;
-                let mut idx = st
+                let idx = st
                     .slots
                     .iter_mut()
                     .position(|s| !s.retiring && s.in_use < max_tabs && s.alive());
-                if idx.is_none() && st.slots.len() < self.cfg.max_browsers {
-                    st.next_id += 1;
-                    let id = st.next_id;
-                    match self.launch_slot(id).await {
-                        Ok(slot) => {
-                            st.slots.push(slot);
-                            idx = Some(st.slots.len() - 1);
-                        }
-                        Err(e) => {
-                            drop(st);
-                            for s in finished {
-                                s.shutdown().await;
-                            }
-                            return Err(e);
-                        }
+                let lease = match idx {
+                    Some(i) if idle || self.memory_allows(TAB_MEMORY_MB) => {
+                        Some(self.lease(&mut st.slots[i]))
                     }
-                }
-                let lease = idx.map(|i| {
-                    let recycle = self.cfg.recycle_after_pages;
-                    let s = &mut st.slots[i];
-                    s.in_use += 1;
-                    s.served += 1;
-                    if recycle > 0 && s.served >= recycle {
-                        s.retiring = true;
+                    None if st.slots.len() + st.launching < self.cfg.max_browsers
+                        && (idle || self.memory_allows(BROWSER_MEMORY_MB + TAB_MEMORY_MB)) =>
+                    {
+                        // 启动浏览器要几百毫秒，放到锁外，别的页面照常取用和归还标签页。
+                        st.launching += 1;
+                        st.next_id += 1;
+                        launch = Some(st.next_id);
+                        None
                     }
-                    Lease {
-                        pool: self.clone(),
-                        slot_id: s.id,
-                        conn: s.conn.clone(),
-                        user_agent: s.user_agent.clone(),
-                        res: PageResources::default(),
-                        done: false,
-                    }
-                });
+                    _ => None,
+                };
                 (lease, finished)
             };
             for s in finished {
@@ -363,7 +420,32 @@ impl PoolInner {
             if let Some(l) = lease {
                 return Ok(l);
             }
-            notified.await;
+            if let Some(id) = launch {
+                let r = self.launch_slot(id).await;
+                let mut st = self.state.lock().await;
+                st.launching -= 1;
+                let r = match r {
+                    Ok(slot) if st.closed => {
+                        drop(st);
+                        slot.shutdown().await;
+                        Err(Error::PoolClosed)
+                    }
+                    Ok(slot) => {
+                        st.slots.push(slot);
+                        let l = self.lease(st.slots.last_mut().unwrap());
+                        drop(st);
+                        Ok(l)
+                    }
+                    Err(e) => {
+                        drop(st);
+                        Err(e)
+                    }
+                };
+                // 新浏览器还有空余标签页，或者启动失败让出了名额：叫醒排队的请求。
+                self.notify.notify_waiters();
+                return r;
+            }
+            let _ = tokio::time::timeout(MEMORY_RECHECK, notified).await;
         }
     }
 
@@ -407,7 +489,9 @@ impl PoolInner {
                 s.dead = true;
             }
             let finished = Self::take_idle_finished(&mut st);
-            while !st.closed && st.slots.len() < self.cfg.min_browsers.min(self.cfg.max_browsers) {
+            while !st.closed
+                && st.slots.len() + st.launching < self.cfg.min_browsers.min(self.cfg.max_browsers)
+            {
                 st.next_id += 1;
                 let id = st.next_id;
                 match self.launch_slot(id).await {

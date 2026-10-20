@@ -99,6 +99,8 @@ pub struct Browser {
     pub remote: Option<String>,
     pub max_browsers: Option<usize>,
     pub max_tabs_per_browser: Option<usize>,
+    /// 开新标签页前系统至少要剩多少可用内存（MB），0 表示不检查。
+    pub min_available_memory_mb: Option<u64>,
     #[serde(default)]
     pub allow_execute_javascript: bool,
 }
@@ -254,6 +256,9 @@ impl Config {
         }
         if let Some(n) = b.max_tabs_per_browser {
             c.browser.max_tabs_per_browser = n;
+        }
+        if let Some(n) = b.min_available_memory_mb {
+            c.browser.min_available_memory_mb = n;
         }
         c.browser.allow_execute_javascript = b.allow_execute_javascript;
 
