@@ -199,7 +199,8 @@ fn pss_kb(pid: &str) -> Option<u64> {
 }
 
 /// 本进程的 RSS，以及所有子孙进程（Chrome）的 RSS 和 PSS 之和，单位 KB。
-fn sample_mem() -> Mem {
+/// 读 smaps_rollup 要遍历页表，比较贵，`with_pss` 为 false 时不读。
+fn sample_mem(with_pss: bool) -> Mem {
     let me = std::process::id().to_string();
     let mut parent: BTreeMap<String, String> = BTreeMap::new();
     if let Ok(dir) = std::fs::read_dir("/proc") {
@@ -236,7 +237,9 @@ fn sample_mem() -> Mem {
         if descendant {
             m.chrome_procs += 1;
             m.chrome_rss += status_kb(pid, "VmRSS:").unwrap_or(0);
-            m.chrome_pss += pss_kb(pid).unwrap_or(0);
+            if with_pss {
+                m.chrome_pss += pss_kb(pid).unwrap_or(0);
+            }
         }
     }
     m
@@ -345,8 +348,11 @@ fn main() {
     let sampler = {
         let (sampling, peak) = (sampling.clone(), peak.clone());
         std::thread::spawn(move || {
+            // RSS 每 200ms 采一次，PSS 每秒一次，采样本身别占太多 CPU。
+            let mut tick = 0u64;
             while sampling.load(Ordering::Relaxed) {
-                let m = sample_mem();
+                let m = sample_mem(tick.is_multiple_of(5));
+                tick += 1;
                 let mut p = peak.lock().unwrap();
                 p.self_rss = p.self_rss.max(m.self_rss);
                 p.chrome_rss = p.chrome_rss.max(m.chrome_rss);
@@ -423,7 +429,7 @@ fn main() {
     sampler.join().unwrap();
     drop(rt);
     let peak = *peak.lock().unwrap();
-    let leftover = sample_mem().chrome_procs;
+    let leftover = sample_mem(false).chrome_procs;
 
     let ok: Vec<&Outcome> = results.iter().filter(|r| r.markdown.is_some()).collect();
     let errors = results.len() - ok.len();

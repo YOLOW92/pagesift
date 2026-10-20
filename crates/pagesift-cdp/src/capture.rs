@@ -99,7 +99,7 @@ const SERIALIZE_JS: &str = r#"function (o) {
     if (d.doctype) out.push(new XMLSerializer().serializeToString(d.doctype) + '\n');
     if (d.documentElement) node(d.documentElement);
   }
-  return { html: out.join(''), frames };
+  return { html: out.join(''), frames, url: location.href };
 }"#;
 
 pub(crate) struct CaptureOptions<'a> {
@@ -114,6 +114,8 @@ pub(crate) struct CaptureOptions<'a> {
 #[derive(Debug, Default)]
 pub(crate) struct Captured {
     pub html: String,
+    /// 主框架的 `location.href`，和 HTML 一次取回，省一次往返。
+    pub url: String,
     pub inlined: usize,
     pub skipped: usize,
     pub iframe_time: Duration,
@@ -148,7 +150,7 @@ pub(crate) async fn capture_html(
         skipped: AtomicUsize::new(0),
     };
     let mut attempt = 0;
-    let (html, child_time) = loop {
+    let (html, url, child_time) = loop {
         match capture_frame(&ctx, page.clone(), main_frame.to_owned(), 0).await {
             // 页面刚跳转时执行上下文会失效，稍等再试。
             Err(Error::Protocol { ref message, .. })
@@ -168,19 +170,20 @@ pub(crate) async fn capture_html(
     };
     Ok(Captured {
         html,
+        url,
         inlined: ctx.inlined.into_inner(),
         skipped: ctx.skipped.into_inner(),
         iframe_time: child_time,
     })
 }
 
-/// 返回 frame 的 HTML（子 frame 只取 body 内容）和花在子 frame 上的时间。
+/// 返回 frame 的 HTML（子 frame 只取 body 内容）、它的 URL 和花在子 frame 上的时间。
 fn capture_frame<'a>(
     ctx: &'a Ctx<'a>,
     session: Session,
     frame_id: String,
     depth: usize,
-) -> crate::guard::BoxFuture<'a, Result<Option<(String, Duration)>>> {
+) -> crate::guard::BoxFuture<'a, Result<Option<(String, String, Duration)>>> {
     Box::pin(async move {
         let world = session
             .call(
@@ -256,8 +259,9 @@ fn capture_frame<'a>(
             return Ok(None);
         };
         let mut html = out["html"].as_str().unwrap_or_default().to_owned();
+        let url = out["url"].as_str().unwrap_or_default().to_owned();
         if inline.is_empty() {
-            return Ok(Some((html, child_time)));
+            return Ok(Some((html, url, child_time)));
         }
 
         let child_start = Instant::now();
@@ -281,7 +285,7 @@ fn capture_frame<'a>(
             let marker = format!("<!--{}:{i}-->", ctx.nonce);
             let info = &out["frames"][i.to_string()];
             let replacement = match child {
-                Some((body, _)) => format!(
+                Some((body, ..)) => format!(
                     "<div data-pagesift-iframe=\"{}\">{body}</div>",
                     escape_attr(info["src"].as_str().unwrap_or_default())
                 ),
@@ -293,7 +297,7 @@ fn capture_frame<'a>(
             };
             html = html.replacen(&marker, &replacement, 1);
         }
-        Ok(Some((html, child_time)))
+        Ok(Some((html, url, child_time)))
     })
 }
 

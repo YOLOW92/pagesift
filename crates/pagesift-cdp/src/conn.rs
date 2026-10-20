@@ -1,6 +1,6 @@
 //! CDP 协议层：命令 id 与响应的对应、事件分发、flatten 模式的 session。
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -24,10 +24,45 @@ pub struct Event {
 
 type Reply = Result<Value>;
 
+enum Filter {
+    All,
+    Session(String),
+    /// 一个 session 和它自动附加上来的子孙 session，附加、分离时在分发线程里增删，不会漏事件。
+    Tree(HashSet<String>),
+}
+
 struct Subscriber {
-    /// `None` 表示接收所有事件。
-    session_id: Option<String>,
+    filter: Filter,
     tx: mpsc::UnboundedSender<Event>,
+}
+
+impl Subscriber {
+    /// 这个事件要不要投给它；顺带维护 `Tree` 的成员。
+    fn accepts(&mut self, event: &Event) -> bool {
+        match &mut self.filter {
+            Filter::All => true,
+            Filter::Session(s) => event.session_id.as_deref() == Some(s.as_str()),
+            Filter::Tree(set) => {
+                let Some(sid) = event.session_id.as_deref() else {
+                    return false;
+                };
+                if !set.contains(sid) {
+                    return false;
+                }
+                let child = event.params.get("sessionId").and_then(Value::as_str);
+                match (event.method.as_str(), child) {
+                    ("Target.attachedToTarget", Some(c)) => {
+                        set.insert(c.to_owned());
+                    }
+                    ("Target.detachedFromTarget", Some(c)) => {
+                        set.remove(c);
+                    }
+                    _ => {}
+                }
+                true
+            }
+        }
+    }
 }
 
 #[derive(Default)]
@@ -134,13 +169,22 @@ impl Connection {
 
     /// 订阅事件。`session_id` 为 `None` 时接收这条连接上的全部事件。
     pub fn subscribe(&self, session_id: Option<&str>) -> EventStream {
+        self.add_subscriber(match session_id {
+            Some(s) => Filter::Session(s.to_owned()),
+            None => Filter::All,
+        })
+    }
+
+    /// 订阅一个 session 以及之后自动附加到它（和它的子孙）上的所有 session 的事件。
+    pub fn subscribe_tree(&self, session_id: &str) -> EventStream {
+        self.add_subscriber(Filter::Tree(HashSet::from([session_id.to_owned()])))
+    }
+
+    fn add_subscriber(&self, filter: Filter) -> EventStream {
         let (tx, rx) = mpsc::unbounded_channel();
         let mut st = self.inner.state.lock().unwrap();
         if !st.closed {
-            st.subscribers.push(Subscriber {
-                session_id: session_id.map(str::to_owned),
-                tx,
-            });
+            st.subscribers.push(Subscriber { filter, tx });
         }
         EventStream { rx }
     }
@@ -243,12 +287,20 @@ impl Inner {
             params: v.get_mut("params").map(Value::take).unwrap_or(Value::Null),
         };
         let mut st = self.state.lock().unwrap();
-        st.subscribers.retain(|s| {
-            if s.session_id.is_some() && s.session_id != event.session_id {
-                return !s.tx.is_closed();
+        st.subscribers.retain(|s| !s.tx.is_closed());
+        // 只投给匹配的订阅者；最后一个直接移交，不再复制。
+        let targets: Vec<usize> = st
+            .subscribers
+            .iter_mut()
+            .enumerate()
+            .filter_map(|(i, s)| s.accepts(&event).then_some(i))
+            .collect();
+        if let Some((&last, rest)) = targets.split_last() {
+            for &i in rest {
+                let _ = st.subscribers[i].tx.send(event.clone());
             }
-            s.tx.send(event.clone()).is_ok()
-        });
+            let _ = st.subscribers[last].tx.send(event);
+        }
     }
 
     fn close(&self) {
@@ -313,4 +365,51 @@ pub(crate) fn str_field(v: &Value, key: &str) -> Result<String> {
         .and_then(Value::as_str)
         .map(str::to_owned)
         .ok_or_else(|| Error::UnexpectedResponse(format!("missing `{key}`")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ev(method: &str, sid: Option<&str>, params: Value) -> Event {
+        Event {
+            method: method.into(),
+            params,
+            session_id: sid.map(str::to_owned),
+        }
+    }
+
+    #[test]
+    fn tree_filter_follows_attached_sessions() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut sub = Subscriber {
+            filter: Filter::Tree(HashSet::from(["page".to_owned()])),
+            tx,
+        };
+        assert!(sub.accepts(&ev("Page.loadEventFired", Some("page"), json!({}))));
+        assert!(!sub.accepts(&ev("Page.loadEventFired", Some("other"), json!({}))));
+        assert!(!sub.accepts(&ev("Target.targetCreated", None, json!({}))));
+        // 别的页面附加的子 session 不算进来。
+        assert!(!sub.accepts(&ev(
+            "Target.attachedToTarget",
+            Some("other"),
+            json!({ "sessionId": "x" })
+        )));
+        assert!(!sub.accepts(&ev("Network.dataReceived", Some("x"), json!({}))));
+        // 自己的子孙 session 附加后就收，分离后不再收。
+        for (parent, child) in [("page", "frame"), ("frame", "worker")] {
+            assert!(sub.accepts(&ev(
+                "Target.attachedToTarget",
+                Some(parent),
+                json!({ "sessionId": child })
+            )));
+        }
+        assert!(sub.accepts(&ev("Fetch.requestPaused", Some("worker"), json!({}))));
+        assert!(sub.accepts(&ev(
+            "Target.detachedFromTarget",
+            Some("frame"),
+            json!({ "sessionId": "worker" })
+        )));
+        assert!(!sub.accepts(&ev("Fetch.requestPaused", Some("worker"), json!({}))));
+    }
 }

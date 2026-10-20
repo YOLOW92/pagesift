@@ -252,7 +252,7 @@ pub(crate) async fn render_page(
         .await?;
     res.target_id = Some(target.clone());
     let session = conn.attach(&target).await?;
-    let events = conn.subscribe(None);
+    let events = conn.subscribe_tree(session.id());
 
     let metrics = Metrics::new(opts.mobile);
     let touch = async {
@@ -411,7 +411,7 @@ pub(crate) async fn render_page(
     let captured = ctx.html().await?;
     timings.html = html_start.elapsed();
     timings.iframes = captured.iframe_time;
-    let final_url = eval_string(&session, "location.href").await?;
+    let final_url = captured.url;
     check_interception(&shared)?;
     let status = *shared.status.lock().unwrap();
     let blocked_requests = shared
@@ -436,19 +436,18 @@ pub(crate) async fn render_page(
 }
 
 async fn enable_interception(session: &Session) -> Result<()> {
-    session
-        .call(
+    // 两条互不依赖，一起发；都完成之前不会放行导航或子 target。
+    tokio::try_join!(
+        session.call(
             "Fetch.enable",
             json!({ "patterns": [{ "urlPattern": "*", "requestStage": "Request" }] }),
-        )
-        .await?;
-    // 跨站 iframe 和 worker 是单独的 target，要自动附加上去分别开拦截。
-    session
-        .call(
+        ),
+        // 跨站 iframe 和 worker 是单独的 target，要自动附加上去分别开拦截。
+        session.call(
             "Target.setAutoAttach",
             json!({ "autoAttach": true, "waitForDebuggerOnStart": true, "flatten": true }),
-        )
-        .await?;
+        ),
+    )?;
     Ok(())
 }
 
@@ -466,14 +465,11 @@ async fn monitor(
     guard: Arc<dyn RequestGuard>,
     block: BlockResources,
 ) {
-    let mut sessions: HashSet<String> = HashSet::from([shared.page_session.clone()]);
+    // 订阅只含这个页面和它的子 target 的 session（见 `Connection::subscribe_tree`）。
     while let Some(ev) = events.recv().await {
         let Some(sid) = ev.session_id.as_deref() else {
             continue;
         };
-        if !sessions.contains(sid) {
-            continue;
-        }
         let is_page = sid == shared.page_session;
         let p = &ev.params;
         match ev.method.as_str() {
@@ -487,7 +483,6 @@ async fn monitor(
             }
             "Target.attachedToTarget" => {
                 if let Some(child) = p.get("sessionId").and_then(Value::as_str) {
-                    sessions.insert(child.to_owned());
                     let kind = p
                         .pointer("/targetInfo/type")
                         .and_then(Value::as_str)
@@ -509,7 +504,6 @@ async fn monitor(
             }
             "Target.detachedFromTarget" => {
                 if let Some(child) = p.get("sessionId").and_then(Value::as_str) {
-                    sessions.remove(child);
                     shared.oopif.lock().unwrap().retain(|_, s| s != child);
                     shared.net_update(|f| {
                         let n = f.len();
@@ -735,13 +729,6 @@ async fn eval_ok(session: &Session, expr: &str) -> Result<Value, ActionError> {
         .await?
         .map(|v| v.value)
         .map_err(ActionError::Failed)
-}
-
-async fn eval_string(session: &Session, expr: &str) -> Result<String> {
-    match eval(session, expr).await? {
-        Ok(v) => Ok(v.value.as_str().unwrap_or_default().to_owned()),
-        Err(e) => Err(Error::UnexpectedResponse(e)),
-    }
 }
 
 /// 网络静默后再在页面里跑一条空命令：它要排在正在执行的脚本之后，
@@ -995,8 +982,7 @@ async fn run_action(
                 .push(capture(session, &ctx.metrics, s).await?);
         }
         Action::Scrape => {
-            let html = ctx.html().await?.html;
-            let url = eval_string(session, "location.href").await?;
+            let Captured { html, url, .. } = ctx.html().await?;
             out.scrapes.push(ScrapeResult { url, html });
         }
         Action::ExecuteJavascript { script } => {
