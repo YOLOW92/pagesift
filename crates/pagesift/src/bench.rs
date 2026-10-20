@@ -7,7 +7,7 @@
 //! - 严格口径：正文召回率（命中短语比例的平均）和噪声泄漏率（`lie_text` 短语漏进输出的比例的平均），
 //!   两者合成一个综合分。
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
@@ -108,6 +108,43 @@ fn normalize(s: &str) -> String {
         out.pop();
     }
     out
+}
+
+/// 短噪声短语（不超过这么多个词）要作为独立单元出现才算泄漏。
+const SHORT_NOISE_WORDS: usize = 3;
+
+/// 噪声短语是否漏进了输出。长短语按子串算；一到三个词的短语（菜单项、按钮文字）只有在输出里
+/// 作为独立的一行、列表项、链接文字或表格单元格出现才算：导航项 "Attorneys" 出现在正文句子
+/// "…Requiring Attorneys to Complete…" 里、"Advertise" 出现在 "Advertisement" 里都不是泄漏。
+fn leaked(phrase: &str, hay: &str, units: &HashSet<String>) -> bool {
+    let p = normalize(phrase);
+    if p.split(' ').count() > SHORT_NOISE_WORDS {
+        return hay.contains(p.as_str());
+    }
+    units.contains(&p)
+}
+
+/// 输出里的独立文本单元（规范化后）：每一行去掉列表、标题、引用标记后的文字，每个链接文字，
+/// 每个表格单元格。
+fn text_units(markdown: &str) -> HashSet<String> {
+    let link = Regex::new(r"\[([^\]]*)\]\([^)]*\)").expect("valid regex");
+    let marker = Regex::new(r"^\s*(?:[-*+]|\d+[.)]|#{1,6}|>)\s+").expect("valid regex");
+    let mut units = HashSet::new();
+    for line in markdown.lines() {
+        for cap in link.captures_iter(line) {
+            units.insert(normalize(&cap[1].to_lowercase()));
+        }
+        let plain = link.replace_all(line, "$1");
+        let plain = marker.replace(&plain, "");
+        if plain.contains('|') {
+            for cell in plain.split('|') {
+                units.insert(normalize(&cell.to_lowercase()));
+            }
+        }
+        units.insert(normalize(&plain.to_lowercase()));
+    }
+    units.remove("");
+    units
 }
 
 fn phrases(text: &str, min_chars: usize) -> Vec<String> {
@@ -308,10 +345,8 @@ pub fn run(args: Args) -> Result<()> {
                 .count();
             result.truth_recall = result.truth_hit as f64 / truth.len() as f64;
             if !lies.is_empty() {
-                result.lie_hit = lies
-                    .iter()
-                    .filter(|p| hay.contains(normalize(p).as_str()))
-                    .count();
+                let units = text_units(&markdown);
+                result.lie_hit = lies.iter().filter(|p| leaked(p, &hay, &units)).count();
                 result.lie_leak = result.lie_hit as f64 / lies.len() as f64;
                 leak_sum += result.lie_leak;
                 leak_pages += 1;
