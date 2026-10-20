@@ -1,0 +1,33 @@
+{
+  "name": "pagesift-win32-x64-msvc",
+  "version": "0.0.1",
+  "cpu": [
+    "x64"
+  ],
+  "main": "pagesift.win32-x64-msvc.node",
+  "files": [
+    "pagesift.win32-x64-msvc.node"
+  ],
+  "description": "Turn web pages into clean Markdown for LLMs: a polite, Firecrawl-compatible scraping engine written in Rust.",
+  "keywords": [
+    "markdown",
+    "scraper",
+    "crawler",
+    "firecrawl",
+    "llm",
+    "html-to-markdown",
+    "napi-rs"
+  ],
+  "license": "MIT OR Apache-2.0",
+  "engines": {
+    "node": ">= 18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YOLOW92/pagesift.git",
+    "directory": "crates/pagesift-node"
+  },
+  "os": [
+    "win32"
+  ]
+}
