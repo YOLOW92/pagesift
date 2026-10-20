@@ -1,0 +1,16 @@
+[package]
+description = "PDF to clean Markdown: text extraction, layout reconstruction and scanned-page detection, built for LLM pipelines."
+name = "pagesift-pdf"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+exclude = ["fuzz"]
+
+[dependencies]
+encoding_rs = "0.8.35"
+lopdf = { version = "0.45.0", default-features = false }
+
+[dev-dependencies]
+proptest = { version = "1.7.0", default-features = false, features = ["std"] }
