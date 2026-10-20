@@ -62,7 +62,12 @@ pub struct Args {
     pub out: Option<PathBuf>,
     pub runs: usize,
     pub limit: Option<usize>,
+    /// 模拟 `engine: auto`：HTTP 快照的正文太少、又有渲染快照时，改用渲染快照。
+    pub auto: bool,
 }
+
+/// F-1.9：HTTP 抓到的正文少于这么多字符时升级到浏览器渲染。
+pub const AUTO_RENDER_MIN_CHARS: usize = 1200;
 
 fn phrases(text: &str, min_chars: usize) -> Vec<String> {
     text.split('\n')
@@ -75,6 +80,13 @@ fn phrases(text: &str, min_chars: usize) -> Vec<String> {
 pub fn run(args: Args) -> Result<()> {
     let rows = read_rows(&args.dir.join("1-0-0.csv"))?;
     let metas = read_metas(&args.dir.join("snapshots/meta.jsonl"))?;
+    let rendered_path = args.dir.join("snapshots/rendered.jsonl");
+    let rendered = if args.auto && rendered_path.exists() {
+        read_metas(&rendered_path)?
+    } else {
+        HashMap::new()
+    };
+    let mut rendered_used = 0usize;
     let link_re = Regex::new(r"\[([^\]]*)\]\([^)]*\)").expect("valid regex");
     let mut out = match &args.out {
         Some(p) => Some(BufWriter::new(
@@ -144,6 +156,35 @@ pub fn run(args: Args) -> Result<()> {
                     .and_then(|u| Url::parse(u).ok())
                     .or_else(|| Url::parse(&row.url).ok()),
                 only_main_content: true,
+            };
+            let (html, opts) = match rendered.get(&row.id) {
+                Some(r)
+                    if r.error.is_none()
+                        && process(&html, &opts).markdown.chars().count()
+                            < AUTO_RENDER_MIN_CHARS =>
+                {
+                    match std::fs::read_to_string(
+                        args.dir.join(format!("snapshots/{}.rendered.html", row.id)),
+                    ) {
+                        Ok(rendered_html) => {
+                            rendered_used += 1;
+                            let base = r
+                                .final_url
+                                .as_deref()
+                                .and_then(|u| Url::parse(u).ok())
+                                .or(opts.base_url.clone());
+                            (
+                                rendered_html,
+                                Options {
+                                    base_url: base,
+                                    ..opts
+                                },
+                            )
+                        }
+                        Err(_) => (html, opts),
+                    }
+                }
+                _ => (html, opts),
             };
             let mut best = f64::MAX;
             let mut markdown = String::new();
@@ -217,6 +258,9 @@ pub fn run(args: Args) -> Result<()> {
     println!(
         "pages with truth phrases: {labeled}, with HTML snapshot: {fetched}, PDF (not evaluated): {pdfs}"
     );
+    if args.auto {
+        println!("engine auto: {rendered_used} pages used a browser-rendered snapshot");
+    }
     println!();
     println!("crw metric (truth phrase hit >= 30%)");
     println!(
@@ -249,6 +293,121 @@ pub fn run(args: Args) -> Result<()> {
         times.iter().sum::<f64>()
     );
     Ok(())
+}
+
+/// 为 `bench --auto` 准备渲染快照：HTTP 快照上正文少于 [`AUTO_RENDER_MIN_CHARS`] 的页面，
+/// 用浏览器重新渲染一次。只访问已经成功抓过（robots 允许）的页面；可以中断后续跑。
+pub fn render_snapshots(dir: &Path, limit: Option<usize>, concurrency: usize) -> Result<()> {
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use pagesift_cdp::{
+        BlockResources, BrowserPool, PoolConfig, PrivateNetworkGuard, RenderOptions,
+    };
+
+    let rows = read_rows(&dir.join("1-0-0.csv"))?;
+    let metas = read_metas(&dir.join("snapshots/meta.jsonl"))?;
+    let log_path = dir.join("snapshots/rendered.jsonl");
+    let done: std::collections::HashSet<String> = if log_path.exists() {
+        read_metas(&log_path)?.into_keys().collect()
+    } else {
+        Default::default()
+    };
+
+    let mut todo = Vec::new();
+    for row in rows.iter().take(limit.unwrap_or(usize::MAX)) {
+        let Some(meta) = metas.get(&row.id) else {
+            continue;
+        };
+        if meta.error.is_some() || done.contains(&row.id) {
+            continue;
+        }
+        let Ok(bytes) = std::fs::read(dir.join(format!("snapshots/{}.html", row.id))) else {
+            continue;
+        };
+        if is_pdf(&bytes, meta.content_type.as_deref()) {
+            continue;
+        }
+        let html = decode(&bytes, meta.content_type.as_deref());
+        let md = process(&html, &Options::default()).markdown;
+        if md.chars().count() < AUTO_RENDER_MIN_CHARS {
+            todo.push((row.id.clone(), row.url.clone()));
+        }
+    }
+    println!(
+        "{} pages to render ({} already done)",
+        todo.len(),
+        done.len()
+    );
+
+    let runtime = tokio::runtime::Runtime::new().context("starting tokio")?;
+    runtime.block_on(async move {
+        let cfg = PoolConfig {
+            max_browsers: concurrency.div_ceil(4).max(1),
+            max_tabs_per_browser: 4,
+            ..PoolConfig::default()
+        };
+        let pool = Arc::new(BrowserPool::new(cfg, Arc::new(PrivateNetworkGuard)).await?);
+        let log = Arc::new(std::sync::Mutex::new(
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&log_path)?,
+        ));
+        let sem = Arc::new(tokio::sync::Semaphore::new(concurrency.max(1)));
+        let opts = RenderOptions {
+            wait_for: Duration::from_millis(1500),
+            timeout: Duration::from_secs(45),
+            block: BlockResources {
+                ads: true,
+                fonts: true,
+                media: true,
+                images: true,
+            },
+            ..RenderOptions::default()
+        };
+        let total = todo.len();
+        let mut tasks = tokio::task::JoinSet::new();
+        for (id, url) in todo {
+            let (pool, log, sem, opts, dir) = (
+                pool.clone(),
+                log.clone(),
+                sem.clone(),
+                opts.clone(),
+                dir.to_path_buf(),
+            );
+            tasks.spawn(async move {
+                let _permit = sem.acquire_owned().await.expect("semaphore open");
+                let t = Instant::now();
+                let mut record = serde_json::json!({ "id": id, "url": url });
+                match pool.render(&url, &opts).await {
+                    Ok(page) => {
+                        let path = dir.join(format!("snapshots/{id}.rendered.html"));
+                        if let Err(e) = std::fs::write(&path, &page.html) {
+                            record["error"] = e.to_string().into();
+                        }
+                        record["final_url"] = page.final_url.into();
+                        record["status"] = page.status.into();
+                    }
+                    Err(e) => {
+                        record["error"] = e.to_string().chars().take(200).collect::<String>().into()
+                    }
+                }
+                record["render_ms"] = (t.elapsed().as_millis() as u64).into();
+                let mut f = log.lock().expect("log lock");
+                let _ = writeln!(f, "{record}");
+            });
+        }
+        let mut finished = 0;
+        while tasks.join_next().await.is_some() {
+            finished += 1;
+            if finished % 25 == 0 || finished == total {
+                println!("  {finished}/{total}");
+            }
+        }
+        pool.shutdown().await;
+        anyhow::Ok(())
+    })
 }
 
 fn is_pdf(bytes: &[u8], content_type: Option<&str>) -> bool {

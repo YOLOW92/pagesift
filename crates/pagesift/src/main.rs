@@ -61,6 +61,18 @@ enum Command {
         /// Only evaluate the first N dataset rows
         #[arg(long)]
         limit: Option<usize>,
+        /// Simulate `engine: auto` using browser-rendered snapshots (see bench-render)
+        #[arg(long)]
+        auto: bool,
+    },
+    /// Render thin snapshots with a browser for `bench --auto`
+    #[command(hide = true)]
+    BenchRender {
+        dir: PathBuf,
+        #[arg(long)]
+        limit: Option<usize>,
+        #[arg(long, default_value_t = 8)]
+        concurrency: usize,
     },
 }
 
@@ -102,13 +114,23 @@ fn run(command: Command) -> Result<ExitCode> {
             out,
             runs,
             limit,
+            auto,
         } => {
             bench::run(bench::Args {
                 dir,
                 out,
                 runs,
                 limit,
+                auto,
             })?;
+            Ok(ExitCode::SUCCESS)
+        }
+        Command::BenchRender {
+            dir,
+            limit,
+            concurrency,
+        } => {
+            bench::render_snapshots(&dir, limit, concurrency)?;
             Ok(ExitCode::SUCCESS)
         }
         Command::Serve

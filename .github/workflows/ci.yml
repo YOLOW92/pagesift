@@ -21,6 +21,10 @@ jobs:
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
+      # Ubuntu 24.04 的 AppArmor 默认禁止非特权 user namespace，Chrome 沙箱需要它。
+      # 只放开这台临时 runner 的限制；pagesift 不会用 --no-sandbox 绕过沙箱。
+      - if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets
       - run: cargo test --workspace

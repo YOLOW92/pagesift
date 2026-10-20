@@ -197,10 +197,14 @@ impl BrowserProcess {
         };
 
         let mut tail: Vec<String> = Vec::new();
+        let mut sandbox_line: Option<String> = None;
         let found = tokio::time::timeout(spec.timeout, async {
             while let Some(line) = lines.recv().await {
                 if let Some(url) = find_ws_url(&line) {
                     return Some(url);
+                }
+                if sandbox_line.is_none() && line.to_ascii_lowercase().contains("sandbox") {
+                    sandbox_line = Some(line.clone());
                 }
                 if tail.len() == 8 {
                     tail.remove(0);
@@ -214,6 +218,15 @@ impl BrowserProcess {
             Ok(Some(url)) => process.ws_url = url,
             Ok(None) => {
                 process.shutdown().await;
+                if let Some(line) = sandbox_line {
+                    return Err(Error::Launch(format!(
+                        "the browser sandbox is unavailable ({}). On Ubuntu 23.10+ AppArmor blocks \
+                         unprivileged user namespaces: allow them with \
+                         `sysctl kernel.apparmor_restrict_unprivileged_userns=0` or install an \
+                         AppArmor profile for the browser. pagesift never runs browsers with --no-sandbox",
+                        line.trim()
+                    )));
+                }
                 return Err(Error::Launch(format!(
                     "browser exited: {}",
                     tail.join(" | ")

@@ -1003,10 +1003,12 @@ dependencies = [
  "clap",
  "csv",
  "encoding_rs",
+ "pagesift-cdp",
  "pagesift-content",
  "regex",
  "serde",
  "serde_json",
+ "tokio",
  "tracing-subscriber",
  "url",
 ]
