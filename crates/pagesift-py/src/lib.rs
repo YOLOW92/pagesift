@@ -46,7 +46,10 @@ mod pagesift {
 
         fn __repr__(&self) -> String {
             let title = self.meta.title.as_deref().unwrap_or("");
-            format!("<pagesift.Document title={title:?} markdown={} chars>", self.markdown.chars().count())
+            format!(
+                "<pagesift.Document title={title:?} markdown={} chars>",
+                self.markdown.chars().count()
+            )
         }
     }
 
@@ -58,12 +61,16 @@ mod pagesift {
     /// 处理期间释放 GIL。
     #[pyfunction]
     #[pyo3(signature = (html, url=None, only_main_content=true))]
-    fn convert(py: Python<'_>, html: &str, url: Option<&str>, only_main_content: bool) -> PyResult<Document> {
+    fn convert(
+        py: Python<'_>,
+        html: &str,
+        url: Option<&str>,
+        only_main_content: bool,
+    ) -> PyResult<Document> {
         let base_url = match url {
-            Some(u) => Some(
-                url::Url::parse(u)
-                    .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("invalid url {u:?}: {e}")))?,
-            ),
+            Some(u) => Some(url::Url::parse(u).map_err(|e| {
+                pyo3::exceptions::PyValueError::new_err(format!("invalid url {u:?}: {e}"))
+            })?),
             None => None,
         };
         let opts = pagesift_content::Options {
