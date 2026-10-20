@@ -46,6 +46,16 @@ fn dedup_key(url: &Url, ignore_query: bool) -> String {
     normalize(url, ignore_query).replacen("://www.", "://", 1)
 }
 
+/// 爬取去重表里存的是去重键的 64 位哈希，不是 URL 本身：每条 8 字节，原来是一两百字节。
+/// 一百万个 URL 里出现一次碰撞（误判为已见过而漏抓一页）的概率约 3×10⁻⁸。
+fn seen_hash(url: &Url, ignore_query: bool) -> u64 {
+    use std::hash::{Hash, Hasher};
+    // DefaultHasher::new() 的密钥固定，同一个键总是得到同一个哈希
+    let mut h = std::hash::DefaultHasher::new();
+    dedup_key(url, ignore_query).hash(&mut h);
+    h.finish()
+}
+
 /// 爬取范围：哪些发现的 URL 可以进入队列。
 pub(crate) struct Scope {
     host: String,
@@ -263,16 +273,21 @@ impl Scraper {
         let follow_links = req.sitemap != "only";
         let max_depth = req.max_discovery_depth.unwrap_or(usize::MAX);
 
-        let mut seen: HashSet<String> = HashSet::new();
+        // 队列只装得下 limit 页：广度优先、先进先出，超出上限后发现的 URL 本来就轮不到，
+        // 不入队也不记进去重表，大站点上内存不会随发现的链接数增长
+        let mut seen: HashSet<u64> = HashSet::new();
         let mut queue: VecDeque<(Url, usize)> = VecDeque::new();
-        seen.insert(dedup_key(&start, req.ignore_query_parameters));
+        seen.insert(seen_hash(&start, req.ignore_query_parameters));
         queue.push_back((start.clone(), 0));
         if req.sitemap != "skip" {
             for u in self
                 .sitemap_urls(&start, mode, req.limit.saturating_mul(2))
                 .await
             {
-                if scope.allows(&u) && seen.insert(dedup_key(&u, req.ignore_query_parameters)) {
+                if queue.len() < req.limit
+                    && scope.allows(&u)
+                    && seen.insert(seen_hash(&u, req.ignore_query_parameters))
+                {
                     queue.push_back((u, 0));
                 }
             }
@@ -325,9 +340,12 @@ impl Scraper {
                             .and_then(|u| Url::parse(u).ok())
                             .unwrap_or(url.clone());
                         for link in doc.links.iter().flatten() {
+                            if scheduled + queue.len() >= req.limit {
+                                break;
+                            }
                             let Ok(u) = base.join(link) else { continue };
                             if scope.allows(&u)
-                                && seen.insert(dedup_key(&u, req.ignore_query_parameters))
+                                && seen.insert(seen_hash(&u, req.ignore_query_parameters))
                             {
                                 queue.push_back((u, depth + 1));
                             }

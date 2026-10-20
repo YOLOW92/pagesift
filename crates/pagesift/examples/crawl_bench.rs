@@ -103,7 +103,9 @@ async fn main() {
     cfg.fetcher.ssrf.allow_private_network = true;
     cfg.policy.rate.default_interval = interval;
     cfg.policy.rate.per_host_concurrency = per_host;
-    cfg.policy.rate.global_concurrency = (hosts * per_host).max(64);
+    if let Some(g) = std::env::var("GLOBAL").ok().and_then(|v| v.parse().ok()) {
+        cfg.policy.rate.global_concurrency = g;
+    }
     let scraper = Arc::new(Scraper::new(cfg).unwrap());
     let sink = Arc::new(Count::default());
     let t = Instant::now();
