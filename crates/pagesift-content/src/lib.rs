@@ -44,11 +44,9 @@ pub struct Document {
 pub fn process(html: &str, opts: &Options) -> Document {
     let dom = Html::parse_document(html);
     let base = effective_base(&dom, opts.base_url.as_ref());
-    let skipper = extract::Skipper {
-        only_main: opts.only_main_content,
-    };
+    let skipper = extract::Skipper::new(&dom, opts.only_main_content);
     let root_ids = if opts.only_main_content {
-        extract::main_roots(&dom, skipper)
+        extract::main_roots(&dom, &skipper)
     } else {
         vec![body_or_root(&dom)]
     };
@@ -58,7 +56,7 @@ pub fn process(html: &str, opts: &Options) -> Document {
         .collect();
     let renderer = markdown::Renderer {
         base: base.as_ref(),
-        skipper,
+        skipper: &skipper,
     };
     let metadata = metadata::extract(&dom, base.as_ref());
     let mut markdown = renderer.render(&roots);

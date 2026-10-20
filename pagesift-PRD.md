@@ -331,6 +331,8 @@ Cargo workspace 里的 crate 划分：
 
 不再以"依赖数量少"为卖点。约束只有一条：**所有依赖必须是宽松许可证**，由 cargo-deny 在 CI 里强制检查。
 
+**唯一的例外**：CSS 选择器用的 `selectors`、`cssparser`（以及 `cssparser-macros`、`dtoa-short`）来自 Servo，许可证是 MPL-2.0。MPL 是文件级 copyleft，只要不修改这些 crate 的源文件就没有额外义务，Rust 生态里也没有同等成熟的替代品。`deny.toml` 里只对这几个 crate 单独放行，其他 crate 引入 MPL 依赖仍然会被拦下。
+
 ---
 
 ## 10. 开发与发布方式
@@ -405,7 +407,8 @@ Cargo workspace 里的 crate 划分：
 |---|---|
 | 首要目标 | 技术作品，冲星数；AiSeek 集成移出 1.0 |
 | 自研边界 | 正文提取、Markdown、拦截页识别、礼貌策略、SSRF、兼容层、MCP、CDP、存储自研；其余用宽松许可证的开源项目 |
-| 依赖卖点 | 删掉"少于 10 个依赖"，改为"只用宽松许可证"，由 cargo-deny 强制 |
+| 依赖卖点 | 删掉"少于 10 个依赖"，改为"只用宽松许可证"，由 cargo-deny 强制；Servo 的 CSS 选择器（MPL-2.0）单独放行 |
+| 性能 | 先保证正确、后优化；M2 起在 CI 里设性能回归线，规则稳定后再集中优化 |
 | 发布线 | 核心可用：scrape、map、crawl、batch、MCP、CLI、内容哈希、条件请求 |
 | 工期 | 不设死，按里程碑推进 |
 | 公开方式 | 仓库公开，1.0 前不主动宣传（最初定的是闭门开发，后来改了） |

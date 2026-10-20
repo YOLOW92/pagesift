@@ -19,7 +19,7 @@ struct Block {
 
 pub(crate) struct Renderer<'a> {
     pub base: Option<&'a Url>,
-    pub skipper: Skipper,
+    pub skipper: &'a Skipper,
 }
 
 fn is_block_tag(name: &str) -> bool {

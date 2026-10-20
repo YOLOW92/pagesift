@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+mod bench;
+
 use std::io::Read;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -46,6 +48,20 @@ enum Command {
     Mcp,
     /// Check the environment
     Doctor,
+    /// Evaluate content extraction on local dataset snapshots
+    Bench {
+        /// Directory holding 1-0-0.csv and snapshots/ (see bench/fetch_snapshots.py)
+        dir: PathBuf,
+        /// Write per-page results as JSON lines
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Timing runs per page; the fastest is reported
+        #[arg(long, default_value_t = 3)]
+        runs: usize,
+        /// Only evaluate the first N dataset rows
+        #[arg(long)]
+        limit: Option<usize>,
+    },
 }
 
 fn main() -> ExitCode {
@@ -79,6 +95,20 @@ fn run(command: Command) -> Result<ExitCode> {
                 },
             );
             print!("{}", doc.markdown);
+            Ok(ExitCode::SUCCESS)
+        }
+        Command::Bench {
+            dir,
+            out,
+            runs,
+            limit,
+        } => {
+            bench::run(bench::Args {
+                dir,
+                out,
+                runs,
+                limit,
+            })?;
             Ok(ExitCode::SUCCESS)
         }
         Command::Serve

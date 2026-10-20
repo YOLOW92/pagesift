@@ -1,5 +1,6 @@
 //! 正文定位：思路来自 Readability 的段落打分，针对中文标点和现代站点结构做了调整。
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 use ego_tree::NodeId;
@@ -105,15 +106,53 @@ fn class_weight(el: &Element) -> f64 {
 }
 
 /// 决定渲染时要整棵跳过的子树。
-#[derive(Clone, Copy)]
+///
+/// 两类规则：
+/// - 硬跳过：脚本、样式、隐藏元素，以及只取正文时的 `<nav>`、`<aside>`、`<footer>`；
+/// - 软跳过（只取正文时）：`<form>`、导航类 `role`、类名或 id 命中噪声词。
+///   软跳过的元素如果装着全页大部分文字，说明它其实是正文的外层容器，不跳过。
 pub(crate) struct Skipper {
-    pub only_main: bool,
+    only_main: bool,
+    protect_chars: usize,
+    cache: RefCell<HashMap<NodeId, bool>>,
 }
 
+/// 软跳过的元素文字量达到全页的这个比例时，视为正文容器。
+const PROTECT_SHARE: f64 = 0.4;
+/// 文字太少的页面不做保护，免得导航因为"占比高"被留下。
+const PROTECT_MIN_CHARS: usize = 200;
+
 impl Skipper {
+    pub(crate) fn new(html: &Html, only_main: bool) -> Self {
+        let body = html
+            .tree
+            .root()
+            .descendants()
+            .find(|n| tag(n) == Some("body"))
+            .unwrap_or_else(|| html.tree.root());
+        let total = if only_main { visible_chars(&body) } else { 0 };
+        Self {
+            only_main,
+            protect_chars: ((total as f64 * PROTECT_SHARE) as usize).max(PROTECT_MIN_CHARS),
+            cache: RefCell::new(HashMap::new()),
+        }
+    }
+
     pub(crate) fn skip(&self, node: &NodeR<'_>) -> bool {
-        let Some(el) = element(node) else {
+        if !node.value().is_element() {
             return node.value().is_comment();
+        }
+        if let Some(&v) = self.cache.borrow().get(&node.id()) {
+            return v;
+        }
+        let v = self.compute(node);
+        self.cache.borrow_mut().insert(node.id(), v);
+        v
+    }
+
+    fn compute(&self, node: &NodeR<'_>) -> bool {
+        let Some(el) = element(node) else {
+            return false;
         };
         let name = el.name();
         if is_non_content_tag(name) || is_hidden(el) {
@@ -122,15 +161,34 @@ impl Skipper {
         if !self.only_main {
             return false;
         }
-        if matches!(name, "nav" | "aside" | "footer" | "form") {
+        if matches!(name, "nav" | "aside" | "footer") {
             return true;
         }
-        if el.attr("role").is_some_and(|r| SKIP_ROLES.contains(&r)) {
-            return true;
-        }
-        let t = tokens(el);
-        has_token(&t, NEGATIVE) && !has_token(&t, POSITIVE)
+        let soft = name == "form" || el.attr("role").is_some_and(|r| SKIP_ROLES.contains(&r)) || {
+            let t = tokens(el);
+            has_token(&t, NEGATIVE) && !has_token(&t, POSITIVE)
+        };
+        soft && visible_chars(node) < self.protect_chars
     }
+}
+
+/// 子树里可见文字的字符数（不含空白），只排除硬跳过的内容。
+fn visible_chars(node: &NodeR<'_>) -> usize {
+    let mut n = 0;
+    let mut stack = vec![*node];
+    while let Some(cur) = stack.pop() {
+        for child in cur.children() {
+            if let Some(t) = child.value().as_text() {
+                n += t.chars().filter(|c| !c.is_whitespace()).count();
+            } else if let Some(el) = element(&child)
+                && !is_non_content_tag(el.name())
+                && !is_hidden(el)
+            {
+                stack.push(child);
+            }
+        }
+    }
+    n
 }
 
 #[derive(Default, Clone, Copy)]
@@ -140,13 +198,13 @@ struct TextStats {
     commas: usize,
 }
 
-fn stats(node: &NodeR<'_>, skipper: Skipper) -> TextStats {
+fn stats(node: &NodeR<'_>, skipper: &Skipper) -> TextStats {
     let mut s = TextStats::default();
     walk_stats(node, skipper, false, &mut s);
     s
 }
 
-fn walk_stats(node: &NodeR<'_>, skipper: Skipper, in_link: bool, s: &mut TextStats) {
+fn walk_stats(node: &NodeR<'_>, skipper: &Skipper, in_link: bool, s: &mut TextStats) {
     for child in node.children() {
         if let Some(t) = child.value().as_text() {
             let mut n = 0;
@@ -222,7 +280,7 @@ const MIN_ALTERNATIVES: usize = 3;
 
 /// 选出正文所在的节点（按文档顺序）。通常是一个，正文被拆成多个兄弟块时会有多个。
 /// 找不到合适候选时退回语义容器或 `<body>`。
-pub(crate) fn main_roots(html: &Html, skipper: Skipper) -> Vec<NodeId> {
+pub(crate) fn main_roots(html: &Html, skipper: &Skipper) -> Vec<NodeId> {
     let body = html
         .tree
         .root()
@@ -407,7 +465,7 @@ fn ends_sentence(node: &NodeR<'_>) -> bool {
 }
 
 /// 唯一的 `<article>`，否则 `<main>` 或 `role="main"`。
-fn semantic_main(body: NodeR<'_>, skipper: Skipper) -> Option<NodeId> {
+fn semantic_main(body: NodeR<'_>, skipper: &Skipper) -> Option<NodeId> {
     let visible = |n: &NodeR<'_>| {
         !n.ancestors()
             .any(|a| a.value().is_element() && skipper.skip(&a))
