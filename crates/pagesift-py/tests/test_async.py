@@ -1,0 +1,122 @@
+"""异步接口和按完成顺序的批量接口（同步 scrape_iter、异步 ascrape_many）。"""
+
+import asyncio
+import time
+
+import pytest
+
+import pagesift
+
+
+def run(coro):
+    return asyncio.run(coro)
+
+
+def test_ascrape(scraper, http, server):
+    d = run(scraper.ascrape(f"{server}/article", http))
+    assert d.success and d.metadata["title"] == "Page /article"
+
+
+def test_ascrape_raises(scraper, http, server):
+    with pytest.raises(pagesift.RobotsDisallowed):
+        run(scraper.ascrape(f"{server}/private/1", http))
+
+
+def test_ascrape_gather_runs_concurrently(scraper, http, server):
+    async def main():
+        t = time.perf_counter()
+        docs = await asyncio.gather(
+            *(scraper.ascrape(f"{server}/slow?ms=400&i={i}", http) for i in range(8))
+        )
+        return docs, time.perf_counter() - t
+
+    docs, elapsed = run(main())
+    assert all(d.success for d in docs)
+    assert elapsed < 1.6, elapsed  # 串行要 3.2 秒以上
+
+
+URLS_MIXED = ["/slow?ms=900", "/slow?ms=10", "/private/z"]
+
+
+def check_completion_order(docs, urls):
+    assert len(docs) == 3
+    assert docs[-1].url == urls[0] and docs[-1].index == 0
+    assert sorted(d.index for d in docs) == [0, 1, 2]
+    assert [d.url for d in sorted(docs, key=lambda d: d.index)] == urls
+    bad = next(d for d in docs if not d.success)
+    assert isinstance(bad.error, pagesift.RobotsDisallowed) and bad.index == 2
+
+
+def test_ascrape_many_yields_in_completion_order(scraper, http, server):
+    urls = [server + u for u in URLS_MIXED]
+
+    async def main():
+        batch = scraper.ascrape_many(urls, http, concurrency=3)
+        assert len(batch) == 3
+        return [d async for d in batch]
+
+    check_completion_order(run(main()), urls)
+
+
+def test_scrape_iter_yields_in_completion_order(scraper, http, server):
+    urls = [server + u for u in URLS_MIXED]
+    check_completion_order(list(scraper.scrape_iter(urls, http, concurrency=3)), urls)
+
+
+def test_batch_is_single_pass(scraper, http, server):
+    batch = scraper.scrape_iter([f"{server}/page/1"], http)
+    assert len(list(batch)) == 1
+    assert list(batch) == []
+
+
+def test_ascrape_many_break_and_cancel(scraper, http, server):
+    urls = [f"{server}/page/0"] + [f"{server}/slow?ms=5000&i={i}" for i in range(5)]
+
+    async def main():
+        t = time.perf_counter()
+        batch = scraper.ascrape_many(urls, http, concurrency=6)
+        async for d in batch:
+            assert d.success
+            break
+        batch.cancel()
+        rest = [d async for d in batch]  # 取消后迭代很快结束
+        return time.perf_counter() - t, rest
+
+    elapsed, rest = run(main())
+    assert elapsed < 3 and rest == []
+
+
+def test_scrape_iter_cancel(scraper, http, server):
+    urls = [f"{server}/slow?ms=5000&i={i}" for i in range(4)]
+    t = time.perf_counter()
+    batch = scraper.scrape_iter(urls, http)
+    batch.cancel()
+    assert list(batch) == []
+    assert time.perf_counter() - t < 2
+
+
+def test_module_level_async(server):
+    async def main():
+        with pytest.raises(pagesift.SsrfBlocked):
+            await pagesift.ascrape(f"{server}/article", engine="http")
+        return [d async for d in pagesift.ascrape_many([f"{server}/a", "ftp://x/"], engine="http")]
+
+    docs = run(main())
+    assert sorted(d.error_code for d in docs) == ["INVALID_REQUEST", "SSRF_BLOCKED"]
+
+
+def test_module_level_iter(server):
+    docs = list(pagesift.scrape_iter([f"{server}/a"], engine="http"))
+    assert docs[0].error_code == "SSRF_BLOCKED"
+    assert pagesift.default_scraper() is pagesift.default_scraper()
+
+
+def test_async_context_manager_closes(server):
+    async def main():
+        s = pagesift.Scraper(allow_private_network=True, request_interval=0)
+        async with s:
+            d = await s.ascrape(f"{server}/article", engine="http")
+        await s.aclose()  # 重复关闭没问题
+        return d
+
+    assert run(main()).success

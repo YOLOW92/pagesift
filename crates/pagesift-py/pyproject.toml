@@ -13,11 +13,21 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "License :: OSI Approved :: MIT License",
     "License :: OSI Approved :: Apache Software License",
+    "Framework :: AsyncIO",
+    "Typing :: Typed",
 ]
 dynamic = ["version"]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
 
 [project.urls]
 Repository = "https://github.com/YOLOW92/pagesift"
 
 [tool.maturin]
+python-source = "python"
+module-name = "pagesift._pagesift"
 features = ["pyo3/extension-module"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
