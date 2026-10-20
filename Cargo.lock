@@ -1443,6 +1443,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "pagesift-html"
+version = "0.0.1"
+dependencies = [
+ "memchr",
+ "scraper",
+]
+
+[[package]]
 name = "pagesift-llm"
 version = "0.0.1"
 dependencies = [

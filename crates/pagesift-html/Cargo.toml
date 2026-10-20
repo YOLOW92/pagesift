@@ -1,0 +1,14 @@
+[package]
+description = "Fast HTML parser for content extraction: zero-copy arena DOM with the HTML5 tree-building rules that matter for text."
+name = "pagesift-html"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+memchr = "2.8.3"
+
+[dev-dependencies]
+scraper = "0.27.0"
