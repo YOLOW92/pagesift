@@ -24,7 +24,7 @@ use scraper::Html;
 use url::Url;
 
 pub use barrier::{Barrier, BarrierKind};
-pub use fingerprint::{Fingerprints, sha256_hex};
+pub use fingerprint::{Fingerprints, hash_hex};
 pub use links::{Image, Link, same_site};
 pub use metadata::Metadata;
 pub use text::{estimate_tokens, normalize_text};

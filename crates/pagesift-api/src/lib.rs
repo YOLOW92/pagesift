@@ -11,6 +11,8 @@ mod server;
 pub mod types;
 mod validate;
 
-pub use engine::{BoxFuture, Engine};
+pub use engine::{BoxFuture, CrawlSink, Engine};
 pub use error::{ApiError, ErrorCode};
+pub use jobs::{JOB_TTL, Job, JobState, Jobs, rfc3339};
 pub use server::{Config, router};
+pub use validate::{check_scrape_options, check_url};

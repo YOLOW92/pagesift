@@ -226,16 +226,59 @@ pub struct MapRequest {
     pub timeout: Option<u64>,
 }
 
+fn default_search_limit() -> usize {
+    10
+}
+
+/// `/v2/search`。只有 `scrapeOptions` 里给了 formats 时才抓取搜索结果页面（和 Firecrawl 一致）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchRequest {
+    pub query: String,
+    #[serde(default = "default_search_limit")]
+    pub limit: usize,
+    #[serde(default)]
+    pub lang: Option<String>,
+    #[serde(default)]
+    pub country: Option<String>,
+    /// 时间范围：`qdr:d`、`qdr:w`、`qdr:m`、`qdr:y`。
+    #[serde(default)]
+    pub tbs: Option<String>,
+    /// 毫秒。
+    #[serde(default)]
+    pub timeout: Option<u64>,
+    #[serde(default)]
+    pub scrape_options: Option<ScrapeOptions>,
+}
+
+/// `/v2/extract`：从一组页面里按 schema 或提示提取结构化数据。URL 以 `/*` 结尾时先 map 整站。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtractRequest {
+    pub urls: Vec<String>,
+    #[serde(default)]
+    pub prompt: Option<String>,
+    #[serde(default)]
+    pub schema: Option<Value>,
+    #[serde(default)]
+    pub enable_web_search: bool,
+    #[serde(default)]
+    pub ignore_invalid_urls: bool,
+    #[serde(default)]
+    pub scrape_options: Option<ScrapeOptions>,
+}
+
 /// pagesift 在 `metadata.pagesift` 里附加的字段。
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PagesiftMeta {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub content_sha256: Option<String>,
+    /// 正文 Markdown、原始 HTML、规范化纯文本的 BLAKE3 哈希（小写十六进制）。
+    pub content_hash: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub raw_sha256: Option<String>,
+    pub raw_hash: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub text_sha256: Option<String>,
+    pub text_hash: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub redirect_chain: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -436,7 +479,7 @@ mod tests {
             status_code: 200,
             proxy_used: "basic".into(),
             pagesift: Some(PagesiftMeta {
-                content_sha256: Some("ab".into()),
+                content_hash: Some("ab".into()),
                 ..Default::default()
             }),
             ..Default::default()
@@ -448,7 +491,7 @@ mod tests {
         assert_eq!(v["statusCode"], 200);
         assert_eq!(v["proxyUsed"], "basic");
         assert_eq!(v["ogImage"], "https://example.com/i.png");
-        assert_eq!(v["pagesift"]["contentSha256"], "ab");
+        assert_eq!(v["pagesift"]["contentHash"], "ab");
         assert!(v.get("title").is_none());
     }
 }

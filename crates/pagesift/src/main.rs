@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod bench;
+mod cli;
 
 use std::io::Read;
 use std::path::PathBuf;
@@ -20,6 +21,9 @@ use url::Url;
     about = "Turn web pages into clean Markdown for LLMs"
 )]
 struct Cli {
+    /// Config file (default: $PAGESIFT_CONFIG); see pagesift.example.toml
+    #[arg(long, global = true)]
+    config: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,
 }
@@ -39,17 +43,24 @@ enum Command {
     },
     /// Start the Firecrawl-compatible HTTP API
     Serve {
-        #[arg(long, default_value_t = 3002)]
-        port: u16,
-        /// Address to listen on
-        #[arg(long, default_value = "127.0.0.1")]
-        host: String,
+        /// Port (default: server.port in the config, else 3002)
+        #[arg(long)]
+        port: Option<u16>,
+        /// Address to listen on (default: server.host in the config, else 127.0.0.1)
+        #[arg(long)]
+        host: Option<String>,
         /// Require `Authorization: Bearer <key>` (repeatable); also read from PAGESIFT_API_KEYS (comma separated)
         #[arg(long = "api-key")]
         api_keys: Vec<String>,
         /// Public base URL used in job links (default: from the Host header)
         #[arg(long)]
         public_url: Option<String>,
+        /// Where the cache lives (default: $PAGESIFT_DATA_DIR, else ~/.local/share/pagesift)
+        #[arg(long)]
+        data_dir: Option<PathBuf>,
+        /// Disable the result cache
+        #[arg(long)]
+        no_cache: bool,
     },
     /// Scrape a single URL
     Scrape {
@@ -67,12 +78,57 @@ enum Command {
         #[arg(long)]
         ignore_robots: bool,
     },
-    /// Crawl a site
-    Crawl,
+    /// Crawl a site; writes one Markdown file per page with --out, else JSON lines to stdout
+    Crawl {
+        url: String,
+        #[arg(long, default_value_t = 100)]
+        limit: usize,
+        /// Directory for the Markdown files and an index.jsonl
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Maximum discovery depth from the start page
+        #[arg(long)]
+        depth: Option<usize>,
+        /// Only follow paths matching this regex (repeatable)
+        #[arg(long)]
+        include: Vec<String>,
+        /// Skip paths matching this regex (repeatable)
+        #[arg(long)]
+        exclude: Vec<String>,
+        /// Crawl the whole domain, not just pages under the start path
+        #[arg(long)]
+        entire_domain: bool,
+        /// Follow links to subdomains
+        #[arg(long)]
+        subdomains: bool,
+        /// include, skip or only
+        #[arg(long, default_value = "include")]
+        sitemap: String,
+        /// http, browser or auto
+        #[arg(long, default_value = "auto")]
+        engine: String,
+    },
     /// List the URLs of a site
-    Map,
-    /// Run the MCP server
-    Mcp,
+    Map {
+        url: String,
+        #[arg(long, default_value_t = 5000)]
+        limit: usize,
+        /// Rank URLs matching these words first
+        #[arg(long)]
+        search: Option<String>,
+        /// include, skip or only
+        #[arg(long, default_value = "include")]
+        sitemap: String,
+    },
+    /// Run the MCP server (stdio by default)
+    Mcp {
+        /// stdio or http
+        #[arg(default_value = "stdio")]
+        transport: String,
+        /// Port for the http transport (listens on 127.0.0.1)
+        #[arg(long, default_value_t = 3003)]
+        port: u16,
+    },
     /// Check the environment
     Doctor,
     /// Evaluate content extraction on local dataset snapshots
@@ -118,7 +174,7 @@ fn main() -> ExitCode {
         .with_writer(std::io::stderr)
         .init();
     let cli = Cli::parse();
-    match run(cli.command) {
+    match run(cli.command, cli.config) {
         Ok(code) => code,
         Err(e) => {
             eprintln!("error: {e:#}");
@@ -127,7 +183,8 @@ fn main() -> ExitCode {
     }
 }
 
-fn run(command: Command) -> Result<ExitCode> {
+fn run(command: Command, config_path: Option<PathBuf>) -> Result<ExitCode> {
+    let mut cfg = pagesift::config::Config::load(config_path.as_deref())?;
     match command {
         Command::Convert {
             file,
@@ -183,7 +240,7 @@ fn run(command: Command) -> Result<ExitCode> {
             full,
             ignore_robots,
         } => runtime()?.block_on(async move {
-            let scraper = pagesift::Scraper::new(pagesift::ScraperConfig::default())?;
+            let scraper = pagesift::Scraper::new(cfg.scraper(false)?)?;
             let mut opts = pagesift::api::types::ScrapeOptions {
                 only_main_content: !full,
                 ignore_robots_txt: ignore_robots,
@@ -220,22 +277,28 @@ fn run(command: Command) -> Result<ExitCode> {
             host,
             mut api_keys,
             public_url,
+            data_dir,
+            no_cache,
         } => runtime()?.block_on(async move {
-            if let Ok(keys) = std::env::var("PAGESIFT_API_KEYS") {
-                api_keys.extend(
-                    keys.split(',')
-                        .map(str::trim)
-                        .filter(|k| !k.is_empty())
-                        .map(String::from),
-                );
+            api_keys.extend(cfg.api_keys()?);
+            if data_dir.is_some() {
+                cfg.cache.dir = data_dir;
             }
-            let scraper = Arc::new(pagesift::Scraper::new(pagesift::ScraperConfig::default())?);
+            let config = cfg.scraper(!no_cache)?;
+            if config.store.is_some() {
+                eprintln!("cache: {}", cfg.data_dir().join("store").display());
+            }
+            let host = host
+                .or(cfg.server.host.clone())
+                .unwrap_or_else(|| "127.0.0.1".into());
+            let port = port.or(cfg.server.port).unwrap_or(3002);
+            let scraper = Arc::new(pagesift::Scraper::new(config)?);
             let app = pagesift::api::router(
                 scraper.clone(),
                 pagesift::api::Config {
                     api_keys,
-                    public_url,
-                    max_batch_concurrency: None,
+                    public_url: public_url.or(cfg.server.public_url.clone()),
+                    max_batch_concurrency: cfg.server.max_batch_concurrency,
                 },
             );
             let listener = tokio::net::TcpListener::bind((host.as_str(), port))
@@ -250,10 +313,97 @@ fn run(command: Command) -> Result<ExitCode> {
             scraper.shutdown().await;
             Ok(ExitCode::SUCCESS)
         }),
-        Command::Crawl | Command::Map | Command::Mcp | Command::Doctor => {
-            eprintln!("not implemented yet");
-            Ok(ExitCode::from(2))
-        }
+        Command::Crawl {
+            url,
+            limit,
+            out,
+            depth,
+            include,
+            exclude,
+            entire_domain,
+            subdomains,
+            sitemap,
+            engine,
+        } => runtime()?.block_on(async move {
+            let req: pagesift::api::types::CrawlRequest =
+                serde_json::from_value(serde_json::json!({
+                    "url": url,
+                    "limit": limit,
+                    "maxDiscoveryDepth": depth,
+                    "includePaths": include,
+                    "excludePaths": exclude,
+                    "crawlEntireDomain": entire_domain,
+                    "allowSubdomains": subdomains,
+                    "sitemap": sitemap,
+                    "scrapeOptions": { "engine": engine },
+                }))?;
+            if let Some(dir) = &out {
+                std::fs::create_dir_all(dir)
+                    .with_context(|| format!("creating {}", dir.display()))?;
+            }
+            let scraper = pagesift::Scraper::new(cfg.scraper(false)?)?;
+            let sink = Arc::new(cli::CrawlOutput::new(out));
+            let result = scraper.crawl(&req, sink.clone()).await;
+            scraper.shutdown().await;
+            let (pages, errors) = sink.counts();
+            eprintln!("crawled {pages} pages, {errors} errors");
+            match result {
+                Ok(()) => Ok(ExitCode::SUCCESS),
+                Err(e) => {
+                    eprintln!("{}: {}", e.code.as_str(), e.message);
+                    Ok(ExitCode::from(1))
+                }
+            }
+        }),
+        Command::Map {
+            url,
+            limit,
+            search,
+            sitemap,
+        } => runtime()?.block_on(async move {
+            let req: pagesift::api::types::MapRequest =
+                serde_json::from_value(serde_json::json!({
+                    "url": url, "limit": limit, "search": search, "sitemap": sitemap,
+                }))?;
+            let scraper = pagesift::Scraper::new(cfg.scraper(false)?)?;
+            match scraper.map(&req).await {
+                Ok(links) => {
+                    for l in links {
+                        println!("{}", l.url);
+                    }
+                    Ok(ExitCode::SUCCESS)
+                }
+                Err(e) => {
+                    eprintln!("{}: {}", e.code.as_str(), e.message);
+                    Ok(ExitCode::from(1))
+                }
+            }
+        }),
+        Command::Doctor => runtime()?.block_on(cli::doctor(&cfg)),
+        Command::Mcp { transport, port } => runtime()?.block_on(async move {
+            let scraper = Arc::new(pagesift::Scraper::new(cfg.scraper(false)?)?);
+            let server = pagesift_mcp::McpServer::builder("pagesift", env!("CARGO_PKG_VERSION"))
+                .tools(pagesift::mcp::tools(scraper.clone()))
+                .build()
+                .map_err(|e| anyhow::anyhow!("building the MCP server: {e:?}"))?;
+            match transport.as_str() {
+                "stdio" => pagesift_mcp::serve_stdio(server).await?,
+                "http" => {
+                    let config = pagesift_mcp::HttpConfig {
+                        bind: std::net::SocketAddr::from(([127, 0, 0, 1], port)),
+                        ..Default::default()
+                    };
+                    eprintln!(
+                        "pagesift MCP listening on http://127.0.0.1:{port}{}",
+                        config.path
+                    );
+                    pagesift_mcp::serve_http(server, config).await?;
+                }
+                other => anyhow::bail!("unknown transport {other:?}: use stdio or http"),
+            }
+            scraper.shutdown().await;
+            Ok(ExitCode::SUCCESS)
+        }),
     }
 }
 

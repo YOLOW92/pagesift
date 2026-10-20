@@ -14,7 +14,7 @@ tokio = ["dep:tokio"]
 
 [dependencies]
 crc32fast = "1.4"
-sha2 = "0.10"
+blake3 = "1.8.7"
 tokio = { version = "1", features = ["rt"], optional = true }
 zstd = { version = "0.13", default-features = false }
 

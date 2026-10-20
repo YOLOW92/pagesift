@@ -156,7 +156,7 @@ pagesift serve        # 在 :3002 提供 Firecrawl 兼容接口，把 SDK 的 ba
 | F-3.4 | 元数据提取：title、description、language、keywords、robots、og 和 twitter 系列、Dublin Core、canonical、favicon；作者和发布、修改时间依次从 JSON-LD、meta、`<time>`、正文启发式里找，统一换算成 UTC | P0 |
 | F-3.5 | 输出格式：`markdown`、`html`（清洗后的正文）、`rawHtml`、`links`、`images`。其余格式（`summary`、`screenshot`、`json`、`changeTracking`、`attributes`）在 1.0 返回 `UNSUPPORTED_OPTION` | P0 |
 | F-3.6 | **自研拦截页识别**：带特征库，覆盖 Cloudflare、Akamai、DataDome、PerimeterX、Imperva、阿里云、腾讯云 WAF、reCAPTCHA、hCaptcha 和常见登录墙；用状态码加正文长度一起判断，避免误伤。命中时返回 `ACCESS_BARRIER`、厂商名、置信度和命中的规则 ID，**不返回正文**，也不提供强制返回正文的开关 | P0 |
-| F-3.7 | 内容指纹：返回原始 HTML、正文 Markdown 和规范化纯文本三者的 sha256；纯文本的哈希先去掉空白差异，用于判断内容是否变化 | P0 |
+| F-3.7 | 内容指纹：返回原始 HTML、正文 Markdown 和规范化纯文本三者的 BLAKE3 哈希；纯文本的哈希先去掉空白差异，用于判断内容是否变化 | P0 |
 | F-3.8 | 纯文本输出，以及按 token 估算的长度（方便调用方分块） | 1.x |
 | F-3.9 | PDF 文本提取，输出 Markdown；扫描件不做 OCR，只标记出来 | 1.x |
 | F-3.10 | `summary` 和 `json` 格式（需要大模型，兼容 OpenAI 接口的服务商） | 1.x |
@@ -205,7 +205,7 @@ pagesift serve        # 在 :3002 提供 Firecrawl 兼容接口，把 SDK 的 ba
 | 内容 | 说明 | 优先级 |
 |---|---|---|
 | 扩展请求参数 | `engine`、`ifNoneMatch`、`ifModifiedSince` | P0 |
-| 扩展响应字段 | `pagesift.contentSha256`、`pagesift.rawSha256`、`pagesift.textSha256`、`pagesift.redirectChain`、`pagesift.etag`、`pagesift.lastModified`、`pagesift.notModified`、`pagesift.barrier`（厂商、置信度、规则 ID）、`pagesift.timings`、`pagesift.warnings` | P0 |
+| 扩展响应字段 | `pagesift.contentHash`、`pagesift.rawHash`、`pagesift.textHash`（BLAKE3）、`pagesift.redirectChain`、`pagesift.etag`、`pagesift.lastModified`、`pagesift.notModified`、`pagesift.barrier`（厂商、置信度、规则 ID）、`pagesift.timings`、`pagesift.warnings` | P0 |
 | 统一错误码 | 见下表 | P0 |
 | `GET /healthz`、`GET /metrics` | 健康检查，以及 Prometheus 文本格式的监控指标 | P0 |
 | `storeSnapshot` 参数和 `POST /v2/diff` | 快照，以及同一 URL 两个快照之间的块级差异对比，区分价格、日期、计数这类"噪声变化"；拦截页的原始 HTML 同样会存进快照并标记 | 1.x |
