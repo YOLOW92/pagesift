@@ -120,6 +120,25 @@ fn route(r: &Req) -> Resp {
         }
         .delayed(200),
         "/slow.png" => not_found().delayed(2000),
+        // 一直轮询的页面：正文另外由一次接口请求渲染。
+        "/poll" => html(
+            r#"<div id="c">loading</div>
+               <script>
+                 setInterval(() => fetch('/tick').catch(() => {}), 50);
+                 fetch('/data').then(r => r.text()).then(t => document.getElementById('c').textContent = t);
+               </script>"#,
+        ),
+        "/tick" => html_raw("{}").delayed(30),
+        // blob: 主脚本的 worker。
+        "/worker" => html(
+            r#"<p>page with a worker</p>
+               <script>new Worker(URL.createObjectURL(new Blob(['postMessage(1)'], {type: 'text/javascript'})));</script>"#,
+        ),
+        // 解析到一半就跳到连不上的地址：原文档等不到 DOMContentLoaded。
+        "/js-redirect" => html_raw(
+            r#"<!doctype html><html><head><script>location.replace('http://127.0.0.1:1/');</script></head>
+               <body><p>original</p><script>for (const t = Date.now(); Date.now() - t < 300;) {}</script></body></html>"#,
+        ),
         p if p.ends_with(".png") || p.starts_with("/secret") => not_found(),
         _ => html("<p>default</p>"),
     }
@@ -484,6 +503,42 @@ async fn network_idle_does_not_wait_for_slow_images() {
         shot.timings.screenshot >= Duration::from_millis(1000),
         "{:?}",
         shot.timings
+    );
+    shutdown(pool).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn readiness_ignores_polling_workers_and_abandoned_documents() {
+    require_browser!();
+    let (base, _) = serve(route).await;
+    let pool = BrowserPool::new(config(), allow_all()).await.unwrap();
+    // 轮询永远不停，但同一个地址重复请求不算未完成的加载；正文接口仍然要等到。
+    let poll = pool.render(&format!("{base}/poll"), &opts()).await.unwrap();
+    assert!(poll.html.contains("data from api"), "{}", poll.html);
+    assert!(
+        poll.timings.wait < Duration::from_secs(2),
+        "{:?}",
+        poll.timings
+    );
+    let worker = pool
+        .render(&format!("{base}/worker"), &opts())
+        .await
+        .unwrap();
+    assert!(worker.html.contains("page with a worker"));
+    assert!(
+        worker.timings.wait < Duration::from_secs(2),
+        "{:?}",
+        worker.timings
+    );
+    // 以前会一直等原文档的 DOMContentLoaded，直到整体超时。
+    let redirect = pool
+        .render(&format!("{base}/js-redirect"), &opts())
+        .await
+        .unwrap();
+    assert!(
+        redirect.timings.total < Duration::from_secs(5),
+        "{:?}",
+        redirect.timings
     );
     shutdown(pool).await;
 }

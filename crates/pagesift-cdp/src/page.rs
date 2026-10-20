@@ -27,6 +27,8 @@ const NET_IDLE_CAP: Duration = Duration::from_secs(5);
 const LOAD_CAP: Duration = Duration::from_secs(10);
 /// 这些类型的请求没结束，页面内容就可能还在变；图片、字体、样式不影响 HTML。
 const TRACKED: &[&str] = &["Document", "Script", "XHR", "Fetch"];
+/// 同一个 GET URL 已经请求过这么多次，再请求就当作轮询或心跳，不再等它。
+const POLL_REPEATS: u32 = 2;
 
 pub(crate) struct PageEnv {
     pub guard: Arc<dyn RequestGuard>,
@@ -56,9 +58,11 @@ impl PageResources {
 }
 
 struct Net {
-    /// (session, requestId)
-    inflight: HashSet<(String, String)>,
+    /// (session, requestId) -> URL
+    inflight: HashMap<(String, String), String>,
     last_change: Instant,
+    /// 每个 GET URL 发过几次，用来认出轮询。
+    gets: HashMap<String, u32>,
 }
 
 struct Shared {
@@ -96,6 +100,23 @@ impl Shared {
         }
     }
 
+    /// 等导航到达 `name`。页面在 DOMContentLoaded 之前就用脚本跳走时，原来的文档永远等不到这个事件，
+    /// 这时改等主框架当前的文档。
+    async fn wait_navigation(&self, loader_id: &str, name: &str) {
+        loop {
+            let notified = self.load_notify.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
+            let current = self.main_loader.lock().unwrap().clone();
+            if self.has_event(loader_id, name)
+                || current.is_some_and(|c| c != loader_id && self.has_event(&c, name))
+            {
+                return;
+            }
+            notified.await;
+        }
+    }
+
     /// 等到跟踪的请求全部结束并静默 `quiet`；超过 `cap` 返回 false。
     async fn wait_idle(&self, quiet: Duration, cap: Duration) -> bool {
         let deadline = Instant::now() + cap;
@@ -120,7 +141,24 @@ impl Shared {
         }
     }
 
-    fn net_update(&self, f: impl FnOnce(&mut HashSet<(String, String)>) -> bool) {
+    /// 记一次 GET；这个 URL 之前已经请求过 `POLL_REPEATS` 次时认定是轮询，返回 true，
+    /// 同时不再等它之前还没结束的几次（长轮询会一直挂着）。
+    fn is_polling(&self, url: &str) -> bool {
+        let mut net = self.net.lock().unwrap();
+        let n = net.gets.entry(url.to_owned()).or_default();
+        *n += 1;
+        if *n <= POLL_REPEATS {
+            return false;
+        }
+        let before = net.inflight.len();
+        net.inflight.retain(|_, u| u != url);
+        if net.inflight.len() != before {
+            net.last_change = Instant::now();
+        }
+        true
+    }
+
+    fn net_update(&self, f: impl FnOnce(&mut HashMap<(String, String), String>) -> bool) {
         let mut net = self.net.lock().unwrap();
         if f(&mut net.inflight) {
             net.last_change = Instant::now();
@@ -267,8 +305,9 @@ pub(crate) async fn render_page(
         main_loader: Mutex::new(None),
         load_notify: Notify::new(),
         net: Mutex::new(Net {
-            inflight: HashSet::new(),
+            inflight: HashMap::new(),
             last_change: Instant::now(),
+            gets: HashMap::new(),
         }),
         oopif: Mutex::new(HashMap::new()),
     });
@@ -313,7 +352,7 @@ pub(crate) async fn render_page(
         _ => "DOMContentLoaded",
     };
     if let Some(l) = &loader {
-        shared.wait_event(l, first_event).await;
+        shared.wait_navigation(l, first_event).await;
     }
     timings.navigation = nav_start.elapsed();
     check_interception(&shared)?;
@@ -474,7 +513,7 @@ async fn monitor(
                     shared.oopif.lock().unwrap().retain(|_, s| s != child);
                     shared.net_update(|f| {
                         let n = f.len();
-                        f.retain(|(s, _)| s != child);
+                        f.retain(|(s, _), _| s != child);
                         n != f.len()
                     });
                 }
@@ -494,17 +533,29 @@ async fn monitor(
                 }
             }
             "Network.requestWillBeSent" => {
-                if TRACKED.contains(&p["type"].as_str().unwrap_or_default())
-                    && let Some(id) = p["requestId"].as_str()
+                let url = p.pointer("/request/url").and_then(Value::as_str);
+                // blob: 和 data: 不走网络；worker 的 blob: 主脚本在页面 session 上只有开始事件，
+                // 结束事件发在 worker 自己的 session 上，算进来就永远等不到静默。
+                let local = url.is_some_and(|u| u.starts_with("blob:") || u.starts_with("data:"));
+                // 定时重复请求同一个地址的是轮询，等它静默要一直等到上限；重定向的后续跳不算新请求。
+                let polling = || {
+                    p.pointer("/request/method").and_then(Value::as_str) == Some("GET")
+                        && p.get("redirectResponse").is_none()
+                        && url.is_some_and(|u| shared.is_polling(u))
+                };
+                if !local
+                    && TRACKED.contains(&p["type"].as_str().unwrap_or_default())
+                    && !polling()
+                    && let (Some(id), Some(url)) = (p["requestId"].as_str(), url)
                 {
                     let key = (sid.to_owned(), id.to_owned());
-                    shared.net_update(|f| f.insert(key));
+                    shared.net_update(|f| f.insert(key, url.to_owned()).is_none());
                 }
             }
             "Network.loadingFinished" | "Network.loadingFailed" => {
                 if let Some(id) = p["requestId"].as_str() {
                     let key = (sid.to_owned(), id.to_owned());
-                    shared.net_update(|f| f.remove(&key));
+                    shared.net_update(|f| f.remove(&key).is_some());
                 }
             }
             "Page.lifecycleEvent" if is_page => {
