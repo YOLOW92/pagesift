@@ -1,0 +1,21 @@
+[package]
+description = "Polite HTTP fetcher for pagesift: SSRF-guarded DNS, manual redirects, size caps, charset detection, scoped credentials."
+name = "pagesift-net"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+chardetng = "0.1.17"
+encoding_rs = "0.8.35"
+httpdate = "1.0.3"
+reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls-native-roots", "http2", "gzip", "brotli", "zstd", "deflate", "socks"] }
+thiserror = "2.0"
+tokio = { version = "1", features = ["net", "time"] }
+url = "2.5.8"
+
+[dev-dependencies]
+flate2 = "1.1.10"
+tokio = { version = "1", features = ["rt", "macros", "net", "io-util", "time", "sync"] }
