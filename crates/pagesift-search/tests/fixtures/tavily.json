@@ -1,0 +1,6 @@
+{"query":"rust","follow_up_questions":null,"answer":null,"images":[],
+"results":[
+{"title":"Rust Programming Language","url":"https://www.rust-lang.org/","content":"A language empowering everyone.","score":0.91,"raw_content":null},
+{"title":"The Rust Book","url":"https://doc.rust-lang.org/book/","content":"The official book.","score":0.8},
+{"title":"crates.io","url":"https://crates.io/","content":"The Rust community crate registry.","score":0.7}],
+"response_time":0.9,"request_id":"abc"}

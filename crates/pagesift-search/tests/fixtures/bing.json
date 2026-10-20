@@ -1,0 +1,5 @@
+{"_type":"SearchResponse","queryContext":{"originalQuery":"rust"},
+"webPages":{"webSearchUrl":"https://www.bing.com/search?q=rust","totalEstimatedMatches":1000,"value":[
+{"id":"a","name":"Rust Programming Language","url":"https://www.rust-lang.org/","snippet":"A language empowering everyone.","displayUrl":"www.rust-lang.org"},
+{"id":"b","name":"The Rust Book","url":"https://doc.rust-lang.org/book/","snippet":"The official book."},
+{"id":"c","name":"crates.io","url":"https://crates.io/","snippet":"The Rust community crate registry."}]}}

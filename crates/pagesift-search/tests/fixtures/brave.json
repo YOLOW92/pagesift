@@ -1,0 +1,5 @@
+{"type":"search","query":{"original":"rust","more_results_available":true},
+"web":{"type":"search","results":[
+{"title":"Rust Programming Language","url":"https://www.rust-lang.org/","description":"A language empowering everyone.","language":"en"},
+{"title":"The Rust Book","url":"https://doc.rust-lang.org/book/","description":"The official book."},
+{"title":"crates.io","url":"https://crates.io/","description":"The Rust community crate registry."}]}}
