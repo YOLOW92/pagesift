@@ -14,6 +14,7 @@
 
 #![forbid(unsafe_code)]
 
+mod capture;
 mod conn;
 mod error;
 mod guard;
