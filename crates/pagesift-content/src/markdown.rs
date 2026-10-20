@@ -22,7 +22,7 @@ pub(crate) struct Renderer<'a> {
     pub skipper: &'a Skipper,
 }
 
-fn is_block_tag(name: &str) -> bool {
+pub(crate) fn is_block_tag(name: &str) -> bool {
     matches!(
         name,
         "address"
