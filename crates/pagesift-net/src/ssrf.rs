@@ -38,12 +38,12 @@ pub struct SsrfPolicy {
 impl SsrfPolicy {
     pub fn check_url(&self, url: &str) -> Result<Url, Blocked> {
         let parsed = Url::parse(url).map_err(|_| Blocked::InvalidUrl)?;
-        if let Some(raw) = raw_host(url) {
-            if let Some(Host::Ipv4(ip)) = parsed.host() {
-                let raw = raw.to_ascii_lowercase();
-                if raw != ip.to_string() {
-                    return Err(Blocked::ObfuscatedIp(raw));
-                }
+        if let Some(raw) = raw_host(url)
+            && let Some(Host::Ipv4(ip)) = parsed.host()
+        {
+            let raw = raw.to_ascii_lowercase();
+            if raw != ip.to_string() {
+                return Err(Blocked::ObfuscatedIp(raw));
             }
         }
         self.check_parsed(&parsed)?;

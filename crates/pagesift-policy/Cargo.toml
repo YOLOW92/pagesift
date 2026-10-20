@@ -1,0 +1,18 @@
+[package]
+description = "Polite crawling for pagesift: RFC 9309 robots.txt, per-host rate limits, adaptive backoff and unified error codes."
+name = "pagesift-policy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+httpdate = "1.0.3"
+pagesift-net = { path = "../pagesift-net", version = "0.0.1" }
+thiserror = "2.0"
+tokio = { version = "1", features = ["sync", "time"] }
+
+[dev-dependencies]
+proptest = { version = "1.7.0", default-features = false, features = ["std"] }
+tokio = { version = "1", features = ["rt", "macros", "net", "io-util", "time", "sync", "test-util"] }
