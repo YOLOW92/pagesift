@@ -81,8 +81,7 @@ struct ExternalOutput {
     ms: Option<f64>,
 }
 
-/// F-1.9：HTTP 抓到的正文少于这么多字符时升级到浏览器渲染。
-pub const AUTO_RENDER_MIN_CHARS: usize = 1200;
+use pagesift::AUTO_RENDER_MIN_CHARS;
 
 fn phrases(text: &str, min_chars: usize) -> Vec<String> {
     text.split('\n')

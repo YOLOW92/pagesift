@@ -1354,15 +1354,22 @@ name = "pagesift"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "axum",
  "clap",
  "csv",
  "encoding_rs",
+ "httpdate",
+ "pagesift-api",
  "pagesift-cdp",
  "pagesift-content",
+ "pagesift-net",
+ "pagesift-pdf",
+ "pagesift-policy",
  "regex",
  "serde",
  "serde_json",
  "tokio",
+ "tracing",
  "tracing-subscriber",
  "url",
 ]
