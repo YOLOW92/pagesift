@@ -66,9 +66,10 @@ export interface PageMetadata {
 }
 
 export interface PagesiftMetadata {
-  contentSha256?: string
-  rawSha256?: string
-  textSha256?: string
+  /** Markdown、原始 HTML、正文纯文本的 BLAKE3 哈希（十六进制）。 */
+  contentHash?: string
+  rawHash?: string
+  textHash?: string
   redirectChain?: string[]
   etag?: string
   lastModified?: string
