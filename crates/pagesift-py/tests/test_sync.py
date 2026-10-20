@@ -19,7 +19,7 @@ def test_scrape_fields(scraper, http, server):
     assert d.metadata["description"] == "About Page /article"
     assert d.metadata["og_image"] == "/og.png"
     assert d.engine == "http"
-    assert len(d.content_sha256) == 64 and len(d.raw_sha256) == 64
+    assert len(d.content_hash) == 64 and len(d.raw_hash) == 64
     assert d.elapsed_ms > 0 and {"fetch", "extract", "total"} <= set(d.timings)
     # 默认只有 markdown
     assert d.html is None and d.raw_html is None and d.links is None and d.images is None
@@ -41,7 +41,7 @@ def test_formats_and_redirect(scraper, http, server):
 def test_same_content_same_fingerprint(scraper, http, server):
     a = scraper.scrape(f"{server}/article", http)
     b = scraper.scrape(f"{server}/redirect", http)
-    assert a.content_sha256 == b.content_sha256
+    assert a.content_hash == b.content_hash
 
 
 def test_only_main_content(scraper, http, server):
@@ -65,7 +65,7 @@ def test_to_dict(scraper, http, server):
     assert d["status_code"] == 200 and d["engine"] == "http"
     assert d["metadata"]["title"] == "Page /article"
     for key in ("index", "url", "final_url", "markdown", "html", "raw_html", "links", "images",
-                "content_sha256", "elapsed_ms", "timings", "warnings"):
+                "content_hash", "elapsed_ms", "timings", "warnings"):
         assert key in d
 
 

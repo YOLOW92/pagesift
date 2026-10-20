@@ -239,18 +239,18 @@ impl Document {
     fn engine(&self) -> Option<&str> {
         self.ext()?.engine.as_deref()
     }
-    /// Markdown 的 SHA-256，用来判断内容是否变化。
+    /// Markdown 的 BLAKE3 哈希（十六进制），用来判断内容是否变化。
     #[getter]
-    fn content_sha256(&self) -> Option<&str> {
-        self.ext()?.content_sha256.as_deref()
+    fn content_hash(&self) -> Option<&str> {
+        self.ext()?.content_hash.as_deref()
     }
     #[getter]
-    fn raw_sha256(&self) -> Option<&str> {
-        self.ext()?.raw_sha256.as_deref()
+    fn raw_hash(&self) -> Option<&str> {
+        self.ext()?.raw_hash.as_deref()
     }
     #[getter]
-    fn text_sha256(&self) -> Option<&str> {
-        self.ext()?.text_sha256.as_deref()
+    fn text_hash(&self) -> Option<&str> {
+        self.ext()?.text_hash.as_deref()
     }
     /// 总耗时（毫秒）。
     #[getter]
@@ -343,9 +343,9 @@ const FIELDS: &[&str] = &[
     "error_code",
     "error_message",
     "engine",
-    "content_sha256",
-    "raw_sha256",
-    "text_sha256",
+    "content_hash",
+    "raw_hash",
+    "text_hash",
     "elapsed_ms",
     "timings",
     "warnings",

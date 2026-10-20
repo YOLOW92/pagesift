@@ -52,12 +52,12 @@ class Document:
     def engine(self) -> Optional[str]:
         """实际使用的引擎：``http`` 或 ``browser``。"""
     @property
-    def content_sha256(self) -> Optional[str]:
-        """Markdown 的 SHA-256。"""
+    def content_hash(self) -> Optional[str]:
+        """Markdown 的 BLAKE3 哈希（十六进制）。"""
     @property
-    def raw_sha256(self) -> Optional[str]: ...
+    def raw_hash(self) -> Optional[str]: ...
     @property
-    def text_sha256(self) -> Optional[str]: ...
+    def text_hash(self) -> Optional[str]: ...
     @property
     def elapsed_ms(self) -> Optional[float]: ...
     @property

@@ -146,7 +146,7 @@ def run(pagesift, base: str) -> None:
     big = [f"{base}/big?p=1200&i={i}" for i in range(100)]
     full = opts.replace(formats=["markdown", "html", "raw_html", "links", "images"])
     for name, read in [
-        ("`success` + `content_sha256` only", lambda d: (d.success, d.content_sha256)),
+        ("`success` + `content_hash` only", lambda d: (d.success, d.content_hash)),
         ("`markdown` only", lambda d: d.markdown),
         ("every field (`to_dict()`)", lambda d: d.to_dict()),
     ]:

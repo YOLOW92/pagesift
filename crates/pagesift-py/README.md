@@ -87,7 +87,7 @@ latency the server is the limit (16 × 1000 / 50 ms = 320 pages/s at most).
 
 | what the caller reads | Python-side µs per page (lower is better) |
 |---|---:|
-| `success` + `content_sha256` only | 0.4 |
+| `success` + `content_hash` only | 0.4 |
 | `markdown` only | 69.2 |
 | every field (`to_dict()`) | 235.9 |
 
@@ -175,7 +175,7 @@ apply, so a batch against one host is as polite as single requests.
 | `metadata` | dict: `title`, `description`, `language`, `keywords`, `robots`, `favicon`, `published_time`, `modified_time`, `content_type`, plus other meta tags such as `og_image` |
 | `error`, `error_code`, `error_message` | set when `success` is `False` |
 | `engine` | `http` or `browser` |
-| `content_sha256`, `raw_sha256`, `text_sha256` | content fingerprints for change detection |
+| `content_hash`, `raw_hash`, `text_hash` | content fingerprints for change detection |
 | `elapsed_ms`, `timings` | total and per-phase time, milliseconds |
 | `warnings`, `redirect_chain`, `etag`, `last_modified`, `not_modified` | |
 
