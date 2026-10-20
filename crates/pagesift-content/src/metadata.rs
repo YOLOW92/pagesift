@@ -1,4 +1,4 @@
-use scraper::Html;
+use pagesift_html::Html;
 use url::Url;
 
 use crate::datetime::to_utc_rfc3339;
@@ -41,7 +41,7 @@ fn resolve(base: Option<&Url>, href: &str) -> String {
     }
 }
 
-pub(crate) fn extract(html: &Html, base: Option<&Url>) -> Metadata {
+pub(crate) fn extract(html: &Html<'_>, base: Option<&Url>) -> Metadata {
     let mut m = Metadata::default();
     let mut title_tag = None;
     let mut og_title = None;
@@ -54,7 +54,7 @@ pub(crate) fn extract(html: &Html, base: Option<&Url>) -> Metadata {
     let mut time_any = Vec::new();
     let mut time_modified = Vec::new();
 
-    for node in html.tree.root().descendants() {
+    for node in html.root().descendants() {
         let Some(el) = element(&node) else { continue };
         match el.name() {
             "html" => {
@@ -65,7 +65,7 @@ pub(crate) fn extract(html: &Html, base: Option<&Url>) -> Metadata {
             "title" if title_tag.is_none() && !in_svg(&node) => {
                 let text: String = node
                     .descendants()
-                    .filter_map(|d| d.value().as_text().map(|t| t.to_string()))
+                    .filter_map(|d| d.as_text().map(|t| t.to_string()))
                     .collect();
                 title_tag = clean(&text);
             }
@@ -128,7 +128,7 @@ pub(crate) fn extract(html: &Html, base: Option<&Url>) -> Metadata {
             {
                 let text: String = node
                     .children()
-                    .filter_map(|c| c.value().as_text().map(|t| t.to_string()))
+                    .filter_map(|c| c.as_text().map(|t| t.to_string()))
                     .collect();
                 ld_blocks.push(text);
             }

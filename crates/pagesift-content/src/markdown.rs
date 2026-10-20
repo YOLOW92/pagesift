@@ -1,5 +1,6 @@
 //! DOM 子树转 GFM。分两层：块级渲染产出段落列表，行内渲染产出单行文本。
 
+use pagesift_html::Element;
 use url::Url;
 
 use crate::dom::{NodeR, collapse_whitespace, element, raw_text, tag};
@@ -114,7 +115,7 @@ impl Renderer<'_> {
     pub(crate) fn render(&self, roots: &[NodeR<'_>]) -> String {
         let mut blocks = Vec::new();
         for root in roots {
-            if root.value().is_element() && self.acts_as_block(root) {
+            if root.is_element() && self.acts_as_block(root) {
                 self.block(*root, &mut blocks);
             } else {
                 blocks.extend(self.blocks_of(*root));
@@ -132,7 +133,7 @@ impl Renderer<'_> {
     }
 
     fn skip(&self, node: &NodeR<'_>) -> bool {
-        node.value().is_element() && self.skipper.skip(node) || node.value().is_comment()
+        node.is_element() && self.skipper.skip(node) || node.is_comment()
     }
 
     fn has_block_descendant(&self, node: &NodeR<'_>) -> bool {
@@ -159,7 +160,7 @@ impl Renderer<'_> {
             if self.skip(&child) {
                 continue;
             }
-            if child.value().is_element() && self.acts_as_block(&child) {
+            if child.is_element() && self.acts_as_block(&child) {
                 flush_paragraph(&mut inline, &mut blocks);
                 self.block(child, &mut blocks);
             } else {
@@ -261,7 +262,7 @@ impl Renderer<'_> {
             }
             let blocks = if tag(&child) == Some("li") {
                 self.blocks_of(child)
-            } else if child.value().is_element() {
+            } else if child.is_element() {
                 // ul 里直接放的非 li 元素：按内容处理，不丢文本
                 let mut v = Vec::new();
                 if self.acts_as_block(&child) {
@@ -367,7 +368,7 @@ impl Renderer<'_> {
     }
 
     fn inline(&self, node: NodeR<'_>) -> String {
-        if let Some(t) = node.value().as_text() {
+        if let Some(t) = node.as_text() {
             return collapse_whitespace(t);
         }
         let Some(el) = element(&node) else {
@@ -390,7 +391,7 @@ impl Renderer<'_> {
         }
     }
 
-    fn link(&self, node: NodeR<'_>, el: &scraper::node::Element) -> String {
+    fn link(&self, node: NodeR<'_>, el: Element<'_>) -> String {
         let inner = self.inline_children(node);
         let text = single_line(&inner);
         let Some(href) = el.attr("href").map(str::trim) else {
@@ -410,7 +411,7 @@ impl Renderer<'_> {
         format!("{lead}[{text}]({url}){trail}")
     }
 
-    fn image(&self, el: &scraper::node::Element) -> String {
+    fn image(&self, el: Element<'_>) -> String {
         let src = el
             .attr("src")
             .filter(|s| !s.trim().is_empty())

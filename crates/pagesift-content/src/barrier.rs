@@ -7,7 +7,7 @@
 use std::sync::OnceLock;
 
 use aho_corasick::{AhoCorasick, AhoCorasickBuilder, AhoCorasickKind};
-use scraper::Html;
+use pagesift_html::Html;
 
 use crate::dom::{NodeR, element, is_hidden, is_non_content_tag};
 
@@ -235,12 +235,12 @@ fn mark_hits(field: Field, haystack: &str, hits: &mut [bool]) {
 
 /// 收集标题、可见文字和 `<noscript>` 文字，连同可见文字的非空白字符数；
 /// 可见文字超过 `limit` 时提前返回 `None`。
-fn page_text(dom: &Html, title: Option<&str>, limit: usize) -> Option<(String, usize)> {
+fn page_text(dom: &Html<'_>, title: Option<&str>, limit: usize) -> Option<(String, usize)> {
     let mut text = String::from(title.unwrap_or(""));
     let mut visible = 0usize;
-    let mut stack: Vec<(NodeR<'_>, bool)> = vec![(dom.tree.root(), false)];
+    let mut stack: Vec<(NodeR<'_>, bool)> = vec![(dom.root(), false)];
     while let Some((node, in_noscript)) = stack.pop() {
-        if let Some(t) = node.value().as_text() {
+        if let Some(t) = node.as_text() {
             if !in_noscript {
                 visible += t.chars().filter(|c| !c.is_whitespace()).count();
                 if visible > limit {
@@ -267,7 +267,7 @@ fn page_text(dom: &Html, title: Option<&str>, limit: usize) -> Option<(String, u
 }
 
 pub(crate) fn detect(
-    dom: &Html,
+    dom: &Html<'_>,
     html: &str,
     title: Option<&str>,
     status: Option<u16>,

@@ -1,11 +1,9 @@
-use ego_tree::NodeRef;
-use scraper::Node;
-use scraper::node::Element;
+use pagesift_html::{Element, NodeRef};
 
-pub(crate) type NodeR<'a> = NodeRef<'a, Node>;
+pub(crate) type NodeR<'a> = NodeRef<'a>;
 
-pub(crate) fn element<'a>(node: &NodeR<'a>) -> Option<&'a Element> {
-    node.value().as_element()
+pub(crate) fn element<'a>(node: &NodeR<'a>) -> Option<Element<'a>> {
+    node.as_element()
 }
 
 pub(crate) fn tag<'a>(node: &NodeR<'a>) -> Option<&'a str> {
@@ -40,7 +38,7 @@ pub(crate) fn is_non_content_tag(name: &str) -> bool {
 }
 
 /// 显式隐藏的元素：`hidden`、`aria-hidden="true"`、内联样式 `display:none` / `visibility:hidden`。
-pub(crate) fn is_hidden(el: &Element) -> bool {
+pub(crate) fn is_hidden(el: Element<'_>) -> bool {
     if el.attr("hidden").is_some() {
         return true;
     }
@@ -95,7 +93,7 @@ pub(crate) fn collapse_whitespace(s: &str) -> String {
 pub(crate) fn raw_text(node: &NodeR<'_>) -> String {
     let mut out = String::new();
     for d in node.descendants() {
-        if let Some(t) = d.value().as_text() {
+        if let Some(t) = d.as_text() {
             out.extend(t.chars().filter(|c| !is_zero_width(*c)));
         } else if tag(&d) == Some("br") {
             out.push('\n');

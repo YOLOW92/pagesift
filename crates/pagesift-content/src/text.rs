@@ -19,11 +19,11 @@ pub(crate) fn render(root: NodeR<'_>, skipper: &Skipper) -> String {
 
 fn walk(node: NodeR<'_>, skipper: &Skipper, out: &mut String) {
     for child in node.children() {
-        if let Some(t) = child.value().as_text() {
+        if let Some(t) = child.as_text() {
             out.push_str(&collapse_whitespace(t));
             continue;
         }
-        if !child.value().is_element() || skipper.skip(&child) {
+        if !child.is_element() || skipper.skip(&child) {
             continue;
         }
         match tag(&child).unwrap_or("") {

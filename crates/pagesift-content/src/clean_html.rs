@@ -15,7 +15,7 @@ pub(crate) fn render(root: NodeR<'_>, skipper: &Skipper, base: Option<&Url>) -> 
 }
 
 fn write_node(node: NodeR<'_>, skipper: &Skipper, base: Option<&Url>, out: &mut String) {
-    if let Some(t) = node.value().as_text() {
+    if let Some(t) = node.as_text() {
         escape(t, false, out);
         return;
     }

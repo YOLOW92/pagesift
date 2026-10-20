@@ -2,8 +2,8 @@
 
 use std::collections::HashSet;
 
-use scraper::Html;
-use scraper::node::Element;
+use pagesift_html::Element;
+use pagesift_html::Html;
 use url::{Host, Url};
 
 use crate::dom::{collapse_whitespace, element, tag};
@@ -28,10 +28,10 @@ pub struct Image {
 }
 
 /// `<a href>` 和 `<area href>`，只保留 http(s)，按出现顺序去重。没有基准 URL 时相对链接无法转换，跳过。
-pub(crate) fn links(dom: &Html, base: Option<&Url>) -> Vec<Link> {
+pub(crate) fn links(dom: &Html<'_>, base: Option<&Url>) -> Vec<Link> {
     let mut seen = HashSet::new();
     let mut out = Vec::new();
-    for node in dom.tree.root().descendants() {
+    for node in dom.root().descendants() {
         let Some(el) = element(&node) else { continue };
         if !matches!(el.name(), "a" | "area") {
             continue;
@@ -46,7 +46,7 @@ pub(crate) fn links(dom: &Html, base: Option<&Url>) -> Vec<Link> {
         }
         let text: String = node
             .descendants()
-            .filter_map(|d| d.value().as_text().map(|t| t.to_string()))
+            .filter_map(|d| d.as_text().map(|t| t.to_string()))
             .collect();
         let internal = base.is_some_and(|b| same_site(b, &url));
         out.push(Link {
@@ -59,10 +59,10 @@ pub(crate) fn links(dom: &Html, base: Option<&Url>) -> Vec<Link> {
 }
 
 /// 页面里的 `<img>`，过滤掉 data: URI 和 1×1 的追踪像素，按地址去重。
-pub(crate) fn images(dom: &Html, base: Option<&Url>) -> Vec<Image> {
+pub(crate) fn images(dom: &Html<'_>, base: Option<&Url>) -> Vec<Image> {
     let mut seen = HashSet::new();
     let mut out = Vec::new();
-    for node in dom.tree.root().descendants() {
+    for node in dom.root().descendants() {
         let Some(el) = element(&node) else { continue };
         if el.name() != "img" || is_tracking_pixel(el) {
             continue;
@@ -114,7 +114,7 @@ fn absolute(base: Option<&Url>, href: &str) -> Option<Url> {
     matches!(url.scheme(), "http" | "https").then_some(url)
 }
 
-fn is_tracking_pixel(el: &Element) -> bool {
+fn is_tracking_pixel(el: Element<'_>) -> bool {
     let dim = |name: &str| {
         el.attr(name).map(|v| {
             let digits: String = v.trim().chars().take_while(char::is_ascii_digit).collect();

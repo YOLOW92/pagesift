@@ -3,9 +3,9 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use ego_tree::NodeId;
-use scraper::Html;
-use scraper::node::Element;
+use pagesift_html::Element;
+use pagesift_html::Html;
+use pagesift_html::NodeId;
 
 use crate::dom::{NodeR, element, is_hidden, is_non_content_tag, tag};
 
@@ -78,7 +78,7 @@ const SKIP_ROLES: &[&str] = &[
 ];
 
 /// class 和 id 拆成小写词，按词匹配，避免 "header" 命中 "head" 这类误伤。
-fn tokens(el: &Element) -> Vec<String> {
+fn tokens(el: Element<'_>) -> Vec<String> {
     let mut out = Vec::new();
     for value in [el.attr("class"), el.attr("id")].into_iter().flatten() {
         for t in value.split(|c: char| !c.is_ascii_alphanumeric()) {
@@ -130,7 +130,7 @@ const LINK_BLOCK_MIN_SHARE: f64 = 0.8;
 const LINK_BLOCK_MAX_AVG_CHARS: f64 = 20.0;
 
 /// "Skip to content"、"Jump to content" 这类页内跳转链接。
-fn is_skip_link(node: &NodeR<'_>, el: &Element) -> bool {
+fn is_skip_link(node: &NodeR<'_>, el: Element<'_>) -> bool {
     if !el
         .attr("href")
         .is_some_and(|h| h.trim_start().starts_with('#'))
@@ -143,7 +143,7 @@ fn is_skip_link(node: &NodeR<'_>, el: &Element) -> bool {
     }
     let text: String = node
         .descendants()
-        .filter_map(|d| d.value().as_text().map(|t| t.to_lowercase()))
+        .filter_map(|d| d.as_text().map(|t| t.to_lowercase()))
         .collect();
     let text = text.trim_start();
     [
@@ -158,21 +158,18 @@ fn is_skip_link(node: &NodeR<'_>, el: &Element) -> bool {
     .any(|p| text.starts_with(p))
 }
 
-fn is_hard_skip(el: &Element) -> bool {
+fn is_hard_skip(el: Element<'_>) -> bool {
     is_non_content_tag(el.name()) || is_hidden(el)
 }
 
 fn compute_visible(root: NodeR<'_>) -> HashMap<NodeId, Visible> {
-    let order: Vec<NodeR<'_>> = root
-        .descendants()
-        .filter(|n| n.value().is_element())
-        .collect();
+    let order: Vec<NodeR<'_>> = root.descendants().filter(|n| n.is_element()).collect();
     let mut map: HashMap<NodeId, Visible> = HashMap::with_capacity(order.len());
     for node in order.iter().rev() {
         let mut v = Visible::default();
         if !element(node).is_some_and(is_hard_skip) {
             for child in node.children() {
-                if let Some(t) = child.value().as_text() {
+                if let Some(t) = child.as_text() {
                     v.chars += t.chars().filter(|c| !c.is_whitespace()).count();
                 } else if let Some(c) = map.get(&child.id()) {
                     v.chars += c.chars;
@@ -192,15 +189,14 @@ fn compute_visible(root: NodeR<'_>) -> HashMap<NodeId, Visible> {
 }
 
 impl Skipper {
-    pub(crate) fn new(html: &Html, only_main: bool) -> Self {
+    pub(crate) fn new(html: &Html<'_>, only_main: bool) -> Self {
         let body = html
-            .tree
             .root()
             .descendants()
             .find(|n| tag(n) == Some("body"))
-            .unwrap_or_else(|| html.tree.root());
+            .unwrap_or_else(|| html.root());
         let visible = if only_main {
-            compute_visible(html.tree.root())
+            compute_visible(html.root())
         } else {
             HashMap::new()
         };
@@ -227,8 +223,8 @@ impl Skipper {
     }
 
     pub(crate) fn skip(&self, node: &NodeR<'_>) -> bool {
-        if !node.value().is_element() {
-            return node.value().is_comment();
+        if !node.is_element() {
+            return node.is_comment();
         }
         if let Some(&v) = self.cache.borrow().get(&node.id()) {
             return v;

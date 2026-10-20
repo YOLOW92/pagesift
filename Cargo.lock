@@ -1410,8 +1410,7 @@ version = "0.0.1"
 dependencies = [
  "aho-corasick",
  "blake3",
- "ego-tree",
- "scraper",
+ "pagesift-html",
  "serde_json",
  "unicode-normalization",
  "url",

@@ -20,7 +20,7 @@ mod markdown;
 mod metadata;
 mod text;
 
-use scraper::Html;
+use pagesift_html::Html;
 use url::Url;
 
 pub use barrier::{Barrier, BarrierKind};
@@ -91,13 +91,13 @@ const FALLBACK_MAX_CHARS: usize = 1000;
 const FALLBACK_MAX_SHARE: f64 = 0.2;
 
 pub fn process(html: &str, opts: &Options) -> Document {
-    let dom = Html::parse_document(html);
+    let dom = Html::parse(html);
     let base = effective_base(&dom, opts.base_url.as_ref());
     let mut skipper = extract::Skipper::new(&dom, opts.only_main_content);
     // 只取正文靠跳过规则去掉页面框架（导航、页眉页脚、侧边栏、链接密集块），其余整页保留。
     // 评测集上这比 Readability 式的"挑一个正文节点"更好：首页、产品页、落地页没有单一的文章节点，
     // 文章页的"文章信号"（og:type、单个 <article>）也不可靠。
-    let body = dom.tree.get(body_or_root(&dom)).expect("body node exists");
+    let body = dom.get(body_or_root(&dom));
     let metadata = metadata::extract(&dom, base.as_ref());
     let render = |skipper: &extract::Skipper| {
         markdown::Renderer {
@@ -138,19 +138,18 @@ pub fn process(html: &str, opts: &Options) -> Document {
     }
 }
 
-fn body_or_root(dom: &Html) -> ego_tree::NodeId {
-    dom.tree
-        .root()
+fn body_or_root(dom: &Html<'_>) -> pagesift_html::NodeId {
+    dom.root()
         .descendants()
-        .find(|n| n.value().as_element().is_some_and(|e| e.name() == "body"))
-        .unwrap_or_else(|| dom.tree.root())
+        .find(|n| n.as_element().is_some_and(|e| e.name() == "body"))
+        .unwrap_or_else(|| dom.root())
         .id()
 }
 
 /// 页面里的 `<base href>` 优先于调用方给的 URL。
-fn effective_base(dom: &Html, given: Option<&Url>) -> Option<Url> {
-    let href = dom.tree.root().descendants().find_map(|n| {
-        let el = n.value().as_element()?;
+fn effective_base(dom: &Html<'_>, given: Option<&Url>) -> Option<Url> {
+    let href = dom.root().descendants().find_map(|n| {
+        let el = n.as_element()?;
         (el.name() == "base").then(|| el.attr("href")).flatten()
     });
     match (href, given) {
