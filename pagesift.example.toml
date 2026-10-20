@@ -30,6 +30,8 @@ allow_crawl_ignore_robots = false
 # remote = "ws://127.0.0.1:9222/devtools/browser/..."
 max_browsers = 2
 max_tabs_per_browser = 4
+# 系统可用内存低于这个值（MB）时不再开新标签页，等已有页面结束；0 表示不检查
+min_available_memory_mb = 1024
 
 [cache]
 enabled = true

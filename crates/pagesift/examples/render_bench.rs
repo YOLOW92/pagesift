@@ -6,7 +6,7 @@
 //!
 //! 参数：`--inputs <dir>`、`--real <真实页面数，默认 120>`、`--synthetic <每种合成页份数，默认 10>`、
 //! `--concurrency <并发，默认等于池容量>`、`--browsers <n>`、`--tabs <n>`、
-//! `--chrome-arg <参数，可重复>`、`--out <dir>`、`--label <名字>`、
+//! `--min-mem <MB>`、`--chrome-arg <参数，可重复>`、`--out <dir>`、`--label <名字>`、
 //! `--only <逗号分隔的页面名>`（只跑这些页，排查用）。
 //! 源站之外的主机都被 Chrome 的 `--host-resolver-rules` 解析失败，结果不受外网影响，也不会访问外网。
 
@@ -278,6 +278,7 @@ fn main() {
             "--concurrency" => concurrency = v().parse().unwrap(),
             "--browsers" => browser.max_browsers = v().parse().unwrap(),
             "--tabs" => browser.max_tabs_per_browser = v().parse().unwrap(),
+            "--min-mem" => browser.min_available_memory_mb = v().parse().unwrap(),
             "--chrome-arg" => browser.extra_args.push(v()),
             "--out" => out = Some(v()),
             "--label" => label = v(),

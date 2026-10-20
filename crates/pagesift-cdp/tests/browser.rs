@@ -565,6 +565,65 @@ async fn concurrency_stays_within_limits() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn low_memory_serializes_pages() {
+    require_browser!();
+    let base = serve().await;
+    // 要求的可用内存永远达不到：只能一次渲染一页，也不会再启动第二个浏览器。
+    let pool = BrowserPool::new(
+        PoolConfig {
+            max_browsers: 2,
+            max_tabs_per_browser: 2,
+            min_available_memory_mb: u64::MAX / 4,
+            ..config()
+        },
+        allow_all(),
+    )
+    .await
+    .unwrap();
+    let max_seen = Arc::new(std::sync::Mutex::new((0usize, 0usize)));
+    let watcher = {
+        let (pool, max_seen) = (pool.clone(), max_seen.clone());
+        tokio::spawn(async move {
+            loop {
+                let s = pool.stats().await;
+                let tabs = s.iter().map(|b| b.tabs_in_use).sum::<usize>();
+                {
+                    let mut m = max_seen.lock().unwrap();
+                    m.0 = m.0.max(s.len());
+                    m.1 = m.1.max(tabs);
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+    };
+    let jobs: Vec<_> = (0..4)
+        .map(|_| {
+            let (pool, url) = (pool.clone(), format!("{base}/spa"));
+            tokio::spawn(async move {
+                pool.render(
+                    &url,
+                    &RenderOptions {
+                        timeout: Duration::from_secs(120),
+                        ..opts()
+                    },
+                )
+                .await
+            })
+        })
+        .collect();
+    for j in jobs {
+        assert_eq!(j.await.unwrap().unwrap().status, Some(200));
+    }
+    watcher.abort();
+    let (browsers, tabs) = *max_seen.lock().unwrap();
+    assert!(
+        browsers == 1 && tabs == 1,
+        "browsers={browsers} tabs={tabs}"
+    );
+    pool.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn recycle_and_shutdown_leave_no_processes() {
     require_browser!();
     let base = serve().await;
