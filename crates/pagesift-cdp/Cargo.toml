@@ -1,0 +1,20 @@
+[package]
+description = "A small, self-contained Chrome DevTools Protocol client and bounded browser pool for rendering pages."
+name = "pagesift-cdp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+base64 = "0.23.1"
+futures-util = { version = "0.3.34", default-features = false, features = ["sink", "std"] }
+nix = { version = "0.31.3", features = ["signal", "user", "process"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+tempfile = "3.27.0"
+tokio = { version = "1.54.0", features = ["rt", "rt-multi-thread", "macros", "net", "process", "time", "sync", "io-util"] }
+tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["connect", "handshake"] }
+tracing = "0.1.44"
+url = "2.5.8"
