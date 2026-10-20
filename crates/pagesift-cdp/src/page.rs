@@ -285,7 +285,7 @@ pub(crate) async fn render_page(
         session.call("Page.getFrameTree", json!({})),
         enable_interception(&session),
         session.call("Page.setLifecycleEventsEnabled", json!({ "enabled": true })),
-        session.call("Network.enable", json!({})),
+        enable_network(&session),
         set_metrics(&session, &metrics, None),
         touch,
         languages,
@@ -433,6 +433,16 @@ pub(crate) async fn render_page(
         virtual_scroll_items,
         timings: timings.clone(),
     })
+}
+
+/// 只用网络事件判断就绪，不读响应体：缓冲区设到最小，浏览器不必替每个请求保留一份内容。
+async fn enable_network(session: &Session) -> Result<Value> {
+    session
+        .call(
+            "Network.enable",
+            json!({ "maxTotalBufferSize": 0, "maxResourceBufferSize": 0 }),
+        )
+        .await
 }
 
 async fn enable_interception(session: &Session) -> Result<()> {
@@ -588,7 +598,7 @@ async fn attach_child(child: &Session, kind: &str, shared: &Shared) {
         return;
     } else if kind == "iframe" {
         // 跨进程 iframe 的请求也要计入网络静默。
-        let _ = child.call("Network.enable", json!({})).await;
+        let _ = enable_network(child).await;
     }
     let _ = child
         .call("Runtime.runIfWaitingForDebugger", json!({}))
