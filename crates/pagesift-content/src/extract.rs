@@ -103,6 +103,9 @@ fn has_token(tokens: &[String], set: &[&str]) -> bool {
 ///   软跳过的元素如果装着全页大部分文字，说明它其实是正文的外层容器，不跳过。
 pub(crate) struct Skipper {
     only_main: bool,
+    /// 放宽后只保留硬跳过和 `<nav>`、`<aside>`、`<footer>`，不再用软跳过规则。
+    relaxed: bool,
+    total_chars: usize,
     protect_chars: usize,
     visible: HashMap<NodeId, Visible>,
     cache: RefCell<HashMap<NodeId, bool>>,
@@ -204,10 +207,23 @@ impl Skipper {
         let total = visible.get(&body.id()).map_or(0, |v| v.chars);
         Self {
             only_main,
+            relaxed: false,
+            total_chars: total,
             protect_chars: ((total as f64 * PROTECT_SHARE) as usize).max(PROTECT_MIN_CHARS),
             visible,
             cache: RefCell::new(HashMap::new()),
         }
+    }
+
+    /// 页面可见文字的总字符数（只排除硬跳过的内容）。
+    pub(crate) fn total_chars(&self) -> usize {
+        self.total_chars
+    }
+
+    /// 关掉软跳过规则，用于正文被删过头时的重试。
+    pub(crate) fn relax(&mut self) {
+        self.relaxed = true;
+        self.cache.get_mut().clear();
     }
 
     pub(crate) fn skip(&self, node: &NodeR<'_>) -> bool {
@@ -239,7 +255,7 @@ impl Skipper {
         if name == "a" {
             return is_skip_link(node, el);
         }
-        if matches!(name, "body" | "html") {
+        if self.relaxed || matches!(name, "body" | "html") {
             return false;
         }
         let vis = self.visible.get(&node.id()).copied().unwrap_or_default();

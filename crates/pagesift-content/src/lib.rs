@@ -41,20 +41,37 @@ pub struct Document {
     pub metadata: Metadata,
 }
 
+/// 只取正文的结果少于这么多字符、并且不到整页可见文字的这个比例时，放宽规则重试。
+/// 阈值由 `pagesift bench --auto` 扫描确定。
+const FALLBACK_MAX_CHARS: usize = 1000;
+const FALLBACK_MAX_SHARE: f64 = 0.2;
+
 pub fn process(html: &str, opts: &Options) -> Document {
     let dom = Html::parse_document(html);
     let base = effective_base(&dom, opts.base_url.as_ref());
-    let skipper = extract::Skipper::new(&dom, opts.only_main_content);
+    let mut skipper = extract::Skipper::new(&dom, opts.only_main_content);
     // 只取正文靠跳过规则去掉页面框架（导航、页眉页脚、侧边栏、链接密集块），其余整页保留。
     // 评测集上这比 Readability 式的"挑一个正文节点"更好：首页、产品页、落地页没有单一的文章节点，
     // 文章页的"文章信号"（og:type、单个 <article>）也不可靠。
     let body = dom.tree.get(body_or_root(&dom)).expect("body node exists");
-    let renderer = markdown::Renderer {
-        base: base.as_ref(),
-        skipper: &skipper,
-    };
     let metadata = metadata::extract(&dom, base.as_ref());
-    let markdown = renderer.render(&[body]);
+    let render = |skipper: &extract::Skipper| {
+        markdown::Renderer {
+            base: base.as_ref(),
+            skipper,
+        }
+        .render(&[body])
+    };
+    let mut markdown = render(&skipper);
+    // 规则删过头的保险：结果很短、又远少于整页文字时，关掉软跳过规则重来一次
+    if opts.only_main_content {
+        let chars = markdown.chars().filter(|c| !c.is_whitespace()).count();
+        let total = skipper.total_chars();
+        if chars < FALLBACK_MAX_CHARS && (chars as f64) < total as f64 * FALLBACK_MAX_SHARE {
+            skipper.relax();
+            markdown = render(&skipper);
+        }
+    }
     Document { markdown, metadata }
 }
 

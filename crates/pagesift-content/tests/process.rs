@@ -233,3 +233,22 @@ fn content_split_into_sections_is_kept_whole() {
     assert!(!m.contains("edit"), "{m}");
     assert!(!m.contains("Home"));
 }
+
+#[test]
+fn over_eager_skips_fall_back_to_relaxed_rules() {
+    // 正文在一个类名带 sidebar 的容器里，被软规则删掉；页面其余部分是一大块导航。
+    // 删完几乎没剩东西，于是放宽规则重试：正文回来了，导航仍然不要。
+    let links: String = (0..60)
+        .map(|i| format!("<li><a href=\"/c/{i}\">Category number {i}</a></li>"))
+        .collect();
+    let html = format!(
+        r#"<body><nav><ul>{links}</ul></nav>
+        <div class="sidebar-layout"><p>Product overview: durable neoprene sheets for gaskets, seals and padding.</p></div></body>"#
+    );
+    let m = md(&html);
+    assert!(
+        m.contains("Product overview: durable neoprene sheets"),
+        "{m}"
+    );
+    assert!(!m.contains("Category number"), "{m}");
+}
