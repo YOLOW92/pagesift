@@ -116,8 +116,15 @@ enum Command {
         #[arg(long, default_value = "include")]
         sitemap: String,
     },
-    /// Run the MCP server
-    Mcp,
+    /// Run the MCP server (stdio by default)
+    Mcp {
+        /// stdio or http
+        #[arg(default_value = "stdio")]
+        transport: String,
+        /// Port for the http transport (listens on 127.0.0.1)
+        #[arg(long, default_value_t = 3003)]
+        port: u16,
+    },
     /// Check the environment
     Doctor,
     /// Evaluate content extraction on local dataset snapshots
@@ -375,10 +382,30 @@ fn run(command: Command) -> Result<ExitCode> {
             }
         }),
         Command::Doctor => runtime()?.block_on(cli::doctor()),
-        Command::Mcp => {
-            eprintln!("not implemented yet");
-            Ok(ExitCode::from(2))
-        }
+        Command::Mcp { transport, port } => runtime()?.block_on(async move {
+            let scraper = Arc::new(pagesift::Scraper::new(pagesift::ScraperConfig::default())?);
+            let server = pagesift_mcp::McpServer::builder("pagesift", env!("CARGO_PKG_VERSION"))
+                .tools(pagesift::mcp::tools(scraper.clone()))
+                .build()
+                .map_err(|e| anyhow::anyhow!("building the MCP server: {e:?}"))?;
+            match transport.as_str() {
+                "stdio" => pagesift_mcp::serve_stdio(server).await?,
+                "http" => {
+                    let config = pagesift_mcp::HttpConfig {
+                        bind: std::net::SocketAddr::from(([127, 0, 0, 1], port)),
+                        ..Default::default()
+                    };
+                    eprintln!(
+                        "pagesift MCP listening on http://127.0.0.1:{port}{}",
+                        config.path
+                    );
+                    pagesift_mcp::serve_http(server, config).await?;
+                }
+                other => anyhow::bail!("unknown transport {other:?}: use stdio or http"),
+            }
+            scraper.shutdown().await;
+            Ok(ExitCode::SUCCESS)
+        }),
     }
 }
 

@@ -1376,6 +1376,7 @@ dependencies = [
  "pagesift-api",
  "pagesift-cdp",
  "pagesift-content",
+ "pagesift-mcp",
  "pagesift-net",
  "pagesift-pdf",
  "pagesift-policy",

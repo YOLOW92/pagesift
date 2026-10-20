@@ -14,6 +14,7 @@
 
 mod crawl;
 mod engine;
+pub mod mcp;
 
 pub use crawl::normalize as normalize_url;
 pub use engine::{AUTO_RENDER_MIN_CHARS, Scraper, ScraperConfig};
