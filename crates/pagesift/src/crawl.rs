@@ -217,10 +217,8 @@ impl Scraper {
         let mut seen = HashSet::new();
         let mut links: Vec<String> = Vec::new();
         for u in std::iter::once(start.clone()).chain(found) {
-            if scope.allows(&u) {
-                if seen.insert(dedup_key(&u, req.ignore_query_parameters)) {
-                    links.push(normalize(&u, req.ignore_query_parameters));
-                }
+            if scope.allows(&u) && seen.insert(dedup_key(&u, req.ignore_query_parameters)) {
+                links.push(normalize(&u, req.ignore_query_parameters));
             }
         }
         if let Some(search) = req.search.as_deref().filter(|s| !s.trim().is_empty()) {
