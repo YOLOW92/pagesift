@@ -17,15 +17,18 @@ use tokio::sync::OnceCell;
 /// F-1.9：HTTP 抓到的正文少于这么多字符时，`engine: auto` 升级到浏览器渲染。
 pub const AUTO_RENDER_MIN_CHARS: usize = 1200;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct ScraperConfig {
     pub fetcher: FetcherConfig,
     pub policy: PolicyConfig,
     pub browser: PoolConfig,
+    /// 抓取结果缓存（`maxAge`、`minAge`、`storeInCache`）；不设时不缓存。
+    pub store: Option<pagesift_store::Store>,
 }
 
 pub struct Scraper {
     policy: Arc<Policy>,
+    store: Option<pagesift_store::Store>,
     browser_config: PoolConfig,
     /// 浏览器第一次需要时才启动；找不到浏览器时记住结果，不反复尝试。
     browser: OnceCell<Option<Arc<BrowserPool>>>,
@@ -43,6 +46,7 @@ impl Scraper {
         let fetcher = Arc::new(Fetcher::new(config.fetcher)?);
         Ok(Self {
             policy: Arc::new(Policy::new(fetcher, config.policy)),
+            store: config.store,
             browser_config: config.browser,
             browser: OnceCell::new(),
         })
@@ -84,7 +88,91 @@ impl Scraper {
     }
 
     /// 按给定的 robots 模式抓一页；整站爬取和 map 用它，robots 模式由调用方按请求类型决定。
+    /// 先查缓存（语义同 Firecrawl 的 maxAge、minAge、storeInCache），没命中再抓取并写入。
     pub(crate) async fn scrape_with(
+        &self,
+        url: &str,
+        opts: &ScrapeOptions,
+        mode: RobotsMode,
+    ) -> Result<Document, ApiError> {
+        let Some((store, key)) = self.cache_key(url, opts) else {
+            return self.fetch_and_extract(url, opts, mode).await;
+        };
+        let policy = pagesift_store::CachePolicy::from_firecrawl(
+            opts.max_age,
+            opts.min_age,
+            Some(opts.store_in_cache),
+        );
+        let lookup = {
+            let (store, key) = (store.clone(), key.clone());
+            tokio::task::spawn_blocking(move || store.cache().lookup(&key, &policy))
+                .await
+                .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?
+        };
+        match lookup {
+            Ok(pagesift_store::CacheLookup::Hit(entry)) => {
+                if let Ok(mut doc) = serde_json::from_slice::<Document>(&entry.value) {
+                    doc.metadata.cache_state = Some("hit".into());
+                    doc.metadata.cached_at = Some(pagesift_api::rfc3339(entry.stored_at));
+                    return Ok(doc);
+                }
+            }
+            Ok(pagesift_store::CacheLookup::NoCachedData) => {
+                return Err(ApiError::new(
+                    ErrorCode::NotFound,
+                    "no cached data matches minAge for this URL",
+                ));
+            }
+            Ok(pagesift_store::CacheLookup::Miss) => {}
+            // 缓存读不出来不影响抓取
+            Err(e) => tracing::warn!("cache lookup failed: {e}"),
+        }
+        let mut doc = self.fetch_and_extract(url, opts, mode).await?;
+        doc.metadata.cache_state = Some("miss".into());
+        if policy.store_in_cache
+            && let Ok(bytes) = serde_json::to_vec(&doc)
+        {
+            let r = tokio::task::spawn_blocking(move || store.cache().put(&key, &bytes)).await;
+            if let Ok(Err(e)) = r {
+                tracing::warn!("cache write failed: {e}");
+            }
+        }
+        Ok(doc)
+    }
+
+    /// 缓存键：URL 加上影响结果的参数。带自定义请求头、actions 或条件请求时不走缓存（和 Firecrawl 一致）。
+    fn cache_key(
+        &self,
+        url: &str,
+        opts: &ScrapeOptions,
+    ) -> Option<(pagesift_store::Store, Vec<u8>)> {
+        let store = self.store.clone()?;
+        if !opts.headers.is_empty()
+            || !opts.actions.is_empty()
+            || opts.if_none_match.is_some()
+            || opts.if_modified_since.is_some()
+        {
+            return None;
+        }
+        let mut formats: Vec<&str> = opts.formats.iter().map(|f| f.kind.as_str()).collect();
+        formats.sort_unstable();
+        let key = serde_json::json!([
+            1,
+            url,
+            formats,
+            opts.only_main_content,
+            opts.include_tags,
+            opts.exclude_tags,
+            opts.engine.as_deref().unwrap_or("auto"),
+            opts.mobile,
+            opts.wait_for,
+            opts.block_ads,
+            opts.location,
+        ]);
+        Some((store, key.to_string().into_bytes()))
+    }
+
+    async fn fetch_and_extract(
         &self,
         url: &str,
         opts: &ScrapeOptions,

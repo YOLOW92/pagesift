@@ -217,3 +217,64 @@ async fn map_lists_site_urls_with_search_ranking() {
         "search ranking puts matches first: {links:?}"
     );
 }
+
+#[tokio::test]
+async fn cache_hits_skip_the_network() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let hits = Arc::new(AtomicUsize::new(0));
+    let counter = hits.clone();
+    let app = Router::new().route(
+        "/p",
+        get(move || {
+            counter.fetch_add(1, Ordering::SeqCst);
+            async { page("Cached page", &[]) }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/p", listener.local_addr().unwrap());
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+    let dir = tempfile::tempdir().unwrap();
+    let mut cfg = ScraperConfig::default();
+    cfg.fetcher.ssrf.allow_private_network = true;
+    cfg.policy.rate.default_interval = Duration::from_millis(1);
+    cfg.store = Some(pagesift_store::Store::open_dir(dir.path()).unwrap());
+    let s = Scraper::new(cfg).unwrap();
+    let opts = |extra: serde_json::Value| -> pagesift::api::types::ScrapeOptions {
+        let mut v = json!({ "engine": "http", "ignoreRobotsTxt": true });
+        v.as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        serde_json::from_value(v).unwrap()
+    };
+
+    let first = s.scrape(&url, &opts(json!({}))).await.unwrap();
+    assert_eq!(first.metadata.cache_state.as_deref(), Some("miss"));
+    let second = s.scrape(&url, &opts(json!({}))).await.unwrap();
+    assert_eq!(second.metadata.cache_state.as_deref(), Some("hit"));
+    assert!(second.metadata.cached_at.is_some());
+    assert_eq!(second.markdown, first.markdown);
+    assert_eq!(
+        hits.load(Ordering::SeqCst),
+        1,
+        "second scrape served from cache"
+    );
+
+    s.scrape(&url, &opts(json!({ "maxAge": 0 }))).await.unwrap();
+    assert_eq!(hits.load(Ordering::SeqCst), 2, "maxAge 0 always refetches");
+    s.scrape(&url, &opts(json!({ "headers": { "x-test": "1" } })))
+        .await
+        .unwrap();
+    assert_eq!(
+        hits.load(Ordering::SeqCst),
+        3,
+        "custom headers bypass the cache"
+    );
+
+    let other = format!("{url}?never-cached");
+    let err = s
+        .scrape(&other, &opts(json!({ "minAge": 1 })))
+        .await
+        .unwrap_err();
+    assert_eq!(err.code.as_str(), "NOT_FOUND");
+}

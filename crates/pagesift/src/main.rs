@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod bench;
+mod cli;
 
 use std::io::Read;
 use std::path::PathBuf;
@@ -50,6 +51,12 @@ enum Command {
         /// Public base URL used in job links (default: from the Host header)
         #[arg(long)]
         public_url: Option<String>,
+        /// Where the cache lives (default: $PAGESIFT_DATA_DIR, else ~/.local/share/pagesift)
+        #[arg(long)]
+        data_dir: Option<PathBuf>,
+        /// Disable the result cache
+        #[arg(long)]
+        no_cache: bool,
     },
     /// Scrape a single URL
     Scrape {
@@ -67,10 +74,48 @@ enum Command {
         #[arg(long)]
         ignore_robots: bool,
     },
-    /// Crawl a site
-    Crawl,
+    /// Crawl a site; writes one Markdown file per page with --out, else JSON lines to stdout
+    Crawl {
+        url: String,
+        #[arg(long, default_value_t = 100)]
+        limit: usize,
+        /// Directory for the Markdown files and an index.jsonl
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Maximum discovery depth from the start page
+        #[arg(long)]
+        depth: Option<usize>,
+        /// Only follow paths matching this regex (repeatable)
+        #[arg(long)]
+        include: Vec<String>,
+        /// Skip paths matching this regex (repeatable)
+        #[arg(long)]
+        exclude: Vec<String>,
+        /// Crawl the whole domain, not just pages under the start path
+        #[arg(long)]
+        entire_domain: bool,
+        /// Follow links to subdomains
+        #[arg(long)]
+        subdomains: bool,
+        /// include, skip or only
+        #[arg(long, default_value = "include")]
+        sitemap: String,
+        /// http, browser or auto
+        #[arg(long, default_value = "auto")]
+        engine: String,
+    },
     /// List the URLs of a site
-    Map,
+    Map {
+        url: String,
+        #[arg(long, default_value_t = 5000)]
+        limit: usize,
+        /// Rank URLs matching these words first
+        #[arg(long)]
+        search: Option<String>,
+        /// include, skip or only
+        #[arg(long, default_value = "include")]
+        sitemap: String,
+    },
     /// Run the MCP server
     Mcp,
     /// Check the environment
@@ -220,6 +265,8 @@ fn run(command: Command) -> Result<ExitCode> {
             host,
             mut api_keys,
             public_url,
+            data_dir,
+            no_cache,
         } => runtime()?.block_on(async move {
             if let Ok(keys) = std::env::var("PAGESIFT_API_KEYS") {
                 api_keys.extend(
@@ -229,7 +276,18 @@ fn run(command: Command) -> Result<ExitCode> {
                         .map(String::from),
                 );
             }
-            let scraper = Arc::new(pagesift::Scraper::new(pagesift::ScraperConfig::default())?);
+            let mut config = pagesift::ScraperConfig::default();
+            if !no_cache {
+                let dir = data_dir.unwrap_or_else(default_data_dir).join("store");
+                std::fs::create_dir_all(&dir)
+                    .with_context(|| format!("creating {}", dir.display()))?;
+                config.store = Some(
+                    pagesift_store::Store::open_dir(&dir)
+                        .with_context(|| format!("opening the cache in {}", dir.display()))?,
+                );
+                eprintln!("cache: {}", dir.display());
+            }
+            let scraper = Arc::new(pagesift::Scraper::new(config)?);
             let app = pagesift::api::router(
                 scraper.clone(),
                 pagesift::api::Config {
@@ -250,11 +308,89 @@ fn run(command: Command) -> Result<ExitCode> {
             scraper.shutdown().await;
             Ok(ExitCode::SUCCESS)
         }),
-        Command::Crawl | Command::Map | Command::Mcp | Command::Doctor => {
+        Command::Crawl {
+            url,
+            limit,
+            out,
+            depth,
+            include,
+            exclude,
+            entire_domain,
+            subdomains,
+            sitemap,
+            engine,
+        } => runtime()?.block_on(async move {
+            let req: pagesift::api::types::CrawlRequest =
+                serde_json::from_value(serde_json::json!({
+                    "url": url,
+                    "limit": limit,
+                    "maxDiscoveryDepth": depth,
+                    "includePaths": include,
+                    "excludePaths": exclude,
+                    "crawlEntireDomain": entire_domain,
+                    "allowSubdomains": subdomains,
+                    "sitemap": sitemap,
+                    "scrapeOptions": { "engine": engine },
+                }))?;
+            if let Some(dir) = &out {
+                std::fs::create_dir_all(dir)
+                    .with_context(|| format!("creating {}", dir.display()))?;
+            }
+            let scraper = pagesift::Scraper::new(pagesift::ScraperConfig::default())?;
+            let sink = Arc::new(cli::CrawlOutput::new(out));
+            let result = scraper.crawl(&req, sink.clone()).await;
+            scraper.shutdown().await;
+            let (pages, errors) = sink.counts();
+            eprintln!("crawled {pages} pages, {errors} errors");
+            match result {
+                Ok(()) => Ok(ExitCode::SUCCESS),
+                Err(e) => {
+                    eprintln!("{}: {}", e.code.as_str(), e.message);
+                    Ok(ExitCode::from(1))
+                }
+            }
+        }),
+        Command::Map {
+            url,
+            limit,
+            search,
+            sitemap,
+        } => runtime()?.block_on(async move {
+            let req: pagesift::api::types::MapRequest =
+                serde_json::from_value(serde_json::json!({
+                    "url": url, "limit": limit, "search": search, "sitemap": sitemap,
+                }))?;
+            let scraper = pagesift::Scraper::new(pagesift::ScraperConfig::default())?;
+            match scraper.map(&req).await {
+                Ok(links) => {
+                    for l in links {
+                        println!("{}", l.url);
+                    }
+                    Ok(ExitCode::SUCCESS)
+                }
+                Err(e) => {
+                    eprintln!("{}: {}", e.code.as_str(), e.message);
+                    Ok(ExitCode::from(1))
+                }
+            }
+        }),
+        Command::Doctor => runtime()?.block_on(cli::doctor()),
+        Command::Mcp => {
             eprintln!("not implemented yet");
             Ok(ExitCode::from(2))
         }
     }
+}
+
+pub(crate) fn default_data_dir() -> PathBuf {
+    if let Some(d) = std::env::var_os("PAGESIFT_DATA_DIR") {
+        return PathBuf::from(d);
+    }
+    let base = std::env::var_os("XDG_DATA_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
+        .unwrap_or_else(|| PathBuf::from("."));
+    base.join("pagesift")
 }
 
 fn runtime() -> Result<tokio::runtime::Runtime> {
