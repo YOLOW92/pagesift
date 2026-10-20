@@ -1,0 +1,5 @@
+{"kind":"customsearch#search","searchInformation":{"totalResults":"3"},
+"items":[
+{"kind":"customsearch#result","title":"Rust Programming Language","link":"https://www.rust-lang.org/","displayLink":"www.rust-lang.org","snippet":"A language empowering everyone."},
+{"kind":"customsearch#result","title":"The Rust Book","link":"https://doc.rust-lang.org/book/","snippet":"The official book."},
+{"kind":"customsearch#result","title":"crates.io","link":"https://crates.io/","snippet":"The Rust community crate registry."}]}
