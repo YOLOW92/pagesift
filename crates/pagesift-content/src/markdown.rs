@@ -3,7 +3,7 @@
 use pagesift_html::{Element, Tag};
 use url::Url;
 
-use crate::dom::{NodeR, collapse_whitespace, element, raw_text, tag};
+use crate::dom::{NodeR, collapse_whitespace, collapse_whitespace_into, element, raw_text, tag};
 use crate::extract::Skipper;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -160,7 +160,7 @@ impl Renderer<'_> {
                 flush_paragraph(&mut inline, &mut blocks);
                 self.block(child, &mut blocks);
             } else {
-                inline.push_str(&self.inline(child));
+                self.inline_into(child, &mut inline);
             }
         }
         flush_paragraph(&mut inline, &mut blocks);
@@ -264,7 +264,8 @@ impl Renderer<'_> {
                 if self.acts_as_block(&child) {
                     self.block(child, &mut v);
                 } else {
-                    let mut s = self.inline(child);
+                    let mut s = String::new();
+                    self.inline_into(child, &mut s);
                     flush_paragraph(&mut s, &mut v);
                 }
                 v
@@ -355,35 +356,49 @@ impl Renderer<'_> {
 
     fn inline_children(&self, node: NodeR<'_>) -> String {
         let mut s = String::new();
-        for child in node.children() {
-            if !self.skip(&child) {
-                s.push_str(&self.inline(child));
-            }
-        }
+        self.inline_children_into(node, &mut s);
         s
     }
 
-    fn inline(&self, node: NodeR<'_>) -> String {
+    fn inline_children_into(&self, node: NodeR<'_>, out: &mut String) {
+        for child in node.children() {
+            if !self.skip(&child) {
+                self.inline_into(child, out);
+            }
+        }
+    }
+
+    /// 行内渲染，直接写进 `out`；只有需要包裹的元素（加粗、链接等）才先渲染到临时串。
+    fn inline_into(&self, node: NodeR<'_>, out: &mut String) {
         if let Some(t) = node.as_text() {
-            return collapse_whitespace(t);
+            collapse_whitespace_into(t, out);
+            return;
         }
         let Some(el) = element(&node) else {
-            return String::new();
+            return;
         };
         if self.skip(&node) {
-            return String::new();
+            return;
         }
-        match el.name() {
-            "br" => "\n".into(),
-            "wbr" => String::new(),
-            "img" => self.image(el),
-            "strong" | "b" => wrap(&self.inline_children(node), "**"),
-            "em" | "i" => wrap(&self.inline_children(node), "*"),
-            "del" | "s" | "strike" => wrap(&self.inline_children(node), "~~"),
-            "code" | "kbd" | "samp" | "tt" => inline_code(&collapse_whitespace(&raw_text(&node))),
-            "a" => self.link(node, el),
-            _ if is_block_tag(el.tag()) => format!(" {} ", self.inline_children(node)),
-            _ => self.inline_children(node),
+        match el.tag() {
+            Tag::Br => out.push('\n'),
+            Tag::Wbr => {}
+            Tag::Img => out.push_str(&self.image(el)),
+            Tag::Strong | Tag::B => out.push_str(&wrap(&self.inline_children(node), "**")),
+            Tag::Em | Tag::I => out.push_str(&wrap(&self.inline_children(node), "*")),
+            Tag::Del | Tag::S | Tag::Strike => {
+                out.push_str(&wrap(&self.inline_children(node), "~~"))
+            }
+            Tag::Code | Tag::Kbd | Tag::Samp | Tag::Tt => {
+                out.push_str(&inline_code(&collapse_whitespace(&raw_text(&node))))
+            }
+            Tag::A => out.push_str(&self.link(node, el)),
+            t if is_block_tag(t) => {
+                out.push(' ');
+                self.inline_children_into(node, out);
+                out.push(' ');
+            }
+            _ => self.inline_children_into(node, out),
         }
     }
 
@@ -521,22 +536,38 @@ fn inline_code(text: &str) -> String {
     format!("{ticks}{pad}{text}{pad}{ticks}")
 }
 
-/// 折叠成一行：换行和连续空格都变成单个空格。
+/// 折叠成一行：换行和连续空格都变成单个空格，去掉首尾空白。
 fn single_line(s: &str) -> String {
-    s.split_whitespace().collect::<Vec<_>>().join(" ")
+    let mut out = String::with_capacity(s.len());
+    push_single_line(s, &mut out);
+    out
+}
+
+fn push_single_line(s: &str, out: &mut String) {
+    for (i, w) in s.split_whitespace().enumerate() {
+        if i > 0 {
+            out.push(' ');
+        }
+        out.push_str(w);
+    }
 }
 
 fn flush_paragraph(buf: &mut String, blocks: &mut Vec<Block>) {
-    let lines: Vec<String> = buf
-        .split('\n')
-        .map(single_line)
-        .filter(|l| !l.is_empty())
-        .collect();
+    let mut text = String::new();
+    for line in buf.split('\n') {
+        if line.split_whitespace().next().is_none() {
+            continue;
+        }
+        if !text.is_empty() {
+            text.push('\n');
+        }
+        push_single_line(line, &mut text);
+    }
     buf.clear();
-    if !lines.is_empty() {
+    if !text.is_empty() {
         blocks.push(Block {
             kind: Kind::Para,
-            text: lines.join("\n"),
+            text,
         });
     }
 }

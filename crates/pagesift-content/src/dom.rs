@@ -72,6 +72,12 @@ pub(crate) fn is_zero_width(c: char) -> bool {
 /// 把空白折叠成单个空格，去掉零宽字符，`&nbsp;` 视为普通空格。
 pub(crate) fn collapse_whitespace(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
+    collapse_whitespace_into(s, &mut out);
+    out
+}
+
+pub(crate) fn collapse_whitespace_into(s: &str, out: &mut String) {
+    out.reserve(s.len());
     let mut in_space = false;
     for c in s.chars() {
         if is_zero_width(c) {
@@ -87,7 +93,6 @@ pub(crate) fn collapse_whitespace(s: &str) -> String {
             in_space = false;
         }
     }
-    out
 }
 
 /// 子树里所有文本，原样拼接（用于 `<pre>` 等需要保留空白的场合）。
