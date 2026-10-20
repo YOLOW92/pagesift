@@ -29,13 +29,26 @@ const PRESCAN_BYTES: usize = 4096;
 /// 页面通常有几百 KB 到几 MB，少一份拷贝，峰值内存就少一份页面大小。
 pub fn decode_owned(mut bytes: Vec<u8>, content_type: Option<&str>, tld: Option<&[u8]>) -> Decoded {
     let (encoding, source, skip) = detect(&bytes, content_type, tld);
-    if encoding == UTF_8 && std::str::from_utf8(&bytes[skip..]).is_ok() {
+    if encoding == UTF_8 {
         bytes.drain(..skip);
+        // 只校验一次：合法就直接接管，不合法拿回字节按替换规则解码
+        match String::from_utf8(bytes) {
+            Ok(text) => {
+                return Decoded {
+                    text,
+                    encoding,
+                    source,
+                    had_errors: false,
+                };
+            }
+            Err(e) => bytes = e.into_bytes(),
+        }
+        let (text, had_errors) = encoding.decode_without_bom_handling(&bytes);
         return Decoded {
-            text: String::from_utf8(bytes).unwrap_or_default(),
+            text: text.into_owned(),
             encoding,
             source,
-            had_errors: false,
+            had_errors,
         };
     }
     let (text, had_errors) = encoding.decode_without_bom_handling(&bytes[skip..]);

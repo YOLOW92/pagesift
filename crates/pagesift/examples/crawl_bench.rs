@@ -46,9 +46,14 @@ mod track {
     pub static PEAK: AtomicUsize = AtomicUsize::new(0);
     /// 按大小分桶：<64K、64K-1M、1M-8M、>=8M 的分配次数
     pub static BIG: [AtomicUsize; 4] = [const { AtomicUsize::new(0) }; 4];
+    /// 默认关闭：计数用的原子变量在线程间争用，会让分配慢一截。HEAP_TRACK=1 打开。
+    pub static ON: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     pub struct Track;
     unsafe impl GlobalAlloc for Track {
         unsafe fn alloc(&self, l: Layout) -> *mut u8 {
+            if !ON.load(Relaxed) {
+                return unsafe { System.alloc(l) };
+            }
             let n = LIVE.fetch_add(l.size(), Relaxed) + l.size();
             PEAK.fetch_max(n, Relaxed);
             let b = match l.size() {
@@ -61,10 +66,16 @@ mod track {
             unsafe { System.alloc(l) }
         }
         unsafe fn dealloc(&self, p: *mut u8, l: Layout) {
+            if !ON.load(Relaxed) {
+                return unsafe { System.dealloc(p, l) };
+            }
             LIVE.fetch_sub(l.size(), Relaxed);
             unsafe { System.dealloc(p, l) }
         }
         unsafe fn realloc(&self, p: *mut u8, l: Layout, new: usize) -> *mut u8 {
+            if !ON.load(Relaxed) {
+                return unsafe { System.realloc(p, l, new) };
+            }
             let n = if new > l.size() {
                 LIVE.fetch_add(new - l.size(), Relaxed) + new - l.size()
             } else {
@@ -88,6 +99,7 @@ static ALLOC: track::Track = track::Track;
 
 #[tokio::main]
 async fn main() {
+    track::ON.store(std::env::var_os("HEAP_TRACK").is_some(), Ordering::Relaxed);
     if std::env::var_os("NO_TUNE").is_none() {
         pagesift_sys::tune_allocator();
     }
@@ -134,6 +146,9 @@ async fn main() {
         sink.errors.load(Ordering::Relaxed),
         sink.markdown.load(Ordering::Relaxed) as f64 / 1e6
     );
+    if !track::ON.load(Ordering::Relaxed) {
+        return;
+    }
     eprintln!(
         "heap peak {:.1} MB, allocations <64K {} 64K-1M {} 1-8M {} >=8M {}",
         track::PEAK.load(Ordering::Relaxed) as f64 / 1e6,

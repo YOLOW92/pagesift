@@ -63,9 +63,6 @@ pub struct Scraper {
     browser_config: PoolConfig,
     /// 浏览器第一次需要时才启动；找不到浏览器时记住结果，不反复尝试。
     browser: OnceCell<Option<Arc<BrowserPool>>>,
-    /// 从下载开始到提取结束都要占一个名额，名额数等于全局并发。没有它，下载完的页面会在
-    /// 提取前排队：机器一忙，内存里就堆满已下载、待处理的页面。
-    pipeline: tokio::sync::Semaphore,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,9 +80,7 @@ impl Scraper {
             .map(pagesift_llm::ChatClient::new)
             .transpose()
             .map_err(ScraperError::Llm)?;
-        let pipeline = tokio::sync::Semaphore::new(config.policy.rate.global_concurrency.max(1));
         Ok(Self {
-            pipeline,
             policy: Arc::new(Policy::new(fetcher, config.policy)),
             store: config.store,
             llm,
@@ -281,11 +276,6 @@ impl Scraper {
         mode: RobotsMode,
     ) -> Result<Document, ApiError> {
         let started = Instant::now();
-        let _slot = self
-            .pipeline
-            .acquire()
-            .await
-            .expect("semaphore never closed");
         let choice = match opts.engine.as_deref() {
             Some("http") => EngineChoice::Http,
             Some("browser") => EngineChoice::Browser,
@@ -300,9 +290,10 @@ impl Scraper {
                 .await;
         }
 
-        let mut resp = self
+        // 并发名额一直拿到提取结束：已下载、待提取的页面数不超过全局并发，机器忙时内存不会堆积
+        let (mut resp, _permit) = self
             .policy
-            .fetch(fetch_request(url, opts)?, mode)
+            .fetch_held(fetch_request(url, opts)?, mode)
             .await
             .map_err(policy_error)?;
         timings.insert("fetch".into(), ms(resp.timings.total));

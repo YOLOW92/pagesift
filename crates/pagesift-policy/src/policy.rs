@@ -9,7 +9,7 @@ use tokio::time::Instant;
 
 use crate::backoff::{Backoff, BackoffConfig, parse_retry_after};
 use crate::error::Error;
-use crate::limiter::{RateLimitConfig, RateLimiter};
+use crate::limiter::{Permit, RateLimitConfig, RateLimiter};
 use crate::robots::{MAX_ROBOTS_BYTES, Robots};
 
 #[derive(Debug, Clone)]
@@ -208,6 +208,17 @@ impl Policy {
 
     /// 礼貌地抓一个页面。429 返回 `RATE_LIMITED`；5xx 照常返回响应（状态如实），但计入主机失败。
     pub async fn fetch(&self, req: FetchRequest, mode: RobotsMode) -> Result<FetchResponse, Error> {
+        self.fetch_held(req, mode).await.map(|(resp, _permit)| resp)
+    }
+
+    /// 和 [`Policy::fetch`] 一样，但把并发名额一起交给调用方：调用方处理完响应再释放，
+    /// 已下载、未处理的页面数因此不会超过全局并发。名额在主机名额之后才占用，
+    /// 等某个主机的请求不会占着全局名额，挡住其他主机。
+    pub async fn fetch_held(
+        &self,
+        req: FetchRequest,
+        mode: RobotsMode,
+    ) -> Result<(FetchResponse, Permit), Error> {
         let url = self.fetcher.check_url(&req.url)?;
         let host = url.host_str().unwrap_or_default().to_string();
         self.check_cooldown(&host)?;
@@ -215,7 +226,7 @@ impl Policy {
             RobotsMode::Respect => self.check_robots(&url).await?,
             RobotsMode::Ignore => None,
         };
-        let _permit = self.limiter.acquire(&host, crawl_delay).await;
+        let permit = self.limiter.acquire(&host, crawl_delay).await;
         // 等待名额期间主机可能进入了冷却。
         self.check_cooldown(&host)?;
         let guard = HopGuard { policy: self, mode };
@@ -240,15 +251,15 @@ impl Policy {
             }
             503 => {
                 self.backoff.on_throttled(&final_host, retry_after);
-                Ok(resp)
+                Ok((resp, permit))
             }
             500..=599 => {
                 self.backoff.on_failure(&final_host);
-                Ok(resp)
+                Ok((resp, permit))
             }
             _ => {
                 self.backoff.on_success(&final_host);
-                Ok(resp)
+                Ok((resp, permit))
             }
         }
     }
