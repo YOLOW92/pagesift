@@ -37,7 +37,7 @@ document.head.appendChild(a);}());</script></body></html>`
 
 const heavyPage = heavy(300)
 
-export async function startServer() {
+export async function startServer(host = '127.0.0.1') {
   const hits = new Map()
   const server = createServer((req, res) => {
     const path = new URL(req.url, 'http://x').pathname
@@ -74,10 +74,16 @@ export async function startServer() {
       return html(200, `<html><body><article><h1>Headers</h1><p>x-test=${req.headers['x-test']}</p></article></body></html>`)
     }
     if (path.startsWith('/heavy')) return html(200, heavyPage)
+    const delay = path.match(/^\/delay\/(\d+)\//)
+    if (delay) {
+      const t = setTimeout(() => html(200, article), Number(delay[1]))
+      res.on('close', () => clearTimeout(t))
+      return
+    }
     html(404, '<html><body><h1>Not found</h1></body></html>')
   })
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
-  const base = `http://127.0.0.1:${server.address().port}`
+  await new Promise((resolve) => server.listen(0, host, resolve))
+  const base = `http://${host}:${server.address().port}`
   return {
     base,
     hits,

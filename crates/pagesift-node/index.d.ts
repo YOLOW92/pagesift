@@ -28,30 +28,19 @@ export declare class PagesiftError extends Error {
   readonly retryAfter?: number
 }
 
-/** `scrapeMany` 里单个 URL 失败时的结果，形状和 Firecrawl 的错误响应一致。 */
-export interface ErrorResult {
-  success: false
-  url: string
-  code: ErrorCode
-  error: string
-  details?: unknown
-  retryAfter?: number
-}
-
 export type Format = 'markdown' | 'html' | 'rawHtml' | 'links' | 'images'
 
-/** 和 Firecrawl 的 Document 一致；没有请求的格式不会出现。 */
-export interface Document {
+/** `Page.toJSON()` 的结果：一次取出全部字段的普通对象，没请求的格式不出现。 */
+export interface PageJSON {
   markdown?: string
   html?: string
   rawHtml?: string
   links?: string[]
   images?: string[]
-  warning?: string
-  metadata: DocumentMetadata
+  metadata: PageMetadata
 }
 
-export interface DocumentMetadata {
+export interface PageMetadata {
   title?: string
   description?: string
   language?: string
@@ -64,15 +53,15 @@ export interface DocumentMetadata {
   url?: string
   /** 请求的地址。 */
   sourceURL?: string
-  /** `scrape` 才有；`convert` 没有。 */
+  /** 只有抓取结果才有。 */
   statusCode?: number
   contentType?: string
   proxyUsed?: string
   /** PDF 的页数。 */
   numPages?: number
-  /** pagesift 的扩展字段。 */
+  /** 抓取结果的 pagesift 扩展字段。 */
   pagesift?: PagesiftMetadata
-  /** `ogImage`、`twitterCard`、`articlePublishedTime` 这类 meta，键名按 Firecrawl 的 camelCase 风格。 */
+  /** `ogImage`、`twitterCard`、`articlePublishedTime` 这类 meta，键名是 camelCase。 */
   [key: string]: unknown
 }
 
@@ -101,42 +90,83 @@ export interface PagesiftMetadata {
  */
 export declare const __napiBindingTarget: 'native' | 'wasm32-wasi' | 'wasm32-wasip1'
 
-/** 抓取器：内部的连接池、限速状态和浏览器池在多次抓取之间复用。 */
+declare global {
+  interface __NapiRsAsyncGenerator<TOwner, T, TReturn, TNext> {
+    next(...[value]: [] | [TNext]): globalThis.Promise<globalThis.IteratorResult<T, TReturn | undefined>>
+    return(...[value]: [] | [TReturn]): globalThis.Promise<globalThis.IteratorResult<T, TReturn | undefined>>
+    throw(exception?: unknown): globalThis.Promise<globalThis.IteratorResult<T, TReturn | undefined>>
+    [globalThis.Symbol.asyncIterator](): this
+  }
+}
+
+/** 一页的转换或抓取结果。每次读属性都会新建一个 JS 值，需要多次使用时先存到变量里。 */
+export declare class Page {
+  /** 正文的 Markdown；`formats` 里没有 `markdown`、或条件请求命中（`notModified`）时为 null。 */
+  get markdown(): string | null
+  /** 清洗后的 HTML（`formats` 含 `html` 时才有）。 */
+  get html(): string | null
+  /** 原始 HTML（`formats` 含 `rawHtml` 时才有）。 */
+  get rawHtml(): string | null
+  /** 页面里的链接，绝对地址（`formats` 含 `links` 时才有）。 */
+  get links(): Array<string> | null
+  /** 页面里的图片地址（`formats` 含 `images` 时才有）。 */
+  get images(): Array<string> | null
+  /** 标题、描述、状态码、`og:*` 等元数据，以及 `pagesift` 扩展字段。 */
+  get metadata(): PageMetadata
+  /** 一次性取出全部字段，得到普通对象（`JSON.stringify(page)` 也会调用它）。 */
+  toJSON(): PageJSON
+}
+
+/** 抓取器：连接池、robots.txt 缓存、限速状态和浏览器池都在它里面，长期复用一个实例最快。 */
 export declare class Scraper {
   constructor(config?: ScraperConfig | undefined | null)
   /** 抓取一个 URL。失败时 Promise 以 `PagesiftError` 拒绝。 */
-  scrape(url: string, options?: ScrapeOptions | undefined | null): Promise<Document>
-  /** 抓取一批 URL，结果顺序和输入一致；单个失败以 `ErrorResult` 放进数组，不影响其他 URL。 */
-  scrapeMany(urls: Array<string>, options?: ScrapeManyOptions | undefined | null): Promise<Array<Document | ErrorResult>>
-  /** 关闭浏览器进程。之后再调用 `scrape` 会报错。 */
+  scrape(url: string, options?: ScrapeOptions | undefined | null): Promise<Page>
+  /** 抓取一批 URL，全部完成后一次返回，顺序和输入一致；单个失败只影响它自己的那一项。 */
+  scrapeMany(urls: Array<string>, options?: BatchOptions | undefined | null): Promise<BatchItem[]>
+  /** 抓取一批 URL，按完成顺序逐个产出（`for await`）。提前 `break` 会取消还没完成的抓取。 */
+  scrapeStream(urls: Array<string>, options?: BatchOptions | undefined | null): ScrapeStream
+  /** 关闭浏览器进程。之后再调用抓取方法会报错。 */
   close(): Promise<void>
 }
 
-/** 把一段 HTML 转成干净的 Markdown（在当前线程上同步执行）。 */
-export declare function convert(html: string, options?: ConvertOptions | undefined | null): Document
+/**
+ * 按完成顺序产出 `BatchItem` 的异步迭代器。
+ *
+ * This type implements JavaScript's async iterable protocol.
+ * It can be used with `for await...of` loops.
+ *
+ * @see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols#the_async_iterator_and_async_iterable_protocols
+ */
+export declare class ScrapeStream {
 
-/** 和 `convert` 相同，但在 libuv 线程池上执行，不阻塞事件循环。 */
-export declare function convertAsync(html: string, options?: ConvertOptions | undefined | null): Promise<Document>
-
-export interface ConvertOptions {
-  /** 页面地址，用来把相对链接转成绝对地址，也会写进 `metadata.url`。 */
-  url?: string
-  /** 只保留正文（去掉导航、页眉页脚、侧边栏等），默认 true。 */
-  onlyMainContent?: boolean
+  [globalThis.Symbol.asyncIterator](): globalThis.__NapiRsAsyncGenerator<ScrapeStream, BatchItem, void, undefined>
 }
 
-/** 用默认配置的共享 `Scraper` 抓取一个 URL（默认拒绝内网地址）。 */
-export declare function scrape(url: string, options?: ScrapeOptions | undefined | null): Promise<Document>
+/** 批量结果里单个 URL 的错误：字段和 `PagesiftError` 一致，但不是 Error 实例（不采集调用栈）。 */
+export interface BatchError {
+  code: ErrorCode
+  message: string
+  details?: unknown
+  /** 限流时建议多少秒后再试。 */
+  retryAfter?: number
+}
 
-/** 用默认配置的共享 `Scraper` 抓取一批 URL，见 `Scraper.scrapeMany`。 */
-export declare function scrapeMany(urls: Array<string>, options?: ScrapeManyOptions | undefined | null): Promise<Array<Document | ErrorResult>>
+/** 批量抓取里一个 URL 的结果：`page` 和 `error` 恰好有一个。 */
+export interface BatchItem {
+  /** 在输入数组里的下标。 */
+  index: number
+  url: string
+  page?: Page
+  error?: BatchError
+}
 
-/** `scrapeMany` 的选项：`ScrapeOptions` 的全部字段，加上并发数。 */
-export interface ScrapeManyOptions {
-  /** 同时进行的抓取数，默认 8；同一主机仍受限速约束。 */
+/** 批量抓取选项：`ScrapeOptions` 的全部字段，加上并发数。 */
+export interface BatchOptions {
+  /** 同时进行的抓取数，默认 16；同一主机仍受限速约束。 */
   concurrency?: number
-  /** 输出哪些内容，默认 `['markdown']`。 */
-  formats?: Array<Format | { type: Format }>
+  /** 计算哪些输出，默认 `['markdown']`；只算需要的，越少越快。 */
+  formats?: Format[]
   /** 只保留正文，去掉导航、页眉页脚、侧边栏，默认 true。 */
   onlyMainContent?: boolean
   /** `auto`（默认，正文太少时改用浏览器渲染）、`http` 或 `browser`。 */
@@ -147,10 +177,6 @@ export interface ScrapeManyOptions {
   waitFor?: number
   /** 额外的请求头。 */
   headers?: Record<string, string>
-  /** 只保留匹配这些选择器的元素（暂不支持，传非空数组会报 UNSUPPORTED_OPTION）。 */
-  includeTags?: Array<string>
-  /** 去掉匹配这些选择器的元素（暂不支持，传非空数组会报 UNSUPPORTED_OPTION）。 */
-  excludeTags?: Array<string>
   /** 这一页不检查 robots.txt（只对单页抓取有效）。 */
   ignoreRobotsTxt?: boolean
   /** 浏览器渲染时模拟手机。 */
@@ -163,10 +189,32 @@ export interface ScrapeManyOptions {
   ifModifiedSince?: string
 }
 
-/** 单页抓取选项，字段和 Firecrawl JS SDK 的 `scrapeOptions` 一致。 */
+/** 把一段 HTML 转成 Markdown，在当前线程上同步执行（会阻塞事件循环，适合脚本和小页面）。 */
+export declare function convert(html: string | Uint8Array, options?: ConvertOptions): Page
+
+/** 和 `convert` 相同，但在后台线程上执行，不阻塞事件循环。 */
+export declare function convertAsync(html: string | Uint8Array, options?: ConvertOptions): Promise<Page>
+
+/**
+ * 批量转换：在 Rust 侧用全部 CPU 核并行处理，结果顺序和输入一致。
+ * 每个输入转换成 Rust 字符串后立刻开始处理，和后面输入的转换重叠；传 `Uint8Array` 时没有这一步转换。
+ */
+export declare function convertMany(htmls: Array<string | Uint8Array>, options?: ConvertOptions): Promise<Page[]>
+
+/** `convert`、`convertAsync`、`convertMany` 的选项。 */
+export interface ConvertOptions {
+  /** 页面地址：把相对链接转成绝对地址，也写进 `metadata.url`。 */
+  url?: string
+  /** 只保留正文（去掉导航、页眉页脚、侧边栏等），默认 true。 */
+  onlyMainContent?: boolean
+  /** 计算哪些输出，默认 `['markdown']`；只算需要的，越少越快。 */
+  formats?: Format[]
+}
+
+/** 单页抓取选项。 */
 export interface ScrapeOptions {
-  /** 输出哪些内容，默认 `['markdown']`。 */
-  formats?: Array<Format | { type: Format }>
+  /** 计算哪些输出，默认 `['markdown']`；只算需要的，越少越快。 */
+  formats?: Format[]
   /** 只保留正文，去掉导航、页眉页脚、侧边栏，默认 true。 */
   onlyMainContent?: boolean
   /** `auto`（默认，正文太少时改用浏览器渲染）、`http` 或 `browser`。 */
@@ -177,10 +225,6 @@ export interface ScrapeOptions {
   waitFor?: number
   /** 额外的请求头。 */
   headers?: Record<string, string>
-  /** 只保留匹配这些选择器的元素（暂不支持，传非空数组会报 UNSUPPORTED_OPTION）。 */
-  includeTags?: Array<string>
-  /** 去掉匹配这些选择器的元素（暂不支持，传非空数组会报 UNSUPPORTED_OPTION）。 */
-  excludeTags?: Array<string>
   /** 这一页不检查 robots.txt（只对单页抓取有效）。 */
   ignoreRobotsTxt?: boolean
   /** 浏览器渲染时模拟手机。 */
@@ -197,7 +241,7 @@ export interface ScrapeOptions {
 export interface ScraperConfig {
   /** 请求头里的 User-Agent。 */
   userAgent?: string
-  /** 允许抓取内网、回环地址（默认拒绝，防 SSRF）。 */
+  /** 允许抓取内网、回环地址（默认拒绝，防 SSRF；只作用于 HTTP 抓取）。 */
   allowPrivateNetwork?: boolean
   /** 同一主机两次请求之间的最小间隔，毫秒，默认 1000；robots.txt 的 Crawl-delay 优先。 */
   requestIntervalMs?: number

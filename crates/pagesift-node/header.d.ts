@@ -28,30 +28,19 @@ export declare class PagesiftError extends Error {
   readonly retryAfter?: number
 }
 
-/** `scrapeMany` 里单个 URL 失败时的结果，形状和 Firecrawl 的错误响应一致。 */
-export interface ErrorResult {
-  success: false
-  url: string
-  code: ErrorCode
-  error: string
-  details?: unknown
-  retryAfter?: number
-}
-
 export type Format = 'markdown' | 'html' | 'rawHtml' | 'links' | 'images'
 
-/** 和 Firecrawl 的 Document 一致；没有请求的格式不会出现。 */
-export interface Document {
+/** `Page.toJSON()` 的结果：一次取出全部字段的普通对象，没请求的格式不出现。 */
+export interface PageJSON {
   markdown?: string
   html?: string
   rawHtml?: string
   links?: string[]
   images?: string[]
-  warning?: string
-  metadata: DocumentMetadata
+  metadata: PageMetadata
 }
 
-export interface DocumentMetadata {
+export interface PageMetadata {
   title?: string
   description?: string
   language?: string
@@ -64,15 +53,15 @@ export interface DocumentMetadata {
   url?: string
   /** 请求的地址。 */
   sourceURL?: string
-  /** `scrape` 才有；`convert` 没有。 */
+  /** 只有抓取结果才有。 */
   statusCode?: number
   contentType?: string
   proxyUsed?: string
   /** PDF 的页数。 */
   numPages?: number
-  /** pagesift 的扩展字段。 */
+  /** 抓取结果的 pagesift 扩展字段。 */
   pagesift?: PagesiftMetadata
-  /** `ogImage`、`twitterCard`、`articlePublishedTime` 这类 meta，键名按 Firecrawl 的 camelCase 风格。 */
+  /** `ogImage`、`twitterCard`、`articlePublishedTime` 这类 meta，键名是 camelCase。 */
   [key: string]: unknown
 }
 

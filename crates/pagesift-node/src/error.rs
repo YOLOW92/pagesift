@@ -1,8 +1,9 @@
-//! 把 pagesift 的 [`ApiError`] 变成 JS 里的 `PagesiftError`：`code` 和服务端的错误码一致。
+//! 错误：单个调用抛出 `PagesiftError`；批量结果里放 [`BatchError`] 普通对象。`code` 都和服务端的错误码一致。
 
 use napi::bindgen_prelude::*;
+use napi_derive::napi;
 use pagesift::api::ApiError;
-use serde_json::{Value, json};
+use serde_json::Value;
 
 pub type Fallible<T> = std::result::Result<T, ApiError>;
 
@@ -35,19 +36,25 @@ fn build(env: &Env, e: &ApiError) -> Result<Error> {
     Ok(Error::from(obj.to_unknown()))
 }
 
-/// `scrapeMany` 里单个 URL 失败时放进结果数组的对象，形状和 Firecrawl 的错误响应一致。
-pub fn result(url: &str, e: &ApiError) -> Value {
-    let mut v = json!({
-        "success": false,
-        "url": url,
-        "code": e.code.as_str(),
-        "error": e.message,
-    });
-    if let Some(d) = &e.details {
-        v["details"] = d.clone();
+/// 批量结果里单个 URL 的错误：字段和 `PagesiftError` 一致，但不是 Error 实例（不采集调用栈）。
+#[napi(object, object_from_js = false)]
+pub struct BatchError {
+    #[napi(ts_type = "ErrorCode")]
+    pub code: String,
+    pub message: String,
+    #[napi(ts_type = "unknown")]
+    pub details: Option<Value>,
+    /// 限流时建议多少秒后再试。
+    pub retry_after: Option<u32>,
+}
+
+impl From<ApiError> for BatchError {
+    fn from(e: ApiError) -> Self {
+        Self {
+            code: e.code.as_str().to_string(),
+            message: e.message,
+            details: e.details,
+            retry_after: e.retry_after.map(|s| s.min(u32::MAX.into()) as u32),
+        }
     }
-    if let Some(s) = e.retry_after {
-        v["retryAfter"] = s.into();
-    }
-    v
 }

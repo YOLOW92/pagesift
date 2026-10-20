@@ -1,6 +1,6 @@
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { Scraper, PagesiftError } from '../index.js'
+import { Scraper, Page, PagesiftError } from '../index.js'
 import { startServer } from './server.mjs'
 
 let srv
@@ -10,15 +10,15 @@ before(async () => {
 after(() => srv.close())
 
 // 测试服务器在 127.0.0.1 上，需要显式放开内网；限速间隔调成 0 让测试跑得快。
-const local = () => new Scraper({ allowPrivateNetwork: true, requestIntervalMs: 0, perHostConcurrency: 8 })
+const local = () => new Scraper({ allowPrivateNetwork: true, requestIntervalMs: 0, perHostConcurrency: 16 })
 
-test('scrape returns a Firecrawl-shaped document', async () => {
+test('scrape returns a Page', async () => {
   const s = local()
-  const doc = await s.scrape(`${srv.base}/article`, { engine: 'http' })
-  assert.match(doc.markdown, /^# Hello pagesift/m)
-  assert.doesNotMatch(doc.markdown, /Copyright footer/)
-  assert.equal(doc.html, undefined)
-  const m = doc.metadata
+  const page = await s.scrape(`${srv.base}/article`, { engine: 'http' })
+  assert.ok(page instanceof Page)
+  assert.match(page.markdown, /^# Hello pagesift/m)
+  assert.equal(page.html, null)
+  const m = page.metadata
   assert.equal(m.title, 'Test Article')
   assert.equal(m.statusCode, 200)
   assert.equal(m.sourceURL, `${srv.base}/article`)
@@ -33,57 +33,54 @@ test('scrape returns a Firecrawl-shaped document', async () => {
 })
 
 test('formats select the outputs', async () => {
-  const s = local()
-  const doc = await s.scrape(`${srv.base}/article`, {
-    engine: 'http',
-    formats: ['html', 'rawHtml', { type: 'links' }, 'images'],
-  })
-  assert.equal(doc.markdown, undefined)
-  assert.match(doc.html, /<h1>Hello pagesift<\/h1>/)
-  assert.match(doc.rawHtml, /<footer>/)
-  assert.ok(doc.links.includes(`${srv.base}/next`), doc.links.join(' '))
-  assert.ok(doc.images.includes(`${srv.base}/img/a.png`), doc.images.join(' '))
+  const page = await local().scrape(`${srv.base}/article`, { engine: 'http', formats: ['html', 'rawHtml', 'links', 'images'] })
+  assert.equal(page.markdown, null)
+  assert.match(page.html, /<h1>Hello pagesift<\/h1>/)
+  assert.match(page.rawHtml, /<footer>/)
+  assert.ok(page.links.includes(`${srv.base}/next`))
+  assert.ok(page.images.includes(`${srv.base}/img/a.png`))
 })
 
 test('headers are sent', async () => {
-  const doc = await local().scrape(`${srv.base}/echo-headers`, { engine: 'http', headers: { 'x-test': 'hello' } })
-  assert.match(doc.markdown, /x-test=hello/)
+  const page = await local().scrape(`${srv.base}/echo-headers`, { engine: 'http', headers: { 'x-test': 'hello' } })
+  assert.match(page.markdown, /x-test=hello/)
 })
 
 test('redirects are followed and recorded', async () => {
-  const doc = await local().scrape(`${srv.base}/redirect`, { engine: 'http' })
-  assert.equal(doc.metadata.url, `${srv.base}/article`)
-  assert.equal(doc.metadata.sourceURL, `${srv.base}/redirect`)
-  assert.deepEqual(doc.metadata.pagesift.redirectChain, [`${srv.base}/redirect`])
+  const m = (await local().scrape(`${srv.base}/redirect`, { engine: 'http' })).metadata
+  assert.equal(m.url, `${srv.base}/article`)
+  assert.equal(m.sourceURL, `${srv.base}/redirect`)
+  assert.deepEqual(m.pagesift.redirectChain, [`${srv.base}/redirect`])
 })
 
 test('conditional requests report notModified', async () => {
-  const doc = await local().scrape(`${srv.base}/etag`, { engine: 'http', ifNoneMatch: '"v1"' })
-  assert.equal(doc.metadata.statusCode, 304)
-  assert.equal(doc.metadata.pagesift.notModified, true)
-  assert.equal(doc.markdown, undefined)
+  const page = await local().scrape(`${srv.base}/etag`, { engine: 'http', ifNoneMatch: '"v1"' })
+  assert.equal(page.metadata.statusCode, 304)
+  assert.equal(page.metadata.pagesift.notModified, true)
+  assert.equal(page.markdown, null)
 })
 
 test('scrapeMany keeps input order and isolates failures', async () => {
-  const s = local()
   const urls = [`${srv.base}/article`, `${srv.base}/private/page`, 'not a url', `${srv.base}/heavy/1`]
-  const out = await s.scrapeMany(urls, { engine: 'http', concurrency: 2 })
-  assert.equal(out.length, 4)
-  assert.equal(out[0].metadata.title, 'Test Article')
-  assert.deepEqual(
-    { success: out[1].success, url: out[1].url, code: out[1].code },
-    { success: false, url: urls[1], code: 'ROBOTS_DISALLOWED' },
-  )
-  assert.equal(typeof out[1].error, 'string')
-  assert.equal(out[2].code, 'INVALID_REQUEST')
-  assert.equal(out[3].metadata.title, 'Heavy')
+  const out = await local().scrapeMany(urls, { engine: 'http', concurrency: 2 })
+  assert.deepEqual(out.map((r) => r.index), [0, 1, 2, 3])
+  assert.deepEqual(out.map((r) => r.url), urls)
+  assert.equal(out[0].page.metadata.title, 'Test Article')
+  assert.equal(out[0].error, undefined)
+  assert.equal(out[1].page, undefined)
+  assert.equal(out[1].error.code, 'ROBOTS_DISALLOWED')
+  assert.equal(typeof out[1].error.message, 'string')
+  assert.equal(out[2].error.code, 'INVALID_REQUEST')
+  assert.equal(out[3].page.metadata.title, 'Heavy')
 })
 
 test('scrapeMany honours the concurrency limit', async () => {
-  const s = local()
-  const urls = Array.from({ length: 6 }, (_, i) => `${srv.base}/heavy/c${i}`)
-  const out = await s.scrapeMany(urls, { engine: 'http', concurrency: 1 })
-  assert.equal(out.filter((d) => d.metadata?.title === 'Heavy').length, 6)
+  const urls = Array.from({ length: 4 }, (_, i) => `${srv.base}/delay/200/c${i}`)
+  const t = performance.now()
+  const out = await local().scrapeMany(urls, { engine: 'http', concurrency: 2 })
+  const ms = performance.now() - t
+  assert.equal(out.filter((r) => r.page).length, 4)
+  assert.ok(ms >= 380, `4 pages of 200 ms with concurrency 2 took only ${ms.toFixed(0)} ms`)
 })
 
 test('scrapeMany with an empty list', async () => {
@@ -94,9 +91,34 @@ test('scrapeMany rejects the whole batch on invalid options', async () => {
   await assert.rejects(local().scrapeMany([`${srv.base}/article`], { formats: ['screenshot'] }), (e) => e.code === 'UNSUPPORTED_OPTION')
 })
 
+test('scrapeStream yields results in completion order', async () => {
+  const urls = [`${srv.base}/delay/400/slow`, `${srv.base}/delay/0/a`, `${srv.base}/delay/50/b`, 'not a url']
+  const seen = []
+  for await (const item of local().scrapeStream(urls, { engine: 'http' })) seen.push(item)
+  assert.equal(seen.length, 4)
+  assert.deepEqual(seen.map((r) => r.index).sort(), [0, 1, 2, 3])
+  assert.equal(seen.at(-1).index, 0, 'the slow page comes last')
+  assert.equal(seen.find((r) => r.index === 3).error.code, 'INVALID_REQUEST')
+  assert.equal(seen.find((r) => r.index === 1).page.metadata.title, 'Test Article')
+})
+
+test('breaking out of scrapeStream cancels the remaining work', async () => {
+  const urls = Array.from({ length: 20 }, (_, i) => `${srv.base}/delay/${i === 0 ? 0 : 300}/cancel${i}`)
+  for await (const item of local().scrapeStream(urls, { engine: 'http', concurrency: 2 })) {
+    assert.equal(item.index, 0)
+    break
+  }
+  await new Promise((r) => setTimeout(r, 800))
+  const started = [...srv.hits.keys()].filter((k) => k.includes('/cancel')).length
+  assert.ok(started < 8, `${started} of 20 requests were started after break`)
+})
+
 test('a closed Scraper refuses new work', async () => {
   const s = local()
   await s.close()
   await s.close()
-  await assert.rejects(s.scrape(`${srv.base}/article`), (e) => e instanceof PagesiftError && e.code === 'INVALID_REQUEST')
+  const closed = (e) => e instanceof PagesiftError && e.code === 'INVALID_REQUEST'
+  await assert.rejects(s.scrape(`${srv.base}/article`), closed)
+  await assert.rejects(s.scrapeMany([`${srv.base}/article`]), closed)
+  assert.throws(() => s.scrapeStream([`${srv.base}/article`]), closed)
 })

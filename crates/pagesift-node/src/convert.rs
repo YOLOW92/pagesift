@@ -1,53 +1,44 @@
-//! `convert` / `convertAsync`：把已有的 HTML 转成 Markdown，不发网络请求。
+//! `convert` / `convertAsync` / `convertMany`：把已有的 HTML 转成 Markdown，不发网络请求。
+//!
+//! 异步版本在 Rust 侧的线程上执行，同时运行的转换数等于 CPU 核数（不受 libuv 线程池默认 4 个线程的限制）。
+
+use std::borrow::Cow;
+use std::sync::{Arc, Mutex, OnceLock, mpsc};
 
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
-use pagesift::api::ApiError;
-use serde_json::{Map, Value, json};
+use pagesift::api::{ApiError, ErrorCode};
+use serde_json::{Map, Value};
+use tokio::sync::Semaphore;
 
 use crate::error::{self, Fallible};
+use crate::options::{ConvertOptions, ConvertPlan};
+use crate::page::Page;
 
-#[napi(object)]
-#[derive(Default)]
-pub struct ConvertOptions {
-    /// 页面地址，用来把相对链接转成绝对地址，也会写进 `metadata.url`。
-    pub url: Option<String>,
-    /// 只保留正文（去掉导航、页眉页脚、侧边栏等），默认 true。
-    pub only_main_content: Option<bool>,
+/// HTML 可以是字符串，也可以是 UTF-8 字节（比如 `fs.readFile` 的 Buffer，省一次解码）。
+pub type Html = Either<String, Uint8Array>;
+
+fn text(html: &Html) -> Cow<'_, str> {
+    match html {
+        Either::A(s) => Cow::Borrowed(s),
+        Either::B(b) => String::from_utf8_lossy(b),
+    }
 }
 
-struct Prepared {
-    html: String,
-    url: Option<String>,
-    opts: pagesift_content::Options,
+/// 所有异步转换共用的 CPU 名额。
+fn cpu_slots() -> Arc<Semaphore> {
+    static SLOTS: OnceLock<Arc<Semaphore>> = OnceLock::new();
+    SLOTS
+        .get_or_init(|| Arc::new(Semaphore::new(cores())))
+        .clone()
 }
 
-fn prepare(html: String, options: Option<ConvertOptions>) -> Fallible<Prepared> {
-    let o = options.unwrap_or_default();
-    let base_url = match &o.url {
-        Some(u) => Some(
-            url::Url::parse(u).map_err(|e| ApiError::invalid(format!("invalid url {u:?}: {e}")))?,
-        ),
-        None => None,
-    };
-    Ok(Prepared {
-        html,
-        url: o.url,
-        opts: pagesift_content::Options {
-            base_url,
-            only_main_content: o.only_main_content.unwrap_or(true),
-            detect_barrier: false,
-            ..Default::default()
-        },
-    })
+pub fn cores() -> usize {
+    std::thread::available_parallelism().map_or(4, |n| n.get())
 }
 
-fn run(p: Prepared) -> Value {
-    document(pagesift_content::process(&p.html, &p.opts), p.url)
-}
-
-/// 结果和 `scrape` 的 Document 同形（只有 `markdown` 和 `metadata`）。
-fn document(doc: pagesift_content::Document, url: Option<String>) -> Value {
+fn run(html: &str, plan: &ConvertPlan) -> Page {
+    let doc = pagesift_content::process(html, &plan.opts);
     let m = doc.metadata;
     let mut meta = Map::new();
     for (k, v) in [
@@ -59,21 +50,28 @@ fn document(doc: pagesift_content::Document, url: Option<String>) -> Value {
         ("favicon", m.favicon),
         ("publishedTime", m.published_time),
         ("modifiedTime", m.modified_time),
-        ("url", url.clone()),
-        ("sourceURL", url),
+        ("url", plan.url.clone()),
+        ("sourceURL", plan.url.clone()),
     ] {
         if let Some(v) = v {
             meta.insert(k.into(), v.into());
         }
     }
     for (k, v) in m.extra {
-        meta.entry(firecrawl_meta_key(&k)).or_insert(v.into());
+        meta.entry(meta_key(&k)).or_insert(v.into());
     }
-    json!({ "markdown": doc.markdown, "metadata": meta })
+    Page::new(
+        plan.markdown.then_some(doc.markdown),
+        doc.html,
+        plan.raw_html.then(|| html.to_string()),
+        doc.links.map(|l| l.into_iter().map(|l| l.url).collect()),
+        doc.images.map(|i| i.into_iter().map(|i| i.src).collect()),
+        Value::Object(meta),
+    )
 }
 
 /// `og:image` → `ogImage`，和 `scrape` 的键名一致。
-fn firecrawl_meta_key(raw: &str) -> String {
+fn meta_key(raw: &str) -> String {
     let mut out = String::with_capacity(raw.len());
     let mut upper = false;
     for c in raw.chars() {
@@ -89,52 +87,125 @@ fn firecrawl_meta_key(raw: &str) -> String {
     out
 }
 
-/// 把一段 HTML 转成干净的 Markdown（在当前线程上同步执行）。
-#[napi(ts_return_type = "Document")]
-pub fn convert<'e>(
-    env: &'e Env,
-    html: String,
-    options: Option<ConvertOptions>,
-) -> Result<Unknown<'e>> {
-    let p = prepare(html, options).map_err(|e| error::to_js(env, &e))?;
-    env.to_js_value(&run(p))
+fn plan(options: Option<ConvertOptions>) -> Fallible<ConvertPlan> {
+    options.unwrap_or_default().plan()
 }
 
-pub struct ConvertTask(Option<Fallible<Prepared>>);
+/// 把一段 HTML 转成 Markdown，在当前线程上同步执行（会阻塞事件循环，适合脚本和小页面）。
+#[napi(ts_args_type = "html: string | Uint8Array, options?: ConvertOptions")]
+pub fn convert(env: &Env, html: Html, options: Option<ConvertOptions>) -> Result<Page> {
+    let plan = plan(options).map_err(|e| error::to_js(env, &e))?;
+    Ok(run(&text(&html), &plan))
+}
 
-impl<'t> napi::ScopedTask<'t> for ConvertTask {
-    type Output = Fallible<Value>;
-    type JsValue = Unknown<'t>;
+/// 和 `convert` 相同，但在后台线程上执行，不阻塞事件循环。
+#[napi(
+    ts_args_type = "html: string | Uint8Array, options?: ConvertOptions",
+    ts_return_type = "Promise<Page>"
+)]
+pub fn convert_async<'e>(
+    env: &'e Env,
+    html: Html,
+    options: Option<ConvertOptions>,
+) -> Result<PromiseRaw<'e, Page>> {
+    let plan = plan(options);
+    let fut = async move {
+        let plan = match plan {
+            Ok(p) => p,
+            Err(e) => return Ok(Err(e)),
+        };
+        let _slot = cpu_slots().acquire_owned().await;
+        Ok(
+            tokio::task::spawn_blocking(move || run(&text(&html), &plan))
+                .await
+                .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string())),
+        )
+    };
+    env.spawn_future_with_callback(fut, |env, out: Fallible<Page>| {
+        out.map_err(|e| error::to_js(env, &e))
+    })
+}
 
-    fn compute(&mut self) -> Result<Fallible<Value>> {
-        let p = self
-            .0
-            .take()
-            .ok_or_else(|| Error::from_reason("convert task ran twice"))?;
-        Ok(p.map(run))
-    }
-
-    fn resolve(&mut self, env: &'t Env, output: Fallible<Value>) -> Result<Unknown<'t>> {
-        match output {
-            Ok(v) => env.to_js_value(&v),
-            Err(e) => Err(error::to_js(env, &e)),
+/// 批量转换：在 Rust 侧用全部 CPU 核并行处理，结果顺序和输入一致。
+/// 每个输入转换成 Rust 字符串后立刻开始处理，和后面输入的转换重叠；传 `Uint8Array` 时没有这一步转换。
+#[napi(
+    ts_args_type = "htmls: Array<string | Uint8Array>, options?: ConvertOptions",
+    ts_return_type = "Promise<Page[]>"
+)]
+pub fn convert_many<'e>(
+    env: &'e Env,
+    htmls: Array<'e>,
+    options: Option<ConvertOptions>,
+) -> Result<PromiseRaw<'e, Vec<Page>>> {
+    let reject = |e: ApiError| {
+        env.spawn_future_with_callback(async { Ok(()) }, move |env, ()| -> Result<Vec<Page>> {
+            Err(error::to_js(env, &e))
+        })
+    };
+    let plan = match plan(options) {
+        Ok(p) => Arc::new(p),
+        Err(e) => return reject(e),
+    };
+    let n = htmls.len() as usize;
+    let (tx, rx) = mpsc::channel::<(usize, Html)>();
+    let rx = Arc::new(Mutex::new(rx));
+    let workers: Vec<_> = (0..cores().min(n))
+        .map(|_| {
+            let (rx, plan) = (rx.clone(), plan.clone());
+            napi::bindgen_prelude::within_runtime_if_available(|| {
+                tokio::spawn(async move {
+                    let _slot = cpu_slots().acquire_owned().await;
+                    tokio::task::spawn_blocking(move || {
+                        let mut done = Vec::new();
+                        loop {
+                            let next = rx
+                                .lock()
+                                .map_err(|_| ())
+                                .and_then(|r| r.recv().map_err(|_| ()));
+                            match next {
+                                Ok((i, h)) => done.push((i, run(&text(&h), &plan))),
+                                Err(()) => break done,
+                            }
+                        }
+                    })
+                    .await
+                })
+            })
+        })
+        .collect();
+    for i in 0..n {
+        let html: Html = htmls
+            .get(i as u32)?
+            .ok_or_else(|| Error::from_reason(format!("htmls[{i}] is missing")))?;
+        if tx.send((i, html)).is_err() {
+            break;
         }
     }
-}
-
-/// 和 `convert` 相同，但在 libuv 线程池上执行，不阻塞事件循环。
-#[napi(ts_return_type = "Promise<Document>")]
-pub fn convert_async(html: String, options: Option<ConvertOptions>) -> AsyncTask<ConvertTask> {
-    AsyncTask::new(ConvertTask(Some(prepare(html, options))))
+    drop(tx);
+    let fut = async move {
+        let mut pages: Vec<Option<Page>> = (0..n).map(|_| None).collect();
+        for w in workers {
+            match w.await {
+                Ok(Ok(done)) => done.into_iter().for_each(|(i, p)| pages[i] = Some(p)),
+                Ok(Err(e)) | Err(e) => {
+                    return Ok(Err(ApiError::new(ErrorCode::Internal, e.to_string())));
+                }
+            }
+        }
+        Ok(Ok(pages.into_iter().flatten().collect::<Vec<_>>()))
+    };
+    env.spawn_future_with_callback(fut, |env, out: Fallible<Vec<Page>>| {
+        out.map_err(|e| error::to_js(env, &e))
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::firecrawl_meta_key;
+    use super::meta_key;
 
     #[test]
     fn meta_keys_follow_firecrawl_style() {
-        assert_eq!(firecrawl_meta_key("og:site_name"), "ogSiteName");
-        assert_eq!(firecrawl_meta_key("dc.title"), "dcTitle");
+        assert_eq!(meta_key("og:site_name"), "ogSiteName");
+        assert_eq!(meta_key("dc.title"), "dcTitle");
     }
 }

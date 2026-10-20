@@ -1619,6 +1619,7 @@ dependencies = [
  "napi-derive",
  "pagesift",
  "pagesift-content",
+ "serde",
  "serde_json",
  "tokio",
  "url",

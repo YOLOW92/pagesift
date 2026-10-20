@@ -1,6 +1,6 @@
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { Scraper, PagesiftError, scrape, scrapeMany } from '../index.js'
+import { Scraper, PagesiftError } from '../index.js'
 import { startServer } from './server.mjs'
 
 let srv
@@ -23,10 +23,11 @@ const rejectsWith = (promise, code, check = () => true) =>
     return check(e)
   })
 
-test('the default scraper refuses private addresses (SSRF_BLOCKED)', async () => {
-  await rejectsWith(scrape(`${srv.base}/article`), 'SSRF_BLOCKED')
-  const [r] = await scrapeMany([`${srv.base}/article`])
-  assert.equal(r.code, 'SSRF_BLOCKED')
+test('private addresses are refused by default (SSRF_BLOCKED)', async () => {
+  const s = new Scraper()
+  await rejectsWith(s.scrape(`${srv.base}/article`), 'SSRF_BLOCKED')
+  const [r] = await s.scrapeMany([`${srv.base}/article`])
+  assert.equal(r.error.code, 'SSRF_BLOCKED')
 })
 
 test('robots.txt is respected (ROBOTS_DISALLOWED)', async () => {
@@ -35,8 +36,8 @@ test('robots.txt is respected (ROBOTS_DISALLOWED)', async () => {
 })
 
 test('ignoreRobotsTxt skips the robots check for a single page', async () => {
-  const doc = await local().scrape(`${srv.base}/private/y`, { engine: 'http', ignoreRobotsTxt: true })
-  assert.equal(doc.metadata.title, 'Test Article')
+  const page = await local().scrape(`${srv.base}/private/y`, { engine: 'http', ignoreRobotsTxt: true })
+  assert.equal(page.metadata.title, 'Test Article')
 })
 
 test('access barriers are reported with details, not bypassed (ACCESS_BARRIER)', async () => {
@@ -46,13 +47,16 @@ test('access barriers are reported with details, not bypassed (ACCESS_BARRIER)',
     assert.ok(e.details.confidence > 0.5)
     return true
   })
+  const [r] = await local().scrapeMany([`${srv.base}/challenge`])
+  assert.equal(r.error.code, 'ACCESS_BARRIER')
+  assert.equal(r.error.details.vendor, 'cloudflare')
 })
 
 test('429 maps to RATE_LIMITED with retryAfter', async () => {
   await rejectsWith(local().scrape(`${srv.base}/limited`, { engine: 'http' }), 'RATE_LIMITED', (e) => e.retryAfter === 7)
   const [r] = await local().scrapeMany([`${srv.base}/limited`], { engine: 'http' })
-  assert.equal(r.code, 'RATE_LIMITED')
-  assert.equal(r.retryAfter, 7)
+  assert.equal(r.error.code, 'RATE_LIMITED')
+  assert.equal(r.error.retryAfter, 7)
 })
 
 test('timeouts map to TIMEOUT', async () => {
@@ -68,11 +72,8 @@ test('invalid input maps to INVALID_REQUEST', async () => {
   await rejectsWith(s.scrape(`${srv.base}/article`, { engine: 'turbo' }), 'INVALID_REQUEST')
 })
 
-test('things pagesift cannot do map to UNSUPPORTED_OPTION', async () => {
-  const s = local()
-  await rejectsWith(s.scrape(`${srv.base}/article`, { formats: ['screenshot'] }), 'UNSUPPORTED_OPTION')
-  await rejectsWith(s.scrape(`${srv.base}/article`, { includeTags: ['article'] }), 'UNSUPPORTED_OPTION')
-  await rejectsWith(s.scrape(`${srv.base}/article`, { excludeTags: ['nav'] }), 'UNSUPPORTED_OPTION')
+test('unsupported formats map to UNSUPPORTED_OPTION', async () => {
+  await rejectsWith(local().scrape(`${srv.base}/article`, { formats: ['screenshot'] }), 'UNSUPPORTED_OPTION')
 })
 
 test('wrong argument types throw before any work starts', () => {

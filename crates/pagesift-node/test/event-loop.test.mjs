@@ -1,6 +1,6 @@
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { Scraper, convert, convertAsync } from '../index.js'
+import { Scraper, convert, convertAsync, convertMany } from '../index.js'
 import { startServer, heavy } from './server.mjs'
 
 let srv
@@ -33,9 +33,14 @@ async function measureLag(work) {
 }
 
 const MAX_GAP_MS = 150
+const html = heavy(400)
+
+const responsive = ({ maxGap, ticks, elapsed }) => {
+  assert.ok(maxGap < MAX_GAP_MS, `timer delayed ${maxGap.toFixed(1)} ms over ${elapsed.toFixed(0)} ms`)
+  assert.ok(ticks >= elapsed / 10 / 3, `only ${ticks} ticks in ${elapsed.toFixed(0)} ms`)
+}
 
 test('control: synchronous convert does delay timers', async () => {
-  const html = heavy(400)
   const { maxGap } = await measureLag(async () => {
     await new Promise((r) => setTimeout(r, 15))
     const t = performance.now()
@@ -44,27 +49,38 @@ test('control: synchronous convert does delay timers', async () => {
   assert.ok(maxGap >= MAX_GAP_MS, `measured only ${maxGap.toFixed(1)} ms`)
 })
 
-test('convertAsync keeps the event loop responsive', async () => {
-  const html = heavy(400)
+test('convertMany keeps the event loop responsive', async () => {
   const t0 = performance.now()
   convert(html)
   const once = performance.now() - t0
-  const n = 24
-  const { maxGap, ticks, elapsed } = await measureLag(() => Promise.all(Array.from({ length: n }, () => convertAsync(html))))
-  // 至少是一次同步转换耗时的几倍，测量才有意义
-  assert.ok(elapsed > once * 2, `elapsed ${elapsed} vs single ${once}`)
-  assert.ok(maxGap < MAX_GAP_MS, `timer delayed ${maxGap.toFixed(1)} ms (single convert ${once.toFixed(1)} ms)`)
-  assert.ok(ticks >= elapsed / 10 / 3, `only ${ticks} ticks in ${elapsed.toFixed(0)} ms`)
+  const r = await measureLag(async () => {
+    const pages = await convertMany(Array.from({ length: 64 }, () => html))
+    // 只读一个字段：其余字段不会复制到 JS
+    assert.equal(pages.filter((p) => p.metadata.title === 'Heavy').length, 64)
+  })
+  assert.ok(r.elapsed > once * 2, `elapsed ${r.elapsed} vs single ${once}`)
+  responsive(r)
 })
 
-test('scrapeMany keeps the event loop responsive', async () => {
+test('convertAsync keeps the event loop responsive', async () => {
+  responsive(await measureLag(() => Promise.all(Array.from({ length: 32 }, () => convertAsync(html)))))
+})
+
+test('scrapeMany and scrapeStream keep the event loop responsive', async () => {
   const s = new Scraper({ allowPrivateNetwork: true, requestIntervalMs: 0, perHostConcurrency: 16 })
   const urls = Array.from({ length: 40 }, (_, i) => `${srv.base}/heavy/${i}`)
-  const { maxGap, ticks, elapsed } = await measureLag(async () => {
-    const out = await s.scrapeMany(urls, { engine: 'http', concurrency: 16 })
-    assert.equal(out.filter((d) => d.metadata?.title === 'Heavy').length, urls.length)
-  })
-  assert.ok(maxGap < MAX_GAP_MS, `timer delayed ${maxGap.toFixed(1)} ms over ${elapsed.toFixed(0)} ms`)
-  assert.ok(ticks >= elapsed / 10 / 3, `only ${ticks} ticks in ${elapsed.toFixed(0)} ms`)
+  responsive(
+    await measureLag(async () => {
+      const out = await s.scrapeMany(urls, { engine: 'http' })
+      assert.equal(out.filter((r) => r.page).length, urls.length)
+    }),
+  )
+  responsive(
+    await measureLag(async () => {
+      let n = 0
+      for await (const r of s.scrapeStream(urls, { engine: 'http' })) n += r.page ? 1 : 0
+      assert.equal(n, urls.length)
+    }),
+  )
   await s.close()
 })
