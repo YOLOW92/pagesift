@@ -1,0 +1,19 @@
+[package]
+name = "pagesift-py"
+description = "Python bindings for pagesift (PyPI package `pagesift`)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+# 通过 maturin 发布到 PyPI，不发布到 crates.io。
+publish = false
+
+[lib]
+name = "pagesift"
+crate-type = ["cdylib"]
+
+[dependencies]
+pagesift-content = { version = "0.0.1", path = "../pagesift-content" }
+pyo3 = { version = "0.30.1", features = ["extension-module", "abi3-py39"] }
+url = "2.5.8"
