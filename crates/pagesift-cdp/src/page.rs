@@ -1,6 +1,6 @@
 //! 单个页面的渲染流程：建 target、开拦截、导航、执行 actions、取结果。
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -10,6 +10,7 @@ use serde_json::{Value, json};
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 
+use crate::capture::{CaptureOptions, Captured, capture_html};
 use crate::conn::{Connection, EventStream, Session, str_field};
 use crate::error::{Error, Result};
 use crate::guard::{BlockResources, RequestGuard, SubRequest, Verdict};
@@ -18,6 +19,14 @@ use crate::options::*;
 const DESKTOP: (u32, u32, f64) = (1920, 1080, 1.0);
 const MOBILE: (u32, u32, f64) = (390, 844, 3.0);
 const MAX_CAPTURE_PX: f64 = 16384.0;
+/// 网络静默多久算就绪。
+const NET_QUIET: Duration = Duration::from_millis(100);
+/// DOMContentLoaded 之后最多等多久网络静默（长轮询之类的页面永远等不到）。
+const NET_IDLE_CAP: Duration = Duration::from_secs(5);
+/// 截图前等 `load` 的上限。
+const LOAD_CAP: Duration = Duration::from_secs(10);
+/// 这些类型的请求没结束，页面内容就可能还在变；图片、字体、样式不影响 HTML。
+const TRACKED: &[&str] = &["Document", "Script", "XHR", "Fetch"];
 
 pub(crate) struct PageEnv {
     pub guard: Arc<dyn RequestGuard>,
@@ -37,13 +46,19 @@ impl PageResources {
         if let Some(m) = self.monitor.take() {
             m.abort();
         }
-        if let Some(t) = self.target_id.take() {
-            let _ = conn.close_target(&t).await;
-        }
+        // 销毁上下文会一并关掉其中的 target。
         if let Some(c) = self.context_id.take() {
             let _ = conn.dispose_browser_context(&c).await;
+        } else if let Some(t) = self.target_id.take() {
+            let _ = conn.close_target(&t).await;
         }
     }
+}
+
+struct Net {
+    /// (session, requestId)
+    inflight: HashSet<(String, String)>,
+    last_change: Instant,
 }
 
 struct Shared {
@@ -52,20 +67,114 @@ struct Shared {
     status: Mutex<Option<u16>>,
     blocked: Mutex<Vec<(bool, BlockedRequest)>>,
     intercept_error: Mutex<Option<String>>,
-    loaded: Mutex<HashSet<String>>,
+    /// 主框架的 (loaderId, 生命周期事件名)。
+    lifecycle: Mutex<HashSet<(String, String)>>,
+    main_loader: Mutex<Option<String>>,
     load_notify: Notify,
+    net: Mutex<Net>,
+    /// 跨进程 iframe 的 target id -> session id。
+    oopif: Mutex<HashMap<String, String>>,
 }
 
 impl Shared {
-    async fn wait_loaded(&self, loader_id: &str) {
+    fn has_event(&self, loader_id: &str, name: &str) -> bool {
+        self.lifecycle
+            .lock()
+            .unwrap()
+            .contains(&(loader_id.to_owned(), name.to_owned()))
+    }
+
+    async fn wait_event(&self, loader_id: &str, name: &str) {
         loop {
             let notified = self.load_notify.notified();
             tokio::pin!(notified);
             notified.as_mut().enable();
-            if self.loaded.lock().unwrap().contains(loader_id) {
+            if self.has_event(loader_id, name) {
                 return;
             }
             notified.await;
+        }
+    }
+
+    /// 等到跟踪的请求全部结束并静默 `quiet`；超过 `cap` 返回 false。
+    async fn wait_idle(&self, quiet: Duration, cap: Duration) -> bool {
+        let deadline = Instant::now() + cap;
+        loop {
+            let (n, since) = {
+                let net = self.net.lock().unwrap();
+                (net.inflight.len(), net.last_change.elapsed())
+            };
+            if n == 0 && since >= quiet {
+                return true;
+            }
+            let now = Instant::now();
+            if now >= deadline {
+                return false;
+            }
+            let nap = if n == 0 {
+                quiet - since
+            } else {
+                Duration::from_millis(20)
+            };
+            tokio::time::sleep(nap.min(deadline - now)).await;
+        }
+    }
+
+    fn net_update(&self, f: impl FnOnce(&mut HashSet<(String, String)>) -> bool) {
+        let mut net = self.net.lock().unwrap();
+        if f(&mut net.inflight) {
+            net.last_change = Instant::now();
+        }
+    }
+}
+
+/// 页面级的上下文，actions 和取 HTML 共用。
+struct PageCtx<'a> {
+    conn: &'a Connection,
+    session: &'a Session,
+    shared: &'a Shared,
+    metrics: Metrics,
+    opts: &'a RenderOptions,
+    virtual_items: BTreeMap<String, Vec<String>>,
+}
+
+impl PageCtx<'_> {
+    async fn html(&self) -> Result<Captured> {
+        let o = self.opts;
+        capture_html(
+            self.conn,
+            self.session,
+            &self.shared.main_frame,
+            &self.shared.oopif,
+            &CaptureOptions {
+                iframes: o.process_iframes,
+                max_depth: o.max_iframe_depth,
+                max_iframes: o.max_iframes,
+                shadow: o.flatten_shadow_dom,
+                virtual_items: &self.virtual_items,
+            },
+        )
+        .await
+    }
+
+    /// 点击、按键之后可能触发跳转或请求，等页面重新稳定。
+    async fn settle(&self) {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        self.shared
+            .wait_idle(Duration::from_millis(100), Duration::from_secs(3))
+            .await;
+        let loader = self.shared.main_loader.lock().unwrap().clone();
+        if let Some(l) = loader
+            && !self.shared.has_event(&l, "DOMContentLoaded")
+        {
+            let _ = tokio::time::timeout(
+                Duration::from_secs(10),
+                self.shared.wait_event(&l, "DOMContentLoaded"),
+            )
+            .await;
+            self.shared
+                .wait_idle(Duration::from_millis(100), Duration::from_secs(3))
+                .await;
         }
     }
 }
@@ -77,6 +186,18 @@ struct Metrics {
     mobile: bool,
 }
 
+impl Metrics {
+    fn new(mobile: bool) -> Metrics {
+        let (width, height, scale) = if mobile { MOBILE } else { DESKTOP };
+        Metrics {
+            width,
+            height,
+            scale,
+            mobile,
+        }
+    }
+}
+
 pub(crate) async fn render_page(
     conn: &Connection,
     res: &mut PageResources,
@@ -85,6 +206,7 @@ pub(crate) async fn render_page(
     opts: &RenderOptions,
     timings: &mut Timings,
 ) -> Result<RenderedPage> {
+    let setup_start = Instant::now();
     // 每个页面一个独立的浏览器上下文，cookie 和缓存不会串到别的请求。
     res.context_id = conn.create_browser_context().await.ok();
     let target = conn
@@ -94,8 +216,42 @@ pub(crate) async fn render_page(
     let session = conn.attach(&target).await?;
     let events = conn.subscribe(None);
 
-    session.call("Page.enable", json!({})).await?;
-    let tree = session.call("Page.getFrameTree", json!({})).await?;
+    let metrics = Metrics::new(opts.mobile);
+    let touch = async {
+        if opts.mobile {
+            session
+                .call(
+                    "Emulation.setTouchEmulationEnabled",
+                    json!({ "enabled": true, "maxTouchPoints": 5 }),
+                )
+                .await?;
+        }
+        Ok(())
+    };
+    let languages = async {
+        if !opts.languages.is_empty() {
+            // 原样传回浏览器自己的 UA，只改 Accept-Language。
+            session
+                .call(
+                    "Emulation.setUserAgentOverride",
+                    json!({ "userAgent": env.user_agent, "acceptLanguage": opts.languages.join(",") }),
+                )
+                .await?;
+        }
+        Ok::<_, Error>(())
+    };
+    // 这些命令互不依赖，一起发出去，省掉逐条往返。
+    // 拦截打不开就不渲染：不能让子请求绕过检查。空白页不发请求，事件晚点消费也不会丢。
+    let (_, tree, ..) = tokio::try_join!(
+        session.call("Page.enable", json!({})),
+        session.call("Page.getFrameTree", json!({})),
+        enable_interception(&session),
+        session.call("Page.setLifecycleEventsEnabled", json!({ "enabled": true })),
+        session.call("Network.enable", json!({})),
+        set_metrics(&session, &metrics, None),
+        touch,
+        languages,
+    )?;
     let main_frame = tree
         .pointer("/frameTree/frame/id")
         .and_then(Value::as_str)
@@ -107,9 +263,16 @@ pub(crate) async fn render_page(
         status: Mutex::new(None),
         blocked: Mutex::new(Vec::new()),
         intercept_error: Mutex::new(None),
-        loaded: Mutex::new(HashSet::new()),
+        lifecycle: Mutex::new(HashSet::new()),
+        main_loader: Mutex::new(None),
         load_notify: Notify::new(),
+        net: Mutex::new(Net {
+            inflight: HashSet::new(),
+            last_change: Instant::now(),
+        }),
+        oopif: Mutex::new(HashMap::new()),
     });
+    // 事件已经在 `events` 里缓冲着，晚一点开始消费不会丢。
     res.monitor = Some(tokio::spawn(monitor(
         conn.clone(),
         events,
@@ -118,38 +281,7 @@ pub(crate) async fn render_page(
         opts.block.clone(),
     )));
 
-    // 拦截打不开就不渲染：不能让子请求绕过检查。
-    enable_interception(&session).await?;
-    session
-        .call("Page.setLifecycleEventsEnabled", json!({ "enabled": true }))
-        .await?;
-    session.call("Network.enable", json!({})).await?;
-
-    let (w, h, scale) = if opts.mobile { MOBILE } else { DESKTOP };
-    let metrics = Metrics {
-        width: w,
-        height: h,
-        scale,
-        mobile: opts.mobile,
-    };
-    set_metrics(&session, &metrics, None).await?;
-    if opts.mobile {
-        session
-            .call(
-                "Emulation.setTouchEmulationEnabled",
-                json!({ "enabled": true, "maxTouchPoints": 5 }),
-            )
-            .await?;
-    }
-    if !opts.languages.is_empty() {
-        // 原样传回浏览器自己的 UA，只改 Accept-Language。
-        session
-            .call(
-                "Emulation.setUserAgentOverride",
-                json!({ "userAgent": env.user_agent, "acceptLanguage": opts.languages.join(",") }),
-            )
-            .await?;
-    }
+    timings.setup = setup_start.elapsed();
 
     let nav_start = Instant::now();
     let nav = session.call("Page.navigate", json!({ "url": url })).await?;
@@ -172,20 +304,52 @@ pub(crate) async fn render_page(
         }
         return Err(Error::Navigation(err.to_owned()));
     }
-    if let Some(loader) = nav.get("loaderId").and_then(Value::as_str) {
-        shared.wait_loaded(loader).await;
+    let loader = nav
+        .get("loaderId")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    let first_event = match opts.wait_until {
+        WaitUntil::Load => "load",
+        _ => "DOMContentLoaded",
+    };
+    if let Some(l) = &loader {
+        shared.wait_event(l, first_event).await;
     }
     timings.navigation = nav_start.elapsed();
     check_interception(&shared)?;
 
+    let wait_start = Instant::now();
+    if opts.wait_until == WaitUntil::NetworkIdle {
+        wait_ready(&session, &shared, NET_IDLE_CAP).await;
+    }
     if !opts.wait_for.is_zero() {
         tokio::time::sleep(opts.wait_for).await;
     }
+    let mut ctx = PageCtx {
+        conn,
+        session: &session,
+        shared: &shared,
+        metrics,
+        opts,
+        virtual_items: BTreeMap::new(),
+    };
+    if let Some(scan) = &opts.scan_full_page {
+        scan_full_page(&ctx, scan).await?;
+    }
+    let mut virtual_scroll_items = None;
+    if let Some(vs) = &opts.virtual_scroll
+        && let Some((key, items)) = virtual_scroll(&session, vs).await?
+    {
+        virtual_scroll_items = Some(items.len());
+        ctx.virtual_items.insert(key, items);
+    }
+    timings.wait = wait_start.elapsed();
+    check_interception(&shared)?;
 
     let actions_start = Instant::now();
     let mut outputs = ActionOutputs::default();
     for (index, action) in opts.actions.iter().enumerate() {
-        run_action(&session, &metrics, action, &mut outputs)
+        run_action(&ctx, action, &mut outputs)
             .await
             .map_err(|e| match e {
                 ActionError::Cdp(e) => e,
@@ -195,11 +359,19 @@ pub(crate) async fn render_page(
     }
     timings.actions = actions_start.elapsed();
 
+    let shot_start = Instant::now();
     let screenshot = match &opts.screenshot {
-        Some(s) => Some(capture(&session, &metrics, s).await?),
+        Some(s) => {
+            wait_load(&shared).await;
+            Some(capture(&session, &ctx.metrics, s).await?)
+        }
         None => None,
     };
-    let html = page_html(&session).await?;
+    timings.screenshot = shot_start.elapsed();
+    let html_start = Instant::now();
+    let captured = ctx.html().await?;
+    timings.html = html_start.elapsed();
+    timings.iframes = captured.iframe_time;
     let final_url = eval_string(&session, "location.href").await?;
     check_interception(&shared)?;
     let status = *shared.status.lock().unwrap();
@@ -213,10 +385,13 @@ pub(crate) async fn render_page(
     Ok(RenderedPage {
         final_url,
         status,
-        html,
+        html: captured.html,
         screenshot,
         actions: outputs,
         blocked_requests,
+        iframes_inlined: captured.inlined,
+        iframes_skipped: captured.skipped,
+        virtual_scroll_items,
         timings: timings.clone(),
     })
 }
@@ -279,6 +454,15 @@ async fn monitor(
                         .and_then(Value::as_str)
                         .unwrap_or_default()
                         .to_owned();
+                    if kind == "iframe"
+                        && let Some(t) = p.pointer("/targetInfo/targetId").and_then(Value::as_str)
+                    {
+                        shared
+                            .oopif
+                            .lock()
+                            .unwrap()
+                            .insert(t.to_owned(), child.to_owned());
+                    }
                     let child = conn.session(child);
                     let shared = shared.clone();
                     tokio::spawn(async move { attach_child(&child, &kind, &shared).await });
@@ -287,6 +471,12 @@ async fn monitor(
             "Target.detachedFromTarget" => {
                 if let Some(child) = p.get("sessionId").and_then(Value::as_str) {
                     sessions.remove(child);
+                    shared.oopif.lock().unwrap().retain(|_, s| s != child);
+                    shared.net_update(|f| {
+                        let n = f.len();
+                        f.retain(|(s, _)| s != child);
+                        n != f.len()
+                    });
                 }
             }
             "Page.javascriptDialogOpening" if is_page => {
@@ -303,12 +493,32 @@ async fn monitor(
                     *shared.status.lock().unwrap() = status.map(|s| s as u16);
                 }
             }
-            "Page.lifecycleEvent" if is_page => {
-                if p["name"] == "load"
-                    && p["frameId"] == shared.main_frame.as_str()
-                    && let Some(loader) = p["loaderId"].as_str()
+            "Network.requestWillBeSent" => {
+                if TRACKED.contains(&p["type"].as_str().unwrap_or_default())
+                    && let Some(id) = p["requestId"].as_str()
                 {
-                    shared.loaded.lock().unwrap().insert(loader.to_owned());
+                    let key = (sid.to_owned(), id.to_owned());
+                    shared.net_update(|f| f.insert(key));
+                }
+            }
+            "Network.loadingFinished" | "Network.loadingFailed" => {
+                if let Some(id) = p["requestId"].as_str() {
+                    let key = (sid.to_owned(), id.to_owned());
+                    shared.net_update(|f| f.remove(&key));
+                }
+            }
+            "Page.lifecycleEvent" if is_page => {
+                if p["frameId"] == shared.main_frame.as_str()
+                    && let (Some(loader), Some(name)) = (p["loaderId"].as_str(), p["name"].as_str())
+                {
+                    if name == "init" {
+                        *shared.main_loader.lock().unwrap() = Some(loader.to_owned());
+                    }
+                    shared
+                        .lifecycle
+                        .lock()
+                        .unwrap()
+                        .insert((loader.to_owned(), name.to_owned()));
                     shared.load_notify.notify_waiters();
                 }
             }
@@ -331,6 +541,9 @@ async fn attach_child(child: &Session, kind: &str, shared: &Shared) {
         // 开不了拦截就让它一直停着，并让本次渲染失败。
         *shared.intercept_error.lock().unwrap() = Some(format!("{kind} target: {e}"));
         return;
+    } else if kind == "iframe" {
+        // 跨进程 iframe 的请求也要计入网络静默。
+        let _ = child.call("Network.enable", json!({})).await;
     }
     let _ = child
         .call("Runtime.runIfWaitingForDebugger", json!({}))
@@ -480,26 +693,140 @@ async fn eval_string(session: &Session, expr: &str) -> Result<String> {
     }
 }
 
-async fn page_html(session: &Session) -> Result<String> {
-    eval_string(
-        session,
-        "(document.doctype ? new XMLSerializer().serializeToString(document.doctype) + '\\n' : '') + \
-         (document.documentElement ? document.documentElement.outerHTML : '')",
-    )
-    .await
-}
-
-/// 点击、按键之后可能触发跳转，等页面重新稳定。
-async fn settle(session: &Session) {
-    tokio::time::sleep(Duration::from_millis(100)).await;
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while Instant::now() < deadline {
-        if let Ok(Ok(v)) = eval(session, "document.readyState").await
-            && v.value == "complete"
+/// 网络静默后再在页面里跑一条空命令：它要排在正在执行的脚本之后，
+/// 长脚本执行完又发出的请求就不会被误判成已经空闲。
+async fn wait_ready(session: &Session, shared: &Shared, cap: Duration) {
+    let deadline = Instant::now() + cap;
+    loop {
+        let left = deadline.saturating_duration_since(Instant::now());
+        if !shared.wait_idle(NET_QUIET, left).await {
+            return;
+        }
+        let probe = Instant::now();
+        let left = deadline.saturating_duration_since(probe);
+        if tokio::time::timeout(left, eval(session, "0"))
+            .await
+            .is_err()
         {
             return;
         }
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        let net = shared.net.lock().unwrap();
+        if net.inflight.is_empty() && net.last_change < probe {
+            return;
+        }
+    }
+}
+
+/// 截图要等图片和字体；主框架当前文档的 `load` 最多等 `LOAD_CAP`。
+async fn wait_load(shared: &Shared) {
+    let loader = shared.main_loader.lock().unwrap().clone();
+    if let Some(l) = loader {
+        let _ = tokio::time::timeout(LOAD_CAP, shared.wait_event(&l, "load")).await;
+    }
+}
+
+async fn scan_full_page(ctx: &PageCtx<'_>, scan: &FullPageScan) -> Result<()> {
+    const STEP: &str = "(() => { window.scrollBy(0, window.innerHeight); \
+        const se = document.scrollingElement || document.documentElement; \
+        return [window.scrollY + window.innerHeight, se.scrollHeight]; })()";
+    const POS: &str = "(() => { const se = document.scrollingElement || document.documentElement; \
+        return [window.scrollY + window.innerHeight, se.scrollHeight]; })()";
+    let pos =
+        |v: Value| -> (f64, f64) { (v[0].as_f64().unwrap_or(0.0), v[1].as_f64().unwrap_or(0.0)) };
+    let start = Instant::now();
+    let mut last_height = pos(eval_value(ctx.session, POS).await?).1;
+    for _ in 0..scan.max_steps {
+        if start.elapsed() >= scan.timeout {
+            break;
+        }
+        eval_value(ctx.session, STEP).await?;
+        // 给懒加载一点时间发出请求，再等它们结束。
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        ctx.shared
+            .wait_idle(Duration::from_millis(100), scan.scroll_delay)
+            .await;
+        let (bottom, height) = pos(eval_value(ctx.session, POS).await?);
+        if height > last_height {
+            last_height = height;
+            continue;
+        }
+        if bottom >= height - 2.0 {
+            break;
+        }
+    }
+    eval_value(ctx.session, "window.scrollTo(0, 0)").await?;
+    Ok(())
+}
+
+const VIRTUAL_JS: &str = r#"(async (sel, count, by, waitMs) => {
+  const c = document.querySelector(sel);
+  if (!c) return null;
+  const quiet = max => new Promise(res => {
+    let t = null;
+    const done = () => { ob.disconnect(); clearTimeout(cap); clearTimeout(t); res(); };
+    const ob = new MutationObserver(() => { clearTimeout(t); t = setTimeout(done, 50); });
+    ob.observe(c, { childList: true, subtree: true, characterData: true });
+    const cap = setTimeout(done, max);
+  });
+  const seen = new Set(), items = [];
+  const grab = () => {
+    for (const ch of c.children) {
+      const k = (ch.textContent || '').replace(/\s+/g, ' ').trim() || ch.outerHTML;
+      if (!seen.has(k)) { seen.add(k); items.push(ch.outerHTML); }
+    }
+  };
+  const own = c.scrollHeight > c.clientHeight + 1 && getComputedStyle(c).overflowY !== 'visible';
+  grab();
+  for (let i = 0; i < count; i++) {
+    const step = by === 'container' ? (own ? c.clientHeight : innerHeight) : by === 'page' ? innerHeight : by;
+    const before = own ? c.scrollTop : scrollY;
+    const wait = quiet(waitMs);
+    if (own) c.scrollTop += step; else window.scrollBy(0, step);
+    await wait;
+    grab();
+    if ((own ? c.scrollTop : scrollY) === before) break;
+  }
+  const key = Math.random().toString(36).slice(2);
+  c.setAttribute('data-pagesift-vs', key);
+  return { key, items };
+})"#;
+
+/// 返回容器标记和按出现顺序去重后的条目；找不到容器时返回 `None`。
+async fn virtual_scroll(
+    session: &Session,
+    vs: &VirtualScroll,
+) -> Result<Option<(String, Vec<String>)>> {
+    let by = match vs.scroll_by {
+        ScrollBy::ContainerHeight => json!("container"),
+        ScrollBy::PageHeight => json!("page"),
+        ScrollBy::Pixels(px) => json!(px),
+    };
+    let expr = format!(
+        "{VIRTUAL_JS}({}, {}, {by}, {})",
+        js_str(&vs.container_selector),
+        vs.scroll_count,
+        vs.wait_after_scroll.as_millis()
+    );
+    let v = eval_value(session, &expr).await?;
+    if v.is_null() {
+        return Ok(None);
+    }
+    let key = v["key"].as_str().unwrap_or_default().to_owned();
+    let items = v["items"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|i| i.as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(Some((key, items)))
+}
+
+async fn eval_value(session: &Session, expr: &str) -> Result<Value> {
+    match eval(session, expr).await? {
+        Ok(v) => Ok(v.value),
+        Err(e) => Err(Error::UnexpectedResponse(e)),
     }
 }
 
@@ -508,11 +835,11 @@ fn js_str(s: &str) -> String {
 }
 
 async fn run_action(
-    session: &Session,
-    metrics: &Metrics,
+    ctx: &PageCtx<'_>,
     action: &Action,
     out: &mut ActionOutputs,
 ) -> Result<(), ActionError> {
+    let session = ctx.session;
     match action {
         Action::Wait {
             milliseconds: Some(ms),
@@ -524,9 +851,16 @@ async fn run_action(
             selector: Some(sel),
             ..
         } => {
-            let expr = format!("!!document.querySelector({})", js_str(sel));
+            // 页面里用 MutationObserver 等，最长 1 秒一轮；跳转后上下文失效时重来。
+            let expr = format!(
+                "new Promise(r => {{ const q = () => !!document.querySelector({}); \
+                 if (q()) return r(true); const ob = new MutationObserver(() => {{ if (q()) {{ ob.disconnect(); r(true); }} }}); \
+                 ob.observe(document, {{ childList: true, subtree: true, attributes: true }}); \
+                 setTimeout(() => {{ ob.disconnect(); r(q()); }}, 1000); }})",
+                js_str(sel)
+            );
             while eval_ok(session, &expr).await? != Value::Bool(true) {
-                tokio::time::sleep(Duration::from_millis(100)).await;
+                tokio::time::sleep(Duration::from_millis(20)).await;
             }
         }
         Action::Wait { .. } => {
@@ -549,7 +883,7 @@ async fn run_action(
             for i in 0..n {
                 click_nth(session, &sel, i).await?;
             }
-            settle(session).await;
+            ctx.settle().await;
         }
         Action::Write { text } => {
             session
@@ -575,7 +909,7 @@ async fn run_action(
                             "windowsVirtualKeyCode": k.vk, "nativeVirtualKeyCode": k.vk }),
                 )
                 .await?;
-            settle(session).await;
+            ctx.settle().await;
         }
         Action::Scroll {
             direction,
@@ -599,11 +933,18 @@ async fn run_action(
                     "no element matches scroll selector".into(),
                 ));
             }
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            ctx.shared
+                .wait_idle(Duration::from_millis(100), Duration::from_secs(3))
+                .await;
         }
-        Action::Screenshot(s) => out.screenshots.push(capture(session, metrics, s).await?),
+        Action::Screenshot(s) => {
+            wait_load(ctx.shared).await;
+            out.screenshots
+                .push(capture(session, &ctx.metrics, s).await?);
+        }
         Action::Scrape => {
-            let html = page_html(session).await?;
+            let html = ctx.html().await?.html;
             let url = eval_string(session, "location.href").await?;
             out.scrapes.push(ScrapeResult { url, html });
         }
@@ -619,6 +960,7 @@ async fn run_action(
             landscape,
             scale,
         } => {
+            wait_load(ctx.shared).await;
             let (pw, ph) = format.inches();
             let r = session
                 .call(

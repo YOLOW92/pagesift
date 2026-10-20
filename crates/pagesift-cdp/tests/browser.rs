@@ -654,6 +654,7 @@ async fn connects_to_remote_endpoint() {
         local.shutdown().await;
         return;
     };
+    let pages_before = page_targets(port).await;
     let remote = BrowserPool::new(
         PoolConfig {
             source: BrowserSource::Remote(format!("http://127.0.0.1:{port}")),
@@ -675,10 +676,45 @@ async fn connects_to_remote_endpoint() {
         .unwrap();
     assert!(page.html.contains("rendered by js"));
     remote.shutdown().await;
+    // 远程池建过的页面都要关掉。
+    assert_eq!(page_targets(port).await, pages_before);
     // 远程模式不负责也不能杀掉对方的浏览器。
     let pid = local.stats().await[0].pid.unwrap();
     assert!(nix::sys::signal::kill(nix::unistd::Pid::from_raw(pid as i32), None).is_ok());
     local.shutdown().await;
+}
+
+async fn page_targets(port: u16) -> usize {
+    let mut tcp = tokio::net::TcpStream::connect(("127.0.0.1", port))
+        .await
+        .unwrap();
+    tcp.write_all(b"GET /json/list HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+        .await
+        .unwrap();
+    // DevTools 的 HTTP 服务不主动断开，按 Content-Length 读完。
+    let mut buf = Vec::new();
+    let mut chunk = [0u8; 8192];
+    loop {
+        let n = tokio::time::timeout(Duration::from_secs(5), tcp.read(&mut chunk))
+            .await
+            .unwrap()
+            .unwrap();
+        buf.extend_from_slice(&chunk[..n]);
+        let text = String::from_utf8_lossy(&buf);
+        if let Some((head, body)) = text.split_once("\r\n\r\n") {
+            let len: usize = head
+                .lines()
+                .find_map(|l| {
+                    l.to_ascii_lowercase()
+                        .strip_prefix("content-length:")
+                        .map(|v| v.trim().parse().unwrap())
+                })
+                .unwrap();
+            if n == 0 || body.len() >= len {
+                return body.matches("\"type\": \"page\"").count();
+            }
+        }
+    }
 }
 
 /// 从浏览器命令行里的 `--user-data-dir` 读 `DevToolsActivePort`。
