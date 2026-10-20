@@ -1,0 +1,53 @@
+{
+  "name": "pagesift",
+  "version": "0.0.1",
+  "description": "Turn web pages into clean Markdown for LLMs: a polite, Firecrawl-compatible scraping engine written in Rust.",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YOLOW92/pagesift.git",
+    "directory": "crates/pagesift-node"
+  },
+  "keywords": [
+    "markdown",
+    "scraper",
+    "crawler",
+    "firecrawl",
+    "llm",
+    "html-to-markdown",
+    "napi-rs"
+  ],
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts"
+  ],
+  "engines": {
+    "node": ">= 18"
+  },
+  "napi": {
+    "binaryName": "pagesift",
+    "targets": [
+      "x86_64-unknown-linux-gnu",
+      "x86_64-unknown-linux-musl",
+      "aarch64-unknown-linux-gnu",
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin",
+      "x86_64-pc-windows-msvc"
+    ],
+    "dtsHeaderFile": "header.d.ts"
+  },
+  "scripts": {
+    "build": "napi build --platform --release && node scripts/postbuild.mjs",
+    "build:debug": "napi build --platform && node scripts/postbuild.mjs",
+    "test": "node --test",
+    "bench": "node bench/bench.mjs",
+    "artifacts": "napi artifacts",
+    "prepublishOnly": "napi prepublish -t npm",
+    "version": "napi version"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "3.10.8"
+  }
+}
