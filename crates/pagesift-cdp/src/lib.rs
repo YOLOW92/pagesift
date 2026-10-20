@@ -31,4 +31,4 @@ pub use guard::{
 };
 pub use launch::detect_browser;
 pub use options::*;
-pub use pool::{BrowserPool, BrowserSource, BrowserStats, PoolConfig};
+pub use pool::{BrowserPool, BrowserSource, BrowserStats, PoolConfig, auto_browsers};

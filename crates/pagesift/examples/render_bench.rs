@@ -289,6 +289,13 @@ fn main() {
             other => panic!("unknown argument {other}"),
         }
     }
+    if browser.max_browsers == 0 {
+        // 和池的默认一样自动决定，这里先算出来好打印。
+        browser.max_browsers = pagesift_cdp::auto_browsers(
+            browser.max_tabs_per_browser,
+            browser.min_available_memory_mb,
+        );
+    }
     if concurrency == 0 {
         concurrency = browser.max_browsers * browser.max_tabs_per_browser;
     }

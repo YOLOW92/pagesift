@@ -32,6 +32,8 @@ pub struct PoolConfig {
     /// 浏览器需要在 stdout/stderr 打印 `ws://` 开头的 DevTools 地址。
     pub args_override: Option<Vec<String>>,
     pub extra_args: Vec<String>,
+    /// 0 表示按可用内存和 CPU 核数自动决定（见 [`auto_browsers`]）。
+    /// 一个浏览器的吞吐受它的 UI 线程限制，几个标签页就能占满，要更高的并发得多开浏览器。
     pub max_browsers: usize,
     pub max_tabs_per_browser: usize,
     /// 每个浏览器处理这么多页面后回收；0 表示不回收。
@@ -53,7 +55,7 @@ impl Default for PoolConfig {
             source: BrowserSource::Auto,
             args_override: None,
             extra_args: Vec::new(),
-            max_browsers: 2,
+            max_browsers: 0,
             max_tabs_per_browser: 4,
             recycle_after_pages: 100,
             min_browsers: 0,
@@ -119,6 +121,18 @@ const BROWSER_MEMORY_MB: u64 = 300;
 /// 因为内存不够在等时，隔多久重新看一次（内存可能被别的进程释放，不一定有归还事件）。
 const MEMORY_RECHECK: Duration = Duration::from_millis(250);
 
+/// 自动的浏览器数：可用内存（扣掉 `reserve_mb`）够开几个满载的浏览器，最多每 4 个核一个
+/// （每个浏览器的 UI 线程、渲染进程和 GPU 进程大约要占满一个多核）。读不到内存时按核数算。
+pub fn auto_browsers(tabs_per_browser: usize, reserve_mb: u64) -> usize {
+    let cores = std::thread::available_parallelism().map_or(1, usize::from);
+    let by_cpu = (cores / 4).max(1);
+    let per_browser = BROWSER_MEMORY_MB + TAB_MEMORY_MB * tabs_per_browser as u64;
+    let by_memory = mem_available_mb().map_or(by_cpu, |avail| {
+        (avail.saturating_sub(reserve_mb) / per_browser) as usize
+    });
+    by_memory.clamp(1, by_cpu)
+}
+
 /// Linux 的 MemAvailable（MB）；读不到时返回 `None`，不做限制。
 fn mem_available_mb() -> Option<u64> {
     let s = std::fs::read_to_string("/proc/meminfo").ok()?;
@@ -156,10 +170,19 @@ pub struct BrowserPool {
 impl BrowserPool {
     /// 需要在 tokio 运行时里调用。不会立即启动浏览器，除非 `min_browsers > 0`。
     pub async fn new(cfg: PoolConfig, guard: Arc<dyn RequestGuard>) -> Result<BrowserPool> {
-        if cfg.max_browsers == 0 || cfg.max_tabs_per_browser == 0 {
+        if cfg.max_tabs_per_browser == 0 {
             return Err(Error::InvalidOptions(
-                "max_browsers and max_tabs_per_browser must be > 0".into(),
+                "max_tabs_per_browser must be > 0".into(),
             ));
+        }
+        let mut cfg = cfg;
+        if cfg.max_browsers == 0 {
+            cfg.max_browsers = match cfg.source {
+                // 远程端点的资源不归本机管，保持保守。
+                BrowserSource::Remote(_) => 2,
+                _ => auto_browsers(cfg.max_tabs_per_browser, cfg.min_available_memory_mb),
+            };
+            tracing::debug!(browsers = cfg.max_browsers, "browser pool size");
         }
         let source = match &cfg.source {
             BrowserSource::Remote(url) => Source::Remote(url.clone()),

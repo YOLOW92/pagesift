@@ -28,7 +28,8 @@ allow_crawl_ignore_robots = false
 [browser]
 # path = "/usr/bin/chromium"
 # remote = "ws://127.0.0.1:9222/devtools/browser/..."
-max_browsers = 2
+# 不写或写 0 时按可用内存和 CPU 核数自动决定（每 4 个核最多一个浏览器）
+# max_browsers = 4
 max_tabs_per_browser = 4
 # 系统可用内存低于这个值（MB）时不再开新标签页，等已有页面结束；0 表示不检查
 min_available_memory_mb = 1024
