@@ -196,6 +196,7 @@ pub fn run(args: Args) -> Result<()> {
                     .and_then(|u| Url::parse(u).ok())
                     .or_else(|| Url::parse(&row.url).ok()),
                 only_main_content: true,
+                ..Default::default()
             };
             let (html, opts) = match rendered.get(&row.id) {
                 Some(r)

@@ -1402,8 +1402,12 @@ dependencies = [
 name = "pagesift-content"
 version = "0.0.1"
 dependencies = [
+ "aho-corasick",
  "ego-tree",
  "scraper",
+ "serde_json",
+ "sha2 0.10.9",
+ "unicode-normalization",
  "url",
 ]
 

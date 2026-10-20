@@ -5,6 +5,7 @@ fn opts(base: &str) -> Options {
     Options {
         base_url: Some(Url::parse(base).unwrap()),
         only_main_content: true,
+        ..Default::default()
     }
 }
 
@@ -84,6 +85,7 @@ fn full_page_keeps_everything_visible() {
         &Options {
             base_url: None,
             only_main_content: false,
+            ..Default::default()
         },
     );
     assert!(doc.markdown.contains("Home"));

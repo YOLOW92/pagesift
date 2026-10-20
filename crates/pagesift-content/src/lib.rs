@@ -8,15 +8,26 @@
 
 #![forbid(unsafe_code)]
 
+mod barrier;
+mod clean_html;
+mod datetime;
 mod dom;
 mod extract;
+mod fingerprint;
+mod jsonld;
+mod links;
 mod markdown;
 mod metadata;
+mod text;
 
 use scraper::Html;
 use url::Url;
 
+pub use barrier::{Barrier, BarrierKind};
+pub use fingerprint::{Fingerprints, sha256_hex};
+pub use links::{Image, Link, same_site};
 pub use metadata::Metadata;
+pub use text::{estimate_tokens, normalize_text};
 
 #[derive(Debug, Clone)]
 pub struct Options {
@@ -24,6 +35,20 @@ pub struct Options {
     pub base_url: Option<Url>,
     /// 只保留正文（对应 Firecrawl 的 `onlyMainContent`，默认开启）。
     pub only_main_content: bool,
+    /// 响应的 HTTP 状态码（可选），拦截页识别会参考它。
+    pub status: Option<u16>,
+    /// 识别拦截页，结果放进 [`Document::barrier`]（默认开启）。
+    pub detect_barrier: bool,
+    /// 输出 [`Document::plain_text`]。
+    pub plain_text: bool,
+    /// 输出 [`Document::html`]。
+    pub clean_html: bool,
+    /// 输出 [`Document::links`]。
+    pub links: bool,
+    /// 输出 [`Document::images`]。
+    pub images: bool,
+    /// 输出 [`Document::fingerprints`]。
+    pub fingerprints: bool,
 }
 
 impl Default for Options {
@@ -31,14 +56,33 @@ impl Default for Options {
         Self {
             base_url: None,
             only_main_content: true,
+            status: None,
+            detect_barrier: true,
+            plain_text: false,
+            clean_html: false,
+            links: false,
+            images: false,
+            fingerprints: false,
         }
     }
 }
 
+/// 处理结果。`Option` 字段只在 [`Options`] 打开对应开关时计算。
 #[derive(Debug, Clone)]
 pub struct Document {
     pub markdown: String,
     pub metadata: Metadata,
+    /// 识别出的拦截页。这里只给判断，怎么处理（比如不返回正文）由调用方决定。
+    pub barrier: Option<Barrier>,
+    /// 纯文本，和 Markdown 用同一套跳过规则。
+    pub plain_text: Option<String>,
+    /// 清洗后的 HTML 片段（`<body>` 的内容）。
+    pub html: Option<String>,
+    /// 全页链接。
+    pub links: Option<Vec<Link>>,
+    /// 全页图片。
+    pub images: Option<Vec<Image>>,
+    pub fingerprints: Option<Fingerprints>,
 }
 
 /// 只取正文的结果少于这么多字符、并且不到整页可见文字的这个比例时，放宽规则重试。
@@ -72,7 +116,26 @@ pub fn process(html: &str, opts: &Options) -> Document {
             markdown = render(&skipper);
         }
     }
-    Document { markdown, metadata }
+    let barrier = opts
+        .detect_barrier
+        .then(|| barrier::detect(&dom, html, metadata.title.as_deref(), opts.status))
+        .flatten();
+    let plain_text = (opts.plain_text || opts.fingerprints).then(|| text::render(body, &skipper));
+    let fingerprints = opts
+        .fingerprints
+        .then(|| fingerprint::compute(html, &markdown, plain_text.as_deref().unwrap_or_default()));
+    Document {
+        html: opts
+            .clean_html
+            .then(|| clean_html::render(body, &skipper, base.as_ref())),
+        links: opts.links.then(|| links::links(&dom, base.as_ref())),
+        images: opts.images.then(|| links::images(&dom, base.as_ref())),
+        plain_text: plain_text.filter(|_| opts.plain_text),
+        markdown,
+        metadata,
+        barrier,
+        fingerprints,
+    }
 }
 
 fn body_or_root(dom: &Html) -> ego_tree::NodeId {

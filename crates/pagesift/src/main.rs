@@ -113,6 +113,7 @@ fn run(command: Command) -> Result<ExitCode> {
                 &Options {
                     base_url,
                     only_main_content: !full,
+                    ..Default::default()
                 },
             );
             print!("{}", doc.markdown);
