@@ -1496,14 +1496,22 @@ dependencies = [
 name = "pagesift-net"
 version = "0.0.1"
 dependencies = [
+ "brotli-decompressor 5.0.3",
+ "bytes",
  "chardetng",
  "encoding_rs",
  "flate2",
+ "http-body-util",
  "httpdate",
+ "hyper",
+ "hyper-util",
  "reqwest",
+ "rustls-native-certs",
  "thiserror",
  "tokio",
+ "tokio-rustls",
  "url",
+ "zstd 0.13.3",
 ]
 
 [[package]]
@@ -1963,6 +1971,7 @@ version = "0.23.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48e13bd8c0e9365c43cfa5c9e8f9ad49d3c8444926c9aac819e0e4dc503c8fdf"
 dependencies = [
+ "log",
  "once_cell",
  "ring",
  "rustls-pki-types",

@@ -370,3 +370,57 @@ async fn redirect_guard_can_reject_a_hop() {
     }
     assert_eq!(srv.seen().len(), 1);
 }
+
+#[tokio::test]
+async fn reuses_keep_alive_connections() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    // 支持 keep-alive 的最小服务器：一条连接上按顺序回应多个请求，统计接受了几条连接
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let accepted = Arc::new(AtomicUsize::new(0));
+    let count = accepted.clone();
+    tokio::spawn(async move {
+        loop {
+            let Ok((mut sock, _)) = listener.accept().await else {
+                return;
+            };
+            count.fetch_add(1, Ordering::SeqCst);
+            tokio::spawn(async move {
+                let mut buf = Vec::new();
+                let mut tmp = [0u8; 4096];
+                loop {
+                    while !buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                        match sock.read(&mut tmp).await {
+                            Ok(0) | Err(_) => return,
+                            Ok(n) => buf.extend_from_slice(&tmp[..n]),
+                        }
+                    }
+                    let end = buf.windows(4).position(|w| w == b"\r\n\r\n").unwrap() + 4;
+                    buf.drain(..end);
+                    let body = "<p>kept alive</p>";
+                    let resp = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n{body}",
+                        body.len()
+                    );
+                    if sock.write_all(resp.as_bytes()).await.is_err() {
+                        return;
+                    }
+                }
+            });
+        }
+    });
+    let f = fetcher();
+    for i in 0..3 {
+        let r = f
+            .fetch(FetchRequest::new(format!("http://{addr}/{i}")))
+            .await
+            .unwrap();
+        assert_eq!(r.body, b"<p>kept alive</p>");
+    }
+    assert_eq!(
+        accepted.load(Ordering::SeqCst),
+        1,
+        "one connection for three requests"
+    );
+}

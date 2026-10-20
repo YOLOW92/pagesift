@@ -113,6 +113,9 @@ async fn main() {
 
     let mut cfg = ScraperConfig::default();
     cfg.fetcher.ssrf.allow_private_network = true;
+    if let Some(n) = std::env::var("POOL_IDLE").ok().and_then(|v| v.parse().ok()) {
+        cfg.fetcher.pool_max_idle_per_host = n;
+    }
     cfg.policy.rate.default_interval = interval;
     cfg.policy.rate.per_host_concurrency = per_host;
     if let Some(g) = std::env::var("GLOBAL").ok().and_then(|v| v.parse().ok()) {

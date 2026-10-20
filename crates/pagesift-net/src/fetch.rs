@@ -8,6 +8,7 @@ use tokio::time::{Instant, timeout_at};
 use url::Url;
 
 use crate::charset::{self, Decoded};
+use crate::client;
 use crate::credentials::{HostCredentials, redact_url};
 use crate::dns::{
     BoxFuture, DnsLookup, GuardedResolver, ReqwestResolver, ResolveError, SystemLookup,
@@ -247,7 +248,7 @@ impl FetchResponse {
 }
 
 pub struct Fetcher {
-    client: reqwest::Client,
+    transport: Transport,
     config: FetcherConfig,
     credentials: Vec<(HostCredentials, HeaderMap)>,
 }
@@ -281,17 +282,37 @@ impl Fetcher {
                 .map_err(|_| Error::Config("invalid proxy URL".into()))?;
             builder = builder.proxy(proxy);
         }
-        let resolver = GuardedResolver {
+        let resolver = Arc::new(GuardedResolver {
             lookup: config.dns.clone(),
             policy: config.ssrf.clone(),
             exempt,
-        };
+        });
         let ua = HeaderValue::from_str(&config.user_agent)
             .map_err(|_| Error::Header("user-agent".into()))?;
+        let credentials = config
+            .credentials
+            .iter()
+            .map(|c| Ok((c.clone(), credential_headers(c)?)))
+            .collect::<Result<_>>()?;
+        // 直连用自研客户端（内存可控）；有出口代理时交给 reqwest 处理代理协议
+        if config.proxy.is_none() {
+            let direct = client::Client::new(
+                resolver,
+                config.connect_timeout,
+                config.pool_idle_timeout,
+                config.pool_max_idle_per_host,
+                ua,
+            )?;
+            return Ok(Self {
+                transport: Transport::Direct(direct),
+                config,
+                credentials,
+            });
+        }
         let client = builder
             .redirect(redirect::Policy::none())
             .referer(false)
-            .dns_resolver(Arc::new(ReqwestResolver(Arc::new(resolver))))
+            .dns_resolver(Arc::new(ReqwestResolver(resolver)))
             .connect_timeout(config.connect_timeout)
             .pool_idle_timeout(config.pool_idle_timeout)
             .pool_max_idle_per_host(config.pool_max_idle_per_host)
@@ -303,13 +324,8 @@ impl Fetcher {
             .deflate(true)
             .build()
             .map_err(|e| Error::Config(e.to_string()))?;
-        let credentials = config
-            .credentials
-            .iter()
-            .map(|c| Ok((c.clone(), credential_headers(c)?)))
-            .collect::<Result<_>>()?;
         Ok(Self {
-            client,
+            transport: Transport::Proxy(client),
             config,
             credentials,
         })
@@ -348,16 +364,16 @@ impl Fetcher {
         let mut chain = Vec::new();
         loop {
             let headers = self.headers_for(&url, &origin, &extra);
-            let send = self.client.get(url.clone()).headers(headers).send();
+            let send = self.transport.get(&url, headers);
             let first_byte = (Instant::now() + self.config.first_byte_timeout).min(deadline);
             let resp = match timeout_at(first_byte, send).await {
                 Err(_) if first_byte == deadline => {
                     return Err(Error::Timeout(TimeoutPhase::Total));
                 }
                 Err(_) => return Err(Error::Timeout(TimeoutPhase::FirstByte)),
-                Ok(r) => r.map_err(map_reqwest)?,
+                Ok(r) => r?,
             };
-            let status = resp.status().as_u16();
+            let status = resp.status();
             let location = resp
                 .headers()
                 .get(header::LOCATION)
@@ -380,9 +396,18 @@ impl Fetcher {
                 continue;
             }
             let first_byte = start.elapsed();
-            let headers = resp.headers().clone();
+            let mut headers = resp.headers().clone();
             let max = req.max_body_bytes.unwrap_or(self.config.max_body_bytes);
-            let (body, truncated) = read_body(resp, max, deadline).await?;
+            let direct = matches!(resp, Resp::Direct(_));
+            let (body, mut truncated) = read_body(resp, max, deadline).await?;
+            // 自研客户端拿到的是原始字节，在这里解压（reqwest 自己解压）
+            let body = if direct {
+                let (body, cut) = client::decode_body(&mut headers, body, max);
+                truncated |= cut;
+                body
+            } else {
+                body
+            };
             return Ok(FetchResponse {
                 final_url: url,
                 status,
@@ -527,20 +552,19 @@ fn request_headers(req: &FetchRequest) -> Result<HeaderMap> {
     Ok(out)
 }
 
-async fn read_body(
-    mut resp: reqwest::Response,
-    max: usize,
-    deadline: Instant,
-) -> Result<(Vec<u8>, bool)> {
+async fn read_body(mut resp: Resp, max: usize, deadline: Instant) -> Result<(Vec<u8>, bool)> {
     // 有 Content-Length 就一次分配到位，免得边读边扩容（扩容会多占一倍并反复拷贝）
     let hint = resp
-        .content_length()
+        .headers()
+        .get(header::CONTENT_LENGTH)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<u64>().ok())
         .map_or(0, |n| n.min(max as u64) as usize);
     let mut body = Vec::with_capacity(hint);
     loop {
         let chunk = match timeout_at(deadline, resp.chunk()).await {
             Err(_) => return Err(Error::Timeout(TimeoutPhase::Total)),
-            Ok(c) => c.map_err(map_reqwest)?,
+            Ok(c) => c?,
         };
         let Some(chunk) = chunk else {
             return Ok((body, false));
@@ -551,6 +575,54 @@ async fn read_body(
             return Ok((body, true));
         }
         body.extend_from_slice(&chunk);
+    }
+}
+
+enum Transport {
+    Direct(client::Client),
+    Proxy(reqwest::Client),
+}
+
+enum Resp {
+    Direct(client::Response),
+    Proxy(reqwest::Response),
+}
+
+impl Transport {
+    async fn get(&self, url: &Url, headers: HeaderMap) -> Result<Resp> {
+        match self {
+            Transport::Direct(c) => c.get(url, headers).await.map(Resp::Direct),
+            Transport::Proxy(c) => c
+                .get(url.clone())
+                .headers(headers)
+                .send()
+                .await
+                .map(Resp::Proxy)
+                .map_err(map_reqwest),
+        }
+    }
+}
+
+impl Resp {
+    fn status(&self) -> u16 {
+        match self {
+            Resp::Direct(r) => r.status,
+            Resp::Proxy(r) => r.status().as_u16(),
+        }
+    }
+
+    fn headers(&self) -> &HeaderMap {
+        match self {
+            Resp::Direct(r) => &r.headers,
+            Resp::Proxy(r) => r.headers(),
+        }
+    }
+
+    async fn chunk(&mut self) -> Result<Option<bytes::Bytes>> {
+        match self {
+            Resp::Direct(r) => r.chunk().await,
+            Resp::Proxy(r) => r.chunk().await.map_err(map_reqwest),
+        }
     }
 }
 

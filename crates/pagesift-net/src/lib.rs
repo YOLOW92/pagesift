@@ -9,6 +9,7 @@
 #![forbid(unsafe_code)]
 
 mod charset;
+mod client;
 mod credentials;
 mod dns;
 mod fetch;
