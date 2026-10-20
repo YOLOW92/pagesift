@@ -1,4 +1,4 @@
-//! 原始 HTML 快照（F-8.3）：zstd 压缩，按内容的 SHA-256 去重，按 URL 和时间查询。
+//! 原始 HTML 快照（F-8.3）：zstd 压缩，按内容的 BLAKE3 哈希去重，按 URL 和时间查询。
 //!
 //! 每个 URL 一个追加列表，元素是 (时间, 内容哈希, 原始长度)；内容本身按哈希只存一份。
 //! 内容可能被 LRU 淘汰，这时 [`SnapshotMeta::available`] 为 false。
@@ -6,8 +6,6 @@
 use std::fmt;
 use std::ops::RangeBounds;
 use std::time::SystemTime;
-
-use sha2::{Digest, Sha256};
 
 use crate::engine::ns;
 use crate::tasks::{list_push, list_scan};
@@ -18,7 +16,7 @@ pub struct ContentHash(pub [u8; 32]);
 
 impl ContentHash {
     pub fn of(data: &[u8]) -> Self {
-        Self(Sha256::digest(data).into())
+        Self(*blake3::hash(data).as_bytes())
     }
 }
 

@@ -1,7 +1,6 @@
 //! Markdown 切块、规范化与哈希。
 
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use unicode_normalization::{UnicodeNormalization, is_nfc_quick};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -24,12 +23,12 @@ pub struct Block {
 }
 
 impl Block {
-    /// 种类加规范化文本的 SHA-256。
+    /// 种类加规范化文本的 BLAKE3 哈希。
     pub fn hash(&self) -> [u8; 32] {
-        let mut h = Sha256::new();
-        h.update([self.kind as u8]);
+        let mut h = blake3::Hasher::new();
+        h.update(&[self.kind as u8]);
         h.update(self.norm.as_bytes());
-        h.finalize().into()
+        *h.finalize().as_bytes()
     }
 }
 

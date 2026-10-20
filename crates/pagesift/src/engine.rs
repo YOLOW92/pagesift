@@ -360,7 +360,7 @@ impl Scraper {
 
         let html = resp.text().text;
         let t = Instant::now();
-        let doc = process_html(&html, &resp.final_url, Some(resp.status), opts).await?;
+        let (doc, html) = process_html(html, &resp.final_url, Some(resp.status), opts).await?;
         timings.insert("extract".into(), ms(t.elapsed()));
         // 拦截页如实报告，不升级到浏览器：用真浏览器去过挑战页就是绕过
         check_barrier(&doc)?;
@@ -434,7 +434,7 @@ impl Scraper {
         timings.insert("render".into(), ms(page.timings.total));
         let final_url = Url::parse(&page.final_url).unwrap_or(target);
         let t = Instant::now();
-        let doc = process_html(&page.html, &final_url, page.status, opts).await?;
+        let (doc, html) = process_html(page.html, &final_url, page.status, opts).await?;
         timings.insert("extract".into(), ms(t.elapsed()));
         check_barrier(&doc)?;
         let mut meta = Metadata {
@@ -451,7 +451,7 @@ impl Scraper {
         };
         fill_fingerprints(&mut ext, &doc);
         Ok(finish(
-            document(doc, opts, page.html),
+            document(doc, opts, html),
             meta,
             ext,
             timings,
@@ -671,13 +671,13 @@ fn fetch_request(url: &str, opts: &ScrapeOptions) -> Result<FetchRequest, ApiErr
 }
 
 /// 正文提取是纯 CPU 计算，放到阻塞线程池里，不占异步运行时的线程。
+/// HTML 移交给阻塞线程、处理完原样交还，省掉一次整页复制。
 async fn process_html(
-    html: &str,
+    html: String,
     base: &Url,
     status: Option<u16>,
     opts: &ScrapeOptions,
-) -> Result<pagesift_content::Document, ApiError> {
-    let html = html.to_string();
+) -> Result<(pagesift_content::Document, String), ApiError> {
     let copts = pagesift_content::Options {
         base_url: Some(base.clone()),
         only_main_content: opts.only_main_content,
@@ -689,7 +689,7 @@ async fn process_html(
         fingerprints: true,
         ..Default::default()
     };
-    tokio::task::spawn_blocking(move || pagesift_content::process(&html, &copts))
+    tokio::task::spawn_blocking(move || (pagesift_content::process(&html, &copts), html))
         .await
         .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))
 }
@@ -725,9 +725,9 @@ fn document(doc: pagesift_content::Document, opts: &ScrapeOptions, raw_html: Str
 
 fn fill_fingerprints(ext: &mut PagesiftMeta, doc: &pagesift_content::Document) {
     if let Some(f) = &doc.fingerprints {
-        ext.content_sha256 = Some(f.markdown.clone());
-        ext.raw_sha256 = Some(f.raw_html.clone());
-        ext.text_sha256 = Some(f.text.clone());
+        ext.content_hash = Some(f.markdown.clone());
+        ext.raw_hash = Some(f.raw_html.clone());
+        ext.text_hash = Some(f.text.clone());
     }
 }
 

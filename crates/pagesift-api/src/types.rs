@@ -273,11 +273,12 @@ pub struct ExtractRequest {
 #[serde(rename_all = "camelCase")]
 pub struct PagesiftMeta {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub content_sha256: Option<String>,
+    /// 正文 Markdown、原始 HTML、规范化纯文本的 BLAKE3 哈希（小写十六进制）。
+    pub content_hash: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub raw_sha256: Option<String>,
+    pub raw_hash: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub text_sha256: Option<String>,
+    pub text_hash: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub redirect_chain: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -478,7 +479,7 @@ mod tests {
             status_code: 200,
             proxy_used: "basic".into(),
             pagesift: Some(PagesiftMeta {
-                content_sha256: Some("ab".into()),
+                content_hash: Some("ab".into()),
                 ..Default::default()
             }),
             ..Default::default()
@@ -490,7 +491,7 @@ mod tests {
         assert_eq!(v["statusCode"], 200);
         assert_eq!(v["proxyUsed"], "basic");
         assert_eq!(v["ogImage"], "https://example.com/i.png");
-        assert_eq!(v["pagesift"]["contentSha256"], "ab");
+        assert_eq!(v["pagesift"]["contentHash"], "ab");
         assert!(v.get("title").is_none());
     }
 }
