@@ -68,6 +68,9 @@ pub struct Scraper {
     browser_private_network: bool,
     /// 浏览器第一次需要时才启动；找不到浏览器时记住结果，不反复尝试。
     browser: OnceCell<Option<Arc<BrowserPool>>>,
+    /// 爬取里同时进行的抓取数，等于全局并发。排队的页面只占一个很小的等待 future，
+    /// 拿到名额才创建完整的抓取状态机（十几 KB）：同时爬上千个站时，排队的页面不再各占一份。
+    crawl_slots: tokio::sync::Semaphore,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -86,7 +89,9 @@ impl Scraper {
             .map(pagesift_llm::ChatClient::new)
             .transpose()
             .map_err(ScraperError::Llm)?;
+        let crawl_slots = tokio::sync::Semaphore::new(config.policy.rate.global_concurrency.max(1));
         Ok(Self {
+            crawl_slots,
             policy: Arc::new(Policy::new(fetcher, config.policy)),
             store: config.store,
             llm,
@@ -133,6 +138,10 @@ impl Scraper {
 
     pub(crate) fn policy(&self) -> &Policy {
         &self.policy
+    }
+
+    pub(crate) fn crawl_slots(&self) -> &tokio::sync::Semaphore {
+        &self.crawl_slots
     }
 
     /// 按给定的 robots 模式抓一页；整站爬取和 map 用它，robots 模式由调用方按请求类型决定。

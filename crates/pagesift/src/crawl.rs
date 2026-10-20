@@ -21,7 +21,6 @@ use crate::engine::{Scraper, policy_error};
 const SITEMAP_MAX_DEPTH: usize = 3;
 const SITEMAP_MAX_FILES: usize = 50;
 const SITEMAP_MAX_BYTES: u64 = 50 * 1024 * 1024;
-const DEFAULT_CRAWL_CONCURRENCY: usize = 10;
 
 /// URL 规范化（F-6.2），用来去重：去掉 fragment；查询参数排序，或者整个去掉。
 /// 协议和主机的小写、默认端口、`..` 路径由 URL 解析本身处理。
@@ -300,10 +299,13 @@ impl Scraper {
             opts.formats.push(Format::new("links"));
         }
         let opts = Arc::new(opts);
+        // 一次爬取基本只访问一个主机，同时进行的请求数超过每主机并发上限也只是排队，
+        // 所以默认就取这个上限；调用方显式给的 maxConcurrency 照用
         let concurrency = req
             .max_concurrency
-            .unwrap_or(DEFAULT_CRAWL_CONCURRENCY)
+            .unwrap_or(self.policy().limiter().config().per_host_concurrency)
             .max(1);
+        let slots = self.crawl_slots();
         let delay = req.delay.map(Duration::from_secs_f64);
 
         let mut scheduled = 0usize;
@@ -320,7 +322,8 @@ impl Scraper {
                 scheduled += 1;
                 let opts = opts.clone();
                 inflight.push(async move {
-                    let result = self.scrape_with(url.as_str(), &opts, mode).await;
+                    let _slot = slots.acquire().await.expect("semaphore never closed");
+                    let result = Box::pin(self.scrape_with(url.as_str(), &opts, mode)).await;
                     (url, depth, result)
                 });
                 if let Some(d) = delay {
