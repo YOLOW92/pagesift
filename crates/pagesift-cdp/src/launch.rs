@@ -166,8 +166,13 @@ impl BrowserProcess {
             .map(|a| a.replace(USER_DATA_DIR, &dir))
             .collect();
 
+        // Chrome 每次启动都会在 TMPDIR 里建临时目录，正常退出时才删；被强杀的话就留在 /tmp。
+        // 指到配置目录里面，跟配置目录一起清掉，长期运行的服务 /tmp 不会越积越多。
+        let tmp = profile.path().join("tmp");
+        std::fs::create_dir(&tmp)?;
         let mut cmd = Command::new(&spec.executable);
-        cmd.args(&args)
+        cmd.env("TMPDIR", &tmp)
+            .args(&args)
             .arg("about:blank")
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
