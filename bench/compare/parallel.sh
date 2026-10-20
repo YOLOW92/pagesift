@@ -16,7 +16,14 @@ split -n l/"$shards" -d -a 3 "$manifest" "$tmp/shard."
 queue=("$tmp"/shard.[0-9][0-9][0-9])
 
 avail_mb() { awk '/^MemAvailable:/ {print int($2/1024)}' /proc/meminfo; }
-rss_mb() { awk '/^VmRSS:/ {print int($2/1024)}' "/proc/$1/status" 2>/dev/null || echo 0; }
+# 进程树的实际内存：$1 是外层的 /usr/bin/time，真正干活的是它的子孙进程
+rss_mb() {
+    local total=0 pid
+    for pid in $1 $(pgrep -P "$1" 2>/dev/null) $(for c in $(pgrep -P "$1" 2>/dev/null); do pgrep -P "$c"; done); do
+        total=$(( total + $(awk '/^VmRSS:/ {print $2}' "/proc/$pid/status" 2>/dev/null || echo 0) ))
+    done
+    echo $(( total / 1024 ))
+}
 
 declare -A pids=()
 peak_concurrency=0
