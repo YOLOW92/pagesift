@@ -14,7 +14,8 @@
 **pagesift：一个用 Rust 写的单文件网页抓取引擎。正文提取和拦截页识别是自研的，接口兼容 Firecrawl v2，把网页变成干净的 Markdown 和结构化数据，供大模型和智能体使用；采用 MIT/Apache-2.0 许可，守规矩，不绕过反爬。**
 
 ```bash
-curl -fsSL https://pagesift.dev/install.sh | sh
+curl -fsSL https://github.com/YOLOW92/pagesift/releases/latest/download/install.sh | sh
+# 或者：cargo install pagesift
 pagesift serve        # 在 :3002 提供 Firecrawl 兼容接口，把 SDK 的 base URL 改过来就能用
 ```
 
@@ -104,7 +105,7 @@ pagesift serve        # 在 :3002 提供 Firecrawl 兼容接口，把 SDK 的 ba
 | F-1.4 | 响应大小上限（默认 15MB），超过就截断并标记 | P0 |
 | F-1.5 | 字符集识别：依次看 HTTP 头、BOM、`<meta charset>`、启发式判断（用 `encoding_rs`） | P0 |
 | F-1.6 | 条件请求：支持 `If-None-Match` 和 `If-Modified-Since`；遇到 304 返回 `notModified: true`，不重新解析 | P0 |
-| F-1.7 | 默认 User-Agent 是 `pagesift/<版本> (+https://pagesift.dev/bot)`，可以配置，但**不允许冒充浏览器的 UA 预设** | P0 |
+| F-1.7 | 默认 User-Agent 是 `pagesift/<版本> (+https://github.com/YOLOW92/pagesift/blob/main/docs/bot.md)`，可以配置，但**不允许冒充浏览器的 UA 预设** | P0 |
 | F-1.8 | `engine: http|browser|auto`。1.0 只有 HTTP 引擎：`auto` 等于 `http`；`browser` 返回 `UNSUPPORTED_OPTION` | P0 |
 | F-1.9 | 浏览器渲染引擎：正文太少或命中 SPA 特征时由 `auto` 升级到浏览器；找不到浏览器时退回 HTTP 结果，并附带 `pagesift.warnings: ["render_unavailable"]` | 1.x |
 | F-1.10 | 代理：支持标准 HTTP/SOCKS5 出口代理，用于企业网络环境；不做轮换代理池 | 1.x |
@@ -338,7 +339,8 @@ Cargo workspace 里的 crate 划分：
 - **项目归属**：放在个人账号 YOLOW92 下（`github.com/YOLOW92/pagesift`）。
 - **工期不设死**，按里程碑推进；发布线是"核心可用"（第 6 节所有 P0）。
 - 每个里程碑结束时跑一次正文质量评测，用数字跟踪进度。
-- 建议尽早注册 `pagesift.dev`，并在 crates.io 上占住 `pagesift` 这个名字（2026-10-21 查过，域名、GitHub、crates.io、PyPI、npm 上的这个名字都还没人用）。
+- **不注册独立域名**：安装脚本、bot 说明页和文档都用 GitHub 的地址（Releases、仓库内的 `docs/`、GitHub Pages）。所有文档里都不能出现 `pagesift.dev`，以免别人抢注后用它来分发恶意安装脚本。
+- 建议尽早在 crates.io 上占住 `pagesift` 这个名字（2026-10-21 查过，crates.io、PyPI、npm 上的这个名字都还没人用）。
 
 ---
 
@@ -381,7 +383,7 @@ Cargo workspace 里的 crate 划分：
 | Firecrawl 改接口 | 兼容性被破坏 | 每晚针对最新 SDK 跑端到端测试，兼容层做成独立模块 |
 | "守规矩"导致部分网站抓不到 | 用户流失 | 当成功能来宣传：如实返回状态，提供清晰的错误码和文档；目标用户是合规场景 |
 | 自研存储的内存索引随数据量增长 | 内存指标不成立 | 做到存储时实测，再决定索引放内存还是放磁盘 |
-| 名字被抢注 | 品牌受损 | 尽早注册域名，并在 crates.io 上占位 |
+| 名字被抢注 | 品牌受损 | 尽早在 crates.io 上占位；不使用独立域名，避免被冒用 |
 | 被滥用于大规模抓取 | 声誉问题 | 默认限速并遵守 robots，crawl 忽略 robots 必须由管理员开启，UA 可以追溯，不提供任何绕过功能 |
 
 ---
@@ -407,7 +409,7 @@ Cargo workspace 里的 crate 划分：
 | 发布线 | 核心可用：scrape、map、crawl、batch、MCP、CLI、内容哈希、条件请求 |
 | 工期 | 不设死，按里程碑推进 |
 | 公开方式 | 仓库公开，1.0 前不主动宣传（最初定的是闭门开发，后来改了） |
-| 项目归属 | 个人账号 YOLOW92 |
+| 项目归属 | 个人账号 YOLOW92；不注册独立域名，全部用 GitHub 地址 |
 | 平台 | Linux + macOS；Windows 放到 1.x |
 | 绕过类参数 | 报 `UNSUPPORTED_OPTION`；`proxy: auto/basic` 放行 |
 | 拦截页 | 报错不返回正文，附带置信度和规则 ID；快照上线后照样留存 |
