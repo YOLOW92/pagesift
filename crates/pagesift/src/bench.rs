@@ -64,6 +64,19 @@ pub struct Args {
     pub limit: Option<usize>,
     /// 模拟 `engine: auto`：HTTP 快照的正文太少、又有渲染快照时，改用渲染快照。
     pub auto: bool,
+    /// 把每页最终使用的 HTML（统一为 UTF-8）和清单写到这个目录，供其他工具做对照评测。
+    pub emit_inputs: Option<PathBuf>,
+    /// 不跑 pagesift，改为给其他工具的输出打分（JSON lines：id、markdown、ms）。
+    pub external: Option<PathBuf>,
+}
+
+#[derive(Deserialize)]
+struct ExternalOutput {
+    id: String,
+    #[serde(default)]
+    markdown: String,
+    #[serde(default)]
+    ms: Option<f64>,
 }
 
 /// F-1.9：HTTP 抓到的正文少于这么多字符时升级到浏览器渲染。
@@ -87,6 +100,30 @@ pub fn run(args: Args) -> Result<()> {
         HashMap::new()
     };
     let mut rendered_used = 0usize;
+    let external: Option<HashMap<String, ExternalOutput>> = match &args.external {
+        Some(p) => {
+            let file = File::open(p).with_context(|| format!("reading {}", p.display()))?;
+            let mut map = HashMap::new();
+            for line in BufReader::new(file).lines() {
+                let line = line?;
+                if line.trim().is_empty() {
+                    continue;
+                }
+                let o: ExternalOutput = serde_json::from_str(&line)
+                    .with_context(|| format!("parsing {}", p.display()))?;
+                map.insert(o.id.clone(), o);
+            }
+            Some(map)
+        }
+        None => None,
+    };
+    let mut manifest = match &args.emit_inputs {
+        Some(d) => {
+            std::fs::create_dir_all(d).with_context(|| format!("creating {}", d.display()))?;
+            Some(BufWriter::new(File::create(d.join("manifest.jsonl"))?))
+        }
+        None => None,
+    };
     let link_re = Regex::new(r"\[([^\]]*)\]\([^)]*\)").expect("valid regex");
     let mut out = match &args.out {
         Some(p) => Some(BufWriter::new(
@@ -186,13 +223,36 @@ pub fn run(args: Args) -> Result<()> {
                 }
                 _ => (html, opts),
             };
+            if let (Some(m), Some(dir)) = (manifest.as_mut(), args.emit_inputs.as_ref()) {
+                let path = dir.join(format!("{}.html", row.id));
+                std::fs::write(&path, &html)?;
+                serde_json::to_writer(
+                    &mut *m,
+                    &serde_json::json!({
+                        "id": row.id,
+                        "url": row.url,
+                        "base_url": opts.base_url.as_ref().map(Url::as_str),
+                        "path": path,
+                    }),
+                )?;
+                m.write_all(b"\n")?;
+            }
             let mut best = f64::MAX;
             let mut markdown = String::new();
-            for _ in 0..args.runs.max(1) {
-                let t = Instant::now();
-                let doc = process(&html, &opts);
-                best = best.min(t.elapsed().as_secs_f64() * 1000.0);
-                markdown = doc.markdown;
+            if let Some(ext) = external.as_ref() {
+                if let Some(o) = ext.get(&row.id) {
+                    markdown = o.markdown.clone();
+                    best = o.ms.unwrap_or(0.0);
+                } else {
+                    best = 0.0;
+                }
+            } else {
+                for _ in 0..args.runs.max(1) {
+                    let t = Instant::now();
+                    let doc = process(&html, &opts);
+                    best = best.min(t.elapsed().as_secs_f64() * 1000.0);
+                    markdown = doc.markdown;
+                }
             }
             times.push(best);
             result.process_ms = (best * 1000.0).round() / 1000.0;
@@ -222,6 +282,9 @@ pub fn run(args: Args) -> Result<()> {
     }
     if let Some(mut w) = out {
         w.flush()?;
+    }
+    if let Some(mut m) = manifest {
+        m.flush()?;
     }
 
     let pct = |a: usize, b: usize| {

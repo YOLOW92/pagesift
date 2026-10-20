@@ -64,6 +64,12 @@ enum Command {
         /// Simulate `engine: auto` using browser-rendered snapshots (see bench-render)
         #[arg(long)]
         auto: bool,
+        /// Write the HTML each page was evaluated on, plus a manifest, for other tools
+        #[arg(long)]
+        emit_inputs: Option<PathBuf>,
+        /// Score another tool's output (JSON lines with id, markdown, ms) instead of pagesift
+        #[arg(long)]
+        external: Option<PathBuf>,
     },
     /// Render thin snapshots with a browser for `bench --auto`
     #[command(hide = true)]
@@ -115,6 +121,8 @@ fn run(command: Command) -> Result<ExitCode> {
             runs,
             limit,
             auto,
+            emit_inputs,
+            external,
         } => {
             bench::run(bench::Args {
                 dir,
@@ -122,6 +130,8 @@ fn run(command: Command) -> Result<ExitCode> {
                 runs,
                 limit,
                 auto,
+                emit_inputs,
+                external,
             })?;
             Ok(ExitCode::SUCCESS)
         }

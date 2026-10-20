@@ -11,7 +11,7 @@
 
 ## 1. 一句话定位
 
-**pagesift：一个用 Rust 写的单文件网页抓取引擎。正文提取和拦截页识别是自研的，接口兼容 Firecrawl v2，把网页变成干净的 Markdown 和结构化数据，供大模型和智能体使用；采用 MIT/Apache-2.0 许可，守规矩，不绕过反爬。**
+**pagesift：一个用 Rust 写的单文件网页抓取引擎，对标 Crawl4AI，要做得更快、更干净、更省资源，功能上覆盖它的核心能力。正文提取和拦截页识别是自研的，接口兼容 Firecrawl v2，把网页变成干净的 Markdown 和结构化数据，供大模型和智能体使用；采用 MIT/Apache-2.0 许可，守规矩，不绕过反爬。**
 
 ```bash
 curl -fsSL https://github.com/YOLOW92/pagesift/releases/latest/download/install.sh | sh
@@ -28,7 +28,7 @@ pagesift serve        # 在 :3002 提供 Firecrawl 兼容接口，把 SDK 的 ba
 | 项目 | 星数（2026-10） | 语言 | 许可证 | 情况 |
 |---|---|---|---|---|
 | firecrawl/firecrawl | 193k | TypeScript | **AGPL-3.0** | 自部署的 docker-compose 默认起 7 个服务（api、playwright、redis、rabbitmq、postgres、foundationdb 等）；自部署版的内置引擎不支持截图和 actions，要接付费的 Fire-engine 才有 |
-| unclecode/crawl4ai | 86k | Python | Apache-2.0 | 依赖 Playwright 和 Python 环境，资源占用高 |
+| unclecode/crawl4ai | 86k | Python | Apache-2.0 **加强制署名附加条款** | **主要对标对象**。默认用浏览器抓取（Python → Playwright → Node → Chromium）；安装要装两份 Chromium，Linux 上需要 root；不下载浏览器时 venv 也有 847MB，Docker 镜像约 2.3GB；HTML 解析和 Markdown 生成在 Python 里做，受 GIL 限制 |
 | fastcrw/crw | 1.2k | Rust | **AGPL-3.0**（另售商业授权，贡献需签 CLA） | 兼容接口主要挂在 `/firecrawl/v2` 下，根路径 `/v2` 是已弃用的别名；可选的 TLS 指纹伪装（编译时开启）和 stealth 方案 |
 | spider-rs/spider | 2.8k | Rust | MIT | 只是爬虫库，不兼容 Firecrawl 接口，没有面向大模型的输出 |
 
@@ -90,6 +90,32 @@ pagesift serve        # 在 :3002 提供 Firecrawl 兼容接口，把 SDK 的 ba
 
 ---
 
+## 5.1 对标 Crawl4AI 的功能范围
+
+反检测类功能（stealth、undetected browser、随机 UA、模拟用户等）按产品原则不做。其余功能按下表对齐：
+
+| Crawl4AI 能力 | pagesift 对应 | 优先级 |
+|---|---|---|
+| 浏览器模式和 HTTP 模式 | `engine: http|browser|auto`，默认 auto，先 HTTP、必要时才渲染 | P0 |
+| 并发调度、限速 | 按主机限速、全局和单主机并发上限（F-2.2） | P0 |
+| raw_markdown、fit_markdown | 整页 Markdown 和 `onlyMainContent` 去框架版 | P0 |
+| PruningContentFilter、BM25ContentFilter | 去框架规则；按 query 用 BM25 保留相关块 | P0 |
+| JsonCss、JsonXPath 结构化提取 | 按 CSS/XPath schema 提取 JSON，不需要 LLM | P0 |
+| LLMExtractionStrategy、LLM 内容过滤 | `/v2/extract` 和 `json` 格式（pagesift-llm） | P0 |
+| 正则提取 | 内置常用模式（邮箱、电话、URL 等）加自定义正则 | P0 |
+| 分块策略 | 按标题、段落、固定 token 数、滑动窗口分块 | P0 |
+| 深度爬取（BFS、DFS、BestFirst，过滤器和打分器） | `/v2/crawl` 加 URL 过滤和关键词打分 | P0 |
+| 媒体和链接（内部、外部） | `links`、`images` 格式，区分内部和外部 | P0 |
+| 截图、PDF | 浏览器渲染（pagesift-cdp） | P0 |
+| 懒加载、整页滚动、iframe | 渲染选项 | P0 |
+| 缓存模式 | `maxAge`、`storeInCache`（F-8.2） | P0 |
+| Docker 服务器、MCP、CLI | 单文件服务、内置 MCP、CLI | P0 |
+| Python 里直接 import | `pip install pagesift`（F-10.2） | P0 |
+| PDF 文件解析 | pagesift-pdf | P0 |
+| C4A-Script、自适应爬取、URL seeding（Common Crawl）、虚拟滚动、Shadow DOM、MHTML、余弦聚类提取 | 长尾功能 | 1.x |
+
+质量和速度在同一份 HTML 快照上和 Crawl4AI 以及其他热门项目对比（见第 7 节）。
+
 ## 6. 功能需求
 
 优先级：**P0** 进 1.0；**1.x** 发布后按版本逐步补。
@@ -106,8 +132,8 @@ pagesift serve        # 在 :3002 提供 Firecrawl 兼容接口，把 SDK 的 ba
 | F-1.5 | 字符集识别：依次看 HTTP 头、BOM、`<meta charset>`、启发式判断（用 `encoding_rs`） | P0 |
 | F-1.6 | 条件请求：支持 `If-None-Match` 和 `If-Modified-Since`；遇到 304 返回 `notModified: true`，不重新解析 | P0 |
 | F-1.7 | 默认 User-Agent 是 `pagesift/<版本> (+https://github.com/YOLOW92/pagesift/blob/main/docs/bot.md)`，可以配置，但**不允许冒充浏览器的 UA 预设** | P0 |
-| F-1.8 | `engine: http|browser|auto`。1.0 只有 HTTP 引擎：`auto` 等于 `http`；`browser` 返回 `UNSUPPORTED_OPTION` | P0 |
-| F-1.9 | 浏览器渲染引擎：正文太少或命中 SPA 特征时由 `auto` 升级到浏览器；找不到浏览器时退回 HTTP 结果，并附带 `pagesift.warnings: ["render_unavailable"]` | 1.x |
+| F-1.8 | `engine: http|browser|auto`，默认 `auto` | P0 |
+| F-1.9 | 浏览器渲染引擎：正文太少（默认少于 1200 字符）或命中 SPA 特征时由 `auto` 升级到浏览器；找不到浏览器时退回 HTTP 结果，并附带 `pagesift.warnings: ["render_unavailable"]` | P0 |
 | F-1.10 | 代理：支持标准 HTTP/SOCKS5 出口代理，用于企业网络环境；不做轮换代理池 | 1.x |
 | F-1.11 | **授权凭证**：用户和站点谈好的 API key、Cookie、专属 UA 或请求头。两种配置方式：管理员在 `pagesift.toml` 里按主机配置（主要方式），以及请求里的 `headers` 参数。凭证只发给对应的主机，重定向到其他主机时自动去掉；日志和错误信息里脱敏 | P0 |
 
@@ -135,9 +161,9 @@ pagesift serve        # 在 :3002 提供 Firecrawl 兼容接口，把 SDK 的 ba
 | F-3.9 | PDF 文本提取，输出 Markdown；扫描件不做 OCR，只标记出来 | 1.x |
 | F-3.10 | `summary` 和 `json` 格式（需要大模型，兼容 OpenAI 接口的服务商） | 1.x |
 
-### 6.4 浏览器渲染（1.x，自研 CDP 客户端）
+### 6.4 浏览器渲染（P0，自研 CDP 客户端）
 
-整个模块放在 1.x。需求先记录在这里，CDP 客户端可以提前开发，但不在 1.0 的关键路径上。
+对标 Crawl4AI 后提为 P0。pagesift-cdp 已经完成，`engine: auto` 在评测里会把正文太少的页面升级到浏览器渲染。
 
 | 编号 | 需求 |
 |---|---|
@@ -246,7 +272,7 @@ P0：serve、scrape、crawl、map、mcp、doctor、bench。1.x：search、mcp in
 | 编号 | 需求 | 优先级 |
 |---|---|---|
 | F-10.1 | Rust crate：`pagesift::scrape(url, opts).await` 这类异步接口 | P0 |
-| F-10.2 | Python 绑定（PyPI 包 `pagesift`），用 PyO3 | 1.x |
+| F-10.2 | Python 包（PyPI 包 `pagesift`），用 PyO3 做一层薄包装，预编译 wheel，`pip install` 一步装好，不需要 Rust 工具链和 Playwright；接口风格贴近 Crawl4AI，方便迁移 | P0 |
 | F-10.3 | Node 绑定（npm 包 `pagesift`），用 napi-rs | 1.x |
 
 ### 6.11 配置与安全
@@ -268,6 +294,7 @@ P0：serve、scrape、crawl、map、mcp、doctor、bench。1.x：search、mcp in
 | 启动 | 冷启动小于 50ms |
 | 吞吐 | 单核每秒处理 ≥ 300 个页面（解析加转 Markdown，不算网络时间） |
 | 延迟 | 本地解析加转 Markdown 的 p50 小于 5ms（100KB 的页面） |
+| 对标测试 | 和 Crawl4AI 及其他热门项目在同一份 HTML 快照上比：`pagesift bench --emit-inputs` 导出每页实际使用的 HTML，各工具的适配脚本（`bench/compare/`）产出 Markdown 和耗时，再用 `pagesift bench --external` 以同一套评分代码打分。同时比较单页耗时和进程内存 |
 | 正文质量 | **不设固定门槛，越高越好**。在 Firecrawl 公开的 scrape-content-dataset-v1 上评测，所有工具都在**同一份本地 HTML 快照**上比较，把抓取能力这个变量排除掉（守规矩的抓取拿不到被拦截的页面，直接比总分不公平）。报两个口径：① **crw 口径**：`truth_text` 中超过 20 字符的行算短语，命中 ≥ 30% 算找到；② **严格口径**：平均正文召回率、平均噪声泄漏率（`lie_text` 漏进输出的比例），以及两者合成的综合分。数据集只有正文片段、没有整页标准答案，所以算不了 token 级 F1。对比对象：trafilatura、Readability.js 这类能离线跑在快照上的工具，以及 crw、自部署 Firecrawl |
 | 可靠性 | 连续运行 72 小时、10 万个页面，内存不持续增长 |
 | 兼容性 | 官方 Python 和 JS SDK、LangChain、LlamaIndex、Dify、n8n 在 1.0 已实现接口上的端到端测试全部通过 |
@@ -429,4 +456,7 @@ Cargo workspace 里的 crate 划分：
 | 目标用户 | 自托管 Firecrawl 的人、RAG 开发者、智能体和 MCP 用户都要；README 第一屏主打"最干净的 Markdown" |
 | 质量目标 | 不设 65% 门槛，越高越好；在同一份快照上和对比对象比较 |
 | 正文提取策略 | 整页去框架，不用 Readability 选节点（评测数据决定） |
-| 并行开发 | 1.x 的 CDP、PDF、LLM 加搜索、diff 已经各自在独立分支上并行开发 |
+| 并行开发 | CDP、PDF、LLM 加搜索、diff 已在独立分支上开发完成并合并 |
+| 对标对象 | 主要对标 Crawl4AI，再加几个热门项目一起对比；要更快、更干净、更省资源，并覆盖它的核心功能（反检测类除外） |
+| 产品形态 | 引擎用 Rust；以库为先、服务也做；Python 包提到 P0；浏览器渲染提到 P0 |
+| CI | 日常检查用 `scripts/ci.sh` 在本地跑；GitHub 上只保留 macOS 测试 |
