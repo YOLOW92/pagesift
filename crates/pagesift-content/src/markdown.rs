@@ -1,6 +1,6 @@
 //! DOM 子树转 GFM。分两层：块级渲染产出段落列表，行内渲染产出单行文本。
 
-use pagesift_html::Element;
+use pagesift_html::{Element, Tag};
 use url::Url;
 
 use crate::dom::{NodeR, collapse_whitespace, element, raw_text, tag};
@@ -23,91 +23,93 @@ pub(crate) struct Renderer<'a> {
     pub skipper: &'a Skipper,
 }
 
-pub(crate) fn is_block_tag(name: &str) -> bool {
+pub(crate) fn is_block_tag(tag: Tag) -> bool {
+    use Tag::*;
     matches!(
-        name,
-        "address"
-            | "article"
-            | "aside"
-            | "blockquote"
-            | "center"
-            | "details"
-            | "dd"
-            | "dialog"
-            | "div"
-            | "dl"
-            | "dt"
-            | "fieldset"
-            | "figcaption"
-            | "figure"
-            | "footer"
-            | "form"
-            | "h1"
-            | "h2"
-            | "h3"
-            | "h4"
-            | "h5"
-            | "h6"
-            | "header"
-            | "hgroup"
-            | "hr"
-            | "li"
-            | "main"
-            | "nav"
-            | "ol"
-            | "p"
-            | "pre"
-            | "section"
-            | "summary"
-            | "table"
-            | "tbody"
-            | "td"
-            | "tfoot"
-            | "th"
-            | "thead"
-            | "tr"
-            | "ul"
-            | "body"
-            | "html"
+        tag,
+        Address
+            | Article
+            | Aside
+            | Blockquote
+            | Center
+            | Details
+            | Dd
+            | Dialog
+            | Div
+            | Dl
+            | Dt
+            | Fieldset
+            | Figcaption
+            | Figure
+            | Footer
+            | Form
+            | H1
+            | H2
+            | H3
+            | H4
+            | H5
+            | H6
+            | Header
+            | Hgroup
+            | Hr
+            | Li
+            | Main
+            | Nav
+            | Ol
+            | P
+            | Pre
+            | Section
+            | Summary
+            | Table
+            | Tbody
+            | Td
+            | Tfoot
+            | Th
+            | Thead
+            | Tr
+            | Ul
+            | Body
+            | Html
     )
 }
 
-fn is_inline_tag(name: &str) -> bool {
+fn is_inline_tag(tag: Tag) -> bool {
+    use Tag::*;
     matches!(
-        name,
-        "a" | "abbr"
-            | "b"
-            | "bdi"
-            | "bdo"
-            | "br"
-            | "cite"
-            | "code"
-            | "data"
-            | "del"
-            | "dfn"
-            | "em"
-            | "i"
-            | "img"
-            | "ins"
-            | "kbd"
-            | "label"
-            | "mark"
-            | "q"
-            | "s"
-            | "samp"
-            | "small"
-            | "span"
-            | "strike"
-            | "strong"
-            | "sub"
-            | "sup"
-            | "time"
-            | "tt"
-            | "u"
-            | "var"
-            | "wbr"
-            | "font"
-            | "picture"
+        tag,
+        A | Abbr
+            | B
+            | Bdi
+            | Bdo
+            | Br
+            | Cite
+            | Code
+            | Data
+            | Del
+            | Dfn
+            | Em
+            | I
+            | Img
+            | Ins
+            | Kbd
+            | Label
+            | Mark
+            | Q
+            | S
+            | Samp
+            | Small
+            | Span
+            | Strike
+            | Strong
+            | Sub
+            | Sup
+            | Time
+            | Tt
+            | U
+            | Var
+            | Wbr
+            | Font
+            | Picture
     )
 }
 
@@ -136,18 +138,12 @@ impl Renderer<'_> {
         node.is_element() && self.skipper.skip(node) || node.is_comment()
     }
 
-    fn has_block_descendant(&self, node: &NodeR<'_>) -> bool {
-        node.descendants()
-            .skip(1)
-            .any(|d| tag(&d).is_some_and(is_block_tag))
-    }
-
     /// 元素按块处理还是按行内处理。未知元素（自定义元素等）看里面有没有块级内容。
     fn acts_as_block(&self, node: &NodeR<'_>) -> bool {
-        match tag(node) {
-            Some(name) if is_block_tag(name) => true,
-            Some(name) if is_inline_tag(name) => self.has_block_descendant(node),
-            Some(_) => self.has_block_descendant(node),
+        match node.tag() {
+            Some(t) if is_block_tag(t) => true,
+            Some(t) if is_inline_tag(t) => self.skipper.has_block_descendant(node),
+            Some(_) => self.skipper.has_block_descendant(node),
             None => false,
         }
     }
@@ -386,7 +382,7 @@ impl Renderer<'_> {
             "del" | "s" | "strike" => wrap(&self.inline_children(node), "~~"),
             "code" | "kbd" | "samp" | "tt" => inline_code(&collapse_whitespace(&raw_text(&node))),
             "a" => self.link(node, el),
-            name if is_block_tag(name) => format!(" {} ", self.inline_children(node)),
+            _ if is_block_tag(el.tag()) => format!(" {} ", self.inline_children(node)),
             _ => self.inline_children(node),
         }
     }

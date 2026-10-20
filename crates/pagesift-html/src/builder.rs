@@ -36,23 +36,28 @@ pub(crate) fn parse(html: &str) -> Html<'_> {
 /// 去掉 BOM，`\r\n` 和单独的 `\r` 变成 `\n`，丢掉 NUL（正文里的 NUL 规范上本来就被忽略）。
 fn normalize(html: &str) -> Cow<'_, str> {
     let html = html.strip_prefix('\u{feff}').unwrap_or(html);
-    if memchr::memchr2(b'\r', b'\0', html.as_bytes()).is_none() {
+    let bytes = html.as_bytes();
+    let Some(first) = memchr::memchr2(b'\r', b'\0', bytes) else {
         return Cow::Borrowed(html);
-    }
+    };
     let mut out = String::with_capacity(html.len());
-    let mut chars = html.chars().peekable();
-    while let Some(c) = chars.next() {
-        match c {
-            '\r' => {
-                if chars.peek() == Some(&'\n') {
-                    chars.next();
-                }
-                out.push('\n');
+    let mut last = 0;
+    let mut i = first;
+    loop {
+        out.push_str(&html[last..i]);
+        if bytes[i] == b'\r' {
+            out.push('\n');
+            if bytes.get(i + 1) == Some(&b'\n') {
+                i += 1;
             }
-            '\0' => {}
-            c => out.push(c),
+        }
+        last = i + 1;
+        match memchr::memchr2(b'\r', b'\0', &bytes[last..]) {
+            Some(off) => i = last + off,
+            None => break,
         }
     }
+    out.push_str(&html[last..]);
     Cow::Owned(out)
 }
 

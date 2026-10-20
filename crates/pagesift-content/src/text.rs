@@ -45,7 +45,7 @@ fn walk(node: NodeR<'_>, skipper: &Skipper, out: &mut String) {
                 walk(child, skipper, out);
                 out.push('\t');
             }
-            name if is_block_tag(name) => {
+            _ if child.tag().is_some_and(is_block_tag) => {
                 out.push(PARA);
                 walk(child, skipper, out);
                 out.push(PARA);

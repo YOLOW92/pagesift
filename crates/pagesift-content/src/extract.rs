@@ -1,13 +1,11 @@
 //! 只取正文时的跳过规则：去掉导航、页眉页脚、侧边栏、链接密集块这类页面框架。
 
-use std::cell::RefCell;
-use std::collections::HashMap;
+use std::cell::Cell;
 
-use pagesift_html::Element;
-use pagesift_html::Html;
-use pagesift_html::NodeId;
+use pagesift_html::{Element, Html, Tag};
 
-use crate::dom::{NodeR, element, is_hidden, is_non_content_tag, tag};
+use crate::dom::{NodeR, element, is_hidden, is_non_content_tag};
+use crate::markdown::is_block_tag;
 
 const POSITIVE: &[&str] = &[
     "article",
@@ -77,22 +75,31 @@ const SKIP_ROLES: &[&str] = &[
     "alertdialog",
 ];
 
-/// class 和 id 拆成小写词，按词匹配，避免 "header" 命中 "head" 这类误伤。
-fn tokens(el: Element<'_>) -> Vec<String> {
-    let mut out = Vec::new();
+/// class 和 id 拆成词，按词（不分大小写）匹配，避免 "header" 命中 "head" 这类误伤。
+/// 对每个集合返回是否命中。词先转小写放进栈上的缓冲区，比和每个候选词逐一忽略大小写比较快。
+fn token_hits<const N: usize>(el: Element<'_>, sets: [&[&str]; N]) -> [bool; N] {
+    let mut hits = [false; N];
+    let mut buf = [0u8; MAX_TOKEN];
     for value in [el.attr("class"), el.attr("id")].into_iter().flatten() {
         for t in value.split(|c: char| !c.is_ascii_alphanumeric()) {
-            if !t.is_empty() {
-                out.push(t.to_ascii_lowercase());
+            if t.is_empty() || t.len() > MAX_TOKEN {
+                continue;
+            }
+            let lower = &mut buf[..t.len()];
+            lower.copy_from_slice(t.as_bytes());
+            lower.make_ascii_lowercase();
+            // 只含 ASCII 字母数字，必然是合法 UTF-8
+            let w = std::str::from_utf8(lower).unwrap_or_default();
+            for (hit, set) in hits.iter_mut().zip(sets) {
+                *hit |= set.contains(&w);
             }
         }
     }
-    out
+    hits
 }
 
-fn has_token(tokens: &[String], set: &[&str]) -> bool {
-    tokens.iter().any(|t| set.contains(&t.as_str()))
-}
+/// 比所有候选词都长的词不可能命中。
+const MAX_TOKEN: usize = 16;
 
 /// 决定渲染时要整棵跳过的子树。
 ///
@@ -107,8 +114,12 @@ pub(crate) struct Skipper {
     relaxed: bool,
     total_chars: usize,
     protect_chars: usize,
-    visible: HashMap<NodeId, Visible>,
-    cache: RefCell<HashMap<NodeId, bool>>,
+    /// 按节点下标索引；只取正文时才计算。
+    visible: Vec<Visible>,
+    /// 子树里（不含自身）有没有块级元素，按节点下标索引。
+    has_block: Vec<bool>,
+    /// 跳过判断的缓存：0 未算，1 不跳过，2 跳过。
+    cache: Vec<Cell<u8>>,
 }
 
 /// 子树里可见文字的统计，只排除硬跳过的内容。构造 Skipper 时自底向上一次算好。
@@ -137,8 +148,7 @@ fn is_skip_link(node: &NodeR<'_>, el: Element<'_>) -> bool {
     {
         return false;
     }
-    let t = tokens(el);
-    if t.iter().any(|t| t == "skip" || t == "jump") {
+    if token_hits(el, [&["skip", "jump"]]) == [true] {
         return true;
     }
     let text: String = node
@@ -159,55 +169,71 @@ fn is_skip_link(node: &NodeR<'_>, el: Element<'_>) -> bool {
 }
 
 fn is_hard_skip(el: Element<'_>) -> bool {
-    is_non_content_tag(el.name()) || is_hidden(el)
+    is_non_content_tag(el.tag()) || is_hidden(el)
 }
 
-fn compute_visible(root: NodeR<'_>) -> HashMap<NodeId, Visible> {
-    let order: Vec<NodeR<'_>> = root.descendants().filter(|n| n.is_element()).collect();
-    let mut map: HashMap<NodeId, Visible> = HashMap::with_capacity(order.len());
+/// 自底向上一遍算出每个元素的可见文字统计和"有没有块级后代"。
+fn compute(html: &Html<'_>, only_main: bool) -> (Vec<Visible>, Vec<bool>) {
+    let n = html.len();
+    let order: Vec<NodeR<'_>> = html
+        .root()
+        .descendants()
+        .filter(|d| d.is_element())
+        .collect();
+    let mut visible = if only_main {
+        vec![Visible::default(); n]
+    } else {
+        Vec::new()
+    };
+    let mut has_block = vec![false; n];
     for node in order.iter().rev() {
+        let id = node.id().index();
+        let hard = only_main && element(node).is_some_and(is_hard_skip);
         let mut v = Visible::default();
-        if !element(node).is_some_and(is_hard_skip) {
-            for child in node.children() {
-                if let Some(t) = child.as_text() {
+        let mut block = false;
+        for child in node.children() {
+            if let Some(t) = child.as_text() {
+                if only_main && !hard {
                     v.chars += t.chars().filter(|c| !c.is_whitespace()).count();
-                } else if let Some(c) = map.get(&child.id()) {
-                    v.chars += c.chars;
-                    if tag(&child) == Some("a") {
-                        v.link_chars += c.chars;
-                        v.links += 1;
-                    } else {
-                        v.link_chars += c.link_chars;
-                        v.links += c.links;
-                    }
+                }
+                continue;
+            }
+            let Some(tag) = child.tag() else { continue };
+            let c = child.id().index();
+            block |= is_block_tag(tag) || has_block[c];
+            if only_main && !hard {
+                let cv = visible[c];
+                v.chars += cv.chars;
+                if tag == Tag::A {
+                    v.link_chars += cv.chars;
+                    v.links += 1;
+                } else {
+                    v.link_chars += cv.link_chars;
+                    v.links += cv.links;
                 }
             }
         }
-        map.insert(node.id(), v);
+        has_block[id] = block;
+        if only_main {
+            visible[id] = v;
+        }
     }
-    map
+    (visible, has_block)
 }
 
 impl Skipper {
     pub(crate) fn new(html: &Html<'_>, only_main: bool) -> Self {
-        let body = html
-            .root()
-            .descendants()
-            .find(|n| tag(n) == Some("body"))
-            .unwrap_or_else(|| html.root());
-        let visible = if only_main {
-            compute_visible(html.root())
-        } else {
-            HashMap::new()
-        };
-        let total = visible.get(&body.id()).map_or(0, |v| v.chars);
+        let body = html.body();
+        let (visible, has_block) = compute(html, only_main);
+        let total = visible.get(body.id().index()).map_or(0, |v| v.chars);
         Self {
             only_main,
             relaxed: false,
             total_chars: total,
             protect_chars: ((total as f64 * PROTECT_SHARE) as usize).max(PROTECT_MIN_CHARS),
             visible,
-            cache: RefCell::new(HashMap::new()),
+            has_block,
+            cache: (0..html.len()).map(|_| Cell::new(0)).collect(),
         }
     }
 
@@ -219,52 +245,62 @@ impl Skipper {
     /// 关掉软跳过规则，用于正文被删过头时的重试。
     pub(crate) fn relax(&mut self) {
         self.relaxed = true;
-        self.cache.get_mut().clear();
+        self.cache.iter().for_each(|c| c.set(0));
     }
 
     pub(crate) fn skip(&self, node: &NodeR<'_>) -> bool {
         if !node.is_element() {
             return node.is_comment();
         }
-        if let Some(&v) = self.cache.borrow().get(&node.id()) {
-            return v;
+        let cell = &self.cache[node.id().index()];
+        match cell.get() {
+            1 => false,
+            2 => true,
+            _ => {
+                let v = self.decide(node);
+                cell.set(1 + v as u8);
+                v
+            }
         }
-        let v = self.compute(node);
-        self.cache.borrow_mut().insert(node.id(), v);
-        v
     }
 
-    fn compute(&self, node: &NodeR<'_>) -> bool {
+    /// 子树里（不含自身）有没有块级元素。
+    pub(crate) fn has_block_descendant(&self, node: &NodeR<'_>) -> bool {
+        self.has_block[node.id().index()]
+    }
+
+    fn decide(&self, node: &NodeR<'_>) -> bool {
         let Some(el) = element(node) else {
             return false;
         };
-        let name = el.name();
+        let tag = el.tag();
         if is_hard_skip(el) {
             return true;
         }
         if !self.only_main {
             return false;
         }
-        if matches!(name, "nav" | "aside" | "footer") {
+        if matches!(tag, Tag::Nav | Tag::Aside | Tag::Footer) {
             return true;
         }
-        if name == "a" {
+        if tag == Tag::A {
             return is_skip_link(node, el);
         }
-        if self.relaxed || matches!(name, "body" | "html") {
+        if self.relaxed || matches!(tag, Tag::Body | Tag::Html) {
             return false;
         }
-        let vis = self.visible.get(&node.id()).copied().unwrap_or_default();
+        let vis = self
+            .visible
+            .get(node.id().index())
+            .copied()
+            .unwrap_or_default();
         let link_block = vis.links >= LINK_BLOCK_MIN_LINKS
             && vis.link_chars as f64 >= vis.chars as f64 * LINK_BLOCK_MIN_SHARE
             && (vis.link_chars as f64 / vis.links as f64) <= LINK_BLOCK_MAX_AVG_CHARS;
         let soft = link_block
-            || (name == "header" && node.descendants().any(|d| tag(&d) == Some("nav")))
+            || (tag == Tag::Header && node.descendants().any(|d| d.tag() == Some(Tag::Nav)))
             || el.attr("role").is_some_and(|r| SKIP_ROLES.contains(&r))
-            || {
-                let t = tokens(el);
-                has_token(&t, NEGATIVE) && !has_token(&t, POSITIVE)
-            };
+            || token_hits(el, [NEGATIVE, POSITIVE]) == [true, false];
         soft && vis.chars < self.protect_chars
     }
 }

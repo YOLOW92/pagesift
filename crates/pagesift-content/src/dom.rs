@@ -1,4 +1,4 @@
-use pagesift_html::{Element, NodeRef};
+use pagesift_html::{Element, NodeRef, Tag};
 
 pub(crate) type NodeR<'a> = NodeRef<'a>;
 
@@ -11,29 +11,30 @@ pub(crate) fn tag<'a>(node: &NodeR<'a>) -> Option<&'a str> {
 }
 
 /// 永远不产出正文的元素。
-pub(crate) fn is_non_content_tag(name: &str) -> bool {
+pub(crate) fn is_non_content_tag(tag: Tag) -> bool {
+    use Tag::*;
     matches!(
-        name,
-        "script"
-            | "style"
-            | "noscript"
-            | "template"
-            | "head"
-            | "title"
-            | "meta"
-            | "link"
-            | "iframe"
-            | "svg"
-            | "canvas"
-            | "object"
-            | "embed"
-            | "select"
-            | "option"
-            | "input"
-            | "textarea"
-            | "button"
-            | "dialog"
-            | "math"
+        tag,
+        Script
+            | Style
+            | Noscript
+            | Template
+            | Head
+            | Title
+            | Meta
+            | Link
+            | Iframe
+            | Svg
+            | Canvas
+            | Object
+            | Embed
+            | Select
+            | Option
+            | Input
+            | Textarea
+            | Button
+            | Dialog
+            | Math
     )
 }
 
@@ -95,7 +96,7 @@ pub(crate) fn raw_text(node: &NodeR<'_>) -> String {
     for d in node.descendants() {
         if let Some(t) = d.as_text() {
             out.extend(t.chars().filter(|c| !is_zero_width(*c)));
-        } else if tag(&d) == Some("br") {
+        } else if d.tag() == Some(Tag::Br) {
             out.push('\n');
         }
     }
