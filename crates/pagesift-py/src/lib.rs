@@ -76,6 +76,7 @@ mod pagesift {
         let opts = pagesift_content::Options {
             base_url,
             only_main_content,
+            ..Default::default()
         };
         let html = html.to_owned();
         let doc = py.detach(move || pagesift_content::process(&html, &opts));

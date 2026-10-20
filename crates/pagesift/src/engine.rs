@@ -24,11 +24,42 @@ pub struct ScraperConfig {
     pub browser: PoolConfig,
     /// 抓取结果缓存（`maxAge`、`minAge`、`storeInCache`）；不设时不缓存。
     pub store: Option<pagesift_store::Store>,
+    /// `summary`、`json` 格式和 `/v2/extract` 用的 OpenAI 兼容服务。
+    pub llm: Option<pagesift_llm::LlmConfig>,
+    /// `/v2/search` 用的搜索后端。
+    pub search: Option<Arc<dyn pagesift_search::SearchBackend>>,
+}
+
+/// 创建 [`Scraper`] 失败：网络层或 LLM 客户端的配置不对。
+#[derive(Debug)]
+pub enum ScraperError {
+    Fetcher(pagesift_net::Error),
+    Llm(pagesift_llm::LlmError),
+}
+
+impl std::fmt::Display for ScraperError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Fetcher(e) => write!(f, "fetcher configuration: {e}"),
+            Self::Llm(e) => write!(f, "LLM configuration: {e}"),
+        }
+    }
+}
+
+impl std::error::Error for ScraperError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Fetcher(e) => Some(e),
+            Self::Llm(e) => Some(e),
+        }
+    }
 }
 
 pub struct Scraper {
     policy: Arc<Policy>,
     store: Option<pagesift_store::Store>,
+    llm: Option<pagesift_llm::ChatClient>,
+    search: Option<Arc<dyn pagesift_search::SearchBackend>>,
     browser_config: PoolConfig,
     /// 浏览器第一次需要时才启动；找不到浏览器时记住结果，不反复尝试。
     browser: OnceCell<Option<Arc<BrowserPool>>>,
@@ -42,11 +73,18 @@ enum EngineChoice {
 }
 
 impl Scraper {
-    pub fn new(config: ScraperConfig) -> Result<Self, pagesift_net::Error> {
-        let fetcher = Arc::new(Fetcher::new(config.fetcher)?);
+    pub fn new(config: ScraperConfig) -> Result<Self, ScraperError> {
+        let fetcher = Arc::new(Fetcher::new(config.fetcher).map_err(ScraperError::Fetcher)?);
+        let llm = config
+            .llm
+            .map(pagesift_llm::ChatClient::new)
+            .transpose()
+            .map_err(ScraperError::Llm)?;
         Ok(Self {
             policy: Arc::new(Policy::new(fetcher, config.policy)),
             store: config.store,
+            llm,
+            search: config.search,
             browser_config: config.browser,
             browser: OnceCell::new(),
         })
@@ -90,6 +128,65 @@ impl Scraper {
     /// 按给定的 robots 模式抓一页；整站爬取和 map 用它，robots 模式由调用方按请求类型决定。
     /// 先查缓存（语义同 Firecrawl 的 maxAge、minAge、storeInCache），没命中再抓取并写入。
     pub(crate) async fn scrape_with(
+        &self,
+        url: &str,
+        opts: &ScrapeOptions,
+        mode: RobotsMode,
+    ) -> Result<Document, ApiError> {
+        let wants_llm = opts.wants("summary") || opts.wants("json");
+        if !wants_llm {
+            return self.scrape_cached(url, opts, mode).await;
+        }
+        let Some(llm) = &self.llm else {
+            return Err(ApiError::unsupported(
+                "summary and json formats need an LLM: set [llm] in pagesift.toml",
+            ));
+        };
+        // LLM 格式基于正文 Markdown；用户没要 markdown 时内部照样取，最后去掉
+        let mut inner = opts.clone();
+        inner
+            .formats
+            .retain(|f| f.kind != "summary" && f.kind != "json");
+        let wants_md = inner.wants("markdown");
+        if !wants_md {
+            inner
+                .formats
+                .push(pagesift_api::types::Format::new("markdown"));
+        }
+        let mut doc = self.scrape_cached(url, &inner, mode).await?;
+        let md = doc.markdown.clone().unwrap_or_default();
+        if opts.wants("summary") {
+            let summary = pagesift_llm::summarize(llm, &md, &Default::default())
+                .await
+                .map_err(llm_error)?;
+            doc.summary = Some(summary);
+        }
+        if let Some(f) = opts.formats.iter().find(|f| f.kind == "json") {
+            let schema = f
+                .options
+                .get("schema")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!({ "type": "object" }));
+            let eo = pagesift_llm::ExtractOptions {
+                prompt: f
+                    .options
+                    .get("prompt")
+                    .and_then(|p| p.as_str())
+                    .map(String::from),
+            };
+            doc.json = Some(
+                pagesift_llm::extract_json(llm, &md, &schema, &eo)
+                    .await
+                    .map_err(llm_error)?,
+            );
+        }
+        if !wants_md {
+            doc.markdown = None;
+        }
+        Ok(doc)
+    }
+
+    async fn scrape_cached(
         &self,
         url: &str,
         opts: &ScrapeOptions,
@@ -388,9 +485,171 @@ impl Engine for Scraper {
         Box::pin(Scraper::crawl(self, req, sink))
     }
 
-    fn supported_formats(&self) -> &'static [&'static str] {
-        &["markdown", "html", "rawHtml", "links", "images"]
+    fn search<'a>(
+        &'a self,
+        req: &'a pagesift_api::types::SearchRequest,
+    ) -> BoxFuture<'a, Result<serde_json::Value, ApiError>> {
+        Box::pin(Scraper::search(self, req))
     }
+
+    fn extract<'a>(
+        &'a self,
+        req: &'a pagesift_api::types::ExtractRequest,
+    ) -> BoxFuture<'a, Result<serde_json::Value, ApiError>> {
+        Box::pin(Scraper::extract(self, req))
+    }
+
+    fn supported_formats(&self) -> &'static [&'static str] {
+        if self.llm.is_some() {
+            &[
+                "markdown", "html", "rawHtml", "links", "images", "summary", "json",
+            ]
+        } else {
+            &["markdown", "html", "rawHtml", "links", "images"]
+        }
+    }
+}
+
+/// extract 最多处理多少个页面，每页最多取多少字符的正文。
+const EXTRACT_MAX_PAGES: usize = 20;
+const EXTRACT_MAX_CHARS_PER_PAGE: usize = 20_000;
+
+impl Scraper {
+    pub async fn search(
+        &self,
+        req: &pagesift_api::types::SearchRequest,
+    ) -> Result<serde_json::Value, ApiError> {
+        let Some(backend) = &self.search else {
+            return Err(ApiError::unsupported(
+                "search is not configured: set [search] in pagesift.toml",
+            ));
+        };
+        let mut q = pagesift_search::SearchQuery::new(req.query.clone(), req.limit);
+        q.lang = req.lang.clone();
+        q.country = req.country.clone();
+        q.time_range = match req.tbs.as_deref() {
+            Some("qdr:d") => Some(pagesift_search::TimeRange::Day),
+            Some("qdr:w") => Some(pagesift_search::TimeRange::Week),
+            Some("qdr:m") => Some(pagesift_search::TimeRange::Month),
+            Some("qdr:y") => Some(pagesift_search::TimeRange::Year),
+            _ => None,
+        };
+        let search = backend.search(&q);
+        let results = match req.timeout {
+            Some(ms) => tokio::time::timeout(Duration::from_millis(ms), search)
+                .await
+                .map_err(|_| ApiError::new(ErrorCode::Timeout, "search timed out"))?,
+            None => search.await,
+        }
+        .map_err(|e| {
+            ApiError::new(
+                ErrorCode::UpstreamError,
+                format!("search backend failed: {e}"),
+            )
+        })?;
+
+        // 给了 scrapeOptions.formats 才抓取结果页面，并把文档字段合并进对应的结果
+        let scrape = req
+            .scrape_options
+            .as_ref()
+            .filter(|o| !o.formats.is_empty());
+        let docs: Vec<Option<Document>> = match scrape {
+            Some(opts) => {
+                let futs = results
+                    .iter()
+                    .map(|r| async move { self.scrape(&r.url, opts).await.ok() });
+                futures_util::future::join_all(futs).await
+            }
+            None => vec![None; results.len()],
+        };
+        let web: Vec<serde_json::Value> = results
+            .into_iter()
+            .zip(docs)
+            .map(|(r, doc)| {
+                let mut item = serde_json::json!({
+                    "url": r.url,
+                    "title": r.title,
+                    "description": r.description,
+                    "position": r.position,
+                });
+                if let Some(doc) = doc
+                    && let (Some(obj), Ok(serde_json::Value::Object(d))) =
+                        (item.as_object_mut(), serde_json::to_value(&doc))
+                {
+                    for (k, v) in d {
+                        obj.entry(k).or_insert(v);
+                    }
+                }
+                item
+            })
+            .collect();
+        Ok(serde_json::json!({ "web": web }))
+    }
+
+    pub async fn extract(
+        &self,
+        req: &pagesift_api::types::ExtractRequest,
+    ) -> Result<serde_json::Value, ApiError> {
+        let Some(llm) = &self.llm else {
+            return Err(ApiError::unsupported(
+                "extract needs an LLM: set [llm] in pagesift.toml",
+            ));
+        };
+        let mut urls: Vec<String> = Vec::new();
+        for u in &req.urls {
+            if let Some(site) = u.strip_suffix("/*") {
+                let map: pagesift_api::types::MapRequest = serde_json::from_value(
+                    serde_json::json!({ "url": site, "limit": EXTRACT_MAX_PAGES }),
+                )
+                .map_err(|e| ApiError::invalid(e.to_string()))?;
+                urls.extend(self.map(&map).await?.into_iter().map(|l| l.url));
+            } else {
+                urls.push(u.clone());
+            }
+        }
+        urls.truncate(EXTRACT_MAX_PAGES);
+        let opts = req.scrape_options.clone().unwrap_or_default();
+        let opts = &opts;
+        let futs = urls
+            .iter()
+            .map(|u| async move { (u, self.scrape(u, opts).await) });
+        let mut corpus = String::new();
+        let mut errors = Vec::new();
+        for (u, r) in futures_util::future::join_all(futs).await {
+            match r {
+                Ok(doc) => {
+                    let md: String = doc
+                        .markdown
+                        .unwrap_or_default()
+                        .chars()
+                        .take(EXTRACT_MAX_CHARS_PER_PAGE)
+                        .collect();
+                    corpus.push_str(&format!("\n\n## Source: {u}\n\n{md}"));
+                }
+                Err(e) => errors.push(format!("{u}: {}", e.code.as_str())),
+            }
+        }
+        if corpus.is_empty() {
+            return Err(ApiError::new(
+                ErrorCode::UpstreamError,
+                format!("none of the pages could be scraped ({})", errors.join(", ")),
+            ));
+        }
+        let schema = req
+            .schema
+            .clone()
+            .unwrap_or_else(|| serde_json::json!({ "type": "object" }));
+        let eo = pagesift_llm::ExtractOptions {
+            prompt: req.prompt.clone(),
+        };
+        pagesift_llm::extract_json(llm, &corpus, &schema, &eo)
+            .await
+            .map_err(llm_error)
+    }
+}
+
+fn llm_error(e: pagesift_llm::LlmError) -> ApiError {
+    ApiError::new(ErrorCode::UpstreamError, format!("LLM request failed: {e}"))
 }
 
 fn fetch_request(url: &str, opts: &ScrapeOptions) -> Result<FetchRequest, ApiError> {

@@ -21,6 +21,9 @@ use url::Url;
     about = "Turn web pages into clean Markdown for LLMs"
 )]
 struct Cli {
+    /// Config file (default: $PAGESIFT_CONFIG); see pagesift.example.toml
+    #[arg(long, global = true)]
+    config: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,
 }
@@ -40,11 +43,12 @@ enum Command {
     },
     /// Start the Firecrawl-compatible HTTP API
     Serve {
-        #[arg(long, default_value_t = 3002)]
-        port: u16,
-        /// Address to listen on
-        #[arg(long, default_value = "127.0.0.1")]
-        host: String,
+        /// Port (default: server.port in the config, else 3002)
+        #[arg(long)]
+        port: Option<u16>,
+        /// Address to listen on (default: server.host in the config, else 127.0.0.1)
+        #[arg(long)]
+        host: Option<String>,
         /// Require `Authorization: Bearer <key>` (repeatable); also read from PAGESIFT_API_KEYS (comma separated)
         #[arg(long = "api-key")]
         api_keys: Vec<String>,
@@ -170,7 +174,7 @@ fn main() -> ExitCode {
         .with_writer(std::io::stderr)
         .init();
     let cli = Cli::parse();
-    match run(cli.command) {
+    match run(cli.command, cli.config) {
         Ok(code) => code,
         Err(e) => {
             eprintln!("error: {e:#}");
@@ -179,7 +183,8 @@ fn main() -> ExitCode {
     }
 }
 
-fn run(command: Command) -> Result<ExitCode> {
+fn run(command: Command, config_path: Option<PathBuf>) -> Result<ExitCode> {
+    let mut cfg = pagesift::config::Config::load(config_path.as_deref())?;
     match command {
         Command::Convert {
             file,
@@ -235,7 +240,7 @@ fn run(command: Command) -> Result<ExitCode> {
             full,
             ignore_robots,
         } => runtime()?.block_on(async move {
-            let scraper = pagesift::Scraper::new(pagesift::ScraperConfig::default())?;
+            let scraper = pagesift::Scraper::new(cfg.scraper(false)?)?;
             let mut opts = pagesift::api::types::ScrapeOptions {
                 only_main_content: !full,
                 ignore_robots_txt: ignore_robots,
@@ -275,32 +280,25 @@ fn run(command: Command) -> Result<ExitCode> {
             data_dir,
             no_cache,
         } => runtime()?.block_on(async move {
-            if let Ok(keys) = std::env::var("PAGESIFT_API_KEYS") {
-                api_keys.extend(
-                    keys.split(',')
-                        .map(str::trim)
-                        .filter(|k| !k.is_empty())
-                        .map(String::from),
-                );
+            api_keys.extend(cfg.api_keys()?);
+            if data_dir.is_some() {
+                cfg.cache.dir = data_dir;
             }
-            let mut config = pagesift::ScraperConfig::default();
-            if !no_cache {
-                let dir = data_dir.unwrap_or_else(default_data_dir).join("store");
-                std::fs::create_dir_all(&dir)
-                    .with_context(|| format!("creating {}", dir.display()))?;
-                config.store = Some(
-                    pagesift_store::Store::open_dir(&dir)
-                        .with_context(|| format!("opening the cache in {}", dir.display()))?,
-                );
-                eprintln!("cache: {}", dir.display());
+            let config = cfg.scraper(!no_cache)?;
+            if config.store.is_some() {
+                eprintln!("cache: {}", cfg.data_dir().join("store").display());
             }
+            let host = host
+                .or(cfg.server.host.clone())
+                .unwrap_or_else(|| "127.0.0.1".into());
+            let port = port.or(cfg.server.port).unwrap_or(3002);
             let scraper = Arc::new(pagesift::Scraper::new(config)?);
             let app = pagesift::api::router(
                 scraper.clone(),
                 pagesift::api::Config {
                     api_keys,
-                    public_url,
-                    max_batch_concurrency: None,
+                    public_url: public_url.or(cfg.server.public_url.clone()),
+                    max_batch_concurrency: cfg.server.max_batch_concurrency,
                 },
             );
             let listener = tokio::net::TcpListener::bind((host.as_str(), port))
@@ -343,7 +341,7 @@ fn run(command: Command) -> Result<ExitCode> {
                 std::fs::create_dir_all(dir)
                     .with_context(|| format!("creating {}", dir.display()))?;
             }
-            let scraper = pagesift::Scraper::new(pagesift::ScraperConfig::default())?;
+            let scraper = pagesift::Scraper::new(cfg.scraper(false)?)?;
             let sink = Arc::new(cli::CrawlOutput::new(out));
             let result = scraper.crawl(&req, sink.clone()).await;
             scraper.shutdown().await;
@@ -367,7 +365,7 @@ fn run(command: Command) -> Result<ExitCode> {
                 serde_json::from_value(serde_json::json!({
                     "url": url, "limit": limit, "search": search, "sitemap": sitemap,
                 }))?;
-            let scraper = pagesift::Scraper::new(pagesift::ScraperConfig::default())?;
+            let scraper = pagesift::Scraper::new(cfg.scraper(false)?)?;
             match scraper.map(&req).await {
                 Ok(links) => {
                     for l in links {
@@ -381,9 +379,9 @@ fn run(command: Command) -> Result<ExitCode> {
                 }
             }
         }),
-        Command::Doctor => runtime()?.block_on(cli::doctor()),
+        Command::Doctor => runtime()?.block_on(cli::doctor(&cfg)),
         Command::Mcp { transport, port } => runtime()?.block_on(async move {
-            let scraper = Arc::new(pagesift::Scraper::new(pagesift::ScraperConfig::default())?);
+            let scraper = Arc::new(pagesift::Scraper::new(cfg.scraper(false)?)?);
             let server = pagesift_mcp::McpServer::builder("pagesift", env!("CARGO_PKG_VERSION"))
                 .tools(pagesift::mcp::tools(scraper.clone()))
                 .build()
@@ -407,17 +405,6 @@ fn run(command: Command) -> Result<ExitCode> {
             Ok(ExitCode::SUCCESS)
         }),
     }
-}
-
-pub(crate) fn default_data_dir() -> PathBuf {
-    if let Some(d) = std::env::var_os("PAGESIFT_DATA_DIR") {
-        return PathBuf::from(d);
-    }
-    let base = std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
-        .unwrap_or_else(|| PathBuf::from("."));
-    base.join("pagesift")
 }
 
 fn runtime() -> Result<tokio::runtime::Runtime> {

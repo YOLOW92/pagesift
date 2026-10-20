@@ -106,13 +106,35 @@ impl CrawlSink for CrawlOutput {
 }
 
 /// 检查运行环境：浏览器、网络、数据目录。
-pub async fn doctor() -> Result<ExitCode> {
+pub async fn doctor(cfg: &pagesift::config::Config) -> Result<ExitCode> {
     let mut ok = true;
     let mut report = |good: bool, what: &str, detail: String| {
         println!("{} {what}: {detail}", if good { "ok  " } else { "FAIL" });
         ok &= good;
     };
 
+    report(
+        true,
+        "config",
+        std::env::var("PAGESIFT_CONFIG").unwrap_or_else(|_| "defaults (no config file)".into()),
+    );
+    // LLM 和搜索是可选能力，没配置只提示，不算失败
+    report(
+        true,
+        "llm",
+        match &cfg.llm {
+            Some(l) => format!("{} at {}", l.model, l.base_url),
+            None => "not configured (optional): summary, json and extract are unavailable".into(),
+        },
+    );
+    report(
+        true,
+        "search",
+        match &cfg.search {
+            Some(s) => s.backend.clone(),
+            None => "not configured (optional): /v2/search is unavailable".into(),
+        },
+    );
     match pagesift_cdp::detect_browser() {
         Some(path) => {
             let version = std::process::Command::new(&path)
@@ -130,7 +152,7 @@ pub async fn doctor() -> Result<ExitCode> {
         ),
     }
 
-    let scraper = pagesift::Scraper::new(pagesift::ScraperConfig::default())?;
+    let scraper = pagesift::Scraper::new(cfg.scraper(false)?)?;
     let opts = pagesift::api::types::ScrapeOptions {
         engine: Some("http".into()),
         ..Default::default()
@@ -151,7 +173,7 @@ pub async fn doctor() -> Result<ExitCode> {
         ),
     }
 
-    let dir = super::default_data_dir();
+    let dir = cfg.data_dir();
     let writable = std::fs::create_dir_all(&dir).is_ok() && tempfile_in(&dir);
     report(writable, "data directory", dir.display().to_string());
 

@@ -5,7 +5,10 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use crate::error::ApiError;
-use crate::types::{CrawlRequest, Document, MapLink, MapRequest, ScrapeOptions};
+use crate::types::{
+    CrawlRequest, Document, ExtractRequest, MapLink, MapRequest, ScrapeOptions, SearchRequest,
+};
+use serde_json::Value;
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
@@ -29,6 +32,24 @@ pub trait Engine: Send + Sync + 'static {
         Box::pin(async {
             Err(ApiError::unsupported(
                 "crawl is not available in this build",
+            ))
+        })
+    }
+
+    /// `/v2/search`：返回 Firecrawl 的 `data`（`{ "web": [...] }`）。
+    fn search<'a>(&'a self, _req: &'a SearchRequest) -> BoxFuture<'a, Result<Value, ApiError>> {
+        Box::pin(async {
+            Err(ApiError::unsupported(
+                "search is not configured: set [search] in pagesift.toml",
+            ))
+        })
+    }
+
+    /// `/v2/extract`：返回提取出的 JSON。
+    fn extract<'a>(&'a self, _req: &'a ExtractRequest) -> BoxFuture<'a, Result<Value, ApiError>> {
+        Box::pin(async {
+            Err(ApiError::unsupported(
+                "extract needs an LLM: set [llm] in pagesift.toml",
             ))
         })
     }

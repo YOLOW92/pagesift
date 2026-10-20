@@ -226,6 +226,48 @@ pub struct MapRequest {
     pub timeout: Option<u64>,
 }
 
+fn default_search_limit() -> usize {
+    10
+}
+
+/// `/v2/search`。只有 `scrapeOptions` 里给了 formats 时才抓取搜索结果页面（和 Firecrawl 一致）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchRequest {
+    pub query: String,
+    #[serde(default = "default_search_limit")]
+    pub limit: usize,
+    #[serde(default)]
+    pub lang: Option<String>,
+    #[serde(default)]
+    pub country: Option<String>,
+    /// 时间范围：`qdr:d`、`qdr:w`、`qdr:m`、`qdr:y`。
+    #[serde(default)]
+    pub tbs: Option<String>,
+    /// 毫秒。
+    #[serde(default)]
+    pub timeout: Option<u64>,
+    #[serde(default)]
+    pub scrape_options: Option<ScrapeOptions>,
+}
+
+/// `/v2/extract`：从一组页面里按 schema 或提示提取结构化数据。URL 以 `/*` 结尾时先 map 整站。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtractRequest {
+    pub urls: Vec<String>,
+    #[serde(default)]
+    pub prompt: Option<String>,
+    #[serde(default)]
+    pub schema: Option<Value>,
+    #[serde(default)]
+    pub enable_web_search: bool,
+    #[serde(default)]
+    pub ignore_invalid_urls: bool,
+    #[serde(default)]
+    pub scrape_options: Option<ScrapeOptions>,
+}
+
 /// pagesift 在 `metadata.pagesift` 里附加的字段。
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

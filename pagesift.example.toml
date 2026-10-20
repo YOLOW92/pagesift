@@ -1,0 +1,54 @@
+# pagesift 配置示例。使用：pagesift --config pagesift.toml serve，或设置 PAGESIFT_CONFIG。
+# 优先级：命令行参数 > 环境变量 > 配置文件 > 默认值。
+# 密钥可以直接写值，也可以写成 { env = "VAR" } 从环境变量读取。
+
+[server]
+host = "127.0.0.1"
+port = 3002
+# api_keys = ["change-me", { env = "PAGESIFT_KEY" }]
+# public_url = "https://pagesift.example.com"
+
+[fetch]
+# 自定义 UA 必须表明是机器人；冒充浏览器的 UA 会被拒绝。
+# user_agent = "acme-bot/1.0 (+https://acme.example/bot)"
+timeout_secs = 60
+max_body_mb = 15
+# 企业网络出口代理（不是代理池）
+# proxy = "http://proxy.internal:3128"
+allow_private_network = false
+
+[policy]
+# 同一主机两次请求之间的最小间隔；robots.txt 的 Crawl-delay 优先
+interval_ms = 1000
+per_host_concurrency = 2
+global_concurrency = 64
+# 允许 crawl 和 map 请求忽略 robots.txt（默认不允许）
+allow_crawl_ignore_robots = false
+
+[browser]
+# path = "/usr/bin/chromium"
+# remote = "ws://127.0.0.1:9222/devtools/browser/..."
+max_browsers = 2
+max_tabs_per_browser = 4
+
+[cache]
+enabled = true
+# dir = "/var/lib/pagesift"
+# max_mb = 2048
+
+# 和站点谈好的授权凭证，只发给对应主机；重定向到其他主机时自动去掉。
+# [[credentials]]
+# host = "partner.example.com"
+# headers = { Authorization = { env = "PARTNER_TOKEN" } }
+# cookies = { session = "..." }
+
+# summary、json 格式和 /v2/extract 用的 OpenAI 兼容服务
+# [llm]
+# base_url = "http://localhost:11434/v1"
+# model = "qwen3"
+# api_key = { env = "OPENAI_API_KEY" }
+
+# /v2/search 的搜索后端：searxng、brave、bing、google、tavily
+# [search]
+# backend = "searxng"
+# endpoint = "http://localhost:8080"
