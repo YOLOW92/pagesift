@@ -26,6 +26,9 @@ fn main() {
                 path.file_stem().unwrap().to_string_lossy(),
                 if main_only { "main" } else { "full" }
             );
+            // 给诊断脚本用：每页的 Markdown 单独存一份 JSON，免得解析 Debug 输出
+            let md = serde_json::json!({ "markdown": doc.markdown }).to_string();
+            std::fs::write(out.join(name.replace(".txt", ".md.json")), md).unwrap();
             std::fs::write(out.join(name), format!("{doc:#?}")).unwrap();
         }
     }

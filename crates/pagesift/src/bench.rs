@@ -83,6 +83,33 @@ struct ExternalOutput {
 
 use pagesift::AUTO_RENDER_MIN_CHARS;
 
+/// 严格口径的规范化，短语和输出用同一套：`&nbsp;` 当空格，去掉 Markdown 的格式符号
+/// （强调、行内代码、表格竖线），空白折叠成一个空格。数据集的正文片段保留了网页源码里的
+/// 连续空格和制表符，而任何 Markdown 输出都会折叠空白、加格式符号；不规范化的话，
+/// 内容明明在输出里也算没找到。对所有工具一视同仁。
+fn normalize(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut space = false;
+    for c in s.chars() {
+        if matches!(c, '*' | '_' | '`' | '|') {
+            continue;
+        }
+        if c.is_whitespace() || c == '\u{a0}' {
+            if !space && !out.is_empty() {
+                out.push(' ');
+            }
+            space = true;
+        } else {
+            out.push(c);
+            space = false;
+        }
+    }
+    if out.ends_with(' ') {
+        out.pop();
+    }
+    out
+}
+
 fn phrases(text: &str, min_chars: usize) -> Vec<String> {
     text.split('\n')
         .map(str::trim)
@@ -264,11 +291,21 @@ pub fn run(args: Args) -> Result<()> {
 
             let hay =
                 format!("{markdown}\n{}", link_re.replace_all(&markdown, "$1")).to_lowercase();
-            result.truth_hit = truth.iter().filter(|p| hay.contains(p.as_str())).count();
+            // crw 口径照它公开的规则：原样子串匹配
+            let raw_hits = truth.iter().filter(|p| hay.contains(p.as_str())).count();
+            result.found = raw_hits as f64 / truth.len() as f64 >= FOUND_THRESHOLD;
+            // 严格口径：两边做同样的规范化再比（见 normalize），只看内容在不在
+            let hay = normalize(&hay);
+            result.truth_hit = truth
+                .iter()
+                .filter(|p| hay.contains(normalize(p).as_str()))
+                .count();
             result.truth_recall = result.truth_hit as f64 / truth.len() as f64;
-            result.found = result.truth_recall >= FOUND_THRESHOLD;
             if !lies.is_empty() {
-                result.lie_hit = lies.iter().filter(|p| hay.contains(p.as_str())).count();
+                result.lie_hit = lies
+                    .iter()
+                    .filter(|p| hay.contains(normalize(p).as_str()))
+                    .count();
                 result.lie_leak = result.lie_hit as f64 / lies.len() as f64;
                 leak_sum += result.lie_leak;
                 leak_pages += 1;
