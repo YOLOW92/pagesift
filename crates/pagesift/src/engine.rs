@@ -434,7 +434,8 @@ impl Scraper {
                 ads: opts.block_ads,
                 fonts: true,
                 media: true,
-                images: false,
+                // 只取 HTML，图片不影响正文：src 属性还在，加载失败和离线时一样。以后支持截图时要放开。
+                images: true,
             },
             ..RenderOptions::default()
         };
