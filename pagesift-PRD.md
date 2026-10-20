@@ -109,6 +109,7 @@ pagesift serve        # 在 :3002 提供 Firecrawl 兼容接口，把 SDK 的 ba
 | F-1.8 | `engine: http|browser|auto`。1.0 只有 HTTP 引擎：`auto` 等于 `http`；`browser` 返回 `UNSUPPORTED_OPTION` | P0 |
 | F-1.9 | 浏览器渲染引擎：正文太少或命中 SPA 特征时由 `auto` 升级到浏览器；找不到浏览器时退回 HTTP 结果，并附带 `pagesift.warnings: ["render_unavailable"]` | 1.x |
 | F-1.10 | 代理：支持标准 HTTP/SOCKS5 出口代理，用于企业网络环境；不做轮换代理池 | 1.x |
+| F-1.11 | **授权凭证**：用户和站点谈好的 API key、Cookie、专属 UA 或请求头。两种配置方式：管理员在 `pagesift.toml` 里按主机配置（主要方式），以及请求里的 `headers` 参数。凭证只发给对应的主机，重定向到其他主机时自动去掉；日志和错误信息里脱敏 | P0 |
 
 ### 6.2 礼貌爬取（自研）
 
@@ -124,7 +125,7 @@ pagesift serve        # 在 :3002 提供 Firecrawl 兼容接口，把 SDK 的 ba
 | 编号 | 需求 | 优先级 |
 |---|---|---|
 | F-3.1 | HTML 解析和 CSS 选择器用 html5ever 体系，用于 DOM 构建和 `includeTags`、`excludeTags` | P0 |
-| F-3.2 | **自研正文提取**：思路参考 Readability 的打分算法，再加上自己的改进：中文文本密度、对列表页和文档站的识别、保留代码块和表格、去掉导航、页脚、Cookie 横幅、广告和"相关推荐"；`onlyMainContent` 默认开启 | P0 |
+| F-3.2 | **自研正文提取**：采用"整页去框架"，即保留整页内容，只去掉导航、页眉页脚、侧边栏、Cookie 横幅、广告、"相关推荐"和链接密集块这类页面框架；保留代码块和表格；`onlyMainContent` 默认开启。（评测表明，Readability 式的"挑一个正文节点"在首页、产品页、落地页上会丢正文，文章信号也不可靠，所以不采用。）每条规则都要用 `pagesift bench` 验证 | P0 |
 | F-3.3 | **自研 Markdown 生成器**：生成 GFM（标题、列表、表格、代码块带语言、引用、链接和图片转成绝对 URL、脚注），合并多余空行，去掉零宽字符 | P0 |
 | F-3.4 | 元数据提取：title、description、language、keywords、robots、og 和 twitter 系列、Dublin Core、canonical、favicon；作者和发布、修改时间依次从 JSON-LD、meta、`<time>`、正文启发式里找，统一换算成 UTC | P0 |
 | F-3.5 | 输出格式：`markdown`、`html`（清洗后的正文）、`rawHtml`、`links`、`images`。其余格式（`summary`、`screenshot`、`json`、`changeTracking`、`attributes`）在 1.0 返回 `UNSUPPORTED_OPTION` | P0 |
@@ -267,7 +268,7 @@ P0：serve、scrape、crawl、map、mcp、doctor、bench。1.x：search、mcp in
 | 启动 | 冷启动小于 50ms |
 | 吞吐 | 单核每秒处理 ≥ 300 个页面（解析加转 Markdown，不算网络时间） |
 | 延迟 | 本地解析加转 Markdown 的 p50 小于 5ms（100KB 的页面） |
-| 正文质量 | 报两个口径，三家（pagesift、crw、Firecrawl 自部署）都在本地用同一套脚本重新跑：① **crw 口径的召回率**（Firecrawl 公开的 scrape-content-dataset-v1，819 个有标注的 URL，短语命中 ≥ 30% 算找到；crw 自称 63.7%，自部署 Firecrawl 56.0%），目标 ≥ 65%；② **自定义的严格口径**：token 级 F1，同时衡量正文召回和噪声去除，目标高于 crw 和 trafilatura |
+| 正文质量 | **不设固定门槛，越高越好**。在 Firecrawl 公开的 scrape-content-dataset-v1 上评测，所有工具都在**同一份本地 HTML 快照**上比较，把抓取能力这个变量排除掉（守规矩的抓取拿不到被拦截的页面，直接比总分不公平）。报两个口径：① **crw 口径**：`truth_text` 中超过 20 字符的行算短语，命中 ≥ 30% 算找到；② **严格口径**：平均正文召回率、平均噪声泄漏率（`lie_text` 漏进输出的比例），以及两者合成的综合分。数据集只有正文片段、没有整页标准答案，所以算不了 token 级 F1。对比对象：trafilatura、Readability.js 这类能离线跑在快照上的工具，以及 crw、自部署 Firecrawl |
 | 可靠性 | 连续运行 72 小时、10 万个页面，内存不持续增长 |
 | 兼容性 | 官方 Python 和 JS SDK、LangChain、LlamaIndex、Dify、n8n 在 1.0 已实现接口上的端到端测试全部通过 |
 | 安全 | SSRF 测试集全部通过：重定向到内网、DNS 重绑定、IPv6 映射地址、十进制和八进制写法的 IP |
@@ -365,13 +366,14 @@ Cargo workspace 里的 crate 划分：
 
 ## 12. 发布与增长计划
 
-1. **README 第一屏**：一行安装命令、一个 10 秒的动图、一张和 Firecrawl、crw、Crawl4AI 的对比表（许可证、内存、启动时间、两个口径的正文质量，全部注明来源），以及"改一行 base URL 就能迁移"的代码示例。
-2. **可复现的基准测试**：`pagesift bench` 加上公开数据集，结果和测试脚本都放在仓库里。
-3. **迁移指南**：从 Firecrawl 自部署迁移（含全部行为差异清单）、从 Crawl4AI 迁移、在 Dify 和 n8n 里接入，各写一篇。
-4. **发布渠道**：Hacker News（Show HN）、Reddit（r/rust、r/LocalLLaMA、r/selfhosted）、V2EX、即刻、少数派、Rust 中文社区、X/Twitter；同时提交到 awesome-mcp-servers、awesome-rust、awesome-selfhosted。
-5. **发布时间**：避开大厂发布会，选周二到周四、美国东部时间上午发 Show HN。
-6. **生态**：向 Dify、n8n、LangChain 提 PR，加入"Firecrawl 兼容服务"的配置说明。
-7. **1.x 持续曝光**：浏览器渲染、diff、`pagesift-content` 独立 crate，每个都可以单独发一次。
+1. **README 第一屏主打"最干净的 Markdown"**：一行安装命令、一个 10 秒的动图、在同一份快照上的正文质量对比，以及"改一行 base URL 就能迁移"的代码示例。第二屏分别面向三类用户：自托管 Firecrawl 的人（许可证、部署、内存对比表）、RAG 开发者、智能体和 MCP 用户。前提是评测分数确实领先；如果没有领先，第一屏退回"Firecrawl 的宽松许可证替代"这个说法。
+2. **"抓不到的站怎么办"**：文档里明确写出 pagesift 不绕过站点保护，并给出合规的出路：配置和站点谈好的授权凭证（见 F-1.11）。
+3. **可复现的基准测试**：`pagesift bench` 加上公开数据集，结果和测试脚本都放在仓库里。
+4. **迁移指南**：从 Firecrawl 自部署迁移（含全部行为差异清单）、从 Crawl4AI 迁移、在 Dify 和 n8n 里接入，各写一篇。
+5. **发布渠道**：Hacker News（Show HN）、Reddit（r/rust、r/LocalLLaMA、r/selfhosted）、V2EX、即刻、少数派、Rust 中文社区、X/Twitter；同时提交到 awesome-mcp-servers、awesome-rust、awesome-selfhosted。
+6. **发布时间**：避开大厂发布会，选周二到周四、美国东部时间上午发 Show HN。
+7. **生态**：向 Dify、n8n、LangChain 提 PR，加入"Firecrawl 兼容服务"的配置说明。
+8. **1.x 持续曝光**：浏览器渲染、diff、`pagesift-content` 独立 crate，每个都可以单独发一次。
 
 ---
 
@@ -397,7 +399,7 @@ Cargo workspace 里的 crate 划分：
 | 发布当周 | GitHub ≥ 1,000 星，HN 首页 |
 | 发布 3 个月 | ≥ 5,000 星；至少 1 个知名项目（Dify、n8n 等）的文档提到 pagesift |
 | 发布 6 个月 | ≥ 10,000 星；crates.io 月下载 ≥ 50k |
-| 质量 | crw 口径召回率 ≥ 65%；严格口径 F1 高于 crw 和 trafilatura；1.0 范围内兼容性测试 100% 通过 |
+| 质量 | 同一份快照上，两个口径都高于所有对比对象；1.0 范围内兼容性测试 100% 通过 |
 
 ---
 
@@ -423,3 +425,8 @@ Cargo workspace 里的 crate 划分：
 | 存储 | 自研；内存索引的问题做到时再定 |
 | 商业化 | 只留可插拔的鉴权和计量扩展点 |
 | 语言绑定 | 1.x，用 PyO3 和 napi-rs |
+| 反爬绕过 | 不做，包括作为可选功能（伪装指纹、隐身、轮换代理绕封禁、破解验证码）。抓不到时如实返回状态，合规出路是授权凭证（F-1.11） |
+| 目标用户 | 自托管 Firecrawl 的人、RAG 开发者、智能体和 MCP 用户都要；README 第一屏主打"最干净的 Markdown" |
+| 质量目标 | 不设 65% 门槛，越高越好；在同一份快照上和对比对象比较 |
+| 正文提取策略 | 整页去框架，不用 Readability 选节点（评测数据决定） |
+| 并行开发 | 1.x 的 CDP、PDF、LLM 加搜索、diff 已经各自在独立分支上并行开发 |
