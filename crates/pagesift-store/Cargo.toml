@@ -1,0 +1,24 @@
+[package]
+description = "Embedded append-only log store for pagesift: scrape cache, HTML snapshots and crawl task state."
+name = "pagesift-store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["tokio"]
+# 提供 `Store::blocking`，把调用放进 tokio 的 spawn_blocking。
+tokio = ["dep:tokio"]
+
+[dependencies]
+crc32fast = "1.4"
+sha2 = "0.10"
+tokio = { version = "1", features = ["rt"], optional = true }
+zstd = { version = "0.13", default-features = false }
+
+[dev-dependencies]
+proptest = "1"
+tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
