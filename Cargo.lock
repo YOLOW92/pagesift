@@ -1420,6 +1420,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "pagesift-extract"
+version = "0.0.1"
+dependencies = [
+ "ego-tree",
+ "regex",
+ "scraper",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "xpath-eval",
+]
+
+[[package]]
 name = "pagesift-llm"
 version = "0.0.1"
 dependencies = [
@@ -2967,6 +2980,12 @@ name = "writeable"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
+
+[[package]]
+name = "xpath-eval"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "83058fdeec995449ff47adb0bc5773092b56aa91423c4cb257ef4e4e11df542b"
 
 [[package]]
 name = "yoke"
