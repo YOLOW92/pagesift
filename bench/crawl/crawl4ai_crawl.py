@@ -23,7 +23,8 @@ async def main():
 
         strategy.hooks["on_error"] = on_error
         kwargs["crawler_strategy"] = strategy
-    browser = BrowserConfig(headless=True, verbose=False)
+    # 用系统装的 Chrome（和 pagesift 同一个浏览器），不用 Playwright 另外下载的那份
+    browser = BrowserConfig(headless=True, verbose=False, chrome_channel="chrome", channel="chrome")
     t = time.monotonic()
     ok = err = chars = 0
     reasons = collections.Counter()

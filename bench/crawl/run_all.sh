@@ -22,7 +22,9 @@ run() { # 场景名 hosts pages interval per_host latency 工具...
         case $tool in
             pagesift) python3 -I measure.py "$label" -- $ROOT/target/release/examples/crawl_bench $PORT "$hosts" "$pages" "$interval" "$per_host" ;;
             crw) python3 -I measure.py "$label" -- python3 -I crw_crawl.py "$CRW" $PORT "$hosts" "$pages" "$interval" "$per_host" ;;
-            spider) python3 -I measure.py "$label" -- target/release/spider_crawl $PORT "$hosts" "$pages" "$interval" "$per_host" ;;
+            # Spider 并发上限为 1 时每站只访问 5 个链接就停（它自己的行为）；设了间隔后它本来就逐个请求，
+            # 所以给 2，实际仍是每主机一个请求接一个
+            spider) python3 -I measure.py "$label" -- target/release/spider_crawl $PORT "$hosts" "$pages" "$interval" "$(( per_host < 2 ? 2 : per_host ))" ;;
             crawl4ai-http) timeout 3600 python3 -I measure.py "$label" -- "$C4A" crawl4ai_crawl.py $PORT "$hosts" "$pages" "$interval" http "$per_host" ;;
             crawl4ai-browser) timeout 3600 python3 -I measure.py "$label" -- "$C4A" crawl4ai_crawl.py $PORT "$hosts" "$pages" "$interval" browser "$per_host" ;;
         esac

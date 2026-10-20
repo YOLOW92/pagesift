@@ -44,13 +44,24 @@ async fn main() {
                     filter_svg: true,
                     main_content: true,
                 };
-                while let Ok(page) = rx.recv().await {
+                loop {
+                    let page = match rx.recv().await {
+                        Ok(p) => p,
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                            eprintln!("subscriber lagged by {n} pages");
+                            continue;
+                        }
+                        Err(_) => break,
+                    };
                     let md = transform_content(&page, &cfg, &None, &None, &None);
                     count.fetch_add(1, Ordering::Relaxed);
                     chars.fetch_add(md.len(), Ordering::Relaxed);
                 }
             });
             site.crawl().await;
+            if std::env::var_os("SPIDER_DEBUG").is_some() {
+                eprintln!("s{h}: spider visited {} links", site.get_links().len());
+            }
             site.unsubscribe();
             let _ = convert.await;
         })
