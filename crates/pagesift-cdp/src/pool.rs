@@ -189,10 +189,12 @@ impl BrowserPool {
             render_page(&l.conn, &mut l.res, &env, url, opts, &mut timings).await
         })
         .await;
+        let close_start = Instant::now();
         if let Some(l) = lease {
             l.finish().await;
         }
         let mut page = r.map_err(|_| Error::Timeout)??;
+        page.timings.close = close_start.elapsed();
         page.timings.total = start.elapsed();
         Ok(page)
     }

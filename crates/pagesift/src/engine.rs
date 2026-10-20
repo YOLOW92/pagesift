@@ -9,7 +9,10 @@ use std::time::{Duration, Instant};
 
 use pagesift_api::types::{Document, Metadata, PagesiftMeta, ScrapeOptions};
 use pagesift_api::{ApiError, BoxFuture, Engine, ErrorCode};
-use pagesift_cdp::{BlockResources, BrowserPool, PoolConfig, PrivateNetworkGuard, RenderOptions};
+use pagesift_cdp::{
+    BlockResources, BrowserPool, PoolConfig, PrivateNetworkGuard, RenderOptions, RequestGuard,
+    SubRequest, Verdict,
+};
 use pagesift_net::{FetchRequest, Fetcher, FetcherConfig, Url};
 use pagesift_policy::{Policy, PolicyConfig, RequestKind, RobotsMode};
 use tokio::sync::OnceCell;
@@ -61,6 +64,8 @@ pub struct Scraper {
     llm: Option<pagesift_llm::ChatClient>,
     search: Option<Arc<dyn pagesift_search::SearchBackend>>,
     browser_config: PoolConfig,
+    /// 网络层放开了内网（`allowPrivateNetwork`）时，浏览器的子请求也一样放开。
+    browser_private_network: bool,
     /// 浏览器第一次需要时才启动；找不到浏览器时记住结果，不反复尝试。
     browser: OnceCell<Option<Arc<BrowserPool>>>,
 }
@@ -74,6 +79,7 @@ enum EngineChoice {
 
 impl Scraper {
     pub fn new(config: ScraperConfig) -> Result<Self, ScraperError> {
+        let browser_private_network = config.fetcher.ssrf.allow_private_network;
         let fetcher = Arc::new(Fetcher::new(config.fetcher).map_err(ScraperError::Fetcher)?);
         let llm = config
             .llm
@@ -86,6 +92,7 @@ impl Scraper {
             llm,
             search: config.search,
             browser_config: config.browser,
+            browser_private_network,
             browser: OnceCell::new(),
         })
     }
@@ -93,9 +100,12 @@ impl Scraper {
     async fn browser(&self) -> Option<Arc<BrowserPool>> {
         self.browser
             .get_or_init(|| async {
-                match BrowserPool::new(self.browser_config.clone(), Arc::new(PrivateNetworkGuard))
-                    .await
-                {
+                let guard: Arc<dyn RequestGuard> = if self.browser_private_network {
+                    Arc::new(SchemeGuard)
+                } else {
+                    Arc::new(PrivateNetworkGuard)
+                };
+                match BrowserPool::new(self.browser_config.clone(), guard).await {
                     Ok(pool) => Some(Arc::new(pool)),
                     Err(e) => {
                         tracing::warn!("browser rendering unavailable: {e}");
@@ -431,7 +441,18 @@ impl Scraper {
         let page = pool.render(url, &ropts).await.map_err(|e| {
             ApiError::new(ErrorCode::UpstreamError, format!("rendering failed: {e}"))
         })?;
-        timings.insert("render".into(), ms(page.timings.total));
+        let t = &page.timings;
+        for (k, v) in [
+            ("render", t.total),
+            ("render_acquire", t.acquire),
+            ("render_setup", t.setup),
+            ("render_navigation", t.navigation),
+            ("render_wait", t.wait),
+            ("render_html", t.html),
+            ("render_close", t.close),
+        ] {
+            timings.insert(k.into(), ms(v));
+        }
         let final_url = Url::parse(&page.final_url).unwrap_or(target);
         let t = Instant::now();
         let (doc, html) = process_html(page.html, &final_url, page.status, opts).await?;
@@ -507,6 +528,23 @@ impl Engine for Scraper {
         } else {
             &["markdown", "html", "rawHtml", "links", "images"]
         }
+    }
+}
+
+/// 放开内网时浏览器子请求的检查：只限制协议，不查地址。
+struct SchemeGuard;
+
+impl RequestGuard for SchemeGuard {
+    fn check<'a>(&'a self, req: &'a SubRequest) -> pagesift_cdp::BoxFuture<'a, Verdict> {
+        let ok = Url::parse(&req.url)
+            .is_ok_and(|u| matches!(u.scheme(), "http" | "https" | "data" | "blob" | "about"));
+        Box::pin(async move {
+            if ok {
+                Verdict::Allow
+            } else {
+                Verdict::Block("scheme not allowed".into())
+            }
+        })
     }
 }
 

@@ -316,6 +316,8 @@ pub struct Timings {
     pub html: Duration,
     /// 其中花在 iframe 发现和合并上的时间。
     pub iframes: Duration,
+    /// 关闭页面（销毁上下文）并归还标签页。
+    pub close: Duration,
     pub total: Duration,
 }
 
