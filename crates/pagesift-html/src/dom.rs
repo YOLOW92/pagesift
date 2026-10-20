@@ -355,7 +355,7 @@ impl<'a> Element<'a> {
     pub fn attr(&self, name: &str) -> Option<&'a str> {
         self.attrs
             .iter()
-            .find(|a| self.doc.str(a.name) == name)
+            .find(|a| a.name.len as usize == name.len() && self.doc.str(a.name) == name)
             .map(|a| self.doc.str(a.value))
     }
 

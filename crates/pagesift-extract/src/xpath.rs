@@ -1,10 +1,8 @@
-//! XPath 后端：把 scraper 的 DOM 接到 `xpath-eval`（完整的 XPath 1.0）上。
+//! XPath 后端：把 pagesift-html 的 DOM 接到 `xpath-eval`（完整的 XPath 1.0）上。
 
 use std::cmp::Ordering;
-use std::collections::HashMap;
 
-use ego_tree::{NodeId, NodeRef};
-use scraper::{Html, Node};
+use pagesift_html::{Html, NodeRef};
 use serde_json::Value;
 use xpath_eval::{EvaluationContext, ExpandedName, Expr, NodeKind, evaluate, parse};
 
@@ -13,6 +11,7 @@ use crate::text::node_text;
 use crate::{Error, Schema};
 
 /// 文档嵌套超过这个深度就拒绝求值：`xpath-eval` 的后代轴是递归实现。
+/// pagesift-html 建树时已经把深度限制在这以内，这里是兜底。
 const MAX_DEPTH: usize = 1024;
 const MAX_SELECTOR_LEN: usize = 4096;
 /// 括号嵌套上限，防止解析器递归过深。
@@ -43,12 +42,12 @@ impl JsonXPathExtractor {
     }
 
     pub fn extract(&self, html: &str) -> Result<Vec<Value>, Error> {
-        self.extract_document(&Html::parse_document(html))
+        self.extract_document(&Html::parse(html))
     }
 
-    pub fn extract_document(&self, doc: &Html) -> Result<Vec<Value>, Error> {
-        let root = doc.tree.root();
-        let (order, depth) = document_order(root);
+    pub fn extract_document(&self, doc: &Html<'_>) -> Result<Vec<Value>, Error> {
+        let root = doc.root();
+        let (order, depth) = document_order(doc);
         if depth > MAX_DEPTH {
             return Err(Error::TooDeep {
                 depth,
@@ -119,38 +118,35 @@ fn source_xpath(sel: &str) -> String {
     xpath
 }
 
-type Order = HashMap<NodeId, u32>;
+/// 按节点下标索引的先序编号。建树时节点可能被挪动（foster parenting），下标不一定是文档顺序。
+type Order = [u32];
 
-/// 先序遍历编号即文档顺序；同时算出最大深度。
-fn document_order(root: NodeRef<'_, Node>) -> (Order, usize) {
-    let mut order = HashMap::new();
-    let (mut depth, mut max) = (0usize, 0usize);
-    let mut i = 0u32;
-    for edge in root.traverse() {
-        match edge {
-            ego_tree::iter::Edge::Open(n) => {
-                order.insert(n.id(), i);
-                i += 1;
-                depth += 1;
-                max = max.max(depth);
-            }
-            ego_tree::iter::Edge::Close(_) => depth -= 1,
-        }
+/// 先序遍历编号即文档顺序；同时算出最大深度（根节点算第 1 层）。
+fn document_order(doc: &Html<'_>) -> (Vec<u32>, usize) {
+    let mut order = vec![u32::MAX; doc.len()];
+    // depth[i] 是节点 i 的深度，子节点的深度由父节点推出
+    let mut depth = vec![0u32; doc.len()];
+    let mut max = 0;
+    for (i, n) in doc.root().descendants().enumerate() {
+        order[n.id().index()] = i as u32;
+        let d = n.parent().map_or(1, |p| depth[p.id().index()] + 1);
+        depth[n.id().index()] = d;
+        max = max.max(d);
     }
-    (order, max)
+    (order, max as usize)
 }
 
 const NO_ATTR: u32 = u32::MAX;
 
 #[derive(Clone, Copy)]
 struct XNode<'a> {
-    node: NodeRef<'a, Node>,
+    node: NodeRef<'a>,
     attr: u32,
     order: &'a Order,
 }
 
 impl<'a> XNode<'a> {
-    fn new(node: NodeRef<'a, Node>, order: &'a Order) -> Self {
+    fn new(node: NodeRef<'a>, order: &'a Order) -> Self {
         XNode {
             node,
             attr: NO_ATTR,
@@ -162,15 +158,11 @@ impl<'a> XNode<'a> {
         if self.attr == NO_ATTR {
             return None;
         }
-        self.node
-            .value()
-            .as_element()?
-            .attrs()
-            .nth(self.attr as usize)
+        self.node.as_element()?.attrs().nth(self.attr as usize)
     }
 
     fn key(self) -> (u32, u32) {
-        let pos = self.order.get(&self.node.id()).copied().unwrap_or(u32::MAX);
+        let pos = self.order[self.node.id().index()];
         (pos, self.attr.wrapping_add(1))
     }
 }
@@ -188,12 +180,16 @@ impl<'a> xpath_eval::Node<'a> for XNode<'a> {
         if self.attr != NO_ATTR {
             return NodeKind::Attribute;
         }
-        match self.node.value() {
-            Node::Document | Node::Fragment | Node::Doctype(_) => NodeKind::Root,
-            Node::Element(_) => NodeKind::Element,
-            Node::Text(_) => NodeKind::Text,
-            Node::Comment(_) => NodeKind::Comment,
-            Node::ProcessingInstruction(_) => NodeKind::ProcessingInstruction,
+        let n = self.node;
+        if n.is_element() {
+            NodeKind::Element
+        } else if n.is_text() {
+            NodeKind::Text
+        } else if n.is_comment() {
+            NodeKind::Comment
+        } else {
+            // 文档和 doctype
+            NodeKind::Root
         }
     }
 
@@ -209,13 +205,13 @@ impl<'a> xpath_eval::Node<'a> for XNode<'a> {
         let it = (self.attr == NO_ATTR).then(|| self.node.children());
         it.into_iter()
             .flatten()
-            .filter(|c| !matches!(c.value(), Node::Doctype(_)))
+            .filter(|c| c.is_element() || c.is_text() || c.is_comment())
             .map(move |c| XNode::new(c, order))
     }
 
     fn attributes(self) -> impl Iterator<Item = Self> + 'a {
-        let n = match (self.attr, self.node.value()) {
-            (NO_ATTR, Node::Element(e)) => e.attrs().count() as u32,
+        let n = match (self.attr, self.node.as_element()) {
+            (NO_ATTR, Some(e)) => e.attrs().count() as u32,
             _ => 0,
         };
         let (node, order) = (self.node, self.order);
@@ -231,11 +227,7 @@ impl<'a> xpath_eval::Node<'a> for XNode<'a> {
         let local = if self.attr != NO_ATTR {
             self.attr_pair()?.0
         } else {
-            match self.node.value() {
-                Node::Element(e) => e.name(),
-                Node::ProcessingInstruction(p) => &p.target,
-                _ => return None,
-            }
+            self.node.as_element()?.name()
         };
         Some(ExpandedName {
             namespace_uri: None,
@@ -250,19 +242,9 @@ impl<'a> xpath_eval::Node<'a> for XNode<'a> {
                 .map(|(_, v)| v.to_owned())
                 .unwrap_or_default();
         }
-        match self.node.value() {
-            Node::Text(t) => t.to_string(),
-            Node::Comment(c) => c.to_string(),
-            Node::ProcessingInstruction(p) => p.data.to_string(),
-            _ => {
-                let mut s = String::new();
-                for d in self.node.descendants() {
-                    if let Node::Text(t) = d.value() {
-                        s.push_str(t);
-                    }
-                }
-                s
-            }
+        match self.node.as_text().or_else(|| self.node.as_comment()) {
+            Some(t) => t.to_owned(),
+            None => self.node.text(),
         }
     }
 
@@ -337,10 +319,8 @@ impl<'a> Backend for XPath<'a> {
 
     fn html(&self, item: &Item<'a>) -> String {
         match item {
-            Item::Node(n) if n.attr == NO_ATTR => match scraper::ElementRef::wrap(n.node) {
-                Some(e) => e.html(),
-                None => node_text(n.node),
-            },
+            Item::Node(n) if n.attr == NO_ATTR && n.node.is_element() => n.node.html(),
+            Item::Node(n) if n.attr == NO_ATTR => node_text(n.node),
             other => self.text(other),
         }
     }
@@ -348,7 +328,7 @@ impl<'a> Backend for XPath<'a> {
     fn attr(&self, item: &Item<'a>, name: &str) -> Option<String> {
         match item {
             Item::Node(n) if n.attr == NO_ATTR => {
-                n.node.value().as_element()?.attr(name).map(str::to_owned)
+                n.node.as_element()?.attr(name).map(str::to_owned)
             }
             _ => None,
         }
@@ -426,8 +406,9 @@ mod tests {
         );
         let deep = format!("//p{}", "[(".repeat(100));
         assert!(e(json!({"baseSelector": deep, "fields": []})).contains("nested deeper"));
+        // pagesift-html 建树时限制了深度，深层嵌套的页面不会再触发 TooDeep
         let html = "<div>".repeat(2000);
-        let err = run(json!({"baseSelector": "//div", "fields": []}), &html).unwrap_err();
-        assert!(matches!(err, Error::TooDeep { .. }));
+        let schema = json!({"baseSelector": "//div", "fields": [{"name": "t", "type": "text"}]});
+        assert_eq!(run(schema, &html).unwrap().len(), 2000);
     }
 }

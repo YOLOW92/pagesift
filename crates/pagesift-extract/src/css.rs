@@ -1,4 +1,4 @@
-use scraper::{ElementRef, Html, Selector};
+use pagesift_html::{Html, NodeRef, Selector};
 use serde_json::Value;
 
 use crate::engine::{self, Backend, Compiled, Role};
@@ -34,38 +34,38 @@ impl JsonCssExtractor {
 
     /// 解析 HTML 并提取，每个 base 元素一个 JSON 对象；没有取到任何字段的元素会被跳过。
     pub fn extract(&self, html: &str) -> Vec<Value> {
-        self.extract_document(&Html::parse_document(html))
+        self.extract_document(&Html::parse(html))
     }
 
     /// 在已经解析好的文档上提取，避免重复解析。
-    pub fn extract_document(&self, doc: &Html) -> Vec<Value> {
+    pub fn extract_document(&self, doc: &Html<'_>) -> Vec<Value> {
         // CSS 后端的所有操作都不会失败
         engine::run(&Css { doc }, &self.compiled).unwrap_or_default()
     }
 }
 
 struct Css<'d> {
-    doc: &'d Html,
+    doc: &'d Html<'d>,
 }
 
 impl<'d> Backend for Css<'d> {
-    type Item = ElementRef<'d>;
+    type Item = NodeRef<'d>;
     type Sel = Selector;
 
-    fn select_base(&self, sel: &Selector) -> Result<Vec<ElementRef<'d>>, Error> {
+    fn select_base(&self, sel: &Selector) -> Result<Vec<NodeRef<'d>>, Error> {
         Ok(self.doc.select(sel).collect())
     }
 
     fn select(
         &self,
-        ctx: &ElementRef<'d>,
+        ctx: &NodeRef<'d>,
         sel: &Selector,
         _path: &str,
         first_only: bool,
-    ) -> Result<Vec<ElementRef<'d>>, Error> {
-        let it = ctx.select(sel);
+    ) -> Result<Vec<NodeRef<'d>>, Error> {
+        let mut it = ctx.select(sel);
         Ok(if first_only {
-            it.take(1).collect()
+            it.next().into_iter().collect()
         } else {
             it.collect()
         })
@@ -73,26 +73,30 @@ impl<'d> Backend for Css<'d> {
 
     fn sibling(
         &self,
-        ctx: &ElementRef<'d>,
+        ctx: &NodeRef<'d>,
         sel: &Selector,
         _path: &str,
-    ) -> Result<Option<ElementRef<'d>>, Error> {
-        Ok(ctx
-            .next_siblings()
-            .filter_map(ElementRef::wrap)
-            .find(|e| sel.matches(e)))
+    ) -> Result<Option<NodeRef<'d>>, Error> {
+        let mut cur = ctx.next_sibling();
+        while let Some(n) = cur {
+            if sel.matches(n) {
+                return Ok(Some(n));
+            }
+            cur = n.next_sibling();
+        }
+        Ok(None)
     }
 
-    fn text(&self, item: &ElementRef<'d>) -> String {
-        node_text(**item)
+    fn text(&self, item: &NodeRef<'d>) -> String {
+        node_text(*item)
     }
 
-    fn html(&self, item: &ElementRef<'d>) -> String {
+    fn html(&self, item: &NodeRef<'d>) -> String {
         item.html()
     }
 
-    fn attr(&self, item: &ElementRef<'d>, name: &str) -> Option<String> {
-        item.value().attr(name).map(str::to_owned)
+    fn attr(&self, item: &NodeRef<'d>, name: &str) -> Option<String> {
+        item.as_element()?.attr(name).map(str::to_owned)
     }
 }
 

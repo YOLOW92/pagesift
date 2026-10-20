@@ -1,5 +1,5 @@
 //! 和 html5ever（经 scraper）逐页对比：文本序列、元素序列是否一致，以及解析速度。
-//! `cargo run --release -p pagesift-html --example compare -- bench/data/inputs [show]`
+//! `cargo run --release --bin tree -- ../../data/inputs [show]`（在 bench/compare/html-parity 下）
 
 use std::time::Instant;
 
