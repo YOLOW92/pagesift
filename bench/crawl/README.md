@@ -27,13 +27,18 @@ delay simulates network latency. `robots.txt` allows everything.
 
 | Scenario | Sites × pages | Per-host interval | Per-host concurrency | Latency |
 |---|---|---|---|---|
-| polite | 100 × 50 | 1000 ms | 1 | 50 ms |
-| fast | 20 × 100 | 0 | 4 | 20 ms |
-| scale | 200 × 50 | 0 | 2 | 20 ms |
+| wide (default) | 200 × 100 | 0 | 8 | 10 ms |
+| huge (default) | 1000 × 50 | 0 | 4 | 10 ms |
+| polite (gate check only) | 100 × 50 | 1000 ms | 1 | 50 ms |
 
-`polite` is the release-gate condition ("same politeness"): one request per second per
-host, robots.txt checked. `fast` is crawling your own infrastructure. `scale` stresses
-memory with many sites at once.
+`wide` and `huge` have no rate limit and a network ceiling far above any tool, so they
+measure what each crawler itself can do; `huge` stresses memory with many sites at once.
+`polite` is the release-gate condition ("same politeness") and is run on its own.
+
+Every run is guarded by `measure.py`: the process tree is killed when it exceeds the
+memory available at start minus 2 GB, or after `MEASURE_BUDGET_S` seconds (default 600).
+Throughput is pages actually served by the origin divided by wall time, the same count
+for every tool, so a run cut short still reports a rate.
 
 ## Tools and settings
 

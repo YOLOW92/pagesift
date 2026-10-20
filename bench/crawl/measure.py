@@ -2,8 +2,15 @@
 
 python3 -I measure.py <label> -- <command...>
 结果追加一行 JSON 到 $MEASURE_OUT（默认 results.jsonl），同时打印。
+
+保护机器：
+- 内存看门狗：进程树超过上限就整树杀掉，记为 "killed: memory"。上限按启动时的 MemAvailable
+  减去 2 GB 余量动态算，也可以用 MEASURE_MAX_MB 指定。
+- 时间预算：MEASURE_BUDGET_S 秒后整树杀掉，记为 "killed: budget"。
+- 吞吐按源站实际送出的页数算（MEASURE_ORIGIN 指向源站的 /__served），对所有工具同一个口径，
+  被杀掉的运行也能算出吞吐。
 """
-import json, os, subprocess, sys, time, resource
+import json, os, signal, subprocess, sys, time, resource, urllib.request
 
 def tree_rss_kb(root):
     # 遍历 /proc 找出 root 的所有后代，累加 RSS
@@ -27,22 +34,80 @@ def tree_rss_kb(root):
         stack.extend(children.get(p, []))
     return total
 
+def mem_available_mb():
+    with open("/proc/meminfo") as f:
+        for line in f:
+            if line.startswith("MemAvailable:"):
+                return int(line.split()[1]) // 1024
+    return 0
+
+def tree_pids(root):
+    children = {}
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit():
+            continue
+        try:
+            with open(f"/proc/{pid}/stat") as f:
+                ppid = int(f.read().rsplit(")", 1)[1].split()[1])
+            children.setdefault(ppid, []).append(int(pid))
+        except (OSError, ValueError, IndexError):
+            continue
+    out, stack = [], [root]
+    while stack:
+        p = stack.pop()
+        out.append(p)
+        stack.extend(children.get(p, []))
+    return out
+
+def kill_tree(root):
+    for pid in tree_pids(root):
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+
+def served():
+    url = os.environ.get("MEASURE_ORIGIN")
+    if not url:
+        return None
+    try:
+        with urllib.request.urlopen(url, timeout=5) as r:
+            return int(r.read())
+    except Exception:
+        return None
+
 def main():
     label = sys.argv[1]
     cmd = sys.argv[sys.argv.index("--") + 1:]
+    limit_mb = int(os.environ.get("MEASURE_MAX_MB") or max(mem_available_mb() - 2048, 1024))
+    budget = float(os.environ.get("MEASURE_BUDGET_S") or 0)
+    served0 = served()
     t = time.monotonic()
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True)
     peak = 0
+    killed = None
     while proc.poll() is None:
-        peak = max(peak, tree_rss_kb(proc.pid))
+        rss = tree_rss_kb(proc.pid)
+        peak = max(peak, rss)
+        if rss // 1024 > limit_mb:
+            killed = f"memory > {limit_mb} MB"
+        elif budget and time.monotonic() - t > budget:
+            killed = f"budget {budget:.0f} s"
+        if killed:
+            kill_tree(proc.pid)
+            proc.wait()
+            break
         time.sleep(0.05)
     out = proc.stdout.read()
     wall = time.monotonic() - t
+    served1 = served()
+    pages = served1 - served0 if served0 is not None and served1 is not None else None
     ru = resource.getrusage(resource.RUSAGE_CHILDREN)
     last = [l for l in out.splitlines() if l.strip()]
     rec = {"label": label, "wall_s": round(wall, 2), "cpu_s": round(ru.ru_utime + ru.ru_stime, 2),
            "peak_tree_rss_mb": round(peak / 1024, 1), "exit": proc.returncode,
-           "summary": last[-1] if last else ""}
+           "served_pages": pages, "pages_per_s": round(pages / wall, 1) if pages is not None else None,
+           "killed": killed, "summary": last[-1] if last else ""}
     print(json.dumps(rec, ensure_ascii=False))
     with open(os.environ.get("MEASURE_OUT", "results.jsonl"), "a") as f:
         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
