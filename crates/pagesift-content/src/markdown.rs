@@ -426,17 +426,9 @@ impl Renderer<'_> {
     }
 
     fn image(&self, el: Element<'_>) -> String {
-        let src = el
-            .attr("src")
-            .filter(|s| !s.trim().is_empty())
-            .or_else(|| el.attr("data-src"))
-            .map(str::trim);
-        let Some(src) = src else {
+        let Some(src) = image_src(el) else {
             return String::new();
         };
-        if src.starts_with("data:") {
-            return String::new();
-        }
         let alt = single_line(&collapse_whitespace(el.attr("alt").unwrap_or("")));
         format!("![{}]({})", alt.replace(['[', ']'], ""), self.resolve(src))
     }
@@ -451,6 +443,23 @@ impl Renderer<'_> {
             .replace('(', "%28")
             .replace(')', "%29")
     }
+}
+
+/// 图片地址。懒加载的图片 `src` 常是空的或 `data:` 占位图，真实地址在 `data-src`、
+/// `data-lazy-src`、`data-original` 或 `srcset` 里；`data:` 地址本身不输出。
+fn image_src(el: Element<'_>) -> Option<&str> {
+    let usable = |s: &&str| !s.is_empty() && !s.starts_with("data:");
+    ["src", "data-src", "data-lazy-src", "data-original"]
+        .iter()
+        .filter_map(|a| el.attr(a).map(str::trim))
+        .find(usable)
+        .or_else(|| {
+            ["srcset", "data-srcset", "data-lazy-srcset"]
+                .iter()
+                .filter_map(|a| el.attr(a))
+                .filter_map(|v| crate::links::srcset(v).first().map(|c| c.0))
+                .find(usable)
+        })
 }
 
 fn collect_rows<'a>(node: NodeR<'a>, rows: &mut Vec<NodeR<'a>>) {
