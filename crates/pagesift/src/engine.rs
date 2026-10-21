@@ -17,8 +17,46 @@ use pagesift_net::{FetchRequest, Fetcher, FetcherConfig, Url};
 use pagesift_policy::{Policy, PolicyConfig, RequestKind, RobotsMode};
 use tokio::sync::OnceCell;
 
-/// F-1.9：HTTP 抓到的正文少于这么多字符时，`engine: auto` 升级到浏览器渲染。
+/// F-1.9：HTTP 抓到的正文少于这么多（加权）字符时，`engine: auto` 升级到浏览器渲染。
+/// 中日韩文字一个字按 [`CJK_WEIGHT`] 个字符算（信息量和几个拉丁字母相当），见 [`text_weight`]。
 pub const AUTO_RENDER_MIN_CHARS: usize = 1200;
+/// 已经认出是一篇文章（有发布时间或 `og:type=article`）时，正文到这么多加权字符就不再渲染：
+/// 短新闻 HTTP 已经拿全了。AiSeek 的生产数据里，63% 的渲染拿到的文字和 HTTP 一样多，
+/// 多半就是这类短文章。
+pub const AUTO_RENDER_ARTICLE_MIN_CHARS: usize = 300;
+pub const CJK_WEIGHT: usize = 3;
+
+/// 正文的加权长度：空白不算，中日韩文字按 [`CJK_WEIGHT`] 算。
+pub fn text_weight(s: &str) -> usize {
+    s.chars()
+        .filter(|c| !c.is_whitespace())
+        .map(|c| if is_cjk(c) { CJK_WEIGHT } else { 1 })
+        .sum()
+}
+
+fn is_cjk(c: char) -> bool {
+    matches!(c as u32,
+        0x3040..=0x30FF   // 平假名、片假名
+        | 0x3400..=0x4DBF // CJK 扩展 A
+        | 0x4E00..=0x9FFF // CJK 统一汉字
+        | 0xAC00..=0xD7AF // 谚文音节
+        | 0xF900..=0xFAFF // CJK 兼容汉字
+        | 0x20000..=0x2FA1F)
+}
+
+/// `engine: auto` 时 HTTP 的结果是否还要用浏览器渲染。
+pub fn needs_render(doc: &pagesift_content::Document) -> bool {
+    let w = text_weight(&doc.markdown);
+    if w >= AUTO_RENDER_MIN_CHARS {
+        return false;
+    }
+    let m = &doc.metadata;
+    let article = m.published_time.is_some()
+        || m.extra
+            .iter()
+            .any(|(k, v)| k == "og:type" && v.eq_ignore_ascii_case("article"));
+    !(article && w >= AUTO_RENDER_ARTICLE_MIN_CHARS)
+}
 /// 浏览器渲染出的正文少于这么多字符时，换下一个内核再试（Lightpanda 的脚本支持不全，
 /// 单页应用可能渲染不出内容）。最后一个内核的结果照常返回。
 pub const RENDER_FALLBACK_MIN_CHARS: usize = 200;
@@ -34,6 +72,8 @@ pub struct ScraperConfig {
     pub llm: Option<pagesift_llm::LlmConfig>,
     /// `/v2/search` 用的搜索后端。
     pub search: Option<Arc<dyn pagesift_search::SearchBackend>>,
+    /// 命名出口（名字，代理地址）：请求的 `egress` 选其中一个，其余抓取设置和默认出口相同。
+    pub egress: Vec<(String, String)>,
 }
 
 /// 创建 [`Scraper`] 失败：网络层或 LLM 客户端的配置不对。
@@ -87,6 +127,15 @@ enum EngineChoice {
 impl Scraper {
     pub fn new(config: ScraperConfig) -> Result<Self, ScraperError> {
         let browser_private_network = config.fetcher.ssrf.allow_private_network;
+        let mut egress = Vec::new();
+        for (name, proxy) in &config.egress {
+            let mut fc = config.fetcher.clone();
+            fc.proxy = Some(proxy.clone());
+            egress.push((
+                name.clone(),
+                Arc::new(Fetcher::new(fc).map_err(ScraperError::Fetcher)?),
+            ));
+        }
         let fetcher = Arc::new(Fetcher::new(config.fetcher).map_err(ScraperError::Fetcher)?);
         let llm = config
             .llm
@@ -96,7 +145,13 @@ impl Scraper {
         let crawl_slots = tokio::sync::Semaphore::new(config.policy.rate.global_concurrency.max(1));
         Ok(Self {
             crawl_slots,
-            policy: Arc::new(Policy::new(fetcher, config.policy)),
+            policy: Arc::new({
+                let mut p = Policy::new(fetcher, config.policy);
+                for (name, f) in egress {
+                    p.add_egress(name, f);
+                }
+                p
+            }),
             store: config.store,
             llm,
             search: config.search,
@@ -393,6 +448,11 @@ impl Scraper {
         let mut timings = BTreeMap::new();
         let mut warnings = Vec::new();
 
+        if choice == EngineChoice::Browser && opts.egress.is_some() {
+            return Err(ApiError::unsupported(
+                "egress applies to HTTP fetching only; browser rendering does not use it",
+            ));
+        }
         if choice == EngineChoice::Browser {
             return self
                 .render(
@@ -410,11 +470,16 @@ impl Scraper {
         }
 
         // 并发名额一直拿到提取结束：已下载、待提取的页面数不超过全局并发，机器忙时内存不会堆积
-        let (mut resp, _permit) = self
-            .policy
-            .fetch_held(fetch_request(url, opts)?, mode)
-            .await
-            .map_err(policy_error)?;
+        let fetch =
+            self.policy
+                .fetch_held_via(fetch_request(url, opts)?, mode, opts.egress.as_deref());
+        let (mut resp, _permit) = match request_deadline(opts, started) {
+            Some(d) => tokio::time::timeout_at(d.into(), fetch)
+                .await
+                .map_err(|_| ApiError::new(ErrorCode::Timeout, "request deadline passed"))?,
+            None => fetch.await,
+        }
+        .map_err(policy_error)?;
         timings.insert("fetch".into(), ms(resp.timings.total));
         let mut ext = PagesiftMeta {
             redirect_chain: resp
@@ -484,10 +549,13 @@ impl Scraper {
         // 拦截页如实报告，不升级到浏览器：用真浏览器去过挑战页就是绕过
         check_barrier(&doc)?;
 
-        let http_chars = doc.markdown.chars().count();
-        if choice == EngineChoice::Auto && http_chars < AUTO_RENDER_MIN_CHARS {
+        let http_chars = text_weight(&doc.markdown);
+        if choice == EngineChoice::Auto && needs_render(&doc) {
             let host = resp.final_url.host_str().unwrap_or_default();
-            if self.learner.skip_render(host) {
+            if opts.egress.is_some() {
+                // 浏览器不走指定的出口，用它渲染出口地址就不一致了
+                warnings.push("render_skipped_egress".into());
+            } else if self.learner.skip_render(host) {
                 // 这个站最近几次渲染都没多出正文：直接用 HTTP 结果
                 warnings.push("render_skipped_learned".into());
             } else if self.has_browser().await {
@@ -550,10 +618,24 @@ impl Scraper {
                 .map_err(policy_error)?,
             RobotsMode::Ignore => None,
         };
-        let _permit = self.policy.limiter().acquire(&host, crawl_delay).await;
-        let ropts = RenderOptions {
+        // 调用方给了 `timeout` 时它是整个请求的总时限：HTTP 抓取、排队、每个内核的渲染都从里面扣。
+        // 没给时（整站爬取）排队不限时，渲染从拿到名额起算默认时限。
+        let acquire = self.policy.limiter().acquire(&host, crawl_delay);
+        let (_permit, deadline) = match request_deadline(opts, started) {
+            Some(d) => match tokio::time::timeout_at(d.into(), acquire).await {
+                Ok(p) => (p, d),
+                Err(_) => {
+                    return Err(ApiError::new(
+                        ErrorCode::Timeout,
+                        "request deadline passed while waiting for the host's rate limit",
+                    ));
+                }
+            },
+            None => (acquire.await, Instant::now() + DEFAULT_TIMEOUT),
+        };
+        let mut ropts = RenderOptions {
             wait_for: Duration::from_millis(opts.wait_for),
-            timeout: Duration::from_millis(opts.timeout.unwrap_or(30_000)),
+            timeout: deadline.saturating_duration_since(Instant::now()),
             mobile: opts.mobile,
             languages: opts
                 .location
@@ -583,6 +665,12 @@ impl Scraper {
                 continue;
             };
             let engine = pool.engine();
+            ropts.timeout = deadline.saturating_duration_since(Instant::now());
+            if ropts.timeout < MIN_ATTEMPT {
+                // 剩下的时间不够再试一个内核：有结果就用，没有就算超时
+                last_err.get_or_insert(pagesift_cdp::Error::Timeout);
+                break;
+            }
             let page = match pool.render(url, &ropts).await {
                 Ok(p) => p,
                 Err(e) => {
@@ -624,7 +712,7 @@ impl Scraper {
             let extract = t.elapsed();
             // 错误页正文少是正常的，换内核也一样
             let thin = status.is_none_or(|s| s < 400)
-                && doc.markdown.chars().count() < RENDER_FALLBACK_MIN_CHARS;
+                && text_weight(&doc.markdown) < RENDER_FALLBACK_MIN_CHARS;
             let r = Rendered {
                 index: i,
                 engine: engine.name(),
@@ -653,19 +741,15 @@ impl Scraper {
             }
         }
         let Some(r) = best else {
-            let e = last_err.map_or_else(
-                || "no browser engine available".to_string(),
-                |e| e.to_string(),
-            );
-            return Err(ApiError::new(
-                ErrorCode::UpstreamError,
-                format!("rendering failed: {e}"),
-            ));
+            return Err(match last_err {
+                Some(e) => ApiError::new(render_error_code(&e), format!("rendering failed: {e}")),
+                None => ApiError::new(ErrorCode::UpstreamError, "no browser engine available"),
+            });
         };
         self.learner.record_engine(&host, from, r.index);
         if let Some(n) = http_chars {
             self.learner
-                .record_render(&host, n, r.doc.markdown.chars().count());
+                .record_render(&host, n, text_weight(&r.doc.markdown));
         }
 
         let t = &r.timings;
@@ -957,6 +1041,34 @@ struct Progress {
     started: Instant,
     timings: BTreeMap<String, f64>,
     warnings: Vec<String>,
+}
+
+/// 没给 `timeout` 时一次渲染（含换内核）的总时限。
+const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
+/// 剩余时间少于这么多就不再开始新的渲染尝试。
+const MIN_ATTEMPT: Duration = Duration::from_millis(500);
+
+/// 调用方给了 `timeout` 时，整个请求的截止时间。
+fn request_deadline(opts: &ScrapeOptions, started: Instant) -> Option<Instant> {
+    opts.timeout.map(|ms| started + Duration::from_millis(ms))
+}
+
+/// 渲染失败归到哪类错误：调用方要据此决定重试、退避还是放弃。
+fn render_error_code(e: &pagesift_cdp::Error) -> ErrorCode {
+    use pagesift_cdp::Error as E;
+    match e {
+        E::Timeout => ErrorCode::Timeout,
+        E::Busy => ErrorCode::Busy,
+        E::Blocked { .. } => ErrorCode::SsrfBlocked,
+        E::Navigation(m)
+            if m.contains("ERR_NAME_NOT_RESOLVED") || m.contains("ERR_NAME_RESOLUTION") =>
+        {
+            ErrorCode::DnsFailure
+        }
+        // 导航失败（net::ERR_*、跳到打不开的地址）都是网络层的结果
+        E::Navigation(_) => ErrorCode::NetworkError,
+        _ => ErrorCode::UpstreamError,
+    }
 }
 
 /// 一个内核的渲染结果，已经提取好正文。
@@ -1307,6 +1419,7 @@ fn fill_metadata(meta: &mut Metadata, m: &pagesift_content::Metadata) {
     meta.robots = m.robots.clone();
     meta.favicon = m.favicon.clone();
     meta.published_time = m.published_time.clone();
+    meta.author = m.author.clone();
     meta.modified_time = m.modified_time.clone();
     for (k, v) in &m.extra {
         meta.extra
@@ -1370,6 +1483,8 @@ pub(crate) fn policy_error(e: pagesift_policy::Error) -> ApiError {
         P::UpstreamError => ErrorCode::UpstreamError,
         P::UnsupportedOption => ErrorCode::UnsupportedOption,
         P::InvalidRequest => ErrorCode::InvalidRequest,
+        P::DnsFailure => ErrorCode::DnsFailure,
+        P::NetworkError => ErrorCode::NetworkError,
         _ => ErrorCode::Internal,
     };
     let retry = e.retry_after().map(|d| d.as_secs().max(1));
@@ -1383,6 +1498,49 @@ pub(crate) fn policy_error(e: pagesift_policy::Error) -> ApiError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn content(md: &str, published: bool, og_article: bool) -> pagesift_content::Document {
+        let mut d = pagesift_content::process("<p>x</p>", &Default::default());
+        d.markdown = md.to_string();
+        d.metadata.published_time = published.then(|| "2026-10-21T00:00:00Z".into());
+        if og_article {
+            d.metadata.extra.push(("og:type".into(), "article".into()));
+        }
+        d
+    }
+
+    #[test]
+    fn render_rule_weights_cjk_and_trusts_short_articles() {
+        assert_eq!(text_weight("ab c\n"), 3);
+        assert_eq!(text_weight("日本語のニュース"), 8 * CJK_WEIGHT);
+        // 500 个汉字按 1500 算，不用渲染；500 个拉丁字母要渲染
+        assert!(!needs_render(&content(&"字".repeat(500), false, false)));
+        assert!(needs_render(&content(&"a".repeat(500), false, false)));
+        // 认出是文章且有 300 以上：不渲染；太短的文章照样渲染
+        assert!(!needs_render(&content(&"a".repeat(400), true, false)));
+        assert!(!needs_render(&content(&"a".repeat(400), false, true)));
+        assert!(needs_render(&content(&"a".repeat(100), true, true)));
+    }
+
+    #[test]
+    fn render_errors_are_classified() {
+        use pagesift_cdp::Error as E;
+        for (e, code) in [
+            (E::Timeout, ErrorCode::Timeout),
+            (E::Busy, ErrorCode::Busy),
+            (
+                E::Navigation("net::ERR_NAME_NOT_RESOLVED".into()),
+                ErrorCode::DnsFailure,
+            ),
+            (
+                E::Navigation("net::ERR_CONNECTION_RESET".into()),
+                ErrorCode::NetworkError,
+            ),
+            (E::ConnectionClosed, ErrorCode::UpstreamError),
+        ] {
+            assert_eq!(render_error_code(&e), code, "{e}");
+        }
+    }
 
     #[test]
     fn finds_only_visible_same_origin_and_srcdoc_iframes() {

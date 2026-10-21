@@ -28,9 +28,12 @@ from . import _pagesift
 from ._pagesift import Batch, Document, __version__, convert
 from .errors import (
     AccessBarrier,
+    Busy,
+    DnsFailure,
     HostCooldown,
     InternalError,
     InvalidRequest,
+    NetworkError,
     PagesiftError,
     RateLimited,
     RobotsDisallowed,
@@ -57,9 +60,12 @@ __all__ = [
     # 异常
     "PagesiftError",
     "AccessBarrier",
+    "Busy",
+    "DnsFailure",
     "HostCooldown",
     "InternalError",
     "InvalidRequest",
+    "NetworkError",
     "RateLimited",
     "RobotsDisallowed",
     "SsrfBlocked",

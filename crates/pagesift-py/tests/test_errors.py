@@ -16,6 +16,9 @@ CODES = {
     "SSRF_BLOCKED": pagesift.SsrfBlocked,
     "TOO_LARGE": pagesift.TooLarge,
     "UPSTREAM_ERROR": pagesift.UpstreamError,
+    "NETWORK_ERROR": pagesift.NetworkError,
+    "DNS_FAILURE": pagesift.DnsFailure,
+    "BUSY": pagesift.Busy,
     "UNSUPPORTED_OPTION": pagesift.UnsupportedOption,
     "INVALID_REQUEST": pagesift.InvalidRequest,
     "INTERNAL_ERROR": pagesift.InternalError,
@@ -42,6 +45,9 @@ def test_builtin_bases():
     assert issubclass(pagesift.Timeout, TimeoutError)
     assert issubclass(pagesift.InvalidRequest, ValueError)
     assert issubclass(pagesift.UnsupportedOption, ValueError)
+    # 新的细分错误仍然能被捕获 UpstreamError 的旧代码接住
+    assert issubclass(pagesift.NetworkError, pagesift.UpstreamError)
+    assert issubclass(pagesift.DnsFailure, pagesift.UpstreamError)
 
 
 def test_robots_disallowed(scraper, http, server):

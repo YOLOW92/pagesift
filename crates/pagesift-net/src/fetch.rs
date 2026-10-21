@@ -61,6 +61,9 @@ pub enum Error {
     },
     #[error("network error: {0}")]
     Network(String),
+    /// 域名解析失败或没有地址：临时问题，和 SSRF 拒绝（永远不许抓）分开。
+    #[error("DNS lookup failed: {0}")]
+    Dns(String),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -282,6 +285,8 @@ impl Fetcher {
                 .map_err(|_| Error::Config("invalid proxy URL".into()))?;
             builder = builder.proxy(proxy);
         }
+        // 白名单里的主机解析到内网地址也放行
+        exempt.extend(config.ssrf.allow_hosts.iter().cloned());
         let resolver = Arc::new(GuardedResolver {
             lookup: config.dns.clone(),
             policy: config.ssrf.clone(),

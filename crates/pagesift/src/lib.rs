@@ -21,5 +21,8 @@ mod learn;
 pub mod mcp;
 
 pub use crawl::normalize as normalize_url;
-pub use engine::{AUTO_RENDER_MIN_CHARS, Scraper, ScraperConfig, ScraperError};
+pub use engine::{
+    AUTO_RENDER_ARTICLE_MIN_CHARS, AUTO_RENDER_MIN_CHARS, Scraper, ScraperConfig, ScraperError,
+    needs_render, text_weight,
+};
 pub use pagesift_api as api;

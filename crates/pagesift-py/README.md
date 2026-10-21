@@ -195,7 +195,10 @@ Every error code has its own exception class; all derive from `pagesift.Pagesift
 | `Timeout` | `TIMEOUT` | also a `TimeoutError` |
 | `SsrfBlocked` | `SSRF_BLOCKED` | private, loopback or metadata address |
 | `TooLarge` | `TOO_LARGE` | response over the size limit |
-| `UpstreamError` | `UPSTREAM_ERROR` | connection, TLS, PDF or rendering failure |
+| `UpstreamError` | `UPSTREAM_ERROR` | the site or the renderer failed (bad response, unreadable PDF, browser crash) |
+| `NetworkError` | `NETWORK_ERROR` | connection refused or reset, TLS failure, navigation error; subclass of `UpstreamError` |
+| `DnsFailure` | `DNS_FAILURE` | the host name does not resolve; retry later; subclass of `UpstreamError` |
+| `Busy` | `BUSY` | no free browser within the request's deadline; retry later |
 | `UnsupportedOption` | `UNSUPPORTED_OPTION` | asked for something this build cannot do; also a `ValueError` |
 | `InvalidRequest` | `INVALID_REQUEST` | bad URL or option; also a `ValueError` |
 | `InternalError` | `INTERNAL_ERROR` | a bug in pagesift |

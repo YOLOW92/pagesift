@@ -165,6 +165,42 @@ async fn redirect_to_name_resolving_private_is_blocked() {
 }
 
 #[tokio::test]
+async fn allowlisted_host_may_resolve_to_a_private_address() {
+    let srv = serve(|_| Some(ok("<p>internal</p>"))).await;
+    let port = Url::parse(&srv.url("/")).unwrap().port().unwrap();
+    let dns = FakeDns::new(&[("svc.test", &["127.0.0.1"]), ("other.test", &["127.0.0.1"])]);
+    let f = Fetcher::new(FetcherConfig {
+        ssrf: SsrfPolicy {
+            allow_hosts: vec!["svc.test".into()],
+            ..Default::default()
+        },
+        dns,
+        ..Default::default()
+    })
+    .unwrap();
+    let resp = f
+        .fetch(FetchRequest::new(format!("http://svc.test:{port}/")))
+        .await
+        .unwrap();
+    assert_eq!(resp.status, 200);
+    let err = f
+        .fetch(FetchRequest::new(format!("http://other.test:{port}/")))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, Error::Blocked(Blocked::Address(_))), "{err}");
+}
+
+#[tokio::test]
+async fn unresolvable_host_is_a_dns_failure_not_an_ssrf_block() {
+    let f = fetcher();
+    let err = f
+        .fetch(FetchRequest::new("http://nowhere.test/"))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, Error::Dns(_)), "{err}");
+}
+
+#[tokio::test]
 async fn dns_rebinding_with_one_private_answer_is_blocked() {
     let dns = FakeDns::new(&[
         ("rebind.test", &["93.184.216.34", "127.0.0.2"]),

@@ -221,7 +221,10 @@ pagesift serve        # 在 :3002 提供 Firecrawl 兼容接口，把 SDK 的 ba
 | `TIMEOUT` | 408 | 超时，和 Firecrawl 的 `SCRAPE_TIMEOUT` 对齐 |
 | `SSRF_BLOCKED` | 400 | 目标地址不允许访问 |
 | `TOO_LARGE` | 413 | 响应超过大小上限 |
-| `UPSTREAM_ERROR` | 502 | 目标站点出错或网络错误 |
+| `UPSTREAM_ERROR` | 502 | 目标站点或渲染出错（无法解析的响应、PDF、浏览器崩溃） |
+| `NETWORK_ERROR` | 502 | 连接失败、被重置、TLS 握手失败、浏览器导航时的网络错误 |
+| `DNS_FAILURE` | 502 | 域名解析失败；可稍后重试，和 `SSRF_BLOCKED`（永远不许抓）分开 |
+| `BUSY` | 503 | 在请求的时限内等不到空闲的浏览器 |
 | `UNSUPPORTED_OPTION` | 400 | 绕过类参数，或 1.0 尚未实现的功能 |
 | `INVALID_REQUEST` | 400 | 请求格式错误 |
 

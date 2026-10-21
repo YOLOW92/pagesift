@@ -137,6 +137,8 @@ impl RobotsCache {
 /// 礼貌抓取的入口：冷却检查 → robots → 限速 → 抓取 → 记录主机健康状况。
 pub struct Policy {
     fetcher: Arc<Fetcher>,
+    /// 命名的出口（各自走不同的代理）。请求可以指定其中一个；robots.txt 仍走默认出口。
+    egress: HashMap<String, Arc<Fetcher>>,
     config: PolicyConfig,
     robots: RobotsCache,
     limiter: RateLimiter,
@@ -152,8 +154,18 @@ impl Policy {
             backoff: Backoff::new(config.backoff.clone()),
             token: product_token(fetcher.user_agent()).to_string(),
             fetcher,
+            egress: HashMap::new(),
             config,
         }
+    }
+
+    /// 加一个命名出口。同名的会被替换。
+    pub fn add_egress(&mut self, name: impl Into<String>, fetcher: Arc<Fetcher>) {
+        self.egress.insert(name.into(), fetcher);
+    }
+
+    pub fn has_egress(&self, name: &str) -> bool {
+        self.egress.contains_key(name)
     }
 
     pub fn config(&self) -> &PolicyConfig {
@@ -219,7 +231,25 @@ impl Policy {
         req: FetchRequest,
         mode: RobotsMode,
     ) -> Result<(FetchResponse, Permit), Error> {
-        let url = self.fetcher.check_url(&req.url)?;
+        self.fetch_held_via(req, mode, None).await
+    }
+
+    /// 同 [`Policy::fetch_held`]，`egress` 指定走哪个命名出口（`None` 为默认出口）。
+    /// 限速、冷却和 robots 按主机算，和出口无关。
+    pub async fn fetch_held_via(
+        &self,
+        req: FetchRequest,
+        mode: RobotsMode,
+        egress: Option<&str>,
+    ) -> Result<(FetchResponse, Permit), Error> {
+        let fetcher = match egress {
+            None => &self.fetcher,
+            Some(name) => self
+                .egress
+                .get(name)
+                .ok_or_else(|| Error::InvalidRequest(format!("unknown egress `{name}`")))?,
+        };
+        let url = fetcher.check_url(&req.url)?;
         let host = url.host_str().unwrap_or_default().to_string();
         self.check_cooldown(&host)?;
         let crawl_delay = match mode {
@@ -230,11 +260,15 @@ impl Policy {
         // 等待名额期间主机可能进入了冷却。
         self.check_cooldown(&host)?;
         let guard = HopGuard { policy: self, mode };
-        let resp = match self.fetcher.fetch_with(req, &guard).await {
+        let resp = match fetcher.fetch_with(req, &guard).await {
             Ok(r) => r,
             Err(e) => {
                 let e = Error::from(e);
-                if matches!(e, Error::Timeout(_) | Error::Upstream(_)) {
+                // 网络错误和超时让这个站退避；DNS 失败也算（站点暂时不可达）
+                if matches!(
+                    e,
+                    Error::Timeout(_) | Error::Upstream(_) | Error::Network(_) | Error::Dns(_)
+                ) {
                     self.backoff.on_failure(&host);
                 }
                 return Err(e);

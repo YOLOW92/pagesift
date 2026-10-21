@@ -28,6 +28,14 @@ persist_jobs = true
 # crawl / batch 请求里的 webhook：失败按指数退避重试，目标地址过 SSRF 校验
 # [server.webhook]
 # allow_private_network = false
+# 单独放行的主机名（完全匹配），解析到内网地址也可以抓，例如内部服务
+# allow_hosts = ["docs.internal"]
+
+# 命名出口：请求里用 "egress": "tunnel-a" 指定，只用于 HTTP 抓取（指定后不升级到浏览器）。
+# 只支持 http、https、socks5（socks5h 会让代理去解析域名，绕过内网地址校验）。
+# [[egress]]
+# name = "tunnel-a"
+# proxy = "socks5://172.17.0.1:1081"
 # max_attempts = 5
 # timeout_secs = 10
 # secret = { env = "PAGESIFT_WEBHOOK_SECRET" }   # 设了就带 X-Firecrawl-Signature: sha256=<HMAC-SHA256>
