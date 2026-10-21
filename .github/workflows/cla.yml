@@ -25,4 +25,4 @@ jobs:
           path-to-signatures: signatures/cla.json
           path-to-document: https://github.com/YOLOW92/pagesift/blob/main/CLA.md
           branch: cla-signatures
-          allowlist: YOLOW92,bot*
+          allowlist: YOLOW92,claude,bot*   # 仓库主人、AI 协作署名（Co-Authored-By: claude）和机器人免签
