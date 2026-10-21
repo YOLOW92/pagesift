@@ -80,6 +80,7 @@ fn route(r: &Req) -> Resp {
                      document.getElementById('feed').appendChild(d); page++; busy = false;
                    });
                  };
+                 more();
                  new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) more(); }).observe(document.getElementById('sentinel'));
                  window.addEventListener('scroll', () => { if (innerHeight + scrollY >= document.body.scrollHeight - 20) more(); });
                </script>"#,
