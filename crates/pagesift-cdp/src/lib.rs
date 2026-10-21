@@ -16,6 +16,7 @@
 
 mod capture;
 mod conn;
+mod engine;
 mod error;
 mod guard;
 mod launch;
@@ -24,6 +25,7 @@ mod page;
 mod pool;
 
 pub use conn::{Connection, Event, EventStream, Session};
+pub use engine::{EngineKind, Footprint, detect_engines, engine_chain};
 pub use error::{Error, Result};
 pub use guard::{
     BlockResources, BoxFuture, PrivateNetworkGuard, RequestGuard, SubRequest, Verdict,
@@ -31,4 +33,6 @@ pub use guard::{
 };
 pub use launch::detect_browser;
 pub use options::*;
-pub use pool::{BrowserPool, BrowserSource, BrowserStats, PoolConfig, auto_browsers};
+pub use pool::{
+    BrowserPool, BrowserSource, BrowserStats, PoolConfig, auto_browsers, auto_browsers_for,
+};

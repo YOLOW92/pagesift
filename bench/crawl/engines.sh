@@ -41,6 +41,8 @@ engine() { # 名字 场景 hosts pages per_host
         moli) env=("BROWSER_EXE=$T/moli/moli-v1.1.18-x86_64-unknown-linux-gnu/moli"
             "BROWSER_ARGS=serve --host 127.0.0.1 --port {port} --block-cidrs=0.0.0.0/2,64.0.0.0/3,96.0.0.0/4,112.0.0.0/5,120.0.0.0/6,124.0.0.0/7,126.0.0.0/8,128.0.0.0/1,2000::/3,fc00::/7,fe80::/10"
             BROWSER_MAX=16 BROWSER_TABS=1 BROWSER_ENGINE_GUARD=1) ;;
+        # 生产路径：PATH 里自动探测，Lightpanda → moli → chrome-headless-shell 回退
+        auto) env=(BROWSER_LOOPBACK=1 "PATH=$(realpath $T/lightpanda):$(realpath $T/moli/moli-v1.1.18-x86_64-unknown-linux-gnu):$(realpath $T/chs/chrome-headless-shell-linux64):$PATH") ;;
         obscura) env=("BROWSER_EXE=$T/obscura/obscura"
             "BROWSER_ARGS=--allow-private-network serve --host 127.0.0.1 --port {port} --proxy http://[::1]:$PORT"
             BROWSER_MAX=4 BROWSER_TABS=4) ;;

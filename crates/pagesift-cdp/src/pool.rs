@@ -9,6 +9,7 @@ use tokio::sync::{Mutex, Notify};
 use tokio::task::JoinHandle;
 
 use crate::conn::Connection;
+use crate::engine::{EngineKind, Footprint};
 use crate::error::{Error, Result};
 use crate::guard::RequestGuard;
 use crate::launch::{self, BrowserProcess, LaunchSpec};
@@ -51,6 +52,11 @@ pub struct PoolConfig {
     /// 不再用 CDP 的 Fetch 拦截逐个检查子请求：moli 处理 Fetch 时会和导航互相等待卡死，
     /// Lightpanda 每个请求也能少一次往返。开启时启动参数里必须带这两个参数之一，否则拒绝启动。
     pub engine_network_guard: bool,
+    /// 内核种类；`None` 时按可执行文件名判断。决定自动进程数的估算，见 [`EngineKind::configure`]。
+    pub engine: Option<EngineKind>,
+    /// 测试和压测用：浏览器只能访问本机（源站在 localhost），外网子资源一律不发。
+    /// 由 [`EngineKind::configure`] 换成各内核自己的参数。
+    pub loopback_only: bool,
 }
 
 impl Default for PoolConfig {
@@ -68,6 +74,8 @@ impl Default for PoolConfig {
             allow_execute_javascript: false,
             min_available_memory_mb: 1024,
             engine_network_guard: false,
+            engine: None,
+            loopback_only: false,
         }
     }
 }
@@ -120,18 +128,20 @@ struct PoolState {
     closed: bool,
 }
 
-/// 一个标签页和一个浏览器大概要多占多少内存（MB），按本机压测的 PSS 估的。
-const TAB_MEMORY_MB: u64 = 200;
-const BROWSER_MEMORY_MB: u64 = 300;
 /// 因为内存不够在等时，隔多久重新看一次（内存可能被别的进程释放，不一定有归还事件）。
 const MEMORY_RECHECK: Duration = Duration::from_millis(250);
 
 /// 自动的浏览器数：可用内存（扣掉 `reserve_mb`）够开几个满载的浏览器，最多每 4 个核一个
 /// （每个浏览器的 UI 线程、渲染进程和 GPU 进程大约要占满一个多核）。读不到内存时按核数算。
 pub fn auto_browsers(tabs_per_browser: usize, reserve_mb: u64) -> usize {
+    auto_browsers_for(EngineKind::Chrome.footprint(), tabs_per_browser, reserve_mb)
+}
+
+/// 同 [`auto_browsers`]，按给定内核的资源占用估算。
+pub fn auto_browsers_for(fp: Footprint, tabs_per_browser: usize, reserve_mb: u64) -> usize {
     let cores = std::thread::available_parallelism().map_or(1, usize::from);
-    let by_cpu = (cores / 4).max(1);
-    let per_browser = BROWSER_MEMORY_MB + TAB_MEMORY_MB * tabs_per_browser as u64;
+    let by_cpu = (cores / fp.cores_per_browser.max(1)).max(1);
+    let per_browser = (fp.browser_mb + fp.tab_mb * tabs_per_browser as u64).max(1);
     let by_memory = mem_available_mb().map_or(by_cpu, |avail| {
         (avail.saturating_sub(reserve_mb) / per_browser) as usize
     });
@@ -193,11 +203,21 @@ impl BrowserPool {
             ));
         }
         let mut cfg = cfg;
+        if cfg.engine.is_none() {
+            cfg.engine = Some(match &cfg.source {
+                BrowserSource::Executable(p) => EngineKind::from_path(p),
+                _ => EngineKind::Chrome,
+            });
+        }
         if cfg.max_browsers == 0 {
             cfg.max_browsers = match cfg.source {
                 // 远程端点的资源不归本机管，保持保守。
                 BrowserSource::Remote(_) => 2,
-                _ => auto_browsers(cfg.max_tabs_per_browser, cfg.min_available_memory_mb),
+                _ => auto_browsers_for(
+                    cfg.engine.unwrap_or(EngineKind::Chrome).footprint(),
+                    cfg.max_tabs_per_browser,
+                    cfg.min_available_memory_mb,
+                ),
             };
             tracing::debug!(browsers = cfg.max_browsers, "browser pool size");
         }
@@ -264,6 +284,11 @@ impl BrowserPool {
         page.timings.close = close_start.elapsed();
         page.timings.total = start.elapsed();
         Ok(page)
+    }
+
+    /// 池用的内核种类。
+    pub fn engine(&self) -> EngineKind {
+        self.inner.cfg.engine.unwrap_or(EngineKind::Chrome)
     }
 
     /// 立即做一次健康检查：清理崩溃的浏览器，补足 `min_browsers`。
@@ -411,16 +436,17 @@ impl PoolInner {
                 let finished = Self::take_idle_finished(&mut st);
                 let idle = st.launching == 0 && st.slots.iter().all(|s| s.in_use == 0);
                 let max_tabs = self.cfg.max_tabs_per_browser;
+                let fp = self.cfg.engine.unwrap_or(EngineKind::Chrome).footprint();
                 let idx = st
                     .slots
                     .iter_mut()
                     .position(|s| !s.retiring && s.in_use < max_tabs && s.alive());
                 let lease = match idx {
-                    Some(i) if idle || self.memory_allows(TAB_MEMORY_MB) => {
+                    Some(i) if idle || self.memory_allows(fp.tab_mb) => {
                         Some(self.lease(&mut st.slots[i]))
                     }
                     None if st.slots.len() + st.launching < self.cfg.max_browsers
-                        && (idle || self.memory_allows(BROWSER_MEMORY_MB + TAB_MEMORY_MB)) =>
+                        && (idle || self.memory_allows(fp.browser_mb + fp.tab_mb)) =>
                     {
                         // 启动浏览器要几百毫秒，放到锁外，别的页面照常取用和归还标签页。
                         st.launching += 1;

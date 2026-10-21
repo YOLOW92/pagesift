@@ -290,6 +290,9 @@ pub struct PagesiftMeta {
     /// `http` 或 `browser`：这一页实际用哪种方式抓到的。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub engine: Option<String>,
+    /// 浏览器渲染时实际用的内核：`lightpanda`、`moli` 或 `chrome`。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub browser_engine: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub warnings: Vec<String>,
     /// 各阶段耗时，毫秒。

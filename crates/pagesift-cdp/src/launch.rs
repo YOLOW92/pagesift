@@ -39,17 +39,24 @@ const ABSOLUTE_PATHS: &[&str] = &[
     "/opt/google/chrome/chrome",
 ];
 
-/// 在 `PATH` 和常见安装位置里找 Chrome/Chromium。
-pub fn detect_browser() -> Option<PathBuf> {
-    if let Some(path) = std::env::var_os("PATH") {
-        for dir in std::env::split_paths(&path) {
-            for name in PATH_NAMES {
-                let p = dir.join(name);
-                if is_executable(&p) {
-                    return Some(p);
-                }
+/// 在 `PATH` 里按顺序找第一个可执行的 `names`。
+pub(crate) fn find_in_path(names: &[&str]) -> Option<PathBuf> {
+    let path = std::env::var_os("PATH")?;
+    for dir in std::env::split_paths(&path) {
+        for name in names {
+            let p = dir.join(name);
+            if is_executable(&p) {
+                return Some(p);
             }
         }
+    }
+    None
+}
+
+/// 在 `PATH` 和常见安装位置里找 Chrome/Chromium。
+pub fn detect_browser() -> Option<PathBuf> {
+    if let Some(p) = find_in_path(PATH_NAMES) {
+        return Some(p);
     }
     let mut candidates: Vec<PathBuf> = ABSOLUTE_PATHS.iter().map(PathBuf::from).collect();
     if cfg!(target_os = "macos")

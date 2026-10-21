@@ -135,24 +135,31 @@ pub async fn doctor(cfg: &pagesift::config::Config) -> Result<ExitCode> {
             None => "not configured (optional): /v2/search is unavailable".into(),
         },
     );
-    match pagesift_cdp::detect_browser() {
-        Some(path) => {
-            let version = std::process::Command::new(&path)
-                .arg("--version")
-                .output()
-                .ok()
-                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-                .unwrap_or_default();
-            report(true, "browser", format!("{} {version}", path.display()));
-        }
-        None => report(
+    let sc = cfg.scraper(false)?;
+    let chain: Vec<String> =
+        pagesift_cdp::engine_chain(&sc.browser, sc.fetcher.ssrf.allow_private_network)
+            .iter()
+            .filter_map(|c| match &c.source {
+                pagesift_cdp::BrowserSource::Executable(p) => Some(format!(
+                    "{} ({})",
+                    c.engine.map_or("chrome", |k| k.name()),
+                    p.display()
+                )),
+                pagesift_cdp::BrowserSource::Remote(u) => Some(format!("remote {u}")),
+                pagesift_cdp::BrowserSource::Auto => None,
+            })
+            .collect();
+    if chain.is_empty() {
+        report(
             false,
             "browser",
-            "no Chrome/Chromium found; pages that need JavaScript will be returned from HTTP only. Install Chromium or set the browser path".into(),
-        ),
+            "no browser engine found; pages that need JavaScript will be returned from HTTP only. Install Lightpanda, moli or Chromium, or set the browser path".into(),
+        );
+    } else {
+        report(true, "browser", chain.join(" → "));
     }
 
-    let scraper = pagesift::Scraper::new(cfg.scraper(false)?)?;
+    let scraper = pagesift::Scraper::new(sc)?;
     let opts = pagesift::api::types::ScrapeOptions {
         engine: Some("http".into()),
         ..Default::default()

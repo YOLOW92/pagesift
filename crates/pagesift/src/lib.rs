@@ -15,6 +15,7 @@
 pub mod config;
 mod crawl;
 mod engine;
+mod learn;
 pub mod mcp;
 
 pub use crawl::normalize as normalize_url;

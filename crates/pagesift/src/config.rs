@@ -95,6 +95,8 @@ pub struct Policy {
 pub struct Browser {
     /// Chrome、Chromium 或兼容 CDP 的浏览器的可执行文件。
     pub path: Option<PathBuf>,
+    /// `path` 的内核种类：`lightpanda`、`moli` 或 `chrome`；不写时按文件名判断。
+    pub engine: Option<String>,
     /// 连接已经在运行的浏览器：`ws://…` 或 `http://host:port`。
     pub remote: Option<String>,
     pub max_browsers: Option<usize>,
@@ -247,6 +249,11 @@ impl Config {
         }
         if let Some(path) = &b.path {
             c.browser.source = pagesift_cdp::BrowserSource::Executable(path.clone());
+        }
+        if let Some(e) = &b.engine {
+            c.browser.engine = Some(pagesift_cdp::EngineKind::parse(e).with_context(|| {
+                format!("browser.engine must be lightpanda, moli or chrome, not {e:?}")
+            })?);
         }
         if let Some(remote) = &b.remote {
             c.browser.source = pagesift_cdp::BrowserSource::Remote(remote.clone());

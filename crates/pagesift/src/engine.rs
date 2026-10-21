@@ -10,8 +10,8 @@ use std::time::{Duration, Instant};
 use pagesift_api::types::{Document, Metadata, PagesiftMeta, ScrapeOptions};
 use pagesift_api::{ApiError, BoxFuture, Engine, ErrorCode};
 use pagesift_cdp::{
-    BlockResources, BrowserPool, PoolConfig, PrivateNetworkGuard, RenderOptions, RequestGuard,
-    SubRequest, Verdict,
+    BlockResources, BrowserPool, PoolConfig, PrivateNetworkGuard, RenderOptions, RenderedPage,
+    RequestGuard, SubRequest, Verdict,
 };
 use pagesift_net::{FetchRequest, Fetcher, FetcherConfig, Url};
 use pagesift_policy::{Policy, PolicyConfig, RequestKind, RobotsMode};
@@ -19,6 +19,9 @@ use tokio::sync::OnceCell;
 
 /// F-1.9：HTTP 抓到的正文少于这么多字符时，`engine: auto` 升级到浏览器渲染。
 pub const AUTO_RENDER_MIN_CHARS: usize = 1200;
+/// 浏览器渲染出的正文少于这么多字符时，换下一个内核再试（Lightpanda 的脚本支持不全，
+/// 单页应用可能渲染不出内容）。最后一个内核的结果照常返回。
+pub const RENDER_FALLBACK_MIN_CHARS: usize = 200;
 
 #[derive(Clone, Default)]
 pub struct ScraperConfig {
@@ -63,14 +66,15 @@ pub struct Scraper {
     store: Option<pagesift_store::Store>,
     llm: Option<pagesift_llm::ChatClient>,
     search: Option<Arc<dyn pagesift_search::SearchBackend>>,
-    browser_config: PoolConfig,
     /// 网络层放开了内网（`allowPrivateNetwork`）时，浏览器的子请求也一样放开。
     browser_private_network: bool,
-    /// 浏览器第一次需要时才启动；找不到浏览器时记住结果，不反复尝试。
-    browser: OnceCell<Option<Arc<BrowserPool>>>,
+    /// 按优先级排列的内核（见 [`pagesift_cdp::engine_chain`]）。每个池第一次需要时才创建；
+    /// 创建失败时记住结果，不反复尝试。
+    browsers: Vec<(PoolConfig, OnceCell<Option<Arc<BrowserPool>>>)>,
     /// 爬取里同时进行的抓取数，等于全局并发。排队的页面只占一个很小的等待 future，
     /// 拿到名额才创建完整的抓取状态机（十几 KB）：同时爬上千个站时，排队的页面不再各占一份。
     crawl_slots: tokio::sync::Semaphore,
+    learner: crate::learn::HostLearner,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -96,35 +100,51 @@ impl Scraper {
             store: config.store,
             llm,
             search: config.search,
-            browser_config: config.browser,
+            browsers: pagesift_cdp::engine_chain(&config.browser, browser_private_network)
+                .into_iter()
+                .map(|c| (c, OnceCell::new()))
+                .collect(),
             browser_private_network,
-            browser: OnceCell::new(),
+            learner: crate::learn::HostLearner::default(),
         })
     }
 
-    async fn browser(&self) -> Option<Arc<BrowserPool>> {
-        self.browser
-            .get_or_init(|| async {
-                let guard: Arc<dyn RequestGuard> = if self.browser_private_network {
-                    Arc::new(SchemeGuard)
-                } else {
-                    Arc::new(PrivateNetworkGuard)
-                };
-                match BrowserPool::new(self.browser_config.clone(), guard).await {
-                    Ok(pool) => Some(Arc::new(pool)),
-                    Err(e) => {
-                        tracing::warn!("browser rendering unavailable: {e}");
-                        None
-                    }
+    /// 第 `i` 个内核的池；不存在或创建失败时返回 `None`。
+    async fn browser(&self, i: usize) -> Option<Arc<BrowserPool>> {
+        let (cfg, cell) = self.browsers.get(i)?;
+        cell.get_or_init(|| async {
+            let guard: Arc<dyn RequestGuard> = if self.browser_private_network {
+                Arc::new(SchemeGuard)
+            } else {
+                Arc::new(PrivateNetworkGuard)
+            };
+            match BrowserPool::new(cfg.clone(), guard).await {
+                Ok(pool) => Some(Arc::new(pool)),
+                Err(e) => {
+                    let engine = cfg.engine.map_or("browser", |k| k.name());
+                    tracing::warn!("{engine} rendering unavailable: {e}");
+                    None
                 }
-            })
-            .await
-            .clone()
+            }
+        })
+        .await
+        .clone()
+    }
+
+    async fn has_browser(&self) -> bool {
+        for i in 0..self.browsers.len() {
+            if self.browser(i).await.is_some() {
+                return true;
+            }
+        }
+        false
     }
 
     pub async fn shutdown(&self) {
-        if let Some(Some(pool)) = self.browser.get() {
-            pool.shutdown().await;
+        for (_, cell) in &self.browsers {
+            if let Some(Some(pool)) = cell.get() {
+                pool.shutdown().await;
+            }
         }
     }
 
@@ -305,7 +325,17 @@ impl Scraper {
 
         if choice == EngineChoice::Browser {
             return self
-                .render(url, opts, mode, started, timings, warnings)
+                .render(
+                    url,
+                    opts,
+                    mode,
+                    Progress {
+                        started,
+                        timings,
+                        warnings,
+                    },
+                    None,
+                )
                 .await;
         }
 
@@ -384,13 +414,29 @@ impl Scraper {
         // 拦截页如实报告，不升级到浏览器：用真浏览器去过挑战页就是绕过
         check_barrier(&doc)?;
 
-        if choice == EngineChoice::Auto && doc.markdown.chars().count() < AUTO_RENDER_MIN_CHARS {
-            if self.browser().await.is_some() {
+        let http_chars = doc.markdown.chars().count();
+        if choice == EngineChoice::Auto && http_chars < AUTO_RENDER_MIN_CHARS {
+            let host = resp.final_url.host_str().unwrap_or_default();
+            if self.learner.skip_render(host) {
+                // 这个站最近几次渲染都没多出正文：直接用 HTTP 结果
+                warnings.push("render_skipped_learned".into());
+            } else if self.has_browser().await {
                 return self
-                    .render(url, opts, mode, started, timings, warnings)
+                    .render(
+                        url,
+                        opts,
+                        mode,
+                        Progress {
+                            started,
+                            timings,
+                            warnings,
+                        },
+                        Some(http_chars),
+                    )
                     .await;
+            } else {
+                warnings.push("render_unavailable".into());
             }
-            warnings.push("render_unavailable".into());
         }
 
         fill_metadata(&mut meta, &doc.metadata);
@@ -410,15 +456,20 @@ impl Scraper {
         url: &str,
         opts: &ScrapeOptions,
         mode: RobotsMode,
-        started: Instant,
-        mut timings: BTreeMap<String, f64>,
-        warnings: Vec<String>,
+        progress: Progress,
+        // `engine: auto` 从 HTTP 升级过来时，HTTP 正文的字符数（用来学这个站值不值得渲染）
+        http_chars: Option<usize>,
     ) -> Result<Document, ApiError> {
-        let Some(pool) = self.browser().await else {
+        let Progress {
+            started,
+            mut timings,
+            warnings,
+        } = progress;
+        if !self.has_browser().await {
             return Err(ApiError::unsupported(
-                "browser rendering is unavailable: no Chrome/Chromium found (run `pagesift doctor`)",
+                "browser rendering is unavailable: no browser engine found (run `pagesift doctor`)",
             ));
-        };
+        }
         let target = Url::parse(url).map_err(|e| ApiError::invalid(e.to_string()))?;
         let host = target.host_str().unwrap_or_default().to_string();
         let crawl_delay = match mode {
@@ -448,10 +499,88 @@ impl Scraper {
             },
             ..RenderOptions::default()
         };
-        let page = pool.render(url, &ropts).await.map_err(|e| {
-            ApiError::new(ErrorCode::UpstreamError, format!("rendering failed: {e}"))
-        })?;
-        let t = &page.timings;
+
+        // 按优先级逐个内核尝试：渲染失败、页面有 iframe 而内核不渲染 iframe、正文太少时换下一个。
+        // 后面的内核都不可用或失败时，用前面拿到的结果。
+        let mut best: Option<Rendered> = None;
+        let mut last_err = None;
+        let from = self
+            .learner
+            .start_engine(&host)
+            .min(self.browsers.len().saturating_sub(1));
+        for i in from..self.browsers.len() {
+            let Some(pool) = self.browser(i).await else {
+                continue;
+            };
+            let engine = pool.engine();
+            let page = match pool.render(url, &ropts).await {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::debug!(engine = engine.name(), url, "render failed: {e}");
+                    last_err = Some(e);
+                    continue;
+                }
+            };
+            let final_url = Url::parse(&page.final_url).unwrap_or_else(|_| target.clone());
+            let iframe = (!engine.renders_iframes() && page.iframes_inlined == 0)
+                .then(|| content_iframe(&page.html, &final_url))
+                .flatten();
+            let missing_iframes = iframe.is_some();
+            let t = Instant::now();
+            let RenderedPage {
+                html,
+                status,
+                timings: page_timings,
+                ..
+            } = page;
+            let (doc, html) = process_html(html, &final_url, status, opts).await?;
+            let extract = t.elapsed();
+            // 错误页正文少是正常的，换内核也一样
+            let thin = status.is_none_or(|s| s < 400)
+                && doc.markdown.chars().count() < RENDER_FALLBACK_MIN_CHARS;
+            let r = Rendered {
+                index: i,
+                engine: engine.name(),
+                final_url,
+                status,
+                timings: page_timings,
+                extract,
+                doc,
+                html,
+            };
+            if !(missing_iframes || thin) {
+                best = Some(r);
+                break;
+            }
+            tracing::debug!(
+                engine = engine.name(),
+                url,
+                ?iframe,
+                thin,
+                "trying the next browser engine"
+            );
+            // 有 iframe 的结果比只是正文少的结果更完整，留先拿到的
+            if best.is_none() {
+                best = Some(r);
+            }
+        }
+        let Some(r) = best else {
+            let e = last_err.map_or_else(
+                || "no browser engine available".to_string(),
+                |e| e.to_string(),
+            );
+            return Err(ApiError::new(
+                ErrorCode::UpstreamError,
+                format!("rendering failed: {e}"),
+            ));
+        };
+        self.learner.record_engine(&host, from, r.index);
+        if let Some(n) = http_chars {
+            self.learner
+                .record_render(&host, n, r.doc.markdown.chars().count());
+        }
+
+        let t = &r.timings;
         for (k, v) in [
             ("render", t.total),
             ("render_acquire", t.acquire),
@@ -463,26 +592,24 @@ impl Scraper {
         ] {
             timings.insert(k.into(), ms(v));
         }
-        let final_url = Url::parse(&page.final_url).unwrap_or(target);
-        let t = Instant::now();
-        let (doc, html) = process_html(page.html, &final_url, page.status, opts).await?;
-        timings.insert("extract".into(), ms(t.elapsed()));
-        check_barrier(&doc)?;
+        timings.insert("extract".into(), ms(r.extract));
+        check_barrier(&r.doc)?;
         let mut meta = Metadata {
-            url: Some(final_url.to_string()),
+            url: Some(r.final_url.to_string()),
             source_url: Some(url.to_string()),
-            status_code: page.status.unwrap_or(200),
+            status_code: r.status.unwrap_or(200),
             proxy_used: "basic".into(),
             ..Default::default()
         };
-        fill_metadata(&mut meta, &doc.metadata);
+        fill_metadata(&mut meta, &r.doc.metadata);
         let mut ext = PagesiftMeta {
             engine: Some("browser".into()),
+            browser_engine: Some(r.engine.into()),
             ..Default::default()
         };
-        fill_fingerprints(&mut ext, &doc);
+        fill_fingerprints(&mut ext, &r.doc);
         Ok(finish(
-            document(doc, opts, html),
+            document(r.doc, opts, r.html),
             meta,
             ext,
             timings,
@@ -720,6 +847,92 @@ fn fetch_request(url: &str, opts: &ScrapeOptions) -> Result<FetchRequest, ApiErr
 
 /// 正文提取是纯 CPU 计算，放到阻塞线程池里，不占异步运行时的线程。
 /// HTML 移交给阻塞线程、处理完原样交还，省掉一次整页复制。
+/// 到渲染为止已经记下的开始时间、各阶段耗时和警告。
+struct Progress {
+    started: Instant,
+    timings: BTreeMap<String, f64>,
+    warnings: Vec<String>,
+}
+
+/// 一个内核的渲染结果，已经提取好正文。
+struct Rendered {
+    /// 在内核链里的位置。
+    index: usize,
+    engine: &'static str,
+    final_url: Url,
+    status: Option<u16>,
+    timings: pagesift_cdp::Timings,
+    extract: Duration,
+    doc: pagesift_content::Document,
+    html: String,
+}
+
+/// HTML 里有没有可能承载正文的 iframe：同源的 `src` 或内联的 `srcdoc`。跨源的 iframe 多是
+/// 统计、广告、视频和地图嵌入，正文提取本来就不要；空的和 `about:blank` 也不算。
+fn content_iframe(html: &str, base: &Url) -> Option<String> {
+    if !html
+        .as_bytes()
+        .windows(7)
+        .any(|w| w[0] == b'<' && w[1..].eq_ignore_ascii_case(b"iframe"))
+    {
+        return None;
+    }
+    let doc = pagesift_html::Html::parse(html);
+    doc.root().descendants().find_map(|n| {
+        let el = n
+            .as_element()
+            .filter(|e| e.tag() == pagesift_html::Tag::Iframe && !hidden_frame(e))?;
+        if el.attr("srcdoc").is_some_and(|d| !d.trim().is_empty()) {
+            return Some("srcdoc".into());
+        }
+        el.attr("src")
+            .map(str::trim)
+            .filter(|s| !s.is_empty() && !s.starts_with("about:"))
+            .and_then(|s| base.join(s).ok())
+            .filter(|u| {
+                u.host_str() == base.host_str()
+                    && u.port_or_known_default() == base.port_or_known_default()
+            })
+            .map(String::from)
+    })
+}
+
+/// 看不见的 iframe：统计像素、沙箱脚本、预取用的空框架，不会有正文。
+fn hidden_frame(el: &pagesift_html::Element<'_>) -> bool {
+    if el.attr("hidden").is_some()
+        || el
+            .attr("aria-hidden")
+            .is_some_and(|v| v.eq_ignore_ascii_case("true"))
+        || el
+            .attr("role")
+            .is_some_and(|v| v.eq_ignore_ascii_case("presentation"))
+    {
+        return true;
+    }
+    let tiny = |name| {
+        el.attr(name).is_some_and(|v| {
+            v.trim()
+                .trim_end_matches("px")
+                .parse::<f32>()
+                .is_ok_and(|n| n <= 2.0)
+        })
+    };
+    if tiny("width") || tiny("height") {
+        return true;
+    }
+    el.attr("style").is_some_and(|s| {
+        let s: String = s
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect::<String>()
+            .to_ascii_lowercase();
+        s.contains("display:none")
+            || s.contains("visibility:hidden")
+            || s.contains("width:0")
+            || s.contains("height:0")
+    })
+}
+
 async fn process_html(
     html: String,
     base: &Url,

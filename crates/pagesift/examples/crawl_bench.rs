@@ -99,6 +99,12 @@ static ALLOC: track::Track = track::Track;
 
 #[tokio::main]
 async fn main() {
+    if std::env::var_os("PAGESIFT_LOG").is_some() {
+        tracing_subscriber::fmt()
+            .with_env_filter(tracing_subscriber::EnvFilter::from_env("PAGESIFT_LOG"))
+            .with_writer(std::io::stderr)
+            .init();
+    }
     track::ON.store(std::env::var_os("HEAP_TRACK").is_some(), Ordering::Relaxed);
     if std::env::var_os("NO_TUNE").is_none() {
         pagesift_sys::tune_allocator();
@@ -138,6 +144,9 @@ async fn main() {
     }
     if let Some(n) = env_num("BROWSER_TABS") {
         cfg.browser.max_tabs_per_browser = n;
+    }
+    if std::env::var("BROWSER_LOOPBACK").is_ok_and(|v| v == "1") {
+        cfg.browser.loopback_only = true;
     }
     if std::env::var("BROWSER_ENGINE_GUARD").is_ok_and(|v| v == "1") {
         cfg.browser.engine_network_guard = true;
