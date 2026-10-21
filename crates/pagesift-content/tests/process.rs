@@ -286,3 +286,18 @@ fn visibility_hidden_blocks_waiting_for_scripts_are_kept() {
     assert!(m.contains("Managed cloud services"), "{m}");
     assert!(!m.contains("Copied!"), "{m}");
 }
+
+#[test]
+fn link_lists_inside_main_are_content() {
+    // <main> 里的链接列表（相册、分类目录）是正文；<main> 外面的同样结构还是当菜单
+    let items: String = (0..6)
+        .map(|i| format!("<li><a href=\"/album/{i}\">Album {i}</a></li>"))
+        .collect();
+    let html = format!(
+        "<body><div class=\"top\"><ul>{items}</ul></div><main><h1>Gallery</h1><ul>{items}</ul>\
+         <p>Browse the albums above to see photos from every trip we have taken so far.</p></main></body>"
+    );
+    let m = md(&html);
+    assert_eq!(m.matches("[Album 3]").count(), 1, "{m}");
+    assert!(m.contains("# Gallery"), "{m}");
+}

@@ -284,7 +284,8 @@ impl Skipper {
         let link_block = vis.links >= LINK_BLOCK_MIN_LINKS
             && vis.link_chars as f64 >= vis.chars as f64 * LINK_BLOCK_MIN_SHARE
             && (vis.link_chars as f64 / vis.links as f64) <= LINK_BLOCK_MAX_AVG_CHARS;
-        if link_block {
+        // <main> 里的链接列表多半是内容本身（目录页、相册、分类列表），不当菜单删
+        if link_block && !node.ancestors().any(|a| a.tag() == Some(Tag::Main)) {
             Some("link block")
         } else if tag == Tag::Header
             && !in_content_area(node)
