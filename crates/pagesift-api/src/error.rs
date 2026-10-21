@@ -27,6 +27,12 @@ pub enum ErrorCode {
     Unauthorized,
     NotFound,
     Internal,
+    /// 域名解析失败：可以稍后重试，不同于 `SSRF_BLOCKED`（永远不许抓）。
+    DnsFailure,
+    /// 连接失败、被重置、TLS 握手失败，或者浏览器导航时的网络错误。
+    NetworkError,
+    /// 在请求的时限内等不到空闲的浏览器。
+    Busy,
 }
 
 impl ErrorCode {
@@ -48,6 +54,9 @@ impl ErrorCode {
             ErrorCode::Unauthorized => "UNAUTHORIZED",
             ErrorCode::NotFound => "NOT_FOUND",
             ErrorCode::Internal => "INTERNAL_ERROR",
+            ErrorCode::DnsFailure => "DNS_FAILURE",
+            ErrorCode::NetworkError => "NETWORK_ERROR",
+            ErrorCode::Busy => "BUSY",
         }
     }
 
@@ -58,13 +67,15 @@ impl ErrorCode {
             | ErrorCode::RateLimitExceeded
             | ErrorCode::ConcurrencyLimitExceeded
             | ErrorCode::QuotaExceeded => StatusCode::TOO_MANY_REQUESTS,
-            ErrorCode::HostCooldown => StatusCode::SERVICE_UNAVAILABLE,
+            ErrorCode::HostCooldown | ErrorCode::Busy => StatusCode::SERVICE_UNAVAILABLE,
             ErrorCode::Timeout => StatusCode::REQUEST_TIMEOUT,
             ErrorCode::SsrfBlocked | ErrorCode::UnsupportedOption | ErrorCode::InvalidRequest => {
                 StatusCode::BAD_REQUEST
             }
             ErrorCode::TooLarge => StatusCode::PAYLOAD_TOO_LARGE,
-            ErrorCode::UpstreamError => StatusCode::BAD_GATEWAY,
+            ErrorCode::UpstreamError | ErrorCode::DnsFailure | ErrorCode::NetworkError => {
+                StatusCode::BAD_GATEWAY
+            }
             ErrorCode::Unauthorized => StatusCode::UNAUTHORIZED,
             ErrorCode::NotFound => StatusCode::NOT_FOUND,
             ErrorCode::Internal => StatusCode::INTERNAL_SERVER_ERROR,

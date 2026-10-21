@@ -17,6 +17,10 @@ pub enum ErrorCode {
     UpstreamError,
     UnsupportedOption,
     InvalidRequest,
+    /// 域名解析失败：可以稍后重试，不同于 SSRF 拒绝。
+    DnsFailure,
+    /// 连接失败、被重置、TLS 握手失败这类网络错误。
+    NetworkError,
 }
 
 impl ErrorCode {
@@ -32,6 +36,8 @@ impl ErrorCode {
             Self::UpstreamError => "UPSTREAM_ERROR",
             Self::UnsupportedOption => "UNSUPPORTED_OPTION",
             Self::InvalidRequest => "INVALID_REQUEST",
+            Self::DnsFailure => "DNS_FAILURE",
+            Self::NetworkError => "NETWORK_ERROR",
         }
     }
 
@@ -42,7 +48,7 @@ impl ErrorCode {
             Self::HostCooldown => 503,
             Self::Timeout => 408,
             Self::TooLarge => 413,
-            Self::UpstreamError => 502,
+            Self::UpstreamError | Self::DnsFailure | Self::NetworkError => 502,
             Self::SsrfBlocked | Self::UnsupportedOption | Self::InvalidRequest => 400,
         }
     }
@@ -75,6 +81,10 @@ pub enum Error {
     UnsupportedOption(String),
     #[error("invalid request: {0}")]
     InvalidRequest(String),
+    #[error("DNS lookup failed: {0}")]
+    Dns(String),
+    #[error("network error: {0}")]
+    Network(String),
 }
 
 impl Error {
@@ -89,6 +99,8 @@ impl Error {
             Self::Upstream(_) => ErrorCode::UpstreamError,
             Self::UnsupportedOption(_) => ErrorCode::UnsupportedOption,
             Self::InvalidRequest(_) => ErrorCode::InvalidRequest,
+            Self::Dns(_) => ErrorCode::DnsFailure,
+            Self::Network(_) => ErrorCode::NetworkError,
         }
     }
 
@@ -112,6 +124,8 @@ impl From<pagesift_net::Error> for Error {
         match e {
             N::Blocked(b) => Self::SsrfBlocked(b),
             N::Timeout(p) => Self::Timeout(p),
+            N::Dns(m) => Self::Dns(m),
+            N::Network(m) => Self::Network(m),
             N::InvalidUrl(_) | N::UserAgent(_) | N::Header(_) => {
                 Self::InvalidRequest(e.to_string())
             }
@@ -159,7 +173,8 @@ mod tests {
             (N::Timeout(TimeoutPhase::Total), ErrorCode::Timeout),
             (N::InvalidUrl("x".into()), ErrorCode::InvalidRequest),
             (N::TooManyRedirects(5), ErrorCode::UpstreamError),
-            (N::Network("reset".into()), ErrorCode::UpstreamError),
+            (N::Network("reset".into()), ErrorCode::NetworkError),
+            (N::Dns("nx".into()), ErrorCode::DnsFailure),
             (
                 N::RedirectRejected {
                     url: "u".into(),

@@ -60,7 +60,7 @@ Each property read copies that one field into JS; fields you never read are neve
 
 **Errors.** Single calls throw or reject with `PagesiftError` (`code`, `details`, `retryAfter`). The codes match the pagesift HTTP API:
 `ROBOTS_DISALLOWED`, `ACCESS_BARRIER`, `RATE_LIMITED`, `HOST_COOLDOWN`, `TIMEOUT`, `SSRF_BLOCKED`, `TOO_LARGE`,
-`UPSTREAM_ERROR`, `UNSUPPORTED_OPTION`, `INVALID_REQUEST`, `INTERNAL_ERROR`.
+`UPSTREAM_ERROR`, `NETWORK_ERROR`, `DNS_FAILURE`, `BUSY`, `UNSUPPORTED_OPTION`, `INVALID_REQUEST`, `INTERNAL_ERROR`.
 pagesift never tries to get around a block: an access barrier is reported with `details` (vendor, kind, confidence), not bypassed.
 
 **`Scraper` config.** `userAgent`, `allowPrivateNetwork` (off by default), `requestIntervalMs` (per host, default 1000),

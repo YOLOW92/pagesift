@@ -18,6 +18,9 @@ __all__ = [
     "SsrfBlocked",
     "TooLarge",
     "UpstreamError",
+    "NetworkError",
+    "DnsFailure",
+    "Busy",
     "UnsupportedOption",
     "InvalidRequest",
     "InternalError",
@@ -110,6 +113,24 @@ class UpstreamError(PagesiftError):
     code = "UPSTREAM_ERROR"
 
 
+class NetworkError(UpstreamError):
+    """连接失败、被重置、TLS 握手失败，或浏览器导航时的网络错误。是 ``UpstreamError`` 的子类。"""
+
+    code = "NETWORK_ERROR"
+
+
+class DnsFailure(UpstreamError):
+    """域名解析失败：可以稍后重试，和 ``SsrfBlocked``（永远不许抓）不同。是 ``UpstreamError`` 的子类。"""
+
+    code = "DNS_FAILURE"
+
+
+class Busy(PagesiftError):
+    """在请求的时限内等不到空闲的浏览器，稍后重试。"""
+
+    code = "BUSY"
+
+
 class UnsupportedOption(PagesiftError, ValueError):
     """请求了这个版本做不到的事（比如不支持的格式）。pagesift 不会悄悄忽略。"""
 
@@ -139,6 +160,9 @@ ERRORS: Dict[str, Type[PagesiftError]] = {
         SsrfBlocked,
         TooLarge,
         UpstreamError,
+        NetworkError,
+        DnsFailure,
+        Busy,
         UnsupportedOption,
         InvalidRequest,
         InternalError,

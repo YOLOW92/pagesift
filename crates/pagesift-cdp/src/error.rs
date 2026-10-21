@@ -40,6 +40,8 @@ pub enum Error {
         message: String,
     },
     PoolClosed,
+    /// 时限内等不到空闲的标签页（还没开始渲染）。
+    Busy,
     Io(std::io::Error),
 }
 
@@ -62,6 +64,7 @@ impl fmt::Display for Error {
             Error::ExecuteJavascriptDisabled => f.write_str("the executeJavascript action is disabled in the configuration"),
             Error::Action { index, message } => write!(f, "action #{index} failed: {message}"),
             Error::PoolClosed => f.write_str("browser pool is shut down"),
+            Error::Busy => f.write_str("no free browser tab within the request deadline"),
             Error::Io(e) => write!(f, "I/O error: {e}"),
         }
     }

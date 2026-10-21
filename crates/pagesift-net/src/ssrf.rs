@@ -33,6 +33,8 @@ pub struct SsrfPolicy {
     pub allow_private_network: bool,
     /// 单独放行的地址，例如内网里的某台服务；其余内网地址仍然拒绝。
     pub allow_ips: Vec<IpAddr>,
+    /// 单独放行的主机名（不区分大小写，完全匹配），解析到内网地址也放行，例如内部服务。
+    pub allow_hosts: Vec<String>,
 }
 
 impl SsrfPolicy {
@@ -61,13 +63,22 @@ impl SsrfPolicy {
             Some(Host::Ipv4(ip)) => self.check_ip(IpAddr::V4(ip)),
             Some(Host::Ipv6(ip)) => self.check_ip(IpAddr::V6(ip)),
             Some(Host::Domain(name)) => {
-                if self.allow_private_network || !is_internal_name(name) {
+                if self.allow_private_network || self.host_allowed(name) || !is_internal_name(name)
+                {
                     Ok(())
                 } else {
                     Err(Blocked::Hostname(name.to_string()))
                 }
             }
         }
+    }
+
+    /// 主机名在 `allow_hosts` 里。
+    pub fn host_allowed(&self, host: &str) -> bool {
+        let host = host.trim_end_matches('.');
+        self.allow_hosts
+            .iter()
+            .any(|h| h.eq_ignore_ascii_case(host))
     }
 
     pub fn check_ip(&self, ip: IpAddr) -> Result<(), Blocked> {
@@ -290,5 +301,23 @@ mod tests {
         };
         assert!(one.check_url("http://127.0.0.1:9/").is_ok());
         assert!(one.check_url("http://127.0.0.2/").is_err());
+    }
+
+    #[test]
+    fn allow_hosts_opens_only_the_named_hosts() {
+        let p = SsrfPolicy {
+            allow_hosts: vec!["LocalHost".into()],
+            ..Default::default()
+        };
+        assert!(p.check_url("http://localhost:8080/x").is_ok());
+        assert!(p.check_url("http://localhost./x").is_ok());
+        assert!(p.host_allowed("localhost"));
+        assert!(!p.host_allowed("other.localhost"));
+        assert!(p.check_url("http://127.0.0.1/").is_err());
+        assert!(
+            SsrfPolicy::default()
+                .check_url("http://localhost/")
+                .is_err()
+        );
     }
 }

@@ -27,6 +27,7 @@ use url::Url;
 
 use crate::dns::{GuardedResolver, ResolveError};
 use crate::fetch::{Error, Result, TimeoutPhase};
+use crate::ssrf::Blocked;
 
 /// HTTP/1 每次读取的固定大小，也就是每条连接读缓冲的常驻大小。
 const READ_BUF: usize = 16 * 1024;
@@ -219,9 +220,12 @@ impl Client {
             Err(_) => {
                 match timeout_at(deadline, self.0.resolver.resolve_checked(&key.host)).await {
                     Err(_) => return Err(Error::Timeout(TimeoutPhase::Connect)),
+                    Ok(Err(ResolveError::Blocked(Blocked::NoAddress(h)))) => {
+                        return Err(Error::Dns(format!("no address for `{h}`")));
+                    }
                     Ok(Err(ResolveError::Blocked(b))) => return Err(Error::Blocked(b)),
                     Ok(Err(ResolveError::Io(e))) => {
-                        return Err(Error::Network(format!("dns error: {e}")));
+                        return Err(Error::Dns(format!("{}: {e}", key.host)));
                     }
                     Ok(Ok(ips)) => ips,
                 }

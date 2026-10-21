@@ -341,10 +341,18 @@ impl BrowserPool {
         })
         .await;
         let close_start = Instant::now();
+        let acquired = lease.is_some();
         if let Some(l) = lease {
             l.finish().await;
         }
-        let mut page = r.map_err(|_| Error::Timeout)??;
+        // 超时时还没拿到标签页：是池子太忙，不是页面慢
+        let mut page = r.map_err(|_| {
+            if acquired {
+                Error::Timeout
+            } else {
+                Error::Busy
+            }
+        })??;
         page.timings.close = close_start.elapsed();
         page.timings.total = start.elapsed();
         Ok(page)

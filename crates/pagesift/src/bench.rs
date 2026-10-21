@@ -81,8 +81,6 @@ struct ExternalOutput {
     ms: Option<f64>,
 }
 
-use pagesift::AUTO_RENDER_MIN_CHARS;
-
 /// 严格口径的规范化，短语和输出用同一套：`&nbsp;` 当空格，去掉 Markdown 的格式符号
 /// （强调、行内代码、表格竖线），空白折叠成一个空格。数据集的正文片段保留了网页源码里的
 /// 连续空格和制表符，而任何 Markdown 输出都会折叠空白、加格式符号；不规范化的话，
@@ -268,11 +266,7 @@ pub fn run(args: Args) -> Result<()> {
                 ..Default::default()
             };
             let (html, opts) = match rendered.get(&row.id) {
-                Some(r)
-                    if r.error.is_none()
-                        && process(&html, &opts).markdown.chars().count()
-                            < AUTO_RENDER_MIN_CHARS =>
-                {
+                Some(r) if r.error.is_none() && pagesift::needs_render(&process(&html, &opts)) => {
                     match std::fs::read_to_string(
                         args.dir.join(format!("snapshots/{}.rendered.html", row.id)),
                     ) {
@@ -479,7 +473,7 @@ fn throughput(workload: &[(String, Options)], threads: usize) -> f64 {
     start.elapsed().as_secs_f64() * 1000.0
 }
 
-/// 为 `bench --auto` 准备渲染快照：HTTP 快照上正文少于 [`AUTO_RENDER_MIN_CHARS`] 的页面，
+/// 为 `bench --auto` 准备渲染快照：HTTP 快照上需要渲染的页面（见 `pagesift::needs_render`），
 /// 用浏览器重新渲染一次。只访问已经成功抓过（robots 允许）的页面；可以中断后续跑。
 pub fn render_snapshots(dir: &Path, limit: Option<usize>, concurrency: usize) -> Result<()> {
     use std::sync::Arc;
@@ -513,8 +507,7 @@ pub fn render_snapshots(dir: &Path, limit: Option<usize>, concurrency: usize) ->
             continue;
         }
         let html = decode(&bytes, meta.content_type.as_deref());
-        let md = process(&html, &Options::default()).markdown;
-        if md.chars().count() < AUTO_RENDER_MIN_CHARS {
+        if pagesift::needs_render(&process(&html, &Options::default())) {
             todo.push((row.id.clone(), row.url.clone()));
         }
     }

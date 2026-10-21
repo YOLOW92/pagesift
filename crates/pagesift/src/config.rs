@@ -30,6 +30,9 @@ pub struct Config {
     pub cache: Cache,
     #[serde(default)]
     pub credentials: Vec<Credential>,
+    /// 命名出口：请求用 `egress` 指定走哪个。
+    #[serde(default)]
+    pub egress: Vec<Egress>,
     #[serde(default)]
     pub log: Log,
     pub llm: Option<Llm>,
@@ -139,6 +142,17 @@ pub struct Fetch {
     pub proxy: Option<String>,
     #[serde(default)]
     pub allow_private_network: bool,
+    /// 单独放行的主机名（完全匹配），解析到内网地址也可以抓，例如内部服务。
+    #[serde(default)]
+    pub allow_hosts: Vec<String>,
+}
+
+/// 一个命名出口：走指定的代理（`http://`、`https://` 或 `socks5://`）。
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Egress {
+    pub name: String,
+    pub proxy: String,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -334,6 +348,13 @@ impl Config {
         }
         c.fetcher.proxy = f.proxy.clone();
         c.fetcher.ssrf.allow_private_network = f.allow_private_network;
+        c.fetcher.ssrf.allow_hosts = f.allow_hosts.clone();
+        for e in &self.egress {
+            if e.name.is_empty() || c.egress.iter().any(|(n, _)| *n == e.name) {
+                bail!("egress names must be unique and non-empty: {:?}", e.name);
+            }
+            c.egress.push((e.name.clone(), e.proxy.clone()));
+        }
         for cred in &self.credentials {
             let mut hc = HostCredentials::new(cred.host.clone());
             for (k, v) in &cred.headers {
@@ -513,6 +534,11 @@ mod tests {
             [fetch]
             user_agent = "acme-bot/1.0 (+https://acme.example/bot)"
             timeout_secs = 20
+            allow_hosts = ["docs.internal"]
+
+            [[egress]]
+            name = "tunnel-a"
+            proxy = "socks5://127.0.0.1:1081"
 
             [policy]
             interval_ms = 500
@@ -556,6 +582,19 @@ mod tests {
         assert_eq!(sc.policy.rate.default_interval, Duration::from_millis(500));
         assert!(sc.policy.allow_crawl_ignore_robots);
         assert_eq!(sc.llm.as_ref().unwrap().model, "qwen3");
+        assert_eq!(sc.fetcher.ssrf.allow_hosts, ["docs.internal"]);
+        assert_eq!(
+            sc.egress,
+            [(
+                "tunnel-a".to_string(),
+                "socks5://127.0.0.1:1081".to_string()
+            )]
+        );
+        let dup: Config = toml::from_str(
+            "[[egress]]\nname = \"a\"\nproxy = \"socks5://h:1\"\n[[egress]]\nname = \"a\"\nproxy = \"socks5://h:2\"",
+        )
+        .unwrap();
+        assert!(dup.scraper(false).is_err(), "duplicate egress names");
 
         let bad: Config =
             toml::from_str("[fetch]\nuser_agent = \"Mozilla/5.0 (Windows NT 10.0)\"").unwrap();

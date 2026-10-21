@@ -98,6 +98,10 @@ pub struct ScrapeOptions {
     /// `basic`、`auto` 放行，其余取值返回 UNSUPPORTED_OPTION。
     #[serde(default)]
     pub proxy: Option<String>,
+    /// pagesift 扩展：走服务端配置的哪个命名出口（`[[egress]]`）。只用于 HTTP 抓取；
+    /// 指定了出口时不升级到浏览器（浏览器不走这个出口，出口地址会不一致）。
+    #[serde(default)]
+    pub egress: Option<String>,
     /// Firecrawl 默认跳过 TLS 校验；pagesift 始终校验证书，这个字段只接受、不生效。
     #[serde(default)]
     pub skip_tls_verification: Option<bool>,
@@ -317,6 +321,9 @@ pub struct Metadata {
     pub favicon: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub published_time: Option<String>,
+    /// pagesift 扩展：作者，依次取 JSON-LD 和 meta。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub author: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub modified_time: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
