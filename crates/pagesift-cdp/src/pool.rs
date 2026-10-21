@@ -166,18 +166,49 @@ fn cpu_times() -> Option<(u64, u64)> {
     Some((idle, v.iter().sum()))
 }
 
-/// Linux 的 MemAvailable（MB）；读不到时返回 `None`，不做限制。
+/// 系统可用内存（MB）；读不到时返回 `None`，不做限制。
+/// Linux 读 MemAvailable，macOS 用 `vm_stat` 的 free + inactive + speculative 页。
 fn mem_available_mb() -> Option<u64> {
-    let s = std::fs::read_to_string("/proc/meminfo").ok()?;
-    let kb: u64 = s
+    #[cfg(target_os = "macos")]
+    {
+        let out = std::process::Command::new("vm_stat").output().ok()?;
+        parse_vm_stat(&String::from_utf8_lossy(&out.stdout))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let s = std::fs::read_to_string("/proc/meminfo").ok()?;
+        let kb: u64 = s
+            .lines()
+            .find_map(|l| l.strip_prefix("MemAvailable:"))?
+            .trim()
+            .trim_end_matches("kB")
+            .trim()
+            .parse()
+            .ok()?;
+        Some(kb / 1024)
+    }
+}
+
+/// 解析 macOS `vm_stat` 输出，返回可用内存（MB）。
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn parse_vm_stat(s: &str) -> Option<u64> {
+    let page: u64 = s
         .lines()
-        .find_map(|l| l.strip_prefix("MemAvailable:"))?
-        .trim()
-        .trim_end_matches("kB")
-        .trim()
+        .next()?
+        .split("page size of")
+        .nth(1)?
+        .split_whitespace()
+        .next()?
         .parse()
         .ok()?;
-    Some(kb / 1024)
+    let pages = |key: &str| -> u64 {
+        s.lines()
+            .find_map(|l| l.strip_prefix(key))
+            .and_then(|v| v.trim().trim_end_matches('.').parse().ok())
+            .unwrap_or(0)
+    };
+    let free = pages("Pages free:") + pages("Pages inactive:") + pages("Pages speculative:");
+    Some(free * page / (1024 * 1024))
 }
 
 enum Source {
@@ -771,5 +802,14 @@ impl Drop for Lease {
                 pool.release(id).await;
             });
         }
+    }
+}
+
+#[cfg(test)]
+mod vm_stat_tests {
+    #[test]
+    fn parses_vm_stat() {
+        let s = "Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free:                               1000.\nPages inactive:                           2000.\nPages speculative:                        1000.\n";
+        assert_eq!(super::parse_vm_stat(s), Some(4000 * 16384 / 1048576));
     }
 }
