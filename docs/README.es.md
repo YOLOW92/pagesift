@@ -26,9 +26,9 @@ Está pensado para funcionar como servicio: memoria acotada, backpressure, persi
 
 | | |
 |---|---|
-| ⚡ **Rápido** | Extracción del contenido principal en **0.47 ms** por página (p50, un solo hilo): 16× más rápido que crw y 80× más rápido que Crawl4AI. Crawling HTTP sin límite de frecuencia a **3,500+ páginas/s** en una sola máquina. |
-| 🪶 **Ligero** | Rastrea 200 sitios × 100 páginas con **~300 MB**, donde Spider necesita 5.5 GB. Al sustituir Crawl4AI en un servicio en producción, el pico de memoria bajó de 1.4 GB a **225 MB**. |
-| 🎯 **Preciso** | La mejor puntuación de contenido principal en el conjunto de datos etiquetado de Firecrawl: **0.733** frente a 0.703 (crw) y 0.666 (Crawl4AI), con la mitad de contenido repetitivo filtrado. Fechas de publicación tan precisas como htmldate, la biblioteca especializada (F1 **0.948** en su propio conjunto anotado), en **0,06 ms** en lugar de 4 ms. |
+| ⚡ **Rápido** | Extracción del contenido principal en **0.85 ms** por página (p50, un solo hilo): 10× más rápido que crw y 59× más rápido que Crawl4AI. Crawling HTTP sin límite de frecuencia a **3,800+ páginas/s** en una sola máquina. |
+| 🪶 **Ligero** | Rastrea 200 sitios × 100 páginas con **~220 MB**, donde Spider necesita 4.1 GB. Al sustituir Crawl4AI en un servicio en producción, el pico de memoria bajó de 1.4 GB a **225 MB**. |
+| 🎯 **Preciso** | La mejor puntuación de contenido principal en el conjunto de datos etiquetado de Firecrawl: **0.716** frente a 0.711 (crw) y 0.670 (Crawl4AI), con la mitad de contenido repetitivo filtrado. Fechas de publicación tan precisas como htmldate, la biblioteca especializada (F1 **0.948** en su propio conjunto anotado), en **0,06 ms** en lugar de 4 ms. |
 | 🧠 **Renderizado inteligente** | Solo renderiza las páginas que lo necesitan, con el motor más ligero que funcione: Lightpanda → moli → Chrome. Aprende, sitio por sitio, cuándo un navegador no aporta nada. |
 | 🔌 **Reemplazo directo** | API de Firecrawl v2 (`/v2/scrape`, `/crawl`, `/map`, `/search`, `/extract`, `/batch/scrape`), así que los SDK de Firecrawl existentes funcionan sin cambios. Servidor MCP para agentes. |
 | 🛡️ **Seguro por defecto** | Protección contra SSRF en cada petición, redirección, subpetición del navegador y webhook; comprobaciones contra DNS rebinding; nunca desactiva el sandbox del navegador. |
@@ -105,9 +105,9 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 **Scraping y crawling**
 - Formatos: `markdown`, `html` (limpio), `rawHtml`, `links`, `images`; `summary` y `json` (extracción según un esquema) con cualquier LLM compatible con OpenAI; `changeTracking` (diferencias respecto a la visita anterior; requiere la caché).
 - Crawling con rutas incluidas/excluidas, profundidad y límites, sitemaps y robots.txt; el **crawling guiado por consulta** (`query`, `adaptive`) visita primero las páginas más relevantes y se detiene cuando las nuevas páginas dejan de aportar.
-- Markdown fiel: tablas, listas anidadas, bloques de código con su lenguaje, saltos de línea y fórmulas (KaTeX, MathJax, MathML y las fórmulas de Wikipedia pasan a TeX `$…$`); los caracteres de Markdown del texto se escapan solo cuando se interpretarían como formato. Obtiene 1.000 en una prueba aleatoria de ida y vuelta en la que el siguiente mejor conversor obtiene 0.936.
-- **Crawling de sitios reales sin desperdiciar el límite:** elimina parámetros de seguimiento e IDs de sesión, omite binarios y rutas infinitas, aprende qué URLs son alias de la misma página, deja para el final las trampas de calendarios y paginación, reintenta más tarde los fallos temporales y se frena cuando un sitio responde 429. En una web desordenada simulada encuentra el 74% de las páginas de contenido dentro del límite, frente al 53% de la siguiente mejor herramienta (ver benchmarks).
-- `queryFilter` conserva solo lo relevante para una consulta: la página se divide en unidades de ~100 tokens dentro de cada sección, se puntúan con BM25 junto con su ruta de encabezados y se conservan las que alcanzan al menos la mitad de la mejor puntuación, en el orden de la página y con sus encabezados. En un benchmark de RAG etiquetado conserva el 87% del texto de la respuesta en unas 600 palabras, mientras que el filtro BM25 de Crawl4AI conserva el 67% en 13.500 palabras y es 70× más lento. Admite `maxTokens`, `topK` y un `threshold` absoluto.
+- Markdown fiel: tablas, listas anidadas, bloques de código con su lenguaje, saltos de línea y fórmulas (KaTeX, MathJax, MathML y las fórmulas de Wikipedia pasan a TeX `$…$`); los caracteres de Markdown del texto se escapan solo cuando se interpretarían como formato. Obtiene 1.000 en una prueba aleatoria de ida y vuelta en la que el siguiente mejor conversor obtiene 0.937.
+- **Crawling de sitios reales sin desperdiciar el límite:** elimina parámetros de seguimiento e IDs de sesión, omite binarios y rutas infinitas, aprende qué URLs son alias de la misma página, deja para el final las trampas de calendarios y paginación, reintenta más tarde los fallos temporales y se frena cuando un sitio responde 429. En una web desordenada simulada encuentra el 71% de las páginas de contenido dentro del límite, frente al 49% de la siguiente mejor herramienta (ver benchmarks).
+- `queryFilter` conserva solo lo relevante para una consulta: la página se divide en unidades de ~100 tokens dentro de cada sección, se puntúan con BM25 junto con su ruta de encabezados y se conservan las que alcanzan al menos la mitad de la mejor puntuación, en el orden de la página y con sus encabezados. En un benchmark de RAG etiquetado conserva el 93% del texto de la respuesta en unas 600 palabras, mientras que el filtro BM25 de Crawl4AI conserva el 67% en 13.500 palabras y es 73× más lento. Admite `maxTokens`, `topK` y un `threshold` absoluto.
 - `chunking` devuelve el Markdown en fragmentos listos para RAG, cada uno con su ruta de encabezados y su posición: `recursive` (con tamaño máximo, corta en el límite más significativo y mantiene los bloques de código y los encabezados con su contenido; un port a Rust de semchunk, con la misma calidad de recuperación y más de 3× más rápido), por encabezados, párrafos, frases y ventanas de tokens.
 - Extracción de texto de PDF; metadatos (título, descripción, idioma, autor, fecha de publicación, Open Graph). La fecha de publicación se busca como lo hace htmldate (etiquetas meta, JSON-LD, elementos de fecha, patrones de texto), con nombres de meses en unos veinte idiomas, y conserva la zona horaria de la propia página.
 - Peticiones condicionales (`ifNoneMatch`, `ifModifiedSince`), caché de contenido (`maxAge`) y hashes de contenido para detectar cambios.
@@ -129,14 +129,14 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 | Lenguaje | Rust | Python | TypeScript | Rust | Rust |
 | Binario único autoalojado | ✅ | ❌ | ❌ | ✅ | ✅ |
 | API compatible con Firecrawl | ✅ | ❌ | ✅ | ✅ | ❌ |
-| Puntuación de extracción de contenido principal ↑ | **0.733** | 0.666 | — | 0.703 | — |
-| Fidelidad del Markdown (ida y vuelta aleatoria) ↑ | **1.000** | 0.787 | — | — | — |
-| Filtro de consulta RAG: respuesta conservada / palabras devueltas | **87% / 600** | 67% / 13.500 | — | — | — |
-| Extracción p50 por página ↓ | **0.47 ms** | 38.6 ms | — | 7.38 ms | — |
-| Crawling HTTP, 200 × 100 páginas ↑ | **3,500+ p/s** | 15 p/s | — | 206 p/s | 2,000–2,700 p/s |
-| Memoria para ese crawling ↓ | **~300 MB** | — | — | 1.4 GB | 5.5 GB |
-| Crawling de sitios desordenados: páginas de contenido encontradas ↑ | **73.6%** | 52.9% | — | 36.7% | 47.0% |
-| Crawling de sitios desordenados: peticiones desperdiciadas ↓ | **12%** | 39% | — | 40% | 44% |
+| Puntuación de extracción de contenido principal ↑ | **0.716** | 0.670 | — | 0.711 | — |
+| Fidelidad del Markdown (ida y vuelta aleatoria) ↑ | **1.000** | 0.784 | — | — | — |
+| Filtro de consulta RAG: respuesta conservada / palabras devueltas | **93% / 600** | 67% / 13.500 | — | — | — |
+| Extracción p50 por página ↓ | **0.85 ms** | 50.2 ms | — | 8.93 ms | — |
+| Crawling HTTP, 200 × 100 páginas ↑ | **3,890 p/s** | 17 p/s | — | 48 p/s | 2,090 p/s |
+| Memoria para ese crawling ↓ | **218 MB** | 946 MB | — | 447 MB | 4.1 GB |
+| Crawling de sitios desordenados: páginas de contenido encontradas ↑ | **71.0%** | 49.1% | — | 35.4% | 34.7% |
+| Crawling de sitios desordenados: peticiones desperdiciadas ↓ | **13%** | 44% | — | 45% | 45% |
 | Motores JS ligeros (Lightpanda/moli) | ✅ ambos, fallback automático | ❌ | ❌ | Lightpanda | — |
 | Servidor MCP | ✅ | ✅ | ✅ | ✅ | — |
 | Paquetes nativos Python / Node | ✅ / ✅ | ✅ / ❌ | SDK HTTP | — | ✅ / ✅ |

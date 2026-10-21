@@ -1,0 +1,3 @@
+queryFilter: 1.03 ms/question (whole document each time)
+crawl4ai: 75.0 ms/question
+queryFilter: 0.90 ms/question (whole document each time)

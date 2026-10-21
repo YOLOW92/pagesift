@@ -1,0 +1,1 @@
+pdfplumber: 1269 files, 7 failed, 161.32 ms/file

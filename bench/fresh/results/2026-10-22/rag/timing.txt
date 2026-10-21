@@ -1,0 +1,13 @@
+pagesift-fixed: chunking took 15.51 ms in total
+pagesift-paragraphs: chunking took 7.32 ms in total
+pagesift-recursive: chunking took 24.32 ms in total
+pagesift-sentences: chunking took 12.66 ms in total
+pagesift-sliding: chunking took 22.32 ms in total
+chonkie-recursive: 1634 chunks, 43.6 ms
+chonkie-sentence: 1291 chunks, 169.6 ms
+chonkie-token: 1139 chunks, 71.8 ms
+crawl4ai-fixed: 961 chunks, 99.9 ms
+crawl4ai-regex: 2195 chunks, 8.4 ms
+crawl4ai-sliding: 1907 chunks, 184.4 ms
+langchain-recursive: 1634 chunks, 165.3 ms
+semchunk: 1664 chunks, 90.2 ms

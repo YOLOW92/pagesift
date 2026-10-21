@@ -1,0 +1,9 @@
+crawl4ai-fit.jsonl                       pages  3291  p50    52.39 ms  p95   219.60 ms  mean chars    10146  empty 0
+crawl4ai-raw.jsonl                       pages  3291  p50    52.39 ms  p95   219.60 ms  mean chars    25236  empty 0
+random-crw.jsonl                         pages  3291  p50    10.31 ms  p95    48.70 ms  mean chars    13373  empty 2
+random-defuddle.jsonl                    pages  3291  p50  1093.75 ms  p95  5150.61 ms  mean chars    26616  empty 2
+random-dom_smoothie.jsonl                pages  3291  p50     4.05 ms  p95    20.58 ms  mean chars     5980  empty 23
+random-markitdown.jsonl                  pages  3291  p50    57.51 ms  p95   211.87 ms  mean chars    22684  empty 1
+random-pagesift.jsonl                    pages  3291  p50     0.78 ms  p95     3.05 ms  mean chars    10960  empty 11
+random-readability.jsonl                 pages  3291  p50   186.01 ms  p95  1152.77 ms  mean chars     7001  empty 37
+random-trafilatura.jsonl                 pages  3291  p50    32.05 ms  p95   211.80 ms  mean chars     4382  empty 4

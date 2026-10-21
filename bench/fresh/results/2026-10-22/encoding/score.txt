@@ -1,0 +1,9 @@
+工具                          正确读出↑    乱码↓    失败或空↓    页数
+pagesift                       32      0        0    32
+trafilatura                    32      0        0    32
+markitdown                     32      0        0    32
+readability                    32      0        0    32
+defuddle                       32      0        0    32
+crw                            19     13        0    32
+dom_smoothie                   17     15        0    32
+crawl4ai                       19     13        0    32

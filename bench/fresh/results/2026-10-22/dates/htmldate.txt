@@ -1,0 +1,10 @@
+/home/yolow92/pagesift-fresh/bench/data/fresh/tools/py/lib/python3.14/site-packages/newspaper/parsers.py:19: UserWarning: nltk is not installed. Some NLP features will be unavailable. Install it with: pip install 'newspaper4k[nlp]'
+  from . import text as txt
+1000 pages (512 hold); URL given: False
+tool                   half   prec↑   rec↑   acc↑    F1↑  ms/page↓
+htmldate (fast)        all    0.924  0.929  0.863  0.926      3.08
+htmldate (fast)        tune   0.928  0.930  0.867  0.929      3.17
+htmldate (fast)        hold   0.921  0.928  0.859  0.924      2.99
+htmldate (extensive)   all    0.908  0.993  0.903  0.949      5.71
+htmldate (extensive)   tune   0.914  0.996  0.910  0.953      6.44
+htmldate (extensive)   hold   0.904  0.991  0.896  0.945      5.01

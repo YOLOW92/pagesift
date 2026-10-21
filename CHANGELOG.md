@@ -18,6 +18,9 @@ The first public release.
 - Metadata: title, description, language, author, published and modified time, Open Graph and similar tags.
 - PDF to Markdown: tables become Markdown tables (ruled grids with pdfplumber's lattice algorithm, booktabs-style rules, framed boxes and borderless tables found from text alignment, with wrapped cells merged); inline formulas become `$…$` LaTeX with sub- and superscripts, accents and symbol commands, using the built-in encodings of embedded Type1 and CFF fonts and TeX glyph names; headers and footers isolated in a page margin are dropped. On olmOCR-bench's born-digital subsets: 71.0 overall, 44% of formula tests (other tools 0%), 56% of table tests, at 3.4 ms per page (pymupdf4llm: 64.4, 320 ms).
 - Publication dates are searched the way htmldate does (URL, about 80 meta names, JSON-LD, date elements, `<time>`, text patterns, page-wide statistics), with month names in about twenty languages and CJK dates; the page's own time zone is kept (`2024-06-24T10:00:00+02:00`, or `2024-06-24` when only the day is known) instead of converting to UTC. On htmldate's annotated set: F1 0.948, the same as htmldate, at 0.06 ms per page.
+- `queryFilter` keeps at least 1,000 tokens by default (`minTokens`), so medium-length pages keep enough context: on QASPER papers 62% of the answer text in 875 words, against 56% in 1,000 words for Crawl4AI's filter.
+- Pages that hide their whole content in `display:none` until scripts run, or only provide it in `<noscript>`, are no longer returned empty.
+- Release benchmark run with fresh data, the latest competitors and recorded seeds: `bench/fresh/results-2026-10-22.md`.
 - Access barriers (challenge and access-denied pages) are detected and reported as `ACCESS_BARRIER`, never bypassed.
 
 ### Crawling

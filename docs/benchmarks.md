@@ -2,9 +2,9 @@
 
 Every number here comes from scripts in [`bench/`](../bench) and can be rerun. Each metric says which direction is better. Tools see exactly the same inputs; timing runs use one tool at a time on an otherwise idle machine.
 
-**Machine:** Intel Core i7-10700 (8 cores / 16 threads), 15 GB RAM, NVMe SSD, Ubuntu (Linux 7.0). **Date:** 2026-10-21. **pagesift:** 0.12.0.
+**Machine:** Intel Core i7-10700 (8 cores / 16 threads), 15 GB RAM, NVMe SSD, Ubuntu (Linux 7.0). **Date:** 2026-10-21 (development runs), 2026-10-22 (release run). **pagesift:** 0.12.0.
 
-> Status: these are the measurements made during development. A full rerun of every section with the release build is planned before the release and will replace these tables.
+> **Release run (2026-10-22):** every domain was rerun from a fresh clone with the latest competitors, new random samples and recorded seeds. The current numbers are in [`bench/fresh/results-2026-10-22.md`](../bench/fresh/results-2026-10-22.md); where they differ from the development-time tables below, the release run is the reference. Sections 4 (RAG) and 5 (PDF) below already use release-run numbers.
 
 ## 1. Main-content extraction: quality and speed
 
@@ -81,7 +81,7 @@ On real pages the change is neutral for main-content scores (Firecrawl set 0.696
 
 | Tool | Answer recall ↑ | Words returned ↓ | Precision ↑ | ms per question ↓ |
 |---|---|---|---|---|
-| **pagesift 0.12 `queryFilter`** | 0.874 | **622** | **0.137** | **10.6** |
+| **pagesift 0.12 `queryFilter`** | **0.929** | **1,157** | **0.038** | **10.6** |
 | Crawl4AI 0.9.5 `BM25ContentFilter` | 0.673 | 13,507 | 0.009 | 775 |
 | pagesift before (paragraphs, absolute threshold 1.0) | **0.984** | 27,513 | 0.007 | — |
 

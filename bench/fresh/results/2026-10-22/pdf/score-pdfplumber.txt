@@ -1,0 +1,22 @@
+arxiv_math: pdfplumber           : Average Score: 50.0% ± 0.0% (average of per-JSONL scores)
+arxiv_math:     baseline: 100.0% average pass rate over 522 tests
+arxiv_math:     math    : 0.0% average pass rate over 2927 tests
+arxiv_math:         arxiv_math.jsonl              : 0.0% (0/2927 tests)
+arxiv_math:         baseline                      : 100.0% (522/522 tests)
+headers_footers: pdfplumber           : Average Score: 68.8% ± 2.1% (average of per-JSONL scores)
+headers_footers:     absent  : 41.8% average pass rate over 753 tests
+headers_footers:     baseline: 95.1% average pass rate over 266 tests
+headers_footers:         baseline                      : 95.4% (247/259 tests)
+long_tiny_text: pdfplumber           : Average Score: 35.3% ± 6.3% (average of per-JSONL scores)
+long_tiny_text:     baseline: 62.9% average pass rate over 62 tests
+long_tiny_text:     present : 7.7% average pass rate over 442 tests
+long_tiny_text:         baseline                      : 62.9% (39/62 tests)
+multi_column: pdfplumber           : Average Score: 51.1% ± 1.9% (average of per-JSONL scores)
+multi_column:     baseline: 92.2% average pass rate over 231 tests
+multi_column:     order   : 10.0% average pass rate over 884 tests
+multi_column:         baseline                      : 92.2% (213/231 tests)
+table_tests: pdfplumber           : Average Score: 46.8% ± 1.7% (average of per-JSONL scores)
+table_tests:     baseline: 93.1% average pass rate over 188 tests
+table_tests:     table   : 0.0% average pass rate over 1020 tests
+table_tests:         baseline                      : 93.5% (174/186 tests)
+table_tests:         table_tests.jsonl             : 0.1% (1/1022 tests)

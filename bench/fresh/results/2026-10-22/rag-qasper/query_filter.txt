@@ -1,0 +1,69 @@
+== queryFilter (all)
+1279 questions (all)
+method                   R@100   P@100   R@250   P@250   R@500   P@500  R(kept)   words  P(kept)
+crawl4ai-default                                                          0.557    1000    0.091
+pagesift-default                                                          0.618     875    0.098
+pagesift-old-default                                                      0.651    1157    0.090
+pagesift-para            0.126   0.160   0.249   0.144   0.429   0.124
+pagesift-rec100          0.105   0.142   0.260   0.141   0.422   0.118
+pagesift-rec100ctx       0.086   0.138   0.212   0.120   0.398   0.109
+pagesift-rec200          0.109   0.130   0.179   0.125   0.357   0.108
+pagesift-rec50           0.118   0.145   0.263   0.135   0.387   0.115
+rec100-abs1.0-default                                                     0.601     977    0.095
+rec100-floor1000-default                                                    0.619     882    0.096
+rec100-floor1300-default                                                    0.656    1041    0.091
+rec100-floor300-default                                                    0.450     493    0.122
+rec100-floor500-default                                                    0.503     592    0.111
+rec100-floor800-default                                                    0.581     766    0.102
+rec100-rel0.3-default                                                     0.545     761    0.111
+rec100-rel0.5-default                                                     0.396     432    0.129
+rec100-rel0.7-default                                                     0.249     226    0.138
+rec100-top10-default                                                      0.520     610    0.107
+rec100-top3-default                                                       0.257     201    0.142
+rec100-top5-default                                                       0.359     330    0.128
+== queryFilter (tune)
+679 questions (tune)
+method                   R@100   P@100   R@250   P@250   R@500   P@500  R(kept)   words  P(kept)
+crawl4ai-default                                                          0.540    1013    0.085
+pagesift-default                                                          0.606     854    0.098
+pagesift-old-default                                                      0.643    1157    0.091
+pagesift-para            0.122   0.157   0.238   0.143   0.418   0.122
+pagesift-rec100          0.101   0.139   0.241   0.133   0.406   0.115
+pagesift-rec100ctx       0.084   0.139   0.210   0.120   0.396   0.110
+pagesift-rec200          0.112   0.131   0.183   0.122   0.342   0.106
+pagesift-rec50           0.107   0.139   0.251   0.132   0.378   0.115
+rec100-abs1.0-default                                                     0.590     967    0.096
+rec100-floor1000-default                                                    0.607     861    0.097
+rec100-floor1300-default                                                    0.644    1012    0.091
+rec100-floor300-default                                                    0.437     491    0.118
+rec100-floor500-default                                                    0.499     583    0.111
+rec100-floor800-default                                                    0.568     748    0.101
+rec100-rel0.3-default                                                     0.533     747    0.110
+rec100-rel0.5-default                                                     0.392     431    0.125
+rec100-rel0.7-default                                                     0.236     225    0.133
+rec100-top10-default                                                      0.507     601    0.107
+rec100-top3-default                                                       0.233     196    0.134
+rec100-top5-default                                                       0.339     323    0.125
+== queryFilter (hold)
+600 questions (hold)
+method                   R@100   P@100   R@250   P@250   R@500   P@500  R(kept)   words  P(kept)
+crawl4ai-default                                                          0.576     986    0.097
+pagesift-default                                                          0.631     898    0.097
+pagesift-old-default                                                      0.660    1156    0.089
+pagesift-para            0.131   0.164   0.262   0.147   0.442   0.125
+pagesift-rec100          0.109   0.146   0.281   0.149   0.439   0.121
+pagesift-rec100ctx       0.089   0.136   0.216   0.120   0.402   0.108
+pagesift-rec200          0.105   0.129   0.174   0.128   0.374   0.110
+pagesift-rec50           0.130   0.152   0.277   0.138   0.398   0.116
+rec100-abs1.0-default                                                     0.613     988    0.094
+rec100-floor1000-default                                                    0.633     906    0.096
+rec100-floor1300-default                                                    0.669    1074    0.091
+rec100-floor300-default                                                    0.464     496    0.127
+rec100-floor500-default                                                    0.508     601    0.111
+rec100-floor800-default                                                    0.596     785    0.102
+rec100-rel0.3-default                                                     0.558     776    0.113
+rec100-rel0.5-default                                                     0.401     433    0.133
+rec100-rel0.7-default                                                     0.265     227    0.143
+rec100-top10-default                                                      0.534     620    0.107
+rec100-top3-default                                                       0.285     207    0.152
+rec100-top5-default                                                       0.382     338    0.131

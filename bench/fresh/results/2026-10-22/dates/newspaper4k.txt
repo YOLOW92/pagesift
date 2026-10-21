@@ -1,0 +1,19 @@
+/home/yolow92/pagesift-fresh/bench/data/fresh/tools/py/lib/python3.14/site-packages/newspaper/parsers.py:19: UserWarning: nltk is not installed. Some NLP features will be unavailable. Install it with: pip install 'newspaper4k[nlp]'
+  from . import text as txt
+/home/yolow92/pagesift-fresh/bench/data/fresh/tools/py/lib/python3.14/site-packages/dateutil/parser/_parser.py:1207: UnknownTimezoneWarning: tzname CEST identified but not understood.  Pass `tzinfos` argument in order to correctly return a timezone-aware datetime.  In a future version, this will raise an exception.
+  warnings.warn("tzname {tzname} identified but not understood.  "
+/home/yolow92/pagesift-fresh/bench/data/fresh/tools/py/lib/python3.14/site-packages/dateutil/parser/_parser.py:1207: UnknownTimezoneWarning: tzname CDT identified but not understood.  Pass `tzinfos` argument in order to correctly return a timezone-aware datetime.  In a future version, this will raise an exception.
+  warnings.warn("tzname {tzname} identified but not understood.  "
+/home/yolow92/pagesift-fresh/bench/data/fresh/tools/py/lib/python3.14/site-packages/dateutil/parser/_parser.py:1207: UnknownTimezoneWarning: tzname PDT identified but not understood.  Pass `tzinfos` argument in order to correctly return a timezone-aware datetime.  In a future version, this will raise an exception.
+  warnings.warn("tzname {tzname} identified but not understood.  "
+/home/yolow92/pagesift-fresh/bench/data/fresh/tools/py/lib/python3.14/site-packages/dateutil/parser/_parser.py:1207: UnknownTimezoneWarning: tzname EDT identified but not understood.  Pass `tzinfos` argument in order to correctly return a timezone-aware datetime.  In a future version, this will raise an exception.
+  warnings.warn("tzname {tzname} identified but not understood.  "
+/home/yolow92/pagesift-fresh/bench/data/fresh/tools/py/lib/python3.14/site-packages/dateutil/parser/_parser.py:1207: UnknownTimezoneWarning: tzname GST identified but not understood.  Pass `tzinfos` argument in order to correctly return a timezone-aware datetime.  In a future version, this will raise an exception.
+  warnings.warn("tzname {tzname} identified but not understood.  "
+/home/yolow92/pagesift-fresh/bench/data/fresh/tools/py/lib/python3.14/site-packages/dateutil/parser/_parser.py:1207: UnknownTimezoneWarning: tzname CET identified but not understood.  Pass `tzinfos` argument in order to correctly return a timezone-aware datetime.  In a future version, this will raise an exception.
+  warnings.warn("tzname {tzname} identified but not understood.  "
+1000 pages (512 hold); URL given: False
+tool                   half   prec↑   rec↑   acc↑    F1↑  ms/page↓
+newspaper4k            all    0.912  0.728  0.680  0.810     15.86
+newspaper4k            tune   0.913  0.739  0.691  0.817     16.26
+newspaper4k            hold   0.910  0.718  0.670  0.802     15.47

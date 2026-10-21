@@ -1,0 +1,7 @@
+crawl4ai: 2.52 ms/page
+defuddle: 178.49 ms/page
+html2text: 2.68 ms/page
+markdownify: 6.68 ms/page
+markitdown: 18.86 ms/page
+pagesift: 0.27 ms/page
+turndown: 3.75 ms/page
