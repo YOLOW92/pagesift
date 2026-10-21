@@ -22,12 +22,22 @@ C4A=${C4A:-$ROOT/bench/data/venvs/crawl4ai/bin/python}
 CRW=${CRW:-$ROOT/bench/data/tools/bin/crw}
 SCRAPY_PY=${SCRAPY_PY:-$ROOT/bench/data/fresh/tools/py/bin/python}
 
+# 等源站真正能应答再开始（页面多时启动要几秒；固定 sleep 不够，第一个工具会连不上）
+wait_origin() { # 端口
+    for _ in $(seq 1 240); do
+        curl -s -o /dev/null -H "Host: s0.localhost" "http://[::1]:$1/__served" && return 0
+        sleep 0.5
+    done
+    echo "origin on port $1 did not start" >&2
+    return 1
+}
+
 run() { # 场景名 hosts pages interval per_host latency 工具...
     local name=$1 hosts=$2 pages=$3 interval=$4 per_host=$5 latency=$6; shift 6
     for tool in "$@"; do
         pkill -x wild || true; sleep 0.5
         target/release/wild "$PAGES_DIR" $PORT "$hosts" "$pages" "$latency" "$SEED" 2>/dev/null &
-        sleep 1
+        wait_origin $PORT
         local label="wild-$name/$tool"
         case $tool in
             pagesift) python3 -I measure.py "$label" -- ${PAGESIFT_BIN:-$ROOT/target/release/examples/crawl_bench} $PORT "$hosts" "$pages" "$interval" "$per_host" ;;

@@ -26,6 +26,16 @@ cleanup() {
         -user "$(id -u)" -exec rm -rf {} + 2>/dev/null || true
 }
 
+# 等源站真正能应答再开始（页面多时启动要几秒；固定 sleep 不够，第一个工具会连不上）
+wait_origin() { # 端口
+    for _ in $(seq 1 240); do
+        curl -s -o /dev/null -H "Host: s0.localhost" "http://[::1]:$1/__served" && return 0
+        sleep 0.5
+    done
+    echo "origin on port $1 did not start" >&2
+    return 1
+}
+
 engine() { # 名字 场景 hosts pages per_host
     local name=$1 scen=$2 hosts=$3 pages=$4 ph=$5
     local -a env=()
@@ -61,7 +71,7 @@ for s in ${@:-wide huge}; do
     pkill -x origin || true
     sleep 0.5
     target/release/origin "$PAGES_DIR" $PORT $hosts $pages 10 2>/dev/null &
-    sleep 2
+    wait_origin $PORT
     # 默认：各内核单独跑，加上生产路径的自动回退链（auto）
     for e in ${ENGINES:-chrome chs lightpanda moli auto obscura}; do engine "$e" "$s" "$hosts" "$pages" "$ph"; done
     pkill -x origin || true

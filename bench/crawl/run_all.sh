@@ -22,11 +22,21 @@ CRW=${CRW:-$ROOT/bench/data/tools/bin/crw}
 # Scrapy 用的 Python（装了 scrapy 的虚拟环境）
 SCRAPY_PY=${SCRAPY_PY:-$ROOT/bench/data/fresh/tools/py/bin/python}
 
+# 等源站真正能应答再开始（页面多时启动要几秒；固定 sleep 不够，第一个工具会连不上）
+wait_origin() { # 端口
+    for _ in $(seq 1 240); do
+        curl -s -o /dev/null -H "Host: s0.localhost" "http://[::1]:$1/__served" && return 0
+        sleep 0.5
+    done
+    echo "origin on port $1 did not start" >&2
+    return 1
+}
+
 run() { # 场景名 hosts pages interval per_host latency 工具...
     local name=$1 hosts=$2 pages=$3 interval=$4 per_host=$5 latency=$6; shift 6
     pkill -x origin || true; sleep 0.5
     target/release/origin "$PAGES_DIR" $PORT "$hosts" "$pages" "$latency" 2>/dev/null &
-    sleep 1
+    wait_origin $PORT
     for tool in "$@"; do
         local label="$name/$tool"
         case $tool in
