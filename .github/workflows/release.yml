@@ -75,6 +75,8 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
       - uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: false   # 不上传构建记录，免得发布步骤下载产物时出错
         with:
           context: .
           platforms: linux/amd64
@@ -160,6 +162,8 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+          # 只要程序、wheel 和 npm 包；Docker 的构建记录不是普通压缩包，一起下载会失败
+          pattern: "{bin,wheels,npm}-*"
       # 先建草稿，维护者检查后再手动发布
       - name: GitHub release
         uses: softprops/action-gh-release@v2
