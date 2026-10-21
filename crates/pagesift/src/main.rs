@@ -176,12 +176,31 @@ enum Command {
 
 fn main() -> ExitCode {
     pagesift_sys::tune_allocator();
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_env("PAGESIFT_LOG"))
-        .with_writer(std::io::stderr)
-        .init();
     let cli = Cli::parse();
-    match run(cli.command, cli.config) {
+    let cfg = match pagesift::config::Config::load(cli.config.as_deref()) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("error: {e:#}");
+            return ExitCode::FAILURE;
+        }
+    };
+    // 结构化日志：PAGESIFT_LOG 定级别，PAGESIFT_LOG_FORMAT 或 [log] format 选 text / json
+    let json = match cfg.log_json() {
+        Ok(j) => j,
+        Err(e) => {
+            eprintln!("error: {e:#}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let logs = tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_env("PAGESIFT_LOG"))
+        .with_writer(std::io::stderr);
+    if json {
+        logs.json().flatten_event(true).init();
+    } else {
+        logs.init();
+    }
+    match run(cli.command, cfg) {
         Ok(code) => code,
         Err(e) => {
             eprintln!("error: {e:#}");
@@ -190,8 +209,7 @@ fn main() -> ExitCode {
     }
 }
 
-fn run(command: Command, config_path: Option<PathBuf>) -> Result<ExitCode> {
-    let mut cfg = pagesift::config::Config::load(config_path.as_deref())?;
+fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> {
     match command {
         Command::Convert {
             file,
@@ -282,40 +300,50 @@ fn run(command: Command, config_path: Option<PathBuf>) -> Result<ExitCode> {
         Command::Serve {
             port,
             host,
-            mut api_keys,
+            api_keys,
             public_url,
             data_dir,
             no_cache,
         } => runtime()?.block_on(async move {
-            api_keys.extend(cfg.api_keys()?);
             if data_dir.is_some() {
                 cfg.cache.dir = data_dir;
             }
-            let config = cfg.scraper(!no_cache)?;
-            if config.store.is_some() {
-                eprintln!("cache: {}", cfg.data_dir().join("store").display());
+            // 缓存和任务共用数据目录里的一个存储
+            let cache = !no_cache && cfg.cache.enabled.unwrap_or(true);
+            let persist = cfg.server.persist_jobs.unwrap_or(true);
+            let store = if cache || persist {
+                Some(cfg.open_store()?)
+            } else {
+                None
+            };
+            let mut config = cfg.scraper(false)?;
+            config.store = store.clone().filter(|_| cache);
+            if store.is_some() {
+                eprintln!(
+                    "data: {} (cache {}, jobs {})",
+                    cfg.data_dir().join("store").display(),
+                    if cache { "on" } else { "off" },
+                    if persist { "persisted" } else { "in memory" }
+                );
             }
+            let mut api = cfg.api()?;
+            api.api_keys.extend(api_keys);
+            if public_url.is_some() {
+                api.public_url = public_url;
+            }
+            api.store = store.filter(|_| persist);
             let host = host
                 .or(cfg.server.host.clone())
                 .unwrap_or_else(|| "127.0.0.1".into());
             let port = port.or(cfg.server.port).unwrap_or(3002);
             let scraper = Arc::new(pagesift::Scraper::new(config)?);
-            let app = pagesift::api::router(
-                scraper.clone(),
-                pagesift::api::Config {
-                    api_keys,
-                    public_url: public_url.or(cfg.server.public_url.clone()),
-                    max_batch_concurrency: cfg.server.max_batch_concurrency,
-                },
-            );
+            let app = pagesift::api::router(scraper.clone(), api);
             let listener = tokio::net::TcpListener::bind((host.as_str(), port))
                 .await
                 .with_context(|| format!("binding {host}:{port}"))?;
             eprintln!("pagesift listening on http://{}", listener.local_addr()?);
             axum::serve(listener, app)
-                .with_graceful_shutdown(async {
-                    let _ = tokio::signal::ctrl_c().await;
-                })
+                .with_graceful_shutdown(shutdown_signal())
                 .await?;
             scraper.shutdown().await;
             Ok(ExitCode::SUCCESS)
@@ -416,6 +444,30 @@ fn run(command: Command, config_path: Option<PathBuf>) -> Result<ExitCode> {
             Ok(ExitCode::SUCCESS)
         }),
     }
+}
+
+/// Ctrl-C，或者 SIGTERM（`docker stop`、systemd）。进行中的任务已经落盘，下次启动接着跑。
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{SignalKind, signal};
+        match signal(SignalKind::terminate()) {
+            Ok(mut term) => {
+                tokio::select! {
+                    _ = tokio::signal::ctrl_c() => {}
+                    _ = term.recv() => {}
+                }
+            }
+            Err(_) => {
+                let _ = tokio::signal::ctrl_c().await;
+            }
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
+    }
+    tracing::info!("shutting down");
 }
 
 fn runtime() -> Result<tokio::runtime::Runtime> {

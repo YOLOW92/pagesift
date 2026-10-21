@@ -8,6 +8,7 @@ use std::time::Duration;
 use axum::Router;
 use axum::response::Html;
 use axum::routing::get;
+use pagesift::api::CrawlResume;
 use pagesift::api::types::{CrawlRequest, CrawlSummary, Document};
 use pagesift::api::{ApiError, BoxFuture, CrawlSink};
 use pagesift::{Scraper, ScraperConfig};
@@ -134,6 +135,10 @@ fn scraper() -> Scraper {
 struct Collect {
     pages: Mutex<Vec<Document>>,
     summary: Mutex<Option<CrawlSummary>>,
+    /// 设了就模拟持久化的任务：从这里继续，并记下入队的 URL。
+    resume: Mutex<Option<CrawlResume>>,
+    track: bool,
+    enqueued: Mutex<Vec<(String, usize)>>,
 }
 
 impl CrawlSink for Collect {
@@ -154,9 +159,19 @@ impl CrawlSink for Collect {
         *self.summary.lock().unwrap() = Some(s);
         Box::pin(async {})
     }
+    fn resume(&self) -> Option<CrawlResume> {
+        self.resume.lock().unwrap().take()
+    }
+    fn tracks_frontier(&self) -> bool {
+        self.track
+    }
+    fn enqueued(&self, urls: Vec<(String, usize)>) -> BoxFuture<'_, ()> {
+        self.enqueued.lock().unwrap().extend(urls);
+        Box::pin(async {})
+    }
 }
 
-async fn crawl(base: &str, extra: serde_json::Value) -> Arc<Collect> {
+fn request(base: &str, extra: serde_json::Value) -> CrawlRequest {
     let mut v = json!({
         "url": format!("{base}/kb/"),
         "sitemap": "skip",
@@ -166,9 +181,15 @@ async fn crawl(base: &str, extra: serde_json::Value) -> Arc<Collect> {
     v.as_object_mut()
         .unwrap()
         .extend(extra.as_object().unwrap().clone());
-    let req: CrawlRequest = serde_json::from_value(v).unwrap();
+    serde_json::from_value(v).unwrap()
+}
+
+async fn crawl(base: &str, extra: serde_json::Value) -> Arc<Collect> {
     let sink = Arc::new(Collect::default());
-    scraper().crawl(&req, sink.clone()).await.unwrap();
+    scraper()
+        .crawl(&request(base, extra), sink.clone())
+        .await
+        .unwrap();
     sink
 }
 
@@ -326,4 +347,43 @@ async fn adaptive_needs_a_query_and_valid_options() {
             .unwrap_err();
         assert_eq!(err.code.as_str(), "INVALID_REQUEST", "{bad}");
     }
+}
+
+#[tokio::test]
+async fn focused_crawl_records_its_frontier_and_resumes_from_it() {
+    let base = site().await;
+    let req = request(&base, json!({ "query": "refund policy", "limit": 4 }));
+    let sink = Arc::new(Collect {
+        track: true,
+        ..Default::default()
+    });
+    scraper().crawl(&req, sink.clone()).await.unwrap();
+    let enqueued = sink.enqueued.lock().unwrap().clone();
+    assert_eq!(enqueued[0], (format!("{base}/kb/"), 0));
+    assert!(enqueued.contains(&(format!("{base}/kb/billing/refund-policy"), 1)));
+
+    // 首页已经抓完，退款页还在队里：从断点继续时不再抓首页，limit 里扣掉已完成的一页
+    let home = format!("{base}/kb/");
+    let refund = format!("{base}/kb/billing/refund-policy");
+    let about = format!("{base}/kb/about");
+    let resumed = Arc::new(Collect {
+        track: true,
+        resume: Mutex::new(Some(CrawlResume {
+            enqueued: vec![home.clone(), about.clone(), refund.clone()],
+            pending: vec![(about, 1), (refund, 1)],
+            done: 1,
+        })),
+        ..Default::default()
+    });
+    scraper().crawl(&req, resumed.clone()).await.unwrap();
+    let o = order(&resumed);
+    assert_eq!(o.len(), 3, "{o:?}");
+    assert_eq!(o[0], "Refund policy", "re-scored by URL path: {o:?}");
+    assert!(!o.contains(&"Help center".to_string()), "{o:?}");
+    let e = resumed.enqueued.lock().unwrap().clone();
+    assert!(
+        !e.iter().any(|(u, _)| u == &home),
+        "pending URLs are not re-reported"
+    );
+    assert_eq!(resumed.summary.lock().unwrap().clone().unwrap().pages, 4);
 }

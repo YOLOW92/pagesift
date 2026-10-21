@@ -143,3 +143,22 @@ fn collisions_survive_compaction_and_reopen() {
     }
     assert_eq!(store.stats().entries, 25);
 }
+
+#[test]
+fn list_range_pages_by_sequence() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(config(dir.path(), u64::MAX)).unwrap();
+    let t = store.tasks();
+    for i in 0..10u8 {
+        t.list_push("pages", &[i]).unwrap();
+    }
+    assert_eq!(
+        t.list_range("pages", 3, 2).unwrap(),
+        vec![vec![3u8], vec![4u8]]
+    );
+    assert_eq!(t.list_range("pages", 9, 5).unwrap(), vec![vec![9u8]]);
+    assert!(t.list_range("pages", 10, 5).unwrap().is_empty());
+    t.list_pop_front("pages").unwrap();
+    assert_eq!(t.list_range("pages", 0, 1).unwrap(), vec![vec![1u8]]);
+    assert!(t.list_range("missing", 0, 1).unwrap().is_empty());
+}

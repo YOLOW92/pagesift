@@ -72,6 +72,7 @@ fn app(keys: &[&str]) -> axum::Router {
             api_keys: keys.iter().map(|k| k.to_string()).collect(),
             public_url: Some("http://pagesift.test".into()),
             max_batch_concurrency: Some(4),
+            ..Default::default()
         },
     )
 }

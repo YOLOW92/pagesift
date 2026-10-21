@@ -46,39 +46,63 @@ pub(crate) fn is_hidden(node: &NodeR<'_>) -> bool {
     let Some(el) = element(node) else {
         return false;
     };
-    if el.attr("hidden").is_some() {
-        return true;
+    // 每个元素都要查：一次遍历属性，不按名字查三遍
+    let (mut aria, mut style) = (None, None);
+    for (name, value) in el.attrs() {
+        match name {
+            "hidden" => return true,
+            "aria-hidden" => {
+                aria.get_or_insert(value);
+            }
+            "style" => {
+                style.get_or_insert(value);
+            }
+            _ => {}
+        }
     }
-    if el
-        .attr("aria-hidden")
-        .is_some_and(|v| v.eq_ignore_ascii_case("true"))
+    if aria.is_some_and(|v| v.eq_ignore_ascii_case("true"))
         && short_text(node, ARIA_HIDDEN_MAX_CHARS)
     {
         return true;
     }
-    if let Some(style) = el.attr("style") {
-        let style: String = style
-            .chars()
-            .filter(|c| !c.is_whitespace())
-            .collect::<String>()
-            .to_ascii_lowercase();
-        if style.contains("display:none") {
+    if let Some(style) = style {
+        if style_contains(style, b"display:none") {
             return true;
         }
         // visibility:hidden 常用来在 JS 排好版之前先藏起整块内容（Wix 等建站工具），
         // JS 执行后就可见；只对短内容（工具提示、占位标签）当作隐藏
-        if style.contains("visibility:hidden") && short_text(node, ARIA_HIDDEN_MAX_CHARS) {
+        if style_contains(style, b"visibility:hidden") && short_text(node, ARIA_HIDDEN_MAX_CHARS) {
             return true;
         }
     }
     false
 }
 
+/// 内联样式里有没有 `needle`（小写、不含空白）：比较时忽略空白和 ASCII 大小写，不分配内存。
+/// 每个带 style 的元素都要查，这里是热路径。
+fn style_contains(style: &str, needle: &[u8]) -> bool {
+    let bytes = style.as_bytes();
+    let ws = |b: u8| b.is_ascii_whitespace() || b == b'\x0b';
+    (0..bytes.len()).any(|start| {
+        let mut i = start;
+        for &want in needle {
+            while i < bytes.len() && ws(bytes[i]) && i > start {
+                i += 1;
+            }
+            if i >= bytes.len() || bytes[i].to_ascii_lowercase() != want {
+                return false;
+            }
+            i += 1;
+        }
+        true
+    })
+}
+
 /// aria-hidden、visibility:hidden 的元素文字超过这么多（非空白字符）就当作页面内容，不跳过。
 const ARIA_HIDDEN_MAX_CHARS: usize = 200;
 
 /// 子树里的非空白字符数不超过 `max`（数到超过就停）。
-fn short_text(node: &NodeR<'_>, max: usize) -> bool {
+pub(crate) fn short_text(node: &NodeR<'_>, max: usize) -> bool {
     let mut n = 0;
     for d in node.descendants() {
         if let Some(t) = d.as_text() {
@@ -91,11 +115,10 @@ fn short_text(node: &NodeR<'_>, max: usize) -> bool {
     true
 }
 
+/// 去掉的零宽字符：零宽空格、词连接符、BOM。零宽不连字（U+200C）和零宽连字（U+200D）要保留：
+/// 波斯语、印地语等文字靠它们决定字形（کسب‌وکار），emoji 组合序列也靠 U+200D。
 pub(crate) fn is_zero_width(c: char) -> bool {
-    matches!(
-        c,
-        '\u{200b}' | '\u{200c}' | '\u{200d}' | '\u{2060}' | '\u{feff}'
-    )
+    matches!(c, '\u{200b}' | '\u{2060}' | '\u{feff}')
 }
 
 /// 非空白字符数。纯 ASCII 文本（绝大多数）按字节数，不逐个解码字符。

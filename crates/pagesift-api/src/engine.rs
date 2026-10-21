@@ -73,8 +73,36 @@ pub trait CrawlSink: Send + Sync {
     /// 已经确定要抓的页面总数（随着发现新链接增长）。
     fn total(&self, total: usize) -> BoxFuture<'_, ()>;
     fn cancelled(&self) -> BoxFuture<'_, bool>;
+
+    /// 断点续爬：任务是从中断处恢复的时候返回上次的进度，引擎据此重建队列和去重表，
+    /// 不再抓已经完成的页面。新任务返回 `None`。
+    fn resume(&self) -> Option<CrawlResume> {
+        None
+    }
+
+    /// 是否需要 [`CrawlSink::enqueued`] 回报（持久化的任务需要）。不需要时引擎不必收集。
+    fn tracks_frontier(&self) -> bool {
+        false
+    }
+
+    /// 新进入队列的 URL 和发现深度，按入队顺序。只在 [`CrawlSink::tracks_frontier`] 为真时调用。
+    fn enqueued(&self, _urls: Vec<(String, usize)>) -> BoxFuture<'_, ()> {
+        Box::pin(async {})
+    }
+
     /// 爬取结束时的说明（停止原因等）；只有带查询的爬取会调用。
     fn summary(&self, _summary: CrawlSummary) -> BoxFuture<'_, ()> {
         Box::pin(async {})
     }
+}
+
+/// 中断的爬取任务恢复时的进度。完成的页面以文档的 `metadata.sourceURL`（失败的以出错的 URL）为准。
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct CrawlResume {
+    /// 入过队的全部 URL，按入队顺序（去重表）。
+    pub enqueued: Vec<String>,
+    /// 入了队但还没完成的 URL 和发现深度，按入队顺序。中断时正在抓的页面也在这里。
+    pub pending: Vec<(String, usize)>,
+    /// 已经完成的页数（成功和失败都算），计入 `limit`。
+    pub done: usize,
 }

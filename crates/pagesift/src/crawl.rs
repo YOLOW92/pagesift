@@ -284,12 +284,6 @@ impl Scraper {
             &req.include_paths,
             &req.exclude_paths,
         )?;
-        let sitemap = if req.sitemap != "skip" {
-            self.sitemap_urls(&start, mode, req.limit.saturating_mul(2))
-                .await
-        } else {
-            Vec::new()
-        };
         let crawl = Crawl {
             req,
             sink: sink.as_ref(),
@@ -297,9 +291,18 @@ impl Scraper {
             mode,
         };
         match req.query.as_deref() {
-            Some(q) => self.crawl_focused(crawl, start, sitemap, q).await,
-            None => self.crawl_bfs(crawl, start, sitemap).await,
+            Some(q) => self.crawl_focused(crawl, start, q).await,
+            None => self.crawl_bfs(crawl, start).await,
         }
+    }
+
+    /// 新任务开始时 sitemap 里的页面（`sitemap: skip` 时为空）。从断点继续的任务不再读 sitemap。
+    async fn initial_sitemap(&self, c: &Crawl<'_>, start: &Url) -> Vec<Url> {
+        if c.req.sitemap == "skip" {
+            return Vec::new();
+        }
+        self.sitemap_urls(start, c.mode, c.req.limit.saturating_mul(2))
+            .await
     }
 
     /// 需要链接来继续发现页面；用户没要 links 格式时，内部照样取，输出前去掉。
@@ -320,7 +323,7 @@ impl Scraper {
     }
 
     /// 广度优先爬取。
-    async fn crawl_bfs(&self, c: Crawl<'_>, start: Url, sitemap: Vec<Url>) -> Result<(), ApiError> {
+    async fn crawl_bfs(&self, c: Crawl<'_>, start: Url) -> Result<(), ApiError> {
         let (req, sink, scope, mode) = (c.req, c.sink, c.scope, c.mode);
         let follow_links = req.sitemap != "only";
         let max_depth = req.max_discovery_depth.unwrap_or(usize::MAX);
@@ -329,14 +332,34 @@ impl Scraper {
         // 不入队也不记进去重表，大站点上内存不会随发现的链接数增长
         let mut seen: HashSet<u64> = HashSet::new();
         let mut queue: VecDeque<(Url, usize)> = VecDeque::new();
-        seen.insert(seen_hash(&start, req.ignore_query_parameters));
-        queue.push_back((start.clone(), 0));
-        for u in sitemap {
-            if queue.len() < req.limit
-                && scope.allows(&u)
-                && seen.insert(seen_hash(&u, req.ignore_query_parameters))
-            {
-                queue.push_back((u, 0));
+        // 持久化的任务要记下入队的 URL，重启后据此恢复队列和去重表
+        let track = sink.tracks_frontier();
+        let mut scheduled = 0usize;
+        if let Some(r) = sink.resume() {
+            // 从断点继续：已完成的页面计入 limit，入过队的都算见过，没完成的按原顺序重新排队
+            for u in r.enqueued.iter().filter_map(|u| Url::parse(u).ok()) {
+                seen.insert(seen_hash(&u, req.ignore_query_parameters));
+            }
+            for (u, depth) in r.pending {
+                if let Ok(u) = Url::parse(&u) {
+                    queue.push_back((u, depth));
+                }
+            }
+            scheduled = r.done;
+        } else {
+            seen.insert(seen_hash(&start, req.ignore_query_parameters));
+            queue.push_back((start.clone(), 0));
+            for u in self.initial_sitemap(&c, &start).await {
+                if queue.len() < req.limit
+                    && scope.allows(&u)
+                    && seen.insert(seen_hash(&u, req.ignore_query_parameters))
+                {
+                    queue.push_back((u, 0));
+                }
+            }
+            if track {
+                sink.enqueued(queue.iter().map(|(u, d)| (u.to_string(), *d)).collect())
+                    .await;
             }
         }
 
@@ -345,9 +368,8 @@ impl Scraper {
         let slots = self.crawl_slots();
         let delay = req.delay.map(Duration::from_secs_f64);
 
-        let mut scheduled = 0usize;
         let mut inflight = FuturesUnordered::new();
-        sink.total(queue.len().min(req.limit)).await;
+        sink.total((scheduled + queue.len()).min(req.limit)).await;
         loop {
             if sink.cancelled().await {
                 return Ok(());
@@ -379,6 +401,7 @@ impl Scraper {
                             .as_deref()
                             .and_then(|u| Url::parse(u).ok())
                             .unwrap_or(url.clone());
+                        let before = queue.len();
                         for link in doc.links.iter().flatten() {
                             if scheduled + queue.len() >= req.limit {
                                 break;
@@ -389,6 +412,15 @@ impl Scraper {
                             {
                                 queue.push_back((u, depth + 1));
                             }
+                        }
+                        if track && queue.len() > before {
+                            sink.enqueued(
+                                queue
+                                    .range(before..)
+                                    .map(|(u, d)| (u.to_string(), *d))
+                                    .collect(),
+                            )
+                            .await;
                         }
                     }
                     if !wants_links {
@@ -405,13 +437,10 @@ impl Scraper {
 
     /// 相关性优先爬取：队列按链接分数出队；`adaptive` 时信息够了就停止调度，
     /// 已经在抓的页面照常交付。结束时通过 [`CrawlSink::summary`] 报告停止原因。
-    async fn crawl_focused(
-        &self,
-        c: Crawl<'_>,
-        start: Url,
-        sitemap: Vec<Url>,
-        query: &str,
-    ) -> Result<(), ApiError> {
+    ///
+    /// 从断点继续时队列和去重表照常恢复，但链接分数和自适应的统计不落盘：没完成的页面按 URL 路径
+    /// 重新打分，覆盖度从零开始累计。
+    async fn crawl_focused(&self, c: Crawl<'_>, start: Url, query: &str) -> Result<(), ApiError> {
         let (req, sink, scope, mode) = (c.req, c.sink, c.scope, c.mode);
         let focus = Focus::new(query);
         let mut adaptive = req
@@ -428,27 +457,71 @@ impl Scraper {
         let mut queue = BestFirst::default();
         // 有页面因为 limit 没能进队列
         let mut overflow = false;
-        let h = seen_hash(&start, ignore_query);
-        seen.insert(h);
-        queue.offer(h, start.clone(), 0, f32::INFINITY, req.limit);
-        for u in sitemap {
+        let track = sink.tracks_frontier();
+        let mut scheduled = 0usize;
+        // 新入队的 URL（持久化的任务要回报）
+        let mut fresh: Vec<(String, usize)> = Vec::new();
+        // 放进队列，维护去重表；返回有没有页面因为 limit 被挤掉或进不来
+        let offer = |queue: &mut BestFirst,
+                     seen: &mut HashSet<u64>,
+                     fresh: &mut Vec<(String, usize)>,
+                     u: Url,
+                     depth: usize,
+                     score: f32,
+                     room: usize|
+         -> bool {
             let h = seen_hash(&u, ignore_query);
-            if !scope.allows(&u) || seen.contains(&h) {
-                continue;
-            }
-            let score = focus.link_score(&u, None, None, 0.0, 0);
-            match queue.offer(h, u, 0, score, req.limit) {
+            let entry = track.then(|| (u.to_string(), depth));
+            match queue.offer(h, u, depth, score, room) {
                 Offer::Queued => {
                     seen.insert(h);
+                    fresh.extend(entry);
+                    false
                 }
                 Offer::Evicted(old) => {
                     seen.remove(&old);
                     seen.insert(h);
-                    overflow = true;
+                    fresh.extend(entry);
+                    true
                 }
-                Offer::Rejected => overflow = true,
-                Offer::AlreadyQueued => {}
+                Offer::Rejected => true,
+                Offer::AlreadyQueued => false,
             }
+        };
+        if let Some(r) = sink.resume() {
+            for u in r.enqueued.iter().filter_map(|u| Url::parse(u).ok()) {
+                seen.insert(seen_hash(&u, ignore_query));
+            }
+            scheduled = r.done;
+            let room = req.limit.saturating_sub(scheduled);
+            // 这些 URL 已经记在入队列表里，不再回报
+            let mut known = Vec::new();
+            for (u, depth) in r.pending {
+                if let Ok(u) = Url::parse(&u) {
+                    let score = focus.link_score(&u, None, None, 0.0, depth);
+                    overflow |= offer(&mut queue, &mut seen, &mut known, u, depth, score, room);
+                }
+            }
+        } else {
+            offer(
+                &mut queue,
+                &mut seen,
+                &mut fresh,
+                start.clone(),
+                0,
+                f32::INFINITY,
+                req.limit,
+            );
+            for u in self.initial_sitemap(&c, &start).await {
+                if !scope.allows(&u) || seen.contains(&seen_hash(&u, ignore_query)) {
+                    continue;
+                }
+                let score = focus.link_score(&u, None, None, 0.0, 0);
+                overflow |= offer(&mut queue, &mut seen, &mut fresh, u, 0, score, req.limit);
+            }
+        }
+        if !fresh.is_empty() {
+            sink.enqueued(std::mem::take(&mut fresh)).await;
         }
 
         let wants_links = req.scrape_options.wants("links");
@@ -457,10 +530,9 @@ impl Scraper {
         let slots = self.crawl_slots();
         let delay = req.delay.map(Duration::from_secs_f64);
 
-        let mut scheduled = 0usize;
         let mut stop: Option<&'static str> = None;
         let mut inflight = FuturesUnordered::new();
-        sink.total(queue.len().min(req.limit)).await;
+        sink.total((scheduled + queue.len()).min(req.limit)).await;
         loop {
             if sink.cancelled().await {
                 stop = Some("cancelled");
@@ -517,18 +589,11 @@ impl Scraper {
                                 depth + 1,
                             );
                             let room = req.limit - scheduled;
-                            match queue.offer(h, u, depth + 1, score, room) {
-                                Offer::Queued => {
-                                    seen.insert(h);
-                                }
-                                Offer::Evicted(old) => {
-                                    seen.remove(&old);
-                                    seen.insert(h);
-                                    overflow = true;
-                                }
-                                Offer::Rejected => overflow = true,
-                                Offer::AlreadyQueued => {}
-                            }
+                            overflow |=
+                                offer(&mut queue, &mut seen, &mut fresh, u, depth + 1, score, room);
+                        }
+                        if !fresh.is_empty() {
+                            sink.enqueued(std::mem::take(&mut fresh)).await;
                         }
                     }
                     if !wants_links {

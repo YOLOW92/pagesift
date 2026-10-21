@@ -1,0 +1,7 @@
+target
+.git
+.claude
+bench/data
+**/node_modules
+**/__pycache__
+*.node

@@ -37,10 +37,12 @@ serde_json = "1.0.154"
 tokio = { version = "1.54.0", features = ["rt-multi-thread", "macros", "net", "signal"] }
 toml = "1.1.8"
 tracing = "0.1.44"
-tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
 url = "2.5.8"
 
 [dev-dependencies]
+http-body-util = "0.1.5"
 pagesift-store = { path = "../pagesift-store" }
 serde_json = "1.0.154"
 tempfile = "3.27.0"
+tower = { version = "0.5.3", features = ["util"] }
