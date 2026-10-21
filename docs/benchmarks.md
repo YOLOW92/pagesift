@@ -33,7 +33,27 @@ Tools with high recall and ~60% leak (MarkItDown, Defuddle, Crawl4AI raw) conver
 
 Reproduce: see [`bench/compare/README.md`](../bench/compare/README.md).
 
-## 2. Crawling over HTTP (no rate limit)
+## 2. Publication dates
+
+**Dataset:** the 1,000 human-annotated pages of [htmldate](https://github.com/adbar/htmldate)'s evaluation set: 800 multilingual pages (BBAW collection, mostly German) and 200 worldwide news pages (Data Culture Group, Northeastern University). Scoring is htmldate's own: the date is compared by day; no answer on a page that has a date is a miss, a wrong date is a false positive. No URL is given to any tool. Pages are split by `sha1(url) % 2` into a tuning half and a hold-out half, and pagesift changes were kept only if the hold-out half did not get worse.
+
+**Metrics:** precision, recall and F1 (higher is better); time per page (lower is better). For pagesift, time is shown both for the date search alone and for the whole page conversion.
+
+| Tool | F1 ↑ | F1, hold-out ↑ | Precision ↑ | Recall ↑ | ms per page ↓ |
+|---|---|---|---|---|---|
+| **pagesift 0.12** | 0.948 | **0.945** | **0.909** | 0.991 | **0.06** (date) / 0.71 (whole page) |
+| htmldate 1.11 (extensive) | **0.949** | **0.945** | 0.908 | **0.993** | 4.04 |
+| trafilatura (uses htmldate) | 0.948 | 0.944 | 0.907 | 0.992 | 9.79 |
+| htmldate 1.11 (fast) | 0.926 | 0.924 | 0.924 | 0.929 | 2.00 |
+| newspaper4k 0.9.6 | 0.810 | 0.802 | 0.912 | 0.728 | 11.74 |
+| goose3 3.1.22 | 0.742 | 0.733 | 0.830 | 0.671 | 71.80 |
+| pagesift before (meta, JSON-LD and `<time>` only, as Firecrawl and Crawl4AI read them) | 0.789 | 0.778 | 0.897 | 0.704 | — |
+
+pagesift ports htmldate's search order and rules to Rust and adds month names in about twenty languages (htmldate needs the slow dateparser package for most languages), keeps the page's own time zone instead of converting to UTC, ignores "today's date" banners, and replaces the full-page regular expressions with single-pass scanners (`crates/pagesift-content/src/dates.rs`). The result matches htmldate's accuracy at 1/67 of its time.
+
+Reproduce: `bench/meta/dates.py` (see [`bench/meta/README.md`](../bench/meta/README.md)); full results: [`bench/meta/results-dates-2026-10-21.md`](../bench/meta/results-dates-2026-10-21.md).
+
+## 3. Crawling over HTTP (no rate limit)
 
 **Setup:** a local multi-site origin ([`bench/crawl`](../bench/crawl)) serving real pages from the corpus on `s{i}.localhost`, with 10 ms of added latency; every tool crawls every site with its own link discovery, unthrottled. Memory is the peak proportional set size (PSS) of the tool's whole process tree.
 
@@ -50,7 +70,7 @@ Reproduce: see [`bench/compare/README.md`](../bench/compare/README.md).
 
 Reproduce: `bench/crawl/run_all.sh`.
 
-## 3. Crawling messy real-world sites: coverage, waste and politeness
+## 4. Crawling messy real-world sites: coverage, waste and politeness
 
 Speed on clean sites says little about what a crawl delivers on real sites, where links carry tracking parameters and session IDs, the same page has several URLs, calendars and pagination never end, and servers fail or rate-limit. This benchmark measures how much of a site's real content each tool collects within the same page budget, and how well it behaves.
 
@@ -94,7 +114,7 @@ What makes the difference (see `crates/pagesift/src/frontier.rs`): tracking para
 
 Reproduce: `SEED=2 bench/crawl/run_wild.sh` (any seed draws a different web); full results: [`bench/crawl/results-wild-2026-10-21.md`](../bench/crawl/results-wild-2026-10-21.md).
 
-## 4. Browser rendering
+## 5. Browser rendering
 
 pagesift drives browsers over its own CDP client and picks an engine automatically: **Lightpanda** first, **moli** when a page needs iframes or more complete JavaScript, **Chrome / chrome-headless-shell** last. Same crawl setup as above, every page rendered.
 
@@ -108,7 +128,7 @@ pagesift drives browsers over its own CDP client and picks an engine automatical
 
 Reproduce: `bench/crawl/engines.sh` (set `ENGINES=auto` for the default chain).
 
-## 5. A production workload: replacing Crawl4AI
+## 6. A production workload: replacing Crawl4AI
 
 [AiSeek](https://aiseek.dev) fetches news and company pages with Crawl4AI 0.9.4. We ran its own benchmark (`bench.py`) against both services with the production server's limits (6 cores, 10 GB memory, CPU weight 25), on 210 real production URLs (205 hosts) and 25 fixed pages. pagesift ran behind a small adapter implementing the same `/v1/fetch` contract ([`bench/aiseek`](../bench/aiseek)).
 
@@ -141,7 +161,7 @@ Reproduce: `bench/crawl/engines.sh` (set `ENGINES=auto` for the default chain).
 
 **Cold start:** first render 1.93 s → **0.19 s**; ready to serve 1.27 s → **0.12 s**.
 
-## 6. Deployment footprint
+## 7. Deployment footprint
 
 | | Crawl4AI | pagesift |
 |---|---|---|

@@ -28,7 +28,7 @@ Está pensado para funcionar como servicio: memoria acotada, backpressure, persi
 |---|---|
 | ⚡ **Rápido** | Extracción del contenido principal en **0.47 ms** por página (p50, un solo hilo): 16× más rápido que crw y 80× más rápido que Crawl4AI. Crawling HTTP sin límite de frecuencia a **3,500+ páginas/s** en una sola máquina. |
 | 🪶 **Ligero** | Rastrea 200 sitios × 100 páginas con **~300 MB**, donde Spider necesita 5.5 GB. Al sustituir Crawl4AI en un servicio en producción, el pico de memoria bajó de 1.4 GB a **225 MB**. |
-| 🎯 **Preciso** | La mejor puntuación de contenido principal en el conjunto de datos etiquetado de Firecrawl: **0.733** frente a 0.703 (crw) y 0.666 (Crawl4AI), con la mitad de contenido repetitivo filtrado. |
+| 🎯 **Preciso** | La mejor puntuación de contenido principal en el conjunto de datos etiquetado de Firecrawl: **0.733** frente a 0.703 (crw) y 0.666 (Crawl4AI), con la mitad de contenido repetitivo filtrado. Fechas de publicación tan precisas como htmldate, la biblioteca especializada (F1 **0.948** en su propio conjunto anotado), en **0,06 ms** en lugar de 4 ms. |
 | 🧠 **Renderizado inteligente** | Solo renderiza las páginas que lo necesitan, con el motor más ligero que funcione: Lightpanda → moli → Chrome. Aprende, sitio por sitio, cuándo un navegador no aporta nada. |
 | 🔌 **Reemplazo directo** | API de Firecrawl v2 (`/v2/scrape`, `/crawl`, `/map`, `/search`, `/extract`, `/batch/scrape`), así que los SDK de Firecrawl existentes funcionan sin cambios. Servidor MCP para agentes. |
 | 🛡️ **Seguro por defecto** | Protección contra SSRF en cada petición, redirección, subpetición del navegador y webhook; comprobaciones contra DNS rebinding; nunca desactiva el sandbox del navegador. |
@@ -107,7 +107,7 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 - Crawling con rutas incluidas/excluidas, profundidad y límites, sitemaps y robots.txt; el **crawling guiado por consulta** (`query`, `adaptive`) visita primero las páginas más relevantes y se detiene cuando las nuevas páginas dejan de aportar.
 - **Crawling de sitios reales sin desperdiciar el límite:** elimina parámetros de seguimiento e IDs de sesión, omite binarios y rutas infinitas, aprende qué URLs son alias de la misma página, deja para el final las trampas de calendarios y paginación, reintenta más tarde los fallos temporales y se frena cuando un sitio responde 429. En una web desordenada simulada encuentra el 74% de las páginas de contenido dentro del límite, frente al 53% de la siguiente mejor herramienta (ver benchmarks).
 - `queryFilter` conserva solo los fragmentos relevantes para una consulta (BM25), para ahorrar tokens del LLM.
-- Extracción de texto de PDF; metadatos (título, descripción, idioma, autor, fecha de publicación, Open Graph).
+- Extracción de texto de PDF; metadatos (título, descripción, idioma, autor, fecha de publicación, Open Graph). La fecha de publicación se busca como lo hace htmldate (etiquetas meta, JSON-LD, elementos de fecha, patrones de texto), con nombres de meses en unos veinte idiomas, y conserva la zona horaria de la propia página.
 - Peticiones condicionales (`ifNoneMatch`, `ifModifiedSince`), caché de contenido (`maxAge`) y hashes de contenido para detectar cambios.
 
 **Renderizado**

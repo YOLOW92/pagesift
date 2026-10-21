@@ -28,7 +28,7 @@ It is built for running as a service: bounded memory, backpressure, job persiste
 |---|---|
 | ⚡ **Fast** | Main-content extraction in **0.47 ms** per page (p50, single thread): 16× faster than crw, 80× faster than Crawl4AI. Unthrottled HTTP crawling at **3,500+ pages/s** on one machine. |
 | 🪶 **Light** | Crawls 200 sites × 100 pages in **~300 MB** where Spider needs 5.5 GB. Replacing Crawl4AI in a production service cut peak memory from 1.4 GB to **225 MB**. |
-| 🎯 **Accurate** | Best main-content score on Firecrawl's labelled dataset: **0.733** vs 0.703 (crw) and 0.666 (Crawl4AI), with half the boilerplate leak. |
+| 🎯 **Accurate** | Best main-content score on Firecrawl's labelled dataset: **0.733** vs 0.703 (crw) and 0.666 (Crawl4AI), with half the boilerplate leak. Publication dates as accurate as htmldate, the specialist library (F1 **0.948** on its own annotated set), in **0.06 ms** instead of 4 ms. |
 | 🧠 **Smart rendering** | Renders only pages that need it, with the lightest engine that works: Lightpanda → moli → Chrome. Learns per site when a browser adds nothing. |
 | 🔌 **Drop-in** | Firecrawl v2 API (`/v2/scrape`, `/crawl`, `/map`, `/search`, `/extract`, `/batch/scrape`), so existing Firecrawl SDKs work unchanged. MCP server for agents. |
 | 🛡️ **Safe by default** | SSRF protection on every request, redirect, browser sub-request and webhook; DNS-rebinding checks; never disables the browser sandbox. |
@@ -107,7 +107,7 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 - Crawl with include/exclude paths, depth and limits, sitemaps, and robots.txt; **query-focused crawling** (`query`, `adaptive`) visits the most relevant pages first and stops when new pages stop helping.
 - **Crawls real sites without wasting the budget:** strips tracking parameters and session IDs, skips binaries and endless paths, learns which URLs are aliases of the same page, pushes calendar and pagination traps to the back, retries transient failures later and slows down when a site answers 429. On a simulated messy web it finds 74% of the content pages within the page limit, versus 53% for the next best tool (see the benchmarks).
 - `queryFilter` keeps only the passages relevant to a query (BM25), to save LLM tokens.
-- PDF text extraction; metadata (title, description, language, author, published time, Open Graph).
+- PDF text extraction; metadata (title, description, language, author, published time, Open Graph). The publication date is searched like htmldate does (meta tags, JSON-LD, date elements, text patterns) with month names in about twenty languages, and keeps the page's own time zone.
 - Conditional requests (`ifNoneMatch`, `ifModifiedSince`), a content cache (`maxAge`), content hashes for change detection.
 
 **Rendering**

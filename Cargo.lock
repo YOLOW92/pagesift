@@ -1439,6 +1439,7 @@ version = "0.12.0"
 dependencies = [
  "aho-corasick",
  "blake3",
+ "memchr",
  "pagesift-html",
  "regex",
  "serde_json",

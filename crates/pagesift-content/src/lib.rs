@@ -11,7 +11,7 @@
 mod article;
 mod barrier;
 mod clean_html;
-mod datetime;
+mod dates;
 mod dom;
 mod extract;
 mod features;
@@ -28,6 +28,8 @@ use pagesift_html::Html;
 use url::Url;
 
 pub use barrier::{Barrier, BarrierKind};
+#[doc(hidden)]
+pub use dates::{time_published, trace_published};
 pub use fingerprint::{Fingerprints, hash_hex};
 pub use links::{Image, Link, same_site};
 pub use metadata::Metadata;
@@ -102,7 +104,7 @@ pub fn process(html: &str, opts: &Options) -> Document {
     // 评测集上这比 Readability 式的"挑一个正文节点"更好：首页、产品页、落地页没有单一的文章节点，
     // 文章页的"文章信号"（og:type、单个 <article>）也不可靠。
     let body = dom.get(body_or_root(&dom));
-    let metadata = metadata::extract(&dom, base.as_ref());
+    let metadata = metadata::extract(&dom, html, base.as_ref());
     // 文章页先试文章模式，成功就不用再按默认规则渲染一遍
     // 网站首页是列表页，不是一篇文章（很多站点在首页也写文章类的 JSON-LD）
     let home = base.as_ref().is_some_and(|u| {

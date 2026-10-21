@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use serde_json::{Map, Value};
 
-use crate::datetime::to_utc_rfc3339;
+use crate::dates::normalize;
 
 #[derive(Default)]
 pub(crate) struct Info {
@@ -134,7 +134,7 @@ fn is_article(n: &Obj) -> bool {
 }
 
 fn date(n: &Obj, key: &str) -> Option<String> {
-    to_utc_rfc3339(n.get(key)?.as_str()?)
+    normalize(n.get(key)?.as_str()?)
 }
 
 /// 作者可以是字符串、`{name}`、`{@id}` 引用，或者它们的数组。
@@ -187,8 +187,8 @@ mod tests {
                 {"@type":"BlogPosting","author":{"@id":"#me"},
                  "datePublished":"2024-06-24T10:00:00+02:00","dateModified":"2024-06-25"}]}"##);
         assert_eq!(info.author.as_deref(), Some("Ada Lovelace"));
-        assert_eq!(info.published.as_deref(), Some("2024-06-24T08:00:00Z"));
-        assert_eq!(info.modified.as_deref(), Some("2024-06-25T00:00:00Z"));
+        assert_eq!(info.published.as_deref(), Some("2024-06-24T10:00:00+02:00"));
+        assert_eq!(info.modified.as_deref(), Some("2024-06-25"));
     }
 
     #[test]
@@ -197,7 +197,7 @@ mod tests {
                 {"@type":["NewsArticle"],"author":[{"@type":"Person","name":"A"},"B"],
                  "datePublished":"2024-01-02"}]"#);
         assert_eq!(info.author.as_deref(), Some("A, B"));
-        assert_eq!(info.published.as_deref(), Some("2024-01-02T00:00:00Z"));
+        assert_eq!(info.published.as_deref(), Some("2024-01-02"));
     }
 
     #[test]

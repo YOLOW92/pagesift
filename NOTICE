@@ -15,6 +15,13 @@ No source code from them is included; the algorithms were reimplemented in Rust.
   The paragraph scoring, candidate selection and sibling rules
   (crates/pagesift-content/src/readability.rs) and its class/id word lists.
 
+- htmldate (https://github.com/adbar/htmldate), Apache License 2.0,
+  Copyright (C) Adrien Barbaresi and contributors.
+  The search order, meta attribute lists, date patterns, candidate selection and
+  plausibility rules of the publication-date search
+  (crates/pagesift-content/src/dates.rs). Its annotated evaluation set is used,
+  unmodified and not redistributed, by bench/meta/dates.py.
+
 - courlan (https://github.com/adbar/courlan), Apache License 2.0,
   Copyright (C) Adrien Barbaresi and contributors.
   The tracking-parameter rules used when cleaning crawl URLs

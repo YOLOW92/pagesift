@@ -14,6 +14,7 @@ The first public release.
 - Formats: `markdown`, `html`, `rawHtml`, `links`, `images`; `summary` and `json` with an OpenAI-compatible LLM; `changeTracking` with the cache.
 - `queryFilter` keeps only the passages relevant to a query (BM25).
 - Metadata: title, description, language, author, published and modified time, Open Graph and similar tags; PDF text extraction.
+- Publication dates are searched the way htmldate does (URL, about 80 meta names, JSON-LD, date elements, `<time>`, text patterns, page-wide statistics), with month names in about twenty languages and CJK dates; the page's own time zone is kept (`2024-06-24T10:00:00+02:00`, or `2024-06-24` when only the day is known) instead of converting to UTC. On htmldate's annotated set: F1 0.948, the same as htmldate, at 0.06 ms per page.
 - Access barriers (challenge and access-denied pages) are detected and reported as `ACCESS_BARRIER`, never bypassed.
 
 ### Crawling

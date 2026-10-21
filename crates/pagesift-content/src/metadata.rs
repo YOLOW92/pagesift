@@ -1,7 +1,7 @@
 use pagesift_html::Html;
 use url::Url;
 
-use crate::datetime::to_utc_rfc3339;
+use crate::dates::{self, normalize};
 use crate::dom::{collapse_whitespace, element, tag};
 use crate::jsonld;
 
@@ -17,9 +17,10 @@ pub struct Metadata {
     pub author: Option<String>,
     pub canonical_url: Option<String>,
     pub favicon: Option<String>,
-    /// 依次取 JSON-LD、meta、`<time datetime>`，统一为 UTC 的 RFC 3339（`2024-06-24T08:00:00Z`）。
+    /// 原始发布日期（见 [`crate::dates`]）：RFC 3339，保留页面上写的时区偏移（`2024-06-24T08:00:00+08:00`）；
+    /// 只知道日期时只有日期（`2024-06-24`）。
     pub published_time: Option<String>,
-    /// 同 `published_time`。
+    /// 最后修改时间：依次取 JSON-LD、meta、`<time itemprop=dateModified>`，格式同 `published_time`。
     pub modified_time: Option<String>,
     /// 页面自己声明是一篇文章：JSON-LD 里有文章类节点，或者 `og:type` 是 `article`。
     pub is_article: bool,
@@ -43,7 +44,7 @@ fn resolve(base: Option<&Url>, href: &str) -> String {
     }
 }
 
-pub(crate) fn extract(html: &Html<'_>, base: Option<&Url>) -> Metadata {
+pub(crate) fn extract(html: &Html<'_>, source: &str, base: Option<&Url>) -> Metadata {
     let mut m = Metadata::default();
     let mut title_tag = None;
     let mut og_title = None;
@@ -52,8 +53,6 @@ pub(crate) fn extract(html: &Html<'_>, base: Option<&Url>) -> Metadata {
     // 按出现顺序收集的候选值，取第一个能解析的
     let mut meta_published = Vec::new();
     let mut meta_modified = Vec::new();
-    let mut time_published = Vec::new();
-    let mut time_any = Vec::new();
     let mut time_modified = Vec::new();
 
     for node in html.root().descendants() {
@@ -134,15 +133,9 @@ pub(crate) fn extract(html: &Html<'_>, base: Option<&Url>) -> Metadata {
                     .collect();
                 ld_blocks.push(text);
             }
-            "time" => {
-                let Some(dt) = el.attr("datetime") else {
-                    continue;
-                };
-                match el.attr("itemprop") {
-                    Some("dateModified") => time_modified.push(dt.to_string()),
-                    Some("datePublished") => time_published.push(dt.to_string()),
-                    _ if el.attr("pubdate").is_some() => time_published.push(dt.to_string()),
-                    _ => time_any.push(dt.to_string()),
+            "time" if el.attr("itemprop") == Some("dateModified") => {
+                if let Some(dt) = el.attr("datetime") {
+                    time_modified.push(dt.to_string());
                 }
             }
             "link" => {
@@ -173,12 +166,8 @@ pub(crate) fn extract(html: &Html<'_>, base: Option<&Url>) -> Metadata {
     if ld.author.is_some() {
         m.author = ld.author;
     }
-    let first_date = |c: &[String]| c.iter().find_map(|s| to_utc_rfc3339(s));
-    m.published_time = ld
-        .published
-        .or_else(|| first_date(&meta_published))
-        .or_else(|| first_date(&time_published))
-        .or_else(|| first_date(&time_any));
+    let first_date = |c: &[String]| c.iter().find_map(|s| normalize(s));
+    m.published_time = dates::published(html, source, base.map(Url::as_str)).map(|d| d.render());
     m.modified_time = ld
         .modified
         .or_else(|| first_date(&meta_modified))

@@ -163,10 +163,14 @@ fn fingerprints_ignore_whitespace_differences() {
 }
 
 #[test]
-fn author_and_dates_prefer_json_ld_and_use_utc() {
+fn author_prefers_json_ld_and_dates_keep_the_page_offset() {
     let m = process(PAGE, &all()).metadata;
     assert_eq!(m.author.as_deref(), Some("Ld Author"));
-    assert_eq!(m.published_time.as_deref(), Some("2024-06-24T02:30:00Z"));
+    // 发布日期按 htmldate 的顺序先看 meta，保留页面上写的时区
+    assert_eq!(
+        m.published_time.as_deref(),
+        Some("2024-06-24T10:00:00+02:00")
+    );
     assert_eq!(m.modified_time, None);
 }
 
@@ -175,12 +179,18 @@ fn dates_fall_back_to_meta_then_time() {
     let meta = r#"<html><head><meta name="author" content="M"><meta property="article:published_time" content="Tue, 01 Oct 2024 08:00:00 +0100"><meta property="article:modified_time" content="not a date"></head><body><p>x</p><time datetime="2024-10-05T00:00:00Z" itemprop="dateModified">Oct 5</time></body></html>"#;
     let m = process(meta, &Options::default()).metadata;
     assert_eq!(m.author.as_deref(), Some("M"));
-    assert_eq!(m.published_time.as_deref(), Some("2024-10-01T07:00:00Z"));
+    assert_eq!(
+        m.published_time.as_deref(),
+        Some("2024-10-01T08:00:00+01:00")
+    );
     assert_eq!(m.modified_time.as_deref(), Some("2024-10-05T00:00:00Z"));
 
     let time = r#"<html><body><p>Posted <time datetime="2023-03-04T05:06:07+09:00">March 4</time></p></body></html>"#;
     let m = process(time, &Options::default()).metadata;
-    assert_eq!(m.published_time.as_deref(), Some("2023-03-03T20:06:07Z"));
+    assert_eq!(
+        m.published_time.as_deref(),
+        Some("2023-03-04T05:06:07+09:00")
+    );
 }
 
 #[test]
