@@ -38,7 +38,7 @@ pub(crate) fn is_non_content_tag(tag: Tag) -> bool {
     )
 }
 
-/// 显式隐藏的元素：`hidden`、内联样式 `display:none` / `visibility:hidden`。
+/// 显式隐藏的元素：`hidden`、内联样式 `display:none`，以及文字很少的 `visibility:hidden`。
 /// `aria-hidden="true"` 只让读屏软件跳过，浏览器照样显示，所以只对文字很少的元素生效
 /// （图标字体如 `arrow_forward`、装饰性短标签）；网站打开弹窗时常把整个页面框架标成
 /// aria-hidden，那种大块内容保留，否则整页正文会被删光。
@@ -62,14 +62,19 @@ pub(crate) fn is_hidden(node: &NodeR<'_>) -> bool {
             .filter(|c| !c.is_whitespace())
             .collect::<String>()
             .to_ascii_lowercase();
-        if style.contains("display:none") || style.contains("visibility:hidden") {
+        if style.contains("display:none") {
+            return true;
+        }
+        // visibility:hidden 常用来在 JS 排好版之前先藏起整块内容（Wix 等建站工具），
+        // JS 执行后就可见；只对短内容（工具提示、占位标签）当作隐藏
+        if style.contains("visibility:hidden") && short_text(node, ARIA_HIDDEN_MAX_CHARS) {
             return true;
         }
     }
     false
 }
 
-/// aria-hidden 元素的文字超过这么多（非空白字符）就当作页面内容，不跳过。
+/// aria-hidden、visibility:hidden 的元素文字超过这么多（非空白字符）就当作页面内容，不跳过。
 const ARIA_HIDDEN_MAX_CHARS: usize = 200;
 
 /// 子树里的非空白字符数不超过 `max`（数到超过就停）。

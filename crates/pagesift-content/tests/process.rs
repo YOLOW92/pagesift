@@ -272,3 +272,17 @@ fn aria_hidden_hides_icons_but_not_a_whole_page_behind_a_modal() {
         "icon glyph names stay out: {m}"
     );
 }
+
+#[test]
+fn visibility_hidden_blocks_waiting_for_scripts_are_kept() {
+    // 建站工具先用 visibility:hidden 藏起整块内容，等 JS 排版后再显示；短的工具提示仍然算隐藏
+    let body = "Managed cloud services and business internet for small offices across the county. "
+        .repeat(4);
+    let html = format!(
+        "<article><h1>Services</h1><fluid-columns-repeater style=\"visibility:hidden\"><p>{body}</p></fluid-columns-repeater>\
+         <span style=\"visibility: hidden\">Copied!</span></article>"
+    );
+    let m = md(&html);
+    assert!(m.contains("Managed cloud services"), "{m}");
+    assert!(!m.contains("Copied!"), "{m}");
+}
