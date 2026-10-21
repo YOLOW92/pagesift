@@ -3,7 +3,7 @@
 # 单线程耗时：各工具同时跑、各占一个物理核（pinned.sh），条件相同；全核吞吐单独跑。所有工具看到同一份冻结的 HTML。
 # 用法：bench/fresh/run_extract.sh <结果目录> [prep|run|all]
 #   prep：准备输入（浏览器渲染内容太少的页、冻结输入、记 pagesift 全核吞吐），要独占机器
-#   run：各工具转换（经 pinned.sh 绑核，可以和其他领域的单线程评测同时跑）和评分
+#   run：各工具转换（经 pinned.sh 绑核，可以和其他领域的单线程评测同时跑）和评分；run-only 只转换
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 R=$1/extract
@@ -37,21 +37,26 @@ fi
 [ "$MODE" = prep ] && exit 0
 
 sets="firecrawl:bench/data/inputs/manifest.jsonl aeb:$R/aeb/manifest.jsonl random:$R/random-manifest.jsonl"
+# 三个数据集的全部任务一次放进物理核池：一个工具跑完，它的核马上接下一个任务。
+# 输出已经完整（行数等于清单）的任务跳过，所以中断后可以接着跑。
+done_ok() { [ -s "$1" ] && [ "$(wc -l < "$1")" -eq "$(wc -l < "$2")" ]; }
 for s in $sets; do
     name=${s%%:*}; m=${s#*:}
-    echo "== $name $(date +%T)"
-    # 8 个工具同时跑，各占一个物理核（bench/fresh/pinned.sh），条件对所有工具相同
-    printf '%s\n' \
-        "target/release/examples/extract_jsonl $m $R/$name-pagesift.jsonl" \
-        "$PY -I bench/compare/py_adapter.py trafilatura $m $R/$name-trafilatura.jsonl 2>/dev/null" \
-        "$PY -I bench/compare/py_adapter.py markitdown $m $R/$name-markitdown.jsonl 2>/dev/null" \
-        "node bench/compare/js_adapter.mjs readability $NODE $m $R/$name-readability.jsonl 2>/dev/null" \
-        "node bench/compare/js_adapter.mjs defuddle $NODE $m $R/$name-defuddle.jsonl 2>/dev/null" \
-        "$RT crw-extract $m $R/$name-crw-extract.jsonl 2>/dev/null" \
-        "$RT dom_smoothie $m $R/$name-dom_smoothie.jsonl 2>/dev/null" \
-        "CRAWL4AI_NO_CLOUD_NOTICE=1 $C4A -I bench/compare/crawl4ai_adapter.py $m $R/$name-crawl4ai 2>/dev/null" \
-        | bench/fresh/pinned.sh
-done
+    done_ok "$R/$name-pagesift.jsonl" "$m" || echo "target/release/examples/extract_jsonl $m $R/$name-pagesift.jsonl"
+    for t in trafilatura markitdown; do
+        done_ok "$R/$name-$t.jsonl" "$m" || echo "$PY -I bench/compare/py_adapter.py $t $m $R/$name-$t.jsonl 2>/dev/null"
+    done
+    for t in readability defuddle; do
+        done_ok "$R/$name-$t.jsonl" "$m" || echo "node bench/compare/js_adapter.mjs $t $NODE $m $R/$name-$t.jsonl 2>/dev/null"
+    done
+    for t in crw dom_smoothie; do
+        done_ok "$R/$name-$t.jsonl" "$m" || echo "$RT $t $m $R/$name-$t.jsonl 2>/dev/null"
+    done
+    done_ok "$R/$name-crawl4ai/crawl4ai-raw.jsonl" "$m" || echo "CRAWL4AI_NO_CLOUD_NOTICE=1 $C4A -I bench/compare/crawl4ai_adapter.py $m $R/$name-crawl4ai 2>/dev/null"
+done | bench/fresh/pinned.sh
+# 别的进程（比如上一轮留下的长任务）还在写这里的输出时，等它写完再评分
+while pgrep -f "$R/[a-z]*-" >/dev/null; do sleep 10; done
+[ "$MODE" = run-only ] && exit 0
 
 # 2. 评分
 for f in "$R"/firecrawl-*.jsonl "$R"/firecrawl-crawl4ai/*.jsonl; do
