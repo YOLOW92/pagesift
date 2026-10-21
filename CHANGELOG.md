@@ -2,7 +2,14 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
-## [0.12.0] — unreleased
+## [0.12.1] — 2026-10-22
+
+### Fixed
+- macOS: low-memory mode now reads the available memory (via `vm_stat`) and serialises browser work as on Linux; it was ignored before.
+- A click or other action that navigates the page no longer makes the next script call fail with "Inspected target navigated or closed".
+- Release builds for Intel Macs run on `macos-15-intel` (GitHub retired `macos-13`).
+
+## [0.12.0] — 2026-10-22
 
 The first public release.
 
