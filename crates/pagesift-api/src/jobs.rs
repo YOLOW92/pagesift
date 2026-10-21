@@ -9,7 +9,7 @@ use tokio::sync::{Mutex, Semaphore};
 
 use crate::engine::{BoxFuture, CrawlSink, Engine};
 use crate::error::ApiError;
-use crate::types::{CrawlRequest, Document, JobError, ScrapeOptions};
+use crate::types::{CrawlRequest, CrawlSummary, Document, JobError, ScrapeOptions};
 
 /// Firecrawl 的任务结果保留 24 小时。
 pub const JOB_TTL: Duration = Duration::from_secs(24 * 3600);
@@ -43,6 +43,8 @@ pub struct Job {
     pub errors: Vec<JobError>,
     pub robots_blocked: Vec<String>,
     pub created: SystemTime,
+    /// 带查询的爬取结束后的说明。
+    pub summary: Option<CrawlSummary>,
 }
 
 impl Job {
@@ -104,6 +106,7 @@ impl Jobs {
                 errors: Vec::new(),
                 robots_blocked: Vec::new(),
                 created: SystemTime::now(),
+                summary: None,
             },
         );
         let jobs = self.clone();
@@ -163,6 +166,7 @@ impl Jobs {
                 errors: Vec::new(),
                 robots_blocked: Vec::new(),
                 created: SystemTime::now(),
+                summary: None,
             },
         );
         let sink = Arc::new(JobSink {
@@ -251,6 +255,14 @@ impl CrawlSink for JobSink {
 
     fn cancelled(&self) -> BoxFuture<'_, bool> {
         Box::pin(self.jobs.is_cancelled(&self.id))
+    }
+
+    fn summary(&self, summary: CrawlSummary) -> BoxFuture<'_, ()> {
+        Box::pin(async move {
+            if let Some(job) = self.jobs.inner.lock().await.get_mut(&self.id) {
+                job.summary = Some(summary);
+            }
+        })
     }
 }
 

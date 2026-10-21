@@ -6,7 +6,8 @@ use std::sync::Arc;
 
 use crate::error::ApiError;
 use crate::types::{
-    CrawlRequest, Document, ExtractRequest, MapLink, MapRequest, ScrapeOptions, SearchRequest,
+    CrawlRequest, CrawlSummary, Document, ExtractRequest, MapLink, MapRequest, ScrapeOptions,
+    SearchRequest,
 };
 use serde_json::Value;
 
@@ -72,4 +73,8 @@ pub trait CrawlSink: Send + Sync {
     /// 已经确定要抓的页面总数（随着发现新链接增长）。
     fn total(&self, total: usize) -> BoxFuture<'_, ()>;
     fn cancelled(&self) -> BoxFuture<'_, bool>;
+    /// 爬取结束时的说明（停止原因等）；只有带查询的爬取会调用。
+    fn summary(&self, _summary: CrawlSummary) -> BoxFuture<'_, ()> {
+        Box::pin(async {})
+    }
 }

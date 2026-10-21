@@ -4,8 +4,8 @@ use std::time::Duration;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use http_body_util::BodyExt;
-use pagesift_api::types::{Document, Metadata, ScrapeOptions};
-use pagesift_api::{ApiError, BoxFuture, Config, Engine, ErrorCode, router};
+use pagesift_api::types::{CrawlRequest, CrawlSummary, Document, Metadata, ScrapeOptions};
+use pagesift_api::{ApiError, BoxFuture, Config, CrawlSink, Engine, ErrorCode, router};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
@@ -39,6 +39,28 @@ impl Engine for Fake {
                 },
                 ..Default::default()
             })
+        })
+    }
+
+    /// 只抓起始页；带查询时报告一个停止原因。
+    fn crawl<'a>(
+        &'a self,
+        req: &'a CrawlRequest,
+        sink: Arc<dyn CrawlSink>,
+    ) -> BoxFuture<'a, Result<(), ApiError>> {
+        Box::pin(async move {
+            let doc = self.scrape(&req.url, &req.scrape_options).await?;
+            sink.page(doc).await;
+            if req.query.is_some() {
+                sink.summary(CrawlSummary {
+                    stop_reason: "coverage_reached".into(),
+                    coverage: Some(1.0),
+                    term_evidence: [("refund".to_string(), 3)].into(),
+                    pages: 1,
+                })
+                .await;
+            }
+            Ok(())
         })
     }
 }
@@ -232,6 +254,36 @@ async fn batch_job_runs_to_completion_with_paging_and_errors() {
         json!(["https://example.com/blocked"])
     );
     assert_eq!(errs["errors"][0]["code"], "ROBOTS_DISALLOWED");
+}
+
+async fn finished_crawl(app: &axum::Router, body: Value) -> Value {
+    let (status, v) = call(app, "POST", "/v2/crawl", Some(body), None).await;
+    assert_eq!(status, StatusCode::OK, "{v}");
+    let id = v["id"].as_str().unwrap().to_string();
+    for _ in 0..200 {
+        let (_, s) = call(app, "GET", &format!("/v2/crawl/{id}"), None, None).await;
+        if s["status"] == "completed" {
+            return s;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    panic!("crawl did not finish");
+}
+
+#[tokio::test]
+async fn crawl_status_reports_the_stop_reason_of_focused_crawls() {
+    let app = app(&[]);
+    let plain = finished_crawl(&app, json!({"url": "https://example.com/"})).await;
+    assert!(plain.get("pagesift").is_none(), "{plain}");
+    let focused = finished_crawl(
+        &app,
+        json!({"url": "https://example.com/", "query": "refund", "adaptive": true}),
+    )
+    .await;
+    assert_eq!(
+        focused["pagesift"],
+        json!({"stopReason": "coverage_reached", "coverage": 1.0, "termEvidence": {"refund": 3}, "pages": 1})
+    );
 }
 
 #[tokio::test]

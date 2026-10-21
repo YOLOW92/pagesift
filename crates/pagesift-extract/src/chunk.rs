@@ -276,7 +276,7 @@ fn fence_marker(line: &str) -> Option<(u8, usize)> {
     (n >= 3).then_some((ch, n))
 }
 
-fn atx_heading(line: &str) -> Option<(u8, String)> {
+pub(crate) fn atx_heading(line: &str) -> Option<(u8, String)> {
     let t = line.trim_start_matches(' ');
     if line.len() - t.len() > 3 {
         return None;

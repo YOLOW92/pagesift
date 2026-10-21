@@ -1371,6 +1371,8 @@ dependencies = [
  "pagesift-api",
  "pagesift-cdp",
  "pagesift-content",
+ "pagesift-diff",
+ "pagesift-extract",
  "pagesift-html",
  "pagesift-llm",
  "pagesift-mcp",

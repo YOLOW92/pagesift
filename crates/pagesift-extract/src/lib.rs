@@ -26,6 +26,7 @@ mod css;
 mod engine;
 mod error;
 mod patterns;
+mod relevance;
 mod schema;
 mod text;
 mod xpath;
@@ -35,5 +36,8 @@ pub use chunk::{Chunk, ChunkStrategy, chunk};
 pub use css::JsonCssExtractor;
 pub use error::Error;
 pub use patterns::{BuiltinPattern, RegexExtractor, RegexMatch, RegexOutput, UniqueMatch};
+pub use relevance::{
+    FilteredMarkdown, MAX_QUERY_TERMS, Query, QueryFilterOptions, filter_markdown_by_query,
+};
 pub use schema::{Field, FieldKind, Schema, Step, Transform};
 pub use xpath::JsonXPathExtractor;

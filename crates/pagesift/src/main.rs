@@ -107,6 +107,12 @@ enum Command {
         /// http, browser or auto
         #[arg(long, default_value = "auto")]
         engine: String,
+        /// Crawl the pages most relevant to this query first
+        #[arg(long)]
+        query: Option<String>,
+        /// With --query: stop early once the collected pages cover the query
+        #[arg(long, requires = "query")]
+        adaptive: bool,
     },
     /// List the URLs of a site
     Map {
@@ -325,6 +331,8 @@ fn run(command: Command, config_path: Option<PathBuf>) -> Result<ExitCode> {
             subdomains,
             sitemap,
             engine,
+            query,
+            adaptive,
         } => runtime()?.block_on(async move {
             let req: pagesift::api::types::CrawlRequest =
                 serde_json::from_value(serde_json::json!({
@@ -337,6 +345,8 @@ fn run(command: Command, config_path: Option<PathBuf>) -> Result<ExitCode> {
                     "allowSubdomains": subdomains,
                     "sitemap": sitemap,
                     "scrapeOptions": { "engine": engine },
+                    "query": query,
+                    "adaptive": adaptive,
                 }))?;
             if let Some(dir) = &out {
                 std::fs::create_dir_all(dir)

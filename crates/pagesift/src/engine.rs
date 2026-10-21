@@ -166,6 +166,8 @@ impl Scraper {
 
     /// 按给定的 robots 模式抓一页；整站爬取和 map 用它，robots 模式由调用方按请求类型决定。
     /// 先查缓存（语义同 Firecrawl 的 maxAge、minAge、storeInCache），没命中再抓取并写入。
+    /// `queryFilter`、LLM 格式和 `changeTracking` 都在缓存之外、基于正文 Markdown 做，
+    /// 缓存里存的总是完整正文。
     pub(crate) async fn scrape_with(
         &self,
         url: &str,
@@ -173,15 +175,26 @@ impl Scraper {
         mode: RobotsMode,
     ) -> Result<Document, ApiError> {
         let wants_llm = opts.wants("summary") || opts.wants("json");
-        if !wants_llm {
+        let tracking = opts
+            .formats
+            .iter()
+            .find(|f| f.kind == "changeTracking")
+            .map(crate::change::Tracking::parse)
+            .transpose()?;
+        if !wants_llm && tracking.is_none() && opts.query_filter.is_none() {
             return self.scrape_cached(url, opts, mode).await;
         }
-        let Some(llm) = &self.llm else {
+        if (wants_llm || tracking.as_ref().is_some_and(|t| t.json)) && self.llm.is_none() {
             return Err(ApiError::unsupported(
-                "summary and json formats need an LLM: set [llm] in pagesift.toml",
+                "summary and json formats (and the json mode of changeTracking) need an LLM: set [llm] in pagesift.toml",
             ));
-        };
-        // LLM 格式基于正文 Markdown；用户没要 markdown 时内部照样取，最后去掉
+        }
+        if tracking.is_some() && self.store.is_none() {
+            return Err(ApiError::unsupported(
+                "changeTracking keeps history in the store: enable [cache] in pagesift.toml",
+            ));
+        }
+        // 这些都基于正文 Markdown；用户没要 markdown 时内部照样取，最后去掉
         let mut inner = opts.clone();
         inner
             .formats
@@ -192,37 +205,94 @@ impl Scraper {
                 .formats
                 .push(pagesift_api::types::Format::new("markdown"));
         }
-        let mut doc = self.scrape_cached(url, &inner, mode).await?;
-        let md = doc.markdown.clone().unwrap_or_default();
-        if opts.wants("summary") {
-            let summary = pagesift_llm::summarize(llm, &md, &Default::default())
-                .await
-                .map_err(llm_error)?;
-            doc.summary = Some(summary);
+        // 变化检测要和最新的页面比较：调用方没给 maxAge 时不读缓存
+        if tracking.is_some() && inner.max_age.is_none() {
+            inner.max_age = Some(0);
         }
-        if let Some(f) = opts.formats.iter().find(|f| f.kind == "json") {
-            let schema = f
-                .options
-                .get("schema")
-                .cloned()
-                .unwrap_or_else(|| serde_json::json!({ "type": "object" }));
-            let eo = pagesift_llm::ExtractOptions {
-                prompt: f
-                    .options
-                    .get("prompt")
-                    .and_then(|p| p.as_str())
-                    .map(String::from),
-            };
-            doc.json = Some(
-                pagesift_llm::extract_json(llm, &md, &schema, &eo)
+        let mut doc = self.scrape_cached(url, &inner, mode).await?;
+        if let Some(q) = &opts.query_filter {
+            apply_query_filter(&mut doc, q).await?;
+        }
+        let md = doc.markdown.clone().unwrap_or_default();
+        if let Some(llm) = self.llm.as_ref().filter(|_| wants_llm) {
+            if opts.wants("summary") {
+                let summary = pagesift_llm::summarize(llm, &md, &Default::default())
                     .await
-                    .map_err(llm_error)?,
-            );
+                    .map_err(llm_error)?;
+                doc.summary = Some(summary);
+            }
+            if let Some(f) = opts.formats.iter().find(|f| f.kind == "json") {
+                let schema = f
+                    .options
+                    .get("schema")
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!({ "type": "object" }));
+                let eo = pagesift_llm::ExtractOptions {
+                    prompt: f
+                        .options
+                        .get("prompt")
+                        .and_then(|p| p.as_str())
+                        .map(String::from),
+                };
+                doc.json = Some(
+                    pagesift_llm::extract_json(llm, &md, &schema, &eo)
+                        .await
+                        .map_err(llm_error)?,
+                );
+            }
+        }
+        if let (Some(t), Some(store)) = (&tracking, &self.store) {
+            self.track_changes(store, t, url, &mut doc).await?;
         }
         if !wants_md {
             doc.markdown = None;
         }
         Ok(doc)
+    }
+
+    /// `changeTracking`：和上一次的正文比较，结果放进 `doc.change_tracking`。
+    async fn track_changes(
+        &self,
+        store: &pagesift_store::Store,
+        t: &crate::change::Tracking,
+        url: &str,
+        doc: &mut Document,
+    ) -> Result<(), ApiError> {
+        use crate::change::{Current, Previous};
+        let ext = doc.metadata.pagesift.get_or_insert_with(Default::default);
+        let current = if ext.not_modified {
+            Current::NotModified
+        } else if matches!(doc.metadata.status_code, 404 | 410) {
+            Current::Gone
+        } else {
+            Current::Page(doc.markdown.as_deref().unwrap_or_default())
+        };
+        let mut outcome = crate::change::track(store, t, url, current).await?;
+        ext.warnings.append(&mut outcome.warnings);
+        if let (true, "changed", Previous::Page(prev), Some(llm)) = (
+            t.json,
+            outcome.tracking.change_status.as_str(),
+            &outcome.previous,
+            &self.llm,
+        ) {
+            let schema = t
+                .schema
+                .clone()
+                .unwrap_or_else(|| serde_json::json!({ "type": "object" }));
+            let eo = pagesift_llm::ExtractOptions {
+                prompt: t.prompt.clone(),
+            };
+            let cur = doc.markdown.as_deref().unwrap_or_default();
+            let (before, after) = futures_util::future::try_join(
+                pagesift_llm::extract_json(llm, prev, &schema, &eo),
+                pagesift_llm::extract_json(llm, cur, &schema, &eo),
+            )
+            .await
+            .map_err(llm_error)?;
+            outcome.tracking.json = Some(crate::change::json_changes(&before, &after));
+        }
+        doc.change_tracking = Some(outcome.tracking);
+        Ok(())
     }
 
     async fn scrape_cached(
@@ -676,12 +746,29 @@ impl Engine for Scraper {
     }
 
     fn supported_formats(&self) -> &'static [&'static str] {
-        if self.llm.is_some() {
-            &[
+        match (self.llm.is_some(), self.store.is_some()) {
+            (true, true) => &[
+                "markdown",
+                "html",
+                "rawHtml",
+                "links",
+                "images",
+                "summary",
+                "json",
+                "changeTracking",
+            ],
+            (true, false) => &[
                 "markdown", "html", "rawHtml", "links", "images", "summary", "json",
-            ]
-        } else {
-            &["markdown", "html", "rawHtml", "links", "images"]
+            ],
+            (false, true) => &[
+                "markdown",
+                "html",
+                "rawHtml",
+                "links",
+                "images",
+                "changeTracking",
+            ],
+            (false, false) => &["markdown", "html", "rawHtml", "links", "images"],
         }
     }
 }
@@ -1098,6 +1185,39 @@ fn hidden_frame(el: &pagesift_html::Element<'_>) -> bool {
             || s.contains("width:0")
             || s.contains("height:0")
     })
+}
+
+/// `queryFilter`：只留下和查询相关的段落，统计写进 `metadata.pagesift.queryFilter`。
+async fn apply_query_filter(
+    doc: &mut Document,
+    q: &pagesift_api::types::QueryFilter,
+) -> Result<(), ApiError> {
+    let Some(md) = doc.markdown.take() else {
+        return Ok(());
+    };
+    let fo = pagesift_extract::QueryFilterOptions {
+        threshold: q.threshold,
+        top_k: q.top_k,
+        headings: q.headings,
+    };
+    let query = q.query.clone();
+    let (f, before) = cpu_task(move || {
+        let f = pagesift_extract::filter_markdown_by_query(&md, &query, &fo);
+        (f, pagesift_content::estimate_tokens(&md))
+    })
+    .await?;
+    let ext = doc.metadata.pagesift.get_or_insert_with(Default::default);
+    if f.kept == 0 && f.total > 0 {
+        ext.warnings.push("query_filter_no_match".into());
+    }
+    ext.query_filter = Some(pagesift_api::types::QueryFilterStats {
+        kept_blocks: f.kept,
+        total_blocks: f.total,
+        tokens_before: before,
+        tokens_after: pagesift_content::estimate_tokens(&f.markdown),
+    });
+    doc.markdown = Some(f.markdown);
+    Ok(())
 }
 
 async fn process_html(

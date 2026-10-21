@@ -5,6 +5,7 @@ mod algo;
 mod block;
 mod inline;
 mod noise;
+mod unified;
 
 use std::cell::OnceCell;
 use std::collections::{HashMap, VecDeque};
@@ -14,6 +15,7 @@ use serde::{Deserialize, Serialize};
 pub use block::{Block, BlockKind, normalize, split_blocks};
 pub use inline::{InlineOp, InlineSegment, inline_diff};
 pub use noise::NoiseCategory;
+pub use unified::{DiffLine, Hunk, LineKind, UnifiedDiff, unified_diff};
 
 use algo::Edit;
 

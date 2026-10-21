@@ -123,6 +123,65 @@ pub struct ScrapeOptions {
     pub ignore_robots_txt: bool,
     #[serde(default)]
     pub store_snapshot: bool,
+    /// 只保留正文里和查询相关的段落（BM25），见 [`QueryFilter`]。不给时输出完整正文。
+    #[serde(default)]
+    pub query_filter: Option<QueryFilter>,
+}
+
+fn default_filter_threshold() -> f32 {
+    1.0
+}
+
+/// pagesift 扩展 `queryFilter`：按查询过滤正文 Markdown，省 token。
+/// 可以直接写查询字符串，也可以写 `{"query": "...", "threshold": 1.0, "topK": 5, "headings": true}`。
+/// `summary`、`json` 和 `changeTracking` 都基于过滤后的正文。
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueryFilter {
+    pub query: String,
+    /// BM25 分数不低于它的段落才保留，默认 1.0（同 Crawl4AI 的 `bm25_threshold`）。
+    pub threshold: f32,
+    /// 最多保留分数最高的几段。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top_k: Option<usize>,
+    /// 在保留的段落前补上它所在的各级标题，默认开。
+    pub headings: bool,
+}
+
+impl<'de> Deserialize<'de> for QueryFilter {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Full {
+            query: String,
+            #[serde(default = "default_filter_threshold")]
+            threshold: f32,
+            #[serde(default)]
+            top_k: Option<usize>,
+            #[serde(default = "yes")]
+            headings: bool,
+        }
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Repr {
+            Query(String),
+            Full(Full),
+        }
+        Ok(match Repr::deserialize(d)? {
+            Repr::Query(query) => QueryFilter {
+                query,
+                threshold: default_filter_threshold(),
+                top_k: None,
+                headings: true,
+            },
+            Repr::Full(f) => QueryFilter {
+                query: f.query,
+                threshold: f.threshold,
+                top_k: f.top_k,
+                headings: f.headings,
+            },
+        })
+    }
 }
 
 impl Default for ScrapeOptions {
@@ -199,6 +258,86 @@ pub struct CrawlRequest {
     pub scrape_options: ScrapeOptions,
     #[serde(default)]
     pub webhook: Option<Value>,
+
+    // ---- pagesift 扩展 ----
+    /// 相关性优先爬取：给了查询（字符串，或关键词数组）时，按链接和查询的相关性决定先爬哪页，
+    /// 不再按广度优先。不给时行为和 Firecrawl 一样。
+    #[serde(default, deserialize_with = "query_or_keywords")]
+    pub query: Option<String>,
+    /// 自适应爬取：信息够了就提前停止，需要同时给 `query`。写 `true` 用默认参数。
+    #[serde(default, deserialize_with = "adaptive_options")]
+    pub adaptive: Option<AdaptiveOptions>,
+}
+
+fn query_or_keywords<'de, D: Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Repr {
+        Query(String),
+        Keywords(Vec<String>),
+    }
+    Ok(match Option::<Repr>::deserialize(d)? {
+        Some(Repr::Query(q)) => Some(q),
+        Some(Repr::Keywords(k)) => Some(k.join(" ")),
+        None => None,
+    }
+    .filter(|q| !q.trim().is_empty()))
+}
+
+fn adaptive_options<'de, D: Deserializer<'de>>(d: D) -> Result<Option<AdaptiveOptions>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Repr {
+        Flag(bool),
+        Options(AdaptiveOptions),
+    }
+    Ok(match Option::<Repr>::deserialize(d)? {
+        Some(Repr::Flag(true)) => Some(AdaptiveOptions::default()),
+        Some(Repr::Flag(false)) | None => None,
+        Some(Repr::Options(o)) => Some(o),
+    })
+}
+
+/// 自适应爬取的停止条件（pagesift 扩展 `adaptive`）。
+///
+/// 每个查询词的"证据"是包含它的、互不相同的相关段落数；覆盖度是各词
+/// `min(1, 证据 / evidencePerTerm)` 的平均值。覆盖度达到 `coverageThreshold` 时停止
+/// （`coverage_reached`）；或者连续 `patience` 页带来的新相关内容都少于已收集的 `minGain`
+/// 时停止（`saturated`）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AdaptiveOptions {
+    pub coverage_threshold: f64,
+    pub evidence_per_term: usize,
+    pub patience: usize,
+    pub min_gain: f64,
+}
+
+impl Default for AdaptiveOptions {
+    fn default() -> Self {
+        Self {
+            coverage_threshold: 0.9,
+            evidence_per_term: 3,
+            patience: 5,
+            min_gain: 0.05,
+        }
+    }
+}
+
+/// 带查询的爬取结束时的说明，放在任务状态的 `pagesift` 字段里。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CrawlSummary {
+    /// `coverage_reached`、`saturated`（自适应提前停止），`limit_reached`、`exhausted`（没有更多页面）、`cancelled`。
+    pub stop_reason: String,
+    /// 自适应爬取结束时的覆盖度，0 到 1。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub coverage: Option<f64>,
+    /// 每个查询词（词干）收集到的证据段落数。
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
+    pub term_evidence: BTreeMap<String, usize>,
+    /// 实际抓取的页面数。
+    pub pages: usize,
 }
 
 fn default_map_limit() -> usize {
@@ -298,6 +437,43 @@ pub struct PagesiftMeta {
     /// 各阶段耗时，毫秒。
     #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
     pub timings: BTreeMap<String, f64>,
+    /// 带查询的爬取里，这一页和查询的相关度（0 到 1）。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relevance: Option<f32>,
+    /// `queryFilter` 的效果：保留了几段、原来几段，过滤前后的 token 估算。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query_filter: Option<QueryFilterStats>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueryFilterStats {
+    pub kept_blocks: usize,
+    pub total_blocks: usize,
+    pub tokens_before: usize,
+    pub tokens_after: usize,
+}
+
+/// Firecrawl 的 `changeTracking` 结果（格式 `{"type": "changeTracking", "modes": [...], "tag": ...}`）。
+/// 和上一次抓取同一 URL（同一 `tag`）的正文 Markdown 比较。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangeTracking {
+    /// 上一次抓取的时间；第一次抓取时是 null。
+    pub previous_scrape_at: Option<String>,
+    /// `new`、`same`、`changed`、`removed`。
+    pub change_status: String,
+    /// `visible`（通过链接或 sitemap 发现）或 `hidden`。pagesift 不从历史里发现页面，总是 `visible`。
+    pub visibility: String,
+    /// `git-diff` 模式：`{"text": 统一格式文本, "json": parse-diff 结构}`，只在 `changed` 时给。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diff: Option<Value>,
+    /// `json` 模式：按 schema 提取前后两版，变了的字段给出 `{"previous", "current"}`。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub json: Option<Value>,
+    /// pagesift 扩展：块级 diff 的结论，区分噪声变化（日期、计数等）和实质变化。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pagesift: Option<Value>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -364,6 +540,8 @@ pub struct Document {
     pub actions: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub warning: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub change_tracking: Option<ChangeTracking>,
     pub metadata: Metadata,
 }
 
@@ -407,6 +585,9 @@ pub struct JobStatus {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next: Option<String>,
     pub data: Vec<Document>,
+    /// pagesift 扩展：带查询的爬取结束后的说明（停止原因、覆盖度）。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pagesift: Option<CrawlSummary>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -473,6 +654,77 @@ mod tests {
         let m: MapRequest = serde_json::from_value(json!({"url": "https://example.com"})).unwrap();
         assert_eq!(m.limit, 5_000);
         assert!(m.include_subdomains && m.ignore_query_parameters);
+    }
+
+    #[test]
+    fn query_filter_accepts_string_or_object() {
+        let r: ScrapeRequest = serde_json::from_value(json!({
+            "url": "https://example.com", "queryFilter": "refund policy",
+        }))
+        .unwrap();
+        let f = r.options.query_filter.unwrap();
+        assert_eq!(
+            (f.query.as_str(), f.threshold, f.top_k, f.headings),
+            ("refund policy", 1.0, None, true)
+        );
+        let r: ScrapeRequest = serde_json::from_value(json!({
+            "url": "https://example.com",
+            "queryFilter": {"query": "q", "threshold": 0.5, "topK": 3, "headings": false},
+        }))
+        .unwrap();
+        let f = r.options.query_filter.unwrap();
+        assert_eq!((f.threshold, f.top_k, f.headings), (0.5, Some(3), false));
+        assert!(ScrapeOptions::default().query_filter.is_none());
+    }
+
+    #[test]
+    fn crawl_query_and_adaptive_options() {
+        let c: CrawlRequest =
+            serde_json::from_value(json!({"url": "https://example.com"})).unwrap();
+        assert_eq!((c.query, c.adaptive), (None, None));
+        let c: CrawlRequest = serde_json::from_value(json!({
+            "url": "https://example.com", "query": ["refund", "policy"], "adaptive": true,
+        }))
+        .unwrap();
+        assert_eq!(c.query.as_deref(), Some("refund policy"));
+        assert_eq!(c.adaptive, Some(AdaptiveOptions::default()));
+        let c: CrawlRequest = serde_json::from_value(json!({
+            "url": "https://example.com", "query": "  ", "adaptive": {"patience": 2},
+        }))
+        .unwrap();
+        assert_eq!(c.query, None, "blank query is no query");
+        assert_eq!(c.adaptive.unwrap().patience, 2);
+        let c: CrawlRequest = serde_json::from_value(json!({
+            "url": "https://example.com", "query": null, "adaptive": false,
+        }))
+        .unwrap();
+        assert_eq!((c.query, c.adaptive), (None, None));
+    }
+
+    #[test]
+    fn change_tracking_serializes_firecrawl_fields() {
+        let doc = Document {
+            change_tracking: Some(ChangeTracking {
+                previous_scrape_at: None,
+                change_status: "new".into(),
+                visibility: "visible".into(),
+                diff: None,
+                json: None,
+                pagesift: None,
+            }),
+            ..Default::default()
+        };
+        let v = serde_json::to_value(&doc).unwrap();
+        assert_eq!(
+            v["changeTracking"],
+            json!({"previousScrapeAt": null, "changeStatus": "new", "visibility": "visible"})
+        );
+        assert!(
+            serde_json::to_value(Document::default())
+                .unwrap()
+                .get("changeTracking")
+                .is_none()
+        );
     }
 
     #[test]
