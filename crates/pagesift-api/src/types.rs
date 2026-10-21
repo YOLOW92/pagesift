@@ -441,6 +441,9 @@ pub struct PagesiftMeta {
     /// 各阶段耗时，毫秒。
     #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
     pub timings: BTreeMap<String, f64>,
+    /// 整站爬取里，这一页的正文和之前抓到的某一页完全相同（同一内容的另一个 URL）：那一页的 URL。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duplicate_of: Option<String>,
     /// 带查询的爬取里，这一页和查询的相关度（0 到 1）。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub relevance: Option<f32>,

@@ -40,6 +40,27 @@ memory available at start minus 2 GB, or after `MEASURE_BUDGET_S` seconds (defau
 Throughput is pages actually served by the origin divided by wall time, the same count
 for every tool, so a run cut short still reports a rate.
 
+## Real-web simulation (`run_wild.sh`)
+
+The clean sites above measure speed. Real sites waste a crawler's budget in other ways, so
+`wild` (`src/bin/wild.rs`) serves sites whose problems are drawn at random from a seed:
+tracking parameters and session IDs on links, print versions and `index.html` aliases,
+relative links that grow forever (`more/more/…`), endless calendars and pagination,
+sort/filter combinations, links to images and archives, robots.txt-disallowed areas,
+random first-attempt 503s, and per-site rate limits that answer 429. The origin itself
+classifies every request (first fetch of a content page, duplicate, trap, binary, robots
+violation, 429/503) and reports per site at `/__report` (`/__log` lists every request).
+
+```bash
+cargo build --release --manifest-path bench/crawl/Cargo.toml --bin wild
+bench/crawl/run_wild.sh            # fast and polite; SEED=n for another random web
+```
+
+Each site has 60 content pages and each tool may fetch 60 pages per site, so every wasted
+request costs a content page. Coverage (content pages found / 60, higher is better), waste
+share (lower is better), robots violations and 429s received (lower is better) and wall time
+(lower is better) are summarised by `wild_score.py`.
+
 ## Tools and settings
 
 | Tool | How it runs | Politeness settings |

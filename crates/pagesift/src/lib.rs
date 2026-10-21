@@ -17,6 +17,7 @@ pub mod config;
 mod crawl;
 mod engine;
 mod focus;
+mod frontier;
 mod learn;
 pub mod mcp;
 

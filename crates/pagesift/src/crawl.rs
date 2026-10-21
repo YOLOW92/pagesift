@@ -15,14 +15,25 @@ use pagesift_api::{ApiError, CrawlSink, ErrorCode};
 use pagesift_net::{FetchRequest, Url};
 use pagesift_policy::{RequestKind, RobotsMode};
 use regex::Regex;
+use tokio::sync::Semaphore;
 
 use crate::engine::{Scraper, policy_error};
 use crate::focus::{Adaptive, BestFirst, Focus, Offer, link_contexts};
+use crate::frontier::{self, Learner, Seen, Tiered};
 
 /// sitemapindex 最多展开几层、最多读多少个 sitemap 文件、单个文件解压后最大多少。
 const SITEMAP_MAX_DEPTH: usize = 3;
 const SITEMAP_MAX_FILES: usize = 50;
 const SITEMAP_MAX_BYTES: u64 = 50 * 1024 * 1024;
+/// robots.txt 没有声明 sitemap 时依次尝试的位置（常见 CMS 的默认路径）。
+const SITEMAP_FALLBACKS: &[&str] = &["/sitemap.xml", "/sitemap_index.xml", "/wp-sitemap.xml"];
+
+/// 临时性失败（超时、网络错误、5xx、429、主机冷却）最多重试几次（同 Scrapy 的 RETRY_TIMES）。
+const MAX_RETRIES: u32 = 2;
+/// 主机冷却或 Retry-After 超过这个时长就不等了，这一页按失败报告。
+const MAX_WAIT: Duration = Duration::from_secs(60);
+/// 没有 Retry-After 时，第 n 次重试前等 RETRY_BASE × 2^(n-1)。
+const RETRY_BASE: Duration = Duration::from_millis(500);
 
 /// URL 规范化（F-6.2），用来去重：去掉 fragment；查询参数排序，或者整个去掉。
 /// 协议和主机的小写、默认端口、`..` 路径由 URL 解析本身处理。
@@ -127,7 +138,111 @@ impl Scope {
     }
 }
 
+/// 页面上的链接（或 sitemap 里的 URL）解析、清洗之后，值得抓的才返回。
+/// 先按固定规则清洗，再按这次爬取学到的改写规则改成规范写法。
+fn candidate(base: &Url, link: &str, learner: &Learner) -> Option<Url> {
+    let mut u = base.join(link).ok()?;
+    frontier::clean(&mut u);
+    learner.rewrite(&mut u);
+    (!frontier::skip(&u)).then_some(u)
+}
+
+/// 等着重试的页面：到点了才重新调度。
+#[derive(Default)]
+struct Retries {
+    items: Vec<(tokio::time::Instant, Url, usize, u32)>,
+}
+
+impl Retries {
+    /// 第 `attempt` 次失败的结果值得重试就排进来，返回 true；否则返回 false，结果照常交付。
+    fn offer(
+        &mut self,
+        result: &Result<pagesift_api::types::Document, ApiError>,
+        url: &Url,
+        depth: usize,
+        attempt: u32,
+    ) -> bool {
+        match retry_wait(result, attempt) {
+            Some(wait) if attempt < MAX_RETRIES && wait <= MAX_WAIT => {
+                self.items.push((
+                    tokio::time::Instant::now() + wait,
+                    url.clone(),
+                    depth,
+                    attempt + 1,
+                ));
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// 已经到点的一个（最早的）。
+    fn due(&mut self) -> Option<(Url, usize, u32)> {
+        let now = tokio::time::Instant::now();
+        let i = (0..self.items.len())
+            .filter(|&i| self.items[i].0 <= now)
+            .min_by_key(|&i| self.items[i].0)?;
+        let (_, u, d, a) = self.items.swap_remove(i);
+        Some((u, d, a))
+    }
+
+    fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
+    fn next_due(&self) -> Option<tokio::time::Instant> {
+        self.items.iter().map(|r| r.0).min()
+    }
+}
+
+/// 这次结果值不值得重试，值得的话先等多久。
+fn retry_wait(
+    result: &Result<pagesift_api::types::Document, ApiError>,
+    attempt: u32,
+) -> Option<Duration> {
+    let backoff = RETRY_BASE * 2u32.pow(attempt.min(6));
+    match result {
+        Ok(doc) => matches!(
+            doc.metadata.status_code,
+            408 | 429 | 500 | 502 | 503 | 504 | 522 | 524
+        )
+        .then_some(backoff),
+        Err(e) => match e.code {
+            ErrorCode::HostCooldown | ErrorCode::RateLimited => {
+                Some(e.retry_after.map_or(backoff, |s| {
+                    Duration::from_secs(s).max(Duration::from_millis(100))
+                }))
+            }
+            ErrorCode::Timeout
+            | ErrorCode::NetworkError
+            | ErrorCode::UpstreamError
+            | ErrorCode::Busy => Some(backoff),
+            _ => None,
+        },
+    }
+}
+
 impl Scraper {
+    /// 爬取里抓一页：主机在冷却就等冷却结束再抓（不把排队的页面直接判失败），等待期间不占爬取名额。
+    /// 失败后要不要重试由调用方按 [`retry_wait`] 决定：重试排进 [`Retries`]，不在这里原地等，
+    /// 免得每主机只有一个并发时，一页的退避把整个站点的爬取都挡住（同 Scrapy 把重试请求放回调度器）。
+    async fn crawl_attempt(
+        &self,
+        url: &Url,
+        opts: &ScrapeOptions,
+        mode: RobotsMode,
+        slots: &Semaphore,
+    ) -> Result<pagesift_api::types::Document, ApiError> {
+        let host = url.host_str().unwrap_or_default();
+        if let Err(wait) = self.policy().backoff().check(host)
+            && wait <= MAX_WAIT
+        {
+            tokio::time::sleep(wait).await;
+        }
+        let _slot = slots.acquire().await.expect("semaphore never closed");
+        Box::pin(self.scrape_with(url.as_str(), opts, mode)).await
+    }
+
     /// 从 robots.txt 声明的 sitemap（没有时试 `/sitemap.xml`）收集页面 URL，展开 sitemapindex，支持 gzip。
     async fn sitemap_urls(&self, start: &Url, mode: RobotsMode, limit: usize) -> Vec<Url> {
         let mut queue: VecDeque<(Url, usize)> = VecDeque::new();
@@ -138,14 +253,27 @@ impl Scraper {
                 }
             }
         }
-        if queue.is_empty()
-            && let Ok(u) = start.join("/sitemap.xml")
-        {
-            queue.push_back((u, 0));
-        }
+        // robots.txt 没声明时依次试常见位置，直到有一个给出页面
+        let mut fallbacks: VecDeque<Url> = if queue.is_empty() {
+            SITEMAP_FALLBACKS
+                .iter()
+                .filter_map(|p| start.join(p).ok())
+                .collect()
+        } else {
+            VecDeque::new()
+        };
         let mut seen_files = HashSet::new();
         let mut pages = Vec::new();
-        while let Some((url, depth)) = queue.pop_front() {
+        loop {
+            if queue.is_empty()
+                && pages.is_empty()
+                && let Some(u) = fallbacks.pop_front()
+            {
+                queue.push_back((u, 0));
+            }
+            let Some((url, depth)) = queue.pop_front() else {
+                break;
+            };
             if seen_files.len() >= SITEMAP_MAX_FILES
                 || pages.len() >= limit
                 || !seen_files.insert(url.to_string())
@@ -227,7 +355,8 @@ impl Scraper {
         }
         let mut seen = HashSet::new();
         let mut links: Vec<String> = Vec::new();
-        for u in std::iter::once(start.clone()).chain(found) {
+        for mut u in std::iter::once(start.clone()).chain(found) {
+            frontier::clean(&mut u);
             if scope.allows(&u) && seen.insert(dedup_key(&u, req.ignore_query_parameters)) {
                 links.push(normalize(&u, req.ignore_query_parameters));
             }
@@ -331,7 +460,12 @@ impl Scraper {
         // 队列只装得下 limit 页：广度优先、先进先出，超出上限后发现的 URL 本来就轮不到，
         // 不入队也不记进去重表，大站点上内存不会随发现的链接数增长
         let mut seen: HashSet<u64> = HashSet::new();
-        let mut queue: VecDeque<(Url, usize)> = VecDeque::new();
+        // 模板被降级（大多抓到重复内容）的 URL 排在正常 URL 之后
+        let mut queue = Tiered::default();
+        let mut learner = Learner::default();
+        let mut retries = Retries::default();
+        // 在抓的正常层页面数（降级层的 URL 要等它们都结束才出队）
+        let mut normal_inflight = 0usize;
         // 持久化的任务要记下入队的 URL，重启后据此恢复队列和去重表
         let track = sink.tracks_frontier();
         let mut scheduled = 0usize;
@@ -342,29 +476,34 @@ impl Scraper {
             }
             for (u, depth) in r.pending {
                 if let Ok(u) = Url::parse(&u) {
-                    queue.push_back((u, depth));
+                    queue.push(&learner, u, depth);
                 }
             }
             scheduled = r.done;
         } else {
             seen.insert(seen_hash(&start, req.ignore_query_parameters));
-            queue.push_back((start.clone(), 0));
+            queue.push(&learner, start.clone(), 0);
             for u in self.initial_sitemap(&c, &start).await {
+                let Some(u) = candidate(&u, "", &learner) else {
+                    continue;
+                };
                 if queue.len() < req.limit
                     && scope.allows(&u)
                     && seen.insert(seen_hash(&u, req.ignore_query_parameters))
                 {
-                    queue.push_back((u, 0));
+                    queue.push(&learner, u, 0);
                 }
             }
             if track {
-                sink.enqueued(queue.iter().map(|(u, d)| (u.to_string(), *d)).collect())
+                sink.enqueued(queue.iter().map(|(u, d)| (u.to_string(), d)).collect())
                     .await;
             }
         }
 
         let wants_links = req.scrape_options.wants("links");
-        let (opts, concurrency) = self.crawl_settings(req, &[]);
+        let wants_md = req.scrape_options.wants("markdown");
+        // 判断重复内容要看正文
+        let (opts, concurrency) = self.crawl_settings(req, &["markdown"]);
         let slots = self.crawl_slots();
         let delay = req.delay.map(Duration::from_secs_f64);
 
@@ -374,57 +513,100 @@ impl Scraper {
             if sink.cancelled().await {
                 return Ok(());
             }
-            while inflight.len() < concurrency && scheduled < req.limit {
-                let Some((url, depth)) = queue.pop_front() else {
+            while inflight.len() < concurrency {
+                let pick = loop {
+                    if let Some((u, d, a)) = retries.due() {
+                        break Some((u, d, a, false));
+                    }
+                    if scheduled >= req.limit {
+                        break None;
+                    }
+                    let allow_low = normal_inflight == 0 && retries.is_empty();
+                    let Some((mut url, depth, low)) = queue.pop(&learner, allow_low) else {
+                        break None;
+                    };
+                    // 入队之后学到的改写规则：改写后已经见过的就不抓了
+                    if learner.rewrite(&mut url)
+                        && !seen.insert(seen_hash(&url, req.ignore_query_parameters))
+                    {
+                        continue;
+                    }
+                    scheduled += 1;
+                    break Some((url, depth, 0, low));
+                };
+                let Some((url, depth, attempt, low)) = pick else {
                     break;
                 };
-                scheduled += 1;
+                normal_inflight += usize::from(!low);
                 let opts = opts.clone();
                 inflight.push(async move {
-                    let _slot = slots.acquire().await.expect("semaphore never closed");
-                    let result = Box::pin(self.scrape_with(url.as_str(), &opts, mode)).await;
-                    (url, depth, result)
+                    let result = self.crawl_attempt(&url, &opts, mode, slots).await;
+                    (url, depth, attempt, low, result)
                 });
                 if let Some(d) = delay {
                     tokio::time::sleep(d).await;
                 }
             }
-            let Some((url, depth, result)) = inflight.next().await else {
-                break;
+            let (url, depth, attempt, low, result) = match inflight.next().await {
+                Some(done) => done,
+                None => match retries.next_due() {
+                    Some(t) => {
+                        tokio::time::sleep_until(t).await;
+                        continue;
+                    }
+                    None => break,
+                },
             };
+            normal_inflight -= usize::from(!low);
+            if retries.offer(&result, &url, depth, attempt) {
+                continue;
+            }
             match result {
                 Ok(mut doc) => {
+                    let base = doc
+                        .metadata
+                        .url
+                        .as_deref()
+                        .and_then(|u| Url::parse(u).ok())
+                        .unwrap_or(url.clone());
+                    note_duplicate(&mut learner, &url, &mut doc);
                     if follow_links && depth < max_depth {
-                        let base = doc
-                            .metadata
-                            .url
-                            .as_deref()
-                            .and_then(|u| Url::parse(u).ok())
-                            .unwrap_or(url.clone());
-                        let before = queue.len();
+                        let mut fresh: Vec<(String, usize)> = Vec::new();
                         for link in doc.links.iter().flatten() {
+                            let Some(u) = candidate(&base, link, &learner) else {
+                                continue;
+                            };
+                            let h = seen_hash(&u, req.ignore_query_parameters);
+                            if !scope.allows(&u) || seen.contains(&h) {
+                                continue;
+                            }
                             if scheduled + queue.len() >= req.limit {
-                                break;
+                                // 满了：正常的新 URL 挤掉一个降级的；新 URL 自己也是降级的就不要了
+                                if learner.demoted(&u) {
+                                    continue;
+                                }
+                                match queue.evict_low(&learner) {
+                                    Some(old) => {
+                                        seen.remove(&seen_hash(&old, req.ignore_query_parameters));
+                                    }
+                                    None => break,
+                                }
                             }
-                            let Ok(u) = base.join(link) else { continue };
-                            if scope.allows(&u)
-                                && seen.insert(seen_hash(&u, req.ignore_query_parameters))
-                            {
-                                queue.push_back((u, depth + 1));
+                            seen.insert(h);
+                            if track {
+                                fresh.push((u.to_string(), depth + 1));
                             }
+                            queue.push(&learner, u, depth + 1);
                         }
-                        if track && queue.len() > before {
-                            sink.enqueued(
-                                queue
-                                    .range(before..)
-                                    .map(|(u, d)| (u.to_string(), *d))
-                                    .collect(),
-                            )
-                            .await;
+                        if !fresh.is_empty() {
+                            sink.enqueued(fresh).await;
                         }
                     }
                     if !wants_links {
                         doc.links = None;
+                    }
+                    if !wants_md {
+                        doc.markdown = None;
                     }
                     sink.page(doc).await;
                 }
@@ -455,6 +637,8 @@ impl Scraper {
         // 两者加起来不超过 limit，和广度优先一样有界
         let mut seen: HashSet<u64> = HashSet::new();
         let mut queue = BestFirst::default();
+        let mut learner = Learner::default();
+        let mut retries = Retries::default();
         // 有页面因为 limit 没能进队列
         let mut overflow = false;
         let track = sink.tracks_frontier();
@@ -513,6 +697,9 @@ impl Scraper {
                 req.limit,
             );
             for u in self.initial_sitemap(&c, &start).await {
+                let Some(u) = candidate(&u, "", &learner) else {
+                    continue;
+                };
                 if !scope.allows(&u) || seen.contains(&seen_hash(&u, ignore_query)) {
                     continue;
                 }
@@ -538,26 +725,43 @@ impl Scraper {
                 stop = Some("cancelled");
                 break;
             }
-            while stop.is_none() && inflight.len() < concurrency && scheduled < req.limit {
-                let Some((url, depth, _)) = queue.pop() else {
+            while stop.is_none() && inflight.len() < concurrency {
+                let pick = match retries.due() {
+                    Some(r) => Some(r),
+                    None if scheduled < req.limit => queue.pop().map(|(u, d, _)| {
+                        scheduled += 1;
+                        (u, d, 0)
+                    }),
+                    None => None,
+                };
+                let Some((url, depth, attempt)) = pick else {
                     break;
                 };
-                scheduled += 1;
                 let opts = opts.clone();
                 inflight.push(async move {
-                    let _slot = slots.acquire().await.expect("semaphore never closed");
-                    let result = Box::pin(self.scrape_with(url.as_str(), &opts, mode)).await;
-                    (url, depth, result)
+                    let result = self.crawl_attempt(&url, &opts, mode, slots).await;
+                    (url, depth, attempt, result)
                 });
                 if let Some(d) = delay {
                     tokio::time::sleep(d).await;
                 }
             }
-            let Some((url, depth, result)) = inflight.next().await else {
-                break;
+            let (url, depth, attempt, result) = match inflight.next().await {
+                Some(done) => done,
+                None => match retries.next_due().filter(|_| stop.is_none()) {
+                    Some(t) => {
+                        tokio::time::sleep_until(t).await;
+                        continue;
+                    }
+                    None => break,
+                },
             };
+            if stop.is_none() && retries.offer(&result, &url, depth, attempt) {
+                continue;
+            }
             match result {
                 Ok(mut doc) => {
+                    note_duplicate(&mut learner, &url, &mut doc);
                     let md = doc.markdown.as_deref().unwrap_or_default();
                     let relevance = focus.page_relevance(doc.metadata.title.as_deref(), md);
                     if stop.is_none()
@@ -574,20 +778,25 @@ impl Scraper {
                             .unwrap_or(url.clone());
                         let contexts = link_contexts(md);
                         for link in doc.links.iter().flatten() {
-                            let Ok(u) = base.join(link) else { continue };
+                            let Some(u) = candidate(&base, link, &learner) else {
+                                continue;
+                            };
                             let h = seen_hash(&u, ignore_query);
                             // 已经调度过的页面不再入队；还在排队的可以按更高的分数前移
                             if !scope.allows(&u) || (seen.contains(&h) && !queue.contains(h)) {
                                 continue;
                             }
                             let ctx = contexts.get(link.split('#').next().unwrap_or(link));
-                            let score = focus.link_score(
+                            let mut score = focus.link_score(
                                 &u,
                                 ctx.map(|c| c.anchor.as_str()),
                                 ctx.map(|c| c.line.as_str()),
                                 relevance,
                                 depth + 1,
                             );
+                            if learner.demoted(&u) {
+                                score *= DEMOTED_SCORE;
+                            }
                             let room = req.limit - scheduled;
                             overflow |=
                                 offer(&mut queue, &mut seen, &mut fresh, u, depth + 1, score, room);
@@ -643,6 +852,20 @@ impl Scraper {
     }
 }
 
+/// 带查询的爬取里，模板已降级的链接分数乘以它：排到几乎所有正常链接之后。
+const DEMOTED_SCORE: f32 = 0.01;
+
+/// 记下抓到的页面内容；和之前某页全文相同时在元数据里标出那一页。
+fn note_duplicate(learner: &mut Learner, url: &Url, doc: &mut pagesift_api::types::Document) {
+    let md = doc.markdown.as_deref().unwrap_or_default();
+    if let Seen::Duplicate(first) = learner.observe(url, md) {
+        doc.metadata
+            .pagesift
+            .get_or_insert_with(Default::default)
+            .duplicate_of = Some(first);
+    }
+}
+
 /// 一次爬取在各阶段之间共享的参数。
 struct Crawl<'a> {
     req: &'a CrawlRequest,
@@ -663,25 +886,62 @@ fn gunzip_if_needed(body: Vec<u8>) -> Option<Vec<u8>> {
     Some(out)
 }
 
-/// 解析 sitemap：`<urlset>` 里的 `<loc>` 是页面，`<sitemapindex>` 里的 `<loc>` 是子 sitemap。
+/// 解析 sitemap（sitemaps.org 协议允许的三种格式）：
+/// - XML：`<urlset>` 里的 `<loc>` 是页面，`<sitemapindex>` 里的 `<loc>` 是子 sitemap；
+/// - RSS 2.0 / Atom feed：`<item>` 的 `<link>` 文本、`<entry>` 的 `<link href>` 是页面；
+/// - 纯文本：每行一个 URL。
+///
 /// quick-xml 把文本里的实体（`&amp;` 等）单独作为事件返回，这里累积 `<loc>` 内的各段再还原。
 fn parse_sitemap(xml: &[u8]) -> (Vec<String>, Vec<String>) {
     use quick_xml::events::Event;
+    let body = xml.strip_prefix(b"\xef\xbb\xbf").unwrap_or(xml);
+    if !body.trim_ascii_start().starts_with(b"<") {
+        let pages = String::from_utf8_lossy(body)
+            .lines()
+            .map(str::trim)
+            .filter(|l| l.starts_with("http://") || l.starts_with("https://"))
+            .map(str::to_string)
+            .collect();
+        return (pages, Vec::new());
+    }
     let mut reader = quick_xml::Reader::from_reader(xml);
     let (mut pages, mut children) = (Vec::new(), Vec::new());
     let mut in_sitemap = false;
+    // feed 的条目（RSS 的 item、Atom 的 entry）里
+    let mut in_item = false;
+    let atom_href = |e: &quick_xml::events::BytesStart| -> Option<String> {
+        let rel = e
+            .try_get_attribute("rel")
+            .ok()
+            .flatten()
+            .map(|a| a.value.to_string());
+        if rel.is_some_and(|r| r != "alternate") {
+            return None;
+        }
+        let href = e.try_get_attribute("href").ok().flatten()?;
+        Some(href.value.replace("&amp;", "&"))
+    };
     let mut loc: Option<String> = None;
     let mut buf = Vec::new();
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(e)) => match e.local_name().as_ref() {
                 "sitemap" => in_sitemap = true,
+                "item" | "entry" => in_item = true,
                 "loc" => loc = Some(String::new()),
+                "link" if in_item => match atom_href(&e) {
+                    Some(href) => pages.push(href),
+                    None => loc = Some(String::new()),
+                },
                 _ => {}
             },
+            Ok(Event::Empty(e)) if in_item && e.local_name().as_ref() == "link" => {
+                pages.extend(atom_href(&e));
+            }
             Ok(Event::End(e)) => match e.local_name().as_ref() {
                 "sitemap" => in_sitemap = false,
-                "loc" => {
+                "item" | "entry" => in_item = false,
+                "loc" | "link" => {
                     if let Some(text) = loc
                         .take()
                         .map(|t| t.trim().to_string())
@@ -811,6 +1071,36 @@ mod tests {
             (vec![], vec!["https://example.com/s1.xml.gz".to_string()])
         );
         assert_eq!(parse_sitemap(b"not xml <<<"), (vec![], vec![]));
+    }
+
+    #[test]
+    fn parses_feeds_and_text_sitemaps() {
+        let rss =
+            br#"<?xml version="1.0"?><rss version="2.0"><channel><link>https://example.com/</link>
+            <item><title>A</title><link>https://example.com/a?x=1&amp;y=2</link></item>
+            <item><link><![CDATA[https://example.com/b]]></link></item></channel></rss>"#;
+        assert_eq!(
+            parse_sitemap(rss).0,
+            vec!["https://example.com/a?x=1&y=2", "https://example.com/b"]
+        );
+        let atom = br#"<feed xmlns="http://www.w3.org/2005/Atom"><link href="https://example.com/"/>
+            <entry><link rel="alternate" href="https://example.com/c"/><link rel="edit" href="https://example.com/edit/c"/></entry>
+            <entry><link href="https://example.com/d"></link></entry></feed>"#;
+        assert_eq!(
+            parse_sitemap(atom).0,
+            vec!["https://example.com/c", "https://example.com/d"]
+        );
+        let txt = b"\xef\xbb\xbfhttps://example.com/e\r\n\n  http://example.com/f  \nnot a url\n";
+        assert_eq!(
+            parse_sitemap(txt),
+            (
+                vec![
+                    "https://example.com/e".to_string(),
+                    "http://example.com/f".to_string()
+                ],
+                vec![]
+            )
+        );
     }
 
     #[test]

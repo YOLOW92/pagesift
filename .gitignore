@@ -4,3 +4,5 @@
 /bench/compare/html-parity/target/
 /bench/aiseek/results/
 __pycache__/
+bench/crawl/wild-*/
+bench/crawl/wild-*.log

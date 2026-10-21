@@ -15,5 +15,24 @@ No source code from them is included; the algorithms were reimplemented in Rust.
   The paragraph scoring, candidate selection and sibling rules
   (crates/pagesift-content/src/readability.rs) and its class/id word lists.
 
+- courlan (https://github.com/adbar/courlan), Apache License 2.0,
+  Copyright (C) Adrien Barbaresi and contributors.
+  The tracking-parameter rules used when cleaning crawl URLs
+  (crates/pagesift/src/frontier.rs).
+
+- Heritrix (https://github.com/internetarchive/heritrix3), Apache License 2.0,
+  Copyright (C) Internet Archive.
+  The session-ID stripping and pathological-path rules of the crawl frontier
+  (crates/pagesift/src/frontier.rs).
+
+- Scrapy (https://github.com/scrapy/scrapy), BSD 3-Clause License,
+  Copyright (c) Scrapy developers.
+  The retry policy (status codes, retry count, rescheduling instead of waiting)
+  of the crawler (crates/pagesift/src/crawl.rs).
+
+The URL rewrite-rule learning follows the DUST idea from Bar-Yossef, Keidar and
+Schonfeld, "Do not crawl in the DUST: different URLs with similar text" (WWW 2007),
+and Dasgupta et al., "De-duping URLs via rewrite rules" (KDD 2008).
+
 - markup5ever (https://github.com/servo/html5ever), MIT OR Apache-2.0.
   The HTML named character reference table (crates/pagesift-html/src/entities.rs).

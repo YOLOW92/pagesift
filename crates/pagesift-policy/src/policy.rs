@@ -281,10 +281,14 @@ impl Policy {
         match resp.status {
             429 => {
                 self.backoff.on_throttled(&final_host, retry_after);
+                self.limiter.throttled(&final_host);
                 Err(Error::RateLimited { retry_after })
             }
-            503 => {
+            // 503 带 Retry-After 是明确的"慢一点"，立即冷却；不带的多半是偶发故障，
+            // 和其他 5xx 一样连续失败几次才冷却，免得一次偶发错误让整个主机停 10 秒
+            503 if retry_after.is_some() => {
                 self.backoff.on_throttled(&final_host, retry_after);
+                self.limiter.throttled(&final_host);
                 Ok((resp, permit))
             }
             500..=599 => {
@@ -293,6 +297,7 @@ impl Policy {
             }
             _ => {
                 self.backoff.on_success(&final_host);
+                self.limiter.succeeded(&final_host);
                 Ok((resp, permit))
             }
         }
