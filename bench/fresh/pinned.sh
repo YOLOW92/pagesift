@@ -20,17 +20,26 @@ if [ "${PIN_HT:-0}" = 1 ]; then
     mapfile -t CORES < <(lscpu -p=CPU | grep -v '^#' | grep -v -x -F -f <(tr ',' '\n' <<< "$RESERVED"))
 fi
 case "${1:-}" in
-    --cores) echo "计时用的逻辑 CPU：${CORES[*]}；留给不计时任务的：$RESERVED"; exit 0 ;;
+    --cores) echo "计时用的逻辑 CPU：${CORES[*]}；留给不计时任务的：$RESERVED；按内存同时最多 $(awk -v job="${PIN_JOB_MB:-1200}" -v keep="${PIN_RESERVE_MB:-4000}" '/^MemAvailable:/ {n=int(($2/1024-keep)/job); print (n<1?1:n)}' /proc/meminfo) 个任务"; exit 0 ;;
     --reserved) echo "$RESERVED"; exit 0 ;;
 esac
 # 计时任务只用分到的那个核：Python 里的 onnxruntime 由 one_core.py 限成单线程，BLAS/OpenMP 线程池设成 1
 export PAGESIFT_ONE_CORE=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
     RAYON_NUM_THREADS=1 TOKIO_WORKER_THREADS=1 UV_THREADPOOL_SIZE=1
+# 同时运行的任务数上限：PIN_JOB_MB 是单个任务的峰值内存估计（默认 1200 MB），按开跑时的可用内存留出
+# PIN_RESERVE_MB（默认 4000 MB）给系统后算出上限。只在开新任务那一刻看可用内存不够：任务启动后还会继续涨。
+MAXJ=$(awk -v job="${PIN_JOB_MB:-1200}" -v keep="${PIN_RESERVE_MB:-4000}" '/^MemAvailable:/ {n=int(($2/1024-keep)/job); print (n<1?1:n)}' /proc/meminfo)
+MAXJ=${PIN_MAX_JOBS:-$MAXJ}
+running() { local n=0 p; for p in "${pids[@]}"; do kill -0 "$p" 2>/dev/null && n=$((n+1)); done; echo $n; }
 pids=()
 # 占一个空闲的核：拿到锁的文件描述符留给子进程，子进程结束时锁自动释放
 start() {
     local cmd=$1 c fd
     while :; do
+        if [ "$(running)" -ge "$MAXJ" ]; then
+            sleep 0.5
+            continue
+        fi
         # 内存不够时先不开新任务（每个任务可能占 1 GB 以上），等前面的跑完
         if [ "$(awk '/^MemAvailable:/ {print int($2/1024)}' /proc/meminfo)" -lt "${PIN_MIN_FREE_MB:-1500}" ]; then
             sleep 1
