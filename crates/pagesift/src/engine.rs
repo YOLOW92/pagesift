@@ -155,10 +155,11 @@ impl Scraper {
             store: config.store,
             llm,
             search: config.search,
-            browsers: pagesift_cdp::engine_chain(&config.browser, browser_private_network)
-                .into_iter()
-                .map(|c| (c, OnceCell::new()))
-                .collect(),
+            browsers: {
+                let chain = pagesift_cdp::engine_chain(&config.browser, browser_private_network);
+                log_engine_chain(&chain);
+                chain.into_iter().map(|c| (c, OnceCell::new())).collect()
+            },
             browser_private_network,
             learner: crate::learn::HostLearner::default(),
         })
@@ -1041,6 +1042,27 @@ struct Progress {
     started: Instant,
     timings: BTreeMap<String, f64>,
     warnings: Vec<String>,
+}
+
+/// 启动时记一行用哪些浏览器内核、按什么顺序回退，部署后可以从日志确认。
+fn log_engine_chain(chain: &[PoolConfig]) {
+    let names: Vec<String> = chain
+        .iter()
+        .filter_map(|c| match &c.source {
+            pagesift_cdp::BrowserSource::Executable(p) => Some(format!(
+                "{}={}",
+                c.engine.map_or("chrome", |k| k.name()),
+                p.display()
+            )),
+            pagesift_cdp::BrowserSource::Remote(u) => Some(format!("remote={u}")),
+            pagesift_cdp::BrowserSource::Auto => None,
+        })
+        .collect();
+    if names.is_empty() {
+        tracing::info!("no browser engine found; JavaScript rendering is unavailable");
+    } else {
+        tracing::info!(engines = %names.join(" -> "), "browser engines");
+    }
 }
 
 /// 没给 `timeout` 时一次渲染（含换内核）的总时限。

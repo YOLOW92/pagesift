@@ -244,12 +244,15 @@ pub fn engine_chain(base: &PoolConfig, allow_private_network: bool) -> Vec<PoolC
 /// 回退用的池只接少数页面（本机压测约 1%），用少量进程多开标签页，空闲很快就关：
 /// 否则常驻的 moli / Chrome 比主力 Lightpanda 还占内存。
 fn fallback(mut c: PoolConfig, base: &PoolConfig) -> PoolConfig {
-    if base.max_browsers == 0 {
-        c.max_browsers = match c.engine {
+    c.max_browsers = if base.max_browsers == 0 {
+        match c.engine {
             Some(EngineKind::Chrome) => 1,
             _ => 2,
-        };
-    }
+        }
+    } else {
+        // 指定的进程数是给主力内核的；回退内核只分到四分之一
+        (base.max_browsers / 4).max(1)
+    };
     if c.engine != Some(EngineKind::Lightpanda) {
         c.max_tabs_per_browser = base.max_tabs_per_browser.max(4);
     }
@@ -308,12 +311,12 @@ mod tests {
         let mut chrome = PoolConfig::default();
         EngineKind::Chrome.configure(&mut chrome, false);
         assert_eq!(fallback(chrome, &base).max_browsers, 1);
-        // 用户指定了进程数时照用户的
+        // 指定了进程数时，回退内核只分到四分之一
         let fixed = PoolConfig {
-            max_browsers: 6,
+            max_browsers: 8,
             ..PoolConfig::default()
         };
-        assert_eq!(fallback(fixed.clone(), &fixed).max_browsers, 6);
+        assert_eq!(fallback(fixed.clone(), &fixed).max_browsers, 2);
     }
 
     #[test]
