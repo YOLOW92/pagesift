@@ -9,14 +9,16 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 ROOT=../..
-PAGES_DIR=$ROOT/bench/data/crawl-pages
+PAGES_DIR=${PAGES_DIR:-$ROOT/bench/data/crawl-pages}
 PORT=18080
 export MEASURE_OUT=${MEASURE_OUT:-results-$(date +%Y%m%d-%H%M%S).jsonl}
 export CRAWL4AI_NO_CLOUD_NOTICE=1
 export MEASURE_BUDGET_S=${MEASURE_BUDGET_S:-600}
 export MEASURE_ORIGIN=http://s0.localhost:$PORT/__served
-C4A=$ROOT/bench/data/venvs/crawl4ai/bin/python
-CRW=$ROOT/bench/data/tools/bin/crw
+C4A=${C4A:-$ROOT/bench/data/venvs/crawl4ai/bin/python}
+CRW=${CRW:-$ROOT/bench/data/tools/bin/crw}
+# Scrapy 用的 Python（装了 scrapy 的虚拟环境）
+SCRAPY_PY=${SCRAPY_PY:-$ROOT/bench/data/fresh/tools/py/bin/python}
 
 run() { # 场景名 hosts pages interval per_host latency 工具...
     local name=$1 hosts=$2 pages=$3 interval=$4 per_host=$5 latency=$6; shift 6
@@ -33,6 +35,7 @@ run() { # 场景名 hosts pages interval per_host latency 工具...
             spider) python3 -I measure.py "$label" -- target/release/spider_crawl $PORT "$hosts" "$pages" "$interval" "$(( per_host < 2 ? 2 : per_host ))" ;;
             crawl4ai-http) python3 -I measure.py "$label" -- "$C4A" crawl4ai_crawl.py $PORT "$hosts" "$pages" "$interval" http "$per_host" ;;
             crawl4ai-multi) python3 -I measure.py "$label" -- python3 -I crawl4ai_multi.py "$C4A" $PORT "$hosts" "$pages" "$interval" http "$per_host" ;;
+            scrapy) python3 -I measure.py "$label" -- "$SCRAPY_PY" -I scrapy_crawl.py $PORT "$hosts" "$pages" "$interval" "$per_host" ;;
             crawl4ai-browser) python3 -I measure.py "$label" -- "$C4A" crawl4ai_crawl.py $PORT "$hosts" "$pages" "$interval" browser "$per_host" ;;
         esac
     done
@@ -42,8 +45,8 @@ run() { # 场景名 hosts pages interval per_host latency 工具...
 for s in "${@:-wide huge}"; do
     for one in $s; do
         case $one in
-            wide)   run wide 200 100 0 8 10 pagesift crw spider crawl4ai-http crawl4ai-multi crawl4ai-browser ;;
-            huge)   run huge 1000 50 0 4 10 pagesift crw spider crawl4ai-http crawl4ai-multi ;;
+            wide)   run wide 200 100 0 8 10 ${TOOLS:-pagesift crw spider scrapy crawl4ai-http crawl4ai-multi crawl4ai-browser} ;;
+            huge)   run huge 1000 50 0 4 10 ${TOOLS:-pagesift crw spider scrapy crawl4ai-http crawl4ai-multi} ;;
             polite) run polite 100 50 1000 1 50 pagesift crw spider crawl4ai-http crawl4ai-browser ;;
         esac
     done

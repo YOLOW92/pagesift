@@ -3,8 +3,17 @@
 
 Writes JSON lines for `pagesift bench --external`. Each tool is called the way its README shows:
 
-    trafilatura   trafilatura.extract(html, output_format="markdown", url=base_url)
-    markitdown    MarkItDown().convert(path).text_content   (whole-page conversion, no extraction)
+    trafilatura     trafilatura.extract(html, output_format="markdown", url=base_url)
+    markitdown      MarkItDown().convert(path).text_content   (whole-page conversion, no extraction)
+    newspaper4k     newspaper.Article(url).download(input_html=html); .parse(); title + text
+    goose3          Goose().extract(raw_html=html).cleaned_text
+    readability-lxml readability.Document(html).summary() -> markdownify
+    justext         paragraphs that are not boilerplate (language stoplist from <html lang>, English default)
+    boilerpy3       extractors.ArticleExtractor().get_content(html)
+    html2text       html2text.html2text(html)                 (whole-page conversion)
+    markdownify     markdownify.markdownify(html)             (whole-page conversion)
+    inscriptis      inscriptis.get_text(html)                 (whole-page text)
+    resiliparse     resiliparse.extract.html2text.extract_plain_text(html, main_content=True)
 
     bench/data/venvs/pytools/bin/python -I bench/compare/py_adapter.py <trafilatura|markitdown> \
         bench/data/inputs/manifest.jsonl out.jsonl
@@ -29,8 +38,75 @@ def main(tool: str, manifest: Path, out_path: Path) -> None:
 
         def convert(html: str, path: str, url: str) -> str:
             return md.convert(path).text_content or ""
+    elif tool == "newspaper4k":
+        import newspaper
+
+        def convert(html: str, path: str, url: str) -> str:
+            a = newspaper.Article(url)
+            a.download(input_html=html)
+            a.parse()
+            return (f"# {a.title}\n\n" if a.title else "") + (a.text or "")
+    elif tool == "goose3":
+        from goose3 import Goose
+
+        g = Goose()
+
+        def convert(html: str, path: str, url: str) -> str:
+            a = g.extract(raw_html=html)
+            return (f"# {a.title}\n\n" if a.title else "") + (a.cleaned_text or "")
+    elif tool == "readability-lxml":
+        from markdownify import markdownify
+        from readability import Document
+
+        def convert(html: str, path: str, url: str) -> str:
+            d = Document(html, url=url)
+            body = markdownify(d.summary(html_partial=True), heading_style="ATX")
+            title = d.short_title()
+            return (f"# {title}\n\n" if title else "") + body
+    elif tool == "justext":
+        import re
+
+        import justext
+
+        names = {"en": "English", "de": "German", "fr": "French", "es": "Spanish", "it": "Italian", "pt": "Portuguese",
+                 "nl": "Dutch", "ru": "Russian", "pl": "Polish", "sv": "Swedish", "tr": "Turkish", "cs": "Czech"}
+
+        def convert(html: str, path: str, url: str) -> str:
+            m = re.search(r"<html[^>]*\blang=[\"']?([a-zA-Z]{2})", html[:5000])
+            lang = names.get(m.group(1).lower() if m else "en", "English")
+            paras = justext.justext(html.encode("utf-8"), justext.get_stoplist(lang))
+            return "\n\n".join(p.text for p in paras if not p.is_boilerplate)
+    elif tool == "boilerpy3":
+        from boilerpy3 import extractors
+
+        ex = extractors.ArticleExtractor(raise_on_failure=False)
+
+        def convert(html: str, path: str, url: str) -> str:
+            return ex.get_content(html) or ""
+    elif tool == "html2text":
+        import html2text
+
+        def convert(html: str, path: str, url: str) -> str:
+            h = html2text.HTML2Text(baseurl=url)
+            h.body_width = 0
+            return h.handle(html)
+    elif tool == "markdownify":
+        from markdownify import markdownify
+
+        def convert(html: str, path: str, url: str) -> str:
+            return markdownify(html, heading_style="ATX")
+    elif tool == "inscriptis":
+        from inscriptis import get_text
+
+        def convert(html: str, path: str, url: str) -> str:
+            return get_text(html)
+    elif tool == "resiliparse":
+        from resiliparse.extract.html2text import extract_plain_text
+
+        def convert(html: str, path: str, url: str) -> str:
+            return extract_plain_text(html, main_content=True)
     else:
-        raise SystemExit("tool must be trafilatura or markitdown")
+        raise SystemExit("unknown tool: " + tool)
 
     with out_path.open("w") as out:
         for line in manifest.open():

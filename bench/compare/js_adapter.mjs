@@ -1,6 +1,6 @@
 // 在 pagesift bench 的输入上跑 JS 同类库，输出 `pagesift bench --external` 用的 JSON lines。
 //
-//   node bench/compare/js_adapter.mjs <readability|defuddle> <node_modules 所在目录> <manifest.jsonl> <out.jsonl>
+//   node bench/compare/js_adapter.mjs <readability|defuddle|article-extractor> <node_modules 所在目录> <manifest.jsonl> <out.jsonl>
 //
 // 两个工具都需要 DOM，用 JSDOM 解析，解析时间算在耗时里。
 // Readability 输出 HTML，按惯常用法接 Turndown 转 Markdown；标题按惯例单独给出，这里拼在正文前面。
@@ -36,8 +36,19 @@ if (tool === 'readability') {
     dom.window.close();
     return r.title ? `# ${r.title}\n\n${r.content || ''}` : r.content || '';
   };
+} else if (tool === 'article-extractor') {
+  // @extractus/article-extractor：自带解析，输出 HTML，同样接 Turndown
+  const { extractFromHtml } = await load('@extractus/article-extractor/esm/mod.js');
+  const TurndownService = (await load('turndown/lib/turndown.cjs.js')).default;
+  const td = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });
+  convert = async (html, url) => {
+    const a = await extractFromHtml(html, url);
+    if (!a) return '';
+    const body = td.turndown(a.content || '');
+    return a.title ? `# ${a.title}\n\n${body}` : body;
+  };
 } else {
-  throw new Error('tool must be readability or defuddle');
+  throw new Error('tool must be readability, defuddle or article-extractor');
 }
 
 const out = [];
