@@ -76,7 +76,7 @@ for s in $sets; do
         done_ok "$R/$name-$t.jsonl" "$m" || echo "$PY -I bench/compare/py_adapter.py $t $m $R/$name-$t.jsonl 2>/dev/null"
     done
     for t in readability defuddle; do
-        done_ok "$R/$name-$t.jsonl" "$m" || echo "node bench/compare/js_adapter.mjs $t $NODE $m $R/$name-$t.jsonl 2>/dev/null"
+        done_ok "$R/$name-$t.jsonl" "$m" || echo "bench/compare/js_sharded.sh $t $NODE $m $R/$name-$t.jsonl 2>$R/$name-$t.err"
     done
     for t in crw dom_smoothie; do
         done_ok "$R/$name-$t.jsonl" "$m" || echo "$RT $t $m $R/$name-$t.jsonl 2>/dev/null"
