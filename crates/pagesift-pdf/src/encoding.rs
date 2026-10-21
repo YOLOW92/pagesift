@@ -340,6 +340,148 @@ const OTHER_NAMES: &[(&str, &str)] = &[
     ("middot", "\u{00B7}"),
 ];
 
+/// TeX 数学字体（CMSY、CMEX、CMMI）的字形名，AGL 里没有。
+const TEX_NAMES: &[(&str, &str)] = &[
+    ("multiply", "\u{00D7}"),
+    ("asteriskmath", "\u{2217}"),
+    ("divide", "\u{00F7}"),
+    ("diamondmath", "\u{22C4}"),
+    ("plusminus", "\u{00B1}"),
+    ("minusplus", "\u{2213}"),
+    ("circleplus", "\u{2295}"),
+    ("circleminus", "\u{2296}"),
+    ("circlemultiply", "\u{2297}"),
+    ("circledivide", "\u{2298}"),
+    ("circledot", "\u{2299}"),
+    ("circlecopyrt", "\u{25EF}"),
+    ("openbullet", "\u{2218}"),
+    ("equivasymptotic", "\u{224D}"),
+    ("equivalence", "\u{2261}"),
+    ("reflexsubset", "\u{2286}"),
+    ("reflexsuperset", "\u{2287}"),
+    ("precedesequal", "\u{2AAF}"),
+    ("followsequal", "\u{2AB0}"),
+    ("similar", "\u{223C}"),
+    ("propersubset", "\u{2282}"),
+    ("propersuperset", "\u{2283}"),
+    ("lessmuch", "\u{226A}"),
+    ("greatermuch", "\u{226B}"),
+    ("precedes", "\u{227A}"),
+    ("follows", "\u{227B}"),
+    ("arrowboth", "\u{2194}"),
+    ("arrownortheast", "\u{2197}"),
+    ("arrowsoutheast", "\u{2198}"),
+    ("similarequal", "\u{2243}"),
+    ("arrowdblleft", "\u{21D0}"),
+    ("arrowdblright", "\u{21D2}"),
+    ("arrowdblup", "\u{21D1}"),
+    ("arrowdbldown", "\u{21D3}"),
+    ("arrowdblboth", "\u{21D4}"),
+    ("arrownorthwest", "\u{2196}"),
+    ("arrowsouthwest", "\u{2199}"),
+    ("proportional", "\u{221D}"),
+    ("prime", "\u{2032}"),
+    ("element", "\u{2208}"),
+    ("owner", "\u{220B}"),
+    ("triangle", "\u{25B3}"),
+    ("triangleinv", "\u{25BD}"),
+    ("negationslash", "\u{0338}"),
+    ("mapsto", "\u{21A6}"),
+    ("universal", "\u{2200}"),
+    ("existential", "\u{2203}"),
+    ("emptyset", "\u{2205}"),
+    ("Rfractur", "\u{211C}"),
+    ("Ifractur", "\u{2111}"),
+    ("latticetop", "\u{22A4}"),
+    ("perpendicular", "\u{22A5}"),
+    ("aleph", "\u{2135}"),
+    ("union", "\u{222A}"),
+    ("intersection", "\u{2229}"),
+    ("unionmulti", "\u{228E}"),
+    ("logicaland", "\u{2227}"),
+    ("logicalor", "\u{2228}"),
+    ("turnstileleft", "\u{22A2}"),
+    ("turnstileright", "\u{22A3}"),
+    ("floorleft", "\u{230A}"),
+    ("floorright", "\u{230B}"),
+    ("ceilingleft", "\u{2308}"),
+    ("ceilingright", "\u{2309}"),
+    ("angbracketleft", "\u{27E8}"),
+    ("angbracketright", "\u{27E9}"),
+    ("bardbl", "\u{2225}"),
+    ("arrowbothv", "\u{2195}"),
+    ("arrowdblbothv", "\u{21D5}"),
+    ("wreathproduct", "\u{2240}"),
+    ("coproduct", "\u{2210}"),
+    ("nabla", "\u{2207}"),
+    ("unionsq", "\u{2294}"),
+    ("intersectionsq", "\u{2293}"),
+    ("subsetsqequal", "\u{2291}"),
+    ("supersetsqequal", "\u{2292}"),
+    ("club", "\u{2663}"),
+    ("diamond", "\u{2662}"),
+    ("heart", "\u{2661}"),
+    ("spade", "\u{2660}"),
+    ("contintegral", "\u{222E}"),
+    ("uniontext", "\u{22C3}"),
+    ("uniondisplay", "\u{22C3}"),
+    ("intersectiontext", "\u{22C2}"),
+    ("intersectiondisplay", "\u{22C2}"),
+    ("logicalandtext", "\u{22C0}"),
+    ("logicalanddisplay", "\u{22C0}"),
+    ("logicalortext", "\u{22C1}"),
+    ("logicalordisplay", "\u{22C1}"),
+    ("circleplustext", "\u{2A01}"),
+    ("circleplusdisplay", "\u{2A01}"),
+    ("circlemultiplytext", "\u{2A02}"),
+    ("circlemultiplydisplay", "\u{2A02}"),
+    ("circledottext", "\u{2A00}"),
+    ("circledotdisplay", "\u{2A00}"),
+    ("unionsqtext", "\u{2A06}"),
+    ("unionsqdisplay", "\u{2A06}"),
+    ("unionmultitext", "\u{2A04}"),
+    ("unionmultidisplay", "\u{2A04}"),
+    ("epsilon1", "\u{03B5}"),
+    ("theta1", "\u{03D1}"),
+    ("pi1", "\u{03D6}"),
+    ("rho1", "\u{03F1}"),
+    ("sigma1", "\u{03C2}"),
+    ("phi1", "\u{03C6}"),
+    ("arrowlefttophalf", "\u{21BC}"),
+    ("arrowleftbothalf", "\u{21BD}"),
+    ("arrowrighttophalf", "\u{21C0}"),
+    ("arrowrightbothalf", "\u{21C1}"),
+    ("triangleright", "\u{25B7}"),
+    ("triangleleft", "\u{25C1}"),
+    ("zerooldstyle", "0"),
+    ("oneoldstyle", "1"),
+    ("twooldstyle", "2"),
+    ("threeoldstyle", "3"),
+    ("fouroldstyle", "4"),
+    ("fiveoldstyle", "5"),
+    ("sixoldstyle", "6"),
+    ("sevenoldstyle", "7"),
+    ("eightoldstyle", "8"),
+    ("nineoldstyle", "9"),
+    ("star", "\u{22C6}"),
+    ("flat", "\u{266D}"),
+    ("natural", "\u{266E}"),
+    ("sharp", "\u{266F}"),
+    ("slurbelow", "\u{2323}"),
+    ("slurabove", "\u{2322}"),
+    ("lscript", "\u{2113}"),
+    ("dotlessj", "\u{0237}"),
+    ("weierstrass", "\u{2118}"),
+    ("hatwide", "\u{0302}"),
+    ("tildewide", "\u{0303}"),
+    ("suppress", ""),
+];
+
+/// CMEX 里大小不同的同一个符号（parenleftbig、summationdisplay、bracelefttp……）去掉大小后缀。
+const SIZE_SUFFIXES: &[&str] = &[
+    "BigBig", "Bigg", "bigg", "Big", "big", "display", "text", "tp", "bt", "mid", "ex",
+];
+
 fn glyph_table() -> &'static HashMap<&'static str, String> {
     static TABLE: OnceLock<HashMap<&'static str, String>> = OnceLock::new();
     TABLE.get_or_init(|| {
@@ -364,7 +506,7 @@ fn glyph_table() -> &'static HashMap<&'static str, String> {
         }
         // mu 在 AGL 里指微符号
         m.insert("mu", "\u{00B5}".to_string());
-        for (n, s) in OTHER_NAMES {
+        for (n, s) in OTHER_NAMES.iter().chain(TEX_NAMES) {
             m.insert(*n, (*s).to_string());
         }
         m
@@ -388,6 +530,14 @@ pub(crate) fn glyph_to_unicode(name: &[u8]) -> Option<String> {
 fn glyph_component(name: &str) -> Option<String> {
     if let Some(s) = glyph_table().get(name) {
         return Some(s.clone());
+    }
+    for suffix in SIZE_SUFFIXES {
+        if let Some(stem) = name.strip_suffix(suffix)
+            && stem.len() > 1
+            && let Some(s) = glyph_table().get(stem)
+        {
+            return Some(s.clone());
+        }
     }
     if let Some(hex) = name.strip_prefix("uni")
         && hex.len() >= 4

@@ -103,7 +103,23 @@ pagesift's `recursive` strategy is a Rust port of semchunk (identical chunks on 
 
 Reproduce: `bench/rag/run.sh`; full results: [`bench/rag/results-2026-10-21.md`](../bench/rag/results-2026-10-21.md).
 
-## 5. Crawling over HTTP (no rate limit)
+## 5. PDF to Markdown
+
+**Dataset:** [olmOCR-bench](https://huggingface.co/datasets/allenai/olmOCR-bench) (ODC-BY), scored with its own code. Only the five subsets made of born-digital PDFs are used (1,269 pages, about 6,000 tests): formulas from arXiv papers, tables, multi-column reading order, small dense text, and headers and footers. Each test checks one fact on one page — a sentence is present, a header is absent, two sentences are in order, a table cell has the right neighbours, a formula renders like the reference in KaTeX. Every tool runs with its default settings. Method details: [`bench/pdf/README.md`](../bench/pdf/README.md).
+
+| Tool | Overall ↑ | Formulas ↑ | Tables ↑ | Reading order ↑ | Small text ↑ | Headers/footers removed ↑ | ms per page ↓ |
+|---|---|---|---|---|---|---|---|
+| **pagesift 0.12** | **71.0** | **44.3** | 56.1 | 61.2 | 35.7 | **68.0** | **3.4** |
+| pymupdf4llm 1.28.2 (with its layout model) | 64.4 | 0.0 | **60.3** | **66.6** | 33.7 | 37.2 | 320 |
+| pypdf 6.21.1 | 58.2 | 0.0 | 0.0 | 49.4 | **44.8** | 40.8 | 50 |
+| MarkItDown 0.1.8 | 57.3 | 0.0 | 19.8 | 39.3 | 31.2 | 38.4 | 200 |
+| pdfplumber 0.11.10 | 50.4 | 0.0 | 0.0 | 10.0 | 7.7 | 41.8 | 124 |
+
+Scores are pass rates in percent. pagesift writes inline formulas as LaTeX: it reads the built-in encodings of the embedded TeX fonts, then rebuilds sub- and superscripts, accents and symbol commands from the glyphs' fonts, sizes and baselines. None of the other tools outputs formulas. Tables are found from ruled grids (pdfplumber's lattice algorithm, ported to Rust), from booktabs-style horizontal rules, and from the alignment of short text fragments when there are no rules at all. pymupdf4llm finds a few more tables and gets the reading order of more pages right with an ONNX layout model, at about 100× the time per page. Pages were split into a tuning half and a hold-out half, and changes were kept only when the hold-out half did not get worse.
+
+Reproduce: `bench/pdf/run.sh`; full results: [`bench/pdf/results-2026-10-22.md`](../bench/pdf/results-2026-10-22.md).
+
+## 6. Crawling over HTTP (no rate limit)
 
 **Setup:** a local multi-site origin ([`bench/crawl`](../bench/crawl)) serving real pages from the corpus on `s{i}.localhost`, with 10 ms of added latency; every tool crawls every site with its own link discovery, unthrottled. Memory is the peak proportional set size (PSS) of the tool's whole process tree.
 
@@ -120,7 +136,7 @@ Reproduce: `bench/rag/run.sh`; full results: [`bench/rag/results-2026-10-21.md`]
 
 Reproduce: `bench/crawl/run_all.sh`.
 
-## 6. Crawling messy real-world sites: coverage, waste and politeness
+## 7. Crawling messy real-world sites: coverage, waste and politeness
 
 Speed on clean sites says little about what a crawl delivers on real sites, where links carry tracking parameters and session IDs, the same page has several URLs, calendars and pagination never end, and servers fail or rate-limit. This benchmark measures how much of a site's real content each tool collects within the same page budget, and how well it behaves.
 
@@ -164,7 +180,7 @@ What makes the difference (see `crates/pagesift/src/frontier.rs`): tracking para
 
 Reproduce: `SEED=2 bench/crawl/run_wild.sh` (any seed draws a different web); full results: [`bench/crawl/results-wild-2026-10-21.md`](../bench/crawl/results-wild-2026-10-21.md).
 
-## 7. Browser rendering
+## 8. Browser rendering
 
 pagesift drives browsers over its own CDP client and picks an engine automatically: **Lightpanda** first, **moli** when a page needs iframes or more complete JavaScript, **Chrome / chrome-headless-shell** last. Same crawl setup as above, every page rendered.
 
@@ -178,7 +194,7 @@ pagesift drives browsers over its own CDP client and picks an engine automatical
 
 Reproduce: `bench/crawl/engines.sh` (set `ENGINES=auto` for the default chain).
 
-## 8. A production workload: replacing Crawl4AI
+## 9. A production workload: replacing Crawl4AI
 
 [AiSeek](https://aiseek.dev) fetches news and company pages with Crawl4AI 0.9.4. We ran its own benchmark (`bench.py`) against both services with the production server's limits (6 cores, 10 GB memory, CPU weight 25), on 210 real production URLs (205 hosts) and 25 fixed pages. pagesift ran behind a small adapter implementing the same `/v1/fetch` contract ([`bench/aiseek`](../bench/aiseek)).
 
@@ -211,7 +227,7 @@ Reproduce: `bench/crawl/engines.sh` (set `ENGINES=auto` for the default chain).
 
 **Cold start:** first render 1.93 s → **0.19 s**; ready to serve 1.27 s → **0.12 s**.
 
-## 9. Deployment footprint
+## 10. Deployment footprint
 
 | | Crawl4AI | pagesift |
 |---|---|---|

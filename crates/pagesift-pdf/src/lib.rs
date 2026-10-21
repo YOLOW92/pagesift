@@ -12,9 +12,11 @@
 mod cmap;
 mod encoding;
 mod font;
+mod fontfile;
 mod interp;
 mod layout;
 mod lexer;
+mod math;
 mod obj;
 mod table;
 
@@ -359,6 +361,7 @@ pub mod fuzzing {
                         x_end: x + w,
                         size: *size,
                         bold: *bold,
+                        math: crate::font::MathKind::Text,
                     })
                     .collect();
                 layout::fragments(&glyphs)

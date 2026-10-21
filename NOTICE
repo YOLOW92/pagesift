@@ -42,6 +42,19 @@ No source code from them is included; the algorithms were reimplemented in Rust.
   The recursive chunking algorithm: splitter priorities and greedy merging of
   sibling splits (crates/pagesift-extract/src/recursive.rs).
 
+- pdfplumber (https://github.com/jsvine/pdfplumber), MIT License,
+  Copyright (c) 2015, Jeremy Singer-Vine.
+  The lattice table algorithm: snapping and joining ruling lines, intersections,
+  smallest cells and grouping cells into tables (crates/pagesift-pdf/src/table.rs).
+
+- CFF standard strings (Adobe Technical Note #5176, Appendix A), as listed in
+  pdfminer.six (https://github.com/pdfminer/pdfminer.six), MIT License
+  (crates/pagesift-pdf/src/fontfile.rs).
+
+The PDF benchmark uses olmOCR-bench (https://huggingface.co/datasets/allenai/olmOCR-bench,
+ODC-BY 1.0) and its scoring code (https://github.com/allenai/olmocr, Apache License 2.0);
+both are downloaded, not redistributed.
+
 The chunking and query-filter benchmarks use the evaluation data of Chroma's
 chunking_evaluation (https://github.com/brandonstarxel/chunking_evaluation,
 MIT License); it is downloaded, not redistributed.

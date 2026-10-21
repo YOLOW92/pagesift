@@ -18,6 +18,7 @@ pub(crate) struct Glyph {
     pub(crate) x_end: f64,
     pub(crate) size: f64,
     pub(crate) bold: bool,
+    pub(crate) math: crate::font::MathKind,
 }
 
 /// 页面上的一条水平或竖直线段（表格框线、分隔线），页面坐标。
@@ -454,6 +455,7 @@ impl<'a> Interp<'a> {
                     x_end: x + glyph_w * a,
                     size,
                     bold: font.bold,
+                    math: font.math,
                 });
             }
             let mut tx = ch.width * gs.size + gs.char_spacing;

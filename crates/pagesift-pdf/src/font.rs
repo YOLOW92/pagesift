@@ -8,6 +8,7 @@ use crate::cmap::CMap;
 use crate::encoding::{
     BaseEncoding, Standard14, base_char, glyph_to_unicode, standard_width, standard14,
 };
+use crate::fontfile::builtin_encoding;
 use crate::obj::{deref, get, get_dict, get_name, get_num, num, num_array, stream_bytes};
 
 /// 一个字符码解码后的结果。`width` 是字号为 1 时在文本空间里的前进宽度。
@@ -60,6 +61,81 @@ pub(crate) struct Font {
     /// Type3 字体的纵向缩放相对 0.001 的倍数，用来校正字号。
     pub(crate) size_factor: f64,
     pub(crate) bold: bool,
+    pub(crate) math: MathKind,
+}
+
+/// 数学字体的类别，按字体名判断（TeX 的 CM/AMS/LM/TX/PX 系列、Cambria Math、STIX 等）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum MathKind {
+    #[default]
+    Text,
+    /// 数学斜体字母（CMMI）
+    Italic,
+    /// 符号（CMSY、MSAM、Symbol）：其中的大写字母是花体
+    Symbol,
+    /// 大型符号和定界符（CMEX）：基线位置和正文不同，不参与上下标判断
+    Extension,
+    /// 黑板粗体（MSBM、bbold）
+    Blackboard,
+    /// 手写体（rsfs、EUSM）
+    Script,
+    /// 哥特体（EUFM）
+    Fraktur,
+}
+
+pub(crate) fn math_kind(base_font: &str) -> MathKind {
+    // 去掉子集前缀 ABCDEF+
+    let name = base_font
+        .rsplit('+')
+        .next()
+        .unwrap_or(base_font)
+        .to_ascii_lowercase();
+    let has = |keys: &[&str]| keys.iter().any(|k| name.contains(k));
+    if has(&["msbm", "bbold", "dsrom", "bbm", "doublestroke"]) {
+        MathKind::Blackboard
+    } else if has(&["eufm", "eufb", "fraktur"]) {
+        MathKind::Fraktur
+    } else if has(&["rsfs", "eusm", "eusb", "mathscr"]) {
+        MathKind::Script
+    } else if has(&[
+        "cmex",
+        "mathextension",
+        "txex",
+        "pxex",
+        "esint",
+        "mathx",
+        "largesymbols",
+    ]) {
+        MathKind::Extension
+    } else if has(&[
+        "cmmi",
+        "mathitalic",
+        "txmi",
+        "pxmi",
+        "ntxmi",
+        "newtxmi",
+        "mtmi",
+        "zxmi",
+    ]) {
+        MathKind::Italic
+    } else if has(&[
+        "cmsy",
+        "cmbsy",
+        "mathsymbols",
+        "txsy",
+        "pxsy",
+        "msam",
+        "stmary",
+        "mnsymbol",
+        "matha",
+        "math",
+    ]) || name == "symbol"
+        || name.starts_with("symbolmt")
+    {
+        MathKind::Symbol
+    } else {
+        MathKind::Text
+    }
 }
 
 impl Font {
@@ -77,6 +153,7 @@ impl Font {
             scale: 0.001,
             size_factor: 1.0,
             bold: false,
+            math: MathKind::Text,
         }
     }
 
@@ -101,6 +178,7 @@ impl Font {
         let mut font = Font::fallback();
         font.to_unicode = to_unicode;
         font.bold = is_bold(doc, &base_font, descriptor);
+        font.math = math_kind(&base_font);
         font.std14 = if descriptor.is_none() || get(doc, dict, b"Widths").is_none() {
             standard14(&base_font)
         } else {
@@ -130,12 +208,17 @@ impl Font {
             BaseEncoding::Standard
         };
         let mut base = default_base;
+        let mut named = false;
         let mut differences: Option<&Vec<Object>> = None;
         match get(doc, dict, b"Encoding") {
-            Some(Object::Name(n)) => base = named_base(n).unwrap_or(default_base),
+            Some(Object::Name(n)) => {
+                base = named_base(n).unwrap_or(default_base);
+                named = true;
+            }
             Some(Object::Dictionary(d)) => {
                 if let Some(n) = get_name(doc, d, b"BaseEncoding") {
                     base = named_base(n).unwrap_or(default_base);
+                    named = true;
                 }
                 if let Some(Object::Array(a)) = get(doc, d, b"Differences") {
                     differences = Some(a);
@@ -143,9 +226,23 @@ impl Font {
             }
             _ => {}
         }
-        font.simple_map = (0..=255u8)
-            .map(|c| base_char(base, c).map(String::from))
-            .collect();
+        // 没指定基础编码、或者是符号字体时，以字体程序自带的编码为准（TeX 字体的 OT1、CMMI、CMSY、
+        // CMEX 编码）：Ghostscript 输出的 TeX 字体常写着 WinAnsi，没列进 Differences 的码实际按内建编码画
+        let symbolic = descriptor
+            .and_then(|d| get_num(doc, d, b"Flags"))
+            .is_some_and(|f| (f as i64) & 4 != 0);
+        let builtin = ((!named || symbolic) && subtype != b"TrueType")
+            .then(|| descriptor.and_then(|d| builtin_encoding(doc, d, stream_limit)))
+            .flatten();
+        font.simple_map = match builtin {
+            Some(names) => names
+                .iter()
+                .map(|n| n.as_ref().and_then(|n| glyph_to_unicode(n.as_bytes())))
+                .collect(),
+            None => (0..=255u8)
+                .map(|c| base_char(base, c).map(String::from))
+                .collect(),
+        };
         if let Some(diffs) = differences {
             let mut code = 0usize;
             for item in diffs {
@@ -210,6 +307,7 @@ impl Font {
         font.std14 = None;
         font.to_unicode = to_unicode;
         font.bold = is_bold(doc, base_font, descriptor);
+        font.math = math_kind(base_font);
         font.composite = Some(comp);
         font
     }

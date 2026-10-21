@@ -44,6 +44,56 @@ fn normalize_char(c: char, out: &mut String) {
     }
 }
 
+/// TeX 用两个字形拼出来的符号合成一个：否定斜杠叠在后一个符号上（̸= → ≠），`\mapsto` 是短竖加箭头。
+fn compose_tex(text: &str) -> String {
+    if !text.contains(['\u{0338}', '↦']) {
+        return text.to_string();
+    }
+    let negated = |c: char| match c {
+        '=' => Some('≠'),
+        '∈' => Some('∉'),
+        '∋' => Some('∌'),
+        '<' => Some('≮'),
+        '>' => Some('≯'),
+        '≤' => Some('≰'),
+        '≥' => Some('≱'),
+        '⊂' => Some('⊄'),
+        '⊃' => Some('⊅'),
+        '⊆' => Some('⊈'),
+        '⊇' => Some('⊉'),
+        '∼' => Some('≁'),
+        '≃' => Some('≄'),
+        '≈' => Some('≉'),
+        '≡' => Some('≢'),
+        '∃' => Some('∄'),
+        '|' | '∣' => Some('∤'),
+        '∥' => Some('∦'),
+        _ => None,
+    };
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        let next = chars.get(i + 1).copied();
+        if c == '\u{0338}'
+            && let Some(n) = next.and_then(negated)
+        {
+            out.push(n);
+            i += 2;
+            continue;
+        }
+        if c == '↦' && next == Some('→') {
+            out.push('↦');
+            i += 2;
+            continue;
+        }
+        out.push(c);
+        i += 1;
+    }
+    out
+}
+
 /// 把一页的字形聚合成行片段。
 pub(crate) fn fragments(glyphs: &[Glyph]) -> Vec<Line> {
     let mut order: Vec<usize> = (0..glyphs.len()).collect();
@@ -148,13 +198,15 @@ pub(crate) fn fragments(glyphs: &[Glyph]) -> Vec<Line> {
 }
 
 fn make_line(glyphs: &[&Glyph]) -> Option<Line> {
-    let mut text = String::new();
+    // 按空格切词；词内文字和原来逐字拼接一致
+    let mut words: Vec<Vec<crate::math::Item>> = Vec::new();
     let mut pending_space = false;
     let mut prev: Option<&Glyph> = None;
     let mut prev_end = f64::NEG_INFINITY;
     let mut bold_chars = 0usize;
     let mut all_chars = 0usize;
     let mut sizes: HashMap<i64, (usize, f64, f64)> = HashMap::new();
+    let mut last_char: Option<char> = None;
     for g in glyphs {
         let mut t = String::new();
         for c in g.text.chars() {
@@ -166,13 +218,13 @@ fn make_line(glyphs: &[&Glyph]) -> Option<Line> {
             }
             continue;
         }
+        let mut new_word = words.is_empty();
         if let Some(p) = prev {
             let gap = g.x - prev_end;
-            let cjk =
-                text.chars().last().is_some_and(is_cjk) && t.chars().next().is_some_and(is_cjk);
+            let cjk = last_char.is_some_and(is_cjk) && t.chars().next().is_some_and(is_cjk);
             let limit = if cjk { CJK_SPACE_GAP } else { SPACE_GAP };
-            if (pending_space || gap > limit * g.size.max(p.size)) && !text.ends_with(' ') {
-                text.push(' ');
+            if pending_space || gap > limit * g.size.max(p.size) {
+                new_word = true;
             }
         }
         pending_space = false;
@@ -184,18 +236,38 @@ fn make_line(glyphs: &[&Glyph]) -> Option<Line> {
         let key = (g.size * 10.0).round() as i64;
         let e = sizes.entry(key).or_insert((0, g.size, g.y));
         e.0 += n;
-        text.push_str(t.trim_start());
+        last_char = t.chars().last().or(last_char);
+        let item = crate::math::Item {
+            g,
+            text: t.trim_start().to_string(),
+        };
+        match words.last_mut() {
+            Some(w) if !new_word => w.push(item),
+            _ => words.push(vec![item]),
+        }
         prev_end = prev_end.max(g.x_end).max(g.x);
         prev = Some(g);
-    }
-    let text = text.trim_end().to_string();
-    if text.is_empty() {
-        return None;
     }
     // 字号取字符数最多的那个，基线也跟着它
     let (_, size, y) = sizes
         .into_values()
         .max_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)))?;
+    let text = crate::math::line_text(&words, y, size).unwrap_or_else(|| {
+        let mut text = String::new();
+        for w in &words {
+            if !text.is_empty() && !text.ends_with(' ') {
+                text.push(' ');
+            }
+            for i in w {
+                text.push_str(&i.text);
+            }
+        }
+        text
+    });
+    let text = compose_tex(text.trim_end());
+    if text.is_empty() {
+        return None;
+    }
     let first = glyphs.iter().find(|g| !g.text.trim().is_empty())?;
     let last_end = glyphs
         .iter()
@@ -901,7 +973,37 @@ pub(crate) fn render(pages: &[Vec<Para>]) -> (Vec<String>, String) {
     (page_md, doc)
 }
 
+/// 相邻两段公式只隔一个空格（公式跨了两个行片段）时合成一段：`$a \\leq$ $b$` → `$a \\leq b$`。
+fn merge_math(text: &str) -> std::borrow::Cow<'_, str> {
+    if !text.contains("$ $") {
+        return text.into();
+    }
+    let b = text.as_bytes();
+    let mut out = String::with_capacity(text.len());
+    let mut open = false;
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'$' {
+            if open && b.get(i + 1) == Some(&b' ') && b.get(i + 2) == Some(&b'$') {
+                out.push(' ');
+                i += 3;
+                continue;
+            }
+            open = !open;
+        }
+        let ch = text[i..].chars().next().unwrap_or(' ');
+        out.push(ch);
+        i += ch.len_utf8();
+    }
+    out.into()
+}
+
 fn format_para(p: &Para, kind: Kind) -> String {
+    let text = merge_math(&p.text);
+    let p = &Para {
+        text: text.into_owned(),
+        ..p.clone()
+    };
     match kind {
         Kind::Heading(l) => format!("{} {}", "#".repeat(l), p.text),
         Kind::Bullet => {
@@ -922,6 +1024,14 @@ fn format_para(p: &Para, kind: Kind) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn adjacent_formulas_merge() {
+        assert_eq!(
+            merge_math("with $0 \\leq k \\leq$ $2^{N}$. Then $a$ and $b$"),
+            "with $0 \\leq k \\leq 2^{N}$. Then $a$ and $b$"
+        );
+    }
 
     #[test]
     fn hyphen_join() {
