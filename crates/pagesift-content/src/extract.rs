@@ -4,7 +4,7 @@ use std::cell::Cell;
 
 use pagesift_html::{Element, Html, Tag};
 
-use crate::dom::{NodeR, element, is_hidden, is_non_content_tag};
+use crate::dom::{NodeR, element, is_hidden, is_non_content_tag, short_text};
 use crate::markdown::is_block_tag;
 
 /// 正文容器常用的词。
@@ -15,16 +15,19 @@ const NEG: u8 = 2;
 const JUMP: u8 = 4;
 
 /// 一个小写词属于哪些类。写成 `match`：编译器先按长度分支再比字节，每个词只判定一次。
+///
+/// 不算框架词的：`banner`（建站主题里多指页首大图区，标题和导语就在里面；广告用 `ad`、`advert`，
+/// 页头用 `role="banner"` 识别）、`comment(s)`（评论区是页面内容）、`breadcrumb(s)`（页面在站内的位置，
+/// `<nav>` 里的面包屑照样按 `<nav>` 去掉）、`recommend`（多是动词，如 `doctor-recommend`）。
 fn word_class(w: &str) -> u8 {
     match w {
         "article" | "content" | "entry" | "main" | "post" | "text" | "blog" | "story"
         | "markdown" | "prose" | "doc" | "docs" | "documentation" | "body" => POS,
-        "nav" | "navbar" | "navigation" | "menu" | "footer" | "sidebar" | "aside"
-        | "breadcrumb" | "breadcrumbs" | "share" | "sharing" | "social" | "related"
-        | "recommend" | "recommended" | "comment" | "comments" | "recent" | "cookie"
-        | "cookies" | "consent" | "banner" | "advert" | "advertisement" | "ad" | "ads"
-        | "sponsor" | "sponsored" | "newsletter" | "subscribe" | "popup" | "modal" | "promo"
-        | "toolbar" | "pagination" | "editsection" | "catlinks" => NEG,
+        "nav" | "navbar" | "navigation" | "menu" | "footer" | "sidebar" | "aside" | "share"
+        | "sharing" | "social" | "related" | "recommended" | "recent" | "cookie" | "cookies"
+        | "consent" | "advert" | "advertisement" | "ad" | "ads" | "sponsor" | "sponsored"
+        | "newsletter" | "subscribe" | "popup" | "modal" | "promo" | "toolbar" | "pagination"
+        | "editsection" | "catlinks" => NEG,
         "skip" | "jump" => NEG | JUMP,
         _ => 0,
     }
@@ -42,12 +45,16 @@ const SKIP_ROLES: &[&str] = &[
 
 /// class 和 id 拆成词，按词（不分大小写）分类，返回所有词的类别并集。
 /// 按词匹配避免 "header" 命中 "head" 这类误伤；词先转小写放进栈上的缓冲区。
+/// 一个类名（空白分隔的一项）里同时有正文词和框架词时按框架词算：`related-content-boxes`、
+/// `menu-content`、`menu-item--main` 是框架里的部件（BEM 写法里块名在前）；正文容器另外带着
+/// 只有正文词的类名（`main-content has-sidebar`）。
 fn token_class(el: Element<'_>) -> u8 {
     let mut class = 0;
     let mut buf = [0u8; MAX_TOKEN];
     for value in [el.attr("class"), el.attr("id")].into_iter().flatten() {
         // 按字节找 ASCII 字母数字片段：非 ASCII 字节（含多字节字符）都是分隔符
         let mut len = 0usize;
+        let mut name = 0u8;
         for &c in value.as_bytes().iter().chain(std::iter::once(&b' ')) {
             if c.is_ascii_alphanumeric() {
                 if len < MAX_TOKEN {
@@ -58,9 +65,16 @@ fn token_class(el: Element<'_>) -> u8 {
             }
             if (1..=MAX_TOKEN).contains(&len) {
                 // 只含 ASCII 字母数字，必然是合法 UTF-8
-                class |= word_class(std::str::from_utf8(&buf[..len]).unwrap_or_default());
+                name |= word_class(std::str::from_utf8(&buf[..len]).unwrap_or_default());
             }
             len = 0;
+            if c.is_ascii_whitespace() {
+                if name & NEG != 0 {
+                    name &= !POS;
+                }
+                class |= name;
+                name = 0;
+            }
         }
     }
     class
@@ -76,8 +90,22 @@ fn in_content_area(node: &NodeR<'_>) -> bool {
     })
 }
 
+fn is_main_landmark(el: Element<'_>) -> bool {
+    el.tag() == Tag::Main || el.attr("role") == Some("main")
+}
+
 /// 比所有候选词都长的词不可能命中。
 const MAX_TOKEN: usize = 16;
+
+/// 正文被删过头时放宽规则的程度。
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Relax {
+    None,
+    /// 软跳过规则只留链接块：菜单、页脚链接还删，按类名、role、页头删的块放回来。
+    LinkBlocks,
+    /// 只保留硬跳过和 `<nav>`、`<aside>`、`<footer>`。
+    All,
+}
 
 /// 决定渲染时要整棵跳过的子树。
 ///
@@ -88,8 +116,7 @@ const MAX_TOKEN: usize = 16;
 ///   软跳过的元素如果装着全页大部分文字，说明它其实是正文的外层容器，不跳过。
 pub(crate) struct Skipper {
     only_main: bool,
-    /// 放宽后只保留硬跳过和 `<nav>`、`<aside>`、`<footer>`，不再用软跳过规则。
-    relaxed: bool,
+    relaxed: Relax,
     total_chars: usize,
     protect_chars: usize,
     /// 按节点下标索引；只取正文时才计算。
@@ -147,7 +174,15 @@ fn is_skip_link(node: &NodeR<'_>, el: Element<'_>) -> bool {
 }
 
 fn is_hard_skip(node: &NodeR<'_>) -> bool {
-    node.tag().is_some_and(is_non_content_tag) || is_hidden(node)
+    node.tag().is_some_and(is_non_content_tag) && !is_text_button(node) || is_hidden(node)
+}
+
+/// 按钮文字超过这么多（非空白字符）就算正文；短的是"菜单""搜索""提交"这类控件。
+const TEXT_BUTTON_MIN_CHARS: usize = 15;
+
+/// 装着成段文字的按钮（手风琴标题、整块可点的卡片）：文字照常显示，算正文。
+fn is_text_button(node: &NodeR<'_>) -> bool {
+    node.tag() == Some(Tag::Button) && !short_text(node, TEXT_BUTTON_MIN_CHARS)
 }
 
 /// 自底向上一遍算出每个元素的可见文字统计和"有没有块级后代"。
@@ -206,7 +241,7 @@ impl Skipper {
         let total = visible.get(body.id().index()).map_or(0, |v| v.chars);
         Self {
             only_main,
-            relaxed: false,
+            relaxed: Relax::None,
             total_chars: total,
             protect_chars: ((total as f64 * PROTECT_SHARE) as usize).max(PROTECT_MIN_CHARS),
             visible,
@@ -220,9 +255,9 @@ impl Skipper {
         self.total_chars
     }
 
-    /// 关掉软跳过规则，用于正文被删过头时的重试。
-    pub(crate) fn relax(&mut self) {
-        self.relaxed = true;
+    /// 放宽软跳过规则，用于正文被删过头时的重试。
+    pub(crate) fn relax(&mut self, level: Relax) {
+        self.relaxed = level;
         self.cache.iter().for_each(|c| c.set(0));
     }
 
@@ -255,7 +290,7 @@ impl Skipper {
     pub(crate) fn reason(&self, node: &NodeR<'_>) -> Option<&'static str> {
         let el = element(node)?;
         let tag = el.tag();
-        if is_non_content_tag(tag) {
+        if is_non_content_tag(tag) && !is_text_button(node) {
             return Some("non-content tag");
         }
         if is_hidden(node) {
@@ -270,7 +305,11 @@ impl Skipper {
         if tag == Tag::A {
             return is_skip_link(node, el).then_some("skip link");
         }
-        if self.relaxed || matches!(tag, Tag::Body | Tag::Html) {
+        // 页面自己标出的正文区域（`<main>`、`role="main"`）不用软规则删
+        if self.relaxed == Relax::All
+            || matches!(tag, Tag::Body | Tag::Html)
+            || is_main_landmark(el)
+        {
             return None;
         }
         let vis = self
@@ -287,6 +326,8 @@ impl Skipper {
         // <main> 里的链接列表多半是内容本身（目录页、相册、分类列表），不当菜单删
         if link_block && !node.ancestors().any(|a| a.tag() == Some(Tag::Main)) {
             Some("link block")
+        } else if self.relaxed == Relax::LinkBlocks {
+            None
         } else if tag == Tag::Header
             && !in_content_area(node)
             && node.descendants().any(|d| d.tag() == Some(Tag::Nav))
@@ -306,11 +347,21 @@ impl Skipper {
         self.visible.get(node.id().index()).map_or(0, |v| v.chars)
     }
 
+    /// 可见文字数、链接文字数、链接数。诊断用。
+    pub(crate) fn stats(&self, node: &NodeR<'_>) -> (usize, usize, usize) {
+        let v = self
+            .visible
+            .get(node.id().index())
+            .copied()
+            .unwrap_or_default();
+        (v.chars, v.link_chars, v.links)
+    }
+
     pub(crate) fn only_main(&self) -> bool {
         self.only_main
     }
 
     pub(crate) fn is_relaxed(&self) -> bool {
-        self.relaxed
+        self.relaxed != Relax::None
     }
 }

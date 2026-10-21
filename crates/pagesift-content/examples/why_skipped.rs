@@ -1,5 +1,5 @@
 //! 诊断：只取正文时删掉了哪些块、为什么。
-//! `cargo run --release -p pagesift-content --example why_skipped -- page.html [最少字符数]`
+//! `cargo run --release -p pagesift-content --example why_skipped -- page.html [最少字符数] [strict]`（strict：不放宽规则）
 
 fn main() {
     let mut args = std::env::args().skip(1);
@@ -8,7 +8,8 @@ fn main() {
         .expect("usage: why_skipped <page.html> [min-chars]");
     let min: usize = args.next().map_or(0, |v| v.parse().unwrap());
     let html = String::from_utf8_lossy(&std::fs::read(&path).unwrap()).into_owned();
-    let (relaxed, blocks) = pagesift_content::explain_skips(&html);
+    let (relaxed, blocks) =
+        pagesift_content::explain_skips(&html, args.next().as_deref() != Some("strict"));
     println!("relaxed: {relaxed}");
     for b in blocks.iter().filter(|b| b.chars >= min) {
         println!(

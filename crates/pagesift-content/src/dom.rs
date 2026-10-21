@@ -78,7 +78,7 @@ pub(crate) fn is_hidden(node: &NodeR<'_>) -> bool {
 const ARIA_HIDDEN_MAX_CHARS: usize = 200;
 
 /// 子树里的非空白字符数不超过 `max`（数到超过就停）。
-fn short_text(node: &NodeR<'_>, max: usize) -> bool {
+pub(crate) fn short_text(node: &NodeR<'_>, max: usize) -> bool {
     let mut n = 0;
     for d in node.descendants() {
         if let Some(t) = d.as_text() {
@@ -91,11 +91,10 @@ fn short_text(node: &NodeR<'_>, max: usize) -> bool {
     true
 }
 
+/// 去掉的零宽字符：零宽空格、词连接符、BOM。零宽不连字（U+200C）和零宽连字（U+200D）要保留：
+/// 波斯语、印地语等文字靠它们决定字形（کسب‌وکار），emoji 组合序列也靠 U+200D。
 pub(crate) fn is_zero_width(c: char) -> bool {
-    matches!(
-        c,
-        '\u{200b}' | '\u{200c}' | '\u{200d}' | '\u{2060}' | '\u{feff}'
-    )
+    matches!(c, '\u{200b}' | '\u{2060}' | '\u{feff}')
 }
 
 /// 非空白字符数。纯 ASCII 文本（绝大多数）按字节数，不逐个解码字符。

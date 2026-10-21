@@ -20,6 +20,7 @@ mod markdown;
 mod metadata;
 mod text;
 
+use extract::Relax;
 use pagesift_html::Html;
 use url::Url;
 
@@ -85,7 +86,7 @@ pub struct Document {
     pub fingerprints: Option<Fingerprints>,
 }
 
-/// 只取正文的结果少于这么多字符、并且不到整页可见文字的这个比例时，放宽规则重试。
+/// 只取正文的结果文字少于这么多字符、并且不到整页可见文字的这个比例时，放宽规则重试。
 /// 阈值由 `pagesift bench --auto` 扫描确定。
 const FALLBACK_MAX_CHARS: usize = 1000;
 const FALLBACK_MAX_SHARE: f64 = 0.2;
@@ -99,23 +100,7 @@ pub fn process(html: &str, opts: &Options) -> Document {
     // 文章页的"文章信号"（og:type、单个 <article>）也不可靠。
     let body = dom.get(body_or_root(&dom));
     let metadata = metadata::extract(&dom, base.as_ref());
-    let render = |skipper: &extract::Skipper| {
-        markdown::Renderer {
-            base: base.as_ref(),
-            skipper,
-        }
-        .render(&[body])
-    };
-    let mut markdown = render(&skipper);
-    // 规则删过头的保险：结果很短、又远少于整页文字时，关掉软跳过规则重来一次
-    if opts.only_main_content {
-        let chars = dom::count_non_whitespace(&markdown);
-        let total = skipper.total_chars();
-        if chars < FALLBACK_MAX_CHARS && (chars as f64) < total as f64 * FALLBACK_MAX_SHARE {
-            skipper.relax();
-            markdown = render(&skipper);
-        }
-    }
+    let markdown = render_main(&mut skipper, body, base.as_ref());
     // 只取正文时可见文字数已经算好（和拦截页识别的口径一样）：超过上限的页面直接跳过识别
     let surely_content =
         opts.only_main_content && skipper.total_chars() > barrier::visible_limit(opts.status);
@@ -138,6 +123,46 @@ pub fn process(html: &str, opts: &Options) -> Document {
         barrier,
         fingerprints,
     }
+}
+
+/// 渲染 Markdown。只取正文时带上规则删过头的保险：结果的文字很短、又远少于整页文字时，
+/// 先只保留链接块规则重来一次，还不够再关掉全部软跳过规则。只数文字不数链接地址：
+/// 图片和链接多的页面，地址会把很短的正文撑过阈值。
+fn render_main(
+    skipper: &mut extract::Skipper,
+    body: pagesift_html::NodeRef<'_>,
+    base: Option<&Url>,
+) -> String {
+    let render = |skipper: &extract::Skipper| markdown::Renderer { base, skipper }.render(&[body]);
+    let mut markdown = render(skipper);
+    if !skipper.only_main() {
+        return markdown;
+    }
+    let total = skipper.total_chars();
+    let short = |md: &str| {
+        let chars = text_chars(md);
+        chars < FALLBACK_MAX_CHARS && (chars as f64) < total as f64 * FALLBACK_MAX_SHARE
+    };
+    for level in [Relax::LinkBlocks, Relax::All] {
+        if !short(&markdown) {
+            break;
+        }
+        skipper.relax(level);
+        markdown = render(skipper);
+    }
+    markdown
+}
+
+/// Markdown 里可见文字的非空白字符数：链接和图片的地址 `](...)` 不算。
+fn text_chars(md: &str) -> usize {
+    let mut n = 0;
+    let mut rest = md;
+    while let Some(i) = rest.find("](") {
+        n += dom::count_non_whitespace(&rest[..i]);
+        rest = &rest[i + 2..];
+        rest = rest.find(')').map_or("", |j| &rest[j + 1..]);
+    }
+    n + dom::count_non_whitespace(rest)
 }
 
 fn body_or_root(dom: &Html<'_>) -> pagesift_html::NodeId {
@@ -177,23 +202,12 @@ pub struct SkippedBlock {
 /// 解释只取正文时删掉了什么：和 [`process`] 一样的流程（包括结果太短时放宽规则重试），
 /// 返回是否放宽了规则，以及每个被跳过的最外层块和原因。只用于调试提取规则，不在正常流程里调用。
 #[doc(hidden)]
-pub fn explain_skips(html: &str) -> (bool, Vec<SkippedBlock>) {
+pub fn explain_skips(html: &str, allow_relax: bool) -> (bool, Vec<SkippedBlock>) {
     let dom = Html::parse(html);
     let mut skipper = extract::Skipper::new(&dom, true);
     let body = dom.get(body_or_root(&dom));
-    let render = |skipper: &extract::Skipper| {
-        markdown::Renderer {
-            base: None,
-            skipper,
-        }
-        .render(&[body])
-    };
-    let markdown = render(&skipper);
-    let chars = dom::count_non_whitespace(&markdown);
-    if chars < FALLBACK_MAX_CHARS
-        && (chars as f64) < skipper.total_chars() as f64 * FALLBACK_MAX_SHARE
-    {
-        skipper.relax();
+    if allow_relax {
+        render_main(&mut skipper, body, None);
     }
     let mut out = Vec::new();
     let mut stack = vec![body];
@@ -224,4 +238,88 @@ pub fn explain_skips(html: &str) -> (bool, Vec<SkippedBlock>) {
         stack[start..].reverse();
     }
     (skipper.is_relaxed(), out)
+}
+
+/// 评测短语在只取正文时落在哪里，每个短语一项：`None` 表示页面里找不到；
+/// `Some((Some(reason), element))` 表示被这条规则删掉了（`element` 是命中规则的元素）；
+/// `Some((None, chain))` 表示保留了，`chain` 是保留下来的那一处往上的祖先链，
+/// 每层带 `[可见文字数/链接文字数/链接数]`。短语出现在多处时，优先报告保留下来的那一处。
+/// 只用于调试提取规则，不在正常流程里调用。
+#[doc(hidden)]
+pub fn explain_phrases(
+    html: &str,
+    phrases: &[String],
+) -> Vec<Option<(Option<&'static str>, String)>> {
+    let dom = Html::parse(html);
+    let mut skipper = extract::Skipper::new(&dom, true);
+    let body = dom.get(body_or_root(&dom));
+    render_main(&mut skipper, body, None);
+    let describe = |n: &pagesift_html::NodeRef<'_>| {
+        let Some(el) = n.as_element() else {
+            return String::new();
+        };
+        let mut name = el.name().to_string();
+        if let Some(id) = el.attr("id") {
+            name.push('#');
+            name.push_str(id);
+        }
+        for c in el
+            .attr("class")
+            .unwrap_or_default()
+            .split_whitespace()
+            .take(3)
+        {
+            name.push('.');
+            name.push_str(c);
+        }
+        name
+    };
+    // 从外往里第一个被跳过的祖先（含自身）；都没被跳过时给出往上的祖先链
+    let locate = |node: pagesift_html::NodeRef<'_>| {
+        let mut chain: Vec<_> = std::iter::once(node)
+            .chain(node.ancestors())
+            .filter(|a| a.is_element())
+            .collect();
+        chain.reverse();
+        if let Some((r, a)) = chain.iter().find_map(|a| skipper.reason(a).map(|r| (r, a))) {
+            return (Some(r), describe(a));
+        }
+        let path: Vec<String> = chain
+            .iter()
+            .rev()
+            .take(8)
+            .map(|a| {
+                let (c, lc, l) = skipper.stats(a);
+                format!("{}[{c}/{lc}/{l}]", describe(a))
+            })
+            .collect();
+        (None, path.join(" < "))
+    };
+    let lower = |s: &str| dom::collapse_whitespace(&s.to_lowercase());
+    phrases
+        .iter()
+        .map(|p| {
+            let key: String = lower(p).chars().take(24).collect();
+            let mut found = None;
+            for text in body
+                .descendants()
+                .filter(|n| n.as_text().is_some_and(|t| lower(t).contains(&key)))
+            {
+                let r = locate(text.parent().unwrap_or(text));
+                if r.0.is_none() {
+                    return Some(r);
+                }
+                found.get_or_insert(r);
+            }
+            if found.is_some() {
+                return found;
+            }
+            // 跨多个文本节点的短语：找文字包含它的最小元素
+            let el = body
+                .descendants()
+                .filter(|n| n.is_element() && lower(&n.text()).contains(&key))
+                .last()?;
+            Some(locate(el))
+        })
+        .collect()
 }

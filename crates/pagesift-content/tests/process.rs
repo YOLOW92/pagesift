@@ -301,3 +301,90 @@ fn link_lists_inside_main_are_content() {
     assert_eq!(m.matches("[Album 3]").count(), 1, "{m}");
     assert!(m.contains("# Gallery"), "{m}");
 }
+
+#[test]
+fn relaxing_keeps_menus_out_when_it_can() {
+    // 正文被类名删掉、结果太短：先只放回类名删掉的块，链接菜单（没打标签）照样不要
+    let menu: String = (0..8)
+        .map(|i| format!("<li><a href=\"/c/{i}\">Item {i}</a></li>"))
+        .collect();
+    let legal = "Terms of service and privacy notice for every visitor of this site. ".repeat(2);
+    let html = format!(
+        r#"<body><div class="top"><ul>{menu}</ul></div>
+        <div class="sidebar-layout"><p>Product overview: durable neoprene sheets for gaskets, seals and padding.</p></div>
+        <div class="site-footer"><p>{legal}</p></div><div class="newsletter"><p>{legal}</p></div></body>"#
+    );
+    let m = md(&html);
+    assert!(m.contains("Product overview"), "{m}");
+    assert!(!m.contains("Item 7"), "{m}");
+}
+
+#[test]
+fn class_names_mixing_frame_and_content_words_are_frame() {
+    // `related-content-boxes`、`menu-content` 是框架里的部件；`main-content has-sidebar` 是正文容器
+    let body = "The article body is long enough to be the main content of this page. ".repeat(4);
+    let html = format!(
+        r#"<body><div class="main-content has-sidebar"><h1>Title</h1><p>{body}</p></div>
+        <div class="related-content-boxes"><h2>You may also like</h2><p>Another story entirely</p></div>
+        <div class="menu-content"><span>API access</span><span>Status codes</span></div></body>"#
+    );
+    let m = md(&html);
+    assert!(m.contains("# Title"), "{m}");
+    assert!(!m.contains("You may also like"), "{m}");
+    assert!(!m.contains("API access"), "{m}");
+}
+
+#[test]
+fn hero_banners_and_comments_are_content() {
+    let body = "The article body is long enough to be the main content of this page. ".repeat(4);
+    let html = format!(
+        r#"<body><div class="hero-banner"><h1>Spring collection</h1></div><article><p>{body}</p></article>
+        <section class="comments"><p>Great write-up, the second section answered my question.</p></section></body>"#
+    );
+    let m = md(&html);
+    assert!(m.contains("# Spring collection"), "{m}");
+    assert!(m.contains("Great write-up"), "{m}");
+}
+
+#[test]
+fn buttons_with_real_text_are_content() {
+    // 手风琴标题这类装着成段文字的按钮是内容；"Menu""Submit"这类短控件不是
+    let body = "Provision of expert advice on migration strategies and data centre operations. ";
+    let html = format!(
+        r#"<article><button>Menu</button><div class="accordion">
+        <button aria-expanded="false">Category C - Data centre</button><div><p>{body}</p></div></div>
+        <button type="submit">Submit</button></article>"#
+    );
+    let m = md(&html);
+    assert!(m.contains("Category C - Data centre"), "{m}");
+    assert!(!m.contains("Menu"), "{m}");
+    assert!(!m.contains("Submit"), "{m}");
+}
+
+#[test]
+fn lazy_images_use_the_real_address() {
+    let html = r#"<article><p>Intro paragraph that is long enough to be the content of the page.</p>
+        <img src="data:image/gif;base64,R0lGOD" data-lazy-src="/img/chart.png" alt="Sales chart">
+        <img src="data:image/svg+xml;base64,PHN2Zz4=" srcset="/img/a.png 1x, /img/a@2x.png 2x" alt="Team photo">
+        <img src="data:image/gif;base64,R0lGOD" alt="Placeholder only"></article>"#;
+    let m = process(html, &opts("https://example.com/post")).markdown;
+    assert!(
+        m.contains("![Sales chart](https://example.com/img/chart.png)"),
+        "{m}"
+    );
+    assert!(
+        m.contains("![Team photo](https://example.com/img/a.png)"),
+        "{m}"
+    );
+    assert!(!m.contains("data:"), "{m}");
+    assert!(!m.contains("Placeholder only"), "{m}");
+}
+
+#[test]
+fn joiners_needed_by_the_script_are_kept() {
+    // 波斯语的零宽不连字（U+200C）决定字形，不能删；零宽空格可以删
+    let html = "<article><p>کسب\u{200c}وکار و فناوری\u{200b} های نوظهور در این مقاله بررسی می شود و متن کافی دارد.</p></article>";
+    let m = md(html);
+    assert!(m.contains("کسب\u{200c}وکار"), "{m}");
+    assert!(!m.contains('\u{200b}'), "{m}");
+}
