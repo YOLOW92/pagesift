@@ -77,22 +77,21 @@ fn split(text: &str, r: Range<usize>) -> (Vec<Range<usize>>, bool, usize) {
         out.push(base + start..base + s.len());
         out
     };
+    // 按字符比较：U+00A0 的 UTF-8 是 C2 A0，按字节比会把 "à"（C3 A0）的第二个字节当成不换行空格
     let longest_run = |set: &[char]| -> Option<&str> {
-        let b = s.as_bytes();
         let (mut best, mut best_len) = (None, 0);
-        let mut i = 0;
-        while i < b.len() {
-            if set.contains(&(b[i] as char)) {
-                let start = i;
-                while i < b.len() && set.contains(&(b[i] as char)) {
-                    i += 1;
+        let mut run: Option<usize> = None;
+        for (i, c) in s.char_indices().chain(std::iter::once((s.len(), '\0'))) {
+            match (set.contains(&c) && i < s.len(), run) {
+                (true, None) => run = Some(i),
+                (false, Some(start)) => {
+                    if i - start > best_len {
+                        best_len = i - start;
+                        best = Some(&s[start..i]);
+                    }
+                    run = None;
                 }
-                if i - start > best_len {
-                    best_len = i - start;
-                    best = Some(&s[start..i]);
-                }
-            } else {
-                i += 1;
+                _ => {}
             }
         }
         best
@@ -252,8 +251,26 @@ mod tests {
             seed ^= seed << 17;
             seed
         };
+        // 含非 ASCII：à 的 UTF-8 第二个字节和不换行空格的第二个字节相同（A0），曾经被切在字符中间
         let parts = [
-            "alpha", "beta.", "gamma,", "delta;", "\n", "\n\n", " ", "  ", "\t", "x-y", "(z)",
+            "alpha",
+            "beta.",
+            "gamma,",
+            "delta;",
+            "\n",
+            "\n\n",
+            " ",
+            "  ",
+            "\t",
+            "x-y",
+            "(z)",
+            "voilà",
+            "\u{a0}",
+            "à\u{a0}à",
+            "日本語。",
+            "naïve",
+            "🙂",
+            "Ünïcödé,",
         ];
         for _ in 0..3000 {
             let n = (next() % 60) as usize;
