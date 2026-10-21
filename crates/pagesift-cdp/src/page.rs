@@ -23,6 +23,11 @@ const MAX_CAPTURE_PX: f64 = 16384.0;
 const NET_QUIET: Duration = Duration::from_millis(100);
 /// DOMContentLoaded 之后最多等多久网络静默（长轮询之类的页面永远等不到）。
 const NET_IDLE_CAP: Duration = Duration::from_secs(5);
+/// 等网络静默时每隔多久看一次正文：正文已经够多、而且不再变化，就不必等广告和统计脚本结束。
+const CONTENT_POLL: Duration = Duration::from_millis(250);
+/// 页面文字（`innerText`）到这么多字符就算正文已经渲染出来了。
+const CONTENT_READY_CHARS: u64 = 1500;
+const TEXT_LEN: &str = "(() => { const b = document.body; return b ? (b.innerText || b.textContent || '').length : 0; })()";
 /// 截图前等 `load` 的上限。
 const LOAD_CAP: Duration = Duration::from_secs(10);
 /// 这些类型的请求没结束，页面内容就可能还在变；图片、字体、样式不影响 HTML。
@@ -776,12 +781,34 @@ async fn eval_ok(session: &Session, expr: &str) -> Result<Value, ActionError> {
 
 /// 网络静默后再在页面里跑一条空命令：它要排在正在执行的脚本之后，
 /// 长脚本执行完又发出的请求就不会被误判成已经空闲。
+/// 等页面就绪：网络静默，或者正文已经够多且两次检查之间没有变化（服务端渲染的页面，
+/// 剩下的请求多是广告和统计）。最多等 `cap`。
 async fn wait_ready(session: &Session, shared: &Shared, cap: Duration) {
     let deadline = Instant::now() + cap;
+    let mut last_len = None;
     loop {
         let left = deadline.saturating_duration_since(Instant::now());
-        if !shared.wait_idle(NET_QUIET, left).await {
+        if left.is_zero() {
             return;
+        }
+        if !shared.wait_idle(NET_QUIET, left.min(CONTENT_POLL)).await {
+            let len = tokio::time::timeout(left, eval_value(session, TEXT_LEN))
+                .await
+                .ok()
+                .and_then(Result::ok)
+                .and_then(|v| v.as_u64());
+            if let Some(n) = len
+                && n >= CONTENT_READY_CHARS
+                && last_len == Some(n)
+            {
+                tracing::trace!(
+                    chars = n,
+                    "render: content stable, not waiting for network idle"
+                );
+                return;
+            }
+            last_len = len;
+            continue;
         }
         let probe = Instant::now();
         let left = deadline.saturating_duration_since(probe);

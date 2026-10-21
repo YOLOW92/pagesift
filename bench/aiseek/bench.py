@@ -204,7 +204,7 @@ async def phase_sweep(pages: int, n=240, port=8103):
                 r = await call(c, port, url, "crawl4ai", 60_000)
                 return {"url": url, "end": time.time(), **r}
             t0 = time.time()
-            rows = await run_pool(items, w, 2 * pages)
+            rows = await run_pool(items, w, 2 * pages if pages else 16)  # pages=0: pagesift sizes its pool itself
             wall = time.time() - t0
             print(f"sweep pages={pages} wall={wall:.1f}s")
         dump(f"sweep-p{pages}", rows + [{"wall": wall}], srv)

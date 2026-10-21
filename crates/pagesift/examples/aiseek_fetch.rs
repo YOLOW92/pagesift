@@ -124,6 +124,20 @@ async fn fetch(
     .unwrap();
     match app.scraper.scrape(&req.url, &opts).await {
         Ok(doc) => Json(response(doc, rendered)).into_response(),
+        // 纯 HTTP 模式下，原版把站点的 429 原样放进 statusCode（200 响应），由 Node 侧判成 slow
+        Err(e)
+            if !rendered && matches!(e.code, ErrorCode::RateLimited | ErrorCode::HostCooldown) =>
+        {
+            Json(json!({
+                "finalUrl": req.url,
+                "statusCode": 429,
+                "markdown": "",
+                "plainText": "",
+                "links": [],
+                "metadata": { "engine": "pagesift-http", "rendered": false, "extraction": "none" },
+            }))
+            .into_response()
+        }
         Err(e) => {
             let (status, body) = match e.code {
                 ErrorCode::SsrfBlocked | ErrorCode::InvalidRequest => (

@@ -172,6 +172,40 @@ const AD_HOSTS: &[&str] = &[
     "mmstat.com",
 ];
 
+/// 统计、标签管理、会话录制这类脚本：不产生正文，却占着网络和脚本线程，让页面迟迟不“静默”。
+/// 和广告一起由 `ads` 开关控制。
+const TRACKER_HOSTS: &[&str] = &[
+    "googletagmanager.com",
+    "google-analytics.com",
+    "analytics.google.com",
+    "connect.facebook.net",
+    "hotjar.com",
+    "segment.com",
+    "segment.io",
+    "mixpanel.com",
+    "amplitude.com",
+    "newrelic.com",
+    "nr-data.net",
+    "chartbeat.com",
+    "chartbeat.net",
+    "parsely.com",
+    "clarity.ms",
+    "bat.bing.com",
+    "hm.baidu.com",
+    "cnzz.com",
+    "yandex.ru/metrika",
+];
+
+/// 屏蔽广告和统计用的主机名（含子域名）。不渲染 iframe、也不走 CDP 拦截的内核（Lightpanda）
+/// 在启动参数里屏蔽它们。
+pub fn ad_and_tracker_hosts() -> impl Iterator<Item = &'static str> {
+    AD_HOSTS
+        .iter()
+        .chain(TRACKER_HOSTS)
+        .copied()
+        .filter(|h| !h.contains('/'))
+}
+
 impl BlockResources {
     pub(crate) fn reason(&self, req: &SubRequest) -> Option<&'static str> {
         if req.is_main_document {
@@ -197,9 +231,14 @@ fn is_ad_url(raw: &str) -> bool {
     else {
         return false;
     };
-    AD_HOSTS
-        .iter()
-        .any(|h| host == *h || host.strip_suffix(h).is_some_and(|p| p.ends_with('.')))
+    let path = Url::parse(raw)
+        .map(|u| u.path().to_string())
+        .unwrap_or_default();
+    AD_HOSTS.iter().chain(TRACKER_HOSTS).any(|h| {
+        let (h, p) = h.split_once('/').map_or((*h, ""), |(h, p)| (h, p));
+        (host == h || host.strip_suffix(h).is_some_and(|x| x.ends_with('.')))
+            && (p.is_empty() || path.trim_start_matches('/').starts_with(p))
+    })
 }
 
 #[cfg(test)]

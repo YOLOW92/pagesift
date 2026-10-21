@@ -128,6 +128,15 @@ impl EngineKind {
                     } else {
                         args.push("--block-private-networks".into());
                     }
+                    // 不走 CDP 拦截，广告和统计脚本在启动参数里挡掉（moli 默认就不取图片、字体和媒体）
+                    for h in crate::guard::ad_and_tracker_hosts() {
+                        args.extend([
+                            "--block-urls".to_string(),
+                            format!("*://{h}/*"),
+                            "--block-urls".to_string(),
+                            format!("*://*.{h}/*"),
+                        ]);
+                    }
                     cfg.args_override = Some(args);
                     cfg.engine_network_guard = true;
                 }
