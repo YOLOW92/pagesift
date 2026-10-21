@@ -10,19 +10,19 @@ mkdir -p $OUT
 for f in $DATA/*.jsonl; do ln -sfn "$f" $OUT/; done
 ln -sfn $DATA/pdfs $OUT/pdfs
 TOOLS=${@:-pagesift pymupdf4llm pdfplumber pypdf markitdown}
-PY=()
+# 转换：每个工具一个进程，各占一个物理核（bench/fresh/pinned.sh），同时跑；单页耗时条件对所有工具相同
+cargo build --release -q -p pagesift-pdf --example pdf_dir
+rm -rf $OUT/pagesift
 for t in $TOOLS; do
     if [ "$t" = pagesift ]; then
-        cargo build --release -q -p pagesift-pdf --example pdf_dir
-        rm -rf $OUT/pagesift
-        target/release/examples/pdf_dir $OUT/pdfs $OUT/pagesift | tee $OUT/timing-pagesift.txt
+        echo "target/release/examples/pdf_dir $OUT/pdfs $OUT/pagesift > $OUT/timing-pagesift.txt"
     else
-        PY+=("$t")
+        echo "bench/data/fresh/tools/py/bin/python -I bench/pdf/py_tools.py $OUT/pdfs $OUT $t > $OUT/timing-$t.txt"
     fi
-done
-if [ ${#PY[@]} -gt 0 ]; then
-    bench/data/fresh/tools/py/bin/python -I bench/pdf/py_tools.py $OUT/pdfs $OUT "${PY[@]}" | tee $OUT/py_timing.txt
-fi
+done | bench/fresh/pinned.sh
+cat $OUT/timing-*.txt
+# 评分：各工具并行
 for t in $TOOLS; do
-    bench/pdf/score.sh "$t" > $OUT/score-$t.txt
+    bench/pdf/score.sh "$t" > $OUT/score-$t.txt &
 done
+wait

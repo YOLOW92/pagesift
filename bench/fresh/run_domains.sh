@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # 发布前的分领域全量对比：一个领域跑完再跑下一个（计时互不干扰），随机种子都由主种子派生。
-# 用法：bench/fresh/run_domains.sh <结果目录> [领域...]（默认 markdown rag dates pdf）
+# 用法：bench/fresh/run_domains.sh <结果目录> [领域...]（默认 markdown rag qasper dates pdf wild）
+# 单线程计时都经 bench/fresh/pinned.sh 绑到不同的物理核上同时跑；需要全核的步骤单独跑。
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 R=$1; shift
@@ -10,13 +11,17 @@ read -r MD1 MD2 MD3 WILD <<<"$(python3 -c "
 import random; r=random.Random($SEED)
 print(*[r.randrange(1, 10**6) for _ in range(4)])")"
 export C4A=bench/data/fresh/tools/c4ai/bin/python
-for d in ${@:-markdown rag dates pdf}; do
+bench/fresh/pinned.sh --cores
+for d in ${@:-markdown rag qasper dates pdf wild}; do
     echo "== $d $(date +%T)"
     case $d in
         markdown) OUT=$R/markdown bench/markdown/run.sh $MD1 $MD2 $MD3 ;;
         rag) OUT=$R/rag bench/rag/run.sh ;;
-        dates) cargo build --release -q -p pagesift --example meta_eval &&
-               bench/data/fresh/tools/py/bin/python -I bench/meta/dates.py > $R/dates.txt 2>&1; tail -30 $R/dates.txt ;;
+        qasper) OUT=$R/rag-qasper DATA=bench/data/fresh/data/qasper-eval bench/rag/run.sh ;;
+        dates) cargo build --release -q -p pagesift --example meta_eval && mkdir -p $R/dates &&
+               for t in pagesift htmldate trafilatura newspaper4k goose3; do
+                   echo "bench/data/fresh/tools/py/bin/python -I bench/meta/dates.py --tools $t > $R/dates/$t.txt 2>&1"
+               done | bench/fresh/pinned.sh; cat $R/dates/*.txt | grep -v "^tool" | sort -u > $R/dates.txt; cat $R/dates.txt ;;
         pdf) bench/pdf/run.sh && mkdir -p $R/pdf && cp bench/pdf/out/score-*.txt bench/pdf/out/*timing*.txt $R/pdf/ ;;
         wild) (cd bench/crawl && SEED=$WILD OUT=../../$R/wild PAGES_DIR=../../bench/data/random/pages \
                C4A=../../$C4A CRW=../../bench/data/fresh/tools/crw/crw ./run_wild.sh) ;;

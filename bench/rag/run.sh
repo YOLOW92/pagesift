@@ -8,25 +8,35 @@ cd "$(dirname "$0")/../.."
 OUT=${OUT:-bench/rag/out}
 DATA=${DATA:-bench/data/fresh/data/chunkeval}
 PY=${PY:-bench/data/fresh/tools/py/bin/python}     # bm25s、langchain-text-splitters、chonkie、semchunk
-C4A=${C4A:-bench/data/venvs/crawl4ai/bin/python}   # Crawl4AI
+C4A=${C4A:-bench/data/fresh/tools/c4ai/bin/python}   # Crawl4AI
 SIZE=${SIZE:-200}
 rm -rf "$OUT"; mkdir -p "$OUT/chunks"
 cargo build --release -q -p pagesift-extract --example chunk_spans --example qf_ranks
-CORPORA=$(ls "$DATA"/corpora/*.md)
-exec 2> >(tee "$OUT/timing.txt" >&2)   # 各工具的耗时打在标准错误上，一并存下
-for spec in "recursive:{\"type\":\"recursive\",\"size\":$SIZE}" "fixed:{\"type\":\"fixed_tokens\",\"size\":$SIZE}" \
-            "sliding:{\"type\":\"sliding_window\",\"window\":$SIZE,\"step\":$((SIZE / 2))}" \
-            "paragraphs:{\"type\":\"paragraphs\"}" "sentences:{\"type\":\"sentences\"}"; do
-    target/release/examples/chunk_spans "${spec#*:}" "$OUT/chunks/pagesift-${spec%%:*}.json" $CORPORA 2>&1 | sed "s/^/pagesift-${spec%%:*}: /"
-done
-"$PY" -I bench/rag/chunkers.py "$OUT/chunks" "$SIZE" langchain-recursive chonkie-recursive chonkie-sentence chonkie-token semchunk -- $CORPORA
-"$C4A" -I bench/rag/chunkers.py "$OUT/chunks" "$SIZE" crawl4ai-fixed crawl4ai-sliding crawl4ai-regex -- $CORPORA
+CORPORA=$(ls "$DATA"/corpora/*.md | tr "\n" " ")
+{
+    for spec in "recursive:{\"type\":\"recursive\",\"size\":$SIZE}" "fixed:{\"type\":\"fixed_tokens\",\"size\":$SIZE}" \
+                "sliding:{\"type\":\"sliding_window\",\"window\":$SIZE,\"step\":$((SIZE / 2))}" \
+                "paragraphs:{\"type\":\"paragraphs\"}" "sentences:{\"type\":\"sentences\"}"; do
+        printf "target/release/examples/chunk_spans '%s' $OUT/chunks/pagesift-%s.json $CORPORA > $OUT/t-pagesift-%s.txt 2>&1\n" \
+            "${spec#*:}" "${spec%%:*}" "${spec%%:*}"
+    done
+    for m in langchain-recursive chonkie-recursive chonkie-sentence chonkie-token semchunk; do
+        echo "$PY -I bench/rag/chunkers.py $OUT/chunks $SIZE $m -- $CORPORA > $OUT/t-$m.txt 2>&1"
+    done
+    for m in crawl4ai-fixed crawl4ai-sliding crawl4ai-regex; do
+        echo "$C4A -I bench/rag/chunkers.py $OUT/chunks $SIZE $m -- $CORPORA > $OUT/t-$m.txt 2>&1"
+    done
+} | bench/fresh/pinned.sh   # 每个分块器各占一个物理核
+{ for f in "$OUT"/t-pagesift-*.txt; do sed "s/^/$(basename "$f" .txt | sed 's/^t-//'): /" "$f"; done
+  cat "$OUT"/t-[!p]*.txt; } > "$OUT/timing.txt"
 for h in all tune hold; do
     echo "== chunking ($h)"; HALF=$h "$PY" -I bench/rag/eval.py "$DATA" "$OUT/chunks"
 done | tee "$OUT/chunking.txt"
 python3 -I bench/rag/qf_prepare.py "$DATA" "$OUT/questions.jsonl"
-target/release/examples/qf_ranks "$DATA/corpora" "$OUT/questions.jsonl" "$OUT/qf-pagesift.json"
-"$C4A" -I bench/rag/qf_crawl4ai.py "$DATA/corpora" "$OUT/questions.jsonl" "$OUT/qf-crawl4ai.json"
+printf '%s\n' \
+    "target/release/examples/qf_ranks $DATA/corpora $OUT/questions.jsonl $OUT/qf-pagesift.json 2>> $OUT/qf-timing.txt" \
+    "$C4A -I bench/rag/qf_crawl4ai.py $DATA/corpora $OUT/questions.jsonl $OUT/qf-crawl4ai.json 2>> $OUT/qf-timing.txt" \
+    | bench/fresh/pinned.sh
 for h in all tune hold; do
     echo "== queryFilter ($h)"; HALF=$h python3 -I bench/rag/qf_eval.py "$DATA/corpora" "$OUT/questions.jsonl" "$OUT/qf-pagesift.json" "$OUT/qf-crawl4ai.json"
 done | tee "$OUT/query_filter.txt"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 正文抽取全量对比：Firecrawl 标注集（质量 + 单线程耗时）、AEB 新闻集（token F1）、随机语料（耗时、输出长度）。
-# 每个工具单独跑，跑完再跑下一个；所有工具看到的是同一份冻结的 HTML。
+# 单线程耗时：各工具同时跑、各占一个物理核（pinned.sh），条件相同；全核吞吐单独跑。所有工具看到同一份冻结的 HTML。
 # 用法：bench/fresh/run_extract.sh <结果目录>
 set -uo pipefail
 cd "$(dirname "$0")/../.."
@@ -34,11 +34,17 @@ sets="firecrawl:bench/data/inputs/manifest.jsonl aeb:$R/aeb/manifest.jsonl rando
 for s in $sets; do
     name=${s%%:*}; m=${s#*:}
     echo "== $name $(date +%T)"
-    target/release/examples/extract_jsonl "$m" "$R/$name-pagesift.jsonl"
-    for t in trafilatura markitdown; do $PY -I bench/compare/py_adapter.py $t "$m" "$R/$name-$t.jsonl" 2>/dev/null; done
-    for t in readability defuddle; do node bench/compare/js_adapter.mjs $t "$NODE" "$m" "$R/$name-$t.jsonl" 2>/dev/null; done
-    for t in crw-extract dom_smoothie; do $RT $t "$m" "$R/$name-$t.jsonl" 2>/dev/null; done
-    CRAWL4AI_NO_CLOUD_NOTICE=1 $C4A -I bench/compare/crawl4ai_adapter.py "$m" "$R/$name-crawl4ai" 2>/dev/null
+    # 8 个工具同时跑，各占一个物理核（bench/fresh/pinned.sh），条件对所有工具相同
+    printf '%s\n' \
+        "target/release/examples/extract_jsonl $m $R/$name-pagesift.jsonl" \
+        "$PY -I bench/compare/py_adapter.py trafilatura $m $R/$name-trafilatura.jsonl 2>/dev/null" \
+        "$PY -I bench/compare/py_adapter.py markitdown $m $R/$name-markitdown.jsonl 2>/dev/null" \
+        "node bench/compare/js_adapter.mjs readability $NODE $m $R/$name-readability.jsonl 2>/dev/null" \
+        "node bench/compare/js_adapter.mjs defuddle $NODE $m $R/$name-defuddle.jsonl 2>/dev/null" \
+        "$RT crw-extract $m $R/$name-crw-extract.jsonl 2>/dev/null" \
+        "$RT dom_smoothie $m $R/$name-dom_smoothie.jsonl 2>/dev/null" \
+        "CRAWL4AI_NO_CLOUD_NOTICE=1 $C4A -I bench/compare/crawl4ai_adapter.py $m $R/$name-crawl4ai 2>/dev/null" \
+        | bench/fresh/pinned.sh
 done
 
 # 2. 评分
