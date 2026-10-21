@@ -164,7 +164,16 @@ impl Connection {
         if self.inner.out.send(Message::text(msg.to_string())).is_err() {
             return Err(Error::ConnectionClosed);
         }
-        rx.await.map_err(|_| Error::ConnectionClosed)?
+        let started = std::time::Instant::now();
+        tracing::trace!(method, "cdp call");
+        let result = rx.await.map_err(|_| Error::ConnectionClosed)?;
+        tracing::trace!(
+            method,
+            ms = started.elapsed().as_millis() as u64,
+            ok = result.is_ok(),
+            "cdp done"
+        );
+        result
     }
 
     /// 订阅事件。`session_id` 为 `None` 时接收这条连接上的全部事件。

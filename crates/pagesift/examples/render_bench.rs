@@ -6,7 +6,8 @@
 //!
 //! 参数：`--inputs <dir>`、`--real <真实页面数，默认 120>`、`--synthetic <每种合成页份数，默认 10>`、
 //! `--concurrency <并发，默认等于池容量>`、`--browsers <n>`、`--tabs <n>`、
-//! `--min-mem <MB>`、`--chrome-arg <参数，可重复>`、`--out <dir>`、`--label <名字>`、
+//! `--min-mem <MB>`、`--chrome-arg <参数，可重复>`、`--browser <可执行文件>`、
+//! `--browser-args "<完整启动参数，可用 {port} {user_data_dir}>"`、`--out <dir>`、`--label <名字>`、
 //! `--only <逗号分隔的页面名>`（只跑这些页，排查用）。
 //! 源站之外的主机都被 Chrome 的 `--host-resolver-rules` 解析失败，结果不受外网影响，也不会访问外网。
 
@@ -263,6 +264,10 @@ struct Outcome {
 }
 
 fn main() {
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_env("PAGESIFT_LOG"))
+        .with_writer(std::io::stderr)
+        .init();
     let mut inputs = "bench/data/inputs".to_owned();
     let mut real = 120usize;
     let mut synth = 10usize;
@@ -283,6 +288,13 @@ fn main() {
             "--tabs" => browser.max_tabs_per_browser = v().parse().unwrap(),
             "--min-mem" => browser.min_available_memory_mb = v().parse().unwrap(),
             "--chrome-arg" => browser.extra_args.push(v()),
+            // 换浏览器内核：可执行文件和完整的启动参数（空格分隔，可用 {port}、{user_data_dir}）
+            "--browser" => browser.source = pagesift_cdp::BrowserSource::Executable(v().into()),
+            "--recycle" => browser.recycle_after_pages = v().parse().unwrap(),
+            "--engine-guard" => browser.engine_network_guard = v() == "1",
+            "--browser-args" => {
+                browser.args_override = Some(v().split_whitespace().map(str::to_owned).collect())
+            }
             "--out" => out = Some(v()),
             "--label" => label = v(),
             "--only" => only = Some(v()),
@@ -378,9 +390,14 @@ fn main() {
         cfg.policy.rate.default_interval = Duration::ZERO;
         cfg.policy.rate.per_host_concurrency = concurrency;
         cfg.policy.rate.global_concurrency = concurrency;
-        browser
-            .extra_args
-            .push("--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1".into());
+        match &mut browser.args_override {
+            // 别的内核：参数里的 {origin} 换成本地源站地址。把源站当代理用：本地页面照常响应，
+            // 外部资源要么 404、要么 CONNECT 被拒，效果和 Chrome 的 host-resolver-rules 一样
+            Some(a) => a.iter_mut().for_each(|x| *x = x.replace("{origin}", &base)),
+            None => browser
+                .extra_args
+                .push("--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1".into()),
+        }
         cfg.browser = browser;
         let scraper = Scraper::new(cfg).unwrap();
         let opts: ScrapeOptions = serde_json::from_value(

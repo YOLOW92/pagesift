@@ -121,6 +121,30 @@ async fn main() {
     if let Some(g) = std::env::var("GLOBAL").ok().and_then(|v| v.parse().ok()) {
         cfg.policy.rate.global_concurrency = g;
     }
+    // 浏览器内核（ENGINE=browser 时用）：BROWSER_EXE、BROWSER_ARGS（可用 {port}、{user_data_dir}）、
+    // BROWSER_MAX、BROWSER_TABS、BROWSER_RECYCLE（每个进程处理多少页后换新进程）
+    if let Ok(exe) = std::env::var("BROWSER_EXE") {
+        cfg.browser.source = pagesift_cdp::BrowserSource::Executable(exe.into());
+    }
+    if let Ok(a) = std::env::var("BROWSER_ARGS") {
+        cfg.browser.args_override = Some(a.split_whitespace().map(str::to_owned).collect());
+    }
+    if let Ok(a) = std::env::var("BROWSER_EXTRA") {
+        cfg.browser.extra_args = a.split("||").map(str::to_owned).collect();
+    }
+    let env_num = |k: &str| std::env::var(k).ok().and_then(|v| v.parse::<usize>().ok());
+    if let Some(n) = env_num("BROWSER_MAX") {
+        cfg.browser.max_browsers = n;
+    }
+    if let Some(n) = env_num("BROWSER_TABS") {
+        cfg.browser.max_tabs_per_browser = n;
+    }
+    if std::env::var("BROWSER_ENGINE_GUARD").is_ok_and(|v| v == "1") {
+        cfg.browser.engine_network_guard = true;
+    }
+    if let Some(n) = env_num("BROWSER_RECYCLE") {
+        cfg.browser.recycle_after_pages = n;
+    }
     let scraper = Arc::new(Scraper::new(cfg).unwrap());
     let sink = Arc::new(Count::default());
     let t = Instant::now();
@@ -132,7 +156,7 @@ async fn main() {
                 "limit": pages,
                 "sitemap": "skip",
                 "maxConcurrency": std::env::var("CRAWL_CONC").ok().and_then(|v| v.parse::<usize>().ok()),
-                "scrapeOptions": { "formats": ["markdown"], "engine": "http" },
+                "scrapeOptions": { "formats": ["markdown"], "engine": std::env::var("ENGINE").unwrap_or_else(|_| "http".into()) },
             }))
             .unwrap();
             if let Err(e) = scraper.crawl(&req, sink).await {

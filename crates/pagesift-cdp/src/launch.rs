@@ -105,6 +105,9 @@ pub(crate) fn check_args(args: &[String]) -> Result<()> {
 }
 
 pub(crate) const USER_DATA_DIR: &str = "{user_data_dir}";
+/// 参数里的 `{port}` 会换成启动前挑好的空闲端口。命令行和 Chrome 不同的浏览器（Lightpanda、
+/// obscura、moli）用它指定 CDP 端口，启动后从标准的 `/json/version` 读调试地址。
+pub(crate) const PORT: &str = "{port}";
 
 fn default_args() -> Vec<String> {
     [
@@ -161,9 +164,20 @@ impl BrowserProcess {
 
         let profile = tempfile::Builder::new().prefix("pagesift-cdp-").tempdir()?;
         let dir = profile.path().to_string_lossy().into_owned();
+        let port = if args.iter().any(|a| a.contains(PORT)) {
+            Some(free_port()?)
+        } else {
+            None
+        };
         let args: Vec<String> = args
             .iter()
-            .map(|a| a.replace(USER_DATA_DIR, &dir))
+            .map(|a| {
+                let a = a.replace(USER_DATA_DIR, &dir);
+                match port {
+                    Some(p) => a.replace(PORT, &p.to_string()),
+                    None => a,
+                }
+            })
             .collect();
 
         // Chrome 每次启动都会在 TMPDIR 里建临时目录，正常退出时才删；被强杀的话就留在 /tmp。
@@ -171,10 +185,12 @@ impl BrowserProcess {
         let tmp = profile.path().join("tmp");
         std::fs::create_dir(&tmp)?;
         let mut cmd = Command::new(&spec.executable);
-        cmd.env("TMPDIR", &tmp)
-            .args(&args)
-            .arg("about:blank")
-            .stdin(Stdio::null())
+        cmd.env("TMPDIR", &tmp).args(&args);
+        // Chrome 需要一个初始页；自定义参数的浏览器（Lightpanda 等）不认这个参数
+        if spec.args_override.is_none() {
+            cmd.arg("about:blank");
+        }
+        cmd.stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .process_group(0)
@@ -204,7 +220,25 @@ impl BrowserProcess {
         let mut tail: Vec<String> = Vec::new();
         let mut sandbox_line: Option<String> = None;
         let found = tokio::time::timeout(spec.timeout, async {
-            while let Some(line) = lines.recv().await {
+            // 指定了端口的浏览器：轮询 /json/version，和读输出同时进行，哪个先拿到地址用哪个
+            let probe = async {
+                let Some(port) = port else {
+                    return std::future::pending::<Option<String>>().await;
+                };
+                loop {
+                    if let Some(url) = json_version_ws_url(port).await {
+                        return Some(url);
+                    }
+                    tokio::time::sleep(Duration::from_millis(30)).await;
+                }
+            };
+            tokio::pin!(probe);
+            loop {
+                let line = tokio::select! {
+                    url = &mut probe => return url,
+                    line = lines.recv() => line,
+                };
+                let Some(line) = line else { break };
                 if let Some(url) = find_ws_url(&line) {
                     return Some(url);
                 }
@@ -219,6 +253,11 @@ impl BrowserProcess {
             None
         })
         .await;
+        // 读完输出（进程退出）也可能是因为浏览器把日志写进了文件；端口模式再给探测一次机会
+        let found = match (found, port) {
+            (Ok(None), Some(p)) => Ok(json_version_ws_url(p).await),
+            (f, _) => f,
+        };
         match found {
             Ok(Some(url)) => process.ws_url = url,
             Ok(None) => {
@@ -294,6 +333,51 @@ fn forward_lines<R: AsyncRead + Unpin + Send + 'static>(r: R, tx: mpsc::Unbounde
             }
         }
     });
+}
+
+/// 挑一个本机空闲端口（绑定 0 端口再放开）。
+fn free_port() -> Result<u16> {
+    let l = std::net::TcpListener::bind("127.0.0.1:0")?;
+    Ok(l.local_addr()?.port())
+}
+
+/// 从 CDP 标准的 `/json/version` 读浏览器级 WebSocket 地址；服务还没起来时返回 `None`。
+async fn json_version_ws_url(port: u16) -> Option<String> {
+    let mut s = tokio::net::TcpStream::connect(("127.0.0.1", port))
+        .await
+        .ok()?;
+    let req = format!(
+        "GET /json/version HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n"
+    );
+    s.write_all(req.as_bytes()).await.ok()?;
+    // 有的实现回完不关连接：读到完整的头和 Content-Length 那么长的正文就停
+    let mut buf = Vec::new();
+    let body = tokio::time::timeout(Duration::from_secs(2), async {
+        let mut chunk = [0u8; 4096];
+        loop {
+            let n = s.read(&mut chunk).await.ok()?;
+            buf.extend_from_slice(&chunk[..n]);
+            if let Some(end) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                let head = String::from_utf8_lossy(&buf[..end]).to_ascii_lowercase();
+                let len = head
+                    .lines()
+                    .find_map(|l| l.strip_prefix("content-length:"))
+                    .and_then(|v| v.trim().parse::<usize>().ok());
+                let body = &buf[end + 4..];
+                if n == 0 || len.is_some_and(|l| body.len() >= l) {
+                    return Some(body.to_vec());
+                }
+            } else if n == 0 {
+                return None;
+            }
+        }
+    })
+    .await
+    .ok()??;
+    let v: serde_json::Value = serde_json::from_slice(&body).ok()?;
+    let url = v.get("webSocketDebuggerUrl")?.as_str()?;
+    // 有的实现写 localhost；统一连回 127.0.0.1，免得解析成 ::1 连不上
+    Some(url.replacen("ws://localhost:", "ws://127.0.0.1:", 1))
 }
 
 fn find_ws_url(line: &str) -> Option<String> {

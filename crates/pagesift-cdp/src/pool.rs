@@ -47,6 +47,10 @@ pub struct PoolConfig {
     /// 开新标签页或启动浏览器前，系统至少要剩这么多可用内存（Linux 的 MemAvailable，MB），
     /// 不够就等别的页面结束。池里没有页面在渲染时不检查，保证总能前进。0 表示不检查。
     pub min_available_memory_mb: u64,
+    /// 内核自己挡内网地址（Lightpanda、moli 的 `--block-private-networks` / `--block-cidrs`），
+    /// 不再用 CDP 的 Fetch 拦截逐个检查子请求：moli 处理 Fetch 时会和导航互相等待卡死，
+    /// Lightpanda 每个请求也能少一次往返。开启时启动参数里必须带这两个参数之一，否则拒绝启动。
+    pub engine_network_guard: bool,
 }
 
 impl Default for PoolConfig {
@@ -63,6 +67,7 @@ impl Default for PoolConfig {
             launch_timeout: Duration::from_secs(20),
             allow_execute_javascript: false,
             min_available_memory_mb: 1024,
+            engine_network_guard: false,
         }
     }
 }
@@ -170,6 +175,18 @@ pub struct BrowserPool {
 impl BrowserPool {
     /// 需要在 tokio 运行时里调用。不会立即启动浏览器，除非 `min_browsers > 0`。
     pub async fn new(cfg: PoolConfig, guard: Arc<dyn RequestGuard>) -> Result<BrowserPool> {
+        if cfg.engine_network_guard
+            && !cfg.args_override.iter().flatten().any(|a| {
+                a == "--block-private-networks"
+                    || a == "--block-cidrs"
+                    || a.starts_with("--block-cidrs=")
+            })
+        {
+            return Err(Error::InvalidOptions(
+                "engine_network_guard needs --block-private-networks or --block-cidrs in the browser arguments"
+                    .into(),
+            ));
+        }
         if cfg.max_tabs_per_browser == 0 {
             return Err(Error::InvalidOptions(
                 "max_tabs_per_browser must be > 0".into(),
@@ -234,6 +251,7 @@ impl BrowserPool {
             let env = PageEnv {
                 guard: self.inner.guard.clone(),
                 user_agent: l.user_agent.clone(),
+                intercept: !self.inner.cfg.engine_network_guard,
             };
             render_page(&l.conn, &mut l.res, &env, url, opts, &mut timings).await
         })

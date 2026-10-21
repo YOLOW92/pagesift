@@ -33,6 +33,9 @@ const POLL_REPEATS: u32 = 2;
 pub(crate) struct PageEnv {
     pub guard: Arc<dyn RequestGuard>,
     pub user_agent: String,
+    /// 用 CDP 的 Fetch 拦截逐个检查子请求。内核自己按 CIDR 挡内网时（见
+    /// [`crate::PoolConfig::engine_network_guard`]）为 false。
+    pub intercept: bool,
 }
 
 /// 渲染过程中创建的浏览器资源，超时被取消后也要能清理。
@@ -66,6 +69,7 @@ struct Net {
 }
 
 struct Shared {
+    intercept: bool,
     main_frame: String,
     page_session: String,
     status: Mutex<Option<u16>>,
@@ -283,7 +287,20 @@ pub(crate) async fn render_page(
     let (_, tree, ..) = tokio::try_join!(
         session.call("Page.enable", json!({})),
         session.call("Page.getFrameTree", json!({})),
-        enable_interception(&session),
+        async {
+            if env.intercept {
+                enable_interception(&session).await
+            } else {
+                // 不拦截也要自动附加子 target，好跟踪它们的网络和 iframe
+                session
+                    .call(
+                        "Target.setAutoAttach",
+                        json!({ "autoAttach": true, "waitForDebuggerOnStart": false, "flatten": true }),
+                    )
+                    .await
+                    .map(|_| ())
+            }
+        },
         session.call("Page.setLifecycleEventsEnabled", json!({ "enabled": true })),
         enable_network(&session),
         set_metrics(&session, &metrics, None),
@@ -296,6 +313,7 @@ pub(crate) async fn render_page(
         .unwrap_or(&target)
         .to_owned();
     let shared = Arc::new(Shared {
+        intercept: env.intercept,
         main_frame,
         page_session: session.id().to_owned(),
         status: Mutex::new(None),
@@ -351,9 +369,11 @@ pub(crate) async fn render_page(
         WaitUntil::Load => "load",
         _ => "DOMContentLoaded",
     };
+    tracing::trace!(?loader, first_event, "render: waiting for navigation");
     if let Some(l) = &loader {
         shared.wait_navigation(l, first_event).await;
     }
+    tracing::trace!("render: navigation done");
     timings.navigation = nav_start.elapsed();
     check_interception(&shared)?;
 
@@ -361,6 +381,7 @@ pub(crate) async fn render_page(
     if opts.wait_until == WaitUntil::NetworkIdle {
         wait_ready(&session, &shared, NET_IDLE_CAP).await;
     }
+    tracing::trace!("render: ready");
     if !opts.wait_for.is_zero() {
         tokio::time::sleep(opts.wait_for).await;
     }
@@ -408,7 +429,9 @@ pub(crate) async fn render_page(
     };
     timings.screenshot = shot_start.elapsed();
     let html_start = Instant::now();
+    tracing::trace!("render: capturing html");
     let captured = ctx.html().await?;
+    tracing::trace!("render: html captured");
     timings.html = html_start.elapsed();
     timings.iframes = captured.iframe_time;
     let final_url = captured.url;
@@ -598,6 +621,10 @@ async fn attach_child(child: &Session, kind: &str, shared: &Shared) {
                 json!({ "autoAttach": true, "waitForDebuggerOnStart": true, "flatten": true }),
             )
             .await;
+    } else if !shared.intercept {
+        if kind == "iframe" {
+            let _ = enable_network(child).await;
+        }
     } else if let Err(e) = enable_interception(child).await {
         // 开不了拦截就让它一直停着，并让本次渲染失败。
         *shared.intercept_error.lock().unwrap() = Some(format!("{kind} target: {e}"));
