@@ -744,7 +744,8 @@ async fn eval(session: &Session, expr: &str) -> Result<Result<RemoteValue, Strin
         match r {
             // 页面刚跳转时旧的执行上下文会失效，稍等再试。
             Err(Error::Protocol { ref message, .. })
-                if message.contains("context") && attempt < 50 =>
+                if (message.contains("context") || message.contains("navigated or closed"))
+                    && attempt < 50 =>
             {
                 attempt += 1;
                 tokio::time::sleep(Duration::from_millis(100)).await;
