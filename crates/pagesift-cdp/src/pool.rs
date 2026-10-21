@@ -1,6 +1,7 @@
 //! 有上限的浏览器池：进程数、标签页数、按页数回收、健康检查。
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
 use std::time::{Duration, Instant};
 
@@ -57,6 +58,8 @@ pub struct PoolConfig {
     /// 测试和压测用：浏览器只能访问本机（源站在 localhost），外网子资源一律不发。
     /// 由 [`EngineKind::configure`] 换成各内核自己的参数。
     pub loopback_only: bool,
+    /// 空闲超过这么久的浏览器关掉（保留 `min_browsers` 个）；0 表示一直留着。
+    pub idle_timeout: Duration,
 }
 
 impl Default for PoolConfig {
@@ -76,6 +79,7 @@ impl Default for PoolConfig {
             engine_network_guard: false,
             engine: None,
             loopback_only: false,
+            idle_timeout: Duration::from_secs(60),
         }
     }
 }
@@ -99,6 +103,8 @@ struct Slot {
     served: usize,
     retiring: bool,
     dead: bool,
+    /// 最近一次变成空闲的时间。
+    idle_since: Instant,
 }
 
 impl Slot {
@@ -140,12 +146,24 @@ pub fn auto_browsers(tabs_per_browser: usize, reserve_mb: u64) -> usize {
 /// 同 [`auto_browsers`]，按给定内核的资源占用估算。
 pub fn auto_browsers_for(fp: Footprint, tabs_per_browser: usize, reserve_mb: u64) -> usize {
     let cores = std::thread::available_parallelism().map_or(1, usize::from);
-    let by_cpu = (cores / fp.cores_per_browser.max(1)).max(1);
+    let by_cpu = (cores * fp.browsers_per_4_cores / 4).max(1);
     let per_browser = (fp.browser_mb + fp.tab_mb * tabs_per_browser as u64).max(1);
     let by_memory = mem_available_mb().map_or(by_cpu, |avail| {
         (avail.saturating_sub(reserve_mb) / per_browser) as usize
     });
     by_memory.clamp(1, by_cpu)
+}
+
+/// Linux `/proc/stat` 的（空闲 + iowait，总计）jiffies；读不到时返回 `None`。
+fn cpu_times() -> Option<(u64, u64)> {
+    let s = std::fs::read_to_string("/proc/stat").ok()?;
+    let line = s.lines().next()?.strip_prefix("cpu ")?;
+    let v: Vec<u64> = line
+        .split_whitespace()
+        .filter_map(|x| x.parse().ok())
+        .collect();
+    let idle = v.get(3)? + v.get(4).copied().unwrap_or(0);
+    Some((idle, v.iter().sum()))
 }
 
 /// Linux 的 MemAvailable（MB）；读不到时返回 `None`，不做限制。
@@ -173,7 +191,14 @@ struct PoolInner {
     guard: Arc<dyn RequestGuard>,
     state: Mutex<PoolState>,
     notify: Notify,
-    health: std::sync::Mutex<Option<JoinHandle<()>>>,
+    /// 健康检查和自适应调整的后台任务。
+    health: std::sync::Mutex<Vec<JoinHandle<()>>>,
+    /// 当前允许的浏览器数：固定配置时等于 `max_browsers`，自适应时在 1..=`max_browsers` 里调。
+    target: AtomicUsize,
+    /// 归还的标签页数（自适应用来算吞吐）。
+    completed: AtomicU64,
+    /// 这个窗口里有没有请求因为没有空位在排队。
+    waited: AtomicBool,
 }
 
 /// 浏览器池。克隆后共享同一个池。
@@ -209,17 +234,32 @@ impl BrowserPool {
                 _ => EngineKind::Chrome,
             });
         }
+        // 自动决定数量的本地池按实测吞吐自适应：从按资源估的数开始，上限是估计的两倍（同样受内存限制）
+        let mut target = cfg.max_browsers;
+        let adaptive = cfg.max_browsers == 0 && !matches!(cfg.source, BrowserSource::Remote(_));
         if cfg.max_browsers == 0 {
-            cfg.max_browsers = match cfg.source {
+            let fp = cfg.engine.unwrap_or(EngineKind::Chrome).footprint();
+            let (tabs, reserve) = (cfg.max_tabs_per_browser, cfg.min_available_memory_mb);
+            target = match cfg.source {
                 // 远程端点的资源不归本机管，保持保守。
                 BrowserSource::Remote(_) => 2,
-                _ => auto_browsers_for(
-                    cfg.engine.unwrap_or(EngineKind::Chrome).footprint(),
-                    cfg.max_tabs_per_browser,
-                    cfg.min_available_memory_mb,
-                ),
+                _ => auto_browsers_for(fp, tabs, reserve),
             };
-            tracing::debug!(browsers = cfg.max_browsers, "browser pool size");
+            cfg.max_browsers = if adaptive {
+                let wide = Footprint {
+                    browsers_per_4_cores: fp.browsers_per_4_cores * 2,
+                    ..fp
+                };
+                auto_browsers_for(wide, tabs, reserve).max(target)
+            } else {
+                target
+            };
+            tracing::debug!(
+                browsers = target,
+                max = cfg.max_browsers,
+                adaptive,
+                "browser pool size"
+            );
         }
         let source = match &cfg.source {
             BrowserSource::Remote(url) => Source::Remote(url.clone()),
@@ -240,21 +280,45 @@ impl BrowserPool {
                 })
             }
         };
-        let interval = cfg.health_check_interval;
+        // 有空闲回收时检查得勤一些，空闲的浏览器最多多留半个超时
+        let mut interval = cfg.health_check_interval;
+        if !cfg.idle_timeout.is_zero() {
+            let half = cfg.idle_timeout / 2;
+            interval = if interval.is_zero() {
+                half
+            } else {
+                interval.min(half)
+            };
+        }
         let inner = Arc::new(PoolInner {
             cfg,
             source,
             guard,
             state: Mutex::new(PoolState::default()),
             notify: Notify::new(),
-            health: std::sync::Mutex::new(None),
+            health: std::sync::Mutex::new(Vec::new()),
+            target: AtomicUsize::new(target.max(1)),
+            completed: AtomicU64::new(0),
+            waited: AtomicBool::new(false),
         });
         if inner.cfg.min_browsers > 0 {
             inner.health_check().await;
         }
         if !interval.is_zero() {
             let weak = Arc::downgrade(&inner);
-            *inner.health.lock().unwrap() = Some(tokio::spawn(health_loop(weak, interval)));
+            inner
+                .health
+                .lock()
+                .unwrap()
+                .push(tokio::spawn(health_loop(weak, interval)));
+        }
+        if adaptive && inner.cfg.max_browsers > 1 {
+            let weak = Arc::downgrade(&inner);
+            inner
+                .health
+                .lock()
+                .unwrap()
+                .push(tokio::spawn(adapt_loop(weak)));
         }
         Ok(BrowserPool { inner })
     }
@@ -312,7 +376,7 @@ impl BrowserPool {
 
     /// 关闭所有浏览器（整组 kill 并回收），之后的 `render` 返回 `PoolClosed`。
     pub async fn shutdown(&self) {
-        if let Some(h) = self.inner.health.lock().unwrap().take() {
+        for h in self.inner.health.lock().unwrap().drain(..) {
             h.abort();
         }
         let slots = {
@@ -323,6 +387,65 @@ impl BrowserPool {
         self.inner.notify.notify_waiters();
         for s in slots {
             s.shutdown().await;
+        }
+    }
+}
+
+/// 自适应调整的窗口。太短会被单页耗时的抖动带偏，太长对负载变化反应慢。
+const ADAPT_WINDOW: Duration = Duration::from_secs(3);
+/// 吞吐至少提高这么多才算这一步有用，否则掉头。
+const ADAPT_GAIN: f64 = 1.03;
+
+/// 系统 CPU 空闲比例低于这个值时不再加浏览器（加了只会更挤），低于 [`CPU_SHRINK_IDLE`] 时减。
+const CPU_GROW_IDLE: f64 = 0.10;
+const CPU_SHRINK_IDLE: f64 = 0.05;
+
+/// 爬山法调浏览器数：只在池子满载（有请求在排队）的窗口里调，按上一步的吞吐变化决定继续还是掉头，
+/// 步长是当前数的八分之一（至少 1）。不满载时吞吐由请求量决定，不调。系统 CPU 已经吃满时
+/// 吞吐的变化多半是噪声（别的进程在抢），这时只减不加。
+async fn adapt_loop(pool: Weak<PoolInner>) {
+    let mut tick = tokio::time::interval(ADAPT_WINDOW);
+    tick.tick().await;
+    let (mut last_done, mut last_rate, mut up) = (0u64, 0.0f64, true);
+    let mut cpu = cpu_times();
+    loop {
+        tick.tick().await;
+        let Some(pool) = pool.upgrade() else { return };
+        let done = pool.completed.load(Ordering::Relaxed);
+        let rate = (done - last_done) as f64 / ADAPT_WINDOW.as_secs_f64();
+        last_done = done;
+        let now = cpu_times();
+        let idle = match (cpu, now) {
+            (Some((i0, t0)), Some((i1, t1))) if t1 > t0 => {
+                Some((i1 - i0) as f64 / (t1 - t0) as f64)
+            }
+            _ => None,
+        };
+        cpu = now;
+        if !pool.waited.swap(false, Ordering::Relaxed) {
+            last_rate = 0.0;
+            continue;
+        }
+        if last_rate > 0.0 && rate < last_rate * ADAPT_GAIN {
+            up = !up;
+        }
+        last_rate = rate;
+        match idle {
+            Some(i) if i < CPU_SHRINK_IDLE => up = false,
+            Some(i) if i < CPU_GROW_IDLE && up => continue,
+            _ => {}
+        }
+        let cur = pool.target.load(Ordering::Relaxed);
+        let step = (cur / 8).max(1);
+        let next = if up {
+            (cur + step).min(pool.cfg.max_browsers)
+        } else {
+            cur.saturating_sub(step).max(1)
+        };
+        if next != cur {
+            tracing::debug!(from = cur, to = next, rate, "browser pool resized");
+            pool.target.store(next, Ordering::Relaxed);
+            pool.notify.notify_waiters();
         }
     }
 }
@@ -381,6 +504,7 @@ impl PoolInner {
             served: 0,
             retiring: false,
             dead: false,
+            idle_since: Instant::now(),
         })
     }
 
@@ -445,7 +569,7 @@ impl PoolInner {
                     Some(i) if idle || self.memory_allows(fp.tab_mb) => {
                         Some(self.lease(&mut st.slots[i]))
                     }
-                    None if st.slots.len() + st.launching < self.cfg.max_browsers
+                    None if st.slots.len() + st.launching < self.target.load(Ordering::Relaxed)
                         && (idle || self.memory_allows(fp.browser_mb + fp.tab_mb)) =>
                     {
                         // 启动浏览器要几百毫秒，放到锁外，别的页面照常取用和归还标签页。
@@ -454,7 +578,10 @@ impl PoolInner {
                         launch = Some(st.next_id);
                         None
                     }
-                    _ => None,
+                    _ => {
+                        self.waited.store(true, Ordering::Relaxed);
+                        None
+                    }
                 };
                 (lease, finished)
             };
@@ -496,8 +623,12 @@ impl PoolInner {
     async fn release(&self, slot_id: u64) {
         let finished = {
             let mut st = self.state.lock().await;
+            self.completed.fetch_add(1, Ordering::Relaxed);
             if let Some(s) = st.slots.iter_mut().find(|s| s.id == slot_id) {
                 s.in_use -= 1;
+                if s.in_use == 0 {
+                    s.idle_since = Instant::now();
+                }
             }
             Self::take_idle_finished(&mut st)
         };
@@ -531,6 +662,18 @@ impl PoolInner {
             for s in st.slots.iter_mut().filter(|s| failed.contains(&s.id)) {
                 tracing::warn!(id = s.id, "browser failed health check");
                 s.dead = true;
+            }
+            let idle = self.cfg.idle_timeout;
+            if !idle.is_zero() {
+                let mut keep = self.cfg.min_browsers;
+                for s in st.slots.iter_mut().filter(|s| !s.dead && !s.retiring) {
+                    if s.in_use == 0 && s.idle_since.elapsed() >= idle && keep == 0 {
+                        tracing::debug!(id = s.id, "closing idle browser");
+                        s.retiring = true;
+                    } else {
+                        keep = keep.saturating_sub(1);
+                    }
+                }
             }
             let finished = Self::take_idle_finished(&mut st);
             while !st.closed

@@ -19,12 +19,13 @@ pub enum EngineKind {
     Moli,
 }
 
-/// 内核的资源占用估计（MB）和每个进程大约占几个核，用来自动决定开几个进程。
+/// 内核的资源占用估计（MB）和每 4 个核开几个进程，用来自动决定开几个进程的起点
+/// （自适应的池子会在两倍以内按实测吞吐再调）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Footprint {
     pub browser_mb: u64,
     pub tab_mb: u64,
-    pub cores_per_browser: usize,
+    pub browsers_per_4_cores: usize,
 }
 
 impl EngineKind {
@@ -71,17 +72,19 @@ impl EngineKind {
             EngineKind::Lightpanda => Footprint {
                 browser_mb: 40,
                 tab_mb: 0,
-                cores_per_browser: 1,
+                // 每页都要启动一个进程，CPU 多半在等启动，所以比核数开得多；起点是每核一个，
+                // 池子再按实测吞吐在两倍以内自己调（本机 16 核时 24–32 个最快）
+                browsers_per_4_cores: 4,
             },
             EngineKind::Moli => Footprint {
                 browser_mb: 40,
                 tab_mb: 40,
-                cores_per_browser: 1,
+                browsers_per_4_cores: 4,
             },
             EngineKind::Chrome => Footprint {
                 browser_mb: 300,
                 tab_mb: 200,
-                cores_per_browser: 4,
+                browsers_per_4_cores: 1,
             },
         }
     }
@@ -208,7 +211,7 @@ pub fn engine_chain(base: &PoolConfig, allow_private_network: bool) -> Vec<PoolC
                 detect_engines()
                     .into_iter()
                     .filter(|(k, q)| *k != kind && q != p)
-                    .map(|(k, q)| with(k, q)),
+                    .map(|(k, q)| fallback(with(k, q), base)),
             );
             chain
         }
@@ -217,10 +220,35 @@ pub fn engine_chain(base: &PoolConfig, allow_private_network: bool) -> Vec<PoolC
             if found.is_empty() || base.args_override.is_some() {
                 return vec![base.clone()];
             }
-            found.into_iter().map(|(k, p)| with(k, p)).collect()
+            found
+                .into_iter()
+                .enumerate()
+                .map(|(i, (k, p))| {
+                    let c = with(k, p);
+                    if i == 0 { c } else { fallback(c, base) }
+                })
+                .collect()
         }
     }
 }
+
+/// 回退用的池只接少数页面（本机压测约 1%），用少量进程多开标签页，空闲很快就关：
+/// 否则常驻的 moli / Chrome 比主力 Lightpanda 还占内存。
+fn fallback(mut c: PoolConfig, base: &PoolConfig) -> PoolConfig {
+    if base.max_browsers == 0 {
+        c.max_browsers = match c.engine {
+            Some(EngineKind::Chrome) => 1,
+            _ => 2,
+        };
+    }
+    if c.engine != Some(EngineKind::Lightpanda) {
+        c.max_tabs_per_browser = base.max_tabs_per_browser.max(4);
+    }
+    c.idle_timeout = FALLBACK_IDLE;
+    c
+}
+
+const FALLBACK_IDLE: std::time::Duration = std::time::Duration::from_secs(15);
 
 #[cfg(test)]
 mod tests {
@@ -258,6 +286,25 @@ mod tests {
         let mut c = PoolConfig::default();
         EngineKind::Chrome.configure(&mut c, false);
         assert!(c.args_override.is_none() && !c.engine_network_guard);
+    }
+
+    #[test]
+    fn fallback_pools_stay_small_and_close_when_idle() {
+        let base = PoolConfig::default();
+        let mut moli = PoolConfig::default();
+        EngineKind::Moli.configure(&mut moli, false);
+        let moli = fallback(moli, &base);
+        assert_eq!((moli.max_browsers, moli.max_tabs_per_browser), (2, 4));
+        assert_eq!(moli.idle_timeout, FALLBACK_IDLE);
+        let mut chrome = PoolConfig::default();
+        EngineKind::Chrome.configure(&mut chrome, false);
+        assert_eq!(fallback(chrome, &base).max_browsers, 1);
+        // 用户指定了进程数时照用户的
+        let fixed = PoolConfig {
+            max_browsers: 6,
+            ..PoolConfig::default()
+        };
+        assert_eq!(fallback(fixed.clone(), &fixed).max_browsers, 6);
     }
 
     #[test]
