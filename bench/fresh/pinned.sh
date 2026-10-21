@@ -18,6 +18,9 @@ case "${1:-}" in
     --cores) echo "timed CPUs (one per physical core): ${CORES[*]}; reserved for untimed work: $RESERVED"; exit 0 ;;
     --reserved) echo "$RESERVED"; exit 0 ;;
 esac
+# 计时任务只用分到的那个核：Python 里的 onnxruntime 由 one_core.py 限成单线程，BLAS/OpenMP 线程池设成 1
+export PAGESIFT_ONE_CORE=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+    RAYON_NUM_THREADS=1 TOKIO_WORKER_THREADS=1 UV_THREADPOOL_SIZE=1
 pids=()
 # 占一个空闲的核：拿到锁的文件描述符留给子进程，子进程结束时锁自动释放
 start() {
