@@ -25,13 +25,41 @@ rm -rf bench/data/inputs
 # 顺便记下 pagesift 的全核吞吐（pages/s）
 $PS bench bench/data --auto --emit-inputs bench/data/inputs > "$R/firecrawl-throughput.txt" 2>&1
 python3 -I bench/fresh/aeb.py prepare "$AEB" "$R/aeb" > /dev/null
-python3 - "$R/random-manifest.jsonl" <<'PY'
-import json, sys
+# 随机语料是原始字节，编码五花八门（Shift_JIS、GBK、cp1251……）。先按页面声明的编码（没有声明就自动检测）
+# 统一转成 UTF-8 存一份，并把 meta 里的 charset 改成 utf-8，所有工具（包括 pagesift）读同一份文本。
+$PY -I - "$R/random-manifest.jsonl" <<'PY'
+import json, re, sys
+from pathlib import Path
+from charset_normalizer import from_bytes
+src, dst = Path("bench/data/random/pages"), Path("bench/data/random/utf8")
+dst.mkdir(exist_ok=True)
+META = re.compile(rb'<meta[^>]+charset\s*=\s*["\']?\s*([A-Za-z0-9_.:-]+)', re.I)
+counts = {}
 with open(sys.argv[1], "w") as out:
     for line in open("bench/data/random/manifest.jsonl"):
         r = json.loads(line)
-        out.write(json.dumps({"id": r["id"], "path": f"bench/data/random/pages/{r['id']}.html",
+        raw = (src / f"{r['id']}.html").read_bytes()
+        enc, text = None, None
+        m = META.search(raw[:4096])
+        if m:
+            enc = m.group(1).decode("ascii", "ignore").lower()
+            try:
+                text = raw.decode(enc)
+            except (LookupError, UnicodeDecodeError):
+                text = None
+        if text is None:
+            try:
+                text, enc = raw.decode("utf-8"), "utf-8"
+            except UnicodeDecodeError:
+                best = from_bytes(raw).best()
+                enc = best.encoding if best else "cp1252"
+                text = str(best) if best else raw.decode("cp1252", "replace")
+        counts[enc] = counts.get(enc, 0) + 1
+        text = re.sub(r'(<meta[^>]+charset\s*=\s*["\']?\s*)[A-Za-z0-9_.:-]+', r"\1utf-8", text, count=1, flags=re.I)
+        (dst / f"{r['id']}.html").write_text(text, encoding="utf-8")
+        out.write(json.dumps({"id": r["id"], "path": str(dst / f"{r['id']}.html"),
                               "url": r["final_url"], "base_url": r["final_url"]}) + "\n")
+print("encodings:", dict(sorted(counts.items(), key=lambda kv: -kv[1])), file=sys.stderr)
 PY
 fi
 [ "$MODE" = prep ] && exit 0
