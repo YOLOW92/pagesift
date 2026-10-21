@@ -82,13 +82,17 @@ struct ExternalOutput {
 }
 
 /// 严格口径的规范化，短语和输出用同一套：`&nbsp;` 当空格，去掉 Markdown 的格式符号
-/// （强调、行内代码、表格竖线），空白折叠成一个空格。数据集的正文片段保留了网页源码里的
+/// （强调、行内代码、表格竖线）和转义用的反斜杠（`\*` 就是 `*`），空白折叠成一个空格。数据集的正文片段保留了网页源码里的
 /// 连续空格和制表符，而任何 Markdown 输出都会折叠空白、加格式符号；不规范化的话，
 /// 内容明明在输出里也算没找到。对所有工具一视同仁。
 fn normalize(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut space = false;
-    for c in s.chars() {
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\\' && chars.peek().is_some_and(char::is_ascii_punctuation) {
+            continue;
+        }
         if matches!(c, '*' | '_' | '`' | '|') {
             continue;
         }

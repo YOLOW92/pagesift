@@ -122,6 +122,8 @@ pub(crate) enum Relax {
 ///   软跳过的元素如果装着全页大部分文字，说明它其实是正文的外层容器，不跳过。
 pub(crate) struct Skipper {
     only_main: bool,
+    /// 页面里可能有公式（源码里出现过 math、MathJax、mjx-）：没有时渲染器不逐个元素检查公式。
+    has_math: bool,
     /// 文章模式：文章主体里也删链接列表，评论、标签、署名这类块也算框架。
     strict: bool,
     /// 文章模式下，按严格规则删掉的块最多能有多少非链接文字（主体的一部分）：大块的不删，
@@ -284,6 +286,7 @@ impl Skipper {
             strict_max_chars: 0,
 
             relaxed: Relax::None,
+            has_math: true,
             total_chars: total,
             protect_chars: ((total as f64 * PROTECT_SHARE) as usize).max(PROTECT_MIN_CHARS),
             visible,
@@ -521,6 +524,14 @@ impl Skipper {
 
     pub(crate) fn only_main(&self) -> bool {
         self.only_main
+    }
+
+    pub(crate) fn set_has_math(&mut self, v: bool) {
+        self.has_math = v;
+    }
+
+    pub(crate) fn has_math(&self) -> bool {
+        self.has_math
     }
 
     pub(crate) fn is_relaxed(&self) -> bool {

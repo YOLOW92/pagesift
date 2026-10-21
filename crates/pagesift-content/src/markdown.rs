@@ -5,6 +5,7 @@ use url::Url;
 
 use crate::dom::{NodeR, collapse_whitespace, collapse_whitespace_into, element, raw_text, tag};
 use crate::extract::Skipper;
+use crate::math::{self, Math};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Kind {
@@ -186,12 +187,30 @@ impl Renderer<'_> {
         out
     }
 
+    /// 公式节点（页面里不可能有公式时直接跳过检查）。
+    fn math(&self, node: &NodeR<'_>) -> Option<Math> {
+        if self.skipper.has_math() {
+            math::math_of(node)
+        } else {
+            None
+        }
+    }
+
     fn skip(&self, node: &NodeR<'_>) -> bool {
-        node.is_element() && self.skipper.skip(node) || node.is_comment()
+        if node.is_comment() {
+            return true;
+        }
+        // 公式在 `<math>`、`<script>`、隐藏的 span 里，照常的跳过规则会把它删掉
+        node.is_element() && self.skipper.skip(node) && self.math(node).is_none()
     }
 
     /// 元素按块处理还是按行内处理。未知元素（自定义元素等）看里面有没有块级内容。
     fn acts_as_block(&self, node: &NodeR<'_>) -> bool {
+        match self.math(node) {
+            Some(Math::Tex(_, display)) => return display,
+            Some(Math::Skip) => return false,
+            None => {}
+        }
         match node.tag() {
             Some(t) if is_block_tag(t) => true,
             Some(t) if is_inline_tag(t) => self.skipper.has_block_descendant(node),
@@ -228,6 +247,15 @@ impl Renderer<'_> {
     }
 
     fn block(&self, node: NodeR<'_>, out: &mut Vec<Block>) {
+        if let Some(m) = self.math(&node) {
+            if let Math::Tex(tex, _) = m {
+                out.push(Block {
+                    kind: Kind::Other,
+                    text: format!("$$\n{tex}\n$$"),
+                });
+            }
+            return;
+        }
         let name = tag(&node).unwrap_or("");
         match name {
             "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
@@ -385,7 +413,11 @@ impl Renderer<'_> {
             .map(|row| {
                 row.children()
                     .filter(|c| matches!(tag(c), Some("td" | "th")))
-                    .map(|c| single_line(&join_blocks(&self.blocks_of(c))).replace('|', "\\|"))
+                    .map(|c| {
+                        let cell =
+                            single_line(&join_blocks(&self.blocks_of(c)).replace("  \n", " "));
+                        unescape_block_start(&cell).replace('|', "\\|")
+                    })
                     .collect()
             })
             .filter(|r: &Vec<String>| !r.is_empty())
@@ -431,12 +463,21 @@ impl Renderer<'_> {
     /// 行内渲染，直接写进 `out`；只有需要包裹的元素（加粗、链接等）才先渲染到临时串。
     fn inline_into(&self, node: NodeR<'_>, out: &mut String) {
         if let Some(t) = node.as_text() {
-            collapse_whitespace_into(t, out);
+            push_text(t, out, self.skipper.has_math());
             return;
         }
         let Some(el) = element(&node) else {
             return;
         };
+        if let Some(m) = self.math(&node) {
+            if let Math::Tex(tex, display) = m {
+                let d = if display { "$$" } else { "$" };
+                out.push_str(d);
+                out.push_str(&tex);
+                out.push_str(d);
+            }
+            return;
+        }
         if self.skip(&node) {
             return;
         }
@@ -621,6 +662,8 @@ fn push_single_line(s: &str, out: &mut String) {
     }
 }
 
+/// 一段行内内容收成段落。行内的换行来自 `<br>`，写成硬换行（行尾两个空格，看不见，不添噪声）；
+/// 每行开头像块级标记（`# `、`- `、`1. `、`> `…）的转义掉，免得被当成标题、列表、引用。
 fn flush_paragraph(buf: &mut String, blocks: &mut Vec<Block>) {
     let mut text = String::new();
     for line in buf.split('\n') {
@@ -628,9 +671,11 @@ fn flush_paragraph(buf: &mut String, blocks: &mut Vec<Block>) {
             continue;
         }
         if !text.is_empty() {
-            text.push('\n');
+            text.push_str("  \n");
         }
+        let start = text.len();
         push_single_line(line, &mut text);
+        escape_block_start(&mut text, start);
     }
     buf.clear();
     if !text.is_empty() {
@@ -639,6 +684,164 @@ fn flush_paragraph(buf: &mut String, blocks: &mut Vec<Block>) {
             text,
         });
     }
+}
+
+/// 文本节点：折叠空白后按 CommonMark 规则做最少的转义（自研）。只在字符真会被解析成格式时才加反斜杠：
+/// 成对出现、贴着文字的 `*` `_` `~`（词中间的 `_` 不算）、像标签的 `<`、会构成链接的 `[`、
+/// 像实体的 `&`、标点前的 `\`。`a_b_c`、`2 * 3`、`5%` 这类保持原样，大模型读起来也干净。
+/// 反引号不转义：网页正文里成对的反引号几乎都是作者写的 Markdown 没被渲染（原意就是代码），
+/// 单个的凑不成代码，本来就安全。
+fn push_text(t: &str, out: &mut String, tex: bool) {
+    let start = out.len();
+    collapse_whitespace_into(t, out);
+    if !out.as_bytes()[start..]
+        .iter()
+        .any(|b| matches!(b, b'\\' | b'*' | b'_' | b'~' | b'<' | b'[' | b'&'))
+    {
+        return;
+    }
+    let seg = out.split_off(start);
+    let chars: Vec<char> = seg.chars().collect();
+    // 可能有公式的页面：正文里未渲染的 TeX（MathJax 在浏览器里才渲染）原样保留，不转义
+    let protected = if tex { tex_spans(&chars) } else { Vec::new() };
+    let count = |c: char| chars.iter().filter(|&&x| x == c).count();
+    let (stars, unders, tildes) = (count('*'), count('_'), count('~'));
+    let before = out.chars().next_back();
+    let ws = |o: Option<char>| o.is_none_or(char::is_whitespace);
+    let alnum = |o: Option<char>| o.is_some_and(char::is_alphanumeric);
+    for (i, &c) in chars.iter().enumerate() {
+        if protected.iter().any(|&(a, b)| a <= i && i < b) {
+            out.push(c);
+            continue;
+        }
+        let p = if i > 0 { Some(chars[i - 1]) } else { before };
+        let n = chars.get(i + 1).copied();
+        let esc = match c {
+            '\\' => n.is_some_and(|n| n.is_ascii_punctuation()),
+            '*' => stars >= 2 && !(ws(p) && ws(n)),
+            '~' => tildes >= 2 && !(ws(p) && ws(n)),
+            '_' => unders >= 2 && !(ws(p) && ws(n)) && !(alnum(p) && alnum(n)),
+            '<' => n.is_some_and(|n| n.is_ascii_alphabetic() || matches!(n, '/' | '!' | '?')),
+            '[' => chars[i + 1..]
+                .iter()
+                .position(|&x| x == ']')
+                .is_some_and(|j| matches!(chars.get(i + 2 + j), Some('(' | '['))),
+            '&' => entity_like(&chars[i + 1..]),
+            _ => false,
+        };
+        if esc {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+}
+
+/// 文本里未渲染的 TeX 片段：`$$…$$`、`\[…\]`、`\(…\)`、`$…$`（`$` 后不是空格、前一个 `$` 前不是空格，
+/// 结尾 `$` 后面不是数字，免得把 "$5 and $10" 当成公式）。返回字符下标区间。
+fn tex_spans(chars: &[char]) -> Vec<(usize, usize)> {
+    let mut spans = Vec::new();
+    let find = |from: usize, pat: &[char]| {
+        (from..chars.len().saturating_sub(pat.len() - 1)).find(|&k| chars[k..].starts_with(pat))
+    };
+    let mut i = 0;
+    while i < chars.len() {
+        let two = chars.get(i..i + 2);
+        let close: Option<&[char]> = match two {
+            Some(['$', '$']) => Some(&['$', '$']),
+            Some(['\\', '[']) => Some(&['\\', ']']),
+            Some(['\\', '(']) => Some(&['\\', ')']),
+            _ => None,
+        };
+        if let Some(close) = close
+            && let Some(end) = find(i + 2, close)
+        {
+            spans.push((i, end + 2));
+            i = end + 2;
+            continue;
+        }
+        if chars[i] == '$'
+            && chars.get(i + 1).is_some_and(|c| !c.is_whitespace())
+            && let Some(end) = (i + 1..chars.len()).find(|&k| chars[k] == '$')
+            && !chars[end - 1].is_whitespace()
+            && !chars.get(end + 1).is_some_and(char::is_ascii_digit)
+        {
+            spans.push((i, end + 1));
+            i = end + 1;
+            continue;
+        }
+        i += 1;
+    }
+    spans
+}
+
+/// `&` 后面像 HTML 实体（`&amp;`、`&#123;`、`&#x1F;`）。
+fn entity_like(rest: &[char]) -> bool {
+    let semi = rest.iter().take(34).position(|&c| c == ';');
+    let Some(end) = semi else { return false };
+    let body = &rest[..end];
+    match body {
+        ['#', 'x' | 'X', hex @ ..] => {
+            (1..=6).contains(&hex.len()) && hex.iter().all(char::is_ascii_hexdigit)
+        }
+        ['#', dec @ ..] => (1..=7).contains(&dec.len()) && dec.iter().all(char::is_ascii_digit),
+        [first, more @ ..] => {
+            first.is_ascii_alphabetic()
+                && !more.is_empty()
+                && more.iter().all(char::is_ascii_alphanumeric)
+        }
+        [] => false,
+    }
+}
+
+/// 段落里一行的开头像块级标记时转义（行从 `start` 开始，已经折叠成单行）。
+fn escape_block_start(text: &mut String, start: usize) {
+    let line = &text[start..];
+    let b = line.as_bytes();
+    let only = |set: &[u8]| b.iter().all(|c| set.contains(c) || *c == b' ');
+    let thematic = |c: u8| only(&[c]) && b.iter().filter(|&&x| x == c).count() >= 3;
+    let at = match b.first() {
+        Some(b'#') => {
+            let n = b.iter().take_while(|&&c| c == b'#').count();
+            (n <= 6 && matches!(b.get(n), None | Some(b' '))).then_some(0)
+        }
+        Some(b'-' | b'+' | b'*') => {
+            (matches!(b.get(1), None | Some(b' ')) || thematic(b[0]) || only(b"-")).then_some(0)
+        }
+        Some(b'_') => thematic(b'_').then_some(0),
+        Some(b'=') => only(b"=").then_some(0),
+        Some(b'>') => Some(0),
+        Some(b'~') => line.starts_with("~~~").then_some(0),
+        Some(b'|') => None,
+        Some(c) if c.is_ascii_digit() => {
+            let n = b.iter().take_while(|c| c.is_ascii_digit()).count();
+            (n <= 9
+                && matches!(b.get(n), Some(b'.' | b')'))
+                && matches!(b.get(n + 1), None | Some(b' ')))
+            .then_some(n)
+        }
+        _ => None,
+    };
+    if let Some(i) = at {
+        text.insert(start + i, '\\');
+    }
+}
+
+/// 表格单元格里不会出现列表、标题、引用，段落开头为此加的转义去掉。
+fn unescape_block_start(cell: &str) -> String {
+    let b = cell.as_bytes();
+    if b.first() == Some(&b'\\')
+        && matches!(
+            b.get(1),
+            Some(b'#' | b'-' | b'+' | b'*' | b'>' | b'=' | b'_' | b'~')
+        )
+    {
+        return cell[1..].to_string();
+    }
+    let n = b.iter().take_while(|c| c.is_ascii_digit()).count();
+    if n > 0 && b.get(n) == Some(&b'\\') && matches!(b.get(n + 1), Some(b'.' | b')')) {
+        return format!("{}{}", &cell[..n], &cell[n + 1..]);
+    }
+    cell.to_string()
 }
 
 fn join_blocks(blocks: &[Block]) -> String {

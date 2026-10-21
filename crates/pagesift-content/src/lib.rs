@@ -19,6 +19,7 @@ mod fingerprint;
 mod jsonld;
 mod links;
 mod markdown;
+mod math;
 mod metadata;
 mod readability;
 mod text;
@@ -100,6 +101,7 @@ pub fn process(html: &str, opts: &Options) -> Document {
     let dom = Html::parse(html);
     let base = effective_base(&dom, opts.base_url.as_ref());
     let mut skipper = extract::Skipper::new(&dom, opts.only_main_content);
+    skipper.set_has_math(math::may_have_math(html));
     // 只取正文靠跳过规则去掉页面框架（导航、页眉页脚、侧边栏、链接密集块），其余整页保留。
     // 评测集上这比 Readability 式的"挑一个正文节点"更好：首页、产品页、落地页没有单一的文章节点，
     // 文章页的"文章信号"（og:type、单个 <article>）也不可靠。

@@ -105,6 +105,7 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 **抓取与爬取**
 - 输出格式：`markdown`、`html`（已清理）、`rawHtml`、`links`、`images`；配合任意兼容 OpenAI 的 LLM 可输出 `summary` 和 `json`（按 schema 提取）；`changeTracking`（与上次访问做差异对比，需要启用缓存）。
 - 爬取支持包含/排除路径、深度与数量限制、sitemap 和 robots.txt；**查询聚焦爬取**（`query`、`adaptive`）优先访问最相关的页面，并在新页面不再带来帮助时停止。
+- 忠实的 Markdown：表格、多层列表、带语言标注的代码块、硬换行和公式（KaTeX、MathJax、MathML、维基百科公式都转成 `$…$` 形式的 TeX）；正文里的 Markdown 特殊字符只在会被误解析成格式时才转义。随机往返测试得分 1.000，第二名是 0.936。
 - **在真实网站上爬取不浪费额度：** 去掉跟踪参数和会话 ID，跳过二进制文件和无限路径，自动学会哪些 URL 是同一页面的别名，把日历、翻页这类陷阱排到最后，临时失败稍后重试，站点返回 429 时自动放慢。在模拟的杂乱网络上，同样的页数上限内找到 74% 的内容页，第二名是 53%（见基准测试）。
 - `queryFilter` 只保留与查询相关的段落（BM25），节省 LLM token。
 - PDF 文本提取；元数据（标题、描述、语言、作者、发布时间、Open Graph）。发布日期按 htmldate 的方式检索（meta 标签、JSON-LD、日期元素、正文模式），支持约二十种语言的月份名，并保留页面自己的时区。
@@ -128,6 +129,7 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 | 可自托管的单一二进制 | ✅ | ❌ | ❌ | ✅ | ✅ |
 | 兼容 Firecrawl 的 API | ✅ | ❌ | ✅ | ✅ | ❌ |
 | 正文提取得分 ↑ | **0.733** | 0.666 | — | 0.703 | — |
+| Markdown 保真度（随机往返测试）↑ | **1.000** | 0.787 | — | — | — |
 | 每页提取耗时 p50 ↓ | **0.47 ms** | 38.6 ms | — | 7.38 ms | — |
 | HTTP 爬取，200 × 100 页 ↑ | **3,500+ p/s** | 15 p/s | — | 206 p/s | 2,000–2,700 p/s |
 | 该次爬取的内存 ↓ | **~300 MB** | — | — | 1.4 GB | 5.5 GB |

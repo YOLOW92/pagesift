@@ -53,7 +53,27 @@ pagesift ports htmldate's search order and rules to Rust and adds month names in
 
 Reproduce: `bench/meta/dates.py` (see [`bench/meta/README.md`](../bench/meta/README.md)); full results: [`bench/meta/results-dates-2026-10-21.md`](../bench/meta/results-dates-2026-10-21.md).
 
-## 3. Crawling over HTTP (no rate limit)
+## 3. HTML → Markdown fidelity
+
+**Setup:** there is no standard dataset for conversion fidelity, so [`bench/markdown/fidelity.py`](../bench/markdown/fidelity.py) generates one: 600 random documents (3 seeds × 200) with headings, emphasis, strikethrough, inline code, links, images, line breaks, nested lists, tables, fenced code, quotes, rules, formulas, and text with Markdown characters that must stay literal (`*not bold*`, `1. not a list`, `<tag>`, `x | y`). They are rendered like real sites (wrapper `div`s and `span`s, syntax-highlighted code, KaTeX, MathJax, raw TeX awaiting MathJax). Each tool converts the whole page; the Markdown is parsed back with the same GFM parser and compared with the original structure, category by category. A reference conversion written straight from the structure scores 1.000 in every category, which calibrates the scorer.
+
+**Metric:** F1 per category (higher is better), mean over the 15 categories; conversion time per page (lower is better).
+
+| Tool | Mean F1 ↑ | Tables ↑ | Code blocks ↑ | Lists ↑ | Formulas ↑ | Line breaks ↑ | Literal text ↑ | ms per page ↓ |
+|---|---|---|---|---|---|---|---|---|
+| **pagesift 0.12** | **1.000** | **1.000** | **1.000** | **1.000** | **1.000** | **1.000** | **1.000** | **0.22** |
+| markdownify 1.2.3 | 0.936 | 0.828 | **1.000** | 0.980 | 0.339 | **1.000** | 0.987 | 5.4 |
+| Defuddle | 0.912 | **1.000** | **1.000** | 0.535 | 0.572 | **1.000** | 0.988 | 132 |
+| html2text | 0.852 | 0.827 | 0.114 | 0.947 | 0.245 | **1.000** | 0.982 | 2.1 |
+| MarkItDown 0.1.8 | 0.812 | 0.828 | 0.137 | 0.980 | 0.339 | 0.000 | 0.989 | 9.1 |
+| Turndown (no GFM plugin) | 0.799 | 0.000 | **1.000** | 0.980 | 0.168 | **1.000** | 0.991 | 1.95 |
+| Crawl4AI 0.9.5 | 0.787 | 0.622 | 0.132 | 0.845 | 0.245 | 0.615 | 0.970 | 2.0 |
+
+"Literal text" is the word-level F1 of the text; it drops when unescaped `*`, `_`, `<` or line-start `1.` turn text into formatting. pagesift escapes only what CommonMark would actually misread (paired `*` and `_` next to text, but not `a_b_c` or `2 * 3`; line-start list and heading markers, but not inside table cells), turns `<br>` into hard breaks, and converts formulas to TeX: KaTeX and Wikipedia annotations, MathJax 2 scripts, MathML (MathJax 3, LaTeXML) through its own MathML→LaTeX converter, and raw TeX in the text left untouched.
+
+On real pages the change is neutral for main-content scores (Firecrawl set 0.696 → 0.696, AEB 0.939 → 0.939); on 3,369 random sites it adds 0.13 backslashes per 1,000 characters, and on an arXiv page formulas that used to vanish now come out as TeX. Full results: [`bench/markdown/results-2026-10-21.md`](../bench/markdown/results-2026-10-21.md); reproduce: `bench/markdown/run.sh`.
+
+## 4. Crawling over HTTP (no rate limit)
 
 **Setup:** a local multi-site origin ([`bench/crawl`](../bench/crawl)) serving real pages from the corpus on `s{i}.localhost`, with 10 ms of added latency; every tool crawls every site with its own link discovery, unthrottled. Memory is the peak proportional set size (PSS) of the tool's whole process tree.
 
@@ -70,7 +90,7 @@ Reproduce: `bench/meta/dates.py` (see [`bench/meta/README.md`](../bench/meta/REA
 
 Reproduce: `bench/crawl/run_all.sh`.
 
-## 4. Crawling messy real-world sites: coverage, waste and politeness
+## 5. Crawling messy real-world sites: coverage, waste and politeness
 
 Speed on clean sites says little about what a crawl delivers on real sites, where links carry tracking parameters and session IDs, the same page has several URLs, calendars and pagination never end, and servers fail or rate-limit. This benchmark measures how much of a site's real content each tool collects within the same page budget, and how well it behaves.
 
@@ -114,7 +134,7 @@ What makes the difference (see `crates/pagesift/src/frontier.rs`): tracking para
 
 Reproduce: `SEED=2 bench/crawl/run_wild.sh` (any seed draws a different web); full results: [`bench/crawl/results-wild-2026-10-21.md`](../bench/crawl/results-wild-2026-10-21.md).
 
-## 5. Browser rendering
+## 6. Browser rendering
 
 pagesift drives browsers over its own CDP client and picks an engine automatically: **Lightpanda** first, **moli** when a page needs iframes or more complete JavaScript, **Chrome / chrome-headless-shell** last. Same crawl setup as above, every page rendered.
 
@@ -128,7 +148,7 @@ pagesift drives browsers over its own CDP client and picks an engine automatical
 
 Reproduce: `bench/crawl/engines.sh` (set `ENGINES=auto` for the default chain).
 
-## 6. A production workload: replacing Crawl4AI
+## 7. A production workload: replacing Crawl4AI
 
 [AiSeek](https://aiseek.dev) fetches news and company pages with Crawl4AI 0.9.4. We ran its own benchmark (`bench.py`) against both services with the production server's limits (6 cores, 10 GB memory, CPU weight 25), on 210 real production URLs (205 hosts) and 25 fixed pages. pagesift ran behind a small adapter implementing the same `/v1/fetch` contract ([`bench/aiseek`](../bench/aiseek)).
 
@@ -161,7 +181,7 @@ Reproduce: `bench/crawl/engines.sh` (set `ENGINES=auto` for the default chain).
 
 **Cold start:** first render 1.93 s → **0.19 s**; ready to serve 1.27 s → **0.12 s**.
 
-## 7. Deployment footprint
+## 8. Deployment footprint
 
 | | Crawl4AI | pagesift |
 |---|---|---|

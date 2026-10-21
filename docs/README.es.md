@@ -105,6 +105,7 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 **Scraping y crawling**
 - Formatos: `markdown`, `html` (limpio), `rawHtml`, `links`, `images`; `summary` y `json` (extracción según un esquema) con cualquier LLM compatible con OpenAI; `changeTracking` (diferencias respecto a la visita anterior; requiere la caché).
 - Crawling con rutas incluidas/excluidas, profundidad y límites, sitemaps y robots.txt; el **crawling guiado por consulta** (`query`, `adaptive`) visita primero las páginas más relevantes y se detiene cuando las nuevas páginas dejan de aportar.
+- Markdown fiel: tablas, listas anidadas, bloques de código con su lenguaje, saltos de línea y fórmulas (KaTeX, MathJax, MathML y las fórmulas de Wikipedia pasan a TeX `$…$`); los caracteres de Markdown del texto se escapan solo cuando se interpretarían como formato. Obtiene 1.000 en una prueba aleatoria de ida y vuelta en la que el siguiente mejor conversor obtiene 0.936.
 - **Crawling de sitios reales sin desperdiciar el límite:** elimina parámetros de seguimiento e IDs de sesión, omite binarios y rutas infinitas, aprende qué URLs son alias de la misma página, deja para el final las trampas de calendarios y paginación, reintenta más tarde los fallos temporales y se frena cuando un sitio responde 429. En una web desordenada simulada encuentra el 74% de las páginas de contenido dentro del límite, frente al 53% de la siguiente mejor herramienta (ver benchmarks).
 - `queryFilter` conserva solo los fragmentos relevantes para una consulta (BM25), para ahorrar tokens del LLM.
 - Extracción de texto de PDF; metadatos (título, descripción, idioma, autor, fecha de publicación, Open Graph). La fecha de publicación se busca como lo hace htmldate (etiquetas meta, JSON-LD, elementos de fecha, patrones de texto), con nombres de meses en unos veinte idiomas, y conserva la zona horaria de la propia página.
@@ -128,6 +129,7 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 | Binario único autoalojado | ✅ | ❌ | ❌ | ✅ | ✅ |
 | API compatible con Firecrawl | ✅ | ❌ | ✅ | ✅ | ❌ |
 | Puntuación de extracción de contenido principal ↑ | **0.733** | 0.666 | — | 0.703 | — |
+| Fidelidad del Markdown (ida y vuelta aleatoria) ↑ | **1.000** | 0.787 | — | — | — |
 | Extracción p50 por página ↓ | **0.47 ms** | 38.6 ms | — | 7.38 ms | — |
 | Crawling HTTP, 200 × 100 páginas ↑ | **3,500+ p/s** | 15 p/s | — | 206 p/s | 2,000–2,700 p/s |
 | Memoria para ese crawling ↓ | **~300 MB** | — | — | 1.4 GB | 5.5 GB |

@@ -35,6 +35,8 @@ def plain(md: str) -> str:
     prev = None
     while prev != text:
         prev, text = text, LINK.sub(lambda m: m.group(1), text)
+    # 反斜杠转义（\* \_ \# …）还原成字符本身，转义正确的输出不该因此被扣分
+    text = re.sub(r"\\([!-/:-@\[-`{-~])", r"\1", text)
     text = MARKS.sub("", text)
     return "\n".join(line.strip() for line in text.splitlines() if line.strip() and set(line.strip()) - set("-:= "))
 

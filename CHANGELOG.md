@@ -12,6 +12,7 @@ The first public release.
 ### Scraping and extraction
 - In-house HTML5 parser and main-content extractor: 0.47 ms per page (p50, single thread) and the best score on Firecrawl's labelled dataset among the tools tested (see `docs/benchmarks.md`).
 - Formats: `markdown`, `html`, `rawHtml`, `links`, `images`; `summary` and `json` with an OpenAI-compatible LLM; `changeTracking` with the cache.
+- Markdown fidelity: hard line breaks for `<br>`; formulas as TeX (`$…$`, `$$…$$`) from KaTeX, MathJax 2 and 3, Wikipedia and LaTeXML pages, with an own MathML→LaTeX converter and raw TeX left untouched; Markdown characters in text are escaped only where CommonMark would misread them. 1.000 on a random round-trip benchmark (next best 0.936).
 - `queryFilter` keeps only the passages relevant to a query (BM25).
 - Metadata: title, description, language, author, published and modified time, Open Graph and similar tags; PDF text extraction.
 - Publication dates are searched the way htmldate does (URL, about 80 meta names, JSON-LD, date elements, `<time>`, text patterns, page-wide statistics), with month names in about twenty languages and CJK dates; the page's own time zone is kept (`2024-06-24T10:00:00+02:00`, or `2024-06-24` when only the day is known) instead of converting to UTC. On htmldate's annotated set: F1 0.948, the same as htmldate, at 0.06 ms per page.

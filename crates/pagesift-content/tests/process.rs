@@ -192,7 +192,8 @@ fn blockquote_and_line_breaks() {
     let m = md(html);
     assert_eq!(
         m,
-        "> First line\n> second line\n>\n> Next paragraph in the quote, long enough.\n"
+        // <br> 是硬换行（行尾两个空格）
+        "> First line  \n> second line\n>\n> Next paragraph in the quote, long enough.\n"
     );
 }
 
@@ -452,4 +453,66 @@ fn index_pages_keep_their_table_of_contents() {
     let m = md(&html);
     assert!(m.contains("[Setup step 4]"), "{m}");
     assert!(!m.contains("Menu 4"), "{m}");
+}
+
+#[test]
+fn literal_markdown_characters_are_escaped_only_where_needed() {
+    let html = "<article><p>Use *stars* and _under_ but a_b_c, 2 * 3 and 50% stay; &lt;tag&gt; and [x](y) too.</p>\
+        <p>1. not a list</p><p># not a heading</p><p>- not an item</p>\
+        <table><tr><th>n</th><th>v</th></tr><tr><td>1.</td><td>- x</td></tr></table></article>";
+    let m = process(
+        html,
+        &Options {
+            only_main_content: false,
+            ..Options::default()
+        },
+    )
+    .markdown;
+    assert!(
+        m.contains(
+            r"Use \*stars\* and \_under\_ but a_b_c, 2 * 3 and 50% stay; \<tag> and \[x](y) too."
+        ),
+        "{m}"
+    );
+    assert!(m.contains(r"1\. not a list"), "{m}");
+    assert!(m.contains(r"\# not a heading"), "{m}");
+    assert!(m.contains(r"\- not an item"), "{m}");
+    assert!(
+        m.contains("| 1. | - x |"),
+        "table cells need no block escapes: {m}"
+    );
+}
+
+#[test]
+fn math_becomes_tex() {
+    let html = r#"<article><p>Einstein wrote <span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>E</mi></mrow><annotation encoding="application/x-tex">E=mc^2</annotation></semantics></math></span><span class="katex-html" aria-hidden="true">E=mc2</span></span> in 1905, a famous paper.</p>
+        <script type="math/tex; mode=display">\int_0^1 x\,dx</script></article>"#;
+    let m = process(
+        html,
+        &Options {
+            only_main_content: false,
+            ..Options::default()
+        },
+    )
+    .markdown;
+    assert!(m.contains("Einstein wrote $E=mc^2$ in 1905"), "{m}");
+    assert!(m.contains("$$\n\\int_0^1 x\\,dx\n$$"), "{m}");
+    assert!(!m.contains("mc2"), "the visual copy is dropped: {m}");
+}
+
+#[test]
+fn raw_tex_in_text_is_left_alone() {
+    let html = r#"<html><head><script src="https://cdn.example/mathjax/tex-mml-chtml.js"></script></head><body><article><p>Let \(x_i^2 + y_i\) be given and $$\sum_{i=1}^n a_i$$ holds, while $a_b$ too; prices $5 and $10 stay *escaped*.</p></article></body></html>"#;
+    let m = process(
+        html,
+        &Options {
+            only_main_content: false,
+            ..Options::default()
+        },
+    )
+    .markdown;
+    assert!(m.contains(r"\(x_i^2 + y_i\)"), "{m}");
+    assert!(m.contains(r"$$\sum_{i=1}^n a_i$$"), "{m}");
+    assert!(m.contains(r"$a_b$"), "{m}");
+    assert!(m.contains(r"\*escaped\*"), "{m}");
 }

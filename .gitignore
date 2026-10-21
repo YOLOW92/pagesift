@@ -6,3 +6,4 @@
 __pycache__/
 bench/crawl/wild-*/
 bench/crawl/wild-*.log
+bench/markdown/out/
