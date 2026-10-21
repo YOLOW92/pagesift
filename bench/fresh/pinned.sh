@@ -20,7 +20,7 @@ if [ "${PIN_HT:-0}" = 1 ]; then
     mapfile -t CORES < <(lscpu -p=CPU | grep -v '^#' | grep -v -x -F -f <(tr ',' '\n' <<< "$RESERVED"))
 fi
 case "${1:-}" in
-    --cores) echo "计时用的逻辑 CPU：${CORES[*]}；留给不计时任务的：$RESERVED；按内存同时最多 $(awk -v job="${PIN_JOB_MB:-1200}" -v keep="${PIN_RESERVE_MB:-4000}" '/^MemAvailable:/ {n=int(($2/1024-keep)/job); print (n<1?1:n)}' /proc/meminfo) 个任务"; exit 0 ;;
+    --cores) echo "计时用的逻辑 CPU：${CORES[*]}；留给不计时任务的：$RESERVED；同时最多 ${PIN_MAX_JOBS:-$(awk -v job="${PIN_JOB_MB:-1200}" -v keep="${PIN_RESERVE_MB:-4000}" '/^MemAvailable:/ {n=int(($2/1024-keep)/job); print (n<1?1:n)}' /proc/meminfo)} 个任务"; exit 0 ;;
     --reserved) echo "$RESERVED"; exit 0 ;;
 esac
 # 计时任务只用分到的那个核：Python 里的 onnxruntime 由 one_core.py 限成单线程，BLAS/OpenMP 线程池设成 1
