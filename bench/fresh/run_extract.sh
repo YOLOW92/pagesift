@@ -39,7 +39,8 @@ fi
 sets="firecrawl:bench/data/inputs/manifest.jsonl aeb:$R/aeb/manifest.jsonl random:$R/random-manifest.jsonl"
 # 三个数据集的全部任务一次放进物理核池：一个工具跑完，它的核马上接下一个任务。
 # 输出已经完整（行数等于清单）的任务跳过，所以中断后可以接着跑。
-done_ok() { [ -s "$1" ] && [ "$(wc -l < "$1")" -eq "$(wc -l < "$2")" ]; }
+# 已经有进程在写这个输出（上一轮留下的长任务）也跳过，评分前会等它写完
+done_ok() { { [ -s "$1" ] && [ "$(wc -l < "$1")" -eq "$(wc -l < "$2")" ]; } || pgrep -f "$1" > /dev/null; }
 for s in $sets; do
     name=${s%%:*}; m=${s#*:}
     done_ok "$R/$name-pagesift.jsonl" "$m" || echo "target/release/examples/extract_jsonl $m $R/$name-pagesift.jsonl"
