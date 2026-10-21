@@ -20,8 +20,7 @@ This table is a summary, not legal advice; the license texts decide.
 
 ## Contact
 
-<!-- TODO(owner): commercial contact address -->
-To ask about a commercial license, contact: **TODO — commercial contact**.
+To ask about a commercial license, contact: **[yolow92@outlook.com](mailto:yolow92@outlook.com)**.
 
 ## Contributions
 
