@@ -21,10 +21,10 @@ fn word_class(w: &str) -> u8 {
         | "markdown" | "prose" | "doc" | "docs" | "documentation" | "body" => POS,
         "nav" | "navbar" | "navigation" | "menu" | "footer" | "sidebar" | "aside"
         | "breadcrumb" | "breadcrumbs" | "share" | "sharing" | "social" | "related"
-        | "recommend" | "recommended" | "comment" | "comments" | "cookie" | "cookies"
-        | "consent" | "banner" | "advert" | "advertisement" | "ad" | "ads" | "sponsor"
-        | "sponsored" | "newsletter" | "subscribe" | "popup" | "modal" | "promo" | "toolbar"
-        | "pagination" | "editsection" | "catlinks" => NEG,
+        | "recommend" | "recommended" | "comment" | "comments" | "recent" | "cookie"
+        | "cookies" | "consent" | "banner" | "advert" | "advertisement" | "ad" | "ads"
+        | "sponsor" | "sponsored" | "newsletter" | "subscribe" | "popup" | "modal" | "promo"
+        | "toolbar" | "pagination" | "editsection" | "catlinks" => NEG,
         "skip" | "jump" => NEG | JUMP,
         _ => 0,
     }
