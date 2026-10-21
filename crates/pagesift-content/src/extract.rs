@@ -111,6 +111,9 @@ pub(crate) enum Relax {
     LinkBlocks,
     /// 只保留硬跳过和 `<nav>`、`<aside>`、`<footer>`。
     All,
+    /// 在 `All` 的基础上连隐藏元素也保留：服务端渲染的单页应用常把整页内容包在 `display:none` 里
+    /// 等脚本显示。只在前面几级的结果几乎为空时才用。
+    Hidden,
 }
 
 /// 决定渲染时要整棵跳过的子树。
@@ -387,7 +390,7 @@ impl Skipper {
         if is_non_content_tag(tag) && !is_text_button(node) {
             return Some("non-content tag");
         }
-        if is_hidden(node) {
+        if is_hidden(node) && self.relaxed != Relax::Hidden {
             return Some("hidden");
         }
         if !self.only_main {
@@ -415,7 +418,7 @@ impl Skipper {
             }
         }
         // 页面自己标出的正文区域（`<main>`、`role="main"`）不用软规则删
-        if self.relaxed == Relax::All
+        if matches!(self.relaxed, Relax::All | Relax::Hidden)
             || matches!(tag, Tag::Body | Tag::Html)
             || is_main_landmark(el)
         {
@@ -532,6 +535,10 @@ impl Skipper {
 
     pub(crate) fn has_math(&self) -> bool {
         self.has_math
+    }
+
+    pub(crate) fn relaxed(&self) -> Relax {
+        self.relaxed
     }
 
     pub(crate) fn is_relaxed(&self) -> bool {

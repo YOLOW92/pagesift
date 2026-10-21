@@ -116,10 +116,20 @@ pub fn process(html: &str, opts: &Options) -> Document {
     let article = (opts.only_main_content && metadata.is_article && !home)
         .then(|| render_article(&dom, &mut skipper, base.as_ref()))
         .flatten();
-    let markdown = match article {
+    let mut markdown = match article {
         Some(md) => md,
         None => render_main(&mut skipper, body, base.as_ref()),
     };
+    // 还是几乎为空、页面又有 <noscript>：有的单页应用只在 <noscript> 里给不跑脚本的抓取器留一份内容。
+    // 按 HTML 规范 <noscript> 里是纯文本，拆掉这层标签重新解析整页再抽一次，明显更长才用
+    if text_chars(&markdown) < HIDDEN_FALLBACK_CHARS
+        && let Some(unwrapped) = unwrap_noscript(html)
+    {
+        let alt = process(&unwrapped, opts).markdown;
+        if text_chars(&alt) >= HIDDEN_FALLBACK_CHARS.max(3 * text_chars(&markdown)) {
+            markdown = alt;
+        }
+    }
     // 只取正文时可见文字数已经算好（和拦截页识别的口径一样）：超过上限的页面直接跳过识别
     let surely_content =
         opts.only_main_content && skipper.total_chars() > barrier::visible_limit(opts.status);
@@ -155,23 +165,68 @@ fn render_main(
     let render =
         |skipper: &extract::Skipper| markdown::Renderer::new(base, skipper).render(&[body]);
     let mut markdown = render(skipper);
-    if !skipper.only_main() {
-        return markdown;
-    }
-    let total = skipper.total_chars();
-    let short = |md: &str| {
-        let chars = text_chars(md);
-        chars < FALLBACK_MAX_CHARS && (chars as f64) < total as f64 * FALLBACK_MAX_SHARE
-    };
-    for level in [Relax::LinkBlocks, Relax::All] {
-        if !short(&markdown) {
-            break;
+    if skipper.only_main() {
+        let total = skipper.total_chars();
+        let short = |md: &str| {
+            let chars = text_chars(md);
+            chars < FALLBACK_MAX_CHARS && (chars as f64) < total as f64 * FALLBACK_MAX_SHARE
+        };
+        for level in [Relax::LinkBlocks, Relax::All] {
+            if !short(&markdown) {
+                break;
+            }
+            skipper.relax(level);
+            markdown = render(skipper);
         }
-        skipper.relax(level);
-        markdown = render(skipper);
+    }
+    // 还是几乎为空：内容可能整页藏在 display:none 里等脚本显示，或者只在 <noscript> 里。
+    // 连隐藏内容一起渲染，明显更长才用（普通的短页面不受影响）
+    if text_chars(&markdown) < HIDDEN_FALLBACK_CHARS {
+        let before = skipper.relaxed();
+        skipper.relax(Relax::Hidden);
+        let shown = render(skipper);
+        if text_chars(&shown) >= HIDDEN_FALLBACK_CHARS.max(3 * text_chars(&markdown)) {
+            return shown;
+        }
+        skipper.relax(before);
     }
     markdown
 }
+
+/// 去掉 `<noscript>` 和 `</noscript>` 这两层标签、保留里面的内容。页面没有 `<noscript>` 时返回 `None`。
+fn unwrap_noscript(html: &str) -> Option<String> {
+    let lower = html.to_ascii_lowercase();
+    let mut at = lower.find("<noscript")?;
+    let mut out = String::with_capacity(html.len());
+    let mut from = 0;
+    loop {
+        out.push_str(&html[from..at]);
+        // 开标签到 '>' 为止；没有就原样保留剩余部分
+        let Some(gt) = lower[at..].find('>') else {
+            from = at;
+            break;
+        };
+        from = at + gt + 1;
+        let close = lower[from..].find("</noscript").map(|i| from + i);
+        match close {
+            Some(c) => {
+                out.push_str(&html[from..c]);
+                from = lower[c..].find('>').map_or(html.len(), |g| c + g + 1);
+            }
+            None => break,
+        }
+        match lower[from..].find("<noscript") {
+            Some(i) => at = from + i,
+            None => break,
+        }
+    }
+    out.push_str(&html[from..]);
+    // 标签不完整、拆不干净时不重抽，免得反复递归
+    (!out.to_ascii_lowercase().contains("<noscript")).then_some(out)
+}
+
+/// 正常规则（含放宽）的结果少于这么多字时，试着把隐藏内容也算上，或者拆开 `<noscript>` 重抽。
+const HIDDEN_FALLBACK_CHARS: usize = 200;
 
 /// 文章模式的结果至少要有参照结果（整页按严格规则渲染）这个比例的段落文字，否则认为找错了主体。
 const ARTICLE_MIN_SHARE: f64 = 0.3;
