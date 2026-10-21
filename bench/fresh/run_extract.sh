@@ -44,8 +44,9 @@ with open(sys.argv[1], "w") as out:
         if m:
             enc = m.group(1).decode("ascii", "ignore").lower()
             try:
-                text = raw.decode(enc)
-            except (LookupError, UnicodeDecodeError):
+                # 声明了编码就按声明解码，个别坏字节用替换字符（浏览器也是这样），不另猜编码
+                text = raw.decode(enc, "replace")
+            except LookupError:
                 text = None
         if text is None:
             try:
