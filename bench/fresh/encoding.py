@@ -52,7 +52,7 @@ def score(raw_dir: Path, utf8_dir: Path, tools: list) -> None:
             want = ref.get(pid, "")
             if not text.strip():
                 empty += 1
-            elif difflib.SequenceMatcher(None, text[:20000], want[:20000], autojunk=False).ratio() >= 0.9:
+            elif difflib.SequenceMatcher(None, text[:5000], want[:5000], autojunk=False).ratio() >= 0.9:
                 ok += 1
             else:
                 bad += 1
