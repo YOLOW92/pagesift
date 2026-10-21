@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/YOLOW92/pagesift/security/advisories/new
+    about: Report SSRF bypasses and other vulnerabilities privately.
+  - name: Commercial license
+    url: https://github.com/YOLOW92/pagesift/blob/main/COMMERCIAL.md
+    about: Using pagesift without the AGPL's obligations.

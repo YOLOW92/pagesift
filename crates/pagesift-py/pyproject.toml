@@ -6,13 +6,12 @@ build-backend = "maturin"
 name = "pagesift"
 description = "Clean Markdown from web pages for LLMs. A Rust core: fast, multi-core, no browser needed for static pages."
 requires-python = ">=3.9"
-license = { text = "MIT OR Apache-2.0" }
+license = { text = "AGPL-3.0-only" }
 readme = "README.md"
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
-    "License :: OSI Approved :: MIT License",
-    "License :: OSI Approved :: Apache Software License",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
     "Framework :: AsyncIO",
     "Typing :: Typed",
 ]

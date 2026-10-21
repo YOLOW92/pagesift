@@ -11,7 +11,7 @@
 
 ## 1. 一句话定位
 
-**pagesift：一个用 Rust 写的单文件网页抓取引擎，对标 Crawl4AI，要做得更快、更干净、更省资源，功能上覆盖它的核心能力。正文提取和拦截页识别是自研的，接口兼容 Firecrawl v2，把网页变成干净的 Markdown 和结构化数据，供大模型和智能体使用；采用 MIT/Apache-2.0 许可，守规矩，不绕过反爬。**
+**pagesift：一个用 Rust 写的单文件网页抓取引擎，对标 Crawl4AI，要做得更快、更干净、更省资源，功能上覆盖它的核心能力。正文提取和拦截页识别是自研的，接口兼容 Firecrawl v2，把网页变成干净的 Markdown 和结构化数据，供大模型和智能体使用；采用 AGPL-3.0 + 商业许可证的双许可，守规矩，不绕过反爬。**
 
 ```bash
 curl -fsSL https://github.com/YOLOW92/pagesift/releases/latest/download/install.sh | sh
@@ -67,7 +67,7 @@ pagesift serve        # 在 :3002 提供 Firecrawl 兼容接口，把 SDK 的 ba
 3. **状态如实**：明确区分成功、被 robots 禁止、被拦截页挡住、被限流、超时、目标出错，每种情况都有固定的错误码。请求了做不到的事就明确报错，不悄悄降级。
 4. **单文件部署**：一个可执行文件，不需要 Redis、数据库或消息队列。浏览器渲染（1.x）会用到系统里的 Chrome/Chromium。
 5. **核心自研，基础设施用成熟的开源项目**：决定产品质量和差异化的部分自己做；协议解析、网络、密码学这类通用基础设施用业界标准实现（见第 9 节）。
-6. **宽松许可证**：MIT OR Apache-2.0，可以商用、嵌入、修改，没有传染性；所有依赖也必须是宽松许可证。
+6. **双许可**（2026-10-21 起，0.12.0 版开始）：开源版用 AGPL-3.0；不想承担 AGPL 义务的企业（闭源内嵌、不公开修改的托管服务）购买商业许可证，见 COMMERCIAL.md。外部贡献要签 CLA。第三方依赖必须是宽松许可证，否则无法发商业许可证。
 
 ---
 
@@ -77,7 +77,7 @@ pagesift serve        # 在 :3002 提供 Firecrawl 兼容接口，把 SDK 的 ba
 
 | 能力 | Firecrawl 自部署 | crw | Crawl4AI | **pagesift 1.0** |
 |---|---|---|---|---|
-| 许可证 | AGPL | AGPL | Apache | **MIT/Apache** |
+| 许可证 | AGPL | AGPL | Apache | **AGPL + 商业许可** |
 | 部署 | 默认 7 个服务 | 单文件 | Python 加 Playwright | **单文件** |
 | 空闲内存 | 数 GB（待实测） | 待实测 | 待实测 | **目标 < 20MB（存储为空时）** |
 | 官方 SDK 零修改接入 | ✅ | 部分（JS SDK 要加 `/firecrawl` 后缀） | ❌ | **✅** |

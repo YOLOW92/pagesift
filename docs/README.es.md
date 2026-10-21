@@ -1,0 +1,157 @@
+<div align="center">
+
+# pagesift
+
+**Web scraping rápido y respetuoso para LLM y agentes de IA.**
+Convierte cualquier sitio web en Markdown limpio y datos estructurados: un solo binario de Rust, una API compatible con Firecrawl y una fracción de la memoria.
+
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](../LICENSE)
+[![Commercial license](https://img.shields.io/badge/commercial-license%20available-green.svg)](../COMMERCIAL.md)
+[![Release](https://img.shields.io/github/v/release/YOLOW92/pagesift?include_prereleases)](https://github.com/YOLOW92/pagesift/releases)
+[![crates.io](https://img.shields.io/crates/v/pagesift.svg)](https://crates.io/crates/pagesift)
+[![PyPI](https://img.shields.io/pypi/v/pagesift.svg)](https://pypi.org/project/pagesift/)
+[![npm](https://img.shields.io/npm/v/pagesift.svg)](https://www.npmjs.com/package/pagesift)
+
+[English](../README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · **Español**
+
+</div>
+
+---
+
+pagesift es un motor de scraping y crawling autoalojado para pipelines de IA, RAG y agentes. Descarga páginas, renderiza JavaScript solo cuando hace falta, extrae el contenido principal y devuelve Markdown, HTML, enlaces y metadatos a través de una API HTTP compatible con [Firecrawl v2](https://docs.firecrawl.dev), un servidor MCP, una CLI y paquetes nativos para Python y Node.
+
+Está pensado para funcionar como servicio: memoria acotada, backpressure, persistencia de trabajos, webhooks, límites por clave y métricas. Además, juega limpio: respeta robots.txt, limita la frecuencia por host, usa un User-Agent honesto y no evade ninguna protección antibots.
+
+## Por qué pagesift
+
+| | |
+|---|---|
+| ⚡ **Rápido** | Extracción del contenido principal en **0.47 ms** por página (p50, un solo hilo): 16× más rápido que crw y 80× más rápido que Crawl4AI. Crawling HTTP sin límite de frecuencia a **3,500+ páginas/s** en una sola máquina. |
+| 🪶 **Ligero** | Rastrea 200 sitios × 100 páginas con **~300 MB**, donde Spider necesita 5.5 GB. Al sustituir Crawl4AI en un servicio en producción, el pico de memoria bajó de 1.4 GB a **225 MB**. |
+| 🎯 **Preciso** | La mejor puntuación de contenido principal en el conjunto de datos etiquetado de Firecrawl: **0.733** frente a 0.703 (crw) y 0.666 (Crawl4AI), con la mitad de contenido repetitivo filtrado. |
+| 🧠 **Renderizado inteligente** | Solo renderiza las páginas que lo necesitan, con el motor más ligero que funcione: Lightpanda → moli → Chrome. Aprende, sitio por sitio, cuándo un navegador no aporta nada. |
+| 🔌 **Reemplazo directo** | API de Firecrawl v2 (`/v2/scrape`, `/crawl`, `/map`, `/search`, `/extract`, `/batch/scrape`), así que los SDK de Firecrawl existentes funcionan sin cambios. Servidor MCP para agentes. |
+| 🛡️ **Seguro por defecto** | Protección contra SSRF en cada petición, redirección, subpetición del navegador y webhook; comprobaciones contra DNS rebinding; nunca desactiva el sandbox del navegador. |
+
+Cifras detalladas y reproducibles: **[docs/benchmarks.md](benchmarks.md)**.
+
+## Inicio rápido
+
+### Docker
+
+```bash
+docker run -d -p 3002:3002 -v pagesift-data:/data \
+  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:0.12
+
+curl -s http://localhost:3002/v2/scrape \
+  -H 'Authorization: Bearer change-me' -H 'Content-Type: application/json' \
+  -d '{"url": "https://example.com", "formats": ["markdown", "links"]}'
+```
+
+La imagen incluye Lightpanda para renderizar JavaScript.
+
+### Línea de comandos
+
+```bash
+# from a release binary (Linux, macOS) or with Cargo
+cargo install pagesift
+
+pagesift scrape https://example.com                 # Markdown to stdout
+pagesift crawl https://example.com --out ./site     # one Markdown file per page
+pagesift map https://example.com                    # list a site's URLs
+pagesift serve --port 3002                          # the HTTP API
+pagesift doctor                                     # check browsers, network, config
+```
+
+### Python
+
+```bash
+pip install pagesift
+```
+
+```python
+import pagesift
+
+doc = pagesift.scrape("https://example.com")
+print(doc.markdown)
+
+# many pages at once, on every core
+for doc in pagesift.scrape_iter(["https://example.com/a", "https://example.com/b"]):
+    print(doc.metadata["title"])
+```
+
+### Node.js
+
+```bash
+npm install pagesift
+```
+
+```js
+const { Scraper } = require('pagesift')
+
+const scraper = new Scraper()
+const page = await scraper.scrape('https://example.com')
+console.log(page.markdown)
+```
+
+### MCP (Claude, Cursor y otros agentes)
+
+```bash
+pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, pagesift_crawl, pagesift_crawl_status, pagesift_map
+```
+
+## Funcionalidades
+
+**Scraping y crawling**
+- Formatos: `markdown`, `html` (limpio), `rawHtml`, `links`, `images`; `summary` y `json` (extracción según un esquema) con cualquier LLM compatible con OpenAI; `changeTracking` (diferencias respecto a la visita anterior; requiere la caché).
+- Crawling con rutas incluidas/excluidas, profundidad y límites, sitemaps y robots.txt; el **crawling guiado por consulta** (`query`, `adaptive`) visita primero las páginas más relevantes y se detiene cuando las nuevas páginas dejan de aportar.
+- `queryFilter` conserva solo los fragmentos relevantes para una consulta (BM25), para ahorrar tokens del LLM.
+- Extracción de texto de PDF; metadatos (título, descripción, idioma, autor, fecha de publicación, Open Graph).
+- Peticiones condicionales (`ifNoneMatch`, `ifModifiedSince`), caché de contenido (`maxAge`) y hashes de contenido para detectar cambios.
+
+**Renderizado**
+- Elección automática del motor con fallback (Lightpanda, moli, Chrome/Chromium/chrome-headless-shell), o un navegador remoto por CDP.
+- Pool de navegadores adaptativo, dimensionado según el rendimiento medido, la CPU y la memoria libre; los iframes del mismo origen se integran en la página.
+- Anuncios, rastreadores, fuentes y archivos multimedia bloqueados por defecto.
+
+**Funcionamiento como servicio**
+- Persistencia de trabajos y reanudación tras reinicios, webhooks con reintentos y firmas, y límites de frecuencia, concurrencia y cuotas diarias por clave de API.
+- Métricas de Prometheus (`/metrics`), logs en JSON, apagado ordenado y health checks.
+- Proxies de salida con nombre por petición, listas de hosts permitidos para servicios internos, plazo total por petición y códigos de error claros (`DNS_FAILURE`, `NETWORK_ERROR`, `BUSY`, `ACCESS_BARRIER`, …).
+
+## Comparativa
+
+| | pagesift | Crawl4AI | Firecrawl | crw | Spider |
+|---|---|---|---|---|---|
+| Lenguaje | Rust | Python | TypeScript | Rust | Rust |
+| Binario único autoalojado | ✅ | ❌ | ❌ | ✅ | ✅ |
+| API compatible con Firecrawl | ✅ | ❌ | ✅ | ✅ | ❌ |
+| Puntuación de extracción de contenido principal ↑ | **0.733** | 0.666 | — | 0.703 | — |
+| Extracción p50 por página ↓ | **0.47 ms** | 38.6 ms | — | 7.38 ms | — |
+| Crawling HTTP, 200 × 100 páginas ↑ | **3,500+ p/s** | 15 p/s | — | 206 p/s | 2,000–2,700 p/s |
+| Memoria para ese crawling ↓ | **~300 MB** | — | — | 1.4 GB | 5.5 GB |
+| Motores JS ligeros (Lightpanda/moli) | ✅ ambos, fallback automático | ❌ | ❌ | Lightpanda | — |
+| Servidor MCP | ✅ | ✅ | ✅ | ✅ | — |
+| Paquetes nativos Python / Node | ✅ / ✅ | ✅ / ❌ | SDK HTTP | — | ✅ / ✅ |
+| Licencia | AGPL-3.0 + comercial | Apache-2.0 | AGPL-3.0 | AGPL-3.0 | MIT |
+
+"—" significa que no se comprobó. No se hizo benchmark del servicio autoalojado de Firecrawl. Consulta [docs/benchmarks.md](benchmarks.md) para ver la metodología y las tablas completas.
+
+## Configuración
+
+Todo funciona con los valores por defecto. Para un servidor, copia [`pagesift.example.toml`](../pagesift.example.toml) y pasa `--config` o define `PAGESIFT_CONFIG`. Cubre las claves de API y sus límites, los webhooks, el User-Agent, los límites de frecuencia, los motores de navegador, la caché, los backends de LLM y de búsqueda, los proxies de salida y los hosts internos permitidos.
+
+## Crawling responsable
+
+pagesift respeta robots.txt (incluido `Crawl-delay`), limita la frecuencia de cada host, reduce el ritmo ante respuestas 429 y 5xx, y se identifica con un User-Agent honesto. Cuando un sitio muestra un desafío o una página de acceso denegado, pagesift lo informa (`ACCESS_BARRIER`) en lugar de intentar sortearlo. No se aceptan pull requests que añadan sigilo, suplantación de huellas digitales, resolución de CAPTCHA o rotación de proxies.
+
+## Licencia
+
+pagesift tiene licencia dual:
+
+- **[AGPL-3.0](../LICENSE)** para uso de código abierto. Puedes autoalojarlo, modificarlo y usarlo comercialmente; si ofreces una versión modificada a otras personas a través de una red, comparte tus cambios.
+- **[Licencia comercial](../COMMERCIAL.md)** para usar pagesift sin las obligaciones de la AGPL —productos de código cerrado, servicios alojados propietarios—, con soporte opcional.
+
+## Contribuir
+
+Los issues y pull requests son bienvenidos; lee [CONTRIBUTING.md](../CONTRIBUTING.md). Quienes contribuyen firman un [CLA](../CLA.md) una sola vez. Reportes de seguridad: [SECURITY.md](../SECURITY.md).

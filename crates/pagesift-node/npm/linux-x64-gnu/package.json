@@ -1,6 +1,6 @@
 {
   "name": "pagesift-linux-x64-gnu",
-  "version": "0.0.1",
+  "version": "0.12.0",
   "cpu": [
     "x64"
   ],
@@ -18,7 +18,7 @@
     "html-to-markdown",
     "napi-rs"
   ],
-  "license": "MIT OR Apache-2.0",
+  "license": "AGPL-3.0-only",
   "engines": {
     "node": ">= 18"
   },

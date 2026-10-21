@@ -18,6 +18,27 @@ allow = [
     "Unlicense",
     "CC0-1.0",
 ]
+# pagesift 自己的 crate 用 AGPL-3.0（另有商业许可证，见 COMMERCIAL.md）。第三方依赖仍然只允许上面的宽松许可证：
+# 混进 copyleft 依赖就没法给企业发商业许可证了。
+exceptions = [
+    { name = "pagesift", allow = ["AGPL-3.0-only"] },
+    { name = "pagesift-api", allow = ["AGPL-3.0-only"] },
+    { name = "pagesift-cdp", allow = ["AGPL-3.0-only"] },
+    { name = "pagesift-content", allow = ["AGPL-3.0-only"] },
+    { name = "pagesift-diff", allow = ["AGPL-3.0-only"] },
+    { name = "pagesift-extract", allow = ["AGPL-3.0-only"] },
+    { name = "pagesift-html", allow = ["AGPL-3.0-only"] },
+    { name = "pagesift-llm", allow = ["AGPL-3.0-only"] },
+    { name = "pagesift-mcp", allow = ["AGPL-3.0-only"] },
+    { name = "pagesift-net", allow = ["AGPL-3.0-only"] },
+    { name = "pagesift-node", allow = ["AGPL-3.0-only"] },
+    { name = "pagesift-pdf", allow = ["AGPL-3.0-only"] },
+    { name = "pagesift-policy", allow = ["AGPL-3.0-only"] },
+    { name = "pagesift-py", allow = ["AGPL-3.0-only"] },
+    { name = "pagesift-search", allow = ["AGPL-3.0-only"] },
+    { name = "pagesift-store", allow = ["AGPL-3.0-only"] },
+    { name = "pagesift-sys", allow = ["AGPL-3.0-only"] },
+]
 
 [bans]
 multiple-versions = "allow"

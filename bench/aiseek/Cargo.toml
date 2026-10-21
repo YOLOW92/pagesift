@@ -1,0 +1,21 @@
+# AiSeek 的 /v1/fetch 契约的测试适配器（和 Crawl4AI 版 document-worker 同口径对比用）。
+# 不属于 pagesift workspace，也不随 pagesift 发布；它同时是把 pagesift 接进已有抓取服务的示例。
+[package]
+name = "pagesift-aiseek-bench"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[[bin]]
+name = "aiseek_fetch"
+path = "src/main.rs"
+
+[dependencies]
+axum = "0.8.9"
+pagesift = { path = "../../crates/pagesift" }
+pagesift-sys = { path = "../../crates/pagesift-sys" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+tokio = { version = "1.54.0", features = ["rt-multi-thread", "macros", "net", "signal"] }

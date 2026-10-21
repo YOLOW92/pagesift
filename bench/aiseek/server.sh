@@ -17,4 +17,4 @@ exec systemd-run --user --scope -q -p MemoryMax=10G -p CPUWeight=25 \
   PATH="$ENGINES_PATH:$PATH" \
   PORT=$PORT PAGES=$PAGES ALLOW_HOSTS=$ALLOW \
   TOKEN=bench-token-local-0123456789abcdef \
-  "$ROOT/target/release/examples/aiseek_fetch"
+  "$ROOT/target/aiseek-bench/release/aiseek_fetch"

@@ -1,8 +1,8 @@
 {
   "name": "pagesift",
-  "version": "0.0.1",
+  "version": "0.12.0",
   "description": "Turn web pages into clean Markdown for LLMs: a polite, Firecrawl-compatible scraping engine written in Rust.",
-  "license": "MIT OR Apache-2.0",
+  "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/YOLOW92/pagesift.git",
