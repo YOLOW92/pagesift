@@ -139,9 +139,10 @@ pub struct ScrapeOptions {
 
 /// pagesift 扩展 `queryFilter`：按查询过滤正文 Markdown，省 token。
 /// 可以直接写查询字符串，也可以写
-/// `{"query": "...", "relative": 0.5, "threshold": 1.0, "topK": 5, "maxTokens": 800, "headings": true}`。
-/// 正文先切成约 100 token 的单位（不跨小节）用 BM25 打分；默认保留分数不低于最高分一半的单位。
-/// 只给 `threshold`（Crawl4AI 的 `bm25_threshold` 写法）时只按绝对阈值，不再加相对阈值。
+/// `{"query": "...", "relative": 0.5, "minTokens": 1000, "threshold": 1.0, "topK": 5, "maxTokens": 800, "headings": true}`。
+/// 正文先切成约 100 token 的单位（不跨小节）用 BM25 打分；默认保留分数不低于最高分一半的单位，
+/// 留下的不到 1000 token 时按分数补足。
+/// 只给 `threshold`（Crawl4AI 的 `bm25_threshold` 写法）时只按绝对阈值，不再加相对阈值和保底。
 /// `summary`、`json` 和 `changeTracking` 都基于过滤后的正文。
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -159,6 +160,9 @@ pub struct QueryFilter {
     /// 保留内容的 token 上限（按分数从高到低取）。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_tokens: Option<usize>,
+    /// 保底 token 数：阈值留下的不到这么多时按分数补足。不给 `threshold` 时默认 1000。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_tokens: Option<usize>,
     /// 在保留的内容前补上它所在的各级标题，默认开。
     pub headings: bool,
 }
@@ -177,6 +181,8 @@ impl<'de> Deserialize<'de> for QueryFilter {
             top_k: Option<usize>,
             #[serde(default)]
             max_tokens: Option<usize>,
+            #[serde(default)]
+            min_tokens: Option<usize>,
             #[serde(default = "yes")]
             headings: bool,
         }
@@ -193,6 +199,7 @@ impl<'de> Deserialize<'de> for QueryFilter {
                 relative: Some(pagesift_extract_defaults::RELATIVE),
                 top_k: None,
                 max_tokens: None,
+                min_tokens: Some(pagesift_extract_defaults::MIN_TOKENS),
                 headings: true,
             },
             Repr::Full(f) => QueryFilter {
@@ -205,15 +212,21 @@ impl<'de> Deserialize<'de> for QueryFilter {
                 threshold: f.threshold,
                 top_k: f.top_k,
                 max_tokens: f.max_tokens,
+                min_tokens: f.min_tokens.or(if f.threshold.is_none() {
+                    Some(pagesift_extract_defaults::MIN_TOKENS)
+                } else {
+                    None
+                }),
                 headings: f.headings,
             },
         })
     }
 }
 
-/// queryFilter 的默认相对阈值（和 pagesift-extract 的 `DEFAULT_RELATIVE` 一致；API 层不依赖提取库）。
+/// queryFilter 的默认相对阈值和保底 token 数（和 pagesift-extract 的 `DEFAULT_RELATIVE`、`DEFAULT_MIN_TOKENS` 一致；API 层不依赖提取库）。
 mod pagesift_extract_defaults {
     pub const RELATIVE: f32 = 0.5;
+    pub const MIN_TOKENS: usize = 1000;
 }
 
 impl Default for ScrapeOptions {

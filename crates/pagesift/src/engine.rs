@@ -1446,6 +1446,7 @@ async fn apply_query_filter(
         relative: q.relative,
         top_k: q.top_k,
         max_tokens: q.max_tokens,
+        min_tokens: q.min_tokens,
         headings: q.headings,
     };
     let query = q.query.clone();

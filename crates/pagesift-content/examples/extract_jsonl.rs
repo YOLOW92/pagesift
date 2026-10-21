@@ -9,8 +9,12 @@ use pagesift_content::{Options, process};
 
 fn main() {
     let mut args = std::env::args().skip(1);
-    let manifest = args.next().expect("usage: extract_jsonl <manifest.jsonl> <out.jsonl>");
-    let out = args.next().expect("usage: extract_jsonl <manifest.jsonl> <out.jsonl>");
+    let manifest = args
+        .next()
+        .expect("usage: extract_jsonl <manifest.jsonl> <out.jsonl>");
+    let out = args
+        .next()
+        .expect("usage: extract_jsonl <manifest.jsonl> <out.jsonl>");
     let mut w = std::io::BufWriter::new(std::fs::File::create(&out).unwrap());
     let mut total = 0.0;
     let mut n = 0usize;
@@ -34,5 +38,8 @@ fn main() {
         let rec = serde_json::json!({"id": row["id"], "markdown": doc.markdown, "ms": ms});
         writeln!(w, "{rec}").unwrap();
     }
-    eprintln!("pagesift: {n} pages, {:.2} ms/page", total / n.max(1) as f64);
+    eprintln!(
+        "pagesift: {n} pages, {:.2} ms/page",
+        total / n.max(1) as f64
+    );
 }

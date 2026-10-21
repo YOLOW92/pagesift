@@ -132,13 +132,19 @@ pub struct QueryFilterOptions {
     pub top_k: Option<usize>,
     /// 保留内容的 token 上限（按分数从高到低取，不含补上的标题）。
     pub max_tokens: Option<usize>,
+    /// 保底 token 数：阈值留下的不到这么多时，按分数从高到低继续补到这么多。默认 1000。
+    pub min_tokens: Option<usize>,
     /// 在保留的内容前补上它所在的各级标题。
     pub headings: bool,
 }
 
-/// 默认的相对阈值：在 Chroma 分块评测集上，保留集召回 0.87、平均只留 700 词
-/// （Crawl4AI 默认的绝对阈值 1.0 召回 0.69、留 1.3 万词）。
+/// 默认的相对阈值。长文档（Chroma 评测集，平均 4.9 万词）上它只留下最相关的几百词。
 pub const DEFAULT_RELATIVE: f32 = 0.5;
+
+/// 默认的保底 token 数。中等长度的文档（QASPER 论文，平均 3,500 词）上只按相对阈值会留得太少：
+/// 加上保底后，QASPER 留出半召回 0.63、约 900 词（Crawl4AI 默认 0.58、约 1,000 词），
+/// Chroma 留出半召回 0.93、约 1,200 词（Crawl4AI 0.69、1.4 万词）。
+pub const DEFAULT_MIN_TOKENS: usize = 1000;
 
 impl Default for QueryFilterOptions {
     fn default() -> Self {
@@ -147,6 +153,7 @@ impl Default for QueryFilterOptions {
             relative: Some(DEFAULT_RELATIVE),
             top_k: None,
             max_tokens: None,
+            min_tokens: Some(DEFAULT_MIN_TOKENS),
             headings: true,
         }
     }
@@ -186,7 +193,7 @@ fn units(markdown: &str) -> Vec<Unit> {
 }
 
 /// 只保留和查询相关的内容（自研）。文档先切成小节内约 100 token 的单位，每个单位带着标题路径用 BM25 打分，
-/// 默认保留分数不低于最高分一半的单位；也可以加绝对阈值、`top_k`、token 上限。
+/// 默认保留分数不低于最高分一半的单位，留下的不到 1000 token 时按分数补足；也可以加绝对阈值、`top_k`、token 上限。
 /// 输出按原文顺序，相邻的保留单位合并成原文的一整段，每段前补上还没输出过的各级标题。
 /// 查询为空（或只有停用词）时原样返回。
 pub fn filter_markdown_by_query(
@@ -223,18 +230,23 @@ pub fn filter_markdown_by_query(
     };
     let scores = bm25_scores(&docs, query, &bm25);
     let top = scores.iter().copied().fold(0.0f32, f32::max);
-    let mut order: Vec<usize> = (0..units.len())
-        .filter(|&i| {
-            let s = scores[i];
-            s > 0.0
-                && opts.threshold.is_none_or(|t| s >= t)
-                && opts.relative.is_none_or(|r| s >= r * top)
-        })
-        .collect();
+    let mut order: Vec<usize> = (0..units.len()).filter(|&i| scores[i] > 0.0).collect();
     order.sort_by(|&a, &b| scores[b].total_cmp(&scores[a]).then(a.cmp(&b)));
     // 内容相同的单位只留一个
     let mut seen = HashSet::new();
     order.retain(|&i| seen.insert(markdown[units[i].range.clone()].trim()));
+    // 过阈值的留下；不过阈值的在保底 token 数以内按分数补上
+    let mut used = 0usize;
+    order.retain(|&i| {
+        let s = scores[i];
+        let pass =
+            opts.threshold.is_none_or(|t| s >= t) && opts.relative.is_none_or(|r| s >= r * top);
+        let keep = pass || opts.min_tokens.is_some_and(|m| used < m);
+        if keep {
+            used += units[i].tokens;
+        }
+        keep
+    });
     if let Some(k) = opts.top_k {
         order.truncate(k);
     }
@@ -426,6 +438,7 @@ mod tests {
             "lorem refund",
             &QueryFilterOptions {
                 relative: None,
+                min_tokens: None,
                 max_tokens: Some(150),
                 ..Default::default()
             },
@@ -438,9 +451,36 @@ mod tests {
     }
 
     #[test]
+    fn floor_tops_up_a_too_small_selection() {
+        // 只有一段明显最相关：相对阈值只留它；保底时按分数再补上其余相关的段
+        let filler =
+            "the weather report said the river was calm and the market opened late again today "
+                .repeat(4);
+        let md = format!(
+            "# A\n\napple apple apple apple apple pie.\n\n# B\n\n{filler} apple tart.\n\n# C\n\n{filler} apple juice.\n\n# D\n\nunrelated text here.\n"
+        );
+        let md = md.as_str();
+        let strict = QueryFilterOptions {
+            min_tokens: None,
+            ..QueryFilterOptions::default()
+        };
+        let floor = QueryFilterOptions {
+            min_tokens: Some(1000),
+            ..QueryFilterOptions::default()
+        };
+        let a = filter_markdown_by_query(md, "apple", &strict);
+        let b = filter_markdown_by_query(md, "apple", &floor);
+        assert!(a.kept < b.kept, "{} < {}", a.kept, b.kept);
+        assert!(b.markdown.contains("tart") && b.markdown.contains("juice"));
+        // 分数为 0 的单位不会被补进来
+        assert!(!b.markdown.contains("unrelated"));
+    }
+
+    #[test]
     fn filter_top_k_and_edge_cases() {
         let opts = QueryFilterOptions {
             relative: None,
+            min_tokens: None,
             top_k: Some(1),
             ..Default::default()
         };

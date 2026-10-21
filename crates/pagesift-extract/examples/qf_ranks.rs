@@ -136,6 +136,22 @@ fn main() {
                             .collect(),
                     );
                 }
+                // 相对阈值 0.5，另外保底：不足 floor 个 token 时按分数继续补到 floor
+                for floor in [300usize, 500, 800, 1000, 1300] {
+                    let mut used = 0usize;
+                    let kept: Vec<usize> = order
+                        .iter()
+                        .copied()
+                        .filter(|&i| {
+                            let keep = scores[i] >= 0.5 * top || used < floor;
+                            if keep {
+                                used += us[i].tokens;
+                            }
+                            keep
+                        })
+                        .collect();
+                    emit(format!("rec100-floor{floor}-default"), kept);
+                }
                 for k in [3usize, 5, 10] {
                     emit(
                         format!("rec100-top{k}-default"),
