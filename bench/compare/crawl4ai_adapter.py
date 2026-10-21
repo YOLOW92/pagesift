@@ -11,6 +11,7 @@ Uses Crawl4AI's documented path for local HTML: the HTTP crawler strategy (no br
 
 import asyncio
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -32,7 +33,11 @@ async def main(manifest: Path, out_dir: Path) -> None:
     fit_out = (out_dir / "crawl4ai-fit.jsonl").open("w")
     async with AsyncWebCrawler(crawler_strategy=AsyncHTTPCrawlerStrategy(), verbose=False) as crawler:
         for i, row in enumerate(rows, 1):
-            html = Path(row["path"]).read_text(encoding="utf-8")
+            if os.environ.get("PAGESIFT_RAW_INPUT") == "1":
+                # 原始字节：raw: 只收文本，按常见做法 UTF-8 解码、坏字节替换
+                html = Path(row["path"]).read_bytes().decode("utf-8", "replace")
+            else:
+                html = Path(row["path"]).read_text(encoding="utf-8")
             cfg = CrawlerRunConfig(
                 cache_mode=CacheMode.BYPASS,
                 base_url=row.get("base_url"),

@@ -76,7 +76,9 @@ fn main() {
             continue;
         }
         let row: serde_json::Value = serde_json::from_str(&line).expect("parse manifest row");
-        let html = std::fs::read_to_string(row["path"].as_str().expect("path")).expect("read html");
+        // 只收 &str：不是合法 UTF-8 的页按 UTF-8 解码、坏字节替换（crw 自己抓取时 reqwest 的 text() 也是这样）
+        let bytes = std::fs::read(row["path"].as_str().expect("path")).expect("read html");
+        let html = String::from_utf8_lossy(&bytes).into_owned();
         let url = row["base_url"].as_str().or(row["url"].as_str()).unwrap_or("");
         let t = Instant::now();
         let markdown = tool(&html, url);

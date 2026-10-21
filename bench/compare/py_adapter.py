@@ -20,6 +20,7 @@ Writes JSON lines for `pagesift bench --external`. Each tool is called the way i
 """
 
 import json
+import os
 import signal
 import sys
 import time
@@ -35,6 +36,10 @@ class PageTimeout(Exception):
 
 def _alarm(signum, frame):
     raise PageTimeout()
+
+
+# PAGESIFT_RAW_INPUT=1：编码鲁棒性测试，输入是网站返回的原始字节（不一定是 UTF-8）
+RAW = os.environ.get("PAGESIFT_RAW_INPUT") == "1"
 
 
 def main(tool: str, manifest: Path, out_path: Path) -> None:
@@ -127,7 +132,12 @@ def main(tool: str, manifest: Path, out_path: Path) -> None:
             if not line.strip():
                 continue
             row = json.loads(line)
-            html = Path(row["path"]).read_text(encoding="utf-8")
+            if RAW:
+                # 原始字节：能直接吃字节的工具（trafilatura 自带编码识别）给字节，其余按常见做法 UTF-8 解码、坏字节替换
+                data = Path(row["path"]).read_bytes()
+                html = data if tool == "trafilatura" else data.decode("utf-8", "replace")
+            else:
+                html = Path(row["path"]).read_text(encoding="utf-8")
             start = time.perf_counter()
             signal.alarm(PAGE_TIMEOUT_S)
             try:

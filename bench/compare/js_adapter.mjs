@@ -55,7 +55,8 @@ const out = [];
 for (const line of readFileSync(manifest, 'utf8').split('\n')) {
   if (!line.trim()) continue;
   const row = JSON.parse(line);
-  const html = readFileSync(row.path, 'utf8');
+  // PAGESIFT_RAW_INPUT=1：原始字节交给 JSDOM，由它按 BOM 和 <meta> 识别编码
+  const html = process.env.PAGESIFT_RAW_INPUT === '1' ? readFileSync(row.path) : readFileSync(row.path, 'utf8');
   const url = row.base_url || row.url || 'https://example.com/';
   const t = performance.now();
   let markdown = '';
