@@ -5,6 +5,7 @@
 //!
 //! `origin <inputs-dir> <port> <hosts> <pages-per-host> [latency-ms]`
 
+use std::fmt::Write;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
@@ -16,7 +17,9 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 
 struct Site {
-    pages: Vec<String>,
+    /// 每个语料页面在 `</body>` 处切成前后两段，href 已经改写好：请求时只拼接，不再扫描整页，
+    /// 免得源站自己吃掉大量 CPU、拉低被测工具能用的核数。
+    pages: Vec<(String, String)>,
     hosts: usize,
     per_host: usize,
     latency: Duration,
@@ -58,19 +61,26 @@ fn disable_hrefs(html: &str) -> String {
 }
 
 fn render(site: &Site, host: usize, page: usize) -> String {
-    let body = &site.pages[(host * site.per_host + page) % site.pages.len()];
-    // 让原有链接失效：各工具只沿着注入的链接爬，抓取的页面集合完全一样
-    let body = disable_hrefs(body);
-    let mut links = String::from("<p class=\"crawl-bench-links\">");
+    let (head, tail) = &site.pages[(host * site.per_host + page) % site.pages.len()];
+    let mut out = String::with_capacity(head.len() + tail.len() + 400);
+    out.push_str(head);
+    out.push_str("<p class=\"crawl-bench-links\">");
     for k in [3 * page + 1, 3 * page + 2, 3 * page + 3] {
         if k < site.per_host {
-            links.push_str(&format!("<a href=\"/p/{k}\">Read part {k} of this series in full</a> "));
+            let _ = write!(out, "<a href=\"/p/{k}\">Read part {k} of this series in full</a> ");
         }
     }
-    links.push_str("<a href=\"/\">Back to the start of the series</a></p>");
+    out.push_str("<a href=\"/\">Back to the start of the series</a></p>");
+    out.push_str(tail);
+    out
+}
+
+/// 改写 href，再在最后一个 `</body>` 处切开（没有就整页当前段）。
+fn prepare(html: &str) -> (String, String) {
+    let body = disable_hrefs(html);
     match body.rfind("</body>") {
-        Some(i) => format!("{}{links}{}", &body[..i], &body[i..]),
-        None => format!("{body}{links}"),
+        Some(i) => (body[..i].to_string(), body[i..].to_string()),
+        None => (body, String::new()),
     }
 }
 
@@ -107,7 +117,7 @@ async fn main() {
     files.sort();
     let pages = files
         .iter()
-        .map(|p| String::from_utf8_lossy(&std::fs::read(p).unwrap()).into_owned())
+        .map(|p| prepare(&String::from_utf8_lossy(&std::fs::read(p).unwrap())))
         .collect();
     let site = Arc::new(Site {
         pages,

@@ -194,6 +194,16 @@ fn max_chars(s: Signal) -> usize {
 }
 
 /// 拦截页常用的状态码。404、410 和 5xx 源站错误不算（523 这类 Cloudflare 错误页也带厂商标记）。
+/// 可见文字超过这个数的页面不可能是拦截页（所有规则的上限），可以不做识别。
+pub(crate) fn visible_limit(status: Option<u16>) -> usize {
+    let factor = if status.is_some_and(is_blocked_status) {
+        BLOCKED_STATUS_FACTOR
+    } else {
+        1
+    };
+    MARKER_MAX_CHARS * factor
+}
+
 fn is_blocked_status(s: u16) -> bool {
     matches!(s, 401 | 403 | 405 | 406 | 407 | 412 | 418 | 429 | 451 | 503)
 }
