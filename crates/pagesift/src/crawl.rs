@@ -276,19 +276,39 @@ impl Scraper {
         // 不入队也不记进去重表，大站点上内存不会随发现的链接数增长
         let mut seen: HashSet<u64> = HashSet::new();
         let mut queue: VecDeque<(Url, usize)> = VecDeque::new();
-        seen.insert(seen_hash(&start, req.ignore_query_parameters));
-        queue.push_back((start.clone(), 0));
-        if req.sitemap != "skip" {
-            for u in self
-                .sitemap_urls(&start, mode, req.limit.saturating_mul(2))
-                .await
-            {
-                if queue.len() < req.limit
-                    && scope.allows(&u)
-                    && seen.insert(seen_hash(&u, req.ignore_query_parameters))
-                {
-                    queue.push_back((u, 0));
+        // 持久化的任务要记下入队的 URL，重启后据此恢复队列和去重表
+        let track = sink.tracks_frontier();
+        let mut scheduled = 0usize;
+        if let Some(r) = sink.resume() {
+            // 从断点继续：已完成的页面计入 limit，入过队的都算见过，没完成的按原顺序重新排队
+            for u in r.enqueued.iter().filter_map(|u| Url::parse(u).ok()) {
+                seen.insert(seen_hash(&u, req.ignore_query_parameters));
+            }
+            for (u, depth) in r.pending {
+                if let Ok(u) = Url::parse(&u) {
+                    queue.push_back((u, depth));
                 }
+            }
+            scheduled = r.done;
+        } else {
+            seen.insert(seen_hash(&start, req.ignore_query_parameters));
+            queue.push_back((start.clone(), 0));
+            if req.sitemap != "skip" {
+                for u in self
+                    .sitemap_urls(&start, mode, req.limit.saturating_mul(2))
+                    .await
+                {
+                    if queue.len() < req.limit
+                        && scope.allows(&u)
+                        && seen.insert(seen_hash(&u, req.ignore_query_parameters))
+                    {
+                        queue.push_back((u, 0));
+                    }
+                }
+            }
+            if track {
+                sink.enqueued(queue.iter().map(|(u, d)| (u.to_string(), *d)).collect())
+                    .await;
             }
         }
 
@@ -308,9 +328,8 @@ impl Scraper {
         let slots = self.crawl_slots();
         let delay = req.delay.map(Duration::from_secs_f64);
 
-        let mut scheduled = 0usize;
         let mut inflight = FuturesUnordered::new();
-        sink.total(queue.len().min(req.limit)).await;
+        sink.total((scheduled + queue.len()).min(req.limit)).await;
         loop {
             if sink.cancelled().await {
                 return Ok(());
@@ -342,6 +361,7 @@ impl Scraper {
                             .as_deref()
                             .and_then(|u| Url::parse(u).ok())
                             .unwrap_or(url.clone());
+                        let before = queue.len();
                         for link in doc.links.iter().flatten() {
                             if scheduled + queue.len() >= req.limit {
                                 break;
@@ -352,6 +372,15 @@ impl Scraper {
                             {
                                 queue.push_back((u, depth + 1));
                             }
+                        }
+                        if track && queue.len() > before {
+                            sink.enqueued(
+                                queue
+                                    .range(before..)
+                                    .map(|(u, d)| (u.to_string(), *d))
+                                    .collect(),
+                            )
+                            .await;
                         }
                     }
                     if !wants_links {

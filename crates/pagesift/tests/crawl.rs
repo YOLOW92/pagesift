@@ -8,7 +8,7 @@ use axum::Router;
 use axum::response::Html;
 use axum::routing::get;
 use pagesift::api::types::{CrawlRequest, Document, MapRequest};
-use pagesift::api::{ApiError, BoxFuture, CrawlSink};
+use pagesift::api::{ApiError, BoxFuture, CrawlResume, CrawlSink};
 use pagesift::{Scraper, ScraperConfig};
 use serde_json::json;
 
@@ -147,6 +147,109 @@ async fn crawl_follows_links_within_scope_and_respects_robots() {
         sink.pages.lock().unwrap().iter().all(|d| d.links.is_none()),
         "links not requested"
     );
+}
+
+/// 持久化任务的最小模型：记下入队顺序，可以从给定的进度恢复。
+#[derive(Default)]
+struct Resumable {
+    collect: Collect,
+    frontier: Mutex<Vec<(String, usize)>>,
+    resume: Mutex<Option<CrawlResume>>,
+}
+
+impl Resumable {
+    fn from(resume: CrawlResume) -> Arc<Self> {
+        Arc::new(Self {
+            resume: Mutex::new(Some(resume)),
+            ..Default::default()
+        })
+    }
+
+    /// 抓过的 URL（成功的按 sourceURL，失败的按出错的 URL）。
+    fn visited(&self) -> std::collections::HashSet<String> {
+        let c = &self.collect;
+        let pages = c.pages.lock().unwrap();
+        let errors = c.errors.lock().unwrap();
+        pages
+            .iter()
+            .filter_map(|d| d.metadata.source_url.clone())
+            .chain(errors.iter().map(|(u, _)| u.clone()))
+            .collect()
+    }
+}
+
+impl CrawlSink for Resumable {
+    fn page(&self, doc: Document) -> BoxFuture<'_, ()> {
+        self.collect.page(doc)
+    }
+    fn error<'a>(&'a self, url: &'a str, err: ApiError) -> BoxFuture<'a, ()> {
+        self.collect.error(url, err)
+    }
+    fn total(&self, _: usize) -> BoxFuture<'_, ()> {
+        Box::pin(async {})
+    }
+    fn cancelled(&self) -> BoxFuture<'_, bool> {
+        Box::pin(async { false })
+    }
+    fn resume(&self) -> Option<CrawlResume> {
+        self.resume.lock().unwrap().take()
+    }
+    fn tracks_frontier(&self) -> bool {
+        true
+    }
+    fn enqueued(&self, urls: Vec<(String, usize)>) -> BoxFuture<'_, ()> {
+        self.frontier.lock().unwrap().extend(urls);
+        Box::pin(async {})
+    }
+}
+
+#[tokio::test]
+async fn crawl_reports_its_frontier_and_resumes_from_it() {
+    let base = site().await;
+    let s = scraper();
+    let req = crawl_req(&base, json!({ "sitemap": "skip" }));
+    let first = Arc::new(Resumable::default());
+    s.crawl(&req, first.clone()).await.unwrap();
+    let frontier = first.frontier.lock().unwrap().clone();
+    assert_eq!(frontier[0], (format!("{base}/docs/"), 0));
+    let urls: Vec<String> = frontier.iter().map(|(u, _)| u.clone()).collect();
+    assert_eq!(
+        urls.iter()
+            .cloned()
+            .collect::<std::collections::HashSet<_>>(),
+        first.visited(),
+        "every page that was fetched went through the reported queue"
+    );
+    assert_eq!(urls.len(), 6, "{urls:?}");
+
+    // 假装前两页做完了：只抓剩下的，不重抓、不重新发现
+    let done = 2;
+    let resume = CrawlResume {
+        enqueued: urls.clone(),
+        pending: frontier[done..].to_vec(),
+        done,
+    };
+    let second = Resumable::from(resume.clone());
+    s.crawl(&req, second.clone()).await.unwrap();
+    assert_eq!(
+        second.visited(),
+        urls[done..].iter().cloned().collect(),
+        "only the unfinished pages are fetched"
+    );
+    assert!(
+        second.frontier.lock().unwrap().is_empty(),
+        "every link was already seen before the restart"
+    );
+
+    // 已完成的页数计入 limit
+    let third = Resumable::from(resume);
+    s.crawl(
+        &crawl_req(&base, json!({ "sitemap": "skip", "limit": done + 1 })),
+        third.clone(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(third.visited().len(), 1);
 }
 
 #[tokio::test]

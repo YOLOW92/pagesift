@@ -12,6 +12,12 @@ pub enum ErrorCode {
     AccessBarrier,
     RateLimited,
     HostCooldown,
+    /// 调用方超过了自己 API key 的每分钟请求数。
+    RateLimitExceeded,
+    /// 调用方同时进行的任务数到了上限。
+    ConcurrencyLimitExceeded,
+    /// 调用方当天的页面配额用完了。
+    QuotaExceeded,
     Timeout,
     SsrfBlocked,
     TooLarge,
@@ -30,6 +36,9 @@ impl ErrorCode {
             ErrorCode::AccessBarrier => "ACCESS_BARRIER",
             ErrorCode::RateLimited => "RATE_LIMITED",
             ErrorCode::HostCooldown => "HOST_COOLDOWN",
+            ErrorCode::RateLimitExceeded => "RATE_LIMIT_EXCEEDED",
+            ErrorCode::ConcurrencyLimitExceeded => "CONCURRENCY_LIMIT_EXCEEDED",
+            ErrorCode::QuotaExceeded => "QUOTA_EXCEEDED",
             ErrorCode::Timeout => "TIMEOUT",
             ErrorCode::SsrfBlocked => "SSRF_BLOCKED",
             ErrorCode::TooLarge => "TOO_LARGE",
@@ -45,7 +54,10 @@ impl ErrorCode {
     pub fn status(self) -> StatusCode {
         match self {
             ErrorCode::RobotsDisallowed | ErrorCode::AccessBarrier => StatusCode::FORBIDDEN,
-            ErrorCode::RateLimited => StatusCode::TOO_MANY_REQUESTS,
+            ErrorCode::RateLimited
+            | ErrorCode::RateLimitExceeded
+            | ErrorCode::ConcurrencyLimitExceeded
+            | ErrorCode::QuotaExceeded => StatusCode::TOO_MANY_REQUESTS,
             ErrorCode::HostCooldown => StatusCode::SERVICE_UNAVAILABLE,
             ErrorCode::Timeout => StatusCode::REQUEST_TIMEOUT,
             ErrorCode::SsrfBlocked | ErrorCode::UnsupportedOption | ErrorCode::InvalidRequest => {
@@ -118,6 +130,8 @@ impl IntoResponse for ApiError {
             body["details"] = d;
         }
         let mut resp = (self.code.status(), Json(body)).into_response();
+        // 给监控中间件按错误码计数
+        resp.extensions_mut().insert(self.code);
         if let Some(secs) = self.retry_after
             && let Ok(v) = secs.to_string().parse()
         {

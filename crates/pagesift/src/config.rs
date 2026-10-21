@@ -30,6 +30,8 @@ pub struct Config {
     pub cache: Cache,
     #[serde(default)]
     pub credentials: Vec<Credential>,
+    #[serde(default)]
+    pub log: Log,
     pub llm: Option<Llm>,
     pub search: Option<Search>,
 }
@@ -62,6 +64,67 @@ pub struct Server {
     pub api_keys: Vec<SecretValue>,
     pub public_url: Option<String>,
     pub max_batch_concurrency: Option<usize>,
+    /// 爬取和批量抓取任务存进数据目录，重启后恢复（默认开）。
+    pub persist_jobs: Option<bool>,
+    /// 单独设限额的 API key（也都是有效的 key）。
+    #[serde(default)]
+    pub keys: Vec<ApiKey>,
+    /// 其余 key 的限额；不鉴权时所有调用方合用。不写就是不限。
+    #[serde(default)]
+    pub limits: Limits,
+    #[serde(default)]
+    pub webhook: Webhook,
+}
+
+/// 按 API key 的限额（不写的项不限）。
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Limits {
+    pub requests_per_minute: Option<u32>,
+    pub max_concurrent_jobs: Option<usize>,
+    pub pages_per_day: Option<u64>,
+}
+
+impl Limits {
+    fn to_api(&self, name: Option<String>) -> pagesift_api::KeyLimits {
+        pagesift_api::KeyLimits {
+            name,
+            requests_per_minute: self.requests_per_minute,
+            max_concurrent_jobs: self.max_concurrent_jobs,
+            pages_per_day: self.pages_per_day,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ApiKey {
+    pub key: SecretValue,
+    /// 日志、监控和配额记录里用的名字；不写时用 key 的指纹。
+    pub name: Option<String>,
+    pub requests_per_minute: Option<u32>,
+    pub max_concurrent_jobs: Option<usize>,
+    pub pages_per_day: Option<u64>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Webhook {
+    /// 允许 webhook 发到内网地址（默认拒绝，和抓取的 SSRF 策略分开设）。
+    #[serde(default)]
+    pub allow_private_network: bool,
+    /// 每个事件最多投递几次（默认 5）。
+    pub max_attempts: Option<u32>,
+    pub timeout_secs: Option<u64>,
+    /// 签名密钥：每个 webhook 请求带 `X-Firecrawl-Signature: sha256=<HMAC>`。
+    pub secret: Option<SecretValue>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Log {
+    /// `text`（默认）或 `json`；环境变量 `PAGESIFT_LOG_FORMAT` 优先。级别用 `PAGESIFT_LOG`。
+    pub format: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -174,6 +237,65 @@ impl Config {
         base.join("pagesift")
     }
 
+    /// 日志是否输出 JSON：`PAGESIFT_LOG_FORMAT` 优先，其次 `[log] format`。
+    pub fn log_json(&self) -> Result<bool> {
+        let format = std::env::var("PAGESIFT_LOG_FORMAT")
+            .ok()
+            .or_else(|| self.log.format.clone());
+        match format.as_deref() {
+            None | Some("text") => Ok(false),
+            Some("json") => Ok(true),
+            Some(other) => bail!("log format must be text or json, not {other:?}"),
+        }
+    }
+
+    /// 打开数据目录里的存储（缓存和任务共用）。
+    pub fn open_store(&self) -> Result<pagesift_store::Store> {
+        let dir = self.data_dir().join("store");
+        std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
+        let mut sc = pagesift_store::Config::new(&dir);
+        if let Some(mb) = self.cache.max_mb {
+            sc.max_bytes = Some(mb * 1024 * 1024);
+        }
+        pagesift_store::Store::open(sc)
+            .with_context(|| format!("opening the store in {}", dir.display()))
+    }
+
+    /// HTTP 服务的配置：key、限额、webhook。存储和命令行参数由调用方补上。
+    pub fn api(&self) -> Result<pagesift_api::Config> {
+        let s = &self.server;
+        let mut c = pagesift_api::Config {
+            api_keys: self.api_keys()?,
+            public_url: s.public_url.clone(),
+            max_batch_concurrency: s.max_batch_concurrency,
+            default_limits: s.limits.to_api(None),
+            ..Default::default()
+        };
+        for k in &s.keys {
+            let key = k.key.resolve().context("server.keys")?;
+            c.key_limits.insert(
+                key,
+                pagesift_api::KeyLimits {
+                    name: k.name.clone(),
+                    requests_per_minute: k.requests_per_minute,
+                    max_concurrent_jobs: k.max_concurrent_jobs,
+                    pages_per_day: k.pages_per_day,
+                },
+            );
+        }
+        c.webhook.ssrf.allow_private_network = s.webhook.allow_private_network;
+        if let Some(n) = s.webhook.max_attempts {
+            c.webhook.max_attempts = n.max(1);
+        }
+        if let Some(t) = s.webhook.timeout_secs {
+            c.webhook.timeout = Duration::from_secs(t);
+        }
+        if let Some(k) = &s.webhook.secret {
+            c.webhook.secret = Some(k.resolve().context("server.webhook.secret")?);
+        }
+        Ok(c)
+    }
+
     pub fn api_keys(&self) -> Result<Vec<String>> {
         let mut keys: Vec<String> = self
             .server
@@ -270,16 +392,7 @@ impl Config {
         c.browser.allow_execute_javascript = b.allow_execute_javascript;
 
         if with_cache && self.cache.enabled.unwrap_or(true) {
-            let dir = self.data_dir().join("store");
-            std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
-            let mut sc = pagesift_store::Config::new(&dir);
-            if let Some(mb) = self.cache.max_mb {
-                sc.max_bytes = Some(mb * 1024 * 1024);
-            }
-            c.store = Some(
-                pagesift_store::Store::open(sc)
-                    .with_context(|| format!("opening the cache in {}", dir.display()))?,
-            );
+            c.store = Some(self.open_store()?);
         }
 
         if let Some(l) = &self.llm {
@@ -349,6 +462,30 @@ impl Config {
 mod tests {
     use super::*;
 
+    /// `api()` 会解析 `api_keys` 里引用的环境变量；测试里只看 keys、限额和 webhook。
+    fn cfg_without_env_keys(cfg: &Config) -> pagesift_api::Config {
+        let mut c = Config::default();
+        c.server.limits = Limits {
+            requests_per_minute: cfg.server.limits.requests_per_minute,
+            max_concurrent_jobs: cfg.server.limits.max_concurrent_jobs,
+            pages_per_day: cfg.server.limits.pages_per_day,
+        };
+        c.server.keys = cfg
+            .server
+            .keys
+            .iter()
+            .map(|k| ApiKey {
+                key: k.key.clone(),
+                name: k.name.clone(),
+                requests_per_minute: k.requests_per_minute,
+                max_concurrent_jobs: k.max_concurrent_jobs,
+                pages_per_day: k.pages_per_day,
+            })
+            .collect();
+        c.server.webhook.max_attempts = cfg.server.webhook.max_attempts;
+        c.api().unwrap()
+    }
+
     #[test]
     fn parses_a_full_config_and_rejects_browser_like_user_agents() {
         let cfg: Config = toml::from_str(
@@ -356,6 +493,22 @@ mod tests {
             [server]
             port = 4000
             api_keys = ["k1", { env = "PAGESIFT_TEST_KEY_UNSET" }]
+
+            [server.limits]
+            requests_per_minute = 600
+
+            [[server.keys]]
+            key = "team-a-key"
+            name = "team-a"
+            requests_per_minute = 60
+            max_concurrent_jobs = 2
+            pages_per_day = 5000
+
+            [server.webhook]
+            max_attempts = 3
+
+            [log]
+            format = "json"
 
             [fetch]
             user_agent = "acme-bot/1.0 (+https://acme.example/bot)"
@@ -384,6 +537,19 @@ mod tests {
         .unwrap();
         assert_eq!(cfg.server.port, Some(4000));
         assert!(cfg.api_keys().is_err(), "unset env secret is an error");
+        let k = &cfg.server.keys[0];
+        assert_eq!(k.name.as_deref(), Some("team-a"));
+        assert_eq!(k.pages_per_day, Some(5000));
+        let api = cfg_without_env_keys(&cfg);
+        assert_eq!(api.key_limits["team-a-key"].max_concurrent_jobs, Some(2));
+        assert_eq!(api.default_limits.requests_per_minute, Some(600));
+        assert_eq!(api.webhook.max_attempts, 3);
+        assert!(!api.webhook.ssrf.allow_private_network);
+        assert_eq!(cfg.server.limits.requests_per_minute, Some(600));
+        assert_eq!(cfg.server.webhook.max_attempts, Some(3));
+        if std::env::var_os("PAGESIFT_LOG_FORMAT").is_none() {
+            assert!(cfg.log_json().unwrap());
+        }
         let sc = cfg.scraper(true).unwrap();
         assert!(sc.store.is_none(), "cache disabled");
         assert_eq!(sc.fetcher.credentials.len(), 1);
@@ -398,5 +564,11 @@ mod tests {
             toml::from_str::<Config>("[fetch]\nstealth = true").is_err(),
             "unknown keys are rejected"
         );
+    }
+
+    #[test]
+    fn example_config_parses() {
+        let cfg: Config = toml::from_str(include_str!("../../../pagesift.example.toml")).unwrap();
+        assert_eq!(cfg.server.persist_jobs, Some(true));
     }
 }
