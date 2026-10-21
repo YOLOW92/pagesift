@@ -254,3 +254,21 @@ fn over_eager_skips_fall_back_to_relaxed_rules() {
     );
     assert!(!m.contains("Category number"), "{m}");
 }
+
+#[test]
+fn aria_hidden_hides_icons_but_not_a_whole_page_behind_a_modal() {
+    // 打开弹窗时网站把整个页面框架标成 aria-hidden：浏览器照样显示，正文要保留
+    let body =
+        "This paragraph is the real content of the page and it is long enough to count. ".repeat(4);
+    let html = format!(
+        "<body><div class=\"app\" aria-hidden=\"true\"><article><h1>Title</h1><p>{body}<span class=\"material-icons\" aria-hidden=\"true\">arrow_forward</span></p></article></div>\
+         <div role=\"dialog\">Cookie consent</div></body>"
+    );
+    let m = md(&html);
+    assert!(m.contains("# Title"), "{m}");
+    assert!(m.contains("real content of the page"), "{m}");
+    assert!(
+        !m.contains("arrow_forward"),
+        "icon glyph names stay out: {m}"
+    );
+}

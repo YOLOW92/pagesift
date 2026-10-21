@@ -255,7 +255,7 @@ fn page_text(dom: &Html<'_>, title: Option<&str>, limit: usize) -> Option<(Strin
         if let Some(el) = element(&node) {
             if el.tag() == pagesift_html::Tag::Noscript {
                 noscript = true;
-            } else if is_non_content_tag(el.tag()) || is_hidden(el) {
+            } else if is_non_content_tag(el.tag()) || is_hidden(&node) {
                 continue;
             }
         }

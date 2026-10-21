@@ -38,14 +38,21 @@ pub(crate) fn is_non_content_tag(tag: Tag) -> bool {
     )
 }
 
-/// 显式隐藏的元素：`hidden`、`aria-hidden="true"`、内联样式 `display:none` / `visibility:hidden`。
-pub(crate) fn is_hidden(el: Element<'_>) -> bool {
+/// 显式隐藏的元素：`hidden`、内联样式 `display:none` / `visibility:hidden`。
+/// `aria-hidden="true"` 只让读屏软件跳过，浏览器照样显示，所以只对文字很少的元素生效
+/// （图标字体如 `arrow_forward`、装饰性短标签）；网站打开弹窗时常把整个页面框架标成
+/// aria-hidden，那种大块内容保留，否则整页正文会被删光。
+pub(crate) fn is_hidden(node: &NodeR<'_>) -> bool {
+    let Some(el) = element(node) else {
+        return false;
+    };
     if el.attr("hidden").is_some() {
         return true;
     }
     if el
         .attr("aria-hidden")
         .is_some_and(|v| v.eq_ignore_ascii_case("true"))
+        && short_text(node, ARIA_HIDDEN_MAX_CHARS)
     {
         return true;
     }
@@ -60,6 +67,23 @@ pub(crate) fn is_hidden(el: Element<'_>) -> bool {
         }
     }
     false
+}
+
+/// aria-hidden 元素的文字超过这么多（非空白字符）就当作页面内容，不跳过。
+const ARIA_HIDDEN_MAX_CHARS: usize = 200;
+
+/// 子树里的非空白字符数不超过 `max`（数到超过就停）。
+fn short_text(node: &NodeR<'_>, max: usize) -> bool {
+    let mut n = 0;
+    for d in node.descendants() {
+        if let Some(t) = d.as_text() {
+            n += t.chars().filter(|c| !c.is_whitespace()).count();
+            if n > max {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 pub(crate) fn is_zero_width(c: char) -> bool {

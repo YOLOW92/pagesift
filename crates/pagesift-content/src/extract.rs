@@ -146,8 +146,8 @@ fn is_skip_link(node: &NodeR<'_>, el: Element<'_>) -> bool {
     .any(|p| text.starts_with(p))
 }
 
-fn is_hard_skip(el: Element<'_>) -> bool {
-    is_non_content_tag(el.tag()) || is_hidden(el)
+fn is_hard_skip(node: &NodeR<'_>) -> bool {
+    node.tag().is_some_and(is_non_content_tag) || is_hidden(node)
 }
 
 /// 自底向上一遍算出每个元素的可见文字统计和"有没有块级后代"。
@@ -166,7 +166,7 @@ fn compute(html: &Html<'_>, only_main: bool) -> (Vec<Visible>, Vec<bool>) {
     let mut has_block = vec![false; n];
     for node in order.iter().rev() {
         let id = node.id().index();
-        let hard = only_main && element(node).is_some_and(is_hard_skip);
+        let hard = only_main && is_hard_skip(node);
         let mut v = Visible::default();
         let mut block = false;
         for child in node.children() {
@@ -258,7 +258,7 @@ impl Skipper {
         if is_non_content_tag(tag) {
             return Some("non-content tag");
         }
-        if is_hidden(el) {
+        if is_hidden(node) {
             return Some("hidden");
         }
         if !self.only_main {
