@@ -14,8 +14,13 @@ LAST=$(( ${#CORES[@]} - RESERVE ))
 RESERVED=$(lscpu -p=CPU,CORE | grep -v '^#' | awk -F, -v keep="$(printf '%s,' "${CORES[@]:LAST}")" \
     'BEGIN{n=split(keep,k,","); for(i=1;i<=n;i++) if(k[i]!="") want[k[i]]=1} {cpu[$1]=$2} END{for(c in cpu) if(cpu[c] in core) print c} {if($1 in want) core[$2]=1}' | sort -n | paste -sd, -)
 CORES=("${CORES[@]:0:LAST}")
+# PIN_HT=1：把超线程也当作独立的 CPU 用（16 线程的机器上用 14 个逻辑 CPU，保留的物理核除外），更快，
+# 但同一物理核上两个任务会互相拖慢，单页耗时比一核一任务时偏高；结果里要注明这个条件
+if [ "${PIN_HT:-0}" = 1 ]; then
+    mapfile -t CORES < <(lscpu -p=CPU | grep -v '^#' | grep -v -x -F -f <(tr ',' '\n' <<< "$RESERVED"))
+fi
 case "${1:-}" in
-    --cores) echo "timed CPUs (one per physical core): ${CORES[*]}; reserved for untimed work: $RESERVED"; exit 0 ;;
+    --cores) echo "计时用的逻辑 CPU：${CORES[*]}；留给不计时任务的：$RESERVED"; exit 0 ;;
     --reserved) echo "$RESERVED"; exit 0 ;;
 esac
 # 计时任务只用分到的那个核：Python 里的 onnxruntime 由 one_core.py 限成单线程，BLAS/OpenMP 线程池设成 1
@@ -26,6 +31,11 @@ pids=()
 start() {
     local cmd=$1 c fd
     while :; do
+        # 内存不够时先不开新任务（每个任务可能占 1 GB 以上），等前面的跑完
+        if [ "$(awk '/^MemAvailable:/ {print int($2/1024)}' /proc/meminfo)" -lt "${PIN_MIN_FREE_MB:-1500}" ]; then
+            sleep 1
+            continue
+        fi
         for c in "${CORES[@]}"; do
             exec {fd}>"/tmp/pagesift-core-$c.lock"
             if flock -n "$fd"; then
