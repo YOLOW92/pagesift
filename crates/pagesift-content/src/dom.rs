@@ -82,7 +82,7 @@ fn short_text(node: &NodeR<'_>, max: usize) -> bool {
     let mut n = 0;
     for d in node.descendants() {
         if let Some(t) = d.as_text() {
-            n += t.chars().filter(|c| !c.is_whitespace()).count();
+            n += count_non_whitespace(t);
             if n > max {
                 return false;
             }
@@ -98,6 +98,18 @@ pub(crate) fn is_zero_width(c: char) -> bool {
     )
 }
 
+/// 非空白字符数。纯 ASCII 文本（绝大多数）按字节数，不逐个解码字符。
+pub(crate) fn count_non_whitespace(s: &str) -> usize {
+    if s.is_ascii() {
+        // char::is_whitespace 在 ASCII 范围内正好是这几个（含 \x0b，is_ascii_whitespace 不含它）
+        return s
+            .bytes()
+            .filter(|b| !matches!(b, b' ' | b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r'))
+            .count();
+    }
+    s.chars().filter(|c| !c.is_whitespace()).count()
+}
+
 /// 把空白折叠成单个空格，去掉零宽字符，`&nbsp;` 视为普通空格。
 pub(crate) fn collapse_whitespace(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
@@ -107,6 +119,27 @@ pub(crate) fn collapse_whitespace(s: &str) -> String {
 
 pub(crate) fn collapse_whitespace_into(s: &str, out: &mut String) {
     out.reserve(s.len());
+    if s.is_ascii() {
+        // 纯 ASCII：没有零宽字符，非空白的连续片段整段复制
+        let bytes = s.as_bytes();
+        let ws = |b: u8| matches!(b, b' ' | b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r');
+        let mut i = 0;
+        while i < bytes.len() {
+            if ws(bytes[i]) {
+                out.push(' ');
+                while i < bytes.len() && ws(bytes[i]) {
+                    i += 1;
+                }
+            } else {
+                let start = i;
+                while i < bytes.len() && !ws(bytes[i]) {
+                    i += 1;
+                }
+                out.push_str(&s[start..i]);
+            }
+        }
+        return;
+    }
     let mut in_space = false;
     for c in s.chars() {
         if is_zero_width(c) {

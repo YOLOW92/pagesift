@@ -242,7 +242,7 @@ fn page_text(dom: &Html<'_>, title: Option<&str>, limit: usize) -> Option<(Strin
     while let Some((node, in_noscript)) = stack.pop() {
         if let Some(t) = node.as_text() {
             if !in_noscript {
-                visible += t.chars().filter(|c| !c.is_whitespace()).count();
+                visible += crate::dom::count_non_whitespace(t);
                 if visible > limit {
                     return None;
                 }

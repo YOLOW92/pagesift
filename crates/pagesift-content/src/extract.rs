@@ -172,7 +172,7 @@ fn compute(html: &Html<'_>, only_main: bool) -> (Vec<Visible>, Vec<bool>) {
         for child in node.children() {
             if let Some(t) = child.as_text() {
                 if only_main && !hard {
-                    v.chars += t.chars().filter(|c| !c.is_whitespace()).count();
+                    v.chars += crate::dom::count_non_whitespace(t);
                 }
                 continue;
             }

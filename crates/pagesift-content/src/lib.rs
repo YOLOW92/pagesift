@@ -109,7 +109,7 @@ pub fn process(html: &str, opts: &Options) -> Document {
     let mut markdown = render(&skipper);
     // 规则删过头的保险：结果很短、又远少于整页文字时，关掉软跳过规则重来一次
     if opts.only_main_content {
-        let chars = markdown.chars().filter(|c| !c.is_whitespace()).count();
+        let chars = dom::count_non_whitespace(&markdown);
         let total = skipper.total_chars();
         if chars < FALLBACK_MAX_CHARS && (chars as f64) < total as f64 * FALLBACK_MAX_SHARE {
             skipper.relax();
@@ -187,7 +187,7 @@ pub fn explain_skips(html: &str) -> (bool, Vec<SkippedBlock>) {
         .render(&[body])
     };
     let markdown = render(&skipper);
-    let chars = markdown.chars().filter(|c| !c.is_whitespace()).count();
+    let chars = dom::count_non_whitespace(&markdown);
     if chars < FALLBACK_MAX_CHARS
         && (chars as f64) < skipper.total_chars() as f64 * FALLBACK_MAX_SHARE
     {
