@@ -13,6 +13,8 @@ pub(crate) struct Line {
     pub(crate) y: f64,
     pub(crate) size: f64,
     pub(crate) bold: bool,
+    /// 原样输出的内容（表格的 Markdown），单独成段，不参与合并。
+    pub(crate) raw: bool,
 }
 
 /// 片段内超过这个间距（相对字号）就拆开，拆多了没关系，分栏后会按基线合回去。
@@ -206,6 +208,7 @@ fn make_line(glyphs: &[&Glyph]) -> Option<Line> {
         y,
         size,
         bold: bold_chars * 10 >= all_chars * 7,
+        raw: false,
     })
 }
 
@@ -248,8 +251,131 @@ fn is_page_number(key: &str) -> bool {
     )
 }
 
-/// 去掉每页重复出现在页面顶部或底部的片段（页眉、页脚、页码）。
+/// 页眉页脚里常见的内容：网址、DOI、卷期号、版权、"et al."、页码说法。
+fn looks_like_furniture(text: &str) -> bool {
+    let t = text.to_lowercase();
+    let has = |p: &str| t.contains(p);
+    has("http://")
+        || has("https://")
+        || has("www.")
+        || has("doi")
+        || has("issn")
+        || has("©")
+        || has("copyright")
+        || has("et al.")
+        || has("vol.")
+        || has("vol ")
+        || has("no.")
+        || has("pp.")
+        || has("page ")
+        || has("journal")
+        || has("proceedings")
+        || (t.chars().any(|c| c.is_ascii_digit())
+            && (has(":") || has("("))
+            && t.chars().filter(|c| c.is_ascii_digit()).count() >= 4)
+}
+
+/// 单页规则（自研，单页文档也适用）：页面最上、最下的边缘区里，和正文隔得明显比行距远的行
+/// （或者字号更小、又有一定间隔的行，或者像页码、网址、刊名卷期的行）是页眉页脚。
+/// 字号明显比正文大的不删（多半是标题），和下一行隔着正常行距的也不删（正文第一行）。
+fn remove_page_furniture(lines: &mut Vec<Line>, h: f64) {
+    if lines.len() < 4 {
+        return;
+    }
+    // 先按基线聚成行（表格不参与）
+    let mut idx: Vec<usize> = (0..lines.len()).filter(|&i| !lines[i].raw).collect();
+    idx.sort_by(|&a, &b| lines[b].y.total_cmp(&lines[a].y));
+    let mut rows: Vec<Vec<usize>> = Vec::new();
+    for i in idx {
+        match rows.last_mut() {
+            Some(r)
+                if (lines[r[0]].y - lines[i].y).abs()
+                    < 0.35 * lines[r[0]].size.max(lines[i].size) =>
+            {
+                r.push(i)
+            }
+            _ => rows.push(vec![i]),
+        }
+    }
+    if rows.len() < 4 {
+        return;
+    }
+    let row_y = |r: &Vec<usize>| lines[r[0]].y;
+    let row_size = |r: &Vec<usize>| r.iter().map(|&i| lines[i].size).fold(0.0, f64::max);
+    let row_text = |r: &Vec<usize>| {
+        let mut r = r.clone();
+        r.sort_by(|&a, &b| lines[a].x0.total_cmp(&lines[b].x0));
+        r.iter()
+            .map(|&i| lines[i].text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    let mut sizes: Vec<f64> = rows.iter().map(row_size).collect();
+    sizes.sort_by(f64::total_cmp);
+    let body = sizes[sizes.len() / 2];
+    let mut gaps: Vec<f64> = rows
+        .windows(2)
+        .map(|w| row_y(&w[0]) - row_y(&w[1]))
+        .filter(|g| *g > 0.0)
+        .collect();
+    gaps.sort_by(f64::total_cmp);
+    let line_gap = gaps
+        .get(gaps.len() / 2)
+        .copied()
+        .unwrap_or(body * 1.2)
+        .max(body);
+    let mut drop = vec![false; lines.len()];
+    // edge: 0 从顶部往下，1 从底部往上
+    for edge in 0..2 {
+        let order: Vec<usize> = if edge == 0 {
+            (0..rows.len()).collect()
+        } else {
+            (0..rows.len()).rev().collect()
+        };
+        for (k, &ri) in order.iter().enumerate() {
+            let r = &rows[ri];
+            let y = row_y(r);
+            let in_zone = if edge == 0 {
+                y >= h * 0.88
+            } else {
+                y <= h * 0.12
+            };
+            if !in_zone || k + 1 >= order.len() {
+                break;
+            }
+            let next = &rows[order[k + 1]];
+            let gap = (y - row_y(next)).abs();
+            let size = row_size(r);
+            let text = row_text(r);
+            if size > body * 1.15 {
+                break;
+            }
+            let isolated = gap >= 1.6 * line_gap;
+            let small = size <= body * 0.92 && gap >= 1.25 * line_gap;
+            let pattern = (is_page_number(&furniture_key(&text)) || looks_like_furniture(&text))
+                && gap >= 1.1 * line_gap;
+            if isolated || small || pattern {
+                for &i in r {
+                    drop[i] = true;
+                }
+            } else {
+                break;
+            }
+        }
+    }
+    let mut it = drop.iter();
+    lines.retain(|_| !it.next().copied().unwrap_or(false));
+}
+
+/// 去掉每页重复出现在页面顶部或底部的片段（页眉、页脚、页码），再按单页规则去掉页面边缘的页眉页脚。
 pub(crate) fn remove_furniture(pages: &mut [Vec<Line>], heights: &[f64]) {
+    remove_repeated_furniture(pages, heights);
+    for (lines, &h) in pages.iter_mut().zip(heights) {
+        remove_page_furniture(lines, h);
+    }
+}
+
+fn remove_repeated_furniture(pages: &mut [Vec<Line>], heights: &[f64]) {
     let n = pages.len();
     if n < 2 {
         return;
@@ -268,7 +394,7 @@ pub(crate) fn remove_furniture(pages: &mut [Vec<Line>], heights: &[f64]) {
     type Key = (bool, String, i64);
     let rows_of = |lines: &[Line], h: f64| -> Vec<(Key, Vec<usize>)> {
         let mut idx: Vec<usize> = (0..lines.len())
-            .filter(|&i| zone(&lines[i], h).is_some())
+            .filter(|&i| !lines[i].raw && zone(&lines[i], h).is_some())
             .collect();
         idx.sort_by(|&a, &b| lines[b].y.total_cmp(&lines[a].y));
         let mut groups: Vec<Vec<usize>> = Vec::new();
@@ -439,7 +565,11 @@ fn merge_rows(frags: Vec<Line>) -> Vec<Line> {
     let mut rows: Vec<Vec<Line>> = Vec::new();
     for f in frags {
         match rows.last_mut() {
-            Some(r) if (r[0].y - f.y).abs() < 0.35 * r[0].size.max(f.size) => r.push(f),
+            Some(r)
+                if !f.raw && !r[0].raw && (r[0].y - f.y).abs() < 0.35 * r[0].size.max(f.size) =>
+            {
+                r.push(f)
+            }
             _ => rows.push(vec![f]),
         }
     }
@@ -477,6 +607,8 @@ pub(crate) struct Para {
     pub(crate) bullet: bool,
     /// 是块（栏）的第一段，可能是上一栏段落的延续。
     pub(crate) block_start: bool,
+    /// 原样输出（表格）。
+    pub(crate) raw: bool,
 }
 
 const BULLETS: &[char] = &[
@@ -533,7 +665,7 @@ pub(crate) fn join_text(a: &mut String, b: &str) {
 
 /// 前一段没结束、这一段像是接着写的：跨栏、跨页时合并。
 pub(crate) fn continues(prev: &Para, cur: &Para) -> bool {
-    if prev.bullet || cur.bullet || cur.bold != prev.bold {
+    if prev.raw || cur.raw || prev.bullet || cur.bullet || cur.bold != prev.bold {
         return false;
     }
     let ratio = cur.size / prev.size;
@@ -576,6 +708,24 @@ pub(crate) fn paragraphs(blocks: Vec<Vec<Line>>) -> Vec<Para> {
         let mut prev: Option<&Line> = None;
         let mut first_in_block = true;
         for line in &b {
+            if line.raw {
+                if let Some(para) = cur.take() {
+                    out.push(para);
+                }
+                out.push(Para {
+                    text: line.text.clone(),
+                    x0: line.x0,
+                    size: line.size,
+                    bold: false,
+                    lines: line.text.lines().count(),
+                    bullet: false,
+                    block_start: false,
+                    raw: true,
+                });
+                prev = None;
+                first_in_block = false;
+                continue;
+            }
             let brk = match prev {
                 None => true,
                 Some(p) => {
@@ -604,6 +754,7 @@ pub(crate) fn paragraphs(blocks: Vec<Vec<Line>>) -> Vec<Para> {
                     lines: 1,
                     bullet: is_bullet_start(&line.text),
                     block_start: first_in_block,
+                    raw: false,
                 });
                 first_in_block = false;
             } else if let Some(para) = cur.as_mut() {
@@ -640,13 +791,14 @@ enum Kind {
     Heading(usize),
     Bullet,
     Body,
+    Raw,
 }
 
 /// 统计全文正文字号和标题层级，生成每页的 Markdown 和合并后的全文。
 pub(crate) fn render(pages: &[Vec<Para>]) -> (Vec<String>, String) {
     let mut hist: HashMap<i64, usize> = HashMap::new();
     let (mut bold_chars, mut all_chars) = (0usize, 0usize);
-    for p in pages.iter().flatten() {
+    for p in pages.iter().flatten().filter(|p| !p.raw) {
         let n = p.text.chars().count();
         *hist.entry((p.size * 2.0).round() as i64).or_default() += n;
         all_chars += n;
@@ -672,7 +824,7 @@ pub(crate) fn render(pages: &[Vec<Para>]) -> (Vec<String>, String) {
     let mut levels: Vec<f64> = pages
         .iter()
         .flatten()
-        .filter(|p| is_heading_size(p))
+        .filter(|p| !p.raw && is_heading_size(p))
         .map(|p| p.size)
         .collect();
     levels.sort_by(|a, b| b.total_cmp(a));
@@ -680,6 +832,9 @@ pub(crate) fn render(pages: &[Vec<Para>]) -> (Vec<String>, String) {
 
     // 粗体小标题：不比下一段更靠右（排除 man 手册里缩进的粗体正文）
     let kind = |p: &Para, next: Option<&Para>| -> Kind {
+        if p.raw {
+            return Kind::Raw;
+        }
         if is_heading_size(p) {
             let lvl = levels.iter().position(|&s| p.size >= s - 0.25).unwrap_or(0);
             return Kind::Heading((lvl + 1).min(6));
@@ -753,6 +908,7 @@ fn format_para(p: &Para, kind: Kind) -> String {
             let rest = p.text.trim_start_matches(BULLETS).trim_start();
             format!("- {rest}")
         }
+        Kind::Raw => p.text.clone(),
         Kind::Body => {
             if p.text.starts_with('#') {
                 format!("\\{}", p.text)

@@ -16,6 +16,7 @@ mod interp;
 mod layout;
 mod lexer;
 mod obj;
+mod table;
 
 use std::collections::HashMap;
 use std::fmt;
@@ -190,7 +191,26 @@ fn run(bytes: &[u8], opts: &Options) -> Result<PdfDocument, Error> {
             && text_chars < SCANNED_MAX_CHARS;
         stats.push((text_chars, ink.image_count, scanned));
         heights.push(ink.height);
-        frags.push(layout::fragments(&ink.glyphs));
+        let mut page_frags = layout::fragments(&ink.glyphs);
+        // 表格：格子里的片段换成一个原样输出的 Markdown 表格，放在表格顶部的位置
+        let tables = table::extract(&ink.rules, &mut page_frags, ink.width, ink.height);
+        if !tables.is_empty() {
+            let mut sizes: Vec<f64> = page_frags.iter().map(|f| f.size).collect();
+            sizes.sort_by(f64::total_cmp);
+            let size = sizes.get(sizes.len() / 2).copied().unwrap_or(10.0);
+            for t in tables {
+                page_frags.push(layout::Line {
+                    text: t.markdown(),
+                    x0: t.x0,
+                    x1: t.x1,
+                    y: t.top,
+                    size,
+                    bold: false,
+                    raw: true,
+                });
+            }
+        }
+        frags.push(page_frags);
     }
     check_deadline(deadline)?;
 

@@ -8,3 +8,4 @@ bench/crawl/wild-*/
 bench/crawl/wild-*.log
 bench/markdown/out/
 bench/rag/out/
+bench/pdf/out/

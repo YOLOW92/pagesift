@@ -20,9 +20,31 @@ pub(crate) struct Glyph {
     pub(crate) bold: bool,
 }
 
+/// 页面上的一条水平或竖直线段（表格框线、分隔线），页面坐标。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Rule {
+    pub(crate) x0: f64,
+    pub(crate) y0: f64,
+    pub(crate) x1: f64,
+    pub(crate) y1: f64,
+}
+
+impl Rule {
+    pub(crate) fn horizontal(&self) -> bool {
+        (self.y1 - self.y0).abs() <= (self.x1 - self.x0).abs()
+    }
+}
+
+/// 一条线段最多可以偏离水平或竖直多少（页面单位）。
+const RULE_SKEW: f64 = 1.0;
+/// 填充的矩形短边不超过这个宽度时当作一条线（很多 PDF 用细长矩形画表格线）。
+const THIN_RECT: f64 = 2.5;
+const MAX_RULES_PER_PAGE: usize = 20_000;
+
 #[derive(Debug, Default)]
 pub(crate) struct PageInk {
     pub(crate) glyphs: Vec<Glyph>,
+    pub(crate) rules: Vec<Rule>,
     pub(crate) image_area: f64,
     pub(crate) image_count: usize,
     pub(crate) width: f64,
@@ -56,6 +78,11 @@ impl Matrix {
             e1 * a2 + f1 * c2 + e2,
             e1 * b2 + f1 * d2 + f2,
         ])
+    }
+
+    pub(crate) fn apply(&self, x: f64, y: f64) -> (f64, f64) {
+        let [a, b, c, d, e, f] = self.0;
+        (a * x + c * y + e, b * x + d * y + f)
     }
 
     fn det(&self) -> f64 {
@@ -166,6 +193,11 @@ impl<'a> Interp<'a> {
         let mut tlm = Matrix::IDENTITY;
         let mut lx = Lexer::new(content);
         let mut chars: Vec<DecodedChar> = Vec::new();
+        // 当前路径：线段（用户坐标）和矩形；曲线只移动当前点
+        let mut segs: Vec<(f64, f64, f64, f64)> = Vec::new();
+        let mut rects: Vec<(f64, f64, f64, f64)> = Vec::new();
+        let mut cur = (0.0f64, 0.0f64);
+        let mut start = (0.0f64, 0.0f64);
         while let Some(op) = lx.next_op() {
             if self.ops_left == 0 {
                 break;
@@ -259,6 +291,36 @@ impl<'a> Interp<'a> {
                         }
                     }
                 }
+                b"m" => {
+                    cur = (n(0), n(1));
+                    start = cur;
+                }
+                b"l" => {
+                    let p = (n(0), n(1));
+                    segs.push((cur.0, cur.1, p.0, p.1));
+                    cur = p;
+                }
+                b"c" => cur = (n(4), n(5)),
+                b"v" | b"y" => cur = (n(2), n(3)),
+                b"h" => {
+                    segs.push((cur.0, cur.1, start.0, start.1));
+                    cur = start;
+                }
+                b"re" => {
+                    rects.push((n(0), n(1), n(2), n(3)));
+                    cur = (n(0), n(1));
+                    start = cur;
+                }
+                b"S" | b"s" | b"f" | b"F" | b"f*" | b"B" | b"B*" | b"b" | b"b*" => {
+                    let fill = !matches!(op.name.as_slice(), b"S" | b"s");
+                    self.rules(&segs, &rects, &gs.ctm, fill);
+                    segs.clear();
+                    rects.clear();
+                }
+                b"n" => {
+                    segs.clear();
+                    rects.clear();
+                }
                 b"BI" => self.image(&gs.ctm),
                 b"Do" => {
                     if let Some(Operand::Name(name)) = a.first() {
@@ -269,6 +331,75 @@ impl<'a> Interp<'a> {
             }
         }
         Ok(())
+    }
+
+    /// 记下路径里水平、竖直的线段（换算到页面坐标）。矩形取四条边；填充的细长矩形当作一条线。
+    fn rules(
+        &mut self,
+        segs: &[(f64, f64, f64, f64)],
+        rects: &[(f64, f64, f64, f64)],
+        ctm: &Matrix,
+        fill: bool,
+    ) {
+        let mut push = |a: (f64, f64), b: (f64, f64)| {
+            if self.ink.rules.len() >= MAX_RULES_PER_PAGE {
+                return;
+            }
+            let (dx, dy) = ((b.0 - a.0).abs(), (b.1 - a.1).abs());
+            if !(dx.is_finite() && dy.is_finite())
+                || (dx > RULE_SKEW && dy > RULE_SKEW)
+                || dx.max(dy) < 1.0
+            {
+                return;
+            }
+            let r = if dx >= dy {
+                Rule {
+                    x0: a.0.min(b.0),
+                    x1: a.0.max(b.0),
+                    y0: (a.1 + b.1) / 2.0,
+                    y1: (a.1 + b.1) / 2.0,
+                }
+            } else {
+                Rule {
+                    x0: (a.0 + b.0) / 2.0,
+                    x1: (a.0 + b.0) / 2.0,
+                    y0: a.1.min(b.1),
+                    y1: a.1.max(b.1),
+                }
+            };
+            self.ink.rules.push(r);
+        };
+        for &(x0, y0, x1, y1) in segs {
+            push(ctm.apply(x0, y0), ctm.apply(x1, y1));
+        }
+        for &(x, y, w, h) in rects {
+            let p = [
+                ctm.apply(x, y),
+                ctm.apply(x + w, y),
+                ctm.apply(x + w, y + h),
+                ctm.apply(x, y + h),
+            ];
+            let (xs, ys) = (p.map(|q| q.0), p.map(|q| q.1));
+            let (minx, maxx) = (
+                xs.iter().copied().fold(f64::INFINITY, f64::min),
+                xs.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+            );
+            let (miny, maxy) = (
+                ys.iter().copied().fold(f64::INFINITY, f64::min),
+                ys.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+            );
+            let (dw, dh) = (maxx - minx, maxy - miny);
+            if fill && dh <= THIN_RECT && dw > dh {
+                push((minx, (miny + maxy) / 2.0), (maxx, (miny + maxy) / 2.0));
+            } else if fill && dw <= THIN_RECT && dh > dw {
+                push(((minx + maxx) / 2.0, miny), ((minx + maxx) / 2.0, maxy));
+            } else {
+                push((minx, miny), (maxx, miny));
+                push((minx, maxy), (maxx, maxy));
+                push((minx, miny), (minx, maxy));
+                push((maxx, miny), (maxx, maxy));
+            }
+        }
     }
 
     fn font(&mut self, resources: Option<&Dictionary>, name: &[u8]) -> Option<Rc<Font>> {
