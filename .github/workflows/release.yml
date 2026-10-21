@@ -175,6 +175,8 @@ jobs:
         run: mkdir -p dist && cp artifacts/wheels-*/* dist/
       - name: PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true   # 重跑发布时已经上传过的版本跳过，不挡住后面的步骤
       - uses: dtolnay/rust-toolchain@stable
       - name: crates.io
         env:
