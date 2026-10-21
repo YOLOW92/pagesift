@@ -27,7 +27,7 @@ doc = fc.scrape("https://blog.rust-lang.org/2024/11/28/Rust-1.83.0/", formats=["
 expect(doc.metadata.status_code == 200, "scrape returns statusCode 200")
 expect("Rust 1.83.0" in (doc.markdown or ""), "scrape returns the article markdown")
 expect(len(doc.links or []) > 10, "links format returns links")
-expect("contentSha256" in doc.metadata.extras.get("pagesift", {}), "pagesift extension is readable via extras")
+expect("contentHash" in doc.metadata.extras.get("pagesift", {}), "pagesift extension is readable via extras")
 
 for name, call, exc in [
     ("proxy stealth is rejected", lambda: fc.scrape("https://example.com", proxy="stealth"), "BadRequestError"),

@@ -87,6 +87,33 @@ impl<'a> Tasks<'a> {
             .collect())
     }
 
+    /// 从序号 `from` 开始最多 `limit` 个元素，跳过已弹出的。只追加、不弹出的列表里序号就是下标，
+    /// 可以用来分页。
+    pub fn list_range(
+        &self,
+        list: impl AsRef<[u8]>,
+        from: u64,
+        limit: usize,
+    ) -> Result<Vec<Vec<u8>>> {
+        let list = list.as_ref();
+        let mut out = Vec::new();
+        let Some(g) = self.store.group(ns::LIST_ITEM, list) else {
+            return Ok(out);
+        };
+        for seq in from.max(g.head)..g.next {
+            if out.len() >= limit {
+                break;
+            }
+            if let Some((_, v)) = self
+                .store
+                .get(ns::LIST_ITEM, &group_key(list, &seq.to_be_bytes())?)?
+            {
+                out.push(v);
+            }
+        }
+        Ok(out)
+    }
+
     /// 清空列表，返回删除的元素个数。
     pub fn list_clear(&self, list: impl AsRef<[u8]>) -> Result<u64> {
         let list = list.as_ref();

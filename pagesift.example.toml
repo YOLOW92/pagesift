@@ -7,6 +7,34 @@ host = "127.0.0.1"
 port = 3002
 # api_keys = ["change-me", { env = "PAGESIFT_KEY" }]
 # public_url = "https://pagesift.example.com"
+# 爬取和批量抓取任务存进数据目录（和缓存共用 [cache] dir），重启后结束的任务照样能查，
+# 进行中的从断点继续
+persist_jobs = true
+
+# 每个 API key 的限额：每分钟请求数（只算发起工作的 POST）、同时进行的任务数、每天（UTC）的页面数。
+# 超限返回 429，错误体 {success:false, code, error}，code 是 RATE_LIMIT_EXCEEDED、
+# CONCURRENCY_LIMIT_EXCEEDED 或 QUOTA_EXCEEDED。不写的项不限。
+# [server.limits]            # 没单独配置的 key（不鉴权时所有调用方合用）
+# requests_per_minute = 600
+# max_concurrent_jobs = 10
+# pages_per_day = 100000
+# [[server.keys]]            # 单独设限额的 key，也是有效的 key
+# key = { env = "TEAM_A_KEY" }
+# name = "team-a"            # 日志、监控、配额记录里用的名字；不写时用 key 的指纹
+# requests_per_minute = 60
+# max_concurrent_jobs = 2
+# pages_per_day = 5000
+
+# crawl / batch 请求里的 webhook：失败按指数退避重试，目标地址过 SSRF 校验
+# [server.webhook]
+# allow_private_network = false
+# max_attempts = 5
+# timeout_secs = 10
+# secret = { env = "PAGESIFT_WEBHOOK_SECRET" }   # 设了就带 X-Firecrawl-Signature: sha256=<HMAC-SHA256>
+
+# 结构化日志：format = "json" 输出 JSON（环境变量 PAGESIFT_LOG_FORMAT 优先），级别用 PAGESIFT_LOG
+# [log]
+# format = "text"
 
 [fetch]
 # 自定义 UA 必须表明是机器人；冒充浏览器的 UA 会被拒绝。
