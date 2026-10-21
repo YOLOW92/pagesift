@@ -8,16 +8,19 @@
 
 #![forbid(unsafe_code)]
 
+mod article;
 mod barrier;
 mod clean_html;
 mod datetime;
 mod dom;
 mod extract;
+mod features;
 mod fingerprint;
 mod jsonld;
 mod links;
 mod markdown;
 mod metadata;
+mod readability;
 mod text;
 
 use extract::Relax;
@@ -100,7 +103,19 @@ pub fn process(html: &str, opts: &Options) -> Document {
     // 文章页的"文章信号"（og:type、单个 <article>）也不可靠。
     let body = dom.get(body_or_root(&dom));
     let metadata = metadata::extract(&dom, base.as_ref());
-    let markdown = render_main(&mut skipper, body, base.as_ref());
+    // 文章页先试文章模式，成功就不用再按默认规则渲染一遍
+    // 网站首页是列表页，不是一篇文章（很多站点在首页也写文章类的 JSON-LD）
+    let home = base.as_ref().is_some_and(|u| {
+        let p = u.path().trim_end_matches('/');
+        p.is_empty() || p.starts_with("/index.") && !p[1..].contains('/')
+    });
+    let article = (opts.only_main_content && metadata.is_article && !home)
+        .then(|| render_article(&dom, &mut skipper, base.as_ref()))
+        .flatten();
+    let markdown = match article {
+        Some(md) => md,
+        None => render_main(&mut skipper, body, base.as_ref()),
+    };
     // 只取正文时可见文字数已经算好（和拦截页识别的口径一样）：超过上限的页面直接跳过识别
     let surely_content =
         opts.only_main_content && skipper.total_chars() > barrier::visible_limit(opts.status);
@@ -133,7 +148,8 @@ fn render_main(
     body: pagesift_html::NodeRef<'_>,
     base: Option<&Url>,
 ) -> String {
-    let render = |skipper: &extract::Skipper| markdown::Renderer { base, skipper }.render(&[body]);
+    let render =
+        |skipper: &extract::Skipper| markdown::Renderer::new(base, skipper).render(&[body]);
     let mut markdown = render(skipper);
     if !skipper.only_main() {
         return markdown;
@@ -151,6 +167,103 @@ fn render_main(
         markdown = render(skipper);
     }
     markdown
+}
+
+/// 文章模式的结果至少要有参照结果（整页按严格规则渲染）这个比例的段落文字，否则认为找错了主体。
+const ARTICLE_MIN_SHARE: f64 = 0.3;
+/// 文章模式的结果至少要有默认规则下全部文字（含链接，不算评论区）的这个比例。
+const ARTICLE_MIN_DEFAULT_SHARE: f64 = 0.1;
+
+/// 文章模式：页面声明是文章时，只渲染文章主体，里面用严格规则（trafilatura 的非正文标记、
+/// 标签白名单、链接密度）。主体有两个候选，照 trafilatura 的 compare_extraction 仲裁：
+/// 默认用容器规律找到的；它为空、Readability 打分找到的长一倍以上、或者它没有成段文字时，
+/// 改用 Readability 的。找不到主体、或者结果比参照少太多时返回 `None`，用默认结果。
+fn render_article(
+    dom: &Html<'_>,
+    skipper: &mut extract::Skipper,
+    base: Option<&Url>,
+) -> Option<String> {
+    if skipper.is_relaxed() {
+        // 默认规则已经放宽过：页面上可用的文字本来就少，不再收窄
+        return None;
+    }
+    // 两个候选和参照都只数段落文字（按严格规则遍历计数，不拼 Markdown），最后只渲染选中的那个
+    let container = article::container_root(dom, skipper);
+    let scored = article::scored_root(dom, skipper);
+    let measure = |skipper: &mut extract::Skipper, root: &Option<article::Root<'_>>| {
+        root.as_ref().map(|r| {
+            let chars = r.nodes.iter().map(|n| skipper.content_chars(n)).sum();
+            skipper.set_strict(true, chars);
+            let wl = article::whitelist(&r.nodes, skipper);
+            let headline = r.headline.as_deref().map_or(0, dom::count_non_whitespace);
+            let prose = headline
+                + r.nodes
+                    .iter()
+                    .map(|n| article::prose(n, skipper, wl))
+                    .sum::<usize>();
+            let para = r.nodes.iter().any(|n| article::has_paragraph(n, skipper));
+            skipper.set_strict(false, 0);
+            (prose, para)
+        })
+    };
+    let a = measure(skipper, &container);
+    let r = measure(skipper, &scored);
+    let (root, got) = match (a, r) {
+        (Some((la, pa)), Some((lr, _))) => {
+            if la == 0 || lr > 2 * la || !pa && lr > la {
+                (scored?, lr)
+            } else {
+                (container?, la)
+            }
+        }
+        (Some((la, _)), None) => (container?, la),
+        (None, Some((lr, _))) => (scored?, lr),
+        (None, None) => return None,
+    };
+    // 参照是"整页去掉评论、推荐这类块"：评论区很长的短文章，默认结果被评论撑大，
+    // 拿它比会把正确的短正文当成删多了
+    let body = dom.body();
+    skipper.set_strict(true, skipper.content_chars(&body));
+    let full = article::prose(&body, skipper, markdown::Whitelist::Off);
+    skipper.set_strict(false, 0);
+    if got == 0 || (got as f64) < full as f64 * ARTICLE_MIN_SHARE {
+        return None;
+    }
+    // 兜底：连默认规则的全部文字（含链接文字，不算评论区）的 10% 都不到，多半是把页面类型
+    // 认错了：写了文章 JSON-LD 的产品页、列表页、图集，内容大多是链接卡片，文章模式会删光
+    let page_text = article::text_without_comments(&body, skipper);
+    let chars = root.nodes.iter().map(|n| skipper.content_chars(n)).sum();
+    skipper.set_strict(true, chars);
+    let article_text: usize = root
+        .nodes
+        .iter()
+        .map(|n| article::text_without_comments(n, skipper))
+        .sum();
+    skipper.set_strict(false, 0);
+    if (article_text as f64) < page_text as f64 * ARTICLE_MIN_DEFAULT_SHARE {
+        return None;
+    }
+    render_strict(skipper, base, Some(root))
+}
+
+/// 按严格规则渲染文章主体；主体外面的标题放在最前面。
+fn render_strict(
+    skipper: &mut extract::Skipper,
+    base: Option<&Url>,
+    root: Option<article::Root<'_>>,
+) -> Option<String> {
+    let root = root?;
+    let chars = root.nodes.iter().map(|n| skipper.content_chars(n)).sum();
+    skipper.set_strict(true, chars);
+    let whitelist = article::whitelist(&root.nodes, skipper);
+    let md = markdown::Renderer::new(base, skipper)
+        .whitelist(whitelist)
+        .render(&root.nodes);
+    skipper.set_strict(false, 0);
+    Some(match root.headline {
+        Some(h) => format!("# {h}\n\n{md}"),
+        None => md,
+    })
 }
 
 /// Markdown 里可见文字的非空白字符数：链接和图片的地址 `](...)` 不算。

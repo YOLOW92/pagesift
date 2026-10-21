@@ -1,0 +1,109 @@
+//! 文章模式：页面声明是文章时只输出文章主体，去掉评论、推荐、分享和署名这类块。
+
+use pagesift_content::{Options, process};
+
+fn md(html: &str) -> String {
+    process(html, &Options::default()).markdown
+}
+
+const BODY: &str = "<p>The city council approved the new budget on Tuesday after a long debate about \
+    funding for public transport, schools and the renovation of the old central library.</p>\
+    <p>Supporters said the plan would cut commuting times, while critics warned that the cost of the \
+    library project had doubled since it was first proposed three years ago.</p>\
+    <p>The budget takes effect in January and will be reviewed again in the middle of next year, \
+    when the council expects updated figures from the transport authority.</p>";
+
+fn news_page(head: &str, extra: &str) -> String {
+    format!(
+        "<html lang=\"en\"><head><title>Council approves budget</title>{head}</head><body>\
+         <header><nav><a href=\"/\">Home</a> <a href=\"/news\">News</a></nav></header>\
+         <main><article><h1>Council approves budget</h1>\
+         <div class=\"byline\">By Jane Doe, City Reporter</div>\
+         <div class=\"share-buttons\"><a href=\"/s/fb\">Share on Facebook</a> <a href=\"/s/x\">Share on X</a></div>\
+         <div class=\"article-body\">{BODY}</div>\
+         <figure><img src=\"/a.jpg\" alt=\"\"><figcaption>The council chamber on Tuesday.</figcaption></figure>\
+         </article>{extra}</main></body></html>"
+    )
+}
+
+const ARTICLE_LD: &str = r#"<script type="application/ld+json">{"@type":"NewsArticle","headline":"Council approves budget","datePublished":"2026-10-20T08:00:00Z"}</script>"#;
+
+const COMMENTS: &str = r#"<section id="comments"><h2>12 comments</h2>
+    <div class="comment" id="comment-1"><p>I think this is a terrible decision and the library should never have been allowed to cost that much money in the first place.</p></div>
+    <div class="comment" id="comment-2"><p>Finally some investment in buses, I have been waiting for this for years and my commute is awful every single morning.</p></div>
+    </section>"#;
+
+const RELATED: &str = r#"<div class="related-stories"><h3>More from News</h3><ul>
+    <li><a href="/a">Mayor announces new cycling lanes across the whole city centre</a></li>
+    <li><a href="/b">School district reports record enrollment figures this autumn</a></li>
+    <li><a href="/c">Library renovation timeline slips again after contractor dispute</a></li>
+    <li><a href="/d">Transport authority publishes its annual passenger survey</a></li>
+    <li><a href="/e">Council elections set for next spring, candidates announced</a></li></ul></div>"#;
+
+#[test]
+fn article_mode_keeps_the_story_and_drops_comments_and_related() {
+    let out = md(&news_page(ARTICLE_LD, &format!("{COMMENTS}{RELATED}")));
+    assert!(out.contains("# Council approves budget"), "{out}");
+    assert!(out.contains("The budget takes effect in January"), "{out}");
+    for gone in [
+        "terrible decision",
+        "Finally some investment",
+        "cycling lanes",
+        "Share on Facebook",
+        "By Jane Doe",
+        "council chamber",
+    ] {
+        assert!(!out.contains(gone), "{gone:?} should be removed:\n{out}");
+    }
+}
+
+#[test]
+fn pages_that_do_not_declare_an_article_keep_the_default_rules() {
+    // og:type=article alone (many site builders put it on every page) is not enough
+    let out = md(&news_page(
+        r#"<meta property="og:type" content="article">"#,
+        COMMENTS,
+    ));
+    assert!(
+        out.contains("terrible decision"),
+        "comments stay outside article mode:\n{out}"
+    );
+    assert!(out.contains("The budget takes effect in January"), "{out}");
+}
+
+#[test]
+fn og_article_with_a_publish_date_counts() {
+    let head = r#"<meta property="og:type" content="article"><meta property="article:published_time" content="2026-10-20T08:00:00Z">"#;
+    let out = md(&news_page(head, COMMENTS));
+    assert!(!out.contains("terrible decision"), "{out}");
+    assert!(out.contains("The budget takes effect in January"), "{out}");
+}
+
+#[test]
+fn a_short_article_under_a_long_comment_thread_is_not_mistaken_for_a_bad_root() {
+    let many: String = (0..30)
+        .map(|i| format!(r#"<div class="comment" id="comment-{i}"><p>Comment number {i}: I have a lot of thoughts about this open thread and want to share every single one of them here with everybody.</p></div>"#))
+        .collect();
+    let page = format!(
+        "<html><head>{ARTICLE_LD}</head><body><article><h1>Open thread</h1>\
+         <div class=\"entry-content\"><p>Our goal with these open threads is to give readers a chance to raise \
+         questions about our work, our research and related topics in the comments below.</p></div></article>\
+         <section id=\"comments\">{many}</section></body></html>"
+    );
+    let out = md(&page);
+    assert!(out.contains("Our goal with these open threads"), "{out}");
+    assert!(!out.contains("Comment number 7"), "{out}");
+}
+
+#[test]
+fn whole_page_conversion_ignores_article_mode() {
+    let out = process(
+        &news_page(ARTICLE_LD, COMMENTS),
+        &Options {
+            only_main_content: false,
+            ..Options::default()
+        },
+    )
+    .markdown;
+    assert!(out.contains("terrible decision"), "{out}");
+}

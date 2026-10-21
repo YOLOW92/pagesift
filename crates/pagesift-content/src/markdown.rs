@@ -21,6 +21,55 @@ struct Block {
 pub(crate) struct Renderer<'a> {
     pub base: Option<&'a Url>,
     pub skipper: &'a Skipper,
+    pub whitelist: Whitelist,
+}
+
+/// 只输出哪些元素里的文字（照 trafilatura 的 TAG_CATALOG）。文章模式里，散落在 `div`、`span`、
+/// `section` 里的行内文字（署名、日期、图注、按钮、"阅读更多"）不是正文段落。
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Whitelist {
+    /// 所有容器的文字都输出（默认）。
+    Off,
+    /// 只输出段落、标题、列表项、引用、代码、表格单元格里的文字；`div` 为真时
+    /// 只装文字的 `div` 也算段落（页面不用 `<p>` 排版时）。
+    On { div: bool },
+}
+
+impl<'a> Renderer<'a> {
+    pub(crate) fn new(base: Option<&'a Url>, skipper: &'a Skipper) -> Self {
+        Self {
+            base,
+            skipper,
+            whitelist: Whitelist::Off,
+        }
+    }
+
+    pub(crate) fn whitelist(mut self, w: Whitelist) -> Self {
+        self.whitelist = w;
+        self
+    }
+
+    /// `node` 里直接写的行内文字能不能成为一个段落。
+    fn paragraph_allowed(&self, node: &NodeR<'_>) -> bool {
+        match self.whitelist {
+            Whitelist::Off => true,
+            Whitelist::On { div } => match node.tag() {
+                Some(
+                    Tag::P
+                    | Tag::Blockquote
+                    | Tag::Li
+                    | Tag::Dd
+                    | Tag::Dt
+                    | Tag::Td
+                    | Tag::Th
+                    | Tag::Pre
+                    | Tag::Code,
+                ) => true,
+                Some(Tag::Div) => div,
+                _ => false,
+            },
+        }
+    }
 }
 
 pub(crate) fn is_block_tag(tag: Tag) -> bool {
@@ -152,21 +201,29 @@ impl Renderer<'_> {
     }
 
     /// 容器的子节点：连续的行内内容合成一个段落，遇到块级子元素就断开。
+    /// 白名单模式下，不在允许元素里的行内文字丢掉。
     fn blocks_of(&self, node: NodeR<'_>) -> Vec<Block> {
         let mut blocks = Vec::new();
         let mut inline = String::new();
+        let keep = self.paragraph_allowed(&node);
         for child in node.children() {
             if self.skip(&child) {
                 continue;
             }
             if child.is_element() && self.acts_as_block(&child) {
-                flush_paragraph(&mut inline, &mut blocks);
+                if keep {
+                    flush_paragraph(&mut inline, &mut blocks);
+                } else {
+                    inline.clear();
+                }
                 self.block(child, &mut blocks);
             } else {
                 self.inline_into(child, &mut inline);
             }
         }
-        flush_paragraph(&mut inline, &mut blocks);
+        if keep {
+            flush_paragraph(&mut inline, &mut blocks);
+        }
         blocks
     }
 

@@ -11,6 +11,8 @@ pub(crate) struct Info {
     pub author: Option<String>,
     pub published: Option<String>,
     pub modified: Option<String>,
+    /// 有文章类的节点（`Article`、`NewsArticle`、`BlogPosting`……）。
+    pub article: bool,
 }
 
 type Obj = Map<String, Value>;
@@ -19,9 +21,16 @@ pub(crate) fn extract(blocks: &[String]) -> Info {
     let mut values = Vec::new();
     for b in blocks {
         // 不含这几个键的块（面包屑、站点搜索框）不用解析
-        if !["author", "datePublished", "dateModified", "dateCreated"]
-            .iter()
-            .any(|k| b.contains(k))
+        if ![
+            "author",
+            "datePublished",
+            "dateModified",
+            "dateCreated",
+            "Article",
+            "Posting",
+        ]
+        .iter()
+        .any(|k| b.contains(k))
         {
             continue;
         }
@@ -40,7 +49,10 @@ pub(crate) fn extract(blocks: &[String]) -> Info {
     // 文章类节点优先，其余按出现顺序
     nodes.sort_by_key(|n| !is_article(n));
 
-    let mut info = Info::default();
+    let mut info = Info {
+        article: nodes.iter().any(|n| is_story(n)) && !nodes.iter().any(|n| is_discussion(n)),
+        ..Info::default()
+    };
     for n in &nodes {
         if info.published.is_none() {
             info.published = date(n, "datePublished").or_else(|| date(n, "dateCreated"));
@@ -97,6 +109,24 @@ fn types(n: &Obj) -> impl Iterator<Item = &str> {
         .flatten()
         .filter_map(Value::as_str);
     one.into_iter().chain(many)
+}
+
+/// 一篇文章（新闻、博客、报道）：文章模式用。论坛帖、社交帖、问答页里"评论"就是内容，不算。
+fn is_story(n: &Obj) -> bool {
+    types(n).any(|t| {
+        (t.contains("Article") || t == "BlogPosting" || t == "LiveBlogPosting" || t == "Report")
+            && t != "SocialMediaPosting"
+    })
+}
+
+/// 论坛、问答、社交帖页面（trafilatura 也靠 DiscussionForumPosting 认论坛页）。
+fn is_discussion(n: &Obj) -> bool {
+    types(n).any(|t| {
+        matches!(
+            t,
+            "DiscussionForumPosting" | "SocialMediaPosting" | "QAPage" | "Question"
+        )
+    })
 }
 
 fn is_article(n: &Obj) -> bool {

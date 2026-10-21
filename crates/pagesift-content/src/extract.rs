@@ -13,6 +13,9 @@ const POS: u8 = 1;
 const NEG: u8 = 2;
 /// 页内跳转链接（"skip to content"）的词，同时也算框架词。
 const JUMP: u8 = 4;
+/// 只在文章模式里算框架的词：评论、标签、署名、面包屑。普通页面上它们可能就是内容
+/// （论坛的评论、标签页），文章页上它们在正文之外。
+const STRICT: u8 = 8;
 
 /// 一个小写词属于哪些类。写成 `match`：编译器先按长度分支再比字节，每个词只判定一次。
 ///
@@ -29,6 +32,9 @@ fn word_class(w: &str) -> u8 {
         | "newsletter" | "subscribe" | "popup" | "modal" | "promo" | "toolbar" | "pagination"
         | "editsection" | "catlinks" => NEG,
         "skip" | "jump" => NEG | JUMP,
+        "comment" | "comments" | "byline" | "tags" | "tag" | "breadcrumb" | "breadcrumbs"
+        | "author" | "authors" | "disqus" | "rating" | "print" | "follow" | "outbrain"
+        | "taboola" | "embed" => STRICT,
         _ => 0,
     }
 }
@@ -116,6 +122,12 @@ pub(crate) enum Relax {
 ///   软跳过的元素如果装着全页大部分文字，说明它其实是正文的外层容器，不跳过。
 pub(crate) struct Skipper {
     only_main: bool,
+    /// 文章模式：文章主体里也删链接列表，评论、标签、署名这类块也算框架。
+    strict: bool,
+    /// 文章模式下，按严格规则删掉的块最多能有多少非链接文字（主体的一部分）：大块的不删，
+    /// 免得类名凑巧命中（`meta`、`slide`）把正文删掉。
+    strict_max_chars: usize,
+
     relaxed: Relax,
     total_chars: usize,
     protect_chars: usize,
@@ -125,6 +137,10 @@ pub(crate) struct Skipper {
     has_block: Vec<bool>,
     /// 跳过判断的缓存：0 未算，1 不跳过，2 跳过。
     cache: Vec<Cell<u8>>,
+    /// class/id 的分类（[`token_class`]），和模式无关，每个节点只算一次；[`UNKNOWN`] 表示还没算。
+    classes: Vec<Cell<u8>>,
+    /// [`crate::features`] 的特征位，每个节点只算一次；`u32::MAX` 表示还没算。
+    features: Vec<Cell<u32>>,
 }
 
 /// 子树里可见文字的统计，只排除硬跳过的内容。构造 Skipper 时自底向上一次算好。
@@ -136,7 +152,15 @@ struct Visible {
     images: u32,
     /// 包着图片的链接数（缩略图、卡片）。
     img_links: u32,
+    /// 有文字的链接数，和其中文字不到 10 个字符的（"更多"、"分享"这类）。
+    text_links: u32,
+    short_links: u32,
 }
+
+const UNKNOWN: u8 = 0xFF;
+
+/// 文章模式的严格规则只删非链接文字不到主体这个比例的块。
+const STRICT_MAX_SHARE: f64 = 0.3;
 
 /// 软跳过的元素文字量达到全页的这个比例时，视为正文容器。
 const PROTECT_SHARE: f64 = 0.4;
@@ -230,10 +254,14 @@ fn compute(html: &Html<'_>, only_main: bool) -> (Vec<Visible>, Vec<bool>) {
                     v.link_chars += cv.chars;
                     v.links += 1;
                     v.img_links += u32::from(cv.images > 0);
+                    v.text_links += u32::from(cv.chars > 0);
+                    v.short_links += u32::from(cv.chars > 0 && cv.chars < 10);
                 } else {
                     v.link_chars += cv.link_chars;
                     v.links += cv.links;
                     v.img_links += cv.img_links;
+                    v.text_links += cv.text_links;
+                    v.short_links += cv.short_links;
                 }
             }
         }
@@ -252,13 +280,65 @@ impl Skipper {
         let total = visible.get(body.id().index()).map_or(0, |v| v.chars);
         Self {
             only_main,
+            strict: false,
+            strict_max_chars: 0,
+
             relaxed: Relax::None,
             total_chars: total,
             protect_chars: ((total as f64 * PROTECT_SHARE) as usize).max(PROTECT_MIN_CHARS),
             visible,
             has_block,
             cache: (0..html.len()).map(|_| Cell::new(0)).collect(),
+            classes: (0..html.len()).map(|_| Cell::new(UNKNOWN)).collect(),
+            features: (0..html.len()).map(|_| Cell::new(u32::MAX)).collect(),
         }
+    }
+
+    /// 节点 class/id 的分类，带缓存。
+    fn classes(&self, node: &NodeR<'_>, el: Element<'_>) -> u8 {
+        let cell = &self.classes[node.id().index()];
+        let c = cell.get();
+        if c != UNKNOWN {
+            return c;
+        }
+        let c = token_class(el);
+        cell.set(c);
+        c
+    }
+
+    /// 元素的 class/id 特征位（见 [`crate::features`]），带缓存；文本节点为 0。
+    pub(crate) fn features(&self, node: &NodeR<'_>) -> u32 {
+        let Some(el) = node.as_element() else {
+            return 0;
+        };
+        let cell = &self.features[node.id().index()];
+        let f = cell.get();
+        if f != u32::MAX {
+            return f;
+        }
+        let f = crate::features::compute(el);
+        cell.set(f);
+        f
+    }
+
+    /// class/id 是评论区。
+    pub(crate) fn is_comments(&self, node: &NodeR<'_>) -> bool {
+        self.features(node) & crate::features::COMMENTS != 0
+    }
+
+    /// 打开或关掉文章模式（清掉判断缓存）。
+    /// `root_chars` 是文章主体的非链接文字数，用来给严格规则设上限。
+    pub(crate) fn set_strict(&mut self, strict: bool, root_chars: usize) {
+        self.strict = strict;
+        self.strict_max_chars = (root_chars as f64 * STRICT_MAX_SHARE) as usize;
+        self.cache.iter().for_each(|c| c.set(0));
+    }
+
+    /// 子树里不在链接里的可见文字数：正文的量，菜单和链接列表不算。
+    pub(crate) fn content_chars(&self, node: &NodeR<'_>) -> usize {
+        self.visible
+            .get(node.id().index())
+            .map_or(0, |v| v.chars.saturating_sub(v.link_chars))
     }
 
     /// 页面可见文字的总字符数（只排除硬跳过的内容）。
@@ -316,6 +396,21 @@ impl Skipper {
         if tag == Tag::A {
             return is_skip_link(node, el).then_some("skip link");
         }
+        // 页面标明的正文容器（itemprop="articleBody"、article-body、post-content……）本身不按
+        // 文章模式的规则删：正文本身可能就是一串链接（目录、合集）
+        let declared_body = self.strict
+            && (self.features(node) & crate::features::ANY_TIER != 0
+                || el
+                    .attr("itemprop")
+                    .is_some_and(|v| v.eq_ignore_ascii_case("articleBody")));
+        if self.strict && !declared_body {
+            if crate::article::is_cleaned_tag(tag) {
+                return Some("article: cleaned tag");
+            }
+            if crate::article::link_dense(node, self) {
+                return Some("article: link dense");
+            }
+        }
         // 页面自己标出的正文区域（`<main>`、`role="main"`）不用软规则删
         if self.relaxed == Relax::All
             || matches!(tag, Tag::Body | Tag::Html)
@@ -331,20 +426,29 @@ impl Skipper {
         if vis.chars >= self.protect_chars {
             return None;
         }
-        let link_block = vis.links >= LINK_BLOCK_MIN_LINKS
-            && vis.link_chars as f64 >= vis.chars as f64 * LINK_BLOCK_MIN_SHARE
-            && (vis.link_chars as f64 / vis.links as f64) <= LINK_BLOCK_MAX_AVG_CHARS
-            && (vis.img_links as usize) * 2 < vis.links;
+        let dense = vis.links >= LINK_BLOCK_MIN_LINKS
+            && vis.link_chars as f64 >= vis.chars as f64 * LINK_BLOCK_MIN_SHARE;
+        // 链接文字长（整句标题）或者带图的链接列表是内容卡片，首页和列表页上要留着；
+        // 文章模式里它们是指向别的文章的推荐，不是这篇文章的正文
+        let link_block = dense
+            && (self.strict
+                || ((vis.link_chars as f64 / vis.links as f64) <= LINK_BLOCK_MAX_AVG_CHARS
+                    && (vis.img_links as usize) * 2 < vis.links));
         // <main> 里的链接列表多半是内容本身（目录页、相册、分类列表），<article> 里的是文章的
         // 标签、分类、目录，都不当菜单删。`role="main"` 常标在整页的外层容器上，只在放宽规则时
         // 才这样对待（文档首页的目录）
         let in_relaxed_main =
             |e: Element<'_>| self.relaxed == Relax::LinkBlocks && e.attr("role") == Some("main");
+        let strict_small =
+            self.strict && vis.chars.saturating_sub(vis.link_chars) <= self.strict_max_chars;
+        // 链接密集的块不可能是正文本身，文章模式里不受大小上限限制
         if link_block
-            && !node.ancestors().any(|a| {
-                matches!(a.tag(), Some(Tag::Main | Tag::Article))
-                    || a.as_element().is_some_and(in_relaxed_main)
-            })
+            && !declared_body
+            && (self.strict
+                || !node.ancestors().any(|a| {
+                    matches!(a.tag(), Some(Tag::Main | Tag::Article))
+                        || a.as_element().is_some_and(in_relaxed_main)
+                }))
         {
             Some("link block")
         } else if self.relaxed == Relax::LinkBlocks {
@@ -356,8 +460,14 @@ impl Skipper {
             Some("header with nav")
         } else if el.attr("role").is_some_and(|r| SKIP_ROLES.contains(&r)) {
             Some("skip role")
-        } else if token_class(el) & (NEG | POS) == NEG {
+        } else if self.classes(node, el) & (NEG | POS) == NEG {
             Some("negative class/id")
+        } else if strict_small
+            && !declared_body
+            && (self.classes(node, el) & STRICT != 0
+                || crate::article::is_furniture(el, self.features(node)))
+        {
+            Some("article furniture")
         } else {
             None
         }
@@ -383,6 +493,20 @@ impl Skipper {
     /// 元素自身的可见文字数（只算未被硬跳过的部分；只取正文时才有）。
     pub(crate) fn visible_chars(&self, node: &NodeR<'_>) -> usize {
         self.visible.get(node.id().index()).map_or(0, |v| v.chars)
+    }
+
+    /// 链接统计：（有文字的链接数，其中短链接数，子树里的图片数）。
+    pub(crate) fn link_stats(&self, node: &NodeR<'_>) -> (usize, usize, usize) {
+        let v = self
+            .visible
+            .get(node.id().index())
+            .copied()
+            .unwrap_or_default();
+        (
+            v.text_links as usize,
+            v.short_links as usize,
+            v.images as usize,
+        )
     }
 
     /// 可见文字数、链接文字数、链接数。诊断用。

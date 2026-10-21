@@ -1440,6 +1440,7 @@ dependencies = [
  "aho-corasick",
  "blake3",
  "pagesift-html",
+ "regex",
  "serde_json",
  "unicode-normalization",
  "url",

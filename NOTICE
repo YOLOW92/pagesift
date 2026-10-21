@@ -1,0 +1,19 @@
+pagesift
+Copyright (C) 2026 YOLOW92
+
+This product includes ideas, rules and data derived from the following projects.
+No source code from them is included; the algorithms were reimplemented in Rust.
+
+- trafilatura (https://github.com/adbar/trafilatura), Apache License 2.0,
+  Copyright (C) Adrien Barbaresi and contributors.
+  Content-container class/id patterns, boilerplate patterns, the tag whitelist,
+  link-density tests and the extraction arbitration heuristics used by the
+  article mode (crates/pagesift-content/src/features.rs, article.rs, lib.rs).
+
+- Mozilla Readability (https://github.com/mozilla/readability), Apache License 2.0,
+  Copyright (c) 2010 Arc90 Inc and the Mozilla contributors.
+  The paragraph scoring, candidate selection and sibling rules
+  (crates/pagesift-content/src/readability.rs) and its class/id word lists.
+
+- markup5ever (https://github.com/servo/html5ever), MIT OR Apache-2.0.
+  The HTML named character reference table (crates/pagesift-html/src/entities.rs).

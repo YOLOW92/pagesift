@@ -20,12 +20,26 @@ Writes JSON lines for `pagesift bench --external`. Each tool is called the way i
 """
 
 import json
+import signal
 import sys
 import time
 from pathlib import Path
 
 
+PAGE_TIMEOUT_S = 30
+
+
+class PageTimeout(Exception):
+    pass
+
+
+def _alarm(signum, frame):
+    raise PageTimeout()
+
+
 def main(tool: str, manifest: Path, out_path: Path) -> None:
+    # 某个库在个别页面上卡死时（比如正则回溯），这一页记为空输出，不拖住整轮评测
+    signal.signal(signal.SIGALRM, _alarm)
     if tool == "trafilatura":
         import trafilatura
 
@@ -115,11 +129,16 @@ def main(tool: str, manifest: Path, out_path: Path) -> None:
             row = json.loads(line)
             html = Path(row["path"]).read_text(encoding="utf-8")
             start = time.perf_counter()
+            signal.alarm(PAGE_TIMEOUT_S)
             try:
                 text = convert(html, row["path"], row.get("base_url") or row["url"])
+            except PageTimeout:
+                print(f"{row['id']}: timed out after {PAGE_TIMEOUT_S} s", file=sys.stderr)
+                text = ""
             except Exception as e:  # 记录失败，不中断整轮评测
                 print(f"{row['id']}: {type(e).__name__}: {e}", file=sys.stderr)
                 text = ""
+            signal.alarm(0)
             ms = (time.perf_counter() - start) * 1000
             out.write(json.dumps({"id": row["id"], "markdown": text, "ms": round(ms, 3)}, ensure_ascii=False) + "\n")
 

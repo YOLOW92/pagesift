@@ -21,6 +21,8 @@ pub struct Metadata {
     pub published_time: Option<String>,
     /// 同 `published_time`。
     pub modified_time: Option<String>,
+    /// 页面自己声明是一篇文章：JSON-LD 里有文章类节点，或者 `og:type` 是 `article`。
+    pub is_article: bool,
     /// `og:*`、`twitter:*`、`article:*` 和 `dc.*` 这类 meta，按出现顺序保留原始键名。
     pub extra: Vec<(String, String)>,
 }
@@ -161,6 +163,13 @@ pub(crate) fn extract(html: &Html<'_>, base: Option<&Url>) -> Metadata {
     }
 
     let ld = jsonld::extract(&ld_blocks);
+    // og:type=article 很多建站工具每一页都写（WordPress 的 Yoast 就是），单独不算；
+    // 要么 JSON-LD 声明了文章类型，要么 og:type=article 而且有发布时间
+    let og_article = m
+        .extra
+        .iter()
+        .any(|(k, v)| k == "og:type" && v.eq_ignore_ascii_case("article"));
+    let has_published = ld.published.is_some() || !meta_published.is_empty();
     if ld.author.is_some() {
         m.author = ld.author;
     }
@@ -175,6 +184,7 @@ pub(crate) fn extract(html: &Html<'_>, base: Option<&Url>) -> Metadata {
         .or_else(|| first_date(&meta_modified))
         .or_else(|| first_date(&time_modified));
 
+    m.is_article = ld.article || (og_article && has_published);
     m.title = title_tag.or(og_title);
     if m.description.is_none() {
         m.description = og_description;

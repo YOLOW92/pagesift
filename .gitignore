@@ -3,3 +3,4 @@
 /bench/compare/rust-tools/target/
 /bench/compare/html-parity/target/
 /bench/aiseek/results/
+__pycache__/
