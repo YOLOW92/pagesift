@@ -72,9 +72,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     steps:
+      # 用触发时所在分支（main）上的 Node 包配置：标签上的配置可能列着发布流程没有构建的平台
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag }}
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
