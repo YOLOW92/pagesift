@@ -141,3 +141,40 @@ async fn egress_is_used_for_http_and_refused_for_browser() {
         .unwrap_err();
     assert_eq!(err.code, ErrorCode::UnsupportedOption, "{err}");
 }
+
+#[tokio::test]
+async fn an_engine_that_cannot_launch_is_skipped_after_the_first_failure() {
+    let base = site().await;
+    // 假浏览器：像沙箱不可用的 Chrome 一样，报错退出
+    let dir = tempfile::tempdir().unwrap();
+    let fake = dir.path().join("chrome");
+    std::fs::write(
+        &fake,
+        "#!/bin/sh\necho 'FATAL: No usable sandbox!' >&2\nexit 1\n",
+    )
+    .unwrap();
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    let mut cfg = ScraperConfig::default();
+    cfg.fetcher.ssrf.allow_private_network = true;
+    cfg.policy.rate.default_interval = Duration::ZERO;
+    cfg.browser.source = pagesift_cdp::BrowserSource::Executable(fake);
+    // 自定义参数时内核链只有它自己，不会回退到本机的其他浏览器
+    cfg.browser.args_override = Some(vec!["--headless".into()]);
+    let s = Scraper::new(cfg).unwrap();
+    let o = opts(json!({ "engine": "browser", "ignoreRobotsTxt": true, "timeout": 10000 }));
+    let url = format!("{base}/article");
+
+    let err = s.scrape(&url, &o).await.unwrap_err();
+    assert!(err.message.contains("sandbox"), "{err}");
+    // 第二次不再去启动它
+    let t = Instant::now();
+    let err = s.scrape(&url, &o).await.unwrap_err();
+    assert!(
+        t.elapsed() < Duration::from_millis(200),
+        "{:?}",
+        t.elapsed()
+    );
+    assert_eq!(err.code, ErrorCode::UpstreamError, "{err}");
+}

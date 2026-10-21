@@ -363,6 +363,40 @@ impl BrowserPool {
         self.inner.cfg.engine.unwrap_or(EngineKind::Chrome)
     }
 
+    /// 启动一个浏览器试试内核能不能用（比如容器里沙箱不可用时 Chrome 起不来）。
+    /// 成功的浏览器留在池里，第一个请求不用再等启动。
+    pub async fn probe(&self) -> Result<()> {
+        let id = {
+            let mut st = self.inner.state.lock().await;
+            if st.closed {
+                return Err(Error::PoolClosed);
+            }
+            if !st.slots.is_empty() {
+                return Ok(());
+            }
+            st.next_id += 1;
+            st.launching += 1;
+            st.next_id
+        };
+        let r = self.inner.launch_slot(id).await;
+        let mut st = self.inner.state.lock().await;
+        st.launching -= 1;
+        match r {
+            Ok(slot) if st.closed => {
+                drop(st);
+                slot.shutdown().await;
+                Err(Error::PoolClosed)
+            }
+            Ok(slot) => {
+                st.slots.push(slot);
+                drop(st);
+                self.inner.notify.notify_waiters();
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
+    }
+
     /// 立即做一次健康检查：清理崩溃的浏览器，补足 `min_browsers`。
     pub async fn health_check(&self) {
         self.inner.health_check().await;

@@ -111,6 +111,8 @@ pub struct Scraper {
     /// 按优先级排列的内核（见 [`pagesift_cdp::engine_chain`]）。每个池第一次需要时才创建；
     /// 创建失败时记住结果，不反复尝试。
     browsers: Vec<(PoolConfig, OnceCell<Option<Arc<BrowserPool>>>)>,
+    /// 每个内核最近一次启动失败的时间：之后 [`LAUNCH_RETRY`] 内跳过它，不让每个请求都去试一次。
+    launch_failed: Vec<std::sync::Mutex<Option<Instant>>>,
     /// 爬取里同时进行的抓取数，等于全局并发。排队的页面只占一个很小的等待 future，
     /// 拿到名额才创建完整的抓取状态机（十几 KB）：同时爬上千个站时，排队的页面不再各占一份。
     crawl_slots: tokio::sync::Semaphore,
@@ -160,8 +162,13 @@ impl Scraper {
                 log_engine_chain(&chain);
                 chain.into_iter().map(|c| (c, OnceCell::new())).collect()
             },
+            launch_failed: Vec::new(),
             browser_private_network,
             learner: crate::learn::HostLearner::default(),
+        })
+        .map(|mut s| {
+            s.launch_failed = (0..s.browsers.len()).map(|_| Default::default()).collect();
+            s
         })
     }
 
@@ -194,6 +201,44 @@ impl Scraper {
             }
         }
         false
+    }
+
+    /// 服务启动时在后台把每个内核启动一次，确认哪些能用（日志里写明），能用的浏览器留着备用。
+    pub async fn probe_browsers(&self) {
+        for i in 0..self.browsers.len() {
+            let Some(pool) = self.browser(i).await else {
+                continue;
+            };
+            let engine = pool.engine().name();
+            match pool.probe().await {
+                Ok(()) => tracing::info!(engine, "browser engine ready"),
+                Err(e) => self.note_launch_failure(i, engine, &e),
+            }
+        }
+    }
+
+    /// 内核启动失败：记下来，接下来一段时间跳过它；只在第一次失败时警告，并说明常见原因。
+    fn note_launch_failure(&self, i: usize, engine: &str, e: &pagesift_cdp::Error) {
+        let first = self.launch_failed[i]
+            .lock()
+            .unwrap()
+            .replace(Instant::now())
+            .is_none();
+        if first {
+            let msg = e.to_string();
+            let hint = if msg.contains("sandbox") {
+                ": the browser sandbox needs unprivileged user namespaces, which this host or container \
+                 does not allow (check kernel.apparmor_restrict_unprivileged_userns and the container's \
+                 seccomp/AppArmor profile); pagesift does not disable the sandbox"
+            } else {
+                ""
+            };
+            tracing::warn!(
+                engine,
+                retry_after_secs = LAUNCH_RETRY.as_secs(),
+                "{engine} fallback unavailable: {msg}{hint}"
+            );
+        }
     }
 
     pub async fn shutdown(&self) {
@@ -662,6 +707,13 @@ impl Scraper {
             .start_engine(&host)
             .min(self.browsers.len().saturating_sub(1));
         for i in from..self.browsers.len() {
+            if self.launch_failed[i]
+                .lock()
+                .unwrap()
+                .is_some_and(|t| t.elapsed() < LAUNCH_RETRY)
+            {
+                continue;
+            }
             let Some(pool) = self.browser(i).await else {
                 continue;
             };
@@ -676,6 +728,12 @@ impl Scraper {
                 Ok(p) => p,
                 Err(e) => {
                     tracing::debug!(engine = engine.name(), url, "render failed: {e}");
+                    if matches!(
+                        e,
+                        pagesift_cdp::Error::Launch(_) | pagesift_cdp::Error::Connect(_)
+                    ) {
+                        self.note_launch_failure(i, engine.name(), &e);
+                    }
                     // 完整内核（渲染和 Chrome 一致）报的导航错误是网络层的结果（地址打不开、
                     // 被拦截），换内核也一样，不再往下试
                     let final_err =
@@ -1064,6 +1122,9 @@ fn log_engine_chain(chain: &[PoolConfig]) {
         tracing::info!(engines = %names.join(" -> "), "browser engines");
     }
 }
+
+/// 内核启动失败后多久再试。
+const LAUNCH_RETRY: Duration = Duration::from_secs(600);
 
 /// 没给 `timeout` 时一次渲染（含换内核）的总时限。
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);

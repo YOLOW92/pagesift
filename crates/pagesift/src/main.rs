@@ -337,6 +337,9 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
                 .unwrap_or_else(|| "127.0.0.1".into());
             let port = port.or(cfg.server.port).unwrap_or(3002);
             let scraper = Arc::new(pagesift::Scraper::new(config)?);
+            // 后台确认每个浏览器内核能不能启动，结果写进日志，不耽误服务开始监听
+            let probe = scraper.clone();
+            tokio::spawn(async move { probe.probe_browsers().await });
             let app = pagesift::api::router(scraper.clone(), api);
             let listener = tokio::net::TcpListener::bind((host.as_str(), port))
                 .await
