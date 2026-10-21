@@ -282,7 +282,11 @@ impl Scraper {
             .find(|f| f.kind == "changeTracking")
             .map(crate::change::Tracking::parse)
             .transpose()?;
-        if !wants_llm && tracking.is_none() && opts.query_filter.is_none() {
+        if !wants_llm
+            && tracking.is_none()
+            && opts.query_filter.is_none()
+            && opts.chunking.is_none()
+        {
             return self.scrape_cached(url, opts, mode).await;
         }
         if (wants_llm || tracking.as_ref().is_some_and(|t| t.json)) && self.llm.is_none() {
@@ -313,6 +317,12 @@ impl Scraper {
         let mut doc = self.scrape_cached(url, &inner, mode).await?;
         if let Some(q) = &opts.query_filter {
             apply_query_filter(&mut doc, q).await?;
+        }
+        if let Some(c) = &opts.chunking {
+            doc.chunks = Some(chunk_markdown(
+                doc.markdown.as_deref().unwrap_or_default(),
+                c,
+            )?);
         }
         let md = doc.markdown.clone().unwrap_or_default();
         if let Some(llm) = self.llm.as_ref().filter(|_| wants_llm) {
@@ -1382,7 +1392,48 @@ fn hidden_frame(el: &pagesift_html::Element<'_>) -> bool {
     })
 }
 
-/// `queryFilter`：只留下和查询相关的段落，统计写进 `metadata.pagesift.queryFilter`。
+/// `chunking`：正文 Markdown 分块。参数格式见 [`pagesift_extract::ChunkStrategy`]（`maxLevel` 这类驼峰写法也认）。
+pub(crate) fn chunk_markdown(
+    md: &str,
+    spec: &serde_json::Value,
+) -> Result<Vec<pagesift_api::types::DocChunk>, ApiError> {
+    // API 用驼峰，提取库用下划线：只改键名
+    let snake = match spec {
+        serde_json::Value::Object(m) => serde_json::Value::Object(
+            m.iter()
+                .map(|(k, v)| {
+                    let mut out = String::new();
+                    for c in k.chars() {
+                        if c.is_ascii_uppercase() {
+                            out.push('_');
+                            out.push(c.to_ascii_lowercase());
+                        } else {
+                            out.push(c);
+                        }
+                    }
+                    (out, v.clone())
+                })
+                .collect(),
+        ),
+        other => other.clone(),
+    };
+    let strategy: pagesift_extract::ChunkStrategy = serde_json::from_value(snake)
+        .map_err(|e| ApiError::invalid(format!("invalid chunking: {e}")))?;
+    let chunks = pagesift_extract::chunk(md, &strategy)
+        .map_err(|e| ApiError::invalid(format!("invalid chunking: {e}")))?;
+    Ok(chunks
+        .into_iter()
+        .map(|c| pagesift_api::types::DocChunk {
+            text: c.text,
+            heading_path: c.heading_path,
+            start: c.start,
+            end: c.end,
+            tokens: c.tokens,
+        })
+        .collect())
+}
+
+/// `queryFilter`：只留下和查询相关的内容，统计写进 `metadata.pagesift.queryFilter`。
 async fn apply_query_filter(
     doc: &mut Document,
     q: &pagesift_api::types::QueryFilter,
@@ -1392,7 +1443,9 @@ async fn apply_query_filter(
     };
     let fo = pagesift_extract::QueryFilterOptions {
         threshold: q.threshold,
+        relative: q.relative,
         top_k: q.top_k,
+        max_tokens: q.max_tokens,
         headings: q.headings,
     };
     let query = q.query.clone();

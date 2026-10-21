@@ -98,6 +98,54 @@ fn opts(extra: Value) -> ScrapeOptions {
 }
 
 #[tokio::test]
+async fn chunking_returns_chunks_with_heading_paths() {
+    let base = site(Arc::new(Mutex::new((200, ARTICLE.into())))).await;
+    let url = format!("{base}/p");
+    let s = scraper(None, None);
+    let doc = s
+        .scrape(
+            &url,
+            &opts(json!({ "chunking": { "type": "recursive", "size": 20 } })),
+        )
+        .await
+        .unwrap();
+    let md = doc.markdown.unwrap();
+    let chunks = doc.chunks.unwrap();
+    assert!(chunks.len() >= 3, "{chunks:?}");
+    for c in &chunks {
+        assert_eq!(&md[c.start..c.end], c.text);
+        assert!(c.tokens <= 20, "{c:?}");
+    }
+    let refund = chunks
+        .iter()
+        .find(|c| c.text.contains("refund window"))
+        .unwrap();
+    assert_eq!(refund.heading_path, ["Store help", "Returns"]);
+    let headings = s
+        .scrape(
+            &url,
+            &opts(json!({ "chunking": { "type": "headings", "maxLevel": 2 } })),
+        )
+        .await
+        .unwrap()
+        .chunks
+        .unwrap();
+    assert!(
+        headings
+            .iter()
+            .any(|c| c.text.starts_with("## Returns") && c.text.contains("Gift cards"))
+    );
+    let bad = s
+        .scrape(
+            &url,
+            &opts(json!({ "chunking": { "type": "recursive", "size": 0 } })),
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(bad.code.as_str(), "INVALID_REQUEST");
+}
+
+#[tokio::test]
 async fn query_filter_keeps_relevant_sections_only() {
     let base = site(Arc::new(Mutex::new((200, ARTICLE.into())))).await;
     let url = format!("{base}/p");

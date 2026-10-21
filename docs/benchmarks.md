@@ -73,7 +73,37 @@ Reproduce: `bench/meta/dates.py` (see [`bench/meta/README.md`](../bench/meta/REA
 
 On real pages the change is neutral for main-content scores (Firecrawl set 0.696 → 0.696, AEB 0.939 → 0.939); on 3,369 random sites it adds 0.13 backslashes per 1,000 characters, and on an arXiv page formulas that used to vanish now come out as TeX. Full results: [`bench/markdown/results-2026-10-21.md`](../bench/markdown/results-2026-10-21.md); reproduce: `bench/markdown/run.sh`.
 
-## 4. Crawling over HTTP (no rate limit)
+## 4. Chunking and query filtering for RAG
+
+**Dataset:** Chroma's [chunking_evaluation](https://github.com/brandonstarxel/chunking_evaluation) data: five corpora (financial filings, PubMed papers, Wikipedia text, a State of the Union address, chat logs) and 472 questions, each labelled with the exact character spans of its answer. Questions are split into a tuning half and a hold-out half; design choices were kept only if the hold-out half agreed. Method details: [`bench/rag/README.md`](../bench/rag/README.md).
+
+**Query filter.** Each question is asked against its own document (49,000 words on average); every tool runs with its default settings. Recall is the share of the answer text kept (higher is better); words is how much text is returned (lower is better).
+
+| Tool | Answer recall ↑ | Words returned ↓ | Precision ↑ | ms per question ↓ |
+|---|---|---|---|---|
+| **pagesift 0.12 `queryFilter`** | 0.874 | **622** | **0.137** | **10.6** |
+| Crawl4AI 0.9.5 `BM25ContentFilter` | 0.673 | 13,507 | 0.009 | 775 |
+| pagesift before (paragraphs, absolute threshold 1.0) | **0.984** | 27,513 | 0.007 | — |
+
+The old filter, like Crawl4AI's, worked on paragraphs with an absolute BM25 threshold of 1.0: on long documents almost everything passes, and a paragraph can be thousands of words long. pagesift now scores ~100-token units inside each section together with their heading path and keeps the units scoring at least half of the best one, then merges adjacent units back into the original text. At equal word budgets, these units retrieve twice as much of the answer as paragraphs (recall 0.715 vs 0.353 at 250 words).
+
+**Chunking.** Every chunker cuts the corpora into chunks of about 200 words; one BM25 retriever (`bm25s`) searches all chunks, and chunks are taken in score order up to a word budget.
+
+| Chunker | Recall @ 250 words ↑ | @ 500 ↑ | @ 1,000 ↑ | Time for 1.4 MB ↓ |
+|---|---|---|---|---|
+| **pagesift `recursive`** | 0.607 | **0.765** | **0.895** | **21 ms** |
+| semchunk 4.1 | 0.607 | **0.765** | **0.895** | 72 ms |
+| LangChain `RecursiveCharacterTextSplitter` | **0.626** | 0.762 | 0.893 | 135 ms |
+| chonkie 1.7 `RecursiveChunker` | 0.587 | 0.755 | 0.893 | 35 ms |
+| chonkie `SentenceChunker` | 0.553 | 0.722 | 0.878 | 118 ms |
+| Crawl4AI `SlidingWindowChunking` | 0.561 | 0.708 | 0.827 | 146 ms |
+| Crawl4AI `FixedLengthWordChunking` | 0.479 | 0.618 | 0.737 | 79 ms |
+
+pagesift's `recursive` strategy is a Rust port of semchunk (identical chunks on this data) with Markdown awareness (headings stay with their content, code blocks are not split while they fit) and CJK punctuation. Three in-house variants (TextTiling-style cuts at lexical topic shifts, cohesion-based and balanced merging) did better on the tuning half but not on the hold-out half, so they were not kept. The chunks are available from the API with `"chunking": {"type": "recursive", "size": 400}`, each with its heading path and position.
+
+Reproduce: `bench/rag/run.sh`; full results: [`bench/rag/results-2026-10-21.md`](../bench/rag/results-2026-10-21.md).
+
+## 5. Crawling over HTTP (no rate limit)
 
 **Setup:** a local multi-site origin ([`bench/crawl`](../bench/crawl)) serving real pages from the corpus on `s{i}.localhost`, with 10 ms of added latency; every tool crawls every site with its own link discovery, unthrottled. Memory is the peak proportional set size (PSS) of the tool's whole process tree.
 
@@ -90,7 +120,7 @@ On real pages the change is neutral for main-content scores (Firecrawl set 0.696
 
 Reproduce: `bench/crawl/run_all.sh`.
 
-## 5. Crawling messy real-world sites: coverage, waste and politeness
+## 6. Crawling messy real-world sites: coverage, waste and politeness
 
 Speed on clean sites says little about what a crawl delivers on real sites, where links carry tracking parameters and session IDs, the same page has several URLs, calendars and pagination never end, and servers fail or rate-limit. This benchmark measures how much of a site's real content each tool collects within the same page budget, and how well it behaves.
 
@@ -134,7 +164,7 @@ What makes the difference (see `crates/pagesift/src/frontier.rs`): tracking para
 
 Reproduce: `SEED=2 bench/crawl/run_wild.sh` (any seed draws a different web); full results: [`bench/crawl/results-wild-2026-10-21.md`](../bench/crawl/results-wild-2026-10-21.md).
 
-## 6. Browser rendering
+## 7. Browser rendering
 
 pagesift drives browsers over its own CDP client and picks an engine automatically: **Lightpanda** first, **moli** when a page needs iframes or more complete JavaScript, **Chrome / chrome-headless-shell** last. Same crawl setup as above, every page rendered.
 
@@ -148,7 +178,7 @@ pagesift drives browsers over its own CDP client and picks an engine automatical
 
 Reproduce: `bench/crawl/engines.sh` (set `ENGINES=auto` for the default chain).
 
-## 7. A production workload: replacing Crawl4AI
+## 8. A production workload: replacing Crawl4AI
 
 [AiSeek](https://aiseek.dev) fetches news and company pages with Crawl4AI 0.9.4. We ran its own benchmark (`bench.py`) against both services with the production server's limits (6 cores, 10 GB memory, CPU weight 25), on 210 real production URLs (205 hosts) and 25 fixed pages. pagesift ran behind a small adapter implementing the same `/v1/fetch` contract ([`bench/aiseek`](../bench/aiseek)).
 
@@ -181,7 +211,7 @@ Reproduce: `bench/crawl/engines.sh` (set `ENGINES=auto` for the default chain).
 
 **Cold start:** first render 1.93 s → **0.19 s**; ready to serve 1.27 s → **0.12 s**.
 
-## 8. Deployment footprint
+## 9. Deployment footprint
 
 | | Crawl4AI | pagesift |
 |---|---|---|

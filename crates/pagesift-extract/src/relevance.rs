@@ -3,7 +3,7 @@
 
 use std::collections::HashSet;
 
-use crate::bm25::{Bm25Options, bm25_filter, for_each_token, tokenize};
+use crate::bm25::{Bm25Options, bm25_scores, for_each_token, tokenize};
 use crate::chunk::{ChunkStrategy, atx_heading, chunk};
 
 /// 最多跟踪多少个查询词：命中情况用一个 `u64` 位图记录。
@@ -118,22 +118,35 @@ fn term_matches(a: &str, b: &str) -> bool {
     common >= 4 && common + 1 >= m
 }
 
+/// 打分单位的大小（token）：小节内部再切到这么大。评测里比按段落选（段落可能长达上万字）召回高一倍。
+const UNIT_TOKENS: usize = 100;
+
 /// [`filter_markdown_by_query`] 的参数。
 #[derive(Debug, Clone, PartialEq)]
 pub struct QueryFilterOptions {
-    /// BM25 分数不低于它的段落才保留（同 Crawl4AI 的 `bm25_threshold`）。
-    pub threshold: f32,
-    /// 最多保留分数最高的几段。
+    /// 绝对阈值：BM25 分数不低于它的单位才保留（Crawl4AI 的 `bm25_threshold`）。
+    pub threshold: Option<f32>,
+    /// 相对阈值：分数不低于最高分的这个比例才保留。默认 0.5。
+    pub relative: Option<f32>,
+    /// 最多保留分数最高的几个单位。
     pub top_k: Option<usize>,
-    /// 在保留的段落前补上它所在的各级标题。
+    /// 保留内容的 token 上限（按分数从高到低取，不含补上的标题）。
+    pub max_tokens: Option<usize>,
+    /// 在保留的内容前补上它所在的各级标题。
     pub headings: bool,
 }
+
+/// 默认的相对阈值：在 Chroma 分块评测集上，保留集召回 0.87、平均只留 700 词
+/// （Crawl4AI 默认的绝对阈值 1.0 召回 0.69、留 1.3 万词）。
+pub const DEFAULT_RELATIVE: f32 = 0.5;
 
 impl Default for QueryFilterOptions {
     fn default() -> Self {
         Self {
-            threshold: 1.0,
+            threshold: None,
+            relative: Some(DEFAULT_RELATIVE),
             top_k: None,
+            max_tokens: None,
             headings: true,
         }
     }
@@ -142,90 +155,170 @@ impl Default for QueryFilterOptions {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FilteredMarkdown {
     pub markdown: String,
-    /// 保留的正文段落数（不含补上的标题）。
+    /// 保留的单位数。
     pub kept: usize,
-    /// 正文段落总数（不含标题）。
+    /// 单位总数。
     pub total: usize,
+    /// 保留的内容在输入里的字节区间（相邻单位已合并，不含补上的标题），可用来标出处。
+    pub ranges: Vec<std::ops::Range<usize>>,
 }
 
-fn heading_level(block: &str) -> Option<u8> {
-    if block.contains('\n') {
-        return None;
+struct Unit {
+    range: std::ops::Range<usize>,
+    path: Vec<String>,
+    tokens: usize,
+}
+
+/// 打分单位：先按标题切成小节，小节内部按大小递归切到 [`UNIT_TOKENS`] 以内（不跨小节）。
+fn units(markdown: &str) -> Vec<Unit> {
+    let mut out = Vec::new();
+    for sec in chunk(markdown, &ChunkStrategy::Headings { max_level: 6 }).unwrap_or_default() {
+        let text = &markdown[sec.start..sec.end];
+        for c in chunk(text, &ChunkStrategy::Recursive { size: UNIT_TOKENS }).unwrap_or_default() {
+            out.push(Unit {
+                range: sec.start + c.start..sec.start + c.end,
+                path: sec.heading_path.clone(),
+                tokens: c.tokens,
+            });
+        }
     }
-    atx_heading(block).map(|(level, _)| level)
+    out
 }
 
-/// 只保留和查询相关的段落。每段打分时带上它的标题路径，所以标题命中的小节整节都会得分；
-/// 输出按原文顺序，每段前补上还没输出过的各级标题，读者仍然知道这段属于哪一节。
+/// 只保留和查询相关的内容（自研）。文档先切成小节内约 100 token 的单位，每个单位带着标题路径用 BM25 打分，
+/// 默认保留分数不低于最高分一半的单位；也可以加绝对阈值、`top_k`、token 上限。
+/// 输出按原文顺序，相邻的保留单位合并成原文的一整段，每段前补上还没输出过的各级标题。
 /// 查询为空（或只有停用词）时原样返回。
 pub fn filter_markdown_by_query(
     markdown: &str,
     query: &str,
     opts: &QueryFilterOptions,
 ) -> FilteredMarkdown {
-    let chunks = chunk(markdown, &ChunkStrategy::Paragraphs).unwrap_or_default();
-    let levels: Vec<Option<u8>> = chunks.iter().map(|c| heading_level(&c.text)).collect();
-    let body: Vec<usize> = (0..chunks.len()).filter(|&i| levels[i].is_none()).collect();
+    let units = units(markdown);
     // 和 BM25 打分用同样的分词：查询只剩停用词时没法打分，原样返回
     if tokenize(query, true).is_empty() {
         return FilteredMarkdown {
             markdown: markdown.to_owned(),
-            kept: body.len(),
-            total: body.len(),
+            kept: units.len(),
+            total: units.len(),
+            ranges: std::iter::once(0..markdown.len()).collect(),
         };
     }
-    let docs: Vec<String> = body
+    let docs: Vec<String> = units
         .iter()
-        .map(|&i| {
-            let c = &chunks[i];
-            if c.heading_path.is_empty() {
-                c.text.clone()
+        .map(|u| {
+            let text = &markdown[u.range.clone()];
+            if u.path.is_empty() {
+                text.to_owned()
             } else {
-                format!("{}\n{}", c.heading_path.join(" "), c.text)
+                format!("{}\n{}", u.path.join(" "), text)
             }
         })
         .collect();
     let bm25 = Bm25Options {
-        top_k: opts.top_k,
-        threshold: Some(opts.threshold),
+        top_k: None,
+        threshold: None,
         block_weights: false,
         ..Default::default()
     };
-    let keep: HashSet<usize> = bm25_filter(&docs, query, &bm25)
-        .into_iter()
-        .map(|s| body[s.index])
+    let scores = bm25_scores(&docs, query, &bm25);
+    let top = scores.iter().copied().fold(0.0f32, f32::max);
+    let mut order: Vec<usize> = (0..units.len())
+        .filter(|&i| {
+            let s = scores[i];
+            s > 0.0
+                && opts.threshold.is_none_or(|t| s >= t)
+                && opts.relative.is_none_or(|r| s >= r * top)
+        })
         .collect();
+    order.sort_by(|&a, &b| scores[b].total_cmp(&scores[a]).then(a.cmp(&b)));
+    // 内容相同的单位只留一个
+    let mut seen = HashSet::new();
+    order.retain(|&i| seen.insert(markdown[units[i].range.clone()].trim()));
+    if let Some(k) = opts.top_k {
+        order.truncate(k);
+    }
+    if let Some(budget) = opts.max_tokens {
+        let mut used = 0;
+        order.retain(|&i| {
+            if used + units[i].tokens > budget && used > 0 {
+                return false;
+            }
+            used += units[i].tokens;
+            true
+        });
+    }
+    let mut keep = order.clone();
+    keep.sort_unstable();
 
+    // 标题：(起点, 级别, 原文这一行)
+    let headings: Vec<(usize, u8, &str)> = chunk(markdown, &ChunkStrategy::Paragraphs)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|c| !c.text.contains('\n'))
+        .filter_map(|c| {
+            atx_heading(&c.text).map(|(level, _)| (c.start, level, &markdown[c.start..c.end]))
+        })
+        .collect();
     let mut out = String::new();
     let mut push = |s: &str| {
         if !out.is_empty() {
             out.push_str("\n\n");
         }
-        out.push_str(s);
+        out.push_str(s.trim_end());
     };
-    // 当前位置的标题栈 (级别, 块下标)；栈里的下标递增，下标不超过 `emitted` 的标题都已经输出过
+    // 相邻的保留单位合并成一段原文
+    let mut spans: Vec<std::ops::Range<usize>> = Vec::new();
+    for &i in &keep {
+        let r = units[i].range.clone();
+        match spans.last_mut() {
+            Some(last)
+                if i > 0
+                    && keep.binary_search(&(i - 1)).is_ok()
+                    && units[i - 1].range.end <= r.start =>
+            {
+                last.end = r.end
+            }
+            _ => spans.push(r),
+        }
+    }
     let mut stack: Vec<(u8, usize)> = Vec::new();
+    let mut next_heading = 0;
     let mut emitted: Option<usize> = None;
-    for (i, c) in chunks.iter().enumerate() {
-        if let Some(level) = levels[i] {
+    for span in &spans {
+        // 起点就在这一段开头的标题也算进标题栈（它会弹出已经结束的兄弟小节），但它在正文里，不单独输出
+        while next_heading < headings.len() && headings[next_heading].0 <= span.start {
+            let level = headings[next_heading].1;
             while stack.last().is_some_and(|&(l, _)| l >= level) {
                 stack.pop();
             }
-            stack.push((level, i));
-            continue;
-        }
-        if !keep.contains(&i) {
-            continue;
+            stack.push((level, next_heading));
+            next_heading += 1;
         }
         if opts.headings {
             for &(_, h) in &stack {
-                if emitted.is_none_or(|e| h > e) {
-                    push(&chunks[h].text);
+                if emitted.is_none_or(|e| h > e) && headings[h].0 < span.start {
+                    push(headings[h].2);
                     emitted = Some(h);
                 }
             }
         }
-        push(&c.text);
+        push(&markdown[span.clone()]);
+        if let Some(&(_, h)) = stack.last()
+            && headings[h].0 == span.start
+        {
+            emitted = Some(emitted.map_or(h, |e| e.max(h)));
+        }
+        // 段落里自带的标题也算输出过
+        while next_heading < headings.len() && headings[next_heading].0 < span.end {
+            let level = headings[next_heading].1;
+            while stack.last().is_some_and(|&(l, _)| l >= level) {
+                stack.pop();
+            }
+            stack.push((level, next_heading));
+            emitted = Some(next_heading);
+            next_heading += 1;
+        }
     }
     if !out.is_empty() {
         out.push('\n');
@@ -233,7 +326,8 @@ pub fn filter_markdown_by_query(
     FilteredMarkdown {
         markdown: out,
         kept: keep.len(),
-        total: body.len(),
+        total: units.len(),
+        ranges: spans,
     }
 }
 
@@ -281,36 +375,72 @@ mod tests {
             f.markdown,
             "# Guide\n\n## Pricing\n\nThe pro plan costs ten dollars a month.\n\nPayments are monthly.\n"
         );
-        assert_eq!((f.kept, f.total), (2, 6));
+        assert_eq!((f.kept, f.total), (1, 5));
     }
 
     #[test]
     fn filter_emits_each_heading_once_and_restarts_after_siblings() {
         let opts = QueryFilterOptions {
-            threshold: 0.1,
+            threshold: Some(0.1),
+            relative: None,
             ..Default::default()
         };
         let f = filter_markdown_by_query(DOC, "linux monthly", &opts);
         assert_eq!(
             f.markdown,
-            "# Guide\n\n## Install\n\nRun the installer on Linux.\n\n### Linux\n\nUse apt to get the package.\n\n## Pricing\n\nPayments are monthly.\n"
+            "# Guide\n\n## Install\n\nRun the installer on Linux.\n\n### Linux\n\nUse apt to get the package.\n\n## Pricing\n\nThe pro plan costs ten dollars a month.\n\nPayments are monthly.\n"
         );
         let bare = filter_markdown_by_query(
             DOC,
             "monthly",
             &QueryFilterOptions {
                 headings: false,
-                threshold: 0.1,
                 ..Default::default()
             },
         );
-        assert_eq!(bare.markdown, "Payments are monthly.\n");
+        assert_eq!(
+            bare.markdown,
+            "## Pricing\n\nThe pro plan costs ten dollars a month.\n\nPayments are monthly.\n"
+        );
+    }
+
+    #[test]
+    fn long_paragraphs_are_split_into_units_and_budget_applies() {
+        let filler =
+            "lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor "
+                .repeat(30);
+        let doc = format!("{filler}The refund policy allows returns within thirty days. {filler}");
+        let f = filter_markdown_by_query(&doc, "refund policy", &QueryFilterOptions::default());
+        assert!(
+            f.markdown.contains("The refund policy allows returns"),
+            "{}",
+            f.markdown
+        );
+        assert!(
+            f.markdown.split_whitespace().count() <= 2 * UNIT_TOKENS,
+            "only the unit around the answer"
+        );
+        assert!(f.total > 3);
+        let tight = filter_markdown_by_query(
+            &doc,
+            "lorem refund",
+            &QueryFilterOptions {
+                relative: None,
+                max_tokens: Some(150),
+                ..Default::default()
+            },
+        );
+        assert!(
+            tight.markdown.split_whitespace().count() <= 150,
+            "{}",
+            tight.markdown.split_whitespace().count()
+        );
     }
 
     #[test]
     fn filter_top_k_and_edge_cases() {
         let opts = QueryFilterOptions {
-            threshold: 0.0,
+            relative: None,
             top_k: Some(1),
             ..Default::default()
         };

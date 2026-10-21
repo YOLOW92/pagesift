@@ -29,6 +29,25 @@ pub fn check_scrape_options(opts: &ScrapeOptions, engine: &dyn Engine) -> Result
             "engine must be http, browser or auto, got {e:?}"
         )));
     }
+    if let Some(c) = &opts.chunking {
+        const KINDS: [&str; 8] = [
+            "recursive",
+            "headings",
+            "paragraphs",
+            "sentences",
+            "fixed_tokens",
+            "sliding_window",
+            "overlapping",
+            "regex",
+        ];
+        let kind = c.get("type").and_then(|t| t.as_str());
+        if !kind.is_some_and(|k| KINDS.contains(&k)) {
+            return Err(ApiError::invalid(format!(
+                "chunking.type must be one of {}",
+                KINDS.join(", ")
+            )));
+        }
+    }
     let supported = engine.supported_formats();
     if let Some(f) = opts
         .formats

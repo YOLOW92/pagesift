@@ -107,7 +107,8 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 - Crawl with include/exclude paths, depth and limits, sitemaps, and robots.txt; **query-focused crawling** (`query`, `adaptive`) visits the most relevant pages first and stops when new pages stop helping.
 - Faithful Markdown: tables, nested lists, fenced code with its language, hard line breaks and formulas (KaTeX, MathJax, MathML and Wikipedia math become `$…$` TeX); Markdown characters in the text are escaped only where they would otherwise turn into formatting. Scores 1.000 on a random round-trip test where the next best converter scores 0.936.
 - **Crawls real sites without wasting the budget:** strips tracking parameters and session IDs, skips binaries and endless paths, learns which URLs are aliases of the same page, pushes calendar and pagination traps to the back, retries transient failures later and slows down when a site answers 429. On a simulated messy web it finds 74% of the content pages within the page limit, versus 53% for the next best tool (see the benchmarks).
-- `queryFilter` keeps only the passages relevant to a query (BM25), to save LLM tokens.
+- `queryFilter` keeps only the passages relevant to a query: the page is split into ~100-token units inside its sections, scored with BM25 together with their heading path, and units scoring at least half of the best are kept, in page order with their headings. On a labelled RAG benchmark it keeps 87% of the answer text in about 600 words, where Crawl4AI's BM25 filter keeps 67% in 13,500 words, and it is 70× faster. `maxTokens`, `topK` and an absolute `threshold` are available.
+- `chunking` returns the Markdown as chunks ready for RAG, each with its heading path and position: `recursive` (size-bounded, splits at the most meaningful boundary, keeps code blocks and headings with their content; a Rust port of semchunk, with the same retrieval quality and over 3× faster), headings, paragraphs, sentences and token windows.
 - PDF text extraction; metadata (title, description, language, author, published time, Open Graph). The publication date is searched like htmldate does (meta tags, JSON-LD, date elements, text patterns) with month names in about twenty languages, and keeps the page's own time zone.
 - Conditional requests (`ifNoneMatch`, `ifModifiedSince`), a content cache (`maxAge`), content hashes for change detection.
 
@@ -130,6 +131,7 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 | Firecrawl-compatible API | ✅ | ❌ | ✅ | ✅ | ❌ |
 | Main-content extraction score ↑ | **0.733** | 0.666 | — | 0.703 | — |
 | Markdown fidelity, random round trip ↑ | **1.000** | 0.787 | — | — | — |
+| RAG query filter: answer kept / words returned | **87% / 600** | 67% / 13,500 | — | — | — |
 | Extraction p50 per page ↓ | **0.47 ms** | 38.6 ms | — | 7.38 ms | — |
 | HTTP crawl, 200 × 100 pages ↑ | **3,500+ p/s** | 15 p/s | — | 206 p/s | 2,000–2,700 p/s |
 | Memory for that crawl ↓ | **~300 MB** | — | — | 1.4 GB | 5.5 GB |

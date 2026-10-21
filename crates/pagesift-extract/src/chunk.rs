@@ -39,6 +39,12 @@ pub enum ChunkStrategy {
         window: usize,
         overlap: usize,
     },
+    /// 每块不超过 `size` 个 token，在最有结构意义的位置切开（段落、句子、标点…），
+    /// 不跨更高层级的边界；Markdown 标题和代码块按整块处理。RAG 推荐用这个。
+    Recursive {
+        #[serde(alias = "chunk_size")]
+        size: usize,
+    },
     /// 依次用每个正则切分（Crawl4AI 的 `RegexChunking`，默认 `\n\n`）。
     Regex {
         #[serde(default = "default_patterns")]
@@ -94,6 +100,40 @@ pub fn chunk(markdown: &str, strategy: &ChunkStrategy) -> Result<Vec<Chunk>, Err
                 return Err(Error::Options("overlap must be smaller than window".into()));
             }
             windows(markdown, *window, window - overlap, false)
+        }
+        ChunkStrategy::Recursive { size } => {
+            positive(*size, "size")?;
+            // 有标题或代码块时按 Markdown 块处理，否则当纯文本
+            let structured = doc.blocks.iter().any(|b| b.kind != BlockKind::Text);
+            let pieces: Vec<crate::recursive::Piece> = if structured {
+                doc.blocks
+                    .iter()
+                    .map(|b| crate::recursive::Piece {
+                        range: b.range.clone(),
+                        heading: b.kind == BlockKind::Heading,
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            // token 起点只算一次；区间的 token 数 = 区间里的起点数，区间从词中间开始时再加一（精确）
+            let starts: Vec<usize> = token_spans(markdown).map(|t| t.start).collect();
+            let count = |r: Range<usize>| {
+                let n = starts.partition_point(|&s| s < r.end)
+                    - starts.partition_point(|&s| s < r.start);
+                let mid_word = r.start > 0
+                    && r.start < r.end
+                    && markdown[..r.start]
+                        .chars()
+                        .next_back()
+                        .is_some_and(|c| !c.is_whitespace() && !is_cjk(c))
+                    && markdown[r.start..]
+                        .chars()
+                        .next()
+                        .is_some_and(|c| !c.is_whitespace() && !is_cjk(c));
+                n + usize::from(mid_word)
+            };
+            crate::recursive::recursive(markdown, &pieces, *size, &count)
         }
         ChunkStrategy::Regex { patterns } => regex_split(markdown, patterns)?,
     };

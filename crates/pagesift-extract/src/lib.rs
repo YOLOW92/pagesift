@@ -26,6 +26,7 @@ mod css;
 mod engine;
 mod error;
 mod patterns;
+mod recursive;
 mod relevance;
 mod schema;
 mod text;

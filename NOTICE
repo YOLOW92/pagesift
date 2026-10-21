@@ -37,6 +37,15 @@ No source code from them is included; the algorithms were reimplemented in Rust.
   The retry policy (status codes, retry count, rescheduling instead of waiting)
   of the crawler (crates/pagesift/src/crawl.rs).
 
+- semchunk (https://github.com/isaacus-dev/semchunk), MIT License,
+  Copyright (c) Isaacus.
+  The recursive chunking algorithm: splitter priorities and greedy merging of
+  sibling splits (crates/pagesift-extract/src/recursive.rs).
+
+The chunking and query-filter benchmarks use the evaluation data of Chroma's
+chunking_evaluation (https://github.com/brandonstarxel/chunking_evaluation,
+MIT License); it is downloaded, not redistributed.
+
 The URL rewrite-rule learning follows the DUST idea from Bar-Yossef, Keidar and
 Schonfeld, "Do not crawl in the DUST: different URLs with similar text" (WWW 2007),
 and Dasgupta et al., "De-duping URLs via rewrite rules" (KDD 2008).

@@ -130,25 +130,36 @@ pub struct ScrapeOptions {
     /// 只保留正文里和查询相关的段落（BM25），见 [`QueryFilter`]。不给时输出完整正文。
     #[serde(default)]
     pub query_filter: Option<QueryFilter>,
-}
-
-fn default_filter_threshold() -> f32 {
-    1.0
+    /// pagesift 扩展：把（过滤后的）正文 Markdown 分块，结果在 `chunks`。例如
+    /// `{"type": "recursive", "size": 400}`（RAG 推荐）、`{"type": "headings", "maxLevel": 2}`、
+    /// `{"type": "sliding_window", "window": 200, "step": 100}`；策略见 pagesift-extract 的 `ChunkStrategy`。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chunking: Option<Value>,
 }
 
 /// pagesift 扩展 `queryFilter`：按查询过滤正文 Markdown，省 token。
-/// 可以直接写查询字符串，也可以写 `{"query": "...", "threshold": 1.0, "topK": 5, "headings": true}`。
+/// 可以直接写查询字符串，也可以写
+/// `{"query": "...", "relative": 0.5, "threshold": 1.0, "topK": 5, "maxTokens": 800, "headings": true}`。
+/// 正文先切成约 100 token 的单位（不跨小节）用 BM25 打分；默认保留分数不低于最高分一半的单位。
+/// 只给 `threshold`（Crawl4AI 的 `bm25_threshold` 写法）时只按绝对阈值，不再加相对阈值。
 /// `summary`、`json` 和 `changeTracking` 都基于过滤后的正文。
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryFilter {
     pub query: String,
-    /// BM25 分数不低于它的段落才保留，默认 1.0（同 Crawl4AI 的 `bm25_threshold`）。
-    pub threshold: f32,
-    /// 最多保留分数最高的几段。
+    /// 绝对阈值：BM25 分数不低于它的单位才保留。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub threshold: Option<f32>,
+    /// 相对阈值：分数不低于最高分的这个比例才保留。不给 `threshold` 时默认 0.5。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relative: Option<f32>,
+    /// 最多保留分数最高的几个单位。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top_k: Option<usize>,
-    /// 在保留的段落前补上它所在的各级标题，默认开。
+    /// 保留内容的 token 上限（按分数从高到低取）。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_tokens: Option<usize>,
+    /// 在保留的内容前补上它所在的各级标题，默认开。
     pub headings: bool,
 }
 
@@ -158,10 +169,14 @@ impl<'de> Deserialize<'de> for QueryFilter {
         #[serde(rename_all = "camelCase")]
         struct Full {
             query: String,
-            #[serde(default = "default_filter_threshold")]
-            threshold: f32,
+            #[serde(default)]
+            threshold: Option<f32>,
+            #[serde(default)]
+            relative: Option<f32>,
             #[serde(default)]
             top_k: Option<usize>,
+            #[serde(default)]
+            max_tokens: Option<usize>,
             #[serde(default = "yes")]
             headings: bool,
         }
@@ -174,18 +189,31 @@ impl<'de> Deserialize<'de> for QueryFilter {
         Ok(match Repr::deserialize(d)? {
             Repr::Query(query) => QueryFilter {
                 query,
-                threshold: default_filter_threshold(),
+                threshold: None,
+                relative: Some(pagesift_extract_defaults::RELATIVE),
                 top_k: None,
+                max_tokens: None,
                 headings: true,
             },
             Repr::Full(f) => QueryFilter {
                 query: f.query,
+                relative: f.relative.or(if f.threshold.is_none() {
+                    Some(pagesift_extract_defaults::RELATIVE)
+                } else {
+                    None
+                }),
                 threshold: f.threshold,
                 top_k: f.top_k,
+                max_tokens: f.max_tokens,
                 headings: f.headings,
             },
         })
     }
+}
+
+/// queryFilter 的默认相对阈值（和 pagesift-extract 的 `DEFAULT_RELATIVE` 一致；API 层不依赖提取库）。
+mod pagesift_extract_defaults {
+    pub const RELATIVE: f32 = 0.5;
 }
 
 impl Default for ScrapeOptions {
@@ -552,7 +580,24 @@ pub struct Document {
     pub warning: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub change_tracking: Option<ChangeTracking>,
+    /// 请求了 `chunking` 时，正文 Markdown 的分块。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chunks: Option<Vec<DocChunk>>,
     pub metadata: Metadata,
+}
+
+/// 正文 Markdown 的一块。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocChunk {
+    pub text: String,
+    /// 从最外层到最内层的标题。
+    pub heading_path: Vec<String>,
+    /// 在 `markdown` 里的 UTF-8 字节区间。
+    pub start: usize,
+    pub end: usize,
+    /// token 估算：拉丁文按空白分词，中日韩每个字算一个。
+    pub tokens: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -674,8 +719,14 @@ mod tests {
         .unwrap();
         let f = r.options.query_filter.unwrap();
         assert_eq!(
-            (f.query.as_str(), f.threshold, f.top_k, f.headings),
-            ("refund policy", 1.0, None, true)
+            (
+                f.query.as_str(),
+                f.threshold,
+                f.relative,
+                f.top_k,
+                f.headings
+            ),
+            ("refund policy", None, Some(0.5), None, true)
         );
         let r: ScrapeRequest = serde_json::from_value(json!({
             "url": "https://example.com",
@@ -683,7 +734,18 @@ mod tests {
         }))
         .unwrap();
         let f = r.options.query_filter.unwrap();
-        assert_eq!((f.threshold, f.top_k, f.headings), (0.5, Some(3), false));
+        // 只给绝对阈值（Crawl4AI 写法）时不加相对阈值
+        assert_eq!(
+            (f.threshold, f.relative, f.top_k, f.headings),
+            (Some(0.5), None, Some(3), false)
+        );
+        let r: ScrapeRequest = serde_json::from_value(json!({
+            "url": "https://example.com",
+            "queryFilter": {"query": "q", "maxTokens": 800},
+        }))
+        .unwrap();
+        let f = r.options.query_filter.unwrap();
+        assert_eq!((f.relative, f.max_tokens), (Some(0.5), Some(800)));
         assert!(ScrapeOptions::default().query_filter.is_none());
     }
 
