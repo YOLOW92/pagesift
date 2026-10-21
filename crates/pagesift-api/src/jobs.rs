@@ -25,7 +25,7 @@ use crate::engine::{BoxFuture, CrawlResume, CrawlSink, Engine};
 use crate::error::{ApiError, ErrorCode};
 use crate::limits::{Caller, KeyLimits, Limiter, quota_error};
 use crate::metrics::{Metrics, PageSource};
-use crate::types::{CrawlRequest, Document, JobError, ScrapeOptions};
+use crate::types::{CrawlRequest, CrawlSummary, Document, JobError, ScrapeOptions};
 use crate::webhook::{Event, Hook, WebhookConfig, Webhooks};
 
 /// Firecrawl 的任务结果保留 24 小时。
@@ -87,6 +87,8 @@ pub struct Job {
     pub errors: Vec<JobError>,
     pub robots_blocked: Vec<String>,
     pub created: SystemTime,
+    /// 带查询的爬取结束后的说明。
+    pub summary: Option<CrawlSummary>,
     /// 存储里已有的文档数。
     stored_docs: usize,
     owner: Option<Caller>,
@@ -103,6 +105,7 @@ impl Job {
             errors: Vec::new(),
             robots_blocked: Vec::new(),
             created: SystemTime::now(),
+            summary: None,
             stored_docs: 0,
             owner,
         }
@@ -126,6 +129,7 @@ pub(crate) struct StatusPage {
     /// 文档总数。
     pub docs: usize,
     pub data: Vec<Document>,
+    pub summary: Option<CrawlSummary>,
 }
 
 /// 启动任务时的调用方信息。
@@ -147,6 +151,9 @@ struct Meta {
     webhook: Option<WebhookConfig>,
     crawl: Option<CrawlRequest>,
     batch: Option<BatchSpec>,
+    /// 带查询的爬取结束后的说明；旧版本存的任务没有这个字段。
+    #[serde(default)]
+    summary: Option<CrawlSummary>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -256,6 +263,7 @@ impl Jobs {
                     .get(skip.min(end)..end)
                     .unwrap_or_default()
                     .to_vec(),
+                summary: job.summary.clone(),
             }
         };
         if let Some(store) = &self.inner.store
@@ -360,6 +368,7 @@ impl Jobs {
             webhook: start.webhook.clone(),
             crawl,
             batch,
+            summary: None,
         };
         {
             let mut map = self.inner.map.lock().await;
@@ -542,9 +551,10 @@ impl Jobs {
         };
         let snapshot = {
             let map = self.inner.map.lock().await;
-            map.get(id).map(|j| (j.state, j.total, j.completed))
+            map.get(id)
+                .map(|j| (j.state, j.total, j.completed, j.summary.clone()))
         };
-        let Some((state, total, completed)) = snapshot else {
+        let Some((state, total, completed, summary)) = snapshot else {
             return;
         };
         let key = meta_key(id);
@@ -560,6 +570,7 @@ impl Jobs {
                 meta.state = state;
                 meta.total = total;
                 meta.completed = completed;
+                meta.summary = summary;
                 t.kv_put(&key, &serde_json::to_vec(&meta).unwrap_or_default())
             })
             .await;
@@ -619,6 +630,7 @@ impl Jobs {
             let mut job = Job::new(meta.kind, meta.total, owner);
             job.created = created;
             job.state = meta.state;
+            job.summary = meta.summary;
             job.stored_docs = pages;
             job.completed = pages + errors;
             job.total = job.total.max(job.completed);
@@ -966,6 +978,16 @@ impl CrawlSink for JobSink {
 
     fn tracks_frontier(&self) -> bool {
         self.store().is_some()
+    }
+
+    fn summary(&self, summary: CrawlSummary) -> BoxFuture<'_, ()> {
+        Box::pin(async move {
+            if let Some(job) = self.jobs.inner.map.lock().await.get_mut(&self.id) {
+                job.summary = Some(summary);
+            }
+            // 结束时 `finish` 还会再存一次；这里先存，任务结束前进程退出也不丢
+            self.jobs.save_state(&self.id).await;
+        })
     }
 
     fn enqueued(&self, urls: Vec<(String, usize)>) -> BoxFuture<'_, ()> {

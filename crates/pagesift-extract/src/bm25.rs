@@ -46,7 +46,12 @@ pub fn tokenize(text: &str, stopwords: bool) -> Vec<String> {
     out
 }
 
-fn for_each_token(text: &str, stopwords: bool, buf: &mut String, mut f: impl FnMut(&str)) {
+pub(crate) fn for_each_token(
+    text: &str,
+    stopwords: bool,
+    buf: &mut String,
+    mut f: impl FnMut(&str),
+) {
     let mut chars = text.chars().peekable();
     while let Some(c) = chars.next() {
         if is_cjk(c) && c.is_alphabetic() {

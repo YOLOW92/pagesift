@@ -6,7 +6,7 @@ use std::process::ExitCode;
 use std::sync::Mutex;
 
 use anyhow::Result;
-use pagesift::api::types::Document;
+use pagesift::api::types::{CrawlSummary, Document};
 use pagesift::api::{ApiError, BoxFuture, CrawlSink};
 
 /// crawl 的结果：有输出目录时每页一个 .md 文件，加一个 index.jsonl；否则每页一行 JSON 打到标准输出。
@@ -102,6 +102,14 @@ impl CrawlSink for CrawlOutput {
 
     fn cancelled(&self) -> BoxFuture<'_, bool> {
         Box::pin(async { false })
+    }
+
+    fn summary(&self, s: CrawlSummary) -> BoxFuture<'_, ()> {
+        match s.coverage {
+            Some(c) => eprintln!("stopped: {} (coverage {c:.2})", s.stop_reason),
+            None => eprintln!("stopped: {}", s.stop_reason),
+        }
+        Box::pin(async {})
     }
 }
 

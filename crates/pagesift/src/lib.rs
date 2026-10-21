@@ -12,9 +12,11 @@
 
 #![forbid(unsafe_code)]
 
+mod change;
 pub mod config;
 mod crawl;
 mod engine;
+mod focus;
 mod learn;
 pub mod mcp;
 

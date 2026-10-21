@@ -6,7 +6,8 @@ use std::sync::Arc;
 
 use crate::error::ApiError;
 use crate::types::{
-    CrawlRequest, Document, ExtractRequest, MapLink, MapRequest, ScrapeOptions, SearchRequest,
+    CrawlRequest, CrawlSummary, Document, ExtractRequest, MapLink, MapRequest, ScrapeOptions,
+    SearchRequest,
 };
 use serde_json::Value;
 
@@ -86,6 +87,11 @@ pub trait CrawlSink: Send + Sync {
 
     /// 新进入队列的 URL 和发现深度，按入队顺序。只在 [`CrawlSink::tracks_frontier`] 为真时调用。
     fn enqueued(&self, _urls: Vec<(String, usize)>) -> BoxFuture<'_, ()> {
+        Box::pin(async {})
+    }
+
+    /// 爬取结束时的说明（停止原因等）；只有带查询的爬取会调用。
+    fn summary(&self, _summary: CrawlSummary) -> BoxFuture<'_, ()> {
         Box::pin(async {})
     }
 }

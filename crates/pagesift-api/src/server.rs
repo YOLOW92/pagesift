@@ -351,6 +351,7 @@ async fn job_status(
         expires_at: rfc3339(page.expires_at),
         next: (more && end > p.skip).then(|| format!("{base}{path}?skip={end}")),
         data: page.data,
+        pagesift: page.summary,
     }))
 }
 

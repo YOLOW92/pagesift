@@ -20,6 +20,8 @@ httpdate = "1.0.3"
 pagesift-api = { version = "0.0.1", path = "../pagesift-api" }
 pagesift-cdp = { version = "0.0.1", path = "../pagesift-cdp" }
 pagesift-content = { version = "0.0.1", path = "../pagesift-content" }
+pagesift-diff = { version = "0.0.1", path = "../pagesift-diff" }
+pagesift-extract = { version = "0.0.1", path = "../pagesift-extract" }
 pagesift-html = { version = "0.0.1", path = "../pagesift-html" }
 pagesift-llm = { version = "0.0.1", path = "../pagesift-llm" }
 pagesift-mcp = { version = "0.0.1", path = "../pagesift-mcp" }

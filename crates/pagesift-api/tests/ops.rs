@@ -8,7 +8,7 @@ use std::time::Duration;
 use axum::body::Body;
 use axum::http::{HeaderMap, Request, StatusCode};
 use http_body_util::BodyExt;
-use pagesift_api::types::{CrawlRequest, Document, Metadata, ScrapeOptions};
+use pagesift_api::types::{CrawlRequest, CrawlSummary, Document, Metadata, ScrapeOptions};
 use pagesift_api::{
     ApiError, BoxFuture, Config, CrawlSink, Engine, ErrorCode, KeyLimits, WebhookSettings, router,
 };
@@ -112,6 +112,15 @@ impl Engine for Fake {
                 }
                 done += 1;
                 sink.total((done + queue.len()).min(req.limit)).await;
+            }
+            if req.query.is_some() {
+                sink.summary(CrawlSummary {
+                    stop_reason: "limit_reached".into(),
+                    coverage: None,
+                    term_evidence: Default::default(),
+                    pages: done,
+                })
+                .await;
             }
             Ok(())
         })
@@ -322,6 +331,35 @@ fn batch_resumes_after_restart_and_keeps_errors() {
     let total = scraped.lock().unwrap().len();
     assert!(total <= 61 + 2, "{total} scrapes for 61 URLs");
     assert!(crashed_at >= 10);
+}
+
+#[tokio::test]
+async fn crawl_summary_survives_restart() {
+    let dir = tempfile::tempdir().unwrap();
+    let (fake, _) = Fake::new(0);
+    let expected = json!({"stopReason": "limit_reached", "pages": 3});
+    let id = {
+        let app = persisted(fake.clone(), dir.path());
+        let (_, _, v) = call(
+            &app,
+            "POST",
+            "/v2/crawl",
+            Some(json!({"url": format!("{BASE}/p/0"), "limit": 3, "query": "anything"})),
+            None,
+        )
+        .await;
+        let id = v["id"].as_str().unwrap().to_string();
+        let done = wait(&app, &format!("/v2/crawl/{id}"), |v| {
+            v["status"] == "completed"
+        })
+        .await;
+        assert_eq!(done["pagesift"], expected);
+        id
+    };
+    let app = persisted(fake, dir.path());
+    let (_, _, v) = call(&app, "GET", &format!("/v2/crawl/{id}"), None, None).await;
+    assert_eq!(v["status"], "completed");
+    assert_eq!(v["pagesift"], expected, "{v}");
 }
 
 #[tokio::test]

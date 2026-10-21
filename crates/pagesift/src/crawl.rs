@@ -1,4 +1,5 @@
-//! 整站爬取和 map（PRD 6.6）：URL 规范化、爬取范围、sitemap 解析、广度优先遍历。
+//! 整站爬取和 map（PRD 6.6）：URL 规范化、爬取范围、sitemap 解析、广度优先遍历，
+//! 以及带查询时的相关性优先遍历（见 [`crate::focus`]）。
 //!
 //! 限速、robots 和冷却全部走策略层，所以整站爬取和单页抓取一样守规矩。
 
@@ -9,13 +10,14 @@ use std::time::Duration;
 
 use futures_util::StreamExt;
 use futures_util::stream::FuturesUnordered;
-use pagesift_api::types::{CrawlRequest, Format, MapLink, MapRequest, ScrapeOptions};
+use pagesift_api::types::{CrawlRequest, CrawlSummary, Format, MapLink, MapRequest, ScrapeOptions};
 use pagesift_api::{ApiError, CrawlSink, ErrorCode};
 use pagesift_net::{FetchRequest, Url};
 use pagesift_policy::{RequestKind, RobotsMode};
 use regex::Regex;
 
 use crate::engine::{Scraper, policy_error};
+use crate::focus::{Adaptive, BestFirst, Focus, Offer, link_contexts};
 
 /// sitemapindex 最多展开几层、最多读多少个 sitemap 文件、单个文件解压后最大多少。
 const SITEMAP_MAX_DEPTH: usize = 3;
@@ -250,12 +252,25 @@ impl Scraper {
             .collect())
     }
 
-    /// 广度优先爬取。深度按发现顺序计算：起始页和 sitemap 里的页面是 0。
+    /// 整站爬取。深度按发现顺序计算：起始页和 sitemap 里的页面是 0。
+    /// 带 `query` 时按相关性优先调度（见 [`crate::focus`]），否则广度优先。
     pub async fn crawl(
         &self,
         req: &CrawlRequest,
         sink: Arc<dyn CrawlSink>,
     ) -> Result<(), ApiError> {
+        if req.adaptive.is_some() && req.query.is_none() {
+            return Err(ApiError::invalid("adaptive crawling needs a query"));
+        }
+        if let Some(a) = &req.adaptive
+            && !(a.coverage_threshold > 0.0
+                && a.coverage_threshold <= 1.0
+                && (0.0..=1.0).contains(&a.min_gain))
+        {
+            return Err(ApiError::invalid(
+                "adaptive.coverageThreshold must be in (0, 1] and adaptive.minGain in [0, 1]",
+            ));
+        }
         let start = Url::parse(&req.url).map_err(|e| ApiError::invalid(e.to_string()))?;
         let mode = self
             .policy()
@@ -269,6 +284,47 @@ impl Scraper {
             &req.include_paths,
             &req.exclude_paths,
         )?;
+        let crawl = Crawl {
+            req,
+            sink: sink.as_ref(),
+            scope: &scope,
+            mode,
+        };
+        match req.query.as_deref() {
+            Some(q) => self.crawl_focused(crawl, start, q).await,
+            None => self.crawl_bfs(crawl, start).await,
+        }
+    }
+
+    /// 新任务开始时 sitemap 里的页面（`sitemap: skip` 时为空）。从断点继续的任务不再读 sitemap。
+    async fn initial_sitemap(&self, c: &Crawl<'_>, start: &Url) -> Vec<Url> {
+        if c.req.sitemap == "skip" {
+            return Vec::new();
+        }
+        self.sitemap_urls(start, c.mode, c.req.limit.saturating_mul(2))
+            .await
+    }
+
+    /// 需要链接来继续发现页面；用户没要 links 格式时，内部照样取，输出前去掉。
+    /// 一次爬取基本只访问一个主机，同时进行的请求数超过每主机并发上限也只是排队，
+    /// 所以并发默认就取这个上限；调用方显式给的 maxConcurrency 照用。
+    fn crawl_settings(&self, req: &CrawlRequest, extra: &[&str]) -> (Arc<ScrapeOptions>, usize) {
+        let mut opts = req.scrape_options.clone();
+        for kind in std::iter::once("links").chain(extra.iter().copied()) {
+            if !opts.wants(kind) {
+                opts.formats.push(Format::new(kind));
+            }
+        }
+        let concurrency = req
+            .max_concurrency
+            .unwrap_or(self.policy().limiter().config().per_host_concurrency)
+            .max(1);
+        (Arc::new(opts), concurrency)
+    }
+
+    /// 广度优先爬取。
+    async fn crawl_bfs(&self, c: Crawl<'_>, start: Url) -> Result<(), ApiError> {
+        let (req, sink, scope, mode) = (c.req, c.sink, c.scope, c.mode);
         let follow_links = req.sitemap != "only";
         let max_depth = req.max_discovery_depth.unwrap_or(usize::MAX);
 
@@ -293,17 +349,12 @@ impl Scraper {
         } else {
             seen.insert(seen_hash(&start, req.ignore_query_parameters));
             queue.push_back((start.clone(), 0));
-            if req.sitemap != "skip" {
-                for u in self
-                    .sitemap_urls(&start, mode, req.limit.saturating_mul(2))
-                    .await
+            for u in self.initial_sitemap(&c, &start).await {
+                if queue.len() < req.limit
+                    && scope.allows(&u)
+                    && seen.insert(seen_hash(&u, req.ignore_query_parameters))
                 {
-                    if queue.len() < req.limit
-                        && scope.allows(&u)
-                        && seen.insert(seen_hash(&u, req.ignore_query_parameters))
-                    {
-                        queue.push_back((u, 0));
-                    }
+                    queue.push_back((u, 0));
                 }
             }
             if track {
@@ -312,19 +363,8 @@ impl Scraper {
             }
         }
 
-        // 需要链接来继续发现页面；用户没要 links 格式时，内部照样取，输出前去掉
         let wants_links = req.scrape_options.wants("links");
-        let mut opts = req.scrape_options.clone();
-        if !wants_links {
-            opts.formats.push(Format::new("links"));
-        }
-        let opts = Arc::new(opts);
-        // 一次爬取基本只访问一个主机，同时进行的请求数超过每主机并发上限也只是排队，
-        // 所以默认就取这个上限；调用方显式给的 maxConcurrency 照用
-        let concurrency = req
-            .max_concurrency
-            .unwrap_or(self.policy().limiter().config().per_host_concurrency)
-            .max(1);
+        let (opts, concurrency) = self.crawl_settings(req, &[]);
         let slots = self.crawl_slots();
         let delay = req.delay.map(Duration::from_secs_f64);
 
@@ -394,6 +434,221 @@ impl Scraper {
         }
         Ok(())
     }
+
+    /// 相关性优先爬取：队列按链接分数出队；`adaptive` 时信息够了就停止调度，
+    /// 已经在抓的页面照常交付。结束时通过 [`CrawlSink::summary`] 报告停止原因。
+    ///
+    /// 从断点继续时队列和去重表照常恢复，但链接分数和自适应的统计不落盘：没完成的页面按 URL 路径
+    /// 重新打分，覆盖度从零开始累计。
+    async fn crawl_focused(&self, c: Crawl<'_>, start: Url, query: &str) -> Result<(), ApiError> {
+        let (req, sink, scope, mode) = (c.req, c.sink, c.scope, c.mode);
+        let focus = Focus::new(query);
+        let mut adaptive = req
+            .adaptive
+            .clone()
+            .map(|a| Adaptive::new(a, focus.query.len()));
+        let follow_links = req.sitemap != "only";
+        let max_depth = req.max_discovery_depth.unwrap_or(usize::MAX);
+        let ignore_query = req.ignore_query_parameters;
+
+        // 去重表只记已调度和正在排队的页面；被挤出队列的链接从表里删掉，以后还能以更高的分数回来。
+        // 两者加起来不超过 limit，和广度优先一样有界
+        let mut seen: HashSet<u64> = HashSet::new();
+        let mut queue = BestFirst::default();
+        // 有页面因为 limit 没能进队列
+        let mut overflow = false;
+        let track = sink.tracks_frontier();
+        let mut scheduled = 0usize;
+        // 新入队的 URL（持久化的任务要回报）
+        let mut fresh: Vec<(String, usize)> = Vec::new();
+        // 放进队列，维护去重表；返回有没有页面因为 limit 被挤掉或进不来
+        let offer = |queue: &mut BestFirst,
+                     seen: &mut HashSet<u64>,
+                     fresh: &mut Vec<(String, usize)>,
+                     u: Url,
+                     depth: usize,
+                     score: f32,
+                     room: usize|
+         -> bool {
+            let h = seen_hash(&u, ignore_query);
+            let entry = track.then(|| (u.to_string(), depth));
+            match queue.offer(h, u, depth, score, room) {
+                Offer::Queued => {
+                    seen.insert(h);
+                    fresh.extend(entry);
+                    false
+                }
+                Offer::Evicted(old) => {
+                    seen.remove(&old);
+                    seen.insert(h);
+                    fresh.extend(entry);
+                    true
+                }
+                Offer::Rejected => true,
+                Offer::AlreadyQueued => false,
+            }
+        };
+        if let Some(r) = sink.resume() {
+            for u in r.enqueued.iter().filter_map(|u| Url::parse(u).ok()) {
+                seen.insert(seen_hash(&u, ignore_query));
+            }
+            scheduled = r.done;
+            let room = req.limit.saturating_sub(scheduled);
+            // 这些 URL 已经记在入队列表里，不再回报
+            let mut known = Vec::new();
+            for (u, depth) in r.pending {
+                if let Ok(u) = Url::parse(&u) {
+                    let score = focus.link_score(&u, None, None, 0.0, depth);
+                    overflow |= offer(&mut queue, &mut seen, &mut known, u, depth, score, room);
+                }
+            }
+        } else {
+            offer(
+                &mut queue,
+                &mut seen,
+                &mut fresh,
+                start.clone(),
+                0,
+                f32::INFINITY,
+                req.limit,
+            );
+            for u in self.initial_sitemap(&c, &start).await {
+                if !scope.allows(&u) || seen.contains(&seen_hash(&u, ignore_query)) {
+                    continue;
+                }
+                let score = focus.link_score(&u, None, None, 0.0, 0);
+                overflow |= offer(&mut queue, &mut seen, &mut fresh, u, 0, score, req.limit);
+            }
+        }
+        if !fresh.is_empty() {
+            sink.enqueued(std::mem::take(&mut fresh)).await;
+        }
+
+        let wants_links = req.scrape_options.wants("links");
+        let wants_md = req.scrape_options.wants("markdown");
+        let (opts, concurrency) = self.crawl_settings(req, &["markdown"]);
+        let slots = self.crawl_slots();
+        let delay = req.delay.map(Duration::from_secs_f64);
+
+        let mut stop: Option<&'static str> = None;
+        let mut inflight = FuturesUnordered::new();
+        sink.total((scheduled + queue.len()).min(req.limit)).await;
+        loop {
+            if sink.cancelled().await {
+                stop = Some("cancelled");
+                break;
+            }
+            while stop.is_none() && inflight.len() < concurrency && scheduled < req.limit {
+                let Some((url, depth, _)) = queue.pop() else {
+                    break;
+                };
+                scheduled += 1;
+                let opts = opts.clone();
+                inflight.push(async move {
+                    let _slot = slots.acquire().await.expect("semaphore never closed");
+                    let result = Box::pin(self.scrape_with(url.as_str(), &opts, mode)).await;
+                    (url, depth, result)
+                });
+                if let Some(d) = delay {
+                    tokio::time::sleep(d).await;
+                }
+            }
+            let Some((url, depth, result)) = inflight.next().await else {
+                break;
+            };
+            match result {
+                Ok(mut doc) => {
+                    let md = doc.markdown.as_deref().unwrap_or_default();
+                    let relevance = focus.page_relevance(doc.metadata.title.as_deref(), md);
+                    if stop.is_none()
+                        && let Some(a) = adaptive.as_mut()
+                    {
+                        stop = a.observe(&focus.query, md);
+                    }
+                    if stop.is_none() && follow_links && depth < max_depth {
+                        let base = doc
+                            .metadata
+                            .url
+                            .as_deref()
+                            .and_then(|u| Url::parse(u).ok())
+                            .unwrap_or(url.clone());
+                        let contexts = link_contexts(md);
+                        for link in doc.links.iter().flatten() {
+                            let Ok(u) = base.join(link) else { continue };
+                            let h = seen_hash(&u, ignore_query);
+                            // 已经调度过的页面不再入队；还在排队的可以按更高的分数前移
+                            if !scope.allows(&u) || (seen.contains(&h) && !queue.contains(h)) {
+                                continue;
+                            }
+                            let ctx = contexts.get(link.split('#').next().unwrap_or(link));
+                            let score = focus.link_score(
+                                &u,
+                                ctx.map(|c| c.anchor.as_str()),
+                                ctx.map(|c| c.line.as_str()),
+                                relevance,
+                                depth + 1,
+                            );
+                            let room = req.limit - scheduled;
+                            overflow |=
+                                offer(&mut queue, &mut seen, &mut fresh, u, depth + 1, score, room);
+                        }
+                        if !fresh.is_empty() {
+                            sink.enqueued(std::mem::take(&mut fresh)).await;
+                        }
+                    }
+                    if !wants_links {
+                        doc.links = None;
+                    }
+                    if !wants_md {
+                        doc.markdown = None;
+                    }
+                    doc.metadata
+                        .pagesift
+                        .get_or_insert_with(Default::default)
+                        .relevance = Some((relevance * 1000.0).round() / 1000.0);
+                    sink.page(doc).await;
+                }
+                Err(e) => sink.error(url.as_str(), e).await,
+            }
+            let pending = if stop.is_some() { 0 } else { queue.len() };
+            sink.total((scheduled + pending).min(req.limit)).await;
+        }
+        let stop_reason = stop.unwrap_or(
+            if scheduled >= req.limit && (overflow || !queue.is_empty()) {
+                "limit_reached"
+            } else {
+                "exhausted"
+            },
+        );
+        let term_evidence = match &adaptive {
+            Some(a) => focus
+                .query
+                .terms()
+                .iter()
+                .cloned()
+                .zip(a.evidence().iter().copied())
+                .collect(),
+            None => Default::default(),
+        };
+        sink.summary(CrawlSummary {
+            stop_reason: stop_reason.into(),
+            coverage: adaptive
+                .as_ref()
+                .map(|a| (a.coverage() * 1000.0).round() / 1000.0),
+            term_evidence,
+            pages: scheduled,
+        })
+        .await;
+        Ok(())
+    }
+}
+
+/// 一次爬取在各阶段之间共享的参数。
+struct Crawl<'a> {
+    req: &'a CrawlRequest,
+    sink: &'a dyn CrawlSink,
+    scope: &'a Scope,
+    mode: RobotsMode,
 }
 
 fn gunzip_if_needed(body: Vec<u8>) -> Option<Vec<u8>> {
