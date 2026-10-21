@@ -193,11 +193,6 @@ impl ToolOutput {
         }
     }
 
-    pub fn with_content(mut self, content: Content) -> Self {
-        self.content.push(content);
-        self
-    }
-
     pub fn to_json(&self) -> Value {
         let mut m = Map::new();
         m.insert(

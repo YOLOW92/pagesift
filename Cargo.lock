@@ -1568,8 +1568,6 @@ dependencies = [
  "pagesift",
  "pagesift-cdp",
  "pagesift-content",
- "pagesift-net",
- "pagesift-policy",
  "pyo3",
  "pyo3-async-runtimes",
  "serde_json",
@@ -1582,7 +1580,6 @@ name = "pagesift-search"
 version = "0.12.0"
 dependencies = [
  "reqwest",
- "serde",
  "serde_json",
  "thiserror",
  "tokio",

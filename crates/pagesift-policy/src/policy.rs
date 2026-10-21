@@ -164,10 +164,6 @@ impl Policy {
         self.egress.insert(name.into(), fetcher);
     }
 
-    pub fn has_egress(&self, name: &str) -> bool {
-        self.egress.contains_key(name)
-    }
-
     pub fn config(&self) -> &PolicyConfig {
         &self.config
     }

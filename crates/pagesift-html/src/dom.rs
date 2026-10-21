@@ -233,10 +233,6 @@ impl<'a> NodeRef<'a> {
         self.at(self.node().prev)
     }
 
-    pub fn has_children(&self) -> bool {
-        self.node().first_child != NONE
-    }
-
     pub fn children(&self) -> Children<'a> {
         Children {
             doc: self.doc,

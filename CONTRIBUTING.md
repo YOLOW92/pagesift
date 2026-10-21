@@ -25,7 +25,7 @@ scripts/ci.sh            # the full local check: fmt, clippy, tests, MSRV, cargo
 
 Performance is a feature. Changes on the hot paths (HTML parsing, extraction, the HTTP client, crawling) should come with numbers:
 
-- `cargo run --release -p pagesift --example perf_gate` and `--example crawl_gate` are the regression gates run by `scripts/ci.sh`.
+- `cargo run --release -p pagesift-content --example perf_gate` and `cargo run --release -p pagesift --example crawl_gate` are the regression gates run by `scripts/ci.sh`.
 - `bench/` holds the comparisons with other tools; see [docs/benchmarks.md](docs/benchmarks.md).
 
 On a shared machine, compare instruction counts (`perf stat -e instructions`) rather than wall time.
