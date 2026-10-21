@@ -336,11 +336,15 @@ impl Skipper {
             && (vis.link_chars as f64 / vis.links as f64) <= LINK_BLOCK_MAX_AVG_CHARS
             && (vis.img_links as usize) * 2 < vis.links;
         // <main> 里的链接列表多半是内容本身（目录页、相册、分类列表），<article> 里的是文章的
-        // 标签、分类、目录，都不当菜单删
+        // 标签、分类、目录，都不当菜单删。`role="main"` 常标在整页的外层容器上，只在放宽规则时
+        // 才这样对待（文档首页的目录）
+        let in_relaxed_main =
+            |e: Element<'_>| self.relaxed == Relax::LinkBlocks && e.attr("role") == Some("main");
         if link_block
-            && !node
-                .ancestors()
-                .any(|a| matches!(a.tag(), Some(Tag::Main | Tag::Article)))
+            && !node.ancestors().any(|a| {
+                matches!(a.tag(), Some(Tag::Main | Tag::Article))
+                    || a.as_element().is_some_and(in_relaxed_main)
+            })
         {
             Some("link block")
         } else if self.relaxed == Relax::LinkBlocks {

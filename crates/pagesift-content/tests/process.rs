@@ -435,3 +435,21 @@ fn thumbnail_link_grids_are_content() {
     assert!(m.contains("[Lake 3]"), "{m}");
     assert!(!m.contains("Menu 3"), "{m}");
 }
+
+#[test]
+fn index_pages_keep_their_table_of_contents() {
+    // 文档目录页：正文就是 role="main" 里的一串链接。删完只剩标题时放宽规则，目录回来，顶部菜单仍然不要
+    let menu: String = (0..8)
+        .map(|i| format!("<li><a href=\"/m/{i}\">Menu {i}</a></li>"))
+        .collect();
+    let toc: String = (0..10)
+        .map(|i| format!("<li><a href=\"/guide/{i}\">Setup step {i}</a></li>"))
+        .collect();
+    let html = format!(
+        "<body><div class=\"top\"><ul>{menu}</ul></div>\
+         <div role=\"main\"><h1>Deploying</h1><div class=\"toctree\"><ul>{toc}</ul></div></div></body>"
+    );
+    let m = md(&html);
+    assert!(m.contains("[Setup step 4]"), "{m}");
+    assert!(!m.contains("Menu 4"), "{m}");
+}
