@@ -42,7 +42,7 @@
     "test": "node --test",
     "bench": "node bench/bench.mjs",
     "artifacts": "napi artifacts",
-    "prepublishOnly": "napi prepublish -t npm",
+    "prepublishOnly": "napi prepublish -t npm --no-gh-release",
     "version": "napi version"
   },
   "devDependencies": {
