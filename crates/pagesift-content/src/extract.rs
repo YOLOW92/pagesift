@@ -305,6 +305,10 @@ impl Skipper {
         self.visible.get(node.id().index()).map_or(0, |v| v.chars)
     }
 
+    pub(crate) fn only_main(&self) -> bool {
+        self.only_main
+    }
+
     pub(crate) fn is_relaxed(&self) -> bool {
         self.relaxed
     }
