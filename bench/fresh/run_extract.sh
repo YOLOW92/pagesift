@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # 正文抽取全量对比：Firecrawl 标注集（质量 + 单线程耗时）、AEB 新闻集（token F1）、随机语料（耗时、输出长度）。
 # 单线程耗时：各工具同时跑、各占一个物理核（pinned.sh），条件相同；全核吞吐单独跑。所有工具看到同一份冻结的 HTML。
-# 用法：bench/fresh/run_extract.sh <结果目录>
+# 用法：bench/fresh/run_extract.sh <结果目录> [prep|run|all]
+#   prep：准备输入（浏览器渲染内容太少的页、冻结输入、记 pagesift 全核吞吐），要独占机器
+#   run：各工具转换（经 pinned.sh 绑核，可以和其他领域的单线程评测同时跑）和评分
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 R=$1/extract
+MODE=${2:-all}
 mkdir -p "$R"
 T=bench/data/fresh/tools
 PY=$T/py/bin/python
@@ -15,6 +18,7 @@ PS=target/release/pagesift
 AEB=bench/data/fresh/data/aeb
 
 cargo build --release -q -p pagesift-content --example extract_jsonl
+if [ "$MODE" != run ]; then
 # 1. 输入：Firecrawl 集（内容太少的页用浏览器渲染快照）、AEB、随机语料
 $PS bench-render bench/data > "$R/render.log" 2>&1
 rm -rf bench/data/inputs
@@ -29,6 +33,8 @@ with open(sys.argv[1], "w") as out:
         out.write(json.dumps({"id": r["id"], "path": f"bench/data/random/pages/{r['id']}.html",
                               "url": r["final_url"], "base_url": r["final_url"]}) + "\n")
 PY
+fi
+[ "$MODE" = prep ] && exit 0
 
 sets="firecrawl:bench/data/inputs/manifest.jsonl aeb:$R/aeb/manifest.jsonl random:$R/random-manifest.jsonl"
 for s in $sets; do
