@@ -26,7 +26,11 @@ impl Default for BackoffConfig {
 
 #[derive(Debug, Default)]
 struct Health {
+    /// 连续的 5xx、网络错误、超时
     failures: u32,
+    /// 连续的限流（429、带 Retry-After 的 503）。和 `failures` 分开计：几次限流不该让一次偶发的 5xx
+    /// 直接跳到很长的冷却
+    throttles: u32,
     until: Option<Instant>,
 }
 
@@ -76,8 +80,8 @@ impl Backoff {
     pub fn on_throttled(&self, host: &str, retry_after: Option<Duration>) {
         let cfg = &self.config;
         self.update(host, |h| {
-            h.failures = h.failures.saturating_add(1);
-            Some(retry_after.unwrap_or_else(|| exp_backoff(cfg, h.failures - 1)))
+            h.throttles = h.throttles.saturating_add(1);
+            Some(retry_after.unwrap_or_else(|| exp_backoff(cfg, h.throttles - 1)))
         });
     }
 
@@ -170,6 +174,20 @@ mod tests {
         // 较短的 Retry-After 不会缩短已有冷却。
         b.on_throttled("b.com", Some(Duration::from_secs(1)));
         assert_eq!(b.check("b.com"), Err(Duration::from_secs(20)));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn throttling_does_not_inflate_the_failure_streak() {
+        let b = backoff();
+        for _ in 0..5 {
+            b.on_throttled("a.com", Some(Duration::from_secs(1)));
+        }
+        tokio::time::advance(Duration::from_secs(1)).await;
+        b.on_failure("a.com");
+        assert!(
+            b.check("a.com").is_ok(),
+            "one 5xx after throttling is not a failure streak"
+        );
     }
 
     #[test]

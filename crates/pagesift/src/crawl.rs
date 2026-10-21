@@ -3,7 +3,7 @@
 //!
 //! 限速、robots 和冷却全部走策略层，所以整站爬取和单页抓取一样守规矩。
 
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::Read;
 use std::sync::Arc;
 use std::time::Duration;
@@ -435,8 +435,8 @@ impl Scraper {
     }
 
     /// 需要链接来继续发现页面；用户没要 links 格式时，内部照样取，输出前去掉。
-    /// 一次爬取基本只访问一个主机，同时进行的请求数超过每主机并发上限也只是排队，
-    /// 所以并发默认就取这个上限；调用方显式给的 maxConcurrency 照用。
+    /// 只爬一个主机时，同时进行的请求数超过每主机并发上限也只是排队，所以并发默认就取这个上限；
+    /// 允许子域名或外链时取全局上限。调用方显式给的 maxConcurrency 照用。
     fn crawl_settings(&self, req: &CrawlRequest, extra: &[&str]) -> (Arc<ScrapeOptions>, usize) {
         let mut opts = req.scrape_options.clone();
         for kind in std::iter::once("links").chain(extra.iter().copied()) {
@@ -444,10 +444,14 @@ impl Scraper {
                 opts.formats.push(Format::new(kind));
             }
         }
-        let concurrency = req
-            .max_concurrency
-            .unwrap_or(self.policy().limiter().config().per_host_concurrency)
-            .max(1);
+        // 允许子域名或外链时会同时访问多个主机：默认并发放到全局上限，每主机仍受各自的并发和间隔约束
+        let rate = self.policy().limiter().config();
+        let default = if req.allow_subdomains || req.allow_external_links {
+            rate.global_concurrency
+        } else {
+            rate.per_host_concurrency
+        };
+        let concurrency = req.max_concurrency.unwrap_or(default).max(1);
         (Arc::new(opts), concurrency)
     }
 
@@ -466,6 +470,9 @@ impl Scraper {
         let mut retries = Retries::default();
         // 在抓的正常层页面数（降级层的 URL 要等它们都结束才出队）
         let mut normal_inflight = 0usize;
+        // 每个主机在抓的页面数：到了每主机并发上限，就先抓别的主机
+        let mut host_inflight: HashMap<String, usize> = HashMap::new();
+        let per_host = self.policy().limiter().config().per_host_concurrency.max(1);
         // 持久化的任务要记下入队的 URL，重启后据此恢复队列和去重表
         let track = sink.tracks_frontier();
         let mut scheduled = 0usize;
@@ -522,7 +529,8 @@ impl Scraper {
                         break None;
                     }
                     let allow_low = normal_inflight == 0 && retries.is_empty();
-                    let Some((mut url, depth, low)) = queue.pop(&learner, allow_low) else {
+                    let busy = |h: &str| host_inflight.get(h).is_some_and(|&n| n >= per_host);
+                    let Some((mut url, depth, low)) = queue.pop(&learner, allow_low, busy) else {
                         break None;
                     };
                     // 入队之后学到的改写规则：改写后已经见过的就不抓了
@@ -538,6 +546,7 @@ impl Scraper {
                     break;
                 };
                 normal_inflight += usize::from(!low);
+                *host_inflight.entry(frontier_host(&url)).or_default() += 1;
                 let opts = opts.clone();
                 inflight.push(async move {
                     let result = self.crawl_attempt(&url, &opts, mode, slots).await;
@@ -558,6 +567,12 @@ impl Scraper {
                 },
             };
             normal_inflight -= usize::from(!low);
+            if let Some(n) = host_inflight.get_mut(&frontier_host(&url)) {
+                *n -= 1;
+                if *n == 0 {
+                    host_inflight.remove(&frontier_host(&url));
+                }
+            }
             if retries.offer(&result, &url, depth, attempt) {
                 continue;
             }
@@ -850,6 +865,10 @@ impl Scraper {
         .await;
         Ok(())
     }
+}
+
+fn frontier_host(u: &Url) -> String {
+    u.host_str().unwrap_or_default().to_string()
 }
 
 /// 带查询的爬取里，模板已降级的链接分数乘以它：排到几乎所有正常链接之后。

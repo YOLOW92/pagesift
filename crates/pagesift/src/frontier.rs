@@ -502,42 +502,82 @@ impl Learner {
     }
 }
 
-/// 广度优先的两层队列：正常的 URL 先进先出；模板降级的 URL 排在另一层，正常层空了才出队。
+/// 广度优先的两层队列：模板降级的 URL 排在降级层，正常层空了才出队。
+/// 正常层按主机分队列（同 Heritrix 的每主机 work queue），主机之间轮流出队，跳过在途请求已满的主机
+/// （同 Scrapy 的 DownloaderAwarePriorityQueue），一个主机排得再长也不会挡住其他主机。
 /// 总长度由调用方按爬取上限控制；满了以后新来的正常 URL 可以挤掉降级层最后面的一个。
 #[derive(Default)]
 pub(crate) struct Tiered {
-    normal: VecDeque<(Url, usize, u64)>,
+    normal: HashMap<String, VecDeque<(Url, usize, u64)>>,
+    /// 正常层里还有 URL 的主机，轮流出队的顺序
+    ring: VecDeque<String>,
+    normal_len: usize,
     low: VecDeque<(Url, usize, u64)>,
     /// 上次把正常层里已降级的 URL 挪走时，学习器的 generation
     sorted_at: u64,
 }
 
+fn host_of(u: &Url) -> String {
+    u.host_str().unwrap_or_default().to_string()
+}
+
 impl Tiered {
     pub(crate) fn len(&self) -> usize {
-        self.normal.len() + self.low.len()
+        self.normal_len + self.low.len()
     }
 
     pub(crate) fn push(&mut self, learner: &Learner, url: Url, depth: usize) {
         let key = shape_key(&url);
         if learner.demoted_key(key) {
             self.low.push_back((url, depth, key));
-        } else {
-            self.normal.push_back((url, depth, key));
+            return;
         }
+        let host = host_of(&url);
+        let q = self.normal.entry(host.clone()).or_default();
+        if q.is_empty() {
+            self.ring.push_back(host);
+        }
+        q.push_back((url, depth, key));
+        self.normal_len += 1;
     }
 
-    /// 下一个要抓的 URL。正常层里模板已降级的顺手挪到降级层。
+    /// 下一个要抓的 URL，第三项表示是否来自降级层。正常层里模板已降级的顺手挪到降级层。
+    /// `busy(host)` 为真的主机这次跳过（在途请求已到上限）。
     /// `allow_low` 为 false 时只出正常层：还有正常页面在抓或等重试，它们可能发现新的正常链接，
     /// 这时候抓降级的 URL 会白白占掉上限。
-    pub(crate) fn pop(&mut self, learner: &Learner, allow_low: bool) -> Option<(Url, usize, bool)> {
-        while let Some(item) = self.normal.pop_front() {
-            if learner.demoted_key(item.2) {
-                self.low.push_back(item);
+    pub(crate) fn pop(
+        &mut self,
+        learner: &Learner,
+        allow_low: bool,
+        busy: impl Fn(&str) -> bool,
+    ) -> Option<(Url, usize, bool)> {
+        for _ in 0..self.ring.len() {
+            let host = self.ring.pop_front()?;
+            if busy(&host) {
+                self.ring.push_back(host);
+                continue;
+            }
+            let q = self.normal.get_mut(&host).expect("ring hosts have queues");
+            let mut found = None;
+            while let Some(item) = q.pop_front() {
+                self.normal_len -= 1;
+                if learner.demoted_key(item.2) {
+                    self.low.push_back(item);
+                } else {
+                    found = Some((item.0, item.1, false));
+                    break;
+                }
+            }
+            if q.is_empty() {
+                self.normal.remove(&host);
             } else {
-                return Some((item.0, item.1, false));
+                self.ring.push_back(host);
+            }
+            if found.is_some() {
+                return found;
             }
         }
-        if !allow_low {
+        if !allow_low || self.low.front().is_some_and(|i| busy(&host_of(&i.0))) {
             return None;
         }
         self.low.pop_front().map(|(u, d, _)| (u, d, true))
@@ -548,20 +588,32 @@ impl Tiered {
     pub(crate) fn evict_low(&mut self, learner: &Learner) -> Option<Url> {
         if self.sorted_at != learner.generation {
             self.sorted_at = learner.generation;
-            let normal = std::mem::take(&mut self.normal);
-            for item in normal {
-                if learner.demoted_key(item.2) {
-                    self.low.push_back(item);
-                } else {
-                    self.normal.push_back(item);
+            for q in self.normal.values_mut() {
+                let before = q.len();
+                let mut keep = VecDeque::with_capacity(before);
+                for item in q.drain(..) {
+                    if learner.demoted_key(item.2) {
+                        self.low.push_back(item);
+                    } else {
+                        keep.push_back(item);
+                    }
                 }
+                self.normal_len -= before - keep.len();
+                *q = keep;
             }
+            self.normal.retain(|_, q| !q.is_empty());
+            let normal = &self.normal;
+            self.ring.retain(|h| normal.contains_key(h));
         }
         self.low.pop_back().map(|(u, _, _)| u)
     }
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = (&Url, usize)> {
-        self.normal.iter().chain(&self.low).map(|(u, d, _)| (u, *d))
+        self.ring
+            .iter()
+            .flat_map(|h| self.normal[h].iter())
+            .chain(&self.low)
+            .map(|(u, d, _)| (u, *d))
     }
 }
 
@@ -698,6 +750,50 @@ mod tests {
         let mut v = u("https://c.com/d/7/index.php");
         assert!(r.rewrite(&mut v));
         assert_eq!(v.as_str(), "https://c.com/d/7/");
+    }
+
+    #[test]
+    fn hosts_take_turns_and_busy_hosts_are_skipped() {
+        let l = Learner::default();
+        let mut q = Tiered::default();
+        for p in [
+            "https://a.com/1",
+            "https://a.com/2",
+            "https://a.com/3",
+            "https://b.com/1",
+            "https://c.com/1",
+        ] {
+            q.push(&l, u(p), 0);
+        }
+        let order: Vec<String> =
+            std::iter::from_fn(|| q.pop(&l, true, |_| false).map(|x| x.0.to_string())).collect();
+        assert_eq!(
+            order,
+            [
+                "https://a.com/1",
+                "https://b.com/1",
+                "https://c.com/1",
+                "https://a.com/2",
+                "https://a.com/3"
+            ]
+        );
+        for p in ["https://a.com/4", "https://b.com/2"] {
+            q.push(&l, u(p), 0);
+        }
+        assert_eq!(
+            q.pop(&l, true, |h| h == "a.com").unwrap().0.as_str(),
+            "https://b.com/2"
+        );
+        assert!(
+            q.pop(&l, true, |h| h == "a.com").is_none(),
+            "only a busy host is left"
+        );
+        assert_eq!(q.len(), 1);
+        assert_eq!(
+            q.pop(&l, true, |_| false).unwrap().0.as_str(),
+            "https://a.com/4"
+        );
+        assert_eq!(q.len(), 0);
     }
 
     #[test]
