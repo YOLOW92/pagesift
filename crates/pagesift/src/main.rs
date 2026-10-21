@@ -337,9 +337,7 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
                 .with_context(|| format!("binding {host}:{port}"))?;
             eprintln!("pagesift listening on http://{}", listener.local_addr()?);
             axum::serve(listener, app)
-                .with_graceful_shutdown(async {
-                    let _ = tokio::signal::ctrl_c().await;
-                })
+                .with_graceful_shutdown(shutdown_signal())
                 .await?;
             scraper.shutdown().await;
             Ok(ExitCode::SUCCESS)
@@ -436,6 +434,30 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
             Ok(ExitCode::SUCCESS)
         }),
     }
+}
+
+/// Ctrl-C，或者 SIGTERM（`docker stop`、systemd）。进行中的任务已经落盘，下次启动接着跑。
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{SignalKind, signal};
+        match signal(SignalKind::terminate()) {
+            Ok(mut term) => {
+                tokio::select! {
+                    _ = tokio::signal::ctrl_c() => {}
+                    _ = term.recv() => {}
+                }
+            }
+            Err(_) => {
+                let _ = tokio::signal::ctrl_c().await;
+            }
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
+    }
+    tracing::info!("shutting down");
 }
 
 fn runtime() -> Result<tokio::runtime::Runtime> {
