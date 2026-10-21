@@ -105,6 +105,7 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 **Scraping and crawling**
 - Formats: `markdown`, `html` (cleaned), `rawHtml`, `links`, `images`; `summary` and `json` (schema extraction) with any OpenAI-compatible LLM; `changeTracking` (diffs against the previous visit, needs the cache).
 - Crawl with include/exclude paths, depth and limits, sitemaps, and robots.txt; **query-focused crawling** (`query`, `adaptive`) visits the most relevant pages first and stops when new pages stop helping.
+- **Crawls real sites without wasting the budget:** strips tracking parameters and session IDs, skips binaries and endless paths, learns which URLs are aliases of the same page, pushes calendar and pagination traps to the back, retries transient failures later and slows down when a site answers 429. On a simulated messy web it finds 74% of the content pages within the page limit, versus 53% for the next best tool (see the benchmarks).
 - `queryFilter` keeps only the passages relevant to a query (BM25), to save LLM tokens.
 - PDF text extraction; metadata (title, description, language, author, published time, Open Graph).
 - Conditional requests (`ifNoneMatch`, `ifModifiedSince`), a content cache (`maxAge`), content hashes for change detection.
@@ -130,6 +131,8 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 | Extraction p50 per page ↓ | **0.47 ms** | 38.6 ms | — | 7.38 ms | — |
 | HTTP crawl, 200 × 100 pages ↑ | **3,500+ p/s** | 15 p/s | — | 206 p/s | 2,000–2,700 p/s |
 | Memory for that crawl ↓ | **~300 MB** | — | — | 1.4 GB | 5.5 GB |
+| Messy-site crawl: content pages found ↑ | **73.6%** | 52.9% | — | 36.7% | 47.0% |
+| Messy-site crawl: wasted requests ↓ | **12%** | 39% | — | 40% | 44% |
 | Lightweight JS engines (Lightpanda/moli) | ✅ both, automatic fallback | ❌ | ❌ | Lightpanda | — |
 | MCP server | ✅ | ✅ | ✅ | ✅ | — |
 | Native Python / Node packages | ✅ / ✅ | ✅ / ❌ | HTTP SDKs | — | ✅ / ✅ |

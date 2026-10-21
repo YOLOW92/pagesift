@@ -105,6 +105,7 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 **抓取与爬取**
 - 输出格式：`markdown`、`html`（已清理）、`rawHtml`、`links`、`images`；配合任意兼容 OpenAI 的 LLM 可输出 `summary` 和 `json`（按 schema 提取）；`changeTracking`（与上次访问做差异对比，需要启用缓存）。
 - 爬取支持包含/排除路径、深度与数量限制、sitemap 和 robots.txt；**查询聚焦爬取**（`query`、`adaptive`）优先访问最相关的页面，并在新页面不再带来帮助时停止。
+- **在真实网站上爬取不浪费额度：** 去掉跟踪参数和会话 ID，跳过二进制文件和无限路径，自动学会哪些 URL 是同一页面的别名，把日历、翻页这类陷阱排到最后，临时失败稍后重试，站点返回 429 时自动放慢。在模拟的杂乱网络上，同样的页数上限内找到 74% 的内容页，第二名是 53%（见基准测试）。
 - `queryFilter` 只保留与查询相关的段落（BM25），节省 LLM token。
 - PDF 文本提取；元数据（标题、描述、语言、作者、发布时间、Open Graph）。
 - 条件请求（`ifNoneMatch`、`ifModifiedSince`）、内容缓存（`maxAge`）、用于变更检测的内容哈希。
@@ -130,6 +131,8 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 | 每页提取耗时 p50 ↓ | **0.47 ms** | 38.6 ms | — | 7.38 ms | — |
 | HTTP 爬取，200 × 100 页 ↑ | **3,500+ p/s** | 15 p/s | — | 206 p/s | 2,000–2,700 p/s |
 | 该次爬取的内存 ↓ | **~300 MB** | — | — | 1.4 GB | 5.5 GB |
+| 杂乱站点爬取：找到的内容页 ↑ | **73.6%** | 52.9% | — | 36.7% | 47.0% |
+| 杂乱站点爬取：浪费的请求 ↓ | **12%** | 39% | — | 40% | 44% |
 | 轻量 JS 引擎（Lightpanda/moli） | ✅ 两者皆有，自动回退 | ❌ | ❌ | Lightpanda | — |
 | MCP 服务器 | ✅ | ✅ | ✅ | ✅ | — |
 | 原生 Python / Node 包 | ✅ / ✅ | ✅ / ❌ | HTTP SDK | — | ✅ / ✅ |

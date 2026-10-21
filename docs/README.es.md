@@ -105,6 +105,7 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 **Scraping y crawling**
 - Formatos: `markdown`, `html` (limpio), `rawHtml`, `links`, `images`; `summary` y `json` (extracción según un esquema) con cualquier LLM compatible con OpenAI; `changeTracking` (diferencias respecto a la visita anterior; requiere la caché).
 - Crawling con rutas incluidas/excluidas, profundidad y límites, sitemaps y robots.txt; el **crawling guiado por consulta** (`query`, `adaptive`) visita primero las páginas más relevantes y se detiene cuando las nuevas páginas dejan de aportar.
+- **Crawling de sitios reales sin desperdiciar el límite:** elimina parámetros de seguimiento e IDs de sesión, omite binarios y rutas infinitas, aprende qué URLs son alias de la misma página, deja para el final las trampas de calendarios y paginación, reintenta más tarde los fallos temporales y se frena cuando un sitio responde 429. En una web desordenada simulada encuentra el 74% de las páginas de contenido dentro del límite, frente al 53% de la siguiente mejor herramienta (ver benchmarks).
 - `queryFilter` conserva solo los fragmentos relevantes para una consulta (BM25), para ahorrar tokens del LLM.
 - Extracción de texto de PDF; metadatos (título, descripción, idioma, autor, fecha de publicación, Open Graph).
 - Peticiones condicionales (`ifNoneMatch`, `ifModifiedSince`), caché de contenido (`maxAge`) y hashes de contenido para detectar cambios.
@@ -130,6 +131,8 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 | Extracción p50 por página ↓ | **0.47 ms** | 38.6 ms | — | 7.38 ms | — |
 | Crawling HTTP, 200 × 100 páginas ↑ | **3,500+ p/s** | 15 p/s | — | 206 p/s | 2,000–2,700 p/s |
 | Memoria para ese crawling ↓ | **~300 MB** | — | — | 1.4 GB | 5.5 GB |
+| Crawling de sitios desordenados: páginas de contenido encontradas ↑ | **73.6%** | 52.9% | — | 36.7% | 47.0% |
+| Crawling de sitios desordenados: peticiones desperdiciadas ↓ | **12%** | 39% | — | 40% | 44% |
 | Motores JS ligeros (Lightpanda/moli) | ✅ ambos, fallback automático | ❌ | ❌ | Lightpanda | — |
 | Servidor MCP | ✅ | ✅ | ✅ | ✅ | — |
 | Paquetes nativos Python / Node | ✅ / ✅ | ✅ / ❌ | SDK HTTP | — | ✅ / ✅ |

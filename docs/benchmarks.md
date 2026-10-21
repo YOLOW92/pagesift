@@ -50,7 +50,51 @@ Reproduce: see [`bench/compare/README.md`](../bench/compare/README.md).
 
 Reproduce: `bench/crawl/run_all.sh`.
 
-## 3. Browser rendering
+## 3. Crawling messy real-world sites: coverage, waste and politeness
+
+Speed on clean sites says little about what a crawl delivers on real sites, where links carry tracking parameters and session IDs, the same page has several URLs, calendars and pagination never end, and servers fail or rate-limit. This benchmark measures how much of a site's real content each tool collects within the same page budget, and how well it behaves.
+
+**Setup:** a seeded simulation of the web ([`bench/crawl/src/bin/wild.rs`](../bench/crawl/src/bin/wild.rs)): 40 sites, each with 60 content pages (real corpus pages) linked so that following clean links alone reaches all of them. Each site gets a random subset of real-world problems: tracking parameters and session IDs on links, print versions and `index.html` aliases, relative links that grow forever (`more/more/…`), endless calendars and pagination, sort/filter combinations, links to images and archives, a robots.txt-disallowed area linked from every page, random first-attempt 503s, and a 5-requests-per-second limit answered with 429. Latency is 10–80 ms per site. Every tool may fetch 60 pages per site, so every wasted request costs a content page. The origin itself classifies every request, so no tool reports its own score.
+
+**Metrics:**
+- *coverage*: distinct content pages fetched ÷ 60 (higher is better);
+- *waste*: share of requests that were duplicates, traps, binaries, robots-disallowed or 404 (lower is better);
+- *robots violations*: requests to disallowed paths (lower is better);
+- *429s*: rate-limit responses received (lower is better);
+- *time* and *memory* (peak PSS of the whole process tree): lower is better.
+
+Scenarios: *fast* (no interval, 4 requests per host in flight) and *polite* (one request per host every 200 ms).
+
+| Seed | Scenario | Tool | Coverage ↑ | Waste ↓ | Robots violations ↓ | 429s ↓ | Time, s ↓ | Memory, MB ↓ |
+|---|---|---|---|---|---|---|---|---|
+| 2 | fast | **pagesift** | **0.747** | **0.116** | **0** | 81 | 21.4 | **79** |
+| | | Crawl4AI 0.9 (HTTP) | 0.499 | 0.429 | 102 | **6** | 114.0 | 1,189 |
+| | | crw | 0.367 | 0.403 | **0** | 236 | 14.9 | 494 |
+| | | Spider | 0.358 | 0.367 | **0** | 271 | **1.4** | 391 |
+| | | Scrapy | 0.332 | 0.555 | **0** | 297 | 18.4 | 1,034 |
+| 2 | polite | **pagesift** | **0.736** | **0.120** | **0** | **0** | 42.3 | **78** |
+| | | Crawl4AI 0.9 (HTTP) | 0.529 | 0.392 | 60 | **0** | 113.5 | 1,859 |
+| | | Spider | 0.470 | 0.436 | **0** | **0** | **12.5** | 701 |
+| | | crw | 0.367 | 0.403 | **0** | 236 | 15.0 | 419 |
+| | | Scrapy | 0.197 | 0.725 | **0** | 48 | 14.6 | 1,351 |
+| 1 | fast | **pagesift** | **0.770** | **0.115** | **0** | 122 | 19.7 | — |
+| | | Crawl4AI 0.9 (HTTP) | 0.492 | 0.446 | **0** | **6** | 125.3 | — |
+| | | crw | 0.324 | 0.371 | **0** | 339 | 15.5 | — |
+| | | Spider | 0.314 | 0.373 | **0** | 335 | **1.4** | — |
+| | | Scrapy | 0.319 | 0.435 | **0** | 1,049 | 17.2 | — |
+| 1 | polite | **pagesift** | **0.755** | **0.122** | **0** | **0** | 17.6 | — |
+| | | Crawl4AI 0.9 (HTTP) | 0.505 | 0.422 | **0** | **0** | 141.5 | — |
+| | | Spider | 0.455 | 0.447 | **0** | **0** | **12.5** | — |
+| | | crw | 0.324 | 0.371 | **0** | 339 | 15.4 | — |
+| | | Scrapy | 0.185 | 0.727 | **0** | 40 | 15.4 | — |
+
+What makes the difference (see `crates/pagesift/src/frontier.rs`): tracking parameters and session IDs are stripped before fetching; binary files and self-repeating paths are skipped; URL rewrite rules (`index.html`, `?print=1`, `more/`) are learned from duplicate pages; URL templates that keep returning duplicate content are moved behind normal pages; transient failures are retried later without blocking the crawl; and a host that answers 429 gets a wider request interval. Spider is fastest because it does not wait for rate limits or retry failures. pagesift's polite run with seed 2 is slower because one site answered its first four requests with 503 and pagesift backed off for about 30 seconds, as intended.
+
+**Real sites, no regressions:** the same rules were checked on 40 sites drawn at random from the Tranco list (crawl limit 40 pages, HTTP engine, robots.txt respected), comparing the crawler before and after these changes ([`bench/crawl/real_sites.py`](../bench/crawl/real_sites.py)). Distinct pages delivered went from 1,277 to 1,312 (higher is better). 33 sites were identical, 4 improved (one went from 0 to 40 pages), and one lost a single distinct page. The two sites with more errors returned Cloudflare challenges to the second run, which pagesift reports and never bypasses.
+
+Reproduce: `SEED=2 bench/crawl/run_wild.sh` (any seed draws a different web); full results: [`bench/crawl/results-wild-2026-10-21.md`](../bench/crawl/results-wild-2026-10-21.md).
+
+## 4. Browser rendering
 
 pagesift drives browsers over its own CDP client and picks an engine automatically: **Lightpanda** first, **moli** when a page needs iframes or more complete JavaScript, **Chrome / chrome-headless-shell** last. Same crawl setup as above, every page rendered.
 
@@ -64,7 +108,7 @@ pagesift drives browsers over its own CDP client and picks an engine automatical
 
 Reproduce: `bench/crawl/engines.sh` (set `ENGINES=auto` for the default chain).
 
-## 4. A production workload: replacing Crawl4AI
+## 5. A production workload: replacing Crawl4AI
 
 [AiSeek](https://aiseek.dev) fetches news and company pages with Crawl4AI 0.9.4. We ran its own benchmark (`bench.py`) against both services with the production server's limits (6 cores, 10 GB memory, CPU weight 25), on 210 real production URLs (205 hosts) and 25 fixed pages. pagesift ran behind a small adapter implementing the same `/v1/fetch` contract ([`bench/aiseek`](../bench/aiseek)).
 
@@ -97,7 +141,7 @@ Reproduce: `bench/crawl/engines.sh` (set `ENGINES=auto` for the default chain).
 
 **Cold start:** first render 1.93 s → **0.19 s**; ready to serve 1.27 s → **0.12 s**.
 
-## 5. Deployment footprint
+## 6. Deployment footprint
 
 | | Crawl4AI | pagesift |
 |---|---|---|
