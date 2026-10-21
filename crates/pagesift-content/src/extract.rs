@@ -133,16 +133,24 @@ struct Visible {
     chars: usize,
     link_chars: usize,
     links: usize,
+    images: u32,
+    /// 包着图片的链接数（缩略图、卡片）。
+    img_links: u32,
 }
 
 /// 软跳过的元素文字量达到全页的这个比例时，视为正文容器。
 const PROTECT_SHARE: f64 = 0.4;
 /// 文字太少的页面不做保护，免得导航因为"占比高"被留下。
 const PROTECT_MIN_CHARS: usize = 200;
+/// `<nav>`、`<aside>`、`<footer>` 装着全页这个比例以上的文字、链接文字又不到这个比例时，
+/// 是整页的外层容器，不当页面框架。
+const WRAPPER_SHARE: f64 = 0.7;
+const WRAPPER_MAX_LINK_SHARE: f64 = 0.5;
 /// 链接密集块：至少这么多个链接，且链接文字占比不低于这个比例。
 const LINK_BLOCK_MIN_LINKS: usize = 3;
 const LINK_BLOCK_MIN_SHARE: f64 = 0.8;
 /// 菜单的链接文字短，内容卡片的链接文字是整句标题：平均链接文字超过这个长度就不算链接块。
+/// 一半以上的链接包着图片（相册、商品卡片）也不算。
 const LINK_BLOCK_MAX_AVG_CHARS: f64 = 20.0;
 
 /// "Skip to content"、"Jump to content" 这类页内跳转链接。
@@ -217,12 +225,15 @@ fn compute(html: &Html<'_>, only_main: bool) -> (Vec<Visible>, Vec<bool>) {
             if only_main && !hard {
                 let cv = visible[c];
                 v.chars += cv.chars;
+                v.images += cv.images + u32::from(tag == Tag::Img);
                 if tag == Tag::A {
                     v.link_chars += cv.chars;
                     v.links += 1;
+                    v.img_links += u32::from(cv.images > 0);
                 } else {
                     v.link_chars += cv.link_chars;
                     v.links += cv.links;
+                    v.img_links += cv.img_links;
                 }
             }
         }
@@ -299,7 +310,7 @@ impl Skipper {
         if !self.only_main {
             return None;
         }
-        if matches!(tag, Tag::Nav | Tag::Aside | Tag::Footer) {
+        if matches!(tag, Tag::Nav | Tag::Aside | Tag::Footer) && !self.landmark_is_content(node) {
             return Some("nav/aside/footer");
         }
         if tag == Tag::A {
@@ -322,9 +333,15 @@ impl Skipper {
         }
         let link_block = vis.links >= LINK_BLOCK_MIN_LINKS
             && vis.link_chars as f64 >= vis.chars as f64 * LINK_BLOCK_MIN_SHARE
-            && (vis.link_chars as f64 / vis.links as f64) <= LINK_BLOCK_MAX_AVG_CHARS;
-        // <main> 里的链接列表多半是内容本身（目录页、相册、分类列表），不当菜单删
-        if link_block && !node.ancestors().any(|a| a.tag() == Some(Tag::Main)) {
+            && (vis.link_chars as f64 / vis.links as f64) <= LINK_BLOCK_MAX_AVG_CHARS
+            && (vis.img_links as usize) * 2 < vis.links;
+        // <main> 里的链接列表多半是内容本身（目录页、相册、分类列表），<article> 里的是文章的
+        // 标签、分类、目录，都不当菜单删
+        if link_block
+            && !node
+                .ancestors()
+                .any(|a| matches!(a.tag(), Some(Tag::Main | Tag::Article)))
+        {
             Some("link block")
         } else if self.relaxed == Relax::LinkBlocks {
             None
@@ -340,6 +357,23 @@ impl Skipper {
         } else {
             None
         }
+    }
+
+    /// `<nav>`、`<aside>`、`<footer>` 不当页面框架的两种情况：装着全页大部分文字、链接又不多的
+    /// （有的网站把整页包在 `<aside>` 里）；`<article>` 里的 `<nav>`、`<footer>`（文章目录、
+    /// 署名和标签）。后者照样过软跳过规则。`<article>` 里的 `<aside>` 多是"相关文章"，仍然去掉。
+    fn landmark_is_content(&self, node: &NodeR<'_>) -> bool {
+        let v = self
+            .visible
+            .get(node.id().index())
+            .copied()
+            .unwrap_or_default();
+        if v.chars as f64 >= self.total_chars as f64 * WRAPPER_SHARE
+            && (v.link_chars as f64) < v.chars as f64 * WRAPPER_MAX_LINK_SHARE
+        {
+            return true;
+        }
+        node.tag() != Some(Tag::Aside) && node.ancestors().any(|a| a.tag() == Some(Tag::Article))
     }
 
     /// 元素自身的可见文字数（只算未被硬跳过的部分；只取正文时才有）。

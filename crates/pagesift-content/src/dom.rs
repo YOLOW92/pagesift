@@ -46,32 +46,56 @@ pub(crate) fn is_hidden(node: &NodeR<'_>) -> bool {
     let Some(el) = element(node) else {
         return false;
     };
-    if el.attr("hidden").is_some() {
-        return true;
+    // 每个元素都要查：一次遍历属性，不按名字查三遍
+    let (mut aria, mut style) = (None, None);
+    for (name, value) in el.attrs() {
+        match name {
+            "hidden" => return true,
+            "aria-hidden" => {
+                aria.get_or_insert(value);
+            }
+            "style" => {
+                style.get_or_insert(value);
+            }
+            _ => {}
+        }
     }
-    if el
-        .attr("aria-hidden")
-        .is_some_and(|v| v.eq_ignore_ascii_case("true"))
+    if aria.is_some_and(|v| v.eq_ignore_ascii_case("true"))
         && short_text(node, ARIA_HIDDEN_MAX_CHARS)
     {
         return true;
     }
-    if let Some(style) = el.attr("style") {
-        let style: String = style
-            .chars()
-            .filter(|c| !c.is_whitespace())
-            .collect::<String>()
-            .to_ascii_lowercase();
-        if style.contains("display:none") {
+    if let Some(style) = style {
+        if style_contains(style, b"display:none") {
             return true;
         }
         // visibility:hidden 常用来在 JS 排好版之前先藏起整块内容（Wix 等建站工具），
         // JS 执行后就可见；只对短内容（工具提示、占位标签）当作隐藏
-        if style.contains("visibility:hidden") && short_text(node, ARIA_HIDDEN_MAX_CHARS) {
+        if style_contains(style, b"visibility:hidden") && short_text(node, ARIA_HIDDEN_MAX_CHARS) {
             return true;
         }
     }
     false
+}
+
+/// 内联样式里有没有 `needle`（小写、不含空白）：比较时忽略空白和 ASCII 大小写，不分配内存。
+/// 每个带 style 的元素都要查，这里是热路径。
+fn style_contains(style: &str, needle: &[u8]) -> bool {
+    let bytes = style.as_bytes();
+    let ws = |b: u8| b.is_ascii_whitespace() || b == b'\x0b';
+    (0..bytes.len()).any(|start| {
+        let mut i = start;
+        for &want in needle {
+            while i < bytes.len() && ws(bytes[i]) && i > start {
+                i += 1;
+            }
+            if i >= bytes.len() || bytes[i].to_ascii_lowercase() != want {
+                return false;
+            }
+            i += 1;
+        }
+        true
+    })
 }
 
 /// aria-hidden、visibility:hidden 的元素文字超过这么多（非空白字符）就当作页面内容，不跳过。

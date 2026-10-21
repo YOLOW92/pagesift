@@ -157,10 +157,13 @@ fn render_main(
 fn text_chars(md: &str) -> usize {
     let mut n = 0;
     let mut rest = md;
-    while let Some(i) = rest.find("](") {
+    // 按字符找 `]`（走 memchr），再看后面是不是 `(`
+    while let Some(i) = rest.find(']') {
         n += dom::count_non_whitespace(&rest[..i]);
-        rest = &rest[i + 2..];
-        rest = rest.find(')').map_or("", |j| &rest[j + 1..]);
+        rest = &rest[i + 1..];
+        if rest.starts_with('(') {
+            rest = rest.find(')').map_or("", |j| &rest[j + 1..]);
+        }
     }
     n + dom::count_non_whitespace(rest)
 }

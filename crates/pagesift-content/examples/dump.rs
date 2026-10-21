@@ -26,8 +26,14 @@ fn main() {
             only_main_content: !full,
             ..Default::default()
         };
-        let md = pagesift_content::process(&html, &opts).markdown;
-        serde_json::to_writer(&mut w, &serde_json::json!({"id": v["id"], "markdown": md})).unwrap();
+        let doc = pagesift_content::process(&html, &opts);
+        let row = serde_json::json!({
+            "id": v["id"],
+            "markdown": doc.markdown,
+            "title": doc.metadata.title,
+            "description": doc.metadata.description,
+        });
+        serde_json::to_writer(&mut w, &row).unwrap();
         w.write_all(b"\n").unwrap();
     }
 }

@@ -388,3 +388,50 @@ fn joiners_needed_by_the_script_are_kept() {
     assert!(m.contains("کسب\u{200c}وکار"), "{m}");
     assert!(!m.contains('\u{200b}'), "{m}");
 }
+
+#[test]
+fn article_parts_are_kept() {
+    // <article> 里的目录（<nav>）、署名（<footer>）、标签链接是文章的一部分；外面的导航照样去掉
+    let body = "The article body is long enough to be the main content of this page. ".repeat(4);
+    let html = format!(
+        r##"<body><nav><a href="/">Home</a> <a href="/blog">Blog</a> <a href="/about">About</a></nav>
+        <article><h1>Title</h1><nav class="toc"><a href="#one">Part one</a> <a href="#two">Part two</a></nav>
+        <p>{body}</p><div class="tags"><a href="/t/a">rust</a> <a href="/t/b">parsing</a> <a href="/t/c">html</a></div>
+        <footer>Written by Jane Doe</footer></article></body>"##
+    );
+    let m = md(&html);
+    assert!(m.contains("Part one"), "{m}");
+    assert!(m.contains("[parsing]"), "{m}");
+    assert!(m.contains("Written by Jane Doe"), "{m}");
+    assert!(!m.contains("About"), "{m}");
+}
+
+#[test]
+fn landmark_wrapping_the_whole_page_is_content() {
+    // 整页包在 <aside> 里：它装着全页大部分文字、链接又不多，不能当侧边栏删掉
+    let body = "Consulting services that help teams adopt new tools and processes. ".repeat(6);
+    let html = format!(
+        "<body><aside class=\"page-wrapper\"><h1>Services</h1><p>{body}</p></aside></body>"
+    );
+    let m = md(&html);
+    assert!(m.contains("# Services"), "{m}");
+    assert!(m.contains("Consulting services"), "{m}");
+}
+
+#[test]
+fn thumbnail_link_grids_are_content() {
+    // 链接一半以上包着图片的是相册、商品卡片，不是菜单
+    let cards: String = (0..6)
+        .map(|i| format!("<li><a href=\"/p/{i}\"><img src=\"/t/{i}.jpg\" alt=\"\"></a><a href=\"/p/{i}\">Lake {i}</a></li>"))
+        .collect();
+    let menu: String = (0..6)
+        .map(|i| format!("<li><a href=\"/m/{i}\">Menu {i}</a></li>"))
+        .collect();
+    let html = format!(
+        "<body><div class=\"top\"><ul>{menu}</ul></div><div class=\"gallery\"><h1>Gallery</h1><ul>{cards}</ul>\
+         <p>Photos from every trip we have taken so far, sorted by place.</p></div></body>"
+    );
+    let m = md(&html);
+    assert!(m.contains("[Lake 3]"), "{m}");
+    assert!(!m.contains("Menu 3"), "{m}");
+}
