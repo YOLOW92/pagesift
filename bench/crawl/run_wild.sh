@@ -15,6 +15,7 @@ OUT=${OUT:-wild-$(date +%Y%m%d-%H%M%S)}
 mkdir -p "$OUT"
 export MEASURE_OUT=$OUT/measure.jsonl
 export CRAWL4AI_NO_CLOUD_NOTICE=1
+export CRAWL4AI_CHROMIUM_SANDBOX=true   # 不让 Crawl4AI 关掉浏览器沙箱
 export MEASURE_BUDGET_S=${MEASURE_BUDGET_S:-600}
 export MEASURE_ORIGIN=http://s0.localhost:$PORT/__served
 C4A=${C4A:-$ROOT/bench/data/venvs/crawl4ai/bin/python}
@@ -45,6 +46,7 @@ for s in ${@:-fast polite}; do
     case $s in
         fast)   run fast 40 60 0 4 20 ${TOOLS:-pagesift crw spider scrapy crawl4ai-http} ;;
         polite) run polite 40 60 200 1 20 ${TOOLS:-pagesift crw spider scrapy crawl4ai-http} ;;
+        smoke)  run smoke 3 10 0 2 5 ${TOOLS:-pagesift crw spider scrapy crawl4ai-http} ;;   # 冒烟
     esac
 done
 python3 -I wild_score.py "$OUT"

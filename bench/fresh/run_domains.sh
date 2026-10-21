@@ -26,8 +26,9 @@ for d in ${@:-markdown rag qasper dates pdf wild}; do
                    echo "bench/data/fresh/tools/py/bin/python -I bench/meta/dates.py --tools $t > $R/dates/$t.txt 2>&1"
                done | bench/fresh/pinned.sh; cat $R/dates/*.txt | grep -v "^tool" | sort -u > $R/dates.txt; cat $R/dates.txt ;;
         pdf) bench/pdf/run.sh && mkdir -p $R/pdf && cp bench/pdf/out/score-*.txt bench/pdf/out/*timing*.txt $R/pdf/ ;;
-        wild) (cd bench/crawl && SEED=$WILD OUT=../../$R/wild PAGES_DIR=../../bench/data/random/pages \
-               C4A=../../$C4A CRW=../../bench/data/fresh/tools/crw/crw ./run_wild.sh) ;;
+        wild) A=$(realpath .); RA=$(realpath "$R")
+              (cd bench/crawl && SEED=$WILD OUT=$RA/wild PAGES_DIR=$A/bench/data/random/utf8 \
+               C4A=$A/$C4A CRW=$A/bench/data/fresh/tools/crw/crw ./run_wild.sh) ;;
     esac
     echo "== $d done $(date +%T)"
   ) &

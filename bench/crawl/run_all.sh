@@ -13,6 +13,8 @@ PAGES_DIR=${PAGES_DIR:-$ROOT/bench/data/crawl-pages}
 PORT=18080
 export MEASURE_OUT=${MEASURE_OUT:-results-$(date +%Y%m%d-%H%M%S).jsonl}
 export CRAWL4AI_NO_CLOUD_NOTICE=1
+# Crawl4AI 默认给 Chromium 加 --no-sandbox；评测里一律开着沙箱（和 pagesift 一样）
+export CRAWL4AI_CHROMIUM_SANDBOX=true
 export MEASURE_BUDGET_S=${MEASURE_BUDGET_S:-600}
 export MEASURE_ORIGIN=http://s0.localhost:$PORT/__served
 C4A=${C4A:-$ROOT/bench/data/venvs/crawl4ai/bin/python}
@@ -37,7 +39,7 @@ run() { # 场景名 hosts pages interval per_host latency 工具...
             crawl4ai-multi) python3 -I measure.py "$label" -- python3 -I crawl4ai_multi.py "$C4A" $PORT "$hosts" "$pages" "$interval" http "$per_host" ;;
             scrapy) python3 -I measure.py "$label" -- "$SCRAPY_PY" -I scrapy_crawl.py $PORT "$hosts" "$pages" "$interval" "$per_host" ;;
             crawl4ai-browser) python3 -I measure.py "$label" -- "$C4A" crawl4ai_crawl.py $PORT "$hosts" "$pages" "$interval" browser "$per_host" ;;
-        esac
+        esac || true   # 一个工具失败不影响后面的工具
     done
     pkill -x origin || true
 }
@@ -48,6 +50,8 @@ for s in "${@:-wide huge}"; do
             wide)   run wide 200 100 0 8 10 ${TOOLS:-pagesift crw spider scrapy crawl4ai-http crawl4ai-multi crawl4ai-browser} ;;
             huge)   run huge 1000 50 0 4 10 ${TOOLS:-pagesift crw spider scrapy crawl4ai-http crawl4ai-multi} ;;
             polite) run polite 100 50 1000 1 50 pagesift crw spider crawl4ai-http crawl4ai-browser ;;
+            # 冒烟：3 站 × 10 页，每个工具都跑一遍，正式跑之前查脚本和工具能不能跑通
+            smoke)  run smoke 3 10 0 2 5 ${TOOLS:-pagesift crw spider scrapy crawl4ai-http crawl4ai-multi crawl4ai-browser} ;;
         esac
     done
 done

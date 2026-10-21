@@ -4,7 +4,8 @@
 # 用法：bench/crawl/engines.sh [场景...]（默认 wide huge）
 set -uo pipefail
 cd "$(dirname "$0")"
-T=../data/tools
+T=${T:-../data/tools}                       # 各浏览器内核所在目录
+PAGES_DIR=${PAGES_DIR:-../data/crawl-pages}  # 源站用的页面
 PORT=18080
 export ENGINE=browser
 export MEASURE_BUDGET_S=${MEASURE_BUDGET_S:-180}
@@ -55,12 +56,14 @@ for s in ${@:-wide huge}; do
     case $s in
         wide) hosts=200 pages=100 ph=8 ;;
         huge) hosts=1000 pages=50 ph=4 ;;
+        smoke) hosts=3 pages=10 ph=2 ;;   # 冒烟
     esac
     pkill -x origin || true
     sleep 0.5
-    target/release/origin ../data/crawl-pages $PORT $hosts $pages 10 2>/dev/null &
+    target/release/origin "$PAGES_DIR" $PORT $hosts $pages 10 2>/dev/null &
     sleep 2
-    for e in ${ENGINES:-chrome chs lightpanda obscura}; do engine "$e" "$s" "$hosts" "$pages" "$ph"; done
+    # 默认：各内核单独跑，加上生产路径的自动回退链（auto）
+    for e in ${ENGINES:-chrome chs lightpanda moli auto obscura}; do engine "$e" "$s" "$hosts" "$pages" "$ph"; done
     pkill -x origin || true
 done
 echo "results in bench/crawl/$MEASURE_OUT"
