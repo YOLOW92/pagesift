@@ -192,5 +192,5 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           npm ci
-          npx napi artifacts --dir ../../artifacts
+          npx napi artifacts --output-dir ../../artifacts
           npm publish --access public
