@@ -734,7 +734,8 @@ async fn process_html(
         clean_html: opts.wants("html"),
         links: opts.wants("links"),
         images: opts.wants("images"),
-        fingerprints: true,
+        // 完整指纹（原始 HTML 的哈希、再渲染一遍纯文本做规范化哈希）约占提取 CPU 的一成，只在变化检测要用时算
+        fingerprints: opts.wants("changeTracking"),
         ..Default::default()
     };
     cpu_task(move || (pagesift_content::process(&html, &copts), html)).await
@@ -785,11 +786,16 @@ fn document(doc: pagesift_content::Document, opts: &ScrapeOptions, raw_html: Str
     }
 }
 
+/// 正文 Markdown 的哈希总是给（Markdown 只有几 KB，几乎不花时间）；原始 HTML 和规范化纯文本的
+/// 哈希只在请求变化检测时算（见 `process_html`），它们要整页再过一遍。
 fn fill_fingerprints(ext: &mut PagesiftMeta, doc: &pagesift_content::Document) {
-    if let Some(f) = &doc.fingerprints {
-        ext.content_hash = Some(f.markdown.clone());
-        ext.raw_hash = Some(f.raw_html.clone());
-        ext.text_hash = Some(f.text.clone());
+    match &doc.fingerprints {
+        Some(f) => {
+            ext.content_hash = Some(f.markdown.clone());
+            ext.raw_hash = Some(f.raw_html.clone());
+            ext.text_hash = Some(f.text.clone());
+        }
+        None => ext.content_hash = Some(pagesift_content::hash_hex(doc.markdown.as_bytes())),
     }
 }
 

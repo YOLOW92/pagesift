@@ -19,7 +19,8 @@ def test_scrape_fields(scraper, http, server):
     assert d.metadata["description"] == "About Page /article"
     assert d.metadata["og_image"] == "/og.png"
     assert d.engine == "http"
-    assert len(d.content_hash) == 64 and len(d.raw_hash) == 64
+    # 正文哈希总有；原始 HTML 和纯文本的哈希只在请求变化检测时计算
+    assert len(d.content_hash) == 64 and d.raw_hash is None
     assert d.elapsed_ms > 0 and {"fetch", "extract", "total"} <= set(d.timings)
     # 默认只有 markdown
     assert d.html is None and d.raw_html is None and d.links is None and d.images is None
