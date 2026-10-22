@@ -17,9 +17,13 @@ export MEASURE_OUT=$OUT/measure.jsonl
 export CRAWL4AI_NO_CLOUD_NOTICE=1
 export CRAWL4AI_CHROMIUM_SANDBOX=true   # 不让 Crawl4AI 关掉浏览器沙箱
 export MEASURE_BUDGET_S=${MEASURE_BUDGET_S:-600}
+export MEASURE_MAX_MB=${MEASURE_MAX_MB:-12288}
 export MEASURE_ORIGIN=http://s0.localhost:$PORT/__served
+WILD_HOSTS=${WILD_HOSTS:-120}
+WILD_PAGES=${WILD_PAGES:-60}
 C4A=${C4A:-$ROOT/bench/data/venvs/crawl4ai/bin/python}
 CRW=${CRW:-$ROOT/bench/data/tools/bin/crw}
+COLLY=${COLLY:-/home/yolow92/pagesift-bench-env/tools/bin/colly_crawl}
 SCRAPY_PY=${SCRAPY_PY:-$ROOT/bench/data/fresh/tools/py/bin/python}
 
 # 等源站真正能应答再开始（页面多时启动要几秒；固定 sleep 不够，第一个工具会连不上）
@@ -44,7 +48,10 @@ run() { # 场景名 hosts pages interval per_host latency 工具...
             crw) python3 -I measure.py "$label" -- python3 -I crw_crawl.py "$CRW" $PORT "$hosts" "$pages" "$interval" "$per_host" ;;
             spider) python3 -I measure.py "$label" -- target/release/spider_crawl $PORT "$hosts" "$pages" "$interval" "$(( per_host < 2 ? 2 : per_host ))" ;;
             scrapy) python3 -I measure.py "$label" -- "$SCRAPY_PY" -I scrapy_crawl.py $PORT "$hosts" "$pages" "$interval" "$per_host" ;;
+            crawlee-python) python3 -I measure.py "$label" -- "$SCRAPY_PY" -I crawlee_py_crawl.py $PORT "$hosts" "$pages" "$interval" "$per_host" ;;
+            colly) python3 -I measure.py "$label" -- "$COLLY" $PORT "$hosts" "$pages" "$interval" "$per_host" ;;
             crawl4ai-http) python3 -I measure.py "$label" -- "$C4A" crawl4ai_crawl.py $PORT "$hosts" "$pages" "$interval" http "$per_host" ;;
+            crawl4ai-multi) python3 -I measure.py "$label" -- python3 -I crawl4ai_multi.py "$C4A" $PORT "$hosts" "$pages" "$interval" http "$per_host" ;;
         esac || true
         curl -s -H "Host: s0.localhost" "http://[::1]:$PORT/__report" > "$OUT/$name-$tool.json"
         curl -s -H "Host: s0.localhost" "http://[::1]:$PORT/__log" > "$OUT/$name-$tool.log"
@@ -54,9 +61,11 @@ run() { # 场景名 hosts pages interval per_host latency 工具...
 
 for s in ${@:-fast polite}; do
     case $s in
-        fast)   run fast 40 60 0 4 20 ${TOOLS:-pagesift crw spider scrapy crawl4ai-http} ;;
-        polite) run polite 40 60 200 1 20 ${TOOLS:-pagesift crw spider scrapy crawl4ai-http} ;;
-        smoke)  run smoke 3 10 0 2 5 ${TOOLS:-pagesift crw spider scrapy crawl4ai-http} ;;   # 冒烟
+        fast)   run fast "$WILD_HOSTS" "$WILD_PAGES" 0 4 20 ${TOOLS:-pagesift crw spider colly scrapy crawlee-python crawl4ai-multi} ;;
+        polite) run polite "$WILD_HOSTS" "$WILD_PAGES" 200 1 20 ${TOOLS:-pagesift crw spider colly scrapy crawlee-python crawl4ai-multi} ;;
+        wide)   run wide 200 100 0 8 10 ${TOOLS:-pagesift crw spider colly scrapy crawlee-python crawl4ai-multi} ;;
+        huge)   run huge 1000 50 0 4 10 ${TOOLS:-pagesift crw spider colly scrapy crawlee-python crawl4ai-multi} ;;
+        smoke)  run smoke 3 10 0 2 5 ${TOOLS:-pagesift crw spider colly scrapy crawlee-python crawl4ai-http} ;;   # 冒烟
     esac
 done
 python3 -I wild_score.py "$OUT"

@@ -1,0 +1,195 @@
+== firecrawl-crw.jsonl
+
+crw metric (truth phrase hit >= 30%)
+  found / all labeled pages:    386 / 839 = 46.01%
+  found / pages with snapshot:  386 / 597 = 64.66%
+
+strict metric (pages with snapshot)
+  mean truth recall:   0.580
+  mean noise leak:     0.099  (576 pages with noise phrases)
+  content score (F1 of recall and 1 - leak): 0.706
+
+speed (process only, best of 3 runs, mean page 285 KB)
+  p50 13.39 ms   p95 71.37 ms   max 1516.56 ms   total 14797 ms
+== firecrawl-defuddle.jsonl
+
+crw metric (truth phrase hit >= 30%)
+  found / all labeled pages:    301 / 839 = 35.88%
+  found / pages with snapshot:  301 / 597 = 50.42%
+
+strict metric (pages with snapshot)
+  mean truth recall:   0.458
+  mean noise leak:     0.464  (576 pages with noise phrases)
+  content score (F1 of recall and 1 - leak): 0.494
+
+speed (process only, best of 3 runs, mean page 285 KB)
+  p50 682.98 ms   p95 4307.47 ms   max 29944.74 ms   total 712206 ms
+== firecrawl-dom_smoothie.jsonl
+
+crw metric (truth phrase hit >= 30%)
+  found / all labeled pages:    152 / 839 = 18.12%
+  found / pages with snapshot:  152 / 597 = 25.46%
+
+strict metric (pages with snapshot)
+  mean truth recall:   0.439
+  mean noise leak:     0.061  (576 pages with noise phrases)
+  content score (F1 of recall and 1 - leak): 0.598
+
+speed (process only, best of 3 runs, mean page 285 KB)
+  p50 5.78 ms   p95 28.45 ms   max 839.17 ms   total 6474 ms
+== firecrawl-go-html-to-markdown.jsonl
+
+crw metric (truth phrase hit >= 30%)
+  found / all labeled pages:    402 / 839 = 47.91%
+  found / pages with snapshot:  402 / 597 = 67.34%
+
+strict metric (pages with snapshot)
+  mean truth recall:   0.615
+  mean noise leak:     0.627  (576 pages with noise phrases)
+  content score (F1 of recall and 1 - leak): 0.465
+
+speed (process only, best of 3 runs, mean page 285 KB)
+  p50 7.41 ms   p95 34.50 ms   max 191.71 ms   total 6800 ms
+== firecrawl-go-readability.jsonl
+
+crw metric (truth phrase hit >= 30%)
+  found / all labeled pages:    315 / 839 = 37.54%
+  found / pages with snapshot:  315 / 597 = 52.76%
+
+strict metric (pages with snapshot)
+  mean truth recall:   0.455
+  mean noise leak:     0.056  (576 pages with noise phrases)
+  content score (F1 of recall and 1 - leak): 0.614
+
+speed (process only, best of 3 runs, mean page 285 KB)
+  p50 32.56 ms   p95 133.87 ms   max 1802.00 ms   total 31688 ms
+== firecrawl-htmd.jsonl
+
+crw metric (truth phrase hit >= 30%)
+  found / all labeled pages:    400 / 839 = 47.68%
+  found / pages with snapshot:  400 / 597 = 67.00%
+
+strict metric (pages with snapshot)
+  mean truth recall:   0.615
+  mean noise leak:     0.644  (576 pages with noise phrases)
+  content score (F1 of recall and 1 - leak): 0.451
+
+speed (process only, best of 3 runs, mean page 285 KB)
+  p50 3.41 ms   p95 19.33 ms   max 285.92 ms   total 3709 ms
+== firecrawl-html-to-markdown-rs.jsonl
+
+crw metric (truth phrase hit >= 30%)
+  found / all labeled pages:    390 / 839 = 46.48%
+  found / pages with snapshot:  390 / 597 = 65.33%
+
+strict metric (pages with snapshot)
+  mean truth recall:   0.592
+  mean noise leak:     0.389  (576 pages with noise phrases)
+  content score (F1 of recall and 1 - leak): 0.601
+
+speed (process only, best of 3 runs, mean page 285 KB)
+  p50 5.66 ms   p95 38.90 ms   max 557.03 ms   total 7074 ms
+== firecrawl-jina-reader.jsonl
+
+crw metric (truth phrase hit >= 30%)
+  found / all labeled pages:    311 / 839 = 37.07%
+  found / pages with snapshot:  311 / 597 = 52.09%
+
+strict metric (pages with snapshot)
+  mean truth recall:   0.447
+  mean noise leak:     0.064  (576 pages with noise phrases)
+  content score (F1 of recall and 1 - leak): 0.605
+
+speed (process only, best of 3 runs, mean page 285 KB)
+  p50 168.53 ms   p95 855.52 ms   max 19487.62 ms   total 185241 ms
+== firecrawl-markitdown.jsonl
+
+crw metric (truth phrase hit >= 30%)
+  found / all labeled pages:    400 / 839 = 47.68%
+  found / pages with snapshot:  400 / 597 = 67.00%
+
+strict metric (pages with snapshot)
+  mean truth recall:   0.617
+  mean noise leak:     0.632  (576 pages with noise phrases)
+  content score (F1 of recall and 1 - leak): 0.461
+
+speed (process only, best of 3 runs, mean page 285 KB)
+  p50 111.84 ms   p95 461.36 ms   max 18999.28 ms   total 145160 ms
+== firecrawl-mdream.jsonl
+
+crw metric (truth phrase hit >= 30%)
+  found / all labeled pages:    354 / 839 = 42.19%
+  found / pages with snapshot:  354 / 597 = 59.30%
+
+strict metric (pages with snapshot)
+  mean truth recall:   0.536
+  mean noise leak:     0.098  (576 pages with noise phrases)
+  content score (F1 of recall and 1 - leak): 0.673
+
+speed (process only, best of 3 runs, mean page 285 KB)
+  p50 1.03 ms   p95 5.11 ms   max 95.18 ms   total 1118 ms
+== firecrawl-pagesift.jsonl
+
+crw metric (truth phrase hit >= 30%)
+  found / all labeled pages:    384 / 839 = 45.77%
+  found / pages with snapshot:  384 / 597 = 64.32%
+
+strict metric (pages with snapshot)
+  mean truth recall:   0.560
+  mean noise leak:     0.047  (576 pages with noise phrases)
+  content score (F1 of recall and 1 - leak): 0.706
+
+speed (process only, best of 3 runs, mean page 285 KB)
+  p50 1.52 ms   p95 8.96 ms   max 139.33 ms   total 1718 ms
+== firecrawl-readability.jsonl
+
+crw metric (truth phrase hit >= 30%)
+  found / all labeled pages:    312 / 839 = 37.19%
+  found / pages with snapshot:  312 / 597 = 52.26%
+
+strict metric (pages with snapshot)
+  mean truth recall:   0.454
+  mean noise leak:     0.067  (576 pages with noise phrases)
+  content score (F1 of recall and 1 - leak): 0.610
+
+speed (process only, best of 3 runs, mean page 285 KB)
+  p50 168.04 ms   p95 832.98 ms   max 19061.21 ms   total 182763 ms
+== firecrawl-trafilatura.jsonl
+
+crw metric (truth phrase hit >= 30%)
+  found / all labeled pages:    308 / 839 = 36.71%
+  found / pages with snapshot:  308 / 597 = 51.59%
+
+strict metric (pages with snapshot)
+  mean truth recall:   0.442
+  mean noise leak:     0.039  (576 pages with noise phrases)
+  content score (F1 of recall and 1 - leak): 0.606
+
+speed (process only, best of 3 runs, mean page 285 KB)
+  p50 51.07 ms   p95 342.59 ms   max 6175.52 ms   total 60805 ms
+== crawl4ai-fit.jsonl
+
+crw metric (truth phrase hit >= 30%)
+  found / all labeled pages:    368 / 839 = 43.86%
+  found / pages with snapshot:  368 / 597 = 61.64%
+
+strict metric (pages with snapshot)
+  mean truth recall:   0.531
+  mean noise leak:     0.109  (576 pages with noise phrases)
+  content score (F1 of recall and 1 - leak): 0.666
+
+speed (process only, best of 3 runs, mean page 285 KB)
+  p50 59.60 ms   p95 251.62 ms   max 7187.52 ms   total 61106 ms
+== crawl4ai-raw.jsonl
+
+crw metric (truth phrase hit >= 30%)
+  found / all labeled pages:    401 / 839 = 47.79%
+  found / pages with snapshot:  401 / 597 = 67.17%
+
+strict metric (pages with snapshot)
+  mean truth recall:   0.605
+  mean noise leak:     0.636  (576 pages with noise phrases)
+  content score (F1 of recall and 1 - leak): 0.455
+
+speed (process only, best of 3 runs, mean page 285 KB)
+  p50 59.60 ms   p95 251.62 ms   max 7187.52 ms   total 61106 ms

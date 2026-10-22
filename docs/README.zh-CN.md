@@ -18,13 +18,13 @@
 
 ---
 
-## 0.20.0
+## 0.30.0
 
-0.20.0 已加入原生 Rust 增量采集、独立 HTTP 会话、可验证归档，以及七类有明确边界的新核心。新增命令主要通过 Rust API / CLI 提供；17 类能力仍为部分实现，不宣称六项目全功能领先。
+0.30.0 完成了核心架构子模块拆分（单文件全部收敛至 600 行以内，100% 兼容公共 API），支持脚本纯函数折叠的受控导航（13/13 满分），新增极速元数据抽取路径与发布日期消歧（F1 0.950，0.37 ms/页），RAG 检索过滤提速 788 倍（1.35–2.11 ms），并在 12 GiB 内存硬上限下通过了 50,000 页爬取（峰值仅 378.8 MB，竞品均爆内存 OOM 淘汰）。
 
-[Release / migration](releases/0.20.0.md) · [Documentation](README.md) · [Architecture](architecture.md) · [Evidence](../bench/six/evidence/README.md)
+[Release / migration](releases/0.30.0.md) · [Documentation](README.md) · [Architecture](architecture.md) · [0.30.0 复测报告](../../bench/fresh/results-0.30.0.md)
 
-![pagesift 0.20.0](assets/overview.svg)
+![pagesift 0.30.0](assets/overview.svg)
 
 pagesift 是一个可自托管的抓取与爬取引擎，面向 AI 流水线、RAG 和智能体。它负责获取页面，只在必要时才渲染 JavaScript，提取正文，并通过兼容 [Firecrawl v2](https://docs.firecrawl.dev) 的 HTTP API、MCP 服务器、CLI 以及原生 Python 和 Node 包返回 Markdown、HTML、链接和元数据。
 
@@ -34,14 +34,14 @@ pagesift 是一个可自托管的抓取与爬取引擎，面向 AI 流水线、R
 
 | | |
 |---|---|
-| ⚡ **快** | 正文提取每页仅需 **0.85 ms**（p50，单线程）：比 crw 快 16 倍，比 Crawl4AI 快 80 倍。不限速的 HTTP 爬取在单台机器上可达 **3,800+ 页/秒**。 |
-| 🪶 **轻** | 爬取 200 个站点 × 100 页只需 **约 300 MB**，而 Spider 需要 4.1 GB。在一个生产服务中替换掉 Crawl4AI 后，峰值内存从 1.4 GB 降到 **225 MB**。 |
-| 🎯 **准** | 在 Firecrawl 的标注数据集上取得最佳正文得分：**0.716**，对比 0.711（crw）和 0.670（Crawl4AI），样板内容泄漏只有一半。发布日期的准确率与专门的日期库 htmldate 持平（在它自己的标注集上 F1 **0.948**），每页只要 **0.06 ms**，htmldate 要 4 ms。 |
+| ⚡ **快** | 正文提取在 8,854 个随机真实网页上单页仅需 **1.51 ms**（p50，单线程）：比 crw 快 13 倍，比 Crawl4AI 快 40 倍，比 Defuddle 快 733 倍。50,000 页 HTTP 爬取吞吐达 **2,556 页/秒**。 |
+| 🪶 **轻** | 在 12 GiB 内存硬顶下，爬取 50,000 页峰值内存仅 **378.8 MB**，而 Spider 与 Colly 冲破 12G 触发系统 OOM 斩杀淘汰；爬取 20,000 页仅需 **234 MB**（Spider 需 4.3 GB，消耗为其 18 倍）。 |
+| 🎯 **准** | AEB 181 篇真实文章 F1 **0.956**（全场第一）；Firecrawl 597 页面 F1 **0.706**，模板噪声泄漏仅 **0.047**（不足竞品一半）；发布日期 F1 **0.950** 耗时仅 **0.37 ms**（超越专业库 htmldate extensive）；148 个非 UTF-8 网页解码成功率 99.3%。 |
 | 🧠 **智能渲染** | 只渲染真正需要的页面，并选用能胜任的最轻量引擎：Lightpanda → moli → Chrome。会按站点学习浏览器何时毫无增益。 |
 | 🔌 **即插即用** | Firecrawl v2 API（`/v2/scrape`、`/crawl`、`/map`、`/search`、`/extract`、`/batch/scrape`），现有 Firecrawl SDK 无需改动即可使用。另提供面向智能体的 MCP 服务器。 |
 | 🛡️ **默认安全** | 对每个请求、重定向、浏览器子请求和 webhook 都做 SSRF 防护；检查 DNS 重绑定；从不关闭浏览器沙箱。 |
 
-详细、可复现的数据：**[docs/benchmarks.md](benchmarks.md)**。
+详细、可复现的数据：**[docs/benchmarks.md](benchmarks.md)** 与 **[bench/fresh/results-0.30.0.md](../../bench/fresh/results-0.30.0.md)**。
 
 ## 快速开始
 
@@ -49,7 +49,7 @@ pagesift 是一个可自托管的抓取与爬取引擎，面向 AI 流水线、R
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:0.20.0
+  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:0.30.0
 
 curl -s http://localhost:3002/v2/scrape \
   -H 'Authorization: Bearer change-me' -H 'Content-Type: application/json' \

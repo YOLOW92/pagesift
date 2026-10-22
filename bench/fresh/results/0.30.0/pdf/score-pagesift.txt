@@ -1,0 +1,22 @@
+arxiv_math: pagesift             : Average Score: 72.2% ± 0.9% (average of per-JSONL scores)
+arxiv_math:     baseline: 100.0% average pass rate over 522 tests
+arxiv_math:     math    : 44.3% average pass rate over 2927 tests
+arxiv_math:         arxiv_math.jsonl              : 44.3% (1297/2927 tests)
+arxiv_math:         baseline                      : 100.0% (522/522 tests)
+headers_footers: pagesift             : Average Score: 81.2% ± 2.4% (average of per-JSONL scores)
+headers_footers:     absent  : 68.0% average pass rate over 753 tests
+headers_footers:     baseline: 94.0% average pass rate over 266 tests
+headers_footers:         baseline                      : 94.2% (244/259 tests)
+long_tiny_text: pagesift             : Average Score: 49.3% ± 6.3% (average of per-JSONL scores)
+long_tiny_text:     baseline: 62.9% average pass rate over 62 tests
+long_tiny_text:     present : 35.7% average pass rate over 442 tests
+long_tiny_text:         baseline                      : 62.9% (39/62 tests)
+multi_column: pagesift             : Average Score: 77.6% ± 2.3% (average of per-JSONL scores)
+multi_column:     baseline: 93.9% average pass rate over 231 tests
+multi_column:     order   : 61.2% average pass rate over 884 tests
+multi_column:         baseline                      : 93.9% (217/231 tests)
+table_tests: pagesift             : Average Score: 74.8% ± 2.3% (average of per-JSONL scores)
+table_tests:     baseline: 92.6% average pass rate over 188 tests
+table_tests:     table   : 56.1% average pass rate over 1020 tests
+table_tests:         baseline                      : 93.5% (174/186 tests)
+table_tests:         table_tests.jsonl             : 56.0% (572/1022 tests)

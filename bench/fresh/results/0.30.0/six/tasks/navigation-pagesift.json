@@ -1,0 +1,22 @@
+{
+  "command": [
+    "/home/yolow92/pagesift/bench/six/results/seven-next/bin-verified/pagesift",
+    "crawl",
+    "http://127.0.0.1:34207/fresh-0f6a0f301149b3d4428a/",
+    "--config",
+    "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/pagesift.toml",
+    "--engine",
+    "http",
+    "--external-scripts",
+    "--sitemap",
+    "skip",
+    "--limit",
+    "100",
+    "--depth",
+    "4"
+  ],
+  "exit": 0,
+  "stdout": "{\"markdown\":\"# Independent navigation 0f6a0f301149b3d4428a\\n\\n[Anchor](http://127.0.0.1:34207/fresh-0f6a0f301149b3d4428a/anchor)\\n\",\"title\":null,\"url\":\"http://127.0.0.1:34207/fresh-0f6a0f301149b3d4428a/\"}\n{\"markdown\":\"# anchor\\n\\nDestination /fresh-0f6a0f301149b3d4428a/anchor, frozen independent navigation content.\\n\",\"title\":null,\"url\":\"http://127.0.0.1:34207/fresh-0f6a0f301149b3d4428a/anchor\"}\n{\"markdown\":\"# frame\\n\\nDestination /fresh-0f6a0f301149b3d4428a/frame, frozen independent navigation content.\\n\",\"title\":null,\"url\":\"http://127.0.0.1:34207/fresh-0f6a0f301149b3d4428a/frame\"}\n{\"markdown\":\"# htmx\\n\\nDestination /fresh-0f6a0f301149b3d4428a/htmx, frozen independent navigation content.\\n\",\"title\":null,\"url\":\"http://127.0.0.1:34207/fresh-0f6a0f301149b3d4428a/htmx\"}\n{\"markdown\":\"# inline\\n\\nDestination /fresh-0f6a0f301149b3d4428a/inline, frozen independent navigation content.\\n\",\"title\":null,\"url\":\"http://127.0.0.1:34207/fresh-0f6a0f301149b3d4428a/inline\"}\n{\"markdown\":\"# header\\n\\nDestination /fresh-0f6a0f301149b3d4428a/header, frozen independent navigation content.\\n\",\"title\":null,\"url\":\"http://127.0.0.1:34207/fresh-0f6a0f301149b3d4428a/header\"}\n{\"markdown\":\"# concat\\n\\nDestination /fresh-0f6a0f301149b3d4428a/concat, frozen independent navigation content.\\n\",\"title\":null,\"url\":\"http://127.0.0.1:34207/fresh-0f6a0f301149b3d4428a/concat\"}\n{\"markdown\":\"# literal\\n\\nDestination /fresh-0f6a0f301149b3d4428a/literal, frozen independent navigation content.\\n\",\"title\":null,\"url\":\"http://127.0.0.1:34207/fresh-0f6a0f301149b3d4428a/literal\"}\n{\"markdown\":\"# template\\n\\nDestination /fresh-0f6a0f301149b3d4428a/template, frozen independent navigation content.\\n\",\"title\":null,\"url\":\"http://127.0.0.1:34207/fresh-0f6a0f301149b3d4428a/template\"}\n{\"markdown\":\"# escaped\\n\\nDestination /fresh-0f6a0f301149b3d4428a/escaped, frozen independent navigation content.\\n\",\"title\":null,\"url\":\"http://127.0.0.1:34207/fresh-0f6a0f301149b3d4428a/escaped\"}\n{\"markdown\":\"# dynamic\\n\\nDestination /fresh-0f6a0f301149b3d4428a/dynamic, frozen independent navigation content.\\n\",\"title\":null,\"url\":\"http://127.0.0.1:34207/fresh-0f6a0f301149b3d4428a/dynamic\"}\n{\"markdown\":\"# imported\\n\\nDestination /fresh-0f6a0f301149b3d4428a/imported, frozen independent navigation content.\\n\",\"title\":null,\"url\":\"http://127.0.0.1:34207/fresh-0f6a0f301149b3d4428a/imported\"}\n{\"markdown\":\"# exported\\n\\nDestination /fresh-0f6a0f301149b3d4428a/exported, frozen independent navigation content.\\n\",\"title\":null,\"url\":\"http://127.0.0.1:34207/fresh-0f6a0f301149b3d4428a/exported\"}\n",
+  "stderr": "crawled 13 pages, 0 errors\n",
+  "wall_s": 0.01928916399992886
+}

@@ -34,8 +34,10 @@ def main():
         useful = kinds.get("content", 0) + kinds.get("nav", 0)
         waste = req - useful - kinds.get("503", 0) - kinds.get("429", 0)
         m = meas.get(f"wild-{scen}/{tool}", {})
-        rows.append((scen, tool, content / (len(sites) * limit), waste / max(req, 1), req,
-                     kinds.get("robots", 0), kinds.get("429", 0), m.get("wall_s"), m.get("peak_mb") or m.get("peak_rss_mb"), kinds))
+        scen_limit = {"wide": 100, "huge": 50, "smoke": 10}.get(scen, limit)
+        rows.append((scen, tool, content / (len(sites) * scen_limit), waste / max(req, 1), req,
+                     kinds.get("robots", 0), kinds.get("429", 0), m.get("wall_s"),
+                     m.get("peak_tree_pss_mb") or m.get("peak_mb") or m.get("peak_rss_mb"), kinds))
     print(f"{'场景':8} {'工具':14} {'覆盖率↑':>8} {'浪费率↓':>8} {'请求数':>7} {'robots违规↓':>11} {'429↓':>6} {'耗时s↓':>8}")
     for r in rows:
         print(f"{r[0]:8} {r[1]:14} {r[2]:8.3f} {r[3]:8.3f} {r[4]:7d} {r[5]:11d} {r[6]:6d} {str(r[7]):>8}")

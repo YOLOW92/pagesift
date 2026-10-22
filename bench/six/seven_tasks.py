@@ -100,10 +100,11 @@ def main():
  try:
   commands={'pagesift':[BIN,'crawl',base+prefix,'--config',cfg,'--engine','http','--external-scripts','--sitemap','skip','--limit','100','--depth','4'],
     'katana':[ROOT/'bench/data/six/bin/katana','-u',base+prefix,'-d','4','-jc','-jsl','-c','2','-p','1','-ct','20s','-timeout','5','-retry','0','-silent','-nc','-jsonl','-duc','-fs','fqdn'],
-    'crawlee':['node',ROOT/'bench/six/adapters/crawlee.mjs',base+prefix,OUT/'crawlee-output.json']}
+    'crawlee':['node',ROOT/'bench/six/adapters/crawlee.mjs',base+prefix,OUT/'crawlee-output.json'],
+    'crawlee-python':[PY,ROOT/'bench/six/adapters/crawlee_py.py',base+prefix,OUT/'crawlee-py-output.json']}
   nav={}
   for tool,cmd in commands.items():
-   env=dict(os.environ,CRAWLEE_STORAGE_DIR=str(OUT/'crawlee-storage')) if tool=='crawlee' else None
+   env=dict(os.environ,CRAWLEE_STORAGE_DIR=str(OUT/f'{tool}-storage')) if tool.startswith('crawlee') else None
    events.clear();result=run('navigation-'+tool,cmd,90,env);seen={r['path'] for r in events};nav[tool]={'exit':result['exit'],'found':len(gold&seen),'expected':len(gold),'missing':sorted(gold-seen),'non_navigation_visited':sorted(rejected&seen),'non_get':sum(r['method']!='GET' for r in events),'requests':list(events)}
   summary['navigation']=nav;save(OUT/'summary.json',summary)
   from scrapling import Selector

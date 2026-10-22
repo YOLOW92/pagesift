@@ -1,0 +1,12 @@
+crawl4ai: 4.08 ms/page
+defuddle: 158.27 ms/page
+go-html-to-markdown: 1.56 ms/page
+htmd: 0.98 ms/page
+html2text: 4.69 ms/page
+html-to-markdown-rs: 0.78 ms/page
+jina-reader: 2.65 ms/page
+markdownify: 14.61 ms/page
+markitdown: 27.64 ms/page
+mdream: 0.09 ms/page
+pagesift: 1.18 ms/page
+turndown: 7.30 ms/page

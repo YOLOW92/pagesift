@@ -1,0 +1,15 @@
+工具                          正确读出↑    乱码↓    失败或空↓    页数
+pagesift                      147      1        0   148
+trafilatura                   145      3        0   148
+markitdown                    143      5        0   148
+readability                    64     84        0   148
+defuddle                       28    120        0   148
+mdream                         68     48       32   148
+jina-reader                     0    148        0   148
+crw                            93     55        0   148
+dom_smoothie                   96     52        0   148
+htmd                           94     54        0   148
+html-to-markdown-rs            94     50        4   148
+go-readability                 93     55        0   148
+go-html-to-markdown           101     47        0   148
+crawl4ai                      101     47        0   148

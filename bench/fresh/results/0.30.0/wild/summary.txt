@@ -1,0 +1,58 @@
+场景       工具                 覆盖率↑     浪费率↓     请求数   robots违规↓   429↓     耗时s↓
+fast     colly             0.373    0.444    7201           0    821     4.55
+fast     crawl4ai-multi    0.000    0.000       0           0      0     0.13
+fast     crawlee-python    0.000    0.000       0           0      0     None
+fast     crw               0.000    0.000       0           0      0     0.14
+fast     pagesift          0.746    0.134    7091           0    224     50.9
+fast     scrapy            0.000    0.000       0           0      0     None
+fast     spider            0.363    0.390    6160           0    675     2.03
+huge     colly             0.492    0.482   59104           0   1905    47.69
+huge     crawl4ai-multi    0.000    0.000       0           0      0     0.13
+huge     crawlee-python    0.000    0.000       0           0      0     None
+huge     crw               0.000    0.000       0           0      0     0.13
+huge     pagesift          0.719    0.153   47403           0    136    33.48
+huge     scrapy            0.000    0.000       0           0      0     None
+huge     spider            0.439    0.416   47162           0   2033    21.79
+polite   colly             0.478    0.523    8611           0      0    25.64
+polite   crawl4ai-multi    0.000    0.000       0           0      0     0.13
+polite   crawlee-python    0.000    0.000       0           0      0     None
+polite   crw               0.000    0.000       0           0      0     0.13
+polite   pagesift          0.734    0.140    6788           0      0    23.94
+polite   scrapy            0.000    0.000       0           0      0     None
+polite   spider            0.463    0.441    7025           0      0    12.55
+wide     colly             0.330    0.482   17487           0   1390    11.31
+wide     crawl4ai-multi    0.000    0.000       0           0      0     0.13
+wide     crawlee-python    0.000    0.000       0           0      0     None
+wide     crw               0.000    0.000       0           0      0     0.13
+wide     pagesift          0.749    0.127   19058           0    406     52.8
+wide     scrapy            0.000    0.000       0           0      0     None
+wide     spider            0.358    0.431   16318           0   1076     5.04
+
+fast colly {"429": 821, "503": 333, "binary": 740, "content": 2686, "dup": 2020, "nav": 164, "trap": 437}
+fast crawl4ai-multi {}
+fast crawlee-python {}
+fast crw {}
+fast pagesift {"404": 99, "429": 224, "503": 339, "content": 5371, "dup": 503, "nav": 210, "trap": 345}
+fast scrapy {}
+fast spider {"404": 2, "429": 675, "503": 294, "content": 2613, "dup": 1939, "nav": 174, "trap": 463}
+huge colly {"429": 1905, "503": 2414, "binary": 5628, "content": 24613, "dup": 19403, "nav": 1710, "trap": 3431}
+huge crawl4ai-multi {}
+huge crawlee-python {}
+huge crw {}
+huge pagesift {"404": 492, "429": 136, "503": 2157, "content": 35945, "dup": 4186, "nav": 1889, "trap": 2598}
+huge scrapy {}
+huge spider {"404": 38, "429": 2033, "503": 1935, "content": 21944, "dup": 16288, "nav": 1630, "trap": 3294}
+polite colly {"503": 473, "binary": 953, "content": 3445, "dup": 2947, "nav": 193, "trap": 600}
+polite crawl4ai-multi {}
+polite crawlee-python {}
+polite crw {}
+polite pagesift {"404": 112, "503": 341, "content": 5282, "dup": 465, "nav": 214, "trap": 374}
+polite scrapy {}
+polite spider {"404": 2, "503": 393, "content": 3333, "dup": 2522, "nav": 202, "trap": 573}
+wide colly {"429": 1390, "503": 767, "binary": 1656, "content": 6594, "dup": 5442, "nav": 306, "trap": 1332}
+wide crawl4ai-multi {}
+wide crawlee-python {}
+wide crw {}
+wide pagesift {"404": 237, "429": 406, "503": 862, "content": 14971, "dup": 1411, "nav": 407, "trap": 764}
+wide scrapy {}
+wide spider {"404": 3, "429": 1076, "503": 727, "content": 7165, "dup": 5518, "nav": 324, "trap": 1505}

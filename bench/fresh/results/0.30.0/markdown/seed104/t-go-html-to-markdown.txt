@@ -1,0 +1,1 @@
+go-html-to-markdown: 1.56 ms/page

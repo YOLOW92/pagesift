@@ -9,6 +9,7 @@ PAGES_DIR=${PAGES_DIR:-../data/crawl-pages}  # 源站用的页面
 PORT=18080
 export ENGINE=browser
 export MEASURE_BUDGET_S=${MEASURE_BUDGET_S:-180}
+export MEASURE_MAX_MB=${MEASURE_MAX_MB:-12288}
 export MEASURE_ORIGIN=http://s0.localhost:$PORT/__served
 export MEASURE_OUT=${MEASURE_OUT:-results-engines-$(date +%Y%m%d-%H%M%S).jsonl}
 ISO='--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE *.localhost'
@@ -58,7 +59,7 @@ engine() { # 名字 场景 hosts pages per_host
             "BROWSER_ARGS=--allow-private-network serve --host 127.0.0.1 --port {port} --proxy http://[::1]:$PORT"
             BROWSER_MAX=4 BROWSER_TABS=4) ;;
     esac
-    env "${env[@]}" python3 -I measure.py "$scen/$name" -- ../../target/release/examples/crawl_bench $PORT "$hosts" "$pages" 0 "$ph" 2>/dev/null
+    env "${env[@]}" python3 -I measure.py "$scen/$name" -- ${PAGESIFT_BIN:-../../target/release/examples/crawl_bench} $PORT "$hosts" "$pages" 0 "$ph" 2>/dev/null
     cleanup
 }
 

@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/home/yolow92/pagesift/bench/six/results/seven-next/bin-verified/pagesift",
+    "relocate",
+    "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/relocation/3-tag-changed-new.html",
+    "--original",
+    "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/relocation/3-tag-changed-old.html",
+    "--selector",
+    "#target"
+  ],
+  "exit": 0,
+  "stdout": "{\"html\":\"<section class=\\\"product\\\"><h2>Copper kettle model 0f6a0f3</h2><p>Price 42</p></section>\",\"runner_up\":0.0,\"score\":0.96,\"status\":\"candidate\",\"text\":\"Copper kettle model 0f6a0f3Price 42\"}\n",
+  "stderr": "",
+  "wall_s": 0.001393987000483321
+}

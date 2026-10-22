@@ -1,0 +1,24 @@
+{
+  "command": [
+    "/home/yolow92/pagesift/bench/data/six/venv/bin/python",
+    "-m",
+    "gallery_dl",
+    "--config-ignore",
+    "--retries",
+    "0",
+    "-o",
+    "extractor.mastodon.access-token=\"\"",
+    "--download-archive",
+    "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/media-gallery-dl/archive.sqlite3",
+    "--write-metadata",
+    "-D",
+    "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/media-gallery-dl",
+    "-f",
+    "{media[id]}.{extension}",
+    "mastodon:http://127.0.0.1:34207/@fixture/1001"
+  ],
+  "exit": 0,
+  "stdout": "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/media-gallery-dl/10010.png\n/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/media-gallery-dl/10011.png\n",
+  "stderr": "",
+  "wall_s": 0.30245040699992387
+}

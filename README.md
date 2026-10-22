@@ -1,6 +1,6 @@
 <div align="center">
 
-# pagesift 0.20.0
+# pagesift 0.30.0
 
 **Web content, incremental collections and verified archives. Built in Rust.**
 Turn any website into clean Markdown and structured data — one Rust binary, a Firecrawl-compatible API, and a fraction of the memory.
@@ -22,21 +22,25 @@ pagesift is a self-hosted scraping and crawling engine for AI pipelines, RAG and
 
 It is built for running as a service: bounded memory, backpressure, job persistence, webhooks, per-key limits and metrics. It also plays by the rules — robots.txt, per-host rate limits, an honest User-Agent, and no anti-bot bypassing.
 
-## New in 0.20.0
+## New in 0.30.0
 
-![Pagesift 0.20.0 engine overview](docs/assets/overview.svg)
+![Pagesift 0.30.0 engine overview](docs/assets/overview.svg)
 
-Native Rust cores now cover explicit HTTP sessions, stable item identities and incremental checkpoints, verified media archives, fuzzy candidates, forms, external modules and finite HLS/DASH VOD. New collection and archiving operations are exposed through Rust APIs and CLI commands; Python and Node retain their documented scraping surface.
+- **Submodule architecture:** all oversized source files (>1,000 lines) refactored into cohesive, modular submodules (<600 lines each) with zero behavioral changes and 100% public API compatibility.
+- **Controlled navigation (13/13, 100%):** pure string-helper folding in `pagesift-content::script_links` resolves dynamic script navigation targets with zero false-positive visits.
+- **Fast metadata & publication dates:** dedicated `extract_metadata` fast path (0.32–0.37 ms/page, 14× faster than `htmldate extensive`) with 0.950 F1 accuracy on the 1,000-page benchmark.
+- **RAG chunking & QueryFilter acceleration:** token-span binary search speeds up chunking by 1.9×–4.2×; BM25 QueryFilter answers queries in **1.35–2.11 ms** (788× faster than Crawl4AI).
+- **Strict 12 GiB memory control:** crawls 50,000 pages (`huge`) in **19.55 s** (2,556 pages/s) at **378.8 MB** peak memory, where competitors crash under the kernel OOM killer.
 
-**[Release and upgrade guide](docs/releases/0.20.0.md)** · **[Documentation](docs/README.md)** · **[Architecture diagrams](docs/architecture.md)**
+**[Release and upgrade guide](docs/releases/0.30.0.md)** · **[Documentation](docs/README.md)** · **[Architecture diagrams](docs/architecture.md)** · **[0.30.0 Benchmark Report](bench/fresh/results-0.30.0.md)**
 
 ## Why pagesift
 
 | | |
 |---|---|
-| ⚡ **Fast** | Main-content extraction in **0.85 ms** per page (p50, single thread): 10× faster than crw, 59× faster than Crawl4AI. Unthrottled HTTP crawling at **3,800+ pages/s** on one machine. |
-| 🪶 **Light** | Crawls 200 sites × 100 pages in **~220 MB** where Spider needs 4.1 GB. Replacing Crawl4AI in a production service cut peak memory from 1.4 GB to **225 MB**. |
-| 🎯 **Accurate** | Best main-content score on Firecrawl's labelled dataset: **0.716** vs 0.711 (crw) and 0.670 (Crawl4AI), with half the boilerplate leak. Publication dates as accurate as htmldate, the specialist library (F1 **0.948** on its own annotated set), in **0.06 ms** instead of 4 ms. |
+| ⚡ **Fast** | Main-content extraction in **1.51 ms** per page (p50, single thread across 8,854 random sites): 13× faster than crw, 40× faster than Crawl4AI, 733× faster than Defuddle. Unthrottled HTTP crawling at **2,556+ pages/s** on 50,000 pages. |
+| 🪶 **Light** | Crawls 50,000 pages in **378.8 MB** peak memory under a strict 12G ceiling where Spider and Colly crash from OOM. 20,000 pages in **234 MB** where Spider consumes 4.3 GB (18× more). |
+| 🎯 **Accurate** | Rank #1 on AEB 181 real articles with F1 **0.956**. Firecrawl 597 F1 **0.706** with noise leak of only **0.047** (half of crw/mdream). Publication date F1 **0.950** in **0.37 ms** (beating `htmldate extensive`). 147/148 (99.3%) on non-UTF-8 encodings. |
 | 🧠 **Smart rendering** | Renders only pages that need it, with the lightest engine that works: Lightpanda → moli → Chrome. Learns per site when a browser adds nothing. |
 | 🔌 **Drop-in** | Firecrawl v2 API (`/v2/scrape`, `/crawl`, `/map`, `/search`, `/extract`, `/batch/scrape`), so existing Firecrawl SDKs work unchanged. MCP server for agents. |
 | 🛡️ **Safe by default** | SSRF protection on every request, redirect, browser sub-request and webhook; DNS-rebinding checks; never disables the browser sandbox. |
@@ -49,7 +53,7 @@ Detailed, reproducible numbers: **[docs/benchmarks.md](docs/benchmarks.md)**.
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:0.20.0
+  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:0.30.0
 
 curl -s http://localhost:3002/v2/scrape \
   -H 'Authorization: Bearer change-me' -H 'Content-Type: application/json' \
@@ -135,19 +139,19 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 - Prometheus metrics (`/metrics`), JSON logs, graceful shutdown, health checks.
 - Named egress proxies per request, host allowlists for internal services, total per-request deadlines, clear error codes (`DNS_FAILURE`, `NETWORK_ERROR`, `BUSY`, `ACCESS_BARRIER`, …).
 
-## Six-project evidence for 0.20.0
+## Six-project evidence & 0.30.0 suite
 
 ![545-page diagnostic extraction quality](docs/assets/extraction-quality.svg)
 
-The frozen pre-release candidate was compared against pinned Firecrawl, Crawlee, Scrapling, Katana, Essence and gallery-dl versions. All 545 calibrated WebMainBench pages are retained in the two quality comparisons above. This is a diagnostic token-multiset F1, **not the official leaderboard**; component and complete-service URL contexts are separate. Pagesift still loses on 117 Essence component pages and 96 Firecrawl service pages.
+The pre-release candidate was compared against pinned Firecrawl, Crawlee, Scrapling, Katana, Essence and gallery-dl versions. All 545 calibrated WebMainBench pages are retained in the two quality comparisons above. This is a diagnostic token-multiset F1, **not the official leaderboard**; component and complete-service URL contexts are separate. Pagesift still loses on 117 Essence component pages and 96 Firecrawl service pages.
 
 ![Controlled task comparisons](docs/assets/controlled-tasks.svg)
 
-These synthetic tasks test disclosed modes: Crawlee Cheerio, Scrapling adaptive selectors and 8 Mastodon posts / 20 originals. They do not establish complete-framework or site-wide leadership.
+These synthetic tasks test disclosed modes: Crawlee Cheerio, Scrapling adaptive selectors and 8 Mastodon posts / 20 originals. Controlled navigation achieves 13/13 (100%) in 0.30.0. They do not establish complete-framework or site-wide leadership.
 
 ![Forty-category capability coverage](docs/assets/capability-coverage.svg)
 
-**17 categories remain partial.** Persistent browser-interaction and autonomous Agent workflows are outside this release's work scope. See [public protocols and per-page scores](bench/six/evidence/README.md), [full comparison](bench/six/REPORT.md) and [40-category inventory](bench/six/CAPABILITIES.md).
+**17 categories remain partial.** Persistent browser-interaction and autonomous Agent workflows are outside this release's work scope. See [public protocols and per-page scores](bench/six/evidence/README.md), [full comparison](bench/six/REPORT.md) and [40-category inventory](bench/six/CAPABILITIES.md). Full 0.30.0 expanded benchmark report: [bench/fresh/results-0.30.0.md](bench/fresh/results-0.30.0.md).
 
 ## Earlier benchmark comparisons
 

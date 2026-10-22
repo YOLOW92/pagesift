@@ -1,0 +1,25 @@
+{
+ "master_seed": 463271035,
+ "source": "secrets.randbits(31) on 2026-10-22 (expanded to 8000 sites)",
+ "tranco_list_id": "746PX",
+ "corpus": {
+  "seed": 463271035,
+  "sites": 8000,
+  "pages": 8854,
+  "lo": 1000,
+  "hi": 200000,
+  "per_site": 2,
+  "script": "make_corpus.py (copy of bench/fresh/make_corpus.py @v0.20.0)"
+ },
+ "markdown_seeds": [
+  128851,
+  104,
+  683447
+ ],
+ "wild_seed": 270978,
+ "derivation": "random.Random(master).randrange(1,10**6) x4 -> MD1 MD2 MD3 WILD, same as bench/fresh/run_domains.sh",
+ "previous_run": {
+  "master_seed": 582031230,
+  "wild_seed": 621334
+ }
+}

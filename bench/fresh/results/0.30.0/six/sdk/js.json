@@ -1,0 +1,37 @@
+{
+  "sdk": "@mendable/firecrawl-js@4.28.1",
+  "checks": [
+    {
+      "name": "scrape-markdown",
+      "ok": true
+    },
+    {
+      "name": "scrape-metadata",
+      "ok": true
+    },
+    {
+      "name": "scrape-links",
+      "ok": true
+    },
+    {
+      "name": "map",
+      "ok": true
+    },
+    {
+      "name": "batch-polling",
+      "ok": true
+    },
+    {
+      "name": "crawl-polling",
+      "ok": true
+    },
+    {
+      "name": "cancel",
+      "ok": true
+    },
+    {
+      "name": "unauthorized",
+      "ok": true
+    }
+  ]
+}

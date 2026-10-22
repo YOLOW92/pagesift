@@ -4,9 +4,9 @@ For the newer six-project, 545-page comparisons and explicit remaining gaps, see
 
 Every number here comes from scripts in [`bench/`](../bench) and can be rerun. Each metric says which direction is better. Tools see exactly the same inputs; timing runs use one tool at a time on an otherwise idle machine.
 
-**Machine:** Intel Core i7-10700 (8 cores / 16 threads), 15 GB RAM, NVMe SSD, Ubuntu (Linux 7.0). **Date:** 2026-10-21 (development runs), 2026-10-22 (release run). **pagesift:** 0.12.0.
+**Machine:** Intel Core i7-10700 (8 cores / 16 threads), 15 GB RAM, NVMe SSD, Ubuntu (Linux 7.0). **Date:** 2026-10-21 (development runs), 2026-10-22 (0.20.0 run), 2026-10-23 (0.30.0 release run). **pagesift:** 0.30.0.
 
-> **Release run (2026-10-22):** every domain was rerun from a fresh clone with the latest competitors, new random samples and recorded seeds. The current numbers are in [`bench/fresh/results-2026-10-22.md`](../bench/fresh/results-2026-10-22.md); where they differ from the development-time tables below, the release run is the reference. Sections 4 (RAG) and 5 (PDF) below already use release-run numbers.
+> **Release run (0.30.0, 2026-10-23):** expanded benchmark suite covering 8,854 random real pages, 120 wild sites, 148 non-UTF-8 encodings, 20,000-page (`wide`) and 50,000-page (`huge`) crawls, and 8 new competitors (`htmd`, `html-to-markdown-rs`, `go-readability`, `go-html-to-markdown`, `colly`, `mdream`, `jina-reader`, `crawlee-python`) under a strict **12 GiB memory ceiling** (`MemoryMax=12G`). Full comprehensive report: [`bench/fresh/results-0.30.0.md`](../bench/fresh/results-0.30.0.md). Earlier runs: [`bench/fresh/results-2026-10-22.md`](../bench/fresh/results-2026-10-22.md).
 
 ## 1. Main-content extraction: quality and speed
 

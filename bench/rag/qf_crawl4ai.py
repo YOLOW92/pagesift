@@ -2,6 +2,7 @@
 映射回原文的字符区间。文档按空行分段转成 <p>（Crawl4AI 的过滤器吃 HTML）。
 python -I qf_crawl4ai.py <语料目录> <问题.jsonl> <输出.json>   （在 Crawl4AI 的环境里跑）"""
 import html, json, os, re, sys, time
+from concurrent.futures import ProcessPoolExecutor
 from crawl4ai.content_filter_strategy import BM25ContentFilter
 
 d, qpath, out = sys.argv[1:4]
@@ -21,15 +22,30 @@ def locate(t, paras, piece):
     return None
 
 
-res, ms = {}, 0.0
-for line in open(qpath):
+def eval_q(line):
     q = json.loads(line)
     paras, page = docs[q["corpus"]]
     f = BM25ContentFilter(user_query=q["question"])
     t0 = time.perf_counter()
     kept = f.filter_content(page)
-    ms += (time.perf_counter() - t0) * 1000
+    dt = (time.perf_counter() - t0) * 1000
     spans = [s for s in (locate(texts[q["corpus"]], paras, k) for k in kept) if s]
-    res[q["id"]] = spans
-json.dump({"crawl4ai-default": res}, open(out, "w"))
-print(f"crawl4ai: {ms / max(len(res), 1):.1f} ms/question", file=sys.stderr)
+    return q["id"], spans, dt
+
+
+if __name__ == "__main__":
+    lines = [l for l in open(qpath) if l.strip()]
+    res, ms = {}, 0.0
+    workers = 1 if os.environ.get("PAGESIFT_ONE_CORE") == "1" else min(12, os.cpu_count() or 8)
+    if workers > 1:
+        with ProcessPoolExecutor(max_workers=workers) as ex:
+            for qid, spans, dt in ex.map(eval_q, lines, chunksize=8):
+                res[qid] = spans
+                ms += dt
+    else:
+        for line in lines:
+            qid, spans, dt = eval_q(line)
+            res[qid] = spans
+            ms += dt
+    json.dump({"crawl4ai-default": res}, open(out, "w"))
+    print(f"crawl4ai: {ms / max(len(res), 1):.1f} ms/question", file=sys.stderr)

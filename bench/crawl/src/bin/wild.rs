@@ -130,11 +130,38 @@ fn disable_hrefs(html: &str) -> String {
 }
 
 fn prepare(html: &str) -> (String, String) {
-    let body = disable_hrefs(html);
+    let mut body = disable_hrefs(html);
     match body.rfind("</body>") {
-        Some(i) => (body[..i].to_string(), body[i..].to_string()),
-        None => (body, String::new()),
+        Some(i) => {
+            let tail = body[i..].to_string();
+            body.truncate(i);
+            body.shrink_to_fit();
+            (body, tail)
+        }
+        None => {
+            body.shrink_to_fit();
+            (body, String::new())
+        }
     }
+}
+
+fn load_pages_parallel(files: &[std::path::PathBuf]) -> Vec<(String, String)> {
+    let n_threads = std::thread::available_parallelism().map_or(8, |n| n.get()).min(files.len().max(1));
+    let chunk_size = files.len().div_ceil(n_threads);
+    std::thread::scope(|s| {
+        let handles: Vec<_> = files
+            .chunks(chunk_size)
+            .map(|chunk| {
+                s.spawn(move || {
+                    chunk
+                        .iter()
+                        .map(|p| prepare(&String::from_utf8_lossy(&std::fs::read(p).unwrap())))
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        handles.into_iter().flat_map(|h| h.join().unwrap()).collect()
+    })
 }
 
 impl Site {
@@ -500,10 +527,14 @@ async fn main() {
         .filter(|p| p.extension().is_some_and(|e| e == "html"))
         .collect();
     files.sort();
-    let pages = files
-        .iter()
-        .map(|p| prepare(&String::from_utf8_lossy(&std::fs::read(p).unwrap())))
-        .collect();
+    let max_pages: usize = std::env::var("ORIGIN_MAX_PAGES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(5000);
+    if max_pages > 0 && files.len() > max_pages {
+        files.truncate(max_pages);
+    }
+    let pages = load_pages_parallel(&files);
     let profiles: Vec<Profile> = (0..hosts as u64)
         .map(|i| {
             let traps = TRAPS

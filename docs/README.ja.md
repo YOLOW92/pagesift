@@ -18,13 +18,13 @@
 
 ---
 
-## 0.20.0
+## 0.30.0
 
-0.20.0 では Rust による増分収集、明示的 HTTP セッション、検証可能なアーカイブと7種類の限定コアを追加しました。新機能は主に Rust API / CLI で提供します。17項目は部分実装であり、全機能での優位は主張していません。
+0.30.0 ではコアアーキテクチャのサブモジュール分割（全ソースファイルを 600 行以内に集約、公開 API は 100% 互換）、スクリプト関数畳み込みによる制御されたナビゲーション発見（13/13 満点）、高速メタデータ抽出と公開日判定（F1 0.950、0.37 ms/ページ）、RAG 検索フィルタの 788 倍高速化（1.35–2.11 ms）、および 12 GiB メモリ上限下での 50,000 ページクロール完走（ピーク 378.8 MB、他社は OOM 敗退）を実現しました。
 
-[Release / migration](releases/0.20.0.md) · [Documentation](README.md) · [Architecture](architecture.md) · [Evidence](../bench/six/evidence/README.md)
+[Release / migration](releases/0.30.0.md) · [Documentation](README.md) · [Architecture](architecture.md) · [0.30.0 評価レポート](../../bench/fresh/results-0.30.0.md)
 
-![pagesift 0.20.0](assets/overview.svg)
+![pagesift 0.30.0](assets/overview.svg)
 
 pagesift は、AI パイプライン、RAG、エージェント向けのセルフホスト型スクレイピング・クローリングエンジンです。ページを取得し、必要な場合にだけ JavaScript をレンダリングし、本文を抽出して、Markdown、HTML、リンク、メタデータを返します。インターフェースは [Firecrawl v2](https://docs.firecrawl.dev) 互換の HTTP API、MCP サーバー、CLI、ネイティブの Python パッケージと Node パッケージを用意しています。
 
@@ -34,9 +34,9 @@ pagesift は、AI パイプライン、RAG、エージェント向けのセル�
 
 | | |
 |---|---|
-| ⚡ **高速** | 本文抽出は 1 ページあたり **0.85 ms**（p50、シングルスレッド）。crw の 16 倍、Crawl4AI の 80 倍の速さです。スロットリングなしの HTTP クロールでは、1 台のマシンで **3,800+ ページ/秒** を達成します。 |
-| 🪶 **軽量** | 200 サイト × 100 ページのクロールを **約 300 MB** で実行します。Spider では 4.1 GB が必要です。本番サービスで Crawl4AI を置き換えたところ、ピークメモリが 1.4 GB から **225 MB** に減りました。 |
-| 🎯 **高精度** | Firecrawl のラベル付きデータセットで最高の本文抽出スコア **0.716** を記録しました（crw は 0.711、Crawl4AI は 0.670）。ボイラープレートの混入も半分です。公開日の精度は専用ライブラリ htmldate と同等（同ライブラリの評価セットで F1 **0.948**）で、処理時間は 4 ms に対して **0.06 ms** です。 |
+| ⚡ **高速** | 8,854 件のランダム実サイトで本文抽出は 1 ページあたり **1.51 ms**（p50、シングルスレッド）。crw の 13 倍、Crawl4AI の 40 倍、Defuddle の 733 倍の速さです。50,000 ページの HTTP クロールでは **2,556 ページ/秒** を達成します。 |
+| 🪶 **軽量** | 厳格な 12 GiB メモリ上限下で、50,000 ページのクロールをピークメモリわずか **378.8 MB** で完走。Spider や Colly は 12 GiB を突破しカーネル OOM Killer により強制終了。20,000 ページでは **234 MB**（Spider は 18 倍の 4.3 GB 消費）。 |
+| 🎯 **高精度** | AEB 181 本文記事で F1 **0.956**（1位獲得）。Firecrawl 597 ページで F1 **0.706**、ノイズ混入率はわずか **0.047**（競品の半分以下）。公開日抽出 F1 **0.950**・処理時間 **0.37 ms**（htmldate extensive より高精度かつ 14 倍高速）。148 件の非 UTF-8 ページで 99.3% 正確デコード。 |
 | 🧠 **スマートなレンダリング** | レンダリングが必要なページだけを、対応できる最も軽量なエンジンで処理します：Lightpanda → moli → Chrome。ブラウザを使っても結果が変わらないサイトはサイトごとに学習します。 |
 | 🔌 **そのまま置き換え可能** | Firecrawl v2 API（`/v2/scrape`、`/crawl`、`/map`、`/search`、`/extract`、`/batch/scrape`）に対応しているため、既存の Firecrawl SDK を変更なしで使えます。エージェント向けの MCP サーバーも備えています。 |
 | 🛡️ **デフォルトで安全** | すべてのリクエスト、リダイレクト、ブラウザのサブリクエスト、webhook に SSRF 対策を適用し、DNS リバインディングもチェックします。ブラウザのサンドボックスを無効にすることはありません。 |
@@ -49,7 +49,7 @@ pagesift は、AI パイプライン、RAG、エージェント向けのセル�
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:0.20.0
+  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:0.30.0
 
 curl -s http://localhost:3002/v2/scrape \
   -H 'Authorization: Bearer change-me' -H 'Content-Type: application/json' \

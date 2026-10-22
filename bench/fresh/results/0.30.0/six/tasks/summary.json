@@ -1,0 +1,421 @@
+{
+  "navigation": {
+    "pagesift": {
+      "exit": 0,
+      "found": 13,
+      "expected": 13,
+      "missing": [],
+      "non_navigation_visited": [],
+      "non_get": 0,
+      "requests": [
+        {
+          "path": "/robots.txt",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/assets/app.js",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/assets/dynamic.js",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/assets/child.js",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/assets/other.js",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/anchor",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/frame",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/htmx",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/inline",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/header",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/concat",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/literal",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/template",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/escaped",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/dynamic",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/imported",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/exported",
+          "method": "GET"
+        }
+      ]
+    },
+    "katana": {
+      "exit": 0,
+      "found": 10,
+      "expected": 13,
+      "missing": [
+        "/fresh-0f6a0f301149b3d4428a/concat",
+        "/fresh-0f6a0f301149b3d4428a/dynamic",
+        "/fresh-0f6a0f301149b3d4428a/template"
+      ],
+      "non_navigation_visited": [
+        "/fresh-0f6a0f301149b3d4428a/comment",
+        "/fresh-0f6a0f301149b3d4428a/data",
+        "/fresh-0f6a0f301149b3d4428a/post",
+        "/fresh-0f6a0f301149b3d4428a/unused"
+      ],
+      "non_get": 0,
+      "requests": [
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/data",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/comment",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/inline",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/htmx",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/assets/dynamic.js",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/assets/app.js",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/frame",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/anchor",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/unused",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/post",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/escaped",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/literal",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/assets/other.js",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/assets/child.js",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/header",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/exported",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/imported",
+          "method": "GET"
+        }
+      ]
+    },
+    "crawlee": {
+      "exit": 0,
+      "found": 2,
+      "expected": 13,
+      "missing": [
+        "/fresh-0f6a0f301149b3d4428a/concat",
+        "/fresh-0f6a0f301149b3d4428a/dynamic",
+        "/fresh-0f6a0f301149b3d4428a/escaped",
+        "/fresh-0f6a0f301149b3d4428a/exported",
+        "/fresh-0f6a0f301149b3d4428a/frame",
+        "/fresh-0f6a0f301149b3d4428a/header",
+        "/fresh-0f6a0f301149b3d4428a/htmx",
+        "/fresh-0f6a0f301149b3d4428a/imported",
+        "/fresh-0f6a0f301149b3d4428a/inline",
+        "/fresh-0f6a0f301149b3d4428a/literal",
+        "/fresh-0f6a0f301149b3d4428a/template"
+      ],
+      "non_navigation_visited": [],
+      "non_get": 0,
+      "requests": [
+        {
+          "path": "/robots.txt",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/anchor",
+          "method": "GET"
+        }
+      ]
+    },
+    "crawlee-python": {
+      "exit": 0,
+      "found": 2,
+      "expected": 13,
+      "missing": [
+        "/fresh-0f6a0f301149b3d4428a/concat",
+        "/fresh-0f6a0f301149b3d4428a/dynamic",
+        "/fresh-0f6a0f301149b3d4428a/escaped",
+        "/fresh-0f6a0f301149b3d4428a/exported",
+        "/fresh-0f6a0f301149b3d4428a/frame",
+        "/fresh-0f6a0f301149b3d4428a/header",
+        "/fresh-0f6a0f301149b3d4428a/htmx",
+        "/fresh-0f6a0f301149b3d4428a/imported",
+        "/fresh-0f6a0f301149b3d4428a/inline",
+        "/fresh-0f6a0f301149b3d4428a/literal",
+        "/fresh-0f6a0f301149b3d4428a/template"
+      ],
+      "non_navigation_visited": [],
+      "non_get": 0,
+      "requests": [
+        {
+          "path": "/robots.txt",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/",
+          "method": "GET"
+        },
+        {
+          "path": "/fresh-0f6a0f301149b3d4428a/anchor",
+          "method": "GET"
+        }
+      ]
+    }
+  },
+  "relocation": {
+    "n": 64,
+    "pagesift_correct": 64,
+    "scrapling_correct": 56,
+    "details": "relocation-results.json"
+  },
+  "inspection": {
+    "n": 12,
+    "passed": 12,
+    "scope": "Pagesift body/form gold only; not native Katana knowledge-base superiority"
+  },
+  "katana_knowledge": {
+    "exit": 0,
+    "expected_pages": 12,
+    "pages_with_forms": 12,
+    "pages_with_secret_findings": 12,
+    "scope": "syntactic fake-key indicators only, no live validation; different rule coverage, no full scanner ranking"
+  },
+  "media": {
+    "pagesift": {
+      "calls": 8,
+      "successful_calls": 8,
+      "correct_files": 20,
+      "expected_files": 20,
+      "unexpected_files": []
+    },
+    "gallery-dl": {
+      "calls": 8,
+      "successful_calls": 8,
+      "correct_files": 20,
+      "expected_files": 20,
+      "unexpected_files": []
+    }
+  },
+  "streams": {
+    "hls": {
+      "exit": 0,
+      "tracks": [
+        {
+          "programs": [
+            {
+              "streams": [
+                {
+                  "codec_name": "h264",
+                  "codec_type": "video",
+                  "nb_read_frames": "10"
+                },
+                {
+                  "codec_name": "aac",
+                  "codec_type": "audio",
+                  "nb_read_frames": "88"
+                }
+              ]
+            }
+          ],
+          "stream_groups": [],
+          "streams": [
+            {
+              "codec_name": "h264",
+              "codec_type": "video",
+              "nb_read_frames": "10"
+            },
+            {
+              "codec_name": "aac",
+              "codec_type": "audio",
+              "nb_read_frames": "88"
+            }
+          ]
+        }
+      ],
+      "original": {
+        "programs": [
+          {
+            "streams": [
+              {
+                "codec_name": "h264",
+                "codec_type": "video",
+                "nb_read_frames": "10"
+              },
+              {
+                "codec_name": "aac",
+                "codec_type": "audio",
+                "nb_read_frames": "88"
+              }
+            ]
+          }
+        ],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "codec_type": "video",
+            "nb_read_frames": "10"
+          },
+          {
+            "codec_name": "aac",
+            "codec_type": "audio",
+            "nb_read_frames": "88"
+          }
+        ]
+      },
+      "decoded_frame_counts_match": true
+    },
+    "dash": {
+      "exit": 0,
+      "tracks": [
+        {
+          "programs": [
+            {
+              "streams": [
+                {
+                  "codec_name": "h264",
+                  "codec_type": "video",
+                  "nb_read_frames": "10"
+                },
+                {
+                  "codec_name": "aac",
+                  "codec_type": "audio",
+                  "nb_read_frames": "77"
+                }
+              ]
+            }
+          ],
+          "stream_groups": [],
+          "streams": [
+            {
+              "codec_name": "h264",
+              "codec_type": "video",
+              "nb_read_frames": "10"
+            },
+            {
+              "codec_name": "aac",
+              "codec_type": "audio",
+              "nb_read_frames": "77"
+            }
+          ]
+        }
+      ],
+      "original": {
+        "programs": [
+          {
+            "streams": [
+              {
+                "codec_name": "h264",
+                "codec_type": "video",
+                "nb_read_frames": "10"
+              },
+              {
+                "codec_name": "aac",
+                "codec_type": "audio",
+                "nb_read_frames": "77"
+              }
+            ]
+          }
+        ],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "codec_type": "video",
+            "nb_read_frames": "10"
+          },
+          {
+            "codec_name": "aac",
+            "codec_type": "audio",
+            "nb_read_frames": "77"
+          }
+        ]
+      },
+      "decoded_frame_counts_match": true
+    }
+  }
+}

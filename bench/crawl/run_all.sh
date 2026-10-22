@@ -16,9 +16,11 @@ export CRAWL4AI_NO_CLOUD_NOTICE=1
 # Crawl4AI 默认给 Chromium 加 --no-sandbox；评测里一律开着沙箱（和 pagesift 一样）
 export CRAWL4AI_CHROMIUM_SANDBOX=true
 export MEASURE_BUDGET_S=${MEASURE_BUDGET_S:-600}
+export MEASURE_MAX_MB=${MEASURE_MAX_MB:-12288}
 export MEASURE_ORIGIN=http://s0.localhost:$PORT/__served
 C4A=${C4A:-$ROOT/bench/data/venvs/crawl4ai/bin/python}
 CRW=${CRW:-$ROOT/bench/data/tools/bin/crw}
+COLLY=${COLLY:-/home/yolow92/pagesift-bench-env/tools/bin/colly_crawl}
 # Scrapy 用的 Python（装了 scrapy 的虚拟环境）
 SCRAPY_PY=${SCRAPY_PY:-$ROOT/bench/data/fresh/tools/py/bin/python}
 
@@ -40,7 +42,7 @@ run() { # 场景名 hosts pages interval per_host latency 工具...
     for tool in "$@"; do
         local label="$name/$tool"
         case $tool in
-            pagesift) python3 -I measure.py "$label" -- $ROOT/target/release/examples/crawl_bench $PORT "$hosts" "$pages" "$interval" "$per_host" ;;
+            pagesift) python3 -I measure.py "$label" -- ${PAGESIFT_BIN:-$ROOT/target/release/examples/crawl_bench} $PORT "$hosts" "$pages" "$interval" "$per_host" ;;
             crw) python3 -I measure.py "$label" -- python3 -I crw_crawl.py "$CRW" $PORT "$hosts" "$pages" "$interval" "$per_host" ;;
             # Spider 并发上限为 1 时每站只访问 5 个链接就停（它自己的行为）；设了间隔后它本来就逐个请求，
             # 所以给 2，实际仍是每主机一个请求接一个
@@ -48,6 +50,8 @@ run() { # 场景名 hosts pages interval per_host latency 工具...
             crawl4ai-http) python3 -I measure.py "$label" -- "$C4A" crawl4ai_crawl.py $PORT "$hosts" "$pages" "$interval" http "$per_host" ;;
             crawl4ai-multi) python3 -I measure.py "$label" -- python3 -I crawl4ai_multi.py "$C4A" $PORT "$hosts" "$pages" "$interval" http "$per_host" ;;
             scrapy) python3 -I measure.py "$label" -- "$SCRAPY_PY" -I scrapy_crawl.py $PORT "$hosts" "$pages" "$interval" "$per_host" ;;
+            crawlee-python) python3 -I measure.py "$label" -- "$SCRAPY_PY" -I crawlee_py_crawl.py $PORT "$hosts" "$pages" "$interval" "$per_host" ;;
+            colly) python3 -I measure.py "$label" -- "$COLLY" $PORT "$hosts" "$pages" "$interval" "$per_host" ;;
             crawl4ai-browser) python3 -I measure.py "$label" -- "$C4A" crawl4ai_crawl.py $PORT "$hosts" "$pages" "$interval" browser "$per_host" ;;
         esac || true   # 一个工具失败不影响后面的工具
     done
@@ -57,11 +61,11 @@ run() { # 场景名 hosts pages interval per_host latency 工具...
 for s in "${@:-wide huge}"; do
     for one in $s; do
         case $one in
-            wide)   run wide 200 100 0 8 10 ${TOOLS:-pagesift crw spider scrapy crawl4ai-http crawl4ai-multi crawl4ai-browser} ;;
-            huge)   run huge 1000 50 0 4 10 ${TOOLS:-pagesift crw spider scrapy crawl4ai-http crawl4ai-multi} ;;
-            polite) run polite 100 50 1000 1 50 pagesift crw spider crawl4ai-http crawl4ai-browser ;;
+            wide)   run wide 200 100 0 8 10 ${TOOLS:-pagesift crw spider colly scrapy crawlee-python crawl4ai-http crawl4ai-multi crawl4ai-browser} ;;
+            huge)   run huge 1000 50 0 4 10 ${TOOLS:-pagesift crw spider colly scrapy crawlee-python crawl4ai-http crawl4ai-multi} ;;
+            polite) run polite 100 50 1000 1 50 pagesift crw spider colly crawlee-python crawl4ai-http crawl4ai-browser ;;
             # 冒烟：3 站 × 10 页，每个工具都跑一遍，正式跑之前查脚本和工具能不能跑通
-            smoke)  run smoke 3 10 0 2 5 ${TOOLS:-pagesift crw spider scrapy crawl4ai-http crawl4ai-multi crawl4ai-browser} ;;
+            smoke)  run smoke 3 10 0 2 5 ${TOOLS:-pagesift crw spider colly scrapy crawlee-python crawl4ai-http crawl4ai-multi crawl4ai-browser} ;;
         esac
     done
 done

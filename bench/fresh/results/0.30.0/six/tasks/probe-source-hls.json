@@ -1,0 +1,17 @@
+{
+  "command": [
+    "ffprobe",
+    "-v",
+    "error",
+    "-count_frames",
+    "-show_entries",
+    "stream=codec_type,codec_name,nb_read_frames",
+    "-of",
+    "json",
+    "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/streams/hls/index.m3u8"
+  ],
+  "exit": 0,
+  "stdout": "{\n    \"programs\": [\n        {\n            \"streams\": [\n                {\n                    \"codec_name\": \"h264\",\n                    \"codec_type\": \"video\",\n                    \"nb_read_frames\": \"10\"\n                },\n                {\n                    \"codec_name\": \"aac\",\n                    \"codec_type\": \"audio\",\n                    \"nb_read_frames\": \"88\"\n                }\n            ]\n        }\n    ],\n    \"stream_groups\": [\n\n    ],\n    \"streams\": [\n        {\n            \"codec_name\": \"h264\",\n            \"codec_type\": \"video\",\n            \"nb_read_frames\": \"10\"\n        },\n        {\n            \"codec_name\": \"aac\",\n            \"codec_type\": \"audio\",\n            \"nb_read_frames\": \"88\"\n        }\n    ]\n}\n",
+  "stderr": "",
+  "wall_s": 0.04245959999934712
+}

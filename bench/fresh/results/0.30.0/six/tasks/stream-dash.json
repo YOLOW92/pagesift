@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/home/yolow92/pagesift/bench/six/results/seven-next/bin-verified/pagesift",
+    "--config",
+    "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/pagesift.toml",
+    "stream-download",
+    "http://127.0.0.1:34207/streams/dash/index.mpd",
+    "--out",
+    "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/stream-dash"
+  ],
+  "exit": 0,
+  "stdout": "[{\"path\":\"/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/stream-dash/presentation-f18fd6b8ac9e34f34c694d6b62f7b08dbcd0db4b5bc1bcf489e2304e5ba18c6e.mpd\",\"metadata_path\":\"/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/stream-dash/presentation-f18fd6b8ac9e34f34c694d6b62f7b08dbcd0db4b5bc1bcf489e2304e5ba18c6e.mpd.metadata.json\",\"reused\":false}]\n",
+  "stderr": "",
+  "wall_s": 0.08655770400037
+}

@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/home/yolow92/pagesift/bench/six/results/seven-next/bin-verified/pagesift",
+    "inspect",
+    "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/inspect-4.html",
+    "--base-url",
+    "http://127.0.0.1:34207/fresh-0f6a0f301149b3d4428a/"
+  ],
+  "exit": 0,
+  "stdout": "{\"forms\":[{\"action\":\"http://127.0.0.1:34207/search\",\"controls\":[{\"disabled\":false,\"kind\":\"text\",\"label\":\"Search\",\"name\":\"q\",\"read_only\":false,\"required\":true,\"sensitive\":false},{\"disabled\":false,\"kind\":\"hidden\",\"label\":\"\",\"name\":\"csrf\",\"read_only\":false,\"required\":false,\"sensitive\":true},{\"disabled\":false,\"kind\":\"select\",\"label\":\"\",\"name\":\"kind\",\"read_only\":false,\"required\":false,\"sensitive\":false}],\"id\":\"f4\",\"index\":0,\"method\":\"get\"}],\"knowledge\":{\"findings\":[{\"byte_end\":308,\"byte_start\":296,\"kind\":\"technology\",\"redacted\":true,\"rule\":\"wordpress\",\"source\":\"body\"},{\"byte_end\":370,\"byte_start\":350,\"kind\":\"secret_indicator\",\"redacted\":true,\"rule\":\"aws_access_key_id\",\"source\":\"body\"}],\"incomplete\":false}}\n",
+  "stderr": "",
+  "wall_s": 0.0037821339992660796
+}

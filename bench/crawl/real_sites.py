@@ -8,7 +8,7 @@ python3 -I real_sites.py <旧二进制> <新二进制> <站点清单 manifest.js
 更容易碰上站点的访问拦截，交替顺序抵消这个偏差）。每次爬取 HTTP 引擎、整站范围、遵守 robots.txt，
 限速用 pagesift 默认值。每行输出一个站点的 JSON，最后一行是合计。
 """
-import concurrent.futures as cf, hashlib, json, random, re, subprocess, sys
+import concurrent.futures as cf, hashlib, json, os, random, re, subprocess, sys
 
 old_bin, new_bin, manifest = sys.argv[1:4]
 seed, n_sites, limit = (int(x) for x in sys.argv[4:7])
@@ -47,6 +47,9 @@ def crawl(binary, url):
 
 def one(i_url):
     i, url = i_url
+    if old_bin == "-":
+        new = crawl(new_bin, url)
+        return url, new, new
     if i % 2:
         new = crawl(new_bin, url)
         old = crawl(old_bin, url)
@@ -57,7 +60,8 @@ def one(i_url):
 
 
 rows = []
-with cf.ThreadPoolExecutor(8) as ex:
+workers = int(os.environ.get("REAL_SITES_WORKERS", "16"))
+with cf.ThreadPoolExecutor(workers) as ex:
     for url, old, new in ex.map(one, enumerate(sites)):
         rows.append((url, old, new))
         print(json.dumps({'url': url, 'old': old, 'new': new}), flush=True)

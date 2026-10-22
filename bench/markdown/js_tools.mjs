@@ -18,6 +18,15 @@ for (const tool of tools) {
     const TurndownService = (await load('turndown/lib/turndown.cjs.js')).default;
     const td = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced', bulletListMarker: '-' });
     convert = async (html) => td.turndown(html);
+  } else if (tool === 'jina-reader' || tool === 'turndown-gfm') {
+    const TurndownService = (await load('turndown/lib/turndown.cjs.js')).default;
+    const { gfm } = await load('turndown-plugin-gfm/lib/turndown-plugin-gfm.cjs.js');
+    const td = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced', bulletListMarker: '-' });
+    td.use(gfm);
+    convert = async (html) => td.turndown(html);
+  } else if (tool === 'mdream') {
+    const { htmlToMarkdown } = await load('mdream/dist/index.mjs');
+    convert = async (html) => htmlToMarkdown(html) || '';
   } else if (tool === 'defuddle') {
     const { Defuddle } = await load('defuddle/dist/node.js');
     convert = async (html) => {

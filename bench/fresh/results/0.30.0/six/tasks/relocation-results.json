@@ -1,0 +1,1042 @@
+[
+  {
+    "id": "0-unchanged",
+    "kind": "unchanged",
+    "gold": "Copper kettle model 0f6a0f0Price 42",
+    "pagesift": {
+      "html": "<article id=\"target\" class=\"product\"><h2>Copper kettle model 0f6a0f0</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f0Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f0 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "0-id-removed",
+    "kind": "id-removed",
+    "gold": "Copper kettle model 0f6a0f0Price 42",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f0</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f0Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f0 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "0-wrapper",
+    "kind": "wrapper",
+    "gold": "Copper kettle model 0f6a0f0Price 42",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f0</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f0Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f0 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "0-class-changed",
+    "kind": "class-changed",
+    "gold": "Copper kettle model 0f6a0f0Price 42",
+    "pagesift": {
+      "html": "<article class=\"card\"><h2>Copper kettle model 0f6a0f0</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 0.75,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f0Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f0 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "0-price-changed",
+    "kind": "price-changed",
+    "gold": "Copper kettle model 0f6a0f0Price 43",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f0</h2><p>Price 43</p></article>",
+      "runner_up": 0.0,
+      "score": 0.9,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f0Price 43"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f0 Price 43"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "0-tag-changed",
+    "kind": "tag-changed",
+    "gold": "Copper kettle model 0f6a0f0Price 42",
+    "pagesift": {
+      "html": "<section class=\"product\"><h2>Copper kettle model 0f6a0f0</h2><p>Price 42</p></section>",
+      "runner_up": 0.0,
+      "score": 0.96,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f0Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f0 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "0-removed",
+    "kind": "removed",
+    "gold": null,
+    "pagesift": {
+      "score": 0.0,
+      "status": "low_confidence"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [],
+    "scrapling_correct": true
+  },
+  {
+    "id": "0-duplicate",
+    "kind": "duplicate",
+    "gold": null,
+    "pagesift": {
+      "runner_up": 1.0,
+      "score": 1.0,
+      "status": "ambiguous"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f0 Price 42",
+      "Copper kettle model 0f6a0f0 Price 42"
+    ],
+    "scrapling_correct": false
+  },
+  {
+    "id": "1-unchanged",
+    "kind": "unchanged",
+    "gold": "Copper kettle model 0f6a0f1Price 42",
+    "pagesift": {
+      "html": "<article id=\"target\" class=\"product\"><h2>Copper kettle model 0f6a0f1</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f1Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f1 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "1-id-removed",
+    "kind": "id-removed",
+    "gold": "Copper kettle model 0f6a0f1Price 42",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f1</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f1Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f1 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "1-wrapper",
+    "kind": "wrapper",
+    "gold": "Copper kettle model 0f6a0f1Price 42",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f1</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f1Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f1 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "1-class-changed",
+    "kind": "class-changed",
+    "gold": "Copper kettle model 0f6a0f1Price 42",
+    "pagesift": {
+      "html": "<article class=\"card\"><h2>Copper kettle model 0f6a0f1</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 0.75,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f1Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f1 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "1-price-changed",
+    "kind": "price-changed",
+    "gold": "Copper kettle model 0f6a0f1Price 43",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f1</h2><p>Price 43</p></article>",
+      "runner_up": 0.0,
+      "score": 0.9,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f1Price 43"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f1 Price 43"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "1-tag-changed",
+    "kind": "tag-changed",
+    "gold": "Copper kettle model 0f6a0f1Price 42",
+    "pagesift": {
+      "html": "<section class=\"product\"><h2>Copper kettle model 0f6a0f1</h2><p>Price 42</p></section>",
+      "runner_up": 0.0,
+      "score": 0.96,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f1Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f1 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "1-removed",
+    "kind": "removed",
+    "gold": null,
+    "pagesift": {
+      "score": 0.0,
+      "status": "low_confidence"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [],
+    "scrapling_correct": true
+  },
+  {
+    "id": "1-duplicate",
+    "kind": "duplicate",
+    "gold": null,
+    "pagesift": {
+      "runner_up": 1.0,
+      "score": 1.0,
+      "status": "ambiguous"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f1 Price 42",
+      "Copper kettle model 0f6a0f1 Price 42"
+    ],
+    "scrapling_correct": false
+  },
+  {
+    "id": "2-unchanged",
+    "kind": "unchanged",
+    "gold": "Copper kettle model 0f6a0f2Price 42",
+    "pagesift": {
+      "html": "<article id=\"target\" class=\"product\"><h2>Copper kettle model 0f6a0f2</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f2Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f2 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "2-id-removed",
+    "kind": "id-removed",
+    "gold": "Copper kettle model 0f6a0f2Price 42",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f2</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f2Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f2 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "2-wrapper",
+    "kind": "wrapper",
+    "gold": "Copper kettle model 0f6a0f2Price 42",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f2</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f2Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f2 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "2-class-changed",
+    "kind": "class-changed",
+    "gold": "Copper kettle model 0f6a0f2Price 42",
+    "pagesift": {
+      "html": "<article class=\"card\"><h2>Copper kettle model 0f6a0f2</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 0.75,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f2Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f2 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "2-price-changed",
+    "kind": "price-changed",
+    "gold": "Copper kettle model 0f6a0f2Price 43",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f2</h2><p>Price 43</p></article>",
+      "runner_up": 0.0,
+      "score": 0.9,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f2Price 43"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f2 Price 43"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "2-tag-changed",
+    "kind": "tag-changed",
+    "gold": "Copper kettle model 0f6a0f2Price 42",
+    "pagesift": {
+      "html": "<section class=\"product\"><h2>Copper kettle model 0f6a0f2</h2><p>Price 42</p></section>",
+      "runner_up": 0.0,
+      "score": 0.96,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f2Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f2 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "2-removed",
+    "kind": "removed",
+    "gold": null,
+    "pagesift": {
+      "score": 0.0,
+      "status": "low_confidence"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [],
+    "scrapling_correct": true
+  },
+  {
+    "id": "2-duplicate",
+    "kind": "duplicate",
+    "gold": null,
+    "pagesift": {
+      "runner_up": 1.0,
+      "score": 1.0,
+      "status": "ambiguous"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f2 Price 42",
+      "Copper kettle model 0f6a0f2 Price 42"
+    ],
+    "scrapling_correct": false
+  },
+  {
+    "id": "3-unchanged",
+    "kind": "unchanged",
+    "gold": "Copper kettle model 0f6a0f3Price 42",
+    "pagesift": {
+      "html": "<article id=\"target\" class=\"product\"><h2>Copper kettle model 0f6a0f3</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f3Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f3 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "3-id-removed",
+    "kind": "id-removed",
+    "gold": "Copper kettle model 0f6a0f3Price 42",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f3</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f3Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f3 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "3-wrapper",
+    "kind": "wrapper",
+    "gold": "Copper kettle model 0f6a0f3Price 42",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f3</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f3Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f3 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "3-class-changed",
+    "kind": "class-changed",
+    "gold": "Copper kettle model 0f6a0f3Price 42",
+    "pagesift": {
+      "html": "<article class=\"card\"><h2>Copper kettle model 0f6a0f3</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 0.75,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f3Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f3 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "3-price-changed",
+    "kind": "price-changed",
+    "gold": "Copper kettle model 0f6a0f3Price 43",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f3</h2><p>Price 43</p></article>",
+      "runner_up": 0.0,
+      "score": 0.9,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f3Price 43"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f3 Price 43"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "3-tag-changed",
+    "kind": "tag-changed",
+    "gold": "Copper kettle model 0f6a0f3Price 42",
+    "pagesift": {
+      "html": "<section class=\"product\"><h2>Copper kettle model 0f6a0f3</h2><p>Price 42</p></section>",
+      "runner_up": 0.0,
+      "score": 0.96,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f3Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f3 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "3-removed",
+    "kind": "removed",
+    "gold": null,
+    "pagesift": {
+      "score": 0.0,
+      "status": "low_confidence"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [],
+    "scrapling_correct": true
+  },
+  {
+    "id": "3-duplicate",
+    "kind": "duplicate",
+    "gold": null,
+    "pagesift": {
+      "runner_up": 1.0,
+      "score": 1.0,
+      "status": "ambiguous"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f3 Price 42",
+      "Copper kettle model 0f6a0f3 Price 42"
+    ],
+    "scrapling_correct": false
+  },
+  {
+    "id": "4-unchanged",
+    "kind": "unchanged",
+    "gold": "Copper kettle model 0f6a0f4Price 42",
+    "pagesift": {
+      "html": "<article id=\"target\" class=\"product\"><h2>Copper kettle model 0f6a0f4</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f4Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f4 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "4-id-removed",
+    "kind": "id-removed",
+    "gold": "Copper kettle model 0f6a0f4Price 42",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f4</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f4Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f4 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "4-wrapper",
+    "kind": "wrapper",
+    "gold": "Copper kettle model 0f6a0f4Price 42",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f4</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f4Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f4 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "4-class-changed",
+    "kind": "class-changed",
+    "gold": "Copper kettle model 0f6a0f4Price 42",
+    "pagesift": {
+      "html": "<article class=\"card\"><h2>Copper kettle model 0f6a0f4</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 0.75,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f4Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f4 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "4-price-changed",
+    "kind": "price-changed",
+    "gold": "Copper kettle model 0f6a0f4Price 43",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f4</h2><p>Price 43</p></article>",
+      "runner_up": 0.0,
+      "score": 0.9,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f4Price 43"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f4 Price 43"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "4-tag-changed",
+    "kind": "tag-changed",
+    "gold": "Copper kettle model 0f6a0f4Price 42",
+    "pagesift": {
+      "html": "<section class=\"product\"><h2>Copper kettle model 0f6a0f4</h2><p>Price 42</p></section>",
+      "runner_up": 0.0,
+      "score": 0.96,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f4Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f4 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "4-removed",
+    "kind": "removed",
+    "gold": null,
+    "pagesift": {
+      "score": 0.0,
+      "status": "low_confidence"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [],
+    "scrapling_correct": true
+  },
+  {
+    "id": "4-duplicate",
+    "kind": "duplicate",
+    "gold": null,
+    "pagesift": {
+      "runner_up": 1.0,
+      "score": 1.0,
+      "status": "ambiguous"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f4 Price 42",
+      "Copper kettle model 0f6a0f4 Price 42"
+    ],
+    "scrapling_correct": false
+  },
+  {
+    "id": "5-unchanged",
+    "kind": "unchanged",
+    "gold": "Copper kettle model 0f6a0f5Price 42",
+    "pagesift": {
+      "html": "<article id=\"target\" class=\"product\"><h2>Copper kettle model 0f6a0f5</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f5Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f5 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "5-id-removed",
+    "kind": "id-removed",
+    "gold": "Copper kettle model 0f6a0f5Price 42",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f5</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f5Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f5 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "5-wrapper",
+    "kind": "wrapper",
+    "gold": "Copper kettle model 0f6a0f5Price 42",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f5</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f5Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f5 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "5-class-changed",
+    "kind": "class-changed",
+    "gold": "Copper kettle model 0f6a0f5Price 42",
+    "pagesift": {
+      "html": "<article class=\"card\"><h2>Copper kettle model 0f6a0f5</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 0.75,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f5Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f5 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "5-price-changed",
+    "kind": "price-changed",
+    "gold": "Copper kettle model 0f6a0f5Price 43",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f5</h2><p>Price 43</p></article>",
+      "runner_up": 0.0,
+      "score": 0.9,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f5Price 43"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f5 Price 43"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "5-tag-changed",
+    "kind": "tag-changed",
+    "gold": "Copper kettle model 0f6a0f5Price 42",
+    "pagesift": {
+      "html": "<section class=\"product\"><h2>Copper kettle model 0f6a0f5</h2><p>Price 42</p></section>",
+      "runner_up": 0.0,
+      "score": 0.96,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f5Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f5 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "5-removed",
+    "kind": "removed",
+    "gold": null,
+    "pagesift": {
+      "score": 0.0,
+      "status": "low_confidence"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [],
+    "scrapling_correct": true
+  },
+  {
+    "id": "5-duplicate",
+    "kind": "duplicate",
+    "gold": null,
+    "pagesift": {
+      "runner_up": 1.0,
+      "score": 1.0,
+      "status": "ambiguous"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f5 Price 42",
+      "Copper kettle model 0f6a0f5 Price 42"
+    ],
+    "scrapling_correct": false
+  },
+  {
+    "id": "6-unchanged",
+    "kind": "unchanged",
+    "gold": "Copper kettle model 0f6a0f6Price 42",
+    "pagesift": {
+      "html": "<article id=\"target\" class=\"product\"><h2>Copper kettle model 0f6a0f6</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f6Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f6 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "6-id-removed",
+    "kind": "id-removed",
+    "gold": "Copper kettle model 0f6a0f6Price 42",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f6</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f6Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f6 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "6-wrapper",
+    "kind": "wrapper",
+    "gold": "Copper kettle model 0f6a0f6Price 42",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f6</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f6Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f6 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "6-class-changed",
+    "kind": "class-changed",
+    "gold": "Copper kettle model 0f6a0f6Price 42",
+    "pagesift": {
+      "html": "<article class=\"card\"><h2>Copper kettle model 0f6a0f6</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 0.75,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f6Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f6 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "6-price-changed",
+    "kind": "price-changed",
+    "gold": "Copper kettle model 0f6a0f6Price 43",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f6</h2><p>Price 43</p></article>",
+      "runner_up": 0.0,
+      "score": 0.9,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f6Price 43"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f6 Price 43"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "6-tag-changed",
+    "kind": "tag-changed",
+    "gold": "Copper kettle model 0f6a0f6Price 42",
+    "pagesift": {
+      "html": "<section class=\"product\"><h2>Copper kettle model 0f6a0f6</h2><p>Price 42</p></section>",
+      "runner_up": 0.0,
+      "score": 0.96,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f6Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f6 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "6-removed",
+    "kind": "removed",
+    "gold": null,
+    "pagesift": {
+      "score": 0.0,
+      "status": "low_confidence"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [],
+    "scrapling_correct": true
+  },
+  {
+    "id": "6-duplicate",
+    "kind": "duplicate",
+    "gold": null,
+    "pagesift": {
+      "runner_up": 1.0,
+      "score": 1.0,
+      "status": "ambiguous"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f6 Price 42",
+      "Copper kettle model 0f6a0f6 Price 42"
+    ],
+    "scrapling_correct": false
+  },
+  {
+    "id": "7-unchanged",
+    "kind": "unchanged",
+    "gold": "Copper kettle model 0f6a0f7Price 42",
+    "pagesift": {
+      "html": "<article id=\"target\" class=\"product\"><h2>Copper kettle model 0f6a0f7</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f7Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f7 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "7-id-removed",
+    "kind": "id-removed",
+    "gold": "Copper kettle model 0f6a0f7Price 42",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f7</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f7Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f7 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "7-wrapper",
+    "kind": "wrapper",
+    "gold": "Copper kettle model 0f6a0f7Price 42",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f7</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 1.0,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f7Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f7 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "7-class-changed",
+    "kind": "class-changed",
+    "gold": "Copper kettle model 0f6a0f7Price 42",
+    "pagesift": {
+      "html": "<article class=\"card\"><h2>Copper kettle model 0f6a0f7</h2><p>Price 42</p></article>",
+      "runner_up": 0.0,
+      "score": 0.75,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f7Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f7 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "7-price-changed",
+    "kind": "price-changed",
+    "gold": "Copper kettle model 0f6a0f7Price 43",
+    "pagesift": {
+      "html": "<article class=\"product\"><h2>Copper kettle model 0f6a0f7</h2><p>Price 43</p></article>",
+      "runner_up": 0.0,
+      "score": 0.9,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f7Price 43"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f7 Price 43"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "7-tag-changed",
+    "kind": "tag-changed",
+    "gold": "Copper kettle model 0f6a0f7Price 42",
+    "pagesift": {
+      "html": "<section class=\"product\"><h2>Copper kettle model 0f6a0f7</h2><p>Price 42</p></section>",
+      "runner_up": 0.0,
+      "score": 0.96,
+      "status": "candidate",
+      "text": "Copper kettle model 0f6a0f7Price 42"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f7 Price 42"
+    ],
+    "scrapling_correct": true
+  },
+  {
+    "id": "7-removed",
+    "kind": "removed",
+    "gold": null,
+    "pagesift": {
+      "score": 0.0,
+      "status": "low_confidence"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [],
+    "scrapling_correct": true
+  },
+  {
+    "id": "7-duplicate",
+    "kind": "duplicate",
+    "gold": null,
+    "pagesift": {
+      "runner_up": 1.0,
+      "score": 1.0,
+      "status": "ambiguous"
+    },
+    "pagesift_correct": true,
+    "scrapling_values": [
+      "Copper kettle model 0f6a0f7 Price 42",
+      "Copper kettle model 0f6a0f7 Price 42"
+    ],
+    "scrapling_correct": false
+  }
+]

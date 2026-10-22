@@ -1,0 +1,3817 @@
+[
+  {
+    "id": "33e291cd-5b26-48b1-977f-3c63b45e6d13",
+    "f1": 0.5205479452054794,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "93898d00-0d6c-451d-9f99-4c386c6c2918",
+    "f1": 0.6665096561469619,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "09507bda-4020-44d3-8ebc-68b54fdf6365",
+    "f1": 0.419811320754717,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "d80cf991-ba87-4068-80b4-3e9bd49ac8fd",
+    "f1": 0.9810486418193304,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "2f432640-2615-43ee-a5b5-7302f233c45a",
+    "f1": 0.6987951807228916,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "3026972b-8a26-48c3-bc00-c181138702f2",
+    "f1": 0.9986486486486487,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "b5477868-92da-458a-9a68-b6ea88839664",
+    "f1": 0.9978612893369997,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "15ba247e-de3b-4b42-bf7c-a35a70676621",
+    "f1": 0.9809824691816886,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "4c631939-b5d2-4750-a19e-687459751b91",
+    "f1": 0.6555183946488294,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "6384f153-6abd-4bec-8d36-c5be5385a878",
+    "f1": 0.9086892488954345,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "841cd1f1-7262-40e4-b09c-1e8225f99be7",
+    "f1": 0.12337662337662338,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "451151b7-eafb-4130-91c6-6fcebbf2d40d",
+    "f1": 0.5865216546902311,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "7e6b2138-6d0d-44b4-aa02-030662854a0a",
+    "f1": 0.9837587006960556,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "204247e5-33cf-408a-90a6-30e01926a7d8",
+    "f1": 0.67550894509562,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "a11bd2b9-04d2-40bf-970e-1417b80e994f",
+    "f1": 0.16628873771730915,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "4fe41300-7917-4a1c-9b23-6add9545b465",
+    "f1": 0.8518518518518519,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "ddf805f7-e683-4cc7-8270-e9a0b2e08272",
+    "f1": 0.5384615384615384,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "86ce8fb6-8e4f-47a0-967f-62cfc0673d7d",
+    "f1": 0.9326287978863936,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "3f5ddb5c-68d8-4adc-a9a9-134fb2cab452",
+    "f1": 0.8820308611249378,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "66d99d9e-30be-42cd-b430-14a88264b11e",
+    "f1": 0.9855072463768116,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "3b274f30-6f59-48e2-8faf-8d2bd6e39cbc",
+    "f1": 0.6987204342768515,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "878ae5d9-a53b-4ecb-a509-626880230c52",
+    "f1": 0.45135135135135135,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "7cdb7231-9337-4104-a562-9b8f285add7d",
+    "f1": 0.7550319096710849,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "a467bce5-cc8c-4b83-89d4-a6d6caa19d47",
+    "f1": 0.5023786869647955,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "76621bb2-8a15-42d1-8f0a-c2059b4fda48",
+    "f1": 0.9413589823146137,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "b115dc5f-bb53-46ed-ba92-8a19b107a953",
+    "f1": 0.9671052631578947,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "ecc35774-1762-47a7-9ab1-c5bc23de2da0",
+    "f1": 0.5487364620938628,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "1901f91c-ee23-47b1-afc0-35ea9c7001bd",
+    "f1": 0.92110532639167,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "c85e14d1-b0be-4c7b-a396-108c1a895474",
+    "f1": 0.9469745290640813,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "69e1b81d-0ed7-4555-ba57-4161cff5dc9a",
+    "f1": 0.9545454545454546,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "536ad619-ad03-4c1c-a05b-ecdf38cdf4ed",
+    "f1": 0.9950873362445415,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "e76e6c7c-f3bd-456e-86e3-95d1e75f4688",
+    "f1": 0.581772784019975,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "64a6b13c-b476-4ff8-9f95-20df9d965149",
+    "f1": 0.9590878604963112,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "ec9dc1a1-9858-49e6-93a7-70fe632a85a7",
+    "f1": 0.9253871421867668,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "a51449eb-3969-4e8a-bd95-ab3092d2dd40",
+    "f1": 0.8307692307692308,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "4326f7b6-8d26-475f-875a-12197eb8ab33",
+    "f1": 0.8580310880829015,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "4d998011-cada-49c3-85ea-18faa7156f8a",
+    "f1": 0.4010989010989011,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "8e739642-317c-40d6-976a-96158bfb36d3",
+    "f1": 0.9697452229299363,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "1a957513-9bc0-408f-9575-3e077d4fab3e",
+    "f1": 0.8757709251101321,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "342e0a30-5b4d-4982-ada7-d9a47351fb9f",
+    "f1": 0.7762237762237763,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "ce681234-2135-41c7-baf1-2b3f290d7113",
+    "f1": 0.41964285714285715,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "1745184f-92d4-4be5-8b35-dd2039fe08c1",
+    "f1": 0.9212962962962963,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "9b380ce5-1392-4b19-85e7-840d8341263a",
+    "f1": 0.9996046720575023,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "e63c6521-2b37-45e5-9190-393a80d28d10",
+    "f1": 0.9955448937628513,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "4d0f20e7-ee39-4337-83d2-d49b8bff9080",
+    "f1": 0.9931212381771282,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "72e38c76-399e-4b69-865a-5525aa9be7b6",
+    "f1": 0.3276699029126214,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "75b0c1e9-d112-46d0-adc8-d1d09aa48731",
+    "f1": 0.9690721649484536,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "9ac50a30-4e84-4e1e-811d-147e3baef626",
+    "f1": 0.10221465076660988,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "c0d04080-d473-47ce-b886-a63ddded895f",
+    "f1": 0.8087855297157622,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "92933804-56b4-4a4c-8718-e2d123f92498",
+    "f1": 0.9949096375251956,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "63cfc5dd-1737-485f-9bc9-cacc65299ba8",
+    "f1": 0.954093799682035,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "7dd22837-8b51-4541-b4c5-34fabcf49b4f",
+    "f1": 0.5827552031714569,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "bf4e0084-5d96-430b-ae1d-95c79249819b",
+    "f1": 0.8370473537604457,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "b2cffd45-69be-449f-bb0b-e0f33b0dfa68",
+    "f1": 0.976,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "3f1b5e80-ca8f-4e88-a805-3927c707e20b",
+    "f1": 0.8782816229116945,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "545e8df0-8995-49d0-8d01-278412874893",
+    "f1": 0.39232409381663114,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "3cc861ef-a73f-4c68-89eb-6b18d45b8fa9",
+    "f1": 0.48053392658509453,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "9538a989-291a-475a-bf87-4fd49af1cdf4",
+    "f1": 0.7564575645756457,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "650d4f85-2dbb-44a8-822c-bf50bcea9e19",
+    "f1": 0.4316546762589928,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "5a486eb4-e159-4cf9-ac8f-d68c40f19a4a",
+    "f1": 0.8647717484926787,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "313599c7-bd34-4025-b479-aa2a78a234f1",
+    "f1": 0.7015420089350051,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "add6bde9-c1f4-46a1-95e8-6f15a4c3aab5",
+    "f1": 0.9710591745400299,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "60c0c748-e1de-4bb1-bc8e-d0365659ae21",
+    "f1": 0.9652351738241309,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "bfaf0844-440c-466b-b55a-f82c88a54a4e",
+    "f1": 0.9912321181356715,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "6640e028-4700-4eed-b046-11d4ecd884de",
+    "f1": 0.9974093264248705,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "b88a2314-635a-4677-97cc-3204a73ffecd",
+    "f1": 0.968421052631579,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "26a62b10-13d9-4c45-9260-4706ee621356",
+    "f1": 0.8945147679324894,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "34eb4e00-eadd-4af9-b8ff-a5a14263f9cf",
+    "f1": 0.9927445311221428,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "7ba96b6c-9ea9-4ae4-842f-2942383ab63e",
+    "f1": 0.15402038505096263,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "30b05f1d-56b3-48d3-b587-aea4e99bc003",
+    "f1": 0.9990952700719361,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "3ecdcec7-0ba2-4d2f-a9a2-676a60ca80ea",
+    "f1": 0.7090052403121697,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "a6f7e370-4ca4-4865-a2fd-b1c54cc4c5b8",
+    "f1": 0.9980246163197083,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "c7e5dab1-4aad-4426-a9c7-fdfaf3f9433d",
+    "f1": 0.6289424860853432,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "e7c3e1b0-e2bf-4f9e-a825-21712779642e",
+    "f1": 0.912396694214876,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "3cd19b42-03d8-4c87-ba9d-d363dba8c2ea",
+    "f1": 0.46586345381526106,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "6bc3f127-f27c-44f4-b129-92f3af7c8f27",
+    "f1": 0.6479425212279556,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "7aa2724b-a523-4592-b1d4-0736589c3e48",
+    "f1": 0.8388245770258237,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "eee3877a-79db-4de8-bde8-77fb3e40e9f2",
+    "f1": 0.9659442724458205,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "bdac307d-b950-4046-9757-a55338c0efa4",
+    "f1": 0.9856364536899456,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "a856cd53-3821-4f2f-9954-92ed8bf10ca1",
+    "f1": 0.9947816533919253,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "40eac074-2b14-460d-9498-6c3f12d7c649",
+    "f1": 0.9955156950672646,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "f7c7818e-367a-45e6-a14f-4ebccdd74521",
+    "f1": 0.9963331587218439,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "57498f6f-407f-49a8-bcd1-380161d4ebf8",
+    "f1": 0.9988785645626401,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "3f87d868-4ff5-4d8e-b995-28095df737c8",
+    "f1": 0.9917627677100495,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "fdabc869-818b-4010-b91c-0a27d1026519",
+    "f1": 0.03098179760445157,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "48333a41-b72f-4eb2-906a-5a61d794b457",
+    "f1": 0.9859053126129382,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "9e6acb97-c836-47f2-b393-bcf1502946cd",
+    "f1": 0.7138157894736842,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "2c7d9087-7c78-46a7-b657-c8e81e1699f3",
+    "f1": 0.8971710821733273,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "aa2a0095-dc9c-45db-ba6b-2de5c2c3144c",
+    "f1": 0.9918495297805643,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "bd6b3534-6b73-48b3-a39a-c4ebaac8696b",
+    "f1": 0.9982876712328768,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "e89261d4-bad5-4dae-8c4b-1227ff759aa0",
+    "f1": 0.9522342064714946,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "1bc6f63c-a52c-4de8-b053-a94fd0f669b7",
+    "f1": 0.5222469410456062,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "ba247a42-b08e-42e3-a736-17713b6ade71",
+    "f1": 0.9947706115788303,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "0702acba-c9a5-41f0-8d73-04d7a979ba95",
+    "f1": 0.8521373510861948,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "342cc742-2b77-49c3-85f9-4f967332fb64",
+    "f1": 0.31900138696255204,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "5e8a746e-81c6-4ab4-af59-e794c71bf95a",
+    "f1": 0.1676300578034682,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "46af99ed-6fe4-4a13-8570-8187bc325c3a",
+    "f1": 0.06462781304096941,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "df3ca748-d891-450e-8248-3848b2fd7bf5",
+    "f1": 0.983807320723908,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "2a8a69eb-1ed4-4715-9a52-103e84f39d31",
+    "f1": 0.965034965034965,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "99037df0-9fed-445c-83bc-3ca39a15b038",
+    "f1": 0.5350152240104393,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "994a11d8-7048-482c-b99d-43ca24c5680f",
+    "f1": 0.8943089430894309,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "edb04c12-ded0-4eb8-b4f2-4092a3a4751a",
+    "f1": 0.46096654275092935,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "81124f29-d785-4234-9ef9-87dfde5a99e4",
+    "f1": 0.924701873935264,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "2c182fa3-aeac-4ca4-bd57-6966ed35f65c",
+    "f1": 0.5546875,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "8e5b3288-0df9-46a8-9013-0b3b1c747f81",
+    "f1": 0.5230769230769231,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "aebc5451-51b9-4333-9b0f-5ceee2616ca1",
+    "f1": 0.9841384804809155,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "61ceccb8-c4bf-4565-8ffb-6bb495fdf56f",
+    "f1": 0.9881950916433675,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "aea9f57b-0d0a-4a24-9b1d-72026e33d27c",
+    "f1": 0.596587782058338,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "a6184b98-e9d6-4f3e-aacf-1d8bccba9161",
+    "f1": 0.5493975903614458,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "0ed88efa-a77a-4670-86b2-b864921b8bba",
+    "f1": 0.9441571871768356,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "e46647cf-6706-4b48-8fb5-7936049438be",
+    "f1": 0.4763092269326683,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "a5d51484-9886-4d81-b1a9-53e6a275a6cb",
+    "f1": 1.0,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "13f76352-c2e6-4c61-a6e3-bada5948d376",
+    "f1": 0.20925205361003027,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "019f4d9a-b7cf-424e-a993-da96cf16ce47",
+    "f1": 0.9410377358490566,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "8090ca57-3af6-45af-bbd1-ca5db59f7e65",
+    "f1": 0.8522267206477733,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "79c27090-9d6f-4457-b2a7-e464ddba7185",
+    "f1": 0.9928616298326766,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "357c9ba1-1c6c-4d8f-a75e-0bc4a3bc9b3c",
+    "f1": 0.1973909606008697,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "25eb26e1-4d2a-493d-8dc9-d84e1fa3aea7",
+    "f1": 0.5557206537890045,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "6524db15-d4ac-44d9-9471-89c0a0190735",
+    "f1": 0.06728389403245028,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "2089fb2a-6060-43bb-a54d-0deca55b8f71",
+    "f1": 0.9338942307692307,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "65726c37-a637-4d67-b997-ecb375c2c995",
+    "f1": 0.5396078431372549,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "053ff0f9-3f32-4a4a-b66a-8db6d4d012b6",
+    "f1": 0.28936170212765955,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "7c81df72-2ae3-4e7a-9af9-928375a39314",
+    "f1": 0.784503631961259,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "18ba52aa-4412-4d8f-959a-0540fe5a81d9",
+    "f1": 0.050359712230215826,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "3aaa0668-f93c-4037-99b4-df2e5eeab6f7",
+    "f1": 0.09947089947089947,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "074011e4-8924-4750-bb25-a804bf48dade",
+    "f1": 0.979529946929492,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "2fe1c202-b131-4295-a336-418e91ae3612",
+    "f1": 0.16809933142311365,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "e7de7dd3-8353-45cf-8b29-19d0f3c97f49",
+    "f1": 0.7389414472002046,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "97b99d59-574f-4be3-bbf3-c618650bf14c",
+    "f1": 0.2608695652173913,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "0b71c1cf-56f8-4473-98e3-20b6101e2e65",
+    "f1": 0.8680947012401353,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "8d7b3fda-892a-480a-a2f0-d12f3b6cf0c3",
+    "f1": 0.7228661749209695,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "b04babc4-dc06-4a51-824c-2070e3bf51c2",
+    "f1": 0.7003429996881821,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "0dcc2cd9-444b-48f4-843f-dcf653388c78",
+    "f1": 0.6285714285714286,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "ab6ab5eb-f29a-4a06-bbb6-af5b2c6e9989",
+    "f1": 0.4727272727272727,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "b209bf6e-c07c-4c5d-8830-eb85fa9b6352",
+    "f1": 0.7357512953367875,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "4cf6f146-3ee2-4280-b9be-9e5e1527d701",
+    "f1": 0.7182770663562281,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "0913f415-61da-4332-b8a2-eece92011373",
+    "f1": 0.9763513513513513,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "77bf4234-ee17-4fa5-9d1e-f1b3ea034920",
+    "f1": 0.9932405566600397,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "bb1112fd-9233-419a-afd9-d976c157f12d",
+    "f1": 0.6461538461538462,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "9dbd135a-d70c-4bf1-baba-8c9b024935b1",
+    "f1": 0.988929889298893,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "397c11d4-868c-4ad7-9e8d-35c55cd173aa",
+    "f1": 0.8518825675899817,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "a1330033-a1d9-4cbd-ba35-b5b450561b99",
+    "f1": 0.7969283276450512,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "73cbb48e-1c5f-433c-a44c-d313e763f865",
+    "f1": 0.9843081312410842,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "c46e1307-826c-499f-a393-e967f6b08b00",
+    "f1": 0.9587458745874587,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "904010ec-ec1a-43de-9779-ed8484f60f27",
+    "f1": 0.8953488372093024,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "7effe98e-5016-4392-8685-5ee7aea0d62f",
+    "f1": 0.9292929292929293,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "a126d2f5-dd95-4baa-bd0b-06c806470a4e",
+    "f1": 0.13829787234042554,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "d68393e0-b16c-49bf-a3aa-401410af6698",
+    "f1": 0.9526592635885447,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "fefcb37f-dc14-40e8-ac93-a70efbd91100",
+    "f1": 0.8701754385964913,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "8eb2c65f-6856-41f5-856b-57a8b9ed008b",
+    "f1": 0.9894372294372294,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "2c38095b-f65f-494e-9752-d847dc6afca0",
+    "f1": 0.9663291735342595,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "b7172623-7b1b-4b58-8cd9-233052910575",
+    "f1": 0.7956989247311828,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "1b44e480-f657-4759-b7d2-80613a04e08b",
+    "f1": 0.6705202312138728,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "8ec3baea-f43f-4f57-bde4-b67507bd56c1",
+    "f1": 0.9839165273534328,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "96831dbb-7d47-4732-8b69-6b6f99846987",
+    "f1": 0.010893362524696961,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "87da087c-8168-4796-9f8c-c493d4b2a6a5",
+    "f1": 0.9812033814022875,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "97bda7dc-fe9e-4dee-a4d2-ec82edcd4820",
+    "f1": 0.7541766109785203,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "b4db0d88-c163-44d5-9934-c8cef331ecd2",
+    "f1": 0.9081714133617248,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "340bfc7b-d61b-420c-b928-b0561c1ad6b3",
+    "f1": 0.9875647668393782,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "4991f733-f57c-4fda-b393-8870b79adc27",
+    "f1": 0.9770253929866989,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "93b13c8a-d7ae-4ece-93af-e482cf0ccc6e",
+    "f1": 0.8206734534064213,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "c1990809-2298-45f7-b274-488c3e2baffb",
+    "f1": 0.9935289370708162,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "0b7ac530-19ea-4a14-a8bd-adb9cd646351",
+    "f1": 0.4410029498525074,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "1250ad3c-691e-48bf-ad4b-7d91060e93a5",
+    "f1": 0.8984263233190272,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "8131e9b9-481e-42d7-acf0-c59c3f994f81",
+    "f1": 0.9215116279069767,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "7775d82f-66f3-4952-821d-e8b35a217338",
+    "f1": 0.6649282920469362,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "3f9597d3-312b-4b5d-919e-048915122bdc",
+    "f1": 0.88,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "6c5057e5-d9c0-478d-acef-cfab704e4b29",
+    "f1": 0.9427254772876893,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "f77e36f0-f2fb-4a52-b2f0-267ad89aa7b7",
+    "f1": 0.6987270155586988,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "9aaa47bb-3391-4a9c-83fb-4c380e3fbeea",
+    "f1": 0.9483330083837005,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "367ae0cc-9a80-454c-9336-b3d43e72bb36",
+    "f1": 0.9780019616085189,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "2917ce28-b5ea-4a98-8263-8add311f609a",
+    "f1": 0.9341421143847487,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "766950e1-0087-4c3b-8bb6-292c734fd7de",
+    "f1": 0.804159445407279,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "90605236-2d5e-48b2-871d-b7e22e506716",
+    "f1": 0.8667053588701876,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "c253f222-7c26-4f83-894a-470c479c8518",
+    "f1": 0.8460268317853458,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "29b2ccea-e015-45ee-b7b3-6c20b2a4e50a",
+    "f1": 0.5869565217391305,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "49ea53a8-652e-4d0b-b39d-c7518dbbe3b9",
+    "f1": 0.9784589892294946,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "ccb6033c-0a12-4f9c-8c68-794f26129841",
+    "f1": 0.9937744317359201,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "339ec255-183a-43f5-ae96-ec04b44d2bc6",
+    "f1": 0.8189910979228486,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "f5fbd610-b7fd-4029-906a-e151c4f83ec1",
+    "f1": 0.5798045602605864,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "a9602559-c2ee-4e4a-b91a-6dc4f91a8a7a",
+    "f1": 0.7814569536423841,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "0c4d320b-a60d-4181-92df-c5f06e011bcf",
+    "f1": 0.4230769230769231,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "96fac55e-eaad-4f68-95e3-04e86bf26c11",
+    "f1": 0.9627465303140978,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "6495eb57-1eb4-479d-a57a-4ad689fee952",
+    "f1": 0.9681862905870777,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "4e764069-c6d2-4e14-b81e-5deac0e3d3ff",
+    "f1": 0.5387453874538746,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "c42e7f28-f109-459b-8423-2ce20f651ac9",
+    "f1": 0.46511627906976744,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "81acdfb8-1fca-40fe-b6de-3b5b35c30926",
+    "f1": 0.47619047619047616,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "be936aa5-b660-4271-aed7-4ecd825bc54d",
+    "f1": 0.3980861244019139,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "c217e06e-aff7-487a-b60d-0dfa9fc27864",
+    "f1": 0.8945578231292517,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "0bb0a986-2435-440f-987e-7b70bd33b3a3",
+    "f1": 0.42443729903536975,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "ab6e4720-1194-459b-b46d-0f10df0eba32",
+    "f1": 0.8174846625766872,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "72dd5ff7-8cb5-4660-8941-c1846a43a15d",
+    "f1": 0.9236453201970444,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "e63a2db0-f325-477e-89e1-08c5700b3c9d",
+    "f1": 0.6442062276671772,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "34b822a2-f7d6-4b69-b6af-133a1ca21326",
+    "f1": 0.9509803921568627,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "cb45f64a-76c5-4eb7-a892-300c30e5182f",
+    "f1": 0.908953372265424,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "8b37b7f5-1759-48b1-a4c4-e97d3d16f945",
+    "f1": 0.6600541027953111,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "c423816a-a181-4bb2-ba93-ef1bfd4524bf",
+    "f1": 0.8993074054342035,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "04973d67-3905-4b2e-8272-0e6a134b79cd",
+    "f1": 0.9136029411764706,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "e6ac1015-452e-4c70-aec2-b7f586313a1c",
+    "f1": 0.6007326007326007,
+    "error": false,
+    "previous_overlap": null,
+    "language": null
+  },
+  {
+    "id": "949e1468-eed2-43ab-96e6-5dcb07c52d4b",
+    "f1": 0.6510556621880998,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "33ad3a32-2485-44de-aadf-caf178191ca6",
+    "f1": 0.5324232081911263,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "f284c2b3-75e4-42b9-b289-d65e05fbb301",
+    "f1": 0.9306532663316583,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "06e4419c-37d1-447b-80c6-acb4634ff672",
+    "f1": 0.975051975051975,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "19a3e3f4-e174-49d8-90f7-04064c1901a4",
+    "f1": 0.9819257311863293,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "6e7206ad-37f8-4e2b-abe1-02e5750f3d9a",
+    "f1": 0.537833424060969,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "80cff880-f74b-455b-8cd3-4d388b996e68",
+    "f1": 0.9050889241063568,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "2ff876e4-64a6-40c4-9792-345bb1a82c1c",
+    "f1": 0.9849542422832325,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "cccccbc0-0057-414f-9393-25db345ebe70",
+    "f1": 0.8366013071895425,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "9a4ffbc9-f68a-497b-932f-81fa743a060f",
+    "f1": 0.9977523038885143,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "04b9c93b-3825-4e25-ad4c-a40ec4b98ed1",
+    "f1": 0.25699745547073793,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "9b778381-c1ee-4f4b-bea6-aa2f0e9ca519",
+    "f1": 0.08428010741582317,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "efaf54b9-dcda-448e-9290-2346a6581787",
+    "f1": 0.8049311094996374,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "2c3ccfcc-1c89-47ae-9782-744a3599b41f",
+    "f1": 0.5296655879180151,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "a2c143dc-b18e-446c-8134-abb7a205ca04",
+    "f1": 0.9724826126398548,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "661c6422-3f53-4995-a1ee-0d335fee8f3e",
+    "f1": 0.8839732888146912,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "3b5fbc5a-05d9-4206-b6f8-7058878e946e",
+    "f1": 0.9698905109489051,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "b70e50c3-ac41-4670-b784-1a6c318b5732",
+    "f1": 0.7669565217391304,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "75e51f61-8463-444c-8f84-32f319062a18",
+    "f1": 0.9836128048780488,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "c6fc74e6-e164-4a4e-9916-729cef33b9f8",
+    "f1": 0.9040201346847153,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "65abd8d6-977a-47e8-a018-644c695f07a0",
+    "f1": 0.4359464627151052,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "56a1d696-be4d-4ddc-b35f-300d7452ed40",
+    "f1": 0.9844179651695693,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "6ffa855d-1fda-42db-bc96-19dba313391d",
+    "f1": 0.45878136200716846,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "3329e05e-11de-4aa1-916f-0566cc056406",
+    "f1": 0.9701986754966887,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "b381647c-9980-43ee-b0d7-8f7ff7978d9f",
+    "f1": 0.9832050384884534,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "3d05a75c-e12c-4aab-8c86-acb123ac89a4",
+    "f1": 0.05868725868725869,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "733b2c72-6922-47a2-86b3-7e31db35a246",
+    "f1": 0.8597785977859779,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "09929c46-5619-4acc-bd71-af8837e66f65",
+    "f1": 0.9528023598820059,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "b58149fc-b544-4db5-a219-c761bf9df880",
+    "f1": 0.9388994307400379,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "c8e7af9a-e722-43a7-b8b1-b8fdf3026510",
+    "f1": 0.8970545348498105,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "c30774fb-e206-45cc-b9c7-fc7403d04021",
+    "f1": 0.9844444444444445,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "26487abc-da5b-44c3-b8c2-de855a855d3d",
+    "f1": 0.9582745414231002,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "1c7b1303-7f08-4193-86e4-afbb365872ca",
+    "f1": 0.9599172485130593,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "d0816322-cc8e-4c37-bda5-42d799c87ac4",
+    "f1": 0.8294930875576036,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "26d6d88d-6c43-49c9-82e5-b8055c6dad94",
+    "f1": 0.41420118343195267,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "b869df94-e725-46fa-a9be-3109ea7a08e0",
+    "f1": 0.8853333333333333,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "9903c770-a7fa-4062-bb9d-8be59f766337",
+    "f1": 0.9381698268755152,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "fd20cada-33c6-499d-a9b4-99c3affb47da",
+    "f1": 0.7901990811638591,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "2d818847-b8ac-4459-813a-a8620b9c1c42",
+    "f1": 0.39592430858806404,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "efd15a96-8b82-4eb0-b478-b8c666efae73",
+    "f1": 0.947261663286004,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "24d87506-4837-4772-b135-75efb36ed77f",
+    "f1": 0.9701230228471002,
+    "error": false,
+    "previous_overlap": null,
+    "language": "de"
+  },
+  {
+    "id": "7086fe85-8abf-4e05-8bb6-579c140772c1",
+    "f1": 0.8363636363636363,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "9b7a99a9-71fb-4f08-884c-10153614eb43",
+    "f1": 0.9713679745493107,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "0888287d-3fc5-486f-bbae-4fb2415a808f",
+    "f1": 0.959417273673257,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "5ce3e18b-6e28-48d3-a1f1-ba34dee7f692",
+    "f1": 0.9770666666666666,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "50e6495f-1ade-4908-a45b-f0f5f0025584",
+    "f1": 0.8634044965048177,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "0681ed6f-e0c1-4320-90ca-39e6ed739060",
+    "f1": 0.937592867756315,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "4d730d4b-6506-4924-9b62-01d84a049eef",
+    "f1": 0.9973780807551127,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "55deb83c-413a-412c-a240-b2fdaf839bf5",
+    "f1": 0.9272644790564041,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "6e61930d-e817-4e9a-bef2-cff62bfe9116",
+    "f1": 0.9689922480620154,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "e6f07d2a-dae7-416d-92d2-57b53b685efa",
+    "f1": 0.5836820083682008,
+    "error": false,
+    "previous_overlap": null,
+    "language": "ru"
+  },
+  {
+    "id": "9c50cea2-767f-4833-8396-18aefba30365",
+    "f1": 0.29818181818181816,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "6d153a2e-42c8-4f53-8a5c-4572919ac0aa",
+    "f1": 0.9865368089372673,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "ad16e66d-77dc-4a88-bc3c-6b906bae3bea",
+    "f1": 0.9354422207876049,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "65ed2a55-b41c-4e02-9deb-168190b370cf",
+    "f1": 0.043546365914786965,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "59f32691-76ec-4b25-805d-359602dc7800",
+    "f1": 0.5941480206540447,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "e975382f-be96-4b20-a76d-ba5a9449215c",
+    "f1": 0.06268480189237138,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "bb4655dd-6c8d-4301-97b4-bc1cf03581da",
+    "f1": 0.9325842696629213,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "eed02eb3-a7b4-4114-b8c4-65b95948fca4",
+    "f1": 0.8676915909620312,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "98266365-6a8e-4594-8cc0-a8e7b7782dc5",
+    "f1": 0.40283687943262414,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "fe566b08-bdc6-4726-bbdd-d8cee357b1c1",
+    "f1": 0.9870572207084468,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "e3da2bf6-be61-4de8-9ec3-d84eee9ba8a1",
+    "f1": 0.9880756057338577,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "db457f51-39e0-4298-84cf-f7386de9e90d",
+    "f1": 0.4681647940074906,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "50649363-0e1a-4f72-95a4-c7d60b600a0a",
+    "f1": 0.6612377850162866,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "368d0b5e-6e93-4657-aff7-eb699249f5f9",
+    "f1": 0.9050505050505051,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "bbd847f1-73ae-4215-a634-ed70b50d686c",
+    "f1": 0.9613848202396804,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "9228bd71-c2ae-4290-b3ac-25d7fd84ee13",
+    "f1": 0.9407114624505929,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "b5aa8ece-e733-4034-9f2f-97d767e16d3f",
+    "f1": 0.9962092494313874,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "48179d86-21e1-4e89-9d23-a32da25f4a2d",
+    "f1": 0.9801801801801802,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "cdd550a3-4b8b-4212-9e53-4a39fb535e08",
+    "f1": 0.9803149606299213,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "2ef588f0-f7df-4262-94d8-fb9d8245ad66",
+    "f1": 0.9748299319727891,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "d93ee8a2-e141-4d04-858e-453ba94149cc",
+    "f1": 0.996856005030392,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "8844ba8c-995d-4a11-8566-a125931ae648",
+    "f1": 0.048024786986831915,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "93a8876e-969a-463b-9857-834b0bec7fdd",
+    "f1": 0.15553121577217963,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "ebb1f12d-9db5-4aeb-96ce-21cfb332d8c9",
+    "f1": 0.24,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "39d168ab-ec08-4ab7-b54b-57cd3590d8c7",
+    "f1": 0.5441176470588235,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "75bf45e1-2abc-4421-9116-5c4266c9a3c1",
+    "f1": 0.9820143884892086,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "3efa9e00-6cfa-49e5-8005-fb954d10eb84",
+    "f1": 0.9214285714285714,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "191edf9a-7073-4830-ac5a-2fd92a158664",
+    "f1": 0.99323291857673,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "23d750be-a840-4eba-8924-7691b908731f",
+    "f1": 0.9739884393063584,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "9fd27afc-c9e4-44cb-ac69-0190584f9b48",
+    "f1": 0.9703032197561738,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "c50fb7e3-5cbd-4cf3-bd32-ebfe2b028bd5",
+    "f1": 0.6784841075794621,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "3a2b58d3-e524-4f38-b348-2d791b0a9954",
+    "f1": 0.9281875055070932,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "96e2a07e-1c25-402c-a61a-ccec22b3f929",
+    "f1": 0.4436229205175601,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "221c812b-f66e-465b-8b04-098834eefe13",
+    "f1": 0.9516987310683586,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "85bd58ff-3aff-4aa7-ad26-bc7018710160",
+    "f1": 0.9519725557461407,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "015bf208-25e9-4caa-b80a-7c942776bf20",
+    "f1": 0.5592105263157895,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "adbe2961-cf1c-4b7c-817e-bd544969748f",
+    "f1": 0.9868253293667658,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "4efff8da-5ff9-40ed-b8b1-ccb2ef6fd094",
+    "f1": 0.9555398729710657,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "57ea3d03-27f5-46bd-b5eb-c5e04674f66e",
+    "f1": 0.9494225408203902,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "c2f9c5ab-31fb-493c-b8b8-7d997c04a7fc",
+    "f1": 0.10121457489878542,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "b4772db1-83a2-4648-8135-a8a006aed60a",
+    "f1": 0.8798349664775658,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "a5f975ab-da76-4c22-8503-b50702b42b05",
+    "f1": 0.37303893085415457,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "0ccd47f7-1b7a-45ab-b40a-dae116bfcb18",
+    "f1": 0.9863157894736843,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "eb390b88-be09-4e99-8f94-c3ce30411e2a",
+    "f1": 0.5958254269449715,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "1c20c071-d440-4535-8664-c9b8ef92247d",
+    "f1": 0.9487179487179487,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "d8bfa68a-d0a1-4996-ad78-5531700b9184",
+    "f1": 0.9614762058918744,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "e9cd8041-8616-4a03-98f7-493d35a29f6d",
+    "f1": 0.3418803418803419,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "84d6c2bd-2bd9-4105-940e-0818c515a08e",
+    "f1": 0.5503830288744844,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "77e3c55f-3b1b-4e7a-9770-2ca930ff2267",
+    "f1": 0.9749582637729549,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "560869c0-1a78-46ac-85d2-d628ea22094f",
+    "f1": 0.9540816326530612,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "3885346d-04d0-44d7-9f39-6d60edd77581",
+    "f1": 0.9739336492890995,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "2517439f-4ebf-4ec9-9d96-8eee6bf6e7ba",
+    "f1": 0.9924357034795764,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "3f04f235-50ab-4554-a257-1b4d46aeef5c",
+    "f1": 0.998445730075123,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "f5e76f9e-7d2f-468d-be50-f27e3f074d9a",
+    "f1": 0.9713794182045667,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "763e8f08-5d2c-4c34-8115-f4ef524bc2b7",
+    "f1": 0.9977029678871868,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "6233707a-e399-43e9-b3df-fde0c1b649a1",
+    "f1": 0.9910828025477707,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "0f5d90f8-8798-47ae-99ed-9d224943b2ff",
+    "f1": 0.8129632821927254,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "a227b45a-af60-4ffa-9428-cd012ff8acbd",
+    "f1": 0.9729282909692085,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "a6a417a9-34d2-4b0d-844e-bcd0868c6e74",
+    "f1": 0.9705882352941176,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "dcf914e5-639a-40a8-8b44-ce46934905c2",
+    "f1": 0.8601449275362318,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "3040bb41-1f28-4245-b7d4-d32ddf1aff2d",
+    "f1": 0.9234972677595629,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "b2e2f6c7-b03e-4362-95eb-b9641d693bd9",
+    "f1": 0.598780487804878,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "c543dd5c-521c-4b58-bd5d-b02d5b945242",
+    "f1": 0.9223946784922394,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "f9526f07-a1c7-41fb-bd30-b1bf4ce9d3c4",
+    "f1": 0.8276684555754323,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "fa0c0572-ef7a-4687-a577-7b9da1856a37",
+    "f1": 0.4199288256227758,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "abc5d680-ce87-4a12-ba23-e3a8d78479a2",
+    "f1": 0.9106666666666666,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "53a57090-cb79-468c-932c-461c6eaa7c21",
+    "f1": 0.12007972097658197,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "17848c5b-1f6a-44f8-b56c-9f721ecaca6c",
+    "f1": 0.0,
+    "error": true,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "669a07e1-0244-46bc-85a2-5298d1f68a04",
+    "f1": 0.9784776902887139,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "59896492-4b5f-4e98-b2d4-921e7433dfba",
+    "f1": 0.8480154888673765,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "6b9ab18b-eca4-4c1d-983a-3f5e5c2a943e",
+    "f1": 0.8412455334354262,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "f3114c35-0b4a-4595-8a52-f3e1bfcce3be",
+    "f1": 1.0,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "61c8068d-5813-4653-91e6-9209664912f4",
+    "f1": 0.9573170731707317,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "41d6266d-df79-4931-a70f-1fbd47d31b13",
+    "f1": 0.8786808009422851,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "b38020b1-32c7-452a-89cb-9b089be6bd98",
+    "f1": 0.4383561643835616,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "fd5c9b53-74c4-4908-8866-94b5b4b5382f",
+    "f1": 0.05929487179487179,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "4cef2d67-e846-46be-b165-06ef9cb96cac",
+    "f1": 0.4138996138996139,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "f92851ce-9135-4707-8b4e-e165ddb69653",
+    "f1": 0.9352629940865235,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "daca21bf-31c4-49c3-92b6-dd1357a26aa8",
+    "f1": 0.9881035689293212,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "9a9d8121-f64b-4fa9-a7bf-4e7b42be44c3",
+    "f1": 0.9978494623655914,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "8d6b0aab-fbd2-4710-9a5b-72e932be68b2",
+    "f1": 0.983451536643026,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "b73a20db-0159-4a69-973a-b8e0c83dc630",
+    "f1": 0.9534883720930233,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "21c0afb7-a34c-4afc-a8a5-eeb55bcee957",
+    "f1": 0.9800443458980045,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "99a6209b-c22a-4c87-839f-c0a033fab2dd",
+    "f1": 0.9412303814869973,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "7fd17d3e-62b6-4a9e-b0f9-385d7681cac4",
+    "f1": 0.9162132752992383,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "0a4054a1-5d75-4f8e-a4c5-a828b828ee96",
+    "f1": 0.9286846275752774,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "f076ddb9-bc56-4919-abd9-82d141b2da89",
+    "f1": 0.9654054054054054,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "3afbc337-40a9-41d6-b48d-1e68119abe6a",
+    "f1": 0.9068627450980392,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "db4db732-93db-4fc4-bea7-0e512329fd3e",
+    "f1": 0.8788638262322472,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "adb9e966-c6f5-44d2-b088-391153c0c156",
+    "f1": 0.9783783783783784,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "0e2608c0-765b-4182-b648-e98186e36643",
+    "f1": 0.7505827505827506,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "07de2115-57cd-4099-8123-bb08a2158027",
+    "f1": 0.9958847736625515,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "2a4bfd89-9eec-4db3-bfbc-78eadde188a1",
+    "f1": 0.19870009285051068,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "96601067-7e6f-42a4-bdc2-d68c1276abee",
+    "f1": 0.890839918056775,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "223f6f11-bd2f-4074-90b7-055bc8f569bd",
+    "f1": 0.854018589393111,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "bf6c32b1-a743-4d74-8935-3f205e2950fa",
+    "f1": 0.9420275875373783,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "d8452e2f-1557-48fe-bb90-ea0e13f8f539",
+    "f1": 0.9993668481701912,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "dbb616e4-7a5b-406b-b962-b9e75a9f4fc7",
+    "f1": 0.09154351395730706,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "597b6d04-3258-4cb1-8576-22e9b8126e03",
+    "f1": 0.9445656918376255,
+    "error": false,
+    "previous_overlap": null,
+    "language": "sw"
+  },
+  {
+    "id": "31fa6928-e2eb-424d-961a-aa1594bf47f3",
+    "f1": 0.846262341325811,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "bd9208f0-04ba-4ce2-a430-ac4c8bd117d1",
+    "f1": 0.4260355029585799,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "909dad22-dd6c-4c1e-9d88-8938206c19c4",
+    "f1": 0.913102328099621,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "cd1d782d-eba2-4d1a-a71c-1d0a48cd5819",
+    "f1": 0.9754948162111216,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "827ccff5-27f4-4184-bf85-45bf53d52d53",
+    "f1": 0.8599577762139339,
+    "error": false,
+    "previous_overlap": null,
+    "language": "sw"
+  },
+  {
+    "id": "8b96572b-a1ce-4a72-a5ed-3f4af87a8d1a",
+    "f1": 0.7368421052631579,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "dd865b8e-3f0a-41c8-b1d0-2bc49e2e1c3a",
+    "f1": 0.8695652173913043,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "f4629223-3329-4b75-825c-d2b62f87f87f",
+    "f1": 0.3799126637554585,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "5e53b43b-7b86-4aa4-9e22-3e7f906e18ba",
+    "f1": 0.8201005025125628,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "5a806ae1-564d-4c82-945a-93fe1c48414c",
+    "f1": 0.5901778154106689,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "26fa89a2-a1ba-4ebd-bd47-a61d138ca8ec",
+    "f1": 0.982764175257732,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "6ae5728c-645d-4c03-8ff1-3324d3f0fe39",
+    "f1": 0.77,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "862efbeb-f4b6-4d80-8d6a-c07434446c5f",
+    "f1": 0.9765484064942874,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "12791b36-192a-4088-8b60-2a393d0927dc",
+    "f1": 0.9860852101563621,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "051ee9c3-2775-466e-93c3-acaa8e7f8da3",
+    "f1": 0.9915661087323213,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "9954a5cb-8ffd-4bb9-9c0d-a39b3393dc52",
+    "f1": 0.9961246318400248,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "dd4bd97e-1a6f-4a5c-9c05-0b79fba5ade6",
+    "f1": 0.9864052287581699,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "00f36720-473c-4703-bece-c565ffe2aeb9",
+    "f1": 0.8658357771260997,
+    "error": false,
+    "previous_overlap": null,
+    "language": "fr"
+  },
+  {
+    "id": "f99894fb-3d5f-459b-9c8b-8faeb95a9a22",
+    "f1": 0.6799468791500664,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "6a8c39b0-421d-4d44-af64-0cdcc319782b",
+    "f1": 0.9951100244498777,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "f4e10bbd-9804-4fac-895b-9b49e3fe46fc",
+    "f1": 0.9565217391304348,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "ee643e4c-498e-4d43-ad50-77953551affd",
+    "f1": 0.9472361809045227,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "e6446866-f4d2-443a-bf38-c8d3daaa7d34",
+    "f1": 0.9907881269191402,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "1e67ce57-0214-4b97-9cdd-6a3b73395e7c",
+    "f1": 0.9710656316160904,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "d57e1c98-7981-4dc8-a640-4123001efa80",
+    "f1": 0.9961817487590684,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "6e9d8344-8894-44a8-8a76-582ebc4dfec3",
+    "f1": 0.9901719901719902,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "a6b47e2a-45f9-47df-a48a-9d4dcb22148a",
+    "f1": 0.9953672569677949,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "7b3a4421-2866-424d-8ac6-0432df0d737b",
+    "f1": 0.5954861111111112,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "ada5f549-4a9a-4a5a-9400-aff560bf3217",
+    "f1": 0.9596662030598053,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "046bc549-8fa2-444f-9c98-1167ed0d2f46",
+    "f1": 0.886983632112237,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "ad6d3559-c09c-4187-bb39-504c7b9a9c63",
+    "f1": 0.9907578558225508,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "d7d5eb4c-34bd-4b88-9a8b-09ccaf98043d",
+    "f1": 0.9122272957889396,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "43dab392-0b3e-45a2-a772-1d4406b74af0",
+    "f1": 0.09073900841908325,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "1319858a-531c-45c0-bcb2-b1ebd3094c1a",
+    "f1": 0.947008547008547,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "52d7121a-5937-482d-94ee-e0772838daa0",
+    "f1": 0.9709751513885989,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "be770919-4a81-4c15-a868-ba17b5620fb4",
+    "f1": 0.294478527607362,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "f1b94687-a229-46b3-8c11-3d2cd3423b46",
+    "f1": 0.5257452574525745,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "d424ff8a-52c2-4e0c-8d8e-3cc9565501b7",
+    "f1": 0.9905882352941177,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "3ffdd3ab-b03c-415d-bc05-159372b658e2",
+    "f1": 0.9668874172185431,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "5a9228d7-4aed-40c7-8b1e-f9a830c0c573",
+    "f1": 0.7535714285714286,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "47b1ab98-53b1-4e92-add9-ac17036ce4d7",
+    "f1": 0.9974511469838573,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "efb6647a-4a51-4098-ba1e-324bbfdd039e",
+    "f1": 0.9575156787376088,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "c2a932ca-7088-42f8-8fde-a59b0f597c51",
+    "f1": 0.9441441441441442,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "8d6a8c04-634c-4600-9bf5-7d34a83af15d",
+    "f1": 0.8811387900355871,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "5fefdb49-b067-4f26-a58e-70859e20cb35",
+    "f1": 0.96875,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "3c426502-5324-4506-aa7b-10cbd729c49c",
+    "f1": 0.935064935064935,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "11ad633b-3811-44b0-b421-2ca3bd265fe4",
+    "f1": 0.9762968052215734,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "fe35f027-0d33-4c95-84d7-133bb0ffe5a5",
+    "f1": 0.48813255709807435,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "883663da-b938-4f05-8e7f-cef16bed1317",
+    "f1": 0.7606614447345518,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "02c3abc2-f097-4d31-96a7-de24084c67d1",
+    "f1": 0.7946738376127689,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "cb82e20f-c56b-431e-8901-2a19484d9156",
+    "f1": 0.9258426966292135,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "70dc9279-8b62-4032-a848-1efcf0fcd3b0",
+    "f1": 0.8735605443759451,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "b4aa056f-cfc7-4542-9d48-bc3b38131d97",
+    "f1": 0.9773085408131106,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "b14796b4-eb9b-47f7-957f-a4c75ed70e36",
+    "f1": 0.8457583547557841,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "6ccf857b-4763-4f19-b7c1-2fea722552aa",
+    "f1": 0.9883151744828675,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "3eb52a4d-d3ab-4be7-ae16-436b0a0a4b81",
+    "f1": 0.43622920517560076,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "e7769d40-7b9b-4f97-8074-108d5d851013",
+    "f1": 0.9980925131139723,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "151e89d6-a294-4d12-a986-3b9c26e1d344",
+    "f1": 0.9916054564533053,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "7e2872da-54c0-4b4f-a1bf-522543d69933",
+    "f1": 0.9254163649529327,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "d629422b-7187-4dd6-aedc-f94f0fd0a568",
+    "f1": 0.9482551143200962,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "9b318d33-f3b6-4cf8-82fb-8a8be5972b00",
+    "f1": 0.9790518191841234,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "3e028fa7-2166-4ee8-b39d-79d23f179a00",
+    "f1": 0.8634948866162739,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "871643b9-092a-4b78-9124-09b03bd6313c",
+    "f1": 0.3448275862068966,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "666bff5d-28b4-4229-aba1-3f5333567498",
+    "f1": 0.9857636715028445,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "b2a55c63-ce75-4fd9-822e-b61a08371638",
+    "f1": 0.9852670349907919,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "72ea58b9-95fd-4a50-8da8-2a892769d53d",
+    "f1": 0.6874736398144243,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "75f8eccf-2723-4156-bb2f-2c2009d54c2c",
+    "f1": 0.8214804063860668,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "819d17d7-4825-492f-9546-ab61b14e9aab",
+    "f1": 0.11265822784810127,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "3101dba7-8f8c-4a26-9c6e-531f69b61b1a",
+    "f1": 0.9995405731350141,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "3bb7172c-5d5d-41c5-9834-af6a2b8c37f0",
+    "f1": 0.9384615384615385,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "79d0eec2-7909-4c75-b857-dc0c932bd313",
+    "f1": 0.7915936952714536,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "2785e4a1-5a59-4168-9aa4-3fefd5175f4b",
+    "f1": 0.8408851422550052,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "8baad639-fd1f-42c6-bd3c-8461c42f2ba5",
+    "f1": 0.8622222222222222,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "c2348f33-97b5-49bc-85c0-6aaa60a4323b",
+    "f1": 0.9409017424106341,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "a39d4831-d0b6-4cbd-9734-79096b8d183d",
+    "f1": 0.7634615384615384,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "a6b273ad-86c5-4d56-987f-983efedcf6cb",
+    "f1": 0.9942020140372292,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "349761d3-100b-4ede-8dad-30f5f1696084",
+    "f1": 0.9571068124474348,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "ec53e61b-9693-4792-a6a7-4e6024490821",
+    "f1": 0.6851928660306926,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "e997f620-54ce-4b24-bb4b-d2994118bdb3",
+    "f1": 0.9971335753869673,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "731f2672-60a8-46eb-bf5f-bcee98412b3e",
+    "f1": 0.9682012339819649,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "c9994255-4443-49b1-bc14-376074add3c2",
+    "f1": 0.5103734439834025,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "78f87511-1448-469c-9d43-004ac03bdfec",
+    "f1": 0.5109489051094891,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "2326247a-b76e-48ef-96e5-780261d21d27",
+    "f1": 0.8957617411225659,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "2c79ce42-32a8-47e0-a1c1-31835c64cb76",
+    "f1": 0.5074433656957928,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "bd1846f9-ee4d-4198-8f9a-81962f893b31",
+    "f1": 0.9706652224930048,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "5b0d4c4e-928e-4d61-9542-e27ccbe2edf3",
+    "f1": 0.8993147074327886,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "a5791c85-1701-4ffd-97e1-779aeefae3b8",
+    "f1": 0.7597143806044504,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "91a90a16-c54b-488c-a3cb-5e1d3b7de138",
+    "f1": 0.9244791666666666,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "f1ef3f70-6614-4c3c-b63d-7e2aa552b079",
+    "f1": 0.9879683740116879,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "ce51330b-52da-47ba-80f3-65420b510de2",
+    "f1": 0.7379531227252876,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "bf823308-7df7-4436-a199-a76daabaac20",
+    "f1": 0.9527921704087507,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "ac11d851-aed7-4b9e-89d1-39c142fa152d",
+    "f1": 0.9751387883176442,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "68cc1af7-baf6-47ea-bf3c-13867256708e",
+    "f1": 0.9426644182124789,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "7d49c2d0-ca29-4fb8-a30c-1171d9e67085",
+    "f1": 0.9263456090651558,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "5d47481e-1784-4650-bf93-b894e37ab8b4",
+    "f1": 0.9681978798586572,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "47c1a0c5-d299-4417-a8a2-b4f0155c372c",
+    "f1": 0.988950276243094,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "ed3c4fa0-563e-4a0f-bcb9-da3856a0f9b4",
+    "f1": 0.6556951061065396,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "8798f93a-240c-46d7-a8d1-a5fb011279fc",
+    "f1": 0.9596343269168867,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "7edf97ed-2a23-45ee-98b8-3189d660337d",
+    "f1": 0.9764417177914111,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "79eebb3c-cd8c-4ab3-9809-8e2f17bfb15f",
+    "f1": 0.9676506982499558,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "670bfc19-ef03-4389-8a76-5881d9476f49",
+    "f1": 0.6411483253588517,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "09729122-6a76-46a0-82d9-65bb3451e8e9",
+    "f1": 0.9622641509433962,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "70744aa3-23f4-4b1b-8ff0-7f3c04bbffed",
+    "f1": 0.9978433421526558,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "29999ca5-53e2-4564-8ac0-15cef063473b",
+    "f1": 0.9977502812148481,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "c98d4c6b-348a-4313-877b-1b47a1f3598f",
+    "f1": 0.9978969505783386,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "69bddcb5-ea29-4f92-9255-e78e027a678f",
+    "f1": 0.04926108374384237,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "a46adffe-2dd8-43cc-b689-b95aa3d648d1",
+    "f1": 0.9781420765027322,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "55ba9228-70a1-409f-a4e1-f2acac076b0d",
+    "f1": 0.5094736842105263,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "cd1b69ae-4b3d-441e-b4bf-447c1dbaff40",
+    "f1": 0.2838709677419355,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "c8d790ba-624e-4664-933f-c071da8a57e3",
+    "f1": 0.9526794108429959,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "79139f77-0c7c-41f9-b980-59de0edb4046",
+    "f1": 0.9998172323759791,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "7311d034-ea36-4a4c-9f59-96da9b81ea61",
+    "f1": 0.6171171171171171,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "1f897aee-c545-4070-8057-b3d26e7cb6dd",
+    "f1": 0.9469895287958116,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "bef0c969-2271-43ed-8c31-7eb52a8ddd2b",
+    "f1": 0.9966923925027563,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "d0917f81-3044-4bdb-abb1-6cff6b7db15a",
+    "f1": 0.6755555555555556,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "6fb63b66-b1c5-433b-ab3c-dd2ef066c206",
+    "f1": 0.9146383270483374,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "8e9d8d01-f483-40f2-accc-35fa20b901c2",
+    "f1": 1.0,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "5e5e564a-f652-44cc-9500-c63043d497db",
+    "f1": 0.9740714786264891,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "aad10729-7da6-4276-b860-68db0b7be515",
+    "f1": 0.7243675099866844,
+    "error": false,
+    "previous_overlap": null,
+    "language": "pt"
+  },
+  {
+    "id": "77edd821-6e46-4b64-ad9c-323754f446a3",
+    "f1": 0.9314534273286336,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "3c6722c1-0319-4985-98f4-756b601c0bc3",
+    "f1": 0.9232386961093586,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "b67af83c-7d96-45b4-b7b0-d4457146827d",
+    "f1": 0.9423529411764706,
+    "error": false,
+    "previous_overlap": null,
+    "language": "pl"
+  },
+  {
+    "id": "e36d2042-7f38-42dd-9020-a8bc69521ef9",
+    "f1": 0.9963976945244957,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "99e4ff1b-5d7f-4c8d-8c4f-f551304ee744",
+    "f1": 0.9987220968487452,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "47a98050-e79f-4c44-8036-7a0696a07bcf",
+    "f1": 0.945619335347432,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "6edcd7ea-0503-4ed9-b493-4a6aad2ee584",
+    "f1": 0.8795518207282913,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "ca7a29a8-1a68-47f2-b8f6-2b412633e802",
+    "f1": 0.9025330396475771,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "24e8beda-ccb2-4103-b54d-1d86c16314be",
+    "f1": 0.9774436090225563,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "0d03739c-f8f7-49ae-960c-5ed79a7d3d8c",
+    "f1": 0.39800995024875624,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "e5d733d9-df3c-41b2-91a4-9881ced4299f",
+    "f1": 0.9441391941391941,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "d7b2426b-3acc-4648-8eac-a52854e1c5ad",
+    "f1": 0.5821727019498607,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "d3897001-7fdc-4999-90a3-b396095025ca",
+    "f1": 0.9421492166471116,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "dfef929c-d8df-46ec-bbb7-48fedc1f2b87",
+    "f1": 0.9991575400168492,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "24175ac0-b7af-401f-ba13-abc120daadbd",
+    "f1": 0.9721317983326717,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "2b40df91-b0a3-4f75-8d4a-0d5e78ab5b73",
+    "f1": 0.9782708047696207,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "775d73a8-927b-4761-a7ae-8ad5ea78c0f0",
+    "f1": 0.7925090252707582,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "b9e2a63e-289d-400c-86d3-0d2ae9040f5d",
+    "f1": 0.9335347432024169,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "24144dd4-261e-4d8b-ade5-621ef6b3f79b",
+    "f1": 0.9974733995231486,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "3e238c9e-1b4c-4dd1-af93-307c90f7a6de",
+    "f1": 0.9935753935753936,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "b3d4f0c3-e880-4437-9e59-41cd016be049",
+    "f1": 0.9660916121356335,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "81d53f83-1bb4-40e9-a407-0944e3a5f6be",
+    "f1": 0.8405797101449275,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "4be44a25-746c-49b9-a2ed-e8433a7406c3",
+    "f1": 0.9954887218045113,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "647dc2d4-3c5d-4953-bf25-ce215a1f81f4",
+    "f1": 0.8940914158305463,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "5020360b-34a1-434e-8dea-2fa17158760a",
+    "f1": 0.9523809523809523,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "5814e2e6-fb7d-432d-9e24-cd48e626a6a7",
+    "f1": 0.9964692036092585,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "d6c36bc8-f224-433f-b816-a7a244fb651f",
+    "f1": 0.9104859335038363,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "54aa3595-515d-45f5-9ad1-e5cca599dc93",
+    "f1": 0.16482300884955753,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "0dd2b349-8c1a-40c1-a064-873df992734e",
+    "f1": 0.9175257731958762,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "70b51eb7-c62e-4c37-a44d-7848551dd421",
+    "f1": 0.9746468854791179,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "46dc227e-8f56-4e9b-8710-8c4e0630c8ce",
+    "f1": 0.8458856345885635,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "c96c623a-12ed-439e-9042-6e51c7d61c1f",
+    "f1": 0.861271676300578,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "7394d591-8c1e-4874-a92d-5b8309ef4794",
+    "f1": 0.9946466809421841,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "81cd4c85-6732-4b45-9fa9-df4fd09373fe",
+    "f1": 0.9993485342019544,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "29a07e58-1429-4f13-8110-340c62d44a5b",
+    "f1": 0.47416413373860183,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "3e2a530e-1326-4283-a778-2efbfacb2e3a",
+    "f1": 0.7227191413237924,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "f6059ea7-8d18-47a8-9de0-76ee35e67b42",
+    "f1": 0.9086161879895561,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "afa55c2a-5beb-49f3-863c-7de2a366da6d",
+    "f1": 0.9845559845559846,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "fd04d76f-41ff-4275-805e-945708586dab",
+    "f1": 0.7449856733524355,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "ac7701fa-9c10-4763-a84e-a5738dc5d938",
+    "f1": 0.9840458171405195,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "f47fdf50-c03f-48ec-a8a4-fcf48dbd3259",
+    "f1": 0.9821170520231214,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "0b9d333f-e6a3-4987-bed4-4e4abe8cb33a",
+    "f1": 0.9846153846153847,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "37dae375-4ec6-488b-99da-9a15b622f26a",
+    "f1": 0.8402010050251256,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "90e52c1a-9781-4bab-bcfe-62de71874973",
+    "f1": 0.9414694894146949,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "13238d86-cd3f-4aeb-b4ac-ca4f8f27e0f0",
+    "f1": 0.9234972677595629,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "aafc1ebd-d482-4583-84d1-a9d211c2c3cd",
+    "f1": 0.929064039408867,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "3e7ca5eb-da16-491c-885a-aba02de2a2c1",
+    "f1": 0.47593582887700536,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "6d938022-ccb3-4608-8b88-9a8a9b2b615b",
+    "f1": 0.9727463312368972,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "14f8fe79-f899-4074-9878-1bf9f301ad95",
+    "f1": 0.958904109589041,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "6fb02d24-c936-447e-8c4a-6cbcc06db2b8",
+    "f1": 0.828125,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "c4be3ae2-3540-4f07-8044-21ccd58a0eca",
+    "f1": 0.990729194903768,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "d67bc3b6-e968-4532-84d9-a5465e58dfff",
+    "f1": 0.9970501474926253,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "290cdc32-65d1-42a0-8dd3-69161cda7d04",
+    "f1": 0.39100346020761245,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "e217a96a-0e94-4c93-bcce-bc16646db4ae",
+    "f1": 0.6512820512820513,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "298f0753-39d7-475e-9e21-e663464be18c",
+    "f1": 0.9799253505497831,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "610b69f6-3703-49ec-9cd4-068621130cb9",
+    "f1": 0.9865137188032863,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "2acae4b1-ed6d-4bbb-a176-51ecd7db466c",
+    "f1": 0.9896324222431668,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "69ef0461-85eb-4d08-850d-0b212dec0461",
+    "f1": 0.9098098286575033,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "862a50a8-1c91-45ed-bbcc-c90ee684aa1a",
+    "f1": 0.984171322160149,
+    "error": false,
+    "previous_overlap": null,
+    "language": "de"
+  },
+  {
+    "id": "522c8342-3263-483f-b98f-ea71147268e6",
+    "f1": 0.9541910331384016,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "811694dc-56a5-465a-b52a-12ebc60fd7d2",
+    "f1": 0.6087990487514863,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "c46672f1-55e3-4dad-a248-3581746bdf2b",
+    "f1": 0.9990485252140818,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "88a75536-1711-41fa-bfca-79e6a596b57b",
+    "f1": 0.9988336573174118,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "dcbeec6a-be09-4bf0-b4c8-813536338d20",
+    "f1": 0.8644161593801881,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "e9e51e28-6091-401b-b23c-f12888ea9687",
+    "f1": 0.6361974405850092,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "686205e4-4549-42ce-bf42-f285f941c868",
+    "f1": 0.6748802190280629,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "8a65f973-4cc7-498f-8f22-a38d0275af23",
+    "f1": 0.9038031319910514,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "eb7f3677-6e94-4cc8-9457-157aa1806827",
+    "f1": 0.9429065743944637,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "dfda057f-d2ec-41d0-b6c1-7cf5f1ffc25a",
+    "f1": 0.9955947136563876,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "0aa9f0da-dc0a-436b-bb63-692843f02ef4",
+    "f1": 0.9012875536480687,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "e048d7f1-bbdf-489e-90eb-b44898e48765",
+    "f1": 0.5881168177240684,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "f080fbec-9ec6-43c6-9bc6-0846c70cbe8d",
+    "f1": 0.8546052631578948,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "341840b1-9ac6-457b-9f8c-a1b883816c71",
+    "f1": 0.9616387337057728,
+    "error": false,
+    "previous_overlap": null,
+    "language": "zh"
+  },
+  {
+    "id": "5cfd5dbd-fe70-4414-acbb-ae124871180d",
+    "f1": 0.9965936739659368,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "ea6b42e0-e01d-4241-91ac-900a18e96ee0",
+    "f1": 0.883753086419753,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "ff4f8677-d7ce-4133-add6-663f3e78bd47",
+    "f1": 0.9399922570654278,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  },
+  {
+    "id": "c0f04c80-8c0d-45b9-b6ef-b281978b1b21",
+    "f1": 0.6391372961599159,
+    "error": false,
+    "previous_overlap": null,
+    "language": "en"
+  }
+]

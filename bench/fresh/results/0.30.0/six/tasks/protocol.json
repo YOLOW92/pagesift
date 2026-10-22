@@ -1,0 +1,724 @@
+{
+  "seed": "0f6a0f301149b3d4428a",
+  "scope": "fresh controlled cases, NOT independently authored blind site validation or full feature dominance",
+  "frozen_before_first_output": true,
+  "navigation_gold": [
+    "/fresh-0f6a0f301149b3d4428a/",
+    "/fresh-0f6a0f301149b3d4428a/anchor",
+    "/fresh-0f6a0f301149b3d4428a/concat",
+    "/fresh-0f6a0f301149b3d4428a/dynamic",
+    "/fresh-0f6a0f301149b3d4428a/escaped",
+    "/fresh-0f6a0f301149b3d4428a/exported",
+    "/fresh-0f6a0f301149b3d4428a/frame",
+    "/fresh-0f6a0f301149b3d4428a/header",
+    "/fresh-0f6a0f301149b3d4428a/htmx",
+    "/fresh-0f6a0f301149b3d4428a/imported",
+    "/fresh-0f6a0f301149b3d4428a/inline",
+    "/fresh-0f6a0f301149b3d4428a/literal",
+    "/fresh-0f6a0f301149b3d4428a/template"
+  ],
+  "non_navigation_candidates": [
+    "/fresh-0f6a0f301149b3d4428a/comment",
+    "/fresh-0f6a0f301149b3d4428a/data",
+    "/fresh-0f6a0f301149b3d4428a/post",
+    "/fresh-0f6a0f301149b3d4428a/unused"
+  ],
+  "navigation_reference_modes": [
+    "Katana -jc -jsl",
+    "Crawlee native CheerioCrawler + enqueueLinks"
+  ],
+  "relocation": [
+    {
+      "id": "0-unchanged",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f0</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f0</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f0Price 42",
+      "kind": "unchanged"
+    },
+    {
+      "id": "0-id-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f0</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f0</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f0Price 42",
+      "kind": "id-removed"
+    },
+    {
+      "id": "0-wrapper",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f0</h2><p>Price 42</p></article></main>",
+      "new": "<section><main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f0</h2><p>Price 42</p></article></main></section>",
+      "wanted": "Copper kettle model 0f6a0f0Price 42",
+      "kind": "wrapper"
+    },
+    {
+      "id": "0-class-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f0</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='card'><h2>Copper kettle model 0f6a0f0</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f0Price 42",
+      "kind": "class-changed"
+    },
+    {
+      "id": "0-price-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f0</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f0</h2><p>Price 43</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f0Price 43",
+      "kind": "price-changed"
+    },
+    {
+      "id": "0-tag-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f0</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><section  class='product'><h2>Copper kettle model 0f6a0f0</h2><p>Price 42</p></section></main>",
+      "wanted": "Copper kettle model 0f6a0f0Price 42",
+      "kind": "tag-changed"
+    },
+    {
+      "id": "0-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f0</h2><p>Price 42</p></article></main>",
+      "new": "<main><p>No products remain.</p></main>",
+      "wanted": null,
+      "kind": "removed"
+    },
+    {
+      "id": "0-duplicate",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f0</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f0</h2><p>Price 42</p></article></main><main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f0</h2><p>Price 42</p></article></main>",
+      "wanted": null,
+      "kind": "duplicate"
+    },
+    {
+      "id": "1-unchanged",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f1</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f1</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f1Price 42",
+      "kind": "unchanged"
+    },
+    {
+      "id": "1-id-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f1</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f1</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f1Price 42",
+      "kind": "id-removed"
+    },
+    {
+      "id": "1-wrapper",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f1</h2><p>Price 42</p></article></main>",
+      "new": "<section><main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f1</h2><p>Price 42</p></article></main></section>",
+      "wanted": "Copper kettle model 0f6a0f1Price 42",
+      "kind": "wrapper"
+    },
+    {
+      "id": "1-class-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f1</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='card'><h2>Copper kettle model 0f6a0f1</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f1Price 42",
+      "kind": "class-changed"
+    },
+    {
+      "id": "1-price-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f1</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f1</h2><p>Price 43</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f1Price 43",
+      "kind": "price-changed"
+    },
+    {
+      "id": "1-tag-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f1</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><section  class='product'><h2>Copper kettle model 0f6a0f1</h2><p>Price 42</p></section></main>",
+      "wanted": "Copper kettle model 0f6a0f1Price 42",
+      "kind": "tag-changed"
+    },
+    {
+      "id": "1-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f1</h2><p>Price 42</p></article></main>",
+      "new": "<main><p>No products remain.</p></main>",
+      "wanted": null,
+      "kind": "removed"
+    },
+    {
+      "id": "1-duplicate",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f1</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f1</h2><p>Price 42</p></article></main><main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f1</h2><p>Price 42</p></article></main>",
+      "wanted": null,
+      "kind": "duplicate"
+    },
+    {
+      "id": "2-unchanged",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f2</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f2</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f2Price 42",
+      "kind": "unchanged"
+    },
+    {
+      "id": "2-id-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f2</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f2</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f2Price 42",
+      "kind": "id-removed"
+    },
+    {
+      "id": "2-wrapper",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f2</h2><p>Price 42</p></article></main>",
+      "new": "<section><main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f2</h2><p>Price 42</p></article></main></section>",
+      "wanted": "Copper kettle model 0f6a0f2Price 42",
+      "kind": "wrapper"
+    },
+    {
+      "id": "2-class-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f2</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='card'><h2>Copper kettle model 0f6a0f2</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f2Price 42",
+      "kind": "class-changed"
+    },
+    {
+      "id": "2-price-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f2</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f2</h2><p>Price 43</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f2Price 43",
+      "kind": "price-changed"
+    },
+    {
+      "id": "2-tag-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f2</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><section  class='product'><h2>Copper kettle model 0f6a0f2</h2><p>Price 42</p></section></main>",
+      "wanted": "Copper kettle model 0f6a0f2Price 42",
+      "kind": "tag-changed"
+    },
+    {
+      "id": "2-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f2</h2><p>Price 42</p></article></main>",
+      "new": "<main><p>No products remain.</p></main>",
+      "wanted": null,
+      "kind": "removed"
+    },
+    {
+      "id": "2-duplicate",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f2</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f2</h2><p>Price 42</p></article></main><main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f2</h2><p>Price 42</p></article></main>",
+      "wanted": null,
+      "kind": "duplicate"
+    },
+    {
+      "id": "3-unchanged",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f3</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f3</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f3Price 42",
+      "kind": "unchanged"
+    },
+    {
+      "id": "3-id-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f3</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f3</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f3Price 42",
+      "kind": "id-removed"
+    },
+    {
+      "id": "3-wrapper",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f3</h2><p>Price 42</p></article></main>",
+      "new": "<section><main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f3</h2><p>Price 42</p></article></main></section>",
+      "wanted": "Copper kettle model 0f6a0f3Price 42",
+      "kind": "wrapper"
+    },
+    {
+      "id": "3-class-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f3</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='card'><h2>Copper kettle model 0f6a0f3</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f3Price 42",
+      "kind": "class-changed"
+    },
+    {
+      "id": "3-price-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f3</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f3</h2><p>Price 43</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f3Price 43",
+      "kind": "price-changed"
+    },
+    {
+      "id": "3-tag-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f3</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><section  class='product'><h2>Copper kettle model 0f6a0f3</h2><p>Price 42</p></section></main>",
+      "wanted": "Copper kettle model 0f6a0f3Price 42",
+      "kind": "tag-changed"
+    },
+    {
+      "id": "3-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f3</h2><p>Price 42</p></article></main>",
+      "new": "<main><p>No products remain.</p></main>",
+      "wanted": null,
+      "kind": "removed"
+    },
+    {
+      "id": "3-duplicate",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f3</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f3</h2><p>Price 42</p></article></main><main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f3</h2><p>Price 42</p></article></main>",
+      "wanted": null,
+      "kind": "duplicate"
+    },
+    {
+      "id": "4-unchanged",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f4</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f4</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f4Price 42",
+      "kind": "unchanged"
+    },
+    {
+      "id": "4-id-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f4</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f4</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f4Price 42",
+      "kind": "id-removed"
+    },
+    {
+      "id": "4-wrapper",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f4</h2><p>Price 42</p></article></main>",
+      "new": "<section><main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f4</h2><p>Price 42</p></article></main></section>",
+      "wanted": "Copper kettle model 0f6a0f4Price 42",
+      "kind": "wrapper"
+    },
+    {
+      "id": "4-class-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f4</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='card'><h2>Copper kettle model 0f6a0f4</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f4Price 42",
+      "kind": "class-changed"
+    },
+    {
+      "id": "4-price-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f4</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f4</h2><p>Price 43</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f4Price 43",
+      "kind": "price-changed"
+    },
+    {
+      "id": "4-tag-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f4</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><section  class='product'><h2>Copper kettle model 0f6a0f4</h2><p>Price 42</p></section></main>",
+      "wanted": "Copper kettle model 0f6a0f4Price 42",
+      "kind": "tag-changed"
+    },
+    {
+      "id": "4-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f4</h2><p>Price 42</p></article></main>",
+      "new": "<main><p>No products remain.</p></main>",
+      "wanted": null,
+      "kind": "removed"
+    },
+    {
+      "id": "4-duplicate",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f4</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f4</h2><p>Price 42</p></article></main><main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f4</h2><p>Price 42</p></article></main>",
+      "wanted": null,
+      "kind": "duplicate"
+    },
+    {
+      "id": "5-unchanged",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f5</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f5</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f5Price 42",
+      "kind": "unchanged"
+    },
+    {
+      "id": "5-id-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f5</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f5</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f5Price 42",
+      "kind": "id-removed"
+    },
+    {
+      "id": "5-wrapper",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f5</h2><p>Price 42</p></article></main>",
+      "new": "<section><main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f5</h2><p>Price 42</p></article></main></section>",
+      "wanted": "Copper kettle model 0f6a0f5Price 42",
+      "kind": "wrapper"
+    },
+    {
+      "id": "5-class-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f5</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='card'><h2>Copper kettle model 0f6a0f5</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f5Price 42",
+      "kind": "class-changed"
+    },
+    {
+      "id": "5-price-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f5</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f5</h2><p>Price 43</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f5Price 43",
+      "kind": "price-changed"
+    },
+    {
+      "id": "5-tag-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f5</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><section  class='product'><h2>Copper kettle model 0f6a0f5</h2><p>Price 42</p></section></main>",
+      "wanted": "Copper kettle model 0f6a0f5Price 42",
+      "kind": "tag-changed"
+    },
+    {
+      "id": "5-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f5</h2><p>Price 42</p></article></main>",
+      "new": "<main><p>No products remain.</p></main>",
+      "wanted": null,
+      "kind": "removed"
+    },
+    {
+      "id": "5-duplicate",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f5</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f5</h2><p>Price 42</p></article></main><main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f5</h2><p>Price 42</p></article></main>",
+      "wanted": null,
+      "kind": "duplicate"
+    },
+    {
+      "id": "6-unchanged",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f6</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f6</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f6Price 42",
+      "kind": "unchanged"
+    },
+    {
+      "id": "6-id-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f6</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f6</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f6Price 42",
+      "kind": "id-removed"
+    },
+    {
+      "id": "6-wrapper",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f6</h2><p>Price 42</p></article></main>",
+      "new": "<section><main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f6</h2><p>Price 42</p></article></main></section>",
+      "wanted": "Copper kettle model 0f6a0f6Price 42",
+      "kind": "wrapper"
+    },
+    {
+      "id": "6-class-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f6</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='card'><h2>Copper kettle model 0f6a0f6</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f6Price 42",
+      "kind": "class-changed"
+    },
+    {
+      "id": "6-price-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f6</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f6</h2><p>Price 43</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f6Price 43",
+      "kind": "price-changed"
+    },
+    {
+      "id": "6-tag-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f6</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><section  class='product'><h2>Copper kettle model 0f6a0f6</h2><p>Price 42</p></section></main>",
+      "wanted": "Copper kettle model 0f6a0f6Price 42",
+      "kind": "tag-changed"
+    },
+    {
+      "id": "6-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f6</h2><p>Price 42</p></article></main>",
+      "new": "<main><p>No products remain.</p></main>",
+      "wanted": null,
+      "kind": "removed"
+    },
+    {
+      "id": "6-duplicate",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f6</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f6</h2><p>Price 42</p></article></main><main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f6</h2><p>Price 42</p></article></main>",
+      "wanted": null,
+      "kind": "duplicate"
+    },
+    {
+      "id": "7-unchanged",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f7</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f7</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f7Price 42",
+      "kind": "unchanged"
+    },
+    {
+      "id": "7-id-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f7</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f7</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f7Price 42",
+      "kind": "id-removed"
+    },
+    {
+      "id": "7-wrapper",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f7</h2><p>Price 42</p></article></main>",
+      "new": "<section><main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f7</h2><p>Price 42</p></article></main></section>",
+      "wanted": "Copper kettle model 0f6a0f7Price 42",
+      "kind": "wrapper"
+    },
+    {
+      "id": "7-class-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f7</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='card'><h2>Copper kettle model 0f6a0f7</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f7Price 42",
+      "kind": "class-changed"
+    },
+    {
+      "id": "7-price-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f7</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f7</h2><p>Price 43</p></article></main>",
+      "wanted": "Copper kettle model 0f6a0f7Price 43",
+      "kind": "price-changed"
+    },
+    {
+      "id": "7-tag-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f7</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><section  class='product'><h2>Copper kettle model 0f6a0f7</h2><p>Price 42</p></section></main>",
+      "wanted": "Copper kettle model 0f6a0f7Price 42",
+      "kind": "tag-changed"
+    },
+    {
+      "id": "7-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f7</h2><p>Price 42</p></article></main>",
+      "new": "<main><p>No products remain.</p></main>",
+      "wanted": null,
+      "kind": "removed"
+    },
+    {
+      "id": "7-duplicate",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model 0f6a0f7</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f7</h2><p>Price 42</p></article></main><main class='catalog'><article  class='product'><h2>Copper kettle model 0f6a0f7</h2><p>Price 42</p></article></main>",
+      "wanted": null,
+      "kind": "duplicate"
+    }
+  ],
+  "relocation_thresholds": {
+    "pagesift_score": 0.72,
+    "pagesift_margin": 0.12,
+    "scrapling": "native default 40 percent, CSS then adaptive fallback"
+  },
+  "inspect_gold": [
+    {
+      "path": "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/inspect-0.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    },
+    {
+      "path": "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/inspect-1.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    },
+    {
+      "path": "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/inspect-2.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    },
+    {
+      "path": "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/inspect-3.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    },
+    {
+      "path": "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/inspect-4.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    },
+    {
+      "path": "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/inspect-5.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    },
+    {
+      "path": "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/inspect-6.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    },
+    {
+      "path": "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/inspect-7.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    },
+    {
+      "path": "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/inspect-8.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    },
+    {
+      "path": "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/inspect-9.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    },
+    {
+      "path": "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/inspect-10.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    },
+    {
+      "path": "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/inspect-11.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    }
+  ],
+  "media_original_sha256": {
+    "10000": "d7ef9b1529c722393edb3dd28030cba2924ff709a5725a5066ceb244c0656956",
+    "10010": "3378ac591cfa2e5d1d209f7a142f9bcbe2bd973e01cac045b265f82479978572",
+    "10011": "6e7e656217d36615c1e4c11b3283a23dfe553aca12691a5b821b3f6d6a31858e",
+    "10020": "b831d1f8a37defaa6241b7b835c530b0d61e348353e15a0cc7d7ecc1b61fca8a",
+    "10021": "a1534368daa922d9404dbed220151b897d361acc96245951051df346d8e9cf8b",
+    "10022": "0f92710004512d17ff76ab558040086cbf246e7a2b2eb4e0d37e5ef28a2548c8",
+    "10030": "243b05360783f14a09847632479b13d22886382736930451320706bc8970c774",
+    "10031": "a2cd1821cfd663d2bd01fde8babb8071010f6cd3adb252307c66658a11ad3d91",
+    "10032": "8df4fc868ba7701d2aa86933330841649801e886c730920bc9c7c00ee406ebee",
+    "10033": "d5fefd44f567e6323ab5011e2fa206ba45ae2ca31b6edfeb6f97a905da3c5a89",
+    "10040": "017766cec57be8fe536abf0a208aa6fb92be3f03811c7143dd4014674e6c6f60",
+    "10050": "c2a38e97a6f74a4010c585fcf2d50f509a65068e059e4d5d3bf0a85ec3396d6f",
+    "10051": "fc8f013801714659f616fd311e0f86fd312f32fb7fb29f33e9d0a4c7a71774d2",
+    "10060": "9102890531cb99624e064edd27eb4b8053fd980d9208d9a28bf3cca70949de9d",
+    "10061": "5d8b617ff0e0a15f78c00122c410ba9754b5848abece9a2e6543ed950b659c06",
+    "10062": "c826be87249540898f1fbddf6082990d92e6320031cee21a92e22675529878f7",
+    "10070": "b295de595f1594cf0e892ba1ea6fdcf96b6189e3e3d60c7682ad6f70737cc3e1",
+    "10071": "e77f0a4cd9ec8c0e65e1dc54d6a4deda18371c09a912241d899f4e622bcec677",
+    "10072": "b56419d863ef2ec03b901c333c58bf189bec1df5216a9e8906414d634453ed6a",
+    "10073": "f99294d477c6750a1fe2cbf3d0419e7a3fae7b05956c1dcc2ae99a5d34fbb8bf"
+  },
+  "fixture_sha256": {
+    "/fresh-0f6a0f301149b3d4428a/": "c2774ada9710006b5d149adfe6d4076637597edfce49219519f7a0d9cb2e5f47",
+    "/fresh-0f6a0f301149b3d4428a/assets/app.js": "bf8078deb6a3783dca827cd5a5c2fc5d0d1a395ffe2a4caf9cbc679799fe09bc",
+    "/fresh-0f6a0f301149b3d4428a/assets/child.js": "70a821ee121b87cd8d4718b12717d739fddf0732558771a7527170ce29e7edf5",
+    "/fresh-0f6a0f301149b3d4428a/assets/other.js": "35a60ef66bd933cff6a394cc7734758192642d8f3d43c7547804e9af601f2dcc",
+    "/fresh-0f6a0f301149b3d4428a/assets/dynamic.js": "8f138d9915bcdc7ccc19952ecd40636ebc41cfbc2ae5e3a5f02b53af975aaa2f",
+    "/fresh-0f6a0f301149b3d4428a/escaped": "f7fcab3d0577056b75064655800831faf363d2d9ebe9626045af5bc13c6e93f9",
+    "/fresh-0f6a0f301149b3d4428a/dynamic": "9fc66beb7d50ef9e70806a5dfabcf1fd4f80c23f7a1d2b95b4b5e3dba53c3748",
+    "/fresh-0f6a0f301149b3d4428a/imported": "21d8caf1f53e5d86c5989fb4a122083e7ce8765eeb6d8463c3e0a4e75848a1fd",
+    "/fresh-0f6a0f301149b3d4428a/inline": "1a466d44a87328d087fcd9981c147ba82351e6103f00fecc400c7f3a8d411e4e",
+    "/fresh-0f6a0f301149b3d4428a/literal": "eeffa33d9272f561013b66538f7d9d89b684265772e0a89b712ed54aa91682e4",
+    "/fresh-0f6a0f301149b3d4428a/template": "cc104515f7f7837b273f4cae79fc53d0e496cd2dc139c7d763cc95bbc9df0370",
+    "/fresh-0f6a0f301149b3d4428a/htmx": "a5c5bb41991f886f4dc81e9e98d1dc9fe41930aa9cfdb6229bd1f7d1c9e92df4",
+    "/fresh-0f6a0f301149b3d4428a/frame": "bc3db645e011e45153a371d306143173bf6d086dd11737675fece5217e38627a",
+    "/fresh-0f6a0f301149b3d4428a/anchor": "05b83d2699828589c5504ae11cf164b9a4b160fc8223250b1ff5257b2cfbb716",
+    "/fresh-0f6a0f301149b3d4428a/exported": "3fa6ccf16f3f36d01df840560e8d5249fae2ae23deb149a36a64015b30ea1d12",
+    "/fresh-0f6a0f301149b3d4428a/header": "0850b9b4c4cecaf2fd04a460327d1b376d8bf9caeee310c3a82df78a8397e42a",
+    "/fresh-0f6a0f301149b3d4428a/concat": "03299985e6021eb4750d1c96f3a38c0c064c08e68eab08c08e51eb81b8af6d12",
+    "/inspect/0": "7a23c2d2a2f7ee604675931bb8e81605eff52195d71102d76b6eca35552f5ab0",
+    "/inspect/1": "2e703d12d0e0cf5d40043e1503f5ac0af308e412aae5425390047b6df23f6929",
+    "/inspect/2": "e8b9578f64477f1d22463dd225a3c11614b745d6f3f619e1728e1afa836f0e08",
+    "/inspect/3": "de5ac5641534e438254756b9dc4d20c3a2d777cc08bcdb021ab631941c940bf6",
+    "/inspect/4": "1272e8a04e313c522554d32740a7cbf5f767c8a551a4aeba5742a88e76128cc0",
+    "/inspect/5": "bed65e39945738c13474b0e6e9843f3fa3c50326268bc3b27aa3ccbd154ad426",
+    "/inspect/6": "9cf08db80330f64d153cc11deb883b1382794848cdb1a06cb520ddac3568697e",
+    "/inspect/7": "c7fefe25ff09d7b960313ee755e452b062a5a94ffcfbbebb2d30cea27186bf9d",
+    "/inspect/8": "ef7fbc1a5e637805358e6e6c9b44bef7ff7d063316d594c8264c193805652cb9",
+    "/inspect/9": "2e467fb66102fe968f1a39c7ed77fac9c19f178d5638fbdac1a7e37a2463abda",
+    "/inspect/10": "a75684e430c1be74a1a5f74bb7ae5cf9477856b2d3569de37df4f159c0f0090a",
+    "/inspect/11": "e586a39dfce8f176c110cc0fd2ee474b975f47f83f9d68cf6bf60851abc39d75",
+    "/inspect/": "3413d479815fe1625961ecc8fbbc659a6e81eaa8368bc62360ab2e20cddeb7f9",
+    "/streams/dash/chunk-stream1-00002.m4s": "dabe773b1d99341af29885f552305904a403076489d6d025d599370c6d2866df",
+    "/streams/dash/chunk-stream1-00003.m4s": "75ccc5da505a8c45a03f1311a81d38eb162d2b7f94bcef8f744c6a0691c74c84",
+    "/streams/dash/chunk-stream0-00002.m4s": "4495097401851128c221c5e644aa13e9d0f9fb0c6e97520068cda79c22e62f32",
+    "/streams/dash/index.mpd": "86c00920a28a10ffae2a02819d893481bf1be69acaf4c1f9dd2bc57eba03f758",
+    "/streams/dash/chunk-stream1-00001.m4s": "e9caf3278b0475589cd1f8a92978844e78913f6654be165ec3ea8c3492035137",
+    "/streams/dash/chunk-stream0-00001.m4s": "d84c9d83d17f30762e311fbdd28b563fbceb44b55c867e952ced2d6f08cfa86e",
+    "/streams/dash/init-stream0.m4s": "0db62e60bd14ffc13701f546a1c1e4f68341eba1c65324883924a1f9b16ac4dc",
+    "/streams/dash/init-stream1.m4s": "a0c785d4d5f95f2f1ff2f8a97a251c9448c48955d169af59ce0e3b7ef87f770a",
+    "/streams/hls/index1.ts": "484f9fbacafdc7203e31cfb7f8121ac0bc55832c46bcb7014b57f2e5af9c0ef4",
+    "/streams/hls/index0.ts": "6d003891dfc182083fa5d9cd3399d0ec0e635733537ffab770231e9f5d19b22f",
+    "/streams/hls/index.m3u8": "659a77d5671bc7bdb3eb22c36c35b3e1a8546820050d6ac0821126abfa633436",
+    "/files/10000.png": "d7ef9b1529c722393edb3dd28030cba2924ff709a5725a5066ceb244c0656956",
+    "/files/10010.png": "3378ac591cfa2e5d1d209f7a142f9bcbe2bd973e01cac045b265f82479978572",
+    "/files/10011.png": "6e7e656217d36615c1e4c11b3283a23dfe553aca12691a5b821b3f6d6a31858e",
+    "/files/10020.png": "b831d1f8a37defaa6241b7b835c530b0d61e348353e15a0cc7d7ecc1b61fca8a",
+    "/files/10021.png": "a1534368daa922d9404dbed220151b897d361acc96245951051df346d8e9cf8b",
+    "/files/10022.png": "0f92710004512d17ff76ab558040086cbf246e7a2b2eb4e0d37e5ef28a2548c8",
+    "/files/10030.png": "243b05360783f14a09847632479b13d22886382736930451320706bc8970c774",
+    "/files/10031.png": "a2cd1821cfd663d2bd01fde8babb8071010f6cd3adb252307c66658a11ad3d91",
+    "/files/10032.png": "8df4fc868ba7701d2aa86933330841649801e886c730920bc9c7c00ee406ebee",
+    "/files/10033.png": "d5fefd44f567e6323ab5011e2fa206ba45ae2ca31b6edfeb6f97a905da3c5a89",
+    "/files/10040.png": "017766cec57be8fe536abf0a208aa6fb92be3f03811c7143dd4014674e6c6f60",
+    "/files/10050.png": "c2a38e97a6f74a4010c585fcf2d50f509a65068e059e4d5d3bf0a85ec3396d6f",
+    "/files/10051.png": "fc8f013801714659f616fd311e0f86fd312f32fb7fb29f33e9d0a4c7a71774d2",
+    "/files/10060.png": "9102890531cb99624e064edd27eb4b8053fd980d9208d9a28bf3cca70949de9d",
+    "/files/10061.png": "5d8b617ff0e0a15f78c00122c410ba9754b5848abece9a2e6543ed950b659c06",
+    "/files/10062.png": "c826be87249540898f1fbddf6082990d92e6320031cee21a92e22675529878f7",
+    "/files/10070.png": "b295de595f1594cf0e892ba1ea6fdcf96b6189e3e3d60c7682ad6f70737cc3e1",
+    "/files/10071.png": "e77f0a4cd9ec8c0e65e1dc54d6a4deda18371c09a912241d899f4e622bcec677",
+    "/files/10072.png": "b56419d863ef2ec03b901c333c58bf189bec1df5216a9e8906414d634453ed6a",
+    "/files/10073.png": "f99294d477c6750a1fe2cbf3d0419e7a3fae7b05956c1dcc2ae99a5d34fbb8bf"
+  },
+  "stream_source_sha256": {
+    "dash/chunk-stream1-00002.m4s": "dabe773b1d99341af29885f552305904a403076489d6d025d599370c6d2866df",
+    "dash/chunk-stream1-00003.m4s": "75ccc5da505a8c45a03f1311a81d38eb162d2b7f94bcef8f744c6a0691c74c84",
+    "dash/chunk-stream0-00002.m4s": "4495097401851128c221c5e644aa13e9d0f9fb0c6e97520068cda79c22e62f32",
+    "dash/index.mpd": "86c00920a28a10ffae2a02819d893481bf1be69acaf4c1f9dd2bc57eba03f758",
+    "dash/chunk-stream1-00001.m4s": "e9caf3278b0475589cd1f8a92978844e78913f6654be165ec3ea8c3492035137",
+    "dash/chunk-stream0-00001.m4s": "d84c9d83d17f30762e311fbdd28b563fbceb44b55c867e952ced2d6f08cfa86e",
+    "dash/init-stream0.m4s": "0db62e60bd14ffc13701f546a1c1e4f68341eba1c65324883924a1f9b16ac4dc",
+    "dash/init-stream1.m4s": "a0c785d4d5f95f2f1ff2f8a97a251c9448c48955d169af59ce0e3b7ef87f770a",
+    "hls/index1.ts": "484f9fbacafdc7203e31cfb7f8121ac0bc55832c46bcb7014b57f2e5af9c0ef4",
+    "hls/index0.ts": "6d003891dfc182083fa5d9cd3399d0ec0e635733537ffab770231e9f5d19b22f",
+    "hls/index.m3u8": "659a77d5671bc7bdb3eb22c36c35b3e1a8546820050d6ac0821126abfa633436"
+  },
+  "binary_sha256": "44223f4fab1958c705261331cd42e6880441ff57dd718e409556940027c86e40",
+  "driver_sha256": "f5c45fc986360908c404164d01c4d1c37bf19dec1fa766d3345f61431bf97cca",
+  "references": {
+    "firecrawl": {
+      "repo": "firecrawl/firecrawl",
+      "tag": "v2.11.0",
+      "sha": "ef12eb36b2f3382838dfe0a0c1a5add3d5df7fe5",
+      "release_url": "https://github.com/firecrawl/firecrawl/releases/tag/v2.11.0",
+      "archive_url": "https://codeload.github.com/firecrawl/firecrawl/tar.gz/ef12eb36b2f3382838dfe0a0c1a5add3d5df7fe5"
+    },
+    "crawlee": {
+      "repo": "apify/crawlee",
+      "tag": "v3.18.2",
+      "sha": "78da0622762e1b569b5cb0b56e8eb06a0a010d93",
+      "release_url": "https://github.com/apify/crawlee/releases/tag/v3.18.2",
+      "archive_url": "https://codeload.github.com/apify/crawlee/tar.gz/78da0622762e1b569b5cb0b56e8eb06a0a010d93"
+    },
+    "scrapling": {
+      "repo": "d4vinci/Scrapling",
+      "tag": "v0.5",
+      "sha": "3a8bf4e4d3ed91257ba0aa5b7dc66241d1e23840",
+      "release_url": "https://github.com/D4Vinci/Scrapling/releases/tag/v0.5",
+      "archive_url": "https://codeload.github.com/d4vinci/Scrapling/tar.gz/3a8bf4e4d3ed91257ba0aa5b7dc66241d1e23840"
+    },
+    "katana": {
+      "repo": "projectdiscovery/katana",
+      "tag": "v1.8.0",
+      "sha": "35267ac5c8ff1db9694a319d0eb466ed97b0969f",
+      "release_url": "https://github.com/projectdiscovery/katana/releases/tag/v1.8.0",
+      "archive_url": "https://codeload.github.com/projectdiscovery/katana/tar.gz/35267ac5c8ff1db9694a319d0eb466ed97b0969f"
+    },
+    "essence": {
+      "repo": "ruchit-p/essence",
+      "tag": "v0.3.0",
+      "sha": "a4f845c6b98d3337106e74fe7b91f94d61ab599d",
+      "release_url": "https://github.com/ruchit-p/essence/releases/tag/v0.3.0",
+      "archive_url": "https://codeload.github.com/ruchit-p/essence/tar.gz/a4f845c6b98d3337106e74fe7b91f94d61ab599d"
+    },
+    "gallery-dl": {
+      "repo": "https://codeberg.org/mikf/gallery-dl",
+      "tag": "v1.32.17",
+      "sha": "61971e01d394d35c81a86d4d0d03717c78ae53d5",
+      "release_url": "https://codeberg.org/mikf/gallery-dl/releases/tag/v1.32.17",
+      "archive_url": "https://codeberg.org/mikf/gallery-dl/archive/61971e01d394d35c81a86d4d0d03717c78ae53d5.tar.gz"
+    },
+    "essence-main": {
+      "repo": "ruchit-p/essence",
+      "tag": "main-snapshot-2026-10-22",
+      "sha": "74a99fb64b9c6c65846c6e4ecc6f177b1b0bc66b",
+      "release_url": "https://github.com/ruchit-p/essence/commit/74a99fb64b9c6c65846c6e4ecc6f177b1b0bc66b",
+      "archive_url": "https://codeload.github.com/ruchit-p/essence/tar.gz/74a99fb64b9c6c65846c6e4ecc6f177b1b0bc66b",
+      "purpose": "Current default-branch component cross-check alongside latest stable release"
+    }
+  },
+  "browser_interact_and_agent": "excluded by direct user instruction"
+}

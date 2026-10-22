@@ -1,0 +1,15 @@
+pages with truth phrases: 839, with HTML snapshot: 597, PDF (not evaluated): 13
+engine auto: 48 pages used a browser-rendered snapshot
+
+crw metric (truth phrase hit >= 30%)
+  found / all labeled pages:    384 / 839 = 45.77%
+  found / pages with snapshot:  384 / 597 = 64.32%
+
+strict metric (pages with snapshot)
+  mean truth recall:   0.560
+  mean noise leak:     0.047  (576 pages with noise phrases)
+  content score (F1 of recall and 1 - leak): 0.706
+
+speed (process only, best of 3 runs, mean page 285 KB)
+  p50 0.90 ms   p95 3.86 ms   max 108.61 ms   total 989 ms
+  throughput: 16 threads, 3508 pages/s (597 pages in 170 ms wall)

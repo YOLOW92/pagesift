@@ -18,13 +18,13 @@ Convierte cualquier sitio web en Markdown limpio y datos estructurados: un solo 
 
 ---
 
-## 0.20.0
+## 0.30.0
 
-0.20.0 añade recopilación incremental, sesiones HTTP explícitas, archivos verificables y siete núcleos Rust con límites documentados. Las nuevas operaciones se ofrecen principalmente por Rust/CLI. Hay 17 categorías parciales; no se afirma superioridad funcional completa.
+0.30.0 refactoriza la arquitectura en submódulos modulares (<600 líneas por archivo, 100% compatible con la API pública), introduce navegación controlada mediante plegado de funciones auxiliares (13/13, 100%), extracción ultrarrápida de metadatos y fechas de publicación (F1 0.950, 0.37 ms/página), aceleración de particionado RAG y filtro BM25 (1.35–2.11 ms, 788× más rápido) y supera el rastreo de 50,000 páginas bajo un límite estricto de 12 GiB de memoria (pico de 378.8 MB, mientras los competidores caen por OOM).
 
-[Release / migration](releases/0.20.0.md) · [Documentation](README.md) · [Architecture](architecture.md) · [Evidence](../bench/six/evidence/README.md)
+[Release / migration](releases/0.30.0.md) · [Documentation](README.md) · [Architecture](architecture.md) · [Informe 0.30.0](../../bench/fresh/results-0.30.0.md)
 
-![pagesift 0.20.0](assets/overview.svg)
+![pagesift 0.30.0](assets/overview.svg)
 
 pagesift es un motor de scraping y crawling autoalojado para pipelines de IA, RAG y agentes. Descarga páginas, renderiza JavaScript solo cuando hace falta, extrae el contenido principal y devuelve Markdown, HTML, enlaces y metadatos a través de una API HTTP compatible con [Firecrawl v2](https://docs.firecrawl.dev), un servidor MCP, una CLI y paquetes nativos para Python y Node.
 
@@ -34,9 +34,9 @@ Está pensado para funcionar como servicio: memoria acotada, backpressure, persi
 
 | | |
 |---|---|
-| ⚡ **Rápido** | Extracción del contenido principal en **0.85 ms** por página (p50, un solo hilo): 10× más rápido que crw y 59× más rápido que Crawl4AI. Crawling HTTP sin límite de frecuencia a **3,800+ páginas/s** en una sola máquina. |
-| 🪶 **Ligero** | Rastrea 200 sitios × 100 páginas con **~220 MB**, donde Spider necesita 4.1 GB. Al sustituir Crawl4AI en un servicio en producción, el pico de memoria bajó de 1.4 GB a **225 MB**. |
-| 🎯 **Preciso** | La mejor puntuación de contenido principal en el conjunto de datos etiquetado de Firecrawl: **0.716** frente a 0.711 (crw) y 0.670 (Crawl4AI), con la mitad de contenido repetitivo filtrado. Fechas de publicación tan precisas como htmldate, la biblioteca especializada (F1 **0.948** en su propio conjunto anotado), en **0,06 ms** en lugar de 4 ms. |
+| ⚡ **Rápido** | Extracción de contenido principal en 8,854 sitios aleatorios en **1.51 ms** por página (p50, un solo hilo): 13× más rápido que crw, 40× más rápido que Crawl4AI, 733× más rápido que Defuddle. Rastreo HTTP a **2,556 páginas/s** en 50,000 páginas. |
+| 🪶 **Ligero** | Bajo un estricto límite de 12 GiB de memoria, rastrea 50,000 páginas con un pico de solo **378.8 MB**, mientras Spider y Colly son eliminados por OOM del kernel. 20,000 páginas en **234 MB** (Spider consume 4.3 GB, 18× más). |
+| 🎯 **Preciso** | Rango #1 en AEB 181 artículos con F1 **0.956**. Firecrawl 597 F1 **0.706** con fuga de ruido de solo **0.047** (menos de la mitad de los competidores). Fecha de publicación F1 **0.950** en **0.37 ms** (superando a htmldate extensive). 99.3% de decodificación correcta en 148 páginas no UTF-8. |
 | 🧠 **Renderizado inteligente** | Solo renderiza las páginas que lo necesitan, con el motor más ligero que funcione: Lightpanda → moli → Chrome. Aprende, sitio por sitio, cuándo un navegador no aporta nada. |
 | 🔌 **Reemplazo directo** | API de Firecrawl v2 (`/v2/scrape`, `/crawl`, `/map`, `/search`, `/extract`, `/batch/scrape`), así que los SDK de Firecrawl existentes funcionan sin cambios. Servidor MCP para agentes. |
 | 🛡️ **Seguro por defecto** | Protección contra SSRF en cada petición, redirección, subpetición del navegador y webhook; comprobaciones contra DNS rebinding; nunca desactiva el sandbox del navegador. |
@@ -49,7 +49,7 @@ Cifras detalladas y reproducibles: **[docs/benchmarks.md](benchmarks.md)**.
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:0.20.0
+  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:0.30.0
 
 curl -s http://localhost:3002/v2/scrape \
   -H 'Authorization: Bearer change-me' -H 'Content-Type: application/json' \

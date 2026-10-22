@@ -1,0 +1,19 @@
+{
+  "command": [
+    "/home/yolow92/pagesift/bench/six/results/seven-next/bin-verified/pagesift",
+    "--config",
+    "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/pagesift.toml",
+    "media-archive",
+    "http://127.0.0.1:34207/api/v1/statuses/1007",
+    "--adapter",
+    "mastodon",
+    "--out",
+    "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/media-pagesift",
+    "--template",
+    "{id}.{ext}"
+  ],
+  "exit": 0,
+  "stdout": "[{\"path\":\"/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/media-pagesift/files/10070.png\",\"metadata_path\":\"/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/media-pagesift/files/10070.png.metadata.json\",\"reused\":false},{\"path\":\"/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/media-pagesift/files/10071.png\",\"metadata_path\":\"/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/media-pagesift/files/10071.png.metadata.json\",\"reused\":false},{\"path\":\"/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/media-pagesift/files/10072.png\",\"metadata_path\":\"/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/media-pagesift/files/10072.png.metadata.json\",\"reused\":false},{\"path\":\"/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/media-pagesift/files/10073.png\",\"metadata_path\":\"/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/media-pagesift/files/10073.png.metadata.json\",\"reused\":false}]\n",
+  "stderr": "",
+  "wall_s": 0.05997278699942399
+}

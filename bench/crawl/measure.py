@@ -93,11 +93,17 @@ def served():
 def main():
     label = sys.argv[1]
     cmd = sys.argv[sys.argv.index("--") + 1:]
-    limit_mb = int(os.environ.get("MEASURE_MAX_MB") or max(mem_available_mb() - 2048, 1024))
+    limit_mb = min(12288, int(os.environ.get("MEASURE_MAX_MB") or min(12288, max(mem_available_mb() - 2048, 1024))))
     budget = float(os.environ.get("MEASURE_BUDGET_S") or 0)
     served0 = served()
     t = time.monotonic()
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True)
+    scoped_cmd = [
+        "systemd-run", "--user", "--scope", "-q",
+        "-p", f"MemoryMax={limit_mb}M",
+        "-p", "MemorySwapMax=0",
+        "--", *cmd,
+    ]
+    proc = subprocess.Popen(scoped_cmd, stdout=subprocess.PIPE, text=True)
     peak = peak_pss = 0
     killed = None
     while proc.poll() is None:
@@ -107,7 +113,7 @@ def main():
         peak_pss = max(peak_pss, pss)
         # 看门狗按 PSS：真实占用，不重复计算共享内存
         if pss // 1024 > limit_mb:
-            killed = f"memory > {limit_mb} MB"
+            killed = f"> 12 GB (killed by 12 GB memory limit: {pss // 1024} MB > {limit_mb} MB)"
         elif budget and time.monotonic() - t > budget:
             killed = f"budget {budget:.0f} s"
         if killed:
@@ -116,6 +122,8 @@ def main():
             break
         time.sleep(0.05)
     out = proc.stdout.read()
+    if killed is None and proc.returncode in (-9, 137, -15, 143):
+        killed = "> 12 GB (killed by 12 GB memory limit / cgroup OOM)"
     wall = time.monotonic() - t
     served1 = served()
     pages = served1 - served0 if served0 is not None and served1 is not None else None

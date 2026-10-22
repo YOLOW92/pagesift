@@ -1,0 +1,1 @@
+html2text: 4.69 ms/page

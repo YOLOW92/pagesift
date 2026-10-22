@@ -2,6 +2,21 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.30.0] — 2026-10-23
+
+Modular architecture refactoring, script navigation folding, metadata and publication date acceleration, RAG chunking and QueryFilter speedups, and comprehensive benchmark suite expansion under a strict 12 GiB memory ceiling. See [the release and migration guide](docs/releases/0.30.0.md).
+
+### Added
+- Bounded pure string-helper folding in `pagesift-content::script_links` for arrow and function declarations (`const fn = (a, b) => a + b`), raising controlled navigation discovery from 12/13 to 13/13 (100%) with zero false navigation visits.
+- Dedicated `extract_metadata` fast path in `pagesift-content`, speeding up metadata-only queries to 0.32–0.37 ms/page (14× faster than `htmldate extensive`).
+- Disambiguation rules for publication date parsing: prioritizing full three-component dates over two-component year-month anchors, slash timestamps, page title fallbacks, and percent-encoded digit filtering, achieving 0.950 F1 on the 1,000-page `htmldate` corpus.
+- Binary-search token indexing over precomputed token starts for RAG chunking and relevance filtering, cutting BM25 QueryFilter processing time from 11.45 ms to 1.35–2.11 ms/question (788× faster than Crawl4AI BM25Filter).
+- Comprehensive benchmark corpus expansion across 8,854 live random sites, 148 non-UTF-8 encodings, 120 wild-web sites, and 20,000 (`wide`) / 50,000 (`huge`) page HTTP crawls under a strict 12 GiB memory limit.
+
+### Changed
+- Refactored all 9 oversized source files (>1,000 lines) into clean, modular submodules (<600 lines each) across workspace crates with 100% backward compatibility.
+- Workspace crates, npm packages, and Python bindings bumped to `0.30.0`.
+
 ## [0.20.0] — 2026-10-22
 
 Native Rust collection and archiving cores, with bounded external-script discovery and an auditable six-project comparison. See [the release and migration guide](docs/releases/0.20.0.md). Browser interaction and autonomous Agent tasks are outside the 0.20.0 scope.
@@ -93,3 +108,5 @@ The first public release.
 [0.12.0]: https://github.com/YOLOW92/pagesift/releases/tag/v0.12.0
 
 [0.20.0]: https://github.com/YOLOW92/pagesift/releases/tag/v0.20.0
+
+[0.30.0]: https://github.com/YOLOW92/pagesift/releases/tag/v0.30.0

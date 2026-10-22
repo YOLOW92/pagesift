@@ -1,0 +1,17 @@
+{
+  "command": [
+    "ffprobe",
+    "-v",
+    "error",
+    "-count_frames",
+    "-show_entries",
+    "stream=codec_type,codec_name,nb_read_frames",
+    "-of",
+    "json",
+    "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/stream-hls/tracks/track-0-99e94b9eb73e17685f3e8fbea98a30be63d0d0d7a9a6fd1d80f40f25b92d4ffd.ts"
+  ],
+  "exit": 0,
+  "stdout": "{\n    \"programs\": [\n        {\n            \"streams\": [\n                {\n                    \"codec_name\": \"h264\",\n                    \"codec_type\": \"video\",\n                    \"nb_read_frames\": \"10\"\n                },\n                {\n                    \"codec_name\": \"aac\",\n                    \"codec_type\": \"audio\",\n                    \"nb_read_frames\": \"88\"\n                }\n            ]\n        }\n    ],\n    \"stream_groups\": [\n\n    ],\n    \"streams\": [\n        {\n            \"codec_name\": \"h264\",\n            \"codec_type\": \"video\",\n            \"nb_read_frames\": \"10\"\n        },\n        {\n            \"codec_name\": \"aac\",\n            \"codec_type\": \"audio\",\n            \"nb_read_frames\": \"88\"\n        }\n    ]\n}\n",
+  "stderr": "",
+  "wall_s": 0.051433074000669876
+}

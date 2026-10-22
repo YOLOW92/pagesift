@@ -1,0 +1,12 @@
+{
+  "command": [
+    "node",
+    "/home/yolow92/pagesift/bench/six/adapters/crawlee.mjs",
+    "http://127.0.0.1:34207/fresh-0f6a0f301149b3d4428a/",
+    "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/crawlee-output.json"
+  ],
+  "exit": 0,
+  "stdout": "",
+  "stderr": "",
+  "wall_s": 1.503381102998901
+}

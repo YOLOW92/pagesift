@@ -16,7 +16,8 @@ def mem_available_mb():
 python, port, hosts, pages, interval, mode = sys.argv[1], *sys.argv[2:7]
 per_host = sys.argv[7] if len(sys.argv) > 7 else "2"
 hosts = int(hosts)
-n = max(1, min(os.cpu_count() or 1, (mem_available_mb() - 2048) // 2500, hosts))
+avail_mb = min(mem_available_mb(), int(os.environ.get("MEASURE_MAX_MB", "12288")))
+n = max(1, min(4, os.cpu_count() or 1, (avail_mb - 2048) // 2500, hosts))
 here = os.path.dirname(os.path.abspath(__file__))
 procs, start = [], 0
 for i in range(n):

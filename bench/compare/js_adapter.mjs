@@ -5,7 +5,7 @@
 // 两个工具都需要 DOM，用 JSDOM 解析，解析时间算在耗时里。
 // Readability 输出 HTML，按惯常用法接 Turndown 转 Markdown；标题按惯例单独给出，这里拼在正文前面。
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -36,6 +36,26 @@ if (tool === 'readability') {
     dom.window.close();
     return r.title ? `# ${r.title}\n\n${r.content || ''}` : r.content || '';
   };
+} else if (tool === 'jina-reader') {
+  const { Readability } = (await load('@mozilla/readability/index.js')).default;
+  const TurndownService = (await load('turndown/lib/turndown.cjs.js')).default;
+  const { gfm } = await load('turndown-plugin-gfm/lib/turndown-plugin-gfm.cjs.js');
+  const td = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced', bulletListMarker: '-' });
+  td.use(gfm);
+  convert = async (html, url) => {
+    const dom = new JSDOM(html, { url, virtualConsole: quiet });
+    const article = new Readability(dom.window.document).parse();
+    dom.window.close();
+    if (!article) return '';
+    const body = td.turndown(article.content || '');
+    return article.title ? `# ${article.title}\n\n${body}` : body;
+  };
+} else if (tool === 'mdream') {
+  const { htmlToMarkdown } = await load('mdream/dist/index.mjs');
+  convert = async (html, url) => {
+    const str = typeof html === 'string' ? html : new TextDecoder('utf-8', { fatal: false }).decode(html);
+    return htmlToMarkdown(str, { origin: url, minimal: true, frontmatter: false }) || '';
+  };
 } else if (tool === 'article-extractor') {
   // @extractus/article-extractor：自带解析，输出 HTML，同样接 Turndown
   const { extractFromHtml } = await load('@extractus/article-extractor/esm/mod.js');
@@ -51,7 +71,7 @@ if (tool === 'readability') {
   throw new Error('tool must be readability, defuddle or article-extractor');
 }
 
-const out = [];
+writeFileSync(outPath, '');
 for (const line of readFileSync(manifest, 'utf8').split('\n')) {
   if (!line.trim()) continue;
   const row = JSON.parse(line);
@@ -65,6 +85,5 @@ for (const line of readFileSync(manifest, 'utf8').split('\n')) {
   } catch (e) {
     console.error(`${row.id}: ${e.message}`);
   }
-  out.push(JSON.stringify({ id: row.id, markdown, ms: performance.now() - t }));
+  appendFileSync(outPath, JSON.stringify({ id: row.id, markdown, ms: performance.now() - t }) + '\n');
 }
-writeFileSync(outPath, out.join('\n') + '\n');

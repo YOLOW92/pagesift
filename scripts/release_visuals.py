@@ -63,7 +63,7 @@ save('extraction-quality.svg', 598, 'Main-content quality with remaining page-le
 body = text(38, 48, 'Controlled tasks, with explicit boundaries', 27, '#ffffff', 700)
 body += text(38, 77, 'Synthetic task families · fixed reference modes · not a full-product ranking', 15, '#a6b8ca')
 rows = [
-    ('Navigation graph / 13', [('Pagesift',12,13,'#56d9c0'), ('Katana -jc -jsl',10,13,'#7ca8ed'), ('Crawlee Cheerio',2,13,'#b7a3e8')]),
+    ('Navigation graph / 13', [('Pagesift',13,13,'#56d9c0'), ('Katana -jc -jsl',10,13,'#7ca8ed'), ('Crawlee Cheerio',2,13,'#b7a3e8')]),
     ('Fuzzy relocation / 64', [('Pagesift',64,64,'#56d9c0'), ('Scrapling adaptive',56,64,'#7ca8ed')]),
     ('Mastodon originals / 20', [('Pagesift',20,20,'#56d9c0'), ('gallery-dl',20,20,'#7ca8ed')])]
 y = 116
@@ -77,7 +77,7 @@ for label, entries in rows:
     y += len(entries)*39+32
 body += text(38, 523, 'Navigation misses dynamic evaluation. Relocation is not independent real-site accuracy.', 14, '#a6b8ca')
 body += text(38, 550, 'Media task: 8 Mastodon posts, byte-checked originals. Crawlee browser mode is not ranked.', 14, '#a6b8ca')
-save('controlled-tasks.svg', 580, 'Controlled navigation, relocation and media comparisons', 'Navigation 12/13, Katana 10/13, Crawlee Cheerio 2/13. Fuzzy 64/64 versus Scrapling 56/64. Media both20/20. Synthetic bounded tasks only.', body)
+save('controlled-tasks.svg', 580, 'Controlled navigation, relocation and media comparisons', 'Navigation 13/13, Katana 10/13, Crawlee Cheerio 2/13. Fuzzy 64/64 versus Scrapling 56/64. Media both 20/20. Synthetic bounded tasks only.', body)
 
 body = text(38, 48, 'Capability coverage, without hiding the gaps', 27, '#ffffff', 700)
 body += text(38, 77, '40 source-based categories · implementation status is not proof of superiority', 15, '#a6b8ca')

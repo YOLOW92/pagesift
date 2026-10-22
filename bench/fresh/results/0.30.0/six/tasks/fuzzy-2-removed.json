@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/home/yolow92/pagesift/bench/six/results/seven-next/bin-verified/pagesift",
+    "relocate",
+    "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/relocation/2-removed-new.html",
+    "--original",
+    "/home/yolow92/pagesift/bench/fresh/results/0.30.0/six/tasks/relocation/2-removed-old.html",
+    "--selector",
+    "#target"
+  ],
+  "exit": 0,
+  "stdout": "{\"score\":0.0,\"status\":\"low_confidence\"}\n",
+  "stderr": "",
+  "wall_s": 0.0019283269994048169
+}
