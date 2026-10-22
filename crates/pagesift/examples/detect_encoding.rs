@@ -24,7 +24,7 @@ fn main() {
         let decoded = pagesift_net::decode(&bytes, None, None);
         let us = t.elapsed().as_micros();
 
-        let enc_name = decoded.encoding.name();
+        let enc_name = decoded.encoding_name;
         writeln!(out, "{path_str}\t{enc_name}\t{us}").unwrap();
     }
 }

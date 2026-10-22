@@ -1,13 +1,16 @@
 //! 纯 Rust 字符集统计特征模型与歧义消除打分器。
-//! 对非 UTF-8 文本在 CJK、西里尔文、中欧 Latin-2、希腊文、希伯来文及遗留代码页之间进行精确仲裁。
+//! 对非 UTF-8 文本在 CJK、西里尔文、中欧 Latin-2、希腊文、希伯来文、土耳其文及遗留代码页之间进行精确仲裁。
 
 use encoding_rs::{
     Encoding, BIG5, EUC_KR, GB18030, IBM866, ISO_8859_5, KOI8_R, SHIFT_JIS, WINDOWS_1250,
-    WINDOWS_1251, WINDOWS_1253, WINDOWS_1255, WINDOWS_1256,
+    WINDOWS_1251, WINDOWS_1253, WINDOWS_1254, WINDOWS_1255, WINDOWS_1256,
 };
 
 /// 基于纯 Rust 统计分布分析非 UTF-8 字节。
-pub fn analyze_statistical(bytes: &[u8], tld: Option<&[u8]>) -> Option<&'static Encoding> {
+pub fn analyze_statistical(
+    bytes: &[u8],
+    tld: Option<&[u8]>,
+) -> Option<(&'static Encoding, &'static str)> {
     if bytes.is_empty() {
         return None;
     }
@@ -15,12 +18,12 @@ pub fn analyze_statistical(bytes: &[u8], tld: Option<&[u8]>) -> Option<&'static 
 
     // 1. 先检查是否包含 GB18030 独有的四字节序列
     if has_gb18030_four_bytes(sample) {
-        return Some(GB18030);
+        return Some((GB18030, "gb18030"));
     }
 
     // 2. 检查 Shift-JIS 明确的假名特征
     if has_shift_jis_kana(sample) {
-        return Some(SHIFT_JIS);
+        return Some((SHIFT_JIS, "shift_jis"));
     }
 
     // 3. 统计高位字节 (>= 0x80) 密度
@@ -30,26 +33,30 @@ pub fn analyze_statistical(bytes: &[u8], tld: Option<&[u8]>) -> Option<&'static 
     }
 
     // 4. 判断是多字节 CJK 还是单字节拼音文字（西里尔/欧洲）
-    // 统计空格（0x20）在高字节环境下的出现率：西里尔文等拼音文字词间必然有大量空格
     let space_count = sample.iter().filter(|&&b| b == b' ').count();
-    let is_spaced_text = space_count * 15 >= sample.len(); // 空格比例 > 6.6%
+    let is_spaced_text = space_count * 15 >= sample.len();
 
     // 5. CJK 双字节常用字打分 (GB18030 vs Big5 vs Shift_JIS vs EUC-KR)
-    if let Some(enc) = score_cjk(sample, tld, is_spaced_text) {
-        return Some(enc);
+    if let Some((enc, name)) = score_cjk(sample, tld, is_spaced_text) {
+        return Some((enc, name));
     }
 
-    // 6. 西里尔文判决 (Windows-1251 vs KOI8-R vs ISO-8859-5 vs IBM866)
+    // 6. 土耳其文特征识别（ISO-8859-9 vs Windows-1254）
+    if let Some((enc, name)) = score_turkish(sample) {
+        return Some((enc, name));
+    }
+
+    // 7. 西里尔文判决 (Windows-1251 vs KOI8-R vs ISO-8859-5 vs IBM866)
     if is_spaced_text {
-        if let Some(enc) = score_cyrillic(sample) {
-            return Some(enc);
+        if let Some((enc, name)) = score_cyrillic(sample) {
+            return Some((enc, name));
         }
     }
 
-    // 7. 欧洲特殊字符集判决 (Latin-2 vs Greek vs Hebrew vs Arabic)
+    // 8. 欧洲特殊字符集判决 (Latin-2 vs Greek vs Hebrew vs Arabic)
     if is_spaced_text {
-        if let Some(enc) = score_special_alphabets(sample) {
-            return Some(enc);
+        if let Some((enc, name)) = score_special_alphabets(sample) {
+            return Some((enc, name));
         }
     }
 
@@ -90,7 +97,11 @@ fn has_shift_jis_kana(sample: &[u8]) -> bool {
 }
 
 /// 针对中日韩常用字的二元组/特征打分
-fn score_cjk(sample: &[u8], tld: Option<&[u8]>, is_spaced: bool) -> Option<&'static Encoding> {
+fn score_cjk(
+    sample: &[u8],
+    tld: Option<&[u8]>,
+    is_spaced: bool,
+) -> Option<(&'static Encoding, &'static str)> {
     let mut gbk_score = 0;
     let mut big5_score = 0;
     let mut euckr_score = 0;
@@ -153,7 +164,6 @@ fn score_cjk(sample: &[u8], tld: Option<&[u8]>, is_spaced: bool) -> Option<&'sta
         }
     }
 
-    // 中文如果不带空格，优先判定
     if !is_spaced && (gbk_score > 0 || big5_score > 0) {
         gbk_score += 3;
     }
@@ -161,40 +171,58 @@ fn score_cjk(sample: &[u8], tld: Option<&[u8]>, is_spaced: bool) -> Option<&'sta
     let max_score = gbk_score.max(big5_score).max(euckr_score);
     if max_score >= 4 {
         if gbk_score == max_score {
-            return Some(GB18030);
+            return Some((GB18030, "gb18030"));
         }
         if big5_score == max_score {
-            return Some(BIG5);
+            return Some((BIG5, "big5"));
         }
         if euckr_score == max_score {
-            return Some(EUC_KR);
+            return Some((EUC_KR, "euc-kr"));
         }
     }
 
     None
 }
 
+/// 土耳其文特征识别（ISO-8859-9 vs Windows-1254）
+pub fn score_turkish(sample: &[u8]) -> Option<(&'static Encoding, &'static str)> {
+    let mut turk_chars = 0;
+    let mut c1_ctrl = 0;
+    for &b in sample {
+        if matches!(b, 0xFD | 0xDD | 0xFE | 0xDE | 0xF0 | 0xD0) {
+            turk_chars += 1;
+        } else if (0x80..=0x9F).contains(&b) {
+            c1_ctrl += 1;
+        }
+    }
+    if turk_chars >= 3 {
+        if c1_ctrl == 0 {
+            Some((WINDOWS_1254, "iso-8859-9"))
+        } else {
+            Some((WINDOWS_1254, "windows-1254"))
+        }
+    } else {
+        None
+    }
+}
+
 /// 针对俄语/西里尔字母的高频单字频次打分
-fn score_cyrillic(sample: &[u8]) -> Option<&'static Encoding> {
+fn score_cyrillic(sample: &[u8]) -> Option<(&'static Encoding, &'static str)> {
     let mut win1251_score = 0;
     let mut koi8_score = 0;
     let mut iso_score = 0;
     let mut ibm866_score = 0;
 
     for &b in sample {
-        // Windows-1251 Cyrillic lowercase: о=0xee, е=0xe5, а=0xe0, и=0xe8, н=0xed, т=0xf2
         if matches!(b, 0xEE | 0xE5 | 0xE0 | 0xE8 | 0xED | 0xF2 | 0xF1 | 0xF0) {
             win1251_score += 1;
         }
-        // KOI8-R Cyrillic lowercase: о=0xcf, е=0xc5, а=0xc1, и=0xc9, н=0xce, т=0xd4
         if matches!(b, 0xCF | 0xC5 | 0xC1 | 0xC9 | 0xCE | 0xD4 | 0xD3 | 0xD2) {
             koi8_score += 1;
         }
-        // ISO-8859-5: о=0xde, е=0xd5, а=0xd0, и=0xd8, н=0xdd, т=0xe2
         if matches!(b, 0xDE | 0xD5 | 0xD0 | 0xD8 | 0xDD | 0xD2 | 0xDB) {
             iso_score += 1;
         }
-        // IBM866: о=0xae, е=0xa5, а=0xa0, и=0xa8, н=0xad, т=0xeb
         if matches!(b, 0xAE | 0xA5 | 0xA0 | 0xA8 | 0xAD | 0xEB | 0xEA | 0xA2) {
             ibm866_score += 1;
         }
@@ -209,23 +237,23 @@ fn score_cyrillic(sample: &[u8]) -> Option<&'static Encoding> {
     }
 
     if win1251_score == max_score && win1251_score > koi8_score + 5 {
-        return Some(WINDOWS_1251);
+        return Some((WINDOWS_1251, "windows-1251"));
     }
     if koi8_score == max_score && koi8_score > win1251_score + 5 {
-        return Some(KOI8_R);
+        return Some((KOI8_R, "koi8-r"));
     }
     if iso_score == max_score && iso_score > win1251_score + 5 {
-        return Some(ISO_8859_5);
+        return Some((ISO_8859_5, "iso-8859-5"));
     }
     if ibm866_score == max_score && ibm866_score > win1251_score + 5 {
-        return Some(IBM866);
+        return Some((IBM866, "cp866"));
     }
 
     None
 }
 
 /// 针对中欧、希腊、希伯来、阿拉伯字母的特征识别
-fn score_special_alphabets(sample: &[u8]) -> Option<&'static Encoding> {
+fn score_special_alphabets(sample: &[u8]) -> Option<(&'static Encoding, &'static str)> {
     let mut latin2 = 0;
     let mut greek = 0;
     let mut hebrew = 0;
@@ -250,16 +278,16 @@ fn score_special_alphabets(sample: &[u8]) -> Option<&'static Encoding> {
     }
 
     if latin2 >= 10 && latin2 > greek.max(hebrew).max(arabic) {
-        return Some(WINDOWS_1250);
+        return Some((WINDOWS_1250, "windows-1250"));
     }
     if greek >= 20 && greek > latin2.max(hebrew).max(arabic) {
-        return Some(WINDOWS_1253);
+        return Some((WINDOWS_1253, "windows-1253"));
     }
     if hebrew >= 20 && hebrew > latin2.max(greek).max(arabic) {
-        return Some(WINDOWS_1255);
+        return Some((WINDOWS_1255, "windows-1255"));
     }
     if arabic >= 20 && arabic > latin2.max(greek).max(hebrew) {
-        return Some(WINDOWS_1256);
+        return Some((WINDOWS_1256, "windows-1256"));
     }
 
     None
