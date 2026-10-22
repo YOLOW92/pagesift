@@ -1,0 +1,4 @@
+tool,runtime,total_samples,overall_accuracy_count,overall_accuracy_pct,unicode_accuracy_pct,cjk_accuracy_pct,cyrillic_accuracy_pct,western_accuracy_pct,legacy_accuracy_pct,avg_latency_ms
+PageSift (Pure Rust),Native Rust (chardetng+BOM),3138,2336,74.4,99.7,94.0,83.3,84.8,37.6,0.45
+chardet 7.7.0,Python,3138,2162,68.9,56.4,100.0,100.0,82.6,72.8,3.05
+charset-normalizer 3.5.2,Python,3138,1459,46.5,56.4,93.3,66.0,36.2,28.3,1.05

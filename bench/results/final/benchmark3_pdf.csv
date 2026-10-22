@@ -1,0 +1,6 @@
+tool,dataset,pages_tested,overall_pass_rate_pct,arxiv_math_pct,table_tests_pct,multi_column_order_pct,avg_ms_per_page,speedup_vs_pymupdf
+PageSift 0.40.0,olmOCR-bench (5 Subsets),500,71.0,44.3,56.1,61.2,3.4,94.1
+pymupdf4llm 1.28.2,olmOCR-bench (5 Subsets),500,64.4,0.0,60.3,66.6,320.0,1.0
+pypdf 6.21.1,olmOCR-bench (5 Subsets),500,58.2,0.0,0.0,49.4,50.0,6.4
+MarkItDown 0.1.8,olmOCR-bench (5 Subsets),500,57.3,0.0,19.8,39.3,200.0,1.6
+pdfplumber 0.11.10,olmOCR-bench (5 Subsets),500,50.4,0.0,0.0,10.0,124.0,2.6
