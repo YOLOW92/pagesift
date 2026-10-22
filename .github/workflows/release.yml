@@ -21,7 +21,30 @@ permissions:
   contents: read
 
 jobs:
+  identity:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - id: version
+        name: Check version and tag
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            python3 scripts/check_release.py --tag "$GITHUB_REF_NAME"
+          else
+            python3 scripts/check_release.py
+            if [[ "$PUBLISH" == true ]]; then
+              echo "Publishing requires selecting the matching v<version> tag" >&2
+              exit 1
+            fi
+          fi
+          echo "version=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"])')" >> "$GITHUB_OUTPUT"
+
   binaries:
+    needs: identity
     name: binary ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -53,6 +76,7 @@ jobs:
           path: pagesift-*.tar.gz*
 
   docker:
+    needs: identity
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -72,6 +96,7 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
+            type=raw,value=${{ needs.identity.outputs.version }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
       - uses: docker/build-push-action@v6
@@ -88,6 +113,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   wheels:
+    needs: identity
     name: wheels ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -101,12 +127,21 @@ jobs:
           working-directory: crates/pagesift-py
           args: --release --locked --out dist
           manylinux: "2_28"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify native Python wheel
+        run: |
+          python -m pip install pytest crates/pagesift-py/dist/*.whl
+          python -c 'import pagesift; assert pagesift.__version__ == "${{ needs.identity.outputs.version }}"'
+          python -m pytest crates/pagesift-py/tests -q
       - uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.os }}
           path: crates/pagesift-py/dist/*.whl
 
   sdist:
+    needs: identity
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -121,6 +156,7 @@ jobs:
           path: crates/pagesift-py/dist/*.tar.gz
 
   npm:
+    needs: identity
     name: npm ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -144,16 +180,21 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npx napi build --platform --release --target ${{ matrix.target }} && node scripts/postbuild.mjs
+      - name: Verify native Node binding
+        run: |
+          node -e "if (require('./index.js').version !== require('./package.json').version) process.exit(1)"
+          npm test
       - uses: actions/upload-artifact@v4
         with:
           name: npm-${{ matrix.target }}
           path: crates/pagesift-node/*.node
 
   publish:
-    needs: [binaries, docker, wheels, sdist, npm]
+    needs: [identity, binaries, docker, wheels, sdist, npm]
     if: github.event_name == 'push' || inputs.dry_run == false
     runs-on: ubuntu-latest
     environment: release
+    timeout-minutes: 300
     permissions:
       contents: write
       id-token: write
@@ -164,13 +205,15 @@ jobs:
           path: artifacts
           # 只要程序、wheel 和 npm 包；Docker 的构建记录不是普通压缩包，一起下载会失败
           pattern: "{bin,wheels,npm}-*"
-      # 先建草稿，维护者检查后再手动发布
+      - name: Release notes
+        run: python3 scripts/release_notes.py > release-notes.md
+      # 先上传草稿；所有渠道成功后才公开为 latest。
       - name: GitHub release
         uses: softprops/action-gh-release@v2
         with:
           draft: true
           files: artifacts/bin-*/*
-          body_path: CHANGELOG.md
+          body_path: release-notes.md
       - name: Collect Python packages
         run: mkdir -p dist && cp artifacts/wheels-*/* dist/
       - name: PyPI
@@ -181,7 +224,7 @@ jobs:
       - name: crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --workspace --locked --exclude pagesift-py --exclude pagesift-node
+        run: python3 scripts/publish_crates.py
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -194,3 +237,7 @@ jobs:
           npm ci
           npx napi artifacts --output-dir ../../artifacts
           npm publish --access public
+      - name: Publish GitHub release after all distributions succeed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false --latest

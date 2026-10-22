@@ -99,6 +99,7 @@ static RULES: &[Rule] = &[
     r("article__content", Any, Both, T0),
     r("articlebody", Any, Both, T0),
     r("article-body", Any, Both, T0),
+    r("article_body", Any, Both, T0),
     r("article__body", Any, Both, T0),
     r("body-text", Any, Both, T0),
     r("articlecontent", Exact, Id, T0),

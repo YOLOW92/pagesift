@@ -1,0 +1,32 @@
+{
+  "api": {
+    "image": "ghcr.io/firecrawl/firecrawl@sha256:4749476b5def369906546e4dbe2c8e767559173635cac5d4a6b26e1ea42dbc46",
+    "id": "sha256:4749476b5def369906546e4dbe2c8e767559173635cac5d4a6b26e1ea42dbc46",
+    "size": 331048116,
+    "pg_major": null
+  },
+  "playwright": {
+    "image": "ghcr.io/firecrawl/playwright-service@sha256:378f5eb724da2499c728aa9bb42cd7c4a2af603fe9ed63c0e36eea4ec4a8a271",
+    "id": "sha256:378f5eb724da2499c728aa9bb42cd7c4a2af603fe9ed63c0e36eea4ec4a8a271",
+    "size": 554693643,
+    "pg_major": null
+  },
+  "postgres": {
+    "image": "ghcr.io/firecrawl/nuq-postgres@sha256:5a0be88215431b8dd57ae5d701ee191521cd1ac8e882a65558ae95c4587c57cb",
+    "id": "sha256:5a0be88215431b8dd57ae5d701ee191521cd1ac8e882a65558ae95c4587c57cb",
+    "size": 161795749,
+    "pg_major": "PG_MAJOR=17"
+  },
+  "redis": {
+    "image": "redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499",
+    "id": "sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499",
+    "size": 16260342,
+    "pg_major": null
+  },
+  "rabbitmq": {
+    "image": "rabbitmq@sha256:e582c0bc7766f3342496d8485efb5a1df782b5ce3886ad017e2eaae442311f69",
+    "id": "sha256:e582c0bc7766f3342496d8485efb5a1df782b5ce3886ad017e2eaae442311f69",
+    "size": 114479602,
+    "pg_major": null
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "selected_at": "2026-10-22",
+  "selection": "Latest non-prerelease GitHub release; source SHA locked separately from prior default-branch investigation.",
+  "tools": {
+    "firecrawl": {
+      "repo": "firecrawl/firecrawl",
+      "tag": "v2.11.0",
+      "sha": "ef12eb36b2f3382838dfe0a0c1a5add3d5df7fe5",
+      "release_url": "https://github.com/firecrawl/firecrawl/releases/tag/v2.11.0",
+      "archive_url": "https://codeload.github.com/firecrawl/firecrawl/tar.gz/ef12eb36b2f3382838dfe0a0c1a5add3d5df7fe5"
+    },
+    "crawlee": {
+      "repo": "apify/crawlee",
+      "tag": "v3.18.2",
+      "sha": "78da0622762e1b569b5cb0b56e8eb06a0a010d93",
+      "release_url": "https://github.com/apify/crawlee/releases/tag/v3.18.2",
+      "archive_url": "https://codeload.github.com/apify/crawlee/tar.gz/78da0622762e1b569b5cb0b56e8eb06a0a010d93"
+    },
+    "scrapling": {
+      "repo": "d4vinci/Scrapling",
+      "tag": "v0.5",
+      "sha": "3a8bf4e4d3ed91257ba0aa5b7dc66241d1e23840",
+      "release_url": "https://github.com/D4Vinci/Scrapling/releases/tag/v0.5",
+      "archive_url": "https://codeload.github.com/d4vinci/Scrapling/tar.gz/3a8bf4e4d3ed91257ba0aa5b7dc66241d1e23840"
+    },
+    "katana": {
+      "repo": "projectdiscovery/katana",
+      "tag": "v1.8.0",
+      "sha": "35267ac5c8ff1db9694a319d0eb466ed97b0969f",
+      "release_url": "https://github.com/projectdiscovery/katana/releases/tag/v1.8.0",
+      "archive_url": "https://codeload.github.com/projectdiscovery/katana/tar.gz/35267ac5c8ff1db9694a319d0eb466ed97b0969f"
+    },
+    "essence": {
+      "repo": "ruchit-p/essence",
+      "tag": "v0.3.0",
+      "sha": "a4f845c6b98d3337106e74fe7b91f94d61ab599d",
+      "release_url": "https://github.com/ruchit-p/essence/releases/tag/v0.3.0",
+      "archive_url": "https://codeload.github.com/ruchit-p/essence/tar.gz/a4f845c6b98d3337106e74fe7b91f94d61ab599d"
+    },
+    "gallery-dl": {
+      "repo": "https://codeberg.org/mikf/gallery-dl",
+      "tag": "v1.32.17",
+      "sha": "61971e01d394d35c81a86d4d0d03717c78ae53d5",
+      "release_url": "https://codeberg.org/mikf/gallery-dl/releases/tag/v1.32.17",
+      "archive_url": "https://codeberg.org/mikf/gallery-dl/archive/61971e01d394d35c81a86d4d0d03717c78ae53d5.tar.gz"
+    },
+    "essence-main": {
+      "repo": "ruchit-p/essence",
+      "tag": "main-snapshot-2026-10-22",
+      "sha": "74a99fb64b9c6c65846c6e4ecc6f177b1b0bc66b",
+      "release_url": "https://github.com/ruchit-p/essence/commit/74a99fb64b9c6c65846c6e4ecc6f177b1b0bc66b",
+      "archive_url": "https://codeload.github.com/ruchit-p/essence/tar.gz/74a99fb64b9c6c65846c6e4ecc6f177b1b0bc66b",
+      "purpose": "Current default-branch component cross-check alongside latest stable release"
+    }
+  }
+}

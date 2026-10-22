@@ -1,0 +1,197 @@
+{
+  "objective_status": "bounded_cores_delivered_full_functional_leadership_not_achieved",
+  "scope_exclusions": [
+    "persistent browser interact lifecycle",
+    "agent autonomous data-gathering API"
+  ],
+  "formerly_missing_in_scope": 7,
+  "bounded_native_rust_cores_added": 7,
+  "capabilities": {
+    "excluded_by_user": 2,
+    "implemented_bounded": 3,
+    "implemented_compared_component": 1,
+    "implemented_not_compared": 2,
+    "implemented_not_compared_full_service": 1,
+    "implemented_partial_verification": 7,
+    "new_verified_local": 3,
+    "not_implemented_product_boundary": 2,
+    "partial": 17,
+    "unverified": 1,
+    "unverified_external_dependency": 1
+  },
+  "tests": 613,
+  "new_tests_vs_session_round": 22,
+  "ci_record": "bench/six/results/20261022T042322Z-seven-verified-ci-845a24/run.json",
+  "ci_peak_sampled_mib": 1976.40625,
+  "sdk_checks": 17,
+  "all_sdk_checks_passed": true,
+  "aeb_regression": {
+    "n": 181,
+    "markdown_identical": 181
+  },
+  "components_original_url_context": {
+    "pagesift": {
+      "n": 545,
+      "f1": 0.8435292652776133,
+      "errors": 0,
+      "new_pages": {
+        "n": 545,
+        "f1": 0.8435292652776133
+      }
+    },
+    "essence": {
+      "n": 545,
+      "f1": 0.7966356500968899,
+      "errors": 1,
+      "new_pages": {
+        "n": 545,
+        "f1": 0.7966356500968899
+      }
+    }
+  },
+  "complete_services_replay_context": {
+    "pagesift": {
+      "n": 545,
+      "f1": 0.8436764150339612,
+      "errors": 0,
+      "new_pages": {
+        "n": 545,
+        "f1": 0.8436764150339612
+      }
+    },
+    "firecrawl": {
+      "n": 545,
+      "f1": 0.7998583142191873,
+      "errors": 1,
+      "new_pages": {
+        "n": 545,
+        "f1": 0.7998583142191873
+      }
+    }
+  },
+  "service_paired": {
+    "n": 545,
+    "pagesift_wins": 427,
+    "ties": 22,
+    "pagesift_losses": 96,
+    "reference_failures": [
+      "30b05f1d-56b3-48d3-b587-aea4e99bc003"
+    ]
+  },
+  "service_recoveries": [
+    {
+      "tool": "firecrawl",
+      "before_id": "3ecdcec7-0ba2-4d2f-a9a2-676a60ca80ea",
+      "after_failure_id": "30b05f1d-56b3-48d3-b587-aea4e99bc003",
+      "seconds": 20.28395916199952
+    }
+  ],
+  "navigation": {
+    "pagesift": {
+      "exit": 0,
+      "found": 12,
+      "expected": 13,
+      "missing": [
+        "/fresh-c4761ad71018758068da/dynamic"
+      ],
+      "non_navigation_visited": [],
+      "non_get": 0
+    },
+    "katana": {
+      "exit": 0,
+      "found": 10,
+      "expected": 13,
+      "missing": [
+        "/fresh-c4761ad71018758068da/concat",
+        "/fresh-c4761ad71018758068da/dynamic",
+        "/fresh-c4761ad71018758068da/template"
+      ],
+      "non_navigation_visited": [
+        "/fresh-c4761ad71018758068da/comment",
+        "/fresh-c4761ad71018758068da/data",
+        "/fresh-c4761ad71018758068da/post",
+        "/fresh-c4761ad71018758068da/unused"
+      ],
+      "non_get": 0
+    },
+    "crawlee": {
+      "exit": 0,
+      "found": 2,
+      "expected": 13,
+      "missing": [
+        "/fresh-c4761ad71018758068da/concat",
+        "/fresh-c4761ad71018758068da/dynamic",
+        "/fresh-c4761ad71018758068da/escaped",
+        "/fresh-c4761ad71018758068da/exported",
+        "/fresh-c4761ad71018758068da/frame",
+        "/fresh-c4761ad71018758068da/header",
+        "/fresh-c4761ad71018758068da/htmx",
+        "/fresh-c4761ad71018758068da/imported",
+        "/fresh-c4761ad71018758068da/inline",
+        "/fresh-c4761ad71018758068da/literal",
+        "/fresh-c4761ad71018758068da/template"
+      ],
+      "non_navigation_visited": [],
+      "non_get": 0
+    }
+  },
+  "relocation": {
+    "n": 64,
+    "pagesift_correct": 64,
+    "scrapling_correct": 56,
+    "details": "relocation-results.json"
+  },
+  "inspection": {
+    "n": 12,
+    "passed": 12,
+    "scope": "Pagesift body/form gold only; not native Katana knowledge-base superiority"
+  },
+  "katana_knowledge": {
+    "exit": 0,
+    "expected_pages": 12,
+    "pages_with_forms": 12,
+    "pages_with_secret_findings": 12,
+    "scope": "syntactic fake-key indicators only, no live validation; different rule coverage, no full scanner ranking"
+  },
+  "media": {
+    "pagesift": {
+      "calls": 8,
+      "successful_calls": 8,
+      "correct_files": 20,
+      "expected_files": 20,
+      "unexpected_files": []
+    },
+    "gallery-dl": {
+      "calls": 8,
+      "successful_calls": 8,
+      "correct_files": 20,
+      "expected_files": 20,
+      "unexpected_files": []
+    }
+  },
+  "stream_decoded_frame_counts_match": {
+    "hls": true,
+    "dash": true
+  },
+  "source_and_binary_hashes_verified": true,
+  "base_git_head_unchanged": true,
+  "no_commit_or_push": true,
+  "reported_cases_below_reference": {
+    "essence_component": 117,
+    "firecrawl_service": 96
+  },
+  "new_language_or_runtime_in_product": false,
+  "new_package_versions": [],
+  "reference_image_cleanup_completed": true,
+  "free_disk_gib_after_cleanup": 18.45455551147461,
+  "service_resource_record": {
+    "docker_sampled_peak_total_mib": 2195.3940000000002,
+    "samples": 28,
+    "docker_cap_mib": 6784,
+    "runner_cap_mib": 1408,
+    "total_cap_mib": 8192,
+    "cpu_total_cap_percent": 800,
+    "not_a_speed_ranking": true
+  },
+  "all_own_benchmark_services_stopped": true
+}

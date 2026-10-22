@@ -25,9 +25,14 @@ mod chunk;
 mod css;
 mod engine;
 mod error;
+mod forms;
+mod fuzzy;
+mod identity;
+mod knowledge;
 mod patterns;
 mod recursive;
 mod relevance;
+mod relocate;
 mod schema;
 mod text;
 mod xpath;
@@ -36,9 +41,14 @@ pub use bm25::{Bm25Options, ScoredBlock, bm25_filter, bm25_scores, filter_markdo
 pub use chunk::{Chunk, ChunkStrategy, chunk};
 pub use css::JsonCssExtractor;
 pub use error::Error;
+pub use forms::{Control, Form, discover_forms, plan_form_get};
+pub use fuzzy::{FuzzyAnchor, FuzzyMatch, FuzzyOptions};
+pub use identity::{IdentifiedItem, discover_items};
+pub use knowledge::{EvidenceRule, Finding, FindingKind, Knowledge, KnowledgeExtractor};
 pub use patterns::{BuiltinPattern, RegexExtractor, RegexMatch, RegexOutput, UniqueMatch};
 pub use relevance::{
     FilteredMarkdown, MAX_QUERY_TERMS, Query, QueryFilterOptions, filter_markdown_by_query,
 };
+pub use relocate::{Anchor, Relocation};
 pub use schema::{Field, FieldKind, Schema, Step, Transform};
 pub use xpath::JsonXPathExtractor;

@@ -65,7 +65,7 @@ pub(crate) fn prose(node: &NodeR<'_>, skipper: &Skipper, wl: crate::markdown::Wh
                 | Tag::H5
                 | Tag::H6,
             ) => true,
-            Some(Tag::Div) => div,
+            Some(Tag::Div) => div || crate::dom::is_heading(n),
             _ => false,
         },
     };
@@ -258,11 +258,53 @@ fn with_headline<'a>(
     if inside {
         return (root, None);
     }
-    let Some(h1) = dom.root().descendants().find(|n| {
-        n.tag() == Some(Tag::H1) && !skipper.skip(n) && !n.ancestors().any(|a| skipper.skip(&a))
-    }) else {
+    // A headline in another article is not this article's title. In particular,
+    // recommendation grids may use H1 even when the main story uses H2.
+    let scope = std::iter::once(root)
+        .chain(root.ancestors())
+        .find(|n| n.tag() == Some(Tag::Article));
+    let headline_scope = scope.unwrap_or_else(|| dom.root());
+    let Some(h1) = headline_scope
+        .descendants()
+        .find(|n| {
+            let title = n.tag() == Some(Tag::H1)
+                || (scope.is_some()
+                    && n.tag() == Some(Tag::H2)
+                    && (n.parent().is_some_and(|p| p.tag() == Some(Tag::Header))
+                        || n.as_element()
+                            .is_some_and(|e| e.attr("itemprop") == Some("headline"))));
+            title
+                && !skipper.skip(n)
+                && !n.ancestors().any(|a| skipper.skip(&a))
+                && (scope.is_some() || !n.ancestors().any(|a| a.tag() == Some(Tag::Article)))
+        })
+        .or_else(|| {
+            scope?;
+            let title = dom
+                .root()
+                .descendants()
+                .find(|n| n.tag() == Some(Tag::Title))?
+                .text();
+            dom.root().descendants().find(|n| {
+                n.tag() == Some(Tag::H1)
+                    && !skipper.skip(n)
+                    && !n
+                        .ancestors()
+                        .any(|a| skipper.skip(&a) || a.tag() == Some(Tag::Article))
+                    && title_agrees(&title, &n.text())
+            })
+        })
+    else {
         return (root, None);
     };
+    if scope.is_some_and(|owner| !h1.ancestors().any(|a| a == owner)) {
+        // Keep a document-level title without expanding the content into its
+        // surrounding layout and recommendations.
+        return (
+            root,
+            Some(h1.text().split_whitespace().collect::<Vec<_>>().join(" ")),
+        );
+    }
     let root_ancestors: Vec<_> = root.ancestors().map(|a| a.id()).collect();
     let common = h1.ancestors().find(|a| root_ancestors.contains(&a.id()));
     let base = skipper.content_chars(&root);
@@ -276,9 +318,70 @@ fn with_headline<'a>(
     (root, (!title.is_empty()).then_some(title))
 }
 
+pub(crate) fn title_agrees(title: &str, heading: &str) -> bool {
+    let title = title.to_lowercase();
+    let heading = heading.to_lowercase();
+    let normalized = |s: &str| {
+        s.chars()
+            .filter(|c| c.is_alphanumeric())
+            .collect::<String>()
+    };
+    let key = normalized(&heading);
+    if key.chars().count() >= 8 && normalized(&title).contains(&key) {
+        return true;
+    }
+    let words = |s: &str| {
+        s.split(|c: char| !c.is_alphanumeric())
+            .filter(|w| w.chars().count() > 2)
+            .map(str::to_owned)
+            .collect::<std::collections::HashSet<_>>()
+    };
+    let tw = words(&title);
+    let hw = words(&heading);
+    hw.len() >= 2 && hw.intersection(&tw).count() * 5 >= hw.len() * 4
+}
+
+/// Bind a document headline to its owning article, rather than choosing the
+/// largest article-shaped recommendation aggregate. Ambiguous owners abstain.
+pub(crate) fn headline_owner<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option<NodeR<'a>> {
+    let title = dom
+        .root()
+        .descendants()
+        .find(|n| n.tag() == Some(Tag::Title))?
+        .text()
+        .to_lowercase();
+    let mut owner = None;
+    for h in dom
+        .root()
+        .descendants()
+        .filter(|n| matches!(n.tag(), Some(Tag::H1 | Tag::H2)))
+    {
+        if skipper.skip(&h) || h.ancestors().any(|a| skipper.skip(&a)) {
+            continue;
+        }
+        if !title_agrees(&title, &h.text()) {
+            continue;
+        }
+        let Some(article) = h.ancestors().find(|a| a.tag() == Some(Tag::Article)) else {
+            continue;
+        };
+        if skipper.content_chars(&article) < MIN_ROOT_CHARS || !has_paragraph(&article, skipper) {
+            continue;
+        }
+        if owner.is_some_and(|old| old != article) {
+            return None;
+        }
+        owner = Some(article);
+    }
+    owner
+}
+
 /// 找文章主体。信号从强到弱：`itemprop="articleBody"`、文字最多的 `<article>`、常见的正文类名；
 /// 都没有时从 `<main>`（或 body）往下，收窄到装着大部分文字的最小容器。
 fn find_root<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option<NodeR<'a>> {
+    if let Some(owner) = headline_owner(dom, skipper) {
+        return Some(owner);
+    }
     // 一次遍历收集每种信号下文字最多的候选：itemprop、第 0 层、<article>、第 1–2 层、<main>
     const ITEMPROP: usize = 0;
     const ARTICLE: usize = 2;

@@ -3,7 +3,8 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 
 use pagesift_net::{
-    BoxError, BoxFuture, FetchRequest, FetchResponse, Fetcher, RedirectGuard, Url, product_token,
+    BoxError, BoxFuture, FetchRequest, FetchResponse, FetchStream, Fetcher, RedirectGuard, Url,
+    product_token,
 };
 use tokio::time::Instant;
 
@@ -270,33 +271,73 @@ impl Policy {
                 return Err(e);
             }
         };
-        let final_host = resp.final_url.host_str().unwrap_or_default().to_string();
-        let retry_after = resp
-            .header("retry-after")
-            .and_then(|v| parse_retry_after(v, SystemTime::now()));
-        match resp.status {
+        self.record_status(&resp.final_url, resp.status, resp.header("retry-after"))?;
+        Ok((resp, permit))
+    }
+
+    /// Raw byte stream with robots, cooldown and per-host/global admission.
+    /// Retain the returned permit until the body and disk writes are complete.
+    pub async fn stream_held(
+        &self,
+        req: FetchRequest,
+        mode: RobotsMode,
+    ) -> Result<(FetchStream, Permit), Error> {
+        let url = self.fetcher.check_url(&req.url)?;
+        let host = url.host_str().unwrap_or_default();
+        self.check_cooldown(host)?;
+        let delay = match mode {
+            RobotsMode::Respect => self.check_robots(&url).await?,
+            RobotsMode::Ignore => None,
+        };
+        let permit = self.limiter.acquire(host, delay).await;
+        self.check_cooldown(host)?;
+        let guard = HopGuard { policy: self, mode };
+        let stream = match self.fetcher.fetch_stream_with(req, &guard).await {
+            Ok(stream) => stream,
+            Err(e) => {
+                let e = Error::from(e);
+                if matches!(
+                    e,
+                    Error::Timeout(_) | Error::Upstream(_) | Error::Network(_) | Error::Dns(_)
+                ) {
+                    self.backoff.on_failure(host);
+                }
+                return Err(e);
+            }
+        };
+        self.record_status(
+            &stream.final_url,
+            stream.status,
+            stream.header("retry-after"),
+        )?;
+        Ok((stream, permit))
+    }
+
+    fn record_status(
+        &self,
+        url: &Url,
+        status: u16,
+        retry_after: Option<&str>,
+    ) -> Result<(), Error> {
+        let host = url.host_str().unwrap_or_default();
+        let retry_after = retry_after.and_then(|v| parse_retry_after(v, SystemTime::now()));
+        match status {
             429 => {
-                self.backoff.on_throttled(&final_host, retry_after);
-                self.limiter.throttled(&final_host);
-                Err(Error::RateLimited { retry_after })
+                self.backoff.on_throttled(host, retry_after);
+                self.limiter.throttled(host);
+                return Err(Error::RateLimited { retry_after });
             }
-            // 503 带 Retry-After 是明确的"慢一点"，立即冷却；不带的多半是偶发故障，
-            // 和其他 5xx 一样连续失败几次才冷却，免得一次偶发错误让整个主机停 10 秒
             503 if retry_after.is_some() => {
-                self.backoff.on_throttled(&final_host, retry_after);
-                self.limiter.throttled(&final_host);
-                Ok((resp, permit))
+                self.backoff.on_throttled(host, retry_after);
+                self.limiter.throttled(host);
             }
-            500..=599 => {
-                self.backoff.on_failure(&final_host);
-                Ok((resp, permit))
-            }
+            500..=599 => self.backoff.on_failure(host),
             _ => {
-                self.backoff.on_success(&final_host);
-                self.limiter.succeeded(&final_host);
-                Ok((resp, permit))
+                self.backoff.on_success(host);
+                self.limiter.succeeded(host);
             }
         }
+        Ok(())
     }
 
     fn check_cooldown(&self, host: &str) -> Result<(), Error> {

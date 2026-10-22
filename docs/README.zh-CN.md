@@ -18,6 +18,14 @@
 
 ---
 
+## 2.0
+
+2.0 已加入原生 Rust 增量采集、独立 HTTP 会话、可验证归档，以及七类有明确边界的新核心。新增命令主要通过 Rust API / CLI 提供；17 类能力仍为部分实现，不宣称六项目全功能领先。
+
+[Release / migration](releases/2.0.0.md) · [Documentation](README.md) · [Architecture](architecture.md) · [Evidence](../bench/six/evidence/README.md)
+
+![pagesift 2.0](assets/overview.svg)
+
 pagesift 是一个可自托管的抓取与爬取引擎，面向 AI 流水线、RAG 和智能体。它负责获取页面，只在必要时才渲染 JavaScript，提取正文，并通过兼容 [Firecrawl v2](https://docs.firecrawl.dev) 的 HTTP API、MCP 服务器、CLI 以及原生 Python 和 Node 包返回 Markdown、HTML、链接和元数据。
 
 它为以服务形式运行而设计：内存有上限、支持背压、任务持久化、webhook、按密钥限流以及指标监控。它也守规矩——遵守 robots.txt，按主机限速，使用诚实的 User-Agent，不做任何反爬绕过。
@@ -41,7 +49,7 @@ pagesift 是一个可自托管的抓取与爬取引擎，面向 AI 流水线、R
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:0.12
+  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:2.0.0
 
 curl -s http://localhost:3002/v2/scrape \
   -H 'Authorization: Bearer change-me' -H 'Content-Type: application/json' \

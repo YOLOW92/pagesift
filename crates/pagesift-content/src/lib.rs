@@ -13,6 +13,7 @@ mod barrier;
 mod clean_html;
 mod dates;
 mod dom;
+mod editorial;
 mod extract;
 mod features;
 mod fingerprint;
@@ -22,6 +23,7 @@ mod markdown;
 mod math;
 mod metadata;
 mod readability;
+mod script_links;
 mod text;
 
 use extract::Relax;
@@ -34,6 +36,7 @@ pub use dates::{time_published, trace_published};
 pub use fingerprint::{Fingerprints, hash_hex};
 pub use links::{Image, Link, same_site};
 pub use metadata::Metadata;
+pub use script_links::{ScriptScan, scan_script};
 pub use text::{estimate_tokens, normalize_text};
 
 #[derive(Debug, Clone)]
@@ -116,8 +119,15 @@ pub fn process(html: &str, opts: &Options) -> Document {
     let article = (opts.only_main_content && metadata.is_article && !home)
         .then(|| render_article(&dom, &mut skipper, base.as_ref()))
         .flatten();
+    let inferred = (opts.only_main_content && !metadata.is_article && !home)
+        .then(|| editorial::unmarked_root(&dom, &skipper))
+        .flatten();
+    let output_body = inferred.unwrap_or(body);
     let mut markdown = match article {
         Some(md) => md,
+        None if inferred.is_some() => {
+            markdown::Renderer::new(base.as_ref(), &skipper).render(&[output_body])
+        }
         None => render_main(&mut skipper, body, base.as_ref()),
     };
     // 还是几乎为空、页面又有 <noscript>：有的单页应用只在 <noscript> 里给不跑脚本的抓取器留一份内容。
@@ -136,14 +146,15 @@ pub fn process(html: &str, opts: &Options) -> Document {
     let barrier = (opts.detect_barrier && !surely_content)
         .then(|| barrier::detect(&dom, html, metadata.title.as_deref(), opts.status))
         .flatten();
-    let plain_text = (opts.plain_text || opts.fingerprints).then(|| text::render(body, &skipper));
+    let plain_text =
+        (opts.plain_text || opts.fingerprints).then(|| text::render(output_body, &skipper));
     let fingerprints = opts
         .fingerprints
         .then(|| fingerprint::compute(html, &markdown, plain_text.as_deref().unwrap_or_default()));
     Document {
         html: opts
             .clean_html
-            .then(|| clean_html::render(body, &skipper, base.as_ref())),
+            .then(|| clean_html::render(output_body, &skipper, base.as_ref())),
         links: opts.links.then(|| links::links(&dom, base.as_ref())),
         images: opts.images.then(|| links::images(&dom, base.as_ref())),
         plain_text: plain_text.filter(|_| opts.plain_text),
@@ -265,11 +276,18 @@ fn render_article(
             (prose, para)
         })
     };
+    let bound_to_headline = article::headline_owner(dom, skipper).is_some_and(|owner| {
+        container.as_ref().is_some_and(|r| {
+            r.nodes
+                .iter()
+                .all(|n| *n == owner || n.ancestors().any(|a| a == owner))
+        })
+    });
     let a = measure(skipper, &container);
     let r = measure(skipper, &scored);
     let (root, got) = match (a, r) {
         (Some((la, pa)), Some((lr, _))) => {
-            if la == 0 || lr > 2 * la || !pa && lr > la {
+            if la == 0 || !bound_to_headline && (lr > 2 * la || !pa && lr > la) {
                 (scored?, lr)
             } else {
                 (container?, la)
@@ -285,7 +303,7 @@ fn render_article(
     skipper.set_strict(true, skipper.content_chars(&body));
     let full = article::prose(&body, skipper, markdown::Whitelist::Off);
     skipper.set_strict(false, 0);
-    if got == 0 || (got as f64) < full as f64 * ARTICLE_MIN_SHARE {
+    if got == 0 || !bound_to_headline && (got as f64) < full as f64 * ARTICLE_MIN_SHARE {
         return None;
     }
     // 兜底：连默认规则的全部文字（含链接文字，不算评论区）的 10% 都不到，多半是把页面类型
@@ -299,7 +317,7 @@ fn render_article(
         .map(|n| article::text_without_comments(n, skipper))
         .sum();
     skipper.set_strict(false, 0);
-    if (article_text as f64) < page_text as f64 * ARTICLE_MIN_DEFAULT_SHARE {
+    if !bound_to_headline && (article_text as f64) < page_text as f64 * ARTICLE_MIN_DEFAULT_SHARE {
         return None;
     }
     render_strict(skipper, base, Some(root))

@@ -1,0 +1,9 @@
+{
+  "docker_sampled_peak_total_mib": 2195.3940000000002,
+  "samples": 28,
+  "docker_cap_mib": 6784,
+  "runner_cap_mib": 1408,
+  "total_cap_mib": 8192,
+  "cpu_total_cap_percent": 800,
+  "not_a_speed_ranking": true
+}

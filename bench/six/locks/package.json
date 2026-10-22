@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "dependencies": {
+    "@crawlee/cheerio": "3.18.2",
+    "@crawlee/playwright": "3.18.2",
+    "@mendable/firecrawl-js": "4.28.1",
+    "playwright": "1.64.1"
+  }
+}

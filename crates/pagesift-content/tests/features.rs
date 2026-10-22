@@ -143,6 +143,51 @@ fn images_pick_largest_and_skip_trackers() {
 }
 
 #[test]
+fn lazy_images_fall_through_unusable_sources() {
+    let html = r#"<article><h1>Photos</h1>
+        <img src="data:image/gif;base64,AAAA" data-src="/one.jpg">
+        <img src="javascript:void(0)" data-lazy-src="/two.jpg">
+        <img src="  " data-original="/three.jpg">
+        <img data-srcset="/small.jpg 400w, /four.jpg 1200w">
+        <img src="data:image/gif;base64,AAAA" data-lazy-srcset="/five.jpg 2x">
+        </article>"#;
+    let doc = process(html, &all());
+    let images = doc.images.unwrap();
+    let urls: Vec<_> = images.iter().map(|i| i.src.as_str()).collect();
+    assert_eq!(
+        urls,
+        [
+            "https://www.example.com/one.jpg",
+            "https://www.example.com/two.jpg",
+            "https://www.example.com/three.jpg",
+            "https://www.example.com/four.jpg",
+            "https://www.example.com/five.jpg",
+        ]
+    );
+    assert!(doc.markdown.contains("/one.jpg"));
+    assert!(doc.markdown.contains("/two.jpg"));
+    assert!(doc.markdown.contains("/three.jpg"));
+    assert!(!doc.markdown.contains("javascript:"));
+}
+
+#[test]
+fn unsupported_image_schemes_do_not_become_markdown_destinations() {
+    let html = r##"<article><h1>Photos</h1>
+        <img src="JaVaScRiPt:alert(1)"><img src="blob:https://example.com/id">
+        <img src="data:image/png;base64,AAAA"><img src="#section">
+        <img src="HTTPS://cdn.example.com/valid.jpg">
+        </article>"##;
+    let doc = process(html, &all());
+    let images = doc.images.unwrap();
+    assert_eq!(images.len(), 1);
+    assert_eq!(images[0].src, "https://cdn.example.com/valid.jpg");
+    assert!(!doc.markdown.contains("JaVaScRiPt:"));
+    assert!(!doc.markdown.contains("blob:"));
+    assert!(!doc.markdown.contains("data:"));
+    assert!(doc.markdown.contains("valid.jpg"));
+}
+
+#[test]
 fn fingerprints_ignore_whitespace_differences() {
     let a = process(PAGE, &all()).fingerprints.unwrap();
     let spaced = PAGE.replace("First <b>", "First   \n <b>");
@@ -198,4 +243,95 @@ fn token_estimate_is_in_range() {
     let doc = process(PAGE, &all());
     let n = estimate_tokens(&doc.markdown);
     assert!((40..200).contains(&n), "{n}");
+}
+
+#[test]
+fn discovery_links_include_get_documents_but_not_resources_or_writes() {
+    let html = r##"<link rel="NEXT" href="/page/2"><link rel="preload" href="/asset">
+      <iframe src="/frame#part"></iframe><iframe src="/ignored" srcdoc="inline"></iframe>
+      <div hx-get="/fragment">Read</div>
+      <div data-hx-get="/fragment#dup"></div><button hx-post="/delete">Delete</button>
+      <div hx-get="javascript:bad()"></div><div hx-get="#here"></div>
+      <div hx-get=""></div><script>const route='/not-a-link';</script>"##;
+    let urls: Vec<String> = process(html, &all())
+        .links
+        .unwrap()
+        .into_iter()
+        .map(|l| l.url)
+        .collect();
+    assert_eq!(
+        urls,
+        [
+            "https://www.example.com/page/2",
+            "https://www.example.com/frame",
+            "https://www.example.com/fragment"
+        ]
+    );
+}
+
+#[test]
+fn editorial_embeds_survive_but_social_controls_do_not() {
+    for class in ["social-media-embed", "article-embed", "video-embed"] {
+        let prose = "This is an editorial paragraph with sufficient context for a full article. "
+            .repeat(20);
+        let html = format!(
+            "<article><div class='article-body'><p>{prose}</p><div class='{class}'><blockquote><p>Quoted witness account with a factual statement.</p></blockquote><script>load()</script></div><div class='social-share'><a>Share this page</a></div><div class='related'><blockquote>Unrelated recommendation</blockquote><a href='/other'>Other article</a></div></div></article>"
+        );
+        let out = process(&html, &Options::default()).markdown;
+        assert!(out.contains("Quoted witness account"), "{class}: {out}");
+        assert!(!out.contains("Share this page"));
+        assert!(!out.contains("Unrelated recommendation"));
+    }
+}
+
+#[test]
+fn undated_article_claim_requires_one_substantial_editorial_region() {
+    let prose = "A substantial independently written paragraph explains the evidence and gives readers useful context. ".repeat(6);
+    for body in ["<article>", "<div class='article_body'>"] {
+        let end = if body.starts_with("<article") {
+            "</article>"
+        } else {
+            "</div>"
+        };
+        let html = format!(
+            "<html><head><meta property='og:type' content='article'></head><body>{body}<p>{prose}</p><div class='cms_subheadline'>The second question</div><p>{prose}</p><p>{prose}</p>{end}<div class='related'><a href='/other'>A recommendation</a></div></body></html>"
+        );
+        let out = process(&html, &Options::default());
+        assert!(out.metadata.is_article);
+        assert!(out.markdown.contains("The second question"));
+        assert!(!out.markdown.contains("A recommendation"));
+    }
+    let cards = format!(
+        "<meta property='og:type' content='article'><article><p>{prose}</p><p>{prose}</p><p>{prose}</p></article><article><p>{prose}</p><p>{prose}</p><p>{prose}</p></article>"
+    );
+    assert!(!process(&cards, &Options::default()).metadata.is_article);
+    assert!(
+        !process(
+            "<meta property='og:type' content='article'><article><p>Short card</p></article>",
+            &Options::default()
+        )
+        .metadata
+        .is_article
+    );
+}
+
+#[test]
+fn executable_inline_script_navigation_is_separate_from_arbitrary_strings() {
+    let html = "<script type='application/ld+json'>{\"ignored\":\"fetch('/data-only')\"}</script><script src='/bundle.js'></script><script>location.href='/destination';fetch('/read');fetch('/write',{method:'POST'});const route='/unproven';</script>";
+    let doc = pagesift_content::process(
+        html,
+        &pagesift_content::Options {
+            links: true,
+            base_url: Some("https://example.test/source".parse().unwrap()),
+            ..Default::default()
+        },
+    );
+    let urls: Vec<_> = doc.links.unwrap().into_iter().map(|l| l.url).collect();
+    assert_eq!(
+        urls,
+        [
+            "https://example.test/destination",
+            "https://example.test/read"
+        ]
+    );
 }

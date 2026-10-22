@@ -1,0 +1,23 @@
+{
+  "firecrawl": {
+    "tag": "sha-ef12eb36b2f3-linux-amd64",
+    "image": "ghcr.io/firecrawl/firecrawl@sha256:4749476b5def369906546e4dbe2c8e767559173635cac5d4a6b26e1ea42dbc46",
+    "compressed_mb": 315.7,
+    "labels": null,
+    "created": "2026-06-18T17:36:36.958084456Z"
+  },
+  "playwright-service": {
+    "tag": "sha-a7a63b4bfabf-linux-amd64",
+    "image": "ghcr.io/firecrawl/playwright-service@sha256:378f5eb724da2499c728aa9bb42cd7c4a2af603fe9ed63c0e36eea4ec4a8a271",
+    "compressed_mb": 529.0,
+    "labels": null,
+    "created": "2026-10-19T08:28:24.84302317Z"
+  },
+  "nuq-postgres": {
+    "tag": "sha-a7a63b4bfabf-linux-amd64",
+    "image": "ghcr.io/firecrawl/nuq-postgres@sha256:5a0be88215431b8dd57ae5d701ee191521cd1ac8e882a65558ae95c4587c57cb",
+    "compressed_mb": 154.3,
+    "labels": null,
+    "created": "2026-10-19T08:28:12.038166652Z"
+  }
+}

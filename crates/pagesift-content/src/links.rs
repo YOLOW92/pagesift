@@ -27,33 +27,86 @@ pub struct Image {
     pub alt: Option<String>,
 }
 
-/// `<a href>` 和 `<area href>`，只保留 http(s)，按出现顺序去重。没有基准 URL 时相对链接无法转换，跳过。
+/// 导航链接、分页、frame 文档和 HTMX GET 入口；不收集资源预加载或写操作。
+/// 只保留 http(s)，按出现顺序去重。没有基准 URL 时相对链接无法转换，跳过。
 pub(crate) fn links(dom: &Html<'_>, base: Option<&Url>) -> Vec<Link> {
     let mut seen = HashSet::new();
     let mut out = Vec::new();
     for node in dom.root().descendants() {
         let Some(el) = element(&node) else { continue };
-        if !matches!(el.name(), "a" | "area") {
-            continue;
+        let target = match el.name() {
+            "a" | "area" => el.attr("href"),
+            "iframe" | "frame" if el.attr("srcdoc").is_none() => el.attr("src"),
+            "link"
+                if el.attr("rel").is_some_and(|r| {
+                    r.split_ascii_whitespace()
+                        .any(|v| v.eq_ignore_ascii_case("next") || v.eq_ignore_ascii_case("prev"))
+                }) =>
+            {
+                el.attr("href")
+            }
+            _ => None,
+        };
+        // HTMX's empty GET target means the current document, not a new URL.
+        // Never infer a GET from hx-post/put/patch/delete; script candidates
+        // are handled separately and require an explicit navigation/GET primitive.
+        for target in target
+            .into_iter()
+            .chain(el.attr("hx-get"))
+            .chain(el.attr("data-hx-get"))
+        {
+            let Some(mut url) = absolute(base, target) else {
+                continue;
+            };
+            url.set_fragment(None);
+            let url = url.to_string();
+            if !seen.insert(url.clone()) {
+                continue;
+            }
+            let text: String = node
+                .descendants()
+                .filter_map(|d| d.as_text().map(|t| t.to_string()))
+                .collect();
+            let internal = base.is_some_and(|b| same_site(b, &url));
+            out.push(Link {
+                text: collapse_whitespace(&text).trim().to_string(),
+                url,
+                internal,
+            });
         }
-        let Some(mut url) = el.attr("href").and_then(|h| absolute(base, h)) else {
+    }
+    // Inspect executable inline scripts only, with a document-wide byte budget.
+    let mut budget = 2 * 1024 * 1024;
+    for node in dom.root().descendants() {
+        let Some(el) = element(&node) else {
             continue;
         };
-        url.set_fragment(None);
-        let url = url.to_string();
-        if !seen.insert(url.clone()) {
+        if el.name() != "script"
+            || el.attr("src").is_some()
+            || el.attr("type").is_some_and(|v| {
+                !matches!(
+                    v.trim(),
+                    "" | "module" | "text/javascript" | "application/javascript"
+                )
+            })
+        {
             continue;
         }
-        let text: String = node
-            .descendants()
-            .filter_map(|d| d.as_text().map(|t| t.to_string()))
-            .collect();
-        let internal = base.is_some_and(|b| same_site(b, &url));
-        out.push(Link {
-            text: collapse_whitespace(&text).trim().to_string(),
-            url,
-            internal,
-        });
+        let code = node.text();
+        if code.len() > budget {
+            continue;
+        }
+        budget -= code.len();
+        for url in crate::script_links::discover(&code, base) {
+            if seen.insert(url.clone()) {
+                let internal = base.is_some_and(|b| same_site(b, &url));
+                out.push(Link {
+                    url,
+                    text: String::new(),
+                    internal,
+                });
+            }
+        }
     }
     out
 }
@@ -67,7 +120,10 @@ pub(crate) fn images(dom: &Html<'_>, base: Option<&Url>) -> Vec<Image> {
         if el.name() != "img" || is_tracking_pixel(el) {
             continue;
         }
-        let mut sets: Vec<&str> = el.attr("srcset").into_iter().collect();
+        let mut sets: Vec<&str> = ["srcset", "data-srcset", "data-lazy-srcset"]
+            .iter()
+            .filter_map(|a| el.attr(a))
+            .collect();
         if let Some(picture) = node.parent().filter(|p| tag(p) == Some("picture")) {
             sets.extend(
                 picture
@@ -77,11 +133,10 @@ pub(crate) fn images(dom: &Html<'_>, base: Option<&Url>) -> Vec<Image> {
             );
         }
         let largest = largest_candidate(&sets).and_then(|u| absolute(base, u));
-        let src = el
-            .attr("src")
-            .filter(|s| !s.trim().is_empty())
-            .or_else(|| el.attr("data-src"))
-            .and_then(|s| absolute(base, s))
+        let src = ["src", "data-src", "data-lazy-src", "data-original"]
+            .iter()
+            .filter_map(|a| el.attr(a))
+            .find_map(|s| absolute(base, s))
             .or_else(|| largest.clone());
         let Some(src) = src else { continue };
         let src = src.to_string();

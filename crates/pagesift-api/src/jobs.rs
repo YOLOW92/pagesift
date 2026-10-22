@@ -171,6 +171,39 @@ fn list_key(id: &str, what: &str) -> String {
     format!("job/{id}/{what}")
 }
 
+// Store identity with the result in ONE CRC-protected log record. The done
+// set is a derived index: startup repairs it before selecting pending work.
+// Public Document/JobError decoding deliberately omits this private field.
+#[derive(Serialize)]
+struct Completion<'a, T> {
+    #[serde(flatten)]
+    value: &'a T,
+    #[serde(rename = "_pagesiftDone")]
+    done: &'a str,
+}
+
+#[derive(Deserialize)]
+struct Receipt {
+    #[serde(default, rename = "_pagesiftDone")]
+    done: Option<String>,
+}
+
+fn repair_done(store: &Store, id: &str) -> pagesift_store::Result<()> {
+    let t = store.tasks();
+    let done = list_key(id, "done");
+    for kind in ["pages", "errors"] {
+        let key = list_key(id, kind);
+        for start in (0..t.list_len(&key)).step_by(256) {
+            for raw in t.list_range(&key, start, 256)? {
+                if let Ok(Receipt { done: Some(member) }) = serde_json::from_slice(&raw) {
+                    t.set_insert(&done, member)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 fn to_ms(t: SystemTime) -> u64 {
     t.duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_millis() as u64)
@@ -643,6 +676,11 @@ impl Jobs {
                     .insert(id, job);
                 continue;
             }
+            // Repair the append/done crash window before any worker resumes.
+            if let Err(error) = repair_done(store, &id) {
+                tracing::error!(job = %id, %error, "could not rebuild completion index; not resuming job");
+                continue;
+            }
             // 进行中的任务：算出还没做完的部分，接着跑
             let done = list_key(&id, "done");
             let hook = match (&self.inner.webhooks, meta.webhook) {
@@ -812,7 +850,12 @@ impl JobSink {
             let r = store
                 .blocking(move |s| -> pagesift_store::Result<()> {
                     let t = s.tasks();
-                    t.list_push(pages, &serde_json::to_vec(&doc).unwrap_or_default())?;
+                    let value = serde_json::to_vec(&Completion {
+                        value: &doc,
+                        done: &done,
+                    })
+                    .map_err(std::io::Error::other)?;
+                    t.list_push(pages, &value)?;
                     t.set_insert(done_set, done)?;
                     Ok(())
                 })
@@ -860,7 +903,12 @@ impl JobSink {
             let r = store
                 .blocking(move |s| -> pagesift_store::Result<()> {
                     let t = s.tasks();
-                    t.list_push(errors, &serde_json::to_vec(&e).unwrap_or_default())?;
+                    let value = serde_json::to_vec(&Completion {
+                        value: &e,
+                        done: &done,
+                    })
+                    .map_err(std::io::Error::other)?;
+                    t.list_push(errors, &value)?;
                     t.set_insert(done_set, done)?;
                     Ok(())
                 })

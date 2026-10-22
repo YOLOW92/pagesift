@@ -146,6 +146,7 @@ pub(crate) struct Skipper {
     classes: Vec<Cell<u8>>,
     /// [`crate::features`] 的特征位，每个节点只算一次；`u32::MAX` 表示还没算。
     features: Vec<Cell<u32>>,
+    attachments: Vec<Cell<u8>>,
 }
 
 /// 子树里可见文字的统计，只排除硬跳过的内容。构造 Skipper 时自底向上一次算好。
@@ -297,6 +298,7 @@ impl Skipper {
             cache: (0..html.len()).map(|_| Cell::new(0)).collect(),
             classes: (0..html.len()).map(|_| Cell::new(UNKNOWN)).collect(),
             features: (0..html.len()).map(|_| Cell::new(u32::MAX)).collect(),
+            attachments: (0..html.len()).map(|_| Cell::new(0)).collect(),
         }
     }
 
@@ -402,6 +404,22 @@ impl Skipper {
         if tag == Tag::A {
             return is_skip_link(node, el).then_some("skip link");
         }
+        // An embedded quotation is editorial content. Only protect compact
+        // wrappers consisting of a quote and its loader, never a recommendation
+        // container that merely happens to contain a quote somewhere below it.
+        if matches!(tag, Tag::Div | Tag::Section)
+            && el
+                .attr("class")
+                .is_some_and(|s| s.to_ascii_lowercase().contains("embed"))
+            && node.children().any(|n| n.tag() == Some(Tag::Blockquote))
+            && node.children().all(|n| {
+                n.is_comment()
+                    || n.as_text().is_some_and(|t| t.trim().is_empty())
+                    || matches!(n.tag(), Some(Tag::Blockquote | Tag::Script))
+            })
+        {
+            return None;
+        }
         // 页面标明的正文容器（itemprop="articleBody"、article-body、post-content……）本身不按
         // 文章模式的规则删：正文本身可能就是一串链接（目录、合集）
         let declared_body = self.strict
@@ -409,7 +427,11 @@ impl Skipper {
                 || el
                     .attr("itemprop")
                     .is_some_and(|v| v.eq_ignore_ascii_case("articleBody")));
-        if self.strict && !declared_body {
+        let attachment = self.strict && self.editorial_attachment(node);
+        if self.strict && !declared_body && !attachment {
+            if crate::editorial::recommendation_list(node) {
+                return Some("article: attributed recommendation list");
+            }
             if crate::article::is_cleaned_tag(tag) {
                 return Some("article: cleaned tag");
             }
@@ -450,6 +472,7 @@ impl Skipper {
         // 链接密集的块不可能是正文本身，文章模式里不受大小上限限制
         if link_block
             && !declared_body
+            && !attachment
             && (self.strict
                 || !node.ancestors().any(|a| {
                     matches!(a.tag(), Some(Tag::Main | Tag::Article))
@@ -470,6 +493,7 @@ impl Skipper {
             Some("negative class/id")
         } else if strict_small
             && !declared_body
+            && !attachment
             && (self.classes(node, el) & STRICT != 0
                 || crate::article::is_furniture(el, self.features(node)))
         {
@@ -523,6 +547,18 @@ impl Skipper {
             .copied()
             .unwrap_or_default();
         (v.chars, v.link_chars, v.links)
+    }
+
+    pub(crate) fn editorial_attachment(&self, node: &NodeR<'_>) -> bool {
+        let cache = &self.attachments[node.id().index()];
+        if cache.get() == 0 {
+            cache.set(if crate::editorial::attachment(node) {
+                1
+            } else {
+                2
+            });
+        }
+        cache.get() == 1
     }
 
     pub(crate) fn only_main(&self) -> bool {

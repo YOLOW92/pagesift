@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 要发布的版本标签，例如 v0.12.1
+        description: 要发布的版本标签，例如 v2.0.0
         required: true
       run_id:
         description: 那次发布流程的运行编号（npm 包的构建产物从这里取）
@@ -30,50 +30,16 @@ jobs:
       - name: crates.io（逐个发布，限流时等待）
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: |
-          set -uo pipefail
-          # 工作区内的包按依赖顺序排好（被依赖的在前），绑定包不发 crates.io
-          order=$(cargo metadata --no-deps --format-version 1 | python3 -c '
-          import json, sys
-          m = json.load(sys.stdin)
-          pk = {p["name"]: p for p in m["packages"] if p["name"] not in ("pagesift-py", "pagesift-node")}
-          seen, out = set(), []
-          def visit(n):
-              if n in seen: return
-              seen.add(n)
-              for d in pk[n]["dependencies"]:
-                  if d["name"] in pk and d.get("kind") in (None, "build"): visit(d["name"])
-              out.append(n)
-          for n in sorted(pk): visit(n)
-          print(" ".join(out))')
-          version=$(cargo metadata --no-deps --format-version 1 | python3 -c 'import json,sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"]=="pagesift"))')
-          echo "顺序：$order；版本 $version"
-          for c in $order; do
-            if curl -sf -A "pagesift-release (yolow92@outlook.com)" "https://crates.io/api/v1/crates/$c/$version" > /dev/null; then
-              echo "$c $version 已发布，跳过"; continue
-            fi
-            for attempt in $(seq 1 20); do
-              if out=$(cargo publish -p "$c" --locked 2>&1); then echo "$out" | tail -2; break; fi
-              echo "$out" | tail -3
-              if echo "$out" | grep -q "already exists"; then break; fi
-              if echo "$out" | grep -q "429"; then
-                after=$(echo "$out" | grep -o 'after [A-Z][a-z]*, [0-9]* [A-Z][a-z]* [0-9]* [0-9:]* GMT' | head -1 | cut -c7-)
-                wait=$(( $(date -d "$after" +%s 2>/dev/null || echo $(( $(date +%s) + 600 ))) - $(date +%s) + 15 ))
-                [ "$wait" -lt 30 ] && wait=30
-                echo "被限流，等 $wait 秒（到 $after）"; sleep "$wait"
-              else
-                exit 1
-              fi
-            done
-          done
+        run: python3 scripts/publish_crates.py
 
   npm:
     needs: crates
     runs-on: ubuntu-latest
     environment: release
     steps:
-      # 用触发时所在分支（main）上的 Node 包配置：标签上的配置可能列着发布流程没有构建的平台
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
       - uses: actions/download-artifact@v4
         with:
           path: artifacts

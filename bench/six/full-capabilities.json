@@ -1,0 +1,421 @@
+{
+  "scope_exclusions": {
+    "authority": "direct user instruction in current turn",
+    "capabilities": [
+      "persistent browser interact lifecycle",
+      "agent autonomous data-gathering API"
+    ]
+  },
+  "scope": "40 source-based categories; browser interact and agent excluded by direct user request. Seven formerly missing categories now have bounded Rust cores; full functional leadership remains unachieved",
+  "selection": "fixed versions from tools.lock.json; no silent scope reduction",
+  "status_semantics": "implemented is not proven superior; bounded synthetic evidence is not site-wide or full-service evidence",
+  "versions": {
+    "firecrawl": {
+      "tag": "v2.11.0",
+      "sha": "ef12eb36b2f3382838dfe0a0c1a5add3d5df7fe5"
+    },
+    "crawlee": {
+      "tag": "v3.18.2",
+      "sha": "78da0622762e1b569b5cb0b56e8eb06a0a010d93"
+    },
+    "scrapling": {
+      "tag": "v0.5",
+      "sha": "3a8bf4e4d3ed91257ba0aa5b7dc66241d1e23840"
+    },
+    "katana": {
+      "tag": "v1.8.0",
+      "sha": "35267ac5c8ff1db9694a319d0eb466ed97b0969f"
+    },
+    "essence": {
+      "tag": "v0.3.0",
+      "sha": "a4f845c6b98d3337106e74fe7b91f94d61ab599d"
+    },
+    "gallery-dl": {
+      "tag": "v1.32.17",
+      "sha": "61971e01d394d35c81a86d4d0d03717c78ae53d5"
+    }
+  },
+  "capabilities": [
+    {
+      "tool": "firecrawl",
+      "capability": "scrape formats / metadata / screenshots",
+      "status": "implemented_partial_verification",
+      "reference_source": "bench/data/six/sources/firecrawl/apps/api/src/routes/v2.ts",
+      "reference_source_sha256": "fc69b1acb25ef5cc4082bcf02953fbdd1d39683eff5dfa1fb87a87f4f5631cf1",
+      "local_evidence_or_gap": "pagesift-api/types.rs, pagesift-cdp, historical SDK 17 checks",
+      "acceptance_remaining": "Full option-by-option official SDK contract, malformed requests and large outputs"
+    },
+    {
+      "tool": "firecrawl",
+      "capability": "crawl/map/batch lifecycle and cancellation",
+      "status": "implemented_partial_verification",
+      "reference_source": "bench/data/six/sources/firecrawl/apps/api/src/routes/v2.ts",
+      "reference_source_sha256": "fc69b1acb25ef5cc4082bcf02953fbdd1d39683eff5dfa1fb87a87f4f5631cf1",
+      "local_evidence_or_gap": "pagesift-api/jobs.rs; ROUND4 SDK and recovery evidence",
+      "acceptance_remaining": "Current official SDK pagination, cancel races and multi-tenant load matrix"
+    },
+    {
+      "tool": "firecrawl",
+      "capability": "search and scrape enrichment",
+      "status": "implemented_not_compared",
+      "reference_source": "bench/data/six/sources/firecrawl/apps/api/src/routes/v2.ts",
+      "reference_source_sha256": "fc69b1acb25ef5cc4082bcf02953fbdd1d39683eff5dfa1fb87a87f4f5631cf1",
+      "local_evidence_or_gap": "pagesift-search and configured search backend",
+      "acceptance_remaining": "Same provider, same budgets and frozen search results end to end"
+    },
+    {
+      "tool": "firecrawl",
+      "capability": "schema extraction / extract job",
+      "status": "partial",
+      "reference_source": "bench/data/six/sources/firecrawl/apps/api/src/routes/v2.ts",
+      "reference_source_sha256": "fc69b1acb25ef5cc4082bcf02953fbdd1d39683eff5dfa1fb87a87f4f5631cf1",
+      "local_evidence_or_gap": "pagesift-llm supports per-page schema; full extract orchestration parity unverified",
+      "acceptance_remaining": "Multi-URL extract schema, cost, failure and source attribution"
+    },
+    {
+      "tool": "firecrawl",
+      "capability": "persistent browser interact lifecycle",
+      "status": "excluded_by_user",
+      "reference_source": "bench/data/six/sources/firecrawl/apps/api/src/routes/v2.ts",
+      "reference_source_sha256": "fc69b1acb25ef5cc4082bcf02953fbdd1d39683eff5dfa1fb87a87f4f5631cf1",
+      "local_evidence_or_gap": "Direct user instruction excludes browser interaction from this round",
+      "acceptance_remaining": "Excluded from current scope; no full-feature parity claim"
+    },
+    {
+      "tool": "firecrawl",
+      "capability": "agent autonomous data-gathering API",
+      "status": "excluded_by_user",
+      "reference_source": "bench/data/six/sources/firecrawl/apps/api/src/routes/v2.ts",
+      "reference_source_sha256": "fc69b1acb25ef5cc4082bcf02953fbdd1d39683eff5dfa1fb87a87f4f5631cf1",
+      "local_evidence_or_gap": "Direct user instruction excludes agent tasks from this round",
+      "acceptance_remaining": "Excluded from current scope; no full-feature parity claim"
+    },
+    {
+      "tool": "firecrawl",
+      "capability": "cloud-only services and optional engine behavior",
+      "status": "unverified_external_dependency",
+      "reference_source": "bench/data/six/sources/firecrawl/apps/api/src/routes/v2.ts",
+      "reference_source_sha256": "fc69b1acb25ef5cc4082bcf02953fbdd1d39683eff5dfa1fb87a87f4f5631cf1",
+      "local_evidence_or_gap": "Self-hosted tests cannot establish managed cloud parity",
+      "acceptance_remaining": "Separately provision and test cloud-only services; never replace with OSS component score"
+    },
+    {
+      "tool": "crawlee",
+      "capability": "persistent request queue / restart recovery",
+      "status": "implemented_partial_verification",
+      "reference_source": "bench/data/six/sources/crawlee/README.md",
+      "reference_source_sha256": "f17f21939e477d78e698ca957c64cb86932464079b49ab990690b8193cac286e",
+      "local_evidence_or_gap": "crawl queue receipts + ROUND4 97/97 process recovery",
+      "acceptance_remaining": "Large queue, crash points, disk exhaustion and long-running jobs"
+    },
+    {
+      "tool": "crawlee",
+      "capability": "autoscaling / CPU / memory admission",
+      "status": "implemented_partial_verification",
+      "reference_source": "bench/data/six/sources/crawlee/README.md",
+      "reference_source_sha256": "f17f21939e477d78e698ca957c64cb86932464079b49ab990690b8193cac286e",
+      "local_evidence_or_gap": "pagesift-cdp pool and system resource probing",
+      "acceptance_remaining": "Same workloads repeated, full process tree RSS, CPU-pressure and throughput"
+    },
+    {
+      "tool": "crawlee",
+      "capability": "adaptive rendering classification",
+      "status": "partial",
+      "reference_source": "bench/data/six/sources/crawlee/README.md",
+      "reference_source_sha256": "f17f21939e477d78e698ca957c64cb86932464079b49ab990690b8193cac286e",
+      "local_evidence_or_gap": "origin/path learning plus thin client-page guard",
+      "acceptance_remaining": "Reduce measured 3-to-8 unnecessary browser starts without losing JS bodies"
+    },
+    {
+      "tool": "crawlee",
+      "capability": "session pool / stateful cookie reuse / login isolation",
+      "status": "partial",
+      "reference_source": "bench/data/six/sources/crawlee/README.md",
+      "reference_source_sha256": "f17f21939e477d78e698ca957c64cb86932464079b49ab990690b8193cac286e",
+      "local_evidence_or_gap": "Origin-isolated CookieSession and SessionFile; native CLI process tests in SESSION-CORE.md",
+      "acceptance_remaining": "Managed pool leasing, browser storage, end-to-end authenticated crawl and independent identity benchmarks"
+    },
+    {
+      "tool": "crawlee",
+      "capability": "browser engine breadth",
+      "status": "partial",
+      "reference_source": "bench/data/six/sources/crawlee/README.md",
+      "reference_source_sha256": "f17f21939e477d78e698ca957c64cb86932464079b49ab990690b8193cac286e",
+      "local_evidence_or_gap": "Chrome-family CDP, moli, Lightpanda; no native Firefox/WebKit driver",
+      "acceptance_remaining": "Required engine matrix with screenshots, actions, iframe and state semantics"
+    },
+    {
+      "tool": "crawlee",
+      "capability": "pluggable datasets / storage / crawler hooks",
+      "status": "partial",
+      "reference_source": "bench/data/six/sources/crawlee/README.md",
+      "reference_source_sha256": "f17f21939e477d78e698ca957c64cb86932464079b49ab990690b8193cac286e",
+      "local_evidence_or_gap": "Rust library and output callbacks, local store",
+      "acceptance_remaining": "Documented hook ordering, rollback and dataset backend contracts"
+    },
+    {
+      "tool": "crawlee",
+      "capability": "proxy rotation / fingerprint behaviors",
+      "status": "not_implemented_product_boundary",
+      "reference_source": "bench/data/six/sources/crawlee/README.md",
+      "reference_source_sha256": "f17f21939e477d78e698ca957c64cb86932464079b49ab990690b8193cac286e",
+      "local_evidence_or_gap": "Named egress proxies exist; rotation/fingerprint emulation is outside current product policy",
+      "acceptance_remaining": "Explicit product-scope decision and corresponding tests; cannot mark full parity while omitted"
+    },
+    {
+      "tool": "scrapling",
+      "capability": "CSS/XPath/text/regex parsing",
+      "status": "implemented_partial_verification",
+      "reference_source": "bench/data/six/sources/scrapling/README.md",
+      "reference_source_sha256": "58a89c9c27fc39353f94606b732299523c0387816af40716c0cc24f795883614",
+      "local_evidence_or_gap": "pagesift-html/pagesift-extract and historical differential parser checks",
+      "acceptance_remaining": "Current official parser suites, XPath edge cases and controlled performance"
+    },
+    {
+      "tool": "scrapling",
+      "capability": "stable identity relocation",
+      "status": "implemented_bounded",
+      "reference_source": "bench/data/six/sources/scrapling/README.md",
+      "reference_source_sha256": "58a89c9c27fc39353f94606b732299523c0387816af40716c0cc24f795883614",
+      "local_evidence_or_gap": "Anchor searches identity across tag changes and rejects duplicates",
+      "acceptance_remaining": "Independent page changes with labeled identity and ambiguity"
+    },
+    {
+      "tool": "scrapling",
+      "capability": "fuzzy relocation without stable identity",
+      "status": "partial",
+      "reference_source": "bench/data/six/sources/scrapling/README.md",
+      "reference_source_sha256": "58a89c9c27fc39353f94606b732299523c0387816af40716c0cc24f795883614",
+      "local_evidence_or_gap": "Native FuzzyAnchor, confidence/margin abstention and corroborated container-tag changes; seven-next/tasks-verified controlled 64/64 vs native Scrapling 56/64",
+      "acceptance_remaining": "Independent changed real pages, more negative/ambiguous cases and calibrated false-match cost; appearance is not identity"
+    },
+    {
+      "tool": "scrapling",
+      "capability": "persistent fetch/browser sessions",
+      "status": "partial",
+      "reference_source": "bench/data/six/sources/scrapling/README.md",
+      "reference_source_sha256": "58a89c9c27fc39353f94606b732299523c0387816af40716c0cc24f795883614",
+      "local_evidence_or_gap": "Native Rust HTTP cookie lifecycle, retirement and explicit persistence; browser state remains missing",
+      "acceptance_remaining": "Browser session lifecycle, cross-subdomain SSO and identity/cache integration"
+    },
+    {
+      "tool": "scrapling",
+      "capability": "background API capture",
+      "status": "partial",
+      "reference_source": "bench/data/six/sources/scrapling/README.md",
+      "reference_source_sha256": "58a89c9c27fc39353f94606b732299523c0387816af40716c0cc24f795883614",
+      "local_evidence_or_gap": "CDP interception guards exist; reusable captured API response extraction unverified",
+      "acceptance_remaining": "Bounded response capture, secrets handling, iframe/worker associations"
+    },
+    {
+      "tool": "scrapling",
+      "capability": "spider middleware / exports / interactive shell",
+      "status": "partial",
+      "reference_source": "bench/data/six/sources/scrapling/README.md",
+      "reference_source_sha256": "58a89c9c27fc39353f94606b732299523c0387816af40716c0cc24f795883614",
+      "local_evidence_or_gap": "CLI, Rust SDK, JSONL, CSV, MCP; framework API not equivalent",
+      "acceptance_remaining": "Reusable handlers, structured exports and pause/resume contracts"
+    },
+    {
+      "tool": "scrapling",
+      "capability": "stealth / challenge handling",
+      "status": "not_implemented_product_boundary",
+      "reference_source": "bench/data/six/sources/scrapling/README.md",
+      "reference_source_sha256": "58a89c9c27fc39353f94606b732299523c0387816af40716c0cc24f795883614",
+      "local_evidence_or_gap": "Access barrier detection only",
+      "acceptance_remaining": "Scope decision; cannot claim six-project full feature parity while this is omitted"
+    },
+    {
+      "tool": "katana",
+      "capability": "HTML/frame/HTMX/Link-header discovery",
+      "status": "implemented_bounded",
+      "reference_source": "bench/data/six/sources/katana/README.md",
+      "reference_source_sha256": "e124232622fc644899966f56299f6a83b13afe2ac53adf896193c488239ab0b1",
+      "local_evidence_or_gap": "ROUND4 controlled graph 8/8",
+      "acceptance_remaining": "Broader page families and live graph recall"
+    },
+    {
+      "tool": "katana",
+      "capability": "literal inline navigation and GET discovery",
+      "status": "new_verified_local",
+      "reference_source": "bench/data/six/sources/katana/README.md",
+      "reference_source_sha256": "e124232622fc644899966f56299f6a83b13afe2ac53adf896193c488239ab0b1",
+      "local_evidence_or_gap": "script_links.rs; media-core/final-navigation contrast",
+      "acceptance_remaining": "More JavaScript syntax families; source strings alone do not establish read methods"
+    },
+    {
+      "tool": "katana",
+      "capability": "external JS files / jsluice / computed endpoints",
+      "status": "partial",
+      "reference_source": "bench/data/six/sources/katana/README.md",
+      "reference_source_sha256": "e124232622fc644899966f56299f6a83b13afe2ac53adf896193c488239ab0b1",
+      "local_evidence_or_gap": "Native scoped module graph + opt-in HTTP crawl integration; new graph 12/13 vs Katana -jc -jsl 10/13",
+      "acceptance_remaining": "Full AST/computed function evaluation, import maps/source maps, task-wide script budgets and independent site graphs"
+    },
+    {
+      "tool": "katana",
+      "capability": "headless network discovery",
+      "status": "partial",
+      "reference_source": "bench/data/six/sources/katana/README.md",
+      "reference_source_sha256": "e124232622fc644899966f56299f6a83b13afe2ac53adf896193c488239ab0b1",
+      "local_evidence_or_gap": "Browser rendering and request interception; network-URL frontier integration incomplete",
+      "acceptance_remaining": "Controlled worker/XHR/fetch/iframe graph with budgets and URL attribution"
+    },
+    {
+      "tool": "katana",
+      "capability": "forms / input extraction / automatic fill",
+      "status": "partial",
+      "reference_source": "bench/data/six/sources/katana/README.md",
+      "reference_source_sha256": "e124232622fc644899966f56299f6a83b13afe2ac53adf896193c488239ab0b1",
+      "local_evidence_or_gap": "Rust form metadata, external owners/disabled controls and explicit GET planning; new controlled 12/12",
+      "acceptance_remaining": "Full validation, submitter overrides, scripted/dynamic forms and independently labeled input families"
+    },
+    {
+      "tool": "katana",
+      "capability": "scope / traps / throttling / retries",
+      "status": "implemented_partial_verification",
+      "reference_source": "bench/data/six/sources/katana/README.md",
+      "reference_source_sha256": "e124232622fc644899966f56299f6a83b13afe2ac53adf896193c488239ab0b1",
+      "local_evidence_or_gap": "ROUND4 navigation and wild simulation",
+      "acceptance_remaining": "More independent site families; report coverage regressions rather than only average"
+    },
+    {
+      "tool": "katana",
+      "capability": "technology / knowledge-base / secret extractors",
+      "status": "partial",
+      "reference_source": "bench/data/six/sources/katana/README.md",
+      "reference_source_sha256": "e124232622fc644899966f56299f6a83b13afe2ac53adf896193c488239ab0b1",
+      "local_evidence_or_gap": "Bounded Rust rules with redacted byte-range findings and custom regex; controlled body/form cases and native Katana KB both detect expected indicators",
+      "acceptance_remaining": "Broader technology/scanner/page-classifier coverage, endpoint classification, independent labels and provider-validation scope"
+    },
+    {
+      "tool": "essence",
+      "capability": "content extraction / Markdown",
+      "status": "implemented_compared_component",
+      "reference_source": "bench/data/six/sources/essence/README.md",
+      "reference_source_sha256": "372d7fe231eb70505820ba0d713ed653db8502e616412910f8c709036fae42d8",
+      "local_evidence_or_gap": "SEVEN-CORE: complete new 545-page component contrast; prior 1355-page results retained as regression evidence",
+      "acceptance_remaining": "Remaining article boundaries; preserve fresh validation after changes"
+    },
+    {
+      "tool": "essence",
+      "capability": "crawl/map/search APIs",
+      "status": "implemented_not_compared_full_service",
+      "reference_source": "bench/data/six/sources/essence/README.md",
+      "reference_source_sha256": "372d7fe231eb70505820ba0d713ed653db8502e616412910f8c709036fae42d8",
+      "local_evidence_or_gap": "Product API, only Essence component benchmarked",
+      "acceptance_remaining": "Build Essence complete service, same provider/input and whole-stack cost"
+    },
+    {
+      "tool": "essence",
+      "capability": "HTTP/browser fallback",
+      "status": "implemented_partial_verification",
+      "reference_source": "bench/data/six/sources/essence/README.md",
+      "reference_source_sha256": "372d7fe231eb70505820ba0d713ed653db8502e616412910f8c709036fae42d8",
+      "local_evidence_or_gap": "auto engine and ROUND4 controlled render families",
+      "acceptance_remaining": "End-to-end on independent live inputs with all subprocesses measured"
+    },
+    {
+      "tool": "essence",
+      "capability": "crawl streaming / MCP",
+      "status": "implemented_not_compared",
+      "reference_source": "bench/data/six/sources/essence/README.md",
+      "reference_source_sha256": "372d7fe231eb70505820ba0d713ed653db8502e616412910f8c709036fae42d8",
+      "local_evidence_or_gap": "pagesift MCP and job streaming interfaces",
+      "acceptance_remaining": "Side-by-side stream cancellation, backpressure and tool contract"
+    },
+    {
+      "tool": "essence",
+      "capability": "browser and extraction option surface",
+      "status": "unverified",
+      "reference_source": "bench/data/six/sources/essence/README.md",
+      "reference_source_sha256": "372d7fe231eb70505820ba0d713ed653db8502e616412910f8c709036fae42d8",
+      "local_evidence_or_gap": "Individual capabilities exist; no exhaustive equivalence proof",
+      "acceptance_remaining": "Enumerate Essence configuration and errors, test every supported combination"
+    },
+    {
+      "tool": "gallery-dl",
+      "capability": "direct HTTP file download",
+      "status": "new_verified_local",
+      "reference_source": "bench/data/six/sources/gallery-dl/README.rst",
+      "reference_source_sha256": "0ecdd6ac10acd0d1074166df4c70aab57c08638a94decfcea2b506371ecaff1c",
+      "local_evidence_or_gap": "download.rs and native CLI contrast",
+      "acceptance_remaining": "Independent file types, proxies and large transfer measurements"
+    },
+    {
+      "tool": "gallery-dl",
+      "capability": "validated resumable transfer / integrity",
+      "status": "new_verified_local",
+      "reference_source": "bench/data/six/sources/gallery-dl/README.rst",
+      "reference_source_sha256": "0ecdd6ac10acd0d1074166df4c70aab57c08638a94decfcea2b506371ecaff1c",
+      "local_evidence_or_gap": "ETag/If-Range, range checks, checksum and SIGKILL evidence",
+      "acceptance_remaining": "More server variants, concurrent readers, Windows/macOS filesystem behavior"
+    },
+    {
+      "tool": "gallery-dl",
+      "capability": "stable-ID archive and incremental collection",
+      "status": "implemented_bounded",
+      "reference_source": "bench/data/six/sources/gallery-dl/README.rst",
+      "reference_source_sha256": "0ecdd6ac10acd0d1074166df4c70aab57c08638a94decfcea2b506371ecaff1c",
+      "local_evidence_or_gap": "Archive source/id/revision and collect updates/deletions",
+      "acceptance_remaining": "Connect listing item acknowledgements to file commit before pagination checkpoint"
+    },
+    {
+      "tool": "gallery-dl",
+      "capability": "site-specific media extractors",
+      "status": "partial",
+      "reference_source": "bench/data/six/sources/gallery-dl/README.rst",
+      "reference_source_sha256": "0ecdd6ac10acd0d1074166df4c70aab57c08638a94decfcea2b506371ecaff1c",
+      "local_evidence_or_gap": "Explicit WordPress/Mastodon/Wikimedia/JSON-LD Rust adapters; Mastodon originals 20/20, native gallery-dl 20/20",
+      "acceptance_remaining": "Pagination/auth/site variants and gallery-dl extractor ecosystem; connect listing delivery to archive transactions"
+    },
+    {
+      "tool": "gallery-dl",
+      "capability": "authentication / OAuth / browser cookie import",
+      "status": "partial",
+      "reference_source": "bench/data/six/sources/gallery-dl/README.rst",
+      "reference_source_sha256": "0ecdd6ac10acd0d1074166df4c70aab57c08638a94decfcea2b506371ecaff1c",
+      "local_evidence_or_gap": "Configured host-scoped credentials; no OAuth or cookie import workflow",
+      "acceptance_remaining": "Authorized account fixture, token refresh, storage isolation and login expiry"
+    },
+    {
+      "tool": "gallery-dl",
+      "capability": "HLS/DASH / yt-dlp integration",
+      "status": "partial",
+      "reference_source": "bench/data/six/sources/gallery-dl/README.rst",
+      "reference_source_sha256": "0ecdd6ac10acd0d1074166df4c70aab57c08638a94decfcea2b506371ecaff1c",
+      "local_evidence_or_gap": "Native finite HLS/DASH planning, ranged segment archives and local DASH MPD preserving timing; docs/remaining-core.md",
+      "acceptance_remaining": "Independent stream families, live/renditions/negative-repeat/SegmentBase/encryption and A/V mux remain outside this implementation"
+    },
+    {
+      "tool": "gallery-dl",
+      "capability": "postprocessors / metadata / filename templates",
+      "status": "partial",
+      "reference_source": "bench/data/six/sources/gallery-dl/README.rst",
+      "reference_source_sha256": "0ecdd6ac10acd0d1074166df4c70aab57c08638a94decfcea2b506371ecaff1c",
+      "local_evidence_or_gap": "Rust deterministic templates, no-overwrite media+sidecar publication, recovery and integrity checks",
+      "acceptance_remaining": "Full naming/tagging/postprocessor ecosystem, additional filesystems, crash points and independent metadata cases"
+    }
+  ],
+  "counts": {
+    "excluded_by_user": 2,
+    "implemented_bounded": 3,
+    "implemented_compared_component": 1,
+    "implemented_not_compared": 2,
+    "implemented_not_compared_full_service": 1,
+    "implemented_partial_verification": 7,
+    "new_verified_local": 3,
+    "not_implemented_product_boundary": 2,
+    "partial": 17,
+    "unverified": 1,
+    "unverified_external_dependency": 1
+  },
+  "next_work_order": [
+    "browser session pool and identity-scoped cache integration",
+    "fuzzy relocation as explicit optional API",
+    "external JS and network frontier",
+    "site adapters plus listing-to-archive transaction",
+    "HLS/DASH and postprocessors",
+    "independent per-task quality and full-stack performance acceptance"
+  ]
+}

@@ -18,6 +18,14 @@
 
 ---
 
+## 2.0
+
+2.0 では Rust による増分収集、明示的 HTTP セッション、検証可能なアーカイブと7種類の限定コアを追加しました。新機能は主に Rust API / CLI で提供します。17項目は部分実装であり、全機能での優位は主張していません。
+
+[Release / migration](releases/2.0.0.md) · [Documentation](README.md) · [Architecture](architecture.md) · [Evidence](../bench/six/evidence/README.md)
+
+![pagesift 2.0](assets/overview.svg)
+
 pagesift は、AI パイプライン、RAG、エージェント向けのセルフホスト型スクレイピング・クローリングエンジンです。ページを取得し、必要な場合にだけ JavaScript をレンダリングし、本文を抽出して、Markdown、HTML、リンク、メタデータを返します。インターフェースは [Firecrawl v2](https://docs.firecrawl.dev) 互換の HTTP API、MCP サーバー、CLI、ネイティブの Python パッケージと Node パッケージを用意しています。
 
 サービスとしての運用を前提に設計されています。メモリ使用量の上限、バックプレッシャー、ジョブの永続化、webhook、キーごとの制限、メトリクスを備えています。また、ルールも守ります。robots.txt に従い、ホストごとにレート制限をかけ、正直な User-Agent を名乗り、ボット対策の回避は一切行いません。
@@ -41,7 +49,7 @@ pagesift は、AI パイプライン、RAG、エージェント向けのセル�
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:0.12
+  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:2.0.0
 
 curl -s http://localhost:3002/v2/scrape \
   -H 'Authorization: Bearer change-me' -H 'Content-Type: application/json' \

@@ -54,6 +54,7 @@ impl<'a> Renderer<'a> {
     fn paragraph_allowed(&self, node: &NodeR<'_>) -> bool {
         match self.whitelist {
             Whitelist::Off => true,
+            Whitelist::On { .. } if self.skipper.editorial_attachment(node) => true,
             Whitelist::On { div } => match node.tag() {
                 Some(
                     Tag::P
@@ -66,7 +67,7 @@ impl<'a> Renderer<'a> {
                     | Tag::Pre
                     | Tag::Code,
                 ) => true,
-                Some(Tag::Div) => div,
+                Some(Tag::Div) => div || crate::dom::is_heading(node),
                 _ => false,
             },
         }
@@ -546,7 +547,14 @@ impl Renderer<'_> {
 /// 图片地址。懒加载的图片 `src` 常是空的或 `data:` 占位图，真实地址在 `data-src`、
 /// `data-lazy-src`、`data-original` 或 `srcset` 里；`data:` 地址本身不输出。
 fn image_src(el: Element<'_>) -> Option<&str> {
-    let usable = |s: &&str| !s.is_empty() && !s.starts_with("data:");
+    let usable = |s: &&str| {
+        !s.is_empty()
+            && !s.starts_with('#')
+            && match Url::parse(s) {
+                Ok(u) => matches!(u.scheme(), "http" | "https"),
+                Err(_) => true,
+            }
+    };
     ["src", "data-src", "data-lazy-src", "data-original"]
         .iter()
         .filter_map(|a| el.attr(a).map(str::trim))

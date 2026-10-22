@@ -1,0 +1,49 @@
+{
+  "n": 545,
+  "same_html_bytes": true,
+  "URL_context": "same replay /case/<UUID> path; Pagesift accesses Docker host gateway, Firecrawl accesses its extra-host replay name, as in prior established service protocol",
+  "metric": "same token multiset F1 diagnostic as seven_corpus, in replay URL context; not mixed with original-URL component scores",
+  "scope": "fixed complete self-hosted Firecrawl service, not managed cloud",
+  "readiness_excluded": "image-readiness-only",
+  "product_binary_sha256": "a7ab6eb6ccb02479146a9fa3428acae18880098cacf00e0b5558a5682f3b9bee",
+  "docker_images": {
+    "api": {
+      "image": "ghcr.io/firecrawl/firecrawl@sha256:4749476b5def369906546e4dbe2c8e767559173635cac5d4a6b26e1ea42dbc46",
+      "id": "sha256:4749476b5def369906546e4dbe2c8e767559173635cac5d4a6b26e1ea42dbc46",
+      "size": 331048116,
+      "pg_major": null
+    },
+    "playwright": {
+      "image": "ghcr.io/firecrawl/playwright-service@sha256:378f5eb724da2499c728aa9bb42cd7c4a2af603fe9ed63c0e36eea4ec4a8a271",
+      "id": "sha256:378f5eb724da2499c728aa9bb42cd7c4a2af603fe9ed63c0e36eea4ec4a8a271",
+      "size": 554693643,
+      "pg_major": null
+    },
+    "postgres": {
+      "image": "ghcr.io/firecrawl/nuq-postgres@sha256:5a0be88215431b8dd57ae5d701ee191521cd1ac8e882a65558ae95c4587c57cb",
+      "id": "sha256:5a0be88215431b8dd57ae5d701ee191521cd1ac8e882a65558ae95c4587c57cb",
+      "size": 161795749,
+      "pg_major": "PG_MAJOR=17"
+    },
+    "redis": {
+      "image": "redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499",
+      "id": "sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499",
+      "size": 16260342,
+      "pg_major": null
+    },
+    "rabbitmq": {
+      "image": "rabbitmq@sha256:e582c0bc7766f3342496d8485efb5a1df782b5ce3886ad017e2eaae442311f69",
+      "id": "sha256:e582c0bc7766f3342496d8485efb5a1df782b5ce3886ad017e2eaae442311f69",
+      "size": 114479602,
+      "pg_major": null
+    }
+  },
+  "docker_memory_caps_mb": 6784,
+  "runner_memory_cap_mb": 1408,
+  "docker_cpu_quota_percent": 720,
+  "runner_cpu_quota_percent": 80,
+  "fault_isolation": "Every failed/timeout page kept as empty output; no retry of that page. Before next page restart candidate service or full disposable reference stack+volumes. No reference code modified.",
+  "per_document_http_deadline_s": 25,
+  "api_timeout_ms": 15000,
+  "revision_reason": "Prior full-service run stopped after five consecutive HTTP timeouts; its 75 reference records remain separate, not used as all-545 scores."
+}

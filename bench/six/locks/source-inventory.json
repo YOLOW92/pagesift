@@ -1,0 +1,44 @@
+{
+  "firecrawl": {
+    "sha": "ef12eb36b2f3382838dfe0a0c1a5add3d5df7fe5",
+    "tag": "v2.11.0",
+    "archive_url": "https://codeload.github.com/firecrawl/firecrawl/tar.gz/ef12eb36b2f3382838dfe0a0c1a5add3d5df7fe5",
+    "archive_sha256": "b7c6df0b8b692397c8a19e84f94b85ce0a2d961b36fc1d5ff78088db88819f59"
+  },
+  "crawlee": {
+    "sha": "78da0622762e1b569b5cb0b56e8eb06a0a010d93",
+    "tag": "v3.18.2",
+    "archive_url": "https://codeload.github.com/apify/crawlee/tar.gz/78da0622762e1b569b5cb0b56e8eb06a0a010d93",
+    "archive_sha256": "37751d403eb3c5bb7a9a4371cb4f542b8b8b06aab2897c4d8b30bfc845830527"
+  },
+  "scrapling": {
+    "sha": "3a8bf4e4d3ed91257ba0aa5b7dc66241d1e23840",
+    "tag": "v0.5",
+    "archive_url": "https://codeload.github.com/d4vinci/Scrapling/tar.gz/3a8bf4e4d3ed91257ba0aa5b7dc66241d1e23840",
+    "archive_sha256": "c23eedf55340937780ad05dbe9dcdbdae5f6a96f230c72ce2ae5b435a430149d"
+  },
+  "katana": {
+    "sha": "35267ac5c8ff1db9694a319d0eb466ed97b0969f",
+    "tag": "v1.8.0",
+    "archive_url": "https://codeload.github.com/projectdiscovery/katana/tar.gz/35267ac5c8ff1db9694a319d0eb466ed97b0969f",
+    "archive_sha256": "c071eda74a9daecfa35411e2209395e01790a4a174faaa803e0a0064ad4f8996"
+  },
+  "essence": {
+    "sha": "a4f845c6b98d3337106e74fe7b91f94d61ab599d",
+    "tag": "v0.3.0",
+    "archive_url": "https://codeload.github.com/ruchit-p/essence/tar.gz/a4f845c6b98d3337106e74fe7b91f94d61ab599d",
+    "archive_sha256": "7c3f41c9b2220cac5b37dd69df5d6555eac512d29ce872b341b90503c2d2e7ed"
+  },
+  "gallery-dl": {
+    "sha": "61971e01d394d35c81a86d4d0d03717c78ae53d5",
+    "tag": "v1.32.17",
+    "archive_url": "https://codeberg.org/mikf/gallery-dl/archive/61971e01d394d35c81a86d4d0d03717c78ae53d5.tar.gz",
+    "archive_sha256": "f48afb4c1ce7235e5bc83c585093da5b2557edf3776b0179b72260d8c961152d"
+  },
+  "essence-main": {
+    "sha": "74a99fb64b9c6c65846c6e4ecc6f177b1b0bc66b",
+    "tag": "main-snapshot-2026-10-22",
+    "archive_url": "https://codeload.github.com/ruchit-p/essence/tar.gz/74a99fb64b9c6c65846c6e4ecc6f177b1b0bc66b",
+    "archive_sha256": "3784b30b404b2eeba5d537821ada71fee9044e71fe47c55a6fdb4692d097c536"
+  }
+}

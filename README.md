@@ -1,8 +1,8 @@
 <div align="center">
 
-# pagesift
+# pagesift 2.0
 
-**Fast, polite web scraping for LLMs and AI agents.**
+**Web content, incremental collections and verified archives. Built in Rust.**
 Turn any website into clean Markdown and structured data — one Rust binary, a Firecrawl-compatible API, and a fraction of the memory.
 
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
@@ -21,6 +21,14 @@ Turn any website into clean Markdown and structured data — one Rust binary, a 
 pagesift is a self-hosted scraping and crawling engine for AI pipelines, RAG and agents. It fetches pages, renders JavaScript only when it has to, extracts the main content, and returns Markdown, HTML, links and metadata over a [Firecrawl v2](https://docs.firecrawl.dev)-compatible HTTP API, an MCP server, a CLI, and native Python and Node packages.
 
 It is built for running as a service: bounded memory, backpressure, job persistence, webhooks, per-key limits and metrics. It also plays by the rules — robots.txt, per-host rate limits, an honest User-Agent, and no anti-bot bypassing.
+
+## New in 2.0
+
+![Pagesift 2.0 engine overview](docs/assets/overview.svg)
+
+Native Rust cores now cover explicit HTTP sessions, stable item identities and incremental checkpoints, verified media archives, fuzzy candidates, forms, external modules and finite HLS/DASH VOD. New collection and archiving operations are exposed through Rust APIs and CLI commands; Python and Node retain their documented scraping surface.
+
+**[Release and upgrade guide](docs/releases/2.0.0.md)** · **[Documentation](docs/README.md)** · **[Architecture diagrams](docs/architecture.md)**
 
 ## Why pagesift
 
@@ -41,7 +49,7 @@ Detailed, reproducible numbers: **[docs/benchmarks.md](docs/benchmarks.md)**.
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:0.12
+  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:2.0.0
 
 curl -s http://localhost:3002/v2/scrape \
   -H 'Authorization: Bearer change-me' -H 'Content-Type: application/json' \
@@ -104,6 +112,11 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 
 **Scraping and crawling**
 - Formats: `markdown`, `html` (cleaned), `rawHtml`, `links`, `images`; `summary` and `json` (schema extraction) with any OpenAI-compatible LLM; `changeTracking` (diffs against the previous visit, needs the cache).
+- Rust business anchors relocate uniquely identified items across selector changes and reject missing or duplicate identities. Semantic item discovery and `pagesift collect` add JSON API pagination checkpoints, updates, opt-in deletion sync and a WordPress adapter; see [incremental collection](docs/incremental-collection.md).
+- The Rust store provides explicit source/item/revision completion records for incremental collectors. Callers supply stable identities and commit after delivery; this is separate from automatic URL crawling and cache identity.
+- Link discovery includes anchors, frames, HTMX GET, pagination and HTTP `Link` headers, plus bounded static inline navigation and literal GET calls. Dynamic script expressions and unknown/write options are excluded; see [script discovery](docs/script-discovery.md).
+- `pagesift download` archives direct file URLs by source/item/revision with streamed disk writes, validated Range/ETag resume, BLAKE3 verification and recoverable atomic completion; see [media archive](docs/media-archive.md). Explicit site adapters, bounded finite HLS/DASH and named metadata publication are available; broad ecosystem parity remains incomplete. See [native core boundaries](docs/remaining-core.md).
+- `pagesift session-fetch` adds explicit, origin-isolated HTTP Cookie sessions with private persisted state, expiry/use budgets and sticky retirement; see [HTTP sessions](docs/http-sessions.md). Browser sessions and automatic authenticated crawl integration remain open work.
 - Crawl with include/exclude paths, depth and limits, sitemaps, and robots.txt; **query-focused crawling** (`query`, `adaptive`) visits the most relevant pages first and stops when new pages stop helping.
 - Faithful Markdown: tables, nested lists, fenced code with its language, hard line breaks and formulas (KaTeX, MathJax, MathML and Wikipedia math become `$…$` TeX); Markdown characters in the text are escaped only where they would otherwise turn into formatting. Scores 1.000 on a random round-trip test where the next best converter scores 0.937.
 - **Crawls real sites without wasting the budget:** strips tracking parameters and session IDs, skips binaries and endless paths, learns which URLs are aliases of the same page, pushes calendar and pagination traps to the back, retries transient failures later and slows down when a site answers 429. On a simulated messy web it finds 71% of the content pages within the page limit, versus 49% for the next best tool (see the benchmarks).
@@ -122,7 +135,21 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 - Prometheus metrics (`/metrics`), JSON logs, graceful shutdown, health checks.
 - Named egress proxies per request, host allowlists for internal services, total per-request deadlines, clear error codes (`DNS_FAILURE`, `NETWORK_ERROR`, `BUSY`, `ACCESS_BARRIER`, …).
 
-## How it compares
+## Six-project evidence for 2.0
+
+![545-page diagnostic extraction quality](docs/assets/extraction-quality.svg)
+
+The frozen pre-release candidate was compared against pinned Firecrawl, Crawlee, Scrapling, Katana, Essence and gallery-dl versions. All 545 calibrated WebMainBench pages are retained in the two quality comparisons above. This is a diagnostic token-multiset F1, **not the official leaderboard**; component and complete-service URL contexts are separate. Pagesift still loses on 117 Essence component pages and 96 Firecrawl service pages.
+
+![Controlled task comparisons](docs/assets/controlled-tasks.svg)
+
+These synthetic tasks test disclosed modes: Crawlee Cheerio, Scrapling adaptive selectors and 8 Mastodon posts / 20 originals. They do not establish complete-framework or site-wide leadership.
+
+![Forty-category capability coverage](docs/assets/capability-coverage.svg)
+
+**17 categories remain partial.** Persistent browser-interaction and autonomous Agent workflows are outside this release's work scope. See [public protocols and per-page scores](bench/six/evidence/README.md), [full comparison](bench/six/SEVEN-CORE.md) and [40-category inventory](bench/six/FULL-CAPABILITIES.md).
+
+## Earlier benchmark comparisons
 
 | | pagesift | Crawl4AI | Firecrawl | crw | Spider |
 |---|---|---|---|---|---|
@@ -142,9 +169,11 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 | Native Python / Node packages | ✅ / ✅ | ✅ / ❌ | HTTP SDKs | — | ✅ / ✅ |
 | License | AGPL-3.0 + commercial | Apache-2.0 | AGPL-3.0 | AGPL-3.0 | MIT |
 
-"—" means not checked. Firecrawl's self-hosted service was not benchmarked. See [docs/benchmarks.md](docs/benchmarks.md) for methods and the full tables.
+"—" means not checked in these earlier tables. See [docs/benchmarks.md](docs/benchmarks.md) for their methods. The newer [version-locked six-project report](bench/six/SEVEN-CORE.md) includes a complete self-hosted Firecrawl quality replay and explicit remaining gaps; it does not establish full-feature leadership.
 
 ## Configuration
+
+Additional native Rust tools for fuzzy element candidates, form inspection, external JavaScript discovery and media/stream archiving are documented in [docs/remaining-core.md](docs/remaining-core.md), including their supported subsets and remaining gaps. These additions do not establish full competitor parity.
 
 Everything works with defaults. For a server, copy [`pagesift.example.toml`](pagesift.example.toml) and pass `--config` or set `PAGESIFT_CONFIG`. It covers API keys and limits, webhooks, the User-Agent, rate limits, browser engines, the cache, LLM and search backends, egress proxies and allowed internal hosts.
 

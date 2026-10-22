@@ -59,11 +59,9 @@ fn article_mode_keeps_the_story_and_drops_comments_and_related() {
 
 #[test]
 fn pages_that_do_not_declare_an_article_keep_the_default_rules() {
-    // og:type=article alone (many site builders put it on every page) is not enough
-    let out = md(&news_page(
-        r#"<meta property="og:type" content="article">"#,
-        COMMENTS,
-    ));
+    // Semantic containers without an article declaration keep the general mode.
+    // An undated og:type=article plus one substantial article is now corroborated.
+    let out = md(&news_page("", COMMENTS));
     assert!(
         out.contains("terrible decision"),
         "comments stay outside article mode:\n{out}"

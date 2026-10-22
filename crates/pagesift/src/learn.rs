@@ -1,7 +1,8 @@
 //! 按站点自学习抓取方式：记住哪些站开浏览器没用、哪些站要跳过排在前面的内核。
 //!
-//! - `engine: auto` 时 HTTP 正文太少会升级到浏览器。同一个站连续 [`STREAK`] 次渲染都没多出正文
-//!   （本来就短的静态页），之后直接用 HTTP 结果。
+//! - `engine: auto` 时 HTTP 正文太少会升级到浏览器。同一来源、同一首级路径连续 [`STREAK`] 次
+//!   渲染都没多出正文（本来就短的静态页），之后直接用 HTTP 结果。不能把静态文档的经验
+//!   套到同站另一个尚未探测的应用路径；HTTP 短页面出现客户端代码时也不能直接跳过渲染。
 //! - 同一个站连续 [`STREAK`] 次都要从某个内核回退（同源 iframe、脚本不支持），之后直接从回退到的
 //!   内核开始。
 //!
@@ -54,17 +55,17 @@ impl HostLearner {
     }
 
     /// 这次 HTTP 正文太少时，是否跳过浏览器直接用 HTTP 结果。
-    pub fn skip_render(&self, host: &str) -> bool {
-        self.with(host, |s| {
+    pub fn skip_render(&self, url: &str) -> bool {
+        self.with(&render_scope(url), |s| {
             s.asks = s.asks.wrapping_add(1);
             s.render_useless >= STREAK && s.asks % EXPLORE_EVERY != 0
         })
     }
 
     /// 记录一次升级渲染：渲染出的正文是否明显多于 HTTP。
-    pub fn record_render(&self, host: &str, http_chars: usize, rendered_chars: usize) {
+    pub fn record_render(&self, url: &str, http_chars: usize, rendered_chars: usize) {
         let useful = rendered_chars >= http_chars + RENDER_GAIN_CHARS;
-        self.with(host, |s| {
+        self.with(&render_scope(url), |s| {
             s.render_useless = if useful {
                 0
             } else {
@@ -109,9 +110,41 @@ impl HostLearner {
     }
 }
 
+/// A conservative page-family boundary. Engine compatibility remains host-wide, but
+/// evidence that rendering is useless must not suppress an unexplored section.
+/// Query strings/fragments do not create families; origins (including ports) do.
+fn render_scope(raw: &str) -> String {
+    let Ok(url) = url::Url::parse(raw) else {
+        return format!("render:{raw}");
+    };
+    let section = url
+        .path()
+        .trim_start_matches('/')
+        .split('/')
+        .next()
+        .unwrap_or("");
+    format!("render:{}/{}", url.origin().ascii_serialization(), section)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn static_sections_do_not_suppress_unexplored_dynamic_sections() {
+        let l = HostLearner::default();
+        for i in 0..STREAK {
+            let url = format!("https://example.com/docs/{i}");
+            assert!(!l.skip_render(&url));
+            l.record_render(&url, 30, 30);
+        }
+        assert!(l.skip_render("https://example.com/docs/next?lang=ja#heading"));
+        assert!(!l.skip_render("https://example.com/app/product"));
+        assert!(!l.skip_render("https://example.com:8443/docs/next"));
+        assert!(!l.skip_render("http://example.com/docs/next"));
+        l.record_render("https://example.com/docs/next", 30, 500);
+        assert!(!l.skip_render("https://example.com/docs/other"));
+    }
 
     #[test]
     fn learns_to_skip_useless_renders_and_explores() {

@@ -18,6 +18,14 @@ Convierte cualquier sitio web en Markdown limpio y datos estructurados: un solo 
 
 ---
 
+## 2.0
+
+2.0 añade recopilación incremental, sesiones HTTP explícitas, archivos verificables y siete núcleos Rust con límites documentados. Las nuevas operaciones se ofrecen principalmente por Rust/CLI. Hay 17 categorías parciales; no se afirma superioridad funcional completa.
+
+[Release / migration](releases/2.0.0.md) · [Documentation](README.md) · [Architecture](architecture.md) · [Evidence](../bench/six/evidence/README.md)
+
+![pagesift 2.0](assets/overview.svg)
+
 pagesift es un motor de scraping y crawling autoalojado para pipelines de IA, RAG y agentes. Descarga páginas, renderiza JavaScript solo cuando hace falta, extrae el contenido principal y devuelve Markdown, HTML, enlaces y metadatos a través de una API HTTP compatible con [Firecrawl v2](https://docs.firecrawl.dev), un servidor MCP, una CLI y paquetes nativos para Python y Node.
 
 Está pensado para funcionar como servicio: memoria acotada, backpressure, persistencia de trabajos, webhooks, límites por clave y métricas. Además, juega limpio: respeta robots.txt, limita la frecuencia por host, usa un User-Agent honesto y no evade ninguna protección antibots.
@@ -41,7 +49,7 @@ Cifras detalladas y reproducibles: **[docs/benchmarks.md](benchmarks.md)**.
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:0.12
+  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:2.0.0
 
 curl -s http://localhost:3002/v2/scrape \
   -H 'Authorization: Bearer change-me' -H 'Content-Type: application/json' \

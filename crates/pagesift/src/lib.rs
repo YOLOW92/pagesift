@@ -13,13 +13,21 @@
 #![forbid(unsafe_code)]
 
 mod change;
+pub mod collect;
 pub mod config;
 mod crawl;
+mod discovery;
+pub mod download;
 mod engine;
 mod focus;
 mod frontier;
 mod learn;
 pub mod mcp;
+pub mod media;
+pub mod postprocess;
+pub mod scripts;
+pub mod session;
+pub mod stream;
 
 pub use crawl::normalize as normalize_url;
 pub use engine::{

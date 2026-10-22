@@ -1,5 +1,7 @@
 # Benchmarks
 
+For the newer six-project, 545-page comparisons and explicit remaining gaps, see the [2.0 evidence index](../bench/six/evidence/README.md). The older metrics below use different datasets and methods.
+
 Every number here comes from scripts in [`bench/`](../bench) and can be rerun. Each metric says which direction is better. Tools see exactly the same inputs; timing runs use one tool at a time on an otherwise idle machine.
 
 **Machine:** Intel Core i7-10700 (8 cores / 16 threads), 15 GB RAM, NVMe SSD, Ubuntu (Linux 7.0). **Date:** 2026-10-21 (development runs), 2026-10-22 (release run). **pagesift:** 0.12.0.

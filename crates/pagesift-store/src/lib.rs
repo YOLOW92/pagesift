@@ -20,6 +20,7 @@
 mod cache;
 mod engine;
 mod index;
+mod items;
 mod record;
 mod snapshot;
 mod tasks;
@@ -33,6 +34,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub use cache::{Cache, CacheEntry, CacheLookup, CachePolicy};
 pub use engine::Store;
+pub use items::Items;
 pub use snapshot::{ContentHash, SnapshotMeta, SnapshotPut, Snapshots};
 pub use tasks::Tasks;
 

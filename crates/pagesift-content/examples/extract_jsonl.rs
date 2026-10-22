@@ -35,7 +35,7 @@ fn main() {
         let ms = t.elapsed().as_secs_f64() * 1000.0;
         total += ms;
         n += 1;
-        let rec = serde_json::json!({"id": row["id"], "markdown": doc.markdown, "ms": ms});
+        let rec = serde_json::json!({"id": row["id"], "markdown": doc.markdown, "ms": ms, "is_article": doc.metadata.is_article});
         writeln!(w, "{rec}").unwrap();
     }
     eprintln!(

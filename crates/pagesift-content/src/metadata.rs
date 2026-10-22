@@ -173,7 +173,43 @@ pub(crate) fn extract(html: &Html<'_>, source: &str, base: Option<&Url>) -> Meta
         .or_else(|| first_date(&meta_modified))
         .or_else(|| first_date(&time_modified));
 
-    m.is_article = ld.article || (og_article && has_published);
+    // Older sites omit publication metadata. Corroborate their article claim
+    // with one substantial semantic article or an explicit article-body block.
+    let structural_article = og_article && {
+        let candidates: Vec<_> = html
+            .root()
+            .descendants()
+            .filter(|n| {
+                n.as_element().is_some_and(|e| {
+                    e.name() == "article"
+                        || crate::features::compute(e) & crate::features::TIER[0] != 0
+                        || e.attr("itemprop") == Some("articleBody")
+                })
+            })
+            .filter(|n| {
+                let mut count = 0;
+                let mut chars = 0;
+                for p in n
+                    .descendants()
+                    .filter(|d| d.as_element().is_some_and(|e| e.name() == "p"))
+                {
+                    count += 1;
+                    chars += p.text().chars().count();
+                    if count >= 3 && chars >= 400 {
+                        return true;
+                    }
+                }
+                false
+            })
+            .collect();
+        let ids: std::collections::HashSet<_> = candidates.iter().map(|n| n.id()).collect();
+        candidates
+            .iter()
+            .filter(|n| !n.ancestors().any(|a| ids.contains(&a.id())))
+            .count()
+            == 1
+    };
+    m.is_article = ld.article || (og_article && (has_published || structural_article));
     m.title = title_tag.or(og_title);
     if m.description.is_none() {
         m.description = og_description;

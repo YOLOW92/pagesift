@@ -381,3 +381,54 @@ async fn cache_hits_skip_the_network() {
         .unwrap_err();
     assert_eq!(err.code.as_str(), "NOT_FOUND");
 }
+
+#[tokio::test]
+async fn discovery_candidates_keep_robots_scope_and_read_only_semantics() {
+    let visits = Arc::new(Mutex::new(Vec::<String>::new()));
+    let observed = visits.clone();
+    let app = Router::new().fallback(get(move |uri: axum::http::Uri| {
+        let observed = observed.clone();
+        async move {
+            let path = uri.path().to_string();
+            observed.lock().unwrap().push(path.clone());
+            if path == "/robots.txt" {
+                return ([ ("content-type", "text/plain"), ("link", "") ], "User-agent: *\nDisallow: /docs/blocked\n".to_string());
+            }
+            let body = if path == "/docs/" {
+                r#"<article><h1>Documents</h1><iframe src="/docs/frame"></iframe>
+                <div hx-get="/docs/fragment">Read fragment</div>
+                <div hx-get="/docs/blocked">Disallowed</div><div hx-get="/outside">Outside scope</div>
+                <button hx-post="/docs/write">Write</button><link rel="preload" href="/docs/resource">
+                <script>const route='/docs/script';</script></article>"#.to_string()
+            } else { format!("<article><h1>{path}</h1><p>Independent useful document content.</p></article>") };
+            ([ ("content-type", "text/html"), ("link", if path == "/docs/" { "</docs/next>; rel=next, </docs/preload>; rel=preload" } else { "" }) ], body)
+        }
+    }));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let sink = Arc::new(Collect::default());
+    let req = crawl_req(
+        &base,
+        json!({"sitemap":"skip", "limit":20, "maxDiscoveryDepth":2}),
+    );
+    scraper().crawl(&req, sink).await.unwrap();
+    let seen = visits.lock().unwrap().clone();
+    for path in ["/docs/", "/docs/frame", "/docs/fragment", "/docs/next"] {
+        assert!(seen.contains(&path.to_string()), "missing {path}: {seen:?}");
+    }
+    for path in [
+        "/docs/blocked",
+        "/outside",
+        "/docs/write",
+        "/docs/resource",
+        "/docs/preload",
+        "/docs/script",
+    ] {
+        assert!(
+            !seen.contains(&path.to_string()),
+            "unexpected {path}: {seen:?}"
+        );
+    }
+    server.abort();
+}

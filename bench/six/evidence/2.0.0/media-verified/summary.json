@@ -1,0 +1,187 @@
+{
+  "unchanged": {
+    "pagesift": {
+      "first_exit": 1,
+      "second_exit": 0,
+      "finished_files": 1,
+      "matches_current_representation": true,
+      "requests": [
+        {
+          "path": "/robots.txt",
+          "range": null,
+          "if_range": null
+        },
+        {
+          "path": "/media.zip",
+          "range": null,
+          "if_range": null
+        },
+        {
+          "path": "/robots.txt",
+          "range": null,
+          "if_range": null
+        },
+        {
+          "path": "/media.zip",
+          "range": "bytes=786432-",
+          "if_range": "\"v1\""
+        }
+      ],
+      "commands": [
+        "/home/yolow92/pagesift/bench/six/results/seven-next/bin-verified/pagesift",
+        "download",
+        "http://127.0.0.1:41949/media.zip",
+        "--config",
+        "/home/yolow92/pagesift/bench/six/results/seven-next/media-verified/pagesift.toml",
+        "--source",
+        "controlled",
+        "--id",
+        "item",
+        "--out",
+        "/home/yolow92/pagesift/bench/six/results/seven-next/media-verified/unchanged/pagesift",
+        "--max-bytes",
+        "8388608"
+      ]
+    },
+    "gallery-dl": {
+      "first_exit": 4,
+      "second_exit": 0,
+      "finished_files": 1,
+      "matches_current_representation": true,
+      "requests": [
+        {
+          "path": "/media.zip",
+          "range": null,
+          "if_range": null
+        },
+        {
+          "path": "/media.zip",
+          "range": "bytes=753680-",
+          "if_range": null
+        }
+      ],
+      "commands": [
+        "/home/yolow92/pagesift/bench/data/six/venv/bin/python",
+        "-m",
+        "gallery_dl",
+        "--config-ignore",
+        "--retries",
+        "0",
+        "-o",
+        "downloader.http.timeout=5",
+        "-D",
+        "/home/yolow92/pagesift/bench/six/results/seven-next/media-verified/unchanged/gallery-dl",
+        "-f",
+        "payload.zip",
+        "http://127.0.0.1:41949/media.zip"
+      ]
+    }
+  },
+  "changed": {
+    "pagesift": {
+      "first_exit": 1,
+      "second_exit": 0,
+      "finished_files": 1,
+      "matches_current_representation": true,
+      "requests": [
+        {
+          "path": "/robots.txt",
+          "range": null,
+          "if_range": null
+        },
+        {
+          "path": "/media.zip",
+          "range": null,
+          "if_range": null
+        },
+        {
+          "path": "/robots.txt",
+          "range": null,
+          "if_range": null
+        },
+        {
+          "path": "/media.zip",
+          "range": "bytes=786432-",
+          "if_range": "\"v1\""
+        }
+      ],
+      "commands": [
+        "/home/yolow92/pagesift/bench/six/results/seven-next/bin-verified/pagesift",
+        "download",
+        "http://127.0.0.1:41949/media.zip",
+        "--config",
+        "/home/yolow92/pagesift/bench/six/results/seven-next/media-verified/pagesift.toml",
+        "--source",
+        "controlled",
+        "--id",
+        "item",
+        "--out",
+        "/home/yolow92/pagesift/bench/six/results/seven-next/media-verified/changed/pagesift",
+        "--max-bytes",
+        "8388608"
+      ]
+    },
+    "gallery-dl": {
+      "first_exit": 4,
+      "second_exit": 0,
+      "finished_files": 1,
+      "matches_current_representation": false,
+      "requests": [
+        {
+          "path": "/media.zip",
+          "range": null,
+          "if_range": null
+        },
+        {
+          "path": "/media.zip",
+          "range": "bytes=753680-",
+          "if_range": null
+        }
+      ],
+      "commands": [
+        "/home/yolow92/pagesift/bench/data/six/venv/bin/python",
+        "-m",
+        "gallery_dl",
+        "--config-ignore",
+        "--retries",
+        "0",
+        "-o",
+        "downloader.http.timeout=5",
+        "-D",
+        "/home/yolow92/pagesift/bench/six/results/seven-next/media-verified/changed/gallery-dl",
+        "-f",
+        "payload.zip",
+        "http://127.0.0.1:41949/media.zip"
+      ]
+    }
+  },
+  "sigkill": {
+    "exit": -9,
+    "durable_bytes": 1048576,
+    "resumed_bytes": 1048576,
+    "matches_source": true,
+    "concurrent_writer_rejected": true,
+    "requests": [
+      {
+        "path": "/robots.txt",
+        "range": null,
+        "if_range": null
+      },
+      {
+        "path": "/media.zip",
+        "range": null,
+        "if_range": null
+      },
+      {
+        "path": "/robots.txt",
+        "range": null,
+        "if_range": null
+      },
+      {
+        "path": "/media.zip",
+        "range": "bytes=1048576-",
+        "if_range": "\"v1\""
+      }
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+"""Fail before publishing if workspace, native packages or a release tag disagree."""
+import argparse
+import json
+from pathlib import Path
+import subprocess
+import tomllib
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def check(tag=None):
+    workspace = tomllib.loads((ROOT / 'Cargo.toml').read_text())
+    version = workspace['workspace']['package']['version']
+    if tag and tag != 'v' + version:
+        raise ValueError(f'tag {tag} disagrees with workspace {version}')
+    metadata = json.loads(subprocess.check_output(
+        ['cargo', 'metadata', '--no-deps', '--locked', '--format-version', '1'], cwd=ROOT))
+    names = {p['name'] for p in metadata['packages']}
+    for package in metadata['packages']:
+        assert package['version'] == version, package['name']
+        for dep in package['dependencies']:
+            if dep['name'] in names and dep.get('path') and dep.get('kind') != 'dev':
+                assert dep['req'] in ('^'+version, '='+version), (package['name'], dep)
+    node = ROOT / 'crates/pagesift-node'
+    for path in [node/'package.json', *sorted((node/'npm').glob('*/package.json'))]:
+        assert json.loads(path.read_text())['version'] == version, path
+    lock = json.loads((node/'package-lock.json').read_text())
+    assert lock['version'] == lock['packages']['']['version'] == version
+    pyproject = tomllib.loads((ROOT/'crates/pagesift-py/pyproject.toml').read_text())
+    assert 'version' in pyproject['project']['dynamic']
+    assert (ROOT/f'docs/releases/{version}.md').is_file(), 'release notes missing'
+    print(f'Release identity OK: {version}, {len(names)} Rust packages, 4 npm platforms, dynamic Python version')
+    return metadata
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--tag')
+    check(parser.parse_args().tag)

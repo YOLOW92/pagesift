@@ -2,6 +2,40 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [2.0.0] — 2026-10-22
+
+Native Rust collection and archiving cores, with bounded external-script discovery and an auditable six-project comparison. See [the release and migration guide](docs/releases/2.0.0.md). Browser interaction and autonomous Agent tasks are outside the 2.0 scope.
+
+### Migration
+- Rust workspace crates and all native package distributions move together to 2.0.0. Rust struct literals and exhaustive error matches may require changes; the HTTP API remains under `/v2`.
+- Session snapshots, collection checkpoints and archive manifests are distinct from the URL cache. Back up state before upgrading; no automatic destructive migration is performed.
+- New bounded cores are principally Rust APIs and CLI commands; Python/Node retain their existing scraping surface.
+
+### Fixed
+- Title-matched short prose can be isolated without article declarations. Compact editorial product callouts, procedural purchase links, video descriptions and substantial embedded quotations survive strict cleanup; explicitly attributed recommendation lists remain excluded.
+- Article headline ownership prevents recommendation headings from expanding the story region; identified articles retain shorter trailing sections and separately placed document titles.
+- Editorial quotation embeds survive social-wrapper cleanup. Undated article declarations can be corroborated by one substantial article region; CMS subheadings remain visible in strict article output.
+- Thin pages containing client scripts or event handlers still render after neighboring static pages trained the auto-engine to skip unhelpful renders, including shared-path and query-routed applications.
+- Persisted crawl and batch results carry a private completion receipt, allowing restart recovery to rebuild a missing done marker without replaying an already saved result. Batch identities remain positional.
+- Learning that rendering adds no content is scoped to an origin and its first path segment, so short static pages do not suppress rendering in another section of the same site.
+- Image metadata falls through placeholder or unsupported URLs to lazy-load attributes and supports lazy `srcset` attributes. Markdown image destinations reject unsupported schemes.
+
+### Added
+- Optional native Rust fuzzy candidates with abstention, form metadata/GET planning and redacted knowledge indicators; origin-scoped external module traversal and opt-in HTTP crawl integration.
+- Explicit WordPress/Mastodon/Wikimedia/JSON-LD media adapters, recoverable named media/metadata publication, and bounded unencrypted HLS/DASH VOD planning and separate-track archiving. Protocol and ecosystem limits are documented in `docs/remaining-core.md`.
+- Explicit native HTTP Cookie sessions with strict origin isolation, bounded storage, lifecycle/retirement accounting, private atomic snapshots and the `session-fetch` CLI; default requests remain stateless.
+- Identity-addressed direct file archiving (`pagesift download`) with bounded raw streaming, strong-validator resume, prefix checksums, exclusive archive locking and recoverable atomic publication.
+- Bounded static discovery of literal inline navigation and default GET calls; comments, data scripts, dynamic expressions and unknown/write options abstain.
+- Business anchors allow element-tag changes while rejecting duplicate IDs across different tags. Incremental checkpoints store canonical BLAKE3 revisions instead of full item payloads and migrate earlier payload checkpoints on read.
+- Serializable Rust business-identity anchors with exact/relocated/missing/ambiguous outcomes, plus semantic item discovery that rejects duplicate identities.
+- Incremental `collect` CLI and Rust API with durable page checkpoints, acknowledged updates, opt-in terminal deletion sync, HTML identity discovery, explicit JSON mapping and a WordPress REST adapter. Delivery is at least once; a 32 MiB checkpoint limit bounds collection state.
+- The Rust store exposes explicit source/item/revision completion records for incremental collectors, separate from URL caches and automatically evictable data. Callers commit after delivery; this does not automatically identify items in crawled pages.
+- Document link discovery includes iframe/frame sources, HTMX GET attributes, and HTML pagination links. HTTP extraction also recognizes pagination Link response headers, preserving existing crawl scope and robots checks.
+
+### Development
+- Added a resource-bounded, version-locked comparison harness and initial diagnostics for Firecrawl, Crawlee, Scrapling, Katana, Essence and gallery-dl; results distinguish component tests from complete services.
+- The webhook delivery test waits for the sender to observe the HTTP acknowledgement before asserting its delivery metric.
+
 ## [0.12.1] — 2026-10-22
 
 ### Fixed
@@ -55,3 +89,5 @@ The first public release.
 - Python package (`pip install pagesift`) and Node.js package (`npm install pagesift`) embedding the engine.
 
 [0.12.0]: https://github.com/YOLOW92/pagesift/releases/tag/v0.12.0
+
+[2.0.0]: https://github.com/YOLOW92/pagesift/releases/tag/v2.0.0

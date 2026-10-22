@@ -126,7 +126,7 @@ impl From<pagesift_net::Error> for Error {
             N::Timeout(p) => Self::Timeout(p),
             N::Dns(m) => Self::Dns(m),
             N::Network(m) => Self::Network(m),
-            N::InvalidUrl(_) | N::UserAgent(_) | N::Header(_) => {
+            N::InvalidUrl(_) | N::UserAgent(_) | N::Header(_) | N::Session(_) => {
                 Self::InvalidRequest(e.to_string())
             }
             // 重定向回调里返回的是本 crate 的错误（如 robots 禁止），原样取回。

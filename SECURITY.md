@@ -11,8 +11,8 @@ pagesift fetches URLs on behalf of its callers, so it is a natural target for se
 
 | Version | Supported |
 |---|---|
-| 0.12.x | ✅ |
-| < 0.12 | ❌ |
+| 2.0.x | ✅ |
+| < 2.0 | ❌ |
 
 ## Reporting a vulnerability
 

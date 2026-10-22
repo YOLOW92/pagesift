@@ -1,0 +1,724 @@
+{
+  "seed": "c4761ad71018758068da",
+  "scope": "fresh controlled cases, NOT independently authored blind site validation or full feature dominance",
+  "frozen_before_first_output": true,
+  "navigation_gold": [
+    "/fresh-c4761ad71018758068da/",
+    "/fresh-c4761ad71018758068da/anchor",
+    "/fresh-c4761ad71018758068da/concat",
+    "/fresh-c4761ad71018758068da/dynamic",
+    "/fresh-c4761ad71018758068da/escaped",
+    "/fresh-c4761ad71018758068da/exported",
+    "/fresh-c4761ad71018758068da/frame",
+    "/fresh-c4761ad71018758068da/header",
+    "/fresh-c4761ad71018758068da/htmx",
+    "/fresh-c4761ad71018758068da/imported",
+    "/fresh-c4761ad71018758068da/inline",
+    "/fresh-c4761ad71018758068da/literal",
+    "/fresh-c4761ad71018758068da/template"
+  ],
+  "non_navigation_candidates": [
+    "/fresh-c4761ad71018758068da/comment",
+    "/fresh-c4761ad71018758068da/data",
+    "/fresh-c4761ad71018758068da/post",
+    "/fresh-c4761ad71018758068da/unused"
+  ],
+  "navigation_reference_modes": [
+    "Katana -jc -jsl",
+    "Crawlee native CheerioCrawler + enqueueLinks"
+  ],
+  "relocation": [
+    {
+      "id": "0-unchanged",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a0</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a0</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a0Price 42",
+      "kind": "unchanged"
+    },
+    {
+      "id": "0-id-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a0</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a0</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a0Price 42",
+      "kind": "id-removed"
+    },
+    {
+      "id": "0-wrapper",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a0</h2><p>Price 42</p></article></main>",
+      "new": "<section><main class='catalog'><article  class='product'><h2>Copper kettle model c4761a0</h2><p>Price 42</p></article></main></section>",
+      "wanted": "Copper kettle model c4761a0Price 42",
+      "kind": "wrapper"
+    },
+    {
+      "id": "0-class-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a0</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='card'><h2>Copper kettle model c4761a0</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a0Price 42",
+      "kind": "class-changed"
+    },
+    {
+      "id": "0-price-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a0</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a0</h2><p>Price 43</p></article></main>",
+      "wanted": "Copper kettle model c4761a0Price 43",
+      "kind": "price-changed"
+    },
+    {
+      "id": "0-tag-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a0</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><section  class='product'><h2>Copper kettle model c4761a0</h2><p>Price 42</p></section></main>",
+      "wanted": "Copper kettle model c4761a0Price 42",
+      "kind": "tag-changed"
+    },
+    {
+      "id": "0-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a0</h2><p>Price 42</p></article></main>",
+      "new": "<main><p>No products remain.</p></main>",
+      "wanted": null,
+      "kind": "removed"
+    },
+    {
+      "id": "0-duplicate",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a0</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a0</h2><p>Price 42</p></article></main><main class='catalog'><article  class='product'><h2>Copper kettle model c4761a0</h2><p>Price 42</p></article></main>",
+      "wanted": null,
+      "kind": "duplicate"
+    },
+    {
+      "id": "1-unchanged",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a1</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a1</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a1Price 42",
+      "kind": "unchanged"
+    },
+    {
+      "id": "1-id-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a1</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a1</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a1Price 42",
+      "kind": "id-removed"
+    },
+    {
+      "id": "1-wrapper",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a1</h2><p>Price 42</p></article></main>",
+      "new": "<section><main class='catalog'><article  class='product'><h2>Copper kettle model c4761a1</h2><p>Price 42</p></article></main></section>",
+      "wanted": "Copper kettle model c4761a1Price 42",
+      "kind": "wrapper"
+    },
+    {
+      "id": "1-class-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a1</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='card'><h2>Copper kettle model c4761a1</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a1Price 42",
+      "kind": "class-changed"
+    },
+    {
+      "id": "1-price-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a1</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a1</h2><p>Price 43</p></article></main>",
+      "wanted": "Copper kettle model c4761a1Price 43",
+      "kind": "price-changed"
+    },
+    {
+      "id": "1-tag-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a1</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><section  class='product'><h2>Copper kettle model c4761a1</h2><p>Price 42</p></section></main>",
+      "wanted": "Copper kettle model c4761a1Price 42",
+      "kind": "tag-changed"
+    },
+    {
+      "id": "1-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a1</h2><p>Price 42</p></article></main>",
+      "new": "<main><p>No products remain.</p></main>",
+      "wanted": null,
+      "kind": "removed"
+    },
+    {
+      "id": "1-duplicate",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a1</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a1</h2><p>Price 42</p></article></main><main class='catalog'><article  class='product'><h2>Copper kettle model c4761a1</h2><p>Price 42</p></article></main>",
+      "wanted": null,
+      "kind": "duplicate"
+    },
+    {
+      "id": "2-unchanged",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a2</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a2</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a2Price 42",
+      "kind": "unchanged"
+    },
+    {
+      "id": "2-id-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a2</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a2</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a2Price 42",
+      "kind": "id-removed"
+    },
+    {
+      "id": "2-wrapper",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a2</h2><p>Price 42</p></article></main>",
+      "new": "<section><main class='catalog'><article  class='product'><h2>Copper kettle model c4761a2</h2><p>Price 42</p></article></main></section>",
+      "wanted": "Copper kettle model c4761a2Price 42",
+      "kind": "wrapper"
+    },
+    {
+      "id": "2-class-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a2</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='card'><h2>Copper kettle model c4761a2</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a2Price 42",
+      "kind": "class-changed"
+    },
+    {
+      "id": "2-price-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a2</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a2</h2><p>Price 43</p></article></main>",
+      "wanted": "Copper kettle model c4761a2Price 43",
+      "kind": "price-changed"
+    },
+    {
+      "id": "2-tag-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a2</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><section  class='product'><h2>Copper kettle model c4761a2</h2><p>Price 42</p></section></main>",
+      "wanted": "Copper kettle model c4761a2Price 42",
+      "kind": "tag-changed"
+    },
+    {
+      "id": "2-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a2</h2><p>Price 42</p></article></main>",
+      "new": "<main><p>No products remain.</p></main>",
+      "wanted": null,
+      "kind": "removed"
+    },
+    {
+      "id": "2-duplicate",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a2</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a2</h2><p>Price 42</p></article></main><main class='catalog'><article  class='product'><h2>Copper kettle model c4761a2</h2><p>Price 42</p></article></main>",
+      "wanted": null,
+      "kind": "duplicate"
+    },
+    {
+      "id": "3-unchanged",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a3</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a3</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a3Price 42",
+      "kind": "unchanged"
+    },
+    {
+      "id": "3-id-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a3</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a3</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a3Price 42",
+      "kind": "id-removed"
+    },
+    {
+      "id": "3-wrapper",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a3</h2><p>Price 42</p></article></main>",
+      "new": "<section><main class='catalog'><article  class='product'><h2>Copper kettle model c4761a3</h2><p>Price 42</p></article></main></section>",
+      "wanted": "Copper kettle model c4761a3Price 42",
+      "kind": "wrapper"
+    },
+    {
+      "id": "3-class-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a3</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='card'><h2>Copper kettle model c4761a3</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a3Price 42",
+      "kind": "class-changed"
+    },
+    {
+      "id": "3-price-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a3</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a3</h2><p>Price 43</p></article></main>",
+      "wanted": "Copper kettle model c4761a3Price 43",
+      "kind": "price-changed"
+    },
+    {
+      "id": "3-tag-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a3</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><section  class='product'><h2>Copper kettle model c4761a3</h2><p>Price 42</p></section></main>",
+      "wanted": "Copper kettle model c4761a3Price 42",
+      "kind": "tag-changed"
+    },
+    {
+      "id": "3-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a3</h2><p>Price 42</p></article></main>",
+      "new": "<main><p>No products remain.</p></main>",
+      "wanted": null,
+      "kind": "removed"
+    },
+    {
+      "id": "3-duplicate",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a3</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a3</h2><p>Price 42</p></article></main><main class='catalog'><article  class='product'><h2>Copper kettle model c4761a3</h2><p>Price 42</p></article></main>",
+      "wanted": null,
+      "kind": "duplicate"
+    },
+    {
+      "id": "4-unchanged",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a4</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a4</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a4Price 42",
+      "kind": "unchanged"
+    },
+    {
+      "id": "4-id-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a4</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a4</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a4Price 42",
+      "kind": "id-removed"
+    },
+    {
+      "id": "4-wrapper",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a4</h2><p>Price 42</p></article></main>",
+      "new": "<section><main class='catalog'><article  class='product'><h2>Copper kettle model c4761a4</h2><p>Price 42</p></article></main></section>",
+      "wanted": "Copper kettle model c4761a4Price 42",
+      "kind": "wrapper"
+    },
+    {
+      "id": "4-class-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a4</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='card'><h2>Copper kettle model c4761a4</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a4Price 42",
+      "kind": "class-changed"
+    },
+    {
+      "id": "4-price-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a4</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a4</h2><p>Price 43</p></article></main>",
+      "wanted": "Copper kettle model c4761a4Price 43",
+      "kind": "price-changed"
+    },
+    {
+      "id": "4-tag-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a4</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><section  class='product'><h2>Copper kettle model c4761a4</h2><p>Price 42</p></section></main>",
+      "wanted": "Copper kettle model c4761a4Price 42",
+      "kind": "tag-changed"
+    },
+    {
+      "id": "4-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a4</h2><p>Price 42</p></article></main>",
+      "new": "<main><p>No products remain.</p></main>",
+      "wanted": null,
+      "kind": "removed"
+    },
+    {
+      "id": "4-duplicate",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a4</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a4</h2><p>Price 42</p></article></main><main class='catalog'><article  class='product'><h2>Copper kettle model c4761a4</h2><p>Price 42</p></article></main>",
+      "wanted": null,
+      "kind": "duplicate"
+    },
+    {
+      "id": "5-unchanged",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a5</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a5</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a5Price 42",
+      "kind": "unchanged"
+    },
+    {
+      "id": "5-id-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a5</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a5</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a5Price 42",
+      "kind": "id-removed"
+    },
+    {
+      "id": "5-wrapper",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a5</h2><p>Price 42</p></article></main>",
+      "new": "<section><main class='catalog'><article  class='product'><h2>Copper kettle model c4761a5</h2><p>Price 42</p></article></main></section>",
+      "wanted": "Copper kettle model c4761a5Price 42",
+      "kind": "wrapper"
+    },
+    {
+      "id": "5-class-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a5</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='card'><h2>Copper kettle model c4761a5</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a5Price 42",
+      "kind": "class-changed"
+    },
+    {
+      "id": "5-price-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a5</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a5</h2><p>Price 43</p></article></main>",
+      "wanted": "Copper kettle model c4761a5Price 43",
+      "kind": "price-changed"
+    },
+    {
+      "id": "5-tag-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a5</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><section  class='product'><h2>Copper kettle model c4761a5</h2><p>Price 42</p></section></main>",
+      "wanted": "Copper kettle model c4761a5Price 42",
+      "kind": "tag-changed"
+    },
+    {
+      "id": "5-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a5</h2><p>Price 42</p></article></main>",
+      "new": "<main><p>No products remain.</p></main>",
+      "wanted": null,
+      "kind": "removed"
+    },
+    {
+      "id": "5-duplicate",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a5</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a5</h2><p>Price 42</p></article></main><main class='catalog'><article  class='product'><h2>Copper kettle model c4761a5</h2><p>Price 42</p></article></main>",
+      "wanted": null,
+      "kind": "duplicate"
+    },
+    {
+      "id": "6-unchanged",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a6</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a6</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a6Price 42",
+      "kind": "unchanged"
+    },
+    {
+      "id": "6-id-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a6</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a6</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a6Price 42",
+      "kind": "id-removed"
+    },
+    {
+      "id": "6-wrapper",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a6</h2><p>Price 42</p></article></main>",
+      "new": "<section><main class='catalog'><article  class='product'><h2>Copper kettle model c4761a6</h2><p>Price 42</p></article></main></section>",
+      "wanted": "Copper kettle model c4761a6Price 42",
+      "kind": "wrapper"
+    },
+    {
+      "id": "6-class-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a6</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='card'><h2>Copper kettle model c4761a6</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a6Price 42",
+      "kind": "class-changed"
+    },
+    {
+      "id": "6-price-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a6</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a6</h2><p>Price 43</p></article></main>",
+      "wanted": "Copper kettle model c4761a6Price 43",
+      "kind": "price-changed"
+    },
+    {
+      "id": "6-tag-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a6</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><section  class='product'><h2>Copper kettle model c4761a6</h2><p>Price 42</p></section></main>",
+      "wanted": "Copper kettle model c4761a6Price 42",
+      "kind": "tag-changed"
+    },
+    {
+      "id": "6-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a6</h2><p>Price 42</p></article></main>",
+      "new": "<main><p>No products remain.</p></main>",
+      "wanted": null,
+      "kind": "removed"
+    },
+    {
+      "id": "6-duplicate",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a6</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a6</h2><p>Price 42</p></article></main><main class='catalog'><article  class='product'><h2>Copper kettle model c4761a6</h2><p>Price 42</p></article></main>",
+      "wanted": null,
+      "kind": "duplicate"
+    },
+    {
+      "id": "7-unchanged",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a7</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a7</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a7Price 42",
+      "kind": "unchanged"
+    },
+    {
+      "id": "7-id-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a7</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a7</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a7Price 42",
+      "kind": "id-removed"
+    },
+    {
+      "id": "7-wrapper",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a7</h2><p>Price 42</p></article></main>",
+      "new": "<section><main class='catalog'><article  class='product'><h2>Copper kettle model c4761a7</h2><p>Price 42</p></article></main></section>",
+      "wanted": "Copper kettle model c4761a7Price 42",
+      "kind": "wrapper"
+    },
+    {
+      "id": "7-class-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a7</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='card'><h2>Copper kettle model c4761a7</h2><p>Price 42</p></article></main>",
+      "wanted": "Copper kettle model c4761a7Price 42",
+      "kind": "class-changed"
+    },
+    {
+      "id": "7-price-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a7</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a7</h2><p>Price 43</p></article></main>",
+      "wanted": "Copper kettle model c4761a7Price 43",
+      "kind": "price-changed"
+    },
+    {
+      "id": "7-tag-changed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a7</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><section  class='product'><h2>Copper kettle model c4761a7</h2><p>Price 42</p></section></main>",
+      "wanted": "Copper kettle model c4761a7Price 42",
+      "kind": "tag-changed"
+    },
+    {
+      "id": "7-removed",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a7</h2><p>Price 42</p></article></main>",
+      "new": "<main><p>No products remain.</p></main>",
+      "wanted": null,
+      "kind": "removed"
+    },
+    {
+      "id": "7-duplicate",
+      "old": "<main class='catalog'><article id='target' class='product'><h2>Copper kettle model c4761a7</h2><p>Price 42</p></article></main>",
+      "new": "<main class='catalog'><article  class='product'><h2>Copper kettle model c4761a7</h2><p>Price 42</p></article></main><main class='catalog'><article  class='product'><h2>Copper kettle model c4761a7</h2><p>Price 42</p></article></main>",
+      "wanted": null,
+      "kind": "duplicate"
+    }
+  ],
+  "relocation_thresholds": {
+    "pagesift_score": 0.72,
+    "pagesift_margin": 0.12,
+    "scrapling": "native default 40 percent, CSS then adaptive fallback"
+  },
+  "inspect_gold": [
+    {
+      "path": "/home/yolow92/pagesift/bench/six/results/seven-next/tasks-verified/inspect-0.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    },
+    {
+      "path": "/home/yolow92/pagesift/bench/six/results/seven-next/tasks-verified/inspect-1.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    },
+    {
+      "path": "/home/yolow92/pagesift/bench/six/results/seven-next/tasks-verified/inspect-2.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    },
+    {
+      "path": "/home/yolow92/pagesift/bench/six/results/seven-next/tasks-verified/inspect-3.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    },
+    {
+      "path": "/home/yolow92/pagesift/bench/six/results/seven-next/tasks-verified/inspect-4.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    },
+    {
+      "path": "/home/yolow92/pagesift/bench/six/results/seven-next/tasks-verified/inspect-5.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    },
+    {
+      "path": "/home/yolow92/pagesift/bench/six/results/seven-next/tasks-verified/inspect-6.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    },
+    {
+      "path": "/home/yolow92/pagesift/bench/six/results/seven-next/tasks-verified/inspect-7.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    },
+    {
+      "path": "/home/yolow92/pagesift/bench/six/results/seven-next/tasks-verified/inspect-8.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    },
+    {
+      "path": "/home/yolow92/pagesift/bench/six/results/seven-next/tasks-verified/inspect-9.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    },
+    {
+      "path": "/home/yolow92/pagesift/bench/six/results/seven-next/tasks-verified/inspect-10.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    },
+    {
+      "path": "/home/yolow92/pagesift/bench/six/results/seven-next/tasks-verified/inspect-11.html",
+      "form_count": 1,
+      "control_count": 3,
+      "technology": "wordpress",
+      "secret_indicator": "aws_access_key_id"
+    }
+  ],
+  "media_original_sha256": {
+    "10000": "77a051d9f1774e9a810c397daa71f5e13e3760e6f903c47eddb45247a5eec06d",
+    "10010": "7db3b1a0fb4d943cad2c5c0bc5d26370b0046c4d4a4e2547d533f3049fdd0f1b",
+    "10011": "f7d10806749e267733e381e52d96462839be4ea8f7e05b4a7a19a156190a7fcc",
+    "10020": "488b38e9e272f09a0b26dbad79f706f46f23539a9576d64b0b70a592ddbfa9fa",
+    "10021": "6f01a24d90b5d18a383d04bbef81ebc71604dcaff29309a07b9fe8f3159bd41f",
+    "10022": "2e4b74f5d862e0f2588af71666ab8216ae8222c753210cebc870abd0f8f41993",
+    "10030": "70319f5bfe6fbb9a64374a147cddc560ec3c6a6c7a8fcb58a8c8efb8241313fb",
+    "10031": "f52b0a2e9eca59e7d84ab07c67c2f57dccfc482761ef517319f5f01a1da583fd",
+    "10032": "3d60724b22b62cb02025c2c0b563fcd555a56b69785d445395d0f519bf508b94",
+    "10033": "d2c8b154656c3cef5238e7a14469efcc788c105fbb18ead0ac9061fa8aeadae8",
+    "10040": "bf7b4abf0f6c3c3d23acea9ba0aee02c5a2fa236de2a927ed0365b74ccdc88bc",
+    "10050": "e08eaac3debbc6459a1eb3486295cca4bc0a286c8324c8961af0ed912d345007",
+    "10051": "61e07117235568e56fe7392a633adda558755e99701135e81b9bbca40b58c056",
+    "10060": "83b61b26cb693dc0c158cfc1af6668bb494230e0e5597cf50981f4483f46484e",
+    "10061": "367cf222ef8cf957acba8a6bdc5252664bf54590744f01b840045f8854388012",
+    "10062": "ff18cff879341367734555794eb0776f3b069aec774d6efeec7efff3145b5f27",
+    "10070": "71f182a5b44fd8d30987c33577b1ccb9376bf3695a4db87364ebaa2c9ca2601b",
+    "10071": "0abb69f4a51e5a8a7e7d4e3d8058a70c332c2e5ecdcdad259235c1a681784ad2",
+    "10072": "109ce9929327c078f8b547b0dbfc6e9ad2bd9c2509d32b55b0cb300650969199",
+    "10073": "015c68fd5decb01b1b434adeb2df4466f06e81e94c2243e01234c7c007e427b2"
+  },
+  "fixture_sha256": {
+    "/fresh-c4761ad71018758068da/": "f55302b83bde10250c61acbd0e9b419ac5df11d7deb3106452dd5ef4842b72f1",
+    "/fresh-c4761ad71018758068da/assets/app.js": "b44d339d8e580b8cf67c666b5ddaa7520507d7153fc8ae42fed85f8f563e5946",
+    "/fresh-c4761ad71018758068da/assets/child.js": "a595768311d503a2c4b70176c30098cb8c145701f8f0d40cb2e7862608a91a76",
+    "/fresh-c4761ad71018758068da/assets/other.js": "3c7da57a1ff94feada787ad423b84cc60dfaa2cce6a133114a07e9562568c841",
+    "/fresh-c4761ad71018758068da/assets/dynamic.js": "c4a4733429798d7e4d20f150d10d94e7a65f513824b7607c6597d20a52e49e54",
+    "/fresh-c4761ad71018758068da/imported": "743ab851cdb131a5a423563d9add989d41d328e79050edecd56732e2daa8266d",
+    "/fresh-c4761ad71018758068da/inline": "a906a7a73e76170d109067b54b7947b88cec94b28cf1ef9e730d49330c82e53e",
+    "/fresh-c4761ad71018758068da/escaped": "b16489cc73ebe16b0781f1127c4fd8c79c084309f0fbc92dfa89cd95ee844c63",
+    "/fresh-c4761ad71018758068da/htmx": "3991d5eef215aea38dd5c645cee19437c9f445916a251b79ffccb0e497d3e6f2",
+    "/fresh-c4761ad71018758068da/frame": "c170d3c3e94e8b27d86e9c9933825f0091f7feaea0f84b04ff8fa60bbb697e2d",
+    "/fresh-c4761ad71018758068da/template": "c6e7ce2e800b1ffb78d2291b42cb8a667a341f0bf1eea2ce7ac22cfdeabd8d0b",
+    "/fresh-c4761ad71018758068da/anchor": "8bab31cefbb59633ed89cd1068a106d6c6db4f2f2b2057bea355902a086a6d95",
+    "/fresh-c4761ad71018758068da/literal": "fac49281b25eb5a6111944cd766ff55cf527e94ebc810e9e106f45d72f674526",
+    "/fresh-c4761ad71018758068da/header": "9eb4374b62d0eef4f9f4efa857b6be82cff26d95f885a560bd84e41a4c930a91",
+    "/fresh-c4761ad71018758068da/concat": "ae057df6479a73f75ed4d5f2dab6695cb97d8e791b14b9b793fe10e6e6c0a16b",
+    "/fresh-c4761ad71018758068da/exported": "3d560674531b61dd0a8e38bb35a6a8b9b6e485f80465d89c6fa908a104d4f943",
+    "/fresh-c4761ad71018758068da/dynamic": "3264ead5f23ece53d96c09dfa25e2b08b87f07110c829cddc83a65f2661e7b70",
+    "/inspect/0": "d046f52a603134542c1c5ec22045044ec3b80bddafac81753e3045fe706456b3",
+    "/inspect/1": "8f4130944f00bfe65e8d89c040d7cf1c91d2360aea31a66d85323d6480549d84",
+    "/inspect/2": "b1bb0bdc1159a397320d0979c9783837149c4b459767a0e8eee6db09dcde8867",
+    "/inspect/3": "05d5074945f04f7643bb937049e076f304dfc43af98720325bf56010d91ecafc",
+    "/inspect/4": "c382cd27c0a04d191c09a9e8534c2ae0ad20a7b4eced7d56db9644f9b52212ce",
+    "/inspect/5": "e24c2b2dda54dab9d5db6adc9fe0c61d80761f9eda5932a54a02108f20543475",
+    "/inspect/6": "29309641aa761b29ec5255508f33ab05f3fc2102a46a52fb723845933c46a691",
+    "/inspect/7": "168398fd536029d66727024aa2f07ee12e7c121a2c782a2ff4d8684793a6e4f1",
+    "/inspect/8": "199586b672d728104507c1e6da0d461914af389751473bfd81b5dd9c626b1509",
+    "/inspect/9": "fe049f92141ed0bd39e1d79c418345d374a25e2077ff5c94a95055990221943e",
+    "/inspect/10": "2e700ca435c28e01e6d06b43834f3f880181352154e16f418be92fe8ff315f2b",
+    "/inspect/11": "13916816994514e70a700ee38e76cbb098949790f9707741647366635d350b45",
+    "/inspect/": "3413d479815fe1625961ecc8fbbc659a6e81eaa8368bc62360ab2e20cddeb7f9",
+    "/streams/dash/chunk-stream1-00002.m4s": "6188267a74b5ed75dbd63efc46e2aa05ef9da8fc9f7048dc8b633476e0b7fb1e",
+    "/streams/dash/chunk-stream1-00003.m4s": "73e5b2e564d947bf971e70c775c421fe0dfd2bb8c57b7645592a7205ee48b442",
+    "/streams/dash/chunk-stream0-00002.m4s": "4495097401851128c221c5e644aa13e9d0f9fb0c6e97520068cda79c22e62f32",
+    "/streams/dash/index.mpd": "86c00920a28a10ffae2a02819d893481bf1be69acaf4c1f9dd2bc57eba03f758",
+    "/streams/dash/chunk-stream1-00001.m4s": "795700c911323d708e37604119892eab7911353e757cf095add9840d9d686166",
+    "/streams/dash/chunk-stream0-00001.m4s": "d84c9d83d17f30762e311fbdd28b563fbceb44b55c867e952ced2d6f08cfa86e",
+    "/streams/dash/init-stream0.m4s": "0db62e60bd14ffc13701f546a1c1e4f68341eba1c65324883924a1f9b16ac4dc",
+    "/streams/dash/init-stream1.m4s": "a0c785d4d5f95f2f1ff2f8a97a251c9448c48955d169af59ce0e3b7ef87f770a",
+    "/streams/hls/index1.ts": "cf6e020f5bb846467349cb7091a53b108867d96ceff3a1494a1360074a6879c7",
+    "/streams/hls/index0.ts": "c2a547869a1e3b3c6ac6a147c6f92f648238dddb3a4b977d35c0cfe54bf4f916",
+    "/streams/hls/index.m3u8": "659a77d5671bc7bdb3eb22c36c35b3e1a8546820050d6ac0821126abfa633436",
+    "/files/10000.png": "77a051d9f1774e9a810c397daa71f5e13e3760e6f903c47eddb45247a5eec06d",
+    "/files/10010.png": "7db3b1a0fb4d943cad2c5c0bc5d26370b0046c4d4a4e2547d533f3049fdd0f1b",
+    "/files/10011.png": "f7d10806749e267733e381e52d96462839be4ea8f7e05b4a7a19a156190a7fcc",
+    "/files/10020.png": "488b38e9e272f09a0b26dbad79f706f46f23539a9576d64b0b70a592ddbfa9fa",
+    "/files/10021.png": "6f01a24d90b5d18a383d04bbef81ebc71604dcaff29309a07b9fe8f3159bd41f",
+    "/files/10022.png": "2e4b74f5d862e0f2588af71666ab8216ae8222c753210cebc870abd0f8f41993",
+    "/files/10030.png": "70319f5bfe6fbb9a64374a147cddc560ec3c6a6c7a8fcb58a8c8efb8241313fb",
+    "/files/10031.png": "f52b0a2e9eca59e7d84ab07c67c2f57dccfc482761ef517319f5f01a1da583fd",
+    "/files/10032.png": "3d60724b22b62cb02025c2c0b563fcd555a56b69785d445395d0f519bf508b94",
+    "/files/10033.png": "d2c8b154656c3cef5238e7a14469efcc788c105fbb18ead0ac9061fa8aeadae8",
+    "/files/10040.png": "bf7b4abf0f6c3c3d23acea9ba0aee02c5a2fa236de2a927ed0365b74ccdc88bc",
+    "/files/10050.png": "e08eaac3debbc6459a1eb3486295cca4bc0a286c8324c8961af0ed912d345007",
+    "/files/10051.png": "61e07117235568e56fe7392a633adda558755e99701135e81b9bbca40b58c056",
+    "/files/10060.png": "83b61b26cb693dc0c158cfc1af6668bb494230e0e5597cf50981f4483f46484e",
+    "/files/10061.png": "367cf222ef8cf957acba8a6bdc5252664bf54590744f01b840045f8854388012",
+    "/files/10062.png": "ff18cff879341367734555794eb0776f3b069aec774d6efeec7efff3145b5f27",
+    "/files/10070.png": "71f182a5b44fd8d30987c33577b1ccb9376bf3695a4db87364ebaa2c9ca2601b",
+    "/files/10071.png": "0abb69f4a51e5a8a7e7d4e3d8058a70c332c2e5ecdcdad259235c1a681784ad2",
+    "/files/10072.png": "109ce9929327c078f8b547b0dbfc6e9ad2bd9c2509d32b55b0cb300650969199",
+    "/files/10073.png": "015c68fd5decb01b1b434adeb2df4466f06e81e94c2243e01234c7c007e427b2"
+  },
+  "stream_source_sha256": {
+    "dash/chunk-stream1-00002.m4s": "6188267a74b5ed75dbd63efc46e2aa05ef9da8fc9f7048dc8b633476e0b7fb1e",
+    "dash/chunk-stream1-00003.m4s": "73e5b2e564d947bf971e70c775c421fe0dfd2bb8c57b7645592a7205ee48b442",
+    "dash/chunk-stream0-00002.m4s": "4495097401851128c221c5e644aa13e9d0f9fb0c6e97520068cda79c22e62f32",
+    "dash/index.mpd": "86c00920a28a10ffae2a02819d893481bf1be69acaf4c1f9dd2bc57eba03f758",
+    "dash/chunk-stream1-00001.m4s": "795700c911323d708e37604119892eab7911353e757cf095add9840d9d686166",
+    "dash/chunk-stream0-00001.m4s": "d84c9d83d17f30762e311fbdd28b563fbceb44b55c867e952ced2d6f08cfa86e",
+    "dash/init-stream0.m4s": "0db62e60bd14ffc13701f546a1c1e4f68341eba1c65324883924a1f9b16ac4dc",
+    "dash/init-stream1.m4s": "a0c785d4d5f95f2f1ff2f8a97a251c9448c48955d169af59ce0e3b7ef87f770a",
+    "hls/index1.ts": "cf6e020f5bb846467349cb7091a53b108867d96ceff3a1494a1360074a6879c7",
+    "hls/index0.ts": "c2a547869a1e3b3c6ac6a147c6f92f648238dddb3a4b977d35c0cfe54bf4f916",
+    "hls/index.m3u8": "659a77d5671bc7bdb3eb22c36c35b3e1a8546820050d6ac0821126abfa633436"
+  },
+  "binary_sha256": "a7ab6eb6ccb02479146a9fa3428acae18880098cacf00e0b5558a5682f3b9bee",
+  "driver_sha256": "045aae99040f8a17226c6d788435272c3ebdd50e9c11b47cfc98773c5bb154bf",
+  "references": {
+    "firecrawl": {
+      "repo": "firecrawl/firecrawl",
+      "tag": "v2.11.0",
+      "sha": "ef12eb36b2f3382838dfe0a0c1a5add3d5df7fe5",
+      "release_url": "https://github.com/firecrawl/firecrawl/releases/tag/v2.11.0",
+      "archive_url": "https://codeload.github.com/firecrawl/firecrawl/tar.gz/ef12eb36b2f3382838dfe0a0c1a5add3d5df7fe5"
+    },
+    "crawlee": {
+      "repo": "apify/crawlee",
+      "tag": "v3.18.2",
+      "sha": "78da0622762e1b569b5cb0b56e8eb06a0a010d93",
+      "release_url": "https://github.com/apify/crawlee/releases/tag/v3.18.2",
+      "archive_url": "https://codeload.github.com/apify/crawlee/tar.gz/78da0622762e1b569b5cb0b56e8eb06a0a010d93"
+    },
+    "scrapling": {
+      "repo": "d4vinci/Scrapling",
+      "tag": "v0.5",
+      "sha": "3a8bf4e4d3ed91257ba0aa5b7dc66241d1e23840",
+      "release_url": "https://github.com/D4Vinci/Scrapling/releases/tag/v0.5",
+      "archive_url": "https://codeload.github.com/d4vinci/Scrapling/tar.gz/3a8bf4e4d3ed91257ba0aa5b7dc66241d1e23840"
+    },
+    "katana": {
+      "repo": "projectdiscovery/katana",
+      "tag": "v1.8.0",
+      "sha": "35267ac5c8ff1db9694a319d0eb466ed97b0969f",
+      "release_url": "https://github.com/projectdiscovery/katana/releases/tag/v1.8.0",
+      "archive_url": "https://codeload.github.com/projectdiscovery/katana/tar.gz/35267ac5c8ff1db9694a319d0eb466ed97b0969f"
+    },
+    "essence": {
+      "repo": "ruchit-p/essence",
+      "tag": "v0.3.0",
+      "sha": "a4f845c6b98d3337106e74fe7b91f94d61ab599d",
+      "release_url": "https://github.com/ruchit-p/essence/releases/tag/v0.3.0",
+      "archive_url": "https://codeload.github.com/ruchit-p/essence/tar.gz/a4f845c6b98d3337106e74fe7b91f94d61ab599d"
+    },
+    "gallery-dl": {
+      "repo": "https://codeberg.org/mikf/gallery-dl",
+      "tag": "v1.32.17",
+      "sha": "61971e01d394d35c81a86d4d0d03717c78ae53d5",
+      "release_url": "https://codeberg.org/mikf/gallery-dl/releases/tag/v1.32.17",
+      "archive_url": "https://codeberg.org/mikf/gallery-dl/archive/61971e01d394d35c81a86d4d0d03717c78ae53d5.tar.gz"
+    },
+    "essence-main": {
+      "repo": "ruchit-p/essence",
+      "tag": "main-snapshot-2026-10-22",
+      "sha": "74a99fb64b9c6c65846c6e4ecc6f177b1b0bc66b",
+      "release_url": "https://github.com/ruchit-p/essence/commit/74a99fb64b9c6c65846c6e4ecc6f177b1b0bc66b",
+      "archive_url": "https://codeload.github.com/ruchit-p/essence/tar.gz/74a99fb64b9c6c65846c6e4ecc6f177b1b0bc66b",
+      "purpose": "Current default-branch component cross-check alongside latest stable release"
+    }
+  },
+  "browser_interact_and_agent": "excluded by direct user instruction"
+}

@@ -465,6 +465,7 @@ impl Scraper {
     ) -> Option<(pagesift_store::Store, Vec<u8>)> {
         let store = self.store.clone()?;
         if !opts.headers.is_empty()
+            || opts.discover_scripts
             || !opts.actions.is_empty()
             || opts.if_none_match.is_some()
             || opts.if_modified_since.is_some()
@@ -496,6 +497,18 @@ impl Scraper {
         mode: RobotsMode,
     ) -> Result<Document, ApiError> {
         let started = Instant::now();
+        if opts.discover_scripts
+            && (opts.engine.as_deref() != Some("http")
+                || !opts.wants("links")
+                || opts.egress.is_some()
+                || !opts.headers.is_empty()
+                || opts.if_none_match.is_some()
+                || opts.if_modified_since.is_some())
+        {
+            return Err(ApiError::unsupported(
+                "discoverScripts requires HTTP engine, links, and no custom headers/egress/conditional request",
+            ));
+        }
         let choice = match opts.engine.as_deref() {
             Some("http") => EngineChoice::Http,
             Some("browser") => EngineChoice::Browser,
@@ -598,6 +611,17 @@ impl Scraper {
             ));
         }
 
+        let navigation = if opts.wants("links") {
+            crate::discovery::header_links(
+                &resp.final_url,
+                resp.headers
+                    .get_all("link")
+                    .iter()
+                    .filter_map(|h| h.to_str().ok()),
+            )
+        } else {
+            Vec::new()
+        };
         let html = resp.take_text().text;
         let t = Instant::now();
         let (doc, html) = process_html(html, &resp.final_url, Some(resp.status), opts).await?;
@@ -607,12 +631,11 @@ impl Scraper {
 
         let http_chars = text_weight(&doc.markdown);
         if choice == EngineChoice::Auto && needs_render(&doc) {
-            let host = resp.final_url.host_str().unwrap_or_default();
             if opts.egress.is_some() {
                 // 浏览器不走指定的出口，用它渲染出口地址就不一致了
                 warnings.push("render_skipped_egress".into());
-            } else if self.learner.skip_render(host) {
-                // 这个站最近几次渲染都没多出正文：直接用 HTTP 结果
+            } else if self.learner.skip_render(url) && !has_client_code(&html) {
+                // 同路径族的静态经验不能覆盖带客户端代码的短页面。
                 warnings.push("render_skipped_learned".into());
             } else if self.has_browser().await {
                 return self
@@ -633,16 +656,49 @@ impl Scraper {
             }
         }
 
+        let mut navigation = navigation;
+        if opts.discover_scripts {
+            // Release the document's admission permit before dependency fetches:
+            // concurrent root pages must not occupy every per-host slot while
+            // waiting on their own scripts.
+            drop(_permit);
+            let discovery_started = Instant::now();
+            let work = crate::scripts::discover_script_graph(
+                &self.policy,
+                &html,
+                &resp.final_url,
+                Default::default(),
+            );
+            let graph = match request_deadline(opts, started) {
+                Some(d) => tokio::time::timeout_at(d.into(), work).await.map_err(|_| {
+                    ApiError::new(ErrorCode::Timeout, "script discovery deadline passed")
+                })?,
+                None => work.await,
+            }
+            .map_err(|e| ApiError::invalid(e.to_string()))?;
+            if graph.incomplete {
+                warnings.push("script_discovery_incomplete".into());
+            }
+            navigation.extend(
+                graph
+                    .edges
+                    .into_iter()
+                    .filter(|e| e.kind == "static-navigation")
+                    .map(|e| e.url),
+            );
+            timings.insert("scriptDiscovery".into(), ms(discovery_started.elapsed()));
+        }
         fill_metadata(&mut meta, &doc.metadata);
         fill_fingerprints(&mut ext, &doc);
-        Ok(finish(
-            document(doc, opts, html),
-            meta,
-            ext,
-            timings,
-            warnings,
-            started,
-        ))
+        let mut result = document(doc, opts, html);
+        if let Some(links) = result.links.as_mut() {
+            for link in navigation {
+                if !links.contains(&link) {
+                    links.push(link);
+                }
+            }
+        }
+        Ok(finish(result, meta, ext, timings, warnings, started))
     }
 
     async fn render(
@@ -818,7 +874,7 @@ impl Scraper {
         self.learner.record_engine(&host, from, r.index);
         if let Some(n) = http_chars {
             self.learner
-                .record_render(&host, n, text_weight(&r.doc.markdown));
+                .record_render(url, n, text_weight(&r.doc.markdown));
         }
 
         let t = &r.timings;
@@ -1175,6 +1231,44 @@ struct Rendered {
     extract: Duration,
     doc: pagesift_content::Document,
     html: String,
+}
+
+/// A thin page carrying client code must still get a chance to render even
+/// after static neighbors taught the learner that rendering is usually useless.
+/// Data-only scripts do not invalidate that optimization. Unknown script types
+/// are conservative: an extra render is preferable to silently losing content.
+fn has_client_code(html: &str) -> bool {
+    let dom = pagesift_html::Html::parse(html);
+    dom.root().descendants().any(|node| {
+        let Some(el) = node.as_element() else {
+            return false;
+        };
+        if el
+            .attrs()
+            .any(|(name, _)| name.starts_with("on") && name.len() > 2)
+        {
+            return true;
+        }
+        if el.name() != "script" {
+            return false;
+        }
+        let kind = el
+            .attr("type")
+            .unwrap_or("")
+            .split(';')
+            .next()
+            .unwrap_or("")
+            .trim();
+        ![
+            "application/json",
+            "application/ld+json",
+            "text/plain",
+            "importmap",
+            "speculationrules",
+        ]
+        .iter()
+        .any(|data| kind.eq_ignore_ascii_case(data))
+    })
 }
 
 /// 可能承载正文的 iframe：同源的 `src`（属性值和解析后的地址）或内联的 `srcdoc`
@@ -1644,6 +1738,27 @@ mod tests {
             d.metadata.extra.push(("og:type".into(), "article".into()));
         }
         d
+    }
+
+    #[test]
+    fn static_learning_cannot_suppress_client_code() {
+        for html in [
+            "<script>hydrate()</script>",
+            "<script src='/app.js'></script>",
+            "<SCRIPT TYPE='module' src='/view.js'></SCRIPT>",
+            "<body onload='hydrate()'>",
+            "<button onclick='hydrate()'>Open</button>",
+        ] {
+            assert!(has_client_code(html), "{html}");
+        }
+        for html in [
+            "<article><p>Short but complete.</p></article>",
+            "<script type='application/ld+json'>{}</script>",
+            "<script type='APPLICATION/JSON; charset=utf-8'>{}</script>",
+            "<script type='text/plain'>inert sample</script>",
+        ] {
+            assert!(!has_client_code(html), "{html}");
+        }
     }
 
     #[test]

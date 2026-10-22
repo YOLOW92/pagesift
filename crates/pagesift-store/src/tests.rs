@@ -162,3 +162,62 @@ fn list_range_pages_by_sequence() {
     assert_eq!(t.list_range("pages", 0, 1).unwrap(), vec![vec![1u8]]);
     assert!(t.list_range("missing", 0, 1).unwrap().is_empty());
 }
+
+#[test]
+fn item_identity_versions_survive_compaction_and_are_not_cache_entries() {
+    let dir = tempfile::tempdir().unwrap();
+    // Force index collisions and segment rotation; identity must use full keys.
+    let mut cfg = config(dir.path(), 0);
+    cfg.max_bytes = Some(1);
+    {
+        let store = Store::open(cfg.clone()).unwrap();
+        let items = store.items();
+        for i in 0..40 {
+            items
+                .commit(b"catalog", format!("id-{i}").as_bytes(), b"v1")
+                .unwrap();
+        }
+        // Obsolete alternating records so compaction must copy live neighbors.
+        for i in (0..40).step_by(2) {
+            items
+                .commit(b"catalog", format!("id-{i}").as_bytes(), b"v1")
+                .unwrap();
+        }
+        items.commit(b"a:b", b"c", b"one").unwrap();
+        items.commit(b"a", b"b:c", b"two").unwrap();
+        items
+            .commit("日本語".as_bytes(), "同名".as_bytes(), b"")
+            .unwrap();
+        assert!(
+            store.compact().unwrap() > 0,
+            "must actually compact a segment"
+        );
+        store.gc().unwrap();
+    }
+    let store = Store::open(cfg.clone()).unwrap();
+    let items = store.items();
+    for i in 0..40 {
+        assert!(
+            items
+                .matches(b"catalog", format!("id-{i}").as_bytes(), b"v1")
+                .unwrap()
+        );
+    }
+    assert!(items.matches(b"a:b", b"c", b"one").unwrap());
+    assert!(items.matches(b"a", b"b:c", b"two").unwrap());
+    assert!(
+        items
+            .matches("日本語".as_bytes(), "同名".as_bytes(), b"")
+            .unwrap()
+    );
+    assert!(!items.matches(b"catalog", b"id-0", b"v2").unwrap());
+    items.commit(b"catalog", b"id-0", b"v2").unwrap();
+    assert!(!items.matches(b"catalog", b"id-0", b"v1").unwrap());
+    assert!(items.matches(b"catalog", b"id-0", b"v2").unwrap());
+    assert!(!items.matches(b"other", b"id-0", b"v2").unwrap());
+    assert!(items.forget(b"catalog", b"id-1").unwrap());
+    drop(store);
+    let store = Store::open(cfg).unwrap();
+    assert!(!store.items().matches(b"catalog", b"id-1", b"v1").unwrap());
+    assert!(store.items().matches(b"catalog", b"id-0", b"v2").unwrap());
+}

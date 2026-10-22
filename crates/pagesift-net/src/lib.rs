@@ -13,6 +13,7 @@ mod client;
 mod credentials;
 mod dns;
 mod fetch;
+mod session;
 mod ssrf;
 mod ua;
 
@@ -20,10 +21,11 @@ pub use charset::{CharsetSource, Decoded, decode};
 pub use credentials::{HostCredentials, Secret, redact_url};
 pub use dns::{BoxFuture, DnsLookup, SystemLookup};
 pub use fetch::{
-    BoxError, Error, FetchRequest, FetchResponse, Fetcher, FetcherConfig, RedirectGuard,
-    RedirectHop, Result, TimeoutPhase, Timings,
+    BoxError, Error, FetchRequest, FetchResponse, FetchStream, Fetcher, FetcherConfig,
+    RedirectGuard, RedirectHop, Result, TimeoutPhase, Timings,
 };
 pub use reqwest::header::HeaderMap;
+pub use session::{CookieSession, SessionConfig, SessionError, SessionSnapshot, SessionStats};
 pub use ssrf::{Blocked, SsrfPolicy, check_url, is_public};
 pub use ua::{DEFAULT_USER_AGENT, UserAgentError, product_token, validate_user_agent};
 pub use url::Url;

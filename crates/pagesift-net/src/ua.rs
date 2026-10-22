@@ -67,7 +67,9 @@ mod tests {
 
     #[test]
     fn default_is_valid() {
-        assert!(DEFAULT_USER_AGENT.starts_with("pagesift/0."));
+        assert!(
+            DEFAULT_USER_AGENT.starts_with(&format!("pagesift/{} ", env!("CARGO_PKG_VERSION")))
+        );
         assert!(DEFAULT_USER_AGENT.ends_with("docs/bot.md)"));
         validate_user_agent(DEFAULT_USER_AGENT).unwrap();
         assert_eq!(product_token(DEFAULT_USER_AGENT), "pagesift");

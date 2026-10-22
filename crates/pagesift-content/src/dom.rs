@@ -192,3 +192,17 @@ pub(crate) fn raw_text(node: &NodeR<'_>) -> String {
     }
     out
 }
+
+/// Headings emitted as generic containers by older CMS templates.
+pub(crate) fn is_heading(node: &NodeR<'_>) -> bool {
+    node.as_element().is_some_and(|e| {
+        e.attr("role") == Some("heading")
+            || (e.tag() == Tag::Div
+                && e.attr("class").is_some_and(|s| {
+                    s.split_ascii_whitespace().any(|c| {
+                        c.split(['-', '_'])
+                            .any(|word| matches!(word, "subheadline" | "subheading"))
+                    })
+                }))
+    })
+}

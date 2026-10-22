@@ -1,0 +1,5 @@
+{
+  "added_package_versions": [],
+  "removed_package_versions": [],
+  "new_direct_dependency": "pagesift-extract -> already-locked url 2.5.8"
+}

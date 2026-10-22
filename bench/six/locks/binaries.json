@@ -1,0 +1,16 @@
+{
+  "katana": {
+    "archive_sha256": "cb027ae99d0757061b70c07a15c7a80f62c5a535ab52c4a329f80c4b0a7309d2",
+    "url": "https://github.com/projectdiscovery/katana/releases/download/v1.8.0/katana_1.8.0_linux_amd64.zip",
+    "binary_sha256": "3214c11a0548667b37ec17bbb691706b7e0de1f0f24b3ead2ee12c301ebc1bbc"
+  },
+  "essence": {
+    "archive_sha256": "0b29068b570e380b40ecbb60e31615d4dd936a7e086d01aea17fd6aad30843e3",
+    "url": "https://github.com/ruchit-p/essence/releases/download/v0.3.0/essence-v0.3.0-x86_64-unknown-linux-gnu.tar.gz",
+    "binary_sha256": "53f47901d815192aec8f6d72ef469f90c01cbf5aa1e243f8b070b247d56c8feb"
+  },
+  "go": {
+    "version": "go1.27.3",
+    "archive_sha256": "65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40"
+  }
+}

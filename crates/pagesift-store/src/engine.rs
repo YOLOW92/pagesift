@@ -12,7 +12,7 @@ use crate::record::{
     self, MAX_KEY, MAX_RECORD, Op, REC_HEADER, SEG_HEADER, SEG_MAGIC, read_exact_at, write_all_at,
 };
 use crate::{
-    Cache, Config, Error, GcReport, OpenReport, Result, Snapshots, Stats, SyncPolicy, Tasks,
+    Cache, Config, Error, GcReport, Items, OpenReport, Result, Snapshots, Stats, SyncPolicy, Tasks,
     now_secs, to_ms,
 };
 
@@ -24,6 +24,7 @@ pub(crate) mod ns {
     pub const KV: u8 = 4;
     pub const LIST_ITEM: u8 = 5;
     pub const SET_MEMBER: u8 = 6;
+    pub const ITEM: u8 = 7;
 }
 
 fn evictable(n: u8) -> bool {
@@ -417,6 +418,10 @@ impl Store {
 
     pub fn snapshots(&self) -> Snapshots<'_> {
         Snapshots::new(self)
+    }
+
+    pub fn items(&self) -> Items<'_> {
+        Items::new(self)
     }
 
     pub fn tasks(&self) -> Tasks<'_> {

@@ -118,6 +118,10 @@ pub struct ScrapeOptions {
     /// `http`、`browser`、`auto`（默认）。
     #[serde(default)]
     pub engine: Option<String>,
+    /// pagesift extension: bounded, stateless same-origin external JS discovery.
+    /// Requires engine=http and links; never silently runs for ordinary scrapes.
+    #[serde(default)]
+    pub discover_scripts: bool,
     #[serde(default)]
     pub if_none_match: Option<String>,
     #[serde(default)]

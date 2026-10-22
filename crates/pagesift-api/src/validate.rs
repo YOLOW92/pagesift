@@ -15,6 +15,18 @@ pub fn check_url(raw: &str) -> Result<(), ApiError> {
 }
 
 pub fn check_scrape_options(opts: &ScrapeOptions, engine: &dyn Engine) -> Result<(), ApiError> {
+    if opts.discover_scripts
+        && (opts.engine.as_deref() != Some("http")
+            || !opts.wants("links")
+            || opts.egress.is_some()
+            || !opts.headers.is_empty()
+            || opts.if_none_match.is_some()
+            || opts.if_modified_since.is_some())
+    {
+        return Err(ApiError::unsupported(
+            "discoverScripts requires HTTP engine, links, and no custom headers/egress/conditional request",
+        ));
+    }
     if let Some(p) = opts.proxy.as_deref()
         && !matches!(p, "basic" | "auto")
     {

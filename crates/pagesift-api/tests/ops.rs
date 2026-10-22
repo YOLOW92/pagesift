@@ -510,7 +510,17 @@ async fn webhooks_deliver_in_order_with_retries() {
     );
     assert_eq!(delivered[1]["success"], true);
     assert_eq!(delivered[3]["data"], json!([]));
-    let m = metrics(&app).await;
+    // The receiver records the event before sending its HTTP response. Seeing
+    // `completed` there does not yet mean the sender has observed the ACK and
+    // incremented its delivery counter.
+    let mut m = metrics(&app).await;
+    for _ in 0..100 {
+        if m.contains("pagesift_webhook_deliveries_total{outcome=\"delivered\"} 4") {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        m = metrics(&app).await;
+    }
     assert!(
         m.contains("pagesift_webhook_deliveries_total{outcome=\"retried\"} 2"),
         "{m}"
@@ -908,5 +918,108 @@ async fn metrics_cover_latency_jobs_pages_and_errors() {
         "pagesift_jobs{kind=\"crawl\",status=\"completed\"} 1",
     ] {
         assert!(m.contains(want), "missing {want}\n{m}");
+    }
+}
+
+/// Simulate the exact durable boundary after result append and before done-set
+/// insertion. Batch identity must remain positional even when URLs are equal.
+#[test]
+fn saved_completion_receipts_repair_missing_done_marks() {
+    for batch in [false, true] {
+        for failed in [false, true] {
+            for legacy in [false, true] {
+                let dir = tempfile::tempdir().unwrap();
+                let id = if batch {
+                    "receipt-batch"
+                } else {
+                    "receipt-crawl"
+                };
+                let url = page_url(0);
+                let req: CrawlRequest =
+                    serde_json::from_value(json!({"url":url,"limit":2})).unwrap();
+                let created = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis() as u64;
+                {
+                    let s = store(dir.path());
+                    let t = s.tasks();
+                    let meta = json!({"kind":if batch {"batch_scrape"} else {"crawl"},"state":"scraping",
+                "created_ms":created,"total":2,"completed":0,"owner":null,"webhook":null,
+                "crawl":if batch {Value::Null} else {serde_json::to_value(&req).unwrap()},
+                "batch":if batch {json!({"urls":[url,url],"options":{},"concurrency":1})} else {Value::Null}});
+                    t.kv_put(format!("job/{id}"), &serde_json::to_vec(&meta).unwrap())
+                        .unwrap();
+                    let mut doc = serde_json::to_value(Document {
+                        markdown: Some("Already delivered".into()),
+                        metadata: pagesift_api::types::Metadata {
+                            source_url: Some(url.clone()),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    })
+                    .unwrap();
+                    if failed {
+                        doc = json!({"id":"saved-error", "timestamp":"2026-10-22T00:00:00Z", "url":url,
+                    "code":"UPSTREAM_ERROR", "error":"previously delivered failure"});
+                    }
+                    let done = if batch { "0".to_string() } else { url.clone() };
+                    if legacy {
+                        t.set_insert(format!("job/{id}/done"), &done).unwrap();
+                    } else {
+                        doc["_pagesiftDone"] = json!(done);
+                    }
+                    t.list_push(
+                        format!("job/{id}/{}", if failed { "errors" } else { "pages" }),
+                        &serde_json::to_vec(&doc).unwrap(),
+                    )
+                    .unwrap();
+                    if !batch {
+                        for u in [url.clone(), page_url(1)] {
+                            t.list_push(
+                                format!("job/{id}/frontier"),
+                                &serde_json::to_vec(&(u, 0usize)).unwrap(),
+                            )
+                            .unwrap();
+                        }
+                    }
+                }
+                let (fake, scraped) = Fake::new(1);
+                runtime().block_on(async {
+                    let app = persisted(fake, dir.path());
+                    let path = format!("/v2/{}/{id}", if batch { "batch/scrape" } else { "crawl" });
+                    let v = wait(&app, &path, |v| v["status"] == "completed").await;
+                    assert_eq!(v["completed"], 2, "{v}");
+                    let sources = all_sources(&app, &path).await;
+                    assert_eq!(sources.len(), 2 - usize::from(failed));
+                    let (_, _, errors) =
+                        call(&app, "GET", &format!("{path}/errors"), None, None).await;
+                    assert_eq!(
+                        errors["errors"].as_array().unwrap().len(),
+                        usize::from(failed)
+                    );
+                    assert!(!errors.to_string().contains("_pagesiftDone"));
+                    if !batch {
+                        assert_eq!(
+                            sources.iter().cloned().collect::<HashSet<_>>(),
+                            if failed {
+                                [page_url(1)].into_iter().collect()
+                            } else {
+                                [url.clone(), page_url(1)].into_iter().collect()
+                            }
+                        );
+                    }
+                    assert_eq!(
+                        scraped.lock().unwrap().len(),
+                        1,
+                        "already persisted result must not run again"
+                    );
+                    assert!(
+                        !v.to_string().contains("_pagesiftDone"),
+                        "private receipt leaked to API"
+                    );
+                });
+            }
+        }
     }
 }

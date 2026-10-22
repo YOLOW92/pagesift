@@ -1,0 +1,15 @@
+{
+  "n": 545,
+  "hostname_groups": 395,
+  "mean_delta": 0.04689361518072331,
+  "wins": 414,
+  "ties": 14,
+  "losses": 117,
+  "bootstrap_reps": 2000,
+  "seed": 20261022,
+  "hostname_cluster_percentile_95": [
+    0.03067370123656487,
+    0.0635417736381598
+  ],
+  "metric": "paired per-page token multiset F1; not official leaderboard"
+}

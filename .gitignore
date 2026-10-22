@@ -2,6 +2,7 @@
 /bench/data/
 /bench/compare/rust-tools/target/
 /bench/compare/html-parity/target/
+/bench/six/adapters/offline/target/
 /bench/aiseek/results/
 __pycache__/
 bench/crawl/wild-*/
@@ -9,3 +10,6 @@ bench/crawl/wild-*.log
 bench/markdown/out/
 bench/rag/out/
 bench/pdf/out/
+
+# Local benchmark evidence, binaries and snapshots; public summaries live in evidence/.
+/bench/six/results/

@@ -460,3 +460,71 @@ async fn reuses_keep_alive_connections() {
         "one connection for three requests"
     );
 }
+
+#[tokio::test]
+async fn raw_stream_uses_identity_and_keeps_redirect_guards() {
+    let srv = serve(|s| {
+        Some(match s.path.as_str() {
+            "/redirect" => redirect(302, "/file"),
+            _ => {
+                assert_eq!(s.header("accept-encoding"), Some("identity"));
+                response(200, &[("ETag", "\"stream\"")], &[b'x'; 8192])
+            }
+        })
+    })
+    .await;
+    let mut req = FetchRequest::new(srv.url("/redirect"));
+    req.max_body_bytes = Some(1);
+    let mut stream = fetcher().fetch_stream(req).await.unwrap();
+    assert_eq!(stream.final_url.path(), "/file");
+    assert_eq!(stream.redirect_chain.len(), 1);
+    let mut bytes = 0;
+    while let Some(chunk) = stream.chunk().await.unwrap() {
+        bytes += chunk.len();
+    }
+    assert_eq!(bytes, 8192);
+}
+
+#[tokio::test]
+async fn raw_stream_rejects_unexpected_content_encoding() {
+    let srv = serve(|_| Some(response(200, &[("Content-Encoding", "gzip")], b"encoded"))).await;
+    assert!(
+        fetcher()
+            .fetch_stream(FetchRequest::new(srv.url("/")))
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn proxy_raw_stream_preserves_byte_representation_and_rejects_encoding() {
+    let proxy = serve(|s| {
+        assert_eq!(s.header("accept-encoding"), Some("identity"));
+        Some(if s.path.ends_with("/encoded") {
+            response(200, &[("Content-Encoding", "gzip")], b"encoded")
+        } else {
+            response(200, &[("ETag", "\"raw\"")], b"raw bytes")
+        })
+    })
+    .await;
+    let f = Fetcher::new(FetcherConfig {
+        proxy: Some(format!("http://proxy.test:{}", proxy.addr.port())),
+        dns: FakeDns::new(&[("proxy.test", &["127.0.0.1"])]),
+        ..Default::default()
+    })
+    .unwrap();
+    let mut stream = f
+        .fetch_stream(FetchRequest::new("http://example.com/raw"))
+        .await
+        .unwrap();
+    let mut body = Vec::new();
+    while let Some(chunk) = stream.chunk().await.unwrap() {
+        body.extend_from_slice(&chunk);
+    }
+    assert_eq!(body, b"raw bytes");
+    assert!(
+        f.fetch_stream(FetchRequest::new("http://example.com/encoded"))
+            .await
+            .is_err()
+    );
+}

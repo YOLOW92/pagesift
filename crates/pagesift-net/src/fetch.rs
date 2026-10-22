@@ -43,6 +43,8 @@ pub enum Error {
     #[error("invalid configuration: {0}")]
     Config(String),
     #[error(transparent)]
+    Session(#[from] crate::SessionError),
+    #[error(transparent)]
     UserAgent(#[from] UserAgentError),
     #[error("header `{0}` is not allowed or malformed")]
     Header(String),
@@ -136,6 +138,11 @@ impl fmt::Debug for FetcherConfig {
 /// 单次请求。只支持 GET。
 #[derive(Clone, Default)]
 pub struct FetchRequest {
+    /// Reject a redirect before sending it if scheme/host/port differs from the
+    /// initial URL. Useful for explicitly scoped dependency discovery.
+    pub same_origin_redirects: bool,
+    /// Explicit identity-scoped Cookie session. Stateless by default.
+    pub session: Option<Arc<crate::CookieSession>>,
     pub url: String,
     /// 请求自带的头，只发给初始 URL 的主机。
     pub headers: Vec<(String, String)>,
@@ -153,6 +160,11 @@ impl FetchRequest {
             url: url.into(),
             ..Default::default()
         }
+    }
+
+    pub fn with_session(mut self, session: Arc<crate::CookieSession>) -> Self {
+        self.session = Some(session);
+        self
     }
 
     pub fn header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
@@ -175,6 +187,7 @@ impl fmt::Debug for FetchRequest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let names: Vec<&str> = self.headers.iter().map(|(k, _)| k.as_str()).collect();
         f.debug_struct("FetchRequest")
+            .field("same_origin_redirects", &self.same_origin_redirects)
             .field("url", &redact_url(&self.url))
             .field("headers", &names)
             .field("if_none_match", &self.if_none_match)
@@ -250,6 +263,40 @@ impl FetchResponse {
     }
 }
 
+/// An undecoded response body. Callers must bound disk usage and retain their
+/// policy permit until EOF. Dropping the stream closes an unfinished body.
+pub struct FetchStream {
+    pub final_url: Url,
+    pub status: u16,
+    pub headers: HeaderMap,
+    pub redirect_chain: Vec<RedirectHop>,
+    pub first_byte: Duration,
+    response: Resp,
+    deadline: Instant,
+    session_use: Option<crate::session::SessionUse>,
+}
+
+impl FetchStream {
+    pub fn header(&self, name: &str) -> Option<&str> {
+        self.headers.get(name).and_then(|v| v.to_str().ok())
+    }
+
+    pub async fn chunk(&mut self) -> Result<Option<bytes::Bytes>> {
+        let chunk = timeout_at(self.deadline, self.response.chunk())
+            .await
+            .map_err(|_| Error::Timeout(TimeoutPhase::Total))?;
+        if matches!(chunk, Ok(None))
+            && let Some(usage) = self.session_use.take()
+        {
+            usage.finish(self.status);
+        }
+        if chunk.is_err() {
+            self.session_use.take();
+        }
+        chunk
+    }
+}
+
 pub struct Fetcher {
     transport: Transport,
     config: FetcherConfig,
@@ -269,6 +316,7 @@ impl Fetcher {
         validate_user_agent(&config.user_agent)?;
         let mut exempt = Vec::new();
         let mut builder = reqwest::Client::builder().no_proxy();
+        let mut raw_builder = reqwest::Client::builder().no_proxy();
         if let Some(p) = &config.proxy {
             let parsed = Url::parse(p).map_err(|_| Error::Config("invalid proxy URL".into()))?;
             // socks5h/socks4a 让代理解析目标域名，会绕过本地的 DNS 校验，所以不支持。
@@ -283,6 +331,7 @@ impl Fetcher {
             }
             let proxy = reqwest::Proxy::all(p.as_str())
                 .map_err(|_| Error::Config("invalid proxy URL".into()))?;
+            raw_builder = raw_builder.proxy(proxy.clone());
             builder = builder.proxy(proxy);
         }
         // 白名单里的主机解析到内网地址也放行
@@ -314,23 +363,33 @@ impl Fetcher {
                 credentials,
             });
         }
-        let client = builder
-            .redirect(redirect::Policy::none())
-            .referer(false)
-            .dns_resolver(Arc::new(ReqwestResolver(resolver)))
-            .connect_timeout(config.connect_timeout)
-            .pool_idle_timeout(config.pool_idle_timeout)
-            .pool_max_idle_per_host(config.pool_max_idle_per_host)
-            .tcp_keepalive(Duration::from_secs(60))
-            .user_agent(ua)
+        let build = |builder: reqwest::ClientBuilder| {
+            builder
+                .redirect(redirect::Policy::none())
+                .referer(false)
+                .dns_resolver(Arc::new(ReqwestResolver(resolver.clone())))
+                .connect_timeout(config.connect_timeout)
+                .pool_idle_timeout(config.pool_idle_timeout)
+                .pool_max_idle_per_host(config.pool_max_idle_per_host)
+                .tcp_keepalive(Duration::from_secs(60))
+                .user_agent(ua.clone())
+        };
+        let client = build(builder)
             .gzip(true)
             .brotli(true)
             .zstd(true)
             .deflate(true)
             .build()
             .map_err(|e| Error::Config(e.to_string()))?;
+        let raw = build(raw_builder)
+            .gzip(false)
+            .brotli(false)
+            .zstd(false)
+            .deflate(false)
+            .build()
+            .map_err(|e| Error::Config(e.to_string()))?;
         Ok(Self {
-            transport: Transport::Proxy(client),
+            transport: Transport::Proxy(client, raw),
             config,
             credentials,
         })
@@ -362,14 +421,87 @@ impl Fetcher {
         guard: &dyn RedirectGuard,
     ) -> Result<FetchResponse> {
         let start = Instant::now();
+        let max = req.max_body_bytes.unwrap_or(self.config.max_body_bytes);
+        let mut stream = self.open(req, guard, false).await?;
+        let first_byte = stream.first_byte;
+        let status = stream.status;
+        let mut headers = stream.headers;
+        let direct = matches!(stream.response, Resp::Direct(_));
+        let (body, mut truncated) = read_body(stream.response, max, stream.deadline).await?;
+        let body = if direct {
+            let (body, cut) = client::decode_body(&mut headers, body, max);
+            truncated |= cut;
+            body
+        } else {
+            body
+        };
+        if let Some(usage) = stream.session_use.take() {
+            usage.finish(status);
+        }
+        Ok(FetchResponse {
+            final_url: stream.final_url,
+            status,
+            headers,
+            body,
+            redirect_chain: stream.redirect_chain,
+            timings: Timings {
+                first_byte,
+                total: start.elapsed(),
+            },
+            truncated,
+            not_modified: status == 304,
+        })
+    }
+
+    /// Stream identity-encoded bytes with the same DNS, redirects and credential
+    /// checks as fetch(). Content decoding is deliberately disabled for Range.
+    pub async fn fetch_stream_with(
+        &self,
+        req: FetchRequest,
+        guard: &dyn RedirectGuard,
+    ) -> Result<FetchStream> {
+        self.open(req, guard, true).await
+    }
+
+    pub async fn fetch_stream(&self, req: FetchRequest) -> Result<FetchStream> {
+        self.fetch_stream_with(req, &NoGuard).await
+    }
+
+    async fn open(
+        &self,
+        req: FetchRequest,
+        guard: &dyn RedirectGuard,
+        raw: bool,
+    ) -> Result<FetchStream> {
+        let start = Instant::now();
         let deadline = start + req.timeout.unwrap_or(self.config.total_timeout);
         let extra = request_headers(&req)?;
         let origin = self.check_url(&req.url)?;
+        if req.session.is_some() && extra.contains_key(header::COOKIE) {
+            return Err(Error::Header(
+                "cookie conflicts with explicit session".into(),
+            ));
+        }
+        let session_use = req.session.as_ref().map(|s| s.begin(&origin)).transpose()?;
         let mut url = origin.clone();
         let mut chain = Vec::new();
         loop {
-            let headers = self.headers_for(&url, &origin, &extra);
-            let send = self.transport.get(&url, headers);
+            let mut headers = self.headers_for(&url, &origin, &extra, req.session.is_some());
+            if let Some(session) = &req.session {
+                // Explicit sessions own Cookie completely, including when host
+                // credentials configured a static cookie for another identity.
+                headers.remove(header::COOKIE);
+                if let Some(cookie) = session.cookie_header(&url)? {
+                    headers.insert(header::COOKIE, cookie);
+                }
+            }
+            if raw {
+                headers.insert(
+                    header::ACCEPT_ENCODING,
+                    HeaderValue::from_static("identity"),
+                );
+            }
+            let send = self.transport.get(&url, headers, raw);
             let first_byte = (Instant::now() + self.config.first_byte_timeout).min(deadline);
             let resp = match timeout_at(first_byte, send).await {
                 Err(_) if first_byte == deadline => {
@@ -379,6 +511,9 @@ impl Fetcher {
                 Ok(r) => r?,
             };
             let status = resp.status();
+            if let Some(session) = &req.session {
+                session.receive(&url, resp.headers());
+            }
             let location = resp
                 .headers()
                 .get(header::LOCATION)
@@ -389,6 +524,11 @@ impl Fetcher {
                     return Err(Error::TooManyRedirects(self.config.max_redirects));
                 }
                 let next = self.redirect_target(&url, &loc)?;
+                if req.same_origin_redirects && next.origin() != origin.origin() {
+                    return Err(Error::Config(
+                        "cross-origin redirect outside request scope".into(),
+                    ));
+                }
                 guard
                     .check(&url, &next)
                     .await
@@ -400,31 +540,25 @@ impl Fetcher {
                 url = next;
                 continue;
             }
-            let first_byte = start.elapsed();
-            let mut headers = resp.headers().clone();
-            let max = req.max_body_bytes.unwrap_or(self.config.max_body_bytes);
-            let direct = matches!(resp, Resp::Direct(_));
-            let (body, mut truncated) = read_body(resp, max, deadline).await?;
-            // 自研客户端拿到的是原始字节，在这里解压（reqwest 自己解压）
-            let body = if direct {
-                let (body, cut) = client::decode_body(&mut headers, body, max);
-                truncated |= cut;
-                body
-            } else {
-                body
-            };
-            return Ok(FetchResponse {
+            let headers = resp.headers().clone();
+            if raw
+                && headers
+                    .get(header::CONTENT_ENCODING)
+                    .is_some_and(|v| v != "identity")
+            {
+                return Err(Error::Network(
+                    "stream requires identity content encoding".into(),
+                ));
+            }
+            return Ok(FetchStream {
                 final_url: url,
                 status,
                 headers,
-                body,
                 redirect_chain: chain,
-                timings: Timings {
-                    first_byte,
-                    total: start.elapsed(),
-                },
-                truncated,
-                not_modified: status == 304,
+                first_byte: start.elapsed(),
+                response: resp,
+                deadline,
+                session_use,
             });
         }
     }
@@ -441,7 +575,18 @@ impl Fetcher {
         Ok(next)
     }
 
-    fn headers_for(&self, url: &Url, origin: &Url, extra: &HeaderMap) -> HeaderMap {
+    fn headers_for(
+        &self,
+        url: &Url,
+        origin: &Url,
+        extra: &HeaderMap,
+        strict_origin: bool,
+    ) -> HeaderMap {
+        // A session's identity includes its explicit/configured credentials.
+        // A redirect to another port/scheme/host starts without those headers.
+        if strict_origin && url.origin() != origin.origin() {
+            return HeaderMap::new();
+        }
         let host = url.host_str().unwrap_or_default();
         let mut out = HeaderMap::new();
         for (c, h) in &self.credentials {
@@ -585,7 +730,7 @@ async fn read_body(mut resp: Resp, max: usize, deadline: Instant) -> Result<(Vec
 
 enum Transport {
     Direct(client::Client),
-    Proxy(reqwest::Client),
+    Proxy(reqwest::Client, reqwest::Client),
 }
 
 enum Resp {
@@ -594,10 +739,10 @@ enum Resp {
 }
 
 impl Transport {
-    async fn get(&self, url: &Url, headers: HeaderMap) -> Result<Resp> {
+    async fn get(&self, url: &Url, headers: HeaderMap, raw: bool) -> Result<Resp> {
         match self {
             Transport::Direct(c) => c.get(url, headers).await.map(Resp::Direct),
-            Transport::Proxy(c) => c
+            Transport::Proxy(decoded, identity) => (if raw { identity } else { decoded })
                 .get(url.clone())
                 .headers(headers)
                 .send()

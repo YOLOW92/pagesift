@@ -1,0 +1,27 @@
+{
+  "version": "2.0.0",
+  "validation": "scripts/ci.sh",
+  "status": "completed",
+  "exit_code": 0,
+  "run_id": "20261022T050055Z-v2-release-ci-fixed-bf6370",
+  "passed_tests": 613,
+  "limits": {
+    "memory_mb": 8192,
+    "cpu_quota_percent": 800,
+    "cpus": "0,1,2,3,4,5,6,7",
+    "swap_mb": 0,
+    "timeout_s": 1800
+  },
+  "gates": [
+    "release identity",
+    "fmt",
+    "clippy -D warnings",
+    "workspace tests and doctests",
+    "MSRV 1.88",
+    "cargo-deny",
+    "article perf gate",
+    "crawl gate"
+  ],
+  "stdout_sha256": "70119c4fd4c6494e45105487fca678990a4fa4464f08615c8bb8621af596b2f8",
+  "note": "Version-bumped code validation, separate from frozen candidate competitor scores. Native bindings additionally tested on each release platform by Release workflow."
+}
