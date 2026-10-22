@@ -18,10 +18,16 @@ mod ssrf;
 mod ua;
 pub mod budget;
 pub mod checkpoint;
+pub mod media;
 pub mod scheduler;
 
 pub use budget::{BackpressureController, BudgetStatus, DEFAULT_MAX_BYTES, DEFAULT_WARN_BYTES, LeakDetector, MemGuard};
 pub use checkpoint::{RecoveryEngine, TaskSnapshot};
+pub use media::{
+    ChunkFetcher, DashAdaptationSet, DashError, DashManifest, DashRepresentation, DashSegment,
+    HlsMasterPlaylist, HlsMediaPlaylist, HlsPlaylist, HlsSegment, HlsVariant, M3u8Error,
+    StreamVerifier, VerificationReport, parse_m3u8, parse_mpd,
+};
 pub use scheduler::{CrawlResult, CrawlTask, DomainLimiter, PushError, RingQueue, WorkerPool};
 
 pub use charset::{CharsetSource, Decoded, decode};

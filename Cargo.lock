@@ -1532,6 +1532,7 @@ dependencies = [
  "httpdate",
  "hyper",
  "hyper-util",
+ "quick-xml",
  "reqwest",
  "rustls-native-certs",
  "serde",
@@ -1608,9 +1609,12 @@ version = "0.30.0"
 dependencies = [
  "blake3",
  "crc32fast",
+ "flate2",
  "proptest",
+ "sha2",
  "tempfile",
  "tokio",
+ "uuid",
  "zstd 0.13.3",
 ]
 

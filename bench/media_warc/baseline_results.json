@@ -1,0 +1,72 @@
+{
+  "streams": {
+    "yt_dlp_hls": {
+      "elapsed_s": 0.7787612689971866,
+      "peak_rss_mb": 59.0390625,
+      "frames": {
+        "video": 125,
+        "audio": 217
+      },
+      "intact": true,
+      "external_deps": [
+        "python",
+        "ffmpeg"
+      ]
+    },
+    "ffmpeg_hls": {
+      "elapsed_s": 0.04128635700180894,
+      "peak_rss_mb": 59.0390625,
+      "frames": {
+        "video": 125,
+        "audio": 217
+      },
+      "intact": true,
+      "external_deps": [
+        "ffmpeg"
+      ]
+    },
+    "pagesift_hls": {
+      "elapsed_s": 0.008767521001573186,
+      "peak_rss_mb": 59.0390625,
+      "frames": {
+        "video": 125,
+        "audio": 217
+      },
+      "intact": true,
+      "external_deps": [
+        "none (pure Rust)"
+      ]
+    },
+    "yt_dlp_dash": {
+      "elapsed_s": 0.667559273999359,
+      "peak_rss_mb": 59.3515625,
+      "frames": {
+        "video": 125,
+        "audio": 216
+      },
+      "intact": false,
+      "external_deps": [
+        "python",
+        "ffmpeg"
+      ]
+    },
+    "pagesift_dash": {
+      "elapsed_s": 0.011657916998956352,
+      "peak_rss_mb": 59.3515625,
+      "exit_code": 0,
+      "external_deps": [
+        "none (pure Rust)"
+      ]
+    }
+  },
+  "warc": {
+    "tool": "warcio 1.8.1",
+    "num_records": 1000,
+    "total_mb": 4.042387008666992,
+    "elapsed_s": 0.12625252999714576,
+    "throughput_mb_s": 32.01826536670893,
+    "records_per_sec": 7920.633353031479,
+    "warc_size_mb": 0.426177978515625,
+    "peak_rss_mb": 59.3515625
+  }
+}

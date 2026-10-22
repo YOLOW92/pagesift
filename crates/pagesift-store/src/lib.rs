@@ -24,6 +24,7 @@ mod items;
 mod record;
 mod snapshot;
 mod tasks;
+pub mod warc;
 #[cfg(test)]
 mod tests;
 
@@ -37,6 +38,7 @@ pub use engine::Store;
 pub use items::Items;
 pub use snapshot::{ContentHash, SnapshotMeta, SnapshotPut, Snapshots};
 pub use tasks::Tasks;
+pub use warc::{AssetSniffer, RecordType, SubresourceAsset, WarcDigests, WarcRecord, WarcWriter, WebpageSnapshot};
 
 /// 写入后何时调用 fsync。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
