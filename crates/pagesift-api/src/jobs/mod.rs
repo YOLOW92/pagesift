@@ -15,135 +15,28 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex as StdMutex};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::SystemTime;
 
 use pagesift_store::Store;
-use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, Semaphore};
 
 use crate::engine::{CrawlResume, Engine};
 use crate::error::{ApiError, ErrorCode};
-use crate::limits::{Caller, Limiter};
-use crate::metrics::{Metrics, PageSource};
-use crate::types::{CrawlRequest, CrawlSummary, Document, JobError, ScrapeOptions};
-use crate::webhook::{Event, Hook, WebhookConfig, Webhooks};
+use crate::limits::Limiter;
+use crate::metrics::Metrics;
+use crate::types::{CrawlRequest, JobError, ScrapeOptions};
+use crate::webhook::{Event, Hook, Webhooks};
 
 mod sink;
+pub mod state;
 mod store;
+pub mod time;
+
+pub use state::{JOB_TTL, Job, JobKind, JobState, Start, StatusPage};
+pub use time::rfc3339;
 
 use sink::JobSink;
 use store::{BatchSpec, Meta, delete_job, list_key, meta_key, to_ms};
-
-/// Firecrawl 的任务结果保留 24 小时。
-pub const JOB_TTL: Duration = Duration::from_secs(24 * 3600);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum JobState {
-    Scraping,
-    Completed,
-    Cancelled,
-    Failed,
-}
-
-impl JobState {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            JobState::Scraping => "scraping",
-            JobState::Completed => "completed",
-            JobState::Cancelled => "cancelled",
-            JobState::Failed => "failed",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum JobKind {
-    Crawl,
-    BatchScrape,
-}
-
-impl JobKind {
-    /// 也是 webhook 事件类型的前缀（`crawl.page`、`batch_scrape.completed`）。
-    pub fn as_str(self) -> &'static str {
-        match self {
-            JobKind::Crawl => "crawl",
-            JobKind::BatchScrape => "batch_scrape",
-        }
-    }
-
-    pub(super) fn pages(self) -> PageSource {
-        match self {
-            JobKind::Crawl => PageSource::Crawl,
-            JobKind::BatchScrape => PageSource::Batch,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct Job {
-    pub kind: JobKind,
-    pub state: JobState,
-    pub total: usize,
-    pub completed: usize,
-    /// 按完成顺序追加，分页用下标。任务落盘时文档在存储里，这里为空。
-    pub data: Vec<Document>,
-    /// 任务落盘时错误在存储里，这里为空。
-    pub errors: Vec<JobError>,
-    pub robots_blocked: Vec<String>,
-    pub created: SystemTime,
-    /// 带查询的爬取结束后的说明。
-    pub summary: Option<CrawlSummary>,
-    /// 存储里已有的文档数。
-    pub(super) stored_docs: usize,
-    pub(super) owner: Option<Caller>,
-}
-
-impl Job {
-    pub(super) fn new(kind: JobKind, total: usize, owner: Option<Caller>) -> Self {
-        Self {
-            kind,
-            state: JobState::Scraping,
-            total,
-            completed: 0,
-            data: Vec::new(),
-            errors: Vec::new(),
-            robots_blocked: Vec::new(),
-            created: SystemTime::now(),
-            summary: None,
-            stored_docs: 0,
-            owner,
-        }
-    }
-
-    pub fn expires_at(&self) -> SystemTime {
-        self.created + JOB_TTL
-    }
-
-    fn docs(&self) -> usize {
-        self.data.len() + self.stored_docs
-    }
-}
-
-/// 任务状态的一页。
-pub(crate) struct StatusPage {
-    pub state: JobState,
-    pub total: usize,
-    pub completed: usize,
-    pub expires_at: SystemTime,
-    /// 文档总数。
-    pub docs: usize,
-    pub data: Vec<Document>,
-    pub summary: Option<CrawlSummary>,
-}
-
-/// 启动任务时的调用方信息。
-#[derive(Default)]
-pub(crate) struct Start {
-    pub owner: Option<Caller>,
-    pub webhook: Option<WebhookConfig>,
-}
 
 struct Inner {
     map: Mutex<HashMap<String, Job>>,
@@ -511,43 +404,5 @@ impl Jobs {
             let result = engine.crawl(&req, sink.clone()).await;
             sink.finish(result.map_err(|e| (req.url.clone(), e))).await;
         });
-    }
-}
-
-/// UTC 时间格式化成 RFC 3339（秒级精度后带毫秒），不引入日期库。
-pub fn rfc3339(t: SystemTime) -> String {
-    let d = t.duration_since(UNIX_EPOCH).unwrap_or_default();
-    let secs = d.as_secs() as i64;
-    let (days, rem) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
-    // Howard Hinnant 的 civil_from_days
-    let z = days + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = doy - (153 * mp + 2) / 5 + 1;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 };
-    let year = yoe + era * 400 + i64::from(month <= 2);
-    format!(
-        "{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}.{:03}Z",
-        rem / 3600,
-        rem % 3600 / 60,
-        rem % 60,
-        d.subsec_millis()
-    )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn formats_utc_dates() {
-        assert_eq!(rfc3339(UNIX_EPOCH), "1970-01-01T00:00:00.000Z");
-        let t = UNIX_EPOCH + Duration::from_millis(1_792_540_800_123);
-        assert_eq!(rfc3339(t), "2026-10-21T00:00:00.123Z");
-        let leap = UNIX_EPOCH + Duration::from_secs(951_782_400); // 2000-02-29
-        assert_eq!(rfc3339(leap), "2000-02-29T00:00:00.000Z");
     }
 }

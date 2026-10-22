@@ -7,10 +7,12 @@
 
 mod engine;
 mod error;
+pub(crate) mod firecrawl;
+pub mod jina;
 mod jobs;
 mod limits;
 mod metrics;
-mod server;
+pub(crate) mod server;
 pub mod types;
 mod validate;
 mod webhook;
