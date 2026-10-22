@@ -2,7 +2,7 @@
 
 | Start here | Detail |
 |---|---|
-| [0.20.0 release and upgrade](releases/0.20.0.md) | Changes, migration and measured limitations |
+| [0.40.0 release and upgrade](releases/0.40.0.md) | Changes, migration and measured limitations |
 | [Architecture](architecture.md) | Rust modules, request pipeline, collection and archive state diagrams |
 | [Configuration](../pagesift.example.toml) | Service, policies, caches and browser configuration |
 | [Incremental collection](incremental-collection.md) | Business anchors, item revisions, pagination and acknowledgement |

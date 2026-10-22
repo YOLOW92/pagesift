@@ -87,10 +87,10 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('pagesift-android-arm64')
-        const bindingPackageVersion = require('pagesift-android-arm64/package.json').version
-        if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('@pagesift/node-android-arm64')
+        const bindingPackageVersion = require('@pagesift/node-android-arm64/package.json').version
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -103,10 +103,10 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('pagesift-android-arm-eabi')
-        const bindingPackageVersion = require('pagesift-android-arm-eabi/package.json').version
-        if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('@pagesift/node-android-arm-eabi')
+        const bindingPackageVersion = require('@pagesift/node-android-arm-eabi/package.json').version
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -124,10 +124,10 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('pagesift-win32-x64-gnu')
-          const bindingPackageVersion = require('pagesift-win32-x64-gnu/package.json').version
-          if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const binding = require('@pagesift/node-win32-x64-gnu')
+          const bindingPackageVersion = require('@pagesift/node-win32-x64-gnu/package.json').version
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -140,10 +140,10 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('pagesift-win32-x64-msvc')
-          const bindingPackageVersion = require('pagesift-win32-x64-msvc/package.json').version
-          if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const binding = require('@pagesift/node-win32-x64-msvc')
+          const bindingPackageVersion = require('@pagesift/node-win32-x64-msvc/package.json').version
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -157,10 +157,10 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('pagesift-win32-ia32-msvc')
-        const bindingPackageVersion = require('pagesift-win32-ia32-msvc/package.json').version
-        if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('@pagesift/node-win32-ia32-msvc')
+        const bindingPackageVersion = require('@pagesift/node-win32-ia32-msvc/package.json').version
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -173,10 +173,10 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('pagesift-win32-arm64-msvc')
-        const bindingPackageVersion = require('pagesift-win32-arm64-msvc/package.json').version
-        if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('@pagesift/node-win32-arm64-msvc')
+        const bindingPackageVersion = require('@pagesift/node-win32-arm64-msvc/package.json').version
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -192,10 +192,10 @@ function requireNative() {
       loadErrors.push(e)
     }
     try {
-      const binding = require('pagesift-darwin-universal')
-      const bindingPackageVersion = require('pagesift-darwin-universal/package.json').version
-      if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-        throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+      const binding = require('@pagesift/node-darwin-universal')
+      const bindingPackageVersion = require('@pagesift/node-darwin-universal/package.json').version
+      if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+        throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
       }
       return binding
     } catch (e) {
@@ -208,10 +208,10 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('pagesift-darwin-x64')
-        const bindingPackageVersion = require('pagesift-darwin-x64/package.json').version
-        if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('@pagesift/node-darwin-x64')
+        const bindingPackageVersion = require('@pagesift/node-darwin-x64/package.json').version
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -224,10 +224,10 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('pagesift-darwin-arm64')
-        const bindingPackageVersion = require('pagesift-darwin-arm64/package.json').version
-        if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('@pagesift/node-darwin-arm64')
+        const bindingPackageVersion = require('@pagesift/node-darwin-arm64/package.json').version
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -244,10 +244,10 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('pagesift-freebsd-x64')
-        const bindingPackageVersion = require('pagesift-freebsd-x64/package.json').version
-        if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('@pagesift/node-freebsd-x64')
+        const bindingPackageVersion = require('@pagesift/node-freebsd-x64/package.json').version
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -260,10 +260,10 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('pagesift-freebsd-arm64')
-        const bindingPackageVersion = require('pagesift-freebsd-arm64/package.json').version
-        if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('@pagesift/node-freebsd-arm64')
+        const bindingPackageVersion = require('@pagesift/node-freebsd-arm64/package.json').version
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -281,10 +281,10 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('pagesift-linux-x64-musl')
-          const bindingPackageVersion = require('pagesift-linux-x64-musl/package.json').version
-          if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const binding = require('@pagesift/node-linux-x64-musl')
+          const bindingPackageVersion = require('@pagesift/node-linux-x64-musl/package.json').version
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -297,10 +297,10 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('pagesift-linux-x64-gnu')
-          const bindingPackageVersion = require('pagesift-linux-x64-gnu/package.json').version
-          if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const binding = require('@pagesift/node-linux-x64-gnu')
+          const bindingPackageVersion = require('@pagesift/node-linux-x64-gnu/package.json').version
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -315,10 +315,10 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('pagesift-linux-arm64-musl')
-          const bindingPackageVersion = require('pagesift-linux-arm64-musl/package.json').version
-          if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const binding = require('@pagesift/node-linux-arm64-musl')
+          const bindingPackageVersion = require('@pagesift/node-linux-arm64-musl/package.json').version
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -331,10 +331,10 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('pagesift-linux-arm64-gnu')
-          const bindingPackageVersion = require('pagesift-linux-arm64-gnu/package.json').version
-          if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const binding = require('@pagesift/node-linux-arm64-gnu')
+          const bindingPackageVersion = require('@pagesift/node-linux-arm64-gnu/package.json').version
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -349,10 +349,10 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('pagesift-linux-arm-musleabihf')
-          const bindingPackageVersion = require('pagesift-linux-arm-musleabihf/package.json').version
-          if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const binding = require('@pagesift/node-linux-arm-musleabihf')
+          const bindingPackageVersion = require('@pagesift/node-linux-arm-musleabihf/package.json').version
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -365,10 +365,10 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('pagesift-linux-arm-gnueabihf')
-          const bindingPackageVersion = require('pagesift-linux-arm-gnueabihf/package.json').version
-          if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const binding = require('@pagesift/node-linux-arm-gnueabihf')
+          const bindingPackageVersion = require('@pagesift/node-linux-arm-gnueabihf/package.json').version
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -383,10 +383,10 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('pagesift-linux-loong64-musl')
-          const bindingPackageVersion = require('pagesift-linux-loong64-musl/package.json').version
-          if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const binding = require('@pagesift/node-linux-loong64-musl')
+          const bindingPackageVersion = require('@pagesift/node-linux-loong64-musl/package.json').version
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -399,10 +399,10 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('pagesift-linux-loong64-gnu')
-          const bindingPackageVersion = require('pagesift-linux-loong64-gnu/package.json').version
-          if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const binding = require('@pagesift/node-linux-loong64-gnu')
+          const bindingPackageVersion = require('@pagesift/node-linux-loong64-gnu/package.json').version
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -417,10 +417,10 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('pagesift-linux-riscv64-musl')
-          const bindingPackageVersion = require('pagesift-linux-riscv64-musl/package.json').version
-          if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const binding = require('@pagesift/node-linux-riscv64-musl')
+          const bindingPackageVersion = require('@pagesift/node-linux-riscv64-musl/package.json').version
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -433,10 +433,10 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('pagesift-linux-riscv64-gnu')
-          const bindingPackageVersion = require('pagesift-linux-riscv64-gnu/package.json').version
-          if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const binding = require('@pagesift/node-linux-riscv64-gnu')
+          const bindingPackageVersion = require('@pagesift/node-linux-riscv64-gnu/package.json').version
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -450,10 +450,10 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('pagesift-linux-ppc64-gnu')
-        const bindingPackageVersion = require('pagesift-linux-ppc64-gnu/package.json').version
-        if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('@pagesift/node-linux-ppc64-gnu')
+        const bindingPackageVersion = require('@pagesift/node-linux-ppc64-gnu/package.json').version
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -466,10 +466,10 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('pagesift-linux-s390x-gnu')
-        const bindingPackageVersion = require('pagesift-linux-s390x-gnu/package.json').version
-        if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('@pagesift/node-linux-s390x-gnu')
+        const bindingPackageVersion = require('@pagesift/node-linux-s390x-gnu/package.json').version
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -486,10 +486,10 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('pagesift-openharmony-arm64')
-        const bindingPackageVersion = require('pagesift-openharmony-arm64/package.json').version
-        if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('@pagesift/node-openharmony-arm64')
+        const bindingPackageVersion = require('@pagesift/node-openharmony-arm64/package.json').version
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -502,10 +502,10 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('pagesift-openharmony-x64')
-        const bindingPackageVersion = require('pagesift-openharmony-x64/package.json').version
-        if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('@pagesift/node-openharmony-x64')
+        const bindingPackageVersion = require('@pagesift/node-openharmony-x64/package.json').version
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -518,10 +518,10 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('pagesift-openharmony-arm')
-        const bindingPackageVersion = require('pagesift-openharmony-arm/package.json').version
-        if (bindingPackageVersion !== '0.30.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('@pagesift/node-openharmony-arm')
+        const bindingPackageVersion = require('@pagesift/node-openharmony-arm/package.json').version
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -660,12 +660,12 @@ if (!nativeBinding || forceWasi) {
       candidateFailed = candidateError !== null
       if (!candidateFailed) {
         if (process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          const bindingPackageVersion = require('pagesift-wasm32-wasi/package.json').version
-          if (bindingPackageVersion !== '0.30.0') {
-            throw new Error(`WASI binding package version mismatch, expected 0.30.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const bindingPackageVersion = require('@pagesift/node-wasm32-wasi/package.json').version
+          if (bindingPackageVersion !== '0.40.0') {
+            throw new Error(`WASI binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
         }
-        wasiBinding = require('pagesift-wasm32-wasi')
+        wasiBinding = require('@pagesift/node-wasm32-wasi')
         nativeBinding = wasiBinding
         __napiLoadedBindingTarget = 'wasm32-wasi'
         wasiBindingLoaded = true

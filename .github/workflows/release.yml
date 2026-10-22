@@ -264,6 +264,7 @@ jobs:
           npm ci
           npx napi artifacts --output-dir ../../artifacts
           npm publish --access public
+          node scripts/publish_wrapper.mjs
       - name: Publish GitHub release after all distributions succeed
         env:
           GH_TOKEN: ${{ github.token }}

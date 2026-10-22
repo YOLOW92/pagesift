@@ -1,5 +1,5 @@
 {
-  "name": "pagesift",
+  "name": "@pagesift/node",
   "version": "0.40.0",
   "description": "Turn web pages into clean Markdown for LLMs: a polite, Firecrawl-compatible scraping engine written in Rust.",
   "license": "AGPL-3.0-only",
