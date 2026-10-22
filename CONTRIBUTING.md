@@ -21,6 +21,8 @@ scripts/ci.sh            # the full local check: fmt, clippy, tests, MSRV, cargo
 
 `scripts/ci.sh` must pass before a pull request is merged. Size parallel builds with `CARGO_BUILD_JOBS=$(scripts/jobs.sh)` on machines with little memory.
 
+Native Node tests use `npm test` in `crates/pagesift-node`. Test files run sequentially so separate Rust worker pools do not compete with event-loop latency measurements; each concurrency test still exercises its own parallel work.
+
 ### Performance
 
 Performance is a feature. Changes on the hot paths (HTML parsing, extraction, the HTTP client, crawling) should come with numbers:
