@@ -1,0 +1,10 @@
+{
+  "chaos_429": 0,
+  "chaos_503": 3000,
+  "hosts": 1000,
+  "pathological_doms": 0,
+  "per_host": 100,
+  "served": 3000,
+  "total_urls": 100000,
+  "traps_injected": 0
+}

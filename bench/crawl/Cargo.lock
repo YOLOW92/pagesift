@@ -1333,6 +1333,7 @@ name = "pagesift-crawl-bench"
 version = "0.0.0"
 dependencies = [
  "axum",
+ "serde_json",
  "spider",
  "spider_transformations",
  "tokio",

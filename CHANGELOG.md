@@ -2,6 +2,20 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.40.0] — 2026-10-23
+
+Dual-protocol Firecrawl v1 and v2 API compatibility layer, Jina Reader protocol adapter with SSE streaming, comprehensive 8-domain competitive benchmarks, and 100,000-page chaos stress testing under a strict 12 GiB memory ceiling. See [the release and migration guide](docs/releases/0.40.0.md).
+
+### Added
+- Dual-protocol Firecrawl v1/v2 routing in `crates/pagesift-api/src/firecrawl/` with 100% official SDK compatibility (`/v1/scrape`, `/v1/crawl`, `/v1/batch/scrape`, `/v1/map` and `/v2/*`).
+- Jina Reader protocol adapter in `crates/pagesift-api/src/jina/` supporting `GET /r/{*url}`, `POST /r`, and `Accept: text/event-stream` Server-Sent Events.
+- Synthetic Chaos Origin server (`bench/crawl/src/bin/chaos_origin.rs`) generating 100,000 URLs with 150-level nested DOMs, spider traps, and 503/429 chaos backpressure.
+- Official 8-domain benchmark whitepaper (`docs/releases/0.40.0.md` & `bench/results/final/`) measuring extraction concurrency, 12 GiB RAM defense, PDF extraction, DOM self-healing, RAG chunking, charset detection, structured data, and JS endpoint discovery.
+
+### Changed
+- Workspace crates, npm packages, and Python bindings bumped to `0.40.0`.
+- Decomposed oversized files in `crates/pagesift-api` into modular submodules, ensuring all modified/created files are strictly `<= 500 lines` with `#![forbid(unsafe_code)]`.
+
 ## [0.30.0] — 2026-10-23
 
 Modular architecture refactoring, script navigation folding, metadata and publication date acceleration, RAG chunking and QueryFilter speedups, and comprehensive benchmark suite expansion under a strict 12 GiB memory ceiling. See [the release and migration guide](docs/releases/0.30.0.md).

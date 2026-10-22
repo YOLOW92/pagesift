@@ -1,0 +1,24 @@
+Loaded 3138 test cases from bench/data/fresh/data/chardet-test-data
+
+Evaluating PageSift (Rust)...
+Evaluating chardet...
+  (using chardet 7.7.0)
+Evaluating charset-normalizer...
+  (using charset-normalizer 3.5.2)
+
+======================================================================
+Tool                   Accuracy (All)   Avg Latency      Total Time  
+======================================================================
+PageSift (Current)     2336/3138 (74.4%)   0.45 ms/file    1.45 s
+chardet (5.2.0)        2162/3138 (68.9%)   3.33 ms/file   3.38 s
+charset-normalizer     1459/3138 (46.5%)   0.99 ms/file   2.96 s
+======================================================================
+
+Accuracy Breakdown by Category:
+Category                         PageSift       chardet        charset-normalizer
+--------------------------------------------------------------------------
+CJK (Chinese/Japanese/Korean)    140/149 (94.0%) 149/149 (100.0%) 139/149 (93.3%)
+Cyrillic (Russian/Ukrainian)     125/150 (83.3%) 150/150 (100.0%) 99/150 (66.0%)
+Western (Latin/Windows-1252)     234/276 (84.8%) 228/276 (82.6%) 100/276 (36.2%)
+Unicode (UTF-8/UTF-16)           1402/1406 (99.7%) 793/1406 (56.4%) 793/1406 (56.4%)
+Legacy/Others (EBCDIC/CP437)     435/1157 (37.6%) 842/1157 (72.8%) 328/1157 (28.3%)

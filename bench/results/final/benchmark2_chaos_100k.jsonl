@@ -1,0 +1,1 @@
+{"label": "pagesift_chaos_100k", "wall_s": 1.73, "cpu_s": 0.68, "peak_tree_rss_mb": 67.9, "peak_tree_pss_mb": 65.7, "exit": 0, "served_pages": 3000, "pages_per_s": 1739.0, "killed": null, "summary": "pagesift: 1000 pages from 1000 sites in 1.63 s = 615 pages/s, errors 0, markdown 0.0 MB"}

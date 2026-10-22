@@ -1,0 +1,7 @@
+{
+  "master_seed": 893421774,
+  "timestamp": "2026-10-22 22:45:58 UTC",
+  "sample_count": 300,
+  "source": "bench/data/tranco-b.csv",
+  "snapshots_pool_size": 3074
+}

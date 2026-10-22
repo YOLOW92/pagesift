@@ -1,0 +1,30 @@
+================================================================================
+=== MULTI-THREAD CONCURRENCY & EXTREME THROUGHPUT STRESS TEST (2,008 PAGES) ===
+================================================================================
+
+Running PageSift concurrency scaling...
+  PageSift @  1 threads: 3.84s (   522 pages/s) | p50:  1.28ms | p99:  8.55ms | RSS:  57.1MB
+  PageSift @  2 threads: 0.59s (  3413 pages/s) | p50:  2.02ms | p99: 13.66ms | RSS: 134.9MB
+  PageSift @  4 threads: 0.57s (  3525 pages/s) | p50:  2.02ms | p99: 13.37ms | RSS: 138.3MB
+  PageSift @  8 threads: 0.64s (  3139 pages/s) | p50:  2.04ms | p99: 13.35ms | RSS: 133.9MB
+  PageSift @ 16 threads: 0.62s (  3251 pages/s) | p50:  2.05ms | p99: 14.92ms | RSS: 137.8MB
+
+Running rs-trafilatura concurrency scaling...
+  rs-trafilatura @  1 threads: 48.22s (    42 pages/s) | p50: 16.35ms | p99: 143.52ms | RSS:  75.7MB
+  rs-trafilatura @  4 threads: 8.44s (   238 pages/s) | p50: 26.69ms | p99: 201.80ms | RSS: 298.3MB
+  rs-trafilatura @  8 threads: 8.32s (   241 pages/s) | p50: 27.43ms | p99: 205.11ms | RSS: 297.3MB
+
+================================================================================
+Threads   Engine           Wall Time    Throughput       p50 Latency    Peak RSS  
+================================================================================
+1         PageSift         3.84        s 522            p/s 1.28        ms 57.1    MB
+2         PageSift         0.59        s 3413           p/s 2.02        ms 134.9   MB
+4         PageSift         0.57        s 3525           p/s 2.02        ms 138.3   MB
+8         PageSift         0.64        s 3139           p/s 2.04        ms 133.9   MB
+16        PageSift         0.62        s 3251           p/s 2.05        ms 137.8   MB
+--------------------------------------------------------------------------------
+1         rs-trafilatura   48.22       s 42             p/s 16.35       ms 75.7    MB
+4         rs-trafilatura   8.44        s 238            p/s 26.69       ms 298.3   MB
+8         rs-trafilatura   8.32        s 241            p/s 27.43       ms 297.3   MB
+================================================================================
+

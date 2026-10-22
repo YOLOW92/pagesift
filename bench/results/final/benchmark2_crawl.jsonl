@@ -1,0 +1,2 @@
+{"label": "pagesift_50k", "wall_s": 17.84, "cpu_s": 202.12, "peak_tree_rss_mb": 447.5, "peak_tree_pss_mb": 436.4, "exit": 0, "served_pages": 46403, "pages_per_s": 2600.4, "killed": null, "summary": "pagesift: 48433 pages from 500 sites in 17.76 s = 2727 pages/s, errors 485, markdown 449.3 MB"}
+{"label": "spider_50k", "wall_s": 18.02, "cpu_s": 162.09, "peak_tree_rss_mb": 11762.9, "peak_tree_pss_mb": 11771.0, "exit": -9, "served_pages": 35082, "pages_per_s": 1946.4, "killed": "> 12 GB (killed by 12 GB memory limit / cgroup OOM)", "summary": ""}

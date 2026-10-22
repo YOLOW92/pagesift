@@ -1,0 +1,26 @@
+================================================================================
+=== HIGH-DENSITY & PATHOLOGICAL STRUCTURED DATA EXTREME STRESS BENCHMARK ===
+================================================================================
+
+--- Test 1: Official Extruct Benchmark Corpus (63 files) ---
+PageSift (Rust):  129 entities extracted | total: 17.9ms (avg 80.1 µs/page)
+extruct (Python): 135 entities extracted | total: 37.5ms (avg 3327.6 µs/page)
+-> Speed Advantage: PageSift is 2.1x faster overall (per-page: 41.5x faster)!
+
+--- Test 2: Pathological Deep Nesting Stress Test (Microdata Itemscopes) ---
+Depth      PageSift Time      extruct Time       Speedup     
+----------------------------------------------------------
+10         53.0              µs 6770.1            µs 127.7       x
+20         105.0             µs 14182.5           µs 135.1       x
+30         211.0             µs 15982.4           µs 75.7        x
+40         366.0             µs 16759.5           µs 45.8        x
+
+--- Test 3: Massive Knowledge Graph Stress Test (@graph JSON-LD) ---
+Nodes      PageSift Time      extruct Time       Speedup     
+----------------------------------------------------------
+100        221.0             µs 645.9             µs 2.9         x
+300        563.0             µs 1076.7            µs 1.9         x
+500        863.0             µs 1417.6            µs 1.6         x
+1000       1841.0            µs 2015.9            µs 1.1         x
+================================================================================
+
