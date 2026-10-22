@@ -80,6 +80,14 @@ fn html_to_markdown_rs_convert(html: &str, url: &str) -> String {
         .unwrap_or_default()
 }
 
+fn pagesift_native(html: &str, url: &str) -> String {
+    let mut opts = pagesift_content::Options::default();
+    if let Ok(u) = url::Url::parse(url) {
+        opts.base_url = Some(u);
+    }
+    pagesift_content::process(html, &opts).markdown
+}
+
 fn rs_trafilatura_convert(html: &str, _url: &str) -> String {
     let opts = rs_trafilatura::Options {
         output_markdown: true,
@@ -93,12 +101,13 @@ fn rs_trafilatura_convert(html: &str, _url: &str) -> String {
 
 fn select_tool(name: &str) -> fn(&str, &str) -> String {
     match name {
+        "pagesift" | "pagesift-native" => pagesift_native,
         "crw" => crw,
         "dom_smoothie" => dom_smoothie,
         "htmd" => htmd_convert,
         "html-to-markdown-rs" => html_to_markdown_rs_convert,
         "rs-trafilatura" | "rs_trafilatura" => rs_trafilatura_convert,
-        _ => panic!("usage: <crw|dom_smoothie|htmd|html-to-markdown-rs|rs-trafilatura> <manifest.jsonl> <out.jsonl>"),
+        _ => panic!("usage: <pagesift|crw|dom_smoothie|htmd|html-to-markdown-rs|rs-trafilatura> <manifest.jsonl> <out.jsonl>"),
     }
 }
 
