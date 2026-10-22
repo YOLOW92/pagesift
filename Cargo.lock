@@ -1475,6 +1475,7 @@ dependencies = [
 name = "pagesift-extract"
 version = "0.30.0"
 dependencies = [
+ "memchr",
  "pagesift-html",
  "regex",
  "serde",

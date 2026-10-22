@@ -8,6 +8,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+memchr = "2.8.3"
 pagesift-html = { version = "0.30.0", path = "../pagesift-html" }
 regex = "1.13.1"
 serde = { version = "1.0.229", features = ["derive"] }

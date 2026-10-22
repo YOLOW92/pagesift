@@ -41,7 +41,7 @@ pub mod relocation;
 pub mod structured;
 
 pub use bm25::{Bm25Options, ScoredBlock, bm25_filter, bm25_scores, filter_markdown, tokenize};
-pub use chunk::{Chunk, ChunkStrategy, chunk};
+pub use chunk::{Chunk, ChunkStrategy, TokenIndex, chunk};
 pub use css::JsonCssExtractor;
 pub use error::Error;
 pub use forms::{Control, Form, discover_forms, plan_form_get};
