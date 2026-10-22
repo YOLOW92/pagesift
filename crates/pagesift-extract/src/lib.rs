@@ -36,6 +36,7 @@ mod relocate;
 mod schema;
 mod text;
 mod xpath;
+pub mod structured;
 
 pub use bm25::{Bm25Options, ScoredBlock, bm25_filter, bm25_scores, filter_markdown, tokenize};
 pub use chunk::{Chunk, ChunkStrategy, chunk};
@@ -51,4 +52,5 @@ pub use relevance::{
 };
 pub use relocate::{Anchor, Relocation};
 pub use schema::{Field, FieldKind, Schema, Step, Transform};
+pub use structured::{ProductInfo, StructuredData, extract_structured};
 pub use xpath::JsonXPathExtractor;
