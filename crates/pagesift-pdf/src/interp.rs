@@ -7,89 +7,15 @@ use std::time::Instant;
 use lopdf::{Dictionary, Document, Object, ObjectId};
 
 use crate::font::{DecodedChar, Font};
+pub(crate) use crate::geom::{Glyph, Matrix, PageInk, Rule};
 use crate::lexer::{Lexer, Operand};
 use crate::obj::{deref, get, get_dict, get_name, num_array, stream_bytes};
-
-#[derive(Debug, Clone)]
-pub(crate) struct Glyph {
-    pub(crate) text: String,
-    pub(crate) x: f64,
-    pub(crate) y: f64,
-    pub(crate) x_end: f64,
-    pub(crate) size: f64,
-    pub(crate) bold: bool,
-    pub(crate) math: crate::font::MathKind,
-}
-
-/// 页面上的一条水平或竖直线段（表格框线、分隔线），页面坐标。
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct Rule {
-    pub(crate) x0: f64,
-    pub(crate) y0: f64,
-    pub(crate) x1: f64,
-    pub(crate) y1: f64,
-}
-
-impl Rule {
-    pub(crate) fn horizontal(&self) -> bool {
-        (self.y1 - self.y0).abs() <= (self.x1 - self.x0).abs()
-    }
-}
 
 /// 一条线段最多可以偏离水平或竖直多少（页面单位）。
 const RULE_SKEW: f64 = 1.0;
 /// 填充的矩形短边不超过这个宽度时当作一条线（很多 PDF 用细长矩形画表格线）。
 const THIN_RECT: f64 = 2.5;
 const MAX_RULES_PER_PAGE: usize = 20_000;
-
-#[derive(Debug, Default)]
-pub(crate) struct PageInk {
-    pub(crate) glyphs: Vec<Glyph>,
-    pub(crate) rules: Vec<Rule>,
-    pub(crate) image_area: f64,
-    pub(crate) image_count: usize,
-    pub(crate) width: f64,
-    pub(crate) height: f64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct Matrix([f64; 6]);
-
-impl Matrix {
-    const IDENTITY: Matrix = Matrix([1.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
-
-    fn translate(tx: f64, ty: f64) -> Matrix {
-        Matrix([1.0, 0.0, 0.0, 1.0, tx, ty])
-    }
-
-    fn from_slice(v: &[f64]) -> Option<Matrix> {
-        let m: [f64; 6] = v.get(..6)?.try_into().ok()?;
-        m.iter().all(|x| x.is_finite()).then_some(Matrix(m))
-    }
-
-    /// self × other：先应用 self，再应用 other。
-    fn mul(&self, o: &Matrix) -> Matrix {
-        let [a1, b1, c1, d1, e1, f1] = self.0;
-        let [a2, b2, c2, d2, e2, f2] = o.0;
-        Matrix([
-            a1 * a2 + b1 * c2,
-            a1 * b2 + b1 * d2,
-            c1 * a2 + d1 * c2,
-            c1 * b2 + d1 * d2,
-            e1 * a2 + f1 * c2 + e2,
-            e1 * b2 + f1 * d2 + f2,
-        ])
-    }
-
-    pub(crate) fn apply(&self, x: f64, y: f64) -> (f64, f64) {
-        let [a, b, c, d, e, f] = self.0;
-        (a * x + c * y + e, b * x + d * y + f)
-    }
-
-    fn det(&self) -> f64 {
-        self.0[0] * self.0[3] - self.0[1] * self.0[2]
-    }
-}
 
 #[derive(Clone)]
 struct GState {
@@ -103,6 +29,7 @@ struct GState {
     rise: f64,
 }
 
+#[derive(Debug)]
 pub(crate) struct Timeout;
 
 pub(crate) struct Interp<'a> {
@@ -521,7 +448,7 @@ fn inherited<'a>(doc: &'a Document, page: &'a Dictionary, key: &[u8]) -> Option<
     None
 }
 
-fn page_content(doc: &Document, page: &Dictionary, limit: usize) -> Vec<u8> {
+pub(crate) fn page_content(doc: &Document, page: &Dictionary, limit: usize) -> Vec<u8> {
     let mut out = Vec::new();
     let parts: Vec<&Object> = match get(doc, page, b"Contents") {
         Some(Object::Array(a)) => a.iter().collect(),

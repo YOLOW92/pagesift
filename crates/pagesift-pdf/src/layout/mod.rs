@@ -28,7 +28,7 @@ pub(crate) struct Line {
 }
 
 /// 片段内超过这个间距（相对字号）就拆开，拆多了没关系，分栏后会按基线合回去。
-const SPLIT_GAP: f64 = 0.8;
+const SPLIT_GAP: f64 = 0.45;
 const SPACE_GAP: f64 = 0.15;
 const CJK_SPACE_GAP: f64 = 0.5;
 
@@ -312,7 +312,7 @@ fn gutters(frags: &[Line]) -> Vec<(f64, f64)> {
     let mut sizes: Vec<f64> = cands.iter().map(|f| f.size).collect();
     sizes.sort_by(f64::total_cmp);
     let med = sizes[sizes.len() / 2];
-    let min_gap = (0.8 * med).max(4.0);
+    let min_gap = (0.55 * med).max(3.5);
 
     // 1pt 精度的覆盖直方图，宽页面按比例缩放
     let bins = (width.ceil() as usize).clamp(1, 4000);
@@ -325,7 +325,7 @@ fn gutters(frags: &[Line]) -> Vec<(f64, f64)> {
             *c += 1;
         }
     }
-    let tol = cands.len() / 20;
+    let tol = (cands.len() / 15).max(1);
     let mut out = Vec::new();
     let mut start: Option<usize> = None;
     for (i, &c) in cover.iter().enumerate() {
@@ -362,10 +362,10 @@ pub(crate) fn blocks(mut frags: Vec<Line>) -> Vec<Vec<Line>> {
         let mut col = 0;
         for (i, &(g0, g1)) in gs.iter().enumerate() {
             let mid = (g0 + g1) / 2.0;
-            if f.x0 < mid && f.x1 > mid {
+            if f.x0 < g0 - 8.0 && f.x1 > g1 + 8.0 {
                 return None;
             }
-            if f.x0 >= mid {
+            if (f.x0 + f.x1) / 2.0 >= mid {
                 col = i + 1;
             }
         }
