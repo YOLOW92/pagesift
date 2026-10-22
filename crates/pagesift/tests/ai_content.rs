@@ -214,6 +214,14 @@ async fn change_tracking_reports_new_same_changed_and_removed() {
     }));
 
     let first = s.scrape(&url, &o).await.unwrap();
+    let meta = serde_json::to_value(&first.metadata).unwrap();
+    for name in ["contentHash", "rawHash", "textHash"] {
+        let hash = meta["pagesift"][name]
+            .as_str()
+            .expect("tracking fingerprint");
+        assert_eq!(hash.len(), 64);
+        assert!(hash.bytes().all(|c| c.is_ascii_hexdigit()));
+    }
     let ct = first.change_tracking.unwrap();
     assert_eq!(
         (ct.change_status.as_str(), ct.visibility.as_str()),

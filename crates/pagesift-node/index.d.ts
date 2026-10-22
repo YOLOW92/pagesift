@@ -71,6 +71,7 @@ export interface PageMetadata {
 export interface PagesiftMetadata {
   /** Markdown、原始 HTML、正文纯文本的 BLAKE3 哈希（十六进制）。 */
   contentHash?: string
+  /** Computed only when change tracking is enabled in a supporting API surface. */
   rawHash?: string
   textHash?: string
   redirectChain?: string[]

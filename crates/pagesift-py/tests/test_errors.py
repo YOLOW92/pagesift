@@ -89,8 +89,8 @@ def test_ssrf_blocked(server, http):
             s.scrape(f"{server}/article", http)
 
 
-def test_upstream_error(scraper, http, closed_port):
-    with pytest.raises(pagesift.UpstreamError):
+def test_connection_refused(scraper, http, closed_port):
+    with pytest.raises(pagesift.NetworkError):
         scraper.scrape(f"http://127.0.0.1:{closed_port}/", http)
 
 
@@ -112,7 +112,7 @@ def test_batch_partial_failure(scraper, http, server, closed_port):
         pagesift.RobotsDisallowed,
         pagesift.InvalidRequest,
         pagesift.AccessBarrier,
-        pagesift.UpstreamError,
+        pagesift.NetworkError,
         type(None),
     ]
     bad = docs[3]

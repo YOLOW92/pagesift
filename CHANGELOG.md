@@ -33,6 +33,7 @@ Native Rust collection and archiving cores, with bounded external-script discove
 - Document link discovery includes iframe/frame sources, HTMX GET attributes, and HTML pagination links. HTTP extraction also recognizes pagination Link response headers, preserving existing crawl scope and robots checks.
 
 ### Development
+- Native package release tests verify all four platforms. Updated stale Node fingerprint and Python network-error assertions; concurrent conversion timing is recorded separately from the GIL-release correctness test.
 - Added a resource-bounded, version-locked comparison harness and initial diagnostics for Firecrawl, Crawlee, Scrapling, Katana, Essence and gallery-dl; results distinguish component tests from complete services.
 - The webhook delivery test waits for the sender to observe the HTTP acknowledgement before asserting its delivery metric.
 

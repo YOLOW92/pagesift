@@ -28,7 +28,9 @@ test('scrape returns a Page', async () => {
   assert.equal(m.pagesift.engine, 'http')
   assert.equal(m.pagesift.etag, '"v1"')
   assert.match(m.pagesift.contentHash, /^[0-9a-f]{64}$/)
-  assert.match(m.pagesift.rawHash, /^[0-9a-f]{64}$/)
+  // Full-page fingerprints are opt-in for change tracking; normal scraping skips them.
+  assert.equal(m.pagesift.rawHash, undefined)
+  assert.equal(m.pagesift.textHash, undefined)
   assert.equal(m.pagesift.contentSha256, undefined)
   assert.equal(typeof m.pagesift.timings.total, 'number')
   await s.close()
