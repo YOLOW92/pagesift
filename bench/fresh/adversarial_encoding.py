@@ -73,6 +73,8 @@ ALIASES = {
     "iso-8859-8": "iso-8859-8",
     "iso-8859-9": "iso-8859-9",
     "iso-8859-15": "windows-1252",
+    "ibm866": "cp866",
+    "cp866": "cp866",
 }
 
 def canon(name: str | None) -> str:
