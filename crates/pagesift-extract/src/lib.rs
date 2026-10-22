@@ -36,6 +36,8 @@ mod relocate;
 mod schema;
 mod text;
 mod xpath;
+pub mod classifier;
+pub mod relocation;
 pub mod structured;
 
 pub use bm25::{Bm25Options, ScoredBlock, bm25_filter, bm25_scores, filter_markdown, tokenize};

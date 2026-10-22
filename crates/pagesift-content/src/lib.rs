@@ -10,6 +10,7 @@
 
 mod article;
 mod barrier;
+mod classes;
 mod clean_html;
 mod dates;
 mod dom;
@@ -147,6 +148,7 @@ pub fn process(html: &str, opts: &Options) -> Document {
             markdown = alt;
         }
     }
+
     // 只取正文时可见文字数已经算好（和拦截页识别的口径一样）：超过上限的页面直接跳过识别
     let surely_content =
         opts.only_main_content && skipper.total_chars() > barrier::visible_limit(opts.status);

@@ -2,7 +2,7 @@
 //! 输入 JSON Lines: `{"id": "...", "original_html": "...", "selector": "...", "mutated_html": "..."}`
 //! 输出 TSV: `<id>\t<found>\t<matched_text>\t<score>\t<latency_us>`
 
-use pagesift_extract::{FuzzyAnchor, FuzzyMatch, FuzzyOptions};
+use pagesift_extract::relocation::{ElementFingerprint, RelocateOutcome, RelocationOptions, relocate};
 use pagesift_html::Html;
 use std::io::{BufRead, Write};
 use std::time::Instant;
@@ -18,9 +18,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out = std::io::stdout();
     let mut out = out.lock();
 
-    let opts = FuzzyOptions {
-        minimum_score: 0.50,
-        minimum_margin: 0.05,
+    let opts = RelocationOptions {
+        min_score: 0.50,
+        min_margin: 0.05,
     };
 
     for line in std::io::BufReader::new(file).lines() {
@@ -37,17 +37,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let orig_doc = Html::parse(orig_html);
         let t0 = Instant::now();
 
-        let (found, text, score) = match FuzzyAnchor::capture(&orig_doc, selector) {
-            Ok(anchor) => {
+        let (found, text, score) = match ElementFingerprint::capture(&orig_doc, selector) {
+            Ok(fp) => {
                 let mut_doc = Html::parse(mut_html);
-                match anchor.locate(&mut_doc, opts) {
-                    Ok(FuzzyMatch::Candidate { node, score, .. }) => {
+                match relocate(&fp, &mut_doc, opts) {
+                    RelocateOutcome::Found { node, score, .. } => {
                         (true, node.text().replace(['\t', '\n', '\r'], " "), score)
                     }
-                    _ => (false, String::new(), 0.0),
+                    other => {
+                        eprintln!("[FAIL relocate] id={id} outcome={other:?}");
+                        (false, String::new(), 0.0)
+                    }
                 }
             }
-            Err(_) => (false, String::new(), 0.0),
+            Err(e) => {
+                eprintln!("[FAIL capture] id={id} err={e}");
+                (false, String::new(), 0.0)
+            }
         };
 
         let us = t0.elapsed().as_micros();
