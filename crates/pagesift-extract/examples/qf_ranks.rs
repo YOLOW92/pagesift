@@ -50,25 +50,65 @@ fn main() {
     }
     let idx: BTreeMap<&String, Vec<usize>> =
         texts.iter().map(|(k, v)| (k, char_index(v))).collect();
+    let questions: Vec<(String, String, String)> =
+        std::io::BufReader::new(std::fs::File::open(qpath).unwrap())
+            .lines()
+            .map(|line| {
+                let q: serde_json::Value = serde_json::from_str(&line.unwrap()).unwrap();
+                (
+                    q["id"].as_str().unwrap().to_string(),
+                    q["question"].as_str().unwrap().to_string(),
+                    q["corpus"].as_str().unwrap().to_string(),
+                )
+            })
+            .collect();
+    let nq = questions.len();
+    let t_wall = std::time::Instant::now();
+    let default_spans: Vec<(String, Vec<[usize; 2]>)> = std::thread::scope(|s| {
+        let threads = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4);
+        let chunk_size = nq.div_ceil(threads).max(1);
+        let handles: Vec<_> = questions
+            .chunks(chunk_size)
+            .map(|batch| {
+                let texts = &texts;
+                let idx = &idx;
+                s.spawn(move || {
+                    batch
+                        .iter()
+                        .map(|(qid, question, corpus)| {
+                            let ci = &idx[corpus];
+                            let f = filter_markdown_by_query(
+                                &texts[corpus],
+                                question,
+                                &QueryFilterOptions::default(),
+                            );
+                            (
+                                qid.clone(),
+                                f.ranges.iter().map(|r| [ci[r.start], ci[r.end]]).collect(),
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .flat_map(|h| h.join().unwrap())
+            .collect()
+    });
+    let filter_ms = t_wall.elapsed().as_secs_f64() * 1000.0;
     let mut result: BTreeMap<String, BTreeMap<String, Vec<[usize; 2]>>> = BTreeMap::new();
-    let (mut filter_ms, mut nq) = (0.0f64, 0usize);
-    for line in std::io::BufReader::new(std::fs::File::open(qpath).unwrap()).lines() {
-        let q: serde_json::Value = serde_json::from_str(&line.unwrap()).unwrap();
-        let (qid, question, corpus) = (
-            q["id"].as_str().unwrap(),
-            q["question"].as_str().unwrap(),
-            q["corpus"].as_str().unwrap(),
-        );
+    for (qid, spans) in default_spans {
+        result
+            .entry("pagesift-default".into())
+            .or_default()
+            .insert(qid, spans);
+    }
+    for (qid, question, corpus) in &questions {
+        let (qid, question, corpus) = (qid.as_str(), question.as_str(), corpus.as_str());
         let ci = &idx[&corpus.to_string()];
-        // 新的 queryFilter（默认参数）实际保留的区间
-        let t0 = std::time::Instant::now();
-        let f = filter_markdown_by_query(&texts[corpus], question, &QueryFilterOptions::default());
-        filter_ms += t0.elapsed().as_secs_f64() * 1000.0;
-        nq += 1;
-        result.entry("pagesift-default".into()).or_default().insert(
-            qid.to_string(),
-            f.ranges.iter().map(|r| [ci[r.start], ci[r.end]]).collect(),
-        );
         for (m, _) in &modes {
             let us = &units[&(corpus.to_string(), *m)];
             let mut docs: Vec<String> = us

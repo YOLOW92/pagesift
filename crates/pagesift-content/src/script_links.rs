@@ -21,9 +21,23 @@ pub struct ScriptScan {
     pub budget_exceeded: bool,
 }
 
+#[derive(Debug, Clone)]
+enum HelperPart {
+    Literal(String),
+    Param(usize),
+    Const(String),
+}
+
+#[derive(Debug, Clone)]
+struct Helper {
+    params: usize,
+    parts: Vec<HelperPart>,
+}
+
 /// Opt-in analysis of a standalone script. Resolves simple immutable string
-/// constants and concatenations; unknown expressions, writes and shadowed names
-/// abstain. Bare module specifiers need an import map and are not guessed.
+/// constants, concatenations, and pure string-concatenation helpers; unknown
+/// expressions, writes and shadowed names abstain. Bare module specifiers need
+/// an import map and are not guessed.
 pub fn scan_script(script: &str, base: &Url) -> ScriptScan {
     if script.len() > MAX_SCRIPT {
         return ScriptScan {
@@ -39,6 +53,7 @@ pub fn scan_script(script: &str, base: &Url) -> ScriptScan {
         };
     }
     let mut bindings = HashMap::new();
+    let mut helpers = HashMap::new();
     let mut definitions = HashMap::<&str, usize>::new();
     for window in tokens.windows(2) {
         if let [
@@ -55,16 +70,30 @@ pub fn scan_script(script: &str, base: &Url) -> ScriptScan {
             ..Default::default()
         };
     }
-    // This bounded folder has no scope tree. With functions/arrow parameters or
-    // eval/with present, leave identifiers unresolved instead of guessing which
-    // binding a use refers to. Literal navigation remains available.
-    let has_dynamic_scope = tokens
+    let has_eval_or_with = tokens
         .iter()
-        .any(|t| matches!(t, Token::Word("function" | "with" | "eval")))
-        || tokens
-            .windows(2)
-            .any(|w| w == [Token::Mark(b'='), Token::Mark(b'>')]);
-    for i in 0..tokens.len().saturating_sub(3) {
+        .any(|t| matches!(t, Token::Word("with" | "eval")));
+    let param_names = collect_param_names(&tokens);
+    let unsafe_use = |name: &str, def_idx: usize| {
+        tokens.iter().enumerate().any(|(j, t)| {
+            *t == Token::Word(name)
+                && j != def_idx
+                && (matches!(tokens.get(j + 1), Some(Token::Mark(b'=' | b'+' | b'-')))
+                    && tokens.get(j + 2) == tokens.get(j + 1)
+                    || tokens.get(j + 1) == Some(&Token::Mark(b'='))
+                    || tokens.get(j.wrapping_sub(1)) == Some(&Token::Mark(b'.')))
+        })
+    };
+    let mut brace_depth = 0usize;
+    for i in 0..tokens.len() {
+        match tokens[i] {
+            Token::Mark(b'{') => brace_depth += 1,
+            Token::Mark(b'}') => brace_depth = brace_depth.saturating_sub(1),
+            _ => {}
+        }
+        if brace_depth != 0 || has_eval_or_with {
+            continue;
+        }
         if let [
             Token::Word("const"),
             Token::Word(name),
@@ -72,23 +101,28 @@ pub fn scan_script(script: &str, base: &Url) -> ScriptScan {
             ..,
         ] = &tokens[i..]
             && definitions.get(name) == Some(&1)
-            && !has_dynamic_scope
-            && let Some((value, end)) = expression(&tokens, i + 3, &bindings)
-            && tokens.get(end) == Some(&Token::Mark(b';'))
+            && !param_names.contains(name)
+            && !unsafe_use(name, i + 1)
         {
-            // Parameters, assignments and property access using this name
-            // invalidate folding; retain only consts with ordinary reads.
-            let unsafe_use = tokens.iter().enumerate().any(|(j, t)| {
-                *t == Token::Word(name)
-                    && j != i + 1
-                    && (matches!(tokens.get(j + 1), Some(Token::Mark(b'=' | b'+' | b'-')))
-                        && tokens.get(j + 2) == tokens.get(j + 1)
-                        || tokens.get(j + 1) == Some(&Token::Mark(b'='))
-                        || tokens.get(j.wrapping_sub(1)) == Some(&Token::Mark(b'.')))
-            });
-            if !unsafe_use && bindings.len() < 256 {
-                bindings.insert(*name, value);
+            if let Some((value, end)) = expression(&tokens, i + 3, &bindings, &helpers, 0)
+                && tokens.get(end) == Some(&Token::Mark(b';'))
+            {
+                if bindings.len() < 256 {
+                    bindings.insert(*name, value);
+                }
+            } else if let Some(helper) = parse_helper(&tokens, i + 3, true, &bindings)
+                && helpers.len() < 64
+            {
+                helpers.insert(*name, helper);
             }
+        } else if let [Token::Word("function"), Token::Word(name), ..] = &tokens[i..]
+            && definitions.get(name) == Some(&1)
+            && !param_names.contains(name)
+            && !unsafe_use(name, i + 1)
+            && let Some(helper) = parse_helper(&tokens, i + 2, false, &bindings)
+            && helpers.len() < 64
+        {
+            helpers.insert(*name, helper);
         }
     }
     let mut out = ScriptScan::default();
@@ -102,7 +136,7 @@ pub fn scan_script(script: &str, base: &Url) -> ScriptScan {
                 .any(|m| ends(prior, &["location", ".", m, "("]))
             || ends(prior, &["window", ".", "open", "("]);
         if (get || navigation)
-            && let Some((value, end)) = expression(&tokens, i, &bindings)
+            && let Some((value, end)) = expression(&tokens, i, &bindings, &helpers, 0)
             && (if get {
                 tokens.get(end) == Some(&Token::Mark(b')'))
             } else {
@@ -133,24 +167,195 @@ pub fn scan_script(script: &str, base: &Url) -> ScriptScan {
     out
 }
 
+fn collect_param_names<'a>(tokens: &[Token<'a>]) -> HashSet<&'a str> {
+    let mut out = HashSet::new();
+    for i in 0..tokens.len() {
+        if tokens[i] == Token::Word("function") {
+            let mut p = i + 1;
+            if matches!(tokens.get(p), Some(Token::Word(_))) {
+                p += 1;
+            }
+            if tokens.get(p) == Some(&Token::Mark(b'(')) {
+                for t in &tokens[p + 1..] {
+                    match t {
+                        Token::Mark(b')') => break,
+                        Token::Word(w) => {
+                            out.insert(*w);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        if tokens.get(i..i + 2) == Some(&[Token::Mark(b'='), Token::Mark(b'>')]) && i > 0 {
+            if let Token::Word(w) = tokens[i - 1] {
+                out.insert(w);
+            } else if tokens[i - 1] == Token::Mark(b')') {
+                for t in tokens[..i - 1].iter().rev() {
+                    match t {
+                        Token::Mark(b'(') => break,
+                        Token::Word(w) => {
+                            out.insert(*w);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
+fn parse_params<'a>(tokens: &[Token<'a>], start: usize) -> Option<(Vec<&'a str>, usize)> {
+    if let Some(Token::Word(single)) = tokens.get(start) {
+        return Some((vec![*single], start + 1));
+    }
+    if tokens.get(start) != Some(&Token::Mark(b'(')) {
+        return None;
+    }
+    let mut pos = start + 1;
+    let mut params = Vec::new();
+    if tokens.get(pos) == Some(&Token::Mark(b')')) {
+        return Some((params, pos + 1));
+    }
+    while params.len() < 8 {
+        let Some(Token::Word(name)) = tokens.get(pos) else {
+            return None;
+        };
+        if params.contains(name) {
+            return None;
+        }
+        params.push(*name);
+        pos += 1;
+        match tokens.get(pos)? {
+            Token::Mark(b',') => pos += 1,
+            Token::Mark(b')') => return Some((params, pos + 1)),
+            _ => return None,
+        }
+    }
+    None
+}
+
+fn parse_helper(
+    tokens: &[Token<'_>],
+    start: usize,
+    arrow: bool,
+    bindings: &HashMap<&str, String>,
+) -> Option<Helper> {
+    if !arrow && tokens.get(start) != Some(&Token::Mark(b'(')) {
+        return None;
+    }
+    let (params, mut pos) = parse_params(tokens, start)?;
+    if arrow {
+        if tokens.get(pos..pos + 2) != Some(&[Token::Mark(b'='), Token::Mark(b'>')]) {
+            return None;
+        }
+        pos += 2;
+    }
+    let block = tokens.get(pos) == Some(&Token::Mark(b'{'));
+    if !arrow && !block {
+        return None;
+    }
+    if block {
+        if tokens.get(pos + 1) != Some(&Token::Word("return")) {
+            return None;
+        }
+        pos += 2;
+    }
+    let mut parts = Vec::new();
+    for _ in 0..16 {
+        let part = match tokens.get(pos)? {
+            Token::Literal(v) => HelperPart::Literal(v.clone()),
+            Token::Word(w) => match params.iter().position(|p| p == w) {
+                Some(idx) => HelperPart::Param(idx),
+                None => HelperPart::Const(bindings.get(w)?.clone()),
+            },
+            _ => return None,
+        };
+        parts.push(part);
+        pos += 1;
+        if tokens.get(pos) != Some(&Token::Mark(b'+')) {
+            if block {
+                if tokens.get(pos) == Some(&Token::Mark(b';')) {
+                    pos += 1;
+                }
+                if tokens.get(pos) != Some(&Token::Mark(b'}')) {
+                    return None;
+                }
+            } else if !matches!(tokens.get(pos), Some(Token::Mark(b';')) | None) {
+                return None;
+            }
+            return Some(Helper {
+                params: params.len(),
+                parts,
+            });
+        }
+        pos += 1;
+    }
+    None
+}
+
 fn expression(
     tokens: &[Token<'_>],
     start: usize,
     bindings: &HashMap<&str, String>,
+    helpers: &HashMap<&str, Helper>,
+    depth: usize,
 ) -> Option<(String, usize)> {
+    if depth > 4 {
+        return None;
+    }
     let mut end = start;
     let mut value = String::new();
     for _ in 0..16 {
-        let part = match tokens.get(end)? {
-            Token::Literal(v) => v,
-            Token::Word(name) => bindings.get(name)?,
+        let (part, next_end) = match tokens.get(end)? {
+            Token::Literal(v) => (v.clone(), end + 1),
+            Token::Word(name) if tokens.get(end + 1) == Some(&Token::Mark(b'(')) => {
+                if end > 0 && tokens.get(end - 1) == Some(&Token::Mark(b'.')) {
+                    return None;
+                }
+                let helper = helpers.get(name)?;
+                let mut pos = end + 2;
+                let mut args = Vec::with_capacity(helper.params);
+                if helper.params == 0 {
+                    if tokens.get(pos) != Some(&Token::Mark(b')')) {
+                        return None;
+                    }
+                    pos += 1;
+                } else {
+                    for idx in 0..helper.params {
+                        let (arg, after_arg) =
+                            expression(tokens, pos, bindings, helpers, depth + 1)?;
+                        args.push(arg);
+                        let expected = if idx + 1 == helper.params { b')' } else { b',' };
+                        if tokens.get(after_arg) != Some(&Token::Mark(expected)) {
+                            return None;
+                        }
+                        pos = after_arg + 1;
+                    }
+                }
+                let mut joined = String::new();
+                for hp in &helper.parts {
+                    let s = match hp {
+                        HelperPart::Literal(lit) => lit.as_str(),
+                        HelperPart::Param(idx) => args.get(*idx)?.as_str(),
+                        HelperPart::Const(c) => c.as_str(),
+                    };
+                    if joined.len() + s.len() > 8192 {
+                        return None;
+                    }
+                    joined.push_str(s);
+                }
+                (joined, pos)
+            }
+            Token::Word(name) => (bindings.get(name)?.clone(), end + 1),
             _ => return None,
         };
         if value.len() + part.len() > 8192 {
             return None;
         }
-        value.push_str(part);
-        end += 1;
+        value.push_str(&part);
+        end = next_end;
         if tokens.get(end) != Some(&Token::Mark(b'+')) {
             return Some((value, end));
         }
@@ -384,6 +589,17 @@ mod tests {
         );
         assert_eq!(scan.navigation, ["https://example.test/api/list"]);
         assert_eq!(scan.dependencies, ["https://example.test/assets/child.js"]);
+        let dyn_scan = scan_script(
+            "const join=(a,b)=>a+b; fetch(join('/fresh-123/','dynamic')); function p(x){return '/v1/'+x;} location.href=p('users');",
+            &base,
+        );
+        assert_eq!(
+            dyn_scan.navigation,
+            [
+                "https://example.test/fresh-123/dynamic",
+                "https://example.test/v1/users"
+            ]
+        );
         for source in [
             "const API='/wrong'; function f(API) {fetch(API);}",
             "const API='/wrong'; (API)=>fetch(API);",

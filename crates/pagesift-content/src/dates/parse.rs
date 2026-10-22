@@ -362,15 +362,6 @@ pub(super) fn custom_parse(s: &str, b: &Bounds) -> Option<Date> {
             return Some(d);
         }
     }
-    if let Some(c) = YM.captures(s) {
-        let (y, m) = match c.get(1) {
-            Some(y) => (y.as_str(), &c[2]),
-            None => (&c[4], &c[3]),
-        };
-        if let Some(d) = b.check(Date::ymd(y.parse().ok()?, m.parse().ok()?, 1)) {
-            return Some(d);
-        }
-    }
     if let Some(c) = SPACED.captures(s) {
         let d = if let Some(y) = c.get(1) {
             Date::ymd(
@@ -385,7 +376,19 @@ pub(super) fn custom_parse(s: &str, b: &Bounds) -> Option<Date> {
             return Some(d);
         }
     }
-    b.check(parse_long(s))
+    if let Some(d) = b.check(parse_long(s)) {
+        return Some(d);
+    }
+    if let Some(c) = YM.captures(s) {
+        let (y, m) = match c.get(1) {
+            Some(y) => (y.as_str(), &c[2]),
+            None => (&c[4], &c[3]),
+        };
+        if let Some(d) = b.check(Date::ymd(y.parse().ok()?, m.parse().ok()?, 1)) {
+            return Some(d);
+        }
+    }
+    None
 }
 
 pub(super) static DISCARD: LazyLock<Regex> = LazyLock::new(|| {
@@ -433,7 +436,7 @@ pub(super) fn examine_text(s: &str, b: &Bounds) -> Option<Date> {
 
 pub(super) static TIMESTAMP: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(&format!(
-        r"({YEAR}-[0-1]?[0-9]-[0-3]?[0-9])[T ][0-9]{{2}}:[0-9]{{2}}:[0-9]{{2}}(?:\.[0-9]+)?(?:Z|[+-][0-9]{{2}}:?[0-9]{{2}})?"
+        r"({YEAR}-[0-1]?[0-9]-[0-3]?[0-9]|{YEAR}/[0-1]?[0-9]/[0-3]?[0-9])[T ][0-9]{{2}}:[0-9]{{2}}:[0-9]{{2}}(?:\.[0-9]+)?(?:Z|[+-][0-9]{{2}}:?[0-9]{{2}})?"
     ))
     .unwrap()
 });

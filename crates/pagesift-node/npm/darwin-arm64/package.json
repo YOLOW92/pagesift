@@ -1,6 +1,6 @@
 {
   "name": "pagesift-darwin-arm64",
-  "version": "0.20.0",
+  "version": "0.30.0",
   "cpu": [
     "arm64"
   ],

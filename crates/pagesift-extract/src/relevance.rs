@@ -211,14 +211,14 @@ pub fn filter_markdown_by_query(
             ranges: std::iter::once(0..markdown.len()).collect(),
         };
     }
-    let docs: Vec<String> = units
+    let docs: Vec<std::borrow::Cow<'_, str>> = units
         .iter()
         .map(|u| {
             let text = &markdown[u.range.clone()];
             if u.path.is_empty() {
-                text.to_owned()
+                std::borrow::Cow::Borrowed(text)
             } else {
-                format!("{}\n{}", u.path.join(" "), text)
+                std::borrow::Cow::Owned(format!("{}\n{}", u.path.join(" "), text))
             }
         })
         .collect();
@@ -264,14 +264,18 @@ pub fn filter_markdown_by_query(
     keep.sort_unstable();
 
     // 标题：(起点, 级别, 原文这一行)
-    let headings: Vec<(usize, u8, &str)> = chunk(markdown, &ChunkStrategy::Paragraphs)
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|c| !c.text.contains('\n'))
-        .filter_map(|c| {
-            atx_heading(&c.text).map(|(level, _)| (c.start, level, &markdown[c.start..c.end]))
-        })
-        .collect();
+    let headings: Vec<(usize, u8, &str)> = if markdown.as_bytes().contains(&b'#') {
+        chunk(markdown, &ChunkStrategy::Paragraphs)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|c| !c.text.contains('\n'))
+            .filter_map(|c| {
+                atx_heading(&c.text).map(|(level, _)| (c.start, level, &markdown[c.start..c.end]))
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
     let mut out = String::new();
     let mut push = |s: &str| {
         if !out.is_empty() {

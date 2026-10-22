@@ -75,7 +75,27 @@ pub struct Chunk {
 
 /// 把 Markdown 切成块。参数不合法（窗口为 0、重叠不小于窗口、正则写错）时返回错误。
 pub fn chunk(markdown: &str, strategy: &ChunkStrategy) -> Result<Vec<Chunk>, Error> {
-    let doc = Doc::scan(markdown);
+    let need_blocks = matches!(
+        strategy,
+        ChunkStrategy::Paragraphs | ChunkStrategy::Sentences
+    ) || (matches!(strategy, ChunkStrategy::Recursive { .. })
+        && markdown
+            .as_bytes()
+            .iter()
+            .any(|b| matches!(b, b'#' | b'`' | b'~')));
+    let need_headings = need_blocks || markdown.as_bytes().contains(&b'#');
+    let doc = if need_blocks {
+        Doc::scan(markdown, true)
+    } else if need_headings {
+        Doc::scan(markdown, false)
+    } else {
+        Doc {
+            text: markdown,
+            blocks: Vec::new(),
+            headings: Vec::new(),
+        }
+    };
+    let mut pre_starts: Option<Vec<usize>> = None;
     let ranges = match strategy {
         ChunkStrategy::Headings { max_level } => {
             if !(1..=6).contains(max_level) {
@@ -87,19 +107,25 @@ pub fn chunk(markdown: &str, strategy: &ChunkStrategy) -> Result<Vec<Chunk>, Err
         ChunkStrategy::Sentences => doc.sentences(),
         ChunkStrategy::FixedTokens { size } => {
             positive(*size, "size")?;
-            windows(markdown, *size, *size, false)
+            let (r, s) = windows(markdown, *size, *size, false);
+            pre_starts = Some(s);
+            r
         }
         ChunkStrategy::SlidingWindow { window, step } => {
             positive(*window, "window")?;
             positive(*step, "step")?;
-            windows(markdown, *window, *step, true)
+            let (r, s) = windows(markdown, *window, *step, true);
+            pre_starts = Some(s);
+            r
         }
         ChunkStrategy::Overlapping { window, overlap } => {
             positive(*window, "window")?;
             if overlap >= window {
                 return Err(Error::Options("overlap must be smaller than window".into()));
             }
-            windows(markdown, *window, window - overlap, false)
+            let (r, s) = windows(markdown, *window, window - overlap, false);
+            pre_starts = Some(s);
+            r
         }
         ChunkStrategy::Recursive { size } => {
             positive(*size, "size")?;
@@ -116,27 +142,15 @@ pub fn chunk(markdown: &str, strategy: &ChunkStrategy) -> Result<Vec<Chunk>, Err
             } else {
                 Vec::new()
             };
-            // token 起点只算一次；区间的 token 数 = 区间里的起点数，区间从词中间开始时再加一（精确）
             let starts: Vec<usize> = token_spans(markdown).map(|t| t.start).collect();
-            let count = |r: Range<usize>| {
-                let n = starts.partition_point(|&s| s < r.end)
-                    - starts.partition_point(|&s| s < r.start);
-                let mid_word = r.start > 0
-                    && r.start < r.end
-                    && markdown[..r.start]
-                        .chars()
-                        .next_back()
-                        .is_some_and(|c| !c.is_whitespace() && !is_cjk(c))
-                    && markdown[r.start..]
-                        .chars()
-                        .next()
-                        .is_some_and(|c| !c.is_whitespace() && !is_cjk(c));
-                n + usize::from(mid_word)
-            };
-            crate::recursive::recursive(markdown, &pieces, *size, &count)
+            let count = |r: Range<usize>| count_range(markdown, &starts, r);
+            let out = crate::recursive::recursive(markdown, &pieces, *size, &count);
+            pre_starts = Some(starts);
+            out
         }
         ChunkStrategy::Regex { patterns } => regex_split(markdown, patterns)?,
     };
+    let starts = pre_starts.unwrap_or_else(|| token_spans(markdown).map(|t| t.start).collect());
     Ok(ranges
         .into_iter()
         .filter_map(|r| trim(markdown, r))
@@ -149,7 +163,7 @@ pub fn chunk(markdown: &str, strategy: &ChunkStrategy) -> Result<Vec<Chunk>, Err
                 heading_path: doc.path_at(r.start),
                 start: r.start,
                 end: r.end,
-                tokens: token_spans(text).count(),
+                tokens: count_range(markdown, &starts, r),
             }
         })
         .collect())
@@ -194,7 +208,7 @@ struct Doc<'a> {
 }
 
 impl<'a> Doc<'a> {
-    fn scan(text: &'a str) -> Self {
+    fn scan(text: &'a str, need_blocks: bool) -> Self {
         let mut blocks = Vec::new();
         let mut headings: Vec<Heading> = Vec::new();
         let mut stack: Vec<(u8, String)> = Vec::new();
@@ -205,32 +219,65 @@ impl<'a> Doc<'a> {
             let range = pos..pos + line.len();
             pos = range.end;
             let body = line.trim_end_matches(['\n', '\r']);
+            let trimmed = body.trim_start_matches(' ');
+            let first = trimmed.as_bytes().first().copied();
             if let Some((ch, len)) = fence {
                 if let Some(b) = cur.as_mut() {
                     b.range.end = range.end;
                 }
-                if fence_marker(body).is_some_and(|(c, l)| {
-                    c == ch && l >= len && body.trim().trim_start_matches(char::from(ch)).is_empty()
-                }) {
+                if first == Some(ch)
+                    && fence_marker(body).is_some_and(|(c, l)| {
+                        c == ch
+                            && l >= len
+                            && trimmed
+                                .trim_end()
+                                .trim_start_matches(char::from(ch))
+                                .is_empty()
+                    })
+                {
                     fence = None;
-                    blocks.extend(cur.take());
+                    if need_blocks {
+                        blocks.extend(cur.take());
+                    }
                 }
                 continue;
             }
-            if let Some(marker) = fence_marker(body) {
-                blocks.extend(cur.take());
+            if matches!(first, Some(b'`' | b'~'))
+                && let Some(marker) = fence_marker(body)
+            {
                 fence = Some(marker);
-                cur = Some(Block {
-                    range,
-                    kind: BlockKind::Code,
-                });
+                if need_blocks {
+                    blocks.extend(cur.take());
+                    cur = Some(Block {
+                        range,
+                        kind: BlockKind::Code,
+                    });
+                }
                 continue;
             }
-            if body.trim().is_empty() {
+            if !need_blocks {
+                if first == Some(b'#')
+                    && let Some((level, title)) = atx_heading(body)
+                {
+                    while stack.last().is_some_and(|(l, _)| *l >= level) {
+                        stack.pop();
+                    }
+                    stack.push((level, title));
+                    headings.push(Heading {
+                        start: range.start,
+                        level,
+                        path: stack.iter().map(|(_, t)| t.clone()).collect(),
+                    });
+                }
+                continue;
+            }
+            if trimmed.trim().is_empty() {
                 blocks.extend(cur.take());
                 continue;
             }
-            if let Some((level, title)) = atx_heading(body) {
+            if first == Some(b'#')
+                && let Some((level, title)) = atx_heading(body)
+            {
                 blocks.extend(cur.take());
                 while stack.last().is_some_and(|(l, _)| *l >= level) {
                     stack.pop();
@@ -420,39 +467,103 @@ pub(crate) fn is_cjk(c: char) -> bool {
         | '\u{20000}'..='\u{2FA1F}')
 }
 
+#[inline]
+fn is_ascii_ws(b: u8) -> bool {
+    matches!(b, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
+}
+
+pub(crate) fn count_range(markdown: &str, starts: &[usize], r: Range<usize>) -> usize {
+    if r.start >= r.end {
+        return 0;
+    }
+    let n = starts.partition_point(|&s| s < r.end) - starts.partition_point(|&s| s < r.start);
+    let b = markdown.as_bytes();
+    let mid_word = if r.start > 0 {
+        if b[r.start - 1] < 128 && b[r.start] < 128 {
+            !is_ascii_ws(b[r.start - 1]) && !is_ascii_ws(b[r.start])
+        } else {
+            markdown[..r.start]
+                .chars()
+                .next_back()
+                .is_some_and(|c| !c.is_whitespace() && !is_cjk(c))
+                && markdown[r.start..]
+                    .chars()
+                    .next()
+                    .is_some_and(|c| !c.is_whitespace() && !is_cjk(c))
+        }
+    } else {
+        false
+    };
+    n + usize::from(mid_word)
+}
+
 fn token_spans(text: &str) -> impl Iterator<Item = Range<usize>> + '_ {
-    let mut it = text.char_indices().peekable();
+    let b = text.as_bytes();
+    let mut pos = 0;
     std::iter::from_fn(move || {
         loop {
-            let (i, c) = it.next()?;
+            while pos < b.len() && is_ascii_ws(b[pos]) {
+                pos += 1;
+            }
+            if pos >= b.len() {
+                return None;
+            }
+            if b[pos] < 128 {
+                let start = pos;
+                pos += 1;
+                while pos < b.len() && b[pos] < 128 && !is_ascii_ws(b[pos]) {
+                    pos += 1;
+                }
+                while pos < b.len() {
+                    let c = text[pos..].chars().next()?;
+                    if c.is_whitespace() || is_cjk(c) {
+                        break;
+                    }
+                    pos += c.len_utf8();
+                    while pos < b.len() && b[pos] < 128 && !is_ascii_ws(b[pos]) {
+                        pos += 1;
+                    }
+                }
+                return Some(start..pos);
+            }
+            let c = text[pos..].chars().next()?;
+            let start = pos;
+            pos += c.len_utf8();
             if c.is_whitespace() {
                 continue;
             }
             if is_cjk(c) {
-                return Some(i..i + c.len_utf8());
+                return Some(start..pos);
             }
-            let mut end = i + c.len_utf8();
-            while let Some(&(j, n)) = it.peek() {
+            while pos < b.len() {
+                if b[pos] < 128 {
+                    if is_ascii_ws(b[pos]) {
+                        break;
+                    }
+                    pos += 1;
+                    continue;
+                }
+                let n = text[pos..].chars().next()?;
                 if n.is_whitespace() || is_cjk(n) {
                     break;
                 }
-                end = j + n.len_utf8();
-                it.next();
+                pos += n.len_utf8();
             }
-            return Some(i..end);
+            return Some(start..pos);
         }
     })
 }
 
 /// token 窗口。`tail` 对应 Crawl4AI 滑动窗口的行为：最后不对齐时补一个以结尾为止的整窗。
-fn windows(text: &str, window: usize, step: usize, tail: bool) -> Vec<Range<usize>> {
+fn windows(text: &str, window: usize, step: usize, tail: bool) -> (Vec<Range<usize>>, Vec<usize>) {
     let tokens: Vec<Range<usize>> = token_spans(text).collect();
+    let starts: Vec<usize> = tokens.iter().map(|t| t.start).collect();
     let n = tokens.len();
     if n == 0 {
-        return Vec::new();
+        return (Vec::new(), starts);
     }
     if n <= window {
-        return std::iter::once(0..text.len()).collect();
+        return (std::iter::once(0..text.len()).collect(), starts);
     }
     let span = |a: usize, b: usize| tokens[a].start..tokens[b - 1].end;
     let mut out = Vec::new();
@@ -475,7 +586,7 @@ fn windows(text: &str, window: usize, step: usize, tail: bool) -> Vec<Range<usiz
             i += step;
         }
     }
-    out
+    (out, starts)
 }
 
 fn regex_split(text: &str, patterns: &[String]) -> Result<Vec<Range<usize>>, Error> {

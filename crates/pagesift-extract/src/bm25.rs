@@ -52,12 +52,72 @@ pub(crate) fn for_each_token(
     buf: &mut String,
     mut f: impl FnMut(&str),
 ) {
-    let mut chars = text.chars().peekable();
-    while let Some(c) = chars.next() {
+    let b = text.as_bytes();
+    let mut pos = 0;
+    while pos < b.len() {
+        let byte = b[pos];
+        if byte < 128 {
+            if !byte.is_ascii_alphanumeric() {
+                pos += 1;
+                continue;
+            }
+            let start = pos;
+            let mut has_upper = byte.is_ascii_uppercase();
+            pos += 1;
+            while pos < b.len() && b[pos].is_ascii_alphanumeric() {
+                has_upper |= b[pos].is_ascii_uppercase();
+                pos += 1;
+            }
+            if pos >= b.len() || b[pos] < 128 {
+                if !has_upper {
+                    let word = &text[start..pos];
+                    if !(stopwords && is_stopword(word)) {
+                        f(word);
+                    }
+                } else {
+                    buf.clear();
+                    for &c in &b[start..pos] {
+                        buf.push((c as char).to_ascii_lowercase());
+                    }
+                    if !(stopwords && is_stopword(buf)) {
+                        f(buf);
+                    }
+                }
+                continue;
+            }
+            buf.clear();
+            for &c in &b[start..pos] {
+                buf.push((c as char).to_ascii_lowercase());
+            }
+            while pos < b.len() {
+                let Some(n) = text[pos..].chars().next() else {
+                    break;
+                };
+                if n.is_ascii_alphanumeric() {
+                    buf.push(n.to_ascii_lowercase());
+                } else if n.is_alphanumeric() && !is_cjk(n) {
+                    push_lower(buf, n);
+                } else {
+                    break;
+                }
+                pos += n.len_utf8();
+            }
+            if !(stopwords && is_stopword(buf)) {
+                f(buf);
+            }
+            continue;
+        }
+        let Some(c) = text[pos..].chars().next() else {
+            break;
+        };
+        pos += c.len_utf8();
         if is_cjk(c) && c.is_alphabetic() {
             let mut prev = c;
             let mut emitted = false;
-            while let Some(&n) = chars.peek() {
+            while pos < b.len() && b[pos] >= 128 {
+                let Some(n) = text[pos..].chars().next() else {
+                    break;
+                };
                 if !(is_cjk(n) && n.is_alphabetic()) {
                     break;
                 }
@@ -67,7 +127,7 @@ pub(crate) fn for_each_token(
                 f(buf);
                 emitted = true;
                 prev = n;
-                chars.next();
+                pos += n.len_utf8();
             }
             if !emitted {
                 buf.clear();
@@ -77,7 +137,10 @@ pub(crate) fn for_each_token(
         } else if c.is_alphanumeric() {
             buf.clear();
             push_lower(buf, c);
-            while let Some(&n) = chars.peek() {
+            while pos < b.len() {
+                let Some(n) = text[pos..].chars().next() else {
+                    break;
+                };
                 if n.is_ascii_alphanumeric() {
                     buf.push(n.to_ascii_lowercase());
                 } else if n.is_alphanumeric() && !is_cjk(n) {
@@ -85,7 +148,7 @@ pub(crate) fn for_each_token(
                 } else {
                     break;
                 }
-                chars.next();
+                pos += n.len_utf8();
             }
             if !(stopwords && is_stopword(buf)) {
                 f(buf);

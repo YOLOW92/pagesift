@@ -2,7 +2,7 @@ use pagesift_html::Html;
 use url::Url;
 
 use crate::dates::{self, normalize};
-use crate::dom::{collapse_whitespace, element, tag};
+use crate::dom::{collapse_whitespace, element};
 use crate::jsonld;
 
 /// 页面元数据。字段对应 Firecrawl `metadata` 里的同名字段。
@@ -55,20 +55,24 @@ pub(crate) fn extract(html: &Html<'_>, source: &str, base: Option<&Url>) -> Meta
     let mut meta_modified = Vec::new();
     let mut time_modified = Vec::new();
 
-    for node in html.root().descendants() {
-        let Some(el) = element(&node) else { continue };
+    crate::dates::walk(html.root(), |node| {
+        let Some(el) = element(node) else {
+            return false;
+        };
         match el.name() {
+            "svg" | "style" | "code" | "pre" => return false,
             "html" => {
                 if m.language.is_none() {
                     m.language = el.attr("lang").and_then(clean);
                 }
             }
-            "title" if title_tag.is_none() && !in_svg(&node) => {
+            "title" if title_tag.is_none() => {
                 let text: String = node
                     .descendants()
                     .filter_map(|d| d.as_text().map(|t| t.to_string()))
                     .collect();
                 title_tag = clean(&text);
+                return false;
             }
             "meta" => {
                 let key = el
@@ -76,18 +80,18 @@ pub(crate) fn extract(html: &Html<'_>, source: &str, base: Option<&Url>) -> Meta
                     .or_else(|| el.attr("property"))
                     .or_else(|| el.attr("itemprop"));
                 let (Some(key), Some(content)) = (key, el.attr("content").and_then(clean)) else {
-                    continue;
+                    return false;
                 };
                 let lower = key.trim().to_ascii_lowercase();
                 match lower.as_str() {
-                    "description" => set_once(&mut m.description, content),
-                    "keywords" => set_once(&mut m.keywords, content),
-                    "robots" => set_once(&mut m.robots, content),
+                    "description" => set_once(&mut m.description, content.clone()),
+                    "keywords" => set_once(&mut m.keywords, content.clone()),
+                    "robots" => set_once(&mut m.robots, content.clone()),
                     "author" | "dc.creator" | "dcterms.creator" | "parsely-author"
                     | "sailthru.author" | "article:author"
                         if !content.starts_with("http") =>
                     {
-                        set_once(&mut m.author, content)
+                        set_once(&mut m.author, content.clone())
                     }
                     "og:title" => set_once(&mut og_title, content.clone()),
                     "og:description" => set_once(&mut og_description, content.clone()),
@@ -116,44 +120,46 @@ pub(crate) fn extract(html: &Html<'_>, source: &str, base: Option<&Url>) -> Meta
                     || lower.starts_with("dc.")
                     || lower.starts_with("dcterms.")
                 {
-                    m.extra.push((
-                        key.trim().to_string(),
-                        el.attr("content").and_then(clean).unwrap_or_default(),
-                    ));
+                    m.extra.push((key.trim().to_string(), content));
                 }
+                return false;
             }
-            "script"
+            "script" => {
                 if el
                     .attr("type")
-                    .is_some_and(|t| t.trim().eq_ignore_ascii_case("application/ld+json")) =>
-            {
-                let text: String = node
-                    .children()
-                    .filter_map(|c| c.as_text().map(|t| t.to_string()))
-                    .collect();
-                ld_blocks.push(text);
+                    .is_some_and(|t| t.trim().eq_ignore_ascii_case("application/ld+json"))
+                {
+                    let text: String = node
+                        .children()
+                        .filter_map(|c| c.as_text().map(|t| t.to_string()))
+                        .collect();
+                    ld_blocks.push(text);
+                }
+                return false;
             }
             "time" if el.attr("itemprop") == Some("dateModified") => {
                 if let Some(dt) = el.attr("datetime") {
                     time_modified.push(dt.to_string());
                 }
+                return false;
             }
             "link" => {
                 let rel = el.attr("rel").unwrap_or("").to_ascii_lowercase();
-                let Some(href) = el.attr("href").map(str::trim).filter(|h| !h.is_empty()) else {
-                    continue;
-                };
-                let rels: Vec<&str> = rel.split_whitespace().collect();
-                if rels.contains(&"canonical") {
-                    set_once(&mut m.canonical_url, resolve(base, href));
+                if let Some(href) = el.attr("href").map(str::trim).filter(|h| !h.is_empty()) {
+                    let rels: Vec<&str> = rel.split_whitespace().collect();
+                    if rels.contains(&"canonical") {
+                        set_once(&mut m.canonical_url, resolve(base, href));
+                    }
+                    if rels.contains(&"icon") {
+                        set_once(&mut m.favicon, resolve(base, href));
+                    }
                 }
-                if rels.contains(&"icon") {
-                    set_once(&mut m.favicon, resolve(base, href));
-                }
+                return false;
             }
             _ => {}
         }
-    }
+        true
+    });
 
     let ld = jsonld::extract(&ld_blocks);
     // og:type=article 很多建站工具每一页都写（WordPress 的 Yoast 就是），单独不算；
@@ -175,7 +181,7 @@ pub(crate) fn extract(html: &Html<'_>, source: &str, base: Option<&Url>) -> Meta
 
     // Older sites omit publication metadata. Corroborate their article claim
     // with one substantial semantic article or an explicit article-body block.
-    let structural_article = og_article && {
+    let structural_article = og_article && !ld.article && !has_published && {
         let candidates: Vec<_> = html
             .root()
             .descendants()
@@ -227,8 +233,4 @@ fn set_once(slot: &mut Option<String>, value: String) {
     if slot.is_none() {
         *slot = Some(value);
     }
-}
-
-fn in_svg(node: &crate::dom::NodeR<'_>) -> bool {
-    node.ancestors().any(|a| tag(&a) == Some("svg"))
 }

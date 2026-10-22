@@ -223,7 +223,7 @@ fn memchr_lt_or(b: &[u8], c: u8) -> Option<usize> {
 }
 
 /// 先序遍历 `root` 的后代；`visit` 返回 false 时不进入这个节点的子树。
-fn walk<'a>(root: NodeR<'a>, mut visit: impl FnMut(&NodeR<'a>) -> bool) {
+pub(crate) fn walk<'a>(root: NodeR<'a>, mut visit: impl FnMut(&NodeR<'a>) -> bool) {
     let mut cur = root.first_child();
     while let Some(n) = cur {
         if visit(&n)
@@ -277,7 +277,7 @@ fn collect_head<'a>(html: &'a Html<'a>) -> Head<'a> {
                 h.scripts.push(*node);
                 return false;
             }
-            "style" => return false,
+            "style" | "svg" | "p" | "table" | "ul" | "ol" | "pre" | "code" => return false,
             _ => {}
         }
         true
@@ -352,11 +352,12 @@ fn run(
 ) -> Option<Date> {
     let b = Bounds::now();
     let collect_start = std::time::Instant::now();
-    let head = collect_head(html);
+    let head = std::cell::OnceCell::new();
+    let head = || head.get_or_init(|| collect_head(html));
     let body = std::cell::OnceCell::new();
     let body = || body.get_or_init(|| collect_body(html));
     let collect_ns = collect_start.elapsed().as_nanos() as u64;
-    let url = url.map(str::to_string).or_else(|| head.canonical.clone());
+    let effective_url = || url.map(str::to_string).or_else(|| head().canonical.clone());
     let lite = std::cell::OnceCell::new();
     let lite = || lite.get_or_init(|| strip_heavy(source)).as_str();
     let free = || {
@@ -369,24 +370,35 @@ fn run(
         b.check(reference)
     };
     let stages: [(&'static str, &dyn Fn() -> Option<Date>); 12] = [
-        ("url", &|| url.as_deref().and_then(|u| url_date(u, &b))),
+        ("url", &|| {
+            effective_url().as_deref().and_then(|u| url_date(u, &b))
+        }),
         ("meta", &|| {
-            prefer_local(examine_header(&head.metas, &b), || {
-                json_search(&head.scripts, &b)
+            prefer_local(examine_header(&head().metas, &b), || {
+                json_search(&head().scripts, &b)
             })
         }),
-        ("json", &|| json_search(&head.scripts, &b)),
+        ("json", &|| json_search(&head().scripts, &b)),
         ("abbr", &|| examine_abbr(&body().abbrs, &b)),
         ("elements", &|| examine_elements(&body().candidates, &b)),
-        ("title", &|| examine_elements(&body().title_h1, &b)),
+        ("title", &|| {
+            examine_elements(&body().title_h1, &b).or_else(|| {
+                body()
+                    .title_h1
+                    .iter()
+                    .find_map(|n| b.check(parse_long(&n.text())))
+            })
+        }),
         ("time", &|| examine_time(&body().times, &b)),
         ("timestamp", &|| first_timestamp(source, &b)),
         ("og:image", &|| {
-            head.og_image.as_deref().and_then(|u| url_date(u, &b))
+            head().og_image.as_deref().and_then(|u| url_date(u, &b))
         }),
         ("phrases", &|| idiosyncrasies(lite(), &b)),
         ("free text", &free),
-        ("page", &|| search_page(lite(), &b)),
+        ("page", &|| {
+            search_page(lite(), &b).or_else(|| search_page(source, &b))
+        }),
     ];
     match trace {
         None => stages.iter().find_map(|(_, f)| f()),

@@ -248,9 +248,10 @@ pub(super) fn scan_numeric(text: &str) -> Numeric<'_> {
                 last[6] = e;
             }
         }
-        // 7 SIMPLE（w3.org 的 DTD 地址里的年份不算）
+        // 7 SIMPLE（w3.org 的 DTD 地址里的年份和 URL 百分号转义不算）
         if free(7, &last)
             && r == 4
+            && b[s - 1] != b'%'
             && leading_year(&text[s..s + 4]).is_some()
             && !b[..s - 1].ends_with(b"w3.org")
             && let Some(e) = nd(s + 4)
@@ -486,6 +487,9 @@ pub(super) fn search_page(text: &str, b: &Bounds) -> Option<Date> {
     if let Some(d) = pick_ymd(count(&num.slashes, trailing_year, b)) {
         return Some(d);
     }
+    if let Some(d) = after_copyright(parse_long_scan(text), copyear, b) {
+        return Some(d);
+    }
     // 两段式：YYYY-MM，然后 MM-YYYY（都取当月 1 日）
     let occ = count(&num.yyyymm, leading_year, b);
     if let Some(s) = select_candidate(&occ, leading_year, b) {
@@ -506,9 +510,6 @@ pub(super) fn search_page(text: &str, b: &Bounds) -> Option<Date> {
         && let Some((y, m, d)) = split3(&s)
         && let Some(d) = after_copyright(Date::ymd(y as i32, m as u32, d as u32), copyear, b)
     {
-        return Some(d);
-    }
-    if let Some(d) = after_copyright(parse_long_scan(text), copyear, b) {
         return Some(d);
     }
     if copyear != 0 {

@@ -100,6 +100,13 @@ pub struct Document {
 const FALLBACK_MAX_CHARS: usize = 1000;
 const FALLBACK_MAX_SHARE: f64 = 0.2;
 
+/// 只提取页面元数据（标题、作者、发布/修改日期、语言等），不做正文抽取和 Markdown 渲染。
+pub fn extract_metadata(html: &str, opts: &Options) -> Metadata {
+    let dom = Html::parse(html);
+    let base = effective_base(&dom, opts.base_url.as_ref());
+    metadata::extract(&dom, html, base.as_ref())
+}
+
 pub fn process(html: &str, opts: &Options) -> Document {
     let dom = Html::parse(html);
     let base = effective_base(&dom, opts.base_url.as_ref());
@@ -368,10 +375,18 @@ fn body_or_root(dom: &Html<'_>) -> pagesift_html::NodeId {
 
 /// 页面里的 `<base href>` 优先于调用方给的 URL。
 fn effective_base(dom: &Html<'_>, given: Option<&Url>) -> Option<Url> {
-    let href = dom.root().descendants().find_map(|n| {
-        let el = n.as_element()?;
-        (el.name() == "base").then(|| el.attr("href")).flatten()
-    });
+    let mut href = None;
+    for n in dom.root().descendants() {
+        let Some(el) = n.as_element() else { continue };
+        match el.name() {
+            "base" => {
+                href = el.attr("href");
+                break;
+            }
+            "body" => break,
+            _ => {}
+        }
+    }
     match (href, given) {
         (Some(h), Some(g)) => g.join(h).ok().or_else(|| Some(g.clone())),
         (Some(h), None) => Url::parse(h).ok(),

@@ -5,7 +5,7 @@
 use std::io::{BufRead, Write};
 use std::time::Instant;
 
-use pagesift_content::{Options, process};
+use pagesift_content::{Options, extract_metadata};
 
 fn main() {
     let list = std::env::args().nth(1).expect("usage: meta_eval <list>");
@@ -24,9 +24,8 @@ fn main() {
             ..Options::default()
         };
         let t = Instant::now();
-        let doc = process(&html, &opts);
+        let m = extract_metadata(&html, &opts);
         let ms = t.elapsed().as_secs_f64() * 1000.0;
-        let m = &doc.metadata;
         let rec = serde_json::json!({
             "file": path,
             "published": m.published_time,

@@ -1,6 +1,6 @@
 {
   "name": "pagesift-win32-x64-msvc",
-  "version": "0.20.0",
+  "version": "0.30.0",
   "cpu": [
     "x64"
   ],

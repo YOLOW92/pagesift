@@ -10,32 +10,52 @@ fn main() {
     let strategy: ChunkStrategy =
         serde_json::from_str(&args.next().expect("strategy")).expect("strategy JSON");
     let out = args.next().expect("output");
-    let mut all = BTreeMap::new();
-    let mut secs = 0.0;
-    for path in args {
-        let text = std::fs::read_to_string(&path).unwrap();
-        let t = Instant::now();
-        let chunks = chunk(&text, &strategy).unwrap();
-        secs += t.elapsed().as_secs_f64();
-        // 字节下标换成字符下标
-        let mut char_at = vec![0usize; text.len() + 1];
-        let mut n = 0;
-        for (i, _) in text.char_indices() {
-            char_at[i] = n;
-            n += 1;
-        }
-        char_at[text.len()] = n;
-        let spans: Vec<[usize; 2]> = chunks
+    let inputs: Vec<(String, String)> = args
+        .map(|path| {
+            let name = std::path::Path::new(&path)
+                .file_stem()
+                .unwrap()
+                .to_string_lossy()
+                .into_owned();
+            let text = std::fs::read_to_string(&path).unwrap();
+            (name, text)
+        })
+        .collect();
+    let t = Instant::now();
+    let chunked: Vec<Vec<pagesift_extract::Chunk>> = std::thread::scope(|s| {
+        let handles: Vec<_> = inputs
             .iter()
-            .map(|c| [char_at[c.start], char_at[c.end]])
+            .map(|(_, text)| {
+                let strategy = &strategy;
+                s.spawn(move || chunk(text, strategy).unwrap())
+            })
             .collect();
-        let name = std::path::Path::new(&path)
-            .file_stem()
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
-        all.insert(name, spans);
-    }
+        handles.into_iter().map(|h| h.join().unwrap()).collect()
+    });
+    let secs = t.elapsed().as_secs_f64();
+    let all: BTreeMap<String, Vec<[usize; 2]>> = std::thread::scope(|s| {
+        let handles: Vec<_> = inputs
+            .iter()
+            .zip(&chunked)
+            .map(|((name, text), chunks)| {
+                s.spawn(move || {
+                    let mut char_at = vec![0usize; text.len() + 1];
+                    let mut n = 0;
+                    for (i, _) in text.char_indices() {
+                        char_at[i] = n;
+                        n += 1;
+                    }
+                    char_at[text.len()] = n;
+                    let spans: Vec<[usize; 2]> = chunks
+                        .iter()
+                        .map(|c| [char_at[c.start], char_at[c.end]])
+                        .collect();
+                    (name.clone(), spans)
+                })
+            })
+            .collect();
+        handles.into_iter().map(|h| h.join().unwrap()).collect()
+    });
     std::fs::write(&out, serde_json::to_string(&all).unwrap()).unwrap();
     eprintln!("chunking took {:.2} ms in total", secs * 1000.0);
 }
