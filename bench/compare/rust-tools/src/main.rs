@@ -80,13 +80,25 @@ fn html_to_markdown_rs_convert(html: &str, url: &str) -> String {
         .unwrap_or_default()
 }
 
+fn rs_trafilatura_convert(html: &str, _url: &str) -> String {
+    let opts = rs_trafilatura::Options {
+        output_markdown: true,
+        ..Default::default()
+    };
+    rs_trafilatura::extract_with_options(html, &opts)
+        .ok()
+        .and_then(|r| r.content_markdown.or(Some(r.content_text)))
+        .unwrap_or_default()
+}
+
 fn select_tool(name: &str) -> fn(&str, &str) -> String {
     match name {
         "crw" => crw,
         "dom_smoothie" => dom_smoothie,
         "htmd" => htmd_convert,
         "html-to-markdown-rs" => html_to_markdown_rs_convert,
-        _ => panic!("usage: <crw|dom_smoothie|htmd|html-to-markdown-rs> <manifest.jsonl> <out.jsonl>"),
+        "rs-trafilatura" | "rs_trafilatura" => rs_trafilatura_convert,
+        _ => panic!("usage: <crw|dom_smoothie|htmd|html-to-markdown-rs|rs-trafilatura> <manifest.jsonl> <out.jsonl>"),
     }
 }
 
