@@ -16,6 +16,13 @@ mod fetch;
 mod session;
 mod ssrf;
 mod ua;
+pub mod budget;
+pub mod checkpoint;
+pub mod scheduler;
+
+pub use budget::{BackpressureController, BudgetStatus, DEFAULT_MAX_BYTES, DEFAULT_WARN_BYTES, LeakDetector, MemGuard};
+pub use checkpoint::{RecoveryEngine, TaskSnapshot};
+pub use scheduler::{CrawlResult, CrawlTask, DomainLimiter, PushError, RingQueue, WorkerPool};
 
 pub use charset::{CharsetSource, Decoded, decode};
 pub use credentials::{HostCredentials, Secret, redact_url};

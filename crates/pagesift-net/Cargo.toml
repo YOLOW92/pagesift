@@ -8,6 +8,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+blake3 = "1.8.7"
 brotli-decompressor = "5.0.3"
 bytes = "1.12.1"
 chardetng = "0.1.17"

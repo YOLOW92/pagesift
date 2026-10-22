@@ -18,7 +18,7 @@ export CRAWL4AI_CHROMIUM_SANDBOX=true
 export MEASURE_BUDGET_S=${MEASURE_BUDGET_S:-600}
 export MEASURE_MAX_MB=${MEASURE_MAX_MB:-12288}
 export MEASURE_ORIGIN=http://s0.localhost:$PORT/__served
-C4A=${C4A:-$ROOT/bench/data/venvs/crawl4ai/bin/python}
+C4A=${C4A:-$ROOT/bench/data/fresh/tools/c4ai/bin/python}
 CRW=${CRW:-$ROOT/bench/data/tools/bin/crw}
 COLLY=${COLLY:-/home/yolow92/pagesift-bench-env/tools/bin/colly_crawl}
 # Scrapy 用的 Python（装了 scrapy 的虚拟环境）
