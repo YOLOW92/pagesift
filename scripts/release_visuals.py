@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Render checked-in SVGs from frozen benchmark summaries (stdlib only)."""
 import json
+import tomllib
 from pathlib import Path
 from html import escape
 
 ROOT = Path(__file__).resolve().parents[1]
-DATA = ROOT / 'bench/six/evidence/2.0.0'
+DATA = ROOT / 'bench/six/evidence/2026-10-22'
 OUT = ROOT / 'docs/assets'
 S = json.loads((DATA / 'summary.json').read_text())
+VERSION = tomllib.loads((ROOT / 'Cargo.toml').read_text())['workspace']['package']['version']
 
 
 def text(x, y, value, size=16, fill='#dce5ee', weight=400):
@@ -25,7 +27,7 @@ def save(name, height, title, desc, body):
     (OUT / name).write_text(svg)
 
 
-body = text(38, 52, 'pagesift 2.0', 32, '#ffffff', 700)
+body = text(38, 52, 'pagesift '+VERSION, 32, '#ffffff', 700)
 body += text(38, 82, 'One Rust engine. From page to durable, usable data.', 18, '#a6b8ca')
 for x, title, lines in [
     (38, 'ACQUIRE', ['HTTP + bounded discovery', 'Render when needed', 'Origin-isolated sessions']),
@@ -39,7 +41,7 @@ for x in [326, 646]:
     body += text(x, 200, '→', 25, '#56d9c0')
 body += text(38, 300, 'CLI  /  Firecrawl-compatible HTTP API  /  MCP  /  native Python + Node', 16)
 body += text(38, 330, 'New collection and archive cores: Rust APIs + CLI. Binding surfaces remain scoped.', 14, '#a6b8ca')
-save('overview.svg', 355, 'Pagesift 2.0 architecture overview', 'Acquire pages, understand content and deliver durable data through Rust modules. New cores are exposed through Rust and CLI.', body)
+save('overview.svg', 355, 'Pagesift '+VERSION+' architecture overview', 'Acquire pages, understand content and deliver durable data through Rust modules. New cores are exposed through Rust and CLI.', body)
 
 body = text(38, 47, '545 pages, two separate comparisons', 27, '#ffffff', 700)
 body += text(38, 76, 'WebMainBench calibrated subset · diagnostic token-multiset F1 · higher is better', 15, '#a6b8ca')

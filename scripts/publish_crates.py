@@ -36,7 +36,7 @@ def order(packages):
 
 def exists(name, version):
     url = f'https://crates.io/api/v1/crates/{name}/{version}'
-    request = Request(url, headers={'User-Agent': 'pagesift-release/2.0 (github.com/YOLOW92/pagesift)'})
+    request = Request(url, headers={'User-Agent': 'pagesift-release/0.20.0 (github.com/YOLOW92/pagesift)'})
     for attempt in range(6):
         try:
             with urlopen(request, timeout=30) as response:

@@ -44,4 +44,4 @@ println!("{} {}", result.path.display(), result.blake3);
 
 Linux 已执行真实 SIGKILL 恢复和并发写者拒绝测试；macOS、Windows 和其他文件系统还未实机验收。Unix 会同步目录；非 Unix 未承诺同样的断电持久性。进程终止恢复不等同于突然掉电或所有异步取消边界保证。当前 `collect` 的分页交付还没有自动与文件下载提交组成一个事务。
 
-测试、固定 gallery-dl 对照、失败记录与资源信息见 `bench/six/MEDIA-DISCOVERY.md`。
+当前公开对照与边界见 [评测报告](../bench/six/REPORT.md)；早期逐命令记录保留在本地归档。

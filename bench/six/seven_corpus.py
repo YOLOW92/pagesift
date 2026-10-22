@@ -12,6 +12,7 @@ DATA=ROOT/'bench/data/six/seven-next'
 OUT=ROOT/'bench/six/results/seven-next/content'
 sys.path.insert(0,str(ROOT/'bench/fresh'))
 from aeb import plain
+from validate import validate
 
 def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 def child_limits():resource.setrlimit(resource.RLIMIT_AS,(2*1024**3,2*1024**3))
@@ -23,8 +24,10 @@ def f1(a,b):
 
 def prepare():
  OUT.mkdir(parents=True,exist_ok=False);(DATA/'html').mkdir(exist_ok=False);(DATA/'gold').mkdir(exist_ok=False)
- old_urls=set();old_hashes=set()
+ old_urls=set();old_hashes=set();prior_inputs=0
  for p in [ROOT/'bench/data/six/aeb.jsonl',ROOT/'bench/data/six/core-next/gold/manifest.jsonl',ROOT/'bench/six/results/batch-next/manifest.jsonl',ROOT/'bench/six/results/editorial-core/validation/manifest.jsonl']:
+  if not p.exists():continue
+  prior_inputs+=1
   for r in map(json.loads,p.open()):
    old_urls.add(r.get('url','').rstrip('/'))
    if r.get('path') and Path(r['path']).is_file():old_hashes.add(sha(r['path']))
@@ -40,11 +43,12 @@ def prepare():
   cleaned=lhtml.tostring(doc,encoding='unicode',method='html')
   path=DATA/'html'/(ident+'.html');path.write_text(cleaned)
   g=DATA/'gold'/(ident+'.md');g.write_text(gold)
-  overlap=url.rstrip('/') in old_urls or hashlib.sha256(raw.encode()).hexdigest() in old_hashes
+  overlap=(url.rstrip('/') in old_urls or hashlib.sha256(raw.encode()).hexdigest() in old_hashes) if prior_inputs==4 else None
   rows.append({'id':ident,'path':str(path),'url':url or 'https://fixture.example/'+ident,'gold_path':str(g),'sha256':sha(path),'gold_sha256':sha(g),'original_html_sha256':hashlib.sha256(raw.encode()).hexdigest(),'previous_overlap':overlap,'language':r.get('meta',{}).get('language')})
  assert len(rows)==545 and len({r['id'] for r in rows})==545
  (OUT/'manifest.jsonl').write_text(''.join(json.dumps(r,ensure_ascii=False)+'\n' for r in rows))
- protocol={'dataset':'opendatalab/WebMainBench manually calibrated 545 subset, ALL 545 pages; not all 7809 pages','dataset_source':json.loads((DATA/'dataset-source.json').read_text()),'download':json.loads((DATA/'download.json').read_text()),'n':545,'previous_overlap':sum(r['previous_overlap'] for r in rows),'no_previous_overlap':sum(not r['previous_overlap'] for r in rows),'annotations_removed':annotations,'preprocessing':'lxml DOM removal of all cc-* attributes and one common HTML serialization; gold never passed to extractors','metric':'mean per-page token multiset F1 of normalized visible Markdown text; CJK characters are separate tokens; our diagnostic, NOT official WebMainBench leaderboard','scorer_sha256':sha(__file__),'plain_converter_sha256':sha(ROOT/'bench/fresh/aeb.py'),'per_document_timeout_s':30,'errors':'empty output retained in denominator; no replacement or output-driven exclusion','references':json.loads((ROOT/'bench/six/tools.lock.json').read_text())['tools'],'scope_exclusions':['persistent browser interact lifecycle','agent autonomous data-gathering API'],'scope_exclusion_authority':'direct user instruction in current turn'}
+ frozen=json.loads((ROOT/'bench/six/evidence/2026-10-22/content/protocol.json').read_text())
+ protocol={'dataset':'opendatalab/WebMainBench manually calibrated 545 subset, ALL 545 pages; not all 7809 pages','dataset_source':frozen['dataset_source'],'download':frozen['download'],'n':545,'previous_overlap':sum(r['previous_overlap'] is True for r in rows) if prior_inputs==4 else None,'no_previous_overlap':sum(r['previous_overlap'] is False for r in rows) if prior_inputs==4 else None,'annotations_removed':annotations,'preprocessing':'lxml DOM removal of all cc-* attributes and one common HTML serialization; gold never passed to extractors','metric':'mean per-page token multiset F1 of normalized visible Markdown text; CJK characters are separate tokens; our diagnostic, NOT official WebMainBench leaderboard','scorer_sha256':sha(__file__),'plain_converter_sha256':sha(ROOT/'bench/fresh/aeb.py'),'per_document_timeout_s':30,'errors':'empty output retained in denominator; no replacement or output-driven exclusion','references':json.loads((ROOT/'bench/six/tools.lock.json').read_text())['tools'],'scope_exclusions':['persistent browser interact lifecycle','agent autonomous data-gathering API'],'scope_exclusion_authority':'documented project scope','prior_inputs_available':prior_inputs,'overlap_check':'complete' if prior_inputs==4 else 'not reproduced; do not claim novel pages'}
  (OUT/'protocol.json').write_text(json.dumps(protocol,indent=2)+'\n');print(json.dumps({k:protocol[k] for k in ['n','previous_overlap','no_previous_overlap','annotations_removed']}))
 
 def run(tool,binary):
@@ -66,13 +70,14 @@ def run(tool,binary):
  (dest/'summary.json').write_text(json.dumps(score(dest/'results.jsonl'),indent=2)+'\n')
 
 def score(path):
+ validate(OUT/'manifest.jsonl',path)
  manifest=list(map(json.loads,(OUT/'manifest.jsonl').open()));pred={r['id']:r for r in map(json.loads,path.open())};assert set(pred)=={r['id'] for r in manifest}
  details=[]
  for r in manifest:
   v=pred[r['id']];text=v.get('markdown') or '';truth=Path(r['gold_path']).read_text()
   details.append({'id':r['id'],'f1':f1(plain(text),plain(truth)),'error':v.get('status','ok')!='ok','previous_overlap':r['previous_overlap'],'language':r['language']})
  result={'n':len(details),'f1':sum(r['f1'] for r in details)/len(details),'errors':sum(r['error'] for r in details)}
- fresh=[r for r in details if not r['previous_overlap']];result['new_pages']={'n':len(fresh),'f1':sum(r['f1'] for r in fresh)/len(fresh) if fresh else None}
+ fresh=[r for r in details if r['previous_overlap'] is False];result['new_pages']={'n':len(fresh),'f1':sum(r['f1'] for r in fresh)/len(fresh) if fresh else None}
  path.with_name('scores.json').write_text(json.dumps(details,indent=2)+'\n');print(json.dumps(result));return result
 
 if __name__=='__main__':

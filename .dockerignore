@@ -8,3 +8,12 @@ bench/data
 
 bench/six/results
 bench/six/evidence
+
+# Build the product without benchmark, documentation or tool-workspace files
+bench
+docs
+.github
+.codex
+.agents
+CLAUDE.md
+AGENTS.md

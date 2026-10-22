@@ -12,14 +12,6 @@ on:
         description: Build everything but publish nothing
         type: boolean
         default: true
-      recovery_run_id:
-        description: Optional original run whose successful artifacts should be reused
-        type: string
-        default: ''
-      recovery_tag:
-        description: Required matching tag when recovering artifacts (for example v2.0.0)
-        type: string
-        default: ''
 
 env:
   CARGO_TERM_COLOR: always
@@ -30,7 +22,6 @@ permissions:
 
 jobs:
   identity:
-    if: github.event_name != 'workflow_dispatch' || inputs.recovery_run_id == ''
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -85,7 +76,7 @@ jobs:
           path: pagesift-*.tar.gz*
 
   docker:
-    needs: identity
+    needs: [identity, binaries, wheels, sdist, npm]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -250,112 +241,3 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release edit "$GITHUB_REF_NAME" --draft=false --latest
-
-  recovery-intel:
-    if: github.event_name == 'workflow_dispatch' && inputs.recovery_run_id != ''
-    runs-on: macos-15-intel
-    permissions:
-      contents: read
-      actions: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.recovery_tag }}
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-apple-darwin
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Verify source identity before reusing artifacts
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ORIGINAL_RUN: ${{ inputs.recovery_run_id }}
-          RELEASE_TAG: ${{ inputs.recovery_tag }}
-        run: |
-          python3 scripts/check_release.py --tag "$RELEASE_TAG"
-          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ORIGINAL_RUN" --jq .head_sha)" = "$(git rev-parse HEAD)"
-      - name: Build and test Intel Node binding with isolated test files
-        working-directory: crates/pagesift-node
-        run: |
-          npm ci
-          npx napi build --platform --release --target x86_64-apple-darwin
-          node scripts/postbuild.mjs
-          node -e "if (require('./index.js').version !== require('./package.json').version) process.exit(1)"
-          node --test --test-concurrency=1
-      - uses: actions/upload-artifact@v4
-        with:
-          name: npm-x86_64-apple-darwin
-          path: crates/pagesift-node/*.node
-
-  recovery-publish:
-    needs: recovery-intel
-    if: inputs.dry_run == false
-    runs-on: ubuntu-latest
-    environment: release
-    timeout-minutes: 300
-    permissions:
-      contents: write
-      actions: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.recovery_tag }}
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          pattern: "{bin,wheels,npm}-*"
-          run-id: ${{ inputs.recovery_run_id }}
-          github-token: ${{ github.token }}
-      - uses: actions/download-artifact@v4
-        with:
-          name: npm-x86_64-apple-darwin
-          path: artifacts/npm-x86_64-apple-darwin
-      - name: Check complete artifact set
-        run: |
-          python3 - <<'PYARTIFACTS'
-          from pathlib import Path
-          expected = {f'bin-{t}' for t in ('x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu', 'aarch64-apple-darwin', 'x86_64-apple-darwin')}
-          expected |= {f'npm-{t}' for t in ('x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu', 'aarch64-apple-darwin', 'x86_64-apple-darwin')}
-          expected |= {f'wheels-{o}' for o in ('ubuntu-latest', 'ubuntu-24.04-arm', 'macos-latest', 'macos-15-intel', 'sdist')}
-          for name in sorted(expected):
-              assert any((Path('artifacts')/name).glob('*')), name
-          print('All 13 tested artifact groups present')
-          PYARTIFACTS
-          python3 scripts/release_notes.py > release-notes.md
-      - name: GitHub release draft
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ inputs.recovery_tag }}
-          draft: true
-          files: artifacts/bin-*/*
-          body_path: release-notes.md
-      - name: Collect Python packages
-        run: mkdir -p dist && cp artifacts/wheels-*/* dist/
-      - name: PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          skip-existing: true
-      - uses: dtolnay/rust-toolchain@stable
-      - name: crates.io
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: python3 scripts/publish_crates.py
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          registry-url: https://registry.npmjs.org
-      - name: npm
-        working-directory: crates/pagesift-node
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          npm ci
-          npx napi artifacts --output-dir ../../artifacts
-          npm publish --access public
-      - name: Publish complete GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.recovery_tag }}
-        run: gh release edit "$RELEASE_TAG" --draft=false --latest

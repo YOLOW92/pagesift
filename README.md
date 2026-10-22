@@ -1,6 +1,6 @@
 <div align="center">
 
-# pagesift 2.0
+# pagesift 0.20.0
 
 **Web content, incremental collections and verified archives. Built in Rust.**
 Turn any website into clean Markdown and structured data — one Rust binary, a Firecrawl-compatible API, and a fraction of the memory.
@@ -22,13 +22,13 @@ pagesift is a self-hosted scraping and crawling engine for AI pipelines, RAG and
 
 It is built for running as a service: bounded memory, backpressure, job persistence, webhooks, per-key limits and metrics. It also plays by the rules — robots.txt, per-host rate limits, an honest User-Agent, and no anti-bot bypassing.
 
-## New in 2.0
+## New in 0.20.0
 
-![Pagesift 2.0 engine overview](docs/assets/overview.svg)
+![Pagesift 0.20.0 engine overview](docs/assets/overview.svg)
 
 Native Rust cores now cover explicit HTTP sessions, stable item identities and incremental checkpoints, verified media archives, fuzzy candidates, forms, external modules and finite HLS/DASH VOD. New collection and archiving operations are exposed through Rust APIs and CLI commands; Python and Node retain their documented scraping surface.
 
-**[Release and upgrade guide](docs/releases/2.0.0.md)** · **[Documentation](docs/README.md)** · **[Architecture diagrams](docs/architecture.md)**
+**[Release and upgrade guide](docs/releases/0.20.0.md)** · **[Documentation](docs/README.md)** · **[Architecture diagrams](docs/architecture.md)**
 
 ## Why pagesift
 
@@ -49,7 +49,7 @@ Detailed, reproducible numbers: **[docs/benchmarks.md](docs/benchmarks.md)**.
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:2.0.0
+  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:0.20.0
 
 curl -s http://localhost:3002/v2/scrape \
   -H 'Authorization: Bearer change-me' -H 'Content-Type: application/json' \
@@ -102,7 +102,7 @@ const page = await scraper.scrape('https://example.com')
 console.log(page.markdown)
 ```
 
-### MCP (Claude, Cursor and other agents)
+### MCP
 
 ```bash
 pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, pagesift_crawl, pagesift_crawl_status, pagesift_map
@@ -115,7 +115,7 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 - Rust business anchors relocate uniquely identified items across selector changes and reject missing or duplicate identities. Semantic item discovery and `pagesift collect` add JSON API pagination checkpoints, updates, opt-in deletion sync and a WordPress adapter; see [incremental collection](docs/incremental-collection.md).
 - The Rust store provides explicit source/item/revision completion records for incremental collectors. Callers supply stable identities and commit after delivery; this is separate from automatic URL crawling and cache identity.
 - Link discovery includes anchors, frames, HTMX GET, pagination and HTTP `Link` headers, plus bounded static inline navigation and literal GET calls. Dynamic script expressions and unknown/write options are excluded; see [script discovery](docs/script-discovery.md).
-- `pagesift download` archives direct file URLs by source/item/revision with streamed disk writes, validated Range/ETag resume, BLAKE3 verification and recoverable atomic completion; see [media archive](docs/media-archive.md). Explicit site adapters, bounded finite HLS/DASH and named metadata publication are available; broad ecosystem parity remains incomplete. See [native core boundaries](docs/remaining-core.md).
+- `pagesift download` archives direct file URLs by source/item/revision with streamed disk writes, validated Range/ETag resume, BLAKE3 verification and recoverable atomic completion; see [media archive](docs/media-archive.md). Explicit site adapters, bounded finite HLS/DASH and named metadata publication are available; broad ecosystem parity remains incomplete. See [native core boundaries](docs/native-core.md).
 - `pagesift session-fetch` adds explicit, origin-isolated HTTP Cookie sessions with private persisted state, expiry/use budgets and sticky retirement; see [HTTP sessions](docs/http-sessions.md). Browser sessions and automatic authenticated crawl integration remain open work.
 - Crawl with include/exclude paths, depth and limits, sitemaps, and robots.txt; **query-focused crawling** (`query`, `adaptive`) visits the most relevant pages first and stops when new pages stop helping.
 - Faithful Markdown: tables, nested lists, fenced code with its language, hard line breaks and formulas (KaTeX, MathJax, MathML and Wikipedia math become `$…$` TeX); Markdown characters in the text are escaped only where they would otherwise turn into formatting. Scores 1.000 on a random round-trip test where the next best converter scores 0.937.
@@ -135,7 +135,7 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 - Prometheus metrics (`/metrics`), JSON logs, graceful shutdown, health checks.
 - Named egress proxies per request, host allowlists for internal services, total per-request deadlines, clear error codes (`DNS_FAILURE`, `NETWORK_ERROR`, `BUSY`, `ACCESS_BARRIER`, …).
 
-## Six-project evidence for 2.0
+## Six-project evidence for 0.20.0
 
 ![545-page diagnostic extraction quality](docs/assets/extraction-quality.svg)
 
@@ -147,7 +147,7 @@ These synthetic tasks test disclosed modes: Crawlee Cheerio, Scrapling adaptive 
 
 ![Forty-category capability coverage](docs/assets/capability-coverage.svg)
 
-**17 categories remain partial.** Persistent browser-interaction and autonomous Agent workflows are outside this release's work scope. See [public protocols and per-page scores](bench/six/evidence/README.md), [full comparison](bench/six/SEVEN-CORE.md) and [40-category inventory](bench/six/FULL-CAPABILITIES.md).
+**17 categories remain partial.** Persistent browser-interaction and autonomous Agent workflows are outside this release's work scope. See [public protocols and per-page scores](bench/six/evidence/README.md), [full comparison](bench/six/REPORT.md) and [40-category inventory](bench/six/CAPABILITIES.md).
 
 ## Earlier benchmark comparisons
 
@@ -167,13 +167,13 @@ These synthetic tasks test disclosed modes: Crawlee Cheerio, Scrapling adaptive 
 | Lightweight JS engines (Lightpanda/moli) | ✅ both, automatic fallback | ❌ | ❌ | Lightpanda | — |
 | MCP server | ✅ | ✅ | ✅ | ✅ | — |
 | Native Python / Node packages | ✅ / ✅ | ✅ / ❌ | HTTP SDKs | — | ✅ / ✅ |
-| License | AGPL-3.0 + commercial | Apache-2.0 | AGPL-3.0 | AGPL-3.0 | MIT |
+| License | AGPL-3.0 + commercial | Apache-0.20.0 | AGPL-3.0 | AGPL-3.0 | MIT |
 
-"—" means not checked in these earlier tables. See [docs/benchmarks.md](docs/benchmarks.md) for their methods. The newer [version-locked six-project report](bench/six/SEVEN-CORE.md) includes a complete self-hosted Firecrawl quality replay and explicit remaining gaps; it does not establish full-feature leadership.
+"—" means not checked in these earlier tables. See [docs/benchmarks.md](docs/benchmarks.md) for their methods. The newer [version-locked six-project report](bench/six/REPORT.md) includes a complete self-hosted Firecrawl quality replay and explicit remaining gaps; it does not establish full-feature leadership.
 
 ## Configuration
 
-Additional native Rust tools for fuzzy element candidates, form inspection, external JavaScript discovery and media/stream archiving are documented in [docs/remaining-core.md](docs/remaining-core.md), including their supported subsets and remaining gaps. These additions do not establish full competitor parity.
+Additional native Rust tools for fuzzy element candidates, form inspection, external JavaScript discovery and media/stream archiving are documented in [docs/native-core.md](docs/native-core.md), including their supported subsets and remaining gaps. These additions do not establish full competitor parity.
 
 Everything works with defaults. For a server, copy [`pagesift.example.toml`](pagesift.example.toml) and pass `--config` or set `PAGESIFT_CONFIG`. It covers API keys and limits, webhooks, the User-Agent, rate limits, browser engines, the cache, LLM and search backends, egress proxies and allowed internal hosts.
 

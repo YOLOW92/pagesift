@@ -1,10 +1,10 @@
 # Benchmarks
 
-For the newer six-project, 545-page comparisons and explicit remaining gaps, see the [2.0 evidence index](../bench/six/evidence/README.md). The older metrics below use different datasets and methods.
+For the newer six-project, 545-page comparisons and explicit remaining gaps, see the [0.20.0 evidence index](../bench/six/evidence/README.md). The older metrics below use different datasets and methods.
 
 Every number here comes from scripts in [`bench/`](../bench) and can be rerun. Each metric says which direction is better. Tools see exactly the same inputs; timing runs use one tool at a time on an otherwise idle machine.
 
-**Machine:** Intel Core i7-10700 (8 cores / 16 threads), 15 GB RAM, NVMe SSD, Ubuntu (Linux 7.0). **Date:** 2026-10-21 (development runs), 2026-10-22 (release run). **pagesift:** 0.12.0.
+**Machine:** Intel Core i7-10700 (8 cores / 16 threads), 15 GB RAM, NVMe SSD, Ubuntu (Linux 7.0). **Date:** 2026-10-21 (development runs), 2026-10-22 (release run). **pagesift:** 0.10.20.0.
 
 > **Release run (2026-10-22):** every domain was rerun from a fresh clone with the latest competitors, new random samples and recorded seeds. The current numbers are in [`bench/fresh/results-2026-10-22.md`](../bench/fresh/results-2026-10-22.md); where they differ from the development-time tables below, the release run is the reference. Sections 4 (RAG) and 5 (PDF) below already use release-run numbers.
 
@@ -21,7 +21,7 @@ Every number here comes from scripts in [`bench/`](../bench) and can be rerun. E
 
 | Tool | Score ↑ | Recall ↑ | Leak ↓ | Found ↑ | p50 ms ↓ | p95 ms ↓ |
 |---|---|---|---|---|---|---|
-| **pagesift 0.12** | **0.733** | 0.594 | 0.044 | 66.8% | **0.47** | **2.0** |
+| **pagesift 0.12** | **0.733** | 0.594 | 0.044 | 66.8% | **0.47** | **0.20.0** |
 | crw (crw-extract) | 0.703 | 0.574 | 0.092 | 64.8% | 7.38 | 36.0 |
 | Crawl4AI 0.9 (fit markdown) | 0.666 | 0.532 | 0.108 | 61.8% | 38.6 | 157 |
 | Mozilla Readability + Turndown | 0.606 | 0.448 | 0.062 | 52.6% | 174 | 1170 |
@@ -46,7 +46,7 @@ Reproduce: see [`bench/compare/README.md`](../bench/compare/README.md).
 | **pagesift 0.12** | 0.948 | **0.945** | **0.909** | 0.991 | **0.06** (date) / 0.71 (whole page) |
 | htmldate 1.11 (extensive) | **0.949** | **0.945** | 0.908 | **0.993** | 4.04 |
 | trafilatura (uses htmldate) | 0.948 | 0.944 | 0.907 | 0.992 | 9.79 |
-| htmldate 1.11 (fast) | 0.926 | 0.924 | 0.924 | 0.929 | 2.00 |
+| htmldate 1.11 (fast) | 0.926 | 0.924 | 0.924 | 0.929 | 0.20.00 |
 | newspaper4k 0.9.6 | 0.810 | 0.802 | 0.912 | 0.728 | 11.74 |
 | goose3 3.1.22 | 0.742 | 0.733 | 0.830 | 0.671 | 71.80 |
 | pagesift before (meta, JSON-LD and `<time>` only, as Firecrawl and Crawl4AI read them) | 0.789 | 0.778 | 0.897 | 0.704 | — |
@@ -69,7 +69,7 @@ Reproduce: `bench/meta/dates.py` (see [`bench/meta/README.md`](../bench/meta/REA
 | html2text | 0.852 | 0.827 | 0.114 | 0.947 | 0.245 | **1.000** | 0.982 | 2.1 |
 | MarkItDown 0.1.8 | 0.812 | 0.828 | 0.137 | 0.980 | 0.339 | 0.000 | 0.989 | 9.1 |
 | Turndown (no GFM plugin) | 0.799 | 0.000 | **1.000** | 0.980 | 0.168 | **1.000** | 0.991 | 1.95 |
-| Crawl4AI 0.9.5 | 0.787 | 0.622 | 0.132 | 0.845 | 0.245 | 0.615 | 0.970 | 2.0 |
+| Crawl4AI 0.9.5 | 0.787 | 0.622 | 0.132 | 0.845 | 0.245 | 0.615 | 0.970 | 0.20.0 |
 
 "Literal text" is the word-level F1 of the text; it drops when unescaped `*`, `_`, `<` or line-start `1.` turn text into formatting. pagesift escapes only what CommonMark would actually misread (paired `*` and `_` next to text, but not `a_b_c` or `2 * 3`; line-start list and heading markers, but not inside table cells), turns `<br>` into hard breaks, and converts formulas to TeX: KaTeX and Wikipedia annotations, MathJax 2 scripts, MathML (MathJax 3, LaTeXML) through its own MathML→LaTeX converter, and raw TeX in the text left untouched.
 

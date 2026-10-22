@@ -1,63 +1,108 @@
-# 六项目第一轮实测与改进 — 2026-10-22
+# 七类 Rust 核心扩展与六项目新数据对照（2026-10-22）
 
-基于提交 `867c1a19e3204d9d50d4638d8287dd2aea9a20fe` 的本地修改；补丁为 candidate.patch (local `results/candidate.patch`)，SHA-256 `9998c042bcb79c6d88b72c4c77facee738f18d81796d429a9f5eef50b4b5eda1`。
-这是第一轮受控诊断与针对性修复，**不是完整六产品排行榜，也不是最终发布验收**。
-运行目录使用 UTC 时间，本文日期使用 Asia/Tokyo。源码版本见 [tools.lock.json](tools.lock.json)，环境见 [locks](locks/)。
+> 发布整理说明：本文是版本提升前的冻结评测。可公开记录见 [证据索引](evidence/README.md)；其余 `results/` 路径是本地历史证据，不随源码发布。提交、磁盘余量和测试数描述当时状态。
 
-## 已完成的两项产品改进
+本轮按用户要求排除持久浏览器交互、Agent 任务，推进原先另外七类缺失。七类均已有可调用的受限 Rust 实现；这不等于七类的完整竞品生态已经覆盖，也不等于范围内全面领先。清单仍有 **17 类部分实现**，并保留未验证及原有产品边界。
 
-| 任务 | 改进前 | 改进后 | 证据范围 |
-|---|---|---|---|
-| 图片字段找到预期地址 | 7/12 | 12/12 | 公开的构造样例，覆盖占位图、懒加载和 srcset；不是全网准确率 |
-| 短静态页训练后抓同站动态路径 | 只得到 Loading，漏掉金标 | 返回动态正文 | 同一受控页面序列；Crawlee 默认自适应模式也取得正文 |
-| AEB 外部集正文回归 | F1 0.939262 | F1 0.939262 | 181/181 篇的 Markdown 字节完全一致 |
+本轮完整自托管 Firecrawl 的全部 545 篇对照已经结束；单篇故障隔离、失败保留与其他任务的原始记录一并交付。
 
-图片修复是 pagesift 自身字段回退逻辑的修复；未移植对手代码。渲染修复采用保守的 origin + 首级路径分组，浏览器内核兼容性仍按主机学习。它解决已复现的跨目录污染，**不保证同一目录内所有页面类型都能区分**，也未移植 Crawlee 的完整预测模型。
+## 实现与边界
 
-## 六个项目实际测到的内容
-
-| 项目 | 实测 | 当前结论与边界 |
+| 原先缺失的类别 | 本轮实际实现 | 尚未完成 |
 |---|---|---|
-| Firecrawl v2.11.0 | 完整自托管 API 固定页面回放；Go 转换组件；官方 Python 4.30.1、JS 4.28.1 对接 pagesift | Python 9 项、JS 8 项全部通过，含 scrape/map/batch/crawl 轮询、取消与鉴权。完整服务与 pagesift 各 193 次有效回放全部上游 HTTP 200，181 篇 AEB 评分见下文；Go 组件独立结果不代表完整服务质量 |
-| Crawlee 3.18.2 | Cheerio HTTP 抓取、系统 Chrome 的自适应混合页面测试 | 自适应测试取到动态金标。Cheerio 示例使用公开的常规 enqueueLinks handler，不把可自行配置的发现范围当成库的硬限制 |
-| Scrapling 0.5 | 原生 parser 测试 140 项；6 个改版/负例 | 原生测试全过；默认重定位通过 5/6，其中相似干扰节点被误选。pagesift 精确选择器通过 4/6，缺少改版重定位；不据此宣称总体准确率 |
-| Katana 1.8.0 | 本地已知 URL 图，HTTP + JS 发现 | 原生配置访问 6/7 个金标内容入口，pagesift 3/7；原生配置有 1 次 robots 违规；追加显式排除该构造禁用路径后仍为 6/7、违规 0。显式排除不是通用 robots 实现 |
-| Essence v0.3.0 和 main 快照 | 未修改的 Markdown/图片模块，181 篇相同 AEB HTML | 两个版本此集 F1 均 0.766741，pagesift 为 0.939262。**仅离线组件**，排除网络、浏览器和服务质量校验，不能外推端到端胜率 |
-| gallery-dl 1.32.17 | 真实 GenericExtractor 和 DownloadArchive | GenericExtractor 找到全部 12 个构造目标地址；归档重启后正确识别 20 个已下载条目，即使 URL 改变。pagesift 当前没有等价站点条目 ID 归档接口；不同于 URL 缓存或内容快照 |
+| 无稳定 ID 的模糊定位 | 独立 FuzzyAnchor，文本/描述属性/父级语境的 Dice 分数，阈值/分差/预算弃权，有限容器标签变化 | 外观不能证明业务身份；复杂页面和独立真实变更的误匹配校准 |
+| 外部 JS 与计算入口 | 同源外部 script、静态模块依赖、有限 const 拼接，显式接入 HTTP crawl；重定向前限制来源、失败计预算、发现阶段禁用页面缓存 | 完整 AST/JSluice、函数求值、import map/source map、浏览器网络流量、跨页面统一预算 |
+| 表单与输入 | 元数据、外部 form 所有者、disabled fieldset/legend、已选控件、显式 GET 请求规划 | 完整浏览器验证、提交按钮覆盖、脚本表单、通用自动提交 |
+| 技术/知识/密钥线索 | 有界内置及自定义规则，返回来源/范围并隐藏原值；登录表单线索 | 完整技术库、页面模型、API 请求分类与提供商验证 |
+| 站点媒体提取 | WordPress media、Mastodon status、Wikimedia imageinfo、显式 JSON-LD 媒体对象 | gallery-dl 的大量站点、分页/认证变体及 listing 到交付的事务绑定 |
+| HLS/DASH | 有限未加密 VOD、严格范围下载、可恢复分片归档；HLS 轨文件与保留时序/寻址的离线 DASH MPD | 直播、复杂 rendition、负 repeat、SegmentBase/index、加密及 A/V mux |
+| 后处理/元数据/模板 | 命名模板、路径清理、碰撞拒绝、媒体与侧车分步提交/恢复、私有新文件权限 | 任意插件生态、标签/EXIF/转码、更多文件系统与崩溃点 |
 
-发现图还显示响应头、iframe、HTMX 等是 pagesift 待补的发现来源。该轨道目前只做诊断，未增加产品抓取范围。
+接口、命令和精确限制见 [使用文档](../../docs/native-core.md)。[40 类清单](CAPABILITIES.md) 将这七项标为 partial，将两项标为 excluded_by_user；没有把 partial 改成 complete/superior。
 
-## 完整 Firecrawl 服务回放与逐页差距
+所有新增产品核心、接口和测试均为 Rust。没有增加第三方 crate 版本，只将已锁定的 url 2.5.8 加为 extract 的直接依赖。[依赖差异](evidence/2026-10-22/dependencies.json)。Python/Node 是既有评测框架和竞品的运行环境，FFmpeg/ffprobe 仅用于制作与读取测试样本，产品没有调用它们。
 
-使用锁定 API 镜像及 Playwright、PostgreSQL、Redis、RabbitMQ 五服务，串行回放同一份 181 篇 AEB HTML 与 12 个图片样例。Pagesift 使用 HTTP 引擎，Firecrawl 使用原生自动流水线；回放页面设置 CSP 禁止历史第三方资源，双方网络主机别名不同。该实验验证固定静态输入的端到端输出，不能代表实时互联网、云服务或动态页面表现。
+## 全部 545 篇的新正文数据
 
-| 原 AEB 评分器 | 正文 F1 | 精确率 | 召回率 |
+新来源为 [WebMainBench 的 545 篇人工校准子集](https://github.com/opendatalab/WebMainBench)。跑的是这个子集全部 545 篇，不是其完整 7809 篇数据；与此前输入没有精确 URL 或 HTML 重合，来源域名仍可能相同。[固定协议](evidence/2026-10-22/content/protocol.json)、[完整清单](evidence/2026-10-22/content/manifest.jsonl)。
+
+- Hugging Face 固定修订：`5da0972e9b58d0c7891ae75053ced97c268f52e3`。
+- 先从 DOM 删除 103675 个 `cc-*` 人工标注属性，统一序列化后供各工具使用；gold 不传给工具。
+- 指标为我们诊断用的逐页可见文本 token 多重集 F1，CJK 字符单独计 token；**不是官方五项结构指标或 ROUGE 榜单分数**，不能与旧 AEB/WCXB 数字混算。
+- 输入不按输出筛选；组件两边统一每篇 2 GiB 地址空间、30 秒；执行失败保留在分母。未用这批正文结果修改正文提取规则。
+
+| 离线组件，原始 URL 语境 | 页面数 | 平均 F1 | 执行错误 |
 |---|---:|---:|---:|
-| Pagesift HTTP API | 0.939262 | 0.897281 | 0.985364 |
-| Firecrawl 自托管 API | 0.804753 | 0.682737 | 0.979871 |
+| 最终 Pagesift | 545 | 0.843529 | 0 |
+| 固定 Essence 组件 | 545 | 0.796636 | 1 |
 
-按 126 个站点聚类、配对 bootstrap 2000 次，F1 差值 Pagesift−Firecrawl 的 95% 百分位区间为 [0.106820, 0.166760]。此区间仅描述该冻结语料的重采样不确定性，不证明新站点总体优势。评分采用上游宏平均精确率/召回率的调和平均。
+Pagesift 在 414 篇较高、14 篇持平，仍有 **117 篇低于 Essence**。按 395 个主机分组、2000 次配对 bootstrap，均值差 +0.046894，95% 分位区间约 [0.030674, 0.063542]；这是对本数据集的重采样，不是互联网总体区间。[配对详情](evidence/2026-10-22/content/paired.json)。
 
-仍有 **14 篇 Pagesift 逐页 F1 落后**，完整列表与分数见 逐页差距 (local `results/firecrawl-full-scores/diff.json`)。人工查看前三项：nj.com 中嵌入推文正文保留不足；digg.com 中推荐内容残留较多；bgr.com 的取舍需要结合金标边界再定位，不能直接把更长输出当作更好正文。后续应使用独立页面家族验证规则，避免针对单站硬编码。
+最终内容二进制与最后一次新数据运行的内容二进制逐字节一致；后续修订只涉及模糊定位和流媒体等模块。CLI 的最终 SDK/回归分别验证，不将组件分数冒写成 Essence 完整服务成绩。完整 Essence 服务的本地回放仍受其原生 SSRF 约束限制，未宣称已完成同输入服务对照。
 
-完整原始回放 (local `results/firecrawl-full-domain/summary.json`)、上游评分 (local `results/firecrawl-full-scores/eval/results.json`)、[镜像锁](locks/firecrawl-images.json) 均已保存。首次连接失败、域名回放 404 和私网 IP 校验失败已记录在 审计说明 (local `results/audit-notes.json`)，均排除出质量评分。完整栈与本机服务预算不同，**不发布速度或内存优劣排名**。
+## 完整自托管 Firecrawl：全部 545 篇完成
 
-## 检查与资源
+固定自托管镜像、全部辅助服务、相同 545 份 HTML 和相同 replay 路径。Pagesift 通过 Docker host gateway，Firecrawl 通过容器额外 hosts 名称访问；传输主机名不同，和原始 URL 组件语境分开计分。[最终隔离协议](evidence/2026-10-22/service-isolated/protocol.json)。
 
-- 完整本地 CI (local `results/20261021T212113Z-full-local-ci-race-fixed-19e8bc/stdout.log`)：fmt、clippy、workspace 测试与文档测试共 536 项通过；Rust 1.88、cargo-deny、正文及爬取性能门槛通过。
-- 首次 CI 暴露 Webhook 测试的 ACK/指标竞态：接收端已记录最后事件，但发送端 delivered 仍是 3。测试现有界等待确认后的指标，原有事件顺序、签名、重试数和 delivered=4 断言全部保留；失败日志未删除。
-- 最终资源上限是共享 slice 的 8 个 CPU / 8 GiB RAM / 0 swap；早期准备上限更低，各次日志分别记录。单线程、探索性和 CI 数据不能混成最终计时排名。
-- 清理旧缓存及重复快照，并在 CI 后删除本轮约 11 GiB 的 debug 产物；保留结果、输入、发行二进制和候选。本轮五个临时 Docker 镜像、容器与卷也已移除，原有 pagesift/debian 镜像保留，见 Docker 清理 (local `results/docker-cleanup.json`)。详见 初次清理 (local `results/cleanup-2026-10-22.json`) 与 CI 后清理 (local `results/post-ci-cleanup.json`)。
+首个完整服务试验在 75 条参考结果后因五次连续 HTTP 超时停止，剩余页面没有拿来算全批失败。后续改为每篇失败保留空结果、在下一篇前重新启动该工具的隔离服务；参考侧同时清空本任务专用栈/卷，不重试失败页面、不改参考代码，避免一个阻塞污染后续页面。最终参考侧只在该故障后恢复 1 次，候选不需要恢复；1 个预热响应从两边分母剔除。
 
-## 结果复核
+| 完整服务，同一 replay 输入语境 | 页面数 | 平均 F1 | 执行错误 |
+|---|---:|---:|---:|
+| 最终 Pagesift HTTP 服务 | 545 | 0.843676 | 0 |
+| 固定 Firecrawl 自托管服务 | 545 | 0.799858 | 1 |
 
-- 结构化摘要 (local `results/summary.json`)、图片改前 (local `results/offline-baseline/fixture-scores.json`)、图片改后 (local `results/offline-candidate/fixture-scores.json`)。
-- AEB 原评分器结果 (local `results/aeb-scores-with-main/eval/results.json`)；原始逐页输出位于 offline-baseline、offline-candidate 和 aeb-scores 目录。
-- 自适应改前 (local `results/adaptive-baseline-ready/summary.json`)、自适应改后 (local `results/adaptive-candidate/summary.json`)、发现图 (local `results/discovery-scoped/summary.json`)。
-- 改版诊断 v2 (local `results/relocation-baseline-v2/summary.json`)、归档语义 (local `results/gallery-archive-baseline/summary.json`)、Python SDK (local `results/sdk-candidate/python.json`)、JS SDK (local `results/sdk-candidate/js.json`)。
+Pagesift 有 427 篇较高、22 篇持平，仍有 **96 篇低于 Firecrawl**。参考超时样本为 `30b05f1d-56b3-48d3-b587-aea4e99bc003`，保留空输出计入分母；它与 Essence 组件的失败样本不同。[全部服务分数](evidence/2026-10-22/service-isolated/scores-summary.json)、[逐页对照](evidence/2026-10-22/service-isolated/paired.json)、[恢复记录](evidence/2026-10-22/service-isolated/recoveries.json)。
 
-重定位 v1 把不同的文本节点分隔方式误记为选择器错误，已用双方一致的空白归一化修正，保留原记录并以 v2 为准。设置、编译和首次 CI 的失败尝试同样保留。
+最终服务运行 160 秒左右，属于本轮配置下的总耗时，不能用来做跨工具速度排名。各工具的 HTTP 请求到达和上游状态均保留，完整容器资源记录见同目录。
 
-## 尚未完成的发布验收
+## 六项目中的其他直接对照
 
-更多真实站点、通用礼貌规则验证与独立渲染页面家族、站点专用增量工作负载、误匹配受控的 Rust 重定位，以及干净克隆和未见站点的最终发布复测，仍按 [总方案](../../docs/comparison-plan-2026-10-22.md) 继续。72 小时稳定性、全功能覆盖或六家全部指标领先均未在本轮得到证明。
+固定版本：Firecrawl v2.11.0、Crawlee v3.18.2、Scrapling v0.5、Katana v1.8.0、Essence v0.3.0、gallery-dl v1.32.17。[版本与实际环境](evidence/2026-10-22/reference-environment.json)。新控制样本在工具首次输出前保存；它们由本轮作者编写，同类模板换 seed 不等于独立野外盲测。[最终控制协议](evidence/2026-10-22/tasks-verified/protocol.json)。
+
+| 任务 | Pagesift | 固定参考 | 实际解释 |
+|---|---:|---:|---|
+| 实际抓取的新入口图 | 12/13 | Katana `-jc -jsl` 10/13 | Pagesift 仍漏动态函数求值入口；Katana 面向更广的端点集合 |
+| 同一入口图 | 12/13 | Crawlee 原生 Cheerio + enqueueLinks 2/13 | 只比较静态模式，未证明超过其浏览器引擎/完整框架 |
+| 无业务 ID 的定位控制集 | 64/64 | Scrapling 默认 CSS→adaptive 56/64 | 固定置信阈值，重复候选弃权；是可比控制任务，不是全站重定位准确率 |
+| 表单与假密钥线索 | 12/12 | Katana 原生表单、KB 密钥线索各 12/12 | 基本线索持平，不代表技术库或安全扫描覆盖相当 |
+| Mastodon 8 帖、20 原始附件 | 20/20 字节正确 | gallery-dl 20/20 字节正确 | 持平，参考使用原生实例前缀与下载/元数据功能 |
+
+入口图中 Pagesift 没有访问预置的非导航候选；Katana 访问其中 4 个，但三者非 GET 请求均为 0。额外 GET 候选不能被解释成参考工具执行了写操作或有安全漏洞。[逐请求记录与全部结果](evidence/2026-10-22/tasks-verified/summary.json)。
+
+64 例定位在首版时双方均为 56/64；补入有文本/属性佐证的容器标签变化，并保持跨标签重复候选弃权后，在回归及另一个相同家族 seed 上达到 64/64。不能把这个过程写成独立真实站点泛化提升。
+
+## 流媒体实际解码验证
+
+首次直接拼接 DASH 音轨得到与 MPD 播放不同的帧数；第二种清单重写还暴露了解码器对寻址方式的兼容问题。两个失败阶段保留在 `tasks-v2`、`tasks-final`，没有计为通过。最终 Rust 实现保留模板/列表寻址、时序和展示窗口，仅将分片引用改为已校验的本地资产，最后发布 MPD。DASH 通过硬链接复用归档，不再复制整条未裁剪音视频轨。
+
+| 最终原生 CLI 输出 | 原清单解码 | 归档后解码 | 结果 |
+|---|---|---|---|
+| HLS | H.264 10 帧、AAC 88 帧 | 相同 | 通过 |
+| DASH 本地 MPD | H.264 10 帧、AAC 77 帧 | 相同 | 通过 |
+
+这里只测了本地 FFmpeg 制作的有限 VOD 家族，尚未与 gallery-dl 所有 streaming/yt-dlp 组合对照，也没有证明所有流媒体都正确。[原生命令、输出、解码原始记录](evidence/2026-10-22/tasks-verified/summary.json)。
+
+## 回归、资源与可审查性
+
+- 最终完整 CI：**613 项 Rust/文档测试**，fmt、Clippy、MSRV 1.88、cargo-deny 均通过；100KB 博客中位 1.91ms、250KB wiki 6.36ms；爬取 1200/1200、0 错误、3931 页/秒、RSS 41MB。这些是本机门槛，不是跨工具性能排名。CI（本地 `results/20261022T042322Z-seven-verified-ci-845a24/run.json`）。
+- 官方 SDK：Python 9 项、JS 8 项全部通过。[最终 SDK](evidence/2026-10-22/sdk-verified/python.json)。
+- 旧 AEB 181 篇 Markdown 与上轮逐字节一致；上轮剩余 5 篇文章的差距没有在本轮解决。[回归](evidence/2026-10-22/aeb-summary.json)。
+- 下载的同资源/变资源续传、真实 SIGKILL 恢复和单写者拒绝继续通过。[最终下载回归](evidence/2026-10-22/media-verified/summary.json)。
+- 构建和普通评测共用 8 个逻辑 CPU、8 GiB、0 task swap 的 slice；最终 CI 采样峰值约 1976 MiB。完整服务的五个参考容器上限合计 6784 MiB/720%，另给驱动与候选进程 1408 MiB/80%，总计 8 GiB/800%；保留整容器资源记录，不据此宣称公平速度领先。
+- 参考五容器采样的同时总峰值约 2195 MiB，驱动/候选进程另有独立记录；不将不同时间的峰值相加当作精确总峰值。[服务资源](evidence/2026-10-22/service-resources.json)。
+- 磁盘预留 10 GiB，触底只停止本任务。结束后专用容器/卷已关闭，移除本轮重新下载的五个未使用参考镜像，释放约 4.42 GiB；保留原有 pagesift/debian 镜像，没有 global prune。当前剩余约 18.45 GiB，原始证据、源码包、命名二进制和暖构建缓存保留。清理记录（本地 `results/seven-next/image-cleanup.json`）。没有清理全局 swap、停止用户应用、提交或推送仓库。
+
+[最终源码与命名二进制哈希](evidence/2026-10-22/source.json)、源码包（本地 `results/seven-next/candidate-source.tar.gz`）。原 HEAD 保持 `a17f33d97383450535a4d79862fb850f88e5b8f2`，所有前序未提交改动保留。最终验证后仅修正 README 对旧 Firecrawl 表格的措辞并加入本轮报告链接；所有 Rust/构建源码与命名二进制哈希再次核对一致，文档单独差异已记录在 source.json。
+
+## 失败与修复记录
+
+1. 首次 Essence 组件运行触及任务 8 GiB 上限并在 317 条记录后被终止；改为双方同样的单篇 2 GiB/30 秒隔离，全部 545 重跑，保留部分原始试验。最终参考失败 1 篇，计入分母。
+2. 原生内容示例不返回 status 字段，汇总器一度把成功输出误计为 545 个执行错误；修正缺省成功状态，保留旧摘要。F1 与原始输出未变。
+3. 第一批媒体控制命令漏传测试配置，被默认 SSRF 保护拒绝；修复评测配置，没有削弱产品默认保护。
+4. DASH 的直接拼接、清单寻址兼容失败及容器标签定位缺口均有原始记录；已按上文修复、完整 CI 和实际原生 CLI 重测。
+5. 参考 Docker 镜像此前已清理，首次启动失败；重新拉取原固定 digest 后验证与协议完全一致，没有换新版本。
+6. 早期隔离脚本漏指定候选数据目录，已停止；默认目录仅有旧的 8 字节空段且时间未变。后续显式关闭任务持久化并使用隔离目录，没有删除或覆盖默认数据。
+
+## 仍未兑现的目标
+
+范围内全面领先仍未达成：新正文集仍有 117 篇低于 Essence，服务回放仍有 96 篇低于 Firecrawl；复杂 JS 函数入口、独立真实重定位、完整站点/认证/媒体生态、流媒体协议广度，以及既有搜索/会话/存储/全 API 参数和长期负载验证仍有缺口。用户排除的浏览器交互和 Agent 不再安排实现；其他未测和部分实现不从结论中隐藏。

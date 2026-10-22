@@ -1,6 +1,6 @@
 # Architecture
 
-The product core and all new 2.0 modules are Rust. Python and Node embed that engine; benchmark drivers use their existing Python/Node environments. Optional browser rendering is separate from persistent interaction or autonomous Agent workflows.
+The product core and all new 0.20.0 modules are Rust. Python and Node embed that engine; benchmark drivers use their existing Python/Node environments. Optional browser rendering is separate from persistent interaction or autonomous Agent workflows.
 
 ![Engine overview](assets/overview.svg)
 
@@ -64,4 +64,4 @@ flowchart LR
 
 A retry reconciles partial publication before declaring completion. Filenames are sanitized and collisions rejected. Finite HLS/DASH planning reuses this archive layer for bounded segments; DASH retains timing/addressing in a local MPD. It does not mux tracks, execute FFmpeg or support encrypted/live streams.
 
-See [collection](incremental-collection.md), [archives](media-archive.md) and [bounded core APIs](remaining-core.md) for exact limits and failure behavior.
+See [collection](incremental-collection.md), [archives](media-archive.md) and [bounded core APIs](native-core.md) for exact limits and failure behavior.

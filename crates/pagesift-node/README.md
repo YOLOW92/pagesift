@@ -1,6 +1,6 @@
 # pagesift (Node.js)
 
-2.0: see the [release and migration guide](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/2.0.0.md). New collection/archive cores are available through Rust and CLI; this package keeps its documented scraping interface.
+0.20.0: see the [release and migration guide](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/0.20.0.md). New collection/archive cores are available through Rust and CLI; this package keeps its documented scraping interface.
 
 The npm package `pagesift`: pagesift's Rust engine for Node.js, built with [napi-rs](https://napi.rs).
 Prebuilt binaries, so you don't need a Rust toolchain or a headless-browser download.

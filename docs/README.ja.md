@@ -18,13 +18,13 @@
 
 ---
 
-## 2.0
+## 0.20.0
 
-2.0 では Rust による増分収集、明示的 HTTP セッション、検証可能なアーカイブと7種類の限定コアを追加しました。新機能は主に Rust API / CLI で提供します。17項目は部分実装であり、全機能での優位は主張していません。
+0.20.0 では Rust による増分収集、明示的 HTTP セッション、検証可能なアーカイブと7種類の限定コアを追加しました。新機能は主に Rust API / CLI で提供します。17項目は部分実装であり、全機能での優位は主張していません。
 
-[Release / migration](releases/2.0.0.md) · [Documentation](README.md) · [Architecture](architecture.md) · [Evidence](../bench/six/evidence/README.md)
+[Release / migration](releases/0.20.0.md) · [Documentation](README.md) · [Architecture](architecture.md) · [Evidence](../bench/six/evidence/README.md)
 
-![pagesift 2.0](assets/overview.svg)
+![pagesift 0.20.0](assets/overview.svg)
 
 pagesift は、AI パイプライン、RAG、エージェント向けのセルフホスト型スクレイピング・クローリングエンジンです。ページを取得し、必要な場合にだけ JavaScript をレンダリングし、本文を抽出して、Markdown、HTML、リンク、メタデータを返します。インターフェースは [Firecrawl v2](https://docs.firecrawl.dev) 互換の HTTP API、MCP サーバー、CLI、ネイティブの Python パッケージと Node パッケージを用意しています。
 
@@ -49,7 +49,7 @@ pagesift は、AI パイプライン、RAG、エージェント向けのセル�
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:2.0.0
+  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:0.20.0
 
 curl -s http://localhost:3002/v2/scrape \
   -H 'Authorization: Bearer change-me' -H 'Content-Type: application/json' \
@@ -102,7 +102,7 @@ const page = await scraper.scrape('https://example.com')
 console.log(page.markdown)
 ```
 
-### MCP（Claude、Cursor などのエージェント）
+### MCP
 
 ```bash
 pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, pagesift_crawl, pagesift_crawl_status, pagesift_map
@@ -148,7 +148,7 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 | 軽量 JS エンジン（Lightpanda/moli） | ✅ 両方対応、自動フォールバック | ❌ | ❌ | Lightpanda | — |
 | MCP サーバー | ✅ | ✅ | ✅ | ✅ | — |
 | ネイティブ Python / Node パッケージ | ✅ / ✅ | ✅ / ❌ | HTTP SDK | — | ✅ / ✅ |
-| ライセンス | AGPL-3.0 + 商用 | Apache-2.0 | AGPL-3.0 | AGPL-3.0 | MIT |
+| ライセンス | AGPL-3.0 + 商用 | Apache-0.20.0 | AGPL-3.0 | AGPL-3.0 | MIT |
 
 「—」は未確認を表します。Firecrawl のセルフホスト版はベンチマークしていません。測定方法と完全な表は [docs/benchmarks.md](benchmarks.md) をご覧ください。
 

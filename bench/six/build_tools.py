@@ -25,18 +25,9 @@ def main():
                     'bench/six/adapters/offline/Cargo.toml'], cwd=ROOT, env=env, check=True)
     binary = DATA / 'bin' / ('offline-' + a.essence)
     shutil.copy2(DATA / 'rust-target/release/pagesift-six-offline', binary)
-    converter_source = DATA / 'sources/firecrawl/apps/go-html-to-md-service'
-    work = DATA / 'firecrawl-converter'; work.mkdir(exist_ok=True)
-    for filename in ['converter.go', 'go.mod', 'go.sum']:
-        shutil.copy2(converter_source / filename, work / filename)
-    shutil.copy2(ROOT / 'bench/six/adapters/converter_cli.go', work / 'main.go')
-    env.update(GOMODCACHE=str(DATA / 'go-modules'), GOCACHE=str(DATA / 'go-cache'), GOMAXPROCS='8')
-    subprocess.run([str(DATA / 'go/bin/go'), '-C', str(work), 'build', '-mod=readonly', '-p', '8',
-                    '-o', str(DATA / 'bin/firecrawl-converter'), '.'], env=env, check=True)
     record = {'essence': json.loads((source / '.six-source.json').read_text()),
-              'modules': {str(f.relative_to(ROOT)): sha(f) for f in [source / 'backend/src/format/markdown.rs',
-                           source / 'backend/src/format/image_processing.rs', converter_source / 'converter.go']},
-              'binaries': {str(f.relative_to(ROOT)): sha(f) for f in [binary, DATA / 'bin/firecrawl-converter']}}
+              'modules': {str(f.relative_to(ROOT)): sha(f) for f in [source / 'backend/src/format/markdown.rs', source / 'backend/src/format/image_processing.rs']},
+              'binaries': {str(f.relative_to(ROOT)): sha(f) for f in [binary]}}
     (DATA / ('build-' + a.essence + '.json')).write_text(json.dumps(record, indent=2) + '\n')
 
 

@@ -26,7 +26,7 @@ class Protocol(unittest.TestCase):
             self.assertNotEqual(a, b); self.assertNotEqual(b, c)
 
     def test_equal_line_count_with_duplicate_id_is_not_complete(self):
-        baseline = module('baseline')
+        baseline = module('validate')
         with tempfile.TemporaryDirectory() as tmp:
             manifest = Path(tmp) / 'manifest'; output = Path(tmp) / 'output'
             manifest.write_text('{"id":"a"}\n{"id":"b"}\n')

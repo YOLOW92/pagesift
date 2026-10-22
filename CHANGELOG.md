@@ -2,12 +2,12 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
-## [2.0.0] — 2026-10-22
+## [0.20.0] — 2026-10-22
 
-Native Rust collection and archiving cores, with bounded external-script discovery and an auditable six-project comparison. See [the release and migration guide](docs/releases/2.0.0.md). Browser interaction and autonomous Agent tasks are outside the 2.0 scope.
+Native Rust collection and archiving cores, with bounded external-script discovery and an auditable six-project comparison. See [the release and migration guide](docs/releases/0.20.0.md). Browser interaction and autonomous Agent tasks are outside the 0.20.0 scope.
 
 ### Migration
-- Rust workspace crates and all native package distributions move together to 2.0.0. Rust struct literals and exhaustive error matches may require changes; the HTTP API remains under `/v2`.
+- Rust workspace crates and all native package distributions move together to 0.20.0. Rust struct literals and exhaustive error matches may require changes; the HTTP API remains under `/v2`.
 - Session snapshots, collection checkpoints and archive manifests are distinct from the URL cache. Back up state before upgrading; no automatic destructive migration is performed.
 - New bounded cores are principally Rust APIs and CLI commands; Python/Node retain their existing scraping surface.
 
@@ -22,7 +22,7 @@ Native Rust collection and archiving cores, with bounded external-script discove
 
 ### Added
 - Optional native Rust fuzzy candidates with abstention, form metadata/GET planning and redacted knowledge indicators; origin-scoped external module traversal and opt-in HTTP crawl integration.
-- Explicit WordPress/Mastodon/Wikimedia/JSON-LD media adapters, recoverable named media/metadata publication, and bounded unencrypted HLS/DASH VOD planning and separate-track archiving. Protocol and ecosystem limits are documented in `docs/remaining-core.md`.
+- Explicit WordPress/Mastodon/Wikimedia/JSON-LD media adapters, recoverable named media/metadata publication, and bounded unencrypted HLS/DASH VOD planning and separate-track archiving. Protocol and ecosystem limits are documented in `docs/native-core.md`.
 - Explicit native HTTP Cookie sessions with strict origin isolation, bounded storage, lifecycle/retirement accounting, private atomic snapshots and the `session-fetch` CLI; default requests remain stateless.
 - Identity-addressed direct file archiving (`pagesift download`) with bounded raw streaming, strong-validator resume, prefix checksums, exclusive archive locking and recoverable atomic publication.
 - Bounded static discovery of literal inline navigation and default GET calls; comments, data scripts, dynamic expressions and unknown/write options abstain.
@@ -42,14 +42,14 @@ Native Rust collection and archiving cores, with bounded external-script discove
 ### Fixed
 - macOS: low-memory mode now reads the available memory (via `vm_stat`) and serialises browser work as on Linux; it was ignored before.
 - A click or other action that navigates the page no longer makes the next script call fail with "Inspected target navigated or closed".
-- Release builds for Intel Macs run on `macos-15-intel` (GitHub retired `macos-13`), and the publish step no longer trips over Docker's build record. 0.12.1 is the first version on crates.io, PyPI and npm; 0.12.0 was only published as a Docker image.
+- Release builds for Intel Macs run on `macos-15-intel` (GitHub retired `macos-13`), and the publish step no longer trips over Docker's build record. 0.12.1 is the first version on crates.io, PyPI and npm; 0.10.20.0 was only published as a Docker image.
 
-## [0.12.0] — 2026-10-22
+## [0.10.20.0] — 2026-10-22
 
 The first public release.
 
 ### License
-- pagesift is now dual-licensed: **AGPL-3.0-only** for open-source use, and a **commercial license** for use without the AGPL's obligations (see `COMMERCIAL.md`). Contributions are accepted under a CLA. Earlier development snapshots were published under MIT OR Apache-2.0 and remain available under those terms.
+- pagesift is now dual-licensed: **AGPL-3.0-only** for open-source use, and a **commercial license** for use without the AGPL's obligations (see `COMMERCIAL.md`). Contributions are accepted under a CLA. Earlier development snapshots were published under MIT OR Apache-0.20.0 and remain available under those terms.
 
 ### Scraping and extraction
 - In-house HTML5 parser and main-content extractor: 0.47 ms per page (p50, single thread) and the best score on Firecrawl's labelled dataset among the tools tested (see `docs/benchmarks.md`).
@@ -89,6 +89,6 @@ The first public release.
 ### Bindings
 - Python package (`pip install pagesift`) and Node.js package (`npm install pagesift`) embedding the engine.
 
-[0.12.0]: https://github.com/YOLOW92/pagesift/releases/tag/v0.12.0
+[0.10.20.0]: https://github.com/YOLOW92/pagesift/releases/tag/v0.10.20.0
 
-[2.0.0]: https://github.com/YOLOW92/pagesift/releases/tag/v2.0.0
+[0.20.0]: https://github.com/YOLOW92/pagesift/releases/tag/v0.20.0

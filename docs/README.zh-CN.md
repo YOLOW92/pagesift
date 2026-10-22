@@ -18,13 +18,13 @@
 
 ---
 
-## 2.0
+## 0.20.0
 
-2.0 已加入原生 Rust 增量采集、独立 HTTP 会话、可验证归档，以及七类有明确边界的新核心。新增命令主要通过 Rust API / CLI 提供；17 类能力仍为部分实现，不宣称六项目全功能领先。
+0.20.0 已加入原生 Rust 增量采集、独立 HTTP 会话、可验证归档，以及七类有明确边界的新核心。新增命令主要通过 Rust API / CLI 提供；17 类能力仍为部分实现，不宣称六项目全功能领先。
 
-[Release / migration](releases/2.0.0.md) · [Documentation](README.md) · [Architecture](architecture.md) · [Evidence](../bench/six/evidence/README.md)
+[Release / migration](releases/0.20.0.md) · [Documentation](README.md) · [Architecture](architecture.md) · [Evidence](../bench/six/evidence/README.md)
 
-![pagesift 2.0](assets/overview.svg)
+![pagesift 0.20.0](assets/overview.svg)
 
 pagesift 是一个可自托管的抓取与爬取引擎，面向 AI 流水线、RAG 和智能体。它负责获取页面，只在必要时才渲染 JavaScript，提取正文，并通过兼容 [Firecrawl v2](https://docs.firecrawl.dev) 的 HTTP API、MCP 服务器、CLI 以及原生 Python 和 Node 包返回 Markdown、HTML、链接和元数据。
 
@@ -49,7 +49,7 @@ pagesift 是一个可自托管的抓取与爬取引擎，面向 AI 流水线、R
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:2.0.0
+  -e PAGESIFT_API_KEYS=change-me ghcr.io/yolow92/pagesift:0.20.0
 
 curl -s http://localhost:3002/v2/scrape \
   -H 'Authorization: Bearer change-me' -H 'Content-Type: application/json' \
@@ -102,7 +102,7 @@ const page = await scraper.scrape('https://example.com')
 console.log(page.markdown)
 ```
 
-### MCP（Claude、Cursor 及其他智能体）
+### MCP
 
 ```bash
 pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, pagesift_crawl, pagesift_crawl_status, pagesift_map
@@ -148,7 +148,7 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 | 轻量 JS 引擎（Lightpanda/moli） | ✅ 两者皆有，自动回退 | ❌ | ❌ | Lightpanda | — |
 | MCP 服务器 | ✅ | ✅ | ✅ | ✅ | — |
 | 原生 Python / Node 包 | ✅ / ✅ | ✅ / ❌ | HTTP SDK | — | ✅ / ✅ |
-| 许可证 | AGPL-3.0 + 商业许可 | Apache-2.0 | AGPL-3.0 | AGPL-3.0 | MIT |
+| 许可证 | AGPL-3.0 + 商业许可 | Apache-0.20.0 | AGPL-3.0 | AGPL-3.0 | MIT |
 
 “—”表示未检测。未对 Firecrawl 的自托管服务做基准测试。测试方法和完整表格见 [docs/benchmarks.md](benchmarks.md)。
 

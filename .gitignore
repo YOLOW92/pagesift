@@ -13,3 +13,13 @@ bench/pdf/out/
 
 # Local benchmark evidence, binaries and snapshots; public summaries live in evidence/.
 /bench/six/results/
+
+# Local development-tool configuration and private work notes
+/.claude/
+/.codex/
+/.agents/
+/CLAUDE.md
+/AGENTS.md
+
+# Raw benchmark process logs stay local
+/bench/fresh/results/**/*.log

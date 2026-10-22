@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Install isolated small dependencies and verified release binaries, never browsers."""
 import hashlib
+import shutil
 import json
 from pathlib import Path
 import subprocess
@@ -55,16 +56,6 @@ def main():
                         'binary_sha256': hashlib.sha256((binaries / name).read_bytes()).hexdigest()}
         archive.unlink()
         print(name, 'verified', flush=True)
-    go = DATA / 'go1.27.3.linux-amd64.tar.gz'
-    actual = download('https://go.dev/dl/go1.27.3.linux-amd64.tar.gz', go)
-    expected = '65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40'
-    if actual != expected:
-        raise RuntimeError('Go checksum mismatch')
-    if not (DATA / 'go/bin/go').exists():
-        with tarfile.open(go) as tar:
-            tar.extractall(DATA, filter='data')
-    go.unlink()
-    record['go'] = {'version': 'go1.27.3', 'archive_sha256': expected}
     (DATA / 'binaries.json').write_text(json.dumps(record, indent=2) + '\n')
     venv = DATA / 'venv'
     if not (venv / 'bin/python').exists():
@@ -76,9 +67,9 @@ def main():
         subprocess.run([py, '-m', 'pip', 'freeze', '--all'], stdout=f, check=True)
     node = DATA / 'node'
     node.mkdir(exist_ok=True)
-    package = {'private': True, 'dependencies': {'@crawlee/cheerio': '3.18.2', '@crawlee/playwright': '3.18.2'}}
-    (node / 'package.json').write_text(json.dumps(package, indent=2) + '\n')
-    subprocess.run(['npm', 'install', '--no-audit', '--no-fund'], cwd=node, check=True)
+    for name in ['package.json', 'package-lock.json']:
+        shutil.copy2(ROOT / 'bench/six/locks' / name, node / name)
+    subprocess.run(['npm', 'ci', '--no-audit', '--no-fund'], cwd=node, check=True)
 
 
 if __name__ == '__main__':

@@ -1,9 +1,9 @@
 {
-  "version": "2.0.0",
+  "version": "0.20.0",
   "validation": "scripts/ci.sh",
-  "status": "completed",
+  "status": "passed",
   "exit_code": 0,
-  "run_id": "20261022T051636Z-v2-final-ci-9d8488",
+  "run_id": "20261022T060118Z-release-020-ci-e459b0",
   "passed_tests": 613,
   "limits": {
     "memory_mb": 8192,
@@ -22,14 +22,15 @@
     "article perf gate",
     "crawl gate"
   ],
-  "stdout_sha256": "a74d6637b4e090e0fefb2f973291e75035805170f65e6d7f5f6f8d4c16f0e33b",
+  "stdout_sha256": "19eb4738aa7b86a8fdf180edb11f36ca7e95576d7122124bcfa549b1189b3ad7",
   "note": "Version-bumped code validation, separate from frozen candidate competitor scores. Native bindings additionally tested on each release platform by Release workflow.",
-  "peak_cgroup_sampled_mb": 1289.12890625,
+  "peak_cgroup_sampled_mb": 2616.58984375,
   "native_local": {
     "node_tests": 38,
     "python_tests": 64,
     "all_passed": true,
-    "run_id": "20261022T051620Z-v2-native-verified-8016a3"
+    "run_id": "20261022T060312Z-release-020-native-6c0f67",
+    "stdout_sha256": "f54de03be53c18802d24425bce04bd2c51d5eefd862f5678d629cdd8a61a8327"
   },
   "official_sdk_checks": 17
 }
