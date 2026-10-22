@@ -15,7 +15,7 @@ import { convert, convertMany, Scraper, PagesiftError } from 'pagesift'
 const page = convert(html, { url: 'https://example.com/post' })
 console.log(page.markdown, page.metadata.title)
 
-// Many documents: one call, every core, bytes in (no string transcoding)
+// Many documents: one call, bounded Rust workers, bytes in (no string transcoding)
 const pages = await convertMany(await Promise.all(files.map((f) => readFile(f))))
 
 // Fetching: create one Scraper and keep it (connection pool, robots.txt cache, rate-limit state, browsers)
@@ -130,6 +130,14 @@ which matters when the same process also serves requests. `scrapeStream` deliver
 
 Known limit: requests to a single host currently top out at about 1000 per second even with `requestIntervalMs: 0`
 (the rate limiter waits for a 1 ms timer tick per request), which is why this benchmark spreads its pages over 16 hosts.
+
+## CPU budget
+
+Asynchronous conversion shares at most `max(1, logical CPUs - 1)` Rust worker slots across calls,
+leaving capacity for Node's event loop. `convertMany` validates and copies all inputs before starting
+CPU workers, so parser work does not compete with the main thread while it copies strings.
+Large string batches still copy synchronously; use UTF-8 buffers or smaller batches when needed.
+The timing figures above predate this 0.20.0 scheduling change; rerun them on your deployment hardware.
 
 ## Platforms
 

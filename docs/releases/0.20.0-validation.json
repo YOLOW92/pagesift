@@ -3,7 +3,7 @@
   "validation": "scripts/ci.sh",
   "status": "passed",
   "exit_code": 0,
-  "run_id": "20261022T061856Z-release-020-portable-ci-f5c398",
+  "run_id": "20261022T063702Z-release-020-final-ci-1e8227",
   "passed_tests": 613,
   "limits": {
     "memory_mb": 8192,
@@ -22,15 +22,30 @@
     "article perf gate",
     "crawl gate"
   ],
-  "stdout_sha256": "13e45f08617f42a8ee9310f56384294542a792346d17dbee6a1f40dd291f2925",
+  "stdout_sha256": "2b67314cfd07c3b9c87d97a47c5ff530853e554c5e407de41e5d1eecd4814b26",
   "note": "Version-bumped code validation, separate from frozen candidate competitor scores. Native bindings additionally tested on each release platform by Release workflow.",
-  "peak_cgroup_sampled_mb": 2012.8515625,
+  "peak_cgroup_sampled_mb": 1270.91015625,
   "native_local": {
     "node_tests": 38,
     "python_tests": 64,
     "all_passed": true,
     "run_id": "20261022T062042Z-release-020-portable-native-14b15e",
-    "stdout_sha256": "22fc1b852eac940f88cf326c544299f6762625183495ea860f20a7d3a331183b"
+    "stdout_sha256": "22fc1b852eac940f88cf326c544299f6762625183495ea860f20a7d3a331183b",
+    "node_followup": {
+      "run_id": "20261022T063443Z-release-020-node-budget-cc39df",
+      "limits": {
+        "memory_mb": 8192,
+        "cpu_quota_percent": 200,
+        "cpus": "0,1",
+        "swap_mb": 0,
+        "timeout_s": 1800
+      },
+      "passed_tests": 38,
+      "stdout_sha256": "b9a10c657fe033dd13db5be2a93bcf0c907e8aa09b76ca13de4d6e3361ebebb3",
+      "batch_submit_ms": 12.891482,
+      "max_timer_gap_ms": 13.562366,
+      "unchanged_timer_limit_ms": 150
+    }
   },
   "official_sdk_checks": 17,
   "node_release_targets": [

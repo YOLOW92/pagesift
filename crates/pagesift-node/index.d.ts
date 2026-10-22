@@ -201,8 +201,9 @@ export declare function convert(html: string | Uint8Array, options?: ConvertOpti
 export declare function convertAsync(html: string | Uint8Array, options?: ConvertOptions): Promise<Page>
 
 /**
- * 批量转换：在 Rust 侧用全部 CPU 核并行处理，结果顺序和输入一致。
- * 每个输入转换成 Rust 字符串后立刻开始处理，和后面输入的转换重叠；传 `Uint8Array` 时没有这一步转换。
+ * 批量转换：使用共享的 Rust CPU 名额，结果顺序和输入一致。
+ * 先完成主线程上的输入校验和字符串复制，再启动 CPU 工作，避免输入复制与解析争用 CPU。
+ * `Uint8Array` 省去 UTF-8 字符串复制；调用完成前不得修改它。
  */
 export declare function convertMany(htmls: Array<string | Uint8Array>, options?: ConvertOptions): Promise<Page[]>
 

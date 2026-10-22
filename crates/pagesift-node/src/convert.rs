@@ -1,6 +1,6 @@
 //! `convert` / `convertAsync` / `convertMany`：把已有的 HTML 转成 Markdown，不发网络请求。
 //!
-//! 异步版本在 Rust 侧的线程上执行，同时运行的转换数等于 CPU 核数（不受 libuv 线程池默认 4 个线程的限制）。
+//! 异步版本共用有上限的 Rust CPU 名额，并为 Node 主线程留出一个逻辑 CPU（不受 libuv 线程池默认 4 个线程的限制）。
 
 use std::borrow::Cow;
 use std::sync::{Arc, Mutex, OnceLock, mpsc};
@@ -34,7 +34,10 @@ fn cpu_slots() -> Arc<Semaphore> {
 }
 
 pub fn cores() -> usize {
-    std::thread::available_parallelism().map_or(4, |n| n.get())
+    std::thread::available_parallelism()
+        .map_or(4, |n| n.get())
+        .saturating_sub(1)
+        .max(1)
 }
 
 fn run(html: &str, plan: &ConvertPlan) -> Page {
@@ -126,8 +129,9 @@ pub fn convert_async<'e>(
     })
 }
 
-/// 批量转换：在 Rust 侧用全部 CPU 核并行处理，结果顺序和输入一致。
-/// 每个输入转换成 Rust 字符串后立刻开始处理，和后面输入的转换重叠；传 `Uint8Array` 时没有这一步转换。
+/// 批量转换：使用共享的 Rust CPU 名额，结果顺序和输入一致。
+/// 先完成主线程上的输入校验和字符串复制，再启动 CPU 工作，避免输入复制与解析争用 CPU。
+/// `Uint8Array` 省去 UTF-8 字符串复制；调用完成前不得修改它。
 #[napi(
     ts_args_type = "htmls: Array<string | Uint8Array>, options?: ConvertOptions",
     ts_return_type = "Promise<Page[]>"
@@ -148,6 +152,14 @@ pub fn convert_many<'e>(
     };
     let n = htmls.len() as usize;
     let (tx, rx) = mpsc::channel::<(usize, Html)>();
+    for i in 0..n {
+        let html: Html = htmls
+            .get(i as u32)?
+            .ok_or_else(|| Error::from_reason(format!("htmls[{i}] is missing")))?;
+        tx.send((i, html))
+            .map_err(|_| Error::from_reason("conversion input queue closed"))?;
+    }
+    drop(tx);
     let rx = Arc::new(Mutex::new(rx));
     let workers: Vec<_> = (0..cores().min(n))
         .map(|_| {
@@ -173,15 +185,6 @@ pub fn convert_many<'e>(
             })
         })
         .collect();
-    for i in 0..n {
-        let html: Html = htmls
-            .get(i as u32)?
-            .ok_or_else(|| Error::from_reason(format!("htmls[{i}] is missing")))?;
-        if tx.send((i, html)).is_err() {
-            break;
-        }
-    }
-    drop(tx);
     let fut = async move {
         let mut pages: Vec<Option<Page>> = (0..n).map(|_| None).collect();
         for w in workers {

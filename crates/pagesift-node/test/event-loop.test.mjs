@@ -49,15 +49,20 @@ test('control: synchronous convert does delay timers', async () => {
   assert.ok(maxGap >= MAX_GAP_MS, `measured only ${maxGap.toFixed(1)} ms`)
 })
 
-test('convertMany keeps the event loop responsive', async () => {
+test('convertMany keeps the event loop responsive', async (t) => {
   const t0 = performance.now()
   convert(html)
   const once = performance.now() - t0
+  let submitMs = 0
   const r = await measureLag(async () => {
-    const pages = await convertMany(Array.from({ length: 64 }, () => html))
+    const started = performance.now()
+    const pending = convertMany(Array.from({ length: 64 }, () => html))
+    submitMs = performance.now() - started
+    const pages = await pending
     // 只读一个字段：其余字段不会复制到 JS
     assert.equal(pages.filter((p) => p.metadata.title === 'Heavy').length, 64)
   })
+  t.diagnostic(JSON.stringify({ submitMs, ...r }))
   assert.ok(r.elapsed > once * 2, `elapsed ${r.elapsed} vs single ${once}`)
   responsive(r)
 })
