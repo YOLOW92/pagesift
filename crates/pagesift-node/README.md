@@ -135,9 +135,14 @@ Known limit: requests to a single host currently top out at about 1000 per secon
 
 | Target | Status |
 |---|---|
-| linux-x64-gnu | built and tested |
-| linux-x64-musl, linux-arm64-gnu, darwin-x64, darwin-arm64 | configured, not built yet |
-| win32-x64-msvc | configured, **not yet verified** |
+| linux-x64-gnu, linux-arm64-gnu | native build and full binding tests in Linux CI |
+| darwin-x64, darwin-arm64 | native build and full binding tests in macOS CI |
+| linux-x64-musl | native musl build and full binding tests on Alpine |
+| win32-x64-msvc | native MSVC build and full binding tests on Windows |
+
+Node 18 or newer is required. `npm install pagesift` selects the matching optional native package;
+Linux musl and glibc packages are separate. Windows supports conversion and HTTP scraping;
+local browser process management is unavailable. The Rust CDP client can connect to an existing remote endpoint.
 
 ## Development
 

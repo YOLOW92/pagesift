@@ -148,7 +148,7 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 | 轻量 JS 引擎（Lightpanda/moli） | ✅ 两者皆有，自动回退 | ❌ | ❌ | Lightpanda | — |
 | MCP 服务器 | ✅ | ✅ | ✅ | ✅ | — |
 | 原生 Python / Node 包 | ✅ / ✅ | ✅ / ❌ | HTTP SDK | — | ✅ / ✅ |
-| 许可证 | AGPL-3.0 + 商业许可 | Apache-0.20.0 | AGPL-3.0 | AGPL-3.0 | MIT |
+| 许可证 | AGPL-3.0 + 商业许可 | Apache-2.0 | AGPL-3.0 | AGPL-3.0 | MIT |
 
 “—”表示未检测。未对 Firecrawl 的自托管服务做基准测试。测试方法和完整表格见 [docs/benchmarks.md](benchmarks.md)。
 

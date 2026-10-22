@@ -76,7 +76,7 @@ jobs:
           path: pagesift-*.tar.gz*
 
   docker:
-    needs: [identity, binaries, wheels, sdist, npm]
+    needs: [identity, binaries, wheels, sdist, npm, npm-musl]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -167,6 +167,7 @@ jobs:
           - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
           - { os: macos-latest, target: aarch64-apple-darwin }
           - { os: macos-15-intel, target: x86_64-apple-darwin }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc }
     defaults:
       run:
         working-directory: crates/pagesift-node
@@ -178,6 +179,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Verify portable CDP boundary on Windows
+        if: runner.os == 'Windows'
+        run: cargo test -p pagesift-cdp --lib --locked
       - run: npm ci
       - run: npx napi build --platform --release --target ${{ matrix.target }} && node scripts/postbuild.mjs
       - name: Verify native Node binding
@@ -189,8 +193,31 @@ jobs:
           name: npm-${{ matrix.target }}
           path: crates/pagesift-node/*.node
 
+  npm-musl:
+    needs: identity
+    name: npm x86_64-unknown-linux-musl
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test with native musl Node on Alpine
+        run: |
+          docker run --rm --cpus=4 --memory=6g \
+            -v "$GITHUB_WORKSPACE:/work" -w /work/crates/pagesift-node \
+            rust:1.99-alpine sh -euxc '
+              apk add --no-cache nodejs npm build-base
+              npm ci
+              npx napi build --platform --release --target x86_64-unknown-linux-musl
+              node scripts/postbuild.mjs
+              node -e "if (require(\"./index.js\").version !== require(\"./package.json\").version) process.exit(1)"
+              npm test
+            '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-x86_64-unknown-linux-musl
+          path: crates/pagesift-node/*.node
+
   publish:
-    needs: [identity, binaries, docker, wheels, sdist, npm]
+    needs: [identity, binaries, docker, wheels, sdist, npm, npm-musl]
     if: github.event_name == 'push' || inputs.dry_run == false
     runs-on: ubuntu-latest
     environment: release

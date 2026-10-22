@@ -167,7 +167,7 @@ These synthetic tasks test disclosed modes: Crawlee Cheerio, Scrapling adaptive 
 | Lightweight JS engines (Lightpanda/moli) | ✅ both, automatic fallback | ❌ | ❌ | Lightpanda | — |
 | MCP server | ✅ | ✅ | ✅ | ✅ | — |
 | Native Python / Node packages | ✅ / ✅ | ✅ / ❌ | HTTP SDKs | — | ✅ / ✅ |
-| License | AGPL-3.0 + commercial | Apache-0.20.0 | AGPL-3.0 | AGPL-3.0 | MIT |
+| License | AGPL-3.0 + commercial | Apache-2.0 | AGPL-3.0 | AGPL-3.0 | MIT |
 
 "—" means not checked in these earlier tables. See [docs/benchmarks.md](docs/benchmarks.md) for their methods. The newer [version-locked six-project report](bench/six/REPORT.md) includes a complete self-hosted Firecrawl quality replay and explicit remaining gaps; it does not establish full-feature leadership.
 

@@ -23,14 +23,21 @@ def check(tag=None):
             if dep['name'] in names and dep.get('path') and dep.get('kind') != 'dev':
                 assert dep['req'] in ('^'+version, '='+version), (package['name'], dep)
     node = ROOT / 'crates/pagesift-node'
-    for path in [node/'package.json', *sorted((node/'npm').glob('*/package.json'))]:
+    platforms = sorted((node/'npm').glob('*/package.json'))
+    node_config = json.loads((node/'package.json').read_text())
+    expected = {'x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu',
+                'x86_64-unknown-linux-musl', 'x86_64-pc-windows-msvc',
+                'x86_64-apple-darwin', 'aarch64-apple-darwin'}
+    assert set(node_config['napi']['targets']) == expected, 'Node target matrix incomplete'
+    assert len(platforms) == len(expected), 'Node platform packages incomplete'
+    for path in [node/'package.json', *platforms]:
         assert json.loads(path.read_text())['version'] == version, path
     lock = json.loads((node/'package-lock.json').read_text())
     assert lock['version'] == lock['packages']['']['version'] == version
     pyproject = tomllib.loads((ROOT/'crates/pagesift-py/pyproject.toml').read_text())
     assert 'version' in pyproject['project']['dynamic']
     assert (ROOT/f'docs/releases/{version}.md').is_file(), 'release notes missing'
-    print(f'Release identity OK: {version}, {len(names)} Rust packages, 4 npm platforms, dynamic Python version')
+    print(f'Release identity OK: {version}, {len(names)} Rust packages, {len(platforms)} npm platforms, dynamic Python version')
     return metadata
 
 

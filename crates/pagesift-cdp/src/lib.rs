@@ -16,9 +16,14 @@
 
 mod capture;
 mod conn;
+mod endpoint;
 mod engine;
 mod error;
 mod guard;
+#[cfg(unix)]
+mod launch;
+#[cfg(not(unix))]
+#[path = "launch_unavailable.rs"]
 mod launch;
 mod options;
 mod page;

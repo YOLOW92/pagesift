@@ -33,7 +33,7 @@ Native Rust collection and archiving cores, with bounded external-script discove
 - Document link discovery includes iframe/frame sources, HTMX GET attributes, and HTML pagination links. HTTP extraction also recognizes pagination Link response headers, preserving existing crawl scope and robots checks.
 
 ### Development
-- Native package release tests verify all four platforms. Updated stale Node fingerprint and Python network-error assertions; concurrent conversion timing is recorded separately from the GIL-release correctness test.
+- Python release tests verify four platforms; Node release tests verify six targets, including native Windows x64 MSVC and Alpine x64 musl builds. Updated stale Node fingerprint and Python network-error assertions; concurrent conversion timing is recorded separately from the GIL-release correctness test.
 - Added a resource-bounded, version-locked comparison harness and initial diagnostics for Firecrawl, Crawlee, Scrapling, Katana, Essence and gallery-dl; results distinguish component tests from complete services.
 - The webhook delivery test waits for the sender to observe the HTTP acknowledgement before asserting its delivery metric.
 
@@ -42,14 +42,14 @@ Native Rust collection and archiving cores, with bounded external-script discove
 ### Fixed
 - macOS: low-memory mode now reads the available memory (via `vm_stat`) and serialises browser work as on Linux; it was ignored before.
 - A click or other action that navigates the page no longer makes the next script call fail with "Inspected target navigated or closed".
-- Release builds for Intel Macs run on `macos-15-intel` (GitHub retired `macos-13`), and the publish step no longer trips over Docker's build record. 0.12.1 is the first version on crates.io, PyPI and npm; 0.10.20.0 was only published as a Docker image.
+- Release builds for Intel Macs run on `macos-15-intel` (GitHub retired `macos-13`), and the publish step no longer trips over Docker's build record. 0.12.1 is the first version on crates.io, PyPI and npm; 0.12.0 was only published as a Docker image.
 
-## [0.10.20.0] — 2026-10-22
+## [0.12.0] — 2026-10-22
 
 The first public release.
 
 ### License
-- pagesift is now dual-licensed: **AGPL-3.0-only** for open-source use, and a **commercial license** for use without the AGPL's obligations (see `COMMERCIAL.md`). Contributions are accepted under a CLA. Earlier development snapshots were published under MIT OR Apache-0.20.0 and remain available under those terms.
+- pagesift is now dual-licensed: **AGPL-3.0-only** for open-source use, and a **commercial license** for use without the AGPL's obligations (see `COMMERCIAL.md`). Contributions are accepted under a CLA. Earlier development snapshots were published under MIT OR Apache-2.0 and remain available under those terms.
 
 ### Scraping and extraction
 - In-house HTML5 parser and main-content extractor: 0.47 ms per page (p50, single thread) and the best score on Firecrawl's labelled dataset among the tools tested (see `docs/benchmarks.md`).
@@ -89,6 +89,6 @@ The first public release.
 ### Bindings
 - Python package (`pip install pagesift`) and Node.js package (`npm install pagesift`) embedding the engine.
 
-[0.10.20.0]: https://github.com/YOLOW92/pagesift/releases/tag/v0.10.20.0
+[0.12.0]: https://github.com/YOLOW92/pagesift/releases/tag/v0.12.0
 
 [0.20.0]: https://github.com/YOLOW92/pagesift/releases/tag/v0.20.0

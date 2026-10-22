@@ -1,0 +1,36 @@
+{
+  "name": "pagesift-linux-x64-musl",
+  "version": "0.20.0",
+  "cpu": [
+    "x64"
+  ],
+  "main": "pagesift.linux-x64-musl.node",
+  "files": [
+    "pagesift.linux-x64-musl.node"
+  ],
+  "description": "Turn web pages into clean Markdown for LLMs: a polite, Firecrawl-compatible scraping engine written in Rust.",
+  "keywords": [
+    "markdown",
+    "scraper",
+    "crawler",
+    "firecrawl",
+    "llm",
+    "html-to-markdown",
+    "napi-rs"
+  ],
+  "license": "AGPL-3.0-only",
+  "engines": {
+    "node": ">= 18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YOLOW92/pagesift.git",
+    "directory": "crates/pagesift-node"
+  },
+  "os": [
+    "linux"
+  ],
+  "libc": [
+    "musl"
+  ]
+}

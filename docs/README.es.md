@@ -148,7 +148,7 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 | Motores JS ligeros (Lightpanda/moli) | ✅ ambos, fallback automático | ❌ | ❌ | Lightpanda | — |
 | Servidor MCP | ✅ | ✅ | ✅ | ✅ | — |
 | Paquetes nativos Python / Node | ✅ / ✅ | ✅ / ❌ | SDK HTTP | — | ✅ / ✅ |
-| Licencia | AGPL-3.0 + comercial | Apache-0.20.0 | AGPL-3.0 | AGPL-3.0 | MIT |
+| Licencia | AGPL-3.0 + comercial | Apache-2.0 | AGPL-3.0 | AGPL-3.0 | MIT |
 
 "—" significa que no se comprobó. No se hizo benchmark del servicio autoalojado de Firecrawl. Consulta [docs/benchmarks.md](benchmarks.md) para ver la metodología y las tablas completas.
 

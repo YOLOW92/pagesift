@@ -148,7 +148,7 @@ pagesift mcp            # stdio; tools: pagesift_scrape, pagesift_batch_scrape, 
 | 軽量 JS エンジン（Lightpanda/moli） | ✅ 両方対応、自動フォールバック | ❌ | ❌ | Lightpanda | — |
 | MCP サーバー | ✅ | ✅ | ✅ | ✅ | — |
 | ネイティブ Python / Node パッケージ | ✅ / ✅ | ✅ / ❌ | HTTP SDK | — | ✅ / ✅ |
-| ライセンス | AGPL-3.0 + 商用 | Apache-0.20.0 | AGPL-3.0 | AGPL-3.0 | MIT |
+| ライセンス | AGPL-3.0 + 商用 | Apache-2.0 | AGPL-3.0 | AGPL-3.0 | MIT |
 
 「—」は未確認を表します。Firecrawl のセルフホスト版はベンチマークしていません。測定方法と完全な表は [docs/benchmarks.md](benchmarks.md) をご覧ください。
 

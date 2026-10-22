@@ -3,7 +3,7 @@
   "validation": "scripts/ci.sh",
   "status": "passed",
   "exit_code": 0,
-  "run_id": "20261022T060118Z-release-020-ci-e459b0",
+  "run_id": "20261022T061856Z-release-020-portable-ci-f5c398",
   "passed_tests": 613,
   "limits": {
     "memory_mb": 8192,
@@ -22,15 +22,24 @@
     "article perf gate",
     "crawl gate"
   ],
-  "stdout_sha256": "19eb4738aa7b86a8fdf180edb11f36ca7e95576d7122124bcfa549b1189b3ad7",
+  "stdout_sha256": "13e45f08617f42a8ee9310f56384294542a792346d17dbee6a1f40dd291f2925",
   "note": "Version-bumped code validation, separate from frozen candidate competitor scores. Native bindings additionally tested on each release platform by Release workflow.",
-  "peak_cgroup_sampled_mb": 2616.58984375,
+  "peak_cgroup_sampled_mb": 2012.8515625,
   "native_local": {
     "node_tests": 38,
     "python_tests": 64,
     "all_passed": true,
-    "run_id": "20261022T060312Z-release-020-native-6c0f67",
-    "stdout_sha256": "f54de03be53c18802d24425bce04bd2c51d5eefd862f5678d629cdd8a61a8327"
+    "run_id": "20261022T062042Z-release-020-portable-native-14b15e",
+    "stdout_sha256": "22fc1b852eac940f88cf326c544299f6762625183495ea860f20a7d3a331183b"
   },
-  "official_sdk_checks": 17
+  "official_sdk_checks": 17,
+  "node_release_targets": [
+    "linux-x64-gnu",
+    "linux-arm64-gnu",
+    "darwin-x64",
+    "darwin-arm64",
+    "linux-x64-musl",
+    "win32-x64-msvc"
+  ],
+  "new_platform_boundary": "Windows: conversion and HTTP scraping; local browser process management unavailable. Musl: native Alpine build and binding tests required before publication."
 }
