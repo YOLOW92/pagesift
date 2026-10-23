@@ -8,7 +8,7 @@
 
 use std::fs;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use clap::Parser;
@@ -353,7 +353,7 @@ fn print_showdown_summary(r050: &RunResult, r060: &RunResult, rspider: &RunResul
     println!("{:<28} | {:<18} | {:<18} | {:<18}", "Markdown Conversion Rate",
         format!("{:.2}%", (r050.valid_md as f64 / r050.ok_200.max(1) as f64) * 100.0),
         format!("{:.2}%", (r060.valid_md as f64 / r060.ok_200.max(1) as f64) * 100.0),
-        format!("{:.2}%", (r0spider.valid_md as f64 / rspider.ok_200.max(1) as f64) * 100.0)
+        format!("{:.2}%", (rspider.valid_md as f64 / rspider.ok_200.max(1) as f64) * 100.0)
     );
     println!("{:<28} | {:<18} | {:<18} | {:<18}", "WAF 403 Blocked", r050.waf_blocked, r060.waf_blocked, rspider.waf_blocked);
     println!("{:<28} | {:<18} | {:<18} | {:<18}", "Timeout Drops (>3.5s)", r050.timeout, r060.timeout, rspider.timeout);
