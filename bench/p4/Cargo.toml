@@ -4,8 +4,6 @@ version = "0.0.0"
 edition = "2024"
 publish = false
 
-[workspace]
-
 [dependencies]
 axum = "0.8.9"
 tokio = { version = "1.54.0", features = ["full"] }
@@ -32,8 +30,3 @@ path = "src/wild_x1_chaos_origin.rs"
 [[bin]]
 name = "wild_x1_runner"
 path = "src/wild_x1_runner.rs"
-
-[profile.release]
-opt-level = 3
-lto = "thin"
-codegen-units = 1
