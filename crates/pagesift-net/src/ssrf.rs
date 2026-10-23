@@ -33,8 +33,71 @@ pub struct SsrfPolicy {
     pub allow_private_network: bool,
     /// 单独放行的地址，例如内网里的某台服务；其余内网地址仍然拒绝。
     pub allow_ips: Vec<IpAddr>,
+    /// 单独放行的 CIDR 网段，例如 `["10.0.0.0/8", "192.168.1.0/24", "198.18.0.0/15"]`。
+    pub allow_cidrs: Vec<IpCidr>,
     /// 单独放行的主机名（不区分大小写，完全匹配），解析到内网地址也放行，例如内部服务。
     pub allow_hosts: Vec<String>,
+}
+
+/// 一个 CIDR 网段（如 `10.0.0.0/8`、`198.18.0.0/15` 或单个 IP `127.0.0.1`）。
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum IpCidr {
+    V4 { net: Ipv4Addr, prefix: u8 },
+    V6 { net: Ipv6Addr, prefix: u8 },
+}
+
+impl IpCidr {
+    pub fn new_v4(net: Ipv4Addr, prefix: u8) -> Result<Self, String> {
+        if prefix > 32 {
+            return Err(format!("invalid IPv4 prefix: {prefix} (must be <= 32)"));
+        }
+        Ok(Self::V4 { net, prefix })
+    }
+
+    pub fn new_v6(net: Ipv6Addr, prefix: u8) -> Result<Self, String> {
+        if prefix > 128 {
+            return Err(format!("invalid IPv6 prefix: {prefix} (must be <= 128)"));
+        }
+        Ok(Self::V6 { net, prefix })
+    }
+
+    pub fn contains(&self, ip: IpAddr) -> bool {
+        match (self, ip) {
+            (IpCidr::V4 { net, prefix }, IpAddr::V4(v4)) => {
+                in_v4(v4, net.octets(), *prefix as u32)
+            }
+            (IpCidr::V6 { net, prefix }, IpAddr::V6(v6)) => {
+                in_v6(v6, net.octets(), *prefix as u32)
+            }
+            _ => false,
+        }
+    }
+}
+
+impl std::str::FromStr for IpCidr {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.trim();
+        if let Some((ip_str, prefix_str)) = s.split_once('/') {
+            let prefix: u8 = prefix_str
+                .parse()
+                .map_err(|_| format!("invalid CIDR prefix in {s:?}"))?;
+            if let Ok(v4) = ip_str.parse::<Ipv4Addr>() {
+                Self::new_v4(v4, prefix)
+            } else if let Ok(v6) = ip_str.parse::<Ipv6Addr>() {
+                Self::new_v6(v6, prefix)
+            } else {
+                Err(format!("invalid IP address in CIDR {s:?}"))
+            }
+        } else if let Ok(v4) = s.parse::<Ipv4Addr>() {
+            Self::new_v4(v4, 32)
+        } else if let Ok(v6) = s.parse::<Ipv6Addr>() {
+            Self::new_v6(v6, 128)
+        } else {
+            Err(format!("invalid CIDR or IP literal: {s:?}"))
+        }
+    }
 }
 
 impl SsrfPolicy {
@@ -82,7 +145,11 @@ impl SsrfPolicy {
     }
 
     pub fn check_ip(&self, ip: IpAddr) -> Result<(), Blocked> {
-        if self.allow_private_network || self.allow_ips.contains(&ip) || is_public(ip) {
+        if self.allow_private_network
+            || self.allow_ips.contains(&ip)
+            || self.allow_cidrs.iter().any(|c| c.contains(ip))
+            || is_public(ip)
+        {
             Ok(())
         } else {
             Err(Blocked::Address(ip))
@@ -130,6 +197,15 @@ fn in_v4(ip: Ipv4Addr, net: [u8; 4], prefix: u32) -> bool {
         u32::MAX << (32 - prefix)
     };
     u32::from(ip) & mask == u32::from(Ipv4Addr::from(net)) & mask
+}
+
+fn in_v6(ip: Ipv6Addr, net: [u8; 16], prefix: u32) -> bool {
+    let mask = if prefix == 0 {
+        0
+    } else {
+        u128::MAX << (128 - prefix)
+    };
+    u128::from(ip) & mask == u128::from(Ipv6Addr::from(net)) & mask
 }
 
 fn is_public_v4(ip: Ipv4Addr) -> bool {
@@ -319,5 +395,27 @@ mod tests {
                 .check_url("http://localhost/")
                 .is_err()
         );
+    }
+
+    #[test]
+    fn allow_cidrs_opens_subnets_and_fake_ip() {
+        let p = SsrfPolicy {
+            allow_cidrs: vec![
+                "10.50.0.0/16".parse().unwrap(),
+                "198.18.0.0/15".parse().unwrap(),
+                "fd00::/8".parse().unwrap(),
+            ],
+            ..Default::default()
+        };
+        // Allowed subnets
+        assert!(p.check_url("http://10.50.1.2:8080/").is_ok());
+        assert!(p.check_url("http://198.18.0.1/").is_ok()); // Fake-IP
+        assert!(p.check_url("http://198.19.255.254/").is_ok()); // Fake-IP /15
+        assert!(p.check_url("http://[fd00::1]/").is_ok());
+
+        // Still blocked: 127.0.0.1, 169.254.169.254, other 10.x subnets
+        assert!(p.check_url("http://127.0.0.1/").is_err());
+        assert!(p.check_url("http://169.254.169.254/").is_err());
+        assert!(p.check_url("http://10.60.0.1/").is_err());
     }
 }

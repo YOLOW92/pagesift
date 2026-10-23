@@ -42,6 +42,6 @@ pub use fetch::{
 };
 pub use reqwest::header::HeaderMap;
 pub use session::{CookieSession, SessionConfig, SessionError, SessionSnapshot, SessionStats};
-pub use ssrf::{Blocked, SsrfPolicy, check_url, is_public};
+pub use ssrf::{Blocked, IpCidr, SsrfPolicy, check_url, is_public};
 pub use ua::{DEFAULT_USER_AGENT, UserAgentError, product_token, validate_user_agent};
 pub use url::Url;

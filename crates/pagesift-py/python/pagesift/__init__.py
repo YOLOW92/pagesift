@@ -108,6 +108,9 @@ class ScrapeOptions:
     ignore_robots_txt: bool = False
     mobile: bool = False
     languages: Optional[Sequence[str]] = None
+    proxy: Optional[str] = None
+    if_none_match: Optional[str] = None
+    if_modified_since: Optional[str] = None
     _native: _pagesift.Options = dataclasses.field(
         init=False, repr=False, compare=False, hash=False
     )
@@ -127,6 +130,9 @@ class ScrapeOptions:
             ignore_robots_txt=self.ignore_robots_txt,
             mobile=self.mobile,
             languages=list(self.languages) if self.languages else None,
+            proxy=self.proxy,
+            if_none_match=self.if_none_match,
+            if_modified_since=self.if_modified_since,
         )
         object.__setattr__(self, "_native", native)
 
@@ -174,6 +180,8 @@ class Scraper:
         *,
         user_agent: Optional[str] = None,
         allow_private_network: bool = False,
+        allow_cidrs: Optional[Sequence[str]] = None,
+        proxy: Optional[str] = None,
         request_interval: float = 1.0,
         per_host_concurrency: int = 2,
         max_concurrency: int = 64,
@@ -184,6 +192,8 @@ class Scraper:
         self._engine = _pagesift.Engine(
             user_agent=user_agent,
             allow_private_network=allow_private_network,
+            allow_cidrs=list(allow_cidrs) if allow_cidrs else None,
+            proxy=proxy,
             request_interval=request_interval,
             per_host_concurrency=per_host_concurrency,
             max_concurrency=max_concurrency,

@@ -94,6 +94,9 @@ class Options:
         ignore_robots_txt: bool = False,
         mobile: bool = False,
         languages: Optional[Sequence[str]] = None,
+        proxy: Optional[str] = None,
+        if_none_match: Optional[str] = None,
+        if_modified_since: Optional[str] = None,
     ) -> None: ...
 
 class Batch:
@@ -113,6 +116,8 @@ class Engine:
         *,
         user_agent: Optional[str] = None,
         allow_private_network: bool = False,
+        allow_cidrs: Optional[Sequence[str]] = None,
+        proxy: Optional[str] = None,
         request_interval: float = 1.0,
         per_host_concurrency: int = 2,
         max_concurrency: int = 64,

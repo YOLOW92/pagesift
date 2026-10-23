@@ -239,12 +239,23 @@ impl Policy {
         mode: RobotsMode,
         egress: Option<&str>,
     ) -> Result<(FetchResponse, Permit), Error> {
-        let fetcher = match egress {
+        let dynamic_fetcher;
+        let fetcher: &Fetcher = match egress {
             None => &self.fetcher,
-            Some(name) => self
-                .egress
-                .get(name)
-                .ok_or_else(|| Error::InvalidRequest(format!("unknown egress `{name}`")))?,
+            Some(name) => match self.egress.get(name) {
+                Some(f) => f.as_ref(),
+                None if name.starts_with("http://")
+                    || name.starts_with("https://")
+                    || name.starts_with("socks5://")
+                    || name.starts_with("socks5h://") =>
+                {
+                    let mut fc = self.fetcher.config().clone();
+                    fc.proxy = Some(name.to_string());
+                    dynamic_fetcher = Arc::new(Fetcher::new(fc)?);
+                    dynamic_fetcher.as_ref()
+                }
+                None => return Err(Error::InvalidRequest(format!("unknown egress `{name}`"))),
+            },
         };
         let url = fetcher.check_url(&req.url)?;
         let host = url.host_str().unwrap_or_default().to_string();

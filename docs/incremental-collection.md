@@ -1,4 +1,116 @@
-# 带业务身份的重定位与增量采集
+# 增量采集与带业务身份的重定位
+
+## HTTP 条件请求与单页增量抓取 (ETag / If-None-Match / not_modified)
+
+在高频监控、AI 管道定期刷新与大规模网页抓取场景下，重复拉取未修改的页面会严重浪费网络带宽与正文解析算力。PageSift 原生支持 RFC 9110 HTTP 条件请求（Conditional Requests）：
+
+- 服务器返回响应时，`Document.metadata.pagesift` 会提供 `etag` 与 `last_modified` 标头；
+- 下次发起抓取时，传入 `if_none_match`（对应 ETag）或 `if_modified_since`；
+- 若远端内容未修改，服务器返回 HTTP 304 Not Modified。PageSift 直接返回轻量 Document 对象，`doc.not_modified == True`（或 `doc.metadata.pagesift.not_modified`），无响应体传输、无 DOM 解析开销。
+
+### 1. Python SDK 增量抓取最佳实践
+
+```python
+import pagesift
+
+# 模拟本地缓存字典：url -> (etag, last_modified, markdown)
+cache = {}
+
+def fetch_page_incremental(url: str):
+    cached_info = cache.get(url, {})
+    etag = cached_info.get("etag")
+    last_mod = cached_info.get("last_modified")
+
+    # 发起条件抓取：传入上次获得的 etag / if_modified_since
+    doc = pagesift.scrape(
+        url,
+        if_none_match=etag,
+        if_modified_since=last_mod,
+    )
+
+    # 检查是否命中 304 未修改
+    if doc.not_modified:
+        print(f"[304 Not Modified] {url} 无变化，跳过解析与下游更新！")
+        return cached_info.get("markdown")
+
+    print(f"[200 OK] {url} 内容已更新，状态码: {doc.status_code}")
+    # 记录最新的 ETag 和内容
+    cache[url] = {
+        "etag": doc.etag,
+        "last_modified": doc.last_modified,
+        "markdown": doc.markdown,
+    }
+    return doc.markdown
+```
+
+### 2. HTTP REST API (Firecrawl /v1 /v2 兼容接口)
+
+在请求体中附带 `ifNoneMatch` 或 `ifModifiedSince`：
+
+```bash
+# 首次抓取获取 ETag
+curl -s -X POST http://127.0.0.1:3000/v1/scrape \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com"}' | jq '.data.metadata.pagesift.etag'
+
+# 第二次带 ETag 条件抓取
+curl -s -X POST http://127.0.0.1:3000/v1/scrape \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com",
+    "ifNoneMatch": "\"3147526947\""
+  }' | jq '{not_modified: .data.metadata.pagesift.not_modified, status: .data.metadata.statusCode}'
+```
+
+命中时返回：
+```json
+{
+  "not_modified": true,
+  "status": 304
+}
+```
+
+### 3. Node.js SDK 增量抓取
+
+```javascript
+import { Scraper } from '@pagesift/node';
+
+const scraper = new Scraper();
+let lastEtag = null;
+
+async function checkSite(url) {
+  const doc = await scraper.scrape(url, {
+    ifNoneMatch: lastEtag,
+  });
+
+  if (doc.metadata.pagesift?.notModified) {
+    console.log(`页面未发生变动 (304)`);
+    return;
+  }
+
+  lastEtag = doc.metadata.pagesift?.etag;
+  console.log(`最新正文大小: ${doc.markdown.length} 字符`);
+}
+```
+
+### 4. Rust 原生 Fetcher 增量采集
+
+```rust
+use pagesift_net::{Fetcher, FetcherConfig, FetchRequest};
+
+let fetcher = Fetcher::new(FetcherConfig::default())?;
+let req = FetchRequest::new("https://example.com")
+    .if_none_match("\"3147526947\"");
+
+let resp = fetcher.fetch(req).await?;
+if resp.not_modified {
+    println!("HTTP 304: 页面未更新");
+} else {
+    println!("HTTP 200: 抓取到新内容，大小 {} 字节", resp.body.len());
+}
+```
+
+---
 
 ## Rust 重定位
 

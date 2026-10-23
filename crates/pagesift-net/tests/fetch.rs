@@ -304,15 +304,19 @@ async fn rejects_browser_user_agents() {
 }
 
 #[test]
-fn rejects_remote_dns_proxies() {
-    for p in ["socks5h://proxy:1080", "socks4://proxy:1080", "ftp://proxy"] {
+fn rejects_invalid_proxy_schemes() {
+    for p in ["socks4://proxy:1080", "ftp://proxy"] {
         let cfg = FetcherConfig {
             proxy: Some(p.into()),
             ..Default::default()
         };
         assert!(matches!(Fetcher::new(cfg), Err(Error::Config(_))), "{p}");
     }
-    for p in ["http://proxy.corp:3128", "socks5://10.0.0.5:1080"] {
+    for p in [
+        "http://proxy.corp:3128",
+        "socks5://10.0.0.5:1080",
+        "socks5h://proxy.corp:1080",
+    ] {
         let cfg = FetcherConfig {
             proxy: Some(p.into()),
             ..Default::default()

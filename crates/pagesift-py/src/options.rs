@@ -31,6 +31,9 @@ impl Options {
         ignore_robots_txt = false,
         mobile = false,
         languages = None,
+        proxy = None,
+        if_none_match = None,
+        if_modified_since = None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -45,6 +48,9 @@ impl Options {
         ignore_robots_txt: bool,
         mobile: bool,
         languages: Option<Vec<String>>,
+        proxy: Option<String>,
+        if_none_match: Option<String>,
+        if_modified_since: Option<String>,
     ) -> PyResult<Self> {
         let mut o = ScrapeOptions::default();
         if let Some(f) = formats {
@@ -59,6 +65,9 @@ impl Options {
         o.exclude_tags = exclude_tags.unwrap_or_default();
         o.ignore_robots_txt = ignore_robots_txt;
         o.mobile = mobile;
+        o.proxy = proxy;
+        o.if_none_match = if_none_match;
+        o.if_modified_since = if_modified_since;
         if let Some(l) = languages {
             o.location = Some(Location {
                 country: None,

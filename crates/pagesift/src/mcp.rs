@@ -28,6 +28,29 @@ pub fn tools(scraper: Arc<Scraper>) -> Vec<Arc<dyn ToolHandler>> {
     ]
 }
 
+pub async fn run_server(scraper: Arc<Scraper>, transport: &str, port: u16) -> anyhow::Result<()> {
+    let server = pagesift_mcp::McpServer::builder("pagesift", env!("CARGO_PKG_VERSION"))
+        .tools(tools(scraper))
+        .build()
+        .map_err(|e| anyhow::anyhow!("building the MCP server: {e:?}"))?;
+    match transport {
+        "stdio" => pagesift_mcp::serve_stdio(server).await.map_err(|e| anyhow::anyhow!("{e}"))?,
+        "http" => {
+            let config = pagesift_mcp::HttpConfig {
+                bind: std::net::SocketAddr::from(([127, 0, 0, 1], port)),
+                ..Default::default()
+            };
+            eprintln!(
+                "pagesift MCP listening on http://127.0.0.1:{port}{}",
+                config.path
+            );
+            pagesift_mcp::serve_http(server, config).await.map_err(|e| anyhow::anyhow!("{e}"))?;
+        }
+        other => anyhow::bail!("unknown transport `{other}`; use stdio or http"),
+    }
+    Ok(())
+}
+
 fn parse<T: serde::de::DeserializeOwned>(args: Value) -> Result<T, ToolError> {
     serde_json::from_value(args).map_err(|e| ToolError::new(format!("invalid arguments: {e}")))
 }

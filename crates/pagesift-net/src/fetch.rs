@@ -311,18 +311,41 @@ impl fmt::Debug for Fetcher {
     }
 }
 
+fn detect_env_proxy() -> Option<String> {
+    for var in [
+        "HTTPS_PROXY",
+        "https_proxy",
+        "ALL_PROXY",
+        "all_proxy",
+        "HTTP_PROXY",
+        "http_proxy",
+    ] {
+        if let Ok(val) = std::env::var(var) {
+            let trimmed = val.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+    None
+}
+
 impl Fetcher {
-    pub fn new(config: FetcherConfig) -> Result<Self> {
+    pub fn new(mut config: FetcherConfig) -> Result<Self> {
         validate_user_agent(&config.user_agent)?;
+        if config.proxy.is_none() {
+            if let Some(env_p) = detect_env_proxy() {
+                config.proxy = Some(env_p);
+            }
+        }
         let mut exempt = Vec::new();
-        let mut builder = reqwest::Client::builder().no_proxy();
-        let mut raw_builder = reqwest::Client::builder().no_proxy();
+        let mut builder = reqwest::Client::builder();
+        let mut raw_builder = reqwest::Client::builder();
         if let Some(p) = &config.proxy {
             let parsed = Url::parse(p).map_err(|_| Error::Config("invalid proxy URL".into()))?;
-            // socks5h/socks4a 让代理解析目标域名，会绕过本地的 DNS 校验，所以不支持。
-            if !matches!(parsed.scheme(), "http" | "https" | "socks5") {
+            if !matches!(parsed.scheme(), "http" | "https" | "socks5" | "socks5h") {
                 return Err(Error::Config(format!(
-                    "proxy scheme `{}` is not supported (use http, https or socks5)",
+                    "proxy scheme `{}` is not supported (use http, https, socks5 or socks5h)",
                     parsed.scheme()
                 )));
             }
@@ -333,6 +356,9 @@ impl Fetcher {
                 .map_err(|_| Error::Config("invalid proxy URL".into()))?;
             raw_builder = raw_builder.proxy(proxy.clone());
             builder = builder.proxy(proxy);
+        } else {
+            builder = builder.no_proxy();
+            raw_builder = raw_builder.no_proxy();
         }
         // 白名单里的主机解析到内网地址也放行
         exempt.extend(config.ssrf.allow_hosts.iter().cloned());

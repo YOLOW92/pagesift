@@ -17,6 +17,10 @@ classifiers = [
 ]
 dynamic = ["version"]
 
+[project.scripts]
+pagesift = "pagesift.cli:main"
+pagesift-mcp = "pagesift.mcp:main"
+
 [project.optional-dependencies]
 test = ["pytest>=7"]
 

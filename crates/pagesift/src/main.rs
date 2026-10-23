@@ -190,6 +190,12 @@ enum Command {
         /// Ignore robots.txt for this page (single-page scrapes only)
         #[arg(long)]
         ignore_robots: bool,
+        /// Egress proxy URL (e.g. http://127.0.0.1:7890, socks5://127.0.0.1:1080)
+        #[arg(long)]
+        proxy: Option<String>,
+        /// Allow private CIDR subnets (e.g. 10.0.0.0/8, 198.18.0.0/15)
+        #[arg(long = "allow-cidr")]
+        allow_cidrs: Vec<String>,
     },
     /// Crawl a site; writes one Markdown file per page with --out, else JSON lines to stdout
     Crawl {
@@ -668,8 +674,19 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
             engine,
             full,
             ignore_robots,
+            proxy,
+            allow_cidrs,
         } => runtime()?.block_on(async move {
-            let scraper = pagesift::Scraper::new(cfg.scraper(false)?)?;
+            let mut sc = cfg.scraper(false)?;
+            if let Some(p) = proxy {
+                sc.fetcher.proxy = Some(p);
+            }
+            for cidr in allow_cidrs {
+                if let Ok(parsed) = cidr.parse() {
+                    sc.fetcher.ssrf.allow_cidrs.push(parsed);
+                }
+            }
+            let scraper = pagesift::Scraper::new(sc)?;
             let mut opts = pagesift::api::types::ScrapeOptions {
                 only_main_content: !full,
                 ignore_robots_txt: ignore_robots,
@@ -829,26 +846,9 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
         Command::Doctor => runtime()?.block_on(cli::doctor(&cfg)),
         Command::Mcp { transport, port } => runtime()?.block_on(async move {
             let scraper = Arc::new(pagesift::Scraper::new(cfg.scraper(false)?)?);
-            let server = pagesift_mcp::McpServer::builder("pagesift", env!("CARGO_PKG_VERSION"))
-                .tools(pagesift::mcp::tools(scraper.clone()))
-                .build()
-                .map_err(|e| anyhow::anyhow!("building the MCP server: {e:?}"))?;
-            match transport.as_str() {
-                "stdio" => pagesift_mcp::serve_stdio(server).await?,
-                "http" => {
-                    let config = pagesift_mcp::HttpConfig {
-                        bind: std::net::SocketAddr::from(([127, 0, 0, 1], port)),
-                        ..Default::default()
-                    };
-                    eprintln!(
-                        "pagesift MCP listening on http://127.0.0.1:{port}{}",
-                        config.path
-                    );
-                    pagesift_mcp::serve_http(server, config).await?;
-                }
-                other => anyhow::bail!("unknown transport {other:?}: use stdio or http"),
-            }
+            let res = pagesift::mcp::run_server(scraper.clone(), &transport, port).await;
             scraper.shutdown().await;
+            res?;
             Ok(ExitCode::SUCCESS)
         }),
     }

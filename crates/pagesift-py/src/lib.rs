@@ -52,6 +52,29 @@ mod _pagesift {
         Ok(Document::converted(doc))
     }
 
+    /// 启动 pagesift MCP 服务器。
+    #[pyfunction]
+    #[pyo3(signature = (transport="stdio", port=3001))]
+    fn run_mcp(py: Python<'_>, transport: &str, port: u16) -> PyResult<()> {
+        let sc = pagesift::ScraperConfig::default();
+        let scraper = std::sync::Arc::new(
+            pagesift::Scraper::new(sc)
+                .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?,
+        );
+        let transport = transport.to_string();
+        py.detach(move || {
+            let rt = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+            rt.block_on(async move {
+                let res = pagesift::mcp::run_server(scraper.clone(), &transport, port).await;
+                scraper.shutdown().await;
+                res.map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+            })
+        })
+    }
+
     #[pymodule_init]
     fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add("__version__", env!("CARGO_PKG_VERSION"))

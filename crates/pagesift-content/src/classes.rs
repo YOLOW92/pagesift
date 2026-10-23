@@ -27,7 +27,8 @@ pub(crate) fn word_class(w: &str) -> u8 {
         | "sharing" | "social" | "related" | "recommended" | "recent" | "cookie" | "cookies"
         | "consent" | "advert" | "advertisement" | "ad" | "ads" | "sponsor" | "sponsored"
         | "newsletter" | "subscribe" | "popup" | "modal" | "promo" | "toolbar" | "pagination"
-        | "editsection" | "catlinks" => NEG,
+        | "editsection" | "catlinks" | "bookmark" | "bookmarks" | "extra" | "labs" | "labstabs"
+        | "endorser" | "endorsers" | "recommender" | "recommenders" => NEG,
         "skip" | "jump" => NEG | JUMP,
         "comment" | "comments" | "byline" | "tags" | "tag" | "breadcrumb" | "breadcrumbs"
         | "author" | "authors" | "disqus" | "rating" | "print" | "follow" | "outbrain"

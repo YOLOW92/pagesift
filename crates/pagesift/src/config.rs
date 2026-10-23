@@ -116,6 +116,8 @@ pub struct Webhook {
     /// 允许 webhook 发到内网地址（默认拒绝，和抓取的 SSRF 策略分开设）。
     #[serde(default)]
     pub allow_private_network: bool,
+    #[serde(default)]
+    pub allow_cidrs: Vec<String>,
     /// 每个事件最多投递几次（默认 5）。
     pub max_attempts: Option<u32>,
     pub timeout_secs: Option<u64>,
@@ -145,6 +147,9 @@ pub struct Fetch {
     /// 单独放行的主机名（完全匹配），解析到内网地址也可以抓，例如内部服务。
     #[serde(default)]
     pub allow_hosts: Vec<String>,
+    /// 单独放行的 CIDR 网段（如 10.0.0.0/8, 198.18.0.0/15）。
+    #[serde(default)]
+    pub allow_cidrs: Vec<String>,
 }
 
 /// 一个命名出口：走指定的代理（`http://`、`https://` 或 `socks5://`）。
@@ -298,6 +303,12 @@ impl Config {
             );
         }
         c.webhook.ssrf.allow_private_network = s.webhook.allow_private_network;
+        for cidr in &s.webhook.allow_cidrs {
+            match cidr.parse() {
+                Ok(parsed) => c.webhook.ssrf.allow_cidrs.push(parsed),
+                Err(e) => bail!("invalid CIDR {cidr:?} in webhook.allow_cidrs: {e}"),
+            }
+        }
         if let Some(n) = s.webhook.max_attempts {
             c.webhook.max_attempts = n.max(1);
         }
@@ -349,6 +360,12 @@ impl Config {
         c.fetcher.proxy = f.proxy.clone();
         c.fetcher.ssrf.allow_private_network = f.allow_private_network;
         c.fetcher.ssrf.allow_hosts = f.allow_hosts.clone();
+        for cidr in &f.allow_cidrs {
+            match cidr.parse() {
+                Ok(parsed) => c.fetcher.ssrf.allow_cidrs.push(parsed),
+                Err(e) => bail!("invalid CIDR {cidr:?} in fetch.allow_cidrs: {e}"),
+            }
+        }
         for e in &self.egress {
             if e.name.is_empty() || c.egress.iter().any(|(n, _)| *n == e.name) {
                 bail!("egress names must be unique and non-empty: {:?}", e.name);

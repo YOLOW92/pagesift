@@ -50,9 +50,17 @@ impl Scraper {
         }
 
         // 并发名额一直拿到提取结束：已下载、待提取的页面数不超过全局并发，机器忙时内存不会堆积
+        let egress = opts.egress.as_deref().or_else(|| {
+            if let Some(p) = opts.proxy.as_deref() {
+                if !matches!(p, "basic" | "auto") {
+                    return Some(p);
+                }
+            }
+            None
+        });
         let fetch =
             self.policy
-                .fetch_held_via(fetch_request(url, opts)?, mode, opts.egress.as_deref());
+                .fetch_held_via(fetch_request(url, opts)?, mode, egress);
         let (mut resp, _permit) = match request_deadline(opts, started) {
             Some(d) => tokio::time::timeout_at(d.into(), fetch)
                 .await
@@ -81,7 +89,7 @@ impl Scraper {
             source_url: Some(url.to_string()),
             status_code: resp.status,
             content_type: resp.content_type().map(str::to_string),
-            proxy_used: "basic".into(),
+            proxy_used: egress.unwrap_or("basic").into(),
             ..Default::default()
         };
         if resp.not_modified {

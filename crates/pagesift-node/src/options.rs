@@ -17,6 +17,10 @@ pub struct ScraperConfig {
     pub user_agent: Option<String>,
     /// 允许抓取内网、回环地址（默认拒绝，防 SSRF；只作用于 HTTP 抓取）。
     pub allow_private_network: Option<bool>,
+    /// 单独放行的 CIDR 网段（如 10.0.0.0/8, 198.18.0.0/15）。
+    pub allow_cidrs: Option<Vec<String>>,
+    /// 出口代理（http://, https://, socks5://）。
+    pub proxy: Option<String>,
     /// 同一主机两次请求之间的最小间隔，毫秒，默认 1000；robots.txt 的 Crawl-delay 优先。
     pub request_interval_ms: Option<u32>,
     /// 同一主机同时进行的请求数，默认 2。
@@ -33,6 +37,16 @@ impl ScraperConfig {
         }
         if let Some(allow) = self.allow_private_network {
             c.fetcher.ssrf.allow_private_network = allow;
+        }
+        if let Some(p) = self.proxy {
+            c.fetcher.proxy = Some(p);
+        }
+        if let Some(cidrs) = self.allow_cidrs {
+            for cidr in cidrs {
+                if let Ok(parsed) = cidr.parse() {
+                    c.fetcher.ssrf.allow_cidrs.push(parsed);
+                }
+            }
         }
         if let Some(ms) = self.request_interval_ms {
             c.policy.rate.default_interval = Duration::from_millis(ms.into());
@@ -142,6 +156,8 @@ macro_rules! scrape_options {
             pub if_none_match: Option<String>,
             /// 条件请求：`If-Modified-Since`（HTTP 日期）。
             pub if_modified_since: Option<String>,
+            /// 出口代理（http://, https://, socks5://）。
+            pub proxy: Option<String>,
         }
 
         impl $name {
@@ -155,6 +171,7 @@ macro_rules! scrape_options {
                     mobile: self.mobile.unwrap_or(false),
                     if_none_match: self.if_none_match.clone(),
                     if_modified_since: self.if_modified_since.clone(),
+                    proxy: self.proxy.clone(),
                     ..Default::default()
                 };
                 if let Some(v) = self.only_main_content {

@@ -44,6 +44,8 @@ impl Engine {
         *,
         user_agent = None,
         allow_private_network = false,
+        allow_cidrs = None,
+        proxy = None,
         request_interval = 1.0,
         per_host_concurrency = 2,
         max_concurrency = 64,
@@ -55,6 +57,8 @@ impl Engine {
     fn new(
         user_agent: Option<String>,
         allow_private_network: bool,
+        allow_cidrs: Option<Vec<String>>,
+        proxy: Option<String>,
         request_interval: f64,
         per_host_concurrency: usize,
         max_concurrency: usize,
@@ -76,7 +80,20 @@ impl Engine {
         if let Some(ua) = user_agent {
             cfg.fetcher.user_agent = ua;
         }
+        cfg.fetcher.proxy = proxy;
         cfg.fetcher.ssrf.allow_private_network = allow_private_network;
+        if let Some(cidrs) = allow_cidrs {
+            for c in cidrs {
+                match c.parse() {
+                    Ok(parsed) => cfg.fetcher.ssrf.allow_cidrs.push(parsed),
+                    Err(e) => {
+                        return Err(PyValueError::new_err(format!(
+                            "invalid CIDR {c:?}: {e}"
+                        )));
+                    }
+                }
+            }
+        }
         cfg.policy.rate.default_interval = Duration::from_secs_f64(request_interval);
         cfg.policy.rate.per_host_concurrency = per_host_concurrency;
         cfg.policy.rate.global_concurrency = max_concurrency;

@@ -516,3 +516,40 @@ fn raw_tex_in_text_is_left_alone() {
     assert!(m.contains(r"$a_b$"), "{m}");
     assert!(m.contains(r"\*escaped\*"), "{m}");
 }
+
+#[test]
+fn arxiv_abstract_strips_labstabs_and_endorsers() {
+    let html = r##"
+    <main>
+      <div id="content">
+        <h1 class="title mathjax"><span class="descriptor">Title:</span>Attention Is All You Need</h1>
+        <div class="authors"><span class="descriptor">Authors:</span>Ashish Vaswani, Noam Shazeer</div>
+        <blockquote class="abstract mathjax"><span class="descriptor">Abstract:</span>The dominant sequence transduction models...</blockquote>
+        <div class="bookmarks"><h3>Bookmark</h3><a href="#">Reddit</a></div>
+        <div id="labstabs">
+          <div class="labstabs" role="tablist">
+            <div id="tabpanel-one" class="tab" role="tabpanel">
+              <h1>Bibliographic and Citation Tools</h1>
+              <div class="lab-row"><span>CORE Recommender</span></div>
+            </div>
+            <div id="tabpanel-five" class="tab" role="tabpanel">
+              <h1>arXivLabs: experimental projects with community collaborators</h1>
+              <p>arXivLabs is a framework that allows collaborators to develop...</p>
+            </div>
+          </div>
+        </div>
+        <div class="endorsers">
+          <a href="#">Which authors of this paper are endorsers?</a>
+        </div>
+      </div>
+    </main>
+    "##;
+    let doc = process(html, &Options::default());
+    let md = doc.markdown;
+    assert!(md.contains("Attention Is All You Need"), "keeps paper title: {md}");
+    assert!(md.contains("Abstract:"), "keeps abstract: {md}");
+    assert!(!md.contains("arXivLabs"), "strips arXivLabs boilerplate: {md}");
+    assert!(!md.contains("CORE Recommender"), "strips CORE recommender: {md}");
+    assert!(!md.contains("Which authors of this paper are endorsers"), "strips endorsers: {md}");
+    assert!(!md.contains("Bookmark"), "strips bookmarks: {md}");
+}
