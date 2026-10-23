@@ -1,72 +1,96 @@
 use clap::Parser;
-use std::fs;
+use std::fs::{self, File};
+use std::io::Write;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
 
 #[derive(Parser, Debug)]
+#[command(author, version, about = "PageSift 0.60 Sharded Share-Nothing 100M Runner")]
 pub struct Opts {
     #[arg(short, long, default_value = "http://127.0.0.1:19800")]
     pub origin_url: String,
-    #[arg(short, long, default_value_t = 1_000_000)]
+    #[arg(short, long, default_value_t = 100_000_000)]
     pub total_tasks: u64,
-    #[arg(short, long, default_value_t = 8)]
+    #[arg(short, long, default_value_t = 16)]
     pub shards: usize,
     #[arg(short, long, default_value_t = 128)]
     pub concurrency_per_shard: usize,
     /// Automatically sense CPU topology (e.g. 80C, 300C, 384C) and calculate optimal shards & concurrency
     #[arg(long)]
     pub auto: bool,
+    #[arg(long, default_value = "samples_100m")]
+    pub sample_dir: PathBuf,
+    #[arg(long, default_value_t = 10_000)] // 1 in 10,000 = 0.01%
+    pub sample_every: u64,
+    #[arg(long, default_value = "100m_sharded_report.jsonl")]
+    pub report_file: PathBuf,
+}
+
+#[repr(align(64))]
+#[derive(Default)]
+pub struct ShardCounters {
+    pub n_task: AtomicU64,
+    pub n_req: AtomicU64,
+    pub n_page: AtomicU64,
+    pub n_failed: AtomicU64,
+    pub n_bytes: AtomicU64,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opts = Opts::parse();
-    
-    // Universal Autonomous Topology Calculation: C* = N_cpu * 16, Shards = ceil(N_cpu / 8)
+    fs::create_dir_all(&opts.sample_dir)?;
+
+    // Universal Autonomous Topology Calculation:
+    // S(N) = ceil(N_cpu / 8), C*(N) = N_cpu * 25, C_shard = ceil(C* / S)
     let (shards, conc_per_shard) = if opts.auto {
         let cores = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
         let s = (cores.div_ceil(8)).clamp(1, 64);
-        let c_total = cores * 16;
+        let c_total = cores * 25;
         let c_shard = (c_total / s).max(16);
         (s, c_shard)
     } else {
         (opts.shards, opts.concurrency_per_shard)
     };
 
-    let per_shard_tasks = opts.total_tasks / shards as u64;
     let total_concurrency = shards * conc_per_shard;
+    let base_tasks_per_shard = opts.total_tasks / shards as u64;
+    let remainder_tasks = opts.total_tasks % shards as u64;
 
     println!("============================================================");
-    println!("  PageSift 0.60 Sharded Share-Nothing Architecture Runner");
-    println!("  Target Origin:     {}", opts.origin_url);
-    println!("  Total Tasks:       {}", opts.total_tasks);
-    println!("  Autonomous Mode:   {}", if opts.auto { "ENABLED (Continuous C* Scaling)" } else { "Manual" });
-    println!("  Parallel Shards:   {} independent dispatchers", shards);
-    println!("  Per-shard tasks:   {}", per_shard_tasks);
-    println!("  Per-shard conc:    {}", conc_per_shard);
-    println!("  Total Concurrency: {}", total_concurrency);
+    println!("  PageSift 0.60 Official 100M Sharded Benchmark Runner");
+    println!("  Target Origin:       {}", opts.origin_url);
+    println!("  Total Tasks:         {} (100 Million)", opts.total_tasks);
+    println!("  Topology Scaling:    {}", if opts.auto { "Autonomous C*(N) Scaling" } else { "Manual Topology" });
+    println!("  Parallel Shards:     {} independent dispatchers", shards);
+    println!("  Conc per Shard:      {}", conc_per_shard);
+    println!("  Total Concurrency:   {}", total_concurrency);
+    println!("  Disk Sample Dir:     {:?} (0.01% rate, 1 in {})", opts.sample_dir, opts.sample_every);
+    println!("  Telemetry Report:    {:?}", opts.report_file);
     println!("============================================================");
 
-    // Each shard gets its own dedicated atomic counter (no cross-shard cache bouncing)
-    let mut shard_counters: Vec<Arc<AtomicU64>> = Vec::with_capacity(shards);
-    let mut shard_bytes: Vec<Arc<AtomicU64>> = Vec::with_capacity(shards);
+    // Each shard gets its own dedicated cache-line aligned atomic counter set
+    let mut shard_counters: Vec<Arc<ShardCounters>> = Vec::with_capacity(shards);
     for _ in 0..shards {
-        shard_counters.push(Arc::new(AtomicU64::new(0)));
-        shard_bytes.push(Arc::new(AtomicU64::new(0)));
+        shard_counters.push(Arc::new(ShardCounters::default()));
     }
 
     let running = Arc::new(AtomicBool::new(true));
     let t_running = running.clone();
     let t_counters = shard_counters.clone();
     let total_tasks_target = opts.total_tasks;
+    let report_path = opts.report_file.clone();
 
     // Real-time telemetry monitor
     let telemetry_handle = tokio::spawn(async move {
+        let mut report_writer = File::create(&report_path).ok();
         let t0 = Instant::now();
         let mut last_tasks = 0u64;
         let mut last_time = Instant::now();
+        let mut peak_rss_mb = 0.0f64;
 
         while t_running.load(Ordering::Relaxed) {
             tokio::time::sleep(Duration::from_millis(1000)).await;
@@ -74,7 +98,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 break;
             }
 
-            let cur_tasks: u64 = t_counters.iter().map(|c| c.load(Ordering::Relaxed)).sum();
+            let cur_tasks: u64 = t_counters.iter().map(|c| c.n_task.load(Ordering::Relaxed)).sum();
+            let cur_reqs: u64 = t_counters.iter().map(|c| c.n_req.load(Ordering::Relaxed)).sum();
+            let cur_pages: u64 = t_counters.iter().map(|c| c.n_page.load(Ordering::Relaxed)).sum();
+            let cur_failed: u64 = t_counters.iter().map(|c| c.n_failed.load(Ordering::Relaxed)).sum();
+            let cur_bytes: u64 = t_counters.iter().map(|c| c.n_bytes.load(Ordering::Relaxed)).sum();
+
             let dt = last_time.elapsed().as_secs_f64().max(0.001);
             let d_tasks = cur_tasks.saturating_sub(last_tasks);
             let instant_qps = d_tasks as f64 / dt;
@@ -86,13 +115,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             last_time = Instant::now();
 
             let rss_mb = get_current_rss_mb();
+            if rss_mb > peak_rss_mb {
+                peak_rss_mb = rss_mb;
+            }
             let cpu_pct = get_cpu_utilization();
             let pct = (cur_tasks as f64 / total_tasks_target as f64) * 100.0;
+            let eta_sec = if sustained_qps > 0.0 {
+                (total_tasks_target.saturating_sub(cur_tasks) as f64) / sustained_qps
+            } else {
+                0.0
+            };
 
             println!(
-                "[{:>5.1}%] Completed: {:>7}/{} | Instant QPS: {:>8.1} (Sustained: {:>8.1}) | RSS: {:>5.1}MB | CPU: {:>4.1}%",
-                pct, cur_tasks, total_tasks_target, instant_qps, sustained_qps, rss_mb, cpu_pct
+                "[{:>5.2}%] Tasks: {:>8}/{} | Instant: {:>8.1} p/s (Sustained: {:>8.1}) | RSS: {:>5.1}MB (peak: {:>5.1}MB) | CPU: {:>4.1}% | ETA: {:>4.1}m",
+                pct, cur_tasks, total_tasks_target, instant_qps, sustained_qps, rss_mb, peak_rss_mb, cpu_pct, eta_sec / 60.0
             );
+
+            if let Some(w) = report_writer.as_mut() {
+                let log_entry = serde_json::json!({
+                    "elapsed_s": total_dt,
+                    "n_task": cur_tasks,
+                    "n_req": cur_reqs,
+                    "n_page": cur_pages,
+                    "n_failed": cur_failed,
+                    "bytes_mb": cur_bytes as f64 / 1_048_576.0,
+                    "cur_qps": instant_qps,
+                    "sustained_qps": sustained_qps,
+                    "rss_mb": rss_mb,
+                    "peak_rss_mb": peak_rss_mb,
+                    "cpu_pct": cpu_pct
+                });
+                let _ = writeln!(w, "{}", log_entry.to_string());
+                let _ = w.flush();
+            }
 
             if cur_tasks >= total_tasks_target {
                 break;
@@ -101,7 +156,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let start_all = Instant::now();
-    let mut shard_handles = Vec::new();
+    let mut shard_handles = Vec::with_capacity(shards);
+    let mut current_offset = 0u64;
 
     for shard_id in 0..shards {
         let sem = Arc::new(Semaphore::new(conc_per_shard));
@@ -111,38 +167,60 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .tcp_nodelay(true)
             .build()?;
 
-        let cnt = shard_counters[shard_id].clone();
-        let b_cnt = shard_bytes[shard_id].clone();
+        let counters = shard_counters[shard_id].clone();
         let origin = opts.origin_url.clone();
         let conc = conc_per_shard;
+        let my_tasks = base_tasks_per_shard + if (shard_id as u64) < remainder_tasks { 1 } else { 0 };
+        let shard_start = current_offset;
+        current_offset += my_tasks;
+        let sample_dir = opts.sample_dir.clone();
+        let sample_every = opts.sample_every;
 
         let handle = tokio::spawn(async move {
-            for i in 0..per_shard_tasks {
+            for i in 0..my_tasks {
                 let permit = match sem.clone().acquire_owned().await {
                     Ok(p) => p,
                     Err(_) => break,
                 };
                 let c_inner = shard_client.clone();
-                let cnt_inner = cnt.clone();
-                let b_cnt_inner = b_cnt.clone();
-                let task_id = shard_id as u64 * per_shard_tasks + i;
+                let cnt_inner = counters.clone();
+                let task_id = shard_start + i;
                 let url = format!("{}/p/{}", origin, task_id);
+                let s_dir = sample_dir.clone();
 
                 tokio::spawn(async move {
                     let _permit = permit;
+                    cnt_inner.n_task.fetch_add(1, Ordering::Relaxed);
+                    cnt_inner.n_req.fetch_add(1, Ordering::Relaxed);
+
                     match c_inner.get(&url).send().await {
                         Ok(resp) => {
                             if let Ok(body) = resp.bytes().await {
-                                b_cnt_inner.fetch_add(body.len() as u64, Ordering::Relaxed);
+                                cnt_inner.n_bytes.fetch_add(body.len() as u64, Ordering::Relaxed);
                                 if let Ok(s) = std::str::from_utf8(&body) {
-                                    let doc = pagesift_content::process(s, &Default::default());
+                                    let options = pagesift_content::Options {
+                                        base_url: url::Url::parse(&url).ok(),
+                                        ..Default::default()
+                                    };
+                                    let doc = pagesift_content::process(s, &options);
                                     if !doc.markdown.is_empty() {
-                                        cnt_inner.fetch_add(1, Ordering::Relaxed);
+                                        cnt_inner.n_page.fetch_add(1, Ordering::Relaxed);
+                                        if task_id % sample_every == 0 {
+                                            let sample_path = s_dir.join(format!("sample_{}.md", task_id));
+                                            let _ = fs::write(sample_path, &doc.markdown);
+                                        }
+                                    } else {
+                                        cnt_inner.n_failed.fetch_add(1, Ordering::Relaxed);
                                     }
+                                } else {
+                                    cnt_inner.n_failed.fetch_add(1, Ordering::Relaxed);
                                 }
+                            } else {
+                                cnt_inner.n_failed.fetch_add(1, Ordering::Relaxed);
                             }
                         }
                         Err(e) => {
+                            cnt_inner.n_failed.fetch_add(1, Ordering::Relaxed);
                             static ERR_COUNT: AtomicU64 = AtomicU64::new(0);
                             if ERR_COUNT.fetch_add(1, Ordering::Relaxed) < 3 {
                                 eprintln!("Request Error: {:?}", e);
@@ -164,21 +242,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     running.store(false, Ordering::Relaxed);
     let _ = telemetry_handle.await;
 
-    let total_finished: u64 = shard_counters.iter().map(|c| c.load(Ordering::Relaxed)).sum();
-    let total_bytes: u64 = shard_bytes.iter().map(|c| c.load(Ordering::Relaxed)).sum();
-    let sustained_qps = total_finished as f64 / elapsed;
+    let total_tasks: u64 = shard_counters.iter().map(|c| c.n_task.load(Ordering::Relaxed)).sum();
+    let total_reqs: u64 = shard_counters.iter().map(|c| c.n_req.load(Ordering::Relaxed)).sum();
+    let total_pages: u64 = shard_counters.iter().map(|c| c.n_page.load(Ordering::Relaxed)).sum();
+    let total_failed: u64 = shard_counters.iter().map(|c| c.n_failed.load(Ordering::Relaxed)).sum();
+    let total_bytes: u64 = shard_counters.iter().map(|c| c.n_bytes.load(Ordering::Relaxed)).sum();
+    let sustained_qps = total_pages as f64 / elapsed;
 
     println!("\n============================================================");
-    println!("  SHARDED ARCHITECTURE RUN SUMMARY");
+    println!("  PAGE SIFT 0.60 100M SHARDED BENCHMARK SUMMARY");
     println!("============================================================");
-    println!("  Wall Clock Time:    {:.2}s", elapsed);
-    println!("  Tasks Completed:    {}", total_finished);
+    println!("  Wall Clock Time:    {:.2}s ({:.2} minutes)", elapsed, elapsed / 60.0);
+    println!("  Tasks Completed:    {} / {}", total_tasks, opts.total_tasks);
+    println!("  HTTP Requests:      {}", total_reqs);
+    println!("  Valid Markdown:     {} ({:.4}%)", total_pages, (total_pages as f64 / total_tasks as f64) * 100.0);
+    println!("  Failed Count:       {}", total_failed);
     println!("  Sustained QPS:      {:.2} pages/sec", sustained_qps);
     println!("  Throughput Volume:  {:.2} MB/s ({:.2} GB total)",
         (total_bytes as f64 / 1_048_576.0) / elapsed,
         total_bytes as f64 / 1_073_741_824.0
     );
-    println!("  Peak Memory (RSS):  {:.1} MB", get_current_rss_mb());
+    println!("  Final Peak RSS:     {:.1} MB", get_current_rss_mb());
     println!("============================================================");
 
     Ok(())
