@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/logo.png" alt="PageSift Logo" width="300" />
+<img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
 # pagesift 0.50.0
 
