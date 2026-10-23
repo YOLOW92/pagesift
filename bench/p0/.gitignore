@@ -1,4 +1,5 @@
 target/
 samples/
+samples_*/
 *.jsonl
 *.log
