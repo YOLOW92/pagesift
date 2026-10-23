@@ -665,9 +665,13 @@ impl PoolInner {
                 return Ok(l);
             }
             if let Some(id) = launch {
+                // `acquire` is wrapped in the request deadline.  Keep the
+                // launching count cancellation-safe so a timeout during a
+                // slow browser startup cannot leave the pool permanently full.
+                let launch = LaunchReservation::new(self.clone());
                 let r = self.launch_slot(id).await;
                 let mut st = self.state.lock().await;
-                st.launching -= 1;
+                launch.finish(&mut st);
                 let r = match r {
                     Ok(slot) if st.closed => {
                         drop(st);
@@ -768,6 +772,41 @@ impl PoolInner {
             s.shutdown().await;
         }
         self.notify.notify_waiters();
+    }
+}
+
+struct LaunchReservation {
+    pool: Arc<PoolInner>,
+    done: bool,
+}
+
+impl LaunchReservation {
+    fn new(pool: Arc<PoolInner>) -> LaunchReservation {
+        LaunchReservation { pool, done: false }
+    }
+
+    fn finish(mut self, st: &mut PoolState) {
+        debug_assert!(st.launching > 0);
+        st.launching = st.launching.saturating_sub(1);
+        self.done = true;
+    }
+}
+
+impl Drop for LaunchReservation {
+    fn drop(&mut self) {
+        if self.done {
+            return;
+        }
+        let pool = self.pool.clone();
+        if let Ok(rt) = tokio::runtime::Handle::try_current() {
+            rt.spawn(async move {
+                let mut st = pool.state.lock().await;
+                debug_assert!(st.launching > 0);
+                st.launching = st.launching.saturating_sub(1);
+                drop(st);
+                pool.notify.notify_waiters();
+            });
+        }
     }
 }
 

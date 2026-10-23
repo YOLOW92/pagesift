@@ -1575,6 +1575,7 @@ dependencies = [
  "httpdate",
  "pagesift-net",
  "proptest",
+ "serde",
  "thiserror",
  "tokio",
 ]
