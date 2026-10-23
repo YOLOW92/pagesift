@@ -30,3 +30,7 @@ path = "src/wild_x1_chaos_origin.rs"
 [[bin]]
 name = "wild_x1_runner"
 path = "src/wild_x1_runner.rs"
+
+[[bin]]
+name = "wild_x2_runner"
+path = "src/wild_x2_runner.rs"
