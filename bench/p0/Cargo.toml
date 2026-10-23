@@ -37,6 +37,10 @@ path = "src/pipeline_stages.rs"
 name = "end_to_end_100m"
 path = "src/end_to_end_100m.rs"
 
+[[bin]]
+name = "sharded_runner"
+path = "src/sharded_runner.rs"
+
 [profile.release]
 opt-level = 3
 lto = "thin"
