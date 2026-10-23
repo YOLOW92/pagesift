@@ -1,8 +1,8 @@
 //! 自适应 DOM 元素重定位跟踪器：基于拓扑指纹在变异 DOM 中自愈找回。
 
-use pagesift_html::{Html, NodeRef};
 use super::fingerprint::ElementFingerprint;
 use super::similarity::score_similarity;
+use pagesift_html::{Html, NodeRef};
 
 #[derive(Debug, Clone, Copy)]
 pub struct RelocationOptions {

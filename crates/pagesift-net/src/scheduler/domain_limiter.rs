@@ -33,7 +33,9 @@ impl Bucket {
     }
 
     fn refresh(&mut self, now: Instant) {
-        let elapsed = now.saturating_duration_since(self.last_update).as_secs_f64();
+        let elapsed = now
+            .saturating_duration_since(self.last_update)
+            .as_secs_f64();
         self.last_update = now;
         if self.fill_rate > 0.0 {
             self.tokens = (self.tokens + elapsed * self.fill_rate).min(self.capacity);

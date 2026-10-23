@@ -1,0 +1,132 @@
+{
+  "tier1_agent_gateways": {
+    "PageSift_v1_scrape": {
+      "requests": 1000,
+      "success": 1000,
+      "elapsed_s": 7.835842795000644,
+      "qps": 127.61869095153507,
+      "percentiles": {
+        "mean": 232.5456480770299,
+        "p50": 8.325302998855477,
+        "p95": 1055.1772859998891,
+        "p99": 1755.6134190017474
+      }
+    },
+    "PageSift_v2_scrape": {
+      "requests": 1000,
+      "success": 1000,
+      "elapsed_s": 3.2469036649999907,
+      "qps": 307.985731384489,
+      "percentiles": {
+        "mean": 89.31262993397468,
+        "p50": 4.374639000161551,
+        "p95": 692.993734999618,
+        "p99": 2009.9252960008016
+      }
+    },
+    "PageSift_jina_direct": {
+      "requests": 1000,
+      "success": 1000,
+      "elapsed_s": 3.3288359210000635,
+      "qps": 300.4053139692075,
+      "percentiles": {
+        "mean": 91.8229299849936,
+        "p50": 4.9228509997192305,
+        "p95": 1005.9995419996994,
+        "p99": 1848.7798039986956
+      }
+    },
+    "PageSift_sse_streaming": {
+      "streams": 100,
+      "success": 100,
+      "ttft_percentiles": {
+        "mean": 85.92451914009871,
+        "p50": 4.923682001390262,
+        "p95": 1016.9328160009172,
+        "p99": 1020.0671449983929
+      }
+    },
+    "Crawl4AI_gateway": {
+      "requests": 50,
+      "success": 50,
+      "elapsed_s": 1.4829217850001442,
+      "qps": 33.71721995438562,
+      "percentiles": {
+        "mean": 442.6711990801414,
+        "p50": 451.02858999962336,
+        "p95": 636.6326509996725,
+        "p99": 692.5787729996955
+      }
+    },
+    "SDK_Compatibility": {
+      "V1_compatible": true,
+      "V2_compatible": true
+    },
+    "Deployment_Footprint": {
+      "PageSift_050": {
+        "containers": 0,
+        "binary_size_mb": 34.78333282470703,
+        "startup_ms": 57.21252799958165,
+        "dependencies": "Zero (pure single binary)"
+      },
+      "Firecrawl_Official_Stack": {
+        "containers": 5,
+        "container_list": [
+          "api",
+          "playwright",
+          "postgres",
+          "redis",
+          "rabbitmq"
+        ],
+        "baseline_ram_mb": 2500.0,
+        "startup_s": 30.0,
+        "dependencies": [
+          "Docker",
+          "Node.js",
+          "Python",
+          "PostgreSQL",
+          "Redis",
+          "RabbitMQ"
+        ]
+      }
+    }
+  },
+  "tier2_chaos": {
+    "Chaos_1_Burst_Storm": {
+      "requests": 5000,
+      "success": 5000,
+      "elapsed_s": 14.974100481000278,
+      "qps": 333.90987367449515,
+      "percentiles": {
+        "mean": 92.1942470695969,
+        "p50": 4.876782000792446,
+        "p95": 783.0378100006783,
+        "p99": 1784.058126999298
+      }
+    },
+    "Chaos_2_Mega_Stream": {
+      "passed": false,
+      "elapsed_s": 0.0413506380009494,
+      "bytes_received": 2839243,
+      "chunks": 2003
+    },
+    "Chaos_3_Slowloris": {
+      "slow_sockets": 50,
+      "healthy_success": 50,
+      "elapsed_s": 1.216400903000249,
+      "defense_status": "PASSED (Zero Starvation)"
+    },
+    "Chaos_4_JSON_Bomb": {
+      "status_code": 400,
+      "passed": true,
+      "elapsed_ms": 2.8930280004715314
+    },
+    "Chaos_5_Memory_Leak": {
+      "calls": 2000,
+      "elapsed_s": 4.997184595998988,
+      "rss_delta_mb": -1866.4453125,
+      "leak_status": "PASSED (Flatline RSS)"
+    }
+  },
+  "peak_rss_mb": 20881.125
+}

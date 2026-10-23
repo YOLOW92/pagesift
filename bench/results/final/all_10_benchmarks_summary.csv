@@ -1,0 +1,12 @@
+benchmark_id,domain_name,primary_competitor,pagesift_metric,competitor_metric,speedup_or_advantage,pagesift_peak_rss_mb,competitor_peak_rss_mb
+1,Content Extraction & Concurrency,rs-trafilatura (Rust),"3,525 p/s (0.57s)",241 p/s (8.32s),14.6x faster,137.8,298.3
+2,Massive Crawling & 12GB RAM Defense,Spider 2.53.9 (Rust),"2,727 p/s, 447.5 MB RSS",11.7 GB RSS -> OOM KILLED,Absolute 12GB RAM Defense,447.5,11724.8
+3,PDF Document & LaTeX Math Extraction,pymupdf4llm (Python),"71.0% pass, 44.3% LaTeX, 3.4 ms","64.4% pass, 0.0% LaTeX, 320 ms",94x faster + LaTeX support,42.0,280.0
+4,DOM Self-Healing & Mutation Relocation,Scrapling (Python),"93.8% recall, 0.0% false pos, 24.6 µs","46.0% recall, 51.2% false pos, 635 µs","25.8x faster, 0 false pos",39.4,98.0
+5,RAG SIMD Chunking & BM25 QueryFilter,semchunk & Crawl4AI,"R@1000=0.895 (19.7 ms), QF=1.35 ms","R@1000=0.895 (113 ms), QF=804 ms","5.8x chunk, 595x QF faster",45.2,340.0
+6,Charset Encoding Auto-Detection,chardet 7.7.0 (Python),"74.4% acc, 99.7% Unicode, 0.45 ms","68.9% acc, 56.4% Unicode, 3.05 ms","+5.5% acc, 6.8x faster",18.5,42.0
+7,Structured Data & Pathological Microdata,extruct 0.18 (Python),"80.2 µs/p, 40-deep: 363 µs","3508 µs/p, 40-deep: 15921 µs",43.8x ~ 43.9x faster,24.0,85.0
+8,Implicit JS Endpoint Discovery,Katana 1.8.0 (Go),"13/13 (100%), 0 decoy visits, 0.42 ms","10/13 (76.9%), 4 decoy visits, 48.5 ms","100% recall, 0 false visits",14.2,128.0
+9,Dynamic Headless (CDP) Rendering,Playwright 1.48 (Node.js),"158.4 ms/render, 100% pass","842 ms/render, 1,840 MB RSS",5.3x faster than Playwright,188.0,1840.0
+10,AI API Gateway Throughput,Portkey / LiteLLM,"2,450 req/s, P99=1.82 ms","480 req/s, P99=12.4 ms",5.1x ~ 7.2x higher throughput,38.0,420.0
+11,Real-World 100k Public Domains,Spider 2.53.9 (Rust),"60,659 docs (96.4%), 188.4 MB RSS","59,803 docs, 8,978.9 MB RSS","47.6x Lower RAM, 0 Leaks",188.4,8978.9

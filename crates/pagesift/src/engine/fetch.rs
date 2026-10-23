@@ -472,18 +472,12 @@ pub(super) fn request_deadline(opts: &ScrapeOptions, started: Instant) -> Option
 
 /// 渲染失败归到哪类错误：调用方要据此决定重试、退避还是放弃。
 pub(super) fn render_error_code(e: &pagesift_cdp::Error) -> ErrorCode {
-    use pagesift_cdp::Error as E;
     match e {
-        E::Timeout => ErrorCode::Timeout,
-        E::Busy => ErrorCode::Busy,
-        E::Blocked { .. } => ErrorCode::SsrfBlocked,
-        E::Navigation(m)
-            if m.contains("ERR_NAME_NOT_RESOLVED") || m.contains("ERR_NAME_RESOLUTION") =>
-        {
-            ErrorCode::DnsFailure
-        }
-        // 导航失败（net::ERR_*、跳到打不开的地址）都是网络层的结果
-        E::Navigation(_) => ErrorCode::NetworkError,
+        pagesift_cdp::Error::Timeout => ErrorCode::Timeout,
+        pagesift_cdp::Error::Busy => ErrorCode::Busy,
+        pagesift_cdp::Error::Blocked { .. } => ErrorCode::SsrfBlocked,
+        pagesift_cdp::Error::Navigation(m) if m.contains("ERR_NAME") => ErrorCode::DnsFailure,
+        pagesift_cdp::Error::Navigation(_) => ErrorCode::NetworkError,
         _ => ErrorCode::UpstreamError,
     }
 }

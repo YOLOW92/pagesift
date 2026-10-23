@@ -8,20 +8,23 @@
 
 #![forbid(unsafe_code)]
 
+pub mod budget;
 mod charset;
+pub mod checkpoint;
 mod client;
 mod credentials;
 mod dns;
 mod fetch;
+pub mod media;
+pub mod scheduler;
 mod session;
 mod ssrf;
 mod ua;
-pub mod budget;
-pub mod checkpoint;
-pub mod media;
-pub mod scheduler;
 
-pub use budget::{BackpressureController, BudgetStatus, DEFAULT_MAX_BYTES, DEFAULT_WARN_BYTES, LeakDetector, MemGuard};
+pub use budget::{
+    BackpressureController, BudgetStatus, DEFAULT_MAX_BYTES, DEFAULT_WARN_BYTES, LeakDetector,
+    MemGuard,
+};
 pub use checkpoint::{RecoveryEngine, TaskSnapshot};
 pub use media::{
     ChunkFetcher, DashAdaptationSet, DashError, DashManifest, DashRepresentation, DashSegment,

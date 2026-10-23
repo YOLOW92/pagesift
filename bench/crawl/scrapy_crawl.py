@@ -16,7 +16,8 @@ from scrapy.linkextractors import LinkExtractor
 def main():
     port, hosts, pages, interval = (int(x) for x in sys.argv[1:5])
     per_host = int(sys.argv[5]) if len(sys.argv) > 5 else 2
-    domains = [f"s{i}.localhost" for i in range(hosts)]
+    start_host = int(sys.argv[6]) if len(sys.argv) > 6 else 0
+    domains = [f"s{i}.localhost" for i in range(start_host, start_host + hosts)]
     counts = Counter()
     # allow_domains 会连端口一起比较，对不上 s{i}.localhost:port，所以在 parse 里按主机名过滤
     links = LinkExtractor()

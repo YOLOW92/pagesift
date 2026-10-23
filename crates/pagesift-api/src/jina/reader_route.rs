@@ -1,10 +1,10 @@
 //! Jina Reader protocol handler (`GET /r/{*url}` and `POST /r`).
 //! Provides direct Markdown extraction and JSON responses for AI Agents.
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde::Deserialize;
 use std::sync::Arc;
 
@@ -105,7 +105,10 @@ async fn process_jina_scrape(
                 Response::builder()
                     .header(header::CONTENT_TYPE, "text/markdown; charset=utf-8")
                     .body(axum::body::Body::from(markdown))
-                    .unwrap_or_else(|_| (StatusCode::INTERNAL_SERVER_ERROR, "response builder error").into_response())
+                    .unwrap_or_else(|_| {
+                        (StatusCode::INTERNAL_SERVER_ERROR, "response builder error")
+                            .into_response()
+                    })
             }
         }
         Err(e) => e.into_response(),

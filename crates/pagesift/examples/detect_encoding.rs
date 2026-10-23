@@ -6,7 +6,9 @@ use std::io::{BufRead, Write};
 use std::time::Instant;
 
 fn main() {
-    let list_path = std::env::args().nth(1).expect("usage: detect_encoding <list_file>");
+    let list_path = std::env::args()
+        .nth(1)
+        .expect("usage: detect_encoding <list_file>");
     let out = std::io::stdout();
     let mut out = out.lock();
 

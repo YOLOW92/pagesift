@@ -23,7 +23,8 @@ logging.disable(logging.CRITICAL)
 async def main() -> None:
     port, hosts, pages, interval = (int(x) for x in sys.argv[1:5])
     per_host = int(sys.argv[5]) if len(sys.argv) > 5 else 2
-    domains = {f"s{i}.localhost" for i in range(hosts)}
+    start_host = int(sys.argv[6]) if len(sys.argv) > 6 else 0
+    domains = {f"s{i}.localhost" for i in range(start_host, start_host + hosts)}
     counts: Counter[str] = Counter()
     total_chars = 0
     total_err = 0
@@ -66,7 +67,7 @@ async def main() -> None:
         nonlocal total_err
         total_err += 1
 
-    start_urls = [f"http://s{i}.localhost:{port}/" for i in range(hosts)]
+    start_urls = [f"http://s{i}.localhost:{port}/" for i in range(start_host, start_host + hosts)]
     await crawler.run(start_urls)
 
     elapsed = time.monotonic() - t0

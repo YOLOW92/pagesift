@@ -1,7 +1,7 @@
 //! Job state definitions and lifecycle structures.
 
-use std::time::{Duration, SystemTime};
 use serde::{Deserialize, Serialize};
+use std::time::{Duration, SystemTime};
 
 use crate::limits::Caller;
 use crate::metrics::PageSource;

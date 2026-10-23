@@ -1,0 +1,1 @@
+llamaindex-sentence: 1915 chunks, 799.2 ms

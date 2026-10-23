@@ -2,7 +2,9 @@
 //! 输入 JSON Lines: `{"id": "...", "original_html": "...", "selector": "...", "mutated_html": "..."}`
 //! 输出 TSV: `<id>\t<found>\t<matched_text>\t<score>\t<latency_us>`
 
-use pagesift_extract::relocation::{ElementFingerprint, RelocateOutcome, RelocationOptions, relocate};
+use pagesift_extract::relocation::{
+    ElementFingerprint, RelocateOutcome, RelocationOptions, relocate,
+};
 use pagesift_html::Html;
 use std::io::{BufRead, Write};
 use std::time::Instant;

@@ -1,9 +1,9 @@
 //! Firecrawl v1 and v2 `/crawl` endpoints.
 
+use axum::Json;
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{Extension, State};
 use axum::http::{HeaderMap, Uri};
-use axum::Json;
 
 use crate::error::ApiError;
 use crate::jobs::Start;
@@ -33,7 +33,11 @@ pub async fn crawl_start(
         .jobs
         .start_crawl_with(s.engine.clone(), req, start)
         .await?;
-    let prefix = if uri.path().starts_with("/v1") { "/v1" } else { "/v2" };
+    let prefix = if uri.path().starts_with("/v1") {
+        "/v1"
+    } else {
+        "/v2"
+    };
     Ok(Json(JobStarted {
         success: true,
         url: format!("{}{prefix}/crawl/{id}", base_url(&s, &headers)),

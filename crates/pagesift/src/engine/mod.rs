@@ -125,7 +125,9 @@ pub struct Scraper {
     launch_failed: Vec<std::sync::Mutex<Option<Instant>>>,
     /// 爬取里同时进行的抓取数，等于全局并发。排队的页面只占一个很小的等待 future，
     /// 拿到名额才创建完整的抓取状态机（十几 KB）：同时爬上千个站时，排队的页面不再各占一份。
-    crawl_slots: tokio::sync::Semaphore,
+    crawl_slots: Arc<tokio::sync::Semaphore>,
+    target_concurrency: std::sync::atomic::AtomicUsize,
+    held_permits: std::sync::Mutex<Vec<tokio::sync::OwnedSemaphorePermit>>,
     learner: crate::learn::HostLearner,
 }
 

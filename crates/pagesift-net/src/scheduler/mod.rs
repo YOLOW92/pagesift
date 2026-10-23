@@ -77,9 +77,7 @@ mod tests {
         for h in consumers {
             h.join().unwrap();
         }
-        assert!(
-            received.load(std::sync::atomic::Ordering::SeqCst) >= total_items
-        );
+        assert!(received.load(std::sync::atomic::Ordering::SeqCst) >= total_items);
     }
 
     #[test]

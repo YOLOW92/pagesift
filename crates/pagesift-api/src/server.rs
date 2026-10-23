@@ -234,7 +234,10 @@ pub fn base_url(s: &AppState, headers: &HeaderMap) -> String {
     format!("http://{host}")
 }
 
-pub fn webhook(s: &AppState, v: Option<&serde_json::Value>) -> Result<Option<WebhookConfig>, ApiError> {
+pub fn webhook(
+    s: &AppState,
+    v: Option<&serde_json::Value>,
+) -> Result<Option<WebhookConfig>, ApiError> {
     v.filter(|v| !v.is_null())
         .map(|v| WebhookConfig::parse(v, s.webhooks.ssrf()))
         .transpose()

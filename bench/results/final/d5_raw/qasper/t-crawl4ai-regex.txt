@@ -1,0 +1,1 @@
+crawl4ai-regex: 26736 chunks, 50.6 ms

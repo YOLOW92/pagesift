@@ -1,8 +1,8 @@
 //! 主动内存背压控制器。
 //! 当内存上升至高位时，主动对调度器施加延迟惩罚并强制落盘，防止无界膨胀。
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use super::mem_guard::{BudgetStatus, MemGuard};

@@ -1,17 +1,14 @@
 //! Aho-Corasick 多模式自动机快速静态资源过滤与合法 REST 路由校验。
 
-use std::sync::OnceLock;
 use aho_corasick::AhoCorasick;
+use std::sync::OnceLock;
 use url::Url;
 
 /// 静态资产扩展名（不属于导航目标或 REST API 端点）。
 pub const STATIC_EXTENSIONS: &[&str] = &[
-    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico",
-    ".css", ".scss", ".sass", ".less",
-    ".woff", ".woff2", ".ttf", ".eot", ".otf",
-    ".map", ".min.map",
-    ".mp4", ".webm", ".ogv", ".mp3", ".wav", ".flac",
-    ".pdf", ".zip", ".tar.gz",
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".css", ".scss", ".sass", ".less",
+    ".woff", ".woff2", ".ttf", ".eot", ".otf", ".map", ".min.map", ".mp4", ".webm", ".ogv", ".mp3",
+    ".wav", ".flac", ".pdf", ".zip", ".tar.gz",
 ];
 
 static ASSET_MATCHER: OnceLock<AhoCorasick> = OnceLock::new();
@@ -48,7 +45,8 @@ pub fn resolve_navigation_url(base: &Url, value: &str) -> Option<String> {
     }
 
     let mut u = base.join(trimmed).ok()?;
-    if !matches!(u.scheme(), "http" | "https") || !u.username().is_empty() || u.password().is_some() {
+    if !matches!(u.scheme(), "http" | "https") || !u.username().is_empty() || u.password().is_some()
+    {
         return None;
     }
     u.set_fragment(None);

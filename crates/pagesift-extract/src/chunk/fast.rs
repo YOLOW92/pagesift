@@ -1,8 +1,8 @@
 //! SIMD 极速切分与滑动窗口 Token 预算生成。
 //! 目标单核吞吐冲刺 >= 500 MB/s。
 
-use std::ops::Range;
 use super::tokenizer_cache::collect_tokens;
+use std::ops::Range;
 
 /// 生成 Token 窗口切块区间。
 /// `tail` 为 true 时对应 Crawl4AI 滑动窗口行为：最后不对齐时补一个以结尾为止的整窗。
@@ -61,7 +61,11 @@ pub fn sliding_window(text: &str, window: usize, step: usize) -> (Vec<Range<usiz
 
 /// 快速重叠窗口切分 (Overlapping Window)。
 #[inline]
-pub fn overlapping_window(text: &str, window: usize, overlap: usize) -> (Vec<Range<usize>>, Vec<usize>) {
+pub fn overlapping_window(
+    text: &str,
+    window: usize,
+    overlap: usize,
+) -> (Vec<Range<usize>>, Vec<usize>) {
     let step = window - overlap;
     windows(text, window, step, false)
 }

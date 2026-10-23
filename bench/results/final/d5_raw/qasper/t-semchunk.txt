@@ -1,0 +1,1 @@
+semchunk: 10011 chunks, 255.7 ms

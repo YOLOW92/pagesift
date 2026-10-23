@@ -130,7 +130,12 @@ impl StreamVerifier {
         let mut malformed = false;
 
         while offset + 8 <= data.len() {
-            let size = u32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]) as usize;
+            let size = u32::from_be_bytes([
+                data[offset],
+                data[offset + 1],
+                data[offset + 2],
+                data[offset + 3],
+            ]) as usize;
             let tag = &data[offset + 4..offset + 8];
 
             let box_size = if size == 1 {
@@ -140,8 +145,14 @@ impl StreamVerifier {
                     break;
                 }
                 u64::from_be_bytes([
-                    data[offset + 8], data[offset + 9], data[offset + 10], data[offset + 11],
-                    data[offset + 12], data[offset + 13], data[offset + 14], data[offset + 15]
+                    data[offset + 8],
+                    data[offset + 9],
+                    data[offset + 10],
+                    data[offset + 11],
+                    data[offset + 12],
+                    data[offset + 13],
+                    data[offset + 14],
+                    data[offset + 15],
                 ]) as usize
             } else if size == 0 {
                 data.len() - offset
@@ -174,7 +185,8 @@ impl StreamVerifier {
         }
 
         let times_monotonic = is_strictly_monotonic(&decode_times);
-        let is_intact = !malformed && has_ftyp_or_moof && (decode_times.is_empty() || times_monotonic);
+        let is_intact =
+            !malformed && has_ftyp_or_moof && (decode_times.is_empty() || times_monotonic);
 
         VerificationReport {
             format: "fMP4".into(),
@@ -218,7 +230,12 @@ fn is_strictly_monotonic(values: &[u64]) -> bool {
 fn find_tfdt_time(moof_data: &[u8]) -> Option<u64> {
     let mut i = 8;
     while i + 8 <= moof_data.len() {
-        let size = u32::from_be_bytes([moof_data[i], moof_data[i + 1], moof_data[i + 2], moof_data[i + 3]]) as usize;
+        let size = u32::from_be_bytes([
+            moof_data[i],
+            moof_data[i + 1],
+            moof_data[i + 2],
+            moof_data[i + 3],
+        ]) as usize;
         let tag = &moof_data[i + 4..i + 8];
         if size < 8 || i + size > moof_data.len() {
             break;
@@ -227,7 +244,12 @@ fn find_tfdt_time(moof_data: &[u8]) -> Option<u64> {
             // Search inside traf
             let mut j = i + 8;
             while j + 8 <= i + size {
-                let sub_size = u32::from_be_bytes([moof_data[j], moof_data[j + 1], moof_data[j + 2], moof_data[j + 3]]) as usize;
+                let sub_size = u32::from_be_bytes([
+                    moof_data[j],
+                    moof_data[j + 1],
+                    moof_data[j + 2],
+                    moof_data[j + 3],
+                ]) as usize;
                 let sub_tag = &moof_data[j + 4..j + 8];
                 if sub_size < 8 || j + sub_size > i + size {
                     break;
@@ -236,12 +258,21 @@ fn find_tfdt_time(moof_data: &[u8]) -> Option<u64> {
                     let version = moof_data[j + 8];
                     if version == 1 && j + 20 <= i + size {
                         return Some(u64::from_be_bytes([
-                            moof_data[j + 12], moof_data[j + 13], moof_data[j + 14], moof_data[j + 15],
-                            moof_data[j + 16], moof_data[j + 17], moof_data[j + 18], moof_data[j + 19],
+                            moof_data[j + 12],
+                            moof_data[j + 13],
+                            moof_data[j + 14],
+                            moof_data[j + 15],
+                            moof_data[j + 16],
+                            moof_data[j + 17],
+                            moof_data[j + 18],
+                            moof_data[j + 19],
                         ]));
                     } else if version == 0 && j + 16 <= i + size {
                         return Some(u32::from_be_bytes([
-                            moof_data[j + 12], moof_data[j + 13], moof_data[j + 14], moof_data[j + 15],
+                            moof_data[j + 12],
+                            moof_data[j + 13],
+                            moof_data[j + 14],
+                            moof_data[j + 15],
                         ]) as u64);
                     }
                 }

@@ -18,8 +18,12 @@ impl RecoveryEngine {
         let mut bytes = Vec::new();
         file.read_to_end(&mut bytes)?;
 
-        let snapshot: TaskSnapshot = serde_json::from_slice(&bytes)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("deserialization error: {e}")))?;
+        let snapshot: TaskSnapshot = serde_json::from_slice(&bytes).map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("deserialization error: {e}"),
+            )
+        })?;
 
         if !snapshot.verify_integrity() {
             return Err(io::Error::new(

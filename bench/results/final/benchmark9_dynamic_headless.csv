@@ -1,0 +1,4 @@
+tool,engine_type,test_renders,mean_render_ms,speedup_vs_playwright,canvas_svg_pass_pct,peak_rss_mb,stability_status
+PageSift (Warm CDP Pool),Rust / Tokio CDP,500,158.4,5.3,100.0,188.0,PASSED (Zero Crash)
+Playwright 1.48,Node.js / Chromium,500,842.0,1.0,100.0,1840.0,PASSED (High Memory)
+Lightpanda 0.2,C++ / JS Engine,500,82.0,10.3,24.0,95.0,FAILED (SPA hydration error)

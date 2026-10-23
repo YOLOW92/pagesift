@@ -1,0 +1,1 @@
+langchain-recursive: 10005 chunks, 259.5 ms

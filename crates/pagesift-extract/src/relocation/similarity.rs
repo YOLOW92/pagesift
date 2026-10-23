@@ -1,8 +1,8 @@
 //! 纯 Rust 树状编辑拓扑距离与自适应加权相似度仲裁器。
 
-use std::collections::BTreeSet;
-use pagesift_html::NodeRef;
 use super::fingerprint::{ElementFingerprint, tokenize};
+use pagesift_html::NodeRef;
+use std::collections::BTreeSet;
 
 /// 计算候选节点与目标指纹的多维加权相似度（0.0 ~ 1.0）。
 pub fn score_similarity(target: &ElementFingerprint, candidate: NodeRef<'_>) -> f64 {
@@ -25,7 +25,8 @@ pub fn score_similarity(target: &ElementFingerprint, candidate: NodeRef<'_>) -> 
 
     // 2. 标签兼容度与叶子节点匹配 (权重 0.20)
     let is_cand_leaf = !candidate.children().any(|c| c.is_element());
-    let tag_score = tag_compatibility(&target.tag, cand_tag) + if is_cand_leaf { 0.05 } else { 0.0 };
+    let tag_score =
+        tag_compatibility(&target.tag, cand_tag) + if is_cand_leaf { 0.05 } else { 0.0 };
 
     // 3. 上下文词素相似度（兄弟与父节点内容）(权重 0.20)
     let mut cand_context = BTreeSet::new();
@@ -83,7 +84,24 @@ fn tag_compatibility(t1: &str, t2: &str) -> f64 {
         return 1.0;
     }
     // 文本行内容器等价
-    let is_text_elem = |t: &str| matches!(t, "span" | "p" | "div" | "b" | "strong" | "em" | "i" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6");
+    let is_text_elem = |t: &str| {
+        matches!(
+            t,
+            "span"
+                | "p"
+                | "div"
+                | "b"
+                | "strong"
+                | "em"
+                | "i"
+                | "h1"
+                | "h2"
+                | "h3"
+                | "h4"
+                | "h5"
+                | "h6"
+        )
+    };
     if is_text_elem(t1) && is_text_elem(t2) {
         return 0.75;
     }
@@ -93,7 +111,12 @@ fn tag_compatibility(t1: &str, t2: &str) -> f64 {
         return 0.80;
     }
     // 块级容器等价
-    let is_container = |t: &str| matches!(t, "div" | "article" | "section" | "main" | "header" | "footer" | "aside");
+    let is_container = |t: &str| {
+        matches!(
+            t,
+            "div" | "article" | "section" | "main" | "header" | "footer" | "aside"
+        )
+    };
     if is_container(t1) && is_container(t2) {
         return 0.80;
     }

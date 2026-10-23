@@ -70,7 +70,9 @@ pub fn collect_tokens(text: &str) -> (Vec<usize>, Vec<usize>) {
             }
             if pos < b.len() && b[pos] >= 128 {
                 while pos < b.len() {
-                    let Some(c) = text[pos..].chars().next() else { break };
+                    let Some(c) = text[pos..].chars().next() else {
+                        break;
+                    };
                     if c.is_whitespace() || is_cjk(c) {
                         break;
                     }
@@ -85,7 +87,9 @@ pub fn collect_tokens(text: &str) -> (Vec<usize>, Vec<usize>) {
             continue;
         }
 
-        let Some(c) = text[pos..].chars().next() else { break };
+        let Some(c) = text[pos..].chars().next() else {
+            break;
+        };
         let start = pos;
         pos += c.len_utf8();
         if c.is_whitespace() {
@@ -104,7 +108,9 @@ pub fn collect_tokens(text: &str) -> (Vec<usize>, Vec<usize>) {
                 pos += 1;
                 continue;
             }
-            let Some(n) = text[pos..].chars().next() else { break };
+            let Some(n) = text[pos..].chars().next() else {
+                break;
+            };
             if n.is_whitespace() || is_cjk(n) {
                 break;
             }

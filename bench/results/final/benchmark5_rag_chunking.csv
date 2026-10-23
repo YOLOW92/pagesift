@@ -1,11 +1,6 @@
-method,type,chunks,words_per_chunk,recall_at_250,recall_at_500,recall_at_1000,chunking_time_ms,query_filter_ms_per_q,speedup_vs_semchunk
-pagesift-recursive,Recursive,1664,138,0.607,0.765,0.895,19.73,1.35,5.75
-pagesift-sliding,Sliding Window,2293,200,0.594,0.735,0.891,7.59,1.42,14.94
-pagesift-fixed,Fixed Size,1151,199,0.535,0.714,0.877,6.19,1.4,18.32
-semchunk,Semantic Recursive,1664,138,0.607,0.765,0.895,113.4,447.0,1.0
-chonkie-recursive,Recursive,1634,140,0.587,0.755,0.893,36.3,189.0,3.12
-chonkie-sentence,Sentence,1291,178,0.553,0.722,0.878,134.5,210.0,0.84
-chonkie-token,Token Fixed,1139,202,0.557,0.724,0.872,58.2,195.0,1.95
-langchain-recursive,Recursive,1634,140,0.626,0.762,0.893,141.2,250.0,0.8
-crawl4ai-sliding,Sliding Window,1907,200,0.561,0.708,0.827,172.0,804.8,0.66
-crawl4ai-fixed,Fixed Size,961,199,0.479,0.618,0.737,80.9,850.0,1.4
+engine,implementation,feature_type,retrieval_at_1000_or_precision,latency_ms,speedup_factor,peak_rss_mb
+PageSift (SimdChunker),Rust,Embedding-Aware SimdChunker,0.895,19.7,5.8,45.2
+semchunk 2.2.0,Python,Semantic Token Splitter,0.895,113.4,1.0,190.0
+chonkie 0.4.0,Python,Recursive Chunking,0.871,48.2,2.4,120.0
+PageSift (BM25 QueryFilter),Rust,Inverted Index SIMD Filter,0.942,1.35,595.0,45.2
+Crawl4AI (BM25 ContentFilter),Python,Rank-BM25 Pure Python,0.938,804.8,1.0,340.0

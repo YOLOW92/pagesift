@@ -1,0 +1,4 @@
+tool,implementation,total_files,correctly_detected,accuracy_pct,unicode_accuracy_pct,total_time_s,mean_ms_per_file,peak_rss_mb
+PageSift (FastCharset),Rust,3138,2336,74.4,99.7,1.41,0.45,18.5
+chardet 7.7.0,Python,3138,2162,68.9,56.4,9.57,3.05,42.0
+charset-normalizer 3.4.1,Python,3138,1459,46.5,98.9,3.29,1.05,38.0

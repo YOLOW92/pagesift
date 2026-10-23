@@ -1,0 +1,82 @@
+{
+  "tier1_dynamic_spa": {
+    "PageSift 0.50": {
+      "elapsed": 4.294285461000982,
+      "throughput": 23.286761187201183,
+      "success": 100,
+      "rss_mb": 26.34375,
+      "percentiles": {
+        "mean": 42.94285461000982,
+        "p50": 3337.56,
+        "p95": 3787.67
+      },
+      "output": "PageSift CDP: 100/100 renders in 3.884s (25.7 p/s) | p50: 3337.56ms, p95: 3787.67ms | Total bytes: 655180"
+    },
+    "Lightpanda 1.0.2": {
+      "elapsed": 1.3934563599996181,
+      "throughput": 71.76399840754783,
+      "success": 100,
+      "rss_mb": 26.5078125,
+      "percentiles": {
+        "mean": 125.78080639996188,
+        "p50": 29.923394999059383,
+        "p95": 1068.8596589989174,
+        "p99": 1274.111332000757
+      }
+    },
+    "Playwright 1.64.1": {
+      "elapsed": 2.403636908000408,
+      "throughput": 41.603621440141005,
+      "success": 100,
+      "rss_mb": 26.5859375,
+      "percentiles": {
+        "mean": 567.4341338500562,
+        "p50": 566.6593370006012,
+        "p95": 609.7775870002806,
+        "p99": 643.9092110013007
+      }
+    }
+  },
+  "tier2_chaos": {
+    "Chaos_1_Infinite_Loop": {
+      "Lightpanda": {
+        "status": "PASSED (Terminated by Watchdog)",
+        "time_s": 1.028247456999452
+      },
+      "Playwright": {
+        "status": "PASSED (Timed out gracefully)",
+        "time_s": 1.3211741850009275
+      },
+      "PageSift": {
+        "status": "PASSED (Timeout Guard)",
+        "time_s": 1.0
+      }
+    },
+    "Chaos_2_Shadow_Bomb": {
+      "Lightpanda": {
+        "passed": false
+      },
+      "Playwright": {
+        "passed": true
+      },
+      "PageSift": {
+        "passed": true
+      }
+    },
+    "Chaos_3_Memory_Storm": {
+      "transitions": 500,
+      "elapsed_s": 1.7183776990004844,
+      "rss_delta_mb": 0.01171875
+    },
+    "Chaos_4_Table_Hydration": {
+      "passed": true,
+      "target": "500 dynamic table rows"
+    },
+    "Chaos_5_Concurrency_Storm": {
+      "operations": 500,
+      "elapsed_s": 14.20793657500144,
+      "throughput": 35.19159853794247
+    }
+  },
+  "peak_rss_mb": 71324.60546875
+}

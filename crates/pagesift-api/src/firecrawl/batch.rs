@@ -1,9 +1,9 @@
 //! Firecrawl v1 and v2 `/batch/scrape` and job status/errors handlers.
 
+use axum::Json;
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{Extension, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode, Uri};
-use axum::Json;
 use serde::Deserialize;
 
 use crate::error::{ApiError, ErrorCode};
@@ -51,7 +51,11 @@ pub async fn batch_start(
         .jobs
         .start_batch_with(s.engine.clone(), valid, req.options, concurrency, start)
         .await?;
-    let prefix = if uri.path().starts_with("/v1") { "/v1" } else { "/v2" };
+    let prefix = if uri.path().starts_with("/v1") {
+        "/v1"
+    } else {
+        "/v2"
+    };
     Ok(Json(JobStarted {
         success: true,
         url: format!("{}{prefix}/batch/scrape/{id}", base_url(&s, &headers)),

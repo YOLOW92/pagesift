@@ -12,6 +12,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod adaptive;
 mod change;
 pub mod collect;
 pub mod config;

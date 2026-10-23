@@ -18,9 +18,14 @@ impl Scraper {
             .map(pagesift_llm::ChatClient::new)
             .transpose()
             .map_err(ScraperError::Llm)?;
-        let crawl_slots = tokio::sync::Semaphore::new(config.policy.rate.global_concurrency.max(1));
+        let initial_conc = config.policy.rate.global_concurrency.max(1);
+        let crawl_slots = Arc::new(tokio::sync::Semaphore::new(initial_conc));
+        let target_concurrency = std::sync::atomic::AtomicUsize::new(initial_conc);
+        let held_permits = std::sync::Mutex::new(Vec::new());
         Ok(Self {
             crawl_slots,
+            target_concurrency,
+            held_permits,
             policy: Arc::new({
                 let mut p = Policy::new(fetcher, config.policy);
                 for (name, f) in egress {
@@ -137,6 +142,47 @@ impl Scraper {
 
     pub(crate) fn crawl_slots(&self) -> &tokio::sync::Semaphore {
         &self.crawl_slots
+    }
+
+    /// Returns current active concurrency limit.
+    pub fn concurrency(&self) -> usize {
+        self.target_concurrency
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Dynamically adjusts the global crawl concurrency limit at runtime.
+    pub fn set_concurrency(&self, target: usize) {
+        use std::sync::atomic::Ordering;
+        let target = target.max(1);
+        let curr = self.target_concurrency.load(Ordering::Relaxed);
+        if target > curr {
+            let diff = target - curr;
+            let mut held = self.held_permits.lock().unwrap();
+            let to_release = held.len().min(diff);
+            let new_len = held.len() - to_release;
+            held.truncate(new_len);
+            let remaining = diff - to_release;
+            if remaining > 0 {
+                self.crawl_slots.add_permits(remaining);
+            }
+            self.target_concurrency.store(target, Ordering::Relaxed);
+        } else if target < curr {
+            let diff = curr - target;
+            let mut held = self.held_permits.lock().unwrap();
+            let mut acquired = 0usize;
+            for _ in 0..diff {
+                if let Ok(p) = self.crawl_slots.clone().try_acquire_owned() {
+                    held.push(p);
+                    acquired += 1;
+                } else {
+                    break;
+                }
+            }
+            if acquired > 0 {
+                self.target_concurrency
+                    .store(curr - acquired, Ordering::Relaxed);
+            }
+        }
     }
 
     /// 按给定的 robots 模式抓一页；整站爬取和 map 用它，robots 模式由调用方按请求类型决定。

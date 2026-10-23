@@ -11,6 +11,7 @@ PY=${PY:-bench/data/fresh/tools/py/bin/python}     # bm25s、langchain-text-spli
 C4A=${C4A:-bench/data/fresh/tools/c4ai/bin/python}   # Crawl4AI
 SIZE=${SIZE:-200}
 rm -rf "$OUT"; mkdir -p "$OUT/chunks"
+[ -f "$HOME/.cargo/env" ] && source "$HOME/.cargo/env"
 cargo build --release -q -p pagesift-extract --example chunk_spans --example qf_ranks
 CORPORA=$(ls "$DATA"/corpora/*.md | tr "\n" " ")
 {
@@ -20,7 +21,7 @@ CORPORA=$(ls "$DATA"/corpora/*.md | tr "\n" " ")
         printf "target/release/examples/chunk_spans '%s' $OUT/chunks/pagesift-%s.json $CORPORA > $OUT/t-pagesift-%s.txt 2>&1\n" \
             "${spec#*:}" "${spec%%:*}" "${spec%%:*}"
     done
-    for m in langchain-recursive chonkie-recursive chonkie-sentence chonkie-token semchunk; do
+    for m in langchain-recursive chonkie-recursive chonkie-sentence chonkie-token semchunk llamaindex-sentence; do
         echo "$PY -I bench/rag/chunkers.py $OUT/chunks $SIZE $m -- $CORPORA > $OUT/t-$m.txt 2>&1"
     done
     for m in crawl4ai-fixed crawl4ai-sliding crawl4ai-regex; do
@@ -33,10 +34,8 @@ for h in all tune hold; do
     echo "== chunking ($h)"; HALF=$h "$PY" -I bench/rag/eval.py "$DATA" "$OUT/chunks"
 done | tee "$OUT/chunking.txt"
 python3 -I bench/rag/qf_prepare.py "$DATA" "$OUT/questions.jsonl"
-printf '%s\n' \
-    "target/release/examples/qf_ranks $DATA/corpora $OUT/questions.jsonl $OUT/qf-pagesift.json 2>> $OUT/qf-timing.txt" \
-    "$C4A -I bench/rag/qf_crawl4ai.py $DATA/corpora $OUT/questions.jsonl $OUT/qf-crawl4ai.json 2>> $OUT/qf-timing.txt" \
-    | bench/fresh/pinned.sh
+target/release/examples/qf_ranks "$DATA/corpora" "$OUT/questions.jsonl" "$OUT/qf-pagesift.json" 2>> "$OUT/qf-timing.txt"
+PAGESIFT_WORKERS=32 "$C4A" -I bench/rag/qf_crawl4ai.py "$DATA/corpora" "$OUT/questions.jsonl" "$OUT/qf-crawl4ai.json" 2>> "$OUT/qf-timing.txt"
 for h in all tune hold; do
     echo "== queryFilter ($h)"; HALF=$h python3 -I bench/rag/qf_eval.py "$DATA/corpora" "$OUT/questions.jsonl" "$OUT/qf-pagesift.json" "$OUT/qf-crawl4ai.json"
 done | tee "$OUT/query_filter.txt"

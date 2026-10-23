@@ -61,6 +61,10 @@ def make(method, size):
             _, offsets = semchunk.chunk(t, chunk_size=size, token_counter=words, offsets=True)
             return [list(o) for o in offsets]
         return f
+    if method == "llamaindex-sentence":
+        from llama_index.core.node_parser import SentenceSplitter
+        s = SentenceSplitter(chunk_size=size, chunk_overlap=0)
+        return lambda t: locate(t, s.split_text(t))
     if method.startswith("crawl4ai-"):
         from crawl4ai import chunking_strategy as cs
         kind = method.split("-", 1)[1]

@@ -10,6 +10,7 @@ publish = false
 
 [dependencies]
 axum = "0.8.9"
+blake3 = "1.8.7"
 serde_json = "1.0.154"
 spider = { version = "2.53.9", default-features = false, features = ["sync", "encoding", "time"] }
 spider_transformations = "2.39.13"

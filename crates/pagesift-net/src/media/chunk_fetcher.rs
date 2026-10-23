@@ -132,7 +132,10 @@ impl ChunkFetcher {
             let sem = Arc::clone(&semaphore);
             let fetcher = self.clone();
             handles.push(tokio::spawn(async move {
-                let _permit = sem.acquire().await.map_err(|e| FetchError::Http(e.to_string()))?;
+                let _permit = sem
+                    .acquire()
+                    .await
+                    .map_err(|e| FetchError::Http(e.to_string()))?;
                 fetcher.fetch_one(&uri, range).await
             }));
         }

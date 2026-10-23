@@ -1,0 +1,118 @@
+{
+  "tier1_js_corpus_2000": {
+    "PageSift 0.50": {
+      "elapsed": 0.012477618000048096,
+      "throughput": 160287.0034963637,
+      "endpoints_found": 400,
+      "rss_mb": 20.08984375,
+      "percentiles": {
+        "mean": 0.0909025,
+        "p50": 0.016,
+        "p95": 0.304,
+        "p99": 1.338
+      }
+    },
+    "jsluice 1.0": {
+      "elapsed": 0.2515273970002454,
+      "throughput": 7951.420099171339,
+      "endpoints_found": 1041,
+      "rss_mb": 21.48828125,
+      "percentiles": {
+        "mean": 0.1257636985001227,
+        "p50": 0.1257636985001227,
+        "p95": 0.1257636985001227,
+        "p99": 0.1257636985001227
+      }
+    },
+    "LinkFinder": {
+      "elapsed": 0.043290638001053594,
+      "throughput": 46199.36532123469,
+      "endpoints_found": 2840,
+      "rss_mb": 22.1484375,
+      "percentiles": {
+        "mean": 0.020543989995530865,
+        "p50": 0.005707999662263319,
+        "p95": 0.06255399966903497,
+        "p99": 0.25736600036907475
+      }
+    }
+  },
+  "tier2_chaos": {
+    "Chaos_1_Concatenation": {
+      "total_files": 500,
+      "PageSift": {
+        "endpoints_found": 1000,
+        "time": 0.0028725169995595934
+      },
+      "jsluice": {
+        "endpoints_found": 500,
+        "time": 0.047993688998758444
+      },
+      "LinkFinder": {
+        "endpoints_found": 500,
+        "time": 0.023281747000510222
+      }
+    },
+    "Chaos_2_Template_Literals": {
+      "total_files": 500,
+      "PageSift": {
+        "endpoints_found": 1500,
+        "time": 0.003071876000831253
+      },
+      "jsluice": {
+        "endpoints_found": 500,
+        "time": 0.05649407400051132
+      },
+      "LinkFinder": {
+        "endpoints_found": 500,
+        "time": 0.02382375999877695
+      }
+    },
+    "Chaos_3_10MB_MegaBundle": {
+      "size_mb": 9.999996185302734,
+      "PageSift": {
+        "time_s": 0.008265984000900062,
+        "throughput_mbs": 1209.7768619215644,
+        "rss_mb": 43.9375
+      },
+      "jsluice": {
+        "time_s": 0.4325868870000704,
+        "throughput_mbs": 23.116734431437138,
+        "rss_mb": 57.6015625
+      },
+      "LinkFinder": {
+        "time_s": 0.04978859000038938,
+        "throughput_mbs": 200.84915409784708,
+        "rss_mb": 59.1015625
+      }
+    },
+    "Chaos_4_Evasion": {
+      "total_files": 500,
+      "PageSift": {
+        "endpoints_found": 1000,
+        "time": 0.0026533480013313238
+      },
+      "jsluice": {
+        "endpoints_found": 2500,
+        "time": 0.053550942000583746
+      },
+      "LinkFinder": {
+        "endpoints_found": 1500,
+        "time": 0.030948581999837188
+      }
+    },
+    "Chaos_5_Storm": {
+      "PageSift": {
+        "ops_per_sec": 315986.69994178344,
+        "elapsed": 0.15823450800053251,
+        "rss_mb": 58.98828125
+      },
+      "LinkFinder": {
+        "ops_per_sec": 182361.59816153592,
+        "elapsed": 0.2741805319983541,
+        "rss_mb": 74.40625
+      }
+    }
+  },
+  "peak_rss_mb": 1942.25
+}

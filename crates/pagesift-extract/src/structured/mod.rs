@@ -67,7 +67,10 @@ mod tests {
             prod["properties"]["aggregateRating"]["properties"]["ratingValue"],
             "4.4"
         );
-        assert_eq!(prod["properties"]["offers"]["properties"]["price"], "119.99");
+        assert_eq!(
+            prod["properties"]["offers"]["properties"]["price"],
+            "119.99"
+        );
         assert_eq!(
             prod["properties"]["offers"]["properties"]["priceCurrency"],
             "USD"

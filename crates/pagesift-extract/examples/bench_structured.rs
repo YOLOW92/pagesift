@@ -1,9 +1,9 @@
 //! Benchmark driver for structured data extraction.
 //! Reads file list from argument, outputs TSV: `<path>\t<elapsed_us>\t<json_ld_count>\t<microdata_count>\t<og_keys>`
 
+use pagesift_extract::extract_structured;
 use std::io::{BufRead, Write};
 use std::time::Instant;
-use pagesift_extract::extract_structured;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();

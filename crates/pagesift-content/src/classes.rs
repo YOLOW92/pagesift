@@ -40,7 +40,10 @@ pub(crate) fn word_class(w: &str) -> u8 {
 pub(crate) fn in_content_area(node: &crate::dom::NodeR<'_>) -> bool {
     node.ancestors().any(|a| {
         a.as_element().is_some_and(|e| {
-            matches!(e.tag(), pagesift_html::Tag::Main | pagesift_html::Tag::Article) || e.attr("role") == Some("main")
+            matches!(
+                e.tag(),
+                pagesift_html::Tag::Main | pagesift_html::Tag::Article
+            ) || e.attr("role") == Some("main")
         })
     })
 }

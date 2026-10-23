@@ -1,7 +1,7 @@
 //! 静态提取 fetch、axios、window.location、import 等网络调用端点与依赖。
 
-use std::collections::HashMap;
 use super::ast_scanner::Token;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub enum HelperPart {

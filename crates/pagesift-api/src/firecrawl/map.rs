@@ -1,8 +1,8 @@
 //! Firecrawl v1 and v2 `/map` endpoint.
 
-use axum::extract::rejection::JsonRejection;
-use axum::extract::State;
 use axum::Json;
+use axum::extract::State;
+use axum::extract::rejection::JsonRejection;
 
 use crate::error::ApiError;
 use crate::server::{AppState, body};

@@ -4,8 +4,11 @@
 python -I py_tools.py <pdf 目录> <输出目录> <工具>...
 工具：pymupdf4llm（AGPL，只做评测）、pdfplumber、pypdf、markitdown（底层 pdfminer.six）。都用默认参数。
 """
-import glob, io, os, sys, time
+import glob, io, logging, os, sys, time, warnings
 from concurrent.futures import ProcessPoolExecutor
+
+logging.disable(logging.CRITICAL)
+warnings.filterwarnings("ignore")
 
 _CONV = None
 _SRC = None
@@ -17,6 +20,10 @@ def make(name):
     if name == "pymupdf4llm":
         import pymupdf4llm
         return lambda p: pymupdf4llm.to_markdown(p, show_progress=False)
+    if name == "docling":
+        from docling.document_converter import DocumentConverter
+        conv = DocumentConverter()
+        return lambda p: conv.convert(p).document.export_to_markdown()
     if name == "pdfplumber":
         import pdfplumber
         def f(p):
@@ -60,7 +67,7 @@ def _proc_file(f):
 def main():
     src, out = sys.argv[1], sys.argv[2]
     files = sorted(glob.glob(os.path.join(src, "**/*.pdf"), recursive=True))
-    workers = 1 if os.environ.get("PAGESIFT_ONE_CORE") == "1" else min(6, os.cpu_count() or 4)
+    workers = 1 if os.environ.get("PAGESIFT_ONE_CORE") == "1" else min(32, os.cpu_count() or 1)
     for tool in sys.argv[3:]:
         total, failed = 0.0, 0
         if workers > 1:

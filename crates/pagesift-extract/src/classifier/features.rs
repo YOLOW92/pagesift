@@ -1,20 +1,34 @@
 //! 毫秒级 DOM 结构与语义特征提取器，实现快速多品类页面识别。
 
-use pagesift_html::{Html, Tag};
 use super::page_type::PageType;
+use pagesift_html::{Html, Tag};
 
 /// 快速提取页面结构特征并判定品类类型（耗时 < 0.1ms）。
 pub fn classify(doc: &Html<'_>, url: Option<&str>) -> PageType {
     // 1. URL 强提示判别
     if let Some(u) = url {
         let u_low = u.to_lowercase();
-        if u_low.contains("/product/") || u_low.contains("/products/") || u_low.contains("/item/") || u_low.contains("/p/") {
+        if u_low.contains("/product/")
+            || u_low.contains("/products/")
+            || u_low.contains("/item/")
+            || u_low.contains("/p/")
+        {
             return PageType::Product;
         }
-        if u_low.contains("/forum/") || u_low.contains("/thread/") || u_low.contains("/t/") || u_low.contains("/topic/") || u_low.contains("/discuss/") {
+        if u_low.contains("/forum/")
+            || u_low.contains("/thread/")
+            || u_low.contains("/t/")
+            || u_low.contains("/topic/")
+            || u_low.contains("/discuss/")
+        {
             return PageType::Forum;
         }
-        if u_low.contains("/docs/") || u_low.contains("/doc/") || u_low.contains("/guide/") || u_low.contains("/reference/") || u_low.contains("/api/") {
+        if u_low.contains("/docs/")
+            || u_low.contains("/doc/")
+            || u_low.contains("/guide/")
+            || u_low.contains("/reference/")
+            || u_low.contains("/api/")
+        {
             return PageType::Documentation;
         }
     }
@@ -54,18 +68,38 @@ pub fn classify(doc: &Html<'_>, url: Option<&str>) -> PageType {
         }
 
         // 检查 class / id 语义
-        for val in [el.attr("class"), el.attr("id"), el.attr("itemtype")].into_iter().flatten() {
+        for val in [el.attr("class"), el.attr("id"), el.attr("itemtype")]
+            .into_iter()
+            .flatten()
+        {
             let low = val.to_lowercase();
-            if low.contains("product") || low.contains("price") || low.contains("add-to-cart") || low.contains("addtocart") || low.contains("shopify") {
+            if low.contains("product")
+                || low.contains("price")
+                || low.contains("add-to-cart")
+                || low.contains("addtocart")
+                || low.contains("shopify")
+            {
                 product_score += 2;
             }
-            if low.contains("discourse") || low.contains("forum") || low.contains("thread") || low.contains("topic-body") || low.contains("reply-count") {
+            if low.contains("discourse")
+                || low.contains("forum")
+                || low.contains("thread")
+                || low.contains("topic-body")
+                || low.contains("reply-count")
+            {
                 forum_score += 2;
             }
-            if low.contains("api-doc") || low.contains("sidebar-nav") || low.contains("code-block") || low.contains("apireference") {
+            if low.contains("api-doc")
+                || low.contains("sidebar-nav")
+                || low.contains("code-block")
+                || low.contains("apireference")
+            {
                 doc_score += 2;
             }
-            if low.contains("product-card") || low.contains("grid-item") || low.contains("result-item") {
+            if low.contains("product-card")
+                || low.contains("grid-item")
+                || low.contains("result-item")
+            {
                 item_cards += 1;
             }
         }
@@ -73,7 +107,10 @@ pub fn classify(doc: &Html<'_>, url: Option<&str>) -> PageType {
         // 按钮文本特征
         if matches!(el.tag(), Tag::Button) {
             let btn_txt = node.text().to_lowercase();
-            if btn_txt.contains("add to cart") || btn_txt.contains("buy now") || btn_txt.contains("checkout") {
+            if btn_txt.contains("add to cart")
+                || btn_txt.contains("buy now")
+                || btn_txt.contains("checkout")
+            {
                 product_score += 5;
             }
             if btn_txt.contains("reply") || btn_txt.contains("new topic") {

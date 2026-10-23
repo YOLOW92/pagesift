@@ -1,8 +1,8 @@
 //! TeX 语法树构建与公式排版逻辑。
 
+use super::symbols::{ACCENTS, FUNCS, is_combining, is_greek, is_math_symbol, push_char};
 use crate::font::MathKind;
 use crate::interp::Glyph;
-use super::symbols::{ACCENTS, FUNCS, is_combining, is_greek, is_math_symbol, push_char};
 
 /// 一个字形和它规范化后的文字。
 pub(crate) struct Item<'a> {

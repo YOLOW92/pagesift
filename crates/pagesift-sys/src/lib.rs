@@ -17,10 +17,23 @@ pub fn tune_allocator() {
     {
         /// 显式设置后 glibc 不再动态调整阈值。
         const MMAP_THRESHOLD: libc::c_int = 256 * 1024;
+        const ARENA_MAX: libc::c_int = 4;
         // SAFETY: mallopt 只修改分配器参数，任何时候调用都安全；返回 0 表示参数不被接受，忽略即可。
         #[allow(unsafe_code)]
         unsafe {
             libc::mallopt(libc::M_MMAP_THRESHOLD, MMAP_THRESHOLD);
+            libc::mallopt(libc::M_ARENA_MAX, ARENA_MAX);
+        }
+    }
+}
+
+/// 显式通知 glibc 分配器向操作系统释放无用堆页面。
+pub fn trim_memory() {
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    {
+        #[allow(unsafe_code)]
+        unsafe {
+            libc::malloc_trim(0);
         }
     }
 }

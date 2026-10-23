@@ -39,5 +39,11 @@ pub fn stream_markdown_sse(url: &str, title: Option<&str>, markdown: &str) -> Re
         .header(header::CACHE_CONTROL, "no-cache")
         .header(header::CONNECTION, "keep-alive")
         .body(axum::body::Body::from(sse_text))
-        .unwrap_or_else(|_| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "SSE stream error").into_response())
+        .unwrap_or_else(|_| {
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "SSE stream error",
+            )
+                .into_response()
+        })
 }

@@ -32,7 +32,8 @@ fn stress_pathological_cjk_dense_punctuation() {
     let sentence = "这是一段非常冗长的中文段落测试文本，包含各种符号；比如叹号！还有问号？以及各种复杂的词汇。";
     let text = sentence.repeat(10_000);
 
-    let recursive = chunk(&text, &ChunkStrategy::Recursive { size: 100 }).expect("recursive chunks");
+    let recursive =
+        chunk(&text, &ChunkStrategy::Recursive { size: 100 }).expect("recursive chunks");
     assert!(!recursive.is_empty());
     assert!(recursive.iter().all(|c| c.tokens <= 100));
 
@@ -51,7 +52,8 @@ fn stress_unclosed_fenced_code_blocks() {
             text.push_str("~~~sh\necho \"another unclosed fence\"\n");
         }
     }
-    let res = chunk(&text, &ChunkStrategy::Paragraphs).expect("should handle unclosed fences without panic");
+    let res = chunk(&text, &ChunkStrategy::Paragraphs)
+        .expect("should handle unclosed fences without panic");
     assert!(!res.is_empty());
 }
 
@@ -67,7 +69,11 @@ fn stress_massive_gfm_table() {
     // 表格作为整块被完整保护
     assert_eq!(res.len(), 1);
     assert!(res[0].text.starts_with("| ID | Name | Role | Status |"));
-    assert!(res[0].text.ends_with("| 9999 | User_9999 | Engineer | Active |"));
+    assert!(
+        res[0]
+            .text
+            .ends_with("| 9999 | User_9999 | Engineer | Active |")
+    );
 }
 
 #[test]
@@ -88,11 +94,55 @@ fn stress_deep_adversarial_headings() {
 fn stress_pathological_strategy_options() {
     let text = "Sample text for parameter validation";
     assert!(chunk(text, &ChunkStrategy::FixedTokens { size: 0 }).is_err());
-    assert!(chunk(text, &ChunkStrategy::SlidingWindow { window: 0, step: 10 }).is_err());
-    assert!(chunk(text, &ChunkStrategy::SlidingWindow { window: 10, step: 0 }).is_err());
-    assert!(chunk(text, &ChunkStrategy::Overlapping { window: 10, overlap: 10 }).is_err());
-    assert!(chunk(text, &ChunkStrategy::Overlapping { window: 10, overlap: 20 }).is_err());
+    assert!(
+        chunk(
+            text,
+            &ChunkStrategy::SlidingWindow {
+                window: 0,
+                step: 10
+            }
+        )
+        .is_err()
+    );
+    assert!(
+        chunk(
+            text,
+            &ChunkStrategy::SlidingWindow {
+                window: 10,
+                step: 0
+            }
+        )
+        .is_err()
+    );
+    assert!(
+        chunk(
+            text,
+            &ChunkStrategy::Overlapping {
+                window: 10,
+                overlap: 10
+            }
+        )
+        .is_err()
+    );
+    assert!(
+        chunk(
+            text,
+            &ChunkStrategy::Overlapping {
+                window: 10,
+                overlap: 20
+            }
+        )
+        .is_err()
+    );
     assert!(chunk(text, &ChunkStrategy::Headings { max_level: 0 }).is_err());
     assert!(chunk(text, &ChunkStrategy::Headings { max_level: 7 }).is_err());
-    assert!(chunk(text, &ChunkStrategy::Regex { patterns: vec!["(?=a)(".into()] }).is_err());
+    assert!(
+        chunk(
+            text,
+            &ChunkStrategy::Regex {
+                patterns: vec!["(?=a)(".into()]
+            }
+        )
+        .is_err()
+    );
 }

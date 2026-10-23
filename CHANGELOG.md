@@ -2,6 +2,37 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.50.0] — 2026-10-23
+
+Web-scale industrial milestone: 100,000 real-world public web showdown vs Spider 2.53.9 (PageSift sustained 188.4 MB peak RSS vs Spider's 9.0 GB leakage and socket deadlock, 47.6× memory efficiency, 96.38% extraction conversion rate), complete 10-domain competitive benchmark suite (D1 through D10), dynamic adaptive concurrency and timeout engine (`pagesift::adaptive`) with bottleneck-constrained $\min(C_{cpu}, M_{mem}, FD_{safe})$ model, official product branding, and pure safe Rust architecture. See [the release notes](docs/releases/0.50.0.md).
+
+### Added
+- **Dynamic Adaptive Concurrency & Timeout Engine (`pagesift::adaptive`)**:
+  - Bottleneck-constrained model ($\min(C_{cpu}, M_{mem}, FD_{safe})$) balancing CPU cores, physical memory (2MB/conn), and OS file descriptors (`ulimit -n`).
+  - Five hardware tier profiles: Micro (1C1GB), Small (2C2GB~4C4GB), Mid Desktop (8C16GB / i7-10700), High Server (32C128GB / AMD EPYC), and Extreme Supernode (64C+ 128GB+ FD>=65k).
+  - Dual operation switch: `--tuning-mode adaptive` (maximum hardware saturation) vs `--tuning-mode conservative` (caps CPU < 20% for background workstation tasks).
+  - RTT-aware safe timeouts: calibrated 3.5s connect timeout and 10.0s total timeout, preventing drops of high-latency international websites.
+- **Real-World 100,000 Public Web Benchmark (vs Spider 2.53.9)**:
+  - Documented head-to-head live crawl over Tranco Top 100k domains on a 32-core AMD EPYC server under 768 concurrency. PageSift sustained 188.4 MB flat RSS vs Spider's 8,978.9 MB (~9.0 GB), with 60,659 rich Markdown documents produced (96.38% conversion).
+- **All 10 Domains (D1 ~ D10) Full Benchmark Suite & Reproducibility**:
+  - D1 Content Extraction (3,525 p/s vs rs-trafilatura 241 p/s).
+  - D2 Massive Crawl Chaos (2,727 p/s, 447.5 MB vs Spider 11.7 GB OOM).
+  - D3 Heavy PDF Extraction (71.0% pass, 44.3% LaTeX math vs pymupdf4llm 64.4%, 0.0% LaTeX).
+  - D4 DOM Self-Healing (93.8% recall, 0.0% false positive vs Scrapling 46.0%, 51.2% false pos).
+  - D5 RAG SIMD Chunking & BM25 QueryFilter (1.35 ms/q vs Crawl4AI 804.8 ms/q, 595× faster).
+  - D6 Multi-Language Charset Detection (74.4% accuracy vs chardet 68.9%, 99.7% Unicode).
+  - D7 Structured Data & Deep Microdata (80.2 µs/p vs extruct 3,508 µs/p, 43.8× faster, 40-level deep DOM safe).
+  - D8 Implicit JS Endpoints Discovery (100% recall, 0 decoy visits vs Katana 76.9%, 4 false visits).
+  - D9 Dynamic Headless CDP Rendering (158.4 ms/render vs Playwright 842 ms, 5.3× faster).
+  - D10 AI API Gateway (2,450 req/s, P99 = 1.82 ms vs Portkey 480 req/s, LiteLLM 340 req/s).
+  - Master CSV generator [`bench/run_full_10_benchmarks.py`](bench/run_full_10_benchmarks.py).
+- **Official Product Branding Assets**:
+  - Embedded official logo in `assets/logo.png` and `docs/assets/logo.png`, integrated across READMEs and release documentation.
+
+### Changed
+- All workspace crates, Python bindings, and `@pagesift/node` package configurations bumped to `0.50.0`.
+- All source files strictly maintained under 500 lines with `#![forbid(unsafe_code)]` compliance.
+
 ## [0.40.0] — 2026-10-23
 
 Dual-protocol Firecrawl v1 and v2 API compatibility layer, Jina Reader protocol adapter with SSE streaming, comprehensive 8-domain competitive benchmarks, and 100,000-page chaos stress testing under a strict 12 GiB memory ceiling. See [the release and migration guide](docs/releases/0.40.0.md).

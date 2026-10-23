@@ -1,9 +1,9 @@
 //! Firecrawl v1 and v2 `/scrape` endpoint handler.
 
-use std::sync::atomic::Ordering;
+use axum::Json;
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{Extension, State};
-use axum::Json;
+use std::sync::atomic::Ordering;
 
 use crate::error::ApiError;
 use crate::limits::Caller;

@@ -1,0 +1,320 @@
+{
+  "tier1_standard": {
+    "PageSift 0.50": {
+      "accuracy": 76.0230179028133,
+      "correct": 2378,
+      "total": 3128,
+      "elapsed": 0.12554521600031876,
+      "throughput": 24915.32612435075,
+      "rss_mb": 27.36328125,
+      "cats": {
+        "CJK (Chinese/Japanese/Korean)": [
+          186,
+          230
+        ],
+        "Cyrillic (Russian/Ukrainian/Slavic)": [
+          162,
+          279
+        ],
+        "Western & Latin (Latin-1/15, CP1252/1250)": [
+          303,
+          606
+        ],
+        "Unicode (UTF-8/16/32/7)": [
+          1549,
+          1553
+        ],
+        "Legacy & Others (Greek, Hebrew, Arabic, EBCDIC, DOS)": [
+          178,
+          460
+        ]
+      },
+      "percentiles": {
+        "mean": 0.7472682225063938,
+        "p50": 0.016,
+        "p95": 3.015,
+        "p99": 15.594
+      }
+    },
+    "uchardet 0.0.8": {
+      "accuracy": 54.891304347826086,
+      "correct": 1717,
+      "total": 3128,
+      "elapsed": 0.17172955199930584,
+      "throughput": 18214.68677687253,
+      "rss_mb": 29.19140625,
+      "cats": {
+        "CJK (Chinese/Japanese/Korean)": [
+          164,
+          230
+        ],
+        "Cyrillic (Russian/Ukrainian/Slavic)": [
+          250,
+          279
+        ],
+        "Western & Latin (Latin-1/15, CP1252/1250)": [
+          369,
+          606
+        ],
+        "Unicode (UTF-8/16/32/7)": [
+          784,
+          1553
+        ],
+        "Legacy & Others (Greek, Hebrew, Arabic, EBCDIC, DOS)": [
+          150,
+          460
+        ]
+      },
+      "percentiles": {
+        "mean": 0.4831612512802181,
+        "p50": 0.2774710306135714,
+        "p95": 1.2997886222365196,
+        "p99": 1.4424023571448241
+      }
+    },
+    "cchardet 2.4.0": {
+      "accuracy": 53.10102301790282,
+      "correct": 1661,
+      "total": 3128,
+      "elapsed": 4.013458186000207,
+      "throughput": 779.3777473280093,
+      "rss_mb": 30.328125,
+      "cats": {
+        "CJK (Chinese/Japanese/Korean)": [
+          173,
+          230
+        ],
+        "Cyrillic (Russian/Ukrainian/Slavic)": [
+          233,
+          279
+        ],
+        "Western & Latin (Latin-1/15, CP1252/1250)": [
+          325,
+          606
+        ],
+        "Unicode (UTF-8/16/32/7)": [
+          781,
+          1553
+        ],
+        "Legacy & Others (Greek, Hebrew, Arabic, EBCDIC, DOS)": [
+          149,
+          460
+        ]
+      },
+      "percentiles": {
+        "mean": 4.646726367022811,
+        "p50": 0.7932889984658686,
+        "p95": 14.699299001222244,
+        "p99": 48.522090999540524
+      }
+    },
+    "charset-normalizer 3.5.2": {
+      "accuracy": 53.10102301790282,
+      "correct": 1661,
+      "total": 3128,
+      "elapsed": 0.21054823499980557,
+      "throughput": 14856.453201818047,
+      "rss_mb": 31.08203125,
+      "cats": {
+        "CJK (Chinese/Japanese/Korean)": [
+          186,
+          230
+        ],
+        "Cyrillic (Russian/Ukrainian/Slavic)": [
+          204,
+          279
+        ],
+        "Western & Latin (Latin-1/15, CP1252/1250)": [
+          212,
+          606
+        ],
+        "Unicode (UTF-8/16/32/7)": [
+          795,
+          1553
+        ],
+        "Legacy & Others (Greek, Hebrew, Arabic, EBCDIC, DOS)": [
+          264,
+          460
+        ]
+      },
+      "percentiles": {
+        "mean": 1.2444940821471224,
+        "p50": 0.5986579999444075,
+        "p95": 4.175519999989774,
+        "p99": 12.075405000359751
+      }
+    },
+    "chardet 7.7.0": {
+      "accuracy": 71.13171355498721,
+      "correct": 2225,
+      "total": 3128,
+      "elapsed": 0.27408941500107176,
+      "throughput": 11412.334182944529,
+      "rss_mb": 31.75,
+      "cats": {
+        "CJK (Chinese/Japanese/Korean)": [
+          220,
+          230
+        ],
+        "Cyrillic (Russian/Ukrainian/Slavic)": [
+          279,
+          279
+        ],
+        "Western & Latin (Latin-1/15, CP1252/1250)": [
+          434,
+          606
+        ],
+        "Unicode (UTF-8/16/32/7)": [
+          940,
+          1553
+        ],
+        "Legacy & Others (Greek, Hebrew, Arabic, EBCDIC, DOS)": [
+          352,
+          460
+        ]
+      },
+      "percentiles": {
+        "mean": 1.825498585975349,
+        "p50": 0.4089129997737473,
+        "p95": 3.4144999990530778,
+        "p99": 46.26230299982126
+      }
+    }
+  },
+  "tier2_chaos": {
+    "Chaos_1_Spoofing": {
+      "total": 2679,
+      "PageSift": {
+        "correct": 0,
+        "acc": 0.0,
+        "time": 0.01881070300078136
+      },
+      "uchardet": {
+        "correct": 0,
+        "acc": 0.0,
+        "time": 0.02863715700004832
+      },
+      "cchardet": {
+        "correct": 0,
+        "acc": 0.0,
+        "time": 0.04528998600108025
+      },
+      "charset-normalizer": {
+        "correct": 458,
+        "acc": 17.09593131765584,
+        "time": 0.24699866700029816
+      },
+      "chardet": {
+        "correct": 1012,
+        "acc": 37.7752892870474,
+        "time": 0.320736224999564
+      }
+    },
+    "Chaos_2_Truncation": {
+      "total": 3128,
+      "PageSift": {
+        "correct": 1555,
+        "acc": 49.712276214833764,
+        "time": 0.005818904000989278
+      },
+      "uchardet": {
+        "correct": 753,
+        "acc": 24.072890025575447,
+        "time": 0.03510233999986667
+      },
+      "cchardet": {
+        "correct": 743,
+        "acc": 23.75319693094629,
+        "time": 0.056089637999320985
+      },
+      "charset-normalizer": {
+        "correct": 903,
+        "acc": 28.868286445012785,
+        "time": 0.12862583399873984
+      },
+      "chardet": {
+        "correct": 1107,
+        "acc": 35.39002557544757,
+        "time": 0.2131581379999261
+      }
+    },
+    "Chaos_3_Noise": {
+      "total": 3128,
+      "PageSift": {
+        "correct": 1660,
+        "acc": 53.069053708439895,
+        "time": 0.2564601430003677
+      },
+      "uchardet": {
+        "correct": 1267,
+        "acc": 40.505115089514064,
+        "time": 0.4262854190001235
+      },
+      "cchardet": {
+        "correct": 1262,
+        "acc": 40.345268542199484,
+        "time": 4.499951797999529
+      },
+      "charset-normalizer": {
+        "correct": 422,
+        "acc": 13.491048593350383,
+        "time": 0.6685594619993935
+      },
+      "chardet": {
+        "correct": 839,
+        "acc": 26.82225063938619,
+        "time": 0.49007401099879644
+      }
+    },
+    "Chaos_4_50MB_Polyglot": {
+      "PageSift": {
+        "time": 0.862983050999901,
+        "speed_mbs": 57.93856547016441,
+        "pred": "windows-1252",
+        "rss_mb": 126.9375
+      },
+      "uchardet": {
+        "time": 0.013146510998922167,
+        "speed_mbs": 3803.290470308001,
+        "pred": null,
+        "rss_mb": 126.9375
+      },
+      "cchardet": {
+        "time": 12.194815068000025,
+        "speed_mbs": 4.100103176734774,
+        "pred": "BIG5",
+        "rss_mb": 126.9375
+      },
+      "charset-normalizer": {
+        "time": 0.4969441920002282,
+        "speed_mbs": 100.61491975335741,
+        "pred": null,
+        "rss_mb": 126.9375
+      },
+      "chardet": {
+        "time": 0.050681779999649734,
+        "speed_mbs": 986.5478284374691,
+        "pred": "ascii",
+        "rss_mb": 0.0
+      }
+    },
+    "Chaos_5_Storm": {
+      "PageSift": {
+        "ops_per_sec": 44663.20186938731,
+        "elapsed": 0.5597449119995872,
+        "rss_mb": 126.94140625
+      },
+      "uchardet": {
+        "ops_per_sec": 42594.24458353388,
+        "elapsed": 0.5869337570002244,
+        "rss_mb": 136.0234375
+      },
+      "cchardet": {
+        "ops_per_sec": 3587.608679397565,
+        "elapsed": 6.96843001399975,
+        "rss_mb": 139.74609375
+      }
+    }
+  },
+  "peak_rss_mb": 4487.33984375
+}

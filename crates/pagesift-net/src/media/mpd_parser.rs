@@ -77,7 +77,10 @@ fn replace_template(
         if let Some(end) = result[idx + 1..].find('$') {
             let tag = result[idx..=idx + 1 + end].to_string();
             let formatted = if tag.contains("%0") {
-                if let Some(width_str) = tag.strip_prefix("$Number%0").and_then(|s| s.strip_suffix("d$")) {
+                if let Some(width_str) = tag
+                    .strip_prefix("$Number%0")
+                    .and_then(|s| s.strip_suffix("d$"))
+                {
                     if let Ok(width) = width_str.parse::<usize>() {
                         format!("{:0width$}", number, width = width)
                     } else {
@@ -132,7 +135,11 @@ fn finalize_representation(
         let merged = if effective_base.is_empty() {
             raw.to_string()
         } else {
-            format!("{}/{}", effective_base.trim_end_matches('/'), raw.trim_start_matches('/'))
+            format!(
+                "{}/{}",
+                effective_base.trim_end_matches('/'),
+                raw.trim_start_matches('/')
+            )
         };
         match base_url {
             Some(b) => b.join(&merged).map(|u| u.to_string()).unwrap_or(merged),
@@ -160,7 +167,8 @@ fn finalize_representation(
                 }
                 let count = r + 1;
                 for _ in 0..count {
-                    let seg_uri = replace_template(media_pattern, &rep.id, seg_num, rep.bandwidth, cur_time);
+                    let seg_uri =
+                        replace_template(media_pattern, &rep.id, seg_num, rep.bandwidth, cur_time);
                     rep.segments.push(DashSegment {
                         uri: resolve(&seg_uri),
                         duration_s: *d as f64 / timescale,
@@ -182,7 +190,8 @@ fn finalize_representation(
             for i in 0..num_segs {
                 let seg_num = cur_template.start_number + i;
                 let cur_time = i * dur;
-                let seg_uri = replace_template(media_pattern, &rep.id, seg_num, rep.bandwidth, cur_time);
+                let seg_uri =
+                    replace_template(media_pattern, &rep.id, seg_num, rep.bandwidth, cur_time);
                 rep.segments.push(DashSegment {
                     uri: resolve(&seg_uri),
                     duration_s: seg_dur_s,

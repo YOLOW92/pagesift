@@ -134,7 +134,6 @@ fn extract_property_value(node: NodeRef<'_>) -> Value {
     Value::String(text.trim().to_string())
 }
 
-
 /// 将属性值放入属性字典，若同名属性出现多次，聚合为 Array
 fn add_property(props: &mut Map<String, Value>, name: &str, val: Value) {
     match props.get_mut(name) {

@@ -1,8 +1,8 @@
 //! DOM 元素拓扑指纹提取器：提取标签、文本、祖先拓扑路径、兄弟上下文与语义属性。
 
-use std::collections::BTreeSet;
 use pagesift_html::{Html, NodeRef, Selector};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 
 const MAX_TOKENS: usize = 64;
 
@@ -87,7 +87,11 @@ fn is_semantic_class(name: &str) -> bool {
     if name.starts_with("css-")
         || name.starts_with("c-")
         || name.starts_with('_')
-        || (name.contains('-') && name.split('-').last().is_some_and(|s| s.len() >= 6 && s.chars().all(|c| c.is_ascii_hexdigit())))
+        || (name.contains('-')
+            && name
+                .split('-')
+                .last()
+                .is_some_and(|s| s.len() >= 6 && s.chars().all(|c| c.is_ascii_hexdigit())))
     {
         return false;
     }

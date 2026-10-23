@@ -17,7 +17,10 @@ mod tests {
         completed.insert("https://example.com/p1".into());
         completed.insert("https://example.com/p2".into());
 
-        let pending = vec!["https://example.com/p3".into(), "https://example.com/p4".into()];
+        let pending = vec![
+            "https://example.com/p3".into(),
+            "https://example.com/p4".into(),
+        ];
         let mut domain_counts = HashMap::new();
         domain_counts.insert("example.com".into(), 2);
 
@@ -25,7 +28,9 @@ mod tests {
         assert!(snapshot.verify_integrity());
 
         // 模拟篡改已完成列表
-        snapshot.completed_urls.insert("https://example.com/fake".into());
+        snapshot
+            .completed_urls
+            .insert("https://example.com/fake".into());
         assert!(!snapshot.verify_integrity());
     }
 

@@ -13,11 +13,11 @@ mod cmap;
 mod encoding;
 mod font;
 mod fontfile;
+mod geom;
 mod interp;
 mod layout;
 mod lexer;
 mod math;
-mod geom;
 mod obj;
 mod table;
 

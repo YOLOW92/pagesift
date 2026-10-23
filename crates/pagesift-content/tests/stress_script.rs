@@ -1,6 +1,6 @@
 //! 极限压力与对抗性样本测试：针对 ECMAScript 状态机词法扫描器在畸形 JS 与恶意脚本下的健壮性。
 
-use pagesift_content::{scan_script};
+use pagesift_content::scan_script;
 use url::Url;
 
 #[test]
@@ -61,7 +61,10 @@ fn stress_pathological_template_literals() {
     "#;
 
     let scan = scan_script(js, &base);
-    assert!(scan.navigation.contains(&"https://example.com/api/v1/items".to_string()));
+    assert!(
+        scan.navigation
+            .contains(&"https://example.com/api/v1/items".to_string())
+    );
 }
 
 #[test]

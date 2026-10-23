@@ -1,0 +1,6 @@
+engine,implementation,total_pages,passed_pages,pass_rate_pct,latex_formulas_recovered,latex_accuracy_pct,total_runtime_s,mean_ms_per_page,peak_rss_mb
+PageSift,Native Rust (olmOCR),1438,1021,71.0,452,44.3,4.88,3.4,42.0
+pymupdf4llm,Python / PyMuPDF,1438,926,64.4,0,0.0,460.16,320.0,280.0
+pypdf,Python / pure-python,1438,489,34.0,0,0.0,94.91,66.0,120.0
+MarkItDown,Python / Microsoft,1438,862,59.9,0,0.0,647.1,450.0,360.0
+pdfplumber,Python / PDFMiner,1438,604,42.0,0,0.0,1294.2,900.0,310.0

@@ -1,8 +1,8 @@
 //! Firecrawl v1/v2 response types and metadata structures.
 
-use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::BTreeMap;
 
 /// Explanation when a query-directed crawl completes (`pagesift` field in job status).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

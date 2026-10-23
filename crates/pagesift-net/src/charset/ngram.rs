@@ -2,7 +2,7 @@
 //! 对非 UTF-8 文本在 CJK、西里尔文、中欧 Latin-2、希腊文、希伯来文、土耳其文及遗留代码页之间进行精确仲裁。
 
 use encoding_rs::{
-    Encoding, BIG5, EUC_KR, GB18030, IBM866, ISO_8859_5, KOI8_R, SHIFT_JIS, WINDOWS_1250,
+    BIG5, EUC_KR, Encoding, GB18030, IBM866, ISO_8859_5, KOI8_R, SHIFT_JIS, WINDOWS_1250,
     WINDOWS_1251, WINDOWS_1253, WINDOWS_1254, WINDOWS_1255, WINDOWS_1256,
 };
 

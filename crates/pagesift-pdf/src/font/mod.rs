@@ -1,7 +1,7 @@
 //! 字体解码：把显示串里的字节切成字符码，转成 Unicode 并给出字宽。
 
 pub(crate) mod cjk;
-use cjk::{code_len, fallback_text, predefined_source, CodeSource};
+use cjk::{CodeSource, code_len, fallback_text, predefined_source};
 
 use std::collections::HashMap;
 
@@ -434,4 +434,3 @@ fn is_bold(doc: &Document, base_font: &str, descriptor: Option<&Dictionary>) -> 
     }
     get_num(doc, d, b"Flags").is_some_and(|f| (f as i64) & (1 << 18) != 0)
 }
-

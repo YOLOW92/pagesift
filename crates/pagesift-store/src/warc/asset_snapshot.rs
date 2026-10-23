@@ -30,7 +30,14 @@ impl AssetSniffer {
         let mut urls = BTreeSet::new();
 
         // 1. Scan attributes: src=, href=, data-src=
-        for pattern in &["src=\"", "src='", "href=\"", "href='", "data-src=\"", "data-src='"] {
+        for pattern in &[
+            "src=\"",
+            "src='",
+            "href=\"",
+            "href='",
+            "data-src=\"",
+            "data-src='",
+        ] {
             let mut start_idx = 0;
             while let Some(found) = html[start_idx..].find(pattern) {
                 let actual_start = start_idx + found + pattern.len();
@@ -52,7 +59,9 @@ impl AssetSniffer {
         while let Some(found) = html[css_idx..].find("url(") {
             let actual_start = css_idx + found + 4;
             if let Some(end) = html[actual_start..].find(')') {
-                let raw = html[actual_start..actual_start + end].trim().trim_matches(|c| c == '\'' || c == '"');
+                let raw = html[actual_start..actual_start + end]
+                    .trim()
+                    .trim_matches(|c| c == '\'' || c == '"');
                 if is_relevant_asset_url(raw) {
                     urls.insert(raw.to_string());
                 }
@@ -67,15 +76,21 @@ impl AssetSniffer {
 }
 
 fn is_relevant_asset_url(url: &str) -> bool {
-    if url.is_empty() || url.starts_with('#') || url.starts_with("javascript:") || url.starts_with("data:") {
+    if url.is_empty()
+        || url.starts_with('#')
+        || url.starts_with("javascript:")
+        || url.starts_with("data:")
+    {
         return false;
     }
 
     let lower = url.to_lowercase();
     let has_asset_ext = [
-        ".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".webp",
-        ".svg", ".ico", ".woff", ".woff2", ".ttf", ".eot"
-    ].iter().any(|ext| lower.contains(ext));
+        ".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".woff", ".woff2",
+        ".ttf", ".eot",
+    ]
+    .iter()
+    .any(|ext| lower.contains(ext));
 
     let has_asset_path = lower.contains("/css/")
         || lower.contains("/js/")

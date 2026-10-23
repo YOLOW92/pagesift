@@ -36,7 +36,7 @@ def eval_q(line):
 if __name__ == "__main__":
     lines = [l for l in open(qpath) if l.strip()]
     res, ms = {}, 0.0
-    workers = 1 if os.environ.get("PAGESIFT_ONE_CORE") == "1" else min(12, os.cpu_count() or 8)
+    workers = int(os.environ.get("PAGESIFT_WORKERS", "32"))
     if workers > 1:
         with ProcessPoolExecutor(max_workers=workers) as ex:
             for qid, spans, dt in ex.map(eval_q, lines, chunksize=8):

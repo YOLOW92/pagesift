@@ -4,8 +4,8 @@
 pub mod reader_route;
 pub mod stream_sse;
 
-use axum::routing::{get, post};
 use axum::Router;
+use axum::routing::{get, post};
 use std::sync::Arc;
 
 use crate::engine::Engine;
@@ -27,7 +27,11 @@ mod tests {
 
     #[test]
     fn test_sse_event_formatting() {
-        let resp = stream_markdown_sse("https://example.com", Some("Test Title"), "# Hello\n\nWorld paragraph");
+        let resp = stream_markdown_sse(
+            "https://example.com",
+            Some("Test Title"),
+            "# Hello\n\nWorld paragraph",
+        );
         assert_eq!(resp.status(), axum::http::StatusCode::OK);
         assert_eq!(
             resp.headers().get("content-type").unwrap(),

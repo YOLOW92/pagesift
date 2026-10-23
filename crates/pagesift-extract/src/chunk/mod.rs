@@ -5,14 +5,14 @@ pub mod markdown_ast;
 pub mod semantic;
 pub mod tokenizer_cache;
 
-use std::ops::Range;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::ops::Range;
 
-use crate::Error;
-use self::markdown_ast::{BlockKind, Doc};
 pub(crate) use self::markdown_ast::atx_heading;
+use self::markdown_ast::{BlockKind, Doc};
 pub use self::tokenizer_cache::{TokenIndex, count_range, is_cjk, token_spans};
+use crate::Error;
 
 /// 分块策略。JSON 形式是 `{"type": "sliding_window", "window": 100, "step": 50}`，
 /// 参数名也接受 Crawl4AI 的写法（`window_size`、`chunk_size`）。

@@ -1,12 +1,11 @@
 //! Adversarial stress testing for HLS/DASH manifest parsers and pure Rust stream container verifiers.
 
-use pagesift_net::media::{
-    HlsPlaylist, StreamVerifier, parse_m3u8, parse_mpd,
-};
+use pagesift_net::media::{HlsPlaylist, StreamVerifier, parse_m3u8, parse_mpd};
 
 #[test]
 fn test_stress_m3u8_large_manifest_and_byte_ranges() {
-    let mut manifest = String::from("#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:1000\n");
+    let mut manifest =
+        String::from("#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:1000\n");
 
     let num_segments = 2000;
     for i in 0..num_segments {
@@ -34,26 +33,33 @@ fn test_stress_m3u8_large_manifest_and_byte_ranges() {
 
 #[test]
 fn test_stress_mpd_huge_timeline_expansion() {
-    let mut mpd = String::from(r#"<?xml version="1.0" encoding="UTF-8"?>
+    let mut mpd = String::from(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
 <MPD minBufferTime="PT1S" mediaPresentationDuration="PT3600S">
   <Period>
     <AdaptationSet contentType="video" mimeType="video/mp4">
       <SegmentTemplate timescale="90000" initialization="init.mp4" media="chunk-$Number%06d$.m4s" startNumber="1">
         <SegmentTimeline>
-"#);
+"#,
+    );
 
     // 1,000 timeline entries with repeats
     for i in 0..1000 {
-        mpd.push_str(&format!(r#"          <S t="{}" d="180000" r="1"/>"#, i * 360000));
+        mpd.push_str(&format!(
+            r#"          <S t="{}" d="180000" r="1"/>"#,
+            i * 360000
+        ));
         mpd.push('\n');
     }
 
-    mpd.push_str(r#"        </SegmentTimeline>
+    mpd.push_str(
+        r#"        </SegmentTimeline>
       </SegmentTemplate>
       <Representation id="4k" bandwidth="15000000" width="3840" height="2160" />
     </AdaptationSet>
   </Period>
-</MPD>"#);
+</MPD>"#,
+    );
 
     let manifest = parse_mpd(&mpd, None).unwrap();
     let rep = &manifest.adaptation_sets[0].representations[0];
@@ -93,7 +99,10 @@ fn test_stress_stream_verifier_packet_drop_injection() {
     let report = StreamVerifier::verify_mpeg_ts(&data);
     assert_eq!(report.total_packets_or_boxes, num_packets);
     assert_eq!(report.continuity_errors, injected_drops);
-    assert!(!report.is_intact, "Packet drops must flag stream as corrupted");
+    assert!(
+        !report.is_intact,
+        "Packet drops must flag stream as corrupted"
+    );
 }
 
 #[test]
@@ -149,6 +158,9 @@ fn test_stress_stream_verifier_pts_monotonicity_check() {
     data[pkt25_offset + 17] = 0x01; // PTS reset to near 0
 
     let warped_report = StreamVerifier::verify_mpeg_ts(&data);
-    assert!(!warped_report.pts_monotonic, "PTS backwards warp must be caught");
+    assert!(
+        !warped_report.pts_monotonic,
+        "PTS backwards warp must be caught"
+    );
     assert!(!warped_report.is_intact);
 }

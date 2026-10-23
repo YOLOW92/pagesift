@@ -1,9 +1,7 @@
 //! Stress testing for ISO 28500 WARC/1.1 writer, multi-member Gzip, and cryptographic integrity.
 
 use flate2::read::MultiGzDecoder;
-use pagesift_store::warc::{
-    DigestCalculator, RecordType, WarcRecord, WarcWriter, WebpageSnapshot,
-};
+use pagesift_store::warc::{DigestCalculator, RecordType, WarcRecord, WarcWriter, WebpageSnapshot};
 use std::io::{Cursor, Read};
 use std::time::Instant;
 
@@ -32,7 +30,8 @@ fn test_stress_warc_throughput_and_multi_member_decompression() {
 </html>"#;
 
     let sample_css = b"body { font-family: Inter, sans-serif; } .hero { width: 100%; }".repeat(20);
-    let sample_js = b"console.log('Production app initialized'); function run() { return 42; }".repeat(30);
+    let sample_js =
+        b"console.log('Production app initialized'); function run() { return 42; }".repeat(30);
     let sample_png = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]; // PNG signature
 
     let mut snapshots = Vec::with_capacity(num_pages);
@@ -113,7 +112,8 @@ fn test_stress_warc_throughput_and_multi_member_decompression() {
     }
 
     let elapsed = start.elapsed();
-    let throughput_mbs = (total_uncompressed_bytes as f64 / (1024.0 * 1024.0)) / elapsed.as_secs_f64();
+    let throughput_mbs =
+        (total_uncompressed_bytes as f64 / (1024.0 * 1024.0)) / elapsed.as_secs_f64();
     let records_per_sec = total_records as f64 / elapsed.as_secs_f64();
 
     println!(
@@ -136,7 +136,8 @@ fn test_stress_warc_throughput_and_multi_member_decompression() {
     assert!(
         throughput_mbs > min_expected,
         "Throughput {:.2} MB/s must beat baseline threshold ({:.1} MB/s)",
-        throughput_mbs, min_expected
+        throughput_mbs,
+        min_expected
     );
 
     // Decompress with multi-member gzip decoder and verify integrity

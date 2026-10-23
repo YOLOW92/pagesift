@@ -2,8 +2,8 @@ mod common;
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 use common::{Builder, Page, paragraph};
@@ -167,14 +167,25 @@ fn adversarial_font_matrices_and_corrupt_floats() {
 fn massive_500_page_continuous_document_stress() {
     let mut pages = Vec::with_capacity(500);
     for p in 1..=500 {
-        let mut content = format!("BT /F2 16 Tf 72 720 Td (Chapter {p}: In-Depth System Verification) Tj ET\n");
+        let mut content =
+            format!("BT /F2 16 Tf 72 720 Td (Chapter {p}: In-Depth System Verification) Tj ET\n");
         let (p1, ny) = paragraph(
-            11.0, 72.0, 690.0, 14.0, 80,
-            &format!("This is page number {p} of the massive 500-page continuous document stress suite. Testing heap allocation, text clustering, and stability."),
+            11.0,
+            72.0,
+            690.0,
+            14.0,
+            80,
+            &format!(
+                "This is page number {p} of the massive 500-page continuous document stress suite. Testing heap allocation, text clustering, and stability."
+            ),
         );
         content.push_str(&p1);
         let (p2, _) = paragraph(
-            11.0, 72.0, ny - 10.0, 14.0, 80,
+            11.0,
+            72.0,
+            ny - 10.0,
+            14.0,
+            80,
             "Advanced agentic coding requires zero memory leaks, deterministic memory reclamation, and consistent latency across thousands of paragraphs.",
         );
         content.push_str(&p2);
@@ -184,13 +195,18 @@ fn massive_500_page_continuous_document_stress() {
             content.push_str("72 550 468 0 re S\n");
             content.push_str("200 500 0 100 re S\n");
             content.push_str("BT /F1 10 Tf 80 560 Td (Key Metric) Tj 220 560 Td (Score) Tj ET\n");
-            content.push_str("BT /F1 10 Tf 80 520 Td (Throughput) Tj 220 520 Td (100000 req/s) Tj ET\n");
+            content.push_str(
+                "BT /F1 10 Tf 80 520 Td (Throughput) Tj 220 520 Td (100000 req/s) Tj ET\n",
+            );
         }
         pages.push(Page::text(content));
     }
 
     let doc_bytes = Builder::new(pages).build();
-    eprintln!("Built 500-page synthetic PDF: {:.2} MB", doc_bytes.len() as f64 / 1_048_576.0);
+    eprintln!(
+        "Built 500-page synthetic PDF: {:.2} MB",
+        doc_bytes.len() as f64 / 1_048_576.0
+    );
 
     let t0 = Instant::now();
     let res = extract(&doc_bytes);
@@ -240,10 +256,7 @@ fn high_concurrency_saturation_stress_olmocr() {
 
     let num_threads = std::thread::available_parallelism().map_or(8, |n| n.get());
     let chunk_size = (files.len() + num_threads - 1) / num_threads;
-    let chunks: Vec<Vec<PathBuf>> = files
-        .chunks(chunk_size)
-        .map(|c| c.to_vec())
-        .collect();
+    let chunks: Vec<Vec<PathBuf>> = files.chunks(chunk_size).map(|c| c.to_vec()).collect();
 
     let total_parsed = Arc::new(AtomicUsize::new(0));
     let total_bytes = Arc::new(AtomicUsize::new(0));
@@ -279,5 +292,8 @@ fn high_concurrency_saturation_stress_olmocr() {
     );
     assert!(total_p >= 1200);
     let min_rate = if cfg!(debug_assertions) { 100.0 } else { 800.0 };
-    assert!(rate > min_rate, "Parallel saturation rate must exceed {min_rate} pages/sec");
+    assert!(
+        rate > min_rate,
+        "Parallel saturation rate must exceed {min_rate} pages/sec"
+    );
 }

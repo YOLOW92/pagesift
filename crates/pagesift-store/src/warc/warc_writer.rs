@@ -74,11 +74,7 @@ impl WarcRecord {
         self
     }
 
-    pub fn with_http_response(
-        mut self,
-        status: u16,
-        headers: Vec<(String, String)>,
-    ) -> Self {
+    pub fn with_http_response(mut self, status: u16, headers: Vec<(String, String)>) -> Self {
         self.status_code = Some(status);
         self.http_headers = Some(headers);
         self
@@ -113,11 +109,7 @@ impl<W: Write> WarcWriter<W> {
     }
 
     /// Write standard warcinfo record at the beginning of the archive.
-    pub fn write_warcinfo(
-        &mut self,
-        filename: &str,
-        software: &str,
-    ) -> io::Result<String> {
+    pub fn write_warcinfo(&mut self, filename: &str, software: &str) -> io::Result<String> {
         let payload = format!(
             "software: {}\r\nformat: WARC File Format 1.1\r\nconformsTo: http://bibnum.bnf.fr/WARC/WARC_Specification_ISO_28500_version_1.1.pdf\r\nfilename: {}\r\n",
             software, filename
@@ -158,9 +150,15 @@ impl<W: Write> WarcWriter<W> {
             warc_headers.push(format!("WARC-Concurrent-To: <{}>", concurrent));
         }
 
-        warc_headers.push(format!("WARC-Block-Digest: {}", block_digest.to_warc_header()));
+        warc_headers.push(format!(
+            "WARC-Block-Digest: {}",
+            block_digest.to_warc_header()
+        ));
         if record.record_type == RecordType::Response || record.record_type == RecordType::Request {
-            warc_headers.push(format!("WARC-Payload-Digest: {}", payload_digest.to_warc_header()));
+            warc_headers.push(format!(
+                "WARC-Payload-Digest: {}",
+                payload_digest.to_warc_header()
+            ));
         }
 
         // Assemble uncompressed record bytes:
@@ -235,7 +233,9 @@ fn construct_record_block(record: &WarcRecord) -> Vec<u8> {
 fn chrono_now_iso8601() -> String {
     // Generate ISO-8601 UTC timestamp: YYYY-MM-DDTHH:MM:SSZ using std time
     let now = std::time::SystemTime::now();
-    let duration = now.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+    let duration = now
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
     let secs = duration.as_secs();
 
     // Fast calendar conversion

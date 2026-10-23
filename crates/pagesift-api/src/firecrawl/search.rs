@@ -1,8 +1,8 @@
 //! Firecrawl v1 and v2 `/search` and `/extract` endpoints.
 
+use axum::Json;
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{Path, State};
-use axum::Json;
 
 use crate::error::{ApiError, ErrorCode};
 use crate::jobs::{JOB_TTL, rfc3339};

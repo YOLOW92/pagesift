@@ -1,12 +1,16 @@
-use std::time::Instant;
 use pagesift_extract::{ChunkStrategy, chunk};
+use std::time::Instant;
 
 fn main() {
-    let text = "PageSift delivers ultra-fast RAG chunking and semantic boundary detection. ".repeat(20000);
+    let text =
+        "PageSift delivers ultra-fast RAG chunking and semantic boundary detection. ".repeat(20000);
     let bytes = text.len();
     println!("Document size: {:.2} MB", bytes as f64 / 1_000_000.0);
 
-    let strategy = ChunkStrategy::SlidingWindow { window: 200, step: 100 };
+    let strategy = ChunkStrategy::SlidingWindow {
+        window: 200,
+        step: 100,
+    };
     // Warmup
     let _ = chunk(&text, &strategy).unwrap();
 

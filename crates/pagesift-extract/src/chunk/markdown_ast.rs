@@ -1,9 +1,9 @@
 //! Markdown AST 结构保持解析与面包屑祖先路径追踪。
 //! 完整保留代码围栏（Fenced Code Block）与表格（Table），杜绝腰斩破损。
 
+use regex::Regex;
 use std::ops::Range;
 use std::sync::OnceLock;
-use regex::Regex;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BlockKind {

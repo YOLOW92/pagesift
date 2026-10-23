@@ -4,9 +4,9 @@ pub(crate) mod cff;
 pub(crate) mod strings;
 pub(crate) mod type1;
 
-use lopdf::{Dictionary, Document, Object};
 use crate::obj::{get, get_num, stream_bytes};
 use cff::cff;
+use lopdf::{Dictionary, Document, Object};
 use type1::type1;
 
 /// 字符码 0..=255 对应的字形名。字体程序用标准编码、或者读不出来时返回 None。

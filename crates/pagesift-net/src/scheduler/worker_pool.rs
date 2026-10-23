@@ -1,8 +1,8 @@
 //! Tokio 多线程高并发工作池模型。
 //! 协调无锁调度队列与域名限速器，最大化压榨网络 IO 与系统吞吐。
 
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
 use url::Url;
 

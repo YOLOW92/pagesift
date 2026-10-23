@@ -1,8 +1,8 @@
 //! 表格网格与单元格文字分配、对齐与折行合并。
 
-use crate::layout::Line;
-use super::lattice::TOL;
 use super::Table;
+use super::lattice::TOL;
+use crate::layout::Line;
 
 /// 判断文本片段是否落在矩形单元格内（基于片段中心点判定）。
 pub(crate) fn inside(f: &Line, x0: f64, top: f64, x1: f64, bottom: f64) -> bool {
@@ -24,7 +24,11 @@ pub(crate) fn cell_text(frags: &[&Line]) -> String {
 
 /// 把格子排成行列：按格子的边界坐标建网格，跨行跨列的格子文字放在左上角那格。
 /// 返回表格和"挤"的格子占有字格子的比例（一格里有几行、或者同一行有几段：缺了框线）。
-pub(crate) fn grid(cells: &[(f64, f64, f64, f64)], frags: &[Line], used: &mut [bool]) -> Option<(Table, f64, f64)> {
+pub(crate) fn grid(
+    cells: &[(f64, f64, f64, f64)],
+    frags: &[Line],
+    used: &mut [bool],
+) -> Option<(Table, f64, f64)> {
     let mut xs: Vec<f64> = cells.iter().flat_map(|c| [c.0, c.2]).collect();
     let mut ys: Vec<f64> = cells.iter().flat_map(|c| [c.1, c.3]).collect();
     xs.sort_by(f64::total_cmp);

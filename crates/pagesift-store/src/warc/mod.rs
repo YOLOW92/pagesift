@@ -24,13 +24,21 @@ mod tests {
                 .unwrap();
             assert!(winfo_id.starts_with("urn:uuid:"));
 
-            let html_payload = b"<!DOCTYPE html><html><body><h1>Hello WARC</h1></body></html>".to_vec();
-            let mut record = WarcRecord::new(RecordType::Response, "application/http; msgtype=response", html_payload)
-                .with_target_uri("https://example.com/index.html")
-                .with_http_response(200, vec![
+            let html_payload =
+                b"<!DOCTYPE html><html><body><h1>Hello WARC</h1></body></html>".to_vec();
+            let mut record = WarcRecord::new(
+                RecordType::Response,
+                "application/http; msgtype=response",
+                html_payload,
+            )
+            .with_target_uri("https://example.com/index.html")
+            .with_http_response(
+                200,
+                vec![
                     ("Content-Type".into(), "text/html; charset=utf-8".into()),
                     ("Server".into(), "PageSift-Test".into()),
-                ]);
+                ],
+            );
             record.add_concurrent_to("urn:uuid:12345678-1234-1234-1234-123456789abc");
             writer.write_record(&record).unwrap();
         }
@@ -40,7 +48,11 @@ mod tests {
         assert!(output_str.contains("WARC-Type: warcinfo\r\n"));
         assert!(output_str.contains("WARC-Type: response\r\n"));
         assert!(output_str.contains("WARC-Target-URI: https://example.com/index.html\r\n"));
-        assert!(output_str.contains("WARC-Concurrent-To: <urn:uuid:12345678-1234-1234-1234-123456789abc>\r\n"));
+        assert!(
+            output_str.contains(
+                "WARC-Concurrent-To: <urn:uuid:12345678-1234-1234-1234-123456789abc>\r\n"
+            )
+        );
         assert!(output_str.contains("WARC-Block-Digest: sha256:"));
         assert!(output_str.contains("WARC-Payload-Digest: sha256:"));
         assert!(output_str.contains("HTTP/1.1 200 OK\r\n"));
@@ -53,7 +65,9 @@ mod tests {
         let mut gz_buffer = Vec::new();
         {
             let mut writer = WarcWriter::new(&mut gz_buffer, true);
-            writer.write_warcinfo("compressed.warc.gz", "PageSift 0.40").unwrap();
+            writer
+                .write_warcinfo("compressed.warc.gz", "PageSift 0.40")
+                .unwrap();
 
             let payload = b"Resource payload content 12345".to_vec();
             let record = WarcRecord::new(RecordType::Resource, "text/plain", payload)

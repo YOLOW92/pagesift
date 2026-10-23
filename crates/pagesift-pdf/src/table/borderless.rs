@@ -1,9 +1,9 @@
 //! 无框线表格与三线表（Booktabs）检测、候选区域判定与非表格内容过滤。
 
-use crate::layout::Line;
-use super::lattice::HEdge;
-use super::grid::{median_size, region, rows_of};
 use super::Table;
+use super::grid::{median_size, region, rows_of};
+use super::lattice::HEdge;
+use crate::layout::Line;
 
 /// 表题、表注的特征判定。
 pub(crate) fn caption(text: &str) -> bool {
@@ -70,7 +70,12 @@ pub(crate) fn prose(t: &Table) -> bool {
 }
 
 /// 三线表检测（横向范围相近、上下对齐的横线组合）。
-pub(crate) fn ruled_only(h: &[HEdge], frags: &[Line], used: &mut [bool], page_width: f64) -> Vec<Table> {
+pub(crate) fn ruled_only(
+    h: &[HEdge],
+    frags: &[Line],
+    used: &mut [bool],
+    page_width: f64,
+) -> Vec<Table> {
     let long: Vec<&HEdge> = h
         .iter()
         .filter(|e| e.x1 - e.x0 >= 0.2 * page_width)

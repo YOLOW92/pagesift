@@ -53,6 +53,8 @@ impl TemplateLiteral {
 
     /// 判断模板是否全部为静态内容（无动态插值）。
     pub fn is_static(&self) -> bool {
-        self.parts.iter().all(|p| matches!(p, TemplatePart::Literal(_)))
+        self.parts
+            .iter()
+            .all(|p| matches!(p, TemplatePart::Literal(_)))
     }
 }

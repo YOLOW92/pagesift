@@ -1,0 +1,6 @@
+engine,scenario,total_scheduled_urls,completed_urls,wall_time_s,throughput_pages_per_s,peak_rss_mb,defense_status,error_rate_pct,retries_handled
+PageSift,Live Multi-Domain Crawl,50000,48433,17.76,2727.1,447.5,PASSED,0.0,0
+Spider 2.53.9,Live Multi-Domain Crawl,50000,35000,34.2,1023.4,11724.8,KILLED_OOM (12GB Limit),0.0,0
+Scrapy 2.12,Live Multi-Domain Crawl,50000,12400,120.0,103.3,1820.0,TIMED_OUT,0.1,0
+Colly (Go),Live Multi-Domain Crawl,50000,28100,45.1,623.1,12288.0,KILLED_OOM (12GB Limit),0.0,0
+PageSift,"Synthetic 100k Chaos Origin (150-DOM, 503/429)",100000,100000,32.14,3111.4,67.9,PASSED,0.0,3000

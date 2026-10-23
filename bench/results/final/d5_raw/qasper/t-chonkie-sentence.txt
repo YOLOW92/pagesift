@@ -1,0 +1,1 @@
+chonkie-sentence: 8336 chunks, 179.7 ms

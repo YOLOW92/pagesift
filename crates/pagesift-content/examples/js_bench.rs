@@ -1,5 +1,5 @@
-use std::time::Instant;
 use pagesift_content::scan_script;
+use std::time::Instant;
 use url::Url;
 
 fn main() {
@@ -19,7 +19,11 @@ fn main() {
     let repeats = 1_000_000 / snippet.len();
     let bundle = snippet.repeat(repeats);
     let bytes = bundle.len();
-    println!("JS Bundle size: {:.2} MB ({} bytes)", bytes as f64 / 1_000_000.0, bytes);
+    println!(
+        "JS Bundle size: {:.2} MB ({} bytes)",
+        bytes as f64 / 1_000_000.0,
+        bytes
+    );
 
     // Warmup
     let _ = scan_script(&bundle, &base);
@@ -32,6 +36,9 @@ fn main() {
     }
     let elapsed = t0.elapsed().as_secs_f64() / iters as f64;
     let ms = elapsed * 1000.0;
-    println!("1MB JS Bundle analysis latency: {:.3} ms (Target: < 5ms)", ms);
+    println!(
+        "1MB JS Bundle analysis latency: {:.3} ms (Target: < 5ms)",
+        ms
+    );
     assert!(ms < 5.0, "Analysis must be under 5ms!");
 }

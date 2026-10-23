@@ -1,0 +1,1 @@
+{"test": "10,000-page Continuous Streaming Stress", "total_pages": 10152, "wall_time_s": 4.02, "throughput_pages_per_s": 2523.7, "latency_ms_per_page": 0.396, "peak_rss_mb": 392.1, "memory_leak_detected": "NO (FLATLINE)", "failures": 0, "status": "PASSED"}

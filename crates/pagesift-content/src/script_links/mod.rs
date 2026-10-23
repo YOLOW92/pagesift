@@ -209,10 +209,13 @@ pub(crate) fn discover(script: &str, base: Option<&Url>) -> Vec<String> {
             Token::Template(tmpl) => {
                 // 如果是纯静态模板，或者带占位符的路径
                 if tmpl.is_static() {
-                    tmpl.parts.first().and_then(|p| match p {
-                        template_literals::TemplatePart::Literal(s) => Some(s.as_str()),
-                        _ => None,
-                    }).unwrap_or("")
+                    tmpl.parts
+                        .first()
+                        .and_then(|p| match p {
+                            template_literals::TemplatePart::Literal(s) => Some(s.as_str()),
+                            _ => None,
+                        })
+                        .unwrap_or("")
                 } else {
                     ""
                 }
@@ -264,8 +267,8 @@ pub(crate) fn discover(script: &str, base: Option<&Url>) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use self::ast_scanner::MAX_TOKENS;
+    use super::*;
 
     #[test]
     fn standalone_modules_fold_only_bounded_unambiguous_constants() {

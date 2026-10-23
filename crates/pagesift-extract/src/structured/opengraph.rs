@@ -9,7 +9,9 @@ pub fn extract_opengraph(html: &Html<'_>) -> Map<String, Value> {
 
     for node in html.root().descendants() {
         if node.tag() == Some(Tag::Meta) {
-            let Some(el) = node.as_element() else { continue; };
+            let Some(el) = node.as_element() else {
+                continue;
+            };
             let key = el
                 .attr("property")
                 .or_else(|| el.attr("name"))

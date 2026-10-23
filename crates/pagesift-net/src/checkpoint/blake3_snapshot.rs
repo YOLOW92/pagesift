@@ -1,10 +1,10 @@
 //! 基于 BLAKE3 增量校验与原子落盘的任务快照生成器。
 
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{self, Write};
 use std::path::Path;
-use serde::{Deserialize, Serialize};
 
 /// 检查点快照元数据与状态结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,8 +84,8 @@ impl TaskSnapshot {
         let path = path.as_ref();
         let tmp_path = path.with_extension("tmp");
 
-        let json_bytes = serde_json::to_vec(self)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let json_bytes =
+            serde_json::to_vec(self).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
         {
             let mut file = File::create(&tmp_path)?;

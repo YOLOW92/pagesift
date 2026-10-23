@@ -97,7 +97,9 @@ pub fn lex(source: &str) -> Vec<Token<'_>> {
                         if brace_depth == 0 {
                             let expr_bytes = &b[start_expr..i - 1];
                             let expr_str = std::str::from_utf8(expr_bytes).unwrap_or("").trim();
-                            template.parts.push(TemplatePart::Expr(expr_str.to_string()));
+                            template
+                                .parts
+                                .push(TemplatePart::Expr(expr_str.to_string()));
                         } else {
                             valid = false;
                             break;

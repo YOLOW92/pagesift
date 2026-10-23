@@ -7,8 +7,8 @@ pub mod map;
 pub mod scrape;
 pub mod search;
 
-use axum::routing::{get, post};
 use axum::Router;
+use axum::routing::{get, post};
 
 use crate::server::AppState;
 

@@ -342,7 +342,7 @@ impl Inner {
             return;
         }
         let mut pools = self.pools.lock().expect("lock poisoned");
-        if pools.idle >= SWEEP_AT {
+        if pools.idle >= SWEEP_AT || pools.h1.len() >= 512 {
             let timeout = self.idle_timeout;
             let mut removed = 0;
             pools.h1.retain(|_, list| {

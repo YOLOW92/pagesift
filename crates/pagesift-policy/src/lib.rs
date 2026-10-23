@@ -5,6 +5,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod adaptive;
 mod backoff;
 mod error;
 mod limiter;

@@ -22,6 +22,7 @@
 
 mod bm25;
 mod chunk;
+pub mod classifier;
 mod css;
 mod engine;
 mod error;
@@ -33,12 +34,11 @@ mod patterns;
 mod recursive;
 mod relevance;
 mod relocate;
+pub mod relocation;
 mod schema;
+pub mod structured;
 mod text;
 mod xpath;
-pub mod classifier;
-pub mod relocation;
-pub mod structured;
 
 pub use bm25::{Bm25Options, ScoredBlock, bm25_filter, bm25_scores, filter_markdown, tokenize};
 pub use chunk::{Chunk, ChunkStrategy, TokenIndex, chunk};
