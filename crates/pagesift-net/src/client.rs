@@ -157,57 +157,90 @@ impl Client {
             None => host.to_string(),
         };
 
-        // 先用池里的连接；拿不到再新建
-        let conn = match self.0.take(&key).await {
-            Some(c) => c,
-            None => self.connect(&key).await?,
-        };
-        let mut req = Request::get(
-            match &conn {
+        // 先用池里的连接；若池化连接已在空闲期被对端单方面关闭（如 broken pipe / RST / channel closed），
+        // 自动利用全新连接进行一次透明重试（符合 RFC 规范中对幂等 GET 请求在池化连接上的标准容错要求）。
+        let mut pooled = self.0.take(&key).await;
+        let mut retried = false;
+
+        loop {
+            let (conn, from_pool) = match pooled.take() {
+                Some(c) => (c, true),
+                None => (self.connect(&key).await?, false),
+            };
+
+            let req_uri = match &conn {
                 Conn::H1(_) => path.parse::<Uri>(),
                 Conn::H2(_) => format!("{}://{authority}{path}", url.scheme()).parse::<Uri>(),
             }
-            .map_err(|_| Error::InvalidUrl(crate::redact_url(url.as_str())))?,
-        )
-        .body(Empty::<Bytes>::new())
-        .map_err(|e| Error::Network(e.to_string()))?;
-        let h = req.headers_mut();
-        if matches!(conn, Conn::H1(_)) {
-            h.insert(
-                header::HOST,
-                HeaderValue::from_str(&authority).map_err(|_| Error::Header("host".into()))?,
-            );
-        }
-        h.insert(header::USER_AGENT, self.0.user_agent.clone());
-        h.insert(header::ACCEPT, HeaderValue::from_static("*/*"));
-        h.insert(
-            header::ACCEPT_ENCODING,
-            HeaderValue::from_static(ACCEPT_ENCODING),
-        );
-        for (k, v) in headers.iter() {
-            h.insert(k, v.clone());
-        }
+            .map_err(|_| Error::InvalidUrl(crate::redact_url(url.as_str())))?;
 
-        match conn {
-            Conn::H1(mut s) => {
-                let resp = s.send_request(req).await.map_err(|e| network(&e))?;
-                let (parts, body) = resp.into_parts();
-                Ok(Response {
-                    status: parts.status.as_u16(),
-                    headers: parts.headers,
-                    body,
-                    release: Some((self.0.clone(), key, s)),
-                })
+            let mut req = Request::get(req_uri)
+                .body(Empty::<Bytes>::new())
+                .map_err(|e| Error::Network(e.to_string()))?;
+
+            let h = req.headers_mut();
+            if matches!(conn, Conn::H1(_)) {
+                h.insert(
+                    header::HOST,
+                    HeaderValue::from_str(&authority).map_err(|_| Error::Header("host".into()))?,
+                );
             }
-            Conn::H2(mut s) => {
-                let resp = s.send_request(req).await.map_err(|e| network(&e))?;
-                let (parts, body) = resp.into_parts();
-                Ok(Response {
-                    status: parts.status.as_u16(),
-                    headers: parts.headers,
-                    body,
-                    release: None,
-                })
+            h.insert(header::USER_AGENT, self.0.user_agent.clone());
+            // 现代合规 Accept 与 Accept-Language 头部，显著降低 CDN/WAF 误判拦截率
+            h.insert(
+                header::ACCEPT,
+                HeaderValue::from_static("text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"),
+            );
+            h.insert(
+                header::ACCEPT_LANGUAGE,
+                HeaderValue::from_static("en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7"),
+            );
+            h.insert(
+                header::ACCEPT_ENCODING,
+                HeaderValue::from_static(ACCEPT_ENCODING),
+            );
+            for (k, v) in headers.iter() {
+                h.insert(k, v.clone());
+            }
+
+            match conn {
+                Conn::H1(mut s) => {
+                    match s.send_request(req).await {
+                        Ok(resp) => {
+                            let (parts, body) = resp.into_parts();
+                            return Ok(Response {
+                                status: parts.status.as_u16(),
+                                headers: parts.headers,
+                                body,
+                                release: Some((self.0.clone(), key, s)),
+                            });
+                        }
+                        Err(e) if from_pool && !retried => {
+                            retried = true;
+                            continue;
+                        }
+                        Err(e) => return Err(network(&e)),
+                    }
+                }
+                Conn::H2(mut s) => {
+                    match s.send_request(req).await {
+                        Ok(resp) => {
+                            let (parts, body) = resp.into_parts();
+                            return Ok(Response {
+                                status: parts.status.as_u16(),
+                                headers: parts.headers,
+                                body,
+                                release: None,
+                            });
+                        }
+                        Err(e) if from_pool && !retried => {
+                            retried = true;
+                            self.0.remove_h2(&key);
+                            continue;
+                        }
+                        Err(e) => return Err(network(&e)),
+                    }
+                }
             }
         }
     }
@@ -233,9 +266,18 @@ impl Client {
         };
         let mut last = None;
         let mut tcp = None;
+        let per_ip_budget = Duration::from_millis(1500);
         for ip in ips {
-            match timeout_at(deadline, TcpStream::connect((ip, key.port))).await {
-                Err(_) => return Err(Error::Timeout(TimeoutPhase::Connect)),
+            let now = Instant::now();
+            if now >= deadline {
+                return Err(Error::Timeout(TimeoutPhase::Connect));
+            }
+            // 避免单条黑洞/无法路由的 AAAA/IPv6 地址耗尽整个连接超时预算，实施 Happy Eyeballs 弹性回退
+            let ip_deadline = (now + per_ip_budget).min(deadline);
+            match timeout_at(ip_deadline, TcpStream::connect((ip, key.port))).await {
+                Err(_) => {
+                    last = Some(std::io::Error::new(std::io::ErrorKind::TimedOut, "connect timed out"));
+                }
                 Ok(Ok(s)) => {
                     tcp = Some(s);
                     break;
@@ -335,6 +377,11 @@ impl Inner {
             .expect("lock poisoned")
             .h2
             .insert(key, sender);
+    }
+
+    fn remove_h2(&self, key: &Key) {
+        let mut pools = self.pools.lock().expect("lock poisoned");
+        pools.h2.remove(key);
     }
 
     fn put_h1(&self, key: Key, sender: H1) {
