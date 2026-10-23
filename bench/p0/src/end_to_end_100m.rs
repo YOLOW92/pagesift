@@ -80,7 +80,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut peak_rss_mb = 0.0f64;
 
         while telemetry_running.load(Ordering::Relaxed) {
-            tokio::time::sleep(Duration::from_secs(5)).await;
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            if !telemetry_running.load(Ordering::Relaxed) {
+                break;
+            }
 
             let cur_tasks = telemetry_counters.n_task.load(Ordering::Relaxed);
             let cur_reqs = telemetry_counters.n_req.load(Ordering::Relaxed);
@@ -200,15 +203,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 等待所有任务完成
     let _ = sem.acquire_many(opts.concurrency as u32).await?;
-    running.store(false, Ordering::Relaxed);
-    let _ = telemetry_handle.await;
-
     let total_time = start_all.elapsed().as_secs_f64();
+    running.store(false, Ordering::Relaxed);
+    telemetry_handle.abort();
+
     let final_tasks = counters.n_task.load(Ordering::Relaxed);
     let final_reqs = counters.n_req.load(Ordering::Relaxed);
     let final_pages = counters.n_page.load(Ordering::Relaxed);
     let final_failed = counters.n_failed.load(Ordering::Relaxed);
     let final_bytes = counters.n_bytes.load(Ordering::Relaxed);
+    let final_rss = get_current_rss_mb();
+    let final_cpu = get_cpu_utilization();
+    let sustained_qps = final_pages as f64 / total_time.max(0.001);
+
+    if let Ok(mut w) = std::fs::OpenOptions::new().create(true).append(true).open(&opts.report_file) {
+        let final_entry = serde_json::json!({
+            "elapsed_s": total_time,
+            "n_task": final_tasks,
+            "n_req": final_reqs,
+            "n_page": final_pages,
+            "n_failed": final_failed,
+            "bytes_mb": final_bytes as f64 / 1_048_576.0,
+            "cur_qps": sustained_qps,
+            "sustained_qps": sustained_qps,
+            "rss_mb": final_rss,
+            "peak_rss_mb": final_rss,
+            "cpu_pct": final_cpu
+        });
+        let _ = writeln!(w, "{}", final_entry.to_string());
+    }
 
     println!("\n============================================================");
     println!("  P0 100M BASELINE COMPLETED SUMMARY");
