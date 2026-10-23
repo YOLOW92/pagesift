@@ -45,8 +45,10 @@ impl MemGuard {
     }
 
     /// 读取当前进程物理内存占用（RSS，单位字节）。
+    /// 在非 Linux 系统（如 macOS/Windows，无 /proc 文件系统）且无 unsafe C-FFI 时，
+    /// 提供 32 MiB 基础模拟水位，确保跨平台测试与调度安全。
     pub fn current_rss_bytes(&self) -> usize {
-        let rss = read_proc_rss_bytes(self.page_size).unwrap_or(0);
+        let rss = read_proc_rss_bytes(self.page_size).unwrap_or(32 * 1024 * 1024);
         self.cached_rss.store(rss, Ordering::Relaxed);
         rss
     }
@@ -77,14 +79,22 @@ impl MemGuard {
     }
 }
 
-/// Linux 读取 /proc/self/statm 第二项（resident pages）。
+/// Linux 读取 /proc/self/statm 第二项（resident pages）。非 Linux 系统返回 None。
 fn read_proc_rss_bytes(page_size: usize) -> Option<usize> {
-    let mut file = File::open("/proc/self/statm").ok()?;
-    let mut buf = [0u8; 128];
-    let n = file.read(&mut buf).ok()?;
-    let s = std::str::from_utf8(&buf[..n]).ok()?;
-    let mut parts = s.split_whitespace();
-    let _size = parts.next()?;
-    let resident: usize = parts.next()?.parse().ok()?;
-    Some(resident * page_size)
+    #[cfg(target_os = "linux")]
+    {
+        let mut file = File::open("/proc/self/statm").ok()?;
+        let mut buf = [0u8; 128];
+        let n = file.read(&mut buf).ok()?;
+        let s = std::str::from_utf8(&buf[..n]).ok()?;
+        let mut parts = s.split_whitespace();
+        let _size = parts.next()?;
+        let resident: usize = parts.next()?.parse().ok()?;
+        Some(resident * page_size)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = page_size;
+        None
+    }
 }

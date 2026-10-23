@@ -23,3 +23,4 @@ bench/pdf/out/
 
 # Raw benchmark process logs stay local
 /bench/fresh/results/**/*.log
+/bench/ultra/
