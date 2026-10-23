@@ -1,7 +1,5 @@
 //! 物理内存占用（RSS）实时监控与 12 GiB 绝对熔断守卫（100% Safe Rust）。
 
-use std::fs::File;
-use std::io::Read;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// 内存告警阈值（10 GiB）
@@ -83,6 +81,8 @@ impl MemGuard {
 fn read_proc_rss_bytes(page_size: usize) -> Option<usize> {
     #[cfg(target_os = "linux")]
     {
+        use std::fs::File;
+        use std::io::Read;
         let mut file = File::open("/proc/self/statm").ok()?;
         let mut buf = [0u8; 128];
         let n = file.read(&mut buf).ok()?;

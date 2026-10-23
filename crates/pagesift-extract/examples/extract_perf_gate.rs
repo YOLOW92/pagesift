@@ -1,6 +1,6 @@
 //! 性能回归线：在约 100KB 的合成页面上测各功能的中位耗时（越低越好）。
 //! CSS 提取、分块、BM25 超过 5ms 就以非零状态退出。
-//! 运行：`cargo run --release -p pagesift-extract --example perf_gate`
+//! 运行：`cargo run --release -p pagesift-extract --example extract_perf_gate`
 
 use std::fmt::Write;
 use std::hint::black_box;
