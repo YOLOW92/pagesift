@@ -215,7 +215,7 @@ impl Client {
                                 release: Some((self.0.clone(), key, s)),
                             });
                         }
-                        Err(e) if from_pool && !retried => {
+                        Err(_e) if from_pool && !retried => {
                             retried = true;
                             continue;
                         }
@@ -233,7 +233,7 @@ impl Client {
                                 release: None,
                             });
                         }
-                        Err(e) if from_pool && !retried => {
+                        Err(_e) if from_pool && !retried => {
                             retried = true;
                             self.0.remove_h2(&key);
                             continue;
