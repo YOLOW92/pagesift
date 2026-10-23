@@ -55,7 +55,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/stats", get(handle_stats))
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind(opts.bind).await?;
+    let socket = socket2::Socket::new(
+        socket2::Domain::IPV4,
+        socket2::Type::STREAM,
+        Some(socket2::Protocol::TCP),
+    )?;
+    socket.set_reuse_address(true)?;
+    #[cfg(unix)]
+    let _ = socket.set_reuse_port(true);
+    socket.set_nonblocking(true)?;
+    socket.bind(&opts.bind.into())?;
+    socket.listen(8192)?;
+    let std_listener: std::net::TcpListener = socket.into();
+    let listener = tokio::net::TcpListener::from_std(std_listener)?;
     println!("P0 Stream Origin listening on http://{}", opts.bind);
     println!("Ready to serve up to {} unique synthetic pages.", opts.total_pages);
 

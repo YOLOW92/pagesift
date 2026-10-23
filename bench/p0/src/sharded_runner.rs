@@ -15,28 +15,44 @@ pub struct Opts {
     pub shards: usize,
     #[arg(short, long, default_value_t = 128)]
     pub concurrency_per_shard: usize,
+    /// Automatically sense CPU topology (e.g. 80C, 300C, 384C) and calculate optimal shards & concurrency
+    #[arg(long)]
+    pub auto: bool,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opts = Opts::parse();
-    let per_shard_tasks = opts.total_tasks / opts.shards as u64;
-    let total_concurrency = opts.shards * opts.concurrency_per_shard;
+    
+    // Universal Autonomous Topology Calculation: C* = N_cpu * 16, Shards = ceil(N_cpu / 8)
+    let (shards, conc_per_shard) = if opts.auto {
+        let cores = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+        let s = (cores.div_ceil(8)).clamp(1, 64);
+        let c_total = cores * 16;
+        let c_shard = (c_total / s).max(16);
+        (s, c_shard)
+    } else {
+        (opts.shards, opts.concurrency_per_shard)
+    };
+
+    let per_shard_tasks = opts.total_tasks / shards as u64;
+    let total_concurrency = shards * conc_per_shard;
 
     println!("============================================================");
     println!("  PageSift 0.60 Sharded Share-Nothing Architecture Runner");
     println!("  Target Origin:     {}", opts.origin_url);
     println!("  Total Tasks:       {}", opts.total_tasks);
-    println!("  Parallel Shards:   {} independent dispatchers", opts.shards);
+    println!("  Autonomous Mode:   {}", if opts.auto { "ENABLED (Continuous C* Scaling)" } else { "Manual" });
+    println!("  Parallel Shards:   {} independent dispatchers", shards);
     println!("  Per-shard tasks:   {}", per_shard_tasks);
-    println!("  Per-shard conc:    {}", opts.concurrency_per_shard);
+    println!("  Per-shard conc:    {}", conc_per_shard);
     println!("  Total Concurrency: {}", total_concurrency);
     println!("============================================================");
 
     // Each shard gets its own dedicated atomic counter (no cross-shard cache bouncing)
-    let mut shard_counters: Vec<Arc<AtomicU64>> = Vec::with_capacity(opts.shards);
-    let mut shard_bytes: Vec<Arc<AtomicU64>> = Vec::with_capacity(opts.shards);
-    for _ in 0..opts.shards {
+    let mut shard_counters: Vec<Arc<AtomicU64>> = Vec::with_capacity(shards);
+    let mut shard_bytes: Vec<Arc<AtomicU64>> = Vec::with_capacity(shards);
+    for _ in 0..shards {
         shard_counters.push(Arc::new(AtomicU64::new(0)));
         shard_bytes.push(Arc::new(AtomicU64::new(0)));
     }
@@ -87,11 +103,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let start_all = Instant::now();
     let mut shard_handles = Vec::new();
 
-    for shard_id in 0..opts.shards {
-        let sem = Arc::new(Semaphore::new(opts.concurrency_per_shard));
-        // Dedicated connection pool per shard: zero mutex contention between shards!
+    for shard_id in 0..shards {
+        let sem = Arc::new(Semaphore::new(conc_per_shard));
         let shard_client = reqwest::Client::builder()
-            .pool_max_idle_per_host(opts.concurrency_per_shard * 2)
+            .pool_max_idle_per_host(conc_per_shard * 2)
             .pool_idle_timeout(Duration::from_secs(90))
             .tcp_nodelay(true)
             .build()?;
@@ -99,7 +114,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let cnt = shard_counters[shard_id].clone();
         let b_cnt = shard_bytes[shard_id].clone();
         let origin = opts.origin_url.clone();
-        let conc = opts.concurrency_per_shard;
+        let conc = conc_per_shard;
 
         let handle = tokio::spawn(async move {
             for i in 0..per_shard_tasks {
@@ -115,14 +130,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 tokio::spawn(async move {
                     let _permit = permit;
-                    if let Ok(resp) = c_inner.get(&url).send().await {
-                        if let Ok(body) = resp.bytes().await {
-                            b_cnt_inner.fetch_add(body.len() as u64, Ordering::Relaxed);
-                            if let Ok(s) = std::str::from_utf8(&body) {
-                                let doc = pagesift_content::process(s, &Default::default());
-                                if !doc.markdown.is_empty() {
-                                    cnt_inner.fetch_add(1, Ordering::Relaxed);
+                    match c_inner.get(&url).send().await {
+                        Ok(resp) => {
+                            if let Ok(body) = resp.bytes().await {
+                                b_cnt_inner.fetch_add(body.len() as u64, Ordering::Relaxed);
+                                if let Ok(s) = std::str::from_utf8(&body) {
+                                    let doc = pagesift_content::process(s, &Default::default());
+                                    if !doc.markdown.is_empty() {
+                                        cnt_inner.fetch_add(1, Ordering::Relaxed);
+                                    }
                                 }
+                            }
+                        }
+                        Err(e) => {
+                            static ERR_COUNT: AtomicU64 = AtomicU64::new(0);
+                            if ERR_COUNT.fetch_add(1, Ordering::Relaxed) < 3 {
+                                eprintln!("Request Error: {:?}", e);
                             }
                         }
                     }
