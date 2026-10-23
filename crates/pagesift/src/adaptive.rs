@@ -79,6 +79,11 @@ impl HardwareTier {
     }
 }
 
+pub use pagesift_policy::adaptive::{
+    AutonomousTuningEngine, PerformanceDiagnosis, ResponseSurfaceOptimizer, SafetyStatus,
+    SurfacePoint, TuningKnobs,
+};
+
 /// 宿主机物理规格
 #[derive(Debug, Clone, Copy)]
 pub struct HostHardware {
@@ -134,19 +139,16 @@ impl TuningProfile {
 
     pub fn for_hardware(hw: HostHardware, mode: TuningMode) -> Self {
         // 木桶短板并发度计算 (Bottleneck-Constrained Concurrency)
-        // 1. CPU 算力容量：自适应模式每核 24 个并发连接（高密度均衡），保守模式每核 8 个
-        let cpu_capacity = match (hw.tier, mode) {
-            (HardwareTier::Micro, TuningMode::Adaptive) => 16,
-            (HardwareTier::Micro, TuningMode::Conservative) => 8,
-            (HardwareTier::Small, TuningMode::Adaptive) => 48,
-            (HardwareTier::Small, TuningMode::Conservative) => 24,
-            (HardwareTier::Mid, TuningMode::Adaptive) => hw.logical_cores * 20, // 16T -> 320, 8C -> 160
-            (HardwareTier::Mid, TuningMode::Conservative) => hw.logical_cores * 8,
-            // 32 核 (EPYC 9B45)：768 并发（黄金平衡点，避免 1536 造成的本地 TCP 队列拥塞与 CDN 429 频发）
-            (HardwareTier::High, TuningMode::Adaptive) => 768,
-            (HardwareTier::High, TuningMode::Conservative) => 256,
-            (HardwareTier::Extreme, TuningMode::Adaptive) => (hw.logical_cores * 24).min(4096),
-            (HardwareTier::Extreme, TuningMode::Conservative) => 512,
+        // 1. CPU 算力容量：自适应模式采用连续 C* 模型动态伸缩，废除对特定单机（如 32 核 768 并发）的人工写死
+        let cpu_capacity = match mode {
+            TuningMode::Conservative => (hw.logical_cores * 8).clamp(8, 512),
+            TuningMode::Adaptive => match hw.tier {
+                HardwareTier::Micro => 16,
+                HardwareTier::Small => 48,
+                HardwareTier::Mid => hw.logical_cores * 20,
+                HardwareTier::High => (hw.logical_cores * 24).clamp(320, 1536),
+                HardwareTier::Extreme => (hw.logical_cores * 24).clamp(1024, 4096),
+            },
         };
 
         // 2. 内存安全容量：每并发预留 2MB 完整生命周期缓存（连接状态 + HTML + Markdown）
@@ -237,11 +239,11 @@ fn detect_fd_limit() -> usize {
 }
 
 /// 硬件全维分级判定（严格全维条件与运算，杜绝大内存小CPU误判）
-pub fn classify_hardware(cores: usize, mem_bytes: u64, fd_limit: usize) -> HardwareTier {
+pub fn classify_hardware(cores: usize, mem_bytes: u64, _fd_limit: usize) -> HardwareTier {
     let mem_gb = mem_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
 
-    // Extreme 必须同时满足三个硬性要求：核心 >= 64 且 内存 >= 120GB 且 FD >= 65535
-    if cores >= 64 && mem_gb >= 120.0 && fd_limit >= 65535 {
+    // Extreme 硬件条件：核心 >= 64 且 内存 >= 96GB（FD 限制由木桶短板公式独立约束）
+    if cores >= 64 && mem_gb >= 96.0 {
         HardwareTier::Extreme
     } else if cores >= 24 && mem_gb >= 48.0 {
         // High-end: 比如 EPYC 9B45 (32C, 128GB)

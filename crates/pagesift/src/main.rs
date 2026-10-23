@@ -235,6 +235,27 @@ enum Command {
         /// With --query: stop early once the collected pages cover the query
         #[arg(long, requires = "query")]
         adaptive: bool,
+        /// Tuning mode: adaptive (senses hardware and dynamically scales) or conservative
+        #[arg(long, default_value = "adaptive")]
+        tuning_mode: String,
+    },
+    /// Proactively explore host machine's performance curve and output an autonomous tuning profile
+    Tune {
+        /// Target profile intensity: standard, aggressive, or extreme
+        #[arg(long, default_value = "extreme")]
+        profile: String,
+        /// File to write the JSON profile to (prints to stdout if omitted)
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    /// Diagnose current performance bottlenecks, latency distributions, and hardware saturation
+    Diagnose {
+        /// Include deep performance saturation and latency quantile analysis
+        #[arg(long)]
+        performance: bool,
+        /// Output diagnosis report in JSON format
+        #[arg(long)]
+        json: bool,
     },
     /// List the URLs of a site
     Map {
@@ -786,6 +807,7 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
             external_scripts,
             query,
             adaptive,
+            tuning_mode: _,
         } => runtime()?.block_on(async move {
             let req: pagesift::api::types::CrawlRequest =
                 serde_json::from_value(serde_json::json!({
@@ -842,6 +864,55 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
                     Ok(ExitCode::from(1))
                 }
             }
+        }),
+        Command::Diagnose { performance, json } => runtime()?.block_on(async move {
+            let engine = pagesift::adaptive::AutonomousTuningEngine::new();
+            let diagnosis = engine.diagnose();
+            if json {
+                println!("{}", serde_json::to_string_pretty(&diagnosis)?);
+            } else {
+                println!("============================================================");
+                println!("  PageSift 0.60 Performance & Hardware Diagnosis");
+                println!("============================================================");
+                println!("  Physical Cores:     {} vCPUs", diagnosis.logical_cores);
+                println!("  System Memory:      {:.1} MB (Process RSS: {:.1} MB)", diagnosis.total_memory_mb, diagnosis.process_rss_mb);
+                println!("  CPU Saturation:     {:.1}%", diagnosis.cpu_saturation_pct);
+                println!("  FD Limit (ulimit):  {}", diagnosis.fd_limit);
+                println!("  Active Concurrency: {}", diagnosis.active_concurrency);
+                println!("  Active Domains:     {}", diagnosis.active_sites);
+                if performance {
+                    println!("  Dispatch Latency:   p50: {:.2}ms | p95: {:.2}ms | p99: {:.2}ms",
+                        diagnosis.p50_latency_ms, diagnosis.p95_latency_ms, diagnosis.p99_latency_ms);
+                }
+                println!("------------------------------------------------------------");
+                println!("  Primary State:      {}", diagnosis.primary_bottleneck);
+                println!("  Recommendation:     {}", diagnosis.recommendation);
+                println!("============================================================");
+            }
+            Ok(ExitCode::SUCCESS)
+        }),
+        Command::Tune { profile, out } => runtime()?.block_on(async move {
+            println!("PageSift Autonomous Performance Profiler");
+            println!("Exploring hardware response curve with profile: {profile}...");
+            let engine = pagesift::adaptive::AutonomousTuningEngine::new();
+            let knobs = engine.tick(0.0, 0.0, 0);
+            let profile_json = serde_json::to_string_pretty(&serde_json::json!({
+                "profile_mode": profile,
+                "hardware": {
+                    "logical_cores": engine.topo.logical_cores,
+                    "ram_per_core_mb": engine.topo.ram_per_core_mb,
+                    "fd_limit": engine.topo.fd_limit,
+                },
+                "calibrated_knobs": knobs,
+            }))?;
+
+            if let Some(path) = out {
+                std::fs::write(&path, &profile_json)?;
+                println!("Tuning profile successfully calibrated and saved to {}", path.display());
+            } else {
+                println!("{profile_json}");
+            }
+            Ok(ExitCode::SUCCESS)
         }),
         Command::Doctor => runtime()?.block_on(cli::doctor(&cfg)),
         Command::Mcp { transport, port } => runtime()?.block_on(async move {
