@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.50.0
+# pagesift 0.51.0
 
 **为 AI 智能体与 LLM 数据工程打造的高性能、严格内存有界抓取与内容提取引擎。**  
 把任何网站、学术文档或历史档案转化为干净的 Markdown 与结构化数据——单个纯 Rust 二进制、原生多语言 SDK、完美兼容 Firecrawl v1/v2 与 Jina Reader 双协议，而内存占用仅为竞品零头。
@@ -96,7 +96,7 @@
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.50.0
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.51.0
 ```
 
 #### Firecrawl SDK 零改动平替接入
@@ -187,7 +187,7 @@ pagesift crawl "https://docs.rs" --limit 5000 --tuning-mode adaptive --output ./
 
 ## 为什么选择 PageSift？
 
-| 核心特性 | PageSift 0.50.0 | Firecrawl (Self-Hosted) | Crawl4AI | Spider |
+| 核心特性 | PageSift 0.51.0 | Firecrawl (Self-Hosted) | Crawl4AI | Spider |
 | :--- | :---: | :---: | :---: | :---: |
 | **底层架构** | 100% 纯安全 Rust (`forbid(unsafe)`) | TypeScript / Python / Redis | Python / Playwright | Rust / Tokio |
 | **API 兼容度** | **Firecrawl v1+v2 + Jina Reader + MCP** | 仅 Firecrawl API | 自定义 Python API | 自定义 REST API |

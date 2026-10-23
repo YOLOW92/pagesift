@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.50.0
+# pagesift 0.51.0
 
 **High-performance, memory-bounded web scraping and extraction engine built for AI agents and LLM pipelines.**  
 Turn any website, document, or archive into clean Markdown and structured data — one Rust binary, native SDKs, dual Firecrawl v1/v2 & Jina Reader APIs, at a fraction of the memory.
@@ -96,7 +96,7 @@ Run the standalone container (includes headless browser renderer):
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.50.0
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.51.0
 ```
 
 #### Firecrawl SDK Drop-In Replacement
@@ -187,7 +187,7 @@ pagesift crawl "https://docs.rs" --limit 5000 --tuning-mode adaptive --output ./
 
 ## Why PageSift?
 
-| Feature | PageSift 0.50.0 | Firecrawl (Self-Hosted) | Crawl4AI | Spider |
+| Feature | PageSift 0.51.0 | Firecrawl (Self-Hosted) | Crawl4AI | Spider |
 | :--- | :---: | :---: | :---: | :---: |
 | **Core Architecture** | Pure Safe Rust (`forbid(unsafe)`) | TypeScript / Python / Redis | Python / Playwright | Rust / Tokio |
 | **API Compatibility** | **Firecrawl v1 + v2 + Jina Reader + MCP** | Firecrawl API only | Custom Python API | Custom REST API |

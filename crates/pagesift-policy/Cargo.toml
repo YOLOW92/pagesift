@@ -9,7 +9,7 @@ rust-version.workspace = true
 
 [dependencies]
 httpdate = "1.0.3"
-pagesift-net = { path = "../pagesift-net", version = "0.50.0" }
+pagesift-net = { path = "../pagesift-net", version = "0.51.0" }
 thiserror = "2.0"
 tokio = { version = "1", features = ["sync", "time"] }
 

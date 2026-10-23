@@ -2,6 +2,34 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.51.0] — 2026-10-24
+
+Network egress transparency, granular SSRF CIDR whitelisting, pip MCP server distribution, precision arXiv boilerplate pruning, and end-to-end incremental scraping with HTTP 304 conditional requests. See [the release notes](docs/releases/0.51.0.md).
+
+### Added
+- **Full Proxy & Fake-IP / Remote-DNS Egress**:
+  - Automatically detect and apply standard proxy environment variables: `HTTPS_PROXY`, `https_proxy`, `ALL_PROXY`, `all_proxy`, `HTTP_PROXY`, `http_proxy`.
+  - Added CLI flag `--proxy <URL>`, Python SDK `ScrapeOptions(proxy=...)` and `Scraper(proxy=...)`, and REST API explicit upstream proxy routing.
+  - Full support for `http://`, `https://`, `socks5://`, and `socks5h://` (remote DNS resolution on proxy, enabling seamless scraping in TUN / fake-IP proxy environments).
+- **Granular SSRF CIDR Subnet Whitelisting**:
+  - Zero-dependency, pure safe Rust bitmask IP matcher (`IpCidr`) supporting both IPv4 and IPv6 subnets.
+  - Replaced binary private network toggle with granular CIDR whitelisting: CLI `--allow-cidr <CIDR>`, configuration `allow_cidrs = [...]`, and Python `Scraper(allow_cidrs=[...])`.
+  - Out-of-the-box support for RFC 2544 benchmark/fake-IP ranges (`198.18.0.0/15`) and internal enterprise subnets.
+- **Pip Distribution MCP Server Entrypoint**:
+  - Registered `pagesift-mcp` and `pagesift` console scripts in `pyproject.toml`.
+  - Added Python module entrypoints `python -m pagesift.mcp` and `python -m pagesift mcp`.
+  - Exported PyO3 binding `run_mcp(transport, port)` connecting Python directly to high-performance Rust MCP server.
+- **Precision Academic Boilerplate Pruning**:
+  - Stripped non-article boilerplate inside `<main>` tags on arXiv abstract pages (e.g. `1706.03762`).
+  - Added semantic negative classes for `labs`, `labstabs`, `endorsers`, `recommender`, and `bookmarks` in `classes.rs` and `features.rs`.
+- **Incremental Scraping & HTTP 304 Conditional Requests**:
+  - Added `if_none_match` (ETag) and `if_modified_since` parameters to Python `ScrapeOptions` and `Scraper.scrape`.
+  - Exposed `doc.not_modified` boolean and `doc.status_code` in Python SDK.
+  - Published comprehensive practical guide [docs/incremental-collection.md](docs/incremental-collection.md) covering Python, Node.js, Rust, and REST API.
+
+### Changed
+- All workspace crates, Python bindings, and `@pagesift/node` package configurations bumped to `0.51.0`.
+
 ## [0.50.0] — 2026-10-23
 
 Web-scale industrial milestone: 100,000 real-world public web showdown vs Spider 2.53.9 (PageSift sustained 188.4 MB peak RSS vs Spider's 9.0 GB leakage and socket deadlock, 47.6× memory efficiency, 96.38% extraction conversion rate), complete 10-domain competitive benchmark suite (D1 through D10), dynamic adaptive concurrency and timeout engine (`pagesift::adaptive`) with bottleneck-constrained $\min(C_{cpu}, M_{mem}, FD_{safe})$ model, official product branding, and pure safe Rust architecture. See [the release notes](docs/releases/0.50.0.md).

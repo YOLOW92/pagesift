@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.50.0
+# pagesift 0.51.0
 
 **Motor de scraping y extracción web de alto rendimiento y memoria acotada para agentes de IA y pipelines de LLM.**  
 Convierte cualquier sitio web, documento o archivo en Markdown limpio y datos estructurados: un único binario en Rust, SDK nativos, APIs duales Firecrawl v1/v2 y Jina Reader, consumiendo una fracción de la memoria de la competencia.
@@ -94,7 +94,7 @@ Evaluado sobre servidor **AMD EPYC de Producción (32 Núcleos, 128 GB RAM)** y 
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.50.0
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.51.0
 ```
 
 #### Reemplazo Directo de Firecrawl SDK
@@ -176,7 +176,7 @@ pagesift crawl "https://docs.rs" --limit 5000 --tuning-mode adaptive --output ./
 
 ## ¿Por qué PageSift?
 
-| Característica | PageSift 0.50.0 | Firecrawl (Self-Hosted) | Crawl4AI | Spider |
+| Característica | PageSift 0.51.0 | Firecrawl (Self-Hosted) | Crawl4AI | Spider |
 | :--- | :---: | :---: | :---: | :---: |
 | **Arquitectura Central** | 100% Rust Seguro (`forbid(unsafe)`) | TypeScript / Python / Redis | Python / Playwright | Rust / Tokio |
 | **Compatibilidad API** | **Firecrawl v1+v2 + Jina + MCP** | Solo Firecrawl API | API personalizada Python | API personalizada REST |
