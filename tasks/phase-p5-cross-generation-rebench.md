@@ -16,5 +16,5 @@
 - [x] **Step 5.2: 量化全维度跃迁指标与白皮书生成**
   - [x] 产出公开正式的《PageSift 0.50 vs 0.60 跨代代际跃迁官方白皮书》（`docs/benchmarks/0.60_p5_cross_generation_rebench.md`）。
   - [x] 完成十大人力/算力/质量/稳定性全维度量化对比。
-- [ ] **Step 5.3: 0.60.0 官方发版**
-  - [ ] 撰写 0.60.0 正式发版文档，全工作区 crates 打包发布。
+- [x] **Step 5.3: 0.60.0 官方发版**
+  - [x] 撰写 0.60.0 正式发版文档与测试结论（`docs/releases/0.60.0.md`），更新 `CHANGELOG.md` 与 `README.md`，全工作区 crates 打包发布。
