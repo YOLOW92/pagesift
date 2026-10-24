@@ -304,9 +304,29 @@ def scrape_many(
     options: Optional[ScrapeOptions] = None,
     *,
     concurrency: int = DEFAULT_CONCURRENCY,
+    request_interval: Optional[float] = None,
+    per_host_concurrency: Optional[int] = None,
+    max_concurrency: Optional[int] = None,
     **overrides: Any,
 ) -> List[Document]:
-    """批量抓取，全部完成后按输入顺序返回；单个失败不影响整批。"""
+    """批量抓取，全部完成后按输入顺序返回；单个失败不影响整批。
+
+    ``request_interval``、``per_host_concurrency`` 和 ``max_concurrency``
+    配置这一次批量使用的临时抓取器。robots.txt 的 Crawl-delay 仍优先于
+    ``request_interval``；``concurrency`` 只控制这批同时在途的任务数。
+    """
+    if any(v is not None for v in (request_interval, per_host_concurrency, max_concurrency)):
+        config = {}
+        if request_interval is not None:
+            config["request_interval"] = request_interval
+        if per_host_concurrency is not None:
+            config["per_host_concurrency"] = per_host_concurrency
+        if max_concurrency is not None:
+            config["max_concurrency"] = max_concurrency
+        with Scraper(**config) as scraper:
+            return scraper.scrape_many(
+                urls, options, concurrency=concurrency, **overrides
+            )
     return default_scraper().scrape_many(urls, options, concurrency=concurrency, **overrides)
 
 

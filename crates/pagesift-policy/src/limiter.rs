@@ -53,6 +53,26 @@ struct HostState {
 pub struct Permit {
     _global: OwnedSemaphorePermit,
     _host: OwnedSemaphorePermit,
+    waited: Duration,
+    interval: Duration,
+    robots_crawl_delay: bool,
+}
+
+impl Permit {
+    /// Time spent waiting for host/global admission and request spacing.
+    pub fn waited(&self) -> Duration {
+        self.waited
+    }
+
+    /// Effective minimum interval between request starts for this host.
+    pub fn interval(&self) -> Duration {
+        self.interval
+    }
+
+    /// Whether robots.txt supplied a Crawl-delay for this admission.
+    pub fn robots_crawl_delay(&self) -> bool {
+        self.robots_crawl_delay
+    }
 }
 
 pub struct RateLimiter {
@@ -79,6 +99,7 @@ impl RateLimiter {
 
     /// 等到可以向 `host` 发请求。`crawl_delay` 来自 robots.txt，优先于默认间隔。
     pub async fn acquire(&self, host: &str, crawl_delay: Option<Duration>) -> Permit {
+        let started = Instant::now();
         let (slots, gate, penalty) = self.host(host);
         let interval = crawl_delay
             .unwrap_or(self.config.default_interval)
@@ -102,6 +123,9 @@ impl RateLimiter {
         Permit {
             _global: global,
             _host: host_permit,
+            waited: started.elapsed(),
+            interval,
+            robots_crawl_delay: crawl_delay.is_some(),
         }
     }
 
@@ -202,8 +226,13 @@ mod tests {
     async fn crawl_delay_overrides_default() {
         let l = limiter(4, 64);
         let t0 = Instant::now();
-        drop(l.acquire("a.com", Some(Duration::from_secs(5))).await);
-        drop(l.acquire("A.COM", Some(Duration::from_secs(5))).await);
+        let first = l.acquire("a.com", Some(Duration::from_secs(5))).await;
+        assert!(first.robots_crawl_delay());
+        assert_eq!(first.interval(), Duration::from_secs(5));
+        drop(first);
+        let second = l.acquire("A.COM", Some(Duration::from_secs(5))).await;
+        assert_eq!(second.waited(), Duration::from_secs(5));
+        drop(second);
         assert_eq!(t0.elapsed(), Duration::from_secs(5));
         drop(l.acquire("a.com", Some(Duration::from_millis(100))).await);
         assert_eq!(t0.elapsed(), Duration::from_millis(5100));

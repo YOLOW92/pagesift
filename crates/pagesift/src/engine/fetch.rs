@@ -58,16 +58,32 @@ impl Scraper {
             }
             None
         });
-        let fetch =
-            self.policy
-                .fetch_held_via(fetch_request(url, opts)?, mode, egress);
-        let (mut resp, _permit) = match request_deadline(opts, started) {
+        let fetch = self
+            .policy
+            .fetch_held_via(fetch_request(url, opts)?, mode, egress);
+        let (mut resp, permit) = match request_deadline(opts, started) {
             Some(d) => tokio::time::timeout_at(d.into(), fetch)
                 .await
                 .map_err(|_| ApiError::new(ErrorCode::Timeout, "request deadline passed"))?,
             None => fetch.await,
         }
         .map_err(policy_error)?;
+        let queued = permit.waited();
+        timings.insert("queue".into(), ms(queued));
+        if queued >= Duration::from_millis(10) {
+            if permit.robots_crawl_delay() {
+                warnings.push(format!(
+                    "request waited {:.0} ms in the rate-limit/admission queue; robots.txt Crawl-delay applies with an effective {:.0} ms interval",
+                    ms(queued),
+                    ms(permit.interval())
+                ));
+            } else {
+                warnings.push(format!(
+                    "request waited {:.0} ms in the rate-limit/admission queue",
+                    ms(queued)
+                ));
+            }
+        }
         timings.insert("fetch".into(), ms(resp.timings.total));
         let mut ext = PagesiftMeta {
             redirect_chain: resp
@@ -94,6 +110,7 @@ impl Scraper {
         };
         if resp.not_modified {
             ext.timings = timings;
+            ext.warnings = warnings;
             meta.pagesift = Some(ext);
             return Ok(Document {
                 metadata: meta,
@@ -157,6 +174,10 @@ impl Scraper {
                 // 同路径族的静态经验不能覆盖带客户端代码的短页面。
                 warnings.push("render_skipped_learned".into());
             } else if self.has_browser().await {
+                // HTTP extraction no longer needs its admission slots. Rendering
+                // takes a fresh slot below; retaining both can deadlock a batch
+                // when every per-host slot is held by an auto-upgrade.
+                drop(permit);
                 return self
                     .render(
                         url,
@@ -180,7 +201,7 @@ impl Scraper {
             // Release the document's admission permit before dependency fetches:
             // concurrent root pages must not occupy every per-host slot while
             // waiting on their own scripts.
-            drop(_permit);
+            drop(permit);
             let discovery_started = Instant::now();
             let work = crate::scripts::discover_script_graph(
                 &self.policy,
@@ -232,7 +253,7 @@ impl Scraper {
         let Progress {
             started,
             mut timings,
-            warnings,
+            mut warnings,
         } = progress;
         if !self.has_browser().await {
             return Err(ApiError::unsupported(
@@ -252,7 +273,7 @@ impl Scraper {
         // 调用方给了 `timeout` 时它是整个请求的总时限：HTTP 抓取、排队、每个内核的渲染都从里面扣。
         // 没给时（整站爬取）排队不限时，渲染从拿到名额起算默认时限。
         let acquire = self.policy.limiter().acquire(&host, crawl_delay);
-        let (_permit, deadline) = match request_deadline(opts, started) {
+        let (permit, deadline) = match request_deadline(opts, started) {
             Some(d) => match tokio::time::timeout_at(d.into(), acquire).await {
                 Ok(p) => (p, d),
                 Err(_) => {
@@ -264,6 +285,25 @@ impl Scraper {
             },
             None => (acquire.await, Instant::now() + DEFAULT_TIMEOUT),
         };
+        let queued = permit.waited();
+        timings
+            .entry("queue".into())
+            .and_modify(|total| *total += ms(queued))
+            .or_insert_with(|| ms(queued));
+        if queued >= Duration::from_millis(10) {
+            if permit.robots_crawl_delay() {
+                warnings.push(format!(
+                    "request waited {:.0} ms in the rate-limit/admission queue; robots.txt Crawl-delay applies with an effective {:.0} ms interval",
+                    ms(queued),
+                    ms(permit.interval())
+                ));
+            } else {
+                warnings.push(format!(
+                    "request waited {:.0} ms in the rate-limit/admission queue",
+                    ms(queued)
+                ));
+            }
+        }
         let mut ropts = RenderOptions {
             wait_for: Duration::from_millis(opts.wait_for),
             timeout: deadline.saturating_duration_since(Instant::now()),

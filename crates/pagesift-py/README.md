@@ -120,7 +120,7 @@ refetches robots.txt.
 |---|---|
 | `scrape(url, options=None, **overrides) -> Document` | one page; raises a `PagesiftError` subclass on failure |
 | `await ascrape(url, options=None, **overrides) -> Document` | async `scrape` |
-| `scrape_many(urls, options=None, *, concurrency=16, **overrides) -> list[Document]` | waits for all, input order |
+| `scrape_many(urls, options=None, *, concurrency=16, request_interval=None, per_host_concurrency=None, max_concurrency=None, **overrides) -> list[Document]` | waits for all, input order; module-level rate settings use a temporary scraper |
 | `scrape_iter(urls, options=None, *, concurrency=16, **overrides) -> Batch` | `for doc in …`, completion order |
 | `ascrape_many(urls, options=None, *, concurrency=16, **overrides) -> Batch` | `async for doc in …`, completion order |
 | `convert(html, url=None, only_main_content=True) -> Document` | HTML → Markdown, no network |
@@ -131,6 +131,10 @@ refetches robots.txt.
 In batch calls one failed URL never fails the batch: its `Document` has `success=False` and
 `error` set. A `Batch` starts scraping as soon as it is created, can be iterated once (with `for`
 or `async for`), supports `len()`, and `batch.cancel()` (or dropping it) cancels unfinished pages.
+`concurrency` controls batch tasks; per-host concurrency and request spacing are separate limits,
+and a robots.txt `Crawl-delay` takes precedence over the configured request interval. Use
+`engine="http"` for HTTP-only batches; the default `engine="auto"` preserves browser fallback for
+short or client-rendered pages.
 
 ### Options
 

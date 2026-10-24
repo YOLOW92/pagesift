@@ -78,6 +78,39 @@ async fn short_cjk_article_is_kept_from_http_with_author() {
 }
 
 #[tokio::test]
+async fn per_host_wait_is_reported_separately_from_fetch_time() {
+    let base = site().await;
+    let mut cfg = ScraperConfig::default();
+    cfg.fetcher.ssrf.allow_private_network = true;
+    cfg.policy.rate.default_interval = Duration::from_millis(80);
+    cfg.policy.rate.per_host_concurrency = 2;
+    let s = Scraper::new(cfg).unwrap();
+    let o = opts(json!({ "engine": "http", "ignoreRobotsTxt": true }));
+    let url = format!("{base}/article");
+
+    let (a, b) = tokio::join!(s.scrape(&url, &o), s.scrape(&url, &o));
+    let docs = [a.unwrap(), b.unwrap()];
+    let queued = docs
+        .iter()
+        .map(|d| d.metadata.pagesift.as_ref().unwrap().timings["queue"])
+        .collect::<Vec<_>>();
+    assert!(queued.iter().any(|ms| *ms >= 60.0), "{queued:?}");
+    let waited = docs.iter().any(|d| {
+        d.metadata
+            .pagesift
+            .as_ref()
+            .unwrap()
+            .warnings
+            .iter()
+            .any(|w| {
+                w.starts_with("request waited ")
+                    && w.ends_with(" in the rate-limit/admission queue")
+            })
+    });
+    assert!(waited, "queue wait should be visible in warnings");
+}
+
+#[tokio::test]
 async fn timeout_is_a_total_deadline() {
     let base = site().await;
     let s = scraper(Vec::new());
