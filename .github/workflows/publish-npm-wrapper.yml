@@ -1,0 +1,35 @@
+name: Publish npm wrapper
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Version tag to publish, for example v0.61.0
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: Verify tag and publish alias wrapper
+        working-directory: crates/pagesift-node
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          git rev-parse --verify "refs/tags/$RELEASE_TAG"
+          tagged_version="$(git show "$RELEASE_TAG:crates/pagesift-node/package.json" | node -e 'let s=""; process.stdin.on("data", c => s += c).on("end", () => console.log(JSON.parse(s).version))')"
+          test "$version" = "$tagged_version"
+          PAGESIFT_WRAPPER_VERSION="$version" node scripts/publish_wrapper.mjs
