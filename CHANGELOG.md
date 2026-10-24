@@ -2,6 +2,22 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.61.0] — 2026-10-24
+
+Batch scraping diagnostics and per-host admission controls. See [the release notes](docs/releases/0.61.0.md).
+
+### Added
+- Added `metadata.pagesift.timings.queue` so callers can distinguish time spent waiting for global/per-host admission and request spacing from network fetch time.
+- Added warnings for material rate-limit queue waits, including the effective interval when `robots.txt` supplies `Crawl-delay`.
+- Added top-level Python `scrape_many` options for `request_interval`, `per_host_concurrency`, and `max_concurrency`.
+
+### Fixed
+- Released the HTTP admission permit before an `engine=auto` browser upgrade, preventing same-host batches from deadlocking when all per-host slots were occupied by documents waiting to render.
+- Preserved queue timing and warnings for direct browser rendering and HTTP 304 responses.
+
+### Changed
+- Workspace package version bumped to `0.61.0` across all Rust crates, Node.js bindings (`@pagesift/node`), and the dynamically versioned Python SDK (`pagesift`).
+
 ## [0.60.0] — 2026-10-24
 
 Generational performance revolution: Share-Nothing multi-shard architecture breaking the single-thread dispatch bottleneck (431,412.37 pages/s on 80 vCPUs AMD EPYC, 2.85× speedup over 0.50, 64.9% wall-time reduction, 83.2% CPU utilization), Zero-Disk Retention streaming pipeline enabling 100,000,000 real public web page crawls with <100 MB disk footprint, strict 128 GB physical memory defense envelope (peak RSS 11.59 GB, zero OOM), RFC 7230 connection retry with modern browser fingerprint headers, and complete victory in the 100M-scale real public Internet WILD-X 2 showdown. See [the release notes](docs/releases/0.60.0.md).
