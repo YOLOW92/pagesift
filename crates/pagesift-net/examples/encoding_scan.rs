@@ -1,18 +1,18 @@
 //! 编码检测批处理：读一个文件清单（每行一个路径），输出 `路径<TAB>编码`。
 //! 用途：D6 编码识别基准，以及 0.50/0.70 同机对比。
 //!
-//! usage: detect_encoding_mt <list.txt> <out.tsv> [threads]
+//! usage: encoding_scan <list.txt> <out.tsv> [threads]
 
 use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::{BufRead, BufReader, Write};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args().skip(1);
-    let list = args.next().ok_or("usage: detect_encoding_mt <list.txt> <out.tsv> [threads]")?;
-    let out = args.next().ok_or("usage: detect_encoding_mt <list.txt> <out.tsv> [threads]")?;
+    let list = args.next().ok_or("usage: encoding_scan <list.txt> <out.tsv> [threads]")?;
+    let out = args.next().ok_or("usage: encoding_scan <list.txt> <out.tsv> [threads]")?;
     let threads: usize = args.next().and_then(|s| s.parse().ok()).unwrap_or(16);
 
     let paths: Vec<String> = BufReader::new(File::open(&list)?)
