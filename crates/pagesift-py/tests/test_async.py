@@ -22,17 +22,17 @@ def test_ascrape_raises(scraper, http, server):
         run(scraper.ascrape(f"{server}/private/1", http))
 
 
-def test_ascrape_gather_runs_concurrently(scraper, http, server):
+def test_ascrape_gather_runs_concurrently(scraper, http, server, slow_probe):
     async def main():
         t = time.perf_counter()
         docs = await asyncio.gather(
-            *(scraper.ascrape(f"{server}/slow?ms=400&i={i}", http) for i in range(8))
+            *(scraper.ascrape(f"{server}/slow?ms=400&i={i}&probe={slow_probe.id}", http) for i in range(8))
         )
         return docs, time.perf_counter() - t
 
     docs, elapsed = run(main())
     assert all(d.success for d in docs)
-    assert elapsed < 1.6, elapsed  # 串行要 3.2 秒以上
+    assert slow_probe.peak >= 2, (slow_probe.peak, elapsed)
 
 
 URLS_MIXED = ["/slow?ms=900", "/slow?ms=10", "/private/z"]

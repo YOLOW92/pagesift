@@ -677,27 +677,3 @@ pub(crate) fn clearly_not_article(dom: &Html<'_>, skipper: &Skipper) -> bool {
     // 列表项与表格单元格的文字是散文的 4 倍以上：商品列表、聚合页、数据表页
     structured >= prose_chars.max(1) * 4
 }
-
-/// 诊断用：返回各项判据的实际取值，便于调阈值（不参与生产逻辑）。
-pub(crate) fn article_shape_stats(dom: &Html<'_>, skipper: &Skipper) -> (usize, usize, usize, usize, usize) {
-    let body = dom.body();
-    let (total, link_chars, _) = skipper.stats(&body);
-    let mut paras = 0usize;
-    let mut prose = 0usize;
-    let mut structured = 0usize;
-    for n in body.descendants() {
-        if skipper.skip(&n) {
-            continue;
-        }
-        match n.tag() {
-            Some(Tag::P) => {
-                let c = skipper.content_chars(&n);
-                if c >= 80 { paras += 1; }
-                prose += c;
-            }
-            Some(Tag::Li | Tag::Td | Tag::Th) => structured += skipper.content_chars(&n),
-            _ => {}
-        }
-    }
-    (total, link_chars, paras, prose, structured)
-}

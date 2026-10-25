@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 import time
+import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -39,6 +40,10 @@ document.head.appendChild(a);}());</script></body></html>"""
 
 
 class Handler(BaseHTTPRequestHandler):
+    slow_lock = threading.Lock()
+    slow_active: dict[str, int] = {}
+    slow_peak: dict[str, int] = {}
+
     def log_message(self, *args: object) -> None:
         pass
 
@@ -61,8 +66,19 @@ class Handler(BaseHTTPRequestHandler):
         elif p.startswith("/page/") or p == "/article" or p.startswith("/private"):
             self.send(200, article(f"Page {p}"))
         elif p == "/slow":
-            time.sleep(int(q.get("ms", ["300"])[0]) / 1000)
-            self.send(200, article(f"Slow {q.get('ms', [''])[0]}"))
+            probe = q.get("probe", [None])[0]
+            if probe:
+                with self.slow_lock:
+                    active = Handler.slow_active.get(probe, 0) + 1
+                    Handler.slow_active[probe] = active
+                    Handler.slow_peak[probe] = max(Handler.slow_peak.get(probe, 0), active)
+            try:
+                time.sleep(int(q.get("ms", ["300"])[0]) / 1000)
+                self.send(200, article(f"Slow {q.get('ms', [''])[0]}"))
+            finally:
+                if probe:
+                    with self.slow_lock:
+                        Handler.slow_active[probe] -= 1
         elif p == "/headers":
             self.send(200, article("Headers", f"<p>X-Test header is {self.headers.get('X-Test')}.</p>"))
         elif p == "/redirect":
@@ -91,6 +107,22 @@ def server():
     t.start()
     yield f"http://127.0.0.1:{httpd.server_address[1]}"
     httpd.shutdown()
+
+
+@pytest.fixture
+def slow_probe():
+    class Probe:
+        id = uuid.uuid4().hex
+
+        @property
+        def peak(self):
+            with Handler.slow_lock:
+                return Handler.slow_peak.get(self.id, 0)
+
+    yield Probe()
+    with Handler.slow_lock:
+        Handler.slow_active.pop(Probe.id, None)
+        Handler.slow_peak.pop(Probe.id, None)
 
 
 @pytest.fixture

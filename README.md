@@ -13,7 +13,7 @@ Turn any website, document, or archive into clean Markdown and structured data �
 [![crates.io](https://img.shields.io/crates/v/pagesift.svg)](https://crates.io/crates/pagesift)
 [![PyPI](https://img.shields.io/pypi/v/pagesift.svg)](https://pypi.org/project/pagesift/)
 [![npm](https://img.shields.io/npm/v/@pagesift/node.svg)](https://www.npmjs.com/package/@pagesift/node)
-[![100M Real Public Web](https://img.shields.io/badge/100M%20Live%20Web-42%2C124%20p%2Fs%20Verified-brightgreen.svg)](#-flagship-showdown-100000000-live-public-internet-battle)
+[![200M Saturation](https://img.shields.io/badge/200M%20Synthetic-947%2C611%20p%2Fs-blue.svg)](#whats-new-in-0700)
 [![128GB Memory Safe](https://img.shields.io/badge/128GB%20Envelope-Zero%20OOM-success.svg)](#whats-new-in-0700)
 [![M8ven Score](https://m8ven.ai/badge/mcp/yolow92-pagesift-0ygyrw)](https://m8ven.ai/mcp/yolow92-pagesift-0ygyrw?s=readme)
 
@@ -23,35 +23,19 @@ Turn any website, document, or archive into clean Markdown and structured data �
 
 ---
 
-## ⚔️ Flagship Showdown: 100,000,000 Live Public Internet Battle
+## What's New in 0.70.0
 
-**Hardware Testbed**: **Google Cloud `n4d-highcpu-80` (80 vCPUs AMD EPYC 9B45, 157 GiB RAM, 96 GB NVMe SSD)**  
-**Target Dataset**: Tranco Top 1,000,000 Global Live Domains dynamically expanded to **100,000,000 Real Public Web Pages** under 4,096 concurrent sockets across 32 Share-Nothing shards.
+**The engine underneath the numbers was replaced.** 0.60 proved PageSift could finish 100,000,000 tasks; 0.70 rebuilds the data plane that does it and puts the whole system under one closed-loop controller.
 
-```text
-+-----------------------------------------------------------------------------------------+
-| PageSift 0.60 WILD-X 2 Showdown (100,000,000 Real Public Web Pages on 80-Core 157GB VPS) |
-+-----------------------------------------------------------------------------------------+
-| Metric                       | PageSift 0.60 Performance                                |
-+------------------------------+----------------------------------------------------------+
-| Total Web Pages Processed    | 100,000,000 (One Hundred Million) Pages                 |
-| Total Execution Wall Time    | 2,373.9 seconds (39.56 minutes / 0.66 hours)            |
-| Sustained Live Public QPS    | 42,124.1 pages/sec (Peak > 51,900 p/s)                   |
-| 128 GB Memory Defense        | Peak RSS: 11.59 GB (flat line, 8.8% of 128GB ceiling)   |
-| Zero-Disk Retention Delta    | Physical NVMe disk increase < 100 MB (85 GB free)        |
-| Genuine 200 OK Raw Fetches   | 314,170 pages (real-world diverse public web)           |
-| Pure Rich Markdown Distilled | 199,422 documents (2.31 GB pure content, zero garbage)   |
-| Resilience & Auto-Recovery   | 615k DNS errs, 244k timeouts, 205k WAF 403s handled     |
-| Multi-Million Scalability    | 100% OOM-Proof, Zero Leaks, Zero Hangs, Zero Panics      |
-+-----------------------------------------------------------------------------------------+
-```
+- ⚙️ **Hand-written NUMA-local HTTP data plane** — fixed-slot NUMA executors, a minimal HTTP/1.1 reactor, hybrid reactor↔content scheduling, per-origin adaptive connections and sharded intake with bounded work stealing. The general-purpose async client is gone from the hot path.
+- 📈 **Scaling measured 1 → 192 vCPU, fitted with the Universal Scalability Law** — γ = 8,631.8 pages/s/core, σ = 1.34 %, **κ = 0.00 %** (no measurable coherency penalty), R² = 0.839.
+- 🧠 **Memory is now an input.** The engine reads cgroup v2 `memory.max` and sizes itself to it: at **768 MiB** it settles on 380 connections and still sustains **817,346 pages/s** with zero OOM.
+- 🏁 **200M saturation on 192 vCPU** — `200,000,000 / 200,000,000`, **0 failures**, **947,611 pages/s**, 211.1 s wall, **888.1 MiB peak RSS**.
+- 📊 **Seven public benchmarks, published including the losses** — WebMainBench **0.6414** ROUGE-5 (level with Trafilatura, above Resiliparse), WCEB **0.8613**, WCXB **0.8472**, robots.txt spec **0.9621**, olmOCR-bench **0.4172**, Common Crawl **5,165 p/s**, Crawl Maze **0.0500**.
+- 🔧 **Four production-grade defects fixed**, all found by the stress suite: header-wait ignoring `timeout_secs`, 429 penalties that never recovered, one broken URL freezing a whole host, and a runtime panic under tight `ulimit -v`.
+- ⚖️ **Faster and cheaper per page than 0.61**: **2.22×** absolute throughput (947,611 p/s on 192 vCPU), **+24.4 % per core**, and **−19.6 % CPU per page** — while also lifting WebMainBench ROUGE-5 by **+0.055**. Per-core output on a 16-core box sits within 4.8 % of the 192-core run.
 
-> [!IMPORTANT]
-> **Key 0.60 Breakthroughs for Web-Scale AI Training:**
-> - **Zero-Disk Retention Streaming**: 100,000,000 pages parsed through a 16KB constant memory buffer with zero disk accumulation (< 100 MB disk delta), completely bypassing the 2.5 TB disk-exhaustion fatal flaw of traditional scrapers.
-> - **431,412 pages/sec Pure Throughput**: Tested end-to-end on synthetic multi-modal datasets, cutting 100M wall time from 11.00 minutes to **3.86 minutes (2.85× speedup)**.
-> - **128 GB Physical Wall Defense**: Maintained flat 11.59 GB peak RSS over 100M pages, strictly honoring enterprise cloud memory quotas with zero OOM.
-> - Read the official whitepapers at [`docs/benchmarks/0.60_p4_wild_x_2_showdown.md`](docs/benchmarks/0.60_p4_wild_x_2_showdown.md) and [`docs/benchmarks/0.60_p5_cross_generation_rebench.md`](docs/benchmarks/0.60_p5_cross_generation_rebench.md).
+Full detail: [**0.70.0 release notes**](docs/releases/0.70.0.md).
 
 ---
 
@@ -92,19 +76,35 @@ pymupdf4llm), **3,128 encoding detections at 11,239 files/s**, **21 MiB peak** f
 
 ---
 
-## What's New in 0.70.0
+## ⚔️ Flagship Showdown: 100,000,000 Live Public Internet Battle
 
-**The engine underneath the numbers was replaced.** 0.60 proved PageSift could finish 100,000,000 tasks; 0.70 rebuilds the data plane that does it and puts the whole system under one closed-loop controller.
+**Hardware Testbed**: **Google Cloud `n4d-highcpu-80` (80 vCPUs AMD EPYC 9B45, 157 GiB RAM, 96 GB NVMe SSD)**
+**Target Dataset**: Tranco Top 1,000,000 Global Live Domains dynamically expanded to **100,000,000 Real Public Web Pages** under 4,096 concurrent sockets across 32 Share-Nothing shards.
 
-- ⚙️ **Hand-written NUMA-local HTTP data plane** — fixed-slot NUMA executors, a minimal HTTP/1.1 reactor, hybrid reactor↔content scheduling, per-origin adaptive connections and sharded intake with bounded work stealing. The general-purpose async client is gone from the hot path.
-- 📈 **Scaling measured 1 → 192 vCPU, fitted with the Universal Scalability Law** — γ = 8,631.8 pages/s/core, σ = 1.34 %, **κ = 0.00 %** (no measurable coherency penalty), R² = 0.839.
-- 🧠 **Memory is now an input.** The engine reads cgroup v2 `memory.max` and sizes itself to it: at **768 MiB** it settles on 380 connections and still sustains **817,346 pages/s** with zero OOM.
-- 🏁 **200M saturation on 192 vCPU** — `200,000,000 / 200,000,000`, **0 failures**, **947,611 pages/s**, 211.1 s wall, **888.1 MiB peak RSS**.
-- 📊 **Seven public benchmarks, published including the losses** — WebMainBench **0.6414** ROUGE-5 (level with Trafilatura, above Resiliparse), WCEB **0.8613**, WCXB **0.8472**, robots.txt spec **0.9621**, olmOCR-bench **0.4172**, Common Crawl **5,165 p/s**, Crawl Maze **0.0500**.
-- 🔧 **Four production-grade defects fixed**, all found by the stress suite: header-wait ignoring `timeout_secs`, 429 penalties that never recovered, one broken URL freezing a whole host, and a runtime panic under tight `ulimit -v`.
-- ⚖️ **Faster and cheaper per page than 0.61**: **2.22×** absolute throughput (947,611 p/s on 192 vCPU), **+24.4 % per core**, and **−19.6 % CPU per page** — while also lifting WebMainBench ROUGE-5 by **+0.055**. Per-core output on a 16-core box sits within 4.8 % of the 192-core run.
+```text
++-----------------------------------------------------------------------------------------+
+| PageSift 0.60 WILD-X 2 Showdown (100,000,000 Real Public Web Pages on 80-Core 157GB VPS) |
++-----------------------------------------------------------------------------------------+
+| Metric                       | PageSift 0.60 Performance                                |
++------------------------------+----------------------------------------------------------+
+| Total Web Pages Processed    | 100,000,000 (One Hundred Million) Pages                 |
+| Total Execution Wall Time    | 2,373.9 seconds (39.56 minutes / 0.66 hours)            |
+| Sustained Live Public QPS    | 42,124.1 pages/sec (Peak > 51,900 p/s)                   |
+| 128 GB Memory Defense        | Peak RSS: 11.59 GB (flat line, 8.8% of 128GB ceiling)   |
+| Zero-Disk Retention Delta    | Physical NVMe disk increase < 100 MB (85 GB free)        |
+| Genuine 200 OK Raw Fetches   | 314,170 pages (real-world diverse public web)           |
+| Pure Rich Markdown Distilled | 199,422 documents (2.31 GB pure content, zero garbage)   |
+| Resilience & Auto-Recovery   | 615k DNS errs, 244k timeouts, 205k WAF 403s handled     |
+| Multi-Million Scalability    | 100% OOM-Proof, Zero Leaks, Zero Hangs, Zero Panics      |
++-----------------------------------------------------------------------------------------+
+```
 
-Full detail: [**0.70.0 release notes**](docs/releases/0.70.0.md).
+> [!IMPORTANT]
+> **Key 0.60 Breakthroughs for Web-Scale AI Training:**
+> - **Zero-Disk Retention Streaming**: 100,000,000 pages parsed through a 16KB constant memory buffer with zero disk accumulation (< 100 MB disk delta), completely bypassing the 2.5 TB disk-exhaustion fatal flaw of traditional scrapers.
+> - **431,412 pages/sec Pure Throughput**: Tested end-to-end on synthetic multi-modal datasets, cutting 100M wall time from 11.00 minutes to **3.86 minutes (2.85× speedup)**.
+> - **128 GB Physical Wall Defense**: Maintained flat 11.59 GB peak RSS over 100M pages, strictly honoring enterprise cloud memory quotas with zero OOM.
+> - Read the official whitepapers at [`docs/benchmarks/0.60_p4_wild_x_2_showdown.md`](docs/benchmarks/0.60_p4_wild_x_2_showdown.md) and [`docs/benchmarks/0.60_p5_cross_generation_rebench.md`](docs/benchmarks/0.60_p5_cross_generation_rebench.md).
 
 ---
 

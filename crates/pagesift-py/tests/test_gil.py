@@ -8,8 +8,8 @@ import pagesift
 from conftest import PROSE
 
 
-def test_threads_scrape_in_parallel(scraper, http, server):
-    urls = [f"{server}/slow?ms=400&i={i}" for i in range(8)]
+def test_threads_scrape_in_parallel(scraper, http, server, slow_probe):
+    urls = [f"{server}/slow?ms=400&i={i}&probe={slow_probe.id}" for i in range(8)]
 
     t = time.perf_counter()
     for u in urls[:3]:
@@ -23,16 +23,16 @@ def test_threads_scrape_in_parallel(scraper, http, server):
 
     assert all(d.success for d in docs)
     # 8 个页面串行约 3.2 秒；释放 GIL 后线程并行，接近单页耗时
-    assert threaded < serial_per_page * 8 / 3, (threaded, serial_per_page)
+    assert slow_probe.peak >= 2, (slow_probe.peak, threaded, serial_per_page)
 
 
-def test_scrape_many_uses_rust_concurrency(scraper, http, server):
-    urls = [f"{server}/slow?ms=400&i={i}" for i in range(8)]
+def test_scrape_many_uses_rust_concurrency(scraper, http, server, slow_probe):
+    urls = [f"{server}/slow?ms=400&i={i}&probe={slow_probe.id}" for i in range(8)]
     t = time.perf_counter()
     docs = scraper.scrape_many(urls, http, concurrency=8)
     elapsed = time.perf_counter() - t
     assert all(d.success for d in docs)
-    assert elapsed < 1.6, elapsed
+    assert slow_probe.peak >= 2, (slow_probe.peak, elapsed)
 
 
 def test_python_threads_run_during_convert():
