@@ -1,0 +1,2 @@
+end_to_end           656679.6 ops/s |   15.23s | CPU  130.98 core-s/s ( 68.2% of 192) | failed 0 |    874.3 MiB/s
+report=bench/results/0.70_p2_step2_global_run1.json

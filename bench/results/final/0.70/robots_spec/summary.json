@@ -1,0 +1,97 @@
+{
+  "source": "robotstxt-spec-test 552ade54",
+  "total": 132,
+  "pass": 127,
+  "rate": 0.9621212121212122,
+  "per_file": {
+    "accepted-mistakes.textproto": {
+      "pass": 2,
+      "n": 3
+    },
+    "directives-case-insensitivity.textproto": {
+      "pass": 6,
+      "n": 6
+    },
+    "global-rules.textproto": {
+      "pass": 4,
+      "n": 4
+    },
+    "groups.textproto": {
+      "pass": 10,
+      "n": 10
+    },
+    "index-page.textproto": {
+      "pass": 3,
+      "n": 4
+    },
+    "matching-path-values-1.textproto": {
+      "pass": 29,
+      "n": 29
+    },
+    "matching-path-values-2.textproto": {
+      "pass": 24,
+      "n": 24
+    },
+    "most-specific-match.textproto": {
+      "pass": 14,
+      "n": 14
+    },
+    "non-ascii-paths.textproto": {
+      "pass": 4,
+      "n": 7
+    },
+    "order-of-precedence.textproto": {
+      "pass": 5,
+      "n": 5
+    },
+    "special-characters.textproto": {
+      "pass": 10,
+      "n": 10
+    },
+    "uri-case-sensitivity.textproto": {
+      "pass": 2,
+      "n": 2
+    },
+    "user-agent-name.textproto": {
+      "pass": 14,
+      "n": 14
+    }
+  },
+  "failures": [
+    {
+      "file": "accepted-mistakes.textproto",
+      "url": "http://foo.bar/x/y",
+      "useragent": "FooBot",
+      "expected": "DISALLOWED",
+      "got": "ALLOWED"
+    },
+    {
+      "file": "index-page.textproto",
+      "url": "http://foo.com/allowed-slash/",
+      "useragent": "foobot",
+      "expected": "ALLOWED",
+      "got": "DISALLOWED"
+    },
+    {
+      "file": "non-ascii-paths.textproto",
+      "url": "http://foo.bar/foo/bar/ツ",
+      "useragent": "FooBot",
+      "expected": "DISALLOWED",
+      "got": "ALLOWED"
+    },
+    {
+      "file": "non-ascii-paths.textproto",
+      "url": "http://foo.bar/foo/bar/ツ",
+      "useragent": "FooBot",
+      "expected": "DISALLOWED",
+      "got": "ALLOWED"
+    },
+    {
+      "file": "non-ascii-paths.textproto",
+      "url": "http://foo.bar/foo/bar/baz",
+      "useragent": "FooBot",
+      "expected": "DISALLOWED",
+      "got": "ALLOWED"
+    }
+  ]
+}

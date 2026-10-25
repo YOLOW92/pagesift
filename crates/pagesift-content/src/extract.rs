@@ -55,6 +55,19 @@ pub(crate) struct Skipper {
     /// [`crate::features`] 的特征位，每个节点只算一次；`u32::MAX` 表示还没算。
     features: Vec<Cell<u32>>,
     attachments: Vec<Cell<u8>>,
+    order: Vec<pagesift_html::NodeId>,
+}
+
+/// Reusable per-worker vectors indexed by DOM node id.
+#[derive(Default)]
+pub(crate) struct Scratch {
+    visible: Vec<Visible>,
+    has_block: Vec<bool>,
+    cache: Vec<Cell<u8>>,
+    classes: Vec<Cell<u8>>,
+    features: Vec<Cell<u32>>,
+    attachments: Vec<Cell<u8>>,
+    order: Vec<pagesift_html::NodeId>,
 }
 
 /// 子树里可见文字的统计，只排除硬跳过的内容。构造 Skipper 时自底向上一次算好。
@@ -132,22 +145,31 @@ fn is_text_button(node: &NodeR<'_>) -> bool {
 }
 
 /// 自底向上一遍算出每个元素的可见文字统计和"有没有块级后代"。
-fn compute(html: &Html<'_>, only_main: bool) -> (Vec<Visible>, Vec<bool>) {
+fn compute(
+    html: &Html<'_>,
+    only_main: bool,
+    mut visible: Vec<Visible>,
+    mut has_block: Vec<bool>,
+    mut order: Vec<pagesift_html::NodeId>,
+) -> (Vec<Visible>, Vec<bool>, Vec<pagesift_html::NodeId>) {
     let n = html.len();
-    let order: Vec<NodeR<'_>> = html
-        .root()
-        .descendants()
-        .filter(|d| d.is_element())
-        .collect();
-    let mut visible = if only_main {
-        vec![Visible::default(); n]
-    } else {
-        Vec::new()
-    };
-    let mut has_block = vec![false; n];
-    for node in order.iter().rev() {
+    order.clear();
+    order.extend(
+        html.root()
+            .descendants()
+            .filter(|d| d.is_element())
+            .map(|node| node.id()),
+    );
+    visible.clear();
+    if only_main {
+        visible.resize(n, Visible::default());
+    }
+    has_block.clear();
+    has_block.resize(n, false);
+    for id in order.iter().rev() {
+        let node = html.get(*id);
         let id = node.id().index();
-        let hard = only_main && is_hard_skip(node);
+        let hard = only_main && is_hard_skip(&node);
         let mut v = Visible::default();
         let mut block = false;
         for child in node.children() {
@@ -184,14 +206,37 @@ fn compute(html: &Html<'_>, only_main: bool) -> (Vec<Visible>, Vec<bool>) {
             visible[id] = v;
         }
     }
-    (visible, has_block)
+    (visible, has_block, order)
 }
 
 impl Skipper {
-    pub(crate) fn new(html: &Html<'_>, only_main: bool) -> Self {
+    pub(crate) fn new_with_scratch(
+        html: &Html<'_>,
+        only_main: bool,
+        scratch: &mut Scratch,
+    ) -> Self {
         let body = html.body();
-        let (visible, has_block) = compute(html, only_main);
+        let (visible, has_block, order) = compute(
+            html,
+            only_main,
+            std::mem::take(&mut scratch.visible),
+            std::mem::take(&mut scratch.has_block),
+            std::mem::take(&mut scratch.order),
+        );
         let total = visible.get(body.id().index()).map_or(0, |v| v.chars);
+        let n = html.len();
+        let mut cache = std::mem::take(&mut scratch.cache);
+        cache.clear();
+        cache.resize_with(n, || Cell::new(0));
+        let mut classes = std::mem::take(&mut scratch.classes);
+        classes.clear();
+        classes.resize_with(n, || Cell::new(UNKNOWN));
+        let mut features = std::mem::take(&mut scratch.features);
+        features.clear();
+        features.resize_with(n, || Cell::new(u32::MAX));
+        let mut attachments = std::mem::take(&mut scratch.attachments);
+        attachments.clear();
+        attachments.resize_with(n, || Cell::new(0));
         Self {
             only_main,
             strict: false,
@@ -203,11 +248,39 @@ impl Skipper {
             protect_chars: ((total as f64 * PROTECT_SHARE) as usize).max(PROTECT_MIN_CHARS),
             visible,
             has_block,
-            cache: (0..html.len()).map(|_| Cell::new(0)).collect(),
-            classes: (0..html.len()).map(|_| Cell::new(UNKNOWN)).collect(),
-            features: (0..html.len()).map(|_| Cell::new(u32::MAX)).collect(),
-            attachments: (0..html.len()).map(|_| Cell::new(0)).collect(),
+            cache,
+            classes,
+            features,
+            attachments,
+            order,
         }
+    }
+
+    pub(crate) fn recycle(self, scratch: &mut Scratch) {
+        if [
+            self.visible.capacity(),
+            self.has_block.capacity(),
+            self.cache.capacity(),
+            self.classes.capacity(),
+            self.features.capacity(),
+            self.attachments.capacity(),
+            self.order.capacity(),
+        ]
+        .into_iter()
+        .max()
+        .unwrap_or(0)
+            > 16 * 1024
+        {
+            *scratch = Scratch::default();
+            return;
+        }
+        scratch.visible = self.visible;
+        scratch.has_block = self.has_block;
+        scratch.cache = self.cache;
+        scratch.classes = self.classes;
+        scratch.features = self.features;
+        scratch.attachments = self.attachments;
+        scratch.order = self.order;
     }
 
     /// 节点 class/id 的分类，带缓存。

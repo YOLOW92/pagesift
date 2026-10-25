@@ -1,0 +1,26 @@
+{
+  "interrupted_run_outputs": 120,
+  "resumed_run_outputs": 178,
+  "reference_complete_run": 245,
+  "interrupted_unique_url": 120,
+  "resumed_unique_url": 178,
+  "overlap_urls": 120,
+  "union_urls": 178,
+  "reference_unique_url": 245,
+  "duplicate_outputs_across_runs": 120,
+  "holes_vs_reference": [
+    "http://127.0.0.1:8111/a/23",
+    "http://127.0.0.1:8111/a/24",
+    "http://127.0.0.1:8111/a/29",
+    "http://127.0.0.1:8111/a/40",
+    "http://127.0.0.1:8111/a/41",
+    "http://127.0.0.1:8111/a/42",
+    "http://127.0.0.1:8111/a/44",
+    "http://127.0.0.1:8111/a/45",
+    "http://127.0.0.1:8111/a/46",
+    "http://127.0.0.1:8111/a/48"
+  ],
+  "hole_count": 67,
+  "unique_content_union": 161,
+  "unique_content_reference": 233
+}

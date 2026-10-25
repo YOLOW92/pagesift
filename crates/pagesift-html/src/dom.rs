@@ -106,10 +106,51 @@ pub struct Html<'s> {
     pub(crate) attrs: Vec<Attr>,
 }
 
+/// Reusable allocation storage for parsing consecutive documents on one
+/// worker. The parsed [`Html`] owns the buffers while it is in use; call
+/// [`ParseScratch::recycle`] after all node references have been dropped.
+#[derive(Default)]
+pub struct ParseScratch {
+    pub(crate) buf: String,
+    pub(crate) nodes: Vec<Node>,
+    pub(crate) attrs: Vec<Attr>,
+}
+
+impl ParseScratch {
+    /// Return a completed document's backing allocations to this scratch
+    /// object. Source HTML is never retained.
+    pub fn recycle(&mut self, mut html: Html<'_>) {
+        html.buf.clear();
+        html.nodes.clear();
+        html.attrs.clear();
+        self.buf = if html.buf.capacity() <= 1024 * 1024 {
+            html.buf
+        } else {
+            String::new()
+        };
+        self.nodes = if html.nodes.capacity() <= 16 * 1024 {
+            html.nodes
+        } else {
+            Vec::new()
+        };
+        self.attrs = if html.attrs.capacity() <= 32 * 1024 {
+            html.attrs
+        } else {
+            Vec::new()
+        };
+    }
+}
+
 impl<'s> Html<'s> {
     /// 解析整个 HTML 文档。永不失败：任何输入都会得到一棵树。
     pub fn parse(html: &'s str) -> Html<'s> {
         crate::builder::parse(html)
+    }
+
+    /// Parse while reusing node, attribute, and decoded-text allocations from
+    /// the preceding document handled by this worker.
+    pub fn parse_with_scratch(html: &'s str, scratch: &mut ParseScratch) -> Html<'s> {
+        crate::builder::parse_with_scratch(html, scratch)
     }
 
     /// 文档根节点（不是 `<html>` 元素，是它的父节点）。

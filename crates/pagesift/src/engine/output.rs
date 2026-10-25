@@ -1,5 +1,13 @@
 use super::*;
 
+thread_local! {
+    /// Tokio blocking workers are long-lived. Reuse content-pipeline capacity
+    /// on the worker that first-touched it instead of allocating DOM/index
+    /// vectors for every page and freeing them on a potentially remote arena.
+    static CONTENT_WORKSPACE: std::cell::RefCell<pagesift_content::ProcessWorkspace> =
+        std::cell::RefCell::new(pagesift_content::ProcessWorkspace::default());
+}
+
 pub(super) fn fetch_request(url: &str, opts: &ScrapeOptions) -> Result<FetchRequest, ApiError> {
     let mut req = FetchRequest::new(url);
     for (k, v) in &opts.headers {
@@ -113,7 +121,13 @@ pub(super) async fn process_html(
         fingerprints: opts.wants("changeTracking"),
         ..Default::default()
     };
-    cpu_task(move || (pagesift_content::process(&html, &copts), html)).await
+    cpu_task(move || {
+        let document = CONTENT_WORKSPACE.with(|workspace| {
+            pagesift_content::process_with_workspace(&html, &copts, &mut workspace.borrow_mut())
+        });
+        (document, html)
+    })
+    .await
 }
 
 /// 同时进行的 CPU 密集任务（正文提取、PDF 解析）不超过核数。

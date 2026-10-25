@@ -1,0 +1,6 @@
+url_dispatch       87767209.1 ops/s |    0.11s | CPU   76.45 core-s/s ( 39.8% of 192) | failed 0 |   2669.1 MiB/s
+transport_only       711431.7 ops/s |   14.06s | CPU   43.22 core-s/s ( 22.5% of 192) | failed 0 |    947.1 MiB/s
+html_dom           16788185.8 ops/s |    0.60s | CPU   97.02 core-s/s ( 50.5% of 192) | failed 0 |  22350.6 MiB/s
+content_total       1653752.1 ops/s |    6.05s | CPU  151.22 core-s/s ( 78.8% of 192) | failed 0 |   2201.7 MiB/s
+end_to_end           661999.4 ops/s |   15.11s | CPU  130.19 core-s/s ( 67.8% of 192) | failed 0 |    881.3 MiB/s
+report=bench/results/0.70_p2_step1_components_run2.json

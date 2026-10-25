@@ -28,8 +28,11 @@ impl Default for RateLimitConfig {
 /// 被限流（429）后，主机的请求间隔至少是这么多，再按次加倍。
 const PENALTY_START: Duration = Duration::from_millis(250);
 const PENALTY_MAX: Duration = Duration::from_secs(30);
-/// 每成功一次，额外间隔减掉它的 1/PENALTY_DECAY；小于 PENALTY_FLOOR 就清零。
-const PENALTY_DECAY: u32 = 16;
+/// 每成功一次，额外间隔减半；小于 PENALTY_FLOOR 就清零。
+///
+/// 原来是每成功减 1/16：一旦被 429 推到 30 s 上限，需要上百次成功才能回到正常间隔，
+/// 效果等于该站点被永久降速。改成减半后，恢复只需几次成功。
+const PENALTY_DECAY: u32 = 2;
 const PENALTY_FLOOR: Duration = Duration::from_millis(10);
 
 #[derive(Default)]

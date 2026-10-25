@@ -80,8 +80,9 @@ impl HardwareTier {
 }
 
 pub use pagesift_policy::adaptive::{
-    AutonomousTuningEngine, PerformanceDiagnosis, ResponseSurfaceOptimizer, SafetyStatus,
-    SurfacePoint, TuningKnobs,
+    AutonomousTuningEngine, CpuTopology, HardwareTopology, LocalityCluster, PerformanceDiagnosis,
+    ProcessCpuSample, ResponseSurfaceOptimizer, SafetyStatus, SurfacePoint, TuningKnobs,
+    pin_current_thread,
 };
 
 /// 宿主机物理规格
@@ -134,15 +135,26 @@ impl TuningProfile {
     /// 根据当前硬件与指定模式生成调优策略
     pub fn new(mode: TuningMode) -> Self {
         let hardware = HostHardware::detect();
-        Self::for_hardware(hardware, mode)
+        let topology = HardwareTopology::detect();
+        Self::for_hardware_and_topology(hardware, mode, Some(&topology))
     }
 
     pub fn for_hardware(hw: HostHardware, mode: TuningMode) -> Self {
+        Self::for_hardware_and_topology(hw, mode, None)
+    }
+
+    fn for_hardware_and_topology(
+        hw: HostHardware,
+        mode: TuningMode,
+        topology: Option<&HardwareTopology>,
+    ) -> Self {
         // 木桶短板并发度计算 (Bottleneck-Constrained Concurrency)
         // 1. CPU 算力容量：自适应模式采用连续 C* 模型动态伸缩，废除对特定单机（如 32 核 768 并发）的人工写死
-        let cpu_capacity = match mode {
-            TuningMode::Conservative => (hw.logical_cores * 8).clamp(8, 512),
-            TuningMode::Adaptive => match hw.tier {
+        let cpu_capacity = match (mode, topology) {
+            (TuningMode::Conservative, Some(topo)) => (topo.worker_cores * 4).clamp(4, 512),
+            (TuningMode::Adaptive, Some(topo)) => topo.base_concurrency,
+            (TuningMode::Conservative, None) => (hw.logical_cores * 8).clamp(8, 512),
+            (TuningMode::Adaptive, None) => match hw.tier {
                 HardwareTier::Micro => 16,
                 HardwareTier::Small => 48,
                 HardwareTier::Mid => hw.logical_cores * 20,
@@ -178,7 +190,7 @@ impl TuningProfile {
                     Duration::from_secs(10),
                     2,
                 ),
-                HardwareTier::Extreme => (Duration::from_millis(3000), Duration::from_secs(8), 4),
+                HardwareTier::Extreme => (Duration::from_millis(3500), Duration::from_secs(8), 4),
             },
         };
 
@@ -195,12 +207,23 @@ impl TuningProfile {
     }
 
     /// 应用到 ScraperConfig
+    ///
+    /// 调用方显式设过 `[fetch] timeout_secs` 时不覆盖超时字段：用户给的是单次请求预算，
+    /// 自适应只能调并发度，不能把它改大——否则配了 8 s 的爬取实际会等 30 s。
     pub fn apply_to_config(&self, cfg: &mut ScraperConfig) {
-        cfg.fetcher.connect_timeout = self.connect_timeout;
-        cfg.fetcher.total_timeout = self.total_timeout;
+        if !cfg.fetcher.timeouts_explicit {
+            cfg.fetcher.connect_timeout = self.connect_timeout;
+            cfg.fetcher.dns_timeout = self.connect_timeout;
+            cfg.fetcher.tls_timeout = self.connect_timeout;
+            cfg.fetcher.first_byte_timeout = self.total_timeout;
+            cfg.fetcher.body_idle_timeout = self.total_timeout;
+            cfg.fetcher.tail_threshold = (self.total_timeout / 4).max(Duration::from_millis(500));
+            cfg.fetcher.total_timeout = self.total_timeout;
+        }
         cfg.fetcher.max_body_bytes = self.max_body_bytes;
         cfg.policy.rate.global_concurrency = self.global_concurrency;
         cfg.policy.rate.per_host_concurrency = self.per_host_concurrency;
+        cfg.adaptive_tuning = self.mode == TuningMode::Adaptive;
     }
 }
 

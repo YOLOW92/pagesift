@@ -1,0 +1,13 @@
+loaded rows=7809 bytes=1354727132 in 0.889s
+progress done=7805/7809 elapsed=5.0s oldest_s=3.8 row=2055
+progress done=7806/7809 elapsed=10.0s oldest_s=8.8 row=2055
+progress done=7806/7809 elapsed=15.0s oldest_s=13.8 row=2055
+progress done=7806/7809 elapsed=20.0s oldest_s=18.8 row=2055
+progress done=7806/7809 elapsed=25.0s oldest_s=23.8 row=2055
+progress done=7806/7809 elapsed=30.0s oldest_s=28.8 row=2055
+progress done=7807/7809 elapsed=35.0s oldest_s=32.5 row=4138
+slow row=4138 track_id=2bdea22c-df8e-4f4b-896e-2bb3037889bf html_bytes=416696 age_s=32.5
+progress done=7807/7809 elapsed=40.0s oldest_s=37.6 row=4138
+slow row=4138 track_id=2bdea22c-df8e-4f4b-896e-2bb3037889bf html_bytes=416696 age_s=37.6
+progress done=7807/7809 elapsed=45.0s oldest_s=42.6 row=4138
+slow row=4138 track_id=2bdea22c-df8e-4f4b-896e-2bb3037889bf html_bytes=416696 age_s=42.6

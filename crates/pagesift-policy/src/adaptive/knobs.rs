@@ -1,19 +1,21 @@
 //! Multi-parameter execution knobs for autonomous performance tuning.
 //!
-//! Exposes 10-dimensional tuning parameters spanning concurrency, queue capacity,
+//! Exposes multi-dimensional tuning parameters spanning concurrency, queue capacity,
 //! memory budgets, connection pooling, and latency timeouts.
 
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::Duration;
 
-/// The 10-dimensional tuning parameter configuration.
+/// Multi-dimensional tuning parameters selected by the adaptive controller.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TuningKnobs {
     /// 1. Global in-flight HTTP request concurrency
     pub global_concurrency: usize,
     /// 2. CPU worker pool threads / task executor capacity
     pub worker_pool_size: usize,
+    /// NUMA-local dispatch shards; each shard owns a bounded portion of the queue.
+    pub dispatch_shards: usize,
     /// 3. Concurrently scheduled unique domains / sites
     pub active_sites_cap: usize,
     /// 4. Per-host request rate limit / polite concurrency
@@ -41,6 +43,7 @@ impl Default for TuningKnobs {
         Self {
             global_concurrency: 64,
             worker_pool_size: 4,
+            dispatch_shards: 1,
             active_sites_cap: 32,
             per_host_concurrency: 2,
             inflight_memory_budget_bytes: 64 * 1024 * 1024,
@@ -59,6 +62,7 @@ impl Default for TuningKnobs {
 pub struct AtomicTuningKnobs {
     global_concurrency: AtomicUsize,
     worker_pool_size: AtomicUsize,
+    dispatch_shards: AtomicUsize,
     active_sites_cap: AtomicUsize,
     per_host_concurrency: AtomicUsize,
     inflight_memory_budget_bytes: AtomicUsize,
@@ -77,6 +81,7 @@ impl AtomicTuningKnobs {
         Self {
             global_concurrency: AtomicUsize::new(knobs.global_concurrency),
             worker_pool_size: AtomicUsize::new(knobs.worker_pool_size),
+            dispatch_shards: AtomicUsize::new(knobs.dispatch_shards),
             active_sites_cap: AtomicUsize::new(knobs.active_sites_cap),
             per_host_concurrency: AtomicUsize::new(knobs.per_host_concurrency),
             inflight_memory_budget_bytes: AtomicUsize::new(knobs.inflight_memory_budget_bytes),
@@ -95,6 +100,7 @@ impl AtomicTuningKnobs {
         TuningKnobs {
             global_concurrency: self.global_concurrency.load(Ordering::Relaxed),
             worker_pool_size: self.worker_pool_size.load(Ordering::Relaxed),
+            dispatch_shards: self.dispatch_shards.load(Ordering::Relaxed),
             active_sites_cap: self.active_sites_cap.load(Ordering::Relaxed),
             per_host_concurrency: self.per_host_concurrency.load(Ordering::Relaxed),
             inflight_memory_budget_bytes: self.inflight_memory_budget_bytes.load(Ordering::Relaxed),
@@ -110,18 +116,31 @@ impl AtomicTuningKnobs {
 
     /// Atomically updates all knobs to a new configuration.
     pub fn update(&self, knobs: &TuningKnobs) {
-        self.global_concurrency.store(knobs.global_concurrency, Ordering::Relaxed);
-        self.worker_pool_size.store(knobs.worker_pool_size, Ordering::Relaxed);
-        self.active_sites_cap.store(knobs.active_sites_cap, Ordering::Relaxed);
-        self.per_host_concurrency.store(knobs.per_host_concurrency, Ordering::Relaxed);
-        self.inflight_memory_budget_bytes.store(knobs.inflight_memory_budget_bytes, Ordering::Relaxed);
-        self.queue_capacity.store(knobs.queue_capacity, Ordering::Relaxed);
-        self.http_pool_idle_per_host.store(knobs.http_pool_idle_per_host, Ordering::Relaxed);
-        self.http_pool_idle_timeout_secs.store(knobs.http_pool_idle_timeout_secs, Ordering::Relaxed);
+        self.global_concurrency
+            .store(knobs.global_concurrency, Ordering::Relaxed);
+        self.worker_pool_size
+            .store(knobs.worker_pool_size, Ordering::Relaxed);
+        self.dispatch_shards
+            .store(knobs.dispatch_shards, Ordering::Relaxed);
+        self.active_sites_cap
+            .store(knobs.active_sites_cap, Ordering::Relaxed);
+        self.per_host_concurrency
+            .store(knobs.per_host_concurrency, Ordering::Relaxed);
+        self.inflight_memory_budget_bytes
+            .store(knobs.inflight_memory_budget_bytes, Ordering::Relaxed);
+        self.queue_capacity
+            .store(knobs.queue_capacity, Ordering::Relaxed);
+        self.http_pool_idle_per_host
+            .store(knobs.http_pool_idle_per_host, Ordering::Relaxed);
+        self.http_pool_idle_timeout_secs
+            .store(knobs.http_pool_idle_timeout_secs, Ordering::Relaxed);
         self.batch_size.store(knobs.batch_size, Ordering::Relaxed);
-        self.connect_timeout_ms.store(knobs.connect_timeout_ms, Ordering::Relaxed);
-        self.request_timeout_ms.store(knobs.request_timeout_ms, Ordering::Relaxed);
-        self.rendering_pool_concurrency.store(knobs.rendering_pool_concurrency, Ordering::Relaxed);
+        self.connect_timeout_ms
+            .store(knobs.connect_timeout_ms, Ordering::Relaxed);
+        self.request_timeout_ms
+            .store(knobs.request_timeout_ms, Ordering::Relaxed);
+        self.rendering_pool_concurrency
+            .store(knobs.rendering_pool_concurrency, Ordering::Relaxed);
     }
 
     #[inline]

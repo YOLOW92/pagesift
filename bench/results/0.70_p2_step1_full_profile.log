@@ -1,0 +1,3 @@
+end_to_end           659907.8 ops/s |   30.31s | CPU  131.57 core-s/s ( 68.5% of 192) | failed 0 |    878.6 MiB/s
+  sampled=4883 | url mean/p95 1.16/2.46 us | headers 2174.87/4491.26 us | body 3.67/9.90 us | content 164.07/237.29 us | recycle 6.45/16.00 us
+report=bench/results/0.70_p2_step1_full_profile.json

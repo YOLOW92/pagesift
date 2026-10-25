@@ -14,6 +14,7 @@ use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::IntoResponse;
 use axum::routing::get;
 use clap::Parser;
+use pagesift_policy::adaptive::{HardwareTopology, pin_current_thread};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about = "PageSift P0 Stream Origin Server")]
@@ -22,6 +23,18 @@ pub struct Opts {
     pub bind: SocketAddr,
     #[arg(long, default_value_t = 100_000_000)]
     pub total_pages: u64,
+    /// SO_REUSEPORT listener count. Zero selects the topology-aware shard count.
+    #[arg(long, default_value_t = 0)]
+    pub listeners: usize,
+    /// Async runtime worker count. Zero selects a topology-derived fixture
+    /// budget: one worker per four physical cores, clamped to 8..=32.
+    ///
+    /// The origin is a fixture, not the system under test. Oversubscribing every
+    /// logical CPU puts a fixture thread next to every runner thread and adds
+    /// wakeup latency to the loopback round trip. A bounded worker pool keeps
+    /// the fixture off most CPUs without changing the pages it serves.
+    #[arg(long, default_value_t = 0)]
+    pub workers: usize,
 }
 
 #[derive(Default)]
@@ -36,9 +49,32 @@ pub struct AppState {
     pub total_pages: u64,
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opts = Opts::parse();
+    let topology = HardwareTopology::detect();
+    let worker_cpus = topology.cpu_topology.runtime_worker_cpus();
+    let runtime_workers = if opts.workers == 0 {
+        topology.physical_cores.div_ceil(4).clamp(8, 32)
+    } else {
+        opts.workers
+    }
+    .min(worker_cpus.len())
+    .max(1);
+    let next_cpu = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let mut builder = tokio::runtime::Builder::new_multi_thread();
+    builder
+        .worker_threads(runtime_workers)
+        .thread_name("pagesift-origin");
+    if !worker_cpus.is_empty() {
+        builder.on_thread_start(move || {
+            let index = next_cpu.fetch_add(1, Ordering::Relaxed) % worker_cpus.len();
+            let _ = pin_current_thread(worker_cpus[index]);
+        });
+    }
+    builder.enable_all().build()?.block_on(run(opts, topology))
+}
+
+async fn run(opts: Opts, topology: HardwareTopology) -> Result<(), Box<dyn std::error::Error>> {
     let stats = Arc::new(ServerStats {
         requests_served: AtomicU64::new(0),
         bytes_served: AtomicU64::new(0),
@@ -55,30 +91,53 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/stats", get(handle_stats))
         .with_state(state);
 
-    let socket = socket2::Socket::new(
-        socket2::Domain::IPV4,
-        socket2::Type::STREAM,
-        Some(socket2::Protocol::TCP),
-    )?;
-    socket.set_reuse_address(true)?;
-    #[cfg(unix)]
-    let _ = socket.set_reuse_port(true);
-    socket.set_nonblocking(true)?;
-    socket.bind(&opts.bind.into())?;
-    socket.listen(8192)?;
-    let std_listener: std::net::TcpListener = socket.into();
-    let listener = tokio::net::TcpListener::from_std(std_listener)?;
-    println!("P0 Stream Origin listening on http://{}", opts.bind);
-    println!("Ready to serve up to {} unique synthetic pages.", opts.total_pages);
-
-    axum::serve(listener, app).await?;
-    Ok(())
+    let listeners = if opts.listeners == 0 {
+        topology.cpu_topology.recommended_dispatch_shards()
+    } else {
+        opts.listeners
+    }
+    .clamp(1, 64);
+    let mut servers = tokio::task::JoinSet::new();
+    for _ in 0..listeners {
+        let socket = socket2::Socket::new(
+            socket2::Domain::IPV4,
+            socket2::Type::STREAM,
+            Some(socket2::Protocol::TCP),
+        )?;
+        socket.set_reuse_address(true)?;
+        #[cfg(unix)]
+        socket.set_reuse_port(true)?;
+        socket.set_nonblocking(true)?;
+        socket.bind(&opts.bind.into())?;
+        socket.listen(8192)?;
+        let std_listener: std::net::TcpListener = socket.into();
+        let listener = tokio::net::TcpListener::from_std(std_listener)?;
+        let listener_app = app.clone();
+        servers.spawn(async move { axum::serve(listener, listener_app).await });
+    }
+    println!(
+        "P0 Stream Origin listening on http://{} with {} SO_REUSEPORT queues",
+        opts.bind, listeners
+    );
+    println!(
+        "Ready to serve up to {} unique synthetic pages.",
+        opts.total_pages
+    );
+    match servers.join_next().await {
+        Some(Ok(result)) => result.map_err(Into::into),
+        Some(Err(error)) => Err(error.into()),
+        None => Ok(()),
+    }
 }
 
 async fn handle_stats(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let served = state.stats.requests_served.load(Ordering::Relaxed);
     let bytes = state.stats.bytes_served.load(Ordering::Relaxed);
-    let elapsed = state.stats.start_time.map(|t| t.elapsed().as_secs_f64()).unwrap_or(1.0);
+    let elapsed = state
+        .stats
+        .start_time
+        .map(|t| t.elapsed().as_secs_f64())
+        .unwrap_or(1.0);
     let qps = served as f64 / elapsed.max(0.001);
 
     let json = serde_json::json!({
@@ -89,15 +148,20 @@ async fn handle_stats(State(state): State<Arc<AppState>>) -> impl IntoResponse {
         "total_pages": state.total_pages,
     });
 
-    (StatusCode::OK, [(header::CONTENT_TYPE, "application/json")], json.to_string())
+    (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "application/json")],
+        json.to_string(),
+    )
 }
 
-async fn handle_page(
-    Path(id): Path<u64>,
-    State(state): State<Arc<AppState>>,
-) -> impl IntoResponse {
+async fn handle_page(Path(id): Path<u64>, State(state): State<Arc<AppState>>) -> impl IntoResponse {
     if id >= state.total_pages {
-        return (StatusCode::NOT_FOUND, HeaderMap::new(), "Page Not Found".to_string());
+        return (
+            StatusCode::NOT_FOUND,
+            HeaderMap::new(),
+            "Page Not Found".to_string(),
+        );
     }
 
     let modality = (id % 5) as usize;
@@ -115,7 +179,10 @@ async fn handle_page(
 
     let etag = format!("\"p0-{id}-{modality}\"");
     let mut headers = HeaderMap::new();
-    headers.insert(header::CONTENT_TYPE, "text/html; charset=utf-8".parse().unwrap());
+    headers.insert(
+        header::CONTENT_TYPE,
+        "text/html; charset=utf-8".parse().unwrap(),
+    );
     headers.insert(header::ETAG, etag.parse().unwrap());
 
     (StatusCode::OK, headers, html)
@@ -153,7 +220,8 @@ fn render_news_article(id: u64) -> String {
     <footer><p>&copy; 2026 Global Tech Wire. All rights reserved.</p></footer>
 </body>
 </html>"#,
-        id + 1, id + 2
+        id + 1,
+        id + 2
     )
 }
 

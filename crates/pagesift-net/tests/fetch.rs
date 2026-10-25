@@ -1,8 +1,9 @@
 mod common;
 
-use std::io::Write;
+use std::io::{self, Write};
 use std::net::{IpAddr, Ipv4Addr};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, SystemTime};
 
 use common::{FakeDns, ok, redirect, response, serve};
@@ -25,6 +26,69 @@ fn config(dns: Arc<dyn DnsLookup>) -> FetcherConfig {
 
 fn fetcher() -> Fetcher {
     Fetcher::new(config(FakeDns::new(&[]))).unwrap()
+}
+
+struct CountingDns {
+    calls: AtomicUsize,
+    ip: IpAddr,
+    transient_failures: usize,
+}
+
+impl DnsLookup for CountingDns {
+    fn lookup<'a>(&'a self, _host: &'a str) -> BoxFuture<'a, io::Result<Vec<IpAddr>>> {
+        Box::pin(async move {
+            let call = self.calls.fetch_add(1, Ordering::SeqCst);
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            if call < self.transient_failures {
+                Err(io::Error::new(io::ErrorKind::TimedOut, "transient DNS"))
+            } else {
+                Ok(vec![self.ip])
+            }
+        })
+    }
+}
+
+#[tokio::test]
+async fn dns_singleflight_cache_and_transient_retry_are_bounded() {
+    let srv = serve(|_| Some(ok("cached"))).await;
+    let dns = Arc::new(CountingDns {
+        calls: AtomicUsize::new(0),
+        ip: IpAddr::V4(Ipv4Addr::LOCALHOST),
+        transient_failures: 1,
+    });
+    let fetcher = Arc::new(
+        Fetcher::new(FetcherConfig {
+            dns: dns.clone(),
+            dns_transient_retries: 1,
+            ssrf: SsrfPolicy {
+                allow_hosts: vec!["singleflight.test".into()],
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .unwrap(),
+    );
+    let mut tasks = tokio::task::JoinSet::new();
+    for n in 0..12 {
+        let fetcher = fetcher.clone();
+        let url = format!("http://singleflight.test:{}/page/{n}", srv.addr.port());
+        tasks.spawn(async move { fetcher.fetch(FetchRequest::new(url)).await });
+    }
+    while let Some(result) = tasks.join_next().await {
+        assert_eq!(result.unwrap().unwrap().body, b"cached");
+    }
+    assert_eq!(
+        dns.calls.load(Ordering::SeqCst),
+        2,
+        "one retry, then cached"
+    );
+    let dns_stage = fetcher
+        .stage_snapshots()
+        .into_iter()
+        .find(|snapshot| snapshot.stage == pagesift_net::NetworkStage::Dns)
+        .unwrap();
+    assert_eq!(dns_stage.completed, 12);
+    assert_eq!(dns_stage.transient_failures, 0);
 }
 
 #[tokio::test]
@@ -374,6 +438,93 @@ async fn first_byte_timeout() {
     assert!(matches!(err, Error::Timeout(TimeoutPhase::Total)), "{err}");
 }
 
+#[tokio::test]
+async fn body_idle_timeout_is_distinct_from_total_timeout() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut buf = [0_u8; 4096];
+        let _ = socket.read(&mut buf).await;
+        socket
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n")
+            .await
+            .unwrap();
+        tokio::time::sleep(Duration::from_secs(2)).await;
+    });
+    let fetcher = Fetcher::new(FetcherConfig {
+        body_idle_timeout: Duration::from_millis(50),
+        total_timeout: Duration::from_secs(1),
+        ssrf: SsrfPolicy {
+            allow_ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+    .unwrap();
+    let error = fetcher
+        .fetch(FetchRequest::new(format!("http://{addr}/idle")))
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(error, Error::Timeout(TimeoutPhase::BodyIdle)),
+        "{error}"
+    );
+}
+
+#[tokio::test]
+async fn slow_ttfb_transfers_to_bounded_tail_stage_until_body_completion() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut buf = [0_u8; 4096];
+        let _ = socket.read(&mut buf).await;
+        tokio::time::sleep(Duration::from_millis(40)).await;
+        socket
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+            .await
+            .unwrap();
+    });
+    let fetcher = Fetcher::new(FetcherConfig {
+        tail_threshold: Duration::from_millis(10),
+        ssrf: SsrfPolicy {
+            allow_ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+    .unwrap();
+    let response = fetcher
+        .fetch(FetchRequest::new(format!("http://{addr}/slow")))
+        .await
+        .unwrap();
+    assert_eq!(response.body, b"ok");
+    let snapshots = fetcher.stage_snapshots();
+    let http = snapshots
+        .iter()
+        .find(|snapshot| snapshot.stage == pagesift_net::NetworkStage::Http)
+        .unwrap();
+    let tail = snapshots
+        .iter()
+        .find(|snapshot| snapshot.stage == pagesift_net::NetworkStage::Tail)
+        .unwrap();
+    assert_eq!(http.completed, 1);
+    assert_eq!(tail.completed, 1);
+    assert_eq!(tail.active, 0);
+    let ttfb = fetcher
+        .phase_snapshots()
+        .into_iter()
+        .find(|snapshot| snapshot.phase == pagesift_net::TransportPhase::Ttfb)
+        .unwrap();
+    assert_eq!(ttfb.samples, 1);
+    assert!(ttfb.p50 >= Duration::from_millis(30));
+}
+
 struct DenyPath(&'static str);
 
 impl RedirectGuard for DenyPath {
@@ -463,6 +614,49 @@ async fn reuses_keep_alive_connections() {
         1,
         "one connection for three requests"
     );
+}
+
+#[tokio::test]
+async fn adaptive_hot_watermarks_are_isolated_per_origin() {
+    let fast = serve(|_| Some(ok("fast"))).await;
+    let overloaded = serve(|_| Some(response(503, &[], b"busy"))).await;
+    let fetcher = Arc::new(
+        Fetcher::new(FetcherConfig {
+            max_connections_per_host: 8,
+            ..config(FakeDns::new(&[]))
+        })
+        .unwrap(),
+    );
+
+    let mut tasks = tokio::task::JoinSet::new();
+    for n in 0..64 {
+        let fetcher = fetcher.clone();
+        let url = fast.url(&format!("/{n}"));
+        tasks.spawn(async move { fetcher.fetch(FetchRequest::new(url)).await });
+    }
+    while let Some(result) = tasks.join_next().await {
+        assert_eq!(result.unwrap().unwrap().status, 200);
+    }
+
+    let response = fetcher
+        .fetch(FetchRequest::new(overloaded.url("/busy")))
+        .await
+        .unwrap();
+    assert_eq!(response.status, 503);
+
+    let stats = fetcher.host_connection_stats();
+    let fast_stats = stats
+        .iter()
+        .find(|s| s.origin.ends_with(&fast.addr.to_string()))
+        .unwrap();
+    let slow_stats = stats
+        .iter()
+        .find(|s| s.origin.ends_with(&overloaded.addr.to_string()))
+        .unwrap();
+    assert!(fast_stats.hot_target > 2, "{fast_stats:?}");
+    assert_eq!(fast_stats.failed, 0);
+    assert_eq!(slow_stats.hot_target, 1, "{slow_stats:?}");
+    assert_eq!(slow_stats.overloaded, 1);
 }
 
 #[tokio::test]

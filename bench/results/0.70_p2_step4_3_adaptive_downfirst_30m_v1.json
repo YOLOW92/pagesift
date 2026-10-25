@@ -1,0 +1,252 @@
+{
+  "schema": 4,
+  "executor": "numa_local_hybrid_pipeline",
+  "transport": "pagesift_mio_http1",
+  "mode": "end_to_end",
+  "total_tasks": 30000000,
+  "completed": 30000000,
+  "valid": 30000000,
+  "failed": 0,
+  "bytes": 41880000000,
+  "wall_time_s": 33.315725938,
+  "sustained_qps": 900475.6509232153,
+  "throughput_mb_s": 1198.8296591652,
+  "process_cpu_time_s": 3837.88,
+  "process_cpu_cores": 115.19724970550634,
+  "process_cpu_pct_of_assigned": 59.99856755495122,
+  "peak_rss_bytes": 302948352,
+  "assigned_cpus": 192,
+  "physical_cores": 96,
+  "sockets": 2,
+  "numa_nodes": 4,
+  "reactors": 48,
+  "content_workers": 144,
+  "connections": 1536,
+  "fixture_pages": 5,
+  "connects": 1536,
+  "reused": 29998464,
+  "retries": 0,
+  "timeouts": 0,
+  "queue_backpressure": 121213,
+  "response_buffer_allocations": 8344,
+  "content_queued": 0,
+  "reactor_inline_parsed": 4665015,
+  "local_batches": 17460240,
+  "local_jobs": 25332873,
+  "local_steal_jobs": 146893,
+  "steal_attempts": 26703,
+  "steal_successes": 1716,
+  "stolen_jobs": 2112,
+  "initial_pipeline_allocation": {
+    "reactor_budget": 48,
+    "content_budget": 144,
+    "inline_parse_percent": 0,
+    "state": "Probing"
+  },
+  "final_pipeline_allocation": {
+    "reactor_budget": 64,
+    "content_budget": 128,
+    "inline_parse_percent": 12,
+    "state": "Locked"
+  },
+  "pipeline_adjustments": [
+    {
+      "reactor_budget": 48,
+      "content_budget": 144,
+      "inline_parse_percent": 0,
+      "state": "Probing"
+    },
+    {
+      "reactor_budget": 64,
+      "content_budget": 128,
+      "inline_parse_percent": 12,
+      "state": "Settling"
+    },
+    {
+      "reactor_budget": 64,
+      "content_budget": 128,
+      "inline_parse_percent": 12,
+      "state": "Probing"
+    },
+    {
+      "reactor_budget": 80,
+      "content_budget": 112,
+      "inline_parse_percent": 23,
+      "state": "Settling"
+    },
+    {
+      "reactor_budget": 80,
+      "content_budget": 112,
+      "inline_parse_percent": 23,
+      "state": "Probing"
+    },
+    {
+      "reactor_budget": 96,
+      "content_budget": 96,
+      "inline_parse_percent": 34,
+      "state": "Settling"
+    },
+    {
+      "reactor_budget": 96,
+      "content_budget": 96,
+      "inline_parse_percent": 34,
+      "state": "Probing"
+    },
+    {
+      "reactor_budget": 64,
+      "content_budget": 128,
+      "inline_parse_percent": 12,
+      "state": "Locked"
+    }
+  ],
+  "initial_distribution_allocation": {
+    "local_batch_size": 2,
+    "empty_polls_before_steal": 4,
+    "steal_batch_size": 1,
+    "state": "Probing"
+  },
+  "final_distribution_allocation": {
+    "local_batch_size": 2,
+    "empty_polls_before_steal": 4,
+    "steal_batch_size": 1,
+    "state": "Locked"
+  },
+  "distribution_adjustments": [
+    {
+      "local_batch_size": 2,
+      "empty_polls_before_steal": 4,
+      "steal_batch_size": 1,
+      "state": "Probing"
+    },
+    {
+      "local_batch_size": 1,
+      "empty_polls_before_steal": 8,
+      "steal_batch_size": 1,
+      "state": "Settling"
+    },
+    {
+      "local_batch_size": 2,
+      "empty_polls_before_steal": 4,
+      "steal_batch_size": 1,
+      "state": "Locked"
+    },
+    {
+      "local_batch_size": 4,
+      "empty_polls_before_steal": 2,
+      "steal_batch_size": 2,
+      "state": "Settling"
+    },
+    {
+      "local_batch_size": 2,
+      "empty_polls_before_steal": 4,
+      "steal_batch_size": 1,
+      "state": "Locked"
+    }
+  ],
+  "node_reports": [
+    {
+      "node_index": 0,
+      "numa_node": 0,
+      "socket_id": 0,
+      "reactors": 12,
+      "content_workers": 36,
+      "connections": 384,
+      "completed": 7500930,
+      "valid": 7500930,
+      "failed": 0,
+      "bytes": 10471314796,
+      "connects": 384,
+      "reused": 7499904,
+      "retries": 0,
+      "timeouts": 0,
+      "queue_backpressure": 25193,
+      "response_buffer_allocations": 3184,
+      "content_queued": 0,
+      "reactor_inline_parsed": 1167049,
+      "local_batches": 4269630,
+      "local_jobs": 6333117,
+      "local_steal_jobs": 82244,
+      "steal_attempts": 6936,
+      "steal_successes": 597,
+      "stolen_jobs": 764
+    },
+    {
+      "node_index": 1,
+      "numa_node": 1,
+      "socket_id": 0,
+      "reactors": 12,
+      "content_workers": 36,
+      "connections": 384,
+      "completed": 7500282,
+      "valid": 7500282,
+      "failed": 0,
+      "bytes": 10470395714,
+      "connects": 384,
+      "reused": 7499520,
+      "retries": 0,
+      "timeouts": 0,
+      "queue_backpressure": 23610,
+      "response_buffer_allocations": 1426,
+      "content_queued": 0,
+      "reactor_inline_parsed": 1158173,
+      "local_batches": 4444889,
+      "local_jobs": 6341222,
+      "local_steal_jobs": 21353,
+      "steal_attempts": 6901,
+      "steal_successes": 666,
+      "stolen_jobs": 887
+    },
+    {
+      "node_index": 2,
+      "numa_node": 2,
+      "socket_id": 1,
+      "reactors": 12,
+      "content_workers": 36,
+      "connections": 384,
+      "completed": 7498788,
+      "valid": 7498788,
+      "failed": 0,
+      "bytes": 10468304231,
+      "connects": 384,
+      "reused": 7499520,
+      "retries": 0,
+      "timeouts": 0,
+      "queue_backpressure": 20301,
+      "response_buffer_allocations": 1725,
+      "content_queued": 0,
+      "reactor_inline_parsed": 1156566,
+      "local_batches": 4367503,
+      "local_jobs": 6342161,
+      "local_steal_jobs": 21728,
+      "steal_attempts": 6219,
+      "steal_successes": 60,
+      "stolen_jobs": 61
+    },
+    {
+      "node_index": 3,
+      "numa_node": 3,
+      "socket_id": 1,
+      "reactors": 12,
+      "content_workers": 36,
+      "connections": 384,
+      "completed": 7500000,
+      "valid": 7500000,
+      "failed": 0,
+      "bytes": 10469985259,
+      "connects": 384,
+      "reused": 7499520,
+      "retries": 0,
+      "timeouts": 0,
+      "queue_backpressure": 52109,
+      "response_buffer_allocations": 2009,
+      "content_queued": 0,
+      "reactor_inline_parsed": 1183227,
+      "local_batches": 4378218,
+      "local_jobs": 6316373,
+      "local_steal_jobs": 21568,
+      "steal_attempts": 6647,
+      "steal_successes": 393,
+      "stolen_jobs": 400
+    }
+  ]
+}

@@ -63,12 +63,8 @@ impl IpCidr {
 
     pub fn contains(&self, ip: IpAddr) -> bool {
         match (self, ip) {
-            (IpCidr::V4 { net, prefix }, IpAddr::V4(v4)) => {
-                in_v4(v4, net.octets(), *prefix as u32)
-            }
-            (IpCidr::V6 { net, prefix }, IpAddr::V6(v6)) => {
-                in_v6(v6, net.octets(), *prefix as u32)
-            }
+            (IpCidr::V4 { net, prefix }, IpAddr::V4(v4)) => in_v4(v4, net.octets(), *prefix as u32),
+            (IpCidr::V6 { net, prefix }, IpAddr::V6(v6)) => in_v6(v6, net.octets(), *prefix as u32),
             _ => false,
         }
     }

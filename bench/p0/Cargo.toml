@@ -19,11 +19,18 @@ clap = { version = "4.6.7", features = ["derive"] }
 url = "2.5.8"
 socket2 = { version = "0.5", features = ["all"] }
 reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls-native-roots"] }
+futures-util = "0.3.34"
+bytes = "1.11.1"
+mio = { version = "1.1.1", features = ["os-poll", "net"] }
+httparse = "1.10.1"
+crossbeam-channel = "0.5.15"
+mimalloc = { version = "0.1.43", default-features = false }
 
 pagesift-html = { path = "../../crates/pagesift-html" }
 pagesift-content = { path = "../../crates/pagesift-content" }
 pagesift-extract = { path = "../../crates/pagesift-extract" }
 pagesift-net = { path = "../../crates/pagesift-net" }
+pagesift-policy = { path = "../../crates/pagesift-policy" }
 
 [[bin]]
 name = "stream_origin"
@@ -34,9 +41,33 @@ name = "pipeline_stages"
 path = "src/pipeline_stages.rs"
 
 [[bin]]
+name = "p2_component_probe"
+path = "src/p2_component_probe.rs"
+
+[[bin]]
+name = "p2_numa_slot_runner"
+path = "src/p2_numa_slot_runner.rs"
+
+[[bin]]
+name = "p2_http_reactor_runner"
+path = "src/p2_http_reactor_runner.rs"
+
+[[bin]]
+name = "p2_host_lifecycle_runner"
+path = "src/p2_host_lifecycle_runner.rs"
+
+[[bin]]
 name = "end_to_end_100m"
 path = "src/end_to_end_100m.rs"
 
 [[bin]]
 name = "sharded_runner"
 path = "src/sharded_runner.rs"
+
+[[bin]]
+name = "adaptive_numa_runner"
+path = "src/adaptive_numa_runner.rs"
+
+[[bin]]
+name = "hierarchical_numa_runner"
+path = "src/hierarchical_numa_runner.rs"

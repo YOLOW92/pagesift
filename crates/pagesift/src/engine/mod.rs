@@ -5,6 +5,8 @@
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use pagesift_api::types::{Document, Metadata, PagesiftMeta, ScrapeOptions};
@@ -84,6 +86,8 @@ pub struct ScraperConfig {
     pub search: Option<Arc<dyn pagesift_search::SearchBackend>>,
     /// 命名出口（名字，代理地址）：请求的 `egress` 选其中一个，其余抓取设置和默认出口相同。
     pub egress: Vec<(String, String)>,
+    /// 根据进程 CPU、队列延迟、错误率与 cgroup 内存预算动态调节爬取并发。
+    pub adaptive_tuning: bool,
 }
 
 /// 创建 [`Scraper`] 失败：网络层或 LLM 客户端的配置不对。
@@ -125,10 +129,40 @@ pub struct Scraper {
     launch_failed: Vec<std::sync::Mutex<Option<Instant>>>,
     /// 爬取里同时进行的抓取数，等于全局并发。排队的页面只占一个很小的等待 future，
     /// 拿到名额才创建完整的抓取状态机（十几 KB）：同时爬上千个站时，排队的页面不再各占一份。
-    crawl_slots: Arc<tokio::sync::Semaphore>,
-    target_concurrency: std::sync::atomic::AtomicUsize,
-    held_permits: std::sync::Mutex<Vec<tokio::sync::OwnedSemaphorePermit>>,
+    crawl_slots: pagesift_policy::adaptive::AdaptiveConcurrencyGate,
+    target_concurrency: AtomicUsize,
+    runtime_tuner: Option<RuntimeAdaptiveTuner>,
     learner: crate::learn::HostLearner,
+}
+
+struct RuntimeAdaptiveTuner {
+    engine: pagesift_policy::adaptive::AutonomousTuningEngine,
+    completed: AtomicU64,
+    failed: AtomicU64,
+    window: Mutex<AdaptiveWindow>,
+}
+
+struct AdaptiveWindow {
+    sampled_at: Instant,
+    completed: u64,
+    failed: u64,
+}
+
+impl RuntimeAdaptiveTuner {
+    const SAMPLE_INTERVAL: Duration = Duration::from_secs(1);
+
+    fn new() -> Self {
+        Self {
+            engine: pagesift_policy::adaptive::AutonomousTuningEngine::new(),
+            completed: AtomicU64::new(0),
+            failed: AtomicU64::new(0),
+            window: Mutex::new(AdaptiveWindow {
+                sampled_at: Instant::now(),
+                completed: 0,
+                failed: 0,
+            }),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

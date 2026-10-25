@@ -1,0 +1,30 @@
+============================================================
+  PageSift P2 NUMA-Local Fixed-Slot Runner
+  Topology: 192 logical / 96 physical / 2 sockets / 4 NUMA
+  Tasks: 10000000
+  Fixed slots: 1536 / connection pools: 96
+  Node 0 (NUMA 0, socket 0): 48 CPUs / 384 slots / 24 pools
+  Node 1 (NUMA 1, socket 0): 48 CPUs / 384 slots / 24 pools
+  Node 2 (NUMA 2, socket 1): 48 CPUs / 384 slots / 24 pools
+  Node 3 (NUMA 3, socket 1): 48 CPUs / 384 slots / 24 pools
+============================================================
+[7.05%]  705401.2 pages/s | completed 705500 | failed 0 | process CPU 129.54 cores
+[14.81%]  775087.3 pages/s | completed 1480655 | failed 0 | process CPU 135.71 cores
+[22.61%]  780414.2 pages/s | completed 2261209 | failed 0 | process CPU 138.02 cores
+[30.40%]  778717.7 pages/s | completed 3040066 | failed 0 | process CPU 139.14 cores
+[38.25%]  784650.8 pages/s | completed 3825024 | failed 0 | process CPU 140.03 cores
+[46.10%]  784993.3 pages/s | completed 4610223 | failed 0 | process CPU 140.56 cores
+[53.89%]  778844.5 pages/s | completed 5389231 | failed 0 | process CPU 140.77 cores
+[61.71%]  781671.9 pages/s | completed 6171263 | failed 0 | process CPU 141.00 cores
+[69.53%]  781590.2 pages/s | completed 6952905 | failed 0 | process CPU 141.23 cores
+[77.33%]  779974.4 pages/s | completed 7733026 | failed 0 | process CPU 141.39 cores
+[85.15%]  781488.0 pages/s | completed 8514876 | failed 0 | process CPU 141.55 cores
+[92.97%]  781208.0 pages/s | completed 9296593 | failed 0 | process CPU 141.69 cores
+[100.00%]  703338.5 pages/s | completed 10000000 | failed 0 | process CPU 140.60 cores
+============================================================
+  Sustained QPS: 767537.95
+  Completed: 10000000 / 10000000
+  Failed: 0
+  Runner CPU: 140.60 core-s/s (73.23% of 192)
+  Report: bench/results/0.70_p2_step2_numa_nodeset_run1.json
+============================================================

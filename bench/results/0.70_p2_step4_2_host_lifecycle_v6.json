@@ -1,0 +1,82 @@
+{
+  "schema": 1,
+  "requests_per_host": 10000,
+  "dispatch_concurrency": 512,
+  "max_connections_per_host": 32,
+  "slow_capacity": 4,
+  "slow_service_ms": 5,
+  "fixed": {
+    "mode": "fixed",
+    "wall_time_s": 1.975070472,
+    "qps": 10126.220954408556,
+    "transport_failed": 0,
+    "overload_responses": 9735,
+    "fast_peak_active": 3,
+    "slow_peak_active": 32,
+    "hosts": [
+      {
+        "origin": "http://127.0.0.1:13169",
+        "hot_target": 32,
+        "max_hot": 32,
+        "completed": 10000,
+        "failed": 0,
+        "overloaded": 0,
+        "cancelled": 0,
+        "reused": 9968,
+        "connected": 32,
+        "service_ewma_ms": 0.036000000000000004,
+        "connect_ewma_ms": 15.684
+      },
+      {
+        "origin": "http://127.0.0.1:7421",
+        "hot_target": 32,
+        "max_hot": 32,
+        "completed": 10000,
+        "failed": 9735,
+        "overloaded": 9735,
+        "cancelled": 0,
+        "reused": 9968,
+        "connected": 32,
+        "service_ewma_ms": 6.402,
+        "connect_ewma_ms": 1.2750000000000001
+      }
+    ]
+  },
+  "adaptive": {
+    "mode": "adaptive",
+    "wall_time_s": 14.95413171,
+    "qps": 1337.423020463687,
+    "transport_failed": 0,
+    "overload_responses": 325,
+    "fast_peak_active": 3,
+    "slow_peak_active": 5,
+    "hosts": [
+      {
+        "origin": "http://127.0.0.1:13169",
+        "hot_target": 28,
+        "max_hot": 32,
+        "completed": 10000,
+        "failed": 0,
+        "overloaded": 0,
+        "cancelled": 0,
+        "reused": 9973,
+        "connected": 27,
+        "service_ewma_ms": 0.032,
+        "connect_ewma_ms": 0.134
+      },
+      {
+        "origin": "http://127.0.0.1:7421",
+        "hot_target": 4,
+        "max_hot": 32,
+        "completed": 10000,
+        "failed": 325,
+        "overloaded": 325,
+        "cancelled": 0,
+        "reused": 9995,
+        "connected": 5,
+        "service_ewma_ms": 6.172000000000001,
+        "connect_ewma_ms": 0.054
+      }
+    ]
+  }
+}

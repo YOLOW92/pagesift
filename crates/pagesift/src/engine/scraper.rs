@@ -19,13 +19,13 @@ impl Scraper {
             .transpose()
             .map_err(ScraperError::Llm)?;
         let initial_conc = config.policy.rate.global_concurrency.max(1);
-        let crawl_slots = Arc::new(tokio::sync::Semaphore::new(initial_conc));
-        let target_concurrency = std::sync::atomic::AtomicUsize::new(initial_conc);
-        let held_permits = std::sync::Mutex::new(Vec::new());
+        let runtime_tuner = config.adaptive_tuning.then(RuntimeAdaptiveTuner::new);
+        let crawl_slots = pagesift_policy::adaptive::AdaptiveConcurrencyGate::new(initial_conc);
+        let target_concurrency = AtomicUsize::new(initial_conc);
         Ok(Self {
             crawl_slots,
             target_concurrency,
-            held_permits,
+            runtime_tuner,
             policy: Arc::new({
                 let mut p = Policy::new(fetcher, config.policy);
                 for (name, f) in egress {
@@ -140,48 +140,82 @@ impl Scraper {
         &self.policy
     }
 
-    pub(crate) fn crawl_slots(&self) -> &tokio::sync::Semaphore {
+    pub fn network_stage_snapshots(&self) -> Vec<pagesift_net::StageSnapshot> {
+        self.policy.fetcher().stage_snapshots()
+    }
+
+    pub fn transport_phase_snapshots(&self) -> Vec<pagesift_net::PhaseSnapshot> {
+        self.policy.fetcher().phase_snapshots()
+    }
+
+    pub(crate) fn crawl_slots(&self) -> &pagesift_policy::adaptive::AdaptiveConcurrencyGate {
         &self.crawl_slots
     }
 
     /// Returns current active concurrency limit.
     pub fn concurrency(&self) -> usize {
-        self.target_concurrency
-            .load(std::sync::atomic::Ordering::Relaxed)
+        self.target_concurrency.load(Ordering::Relaxed)
     }
 
     /// Dynamically adjusts the global crawl concurrency limit at runtime.
     pub fn set_concurrency(&self, target: usize) {
-        use std::sync::atomic::Ordering;
         let target = target.max(1);
-        let curr = self.target_concurrency.load(Ordering::Relaxed);
-        if target > curr {
-            let diff = target - curr;
-            let mut held = self.held_permits.lock().unwrap();
-            let to_release = held.len().min(diff);
-            let new_len = held.len() - to_release;
-            held.truncate(new_len);
-            let remaining = diff - to_release;
-            if remaining > 0 {
-                self.crawl_slots.add_permits(remaining);
-            }
-            self.target_concurrency.store(target, Ordering::Relaxed);
-        } else if target < curr {
-            let diff = curr - target;
-            let mut held = self.held_permits.lock().unwrap();
-            let mut acquired = 0usize;
-            for _ in 0..diff {
-                if let Ok(p) = self.crawl_slots.clone().try_acquire_owned() {
-                    held.push(p);
-                    acquired += 1;
-                } else {
-                    break;
-                }
-            }
-            if acquired > 0 {
-                self.target_concurrency
-                    .store(curr - acquired, Ordering::Relaxed);
-            }
+        self.crawl_slots.set_limit(target);
+        self.target_concurrency.store(target, Ordering::Release);
+    }
+
+    /// Records one completed crawl and opportunistically runs the one-second
+    /// adaptive control loop. `try_lock` keeps request completion wait-free when
+    /// another worker is sampling telemetry.
+    pub(crate) fn observe_crawl(&self, queue_wait: Duration, failed: bool) {
+        let Some(tuner) = &self.runtime_tuner else {
+            return;
+        };
+        tuner
+            .engine
+            .latencies
+            .record(queue_wait.as_secs_f64() * 1_000.0);
+        let completed = tuner.completed.fetch_add(1, Ordering::Relaxed) + 1;
+        let failed_total = if failed {
+            tuner.failed.fetch_add(1, Ordering::Relaxed) + 1
+        } else {
+            tuner.failed.load(Ordering::Relaxed)
+        };
+
+        let Ok(mut window) = tuner.window.try_lock() else {
+            return;
+        };
+        let elapsed = window.sampled_at.elapsed();
+        if elapsed < RuntimeAdaptiveTuner::SAMPLE_INTERVAL {
+            return;
+        }
+
+        let delta_completed = completed.saturating_sub(window.completed);
+        let delta_failed = failed_total.saturating_sub(window.failed);
+        let qps = delta_completed as f64 / elapsed.as_secs_f64().max(0.001);
+        let error_rate_pct = if delta_completed == 0 {
+            0.0
+        } else {
+            delta_failed as f64 / delta_completed as f64 * 100.0
+        };
+        window.sampled_at = Instant::now();
+        window.completed = completed;
+        window.failed = failed_total;
+        drop(window);
+
+        let previous = self.concurrency();
+        let knobs = tuner.engine.tick(qps, error_rate_pct, open_fd_count());
+        self.set_concurrency(knobs.global_concurrency);
+        if previous != knobs.global_concurrency {
+            tracing::info!(
+                previous,
+                target = knobs.global_concurrency,
+                qps,
+                error_rate_pct,
+                queue_p95_ms = tuner.engine.latencies.quantiles().1,
+                state = ?tuner.engine.controller.state(),
+                "adaptive crawl concurrency changed"
+            );
         }
     }
 
@@ -409,4 +443,10 @@ impl Scraper {
         ]);
         Some((store, key.to_string().into_bytes()))
     }
+}
+
+fn open_fd_count() -> usize {
+    std::fs::read_dir("/proc/self/fd")
+        .map(|entries| entries.count())
+        .unwrap_or(0)
 }

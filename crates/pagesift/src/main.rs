@@ -807,7 +807,7 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
             external_scripts,
             query,
             adaptive,
-            tuning_mode: _,
+            tuning_mode,
         } => runtime()?.block_on(async move {
             let req: pagesift::api::types::CrawlRequest =
                 serde_json::from_value(serde_json::json!({
@@ -827,7 +827,13 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
                 std::fs::create_dir_all(dir)
                     .with_context(|| format!("creating {}", dir.display()))?;
             }
-            let scraper = pagesift::Scraper::new(cfg.scraper(false)?)?;
+            let mut scraper_config = cfg.scraper(false)?;
+            let tuning_mode = tuning_mode
+                .parse::<pagesift::adaptive::TuningMode>()
+                .map_err(anyhow::Error::msg)?;
+            pagesift::adaptive::TuningProfile::new(tuning_mode)
+                .apply_to_config(&mut scraper_config);
+            let scraper = pagesift::Scraper::new(scraper_config)?;
             let sink = Arc::new(cli::CrawlOutput::new(out));
             let result = scraper.crawl(&req, sink.clone()).await;
             scraper.shutdown().await;
@@ -874,15 +880,31 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
                 println!("============================================================");
                 println!("  PageSift 0.60 Performance & Hardware Diagnosis");
                 println!("============================================================");
-                println!("  Physical Cores:     {} vCPUs", diagnosis.logical_cores);
-                println!("  System Memory:      {:.1} MB (Process RSS: {:.1} MB)", diagnosis.total_memory_mb, diagnosis.process_rss_mb);
+                println!("  Logical CPUs:       {}", diagnosis.logical_cores);
+                println!(
+                    "  Physical Cores:     {} ({} capacity cores, {} runtime workers)",
+                    diagnosis.physical_cores, diagnosis.worker_cores, diagnosis.runtime_workers
+                );
+                println!(
+                    "  Topology:           {} socket(s), {} NUMA node(s), {} thread(s)/core",
+                    diagnosis.sockets, diagnosis.numa_nodes, diagnosis.threads_per_core
+                );
+                println!(
+                    "  System Memory:      {:.1} MB (Process RSS: {:.1} MB)",
+                    diagnosis.total_memory_mb, diagnosis.process_rss_mb
+                );
                 println!("  CPU Saturation:     {:.1}%", diagnosis.cpu_saturation_pct);
+                println!("  Process CPU Time:   {:.3}s", diagnosis.process_cpu_time_s);
                 println!("  FD Limit (ulimit):  {}", diagnosis.fd_limit);
                 println!("  Active Concurrency: {}", diagnosis.active_concurrency);
                 println!("  Active Domains:     {}", diagnosis.active_sites);
                 if performance {
-                    println!("  Dispatch Latency:   p50: {:.2}ms | p95: {:.2}ms | p99: {:.2}ms",
-                        diagnosis.p50_latency_ms, diagnosis.p95_latency_ms, diagnosis.p99_latency_ms);
+                    println!(
+                        "  Dispatch Latency:   p50: {:.2}ms | p95: {:.2}ms | p99: {:.2}ms",
+                        diagnosis.p50_latency_ms,
+                        diagnosis.p95_latency_ms,
+                        diagnosis.p99_latency_ms
+                    );
                 }
                 println!("------------------------------------------------------------");
                 println!("  Primary State:      {}", diagnosis.primary_bottleneck);
@@ -900,15 +922,25 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
                 "profile_mode": profile,
                 "hardware": {
                     "logical_cores": engine.topo.logical_cores,
+                    "physical_cores": engine.topo.physical_cores,
+                    "worker_cores": engine.topo.worker_cores,
+                    "runtime_workers": engine.topo.runtime_workers,
+                    "sockets": engine.topo.sockets,
+                    "numa_nodes": engine.topo.numa_nodes,
+                    "threads_per_core": engine.topo.threads_per_core,
                     "ram_per_core_mb": engine.topo.ram_per_core_mb,
                     "fd_limit": engine.topo.fd_limit,
+                    "worker_cpu_groups": engine.topo.cpu_topology.physical_worker_groups(),
                 },
                 "calibrated_knobs": knobs,
             }))?;
 
             if let Some(path) = out {
                 std::fs::write(&path, &profile_json)?;
-                println!("Tuning profile successfully calibrated and saved to {}", path.display());
+                println!(
+                    "Tuning profile successfully calibrated and saved to {}",
+                    path.display()
+                );
             } else {
                 println!("{profile_json}");
             }
@@ -988,11 +1020,79 @@ fn read_bounded(file: Option<PathBuf>, max_bytes: usize) -> Result<String> {
     Ok(String::from_utf8(bytes)?)
 }
 
+/// 每个 runtime worker 预留的虚拟地址空间（线程栈 + 运行时结构）。
+/// 受限地址空间下按这个粒度折算可用线程数。
+const ADDR_SPACE_PER_WORKER: u64 = 16 * 1024 * 1024;
+
+/// 读 `/proc/self/limits` 的 "Max address space" 与当前 `VmSize`，
+/// 在地址空间受限（如 `ulimit -v`）时给出还能开几个 worker。
+/// 不受限或读不到时返回 `None`。
+fn addr_space_worker_cap() -> Option<usize> {
+    let limits = std::fs::read_to_string("/proc/self/limits").ok()?;
+    let line = limits
+        .lines()
+        .find(|l| l.starts_with("Max address space"))?;
+    let soft = line.split_whitespace().nth(3)?;
+    if soft == "unlimited" {
+        return None;
+    }
+    let limit: u64 = soft.parse().ok()?;
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    let vm: u64 = status
+        .lines()
+        .find(|l| l.starts_with("VmSize:"))?
+        .split_whitespace()
+        .nth(1)?
+        .parse::<u64>()
+        .ok()?;
+    let vm_bytes = vm * 1024;
+    let free = limit.saturating_sub(vm_bytes);
+    Some(((free / ADDR_SPACE_PER_WORKER) as usize).max(1))
+}
+
 fn runtime() -> Result<tokio::runtime::Runtime> {
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .context("starting the async runtime")
+    let topology = pagesift::adaptive::HardwareTopology::detect();
+    let worker_cpus = topology.cpu_topology.runtime_worker_cpus();
+    let mut workers = topology.runtime_workers.max(1);
+    if let Some(cap) = addr_space_worker_cap() {
+        workers = workers.min(cap);
+    }
+    // 地址空间不够时线程会 spawn 失败（EAGAIN）。逐次减半重试，而不是让运行时 panic
+    // 或卡在没有输出的状态里——受限环境下至少还能以小并发把活干完。
+    loop {
+        let next_cpu = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let mut builder = tokio::runtime::Builder::new_multi_thread();
+        builder
+            .worker_threads(workers)
+            .thread_name("pagesift-worker");
+        if !worker_cpus.is_empty() {
+            let cpus = worker_cpus.clone();
+            builder.on_thread_start(move || {
+                use std::sync::atomic::Ordering;
+                let index = next_cpu.fetch_add(1, Ordering::Relaxed) % cpus.len();
+                let _ = pagesift::adaptive::pin_current_thread(cpus[index]);
+            });
+        }
+        match builder.enable_all().build() {
+            Ok(rt) => {
+                if workers < topology.runtime_workers {
+                    eprintln!(
+                        "note: 地址空间受限，runtime worker 由 {} 降到 {workers}",
+                        topology.runtime_workers
+                    );
+                }
+                return Ok(rt);
+            }
+            Err(e) => {
+                if workers <= 1 {
+                    return Err(anyhow::anyhow!(
+                        "starting the async runtime failed even with 1 worker: {e}"
+                    ));
+                }
+                workers = (workers / 2).max(1);
+            }
+        }
+    }
 }
 
 fn read_input(file: Option<PathBuf>) -> Result<String> {

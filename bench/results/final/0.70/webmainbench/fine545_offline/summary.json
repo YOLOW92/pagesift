@@ -1,0 +1,40 @@
+{
+  "mode": "official metric calculator, use_llm=False; not comparable to published LLM-assisted leaderboard",
+  "n": 545,
+  "extract_errors": 0,
+  "scorer_errors": 0,
+  "empty": 0,
+  "metrics": {
+    "text_edit": {
+      "mean": 0.6387405700791061,
+      "scored": 545,
+      "total": 545
+    },
+    "code_edit": {
+      "mean": 0.8330858332353601,
+      "scored": 93,
+      "total": 545
+    },
+    "formula_edit": {
+      "mean": 0.3442385351861239,
+      "scored": 274,
+      "total": 545
+    },
+    "table_edit": {
+      "mean": 0.4053216649934231,
+      "scored": 107,
+      "total": 545
+    },
+    "table_TEDS": {
+      "mean": 0.6438614132950206,
+      "scored": 107,
+      "total": 545
+    },
+    "overall": {
+      "mean": 0.5589416413781668,
+      "scored": 545,
+      "total": 545
+    }
+  },
+  "global_overall_five_mean": 0.5730496033578067
+}

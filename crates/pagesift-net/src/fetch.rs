@@ -7,6 +7,7 @@ use reqwest::redirect;
 use tokio::time::{Instant, timeout_at};
 use url::Url;
 
+use crate::HostConnectionStats;
 use crate::charset::{self, Decoded};
 use crate::client;
 use crate::credentials::{HostCredentials, redact_url};
@@ -14,22 +15,31 @@ use crate::dns::{
     BoxFuture, DnsLookup, GuardedResolver, ReqwestResolver, ResolveError, SystemLookup,
 };
 use crate::ssrf::{Blocked, SsrfPolicy};
+use crate::stages::{
+    NetworkStage, PhaseSnapshot, StageController, StageControllerConfig, StagePermit, StageSnapshot,
+};
 use crate::ua::{DEFAULT_USER_AGENT, UserAgentError, validate_user_agent};
 
 pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TimeoutPhase {
+    Dns,
     Connect,
+    Tls,
     FirstByte,
+    BodyIdle,
     Total,
 }
 
 impl fmt::Display for TimeoutPhase {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
+            Self::Dns => "DNS",
             Self::Connect => "connect",
+            Self::Tls => "TLS",
             Self::FirstByte => "first byte",
+            Self::BodyIdle => "body idle",
             Self::Total => "total",
         })
     }
@@ -87,8 +97,13 @@ impl RedirectGuard for NoGuard {
 pub struct FetcherConfig {
     pub user_agent: String,
     pub connect_timeout: Duration,
+    pub dns_timeout: Duration,
+    pub tls_timeout: Duration,
     pub first_byte_timeout: Duration,
+    pub body_idle_timeout: Duration,
     pub total_timeout: Duration,
+    /// 调用方显式设过超时（`[fetch] timeout_secs`）。为真时自适应调优不得放宽这些值。
+    pub timeouts_explicit: bool,
     pub max_redirects: usize,
     pub max_body_bytes: usize,
     pub ssrf: SsrfPolicy,
@@ -98,6 +113,21 @@ pub struct FetcherConfig {
     pub dns: Arc<dyn DnsLookup>,
     pub pool_idle_timeout: Duration,
     pub pool_max_idle_per_host: usize,
+    /// Direct connections use a per-origin closed loop instead of one fixed
+    /// concurrency limit for every host.
+    pub adaptive_host_connections: bool,
+    /// Safety ceiling for the adaptive per-origin hot-connection watermark.
+    /// The controller starts small and reaches this only when measurements
+    /// show that the origin remains saturated, fast and error-free.
+    pub max_connections_per_host: usize,
+    pub dns_positive_ttl: Duration,
+    pub dns_negative_ttl: Duration,
+    pub dns_transient_retries: usize,
+    pub happy_eyeballs_delay: Duration,
+    /// Requests whose TTFB crosses this boundary transfer from the main HTTP
+    /// stage into the bounded tail stage until the body finishes.
+    pub tail_threshold: Duration,
+    pub stage_controller: StageControllerConfig,
 }
 
 impl Default for FetcherConfig {
@@ -105,8 +135,12 @@ impl Default for FetcherConfig {
         Self {
             user_agent: DEFAULT_USER_AGENT.to_string(),
             connect_timeout: Duration::from_secs(10),
+            dns_timeout: Duration::from_secs(5),
+            tls_timeout: Duration::from_secs(10),
             first_byte_timeout: Duration::from_secs(30),
+            body_idle_timeout: Duration::from_secs(15),
             total_timeout: Duration::from_secs(60),
+            timeouts_explicit: false,
             max_redirects: 5,
             max_body_bytes: 15 * 1024 * 1024,
             ssrf: SsrfPolicy::default(),
@@ -115,6 +149,14 @@ impl Default for FetcherConfig {
             dns: Arc::new(SystemLookup),
             pool_idle_timeout: Duration::from_secs(90),
             pool_max_idle_per_host: 8,
+            adaptive_host_connections: true,
+            max_connections_per_host: 32,
+            dns_positive_ttl: Duration::from_secs(300),
+            dns_negative_ttl: Duration::from_secs(30),
+            dns_transient_retries: 1,
+            happy_eyeballs_delay: Duration::from_millis(250),
+            tail_threshold: Duration::from_secs(2),
+            stage_controller: StageControllerConfig::default(),
         }
     }
 }
@@ -124,13 +166,18 @@ impl fmt::Debug for FetcherConfig {
         f.debug_struct("FetcherConfig")
             .field("user_agent", &self.user_agent)
             .field("connect_timeout", &self.connect_timeout)
+            .field("dns_timeout", &self.dns_timeout)
+            .field("tls_timeout", &self.tls_timeout)
             .field("first_byte_timeout", &self.first_byte_timeout)
+            .field("body_idle_timeout", &self.body_idle_timeout)
             .field("total_timeout", &self.total_timeout)
             .field("max_redirects", &self.max_redirects)
             .field("max_body_bytes", &self.max_body_bytes)
             .field("ssrf", &self.ssrf)
             .field("proxy", &self.proxy.as_deref().map(redact_url))
             .field("credentials", &self.credentials)
+            .field("adaptive_host_connections", &self.adaptive_host_connections)
+            .field("max_connections_per_host", &self.max_connections_per_host)
             .finish_non_exhaustive()
     }
 }
@@ -273,6 +320,7 @@ pub struct FetchStream {
     pub first_byte: Duration,
     response: Resp,
     deadline: Instant,
+    body_idle_timeout: Duration,
     session_use: Option<crate::session::SessionUse>,
 }
 
@@ -282,9 +330,16 @@ impl FetchStream {
     }
 
     pub async fn chunk(&mut self) -> Result<Option<bytes::Bytes>> {
-        let chunk = timeout_at(self.deadline, self.response.chunk())
+        let idle_deadline = (Instant::now() + self.body_idle_timeout).min(self.deadline);
+        let chunk = timeout_at(idle_deadline, self.response.chunk())
             .await
-            .map_err(|_| Error::Timeout(TimeoutPhase::Total))?;
+            .map_err(|_| {
+                if idle_deadline == self.deadline {
+                    Error::Timeout(TimeoutPhase::Total)
+                } else {
+                    Error::Timeout(TimeoutPhase::BodyIdle)
+                }
+            })?;
         if matches!(chunk, Ok(None))
             && let Some(usage) = self.session_use.take()
         {
@@ -301,6 +356,7 @@ pub struct Fetcher {
     transport: Transport,
     config: FetcherConfig,
     credentials: Vec<(HostCredentials, HeaderMap)>,
+    stages: StageController,
 }
 
 impl fmt::Debug for Fetcher {
@@ -362,11 +418,16 @@ impl Fetcher {
         }
         // 白名单里的主机解析到内网地址也放行
         exempt.extend(config.ssrf.allow_hosts.iter().cloned());
-        let resolver = Arc::new(GuardedResolver {
-            lookup: config.dns.clone(),
-            policy: config.ssrf.clone(),
+        let stages = StageController::new(config.stage_controller.clone());
+        let resolver = Arc::new(GuardedResolver::new(
+            config.dns.clone(),
+            config.ssrf.clone(),
             exempt,
-        });
+            config.dns_positive_ttl,
+            config.dns_negative_ttl,
+            config.dns_transient_retries,
+            stages.clone(),
+        ));
         let ua = HeaderValue::from_str(&config.user_agent)
             .map_err(|_| Error::Header("user-agent".into()))?;
         let credentials = config
@@ -379,14 +440,23 @@ impl Fetcher {
             let direct = client::Client::new(
                 resolver,
                 config.connect_timeout,
+                config.dns_timeout,
+                config.tls_timeout,
+                config.first_byte_timeout,
+                config.happy_eyeballs_delay,
+                config.tail_threshold,
                 config.pool_idle_timeout,
                 config.pool_max_idle_per_host,
+                config.adaptive_host_connections,
+                config.max_connections_per_host,
+                stages.clone(),
                 ua,
             )?;
             return Ok(Self {
                 transport: Transport::Direct(direct),
                 config,
                 credentials,
+                stages,
             });
         }
         let build = |builder: reqwest::ClientBuilder| {
@@ -418,6 +488,7 @@ impl Fetcher {
             transport: Transport::Proxy(client, raw),
             config,
             credentials,
+            stages,
         })
     }
 
@@ -427,6 +498,29 @@ impl Fetcher {
 
     pub fn user_agent(&self) -> &str {
         &self.config.user_agent
+    }
+
+    /// Snapshot the direct transport's per-origin controller state.
+    /// Proxied transports currently expose no origin-local connection state.
+    pub fn host_connection_stats(&self) -> Vec<HostConnectionStats> {
+        match &self.transport {
+            Transport::Direct(client) => client.host_connection_stats(),
+            Transport::Proxy(_, _) => Vec::new(),
+        }
+    }
+
+    pub fn stage_snapshots(&self) -> Vec<StageSnapshot> {
+        self.stages.snapshots()
+    }
+
+    pub fn phase_snapshots(&self) -> Vec<PhaseSnapshot> {
+        self.stages.phase_snapshots()
+    }
+
+    /// Admission for parsing or bounded tail work, sharing the same controller
+    /// as the network stages. Callers must finish the permit with the real outcome.
+    pub async fn acquire_stage(&self, stage: NetworkStage) -> StagePermit {
+        self.stages.acquire(stage).await
     }
 
     /// 按本 Fetcher 的 SSRF 策略校验 URL。
@@ -453,7 +547,13 @@ impl Fetcher {
         let status = stream.status;
         let mut headers = stream.headers;
         let direct = matches!(stream.response, Resp::Direct(_));
-        let (body, mut truncated) = read_body(stream.response, max, stream.deadline).await?;
+        let (body, mut truncated) = read_body(
+            stream.response,
+            max,
+            stream.deadline,
+            stream.body_idle_timeout,
+        )
+        .await?;
         let body = if direct {
             let (body, cut) = client::decode_body(&mut headers, body, max);
             truncated |= cut;
@@ -500,7 +600,8 @@ impl Fetcher {
         raw: bool,
     ) -> Result<FetchStream> {
         let start = Instant::now();
-        let deadline = start + req.timeout.unwrap_or(self.config.total_timeout);
+        let request_override = req.timeout;
+        let body_budget = req.timeout.unwrap_or(self.config.total_timeout);
         let extra = request_headers(&req)?;
         let origin = self.check_url(&req.url)?;
         if req.session.is_some() && extra.contains_key(header::COOKIE) {
@@ -528,13 +629,28 @@ impl Fetcher {
                 );
             }
             let send = self.transport.get(&url, headers, raw);
-            let first_byte = (Instant::now() + self.config.first_byte_timeout).min(deadline);
-            let resp = match timeout_at(first_byte, send).await {
-                Err(_) if first_byte == deadline => {
-                    return Err(Error::Timeout(TimeoutPhase::Total));
+            let mut resp = if matches!(&self.transport, Transport::Direct(_)) {
+                // Direct transport enforces DNS, TCP, TLS and TTFB deadlines
+                // after each stage acquires capacity. Queue time cannot create
+                // a false failure-feedback loop.
+                //
+                // 总预算不能套在这一层：这里包含等待容量的排队时间，把排队算进超时会
+                // 让高并发下大量请求还没发出去就被判超时。用户配置的 timeout_secs
+                // 通过在 config 层收紧 first_byte_timeout / body_idle_timeout 生效，
+                // 那两个 deadline 都从取得容量之后才开始计时。
+                if let Some(limit) = request_override {
+                    timeout_at(Instant::now() + limit, send)
+                        .await
+                        .map_err(|_| Error::Timeout(TimeoutPhase::Total))??
+                } else {
+                    send.await?
                 }
-                Err(_) => return Err(Error::Timeout(TimeoutPhase::FirstByte)),
-                Ok(r) => r?,
+            } else {
+                let first_byte = Instant::now() + self.config.first_byte_timeout;
+                match timeout_at(first_byte, send).await {
+                    Err(_) => return Err(Error::Timeout(TimeoutPhase::FirstByte)),
+                    Ok(result) => result?,
+                }
             };
             let status = resp.status();
             if let Some(session) = &req.session {
@@ -563,6 +679,7 @@ impl Fetcher {
                         source,
                     })?;
                 chain.push(RedirectHop { url, status });
+                resp.abandon();
                 url = next;
                 continue;
             }
@@ -576,14 +693,20 @@ impl Fetcher {
                     "stream requires identity content encoding".into(),
                 ));
             }
+            let measured_ttfb = resp.ttfb().unwrap_or_else(|| start.elapsed());
+            if measured_ttfb >= self.config.tail_threshold {
+                resp.move_to_tail(&self.stages).await;
+            }
+            let deadline = Instant::now() + body_budget;
             return Ok(FetchStream {
                 final_url: url,
                 status,
                 headers,
                 redirect_chain: chain,
-                first_byte: start.elapsed(),
+                first_byte: measured_ttfb,
                 response: resp,
                 deadline,
+                body_idle_timeout: self.config.body_idle_timeout,
                 session_use,
             });
         }
@@ -728,7 +851,12 @@ fn request_headers(req: &FetchRequest) -> Result<HeaderMap> {
     Ok(out)
 }
 
-async fn read_body(mut resp: Resp, max: usize, deadline: Instant) -> Result<(Vec<u8>, bool)> {
+async fn read_body(
+    mut resp: Resp,
+    max: usize,
+    deadline: Instant,
+    body_idle_timeout: Duration,
+) -> Result<(Vec<u8>, bool)> {
     // 有 Content-Length 就一次分配到位，免得边读边扩容（扩容会多占一倍并反复拷贝）
     let hint = resp
         .headers()
@@ -738,8 +866,10 @@ async fn read_body(mut resp: Resp, max: usize, deadline: Instant) -> Result<(Vec
         .map_or(0, |n| n.min(max as u64) as usize);
     let mut body = Vec::with_capacity(hint);
     loop {
-        let chunk = match timeout_at(deadline, resp.chunk()).await {
-            Err(_) => return Err(Error::Timeout(TimeoutPhase::Total)),
+        let idle_deadline = (Instant::now() + body_idle_timeout).min(deadline);
+        let chunk = match timeout_at(idle_deadline, resp.chunk()).await {
+            Err(_) if idle_deadline == deadline => return Err(Error::Timeout(TimeoutPhase::Total)),
+            Err(_) => return Err(Error::Timeout(TimeoutPhase::BodyIdle)),
             Ok(c) => c?,
         };
         let Some(chunk) = chunk else {
@@ -748,6 +878,7 @@ async fn read_body(mut resp: Resp, max: usize, deadline: Instant) -> Result<(Vec
         let room = max - body.len();
         if chunk.len() > room {
             body.extend_from_slice(&chunk[..room]);
+            resp.abandon();
             return Ok((body, true));
         }
         body.extend_from_slice(&chunk);
@@ -794,10 +925,29 @@ impl Resp {
         }
     }
 
+    fn ttfb(&self) -> Option<Duration> {
+        match self {
+            Resp::Direct(response) => Some(response.ttfb),
+            Resp::Proxy(_) => None,
+        }
+    }
+
     async fn chunk(&mut self) -> Result<Option<bytes::Bytes>> {
         match self {
             Resp::Direct(r) => r.chunk().await,
             Resp::Proxy(r) => r.chunk().await.map_err(map_reqwest),
+        }
+    }
+
+    fn abandon(&mut self) {
+        if let Resp::Direct(response) = self {
+            response.abandon();
+        }
+    }
+
+    async fn move_to_tail(&mut self, stages: &StageController) {
+        if let Resp::Direct(response) = self {
+            response.move_to_tail(stages).await;
         }
     }
 }

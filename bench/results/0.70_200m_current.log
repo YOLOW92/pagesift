@@ -1,0 +1,297 @@
+============================================================
+  PageSift P2 NUMA-Local HTTP Reactor
+  Topology: 192 logical / 96 physical / 2 sockets / 4 NUMA
+  Tasks: 200000000 / reactors: 48 / content workers: 144 / connections: 1536 initial, 12288 capacity
+  Node 0 (NUMA 0, socket 0): 12 reactors / 36 content workers / 384 connections
+  Node 1 (NUMA 1, socket 0): 12 reactors / 36 content workers / 384 connections
+  Node 2 (NUMA 2, socket 1): 12 reactors / 36 content workers / 384 connections
+  Node 3 (NUMA 3, socket 1): 12 reactors / 36 content workers / 384 connections
+============================================================
+[0.41%]  814140.2 pages/s | completed 814202 | failed 0 | CPU 147.77 cores | connections 1536 | reuse 102.1%
+[0.84%]  873371.6 pages/s | completed 1687632 | failed 0 | CPU 156.64 cores | connections 1536 | reuse 101.4%
+[1.28%]  879286.0 pages/s | completed 2566982 | failed 0 | CPU 160.19 cores | connections 1536 | reuse 100.9%
+  capacity: 2272 active connections / ConcurrencyProbe
+[1.72%]  872942.9 pages/s | completed 3440058 | failed 0 | CPU 161.73 cores | connections 2272 | reuse 100.7%
+[2.15%]  867272.1 pages/s | completed 4307391 | failed 0 | CPU 162.21 cores | connections 2272 | reuse 100.6%
+[2.60%]  890214.0 pages/s | completed 5197729 | failed 0 | CPU 163.16 cores | connections 2272 | reuse 100.5%
+[3.04%]  889739.1 pages/s | completed 6087531 | failed 0 | CPU 163.80 cores | connections 2272 | reuse 100.4%
+  capacity: 5548 active connections / ConcurrencyProbe
+[3.49%]  885806.2 pages/s | completed 6973547 | failed 0 | CPU 164.20 cores | connections 5548 | reuse 100.3%
+[3.93%]  887103.1 pages/s | completed 7860717 | failed 0 | CPU 164.25 cores | connections 5548 | reuse 100.3%
+[4.38%]  890982.8 pages/s | completed 8751874 | failed 0 | CPU 164.48 cores | connections 5548 | reuse 100.3%
+[4.82%]  890168.3 pages/s | completed 9642660 | failed 0 | CPU 164.69 cores | connections 5548 | reuse 100.3%
+  capacity: 8669 active connections / ConcurrencyProbe
+[5.27%]  889813.4 pages/s | completed 10532569 | failed 0 | CPU 164.86 cores | connections 8669 | reuse 100.2%
+[5.71%]  885390.2 pages/s | completed 11418028 | failed 0 | CPU 164.94 cores | connections 8669 | reuse 100.2%
+[6.15%]  888993.9 pages/s | completed 12307089 | failed 0 | CPU 165.00 cores | connections 8669 | reuse 100.2%
+[6.60%]  887243.4 pages/s | completed 13194373 | failed 0 | CPU 165.06 cores | connections 8669 | reuse 100.2%
+  capacity: 4438 active connections / ConcurrencyProbe
+[7.04%]  881006.7 pages/s | completed 14075713 | failed 0 | CPU 165.02 cores | connections 4438 | reuse 100.2%
+[7.48%]  885643.9 pages/s | completed 14961421 | failed 0 | CPU 165.00 cores | connections 4438 | reuse 100.1%
+[7.92%]  883727.4 pages/s | completed 15845454 | failed 0 | CPU 164.99 cores | connections 4438 | reuse 100.1%
+[8.36%]  880722.7 pages/s | completed 16726861 | failed 0 | CPU 164.91 cores | connections 4438 | reuse 100.1%
+  capacity: 3550 active connections / ConcurrencyProbe
+[8.81%]  887463.1 pages/s | completed 17614390 | failed 0 | CPU 164.88 cores | connections 3550 | reuse 100.1%
+[9.25%]  879992.4 pages/s | completed 18494898 | failed 0 | CPU 164.83 cores | connections 3550 | reuse 100.1%
+[9.69%]  887475.0 pages/s | completed 19382475 | failed 0 | CPU 164.84 cores | connections 3550 | reuse 100.1%
+[10.13%]  882787.5 pages/s | completed 20265323 | failed 0 | CPU 164.75 cores | connections 3550 | reuse 100.1%
+  capacity: 6935 active connections / ConcurrencyProbe
+[10.57%]  883530.5 pages/s | completed 21149168 | failed 0 | CPU 164.75 cores | connections 6935 | reuse 100.1%
+[11.01%]  879807.4 pages/s | completed 22029034 | failed 0 | CPU 164.71 cores | connections 6935 | reuse 100.1%
+[11.46%]  884759.1 pages/s | completed 22913852 | failed 0 | CPU 164.72 cores | connections 6935 | reuse 100.1%
+[11.90%]  884870.6 pages/s | completed 23798947 | failed 0 | CPU 164.68 cores | connections 6935 | reuse 100.1%
+  capacity: 5548 active connections / Locked
+[12.35%]  891859.6 pages/s | completed 24690881 | failed 0 | CPU 164.69 cores | connections 5548 | reuse 100.1%
+[12.79%]  885529.5 pages/s | completed 25576691 | failed 0 | CPU 164.68 cores | connections 5548 | reuse 100.1%
+  controller: reactor budget 64 / content budget 128 / inline 12% / Settling | evidence 3 samples, mean 887768.5 pages/s, rel SEM 0.231%
+[13.23%]  885916.4 pages/s | completed 26463318 | failed 0 | CPU 164.67 cores | connections 5548 | reuse 100.1%
+[13.68%]  888282.9 pages/s | completed 27352108 | failed 0 | CPU 164.79 cores | connections 5548 | reuse 100.1%
+[14.13%]  898327.8 pages/s | completed 28250497 | failed 0 | CPU 164.96 cores | connections 5548 | reuse 100.1%
+[14.57%]  896435.8 pages/s | completed 29146998 | failed 0 | CPU 165.10 cores | connections 5548 | reuse 100.1%
+[15.02%]  896147.6 pages/s | completed 30043590 | failed 0 | CPU 165.22 cores | connections 5548 | reuse 100.0%
+[15.47%]  897973.4 pages/s | completed 30941624 | failed 0 | CPU 165.36 cores | connections 5548 | reuse 100.0%
+[15.92%]  894318.3 pages/s | completed 31836006 | failed 0 | CPU 165.47 cores | connections 5548 | reuse 100.0%
+[16.36%]  889671.7 pages/s | completed 32725742 | failed 0 | CPU 165.56 cores | connections 5548 | reuse 100.0%
+  controller: reactor budget 48 / content budget 144 / inline 0% / Locked | evidence 3 samples, mean 893040.1 pages/s, rel SEM 0.190%
+[16.81%]  895130.3 pages/s | completed 33620940 | failed 0 | CPU 165.68 cores | connections 5548 | reuse 100.0%
+[17.25%]  883772.0 pages/s | completed 34504934 | failed 0 | CPU 165.62 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 4 / steal after 2 empty polls / steal batch 2 / Backpressure | evidence 3 samples, mean 887654.3 pages/s, rel SEM 0.421%
+[17.69%]  884060.6 pages/s | completed 35389088 | failed 0 | CPU 165.55 cores | connections 5548 | reuse 100.0%
+[18.13%]  880332.1 pages/s | completed 36269494 | failed 0 | CPU 165.44 cores | connections 5548 | reuse 100.0%
+[18.58%]  882286.1 pages/s | completed 37151842 | failed 0 | CPU 165.36 cores | connections 5548 | reuse 100.0%
+[19.02%]  884297.3 pages/s | completed 38036303 | failed 0 | CPU 165.30 cores | connections 5548 | reuse 100.0%
+[19.46%]  884427.1 pages/s | completed 38920791 | failed 0 | CPU 165.24 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 2 / steal after 4 empty polls / steal batch 1 / Locked | evidence 3 samples, mean 881949.4 pages/s, rel SEM 0.274%
+[19.90%]  877123.9 pages/s | completed 39797978 | failed 0 | CPU 165.17 cores | connections 5548 | reuse 100.0%
+[20.34%]  886761.7 pages/s | completed 40685008 | failed 0 | CPU 165.15 cores | connections 5548 | reuse 100.0%
+[20.79%]  886239.1 pages/s | completed 41571342 | failed 0 | CPU 165.12 cores | connections 5548 | reuse 100.0%
+[21.23%]  888354.5 pages/s | completed 42459765 | failed 0 | CPU 165.11 cores | connections 5548 | reuse 100.0%
+[21.67%]  882100.9 pages/s | completed 43341931 | failed 0 | CPU 165.06 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 4 / steal after 2 empty polls / steal batch 2 / Backpressure | evidence 3 samples, mean 885685.4 pages/s, rel SEM 0.210%
+[22.11%]  886600.7 pages/s | completed 44228597 | failed 0 | CPU 165.03 cores | connections 5548 | reuse 100.0%
+[22.56%]  883401.0 pages/s | completed 45112062 | failed 0 | CPU 165.01 cores | connections 5548 | reuse 100.0%
+[23.00%]  887282.5 pages/s | completed 45999407 | failed 0 | CPU 164.98 cores | connections 5548 | reuse 100.0%
+[23.44%]  882679.5 pages/s | completed 46882755 | failed 0 | CPU 164.95 cores | connections 5548 | reuse 100.0%
+[23.88%]  885355.2 pages/s | completed 47768176 | failed 0 | CPU 164.94 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 2 / steal after 4 empty polls / steal batch 1 / Locked | evidence 3 samples, mean 883357.4 pages/s, rel SEM 0.115%
+[24.33%]  882037.3 pages/s | completed 48650463 | failed 0 | CPU 164.92 cores | connections 5548 | reuse 100.0%
+[24.77%]  886884.5 pages/s | completed 49537955 | failed 0 | CPU 164.91 cores | connections 5548 | reuse 100.0%
+[25.21%]  886995.0 pages/s | completed 50425072 | failed 0 | CPU 164.90 cores | connections 5548 | reuse 100.0%
+[25.66%]  887946.8 pages/s | completed 51313081 | failed 0 | CPU 164.87 cores | connections 5548 | reuse 100.0%
+[26.10%]  885773.1 pages/s | completed 52200123 | failed 0 | CPU 164.85 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 4 / steal after 2 empty polls / steal batch 2 / Backpressure | evidence 3 samples, mean 886146.0 pages/s, rel SEM 0.107%
+[26.54%]  884718.2 pages/s | completed 53085100 | failed 0 | CPU 164.83 cores | connections 5548 | reuse 100.0%
+[26.99%]  885113.2 pages/s | completed 53970452 | failed 0 | CPU 164.81 cores | connections 5548 | reuse 100.0%
+[27.43%]  887359.4 pages/s | completed 54858182 | failed 0 | CPU 164.79 cores | connections 5548 | reuse 100.0%
+[27.87%]  889469.2 pages/s | completed 55747775 | failed 0 | CPU 164.79 cores | connections 5548 | reuse 100.0%
+[28.32%]  884761.4 pages/s | completed 56632616 | failed 0 | CPU 164.77 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 2 / steal after 4 empty polls / steal batch 1 / Locked | evidence 3 samples, mean 886943.9 pages/s, rel SEM 0.154%
+[28.76%]  886601.0 pages/s | completed 57519945 | failed 0 | CPU 164.76 cores | connections 5548 | reuse 100.0%
+[29.20%]  884706.0 pages/s | completed 58404869 | failed 0 | CPU 164.74 cores | connections 5548 | reuse 100.0%
+[29.64%]  884757.5 pages/s | completed 59289744 | failed 0 | CPU 164.73 cores | connections 5548 | reuse 100.0%
+[30.09%]  884273.2 pages/s | completed 60174077 | failed 0 | CPU 164.71 cores | connections 5548 | reuse 100.0%
+[30.53%]  884681.8 pages/s | completed 61058872 | failed 0 | CPU 164.68 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 4 / steal after 2 empty polls / steal batch 2 / Backpressure | evidence 3 samples, mean 886012.5 pages/s, rel SEM 0.174%
+[30.97%]  889082.4 pages/s | completed 61948018 | failed 0 | CPU 164.68 cores | connections 5548 | reuse 100.0%
+[31.42%]  888804.5 pages/s | completed 62836893 | failed 0 | CPU 164.67 cores | connections 5548 | reuse 100.0%
+[31.86%]  886032.3 pages/s | completed 63722983 | failed 0 | CPU 164.64 cores | connections 5548 | reuse 100.0%
+[32.31%]  889061.5 pages/s | completed 64612087 | failed 0 | CPU 164.63 cores | connections 5548 | reuse 100.0%
+[32.75%]  884000.4 pages/s | completed 65496146 | failed 0 | CPU 164.61 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 2 / steal after 4 empty polls / steal batch 1 / Locked | evidence 3 samples, mean 886233.7 pages/s, rel SEM 0.168%
+[33.19%]  885639.1 pages/s | completed 66381844 | failed 0 | CPU 164.58 cores | connections 5548 | reuse 100.0%
+[33.63%]  878865.2 pages/s | completed 67261066 | failed 0 | CPU 164.55 cores | connections 5548 | reuse 100.0%
+[34.07%]  881753.5 pages/s | completed 68142883 | failed 0 | CPU 164.51 cores | connections 5548 | reuse 100.0%
+[34.51%]  882843.9 pages/s | completed 69025793 | failed 0 | CPU 164.48 cores | connections 5548 | reuse 100.0%
+[34.96%]  885151.6 pages/s | completed 69911400 | failed 0 | CPU 164.46 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 4 / steal after 2 empty polls / steal batch 2 / Backpressure | evidence 3 samples, mean 884113.1 pages/s, rel SEM 0.076%
+[35.40%]  884343.6 pages/s | completed 70795802 | failed 0 | CPU 164.43 cores | connections 5548 | reuse 100.0%
+[35.84%]  884210.4 pages/s | completed 71680110 | failed 0 | CPU 164.41 cores | connections 5548 | reuse 100.0%
+[36.28%]  884613.7 pages/s | completed 72564802 | failed 0 | CPU 164.40 cores | connections 5548 | reuse 100.0%
+[36.73%]  887982.0 pages/s | completed 73452950 | failed 0 | CPU 164.39 cores | connections 5548 | reuse 100.0%
+[37.17%]  886716.8 pages/s | completed 74339760 | failed 0 | CPU 164.40 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 2 / steal after 4 empty polls / steal batch 1 / Locked | evidence 3 samples, mean 887773.8 pages/s, rel SEM 0.063%
+[37.61%]  888622.5 pages/s | completed 75228442 | failed 0 | CPU 164.41 cores | connections 5548 | reuse 100.0%
+[38.06%]  888702.3 pages/s | completed 76117254 | failed 0 | CPU 164.41 cores | connections 5548 | reuse 100.0%
+[38.51%]  892322.1 pages/s | completed 77010089 | failed 0 | CPU 164.43 cores | connections 5548 | reuse 100.0%
+[38.95%]  891067.1 pages/s | completed 77901214 | failed 0 | CPU 164.44 cores | connections 5548 | reuse 100.0%
+[39.40%]  890216.2 pages/s | completed 78791643 | failed 0 | CPU 164.45 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 4 / steal after 2 empty polls / steal batch 2 / Backpressure | evidence 3 samples, mean 889794.6 pages/s, rel SEM 0.099%
+[39.84%]  888100.5 pages/s | completed 79679804 | failed 0 | CPU 164.45 cores | connections 5548 | reuse 100.0%
+[40.29%]  890149.6 pages/s | completed 80570015 | failed 0 | CPU 164.46 cores | connections 5548 | reuse 100.0%
+[40.73%]  887470.5 pages/s | completed 81457605 | failed 0 | CPU 164.46 cores | connections 5548 | reuse 100.0%
+[41.17%]  886080.5 pages/s | completed 82343749 | failed 0 | CPU 164.44 cores | connections 5548 | reuse 100.0%
+[41.61%]  886138.9 pages/s | completed 83229951 | failed 0 | CPU 164.43 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 2 / steal after 4 empty polls / steal batch 1 / Locked | evidence 3 samples, mean 886809.9 pages/s, rel SEM 0.079%
+[42.06%]  888210.2 pages/s | completed 84118771 | failed 0 | CPU 164.42 cores | connections 5548 | reuse 100.0%
+[42.50%]  888399.0 pages/s | completed 85007541 | failed 0 | CPU 164.41 cores | connections 5548 | reuse 100.0%
+[42.95%]  888222.6 pages/s | completed 85895851 | failed 0 | CPU 164.42 cores | connections 5548 | reuse 100.0%
+[43.39%]  890111.8 pages/s | completed 86786217 | failed 0 | CPU 164.42 cores | connections 5548 | reuse 100.0%
+[43.84%]  890428.4 pages/s | completed 87676727 | failed 0 | CPU 164.43 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 4 / steal after 2 empty polls / steal batch 2 / Backpressure | evidence 3 samples, mean 890627.3 pages/s, rel SEM 0.041%
+[44.28%]  891341.8 pages/s | completed 88568181 | failed 0 | CPU 164.43 cores | connections 5548 | reuse 100.0%
+[44.73%]  888689.2 pages/s | completed 89456967 | failed 0 | CPU 164.43 cores | connections 5548 | reuse 100.0%
+[45.17%]  888087.7 pages/s | completed 90345435 | failed 0 | CPU 164.43 cores | connections 5548 | reuse 100.0%
+[45.62%]  887481.7 pages/s | completed 91233613 | failed 0 | CPU 164.42 cores | connections 5548 | reuse 100.0%
+[46.06%]  886720.2 pages/s | completed 92120497 | failed 0 | CPU 164.41 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 2 / steal after 4 empty polls / steal batch 1 / Locked | evidence 3 samples, mean 886589.8 pages/s, rel SEM 0.063%
+[46.50%]  885567.5 pages/s | completed 93007035 | failed 0 | CPU 164.41 cores | connections 5548 | reuse 100.0%
+[46.95%]  885581.2 pages/s | completed 93892686 | failed 0 | CPU 164.40 cores | connections 5548 | reuse 100.0%
+[47.39%]  884600.6 pages/s | completed 94777362 | failed 0 | CPU 164.39 cores | connections 5548 | reuse 100.0%
+[47.83%]  888500.6 pages/s | completed 95667205 | failed 0 | CPU 164.38 cores | connections 5548 | reuse 100.0%
+[48.28%]  891946.9 pages/s | completed 96559219 | failed 0 | CPU 164.37 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 4 / steal after 2 empty polls / steal batch 2 / Backpressure | evidence 3 samples, mean 889892.6 pages/s, rel SEM 0.118%
+[48.72%]  889230.2 pages/s | completed 97448508 | failed 0 | CPU 164.37 cores | connections 5548 | reuse 100.0%
+[49.17%]  890820.6 pages/s | completed 98339394 | failed 0 | CPU 164.36 cores | connections 5548 | reuse 100.0%
+[49.61%]  889998.1 pages/s | completed 99229780 | failed 0 | CPU 164.36 cores | connections 5548 | reuse 100.0%
+[50.06%]  891613.3 pages/s | completed 100121473 | failed 0 | CPU 164.36 cores | connections 5548 | reuse 100.0%
+[50.51%]  888640.2 pages/s | completed 101010407 | failed 0 | CPU 164.36 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 2 / steal after 4 empty polls / steal batch 1 / Locked | evidence 3 samples, mean 889553.6 pages/s, rel SEM 0.116%
+[50.95%]  888407.3 pages/s | completed 101898895 | failed 0 | CPU 164.36 cores | connections 5548 | reuse 100.0%
+[51.40%]  892540.4 pages/s | completed 102791570 | failed 0 | CPU 164.36 cores | connections 5548 | reuse 100.0%
+[51.84%]  889048.0 pages/s | completed 103680678 | failed 0 | CPU 164.36 cores | connections 5548 | reuse 100.0%
+[52.28%]  889124.2 pages/s | completed 104569861 | failed 0 | CPU 164.35 cores | connections 5548 | reuse 100.0%
+[52.73%]  890759.1 pages/s | completed 105460684 | failed 0 | CPU 164.36 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 4 / steal after 2 empty polls / steal batch 2 / Backpressure | evidence 3 samples, mean 890111.7 pages/s, rel SEM 0.056%
+[53.18%]  890451.9 pages/s | completed 106351202 | failed 0 | CPU 164.36 cores | connections 5548 | reuse 100.0%
+[53.62%]  888869.0 pages/s | completed 107240429 | failed 0 | CPU 164.35 cores | connections 5548 | reuse 100.0%
+[54.06%]  889032.9 pages/s | completed 108129525 | failed 0 | CPU 164.34 cores | connections 5548 | reuse 100.0%
+[54.51%]  889285.9 pages/s | completed 109018871 | failed 0 | CPU 164.34 cores | connections 5548 | reuse 100.0%
+[54.96%]  891174.6 pages/s | completed 109910108 | failed 0 | CPU 164.33 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 2 / steal after 4 empty polls / steal batch 1 / Locked | evidence 3 samples, mean 890685.9 pages/s, rel SEM 0.080%
+[55.40%]  891597.2 pages/s | completed 110802334 | failed 0 | CPU 164.33 cores | connections 5548 | reuse 100.0%
+[55.85%]  889048.8 pages/s | completed 111692199 | failed 0 | CPU 164.32 cores | connections 5548 | reuse 100.0%
+[56.29%]  893127.4 pages/s | completed 112585407 | failed 0 | CPU 164.32 cores | connections 5548 | reuse 100.0%
+[56.74%]  890916.5 pages/s | completed 113476988 | failed 0 | CPU 164.32 cores | connections 5548 | reuse 100.0%
+[57.18%]  889373.8 pages/s | completed 114367020 | failed 0 | CPU 164.32 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 4 / steal after 2 empty polls / steal batch 2 / Backpressure | evidence 3 samples, mean 891269.4 pages/s, rel SEM 0.136%
+[57.63%]  893517.9 pages/s | completed 115260637 | failed 0 | CPU 164.32 cores | connections 5548 | reuse 100.0%
+[58.08%]  891152.3 pages/s | completed 116152133 | failed 0 | CPU 164.32 cores | connections 5548 | reuse 100.0%
+[58.52%]  890109.4 pages/s | completed 117042318 | failed 0 | CPU 164.32 cores | connections 5548 | reuse 100.0%
+[58.97%]  891527.4 pages/s | completed 117933919 | failed 0 | CPU 164.32 cores | connections 5548 | reuse 100.0%
+[59.41%]  893122.7 pages/s | completed 118827133 | failed 0 | CPU 164.31 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 2 / steal after 4 empty polls / steal batch 1 / Locked | evidence 3 samples, mean 892346.3 pages/s, rel SEM 0.052%
+[59.86%]  892388.8 pages/s | completed 119719580 | failed 0 | CPU 164.31 cores | connections 5548 | reuse 100.0%
+[60.31%]  893249.0 pages/s | completed 120613370 | failed 0 | CPU 164.30 cores | connections 5548 | reuse 100.0%
+[60.75%]  891738.3 pages/s | completed 121505167 | failed 0 | CPU 164.30 cores | connections 5548 | reuse 100.0%
+[61.20%]  893397.9 pages/s | completed 122398650 | failed 0 | CPU 164.30 cores | connections 5548 | reuse 100.0%
+[61.64%]  889521.3 pages/s | completed 123288259 | failed 0 | CPU 164.29 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 4 / steal after 2 empty polls / steal batch 2 / Backpressure | evidence 3 samples, mean 890533.9 pages/s, rel SEM 0.163%
+[62.09%]  888682.5 pages/s | completed 124177506 | failed 0 | CPU 164.29 cores | connections 5548 | reuse 100.0%
+[62.53%]  888220.0 pages/s | completed 125066048 | failed 0 | CPU 164.29 cores | connections 5548 | reuse 100.0%
+[62.98%]  888924.6 pages/s | completed 125955034 | failed 0 | CPU 164.29 cores | connections 5548 | reuse 100.0%
+[63.42%]  888103.6 pages/s | completed 126843196 | failed 0 | CPU 164.28 cores | connections 5548 | reuse 100.0%
+[63.86%]  886157.0 pages/s | completed 127729410 | failed 0 | CPU 164.27 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 2 / steal after 4 empty polls / steal batch 1 / Locked | evidence 3 samples, mean 887331.6 pages/s, rel SEM 0.067%
+[64.31%]  887734.1 pages/s | completed 128617248 | failed 0 | CPU 164.27 cores | connections 5548 | reuse 100.0%
+[64.75%]  890257.6 pages/s | completed 129507568 | failed 0 | CPU 164.27 cores | connections 5548 | reuse 100.0%
+[65.20%]  890948.5 pages/s | completed 130398575 | failed 0 | CPU 164.27 cores | connections 5548 | reuse 100.0%
+[65.64%]  888897.4 pages/s | completed 131287543 | failed 0 | CPU 164.26 cores | connections 5548 | reuse 100.0%
+[66.09%]  889793.5 pages/s | completed 132177499 | failed 0 | CPU 164.26 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 4 / steal after 2 empty polls / steal batch 2 / Backpressure | evidence 3 samples, mean 889729.3 pages/s, rel SEM 0.052%
+[66.53%]  890496.9 pages/s | completed 133068055 | failed 0 | CPU 164.26 cores | connections 5548 | reuse 100.0%
+[66.98%]  886943.8 pages/s | completed 133955079 | failed 0 | CPU 164.26 cores | connections 5548 | reuse 100.0%
+[67.42%]  889457.9 pages/s | completed 134844798 | failed 0 | CPU 164.25 cores | connections 5548 | reuse 100.0%
+[67.87%]  888014.5 pages/s | completed 135734317 | failed 0 | CPU 164.25 cores | connections 5548 | reuse 100.0%
+[68.31%]  889281.1 pages/s | completed 136623729 | failed 0 | CPU 164.23 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 2 / steal after 4 empty polls / steal batch 1 / Locked | evidence 3 samples, mean 889240.9 pages/s, rel SEM 0.078%
+[68.76%]  890427.0 pages/s | completed 137514225 | failed 0 | CPU 164.23 cores | connections 5548 | reuse 100.0%
+[69.20%]  889359.0 pages/s | completed 138403709 | failed 0 | CPU 164.22 cores | connections 5548 | reuse 100.0%
+[69.65%]  888905.5 pages/s | completed 139292725 | failed 0 | CPU 164.21 cores | connections 5548 | reuse 100.0%
+[70.09%]  888222.8 pages/s | completed 140181469 | failed 0 | CPU 164.20 cores | connections 5548 | reuse 100.0%
+[70.54%]  894048.2 pages/s | completed 141075576 | failed 0 | CPU 164.20 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 4 / steal after 2 empty polls / steal batch 2 / Backpressure | evidence 3 samples, mean 891046.3 pages/s, rel SEM 0.189%
+[70.98%]  890867.9 pages/s | completed 141967914 | failed 0 | CPU 164.20 cores | connections 5548 | reuse 100.0%
+[71.43%]  891356.2 pages/s | completed 142859332 | failed 0 | CPU 164.19 cores | connections 5548 | reuse 100.0%
+[71.88%]  890702.1 pages/s | completed 143750099 | failed 0 | CPU 164.19 cores | connections 5548 | reuse 100.0%
+[72.32%]  889385.9 pages/s | completed 144639545 | failed 0 | CPU 164.18 cores | connections 5548 | reuse 100.0%
+[72.77%]  890454.8 pages/s | completed 145530091 | failed 0 | CPU 164.18 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 2 / steal after 4 empty polls / steal batch 1 / Locked | evidence 3 samples, mean 890148.7 pages/s, rel SEM 0.043%
+[73.21%]  890605.5 pages/s | completed 146420900 | failed 0 | CPU 164.17 cores | connections 5548 | reuse 100.0%
+[73.66%]  890446.9 pages/s | completed 147311450 | failed 0 | CPU 164.17 cores | connections 5548 | reuse 100.0%
+[74.10%]  886319.8 pages/s | completed 148197827 | failed 0 | CPU 164.16 cores | connections 5548 | reuse 100.0%
+[74.54%]  889979.4 pages/s | completed 149087890 | failed 0 | CPU 164.15 cores | connections 5548 | reuse 100.0%
+[74.99%]  887698.9 pages/s | completed 149975734 | failed 0 | CPU 164.14 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 4 / steal after 2 empty polls / steal batch 2 / Backpressure | evidence 3 samples, mean 888367.9 pages/s, rel SEM 0.091%
+[75.43%]  887425.3 pages/s | completed 150863252 | failed 0 | CPU 164.14 cores | connections 5548 | reuse 100.0%
+[75.88%]  889265.8 pages/s | completed 151752597 | failed 0 | CPU 164.13 cores | connections 5548 | reuse 100.0%
+[76.32%]  892539.5 pages/s | completed 152645254 | failed 0 | CPU 164.13 cores | connections 5548 | reuse 100.0%
+[76.77%]  888891.2 pages/s | completed 153534231 | failed 0 | CPU 164.12 cores | connections 5548 | reuse 100.0%
+[77.21%]  890233.4 pages/s | completed 154424528 | failed 0 | CPU 164.12 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 2 / steal after 4 empty polls / steal batch 1 / Locked | evidence 3 samples, mean 889980.8 pages/s, rel SEM 0.064%
+[77.66%]  890817.8 pages/s | completed 155315408 | failed 0 | CPU 164.12 cores | connections 5548 | reuse 100.0%
+[78.10%]  892860.1 pages/s | completed 156208697 | failed 0 | CPU 164.13 cores | connections 5548 | reuse 100.0%
+[78.55%]  889519.5 pages/s | completed 157098312 | failed 0 | CPU 164.12 cores | connections 5548 | reuse 100.0%
+[79.00%]  892202.5 pages/s | completed 157990991 | failed 0 | CPU 164.12 cores | connections 5548 | reuse 100.0%
+[79.44%]  891250.2 pages/s | completed 158882312 | failed 0 | CPU 164.12 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 4 / steal after 2 empty polls / steal batch 2 / Backpressure | evidence 3 samples, mean 891569.2 pages/s, rel SEM 0.036%
+[79.89%]  891255.0 pages/s | completed 159773631 | failed 0 | CPU 164.12 cores | connections 5548 | reuse 100.0%
+[80.33%]  890166.0 pages/s | completed 160663857 | failed 0 | CPU 164.12 cores | connections 5548 | reuse 100.0%
+[80.78%]  890387.7 pages/s | completed 161554306 | failed 0 | CPU 164.12 cores | connections 5548 | reuse 100.0%
+[81.22%]  889673.9 pages/s | completed 162444052 | failed 0 | CPU 164.12 cores | connections 5548 | reuse 100.0%
+[81.67%]  892807.2 pages/s | completed 163337503 | failed 0 | CPU 164.12 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 2 / steal after 4 empty polls / steal batch 1 / Locked | evidence 3 samples, mean 891268.4 pages/s, rel SEM 0.102%
+[82.11%]  891324.0 pages/s | completed 164228949 | failed 0 | CPU 164.11 cores | connections 5548 | reuse 100.0%
+[82.56%]  890633.2 pages/s | completed 165119762 | failed 0 | CPU 164.10 cores | connections 5548 | reuse 100.0%
+[83.01%]  890937.7 pages/s | completed 166010764 | failed 0 | CPU 164.10 cores | connections 5548 | reuse 100.0%
+[83.45%]  891400.8 pages/s | completed 166902227 | failed 0 | CPU 164.10 cores | connections 5548 | reuse 100.0%
+[83.90%]  892136.9 pages/s | completed 167794452 | failed 0 | CPU 164.09 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 4 / steal after 2 empty polls / steal batch 2 / Backpressure | evidence 3 samples, mean 891756.8 pages/s, rel SEM 0.024%
+[84.34%]  891732.7 pages/s | completed 168686495 | failed 0 | CPU 164.09 cores | connections 5548 | reuse 100.0%
+[84.79%]  890009.5 pages/s | completed 169576687 | failed 0 | CPU 164.08 cores | connections 5548 | reuse 100.0%
+[85.23%]  891887.8 pages/s | completed 170468633 | failed 0 | CPU 164.08 cores | connections 5548 | reuse 100.0%
+[85.68%]  887965.9 pages/s | completed 171356657 | failed 0 | CPU 164.08 cores | connections 5548 | reuse 100.0%
+[86.12%]  888446.3 pages/s | completed 172245277 | failed 0 | CPU 164.07 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 2 / steal after 4 empty polls / steal batch 1 / Locked | evidence 3 samples, mean 888596.4 pages/s, rel SEM 0.047%
+[86.57%]  889376.8 pages/s | completed 173134720 | failed 0 | CPU 164.07 cores | connections 5548 | reuse 100.0%
+[87.01%]  885635.0 pages/s | completed 174020418 | failed 0 | CPU 164.06 cores | connections 5548 | reuse 100.0%
+[87.46%]  890941.7 pages/s | completed 174911481 | failed 0 | CPU 164.06 cores | connections 5548 | reuse 100.0%
+[87.90%]  888713.4 pages/s | completed 175800350 | failed 0 | CPU 164.05 cores | connections 5548 | reuse 100.0%
+[88.35%]  890085.5 pages/s | completed 176690495 | failed 0 | CPU 164.05 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 4 / steal after 2 empty polls / steal batch 2 / Backpressure | evidence 3 samples, mean 889691.9 pages/s, rel SEM 0.055%
+[88.79%]  890276.7 pages/s | completed 177580832 | failed 0 | CPU 164.04 cores | connections 5548 | reuse 100.0%
+[89.24%]  892128.2 pages/s | completed 178473019 | failed 0 | CPU 164.04 cores | connections 5548 | reuse 100.0%
+[89.68%]  889830.7 pages/s | completed 179362928 | failed 0 | CPU 164.04 cores | connections 5548 | reuse 100.0%
+[90.12%]  884055.5 pages/s | completed 180247045 | failed 0 | CPU 164.04 cores | connections 5548 | reuse 100.0%
+[90.57%]  883186.5 pages/s | completed 181130559 | failed 0 | CPU 164.03 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 2 / steal after 4 empty polls / steal batch 1 / Locked | evidence 3 samples, mean 884534.6 pages/s, rel SEM 0.107%
+[91.01%]  886361.9 pages/s | completed 182017120 | failed 0 | CPU 164.03 cores | connections 5548 | reuse 100.0%
+[91.45%]  886015.5 pages/s | completed 182903225 | failed 0 | CPU 164.02 cores | connections 5548 | reuse 100.0%
+[91.90%]  887743.5 pages/s | completed 183791035 | failed 0 | CPU 164.01 cores | connections 5548 | reuse 100.0%
+[92.34%]  889103.3 pages/s | completed 184680408 | failed 0 | CPU 164.01 cores | connections 5548 | reuse 100.0%
+[92.79%]  890248.3 pages/s | completed 185570699 | failed 0 | CPU 164.01 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 4 / steal after 2 empty polls / steal batch 2 / Backpressure | evidence 3 samples, mean 890516.3 pages/s, rel SEM 0.101%
+[93.23%]  892197.2 pages/s | completed 186463507 | failed 0 | CPU 164.01 cores | connections 5548 | reuse 100.0%
+[93.68%]  892026.7 pages/s | completed 187355646 | failed 0 | CPU 164.02 cores | connections 5548 | reuse 100.0%
+[94.12%]  893136.5 pages/s | completed 188248904 | failed 0 | CPU 164.02 cores | connections 5548 | reuse 100.0%
+[94.57%]  892506.7 pages/s | completed 189141479 | failed 0 | CPU 164.02 cores | connections 5548 | reuse 100.0%
+[95.02%]  893817.7 pages/s | completed 190035357 | failed 0 | CPU 164.02 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 2 / steal after 4 empty polls / steal batch 1 / Locked | evidence 3 samples, mean 892498.9 pages/s, rel SEM 0.086%
+[95.46%]  891172.4 pages/s | completed 190926592 | failed 0 | CPU 164.03 cores | connections 5548 | reuse 100.0%
+[95.91%]  890436.9 pages/s | completed 191817159 | failed 0 | CPU 164.03 cores | connections 5548 | reuse 100.0%
+[96.35%]  888504.8 pages/s | completed 192705722 | failed 0 | CPU 164.03 cores | connections 5548 | reuse 100.0%
+[96.80%]  889084.0 pages/s | completed 193596282 | failed 0 | CPU 164.03 cores | connections 5548 | reuse 100.0%
+[97.24%]  890451.9 pages/s | completed 194487339 | failed 0 | CPU 164.03 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 4 / steal after 2 empty polls / steal batch 2 / Backpressure | evidence 3 samples, mean 889433.7 pages/s, rel SEM 0.058%
+[97.69%]  888765.3 pages/s | completed 195376192 | failed 0 | CPU 164.02 cores | connections 5548 | reuse 100.0%
+[98.13%]  890119.7 pages/s | completed 196266375 | failed 0 | CPU 164.02 cores | connections 5548 | reuse 100.0%
+[98.58%]  889237.6 pages/s | completed 197155672 | failed 0 | CPU 164.03 cores | connections 5548 | reuse 100.0%
+[99.02%]  890407.6 pages/s | completed 198046160 | failed 0 | CPU 164.03 cores | connections 5548 | reuse 100.0%
+[99.47%]  890222.8 pages/s | completed 198937255 | failed 0 | CPU 164.02 cores | connections 5548 | reuse 100.0%
+  distributor: local batch 2 / steal after 4 empty polls / steal batch 1 / Locked | evidence 3 samples, mean 890511.4 pages/s, rel SEM 0.023%
+[99.91%]  890903.7 pages/s | completed 199828223 | failed 0 | CPU 164.03 cores | connections 5548 | reuse 100.0%
+[100.00%]  171766.9 pages/s | completed 200000000 | failed 0 | CPU 163.45 cores | connections 5548 | reuse 100.0%
+============================================================
+  Sustained QPS: 883117.80
+  Completed: 200000000 / 200000000
+  Failed: 0
+  Failure classes: 0 content / 0 transport
+  Connections: 12054 opened / 199987946 reused / 0 retries / 0 timeouts
+  Pipeline: 6310281 queue backpressure events / 27231 response-buffer allocations
+  Distribution: 192887373 local jobs in 75983962 batches (3184 lane-helped) / 141 cross-NUMA jobs from 141 successful steals
+  Runner CPU: 164.03 core-s/s (85.43% of 192)
+  Timeout states: 0 connecting / 0 writing / 0 reading
+  Timeout detail: 0 disabled / 0 reading-empty / 0 reading-partial / 0 writing-partial / 0 first / 0 retry
+  Timeout socket: 0 buffered / 0 eof / 0 blocked / 0 error
+  Inline parse: 7112486 pages / 1428869.9 ms total / max reactor work 39.0 ms
+  Report: /home/yolow92/pagesift/bench/results/0.70_200m_current.json
+============================================================

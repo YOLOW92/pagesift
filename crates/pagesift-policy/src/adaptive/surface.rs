@@ -97,7 +97,8 @@ impl ResponseSurfaceOptimizer {
             self.baseline_latency_ms = point.p95_latency_ms.max(0.5);
         } else {
             // Smoothly update moving baseline latency
-            self.baseline_latency_ms = self.baseline_latency_ms * 0.90 + point.p95_latency_ms * 0.10;
+            self.baseline_latency_ms =
+                self.baseline_latency_ms * 0.90 + point.p95_latency_ms * 0.10;
         }
 
         if let Some(best) = self.best_point {
@@ -150,27 +151,30 @@ impl ResponseSurfaceOptimizer {
         // [ sum_x4 sum_x3 sum_x2 ] [ a ]   [ sum_x2y ]
         // [ sum_x3 sum_x2 sum_x1 ] [ b ] = [ sum_xy  ]
         // [ sum_x2 sum_x1   n    ] [ c ]   [ sum_y   ]
-        let m00 = sum_x4; let m01 = sum_x3; let m02 = sum_x2;
-        let m10 = sum_x3; let m11 = sum_x2; let m12 = sum_x;
-        let m20 = sum_x2; let m21 = sum_x;  let m22 = n;
+        let m00 = sum_x4;
+        let m01 = sum_x3;
+        let m02 = sum_x2;
+        let m10 = sum_x3;
+        let m11 = sum_x2;
+        let m12 = sum_x;
+        let m20 = sum_x2;
+        let m21 = sum_x;
+        let m22 = n;
 
-        let det = m00 * (m11 * m22 - m12 * m21)
-                - m01 * (m10 * m22 - m12 * m20)
-                + m02 * (m10 * m21 - m11 * m20);
+        let det = m00 * (m11 * m22 - m12 * m21) - m01 * (m10 * m22 - m12 * m20)
+            + m02 * (m10 * m21 - m11 * m20);
 
         if det.abs() < 1e-9 {
             return None;
         }
 
         // Determinant for 'a'
-        let det_a = sum_x2y * (m11 * m22 - m12 * m21)
-                  - m01 * (sum_xy * m22 - m12 * sum_y)
-                  + m02 * (sum_xy * m21 - m11 * sum_y);
+        let det_a = sum_x2y * (m11 * m22 - m12 * m21) - m01 * (sum_xy * m22 - m12 * sum_y)
+            + m02 * (sum_xy * m21 - m11 * sum_y);
 
         // Determinant for 'b'
-        let det_b = m00 * (sum_xy * m22 - m12 * sum_y)
-                  - sum_x2y * (m10 * m22 - m12 * m20)
-                  + m02 * (m10 * sum_y - sum_xy * m20);
+        let det_b = m00 * (sum_xy * m22 - m12 * sum_y) - sum_x2y * (m10 * m22 - m12 * m20)
+            + m02 * (m10 * sum_y - sum_xy * m20);
 
         let a = det_a / det;
         let b = det_b / det;
@@ -179,7 +183,8 @@ impl ResponseSurfaceOptimizer {
         if a < -1e-6 {
             let opt_c = -b / (2.0 * a);
             if opt_c > 0.0 && opt_c.is_finite() {
-                let clamped = (opt_c.round() as usize).clamp(self.min_concurrency, self.max_concurrency);
+                let clamped =
+                    (opt_c.round() as usize).clamp(self.min_concurrency, self.max_concurrency);
                 return Some(clamped);
             }
         }
@@ -203,7 +208,8 @@ impl ResponseSurfaceOptimizer {
             SafetyStatus::LatencySaturated => {
                 // Revert to best recorded sweet spot
                 if let Some(best) = self.best_point {
-                    best.concurrency.clamp(self.min_concurrency, self.max_concurrency)
+                    best.concurrency
+                        .clamp(self.min_concurrency, self.max_concurrency)
                 } else {
                     ((current_concurrency as f64) * 0.85).round() as usize
                 }

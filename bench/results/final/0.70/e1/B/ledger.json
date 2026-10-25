@@ -1,0 +1,49 @@
+{
+  "per_host": {
+    "h1": {
+      "requested_pages": 245,
+      "unique_url": 245,
+      "unique_content": 233,
+      "empty_output": 8,
+      "robots_violations_private": 0,
+      "param_variant_urls": 2,
+      "errors": 0
+    },
+    "h2": {
+      "requested_pages": 245,
+      "unique_url": 245,
+      "unique_content": 233,
+      "empty_output": 8,
+      "robots_violations_private": 0,
+      "param_variant_urls": 2,
+      "errors": 0
+    },
+    "h3": {
+      "requested_pages": 0,
+      "unique_url": 0,
+      "unique_content": 0,
+      "empty_output": 0,
+      "robots_violations_private": 0,
+      "param_variant_urls": 0,
+      "errors": 1
+    },
+    "h4": {
+      "requested_pages": 245,
+      "unique_url": 245,
+      "unique_content": 233,
+      "empty_output": 8,
+      "robots_violations_private": 0,
+      "param_variant_urls": 2,
+      "errors": 0
+    }
+  },
+  "total": {
+    "requested_pages": 735,
+    "unique_url": 735,
+    "unique_content": 699,
+    "empty_output": 24,
+    "robots_violations_private": 0,
+    "param_variant_urls": 6,
+    "errors": 1
+  }
+}

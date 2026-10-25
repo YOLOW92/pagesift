@@ -1,0 +1,83 @@
+Running as unit: pagesift-s1-run-s1_fix_2G_50m.scope; invocation ID: 8f1bfaa6697545de8ce4a2a683466656
+============================================================
+  PageSift P2 NUMA-Local HTTP Reactor
+  Topology: 192 logical / 96 physical / 2 sockets / 4 NUMA
+  Tasks: 50000000 / reactors: 32 / content workers: 160 / connections: 1024 initial, 1024 capacity
+  Node 0 (NUMA 0, socket 0): 8 reactors / 40 content workers / 256 connections
+  Node 1 (NUMA 1, socket 0): 8 reactors / 40 content workers / 256 connections
+  Node 2 (NUMA 2, socket 1): 8 reactors / 40 content workers / 256 connections
+  Node 3 (NUMA 3, socket 1): 8 reactors / 40 content workers / 256 connections
+============================================================
+[2.07%] 1033945.7 pages/s | completed 1034176 | failed 0 | CPU 135.15 cores | connections 1024 | reuse 100.0%
+[4.18%] 1055158.0 pages/s | completed 2089406 | failed 0 | CPU 136.58 cores | connections 1024 | reuse 100.0%
+[6.29%] 1053388.7 pages/s | completed 3143046 | failed 0 | CPU 136.81 cores | connections 1024 | reuse 100.0%
+  capacity: 929 active connections / ConcurrencyProbe
+[8.38%] 1046154.7 pages/s | completed 4189347 | failed 0 | CPU 136.42 cores | connections 929 | reuse 100.0%
+[10.52%] 1069190.7 pages/s | completed 5258676 | failed 0 | CPU 136.60 cores | connections 929 | reuse 100.0%
+[12.65%] 1065331.1 pages/s | completed 6324167 | failed 0 | CPU 136.55 cores | connections 929 | reuse 100.0%
+[14.77%] 1060705.0 pages/s | completed 7384944 | failed 0 | CPU 136.55 cores | connections 929 | reuse 100.0%
+  capacity: 594 active connections / ConcurrencyProbe
+[16.91%] 1070477.4 pages/s | completed 8455597 | failed 0 | CPU 136.64 cores | connections 594 | reuse 100.0%
+[18.92%] 1005668.8 pages/s | completed 9461333 | failed 0 | CPU 135.25 cores | connections 594 | reuse 100.0%
+[20.96%] 1016253.1 pages/s | completed 10477655 | failed 0 | CPU 134.29 cores | connections 594 | reuse 100.0%
+[22.97%] 1005548.1 pages/s | completed 11483272 | failed 0 | CPU 133.42 cores | connections 594 | reuse 100.0%
+  capacity: 743 active connections / ConcurrencyProbe
+[24.99%] 1014088.6 pages/s | completed 12497429 | failed 0 | CPU 132.79 cores | connections 743 | reuse 100.0%
+[27.09%] 1045755.9 pages/s | completed 13543322 | failed 0 | CPU 132.71 cores | connections 743 | reuse 100.0%
+[29.18%] 1048565.8 pages/s | completed 14591959 | failed 0 | CPU 132.67 cores | connections 743 | reuse 100.0%
+[31.28%] 1049809.3 pages/s | completed 15641842 | failed 0 | CPU 132.69 cores | connections 743 | reuse 100.0%
+  capacity: 929 active connections / Locked
+[33.37%] 1043704.5 pages/s | completed 16685621 | failed 0 | CPU 132.62 cores | connections 929 | reuse 100.0%
+[35.51%] 1066867.6 pages/s | completed 17752642 | failed 0 | CPU 132.84 cores | connections 929 | reuse 100.0%
+  controller: reactor budget 48 / content budget 144 / inline 10% / Settling | evidence 3 samples, mean 1059042.3 pages/s, rel SEM 0.724%
+[37.64%] 1066554.8 pages/s | completed 18819277 | failed 0 | CPU 133.00 cores | connections 929 | reuse 100.0%
+[39.80%] 1081592.2 pages/s | completed 19900947 | failed 0 | CPU 132.66 cores | connections 929 | reuse 100.0%
+[41.97%] 1083830.5 pages/s | completed 20985107 | failed 0 | CPU 132.37 cores | connections 929 | reuse 100.0%
+[44.15%] 1087934.6 pages/s | completed 22073114 | failed 0 | CPU 132.12 cores | connections 929 | reuse 100.0%
+[46.32%] 1086209.0 pages/s | completed 23159395 | failed 0 | CPU 131.88 cores | connections 929 | reuse 100.0%
+[48.50%] 1090150.7 pages/s | completed 24249615 | failed 0 | CPU 131.69 cores | connections 929 | reuse 100.0%
+[50.67%] 1086157.4 pages/s | completed 25335842 | failed 0 | CPU 131.49 cores | connections 929 | reuse 100.0%
+[52.83%] 1079302.2 pages/s | completed 26415213 | failed 0 | CPU 131.29 cores | connections 929 | reuse 100.0%
+  controller: reactor budget 48 / content budget 144 / inline 10% / Probing | evidence 3 samples, mean 1084312.5 pages/s, rel SEM 0.234%
+[55.01%] 1087477.8 pages/s | completed 27502718 | failed 0 | CPU 131.13 cores | connections 929 | reuse 100.0%
+  controller: reactor budget 48 / content budget 144 / inline 10% / Settling | evidence 3 samples, mean 1084312.5 pages/s, rel SEM 0.234%
+[57.17%] 1081094.6 pages/s | completed 28583901 | failed 0 | CPU 130.94 cores | connections 929 | reuse 100.0%
+[59.33%] 1083347.5 pages/s | completed 29667320 | failed 0 | CPU 130.79 cores | connections 929 | reuse 100.0%
+[61.49%] 1079256.2 pages/s | completed 30746650 | failed 0 | CPU 130.64 cores | connections 929 | reuse 100.0%
+[63.65%] 1076130.0 pages/s | completed 31822864 | failed 0 | CPU 130.49 cores | connections 929 | reuse 100.0%
+[65.80%] 1075683.3 pages/s | completed 32898591 | failed 0 | CPU 130.34 cores | connections 929 | reuse 100.0%
+[67.96%] 1079435.9 pages/s | completed 33978098 | failed 0 | CPU 130.22 cores | connections 929 | reuse 100.0%
+[70.11%] 1077748.9 pages/s | completed 35055917 | failed 0 | CPU 130.09 cores | connections 929 | reuse 100.0%
+  controller: reactor budget 64 / content budget 128 / inline 20% / Settling | evidence 3 samples, mean 1079296.8 pages/s, rel SEM 0.079%
+[72.27%] 1080705.5 pages/s | completed 36136696 | failed 0 | CPU 130.01 cores | connections 929 | reuse 100.0%
+[74.33%] 1028867.9 pages/s | completed 37165638 | failed 0 | CPU 129.38 cores | connections 929 | reuse 100.0%
+[76.39%] 1031383.0 pages/s | completed 38197087 | failed 0 | CPU 128.80 cores | connections 929 | reuse 100.0%
+[78.46%] 1034902.7 pages/s | completed 39232048 | failed 0 | CPU 128.27 cores | connections 929 | reuse 100.0%
+[80.54%] 1038629.8 pages/s | completed 40270743 | failed 0 | CPU 127.77 cores | connections 929 | reuse 100.0%
+[82.62%] 1037684.6 pages/s | completed 41308494 | failed 0 | CPU 127.31 cores | connections 929 | reuse 100.0%
+[84.70%] 1039644.8 pages/s | completed 42348177 | failed 0 | CPU 126.88 cores | connections 929 | reuse 100.0%
+[86.77%] 1038433.0 pages/s | completed 43386677 | failed 0 | CPU 126.46 cores | connections 929 | reuse 100.0%
+  controller: reactor budget 48 / content budget 144 / inline 10% / Locked | evidence 3 samples, mean 1038981.7 pages/s, rel SEM 0.034%
+[88.85%] 1038867.4 pages/s | completed 44425614 | failed 0 | CPU 126.05 cores | connections 929 | reuse 100.0%
+[91.02%] 1081904.9 pages/s | completed 45507623 | failed 0 | CPU 126.07 cores | connections 929 | reuse 100.0%
+[93.19%] 1086514.1 pages/s | completed 46594212 | failed 0 | CPU 126.09 cores | connections 929 | reuse 100.0%
+[95.35%] 1081315.6 pages/s | completed 47675600 | failed 0 | CPU 126.10 cores | connections 929 | reuse 100.0%
+  distributor: local batch 1 / steal after 8 empty polls / steal batch 1 / Settling | evidence 5 samples, mean 1074900.2 pages/s, rel SEM 0.844%
+[97.52%] 1085898.9 pages/s | completed 48761572 | failed 0 | CPU 126.12 cores | connections 929 | reuse 100.0%
+[99.70%] 1088584.8 pages/s | completed 49850231 | failed 0 | CPU 126.14 cores | connections 929 | reuse 100.0%
+[100.00%]  149759.7 pages/s | completed 50000000 | failed 0 | CPU 123.90 cores | connections 929 | reuse 100.0%
+============================================================
+  Sustained QPS: 1057874.45
+  Completed: 50000000 / 50000000
+  Failed: 0
+  Failure classes: 0 content / 0 transport
+  Connections: 1359 opened / 49998641 reused / 0 retries / 0 timeouts
+  Pipeline: 1341 queue backpressure events / 3665 response-buffer allocations
+  Distribution: 46051795 local jobs in 38738221 batches (18284 lane-helped) / 331 cross-NUMA jobs from 331 successful steals
+  Runner CPU: 126.17 core-s/s (65.71% of 192)
+  Timeout states: 0 connecting / 0 writing / 0 reading
+  Timeout detail: 0 disabled / 0 reading-empty / 0 reading-partial / 0 writing-partial / 0 first / 0 retry
+  Timeout socket: 0 buffered / 0 eof / 0 blocked / 0 error
+  Inline parse: 3947874 pages / 384675.3 ms total / max reactor work 26.2 ms
+  Report: /tmp/p3diag/s1_fix_2G_50m.json
+============================================================

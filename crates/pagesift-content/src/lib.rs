@@ -96,6 +96,14 @@ pub struct Document {
     pub fingerprints: Option<Fingerprints>,
 }
 
+/// Per-worker reusable allocations for the content pipeline. Keep one of
+/// these on the owning NUMA worker/reactor and never move it between workers.
+#[derive(Default)]
+pub struct ProcessWorkspace {
+    html: pagesift_html::ParseScratch,
+    extract: extract::Scratch,
+}
+
 /// 只取正文的结果文字少于这么多字符、并且不到整页可见文字的这个比例时，放宽规则重试。
 /// 阈值由 `pagesift bench --auto` 扫描确定。
 const FALLBACK_MAX_CHARS: usize = 1000;
@@ -110,25 +118,74 @@ pub fn extract_metadata(html: &str, opts: &Options) -> Metadata {
 
 pub fn process(html: &str, opts: &Options) -> Document {
     let dom = Html::parse(html);
-    let base = effective_base(&dom, opts.base_url.as_ref());
-    let mut skipper = extract::Skipper::new(&dom, opts.only_main_content);
+    process_dom(html, opts, &dom, None)
+}
+
+/// Process a page while reusing DOM backing allocations owned by the calling
+/// worker. Output strings remain independently owned by the returned document.
+pub fn process_with_workspace(
+    html: &str,
+    opts: &Options,
+    workspace: &mut ProcessWorkspace,
+) -> Document {
+    let dom = Html::parse_with_scratch(html, &mut workspace.html);
+    let document = process_dom(html, opts, &dom, Some(&mut workspace.extract));
+    workspace.html.recycle(dom);
+    document
+}
+
+/// 是否对所有页面都强制尝试正文定位（对照用，默认关闭）。
+///
+/// 默认行为是**按结构判断**：只有声明为文章、或结构像文章（见
+/// [`article::looks_like_article`]）的页面才收窄，其余保持整页输出。
+/// 设 `PAGESIFT_FORCE_ARTICLE=1` 可强制全页收窄，用于复现旧实验。
+///
+/// 只读一次：本函数在 `process_dom` 里逐页调用，每次都走 `std::env::var_os`
+/// 会带一把全局锁并扫描 environ，在高吞吐下是可测的开销。
+fn try_article_everywhere() -> bool {
+    static CACHED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *CACHED.get_or_init(|| std::env::var_os("PAGESIFT_FORCE_ARTICLE").is_some())
+}
+
+fn process_dom(
+    html: &str,
+    opts: &Options,
+    dom: &Html<'_>,
+    scratch: Option<&mut extract::Scratch>,
+) -> Document {
+    let base = effective_base(dom, opts.base_url.as_ref());
+    let mut local_scratch = extract::Scratch::default();
+    let scratch = match scratch {
+        Some(scratch) => scratch,
+        None => &mut local_scratch,
+    };
+    let mut skipper = extract::Skipper::new_with_scratch(dom, opts.only_main_content, scratch);
     skipper.set_has_math(math::may_have_math(html));
     // 只取正文靠跳过规则去掉页面框架（导航、页眉页脚、侧边栏、链接密集块），其余整页保留。
     // 评测集上这比 Readability 式的"挑一个正文节点"更好：首页、产品页、落地页没有单一的文章节点，
     // 文章页的"文章信号"（og:type、单个 <article>）也不可靠。
-    let body = dom.get(body_or_root(&dom));
-    let metadata = metadata::extract(&dom, html, base.as_ref());
+    let body = dom.get(body_or_root(dom));
+    let metadata = metadata::extract(dom, html, base.as_ref());
     // 文章页先试文章模式，成功就不用再按默认规则渲染一遍
     // 网站首页是列表页，不是一篇文章（很多站点在首页也写文章类的 JSON-LD）
     let home = base.as_ref().is_some_and(|u| {
         let p = u.path().trim_end_matches('/');
         p.is_empty() || p.starts_with("/index.") && !p[1..].contains('/')
     });
-    let article = (opts.only_main_content && metadata.is_article && !home)
-        .then(|| render_article(&dom, &mut skipper, base.as_ref()))
+    // 正文收窄只在两种情况下启用：
+    //   1) 页面自己声明是文章（JSON-LD / og:type）；
+    //   2) 结构上不是明确的列表/卡片/链接墙（见 article::clearly_not_article）。
+    // 只做排除不做确认：实测"确认像文章"会误杀大量真文章页（WebMainBench −0.039），
+    // 而只排除明显的非文章页几乎不损失收益。
+    let article_shaped = !metadata.is_article && !article::clearly_not_article(dom, &skipper);
+    let article = (opts.only_main_content
+        && (metadata.is_article || article_shaped || try_article_everywhere())
+        && !home)
+        .then(|| render_article(dom, &mut skipper, base.as_ref(), article_shaped))
         .flatten();
+
     let inferred = (opts.only_main_content && !metadata.is_article && !home)
-        .then(|| editorial::unmarked_root(&dom, &skipper))
+        .then(|| editorial::unmarked_root(dom, &skipper))
         .flatten();
     let output_body = inferred.unwrap_or(body);
     let mut markdown = match article {
@@ -153,25 +210,27 @@ pub fn process(html: &str, opts: &Options) -> Document {
     let surely_content =
         opts.only_main_content && skipper.total_chars() > barrier::visible_limit(opts.status);
     let barrier = (opts.detect_barrier && !surely_content)
-        .then(|| barrier::detect(&dom, html, metadata.title.as_deref(), opts.status))
+        .then(|| barrier::detect(dom, html, metadata.title.as_deref(), opts.status))
         .flatten();
     let plain_text =
         (opts.plain_text || opts.fingerprints).then(|| text::render(output_body, &skipper));
     let fingerprints = opts
         .fingerprints
         .then(|| fingerprint::compute(html, &markdown, plain_text.as_deref().unwrap_or_default()));
-    Document {
+    let document = Document {
         html: opts
             .clean_html
             .then(|| clean_html::render(output_body, &skipper, base.as_ref())),
-        links: opts.links.then(|| links::links(&dom, base.as_ref())),
-        images: opts.images.then(|| links::images(&dom, base.as_ref())),
+        links: opts.links.then(|| links::links(dom, base.as_ref())),
+        images: opts.images.then(|| links::images(dom, base.as_ref())),
         plain_text: plain_text.filter(|_| opts.plain_text),
         markdown,
         metadata,
         barrier,
         fingerprints,
-    }
+    };
+    skipper.recycle(scratch);
+    document
 }
 
 /// 渲染 Markdown。只取正文时带上规则删过头的保险：结果的文字很短、又远少于整页文字时，
@@ -250,6 +309,13 @@ const HIDDEN_FALLBACK_CHARS: usize = 200;
 
 /// 文章模式的结果至少要有参照结果（整页按严格规则渲染）这个比例的段落文字，否则认为找错了主体。
 const ARTICLE_MIN_SHARE: f64 = 0.3;
+/// 结构判断路径（页面没声明是文章、但结构像文章）用的更严阈值。
+///
+/// 实测依据（WebMainBench 800 页，两模式输出不同的 368 页）：
+/// 收窄结果占参考 0.5–2 倍时，收窄明显更好（0.67–0.70 vs 0.56–0.57）；
+/// 只占参考不到 0.5 倍时，收窄是裁过头（0.24 vs 0.50）。
+/// 所以结构路径要求收窄结果不低于整页的 50%，否则回退整页。
+const ARTICLE_MIN_SHARE_SHAPED: f64 = 0.5;
 /// 文章模式的结果至少要有默认规则下全部文字（含链接，不算评论区）的这个比例。
 const ARTICLE_MIN_DEFAULT_SHARE: f64 = 0.1;
 
@@ -261,6 +327,7 @@ fn render_article(
     dom: &Html<'_>,
     skipper: &mut extract::Skipper,
     base: Option<&Url>,
+    shaped_only: bool,
 ) -> Option<String> {
     if skipper.is_relaxed() {
         // 默认规则已经放宽过：页面上可用的文字本来就少，不再收窄
@@ -312,7 +379,8 @@ fn render_article(
     skipper.set_strict(true, skipper.content_chars(&body));
     let full = article::prose(&body, skipper, markdown::Whitelist::Off);
     skipper.set_strict(false, 0);
-    if got == 0 || !bound_to_headline && (got as f64) < full as f64 * ARTICLE_MIN_SHARE {
+    let min_share = if shaped_only { ARTICLE_MIN_SHARE_SHAPED } else { ARTICLE_MIN_SHARE };
+    if got == 0 || !bound_to_headline && (got as f64) < full as f64 * min_share {
         return None;
     }
     // 兜底：连默认规则的全部文字（含链接文字，不算评论区）的 10% 都不到，多半是把页面类型

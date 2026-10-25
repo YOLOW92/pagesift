@@ -17,7 +17,11 @@ use clap::Parser;
 use tokio::sync::Semaphore;
 
 #[derive(Parser, Debug)]
-#[command(author, version, about = "PageSift 0.50 100M Baseline Benchmark Runner")]
+#[command(
+    author,
+    version,
+    about = "PageSift 0.50 100M Baseline Benchmark Runner"
+)]
 pub struct Opts {
     #[arg(short, long, default_value = "http://127.0.0.1:19800")]
     pub origin_url: String,
@@ -53,7 +57,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Total Tasks:    {} (100 Million)", opts.total_tasks);
     println!("  Concurrency:    {}", opts.concurrency);
     println!("  Origin Target:  {}", opts.origin_url);
-    println!("  Sample Dir:     {:?} (0.01% disk sampling)", opts.sample_dir);
+    println!(
+        "  Sample Dir:     {:?} (0.01% disk sampling)",
+        opts.sample_dir
+    );
     println!("============================================================");
 
     let counters = Arc::new(Counters {
@@ -116,7 +123,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             println!(
                 "[{:>5.2}%] Tasks: {}/{} | QPS: {:>7.1} (sustained: {:>7.1}) | RSS: {:>6.1}MB (peak: {:>6.1}MB) | CPU: {:>5.1}% | ETA: {:.0}m",
-                progress_pct, cur_tasks, total_tasks, cur_qps, sustained_qps, rss_mb, peak_rss_mb, cpu_pct, eta_sec / 60.0
+                progress_pct,
+                cur_tasks,
+                total_tasks,
+                cur_qps,
+                sustained_qps,
+                rss_mb,
+                peak_rss_mb,
+                cpu_pct,
+                eta_sec / 60.0
             );
 
             if let Some(w) = report_writer.as_mut() {
@@ -169,7 +184,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             match c.get(&url).send().await {
                 Ok(resp) => {
                     if let Ok(body_bytes) = resp.bytes().await {
-                        counters_ref.n_bytes.fetch_add(body_bytes.len() as u64, Ordering::Relaxed);
+                        counters_ref
+                            .n_bytes
+                            .fetch_add(body_bytes.len() as u64, Ordering::Relaxed);
                         if let Ok(html_str) = std::str::from_utf8(&body_bytes) {
                             let opts = pagesift_content::Options {
                                 base_url: url::Url::parse(&url).ok(),
@@ -181,7 +198,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 counters_ref.n_page.fetch_add(1, Ordering::Relaxed);
                                 // 0.01% 抽样落盘
                                 if task_id % sample_every == 0 {
-                                    let sample_path = sample_dir.join(format!("sample_{}.md", task_id));
+                                    let sample_path =
+                                        sample_dir.join(format!("sample_{}.md", task_id));
                                     let _ = fs::write(sample_path, &doc.markdown);
                                 }
                             } else {
@@ -216,7 +234,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let final_cpu = get_cpu_utilization();
     let sustained_qps = final_pages as f64 / total_time.max(0.001);
 
-    if let Ok(mut w) = std::fs::OpenOptions::new().create(true).append(true).open(&opts.report_file) {
+    if let Ok(mut w) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&opts.report_file)
+    {
         let final_entry = serde_json::json!({
             "elapsed_s": total_time,
             "n_task": final_tasks,
@@ -236,14 +258,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n============================================================");
     println!("  P0 100M BASELINE COMPLETED SUMMARY");
     println!("============================================================");
-    println!("  Wall Clock Time:    {:.2}s ({:.2}h)", total_time, total_time / 3600.0);
+    println!(
+        "  Wall Clock Time:    {:.2}s ({:.2}h)",
+        total_time,
+        total_time / 3600.0
+    );
     println!("  N_task (Dispatched): {}", final_tasks);
     println!("  N_req  (HTTP I/O):   {}", final_reqs);
     println!("  N_page (Markdown):   {}", final_pages);
     println!("  N_failed:            {}", final_failed);
-    println!("  Conversion Rate:     {:.2}%", (final_pages as f64 / final_tasks.max(1) as f64) * 100.0);
-    println!("  Sustained QPS:       {:.2} pages/sec", final_pages as f64 / total_time);
-    println!("  Total Volume:        {:.2} GB", final_bytes as f64 / 1_073_741_824.0);
+    println!(
+        "  Conversion Rate:     {:.2}%",
+        (final_pages as f64 / final_tasks.max(1) as f64) * 100.0
+    );
+    println!(
+        "  Sustained QPS:       {:.2} pages/sec",
+        final_pages as f64 / total_time
+    );
+    println!(
+        "  Total Volume:        {:.2} GB",
+        final_bytes as f64 / 1_073_741_824.0
+    );
     println!("============================================================");
 
     Ok(())
@@ -266,7 +301,11 @@ static mut PREV_TOTAL_CPU: u64 = 0;
 fn get_cpu_utilization() -> f64 {
     if let Ok(stat) = fs::read_to_string("/proc/stat") {
         if let Some(line) = stat.lines().next() {
-            let parts: Vec<u64> = line.split_whitespace().skip(1).filter_map(|s| s.parse().ok()).collect();
+            let parts: Vec<u64> = line
+                .split_whitespace()
+                .skip(1)
+                .filter_map(|s| s.parse().ok())
+                .collect();
             if parts.len() >= 4 {
                 let user = parts[0];
                 let nice = parts[1];

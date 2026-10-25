@@ -20,8 +20,8 @@
 
 #![forbid(unsafe_code)]
 
-mod bm25;
-mod chunk;
+pub mod bm25;
+pub mod chunk;
 pub mod classifier;
 mod css;
 mod engine;

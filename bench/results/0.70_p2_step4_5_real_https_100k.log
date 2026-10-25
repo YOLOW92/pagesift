@@ -1,0 +1,175 @@
+================================================================================
+[PageSift 0.70] Stage-Isolated Adaptive Engine Initialized
+Host Detected : 192 logical cores, 377.8 GB RAM, FD Limit: 524288 | Tier: Extreme Supernode (64C+ 128GB+ FD>=65k)
+Tuning Profile: Mode [adaptive] | Concurrency: 1536 (Bottleneck Safe) | Connect Timeout: 3.5s | Total Timeout: 8.0s
+Target Dataset: bench/data/top-1m.csv (Limit: 100000 URLs) | Channel Buffer: 3072
+================================================================================
+[PageSift Monitor] Progress: 12453/100000 (12.5%) | Inst QPS: 1245.2 | Sustained QPS: 1245.2 | Succ: 7070 (Valid: 6244, Dup: 259) | Fail: 5383 | Elapsed: 10.0s
+[PageSift Stages] Dns=31/972 Handshake=101/508 Http=210/1536 Parse=0/192 Tail=1/48
+[PageSift Monitor] Progress: 15515/100000 (15.5%) | Inst QPS: 306.2 | Sustained QPS: 775.7 | Succ: 8776 (Valid: 7770, Dup: 334) | Fail: 6739 | Elapsed: 20.0s
+[PageSift Stages] Dns=20/972 Handshake=98/508 Http=143/1536 Parse=0/192 Tail=1/48
+[PageSift Monitor] Progress: 18025/100000 (18.0%) | Inst QPS: 251.0 | Sustained QPS: 600.8 | Succ: 10245 (Valid: 9086, Dup: 399) | Fail: 7780 | Elapsed: 30.0s
+[PageSift Stages] Dns=18/972 Handshake=57/508 Http=120/1536 Parse=1/192 Tail=2/48
+[PageSift Monitor] Progress: 20275/100000 (20.3%) | Inst QPS: 225.0 | Sustained QPS: 506.8 | Succ: 11608 (Valid: 10315, Dup: 441) | Fail: 8667 | Elapsed: 40.0s
+[PageSift Stages] Dns=20/972 Handshake=65/508 Http=94/1536 Parse=0/192 Tail=1/48
+[PageSift Monitor] Progress: 22373/100000 (22.4%) | Inst QPS: 209.8 | Sustained QPS: 447.4 | Succ: 12903 (Valid: 11476, Dup: 476) | Fail: 9470 | Elapsed: 50.0s
+[PageSift Stages] Dns=24/972 Handshake=78/508 Http=95/1536 Parse=1/192 Tail=0/48
+[PageSift Monitor] Progress: 24349/100000 (24.3%) | Inst QPS: 197.6 | Sustained QPS: 405.8 | Succ: 14074 (Valid: 12499, Dup: 510) | Fail: 10275 | Elapsed: 60.0s
+[PageSift Stages] Dns=15/972 Handshake=52/508 Http=124/1536 Parse=0/192 Tail=1/48
+[PageSift Monitor] Progress: 26178/100000 (26.2%) | Inst QPS: 182.9 | Sustained QPS: 373.9 | Succ: 15183 (Valid: 13476, Dup: 551) | Fail: 10995 | Elapsed: 70.0s
+[PageSift Stages] Dns=13/972 Handshake=49/508 Http=95/1536 Parse=0/192 Tail=2/48
+[PageSift Monitor] Progress: 27896/100000 (27.9%) | Inst QPS: 171.8 | Sustained QPS: 348.7 | Succ: 16198 (Valid: 14382, Dup: 593) | Fail: 11698 | Elapsed: 80.0s
+[PageSift Stages] Dns=13/972 Handshake=47/508 Http=104/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 29519/100000 (29.5%) | Inst QPS: 162.3 | Sustained QPS: 328.0 | Succ: 17142 (Valid: 15205, Dup: 641) | Fail: 12377 | Elapsed: 90.0s
+[PageSift Stages] Dns=12/972 Handshake=59/508 Http=83/1536 Parse=1/192 Tail=2/48
+[PageSift Monitor] Progress: 31029/100000 (31.0%) | Inst QPS: 151.0 | Sustained QPS: 310.3 | Succ: 17961 (Valid: 15945, Dup: 720) | Fail: 13068 | Elapsed: 100.0s
+[PageSift Stages] Dns=13/972 Handshake=62/508 Http=93/1536 Parse=0/192 Tail=1/48
+[PageSift Monitor] Progress: 32535/100000 (32.5%) | Inst QPS: 150.6 | Sustained QPS: 295.7 | Succ: 18785 (Valid: 16683, Dup: 775) | Fail: 13750 | Elapsed: 110.0s
+[PageSift Stages] Dns=15/972 Handshake=47/508 Http=91/1536 Parse=0/192 Tail=2/48
+[PageSift Monitor] Progress: 33947/100000 (33.9%) | Inst QPS: 141.2 | Sustained QPS: 282.9 | Succ: 19562 (Valid: 17380, Dup: 813) | Fail: 14385 | Elapsed: 120.0s
+[PageSift Stages] Dns=23/972 Handshake=48/508 Http=84/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 35305/100000 (35.3%) | Inst QPS: 135.8 | Sustained QPS: 271.5 | Succ: 20360 (Valid: 18096, Dup: 847) | Fail: 14945 | Elapsed: 130.0s
+[PageSift Stages] Dns=17/972 Handshake=43/508 Http=78/1536 Parse=0/192 Tail=2/48
+[PageSift Monitor] Progress: 36620/100000 (36.6%) | Inst QPS: 131.5 | Sustained QPS: 261.5 | Succ: 21097 (Valid: 18756, Dup: 880) | Fail: 15523 | Elapsed: 140.0s
+[PageSift Stages] Dns=9/972 Handshake=31/508 Http=79/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 37902/100000 (37.9%) | Inst QPS: 128.2 | Sustained QPS: 252.6 | Succ: 21853 (Valid: 19437, Dup: 913) | Fail: 16049 | Elapsed: 150.0s
+[PageSift Stages] Dns=12/972 Handshake=37/508 Http=71/1536 Parse=0/192 Tail=1/48
+[PageSift Monitor] Progress: 39105/100000 (39.1%) | Inst QPS: 120.3 | Sustained QPS: 244.4 | Succ: 22573 (Valid: 20089, Dup: 943) | Fail: 16532 | Elapsed: 160.0s
+[PageSift Stages] Dns=16/972 Handshake=41/508 Http=81/1536 Parse=0/192 Tail=1/48
+[PageSift Monitor] Progress: 40301/100000 (40.3%) | Inst QPS: 119.6 | Sustained QPS: 237.0 | Succ: 23293 (Valid: 20737, Dup: 968) | Fail: 17008 | Elapsed: 170.0s
+[PageSift Stages] Dns=12/972 Handshake=37/508 Http=63/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 41475/100000 (41.5%) | Inst QPS: 117.4 | Sustained QPS: 230.4 | Succ: 24004 (Valid: 21370, Dup: 989) | Fail: 17471 | Elapsed: 180.0s
+[PageSift Stages] Dns=11/972 Handshake=24/508 Http=63/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 42599/100000 (42.6%) | Inst QPS: 112.4 | Sustained QPS: 224.2 | Succ: 24677 (Valid: 21958, Dup: 1014) | Fail: 17922 | Elapsed: 190.0s
+[PageSift Stages] Dns=8/972 Handshake=36/508 Http=72/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 43699/100000 (43.7%) | Inst QPS: 110.0 | Sustained QPS: 218.5 | Succ: 25313 (Valid: 22512, Dup: 1030) | Fail: 18386 | Elapsed: 200.0s
+[PageSift Stages] Dns=12/972 Handshake=32/508 Http=76/1536 Parse=1/192 Tail=0/48
+[PageSift Monitor] Progress: 44797/100000 (44.8%) | Inst QPS: 109.8 | Sustained QPS: 213.3 | Succ: 25946 (Valid: 23078, Dup: 1051) | Fail: 18851 | Elapsed: 210.0s
+[PageSift Stages] Dns=9/972 Handshake=34/508 Http=57/1536 Parse=0/192 Tail=3/48
+[PageSift Monitor] Progress: 45799/100000 (45.8%) | Inst QPS: 100.2 | Sustained QPS: 208.1 | Succ: 26539 (Valid: 23607, Dup: 1066) | Fail: 19260 | Elapsed: 220.0s
+[PageSift Stages] Dns=10/972 Handshake=36/508 Http=56/1536 Parse=0/192 Tail=1/48
+[PageSift Monitor] Progress: 46738/100000 (46.7%) | Inst QPS: 93.9 | Sustained QPS: 203.2 | Succ: 27106 (Valid: 24107, Dup: 1091) | Fail: 19632 | Elapsed: 230.0s
+[PageSift Stages] Dns=13/972 Handshake=30/508 Http=51/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 47701/100000 (47.7%) | Inst QPS: 96.3 | Sustained QPS: 198.7 | Succ: 27694 (Valid: 24634, Dup: 1111) | Fail: 20007 | Elapsed: 240.0s
+[PageSift Stages] Dns=13/972 Handshake=34/508 Http=53/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 48593/100000 (48.6%) | Inst QPS: 89.2 | Sustained QPS: 194.3 | Succ: 28205 (Valid: 25082, Dup: 1132) | Fail: 20388 | Elapsed: 250.0s
+[PageSift Stages] Dns=12/972 Handshake=25/508 Http=64/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 49452/100000 (49.5%) | Inst QPS: 85.9 | Sustained QPS: 190.2 | Succ: 28719 (Valid: 25551, Dup: 1151) | Fail: 20733 | Elapsed: 260.0s
+[PageSift Stages] Dns=11/972 Handshake=27/508 Http=57/1536 Parse=0/192 Tail=1/48
+[PageSift Monitor] Progress: 50234/100000 (50.2%) | Inst QPS: 78.2 | Sustained QPS: 186.0 | Succ: 29203 (Valid: 25985, Dup: 1169) | Fail: 21031 | Elapsed: 270.0s
+[PageSift Stages] Dns=9/972 Handshake=33/508 Http=40/1536 Parse=0/192 Tail=2/48
+================================================================================
+🏆 [MILESTONE 50K REACHED] Processed: 50234 URLs in 270.04s (186.0 Sustained QPS) | Succ: 29203 (Valid: 25985, 89.0%) | Dup: 1169 | Fail: 21031
+================================================================================
+[PageSift Monitor] Progress: 51041/100000 (51.0%) | Inst QPS: 80.7 | Sustained QPS: 182.3 | Succ: 29674 (Valid: 26412, Dup: 1188) | Fail: 21367 | Elapsed: 280.0s
+[PageSift Stages] Dns=8/972 Handshake=32/508 Http=45/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 51926/100000 (51.9%) | Inst QPS: 88.5 | Sustained QPS: 179.0 | Succ: 30219 (Valid: 26910, Dup: 1205) | Fail: 21707 | Elapsed: 290.0s
+[PageSift Stages] Dns=11/972 Handshake=34/508 Http=40/1536 Parse=0/192 Tail=1/48
+[PageSift Monitor] Progress: 52722/100000 (52.7%) | Inst QPS: 79.6 | Sustained QPS: 175.7 | Succ: 30702 (Valid: 27348, Dup: 1222) | Fail: 22020 | Elapsed: 300.0s
+[PageSift Stages] Dns=8/972 Handshake=26/508 Http=51/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 53593/100000 (53.6%) | Inst QPS: 87.1 | Sustained QPS: 172.9 | Succ: 31234 (Valid: 27843, Dup: 1239) | Fail: 22359 | Elapsed: 310.0s
+[PageSift Stages] Dns=12/972 Handshake=28/508 Http=55/1536 Parse=1/192 Tail=0/48
+[PageSift Monitor] Progress: 54469/100000 (54.5%) | Inst QPS: 87.6 | Sustained QPS: 170.2 | Succ: 31776 (Valid: 28332, Dup: 1262) | Fail: 22693 | Elapsed: 320.1s
+[PageSift Stages] Dns=14/972 Handshake=32/508 Http=55/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 55419/100000 (55.4%) | Inst QPS: 95.0 | Sustained QPS: 167.9 | Succ: 32358 (Valid: 28862, Dup: 1288) | Fail: 23061 | Elapsed: 330.1s
+[PageSift Stages] Dns=4/972 Handshake=32/508 Http=48/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 56234/100000 (56.2%) | Inst QPS: 81.5 | Sustained QPS: 165.4 | Succ: 32862 (Valid: 29321, Dup: 1303) | Fail: 23372 | Elapsed: 340.1s
+[PageSift Stages] Dns=6/972 Handshake=33/508 Http=30/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 57043/100000 (57.0%) | Inst QPS: 80.9 | Sustained QPS: 163.0 | Succ: 33374 (Valid: 29773, Dup: 1318) | Fail: 23669 | Elapsed: 350.1s
+[PageSift Stages] Dns=14/972 Handshake=33/508 Http=49/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 58107/100000 (58.1%) | Inst QPS: 106.4 | Sustained QPS: 161.4 | Succ: 34024 (Valid: 30359, Dup: 1343) | Fail: 24083 | Elapsed: 360.1s
+[PageSift Stages] Dns=14/972 Handshake=27/508 Http=68/1536 Parse=0/192 Tail=1/48
+[PageSift Monitor] Progress: 59073/100000 (59.1%) | Inst QPS: 96.6 | Sustained QPS: 159.6 | Succ: 34602 (Valid: 30876, Dup: 1363) | Fail: 24471 | Elapsed: 370.1s
+[PageSift Stages] Dns=11/972 Handshake=26/508 Http=49/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 59985/100000 (60.0%) | Inst QPS: 91.2 | Sustained QPS: 157.8 | Succ: 35111 (Valid: 31338, Dup: 1384) | Fail: 24874 | Elapsed: 380.1s
+[PageSift Stages] Dns=8/972 Handshake=31/508 Http=44/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 60965/100000 (61.0%) | Inst QPS: 98.0 | Sustained QPS: 156.3 | Succ: 35708 (Valid: 31876, Dup: 1402) | Fail: 25257 | Elapsed: 390.1s
+[PageSift Stages] Dns=10/972 Handshake=37/508 Http=57/1536 Parse=0/192 Tail=1/48
+[PageSift Monitor] Progress: 61895/100000 (61.9%) | Inst QPS: 93.0 | Sustained QPS: 154.7 | Succ: 36309 (Valid: 32422, Dup: 1417) | Fail: 25586 | Elapsed: 400.1s
+[PageSift Stages] Dns=6/972 Handshake=27/508 Http=48/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 62791/100000 (62.8%) | Inst QPS: 89.6 | Sustained QPS: 153.1 | Succ: 36882 (Valid: 32942, Dup: 1433) | Fail: 25909 | Elapsed: 410.1s
+[PageSift Stages] Dns=6/972 Handshake=25/508 Http=47/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 63758/100000 (63.8%) | Inst QPS: 96.7 | Sustained QPS: 151.8 | Succ: 37512 (Valid: 33528, Dup: 1451) | Fail: 26246 | Elapsed: 420.1s
+[PageSift Stages] Dns=10/972 Handshake=22/508 Http=55/1536 Parse=0/192 Tail=1/48
+[PageSift Monitor] Progress: 64635/100000 (64.6%) | Inst QPS: 87.7 | Sustained QPS: 150.3 | Succ: 38081 (Valid: 34042, Dup: 1469) | Fail: 26554 | Elapsed: 430.1s
+[PageSift Stages] Dns=6/972 Handshake=31/508 Http=62/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 65594/100000 (65.6%) | Inst QPS: 95.9 | Sustained QPS: 149.1 | Succ: 38711 (Valid: 34615, Dup: 1493) | Fail: 26883 | Elapsed: 440.1s
+[PageSift Stages] Dns=13/972 Handshake=23/508 Http=67/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 66488/100000 (66.5%) | Inst QPS: 89.4 | Sustained QPS: 147.7 | Succ: 39244 (Valid: 35098, Dup: 1515) | Fail: 27244 | Elapsed: 450.1s
+[PageSift Stages] Dns=5/972 Handshake=31/508 Http=45/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 67379/100000 (67.4%) | Inst QPS: 89.1 | Sustained QPS: 146.5 | Succ: 39821 (Valid: 35611, Dup: 1530) | Fail: 27558 | Elapsed: 460.1s
+[PageSift Stages] Dns=6/972 Handshake=25/508 Http=52/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 68242/100000 (68.2%) | Inst QPS: 86.2 | Sustained QPS: 145.2 | Succ: 40352 (Valid: 36087, Dup: 1551) | Fail: 27890 | Elapsed: 470.1s
+[PageSift Stages] Dns=12/972 Handshake=23/508 Http=61/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 69146/100000 (69.1%) | Inst QPS: 90.4 | Sustained QPS: 144.0 | Succ: 40944 (Valid: 36613, Dup: 1569) | Fail: 28202 | Elapsed: 480.1s
+[PageSift Stages] Dns=10/972 Handshake=30/508 Http=58/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 70090/100000 (70.1%) | Inst QPS: 94.4 | Sustained QPS: 143.0 | Succ: 41582 (Valid: 37163, Dup: 1583) | Fail: 28508 | Elapsed: 490.1s
+[PageSift Stages] Dns=12/972 Handshake=31/508 Http=47/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 70988/100000 (71.0%) | Inst QPS: 89.8 | Sustained QPS: 142.0 | Succ: 42137 (Valid: 37662, Dup: 1601) | Fail: 28851 | Elapsed: 500.1s
+[PageSift Stages] Dns=9/972 Handshake=27/508 Http=55/1536 Parse=0/192 Tail=2/48
+[PageSift Monitor] Progress: 71899/100000 (71.9%) | Inst QPS: 91.1 | Sustained QPS: 141.0 | Succ: 42724 (Valid: 38189, Dup: 1625) | Fail: 29175 | Elapsed: 510.1s
+[PageSift Stages] Dns=7/972 Handshake=33/508 Http=41/1536 Parse=0/192 Tail=2/48
+[PageSift Monitor] Progress: 72801/100000 (72.8%) | Inst QPS: 90.2 | Sustained QPS: 140.0 | Succ: 43320 (Valid: 38719, Dup: 1644) | Fail: 29481 | Elapsed: 520.1s
+[PageSift Stages] Dns=10/972 Handshake=27/508 Http=42/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 73682/100000 (73.7%) | Inst QPS: 88.1 | Sustained QPS: 139.0 | Succ: 43879 (Valid: 39216, Dup: 1660) | Fail: 29803 | Elapsed: 530.1s
+[PageSift Stages] Dns=7/972 Handshake=33/508 Http=56/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 74609/100000 (74.6%) | Inst QPS: 92.7 | Sustained QPS: 138.1 | Succ: 44482 (Valid: 39769, Dup: 1678) | Fail: 30127 | Elapsed: 540.1s
+[PageSift Stages] Dns=11/972 Handshake=26/508 Http=46/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 75489/100000 (75.5%) | Inst QPS: 88.0 | Sustained QPS: 137.2 | Succ: 45042 (Valid: 40284, Dup: 1697) | Fail: 30447 | Elapsed: 550.1s
+[PageSift Stages] Dns=12/972 Handshake=28/508 Http=54/1536 Parse=0/192 Tail=1/48
+[PageSift Monitor] Progress: 76510/100000 (76.5%) | Inst QPS: 102.1 | Sustained QPS: 136.6 | Succ: 45707 (Valid: 40879, Dup: 1713) | Fail: 30803 | Elapsed: 560.1s
+[PageSift Stages] Dns=10/972 Handshake=42/508 Http=72/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 77474/100000 (77.5%) | Inst QPS: 96.4 | Sustained QPS: 135.9 | Succ: 46319 (Valid: 41420, Dup: 1730) | Fail: 31155 | Elapsed: 570.1s
+[PageSift Stages] Dns=12/972 Handshake=27/508 Http=62/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 78402/100000 (78.4%) | Inst QPS: 92.8 | Sustained QPS: 135.2 | Succ: 46919 (Valid: 41961, Dup: 1750) | Fail: 31483 | Elapsed: 580.1s
+[PageSift Stages] Dns=13/972 Handshake=32/508 Http=58/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 79331/100000 (79.3%) | Inst QPS: 92.9 | Sustained QPS: 134.4 | Succ: 47562 (Valid: 42540, Dup: 1766) | Fail: 31769 | Elapsed: 590.1s
+[PageSift Stages] Dns=10/972 Handshake=26/508 Http=55/1536 Parse=0/192 Tail=2/48
+[PageSift Monitor] Progress: 80250/100000 (80.2%) | Inst QPS: 91.9 | Sustained QPS: 133.7 | Succ: 48176 (Valid: 43091, Dup: 1787) | Fail: 32074 | Elapsed: 600.1s
+[PageSift Stages] Dns=9/972 Handshake=31/508 Http=54/1536 Parse=0/192 Tail=1/48
+[PageSift Monitor] Progress: 81210/100000 (81.2%) | Inst QPS: 96.0 | Sustained QPS: 133.1 | Succ: 48809 (Valid: 43671, Dup: 1807) | Fail: 32401 | Elapsed: 610.1s
+[PageSift Stages] Dns=9/972 Handshake=28/508 Http=56/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 82118/100000 (82.1%) | Inst QPS: 90.8 | Sustained QPS: 132.4 | Succ: 49372 (Valid: 44173, Dup: 1827) | Fail: 32746 | Elapsed: 620.1s
+[PageSift Stages] Dns=13/972 Handshake=23/508 Http=46/1536 Parse=0/192 Tail=2/48
+[PageSift Monitor] Progress: 83050/100000 (83.0%) | Inst QPS: 93.2 | Sustained QPS: 131.8 | Succ: 49987 (Valid: 44720, Dup: 1849) | Fail: 33063 | Elapsed: 630.1s
+[PageSift Stages] Dns=8/972 Handshake=24/508 Http=61/1536 Parse=1/192 Tail=2/48
+[PageSift Monitor] Progress: 83945/100000 (83.9%) | Inst QPS: 89.5 | Sustained QPS: 131.1 | Succ: 50583 (Valid: 45219, Dup: 1862) | Fail: 33362 | Elapsed: 640.1s
+[PageSift Stages] Dns=6/972 Handshake=55/508 Http=44/1536 Parse=1/192 Tail=0/48
+[PageSift Monitor] Progress: 84847/100000 (84.8%) | Inst QPS: 90.2 | Sustained QPS: 130.5 | Succ: 51172 (Valid: 45732, Dup: 1871) | Fail: 33675 | Elapsed: 650.1s
+[PageSift Stages] Dns=9/972 Handshake=21/508 Http=65/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 85719/100000 (85.7%) | Inst QPS: 87.2 | Sustained QPS: 129.9 | Succ: 51735 (Valid: 46224, Dup: 1879) | Fail: 33984 | Elapsed: 660.1s
+[PageSift Stages] Dns=5/972 Handshake=34/508 Http=54/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 86667/100000 (86.7%) | Inst QPS: 94.8 | Sustained QPS: 129.3 | Succ: 52346 (Valid: 46744, Dup: 1891) | Fail: 34321 | Elapsed: 670.1s
+[PageSift Stages] Dns=3/972 Handshake=25/508 Http=54/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 87552/100000 (87.6%) | Inst QPS: 88.5 | Sustained QPS: 128.7 | Succ: 52901 (Valid: 47215, Dup: 1901) | Fail: 34651 | Elapsed: 680.1s
+[PageSift Stages] Dns=8/972 Handshake=27/508 Http=67/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 88495/100000 (88.5%) | Inst QPS: 94.3 | Sustained QPS: 128.2 | Succ: 53581 (Valid: 47744, Dup: 1906) | Fail: 34914 | Elapsed: 690.1s
+[PageSift Stages] Dns=10/972 Handshake=27/508 Http=57/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 89399/100000 (89.4%) | Inst QPS: 90.4 | Sustained QPS: 127.7 | Succ: 54174 (Valid: 48244, Dup: 1924) | Fail: 35225 | Elapsed: 700.1s
+[PageSift Stages] Dns=6/972 Handshake=38/508 Http=56/1536 Parse=0/192 Tail=1/48
+[PageSift Monitor] Progress: 90319/100000 (90.3%) | Inst QPS: 92.0 | Sustained QPS: 127.2 | Succ: 54756 (Valid: 48739, Dup: 1938) | Fail: 35563 | Elapsed: 710.1s
+[PageSift Stages] Dns=9/972 Handshake=21/508 Http=57/1536 Parse=0/192 Tail=3/48
+[PageSift Monitor] Progress: 91253/100000 (91.3%) | Inst QPS: 93.4 | Sustained QPS: 126.7 | Succ: 55360 (Valid: 49271, Dup: 1957) | Fail: 35893 | Elapsed: 720.1s
+[PageSift Stages] Dns=9/972 Handshake=28/508 Http=56/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 92227/100000 (92.2%) | Inst QPS: 97.4 | Sustained QPS: 126.3 | Succ: 55975 (Valid: 49764, Dup: 1969) | Fail: 36252 | Elapsed: 730.1s
+[PageSift Stages] Dns=8/972 Handshake=30/508 Http=69/1536 Parse=0/192 Tail=2/48
+[PageSift Monitor] Progress: 93317/100000 (93.3%) | Inst QPS: 109.0 | Sustained QPS: 126.1 | Succ: 56685 (Valid: 50367, Dup: 1978) | Fail: 36632 | Elapsed: 740.1s
+[PageSift Stages] Dns=6/972 Handshake=33/508 Http=63/1536 Parse=0/192 Tail=1/48
+[PageSift Monitor] Progress: 94390/100000 (94.4%) | Inst QPS: 107.3 | Sustained QPS: 125.8 | Succ: 57425 (Valid: 50965, Dup: 1989) | Fail: 36965 | Elapsed: 750.1s
+[PageSift Stages] Dns=10/972 Handshake=24/508 Http=58/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 95242/100000 (95.2%) | Inst QPS: 85.2 | Sustained QPS: 125.3 | Succ: 57948 (Valid: 51424, Dup: 2012) | Fail: 37294 | Elapsed: 760.1s
+[PageSift Stages] Dns=9/972 Handshake=36/508 Http=57/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 96207/100000 (96.2%) | Inst QPS: 96.5 | Sustained QPS: 124.9 | Succ: 58511 (Valid: 51936, Dup: 2047) | Fail: 37696 | Elapsed: 770.1s
+[PageSift Stages] Dns=10/972 Handshake=36/508 Http=63/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 97159/100000 (97.2%) | Inst QPS: 95.2 | Sustained QPS: 124.5 | Succ: 59099 (Valid: 52467, Dup: 2074) | Fail: 38060 | Elapsed: 780.1s
+[PageSift Stages] Dns=7/972 Handshake=29/508 Http=58/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 98038/100000 (98.0%) | Inst QPS: 87.9 | Sustained QPS: 124.1 | Succ: 59612 (Valid: 52913, Dup: 2088) | Fail: 38426 | Elapsed: 790.1s
+[PageSift Stages] Dns=10/972 Handshake=20/508 Http=58/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 98988/100000 (99.0%) | Inst QPS: 95.0 | Sustained QPS: 123.7 | Succ: 60164 (Valid: 53404, Dup: 2110) | Fail: 38824 | Elapsed: 800.1s
+[PageSift Stages] Dns=14/972 Handshake=34/508 Http=52/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 99957/100000 (100.0%) | Inst QPS: 96.9 | Sustained QPS: 123.4 | Succ: 60739 (Valid: 53926, Dup: 2135) | Fail: 39218 | Elapsed: 810.1s
+[PageSift Stages] Dns=1/972 Handshake=15/508 Http=28/1536 Parse=0/192 Tail=0/48
+[PageSift Monitor] Progress: 99999/100000 (100.0%) | Inst QPS: 4.2 | Sustained QPS: 121.9 | Succ: 60760 (Valid: 53947, Dup: 2135) | Fail: 39239 | Elapsed: 820.1s
+[PageSift Stages] Dns=0/972 Handshake=0/508 Http=1/1536 Parse=0/192 Tail=0/48
+[PageSift Complete] Processed 100000 URLs in 820.42s (121.9 sustained QPS) | Succ: 60761, Valid: 53948, Dup: 2135, Fail: 39239 (Timeouts: 6069, 4xx: 0, 5xx: 214, Conn: 0) | Bytes: 738 MB
+[PageSift] Final metrics written to bench/results/0.70_p2_step4_5_real_https_100k.json

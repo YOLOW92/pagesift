@@ -31,42 +31,77 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opts = Opts::parse();
     println!("============================================================");
     println!("  PageSift 0.50 Pipeline Stages Breakdown Benchmark");
-    println!("  Iterations: {} | Concurrency: {}", opts.iterations, opts.concurrency);
+    println!(
+        "  Iterations: {} | Concurrency: {}",
+        opts.iterations, opts.concurrency
+    );
     println!("============================================================");
 
     // 1. Stage 1: Frontier & Scheduling
     println!("\n[Stage 1/5] Measuring URL Normalization, Blake3 Hashing & Frontier Dispatch...");
     let s1_res = bench_stage1_scheduling(opts.iterations, opts.concurrency).await;
-    println!("  -> Throughput: {:.2} ops/sec | Elapsed: {:.3}s", s1_res.qps, s1_res.elapsed);
+    println!(
+        "  -> Throughput: {:.2} ops/sec | Elapsed: {:.3}s",
+        s1_res.qps, s1_res.elapsed
+    );
 
     // 2. Stage 2: Network Transport (Raw HTTP fetch without extraction)
     println!("\n[Stage 2/5] Measuring Raw HTTP Socket I/O & Connection Reuse (Zero Parsing)...");
-    let s2_res = bench_stage2_transport(&opts.origin_url, opts.iterations.min(50_000), opts.concurrency).await?;
-    println!("  -> Throughput: {:.2} req/sec | Elapsed: {:.3}s | Bandwidth: {:.2} MB/s", s2_res.qps, s2_res.elapsed, s2_res.mb_per_sec);
+    let s2_res = bench_stage2_transport(
+        &opts.origin_url,
+        opts.iterations.min(50_000),
+        opts.concurrency,
+    )
+    .await?;
+    println!(
+        "  -> Throughput: {:.2} req/sec | Elapsed: {:.3}s | Bandwidth: {:.2} MB/s",
+        s2_res.qps, s2_res.elapsed, s2_res.mb_per_sec
+    );
 
     // 3. Stage 3: HTML Parsing & DOM Sanitization
     println!("\n[Stage 3/5] Measuring HTML Parsing & Tree Construction (Pure DOM Parsing)...");
     let s3_res = bench_stage3_html_parsing(opts.iterations, opts.concurrency).await;
-    println!("  -> Throughput: {:.2} pages/sec | Elapsed: {:.3}s", s3_res.qps, s3_res.elapsed);
+    println!(
+        "  -> Throughput: {:.2} pages/sec | Elapsed: {:.3}s",
+        s3_res.qps, s3_res.elapsed
+    );
 
     // 4. Stage 4: Content Extraction & Markdown Distillation
     println!("\n[Stage 4/5] Measuring Full Content Distillation, Tables & Markdown Formatting...");
     let s4_res = bench_stage4_extraction(opts.iterations, opts.concurrency).await;
-    println!("  -> Throughput: {:.2} pages/sec | Elapsed: {:.3}s", s4_res.qps, s4_res.elapsed);
+    println!(
+        "  -> Throughput: {:.2} pages/sec | Elapsed: {:.3}s",
+        s4_res.qps, s4_res.elapsed
+    );
 
     // 5. Stage 5: Output Sinks & Blake3 Verification
     println!("\n[Stage 5/5] Measuring Data Serialization, Blake3 Digest & Channel Sinks...");
     let s5_res = bench_stage5_output(opts.iterations, opts.concurrency).await;
-    println!("  -> Throughput: {:.2} pages/sec | Elapsed: {:.3}s", s5_res.qps, s5_res.elapsed);
+    println!(
+        "  -> Throughput: {:.2} pages/sec | Elapsed: {:.3}s",
+        s5_res.qps, s5_res.elapsed
+    );
 
     println!("\n============================================================");
     println!("  PIPELINE STAGE CEILING SUMMARY (80 vCPUs AMD EPYC 9B45)");
     println!("============================================================");
     println!("  Stage 1 (Scheduling):       {:>10.2} ops/sec", s1_res.qps);
-    println!("  Stage 2 (Network I/O):       {:>10.2} req/sec", s2_res.qps);
-    println!("  Stage 3 (HTML Parsing):      {:>10.2} pages/sec", s3_res.qps);
-    println!("  Stage 4 (Content Extract):   {:>10.2} pages/sec", s4_res.qps);
-    println!("  Stage 5 (Output Sinks):      {:>10.2} pages/sec", s5_res.qps);
+    println!(
+        "  Stage 2 (Network I/O):       {:>10.2} req/sec",
+        s2_res.qps
+    );
+    println!(
+        "  Stage 3 (HTML Parsing):      {:>10.2} pages/sec",
+        s3_res.qps
+    );
+    println!(
+        "  Stage 4 (Content Extract):   {:>10.2} pages/sec",
+        s4_res.qps
+    );
+    println!(
+        "  Stage 5 (Output Sinks):      {:>10.2} pages/sec",
+        s5_res.qps
+    );
     println!("------------------------------------------------------------");
     let bottleneck = if s4_res.qps < s2_res.qps && s4_res.qps < s3_res.qps {
         "Stage 4 (Content Extraction & Distillation)"
@@ -96,7 +131,12 @@ async fn bench_stage1_scheduling(iterations: usize, concurrency: usize) -> Stage
         handles.push(tokio::spawn(async move {
             let mut hasher = blake3::Hasher::new();
             for i in 0..per_worker {
-                let url = format!("https://s{}.domain.org/p/article-item-{}-{}", (w * 13 + i) % 1000, w, i);
+                let url = format!(
+                    "https://s{}.domain.org/p/article-item-{}-{}",
+                    (w * 13 + i) % 1000,
+                    w,
+                    i
+                );
                 let _norm = url.to_lowercase();
                 hasher.update(_norm.as_bytes());
                 let _hash = hasher.finalize();
@@ -117,7 +157,11 @@ async fn bench_stage1_scheduling(iterations: usize, concurrency: usize) -> Stage
     }
 }
 
-async fn bench_stage2_transport(origin_url: &str, iterations: usize, concurrency: usize) -> Result<StageResult, Box<dyn std::error::Error>> {
+async fn bench_stage2_transport(
+    origin_url: &str,
+    iterations: usize,
+    concurrency: usize,
+) -> Result<StageResult, Box<dyn std::error::Error>> {
     let client = reqwest::Client::builder()
         .pool_max_idle_per_host(concurrency * 2)
         .tcp_nodelay(true)
@@ -238,7 +282,8 @@ async fn bench_stage4_extraction(iterations: usize, concurrency: usize) -> Stage
 }
 
 async fn bench_stage5_output(iterations: usize, concurrency: usize) -> StageResult {
-    let sample_html = "<html><body><article><h1>Title</h1><p>Benchmark paragraph.</p></article></body></html>";
+    let sample_html =
+        "<html><body><article><h1>Title</h1><p>Benchmark paragraph.</p></article></body></html>";
     let sample_doc = pagesift_content::process(sample_html, &pagesift_content::Options::default());
 
     let t0 = Instant::now();
@@ -257,7 +302,8 @@ async fn bench_stage5_output(iterations: usize, concurrency: usize) -> StageResu
                     "title": doc.metadata.title,
                     "len": doc.markdown.len(),
                     "hash": _h.to_hex().as_str()
-                })).unwrap();
+                }))
+                .unwrap();
             }
         }));
     }

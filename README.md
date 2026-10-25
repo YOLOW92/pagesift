@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.61.0
+# pagesift 0.70.0
 
 **High-performance, memory-bounded web scraping and extraction engine built for AI agents and LLM pipelines.**  
 Turn any website, document, or archive into clean Markdown and structured data — one Rust binary, native SDKs, dual Firecrawl v1/v2 & Jina Reader APIs, at a fraction of the memory.
@@ -14,7 +14,8 @@ Turn any website, document, or archive into clean Markdown and structured data �
 [![PyPI](https://img.shields.io/pypi/v/pagesift.svg)](https://pypi.org/project/pagesift/)
 [![npm](https://img.shields.io/npm/v/@pagesift/node.svg)](https://www.npmjs.com/package/@pagesift/node)
 [![100M Real Public Web](https://img.shields.io/badge/100M%20Live%20Web-42%2C124%20p%2Fs%20Verified-brightgreen.svg)](#-flagship-showdown-100000000-live-public-internet-battle)
-[![128GB Memory Safe](https://img.shields.io/badge/128GB%20Envelope-Zero%20OOM-success.svg)](#-100000000-tasks-generational-leap-050-vs-060)
+[![128GB Memory Safe](https://img.shields.io/badge/128GB%20Envelope-Zero%20OOM-success.svg)](#whats-new-in-0700)
+[![M8ven Score](https://m8ven.ai/badge/mcp/yolow92-pagesift-0ygyrw)](https://m8ven.ai/mcp/yolow92-pagesift-0ygyrw?s=readme)
 
 **English** · [简体中文](docs/README.zh-CN.md) · [日本語](docs/README.ja.md) · [Español](docs/README.es.md)
 
@@ -54,40 +55,56 @@ Turn any website, document, or archive into clean Markdown and structured data �
 
 ---
 
-## 🏆 Comprehensive 10-Domain Benchmark Suite
+## 🏆 Seven-Domain Public Benchmark Showdown (0.70)
 
-Benchmarked on **AMD EPYC Production Server (32 Physical Cores, 128 GB RAM)** and verified on desktop **Intel Core i7-10700 (8C/16T, 15.5 GB RAM)** under an active **12 GiB memory watchdog** (`MemoryMax=12288M`). Verified raw datasets and reproduction scripts are archived in [`bench/results/final/`](https://github.com/YOLOW92/pagesift/tree/main/bench/results/final/).
+Every number below is a **full-set run on the same machine**, with the suite's own scorer, under a
+**10 GiB memory cap**. Competitors run in the same containers. Where we lose, the loss is printed.
 
-| Domain | PageSift 0.50.0 Performance | Primary Industry Competitor | Measured Speedup / Advantage | Peak RSS Ratio | Verified Report |
-| :--- | :--- | :--- | :--- | :---: | :--- |
-| **01. Content Extraction** | **3,525 pages/s** (0.57s) | `rs-trafilatura`: 241 p/s (8.32s)<br>`trafilatura` (Py): 191 p/s (10.51s) | **14.6× ~ 18.4× faster** | **137.8 MB** vs 298.3 MB | [D1 Report](https://github.com/YOLOW92/pagesift/blob/main/bench/results/final/BENCHMARK_D1_CONTENT_EXTRACTION_050.md) |
-| **02. Web-Scale 100k Crawl & Defense** | **105,660 live URLs (188.4 MB)**<br>Chaos: **2,727 p/s** (447.5 MB) | `Spider 2.53.9`: 8,978 MB (100k)<br>→ **KILLED BY OOM (12GB Limit)** | **Zero memory leaks**<br>(47.6× lower RAM) | **188.4 MB** vs 8,978.9 MB (💥 OOM) | [100k Report](https://github.com/YOLOW92/pagesift/blob/main/bench/results/final/BENCHMARK_100K_PAGESIFT_VS_SPIDER.md) |
-| **03. PDF Extraction (olmOCR)** | **71.0%** pass, **44.3%** LaTeX<br>**3.4 ms/page** | `pymupdf4llm`: 64.4% pass, 0.0% LaTeX<br>320 ms/page | **94× faster**<br>Native LaTeX math recovery | **42.0 MB** vs 280.0 MB | [D3 Report](https://github.com/YOLOW92/pagesift/blob/main/bench/results/final/BENCHMARK_D3_HEAVY_PDF_EXTRACTION_050.md) |
-| **04. DOM Self-Healing** | **93.8%** recall, **0.0%** false pos<br>**24.6 µs** latency | `Scrapling`: 46.0% recall, 51.2% false pos<br>635.3 µs latency | **25.8× faster**, zero false pos<br>200-deep DOM safe (928 µs) | **39.4 MB** vs 98.0 MB | [D4 Report](https://github.com/YOLOW92/pagesift/blob/main/bench/results/final/BENCHMARK_D4_DOM_SELF_HEALING_050.md) |
-| **05. RAG Chunking & BM25** | R@1000 = **0.895** (19.7 ms)<br>BM25 QueryFilter: **1.35 ms/q** | `semchunk`: 113.4 ms (5.8× slower)<br>`Crawl4AI`: 804.8 ms/q (**595× slower**) | **5.8× chunking speedup**<br>**595× BM25 filter speedup** | **45.2 MB** vs 340.0 MB | [D5 Report](https://github.com/YOLOW92/pagesift/blob/main/bench/results/final/BENCHMARK_D5_RAG_CHUNKING_050.md) |
-| **06. Charset Detection** | **74.4%** accuracy, **99.7%** Unicode<br>**0.45 ms/file** | `chardet 7.7`: 68.9% acc (3.05 ms)<br>`charset-normalizer`: 46.5% acc (1.05 ms) | **Higher accuracy (+5.5%)**<br>**6.8× faster** | **18.5 MB** vs 42.0 MB | [D6 Report](https://github.com/YOLOW92/pagesift/blob/main/bench/results/final/BENCHMARK_D6_CHARSET_DETECTION_050.md) |
-| **07. Structured Data** | **80.2 µs/page** (standard)<br>40-level deep nesting: **363 µs** | `extruct 0.18`: 3,508 µs/page (43.8× slower)<br>40-level deep nesting: 15,921 µs | **43.8× ~ 43.9× faster**<br>Zero stack exhaustion | **24.0 MB** vs 85.0 MB | [D7 Report](https://github.com/YOLOW92/pagesift/blob/main/bench/results/final/BENCHMARK_D7_STRUCTURED_DATA_050.md) |
-| **08. Implicit JS Discovery** | **13/13 (100.0%)** recall<br>**0 non-nav visits**, **0.42 ms** | `Katana 1.8.0`: 10/13 (76.9%)<br>4 non-nav visits (30.8% false), 48.5 ms | **100% recall**, zero decoy visits<br>Zero browser sandbox overhead | **14.2 MB** vs 128.0 MB | [D8 Report](https://github.com/YOLOW92/pagesift/blob/main/bench/results/final/BENCHMARK_D8_JS_ENDPOINTS_050.md) |
-| **09. Dynamic Headless (CDP)**| **158.4 ms/render** (warm pool)<br>**100%** canvas/SVG pass | `Lightpanda`: 82 ms (script failure on SPA)<br>`Playwright`: 842 ms (5.3× slower) | **5.3× faster than Playwright**<br>100% DOM rendering accuracy | **188.0 MB** vs 1,840.0 MB | [D9 Report](https://github.com/YOLOW92/pagesift/blob/main/bench/results/final/BENCHMARK_D9_DYNAMIC_HEADLESS_050.md) |
-| **10. AI API Gateways** | **2,450 req/s**, P99 = **1.82 ms**<br>Automatic 429 backoff & fallback | `Portkey`: 480 req/s, P99 = 12.4 ms<br>`LiteLLM`: 340 req/s, P99 = 18.9 ms | **5.1× ~ 7.2× higher throughput**<br>Zero gateway timeout drops | **38.0 MB** vs 420.0 MB | [D10 Report](https://github.com/YOLOW92/pagesift/blob/main/bench/results/final/BENCHMARK_D10_AI_API_GATEWAYS_050.md) |
+Measured on **Intel i7-10700 (8C/16T), 15 GB RAM, Ubuntu 26.04**. Reproduce with
+[`bench/scripts/`](bench/scripts/) — every report links to the exact binaries, dataset checksums and
+scorer commits.
 
-> [!TIP]
-> **Machine-verifiable datasets**: Read the complete benchmark whitepaper at [`docs/releases/0.50.0.md`](docs/releases/0.50.0.md) and examine all raw JSON/CSV records in [`bench/results/final/`](https://github.com/YOLOW92/pagesift/tree/main/bench/results/final/).
+| # | Domain | PageSift 0.70 | Best competitor | Rank | Peak RAM |
+| :---: | :--- | :--- | :--- | :---: | ---: |
+| **D1** | Content extraction (WCXB 2,006) | 0.6720 F1 | 0.6824 (PageSift 0.50) | 4th | 751 MiB |
+| **D3** | PDF extraction (olmOCR 1,403 / 7,019 checks) | **0.4506** | 0.2446 (pymupdf4llm) | **1st** | 271 MiB |
+| **D5** | RAG chunking + BM25 (472 questions) | **0.9470** R@5 | 0.9364 (semchunk) | **1st** | — |
+| **D6** | Charset detection (3,128 files) | **0.7602** | 0.7113 (chardet) | **1st** | 39 MiB |
+| **D7** | Structured data (2,006 pages) | **0.7392** | 0.5488 (bs4+lxml) | **1st** | **21 MiB** |
+| **D9** | Dynamic rendering (7 SPA scenarios) | 3/7 | 5/7 (Playwright) | 2nd | — |
+| **D4** | DOM self-healing (2,000 mutations) | 0.8215 | 0.8875 (Scrapling) | 2nd | — |
+
+**Seven domains measured, four won.** The three we did not win are reported as-is:
+
+- **D1**: we trade recall for precision — 0.8854 precision (highest of all 17 entrants) vs 0.5989 recall.
+  WCXB's reference text includes boilerplate, so whole-page output "wins" on this metric.
+- **D9**: we render SPAs correctly (client-side and hydration both hit) and finish in **0.47 s vs
+  Playwright's 2.55 s — 5× faster** — but we don't wait for `setTimeout`-delayed injections.
+- **D4**: rank 2nd overall, but we win outright on adversarial decoys (100 % vs 86.4 %). The gap
+  comes from a category where 14.6 % of the dataset's labels are wrong (a "price" slot contains a
+  person's name).
+
+Speed where it matters: **1,403 PDFs in 0.83 s** (31× faster than pypdf, 296× faster than
+pymupdf4llm), **3,128 encoding detections at 11,239 files/s**, **21 MiB peak** for structured data.
+
+> **Machine-verifiable**: full reports under [`docs/benchmarks/0.70_showdown_D*.md`](docs/benchmarks/),
+> raw outputs under `out/` (gitignored), harnesses under [`bench/scripts/`](bench/scripts/).
 
 ---
 
-## What's New in 0.50.0
+## What's New in 0.70.0
 
-- 🧠 **Dynamic Adaptive Concurrency & Timeout Engine (`pagesift::adaptive`)**:
-  - **Bottleneck-Constrained Model ($\min$ Principal)**: Concurrency is strictly bounded by the intersection of CPU capacity, physical memory safety (2MB/conn), and OS file descriptors (`ulimit -n`):
-    $$\text{Concurrency} = \min\big(C_{cpu},\; M_{mem},\; FD_{safe}\big)$$
-  - **Auto-Configuring Hardware Profiles**: Micro (1C1GB), Small (2C2GB~4C4GB), Mid Desktop (8C16GB / i7-10700), High Server (32C128GB / AMD EPYC), and Extreme Supernode (64C+ 128GB+ FD>=65k).
-  - **Dual Operational Modes**: `--tuning-mode adaptive` (saturates hardware safely) vs. `--tuning-mode conservative` (caps CPU < 20% for background workstation tasks).
-  - **RTT-Aware Safe Timeout**: Calibrated 3.5s connect timeout and 10.0s total timeout, preventing drops of high-latency international websites.
-- 🌐 **Dual-Protocol Firecrawl v1 & v2 Architecture**: Drop-in compatibility with official Firecrawl Python and Node.js SDKs covering `/v1/scrape`, `/v1/crawl`, `/v1/batch/scrape`, `/v1/map` and all `/v2/*` endpoints.
-- ⚡ **Jina Reader Protocol Adapter**: Instant URL scraping via `GET /r/{*url}` or `POST /r`, with Server-Sent Events (`Accept: text/event-stream`) streaming for real-time LLM agent feeds.
-- 🛡️ **128 GB Server & Chaos Defense**: Flat 188.4 MB memory across 100,000 live websites and zero memory leaks under 50,000 chaos URLs while Spider crashed from 11.7 GB OOM.
-- 🦀 **100% Pure Safe Rust & Modular Architecture**: `#![forbid(unsafe_code)]` preserved across all core crates. All modified and created `.rs` source files strictly `<= 500 lines`.
+**The engine underneath the numbers was replaced.** 0.60 proved PageSift could finish 100,000,000 tasks; 0.70 rebuilds the data plane that does it and puts the whole system under one closed-loop controller.
+
+- ⚙️ **Hand-written NUMA-local HTTP data plane** — fixed-slot NUMA executors, a minimal HTTP/1.1 reactor, hybrid reactor↔content scheduling, per-origin adaptive connections and sharded intake with bounded work stealing. The general-purpose async client is gone from the hot path.
+- 📈 **Scaling measured 1 → 192 vCPU, fitted with the Universal Scalability Law** — γ = 8,631.8 pages/s/core, σ = 1.34 %, **κ = 0.00 %** (no measurable coherency penalty), R² = 0.839.
+- 🧠 **Memory is now an input.** The engine reads cgroup v2 `memory.max` and sizes itself to it: at **768 MiB** it settles on 380 connections and still sustains **817,346 pages/s** with zero OOM.
+- 🏁 **200M saturation on 192 vCPU** — `200,000,000 / 200,000,000`, **0 failures**, **947,611 pages/s**, 211.1 s wall, **888.1 MiB peak RSS**.
+- 📊 **Seven public benchmarks, published including the losses** — WebMainBench **0.6414** ROUGE-5 (level with Trafilatura, above Resiliparse), WCEB **0.8613**, WCXB **0.8472**, robots.txt spec **0.9621**, olmOCR-bench **0.4172**, Common Crawl **5,165 p/s**, Crawl Maze **0.0500**.
+- 🔧 **Four production-grade defects fixed**, all found by the stress suite: header-wait ignoring `timeout_secs`, 429 penalties that never recovered, one broken URL freezing a whole host, and a runtime panic under tight `ulimit -v`.
+- ⚖️ **Faster and cheaper per page than 0.61**: **2.22×** absolute throughput (947,611 p/s on 192 vCPU), **+24.4 % per core**, and **−19.6 % CPU per page** — while also lifting WebMainBench ROUGE-5 by **+0.055**. Per-core output on a 16-core box sits within 4.8 % of the 192-core run.
+
+Full detail: [**0.70.0 release notes**](docs/releases/0.70.0.md).
 
 ---
 
@@ -99,7 +116,7 @@ Run the standalone container (includes headless browser renderer):
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.61.0
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.70.0
 ```
 
 #### Firecrawl SDK Drop-In Replacement
@@ -190,11 +207,11 @@ pagesift crawl "https://docs.rs" --limit 5000 --tuning-mode adaptive --output ./
 
 ## Why PageSift?
 
-| Feature | PageSift 0.61.0 | Firecrawl (Self-Hosted) | Crawl4AI | Spider |
+| Feature | PageSift 0.70.0 | Firecrawl (Self-Hosted) | Crawl4AI | Spider |
 | :--- | :---: | :---: | :---: | :---: |
 | **Core Architecture** | Pure Safe Rust (`forbid(unsafe)`) | TypeScript / Python / Redis | Python / Playwright | Rust / Tokio |
 | **API Compatibility** | **Firecrawl v1 + v2 + Jina Reader + MCP** | Firecrawl API only | Custom Python API | Custom REST API |
-| **Extraction Throughput** | **3,525 pages/sec** | ~150 pages/sec | ~90 pages/sec | ~1,200 pages/sec |
+| **Extraction Throughput** | **59,309 pages/sec (16 vCPU)** · **947,611 (192 vCPU)** | ~150 pages/sec | ~90 pages/sec | ~1,200 pages/sec |
 | **Peak RAM (100k Domains)** | **188.4 MB (Flat line)** | > 8 GB (Redis queues) | > 10 GB (Browser pool) | **8,978 MB (47.6× leak)** |
 | **Extraction Conversion** | **96.38% (Rich Markdown)** | ~85% | ~88% | 82.82% (17.2% empty) |
 | **Adaptive Hardware Engine** | **$\min(CPU, RAM, FD)$ Auto** | Manual worker count | Manual semaphore | Fixed semaphore |
@@ -219,3 +236,39 @@ pagesift crawl "https://docs.rs" --limit 5000 --tuning-mode adaptive --output ./
 
 - **Open Source:** Licensed under [AGPL-3.0](LICENSE).
 - **Commercial Licensing:** Need proprietary linking or private deployment without AGPL obligations? Check out our [Commercial Licensing Guide](COMMERCIAL.md) or contact `licensing@pagesift.dev`.
+
+---
+
+## 🗺️ Roadmap
+
+- [x] NUMA-local HTTP data plane (0.70)
+- [x] cgroup-aware adaptive capacity (0.70)
+- [x] Seven public extraction benchmarks with reproducible harnesses (0.70)
+- [ ] Resumable crawl checkpoints — restart without re-fetching
+- [ ] OCR fallback for scanned documents
+- [ ] Resource-URL enumeration mode for security crawlers
+- [ ] Distributed shard coordination across nodes
+
+Vote or propose: [Issues](https://github.com/YOLOW92/pagesift/issues) · [Discussions](https://github.com/YOLOW92/pagesift/discussions)
+
+---
+
+## 📚 Citation
+
+If PageSift is useful in research or a product, cite it as:
+
+```bibtex
+@software{pagesift2026,
+  title  = {PageSift: NUMA-Local Rust Web Extraction Engine for AI Pipelines},
+  author = {YOLOW92},
+  year   = {2026},
+  url    = {https://github.com/YOLOW92/pagesift},
+  note   = {Version 0.70.0}
+}
+```
+
+---
+
+## ⭐ Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=YOLOW92/pagesift&type=Date)](https://star-history.com/#YOLOW92/pagesift&Date)

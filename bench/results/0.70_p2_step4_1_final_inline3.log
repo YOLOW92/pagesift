@@ -1,0 +1,29 @@
+============================================================
+  PageSift P2 NUMA-Local HTTP Reactor
+  Topology: 192 logical / 96 physical / 2 sockets / 4 NUMA
+  Tasks: 10000000 / reactors: 192 / content workers: 0 / persistent connections: 1536
+  Node 0 (NUMA 0, socket 0): 48 reactors / 0 content workers / 384 connections
+  Node 1 (NUMA 1, socket 0): 48 reactors / 0 content workers / 384 connections
+  Node 2 (NUMA 2, socket 1): 48 reactors / 0 content workers / 384 connections
+  Node 3 (NUMA 3, socket 1): 48 reactors / 0 content workers / 384 connections
+============================================================
+[9.01%]  900734.8 pages/s | completed 900796 | failed 0 | CPU 125.99 cores | reuse 100.0%
+[18.44%]  942954.8 pages/s | completed 1843815 | failed 0 | CPU 127.83 cores | reuse 100.0%
+[27.95%]  951203.2 pages/s | completed 2795081 | failed 0 | CPU 128.98 cores | reuse 100.0%
+[37.53%]  957740.2 pages/s | completed 3752880 | failed 0 | CPU 129.65 cores | reuse 100.0%
+[47.15%]  962542.5 pages/s | completed 4715488 | failed 0 | CPU 129.98 cores | reuse 100.0%
+[56.65%]  949464.9 pages/s | completed 5665016 | failed 0 | CPU 129.63 cores | reuse 100.0%
+[64.95%]  830315.6 pages/s | completed 6495384 | failed 0 | CPU 125.98 cores | reuse 100.0%
+[73.79%]  883209.5 pages/s | completed 7378655 | failed 0 | CPU 124.25 cores | reuse 100.0%
+[82.37%]  858068.6 pages/s | completed 8236779 | failed 0 | CPU 122.29 cores | reuse 100.0%
+[90.82%]  845446.6 pages/s | completed 9082281 | failed 0 | CPU 120.63 cores | reuse 100.0%
+[98.28%]  746043.6 pages/s | completed 9828398 | failed 0 | CPU 117.47 cores | reuse 100.0%
+[100.00%]  171587.2 pages/s | completed 10000000 | failed 0 | CPU 108.68 cores | reuse 100.0%
+============================================================
+  Sustained QPS: 833405.60
+  Completed: 10000000 / 10000000
+  Failed: 0
+  Connections: 1536 opened / 9998464 reused / 0 retries / 0 timeouts
+  Runner CPU: 108.89 core-s/s (56.71% of 192)
+  Report: /home/yolow92/pagesift/bench/results/0.70_p2_step4_1_final_inline3.json
+============================================================

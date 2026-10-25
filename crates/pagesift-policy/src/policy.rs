@@ -74,7 +74,15 @@ pub struct RobotsCache {
     entries: Mutex<HashMap<String, Slot>>,
 }
 
-type Slot = Arc<tokio::sync::Mutex<Option<(Instant, Arc<Robots>)>>>;
+#[derive(Clone)]
+struct RobotsEntry {
+    expires: Instant,
+    robots: Arc<Robots>,
+    etag: Option<String>,
+    last_modified: Option<SystemTime>,
+}
+
+type Slot = Arc<tokio::sync::Mutex<Option<RobotsEntry>>>;
 
 const ROBOTS_CACHE_PRUNE_AT: usize = 4096;
 
@@ -97,40 +105,101 @@ impl RobotsCache {
                 let now = Instant::now();
                 entries.retain(|_, s| {
                     Arc::strong_count(s) > 1
-                        || s.try_lock()
-                            .map_or(true, |g| g.as_ref().is_some_and(|(t, _)| *t > now))
+                        || s.try_lock().map_or(true, |g| {
+                            g.as_ref().is_some_and(|entry| entry.expires > now)
+                        })
                 });
             }
             entries.entry(origin.clone()).or_default().clone()
         };
         let mut guard = slot.lock().await;
-        if let Some((expires, robots)) = guard.as_ref()
-            && *expires > Instant::now()
+        if let Some(entry) = guard.as_ref()
+            && entry.expires > Instant::now()
         {
-            return Ok(robots.clone());
+            return Ok(entry.robots.clone());
         }
-        let (robots, ttl) = self.fetch(&origin).await?;
-        let robots = Arc::new(robots);
-        *guard = Some((Instant::now() + ttl, robots.clone()));
+        let refreshed = self.fetch(&origin, guard.as_ref()).await?;
+        let entry = match refreshed {
+            RobotsRefresh::NotModified(ttl) => {
+                let mut entry = guard.take().expect("conditional robots entry");
+                entry.expires = Instant::now() + ttl;
+                entry
+            }
+            RobotsRefresh::Replace {
+                robots,
+                ttl,
+                etag,
+                last_modified,
+            } => RobotsEntry {
+                expires: Instant::now() + ttl,
+                robots: Arc::new(robots),
+                etag,
+                last_modified,
+            },
+        };
+        let robots = entry.robots.clone();
+        *guard = Some(entry);
         Ok(robots)
     }
 
-    async fn fetch(&self, origin: &str) -> Result<(Robots, Duration), Error> {
+    async fn fetch(
+        &self,
+        origin: &str,
+        previous: Option<&RobotsEntry>,
+    ) -> Result<RobotsRefresh, Error> {
         let mut req = FetchRequest::new(format!("{origin}/robots.txt"));
         req.max_body_bytes = Some(MAX_ROBOTS_BYTES);
+        if let Some(previous) = previous {
+            req.if_none_match = previous.etag.clone();
+            req.if_modified_since = previous.last_modified;
+        }
         match self.fetcher.fetch(req).await {
-            Ok(r) if (200..300).contains(&r.status) => {
-                Ok((Robots::parse(&String::from_utf8_lossy(&r.body)), self.ttl))
+            Ok(r) if r.status == 304 && previous.is_some() => {
+                Ok(RobotsRefresh::NotModified(self.ttl))
             }
+            Ok(r) if (200..300).contains(&r.status) => Ok(RobotsRefresh::Replace {
+                robots: Robots::parse(&String::from_utf8_lossy(&r.body)),
+                ttl: self.ttl,
+                etag: r.etag().map(str::to_owned),
+                last_modified: r
+                    .last_modified()
+                    .and_then(|v| httpdate::parse_http_date(v).ok()),
+            }),
             // 4xx（含 429 以外的客户端错误）：没有可用的 robots.txt，全部允许。
             Ok(r) if (400..500).contains(&r.status) && r.status != 429 => {
-                Ok((Robots::allow_all(), self.ttl))
+                Ok(RobotsRefresh::replace(Robots::allow_all(), self.ttl))
             }
             // 5xx、429 以及其他异常状态：按全部禁止处理。
-            Ok(_) => Ok((Robots::disallow_all(), self.error_ttl)),
+            Ok(_) => Ok(RobotsRefresh::replace(
+                Robots::disallow_all(),
+                self.error_ttl,
+            )),
             // RFC 9309：重定向超过 5 次可以视为不可用，按全部允许处理。
-            Err(pagesift_net::Error::TooManyRedirects(_)) => Ok((Robots::allow_all(), self.ttl)),
+            Err(pagesift_net::Error::TooManyRedirects(_)) => {
+                Ok(RobotsRefresh::replace(Robots::allow_all(), self.ttl))
+            }
             Err(e) => Err(e.into()),
+        }
+    }
+}
+
+enum RobotsRefresh {
+    NotModified(Duration),
+    Replace {
+        robots: Robots,
+        ttl: Duration,
+        etag: Option<String>,
+        last_modified: Option<SystemTime>,
+    },
+}
+
+impl RobotsRefresh {
+    fn replace(robots: Robots, ttl: Duration) -> Self {
+        Self::Replace {
+            robots,
+            ttl,
+            etag: None,
+            last_modified: None,
         }
     }
 }
@@ -272,12 +341,14 @@ impl Policy {
             Ok(r) => r,
             Err(e) => {
                 let e = Error::from(e);
-                // 网络错误和超时让这个站退避；DNS 失败也算（站点暂时不可达）
-                if matches!(
-                    e,
-                    Error::Timeout(_) | Error::Upstream(_) | Error::Network(_) | Error::Dns(_)
-                ) {
-                    self.backoff.on_failure(&host);
+                // 区分两类：DNS/上游错误说明站点本身不可达，按主机级退避（可指数增长）；
+                // 单个 URL 的超时/网络错误只按"不同 URL"计数，避免一个永久慢页把整站冻住。
+                match e {
+                    Error::Dns(_) | Error::Upstream(_) => self.backoff.on_failure(&host),
+                    Error::Timeout(_) | Error::Network(_) => {
+                        self.backoff.on_url_failure(&host, url.as_str())
+                    }
+                    _ => {}
                 }
                 return Err(e);
             }
@@ -307,11 +378,12 @@ impl Policy {
             Ok(stream) => stream,
             Err(e) => {
                 let e = Error::from(e);
-                if matches!(
-                    e,
-                    Error::Timeout(_) | Error::Upstream(_) | Error::Network(_) | Error::Dns(_)
-                ) {
-                    self.backoff.on_failure(host);
+                match e {
+                    Error::Dns(_) | Error::Upstream(_) => self.backoff.on_failure(host),
+                    Error::Timeout(_) | Error::Network(_) => {
+                        self.backoff.on_url_failure(host, url.as_str())
+                    }
+                    _ => {}
                 }
                 return Err(e);
             }
@@ -335,12 +407,15 @@ impl Policy {
         match status {
             429 => {
                 self.backoff.on_throttled(host, retry_after);
-                self.limiter.throttled(host);
+                // 服务端给了 Retry-After 就表示"按这个节奏来"，我们照做即可；
+                // 再永久加大整站的请求间隔会把站点越压越慢。只有没给指引时才收紧。
+                if retry_after.is_none() {
+                    self.limiter.throttled(host);
+                }
                 return Err(Error::RateLimited { retry_after });
             }
             503 if retry_after.is_some() => {
                 self.backoff.on_throttled(host, retry_after);
-                self.limiter.throttled(host);
             }
             500..=599 => self.backoff.on_failure(host),
             _ => {

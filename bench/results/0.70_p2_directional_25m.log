@@ -1,0 +1,100 @@
+============================================================
+  PageSift P2 Adaptive NUMA Runner
+  Topology: 192 logical / 96 physical / 2 sockets / 4 NUMA
+  Search space: 96..192 active workers / 32..12288 concurrency
+============================================================
+[1.18%] QPS  295568.4 | workers  96 | C*   768 | CPU   0.0% of 96 physical | queue p95 0.720 p99 0.910 ms | failed 0 | WorkerProbe
+[2.51%] QPS  330832.3 | workers  96 | C*   768 | CPU  95.3% of 96 physical | queue p95 0.710 p99 0.929 ms | failed 0 | WorkerProbe
+[3.82%] QPS  328647.4 | workers  96 | C*   768 | CPU  94.9% of 96 physical | queue p95 0.717 p99 0.956 ms | failed 0 | WorkerProbe
+[5.14%] QPS  329995.0 | workers  96 | C*   768 | CPU  95.4% of 96 physical | queue p95 0.732 p99 0.970 ms | failed 0 | WorkerProbe
+  -> next: 124 workers / 768 concurrency / WorkerProbe
+[6.57%] QPS  357222.1 | workers 124 | C*   768 | CPU 100.0% of 96 physical | queue p95 0.687 p99 0.931 ms | failed 0 | WorkerProbe
+[8.00%] QPS  356763.4 | workers 124 | C*   768 | CPU 100.0% of 96 physical | queue p95 0.674 p99 0.956 ms | failed 0 | WorkerProbe
+[9.41%] QPS  354465.3 | workers 124 | C*   768 | CPU 100.0% of 96 physical | queue p95 0.630 p99 0.900 ms | failed 0 | WorkerProbe
+[10.84%] QPS  356436.9 | workers 124 | C*   768 | CPU 100.0% of 96 physical | queue p95 0.658 p99 0.906 ms | failed 0 | WorkerProbe
+  -> next: 180 workers / 768 concurrency / WorkerProbe
+[12.37%] QPS  381726.0 | workers 180 | C*   768 | CPU 100.0% of 96 physical | queue p95 0.824 p99 1.195 ms | failed 0 | WorkerProbe
+[13.89%] QPS  381368.0 | workers 180 | C*   768 | CPU 100.0% of 96 physical | queue p95 0.913 p99 1.483 ms | failed 0 | WorkerProbe
+[15.40%] QPS  376111.1 | workers 180 | C*   768 | CPU 100.0% of 96 physical | queue p95 0.817 p99 1.373 ms | failed 0 | WorkerProbe
+[16.92%] QPS  379468.8 | workers 180 | C*   768 | CPU 100.0% of 96 physical | queue p95 0.807 p99 1.284 ms | failed 0 | WorkerProbe
+  -> next: 188 workers / 768 concurrency / WorkerProbe
+[18.43%] QPS  379576.6 | workers 188 | C*   768 | CPU 100.0% of 96 physical | queue p95 0.788 p99 1.145 ms | failed 0 | WorkerProbe
+[19.96%] QPS  381247.7 | workers 188 | C*   768 | CPU 100.0% of 96 physical | queue p95 0.805 p99 1.313 ms | failed 0 | WorkerProbe
+[21.49%] QPS  381425.2 | workers 188 | C*   768 | CPU 100.0% of 96 physical | queue p95 0.795 p99 1.289 ms | failed 0 | WorkerProbe
+[23.01%] QPS  380231.2 | workers 188 | C*   768 | CPU 100.0% of 96 physical | queue p95 0.758 p99 1.194 ms | failed 0 | WorkerProbe
+  -> next: 192 workers / 768 concurrency / WorkerProbe
+[24.55%] QPS  384890.7 | workers 192 | C*   768 | CPU 100.0% of 96 physical | queue p95 0.779 p99 1.326 ms | failed 0 | WorkerProbe
+[26.07%] QPS  382228.4 | workers 192 | C*   768 | CPU 100.0% of 96 physical | queue p95 0.800 p99 1.341 ms | failed 0 | WorkerProbe
+[27.61%] QPS  383085.6 | workers 192 | C*   768 | CPU 100.0% of 96 physical | queue p95 0.807 p99 1.194 ms | failed 0 | WorkerProbe
+[29.14%] QPS  382567.6 | workers 192 | C*   768 | CPU 100.0% of 96 physical | queue p95 0.804 p99 1.229 ms | failed 0 | WorkerProbe
+  -> next: 192 workers / 1162 concurrency / ConcurrencyProbe
+[30.71%] QPS  394063.2 | workers 192 | C*  1162 | CPU 100.0% of 96 physical | queue p95 1.229 p99 1.832 ms | failed 0 | ConcurrencyProbe
+[32.29%] QPS  393964.0 | workers 192 | C*  1162 | CPU 100.0% of 96 physical | queue p95 1.305 p99 1.929 ms | failed 0 | ConcurrencyProbe
+[33.86%] QPS  392050.5 | workers 192 | C*  1162 | CPU 100.0% of 96 physical | queue p95 1.356 p99 2.052 ms | failed 0 | ConcurrencyProbe
+[35.42%] QPS  390807.4 | workers 192 | C*  1162 | CPU 100.0% of 96 physical | queue p95 1.366 p99 2.075 ms | failed 0 | ConcurrencyProbe
+  -> next: 192 workers / 2840 concurrency / ConcurrencyProbe
+[36.82%] QPS  350437.4 | workers 192 | C*  2840 | CPU 100.0% of 96 physical | queue p95 2.830 p99 3.928 ms | failed 0 | ConcurrencyProbe
+[38.19%] QPS  340410.2 | workers 192 | C*  2840 | CPU 100.0% of 96 physical | queue p95 3.040 p99 4.022 ms | failed 0 | ConcurrencyProbe
+[39.56%] QPS  342968.1 | workers 192 | C*  2840 | CPU 100.0% of 96 physical | queue p95 3.061 p99 4.247 ms | failed 0 | ConcurrencyProbe
+[40.96%] QPS  351150.8 | workers 192 | C*  2840 | CPU 100.0% of 96 physical | queue p95 3.233 p99 4.645 ms | failed 0 | ConcurrencyProbe
+[42.28%] QPS  328040.6 | workers 192 | C*  2840 | CPU 100.0% of 96 physical | queue p95 3.117 p99 4.487 ms | failed 0 | ConcurrencyProbe
+[43.71%] QPS  357361.4 | workers 192 | C*  2840 | CPU 100.0% of 96 physical | queue p95 3.211 p99 4.600 ms | failed 0 | ConcurrencyProbe
+  -> next: 192 workers / 1817 concurrency / ConcurrencyProbe
+[45.28%] QPS  393204.7 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.554 p99 3.586 ms | failed 0 | ConcurrencyProbe
+[46.86%] QPS  395908.6 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.252 p99 3.253 ms | failed 0 | ConcurrencyProbe
+[48.43%] QPS  391580.7 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.191 p99 3.126 ms | failed 0 | ConcurrencyProbe
+[50.01%] QPS  394590.2 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.173 p99 2.917 ms | failed 0 | ConcurrencyProbe
+  -> next: 192 workers / 2272 concurrency / ConcurrencyProbe
+[51.53%] QPS  379742.0 | workers 192 | C*  2272 | CPU 100.0% of 96 physical | queue p95 2.518 p99 3.412 ms | failed 0 | ConcurrencyProbe
+[53.10%] QPS  394450.9 | workers 192 | C*  2272 | CPU 100.0% of 96 physical | queue p95 2.659 p99 3.674 ms | failed 0 | ConcurrencyProbe
+[54.69%] QPS  397593.0 | workers 192 | C*  2272 | CPU 100.0% of 96 physical | queue p95 2.767 p99 3.899 ms | failed 0 | ConcurrencyProbe
+[56.18%] QPS  370228.3 | workers 192 | C*  2272 | CPU 100.0% of 96 physical | queue p95 2.792 p99 3.843 ms | failed 0 | ConcurrencyProbe
+[57.78%] QPS  401453.4 | workers 192 | C*  2272 | CPU 100.0% of 96 physical | queue p95 2.752 p99 3.744 ms | failed 0 | ConcurrencyProbe
+[59.37%] QPS  398092.7 | workers 192 | C*  2272 | CPU 100.0% of 96 physical | queue p95 2.832 p99 3.894 ms | failed 0 | ConcurrencyProbe
+  -> next: 192 workers / 1817 concurrency / Locked
+[60.97%] QPS  397585.3 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.381 p99 3.447 ms | failed 0 | Locked
+[62.55%] QPS  395634.2 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.295 p99 3.209 ms | failed 0 | Locked
+[64.14%] QPS  397524.9 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.332 p99 3.229 ms | failed 0 | Locked
+[65.74%] QPS  399336.4 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.260 p99 3.110 ms | failed 0 | Locked
+[67.32%] QPS  395436.0 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.187 p99 2.931 ms | failed 0 | Locked
+[68.91%] QPS  396964.1 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.247 p99 3.003 ms | failed 0 | Locked
+[70.50%] QPS  399210.3 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.220 p99 3.164 ms | failed 0 | Locked
+[72.09%] QPS  397257.4 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.279 p99 3.119 ms | failed 0 | Locked
+[73.67%] QPS  395258.2 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.179 p99 2.916 ms | failed 0 | Locked
+[75.27%] QPS  399602.3 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.226 p99 3.192 ms | failed 0 | Locked
+[76.87%] QPS  398986.6 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.242 p99 3.293 ms | failed 0 | Locked
+[78.47%] QPS  399204.7 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.275 p99 3.319 ms | failed 0 | Locked
+[80.04%] QPS  393408.0 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.257 p99 3.328 ms | failed 0 | Locked
+[81.61%] QPS  392069.2 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.493 p99 3.495 ms | failed 0 | Locked
+[83.18%] QPS  393851.1 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.319 p99 3.220 ms | failed 0 | Locked
+[84.77%] QPS  395430.3 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.256 p99 3.095 ms | failed 0 | Locked
+[86.33%] QPS  390953.5 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.215 p99 3.096 ms | failed 0 | Locked
+[87.92%] QPS  396181.5 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.231 p99 3.006 ms | failed 0 | Locked
+[89.50%] QPS  396490.9 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.326 p99 3.125 ms | failed 0 | Locked
+[91.10%] QPS  399512.0 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.363 p99 3.403 ms | failed 0 | Locked
+[92.67%] QPS  393052.2 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.269 p99 3.156 ms | failed 0 | Locked
+[94.26%] QPS  396054.5 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.275 p99 3.043 ms | failed 0 | Locked
+[95.85%] QPS  397526.6 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.207 p99 3.133 ms | failed 0 | Locked
+[97.44%] QPS  396916.1 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.329 p99 3.242 ms | failed 0 | Locked
+[99.03%] QPS  399225.8 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.191 p99 3.129 ms | failed 0 | Locked
+[100.00%] QPS  241849.7 | workers 192 | C*  1817 | CPU 100.0% of 96 physical | queue p95 2.122 p99 2.727 ms | failed 0 | Locked
+============================================================
+  Completed: 25000000 / 25000000
+  Failed: 0
+  Sustained QPS: 378632.96
+  Selected: 192 workers / 1817 concurrency / Locked
+  Throughput: 512.32 MB/s
+  Process CPU time: 9989.36 s
+  Peak/final RSS snapshot: 333.12 MiB
+  Worker sweep (stable samples):
+     96 workers | n  3 | mean  329824.9 QPS | stddev  1102.3
+    124 workers | n  3 | mean  355888.5 QPS | stddev  1243.3
+    180 workers | n  3 | mean  378982.6 QPS | stddev  2662.0
+    188 workers | n  3 | mean  380968.0 QPS | stddev   644.3
+    192 workers | n  3 | mean  382627.2 QPS | stddev   431.7
+  Concurrency sweep (stable samples):
+    C*  1162 | n  3 | mean  392273.9 QPS | stddev  1590.1 | queue p95  1.342 ms | CPU 100.0%
+    C*  1817 | n  3 | mean  394026.5 QPS | stddev  2218.3 | queue p95  2.205 ms | CPU 100.0%
+    C*  2272 | n  5 | mean  392363.7 QPS | stddev 12620.6 | queue p95  2.761 ms | CPU 100.0%
+    C*  2840 | n  5 | mean  343986.2 QPS | stddev 11161.5 | queue p95  3.132 ms | CPU 100.0%
+============================================================

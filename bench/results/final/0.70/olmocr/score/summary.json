@@ -1,0 +1,62 @@
+{
+  "total_tests": 7019,
+  "passed": 3164,
+  "overall_pass_rate": 0.45077646388374415,
+  "per_jsonl": {
+    "arxiv_math.jsonl": {
+      "n": 2927,
+      "score": 0.4086094977792962
+    },
+    "headers_footers.jsonl": {
+      "n": 760,
+      "score": 0.6828947368421052
+    },
+    "long_tiny_text.jsonl": {
+      "n": 442,
+      "score": 0.45248868778280543
+    },
+    "multi_column.jsonl": {
+      "n": 884,
+      "score": 0.6628959276018099
+    },
+    "old_scans.jsonl": {
+      "n": 526,
+      "score": 0.13307984790874525
+    },
+    "old_scans_math.jsonl": {
+      "n": 458,
+      "score": 0.0
+    },
+    "table_tests.jsonl": {
+      "n": 1022,
+      "score": 0.5802348336594912
+    }
+  },
+  "per_type": {
+    "absent": {
+      "n": 823,
+      "score": 0.7083839611178615
+    },
+    "baseline": {
+      "n": 9,
+      "score": 0.6666666666666666
+    },
+    "math": {
+      "n": 3385,
+      "score": 0.3533234859675037
+    },
+    "order": {
+      "n": 1061,
+      "score": 0.5523091423185674
+    },
+    "present": {
+      "n": 721,
+      "score": 0.27739251040221913
+    },
+    "table": {
+      "n": 1020,
+      "score": 0.5813725490196079
+    }
+  },
+  "macro_jsonl_score": 0.4171719330820362
+}

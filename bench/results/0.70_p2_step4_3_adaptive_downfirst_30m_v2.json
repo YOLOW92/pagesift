@@ -1,0 +1,258 @@
+{
+  "schema": 4,
+  "executor": "numa_local_hybrid_pipeline",
+  "transport": "pagesift_mio_http1",
+  "mode": "end_to_end",
+  "total_tasks": 30000000,
+  "completed": 30000000,
+  "valid": 30000000,
+  "failed": 0,
+  "bytes": 41880000000,
+  "wall_time_s": 33.754819983,
+  "sustained_qps": 888761.9609616925,
+  "throughput_mb_s": 1183.2348799729564,
+  "process_cpu_time_s": 3858.42,
+  "process_cpu_cores": 114.30723084712712,
+  "process_cpu_pct_of_assigned": 59.535016066212044,
+  "peak_rss_bytes": 300597248,
+  "assigned_cpus": 192,
+  "physical_cores": 96,
+  "sockets": 2,
+  "numa_nodes": 4,
+  "reactors": 48,
+  "content_workers": 144,
+  "connections": 1536,
+  "fixture_pages": 5,
+  "connects": 1536,
+  "reused": 29998464,
+  "retries": 0,
+  "timeouts": 0,
+  "queue_backpressure": 97441,
+  "response_buffer_allocations": 6638,
+  "content_queued": 0,
+  "reactor_inline_parsed": 4640130,
+  "local_batches": 19822826,
+  "local_jobs": 25355473,
+  "local_steal_jobs": 111368,
+  "steal_attempts": 11621,
+  "steal_successes": 4397,
+  "stolen_jobs": 4397,
+  "initial_pipeline_allocation": {
+    "reactor_budget": 48,
+    "content_budget": 144,
+    "inline_parse_percent": 0,
+    "state": "Probing"
+  },
+  "final_pipeline_allocation": {
+    "reactor_budget": 48,
+    "content_budget": 144,
+    "inline_parse_percent": 0,
+    "state": "Backpressure"
+  },
+  "pipeline_adjustments": [
+    {
+      "reactor_budget": 48,
+      "content_budget": 144,
+      "inline_parse_percent": 0,
+      "state": "Probing"
+    },
+    {
+      "reactor_budget": 64,
+      "content_budget": 128,
+      "inline_parse_percent": 12,
+      "state": "Settling"
+    },
+    {
+      "reactor_budget": 64,
+      "content_budget": 128,
+      "inline_parse_percent": 12,
+      "state": "Probing"
+    },
+    {
+      "reactor_budget": 80,
+      "content_budget": 112,
+      "inline_parse_percent": 23,
+      "state": "Settling"
+    },
+    {
+      "reactor_budget": 80,
+      "content_budget": 112,
+      "inline_parse_percent": 23,
+      "state": "Probing"
+    },
+    {
+      "reactor_budget": 96,
+      "content_budget": 96,
+      "inline_parse_percent": 34,
+      "state": "Settling"
+    },
+    {
+      "reactor_budget": 96,
+      "content_budget": 96,
+      "inline_parse_percent": 34,
+      "state": "Probing"
+    },
+    {
+      "reactor_budget": 64,
+      "content_budget": 128,
+      "inline_parse_percent": 12,
+      "state": "Locked"
+    },
+    {
+      "reactor_budget": 48,
+      "content_budget": 144,
+      "inline_parse_percent": 0,
+      "state": "Backpressure"
+    }
+  ],
+  "initial_distribution_allocation": {
+    "local_batch_size": 2,
+    "empty_polls_before_steal": 4,
+    "steal_batch_size": 1,
+    "state": "Probing"
+  },
+  "final_distribution_allocation": {
+    "local_batch_size": 1,
+    "empty_polls_before_steal": 8,
+    "steal_batch_size": 1,
+    "state": "Locked"
+  },
+  "distribution_adjustments": [
+    {
+      "local_batch_size": 2,
+      "empty_polls_before_steal": 4,
+      "steal_batch_size": 1,
+      "state": "Probing"
+    },
+    {
+      "local_batch_size": 1,
+      "empty_polls_before_steal": 8,
+      "steal_batch_size": 1,
+      "state": "Settling"
+    },
+    {
+      "local_batch_size": 1,
+      "empty_polls_before_steal": 8,
+      "steal_batch_size": 1,
+      "state": "Probing"
+    },
+    {
+      "local_batch_size": 2,
+      "empty_polls_before_steal": 4,
+      "steal_batch_size": 1,
+      "state": "Settling"
+    },
+    {
+      "local_batch_size": 1,
+      "empty_polls_before_steal": 8,
+      "steal_batch_size": 1,
+      "state": "Locked"
+    }
+  ],
+  "node_reports": [
+    {
+      "node_index": 0,
+      "numa_node": 0,
+      "socket_id": 0,
+      "reactors": 12,
+      "content_workers": 36,
+      "connections": 384,
+      "completed": 7502512,
+      "valid": 7502512,
+      "failed": 0,
+      "bytes": 10473506717,
+      "connects": 384,
+      "reused": 7499904,
+      "retries": 0,
+      "timeouts": 0,
+      "queue_backpressure": 28215,
+      "response_buffer_allocations": 2138,
+      "content_queued": 0,
+      "reactor_inline_parsed": 1169234,
+      "local_batches": 4826606,
+      "local_jobs": 6331036,
+      "local_steal_jobs": 31355,
+      "steal_attempts": 4067,
+      "steal_successes": 2242,
+      "stolen_jobs": 2242
+    },
+    {
+      "node_index": 1,
+      "numa_node": 1,
+      "socket_id": 0,
+      "reactors": 12,
+      "content_workers": 36,
+      "connections": 384,
+      "completed": 7499188,
+      "valid": 7499188,
+      "failed": 0,
+      "bytes": 10468853699,
+      "connects": 384,
+      "reused": 7499520,
+      "retries": 0,
+      "timeouts": 0,
+      "queue_backpressure": 20093,
+      "response_buffer_allocations": 1370,
+      "content_queued": 0,
+      "reactor_inline_parsed": 1152480,
+      "local_batches": 4999273,
+      "local_jobs": 6346225,
+      "local_steal_jobs": 26421,
+      "steal_attempts": 2297,
+      "steal_successes": 483,
+      "stolen_jobs": 483
+    },
+    {
+      "node_index": 2,
+      "numa_node": 2,
+      "socket_id": 1,
+      "reactors": 12,
+      "content_workers": 36,
+      "connections": 384,
+      "completed": 7501557,
+      "valid": 7501557,
+      "failed": 0,
+      "bytes": 10472192578,
+      "connects": 384,
+      "reused": 7499520,
+      "retries": 0,
+      "timeouts": 0,
+      "queue_backpressure": 21224,
+      "response_buffer_allocations": 1526,
+      "content_queued": 0,
+      "reactor_inline_parsed": 1160463,
+      "local_batches": 4978231,
+      "local_jobs": 6339422,
+      "local_steal_jobs": 19716,
+      "steal_attempts": 3468,
+      "steal_successes": 1672,
+      "stolen_jobs": 1672
+    },
+    {
+      "node_index": 3,
+      "numa_node": 3,
+      "socket_id": 1,
+      "reactors": 12,
+      "content_workers": 36,
+      "connections": 384,
+      "completed": 7496743,
+      "valid": 7496743,
+      "failed": 0,
+      "bytes": 10465447006,
+      "connects": 384,
+      "reused": 7499520,
+      "retries": 0,
+      "timeouts": 0,
+      "queue_backpressure": 27909,
+      "response_buffer_allocations": 1604,
+      "content_queued": 0,
+      "reactor_inline_parsed": 1157953,
+      "local_batches": 5018716,
+      "local_jobs": 6338790,
+      "local_steal_jobs": 33876,
+      "steal_attempts": 1789,
+      "steal_successes": 0,
+      "stolen_jobs": 0
+    }
+  ]
+}

@@ -87,9 +87,7 @@ impl Engine {
                 match c.parse() {
                     Ok(parsed) => cfg.fetcher.ssrf.allow_cidrs.push(parsed),
                     Err(e) => {
-                        return Err(PyValueError::new_err(format!(
-                            "invalid CIDR {c:?}: {e}"
-                        )));
+                        return Err(PyValueError::new_err(format!("invalid CIDR {c:?}: {e}")));
                     }
                 }
             }

@@ -1,0 +1,29 @@
+============================================================
+  PageSift P2 NUMA-Local HTTP Reactor
+  Topology: 192 logical / 96 physical / 2 sockets / 4 NUMA
+  Tasks: 10000000 / reactors: 192 / persistent connections: 1536
+  Node 0 (NUMA 0, socket 0): 48 reactors / 384 connections
+  Node 1 (NUMA 1, socket 0): 48 reactors / 384 connections
+  Node 2 (NUMA 2, socket 1): 48 reactors / 384 connections
+  Node 3 (NUMA 3, socket 1): 48 reactors / 384 connections
+============================================================
+[8.23%]  822729.7 pages/s | completed 822782 | failed 0 | CPU  43.06 cores | reuse 100.0%
+[16.59%]  836077.0 pages/s | completed 1658912 | failed 0 | CPU  43.70 cores | reuse 100.0%
+[25.04%]  845082.2 pages/s | completed 2504045 | failed 0 | CPU  44.32 cores | reuse 100.0%
+[33.41%]  837085.9 pages/s | completed 3341188 | failed 0 | CPU  44.68 cores | reuse 100.0%
+[41.67%]  825335.9 pages/s | completed 4166576 | failed 0 | CPU  44.56 cores | reuse 100.0%
+[50.13%]  846592.3 pages/s | completed 5013223 | failed 0 | CPU  44.99 cores | reuse 100.0%
+[58.53%]  839968.1 pages/s | completed 5853246 | failed 0 | CPU  45.08 cores | reuse 100.0%
+[66.92%]  839022.9 pages/s | completed 6692323 | failed 0 | CPU  45.26 cores | reuse 100.0%
+[75.26%]  833508.4 pages/s | completed 7525932 | failed 0 | CPU  45.35 cores | reuse 100.0%
+[83.73%]  847253.6 pages/s | completed 8373242 | failed 0 | CPU  45.49 cores | reuse 100.0%
+[92.19%]  846032.5 pages/s | completed 9219330 | failed 0 | CPU  45.67 cores | reuse 100.0%
+[100.00%]  780609.4 pages/s | completed 10000000 | failed 0 | CPU  45.31 cores | reuse 100.0%
+============================================================
+  Sustained QPS: 835567.18
+  Completed: 10000000 / 10000000
+  Failed: 0
+  Connections: 1536 opened / 9998464 reused / 0 retries / 0 timeouts
+  Runner CPU: 45.53 core-s/s (23.71% of 192)
+  Report: bench/results/0.70_p2_step3_new_transport_run3.json
+============================================================

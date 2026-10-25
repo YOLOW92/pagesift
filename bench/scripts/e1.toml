@@ -1,0 +1,10 @@
+[fetch]
+timeout_secs = 20
+max_body_mb = 15
+allow_private_network = true
+
+[policy]
+interval_ms = 0
+per_host_concurrency = 32
+global_concurrency = 128
+allow_crawl_ignore_robots = false

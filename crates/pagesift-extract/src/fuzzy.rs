@@ -103,7 +103,11 @@ impl FuzzyAnchor {
                 continue;
             };
             let changed_tag = el.name() != self.tag;
-            if changed_tag && !(container_tag(el.name()) && container_tag(&self.tag)) {
+            // 标签改变只在"同类角色"之间允许：
+            //   - 容器之间（article/section/div/span/p 互换）：版面重构常见；
+            //   - 行内与行内之间、块级与块级之间。
+            // 跨角色（如 span→a、div→a）仍一律拒绝，避免只靠包含相同文字就误配到链接或包装器。
+            if changed_tag && !same_tag_role(el.name(), &self.tag) {
                 continue;
             }
             let (_, text, attributes, context) = features(node);
@@ -158,6 +162,47 @@ impl FuzzyAnchor {
 
 fn container_tag(tag: &str) -> bool {
     matches!(tag, "article" | "section" | "div")
+}
+
+/// 标签的角色分组。重构时标签常被换成同角色的另一个标签（`span`→`p`、`div`→`article`），
+/// 但很少从行内换成链接、或从块级换成行内。
+fn tag_role(tag: &str) -> u8 {
+    match tag {
+        // 容器：版面重构的主要对象
+        "article" | "section" | "div" | "main" | "aside" | "header" | "footer" | "nav" => 1,
+        // 文本块：段落与行内文本
+        "p" | "span" | "blockquote" | "figcaption" | "label" | "strong" | "em" | "b" | "i" => 2,
+        // 列表
+        "ul" | "ol" | "li" | "dl" | "dt" | "dd" => 3,
+        // 表格
+        "table" | "thead" | "tbody" | "tr" | "td" | "th" => 4,
+        // 标题
+        "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => 5,
+        // 其它元素自成一类
+        _ => 100,
+    }
+}
+
+/// 两个标签是否属于同一角色（或都是容器），允许互相替代。
+///
+/// `span`（行内文本）与 `p`（文本块）算同一角色：它们承载的都是普通文本，
+/// 真实站点的重构经常在两者之间切换。而 `a`（链接）、`img`、`button` 这类
+/// 有明确语义的元素不参与替换，防止把正文误配到链接上。
+fn same_tag_role(a: &str, b: &str) -> bool {
+    if a == b {
+        return true;
+    }
+    let (ra, rb) = (tag_role(a), tag_role(b));
+    // 容器之间始终允许
+    if container_tag(a) && container_tag(b) {
+        return true;
+    }
+    // 容器与文本块之间允许（div→p 这类）
+    if (ra == 1 && rb == 2) || (ra == 2 && rb == 1) {
+        return true;
+    }
+    // 同角色内允许
+    ra == rb && ra != 100
 }
 fn dice(a: &BTreeSet<String>, b: &BTreeSet<String>) -> f64 {
     let common = a.intersection(b).count();

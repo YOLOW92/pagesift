@@ -1,0 +1,9 @@
+================================================================================
+[PageSift 0.50] Balanced Dynamic Adaptive Engine Initialized
+Host Detected : 192 logical cores, 377.8 GB RAM, FD Limit: 524288 | Tier: Extreme Supernode (64C+ 128GB+ FD>=65k)
+Tuning Profile: Mode [adaptive] | Concurrency: 1536 (Bottleneck Safe) | Connect Timeout: 3.5s | Total Timeout: 8.0s
+Target Dataset: bench/data/top-1m.csv (Limit: 10000 URLs) | Channel Buffer: 3072
+================================================================================
+[PageSift Monitor] Progress: 9952/10000 (99.5%) | Inst QPS: 995.0 | Sustained QPS: 995.0 | Succ: 5672 (Valid: 5030, Dup: 194) | Fail: 4280 | Elapsed: 10.0s
+[PageSift Complete] Processed 10000 URLs in 19.85s (503.9 sustained QPS) | Succ: 5687, Valid: 5044, Dup: 194, Fail: 4313 (Timeouts: 486, 4xx: 0, 5xx: 25, Conn: 0) | Bytes: 73 MB
+[PageSift] Final metrics written to bench/results/0.70_p2_real_https_10k.json

@@ -3,8 +3,9 @@
 use std::collections::VecDeque;
 use std::fs;
 use std::sync::Mutex;
-use std::thread::available_parallelism;
 use std::time::Instant;
+
+use super::topology::CpuTopology;
 
 /// Classified hardware topology profile.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,11 +72,33 @@ impl QuantileLatencyTracker {
     }
 }
 
-/// Dynamic CPU utilization tracker calculating delta work over delta total from /proc/stat.
+/// Process-only CPU utilization sample.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ProcessCpuSample {
+    /// CPU utilization normalized by the process' effective worker capacity.
+    pub utilization_pct: f64,
+    /// Cumulative user + system CPU time consumed by this process.
+    pub process_cpu_time_s: f64,
+    /// False until two process tick samples have enough wall time between them.
+    pub valid: bool,
+}
+
+#[derive(Debug)]
+struct ProcessCpuState {
+    previous_ticks: Option<u64>,
+    previous_at: Instant,
+    last_utilization_pct: f64,
+}
+
+/// Dynamic CPU tracker using only `/proc/self/stat` utime + stime.
+///
+/// System-wide `/proc/stat` is intentionally not used: unrelated processes and
+/// a co-located benchmark origin must not influence PageSift's control loop.
 #[derive(Debug)]
 pub struct CpuSaturationTracker {
-    prev_work: Mutex<u64>,
-    prev_total: Mutex<u64>,
+    state: Mutex<ProcessCpuState>,
+    clock_ticks_per_second: f64,
+    assigned_cores: usize,
 }
 
 impl Default for CpuSaturationTracker {
@@ -86,49 +109,92 @@ impl Default for CpuSaturationTracker {
 
 impl CpuSaturationTracker {
     pub fn new() -> Self {
+        Self::with_assigned_cores(CpuTopology::detect().worker_cores)
+    }
+
+    pub fn with_assigned_cores(assigned_cores: usize) -> Self {
         Self {
-            prev_work: Mutex::new(0),
-            prev_total: Mutex::new(0),
+            state: Mutex::new(ProcessCpuState {
+                previous_ticks: None,
+                previous_at: Instant::now(),
+                last_utilization_pct: 0.0,
+            }),
+            clock_ticks_per_second: clock_ticks_per_second(),
+            assigned_cores: assigned_cores.max(1),
         }
     }
 
-    /// Returns current system-wide CPU utilization in percent (0.0% ~ 100.0%).
+    /// Returns current process CPU utilization in percent of assigned worker capacity.
     pub fn sample_utilization(&self) -> f64 {
-        if let Ok(stat) = fs::read_to_string("/proc/stat") {
-            if let Some(line) = stat.lines().next() {
-                let parts: Vec<u64> = line
-                    .split_whitespace()
-                    .skip(1)
-                    .filter_map(|s| s.parse().ok())
-                    .collect();
-                if parts.len() >= 4 {
-                    let user = parts[0];
-                    let nice = parts[1];
-                    let system = parts[2];
-                    let idle = parts[3];
-                    let iowait = parts.get(4).copied().unwrap_or(0);
-                    let irq = parts.get(5).copied().unwrap_or(0);
-                    let softirq = parts.get(6).copied().unwrap_or(0);
+        self.sample().utilization_pct
+    }
 
-                    let work = user + nice + system + irq + softirq;
-                    let total = work + idle + iowait;
+    pub fn sample(&self) -> ProcessCpuSample {
+        let now = Instant::now();
+        let ticks = read_process_cpu_ticks();
+        let mut state = self.state.lock().unwrap();
+        let total_seconds = ticks.unwrap_or(0) as f64 / self.clock_ticks_per_second;
+        let mut valid = false;
 
-                    let mut pw = self.prev_work.lock().unwrap();
-                    let mut pt = self.prev_total.lock().unwrap();
-
-                    let d_work = work.saturating_sub(*pw);
-                    let d_total = total.saturating_sub(*pt);
-                    *pw = work;
-                    *pt = total;
-
-                    if d_total > 0 {
-                        return ((d_work as f64 / d_total as f64) * 100.0).clamp(0.0, 100.0);
-                    }
-                }
+        if let (Some(previous), Some(current)) = (state.previous_ticks, ticks) {
+            let elapsed = now.duration_since(state.previous_at).as_secs_f64();
+            if elapsed >= 0.001 {
+                state.last_utilization_pct = process_utilization_pct(
+                    current.saturating_sub(previous),
+                    elapsed,
+                    self.clock_ticks_per_second,
+                    self.assigned_cores,
+                );
+                valid = true;
             }
         }
-        0.0
+        if ticks.is_some() {
+            state.previous_ticks = ticks;
+            state.previous_at = now;
+        }
+
+        ProcessCpuSample {
+            utilization_pct: state.last_utilization_pct,
+            process_cpu_time_s: total_seconds,
+            valid,
+        }
     }
+}
+
+fn read_process_cpu_ticks() -> Option<u64> {
+    parse_process_cpu_ticks(&fs::read_to_string("/proc/self/stat").ok()?)
+}
+
+fn parse_process_cpu_ticks(stat: &str) -> Option<u64> {
+    let command_end = stat.rfind(')')?;
+    let fields = stat
+        .get(command_end + 1..)?
+        .split_whitespace()
+        .collect::<Vec<_>>();
+    // Fields after comm start at proc field 3 (state); utime/stime are fields 14/15.
+    let utime = fields.get(11)?.parse::<u64>().ok()?;
+    let stime = fields.get(12)?.parse::<u64>().ok()?;
+    Some(utime.saturating_add(stime))
+}
+
+fn process_utilization_pct(
+    delta_ticks: u64,
+    elapsed_s: f64,
+    ticks_per_second: f64,
+    assigned_cores: usize,
+) -> f64 {
+    let capacity = elapsed_s.max(1e-6) * ticks_per_second.max(1.0) * assigned_cores.max(1) as f64;
+    (delta_ticks as f64 / capacity * 100.0).clamp(0.0, 100.0)
+}
+
+#[cfg(target_os = "linux")]
+fn clock_ticks_per_second() -> f64 {
+    rustix::param::clock_ticks_per_second().max(1) as f64
+}
+
+#[cfg(not(target_os = "linux"))]
+fn clock_ticks_per_second() -> f64 {
+    100.0
 }
 
 /// Real-time memory consumption rate of change (dRSS/dt) tracker.
@@ -176,6 +242,20 @@ impl RssDerivativeTracker {
 pub struct HardwareTopology {
     /// Number of logical CPU threads available.
     pub logical_cores: usize,
+    /// Number of distinct physical cores visible to the process.
+    pub physical_cores: usize,
+    /// Number of CPU sockets visible to the process.
+    pub sockets: usize,
+    /// Number of NUMA locality domains visible to the process.
+    pub numa_nodes: usize,
+    /// Hardware threads per physical core.
+    pub threads_per_core: usize,
+    /// Physical-core-first worker count after cgroup quota constraints.
+    pub worker_cores: usize,
+    /// Tokio workers including the bounded, NUMA-balanced SMT reserve.
+    pub runtime_workers: usize,
+    /// Full topology used for NUMA-local executor construction.
+    pub cpu_topology: CpuTopology,
     /// System file descriptor limit.
     pub fd_limit: usize,
     /// Topology category classification.
@@ -210,9 +290,9 @@ impl HardwareTopology {
     /// Auto-tunes scheduler parameters given graph topology (hosts, per_host).
     pub fn tune_for_graph(&self, hosts: usize, per_host: usize) -> AdaptiveSchedule {
         let per_host_conc = if per_host >= 5000 {
-            self.logical_cores.clamp(8, 32)
+            self.worker_cores.clamp(8, 32)
         } else {
-            (self.logical_cores / 2).clamp(2, 16)
+            (self.worker_cores / 2).clamp(2, 16)
         };
 
         let saturation_workers =
@@ -231,12 +311,14 @@ impl HardwareTopology {
     /// Detects current hardware and memory environment using the continuous C* model:
     /// C* = f(CPU, RAM, FD, Workload) without artificial step capping.
     pub fn detect() -> Self {
-        let cores = available_parallelism().map(|n| n.get()).unwrap_or(4);
+        let cpu_topology = CpuTopology::detect();
+        let cores = cpu_topology.worker_cores;
+        let runtime_workers = cpu_topology.runtime_worker_cpus().len();
         let mem = Self::read_memory();
         let fd_limit = detect_fd_limit();
 
         let total_mb = (mem.total_bytes / (1024 * 1024)) as usize;
-        let ram_per_core_mb = if cores > 0 { total_mb / cores } else { 512 };
+        let ram_per_core_mb = total_mb.checked_div(cores).unwrap_or(512);
 
         let category = if cores >= 16 && ram_per_core_mb >= 1024 {
             TopologyCategory::HighRamHighCores
@@ -253,9 +335,19 @@ impl HardwareTopology {
         let mem_cap = (mem.total_bytes / (2 * 1024 * 1024)) as usize;
         // FD cap: 70% of system file descriptors reserved for crawler sockets
         let fd_cap = (fd_limit * 7) / 10;
-        // CPU baseline: 16 concurrent streams per core (scales with 2, 4, 32, 80, 384+ cores)
-        let cpu_base = cores * 16;
-        let cpu_max = cores * 32;
+        // Start from physical-core capacity. One local NUMA domain can sustain deeper
+        // in-flight work, while additional domains expand workers rather than blindly
+        // multiplying every logical SMT thread.
+        let local_physical_cores = cpu_topology.physical_cores_per_numa();
+        // Begin large hosts with enough I/O depth to keep every physical core
+        // fed. This is an initial condition, not a ceiling; the online
+        // controller immediately challenges it in both directions.
+        let cpu_base = (cores * 16).max(local_physical_cores * 24);
+        // This is a resource safety boundary for adaptive exploration, not an
+        // assumed optimum. Slow or highly multiplexed I/O can need far more
+        // in-flight work than CPU-bound local parsing. The controller measures
+        // the response surface and may settle anywhere below this ceiling.
+        let cpu_max = (cores * 128).max(cpu_base * 2);
 
         let base_concurrency = cpu_base.min(mem_cap).min(fd_cap).max(4);
         let max_concurrency = cpu_max.min(mem_cap).min(fd_cap).max(base_concurrency);
@@ -265,11 +357,19 @@ impl HardwareTopology {
         let active_sites = (cores * 16).min(max_concurrency * 2).clamp(16, 2048);
 
         // Inflight buffer budget (proportional to total memory, clamped between 32MB and 2GB)
-        let inflight_budget = ((mem.total_bytes / 32) as usize).clamp(32 * 1024 * 1024, 2 * 1024 * 1024 * 1024);
+        let inflight_budget =
+            ((mem.total_bytes / 32) as usize).clamp(32 * 1024 * 1024, 2 * 1024 * 1024 * 1024);
         let batch_io = (cores * 512 * 1024).clamp(1024 * 1024, 64 * 1024 * 1024);
 
         Self {
-            logical_cores: cores,
+            logical_cores: cpu_topology.logical_cpus,
+            physical_cores: cpu_topology.physical_cores,
+            sockets: cpu_topology.sockets,
+            numa_nodes: cpu_topology.numa_nodes,
+            threads_per_core: cpu_topology.threads_per_core,
+            worker_cores: cpu_topology.worker_cores,
+            runtime_workers,
+            cpu_topology,
             fd_limit,
             category,
             ram_per_core_mb,
@@ -294,21 +394,35 @@ impl HardwareTopology {
                     if let Some(kb) = parse_kb(val) {
                         total_bytes = kb * 1024;
                     }
-                } else if let Some(val) = line.strip_prefix("MemAvailable:") {
-                    if let Some(kb) = parse_kb(val) {
-                        available_bytes = kb * 1024;
-                    }
+                } else if let Some(val) = line.strip_prefix("MemAvailable:")
+                    && let Some(kb) = parse_kb(val)
+                {
+                    available_bytes = kb * 1024;
                 }
             }
         }
 
-        // Check cgroup v2 memory limit (/sys/fs/cgroup/memory.max)
-        if let Ok(cgroup_max) = fs::read_to_string("/sys/fs/cgroup/memory.max") {
-            let trimmed = cgroup_max.trim();
-            if trimmed != "max" {
-                if let Ok(bytes) = trimmed.parse::<u64>() {
-                    total_bytes = total_bytes.min(bytes);
-                }
+        // Resolve the memory boundary that actually applies to this process.
+        // A systemd scope or container puts the real limit below the cgroup
+        // root, so reading only `/sys/fs/cgroup/memory.max` silently ignores
+        // it. Prefer the process's own cgroup, then fall back to the root
+        // (container) view.
+        let (cgroup_limit, cgroup_current) = read_cgroup_memory();
+        let address_space_limit = fs::read_to_string("/proc/self/limits")
+            .ok()
+            .and_then(|limits| parse_address_space_limit(&limits));
+        let effective_limit = match (cgroup_limit, address_space_limit) {
+            (Some(cgroup), Some(address_space)) => Some(cgroup.min(address_space)),
+            (Some(cgroup), None) => Some(cgroup),
+            (None, Some(address_space)) => Some(address_space),
+            (None, None) => None,
+        };
+        if let Some(limit) = effective_limit {
+            total_bytes = total_bytes.min(limit);
+            if let Some(current) = cgroup_current {
+                available_bytes = available_bytes.min(limit.saturating_sub(current));
+            } else {
+                available_bytes = available_bytes.min(limit);
             }
         }
 
@@ -326,10 +440,10 @@ impl HardwareTopology {
         if let Ok(statm) = fs::read_to_string("/proc/self/statm") {
             let mut parts = statm.split_whitespace();
             let _total_pages = parts.next();
-            if let Some(resident_pages_str) = parts.next() {
-                if let Ok(pages) = resident_pages_str.parse::<u64>() {
-                    return pages * 4096;
-                }
+            if let Some(resident_pages_str) = parts.next()
+                && let Ok(pages) = resident_pages_str.parse::<u64>()
+            {
+                return pages * 4096;
             }
         }
         0
@@ -341,10 +455,10 @@ pub fn detect_fd_limit() -> usize {
         for line in limits.lines() {
             if line.starts_with("Max open files") {
                 let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 5 {
-                    if let Ok(soft) = parts[3].parse::<usize>() {
-                        return soft;
-                    }
+                if parts.len() >= 5
+                    && let Ok(soft) = parts[3].parse::<usize>()
+                {
+                    return soft;
                 }
             }
         }
@@ -353,9 +467,123 @@ pub fn detect_fd_limit() -> usize {
 }
 
 fn parse_kb(s: &str) -> Option<u64> {
-    let mut parts = s.trim().split_whitespace();
+    let mut parts = s.split_whitespace();
     let num_str = parts.next()?;
     num_str.parse::<u64>().ok()
+}
+
+fn parse_cgroup_limit(value: &str) -> Option<u64> {
+    let value = value.trim();
+    if value == "max" {
+        None
+    } else {
+        value.parse::<u64>().ok().filter(|limit| *limit > 0)
+    }
+}
+
+fn cgroup_v2_base(path: &str) -> String {
+    let path = path.trim();
+    if path == "/" {
+        "/sys/fs/cgroup".to_string()
+    } else {
+        format!("/sys/fs/cgroup{path}")
+    }
+}
+
+/// Candidate `(limit_path, current_path)` pairs for this process's memory
+/// cgroup, ordered from the most specific view to the container/root view.
+fn cgroup_memory_candidates() -> Vec<(String, String)> {
+    let mut candidates = Vec::new();
+    if let Ok(cgroup) = fs::read_to_string("/proc/self/cgroup") {
+        for line in cgroup.lines() {
+            let Some(path) = line.strip_prefix("0::") else {
+                continue;
+            };
+            let base = cgroup_v2_base(path);
+            candidates.push((
+                format!("{base}/memory.max"),
+                format!("{base}/memory.current"),
+            ));
+        }
+        for line in cgroup.lines() {
+            let mut parts = line.splitn(3, ':');
+            let _id = parts.next();
+            let controllers = parts.next().unwrap_or("");
+            let path = parts.next().unwrap_or("").trim();
+            if !controllers
+                .split(',')
+                .any(|controller| controller == "memory")
+            {
+                continue;
+            }
+            let base = format!("/sys/fs/cgroup/memory{path}");
+            candidates.push((
+                format!("{base}/memory.limit_in_bytes"),
+                format!("{base}/memory.usage_in_bytes"),
+            ));
+        }
+    }
+    // Container and root fallbacks. In a container with a private cgroup
+    // namespace these paths carry the container boundary.
+    candidates.push((
+        "/sys/fs/cgroup/memory.max".to_string(),
+        "/sys/fs/cgroup/memory.current".to_string(),
+    ));
+    candidates.push((
+        "/sys/fs/cgroup/memory/memory.limit_in_bytes".to_string(),
+        "/sys/fs/cgroup/memory/memory.usage_in_bytes".to_string(),
+    ));
+    candidates
+}
+
+/// Returns the tightest finite memory limit and the matching current usage
+/// found across the process's own cgroup and its root fallbacks.
+fn read_cgroup_memory() -> (Option<u64>, Option<u64>) {
+    let mut best: Option<(u64, Option<u64>)> = None;
+    for (limit_path, current_path) in cgroup_memory_candidates() {
+        let limit = fs::read_to_string(limit_path)
+            .ok()
+            .and_then(|value| parse_cgroup_limit(&value));
+        let current = fs::read_to_string(current_path)
+            .ok()
+            .and_then(|value| value.trim().parse::<u64>().ok());
+        match limit {
+            Some(limit) => {
+                if best
+                    .as_ref()
+                    .map_or(true, |(best_limit, _)| limit < *best_limit)
+                {
+                    best = Some((limit, current));
+                }
+            }
+            None => {
+                if best.is_none() && current.is_some() {
+                    // Remember usage while still looking for an ancestor limit.
+                    best = Some((u64::MAX, current));
+                }
+            }
+        }
+    }
+    match best {
+        Some((u64::MAX, current)) => (None, current),
+        Some((limit, current)) => (Some(limit), current),
+        None => (None, None),
+    }
+}
+
+/// Parses the soft `RLIMIT_AS` value from `/proc/self/limits`. `unlimited`
+/// yields `None`; a finite byte count is an additional upper bound.
+fn parse_address_space_limit(limits: &str) -> Option<u64> {
+    for line in limits.lines() {
+        if !line.starts_with("Max address space") {
+            continue;
+        }
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 5 {
+            return parts[3].parse::<u64>().ok().filter(|limit| *limit > 0);
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -382,5 +610,46 @@ mod tests {
         assert!((p50 - 51.0).abs() <= 2.0);
         assert!((p95 - 96.0).abs() <= 2.0);
         assert!((p99 - 100.0).abs() <= 2.0);
+    }
+
+    #[test]
+    fn parses_process_ticks_when_command_contains_spaces_and_parentheses() {
+        let stat = "123 (page sift ) worker) R 1 2 3 4 5 6 7 8 9 10 120 30";
+        assert_eq!(parse_process_cpu_ticks(stat), Some(150));
+    }
+
+    #[test]
+    fn normalizes_process_cpu_by_assigned_worker_capacity() {
+        assert!((process_utilization_pct(800, 1.0, 100.0, 8) - 100.0).abs() < 1e-9);
+        assert!((process_utilization_pct(200, 1.0, 100.0, 8) - 25.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn parses_cgroup_memory_limits() {
+        assert_eq!(parse_cgroup_limit("1073741824\n"), Some(1_073_741_824));
+        assert_eq!(parse_cgroup_limit("max\n"), None);
+    }
+
+    #[test]
+    fn resolves_own_cgroup_v2_path() {
+        assert_eq!(cgroup_v2_base("/"), "/sys/fs/cgroup");
+        assert_eq!(
+            cgroup_v2_base("/user.slice/user-1001.slice/s1.scope"),
+            "/sys/fs/cgroup/user.slice/user-1001.slice/s1.scope"
+        );
+    }
+
+    #[test]
+    fn parses_address_space_limit_from_proc_limits() {
+        let unlimited =
+            "Max address space         unlimited            unlimited            bytes\n";
+        assert_eq!(parse_address_space_limit(unlimited), None);
+
+        let limited = "Max address space         536870912            536870912            bytes\n";
+        assert_eq!(parse_address_space_limit(limited), Some(536_870_912));
+
+        let mixed = "Max open files            1048576              1048576              files\n\
+                     Max address space         1073741824           1073741824           bytes\n";
+        assert_eq!(parse_address_space_limit(mixed), Some(1_073_741_824));
     }
 }

@@ -7,7 +7,7 @@ use pagesift_api::ApiError;
 use pagesift_api::types::{CrawlSummary, ScrapeOptions};
 use pagesift_net::Url;
 use pagesift_policy::RobotsMode;
-use tokio::sync::Semaphore;
+use pagesift_policy::adaptive::AdaptiveConcurrencyGate;
 
 use crate::engine::Scraper;
 use crate::focus::{Adaptive, BestFirst, Focus, Offer, link_contexts};
@@ -24,7 +24,7 @@ impl Scraper {
         url: &Url,
         opts: &ScrapeOptions,
         mode: RobotsMode,
-        slots: &Semaphore,
+        slots: &AdaptiveConcurrencyGate,
     ) -> Result<pagesift_api::types::Document, ApiError> {
         let host = url.host_str().unwrap_or_default();
         if let Err(wait) = self.policy().backoff().check(host)
@@ -32,8 +32,12 @@ impl Scraper {
         {
             tokio::time::sleep(wait).await;
         }
-        let _slot = slots.acquire().await.expect("semaphore never closed");
-        Box::pin(self.scrape_with(url.as_str(), opts, mode)).await
+        let queued_at = std::time::Instant::now();
+        let _slot = slots.acquire().await;
+        let queue_wait = queued_at.elapsed();
+        let result = Box::pin(self.scrape_with(url.as_str(), opts, mode)).await;
+        self.observe_crawl(queue_wait, result.is_err());
+        result
     }
 
     /// 广度优先爬取。
@@ -91,7 +95,8 @@ impl Scraper {
         let wants_links = req.scrape_options.wants("links");
         let wants_md = req.scrape_options.wants("markdown");
         // 判断重复内容要看正文
-        let (opts, concurrency) = self.crawl_settings(req, &["markdown"]);
+        let (opts, _) = self.crawl_settings(req, &["markdown"]);
+        let concurrency_ceiling = req.max_concurrency.unwrap_or(usize::MAX).max(1);
         let slots = self.crawl_slots();
         let delay = req.delay.map(Duration::from_secs_f64);
 
@@ -101,7 +106,7 @@ impl Scraper {
             if sink.cancelled().await {
                 return Ok(());
             }
-            while inflight.len() < concurrency {
+            while inflight.len() < self.concurrency().min(concurrency_ceiling) {
                 let pick = loop {
                     if let Some((u, d, a)) = retries.due() {
                         break Some((u, d, a, false));
@@ -314,7 +319,8 @@ impl Scraper {
 
         let wants_links = req.scrape_options.wants("links");
         let wants_md = req.scrape_options.wants("markdown");
-        let (opts, concurrency) = self.crawl_settings(req, &["markdown"]);
+        let (opts, _) = self.crawl_settings(req, &["markdown"]);
+        let concurrency_ceiling = req.max_concurrency.unwrap_or(usize::MAX).max(1);
         let slots = self.crawl_slots();
         let delay = req.delay.map(Duration::from_secs_f64);
 
@@ -326,7 +332,7 @@ impl Scraper {
                 stop = Some("cancelled");
                 break;
             }
-            while stop.is_none() && inflight.len() < concurrency {
+            while stop.is_none() && inflight.len() < self.concurrency().min(concurrency_ceiling) {
                 let pick = match retries.due() {
                     Some(r) => Some(r),
                     None if scheduled < req.limit => queue.pop().map(|(u, d, _)| {

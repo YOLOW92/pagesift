@@ -1,0 +1,31 @@
+============================================================
+  PageSift P2 NUMA-Local Fixed-Slot Runner
+  Topology: 192 logical / 96 physical / 2 sockets / 4 NUMA
+  Tasks: 10000000
+  Fixed slots: 1536 / connection pools: 96
+  Node 0 (NUMA 0, socket 0): 48 CPUs / 384 slots / 24 pools
+  Node 1 (NUMA 1, socket 0): 48 CPUs / 384 slots / 24 pools
+  Node 2 (NUMA 2, socket 1): 48 CPUs / 384 slots / 24 pools
+  Node 3 (NUMA 3, socket 1): 48 CPUs / 384 slots / 24 pools
+============================================================
+[7.07%]  707322.8 pages/s | completed 707373 | failed 0 | process CPU 129.74 cores
+[14.81%]  773674.9 pages/s | completed 1481119 | failed 0 | process CPU 134.78 cores
+[22.59%]  777785.8 pages/s | completed 2258963 | failed 0 | process CPU 137.30 cores
+[30.40%]  780922.9 pages/s | completed 3040199 | failed 0 | process CPU 138.60 cores
+[38.23%]  782513.3 pages/s | completed 3822771 | failed 0 | process CPU 139.33 cores
+[46.09%]  784989.3 pages/s | completed 4609443 | failed 0 | process CPU 139.91 cores
+[53.92%]  782135.7 pages/s | completed 5391742 | failed 0 | process CPU 140.30 cores
+[61.74%]  781701.4 pages/s | completed 6173642 | failed 0 | process CPU 140.61 cores
+[69.57%]  782812.8 pages/s | completed 6956512 | failed 0 | process CPU 140.84 cores
+[77.33%]  776469.4 pages/s | completed 7733164 | failed 0 | process CPU 141.00 cores
+[85.13%]  779798.6 pages/s | completed 8513015 | failed 0 | process CPU 141.15 cores
+[92.88%]  774180.1 pages/s | completed 9287527 | failed 0 | process CPU 141.27 cores
+[99.91%]  702958.2 pages/s | completed 9990677 | failed 0 | process CPU 140.24 cores
+[100.00%]    9322.2 pages/s | completed 10000000 | failed 0 | process CPU 130.35 cores
+============================================================
+  Sustained QPS: 712549.66
+  Completed: 10000000 / 10000000
+  Failed: 0
+  Runner CPU: 130.35 core-s/s (67.89% of 192)
+  Report: bench/results/0.70_p2_step2_numa_nodeset_run2.json
+============================================================

@@ -1,0 +1,5 @@
+{
+  "limit": "ulimit -v 262144 (256 MiB address space)",
+  "observed": "crawl 启动后 600 s 内输出 0 页、无错误输出、进程 CPU 0%（挂起而非优雅降级）",
+  "verdict": "内存约束下不降级，直接挂死"
+}

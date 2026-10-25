@@ -1,0 +1,3 @@
+transport_only       721079.9 ops/s |   27.74s | CPU   42.76 core-s/s ( 22.3% of 192) | failed 0 |    960.0 MiB/s
+  sampled=4883 | url mean/p95 0.57/1.30 us | headers 2136.24/4561.91 us | body 1.96/3.46 us | content 0.19/0.28 us | recycle 1.52/2.29 us
+report=bench/results/0.70_p2_step1_transport_profile.json

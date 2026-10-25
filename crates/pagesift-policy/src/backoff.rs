@@ -28,6 +28,9 @@ impl Default for BackoffConfig {
 struct Health {
     /// 连续的 5xx、网络错误、超时
     failures: u32,
+    /// 本轮已失败的**不同 URL**（同一 URL 的重试不再累加）。
+    /// 单个永久失败的 URL 不该让整个站点进入指数冷却。
+    failed_urls: Vec<String>,
     /// 连续的限流（429、带 Retry-After 的 503）。和 `failures` 分开计：几次限流不该让一次偶发的 5xx
     /// 直接跳到很长的冷却
     throttles: u32,
@@ -40,6 +43,8 @@ pub struct Backoff {
 }
 
 const PRUNE_AT: usize = 4096;
+/// 单个主机最多记住多少个失败 URL，防止内存随坏链增长。
+const MAX_TRACKED_FAILED_URLS: usize = 64;
 
 impl Backoff {
     pub fn new(config: BackoffConfig) -> Self {
@@ -82,6 +87,29 @@ impl Backoff {
         self.update(host, |h| {
             h.throttles = h.throttles.saturating_add(1);
             Some(retry_after.unwrap_or_else(|| exp_backoff(cfg, h.throttles - 1)))
+        });
+    }
+
+    /// 单个 URL 的失败（超时、网络错误）。按"不同 URL"计数，同一 URL 重试不累加；
+    /// 达到阈值后进入**固定**的 base_cooldown，并在触发后清零重计，不指数膨胀。
+    ///
+    /// 动机：真实站点里常有少量永久慢/永久坏的 URL。按原来"每次失败都累加并指数增长"
+    /// 的做法，一个卡住的 URL 重试几次就能让整站进入 10 s→600 s 的全局冷却，
+    /// 而冷却期内不可能有成功请求来清除它，形成自我强化的停顿。
+    pub fn on_url_failure(&self, host: &str, url_key: &str) {
+        let cfg = &self.config;
+        self.update(host, |h| {
+            if h.failed_urls.iter().any(|u| u == url_key) {
+                return None;
+            }
+            if h.failed_urls.len() >= MAX_TRACKED_FAILED_URLS {
+                h.failed_urls.clear();
+            }
+            h.failed_urls.push(url_key.to_string());
+            (h.failed_urls.len() as u32 >= cfg.failure_threshold).then(|| {
+                h.failed_urls.clear();
+                cfg.base_cooldown
+            })
         });
     }
 
@@ -154,6 +182,33 @@ mod tests {
         b.on_success("a.com");
         b.on_failure("a.com");
         assert!(b.check("a.com").is_ok(), "success resets the streak");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn one_sticky_bad_url_does_not_freeze_the_host() {
+        // 同一个 URL 反复失败（例如永久超时）只是这一页的问题，不该让整站进入冷却。
+        let b = backoff();
+        for _ in 0..10 {
+            b.on_url_failure("a.com", "http://a.com/slow");
+        }
+        assert!(
+            b.check("a.com").is_ok(),
+            "retries of a single URL must not pause the whole host"
+        );
+
+        // 不同 URL 累计到阈值才冷却，且冷却时长固定为 base_cooldown，不指数增长。
+        b.on_url_failure("a.com", "http://a.com/x");
+        b.on_url_failure("a.com", "http://a.com/y");
+        assert_eq!(b.check("a.com"), Err(Duration::from_secs(10)));
+        tokio::time::advance(Duration::from_secs(10)).await;
+        for u in ["p", "q", "r"] {
+            b.on_url_failure("a.com", u);
+        }
+        assert_eq!(
+            b.check("a.com"),
+            Err(Duration::from_secs(10)),
+            "URL-level cooldown stays flat instead of doubling"
+        );
     }
 
     #[tokio::test(start_paused = true)]

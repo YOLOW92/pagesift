@@ -1,0 +1,30 @@
+{
+  "fixture_modalities": 5,
+  "iterations_per_mode": 10000000,
+  "logical_cpus": 192,
+  "numa_nodes": 4,
+  "origin_url": "http://127.0.0.1:19800",
+  "physical_cores": 96,
+  "results": [
+    {
+      "assigned_cpus": 192,
+      "bytes": 13960000000,
+      "failed": 0,
+      "mode": "content_workspace",
+      "operations": 10000000,
+      "operations_per_s": 2005448.7082799482,
+      "peak_rss_bytes": 168943616,
+      "process_cpu_cores": 180.31189881015843,
+      "process_cpu_pct_of_assigned": 93.91244729695751,
+      "process_cpu_time_s": 899.11,
+      "shards": 0,
+      "stage_profile": null,
+      "throughput_mb_s": 2669.9127166355206,
+      "valid": 10000000,
+      "wall_time_s": 4.986415239,
+      "workers_or_slots": 192
+    }
+  ],
+  "schema": 1,
+  "sockets": 2
+}

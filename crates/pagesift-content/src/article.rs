@@ -118,6 +118,7 @@ pub(crate) fn has_paragraph(node: &NodeR<'_>, skipper: &Skipper) -> bool {
         .any(|d| d.tag() == Some(Tag::P) && skipper.content_chars(&d) >= 80 && !skipper.skip(&d))
 }
 
+
 /// 文章模式里整个去掉的标签（trafilatura 的 MANUALLY_CLEANED 里 pagesift 默认还保留的那些）：
 /// 题图和图注、表单和按钮、时间戳。
 pub(crate) fn is_cleaned_tag(tag: Tag) -> bool {
@@ -285,13 +286,14 @@ fn with_headline<'a>(
                 .descendants()
                 .find(|n| n.tag() == Some(Tag::Title))?
                 .text();
+            let signature = TitleSignature::new(&title);
             dom.root().descendants().find(|n| {
                 n.tag() == Some(Tag::H1)
                     && !skipper.skip(n)
                     && !n
                         .ancestors()
                         .any(|a| skipper.skip(&a) || a.tag() == Some(Tag::Article))
-                    && title_agrees(&title, &n.text())
+                    && title_agrees_with(&signature, &n.text())
             })
         })
     else {
@@ -318,27 +320,130 @@ fn with_headline<'a>(
     (root, (!title.is_empty()).then_some(title))
 }
 
-pub(crate) fn title_agrees(title: &str, heading: &str) -> bool {
-    let title = title.to_lowercase();
-    let heading = heading.to_lowercase();
-    let normalized = |s: &str| {
-        s.chars()
+/// Lowercase/alphanumeric form of a page title. The same title is compared
+/// against every candidate heading on the page, so building the normalized
+/// form and word list once avoids a lowercase allocation plus a word-set
+/// allocation for each heading.
+pub(crate) struct TitleSignature {
+    normalized: String,
+    words: Vec<String>,
+}
+
+impl TitleSignature {
+    pub(crate) fn new(title: &str) -> Self {
+        let lower = title.to_lowercase();
+        let normalized = lower
+            .chars()
             .filter(|c| c.is_alphanumeric())
-            .collect::<String>()
+            .collect::<String>();
+        let words = lower
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|word| word.chars().count() > 2)
+            .map(str::to_owned)
+            .collect();
+        Self { normalized, words }
+    }
+}
+
+pub(crate) fn title_agrees_with(signature: &TitleSignature, heading: &str) -> bool {
+    if heading.is_ascii() {
+        return title_agrees_ascii(signature, heading);
+    }
+    title_agrees_allocating(signature, heading)
+}
+
+/// ASCII fast path: normalize the heading into a stack buffer instead of
+/// allocating a lowercase `String` plus a second normalized `String` for every
+/// candidate heading on the page.
+fn title_agrees_ascii(signature: &TitleSignature, heading: &str) -> bool {
+    let mut needle = [0u8; 128];
+    let mut len = 0usize;
+    for byte in heading.bytes() {
+        let byte = byte.to_ascii_lowercase();
+        if !byte.is_ascii_alphanumeric() {
+            continue;
+        }
+        if len == needle.len() {
+            return title_agrees_allocating(signature, heading);
+        }
+        needle[len] = byte;
+        len += 1;
+    }
+    if len >= 8 {
+        let needle = std::str::from_utf8(&needle[..len]).expect("ASCII buffer");
+        if signature.normalized.contains(needle) {
+            return true;
+        }
+    }
+    // Deduplicate heading words the way the old HashSet did, without hashing
+    // or per-word allocation: headings have only a handful of words.
+    let mut heading_words = [""; 16];
+    let mut count = 0usize;
+    for word in heading.split(|c: char| !c.is_ascii_alphanumeric()) {
+        if word.len() <= 2 {
+            continue;
+        }
+        if heading_words[..count]
+            .iter()
+            .any(|existing| existing.eq_ignore_ascii_case(word))
+        {
+            continue;
+        }
+        if count == heading_words.len() {
+            break;
+        }
+        heading_words[count] = word;
+        count += 1;
+    }
+    if count < 2 {
+        return false;
+    }
+    let matches = heading_words[..count]
+        .iter()
+        .filter(|word| {
+            signature
+                .words
+                .iter()
+                .any(|title_word| title_word.eq_ignore_ascii_case(word))
+        })
+        .count();
+    matches * 5 >= count * 4
+}
+
+fn title_agrees_allocating(signature: &TitleSignature, heading: &str) -> bool {
+    let heading = heading.to_lowercase();
+    let normalized = heading
+        .chars()
+        .filter(|c| c.is_alphanumeric())
+        .collect::<String>();
+    let normalized_len = if normalized.is_ascii() {
+        normalized.len()
+    } else {
+        normalized.chars().count()
     };
-    let key = normalized(&heading);
-    if key.chars().count() >= 8 && normalized(&title).contains(&key) {
+    if normalized_len >= 8 && signature.normalized.contains(&normalized) {
         return true;
     }
-    let words = |s: &str| {
-        s.split(|c: char| !c.is_alphanumeric())
-            .filter(|w| w.chars().count() > 2)
-            .map(str::to_owned)
-            .collect::<std::collections::HashSet<_>>()
-    };
-    let tw = words(&title);
-    let hw = words(&heading);
-    hw.len() >= 2 && hw.intersection(&tw).count() * 5 >= hw.len() * 4
+    // Deduplicate heading words the way the old HashSet did, but without
+    // hashing or per-word allocation: headings have only a handful of words.
+    let mut heading_words: Vec<&str> = Vec::new();
+    for word in heading.split(|c: char| !c.is_alphanumeric()) {
+        if word.chars().count() > 2 && !heading_words.contains(&word) {
+            heading_words.push(word);
+        }
+    }
+    if heading_words.len() < 2 {
+        return false;
+    }
+    let matches = heading_words
+        .iter()
+        .filter(|word| signature.words.iter().any(|title_word| title_word == *word))
+        .count();
+    matches * 5 >= heading_words.len() * 4
+}
+
+pub(crate) fn title_agrees(title: &str, heading: &str) -> bool {
+    title_agrees_with(&TitleSignature::new(title), heading)
 }
 
 /// Bind a document headline to its owning article, rather than choosing the
@@ -350,6 +455,7 @@ pub(crate) fn headline_owner<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option
         .find(|n| n.tag() == Some(Tag::Title))?
         .text()
         .to_lowercase();
+    let signature = TitleSignature::new(&title);
     let mut owner = None;
     for h in dom
         .root()
@@ -359,7 +465,7 @@ pub(crate) fn headline_owner<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option
         if skipper.skip(&h) || h.ancestors().any(|a| skipper.skip(&a)) {
             continue;
         }
-        if !title_agrees(&title, &h.text()) {
+        if !title_agrees_with(&signature, &h.text()) {
             continue;
         }
         let Some(article) = h.ancestors().find(|a| a.tag() == Some(Tag::Article)) else {
@@ -466,4 +572,132 @@ fn descend<'a>(mut node: NodeR<'a>, skipper: &Skipper) -> NodeR<'a> {
             _ => return node,
         }
     }
+}
+
+#[cfg(test)]
+mod title_tests {
+    use super::{TitleSignature, title_agrees, title_agrees_allocating, title_agrees_ascii};
+
+    #[test]
+    fn title_agrees_matches_normalized_containment() {
+        assert!(title_agrees(
+            "Global Market Tech Breakthrough News Item #1",
+            "Global Market Tech Breakthrough News Item #1"
+        ));
+    }
+
+    #[test]
+    fn title_agrees_counts_unique_heading_words() {
+        // Duplicate heading words must collapse exactly like the old HashSet.
+        assert!(title_agrees("alpha beta gamma", "alpha alpha alpha gamma"));
+        assert!(!title_agrees("alpha beta gamma", "alpha alpha alpha delta"));
+    }
+
+    #[test]
+    fn title_agrees_rejects_unrelated_heading() {
+        assert!(!title_agrees(
+            "Global Market News",
+            "Completely Different Topic"
+        ));
+    }
+
+    #[test]
+    fn ascii_fast_path_matches_allocating_path() {
+        let titles = [
+            "Global Market Tech Breakthrough News Item #1",
+            "alpha beta gamma",
+            "A",
+            "Short",
+            "Café résumé naïve",
+        ];
+        let headings = [
+            "Global Market Tech Breakthrough News Item #1",
+            "GLOBAL market tech",
+            "alpha alpha alpha gamma",
+            "alpha beta delta",
+            "a",
+            "ab cd",
+            "Café résumé",
+            "naïve café",
+            "",
+        ];
+        for title in titles {
+            let signature = TitleSignature::new(title);
+            for heading in headings {
+                if !heading.is_ascii() {
+                    continue;
+                }
+                assert_eq!(
+                    title_agrees_ascii(&signature, heading),
+                    title_agrees_allocating(&signature, heading),
+                    "title={title:?} heading={heading:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn non_ascii_heading_still_uses_the_allocating_path() {
+        assert!(title_agrees("Café résumé naïve", "café résumé naïve"));
+        assert!(!title_agrees("Café résumé naïve", "完全不同的标题"));
+    }
+}
+
+/// 页面是否**明显不是**一篇文章：链接墙、列表/卡片主导、几乎没有散文段落。
+///
+/// 只做"排除"，不做"确认"。原因是实测（WebMainBench 800 页 + WCXB 2,006 页）：
+/// - 强行给所有页面收窄：WebMainBench 0.6406、WCXB 0.6672
+/// - 要求结构"像文章"才收窄：WebMainBench 0.6013（掉 0.039）、WCXB 0.6744（只涨 0.007）
+///
+/// 也就是说"确认像文章"这个判据误杀太多真文章页，得不偿失。
+/// 这里改成只排除结构上明确是列表/卡片/链接墙的页面，其余一律照常收窄。
+pub(crate) fn clearly_not_article(dom: &Html<'_>, skipper: &Skipper) -> bool {
+    let body = dom.body();
+    let (total, link_chars, _) = skipper.stats(&body);
+    if total < 400 {
+        // 文字太少，谈不上是文章；交给后续兜底
+        return false;
+    }
+    // 链接文字占七成以上：导航页、目录页、链接墙
+    if link_chars * 100 >= total * 70 {
+        return true;
+    }
+    let mut prose_chars = 0usize;
+    let mut structured = 0usize;
+    for n in body.descendants() {
+        if skipper.skip(&n) {
+            continue;
+        }
+        match n.tag() {
+            Some(Tag::P) => prose_chars += skipper.content_chars(&n),
+            Some(Tag::Li | Tag::Td | Tag::Th) => structured += skipper.content_chars(&n),
+            _ => {}
+        }
+    }
+    // 列表项与表格单元格的文字是散文的 4 倍以上：商品列表、聚合页、数据表页
+    structured >= prose_chars.max(1) * 4
+}
+
+/// 诊断用：返回各项判据的实际取值，便于调阈值（不参与生产逻辑）。
+pub(crate) fn article_shape_stats(dom: &Html<'_>, skipper: &Skipper) -> (usize, usize, usize, usize, usize) {
+    let body = dom.body();
+    let (total, link_chars, _) = skipper.stats(&body);
+    let mut paras = 0usize;
+    let mut prose = 0usize;
+    let mut structured = 0usize;
+    for n in body.descendants() {
+        if skipper.skip(&n) {
+            continue;
+        }
+        match n.tag() {
+            Some(Tag::P) => {
+                let c = skipper.content_chars(&n);
+                if c >= 80 { paras += 1; }
+                prose += c;
+            }
+            Some(Tag::Li | Tag::Td | Tag::Th) => structured += skipper.content_chars(&n),
+            _ => {}
+        }
+    }
+    (total, link_chars, paras, prose, structured)
 }

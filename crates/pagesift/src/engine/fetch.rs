@@ -121,11 +121,24 @@ impl Scraper {
         if is_pdf(&resp.body, resp.content_type()) {
             let t = Instant::now();
             let body = resp.body;
-            let pdf = cpu_task(move || pagesift_pdf::extract(&body))
-                .await?
-                .map_err(|e| {
-                    ApiError::new(ErrorCode::UpstreamError, format!("could not read PDF: {e}"))
-                })?;
+            let parse_stage = self
+                .policy
+                .fetcher()
+                .acquire_stage(pagesift_net::NetworkStage::Parse)
+                .await;
+            let pdf = match cpu_task(move || pagesift_pdf::extract(&body)).await? {
+                Ok(pdf) => {
+                    parse_stage.finish(pagesift_net::StageOutcome::Success);
+                    pdf
+                }
+                Err(error) => {
+                    parse_stage.finish(pagesift_net::StageOutcome::DeterministicFailure);
+                    return Err(ApiError::new(
+                        ErrorCode::UpstreamError,
+                        format!("could not read PDF: {error}"),
+                    ));
+                }
+            };
             timings.insert("pdf".into(), ms(t.elapsed()));
             if pdf.scanned {
                 warnings
@@ -160,7 +173,21 @@ impl Scraper {
         };
         let html = resp.take_text().text;
         let t = Instant::now();
-        let (doc, html) = process_html(html, &resp.final_url, Some(resp.status), opts).await?;
+        let parse_stage = self
+            .policy
+            .fetcher()
+            .acquire_stage(pagesift_net::NetworkStage::Parse)
+            .await;
+        let (doc, html) = match process_html(html, &resp.final_url, Some(resp.status), opts).await {
+            Ok(result) => {
+                parse_stage.finish(pagesift_net::StageOutcome::Success);
+                result
+            }
+            Err(error) => {
+                parse_stage.finish(pagesift_net::StageOutcome::DeterministicFailure);
+                return Err(error);
+            }
+        };
         timings.insert("extract".into(), ms(t.elapsed()));
         // 拦截页如实报告，不升级到浏览器：用真浏览器去过挑战页就是绕过
         check_barrier(&doc)?;

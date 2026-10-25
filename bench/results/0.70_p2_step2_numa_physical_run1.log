@@ -1,0 +1,45 @@
+============================================================
+  PageSift P2 NUMA-Local Fixed-Slot Runner
+  Topology: 192 logical / 96 physical / 2 sockets / 4 NUMA
+  Tasks: 10000000
+  Fixed slots: 1536 / connection pools: 96
+  Node 0 (NUMA 0, socket 0): 24 CPUs / 384 slots / 24 pools
+  Node 1 (NUMA 1, socket 0): 24 CPUs / 384 slots / 24 pools
+  Node 2 (NUMA 2, socket 1): 24 CPUs / 384 slots / 24 pools
+  Node 3 (NUMA 3, socket 1): 24 CPUs / 384 slots / 24 pools
+============================================================
+[3.35%]  334912.3 pages/s | completed 334938 | failed 0 | process CPU  80.06 cores
+[7.05%]  370447.0 pages/s | completed 705411 | failed 0 | process CPU  83.85 cores
+[10.78%]  372086.9 pages/s | completed 1077531 | failed 0 | process CPU  85.21 cores
+[14.49%]  371917.5 pages/s | completed 1449474 | failed 0 | process CPU  85.81 cores
+[18.22%]  372623.5 pages/s | completed 1822124 | failed 0 | process CPU  86.27 cores
+[21.93%]  371243.6 pages/s | completed 2193398 | failed 0 | process CPU  86.54 cores
+[25.69%]  375422.6 pages/s | completed 2568850 | failed 0 | process CPU  86.82 cores
+[29.44%]  375345.5 pages/s | completed 2944228 | failed 0 | process CPU  87.02 cores
+[33.19%]  374559.4 pages/s | completed 3318817 | failed 0 | process CPU  87.12 cores
+[36.92%]  373512.4 pages/s | completed 3692358 | failed 0 | process CPU  87.16 cores
+[40.66%]  373917.2 pages/s | completed 4066304 | failed 0 | process CPU  87.21 cores
+[44.41%]  374892.3 pages/s | completed 4441226 | failed 0 | process CPU  87.30 cores
+[48.16%]  374712.9 pages/s | completed 4815966 | failed 0 | process CPU  87.37 cores
+[51.91%]  374927.7 pages/s | completed 5190923 | failed 0 | process CPU  87.43 cores
+[55.65%]  373659.6 pages/s | completed 5564612 | failed 0 | process CPU  87.45 cores
+[59.39%]  374070.9 pages/s | completed 5938723 | failed 0 | process CPU  87.48 cores
+[63.13%]  374627.4 pages/s | completed 6313382 | failed 0 | process CPU  87.50 cores
+[66.87%]  373819.6 pages/s | completed 6687232 | failed 0 | process CPU  87.51 cores
+[70.62%]  375219.4 pages/s | completed 7062481 | failed 0 | process CPU  87.55 cores
+[74.36%]  373412.0 pages/s | completed 7435922 | failed 0 | process CPU  87.54 cores
+[78.08%]  372124.8 pages/s | completed 7808077 | failed 0 | process CPU  87.54 cores
+[81.83%]  375342.4 pages/s | completed 8183449 | failed 0 | process CPU  87.56 cores
+[85.59%]  375319.2 pages/s | completed 8558798 | failed 0 | process CPU  87.58 cores
+[89.34%]  374683.7 pages/s | completed 8933514 | failed 0 | process CPU  87.58 cores
+[93.09%]  375229.7 pages/s | completed 9308774 | failed 0 | process CPU  87.59 cores
+[96.84%]  374982.5 pages/s | completed 9683787 | failed 0 | process CPU  87.62 cores
+[99.93%]  309038.1 pages/s | completed 9992849 | failed 0 | process CPU  86.67 cores
+[100.00%]    7150.4 pages/s | completed 10000000 | failed 0 | process CPU  83.61 cores
+============================================================
+  Sustained QPS: 356519.83
+  Completed: 10000000 / 10000000
+  Failed: 0
+  Runner CPU: 83.61 core-s/s (43.55% of 192)
+  Report: bench/results/0.70_p2_step2_numa_physical_run1.json
+============================================================

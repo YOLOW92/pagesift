@@ -57,7 +57,7 @@ def main(tool: str, manifest: Path, out_path: Path) -> None:
 
         def convert(html: str, path: str, url: str) -> str:
             return md.convert(path).text_content or ""
-    elif tool == "newspaper4k":
+    elif tool in ("newspaper3k", "newspaper4k"):
         import newspaper
 
         def convert(html: str, path: str, url: str) -> str:
@@ -102,6 +102,12 @@ def main(tool: str, manifest: Path, out_path: Path) -> None:
 
         def convert(html: str, path: str, url: str) -> str:
             return ex.get_content(html) or ""
+    elif tool == "unstructured":
+        from unstructured.partition.html import partition_html
+
+        def convert(html: str, path: str, url: str) -> str:
+            elements = partition_html(text=html, url=url)
+            return "\n\n".join(str(element) for element in elements)
     elif tool == "html2text":
         import html2text
 

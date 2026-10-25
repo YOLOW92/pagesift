@@ -1,0 +1,187 @@
+============================================================
+  PageSift 0.60 Official 100M Sharded Benchmark Runner
+  Target Origin:       http://127.0.0.1:19905
+  Total Tasks:         100000000 (100 Million)
+  Topology Scaling:    Autonomous C*(N) Scaling
+  Parallel Shards:     96 active / 96 available dispatchers
+  Conc per Shard:      16
+  Total Concurrency:   1536
+  Active CPU Set:      192
+  Parse Parallelism:   unlimited
+  CPU Topology:        192 logical / 96 physical / 2 sockets / 4 NUMA
+  Runtime Workers:     192 physical-first
+  Disk Sample Dir:     "/tmp/p2-reuseport-auto-samples" (0.01% rate, 1 in 1000000000)
+  Telemetry Report:    "/tmp/p2_reuseport_auto_100m.jsonl"
+============================================================
+[ 0.57%] Tasks:   568048/100000000 | Instant: 567516.1 p/s (Sustained: 567515.9) | IO: 1536 CPU: 192 S: 96 (WorkerProbe) | RSS: 320.8MB (peak: 320.8MB) | Runner CPU: 62.7% | ETA:  2.9m
+[ 1.20%] Tasks:  1195272/100000000 | Instant: 626598.5 p/s (Sustained: 597058.0) | IO: 1536 CPU: 192 S: 96 (WorkerProbe) | RSS: 329.2MB (peak: 329.2MB) | Runner CPU: 70.3% | ETA:  2.8m
+[ 1.81%] Tasks:  1814752/100000000 | Instant: 618703.4 p/s (Sustained: 604274.5) | IO: 1536 CPU: 192 S: 96 (WorkerProbe) | RSS: 335.6MB (peak: 335.6MB) | Runner CPU: 68.4% | ETA:  2.7m
+[ 2.46%] Tasks:  2457764/100000000 | Instant: 642500.7 p/s (Sustained: 613829.0) | IO: 1536 CPU: 192 S: 96 (WorkerProbe) | RSS: 338.8MB (peak: 338.8MB) | Runner CPU: 70.8% | ETA:  2.6m
+[ 3.09%] Tasks:  3089602/100000000 | Instant: 631108.7 p/s (Sustained: 617285.4) | IO: 1536 CPU: 164 S: 96 (WorkerProbe) | RSS: 342.4MB (peak: 342.4MB) | Runner CPU: 70.0% | ETA:  2.6m
+[ 3.73%] Tasks:  3729945/100000000 | Instant: 638534.5 p/s (Sustained: 620832.2) | IO: 1536 CPU: 164 S: 96 (WorkerProbe) | RSS: 344.8MB (peak: 344.8MB) | Runner CPU: 78.6% | ETA:  2.6m
+[ 4.36%] Tasks:  4360672/100000000 | Instant: 630134.4 p/s (Sustained: 622160.6) | IO: 1536 CPU: 164 S: 96 (WorkerProbe) | RSS: 349.5MB (peak: 349.5MB) | Runner CPU: 76.9% | ETA:  2.6m
+[ 4.98%] Tasks:  4982029/100000000 | Instant: 617918.5 p/s (Sustained: 621628.3) | IO: 1536 CPU: 164 S: 96 (WorkerProbe) | RSS: 352.8MB (peak: 352.8MB) | Runner CPU: 75.7% | ETA:  2.5m
+[ 5.61%] Tasks:  5610179/100000000 | Instant: 627851.4 p/s (Sustained: 622318.9) | IO: 1536 CPU: 164 S: 96 (WorkerProbe) | RSS: 355.1MB (peak: 355.1MB) | Runner CPU: 76.3% | ETA:  2.5m
+[ 6.24%] Tasks:  6236378/100000000 | Instant: 625539.7 p/s (Sustained: 622640.8) | IO: 1536 CPU: 148 S: 96 (WorkerProbe) | RSS: 356.3MB (peak: 356.3MB) | Runner CPU: 77.4% | ETA:  2.5m
+[ 6.85%] Tasks:  6848387/100000000 | Instant: 609591.5 p/s (Sustained: 621451.9) | IO: 1536 CPU: 148 S: 96 (WorkerProbe) | RSS: 357.8MB (peak: 357.8MB) | Runner CPU: 79.5% | ETA:  2.5m
+[ 7.48%] Tasks:  7478447/100000000 | Instant: 629423.5 p/s (Sustained: 622115.7) | IO: 1536 CPU: 148 S: 96 (WorkerProbe) | RSS: 357.9MB (peak: 357.9MB) | Runner CPU: 81.6% | ETA:  2.5m
+[ 8.10%] Tasks:  8099263/100000000 | Instant: 620237.4 p/s (Sustained: 621971.3) | IO: 1536 CPU: 148 S: 96 (WorkerProbe) | RSS: 359.2MB (peak: 359.2MB) | Runner CPU: 80.0% | ETA:  2.5m
+[ 8.72%] Tasks:  8717125/100000000 | Instant: 617248.9 p/s (Sustained: 621634.2) | IO: 1536 CPU: 148 S: 96 (WorkerProbe) | RSS: 361.2MB (peak: 361.2MB) | Runner CPU: 79.4% | ETA:  2.4m
+[ 9.34%] Tasks:  9337751/100000000 | Instant: 620017.8 p/s (Sustained: 621526.5) | IO: 1536 CPU: 184 S: 96 (WorkerProbe) | RSS: 362.5MB (peak: 362.5MB) | Runner CPU: 80.1% | ETA:  2.4m
+[ 9.97%] Tasks:  9966974/100000000 | Instant: 627965.7 p/s (Sustained: 621929.1) | IO: 1536 CPU: 184 S: 96 (WorkerProbe) | RSS: 363.1MB (peak: 363.1MB) | Runner CPU: 72.3% | ETA:  2.4m
+[10.60%] Tasks: 10600534/100000000 | Instant: 632921.4 p/s (Sustained: 622575.3) | IO: 1536 CPU: 184 S: 96 (WorkerProbe) | RSS: 363.8MB (peak: 363.8MB) | Runner CPU: 72.8% | ETA:  2.4m
+[11.23%] Tasks: 11225132/100000000 | Instant: 623926.8 p/s (Sustained: 622650.4) | IO: 1536 CPU: 184 S: 96 (WorkerProbe) | RSS: 365.0MB (peak: 365.0MB) | Runner CPU: 71.1% | ETA:  2.4m
+[11.86%] Tasks: 11861437/100000000 | Instant: 635576.7 p/s (Sustained: 623330.4) | IO: 1536 CPU: 184 S: 96 (WorkerProbe) | RSS: 365.5MB (peak: 365.5MB) | Runner CPU: 72.8% | ETA:  2.4m
+[12.49%] Tasks: 12493656/100000000 | Instant: 631726.6 p/s (Sustained: 623749.9) | IO: 1536 CPU: 180 S: 96 (WorkerProbe) | RSS: 366.0MB (peak: 366.0MB) | Runner CPU: 72.5% | ETA:  2.3m
+[13.13%] Tasks: 13129301/100000000 | Instant: 633103.4 p/s (Sustained: 624196.4) | IO: 1536 CPU: 180 S: 96 (WorkerProbe) | RSS: 366.3MB (peak: 366.3MB) | Runner CPU: 73.4% | ETA:  2.3m
+[13.77%] Tasks: 13766190/100000000 | Instant: 636199.1 p/s (Sustained: 624741.7) | IO: 1536 CPU: 180 S: 96 (WorkerProbe) | RSS: 366.8MB (peak: 366.8MB) | Runner CPU: 74.1% | ETA:  2.3m
+[14.41%] Tasks: 14406949/100000000 | Instant: 638904.6 p/s (Sustained: 625358.2) | IO: 1536 CPU: 180 S: 96 (WorkerProbe) | RSS: 367.2MB (peak: 367.2MB) | Runner CPU: 74.2% | ETA:  2.3m
+[15.04%] Tasks: 15036414/100000000 | Instant: 628777.5 p/s (Sustained: 625500.6) | IO: 1536 CPU: 172 S: 96 (WorkerProbe) | RSS: 368.9MB (peak: 368.9MB) | Runner CPU: 72.2% | ETA:  2.3m
+[15.68%] Tasks: 15677284/100000000 | Instant: 638363.3 p/s (Sustained: 626016.3) | IO: 1536 CPU: 172 S: 96 (WorkerProbe) | RSS: 369.1MB (peak: 369.1MB) | Runner CPU: 76.2% | ETA:  2.2m
+[16.31%] Tasks: 16313352/100000000 | Instant: 635427.6 p/s (Sustained: 626378.0) | IO: 1536 CPU: 172 S: 96 (WorkerProbe) | RSS: 369.2MB (peak: 369.2MB) | Runner CPU: 75.8% | ETA:  2.2m
+[16.95%] Tasks: 16951136/100000000 | Instant: 637158.5 p/s (Sustained: 626777.0) | IO: 1536 CPU: 172 S: 96 (WorkerProbe) | RSS: 369.8MB (peak: 369.8MB) | Runner CPU: 76.4% | ETA:  2.2m
+[17.58%] Tasks: 17582963/100000000 | Instant: 630953.9 p/s (Sustained: 626926.1) | IO: 1536 CPU: 168 S: 96 (WorkerProbe) | RSS: 370.2MB (peak: 370.2MB) | Runner CPU: 74.9% | ETA:  2.2m
+[18.22%] Tasks: 18216936/100000000 | Instant: 632941.1 p/s (Sustained: 627133.5) | IO: 1536 CPU: 168 S: 96 (WorkerProbe) | RSS: 371.0MB (peak: 371.0MB) | Runner CPU: 76.4% | ETA:  2.2m
+[18.85%] Tasks: 18848345/100000000 | Instant: 630804.4 p/s (Sustained: 627255.8) | IO: 1536 CPU: 168 S: 96 (WorkerProbe) | RSS: 372.6MB (peak: 372.6MB) | Runner CPU: 76.0% | ETA:  2.2m
+[19.48%] Tasks: 19476928/100000000 | Instant: 627897.0 p/s (Sustained: 627276.4) | IO: 1536 CPU: 168 S: 96 (WorkerProbe) | RSS: 374.5MB (peak: 374.5MB) | Runner CPU: 76.3% | ETA:  2.1m
+[20.12%] Tasks: 20116824/100000000 | Instant: 639272.6 p/s (Sustained: 627651.1) | IO: 1536 CPU: 168 S: 96 (WorkerProbe) | RSS: 374.6MB (peak: 374.6MB) | Runner CPU: 78.1% | ETA:  2.1m
+[20.74%] Tasks: 20742685/100000000 | Instant: 625272.1 p/s (Sustained: 627579.0) | IO: 1536 CPU: 176 S: 96 (WorkerProbe) | RSS: 375.5MB (peak: 375.5MB) | Runner CPU: 75.8% | ETA:  2.1m
+[21.39%] Tasks: 21385126/100000000 | Instant: 641136.3 p/s (Sustained: 627978.0) | IO: 1536 CPU: 176 S: 96 (WorkerProbe) | RSS: 375.8MB (peak: 375.8MB) | Runner CPU: 75.7% | ETA:  2.1m
+[22.02%] Tasks: 22018687/100000000 | Instant: 632948.2 p/s (Sustained: 628119.9) | IO: 1536 CPU: 176 S: 96 (WorkerProbe) | RSS: 377.1MB (peak: 377.1MB) | Runner CPU: 74.4% | ETA:  2.1m
+[22.66%] Tasks: 22655019/100000000 | Instant: 635664.9 p/s (Sustained: 628329.3) | IO: 1536 CPU: 176 S: 96 (WorkerProbe) | RSS: 377.5MB (peak: 377.5MB) | Runner CPU: 74.7% | ETA:  2.1m
+[23.29%] Tasks: 23285423/100000000 | Instant: 629289.2 p/s (Sustained: 628355.3) | IO: 2272 CPU: 180 S: 96 (ConcurrencyProbe) | RSS: 377.8MB (peak: 377.8MB) | Runner CPU: 73.8% | ETA:  2.0m
+[23.89%] Tasks: 23894222/100000000 | Instant: 607938.4 p/s (Sustained: 627818.1) | IO: 2272 CPU: 180 S: 96 (ConcurrencyProbe) | RSS: 401.3MB (peak: 401.3MB) | Runner CPU: 71.2% | ETA:  2.0m
+[24.52%] Tasks: 24517804/100000000 | Instant: 622166.1 p/s (Sustained: 627673.0) | IO: 2272 CPU: 180 S: 96 (ConcurrencyProbe) | RSS: 406.3MB (peak: 406.3MB) | Runner CPU: 72.9% | ETA:  2.0m
+[25.14%] Tasks: 25139147/100000000 | Instant: 621027.1 p/s (Sustained: 627507.1) | IO: 2272 CPU: 180 S: 96 (ConcurrencyProbe) | RSS: 407.6MB (peak: 407.6MB) | Runner CPU: 72.8% | ETA:  2.0m
+[25.74%] Tasks: 25743073/100000000 | Instant: 602205.5 p/s (Sustained: 626889.2) | IO: 2272 CPU: 180 S: 96 (ConcurrencyProbe) | RSS: 413.9MB (peak: 413.9MB) | Runner CPU: 69.6% | ETA:  2.0m
+[26.34%] Tasks: 26344264/100000000 | Instant: 599420.1 p/s (Sustained: 626234.3) | IO: 1817 CPU: 180 S: 96 (ConcurrencyProbe) | RSS: 416.8MB (peak: 416.8MB) | Runner CPU: 69.2% | ETA:  2.0m
+[26.98%] Tasks: 26981333/100000000 | Instant: 636056.6 p/s (Sustained: 626462.7) | IO: 1817 CPU: 180 S: 96 (ConcurrencyProbe) | RSS: 417.4MB (peak: 417.4MB) | Runner CPU: 74.7% | ETA:  1.9m
+[27.62%] Tasks: 27618279/100000000 | Instant: 636485.4 p/s (Sustained: 626690.3) | IO: 1817 CPU: 180 S: 96 (ConcurrencyProbe) | RSS: 417.5MB (peak: 417.5MB) | Runner CPU: 74.4% | ETA:  1.9m
+[28.25%] Tasks: 28247885/100000000 | Instant: 628929.2 p/s (Sustained: 626740.0) | IO: 1817 CPU: 180 S: 96 (ConcurrencyProbe) | RSS: 419.0MB (peak: 419.0MB) | Runner CPU: 73.2% | ETA:  1.9m
+[28.88%] Tasks: 28881996/100000000 | Instant: 631814.7 p/s (Sustained: 626850.5) | IO: 1536 CPU: 180 S: 96 (Locked/WorkerProbe) | RSS: 419.2MB (peak: 419.2MB) | Runner CPU: 73.4% | ETA:  1.9m
+[29.52%] Tasks: 29518848/100000000 | Instant: 636135.1 p/s (Sustained: 627048.0) | IO: 1536 CPU: 180 S: 96 (Locked/WorkerProbe) | RSS: 419.2MB (peak: 419.2MB) | Runner CPU: 74.4% | ETA:  1.9m
+[30.16%] Tasks: 30155605/100000000 | Instant: 635662.4 p/s (Sustained: 627227.5) | IO: 1536 CPU: 180 S: 96 (Locked/WorkerProbe) | RSS: 420.2MB (peak: 420.2MB) | Runner CPU: 73.9% | ETA:  1.9m
+[30.79%] Tasks: 30788308/100000000 | Instant: 631861.0 p/s (Sustained: 627322.0) | IO: 1536 CPU: 180 S: 80 (Locked/WorkerProbe) | RSS: 421.4MB (peak: 421.4MB) | Runner CPU: 72.6% | ETA:  1.8m
+[31.43%] Tasks: 31432165/100000000 | Instant: 643250.1 p/s (Sustained: 627640.3) | IO: 1536 CPU: 180 S: 80 (Locked/WorkerProbe) | RSS: 421.4MB (peak: 421.4MB) | Runner CPU: 75.1% | ETA:  1.8m
+[32.06%] Tasks: 32063392/100000000 | Instant: 630589.1 p/s (Sustained: 627698.1) | IO: 1536 CPU: 180 S: 80 (Locked/WorkerProbe) | RSS: 423.1MB (peak: 423.1MB) | Runner CPU: 72.2% | ETA:  1.8m
+[32.70%] Tasks: 32701205/100000000 | Instant: 637179.4 p/s (Sustained: 627880.3) | IO: 1536 CPU: 180 S: 80 (Locked/WorkerProbe) | RSS: 423.3MB (peak: 423.3MB) | Runner CPU: 74.2% | ETA:  1.8m
+[33.33%] Tasks: 33333817/100000000 | Instant: 631919.0 p/s (Sustained: 627956.5) | IO: 1536 CPU: 180 S: 72 (Locked/WorkerProbe) | RSS: 423.8MB (peak: 423.8MB) | Runner CPU: 73.0% | ETA:  1.8m
+[33.98%] Tasks: 33975337/100000000 | Instant: 640770.7 p/s (Sustained: 628193.7) | IO: 1536 CPU: 180 S: 72 (Locked/WorkerProbe) | RSS: 424.0MB (peak: 424.0MB) | Runner CPU: 74.5% | ETA:  1.8m
+[34.61%] Tasks: 34610142/100000000 | Instant: 634182.9 p/s (Sustained: 628302.5) | IO: 1536 CPU: 180 S: 72 (Locked/WorkerProbe) | RSS: 424.5MB (peak: 424.5MB) | Runner CPU: 73.5% | ETA:  1.7m
+[35.25%] Tasks: 35247913/100000000 | Instant: 636943.3 p/s (Sustained: 628456.8) | IO: 1536 CPU: 180 S: 72 (Locked/WorkerProbe) | RSS: 424.6MB (peak: 424.6MB) | Runner CPU: 73.9% | ETA:  1.7m
+[35.88%] Tasks: 35884854/100000000 | Instant: 636503.4 p/s (Sustained: 628597.8) | IO: 1536 CPU: 180 S: 68 (Locked/WorkerProbe) | RSS: 424.9MB (peak: 424.9MB) | Runner CPU: 73.8% | ETA:  1.7m
+[36.52%] Tasks: 36519735/100000000 | Instant: 634123.0 p/s (Sustained: 628693.1) | IO: 1536 CPU: 180 S: 68 (Locked/WorkerProbe) | RSS: 425.4MB (peak: 425.4MB) | Runner CPU: 73.6% | ETA:  1.7m
+[37.16%] Tasks: 37157967/100000000 | Instant: 637802.6 p/s (Sustained: 628847.3) | IO: 1536 CPU: 180 S: 68 (Locked/WorkerProbe) | RSS: 425.8MB (peak: 425.8MB) | Runner CPU: 73.8% | ETA:  1.7m
+[37.79%] Tasks: 37790220/100000000 | Instant: 631668.2 p/s (Sustained: 628894.3) | IO: 1536 CPU: 180 S: 68 (Locked/WorkerProbe) | RSS: 425.9MB (peak: 425.9MB) | Runner CPU: 72.8% | ETA:  1.6m
+[38.43%] Tasks: 38430392/100000000 | Instant: 639541.3 p/s (Sustained: 629068.8) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 425.9MB (peak: 425.9MB) | Runner CPU: 74.6% | ETA:  1.6m
+[39.07%] Tasks: 39065022/100000000 | Instant: 633749.2 p/s (Sustained: 629144.3) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 426.2MB (peak: 426.2MB) | Runner CPU: 73.0% | ETA:  1.6m
+[39.70%] Tasks: 39700985/100000000 | Instant: 635547.6 p/s (Sustained: 629245.8) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 426.5MB (peak: 426.5MB) | Runner CPU: 73.7% | ETA:  1.6m
+[40.35%] Tasks: 40346409/100000000 | Instant: 644821.5 p/s (Sustained: 629489.0) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 426.7MB (peak: 426.7MB) | Runner CPU: 74.8% | ETA:  1.6m
+[40.98%] Tasks: 40984867/100000000 | Instant: 637799.6 p/s (Sustained: 629616.8) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 427.5MB (peak: 427.5MB) | Runner CPU: 73.6% | ETA:  1.6m
+[41.62%] Tasks: 41615003/100000000 | Instant: 629463.1 p/s (Sustained: 629614.5) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 427.8MB (peak: 427.8MB) | Runner CPU: 72.2% | ETA:  1.5m
+[42.27%] Tasks: 42265059/100000000 | Instant: 648577.7 p/s (Sustained: 629897.8) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 427.8MB (peak: 427.8MB) | Runner CPU: 75.8% | ETA:  1.5m
+[42.90%] Tasks: 42900691/100000000 | Instant: 635236.1 p/s (Sustained: 629976.2) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 428.2MB (peak: 428.2MB) | Runner CPU: 73.3% | ETA:  1.5m
+[43.54%] Tasks: 43535582/100000000 | Instant: 634192.0 p/s (Sustained: 630037.3) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 428.4MB (peak: 428.4MB) | Runner CPU: 73.4% | ETA:  1.5m
+[44.17%] Tasks: 44169769/100000000 | Instant: 632017.4 p/s (Sustained: 630065.6) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 429.2MB (peak: 429.2MB) | Runner CPU: 72.5% | ETA:  1.5m
+[44.80%] Tasks: 44804066/100000000 | Instant: 633781.2 p/s (Sustained: 630117.9) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 430.1MB (peak: 430.1MB) | Runner CPU: 72.9% | ETA:  1.5m
+[45.44%] Tasks: 45437536/100000000 | Instant: 632813.2 p/s (Sustained: 630155.3) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 430.2MB (peak: 430.2MB) | Runner CPU: 72.8% | ETA:  1.4m
+[46.07%] Tasks: 46074796/100000000 | Instant: 636724.6 p/s (Sustained: 630245.3) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 430.2MB (peak: 430.2MB) | Runner CPU: 73.2% | ETA:  1.4m
+[46.72%] Tasks: 46715425/100000000 | Instant: 640058.3 p/s (Sustained: 630377.8) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 430.5MB (peak: 430.5MB) | Runner CPU: 74.0% | ETA:  1.4m
+[47.35%] Tasks: 47348369/100000000 | Instant: 632367.9 p/s (Sustained: 630404.3) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 430.6MB (peak: 430.6MB) | Runner CPU: 72.8% | ETA:  1.4m
+[47.98%] Tasks: 47978530/100000000 | Instant: 629469.5 p/s (Sustained: 630392.0) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 430.6MB (peak: 430.6MB) | Runner CPU: 72.0% | ETA:  1.4m
+[48.61%] Tasks: 48612585/100000000 | Instant: 633169.0 p/s (Sustained: 630428.1) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 431.1MB (peak: 431.1MB) | Runner CPU: 72.7% | ETA:  1.4m
+[49.26%] Tasks: 49260494/100000000 | Instant: 647533.1 p/s (Sustained: 630647.2) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 431.1MB (peak: 431.1MB) | Runner CPU: 75.0% | ETA:  1.3m
+[49.90%] Tasks: 49900799/100000000 | Instant: 639411.8 p/s (Sustained: 630758.1) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 431.5MB (peak: 431.5MB) | Runner CPU: 73.7% | ETA:  1.3m
+[50.55%] Tasks: 50549198/100000000 | Instant: 647999.3 p/s (Sustained: 630973.5) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 431.6MB (peak: 431.6MB) | Runner CPU: 75.2% | ETA:  1.3m
+[51.18%] Tasks: 51175013/100000000 | Instant: 625134.8 p/s (Sustained: 630901.4) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 432.2MB (peak: 432.2MB) | Runner CPU: 71.3% | ETA:  1.3m
+[51.81%] Tasks: 51814664/100000000 | Instant: 636606.2 p/s (Sustained: 630971.2) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 432.4MB (peak: 432.4MB) | Runner CPU: 73.4% | ETA:  1.3m
+[52.46%] Tasks: 52455355/100000000 | Instant: 639459.4 p/s (Sustained: 631073.5) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 432.7MB (peak: 432.7MB) | Runner CPU: 74.0% | ETA:  1.3m
+[53.09%] Tasks: 53092902/100000000 | Instant: 635254.2 p/s (Sustained: 631123.4) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 432.9MB (peak: 432.9MB) | Runner CPU: 73.4% | ETA:  1.2m
+[53.73%] Tasks: 53731365/100000000 | Instant: 637716.1 p/s (Sustained: 631200.9) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 432.9MB (peak: 432.9MB) | Runner CPU: 73.4% | ETA:  1.2m
+[54.37%] Tasks: 54371729/100000000 | Instant: 639397.3 p/s (Sustained: 631296.2) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 433.1MB (peak: 433.1MB) | Runner CPU: 74.1% | ETA:  1.2m
+[55.01%] Tasks: 55009188/100000000 | Instant: 634510.4 p/s (Sustained: 631333.3) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 433.4MB (peak: 433.4MB) | Runner CPU: 73.1% | ETA:  1.2m
+[55.65%] Tasks: 55651005/100000000 | Instant: 641081.5 p/s (Sustained: 631444.0) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 433.4MB (peak: 433.4MB) | Runner CPU: 74.3% | ETA:  1.2m
+[56.28%] Tasks: 56281960/100000000 | Instant: 630031.7 p/s (Sustained: 631428.2) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 433.5MB (peak: 433.5MB) | Runner CPU: 72.9% | ETA:  1.2m
+[56.91%] Tasks: 56913252/100000000 | Instant: 630046.2 p/s (Sustained: 631412.8) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 433.6MB (peak: 433.6MB) | Runner CPU: 73.0% | ETA:  1.1m
+[57.55%] Tasks: 57553720/100000000 | Instant: 639795.3 p/s (Sustained: 631504.9) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 433.6MB (peak: 433.6MB) | Runner CPU: 74.0% | ETA:  1.1m
+[58.20%] Tasks: 58195121/100000000 | Instant: 640834.8 p/s (Sustained: 631606.2) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 433.7MB (peak: 433.7MB) | Runner CPU: 74.0% | ETA:  1.1m
+[58.83%] Tasks: 58832027/100000000 | Instant: 636360.5 p/s (Sustained: 631657.3) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 433.9MB (peak: 433.9MB) | Runner CPU: 72.9% | ETA:  1.1m
+[59.47%] Tasks: 59471371/100000000 | Instant: 636528.0 p/s (Sustained: 631709.3) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 434.0MB (peak: 434.0MB) | Runner CPU: 73.2% | ETA:  1.1m
+[60.12%] Tasks: 60117705/100000000 | Instant: 644365.3 p/s (Sustained: 631842.7) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 434.0MB (peak: 434.0MB) | Runner CPU: 74.7% | ETA:  1.1m
+[60.76%] Tasks: 60755913/100000000 | Instant: 637203.4 p/s (Sustained: 631898.5) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 434.0MB (peak: 434.0MB) | Runner CPU: 73.6% | ETA:  1.0m
+[61.40%] Tasks: 61395780/100000000 | Instant: 639345.2 p/s (Sustained: 631975.2) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 434.4MB (peak: 434.4MB) | Runner CPU: 74.0% | ETA:  1.0m
+[62.03%] Tasks: 62031402/100000000 | Instant: 634837.9 p/s (Sustained: 632004.4) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 434.5MB (peak: 434.5MB) | Runner CPU: 73.0% | ETA:  1.0m
+[62.67%] Tasks: 62667105/100000000 | Instant: 634509.9 p/s (Sustained: 632029.8) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 434.9MB (peak: 434.9MB) | Runner CPU: 73.2% | ETA:  1.0m
+[63.31%] Tasks: 63310762/100000000 | Instant: 640761.3 p/s (Sustained: 632117.3) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 434.9MB (peak: 434.9MB) | Runner CPU: 74.4% | ETA:  1.0m
+[63.96%] Tasks: 63956410/100000000 | Instant: 644791.3 p/s (Sustained: 632242.8) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 434.9MB (peak: 434.9MB) | Runner CPU: 74.5% | ETA:  1.0m
+[64.59%] Tasks: 64594323/100000000 | Instant: 637177.8 p/s (Sustained: 632291.1) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 434.9MB (peak: 434.9MB) | Runner CPU: 73.2% | ETA:  0.9m
+[65.24%] Tasks: 65240014/100000000 | Instant: 641337.5 p/s (Sustained: 632379.4) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 435.1MB (peak: 435.1MB) | Runner CPU: 74.1% | ETA:  0.9m
+[65.88%] Tasks: 65880659/100000000 | Instant: 638150.7 p/s (Sustained: 632435.0) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 435.6MB (peak: 435.6MB) | Runner CPU: 73.4% | ETA:  0.9m
+[66.52%] Tasks: 66521624/100000000 | Instant: 639620.3 p/s (Sustained: 632503.5) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 435.6MB (peak: 435.6MB) | Runner CPU: 73.5% | ETA:  0.9m
+[67.17%] Tasks: 67165203/100000000 | Instant: 641449.8 p/s (Sustained: 632588.0) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 435.6MB (peak: 435.6MB) | Runner CPU: 73.8% | ETA:  0.9m
+[67.80%] Tasks: 67798041/100000000 | Instant: 631545.4 p/s (Sustained: 632578.3) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 435.6MB (peak: 435.6MB) | Runner CPU: 73.0% | ETA:  0.8m
+[68.43%] Tasks: 68434452/100000000 | Instant: 635806.1 p/s (Sustained: 632608.2) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 435.9MB (peak: 435.9MB) | Runner CPU: 72.9% | ETA:  0.8m
+[69.07%] Tasks: 69070911/100000000 | Instant: 635989.1 p/s (Sustained: 632639.1) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 436.0MB (peak: 436.0MB) | Runner CPU: 72.6% | ETA:  0.8m
+[69.71%] Tasks: 69710716/100000000 | Instant: 639154.1 p/s (Sustained: 632698.3) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 436.1MB (peak: 436.1MB) | Runner CPU: 73.6% | ETA:  0.8m
+[70.35%] Tasks: 70348687/100000000 | Instant: 636758.5 p/s (Sustained: 632734.9) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 437.0MB (peak: 437.0MB) | Runner CPU: 73.4% | ETA:  0.8m
+[70.99%] Tasks: 70988201/100000000 | Instant: 638322.0 p/s (Sustained: 632784.8) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 437.1MB (peak: 437.1MB) | Runner CPU: 73.8% | ETA:  0.8m
+[71.62%] Tasks: 71623874/100000000 | Instant: 634576.5 p/s (Sustained: 632800.7) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 437.2MB (peak: 437.2MB) | Runner CPU: 73.3% | ETA:  0.7m
+[72.27%] Tasks: 72273221/100000000 | Instant: 647998.9 p/s (Sustained: 632934.0) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 437.3MB (peak: 437.3MB) | Runner CPU: 75.4% | ETA:  0.7m
+[72.91%] Tasks: 72908097/100000000 | Instant: 633622.5 p/s (Sustained: 632940.0) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 437.9MB (peak: 437.9MB) | Runner CPU: 73.0% | ETA:  0.7m
+[73.56%] Tasks: 73555363/100000000 | Instant: 646328.7 p/s (Sustained: 633055.4) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 437.9MB (peak: 437.9MB) | Runner CPU: 75.1% | ETA:  0.7m
+[74.20%] Tasks: 74202290/100000000 | Instant: 645953.9 p/s (Sustained: 633165.7) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 438.0MB (peak: 438.0MB) | Runner CPU: 74.4% | ETA:  0.7m
+[74.85%] Tasks: 74847187/100000000 | Instant: 643937.5 p/s (Sustained: 633256.9) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 438.0MB (peak: 438.0MB) | Runner CPU: 74.2% | ETA:  0.7m
+[75.49%] Tasks: 75491468/100000000 | Instant: 643416.3 p/s (Sustained: 633342.3) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 438.0MB (peak: 438.0MB) | Runner CPU: 74.3% | ETA:  0.6m
+[76.12%] Tasks: 76124071/100000000 | Instant: 632272.0 p/s (Sustained: 633333.4) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 438.1MB (peak: 438.1MB) | Runner CPU: 72.6% | ETA:  0.6m
+[76.76%] Tasks: 76755150/100000000 | Instant: 630233.2 p/s (Sustained: 633307.7) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 438.3MB (peak: 438.3MB) | Runner CPU: 71.9% | ETA:  0.6m
+[77.39%] Tasks: 77385357/100000000 | Instant: 629740.7 p/s (Sustained: 633278.5) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 438.6MB (peak: 438.6MB) | Runner CPU: 71.9% | ETA:  0.6m
+[78.03%] Tasks: 78028191/100000000 | Instant: 642222.8 p/s (Sustained: 633351.2) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 438.6MB (peak: 438.6MB) | Runner CPU: 74.1% | ETA:  0.6m
+[78.67%] Tasks: 78672224/100000000 | Instant: 641266.4 p/s (Sustained: 633415.2) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 438.6MB (peak: 438.6MB) | Runner CPU: 74.2% | ETA:  0.6m
+[79.31%] Tasks: 79309831/100000000 | Instant: 636234.1 p/s (Sustained: 633437.8) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 438.8MB (peak: 438.8MB) | Runner CPU: 73.5% | ETA:  0.5m
+[79.94%] Tasks: 79944382/100000000 | Instant: 634034.7 p/s (Sustained: 633442.5) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 438.8MB (peak: 438.8MB) | Runner CPU: 72.9% | ETA:  0.5m
+[80.58%] Tasks: 80583520/100000000 | Instant: 638219.9 p/s (Sustained: 633480.1) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 438.8MB (peak: 438.8MB) | Runner CPU: 73.5% | ETA:  0.5m
+[81.22%] Tasks: 81219325/100000000 | Instant: 634771.8 p/s (Sustained: 633490.2) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 439.0MB (peak: 439.0MB) | Runner CPU: 73.1% | ETA:  0.5m
+[81.85%] Tasks: 81854346/100000000 | Instant: 634623.8 p/s (Sustained: 633499.0) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 439.0MB (peak: 439.0MB) | Runner CPU: 72.5% | ETA:  0.5m
+[82.50%] Tasks: 82495676/100000000 | Instant: 640260.5 p/s (Sustained: 633551.0) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 439.0MB (peak: 439.0MB) | Runner CPU: 73.9% | ETA:  0.5m
+[83.14%] Tasks: 83135017/100000000 | Instant: 638011.4 p/s (Sustained: 633585.0) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 439.1MB (peak: 439.1MB) | Runner CPU: 73.5% | ETA:  0.4m
+[83.77%] Tasks: 83771612/100000000 | Instant: 635633.0 p/s (Sustained: 633600.6) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 439.2MB (peak: 439.2MB) | Runner CPU: 72.8% | ETA:  0.4m
+[84.40%] Tasks: 84403118/100000000 | Instant: 631035.9 p/s (Sustained: 633581.3) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 439.4MB (peak: 439.4MB) | Runner CPU: 73.1% | ETA:  0.4m
+[85.04%] Tasks: 85037875/100000000 | Instant: 634068.0 p/s (Sustained: 633584.9) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 439.6MB (peak: 439.6MB) | Runner CPU: 73.1% | ETA:  0.4m
+[85.68%] Tasks: 85675315/100000000 | Instant: 636795.8 p/s (Sustained: 633608.7) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 439.8MB (peak: 439.8MB) | Runner CPU: 73.5% | ETA:  0.4m
+[86.30%] Tasks: 86303293/100000000 | Instant: 626856.5 p/s (Sustained: 633559.0) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 439.9MB (peak: 439.9MB) | Runner CPU: 72.5% | ETA:  0.4m
+[86.94%] Tasks: 86939454/100000000 | Instant: 634773.2 p/s (Sustained: 633567.9) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 440.1MB (peak: 440.1MB) | Runner CPU: 72.8% | ETA:  0.3m
+[87.58%] Tasks: 87581646/100000000 | Instant: 641584.7 p/s (Sustained: 633626.0) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 440.2MB (peak: 440.2MB) | Runner CPU: 74.2% | ETA:  0.3m
+[88.22%] Tasks: 88221262/100000000 | Instant: 638605.8 p/s (Sustained: 633661.8) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 440.2MB (peak: 440.2MB) | Runner CPU: 73.4% | ETA:  0.3m
+[88.86%] Tasks: 88857747/100000000 | Instant: 635167.3 p/s (Sustained: 633672.5) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 440.2MB (peak: 440.2MB) | Runner CPU: 72.6% | ETA:  0.3m
+[89.49%] Tasks: 89493520/100000000 | Instant: 633612.0 p/s (Sustained: 633672.1) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 440.6MB (peak: 440.6MB) | Runner CPU: 72.4% | ETA:  0.3m
+[90.12%] Tasks: 90124805/100000000 | Instant: 630694.3 p/s (Sustained: 633651.1) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 440.6MB (peak: 440.6MB) | Runner CPU: 72.2% | ETA:  0.3m
+[90.76%] Tasks: 90761555/100000000 | Instant: 636143.9 p/s (Sustained: 633668.6) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 440.6MB (peak: 440.6MB) | Runner CPU: 72.7% | ETA:  0.2m
+[91.40%] Tasks: 91401586/100000000 | Instant: 639393.5 p/s (Sustained: 633708.3) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 440.7MB (peak: 440.7MB) | Runner CPU: 73.6% | ETA:  0.2m
+[92.04%] Tasks: 92042307/100000000 | Instant: 639934.0 p/s (Sustained: 633751.2) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 440.7MB (peak: 440.7MB) | Runner CPU: 73.6% | ETA:  0.2m
+[92.68%] Tasks: 92677989/100000000 | Instant: 635197.7 p/s (Sustained: 633761.1) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 440.7MB (peak: 440.7MB) | Runner CPU: 73.2% | ETA:  0.2m
+[93.33%] Tasks: 93326044/100000000 | Instant: 646382.3 p/s (Sustained: 633847.0) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 440.7MB (peak: 440.7MB) | Runner CPU: 74.8% | ETA:  0.2m
+[93.97%] Tasks: 93967436/100000000 | Instant: 640467.0 p/s (Sustained: 633891.8) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 440.8MB (peak: 440.8MB) | Runner CPU: 73.9% | ETA:  0.2m
+[94.62%] Tasks: 94618477/100000000 | Instant: 649493.7 p/s (Sustained: 633996.6) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 440.8MB (peak: 440.8MB) | Runner CPU: 75.3% | ETA:  0.1m
+[95.27%] Tasks: 95265671/100000000 | Instant: 646622.1 p/s (Sustained: 634080.7) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 440.8MB (peak: 440.8MB) | Runner CPU: 74.9% | ETA:  0.1m
+[95.91%] Tasks: 95907397/100000000 | Instant: 640464.7 p/s (Sustained: 634123.0) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 440.8MB (peak: 440.8MB) | Runner CPU: 73.8% | ETA:  0.1m
+[96.55%] Tasks: 96554598/100000000 | Instant: 646108.1 p/s (Sustained: 634201.8) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 441.2MB (peak: 441.2MB) | Runner CPU: 74.9% | ETA:  0.1m
+[97.20%] Tasks: 97199504/100000000 | Instant: 644202.0 p/s (Sustained: 634267.1) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 441.3MB (peak: 441.3MB) | Runner CPU: 74.2% | ETA:  0.1m
+[97.84%] Tasks: 97840922/100000000 | Instant: 640799.3 p/s (Sustained: 634309.5) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 441.3MB (peak: 441.3MB) | Runner CPU: 74.1% | ETA:  0.1m
+[98.48%] Tasks: 98476367/100000000 | Instant: 634277.9 p/s (Sustained: 634309.3) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 441.6MB (peak: 441.6MB) | Runner CPU: 72.7% | ETA:  0.0m
+[99.11%] Tasks: 99113634/100000000 | Instant: 636400.0 p/s (Sustained: 634322.7) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 441.6MB (peak: 441.6MB) | Runner CPU: 73.1% | ETA:  0.0m
+[99.76%] Tasks: 99756362/100000000 | Instant: 642127.2 p/s (Sustained: 634372.4) | IO: 1536 CPU: 180 S: 72 (Locked/Locked) | RSS: 441.6MB (peak: 441.6MB) | Runner CPU: 73.8% | ETA:  0.0m
+
+============================================================
+  PAGE SIFT 0.60 100M SHARDED BENCHMARK SUMMARY
+============================================================
+  Wall Clock Time:    157.67s (2.63 minutes)
+  Tasks Completed:    100000000 / 100000000
+  HTTP Requests:      100000000
+  Valid Markdown:     100000000 (100.0000%)
+  Failed Count:       0
+  Sustained QPS:      634229.97 pages/sec
+  Runner CPU Time:    20713.580000 s | Utilization 72.984% of 180 assigned cores
+  Queue Latency:      p50 0.075 ms | p95 0.383 ms | p99 0.654 ms (24415 samples)
+  Throughput Volume:  858.89 MB/s (132.25 GB total)
+  Final Peak RSS:     441.9 MB
+============================================================

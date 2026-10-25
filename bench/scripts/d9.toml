@@ -1,0 +1,11 @@
+[fetch]
+timeout_secs = 30
+allow_private_network = true
+
+[policy]
+interval_ms = 0
+per_host_concurrency = 2
+global_concurrency = 4
+
+[browser]
+path = "/usr/bin/google-chrome"

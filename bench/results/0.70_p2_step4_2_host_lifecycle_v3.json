@@ -1,0 +1,82 @@
+{
+  "schema": 1,
+  "requests_per_host": 10000,
+  "dispatch_concurrency": 512,
+  "max_connections_per_host": 32,
+  "slow_capacity": 4,
+  "slow_service_ms": 5,
+  "fixed": {
+    "mode": "fixed",
+    "wall_time_s": 1.959663994,
+    "qps": 10205.831234964253,
+    "transport_failed": 0,
+    "overload_responses": 9790,
+    "fast_peak_active": 3,
+    "slow_peak_active": 32,
+    "hosts": [
+      {
+        "origin": "http://127.0.0.1:23885",
+        "hot_target": 32,
+        "max_hot": 32,
+        "completed": 10000,
+        "failed": 9790,
+        "overloaded": 9790,
+        "cancelled": 0,
+        "reused": 9968,
+        "connected": 32,
+        "service_ewma_ms": 6.2620000000000005,
+        "connect_ewma_ms": 0.075
+      },
+      {
+        "origin": "http://127.0.0.1:24437",
+        "hot_target": 32,
+        "max_hot": 32,
+        "completed": 10000,
+        "failed": 0,
+        "overloaded": 0,
+        "cancelled": 0,
+        "reused": 9968,
+        "connected": 32,
+        "service_ewma_ms": 0.098,
+        "connect_ewma_ms": 8.834
+      }
+    ]
+  },
+  "adaptive": {
+    "mode": "adaptive",
+    "wall_time_s": 15.029412314,
+    "qps": 1330.7240218148693,
+    "transport_failed": 0,
+    "overload_responses": 326,
+    "fast_peak_active": 2,
+    "slow_peak_active": 5,
+    "hosts": [
+      {
+        "origin": "http://127.0.0.1:23885",
+        "hot_target": 4,
+        "max_hot": 32,
+        "completed": 10000,
+        "failed": 326,
+        "overloaded": 326,
+        "cancelled": 0,
+        "reused": 9761,
+        "connected": 239,
+        "service_ewma_ms": 6.104,
+        "connect_ewma_ms": 0.04
+      },
+      {
+        "origin": "http://127.0.0.1:24437",
+        "hot_target": 28,
+        "max_hot": 32,
+        "completed": 10000,
+        "failed": 0,
+        "overloaded": 0,
+        "cancelled": 0,
+        "reused": 9973,
+        "connected": 27,
+        "service_ewma_ms": 0.036000000000000004,
+        "connect_ewma_ms": 0.126
+      }
+    ]
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "dataset": {
+    "distinct_https_targets": 10000,
+    "one_page_per_host": true,
+    "path": "bench/data/top-1m.csv"
+  },
+  "elapsed_s": 19.846630417,
+  "engine": "PageSift production Scraper (HTTP engine / Rustls)",
+  "metrics": {
+    "duplicate_pages": 194,
+    "fail_details": {
+      "access_barrier": 1095,
+      "dns_failure": 1515,
+      "dns_or_connect_err": 0,
+      "http_4xx": 0,
+      "http_5xx": 25,
+      "network_error": 771,
+      "other_error": 0,
+      "rate_limited": 13,
+      "robots_disallowed": 374,
+      "ssrf_blocked": 34,
+      "timeout": 486,
+      "too_large": 0
+    },
+    "failed_total": 4313,
+    "structured_data_pages": 4614,
+    "success_200": 5687,
+    "total_bytes_extracted": 77033590,
+    "valid_content": 5044,
+    "valid_content_ratio": 0.8869351151749605
+  },
+  "process_cpu_cores": 1.7232144339577844,
+  "process_cpu_time_s": 34.2,
+  "safety": {
+    "browser_fallback": false,
+    "honest_user_agent": "pagesift/0.61.0 (+https://github.com/YOLOW92/pagesift/blob/main/docs/bot.md)",
+    "robots_txt": "respect",
+    "ssrf_policy": "production default",
+    "tls_certificate_verification": true
+  },
+  "schema": 2,
+  "sustained_qps": 503.8638695782995,
+  "tuning_profile": {
+    "connect_timeout_s": 3.5,
+    "detected_cores": 192,
+    "detected_fd_limit": 524288,
+    "detected_ram_gb": 377.81280517578125,
+    "global_concurrency": 1536,
+    "hardware_tier": "Extreme Supernode (64C+ 128GB+ FD>=65k)",
+    "mode": "adaptive",
+    "total_timeout_s": 8.0
+  },
+  "urls_processed": 10000
+}

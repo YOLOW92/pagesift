@@ -72,6 +72,63 @@ async fn robots_disallow_blocks_and_is_cached() {
 }
 
 #[tokio::test]
+async fn expired_robots_cache_revalidates_conditionally_without_bypassing_rules() {
+    let srv = serve(|request| {
+        Some(match request.path.as_str() {
+            "/robots.txt" if request.header("if-none-match") == Some("\"robots-v1\"") => {
+                response(304, &[("ETag", "\"robots-v1\"")], b"")
+            }
+            "/robots.txt" => response(
+                200,
+                &[("ETag", "\"robots-v1\"")],
+                b"User-agent: *\nDisallow: /private\n",
+            ),
+            _ => ok("page"),
+        })
+    })
+    .await;
+    let fetcher = Fetcher::new(FetcherConfig {
+        ssrf: SsrfPolicy {
+            allow_ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+    .unwrap();
+    let policy = Policy::new(
+        Arc::new(fetcher),
+        PolicyConfig {
+            robots_ttl: Duration::from_millis(1),
+            rate: RateLimitConfig {
+                default_interval: Duration::ZERO,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    );
+    policy
+        .fetch(FetchRequest::new(srv.url("/public")), RobotsMode::Respect)
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(5)).await;
+    let error = policy
+        .fetch(
+            FetchRequest::new(srv.url("/private/secret")),
+            RobotsMode::Respect,
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), ErrorCode::RobotsDisallowed);
+    let robots = srv
+        .seen()
+        .into_iter()
+        .filter(|request| request.path == "/robots.txt")
+        .collect::<Vec<_>>();
+    assert_eq!(robots.len(), 2);
+    assert_eq!(robots[1].header("if-none-match"), Some("\"robots-v1\""));
+}
+
+#[tokio::test]
 async fn robots_5xx_disallows_and_4xx_allows() {
     let down = serve(|s| {
         Some(if s.path == "/robots.txt" {

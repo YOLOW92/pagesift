@@ -58,13 +58,14 @@ fn article_mode_keeps_the_story_and_drops_comments_and_related() {
 }
 
 #[test]
-fn pages_that_do_not_declare_an_article_keep_the_default_rules() {
-    // Semantic containers without an article declaration keep the general mode.
-    // An undated og:type=article plus one substantial article is now corroborated.
+fn pages_without_an_article_declaration_also_try_article_mode() {
+    // 标准测试（WebMainBench / WCEB / WCXB）显示：只在 og:type=article 时才收窄会留下大量
+    // 导航与推荐块，整体 F1 明显偏低。现在所有页面都先尝试正文定位；三道兜底仍会在正文过窄、
+    // 或与整页文字比例过低时回退到默认规则。因此这里评论被排除、正文保留。
     let out = md(&news_page("", COMMENTS));
     assert!(
-        out.contains("terrible decision"),
-        "comments stay outside article mode:\n{out}"
+        !out.contains("terrible decision"),
+        "comments are now outside the located article body:\n{out}"
     );
     assert!(out.contains("The budget takes effect in January"), "{out}");
 }

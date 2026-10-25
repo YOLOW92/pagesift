@@ -1,0 +1,59 @@
+*.tar
+*.tar.gz
+*.zip
+venv*/
+envs/
+slurm_logs/
+local_tests/
+
+__pycache__
+*.log
+*.pyc
+.vscode
+debug/
+*.ipynb
+.idea
+.python-version
+
+# vscode history
+.history
+
+.DS_Store
+.env
+
+bad_words/
+bak/
+
+app/tests/*
+temp/
+tmp/
+tmp
+.vscode
+.vscode/
+ocr_demo
+.coveragerc
+
+
+# sphinx docs
+_build/
+
+
+results/
+**/temp.py
+
+# coverage file
+.coverage*
+coverage.xml
+
+webmainbench.egg-info/*
+
+# cache files
+webmainbench/.cache/
+
+# PyPI packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+.pypirc

@@ -1,0 +1,30 @@
+============================================================
+  PageSift P2 NUMA-Local HTTP Reactor
+  Topology: 192 logical / 96 physical / 2 sockets / 4 NUMA
+  Tasks: 10000000 / reactors: 48 / content workers: 144 / persistent connections: 1536
+  Node 0 (NUMA 0, socket 0): 12 reactors / 36 content workers / 384 connections
+  Node 1 (NUMA 1, socket 0): 12 reactors / 36 content workers / 384 connections
+  Node 2 (NUMA 2, socket 1): 12 reactors / 36 content workers / 384 connections
+  Node 3 (NUMA 3, socket 1): 12 reactors / 36 content workers / 384 connections
+============================================================
+[8.86%]  885920.2 pages/s | completed 885978 | failed 0 | CPU 125.48 cores | reuse 100.0%
+[18.25%]  939261.6 pages/s | completed 1825301 | failed 0 | CPU 127.84 cores | reuse 100.0%
+[27.73%]  948119.7 pages/s | completed 2773489 | failed 0 | CPU 129.45 cores | reuse 100.0%
+[37.25%]  951817.4 pages/s | completed 3725381 | failed 0 | CPU 130.28 cores | reuse 100.0%
+[46.82%]  956812.2 pages/s | completed 4682255 | failed 0 | CPU 130.82 cores | reuse 100.0%
+[56.30%]  947842.2 pages/s | completed 5630159 | failed 0 | CPU 131.05 cores | reuse 100.0%
+[65.02%]  871519.0 pages/s | completed 6501742 | failed 0 | CPU 128.88 cores | reuse 100.0%
+[73.64%]  862403.6 pages/s | completed 7364203 | failed 0 | CPU 127.00 cores | reuse 100.0%
+[82.53%]  889002.5 pages/s | completed 8253264 | failed 0 | CPU 125.93 cores | reuse 100.0%
+[91.45%]  891238.4 pages/s | completed 9144559 | failed 0 | CPU 125.07 cores | reuse 100.0%
+[99.93%]  848451.8 pages/s | completed 9993088 | failed 0 | CPU 123.74 cores | reuse 100.0%
+[100.00%]    6911.4 pages/s | completed 10000000 | failed 0 | CPU 113.48 cores | reuse 100.0%
+============================================================
+  Sustained QPS: 898705.73
+  Completed: 10000000 / 10000000
+  Failed: 0
+  Connections: 1536 opened / 9998464 reused / 0 retries / 0 timeouts
+  Pipeline: 27507 queue backpressure events / 4515 response-buffer allocations
+  Runner CPU: 122.61 core-s/s (63.86% of 192)
+  Report: /home/yolow92/pagesift/bench/results/0.70_p2_step4_1_final_hybrid2.json
+============================================================

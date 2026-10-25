@@ -349,7 +349,21 @@ impl Config {
             c.fetcher.user_agent = ua.clone();
         }
         if let Some(t) = f.timeout_secs {
-            c.fetcher.total_timeout = Duration::from_secs(t);
+            // `timeout_secs` 是**单次请求的总预算**。以前只写 total_timeout，而等响应头用的是
+            // 独立的 first_byte_timeout（默认 30 s），于是配置成 8 s 的请求仍可能等 30 s。
+            // 这里让所有阶段都不超过总预算，并标记为显式设置，供自适应调优尊重。
+            let budget = Duration::from_secs(t);
+            c.fetcher.total_timeout = budget;
+            c.fetcher.first_byte_timeout = c.fetcher.first_byte_timeout.min(budget);
+            c.fetcher.body_idle_timeout = c.fetcher.body_idle_timeout.min(budget);
+            c.fetcher.connect_timeout = c.fetcher.connect_timeout.min(budget);
+            c.fetcher.dns_timeout = c.fetcher.dns_timeout.min(budget);
+            c.fetcher.tls_timeout = c.fetcher.tls_timeout.min(budget);
+            c.fetcher.tail_threshold = c
+                .fetcher
+                .tail_threshold
+                .min((budget / 4).max(Duration::from_millis(500)));
+            c.fetcher.timeouts_explicit = true;
         }
         if let Some(mb) = f.max_body_mb {
             c.fetcher.max_body_bytes = mb * 1024 * 1024;

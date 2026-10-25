@@ -1,0 +1,82 @@
+{
+  "schema": 1,
+  "requests_per_host": 10000,
+  "dispatch_concurrency": 512,
+  "max_connections_per_host": 32,
+  "slow_capacity": 4,
+  "slow_service_ms": 5,
+  "fixed": {
+    "mode": "fixed",
+    "wall_time_s": 1.9810529909999999,
+    "qps": 10095.64110140454,
+    "transport_failed": 0,
+    "overload_responses": 9627,
+    "fast_peak_active": 3,
+    "slow_peak_active": 32,
+    "hosts": [
+      {
+        "origin": "http://127.0.0.1:26371",
+        "hot_target": 32,
+        "max_hot": 32,
+        "completed": 10000,
+        "failed": 0,
+        "overloaded": 0,
+        "cancelled": 0,
+        "reused": 9968,
+        "connected": 32,
+        "service_ewma_ms": 0.039,
+        "connect_ewma_ms": 15.593
+      },
+      {
+        "origin": "http://127.0.0.1:27749",
+        "hot_target": 32,
+        "max_hot": 32,
+        "completed": 10000,
+        "failed": 9627,
+        "overloaded": 9627,
+        "cancelled": 0,
+        "reused": 9968,
+        "connected": 32,
+        "service_ewma_ms": 6.258,
+        "connect_ewma_ms": 1.427
+      }
+    ]
+  },
+  "adaptive": {
+    "mode": "adaptive",
+    "wall_time_s": 14.969113727,
+    "qps": 1336.084444593785,
+    "transport_failed": 0,
+    "overload_responses": 308,
+    "fast_peak_active": 2,
+    "slow_peak_active": 5,
+    "hosts": [
+      {
+        "origin": "http://127.0.0.1:26371",
+        "hot_target": 28,
+        "max_hot": 32,
+        "completed": 10000,
+        "failed": 0,
+        "overloaded": 0,
+        "cancelled": 0,
+        "reused": 9973,
+        "connected": 27,
+        "service_ewma_ms": 0.062,
+        "connect_ewma_ms": 0.157
+      },
+      {
+        "origin": "http://127.0.0.1:27749",
+        "hot_target": 5,
+        "max_hot": 32,
+        "completed": 10000,
+        "failed": 308,
+        "overloaded": 308,
+        "cancelled": 0,
+        "reused": 9995,
+        "connected": 5,
+        "service_ewma_ms": 6.135,
+        "connect_ewma_ms": 0.054
+      }
+    ]
+  }
+}

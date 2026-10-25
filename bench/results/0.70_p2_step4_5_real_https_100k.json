@@ -1,0 +1,185 @@
+{
+  "adaptive_stages": [
+    {
+      "active": 0,
+      "cancelled": 613,
+      "completed": 151259,
+      "deterministic_failures": 13130,
+      "limit": 972,
+      "overloads": 0,
+      "p50_ms": 27.475682000000003,
+      "p95_ms": 255.29038300000002,
+      "p99_ms": 882.286557,
+      "policy_rejections": 291,
+      "stage": "dns",
+      "transient_failures": 613
+    },
+    {
+      "active": 0,
+      "cancelled": 0,
+      "completed": 137227,
+      "deterministic_failures": 4322,
+      "limit": 508,
+      "overloads": 0,
+      "p50_ms": 27.917154999999998,
+      "p95_ms": 1250.89839,
+      "p99_ms": 3501.504068,
+      "policy_rejections": 0,
+      "stage": "handshake",
+      "transient_failures": 5885
+    },
+    {
+      "active": 0,
+      "cancelled": 971,
+      "completed": 274175,
+      "deterministic_failures": 0,
+      "limit": 1536,
+      "overloads": 573,
+      "p50_ms": 96.667789,
+      "p95_ms": 1103.34998,
+      "p99_ms": 3247.29949,
+      "policy_rejections": 0,
+      "stage": "http",
+      "transient_failures": 2185
+    },
+    {
+      "active": 0,
+      "cancelled": 0,
+      "completed": 71101,
+      "deterministic_failures": 0,
+      "limit": 192,
+      "overloads": 0,
+      "p50_ms": 0.97008,
+      "p95_ms": 3.560987,
+      "p99_ms": 7.586398,
+      "policy_rejections": 0,
+      "stage": "parse",
+      "transient_failures": 0
+    },
+    {
+      "active": 0,
+      "cancelled": 23,
+      "completed": 1225,
+      "deterministic_failures": 0,
+      "limit": 48,
+      "overloads": 6,
+      "p50_ms": 1.381459,
+      "p95_ms": 2381.778406,
+      "p99_ms": 6000.208589,
+      "policy_rejections": 0,
+      "stage": "tail",
+      "transient_failures": 26
+    }
+  ],
+  "dataset": {
+    "distinct_https_targets": 100000,
+    "frozen": true,
+    "normalized_blake3": "173d2c6519ba5e8ba3144dc9179543de4e3663979ec854942f6aaeb26b476542",
+    "one_page_per_host": true,
+    "path": "bench/data/top-1m.csv"
+  },
+  "elapsed_s": 820.424688383,
+  "engine": "PageSift production Scraper (HTTP engine / Rustls)",
+  "metrics": {
+    "duplicate_pages": 2135,
+    "fail_details": {
+      "access_barrier": 10341,
+      "dns_failure": 13130,
+      "dns_or_connect_err": 0,
+      "http_4xx": 0,
+      "http_5xx": 214,
+      "network_error": 5991,
+      "other_error": 1,
+      "rate_limited": 111,
+      "robots_disallowed": 3087,
+      "ssrf_blocked": 295,
+      "timeout": 6069,
+      "too_large": 0
+    },
+    "failed_total": 39239,
+    "structured_data_pages": 48555,
+    "success_200": 60761,
+    "total_bytes_extracted": 773899402,
+    "valid_content": 53948,
+    "valid_content_ratio": 0.8878721548361613
+  },
+  "process_cpu_cores": 1.636701112257538,
+  "process_cpu_time_s": 1342.79,
+  "safety": {
+    "browser_fallback": false,
+    "honest_user_agent": "pagesift/0.61.0 (+https://github.com/YOLOW92/pagesift/blob/main/docs/bot.md)",
+    "robots_txt": "respect",
+    "ssrf_policy": "production default",
+    "tls_certificate_verification": true
+  },
+  "schema": 2,
+  "sustained_qps": 121.88809212591231,
+  "transport_phases": [
+    {
+      "deterministic_failures": 13130,
+      "overloads": 0,
+      "p50_ms": 27.475682000000003,
+      "p95_ms": 255.29038300000002,
+      "p99_ms": 882.286557,
+      "phase": "dns",
+      "policy_rejections": 291,
+      "samples": 151259,
+      "transient_failures": 613
+    },
+    {
+      "deterministic_failures": 0,
+      "overloads": 0,
+      "p50_ms": 9.847052999999999,
+      "p95_ms": 348.92946600000005,
+      "p99_ms": 3501.423037,
+      "phase": "tcp",
+      "policy_rejections": 0,
+      "samples": 137227,
+      "transient_failures": 5625
+    },
+    {
+      "deterministic_failures": 4322,
+      "overloads": 0,
+      "p50_ms": 17.743823,
+      "p95_ms": 293.761969,
+      "p99_ms": 550.477795,
+      "phase": "tls",
+      "policy_rejections": 0,
+      "samples": 127693,
+      "transient_failures": 260
+    },
+    {
+      "deterministic_failures": 0,
+      "overloads": 579,
+      "p50_ms": 84.259777,
+      "p95_ms": 850.9063140000001,
+      "p99_ms": 3245.333246,
+      "phase": "ttfb",
+      "policy_rejections": 0,
+      "samples": 274365,
+      "transient_failures": 1384
+    },
+    {
+      "deterministic_failures": 0,
+      "overloads": 579,
+      "p50_ms": 0.026902000000000002,
+      "p95_ms": 241.571699,
+      "p99_ms": 979.253719,
+      "phase": "body",
+      "policy_rejections": 0,
+      "samples": 272981,
+      "transient_failures": 1017
+    }
+  ],
+  "tuning_profile": {
+    "connect_timeout_s": 3.5,
+    "detected_cores": 192,
+    "detected_fd_limit": 524288,
+    "detected_ram_gb": 377.81280517578125,
+    "global_concurrency": 1536,
+    "hardware_tier": "Extreme Supernode (64C+ 128GB+ FD>=65k)",
+    "mode": "adaptive",
+    "total_timeout_s": 8.0
+  },
+  "urls_processed": 100000
+}

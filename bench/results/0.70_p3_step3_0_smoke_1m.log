@@ -1,0 +1,44 @@
+============================================================
+  PageSift P2 NUMA-Local HTTP Reactor
+  Topology: 192 logical / 96 physical / 2 sockets / 4 NUMA
+  Tasks: 1000000 / reactors: 48 / content workers: 144 / connections: 1536 initial, 12288 capacity
+  Node 0 (NUMA 0, socket 0): 12 reactors / 36 content workers / 384 connections
+  Node 1 (NUMA 1, socket 0): 12 reactors / 36 content workers / 384 connections
+  Node 2 (NUMA 2, socket 1): 12 reactors / 36 content workers / 384 connections
+  Node 3 (NUMA 3, socket 1): 12 reactors / 36 content workers / 384 connections
+============================================================
+[0.47%]   46589.3 pages/s | completed 4662 | failed 0 | CPU  27.27 cores | connections 1536 | reuse 158.8%
+[5.82%]  534702.5 pages/s | completed 58166 | failed 0 | CPU  38.87 cores | connections 1536 | reuse 107.1%
+[11.27%]  544902.3 pages/s | completed 112689 | failed 0 | CPU  42.82 cores | connections 1536 | reuse 103.7%
+[16.71%]  543550.8 pages/s | completed 167078 | failed 0 | CPU  44.89 cores | connections 1536 | reuse 102.5%
+  capacity: 2272 active connections / ConcurrencyProbe
+[22.17%]  546194.0 pages/s | completed 221730 | failed 0 | CPU  46.17 cores | connections 2272 | reuse 101.9%
+[27.52%]  533985.1 pages/s | completed 275163 | failed 0 | CPU  46.84 cores | connections 2272 | reuse 101.5%
+[32.97%]  545541.3 pages/s | completed 329730 | failed 0 | CPU  47.46 cores | connections 2272 | reuse 101.3%
+[38.47%]  549684.8 pages/s | completed 384732 | failed 0 | CPU  47.87 cores | connections 2272 | reuse 101.1%
+  capacity: 5548 active connections / ConcurrencyProbe
+[43.97%]  549620.9 pages/s | completed 439715 | failed 0 | CPU  48.27 cores | connections 5548 | reuse 100.9%
+[49.42%]  544334.0 pages/s | completed 494182 | failed 0 | CPU  48.59 cores | connections 5548 | reuse 100.8%
+[54.85%]  543297.3 pages/s | completed 548546 | failed 0 | CPU  48.82 cores | connections 5548 | reuse 100.8%
+[60.45%]  559598.4 pages/s | completed 604547 | failed 0 | CPU  49.00 cores | connections 5548 | reuse 100.7%
+[66.02%]  556575.0 pages/s | completed 660241 | failed 0 | CPU  49.15 cores | connections 5548 | reuse 100.6%
+[71.59%]  556617.6 pages/s | completed 715939 | failed 0 | CPU  49.31 cores | connections 5548 | reuse 100.6%
+  capacity: 12288 active connections / ConcurrencyProbe
+[77.17%]  557003.9 pages/s | completed 771673 | failed 0 | CPU  49.42 cores | connections 12288 | reuse 100.5%
+[82.60%]  543188.4 pages/s | completed 826026 | failed 0 | CPU  49.60 cores | connections 12288 | reuse 100.5%
+[88.23%]  562278.9 pages/s | completed 882288 | failed 0 | CPU  49.69 cores | connections 12288 | reuse 100.5%
+[93.81%]  558045.6 pages/s | completed 938125 | failed 0 | CPU  49.77 cores | connections 12288 | reuse 100.4%
+[98.87%]  505579.4 pages/s | completed 988715 | failed 0 | CPU  49.57 cores | connections 12288 | reuse 99.9%
+[98.87%]       0.0 pages/s | completed 988715 | failed 0 | CPU  47.17 cores | connections 12288 | reuse 99.9%
+  capacity: 8669 active connections / ConcurrencyProbe
+[100.00%]  112778.9 pages/s | completed 1000000 | failed 0 | CPU  45.67 cores | connections 8669 | reuse 98.8%
+============================================================
+  Sustained QPS: 462128.93
+  Completed: 1000000 / 1000000
+  Failed: 0
+  Connections: 12288 opened / 987712 reused / 0 retries / 0 timeouts
+  Pipeline: 81199 queue backpressure events / 4678 response-buffer allocations
+  Distribution: 918311 local jobs in 464234 batches (356726 lane-helped) / 421 cross-NUMA jobs from 421 successful steals
+  Runner CPU: 45.73 core-s/s (23.82% of 192)
+  Report: bench/results/0.70_p3_step3_0_smoke_1m.json
+============================================================

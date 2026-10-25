@@ -1,0 +1,61 @@
+{
+  "fixture_modalities": 5,
+  "iterations_per_mode": 20000000,
+  "logical_cpus": 192,
+  "numa_nodes": 4,
+  "origin_url": "http://127.0.0.1:19907",
+  "physical_cores": 96,
+  "results": [
+    {
+      "assigned_cpus": 192,
+      "bytes": 27920000000,
+      "failed": 0,
+      "mode": "end_to_end",
+      "operations": 20000000,
+      "operations_per_s": 659907.7596091699,
+      "process_cpu_cores": 131.5720791569965,
+      "process_cpu_pct_of_assigned": 68.52712456093568,
+      "process_cpu_time_s": 3987.59,
+      "shards": 96,
+      "stage_profile": {
+        "body_read_us": {
+          "mean": 3.665761826745853,
+          "p50": 1.934,
+          "p95": 9.904,
+          "p99": 22.858
+        },
+        "content_us": {
+          "mean": 164.07169117345893,
+          "p50": 144.787,
+          "p95": 237.293,
+          "p99": 520.124
+        },
+        "headers_wait_us": {
+          "mean": 2174.87482265001,
+          "p50": 1861.7,
+          "p95": 4491.262,
+          "p99": 6327.778
+        },
+        "recycle_us": {
+          "mean": 6.445014130657382,
+          "p50": 1.919,
+          "p95": 15.997,
+          "p99": 33.061
+        },
+        "samples": 4883,
+        "url_build_us": {
+          "mean": 1.163545156665984,
+          "p50": 0.534,
+          "p95": 2.462,
+          "p99": 11.66
+        }
+      },
+      "throughput_mb_s": 878.5545658248913,
+      "valid": 20000000,
+      "wall_time_s": 30.307265991,
+      "workers_or_slots": 1536
+    }
+  ],
+  "schema": 1,
+  "sockets": 2
+}

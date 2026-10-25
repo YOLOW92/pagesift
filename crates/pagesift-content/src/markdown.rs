@@ -23,6 +23,9 @@ pub(crate) struct Renderer<'a> {
     pub base: Option<&'a Url>,
     pub skipper: &'a Skipper,
     pub whitelist: Whitelist,
+    /// 扁平模式：处于表格单元格或排版表内部。此时 `table` 不再展开成子表，
+    /// 内层表格只按普通容器把文字透传上来，避免嵌套表格被逐层重复渲染。
+    flat: bool,
 }
 
 /// 只输出哪些元素里的文字（照 trafilatura 的 TAG_CATALOG）。文章模式里，散落在 `div`、`span`、
@@ -42,6 +45,17 @@ impl<'a> Renderer<'a> {
             base,
             skipper,
             whitelist: Whitelist::Off,
+            flat: false,
+        }
+    }
+
+    /// 进入扁平模式：内层表格不再渲染成子表，只透传文字。
+    fn as_flat(&self) -> Self {
+        Self {
+            base: self.base,
+            skipper: self.skipper,
+            whitelist: self.whitelist,
+            flat: true,
         }
     }
 
@@ -303,6 +317,9 @@ impl Renderer<'_> {
                     out.push(b);
                 }
             }
+            // 已经在表格内部：内层表格不再展开成子表，按普通容器透传文字。
+            // 排版型页面常见几十层嵌套 table，逐层展开会让单元格重复渲染，代价按深度指数增长。
+            "table" if self.flat => out.extend(self.blocks_of(node)),
             "table" => self.table(node, out),
             "dt" => {
                 let text = single_line(&self.inline_children(node));
@@ -409,14 +426,18 @@ impl Renderer<'_> {
     fn table(&self, node: NodeR<'_>, out: &mut Vec<Block>) {
         let mut rows: Vec<NodeR<'_>> = Vec::new();
         collect_rows(node, &mut rows);
+        // 单元格内部按"扁平"方式渲染：内层 table 只透传文字，不再展开成子表。
+        // 排版型页面常出现几十层嵌套 table（真实样本最深 27 层、241 个 table），
+        // 若每层都完整展开，外层单元格会把内层子树重复渲染一次，代价随深度指数增长。
         let cells: Vec<Vec<String>> = rows
             .iter()
             .map(|row| {
                 row.children()
                     .filter(|c| matches!(tag(c), Some("td" | "th")))
                     .map(|c| {
-                        let cell =
-                            single_line(&join_blocks(&self.blocks_of(c)).replace("  \n", " "));
+                        let cell = single_line(
+                            &join_blocks(&self.as_flat().blocks_of(c)).replace("  \n", " "),
+                        );
                         unescape_block_start(&cell).replace('|', "\\|")
                     })
                     .collect()
@@ -426,7 +447,7 @@ impl Renderer<'_> {
         let cols = cells.iter().map(Vec::len).max().unwrap_or(0);
         // 单行或单列的表格基本是排版用的，不当数据表
         if cells.len() < 2 || cols < 2 {
-            out.extend(self.blocks_of(node));
+            out.extend(self.as_flat().blocks_of(node));
             return;
         }
         let fmt_row = |r: &Vec<String>| {

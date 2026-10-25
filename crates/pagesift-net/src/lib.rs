@@ -15,10 +15,12 @@ mod client;
 mod credentials;
 mod dns;
 mod fetch;
+mod host_connections;
 pub mod media;
 pub mod scheduler;
 mod session;
 mod ssrf;
+mod stages;
 mod ua;
 
 pub use budget::{
@@ -34,14 +36,21 @@ pub use media::{
 pub use scheduler::{CrawlResult, CrawlTask, DomainLimiter, PushError, RingQueue, WorkerPool};
 
 pub use charset::{CharsetSource, Decoded, decode};
+/// 只做"看字节猜编码"，不解码。基准测试与诊断工具用它。
+pub use charset::detect as detect_charset;
 pub use credentials::{HostCredentials, Secret, redact_url};
 pub use dns::{BoxFuture, DnsLookup, SystemLookup};
 pub use fetch::{
     BoxError, Error, FetchRequest, FetchResponse, FetchStream, Fetcher, FetcherConfig,
     RedirectGuard, RedirectHop, Result, TimeoutPhase, Timings,
 };
+pub use host_connections::HostConnectionStats;
 pub use reqwest::header::HeaderMap;
 pub use session::{CookieSession, SessionConfig, SessionError, SessionSnapshot, SessionStats};
 pub use ssrf::{Blocked, IpCidr, SsrfPolicy, check_url, is_public};
+pub use stages::{
+    NetworkStage, PhaseSnapshot, StageController, StageControllerConfig, StageLimit, StageOutcome,
+    StagePermit, StageSnapshot, TransportPhase,
+};
 pub use ua::{DEFAULT_USER_AGENT, UserAgentError, product_token, validate_user_agent};
 pub use url::Url;

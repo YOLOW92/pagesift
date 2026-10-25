@@ -9,16 +9,25 @@
 use std::borrow::Cow;
 
 use crate::Tag;
-use crate::dom::{Attr, Data, Html, NONE, Node, Span};
+use crate::dom::{Attr, Data, Html, NONE, Node, ParseScratch, Span};
 
 /// 打开元素栈的最大深度。更深的元素照样插入但不入栈，树的深度因此有上限，
 /// 递归遍历这棵树的代码不会因为恶意的深层嵌套栈溢出。
 const MAX_DEPTH: usize = 512;
 
 pub(crate) fn parse(html: &str) -> Html<'_> {
+    parse_with_scratch(html, &mut ParseScratch::default())
+}
+
+pub(crate) fn parse_with_scratch<'s>(html: &'s str, scratch: &mut ParseScratch) -> Html<'s> {
     let src = normalize(html);
     let (buf, nodes, attrs) = {
-        let mut tb = Builder::new(&src);
+        let mut tb = Builder::with_buffers(
+            &src,
+            std::mem::take(&mut scratch.buf),
+            std::mem::take(&mut scratch.nodes),
+            std::mem::take(&mut scratch.attrs),
+        );
         tokenize(&src, &mut tb);
         (tb.buf, tb.nodes, tb.attrs)
     };
@@ -327,16 +336,29 @@ fn integration_point(name: &str) -> bool {
 }
 
 impl<'a> Builder<'a> {
-    pub(super) fn new(src: &'a str) -> Self {
+    fn with_buffers(
+        src: &'a str,
+        mut buf: String,
+        mut nodes: Vec<Node>,
+        mut attrs: Vec<Attr>,
+    ) -> Self {
+        buf.clear();
+        nodes.clear();
+        attrs.clear();
+        let node_capacity = src.len() / 40 + 16;
+        if nodes.capacity() < node_capacity {
+            nodes.reserve(node_capacity - nodes.capacity());
+        }
+        let attr_capacity = src.len() / 80 + 16;
+        if attrs.capacity() < attr_capacity {
+            attrs.reserve(attr_capacity - attrs.capacity());
+        }
+        nodes.push(Node::new(Data::Document));
         Builder {
             src,
-            buf: String::new(),
-            nodes: {
-                let mut v = Vec::with_capacity(src.len() / 40 + 16);
-                v.push(Node::new(Data::Document));
-                v
-            },
-            attrs: Vec::with_capacity(src.len() / 80 + 16),
+            buf,
+            nodes,
+            attrs,
             stack: Vec::with_capacity(64),
             mode: Mode::Initial,
             html: NONE,

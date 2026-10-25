@@ -1,0 +1,48 @@
+{
+  "per_host": {
+    "h1": {
+      "pages": 245,
+      "errors": 0,
+      "codes": {},
+      "unique_url": 245,
+      "private_path_hits": 0,
+      "goto_private_hits": 0,
+      "redirect_loop_hits": 0
+    },
+    "h2": {
+      "pages": 0,
+      "errors": 0,
+      "codes": {
+        "TIMEOUT": 8,
+        "RATE_LIMITED": 6
+      },
+      "unique_url": 180,
+      "private_path_hits": 0,
+      "goto_private_hits": 0,
+      "redirect_loop_hits": 0
+    },
+    "h4": {
+      "pages": 0,
+      "errors": 0,
+      "codes": {
+        "TIMEOUT": 2,
+        "RATE_LIMITED": 4
+      },
+      "unique_url": 61,
+      "private_path_hits": 0,
+      "goto_private_hits": 0,
+      "redirect_loop_hits": 0
+    }
+  },
+  "invariants": {
+    "no_private_path_fetched": true,
+    "ssrf_blocked_or_not_followed": true,
+    "redirect_loop_bounded": true,
+    "codes_seen": {
+      "TIMEOUT": 10,
+      "RATE_LIMITED": 10
+    }
+  },
+  "expected_rejections": 20,
+  "unexpected_codes": {}
+}

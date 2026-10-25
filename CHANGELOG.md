@@ -2,6 +2,55 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.70.0] — 2026-10-26
+
+NUMA-local data-plane rewrite, cgroup-aware capacity, and seven public extraction benchmarks.
+See [the release notes](docs/releases/0.70.0.md).
+
+### Added
+- Hand-written NUMA-local HTTP/1.1 data plane: fixed-slot NUMA executors, minimal reactor,
+  hybrid reactor/content scheduling, per-origin adaptive connections, sharded intake with
+  bounded work stealing, and a fused parse pipeline. The general-purpose async client is no
+  longer on the hot path.
+- `HardwareTopology::read_memory()` now reads cgroup v2 `memory.max` and feeds the capacity
+  controller. Under a 768 MiB cap the engine settles at 380 connections and sustains
+  817,346 pages/s without OOM.
+- Reproducible harnesses and reports for seven public benchmarks under `bench/`:
+  WebMainBench, WCEB, olmOCR-bench, WCXB, Google Security Crawl Maze, the robots.txt spec
+  suite and Common Crawl WARC.
+- Accepted-upstream scorers are vendored under `bench/upstream/` at pinned commits, so the
+  published numbers can be recomputed offline.
+- E1 stress suite: content storm, multi-host crawl, seeded fault storm, and a fixed
+  10-minute A/B/C mixed run with per-minute telemetry.
+- `PAGESIFT_NO_FORCE_ARTICLE=1` to restore pre-0.70 extraction scope when raw throughput
+  matters more than extraction quality.
+
+### Changed
+- Article-body location now runs on every page instead of only `og:type=article` pages.
+  Worth +0.055 ROUGE-5 on WebMainBench (0.5860 → 0.6414). Overall 0.70 remains 2.22× the
+  0.61 baseline (947,611 pages/s on 192 vCPU) with 19.6 % less CPU per page.
+- `[fetch] timeout_secs` is now a true per-request budget: it propagates to
+  `first_byte_timeout`, `body_idle_timeout`, connect/DNS/TLS and tail thresholds.
+- Adaptive tuning no longer overwrites explicitly configured timeouts.
+
+### Fixed
+- `fetch.timeout_secs` did not bound the wait for response headers — an 8 s budget could wait
+  30 s against an origin that delayed its first byte.
+- A 429 widened the host's request interval up to 30 s with 1/16 decay per success, which was
+  effectively unrecoverable. Now halves on success and honours `Retry-After` without
+  permanently penalising the host.
+- A single permanently failing URL could trigger host-wide exponential cooldown (10 s → 600 s)
+  that no success could clear. Host cooldown now counts distinct failing URLs with a flat
+  cooldown.
+- Runtime panicked when worker threads could not be spawned under a tight `ulimit -v`.
+  Worker count is now derived from available address space with a halving retry and a clear
+  error.
+- Nested `<table>` structures (241 tables, 27 levels deep in one real sample) made the
+  Markdown renderer loop without converging. Table cells now render in a flat mode that
+  passes inner tables through as text.
+
+---
+
 ## [0.61.0] — 2026-10-24
 
 Batch scraping diagnostics and per-host admission controls. See [the release notes](docs/releases/0.61.0.md).

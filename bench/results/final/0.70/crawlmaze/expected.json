@@ -1,0 +1,243 @@
+{
+  "expected": [
+    "/test/html/body/a/href.found",
+    "/test/html/body/a/ping.found",
+    "/test/html/body/applet/archive.found",
+    "/test/html/body/applet/codebase.found",
+    "/test/html/body/audio/source/src.found",
+    "/test/html/body/audio/src.found",
+    "/test/html/body/background.found",
+    "/test/html/body/blockquote/cite.found",
+    "/test/html/body/embed/src.found",
+    "/test/html/body/form/action-get.found",
+    "/test/html/body/form/action-post.found",
+    "/test/html/body/form/button/formaction.found",
+    "/test/html/body/frameset/frame/src.found",
+    "/test/html/body/iframe/src.found",
+    "/test/html/body/img/dynsrc.found",
+    "/test/html/body/img/longdesc.found",
+    "/test/html/body/img/lowsrc.found",
+    "/test/html/body/img/src-data.found",
+    "/test/html/body/img/src.found",
+    "/test/html/body/input/src.found",
+    "/test/html/body/isindex/action.found",
+    "/test/html/body/map/area/ping.found",
+    "/test/html/body/object/codebase.found",
+    "/test/html/body/object/data.found",
+    "/test/html/body/object/param/value.found",
+    "/test/html/body/script/src.found",
+    "/test/html/body/svg/image/xlink.found",
+    "/test/html/body/svg/script/xlink.found",
+    "/test/html/body/table/background.found",
+    "/test/html/body/table/td/background.found",
+    "/test/html/body/video/poster.found",
+    "/test/html/body/video/src.found",
+    "/test/html/body/video/track/src.found",
+    "/test/html/doctype.found",
+    "/test/html/head/base/href.found",
+    "/test/html/head/comment-conditional.found",
+    "/test/html/head/import/implementation.found",
+    "/test/html/head/link/href.found",
+    "/test/html/head/meta/content-pinned-websites.found",
+    "/test/html/head/meta/content-reading-view.found",
+    "/test/html/head/profile.found",
+    "/test/html/manifest.found",
+    "/test/html/misc/url/root-relative-url.found",
+    "/test/javascript/interactive/js-delete.found",
+    "/test/javascript/interactive/js-post-event-listener.found",
+    "/test/javascript/interactive/js-post.found",
+    "/test/javascript/interactive/js-put.found",
+    "/test/javascript/interactive/listener-and-event-attribute-first.found",
+    "/test/javascript/interactive/listener-and-event-attribute-second.found",
+    "/test/javascript/interactive/multi-step-request-event-attribute.found",
+    "/test/javascript/interactive/multi-step-request-event-listener-div-dom.found",
+    "/test/javascript/interactive/multi-step-request-event-listener-div.found",
+    "/test/javascript/interactive/multi-step-request-event-listener-dom.found",
+    "/test/javascript/interactive/multi-step-request-event-listener.found",
+    "/test/javascript/interactive/multi-step-request-redefine-event-attribute.found",
+    "/test/javascript/interactive/multi-step-request-remove-button.found",
+    "/test/javascript/interactive/multi-step-request-remove-event-listener.found",
+    "/test/javascript/interactive/two-listeners-first.found",
+    "/test/javascript/interactive/two-listeners-second.found",
+    "/test/javascript/misc/automatic-post.found"
+  ],
+  "count": 60,
+  "by_file": {
+    "html/body/a/href.html": [
+      "/test/html/body/a/href.found"
+    ],
+    "html/body/a/ping.html": [
+      "/test/html/body/a/ping.found"
+    ],
+    "html/body/applet/archive.html": [
+      "/test/html/body/applet/archive.found"
+    ],
+    "html/body/applet/codebase.html": [
+      "/test/html/body/applet/codebase.found"
+    ],
+    "html/body/audio/source/src.html": [
+      "/test/html/body/audio/source/src.found"
+    ],
+    "html/body/audio/src.html": [
+      "/test/html/body/audio/src.found"
+    ],
+    "html/body/background.html": [
+      "/test/html/body/background.found"
+    ],
+    "html/body/blockquote/cite.html": [
+      "/test/html/body/blockquote/cite.found"
+    ],
+    "html/body/embed/src.html": [
+      "/test/html/body/embed/src.found"
+    ],
+    "html/body/form/action-get.html": [
+      "/test/html/body/form/action-get.found"
+    ],
+    "html/body/form/action-post.html": [
+      "/test/html/body/form/action-post.found"
+    ],
+    "html/body/form/button/formaction.html": [
+      "/test/html/body/form/button/formaction.found"
+    ],
+    "html/body/frameset/frame/src.html": [
+      "/test/html/body/frameset/frame/src.found"
+    ],
+    "html/body/iframe/src.html": [
+      "/test/html/body/iframe/src.found"
+    ],
+    "html/body/img/dynsrc.html": [
+      "/test/html/body/img/dynsrc.found"
+    ],
+    "html/body/img/longdesc.html": [
+      "/test/html/body/img/longdesc.found"
+    ],
+    "html/body/img/lowsrc.html": [
+      "/test/html/body/img/lowsrc.found"
+    ],
+    "html/body/img/src-data.html": [
+      "/test/html/body/img/src-data.found"
+    ],
+    "html/body/img/src.html": [
+      "/test/html/body/img/src.found"
+    ],
+    "html/body/input/src.html": [
+      "/test/html/body/input/src.found"
+    ],
+    "html/body/isindex/action.html": [
+      "/test/html/body/isindex/action.found"
+    ],
+    "html/body/map/area/ping.html": [
+      "/test/html/body/map/area/ping.found"
+    ],
+    "html/body/object/codebase.html": [
+      "/test/html/body/object/codebase.found"
+    ],
+    "html/body/object/data.html": [
+      "/test/html/body/object/data.found"
+    ],
+    "html/body/object/param/value.html": [
+      "/test/html/body/object/param/value.found"
+    ],
+    "html/body/script/src.html": [
+      "/test/html/body/script/src.found"
+    ],
+    "html/body/svg/image/xlink.html": [
+      "/test/html/body/svg/image/xlink.found"
+    ],
+    "html/body/svg/script/xlink.html": [
+      "/test/html/body/svg/script/xlink.found"
+    ],
+    "html/body/table/background.html": [
+      "/test/html/body/table/background.found"
+    ],
+    "html/body/table/td/background.html": [
+      "/test/html/body/table/td/background.found"
+    ],
+    "html/body/video/poster.html": [
+      "/test/html/body/video/poster.found"
+    ],
+    "html/body/video/src.html": [
+      "/test/html/body/video/src.found"
+    ],
+    "html/body/video/track/src.html": [
+      "/test/html/body/video/track/src.found"
+    ],
+    "html/doctype.html": [
+      "/test/html/doctype.found"
+    ],
+    "html/head/base/href.html": [
+      "/test/html/head/base/href.found"
+    ],
+    "html/head/comment/comment-conditional.html": [
+      "/test/html/head/comment-conditional.found"
+    ],
+    "html/head/import/implementation.html": [
+      "/test/html/head/import/implementation.found"
+    ],
+    "html/head/link/href.html": [
+      "/test/html/head/link/href.found"
+    ],
+    "html/head/meta/content-pinned-websites.html": [
+      "/test/html/head/meta/content-pinned-websites.found"
+    ],
+    "html/head/meta/content-reading-view.html": [
+      "/test/html/head/meta/content-reading-view.found"
+    ],
+    "html/head/profile.html": [
+      "/test/html/head/profile.found"
+    ],
+    "html/manifest.html": [
+      "/test/html/manifest.found"
+    ],
+    "html/misc/url/root-relative-url.html": [
+      "/test/html/misc/url/root-relative-url.found"
+    ],
+    "javascript/interactive/js-delete.html": [
+      "/test/javascript/interactive/js-delete.found"
+    ],
+    "javascript/interactive/js-post-event-listener.html": [
+      "/test/javascript/interactive/js-post-event-listener.found"
+    ],
+    "javascript/interactive/js-post.html": [
+      "/test/javascript/interactive/js-post.found"
+    ],
+    "javascript/interactive/js-put.html": [
+      "/test/javascript/interactive/js-put.found"
+    ],
+    "javascript/interactive/listener-and-event-attribute.html": [
+      "/test/javascript/interactive/listener-and-event-attribute-first.found",
+      "/test/javascript/interactive/listener-and-event-attribute-second.found"
+    ],
+    "javascript/interactive/multi-step-request-event-attribute.html": [
+      "/test/javascript/interactive/multi-step-request-event-attribute.found"
+    ],
+    "javascript/interactive/multi-step-request-event-listener-div-dom.html": [
+      "/test/javascript/interactive/multi-step-request-event-listener-div-dom.found"
+    ],
+    "javascript/interactive/multi-step-request-event-listener-div.html": [
+      "/test/javascript/interactive/multi-step-request-event-listener-div.found"
+    ],
+    "javascript/interactive/multi-step-request-event-listener-dom.html": [
+      "/test/javascript/interactive/multi-step-request-event-listener-dom.found"
+    ],
+    "javascript/interactive/multi-step-request-event-listener.html": [
+      "/test/javascript/interactive/multi-step-request-event-listener.found"
+    ],
+    "javascript/interactive/multi-step-request-redefine-event-attribute.html": [
+      "/test/javascript/interactive/multi-step-request-redefine-event-attribute.found"
+    ],
+    "javascript/interactive/multi-step-request-remove-button.html": [
+      "/test/javascript/interactive/multi-step-request-remove-button.found"
+    ],
+    "javascript/interactive/multi-step-request-remove-event-listener.html": [
+      "/test/javascript/interactive/multi-step-request-remove-event-listener.found"
+    ],
+    "javascript/interactive/two-listeners.html": [
+      "/test/javascript/interactive/two-listeners-first.found",
+      "/test/javascript/interactive/two-listeners-second.found"
+    ],
+    "javascript/misc/automatic-post.html": [
+      "/test/javascript/misc/automatic-post.found"
+    ]
+  }
+}
