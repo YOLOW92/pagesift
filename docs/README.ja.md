@@ -13,12 +13,42 @@
 [![crates.io](https://img.shields.io/crates/v/pagesift.svg)](https://crates.io/crates/pagesift)
 [![PyPI](https://img.shields.io/pypi/v/pagesift.svg)](https://pypi.org/project/pagesift/)
 [![npm](https://img.shields.io/npm/v/@pagesift/node.svg)](https://www.npmjs.com/package/@pagesift/node)
-[![10万公網実測](https://img.shields.io/badge/10%E4%B8%87%E3%82%B5%E3%82%A4%E3%83%88%E5%AE%9F%E6%B8%AC-47.6%C3%97%20%E3%83%A1%E3%83%A2%E3%83%AA%E5%84%AA%E4%BD%8D-blue.svg)](#-旗艦対決128gb-本番サーバーにおける-10-万グローバルドメイン頂上決戦)
-[![128GBサーバー防衛認証](https://img.shields.io/badge/128GB%E3%82%B5%E3%83%BC%E3%83%90%E3%83%BC-OOM%20%E5%85%8D%E7%96%AB-success.svg)](#-総合-10-大領域ベンチマークマトリクス)
+[![2億件の合成負荷](https://img.shields.io/badge/200M%20Synthetic-947%2C611%20p%2Fs-blue.svg)](releases/0.70.0.md)
+[![768 MiB cgroup](https://img.shields.io/badge/768%20MiB%20cgroup-Zero%20OOM-success.svg)](releases/0.70.0.md)
 
 [English](../README.md) · [简体中文](README.zh-CN.md) · **日本語** · [Español](README.es.md)
 
 </div>
+
+---
+
+## 0.70.0 の新機能
+
+0.70 では HTTP データ経路を再構築しました。NUMA ローカル実行器、軽量 HTTP/1.1 reactor、オリジン別の適応的接続制御、有界のシャード処理を導入しています。cgroup v2 の `memory.max` を容量制御に反映し、768 MiB 制限下で 380 接続、817,346 ページ/秒、OOM なしを測定しました。
+
+- **192 vCPU、2 億件の合成負荷試験**：200,000,000/200,000,000 件完了、失敗 0 件、947,611 ページ/秒、所要 211.1 秒、RSS 最大 888.1 MiB。これは合成負荷の値であり、公開 Web の取得速度ではありません。
+- **公開ベンチマークでは負けた項目も掲載**：7 領域中 4 領域で首位。本文抽出、動的描画、DOM 自己修復の差も下表に示します。
+- **運用上の不具合を修正**：応答ヘッダー待機にも `timeout_secs` を適用し、429 ペナルティの回復、単一 URL の失敗によるホスト停止、低い `ulimit -v` での panic を修正しました。
+
+設計、測定条件、移行情報は [0.70.0 リリースノート](releases/0.70.0.md) を参照してください。
+
+---
+
+## 🏆 7 領域の公開ベンチマーク（0.70）
+
+すべて**同じマシンで全件を実行**し、各ベンチマーク固有の採点器と 10 GiB のメモリ上限を使用しました。検証環境は Intel i7-10700（8C/16T）、RAM 15 GB、Ubuntu 26.04 です。再現スクリプトは [`bench/scripts/`](../bench/scripts/)、個別レポートは [`docs/benchmarks/`](benchmarks/) にあります。
+
+| 領域 | PageSift 0.70 | 最良の比較対象 | 順位 | 最大 RAM |
+| :--- | :--- | :--- | :---: | ---: |
+| D1 本文抽出（WCXB、2,006 ページ） | 0.6720 F1 | PageSift 0.50：0.6824 | 4 位 | 751 MiB |
+| D3 PDF 抽出（olmOCR、1,403 件） | **0.4506** | pymupdf4llm：0.2446 | **1 位** | 271 MiB |
+| D5 RAG 分割と BM25（472 問） | **0.9470 R@5** | semchunk：0.9364 | **1 位** | — |
+| D6 文字コード判定（3,128 ファイル） | **0.7602** | chardet：0.7113 | **1 位** | 39 MiB |
+| D7 構造化データ（2,006 ページ） | **0.7392** | bs4+lxml：0.5488 | **1 位** | **21 MiB** |
+| D9 動的描画（7 SPA シナリオ） | 3/7 | Playwright：5/7 | 2 位 | — |
+| D4 DOM 自己修復（2,000 変異） | 0.8215 | Scrapling：0.8875 | 2 位 | — |
+
+D1 は精度を優先して再現率が低下しました。D9 はタイマーで遅れて挿入される要素に未対応です。D4 はおとり要素では優位ですが、総合では 2 位です。以下の旧バージョンの測定値は 0.70 の結果ではありません。
 
 ---
 

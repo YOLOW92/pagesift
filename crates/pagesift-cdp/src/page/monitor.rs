@@ -328,6 +328,7 @@ pub(super) async fn scan_full_page(ctx: &PageCtx<'_>, scan: &FullPageScan) -> Re
         |v: Value| -> (f64, f64) { (v[0].as_f64().unwrap_or(0.0), v[1].as_f64().unwrap_or(0.0)) };
     let start = Instant::now();
     let mut last_height = pos(eval_value(ctx.session, POS).await?).1;
+    let mut stable_bottom = 0;
     for _ in 0..scan.max_steps {
         if start.elapsed() >= scan.timeout {
             break;
@@ -341,10 +342,18 @@ pub(super) async fn scan_full_page(ctx: &PageCtx<'_>, scan: &FullPageScan) -> Re
         let (bottom, height) = pos(eval_value(ctx.session, POS).await?);
         if height > last_height {
             last_height = height;
+            stable_bottom = 0;
             continue;
         }
         if bottom >= height - 2.0 {
-            break;
+            // IntersectionObserver and scroll handlers may start a fetch after
+            // network idle is observed. Require several quiet bottom scans.
+            stable_bottom += 1;
+            if stable_bottom >= 3 {
+                break;
+            }
+        } else {
+            stable_bottom = 0;
         }
     }
     eval_value(ctx.session, "window.scrollTo(0, 0)").await?;

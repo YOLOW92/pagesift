@@ -13,12 +13,42 @@
 [![crates.io](https://img.shields.io/crates/v/pagesift.svg)](https://crates.io/crates/pagesift)
 [![PyPI](https://img.shields.io/pypi/v/pagesift.svg)](https://pypi.org/project/pagesift/)
 [![npm](https://img.shields.io/npm/v/@pagesift/node.svg)](https://www.npmjs.com/package/@pagesift/node)
-[![1亿真实公网实测](https://img.shields.io/badge/1%E4%BA%BF%E7%9C%9F%E5%AE%9E%E5%85%AC%E7%BD%91-42%2C124%20p%2Fs%20%E9%AA%8C%E8%AF%81-brightgreen.svg)](#-旗舰决战真实-100000000-亿级全球公网终极大决战)
-[![128GB服务器防爆认证](https://img.shields.io/badge/128GB%E6%9C%8D%E5%8A%A1%E5%99%A8-OOM%20%E5%85%8D%E7%96%AB-success.svg)](#-一亿任务跨代代际跃迁050-vs-060)
+[![2亿合成任务](https://img.shields.io/badge/200M%20Synthetic-947%2C611%20p%2Fs-blue.svg)](releases/0.70.0.md)
+[![768 MiB cgroup](https://img.shields.io/badge/768%20MiB%20cgroup-Zero%20OOM-success.svg)](releases/0.70.0.md)
 
 [English](../README.md) · **简体中文** · [日本語](README.ja.md) · [Español](README.es.md)
 
 </div>
+
+---
+
+## 0.70.0 新增内容
+
+0.70 重构了 HTTP 数据通路：NUMA 本地执行器、精简的 HTTP/1.1 reactor、按源站自适应连接数和有界分片调度。引擎读取 cgroup v2 的 `memory.max` 来约束容量；在 768 MiB 限额下，实测稳定于 380 个连接、817,346 页/秒且没有 OOM。
+
+- **192 vCPU、2 亿合成任务饱和测试**：200,000,000/200,000,000 完成，零失败，947,611 页/秒，211.1 秒，峰值 RSS 888.1 MiB。这是合成负载成绩，不能当作真实公网抓取速度。
+- **公开基准连同失利项一起报告**：七个领域中四项领先；正文提取、动态渲染和 DOM 自愈的差距也列在下表。
+- **生产问题修复**：请求头等待现在受 `timeout_secs` 约束；429 惩罚可以恢复；单个坏 URL 不再冻结整个源站；低 `ulimit -v` 时避免运行时 panic。
+
+详细设计、测试条件和迁移信息见 [0.70.0 发行说明](releases/0.70.0.md)。
+
+---
+
+## 🏆 七领域公开基准对照（0.70）
+
+以下均为**同机全量测试**，使用各基准自己的评分器，并设置 10 GiB 内存上限。测试机为 Intel i7-10700（8C/16T）、15 GB RAM、Ubuntu 26.04。复现脚本见 [`bench/scripts/`](../bench/scripts/)，逐项报告见 [`docs/benchmarks/`](benchmarks/)。
+
+| 领域 | PageSift 0.70 | 最佳对手 | 名次 | 峰值内存 |
+| :--- | :--- | :--- | :---: | ---: |
+| D1 正文提取（WCXB，2,006 页） | 0.6720 F1 | PageSift 0.50：0.6824 | 第 4 | 751 MiB |
+| D3 PDF 提取（olmOCR，1,403 份） | **0.4506** | pymupdf4llm：0.2446 | **第 1** | 271 MiB |
+| D5 RAG 分块与 BM25（472 题） | **0.9470 R@5** | semchunk：0.9364 | **第 1** | — |
+| D6 编码检测（3,128 文件） | **0.7602** | chardet：0.7113 | **第 1** | 39 MiB |
+| D7 结构化数据（2,006 页） | **0.7392** | bs4+lxml：0.5488 | **第 1** | **21 MiB** |
+| D9 动态渲染（7 个 SPA 场景） | 3/7 | Playwright：5/7 | 第 2 | — |
+| D4 DOM 自愈（2,000 次变异） | 0.8215 | Scrapling：0.8875 | 第 2 | — |
+
+D1 以较高精确率换取召回率；D9 尚未覆盖定时注入内容；D4 在诱饵场景领先，但总体排名第二。下方保留旧版本的历史基准，不代表 0.70 的成绩。
 
 ---
 

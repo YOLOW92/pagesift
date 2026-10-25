@@ -13,12 +13,42 @@ Convierte cualquier sitio web, documento o archivo en Markdown limpio y datos es
 [![crates.io](https://img.shields.io/crates/v/pagesift.svg)](https://crates.io/crates/pagesift)
 [![PyPI](https://img.shields.io/pypi/v/pagesift.svg)](https://pypi.org/project/pagesift/)
 [![npm](https://img.shields.io/npm/v/@pagesift/node.svg)](https://www.npmjs.com/package/@pagesift/node)
-[![100k Sitios Reales](https://img.shields.io/badge/100k%20Web%20Real-47.6%C3%97%20Ventaja%20RAM-blue.svg)](##-duelo-insignia-batalla-de-100000-dominios-reales-en-servidor-de-128-gb)
-[![Servidor 128GB Inmune a OOM](https://img.shields.io/badge/Servidor%20128GB-Inmune%20a%20OOM-success.svg)](#-matriz-exhaustiva-de-rendimiento-los-10-dominios)
+[![200M tareas sintéticas](https://img.shields.io/badge/200M%20Synthetic-947%2C611%20p%2Fs-blue.svg)](releases/0.70.0.md)
+[![768 MiB cgroup](https://img.shields.io/badge/768%20MiB%20cgroup-Zero%20OOM-success.svg)](releases/0.70.0.md)
 
 [English](../README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · **Español**
 
 </div>
+
+---
+
+## Novedades en 0.70.0
+
+La versión 0.70 reconstruye el flujo de datos HTTP con ejecutores locales a NUMA, un reactor HTTP/1.1 ligero, conexiones adaptativas por origen y procesamiento fragmentado con límites. El motor usa `memory.max` de cgroup v2 para ajustar la capacidad: con un límite de 768 MiB se midieron 380 conexiones, 817.346 páginas/s y ningún OOM.
+
+- **Prueba de saturación sintética de 200 millones de tareas en 192 vCPU**: 200.000.000/200.000.000 completadas, cero fallos, 947.611 páginas/s, 211,1 s y 888,1 MiB de RSS máximo. Esta cifra corresponde a carga sintética, no a rastreo de la web pública.
+- **Resultados públicos que incluyen las derrotas**: PageSift lidera 4 de 7 dominios; las diferencias en extracción de contenido, renderizado dinámico y autorreparación DOM figuran abajo.
+- **Correcciones operativas**: `timeout_secs` limita también la espera de cabeceras; se recuperan las penalizaciones 429; una URL fallida ya no bloquea todo el host; se evita el panic con un `ulimit -v` bajo.
+
+El diseño, las condiciones de medición y la migración están en las [notas de la versión 0.70.0](releases/0.70.0.md).
+
+---
+
+## 🏆 Comparación pública en siete dominios (0.70)
+
+Todas las cifras proceden de **ejecuciones completas en la misma máquina**, con el evaluador propio de cada conjunto y un límite de memoria de 10 GiB. Equipo: Intel i7-10700 (8C/16T), 15 GB de RAM y Ubuntu 26.04. Los scripts están en [`bench/scripts/`](../bench/scripts/) y los informes por dominio en [`docs/benchmarks/`](benchmarks/).
+
+| Dominio | PageSift 0.70 | Mejor rival | Puesto | RAM máxima |
+| :--- | :--- | :--- | :---: | ---: |
+| D1 Extracción de contenido (WCXB, 2.006 páginas) | 0,6720 F1 | PageSift 0.50: 0,6824 | 4.º | 751 MiB |
+| D3 PDF (olmOCR, 1.403 documentos) | **0,4506** | pymupdf4llm: 0,2446 | **1.º** | 271 MiB |
+| D5 Fragmentación RAG y BM25 (472 preguntas) | **0,9470 R@5** | semchunk: 0,9364 | **1.º** | — |
+| D6 Detección de codificación (3.128 archivos) | **0,7602** | chardet: 0,7113 | **1.º** | 39 MiB |
+| D7 Datos estructurados (2.006 páginas) | **0,7392** | bs4+lxml: 0,5488 | **1.º** | **21 MiB** |
+| D9 Renderizado dinámico (7 escenarios SPA) | 3/7 | Playwright: 5/7 | 2.º | — |
+| D4 Autorreparación DOM (2.000 mutaciones) | 0,8215 | Scrapling: 0,8875 | 2.º | — |
+
+En D1 se prioriza la precisión a costa de la cobertura; D9 todavía no espera contenido insertado por temporizadores; D4 gana frente a señuelos, pero queda segundo en conjunto. Las mediciones históricas que siguen pertenecen a versiones anteriores.
 
 ---
 
