@@ -106,3 +106,26 @@ fn whole_page_conversion_ignores_article_mode() {
     .markdown;
     assert!(out.contains("terrible decision"), "{out}");
 }
+
+#[test]
+fn list_shaped_article_body_is_not_filtered_away() {
+    // 正文主体大半是链接列表（维基的“列表”条目、文档的索引页）：严格规则的链接密度把纯链接的
+    // 列表整个删掉，保留下来的也只数非链接文字。严格规则删掉主体一半以上时改用默认规则渲染主体
+    let list = |name: &str, n: usize, suffix: &str| {
+        let items: String = (0..n)
+            .map(|i| format!("<li><a href=\"/wiki/{name}{i}\">{name} language {i}</a>{suffix}</li>"))
+            .collect();
+        format!("<h2>{name}</h2><div class=\"div-col\"><ul>{items}</ul></div>")
+    };
+    let html = format!(
+        "<html lang=\"en\"><head><title>List of languages</title>{ARTICLE_LD}</head><body>\
+         <header><nav><a href=\"/\">Home</a></nav></header>\
+         <main><article><h1>List of languages</h1>{BODY}{}{}</article>{RELATED}</main></body></html>",
+        list("Alpha", 30, ""),
+        list("Beta", 60, " (1990)")
+    );
+    let out = md(&html);
+    assert!(out.contains("The budget takes effect in January"), "{out}");
+    assert!(out.contains("Alpha language 29") && out.contains("Beta language 59"), "{out}");
+    assert!(!out.contains("cycling lanes"), "{out}");
+}

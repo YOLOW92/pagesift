@@ -250,7 +250,8 @@ class Scraper:
     ) -> Batch:
         """异步批量抓取，按完成顺序产出：``async for doc in scraper.ascrape_many(urls)``。
 
-        调用时立即开始；``batch.cancel()`` 或丢弃迭代器会取消未完成的抓取。
+        调用时立即开始；``batch.cancel()`` 或丢弃迭代器会取消未完成的抓取（``cancel()`` 之后迭代立即结束，
+        已完成但还没取出的结果也丢弃）。
         """
         return self._engine.stream(_urls(urls), _native(options, overrides), concurrency)
 

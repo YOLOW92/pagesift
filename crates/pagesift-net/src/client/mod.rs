@@ -102,6 +102,8 @@ pub(crate) struct Response {
     body_recorded: bool,
     tail_threshold: Duration,
     in_tail: bool,
+    /// 源站的“慢”阈值到点的时刻：读正文到这时还没完就让出热连接名额（不换阶段）。
+    slow_at: Option<Instant>,
 }
 
 impl Response {
@@ -112,8 +114,16 @@ impl Response {
                 self.body.frame().await
             } else {
                 let tail_at = self.body_started + self.tail_threshold;
-                match timeout_at(tail_at, self.body.frame()).await {
+                let park_at = self.slow_at.filter(|&t| t < tail_at);
+                match timeout_at(park_at.unwrap_or(tail_at), self.body.frame()).await {
                     Ok(frame) => frame,
+                    Err(_) if park_at.is_some() => {
+                        self.slow_at = None;
+                        if let Some(permit) = self.lifecycle.as_mut() {
+                            permit.park();
+                        }
+                        continue;
+                    }
                     Err(_) => {
                         let stages = self.stages.clone();
                         self.move_to_tail(&stages).await;

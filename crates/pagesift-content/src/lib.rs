@@ -354,6 +354,9 @@ const ARTICLE_MIN_SHARE_SHAPED: f64 = 0.5;
 /// 文章模式的结果至少要有默认规则下全部文字（含链接，不算评论区）的这个比例。
 const ARTICLE_MIN_DEFAULT_SHARE: f64 = 0.1;
 
+/// 严格规则在选中的文章主体里至少保留这么多（按主体的默认规则文字算），否则按默认规则渲染主体。
+const ARTICLE_MIN_STRICT_SHARE: f64 = 0.5;
+
 /// 正文几乎为空（播放器外壳）才用 VideoObject 兜底。已经有一段短正文时保留它：
 /// 侧栏嵌的视频也会声明 VideoObject，拿它整段替换会把真正的短文换掉。
 const VIDEO_FALLBACK_MAX_CHARS: usize = 30;
@@ -446,7 +449,26 @@ fn render_article(
         return None;
     }
     *in_comments = coverage::in_comments(&root.nodes, skipper, body.id());
+    // 区域选对了、但严格规则（标签白名单、链接密度）在区域里删掉了一半以上的文字：多半是
+    // 正文本身就是列表、表格或成串的链接（维基的列表页、文档的目录式正文），这时按默认规则
+    // 渲染这个区域，只收窄范围、不再细筛（同 trafilatura：严格结果太短时退回较宽的抽取）
+    if (got as f64) < article_text as f64 * ARTICLE_MIN_STRICT_SHARE {
+        return render_relaxed(skipper, base, root);
+    }
     render_strict(skipper, base, Some(root))
+}
+
+/// 文章主体按默认规则渲染（不加严格规则）；主体外面的标题放在最前面。
+fn render_relaxed(
+    skipper: &mut extract::Skipper,
+    base: Option<&Url>,
+    root: article::Root<'_>,
+) -> Option<String> {
+    let md = markdown::Renderer::new(base, skipper).render(&root.nodes);
+    Some(match root.headline {
+        Some(h) => format!("# {h}\n\n{md}"),
+        None => md,
+    })
 }
 
 /// 按严格规则渲染文章主体；主体外面的标题放在最前面。

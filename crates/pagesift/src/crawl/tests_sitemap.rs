@@ -88,10 +88,15 @@ fn table_parse_sitemap() {
                 &[],
             ),
         ),
-        // 图片扩展的 <image:loc> 本地名也是 loc，被当成页面
+        // 图片扩展的 <image:loc> 本地名也是 loc，但不是页面（0.80 前被当成页面）
         (
             br#"<urlset xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"><url><loc>https://example.com/page</loc><image:image><image:loc>https://example.com/img.jpg</image:loc></image:image></url></urlset>"#,
-            (&["https://example.com/page", "https://example.com/img.jpg"], &[]), // BUG? 图片地址不该算页面
+            (&["https://example.com/page"], &[]),
+        ),
+        // 图片扩展写在 <loc> 前面、sitemap 命名空间带前缀
+        (
+            br#"<sm:urlset xmlns:sm="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"><sm:url><image:image><image:loc>https://example.com/a.png</image:loc></image:image><sm:loc>https://example.com/p</sm:loc></sm:url></sm:urlset>"#,
+            (&["https://example.com/p"], &[]),
         ),
         // 不在 <url> 里的 <loc> 也收（宽松）
         (

@@ -120,6 +120,54 @@ fn bytedance_waf() {
 }
 
 #[test]
+fn bytedance_acrawler_challenge() {
+    // 抖音的 JS 挑战：body 为空，脚本算出 __ac_signature 写进 cookie 后重载
+    let html = r#"<html><head><meta charset="UTF-8" /></head><body></body> <script>var glb;window.byted_acrawler&&window.byted_acrawler.init({aid:99999999});
+var nonce=document.cookie.match(/__ac_nonce=([^;]+)/)[1];var sig=window.byted_acrawler.sign("",nonce);
+document.cookie="__ac_signature="+sig+"; expires=Mon, 20 Sep 2100 00:00:00 UTC; path=/;";window.location.reload();</script></html>"#;
+    expect(html, Some(200), "bytedance", BarrierKind::Challenge);
+}
+
+#[test]
+fn akamai_bot_manager_challenge() {
+    let html = r#"<!DOCTYPE html><html lang="en"><head><title>Challenge Validation</title><script type="text/javascript">function cp_clge_done(){location.reload(true);}</script></head>
+<body><div class="sec-container"><div id="sec-text-container"><iframe title="Challenge Message" id="sec-text-if" src="/a/b"></iframe></div>
+<div id="sec-if-container"><iframe title="Challenge Content" id="sec-cpt-if" provider="crypto" challenge="eyJ0b2tlbiI6IkEifQ" src="/a/c"></iframe></div></div></body></html>"#;
+    expect(html, Some(200), "akamai", BarrierKind::Challenge);
+}
+
+#[test]
+fn custom_block_page_with_incident_number() {
+    // 站点自定义的拦截页：只有道歉、联系表单和事件号
+    let html = r##"<!DOCTYPE html><html><head><title>Example - page unavailable</title><link href="/akamai-block/block-images/css/app.css" rel="stylesheet"></head>
+<body><h1>We're sorry for any inconvenience, but the site is currently unavailable.</h1><div id="message">Please <a href="#">contact our support team</a> for help.</div>
+<form><input name="name" placeholder="Your Name"><textarea name="comments"></textarea><button>Submit</button></form>
+<div id="incidentid"><p><span>Incident Number: 18.b3813417.1793029267.c1d0fdd</span></p></div></body></html>"##;
+    expect(html, Some(200), "generic", BarrierKind::Block);
+}
+
+#[test]
+fn geo_block_page() {
+    let html = r#"<!doctype html><html><head><title>Site Maintenance</title></head><body><header><img src="/logo.png" alt="Example Store"></header>
+<main><h1>We are sorry, but Example Store is currently not available in your country.</h1><p>Please contact the site administrator</p></main>
+<footer><p>Reference Code: <strong>1</strong></p></footer></body></html>"#;
+    expect(html, Some(200), "generic", BarrierKind::Block);
+}
+
+#[test]
+fn forbidden_status_with_little_text() {
+    // 没有任何已知特征、措辞各不相同的拒绝页：403 加上文字很少就是拦截页
+    let html = r#"<html><head><title>Example Store</title></head><body><p>Example.com is not available to
+customers who are located outside of the supported regions. We apologize for any inconvenience.</p></body></html>"#;
+    let b = detect(html, Some(403)).expect("403 page");
+    assert_eq!((b.vendor, b.kind, b.rule_id), ("generic", BarrierKind::Block, "status.403"));
+    // 同样的页面 200 时不算；403 但正文很长的也不算
+    assert_eq!(detect(html, Some(200)), None);
+    let long = format!("<html><body><article>{}</article></body></html>", prose(60));
+    assert_eq!(detect(&long, Some(403)), None);
+}
+
+#[test]
 fn unsupported_client_page() {
     let html = r#"<html><head><title>Unsupported client – Example</title></head><body><h1>Please update your browser</h1>
 <p>It seems you are using an old or unsupported browser. To continue, please update to a recent version of one of the following browsers:</p>
@@ -295,6 +343,16 @@ fn normal_pages_are_not_barriers() {
         page(
             r#"<script src="https://turing.captcha.qcloud.com/TCaptcha.js"></script><script src="//g.alicdn.com/AWSC/AWSC/awsc.js"></script>"#,
             "",
+        ),
+        // 13. 商品页注明“本商品在你的国家不可用”，正文照常
+        page(
+            "",
+            r#"<p class="notice">This edition is not available in your country. Incident ID: none.</p>"#,
+        ),
+        // 14. 字节跳动系正常页面加载 acrawler 签名脚本
+        page(
+            r#"<script src="https://lf3-cdn-tos.bytescm.com/obj/rc-web-sdk/acrawler.js"></script>"#,
+            r#"<script>window.byted_acrawler.init({aid:24,dfp:true});</script>"#,
         ),
         // 12. 页头横幅提示浏览器不受支持，正文照常
         page(

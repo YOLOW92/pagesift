@@ -172,12 +172,15 @@ fn read(xml: &str) -> Option<Feed> {
                     text.clear();
                 }
             }
-            Ok(Event::Empty(e)) if in_item => {
+            // Atom 的 <link href="…"/> 多是自闭合的，条目级和 feed 级都要读。
+            Ok(Event::Empty(e)) => {
                 if e.local_name().as_ref() == "link"
                     && let Some(href) = attr(&e, "href")
-                    && item.link.is_empty()
                 {
-                    item.link = href;
+                    let link = if in_item { &mut item.link } else { &mut feed.link };
+                    if link.is_empty() {
+                        *link = href;
+                    }
                 }
             }
             Ok(Event::Text(t)) => {
@@ -292,12 +295,24 @@ fn safe_link(raw: &str, base: Option<&pagesift_net::Url>) -> Option<String> {
 
 /// feed 的 description 常是转义后的 HTML。剥标签、丢掉脚本和样式的内容、还原常见实体，压成一行。
 /// 结果按纯文本放进 Markdown，所以方括号要转义，免得拼出可点击的链接。
+///
+/// 和 HTML 分词规则一样，`<` 后面是字母、`/`、`!` 或 `?` 才是标签开头，否则（如 `a < b`）是普通文字。
 fn strip_html(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut rest = s;
     while let Some(lt) = rest.find('<') {
         out.push_str(&rest[..lt]);
         let tag = &rest[lt..];
+        if !tag[1..].starts_with(|c: char| c.is_ascii_alphabetic() || matches!(c, '/' | '!' | '?')) {
+            out.push('<');
+            rest = &tag[1..];
+            continue;
+        }
+        if let Some(comment) = tag.strip_prefix("<!--") {
+            rest = comment.find("-->").map_or("", |i| &comment[i + 3..]);
+            out.push(' ');
+            continue;
+        }
         let Some(gt) = tag.find('>') else {
             rest = "";
             break;

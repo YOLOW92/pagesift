@@ -104,6 +104,26 @@ def test_fast_page_not_blocked_by_slow_pages(scraper, http, server):
     assert url.endswith("/page/fast") and elapsed < 5, (elapsed, url)
 
 
+def test_cancel_discards_finished_results(scraper, http, server):
+    # 取消前已完成、还没取出的结果也丢弃：cancel() 之后迭代立即结束
+    urls = [f"{server}/page/{i}" for i in range(6)]
+
+    async def main():
+        batch = scraper.ascrape_many(urls, http, concurrency=6)
+        async for d in batch:
+            break
+        await asyncio.sleep(0.5)  # 其余 5 条都已完成，排在通道里
+        batch.cancel()
+        return [d async for d in batch]
+
+    assert run(main()) == []
+    batch = scraper.scrape_iter(urls, http)
+    next(batch)
+    time.sleep(0.5)
+    batch.cancel()
+    assert list(batch) == []
+
+
 def test_scrape_iter_cancel(scraper, http, server):
     urls = [f"{server}/slow?ms=5000&i={i}" for i in range(4)]
     t = time.perf_counter()
