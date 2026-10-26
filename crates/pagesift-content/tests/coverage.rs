@@ -59,7 +59,7 @@ fn taking_one_post_of_a_thread_reports_replies_omitted() {
 }
 
 #[test]
-fn blog_comments_outside_the_article_are_not_reported() {
+fn blog_comments_outside_the_article_are_not_reported_as_lost() {
     let prose =
         "The survey team measured flow, sediment and temperature at each of the twelve stations. "
             .repeat(6);
@@ -71,7 +71,40 @@ fn blog_comments_outside_the_article_are_not_reported() {
     let html = format!(
         "{HEAD}<body><article><h1>Field notes from the river survey</h1><p>{prose}</p></article><section id='comments'><ol>{comments}</ol></section></body>"
     );
-    assert!(warnings(&html).is_empty(), "{:?}", warnings(&html));
+    // 评论区默认不算正文：不报正文丢失（partial_content、replies_omitted），只如实说评论没收进来
+    let w = warnings(&html);
+    assert!(
+        w.len() == 1 && w[0].starts_with("comments_omitted:"),
+        "{w:?}"
+    );
+}
+
+#[test]
+fn forum_replies_outside_the_selected_post_report_comments_omitted() {
+    // 论坛帖子页：首帖是正文区域，回复在帖子外的回复区里（没有选中在回复区里的主体）
+    let post =
+        "I have been trying to calibrate the flow meter for weeks and the readings keep drifting. "
+            .repeat(4);
+    let reply = "Check the reference voltage first; a drifting supply explains exactly this kind of slow error. ".repeat(3);
+    let replies = (0..10)
+        .map(|i| format!("<div class='comment'><p>Reply {i}: {reply}</p></div>"))
+        .collect::<String>();
+    let html = format!(
+        "<head><title>Flow meter drift</title></head><body><main><h1>Flow meter drift</h1><div class='post'><p>{post}</p></div><section class='comments'>{replies}</section></main></body>"
+    );
+    let md = process(&html, &Options::default()).markdown;
+    assert!(md.contains("calibrate") && !md.contains("Reply 9"), "{md}");
+    let w = warnings(&html);
+    assert!(
+        w.iter().any(|w| w.starts_with("comments_omitted:")),
+        "{w:?}\n{md}"
+    );
+    // 整页模式收进了回复，不报
+    let opts = Options {
+        only_main_content: false,
+        ..Options::default()
+    };
+    assert!(process(&html, &opts).coverage.warnings().is_empty());
 }
 
 #[test]
