@@ -1,0 +1,23 @@
+{
+ "file": "newlines_crlf.csv",
+ "format": "csv",
+ "headings": [],
+ "tables": [
+  {
+   "rows": 4,
+   "cols": 3,
+   "cells": [
+    "a",
+    "b",
+    "Once upon a time",
+    "9"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": []
+}

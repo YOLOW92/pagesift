@@ -1,0 +1,61 @@
+{
+ "file": "App_Reg_V3.5.xlsx",
+ "format": "xlsx",
+ "headings": [
+  [
+   0,
+   "Application Registration"
+  ],
+  [
+   0,
+   "Statement of Authority"
+  ],
+  [
+   0,
+   "Confirmation of Support"
+  ]
+ ],
+ "tables": [
+  {
+   "sheet": "Application Registration",
+   "rows": 135,
+   "cols": 18,
+   "cells": [
+    "Industrial Heat Recovery Support (IHRS) Programme",
+    "4.16",
+    "Question not used",
+    "App_Reg_V3.5.xlsx"
+   ]
+  },
+  {
+   "sheet": "Statement of Authority",
+   "rows": 34,
+   "cols": 2,
+   "cells": [
+    "Industrial Heat Recovery Support Programme",
+    "Re. Statement of Authority",
+    "[Enter date signed]"
+   ]
+  },
+  {
+   "sheet": "Confirmation of Support",
+   "rows": 35,
+   "cols": 2,
+   "cells": [
+    "Industrial Heat Recovery Support Programme",
+    "[Enter first name and last name]",
+    "[Enter date signed]"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": [
+  "Application Registration",
+  "Statement of Authority",
+  "Confirmation of Support"
+ ]
+}

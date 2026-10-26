@@ -1,0 +1,46 @@
+{
+ "file": "DateFormatTests.xlsx",
+ "format": "xlsx",
+ "headings": [
+  [
+   0,
+   "Flags"
+  ],
+  [
+   0,
+   "Tests"
+  ]
+ ],
+ "tables": [
+  {
+   "sheet": "Flags",
+   "rows": 4,
+   "cols": 3,
+   "cells": [
+    "Flag Name",
+    "Categories",
+    "Run the test with all standard colors specified"
+   ]
+  },
+  {
+   "sheet": "Tests",
+   "rows": 46,
+   "cols": 4,
+   "cells": [
+    "Result (expected)",
+    "01-Feb-2003 04:05:06.009",
+    "Saturday-February-2003",
+    "Time"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": [
+  "Flags",
+  "Tests"
+ ]
+}

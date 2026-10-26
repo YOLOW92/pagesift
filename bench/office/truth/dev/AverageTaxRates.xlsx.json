@@ -1,0 +1,63 @@
+{
+ "file": "AverageTaxRates.xlsx",
+ "format": "xlsx",
+ "headings": [
+  [
+   0,
+   "Avgtxfull"
+  ],
+  [
+   0,
+   "Avgtxmod"
+  ],
+  [
+   0,
+   "Avgselemp"
+  ]
+ ],
+ "tables": [
+  {
+   "sheet": "Avgtxfull",
+   "rows": 39,
+   "cols": 12,
+   "cells": [
+    "(iii) AVERAGE TAX RATES ON ANNUAL EARNINGS IN % TERMS*",
+    "40,000",
+    "15.0%",
+    "27.9%"
+   ]
+  },
+  {
+   "sheet": "Avgtxmod",
+   "rows": 37,
+   "cols": 12,
+   "cells": [
+    "MODIFIED RATE PRSI",
+    "40,000",
+    "9.3%",
+    "25.9%"
+   ]
+  },
+  {
+   "sheet": "Avgselemp",
+   "rows": 37,
+   "cols": 12,
+   "cells": [
+    "SELF-EMPLOYED",
+    "40,000",
+    "13.2%",
+    "31.2%"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": [
+  "Avgtxfull",
+  "Avgtxmod",
+  "Avgselemp"
+ ]
+}

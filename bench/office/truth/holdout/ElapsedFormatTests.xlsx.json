@@ -1,0 +1,46 @@
+{
+ "file": "ElapsedFormatTests.xlsx",
+ "format": "xlsx",
+ "headings": [
+  [
+   0,
+   "Flags"
+  ],
+  [
+   0,
+   "Tests"
+  ]
+ ],
+ "tables": [
+  {
+   "sheet": "Flags",
+   "rows": 4,
+   "cols": 3,
+   "cells": [
+    "Flag Name",
+    "Categories",
+    "Run the test with all standard colors specified"
+   ]
+  },
+  {
+   "sheet": "Tests",
+   "rows": 51,
+   "cols": 4,
+   "cells": [
+    "Result (expected)",
+    "00:00.0",
+    "0",
+    "Elapsed"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": [
+  "Flags",
+  "Tests"
+ ]
+}

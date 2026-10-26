@@ -1,0 +1,205 @@
+{
+ "file": "ConditionalFormattingSamples.xlsx",
+ "format": "xlsx",
+ "headings": [
+  [
+   0,
+   "Home"
+  ],
+  [
+   0,
+   "Products1"
+  ],
+  [
+   0,
+   "Products2"
+  ],
+  [
+   0,
+   "Book tour"
+  ],
+  [
+   0,
+   "Grades"
+  ],
+  [
+   0,
+   "Customers1"
+  ],
+  [
+   0,
+   "Quarters"
+  ],
+  [
+   0,
+   "Bike rating"
+  ],
+  [
+   0,
+   "FY months"
+  ],
+  [
+   0,
+   "Regional sales"
+  ],
+  [
+   0,
+   "Regional sales2"
+  ],
+  [
+   0,
+   "Regional sales3"
+  ],
+  [
+   0,
+   "Mountains"
+  ],
+  [
+   0,
+   "Category sales"
+  ],
+  [
+   0,
+   "Banded rows"
+  ],
+  [
+   0,
+   "Compare to totals"
+  ],
+  [
+   0,
+   "Products3"
+  ],
+  [
+   0,
+   "Customers2"
+  ]
+ ],
+ "tables": [
+  {
+   "sheet": "Home",
+   "rows": 19,
+   "cols": 3,
+   "cells": [
+    "Worksheet",
+    "Identify regional sales below $900,000",
+    "Icon set",
+    "Shade an entire row if the row is a unique value"
+   ]
+  },
+  {
+   "sheet": "Products1",
+   "rows": 23,
+   "cols": 4,
+   "cells": [
+    "Date",
+    "10/30/2007",
+    "Germany",
+    "$7,265.26"
+   ]
+  },
+  {
+   "sheet": "Book tour",
+   "rows": 16,
+   "cols": 5,
+   "cells": [
+    "(Top 20%)",
+    "$1,233",
+    "31-Mar",
+    "151"
+   ]
+  },
+  {
+   "sheet": "Customers1",
+   "rows": 20,
+   "cols": 6,
+   "cells": [
+    "Contact Name",
+    "0221-0644327",
+    "Henriette Pfalzheim",
+    "(171) 555-7788"
+   ]
+  },
+  {
+   "sheet": "Bike rating",
+   "rows": 8,
+   "cols": 7,
+   "cells": [
+    "Excellent",
+    "1.6",
+    "3",
+    "2.6"
+   ]
+  },
+  {
+   "sheet": "Regional sales",
+   "rows": 12,
+   "cols": 2,
+   "cells": [
+    "< $900,000",
+    "$2,345,184",
+    "Central",
+    "$9,071,953"
+   ]
+  },
+  {
+   "sheet": "Regional sales2",
+   "rows": 7,
+   "cols": 2,
+   "cells": [
+    "< $900,000",
+    "$34,678",
+    "$899,999",
+    "$1,469,066"
+   ]
+  },
+  {
+   "sheet": "Mountains",
+   "rows": 23,
+   "cols": 9,
+   "cells": [
+    "Mountain",
+    "8,598",
+    "8,611",
+    "5,140"
+   ]
+  },
+  {
+   "sheet": "Banded rows",
+   "rows": 24,
+   "cols": 10,
+   "cells": [
+    "Widgets",
+    "DF-84",
+    "-11%",
+    "-42%"
+   ]
+  },
+  {
+   "sheet": "Products3",
+   "rows": 23,
+   "cols": 4,
+   "cells": [
+    "Date",
+    "10/30/2007",
+    "Germany",
+    "$7,265.26"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": [
+  "Home",
+  "Products2",
+  "Grades",
+  "Quarters",
+  "Regional sales",
+  "Regional sales3",
+  "Category sales",
+  "Compare to totals"
+ ]
+}

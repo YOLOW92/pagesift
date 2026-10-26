@@ -1,0 +1,23 @@
+{
+ "file": "population.csv",
+ "format": "csv",
+ "headings": [],
+ "tables": [
+  {
+   "rows": 17395,
+   "cols": 4,
+   "cells": [
+    "Country Name",
+    "Country Code",
+    "St. Lucia",
+    "16950795"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": []
+}

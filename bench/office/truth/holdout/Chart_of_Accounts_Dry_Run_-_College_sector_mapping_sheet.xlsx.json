@@ -1,0 +1,61 @@
+{
+ "file": "Chart_of_Accounts_Dry_Run_-_College_sector_mapping_sheet.xlsx",
+ "format": "xlsx",
+ "headings": [
+  [
+   0,
+   "Instructions"
+  ],
+  [
+   0,
+   "Chart of Accounts"
+  ],
+  [
+   0,
+   "Mapping"
+  ]
+ ],
+ "tables": [
+  {
+   "sheet": "Instructions",
+   "rows": 10,
+   "cols": 2,
+   "cells": [
+    "Chart of Accounts - College Sector",
+    "2. Mapping",
+    "1. Chart of Accounts",
+    "Disclaimer"
+   ]
+  },
+  {
+   "sheet": "Chart of Accounts",
+   "rows": 1365,
+   "cols": 11,
+   "cells": [
+    "Chart of Accounts (CoA)",
+    "B-7a-10",
+    "Loans from Private Sector >1 year",
+    "RDEL"
+   ]
+  },
+  {
+   "sheet": "Mapping",
+   "rows": 2,
+   "cols": 5,
+   "cells": [
+    "Mapping worksheet",
+    "Description"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": [
+  "Instructions",
+  "Chart of Accounts",
+  "Mapping"
+ ]
+}

@@ -1,0 +1,23 @@
+{
+ "file": "simple_crlf.csv",
+ "format": "csv",
+ "headings": [],
+ "tables": [
+  {
+   "rows": 2,
+   "cols": 3,
+   "cells": [
+    "a",
+    "b",
+    "1",
+    "3"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": []
+}

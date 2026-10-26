@@ -1,0 +1,33 @@
+{
+ "file": "heading123.docx",
+ "format": "docx",
+ "headings": [
+  [
+   1,
+   "First paragraph"
+  ],
+  [
+   2,
+   "Second paragraph"
+  ],
+  [
+   3,
+   "Third paragraph"
+  ]
+ ],
+ "tables": [],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [
+  "FffLorem ipsum dolor sit amet, consectetur adipiscing elit. Curabitur bibendum, ",
+  "FfPellentesque tristique scelerisque libero ut sagittis. Suspendisse sit amet au",
+  "ffPellentesque tristique scelerisque libero ut sagittis. Suspendisse sit amet au"
+ ],
+ "order": [
+  "First paragraph",
+  "Second paragraph",
+  "Third paragraph"
+ ]
+}

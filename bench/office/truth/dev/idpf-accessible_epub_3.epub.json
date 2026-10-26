@@ -1,0 +1,173 @@
+{
+ "file": "idpf-accessible_epub_3.epub",
+ "format": "epub",
+ "headings": [
+  [
+   1,
+   "Accessible EPUB 3"
+  ],
+  [
+   2,
+   "Table of Contents"
+  ],
+  [
+   3,
+   "Note"
+  ],
+  [
+   3,
+   "Caution"
+  ],
+  [
+   2,
+   "Safari® Books Online"
+  ],
+  [
+   2,
+   "Acknowledgments"
+  ],
+  [
+   2,
+   "Accessibility and Usability"
+  ],
+  [
+   2,
+   "A Solid Foundation: Structure and Semantics"
+  ],
+  [
+   3,
+   "Separation of Style"
+  ],
+  [
+   3,
+   "Logical Reading Order"
+  ],
+  [
+   4,
+   "Note"
+  ],
+  [
+   3,
+   "Tables"
+  ],
+  [
+   3,
+   "SVG"
+  ],
+  [
+   4,
+   "Note"
+  ],
+  [
+   2,
+   "Getting Around: Navigating an EPUB"
+  ],
+  [
+   3,
+   "Note"
+  ],
+  [
+   2,
+   "The Sound and the Fury: Audio and Video"
+  ],
+  [
+   3,
+   "Timed Tracks"
+  ],
+  [
+   3,
+   "Note"
+  ],
+  [
+   4,
+   "Note"
+  ],
+  [
+   2,
+   "Tell It Like It Is: Text-to-Speech (TTS)"
+  ],
+  [
+   4,
+   "Note"
+  ],
+  [
+   4,
+   "Note"
+  ],
+  [
+   4,
+   "Note"
+  ],
+  [
+   3,
+   "Note"
+  ],
+  [
+   3,
+   "Custom Controls"
+  ],
+  [
+   4,
+   "Note"
+  ],
+  [
+   3,
+   "Forms"
+  ],
+  [
+   4,
+   "Note"
+  ],
+  [
+   2,
+   "EPUB 3 Best Practices Teaser"
+  ]
+ ],
+ "tables": [],
+ "lists": [
+  "New workflows haven’t yet emerged to facilitate the transition. Mass retail eboo",
+  "the inability to hear embedded audio and video is a concern for persons who are ",
+  "someone attempting to read on their deck on a bright summer day, angling and hol",
+  "preface",
+  "bibliography",
+  "the dl element is used to define terms, mark up glossaries, etc.",
+  "If the header for a cell cannot be easily determined by its context, and especia",
+  "Reading order (13)",
+  "Accessible math content (17)",
+  "Compatibility tested (97)",
+  "Don’t include content that can only be accessed (made visible) through scripted ",
+  "Can the content be made accessible in a usable way and can you provide a fallbac",
+  "alert",
+  "menuitem",
+  "tab",
+  "aria-expanded",
+  "aria-pressed",
+  "aria-describedby",
+  "aria-live",
+  "A walkthrough of the new global language support features"
+ ],
+ "images": [
+  "Accessible EPUB 3 - Best Practices for Creating Universally Usable Content - Excerpt from EPUB 3 Best Practices - Matt Garrish - First Edition",
+  "SPI Global Ad",
+  "Cover art for EPUB 3 Best Practices, coming in 2012"
+ ],
+ "footnotes": [],
+ "notes": [],
+ "text": [
+  "O’Reilly books may be purchased for educational, business, or sales promotional ",
+  "And in case it needs repeating, semantics are not just an exercise in labeling e",
+  "The HTML5 hidden attribute arrives at this point to save the day. This attribute",
+  "For example, to apply a yellow background to each section of prose as it is read",
+  "One of the key new terms you’ll hear in relation to the use of scripting in EPUB"
+ ],
+ "order": [
+  "Accessible EPUB 3",
+  "Caution",
+  "A Solid Foundation: Structure and Semantics",
+  "Tables",
+  "Note",
+  "Note",
+  "Note",
+  "Note"
+ ]
+}

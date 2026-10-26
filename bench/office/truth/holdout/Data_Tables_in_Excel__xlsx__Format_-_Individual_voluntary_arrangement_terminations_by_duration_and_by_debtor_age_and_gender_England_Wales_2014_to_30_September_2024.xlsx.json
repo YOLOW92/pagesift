@@ -1,0 +1,95 @@
+{
+ "file": "Data_Tables_in_Excel__xlsx__Format_-_Individual_voluntary_arrangement_terminations_by_duration_and_by_debtor_age_and_gender_England_Wales_2014_to_30_September_2024.xlsx",
+ "format": "xlsx",
+ "headings": [
+  [
+   0,
+   "Contents and methodology"
+  ],
+  [
+   0,
+   "Table 1"
+  ],
+  [
+   0,
+   "Table 2"
+  ],
+  [
+   0,
+   "Table 3"
+  ],
+  [
+   0,
+   "Table 4"
+  ]
+ ],
+ "tables": [
+  {
+   "sheet": "Contents and methodology",
+   "rows": 50,
+   "cols": 2,
+   "cells": [
+    "Contents",
+    "Individual Insolvencies by Location, Age and Gender, 2023",
+    "Data Sources",
+    "IVA: Termination (failure)"
+   ]
+  },
+  {
+   "sheet": "Table 1",
+   "rows": 39,
+   "cols": 26,
+   "cells": [
+    "Back to contents",
+    "20%",
+    "170",
+    "7"
+   ]
+  },
+  {
+   "sheet": "Table 2",
+   "rows": 40,
+   "cols": 26,
+   "cells": [
+    "Back to contents",
+    "0.6%",
+    "0.9%",
+    "0.0%"
+   ]
+  },
+  {
+   "sheet": "Table 3",
+   "rows": 33,
+   "cols": 12,
+   "cells": [
+    "Back to contents",
+    "3,240",
+    "2,644",
+    "2"
+   ]
+  },
+  {
+   "sheet": "Table 4",
+   "rows": 29,
+   "cols": 12,
+   "cells": [
+    "Back to contents",
+    "32%",
+    "18%",
+    "5%"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": [
+  "Contents and methodology",
+  "Table 1",
+  "Table 2",
+  "Table 3",
+  "Table 4"
+ ]
+}

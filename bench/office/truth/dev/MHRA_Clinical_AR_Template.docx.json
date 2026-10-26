@@ -1,0 +1,259 @@
+{
+ "file": "MHRA_Clinical_AR_Template.docx",
+ "format": "docx",
+ "headings": [
+  [
+   0,
+   "<variation addition/modification of indication>"
+  ],
+  [
+   1,
+   "LIST OF ABBREVIATIONS"
+  ],
+  [
+   3,
+   "Innovative Licencing and Access Pathway (ILAP)"
+  ],
+  [
+   3,
+   "<Conditional marketing authorisation>"
+  ],
+  [
+   3,
+   "<Request for additional market protection>"
+  ],
+  [
+   1,
+   "CLINICAL PHARMACOLOGY"
+  ],
+  [
+   4,
+   "Pharmacokinetics"
+  ],
+  [
+   3,
+   "Absorption"
+  ],
+  [
+   3,
+   "Elimination"
+  ],
+  [
+   3,
+   "Intra- and inter-individual variability"
+  ],
+  [
+   4,
+   "Gender"
+  ],
+  [
+   4,
+   "Paediatric population"
+  ],
+  [
+   3,
+   "Exposure relevant for safety evaluation"
+  ],
+  [
+   3,
+   "Pharmacodynamic interactions with other medicinal products or substances"
+  ],
+  [
+   2,
+   "Immunological events"
+  ],
+  [
+   3,
+   "Conclusions"
+  ],
+  [
+   2,
+   "Main study(ies)"
+  ],
+  [
+   4,
+   "Randomisation and blinding"
+  ],
+  [
+   4,
+   "Estimand<s> for the primary objective"
+  ],
+  [
+   4,
+   "Planned subgroup analyses"
+  ],
+  [
+   3,
+   "Results"
+  ],
+  [
+   4,
+   "Endpoints and estimation"
+  ],
+  [
+   2,
+   "In vitro biomarker test for patient selection (companion diagnostic)"
+  ],
+  [
+   3,
+   "Discussion"
+  ],
+  [
+   2,
+   "Patient exposure"
+  ],
+  [
+   2,
+   "Safety in special populations"
+  ],
+  [
+   2,
+   "In vitro biomarker test for patient selection for safety"
+  ],
+  [
+   1,
+   "Benefit risk assessment"
+  ],
+  [
+   2,
+   "Mandatory post-authorisation measures that are part of the marketing authorisation"
+  ],
+  [
+   2,
+   "User consultation"
+  ]
+ ],
+ "tables": [
+  {
+   "rows": 8,
+   "cols": 2,
+   "cells": [
+    "Product data",
+    "Product name",
+    "ATC code",
+    "Proposed indication"
+   ]
+  },
+  {
+   "rows": 6,
+   "cols": 3,
+   "cells": [
+    "MHRA Assessment team",
+    "Name",
+    "Clinical",
+    "RMP"
+   ]
+  },
+  {
+   "rows": 10,
+   "cols": 3,
+   "cells": [
+    "Timetable",
+    "Date",
+    "Specify:",
+    "Responses to 2nd RFI"
+   ]
+  },
+  {
+   "rows": 3,
+   "cols": 5,
+   "cells": [
+    "Study identifier",
+    "Study design",
+    "Population",
+    "Main PK and PD parameters"
+   ]
+  },
+  {
+   "rows": 4,
+   "cols": 4,
+   "cells": [
+    "50×Cmax(u)a (μM)",
+    "25×Inlet Cmax(u)a (μM)",
+    "NA"
+   ]
+  },
+  {
+   "rows": 9,
+   "cols": 6,
+   "cells": [
+    "Enzyme",
+    "Substrate",
+    "Yes/No",
+    "CYP3A4"
+   ]
+  },
+  {
+   "rows": 12,
+   "cols": 5,
+   "cells": [
+    "Transporter",
+    "Substrate",
+    "OATP1B3",
+    "BSEP"
+   ]
+  },
+  {
+   "rows": 8,
+   "cols": 4,
+   "cells": [
+    "Comparison",
+    "Substance Ratio, as Percent (90% CI)",
+    "Victim",
+    "Effect on substance Y"
+   ]
+  },
+  {
+   "rows": 4,
+   "cols": 5,
+   "cells": [
+    "Study ID",
+    "Enrolment status Start date Total enrolment/ enrolment goal",
+    "Design Control type",
+    "Population"
+   ]
+  }
+ ],
+ "lists": [
+  "The data submitted should be assessed based on the legal basis of the applicatio",
+  "If certain studies are only available as publications, the Assessor should provi",
+  "The evaluation should focus on salient findings and especially those deficiencie",
+  "The questions raised in the LOQ should be classified as follows:",
+  "“Other concerns” may impact the benefit/risk evaluation, affect the proposed con",
+  "generic application – Regulation 51 (application for UKMA(NI); regulation 51A (a",
+  "similar biological application – Regulation 53 (application for UKMA(NI)); regul",
+  "fixed-combination application – Regulation 55 (previously Article 10b of Directi",
+  "traditional herbal registrations - Regulation 127 (previously Article 16a of Dir",
+  "national homeopathic products (called the National Rules Scheme) - Regulation 50",
+  "Natural history of the condition, in particular, whether it generally progresses",
+  "Population affected (e.g. demographic groups, geographic and cultural considerat",
+  "Incidence and prevalence of the condition, including rates of diagnosis, severit",
+  "Societal or global public health implications of the condition, if relevant (e.g",
+  "Enrolment (No. subjects screened; No. excluded and reasons for screening failure",
+  "Follow-up (No. treatment discontinuations and reasons; No. study discontinuation",
+  "precision of the effect estimates",
+  "dose-exposure-efficacy response (D-E-R) relationship and intrinsic/extrinsic fac",
+  "if applicable, any justification for waiving certain studies or replacing origin",
+  "Common AEs"
+ ],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [
+  "<variation addition/modification of indication>",
+  "<Product name> has no GB OD status. A request for OD has <not> been submitted wi",
+  "If any differences in the elderly population have been noted, are they appropria",
+  "Are the randomisation and blinding methods acceptable?",
+  "This should be a general assessment of the suitability of the proposed SmPC. Com"
+ ],
+ "order": [
+  "<variation addition/modification of indication>",
+  "<Conditional marketing authorisation>",
+  "Absorption",
+  "Paediatric population",
+  "Conclusions",
+  "Estimand<s> for the primary objective",
+  "In vitro biomarker test for patient selection (companion diagnostic)",
+  "In vitro biomarker test for patient selection for safety"
+ ]
+}

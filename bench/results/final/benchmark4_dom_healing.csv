@@ -1,3 +1,0 @@
-tool,implementation,total_mutated_targets,relocated_targets,recall_pct,false_positives,false_positive_pct,mean_latency_us,peak_rss_mb,deep_dom_200_status
-PageSift (DOM Tree-Distance),Rust,500,469,93.8,0,0.0,24.6,39.4,PASSED (928 µs)
-Scrapling (Adaptor / Difflib),Python,500,230,46.0,256,51.2,635.3,98.0,FAIL (RecursionError)

@@ -240,3 +240,22 @@ Reproduce: `bench/crawl/engines.sh` (set `ENGINES=auto` for the default chain).
 | Install | Python + 115 packages (~1 GB) + Playwright browsers (658 MB) | one 33 MB binary; Lightpanda (76 MB) for rendering |
 | Docker image ↓ | 6.6 GB (AiSeek's, incl. its models) | TODO: measure the release image |
 | Cold start ↓ | 1.3 s + 1.7 s browser launch | 0.12 s |
+
+## 11. Office documents, EPUB and CSV to Markdown
+
+**Date:** 2026-10-27, pagesift 0.80 (`pagesift-office`). **Dataset:** 42 development files and 39 hold-out files (Word, Excel, PowerPoint, EPUB, CSV) from Apache POI test data, GOV.UK publications, IDPF EPUB 3 samples, Project Gutenberg, csv-spectrum and datasets; the hold-out files were collected only after the rules were frozen. Ground truth: pandoc 3.9 candidates corrected with python-docx style rules, LibreOffice Calc display values and the EPUB XHTML, every file checked by hand. Rules: [`bench/office/REVIEW.md`](../bench/office/REVIEW.md).
+
+Structure retained ↑ = kept ground-truth elements / all ground-truth elements (headings, tables, sampled cells, list items, image alt text, footnotes, speaker notes, heading order):
+
+| Set | pagesift ↑ | MarkItDown 0.1.9 ↑ | pandoc 3.9 ↑ |
+|---|---|---|---|
+| Development (42 files) | **0.987** | 0.833 | 0.668 |
+| Hold-out (39 files) | **0.988** | 0.717 | 0.705 |
+
+Hold-out by format (pagesift / MarkItDown / pandoc): docx 1.000 / 0.842 / 0.570, xlsx 1.000 / 0.733 / 0.694, pptx 0.995 / 0.556 / 0.949, epub 0.961 / 0.669 / 0.633, csv 1.000 / 1.000 / 0.875. Excel cells that match LibreOffice's displayed value ↑: 0.9995 (MarkItDown 0.8985) on the hold-out set. MarkItDown scores higher on the development EPUBs (0.991 vs 0.957): pagesift writes one-column tables (tables of contents) as lines, by design.
+
+The ground truth and the scorer were corrected after the first hold-out scoring (pandoc's spaces between text runs, table sizes taken from the sheet XML instead of LibreOffice's HTML, and Markdown equivalences such as hard breaks inside list items); the same corrections apply to every tool, and the scores before and after are both in the results file. Before any correction the hold-out scores were pagesift 0.937, MarkItDown 0.704, pandoc 0.676.
+
+Speed and memory on all 81 files, same machine, one tool at a time inside the benchmark lock (2026-10-27): converting all of them takes pagesift **657 ms** in total versus MarkItDown's **48,819 ms** (time ↓, median of 5 / 3 in-process runs per file, summed); peak resident memory per file, each in its own process ↓, has a median of **14.2 MB** versus **140.1 MB** (process baselines 13.5 MB and 137.4 MB) and a maximum of **46.9 MB** versus **789.5 MB**.
+
+Reproduce: [`bench/office/README.md`](../bench/office/README.md); full results: [`bench/office/results-2026-10-27.md`](../bench/office/results-2026-10-27.md).

@@ -1,0 +1,29 @@
+{
+ "file": "SampleShow.pptx",
+ "format": "pptx",
+ "headings": [
+  [
+   2,
+   "Title of the first slide"
+  ],
+  [
+   2,
+   "This is the second slide"
+  ]
+ ],
+ "tables": [],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [
+  "I am the notes of the first slide",
+  "These are the notes of the 2nd slide THIS LINE IS BOLD"
+ ],
+ "text": [
+  "Especially in a different font like Arial Black at 16 point!"
+ ],
+ "order": [
+  "Title of the first slide",
+  "This is the second slide"
+ ]
+}

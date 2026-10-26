@@ -1,0 +1,30 @@
+{
+ "file": "Booleans.xlsx",
+ "format": "xlsx",
+ "headings": [
+  [
+   0,
+   "Sheet1"
+  ]
+ ],
+ "tables": [
+  {
+   "sheet": "Sheet1",
+   "rows": 5,
+   "cols": 3,
+   "cells": [
+    "TRUE",
+    "FALSE",
+    "false from copy"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": [
+  "Sheet1"
+ ]
+}

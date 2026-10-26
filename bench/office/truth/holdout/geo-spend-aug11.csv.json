@@ -1,0 +1,23 @@
+{
+ "file": "geo-spend-aug11.csv",
+ "format": "csv",
+ "headings": [],
+ "tables": [
+  {
+   "rows": 17,
+   "cols": 9,
+   "cells": [
+    "Department Family",
+    "Entity",
+    "Discrimination Law",
+    "Grant contribution to MOJ"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": []
+}

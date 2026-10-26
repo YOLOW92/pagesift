@@ -1,0 +1,86 @@
+{
+ "file": "20180411_Board_level_PPT_MC_PB.pptx",
+ "format": "pptx",
+ "headings": [
+  [
+   2,
+   "Board-level Briefing Pack"
+  ],
+  [
+   2,
+   "Agenda"
+  ],
+  [
+   2,
+   "Context"
+  ],
+  [
+   2,
+   "Background"
+  ],
+  [
+   2,
+   "What is the DCPP?"
+  ],
+  [
+   2,
+   "Implementation: what does it mean for me?"
+  ],
+  [
+   2,
+   "DEFCON 658"
+  ],
+  [
+   2,
+   "DEFSTAN 05-138"
+  ],
+  [
+   2,
+   "Additional information"
+  ]
+ ],
+ "tables": [
+  {
+   "rows": 2,
+   "cols": 3,
+   "cells": [
+    "Vision",
+    "Goals"
+   ]
+  }
+ ],
+ "lists": [
+  "Context",
+  "Background",
+  "The DCPP",
+  "Implementation",
+  "Key documents",
+  "Additional information"
+ ],
+ "images": [],
+ "footnotes": [],
+ "notes": [
+  "The threat of cyber attack has been identified as a tier 1 threat to the UK, on ",
+  "The DCPP is a sub-group of the Defence Suppliers’ Forum. It was initiated in 201",
+  "Let's be clear what the DCPP is not doing -- it’s not securing the supply chain.",
+  "The MOD has defined the information it wishes to protect in DEFCON658 (see later",
+  "All links correct at time of going to press."
+ ],
+ "text": [
+  "The following slides have been kept clear of MOD branding to enable you to incor",
+  "The DEFCON applied to all new contracts from April 2017 to the first tier of the",
+  "Review appropriateness of current controls against changing threats and make imp",
+  "Second, a Supplier Assurance Questionnaire (SAQ) is completed by suppliers (to d",
+  "The DEFSTAN (Defence Standard) sets out the control measures for the 5 Cyber Ris"
+ ],
+ "order": [
+  "Board-level Briefing Pack",
+  "Agenda",
+  "Context",
+  "Background",
+  "What is the DCPP?",
+  "Implementation: what does it mean for me?",
+  "DEFCON 658",
+  "DEFSTAN 05-138"
+ ]
+}

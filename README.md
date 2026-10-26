@@ -37,7 +37,7 @@ Turn any website, document, or archive into clean Markdown and structured data �
 - **Headers, footers and figures**: `/Artifact` marks, running heads with page numbers and vector
   figures are recognised. olmOCR-bench `headers_footers` 0.681 → 0.734 (higher is better); false
   tables on the 13 PDFs 196 → 18 (lower is better).
-- **`POST /v2/parse`**: Firecrawl-compatible upload of PDF and HTML files.
+- **`POST /v2/parse`**: Firecrawl-compatible upload of PDF, HTML, Word (.docx), Excel (.xlsx), PowerPoint (.pptx), EPUB and CSV files; `/v2/scrape` and `pagesift scrape <file>` convert the same formats.
 - **`partial_content` and `replies_omitted` warnings** when the extracted text is likely
   incomplete. On 1,842 saved WCXB pages, losses without a warning 0.842 → 0.667 and false alarms
   0.174 → 0.130 (both lower is better).
@@ -224,7 +224,7 @@ print(res["markdown"])
 ```
 
 #### Upload a File (`/v2/parse`)
-Parse a local or non-public PDF or HTML file without hosting it at a URL — Firecrawl-compatible multipart upload, up to 50 MB, same response as `/v2/scrape` ([details](docs/parse-api.md)):
+Parse a local or non-public PDF, HTML, Word, Excel, PowerPoint, EPUB or CSV file without hosting it at a URL — Firecrawl-compatible multipart upload, up to 50 MB, same response as `/v2/scrape` ([details](docs/parse-api.md)). Office, EPUB and CSV conversion is pagesift's own Rust code (its own ZIP and XML readers); on the command line, `pagesift scrape report.docx` does the same:
 
 ```bash
 curl -s http://localhost:3002/v2/parse -H 'Authorization: Bearer sk-test' \
@@ -326,19 +326,21 @@ Shared browsers and cache, an audit line per fetch, HTML snapshots of suspicious
 | :--- | :---: | :---: | :---: | :---: |
 | **Core Architecture** | Rust; `forbid(unsafe_code)` in every crate except `pagesift-sys` (one glibc `mallopt` call) | TypeScript / Python / Redis | Python / Playwright | Rust / Tokio |
 | **API Compatibility** | **Firecrawl v1 + v2 + Jina Reader + MCP** | Firecrawl API only | Custom Python API | Custom REST API |
-| **Extraction Throughput** | 3,525 pages/sec (0.40 era, 16 threads on WCXB) · 59,309 (16 vCPU) / 947,611 (192 vCPU) on a synthetic local origin ¹ | ~150 pages/sec ² | ~90 pages/sec ² | ~1,200 pages/sec ² |
-| **Peak RAM (100k Domains)** | **188.4 MB** (0.50) | > 8 GB ² | > 10 GB ² | 8,978 MB (measured; Spider was also 7.1× faster there, 666.6 vs 93.5 QPS) ³ |
-| **Share of `200 OK` pages with ≥ 100 B of Markdown** | 96.38% (0.50) | ~85% ² | ~88% ² | 82.82% ³ |
+| **Extraction Throughput ↑** | 6,273.9 pages/sec (0.50, 16 threads, WCXB, 2,008 pages) ¹ · 59,309 (16 vCPU) / 947,611 (192 vCPU) on a synthetic local origin ² | Not measured | Not measured; single-thread mean 283.38 ms per page ↓ (PageSift 1.30 ms) ¹ | Not measured |
+| **Peak RAM (100k Domains) ↓** | **188.4 MB** (0.50) ³ | Not measured | Not measured | 8,978.9 MB (in the same run Spider was faster, 666.6 vs 93.5 QPS) ³ |
+| **Share of `200 OK` pages with ≥ 100 B of Markdown ↑** | 96.38% (0.50) ³ | Not measured | Not measured | 82.82% ³ |
 | **Adaptive Hardware Engine** | **$\min(CPU, RAM, FD)$ Auto** | Manual worker count | Manual semaphore | Fixed semaphore |
-| **DOM Self-Healing** | 93.8% on a 500-case set (0.50); 0.8215 recall on a 2,000-case set (0.70, below Scrapling's 0.8875) ⁴ | ❌ No | ❌ No | ❌ No |
-| **PDF Extraction & Math** | 71.0% / 44.3% LaTeX on a 1,438-page subset (0.50); 0.4506 on the full olmOCR-bench (0.70) ⁴ | External docx/pdf text | PDF raw text only | Raw text only |
-| **RAG Chunking & BM25** | 19.7 ms chunking / 1.35 ms BM25 filter (0.50) | ❌ No | Python BM25 filter 804 ms | ❌ No |
+| **DOM Self-Healing (recall ↑)** | 0.8215 on a 2,000-case set (0.70, below Scrapling's 0.8875); 98.85% on a different synthetic 2,000-case set in the 0.50 report ⁴ | ❌ No | ❌ No | ❌ No |
+| **PDF Extraction (pass rate ↑)** | 0.4506 on the full olmOCR-bench (0.70; pymupdf4llm 0.2446); 72.4% on 5 subsets in the 0.50 report (Docling's 73.5% is higher) ⁴ | External docx/pdf text | PDF raw text only | Raw text only |
+| **RAG Chunking & Filtering (time ↓)** | 12.89 ms chunking / 0.63 ms QueryFilter per question (0.50, Chroma, 472 questions) ⁵ | ❌ No | BM25 filter 838.00 ms per question ⁵ | ❌ No |
 | **Anti-Bot Philosophy** | Ethical, polite, transparent UA | Proxy rotation / bypass | Stealth evasions | Stealth evasions |
 
-¹ Synthetic origin on the same machine, no network ([`0.70_200m_regression.md`](docs/benchmarks/0.70_200m_regression.md)); the competitor figures are not comparable to it.
-² No measurement for this figure exists in this repository: an estimate kept from an earlier README, **not verified**. Measured comparisons are in [`docs/benchmarks.md`](docs/benchmarks.md) and [`docs/benchmarks/`](docs/benchmarks/).
+¹ [`BENCHMARK_D1_CONTENT_EXTRACTION_050.md`](bench/results/final/BENCHMARK_D1_CONTENT_EXTRACTION_050.md) §2, §4 (0.50, one run).
+² Synthetic origin on the same machine, no network ([`0.70_200m_regression.md`](docs/benchmarks/0.70_200m_regression.md)); not comparable with the other cells.
 ³ [`BENCHMARK_100K_PAGESIFT_VS_SPIDER.md`](bench/results/final/BENCHMARK_100K_PAGESIFT_VS_SPIDER.md) (0.50, one run, 100k domains). The percentage is the share of pages for which each tool's own extractor returned ≥ 100 bytes, not a fidelity score.
-⁴ Different datasets and versions in the same cell; the 0.70 numbers are the newer same-machine runs ([D4](docs/benchmarks/0.70_showdown_D4.md), [D3](docs/benchmarks/0.70_showdown_D3.md)). Competitor columns for Firecrawl and Crawl4AI were not measured on these rows.
+⁴ The 0.70 numbers are the newer same-machine runs ([D4](docs/benchmarks/0.70_showdown_D4.md), [D3](docs/benchmarks/0.70_showdown_D3.md)); the 0.50 numbers come from the [D4 report](bench/results/final/BENCHMARK_D4_DOM_SELF_HEALING_050.md) §2 and the [D3 report](bench/results/final/BENCHMARK_D3_HEAVY_PDF_EXTRACTION_050.md) §2, on different datasets and with different conclusions.
+⁵ [`BENCHMARK_D5_RAG_CHUNKING_050.md`](bench/results/final/BENCHMARK_D5_RAG_CHUNKING_050.md) §2 (0.50).
+"Not measured": the repository has no measurement for that cell. The figures previously in those cells ("~150 / ~90 / ~1,200 pages/sec", "> 8 GB / > 10 GB", "~85% / ~88%") were unsourced estimates and have been removed.
 
 ---
 

@@ -1,0 +1,23 @@
+{
+ "file": "escaped_quotes.csv",
+ "format": "csv",
+ "headings": [],
+ "tables": [
+  {
+   "rows": 3,
+   "cols": 2,
+   "cells": [
+    "a",
+    "b",
+    "ha \"ha\" ha",
+    "4"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": []
+}

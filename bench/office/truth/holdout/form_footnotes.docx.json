@@ -1,0 +1,78 @@
+{
+ "file": "form_footnotes.docx",
+ "format": "docx",
+ "headings": [
+  [
+   4,
+   "VISA APPLICATION FORM"
+  ],
+  [
+   7,
+   "IMPORTANT: FORMS THAT ARE INCOMPLETE AND INCORRECTLY FILLED OUT WILL BE RETURNED."
+  ]
+ ],
+ "tables": [
+  {
+   "rows": 1,
+   "cols": 4,
+   "cells": [
+    "1",
+    "Protocol number",
+    "Visa number"
+   ]
+  },
+  {
+   "rows": 15,
+   "cols": 15,
+   "cells": [
+    "Attach photo here",
+    "02 - Place of birth (city/state/country)",
+    "08 - Issuing country",
+    "20 - Home telephone # (with area code)"
+   ]
+  },
+  {
+   "rows": 4,
+   "cols": 6,
+   "cells": [
+    "FOR OFFICIAL USE ONLY",
+    "A - Consulta à SERE OF  TEL  No. _______",
+    "E -  Uma entrada  Múltiplas entradas",
+    "I - Assinaturas Funcionário Chefia"
+   ]
+  },
+  {
+   "rows": 6,
+   "cols": 5,
+   "cells": [
+    "22 - Expected port of entry and date of arrival in Brazil",
+    "23 - Expected duration of immediate trip",
+    "26 - Telephone # in Brazil (with city code)",
+    "27 - Have you ever been to Brazil? Yes No"
+   ]
+  },
+  {
+   "rows": 3,
+   "cols": 5,
+   "cells": [
+    "Day",
+    "Month",
+    "Year"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [
+  "testdoc test phrase"
+ ],
+ "notes": [],
+ "text": [
+  "IMPORTANT: FORMS THAT ARE INCOMPLETE AND INCORRECTLY FILLED OUT WILL BE RETURNED",
+  "CAREFULLY READ AND FOLLOW INSTRUCTIONS AT THE BOTTOM OF THIS PAGE."
+ ],
+ "order": [
+  "VISA APPLICATION FORM",
+  "IMPORTANT: FORMS THAT ARE INCOMPLETE AND INCORRECTLY FILLED OUT WILL BE RETURNED."
+ ]
+}

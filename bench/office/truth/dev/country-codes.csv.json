@@ -1,0 +1,23 @@
+{
+ "file": "country-codes.csv",
+ "format": "csv",
+ "headings": [],
+ "tables": [
+  {
+   "rows": 250,
+   "cols": 56,
+   "cells": [
+    "FIFA",
+    "Dial",
+    "428",
+    "https://www.wikidata.org/wiki/Q954"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": []
+}

@@ -1,0 +1,32 @@
+{
+ "file": "with_japanese.pptx",
+ "format": "pptx",
+ "headings": [],
+ "tables": [
+  {
+   "rows": 2,
+   "cols": 3,
+   "cells": [
+    "Row 1 Col 1",
+    "Row 1 Col 2",
+    "Row 2 Col 1",
+    "Row 2 Col 3"
+   ]
+  }
+ ],
+ "lists": [
+  "Bullet 1",
+  "Bullet 2",
+  "Bullet 3",
+  "Number bullet 1",
+  "Number bullet 2",
+  "Number bullet 3"
+ ],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [
+  "Bold italic underline superscript subscript"
+ ],
+ "order": []
+}

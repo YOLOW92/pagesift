@@ -1408,6 +1408,7 @@ dependencies = [
  "pagesift-llm",
  "pagesift-mcp",
  "pagesift-net",
+ "pagesift-office",
  "pagesift-pdf",
  "pagesift-policy",
  "pagesift-search",
@@ -1436,6 +1437,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "pagesift-net",
+ "pagesift-office",
  "pagesift-store",
  "regex",
  "reqwest",
@@ -1589,6 +1591,13 @@ dependencies = [
  "serde_json",
  "tokio",
  "url",
+]
+
+[[package]]
+name = "pagesift-office"
+version = "0.80.0"
+dependencies = [
+ "miniz_oxide",
 ]
 
 [[package]]

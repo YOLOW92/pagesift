@@ -1,0 +1,23 @@
+{
+ "file": "geo-spend-jan12.csv",
+ "format": "csv",
+ "headings": [],
+ "tables": [
+  {
+   "rows": 18,
+   "cols": 9,
+   "cells": [
+    "Department Family",
+    "Entity",
+    "Home Office",
+    "13160"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": []
+}

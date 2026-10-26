@@ -1,3 +1,0 @@
-engine,language,total_processed_urls,genuine_200_ok,valid_markdown_docs,conversion_rate_pct,blake3_duplicates,peak_rss_mb,memory_bloat_ratio,stability_status
-PageSift 0.50,Rust,105660,62937,60659,96.38,2449,188.4,1.0,100% OOM-Proof (Flat RSS)
-Spider 2.53.9,Rust,100000,72209,59803,82.82,3484,8978.9,47.6,💥 Leaked to 14GB & Hung

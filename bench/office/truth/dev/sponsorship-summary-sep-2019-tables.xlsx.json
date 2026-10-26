@@ -1,0 +1,176 @@
+{
+ "file": "sponsorship-summary-sep-2019-tables.xlsx",
+ "format": "xlsx",
+ "headings": [
+  [
+   0,
+   "Cover_sheet"
+  ],
+  [
+   0,
+   "Contents"
+  ],
+  [
+   0,
+   "Notes"
+  ],
+  [
+   0,
+   "CoS_01"
+  ],
+  [
+   0,
+   "CoS_02"
+  ],
+  [
+   0,
+   "CoS_03"
+  ],
+  [
+   0,
+   "CoS_04"
+  ],
+  [
+   0,
+   "CAS_01"
+  ],
+  [
+   0,
+   "CAS_02"
+  ],
+  [
+   0,
+   "CAS_03"
+  ],
+  [
+   0,
+   "CAS_04"
+  ]
+ ],
+ "tables": [
+  {
+   "sheet": "Cover_sheet",
+   "rows": 16,
+   "cols": 1,
+   "cells": [
+    "Immigration Statistics year ending September 2019",
+    "Next update: 27 February 2020",
+    "Responsible Statistician: Bex Newell",
+    "Contents"
+   ]
+  },
+  {
+   "sheet": "Contents",
+   "rows": 24,
+   "cols": 5,
+   "cells": [
+    "Immigration statistics, year ending September 2019",
+    "Yes",
+    "Sponsorship data tables"
+   ]
+  },
+  {
+   "sheet": "Notes",
+   "rows": 41,
+   "cols": 6,
+   "cells": [
+    "Notes",
+    "Data for 2019 Q1 onwards are provisional.",
+    "cs_06_q",
+    "Back to contents"
+   ]
+  },
+  {
+   "sheet": "CoS_01",
+   "rows": 13,
+   "cols": 13,
+   "cells": [
+    "Number of organisations on the register of sponsors for work",
+    "29,090",
+    "%",
+    "Back to contents"
+   ]
+  },
+  {
+   "sheet": "CoS_02",
+   "rows": 35,
+   "cols": 14,
+   "cells": [
+    "United Kingdom",
+    "1,262",
+    "1,937",
+    "Back to contents"
+   ]
+  },
+  {
+   "sheet": "CoS_03",
+   "rows": 17,
+   "cols": 14,
+   "cells": [
+    "Applicants for work using sponsorship certificates, by tier",
+    "45,341",
+    "43,490",
+    "Back to contents"
+   ]
+  },
+  {
+   "sheet": "CoS_04",
+   "rows": 35,
+   "cols": 12,
+   "cells": [
+    "United Kingdom",
+    "2,131",
+    "Russia",
+    "Back to contents"
+   ]
+  },
+  {
+   "sheet": "CAS_01",
+   "rows": 14,
+   "cols": 13,
+   "cells": [
+    "United Kingdom",
+    "1,239",
+    "Total organisations",
+    "Back to contents"
+   ]
+  },
+  {
+   "sheet": "CAS_02",
+   "rows": 29,
+   "cols": 14,
+   "cells": [
+    "United Kingdom",
+    "1,235",
+    "0",
+    "Back to contents"
+   ]
+  },
+  {
+   "sheet": "CAS_03",
+   "rows": 29,
+   "cols": 14,
+   "cells": [
+    "United Kingdom",
+    "3%",
+    "2,505",
+    "Back to contents"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": [
+  "Cover_sheet",
+  "Contents",
+  "Notes",
+  "CoS_02",
+  "CoS_03",
+  "CoS_04",
+  "CAS_02",
+  "CAS_03"
+ ]
+}

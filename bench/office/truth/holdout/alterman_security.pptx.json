@@ -1,0 +1,124 @@
+{
+ "file": "alterman_security.pptx",
+ "format": "pptx",
+ "headings": [
+  [
+   2,
+   "Government-University Identity Management Opportunities"
+  ],
+  [
+   2,
+   "Current State of Affairs (60 years old now)"
+  ],
+  [
+   2,
+   "Foundational Assumption"
+  ],
+  [
+   2,
+   "E-Authentication LOA and What They Mean"
+  ],
+  [
+   2,
+   "E-Authentication LOA and What They Service**"
+  ],
+  [
+   2,
+   "General Considerations for Determining LOA of an Electronic Identity Credential (EIC)"
+  ],
+  [
+   2,
+   "Summary of Lower-Level Identity Credentials"
+  ],
+  [
+   2,
+   "Summary of Cryptographic-Based Identity Credentials"
+  ],
+  [
+   2,
+   "A Little Complication"
+  ],
+  [
+   2,
+   "LOA Mapping E-Auth to Fed PKI"
+  ],
+  [
+   2,
+   "How Can A School Credential be Trusted and Used by a Government Application?"
+  ],
+  [
+   2,
+   "US Government E-Authentication Interfederation Model"
+  ],
+  [
+   2,
+   "E-Authentication Federation Membership Requirements"
+  ],
+  [
+   2,
+   "E-Authentication – InCommon Interfederation Status"
+  ],
+  [
+   2,
+   "Fed PKI “Interfederation” Model"
+  ],
+  [
+   2,
+   "Fed PKI Cross Certification Process"
+  ],
+  [
+   2,
+   "FPKI Does Interfederate"
+  ],
+  [
+   2,
+   "Current Model for Assertion-Based Interfederation (still a work in progress)"
+  ],
+  [
+   2,
+   "What about Level 3 Government Apps Today?"
+  ],
+  [
+   2,
+   "Seeded Questions"
+  ],
+  [
+   2,
+   "Password Entropy (Copied From Bill Burr)*"
+  ],
+  [
+   2,
+   "Resources"
+  ],
+  [
+   2,
+   "Notes"
+  ]
+ ],
+ "tables": [],
+ "lists": [],
+ "images": [
+  "bigger bambi meets godzilla",
+  "MPj03090780000[1]",
+  "agree"
+ ],
+ "footnotes": [],
+ "notes": [],
+ "text": [
+  "Chair, U.S. Federal PKI Policy Authority and",
+  "Substantial assurance of identity; cryptographically-based identity authenticati",
+  "The government has TWO LOA classifications:",
+  "E-Authentication needs to up its privacy protections",
+  "Universities issuing PKI-based electronic credentials may cross-certify with the"
+ ],
+ "order": [
+  "Government-University Identity Management Opportunities",
+  "Foundational Assumption",
+  "General Considerations for Determining LOA of an Electronic Identity Credential (EIC)",
+  "A Little Complication",
+  "US Government E-Authentication Interfederation Model",
+  "Fed PKI “Interfederation” Model",
+  "Current Model for Assertion-Based Interfederation (still a work in progress)",
+  "Password Entropy (Copied From Bill Burr)*"
+ ]
+}

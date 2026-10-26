@@ -1,0 +1,23 @@
+{
+ "file": "comma_in_quotes.csv",
+ "format": "csv",
+ "headings": [],
+ "tables": [
+  {
+   "rows": 2,
+   "cols": 5,
+   "cells": [
+    "first",
+    "last",
+    "John",
+    "08123"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": []
+}

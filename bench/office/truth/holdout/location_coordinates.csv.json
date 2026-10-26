@@ -1,0 +1,23 @@
+{
+ "file": "location_coordinates.csv",
+ "format": "csv",
+ "headings": [],
+ "tables": [
+  {
+   "rows": 2,
+   "cols": 4,
+   "cells": [
+    "Contact Phone Number",
+    "Location Coordinates",
+    "2095257564",
+    "Stanislaus"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": []
+}
