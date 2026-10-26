@@ -26,6 +26,10 @@ pub(crate) fn ensure_not_root() -> Result<()> {
     Err(unsupported())
 }
 
+pub fn running_as_root() -> bool {
+    false
+}
+
 pub(crate) fn check_args(_: &[String]) -> Result<()> {
     Err(unsupported())
 }

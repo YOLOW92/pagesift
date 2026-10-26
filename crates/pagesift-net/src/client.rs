@@ -562,7 +562,7 @@ impl Client {
                     StageOutcome::DeterministicFailure,
                 );
                 handshake.finish(StageOutcome::DeterministicFailure);
-                return Err(Error::Network(format!("tls error: {error}")));
+                return Err(crate::tls::from_io(&error));
             }
             Ok(Ok(tls)) => {
                 self.0.stages.record_phase(
@@ -696,9 +696,7 @@ fn stage_outcome_for_error(error: &Error) -> StageOutcome {
         | Error::UserAgent(_)
         | Error::Header(_)
         | Error::TooManyRedirects(_) => StageOutcome::DeterministicFailure,
-        Error::Network(message) if message.starts_with("tls error:") => {
-            StageOutcome::DeterministicFailure
-        }
+        Error::Tls { .. } => StageOutcome::DeterministicFailure,
         Error::Network(_) => StageOutcome::TransientFailure,
     }
 }

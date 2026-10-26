@@ -21,6 +21,7 @@ pub mod scheduler;
 mod session;
 mod ssrf;
 mod stages;
+mod tls;
 mod ua;
 
 pub use budget::{
@@ -35,9 +36,9 @@ pub use media::{
 };
 pub use scheduler::{CrawlResult, CrawlTask, DomainLimiter, PushError, RingQueue, WorkerPool};
 
-pub use charset::{CharsetSource, Decoded, decode};
 /// 只做"看字节猜编码"，不解码。基准测试与诊断工具用它。
 pub use charset::detect as detect_charset;
+pub use charset::{CharsetSource, Decoded, decode};
 pub use credentials::{HostCredentials, Secret, redact_url};
 pub use dns::{BoxFuture, DnsLookup, SystemLookup};
 pub use fetch::{
@@ -52,5 +53,6 @@ pub use stages::{
     NetworkStage, PhaseSnapshot, StageController, StageControllerConfig, StageLimit, StageOutcome,
     StagePermit, StageSnapshot, TransportPhase,
 };
+pub use tls::TlsErrorKind;
 pub use ua::{DEFAULT_USER_AGENT, UserAgentError, product_token, validate_user_agent};
 pub use url::Url;

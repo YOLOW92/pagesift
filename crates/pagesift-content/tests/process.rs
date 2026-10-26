@@ -187,6 +187,27 @@ fn hidden_and_zero_width_are_removed() {
 }
 
 #[test]
+fn framework_cloak_templates_are_removed() {
+    let html = "<article><h1>Real headline</h1>\
+        <div x-data=\"{ isOpen: false }\" x-show=\"isOpen\" x-cloak><p>404 error module that is hidden until hydration</p></div>\
+        <p>Real body text that is long enough to be selected as the main content of the page.</p></article>";
+    let m = md(html);
+    assert!(m.contains("Real headline"), "{m}");
+    assert!(m.contains("Real body text"), "{m}");
+    assert!(!m.contains("404 error module"), "{m}");
+}
+
+#[test]
+fn cloaked_app_shell_with_main_content_is_kept() {
+    let html = "<body><div id=\"app\" v-cloak><main><article><h1>Real headline</h1>\
+        <p>The real article lives inside the app shell and must survive the cloak filter.</p>\
+        </article></main></div></body>";
+    let m = md(html);
+    assert!(m.contains("Real headline"), "{m}");
+    assert!(m.contains("must survive"), "{m}");
+}
+
+#[test]
 fn blockquote_and_line_breaks() {
     let html = "<article><blockquote><p>First line<br>second line</p><p>Next paragraph in the quote, long enough.</p></blockquote></article>";
     let m = md(html);

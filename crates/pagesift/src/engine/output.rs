@@ -232,10 +232,24 @@ pub(super) fn finish(
     mut meta: Metadata,
     mut ext: PagesiftMeta,
     mut timings: BTreeMap<String, f64>,
-    warnings: Vec<String>,
+    mut warnings: Vec<String>,
     started: Instant,
 ) -> Document {
     timings.insert("total".into(), ms(started.elapsed()));
+    if meta.status_code >= 400 {
+        warnings.push(format!("http_error_status: HTTP {}", meta.status_code));
+    }
+    if meta.status_code < 400
+        && doc
+            .markdown
+            .as_deref()
+            .is_some_and(|markdown| markdown.trim().is_empty())
+    {
+        warnings.push(format!(
+            "empty_content: no readable text extracted (HTTP {})",
+            meta.status_code
+        ));
+    }
     ext.timings = timings;
     ext.warnings = warnings;
     meta.pagesift = Some(ext);
@@ -250,6 +264,56 @@ pub(super) fn ms(d: Duration) -> f64 {
 pub(super) fn is_pdf(body: &[u8], content_type: Option<&str>) -> bool {
     body.starts_with(b"%PDF-")
         || content_type.is_some_and(|c| c.to_ascii_lowercase().contains("application/pdf"))
+}
+
+/// 非 HTML/文本内容（图片、音视频、字体、压缩包等）不应该被当作文本抽取。
+/// 返回不支持的类型名；`None` 表示可以按文本继续处理。
+///
+/// Content-Type 可能标错（例如 `application/octet-stream` 实际是 HTML），所以明显的
+/// HTML/XML 开头仍然放行；图片/音视频/字体等即使正文碰巧以 `<` 开头也拒绝。
+pub(super) fn unsupported_content_type(content_type: Option<&str>, body: &[u8]) -> Option<String> {
+    let raw = content_type?;
+    let kind = raw.split(';').next()?.trim().to_ascii_lowercase();
+    if kind.is_empty() {
+        return None;
+    }
+    if kind.starts_with("image/")
+        || kind.starts_with("audio/")
+        || kind.starts_with("video/")
+        || kind.starts_with("font/")
+    {
+        return Some(kind);
+    }
+    if kind == "application/pdf" {
+        return None;
+    }
+    if kind.starts_with("text/")
+        || kind.contains("html")
+        || kind.contains("xml")
+        || kind.contains("json")
+        || matches!(
+            kind.as_str(),
+            "application/javascript" | "application/x-javascript" | "application/ecmascript"
+        )
+    {
+        return None;
+    }
+    if looks_like_markup(body) {
+        return None;
+    }
+    Some(kind)
+}
+
+fn looks_like_markup(body: &[u8]) -> bool {
+    let head = &body[..body.len().min(1024)];
+    let text = String::from_utf8_lossy(head);
+    let text = text.trim_start_matches('\u{feff}').trim_start();
+    let lower = text.to_ascii_lowercase();
+    lower.starts_with("<!doctype html")
+        || lower.starts_with("<html")
+        || lower.starts_with("<head")
+        || lower.starts_with("<body")
+        || lower.starts_with("<?xml")
 }
 
 pub(crate) fn policy_error(e: pagesift_policy::Error) -> ApiError {
@@ -267,6 +331,10 @@ pub(crate) fn policy_error(e: pagesift_policy::Error) -> ApiError {
         P::InvalidRequest => ErrorCode::InvalidRequest,
         P::DnsFailure => ErrorCode::DnsFailure,
         P::NetworkError => ErrorCode::NetworkError,
+        P::TlsCertExpired => ErrorCode::TlsCertExpired,
+        P::TlsHostnameMismatch => ErrorCode::TlsHostnameMismatch,
+        P::TlsUntrustedRoot => ErrorCode::TlsUntrustedRoot,
+        P::TlsError => ErrorCode::TlsError,
         _ => ErrorCode::Internal,
     };
     let retry = e.retry_after().map(|d| d.as_secs().max(1));
@@ -275,4 +343,56 @@ pub(crate) fn policy_error(e: pagesift_policy::Error) -> ApiError {
         err = err.with_retry_after(s);
     }
     err
+}
+
+#[cfg(test)]
+mod tests {
+    use super::unsupported_content_type;
+
+    #[test]
+    fn rejects_binary_content_types() {
+        for kind in [
+            "image/png",
+            "image/jpeg",
+            "image/svg+xml",
+            "audio/mpeg",
+            "video/mp4",
+            "font/woff2",
+            "application/zip",
+            "application/octet-stream",
+        ] {
+            assert_eq!(
+                unsupported_content_type(Some(kind), b"\x89PNG\r\n"),
+                Some(kind.to_string()),
+                "{kind}"
+            );
+        }
+    }
+
+    #[test]
+    fn accepts_text_and_mislabeled_markup() {
+        for kind in [
+            "text/html; charset=utf-8",
+            "text/plain",
+            "application/xhtml+xml",
+            "application/json",
+            "application/rss+xml",
+            "application/pdf",
+        ] {
+            assert_eq!(
+                unsupported_content_type(Some(kind), b"anything"),
+                None,
+                "{kind}"
+            );
+        }
+        assert_eq!(
+            unsupported_content_type(Some("application/octet-stream"), b"<!doctype html><p>x"),
+            None
+        );
+        assert_eq!(
+            unsupported_content_type(Some("application/octet-stream"), b"  <html><p>x"),
+            None
+        );
+        assert_eq!(unsupported_content_type(None, b"\x89PNG"), None);
+    }
 }

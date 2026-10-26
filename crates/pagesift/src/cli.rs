@@ -60,6 +60,13 @@ impl CrawlOutput {
             .unwrap_or_default();
         let mut state = self.state.lock().expect("lock");
         state.0 += 1;
+        if let Some(warnings) = doc.metadata.pagesift.as_ref().map(|p| &p.warnings) {
+            for warning in warnings {
+                if warning.starts_with("crawl_followed_zero:") {
+                    eprintln!("warning: {warning}");
+                }
+            }
+        }
         match &self.dir {
             Some(dir) => {
                 let name = self.file_name(&url, &mut state.2);
@@ -162,6 +169,17 @@ pub async fn doctor(cfg: &pagesift::config::Config) -> Result<ExitCode> {
             false,
             "browser",
             "no browser engine found; pages that need JavaScript will be returned from HTTP only. Install Lightpanda, moli or Chromium, or set the browser path".into(),
+        );
+    } else if !matches!(sc.browser.source, pagesift_cdp::BrowserSource::Remote(_))
+        && pagesift_cdp::running_as_root()
+    {
+        report(
+            false,
+            "browser",
+            format!(
+                "{} installed, but rendering will fail: pagesift is running as root, and the Chrome sandbox does not work as root (pagesift will not disable it). Run as an unprivileged user",
+                chain.join(" → ")
+            ),
         );
     } else {
         report(true, "browser", chain.join(" → "));

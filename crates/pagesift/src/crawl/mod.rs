@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
-use pagesift_api::types::{CrawlRequest, Format, MapLink, MapRequest, ScrapeOptions};
+use pagesift_api::types::{CrawlRequest, Document, Format, MapLink, MapRequest, ScrapeOptions};
 use pagesift_api::{ApiError, CrawlSink, ErrorCode};
 use pagesift_net::Url;
 use pagesift_policy::{RequestKind, RobotsMode};
@@ -69,6 +69,41 @@ pub(super) fn seen_hash(url: &Url, ignore_query: bool) -> u64 {
     h.finish()
 }
 
+/// 爬取范围的路径前缀：目录部分。
+///
+/// - `/` → 无前缀（整站）
+/// - `/docs/` → `/docs`
+/// - `/docs/index.html` → `/docs`
+/// - `/docs/intro` → `/docs`（非斜杠结尾的叶子页也按目录处理）
+/// - `/docs` → `/docs`（单段路径保留，避免变成整站）
+fn scope_path(start: &Url) -> Option<String> {
+    let path = start.path();
+    let trimmed = path.trim_end_matches('/');
+    if trimmed.is_empty() {
+        return None;
+    }
+    if path.ends_with('/') {
+        return Some(trimmed.to_string());
+    }
+    match trimmed.rsplit_once('/') {
+        Some(("", last)) => {
+            // 根目录下的单段路径：`/index.html` 这种文件名按整站处理；
+            // `/docs` 这种栏目根保留自身前缀，避免把范围意外放大到整站。
+            (!last.contains('.')).then(|| trimmed.to_string())
+        }
+        None => Some(trimmed.to_string()),
+        Some((parent, _)) => Some(parent.to_string()),
+    }
+}
+
+pub(super) fn push_warning(doc: &mut Document, message: String) {
+    doc.metadata
+        .pagesift
+        .get_or_insert_with(Default::default)
+        .warnings
+        .push(message);
+}
+
 /// 爬取范围：哪些发现的 URL 可以进入队列。
 pub(crate) struct Scope {
     host: String,
@@ -96,9 +131,13 @@ impl Scope {
                 })
                 .collect()
         };
-        // 默认只爬起始路径下面的页面（和 Firecrawl 一致），crawlEntireDomain 时放开到整站
+        // 默认只爬起始 URL 所在目录下面的页面（和 Firecrawl 一致），crawlEntireDomain 时放开到整站。
+        // 种子以文件名结尾时（.../index.html）不能把整个路径当字符串前缀，否则前缀会变成
+        // ".../index.html/"，任何真实链接都匹配不上；这里取目录部分。单段路径（/docs）仍按
+        // 它自己的前缀处理，避免把范围意外放大到整站。
         let path_prefix = (!entire_domain)
-            .then(|| start.path().trim_end_matches('/').to_string())
+            .then(|| scope_path(start))
+            .flatten()
             .filter(|p| !p.is_empty());
         Ok(Self {
             host: start
@@ -409,6 +448,39 @@ mod tests {
             dedup_key(&u("https://wwwexample.com/a"), false),
             dedup_key(&u("https://example.com/a"), false)
         );
+    }
+
+    #[test]
+    fn scope_with_file_ending_seed_uses_its_directory() {
+        let file = u("https://example.com/travel_2/index.html");
+        let s = Scope::new(&file, false, false, false, &[], &[]).unwrap();
+        assert!(s.allows(&u("https://example.com/travel_2/page-2.html")));
+        assert!(s.allows(&u("https://example.com/travel_2/")));
+        assert!(s.allows(&u("https://example.com/travel_2")));
+        assert!(!s.allows(&u("https://example.com/travel_3/page.html")));
+        assert!(!s.allows(&u("https://example.com/")));
+
+        // 嵌套文件名种子
+        let deep = u("https://example.com/catalogue/books/travel_2/index.html");
+        let s = Scope::new(&deep, false, false, false, &[], &[]).unwrap();
+        assert!(s.allows(&u("https://example.com/catalogue/books/travel_2/a.html")));
+        assert!(!s.allows(&u("https://example.com/catalogue/books/other/a.html")));
+
+        // 单段路径保持原范围，不放大到整站
+        let section = u("https://example.com/docs");
+        let s = Scope::new(&section, false, false, false, &[], &[]).unwrap();
+        assert!(s.allows(&u("https://example.com/docs/intro")));
+        assert!(!s.allows(&u("https://example.com/blog/x")));
+
+        // 根路径仍是整站
+        let root = u("https://example.com/");
+        let s = Scope::new(&root, false, false, false, &[], &[]).unwrap();
+        assert!(s.allows(&u("https://example.com/blog/x")));
+
+        // 根目录下的文件名种子也按整站处理
+        let root_file = u("https://example.com/index.html");
+        let s = Scope::new(&root_file, false, false, false, &[], &[]).unwrap();
+        assert!(s.allows(&u("https://example.com/a.html")));
     }
 
     #[test]

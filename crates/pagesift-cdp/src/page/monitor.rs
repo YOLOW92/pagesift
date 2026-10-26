@@ -113,6 +113,10 @@ pub(super) async fn monitor(
                 if p["type"] == "Document" && p["frameId"] == shared.main_frame.as_str() {
                     let status = p.pointer("/response/status").and_then(Value::as_f64);
                     *shared.status.lock().unwrap() = status.map(|s| s as u16);
+                    *shared.content_type.lock().unwrap() = p
+                        .pointer("/response/mimeType")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned);
                 }
             }
             "Network.requestWillBeSent" => {

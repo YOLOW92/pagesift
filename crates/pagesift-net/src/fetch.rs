@@ -1,11 +1,12 @@
 use std::fmt;
+use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use reqwest::header::{self, HeaderMap, HeaderName, HeaderValue};
 use reqwest::redirect;
 use tokio::time::{Instant, timeout_at};
-use url::Url;
+use url::{Host, Url};
 
 use crate::HostConnectionStats;
 use crate::charset::{self, Decoded};
@@ -14,7 +15,7 @@ use crate::credentials::{HostCredentials, redact_url};
 use crate::dns::{
     BoxFuture, DnsLookup, GuardedResolver, ReqwestResolver, ResolveError, SystemLookup,
 };
-use crate::ssrf::{Blocked, SsrfPolicy};
+use crate::ssrf::{Blocked, IpCidr, SsrfPolicy, is_public};
 use crate::stages::{
     NetworkStage, PhaseSnapshot, StageController, StageControllerConfig, StagePermit, StageSnapshot,
 };
@@ -73,6 +74,13 @@ pub enum Error {
     },
     #[error("network error: {0}")]
     Network(String),
+    /// TLS 证书校验失败。类别是机器可读的，`message` 保留 rustls 的完整原因。
+    /// 与 `Network` 分开：证书问题通常重试也不会好，调用方不该按网络抖动退避。
+    #[error("TLS error ({kind}): {message}")]
+    Tls {
+        kind: crate::TlsErrorKind,
+        message: String,
+    },
     /// 域名解析失败或没有地址：临时问题，和 SSRF 拒绝（永远不许抓）分开。
     #[error("DNS lookup failed: {0}")]
     Dns(String),
@@ -357,6 +365,8 @@ pub struct Fetcher {
     config: FetcherConfig,
     credentials: Vec<(HostCredentials, HeaderMap)>,
     stages: StageController,
+    resolver: Arc<GuardedResolver>,
+    bypass: ProxyBypass,
 }
 
 impl fmt::Debug for Fetcher {
@@ -386,17 +396,190 @@ fn detect_env_proxy() -> Option<String> {
     None
 }
 
-impl Fetcher {
-    pub fn new(mut config: FetcherConfig) -> Result<Self> {
-        validate_user_agent(&config.user_agent)?;
-        if config.proxy.is_none() {
-            if let Some(env_p) = detect_env_proxy() {
-                config.proxy = Some(env_p);
+/// 哪些目标应该绕过代理直连。
+///
+/// 来源：标准 `NO_PROXY`/`no_proxy` 环境变量，加上配置里的 `allow_hosts`、`allow_ips`
+/// 和 `allow_cidrs`。`allow_private_network` 打开时，解析到非公网地址的主机也直连。
+#[derive(Debug, Default, Clone)]
+struct ProxyBypass {
+    all: bool,
+    raw: Option<String>,
+    hosts: Vec<String>,
+    ips: Vec<IpAddr>,
+    cidrs: Vec<IpCidr>,
+    allow_private_network: bool,
+}
+
+impl ProxyBypass {
+    fn from_env(ssrf: &SsrfPolicy) -> Self {
+        let raw = std::env::var("NO_PROXY")
+            .ok()
+            .or_else(|| std::env::var("no_proxy").ok());
+        Self::from_raw(raw.as_deref(), ssrf)
+    }
+
+    fn from_raw(raw: Option<&str>, ssrf: &SsrfPolicy) -> Self {
+        let mut bypass = Self {
+            raw: raw.map(str::to_string),
+            allow_private_network: ssrf.allow_private_network,
+            ips: ssrf.allow_ips.clone(),
+            cidrs: ssrf.allow_cidrs.clone(),
+            ..Default::default()
+        };
+        if let Some(raw) = raw {
+            for entry in raw.split([',', ';', ' ', '\t', '\n']) {
+                let entry = entry.trim();
+                if entry.is_empty() {
+                    continue;
+                }
+                if entry == "*" {
+                    bypass.all = true;
+                    continue;
+                }
+                if let Ok(cidr) = entry.parse::<IpCidr>() {
+                    push_unique(&mut bypass.cidrs, cidr, |a, b| a == b);
+                    continue;
+                }
+                let host = host_part(entry);
+                let host = host.trim_start_matches("*.").trim_start_matches('.');
+                if host.is_empty() {
+                    continue;
+                }
+                if let Ok(ip) = host.parse::<IpAddr>() {
+                    push_unique(&mut bypass.ips, ip, |a, b| a == b);
+                } else {
+                    push_unique(&mut bypass.hosts, host.to_ascii_lowercase(), |a, b| a == b);
+                }
             }
+        }
+        for host in &ssrf.allow_hosts {
+            let host = host_part(host)
+                .trim_start_matches("*.")
+                .trim_start_matches('.');
+            if !host.is_empty() {
+                push_unique(&mut bypass.hosts, host.to_ascii_lowercase(), |a, b| a == b);
+            }
+        }
+        bypass
+    }
+
+    async fn applies(&self, url: &Url, resolver: &GuardedResolver) -> bool {
+        if self.all {
+            return true;
+        }
+        match url.host() {
+            Some(Host::Ipv4(ip)) => self.ip_allowed(IpAddr::V4(ip)),
+            Some(Host::Ipv6(ip)) => self.ip_allowed(IpAddr::V6(ip)),
+            Some(Host::Domain(host)) => {
+                if self.host_listed(host) {
+                    return true;
+                }
+                if !self.needs_resolution() {
+                    return false;
+                }
+                // 域名可能解析到 allow_cidrs / allow_ips 里的地址。解析失败就按代理处理，
+                // 让实际请求路径去报告真正的网络/SSRF 错误。
+                match resolver.resolve_checked(host).await {
+                    Ok(ips) => ips.iter().any(|ip| self.ip_allowed(*ip)),
+                    Err(_) => false,
+                }
+            }
+            None => false,
+        }
+    }
+
+    fn needs_resolution(&self) -> bool {
+        self.allow_private_network || !self.cidrs.is_empty() || !self.ips.is_empty()
+    }
+
+    fn ip_allowed(&self, ip: IpAddr) -> bool {
+        self.ips.contains(&ip)
+            || self.cidrs.iter().any(|cidr| cidr.contains(ip))
+            || (self.allow_private_network && !is_public(ip))
+    }
+
+    fn host_listed(&self, host: &str) -> bool {
+        let host = host
+            .trim_matches(['[', ']'])
+            .trim_end_matches('.')
+            .to_ascii_lowercase();
+        self.hosts
+            .iter()
+            .any(|rule| host == *rule || host.ends_with(&format!(".{rule}")))
+    }
+
+    fn reqwest_no_proxy(&self) -> Option<reqwest::NoProxy> {
+        let mut parts = Vec::new();
+        if let Some(raw) = &self.raw
+            && !raw.trim().is_empty()
+        {
+            parts.push(raw.clone());
+        }
+        parts.extend(self.hosts.iter().cloned());
+        parts.extend(self.ips.iter().map(ToString::to_string));
+        parts.extend(self.cidrs.iter().map(cidr_entry));
+        if parts.is_empty() {
+            return None;
+        }
+        reqwest::NoProxy::from_string(&parts.join(","))
+    }
+}
+
+fn push_unique<T>(items: &mut Vec<T>, value: T, same: impl Fn(&T, &T) -> bool) {
+    if !items.iter().any(|existing| same(existing, &value)) {
+        items.push(value);
+    }
+}
+
+/// `NO_PROXY` 条目可能带协议、路径或端口；只取主机部分。IPv6 用方括号包着。
+fn host_part(entry: &str) -> &str {
+    let entry = entry.split_once("://").map_or(entry, |(_, rest)| rest);
+    let entry = entry.split(['/', '?']).next().unwrap_or(entry);
+    if let Some(rest) = entry.strip_prefix('[') {
+        return rest.split(']').next().unwrap_or(entry);
+    }
+    if entry.parse::<IpAddr>().is_ok() {
+        return entry;
+    }
+    match entry.rsplit_once(':') {
+        Some((host, port)) if port.parse::<u16>().is_ok() => host,
+        _ => entry,
+    }
+}
+
+fn cidr_entry(cidr: &IpCidr) -> String {
+    match cidr {
+        IpCidr::V4 { net, prefix } => format!("{net}/{prefix}"),
+        IpCidr::V6 { net, prefix } => format!("{net}/{prefix}"),
+    }
+}
+
+impl Fetcher {
+    pub fn new(config: FetcherConfig) -> Result<Self> {
+        Self::new_inner(config, true)
+    }
+
+    /// 命名出口专用：这是调用方为本次请求显式选择的代理，不能被环境里的
+    /// `NO_PROXY` 或 SSRF 放行名单悄悄改成直连。
+    pub fn new_egress(config: FetcherConfig) -> Result<Self> {
+        Self::new_inner(config, false)
+    }
+
+    fn new_inner(mut config: FetcherConfig, honor_bypass: bool) -> Result<Self> {
+        validate_user_agent(&config.user_agent)?;
+        if config.proxy.is_none()
+            && let Some(env_p) = detect_env_proxy()
+        {
+            config.proxy = Some(env_p);
         }
         let mut exempt = Vec::new();
         let mut builder = reqwest::Client::builder();
         let mut raw_builder = reqwest::Client::builder();
+        let bypass = if honor_bypass {
+            ProxyBypass::from_env(&config.ssrf)
+        } else {
+            ProxyBypass::default()
+        };
         if let Some(p) = &config.proxy {
             let parsed = Url::parse(p).map_err(|_| Error::Config("invalid proxy URL".into()))?;
             if !matches!(parsed.scheme(), "http" | "https" | "socks5" | "socks5h") {
@@ -410,6 +593,13 @@ impl Fetcher {
             }
             let proxy = reqwest::Proxy::all(p.as_str())
                 .map_err(|_| Error::Config("invalid proxy URL".into()))?;
+            // NO_PROXY 和放行名单里的目标不要让 reqwest 也走代理；逐请求的直连选择
+            // 在 Transport::get 里再做一次（域名解析到 allow_cidrs 的情况只有那里知道）。
+            let proxy = if let Some(no_proxy) = bypass.reqwest_no_proxy() {
+                proxy.no_proxy(Some(no_proxy))
+            } else {
+                proxy
+            };
             raw_builder = raw_builder.proxy(proxy.clone());
             builder = builder.proxy(proxy);
         } else {
@@ -435,28 +625,32 @@ impl Fetcher {
             .iter()
             .map(|c| Ok((c.clone(), credential_headers(c)?)))
             .collect::<Result<_>>()?;
-        // 直连用自研客户端（内存可控）；有出口代理时交给 reqwest 处理代理协议
+        // 直连用自研客户端（内存可控）；有出口代理时交给 reqwest 处理代理协议。
+        // 即使配了代理也保留直连客户端：NO_PROXY / allow_hosts / allow_cidrs 命中的目标
+        // 必须绕过代理，否则内网地址会进出口代理日志。
+        let direct = client::Client::new(
+            resolver.clone(),
+            config.connect_timeout,
+            config.dns_timeout,
+            config.tls_timeout,
+            config.first_byte_timeout,
+            config.happy_eyeballs_delay,
+            config.tail_threshold,
+            config.pool_idle_timeout,
+            config.pool_max_idle_per_host,
+            config.adaptive_host_connections,
+            config.max_connections_per_host,
+            stages.clone(),
+            ua.clone(),
+        )?;
         if config.proxy.is_none() {
-            let direct = client::Client::new(
-                resolver,
-                config.connect_timeout,
-                config.dns_timeout,
-                config.tls_timeout,
-                config.first_byte_timeout,
-                config.happy_eyeballs_delay,
-                config.tail_threshold,
-                config.pool_idle_timeout,
-                config.pool_max_idle_per_host,
-                config.adaptive_host_connections,
-                config.max_connections_per_host,
-                stages.clone(),
-                ua,
-            )?;
             return Ok(Self {
                 transport: Transport::Direct(direct),
                 config,
                 credentials,
                 stages,
+                resolver,
+                bypass,
             });
         }
         let build = |builder: reqwest::ClientBuilder| {
@@ -485,10 +679,16 @@ impl Fetcher {
             .build()
             .map_err(|e| Error::Config(e.to_string()))?;
         Ok(Self {
-            transport: Transport::Proxy(client, raw),
+            transport: Transport::Proxy {
+                direct,
+                decoded: client,
+                identity: raw,
+            },
             config,
             credentials,
             stages,
+            resolver,
+            bypass,
         })
     }
 
@@ -505,7 +705,15 @@ impl Fetcher {
     pub fn host_connection_stats(&self) -> Vec<HostConnectionStats> {
         match &self.transport {
             Transport::Direct(client) => client.host_connection_stats(),
-            Transport::Proxy(_, _) => Vec::new(),
+            Transport::Proxy { .. } => Vec::new(),
+        }
+    }
+
+    /// 这个 URL 是否应该绕过代理直连。
+    async fn direct_route(&self, url: &Url) -> bool {
+        match &self.transport {
+            Transport::Direct(_) => true,
+            Transport::Proxy { .. } => self.bypass.applies(url, &self.resolver).await,
         }
     }
 
@@ -628,8 +836,9 @@ impl Fetcher {
                     HeaderValue::from_static("identity"),
                 );
             }
-            let send = self.transport.get(&url, headers, raw);
-            let mut resp = if matches!(&self.transport, Transport::Direct(_)) {
+            let direct_route = self.direct_route(&url).await;
+            let send = self.transport.get(&url, headers, raw, direct_route);
+            let mut resp = if direct_route {
                 // Direct transport enforces DNS, TCP, TLS and TTFB deadlines
                 // after each stage acquires capacity. Queue time cannot create
                 // a false failure-feedback loop.
@@ -885,27 +1094,42 @@ async fn read_body(
     }
 }
 
+#[allow(clippy::large_enum_variant)] // 只构造一次，放在 Fetcher 里长期复用，不值得再分配一层 Box
 enum Transport {
     Direct(client::Client),
-    Proxy(reqwest::Client, reqwest::Client),
+    Proxy {
+        direct: client::Client,
+        decoded: reqwest::Client,
+        identity: reqwest::Client,
+    },
 }
 
+#[allow(clippy::large_enum_variant)] // 每个响应只活一次请求，Box 只会多一次分配
 enum Resp {
     Direct(client::Response),
     Proxy(reqwest::Response),
 }
 
 impl Transport {
-    async fn get(&self, url: &Url, headers: HeaderMap, raw: bool) -> Result<Resp> {
+    async fn get(&self, url: &Url, headers: HeaderMap, raw: bool, direct: bool) -> Result<Resp> {
         match self {
             Transport::Direct(c) => c.get(url, headers).await.map(Resp::Direct),
-            Transport::Proxy(decoded, identity) => (if raw { identity } else { decoded })
-                .get(url.clone())
-                .headers(headers)
-                .send()
-                .await
-                .map(Resp::Proxy)
-                .map_err(map_reqwest),
+            Transport::Proxy {
+                direct: direct_client,
+                decoded,
+                identity,
+            } => {
+                if direct {
+                    return direct_client.get(url, headers).await.map(Resp::Direct);
+                }
+                (if raw { identity } else { decoded })
+                    .get(url.clone())
+                    .headers(headers)
+                    .send()
+                    .await
+                    .map(Resp::Proxy)
+                    .map_err(map_reqwest)
+            }
         }
     }
 }
@@ -968,6 +1192,9 @@ fn map_reqwest(e: reqwest::Error) -> Error {
         });
     }
     let e = e.without_url();
+    if let Some((kind, message)) = crate::tls::from_sources(&e) {
+        return Error::Tls { kind, message };
+    }
     let mut msg = e.to_string();
     let mut src = std::error::Error::source(&e);
     while let Some(s) = src {
@@ -975,5 +1202,63 @@ fn map_reqwest(e: reqwest::Error) -> Error {
         msg.push_str(&s.to_string());
         src = s.source();
     }
+    if let Some(kind) = crate::tls::classify_text(&msg) {
+        return Error::Tls { kind, message: msg };
+    }
     Error::Network(msg)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::Ipv4Addr;
+
+    fn policy() -> SsrfPolicy {
+        SsrfPolicy::default()
+    }
+
+    #[test]
+    fn no_proxy_parses_hosts_ports_and_cidrs() {
+        let bypass = ProxyBypass::from_raw(
+            Some("localhost, .internal.example, 10.0.0.0/8, 127.0.0.1, [::1]:8080, *.corp.example"),
+            &policy(),
+        );
+        assert!(bypass.host_listed("localhost"));
+        assert!(bypass.host_listed("api.internal.example"));
+        assert!(!bypass.host_listed("notinternal.example"));
+        assert!(bypass.host_listed("api.corp.example"));
+        assert!(bypass.ip_allowed("10.1.2.3".parse().unwrap()));
+        assert!(bypass.ip_allowed("127.0.0.1".parse().unwrap()));
+        assert!(bypass.ip_allowed("::1".parse().unwrap()));
+        assert!(!bypass.ip_allowed("8.8.8.8".parse().unwrap()));
+    }
+
+    #[test]
+    fn wildcard_no_proxy_bypasses_everything() {
+        let bypass = ProxyBypass::from_raw(Some("*"), &policy());
+        assert!(bypass.all);
+    }
+
+    #[test]
+    fn explicit_allow_lists_are_bypassed() {
+        let ssrf = SsrfPolicy {
+            allow_hosts: vec!["docs.internal".into()],
+            allow_ips: vec![IpAddr::V4(Ipv4Addr::new(192, 0, 2, 10))],
+            allow_cidrs: vec!["198.18.0.0/15".parse().unwrap()],
+            ..Default::default()
+        };
+        let bypass = ProxyBypass::from_raw(None, &ssrf);
+        assert!(bypass.host_listed("docs.internal"));
+        assert!(bypass.ip_allowed("192.0.2.10".parse().unwrap()));
+        assert!(bypass.ip_allowed("198.18.1.2".parse().unwrap()));
+        assert!(!bypass.ip_allowed("198.20.1.2".parse().unwrap()));
+    }
+
+    #[test]
+    fn missing_no_proxy_is_empty() {
+        let bypass = ProxyBypass::from_raw(None, &policy());
+        assert!(!bypass.all);
+        assert!(!bypass.host_listed("example.com"));
+        assert!(!bypass.ip_allowed("127.0.0.1".parse().unwrap()));
+    }
 }

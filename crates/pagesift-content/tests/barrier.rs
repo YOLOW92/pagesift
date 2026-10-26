@@ -181,6 +181,18 @@ fn login_walls() {
 }
 
 #[test]
+fn bilibili_captcha() {
+    let html = r#"<html><head><title>验证码_哔哩哔哩</title></head>
+<body><div class="bili-captcha"><div class="geetest_panel"><p>请完成下方验证</p></div></div>
+<script src="/vendor/gt.js"></script></body></html>"#;
+    expect(html, Some(200), "bilibili", BarrierKind::Captcha);
+    // 本地近似样本只有通用提示语时也能识别
+    let generic = r#"<html><head><title>安全验证</title></head>
+<body><div class="bili-captcha"><p>请完成下方验证</p></div></body></html>"#;
+    expect(generic, Some(200), "bilibili", BarrierKind::Captcha);
+}
+
+#[test]
 fn generic_403_page() {
     let html = "<html><head><title>403 Forbidden</title></head><body><center><h1>403 Forbidden</h1></center><hr><center>nginx</center></body></html>";
     expect(html, Some(403), "generic", BarrierKind::Block);

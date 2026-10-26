@@ -320,7 +320,7 @@ impl Policy {
                 {
                     let mut fc = self.fetcher.config().clone();
                     fc.proxy = Some(name.to_string());
-                    dynamic_fetcher = Arc::new(Fetcher::new(fc)?);
+                    dynamic_fetcher = Arc::new(Fetcher::new_egress(fc)?);
                     dynamic_fetcher.as_ref()
                 }
                 None => return Err(Error::InvalidRequest(format!("unknown egress `{name}`"))),

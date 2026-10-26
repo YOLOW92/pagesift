@@ -333,6 +333,8 @@ pub struct RenderedPage {
     pub final_url: String,
     /// 最后一次主框架文档响应的状态码；非 HTTP 页面为 `None`。
     pub status: Option<u16>,
+    /// 最后一次主框架文档响应的 `Content-Type`；非 HTTP 页面为 `None`。
+    pub content_type: Option<String>,
     pub html: String,
     pub screenshot: Option<Screenshot>,
     pub actions: ActionOutputs,

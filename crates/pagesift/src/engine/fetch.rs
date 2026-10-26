@@ -51,12 +51,9 @@ impl Scraper {
 
         // 并发名额一直拿到提取结束：已下载、待提取的页面数不超过全局并发，机器忙时内存不会堆积
         let egress = opts.egress.as_deref().or_else(|| {
-            if let Some(p) = opts.proxy.as_deref() {
-                if !matches!(p, "basic" | "auto") {
-                    return Some(p);
-                }
-            }
-            None
+            opts.proxy
+                .as_deref()
+                .filter(|p| !matches!(*p, "basic" | "auto"))
         });
         let fetch = self
             .policy
@@ -116,6 +113,12 @@ impl Scraper {
                 metadata: meta,
                 ..Default::default()
             });
+        }
+
+        if let Some(kind) = unsupported_content_type(resp.content_type(), &resp.body) {
+            return Err(ApiError::unsupported(format!(
+                "unsupported content type `{kind}`: pagesift extracts HTML/text; use `pagesift download` or `media-extract` for binary media"
+            )));
         }
 
         if is_pdf(&resp.body, resp.content_type()) {
@@ -219,7 +222,10 @@ impl Scraper {
                     )
                     .await;
             } else {
-                warnings.push("render_unavailable".into());
+                warnings.push(format!(
+                    "render_unavailable: {}",
+                    self.browser_unavailable_reason()
+                ));
             }
         }
 
@@ -283,9 +289,10 @@ impl Scraper {
             mut warnings,
         } = progress;
         if !self.has_browser().await {
-            return Err(ApiError::unsupported(
-                "browser rendering is unavailable: no browser engine found (run `pagesift doctor`)",
-            ));
+            return Err(ApiError::unsupported(format!(
+                "browser rendering is unavailable: {}",
+                self.browser_unavailable_reason()
+            )));
         }
         let target = Url::parse(url).map_err(|e| ApiError::invalid(e.to_string()))?;
         let host = target.host_str().unwrap_or_default().to_string();
@@ -401,6 +408,7 @@ impl Scraper {
             let RenderedPage {
                 mut html,
                 status,
+                content_type,
                 timings: page_timings,
                 iframes_inlined,
                 ..
@@ -429,6 +437,7 @@ impl Scraper {
                 engine: engine.name(),
                 final_url,
                 status,
+                content_type,
                 timings: page_timings,
                 extract,
                 doc,
@@ -457,6 +466,11 @@ impl Scraper {
                 None => ApiError::new(ErrorCode::UpstreamError, "no browser engine available"),
             });
         };
+        if let Some(kind) = unsupported_content_type(r.content_type.as_deref(), r.html.as_bytes()) {
+            return Err(ApiError::unsupported(format!(
+                "unsupported content type `{kind}`: pagesift extracts HTML/text; use `pagesift download` or `media-extract` for binary media"
+            )));
+        }
         self.learner.record_engine(&host, from, r.index);
         if let Some(n) = http_chars {
             self.learner
@@ -481,6 +495,7 @@ impl Scraper {
             url: Some(r.final_url.to_string()),
             source_url: Some(url.to_string()),
             status_code: r.status.unwrap_or(200),
+            content_type: r.content_type.clone(),
             proxy_used: "basic".into(),
             ..Default::default()
         };
@@ -552,6 +567,16 @@ pub(super) fn render_error_code(e: &pagesift_cdp::Error) -> ErrorCode {
         pagesift_cdp::Error::Busy => ErrorCode::Busy,
         pagesift_cdp::Error::Blocked { .. } => ErrorCode::SsrfBlocked,
         pagesift_cdp::Error::Navigation(m) if m.contains("ERR_NAME") => ErrorCode::DnsFailure,
+        pagesift_cdp::Error::Navigation(m) if m.contains("ERR_CERT_DATE_INVALID") => {
+            ErrorCode::TlsCertExpired
+        }
+        pagesift_cdp::Error::Navigation(m) if m.contains("ERR_CERT_COMMON_NAME_INVALID") => {
+            ErrorCode::TlsHostnameMismatch
+        }
+        pagesift_cdp::Error::Navigation(m) if m.contains("ERR_CERT_AUTHORITY_INVALID") => {
+            ErrorCode::TlsUntrustedRoot
+        }
+        pagesift_cdp::Error::Navigation(m) if m.contains("ERR_CERT") => ErrorCode::TlsError,
         pagesift_cdp::Error::Navigation(_) => ErrorCode::NetworkError,
         _ => ErrorCode::UpstreamError,
     }
@@ -564,6 +589,7 @@ pub(super) struct Rendered {
     engine: &'static str,
     final_url: Url,
     status: Option<u16>,
+    content_type: Option<String>,
     timings: pagesift_cdp::Timings,
     extract: Duration,
     doc: pagesift_content::Document,

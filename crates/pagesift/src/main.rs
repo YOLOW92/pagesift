@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+#[macro_use]
+mod output;
 mod bench;
 mod cli;
 
@@ -99,6 +101,9 @@ enum Command {
         /// Keep the whole page instead of only the main content
         #[arg(long)]
         full: bool,
+        /// Decode the input with this charset (e.g. Shift_JIS, GBK) instead of detecting it
+        #[arg(long)]
+        charset: Option<String>,
     },
     /// Incrementally collect a JSON API; emit acknowledged upsert/delete events
     Collect {
@@ -193,7 +198,7 @@ enum Command {
         /// Egress proxy URL (e.g. http://127.0.0.1:7890, socks5://127.0.0.1:1080)
         #[arg(long)]
         proxy: Option<String>,
-        /// Allow private CIDR subnets (e.g. 10.0.0.0/8, 198.18.0.0/15)
+        /// Allow private CIDR subnets (e.g. 10.0.0.0/8, 198.18.0.0/15) for HTTP fetching and browser rendering
         #[arg(long = "allow-cidr")]
         allow_cidrs: Vec<String>,
     },
@@ -315,6 +320,34 @@ enum Command {
         #[arg(long, default_value_t = 8)]
         concurrency: usize,
     },
+}
+
+/// 抓取输出层要显式告知的 warning：空正文、auto 降级、HTTP 错误状态。
+fn print_scrape_warnings(doc: &pagesift::api::types::Document) {
+    let Some(p) = doc.metadata.pagesift.as_ref() else {
+        return;
+    };
+    for warning in &p.warnings {
+        if warning.starts_with("empty_content:")
+            || warning.starts_with("render_unavailable")
+            || warning.starts_with("render_skipped_")
+            || warning.starts_with("http_error_status:")
+        {
+            eprintln!("warning: {warning}");
+        }
+    }
+}
+
+/// 页面抓到了，但 HTTP 状态说明这不是一次成功的内容获取：5xx，或 404 且正文为空。
+/// 退出码 2 便于脚本区分“请求本身失败”（1）和“服务器返回错误页”（2）。
+fn scrape_exit_code(doc: &pagesift::api::types::Document) -> ExitCode {
+    let status = doc.metadata.status_code;
+    let empty = doc.markdown.as_deref().is_none_or(|m| m.trim().is_empty());
+    if status >= 500 || (status == 404 && empty) {
+        ExitCode::from(2)
+    } else {
+        ExitCode::SUCCESS
+    }
 }
 
 fn main() -> ExitCode {
@@ -646,8 +679,14 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
             file,
             base_url,
             full,
+            charset,
         } => {
-            let html = read_input(file)?;
+            let (html, had_errors, encoding) = read_input(file, charset.as_deref())?;
+            if had_errors {
+                eprintln!(
+                    "warning: input could not be fully decoded as {encoding}; output may contain replacement characters (try --charset)"
+                );
+            }
             let doc = process(
                 &html,
                 &Options {
@@ -722,13 +761,17 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
             scraper.shutdown().await;
             match result {
                 Ok(doc) if format == "json" => {
+                    let code = scrape_exit_code(&doc);
+                    print_scrape_warnings(&doc);
                     let body = serde_json::json!({ "success": true, "data": doc });
                     println!("{}", serde_json::to_string_pretty(&body)?);
-                    Ok(ExitCode::SUCCESS)
+                    Ok(code)
                 }
                 Ok(doc) => {
+                    let code = scrape_exit_code(&doc);
+                    print_scrape_warnings(&doc);
                     print!("{}", doc.markdown.unwrap_or_default());
-                    Ok(ExitCode::SUCCESS)
+                    Ok(code)
                 }
                 Err(e) => {
                     eprintln!("{}: {}", e.code.as_str(), e.message);
@@ -1095,7 +1138,10 @@ fn runtime() -> Result<tokio::runtime::Runtime> {
     }
 }
 
-fn read_input(file: Option<PathBuf>) -> Result<String> {
+fn read_input(
+    file: Option<PathBuf>,
+    charset: Option<&str>,
+) -> Result<(String, bool, &'static str)> {
     let bytes = match file {
         Some(path) if path.as_os_str() != "-" => {
             std::fs::read(&path).with_context(|| format!("reading {}", path.display()))?
@@ -1108,6 +1154,59 @@ fn read_input(file: Option<PathBuf>) -> Result<String> {
             buf
         }
     };
-    // 字符集识别在 M3 网络层做，这里先按 UTF-8 宽松解码
-    Ok(String::from_utf8_lossy(&bytes).into_owned())
+    decode_input(&bytes, charset)
+}
+
+/// 解码本地 HTML：显式 --charset 优先，否则复用网络抓取路径的编码判定
+/// （BOM → meta 预扫描 → 检测）。返回文本、是否有无法解码的字节、最终编码名。
+fn decode_input(bytes: &[u8], charset: Option<&str>) -> Result<(String, bool, &'static str)> {
+    if let Some(label) = charset {
+        let label = label.trim();
+        let encoding = encoding_rs::Encoding::for_label(label.as_bytes()).ok_or_else(|| {
+            anyhow::anyhow!(
+                "unknown charset {label:?}; use a WHATWG encoding label such as UTF-8, Shift_JIS or GBK"
+            )
+        })?;
+        let (text, _, had_errors) = encoding.decode(bytes);
+        return Ok((text.into_owned(), had_errors, encoding.name()));
+    }
+    let decoded = pagesift_net::decode(bytes, None, None);
+    Ok((decoded.text, decoded.had_errors, decoded.encoding_name))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decode_input;
+
+    #[test]
+    fn decodes_local_html_from_meta_charset() {
+        let text = "日本語の記事です。文字化けせずに読めます。";
+        let html = format!(
+            r#"<html><head><meta http-equiv="Content-Type" content="text/html; charset=Shift_JIS"></head><body><p>{text}</p></body></html>"#
+        );
+        let (bytes, _, _) = encoding_rs::SHIFT_JIS.encode(&html);
+        let (decoded, had_errors, encoding) = decode_input(bytes.as_ref(), None).unwrap();
+        assert!(decoded.contains(text), "decoded as {encoding}: {decoded}");
+        assert!(!had_errors);
+        assert_eq!(encoding, "Shift_JIS");
+    }
+
+    #[test]
+    fn explicit_charset_overrides_meta() {
+        let text = "这是中文测试";
+        let html = format!(
+            r#"<html><head><meta charset="utf-8"></head><body><p>{text}</p></body></html>"#
+        );
+        let (bytes, _, _) = encoding_rs::GBK.encode(&html);
+        let (decoded, had_errors, encoding) = decode_input(bytes.as_ref(), Some("gbk")).unwrap();
+        assert!(decoded.contains(text));
+        assert!(!had_errors);
+        assert_eq!(encoding, "GBK");
+    }
+
+    #[test]
+    fn rejects_unknown_charset() {
+        let err = decode_input(b"<html></html>", Some("not-a-charset")).unwrap_err();
+        assert!(err.to_string().contains("unknown charset"));
+    }
 }

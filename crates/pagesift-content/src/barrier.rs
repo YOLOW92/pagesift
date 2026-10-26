@@ -135,6 +135,9 @@ static RULES: &[Rule] = rules![
     "recaptcha.widget", "recaptcha", Captcha, Hint, H, ["g-recaptcha", "google.com/recaptcha/", "gstatic.com/recaptcha", "recaptcha/api.js"];
     "hcaptcha.widget", "hcaptcha", Captcha, Hint, H, ["h-captcha", "hcaptcha.com/1/api.js", "js.hcaptcha.com"];
     "geetest.widget", "geetest", Captcha, Hint, H, ["static.geetest.com", "gcaptcha4.geetest.com", "initgeetest", "geetest_"];
+    // 哔哩哔哩验证码页
+    "bilibili.captcha", "bilibili", Captcha, Marker, T, ["验证码_哔哩哔哩", "bilibili captcha"];
+    "bilibili.captcha_widget", "bilibili", Captcha, Hint, H, ["bili-captcha", "geetest_panel"];
     // 通用提示语
     "generic.browser_check", "generic", Challenge, Phrase, T, [
         "checking your browser", "checking if the site connection is secure",
@@ -145,6 +148,7 @@ static RULES: &[Rule] = rules![
         "verify you are human", "are you a robot", "prove you are human", "not a robot",
         "complete the security check", "unusual traffic", "human verification",
         "人机验证", "安全验证", "滑动验证", "拖动滑块", "访问验证",
+        "请完成验证", "请完成下方验证",
     ];
     "generic.denied", "generic", Block, Phrase, T, [
         "access denied", "you have been blocked", "request blocked", "request rejected",

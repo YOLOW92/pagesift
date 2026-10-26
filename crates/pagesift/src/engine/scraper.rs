@@ -3,13 +3,21 @@ use super::*;
 impl Scraper {
     pub fn new(config: ScraperConfig) -> Result<Self, ScraperError> {
         let browser_private_network = config.fetcher.ssrf.allow_private_network;
+        let browser_allow = browser_allow_list(&config.fetcher.ssrf)?;
+        let browser_allow_cidrs: Vec<String> = config
+            .fetcher
+            .ssrf
+            .allow_cidrs
+            .iter()
+            .map(cidr_string)
+            .collect();
         let mut egress = Vec::new();
         for (name, proxy) in &config.egress {
             let mut fc = config.fetcher.clone();
             fc.proxy = Some(proxy.clone());
             egress.push((
                 name.clone(),
-                Arc::new(Fetcher::new(fc).map_err(ScraperError::Fetcher)?),
+                Arc::new(Fetcher::new_egress(fc).map_err(ScraperError::Fetcher)?),
             ));
         }
         let fetcher = Arc::new(Fetcher::new(config.fetcher).map_err(ScraperError::Fetcher)?);
@@ -37,16 +45,23 @@ impl Scraper {
             llm,
             search: config.search,
             browsers: {
-                let chain = pagesift_cdp::engine_chain(&config.browser, browser_private_network);
+                let chain = pagesift_cdp::engine_chain_with_allow(
+                    &config.browser,
+                    browser_private_network,
+                    &browser_allow_cidrs,
+                );
                 log_engine_chain(&chain);
                 chain.into_iter().map(|c| (c, OnceCell::new())).collect()
             },
             launch_failed: Vec::new(),
+            launch_notes: Vec::new(),
             browser_private_network,
+            browser_allow,
             learner: crate::learn::HostLearner::default(),
         })
         .map(|mut s| {
             s.launch_failed = (0..s.browsers.len()).map(|_| Default::default()).collect();
+            s.launch_notes = (0..s.browsers.len()).map(|_| Default::default()).collect();
             s
         })
     }
@@ -57,13 +72,16 @@ impl Scraper {
         cell.get_or_init(|| async {
             let guard: Arc<dyn RequestGuard> = if self.browser_private_network {
                 Arc::new(SchemeGuard)
-            } else {
+            } else if self.browser_allow.is_empty() {
                 Arc::new(PrivateNetworkGuard)
+            } else {
+                Arc::new(AllowListGuard::new(self.browser_allow.clone()))
             };
             match BrowserPool::new(cfg.clone(), guard).await {
                 Ok(pool) => Some(Arc::new(pool)),
                 Err(e) => {
                     let engine = cfg.engine.map_or("browser", |k| k.name());
+                    *self.launch_notes[i].lock().unwrap() = Some(format!("{engine}: {e}"));
                     tracing::warn!("{engine} rendering unavailable: {e}");
                     None
                 }
@@ -80,6 +98,29 @@ impl Scraper {
             }
         }
         false
+    }
+
+    /// 浏览器不可用时给调用方的说明：逐个内核列出启动失败原因；都还在尝试时退回“没找到”。
+    pub(super) fn browser_unavailable_reason(&self) -> String {
+        let notes: Vec<String> = self
+            .launch_notes
+            .iter()
+            .filter_map(|n| n.lock().unwrap().clone())
+            .collect();
+        if notes.is_empty() {
+            return "no browser engine found (run `pagesift doctor`)".into();
+        }
+        let root = notes.iter().any(|n| n.contains("as root"));
+        let mut reason = format!(
+            "no browser engine could start ({}); run `pagesift doctor` for details",
+            notes.join("; ")
+        );
+        if root && !notes.iter().any(|n| n.contains("unprivileged user")) {
+            reason.push_str(
+                " — pagesift is running as root: the Chrome sandbox does not work as root and pagesift will not disable it; run as an unprivileged user",
+            );
+        }
+        reason
     }
 
     /// 服务启动时在后台把每个内核启动一次，确认哪些能用（日志里写明），能用的浏览器留着备用。
@@ -105,6 +146,7 @@ impl Scraper {
             .is_none();
         if first {
             let msg = e.to_string();
+            *self.launch_notes[i].lock().unwrap() = Some(format!("{engine}: {msg}"));
             let hint = if msg.contains("sandbox") {
                 ": the browser sandbox needs unprivileged user namespaces, which this host or container \
                  does not allow (check kernel.apparmor_restrict_unprivileged_userns and the container's \
@@ -449,4 +491,32 @@ fn open_fd_count() -> usize {
     std::fs::read_dir("/proc/self/fd")
         .map(|entries| entries.count())
         .unwrap_or(0)
+}
+
+fn cidr_string(cidr: &pagesift_net::IpCidr) -> String {
+    match cidr {
+        pagesift_net::IpCidr::V4 { net, prefix } => format!("{net}/{prefix}"),
+        pagesift_net::IpCidr::V6 { net, prefix } => format!("{net}/{prefix}"),
+    }
+}
+
+/// 把网络层的 SSRF 放行名单原样映射给浏览器子请求拦截器。
+fn browser_allow_list(ssrf: &pagesift_net::SsrfPolicy) -> Result<NetworkAllowList, ScraperError> {
+    let mut allow = NetworkAllowList::default();
+    for host in &ssrf.allow_hosts {
+        allow.allow_host(host.clone());
+    }
+    for ip in &ssrf.allow_ips {
+        allow.allow_ip(*ip);
+    }
+    for cidr in &ssrf.allow_cidrs {
+        let (net, prefix) = match cidr {
+            pagesift_net::IpCidr::V4 { net, prefix } => (std::net::IpAddr::V4(*net), *prefix),
+            pagesift_net::IpCidr::V6 { net, prefix } => (std::net::IpAddr::V6(*net), *prefix),
+        };
+        allow
+            .allow_cidr_parts(net, prefix)
+            .map_err(|e| ScraperError::Fetcher(pagesift_net::Error::Config(e)))?;
+    }
+    Ok(allow)
 }

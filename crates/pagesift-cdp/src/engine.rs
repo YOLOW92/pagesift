@@ -93,6 +93,17 @@ impl EngineKind {
     /// 不影响参数的部分。`allow_private_network` 为 false 时内核挡掉全部内网地址；为 true 时
     /// 仍挡链路本地地址（云主机的元数据服务）。
     pub fn configure(self, cfg: &mut PoolConfig, allow_private_network: bool) {
+        self.configure_with_allow(cfg, allow_private_network, &[]);
+    }
+
+    /// 同 [`Self::configure`]，额外接受细粒度内网放行 CIDR。Lightpanda 用 `--block-cidrs`
+    /// 的负号条目表达豁免；moli 不支持负号，只能维持全有/全无（见 [`engine_chain_with_allow`]）。
+    pub fn configure_with_allow(
+        self,
+        cfg: &mut PoolConfig,
+        allow_private_network: bool,
+        allow_cidrs: &[String],
+    ) {
         cfg.engine = Some(self);
         match self {
             EngineKind::Chrome => {
@@ -125,6 +136,14 @@ impl EngineKind {
                             ]
                             .map(String::from),
                         );
+                    } else if !allow_cidrs.is_empty() {
+                        // 先挡内网/保留网段，再用负号条目放行指定 CIDR。
+                        for block in LIGHTPANDA_PRIVATE_BLOCKS {
+                            args.extend(["--block-cidrs".to_string(), (*block).to_string()]);
+                        }
+                        for allow in allow_cidrs {
+                            args.extend(["--block-cidrs".to_string(), format!("-{allow}")]);
+                        }
                     } else {
                         args.push("--block-private-networks".into());
                     }
@@ -166,6 +185,28 @@ const MOLI_NON_LOOPBACK: &str = "0.0.0.0/2,64.0.0.0/3,96.0.0.0/4,112.0.0.0/5,120
 124.0.0.0/7,126.0.0.0/8,128.0.0.0/1,2000::/3,fc00::/7,fe80::/10";
 const LINK_LOCAL_V4: &str = "169.254.0.0/16";
 const LINK_LOCAL_V6: &str = "fe80::/10";
+/// Lightpanda 按 CIDR 挡内网时先挡的网段；放行名单用负号条目追加在后面。
+const LIGHTPANDA_PRIVATE_BLOCKS: &[&str] = &[
+    "0.0.0.0/8",
+    "10.0.0.0/8",
+    "100.64.0.0/10",
+    "127.0.0.0/8",
+    "169.254.0.0/16",
+    "172.16.0.0/12",
+    "192.0.0.0/24",
+    "192.0.2.0/24",
+    "192.168.0.0/16",
+    "198.18.0.0/15",
+    "198.51.100.0/24",
+    "203.0.113.0/24",
+    "224.0.0.0/4",
+    "240.0.0.0/4",
+    "::/128",
+    "::1/128",
+    "2001:db8::/32",
+    "fc00::/7",
+    "fe80::/10",
+];
 
 fn serve_args() -> Vec<String> {
     ["serve", "--host", "127.0.0.1", "--port", launch::PORT]
@@ -200,10 +241,19 @@ pub fn detect_engines() -> Vec<(EngineKind, PathBuf)> {
 /// - 指定了可执行文件时它排第一，后面跟本机探测到的其他种类的内核；
 /// - 自动探测时是探测到的全部内核。都找不到时返回基础配置本身（启动时报找不到浏览器）。
 pub fn engine_chain(base: &PoolConfig, allow_private_network: bool) -> Vec<PoolConfig> {
+    engine_chain_with_allow(base, allow_private_network, &[])
+}
+
+/// 同 [`engine_chain`]，额外把细粒度内网放行 CIDR 传给内核启动参数。
+pub fn engine_chain_with_allow(
+    base: &PoolConfig,
+    allow_private_network: bool,
+    allow_cidrs: &[String],
+) -> Vec<PoolConfig> {
     let with = |kind: EngineKind, path: PathBuf| {
         let mut c = base.clone();
         c.source = BrowserSource::Executable(path);
-        kind.configure(&mut c, allow_private_network);
+        kind.configure_with_allow(&mut c, allow_private_network, allow_cidrs);
         c
     };
     match &base.source {
@@ -212,7 +262,7 @@ pub fn engine_chain(base: &PoolConfig, allow_private_network: bool) -> Vec<PoolC
             let kind = base.engine.unwrap_or_else(|| EngineKind::from_path(p));
             if base.args_override.is_some() {
                 let mut c = base.clone();
-                kind.configure(&mut c, allow_private_network);
+                kind.configure_with_allow(&mut c, allow_private_network, allow_cidrs);
                 return vec![c];
             }
             let mut chain = vec![with(kind, p.clone())];
@@ -298,6 +348,20 @@ mod tests {
         let mut c = PoolConfig::default();
         EngineKind::Chrome.configure(&mut c, false);
         assert!(c.args_override.is_none() && !c.engine_network_guard);
+    }
+
+    #[test]
+    fn lightpanda_allow_cidrs_use_negative_exemptions() {
+        let mut c = PoolConfig::default();
+        EngineKind::Lightpanda.configure_with_allow(&mut c, false, &["127.0.0.0/8".into()]);
+        let args = c.args_override.unwrap();
+        assert!(!args.contains(&"--block-private-networks".to_string()));
+        assert!(args.contains(&"10.0.0.0/8".to_string()));
+        assert!(
+            args.windows(2)
+                .any(|w| w[0] == "--block-cidrs" && w[1] == "-127.0.0.0/8")
+        );
+        assert!(c.engine_network_guard);
     }
 
     #[test]

@@ -13,7 +13,7 @@ use crate::engine::Scraper;
 use crate::focus::{Adaptive, BestFirst, Focus, Offer, link_contexts};
 use crate::frontier::{Learner, Seen, Tiered};
 
-use super::{Crawl, MAX_WAIT, Retries, candidate, seen_hash};
+use super::{Crawl, MAX_WAIT, Retries, candidate, push_warning, seen_hash};
 
 impl Scraper {
     /// 爬取里抓一页：主机在冷却就等冷却结束再抓（不把排队的页面直接判失败），等待期间不占爬取名额。
@@ -173,10 +173,13 @@ impl Scraper {
                     note_duplicate(&mut learner, &url, &mut doc);
                     if follow_links && depth < max_depth {
                         let mut fresh: Vec<(String, usize)> = Vec::new();
+                        let mut discovered = 0usize;
+                        let mut followed = 0usize;
                         for link in doc.links.iter().flatten() {
                             let Some(u) = candidate(&base, link, &learner) else {
                                 continue;
                             };
+                            discovered += 1;
                             let h = seen_hash(&u, req.ignore_query_parameters);
                             if !scope.allows(&u) || seen.contains(&h) {
                                 continue;
@@ -194,10 +197,21 @@ impl Scraper {
                                 }
                             }
                             seen.insert(h);
+                            followed += 1;
                             if track {
                                 fresh.push((u.to_string(), depth + 1));
                             }
                             queue.push(&learner, u, depth + 1);
+                        }
+                        // 种子页明明有链接却一条都没跟进：多半是范围/过滤条件把链接全挡了。
+                        // 不再静默返回"成功但只有 1 页"。
+                        if depth == 0 && discovered > 0 && followed == 0 {
+                            push_warning(
+                                &mut doc,
+                                format!(
+                                    "crawl_followed_zero: discovered {discovered} link(s) on the start page but followed none; check the start URL's path scope, --include/--exclude, or use --entire-domain"
+                                ),
+                            );
                         }
                         if !fresh.is_empty() {
                             sink.enqueued(fresh).await;

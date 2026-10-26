@@ -21,6 +21,14 @@ pub enum ErrorCode {
     DnsFailure,
     /// 连接失败、被重置、TLS 握手失败这类网络错误。
     NetworkError,
+    /// TLS 证书已过期或尚未生效。
+    TlsCertExpired,
+    /// TLS 证书的主机名和请求域名不一致。
+    TlsHostnameMismatch,
+    /// TLS 证书链的根证书不受信任。
+    TlsUntrustedRoot,
+    /// 其他 TLS 握手错误。
+    TlsError,
 }
 
 impl ErrorCode {
@@ -38,6 +46,10 @@ impl ErrorCode {
             Self::InvalidRequest => "INVALID_REQUEST",
             Self::DnsFailure => "DNS_FAILURE",
             Self::NetworkError => "NETWORK_ERROR",
+            Self::TlsCertExpired => "TLS_CERT_EXPIRED",
+            Self::TlsHostnameMismatch => "TLS_HOSTNAME_MISMATCH",
+            Self::TlsUntrustedRoot => "TLS_UNTRUSTED_ROOT",
+            Self::TlsError => "TLS_ERROR",
         }
     }
 
@@ -49,6 +61,10 @@ impl ErrorCode {
             Self::Timeout => 408,
             Self::TooLarge => 413,
             Self::UpstreamError | Self::DnsFailure | Self::NetworkError => 502,
+            Self::TlsCertExpired
+            | Self::TlsHostnameMismatch
+            | Self::TlsUntrustedRoot
+            | Self::TlsError => 502,
             Self::SsrfBlocked | Self::UnsupportedOption | Self::InvalidRequest => 400,
         }
     }
@@ -85,6 +101,11 @@ pub enum Error {
     Dns(String),
     #[error("network error: {0}")]
     Network(String),
+    #[error("TLS error ({kind}): {message}")]
+    Tls {
+        kind: pagesift_net::TlsErrorKind,
+        message: String,
+    },
 }
 
 impl Error {
@@ -101,6 +122,12 @@ impl Error {
             Self::InvalidRequest(_) => ErrorCode::InvalidRequest,
             Self::Dns(_) => ErrorCode::DnsFailure,
             Self::Network(_) => ErrorCode::NetworkError,
+            Self::Tls { kind, .. } => match kind {
+                pagesift_net::TlsErrorKind::Expired => ErrorCode::TlsCertExpired,
+                pagesift_net::TlsErrorKind::HostnameMismatch => ErrorCode::TlsHostnameMismatch,
+                pagesift_net::TlsErrorKind::UntrustedRoot => ErrorCode::TlsUntrustedRoot,
+                pagesift_net::TlsErrorKind::Other => ErrorCode::TlsError,
+            },
         }
     }
 
@@ -126,6 +153,7 @@ impl From<pagesift_net::Error> for Error {
             N::Timeout(p) => Self::Timeout(p),
             N::Dns(m) => Self::Dns(m),
             N::Network(m) => Self::Network(m),
+            N::Tls { kind, message } => Self::Tls { kind, message },
             N::InvalidUrl(_) | N::UserAgent(_) | N::Header(_) | N::Session(_) => {
                 Self::InvalidRequest(e.to_string())
             }
@@ -174,6 +202,34 @@ mod tests {
             (N::InvalidUrl("x".into()), ErrorCode::InvalidRequest),
             (N::TooManyRedirects(5), ErrorCode::UpstreamError),
             (N::Network("reset".into()), ErrorCode::NetworkError),
+            (
+                N::Tls {
+                    kind: pagesift_net::TlsErrorKind::Expired,
+                    message: "certificate expired".into(),
+                },
+                ErrorCode::TlsCertExpired,
+            ),
+            (
+                N::Tls {
+                    kind: pagesift_net::TlsErrorKind::HostnameMismatch,
+                    message: "wrong host".into(),
+                },
+                ErrorCode::TlsHostnameMismatch,
+            ),
+            (
+                N::Tls {
+                    kind: pagesift_net::TlsErrorKind::UntrustedRoot,
+                    message: "unknown issuer".into(),
+                },
+                ErrorCode::TlsUntrustedRoot,
+            ),
+            (
+                N::Tls {
+                    kind: pagesift_net::TlsErrorKind::Other,
+                    message: "handshake".into(),
+                },
+                ErrorCode::TlsError,
+            ),
             (N::Dns("nx".into()), ErrorCode::DnsFailure),
             (
                 N::RedirectRejected {

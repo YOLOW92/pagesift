@@ -85,6 +85,7 @@ struct Shared {
     main_frame: String,
     page_session: String,
     status: Mutex<Option<u16>>,
+    content_type: Mutex<Option<String>>,
     blocked: Mutex<Vec<(bool, BlockedRequest)>>,
     intercept_error: Mutex<Option<String>>,
     /// 主框架的 (loaderId, 生命周期事件名)。
@@ -332,6 +333,7 @@ pub(crate) async fn render_page(
         main_frame,
         page_session: session.id().to_owned(),
         status: Mutex::new(None),
+        content_type: Mutex::new(None),
         blocked: Mutex::new(Vec::new()),
         intercept_error: Mutex::new(None),
         lifecycle: Mutex::new(HashSet::new()),
@@ -458,6 +460,7 @@ pub(crate) async fn render_page(
     }
     check_interception(&shared)?;
     let status = *shared.status.lock().unwrap();
+    let content_type = shared.content_type.lock().unwrap().clone();
     let blocked_requests = shared
         .blocked
         .lock()
@@ -468,6 +471,7 @@ pub(crate) async fn render_page(
     Ok(RenderedPage {
         final_url,
         status,
+        content_type,
         html: captured.html,
         screenshot,
         actions: outputs,

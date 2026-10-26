@@ -31,6 +31,14 @@ pub enum ErrorCode {
     DnsFailure,
     /// 连接失败、被重置、TLS 握手失败，或者浏览器导航时的网络错误。
     NetworkError,
+    /// TLS 证书已过期或尚未生效。
+    TlsCertExpired,
+    /// TLS 证书的主机名和请求域名不一致。
+    TlsHostnameMismatch,
+    /// TLS 证书链的根证书不受信任。
+    TlsUntrustedRoot,
+    /// 其他 TLS 握手错误。
+    TlsError,
     /// 在请求的时限内等不到空闲的浏览器。
     Busy,
 }
@@ -56,6 +64,10 @@ impl ErrorCode {
             ErrorCode::Internal => "INTERNAL_ERROR",
             ErrorCode::DnsFailure => "DNS_FAILURE",
             ErrorCode::NetworkError => "NETWORK_ERROR",
+            ErrorCode::TlsCertExpired => "TLS_CERT_EXPIRED",
+            ErrorCode::TlsHostnameMismatch => "TLS_HOSTNAME_MISMATCH",
+            ErrorCode::TlsUntrustedRoot => "TLS_UNTRUSTED_ROOT",
+            ErrorCode::TlsError => "TLS_ERROR",
             ErrorCode::Busy => "BUSY",
         }
     }
@@ -76,6 +88,10 @@ impl ErrorCode {
             ErrorCode::UpstreamError | ErrorCode::DnsFailure | ErrorCode::NetworkError => {
                 StatusCode::BAD_GATEWAY
             }
+            ErrorCode::TlsCertExpired
+            | ErrorCode::TlsHostnameMismatch
+            | ErrorCode::TlsUntrustedRoot
+            | ErrorCode::TlsError => StatusCode::BAD_GATEWAY,
             ErrorCode::Unauthorized => StatusCode::UNAUTHORIZED,
             ErrorCode::NotFound => StatusCode::NOT_FOUND,
             ErrorCode::Internal => StatusCode::INTERNAL_SERVER_ERROR,

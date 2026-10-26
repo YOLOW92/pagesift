@@ -12,8 +12,8 @@ use std::time::{Duration, Instant};
 use pagesift_api::types::{Document, Metadata, PagesiftMeta, ScrapeOptions};
 use pagesift_api::{ApiError, BoxFuture, Engine, ErrorCode};
 use pagesift_cdp::{
-    BlockResources, BrowserPool, PoolConfig, PrivateNetworkGuard, RenderOptions, RenderedPage,
-    RequestGuard, SubRequest, Verdict,
+    AllowListGuard, BlockResources, BrowserPool, NetworkAllowList, PoolConfig, PrivateNetworkGuard,
+    RenderOptions, RenderedPage, RequestGuard, SubRequest, Verdict,
 };
 use pagesift_net::{FetchRequest, Fetcher, FetcherConfig, Url};
 use pagesift_policy::{Policy, PolicyConfig, RequestKind, RobotsMode};
@@ -122,11 +122,15 @@ pub struct Scraper {
     search: Option<Arc<dyn pagesift_search::SearchBackend>>,
     /// 网络层放开了内网（`allowPrivateNetwork`）时，浏览器的子请求也一样放开。
     browser_private_network: bool,
+    /// 浏览器子请求的细粒度内网放行名单（allow_hosts / allow_ips / allow_cidrs）。
+    browser_allow: NetworkAllowList,
     /// 按优先级排列的内核（见 [`pagesift_cdp::engine_chain`]）。每个池第一次需要时才创建；
     /// 创建失败时记住结果，不反复尝试。
     browsers: Vec<(PoolConfig, OnceCell<Option<Arc<BrowserPool>>>)>,
     /// 每个内核最近一次启动失败的时间：之后 [`LAUNCH_RETRY`] 内跳过它，不让每个请求都去试一次。
     launch_failed: Vec<std::sync::Mutex<Option<Instant>>>,
+    /// 每个内核最近一次启动失败的原因，用来在“浏览器不可用”时告诉调用方真因（root、沙箱等）。
+    launch_notes: Vec<std::sync::Mutex<Option<String>>>,
     /// 爬取里同时进行的抓取数，等于全局并发。排队的页面只占一个很小的等待 future，
     /// 拿到名额才创建完整的抓取状态机（十几 KB）：同时爬上千个站时，排队的页面不再各占一份。
     crawl_slots: pagesift_policy::adaptive::AdaptiveConcurrencyGate,
@@ -316,6 +320,22 @@ mod tests {
             (
                 E::Navigation("net::ERR_CONNECTION_RESET".into()),
                 ErrorCode::NetworkError,
+            ),
+            (
+                E::Navigation("net::ERR_CERT_DATE_INVALID".into()),
+                ErrorCode::TlsCertExpired,
+            ),
+            (
+                E::Navigation("net::ERR_CERT_COMMON_NAME_INVALID".into()),
+                ErrorCode::TlsHostnameMismatch,
+            ),
+            (
+                E::Navigation("net::ERR_CERT_AUTHORITY_INVALID".into()),
+                ErrorCode::TlsUntrustedRoot,
+            ),
+            (
+                E::Navigation("net::ERR_CERT_REVOKED".into()),
+                ErrorCode::TlsError,
             ),
             (E::ConnectionClosed, ErrorCode::UpstreamError),
         ] {

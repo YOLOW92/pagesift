@@ -30,13 +30,13 @@ mod page;
 mod pool;
 
 pub use conn::{Connection, Event, EventStream, Session};
-pub use engine::{EngineKind, Footprint, detect_engines, engine_chain};
+pub use engine::{EngineKind, Footprint, detect_engines, engine_chain, engine_chain_with_allow};
 pub use error::{Error, Result};
 pub use guard::{
-    BlockResources, BoxFuture, PrivateNetworkGuard, RequestGuard, SubRequest, Verdict,
-    check_public_url, is_public_ip,
+    AllowListGuard, BlockResources, BoxFuture, Cidr, NetworkAllowList, PrivateNetworkGuard,
+    RequestGuard, SubRequest, Verdict, check_public_url, is_public_ip,
 };
-pub use launch::detect_browser;
+pub use launch::{detect_browser, running_as_root};
 pub use options::*;
 pub use pool::{
     BrowserPool, BrowserSource, BrowserStats, PoolConfig, auto_browsers, auto_browsers_for,

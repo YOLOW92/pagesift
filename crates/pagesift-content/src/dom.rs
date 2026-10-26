@@ -47,7 +47,7 @@ pub(crate) fn is_hidden(node: &NodeR<'_>) -> bool {
         return false;
     };
     // 每个元素都要查：一次遍历属性，不按名字查三遍
-    let (mut aria, mut style) = (None, None);
+    let (mut aria, mut style, mut cloaked) = (None, None, false);
     for (name, value) in el.attrs() {
         match name {
             "hidden" => return true,
@@ -57,8 +57,14 @@ pub(crate) fn is_hidden(node: &NodeR<'_>) -> bool {
             "style" => {
                 style.get_or_insert(value);
             }
+            // Alpine / Vue / Angular 在水合前用这些属性配合 CSS 隐藏模板；HTTP 抽取拿到的是
+            // 水合前的 HTML，里面的错误模板、未编译占位不该进正文。
+            "x-cloak" | "data-cloak" | "v-cloak" | "ng-cloak" => cloaked = true,
             _ => {}
         }
+    }
+    if cloaked && !is_root_element(el.name()) && !contains_landmark(node) {
+        return true;
     }
     if aria.is_some_and(|v| v.eq_ignore_ascii_case("true"))
         && short_text(node, ARIA_HIDDEN_MAX_CHARS)
@@ -76,6 +82,24 @@ pub(crate) fn is_hidden(node: &NodeR<'_>) -> bool {
         }
     }
     false
+}
+
+fn is_root_element(name: &str) -> bool {
+    name.eq_ignore_ascii_case("html") || name.eq_ignore_ascii_case("body")
+}
+
+/// 水合前的应用根节点常带 `v-cloak` / `x-cloak`，但里面就是真实页面。只要子树里有
+/// `main` / `article` / `role=main`，就按页面主体保留，避免把整页正文当模板删掉。
+fn contains_landmark(node: &NodeR<'_>) -> bool {
+    let is_landmark = |n: &NodeR<'_>| {
+        element(n).is_some_and(|el| {
+            matches!(el.name(), "main" | "article")
+                || el
+                    .attrs()
+                    .any(|(name, value)| name == "role" && value.eq_ignore_ascii_case("main"))
+        })
+    };
+    is_landmark(node) || node.descendants().any(|d| is_landmark(&d))
 }
 
 /// 内联样式里有没有 `needle`（小写、不含空白）：比较时忽略空白和 ASCII 大小写，不分配内存。

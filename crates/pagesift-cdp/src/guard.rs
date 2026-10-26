@@ -43,7 +43,120 @@ impl RequestGuard for PrivateNetworkGuard {
     }
 }
 
+/// 浏览器子请求的内网放行名单：和内网抓取共用 `allow_hosts` / `allow_ips` / `allow_cidrs`。
+#[derive(Debug, Clone, Default)]
+pub struct NetworkAllowList {
+    hosts: Vec<String>,
+    ips: Vec<IpAddr>,
+    cidrs: Vec<Cidr>,
+}
+
+impl NetworkAllowList {
+    pub fn allow_host(&mut self, host: impl Into<String>) {
+        let host = host.into();
+        let host = host.trim().trim_start_matches('.').to_ascii_lowercase();
+        if !host.is_empty() {
+            self.hosts.push(host);
+        }
+    }
+
+    pub fn allow_ip(&mut self, ip: IpAddr) {
+        self.ips.push(ip);
+    }
+
+    pub fn allow_cidr(&mut self, cidr: impl AsRef<str>) -> Result<(), String> {
+        let cidr = Cidr::parse(cidr.as_ref())
+            .ok_or_else(|| format!("invalid CIDR {:?}", cidr.as_ref()))?;
+        self.cidrs.push(cidr);
+        Ok(())
+    }
+
+    pub fn allow_cidr_parts(&mut self, net: IpAddr, prefix: u8) -> Result<(), String> {
+        let max = if net.is_ipv4() { 32 } else { 128 };
+        if prefix > max {
+            return Err(format!("invalid prefix {prefix} for {net}"));
+        }
+        self.cidrs.push(Cidr { net, prefix });
+        Ok(())
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.hosts.is_empty() && self.ips.is_empty() && self.cidrs.is_empty()
+    }
+
+    pub fn allows_ip(&self, ip: IpAddr) -> bool {
+        self.ips.contains(&ip) || self.cidrs.iter().any(|cidr| cidr.contains(ip))
+    }
+
+    pub fn allows_host(&self, host: &str) -> bool {
+        let host = host.trim_end_matches('.').to_ascii_lowercase();
+        self.hosts
+            .iter()
+            .any(|allowed| host == *allowed || host.ends_with(&format!(".{allowed}")))
+    }
+}
+
+/// 带放行名单的 `PrivateNetworkGuard`。空白名单时行为与 [`PrivateNetworkGuard`] 相同。
+#[derive(Debug, Clone, Default)]
+pub struct AllowListGuard {
+    allow: NetworkAllowList,
+}
+
+impl AllowListGuard {
+    pub fn new(allow: NetworkAllowList) -> Self {
+        Self { allow }
+    }
+}
+
+impl RequestGuard for AllowListGuard {
+    fn check<'a>(&'a self, req: &'a SubRequest) -> BoxFuture<'a, Verdict> {
+        Box::pin(async move { check_url_with(&req.url, Some(&self.allow)).await })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Cidr {
+    net: IpAddr,
+    prefix: u8,
+}
+
+impl Cidr {
+    pub fn parse(raw: &str) -> Option<Self> {
+        let (ip, prefix) = raw.trim().split_once('/')?;
+        let net: IpAddr = ip.parse().ok()?;
+        let prefix: u8 = prefix.parse().ok()?;
+        let max = if net.is_ipv4() { 32 } else { 128 };
+        (prefix <= max).then_some(Self { net, prefix })
+    }
+
+    pub fn contains(&self, ip: IpAddr) -> bool {
+        match (self.net, ip) {
+            (IpAddr::V4(net), IpAddr::V4(ip)) => {
+                let mask = if self.prefix == 0 {
+                    0
+                } else {
+                    u32::MAX << (32 - self.prefix)
+                };
+                u32::from(net) & mask == u32::from(ip) & mask
+            }
+            (IpAddr::V6(net), IpAddr::V6(ip)) => {
+                let mask = if self.prefix == 0 {
+                    0
+                } else {
+                    u128::MAX << (128 - self.prefix)
+                };
+                u128::from(net) & mask == u128::from(ip) & mask
+            }
+            _ => false,
+        }
+    }
+}
+
 pub async fn check_public_url(raw: &str) -> Verdict {
+    check_url_with(raw, None).await
+}
+
+async fn check_url_with(raw: &str, allow: Option<&NetworkAllowList>) -> Verdict {
     let Ok(url) = Url::parse(raw) else {
         return Verdict::Block("invalid url".into());
     };
@@ -59,8 +172,8 @@ pub async fn check_public_url(raw: &str) -> Verdict {
         Some(Host::Ipv6(ip)) => vec![IpAddr::V6(ip)],
         Some(Host::Domain(d)) => {
             let d = d.trim_end_matches('.').to_ascii_lowercase();
-            if d == "localhost" || d.ends_with(".localhost") {
-                return Verdict::Block("localhost".into());
+            if allow.is_some_and(|a| a.allows_host(&d)) {
+                return Verdict::Allow;
             }
             match tokio::net::lookup_host((d.as_str(), port)).await {
                 Ok(addrs) => addrs.map(|a| a.ip()).collect(),
@@ -71,8 +184,11 @@ pub async fn check_public_url(raw: &str) -> Verdict {
     if ips.is_empty() {
         return Verdict::Block("dns resolution returned no addresses".into());
     }
-    // 只要有一个地址不是公网就整体拒绝。
-    match ips.iter().find(|ip| !is_public_ip(**ip)) {
+    // 只要有一个地址既不是公网、也不在放行名单里就整体拒绝。
+    match ips
+        .iter()
+        .find(|ip| !is_public_ip(**ip) && !allow.is_some_and(|allow| allow.allows_ip(**ip)))
+    {
         Some(ip) => Verdict::Block(format!("non-public address {ip}")),
         None => Verdict::Allow,
     }
@@ -321,6 +437,43 @@ mod tests {
             g.check(&req("http://10.0.0.8/a.js", "Script")).await,
             Verdict::Block(_)
         ));
+    }
+
+    #[tokio::test]
+    async fn allow_list_admits_selected_private_targets() {
+        let mut allow = NetworkAllowList::default();
+        allow.allow_cidr("127.0.0.0/8").unwrap();
+        allow.allow_host("docs.internal");
+        let g = AllowListGuard::new(allow);
+        assert_eq!(
+            g.check(&req("http://127.0.0.1:8200/", "Document")).await,
+            Verdict::Allow
+        );
+        assert_eq!(
+            g.check(&req("http://docs.internal/a.js", "Script")).await,
+            Verdict::Allow
+        );
+        assert!(matches!(
+            g.check(&req("http://10.0.0.8/a.js", "Script")).await,
+            Verdict::Block(_)
+        ));
+        // 空白名单仍然拒绝内网
+        let empty = AllowListGuard::default();
+        assert!(matches!(
+            empty.check(&req("http://127.0.0.1/", "Document")).await,
+            Verdict::Block(_)
+        ));
+    }
+
+    #[test]
+    fn cidr_matching() {
+        let v4 = Cidr::parse("127.0.0.0/8").unwrap();
+        assert!(v4.contains("127.0.0.1".parse().unwrap()));
+        assert!(!v4.contains("128.0.0.1".parse().unwrap()));
+        let v6 = Cidr::parse("::1/128").unwrap();
+        assert!(v6.contains("::1".parse().unwrap()));
+        assert!(!v6.contains("::2".parse().unwrap()));
+        assert!(Cidr::parse("::1/129").is_none());
     }
 
     #[test]

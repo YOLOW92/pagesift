@@ -2,6 +2,37 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.71.0] — 2026-10-26
+
+Bug-fix release for the 0.70.0 audit: crawl scope, charset handling, proxy bypass, honest
+content reporting, browser allow-lists, TLS classification, root diagnostics, exit codes and
+hidden-template filtering. See [the release notes](docs/releases/0.71.0.md).
+
+### Fixed
+- `crawl` scopes file-ending seeds by their directory, so `/index.html`-style seeds crawl the
+  whole site instead of one page; warns with `crawl_followed_zero` when no discovered link is
+  followed.
+- `convert` detects BOM/meta/legacy charsets like the network path and accepts `--charset`.
+- `NO_PROXY` is honored, and `--allow-cidr`/`allow_hosts` targets connect directly instead of
+  through an environment proxy. Named egress proxies keep their explicit proxy semantics.
+- Binary responses (images, audio, video, fonts, archives) fail with `UNSUPPORTED_OPTION`
+  instead of being decoded as text; HTML mislabeled as `application/octet-stream` still works.
+- Empty pages carry an `empty_content` warning, and bilibili captcha pages are reported as
+  `ACCESS_BARRIER`.
+- Browser sub-requests honor the same `allow_hosts`/`allow_ips`/`allow_cidrs` list as HTTP
+  fetching; Lightpanda receives matching `--block-cidrs` exemptions.
+- TLS certificate failures are classified as `TLS_CERT_EXPIRED`, `TLS_HOSTNAME_MISMATCH`,
+  `TLS_UNTRUSTED_ROOT` or `TLS_ERROR` on direct, proxied and browser paths instead of being
+  folded into `NETWORK_ERROR`.
+- Browser launch failures report the real reason (including running as root), `doctor` flags the
+  root sandbox problem, and `auto` HTTP fallback is visible in CLI output.
+- CLI exits with code 2 for HTTP 5xx and empty 404 responses, and warns with
+  `http_error_status`.
+- Framework-hidden templates (`x-cloak`, `data-cloak`, `v-cloak`, `ng-cloak`) are filtered from
+  extraction while app shells containing `main`/`article`/`role=main` are preserved.
+- CLI stdout/stderr writes treat a closed downstream pipe (`pagesift doctor | head -1`) as a
+  normal `SIGPIPE` exit 141 instead of panicking with exit 101.
+
 ## [0.70.0] — 2026-10-26
 
 NUMA-local data-plane rewrite, cgroup-aware capacity, and seven public extraction benchmarks.

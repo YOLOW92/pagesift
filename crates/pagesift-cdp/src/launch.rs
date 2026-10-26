@@ -84,6 +84,12 @@ pub(crate) fn ensure_not_root() -> Result<()> {
     Ok(())
 }
 
+/// 当前进程是否以 root（euid 0）运行。root 下无法启动 Chrome 沙箱，doctor 与报错文案
+/// 用它把“装没装引擎”和“被启动策略拒绝”区分开。
+pub fn running_as_root() -> bool {
+    nix::unistd::geteuid().is_root()
+}
+
 /// 关闭沙箱、关闭同源策略、伪装 UA、把调试端口暴露到外网的参数一律拒绝。
 const FORBIDDEN_ARGS: &[&str] = &[
     "no-sandbox",

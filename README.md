@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.70.0
+# pagesift 0.71.0
 
 **High-performance, memory-bounded web scraping and extraction engine built for AI agents and LLM pipelines.**  
 Turn any website, document, or archive into clean Markdown and structured data — one Rust binary, native SDKs, dual Firecrawl v1/v2 & Jina Reader APIs, at a fraction of the memory.
@@ -20,6 +20,29 @@ Turn any website, document, or archive into clean Markdown and structured data �
 **English** · [简体中文](docs/README.zh-CN.md) · [日本語](docs/README.ja.md) · [Español](docs/README.es.md)
 
 </div>
+
+---
+
+## What's New in 0.71.0
+
+**A bug-fix release for the 0.70.0 field audit.** The extraction engine and API contract are
+unchanged; failures are now reported honestly and authorization applies consistently.
+
+- 🧭 **Crawl scope fixed** — `/index.html`-style seeds cover the whole site instead of one page.
+- 🔐 **Proxy and allow-lists** — `NO_PROXY` is honored; `--allow-cidr` / `allow_hosts` also apply
+  to browser rendering, not just HTTP.
+- 🧾 **Honest content reporting** — binary responses return `UNSUPPORTED_OPTION`, empty pages
+  carry `empty_content`, and bilibili captcha pages return `ACCESS_BARRIER`.
+- 🔒 **TLS errors are classified** — `TLS_CERT_EXPIRED`, `TLS_HOSTNAME_MISMATCH`,
+  `TLS_UNTRUSTED_ROOT` and `TLS_ERROR` replace the generic `NETWORK_ERROR`.
+- 🩺 **Root and auto fallback explained** — `doctor` flags the root sandbox problem, and
+  `--engine auto` prints why rendering was unavailable.
+- 🚦 **Exit codes match page status** — HTTP 5xx and empty 404 responses exit with code 2.
+- 🧹 **Hidden templates filtered** — `x-cloak` and similar pre-hydration templates no longer
+  leak into Markdown.
+- 📚 **Charset handling unified** — `convert` detects local file charsets and accepts `--charset`.
+
+Full detail: [**0.71.0 release notes**](docs/releases/0.71.0.md).
 
 ---
 
@@ -116,7 +139,7 @@ Run the standalone container (includes headless browser renderer):
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.70.0
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.71.0
 ```
 
 #### Firecrawl SDK Drop-In Replacement
@@ -263,7 +286,7 @@ If PageSift is useful in research or a product, cite it as:
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 0.70.0}
+  note   = {Version 0.71.0}
 }
 ```
 
