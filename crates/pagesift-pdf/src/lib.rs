@@ -44,6 +44,9 @@ pub struct Options {
     pub max_pages: usize,
     /// 单个流解压后的大小上限，防解压炸弹。
     pub max_stream_bytes: usize,
+    /// 只处理前 N 页（Firecrawl 的 `maxPages`）；后面的页不解释、不排版。
+    /// `metadata.page_count` 仍是整个文件的页数；页数上限按实际处理的页数算。
+    pub page_limit: Option<usize>,
 }
 
 impl Default for Options {
@@ -53,6 +56,7 @@ impl Default for Options {
             max_input_bytes: 256 << 20,
             max_pages: 5000,
             max_stream_bytes: 64 << 20,
+            page_limit: None,
         }
     }
 }
@@ -150,7 +154,11 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
     })?;
     check_deadline(deadline)?;
 
-    let page_ids = doc.pages();
+    let mut page_ids = doc.pages();
+    let total_pages = page_ids.len();
+    if let Some(limit) = opts.page_limit {
+        page_ids.truncate(limit.max(1));
+    }
     if page_ids.len() > opts.max_pages {
         return Err(Error::TooLarge("page count"));
     }
@@ -310,7 +318,7 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
     let scanned_pages = pages.iter().filter(|p| p.scanned).count();
     let scanned = scanned_pages > 0 && scanned_pages * 2 >= pages.len();
     let mut metadata = metadata(&doc);
-    metadata.page_count = pages.len();
+    metadata.page_count = total_pages;
     Ok(PdfDocument {
         markdown,
         pages,
