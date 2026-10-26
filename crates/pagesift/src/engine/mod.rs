@@ -31,7 +31,7 @@ use extract::*;
 use frames::*;
 pub use output::set_cpu_capacity;
 pub(crate) use output::*;
-pub(super) use render::*;
+use render::*;
 
 /// F-1.9：HTTP 抓到的正文少于这么多（加权）字符时，`engine: auto` 升级到浏览器渲染。
 /// 中日韩文字一个字按 [`CJK_WEIGHT`] 个字符算（信息量和几个拉丁字母相当），见 [`text_weight`]。
