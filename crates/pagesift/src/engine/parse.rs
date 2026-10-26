@@ -217,6 +217,14 @@ impl Scraper {
             );
         }
         fill_metadata(&mut meta, &doc.metadata);
+        // 页面没写图标时提取器按惯例猜 `/favicon.ico`，相对于 file:/// 毫无意义
+        if meta
+            .favicon
+            .as_deref()
+            .is_some_and(|f| f.starts_with("file:"))
+        {
+            meta.favicon = None;
+        }
         fill_structured(&mut ext, &doc);
         fill_fingerprints(&mut ext, &doc);
         let raw_bytes = Some(thin_basis_bytes(&html, &doc.markdown));

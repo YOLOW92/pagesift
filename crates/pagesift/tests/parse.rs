@@ -285,6 +285,8 @@ async fn html_upload_matches_scrape_of_the_same_bytes() {
     // links 只收 http(s)：相对链接解析到 file:/// 后不进链接列表
     assert_eq!(b["links"], json!(["https://example.com/x"]));
     assert_eq!(b["metadata"]["sourceURL"], "page.html");
+    // 猜出来的 file:///favicon.ico 不给
+    assert!(b["metadata"].get("favicon").is_none(), "{b}");
 }
 
 #[tokio::test]

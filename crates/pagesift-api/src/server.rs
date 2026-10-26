@@ -262,10 +262,14 @@ pub async fn serve_with(
 /// 请求体加总时限；整个请求加时限。超时都回统一的 JSON 错误（408 TIMEOUT）。
 async fn deadline(State(t): State<Timeouts>, req: Request, next: Next) -> Response {
     let fired = Arc::new(AtomicBool::new(false));
-    let body_limit = if req.uri().path() == "/v2/parse" {
-        t.upload_body
+    // 上传放宽的请求体时间也加到整请求时限上，解析仍有完整的 `timeout` 可用
+    let (body_limit, request_limit) = if req.uri().path() == "/v2/parse" {
+        (
+            t.upload_body,
+            t.request + t.upload_body.saturating_sub(t.body),
+        )
     } else {
-        t.body
+        (t.body, t.request)
     };
     let req = if req.body().is_end_stream() {
         req
@@ -279,7 +283,7 @@ async fn deadline(State(t): State<Timeouts>, req: Request, next: Next) -> Respon
             })
         })
     };
-    match tokio::time::timeout(t.request, next.run(req)).await {
+    match tokio::time::timeout(request_limit, next.run(req)).await {
         // 读请求体超时时提取器给的是 400，这里换成 408
         Ok(_) if fired.load(Ordering::Relaxed) => ApiError::new(
             ErrorCode::Timeout,
@@ -294,7 +298,7 @@ async fn deadline(State(t): State<Timeouts>, req: Request, next: Next) -> Respon
             ErrorCode::Timeout,
             format!(
                 "request did not complete within {} s",
-                t.request.as_secs_f64()
+                request_limit.as_secs_f64()
             ),
         )
         .into_response(),

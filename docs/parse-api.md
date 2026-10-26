@@ -81,7 +81,8 @@ PDF 选项（`parsers` 里的 `{"type": "pdf", ...}`）：
 - 内存：文件只在内存里保留一份。按 Content-Length 一次分配好缓冲区，边收边追加，超限立刻停；
   之后这块缓冲区原样交给解析器，解析完就释放。50 MB 的文件峰值约为 50 MB 加解析本身的用量。
 - CPU：和抓取共用解析阶段的闸门与按核数限制的 CPU 名额，大量上传不会把机器压垮。
-- 请求体时限：普通请求 30 秒，上传单独放宽到 120 秒（`Timeouts::upload_body`）。
+- 请求体时限：普通请求 30 秒，上传单独放宽到 120 秒（`Timeouts::upload_body`）；整请求时限相应多加 90 秒，
+  传得慢也不会挤占解析的 `timeout`。
 - 审计日志：每次解析记一条 `kind: "parse"`，`url` 为 `upload:<文件名>`，另有 `fileBytes`；不存快照，
   上传的文件往往不公开。
 - 监控：`pagesift_pages_scraped_total{source="parse"}`，以及按路由 `/v2/parse` 的请求数和延迟。
