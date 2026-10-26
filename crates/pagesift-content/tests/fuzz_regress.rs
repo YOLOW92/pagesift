@@ -34,3 +34,31 @@ fn escaping_unchanged() {
     assert!(md.contains("$x_1 + y_2$"), "{md}");
     assert!(md.contains("a_b_c"), "{md}");
 }
+
+/// 每层列表、引用都把子树的每一行再缩进一次：几百层嵌套配上大量行时输出按层数成倍膨胀
+/// （32 万字节输入渲染 23 秒）。超过 16 层不再缩进，内容照常输出。
+#[test]
+fn deep_lists_and_quotes_do_not_multiply_output() {
+    for (open, item) in [("<ol>", "<li>x<hr>"), ("<blockquote>", "<p>x</p><hr>")] {
+        let html = format!(
+            "<article>{}{}</article>",
+            open.repeat(500),
+            item.repeat(30_000)
+        );
+        let (md, took) = render(&html);
+        assert!(md.matches('x').count() >= 30_000, "{open}");
+        assert!(md.len() < 4_000_000, "{open}: {} 字节", md.len());
+        assert!(took < Duration::from_secs(3), "{open}: {took:?}");
+    }
+}
+
+/// 不超过上限的嵌套照旧缩进。
+#[test]
+fn shallow_nesting_still_indented() {
+    let (md, _) = render(
+        "<article><p>intro text here</p><ul><li>a<ul><li>b<ul><li>c</li></ul></li></ul></li></ul>\
+         <blockquote><blockquote><p>q</p></blockquote></blockquote></article>",
+    );
+    assert!(md.contains("- a\n  - b\n    - c"), "{md}");
+    assert!(md.contains("> > q"), "{md}");
+}

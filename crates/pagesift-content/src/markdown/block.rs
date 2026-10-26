@@ -73,7 +73,13 @@ impl Renderer<'_> {
                 }
             }
             "blockquote" => {
-                let inner = join_blocks(&self.blocks_of(node));
+                let (blocks, indent) = self.nested(|| self.blocks_of(node));
+                // 超过嵌套上限：不再加 `>`，块原样交给外层（不拼接、不复制）
+                if !indent {
+                    out.extend(blocks);
+                    return;
+                }
+                let inner = join_blocks(&blocks);
                 if !inner.is_empty() {
                     let text = inner
                         .lines()
@@ -167,26 +173,16 @@ impl Renderer<'_> {
             .unwrap_or(1);
         let mut items = Vec::new();
         let mut loose = false;
+        // 超过嵌套上限的层：续行不再缩进
+        let mut deep = false;
         for child in node.children() {
             if self.skip(&child) {
                 continue;
             }
-            let blocks = if tag(&child) == Some("li") {
-                self.blocks_of(child)
-            } else if child.is_element() {
-                // ul 里直接放的非 li 元素：按内容处理，不丢文本
-                let mut v = Vec::new();
-                if self.acts_as_block(&child) {
-                    self.block(child, &mut v);
-                } else {
-                    let mut s = String::new();
-                    self.inline_into(child, &mut s);
-                    flush_paragraph(&mut s, &mut v);
-                }
-                v
-            } else {
-                continue;
-            };
+            let (blocks, indent_ok) = self.nested(|| self.list_item(child));
+            if !indent_ok {
+                deep = true;
+            }
             if blocks.is_empty() {
                 continue;
             }
@@ -207,6 +203,11 @@ impl Renderer<'_> {
             } else {
                 "- ".to_string()
             };
+            // 超过嵌套上限：续行不缩进，内容原样接在标记后面
+            if deep {
+                items.push(marker + &content);
+                continue;
+            }
             let indent = " ".repeat(marker.len());
             let mut item = String::new();
             for (i, line) in content.lines().enumerate() {
@@ -230,6 +231,25 @@ impl Renderer<'_> {
             kind: Kind::List,
             text: items.join(if loose { "\n\n" } else { "\n" }),
         })
+    }
+
+    /// 列表里的一个子节点：`<li>` 的内容；直接放在 ul/ol 里的非 li 元素按内容处理，不丢文本。
+    fn list_item(&self, child: NodeR<'_>) -> Vec<Block> {
+        if tag(&child) == Some("li") {
+            return self.blocks_of(child);
+        }
+        let mut v = Vec::new();
+        if !child.is_element() {
+            return v;
+        }
+        if self.acts_as_block(&child) {
+            self.block(child, &mut v);
+        } else {
+            let mut s = String::new();
+            self.inline_into(child, &mut s);
+            flush_paragraph(&mut s, &mut v);
+        }
+        v
     }
 
     pub(super) fn table(&self, node: NodeR<'_>, out: &mut Vec<Block>) {

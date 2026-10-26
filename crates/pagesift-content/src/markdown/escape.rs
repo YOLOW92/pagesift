@@ -28,7 +28,11 @@ pub(super) fn push_text(t: &str, out: &mut String, tex: bool) {
     // 每个位置之后第一个 `]` 的下标：大量不配对的 `[` 时逐个往后找是平方复杂度（模糊测试找到的）
     let mut next_close = vec![usize::MAX; chars.len() + 1];
     for i in (0..chars.len()).rev() {
-        next_close[i] = if chars[i] == ']' { i } else { next_close[i + 1] };
+        next_close[i] = if chars[i] == ']' {
+            i
+        } else {
+            next_close[i + 1]
+        };
     }
     // 受保护区间按位置排好序、互不重叠，跟着下标往前走
     let mut span = 0;

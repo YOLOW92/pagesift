@@ -1,5 +1,7 @@
 //! DOM 子树转 GFM。分两层：块级渲染产出段落列表，行内渲染产出单行文本。
 
+use std::cell::Cell;
+
 use pagesift_html::{Element, Tag};
 use url::Url;
 
@@ -33,7 +35,14 @@ pub(crate) struct Renderer<'a> {
     /// 扁平模式：处于表格单元格或排版表内部。此时 `table` 不再展开成子表，
     /// 内层表格只按普通容器把文字透传上来，避免嵌套表格被逐层重复渲染。
     flat: bool,
+    /// 当前所在的列表、引用的层数。超过 [`MAX_NEST`] 后不再继续缩进或加 `>`。
+    nest: Cell<usize>,
 }
+
+/// 列表、引用缩进的最深层数。每层都把子树的每一行再缩进一次，几百层嵌套（解析器的栈深上限
+/// 是 512）配上大量行时输出按层数成倍膨胀（模糊测试找到：32 万字节输入渲染 23 秒）。
+/// 真实页面的有效嵌套远不到这么深，更深的内容照常输出，只是不再缩进。
+const MAX_NEST: usize = 16;
 
 /// 只输出哪些元素里的文字（照 trafilatura 的 TAG_CATALOG）。文章模式里，散落在 `div`、`span`、
 /// `section` 里的行内文字（署名、日期、图注、按钮、"阅读更多"）不是正文段落。
@@ -53,6 +62,7 @@ impl<'a> Renderer<'a> {
             skipper,
             whitelist: Whitelist::Off,
             flat: false,
+            nest: Cell::new(0),
         }
     }
 
@@ -63,7 +73,17 @@ impl<'a> Renderer<'a> {
             skipper: self.skipper,
             whitelist: self.whitelist,
             flat: true,
+            nest: Cell::new(self.nest.get()),
         }
+    }
+
+    /// 在多一层列表或引用里渲染；返回值的第二项表示这一层还要不要缩进。
+    fn nested<T>(&self, f: impl FnOnce() -> T) -> (T, bool) {
+        let depth = self.nest.get();
+        self.nest.set(depth + 1);
+        let r = f();
+        self.nest.set(depth);
+        (r, depth < MAX_NEST)
     }
 
     pub(crate) fn whitelist(mut self, w: Whitelist) -> Self {
