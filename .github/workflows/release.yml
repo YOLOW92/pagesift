@@ -1,7 +1,9 @@
 name: Release
 
 # 推 v* 标签时触发：各平台的命令行二进制、Docker 镜像（GHCR）、Python wheel、npm 包、crates.io。
-# 发布由维护者手动打标签触发。需要的仓库 secret：CARGO_REGISTRY_TOKEN、NPM_TOKEN；
+# 发布由维护者手动打标签触发。
+# 用不到编译产物的渠道不等编译：Docker 镜像自己从源码构建，crates.io 由 cargo publish 自己编译校验，
+# 两者和各平台编译同时开始；GitHub Release、PyPI、npm 要用编译产物，等全部编译完成后再发。需要的仓库 secret：CARGO_REGISTRY_TOKEN、NPM_TOKEN；
 # PyPI 用 Trusted Publishing（在 PyPI 上把本仓库的 release.yml 配成可信发布者），不需要 token。
 on:
   push:
@@ -54,7 +56,8 @@ jobs:
           - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
           - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
           - { os: macos-latest, target: aarch64-apple-darwin }
-          - { os: macos-15-intel, target: x86_64-apple-darwin }
+          # 只编译不运行，在 Apple Silicon 上交叉编译：Intel 机器少、慢，常要排队
+          - { os: macos-latest, target: x86_64-apple-darwin }
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -76,7 +79,8 @@ jobs:
           path: pagesift-*.tar.gz*
 
   docker:
-    needs: [identity, binaries, wheels, sdist, npm, npm-musl]
+    # 镜像在 Dockerfile 里从源码编译，不用其他任务的产物，和它们同时进行
+    needs: identity
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -216,8 +220,24 @@ jobs:
           name: npm-x86_64-unknown-linux-musl
           path: crates/pagesift-node/*.node
 
+  crates:
+    # cargo publish 自己打包、编译校验每个 crate，不用其他任务的产物；
+    # 依次发 15 个 crate 要等索引，单独先跑，不再排在所有编译之后
+    needs: identity
+    if: github.event_name == 'push' || inputs.dry_run == false
+    runs-on: ubuntu-latest
+    environment: release
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: python3 scripts/publish_crates.py
+
   publish:
-    needs: [identity, binaries, docker, wheels, sdist, npm, npm-musl]
+    needs: [identity, binaries, docker, wheels, sdist, npm, npm-musl, crates]
     if: github.event_name == 'push' || inputs.dry_run == false
     runs-on: ubuntu-latest
     environment: release
@@ -247,11 +267,6 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           skip-existing: true   # 重跑发布时已经上传过的版本跳过，不挡住后面的步骤
-      - uses: dtolnay/rust-toolchain@stable
-      - name: crates.io
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: python3 scripts/publish_crates.py
       - uses: actions/setup-node@v4
         with:
           node-version: 22
