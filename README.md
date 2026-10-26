@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.73.0
+# pagesift 0.80.0
 
 **High-performance, memory-bounded web scraping and extraction engine built for AI agents and LLM pipelines.**  
 Turn any website, document, or archive into clean Markdown and structured data — one Rust binary, native SDKs, dual Firecrawl v1/v2 & Jina Reader APIs, at a fraction of the memory.
@@ -23,6 +23,28 @@ Turn any website, document, or archive into clean Markdown and structured data �
 </div>
 
 ---
+
+## What's New in 0.80.0
+
+**PDFs that keep their structure, results that admit what they missed.**
+
+- **Own PDF file layer** replaces lopdf: xref, object streams, filters, encryption and repair of
+  broken files, faster and with less memory.
+- **PDF headings with real levels**, read from the writer's structure tree and bookmarks first and
+  inferred from numbering, size and weight otherwise. On the 13 PDFs of the AiSeek report
+  (higher is better): recall 0.595 → 0.945, precision 0.400 → 0.872, level agreement 0.819 →
+  0.956, empty headings 3 → 0.
+- **Headers, footers and figures**: `/Artifact` marks, running heads with page numbers and vector
+  figures are recognised. olmOCR-bench `headers_footers` 0.681 → 0.734 (higher is better); false
+  tables on the 13 PDFs 196 → 18 (lower is better).
+- **`POST /v2/parse`**: Firecrawl-compatible upload of PDF and HTML files.
+- **`partial_content` and `replies_omitted` warnings** when the extracted text is likely
+  incomplete. On 1,842 saved WCXB pages, losses without a warning 0.842 → 0.667 and false alarms
+  0.174 → 0.130 (both lower is better).
+- **Fixes**: fast pages in a batch no longer wait for slow pages on the same host; MCP audit
+  records name older-protocol clients; `pagesift doctor` leaves the audit log alone.
+
+Full detail, sources and the held-out results: [**0.80.0 release notes**](docs/releases/0.80.0.md).
 
 ## What's New in 0.73.0
 
@@ -186,7 +208,7 @@ Run the standalone container (includes headless browser renderer):
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.73.0
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.0
 ```
 
 #### Firecrawl SDK Drop-In Replacement
@@ -367,7 +389,7 @@ If PageSift is useful in research or a product, cite it as:
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 0.73.0}
+  note   = {Version 0.80.0}
 }
 ```
 

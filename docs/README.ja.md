@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.73.0
+# pagesift 0.80.0
 
 **AI エージェントと LLM データ基盤のための、超高速・メモリ有界スクレイピング＆本文抽出エンジン。**  
 あらゆる Web サイト、論文、アーカイブを高品質な Markdown と構造化データに変換します。単一の Rust バイナリ、ネイティブ SDK、Firecrawl v1/v2 および Jina Reader デュアルプロトコル互換。測定した競合よりメモリ消費が少なくなっています（[benchmarks.md 第 9 節](benchmarks.md) 参照）。
@@ -22,6 +22,19 @@
 </div>
 
 ---
+
+## 0.80.0 の新機能
+
+**PDF の構造を保ち、取りこぼしの可能性を自分で知らせる。**
+
+- **自前の PDF ファイル層**で lopdf を置き換え：xref、オブジェクトストリーム、デコード、暗号化、壊れたファイルの修復を自前で行い、より速く、より省メモリに。
+- **PDF の見出しに正しい階層**：書き手が付けた構造ツリーとしおりを優先して読み、ない場合は番号・文字サイズ・太字から推定。AiSeek レポートの 13 件の PDF で（高いほど良い）：再現率 0.595 → 0.945、適合率 0.400 → 0.872、階層一致率 0.819 → 0.956、空の見出し 3 → 0。
+- **ヘッダー・フッターと図**：`/Artifact` マーク、ページ番号付きの柱、ベクター図を認識。olmOCR-bench `headers_footers` 0.681 → 0.734（高いほど良い）、13 件の PDF での誤った表 196 → 18（低いほど良い）。
+- **`POST /v2/parse`**：Firecrawl 互換の PDF・HTML ファイルアップロード解析。
+- **新しい警告 `partial_content`、`replies_omitted`**：抽出した本文が不完全な可能性があるときに通知。保存済みの WCXB 1,842 ページで、本文を失ったのに警告なしの割合 0.842 → 0.667、誤警告 0.174 → 0.130（どちらも低いほど良い）。
+- **修正**：バッチ取得で同じサイトの速いページが遅いページを待たなくなりました。旧プロトコルの MCP クライアントも監査ログに名前が残ります。`pagesift doctor` は監査ログに書き込みません。
+
+詳細、数値の出典、ホールドアウトの結果：[0.80.0 リリースノート](releases/0.80.0.md)。
 
 ## 0.73.0 の新機能
 
@@ -165,7 +178,7 @@ D1 は精度（0.8938、17 参加者中 2 位。1 位は goose3 の 0.9097）を
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.73.0
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.0
 ```
 
 #### Firecrawl SDK の差し替え

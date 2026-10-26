@@ -2,6 +2,37 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.80.0] — 2026-10-27
+
+Correctness and trust: PDFs keep their structure, results say when they may be incomplete, and
+speed and memory do not regress. See [the release notes](docs/releases/0.80.0.md).
+
+### Added
+- `POST /v2/parse`: Firecrawl-compatible `multipart/form-data` upload of PDF and HTML files (up to
+  50 MB); same response as `/v2/scrape`. See [docs/parse-api.md](docs/parse-api.md).
+- Content warnings `partial_content` (article mode kept under 30% of the page's body text) and
+  `replies_omitted` (forum replies dropped as comments).
+- PDF headings from the structure tree (`H1`–`H6`, `H`, `Title`, `/RoleMap`) and bookmarks
+  (`/Outlines`, named destinations), with inference from numbering, size and bold as fallback.
+- PDF vector-figure detection: text inside a chart is one raw block, not a table or a heading.
+- Block-page rules for Imperva challenges, ByteDance WAF challenges and "unsupported browser" pages.
+
+### Changed
+- pagesift-pdf has its own file layer (xref tables and streams, object streams, filters,
+  RC4/AESV2/AESV3 decryption, repair scan) instead of lopdf.
+- PDF headers and footers: `/Artifact` text is dropped; running heads with page numbers are
+  recognised across odd/even pages and chapters; borderless tables are judged after columns.
+- Release notes follow written rules ([docs/releasing.md](docs/releasing.md)); README numbers were
+  checked against their result files and old ones are marked as historical.
+
+### Fixed
+- Batch scrapes: a fast page waited for slow pages on the same host, because requests waiting for
+  a first byte held the host's hot-connection slots; past the tail threshold they now give them up.
+- MCP audit records showed `client: unknown` for clients that send `clientInfo` only in `initialize`.
+- `pagesift doctor` wrote an audit record and snapshot of its self-test.
+- PDF: the last body lines of some pages were removed as footers when chart labels skewed the
+  line spacing; a CFF encoding supplement was read from the wrong offset.
+
 ## [0.73.1] — 2026-10-26
 
 Makes `pagesift mcp http` fit to run as one shared, long-lived service for every AI agent on a

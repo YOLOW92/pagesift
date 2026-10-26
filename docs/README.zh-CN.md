@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.73.0
+# pagesift 0.80.0
 
 **为 AI 智能体与 LLM 数据工程打造的高性能、严格内存有界抓取与内容提取引擎。**  
 把任何网站、学术文档或历史档案转化为干净的 Markdown 与结构化数据——单个纯 Rust 二进制、原生多语言 SDK、兼容 Firecrawl v1/v2 与 Jina Reader 双协议，内存占用明显低于所测竞品（见 [benchmarks.md 第 9 节](benchmarks.md)）。
@@ -22,6 +22,19 @@
 </div>
 
 ---
+
+## 0.80.0 新增内容
+
+**PDF 保留原有结构，结果会说明自己可能漏了什么。**
+
+- **自研 PDF 文件层**替换 lopdf：xref、对象流、解码、加密和坏文件修复都自己做，更快、更省内存。
+- **PDF 标题带真实层级**：优先读写入方给的结构树和书签，没有时按编号、字号、粗体推断。AiSeek 报告的 13 份 PDF 上（越高越好）：召回 0.595 → 0.945，精确率 0.400 → 0.872，层级一致率 0.819 → 0.956，空标题 3 → 0。
+- **页眉页脚与图表**：识别 `/Artifact` 标记、带页码的页眉页脚和矢量图。olmOCR-bench `headers_footers` 0.681 → 0.734（越高越好）；13 份 PDF 上误判的表格 196 → 18（越低越好）。
+- **`POST /v2/parse`**：兼容 Firecrawl 的 PDF、HTML 文件上传解析。
+- **新警告 `partial_content`、`replies_omitted`**：提取的正文可能不完整时提示。在 1,842 个已保存的 WCXB 页面上，丢了正文却没警告的比例 0.842 → 0.667，误报 0.174 → 0.130（都是越低越好）。
+- **修复**：批量抓取里同一站点的快页面不再等慢页面；旧版协议的 MCP 客户端在审计日志里有名字了；`pagesift doctor` 不再写审计日志。
+
+详细说明、数据出处和留出集结果见 [0.80.0 发行说明](releases/0.80.0.md)。
 
 ## 0.73.0 新增内容
 
@@ -164,7 +177,7 @@ D1 以较高精确率（0.8938，17 个参赛者中第二，goose3 为 0.9097）
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.73.0
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.0
 ```
 
 #### Firecrawl SDK 零改动平替接入
