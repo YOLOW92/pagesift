@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use crate::interp::Glyph;
 
 mod furniture;
+mod headings;
 mod render;
 
 pub(crate) use furniture::remove_furniture;
@@ -12,7 +13,7 @@ pub(crate) use furniture::remove_furniture;
 use furniture::{furniture_key, is_page_number};
 #[cfg(test)]
 use render::merge_math;
-pub(crate) use render::{join_text, paragraphs, render};
+pub(crate) use render::{Mode, Para, join_text, paragraphs, render};
 
 /// 同一基线上连续的一段文字。分栏以前叫"片段"，合并同基线片段后就是"行"。
 #[derive(Debug, Clone)]
@@ -25,6 +26,16 @@ pub(crate) struct Line {
     pub(crate) bold: bool,
     /// 原样输出的内容（表格的 Markdown），单独成段，不参与合并。
     pub(crate) raw: bool,
+    /// 多数字符所在标记内容的 MCID。
+    pub(crate) mcid: Option<i32>,
+    /// 多数字符在 /Artifact 里。
+    pub(crate) artifact: bool,
+    /// 写入方给出的标题层级（来自结构树）；None 表示没有提示。
+    pub(crate) hint: Option<u8>,
+    /// 标题提示来自哪个结构元素：同一元素的行才能合成一段。
+    pub(crate) group: Option<u32>,
+    /// 写入方声明过的标题行（对上了这一页的书签）：不当页眉页脚删。
+    pub(crate) keep: bool,
 }
 
 /// 片段内超过这个间距（相对字号）就拆开，拆多了没关系，分栏后会按基线合回去。
@@ -104,8 +115,10 @@ fn compose_tex(text: &str) -> String {
     out
 }
 
-/// 把一页的字形聚合成行片段。
-pub(crate) fn fragments(glyphs: &[Glyph]) -> Vec<Line> {
+/// 把一页的字形聚合成行片段。`heading_of` 给出 MCID 所属的标题元素（结构树）：
+/// 同一条基线上属于不同标题元素（或一边是标题一边不是）的字形分成不同片段。
+pub(crate) fn fragments(glyphs: &[Glyph], heading_of: Option<&HashMap<i32, (u8, u32)>>) -> Vec<Line> {
+    let group = |g: &Glyph| heading_of.and_then(|h| g.mcid.and_then(|m| h.get(&m))).map(|&(_, e)| e);
     let mut order: Vec<usize> = (0..glyphs.len()).collect();
     order.sort_by(|&a, &b| {
         glyphs[b]
@@ -193,7 +206,7 @@ pub(crate) fn fragments(glyphs: &[Glyph]) -> Vec<Line> {
                     continue;
                 }
                 let gap = g.x - prev_end;
-                if gap > SPLIT_GAP * g.size.max(p.size) {
+                if gap > SPLIT_GAP * g.size.max(p.size) || (heading_of.is_some() && group(p) != group(g)) {
                     out.extend(make_line(&cur));
                     cur.clear();
                     prev_end = f64::NEG_INFINITY;
@@ -216,6 +229,8 @@ fn make_line(glyphs: &[&Glyph]) -> Option<Line> {
     let mut bold_chars = 0usize;
     let mut all_chars = 0usize;
     let mut sizes: HashMap<i64, (usize, f64, f64)> = HashMap::new();
+    let mut mcids: HashMap<i32, usize> = HashMap::new();
+    let mut artifact_chars = 0usize;
     let mut last_char: Option<char> = None;
     for g in glyphs {
         let mut t = String::new();
@@ -242,6 +257,12 @@ fn make_line(glyphs: &[&Glyph]) -> Option<Line> {
         all_chars += n;
         if g.bold {
             bold_chars += n;
+        }
+        if let Some(m) = g.mcid {
+            *mcids.entry(m).or_default() += n;
+        }
+        if g.artifact {
+            artifact_chars += n;
         }
         let key = (g.size * 10.0).round() as i64;
         let e = sizes.entry(key).or_insert((0, g.size, g.y));
@@ -291,6 +312,14 @@ fn make_line(glyphs: &[&Glyph]) -> Option<Line> {
         size,
         bold: bold_chars * 10 >= all_chars * 7,
         raw: false,
+        mcid: mcids
+            .into_iter()
+            .max_by(|a, b| a.1.cmp(&b.1).then(b.0.cmp(&a.0)))
+            .map(|(m, _)| m),
+        artifact: artifact_chars * 2 > all_chars,
+        hint: None,
+        group: None,
+        keep: false,
     })
 }
 
@@ -410,7 +439,10 @@ fn merge_rows(frags: Vec<Line>) -> Vec<Line> {
     for f in frags {
         match rows.last_mut() {
             Some(r)
-                if !f.raw && !r[0].raw && (r[0].y - f.y).abs() < 0.35 * r[0].size.max(f.size) =>
+                if !f.raw
+                    && !r[0].raw
+                    && r[0].group == f.group
+                    && (r[0].y - f.y).abs() < 0.35 * r[0].size.max(f.size) =>
             {
                 r.push(f)
             }

@@ -4,9 +4,9 @@ pub(crate) mod cff;
 pub(crate) mod strings;
 pub(crate) mod type1;
 
+use crate::file::{Dictionary, Document, Object};
 use crate::obj::{get, get_num, stream_bytes};
 use cff::cff;
-use lopdf::{Dictionary, Document, Object};
 use type1::type1;
 
 /// 字符码 0..=255 对应的字形名。字体程序用标准编码、或者读不出来时返回 None。
@@ -15,7 +15,8 @@ pub(crate) fn builtin_encoding(
     descriptor: &Dictionary,
     limit: usize,
 ) -> Option<Vec<Option<String>>> {
-    if let Ok(obj @ Object::Reference(_) | obj @ Object::Stream(_)) = descriptor.get(b"FontFile") {
+    if let Some(obj @ Object::Reference(_) | obj @ Object::Stream(_)) = descriptor.get(b"FontFile")
+    {
         let length1 = match crate::obj::deref(doc, obj) {
             Object::Stream(s) => get_num(doc, &s.dict, b"Length1"),
             _ => None,

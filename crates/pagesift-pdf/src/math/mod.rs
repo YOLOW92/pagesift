@@ -22,6 +22,8 @@ mod tests {
             size,
             bold: false,
             math,
+            mcid: None,
+            artifact: false,
         }
     }
 

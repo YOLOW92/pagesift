@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Instant;
 
-use lopdf::{Dictionary, Document, Object, ObjectId};
+use crate::file::{Dictionary, Document, Object, ObjectId};
 
 use crate::font::{DecodedChar, Font};
 pub(crate) use crate::geom::{Glyph, Matrix, PageInk, Rule};
@@ -33,14 +33,26 @@ struct GState {
 pub(crate) struct Timeout;
 
 pub(crate) struct Interp<'a> {
-    pub(crate) doc: &'a Document,
+    pub(crate) doc: &'a Document<'a>,
     pub(crate) fonts: &'a mut HashMap<ObjectId, Rc<Font>>,
     pub(crate) deadline: Option<Instant>,
     pub(crate) stream_limit: usize,
     ops_left: usize,
     ink: PageInk,
     fallback: Rc<Font>,
+    /// 标记内容栈（BMC/BDC 压入，EMC 弹出）。
+    marked: Vec<Marked>,
 }
+
+/// 一层标记内容。
+#[derive(Clone, Copy)]
+struct Marked {
+    mcid: Option<i32>,
+    artifact: bool,
+}
+
+/// 标记内容最多嵌套这么深，超出的 BDC 不再压栈（对应的 EMC 也就弹不到真实的层）。
+const MAX_MARKED_DEPTH: usize = 64;
 
 const MAX_FORM_DEPTH: usize = 8;
 const MAX_STATE_DEPTH: usize = 256;
@@ -62,6 +74,7 @@ impl<'a> Interp<'a> {
             ops_left: MAX_OPS_PER_PAGE,
             ink: PageInk::default(),
             fallback: Rc::new(Font::fallback()),
+            marked: Vec::new(),
         }
     }
 
@@ -89,6 +102,7 @@ impl<'a> Interp<'a> {
         self.ink.width = dw;
         self.ink.height = dh;
         let ctm = Matrix::translate(-llx, -lly).mul(&rot);
+        self.ink.base = (rot == Matrix::IDENTITY).then_some(ctm);
 
         let resources = inherited(doc, page, b"Resources").and_then(|o| match o {
             Object::Dictionary(d) => Some(d),
@@ -250,6 +264,20 @@ impl<'a> Interp<'a> {
                     rects.clear();
                 }
                 b"BI" => self.image(&gs.ctm),
+                b"BMC" | b"BDC" => {
+                    let tag = match a.first() {
+                        Some(Operand::Name(n)) => n.as_slice(),
+                        _ => b"",
+                    };
+                    let mcid = if depth == 0 { self.mcid(resources, a.get(1)) } else { None };
+                    let artifact = tag == b"Artifact" || self.marked.last().is_some_and(|m| m.artifact);
+                    if self.marked.len() < MAX_MARKED_DEPTH {
+                        self.marked.push(Marked { mcid, artifact });
+                    }
+                }
+                b"EMC" => {
+                    self.marked.pop();
+                }
                 b"Do" => {
                     if let Some(Operand::Name(name)) = a.first() {
                         self.xobject(resources, name, &gs, depth)?;
@@ -330,10 +358,24 @@ impl<'a> Interp<'a> {
         }
     }
 
+    /// BDC 的属性：内联字典里的 /MCID，或者指向 /Properties 资源里的属性表。
+    fn mcid(&self, resources: Option<&Dictionary>, props: Option<&Operand>) -> Option<i32> {
+        let v = match props? {
+            d @ Operand::Dict(_) => d.get(b"MCID").and_then(Operand::num)?,
+            Operand::Name(name) => {
+                let list = get_dict(self.doc, resources?, b"Properties")?;
+                let p = get_dict(self.doc, list, name)?;
+                crate::obj::get_num(self.doc, p, b"MCID")?
+            }
+            _ => return None,
+        };
+        (v >= 0.0 && v <= f64::from(i32::MAX)).then_some(v as i32)
+    }
+
     fn font(&mut self, resources: Option<&Dictionary>, name: &[u8]) -> Option<Rc<Font>> {
         let doc = self.doc;
         let fonts = get_dict(doc, resources?, b"Font")?;
-        let raw = fonts.get(name).ok()?;
+        let raw = fonts.get(name)?;
         if let Object::Reference(id) = raw {
             if let Some(f) = self.fonts.get(id) {
                 return Some(f.clone());
@@ -383,6 +425,8 @@ impl<'a> Interp<'a> {
                     size,
                     bold: font.bold,
                     math: font.math,
+                    mcid: self.marked.iter().rev().find_map(|m| m.mcid),
+                    artifact: self.marked.last().is_some_and(|m| m.artifact),
                 });
             }
             let mut tx = ch.width * gs.size + gs.char_spacing;
@@ -418,7 +462,7 @@ impl<'a> Interp<'a> {
         match get_name(doc, &stream.dict, b"Subtype") {
             Some(b"Image") => self.image(&gs.ctm),
             Some(b"Form") if depth < MAX_FORM_DEPTH => {
-                let Ok(content) = stream.decompressed_content_with_limit(self.stream_limit) else {
+                let Some(content) = doc.stream_data(stream, self.stream_limit) else {
                     return Ok(());
                 };
                 let matrix = get(doc, &stream.dict, b"Matrix")
@@ -428,7 +472,10 @@ impl<'a> Interp<'a> {
                 let mut inner = gs.clone();
                 inner.ctm = matrix.mul(&gs.ctm);
                 let form_res = get_dict(doc, &stream.dict, b"Resources").or(resources);
-                self.run(&content, form_res, inner, depth + 1)?;
+                let marked = self.marked.len();
+                let r = self.run(&content, form_res, inner, depth + 1);
+                self.marked.truncate(marked);
+                r?;
             }
             _ => {}
         }

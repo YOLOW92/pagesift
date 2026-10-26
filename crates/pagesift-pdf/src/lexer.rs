@@ -7,6 +7,8 @@ pub(crate) enum Operand {
     Str(Vec<u8>),
     Name(Vec<u8>),
     Array(Vec<Operand>),
+    /// 内联字典（BDC 的属性表）：只留顶层的键和标量值，嵌套的值记为 Other。
+    Dict(Vec<(Vec<u8>, Operand)>),
     Other,
 }
 
@@ -14,6 +16,14 @@ impl Operand {
     pub(crate) fn num(&self) -> Option<f64> {
         match self {
             Operand::Num(n) => Some(*n),
+            _ => None,
+        }
+    }
+
+    /// 字典里某个键的值。
+    pub(crate) fn get(&self, key: &[u8]) -> Option<&Operand> {
+        match self {
+            Operand::Dict(d) => d.iter().find(|(k, _)| k == key).map(|(_, v)| v),
             _ => None,
         }
     }
@@ -195,7 +205,103 @@ impl<'a> Lexer<'a> {
         out
     }
 
-    /// 跳过 `<< ... >>`，字典内容对文本提取没用。
+    /// 读 `<<` 之后的字典：顶层的 `/键 标量` 留下，数组和嵌套字典跳过记为 Other。
+    fn dict(&mut self) -> Operand {
+        let mut out = Vec::new();
+        loop {
+            self.skip_white();
+            let Some(b) = self.peek() else { break };
+            if b == b'>' && self.data.get(self.pos + 1) == Some(&b'>') {
+                self.pos += 2;
+                break;
+            }
+            if b != b'/' {
+                // 不是键：当成一个值跳过
+                self.skip_value();
+                continue;
+            }
+            self.pos += 1;
+            let key = self.name();
+            self.skip_white();
+            let value = match self.peek() {
+                Some(b'(') => {
+                    self.pos += 1;
+                    Operand::Str(self.literal_string())
+                }
+                Some(b'<') if self.data.get(self.pos + 1) != Some(&b'<') => {
+                    self.pos += 1;
+                    Operand::Str(self.hex_string())
+                }
+                Some(b'/') => {
+                    self.pos += 1;
+                    Operand::Name(self.name())
+                }
+                Some(b'>') if self.data.get(self.pos + 1) == Some(&b'>') => continue,
+                Some(_) => {
+                    let start = self.pos;
+                    let word = self.regular();
+                    if !word.is_empty()
+                        && (word[0].is_ascii_digit() || matches!(word[0], b'+' | b'-' | b'.'))
+                    {
+                        Operand::Num(parse_number(word))
+                    } else {
+                        self.pos = start;
+                        self.skip_value();
+                        Operand::Other
+                    }
+                }
+                None => break,
+            };
+            out.push((key, value));
+        }
+        Operand::Dict(out)
+    }
+
+    /// 跳过一个值（字符串、数组、嵌套字典或普通词）。
+    fn skip_value(&mut self) {
+        let Some(b) = self.peek() else { return };
+        match b {
+            b'<' if self.data.get(self.pos + 1) == Some(&b'<') => {
+                self.pos += 2;
+                self.skip_dict();
+            }
+            b'<' => {
+                self.pos += 1;
+                self.hex_string();
+            }
+            b'(' => {
+                self.pos += 1;
+                self.literal_string();
+            }
+            b'[' => {
+                self.pos += 1;
+                let mut depth = 1usize;
+                while depth > 0 {
+                    self.skip_white();
+                    match self.peek() {
+                        None => return,
+                        Some(b'[') => {
+                            self.pos += 1;
+                            depth += 1;
+                        }
+                        Some(b']') => {
+                            self.pos += 1;
+                            depth -= 1;
+                        }
+                        Some(_) => self.skip_value(),
+                    }
+                }
+            }
+            _ if is_delim(b) => self.pos += 1,
+            _ => {
+                if self.regular().is_empty() {
+                    self.pos += 1;
+                }
+            }
+        }
+    }
+
+    /// 跳过 `<< ... >>`。
     fn skip_dict(&mut self) {
         let mut depth = 1usize;
         while depth > 0 {
@@ -238,8 +344,7 @@ impl<'a> Lexer<'a> {
                 b'<' => {
                     if self.data.get(self.pos + 1) == Some(&b'<') {
                         self.pos += 2;
-                        self.skip_dict();
-                        return Some(Token::Operand(Operand::Other));
+                        return Some(Token::Operand(self.dict()));
                     }
                     self.pos += 1;
                     return Some(Token::Operand(Operand::Str(self.hex_string())));

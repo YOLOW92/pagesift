@@ -2,6 +2,9 @@
 
 use super::strings::STANDARD_STRINGS;
 
+/// 预定义 ISOAdobe 字符集的字形数（.notdef + SID 1–228）。
+const ISO_ADOBE_GLYPHS: usize = 229;
+
 pub(crate) struct Reader<'a> {
     pub(crate) b: &'a [u8],
 }
@@ -134,6 +137,11 @@ pub(crate) fn cff(b: &[u8]) -> Option<Vec<Option<String>>> {
                 .map(|s| String::from_utf8_lossy(s).into_owned())
         }
     };
+    // 省略 charset 就是预定义的 ISOAdobe 字符集，它描述的是 229 个字形的完整字体。
+    // 子集字体省略 charset 是写入方的错误（实测 Exstream 生成的字体），字形名整体错位，不可信
+    if charset_off == 0 && n_glyphs < ISO_ADOBE_GLYPHS {
+        return None;
+    }
     let mut sids = vec![0usize; n_glyphs];
     if charset_off == 0 {
         for (g, s) in sids.iter_mut().enumerate() {
@@ -177,7 +185,8 @@ pub(crate) fn cff(b: &[u8]) -> Option<Vec<Option<String>>> {
     let mut out: Vec<Option<String>> = vec![None; 256];
     let format = r.u8(enc_off)?;
     let at = enc_off + 1;
-    match format & 0x7f {
+    // 补充表紧跟在编码数据之后
+    let supplement = match format & 0x7f {
         0 => {
             let n = r.u8(at)?;
             for g in 1..=n {
@@ -186,6 +195,7 @@ pub(crate) fn cff(b: &[u8]) -> Option<Vec<Option<String>>> {
                     out[code] = name(sid);
                 }
             }
+            at + 1 + n
         }
         1 => {
             let n = r.u8(at)?;
@@ -200,14 +210,15 @@ pub(crate) fn cff(b: &[u8]) -> Option<Vec<Option<String>>> {
                     g += 1;
                 }
             }
+            at + 1 + 2 * n
         }
         _ => return None,
-    }
+    };
     if format & 0x80 != 0 {
-        let n = r.u8(at)?;
+        let n = r.u8(supplement)?;
         for k in 0..n {
-            let code = r.u8(at + 1 + 3 * k)?;
-            let sid = r.u16(at + 2 + 3 * k)?;
+            let code = r.u8(supplement + 1 + 3 * k)?;
+            let sid = r.u16(supplement + 2 + 3 * k)?;
             out[code] = name(sid);
         }
     }

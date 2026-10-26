@@ -1,6 +1,60 @@
 use std::collections::HashMap;
 
-use super::{Line, is_cjk};
+use super::{Line, headings, is_cjk};
+use crate::structure::{Style, numbering};
+
+/// 以章节编号开头、像标题的一行：编号后有文字、不以句末标点结尾、没有目录的点线，
+/// 而且不是一段正文的首行（伸到栏的右边缘、下一行接着写的是折行）。
+fn numbered_line(
+    line: &Line,
+    prev: Option<&Line>,
+    prev_numbered: bool,
+    next: Option<&Line>,
+    right: f64,
+) -> Option<Style> {
+    // 标题前面的段落已经结束（有句末标点），或者前一行本身就是标题。上一行没有句末标点、
+    // 行距是正常行距（不是段间距）：这一行是句子折过来的（`… in more detail in` / `Section 3. In …`、
+    // 绕图排的窄栏里 `… was opened on` / `8 June 1905. …`）
+    if !prev_numbered
+        && prev.is_some_and(|p| {
+            !ends_terminal(&p.text)
+                && ((p.y - line.y) < 1.5 * p.size || p.x1 >= right - 2.0 * p.size)
+                && (p.y - line.y) < 2.0 * p.size
+                && (p.size / line.size - 1.0).abs() < 0.1
+        })
+    {
+        return None;
+    }
+    let (style, rest) = numbering(&line.text)?;
+    let rest = rest.trim();
+    // 单个字母的编号只认附录常用的 A–F，而且后面不能有逗号：`M. Franko, 2/15/2018` 是姓名缩写
+    if style == Style::Letter(1)
+        && (!line.text.trim_start().starts_with(['A', 'B', 'C', 'D', 'E', 'F']) || rest.contains(','))
+    {
+        return None;
+    }
+    if rest.chars().filter(|c| c.is_alphabetic()).count() < 2
+        || rest.ends_with(['。', '.', '．', '、', ',', '，', ';', '；'])
+        || rest.contains(". . .")
+        || rest.contains("...")
+        || rest.contains('…')
+    {
+        return None;
+    }
+    let cjk = rest.chars().filter(|&c| is_cjk(c)).count() * 2 > rest.chars().count();
+    let long = if cjk { rest.chars().count() > 40 } else { rest.split_whitespace().count() > 14 };
+    let whole_line = matches!(style, Style::Lenticular | Style::Angle);
+    let wrapped = line.x1 >= right - 2.0 * line.size
+        && next.is_some_and(|n| {
+            numbering(&n.text).is_none()
+                && (line.y - n.y) < 2.0 * line.size
+                && (n.size / line.size - 1.0).abs() < 0.1
+        });
+    if long || (!whole_line && wrapped) {
+        return None;
+    }
+    Some(style)
+}
 
 #[derive(Debug, Clone)]
 pub(crate) struct Para {
@@ -14,6 +68,14 @@ pub(crate) struct Para {
     pub(crate) block_start: bool,
     /// 原样输出（表格）。
     pub(crate) raw: bool,
+    /// 首行基线的 y（页面坐标，向上为正）。
+    pub(crate) top: f64,
+    /// 写入方给出的标题层级（结构树或书签）。
+    pub(crate) hint: Option<u8>,
+    /// 标题提示来自哪个结构元素。
+    pub(crate) group: Option<u32>,
+    /// 单独成行、以章节编号开头的短行（推断标题用）。
+    pub(crate) numbered: Option<Style>,
 }
 
 const BULLETS: &[char] = &[
@@ -70,7 +132,16 @@ pub(crate) fn join_text(a: &mut String, b: &str) {
 
 /// 前一段没结束、这一段像是接着写的：跨栏、跨页时合并。
 pub(crate) fn continues(prev: &Para, cur: &Para) -> bool {
-    if prev.raw || cur.raw || prev.bullet || cur.bullet || cur.bold != prev.bold {
+    if prev.raw
+        || cur.raw
+        || prev.bullet
+        || cur.bullet
+        || cur.bold != prev.bold
+        || cur.hint != prev.hint
+        || cur.group != prev.group
+        || cur.numbered.is_some()
+        || prev.numbered.is_some()
+    {
         return false;
     }
     let ratio = cur.size / prev.size;
@@ -111,8 +182,10 @@ pub(crate) fn paragraphs(blocks: Vec<Vec<Line>>) -> Vec<Para> {
         let right = b.iter().map(|l| l.x1).fold(f64::NEG_INFINITY, f64::max);
         let mut cur: Option<Para> = None;
         let mut prev: Option<&Line> = None;
+        let mut prev_numbered = false;
         let mut first_in_block = true;
-        for line in &b {
+        for (li, line) in b.iter().enumerate() {
+            let numbered = numbered_line(line, li.checked_sub(1).and_then(|k| b.get(k)), prev_numbered, b.get(li + 1), right);
             if line.raw {
                 if let Some(para) = cur.take() {
                     out.push(para);
@@ -126,12 +199,18 @@ pub(crate) fn paragraphs(blocks: Vec<Vec<Line>>) -> Vec<Para> {
                     bullet: false,
                     block_start: false,
                     raw: true,
+                    top: line.y,
+                    hint: None,
+                    group: None,
+                    numbered: None,
                 });
                 prev = None;
+                prev_numbered = false;
                 first_in_block = false;
                 continue;
             }
-            let brk = match prev {
+            // 编号标题行单独成段：前后都断开（解决标题和下一行正文粘连）
+            let brk = numbered.is_some() || prev_numbered || match prev {
                 None => true,
                 Some(p) => {
                     let gap = p.y - line.y;
@@ -139,6 +218,8 @@ pub(crate) fn paragraphs(blocks: Vec<Vec<Line>>) -> Vec<Para> {
                     let ratio = line.size / p.size;
                     let short = p.x1 < right - (3.0 * p.size).max(0.15 * (right - left));
                     !(0.87..=1.15).contains(&ratio)
+                        || line.hint != p.hint
+                        || line.group != p.group
                         || line.bold != p.bold
                         || gap > leading_ratio * s * 1.35
                         || gap < -0.3 * s
@@ -160,6 +241,10 @@ pub(crate) fn paragraphs(blocks: Vec<Vec<Line>>) -> Vec<Para> {
                     bullet: is_bullet_start(&line.text),
                     block_start: first_in_block,
                     raw: false,
+                    top: line.y,
+                    hint: line.hint,
+                    group: line.group,
+                    numbered,
                 });
                 first_in_block = false;
             } else if let Some(para) = cur.as_mut() {
@@ -167,6 +252,7 @@ pub(crate) fn paragraphs(blocks: Vec<Vec<Line>>) -> Vec<Para> {
                 para.lines += 1;
             }
             prev = Some(line);
+            prev_numbered = numbered.is_some();
         }
         if let Some(para) = cur {
             out.push(para);
@@ -199,8 +285,61 @@ enum Kind {
     Raw,
 }
 
+/// 图表的题注（`Figure 1.2.`、`Table 3:`、`図2`、`表1`）和单独的小写罗马数字页码（专栏 `Box 1.1` 是章节级的，不算）：
+/// 版面上常和标题一样醒目，但不是章节标题。
+fn caption_or_folio(text: &str) -> bool {
+    let t = text.trim();
+    if !t.is_empty() && t.len() <= 6 && t.chars().all(|c| "ivxlc".contains(c)) {
+        return true;
+    }
+    let lower = t.to_lowercase();
+    let words = [
+        "figure", "fig.", "fig ", "table", "chart", "exhibit", "listing", "algorithm", "graph",
+        "annex figure", "annex table", "online annex", "panel",
+    ];
+    for w in words {
+        if let Some(rest) = lower.strip_prefix(w) {
+            let rest = rest.trim_start();
+            if rest.chars().next().is_some_and(|c| c.is_ascii_digit() || c.is_ascii_uppercase())
+                || t[t.len() - rest.len()..].chars().next().is_some_and(|c| c.is_ascii_uppercase())
+            {
+                return true;
+            }
+        }
+    }
+    for w in ["図表", "図", "表", "グラフ", "参考図表"] {
+        if let Some(rest) = t.strip_prefix(w) {
+            let rest = rest.trim_start();
+            if rest.chars().next().is_some_and(|c| c.is_ascii_digit() || ('０'..='９').contains(&c) || c == '（' || c == '(') {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// 一页里字数最多的字号（按 0.5pt 取整）。
+fn body_size(ps: &[Para]) -> Option<f64> {
+    let mut hist: HashMap<i64, usize> = HashMap::new();
+    for p in ps.iter().filter(|p| !p.raw) {
+        *hist.entry((p.size * 2.0).round() as i64).or_default() += p.text.chars().count();
+    }
+    hist.into_iter()
+        .max_by(|a, b| a.1.cmp(&b.1).then(b.0.cmp(&a.0)))
+        .map(|(k, _)| k as f64 / 2.0)
+}
+
+/// 标题怎么定。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Mode {
+    /// 按字号、粗体推断。
+    Infer,
+    /// 写入方给了标题（结构树或书签）：只有带提示的段落是标题，层级用提示的。
+    Hinted,
+}
+
 /// 统计全文正文字号和标题层级，生成每页的 Markdown 和合并后的全文。
-pub(crate) fn render(pages: &[Vec<Para>]) -> (Vec<String>, String) {
+pub(crate) fn render(pages: &[Vec<Para>], mode: Mode) -> (Vec<String>, String) {
     let mut hist: HashMap<i64, usize> = HashMap::new();
     let (mut bold_chars, mut all_chars) = (0usize, 0usize);
     for p in pages.iter().flatten().filter(|p| !p.raw) {
@@ -226,47 +365,97 @@ pub(crate) fn render(pages: &[Vec<Para>]) -> (Vec<String>, String) {
             && p.text.chars().any(char::is_alphabetic)
             && !p.bullet
     };
-    let mut levels: Vec<f64> = pages
-        .iter()
-        .flatten()
-        .filter(|p| !p.raw && is_heading_size(p))
-        .map(|p| p.size)
-        .collect();
-    levels.sort_by(|a, b| b.total_cmp(a));
-    levels.dedup_by(|a, b| (*b - *a).abs() < 0.5);
-
-    // 粗体小标题：不比下一段更靠右（排除 man 手册里缩进的粗体正文）
-    let kind = |p: &Para, next: Option<&Para>| -> Kind {
-        if p.raw {
-            return Kind::Raw;
+    // 推断：字号明显大、正文字号的单行粗体（不比下一段更靠右，排除 man 手册里缩进的粗体正文）、
+    // 单独成行的编号标题。层级统一交给 headings::levels。
+    // 比较“不比正文小”时，整页都是小字的页（决算短信的摘要页）用本页的正文字号，
+    // 否则那几页的标题都会被当成脚注；页上有正文字号的文字时照旧用全文的（图表页的小字不能算标题）
+    let is_heading = |p: &Para, next: Option<&Para>, page_body: f64| -> bool {
+        if p.raw || p.bullet || caption_or_folio(&p.text) {
+            return false;
         }
         if is_heading_size(p) {
-            let lvl = levels.iter().position(|&s| p.size >= s - 0.25).unwrap_or(0);
-            return Kind::Heading((lvl + 1).min(6));
+            return true;
         }
-        if p.bullet {
-            return Kind::Bullet;
-        }
-        if p.bold
+        let one_line = p.lines == 1 && p.size >= page_body.min(body) * 0.95 && p.text.chars().any(char::is_alphabetic);
+        let bold = p.bold
             && !body_bold
-            && p.lines == 1
+            && one_line
             && p.text.chars().count() <= 80
-            && p.size >= body * 0.95
-            && !p
-                .text
-                .ends_with(['.', ',', ';', ':', '。', '，', '；', '：'])
-            && p.text.chars().any(char::is_alphabetic)
-            && next.is_none_or(|n| n.x0 >= p.x0 - 0.5 * p.size)
-        {
-            return Kind::Heading((levels.len() + 1).min(6));
-        }
-        Kind::Body
+            && !p.text.ends_with(['.', ',', ';', ':', '。', '，', '；', '：'])
+            && next.is_none_or(|n| n.x0 >= p.x0 - 0.5 * p.size);
+        let numbered = p.numbered.is_some() && one_line && p.text.chars().count() <= 120;
+        bold || numbered
     };
+    // 相邻两段都是同一种编号、中间没有正文：这是列表，不是标题（只影响单靠编号判出的）
+    let in_list = |ps: &[Para], i: usize| -> bool {
+        let Some(style) = ps[i].numbered else { return false };
+        let same = |j: usize| ps.get(j).is_some_and(|q| q.numbered == Some(style));
+        same(i + 1) || (i > 0 && same(i - 1))
+    };
+    let mut cands: Vec<headings::Cand> = Vec::new();
+    let mut is_cand: Vec<Vec<bool>> = Vec::with_capacity(pages.len());
+    for ps in pages {
+        let has_body_text = ps.iter().any(|p| !p.raw && (p.size - body).abs() < 0.75);
+        let page_body = if has_body_text { body } else { body_size(ps).unwrap_or(body) };
+        let mut row = Vec::with_capacity(ps.len());
+        for (i, p) in ps.iter().enumerate() {
+            let h = mode == Mode::Infer
+                && is_heading(p, ps.get(i + 1), page_body)
+                && (is_heading_size(p) || (p.bold && !body_bold) || !in_list(ps, i));
+            if h {
+                cands.push(headings::Cand {
+                    size: p.size,
+                    style: numbering(&p.text).map(|(s, _)| s),
+                });
+            }
+            row.push(h);
+        }
+        is_cand.push(row);
+    }
+    let mut levels = headings::levels(&cands).into_iter();
     let kinds: Vec<Vec<Kind>> = pages
         .iter()
-        .map(|ps| (0..ps.len()).map(|i| kind(&ps[i], ps.get(i + 1))).collect())
+        .zip(&is_cand)
+        .map(|(ps, hs)| {
+            ps.iter()
+                .zip(hs)
+                .map(|(p, &h)| {
+                    if p.raw {
+                        Kind::Raw
+                    } else if mode == Mode::Hinted && p.hint.is_some() {
+                        Kind::Heading(usize::from(p.hint.unwrap_or(1)).clamp(1, 6))
+                    } else if h {
+                        Kind::Heading(levels.next().unwrap_or(1))
+                    } else if p.bullet {
+                        Kind::Bullet
+                    } else {
+                        Kind::Body
+                    }
+                })
+                .collect()
+        })
         .collect();
 
+    // 只有编号的标题（`CHAPTER 2`、`C.`）：版式上常把章号和章名分两行排，逻辑上是一个标题。
+    // 下一段也是标题就并进去，否则不当标题（不输出空标题）
+    let mut owned: Vec<Vec<Para>> = pages.to_vec();
+    let mut kinds = kinds;
+    for (ps, ks) in owned.iter_mut().zip(kinds.iter_mut()) {
+        let mut i = 0;
+        while i < ps.len() {
+            if matches!(ks[i], Kind::Heading(_)) && crate::structure::strip_numbering(&ps[i].text).trim().is_empty() {
+                if matches!(ks.get(i + 1), Some(Kind::Heading(_))) {
+                    let label = ps.remove(i).text;
+                    ks.remove(i);
+                    ps[i].text = format!("{} {}", label.trim(), ps[i].text);
+                    continue;
+                }
+                ks[i] = Kind::Body;
+            }
+            i += 1;
+        }
+    }
+    let pages = &owned[..];
     let page_md: Vec<String> = pages
         .iter()
         .zip(&kinds)

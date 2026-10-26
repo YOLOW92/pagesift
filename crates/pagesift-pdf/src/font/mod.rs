@@ -5,7 +5,7 @@ use cjk::{CodeSource, code_len, fallback_text, predefined_source};
 
 use std::collections::HashMap;
 
-use lopdf::{Dictionary, Document, Object};
+use crate::file::{Dictionary, Document, Object};
 
 use crate::cmap::CMap;
 use crate::encoding::{
@@ -422,9 +422,23 @@ fn named_base(n: &[u8]) -> Option<BaseEncoding> {
 
 fn is_bold(doc: &Document, base_font: &str, descriptor: Option<&Dictionary>) -> bool {
     let name = base_font.to_ascii_lowercase();
+    // 去掉子集前缀 `ABCDEF+`
+    let name = name.split_once('+').map_or(name.as_str(), |(_, n)| n);
     if ["bold", "black", "heavy", "semibold", "demi"]
         .iter()
         .any(|k| name.contains(k))
+    {
+        return true;
+    }
+    // 各家字体厂商的命名习惯：URW 的 `-Medi`（NimbusRomNo9L-Medi 就是 Times Bold）、
+    // Computer Modern 的 `cmbx`、cm-super 的 `sfbx`、日文字体的字重 W6–W9（ヒラギノ、モリサワ）、
+    // モリサワ的“見出し”（Midashi）字体
+    let family = name.split(['-', ',']).next().unwrap_or(name);
+    if (name.contains("medi") && !name.contains("medium"))
+        || family.starts_with("cmbx")
+        || family.starts_with("sfbx")
+        || family.contains("midashi")
+        || ["w6", "w7", "w8", "w9"].iter().any(|w| name.ends_with(w) || name.contains(&format!("-{w}")))
     {
         return true;
     }

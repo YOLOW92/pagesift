@@ -130,6 +130,11 @@ mod tests {
             size: 10.0,
             bold: false,
             raw: false,
+            mcid: None,
+            artifact: false,
+            hint: None,
+            group: None,
+            keep: false,
         }
     }
 

@@ -1566,9 +1566,14 @@ dependencies = [
 name = "pagesift-pdf"
 version = "0.73.1"
 dependencies = [
+ "aes",
+ "brotli-decompressor 6.0.1",
  "encoding_rs",
  "lopdf",
+ "md-5",
+ "miniz_oxide",
  "proptest",
+ "sha2",
 ]
 
 [[package]]

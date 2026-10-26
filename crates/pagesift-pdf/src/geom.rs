@@ -11,6 +11,10 @@ pub(crate) struct Glyph {
     pub(crate) size: f64,
     pub(crate) bold: bool,
     pub(crate) math: MathKind,
+    /// 所在标记内容的 MCID（结构树用它把文字挂到元素上）；表单 XObject 里的不记。
+    pub(crate) mcid: Option<i32>,
+    /// 在 `/Artifact` 标记内容里：写入方声明的非正文（页眉、页脚、页码、装饰）。
+    pub(crate) artifact: bool,
 }
 
 /// 页面上的一条水平或竖直线段（表格框线、分隔线），页面坐标。
@@ -36,6 +40,8 @@ pub(crate) struct PageInk {
     pub(crate) image_count: usize,
     pub(crate) width: f64,
     pub(crate) height: f64,
+    /// 用户空间 → 页面坐标（书签目标的位置要用它换算）；页面旋转过时为 None。
+    pub(crate) base: Option<Matrix>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

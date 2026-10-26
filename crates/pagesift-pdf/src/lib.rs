@@ -1,5 +1,5 @@
 //! PDF 转干净的 Markdown：文本提取、版面重组（分栏、标题、页眉页脚、断词），
-//! 扫描件只做标记不做 OCR。PDF 对象解析和解压交给 lopdf，其余自研。
+//! 扫描件只做标记不做 OCR。从文件结构（xref、对象、解压、解密）到版面全部自研。
 //!
 //! ```no_run
 //! let bytes = std::fs::read("paper.pdf").unwrap();
@@ -11,6 +11,7 @@
 
 mod cmap;
 mod encoding;
+mod file;
 mod font;
 mod fontfile;
 mod geom;
@@ -19,6 +20,7 @@ mod layout;
 mod lexer;
 mod math;
 mod obj;
+mod structure;
 mod table;
 
 use std::collections::HashMap;
@@ -26,7 +28,7 @@ use std::fmt;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::time::{Duration, Instant};
 
-use lopdf::{Document, LoadOptions, Object};
+use crate::file::{Document, Object, OpenError};
 
 use crate::interp::Interp;
 use crate::obj::{deref, text_string};
@@ -123,14 +125,15 @@ pub fn extract(bytes: &[u8]) -> Result<PdfDocument, Error> {
 
 pub fn extract_with(bytes: &[u8], opts: &Options) -> Result<PdfDocument, Error> {
     // 兜底：依赖库在畸形输入上万一 panic，也转成错误返回
-    catch_unwind(AssertUnwindSafe(|| run(bytes, opts)))
+    catch_unwind(AssertUnwindSafe(|| run(bytes, opts, true)))
         .unwrap_or_else(|_| Err(Error::Malformed("parser panicked".into())))
 }
 
 const SCANNED_MAX_CHARS: usize = 32;
 const SCANNED_MIN_COVERAGE: f64 = 0.3;
 
-fn run(bytes: &[u8], opts: &Options) -> Result<PdfDocument, Error> {
+/// `use_structure`：用不用写入方声明的结构（结构树、书签）。关掉只用于评测推断本身的水平。
+fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument, Error> {
     let start = Instant::now();
     let deadline = opts.timeout.map(|t| start + t);
     if bytes.len() > opts.max_input_bytes {
@@ -140,24 +143,13 @@ fn run(bytes: &[u8], opts: &Options) -> Result<PdfDocument, Error> {
     if !head.windows(5).any(|w| w == b"%PDF-") {
         return Err(Error::Malformed("missing %PDF header".into()));
     }
-    let load = LoadOptions {
-        max_decompressed_size: Some(opts.max_stream_bytes),
-        ..LoadOptions::default()
-    };
-    let doc = Document::load_mem_with_options(bytes, load).map_err(|e| match e {
-        lopdf::Error::InvalidPassword | lopdf::Error::Decryption(_) => Error::Encrypted,
-        lopdf::Error::Decompress(lopdf::DecompressError::MemoryLimitExceeded { .. }) => {
-            Error::TooLarge("decompressed stream size")
-        }
-        other => Error::Malformed(other.to_string()),
+    let doc = Document::open(bytes, opts.max_stream_bytes).map_err(|e| match e {
+        OpenError::Encrypted => Error::Encrypted,
+        OpenError::Malformed(m) => Error::Malformed(m.into()),
     })?;
-    // 空口令加密的文件 lopdf 会自动解开；还带着 /Encrypt 说明需要密码
-    if doc.is_encrypted() {
-        return Err(Error::Encrypted);
-    }
     check_deadline(deadline)?;
 
-    let page_ids = doc.get_pages();
+    let page_ids = doc.pages();
     if page_ids.len() > opts.max_pages {
         return Err(Error::TooLarge("page count"));
     }
@@ -165,16 +157,25 @@ fn run(bytes: &[u8], opts: &Options) -> Result<PdfDocument, Error> {
         return Err(Error::Malformed("document has no pages".into()));
     }
 
+    let structure = if use_structure {
+        structure::read(&doc, &page_ids)
+    } else {
+        structure::Structure::default()
+    };
+    let mut tagged_lines = 0;
+    let mut bases = Vec::with_capacity(page_ids.len());
+
     let mut fonts = HashMap::new();
     let mut frags = Vec::with_capacity(page_ids.len());
     let mut heights = Vec::with_capacity(page_ids.len());
     let mut stats = Vec::with_capacity(page_ids.len());
-    for (_, id) in page_ids {
+    for (index, &id) in page_ids.iter().enumerate() {
         check_deadline(deadline)?;
         let page = match doc.get_object(id).map(|o| deref(&doc, o)) {
-            Ok(Object::Dictionary(d)) => d,
+            Some(Object::Dictionary(d)) => d,
             _ => {
                 frags.push(Vec::new());
+                bases.push(None);
                 heights.push(792.0);
                 stats.push((0, 0, false));
                 continue;
@@ -194,7 +195,11 @@ fn run(bytes: &[u8], opts: &Options) -> Result<PdfDocument, Error> {
             && text_chars < SCANNED_MAX_CHARS;
         stats.push((text_chars, ink.image_count, scanned));
         heights.push(ink.height);
-        let mut page_frags = layout::fragments(&ink.glyphs);
+        bases.push(ink.base);
+        let mut page_frags = layout::fragments(&ink.glyphs, structure.tags.as_ref().map(|t| &t[index]));
+        if let Some(tags) = &structure.tags {
+            tagged_lines += structure::tag_lines(&mut page_frags, &tags[index]);
+        }
         // 表格：格子里的片段换成一个原样输出的 Markdown 表格，放在表格顶部的位置
         let tables = table::extract(&ink.rules, &mut page_frags, ink.width, ink.height);
         if !tables.is_empty() {
@@ -210,6 +215,11 @@ fn run(bytes: &[u8], opts: &Options) -> Result<PdfDocument, Error> {
                     size,
                     bold: false,
                     raw: true,
+                    mcid: None,
+                    artifact: false,
+                    hint: None,
+                    group: None,
+                    keep: false,
                 });
             }
         }
@@ -217,13 +227,41 @@ fn run(bytes: &[u8], opts: &Options) -> Result<PdfDocument, Error> {
     }
     check_deadline(deadline)?;
 
+    structure::keep_outline_lines(&mut frags, &structure.outline);
     layout::remove_furniture(&mut frags, &heights);
     let mut paras = Vec::with_capacity(frags.len());
     for f in frags {
         check_deadline(deadline)?;
         paras.push(layout::paragraphs(layout::blocks(f)));
     }
-    let (page_md, markdown) = layout::render(&paras);
+    if std::env::var_os("PAGESIFT_PDF_DEBUG").is_some() {
+        let tagged: usize = structure.tags.as_ref().map_or(0, |t| t.iter().map(|m| m.len()).sum());
+        let hinted: usize = paras.iter().flatten().filter(|p| p.hint.is_some()).count();
+        eprintln!("tag mcids {tagged} tagged lines {tagged_lines} hinted paras {hinted}");
+    }
+    // 写入方给了标题就照着用：结构树优先，其次书签（对上一半以上的条目才算数）
+    // 结构树里只有一两个标题（常见的是只标了文档题名）说明写入方没给章节打标签，不能拿它定标题
+    let mode = if tagged_lines >= 2 {
+        // 书签里有、结构树没标成标题的（常见：粗体段落当小节标题），也算标题
+        structure::mark_outline(&mut paras, &structure.outline, &bases);
+        layout::Mode::Hinted
+    } else {
+        let located = structure.outline.iter().filter(|e| e.page.is_some()).count();
+        // 结构树没起作用时，行上的少量标签提示不能留着（否则会把段落切碎）
+        for p in paras.iter_mut().flatten() {
+            p.hint = None;
+        }
+        let matched = structure::mark_outline(&mut paras, &structure.outline, &bases);
+        if std::env::var_os("PAGESIFT_PDF_DEBUG").is_some() {
+            eprintln!("outline entries {} located {} matched {}", structure.outline.len(), located, matched);
+        }
+        if matched >= 2 && matched * 2 >= located {
+            layout::Mode::Hinted
+        } else {
+            layout::Mode::Infer
+        }
+    };
+    let (page_md, markdown) = layout::render(&paras, mode);
 
     let pages: Vec<PdfPage> = page_md
         .into_iter()
@@ -257,14 +295,12 @@ fn check_deadline(deadline: Option<Instant>) -> Result<(), Error> {
 }
 
 fn metadata(doc: &Document) -> Metadata {
-    let info = doc
-        .trailer
-        .get(b"Info")
-        .ok()
-        .map(|o| deref(doc, o))
-        .and_then(|o| o.as_dict().ok());
+    let info = doc.trailer.get(b"Info").and_then(|o| match deref(doc, o) {
+        Object::Dictionary(d) => Some(d),
+        _ => None,
+    });
     let field = |key: &[u8]| -> Option<String> {
-        let v = match deref(doc, info?.get(key).ok()?) {
+        let v = match deref(doc, info?.get(key)?) {
             Object::String(s, _) => text_string(s),
             _ => return None,
         };
@@ -321,7 +357,12 @@ pub mod fuzzing {
     use super::*;
 
     pub fn extract_unguarded(bytes: &[u8], opts: &Options) -> Result<PdfDocument, Error> {
-        run(bytes, opts)
+        run(bytes, opts, true)
+    }
+
+    /// 评测用：不读结构树和书签，只看版面推断出的标题。
+    pub fn extract_inferred(bytes: &[u8], opts: &Options) -> Result<PdfDocument, Error> {
+        run(bytes, opts, false)
     }
 
     /// 返回操作符个数。
@@ -363,9 +404,11 @@ pub mod fuzzing {
                         size: *size,
                         bold: *bold,
                         math: crate::font::MathKind::Text,
+                        mcid: None,
+                        artifact: false,
                     })
                     .collect();
-                layout::fragments(&glyphs)
+                layout::fragments(&glyphs, None)
             })
             .collect();
         let heights = vec![792.0; frags.len()];
@@ -374,7 +417,7 @@ pub mod fuzzing {
             .into_iter()
             .map(|f| layout::paragraphs(layout::blocks(f)))
             .collect();
-        layout::render(&paras).1
+        layout::render(&paras, layout::Mode::Infer).1
     }
 }
 

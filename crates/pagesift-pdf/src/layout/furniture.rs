@@ -140,6 +140,12 @@ fn remove_page_furniture(lines: &mut Vec<Line>, h: f64) {
             if size > body * 1.15 {
                 break;
             }
+            // 页眉页脚很少是带章节编号的标题或粗体行；只出现在这一页的这种行多半是页首的小节标题
+            // （跨页重复的页眉已经由重复规则去掉）
+            // 写入方声明过的标题（对上书签、结构树标成标题）不删
+            if r.iter().any(|&i| lines[i].keep || lines[i].hint.is_some()) {
+                break;
+            }
             let isolated = gap >= 1.6 * line_gap;
             let small = size <= body * 0.92 && gap >= 1.25 * line_gap;
             let pattern = (is_page_number(&furniture_key(&text)) || looks_like_furniture(&text))
@@ -229,6 +235,9 @@ fn remove_repeated_furniture(pages: &mut [Vec<Line>], heights: &[f64]) {
     for (lines, rows) in pages.iter_mut().zip(&all_rows) {
         let mut drop = vec![false; lines.len()];
         for (k, g) in rows {
+            if g.iter().any(|&i| lines[i].keep || lines[i].hint.is_some()) {
+                continue;
+            }
             if is_page_number(&k.1) || counts.get(k).copied().unwrap_or(0) >= need {
                 for &i in g {
                     drop[i] = true;

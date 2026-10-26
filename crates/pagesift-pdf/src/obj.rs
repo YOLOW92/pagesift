@@ -1,14 +1,14 @@
-//! lopdf 对象的便捷访问：解引用、取数字和名字、解压流。
+//! 文件层对象的便捷访问：解引用、取数字和名字、解压流。
 
-use lopdf::{Dictionary, Document, Object};
+use crate::file::{Dictionary, Document, Object};
 
 /// 跟随间接引用，最多跳 16 次，防止引用成环。
 pub(crate) fn deref<'a>(doc: &'a Document, mut obj: &'a Object) -> &'a Object {
     for _ in 0..16 {
         match obj {
             Object::Reference(id) => match doc.get_object(*id) {
-                Ok(o) => obj = o,
-                Err(_) => return &Object::Null,
+                Some(o) => obj = o,
+                None => return &Object::Null,
             },
             _ => return obj,
         }
@@ -17,7 +17,7 @@ pub(crate) fn deref<'a>(doc: &'a Document, mut obj: &'a Object) -> &'a Object {
 }
 
 pub(crate) fn get<'a>(doc: &'a Document, dict: &'a Dictionary, key: &[u8]) -> Option<&'a Object> {
-    dict.get(key).ok().map(|o| deref(doc, o))
+    dict.get(key).map(|o| deref(doc, o))
 }
 
 pub(crate) fn get_dict<'a>(
@@ -69,7 +69,7 @@ pub(crate) fn num_array(doc: &Document, obj: &Object) -> Vec<f64> {
 /// 解压流内容，单个流的输出有上限。
 pub(crate) fn stream_bytes(doc: &Document, obj: &Object, limit: usize) -> Option<Vec<u8>> {
     match deref(doc, obj) {
-        Object::Stream(s) => s.decompressed_content_with_limit(limit).ok(),
+        Object::Stream(s) => doc.stream_data(s, limit),
         _ => None,
     }
 }
