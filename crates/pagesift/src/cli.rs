@@ -164,7 +164,9 @@ pub async fn doctor(cfg: &pagesift::config::Config) -> Result<ExitCode> {
             None => "not configured (optional): /v2/search is unavailable".into(),
         },
     );
-    let sc = cfg.scraper(false)?;
+    let mut sc = cfg.scraper(false)?;
+    // 自检抓取不是真实流量：写进审计日志只会每次多一条可疑记录和快照
+    sc.audit = None;
     let chain: Vec<String> =
         pagesift_cdp::engine_chain(&sc.browser, sc.fetcher.ssrf.allow_private_network)
             .iter()

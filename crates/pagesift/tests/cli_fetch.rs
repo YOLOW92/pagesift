@@ -271,3 +271,25 @@ fn empty_pagesift_config_disables_default_files() {
         "doctor did not report the disable switch:\n{stdout}"
     );
 }
+
+/// 共享服务的配置文件里开了审计日志时，`doctor` 的自检抓取不能写进去（每次都是一条误报）。
+#[test]
+fn doctor_does_not_write_the_audit_log() {
+    let dir = tempfile::tempdir().unwrap();
+    let log = dir.path().join("audit.jsonl");
+    let config = dir.path().join("audit.toml");
+    std::fs::write(
+        &config,
+        format!("[audit]\npath = {:?}\n", log.to_str().unwrap()),
+    )
+    .unwrap();
+
+    let output = Command::new(bin())
+        .args(["--config", config.to_str().unwrap(), "doctor"])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("network"), "doctor did not run:\n{stdout}");
+    let written = std::fs::read_to_string(&log).unwrap_or_default();
+    assert!(written.is_empty(), "doctor wrote the audit log:\n{written}");
+}

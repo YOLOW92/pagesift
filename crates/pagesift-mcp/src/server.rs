@@ -273,11 +273,14 @@ impl McpServer {
     }
 
     /// 处理一个已判定代际的请求。`notify` 用于发送和该请求相关的通知（进度）。
+    /// `session_client` 是旧版会话在 `initialize` 时报的 `clientInfo`：旧版的 `tools/call`
+    /// 不再带它；请求自己的 `_meta` 里有（新版）时以请求为准。
     pub(crate) async fn dispatch(
         &self,
         req: Request,
         era: Era,
         notify: Option<UnboundedSender<Value>>,
+        session_client: Option<Value>,
     ) -> Response {
         let id = req.id.clone();
         let outcome = match (era, req.method.as_str()) {
@@ -285,7 +288,7 @@ impl McpServer {
             (Era::Legacy(_), "ping") => Ok(json!({})),
             (Era::Modern(_), "server/discover") => Ok(self.discover()),
             (_, "tools/list") => self.list_tools(&req),
-            (_, "tools/call") => self.call_tool(&req, notify).await,
+            (_, "tools/call") => self.call_tool(&req, notify, session_client).await,
             (_, m) => Err(ErrorObject::method_not_found(m)),
         };
         match outcome {
@@ -345,6 +348,7 @@ impl McpServer {
         &self,
         req: &Request,
         notify: Option<UnboundedSender<Value>>,
+        session_client: Option<Value>,
     ) -> Result<Value, ErrorObject> {
         let params = jsonrpc::params_object(req.params.as_ref())?;
         let Some(Value::String(name)) = params.get("name") else {
@@ -380,7 +384,8 @@ impl McpServer {
             notify,
             client_info: meta
                 .and_then(|m| m.get(protocol::META_CLIENT_INFO))
-                .cloned(),
+                .cloned()
+                .or(session_client),
         };
         let output = match AssertUnwindSafe(handler.call(args, ctx))
             .catch_unwind()
@@ -395,6 +400,11 @@ impl McpServer {
         };
         Ok(output.to_json())
     }
+}
+
+/// 旧版 `initialize` 里的 `clientInfo`（[`McpServer::initialize`] 已校验过），由传输层存进会话。
+pub(crate) fn initialize_client_info(req: &Request) -> Option<Value> {
+    req.params.as_ref()?.get("clientInfo").cloned()
 }
 
 fn meta_of(req: &Request) -> Option<&Map<String, Value>> {
@@ -537,7 +547,7 @@ mod tests {
         let l = Era::Legacy("2025-11-25");
 
         let r = s
-            .dispatch(req("server/discover", modern(json!({}))), m, None)
+            .dispatch(req("server/discover", modern(json!({}))), m, None, None)
             .await;
         let v = r.payload.unwrap();
         assert_eq!(v["resultType"], "complete");
@@ -553,19 +563,21 @@ mod tests {
         );
 
         let v = s
-            .dispatch(req("tools/list", json!({})), l, None)
+            .dispatch(req("tools/list", json!({})), l, None, None)
             .await
             .payload
             .unwrap();
         assert_eq!(v["tools"][0]["name"], "echo");
         assert!(v.get("resultType").is_none());
 
-        let r = s.dispatch(req("ping", json!({})), m, None).await;
-        assert_eq!(r.payload.unwrap_err().code, jsonrpc::METHOD_NOT_FOUND);
-        let r = s.dispatch(req("server/discover", json!({})), l, None).await;
+        let r = s.dispatch(req("ping", json!({})), m, None, None).await;
         assert_eq!(r.payload.unwrap_err().code, jsonrpc::METHOD_NOT_FOUND);
         let r = s
-            .dispatch(req("tools/list", json!({"cursor": "x"})), l, None)
+            .dispatch(req("server/discover", json!({})), l, None, None)
+            .await;
+        assert_eq!(r.payload.unwrap_err().code, jsonrpc::METHOD_NOT_FOUND);
+        let r = s
+            .dispatch(req("tools/list", json!({"cursor": "x"})), l, None, None)
             .await;
         assert_eq!(r.payload.unwrap_err().code, jsonrpc::INVALID_PARAMS);
     }
@@ -577,7 +589,7 @@ mod tests {
         let call = |args: Value| req("tools/call", json!({"name": "echo", "arguments": args}));
 
         let v = s
-            .dispatch(call(json!({"text": "hi"})), l, None)
+            .dispatch(call(json!({"text": "hi"})), l, None, None)
             .await
             .payload
             .unwrap();
@@ -590,7 +602,7 @@ mod tests {
             (json!({}), "missing required property"),
             (json!({"text": 3}), "expected string"),
         ] {
-            let v = s.dispatch(call(args), l, None).await.payload.unwrap();
+            let v = s.dispatch(call(args), l, None, None).await.payload.unwrap();
             assert_eq!(v["isError"], true);
             assert!(
                 v["content"][0]["text"].as_str().unwrap().contains(needle),
@@ -599,7 +611,7 @@ mod tests {
         }
 
         let r = s
-            .dispatch(req("tools/call", json!({"name": "nope"})), l, None)
+            .dispatch(req("tools/call", json!({"name": "nope"})), l, None, None)
             .await;
         assert_eq!(r.payload.unwrap_err().code, jsonrpc::INVALID_PARAMS);
         let r = s
@@ -607,10 +619,13 @@ mod tests {
                 req("tools/call", json!({"name": "echo", "arguments": [1]})),
                 l,
                 None,
+                None,
             )
             .await;
         assert_eq!(r.payload.unwrap_err().code, jsonrpc::INVALID_PARAMS);
-        let r = s.dispatch(req("tools/call", json!({})), l, None).await;
+        let r = s
+            .dispatch(req("tools/call", json!({})), l, None, None)
+            .await;
         assert_eq!(r.payload.unwrap_err().code, jsonrpc::INVALID_PARAMS);
     }
 
@@ -624,6 +639,7 @@ mod tests {
             req("tools/call", p),
             Era::Legacy("2025-11-25"),
             Some(tx.clone()),
+            None,
         )
         .await;
         let n = rx.try_recv().unwrap();
@@ -631,8 +647,13 @@ mod tests {
         assert_eq!(n["params"]["progressToken"], "tok");
         // 没有 progressToken 就不发。
         let p = json!({"name": "echo", "arguments": {"text": "x"}});
-        s.dispatch(req("tools/call", p), Era::Legacy("2025-11-25"), Some(tx))
-            .await;
+        s.dispatch(
+            req("tools/call", p),
+            Era::Legacy("2025-11-25"),
+            Some(tx),
+            None,
+        )
+        .await;
         assert!(rx.try_recv().is_err());
     }
 }
