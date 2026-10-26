@@ -108,7 +108,7 @@ class Batch:
     def __aiter__(self) -> "Batch": ...
     def __anext__(self) -> Awaitable[Document]: ...
     def cancel(self) -> None:
-        """取消还没完成的抓取；已经完成的结果仍然可以取出。"""
+        """取消整批：未完成的抓取全部取消，之后迭代立即结束；已完成但还没取出的结果也丢弃。"""
 
 class Engine:
     def __init__(

@@ -5,6 +5,7 @@
 
 use std::future::Future;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -169,6 +170,7 @@ impl Engine {
         Ok(Batch {
             rx: Arc::new(tokio::sync::Mutex::new(rx)),
             tasks: Mutex::new(Some(tasks)),
+            cancelled: Arc::new(AtomicBool::new(false)),
             total,
         })
     }
@@ -194,7 +196,21 @@ pub struct Batch {
     rx: Arc<tokio::sync::Mutex<mpsc::UnboundedReceiver<Outcome>>>,
     /// 对象被丢弃或调用 `cancel()` 时，`JoinSet` 跟着释放，未完成的抓取全部取消。
     tasks: Mutex<Option<JoinSet<()>>>,
+    /// `cancel()` 之后迭代立即结束，取消前已完成、还没取出的结果一并丢弃。
+    cancelled: Arc<AtomicBool>,
     total: usize,
+}
+
+/// 取下一个结果；已取消时不再产出（通道里排着的也不要）。
+async fn next_outcome(
+    rx: &tokio::sync::Mutex<mpsc::UnboundedReceiver<Outcome>>,
+    cancelled: &AtomicBool,
+) -> Option<Outcome> {
+    if cancelled.load(Ordering::Acquire) {
+        return None;
+    }
+    let next = rx.lock().await.recv().await;
+    next.filter(|_| !cancelled.load(Ordering::Acquire))
 }
 
 #[pymethods]
@@ -209,8 +225,8 @@ impl Batch {
 
     /// 等待下一个完成的结果，期间释放 GIL。
     fn __next__(&self, py: Python<'_>) -> PyResult<Option<Document>> {
-        let rx = self.rx.clone();
-        let next = block_on(py, async move { rx.lock().await.recv().await })?;
+        let (rx, cancelled) = (self.rx.clone(), self.cancelled.clone());
+        let next = block_on(py, async move { next_outcome(&rx, &cancelled).await })?;
         Ok(next.map(Document::from))
     }
 
@@ -219,19 +235,26 @@ impl Batch {
     }
 
     fn __anext__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let rx = self.rx.clone();
+        let (rx, cancelled) = (self.rx.clone(), self.cancelled.clone());
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            match rx.lock().await.recv().await {
+            match next_outcome(&rx, &cancelled).await {
                 Some(o) => Ok(Document::from(o)),
                 None => Err(PyStopAsyncIteration::new_err(())),
             }
         })
     }
 
-    /// 取消还没完成的抓取；已经完成的结果仍然可以取出。
+    /// 取消整批：还没完成的抓取全部取消，之后迭代立即结束；取消前已完成、还没取出的结果也丢弃
+    /// （否则 `cancel()` 之后还会冒出几条结果，取决于取消那一刻恰好有几条刚完成）。
     fn cancel(&self) {
+        self.cancelled.store(true, Ordering::Release);
         if let Ok(mut t) = self.tasks.lock() {
             t.take();
+        }
+        // 没有人正在等结果时顺手清空通道；正在等的那一方醒来后看到取消标记，也不会产出。
+        if let Ok(mut rx) = self.rx.try_lock() {
+            rx.close();
+            while rx.try_recv().is_ok() {}
         }
     }
 }
