@@ -62,3 +62,23 @@ fn shallow_nesting_still_indented() {
     assert!(md.contains("- a\n  - b\n    - c"), "{md}");
     assert!(md.contains("> > q"), "{md}");
 }
+
+/// 一个 `<picture>` 下挂大量 `<img>` 时，每个 img 都把整个 picture 的子节点重扫一遍
+/// （160 万字节的页面 52 秒）。
+#[test]
+fn many_images_in_one_picture() {
+    let html = format!(
+        "<article><p>text</p><picture>{}{}</picture></article>",
+        "<source srcset=\"https://e.com/a.jpg 2x\">".repeat(20_000),
+        "<img src=\"https://e.com/b.jpg\">".repeat(20_000)
+    );
+    let opts = pagesift_content::Options {
+        images: true,
+        ..Default::default()
+    };
+    let t = Instant::now();
+    let doc = pagesift_content::process(&html, &opts);
+    let took = t.elapsed();
+    assert_eq!(doc.images.map(|i| i.len()), Some(1));
+    assert!(took < Duration::from_secs(2), "{took:?}");
+}

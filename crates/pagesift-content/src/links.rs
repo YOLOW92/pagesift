@@ -115,24 +115,37 @@ pub(crate) fn links(dom: &Html<'_>, base: Option<&Url>) -> Vec<Link> {
 pub(crate) fn images(dom: &Html<'_>, base: Option<&Url>) -> Vec<Image> {
     let mut seen = HashSet::new();
     let mut out = Vec::new();
+    // 同一个 <picture> 下 <source> 的最佳候选只算一次：一个 picture 里挂大量 img 时逐个重扫、
+    // 重新解析是平方复杂度（模糊测试找到：160 万字节的页面 52 秒）
+    type Best<'s> = Option<(&'s str, bool, f64)>;
+    let mut picture_best: Option<(pagesift_html::NodeId, Best<'_>)> = None;
     for node in dom.root().descendants() {
         let Some(el) = element(&node) else { continue };
         if el.name() != "img" || is_tracking_pixel(el) {
             continue;
         }
-        let mut sets: Vec<&str> = ["srcset", "data-srcset", "data-lazy-srcset"]
+        let sets: Vec<&str> = ["srcset", "data-srcset", "data-lazy-srcset"]
             .iter()
             .filter_map(|a| el.attr(a))
             .collect();
+        let mut best = best_candidate(&sets);
+        // img 自己的候选在前、picture 里 source 的在后
         if let Some(picture) = node.parent().filter(|p| tag(p) == Some("picture")) {
-            sets.extend(
-                picture
+            if picture_best.is_none_or(|(id, _)| id != picture.id()) {
+                let sources: Vec<&str> = picture
                     .children()
                     .filter(|c| tag(c) == Some("source"))
-                    .filter_map(|c| element(&c)?.attr("srcset")),
-            );
+                    .filter_map(|c| element(&c)?.attr("srcset"))
+                    .collect();
+                picture_best = Some((picture.id(), best_candidate(&sources)));
+            }
+            if let Some((_, from_sources)) = picture_best
+                && later_wins(best, from_sources)
+            {
+                best = from_sources;
+            }
         }
-        let largest = largest_candidate(&sets).and_then(|u| absolute(base, u));
+        let largest = best.and_then(|(u, _, _)| absolute(base, u));
         let src = ["src", "data-src", "data-lazy-src", "data-original"]
             .iter()
             .filter_map(|a| el.attr(a))
@@ -185,7 +198,20 @@ fn is_tracking_pixel(el: Element<'_>) -> bool {
 
 /// 按 HTML 规范解析 srcset，取宽度描述（`800w`）最大的；都没有宽度时取像素密度（`2x`）最大的。
 /// 跳过 data: URI。
+#[cfg(test)]
 fn largest_candidate<'a>(sets: &[&'a str]) -> Option<&'a str> {
+    best_candidate(sets).map(|(u, _, _)| u)
+}
+
+/// 候选项里（宽度描述符优先、数值大的优先）最大的第一个：(URL, 是否宽度描述符, 数值)。
+/// 比较是全序（NaN 按解析失败处理），所以分段求出的结果可以用 [`later_wins`] 合并。
+fn best_candidate<'a>(sets: &[&'a str]) -> Option<(&'a str, bool, f64)> {
+    let parse = |v: &str, default: f64| {
+        v.parse()
+            .ok()
+            .filter(|x: &f64| !x.is_nan())
+            .unwrap_or(default)
+    };
     let mut best: Option<(&str, bool, f64)> = None;
     for set in sets {
         for (url, desc) in srcset(set) {
@@ -193,22 +219,28 @@ fn largest_candidate<'a>(sets: &[&'a str]) -> Option<&'a str> {
                 continue;
             }
             let (is_w, value) = if let Some(w) = desc.strip_suffix('w') {
-                (true, w.parse().unwrap_or(0.0))
+                (true, parse(w, 0.0))
             } else if let Some(x) = desc.strip_suffix('x') {
-                (false, x.parse().unwrap_or(1.0))
+                (false, parse(x, 1.0))
             } else {
                 (false, 1.0)
             };
-            let better = match best {
-                None => true,
-                Some((_, bw, bv)) => (is_w, value) > (bw, bv) || (is_w && !bw),
-            };
-            if better {
-                best = Some((url, is_w, value));
+            let cand = Some((url, is_w, value));
+            if later_wins(best, cand) {
+                best = cand;
             }
         }
     }
-    best.map(|(u, _, _)| u)
+    best
+}
+
+/// 后出现的候选 `b` 是否胜过前面已选出的 `a`（严格更大才算，相同时保留先出现的）。
+fn later_wins(a: Option<(&str, bool, f64)>, b: Option<(&str, bool, f64)>) -> bool {
+    match (a, b) {
+        (_, None) => false,
+        (None, Some(_)) => true,
+        (Some((_, aw, av)), Some((_, bw, bv))) => (bw, bv) > (aw, av),
+    }
 }
 
 /// srcset 的候选项：URL 可以带逗号（如 `w_100,h_100`），候选项之间用"逗号加空白"分隔。
