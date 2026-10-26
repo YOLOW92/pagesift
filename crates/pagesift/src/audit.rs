@@ -76,6 +76,8 @@ pub struct Audit {
 const SUSPICIOUS_WARNINGS: &[&str] = &[
     "empty_content",
     "thin_content",
+    "partial_content",
+    "replies_omitted",
     "render_unavailable",
     "render_skipped_",
 ];

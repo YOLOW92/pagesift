@@ -12,6 +12,7 @@ mod article;
 mod barrier;
 mod classes;
 mod clean_html;
+mod coverage;
 mod dates;
 mod dom;
 mod editorial;
@@ -32,6 +33,7 @@ use pagesift_html::Html;
 use url::Url;
 
 pub use barrier::{Barrier, BarrierKind};
+pub use coverage::Coverage;
 #[doc(hidden)]
 pub use dates::{time_published, trace_published};
 pub use fingerprint::{Fingerprints, hash_hex};
@@ -94,6 +96,8 @@ pub struct Document {
     /// 全页图片。
     pub images: Option<Vec<Image>>,
     pub fingerprints: Option<Fingerprints>,
+    /// 正文完整度：结果可能只有正文一部分时给出警告（[`Coverage::warnings`]）。
+    pub coverage: Coverage,
 }
 
 /// Per-worker reusable allocations for the content pipeline. Keep one of
@@ -177,11 +181,15 @@ fn process_dom(
     //   2) 结构上不是明确的列表/卡片/链接墙（见 article::clearly_not_article）。
     // 只做排除不做确认：实测"确认像文章"会误杀大量真文章页（WebMainBench −0.039），
     // 而只排除明显的非文章页几乎不损失收益。
+    let mut root_in_comments = false;
     let article_shaped = !metadata.is_article && !article::clearly_not_article(dom, &skipper);
     let article = (opts.only_main_content
         && (metadata.is_article || article_shaped || try_article_everywhere())
         && !home)
-        .then(|| render_article(dom, &mut skipper, base.as_ref(), article_shaped))
+        .then(|| {
+            let comments = &mut root_in_comments;
+            render_article(dom, &mut skipper, base.as_ref(), article_shaped, comments)
+        })
         .flatten();
 
     // `unmarked_root` 是给没有文章标记的旧版式用的。它按"标题匹配 + 附近有成段文字"挑一个区域，
@@ -241,7 +249,9 @@ fn process_dom(
     let fingerprints = opts
         .fingerprints
         .then(|| fingerprint::compute(html, &markdown, plain_text.as_deref().unwrap_or_default()));
+    let coverage = coverage::measure(&body, &skipper, &markdown, root_in_comments);
     let document = Document {
+        coverage,
         html: opts
             .clean_html
             .then(|| clean_html::render(output_body, &skipper, base.as_ref())),
@@ -359,6 +369,7 @@ fn render_article(
     skipper: &mut extract::Skipper,
     base: Option<&Url>,
     shaped_only: bool,
+    in_comments: &mut bool,
 ) -> Option<String> {
     if skipper.is_relaxed() {
         // 默认规则已经放宽过：页面上可用的文字本来就少，不再收窄
@@ -433,6 +444,7 @@ fn render_article(
     if !bound_to_headline && (article_text as f64) < page_text as f64 * ARTICLE_MIN_DEFAULT_SHARE {
         return None;
     }
+    *in_comments = coverage::in_comments(&root.nodes, skipper, body.id());
     render_strict(skipper, base, Some(root))
 }
 

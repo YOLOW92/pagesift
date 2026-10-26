@@ -45,7 +45,7 @@
 - **正文不再误删**：食谱配料表等内容型 `<aside>` 会保留，`quickview`/`teaser` 预览块不再顶替正文。
 - **GitHub 代码页**：行号列丢弃，代码行合并进一个代码围栏。
 - **作者与元数据**：arXiv 作者行保留，`citation_author` 填入 `metadata.author`；`jsonLd` 原样透传。
-- **诚实信号**：德语/法语/西语拦截页归为 `ACCESS_BARRIER`，年龄门为 `interstitial`，过薄抽取给出 `thin_content`。
+- **诚实信号**：德语/法语/西语拦截页归为 `ACCESS_BARRIER`，年龄门为 `interstitial`，过薄抽取给出 `thin_content`，结果多半只有正文一部分时给出 `partial_content` 或 `replies_omitted`。
 - **Feed 与媒体**：RSS/Atom 解析成条目列表；图片保留 `title`；视频页用 `VideoObject` 补标题与简介。
 
 详见 [0.72.8 发行说明](releases/0.72.8.md)。

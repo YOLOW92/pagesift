@@ -305,6 +305,7 @@ impl Scraper {
         fill_metadata(&mut meta, &doc.metadata);
         fill_structured(&mut ext, &doc);
         fill_fingerprints(&mut ext, &doc);
+        warnings.extend(doc.coverage.warnings());
         let raw_bytes = Some(thin_basis_bytes(&html, &doc.markdown));
         let video_fallback = doc.metadata.video_fallback;
         let mut result = document(doc, opts, html);
@@ -566,6 +567,7 @@ impl Scraper {
                     .into(),
             );
         }
+        warnings.extend(r.doc.coverage.warnings());
         let raw_bytes = Some(thin_basis_bytes(&r.html, &r.doc.markdown));
         let video_fallback = r.doc.metadata.video_fallback;
         Ok(finish(

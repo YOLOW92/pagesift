@@ -45,7 +45,7 @@ La calidad se mantiene o mejora (WCXB F1 0,8522 → 0,8533; Firecrawl 0,680 → 
 - **El cuerpo no se pierde**: se conservan los `<aside>` de contenido (listas de ingredientes) y las vistas previas `quickview`/`teaser` ya no sustituyen al artículo.
 - **Páginas de código de GitHub**: se descarta la columna de números y las líneas se agrupan en un bloque de código.
 - **Autores y metadatos**: la línea de autores de arXiv se conserva y `citation_author` rellena `metadata.author`; `jsonLd` se expone tal cual.
-- **Señales honestas**: bloqueos en alemán/francés/español son `ACCESS_BARRIER`, las puertas de edad `interstitial` y la extracción escasa `thin_content`.
+- **Señales honestas**: bloqueos en alemán/francés/español son `ACCESS_BARRIER`, las puertas de edad `interstitial`, la extracción escasa `thin_content` y un resultado que probablemente solo tiene parte del texto principal lo indica con `partial_content` o `replies_omitted`.
 - **Feeds y medios**: RSS/Atom se convierten en listas de entradas; las imágenes conservan `title` y los vídeos usan `VideoObject` para título y descripción.
 
 Detalle: [notas de 0.72.8](releases/0.72.8.md).

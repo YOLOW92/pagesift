@@ -68,7 +68,8 @@ audit and the fifth-to-eighth-round field audits.
 - 👥 **Authors survive** — arXiv-style author lists stay in the body, and `citation_author`
   fills `metadata.author`.
 - 🧱 **Barriers say so** — German/French/Spanish block pages are `ACCESS_BARRIER`, age gates are
-  `interstitial`, and thin extraction emits `thin_content`.
+  `interstitial`, thin extraction emits `thin_content`, and a result that probably holds only part
+  of the main text says so with `partial_content` or `replies_omitted`.
 - 📡 **Feeds are parsed** — RSS/Atom become Markdown item lists; `jsonLd` is passed through.
 - 🖼️ **Image titles and video metadata** — `title` attributes are kept, and video pages fall
   back to their JSON-LD `VideoObject` instead of returning an empty document.
