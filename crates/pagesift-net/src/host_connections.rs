@@ -59,8 +59,6 @@ struct State {
     best_service_us: f64,
     window_samples: u32,
     window_failures: u32,
-    /// 窗口里因为慢而停放过的完成数。
-    window_slow: u32,
     window_saturated: bool,
     cooldown: u32,
     /// 最近完成的服务时间（微秒），环形缓冲。
@@ -68,14 +66,12 @@ struct State {
     next_sample: usize,
     /// 按 `samples` 算出的“慢”阈值（微秒）；样本不够时为 0，用调用方的上限。
     slow_after_us: u64,
-    /// 上一次有请求结束的时刻：排队的请求只有在这么久没有任何进展时才算“前面都是慢请求”。
+    /// 上一次有请求及时结束（没超过“慢”阈值）的时刻：排队的请求只有在这么久没有任何进展时
+    /// 才算“前面都是慢请求”。
     last_progress: tokio::time::Instant,
-    /// 源站持续慢（窗口里停放的比例高）：停放名额收紧到热连接目标，免得并发升到上限。
+    /// 延迟随负载上升（被压垮）：停放名额收紧到热连接目标，免得停放的请求让并发继续升到上限。
+    /// 只看延迟相对这个源站自己基线的变化，不看绝对值：一直很慢但和并发无关的源站不收紧。
     slow_limited: bool,
-    /// 排队太久而以停放身份放行的请求：每个“慢”阈值周期最多放行热连接目标个，
-    /// 冷启动时（还没有服务时间可参考）不会一下子把整个队列放到上限。
-    impatient_since: tokio::time::Instant,
-    impatient_count: usize,
 }
 
 impl State {
@@ -149,7 +145,6 @@ impl HostConnectionControl {
                 best_service_us: 0.0,
                 window_samples: 0,
                 window_failures: 0,
-                window_slow: 0,
                 window_saturated: false,
                 cooldown: 0,
                 samples: Vec::with_capacity(SAMPLES),
@@ -157,8 +152,6 @@ impl HostConnectionControl {
                 slow_after_us: 0,
                 last_progress: tokio::time::Instant::now(),
                 slow_limited: false,
-                impatient_since: tokio::time::Instant::now(),
-                impatient_count: 0,
             }),
             changed: Notify::new(),
         })
@@ -171,9 +164,9 @@ impl HostConnectionControl {
 
     /// 拿一个名额。`cap` 是“慢”阈值的上限（尾部阈值），实际阈值随这个源站的服务时间自适应
     /// （[`State::slow_after`]）。热连接目标满了就排队；排队期间这个源站超过一个“慢”阈值没有
-    /// 任何请求结束，说明占着名额的都是慢请求，这时以停放身份放行（受停放名额约束）：否则慢请求
-    /// 一代一代地释放名额，排在 N 个慢请求后面的快请求要等 N/目标 个阈值。有请求陆续结束的
-    /// 长队列（源站健康、只是排得长）不会因此放行，并发仍由热连接目标决定。
+    /// 任何请求及时结束，说明占着名额的都是慢请求，这时以停放身份放行（受停放名额约束）：否则
+    /// 慢请求一代一代地释放名额，排在 N 个慢请求后面的快请求要等 N/目标 个阈值。有请求陆续及时
+    /// 结束的长队列（源站健康、只是排得长）不会因此放行，并发仍由热连接目标决定。
     pub(crate) async fn acquire_within(self: &Arc<Self>, cap: Duration) -> HostPermit {
         let queued_at = tokio::time::Instant::now();
         loop {
@@ -182,15 +175,7 @@ impl HostConnectionControl {
                 let mut state = self.state.lock().expect("host connection lock poisoned");
                 let now = tokio::time::Instant::now();
                 let slow_after = state.slow_after(cap);
-                let mut impatient_at = queued_at.max(state.last_progress).checked_add(slow_after);
-                let next_period = state.impatient_since.checked_add(slow_after);
-                if next_period.is_some_and(|t| now >= t) {
-                    state.impatient_since = now;
-                    state.impatient_count = 0;
-                }
-                if state.impatient_count >= state.target {
-                    impatient_at = impatient_at.max(next_period);
-                }
+                let impatient_at = queued_at.max(state.last_progress).checked_add(slow_after);
                 let impatient = impatient_at.is_some_and(|t| now >= t);
                 let hot = state.active < state.target && state.active + state.parked < state.max;
                 // 停放的请求不占热连接名额，但仍算在安全上限里
@@ -202,7 +187,6 @@ impl HostConnectionControl {
                         }
                     } else {
                         state.parked += 1;
-                        state.impatient_count += 1;
                     }
                     return HostPermit {
                         control: self.clone(),
@@ -287,7 +271,11 @@ impl HostConnectionControl {
         } else {
             state.active = state.active.saturating_sub(1);
         }
-        state.last_progress = tokio::time::Instant::now();
+        // 没超过“慢”阈值就结束的请求才算进展：慢请求结束不能让排队者重新计时，
+        // 否则一直很慢的源站上排队的请求迟迟放不进来
+        if !slow {
+            state.last_progress = tokio::time::Instant::now();
+        }
         if outcome == HostOutcome::Neutral {
             drop(state);
             self.changed.notify_waiters();
@@ -303,9 +291,6 @@ impl HostConnectionControl {
         }
         if cancelled {
             state.cancelled += 1;
-        }
-        if slow {
-            state.window_slow += 1;
         }
         let elapsed_us = elapsed.as_secs_f64() * 1_000_000.0;
         state.service_ewma_us = ewma(state.service_ewma_us, elapsed_us);
@@ -348,19 +333,19 @@ impl HostConnectionControl {
                 return;
             }
             let error_rate = state.window_failures as f64 / state.window_samples as f64;
-            // 持续慢也是过载信号：一半以上的请求慢到要停放，和高失败率一样减半；
-            // 四分之一以上减一，并把停放名额收紧到热连接目标（否则停放的请求让并发升到上限）。
-            let slow_rate = state.window_slow as f64 / state.window_samples as f64;
-            state.slow_limited = slow_rate >= 0.25;
             // Sub-millisecond loopback samples are dominated by scheduler and
             // clock noise. Use service-time regression only once the signal is
             // large enough to be meaningful.
             let latency_regressed = state.best_service_us >= 1_000.0
                 && state.service_ewma_us > state.best_service_us * 1.50;
-            if error_rate >= 0.25 || slow_rate >= 0.5 {
+            // 延迟随负载上升才算过载（同 TCP Vegas、Scrapy AutoThrottle）：基线是这个源站
+            // 无错窗口里服务时间的最低值。过载时连停放名额一起收紧，否则停放的请求绕过热连接
+            // 目标、并发照样升到上限；延迟回到基线附近就解除。
+            state.slow_limited = latency_regressed;
+            if error_rate >= 0.25 {
                 state.target = (state.target / 2).max(1);
                 state.cooldown = WINDOW;
-            } else if error_rate > 0.05 || latency_regressed || slow_rate >= 0.25 {
+            } else if error_rate > 0.05 || latency_regressed {
                 state.target = state.target.saturating_sub(1).max(1);
                 state.cooldown = WINDOW / 2;
             } else if state.window_saturated && state.cooldown == 0 && state.target < state.max {
@@ -399,7 +384,7 @@ impl HostPermit {
     /// 热连接目标从 2 起步、攒够一个观察窗口才加一。慢请求一直占着名额的话，同一源站
     /// 后面的快请求要排到慢请求结束（批量抓取里快页面被 5 s 的慢页面拖住）。所以让它停放：
     /// 不再挤占热连接，但仍受 `max` 这个安全上限约束，结束时照常计入服务时间和结果。
-    /// 偶尔慢不算过载；一个窗口里停放的比例高（持续慢）才算，见 `complete`。可重复调用。
+    /// 慢本身不算过载；延迟随负载上升才算，见 `complete`。可重复调用。
     pub(crate) fn park(&mut self) {
         if !self.parked && !self.finished && self.control.park() {
             self.parked = true;
@@ -453,7 +438,6 @@ impl Drop for HostPermit {
 fn reset_window(state: &mut State) {
     state.window_samples = 0;
     state.window_failures = 0;
-    state.window_slow = 0;
     state.window_saturated = false;
 }
 

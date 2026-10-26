@@ -169,18 +169,38 @@ async fn a_long_queue_on_a_responsive_origin_is_not_admitted_as_parked() {
     }
 }
 
-#[tokio::test]
-async fn a_persistently_slow_origin_is_treated_as_overloaded() {
-    let control = HostConnectionControl::new(true, 32);
-    let cap = Duration::from_millis(20);
+async fn run_window(control: &Arc<HostConnectionControl>, cap: Duration, each: Duration) {
     for _ in 0..WINDOW {
         let p = control.acquire_within(cap).await;
-        tokio::time::sleep(Duration::from_millis(30)).await;
+        tokio::time::sleep(each).await;
         p.finish(HostOutcome::Success);
     }
-    let stats = control.stats("h".into());
-    assert_eq!(stats.hot_target, 1, "一个窗口全是慢请求：目标减半");
-    // 停放名额收紧到热连接目标：1 个热连接 + 1 个停放，再来的请求等多久都不放行
+}
+
+#[tokio::test]
+async fn a_constantly_slow_origin_keeps_its_concurrency() {
+    // 一直很慢、但延迟和负载无关：不算过载，目标不收缩，慢请求照常停放
+    let control = HostConnectionControl::new(true, 32);
+    let cap = Duration::from_millis(20);
+    run_window(&control, cap, Duration::from_millis(30)).await;
+    run_window(&control, cap, Duration::from_millis(30)).await;
+    assert_eq!(control.stats("h".into()).hot_target, 2);
+    let mut a = control.acquire_within(cap).await;
+    let mut b = control.acquire_within(cap).await;
+    a.park();
+    b.park();
+    assert!(a.parked && b.parked);
+    drop((a, b));
+}
+
+#[tokio::test]
+async fn latency_rising_with_load_is_treated_as_overloaded() {
+    // 延迟相对这个源站的基线明显上升：目标减一，停放名额收紧到热连接目标
+    let control = HostConnectionControl::new(true, 32);
+    let cap = Duration::from_millis(20);
+    run_window(&control, cap, Duration::from_millis(5)).await;
+    run_window(&control, cap, Duration::from_millis(30)).await;
+    assert_eq!(control.stats("h".into()).hot_target, 1);
     let mut a = control.acquire_within(cap).await;
     a.park();
     let mut b = control.acquire_within(cap).await;
@@ -194,4 +214,24 @@ async fn a_persistently_slow_origin_is_treated_as_overloaded() {
             .is_err()
     );
     drop((a, b));
+}
+
+#[tokio::test]
+async fn slow_completions_do_not_reset_the_queue_patience() {
+    // 慢请求结束不算进展：一直很慢的源站上，排队的请求照样在一个阈值后以停放身份放行
+    let control = HostConnectionControl::new(true, 32);
+    let cap = Duration::from_millis(200);
+    let t = Instant::now();
+    let a = control.acquire_within(cap).await;
+    let _b = control.acquire_within(cap).await;
+    tokio::time::sleep(Duration::from_millis(210)).await;
+    let (c1, c2) = (control.clone(), control.clone());
+    let w1 = tokio::spawn(async move { c1.acquire_within(cap).await });
+    let w2 = tokio::spawn(async move { c2.acquire_within(cap).await });
+    tokio::time::sleep(Duration::from_millis(90)).await;
+    a.finish(HostOutcome::Success); // 300 ms：慢请求结束，空出一个热连接
+    let (p1, p2) = (w1.await.unwrap(), w2.await.unwrap());
+    // 排队从 210 ms 起算，410 ms 前后放行；若慢请求结束也重新计时要等到 500 ms
+    assert!(t.elapsed() < Duration::from_millis(470), "{:?}", t.elapsed());
+    assert!(p1.parked != p2.parked, "一个拿到空出的热连接，一个以停放身份放行");
 }
