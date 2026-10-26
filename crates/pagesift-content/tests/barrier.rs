@@ -155,6 +155,19 @@ fn geo_block_page() {
 }
 
 #[test]
+fn forbidden_status_with_little_text() {
+    // 没有任何已知特征、措辞各不相同的拒绝页：403 加上文字很少就是拦截页
+    let html = r#"<html><head><title>Example Store</title></head><body><p>Example.com is not available to
+customers who are located outside of the supported regions. We apologize for any inconvenience.</p></body></html>"#;
+    let b = detect(html, Some(403)).expect("403 page");
+    assert_eq!((b.vendor, b.kind, b.rule_id), ("generic", BarrierKind::Block, "status.403"));
+    // 同样的页面 200 时不算；403 但正文很长的也不算
+    assert_eq!(detect(html, Some(200)), None);
+    let long = format!("<html><body><article>{}</article></body></html>", prose(60));
+    assert_eq!(detect(&long, Some(403)), None);
+}
+
+#[test]
 fn unsupported_client_page() {
     let html = r#"<html><head><title>Unsupported client – Example</title></head><body><h1>Please update your browser</h1>
 <p>It seems you are using an old or unsupported browser. To continue, please update to a recent version of one of the following browsers:</p>

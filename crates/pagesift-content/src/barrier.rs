@@ -44,7 +44,7 @@ pub struct Barrier {
     pub kind: BarrierKind,
     /// 0 到 1。
     pub confidence: f32,
-    /// 决定结果的那条规则（`barrier.rs` 里规则表的 id），或者 `status.401`。
+    /// 决定结果的那条规则（`barrier.rs` 里规则表的 id），或者 `status.401`、`status.403`。
     pub rule_id: &'static str,
 }
 
@@ -375,12 +375,18 @@ pub(crate) fn detect(
             .total_cmp(&base_score(b.signal))
             .then((a.vendor != "generic").cmp(&(b.vendor != "generic")))
     }) else {
-        // 401 本身就是"需要登录"
-        return (status == Some(401) && visible <= PHRASE_MAX_CHARS * factor).then_some(Barrier {
+        // 没有特征时只看状态码（文字也很少时）：401 本身就是"需要登录"；403 是服务器拒绝
+        // 提供内容（RFC 9110 §15.5.4），各家 WAF、地区封锁换着措辞写，状态码是共同的
+        let (kind, rule_id) = match status {
+            Some(401) => (LoginWall, "status.401"),
+            Some(403) => (Block, "status.403"),
+            _ => return None,
+        };
+        return (visible <= PHRASE_MAX_CHARS * factor).then_some(Barrier {
             vendor: "generic",
-            kind: LoginWall,
+            kind,
             confidence: 0.6,
-            rule_id: "status.401",
+            rule_id,
         });
     };
     let mut score = base_score(primary.signal);
