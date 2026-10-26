@@ -1508,7 +1508,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-fuzz"
-version = "0.73.1"
+version = "0.80.0"
 dependencies = [
  "pagesift-content",
  "pagesift-html",

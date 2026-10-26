@@ -9,8 +9,8 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
-pagesift-content = { path = "../pagesift-content" }
-pagesift-html = { path = "../pagesift-html" }
-pagesift-net = { path = "../pagesift-net" }
-pagesift-pdf = { path = "../pagesift-pdf" }
+pagesift-content = { version = "0.80.0", path = "../pagesift-content" }
+pagesift-html = { version = "0.80.0", path = "../pagesift-html" }
+pagesift-net = { version = "0.80.0", path = "../pagesift-net" }
+pagesift-pdf = { version = "0.80.0", path = "../pagesift-pdf" }
 url = "2.5.8"

@@ -32,6 +32,15 @@ speed and memory do not regress. See [the release notes](docs/releases/0.80.0.md
 - `pagesift doctor` wrote an audit record and snapshot of its self-test.
 - PDF: the last body lines of some pages were removed as footers when chart labels skewed the
   line spacing; a CFF encoding supplement was read from the wrong offset.
+- HTML tree construction checked against html5lib-tests: `</script>` inside `<!--<script>`,
+  unclosed `<select>`, `--!>`, `<template>` and table/foreign-content scoping now follow the spec.
+- Hangs and blow-ups found by fuzzing: unmatched `[` in Markdown escaping, deeply nested lists and
+  quotes, `<picture>` with many images, nested `<header>`, `:nth-child` over many siblings, PDF
+  object streams with shared offsets, PDF text at huge coordinates, `stream` without `endstream`.
+
+### Development
+- `pagesift-fuzz` (not published) and `scripts/fuzz.sh`: a stable-toolchain mutation fuzzer for
+  HTML, Markdown, charset detection and PDF. Date, MPD and XML parsers have table-driven tests.
 
 ## [0.73.1] — 2026-10-26
 
