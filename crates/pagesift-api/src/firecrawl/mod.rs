@@ -4,10 +4,12 @@
 pub mod batch;
 pub mod crawl;
 pub mod map;
+pub mod parse;
 pub mod scrape;
 pub mod search;
 
 use axum::Router;
+use axum::extract::DefaultBodyLimit;
 use axum::routing::{get, post};
 
 use crate::server::AppState;
@@ -17,6 +19,10 @@ pub fn firecrawl_routes() -> Router<AppState> {
     Router::new()
         // Firecrawl v2 API endpoints
         .route("/v2/scrape", post(scrape::scrape))
+        .route(
+            "/v2/parse",
+            post(parse::parse).layer(DefaultBodyLimit::max(parse::MAX_PARSE_BODY_BYTES)),
+        )
         .route("/v2/batch/scrape", post(batch::batch_start))
         .route(
             "/v2/batch/scrape/{id}",

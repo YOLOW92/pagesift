@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crate::error::ApiError;
 use crate::types::{
     CrawlRequest, CrawlSummary, Document, ExtractRequest, MapLink, MapRequest, ScrapeOptions,
-    SearchRequest,
+    SearchRequest, Upload,
 };
 use serde_json::Value;
 
@@ -19,6 +19,20 @@ pub trait Engine: Send + Sync + 'static {
         url: &'a str,
         opts: &'a ScrapeOptions,
     ) -> BoxFuture<'a, Result<Document, ApiError>>;
+
+    /// `/v2/parse`：解析调用方上传的文件（PDF、HTML），返回和 scrape 相同的文档。
+    /// `opts` 已经过 [`crate::check_parse_options`] 校验。
+    fn parse<'a>(
+        &'a self,
+        _file: Upload,
+        _opts: &'a ScrapeOptions,
+    ) -> BoxFuture<'a, Result<Document, ApiError>> {
+        Box::pin(async {
+            Err(ApiError::unsupported(
+                "parse is not available in this build",
+            ))
+        })
+    }
 
     fn map<'a>(&'a self, _req: &'a MapRequest) -> BoxFuture<'a, Result<Vec<MapLink>, ApiError>> {
         Box::pin(async { Err(ApiError::unsupported("map is not available in this build")) })

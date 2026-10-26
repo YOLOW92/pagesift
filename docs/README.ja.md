@@ -168,6 +168,14 @@ res = app.scrape_url("https://example.com", params={"formats": ["markdown"]})
 print(res["markdown"])
 ```
 
+#### ファイルのアップロード解析（`/v2/parse`）
+ローカルや非公開の PDF・HTML ファイルを URL に置かずにそのまま解析できます。Firecrawl 互換の multipart 形式、上限 50 MB、応答は `/v2/scrape` と同じです（[詳細](parse-api.md)）：
+
+```bash
+curl -s http://localhost:3002/v2/parse -H 'Authorization: Bearer sk-test' \
+  -F file=@report.pdf -F 'options={"formats":["markdown"]}'
+```
+
 #### Jina Reader の差し替え
 任意の LLM エージェントや curl からダイレクトに呼び出し：
 

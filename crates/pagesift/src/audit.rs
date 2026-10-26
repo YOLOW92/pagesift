@@ -115,6 +115,33 @@ impl Audit {
         raw_html: Option<&str>,
         elapsed: Duration,
     ) {
+        let rec = self.scrape_record(kind, url, opts, result, raw_html, elapsed);
+        self.write(&rec);
+    }
+
+    /// 记一次上传文件解析（`/v2/parse`）：`name` 是 `upload:<文件名>`，另记文件大小；不存快照。
+    pub(crate) fn record_parse(
+        &self,
+        name: &str,
+        file_bytes: usize,
+        opts: &ScrapeOptions,
+        result: &Result<Document, ApiError>,
+        elapsed: Duration,
+    ) {
+        let mut rec = self.scrape_record("parse", name, opts, result, None, elapsed);
+        rec["fileBytes"] = json!(file_bytes);
+        self.write(&rec);
+    }
+
+    fn scrape_record(
+        &self,
+        kind: &str,
+        url: &str,
+        opts: &ScrapeOptions,
+        result: &Result<Document, ApiError>,
+        raw_html: Option<&str>,
+        elapsed: Duration,
+    ) -> Value {
         let mut rec = self.base(kind);
         rec["url"] = json!(self.clean_url(url));
         rec["engineRequested"] = json!(opts.engine.as_deref().unwrap_or("auto"));
@@ -191,7 +218,7 @@ impl Audit {
                 rec["snapshot"] = json!(path.display().to_string());
             }
         }
-        self.write(&rec);
+        rec
     }
 
     /// 调用方（MCP 的 `report_issue`）报告的问题，和抓取记录写进同一个日志。
