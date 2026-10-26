@@ -11,14 +11,17 @@ speed and memory do not regress. See [the release notes](docs/releases/0.80.0.md
 - `POST /v2/parse`: Firecrawl-compatible `multipart/form-data` upload of PDF and HTML files (up to
   50 MB); same response as `/v2/scrape`. See [docs/parse-api.md](docs/parse-api.md).
 - Content warnings `partial_content` (article mode kept under 30% of the page's body text) and
-  `replies_omitted` (forum replies dropped as comments).
+  `replies_omitted` (forum replies dropped as comments), and `comments_omitted` (the page's
+  comments were left out; not counted as lost content).
 - PDF headings from the structure tree (`H1`–`H6`, `H`, `Title`, `/RoleMap`) and bookmarks
   (`/Outlines`, named destinations), with inference from numbering, size and bold as fallback.
 - PDF vector-figure detection: text inside a chart is one raw block, not a table or a heading.
   Scatter plots are recognised by their grid lines.
 - pagesift-html: `Html::parse_with` and `ParseOptions` (fragment parsing with a context element,
   parsing with scripting off).
-- Block-page rules for Imperva challenges, ByteDance WAF challenges and "unsupported browser" pages.
+- Block-page rules for Imperva and Akamai Bot Manager challenges, ByteDance WAF challenges,
+  incident-number and region-block pages, "unsupported browser" pages, and 403 responses with
+  little visible text.
 
 ### Changed
 - pagesift-pdf has its own file layer (xref tables and streams, object streams, filters,
