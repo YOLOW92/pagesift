@@ -73,7 +73,7 @@ impl Client {
             port,
         };
         let control = self.0.host_control(&key);
-        let mut lifecycle = Some(control.acquire().await);
+        let mut lifecycle = Some(control.acquire_within(Some(self.0.tail_threshold)).await);
         let mut stage = None;
         let path = match url.query() {
             Some(q) => format!("{}?{q}", url.path()),

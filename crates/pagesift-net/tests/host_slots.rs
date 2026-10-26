@@ -20,17 +20,18 @@ async fn slow_requests_do_not_block_fast_ones_on_the_same_origin() {
                 ..Default::default()
             },
             dns: FakeDns::new(&[]),
-            tail_threshold: Duration::from_millis(200),
+            tail_threshold: Duration::from_millis(500),
             first_byte_timeout: Duration::from_secs(20),
-            max_connections_per_host: 8,
+            max_connections_per_host: 16,
             ..Default::default()
         })
         .unwrap(),
     );
 
-    // 热连接目标从 2 起步：3 个慢请求先占满
+    // 热连接目标从 2 起步：7 个慢请求排在前面。按名额一代代释放（每个阈值放 2 个）
+    // 快请求要等 4 个阈值；排队方等满一个阈值就放行，与前面有几个慢请求无关
     let mut slow = tokio::task::JoinSet::new();
-    for _ in 0..3 {
+    for _ in 0..7 {
         let (f, url) = (fetcher.clone(), srv.url("/slow"));
         slow.spawn(async move { f.fetch(FetchRequest::new(url)).await });
     }
@@ -45,16 +46,14 @@ async fn slow_requests_do_not_block_fast_ones_on_the_same_origin() {
     .expect("fast request waited behind slow ones")
     .unwrap();
     assert_eq!(r.status, 200);
-    // 慢请求过了尾部阈值（200 ms）就让出名额
-    assert!(t.elapsed() < Duration::from_secs(2), "{:?}", t.elapsed());
+    assert!(t.elapsed() < Duration::from_millis(1500), "{:?}", t.elapsed());
 
     let stats = fetcher.host_connection_stats();
     let s = stats
         .iter()
         .find(|s| s.origin.ends_with(&srv.addr.to_string()))
         .unwrap();
-    // 第三个慢请求在第一个停放后才拿到名额，这时可能还没到自己的阈值
-    assert!(s.parked >= 2 && s.active + s.parked == 3, "{s:?}");
+    assert!(s.active <= 2 && s.active + s.parked == 7, "{s:?}");
     slow.abort_all();
 }
 

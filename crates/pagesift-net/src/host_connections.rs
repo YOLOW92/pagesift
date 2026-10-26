@@ -99,16 +99,32 @@ impl HostConnectionControl {
         })
     }
 
+    #[cfg(test)]
     pub(crate) async fn acquire(self: &Arc<Self>) -> HostPermit {
+        self.acquire_within(None).await
+    }
+
+    /// 拿一个名额。热连接目标满了就排队；排队超过 `patience`（尾部阈值）还没轮到，说明前面
+    /// 占着名额的都是慢请求，这时以停放身份放行（仍受 `max` 约束）：否则慢请求一代一代地
+    /// 释放名额，排在 N 个慢请求后面的快请求要等 N/目标 个阈值。
+    pub(crate) async fn acquire_within(self: &Arc<Self>, patience: Option<Duration>) -> HostPermit {
+        let give_up_at = patience.and_then(|p| tokio::time::Instant::now().checked_add(p));
         loop {
             let notified = self.changed.notified();
             {
                 let mut state = self.state.lock().expect("host connection lock poisoned");
+                let below_max = state.active + state.parked < state.max;
+                let impatient = give_up_at.is_some_and(|t| tokio::time::Instant::now() >= t);
                 // 停放的请求不占热连接名额，但仍算在安全上限里
-                if state.active < state.target && state.active + state.parked < state.max {
-                    state.active += 1;
-                    if state.active == state.target {
-                        state.window_saturated = true;
+                if below_max && (state.active < state.target || impatient) {
+                    let parked = state.active >= state.target;
+                    if parked {
+                        state.parked += 1;
+                    } else {
+                        state.active += 1;
+                        if state.active == state.target {
+                            state.window_saturated = true;
+                        }
                     }
                     return HostPermit {
                         control: self.clone(),
@@ -116,11 +132,19 @@ impl HostConnectionControl {
                         reused: false,
                         connect_time: None,
                         finished: false,
-                        parked: false,
+                        parked,
                     };
                 }
             }
-            notified.await;
+            match give_up_at {
+                Some(t) if tokio::time::Instant::now() < t => {
+                    tokio::select! {
+                        _ = notified => {}
+                        _ = tokio::time::sleep_until(t) => {}
+                    }
+                }
+                _ => notified.await,
+            }
         }
     }
 
@@ -434,5 +458,30 @@ mod tests {
         drop((b, c, d));
         let stats = control.stats("h".into());
         assert_eq!((stats.active, stats.parked), (0, 0));
+    }
+
+    #[tokio::test]
+    async fn impatient_waiters_are_admitted_as_parked_within_the_ceiling() {
+        let control = HostConnectionControl::new(true, 4);
+        let patience = Some(Duration::from_millis(50));
+        let _a = control.acquire().await;
+        let _b = control.acquire().await;
+        // 前面两个一直不结束：等满耐心后以停放身份放行，两个一起，不分代
+        let t = Instant::now();
+        let (c, d) = tokio::join!(
+            control.acquire_within(patience),
+            control.acquire_within(patience)
+        );
+        assert!(t.elapsed() < Duration::from_millis(500));
+        assert!(c.parked && d.parked);
+        // 已到上限 4：再等多久也不放行
+        assert!(
+            tokio::time::timeout(Duration::from_millis(200), control.acquire_within(patience))
+                .await
+                .is_err()
+        );
+        drop((c, d));
+        let stats = control.stats("h".into());
+        assert_eq!((stats.active, stats.parked), (2, 0));
     }
 }
