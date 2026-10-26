@@ -33,7 +33,8 @@ pub(crate) fn entries(doc: &Document, pages: &[ObjectId]) -> Vec<Entry> {
     let Some(Object::Dictionary(root)) = catalog.get(b"Outlines").map(|o| deref(doc, o)) else {
         return out;
     };
-    let page_index: HashMap<ObjectId, usize> = pages.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+    let page_index: HashMap<ObjectId, usize> =
+        pages.iter().enumerate().map(|(i, &id)| (id, i)).collect();
     let mut seen = HashSet::new();
     // (节点, 层级)；兄弟和子节点都用显式栈，不递归
     let mut stack: Vec<(&Object, u8)> = Vec::new();
@@ -62,12 +63,17 @@ pub(crate) fn entries(doc: &Document, pages: &[ObjectId]) -> Vec<Entry> {
             stack.push((first, level + 1));
         }
         let title = match item.get(b"Title").map(|o| deref(doc, o)) {
-            Some(Object::String(s, _)) => text_string(s).split_whitespace().collect::<Vec<_>>().join(" "),
+            Some(Object::String(s, _)) => text_string(s)
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" "),
             _ => String::new(),
         };
         let dest = item.get(b"Dest").map(|o| deref(doc, o)).or_else(|| {
             match item.get(b"A").map(|o| deref(doc, o)) {
-                Some(Object::Dictionary(a)) if a.get(b"S").and_then(Object::as_name) == Some(b"GoTo") => {
+                Some(Object::Dictionary(a))
+                    if a.get(b"S").and_then(Object::as_name) == Some(b"GoTo") =>
+                {
                     a.get(b"D").map(|o| deref(doc, o))
                 }
                 _ => None,
@@ -77,7 +83,12 @@ pub(crate) fn entries(doc: &Document, pages: &[ObjectId]) -> Vec<Entry> {
             .and_then(|d| resolve_dest(doc, catalog, d))
             .map(|arr| target(doc, arr, &page_index))
             .unwrap_or((None, None));
-        out.push(Entry { title, level, page, top });
+        out.push(Entry {
+            title,
+            level,
+            page,
+            top,
+        });
     }
     out
 }
@@ -90,7 +101,11 @@ fn catalog<'a>(doc: &'a Document) -> Option<&'a Dictionary> {
 }
 
 /// 目标解析成数组：名字（Name 或 String）先查表；值可能是 `<< /D [...] >>`。
-fn resolve_dest<'a>(doc: &'a Document, catalog: &'a Dictionary, dest: &'a Object) -> Option<&'a [Object]> {
+fn resolve_dest<'a>(
+    doc: &'a Document,
+    catalog: &'a Dictionary,
+    dest: &'a Object,
+) -> Option<&'a [Object]> {
     let found: &Object = match dest {
         Object::Array(a) => return Some(a),
         Object::Name(n) => match catalog.get(b"Dests").map(|o| deref(doc, o)) {
@@ -111,7 +126,11 @@ fn resolve_dest<'a>(doc: &'a Document, catalog: &'a Dictionary, dest: &'a Object
 }
 
 /// `/Names /Dests` 名称树：按 /Limits 剪枝往下找。
-fn name_tree_lookup<'a>(doc: &'a Document, catalog: &'a Dictionary, key: &[u8]) -> Option<&'a Object> {
+fn name_tree_lookup<'a>(
+    doc: &'a Document,
+    catalog: &'a Dictionary,
+    key: &[u8],
+) -> Option<&'a Object> {
     let names = match deref(doc, catalog.get(b"Names")?) {
         Object::Dictionary(d) => d,
         _ => return None,
@@ -127,8 +146,10 @@ fn name_tree_lookup<'a>(doc: &'a Document, catalog: &'a Dictionary, key: &[u8]) 
             continue;
         };
         if let Some(Object::Array(lim)) = n.get(b"Limits").map(|o| deref(doc, o))
-            && let (Some(Object::String(lo, _)), Some(Object::String(hi, _))) =
-                (lim.first().map(|o| deref(doc, o)), lim.get(1).map(|o| deref(doc, o)))
+            && let (Some(Object::String(lo, _)), Some(Object::String(hi, _))) = (
+                lim.first().map(|o| deref(doc, o)),
+                lim.get(1).map(|o| deref(doc, o)),
+            )
             && (key < lo.as_slice() || key > hi.as_slice())
         {
             continue;
@@ -151,7 +172,11 @@ fn name_tree_lookup<'a>(doc: &'a Document, catalog: &'a Dictionary, key: &[u8]) 
 }
 
 /// 目标数组 `[页 /XYZ left top zoom]`、`[页 /FitH top]`、`[页 /FitR l b r t]` ……
-fn target(doc: &Document, arr: &[Object], page_index: &HashMap<ObjectId, usize>) -> (Option<usize>, Option<f64>) {
+fn target(
+    doc: &Document,
+    arr: &[Object],
+    page_index: &HashMap<ObjectId, usize>,
+) -> (Option<usize>, Option<f64>) {
     let page = match arr.first() {
         Some(Object::Reference(id)) => page_index.get(id).copied(),
         // 远程目标或写错的文件用页序号

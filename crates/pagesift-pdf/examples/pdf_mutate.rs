@@ -7,7 +7,10 @@ fn main() {
     let mut args = std::env::args().skip(1);
     let list = args.next().expect("usage: pdf_mutate <list> <n> [seed]");
     let n: usize = args.next().and_then(|s| s.parse().ok()).unwrap_or(5);
-    let mut seed: u64 = args.next().and_then(|s| s.parse().ok()).unwrap_or(0x9E37_79B9_7F4A_7C15);
+    let mut seed: u64 = args
+        .next()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0x9E37_79B9_7F4A_7C15);
     let mut rand = move || {
         seed ^= seed << 13;
         seed ^= seed >> 7;
@@ -43,7 +46,11 @@ fn main() {
             println!("BEGIN {path} #{k}");
             let t = Instant::now();
             let r = pagesift_pdf::fuzzing::extract_unguarded(&b, &opts);
-            println!("END {path} #{k} {:.1} ms {}", t.elapsed().as_secs_f64() * 1000.0, r.is_ok());
+            println!(
+                "END {path} #{k} {:.1} ms {}",
+                t.elapsed().as_secs_f64() * 1000.0,
+                r.is_ok()
+            );
         }
     }
 }

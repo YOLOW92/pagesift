@@ -87,12 +87,13 @@ pub(crate) fn prose(t: &Table) -> bool {
     lower / n > 0.25 || words / n > 4.0 || cjk / n > 0.25 || leader
 }
 
-/// 三线表检测（横向范围相近、上下对齐的横线组合）。
+/// 三线表检测（横向范围相近、上下对齐的横线组合）。`accept` 再核对一遍候选的片段。
 pub(crate) fn ruled_only(
     h: &[HEdge],
     frags: &[Line],
     used: &mut [bool],
     page_width: f64,
+    accept: &mut dyn FnMut(&[usize]) -> bool,
 ) -> Vec<Table> {
     let long: Vec<&HEdge> = h
         .iter()
@@ -124,7 +125,8 @@ pub(crate) fn ruled_only(
             let mut found = None;
             for b in (a + 1..group.len()).rev() {
                 let (top, bottom) = (long[group[a]].y, long[group[b]].y);
-                if let Some(t) = region(frags, used, x0, x1, top, bottom) {
+                if let Some(t) = region(frags, used, x0, x1, top, bottom).filter(|(_, m)| accept(m))
+                {
                     found = Some((b, t));
                     break;
                 }

@@ -36,10 +36,22 @@ fn many_shapes_on_one_page() {
     for i in 0..60_000 {
         let x = (i % 300) as f64 * 2.0;
         let y = (i / 300) as f64 * 3.5;
-        let _ = write!(c, "{x} {y} 1 {} re f {x} {y} m {} {} l S ", 1 + i % 7, x + 1.5, y + 2.0);
+        let _ = write!(
+            c,
+            "{x} {y} 1 {} re f {x} {y} m {} {} l S ",
+            1 + i % 7,
+            x + 1.5,
+            y + 2.0
+        );
     }
     for i in 0..400 {
-        c.push_str(&line("F1", 6.0, (i % 20) as f64 * 30.0, (i / 20) as f64 * 35.0, "12.5"));
+        c.push_str(&line(
+            "F1",
+            6.0,
+            (i % 20) as f64 * 30.0,
+            (i / 20) as f64 * 35.0,
+            "12.5",
+        ));
     }
     assert_bounded("many_shapes", &Builder::new(vec![Page::text(c)]).build());
 }
@@ -53,7 +65,13 @@ fn dense_ruled_grid() {
         let _ = write!(c, "0 {p} m 760 {p} l S {p} 0 m {p} 760 l S ");
     }
     for i in 0..3000 {
-        c.push_str(&line("F1", 1.0, (i % 60) as f64 * 12.6 + 0.3, (i / 60) as f64 * 15.0 + 0.3, "7"));
+        c.push_str(&line(
+            "F1",
+            1.0,
+            (i % 60) as f64 * 12.6 + 0.3,
+            (i / 60) as f64 * 15.0 + 0.3,
+            "7",
+        ));
     }
     assert_bounded("dense_grid", &Builder::new(vec![Page::text(c)]).build());
 }
@@ -86,6 +104,8 @@ fn huge_structure_tree() {
     }
     let tree = doc.add_object(dictionary! { "Type" => "StructTreeRoot", "K" => kids });
     let root = doc.trailer.get(b"Root").unwrap().as_reference().unwrap();
-    doc.get_dictionary_mut(root).unwrap().set("StructTreeRoot", tree);
+    doc.get_dictionary_mut(root)
+        .unwrap()
+        .set("StructTreeRoot", tree);
     assert_bounded("huge_struct_tree", &common::save(doc));
 }

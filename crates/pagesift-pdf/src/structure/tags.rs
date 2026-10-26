@@ -36,7 +36,8 @@ pub(crate) fn headings(doc: &Document, pages: &[ObjectId]) -> Option<HeadingMcid
         Some(Object::Dictionary(d)) => Some(d),
         _ => None,
     };
-    let page_index: HashMap<ObjectId, usize> = pages.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+    let page_index: HashMap<ObjectId, usize> =
+        pages.iter().enumerate().map(|(i, &id)| (id, i)).collect();
     let mut out: HeadingMcids = vec![HashMap::new(); pages.len()];
     let mut found = false;
     let mut seen: HashSet<ObjectId> = HashSet::new();
@@ -86,12 +87,19 @@ pub(crate) fn headings(doc: &Document, pages: &[ObjectId]) -> Option<HeadingMcid
                         if d.get(b"Stm").is_none()
                             && let Some(mcid) = d.get(b"MCID")
                         {
-                            stack.push(Frame { node: mcid, page, ..f });
+                            stack.push(Frame {
+                                node: mcid,
+                                page,
+                                ..f
+                            });
                         }
                     }
                     Some(b"OBJR") => {}
                     _ => {
-                        let role = d.get(b"S").and_then(Object::as_name).map(|s| standard(doc, role_map, s));
+                        let role = d
+                            .get(b"S")
+                            .and_then(Object::as_name)
+                            .map(|s| standard(doc, role_map, s));
                         let (heading, sects) = match role.as_deref() {
                             Some(b"Sect") => (f.heading, f.sects.saturating_add(1)),
                             Some(r) => match heading_level(r, f.sects) {
@@ -104,7 +112,12 @@ pub(crate) fn headings(doc: &Document, pages: &[ObjectId]) -> Option<HeadingMcid
                             None => (f.heading, f.sects),
                         };
                         if let Some(k) = d.get(b"K") {
-                            stack.push(Frame { node: k, page, heading, sects });
+                            stack.push(Frame {
+                                node: k,
+                                page,
+                                heading,
+                                sects,
+                            });
                         }
                     }
                 }
@@ -135,9 +148,31 @@ fn is_standard(name: &[u8]) -> bool {
     heading_level(name, 0).is_some()
         || matches!(
             name,
-            b"Document" | b"Part" | b"Art" | b"Sect" | b"Div" | b"P" | b"L" | b"LI" | b"Lbl" | b"LBody"
-                | b"Table" | b"TR" | b"TH" | b"TD" | b"Figure" | b"Caption" | b"Span" | b"Link"
-                | b"TOC" | b"TOCI" | b"Note" | b"Reference" | b"Quote" | b"Code" | b"Formula"
+            b"Document"
+                | b"Part"
+                | b"Art"
+                | b"Sect"
+                | b"Div"
+                | b"P"
+                | b"L"
+                | b"LI"
+                | b"Lbl"
+                | b"LBody"
+                | b"Table"
+                | b"TR"
+                | b"TH"
+                | b"TD"
+                | b"Figure"
+                | b"Caption"
+                | b"Span"
+                | b"Link"
+                | b"TOC"
+                | b"TOCI"
+                | b"Note"
+                | b"Reference"
+                | b"Quote"
+                | b"Code"
+                | b"Formula"
         )
 }
 

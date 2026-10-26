@@ -106,7 +106,9 @@ fn remove_page_furniture(lines: &mut Vec<Line>, h: f64) {
     // 正文行距只拿正文行量：相邻两行字号都接近正文、而且在同一栏（水平方向有重叠）。
     // 图表里密集的坐标标签会把全页的行距中位数拉低，正文的最后一行就被当成孤立的页脚
     let span = |r: &Vec<usize>| {
-        r.iter().fold((f64::MAX, f64::MIN), |(a, b), &i| (a.min(lines[i].x0), b.max(lines[i].x1)))
+        r.iter().fold((f64::MAX, f64::MIN), |(a, b), &i| {
+            (a.min(lines[i].x0), b.max(lines[i].x1))
+        })
     };
     let body_row = |r: &Vec<usize>| (row_size(r) - body).abs() <= body * 0.08;
     let text_gaps: Vec<f64> = rows
@@ -121,7 +123,10 @@ fn remove_page_furniture(lines: &mut Vec<Line>, h: f64) {
     let mut gaps: Vec<f64> = if text_gaps.len() >= 3 {
         text_gaps
     } else {
-        rows.windows(2).map(|w| row_y(&w[0]) - row_y(&w[1])).filter(|g| *g > 0.0).collect()
+        rows.windows(2)
+            .map(|w| row_y(&w[0]) - row_y(&w[1]))
+            .filter(|g| *g > 0.0)
+            .collect()
     };
     gaps.sort_by(f64::total_cmp);
     let line_gap = gaps
@@ -201,7 +206,11 @@ fn remove_artifacts(lines: &mut Vec<Line>) {
         return;
     }
     // 正文字号：按字数加权的中位数
-    let mut sizes: Vec<(f64, usize)> = lines.iter().filter(|l| !l.raw).map(|l| (l.size, chars(l))).collect();
+    let mut sizes: Vec<(f64, usize)> = lines
+        .iter()
+        .filter(|l| !l.raw)
+        .map(|l| (l.size, chars(l)))
+        .collect();
     sizes.sort_by(|a, b| a.0.total_cmp(&b.0));
     let half = sizes.iter().map(|s| s.1).sum::<usize>() / 2;
     let mut acc = 0;
@@ -285,7 +294,10 @@ fn remove_repeated_furniture(pages: &mut [Vec<Line>], heights: &[f64]) {
             if g.iter().any(|&i| lines[i].keep || lines[i].hint.is_some()) {
                 continue;
             }
-            if is_page_number(&k.1) || counts.get(k).copied().unwrap_or(0) >= need || folios.contains(&(p, r)) {
+            if is_page_number(&k.1)
+                || counts.get(k).copied().unwrap_or(0) >= need
+                || folios.contains(&(p, r))
+            {
                 for &i in g {
                     drop[i] = true;
                 }
@@ -313,7 +325,11 @@ fn running_folios(pages: &[Vec<Line>], all_rows: &[EdgeRows]) -> HashSet<(usize,
             }
             let mut g = g.clone();
             g.sort_by(|&a, &b| pages[p][a].x0.total_cmp(&pages[p][b].x0));
-            let raw: String = g.iter().map(|&i| pages[p][i].text.as_str()).collect::<Vec<_>>().join(" ");
+            let raw: String = g
+                .iter()
+                .map(|&i| pages[p][i].text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ");
             let raw = raw.trim();
             let digits: String = if text.starts_with("# ") {
                 raw.chars().take_while(char::is_ascii_digit).collect()
@@ -321,8 +337,12 @@ fn running_folios(pages: &[Vec<Line>], all_rows: &[EdgeRows]) -> HashSet<(usize,
                 let rev: String = raw.chars().rev().take_while(char::is_ascii_digit).collect();
                 rev.chars().rev().collect()
             };
-            let Ok(num) = digits.parse::<i64>() else { continue };
-            seen.entry((k.0, text)).or_default().push((p, r, num - p as i64));
+            let Ok(num) = digits.parse::<i64>() else {
+                continue;
+            };
+            seen.entry((k.0, text))
+                .or_default()
+                .push((p, r, num - p as i64));
         }
     }
     let mut out = HashSet::new();

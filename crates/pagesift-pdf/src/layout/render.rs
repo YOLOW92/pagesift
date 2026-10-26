@@ -30,7 +30,11 @@ fn numbered_line(
     let rest = rest.trim();
     // 单个字母的编号只认附录常用的 A–F，而且后面不能有逗号：`M. Franko, 2/15/2018` 是姓名缩写
     if style == Style::Letter(1)
-        && (!line.text.trim_start().starts_with(['A', 'B', 'C', 'D', 'E', 'F']) || rest.contains(','))
+        && (!line
+            .text
+            .trim_start()
+            .starts_with(['A', 'B', 'C', 'D', 'E', 'F'])
+            || rest.contains(','))
     {
         return None;
     }
@@ -43,7 +47,11 @@ fn numbered_line(
         return None;
     }
     let cjk = rest.chars().filter(|&c| is_cjk(c)).count() * 2 > rest.chars().count();
-    let long = if cjk { rest.chars().count() > 40 } else { rest.split_whitespace().count() > 14 };
+    let long = if cjk {
+        rest.chars().count() > 40
+    } else {
+        rest.split_whitespace().count() > 14
+    };
     let whole_line = matches!(style, Style::Lenticular | Style::Angle);
     let wrapped = line.x1 >= right - 2.0 * line.size
         && next.is_some_and(|n| {
@@ -186,7 +194,13 @@ pub(crate) fn paragraphs(blocks: Vec<Vec<Line>>) -> Vec<Para> {
         let mut prev_numbered = false;
         let mut first_in_block = true;
         for (li, line) in b.iter().enumerate() {
-            let numbered = numbered_line(line, li.checked_sub(1).and_then(|k| b.get(k)), prev_numbered, b.get(li + 1), right);
+            let numbered = numbered_line(
+                line,
+                li.checked_sub(1).and_then(|k| b.get(k)),
+                prev_numbered,
+                b.get(li + 1),
+                right,
+            );
             if line.raw {
                 if let Some(para) = cur.take() {
                     out.push(para);
@@ -211,24 +225,26 @@ pub(crate) fn paragraphs(blocks: Vec<Vec<Line>>) -> Vec<Para> {
                 continue;
             }
             // 编号标题行单独成段：前后都断开（解决标题和下一行正文粘连）
-            let brk = numbered.is_some() || prev_numbered || match prev {
-                None => true,
-                Some(p) => {
-                    let gap = p.y - line.y;
-                    let s = p.size.max(line.size);
-                    let ratio = line.size / p.size;
-                    let short = p.x1 < right - (3.0 * p.size).max(0.15 * (right - left));
-                    !(0.87..=1.15).contains(&ratio)
-                        || line.hint != p.hint
-                        || line.group != p.group
-                        || line.bold != p.bold
-                        || gap > leading_ratio * s * 1.35
-                        || gap < -0.3 * s
-                        || is_bullet_start(&line.text)
-                        || (line.x0 > left + 0.8 * line.size && p.x0 <= left + 0.5 * p.size)
-                        || (short && (ends_terminal(&p.text) || line.x0 < p.x0 - 0.8 * s))
-                }
-            };
+            let brk = numbered.is_some()
+                || prev_numbered
+                || match prev {
+                    None => true,
+                    Some(p) => {
+                        let gap = p.y - line.y;
+                        let s = p.size.max(line.size);
+                        let ratio = line.size / p.size;
+                        let short = p.x1 < right - (3.0 * p.size).max(0.15 * (right - left));
+                        !(0.87..=1.15).contains(&ratio)
+                            || line.hint != p.hint
+                            || line.group != p.group
+                            || line.bold != p.bold
+                            || gap > leading_ratio * s * 1.35
+                            || gap < -0.3 * s
+                            || is_bullet_start(&line.text)
+                            || (line.x0 > left + 0.8 * line.size && p.x0 <= left + 0.5 * p.size)
+                            || (short && (ends_terminal(&p.text) || line.x0 < p.x0 - 0.8 * s))
+                    }
+                };
             if brk {
                 if let Some(para) = cur.take() {
                     out.push(para);
@@ -297,14 +313,31 @@ fn caption_or_folio(text: &str) -> bool {
     let head = t.char_indices().nth(24).map_or(t, |(i, _)| &t[..i]);
     let lower = head.to_lowercase();
     let words = [
-        "figure", "fig.", "fig ", "table", "chart", "exhibit", "listing", "algorithm", "graph",
-        "annex figure", "annex table", "online annex", "panel",
+        "figure",
+        "fig.",
+        "fig ",
+        "table",
+        "chart",
+        "exhibit",
+        "listing",
+        "algorithm",
+        "graph",
+        "annex figure",
+        "annex table",
+        "online annex",
+        "panel",
     ];
     for w in words {
         if let Some(rest) = lower.strip_prefix(w) {
             let rest = rest.trim_start();
-            if rest.chars().next().is_some_and(|c| c.is_ascii_digit() || c.is_ascii_uppercase())
-                || head.get(head.len().saturating_sub(rest.len())..).and_then(|r| r.chars().next()).is_some_and(|c| c.is_ascii_uppercase())
+            if rest
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_digit() || c.is_ascii_uppercase())
+                || head
+                    .get(head.len().saturating_sub(rest.len())..)
+                    .and_then(|r| r.chars().next())
+                    .is_some_and(|c| c.is_ascii_uppercase())
             {
                 return true;
             }
@@ -313,7 +346,9 @@ fn caption_or_folio(text: &str) -> bool {
     for w in ["図表", "図", "表", "グラフ", "参考図表"] {
         if let Some(rest) = t.strip_prefix(w) {
             let rest = rest.trim_start();
-            if rest.chars().next().is_some_and(|c| c.is_ascii_digit() || ('０'..='９').contains(&c) || c == '（' || c == '(') {
+            if rest.chars().next().is_some_and(|c| {
+                c.is_ascii_digit() || ('０'..='９').contains(&c) || c == '（' || c == '('
+            }) {
                 return true;
             }
         }
@@ -379,19 +414,25 @@ pub(crate) fn render(pages: &[Vec<Para>], mode: Mode) -> (Vec<String>, String) {
         if is_heading_size(p) {
             return true;
         }
-        let one_line = p.lines == 1 && p.size >= page_body.min(body) * 0.95 && p.text.chars().any(char::is_alphabetic);
+        let one_line = p.lines == 1
+            && p.size >= page_body.min(body) * 0.95
+            && p.text.chars().any(char::is_alphabetic);
         let bold = p.bold
             && !body_bold
             && one_line
             && p.text.chars().count() <= 80
-            && !p.text.ends_with(['.', ',', ';', ':', '。', '，', '；', '：'])
+            && !p
+                .text
+                .ends_with(['.', ',', ';', ':', '。', '，', '；', '：'])
             && next.is_none_or(|n| n.x0 >= p.x0 - 0.5 * p.size);
         let numbered = p.numbered.is_some() && one_line && p.text.chars().count() <= 120;
         bold || numbered
     };
     // 相邻两段都是同一种编号、中间没有正文：这是列表，不是标题（只影响单靠编号判出的）
     let in_list = |ps: &[Para], i: usize| -> bool {
-        let Some(style) = ps[i].numbered else { return false };
+        let Some(style) = ps[i].numbered else {
+            return false;
+        };
         let same = |j: usize| ps.get(j).is_some_and(|q| q.numbered == Some(style));
         same(i + 1) || (i > 0 && same(i - 1))
     };
@@ -399,7 +440,11 @@ pub(crate) fn render(pages: &[Vec<Para>], mode: Mode) -> (Vec<String>, String) {
     let mut is_cand: Vec<Vec<bool>> = Vec::with_capacity(pages.len());
     for ps in pages {
         let has_body_text = ps.iter().any(|p| !p.raw && (p.size - body).abs() < 0.75);
-        let page_body = if has_body_text { body } else { body_size(ps).unwrap_or(body) };
+        let page_body = if has_body_text {
+            body
+        } else {
+            body_size(ps).unwrap_or(body)
+        };
         let mut row = Vec::with_capacity(ps.len());
         for (i, p) in ps.iter().enumerate() {
             let h = mode == Mode::Infer
@@ -442,7 +487,10 @@ pub(crate) fn render(pages: &[Vec<Para>], mode: Mode) -> (Vec<String>, String) {
     // 只有编号的标题（`CHAPTER 2`、`C.`）：版式上常把章号和章名分两行排，逻辑上是一个标题。
     // 下一段也是标题就并进去，否则不当标题（不输出空标题）
     // 只复制真要改的页
-    let label_only = |p: &Para, k: Kind| matches!(k, Kind::Heading(_)) && crate::structure::strip_numbering(&p.text).trim().is_empty();
+    let label_only = |p: &Para, k: Kind| {
+        matches!(k, Kind::Heading(_))
+            && crate::structure::strip_numbering(&p.text).trim().is_empty()
+    };
     let mut kinds = kinds;
     let mut owned: Vec<Cow<'_, [Para]>> = Vec::with_capacity(pages.len());
     for (ps, ks) in pages.iter().zip(kinds.iter_mut()) {

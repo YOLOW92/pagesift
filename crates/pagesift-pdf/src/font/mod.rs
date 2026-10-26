@@ -438,7 +438,9 @@ fn is_bold(doc: &Document, base_font: &str, descriptor: Option<&Dictionary>) -> 
         || family.starts_with("cmbx")
         || family.starts_with("sfbx")
         || family.contains("midashi")
-        || ["w6", "w7", "w8", "w9"].iter().any(|w| name.ends_with(w) || name.contains(&format!("-{w}")))
+        || ["w6", "w7", "w8", "w9"]
+            .iter()
+            .any(|w| name.ends_with(w) || name.contains(&format!("-{w}")))
     {
         return true;
     }

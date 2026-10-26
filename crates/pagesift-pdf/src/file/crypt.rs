@@ -94,12 +94,14 @@ impl Crypt {
             };
             // R=4 而密钥不足 128 位时，Acrobat 先用 0 补到 16 字节再算每个对象的密钥（规范没写；
             // pdf.js issue 19484 / PR 19555 同样处理）
-            ctx.user_key(&[]).or_else(|| ctx.owner_key(&[])).map(|mut k| {
-                if r == 4 && k.len() < 16 {
-                    k.resize(16, 0);
-                }
-                k
-            })
+            ctx.user_key(&[])
+                .or_else(|| ctx.owner_key(&[]))
+                .map(|mut k| {
+                    if r == 4 && k.len() < 16 {
+                        k.resize(16, 0);
+                    }
+                    k
+                })
         };
         let named = match encrypt.get(b"CF") {
             Some(Object::Dictionary(cf)) => {
@@ -431,7 +433,12 @@ mod tests {
     /// R=4、40 位 RC4（pdf.js issue19484_1 的加密字典）：空口令校验通过，文件密钥补到 16 字节。
     #[test]
     fn r4_short_key_is_padded_to_16_bytes() {
-        let hex = |s: &str| (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap()).collect::<Vec<u8>>();
+        let hex = |s: &str| {
+            (0..s.len())
+                .step_by(2)
+                .map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap())
+                .collect::<Vec<u8>>()
+        };
         let mut cf = Dictionary::default();
         let mut std_cf = Dictionary::default();
         std_cf.push(b"CFM".to_vec(), Object::Name(b"V2".to_vec()));
@@ -449,8 +456,14 @@ mod tests {
         e.push(b"StrF".to_vec(), Object::Name(b"StdCF".to_vec()));
         let o = hex("8a1dae2eb45c5cc580269a1e4a4bbee55881274b427f3f92465ecbea7bff2334");
         let u = hex("7f995c2cf48b82990a16f1d52f34ea5400000000000000000000000000000000");
-        e.push(b"O".to_vec(), Object::String(o, super::super::StringFormat::Literal));
-        e.push(b"U".to_vec(), Object::String(u, super::super::StringFormat::Literal));
+        e.push(
+            b"O".to_vec(),
+            Object::String(o, super::super::StringFormat::Literal),
+        );
+        e.push(
+            b"U".to_vec(),
+            Object::String(u, super::super::StringFormat::Literal),
+        );
         let c = Crypt::open(&e, &hex("061046f3e5aef840af0a1519dae542b6")).expect("空口令应能打开");
         assert_eq!(c.key.len(), 16);
         assert!(c.key[5..].iter().all(|&b| b == 0));
