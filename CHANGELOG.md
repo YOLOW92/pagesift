@@ -33,6 +33,9 @@ speed and memory do not regress. See [the release notes](docs/releases/0.80.0.md
   a first byte held the host's hot-connection slots; past the tail threshold they now give them up.
 - MCP audit records showed `client: unknown` for clients that send `clientInfo` only in `initialize`.
 - `pagesift doctor` wrote an audit record and snapshot of its self-test.
+- Browsers left behind when the pagesift process was killed with SIGKILL (or by the OOM killer, or
+  crashed) kept running with their `/tmp/pagesift-cdp-*` profiles; the next pagesift process that
+  starts a browser now reaps them.
 - PDF: the last body lines of some pages were removed as footers when chart labels skewed the
   line spacing; a CFF encoding supplement was read from the wrong offset.
 - PDF false tables: a ruled grid with text in only one column (a text box) and rows of labels on
