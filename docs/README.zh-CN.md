@@ -15,6 +15,7 @@
 [![npm](https://img.shields.io/npm/v/@pagesift/node.svg)](https://www.npmjs.com/package/@pagesift/node)
 [![2亿合成任务](https://img.shields.io/badge/200M%20Synthetic-947%2C611%20p%2Fs-blue.svg)](releases/0.70.0.md)
 [![768 MiB cgroup](https://img.shields.io/badge/768%20MiB%20cgroup-Zero%20OOM-success.svg)](releases/0.70.0.md)
+[![Discord](https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white)](https://discord.gg/esA3wMZVvA)
 
 [English](../README.md) · **简体中文** · [日本語](README.ja.md) · [Español](README.es.md)
 
@@ -292,6 +293,12 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 - **选择性渲染管线 (Selective Rendering Pipeline)**：智能预判页面动静形态，仅当客户端水合带来显著正文增益时才调用无头 Chromium。
 - **SSRF 深度沙箱防护**：内置严格私有 IP 段过滤、DNS-Rebinding 免疫防线，默认拦截私有网段目标（设计目标，有测试覆盖，未经第三方审计）。
 - **RFC 规范自适应礼貌机制**：单域名自适应令牌桶退避、全自动 robots.txt 解析与合规声明。
+
+---
+
+## 社区
+
+有问题或反馈，欢迎加入 [Discord](https://discord.gg/esA3wMZVvA)。即将开放的托管 API 内测（尚未上线）也会在那里发布消息。
 
 ---
 

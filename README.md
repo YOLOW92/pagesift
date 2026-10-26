@@ -16,6 +16,7 @@ Turn any website, document, or archive into clean Markdown and structured data �
 [![200M Saturation](https://img.shields.io/badge/200M%20Synthetic-947%2C611%20p%2Fs-blue.svg)](#whats-new-in-0700)
 [![768 MiB cgroup](https://img.shields.io/badge/768%20MiB%20cgroup-Zero%20OOM-success.svg)](#whats-new-in-0700)
 [![M8ven Score](https://m8ven.ai/badge/mcp/yolow92-pagesift-0ygyrw)](https://m8ven.ai/mcp/yolow92-pagesift-0ygyrw?s=readme)
+[![Discord](https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white)](https://discord.gg/esA3wMZVvA)
 
 **English** · [简体中文](docs/README.zh-CN.md) · [日本語](docs/README.ja.md) · [Español](docs/README.es.md)
 
@@ -317,6 +318,12 @@ Shared browsers and cache, an audit line per fetch, HTML snapshots of suspicious
 - **Selective Rendering Pipeline:** Automatically detects static vs dynamic pages; executes headless Chrome *only* when dynamic JavaScript hydration provides net content gains.
 - **SSRF & Sandbox Defense:** Strict private IP filtering, DNS-rebinding guards, and perpetual browser sandboxing block private-range targets by default (design goals, covered by tests; not an audit).
 - **Ethical Politeness:** Per-host token buckets, automatic robots.txt compliance, and RFC-compliant User-Agent identification.
+
+---
+
+## Community
+
+Questions or feedback? Join us on [Discord](https://discord.gg/esA3wMZVvA). The upcoming hosted API (closed beta coming soon, not yet open) will be discussed there too.
 
 ---
 
