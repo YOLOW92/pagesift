@@ -67,6 +67,7 @@ fn normalize(html: &str) -> Cow<'_, str> {
     Cow::Owned(out)
 }
 
+mod end;
 mod format;
 mod tags;
 mod tokenize;
