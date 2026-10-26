@@ -263,7 +263,13 @@ jobs:
         run: |
           npm ci
           npx napi artifacts --output-dir ../../artifacts
-          npm publish --access public
+          # 主包发布时会先由 prepublishOnly 发平台包；主包已在就说明这一版 npm 已经发完（重跑发布时跳过）
+          version=$(node -p "require('./package.json').version")
+          if [ "$(npm view "@pagesift/node@$version" version 2>/dev/null)" = "$version" ]; then
+            echo "@pagesift/node $version is already published."
+          else
+            npm publish --access public
+          fi
           node scripts/publish_wrapper.mjs
       - name: Publish GitHub release after all distributions succeed
         env:
