@@ -26,44 +26,25 @@ fn script_tag_at(b: &[u8], i: usize, closing: bool) -> bool {
             .is_some_and(|&c| is_ws(c) || c == b'/' || c == b'>')
 }
 
-/// 从 `i` 开始的第一个 `</script` 结束标签。
-fn next_close(b: &[u8], mut i: usize) -> Option<usize> {
-    let finder = memchr::memmem::Finder::new(b"</");
-    while let Some(off) = finder.find(&b[i..]) {
-        let lt = i + off;
-        if script_tag_at(b, lt, true) {
-            return Some(lt);
-        }
-        i = lt + 2;
-    }
-    None
-}
-
 /// 从 `start` 开始找结束脚本的 `</script` 的位置；找不到返回 `None`（剩下的全是脚本）。
 pub(super) fn end(b: &[u8], start: usize) -> Option<usize> {
     let mut state = State::Data;
     let mut i = start;
-    // 结束标签候选只会往后移：缓存起来，`<!---->` 反复出现时不重复扫描（否则是平方复杂度）
-    let mut cached: Option<Option<usize>> = None;
     loop {
         if state == State::Data {
-            // 普通状态：先找结束标签的候选（和其他 raw text 元素一样用 memmem 跳着找），
-            // 只在这一段里查有没有 `<!--`
-            let close = match cached {
-                Some(c) if c.is_none_or(|c| c >= i) => c,
-                _ => next_close(b, i),
-            };
-            cached = Some(close);
-            let limit = close.unwrap_or(b.len());
-            match memchr::memmem::find(&b[i..limit], b"<!--") {
-                None => return close,
-                Some(off) => {
-                    state = State::Escaped;
-                    // `<!-->`、`<!--->` 里开头的两个 `-` 和后面的 `>` 也构成 `-->`
-                    i += off + 2;
-                    continue;
-                }
+            // 普通状态：一遍找 `<`，就地判断是结束标签还是 `<!--`
+            i += memchr::memchr(b'<', &b[i..])?;
+            if script_tag_at(b, i, true) {
+                return Some(i);
             }
+            if b[i..].starts_with(b"<!--") {
+                state = State::Escaped;
+                // `<!-->`、`<!--->` 里开头的两个 `-` 和后面的 `>` 也构成 `-->`
+                i += 2;
+            } else {
+                i += 1;
+            }
+            continue;
         }
         i += memchr::memchr2(b'<', b'-', &b[i..])?;
         match (state, b[i]) {

@@ -9,16 +9,10 @@ impl<'a> Builder<'a> {
         self.scratch.clear();
         let tag = self.tag_of(name);
         // 外部内容里的 `</p>`、`</br>` 跳出 SVG/MathML，按 HTML 规则处理
-        if matches!(tag, Tag::P | Tag::Br) {
+        if self.in_foreign() && matches!(tag, Tag::P | Tag::Br) {
             while self.in_foreign() {
                 self.pop();
             }
-        }
-        // 列组里只能有 `<col>`：别的结束标签先关掉列组
-        if self.current_is(Tag::Colgroup)
-            && !matches!(tag, Tag::Colgroup | Tag::Col | Tag::Template)
-        {
-            self.pop();
         }
         // 外部内容：按名字（不分大小写）在外部元素里找，碰到 HTML 元素就按 HTML 规则处理
         if self.stack.last().is_some_and(|o| o.ns != Ns::Html) {
@@ -50,6 +44,12 @@ impl<'a> Builder<'a> {
             }
             self.pop();
             return;
+        }
+        // 列组里只能有 `<col>`：别的结束标签先关掉列组
+        if self.current_is(Tag::Colgroup)
+            && !matches!(tag, Tag::Colgroup | Tag::Col | Tag::Template)
+        {
+            self.pop();
         }
         use Tag::*;
         match self.mode {

@@ -10,10 +10,6 @@ impl<'a> Builder<'a> {
     pub(super) fn start_tag(&mut self, name: (usize, usize), self_closing: bool) -> Next {
         self.skip_lf = false;
         let tag = self.tag_of(name);
-        // 外部内容优先于插入模式（head 里的 template 中也可能有 SVG）
-        if self.in_foreign() {
-            return self.body_start_tag(tag, name, self_closing);
-        }
         if self.mode == Mode::Initial {
             if tag == Tag::Html {
                 self.ensure_html();
@@ -42,7 +38,10 @@ impl<'a> Builder<'a> {
                 _ => self.ensure_head(),
             }
         }
-        if self.mode == Mode::InHead && self.in_template() && self.head_element_tag(tag).is_none() {
+        // 外部内容优先于插入模式（head 里的 template 中也可能有 SVG）
+        if self.mode == Mode::InHead
+            && (self.in_foreign() || self.in_template() && self.head_element_tag(tag).is_none())
+        {
             return self.body_start_tag(tag, name, self_closing);
         }
         if self.mode == Mode::InHead {
@@ -170,24 +169,6 @@ impl<'a> Builder<'a> {
         // 列组里只能有 `<col>`（和 template）：别的标签先关掉列组，再按表格的规则处理
         if self.current_is(Tag::Colgroup) && !matches!(tag, Tag::Col | Tag::Template) {
             self.pop();
-        }
-        // 表格里的 select（规范的 “in select in table”）：表格结构标签先关掉 select
-        if matches!(
-            tag,
-            Tag::Caption
-                | Tag::Table
-                | Tag::Tbody
-                | Tag::Tfoot
-                | Tag::Thead
-                | Tag::Tr
-                | Tag::Td
-                | Tag::Th
-        ) && let Some(i) = self.in_scope(Tag::Select, Scope::Default)
-            && self.stack[..i]
-                .iter()
-                .any(|o| o.tag == Tag::Table && o.ns == Ns::Html)
-        {
-            self.pop_to(i);
         }
         if self.in_foreign() {
             let font_breaks = tag == Tag::Font
@@ -353,6 +334,7 @@ impl<'a> Builder<'a> {
                 self.insert_html(tag, name);
             }
             Table => {
+                self.close_select_in_table();
                 let in_table = self
                     .current()
                     .is_some_and(|o| o.ns == Ns::Html && table_context(o.tag));
@@ -364,6 +346,9 @@ impl<'a> Builder<'a> {
                 self.insert(tag, name, Ns::Html, true, false);
             }
             Caption | Colgroup | Col | Tbody | Thead | Tfoot | Tr | Td | Th => {
+                if tag != Colgroup && tag != Col {
+                    self.close_select_in_table();
+                }
                 self.table_part(tag, name)
             }
             Option | Optgroup => {

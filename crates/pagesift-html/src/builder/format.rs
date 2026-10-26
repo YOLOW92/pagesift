@@ -210,6 +210,17 @@ impl<'a> Builder<'a> {
         }
     }
 
+    /// 表格里的 select（规范的 “in select in table”）：表格结构标签先关掉 select。
+    pub(super) fn close_select_in_table(&mut self) {
+        if let Some(i) = self.in_scope(Tag::Select, Scope::Default)
+            && self.stack[..i]
+                .iter()
+                .any(|o| o.tag == Tag::Table && o.ns == Ns::Html)
+        {
+            self.pop_to(i);
+        }
+    }
+
     /// 规范的 “generate implied end tags”，`except` 那种元素不关。
     pub(super) fn implied_end_tags(&mut self, except: Option<Tag>) {
         while let Some(o) = self.current() {
