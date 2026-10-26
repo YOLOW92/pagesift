@@ -67,16 +67,29 @@ pub(crate) fn is_author_list(el: Element<'_>) -> bool {
 /// 只给辅助技术看的文字（`VisuallyHidden`、`sr-only`、`screen-reader-text`）。正文模式里
 /// 这些文字对普通读者不可见，常常是"Repository navigation"这类区块标题。
 pub(crate) fn is_visually_hidden(el: Element<'_>) -> bool {
-    el.attr("class").is_some_and(|class| {
-        [
-            "visuallyhidden",
-            "visually-hidden",
-            "sr-only",
-            "screen-reader-text",
-            "screenreader",
-        ]
-        .iter()
-        .any(|needle| contains_ascii_ci(class, needle))
+    const NEEDLES: [&str; 5] = [
+        "visuallyhidden",
+        "visually-hidden",
+        "sr-only",
+        "screen-reader-text",
+        "screenreader",
+    ];
+    el.attr("class")
+        .is_some_and(|class| contains_any_ascii_ci(class, &NEEDLES))
+}
+
+/// `needles`（小写 ASCII）里有任何一个是 `haystack` 的子串（ASCII 大小写不敏感）。只扫一遍：
+/// 在首字母相同的位置才比较，等价于对每个词调用 [`contains_ascii_ci`]。`skip()` 对每个元素都调用。
+pub(crate) fn contains_any_ascii_ci(haystack: &str, needles: &[&str]) -> bool {
+    let h = haystack.as_bytes();
+    h.iter().enumerate().any(|(i, &c)| {
+        let c = c.to_ascii_lowercase();
+        needles.iter().any(|n| {
+            let n = n.as_bytes();
+            n.first() == Some(&c)
+                && h.len() - i >= n.len()
+                && h[i..i + n.len()].eq_ignore_ascii_case(n)
+        })
     })
 }
 
@@ -122,4 +135,33 @@ pub(crate) fn token_class(el: Element<'_>) -> u8 {
         }
     }
     class
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{contains_any_ascii_ci, contains_ascii_ci};
+
+    #[test]
+    fn contains_any_matches_each_needle() {
+        let needles = [
+            "visuallyhidden",
+            "visually-hidden",
+            "sr-only",
+            "screen-reader-text",
+        ];
+        for h in [
+            "",
+            "s",
+            "SR-ONLY",
+            "a VisuallyHidden b",
+            "visually-hid",
+            "x screen-reader-tex",
+            "nav screen-reader-text",
+            "é sr-onlyé",
+            "ssssr-only",
+        ] {
+            let each = needles.iter().any(|n| contains_ascii_ci(h, n));
+            assert_eq!(contains_any_ascii_ci(h, &needles), each, "{h:?}");
+        }
+    }
 }
