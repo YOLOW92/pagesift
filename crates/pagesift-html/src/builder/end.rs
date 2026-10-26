@@ -8,17 +8,18 @@ impl<'a> Builder<'a> {
         self.skip_lf = false;
         self.scratch.clear();
         let tag = self.tag_of(name);
+        if self.in_frameset_modes() {
+            self.frameset_end_tag(tag);
+            return;
+        }
+        if self.in_head_noscript() && self.head_noscript_end(tag) {
+            return;
+        }
         // 外部内容里的 `</p>`、`</br>` 跳出 SVG/MathML，按 HTML 规则处理
-        if matches!(tag, Tag::P | Tag::Br) {
-            while self.in_foreign() {
+        if self.in_foreign() && matches!(tag, Tag::P | Tag::Br) {
+            while self.top_foreign() {
                 self.pop();
             }
-        }
-        // 列组里只能有 `<col>`：别的结束标签先关掉列组
-        if self.current_is(Tag::Colgroup)
-            && !matches!(tag, Tag::Colgroup | Tag::Col | Tag::Template)
-        {
-            self.pop();
         }
         // 外部内容：按名字（不分大小写）在外部元素里找，碰到 HTML 元素就按 HTML 规则处理
         if self.stack.last().is_some_and(|o| o.ns != Ns::Html) {
@@ -36,7 +37,7 @@ impl<'a> Builder<'a> {
         }
         // 最常见的情况：关的就是当前元素
         if let Some(cur) = self.current()
-            && cur.ns != Ns::Foreign
+            && !cur.ns.foreign()
             && cur.tag == tag
             && (tag != Tag::Other || self.element_name_eq(cur.id, &self.src[name.0..name.1]))
             && !matches!(tag, Tag::Html | Tag::Body)
@@ -50,6 +51,12 @@ impl<'a> Builder<'a> {
             }
             self.pop();
             return;
+        }
+        // 列组里只能有 `<col>`：别的结束标签先关掉列组
+        if self.current_is(Tag::Colgroup)
+            && !matches!(tag, Tag::Colgroup | Tag::Col | Tag::Template)
+        {
+            self.pop();
         }
         use Tag::*;
         match self.mode {
@@ -73,6 +80,12 @@ impl<'a> Builder<'a> {
         match tag {
             Body | Html | Head => {}
             // `</form>` 只把 form 从栈里拿掉，里面没闭合的元素继续开着
+            // template 里没有 form 指针：按作用域关到 form（中间没闭合的元素一起关）
+            Form if self.in_template() => {
+                if let Some(i) = self.in_scope(Form, Scope::Default) {
+                    self.pop_to(i);
+                }
+            }
             Form => {
                 let form = std::mem::replace(&mut self.form, NONE);
                 if let Some(i) = self.in_scope(Form, Scope::Default)
@@ -87,6 +100,7 @@ impl<'a> Builder<'a> {
                 }
             }
             Br => {
+                self.frameset_ok = false;
                 self.reconstruct();
                 self.insert_html(Br, name);
             }
@@ -144,13 +158,13 @@ impl<'a> Builder<'a> {
         for i in (0..self.stack.len()).rev() {
             let o = self.stack[i];
             let same = o.tag == tag && (tag != Tag::Other || self.element_name_eq(o.id, raw));
-            if same && o.ns != Ns::Foreign {
+            if same && !o.ns.foreign() {
                 self.pop_to(i);
                 return;
             }
             let stop = match o.ns {
                 Ns::Html => special(o.tag),
-                Ns::Integration => true,
+                Ns::Integration | Ns::Annotation => true,
                 Ns::Foreign => false,
             };
             if stop {

@@ -1,18 +1,17 @@
 use crate::Tag;
-use crate::dom::{Data, NONE, Span};
+use crate::dom::{Data, NONE, Namespace, Span};
 
 use super::{
-    Builder, MAX_DEPTH, Mode, Next, Ns, Open, Scope, breaks_out_of_foreign, heading,
-    integration_point, table_context,
+    Builder, MAX_DEPTH, Mode, Next, Ns, Open, Scope, breaks_out_of_foreign, foreign_kind, heading,
+    table_context,
 };
 
 impl<'a> Builder<'a> {
     pub(super) fn start_tag(&mut self, name: (usize, usize), self_closing: bool) -> Next {
         self.skip_lf = false;
         let tag = self.tag_of(name);
-        // 外部内容优先于插入模式（head 里的 template 中也可能有 SVG）
-        if self.in_foreign() {
-            return self.body_start_tag(tag, name, self_closing);
+        if self.in_frameset_modes() {
+            return self.frameset_start_tag(tag, name);
         }
         if self.mode == Mode::Initial {
             if tag == Tag::Html {
@@ -42,7 +41,15 @@ impl<'a> Builder<'a> {
                 _ => self.ensure_head(),
             }
         }
-        if self.mode == Mode::InHead && self.in_template() && self.head_element_tag(tag).is_none() {
+        if self.in_head_noscript()
+            && let Some(next) = self.head_noscript_start(tag, name)
+        {
+            return next;
+        }
+        // 外部内容优先于插入模式（head 里的 template 中也可能有 SVG）
+        if self.mode == Mode::InHead
+            && (self.in_foreign() || self.in_template() && self.head_element_tag(tag).is_none())
+        {
             return self.body_start_tag(tag, name, self_closing);
         }
         if self.mode == Mode::InHead {
@@ -61,6 +68,7 @@ impl<'a> Builder<'a> {
                     return Next::Data;
                 }
                 Tag::Body => {
+                    self.frameset_ok = false;
                     self.body = self.create(Tag::Body, name);
                     self.append(self.html, self.body);
                     self.stack.push(Open {
@@ -72,6 +80,10 @@ impl<'a> Builder<'a> {
                     return Next::Data;
                 }
                 Tag::Head => return Next::Data,
+                Tag::Frameset => {
+                    self.insert_frameset(name);
+                    return Next::Data;
+                }
                 _ => {}
             }
             // head 之后、body 之前的 head 类元素仍然放进 head
@@ -139,11 +151,17 @@ impl<'a> Builder<'a> {
                 self.insert(tag, name, Ns::Html, true, false);
                 Next::RcData
             }
+            // 关闭脚本时 head 里的 noscript 只收 head 类元素，见 `noscript` 模块
+            Tag::Noscript if !self.scripting => {
+                self.insert(tag, name, Ns::Html, true, false);
+                Next::Data
+            }
             Tag::Noscript | Tag::Noframes | Tag::Style | Tag::Script => {
                 self.insert(tag, name, Ns::Html, true, false);
                 Next::RawText
             }
             Tag::Template => {
+                self.frameset_ok = false;
                 self.insert(tag, name, Ns::Html, true, false);
                 Next::Data
             }
@@ -167,27 +185,27 @@ impl<'a> Builder<'a> {
         } else {
             tag
         };
+        if self.at_fragment_root()
+            && let Some(next) = self.fragment_root_start(tag)
+        {
+            return next;
+        }
         // 列组里只能有 `<col>`（和 template）：别的标签先关掉列组，再按表格的规则处理
         if self.current_is(Tag::Colgroup) && !matches!(tag, Tag::Col | Tag::Template) {
             self.pop();
         }
-        // 表格里的 select（规范的 “in select in table”）：表格结构标签先关掉 select
-        if matches!(
-            tag,
-            Tag::Caption
-                | Tag::Table
-                | Tag::Tbody
-                | Tag::Tfoot
-                | Tag::Thead
-                | Tag::Tr
-                | Tag::Td
-                | Tag::Th
-        ) && let Some(i) = self.in_scope(Tag::Select, Scope::Default)
-            && self.stack[..i]
+        // MathML 文本集成点（mi、mo、mn、ms、mtext）里的 `<mglyph>`、`<malignmark>` 仍是 MathML
+        if tag == Tag::Other
+            && let Some(cur) = self.current()
+            && cur.ns == Ns::Integration
+            && self.current_ns() == Namespace::MathMl
+            && (self.at_fragment_root() || !self.element_name_eq(cur.id, "annotation-xml"))
+            && ["mglyph", "malignmark"]
                 .iter()
-                .any(|o| o.tag == Tag::Table && o.ns == Ns::Html)
+                .any(|n| self.src[name.0..name.1].eq_ignore_ascii_case(n))
         {
-            self.pop_to(i);
+            self.insert_foreign(tag, name, self_closing);
+            return Next::Data;
         }
         if self.in_foreign() {
             let font_breaks = tag == Tag::Font
@@ -198,7 +216,7 @@ impl<'a> Builder<'a> {
                         .any(|k| n.eq_ignore_ascii_case(k))
                 });
             if breaks_out_of_foreign(tag) || font_breaks {
-                while self.in_foreign() {
+                while self.top_foreign() {
                     self.pop();
                 }
             } else {
@@ -206,11 +224,18 @@ impl<'a> Builder<'a> {
                 return Next::Data;
             }
         }
+        self.frameset_ok_after(tag);
         use Tag::*;
         match tag {
             Html => self.merge_attrs(self.html),
-            Body => self.merge_attrs(self.body),
-            Head | Frameset | Frame => {}
+            Body => {
+                if self.stack.get(1).is_some_and(|o| o.id == self.body) && !self.in_template() {
+                    self.frameset_ok = false;
+                }
+                self.merge_attrs(self.body)
+            }
+            Frameset => self.frameset_in_body(name),
+            Head | Frame => {}
             Base | Basefont | Bgsound | Link | Meta | Param | Source | Track => {
                 self.insert_html(tag, name)
             }
@@ -239,6 +264,10 @@ impl<'a> Builder<'a> {
                 self.close_p();
                 self.insert_html(tag, name);
                 return Next::RawText;
+            }
+            Noscript if !self.scripting => {
+                self.reconstruct();
+                self.insert_html(tag, name);
             }
             Style | Noframes | Noscript | Iframe | Noembed | Script => {
                 self.insert_html(tag, name);
@@ -353,6 +382,7 @@ impl<'a> Builder<'a> {
                 self.insert_html(tag, name);
             }
             Table => {
+                self.close_select_in_table();
                 let in_table = self
                     .current()
                     .is_some_and(|o| o.ns == Ns::Html && table_context(o.tag));
@@ -364,6 +394,9 @@ impl<'a> Builder<'a> {
                 self.insert(tag, name, Ns::Html, true, false);
             }
             Caption | Colgroup | Col | Tbody | Thead | Tfoot | Tr | Td | Th => {
+                if tag != Colgroup && tag != Col {
+                    self.close_select_in_table();
+                }
                 self.table_part(tag, name)
             }
             Option | Optgroup => {
@@ -389,7 +422,12 @@ impl<'a> Builder<'a> {
             }
             Svg | Math => {
                 self.reconstruct();
-                let id = self.create(tag, name);
+                let ns = if tag == Svg {
+                    Namespace::Svg
+                } else {
+                    Namespace::MathMl
+                };
+                let id = self.create_ns(tag, name, ns);
                 self.place(id, true);
                 if !self_closing && self.stack.len() < MAX_DEPTH {
                     self.stack.push(Open {
@@ -409,29 +447,36 @@ impl<'a> Builder<'a> {
 
     /// SVG/MathML 里的元素：名字照存，自闭合的不入栈。
     pub(super) fn insert_foreign(&mut self, tag: Tag, name: (usize, usize), self_closing: bool) {
-        let tag = if matches!(tag, Tag::Svg | Tag::Math) {
-            tag
-        } else {
-            Tag::Other
+        let (tag, dom_ns) = match tag {
+            Tag::Svg => (tag, Namespace::Svg),
+            Tag::Math => (tag, Namespace::MathMl),
+            // 其余元素和当前节点（外部元素或 MathML 文本集成点）同一命名空间
+            _ => (Tag::Other, self.current_ns()),
         };
-        let id = self.create(tag, name);
+        let raw = &self.src[name.0..name.1];
+        let encoding_html = dom_ns == Namespace::MathMl
+            && raw.eq_ignore_ascii_case("annotation-xml")
+            && self.scratch.iter().any(|&((ns, ne), (vs, ve))| {
+                self.src[ns..ne].eq_ignore_ascii_case("encoding")
+                    && (self.src[vs..ve].eq_ignore_ascii_case("text/html")
+                        || self.src[vs..ve].eq_ignore_ascii_case("application/xhtml+xml"))
+            });
+        let kind = foreign_kind(dom_ns, raw, encoding_html);
+        let id = self.create_ns(tag, name, dom_ns);
         self.place(id, false);
         if self_closing || self.stack.len() >= MAX_DEPTH {
             return;
         }
-        let lname = self.src[name.0..name.1].to_ascii_lowercase();
-        let ns = if integration_point(&lname) {
-            Ns::Integration
-        } else {
-            Ns::Foreign
-        };
-        self.stack.push(Open { id, tag, ns });
+        self.stack.push(Open { id, tag, ns: kind });
     }
 
     /// 表格结构元素：补上省略的 tbody、tr，关掉未闭合的单元格和行。不在表格里时忽略。
     pub(super) fn table_part(&mut self, tag: Tag, name: (usize, usize)) {
         use Tag::*;
-        let Some(table) = self.in_scope(Table, Scope::Table) else {
+        let Some(table) = self
+            .in_scope(Table, Scope::Table)
+            .or_else(|| self.fragment_table_root(tag))
+        else {
             self.scratch.clear();
             return;
         };
@@ -479,6 +524,7 @@ impl<'a> Builder<'a> {
     pub(super) fn implied(&mut self, tag: Tag) {
         let id = self.new_node(Data::Element {
             tag,
+            ns: Namespace::Html,
             name: Span::default(),
             attrs: self.attrs.len() as u32,
             attrs_len: 0,

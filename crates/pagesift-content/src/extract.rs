@@ -54,7 +54,7 @@ pub(crate) struct Skipper {
     features: Vec<Cell<u32>>,
     attachments: Vec<Cell<u8>>,
     order: Vec<pagesift_html::NodeId>,
-    /// 在不在正文区、子树里有没有 nav：第一次用到时一遍算好。
+    /// 在不在正文区、子树里有没有 nav：按需计算并记住。
     landmarks: OnceCell<crate::landmarks::Landmarks>,
 }
 
@@ -259,7 +259,7 @@ impl Skipper {
 
     fn landmarks(&self, node: &NodeR<'_>) -> &crate::landmarks::Landmarks {
         self.landmarks
-            .get_or_init(|| crate::landmarks::Landmarks::compute(node.document(), &self.order))
+            .get_or_init(|| crate::landmarks::Landmarks::new(node.document().len()))
     }
 
     pub(crate) fn recycle(self, scratch: &mut Scratch) {

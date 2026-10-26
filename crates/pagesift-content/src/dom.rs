@@ -166,14 +166,38 @@ pub(crate) fn is_zero_width(c: char) -> bool {
 
 /// 非空白字符数。纯 ASCII 文本（绝大多数）按字节数，不逐个解码字符。
 pub(crate) fn count_non_whitespace(s: &str) -> usize {
-    if s.is_ascii() {
-        // char::is_whitespace 在 ASCII 范围内正好是这几个（含 \x0b，is_ascii_whitespace 不含它）
-        return s
-            .bytes()
-            .filter(|b| !matches!(b, b' ' | b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r'))
-            .count();
+    // 一遍按字节查表：ASCII 空白和 UTF-8 续字节不计，其余字节各是一个非空白字符的开头；
+    // 可能是 Unicode 空白（U+0085、U+00A0、U+1680、U+2000–U+205F、U+3000）的首字节才解码判断。
+    // 和 `s.chars().filter(|c| !c.is_whitespace()).count()` 结果相同，测试里穷举了所有字符。
+    const CLASS: [u8; 256] = {
+        let mut t = [0u8; 256];
+        let mut i = 0x80;
+        while i < 0xC0 {
+            t[i] = 1;
+            i += 1;
+        }
+        t[b' ' as usize] = 1;
+        t[b'\t' as usize] = 1;
+        t[b'\n' as usize] = 1;
+        t[0x0b] = 1;
+        t[0x0c] = 1;
+        t[b'\r' as usize] = 1;
+        t[0xC2] = 2;
+        t[0xE1] = 2;
+        t[0xE2] = 2;
+        t[0xE3] = 2;
+        t
+    };
+    let b = s.as_bytes();
+    let mut n = 0;
+    for (i, &x) in b.iter().enumerate() {
+        match CLASS[x as usize] {
+            0 => n += 1,
+            1 => {}
+            _ => n += usize::from(!s[i..].chars().next().is_some_and(char::is_whitespace)),
+        }
     }
-    s.chars().filter(|c| !c.is_whitespace()).count()
+    n
 }
 
 /// 把空白折叠成单个空格，去掉零宽字符，`&nbsp;` 视为普通空格。
@@ -248,4 +272,18 @@ pub(crate) fn is_heading(node: &NodeR<'_>) -> bool {
                     })
                 }))
     })
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn count_non_whitespace_matches_char_is_whitespace() {
+        let reference = |s: &str| s.chars().filter(|c| !c.is_whitespace()).count();
+        // 每个字符单独、夹在 ASCII 和空白之间
+        for c in (0..=0x10FFFF).filter_map(char::from_u32) {
+            for s in [c.to_string(), format!("a{c} b\u{a0}{c}\n")] {
+                assert_eq!(super::count_non_whitespace(&s), reference(&s), "{:?}", c);
+            }
+        }
+    }
 }

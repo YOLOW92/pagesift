@@ -77,17 +77,26 @@ pub(crate) fn measure(
     markdown: &str,
     root_in_comments: bool,
 ) -> Coverage {
-    // 默认规则下的文字不会多于整页非链接文字：整页都不到输出的两倍、或者本来就很少时，
-    // 两条警告都不可能成立，不用再遍历
+    // 默认规则下评论区以外（和评论区里）的非链接文字都不会多于整页非链接文字 `page`：用它当
+    // 上界，两条警告都不可能成立时不再遍历。输出的字数也只需要数到判断够用为止。
     let page = skipper.content_chars(body);
-    let limit = page / REPLIES_MIN_RATIO;
+    let partial_limit = (page as f64 * PARTIAL_MAX_SHARE).ceil() as usize;
+    let limit = if root_in_comments {
+        (page / REPLIES_MIN_RATIO).max(partial_limit)
+    } else {
+        partial_limit
+    };
     let got = text_chars_up_to(markdown, limit);
     let mut cov = Coverage {
         out_chars: got,
         root_in_comments,
         ..Default::default()
     };
-    if skipper.only_main() && got < limit && page >= PARTIAL_MIN_MISSING {
+    let partial_possible =
+        (got as f64) < page as f64 * PARTIAL_MAX_SHARE && page - got >= PARTIAL_MIN_MISSING;
+    let replies_possible =
+        root_in_comments && page > REPLIES_MIN_RATIO * got && page >= REPLIES_MIN_CHARS;
+    if skipper.only_main() && (partial_possible || replies_possible) {
         let (main, comments) = default_prose(body, skipper);
         cov.main_chars = Some(main);
         cov.comment_chars = Some(comments);

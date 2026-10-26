@@ -1,7 +1,7 @@
 //! 两边都转成同一种树再比较：预期结果从 `#document` 的缩进文本读出来，
 //! pagesift 的结果从 [`Html`] 转过来。
 
-use pagesift_html::{Html, NodeRef, Tag};
+use pagesift_html::{Html, Namespace, NodeRef};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Kind {
@@ -61,7 +61,9 @@ pub fn parse_expected(dump: &str) -> Vec<Node> {
             path.pop();
         }
         // 属性：挂在当前元素上
-        if !item.starts_with('<') && !item.starts_with('"') {
+        // 属性行是 `名字="值"`；名字本身可能以 `<` 开头（`<img <="">`），元素行以 `>` 结尾
+        let element = item.starts_with('<') && item.ends_with('>');
+        if !element && !item.starts_with('"') {
             if let Some((k, v)) = item.split_once("=\"") {
                 let v = v.strip_suffix('"').unwrap_or(v);
                 if let Some(Kind::Element { attrs, .. }) =
@@ -139,20 +141,29 @@ fn sort_attrs(nodes: &mut [Node]) {
 
 // ---------------------------------------------------------------- pagesift 的结果
 
-/// DOM 不存命名空间，按解析器的规则推出来：`<svg>`/`<math>` 开始外部内容，外部元素的子元素
-/// 跟父元素同一命名空间，HTML 集成点（foreignObject、desc、title、mi、mo、mn、ms、mtext、
-/// annotation-xml）里面又是 HTML（除非又是 `<svg>`/`<math>`）。
+/// 命名空间取 DOM 里记录的（解析器按规范定下的）。SVG 元素名、属性名的大小写和
+/// xlink/xml/xmlns 前缀按规范的对照表修正（解析器存小写名）。
 pub fn from_html(doc: &Html<'_>) -> Vec<Node> {
-    doc.root().children().map(|c| convert(c, "")).collect()
+    doc.root().children().map(convert).collect()
 }
 
-fn convert(n: NodeRef<'_>, parent_ns: &str) -> Node {
+/// 片段解析的结果：上下文元素的子节点（[`Html::parse_fragment`] 里根元素的子节点）。
+pub fn from_fragment(doc: &Html<'_>) -> Vec<Node> {
+    doc.root()
+        .children()
+        .filter(|c| c.is_element())
+        .flat_map(|html| html.children())
+        .map(convert)
+        .collect()
+}
+
+fn convert(n: NodeRef<'_>) -> Node {
     let kind = if let Some(el) = n.as_element() {
         let lname = el.name();
-        let ns = match el.tag() {
-            Tag::Svg => "svg",
-            Tag::Math => "math",
-            _ => parent_ns,
+        let ns = match el.namespace() {
+            Namespace::Html => "",
+            Namespace::Svg => "svg",
+            Namespace::MathMl => "math",
         };
         let name = if ns == "svg" {
             svg_tag_case(lname).unwrap_or(lname).to_string()
@@ -171,19 +182,7 @@ fn convert(n: NodeRef<'_>, parent_ns: &str) -> Node {
             })
             .collect();
         attrs.sort();
-        let child_ns = match ns {
-            "svg" if matches!(lname, "foreignobject" | "desc" | "title") => "",
-            "math"
-                if matches!(
-                    lname,
-                    "mi" | "mo" | "mn" | "ms" | "mtext" | "annotation-xml"
-                ) =>
-            {
-                ""
-            }
-            ns => ns,
-        };
-        let children = n.children().map(|c| convert(c, child_ns)).collect();
+        let children = n.children().map(convert).collect();
         return Node {
             kind: Kind::Element {
                 ns: ns.to_string(),

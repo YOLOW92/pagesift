@@ -4,8 +4,8 @@
 //! `bench/data/wpt-parsing`；也可以用环境变量 `PAGESIFT_HTML5LIB_DIR` 指向放 `.dat` 的目录。
 //! 数据缺失时跳过。
 //!
-//! 不跑的用例：`#document-fragment`（pagesift 没有片段解析接口）和 `#script-off`
-//! （pagesift 按开启脚本的规则解析：`<noscript>` 的内容是原始文本）。
+//! `#document-fragment` 用例用 [`Html::parse_with`] 的片段解析跑（结果取根元素的子节点），
+//! `#script-off` 用例关掉 scripting 跑；两类分开计数。
 //!
 //! 每条用例分成 通过 / 影响正文 / 只差行内结构 / 其他 四类（见 `classify`）。影响正文的差异
 //! 必须写在 `tests/html5lib_known.txt` 里并说明原因，否则测试失败。
@@ -21,7 +21,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use classify::Class;
-use pagesift_html::Html;
+use pagesift_html::{Html, Namespace, ParseOptions};
 
 fn data_dir() -> Option<PathBuf> {
     let dir = match std::env::var_os("PAGESIFT_HTML5LIB_DIR") {
@@ -57,8 +57,9 @@ fn html5lib_tree_construction() {
     files.sort();
     let known = known();
     let mut counts: BTreeMap<Class, usize> = BTreeMap::new();
-    let mut skipped_fragment = 0;
-    let mut skipped_script_off = 0;
+    // 片段、script-off 两类各自的（通过，总数）
+    let mut fragment = (0, 0);
+    let mut script_off = (0, 0);
     let mut panics = Vec::new();
     let mut slow = Vec::new();
     let mut unexplained = Vec::new();
@@ -70,17 +71,25 @@ fn html5lib_tree_construction() {
         let text = std::fs::read_to_string(path).unwrap();
         for case in dat::parse(&text) {
             let id = format!("{fname}#{}", case.index);
-            if case.fragment.is_some() {
-                skipped_fragment += 1;
-                continue;
-            }
-            if case.scripting == Some(false) {
-                skipped_script_off += 1;
-                continue;
-            }
             let expected = tree::parse_expected(&case.document);
+            let context = case.fragment.as_deref().map(|c| match c.split_once(' ') {
+                Some(("svg", n)) => (Namespace::Svg, n),
+                Some(("math", n)) => (Namespace::MathMl, n),
+                _ => (Namespace::Html, c),
+            });
+            let opts = ParseOptions {
+                scripting: case.scripting != Some(false),
+                context,
+            };
             let start = Instant::now();
-            let actual = std::panic::catch_unwind(|| tree::from_html(&Html::parse(&case.data)));
+            let actual = std::panic::catch_unwind(|| {
+                let doc = Html::parse_with(&case.data, &opts);
+                if context.is_some() {
+                    tree::from_fragment(&doc)
+                } else {
+                    tree::from_html(&doc)
+                }
+            });
             let elapsed = start.elapsed();
             if elapsed > Duration::from_millis(500) {
                 slow.push(format!("{id} {elapsed:?}"));
@@ -91,6 +100,15 @@ fn html5lib_tree_construction() {
             };
             let class = classify::classify(&expected, &actual);
             *counts.entry(class).or_default() += 1;
+            for (on, c) in [
+                (context.is_some(), &mut fragment),
+                (!opts.scripting, &mut script_off),
+            ] {
+                if on {
+                    c.1 += 1;
+                    c.0 += usize::from(class == Class::Pass);
+                }
+            }
             let e = per_file.entry(fname.clone()).or_default();
             e.1 += 1;
             if class == Class::Pass {
@@ -105,8 +123,13 @@ fn html5lib_tree_construction() {
             }
             let _ = write!(
                 report,
-                "## {id} [{}]{}\n### data\n{}\n### expected\n{}### actual\n{}\n",
+                "## {id} [{}]{}{}{}\n### data\n{}\n### expected\n{}### actual\n{}\n",
                 class.label(),
+                case.fragment
+                    .as_deref()
+                    .map(|c| format!(" 片段：{c}"))
+                    .unwrap_or_default(),
+                if opts.scripting { "" } else { " script-off" },
                 known
                     .get(&id)
                     .map(|w| format!(" 已知：{w}"))
@@ -120,9 +143,12 @@ fn html5lib_tree_construction() {
     let total: usize = counts.values().sum();
     let pass = counts.get(&Class::Pass).copied().unwrap_or(0);
     let mut summary = format!(
-        "html5lib 树构建：跑了 {total} 条（跳过片段 {skipped_fragment}、script-off {skipped_script_off}），\
-         通过 {pass}（{:.1}%）",
-        100.0 * pass as f64 / total.max(1) as f64
+        "html5lib 树构建：跑了 {total} 条，通过 {pass}（{:.1}%；其中片段 {}/{}、script-off {}/{}）",
+        100.0 * pass as f64 / total.max(1) as f64,
+        fragment.0,
+        fragment.1,
+        script_off.0,
+        script_off.1,
     );
     for (c, n) in &counts {
         if *c != Class::Pass {

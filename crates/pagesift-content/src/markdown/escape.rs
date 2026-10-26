@@ -25,15 +25,9 @@ pub(super) fn push_text(t: &str, out: &mut String, tex: bool) {
     let before = out.chars().next_back();
     let ws = |o: Option<char>| o.is_none_or(char::is_whitespace);
     let alnum = |o: Option<char>| o.is_some_and(char::is_alphanumeric);
-    // 每个位置之后第一个 `]` 的下标：大量不配对的 `[` 时逐个往后找是平方复杂度（模糊测试找到的）
-    let mut next_close = vec![usize::MAX; chars.len() + 1];
-    for i in (0..chars.len()).rev() {
-        next_close[i] = if chars[i] == ']' {
-            i
-        } else {
-            next_close[i + 1]
-        };
-    }
+    // 每个位置之后第一个 `]` 的下标，遇到第一个 `[` 时才建：大量不配对的 `[` 时逐个往后找
+    // 是平方复杂度（模糊测试找到的）
+    let mut next_close: Vec<usize> = Vec::new();
     // 受保护区间按位置排好序、互不重叠，跟着下标往前走
     let mut span = 0;
     for (i, &c) in chars.iter().enumerate() {
@@ -53,6 +47,16 @@ pub(super) fn push_text(t: &str, out: &mut String, tex: bool) {
             '_' => unders >= 2 && !(ws(p) && ws(n)) && !(alnum(p) && alnum(n)),
             '<' => n.is_some_and(|n| n.is_ascii_alphabetic() || matches!(n, '/' | '!' | '?')),
             '[' => {
+                if next_close.is_empty() {
+                    next_close = vec![usize::MAX; chars.len() + 1];
+                    for k in (0..chars.len()).rev() {
+                        next_close[k] = if chars[k] == ']' {
+                            k
+                        } else {
+                            next_close[k + 1]
+                        };
+                    }
+                }
                 let j = next_close[i + 1];
                 j != usize::MAX && matches!(chars.get(j + 1), Some('(' | '['))
             }

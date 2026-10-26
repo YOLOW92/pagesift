@@ -60,12 +60,22 @@ pub(crate) struct Attr {
     pub(crate) value: Span,
 }
 
+/// 元素的命名空间（规范的 HTML、SVG、MathML 三种）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Namespace {
+    #[default]
+    Html,
+    Svg,
+    MathMl,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum Data {
     Document,
     Doctype,
     Element {
         tag: Tag,
+        ns: Namespace,
         /// 只有 [`Tag::Other`] 才有名字；已知标签的名字来自 [`Tag::name`]。
         name: Span,
         attrs: u32,
@@ -141,7 +151,32 @@ impl ParseScratch {
     }
 }
 
+/// 解析选项，见 [`Html::parse_with`]。
+#[derive(Debug, Clone, Copy)]
+pub struct ParseOptions<'c> {
+    /// 规范的 scripting flag。开着（默认，和浏览器一致）时 `<noscript>` 的内容是原始文本；
+    /// 关掉时按普通元素解析。
+    pub scripting: bool,
+    /// 片段解析（规范的 fragment parsing algorithm）的上下文元素：命名空间和标签名，比如
+    /// `(Namespace::Html, "td")`。结果是根 `<html>` 元素的子节点；`None` 时解析整个文档。
+    pub context: Option<(Namespace, &'c str)>,
+}
+
+impl Default for ParseOptions<'_> {
+    fn default() -> Self {
+        ParseOptions {
+            scripting: true,
+            context: None,
+        }
+    }
+}
+
 impl<'s> Html<'s> {
+    /// 按选项解析：关闭脚本、在给定上下文元素里解析片段。
+    pub fn parse_with(html: &'s str, opts: &ParseOptions<'_>) -> Html<'s> {
+        crate::builder::parse_with_options(html, &mut ParseScratch::default(), opts)
+    }
+
     /// 解析整个 HTML 文档。永不失败：任何输入都会得到一棵树。
     pub fn parse(html: &'s str) -> Html<'s> {
         crate::builder::parse(html)
@@ -319,12 +354,14 @@ impl<'a> NodeRef<'a> {
         match self.node().data {
             Data::Element {
                 tag,
+                ns,
                 name,
                 attrs,
                 attrs_len,
             } => Some(Element {
                 doc: self.doc,
                 tag,
+                ns,
                 name,
                 attrs: &self.doc.attrs[attrs as usize..(attrs + attrs_len) as usize],
             }),
@@ -371,11 +408,17 @@ impl<'a> NodeRef<'a> {
 pub struct Element<'a> {
     doc: &'a Html<'a>,
     tag: Tag,
+    ns: Namespace,
     name: Span,
     attrs: &'a [Attr],
 }
 
 impl<'a> Element<'a> {
+    /// 元素的命名空间：`<svg>`、`<math>` 和它们里面的外部元素不是 HTML。
+    pub fn namespace(&self) -> Namespace {
+        self.ns
+    }
+
     pub fn tag(&self) -> Tag {
         self.tag
     }

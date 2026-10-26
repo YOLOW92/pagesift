@@ -171,6 +171,10 @@ fn scan_tag(b: &[u8], mut i: usize, attrs: &mut Vec<RawAttr>) -> Option<TagToken
 fn raw_text(src: &str, start: usize, name: &str, next: Next, tb: &mut Builder<'_>) -> usize {
     let b = src.as_bytes();
     if next == Next::PlainText {
+        // plaintext 的内容仍按 "in body" 处理字符：先重建活动格式元素
+        if start < b.len() {
+            tb.reconstruct();
+        }
         tb.raw_text(start, b.len(), false);
         return b.len();
     }
@@ -240,7 +244,7 @@ fn markup_declaration(b: &[u8], i: usize, tb: &mut Builder<'_>) -> usize {
         return gt.map_or(b.len(), |o| i + o + 1);
     }
     // CDATA 只在当前节点不是 HTML 元素时有效（集成点 mtext、foreignObject 等本身也是外部元素）
-    if rest.starts_with(b"[CDATA[") && tb.stack.last().is_some_and(|o| o.ns != Ns::Html) {
+    if rest.starts_with(b"[CDATA[") && tb.current().is_some_and(|o| o.ns != Ns::Html) {
         let start = i + 7;
         return match memmem::find(&b[start..], b"]]>") {
             Some(off) => {
@@ -257,23 +261,21 @@ fn markup_declaration(b: &[u8], i: usize, tb: &mut Builder<'_>) -> usize {
 }
 
 /// 注释的结束：`-->`，或者规范里同样结束注释的 `--!>`。返回位置和结束符长度。
+/// `--!>` 很少见：先用 memmem 找 `-->`，只在它前面找 `!`（注释在页面里很多，逐个找 `--` 会让
+/// 整体解析慢 1.5%）。
+#[inline(never)]
 fn comment_end(b: &[u8]) -> Option<(usize, usize)> {
+    let close = memmem::find(b, b"-->");
+    let limit = close.unwrap_or(b.len());
     let mut from = 0;
-    while let Some(off) = memmem::find(&b[from..], b"--") {
+    while let Some(off) = memchr::memchr(b'!', &b[from..limit]) {
         let i = from + off;
-        // 连续的 `-` 里取最后两个
-        let mut j = i + 2;
-        while b.get(j) == Some(&b'-') {
-            j += 1;
+        if i >= 2 && &b[i - 2..i] == b"--" && b.get(i + 1) == Some(&b'>') {
+            return Some((i - 2, 4));
         }
-        match b.get(j) {
-            Some(b'>') => return Some((j - 2, 3)),
-            Some(b'!') if b.get(j + 1) == Some(&b'>') => return Some((j - 2, 4)),
-            None => return None,
-            _ => from = j,
-        }
+        from = i + 1;
     }
-    None
+    close.map(|p| (p, 3))
 }
 
 fn bogus_comment(b: &[u8], start: usize, tb: &mut Builder<'_>) -> usize {
@@ -303,7 +305,7 @@ impl<'a> Builder<'a> {
     pub(super) fn comment(&mut self, s: usize, e: usize) {
         self.skip_lf = false;
         let id = self.new_node(Data::Comment(Span::source(s, e)));
-        if self.mode == Mode::Initial || self.stack.is_empty() {
+        if matches!(self.mode, Mode::Initial | Mode::AfterAfterFrameset) || self.stack.is_empty() {
             self.append(0, id);
         } else {
             self.place(id, false);
@@ -313,6 +315,24 @@ impl<'a> Builder<'a> {
     /// 普通文本（data 状态）：解码字符引用，按插入模式放置。
     pub(super) fn text_range(&mut self, s: usize, e: usize, decode: bool) {
         if s >= e {
+            return;
+        }
+        // frameset 文档、片段解析的列组上下文里只留空白
+        if self.in_frameset_modes() || self.at_fragment_root() && self.fragment_whitespace_only() {
+            self.frameset_text(s, e);
+            return;
+        }
+        let s = if self.in_head_noscript() {
+            self.head_noscript_text(s, e)
+        } else {
+            s
+        };
+        if s >= e {
+            return;
+        }
+        // HTML 内容里规范要求忽略 NUL（外部内容里保留为 U+FFFD）：按 NUL 切开分别处理
+        if self.has_nul(s, e) && !self.in_foreign() {
+            self.text_without_nul(s, e, decode);
             return;
         }
         let span = self.text_span(s, e, decode);
@@ -329,18 +349,70 @@ impl<'a> Builder<'a> {
             span = span.skip(lead);
             self.ensure_body();
         }
-        // 列组里只能有空白：有别的文字就先关掉列组（文字随后按表格规则挪到表格前面）
-        if self.current_is(Tag::Colgroup) && !self.str(span).bytes().all(is_ws) {
-            self.pop();
+        if self.frameset_ok && !self.str(span).bytes().all(is_ws) && self.non_ws_besides_nul(s, e) {
+            self.frameset_ok = false;
         }
-        let table_ws = self
-            .current()
-            .is_some_and(|o| o.ns == Ns::Html && table_context(o.tag))
+        let cur = self.current().filter(|o| o.ns == Ns::Html).map(|o| o.tag);
+        let mut table_ws = cur.is_some_and(|t| table_context(t) || t == Tag::Colgroup)
             && self.str(span).bytes().all(is_ws);
+        // 列组里只能有空白：有别的文字就先关掉列组（文字随后按表格规则挪到表格前面）
+        if cur == Some(Tag::Colgroup) && !table_ws {
+            self.pop();
+            table_ws = false;
+        }
         if !self.in_foreign() && !table_ws {
             self.reconstruct();
         }
         self.add_text(span, true);
+    }
+
+    /// `[s, e)` 里有没有由 NUL 换来的 U+FFFD。
+    fn has_nul(&self, s: usize, e: usize) -> bool {
+        if self.nuls.is_empty() {
+            return false;
+        }
+        let i = self.nuls.partition_point(|&p| (p as usize) < s);
+        self.nuls.get(i).is_some_and(|&p| (p as usize) < e)
+    }
+
+    /// 除了由 NUL 换来的 U+FFFD 以外还有非空白字符（规范：外部内容里的 NUL 不影响 frameset-ok）。
+    fn non_ws_besides_nul(&self, s: usize, e: usize) -> bool {
+        if !self.has_nul(s, e) {
+            return true;
+        }
+        let mut i = s;
+        for &p in &self.nuls[self.nuls.partition_point(|&p| (p as usize) < s)..] {
+            let p = p as usize;
+            if p >= e {
+                break;
+            }
+            if !self.src.as_bytes()[i..p].iter().all(|&c| is_ws(c)) {
+                return true;
+            }
+            i = p + '\u{fffd}'.len_utf8();
+        }
+        !self.src.as_bytes()[i..e].iter().all(|&c| is_ws(c))
+    }
+
+    /// 去掉由 NUL 换来的 U+FFFD，剩下的几段分别按普通文本处理。
+    fn text_without_nul(&mut self, s: usize, e: usize, decode: bool) {
+        // 规范：head 之前的 NUL 和其他字符一样隐式打开 body，然后被忽略
+        if self.mode < Mode::InBody && !self.in_template() {
+            self.ensure_body();
+        }
+        let first = self.nuls.partition_point(|&p| (p as usize) < s);
+        let mut i = s;
+        let mut k = first;
+        while let Some(&p) = self.nuls.get(k) {
+            let p = p as usize;
+            if p >= e {
+                break;
+            }
+            self.text_range(i, p, decode);
+            i = p + '\u{fffd}'.len_utf8();
+            k += 1;
+        }
+        self.text_range(i, e, decode);
     }
 
     /// raw text / RCDATA 元素的内容，直接放进当前元素。

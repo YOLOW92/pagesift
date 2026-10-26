@@ -4,14 +4,13 @@
 //! 表格的隐式 tbody/tr 和 foster parenting、SVG/MathML 外部内容和跳出规则、
 //! raw text 和 RCDATA 元素、`<pre>` 开头的换行、脚本的转义状态、quirks 模式（只影响
 //! `<table>` 是否关掉 `<p>`）、select 和列组的内容规则。
-//! 和规范有意不同的：`<template>` 不建独立的文档片段（内容作为普通子节点）；不建
-//! frameset/frame（frameset 文档的内容照常进 body）；NUL 在分词前删掉；插入模式按当前节点
-//! 推断，不单独记录。和 html5lib-tests 的逐条对照见 `tests/html5lib`。
+//! 和规范有意不同的：`<template>` 不建独立的文档片段（内容作为普通子节点）；插入模式按当前节点
+//! 推断，不单独记录（frameset 文档的三种模式除外）。和 html5lib-tests 的逐条对照见 `tests/html5lib`。
 
 use std::borrow::Cow;
 
 use crate::Tag;
-use crate::dom::{Attr, Data, Html, NONE, Node, ParseScratch, Span};
+use crate::dom::{Attr, Data, Html, NONE, Namespace, Node, ParseOptions, ParseScratch, Span};
 
 /// 打开元素栈的最大深度。更深的元素照样插入但不入栈，树的深度因此有上限，
 /// 递归遍历这棵树的代码不会因为恶意的深层嵌套栈溢出。
@@ -22,7 +21,15 @@ pub(crate) fn parse(html: &str) -> Html<'_> {
 }
 
 pub(crate) fn parse_with_scratch<'s>(html: &'s str, scratch: &mut ParseScratch) -> Html<'s> {
-    let src = normalize(html);
+    parse_with_options(html, scratch, &ParseOptions::default())
+}
+
+pub(crate) fn parse_with_options<'s>(
+    html: &'s str,
+    scratch: &mut ParseScratch,
+    opts: &ParseOptions<'_>,
+) -> Html<'s> {
+    let (src, nuls) = normalize(html);
     let (buf, nodes, attrs) = {
         let mut tb = Builder::with_buffers(
             &src,
@@ -30,7 +37,12 @@ pub(crate) fn parse_with_scratch<'s>(html: &'s str, scratch: &mut ParseScratch) 
             std::mem::take(&mut scratch.nodes),
             std::mem::take(&mut scratch.attrs),
         );
-        tokenize(&src, &mut tb);
+        tb.nuls = nuls;
+        tb.scripting = opts.scripting;
+        match opts.context {
+            Some((ns, name)) => fragment::run(&src, &mut tb, ns, name),
+            None => tokenize(&src, &mut tb),
+        }
         (tb.buf, tb.nodes, tb.attrs)
     };
     Html {
@@ -41,14 +53,26 @@ pub(crate) fn parse_with_scratch<'s>(html: &'s str, scratch: &mut ParseScratch) 
     }
 }
 
-/// 去掉 BOM，`\r\n` 和单独的 `\r` 变成 `\n`，丢掉 NUL（正文里的 NUL 规范上本来就被忽略）。
-fn normalize(html: &str) -> Cow<'_, str> {
+/// NUL 占全部字节的比例不低于 1/`UTF16_NUL_SHARE` 时，当作被误当成 UTF-8 的 UTF-16 文本，
+/// NUL 全部删掉（每个 ASCII 字符旁边一个 NUL，删掉后能恢复出文字）。
+const UTF16_NUL_SHARE: usize = 4;
+/// 太短的输入不按 UTF-16 猜（几个字节里一个 NUL 就超过比例）。
+const UTF16_MIN_LEN: usize = 64;
+
+/// 去掉 BOM，`\r\n` 和单独的 `\r` 变成 `\n`。NUL 按规范换成 U+FFFD（分词器各状态里都是这样），
+/// 换掉的位置记下来：正文（data 状态的 HTML 内容）里规范要求忽略 NUL，建树时按位置去掉。
+/// 看起来是误判成 UTF-8 的 UTF-16 文本时 NUL 直接删掉。
+fn normalize(html: &str) -> (Cow<'_, str>, Vec<u32>) {
     let html = html.strip_prefix('\u{feff}').unwrap_or(html);
     let bytes = html.as_bytes();
     let Some(first) = memchr::memchr2(b'\r', b'\0', bytes) else {
-        return Cow::Borrowed(html);
+        return (Cow::Borrowed(html), Vec::new());
     };
+    let drop_nul = bytes.len() >= UTF16_MIN_LEN
+        && memchr::memchr(b'\0', &bytes[first..]).is_some()
+        && memchr::memchr_iter(b'\0', bytes).count() * UTF16_NUL_SHARE >= bytes.len();
     let mut out = String::with_capacity(html.len());
+    let mut nuls = Vec::new();
     let mut last = 0;
     let mut i = first;
     loop {
@@ -58,6 +82,9 @@ fn normalize(html: &str) -> Cow<'_, str> {
             if bytes.get(i + 1) == Some(&b'\n') {
                 i += 1;
             }
+        } else if !drop_nul {
+            nuls.push(out.len() as u32);
+            out.push('\u{fffd}');
         }
         last = i + 1;
         match memchr::memchr2(b'\r', b'\0', &bytes[last..]) {
@@ -66,11 +93,14 @@ fn normalize(html: &str) -> Cow<'_, str> {
         }
     }
     out.push_str(&html[last..]);
-    Cow::Owned(out)
+    (Cow::Owned(out), nuls)
 }
 
 mod end;
 mod format;
+mod fragment;
+mod frameset;
+mod noscript;
 mod quirks;
 mod script;
 mod tags;
@@ -88,6 +118,10 @@ enum Mode {
     InHead,
     AfterHead,
     InBody,
+    /// frameset 文档的三种模式，见 `frameset` 模块。
+    InFrameset,
+    AfterFrameset,
+    AfterAfterFrameset,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -95,9 +129,18 @@ enum Ns {
     Html,
     /// SVG / MathML 元素。
     Foreign,
-    /// SVG 的 foreignObject、desc、title，MathML 的 mi、mo、mn、ms、mtext、annotation-xml：
-    /// 外部内容里重新按 HTML 解析的地方。
+    /// SVG 的 foreignObject、desc、title，MathML 的 mi、mo、mn、ms、mtext，`encoding` 是 HTML 的
+    /// annotation-xml：外部内容里重新按 HTML 解析的地方。
     Integration,
+    /// 其他 annotation-xml：内容仍是 MathML，但和集成点一样是"特殊"元素、作用域边界。
+    Annotation,
+}
+
+impl Ns {
+    /// 按外部内容的规则分词、建树（SVG/MathML 元素，集成点除外）。
+    fn foreign(self) -> bool {
+        matches!(self, Ns::Foreign | Ns::Annotation)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -136,6 +179,17 @@ struct Builder<'a> {
     form: u32,
     /// quirks 模式（没有 DOCTYPE 或老式 DOCTYPE），见 `quirks` 模块。
     quirks: bool,
+    /// 规范的 frameset-ok 标志：body 里出现正文或某些元素之后，`<frameset>` 不再取代 body。
+    frameset_ok: bool,
+    /// 源字符串里由 NUL 换成的 U+FFFD 的位置（升序），见 [`normalize`]。
+    nuls: Vec<u32>,
+    /// 规范的 scripting flag，见 `noscript` 模块。
+    scripting: bool,
+    /// 片段解析的上下文元素（`id` 不用）和它的命名空间，见 `fragment` 模块。
+    context: Option<Open>,
+    context_ns: Namespace,
+    /// 出栈的下限：片段解析时根元素不出栈。
+    floor: usize,
 }
 
 fn formatting(tag: Tag) -> bool {
@@ -335,11 +389,24 @@ fn breaks_out_of_foreign(tag: Tag) -> bool {
     )
 }
 
-fn integration_point(name: &str) -> bool {
-    matches!(
-        name,
-        "foreignobject" | "desc" | "title" | "mi" | "mo" | "mn" | "ms" | "mtext" | "annotation-xml"
-    )
+/// 外部元素在栈上的类别：HTML 集成点、MathML 文本集成点、annotation-xml 或普通外部元素。
+/// `encoding_html` 是元素的 `encoding` 属性为 `text/html` 或 `application/xhtml+xml`。
+fn foreign_kind(ns: Namespace, name: &str, encoding_html: bool) -> Ns {
+    let is = |n: &str| name.eq_ignore_ascii_case(n);
+    match ns {
+        Namespace::Svg if is("foreignobject") || is("desc") || is("title") => Ns::Integration,
+        Namespace::MathMl if is("mi") || is("mo") || is("mn") || is("ms") || is("mtext") => {
+            Ns::Integration
+        }
+        Namespace::MathMl if is("annotation-xml") => {
+            if encoding_html {
+                Ns::Integration
+            } else {
+                Ns::Annotation
+            }
+        }
+        _ => Ns::Foreign,
+    }
 }
 
 impl<'a> Builder<'a> {
@@ -377,6 +444,12 @@ impl<'a> Builder<'a> {
             afe: Vec::new(),
             form: NONE,
             quirks: true,
+            frameset_ok: true,
+            nuls: Vec::new(),
+            scripting: true,
+            context: None,
+            context_ns: Namespace::Html,
+            floor: 0,
         }
     }
 
@@ -388,16 +461,32 @@ impl<'a> Builder<'a> {
         }
     }
 
+    /// 规范的 "adjusted current node" 是外部元素（片段解析时栈里只剩根元素就看上下文元素）。
     pub(super) fn in_foreign(&self) -> bool {
-        self.stack.last().is_some_and(|o| o.ns == Ns::Foreign)
+        self.current().is_some_and(|o| o.ns.foreign())
     }
 
+    /// 栈顶真的是外部元素（跳出外部内容时按它逐个出栈）。
+    pub(super) fn top_foreign(&self) -> bool {
+        self.stack.last().is_some_and(|o| o.ns.foreign())
+    }
+
+    /// 当前节点。片段解析时栈里只剩根元素，标签和类别取上下文元素的（规范的 "adjusted current
+    /// node"，也用来推断插入模式），插入位置仍是根元素。
     pub(super) fn current(&self) -> Option<Open> {
-        self.stack.last().copied()
+        let top = self.stack.last().copied();
+        match (top, self.context) {
+            (Some(o), Some(c)) if self.stack.len() == 1 => Some(Open {
+                id: o.id,
+                tag: c.tag,
+                ns: c.ns,
+            }),
+            _ => top,
+        }
     }
 
     pub(super) fn current_is(&self, tag: Tag) -> bool {
         self.current()
-            .is_some_and(|o| o.tag == tag && o.ns != Ns::Foreign)
+            .is_some_and(|o| o.tag == tag && !o.ns.foreign())
     }
 }

@@ -481,3 +481,196 @@ fn repeated_body_merges_many_attributes() {
     assert_eq!(got.len(), 2 * n);
     assert_eq!(got[0], ("a0".to_string(), "1".to_string()));
 }
+
+#[test]
+fn frameset_replaces_body_before_content() {
+    // 规范：`<frameset>` 取代还没有内容的 body，之后只留 frame、noframes 和空白
+    check(
+        "<title>T</title><frameset cols=2><frame src=a><frame src=b></frameset> lost <p>lost",
+        r#"
+    <html>
+      <head>
+        <title>
+          "T"
+      <frameset cols="2">
+        <frame src="a">
+        <frame src="b">
+      "  "
+    "#,
+    );
+    check(
+        "<div><frameset><noframes>x</noframes>",
+        r#"
+    <html>
+      <head>
+      <frameset>
+        <noframes>
+          "x"
+    "#,
+    );
+    // body 里已经有正文：`<frameset>` 被忽略
+    check(
+        "<p>text<frameset><frame src=a>",
+        r#"
+    <html>
+      <head>
+      <body>
+        <p>
+          "text"
+    "#,
+    );
+}
+
+#[test]
+fn foreign_namespaces_follow_the_spec() {
+    use pagesift_html::Namespace;
+    let doc = Html::parse(
+        "<svg><title>a</title><desc><mi>b</mi></desc></svg>\
+         <math><mi><mglyph/><b>c</b></mi><title>d</title>\
+         <annotation-xml><svg></svg><mi></mi></annotation-xml>\
+         <annotation-xml encoding=text/html><mi></mi></annotation-xml></math>",
+    );
+    let ns: Vec<(String, Namespace)> = doc
+        .root()
+        .descendants()
+        .filter_map(|n| n.as_element())
+        .filter(|e| !matches!(e.name(), "html" | "head" | "body"))
+        .map(|e| (e.name().to_string(), e.namespace()))
+        .collect();
+    let (h, s, m) = (Namespace::Html, Namespace::Svg, Namespace::MathMl);
+    let expected = [
+        ("svg", s),
+        ("title", s),
+        ("desc", s),
+        ("mi", h),
+        ("math", m),
+        ("mi", m),
+        ("mglyph", m),
+        ("b", h),
+        ("title", m),
+        ("annotation-xml", m),
+        ("svg", s),
+        ("mi", m),
+        ("annotation-xml", m),
+        ("mi", h),
+    ];
+    let expected: Vec<(String, Namespace)> =
+        expected.iter().map(|(n, s)| (n.to_string(), *s)).collect();
+    assert_eq!(ns, expected);
+}
+
+#[test]
+fn nul_follows_the_spec() {
+    // 正文里忽略；`<` 后面跟 NUL 不是标签；plaintext、外部内容、注释里换成 U+FFFD
+    check(
+        "<p>a\0b<\0c<!--\0--><svg>\0</svg><plaintext>\0",
+        "
+    <html>
+      <head>
+      <body>
+        <p>
+          \"ab<c\"
+          <!-- \u{fffd} -->
+          <svg>
+            \"\u{fffd}\"
+        <plaintext>
+          \"\u{fffd}\"
+    ",
+    );
+    // 误当成 UTF-8 的 UTF-16（每个字符旁边一个 NUL）：NUL 全部删掉，恢复出文字
+    let utf16: String = "<p>Hello world, this paragraph came from a UTF-16 page</p>"
+        .chars()
+        .flat_map(|c| [c, '\0'])
+        .collect();
+    check(
+        &utf16,
+        r#"
+    <html>
+      <head>
+      <body>
+        <p>
+          "Hello world, this paragraph came from a UTF-16 page"
+    "#,
+    );
+}
+
+fn dump_with(html: &str, opts: &pagesift_html::ParseOptions<'_>) -> String {
+    let doc = Html::parse_with(html, opts);
+    let mut out = String::new();
+    for child in doc.root().children() {
+        walk(child, 0, &mut out);
+    }
+    out
+}
+
+#[test]
+fn scripting_off_parses_noscript_as_elements() {
+    let opts = pagesift_html::ParseOptions {
+        scripting: false,
+        ..Default::default()
+    };
+    // head 里的 noscript 只收 head 类元素，别的内容关掉它
+    assert_eq!(
+        dump_with("<head><noscript><link rel=a>X</noscript><p>b</p>", &opts),
+        "<html>\n  <head>\n    <noscript>\n      <link rel=\"a\">\n  <body>\n    \"X\"\n    <p>\n      \"b\"\n"
+    );
+    assert_eq!(
+        dump_with("<p><noscript><b>x</b></noscript>", &opts),
+        "<html>\n  <head>\n  <body>\n    <p>\n      <noscript>\n        <b>\n          \"x\"\n"
+    );
+    // 默认开着脚本：内容是原始文本
+    assert_eq!(
+        dump("<p><noscript><b>x</b></noscript>"),
+        "<html>\n  <head>\n  <body>\n    <p>\n      <noscript>\n        \"<b>x</b>\"\n"
+    );
+}
+
+#[test]
+fn fragment_parsing_uses_the_context_element() {
+    use pagesift_html::{Namespace, ParseOptions};
+    let frag = |ns, ctx, html| {
+        dump_with(
+            html,
+            &ParseOptions {
+                context: Some((ns, ctx)),
+                ..Default::default()
+            },
+        )
+    };
+    // 结果挂在根 html 元素下；表格上下文补上 tbody、tr
+    assert_eq!(
+        frag(Namespace::Html, "table", "<table><tr><td>a"),
+        "<html>\n  <tbody>\n    <tr>\n      <td>\n        \"a\"\n"
+    );
+    assert_eq!(
+        frag(Namespace::Html, "tr", "<td>a<td>b"),
+        "<html>\n  <td>\n    \"a\"\n  <td>\n    \"b\"\n"
+    );
+    // RCDATA 上下文：整段是文本
+    assert_eq!(
+        frag(Namespace::Html, "title", "<b>x&amp;</b>"),
+        "<html>\n  \"<b>x&</b>\"\n"
+    );
+    // 外部内容上下文：元素在上下文的命名空间里，跳出标签按 HTML 处理
+    let doc = Html::parse_with(
+        "<path/><div>x</div>",
+        &ParseOptions {
+            context: Some((Namespace::Svg, "svg")),
+            ..Default::default()
+        },
+    );
+    let ns: Vec<(String, Namespace)> = doc
+        .root()
+        .descendants()
+        .filter_map(|n| n.as_element())
+        .map(|e| (e.name().to_string(), e.namespace()))
+        .collect();
+    assert_eq!(
+        ns,
+        [
+            ("html".to_string(), Namespace::Html),
+            ("path".to_string(), Namespace::Svg),
+            ("div".to_string(), Namespace::Html)
+        ]
+    );
+}
