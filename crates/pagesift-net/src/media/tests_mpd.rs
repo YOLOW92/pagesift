@@ -1,6 +1,7 @@
 //! MPD 解析器的表驱动测试：每个函数一张用例表，一次跑完全部用例，最后统一报告失败的条目。
 //!
-//! 期望值按当前实现写；标 `// BUG?` 的是"当前行为看起来不对"的用例，留待以后决定要不要改生产代码。
+//! 期望值按 ISO/IEC 23009-1（DASH）和 XML Schema 的 xs:duration 写；0.80 修掉了 B3 标出的 `BUG?`
+//! （时长、占位符、自闭合元素、逐级 BaseURL 与模板继承、没有总时长时不编造分片）。
 
 use std::fmt::{Debug, Write as _};
 
@@ -48,11 +49,18 @@ fn table_parse_iso8601_duration() {
         ("PT1M30S", Some(90.0)),
         ("PT1H30S", Some(3630.0)),
         ("PT634.566S", Some(634.566)),
-        ("PT1M1H", Some(3660.0)), // 单位顺序不检查（宽松）
-        // 带日期部分的不支持
-        ("P1D", None),
-        ("P1DT2H", None),
-        ("P0Y0M0DT0H3M30.000S", None),
+        // 单位必须按 年月日 T 时分秒 的顺序（xs:duration）
+        ("PT1M1H", None),
+        // 日期部分：年按 365 天、月按 30 天（同 dash.js、Shaka）
+        ("P1D", Some(86400.0)),
+        ("P1DT2H", Some(93600.0)),
+        ("P0Y0M0DT0H3M30.000S", Some(210.0)),
+        ("P1Y", Some(31536000.0)),
+        ("P1M", Some(2592000.0)),
+        ("PT1M", Some(60.0)),
+        ("P", None),
+        ("P1DT", None),
+        ("P1H", None),
         // 不合法
         ("PT-1S", None),
         ("PT1.5.5S", None),
@@ -60,10 +68,10 @@ fn table_parse_iso8601_duration() {
         ("1H", None),
         ("pt1s", None),
         ("", None),
-        ("PT", Some(0.0)),    // BUG? 空时长当成 0 秒，应为 None
-        ("PT5", Some(0.0)),   // BUG? 最后的数字没有单位，被悄悄丢掉
-        ("PT1X", Some(0.0)),  // BUG? 未知单位被忽略，应为 None
-        ("PT1S5", Some(1.0)), // BUG? 同上，结尾没单位的数字丢掉
+        ("PT", None),    // 0.80 前当成 0 秒
+        ("PT5", None),   // 0.80 前最后的数字被悄悄丢掉，得 0
+        ("PT1X", None),  // 0.80 前未知单位被忽略，得 0
+        ("PT1S5", None), // 0.80 前结尾没单位的数字丢掉，得 1
     ];
     check(
         "parse_iso8601_duration",
@@ -100,10 +108,16 @@ fn table_replace_template() {
         (("init.mp4", "v1", 7, 100, 0), "init.mp4"),
         (("$Unknown$.m4s", "v1", 7, 100, 0), "$Unknown$.m4s"), // 未知占位符原样保留
         (("$Number%5d$", "v1", 7, 100, 0), "7"),               // 没有 0 的宽度写法不补零
-        (("$Time%08d$.m4s", "v1", 7, 100, 90), "$Time%08d$.m4s"), // BUG? $Time$ 的宽度格式不支持，原样留下
-        (("a$$b-$Number$", "v1", 7, 100, 0), "a$$b-7"),           // BUG? "$$" 应还原成 "$"
-        (("$Number%05d$-$Number$", "v1", 7, 100, 0), "00007-$Number$"), // BUG? 只处理第一种 $Number 写法
-        (("$Bandwidth%08d$", "v1", 7, 100, 0), "$Bandwidth%08d$"), // BUG? $Bandwidth$ 的宽度格式不支持
+        // 以下 4 条 0.80 前不对：宽度格式只认 $Number$、"$$" 不还原、只替换第一种 $Number 写法
+        (("$Time%08d$.m4s", "v1", 7, 100, 90), "00000090.m4s"),
+        (("a$$b-$Number$", "v1", 7, 100, 0), "a$b-7"),
+        (("$Number%05d$-$Number$", "v1", 7, 100, 0), "00007-7"),
+        (("$Bandwidth%08d$", "v1", 7, 100, 0), "00000100"),
+        // RepresentationID 不允许格式；单个 "$" 原样保留；替换结果里的 "$" 不再展开
+        (("$RepresentationID%02d$", "v1", 7, 100, 0), "$RepresentationID%02d$"),
+        (("a$b", "v1", 7, 100, 0), "a$b"),
+        (("$RepresentationID$-$Number$", "$Number$", 7, 100, 0), "$Number$-7"),
+        (("$Number%0999d$", "v1", 7, 100, 0), "$Number%0999d$"), // 宽度过大不展开
     ];
     check(
         "replace_template",
@@ -194,7 +208,7 @@ fn table_parse_mpd() {
                 r#"<MPD minBufferTime="PT2S" mediaPresentationDuration="PT1H2M3.5S"/>"#,
                 false,
             ),
-            "buf=0 dur=-", // BUG? 自闭合的 <MPD/> 是 Empty 事件，属性没读
+            "buf=2 dur=3723.5", // 0.80 前自闭合的 <MPD/> 属性没读
         ),
         (
             (
@@ -208,7 +222,7 @@ fn table_parse_mpd() {
                 r#"<MPD minBufferTime="P1D" mediaPresentationDuration="bogus"></MPD>"#,
                 false,
             ),
-            "buf=0 dur=-",
+            "buf=86400 dur=-",
         ),
         // 带命名空间前缀的元素按本地名认
         (
@@ -226,13 +240,13 @@ fn table_parse_mpd() {
             ),
             "buf=0 dur=10\nset - - -\n a 1 -x- -: s-0-0.m4s#0@4 s-1-4000.m4s#1@4 s-2-8000.m4s#2@4",
         ),
-        // 没有总时长时按 60 秒猜
+        // 没有总时长时不知道分片数，不生成（0.80 前按 60 秒编造 3 个）
         (
             (
                 r#"<MPD><Period><AdaptationSet><SegmentTemplate duration="20" media="s-$Number$.m4s"></SegmentTemplate><Representation id="a" bandwidth="1"/></AdaptationSet></Period></MPD>"#,
                 false,
             ),
-            "buf=0 dur=-\nset - - -\n a 1 -x- -: s-1.m4s#1@20 s-2.m4s#2@20 s-3.m4s#3@20", // BUG? 不知道总时长时编造 60 秒，应报错或不生成
+            "buf=0 dur=-\nset - - -\n a 1 -x- -:",
         ),
         // 自闭合的 SegmentTemplate（按 duration 编号时最常见的写法）
         (
@@ -240,7 +254,7 @@ fn table_parse_mpd() {
                 r#"<MPD mediaPresentationDuration="PT10S"><Period><AdaptationSet><SegmentTemplate timescale="1" duration="5" media="s-$Number$.m4s"/><Representation id="a" bandwidth="1"/></AdaptationSet></Period></MPD>"#,
                 false,
             ),
-            "buf=0 dur=10\nset - - -\n a 1 -x- -:", // BUG? 自闭合的 SegmentTemplate 是 Empty 事件，被整个忽略
+            "buf=0 dur=10\nset - - -\n a 1 -x- -: s-1.m4s#1@5 s-2.m4s#2@5", // 0.80 前被整个忽略
         ),
         // SegmentTimeline：t 跳变、r 重复、$Time$
         (
@@ -286,7 +300,7 @@ fn table_parse_mpd() {
                 r#"<MPD mediaPresentationDuration="PT1S"><BaseURL>https://cdn.test/v/</BaseURL><Period><AdaptationSet><SegmentTemplate duration="1" media="/seg-$Number$.m4s"></SegmentTemplate><Representation id="a" bandwidth="1"/></AdaptationSet></Period></MPD>"#,
                 true,
             ),
-            "buf=0 dur=1\nset - - -\n a 1 -x- -: https://cdn.test/v/seg-1.m4s#1@1",
+            "buf=0 dur=1\nset - - -\n a 1 -x- -: https://cdn.test/seg-1.m4s#1@1", // RFC 3986：以 / 开头的地址从主机根算起
         ),
         (
             (
@@ -295,21 +309,21 @@ fn table_parse_mpd() {
             ),
             "buf=0 dur=1\nset - - -\n a 1 -x- -: media/seg-1.m4s#1@1",
         ),
-        // 多级 BaseURL：后出现的直接覆盖前面的，而不是逐级拼接
+        // 多级 BaseURL 逐级拼接（0.80 前后出现的直接覆盖前面的）
         (
             (
                 r#"<MPD mediaPresentationDuration="PT1S"><BaseURL>https://cdn.test/a/</BaseURL><Period><BaseURL>p/</BaseURL><AdaptationSet><SegmentTemplate duration="1" media="seg.m4s"></SegmentTemplate><Representation id="a" bandwidth="1"/></AdaptationSet></Period></MPD>"#,
                 true,
             ),
-            "buf=0 dur=1\nset - - -\n a 1 -x- -: https://example.test/m/p/seg.m4s#1@1", // BUG? 应为 https://cdn.test/a/p/seg.m4s
+            "buf=0 dur=1\nset - - -\n a 1 -x- -: https://cdn.test/a/p/seg.m4s#1@1",
         ),
-        // 模板本身是绝对地址时仍被拼到 BaseURL 后面
+        // 模板本身是绝对地址时不再拼到 BaseURL 后面
         (
             (
                 r#"<MPD mediaPresentationDuration="PT1S"><BaseURL>media/</BaseURL><Period><AdaptationSet><SegmentTemplate duration="1" media="https://other.test/x.m4s"></SegmentTemplate><Representation id="a" bandwidth="1"/></AdaptationSet></Period></MPD>"#,
                 true,
             ),
-            "buf=0 dur=1\nset - - -\n a 1 -x- -: https://example.test/m/media/https://other.test/x.m4s#1@1", // BUG? 应为 https://other.test/x.m4s
+            "buf=0 dur=1\nset - - -\n a 1 -x- -: https://other.test/x.m4s#1@1",
         ),
         // SegmentList、SegmentBase 不支持：Representation 有，分片为空
         (
@@ -326,13 +340,53 @@ fn table_parse_mpd() {
             ),
             "buf=0 dur=-\nset - - -\n a 1 -x- -:",
         ),
-        // 上一个 AdaptationSet 的模板会被下一个没有模板的 AdaptationSet 沿用
+        // 上一个 AdaptationSet 的模板不被下一个 AdaptationSet 沿用
         (
             (
                 r#"<MPD mediaPresentationDuration="PT1S"><Period><AdaptationSet contentType="video"><SegmentTemplate duration="1" media="v-$Number$.m4s"></SegmentTemplate><Representation id="v" bandwidth="1"/></AdaptationSet><AdaptationSet contentType="text"><Representation id="t" bandwidth="1"/></AdaptationSet></Period></MPD>"#,
                 false,
             ),
-            "buf=0 dur=1\nset - video -\n v 1 -x- -: v-1.m4s#1@1\nset - text -\n t 1 -x- -: v-1.m4s#1@1", // BUG? 第二个 AdaptationSet 不该有分片
+            "buf=0 dur=1\nset - video -\n v 1 -x- -: v-1.m4s#1@1\nset - text -\n t 1 -x- -:",
+        ),
+        // Period 级模板由 Representation 级模板继承、覆盖个别属性；Period@duration 决定分片数
+        (
+            (
+                r#"<MPD mediaPresentationDuration="PT9S"><Period duration="PT4S"><SegmentTemplate timescale="10" duration="20" media="$RepresentationID$-$Number$.m4s" startNumber="5"/><AdaptationSet><Representation id="a" bandwidth="1"/><Representation id="b" bandwidth="1"><SegmentTemplate startNumber="0"/></Representation></AdaptationSet></Period><Period><AdaptationSet><Representation id="c" bandwidth="1"/></AdaptationSet></Period></MPD>"#,
+                false,
+            ),
+            "buf=0 dur=9\nset - - -\n a 1 -x- -: a-5.m4s#5@2 a-6.m4s#6@2\n b 1 -x- -: b-0.m4s#0@2 b-1.m4s#1@2\nset - - -\n c 1 -x- -:",
+        ),
+        // 两个 Period：第一个没有 duration 时按第二个的 start 算
+        (
+            (
+                r#"<MPD mediaPresentationDuration="PT10S"><Period start="PT0S"><AdaptationSet><SegmentTemplate duration="3" media="p1-$Number$"/><Representation id="a" bandwidth="1"/></AdaptationSet></Period><Period start="PT6S"><AdaptationSet><SegmentTemplate duration="2" media="p2-$Number$"/><Representation id="b" bandwidth="1"/></AdaptationSet></Period></MPD>"#,
+                false,
+            ),
+            "buf=0 dur=10\nset - - -\n a 1 -x- -: p1-1#1@3 p1-2#2@3\nset - - -\n b 1 -x- -: p2-1#1@2 p2-2#2@2",
+        ),
+        // SegmentTimeline 的 r="-1"：重复到下一个 t，最后一个重复到 Period 结束
+        (
+            (
+                r#"<MPD mediaPresentationDuration="PT6S"><Period><AdaptationSet><SegmentTemplate timescale="1" media="$Time$"><SegmentTimeline><S t="0" d="2" r="-1"/><S t="4" d="1" r="-1"/></SegmentTimeline></SegmentTemplate><Representation id="a" bandwidth="1"/></AdaptationSet></Period></MPD>"#,
+                false,
+            ),
+            "buf=0 dur=6\nset - - -\n a 1 -x- -: 0#1@2 2#2@2 4#3@1 5#4@1",
+        ),
+        // 属性和 BaseURL 里的实体还原；BaseURL 两边的空白去掉；同一级多个 BaseURL 只用第一个
+        (
+            (
+                r#"<MPD mediaPresentationDuration="PT1S"><BaseURL> https://cdn.test/a?x=1&amp;y=2 </BaseURL><BaseURL>https://backup.test/</BaseURL><Period><AdaptationSet><SegmentTemplate duration="1" media="s.m4s?k=1&amp;n=$Number$"/><Representation id="a" bandwidth="1"/></AdaptationSet></Period></MPD>"#,
+                false,
+            ),
+            "buf=0 dur=1\nset - - -\n a 1 -x- -: https://cdn.test/s.m4s?k=1&n=1#1@1",
+        ),
+        // 分片太多算清单有问题，报错而不是分配
+        (
+            (
+                r#"<MPD mediaPresentationDuration="P1000D"><Period><AdaptationSet><SegmentTemplate duration="1" media="s"/><Representation id="a" bandwidth="1"/></AdaptationSet></Period></MPD>"#,
+                false,
+            ),
+            "Err(invalid duration or number in manifest)",
         ),
         // 没有 AdaptationSet、不是 MPD
         ((r#"<MPD><Period/></MPD>"#, false), "buf=0 dur=-"),

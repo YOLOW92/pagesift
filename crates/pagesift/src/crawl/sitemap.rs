@@ -99,6 +99,7 @@ pub(super) fn gunzip_if_needed(body: Vec<u8>) -> Option<Vec<u8>> {
 
 /// 解析 sitemap（sitemaps.org 协议允许的三种格式）：
 /// - XML：`<urlset>` 里的 `<loc>` 是页面，`<sitemapindex>` 里的 `<loc>` 是子 sitemap；
+///   只认 `<url>`/`<sitemap>`（或根元素）下一层的 `<loc>`，图片扩展里同名的 `<image:loc>` 不算（同 Scrapy）；
 /// - RSS 2.0 / Atom feed：`<item>` 的 `<link>` 文本、`<entry>` 的 `<link href>` 是页面；
 /// - 纯文本：每行一个 URL。
 ///
@@ -133,40 +134,55 @@ pub(super) fn parse_sitemap(xml: &[u8]) -> (Vec<String>, Vec<String>) {
         Some(href.value.replace("&amp;", "&"))
     };
     let mut loc: Option<String> = None;
+    // 打开着的元素的本地名，用来判断 <loc> 的上一层
+    let mut open: Vec<String> = Vec::new();
     let mut buf = Vec::new();
     loop {
         match reader.read_event_into(&mut buf) {
-            Ok(Event::Start(e)) => match e.local_name().as_ref() {
-                "sitemap" => in_sitemap = true,
-                "item" | "entry" => in_item = true,
-                "loc" => loc = Some(String::new()),
-                "link" if in_item => match atom_href(&e) {
-                    Some(href) => pages.push(href),
-                    None => loc = Some(String::new()),
-                },
-                _ => {}
-            },
+            Ok(Event::Start(e)) => {
+                let name = e.local_name();
+                match name.as_ref() {
+                    "sitemap" => in_sitemap = true,
+                    "item" | "entry" => in_item = true,
+                    "loc" if matches!(
+                        open.last().map(String::as_str),
+                        Some("url" | "sitemap" | "urlset" | "sitemapindex")
+                    ) =>
+                    {
+                        loc = Some(String::new())
+                    }
+                    "link" if in_item => match atom_href(&e) {
+                        Some(href) => pages.push(href),
+                        None => loc = Some(String::new()),
+                    },
+                    _ => {}
+                }
+                open.push(name.as_ref().to_owned());
+            }
             Ok(Event::Empty(e)) if in_item && e.local_name().as_ref() == "link" => {
                 pages.extend(atom_href(&e));
             }
-            Ok(Event::End(e)) => match e.local_name().as_ref() {
-                "sitemap" => in_sitemap = false,
-                "item" | "entry" => in_item = false,
-                "loc" | "link" => {
-                    if let Some(text) = loc
-                        .take()
-                        .map(|t| t.trim().to_string())
-                        .filter(|t| !t.is_empty())
-                    {
-                        if in_sitemap {
-                            children.push(text)
-                        } else {
-                            pages.push(text)
+            Ok(Event::End(e)) => {
+                open.pop();
+                match e.local_name().as_ref() {
+                    "sitemap" => in_sitemap = false,
+                    "item" | "entry" => in_item = false,
+                    "loc" | "link" => {
+                        if let Some(text) = loc
+                            .take()
+                            .map(|t| t.trim().to_string())
+                            .filter(|t| !t.is_empty())
+                        {
+                            if in_sitemap {
+                                children.push(text)
+                            } else {
+                                pages.push(text)
+                            }
                         }
                     }
+                    _ => {}
                 }
-                _ => {}
-            },
+            }
             Ok(Event::Text(t)) => {
                 if let Some(l) = loc.as_mut() {
                     l.push_str(&t.xml10_content());

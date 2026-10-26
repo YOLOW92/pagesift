@@ -49,7 +49,9 @@ fn table_xml_tree() {
         // 文本：首尾空白去掉，字符引用还原
         (r#"<a>  padded  </a>"#.into(), "<a>padded</a>"),
         (r#"<a>&#65;&#x42;</a>"#.into(), "<a>AB</a>"),
-        (r#"<a>x &lt; y</a>"#.into(), "<a>x&lt;y</a>"), // BUG? 实体两边的空格被 trim_text 吃掉，应为 "x &lt; y"
+        (r#"<a>x &lt; y</a>"#.into(), "<a>x &lt; y</a>"), // 0.80 前实体两边的空格被吃掉，得 "x&lt;y"
+        (r#"<a> &amp; </a>"#.into(), "<a>&amp;</a>"),
+        ("<a>\n  1 &amp; 2\n  <b/>\n</a>".into(), "<a>1 &amp; 2<b/></a>"),
         // 普通 href 属性可以，带前缀的 href（xlink:href）是外部引用，不支持
         (r#"<a href="x"/>"#.into(), r#"<a href="x"/>"#),
         (

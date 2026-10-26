@@ -3,6 +3,7 @@
 pub mod chunk_fetcher;
 pub mod m3u8_parser;
 pub mod mpd_parser;
+mod mpd_template;
 pub mod stream_verifier;
 
 pub use chunk_fetcher::{ChunkFetcher, FetchError, FetchedChunk};

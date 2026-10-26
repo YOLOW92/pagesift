@@ -183,14 +183,25 @@ fn table_parse_feed() {
                 "# A\n\n- [Post](https://a.test/blog/posts/1)\n--\ntitle=Some(\"A\") lang=None\n".into(),
             ),
         ),
-        // feed 级 <link .../> 是自闭合时（Atom 的常见写法）没读到，相对链接被丢掉
+        // feed 级 <link .../> 是自闭合时（Atom 的常见写法）也要读到（0.80 前没读到，相对链接被丢掉）
         (
             (
                 r#"<feed xmlns="http://www.w3.org/2005/Atom"><title>A</title><link href="https://a.test/blog/"/><entry><title>Post</title><link href="posts/1"/></entry></feed>"#
                     .into(),
                 false,
             ),
-            Some("# A\n\n- Post\n--\ntitle=Some(\"A\") lang=None\n".into()), // BUG? 应为 [Post](https://a.test/blog/posts/1)
+            Some(
+                "# A\n\n- [Post](https://a.test/blog/posts/1)\n--\ntitle=Some(\"A\") lang=None\n".into(),
+            ),
+        ),
+        // feed 级 rel="self" 的自闭合链接不当站点地址，rel="alternate" 的才是
+        (
+            (
+                r#"<feed xmlns="http://www.w3.org/2005/Atom"><title>A</title><link rel="self" href="https://a.test/feed.xml"/><link rel="alternate" href="https://a.test/site/"/><entry><title>Post</title><link href="p"/></entry></feed>"#
+                    .into(),
+                false,
+            ),
+            Some("# A\n\n- [Post](https://a.test/site/p)\n--\ntitle=Some(\"A\") lang=None\n".into()),
         ),
         // ---- 补充：BOM 和开头空白、CDATA 标题、实体、方括号、无标题、只有标题、空条目、站外链接 ----
         (
@@ -298,9 +309,13 @@ fn table_strip_html() {
         ("[x](javascript:y)", "\\[x\\](javascript:y)"),
         // 没闭合的标签丢掉后面的内容
         ("unclosed <b", "unclosed"),
-        // 文本里的 "<" 被当成标签开头
-        ("a < b", "a"),             // BUG? 应保留 "a < b"
-        ("1 < 2 and 3 > 2", "1 2"), // BUG? "< 2 and 3 >" 被当成标签吃掉
+        // 文本里的 "<" 后面不是字母、/、!、? 时是普通文字（0.80 前被当成标签开头吃掉）
+        ("a < b", "a < b"),
+        ("1 < 2 and 3 > 2", "1 < 2 and 3 > 2"),
+        ("x <3 y", "x <3 y"),
+        ("trailing <", "trailing <"),
+        ("a<!-- x > y -->b", "a b"),
+        ("<?xml x?>a", "a"),
     ];
     check("strip_html", CASES, |s| strip_html(s), |a, e| a == e);
 }

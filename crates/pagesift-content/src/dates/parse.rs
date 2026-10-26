@@ -15,7 +15,7 @@ pub(super) static YMD_NO_SEP: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\b(\d{8})\b").unwrap());
 pub(super) static YMD: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(&format!(
-        r"(?:\D|^)(?:({YEAR})[\-/.]([0-1]?[0-9])[\-/.]([0-3]?[0-9])|([0-3]?[0-9])[\-/.]([0-1]?[0-9])[\-/.](\d{{2,4}}))(?:\D|$)"
+        r"(?:\D|^)(?:({YEAR})[\-/.]([0-1]?[0-9])[\-/.]([0-3]?[0-9])|([0-3]?[0-9])[\-/.]([0-3]?[0-9])[\-/.](\d{{2,4}}))(?:\D|$)"
     ))
     .unwrap()
 });
@@ -28,7 +28,7 @@ pub(super) static YM: LazyLock<Regex> = LazyLock::new(|| {
 /// 分隔符两边有空格或用竖线、圆点：`26 | 01 | 2022`、`2022 · 01 · 26`（自研，htmldate 要交给 dateparser）。
 pub(super) static SPACED: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(&format!(
-        r"(?:\D|^)(?:({YEAR})\s*[|·•/.-]\s*([0-1]?[0-9])\s*[|·•/.-]\s*([0-3]?[0-9])|([0-3]?[0-9])\s*[|·•/.-]\s*([0-1]?[0-9])\s*[|·•/.-]\s*({YEAR}))(?:\D|$)"
+        r"(?:\D|^)(?:({YEAR})\s*[|·•/.-]\s*([0-1]?[0-9])\s*[|·•/.-]\s*([0-3]?[0-9])|([0-3]?[0-9])\s*[|·•/.-]\s*([0-3]?[0-9])\s*[|·•/.-]\s*({YEAR}))(?:\D|$)"
     ))
     .unwrap()
 });
@@ -109,6 +109,10 @@ pub(super) fn fold(s: &str) -> String {
 }
 
 /// 月份名：先整词查；月份在前时允许粘在前一个词后面（取最长的已知后缀，同 htmldate）。
+///
+/// 粘连只认相邻节点文字拼在一起的样子：后缀以大写字母开头、前一个字符不是大写（`SmithMarch`），
+/// 或者是不分大小写的文字（阿拉伯文等）。否则 `about`、`sunset` 的结尾会被当成葡语的
+/// `out`（outubro）、`set`（setembro）。
 pub(super) fn month_of(word: &str, glued: bool) -> Option<u32> {
     let w = fold(word);
     if let Some(&m) = MONTHS.get(&w) {
@@ -117,10 +121,20 @@ pub(super) fn month_of(word: &str, glued: bool) -> Option<u32> {
     if !glued {
         return None;
     }
-    let chars: Vec<char> = w.chars().collect();
-    let tail = &chars[chars.len().saturating_sub(12)..];
-    (0..tail.len().saturating_sub(2))
-        .find_map(|i| MONTHS.get(&tail[i..].iter().collect::<String>()).copied())
+    let chars: Vec<char> = word.chars().collect();
+    let start = chars.len().saturating_sub(12).max(1);
+    (start..chars.len().saturating_sub(2)).find_map(|i| {
+        let (prev, first) = (chars[i - 1], chars[i]);
+        let boundary = if first.is_uppercase() {
+            !prev.is_uppercase()
+        } else {
+            !first.is_lowercase()
+        };
+        if !boundary {
+            return None;
+        }
+        MONTHS.get(&fold(&chars[i..].iter().collect::<String>())).copied()
+    })
 }
 
 /// 自然语言写法（月份名、"年月日"），返回第一个合法的（同 htmldate 的 regex_parse，覆盖更多语言）。
@@ -293,13 +307,16 @@ pub(super) fn parse_rfc2822(s: &str) -> Option<Date> {
         let (h, mi) = (hms.next()??, hms.next()??);
         let sec = hms.next().flatten().unwrap_or(0);
         let off = match parts.next() {
-            Some(z) => {
-                let mut c = Cursor {
-                    b: z.as_bytes(),
-                    i: 0,
-                };
-                zone(&mut c)?
-            }
+            Some(z) => match obsolete_zone(z) {
+                Some(off) => off,
+                None => {
+                    let mut c = Cursor {
+                        b: z.as_bytes(),
+                        i: 0,
+                    };
+                    zone(&mut c)?
+                }
+            },
             None => None,
         };
         if h > 23 || mi > 59 || sec > 60 {
@@ -308,6 +325,23 @@ pub(super) fn parse_rfc2822(s: &str) -> Option<Date> {
         date.time = Some((h, mi, sec.min(59), off));
     }
     Some(date)
+}
+
+/// RFC 2822 §4.3 的旧式时区名：北美的 EST/EDT/CST/CDT/MST/MDT/PST/PDT 有固定偏移；
+/// 单个字母的军用时区（Z 以外）按规范当作未知（`Some(None)`）。不是这些名字时返回 `None`。
+fn obsolete_zone(z: &str) -> Option<Option<i32>> {
+    let hours = match z {
+        "EDT" => -4,
+        "EST" | "CDT" => -5,
+        "CST" | "MDT" => -6,
+        "MST" | "PDT" => -7,
+        "PST" => -8,
+        _ if z.len() == 1 && z != "Z" && z != "z" && z.as_bytes()[0].is_ascii_alphabetic() => {
+            return Some(None);
+        }
+        _ => return None,
+    };
+    Some(Some(hours * 3600))
 }
 
 /// 结构化的日期值（meta、JSON-LD、`<time datetime>`）规范化为 RFC 3339，保留原来的时区偏移。
@@ -348,7 +382,10 @@ pub(super) fn custom_parse(s: &str, b: &Bounds) -> Option<Date> {
     {
         return Some(d);
     }
+    // 找到过完整的年月日（哪怕不合法或超出范围）的位置，YM 不再从里面截出“当月 1 日”。
+    let mut full_dates: Vec<std::ops::Range<usize>> = Vec::new();
     if let Some(c) = YMD.captures(s) {
+        full_dates.push(c.get(0).unwrap().range());
         let d = if let Some(y) = c.get(1) {
             Date::ymd(
                 y.as_str().parse().ok()?,
@@ -363,6 +400,7 @@ pub(super) fn custom_parse(s: &str, b: &Bounds) -> Option<Date> {
         }
     }
     if let Some(c) = SPACED.captures(s) {
+        full_dates.push(c.get(0).unwrap().range());
         let d = if let Some(y) = c.get(1) {
             Date::ymd(
                 y.as_str().parse().ok()?,
@@ -379,7 +417,10 @@ pub(super) fn custom_parse(s: &str, b: &Bounds) -> Option<Date> {
     if let Some(d) = b.check(parse_long(s)) {
         return Some(d);
     }
-    if let Some(c) = YM.captures(s) {
+    if let Some(c) = YM.captures_iter(s).find(|c| {
+        let r = c.get(0).unwrap().range();
+        !full_dates.iter().any(|f| f.start < r.end && r.start < f.end)
+    }) {
         let (y, m) = match c.get(1) {
             Some(y) => (y.as_str(), &c[2]),
             None => (&c[4], &c[3]),
@@ -416,6 +457,10 @@ pub(super) fn cut(s: &str, max_chars: usize) -> &str {
 pub(super) fn date_expr(s: &str, b: &Bounds) -> Option<Date> {
     let t = trim_text(s);
     let t = cut(&t, MAX_SEGMENT);
+    // 整段就是一个 ISO 8601 时间戳时不用 DISCARD 的启发式（毫秒 `.123Z` 会命中“三位数字”那条）。
+    if let Some(d) = parse_iso(t, true) {
+        return b.check(Some(d));
+    }
     let digits = t.chars().filter(char::is_ascii_digit).count();
     if !(4..=18).contains(&digits) || DISCARD.is_match(t) {
         return None;

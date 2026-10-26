@@ -32,8 +32,9 @@ impl Xml {
     }
 }
 pub(super) fn xml(source: &str) -> Result<Xml> {
+    // Text is trimmed per element when it closes, not per event: an entity
+    // splits text into several events and their inner spaces must survive.
     let mut reader = quick_xml::Reader::from_str(source);
-    reader.config_mut().trim_text(true);
     let mut stack = vec![Xml::default()];
     let mut count = 0;
     loop {
@@ -72,7 +73,11 @@ pub(super) fn xml(source: &str) -> Result<Xml> {
             }
             Event::End(_) => {
                 ensure!(stack.len() > 1, "unexpected DASH close tag");
-                let n = stack.pop().unwrap();
+                let mut n = stack.pop().unwrap();
+                let trimmed = n.text.trim();
+                if trimmed.len() != n.text.len() {
+                    n.text = trimmed.to_owned();
+                }
                 stack.last_mut().unwrap().children.push(n);
             }
             Event::Text(e) => stack.last_mut().unwrap().text.push_str(&e.xml10_content()),
