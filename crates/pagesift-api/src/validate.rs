@@ -121,6 +121,8 @@ pub fn check_scrape_options(opts: &ScrapeOptions, engine: &dyn Engine) -> Result
             "waitFor must not exceed {MAX_WAIT_FOR_MS} ms"
         )));
     }
+    // 抓到的是 PDF 时才用得上，但写错的 parsers 在抓取前就报出来（parse 也走这里）
+    PdfParser::from_parsers(opts.parsers.as_ref())?;
     Ok(())
 }
 
@@ -175,6 +177,5 @@ pub fn check_parse_options(opts: &ScrapeOptions, engine: &dyn Engine) -> Result<
             "parse uploads do not support {what}"
         )));
     }
-    PdfParser::from_parsers(opts.parsers.as_ref())?;
     Ok(())
 }

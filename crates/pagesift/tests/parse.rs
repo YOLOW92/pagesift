@@ -13,6 +13,37 @@ use pagesift::{Scraper, ScraperConfig};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
+/// 本地站点上 `/doc.pdf` 的地址，返回给定的字节。
+async fn pdf_url(bytes: Vec<u8>) -> String {
+    format!("{}/doc.pdf", site(bytes).await)
+}
+
+/// 一页满版灰度图、没有文字层的“扫描件”。
+fn scanned_pdf() -> Vec<u8> {
+    let content = "q 612 0 0 792 0 0 cm BI /W 2 /H 2 /CS /G /BPC 8 ID \x7f\x7f\x7f\x7f EI Q";
+    let objs = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
+        "<< /Type /Pages /Count 1 /Kids [3 0 R] >>".into(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>".into(),
+        format!("<< /Length {} >>\nstream\n{content}\nendstream", content.len()),
+    ];
+    let mut out = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, o) in objs.iter().enumerate() {
+        offsets.push(out.len());
+        out.extend_from_slice(format!("{} 0 obj\n{o}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref = out.len();
+    out.extend_from_slice(b"xref\n0 5\n0000000000 65535 f \n");
+    for off in offsets {
+        out.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    out.extend_from_slice(
+        format!("trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n").as_bytes(),
+    );
+    out
+}
+
 /// 一页一行字的 PDF：每页一个内容流，`/Info` 里有标题。`encrypt` 时加一个打不开的 /Encrypt。
 fn pdf(pages: &[&str], title: &str, encrypt: bool) -> Vec<u8> {
     let n = pages.len();
@@ -210,7 +241,9 @@ async fn pdf_parser_options_pages_and_max_pages() {
             .unwrap()
             .contains("Beta page.")
     );
-    assert_eq!(v["data"]["metadata"]["numPages"], 3);
+    // 和 Firecrawl 一样：numPages 是转换的页数，totalPages 是文件的页数
+    assert_eq!(v["data"]["metadata"]["numPages"], 2);
+    assert_eq!(v["data"]["metadata"]["totalPages"], 3);
     let warnings = v["data"]["metadata"]["pagesift"]["warnings"].to_string();
     assert!(warnings.contains("max_pages"), "{warnings}");
     // 不要 pages 时没有这个字段
@@ -303,4 +336,79 @@ async fn html_upload_respects_only_main_content_and_raw_html() {
     assert_eq!(s, StatusCode::OK, "{v}");
     assert!(v["data"]["markdown"].as_str().unwrap().contains("Home"));
     assert_eq!(v["data"]["rawHtml"], HTML);
+}
+
+#[tokio::test]
+async fn scrape_honours_pdf_parsers_like_parse() {
+    let bytes = pdf(
+        &["Alpha page.", "Beta page.", "Gamma page."],
+        "Three",
+        false,
+    );
+    let app = app();
+    let url = pdf_url(bytes.clone()).await;
+    let opts = json!({"maxAge": 0, "parsers": [{"type": "pdf", "maxPages": 2, "pages": true}]});
+    let (s, scraped) = scrape(&app, &url, opts.clone()).await;
+    assert_eq!(s, StatusCode::OK, "{scraped}");
+    let (s, parsed) = upload(&app, "doc.pdf", "application/pdf", &bytes, opts).await;
+    assert_eq!(s, StatusCode::OK, "{parsed}");
+    let (a, b) = (&scraped["data"], &parsed["data"]);
+    assert!(!a["markdown"].as_str().unwrap().contains("Gamma"), "{a}");
+    assert_eq!(a["markdown"], b["markdown"]);
+    assert_eq!(a["pages"], b["pages"]);
+    assert_eq!(a["pages"].as_array().unwrap().len(), 2);
+    assert_eq!(a["metadata"]["numPages"], 2);
+    assert_eq!(a["metadata"]["totalPages"], 3);
+    // Firecrawl SDK 的写法：字符串 "pdf" 和 "image"
+    let (s, v) = scrape(&app, &url, json!({"maxAge": 0, "parsers": ["pdf", "image"]})).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert!(v["data"]["markdown"].as_str().unwrap().contains("Gamma page."));
+    // 写错的 parsers 在抓取前报 400
+    let (s, v) = scrape(&app, &url, json!({"parsers": [{"type": "pdf", "maxPages": 0}]})).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{v}");
+    let (s, v) = scrape(&app, &url, json!({"parsers": [{"type": "pdf", "mode": "ocr"}]})).await;
+    assert_eq!((s, v["code"].as_str()), (StatusCode::BAD_REQUEST, Some("UNSUPPORTED_OPTION")));
+}
+
+#[tokio::test]
+async fn empty_parsers_return_the_pdf_as_base64() {
+    let bytes = pdf(&["Raw page."], "Raw", false);
+    let app = app();
+    let url = pdf_url(bytes.clone()).await;
+    let (s, v) = scrape(&app, &url, json!({"maxAge": 0, "parsers": [], "formats": ["markdown", "html"]})).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let md = v["data"]["markdown"].as_str().unwrap();
+    assert!(md.starts_with("JVBERi0"), "{md}"); // "%PDF-" 的 base64
+    assert_eq!(md.len(), bytes.len().div_ceil(3) * 4);
+    assert_eq!(v["data"]["html"], v["data"]["markdown"]);
+    assert!(v["data"]["metadata"].get("numPages").is_none());
+}
+
+#[tokio::test]
+async fn scrape_reports_bad_encrypted_and_scanned_pdfs_as_caller_errors() {
+    let app = app();
+    let mut broken = pdf(&["x"], "t", false);
+    broken.truncate(40);
+    let cases = [
+        (broken, json!({}), StatusCode::BAD_REQUEST, "INVALID_REQUEST"),
+        (pdf(&["secret"], "t", true), json!({}), StatusCode::BAD_REQUEST, "UNSUPPORTED_OPTION"),
+        (
+            scanned_pdf(),
+            json!({"parsers": [{"type": "pdf", "mode": "fast"}]}),
+            StatusCode::BAD_REQUEST,
+            "UNSUPPORTED_OPTION",
+        ),
+    ];
+    for (bytes, mut opts, status, code) in cases {
+        opts["maxAge"] = json!(0);
+        let url = pdf_url(bytes).await;
+        let (s, v) = scrape(&app, &url, opts).await;
+        assert_eq!((s, v["code"].as_str()), (status, Some(code)), "{v}");
+    }
+    // auto 模式下扫描件照常返回，带警告
+    let url = pdf_url(scanned_pdf()).await;
+    let (s, v) = scrape(&app, &url, json!({"maxAge": 0})).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let warnings = v["data"]["metadata"]["pagesift"]["warnings"].to_string();
+    assert!(warnings.contains("scanned PDF"), "{warnings}");
 }

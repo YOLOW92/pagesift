@@ -25,6 +25,7 @@ mod fetch;
 mod frames;
 mod output;
 mod parse;
+mod pdf;
 mod render;
 mod scraper;
 use extract::*;

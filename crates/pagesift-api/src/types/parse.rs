@@ -66,10 +66,15 @@ pub struct PdfParser {
     pub max_pages: Option<usize>,
     /// 另给每页的 Markdown（`data.pages`）。
     pub pages: bool,
+    /// 给了 `parsers` 却没有 `pdf`（比如 `[]`）：和 Firecrawl 一样不解析，把原文件按 base64
+    /// 放进 `markdown`。
+    pub raw: bool,
 }
 
 impl PdfParser {
-    /// 从 `parsers` 取 PDF 选项。接受 Firecrawl 的两种写法：`["pdf"]` 和 `[{type: "pdf", ...}]`。
+    /// 从 `parsers` 取 PDF 选项。接受 Firecrawl 的写法：`["pdf"]`、`[{type: "pdf", ...}]`，
+    /// 以及 `"image"`（图片 OCR，这里本来就不支持图片，照收不报错，免得 Firecrawl SDK 的默认值被拒）。
+    /// 列表里没有 `pdf` 时 PDF 不解析（[`Self::raw`]）。
     /// 做不到的选项（OCR、版面块、分页标记）明确报 UNSUPPORTED_OPTION，不悄悄忽略。
     pub fn from_parsers(parsers: Option<&Value>) -> Result<Self, ApiError> {
         let items = match parsers {
@@ -77,14 +82,29 @@ impl PdfParser {
             Some(Value::Array(items)) => items,
             Some(_) => return Err(ApiError::invalid("parsers must be an array")),
         };
-        let mut out = Self::default();
+        let mut out = Self {
+            raw: true,
+            ..Self::default()
+        };
         for item in items {
-            let obj = match item {
-                Value::String(t) if t == "pdf" => continue,
-                Value::Object(o) if o.get("type").and_then(Value::as_str) == Some("pdf") => o,
+            let kind = match item {
+                Value::String(t) => t.as_str(),
+                Value::Object(o) => o.get("type").and_then(Value::as_str).unwrap_or_default(),
+                _ => "",
+            };
+            let obj = match (kind, item) {
+                ("image", _) => continue,
+                ("pdf", Value::String(_)) => {
+                    out.raw = false;
+                    continue;
+                }
+                ("pdf", Value::Object(o)) => {
+                    out.raw = false;
+                    o
+                }
                 _ => {
                     return Err(ApiError::invalid(
-                        "parsers items must be \"pdf\" or {\"type\": \"pdf\", ...}",
+                        "parsers items must be \"pdf\", \"image\" or {\"type\": \"pdf\" | \"image\", ...}",
                     ));
                 }
             };
@@ -168,14 +188,21 @@ mod tests {
     fn pdf_parser_options() {
         let p = |v| PdfParser::from_parsers(Some(&v));
         assert_eq!(p(json!(["pdf"])).unwrap(), PdfParser::default());
+        assert_eq!(p(json!(["pdf", "image"])).unwrap(), PdfParser::default());
         assert_eq!(
             p(json!([{"type": "pdf", "mode": "fast", "maxPages": 3, "pages": true}])).unwrap(),
             PdfParser {
                 mode: Some("fast".into()),
                 max_pages: Some(3),
-                pages: true
+                pages: true,
+                raw: false,
             }
         );
+        // 列表里没有 pdf：不解析，原样返回
+        for v in [json!([]), json!(["image"]), json!([{"type": "image"}])] {
+            assert!(p(v.clone()).unwrap().raw, "{v}");
+        }
+        assert!(!PdfParser::from_parsers(None).unwrap().raw);
         // 关着的 blocks / pageMarkers 不算请求
         assert!(p(json!([{"type": "pdf", "blocks": false, "pageMarkers": false}])).is_ok());
         for (v, code) in [

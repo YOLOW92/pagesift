@@ -131,47 +131,20 @@ impl Scraper {
         }
 
         if is_pdf(&resp.body, resp.content_type()) {
-            let t = Instant::now();
-            let body = resp.body;
-            let parse_stage = self
-                .policy
-                .fetcher()
-                .acquire_stage(pagesift_net::NetworkStage::Parse)
-                .await;
-            let pdf = match cpu_task(move || pagesift_pdf::extract(&body)).await? {
-                Ok(pdf) => {
-                    parse_stage.finish(pagesift_net::StageOutcome::Success);
-                    pdf
-                }
-                Err(error) => {
-                    parse_stage.finish(pagesift_net::StageOutcome::DeterministicFailure);
-                    return Err(ApiError::new(
-                        ErrorCode::UpstreamError,
-                        format!("could not read PDF: {error}"),
-                    ));
-                }
-            };
-            timings.insert("pdf".into(), ms(t.elapsed()));
-            if pdf.scanned {
-                warnings
-                    .push("scanned PDF: pages have no text layer and OCR is not supported".into());
-            }
-            meta.title = pdf.metadata.title.clone();
-            meta.extra
-                .insert("numPages".into(), pdf.metadata.page_count.into());
-            return Ok(finish(
-                Document {
-                    markdown: opts.wants("markdown").then_some(pdf.markdown),
-                    ..Default::default()
-                },
-                meta,
-                ext,
+            let progress = Progress {
+                started,
                 timings,
                 warnings,
-                None,
-                false,
-                started,
-            ));
+            };
+            return self
+                .pdf_document(
+                    resp.body,
+                    opts,
+                    (meta, ext),
+                    progress,
+                    request_deadline(opts, started),
+                )
+                .await;
         }
 
         if let Some(markdown) = json_markdown(resp.content_type(), &resp.body) {

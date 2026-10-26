@@ -536,7 +536,7 @@ impl Scraper {
         }
         let mut formats: Vec<&str> = opts.formats.iter().map(|f| f.kind.as_str()).collect();
         formats.sort_unstable();
-        let key = serde_json::json!([
+        let mut key = serde_json::json!([
             1,
             url,
             formats,
@@ -549,6 +549,10 @@ impl Scraper {
             opts.block_ads,
             opts.location,
         ]);
+        // PDF 的 parsers 改变结果；没给时不加这一项，已有的缓存键不变
+        if let (Some(p), Some(items)) = (&opts.parsers, key.as_array_mut()) {
+            items.push(p.clone());
+        }
         Some((store, key.to_string().into_bytes()))
     }
 }
