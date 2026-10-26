@@ -3,14 +3,8 @@ name: Release
 # 推 v* 标签时触发：各平台的命令行二进制、Docker 镜像（GHCR）、Python wheel、npm 包、crates.io。
 # 发布由维护者手动打标签触发。
 # 用不到编译产物的渠道不等编译：Docker 镜像自己从源码构建，crates.io 由 cargo publish 自己编译校验，
-# 两者和各平台编译同时开始；GitHub Release、PyPI、npm 要用编译产物，等全部编译完成后再发。
-# 三个注册表都用 Trusted Publishing（OIDC），仓库里没有长期令牌：
-#   crates.io：rust-lang/crates-io-auth-action 换 30 分钟临时令牌（publish_crates.py 会在过期前自己续换）；
-#   npm：npm CLI 自动用 OIDC 登录，并自动带 provenance；
-#   PyPI：pypa/gh-action-pypi-publish 用 OIDC，自动带 PEP 740 证明。
-# 三边的可信发布者都登记为：仓库 YOLOW92/pagesift、工作流 release.yml（补发布用 publish-rest.yml）、环境 release。
-# GitHub Release 的压缩包和 SHA256SUMS 带构建证明（gh attestation verify 可验）；GHCR 镜像带 provenance 证明。
-# 步骤见 docs/releasing.md。
+# 两者和各平台编译同时开始；GitHub Release、PyPI、npm 要用编译产物，等全部编译完成后再发。需要的仓库 secret：CARGO_REGISTRY_TOKEN、NPM_TOKEN；
+# PyPI 用 Trusted Publishing（在 PyPI 上把本仓库的 release.yml 配成可信发布者），不需要 token。
 on:
   push:
     tags: ["v*"]
@@ -91,8 +85,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-      id-token: write       # 镜像构建证明用
-      attestations: write
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-qemu-action@v3
@@ -111,8 +103,7 @@ jobs:
             type=raw,value=${{ needs.identity.outputs.version }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-      - id: build
-        uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v6
         env:
           DOCKER_BUILD_RECORD_UPLOAD: false   # 不上传构建记录，免得发布步骤下载产物时出错
         with:
@@ -124,17 +115,6 @@ jobs:
           build-args: JOBS=4
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - name: Image name in lowercase
-        if: env.PUBLISH == 'true'
-        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
-      - name: Attest image provenance
-        if: env.PUBLISH == 'true'
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-name: ${{ env.IMAGE }}
-          subject-digest: ${{ steps.build.outputs.digest }}
-          push-to-registry: true
-          create-storage-record: false
 
   wheels:
     needs: identity
@@ -248,97 +228,45 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     timeout-minutes: 300
-    permissions:
-      contents: read
-      id-token: write       # 向 crates.io 换临时令牌（Trusted Publishing）
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
-      - name: crates.io 临时令牌
-        id: auth
-        uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
       - name: crates.io
         env:
-          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: python3 scripts/publish_crates.py
 
-  github-release:
-    # 只负责 GitHub 草稿版本和构建证明；写权限只给这个任务
+  publish:
     needs: [identity, binaries, docker, wheels, sdist, npm, npm-musl, crates]
     if: github.event_name == 'push' || inputs.dry_run == false
     runs-on: ubuntu-latest
     environment: release
-    timeout-minutes: 60
+    timeout-minutes: 300
     permissions:
       contents: write
-      id-token: write       # 构建证明用
-      attestations: write
+      id-token: write
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
-          # 只要程序压缩包；Docker 的构建记录不是普通压缩包，一起下载会失败
-          pattern: "bin-*"
+          # 只要程序、wheel 和 npm 包；Docker 的构建记录不是普通压缩包，一起下载会失败
+          pattern: "{bin,wheels,npm}-*"
       - name: Release notes
         run: python3 scripts/release_notes.py > release-notes.md
-      - name: Collect release files and SHA256SUMS
-        run: |
-          mkdir release-assets
-          cp artifacts/bin-*/* release-assets/
-          cd release-assets
-          sha256sum pagesift-*.tar.gz > SHA256SUMS
-          sha256sum --check SHA256SUMS
-      # 每个压缩包、.sha256 文件和 SHA256SUMS 清单本身都有构建证明：
-      #   gh attestation verify <文件> --repo YOLOW92/pagesift
-      - name: Attest release files
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-path: release-assets/*
       # 先上传草稿；所有渠道成功后才公开为 latest。
       - name: GitHub release
         uses: softprops/action-gh-release@v2
         with:
           draft: true
-          files: release-assets/*
+          files: artifacts/bin-*/*
           body_path: release-notes.md
-
-  pypi:
-    needs: [identity, github-release, wheels, sdist]
-    if: github.event_name == 'push' || inputs.dry_run == false
-    runs-on: ubuntu-latest
-    environment: release
-    timeout-minutes: 60
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          pattern: "wheels-*"
       - name: Collect Python packages
         run: mkdir -p dist && cp artifacts/wheels-*/* dist/
       - name: PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           skip-existing: true   # 重跑发布时已经上传过的版本跳过，不挡住后面的步骤
-
-  npm-publish:
-    needs: [identity, pypi, npm, npm-musl]
-    if: github.event_name == 'push' || inputs.dry_run == false
-    runs-on: ubuntu-latest
-    environment: release
-    timeout-minutes: 60
-    permissions:
-      contents: read
-      id-token: write       # npm Trusted Publishing 和 provenance
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          pattern: "npm-*"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -346,11 +274,8 @@ jobs:
       - name: npm
         working-directory: crates/pagesift-node
         env:
-          NPM_CONFIG_PROVENANCE: "true"   # 子进程（napi prepublish、publish_wrapper）也继承，每个包都带证明
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          # Trusted Publishing 要 npm CLI 11.5.1 以上，Node 22 自带的 npm 10 不够
-          npm install -g npm@^11.5.1
-          npm --version
           npm ci
           npx napi artifacts --output-dir ../../artifacts
           # 主包发布时会先由 prepublishOnly 发平台包；主包已在就说明这一版 npm 已经发完（重跑发布时跳过）
@@ -358,19 +283,10 @@ jobs:
           if [ "$(npm view "@pagesift/node@$version" version 2>/dev/null)" = "$version" ]; then
             echo "@pagesift/node $version is already published."
           else
-            npm publish --access public --provenance
+            npm publish --access public
           fi
           node scripts/publish_wrapper.mjs
-
-  publish:
-    # 所有渠道都成功后才把草稿版本公开
-    needs: [identity, github-release, docker, crates, pypi, npm-publish]
-    if: github.event_name == 'push' || inputs.dry_run == false
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
       - name: Publish GitHub release after all distributions succeed
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false --latest

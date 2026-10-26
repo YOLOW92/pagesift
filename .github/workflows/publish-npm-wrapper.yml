@@ -7,7 +7,6 @@ on:
         description: Version tag to publish, for example v0.61.0
         required: true
 
-# npm Trusted Publishing：在 npmjs.com 上给 pagesift 包登记本工作流 publish-npm-wrapper.yml、环境 release。
 permissions:
   contents: read
 
@@ -15,9 +14,6 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     environment: release
-    permissions:
-      contents: read
-      id-token: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -29,10 +25,9 @@ jobs:
       - name: Verify tag and publish alias wrapper
         working-directory: crates/pagesift-node
         env:
-          NPM_CONFIG_PROVENANCE: "true"
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           RELEASE_TAG: ${{ inputs.tag }}
         run: |
-          npm install -g npm@^11.5.1   # Trusted Publishing 要 npm CLI 11.5.1 以上
           version="${RELEASE_TAG#v}"
           git rev-parse --verify "refs/tags/$RELEASE_TAG"
           tagged_version="$(git show "$RELEASE_TAG:crates/pagesift-node/package.json" | node -e 'let s=""; process.stdin.on("data", c => s += c).on("end", () => console.log(JSON.parse(s).version))')"

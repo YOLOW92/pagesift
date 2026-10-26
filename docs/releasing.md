@@ -30,30 +30,10 @@
 5. README 四种语言版本里的版本号、数字与发布说明一致。
 6. 发布说明末尾附上 Discord 链接：https://discord.gg/esA3wMZVvA
 
-## 二、发布产物与 Trusted Publishing
+## 二、发布凭据
 
-三个注册表都不使用长期令牌（`release.yml` 顶部有同样的说明）：
+- crates.io、npm 用仓库 secret 里的令牌发布（`CARGO_REGISTRY_TOKEN`、`NPM_TOKEN`）；PyPI 用 Trusted Publishing（OIDC），不需要令牌。
+- crates.io、npm 改用 Trusted Publishing 的方案（含 GitHub Release 构建证明、SHA256SUMS）在 0.80 准备过，但需要维护者先在两个网站上登记可信发布者，0.80 暂不采用。
+  方案和逐步操作留在维护者笔记 `tasks/0.80/d/trusted-publishing.md`，工作流改动在分支 `claude/d-credibility-af5fa0` 的提交 4a5b3d86。
+- 期限：npm 的绕过 2FA 令牌最迟从 2027-01 起不能直接发布（官方公告：https://github.blog/changelog/2026-07-31-restricting-npm-bypass-2fa-granular-access-tokens/ ），在那之前要么改用 Trusted Publishing，要么手动发布 npm。
 
-| 渠道 | 方式 | 来源证明 |
-| :--- | :--- | :--- |
-| crates.io | `rust-lang/crates-io-auth-action` 用 OIDC 换 30 分钟的临时令牌；`scripts/publish_crates.py` 在 Actions 里每 20 分钟自己续换，结束时吊销 | crates.io 的发布记录里能看到发布来源 |
-| npm | npm CLI ≥ 11.5.1 用 OIDC 登录，带 `--provenance` | `npm audit signatures`，包页面上的 provenance 标记 |
-| PyPI | `pypa/gh-action-pypi-publish` 用 OIDC | PEP 740 证明 |
-| GitHub Release | 压缩包、`.sha256` 文件和 `SHA256SUMS` 都做了构建证明（`actions/attest-build-provenance`） | `gh attestation verify <文件> --repo YOLOW92/pagesift`；`sha256sum --check SHA256SUMS` |
-| GHCR 镜像 | 镜像带 provenance 证明 | `gh attestation verify oci://ghcr.io/yolow92/pagesift:<版本> --repo YOLOW92/pagesift` |
-
-要点：
-
-- 可信发布者在 crates.io 和 npm 网站上登记为：仓库 `YOLOW92/pagesift`，工作流 `release.yml`（补发布用 `publish-rest.yml`；npm 包 `pagesift` 另有 `publish-npm-wrapper.yml`），环境 `release`。逐步操作见维护者笔记 `tasks/0.80/d/trusted-publishing.md`。
-- `release.yml` 的发布部分按 `github-release → pypi → npm-publish → publish` 依次进行，各任务只拿自己需要的权限；`publish` 在所有渠道成功后才把 GitHub 草稿版本公开。
-- 新增 crate 的第一次发布必须手动用 API 令牌发一次，之后才能在 crates.io 上登记可信发布者。
-- npm 新建的可信发布者配置有 2 天有效期，需要在这段时间内完成一次成功发布；建议发版前一天再配置。
-- 第一次完整的 OIDC 发布成功之前，不要删除仓库里的旧 secrets，也不要在 npm 上勾选“disallow tokens”。
-- npm 的绕过 2FA 令牌最迟从 2027-01 起不能直接发布（官方公告：https://github.blog/changelog/2026-07-31-restricting-npm-bypass-2fa-granular-access-tokens/ ）。
-- 工作流里用到 `release` 环境的任务有 4 个；如果环境设置了必须审批，每个任务都会等一次批准。
-
-官方文档：
-
-- crates.io：https://crates.io/docs/trusted-publishing
-- npm：https://docs.npmjs.com/trusted-publishers
-- 构建证明：https://github.com/actions/attest-build-provenance
