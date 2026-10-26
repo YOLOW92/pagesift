@@ -12,9 +12,12 @@ impl<'a> Builder<'a> {
             self.frameset_end_tag(tag);
             return;
         }
+        if self.in_head_noscript() && self.head_noscript_end(tag) {
+            return;
+        }
         // 外部内容里的 `</p>`、`</br>` 跳出 SVG/MathML，按 HTML 规则处理
         if self.in_foreign() && matches!(tag, Tag::P | Tag::Br) {
-            while self.in_foreign() {
+            while self.top_foreign() {
                 self.pop();
             }
         }
@@ -77,6 +80,12 @@ impl<'a> Builder<'a> {
         match tag {
             Body | Html | Head => {}
             // `</form>` 只把 form 从栈里拿掉，里面没闭合的元素继续开着
+            // template 里没有 form 指针：按作用域关到 form（中间没闭合的元素一起关）
+            Form if self.in_template() => {
+                if let Some(i) = self.in_scope(Form, Scope::Default) {
+                    self.pop_to(i);
+                }
+            }
             Form => {
                 let form = std::mem::replace(&mut self.form, NONE);
                 if let Some(i) = self.in_scope(Form, Scope::Default)

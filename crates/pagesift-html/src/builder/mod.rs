@@ -10,7 +10,7 @@
 use std::borrow::Cow;
 
 use crate::Tag;
-use crate::dom::{Attr, Data, Html, NONE, Namespace, Node, ParseScratch, Span};
+use crate::dom::{Attr, Data, Html, NONE, Namespace, Node, ParseOptions, ParseScratch, Span};
 
 /// 打开元素栈的最大深度。更深的元素照样插入但不入栈，树的深度因此有上限，
 /// 递归遍历这棵树的代码不会因为恶意的深层嵌套栈溢出。
@@ -21,6 +21,14 @@ pub(crate) fn parse(html: &str) -> Html<'_> {
 }
 
 pub(crate) fn parse_with_scratch<'s>(html: &'s str, scratch: &mut ParseScratch) -> Html<'s> {
+    parse_with_options(html, scratch, &ParseOptions::default())
+}
+
+pub(crate) fn parse_with_options<'s>(
+    html: &'s str,
+    scratch: &mut ParseScratch,
+    opts: &ParseOptions<'_>,
+) -> Html<'s> {
     let (src, nuls) = normalize(html);
     let (buf, nodes, attrs) = {
         let mut tb = Builder::with_buffers(
@@ -30,7 +38,11 @@ pub(crate) fn parse_with_scratch<'s>(html: &'s str, scratch: &mut ParseScratch) 
             std::mem::take(&mut scratch.attrs),
         );
         tb.nuls = nuls;
-        tokenize(&src, &mut tb);
+        tb.scripting = opts.scripting;
+        match opts.context {
+            Some((ns, name)) => fragment::run(&src, &mut tb, ns, name),
+            None => tokenize(&src, &mut tb),
+        }
         (tb.buf, tb.nodes, tb.attrs)
     };
     Html {
@@ -44,6 +56,8 @@ pub(crate) fn parse_with_scratch<'s>(html: &'s str, scratch: &mut ParseScratch) 
 /// NUL 占全部字节的比例不低于 1/`UTF16_NUL_SHARE` 时，当作被误当成 UTF-8 的 UTF-16 文本，
 /// NUL 全部删掉（每个 ASCII 字符旁边一个 NUL，删掉后能恢复出文字）。
 const UTF16_NUL_SHARE: usize = 4;
+/// 太短的输入不按 UTF-16 猜（几个字节里一个 NUL 就超过比例）。
+const UTF16_MIN_LEN: usize = 64;
 
 /// 去掉 BOM，`\r\n` 和单独的 `\r` 变成 `\n`。NUL 按规范换成 U+FFFD（分词器各状态里都是这样），
 /// 换掉的位置记下来：正文（data 状态的 HTML 内容）里规范要求忽略 NUL，建树时按位置去掉。
@@ -54,7 +68,8 @@ fn normalize(html: &str) -> (Cow<'_, str>, Vec<u32>) {
     let Some(first) = memchr::memchr2(b'\r', b'\0', bytes) else {
         return (Cow::Borrowed(html), Vec::new());
     };
-    let drop_nul = memchr::memchr(b'\0', &bytes[first..]).is_some()
+    let drop_nul = bytes.len() >= UTF16_MIN_LEN
+        && memchr::memchr(b'\0', &bytes[first..]).is_some()
         && memchr::memchr_iter(b'\0', bytes).count() * UTF16_NUL_SHARE >= bytes.len();
     let mut out = String::with_capacity(html.len());
     let mut nuls = Vec::new();
@@ -83,7 +98,9 @@ fn normalize(html: &str) -> (Cow<'_, str>, Vec<u32>) {
 
 mod end;
 mod format;
+mod fragment;
 mod frameset;
+mod noscript;
 mod quirks;
 mod script;
 mod tags;
@@ -166,6 +183,13 @@ struct Builder<'a> {
     frameset_ok: bool,
     /// 源字符串里由 NUL 换成的 U+FFFD 的位置（升序），见 [`normalize`]。
     nuls: Vec<u32>,
+    /// 规范的 scripting flag，见 `noscript` 模块。
+    scripting: bool,
+    /// 片段解析的上下文元素（`id` 不用）和它的命名空间，见 `fragment` 模块。
+    context: Option<Open>,
+    context_ns: Namespace,
+    /// 出栈的下限：片段解析时根元素不出栈。
+    floor: usize,
 }
 
 fn formatting(tag: Tag) -> bool {
@@ -422,6 +446,10 @@ impl<'a> Builder<'a> {
             quirks: true,
             frameset_ok: true,
             nuls: Vec::new(),
+            scripting: true,
+            context: None,
+            context_ns: Namespace::Html,
+            floor: 0,
         }
     }
 
@@ -433,12 +461,28 @@ impl<'a> Builder<'a> {
         }
     }
 
+    /// 规范的 "adjusted current node" 是外部元素（片段解析时栈里只剩根元素就看上下文元素）。
     pub(super) fn in_foreign(&self) -> bool {
+        self.current().is_some_and(|o| o.ns.foreign())
+    }
+
+    /// 栈顶真的是外部元素（跳出外部内容时按它逐个出栈）。
+    pub(super) fn top_foreign(&self) -> bool {
         self.stack.last().is_some_and(|o| o.ns.foreign())
     }
 
+    /// 当前节点。片段解析时栈里只剩根元素，标签和类别取上下文元素的（规范的 "adjusted current
+    /// node"，也用来推断插入模式），插入位置仍是根元素。
     pub(super) fn current(&self) -> Option<Open> {
-        self.stack.last().copied()
+        let top = self.stack.last().copied();
+        match (top, self.context) {
+            (Some(o), Some(c)) if self.stack.len() == 1 => Some(Open {
+                id: o.id,
+                tag: c.tag,
+                ns: c.ns,
+            }),
+            _ => top,
+        }
     }
 
     pub(super) fn current_is(&self, tag: Tag) -> bool {

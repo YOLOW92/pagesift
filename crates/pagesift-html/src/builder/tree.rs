@@ -349,6 +349,7 @@ impl<'a> Builder<'a> {
     }
 
     pub(super) fn pop_to(&mut self, i: usize) {
+        let i = i.max(self.floor);
         for k in i..self.stack.len() {
             let o = self.stack[k];
             if o.ns == Ns::Html && marker(o.tag) {
@@ -377,6 +378,16 @@ impl<'a> Builder<'a> {
             Data::Element { tag, .. } => tag,
             _ => Tag::Other,
         }
+    }
+
+    /// 当前节点（片段解析时可能是上下文元素）的命名空间。
+    pub(super) fn current_ns(&self) -> Namespace {
+        if self.stack.len() == 1 && self.context.is_some() {
+            return self.context_ns;
+        }
+        self.stack
+            .last()
+            .map_or(Namespace::Html, |o| self.node_ns(o.id))
     }
 
     pub(super) fn node_ns(&self, id: u32) -> Namespace {

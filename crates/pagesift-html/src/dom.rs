@@ -151,7 +151,32 @@ impl ParseScratch {
     }
 }
 
+/// 解析选项，见 [`Html::parse_with`]。
+#[derive(Debug, Clone, Copy)]
+pub struct ParseOptions<'c> {
+    /// 规范的 scripting flag。开着（默认，和浏览器一致）时 `<noscript>` 的内容是原始文本；
+    /// 关掉时按普通元素解析。
+    pub scripting: bool,
+    /// 片段解析（规范的 fragment parsing algorithm）的上下文元素：命名空间和标签名，比如
+    /// `(Namespace::Html, "td")`。结果是根 `<html>` 元素的子节点；`None` 时解析整个文档。
+    pub context: Option<(Namespace, &'c str)>,
+}
+
+impl Default for ParseOptions<'_> {
+    fn default() -> Self {
+        ParseOptions {
+            scripting: true,
+            context: None,
+        }
+    }
+}
+
 impl<'s> Html<'s> {
+    /// 按选项解析：关闭脚本、在给定上下文元素里解析片段。
+    pub fn parse_with(html: &'s str, opts: &ParseOptions<'_>) -> Html<'s> {
+        crate::builder::parse_with_options(html, &mut ParseScratch::default(), opts)
+    }
+
     /// 解析整个 HTML 文档。永不失败：任何输入都会得到一棵树。
     pub fn parse(html: &'s str) -> Html<'s> {
         crate::builder::parse(html)

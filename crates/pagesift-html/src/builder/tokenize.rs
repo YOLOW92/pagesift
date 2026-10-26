@@ -244,7 +244,7 @@ fn markup_declaration(b: &[u8], i: usize, tb: &mut Builder<'_>) -> usize {
         return gt.map_or(b.len(), |o| i + o + 1);
     }
     // CDATA 只在当前节点不是 HTML 元素时有效（集成点 mtext、foreignObject 等本身也是外部元素）
-    if rest.starts_with(b"[CDATA[") && tb.stack.last().is_some_and(|o| o.ns != Ns::Html) {
+    if rest.starts_with(b"[CDATA[") && tb.current().is_some_and(|o| o.ns != Ns::Html) {
         let start = i + 7;
         return match memmem::find(&b[start..], b"]]>") {
             Some(off) => {
@@ -317,8 +317,17 @@ impl<'a> Builder<'a> {
         if s >= e {
             return;
         }
-        if self.in_frameset_modes() {
+        // frameset 文档、片段解析的列组上下文里只留空白
+        if self.in_frameset_modes() || self.at_fragment_root() && self.fragment_whitespace_only() {
             self.frameset_text(s, e);
+            return;
+        }
+        let s = if self.in_head_noscript() {
+            self.head_noscript_text(s, e)
+        } else {
+            s
+        };
+        if s >= e {
             return;
         }
         // HTML 内容里规范要求忽略 NUL（外部内容里保留为 U+FFFD）：按 NUL 切开分别处理

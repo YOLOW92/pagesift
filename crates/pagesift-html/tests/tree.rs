@@ -578,7 +578,7 @@ fn nul_follows_the_spec() {
     ",
     );
     // 误当成 UTF-8 的 UTF-16（每个字符旁边一个 NUL）：NUL 全部删掉，恢复出文字
-    let utf16: String = "<p>Hello world</p>"
+    let utf16: String = "<p>Hello world, this paragraph came from a UTF-16 page</p>"
         .chars()
         .flat_map(|c| [c, '\0'])
         .collect();
@@ -589,7 +589,88 @@ fn nul_follows_the_spec() {
       <head>
       <body>
         <p>
-          "Hello world"
+          "Hello world, this paragraph came from a UTF-16 page"
     "#,
+    );
+}
+
+fn dump_with(html: &str, opts: &pagesift_html::ParseOptions<'_>) -> String {
+    let doc = Html::parse_with(html, opts);
+    let mut out = String::new();
+    for child in doc.root().children() {
+        walk(child, 0, &mut out);
+    }
+    out
+}
+
+#[test]
+fn scripting_off_parses_noscript_as_elements() {
+    let opts = pagesift_html::ParseOptions {
+        scripting: false,
+        ..Default::default()
+    };
+    // head 里的 noscript 只收 head 类元素，别的内容关掉它
+    assert_eq!(
+        dump_with("<head><noscript><link rel=a>X</noscript><p>b</p>", &opts),
+        "<html>\n  <head>\n    <noscript>\n      <link rel=\"a\">\n  <body>\n    \"X\"\n    <p>\n      \"b\"\n"
+    );
+    assert_eq!(
+        dump_with("<p><noscript><b>x</b></noscript>", &opts),
+        "<html>\n  <head>\n  <body>\n    <p>\n      <noscript>\n        <b>\n          \"x\"\n"
+    );
+    // 默认开着脚本：内容是原始文本
+    assert_eq!(
+        dump("<p><noscript><b>x</b></noscript>"),
+        "<html>\n  <head>\n  <body>\n    <p>\n      <noscript>\n        \"<b>x</b>\"\n"
+    );
+}
+
+#[test]
+fn fragment_parsing_uses_the_context_element() {
+    use pagesift_html::{Namespace, ParseOptions};
+    let frag = |ns, ctx, html| {
+        dump_with(
+            html,
+            &ParseOptions {
+                context: Some((ns, ctx)),
+                ..Default::default()
+            },
+        )
+    };
+    // 结果挂在根 html 元素下；表格上下文补上 tbody、tr
+    assert_eq!(
+        frag(Namespace::Html, "table", "<table><tr><td>a"),
+        "<html>\n  <tbody>\n    <tr>\n      <td>\n        \"a\"\n"
+    );
+    assert_eq!(
+        frag(Namespace::Html, "tr", "<td>a<td>b"),
+        "<html>\n  <td>\n    \"a\"\n  <td>\n    \"b\"\n"
+    );
+    // RCDATA 上下文：整段是文本
+    assert_eq!(
+        frag(Namespace::Html, "title", "<b>x&amp;</b>"),
+        "<html>\n  \"<b>x&</b>\"\n"
+    );
+    // 外部内容上下文：元素在上下文的命名空间里，跳出标签按 HTML 处理
+    let doc = Html::parse_with(
+        "<path/><div>x</div>",
+        &ParseOptions {
+            context: Some((Namespace::Svg, "svg")),
+            ..Default::default()
+        },
+    );
+    let ns: Vec<(String, Namespace)> = doc
+        .root()
+        .descendants()
+        .filter_map(|n| n.as_element())
+        .map(|e| (e.name().to_string(), e.namespace()))
+        .collect();
+    assert_eq!(
+        ns,
+        [
+            ("html".to_string(), Namespace::Html),
+            ("path".to_string(), Namespace::Svg),
+            ("div".to_string(), Namespace::Html)
+        ]
     );
 }

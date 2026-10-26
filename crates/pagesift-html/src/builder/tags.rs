@@ -41,6 +41,11 @@ impl<'a> Builder<'a> {
                 _ => self.ensure_head(),
             }
         }
+        if self.in_head_noscript()
+            && let Some(next) = self.head_noscript_start(tag, name)
+        {
+            return next;
+        }
         // 外部内容优先于插入模式（head 里的 template 中也可能有 SVG）
         if self.mode == Mode::InHead
             && (self.in_foreign() || self.in_template() && self.head_element_tag(tag).is_none())
@@ -146,6 +151,11 @@ impl<'a> Builder<'a> {
                 self.insert(tag, name, Ns::Html, true, false);
                 Next::RcData
             }
+            // 关闭脚本时 head 里的 noscript 只收 head 类元素，见 `noscript` 模块
+            Tag::Noscript if !self.scripting => {
+                self.insert(tag, name, Ns::Html, true, false);
+                Next::Data
+            }
             Tag::Noscript | Tag::Noframes | Tag::Style | Tag::Script => {
                 self.insert(tag, name, Ns::Html, true, false);
                 Next::RawText
@@ -175,6 +185,11 @@ impl<'a> Builder<'a> {
         } else {
             tag
         };
+        if self.at_fragment_root()
+            && let Some(next) = self.fragment_root_start(tag)
+        {
+            return next;
+        }
         // 列组里只能有 `<col>`（和 template）：别的标签先关掉列组，再按表格的规则处理
         if self.current_is(Tag::Colgroup) && !matches!(tag, Tag::Col | Tag::Template) {
             self.pop();
@@ -183,8 +198,8 @@ impl<'a> Builder<'a> {
         if tag == Tag::Other
             && let Some(cur) = self.current()
             && cur.ns == Ns::Integration
-            && self.node_ns(cur.id) == Namespace::MathMl
-            && !self.element_name_eq(cur.id, "annotation-xml")
+            && self.current_ns() == Namespace::MathMl
+            && (self.at_fragment_root() || !self.element_name_eq(cur.id, "annotation-xml"))
             && ["mglyph", "malignmark"]
                 .iter()
                 .any(|n| self.src[name.0..name.1].eq_ignore_ascii_case(n))
@@ -201,7 +216,7 @@ impl<'a> Builder<'a> {
                         .any(|k| n.eq_ignore_ascii_case(k))
                 });
             if breaks_out_of_foreign(tag) || font_breaks {
-                while self.in_foreign() {
+                while self.top_foreign() {
                     self.pop();
                 }
             } else {
@@ -249,6 +264,10 @@ impl<'a> Builder<'a> {
                 self.close_p();
                 self.insert_html(tag, name);
                 return Next::RawText;
+            }
+            Noscript if !self.scripting => {
+                self.reconstruct();
+                self.insert_html(tag, name);
             }
             Style | Noframes | Noscript | Iframe | Noembed | Script => {
                 self.insert_html(tag, name);
@@ -432,11 +451,7 @@ impl<'a> Builder<'a> {
             Tag::Svg => (tag, Namespace::Svg),
             Tag::Math => (tag, Namespace::MathMl),
             // 其余元素和当前节点（外部元素或 MathML 文本集成点）同一命名空间
-            _ => (
-                Tag::Other,
-                self.current()
-                    .map_or(Namespace::Html, |o| self.node_ns(o.id)),
-            ),
+            _ => (Tag::Other, self.current_ns()),
         };
         let raw = &self.src[name.0..name.1];
         let encoding_html = dom_ns == Namespace::MathMl
@@ -458,7 +473,10 @@ impl<'a> Builder<'a> {
     /// 表格结构元素：补上省略的 tbody、tr，关掉未闭合的单元格和行。不在表格里时忽略。
     pub(super) fn table_part(&mut self, tag: Tag, name: (usize, usize)) {
         use Tag::*;
-        let Some(table) = self.in_scope(Table, Scope::Table) else {
+        let Some(table) = self
+            .in_scope(Table, Scope::Table)
+            .or_else(|| self.fragment_table_root(tag))
+        else {
             self.scratch.clear();
             return;
         };

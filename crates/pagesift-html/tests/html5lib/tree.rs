@@ -147,7 +147,6 @@ pub fn from_html(doc: &Html<'_>) -> Vec<Node> {
     doc.root().children().map(convert).collect()
 }
 
-#[allow(dead_code)] // 片段解析接口加上之后才用
 /// 片段解析的结果：上下文元素的子节点（[`Html::parse_fragment`] 里根元素的子节点）。
 pub fn from_fragment(doc: &Html<'_>) -> Vec<Node> {
     doc.root()

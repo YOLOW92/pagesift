@@ -28,7 +28,8 @@ mod serialize;
 mod tag;
 
 pub use dom::{
-    Ancestors, Children, Descendants, Element, Html, Namespace, NodeId, NodeRef, ParseScratch,
+    Ancestors, Children, Descendants, Element, Html, Namespace, NodeId, NodeRef, ParseOptions,
+    ParseScratch,
 };
 pub use select::{Select, Selector, SelectorError};
 pub use tag::Tag;

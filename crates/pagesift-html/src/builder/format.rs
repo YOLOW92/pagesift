@@ -167,7 +167,10 @@ impl<'a> Builder<'a> {
     }
 
     pub(super) fn finish(&mut self) {
-        if self.body == NONE && !self.in_frameset_modes() {
+        if self.body == NONE
+            && !self.in_frameset_modes()
+            && (self.context.is_none() || self.mode < Mode::InBody)
+        {
             self.ensure_body();
         }
     }
@@ -176,6 +179,9 @@ impl<'a> Builder<'a> {
         self.stack
             .iter()
             .any(|o| o.tag == Tag::Template && o.ns == Ns::Html)
+            || self
+                .context
+                .is_some_and(|c| c.tag == Tag::Template && c.ns == Ns::Html)
     }
 
     pub(super) fn close_p(&mut self) {
