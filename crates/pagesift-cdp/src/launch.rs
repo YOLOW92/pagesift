@@ -172,11 +172,15 @@ pub(crate) struct BrowserProcess {
 impl BrowserProcess {
     pub async fn launch(spec: &LaunchSpec) -> Result<BrowserProcess> {
         ensure_not_root()?;
+        // 上一个进程被强杀时留下的浏览器，先收掉
+        crate::sweep::sweep_once();
         let mut args = spec.args_override.clone().unwrap_or_else(default_args);
         args.extend(spec.extra_args.iter().cloned());
         check_args(&args)?;
 
-        let profile = tempfile::Builder::new().prefix("pagesift-cdp-").tempdir()?;
+        let profile = tempfile::Builder::new()
+            .prefix(crate::sweep::PREFIX)
+            .tempdir()?;
         let dir = profile.path().to_string_lossy().into_owned();
         let port = if args.iter().any(|a| a.contains(PORT)) {
             Some(free_port()?)
@@ -302,6 +306,8 @@ impl BrowserProcess {
                 tracing::trace!(target: "pagesift_cdp::browser", "{line}");
             }
         });
+        // 浏览器已经起来（命令行是它自己的，不是 fork 出来还没 exec 的副本），记下来供下次回收
+        crate::sweep::record(process._profile.path(), process.pid());
         Ok(process)
     }
 

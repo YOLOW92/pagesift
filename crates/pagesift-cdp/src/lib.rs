@@ -28,6 +28,8 @@ mod launch;
 mod options;
 mod page;
 mod pool;
+#[cfg(unix)]
+mod sweep;
 
 pub use conn::{Connection, Event, EventStream, Session};
 pub use engine::{
