@@ -255,7 +255,7 @@ fn high_concurrency_saturation_stress_olmocr() {
     }
 
     let num_threads = std::thread::available_parallelism().map_or(8, |n| n.get());
-    let chunk_size = (files.len() + num_threads - 1) / num_threads;
+    let chunk_size = files.len().div_ceil(num_threads);
     let chunks: Vec<Vec<PathBuf>> = files.chunks(chunk_size).map(|c| c.to_vec()).collect();
 
     let total_parsed = Arc::new(AtomicUsize::new(0));

@@ -103,11 +103,26 @@ fn remove_page_furniture(lines: &mut Vec<Line>, h: f64) {
     let mut sizes: Vec<f64> = rows.iter().map(row_size).collect();
     sizes.sort_by(f64::total_cmp);
     let body = sizes[sizes.len() / 2];
-    let mut gaps: Vec<f64> = rows
+    // 正文行距只拿正文行量：相邻两行字号都接近正文、而且在同一栏（水平方向有重叠）。
+    // 图表里密集的坐标标签会把全页的行距中位数拉低，正文的最后一行就被当成孤立的页脚
+    let span = |r: &Vec<usize>| {
+        r.iter().fold((f64::MAX, f64::MIN), |(a, b), &i| (a.min(lines[i].x0), b.max(lines[i].x1)))
+    };
+    let body_row = |r: &Vec<usize>| (row_size(r) - body).abs() <= body * 0.08;
+    let text_gaps: Vec<f64> = rows
         .windows(2)
+        .filter(|w| {
+            let (a, b) = (span(&w[0]), span(&w[1]));
+            body_row(&w[0]) && body_row(&w[1]) && a.0 < b.1 && b.0 < a.1
+        })
         .map(|w| row_y(&w[0]) - row_y(&w[1]))
         .filter(|g| *g > 0.0)
         .collect();
+    let mut gaps: Vec<f64> = if text_gaps.len() >= 3 {
+        text_gaps
+    } else {
+        rows.windows(2).map(|w| row_y(&w[0]) - row_y(&w[1])).filter(|g| *g > 0.0).collect()
+    };
     gaps.sort_by(f64::total_cmp);
     let line_gap = gaps
         .get(gaps.len() / 2)
@@ -165,11 +180,43 @@ fn remove_page_furniture(lines: &mut Vec<Line>, h: f64) {
 
 /// 去掉每页重复出现在页面顶部或底部的片段（页眉、页脚、页码），再按单页规则去掉页面边缘的页眉页脚。
 pub(crate) fn remove_furniture(pages: &mut [Vec<Line>], heights: &[f64]) {
+    // 跨页重复先算（Artifact 片段和同一行的其他文字一起才对得上别的页）
     remove_repeated_furniture(pages, heights);
+    for lines in pages.iter_mut() {
+        remove_artifacts(lines);
+    }
     for (lines, &h) in pages.iter_mut().zip(heights) {
         remove_page_furniture(lines, h);
     }
 }
+
+/// 写入方标成 `/Artifact` 的文字（ISO 32000-1 §14.8.2.2：页眉、页脚、页码、水印等，不属于正文）直接去掉。
+/// 写入方的标记和版面对不上时不删：一页里大半文字都标成 Artifact（标记用错了）、
+/// 字号明显比正文大（页眉页脚很少比正文大，常见的是幻灯片标题被标成页眉），以及声明过的标题。
+fn remove_artifacts(lines: &mut Vec<Line>) {
+    let chars = |l: &Line| l.text.chars().filter(|c| !c.is_whitespace()).count();
+    let all: usize = lines.iter().map(chars).sum();
+    let marked: usize = lines.iter().filter(|l| l.artifact).map(chars).sum();
+    if marked == 0 || marked * 2 > all {
+        return;
+    }
+    // 正文字号：按字数加权的中位数
+    let mut sizes: Vec<(f64, usize)> = lines.iter().filter(|l| !l.raw).map(|l| (l.size, chars(l))).collect();
+    sizes.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let half = sizes.iter().map(|s| s.1).sum::<usize>() / 2;
+    let mut acc = 0;
+    let body = sizes.iter().find(|s| {
+        acc += s.1;
+        acc > half
+    });
+    let Some(&(body, _)) = body else { return };
+    lines.retain(|l| !l.artifact || l.keep || l.hint.is_some() || l.size > body * 1.15);
+}
+
+/// 跨页比较用的行键：(在页顶, 归一化文字, 字号)。
+type Key = (bool, String, i64);
+/// 一页的边缘行：键 + 行里的片段序号。
+type EdgeRows = Vec<(Key, Vec<usize>)>;
 
 fn remove_repeated_furniture(pages: &mut [Vec<Line>], heights: &[f64]) {
     let n = pages.len();
@@ -187,8 +234,7 @@ fn remove_repeated_furniture(pages: &mut [Vec<Line>], heights: &[f64]) {
     };
     // 按整行判定：两端对齐会把一行切成很多片段，单个词不能拿来比较。
     // 字号也算进键里：首页的大标题和每页页眉里的同名小字分开计数。
-    type Key = (bool, String, i64);
-    let rows_of = |lines: &[Line], h: f64| -> Vec<(Key, Vec<usize>)> {
+    let rows_of = |lines: &[Line], h: f64| -> EdgeRows {
         let mut idx: Vec<usize> = (0..lines.len())
             .filter(|&i| !lines[i].raw && zone(&lines[i], h).is_some())
             .collect();
@@ -219,7 +265,7 @@ fn remove_repeated_furniture(pages: &mut [Vec<Line>], heights: &[f64]) {
             })
             .collect()
     };
-    let all_rows: Vec<Vec<(Key, Vec<usize>)>> = pages
+    let all_rows: Vec<EdgeRows> = pages
         .iter()
         .zip(heights)
         .map(|(lines, &h)| rows_of(lines, h))
@@ -232,13 +278,14 @@ fn remove_repeated_furniture(pages: &mut [Vec<Line>], heights: &[f64]) {
         }
     }
     let need = (n * 2).div_ceil(5).max(2);
-    for (lines, rows) in pages.iter_mut().zip(&all_rows) {
+    let folios = running_folios(pages, &all_rows);
+    for (p, (lines, rows)) in pages.iter_mut().zip(&all_rows).enumerate() {
         let mut drop = vec![false; lines.len()];
-        for (k, g) in rows {
+        for (r, (k, g)) in rows.iter().enumerate() {
             if g.iter().any(|&i| lines[i].keep || lines[i].hint.is_some()) {
                 continue;
             }
-            if is_page_number(&k.1) || counts.get(k).copied().unwrap_or(0) >= need {
+            if is_page_number(&k.1) || counts.get(k).copied().unwrap_or(0) >= need || folios.contains(&(p, r)) {
                 for &i in g {
                     drop[i] = true;
                 }
@@ -247,4 +294,49 @@ fn remove_repeated_furniture(pages: &mut [Vec<Line>], heights: &[f64]) {
         let mut it = drop.iter();
         lines.retain(|_| !it.next().copied().unwrap_or(false));
     }
+}
+
+/// 带页码的页眉页脚（`4 Monetary Policy Report`、`Monetary Policy 41`）：页码随页序递增。
+/// 去掉页码后文字相同、而且“页码 − 页序”在至少 3 页上是同一个差值的边缘行算页眉页脚。
+/// 不看出现比例，所以奇偶页不同的页眉、只在一章里出现的章名页眉也能认出来。
+/// 返回 (页序, 行序)。
+fn running_folios(pages: &[Vec<Line>], all_rows: &[EdgeRows]) -> HashSet<(usize, usize)> {
+    // (页顶, 去掉页码的文字) → [(页序, 行序, 页码 − 页序)]
+    type Hits = Vec<(usize, usize, i64)>;
+    let mut seen: HashMap<(bool, &str), Hits> = HashMap::new();
+    for (p, rows) in all_rows.iter().enumerate() {
+        for (r, (k, g)) in rows.iter().enumerate() {
+            let text = k.1.as_str();
+            // 只认开头或末尾是页码、并且还有别的字的行
+            if text.len() < 4 || !(text.starts_with("# ") || text.ends_with(" #")) {
+                continue;
+            }
+            let mut g = g.clone();
+            g.sort_by(|&a, &b| pages[p][a].x0.total_cmp(&pages[p][b].x0));
+            let raw: String = g.iter().map(|&i| pages[p][i].text.as_str()).collect::<Vec<_>>().join(" ");
+            let raw = raw.trim();
+            let digits: String = if text.starts_with("# ") {
+                raw.chars().take_while(char::is_ascii_digit).collect()
+            } else {
+                let rev: String = raw.chars().rev().take_while(char::is_ascii_digit).collect();
+                rev.chars().rev().collect()
+            };
+            let Ok(num) = digits.parse::<i64>() else { continue };
+            seen.entry((k.0, text)).or_default().push((p, r, num - p as i64));
+        }
+    }
+    let mut out = HashSet::new();
+    for hits in seen.values() {
+        // 按不同的页数算：同一页上几行同样的文字（图表坐标轴的年份）不算
+        let mut offsets: HashMap<i64, HashSet<usize>> = HashMap::new();
+        for h in hits {
+            offsets.entry(h.2).or_default().insert(h.0);
+        }
+        for h in hits {
+            if offsets[&h.2].len() >= 3 {
+                out.insert((h.0, h.1));
+            }
+        }
+    }
+    out
 }

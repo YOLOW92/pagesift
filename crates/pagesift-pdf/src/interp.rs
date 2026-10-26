@@ -269,8 +269,10 @@ impl<'a> Interp<'a> {
                         Some(Operand::Name(n)) => n.as_slice(),
                         _ => b"",
                     };
-                    let mcid = if depth == 0 { self.mcid(resources, a.get(1)) } else { None };
-                    let artifact = tag == b"Artifact" || self.marked.last().is_some_and(|m| m.artifact);
+                    let own = self.mcid(resources, a.get(1));
+                    let mcid = if depth == 0 { own } else { None };
+                    // 带 MCID 的 Artifact 自相矛盾（MCID 是给结构树里的正文用的，§14.8.2.2），按正文对待
+                    let artifact = (tag == b"Artifact" && own.is_none()) || self.marked.last().is_some_and(|m| m.artifact);
                     if self.marked.len() < MAX_MARKED_DEPTH {
                         self.marked.push(Marked { mcid, artifact });
                     }
