@@ -2,6 +2,8 @@
 
 use super::Ctx;
 use super::math;
+use super::symbol::symbol_char;
+use super::table::table;
 use crate::md::{Block, escape};
 use crate::xml::{Attrs, Reader, Tok, local_name};
 use crate::{Error, check_deadline};
@@ -103,7 +105,11 @@ fn paragraph_props(r: &mut Reader<'_>, p: &mut ParaProps) -> Result<(), Error> {
 }
 
 /// 读一个段落，产出的块（通常一个；段落里的文本框、行内的表格另成块）追加到 `out`。
-fn paragraph(r: &mut Reader<'_>, ctx: &mut Ctx<'_>, out: &mut Vec<Block>) -> Result<(), Error> {
+pub(super) fn paragraph(
+    r: &mut Reader<'_>,
+    ctx: &mut Ctx<'_>,
+    out: &mut Vec<Block>,
+) -> Result<(), Error> {
     let mut props = ParaProps::default();
     let mut segs: Vec<Seg> = Vec::new();
     let mut extra = Vec::new();
@@ -343,80 +349,6 @@ fn drawing(
     Ok(())
 }
 
-/// `w:sym`：符号字体的字符码（常写成 F0xx 私用区）转成 Unicode。Symbol 字体按 Adobe Symbol 编码；
-/// 其他字体（Wingdings 之类是图形符号）只认普通 Unicode 字符。
-fn symbol_char(font: &str, code: u32) -> Option<char> {
-    let low = if (0xF000..=0xF0FF).contains(&code) {
-        code - 0xF000
-    } else {
-        code
-    };
-    if font.eq_ignore_ascii_case("symbol") && low < 0x100 {
-        const GREEK: &str = "ΑΒΧΔΕΦΓΗΙϑΚΛΜΝΟΠΘΡΣΤΥςΩΞΨΖ";
-        const GREEK_LOWER: &str = "αβχδεφγηιϕκλμνοπθρστυϖωξψζ";
-        let c = match low {
-            0x41..=0x5A => GREEK.chars().nth((low - 0x41) as usize)?,
-            0x61..=0x7A => GREEK_LOWER.chars().nth((low - 0x61) as usize)?,
-            0x22 => '∀',
-            0x24 => '∃',
-            0x27 => '∋',
-            0x2A => '∗',
-            0x2D => '−',
-            0x40 => '≅',
-            0x5E => '⊥',
-            0xA2 => '′',
-            0xA3 => '≤',
-            0xA5 => '∞',
-            0xAB => '↔',
-            0xAC => '←',
-            0xAD => '↑',
-            0xAE => '→',
-            0xAF => '↓',
-            0xB0 => '°',
-            0xB1 => '±',
-            0xB2 => '″',
-            0xB3 => '≥',
-            0xB4 => '×',
-            0xB5 => '∝',
-            0xB6 => '∂',
-            0xB7 => '•',
-            0xB8 => '÷',
-            0xB9 => '≠',
-            0xBA => '≡',
-            0xBB => '≈',
-            0xBC => '…',
-            0xC4 => '⊗',
-            0xC5 => '⊕',
-            0xC6 => '∅',
-            0xC7 => '∩',
-            0xC8 => '∪',
-            0xC9 => '⊃',
-            0xCA => '⊇',
-            0xCC => '⊂',
-            0xCD => '⊆',
-            0xCE => '∈',
-            0xCF => '∉',
-            0xD0 => '∠',
-            0xD1 => '∇',
-            0xD5 => '∏',
-            0xD6 => '√',
-            0xD7 => '⋅',
-            0xD8 => '¬',
-            0xD9 => '∧',
-            0xDA => '∨',
-            0xDB => '⇔',
-            0xDC => '⇐',
-            0xDE => '⇒',
-            0xE5 => '∑',
-            0xF2 => '∫',
-            0x20..=0x7E => char::from_u32(low)?,
-            _ => return None,
-        };
-        return Some(c);
-    }
-    char::from_u32(code).filter(|c| !('\u{E000}'..='\u{F8FF}').contains(c))
-}
-
 /// 把行内片段拼成 Markdown：相邻同格式的片段合并，强调记号贴着文字（空白移到记号外面）。
 fn inline(segs: &[Seg], plain: bool) -> String {
     let mut out = String::new();
@@ -503,147 +435,6 @@ fn finish_paragraph(ctx: &mut Ctx<'_>, props: ParaProps, segs: &[Seg], out: &mut
     out.push(Block::Para(text));
 }
 
-/// 表格：合并单元格展开（横向合并补空格子，纵向合并的下面几格留空），嵌套表格压成文字。
-fn table(r: &mut Reader<'_>, ctx: &mut Ctx<'_>) -> Result<Vec<Vec<String>>, Error> {
-    let mut rows = Vec::new();
-    let mut depth = 1;
-    while let Some(t) = r.next()? {
-        match t {
-            Tok::Start(name, _) => match local_name(name) {
-                "tr" => rows.push(row(r, ctx)?),
-                "tblPr" | "tblGrid" | "tblPrEx" => r.skip()?,
-                _ => depth += 1,
-            },
-            Tok::End(_) => {
-                depth -= 1;
-                if depth == 0 {
-                    break;
-                }
-            }
-            Tok::Text(_) => {}
-        }
-    }
-    Ok(rows)
-}
-
-fn row(r: &mut Reader<'_>, ctx: &mut Ctx<'_>) -> Result<Vec<String>, Error> {
-    let mut cells = Vec::new();
-    let mut depth = 1;
-    let mut after = 0;
-    while let Some(t) = r.next()? {
-        match t {
-            Tok::Start(name, a) => match local_name(name) {
-                "gridBefore" => {
-                    let n: usize = a.get("val").and_then(|v| v.parse().ok()).unwrap_or(0);
-                    cells.extend(std::iter::repeat_n(String::new(), n.min(64)));
-                    depth += 1;
-                }
-                "gridAfter" => {
-                    after = a
-                        .get("val")
-                        .and_then(|v| v.parse().ok())
-                        .unwrap_or(0usize)
-                        .min(64);
-                    depth += 1;
-                }
-                "tc" => {
-                    let (text, span) = cell(r, ctx)?;
-                    cells.push(text);
-                    cells.extend(std::iter::repeat_n(String::new(), span.saturating_sub(1)));
-                }
-                _ => depth += 1,
-            },
-            Tok::End(_) => {
-                depth -= 1;
-                if depth == 0 {
-                    break;
-                }
-            }
-            Tok::Text(_) => {}
-        }
-    }
-    cells.extend(std::iter::repeat_n(String::new(), after));
-    Ok(cells)
-}
-
-/// 一个单元格：文字（段落之间换行）和横向跨的列数。纵向合并的续格内容为空。
-fn cell(r: &mut Reader<'_>, ctx: &mut Ctx<'_>) -> Result<(String, usize), Error> {
-    let mut span = 1usize;
-    let mut merged = false;
-    let mut lines = Vec::new();
-    let mut depth = 1;
-    while let Some(t) = r.next()? {
-        match t {
-            Tok::Start(name, a) => match local_name(name) {
-                "gridSpan" => {
-                    span = a
-                        .get("val")
-                        .and_then(|v| v.parse().ok())
-                        .unwrap_or(1)
-                        .clamp(1, 64);
-                    depth += 1;
-                }
-                "vMerge" => {
-                    merged = a.get("val").is_none_or(|v| v != "restart");
-                    depth += 1;
-                }
-                "p" => {
-                    let mut blocks = Vec::new();
-                    paragraph(r, ctx, &mut blocks)?;
-                    lines.extend(blocks.iter().map(flat));
-                }
-                "tbl" => {
-                    for row in table(r, ctx)? {
-                        let joined: Vec<&str> = row
-                            .iter()
-                            .map(String::as_str)
-                            .filter(|c| !c.is_empty())
-                            .collect();
-                        lines.push(joined.join(" "));
-                    }
-                }
-                _ => depth += 1,
-            },
-            Tok::End(_) => {
-                depth -= 1;
-                if depth == 0 {
-                    break;
-                }
-            }
-            Tok::Text(_) => {}
-        }
-    }
-    if merged {
-        return Ok((String::new(), span));
-    }
-    let lines: Vec<String> = lines.into_iter().filter(|l| !l.trim().is_empty()).collect();
-    Ok((lines.join("\n"), span))
-}
-
-/// 单元格里的块压成一行文字。
-fn flat(b: &Block) -> String {
-    match b {
-        Block::Heading(_, t) | Block::Para(t) | Block::Raw(t) => t.replace("\\\n", "\n"),
-        Block::Item {
-            ordered,
-            number,
-            text,
-            ..
-        } => {
-            if *ordered {
-                format!("{number}. {text}")
-            } else {
-                format!("- {text}")
-            }
-        }
-        Block::Table(rows) => rows
-            .iter()
-            .map(|r| r.join(" "))
-            .collect::<Vec<_>>()
-            .join("\n"),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -673,13 +464,5 @@ mod tests {
             ..Seg::default()
         };
         assert_eq!(inline(&[link], false), "[site](https://e.com/a%20b)");
-    }
-
-    #[test]
-    fn symbol_font_characters() {
-        assert_eq!(symbol_char("Symbol", 0xF0B4), Some('×'));
-        assert_eq!(symbol_char("Symbol", 0xF061), Some('α'));
-        assert_eq!(symbol_char("Wingdings", 0xF0FC), None);
-        assert_eq!(symbol_char("Arial", 0x2192), Some('→'));
     }
 }

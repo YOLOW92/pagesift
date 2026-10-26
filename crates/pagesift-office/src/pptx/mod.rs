@@ -265,10 +265,12 @@ fn body_style_bullets(xml: &str) -> Result<Vec<bool>, Error> {
                         .parse::<usize>()
                         .ok()
                         .map(|n| n.saturating_sub(1));
-                } else if in_body && l == "buNone"
-                    && let Some(i) = level.filter(|i| *i < 9) {
-                        out[i] = false;
-                    }
+                } else if in_body
+                    && l == "buNone"
+                    && let Some(i) = level.filter(|i| *i < 9)
+                {
+                    out[i] = false;
+                }
             }
             Tok::End(name) if local_name(name) == "bodyStyle" => break,
             _ => {}

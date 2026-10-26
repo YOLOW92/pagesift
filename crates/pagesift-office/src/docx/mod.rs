@@ -7,6 +7,8 @@
 mod body;
 mod math;
 mod styles;
+mod symbol;
+mod table;
 
 use std::collections::HashMap;
 
