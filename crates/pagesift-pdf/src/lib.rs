@@ -227,7 +227,7 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
     }
     check_deadline(deadline)?;
 
-    structure::keep_outline_lines(&mut frags, &structure.outline);
+    structure::keep_outline_lines(&mut frags, &heights, &structure.outline);
     layout::remove_furniture(&mut frags, &heights);
     let mut paras = Vec::with_capacity(frags.len());
     for f in frags {

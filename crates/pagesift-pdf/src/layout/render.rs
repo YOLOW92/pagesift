@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 use super::{Line, headings, is_cjk};
@@ -292,7 +293,9 @@ fn caption_or_folio(text: &str) -> bool {
     if !t.is_empty() && t.len() <= 6 && t.chars().all(|c| "ivxlc".contains(c)) {
         return true;
     }
-    let lower = t.to_lowercase();
+    // 只看开头：最长的题注词 12 个字符，再加后面的一个字符
+    let head = t.char_indices().nth(24).map_or(t, |(i, _)| &t[..i]);
+    let lower = head.to_lowercase();
     let words = [
         "figure", "fig.", "fig ", "table", "chart", "exhibit", "listing", "algorithm", "graph",
         "annex figure", "annex table", "online annex", "panel",
@@ -301,7 +304,7 @@ fn caption_or_folio(text: &str) -> bool {
         if let Some(rest) = lower.strip_prefix(w) {
             let rest = rest.trim_start();
             if rest.chars().next().is_some_and(|c| c.is_ascii_digit() || c.is_ascii_uppercase())
-                || t[t.len() - rest.len()..].chars().next().is_some_and(|c| c.is_ascii_uppercase())
+                || head.get(head.len().saturating_sub(rest.len())..).and_then(|r| r.chars().next()).is_some_and(|c| c.is_ascii_uppercase())
             {
                 return true;
             }
@@ -438,12 +441,19 @@ pub(crate) fn render(pages: &[Vec<Para>], mode: Mode) -> (Vec<String>, String) {
 
     // 只有编号的标题（`CHAPTER 2`、`C.`）：版式上常把章号和章名分两行排，逻辑上是一个标题。
     // 下一段也是标题就并进去，否则不当标题（不输出空标题）
-    let mut owned: Vec<Vec<Para>> = pages.to_vec();
+    // 只复制真要改的页
+    let label_only = |p: &Para, k: Kind| matches!(k, Kind::Heading(_)) && crate::structure::strip_numbering(&p.text).trim().is_empty();
     let mut kinds = kinds;
-    for (ps, ks) in owned.iter_mut().zip(kinds.iter_mut()) {
+    let mut owned: Vec<Cow<'_, [Para]>> = Vec::with_capacity(pages.len());
+    for (ps, ks) in pages.iter().zip(kinds.iter_mut()) {
+        if !ps.iter().zip(ks.iter()).any(|(p, &k)| label_only(p, k)) {
+            owned.push(Cow::Borrowed(ps.as_slice()));
+            continue;
+        }
+        let mut ps = ps.clone();
         let mut i = 0;
         while i < ps.len() {
-            if matches!(ks[i], Kind::Heading(_)) && crate::structure::strip_numbering(&ps[i].text).trim().is_empty() {
+            if label_only(&ps[i], ks[i]) {
                 if matches!(ks.get(i + 1), Some(Kind::Heading(_))) {
                     let label = ps.remove(i).text;
                     ks.remove(i);
@@ -454,6 +464,7 @@ pub(crate) fn render(pages: &[Vec<Para>], mode: Mode) -> (Vec<String>, String) {
             }
             i += 1;
         }
+        owned.push(Cow::Owned(ps));
     }
     let pages = &owned[..];
     let page_md: Vec<String> = pages
@@ -469,7 +480,8 @@ pub(crate) fn render(pages: &[Vec<Para>], mode: Mode) -> (Vec<String>, String) {
         .collect();
 
     // 全文：跨页的段落延续要接起来
-    let mut all: Vec<(Para, Kind)> = Vec::new();
+    // 只有接上了下一页的段落才复制
+    let mut all: Vec<(Cow<'_, Para>, Kind)> = Vec::new();
     for (ps, ks) in pages.iter().zip(&kinds) {
         for (i, (p, &k)) in ps.iter().zip(ks).enumerate() {
             if i == 0
@@ -477,11 +489,12 @@ pub(crate) fn render(pages: &[Vec<Para>], mode: Mode) -> (Vec<String>, String) {
                 && let Some((last, Kind::Body)) = all.last_mut()
                 && continues(last, p)
             {
+                let last = last.to_mut();
                 join_text(&mut last.text, &p.text);
                 last.lines += p.lines;
                 continue;
             }
-            all.push((p.clone(), k));
+            all.push((Cow::Borrowed(p), k));
         }
     }
     let mut doc = all
@@ -522,22 +535,18 @@ pub(super) fn merge_math(text: &str) -> std::borrow::Cow<'_, str> {
 
 fn format_para(p: &Para, kind: Kind) -> String {
     let text = merge_math(&p.text);
-    let p = &Para {
-        text: text.into_owned(),
-        ..p.clone()
-    };
     match kind {
-        Kind::Heading(l) => format!("{} {}", "#".repeat(l), p.text),
+        Kind::Heading(l) => format!("{} {}", "#".repeat(l), text),
         Kind::Bullet => {
-            let rest = p.text.trim_start_matches(BULLETS).trim_start();
+            let rest = text.trim_start_matches(BULLETS).trim_start();
             format!("- {rest}")
         }
-        Kind::Raw => p.text.clone(),
+        Kind::Raw => text.into_owned(),
         Kind::Body => {
-            if p.text.starts_with('#') {
-                format!("\\{}", p.text)
+            if text.starts_with('#') {
+                format!("\\{}", text)
             } else {
-                p.text.clone()
+                text.into_owned()
             }
         }
     }

@@ -9,11 +9,13 @@ pub(crate) use numbering::{Style, numbering};
 pub(crate) use outline::Entry;
 pub(crate) use tags::HeadingMcids;
 
+use std::collections::HashMap;
+
 use crate::file::{Document, ObjectId};
 use crate::geom::Matrix;
 use crate::layout::{Line, Para};
 pub(crate) use text::strip_numbering;
-use text::{Fit, Titled, fit, split_after};
+use text::{Fit, Lazy, Titled, fit, split_after};
 
 #[derive(Default)]
 pub(crate) struct Structure {
@@ -30,7 +32,7 @@ pub(crate) fn read(doc: &Document, pages: &[ObjectId]) -> Structure {
 }
 
 /// 结构树：行的 MCID 落在标题元素里，就给这一行标上层级。返回标上的行数。
-pub(crate) fn tag_lines(lines: &mut [Line], headings: &std::collections::HashMap<i32, (u8, u32)>) -> usize {
+pub(crate) fn tag_lines(lines: &mut [Line], headings: &HashMap<i32, (u8, u32)>) -> usize {
     let mut n = 0;
     for line in lines.iter_mut() {
         let h = line.mcid.and_then(|m| headings.get(&m).copied());
@@ -42,7 +44,16 @@ pub(crate) fn tag_lines(lines: &mut [Line], headings: &std::collections::HashMap
 }
 
 /// 去页眉页脚之前：这一页（或相邻页）书签标题对得上的行标成 keep，免得页首的小节标题被当页眉删掉。
-pub(crate) fn keep_outline_lines(pages: &mut [Vec<Line>], entries: &[Entry]) {
+/// 段落文字只需归一化到最长的书签标题再多一个字符（见 `Titled::with_limit`）。
+fn title_limit(entries: &[Entry]) -> usize {
+    entries.iter().map(|e| Titled::new(&e.title).full.chars().count()).max().unwrap_or(0) + 1
+}
+
+/// keep 只给页眉页脚规则看，那些规则只碰页面上下边缘区里的行和标成 Artifact 的行，别的行不用比。
+pub(crate) fn keep_outline_lines(pages: &mut [Vec<Line>], heights: &[f64], entries: &[Entry]) {
+    // 每页的行只归一化一次（书签条目多时，逐条重算是 条目数 × 行数 次），而且只归一化到最长的标题再多一个字
+    let mut cache: HashMap<usize, Vec<Option<Titled>>> = HashMap::new();
+    let limit = title_limit(entries);
     for e in entries {
         let Some(p) = e.page else { continue };
         let title = Titled::new(&e.title);
@@ -51,8 +62,23 @@ pub(crate) fn keep_outline_lines(pages: &mut [Vec<Line>], entries: &[Entry]) {
         }
         for q in [Some(p), p.checked_add(1)].into_iter().flatten() {
             let Some(lines) = pages.get_mut(q) else { continue };
-            for line in lines.iter_mut().filter(|l| !l.raw) {
-                if matches!(fit(&title, &Titled::new(&line.text)), Some(Fit::Exact | Fit::Prefix(_))) {
+            let titled = cache
+                .entry(q)
+                .or_insert_with(|| {
+                    let h = heights.get(q).copied().unwrap_or(792.0);
+                    lines
+                        .iter()
+                        .map(|l| {
+                            // 比页眉页脚规则的边缘区（12%）宽一些：同一行的片段基线略有出入
+                            let edge = l.y >= h * 0.83 || l.y <= h * 0.17 || l.artifact;
+                            (!l.raw && edge).then(|| Titled::with_limit(&l.text, limit))
+                        })
+                        .collect()
+                });
+            for (line, t) in lines.iter_mut().zip(titled.iter()) {
+                if let Some(t) = t
+                    && matches!(fit(&title, t), Some(Fit::Exact | Fit::Prefix(_)))
+                {
                     line.keep = true;
                 }
             }
@@ -64,6 +90,9 @@ pub(crate) fn keep_outline_lines(pages: &mut [Vec<Line>], entries: &[Entry]) {
 /// `bases[i]` 是第 i 页用户空间到页面坐标的变换（用来换算目标位置）。返回对上的条目数。
 pub(crate) fn mark_outline(pages: &mut [Vec<Para>], entries: &[Entry], bases: &[Option<Matrix>]) -> usize {
     let mut matched = 0;
+    // 每页段落的归一化文字只算一次；拆段改了某页时只作废那一页
+    let mut cache: HashMap<usize, Vec<Option<Lazy>>> = HashMap::new();
+    let limit = title_limit(entries);
     for e in entries {
         let Some(p) = e.page.filter(|&p| p < pages.len()) else {
             continue;
@@ -78,11 +107,14 @@ pub(crate) fn mark_outline(pages: &mut [Vec<Para>], entries: &[Entry], bases: &[
         let near = [Some(p), p.checked_add(1), p.checked_sub(1)];
         for (rank, q) in near.into_iter().flatten().enumerate() {
             let Some(paras) = pages.get(q) else { continue };
-            for (i, para) in paras.iter().enumerate() {
-                if para.raw || para.hint.is_some() {
+            let titled = cache
+                .entry(q)
+                .or_insert_with(|| paras.iter().map(|para| (!para.raw).then(|| Lazy::new(&para.text))).collect());
+            for (i, (para, t)) in paras.iter().zip(titled.iter()).enumerate() {
+                let Some(t) = t.as_ref().filter(|_| para.hint.is_none()) else {
                     continue;
-                }
-                let Some(fit) = fit(&title, &Titled::new(&para.text)) else {
+                };
+                let Some(fit) = t.fit(&title, &para.text, limit) else {
                     continue;
                 };
                 // 目标位置一般在标题上方一点：在目标下方、离得越近越好；别的页排在后面
@@ -105,6 +137,7 @@ pub(crate) fn mark_outline(pages: &mut [Vec<Para>], entries: &[Entry], bases: &[
         let paras = &mut pages[q];
         if let Fit::Prefix(n) = fit {
             split_after(paras, i, n);
+            cache.remove(&q);
         }
         paras[i].hint = Some(e.level);
         matched += 1;
