@@ -98,6 +98,7 @@ mod tests {
             hint: None,
             group: None,
             keep: false,
+            turned: false,
         }
     }
 

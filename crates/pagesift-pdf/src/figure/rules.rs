@@ -213,7 +213,8 @@ impl<'a> Rules<'a> {
         })
     }
 
-    /// 外框 `b` 的四条边里至少有三条正好贴着框线（偏差 1.5pt 内、覆盖这条边的八成以上）。
+    /// 外框 `b` 是一个格子：四条边里至少有三条正好贴着框线（偏差 1.5pt 内、覆盖这条边的八成以上），
+    /// 而且里面没有横贯一半以上的框线（跨了好几格的是连线，不是格子里的斜杠）。
     pub(super) fn boxed(&self, b: &[f64; 4]) -> bool {
         let covered = |list: &[&Rule], at: f64, lo: f64, hi: f64, horizontal: bool| {
             if hi <= lo {
@@ -236,6 +237,25 @@ impl<'a> Rules<'a> {
             false
         };
         let (v, h) = self.vh();
+        // 框里横贯一半以上的线：落在两条边之间（各让开 1.5pt）
+        let inside = |list: &[&Rule], a0: f64, a1: f64, lo: f64, hi: f64, horizontal: bool| {
+            let key = |q: &Rule| if horizontal { q.y0 } else { q.x0 };
+            let from = list.partition_point(|q| key(q) <= a0 + 1.5);
+            list[from..]
+                .iter()
+                .take_while(|q| key(q) < a1 - 1.5)
+                .any(|q| {
+                    let (s0, s1) = if horizontal {
+                        (q.x0, q.x1)
+                    } else {
+                        (q.y0, q.y1)
+                    };
+                    (s1.min(hi) - s0.max(lo)) > 0.5 * (hi - lo)
+                })
+        };
+        if inside(h, b[1], b[3], b[0], b[2], true) || inside(v, b[0], b[2], b[1], b[3], false) {
+            return false;
+        }
         let mut miss = 0;
         for (list, at, lo, hi, horizontal) in [
             (h, b[1], b[0], b[2], true),

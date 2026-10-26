@@ -437,20 +437,23 @@ impl<'a> Interp<'a> {
             let y = f + gs.rise * d;
             let size = gs.size.abs() * c.hypot(d) * font.size_factor;
             let glyph_w = ch.width * gs.size * gs.h_scale;
-            let horizontal = a > 0.0 && b.abs() <= 0.1 * a.abs();
-            if horizontal
+            // 斜着的字（多是水印）不收；转了 90°、180°、270° 的单独存放，排版前由 orient.rs 处理
+            let dir = crate::orient::quarter(a, b);
+            let stored =
+                self.ink.glyphs.len() + self.ink.turned.iter().map(Vec::len).sum::<usize>();
+            if let Some(dir) = dir
                 && !ch.text.is_empty()
                 && x.is_finite()
                 && y.is_finite()
                 && size.is_finite()
                 && size > 0.1
-                && self.ink.glyphs.len() < MAX_GLYPHS_PER_PAGE
+                && stored < MAX_GLYPHS_PER_PAGE
                 && x > -size
                 && x < self.ink.width + size
                 && y > -size
                 && y < self.ink.height + size
             {
-                self.ink.glyphs.push(Glyph {
+                let mut glyph = Glyph {
                     text: ch.text.clone(),
                     x,
                     y,
@@ -460,7 +463,15 @@ impl<'a> Interp<'a> {
                     math: font.math,
                     mcid: self.marked.iter().rev().find_map(|m| m.mcid),
                     artifact: self.marked.last().is_some_and(|m| m.artifact),
-                });
+                };
+                if dir == 0 {
+                    self.ink.glyphs.push(glyph);
+                } else {
+                    let (u, v) =
+                        crate::orient::to_frame(dir, x, y, self.ink.width, self.ink.height);
+                    (glyph.x, glyph.y, glyph.x_end) = (u, v, u + glyph_w * a.hypot(b));
+                    self.ink.turned[usize::from(dir) - 1].push(glyph);
+                }
             }
             let mut tx = ch.width * gs.size + gs.char_spacing;
             if ch.is_space {

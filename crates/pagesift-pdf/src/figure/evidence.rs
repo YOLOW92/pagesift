@@ -79,8 +79,14 @@ pub(super) fn evidence<'a>(
         }
         let bent = u32::from(s.slanted) + u32::from(s.curves);
         let (weight, bar) = if bent > 0 && !s.rect {
-            // 框住文字的圆角框是文本框，不是图；流程图里装一两行短字的小节点框算图
-            if s.curves <= 8 && s.slanted <= 4 && w > 20.0 && h > 12.0 {
+            // 框住文字的圆角框是文本框，不是图；流程图里装一两行短字的小节点框算图。
+            // 只看能围成框的形状（带曲线，或三条以上的斜边）：一两段斜线（连线、箭头）外框罩住几个字也围不住它们
+            if (s.curves > 0 || s.slanted >= 3)
+                && s.curves <= 8
+                && s.slanted <= 4
+                && w > 20.0
+                && h > 12.0
+            {
                 let n = centers.count(&b);
                 if n >= 3 || (n > 0 && w * h > 150.0 * 60.0) {
                     continue;

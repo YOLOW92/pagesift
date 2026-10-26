@@ -85,6 +85,8 @@ pub(crate) struct Para {
     pub(crate) group: Option<u32>,
     /// 单独成行、以章节编号开头的短行（推断标题用）。
     pub(crate) numbered: Option<Style>,
+    /// 由旋转的文字组成（坐标轴标题、页边标签）：不当标题，也不和水平的行合段。
+    pub(crate) turned: bool,
 }
 
 const BULLETS: &[char] = &[
@@ -218,6 +220,7 @@ pub(crate) fn paragraphs(blocks: Vec<Vec<Line>>) -> Vec<Para> {
                     hint: None,
                     group: None,
                     numbered: None,
+                    turned: false,
                 });
                 prev = None;
                 prev_numbered = false;
@@ -237,6 +240,7 @@ pub(crate) fn paragraphs(blocks: Vec<Vec<Line>>) -> Vec<Para> {
                         !(0.87..=1.15).contains(&ratio)
                             || line.hint != p.hint
                             || line.group != p.group
+                            || line.turned != p.turned
                             || line.bold != p.bold
                             || gap > leading_ratio * s * 1.35
                             || gap < -0.3 * s
@@ -262,6 +266,7 @@ pub(crate) fn paragraphs(blocks: Vec<Vec<Line>>) -> Vec<Para> {
                     hint: line.hint,
                     group: line.group,
                     numbered,
+                    turned: line.turned,
                 });
                 first_in_block = false;
             } else if let Some(para) = cur.as_mut() {
@@ -408,7 +413,7 @@ pub(crate) fn render(pages: &[Vec<Para>], mode: Mode) -> (Vec<String>, String) {
     // 比较“不比正文小”时，整页都是小字的页（决算短信的摘要页）用本页的正文字号，
     // 否则那几页的标题都会被当成脚注；页上有正文字号的文字时照旧用全文的（图表页的小字不能算标题）
     let is_heading = |p: &Para, next: Option<&Para>, page_body: f64| -> bool {
-        if p.raw || p.bullet || caption_or_folio(&p.text) {
+        if p.raw || p.bullet || p.turned || caption_or_folio(&p.text) {
             return false;
         }
         if is_heading_size(p) {

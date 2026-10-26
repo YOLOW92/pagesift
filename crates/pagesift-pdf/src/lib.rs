@@ -22,6 +22,7 @@ mod layout;
 mod lexer;
 mod math;
 mod obj;
+mod orient;
 mod structure;
 mod table;
 
@@ -201,6 +202,8 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
         let mut ink = Interp::new(&doc, &mut fonts, deadline, opts.max_stream_bytes)
             .run_page(page)
             .map_err(|_| Error::Timeout)?;
+        // 旋转的字：整页横排的转正，少数竖写的拼成行，后面和别的行一起排版
+        let turned_lines = orient::orient(&mut ink);
         let text_chars: usize = ink
             .glyphs
             .iter()
@@ -215,6 +218,7 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
         bases.push(ink.base);
         let mut page_frags =
             layout::fragments(&ink.glyphs, structure.tags.as_ref().map(|t| &t[index]));
+        page_frags.extend(turned_lines);
         if let Some(tags) = &structure.tags {
             tagged_lines += structure::tag_lines(&mut page_frags, &tags[index]);
         }
@@ -222,6 +226,33 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
         // 书签声明的标题行（这一页和前一页的条目）标成 keep：不归图，也不当页眉页脚删
         structure::keep_outline_lines(&mut page_frags, &outline_by_page[index], outline_limit);
         // 矢量图：图内文字（刻度、图例、标注）不进表格检测、不当标题，合成一个原样输出的块
+        if std::env::var_os("PAGESIFT_DBG").is_some() {
+            let bent: Vec<_> = ink
+                .shapes
+                .iter()
+                .filter(|s| s.visible && (s.slanted + s.curves) > 0)
+                .collect();
+            let (mut x0, mut y0, mut x1, mut y1) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
+            for s in &bent {
+                x0 = x0.min(s.x0);
+                y0 = y0.min(s.y0);
+                x1 = x1.max(s.x1);
+                y1 = y1.max(s.y1);
+            }
+            eprintln!(
+                "dbg {} w {} h {} shapes {} bent {} box {:.0} {:.0} {:.0} {:.0} rules {}",
+                index + 1,
+                ink.width,
+                ink.height,
+                ink.shapes.len(),
+                bent.len(),
+                x0,
+                y0,
+                x1,
+                y1,
+                ink.rules.len()
+            );
+        }
         let figures = figure::detect(&ink.shapes, &ink.rules, &page_frags, ink.width, ink.height);
         ink.shapes = Vec::new();
         if dump_tables {
@@ -244,13 +275,13 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
         }
         let (figure_blocks, table_rules) =
             figure::take(&figures, &mut page_frags, std::mem::take(&mut ink.rules));
-        let tables = table::extract(
-            &table_rules,
-            &mut page_frags,
-            &figures,
-            ink.width,
-            ink.height,
-        );
+        // 没被图区认领的旋转行不参加表格识别，识别完再放回去
+        let (turned_left, mut rest): (Vec<_>, Vec<_>) = std::mem::take(&mut page_frags)
+            .into_iter()
+            .partition(|l| l.turned);
+        let tables = table::extract(&table_rules, &mut rest, &figures, ink.width, ink.height);
+        page_frags = rest;
+        page_frags.extend(turned_left);
         page_frags.extend(figure_blocks);
         if dump_tables {
             for t in &tables {
@@ -287,6 +318,7 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
                     hint: None,
                     group: None,
                     keep: false,
+                    turned: false,
                 });
             }
         }

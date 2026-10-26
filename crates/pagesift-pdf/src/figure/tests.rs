@@ -14,6 +14,7 @@ fn line(text: &str, x0: f64, y: f64, size: f64) -> Line {
         hint: None,
         group: None,
         keep: false,
+        turned: false,
     }
 }
 

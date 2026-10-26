@@ -36,6 +36,8 @@ pub(crate) struct Line {
     pub(crate) group: Option<u32>,
     /// 写入方声明过的标题行（对上了这一页的书签）：不当页眉页脚删。
     pub(crate) keep: bool,
+    /// 由少数方向的旋转文字拼成（竖写的坐标轴标题、转过的表头）：参加图区认领，不参加表格识别（见 orient.rs）。
+    pub(crate) turned: bool,
 }
 
 /// 片段内超过这个间距（相对字号）就拆开，拆多了没关系，分栏后会按基线合回去。
@@ -329,6 +331,7 @@ fn make_line(glyphs: &[&Glyph]) -> Option<Line> {
         hint: None,
         group: None,
         keep: false,
+        turned: false,
     })
 }
 

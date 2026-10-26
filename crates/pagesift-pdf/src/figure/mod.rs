@@ -333,6 +333,7 @@ pub(crate) fn take(
                 hint: None,
                 group: None,
                 keep: false,
+                turned: false,
             }
         })
         .collect();

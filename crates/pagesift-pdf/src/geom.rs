@@ -53,7 +53,10 @@ pub(crate) struct Shape {
 
 #[derive(Debug, Default)]
 pub(crate) struct PageInk {
+    /// 水平书写的字，页面坐标。
     pub(crate) glyphs: Vec<Glyph>,
+    /// 书写方向是 90°、180°、270° 的字，各自在“把这个方向转正”的坐标系里（见 orient.rs）。
+    pub(crate) turned: [Vec<Glyph>; 3],
     pub(crate) rules: Vec<Rule>,
     pub(crate) shapes: Vec<Shape>,
     pub(crate) image_area: f64,
