@@ -147,7 +147,7 @@ D1 以较高精确率（0.8938，17 个参赛者中第二，goose3 为 0.9097）
 ⁵ 已被 0.70 同机重测取代：0.7602 对 chardet 0.7113；速度 11,239 对 6,800 文件/秒，约 1.65 倍而非 6.8 倍（[D6](benchmarks/0.70_showdown_D6.md)）。
 ⁶ 只有 13 个端点；同一份 CSV 里 jsluice 为 11/13（84.6%），上表未列。
 ⁷ 0.70 同机 7 个 SPA 场景：PageSift 3/7、Playwright 5/7（[D9](benchmarks/0.70_showdown_D9.md)）。
-⁸ 原 CSV 里的 “Portkey / LiteLLM 2,450 请求/秒”与该项报告正文不一致，且这两个是 LLM 网关而非抓取服务，已改用报告正文的数字（[D10 报告](https://github.com/YOLOW92/pagesift/blob/main/bench/results/final/BENCHMARK_D10_AI_API_GATEWAYS_050.md)）。
+⁸ 原 CSV 里的 “Portkey / LiteLLM 2,450 请求/秒”与该项报告正文不一致，且这两个是 LLM 网关而非抓取服务，无法溯源，已删除该 CSV，改用报告正文的数字（[D10 报告](https://github.com/YOLOW92/pagesift/blob/main/bench/results/final/BENCHMARK_D10_AI_API_GATEWAYS_050.md)）。
 
 > [!TIP]
 > **机器可复现数据源**：查阅全量 0.50.0 发版白皮书 [`docs/releases/0.50.0.md`](releases/0.50.0.md)，可在 [`bench/results/final/`](https://github.com/YOLOW92/pagesift/tree/main/bench/results/final/) 获取全部原始 JSON/CSV 评测明细。

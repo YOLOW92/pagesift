@@ -150,7 +150,7 @@ D1 は精度（0.8938、17 参加者中 2 位。1 位は goose3 の 0.9097）を
 ⁵ 0.70 の同一マシン再測定に置き換え済み：0.7602 対 chardet 0.7113。速度は 11,239 対 6,800 ファイル/秒で約 1.65 倍（6.8 倍ではない）（[D6](benchmarks/0.70_showdown_D6.md)）。
 ⁶ 13 個のエンドポイントのみ。同じ CSV には jsluice 11/13（84.6%）もありますが上表には載せていません。
 ⁷ 0.70 同一マシンの 7 SPA シナリオ：PageSift 3/7、Playwright 5/7（[D9](benchmarks/0.70_showdown_D9.md)）。
-⁸ 元の CSV の「Portkey / LiteLLM 2,450 req/s」はレポート本文と一致せず、両者は LLM ゲートウェイでスクレイパーではないため、レポート本文の数値に差し替えました。
+⁸ 元の CSV の「Portkey / LiteLLM 2,450 req/s」はレポート本文と一致せず、両者は LLM ゲートウェイでスクレイパーではありません。出典もたどれないため CSV を削除し、レポート本文の数値に差し替えました。
 
 > [!TIP]
 > **再現可能な検証資料**：全 10 領域の詳細白書は [`docs/releases/0.50.0.md`](releases/0.50.0.md) を、測定生データは [`bench/results/final/`](https://github.com/YOLOW92/pagesift/tree/main/bench/results/final/) を参照してください。

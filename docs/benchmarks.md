@@ -107,7 +107,7 @@ pagesift's `recursive` strategy is a Rust port of semchunk (identical chunks on 
 
 Reproduce: `bench/rag/run.sh`; full results: [`bench/rag/results-2026-10-21.md`](../bench/rag/results-2026-10-21.md).
 
-> **Audit note (2026-10-27):** the chunking table matches the results file. The query-filter row does not: that file lists `pagesift-default` at recall 0.874, 622 words, precision 0.137 (472 questions), against 0.929 / 1,157 / 0.038 here (the Crawl4AI row, 0.673 / 13,507 / 0.009, matches). The 0.929 row could not be traced; historical data for 0.12.0.
+> **Audit note (2026-10-27):** both tables match their results files. The query-filter row comes from the full re-run of 2026-10-22 (`bench/fresh/results/2026-10-22/rag/query_filter.txt`, `pagesift-default`: 0.929 / 1,157 words / 0.038, with `minTokens` defaulting to 1000); the older `bench/rag/results-2026-10-21.md` (0.874 / 622 / 0.137) predates that default.
 
 ## 5. PDF to Markdown
 

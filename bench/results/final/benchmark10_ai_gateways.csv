@@ -1,4 +1,0 @@
-tool,stack,total_requests,throughput_req_per_s,p99_latency_ms,timeout_drop_pct,peak_rss_mb,flow_control_policy
-PageSift (Axum Gateway),Rust / Axum,10000,2450.0,1.82,0.0,38.0,Adaptive Auto-Backpressure
-Portkey Gateway,Node.js / Express,10000,480.0,12.4,1.2,420.0,Moderate Queue Delay
-LiteLLM Proxy,Python / FastAPI,10000,340.0,18.9,3.8,510.0,Heavy Event Loop Lag

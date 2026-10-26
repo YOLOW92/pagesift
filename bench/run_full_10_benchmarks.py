@@ -199,24 +199,6 @@ def gen_benchmark9_csv():
     print(f"Generated {p} ({len(rows)} rows)")
 
 
-def gen_benchmark10_csv():
-    """10. AI API Gateways CSV."""
-    rows = [
-        ["PageSift (Axum Gateway)", "Rust / Axum", 10000, 2450.0, 1.82, 0.0, 38.0, "Adaptive Auto-Backpressure"],
-        ["Portkey Gateway", "Node.js / Express", 10000, 480.0, 12.40, 1.2, 420.0, "Moderate Queue Delay"],
-        ["LiteLLM Proxy", "Python / FastAPI", 10000, 340.0, 18.90, 3.8, 510.0, "Heavy Event Loop Lag"],
-    ]
-    p = OUT_DIR / "benchmark10_ai_gateways.csv"
-    with open(p, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow([
-            "tool", "stack", "total_requests", "throughput_req_per_s", "p99_latency_ms",
-            "timeout_drop_pct", "peak_rss_mb", "flow_control_policy"
-        ])
-        writer.writerows(rows)
-    print(f"Generated {p} ({len(rows)} rows)")
-
-
 def gen_benchmark_100k_showdown_csv():
     """11. Real-World 100k Live Public Internet Battle CSV."""
     rows = [
@@ -273,7 +255,6 @@ def main():
     gen_benchmark7_csv()
     gen_benchmark8_csv()
     gen_benchmark9_csv()
-    gen_benchmark10_csv()
     gen_benchmark_100k_showdown_csv()
     gen_summary_csv()
     print("=" * 80)

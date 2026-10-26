@@ -150,7 +150,7 @@ Evaluado sobre servidor **AMD EPYC de Producción (32 Núcleos, 128 GB RAM)** y 
 ⁵ Sustituido por la medición de 0.70: 0,7602 frente a chardet 0,7113; velocidad 11,239 frente a 6,800 archivos/s, unas 1,65× y no 6,8× ([D6](benchmarks/0.70_showdown_D6.md)).
 ⁶ Solo 13 endpoints; el mismo CSV incluye jsluice con 11/13 (84,6 %), que esta tabla no muestra.
 ⁷ 0.70 en la misma máquina, 7 escenarios SPA: PageSift 3/7, Playwright 5/7 ([D9](benchmarks/0.70_showdown_D9.md)).
-⁸ La fila original del CSV («Portkey / LiteLLM, 2,450 req/s») no coincide con el texto del informe y ambos son gateways de LLM, no scrapers; se sustituyó por las cifras del informe.
+⁸ La fila original del CSV («Portkey / LiteLLM, 2,450 req/s») no coincide con el texto del informe y ambos son gateways de LLM, no scrapers; no se puede rastrear, así que se eliminó el CSV y se usan las cifras del informe.
 
 > [!TIP]
 > **Datos verificables por máquina**: Consulte el libro blanco completo en [`docs/releases/0.50.0.md`](releases/0.50.0.md) y los registros CSV en [`bench/results/final/`](https://github.com/YOLOW92/pagesift/tree/main/bench/results/final/).
