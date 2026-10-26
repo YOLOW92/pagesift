@@ -3,7 +3,7 @@
 //! ```text
 //! pagesift-fuzz <目标> fuzz <种子清单> <秒数> <输出目录> [基础种子]
 //! pagesift-fuzz <目标> replay <种子清单> <基础种子> <迭代编号> <输出文件>
-//! pagesift-fuzz <目标> run <文件>
+//! pagesift-fuzz <目标> run <文件> [迭代编号：决定目标的参数组合]
 //! pagesift-fuzz <目标> minimize <文件> <输出文件> [超时毫秒]
 //! ```
 //! 目标：html、markdown、charset、pdf（见 `targets`）。
@@ -66,10 +66,11 @@ fn main() -> ExitCode {
             std::fs::write(out, data).unwrap();
             ExitCode::SUCCESS
         }
-        (Some("run"), [file]) => {
+        (Some("run"), [file, iter @ ..]) => {
             let data = std::fs::read(file).unwrap();
+            let iter = iter.first().map_or(0, |i| i.parse().unwrap());
             let t = Instant::now();
-            (target.run)(&data, 0);
+            (target.run)(&data, iter);
             println!(
                 "{} 字节，{:.1} ms",
                 data.len(),

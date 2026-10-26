@@ -149,6 +149,9 @@ pub(crate) fn median_size(frags: &[Line], mine: &[usize]) -> f64 {
 }
 
 /// 按基线分行、按竖向空隙分列。自适应空隙与跨列表头容忍。
+/// 列直方图的桶数上限，见 [`text_grid`]。
+const MAX_BINS: usize = 16_384;
+
 pub(crate) fn text_grid(
     frags: &[Line],
     mine: &[usize],
@@ -163,7 +166,11 @@ pub(crate) fn text_grid(
         return None;
     }
     let width = (x1 - x0).max(1.0);
-    let bins = width.ceil() as usize + 1;
+    // 每个桶 1 点宽；损坏或恶意文件的坐标可以大到 1e300，桶数和每行的扫描都跟着失控
+    // （模糊测试找到：15 万字节的文件卡 20 秒）。超过上限时按比例放宽每个桶，
+    // 正常页面（最大 14400 点）比例是 1，结果不变。
+    let scale = (width / MAX_BINS as f64).max(1.0);
+    let bins = (width / scale).ceil() as usize + 1;
     let mut lens: Vec<usize> = row_groups.iter().map(Vec::len).collect();
     lens.sort_unstable();
     let need = lens[lens.len() / 2].max(2);
@@ -176,8 +183,8 @@ pub(crate) fn text_grid(
     for g in body.iter().copied() {
         mark.iter_mut().for_each(|m| *m = false);
         for &k in g {
-            let a = ((frags[k].x0 - x0).max(0.0) as usize).min(bins - 1);
-            let b = ((frags[k].x1 - x0).max(0.0).ceil() as usize).min(bins);
+            let a = (((frags[k].x0 - x0) / scale).max(0.0) as usize).min(bins - 1);
+            let b = (((frags[k].x1 - x0) / scale).max(0.0).ceil() as usize).min(bins);
             for m in &mut mark[a..b.max(a)] {
                 *m = true;
             }
@@ -193,8 +200,8 @@ pub(crate) fn text_grid(
         if c <= tolerance {
             run += 1;
         } else {
-            if run as f64 >= 0.8 * size && i > run {
-                cuts.push(x0 + (i - run / 2) as f64);
+            if run as f64 * scale >= 0.8 * size && i > run {
+                cuts.push(x0 + (i - run / 2) as f64 * scale);
             }
             run = 0;
         }
