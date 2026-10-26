@@ -4,6 +4,10 @@
 //! - 文章模式选错了区域：输出远少于默认规则下页面上评论区以外的非链接文字；
 //! - 讨论串只取到一帖：选中的主体本身在评论（回复）区里，同一区域的其余文字比输出多得多。
 //!
+//! 第三种只说事实、不说正文丢了：主体不在评论区，但页面上评论/回复区的文字比输出多得多
+//! （论坛帖子页的回复、长评论串）。评论区默认不当正文，有的场景（论坛）它就是要的内容，
+//! 调用方看到警告可以改用整页模式（tasks/0.80/fix2/RESULT.md）。
+//!
 //! 页面整体文字不够多时一次额外遍历都不做，大多数页面只多数一遍 Markdown。
 
 use pagesift_html::NodeId;
@@ -16,7 +20,7 @@ use crate::extract::Skipper;
 const PARTIAL_MAX_SHARE: f64 = 0.3;
 /// 并且少掉的文字至少这么多（约两段），几百字的短页面差几句不报。
 const PARTIAL_MIN_MISSING: usize = 500;
-/// 选中的主体在回复区里时，回复区的文字超过输出这么多倍、并且至少这么多字，才报其余回复没取。
+/// 回复区（或评论区）的文字超过输出这么多倍、并且至少这么多字，才报回复（评论）没取。
 const REPLIES_MIN_RATIO: usize = 2;
 const REPLIES_MIN_CHARS: usize = 1000;
 
@@ -34,7 +38,7 @@ pub struct Coverage {
 }
 
 impl Coverage {
-    /// 结果可能不完整时的警告：`partial_content`、`replies_omitted`。
+    /// 结果可能不完整时的警告：`partial_content`、`replies_omitted`、`comments_omitted`。
     pub fn warnings(&self) -> Vec<String> {
         let mut out = Vec::new();
         let got = self.out_chars;
@@ -46,14 +50,19 @@ impl Coverage {
                 "partial_content: extracted {got} characters, but the page has about {main} characters of non-link text outside comments; only part of the main content may have been selected"
             ));
         }
-        if self.root_in_comments
-            && let Some(replies) = self.comment_chars
+        if let Some(replies) = self.comment_chars
             && replies > REPLIES_MIN_RATIO * got
             && replies >= REPLIES_MIN_CHARS
         {
-            out.push(format!(
-                "replies_omitted: the extracted text sits in a comment or reply thread that holds about {replies} characters; the other replies were left out"
-            ));
+            out.push(if self.root_in_comments {
+                format!(
+                    "replies_omitted: the extracted text sits in a comment or reply thread that holds about {replies} characters; the other replies were left out"
+                )
+            } else {
+                format!(
+                    "comments_omitted: the page has about {replies} characters in comment or reply sections that were left out (about {got} characters were extracted); request the whole page if replies are wanted"
+                )
+            });
         }
         out
     }
@@ -78,14 +87,10 @@ pub(crate) fn measure(
     root_in_comments: bool,
 ) -> Coverage {
     // 默认规则下评论区以外（和评论区里）的非链接文字都不会多于整页非链接文字 `page`：用它当
-    // 上界，两条警告都不可能成立时不再遍历。输出的字数也只需要数到判断够用为止。
+    // 上界，三条警告都不可能成立时不再遍历。输出的字数也只需要数到判断够用为止。
     let page = skipper.content_chars(body);
     let partial_limit = (page as f64 * PARTIAL_MAX_SHARE).ceil() as usize;
-    let limit = if root_in_comments {
-        (page / REPLIES_MIN_RATIO).max(partial_limit)
-    } else {
-        partial_limit
-    };
+    let limit = (page / REPLIES_MIN_RATIO).max(partial_limit);
     let got = text_chars_up_to(markdown, limit);
     let mut cov = Coverage {
         out_chars: got,
@@ -94,8 +99,7 @@ pub(crate) fn measure(
     };
     let partial_possible =
         (got as f64) < page as f64 * PARTIAL_MAX_SHARE && page - got >= PARTIAL_MIN_MISSING;
-    let replies_possible =
-        root_in_comments && page > REPLIES_MIN_RATIO * got && page >= REPLIES_MIN_CHARS;
+    let replies_possible = page > REPLIES_MIN_RATIO * got && page >= REPLIES_MIN_CHARS;
     if skipper.only_main() && (partial_possible || replies_possible) {
         let (main, comments) = default_prose(body, skipper);
         cov.main_chars = Some(main);
