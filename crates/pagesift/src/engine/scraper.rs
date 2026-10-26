@@ -283,10 +283,10 @@ impl Scraper {
         mode: RobotsMode,
     ) -> Result<Document, ApiError> {
         let Some(audit) = &self.audit else {
-            return self.scrape_inner(url, opts, mode).await;
+            return self.scrape_inner(Source::Url(url, mode), opts).await;
         };
         let started = Instant::now();
-        let mut result = self.scrape_inner(url, opts, mode).await;
+        let mut result = self.scrape_inner(Source::Url(url, mode), opts).await;
         let raw = result.as_ref().ok().and_then(|d| d.raw_html.as_deref());
         audit.record_scrape(kind, url, opts, &result, raw, started.elapsed());
         // 为快照内部多要的 rawHtml 不交给调用方
@@ -298,11 +298,11 @@ impl Scraper {
         result
     }
 
-    async fn scrape_inner(
+    /// 基础文档（抓取或上传文件解析）之上，再做 `queryFilter`、分块、LLM 格式和变化检测。
+    pub(super) async fn scrape_inner(
         &self,
-        url: &str,
+        source: Source<'_>,
         opts: &ScrapeOptions,
-        mode: RobotsMode,
     ) -> Result<Document, ApiError> {
         let wants_llm = opts.wants("summary") || opts.wants("json");
         let tracking = opts
@@ -316,7 +316,16 @@ impl Scraper {
             && opts.query_filter.is_none()
             && opts.chunking.is_none()
         {
-            return self.scrape_cached(url, opts, mode).await;
+            return self.base_document(source, opts).await;
+        }
+        let url = match &source {
+            Source::Url(url, _) => Some(*url),
+            Source::Upload(_) => None,
+        };
+        if tracking.is_some() && url.is_none() {
+            return Err(ApiError::unsupported(
+                "changeTracking needs a URL: it is not available for uploaded files",
+            ));
         }
         if (wants_llm || tracking.as_ref().is_some_and(|t| t.json)) && self.llm.is_none() {
             return Err(ApiError::unsupported(
@@ -343,7 +352,7 @@ impl Scraper {
         if tracking.is_some() && inner.max_age.is_none() {
             inner.max_age = Some(0);
         }
-        let mut doc = self.scrape_cached(url, &inner, mode).await?;
+        let mut doc = self.base_document(source, &inner).await?;
         if let Some(q) = &opts.query_filter {
             apply_query_filter(&mut doc, q).await?;
         }
@@ -381,13 +390,24 @@ impl Scraper {
                 );
             }
         }
-        if let (Some(t), Some(store)) = (&tracking, &self.store) {
+        if let (Some(t), Some(store), Some(url)) = (&tracking, &self.store, url) {
             self.track_changes(store, t, url, &mut doc).await?;
         }
         if !wants_md {
             doc.markdown = None;
         }
         Ok(doc)
+    }
+
+    async fn base_document(
+        &self,
+        source: Source<'_>,
+        opts: &ScrapeOptions,
+    ) -> Result<Document, ApiError> {
+        match source {
+            Source::Url(url, mode) => self.scrape_cached(url, opts, mode).await,
+            Source::Upload(upload) => self.parse_upload(upload, opts).await,
+        }
     }
 
     /// `changeTracking`：和上一次的正文比较，结果放进 `doc.change_tracking`。

@@ -168,6 +168,14 @@ res = app.scrape_url("https://example.com", params={"formats": ["markdown"]})
 print(res["markdown"])
 ```
 
+#### Subir un archivo (`/v2/parse`)
+Analiza un PDF o HTML local o no público sin publicarlo en una URL: carga multipart compatible con Firecrawl, hasta 50 MB, misma respuesta que `/v2/scrape` ([detalles](parse-api.md)):
+
+```bash
+curl -s http://localhost:3002/v2/parse -H 'Authorization: Bearer sk-test' \
+  -F file=@report.pdf -F 'options={"formats":["markdown"]}'
+```
+
 #### Reemplazo Directo de Jina Reader
 Cualquier agente LLM o cliente HTTP puede invocar el endpoint `/r/`:
 

@@ -6,6 +6,7 @@
 | [Architecture](architecture.md) | Rust modules, request pipeline, collection and archive state diagrams |
 | [Configuration](../pagesift.example.toml) | Service, policies, caches and browser configuration |
 | [Incremental collection](incremental-collection.md) | Business anchors, item revisions, pagination and acknowledgement |
+| [File upload API](parse-api.md) | `POST /v2/parse`: PDF/HTML upload, options, errors and limits |
 | [HTTP sessions](http-sessions.md) | Origin isolation, persisted Cookie state and retirement |
 | [Media archives](media-archive.md) | Validated resume, checksums and recovery |
 | [Additional native cores](native-core.md) | Fuzzy relocation, forms, indicators, modules, media and VOD limits |

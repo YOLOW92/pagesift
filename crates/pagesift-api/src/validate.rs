@@ -2,7 +2,7 @@
 
 use crate::engine::Engine;
 use crate::error::ApiError;
-use crate::types::ScrapeOptions;
+use crate::types::{PdfParser, ScrapeOptions};
 
 /// URL 最长 8 KB：再长的 URL 浏览器和多数服务器都不接受，只会白白占内存。
 pub const MAX_URL_LEN: usize = 8 * 1024;
@@ -131,5 +131,50 @@ pub fn check_url_count(n: usize) -> Result<(), ApiError> {
             "too many URLs: {n}, the maximum is {MAX_URLS}"
         )));
     }
+    Ok(())
+}
+
+/// `/v2/parse` 上传文件的大小上限，和 Firecrawl 一致（50 MB）。
+pub const MAX_PARSE_FILE_BYTES: usize = 50 * 1024 * 1024;
+
+/// `/v2/parse` 的选项：先过和 scrape 相同的检查，再拒绝只对网址有意义的选项
+/// （照 Firecrawl `getUnsupportedParseOptionError`，另加 pagesift 自己的抓取类扩展）。
+pub fn check_parse_options(opts: &ScrapeOptions, engine: &dyn Engine) -> Result<(), ApiError> {
+    check_scrape_options(opts, engine)?;
+    for kind in ["screenshot", "branding", "changeTracking"] {
+        if opts.wants(kind) {
+            return Err(ApiError::unsupported(format!(
+                "parse uploads do not support the {kind} format"
+            )));
+        }
+    }
+    let unsupported = [
+        (!opts.actions.is_empty(), "actions"),
+        (opts.wait_for > 0, "waitFor"),
+        (opts.location.is_some(), "location"),
+        (opts.mobile, "mobile"),
+        (
+            opts.engine.as_deref() == Some("browser"),
+            "engine \"browser\"",
+        ),
+        (opts.egress.is_some(), "egress"),
+        (opts.discover_scripts, "discoverScripts"),
+        (
+            opts.if_none_match.is_some() || opts.if_modified_since.is_some(),
+            "conditional requests",
+        ),
+        (
+            opts.proxy
+                .as_deref()
+                .is_some_and(|p| !matches!(p, "basic" | "auto")),
+            "proxy other than basic or auto",
+        ),
+    ];
+    if let Some((_, what)) = unsupported.iter().find(|(on, _)| *on) {
+        return Err(ApiError::unsupported(format!(
+            "parse uploads do not support {what}"
+        )));
+    }
+    PdfParser::from_parsers(opts.parsers.as_ref())?;
     Ok(())
 }

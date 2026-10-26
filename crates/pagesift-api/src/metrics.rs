@@ -30,12 +30,13 @@ impl Histogram {
     }
 }
 
-/// 页面从哪来：单页抓取、批量抓取、整站爬取。
+/// 页面从哪来：单页抓取、批量抓取、整站爬取、上传文件解析。
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum PageSource {
     Scrape,
     Batch,
     Crawl,
+    Parse,
 }
 
 #[derive(Default)]
@@ -45,7 +46,7 @@ pub(crate) struct Metrics {
     in_flight: AtomicI64,
     pub(crate) scrape_ok: AtomicU64,
     pub(crate) scrape_err: AtomicU64,
-    pages: [AtomicU64; 3],
+    pages: [AtomicU64; 4],
     /// (错误码, 来源)：`http` 是请求本身的错误响应，`job` 是任务里单个页面的错误。
     errors: Mutex<BTreeMap<(&'static str, &'static str), u64>>,
     jobs_started: Mutex<BTreeMap<&'static str, u64>>,
@@ -180,7 +181,10 @@ impl Metrics {
             "counter",
             "Pages scraped successfully, by endpoint.",
         );
-        for (i, source) in ["scrape", "batch_scrape", "crawl"].iter().enumerate() {
+        for (i, source) in ["scrape", "batch_scrape", "crawl", "parse"]
+            .iter()
+            .enumerate()
+        {
             let _ = writeln!(
                 out,
                 "pagesift_pages_scraped_total{{source=\"{source}\"}} {}",

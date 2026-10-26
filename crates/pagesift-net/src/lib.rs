@@ -38,7 +38,7 @@ pub use scheduler::{CrawlResult, CrawlTask, DomainLimiter, PushError, RingQueue,
 
 /// 只做"看字节猜编码"，不解码。基准测试与诊断工具用它。
 pub use charset::detect as detect_charset;
-pub use charset::{CharsetSource, Decoded, decode};
+pub use charset::{CharsetSource, Decoded, decode, decode_owned};
 pub use credentials::{HostCredentials, Secret, redact_url};
 pub use dns::{BoxFuture, DnsLookup, SystemLookup};
 pub use fetch::{

@@ -24,6 +24,7 @@ mod feed;
 mod fetch;
 mod frames;
 mod output;
+mod parse;
 mod scraper;
 use extract::*;
 use fetch::*;
@@ -174,6 +175,12 @@ impl RuntimeAdaptiveTuner {
     }
 }
 
+/// 文档从哪来：抓一个网址，或解析调用方上传的文件（`/v2/parse`）。
+pub(super) enum Source<'a> {
+    Url(&'a str, RobotsMode),
+    Upload(pagesift_api::types::Upload),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum EngineChoice {
     Http,
@@ -188,6 +195,14 @@ impl Engine for Scraper {
         opts: &'a ScrapeOptions,
     ) -> BoxFuture<'a, Result<Document, ApiError>> {
         Box::pin(Scraper::scrape(self, url, opts))
+    }
+
+    fn parse<'a>(
+        &'a self,
+        file: pagesift_api::types::Upload,
+        opts: &'a ScrapeOptions,
+    ) -> BoxFuture<'a, Result<Document, ApiError>> {
+        Box::pin(Scraper::parse(self, file, opts))
     }
 
     fn map<'a>(

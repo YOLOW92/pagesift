@@ -188,6 +188,14 @@ res = app.scrape_url("https://example.com", params={"formats": ["markdown"]})
 print(res["markdown"])
 ```
 
+#### 上传文件解析（`/v2/parse`）
+本地或不公开的 PDF、HTML 文件不用先放到网址上，直接上传解析；兼容 Firecrawl 的 multipart 写法，上限 50 MB，返回与 `/v2/scrape` 相同（[说明](parse-api.md)）：
+
+```bash
+curl -s http://localhost:3002/v2/parse -H 'Authorization: Bearer sk-test' \
+  -F file=@report.pdf -F 'options={"formats":["markdown"]}'
+```
+
 #### Jina Reader 极简平替接入
 任何 LLM 智能体或终端命令行直接请求 `/r/` 端点：
 

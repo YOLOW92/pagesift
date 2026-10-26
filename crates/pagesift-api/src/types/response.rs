@@ -135,6 +135,9 @@ pub struct Metadata {
 pub struct Document {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub markdown: Option<String>,
+    /// 每页的 Markdown：只在 `/v2/parse` 的 PDF 请求了 `parsers: [{type: "pdf", pages: true}]` 时给。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pages: Option<Vec<PageMarkdown>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub html: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -158,6 +161,15 @@ pub struct Document {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chunks: Option<Vec<DocChunk>>,
     pub metadata: Metadata,
+}
+
+/// Firecrawl `data.pages[]`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PageMarkdown {
+    /// 从 1 开始的页码。
+    pub page_number: usize,
+    pub markdown: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

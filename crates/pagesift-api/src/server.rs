@@ -45,6 +45,9 @@ pub struct Timeouts {
     pub header_read: Duration,
     /// 从请求进来到读完请求体的总时限，不是两次读之间的间隔：每 5 秒滴 1 字节也会超时。
     pub body: Duration,
+    /// `/v2/parse` 上传文件的请求体时限（同样是总时限）：50 MB 的文件 30 秒传完要 1.7 MB/s，
+    /// 上传单独放宽。
+    pub upload_body: Duration,
     /// 整个请求（到响应头发出为止）的时限。要比同步 scrape 的 `timeout` 上限大，
     /// crawl/batch 只是创建任务，很快返回，不受影响。
     pub request: Duration,
@@ -55,6 +58,7 @@ impl Default for Timeouts {
         Self {
             header_read: Duration::from_secs(30),
             body: Duration::from_secs(30),
+            upload_body: Duration::from_secs(120),
             request: Duration::from_millis(crate::validate::MAX_SCRAPE_TIMEOUT_MS)
                 + Duration::from_secs(60),
         }
@@ -258,6 +262,15 @@ pub async fn serve_with(
 /// 请求体加总时限；整个请求加时限。超时都回统一的 JSON 错误（408 TIMEOUT）。
 async fn deadline(State(t): State<Timeouts>, req: Request, next: Next) -> Response {
     let fired = Arc::new(AtomicBool::new(false));
+    // 上传放宽的请求体时间也加到整请求时限上，解析仍有完整的 `timeout` 可用
+    let (body_limit, request_limit) = if req.uri().path() == "/v2/parse" {
+        (
+            t.upload_body,
+            t.request + t.upload_body.saturating_sub(t.body),
+        )
+    } else {
+        (t.body, t.request)
+    };
     let req = if req.body().is_end_stream() {
         req
     } else {
@@ -265,18 +278,18 @@ async fn deadline(State(t): State<Timeouts>, req: Request, next: Next) -> Respon
         req.map(|inner| {
             Body::new(DeadlineBody {
                 inner,
-                sleep: Box::pin(tokio::time::sleep(t.body)),
+                sleep: Box::pin(tokio::time::sleep(body_limit)),
                 fired,
             })
         })
     };
-    match tokio::time::timeout(t.request, next.run(req)).await {
+    match tokio::time::timeout(request_limit, next.run(req)).await {
         // 读请求体超时时提取器给的是 400，这里换成 408
         Ok(_) if fired.load(Ordering::Relaxed) => ApiError::new(
             ErrorCode::Timeout,
             format!(
                 "request body was not received within {} s",
-                t.body.as_secs_f64()
+                body_limit.as_secs_f64()
             ),
         )
         .into_response(),
@@ -285,7 +298,7 @@ async fn deadline(State(t): State<Timeouts>, req: Request, next: Next) -> Respon
             ErrorCode::Timeout,
             format!(
                 "request did not complete within {} s",
-                t.request.as_secs_f64()
+                request_limit.as_secs_f64()
             ),
         )
         .into_response(),

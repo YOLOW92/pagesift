@@ -44,6 +44,7 @@ fn short() -> Timeouts {
     Timeouts {
         header_read: Duration::from_millis(300),
         body: Duration::from_millis(300),
+        upload_body: Duration::from_millis(300),
         request: Duration::from_millis(500),
     }
 }

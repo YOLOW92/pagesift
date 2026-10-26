@@ -1,7 +1,10 @@
 //! Firecrawl v1/v2 request and response types.
 
+pub mod parse;
 pub mod request;
 pub mod response;
+
+pub use parse::{PdfParser, Upload, UploadKind};
 
 pub use request::{
     AdaptiveOptions, BatchScrapeRequest, CrawlRequest, CrawlScope, ExtractRequest, Format,
@@ -9,7 +12,7 @@ pub use request::{
 };
 pub use response::{
     ChangeTracking, CrawlSummary, DocChunk, Document, JobError, JobErrors, JobStarted, JobStatus,
-    MapLink, MapResponse, Metadata, PagesiftMeta, QueryFilterStats, ScrapeResponse,
+    MapLink, MapResponse, Metadata, PageMarkdown, PagesiftMeta, QueryFilterStats, ScrapeResponse,
 };
 
 #[cfg(test)]
