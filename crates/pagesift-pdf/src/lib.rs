@@ -11,6 +11,7 @@
 
 mod cmap;
 mod encoding;
+mod figure;
 mod file;
 mod font;
 mod fontfile;
@@ -201,7 +202,32 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
             tagged_lines += structure::tag_lines(&mut page_frags, &tags[index]);
         }
         // 表格：格子里的片段换成一个原样输出的 Markdown 表格，放在表格顶部的位置
-        let tables = table::extract(&ink.rules, &mut page_frags, ink.width, ink.height);
+        // 书签声明的标题行先标出来，不归图
+        let outline_here: Vec<structure::Entry> = structure
+            .outline
+            .iter()
+            .filter(|e| e.page.is_some_and(|p| p == index || p + 1 == index))
+            .map(|e| structure::Entry { page: Some(0), ..e.clone() })
+            .collect();
+        structure::keep_outline_lines(std::slice::from_mut(&mut page_frags), &outline_here);
+        // 矢量图：图内文字（刻度、图例、标注）不进表格检测、不当标题，合成一个原样输出的块
+        let figures = figure::detect(&ink.shapes, &ink.rules, &page_frags, ink.width, ink.height);
+        if std::env::var_os("PAGESIFT_PDF_TABLES").is_some() {
+            for f in &figures {
+                let head: String = figure::text_of(&page_frags, &f.lines).chars().take(100).collect();
+                eprintln!("figure\t{}\t{:.0}\t{:.0}\t{:.0}\t{:.0}\t{}\t{}", index + 1, f.x0, f.top, f.x1, f.bottom, f.lines.len(), head.replace('\n', " / "));
+            }
+        }
+        let (figure_blocks, table_rules) = figure::take(&figures, &mut page_frags, &ink.rules);
+        let tables = table::extract(&table_rules, &mut page_frags, ink.width, ink.height);
+        page_frags.extend(figure_blocks);
+        if std::env::var_os("PAGESIFT_PDF_TABLES").is_some() {
+            for t in &tables {
+                let cols = t.rows.iter().map(Vec::len).max().unwrap_or(0);
+                let head: Vec<String> = t.rows.iter().take(3).map(|r| r.join(" | ")).collect();
+                eprintln!("table\t{}\t{:.0}\t{:.0}\t{:.0}\t{:.0}\t{}x{}\t{}", index + 1, t.x0, t.top, t.x1, t.bottom, t.rows.len(), cols, head.join(" // "));
+            }
+        }
         if !tables.is_empty() {
             let mut sizes: Vec<f64> = page_frags.iter().map(|f| f.size).collect();
             sizes.sort_by(f64::total_cmp);
