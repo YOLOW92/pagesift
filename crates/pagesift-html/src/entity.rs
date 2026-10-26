@@ -115,11 +115,44 @@ fn named(raw: &str, start: usize, in_attr: bool) -> Option<(char, char, usize)> 
     None
 }
 
+/// 按名字首字节分桶：`BUCKETS[b]..BUCKETS[b + 1]` 是首字节为 `b` 的实体（表按字节序排好）。
+/// 编译期算好，查找时只在一个桶里（几十条）二分。
+static BUCKETS: [u16; 129] = {
+    let mut starts = [0u16; 129];
+    let mut b = 0;
+    let mut i = 0;
+    while b < 129 {
+        while i < ENTITIES.len() && (ENTITIES[i].0.as_bytes()[0] as usize) < b {
+            i += 1;
+        }
+        starts[b] = i as u16;
+        b += 1;
+    }
+    starts
+};
+
 fn lookup(name: &str) -> Option<(char, char)> {
-    ENTITIES
-        .binary_search_by(|(n, _, _)| n.as_bytes().cmp(name.as_bytes()))
+    let name = name.as_bytes();
+    let first = *name.first()? as usize;
+    if first >= 128 {
+        return None;
+    }
+    let bucket = &ENTITIES[BUCKETS[first] as usize..BUCKETS[first + 1] as usize];
+    // 名字都很短：逐字节比较比调用 memcmp 快
+    bucket
+        .binary_search_by(|(n, _, _)| cmp_bytes(n.as_bytes(), name))
         .ok()
-        .map(|i| (ENTITIES[i].1, ENTITIES[i].2))
+        .map(|i| (bucket[i].1, bucket[i].2))
+}
+
+#[inline]
+fn cmp_bytes(a: &[u8], b: &[u8]) -> std::cmp::Ordering {
+    for (x, y) in a.iter().zip(b) {
+        if x != y {
+            return x.cmp(y);
+        }
+    }
+    a.len().cmp(&b.len())
 }
 
 #[cfg(test)]
@@ -133,6 +166,15 @@ mod tests {
         let mut out = String::new();
         super::decode_into(&mut out, s, true);
         out
+    }
+
+    #[test]
+    fn bucketed_lookup_finds_every_entity() {
+        for (i, &(name, a, b)) in crate::entities::ENTITIES.iter().enumerate() {
+            assert_eq!(super::lookup(name), Some((a, b)), "{i} {name}");
+        }
+        assert_eq!(super::lookup("notanentity;"), None);
+        assert_eq!(super::lookup("é"), None);
     }
 
     #[test]
