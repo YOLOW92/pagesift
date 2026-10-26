@@ -98,3 +98,45 @@ async fn parked_requests_still_count_toward_the_ceiling() {
     .unwrap();
     assert_eq!(r.status, 200);
 }
+
+#[tokio::test]
+async fn slow_threshold_adapts_to_a_warm_origin() {
+    // 源站已有一批快请求的服务时间：“慢”按它自己的中位数判断（不低于 250 ms），
+    // 不必等满尾部阈值（这里 2 s）才让快请求过去
+    let srv = serve(|s| (s.path != "/slow").then(|| ok("fast"))).await;
+    let fetcher = Arc::new(
+        Fetcher::new(FetcherConfig {
+            ssrf: SsrfPolicy {
+                allow_ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
+                ..Default::default()
+            },
+            dns: FakeDns::new(&[]),
+            tail_threshold: Duration::from_secs(2),
+            first_byte_timeout: Duration::from_secs(20),
+            max_connections_per_host: 16,
+            ..Default::default()
+        })
+        .unwrap(),
+    );
+    for _ in 0..10 {
+        let r = fetcher.fetch(FetchRequest::new(srv.url("/fast"))).await.unwrap();
+        assert_eq!(r.status, 200);
+    }
+    let mut slow = tokio::task::JoinSet::new();
+    for _ in 0..7 {
+        let (f, url) = (fetcher.clone(), srv.url("/slow"));
+        slow.spawn(async move { f.fetch(FetchRequest::new(url)).await });
+    }
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    let t = Instant::now();
+    let r = tokio::time::timeout(
+        Duration::from_secs(5),
+        fetcher.fetch(FetchRequest::new(srv.url("/fast"))),
+    )
+    .await
+    .expect("fast request waited behind slow ones")
+    .unwrap();
+    assert_eq!(r.status, 200);
+    assert!(t.elapsed() < Duration::from_millis(1000), "{:?}", t.elapsed());
+    slow.abort_all();
+}

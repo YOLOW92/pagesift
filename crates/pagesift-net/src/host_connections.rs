@@ -5,6 +5,14 @@ use tokio::sync::Notify;
 
 const WINDOW: u32 = 16;
 const EWMA_ALPHA: f64 = 0.20;
+/// 估计“慢”用最近这么多次完成的服务时间。
+const SAMPLES: usize = 32;
+/// 攒够这么多样本才按源站自己的服务时间判断“慢”，之前用调用方给的上限（尾部阈值）。
+const MIN_SAMPLES: usize = 8;
+/// 比源站服务时间中位数长这么多倍算慢（中位数不被少数慢请求带偏，慢请求占多数时阈值才跟着变大）。
+const SLOW_FACTOR: f64 = 4.0;
+/// “慢”的阈值下限：更短时让出名额换来的并发不值得，本机回环的样本也主要是调度噪声。
+const SLOW_FLOOR: Duration = Duration::from_millis(250);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum HostOutcome {
@@ -51,8 +59,55 @@ struct State {
     best_service_us: f64,
     window_samples: u32,
     window_failures: u32,
+    /// 窗口里因为慢而停放过的完成数。
+    window_slow: u32,
     window_saturated: bool,
     cooldown: u32,
+    /// 最近完成的服务时间（微秒），环形缓冲。
+    samples: Vec<u64>,
+    next_sample: usize,
+    /// 按 `samples` 算出的“慢”阈值（微秒）；样本不够时为 0，用调用方的上限。
+    slow_after_us: u64,
+    /// 上一次有请求结束的时刻：排队的请求只有在这么久没有任何进展时才算“前面都是慢请求”。
+    last_progress: tokio::time::Instant,
+    /// 源站持续慢（窗口里停放的比例高）：停放名额收紧到热连接目标，免得并发升到上限。
+    slow_limited: bool,
+    /// 排队太久而以停放身份放行的请求：每个“慢”阈值周期最多放行热连接目标个，
+    /// 冷启动时（还没有服务时间可参考）不会一下子把整个队列放到上限。
+    impatient_since: tokio::time::Instant,
+    impatient_count: usize,
+}
+
+impl State {
+    /// 这个源站上多久算慢：最近服务时间中位数的 [`SLOW_FACTOR`] 倍，夹在 [`SLOW_FLOOR`] 和 `cap` 之间。
+    fn slow_after(&self, cap: Duration) -> Duration {
+        if self.slow_after_us == 0 {
+            return cap;
+        }
+        Duration::from_micros(self.slow_after_us).clamp(SLOW_FLOOR.min(cap), cap)
+    }
+
+    /// 还能停放几个：平时只受安全上限约束；源站持续慢时不超过热连接目标。
+    fn may_park(&self) -> bool {
+        let below_max = self.active + self.parked < self.max;
+        below_max && (!self.slow_limited || self.parked < self.target)
+    }
+
+    fn record_sample(&mut self, elapsed_us: f64) {
+        let us = elapsed_us.max(0.0) as u64;
+        if self.samples.len() < SAMPLES {
+            self.samples.push(us);
+        } else {
+            self.samples[self.next_sample] = us;
+        }
+        self.next_sample = (self.next_sample + 1) % SAMPLES;
+        if self.samples.len() >= MIN_SAMPLES {
+            let mut sorted = self.samples.clone();
+            let mid = sorted.len() / 2;
+            let (_, median, _) = sorted.select_nth_unstable(mid);
+            self.slow_after_us = ((*median as f64) * SLOW_FACTOR).max(1.0) as u64;
+        }
+    }
 }
 
 /// A cancellation-safe, per-origin AIMD controller. It deliberately has no
@@ -65,6 +120,8 @@ pub(crate) struct HostConnectionControl {
 pub(crate) struct HostPermit {
     control: Arc<HostConnectionControl>,
     started: Instant,
+    /// 拿到名额时这个源站的“慢”阈值：请求从拿到名额起超过这么久就停放（见 [`HostPermit::park`]）。
+    slow_after: Duration,
     reused: bool,
     connect_time: Option<Duration>,
     finished: bool,
@@ -92,8 +149,16 @@ impl HostConnectionControl {
                 best_service_us: 0.0,
                 window_samples: 0,
                 window_failures: 0,
+                window_slow: 0,
                 window_saturated: false,
                 cooldown: 0,
+                samples: Vec::with_capacity(SAMPLES),
+                next_sample: 0,
+                slow_after_us: 0,
+                last_progress: tokio::time::Instant::now(),
+                slow_limited: false,
+                impatient_since: tokio::time::Instant::now(),
+                impatient_count: 0,
             }),
             changed: Notify::new(),
         })
@@ -101,42 +166,57 @@ impl HostConnectionControl {
 
     #[cfg(test)]
     pub(crate) async fn acquire(self: &Arc<Self>) -> HostPermit {
-        self.acquire_within(None).await
+        self.acquire_within(Duration::from_secs(3600)).await
     }
 
-    /// 拿一个名额。热连接目标满了就排队；排队超过 `patience`（尾部阈值）还没轮到，说明前面
-    /// 占着名额的都是慢请求，这时以停放身份放行（仍受 `max` 约束）：否则慢请求一代一代地
-    /// 释放名额，排在 N 个慢请求后面的快请求要等 N/目标 个阈值。
-    pub(crate) async fn acquire_within(self: &Arc<Self>, patience: Option<Duration>) -> HostPermit {
-        let give_up_at = patience.and_then(|p| tokio::time::Instant::now().checked_add(p));
+    /// 拿一个名额。`cap` 是“慢”阈值的上限（尾部阈值），实际阈值随这个源站的服务时间自适应
+    /// （[`State::slow_after`]）。热连接目标满了就排队；排队期间这个源站超过一个“慢”阈值没有
+    /// 任何请求结束，说明占着名额的都是慢请求，这时以停放身份放行（受停放名额约束）：否则慢请求
+    /// 一代一代地释放名额，排在 N 个慢请求后面的快请求要等 N/目标 个阈值。有请求陆续结束的
+    /// 长队列（源站健康、只是排得长）不会因此放行，并发仍由热连接目标决定。
+    pub(crate) async fn acquire_within(self: &Arc<Self>, cap: Duration) -> HostPermit {
+        let queued_at = tokio::time::Instant::now();
         loop {
             let notified = self.changed.notified();
-            {
+            let impatient_at = {
                 let mut state = self.state.lock().expect("host connection lock poisoned");
-                let below_max = state.active + state.parked < state.max;
-                let impatient = give_up_at.is_some_and(|t| tokio::time::Instant::now() >= t);
+                let now = tokio::time::Instant::now();
+                let slow_after = state.slow_after(cap);
+                let mut impatient_at = queued_at.max(state.last_progress).checked_add(slow_after);
+                let next_period = state.impatient_since.checked_add(slow_after);
+                if next_period.is_some_and(|t| now >= t) {
+                    state.impatient_since = now;
+                    state.impatient_count = 0;
+                }
+                if state.impatient_count >= state.target {
+                    impatient_at = impatient_at.max(next_period);
+                }
+                let impatient = impatient_at.is_some_and(|t| now >= t);
+                let hot = state.active < state.target && state.active + state.parked < state.max;
                 // 停放的请求不占热连接名额，但仍算在安全上限里
-                if below_max && (state.active < state.target || impatient) {
-                    let parked = state.active >= state.target;
-                    if parked {
-                        state.parked += 1;
-                    } else {
+                if hot || impatient && state.may_park() {
+                    if hot {
                         state.active += 1;
                         if state.active == state.target {
                             state.window_saturated = true;
                         }
+                    } else {
+                        state.parked += 1;
+                        state.impatient_count += 1;
                     }
                     return HostPermit {
                         control: self.clone(),
                         started: Instant::now(),
+                        slow_after,
                         reused: false,
                         connect_time: None,
                         finished: false,
-                        parked,
+                        parked: !hot,
                     };
                 }
-            }
-            match give_up_at {
+                impatient_at
+            };
+            match impatient_at {
                 Some(t) if tokio::time::Instant::now() < t => {
                     tokio::select! {
                         _ = notified => {}
@@ -174,13 +254,20 @@ impl HostConnectionControl {
         }
     }
 
-    /// 把一个占着热连接名额的请求转为停放，空出的名额立刻给排队的请求。
-    fn park(&self) {
+    /// 把一个占着热连接名额的请求转为停放，空出的名额立刻给排队的请求。源站持续慢、停放名额
+    /// 用完时不停放（返回 false），请求继续占着热连接名额。
+    fn park(&self) -> bool {
         let mut state = self.state.lock().expect("host connection lock poisoned");
+        // 自己从热连接转出来，安全上限的占用不变
         state.active = state.active.saturating_sub(1);
+        if !state.may_park() {
+            state.active += 1;
+            return false;
+        }
         state.parked += 1;
         drop(state);
         self.changed.notify_waiters();
+        true
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -192,6 +279,7 @@ impl HostConnectionControl {
         connect_time: Option<Duration>,
         cancelled: bool,
         parked: bool,
+        slow: bool,
     ) {
         let mut state = self.state.lock().expect("host connection lock poisoned");
         if parked {
@@ -199,6 +287,7 @@ impl HostConnectionControl {
         } else {
             state.active = state.active.saturating_sub(1);
         }
+        state.last_progress = tokio::time::Instant::now();
         if outcome == HostOutcome::Neutral {
             drop(state);
             self.changed.notify_waiters();
@@ -215,8 +304,14 @@ impl HostConnectionControl {
         if cancelled {
             state.cancelled += 1;
         }
+        if slow {
+            state.window_slow += 1;
+        }
         let elapsed_us = elapsed.as_secs_f64() * 1_000_000.0;
         state.service_ewma_us = ewma(state.service_ewma_us, elapsed_us);
+        if !cancelled {
+            state.record_sample(elapsed_us);
+        }
         if let Some(duration) = connect_time {
             state.connect_ewma_us =
                 ewma(state.connect_ewma_us, duration.as_secs_f64() * 1_000_000.0);
@@ -253,15 +348,19 @@ impl HostConnectionControl {
                 return;
             }
             let error_rate = state.window_failures as f64 / state.window_samples as f64;
+            // 持续慢也是过载信号：一半以上的请求慢到要停放，和高失败率一样减半；
+            // 四分之一以上减一，并把停放名额收紧到热连接目标（否则停放的请求让并发升到上限）。
+            let slow_rate = state.window_slow as f64 / state.window_samples as f64;
+            state.slow_limited = slow_rate >= 0.25;
             // Sub-millisecond loopback samples are dominated by scheduler and
             // clock noise. Use service-time regression only once the signal is
             // large enough to be meaningful.
             let latency_regressed = state.best_service_us >= 1_000.0
                 && state.service_ewma_us > state.best_service_us * 1.50;
-            if error_rate >= 0.25 {
+            if error_rate >= 0.25 || slow_rate >= 0.5 {
                 state.target = (state.target / 2).max(1);
                 state.cooldown = WINDOW;
-            } else if error_rate > 0.05 || latency_regressed {
+            } else if error_rate > 0.05 || latency_regressed || slow_rate >= 0.25 {
                 state.target = state.target.saturating_sub(1).max(1);
                 state.cooldown = WINDOW / 2;
             } else if state.window_saturated && state.cooldown == 0 && state.target < state.max {
@@ -290,16 +389,20 @@ impl HostPermit {
         self.connect_time = Some(elapsed);
     }
 
-    /// 请求等首字节或读正文超过尾部阈值时调用：让出热连接名额。
+    /// 过了这个时刻还没结束就算慢请求，该调用 [`HostPermit::park`]。
+    pub(crate) fn slow_at(&self) -> tokio::time::Instant {
+        tokio::time::Instant::from_std(self.started + self.slow_after)
+    }
+
+    /// 请求等首字节或读正文超过“慢”阈值（[`HostPermit::slow_at`]）时调用：让出热连接名额。
     ///
     /// 热连接目标从 2 起步、攒够一个观察窗口才加一。慢请求一直占着名额的话，同一源站
-    /// 后面的快请求要排到慢请求结束（批量抓取里快页面被 5 s 的慢页面拖住）。慢请求本身
-    /// 不是过载信号（过载看 429/503 和失败率），所以让它停放：不再挤占热连接，但仍受
-    /// `max` 这个安全上限约束，结束时照常计入服务时间和结果。可重复调用。
+    /// 后面的快请求要排到慢请求结束（批量抓取里快页面被 5 s 的慢页面拖住）。所以让它停放：
+    /// 不再挤占热连接，但仍受 `max` 这个安全上限约束，结束时照常计入服务时间和结果。
+    /// 偶尔慢不算过载；一个窗口里停放的比例高（持续慢）才算，见 `complete`。可重复调用。
     pub(crate) fn park(&mut self) {
-        if !self.parked && !self.finished {
+        if !self.parked && !self.finished && self.control.park() {
             self.parked = true;
-            self.control.park();
         }
     }
 
@@ -312,6 +415,7 @@ impl HostPermit {
             self.connect_time,
             false,
             self.parked,
+            self.started.elapsed() >= self.slow_after,
         );
     }
 
@@ -324,6 +428,7 @@ impl HostPermit {
             self.connect_time,
             false,
             self.parked,
+            self.started.elapsed() >= self.slow_after,
         );
     }
 }
@@ -339,6 +444,7 @@ impl Drop for HostPermit {
                 self.connect_time,
                 true,
                 self.parked,
+                self.started.elapsed() >= self.slow_after,
             );
         }
     }
@@ -347,6 +453,7 @@ impl Drop for HostPermit {
 fn reset_window(state: &mut State) {
     state.window_samples = 0;
     state.window_failures = 0;
+    state.window_slow = 0;
     state.window_saturated = false;
 }
 
@@ -363,125 +470,5 @@ fn micros(value: f64) -> Duration {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn healthy_saturated_host_grows_without_scanning() {
-        let control = HostConnectionControl::new(true, 8);
-        for _ in 0..8 {
-            let a = control.acquire().await;
-            let b = control.acquire().await;
-            a.finish(HostOutcome::Success);
-            b.finish(HostOutcome::Success);
-        }
-        let stats = control.stats("http://fast.test".into());
-        assert!(stats.hot_target > 2, "healthy saturated host should grow");
-        assert_eq!(stats.failed, 0);
-    }
-
-    #[tokio::test]
-    async fn overload_shrinks_only_its_own_host() {
-        let slow = HostConnectionControl::new(true, 8);
-        let fast = HostConnectionControl::new(true, 8);
-        for _ in 0..16 {
-            let permit = fast.acquire().await;
-            permit.finish(HostOutcome::Success);
-        }
-        let permit = slow.acquire().await;
-        permit.finish(HostOutcome::Overload);
-        assert_eq!(slow.stats("slow".into()).hot_target, 1);
-        assert_eq!(fast.stats("fast".into()).hot_target, 2);
-    }
-
-    #[tokio::test]
-    async fn one_overload_episode_causes_only_one_backoff() {
-        let control = HostConnectionControl::new(true, 8);
-        while control.stats("host".into()).hot_target < 5 {
-            let target = control.stats("host".into()).hot_target;
-            for _ in 0..(WINDOW as usize / target).max(1) {
-                let mut permits = Vec::new();
-                for _ in 0..target {
-                    permits.push(control.acquire().await);
-                }
-                for permit in permits {
-                    permit.finish(HostOutcome::Success);
-                }
-            }
-        }
-        let mut overshoot = Vec::new();
-        for _ in 0..5 {
-            overshoot.push(control.acquire().await);
-        }
-        for permit in overshoot {
-            permit.finish(HostOutcome::Overload);
-        }
-        assert_eq!(control.stats("host".into()).hot_target, 4);
-    }
-
-    #[tokio::test]
-    async fn cancelled_acquire_is_released_and_counted() {
-        let control = HostConnectionControl::new(true, 2);
-        let permit = control.acquire().await;
-        drop(permit);
-        let stats = control.stats("cancelled".into());
-        assert_eq!(stats.active, 0);
-        assert_eq!(stats.cancelled, 1);
-        assert_eq!(stats.failed, 1);
-    }
-
-    #[tokio::test]
-    async fn parking_frees_a_hot_slot_but_not_the_ceiling() {
-        let control = HostConnectionControl::new(true, 3);
-        let wait = |c: &Arc<HostConnectionControl>| {
-            let c = c.clone();
-            async move {
-                tokio::time::timeout(Duration::from_millis(20), c.acquire())
-                    .await
-                    .ok()
-            }
-        };
-        let mut a = control.acquire().await;
-        let mut b = control.acquire().await;
-        assert!(wait(&control).await.is_none(), "target is 2");
-        a.park();
-        a.park();
-        let c = wait(&control).await.expect("parked slot is free");
-        b.park();
-        assert!(wait(&control).await.is_none(), "1 active + 2 parked = max");
-        a.finish(HostOutcome::Success);
-        let d = wait(&control)
-            .await
-            .expect("finished parked request frees the ceiling");
-        let stats = control.stats("h".into());
-        assert_eq!((stats.active, stats.parked), (2, 1));
-        drop((b, c, d));
-        let stats = control.stats("h".into());
-        assert_eq!((stats.active, stats.parked), (0, 0));
-    }
-
-    #[tokio::test]
-    async fn impatient_waiters_are_admitted_as_parked_within_the_ceiling() {
-        let control = HostConnectionControl::new(true, 4);
-        let patience = Some(Duration::from_millis(50));
-        let _a = control.acquire().await;
-        let _b = control.acquire().await;
-        // 前面两个一直不结束：等满耐心后以停放身份放行，两个一起，不分代
-        let t = Instant::now();
-        let (c, d) = tokio::join!(
-            control.acquire_within(patience),
-            control.acquire_within(patience)
-        );
-        assert!(t.elapsed() < Duration::from_millis(500));
-        assert!(c.parked && d.parked);
-        // 已到上限 4：再等多久也不放行
-        assert!(
-            tokio::time::timeout(Duration::from_millis(200), control.acquire_within(patience))
-                .await
-                .is_err()
-        );
-        drop((c, d));
-        let stats = control.stats("h".into());
-        assert_eq!((stats.active, stats.parked), (2, 0));
-    }
-}
+#[path = "tests_host_connections.rs"]
+mod tests;

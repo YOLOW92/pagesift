@@ -73,7 +73,7 @@ impl Client {
             port,
         };
         let control = self.0.host_control(&key);
-        let mut lifecycle = Some(control.acquire_within(Some(self.0.tail_threshold)).await);
+        let mut lifecycle = Some(control.acquire_within(self.0.tail_threshold).await);
         let mut stage = None;
         let path = match url.query() {
             Some(q) => format!("{}?{q}", url.path()),
@@ -157,7 +157,9 @@ impl Client {
 
             let send_started = Instant::now();
             let send_deadline = send_started + self.0.first_byte_timeout;
-            let park_at = send_started + self.0.tail_threshold;
+            // 源站自己的“慢”阈值（不超过尾部阈值），从拿到名额起算
+            let slow_at = lifecycle.as_ref().map(HostPermit::slow_at);
+            let park_at = slow_at.unwrap_or(send_started + self.0.tail_threshold);
             match conn {
                 Conn::H1(mut s) => {
                     match first_byte(s.send_request(req), send_deadline, park_at, &mut lifecycle)
@@ -183,6 +185,7 @@ impl Client {
                                 body_recorded: false,
                                 tail_threshold: self.0.tail_threshold,
                                 in_tail: false,
+                                slow_at,
                             });
                         }
                         Ok(Err(_e)) if from_pool && !retried => {
@@ -254,6 +257,7 @@ impl Client {
                                 body_recorded: false,
                                 tail_threshold: self.0.tail_threshold,
                                 in_tail: false,
+                                slow_at,
                             });
                         }
                         Ok(Err(_e)) if from_pool && !retried => {
@@ -311,7 +315,7 @@ impl Client {
     }
 }
 
-/// 等响应头，`deadline` 前没到就超时。过了 `park_at`（尾部阈值）还没到，先把源站的
+/// 等响应头，`deadline` 前没到就超时。过了 `park_at`（源站的“慢”阈值）还没到，先把源站的
 /// 热连接名额让出来再接着等（见 [`HostPermit::park`]）。
 async fn first_byte<F: std::future::Future>(
     fut: F,
