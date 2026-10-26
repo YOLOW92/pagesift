@@ -4,7 +4,7 @@ For the newer six-project, 545-page comparisons and explicit remaining gaps, see
 
 Every number here comes from scripts in [`bench/`](../bench) and can be rerun. Each metric says which direction is better. Tools see exactly the same inputs; timing runs use one tool at a time on an otherwise idle machine.
 
-**Machine:** Intel Core i7-10700 (8 cores / 16 threads), 15 GB RAM, NVMe SSD, Ubuntu (Linux 7.0). **Date:** 2026-10-21 (development runs), 2026-10-22 (0.20.0 run), 2026-10-23 (0.30.0 release run). **pagesift:** 0.30.0.
+**Machine:** Intel Core i7-10700 (8 cores / 16 threads), 15 GB RAM, NVMe SSD, Ubuntu (Linux 7.0). **Date:** 2026-10-21 (development runs), 2026-10-22 (0.20.0 run), 2026-10-23 (0.30.0 release run). **pagesift:** the tables in sections 1–8 were measured with pagesift 0.12.0 (the version named in each table; sections 3–5 and 7 re-checked 2026-10-22); nothing in this file has been re-run for 0.73 or later. Sections 1–8 are historical data. (An automatic version replacement once turned `2.0` into `0.20.0` in three cells of this file; they are restored from the commit before it, 0f978efd.)
 
 > **Release run (0.30.0, 2026-10-23):** expanded benchmark suite covering 8,854 random real pages, 120 wild sites, 148 non-UTF-8 encodings, 20,000-page (`wide`) and 50,000-page (`huge`) crawls, and 8 new competitors (`htmd`, `html-to-markdown-rs`, `go-readability`, `go-html-to-markdown`, `colly`, `mdream`, `jina-reader`, `crawlee-python`) under a strict **12 GiB memory ceiling** (`MemoryMax=12G`). Full comprehensive report: [`bench/fresh/results-0.30.0.md`](../bench/fresh/results-0.30.0.md). Earlier runs: [`bench/fresh/results-2026-10-22.md`](../bench/fresh/results-2026-10-22.md).
 
@@ -21,7 +21,7 @@ Every number here comes from scripts in [`bench/`](../bench) and can be rerun. E
 
 | Tool | Score ↑ | Recall ↑ | Leak ↓ | Found ↑ | p50 ms ↓ | p95 ms ↓ |
 |---|---|---|---|---|---|---|
-| **pagesift 0.12** | **0.733** | 0.594 | 0.044 | 66.8% | **0.47** | **0.20.0** |
+| **pagesift 0.12** | **0.733** | 0.594 | 0.044 | 66.8% | **0.47** | **2.0** |
 | crw (crw-extract) | 0.703 | 0.574 | 0.092 | 64.8% | 7.38 | 36.0 |
 | Crawl4AI 0.9 (fit markdown) | 0.666 | 0.532 | 0.108 | 61.8% | 38.6 | 157 |
 | Mozilla Readability + Turndown | 0.606 | 0.448 | 0.062 | 52.6% | 174 | 1170 |
@@ -35,6 +35,8 @@ Tools with high recall and ~60% leak (MarkItDown, Defuddle, Crawl4AI raw) conver
 
 Reproduce: see [`bench/compare/README.md`](../bench/compare/README.md).
 
+> **Audit note (2026-10-27):** the scores in this table (e.g. 0.733) could not be matched to a result file in the repository; the later runs in [`bench/fresh/results-0.30.0.md`](../bench/fresh/results-0.30.0.md) use different data and scorers. Treat the table as historical data for 0.12.0, not re-run.
+
 ## 2. Publication dates
 
 **Dataset:** the 1,000 human-annotated pages of [htmldate](https://github.com/adbar/htmldate)'s evaluation set: 800 multilingual pages (BBAW collection, mostly German) and 200 worldwide news pages (Data Culture Group, Northeastern University). Scoring is htmldate's own: the date is compared by day; no answer on a page that has a date is a miss, a wrong date is a false positive. No URL is given to any tool. Pages are split by `sha1(url) % 2` into a tuning half and a hold-out half, and pagesift changes were kept only if the hold-out half did not get worse.
@@ -46,7 +48,7 @@ Reproduce: see [`bench/compare/README.md`](../bench/compare/README.md).
 | **pagesift 0.12** | 0.948 | **0.945** | **0.909** | 0.991 | **0.06** (date) / 0.71 (whole page) |
 | htmldate 1.11 (extensive) | **0.949** | **0.945** | 0.908 | **0.993** | 4.04 |
 | trafilatura (uses htmldate) | 0.948 | 0.944 | 0.907 | 0.992 | 9.79 |
-| htmldate 1.11 (fast) | 0.926 | 0.924 | 0.924 | 0.929 | 0.20.00 |
+| htmldate 1.11 (fast) | 0.926 | 0.924 | 0.924 | 0.929 | 2.00 |
 | newspaper4k 0.9.6 | 0.810 | 0.802 | 0.912 | 0.728 | 11.74 |
 | goose3 3.1.22 | 0.742 | 0.733 | 0.830 | 0.671 | 71.80 |
 | pagesift before (meta, JSON-LD and `<time>` only, as Firecrawl and Crawl4AI read them) | 0.789 | 0.778 | 0.897 | 0.704 | — |
@@ -69,7 +71,7 @@ Reproduce: `bench/meta/dates.py` (see [`bench/meta/README.md`](../bench/meta/REA
 | html2text | 0.852 | 0.827 | 0.114 | 0.947 | 0.245 | **1.000** | 0.982 | 2.1 |
 | MarkItDown 0.1.8 | 0.812 | 0.828 | 0.137 | 0.980 | 0.339 | 0.000 | 0.989 | 9.1 |
 | Turndown (no GFM plugin) | 0.799 | 0.000 | **1.000** | 0.980 | 0.168 | **1.000** | 0.991 | 1.95 |
-| Crawl4AI 0.9.5 | 0.787 | 0.622 | 0.132 | 0.845 | 0.245 | 0.615 | 0.970 | 0.20.0 |
+| Crawl4AI 0.9.5 | 0.787 | 0.622 | 0.132 | 0.845 | 0.245 | 0.615 | 0.970 | 2.0 |
 
 "Literal text" is the word-level F1 of the text; it drops when unescaped `*`, `_`, `<` or line-start `1.` turn text into formatting. pagesift escapes only what CommonMark would actually misread (paired `*` and `_` next to text, but not `a_b_c` or `2 * 3`; line-start list and heading markers, but not inside table cells), turns `<br>` into hard breaks, and converts formulas to TeX: KaTeX and Wikipedia annotations, MathJax 2 scripts, MathML (MathJax 3, LaTeXML) through its own MathML→LaTeX converter, and raw TeX in the text left untouched.
 
@@ -104,6 +106,8 @@ The old filter, like Crawl4AI's, worked on paragraphs with an absolute BM25 thre
 pagesift's `recursive` strategy is a Rust port of semchunk (identical chunks on this data) with Markdown awareness (headings stay with their content, code blocks are not split while they fit) and CJK punctuation. Three in-house variants (TextTiling-style cuts at lexical topic shifts, cohesion-based and balanced merging) did better on the tuning half but not on the hold-out half, so they were not kept. The chunks are available from the API with `"chunking": {"type": "recursive", "size": 400}`, each with its heading path and position.
 
 Reproduce: `bench/rag/run.sh`; full results: [`bench/rag/results-2026-10-21.md`](../bench/rag/results-2026-10-21.md).
+
+> **Audit note (2026-10-27):** the chunking table matches the results file. The query-filter row does not: that file lists `pagesift-default` at recall 0.874, 622 words, precision 0.137 (472 questions), against 0.929 / 1,157 / 0.038 here (the Crawl4AI row, 0.673 / 13,507 / 0.009, matches). The 0.929 row could not be traced; historical data for 0.12.0.
 
 ## 5. PDF to Markdown
 
