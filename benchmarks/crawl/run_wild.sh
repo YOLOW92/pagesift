@@ -7,6 +7,8 @@
 # 结果：wild-<时间>/<场景>-<工具>.json（源站报告）和 measure.py 的 jsonl；汇总用 wild_score.py。
 set -euo pipefail
 cd "$(dirname "$0")"
+source ./origin_ctl.sh   # 只结束本脚本起的源站
+trap stop_origin EXIT
 ROOT=../..
 PAGES_DIR=${PAGES_DIR:-$ROOT/benchmarks/data/crawl-pages}
 PORT=18090
@@ -39,8 +41,8 @@ wait_origin() { # 端口
 run() { # 场景名 hosts pages interval per_host latency 工具...
     local name=$1 hosts=$2 pages=$3 interval=$4 per_host=$5 latency=$6; shift 6
     for tool in "$@"; do
-        pkill -x wild || true; sleep 0.5
-        target/release/wild "$PAGES_DIR" $PORT "$hosts" "$pages" "$latency" "$SEED" 2>/dev/null &
+        stop_origin
+        start_origin target/release/wild $PORT "$PAGES_DIR" $PORT "$hosts" "$pages" "$latency" "$SEED"
         wait_origin $PORT
         local label="wild-$name/$tool"
         case $tool in
@@ -56,7 +58,7 @@ run() { # 场景名 hosts pages interval per_host latency 工具...
         curl -s -H "Host: s0.localhost" "http://[::1]:$PORT/__report" > "$OUT/$name-$tool.json"
         curl -s -H "Host: s0.localhost" "http://[::1]:$PORT/__log" > "$OUT/$name-$tool.log"
     done
-    pkill -x wild || true
+    stop_origin
 }
 
 for s in ${@:-fast polite}; do

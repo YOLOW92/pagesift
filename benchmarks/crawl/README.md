@@ -91,5 +91,12 @@ with its direction: throughput higher is better; time, CPU and memory lower is b
 pagesift, crw, Spider, Colly, Scrapy, Crawlee for Python, Crawl4AI HTTP, multi-process and browser —
 and each fetched all 30 pages. Not run: `run_wild.sh`, whose Crawl4AI default
 (`benchmarks/data/venvs/crawl4ai`) does not exist on the benchmark machine (pass
-`C4A=benchmarks/data/fresh/tools/c4ai/bin/python`), and `engines.sh`. Both scripts run `pkill -x origin`
-before each scenario, which also stops an `origin` that another session started.
+`C4A=benchmarks/data/fresh/tools/c4ai/bin/python`), and `engines.sh`.
+
+`run_all.sh`, `run_wild.sh` and `engines.sh` used to run `pkill -x origin` (or `wild`) before each
+scenario, which also stopped an origin another session had started. They now use
+[`origin_ctl.sh`](origin_ctl.sh): each script stops only the origin it started (SIGTERM, then SIGKILL
+after 5 s), and a leftover from an earlier run is stopped only if it listens on the script's port and
+its executable and command line are this directory's origin binary with that port. `engines.sh` still
+ends every Chrome, chrome-headless-shell, Lightpanda, Obscura and moli process of the user after each
+engine (`cleanup`), including browsers that have nothing to do with the benchmark.

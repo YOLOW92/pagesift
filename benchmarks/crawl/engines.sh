@@ -4,6 +4,8 @@
 # 用法：benchmarks/crawl/engines.sh [场景...]（默认 wide huge）
 set -uo pipefail
 cd "$(dirname "$0")"
+source ./origin_ctl.sh   # 只结束本脚本起的源站
+trap stop_origin EXIT
 T=${T:-../data/tools}                       # 各浏览器内核所在目录
 PAGES_DIR=${PAGES_DIR:-../data/crawl-pages}  # 源站用的页面
 PORT=18080
@@ -69,12 +71,10 @@ for s in ${@:-wide huge}; do
         huge) hosts=1000 pages=50 ph=4 ;;
         smoke) hosts=3 pages=10 ph=2 ;;   # 冒烟
     esac
-    pkill -x origin || true
-    sleep 0.5
-    target/release/origin "$PAGES_DIR" $PORT $hosts $pages 10 2>/dev/null &
+    start_origin target/release/origin $PORT "$PAGES_DIR" $PORT $hosts $pages 10
     wait_origin $PORT
     # 默认：各内核单独跑，加上生产路径的自动回退链（auto）
     for e in ${ENGINES:-chrome chs lightpanda moli auto obscura}; do engine "$e" "$s" "$hosts" "$pages" "$ph"; done
-    pkill -x origin || true
+    stop_origin
 done
 echo "results in benchmarks/crawl/$MEASURE_OUT"

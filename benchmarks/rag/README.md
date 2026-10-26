@@ -40,10 +40,14 @@ chonkie, semchunk) and Crawl4AI in `c4ai` ([Tool environments](../README.md#tool
 script with `DATA=benchmarks/data/fresh/data/qasper-eval`. The 0.70 D5 harness (`scripts/d5_py.py`,
 `adapters/d5eval`) builds with `cargo build --release --manifest-path benchmarks/rag/adapters/d5eval/Cargo.toml`.
 
+Optional: the LlamaIndex chunker (`llamaindex-sentence`, `SentenceSplitter` from `llama_index.core`)
+needs `llama-index-core` in the `py` environment (`uv pip install --python benchmarks/data/fresh/tools/py/bin/python llama-index-core`;
+it is not in `versions.md`, so no version is recorded). Without it `timing.txt` shows
+`llamaindex-sentence: unavailable` and the chunking table has no LlamaIndex row; everything else runs.
+
 ## Dry run (2026-10-27)
 
 `OUT=<scratch dir> benchmarks/rag/run.sh` ran end to end (2 minutes) and wrote `chunking.txt`,
-`query_filter.txt` and `timing.txt`. `run.sh` also asks for a LlamaIndex chunker
-(`llamaindex-sentence`), but `llama-index` is not installed on the benchmark machine and is not in
-`versions.md`, so that row reports "unavailable". The defaults for `OUT`, `DATA`, `PY` and `C4A` still
+`query_filter.txt` and `timing.txt`. The optional LlamaIndex chunker is not installed on the benchmark
+machine and reported "unavailable", as described above. The defaults for `OUT`, `DATA`, `PY` and `C4A` still
 pointed at `bench/…` and are fixed in this round.

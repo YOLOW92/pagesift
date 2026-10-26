@@ -62,7 +62,8 @@ the paths are right; no full scoring runs).
 Two things hold for every domain:
 
 - The 0.70 scripts in the domains' `scripts/` directories (D1–D9, E1, Common Crawl) start with
-  `cd ~/pagesift` and run against the checkout at `~/pagesift`, not the one they live in. Several run
-  tools in the `pagesift-bench:*` Docker images, whose Dockerfiles were in the removed `bench/docker`.
+  `cd ~/pagesift` and run against the checkout at `~/pagesift`, not the one they live in. The ones that
+  ran tools in the removed `pagesift-bench:*` Docker images are in
+  [history/0.70/docker/](history/0.70/docker/README.md) and cannot be rerun as they are.
 - Some frozen manifests under `benchmarks/data` store paths as `bench/data/…`. They resolve only while
   `bench/data` points at the data directory (a symlink is enough) or after the inputs are regenerated.

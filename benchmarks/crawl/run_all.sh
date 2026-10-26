@@ -8,6 +8,8 @@
 # 计时要在机器空闲时跑：工具一个一个来，每个都能用满所有核。
 set -euo pipefail
 cd "$(dirname "$0")"
+source ./origin_ctl.sh   # 只结束本脚本起的源站
+trap stop_origin EXIT
 ROOT=../..
 PAGES_DIR=${PAGES_DIR:-$ROOT/benchmarks/data/crawl-pages}
 PORT=18080
@@ -36,8 +38,7 @@ wait_origin() { # 端口
 
 run() { # 场景名 hosts pages interval per_host latency 工具...
     local name=$1 hosts=$2 pages=$3 interval=$4 per_host=$5 latency=$6; shift 6
-    pkill -x origin || true; sleep 0.5
-    target/release/origin "$PAGES_DIR" $PORT "$hosts" "$pages" "$latency" 2>/dev/null &
+    start_origin target/release/origin $PORT "$PAGES_DIR" $PORT "$hosts" "$pages" "$latency"
     wait_origin $PORT
     for tool in "$@"; do
         local label="$name/$tool"
@@ -55,7 +56,7 @@ run() { # 场景名 hosts pages interval per_host latency 工具...
             crawl4ai-browser) python3 -I measure.py "$label" -- "$C4A" crawl4ai_crawl.py $PORT "$hosts" "$pages" "$interval" browser "$per_host" ;;
         esac || true   # 一个工具失败不影响后面的工具
     done
-    pkill -x origin || true
+    stop_origin
 }
 
 for s in "${@:-wide huge}"; do
