@@ -100,12 +100,6 @@ pub(crate) fn mark_outline(pages: &mut [Vec<Para>], entries: &[Entry], bases: &[
             }
         }
         let Some((q, i, fit, _)) = best else {
-            if std::env::var_os("PAGESIFT_PDF_DEBUG").is_some() {
-                eprintln!("UNMATCHED p{} top {:?} {:?}", p + 1, top, e.title);
-                for para in pages[p].iter().filter(|q| !q.raw && q.text.chars().count() < 90).take(40) {
-                    eprintln!("     cand top {:.1} {:?}", para.top, para.text);
-                }
-            }
             continue;
         };
         let paras = &mut pages[q];

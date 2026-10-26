@@ -54,14 +54,25 @@ pub(crate) fn levels(cands: &[Cand]) -> Vec<usize> {
         let b = bucket(c.size);
         (-b, c.style.map(rank).or_else(|| common.get(&b).copied()))
     };
-    let mut keys: Vec<(i64, Option<(usize, u8)>)> = cands.iter().map(key).collect();
+    let all: Vec<(i64, Option<(usize, u8)>)> = cands.iter().map(key).collect();
+    let mut keys = all.clone();
     keys.sort();
     keys.dedup();
+    // 超过 6 级时，先把最上面只出现一次、没编号的几档（封面的题名块）并进第一级，
+    // 免得最深的几级编号被挤成同一级
+    let single = |k: &(i64, Option<(usize, u8)>)| k.1.is_none() && all.iter().filter(|x| *x == k).count() == 1;
+    let mut merged = 0;
+    if keys.first().is_some_and(single) {
+        while merged < keys.len().saturating_sub(6) && keys.get(merged + 1).is_some_and(single) {
+            merged += 1;
+        }
+    }
+    let dense: Vec<usize> = (0..keys.len()).map(|i| i.saturating_sub(merged)).collect();
     cands
         .iter()
         .map(|c| {
             let k = key(c);
-            (keys.iter().position(|x| *x == k).unwrap_or(0) + 1).min(6)
+            (dense[keys.iter().position(|x| *x == k).unwrap_or(0)] + 1).min(6)
         })
         .collect()
 }
@@ -90,5 +101,18 @@ mod tests {
             c(10.5, Some(Style::Decimal(1))),
         ];
         assert_eq!(levels(&ja), vec![1, 2, 3, 4, 3]);
+        // 七档：封面上两行只出现一次的大字并进第一级，下面的编号各占一级
+        let deep = [
+            c(20.0, None),
+            c(16.0, None),
+            c(14.0, None),
+            c(10.5, Some(Style::Lenticular)),
+            c(10.5, Some(Style::Angle)),
+            c(10.5, Some(Style::Decimal(1))),
+            c(10.5, Some(Style::Paren)),
+            c(10.5, Some(Style::Circled)),
+            c(10.5, Some(Style::Decimal(1))),
+        ];
+        assert_eq!(levels(&deep), vec![1, 1, 1, 2, 3, 4, 5, 6, 4]);
     }
 }

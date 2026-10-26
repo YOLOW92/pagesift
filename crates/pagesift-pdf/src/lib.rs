@@ -234,11 +234,6 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
         check_deadline(deadline)?;
         paras.push(layout::paragraphs(layout::blocks(f)));
     }
-    if std::env::var_os("PAGESIFT_PDF_DEBUG").is_some() {
-        let tagged: usize = structure.tags.as_ref().map_or(0, |t| t.iter().map(|m| m.len()).sum());
-        let hinted: usize = paras.iter().flatten().filter(|p| p.hint.is_some()).count();
-        eprintln!("tag mcids {tagged} tagged lines {tagged_lines} hinted paras {hinted}");
-    }
     // 写入方给了标题就照着用：结构树优先，其次书签（对上一半以上的条目才算数）
     // 结构树里只有一两个标题（常见的是只标了文档题名）说明写入方没给章节打标签，不能拿它定标题
     let mode = if tagged_lines >= 2 {
@@ -252,9 +247,6 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
             p.hint = None;
         }
         let matched = structure::mark_outline(&mut paras, &structure.outline, &bases);
-        if std::env::var_os("PAGESIFT_PDF_DEBUG").is_some() {
-            eprintln!("outline entries {} located {} matched {}", structure.outline.len(), located, matched);
-        }
         if matched >= 2 && matched * 2 >= located {
             layout::Mode::Hinted
         } else {
