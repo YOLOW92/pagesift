@@ -390,3 +390,7 @@ pub fn parse_mpd(xml_content: &str, base_url: Option<&Url>) -> Result<DashManife
         adaptation_sets,
     })
 }
+
+#[cfg(test)]
+#[path = "tests_mpd.rs"]
+mod tests;

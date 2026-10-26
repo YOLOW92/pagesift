@@ -194,10 +194,7 @@ impl Selector {
 
     /// 元素是否匹配，`:scope` 匹配 `scope`（为 `None` 时匹配根元素）。
     pub fn matches_with_scope(&self, node: NodeRef<'_>, scope: Option<NodeRef<'_>>) -> bool {
-        let cx = Ctx {
-            scope: scope.filter(NodeRef::is_element).map(|s| s.id()),
-            anchor: None,
-        };
+        let cx = Ctx::new(scope.filter(NodeRef::is_element).map(|s| s.id()), None);
         node.is_element() && self.matches_in(node, &cx)
     }
 
@@ -222,10 +219,7 @@ impl<'a> Html<'a> {
         Select {
             inner: self.root().descendants(),
             sel,
-            cx: Ctx {
-                scope: None,
-                anchor: None,
-            },
+            cx: Ctx::new(None, None),
         }
     }
 }
@@ -238,10 +232,7 @@ impl<'a> NodeRef<'a> {
         Select {
             inner,
             sel,
-            cx: Ctx {
-                scope: self.is_element().then(|| self.id()),
-                anchor: None,
-            },
+            cx: Ctx::new(self.is_element().then(|| self.id()), None),
         }
     }
 }
@@ -263,6 +254,7 @@ impl<'a> Iterator for Select<'a, '_> {
 }
 
 mod matcher;
+mod nth;
 mod parse;
 
 use matcher::{Ctx, Res, match_complex};

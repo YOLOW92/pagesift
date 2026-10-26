@@ -20,6 +20,7 @@ mod extract;
 mod features;
 mod fingerprint;
 mod jsonld;
+mod landmarks;
 mod links;
 mod markdown;
 mod math;

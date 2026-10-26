@@ -1,0 +1,81 @@
+# html5lib 树构建用例里已知“影响正文”的差异：每行 `文件#序号<TAB>原因`。
+# 由 tests/html5lib/main.rs 读取；新出现的影响正文差异不在这里时测试失败。
+domjs-unsafe.dat#39	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+domjs-unsafe.dat#40	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+domjs-unsafe.dat#41	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+pending-spec-changes.dat#0	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+plain-text-unsafe.dat#1	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+plain-text-unsafe.dat#2	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+plain-text-unsafe.dat#4	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+plain-text-unsafe.dat#5	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+plain-text-unsafe.dat#9	NUL 在分词前一律删掉（误判成 UTF-8 的 UTF-16 页面靠这个恢复出文字）；规范在 plaintext/外部内容里换成 U+FFFD，`<`+NUL+字母 也不会变成标签
+plain-text-unsafe.dat#18	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+plain-text-unsafe.dat#19	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+plain-text-unsafe.dat#21	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+plain-text-unsafe.dat#22	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+plain-text-unsafe.dat#24	NUL 在分词前一律删掉（误判成 UTF-8 的 UTF-16 页面靠这个恢复出文字）；规范在 plaintext/外部内容里换成 U+FFFD，`<`+NUL+字母 也不会变成标签
+plain-text-unsafe.dat#26	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+plain-text-unsafe.dat#27	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+plain-text-unsafe.dat#38	NUL 在分词前一律删掉（误判成 UTF-8 的 UTF-16 页面靠这个恢复出文字）；规范在 plaintext/外部内容里换成 U+FFFD，`<`+NUL+字母 也不会变成标签
+plain-text-unsafe.dat#39	NUL 在分词前一律删掉（误判成 UTF-8 的 UTF-16 页面靠这个恢复出文字）；规范在 plaintext/外部内容里换成 U+FFFD，`<`+NUL+字母 也不会变成标签
+plain-text-unsafe.dat#40	NUL 在分词前一律删掉（误判成 UTF-8 的 UTF-16 页面靠这个恢复出文字）；规范在 plaintext/外部内容里换成 U+FFFD，`<`+NUL+字母 也不会变成标签
+scripted_foster01.dat#0	需要执行脚本（document.write / DOM 操作），解析器不执行脚本
+scripted_foster01.dat#1	需要执行脚本（document.write / DOM 操作），解析器不执行脚本
+scripted_webkit01.dat#0	需要执行脚本（document.write / DOM 操作），解析器不执行脚本
+scripted_webkit01.dat#1	需要执行脚本（document.write / DOM 操作），解析器不执行脚本
+tables01.dat#17	依赖插入模式的极端嵌套：pagesift 按当前节点推断表格上下文，规范在这里仍处于 in row / in table 插入模式
+template.dat#39	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+template.dat#43	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+template.dat#44	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+template.dat#45	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests1.dat#104	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests1.dat#111	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests10.dat#20	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests10.dat#21	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests15.dat#12	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests18.dat#17	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests18.dat#18	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests18.dat#20	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests18.dat#30	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests18.dat#31	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests18.dat#32	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests18.dat#33	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests19.dat#35	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests19.dat#37	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests19.dat#38	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests19.dat#39	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests19.dat#40	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests19.dat#41	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests19.dat#42	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests19.dat#43	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests19.dat#45	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests19.dat#51	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests19.dat#63	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests19.dat#64	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests19.dat#76	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests19.dat#77	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests19.dat#78	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests19.dat#80	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests19.dat#83	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests2.dat#5	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests2.dat#6	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests2.dat#7	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests2.dat#8	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests6.dat#7	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests6.dat#8	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests6.dat#9	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests6.dat#10	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests6.dat#11	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests6.dat#28	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests6.dat#30	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests6.dat#45	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests6.dat#47	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests6.dat#48	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests6.dat#49	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests6.dat#50	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests6.dat#51	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests9.dat#21	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tests9.dat#22	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+tricky01.dat#7	依赖插入模式的极端嵌套：pagesift 按当前节点推断表格上下文，规范在这里仍处于 in row / in table 插入模式
+webkit01.dat#30	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）
+webkit01.dat#50	frameset 文档：规范用 <frameset> 取代 body、之后的内容全部丢弃；pagesift 不建 frameset/frame，内容照常进 body（对提取来说保留比丢掉好）

@@ -335,13 +335,32 @@ impl<'a> Document<'a> {
             .get(b"First")
             .and_then(Object::as_i64)
             .and_then(|v| usize::try_from(v).ok())?;
-        let parse = |offset: usize| {
+        // 对象流里的对象首尾相接：每个对象只解析到下一个对象的偏移为止；几个对象号指向
+        // 同一个偏移时只有头部里第一个算数。否则头部可以让成千上万个对象号指向同一大段，
+        // 每个都完整解析并各自缓存一份（模糊测试找到：44 万字节的文件吃掉 3 GB 以上）。
+        let mut starts: Vec<usize> = header.iter().map(|h| h.1).collect();
+        starts.sort_unstable();
+        starts.dedup();
+        let mut owner: HashMap<usize, usize> = HashMap::with_capacity(header.len());
+        for (k, h) in header.iter().enumerate() {
+            owner.entry(h.1).or_insert(k);
+        }
+        let parse = |k: usize| {
+            let offset = header[k].1;
+            if owner.get(&offset) != Some(&k) {
+                return None;
+            }
+            let next = starts.partition_point(|&s| s <= offset);
+            let end = starts
+                .get(next)
+                .and_then(|&e| first.checked_add(e))
+                .map_or(bytes.len(), |e| e.min(bytes.len()));
             let at = first.checked_add(offset)?;
-            Parser::new(&bytes, at).object()
+            Parser::new(&bytes[..end], at).object()
         };
         // 同一个对象流里的其他对象顺带读好（它们迟早要用，流只解一次）
         let loading = self.loading.borrow().clone();
-        for (k, &(other, offset)) in header.iter().enumerate() {
+        for (k, &(other, _)) in header.iter().enumerate() {
             if other == num || loading.contains(&other) {
                 continue;
             }
@@ -354,14 +373,14 @@ impl<'a> Document<'a> {
                 && (i2 as usize == k || header.get(i2 as usize).is_none_or(|h| h.0 != other))
                 && slot.cell.get().is_none()
             {
-                let _ = slot.cell.set(parse(offset).map(Box::new));
+                let _ = slot.cell.set(parse(k).map(Box::new));
             }
         }
-        let offset = match header.get(index as usize) {
-            Some(&(n, off)) if n == num => off,
-            _ => header.iter().find(|h| h.0 == num)?.1,
+        let k = match header.get(index as usize) {
+            Some(&(n, _)) if n == num => index as usize,
+            _ => header.iter().position(|h| h.0 == num)?,
         };
-        parse(offset)
+        parse(k)
     }
 
     /// 取流解码后的数据（先解密）。超过 `limit`、或用到不支持的过滤器时返回 None。

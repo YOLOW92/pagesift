@@ -58,3 +58,4 @@ bench/pdf/out/
 /bench/robots_spec/target/
 # 0.50 对照构建用的 worktree
 /.worktree/
+/bench/fuzz-out/

@@ -32,6 +32,10 @@ mod page;
 mod parse;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_parse;
+#[cfg(test)]
+mod tests_text;
 
 use dom::*;
 use page::*;

@@ -2,9 +2,11 @@
 //! 中间不产生 token 对象。建树器实现 HTML5 树构建规则里影响文本结构的部分：
 //! 隐式的 html/head/body、`<p>` `<li>` `<dd>` `<option>` 等的自动闭合、作用域边界、
 //! 表格的隐式 tbody/tr 和 foster parenting、SVG/MathML 外部内容和跳出规则、
-//! raw text 和 RCDATA 元素、`<pre>` 开头的换行。
-//! 没实现的：adoption agency 重建格式元素（`<b>` 跨段落时后一段不再加粗）、quirks 模式、
-//! `<template>` 的独立文档片段（内容作为普通子节点）。
+//! raw text 和 RCDATA 元素、`<pre>` 开头的换行、脚本的转义状态、quirks 模式（只影响
+//! `<table>` 是否关掉 `<p>`）、select 和列组的内容规则。
+//! 和规范有意不同的：`<template>` 不建独立的文档片段（内容作为普通子节点）；不建
+//! frameset/frame（frameset 文档的内容照常进 body）；NUL 在分词前删掉；插入模式按当前节点
+//! 推断，不单独记录。和 html5lib-tests 的逐条对照见 `tests/html5lib`。
 
 use std::borrow::Cow;
 
@@ -67,7 +69,10 @@ fn normalize(html: &str) -> Cow<'_, str> {
     Cow::Owned(out)
 }
 
+mod end;
 mod format;
+mod quirks;
+mod script;
 mod tags;
 mod tokenize;
 mod tree;
@@ -129,6 +134,8 @@ struct Builder<'a> {
     afe: Vec<u32>,
     /// 当前打开的 `<form>`；打开时再出现的 `<form>` 被忽略。
     form: u32,
+    /// quirks 模式（没有 DOCTYPE 或老式 DOCTYPE），见 `quirks` 模块。
+    quirks: bool,
 }
 
 fn formatting(tag: Tag) -> bool {
@@ -369,6 +376,7 @@ impl<'a> Builder<'a> {
             lower: String::new(),
             afe: Vec::new(),
             form: NONE,
+            quirks: true,
         }
     }
 

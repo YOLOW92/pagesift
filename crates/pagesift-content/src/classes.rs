@@ -91,18 +91,6 @@ pub(crate) fn contains_ascii_ci(haystack: &str, needle: &str) -> bool {
             .any(|window| window.eq_ignore_ascii_case(needle))
 }
 
-/// 在 `<main>`、`<article>` 或 `role="main"` 里面：这里的页头、导航是正文的一部分。
-pub(crate) fn in_content_area(node: &crate::dom::NodeR<'_>) -> bool {
-    node.ancestors().any(|a| {
-        a.as_element().is_some_and(|e| {
-            matches!(
-                e.tag(),
-                pagesift_html::Tag::Main | pagesift_html::Tag::Article
-            ) || e.attr("role") == Some("main")
-        })
-    })
-}
-
 pub(crate) fn is_main_landmark(el: Element<'_>) -> bool {
     el.tag() == pagesift_html::Tag::Main || el.attr("role") == Some("main")
 }

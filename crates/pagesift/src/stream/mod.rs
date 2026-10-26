@@ -7,6 +7,10 @@ use serde::Serialize;
 use url::Url;
 
 mod dash;
+#[cfg(test)]
+mod tests_dash;
+#[cfg(test)]
+mod tests_xml;
 mod xml;
 
 use dash::dash;
@@ -485,34 +489,6 @@ mod tests {
             source.replace("#EXT-X-ENDLIST", ""),
             source.replace("#EXT-X-MAP:", "#EXT-X-KEY:METHOD=AES-128,URI="),
             source.replace("#EXTINF:2,", "#EXTINF:NaN,"),
-        ] {
-            assert!(plan_stream(&bad, &base).is_err());
-        }
-    }
-    #[test]
-    fn dash_finite_timeline_and_segment_list() {
-        let base = Url::parse("https://example.test/root/manifest.mpd").unwrap();
-        let mpd = r#"<MPD type="static"><BaseURL>media/</BaseURL><Period><AdaptationSet mimeType="video/mp4"><SegmentTemplate initialization="$RepresentationID$-init.mp4" media="$RepresentationID$-$Number%03d$-$Time$.m4s" startNumber="7"><SegmentTimeline><S t="20" d="5" r="1"/></SegmentTimeline></SegmentTemplate><Representation id="v1" bandwidth="100"/></AdaptationSet></Period></MPD>"#;
-        assert!(plan_stream(&mpd.replace("<Period>", "<Period start='PT0.0S'>"), &base).is_ok());
-        let StreamPlan::Vod { tracks, .. } = plan_stream(mpd, &base).unwrap() else {
-            panic!()
-        };
-        assert_eq!(
-            tracks[0].segments[2].url,
-            "https://example.test/root/media/v1-008-25.m4s"
-        );
-        let list = r#"<MPD><Period><AdaptationSet><Representation id="a"><SegmentList><Initialization sourceURL="init.mp4" range="0-9"/><SegmentURL media="a.m4s" mediaRange="10-19"/></SegmentList></Representation></AdaptationSet></Period></MPD>"#;
-        assert!(matches!(
-            plan_stream(list, &base).unwrap(),
-            StreamPlan::Vod { .. }
-        ));
-        for bad in [
-            mpd.replace("type=\"static\"", "type=\"dynamic\""),
-            mpd.replace("r=\"1\"", "r=\"-1\""),
-            mpd.replace(
-                "<Representation id=\"v1\" bandwidth=\"100\"/>",
-                "<ContentProtection/><Representation id=\"v1\" bandwidth=\"100\"/>",
-            ),
         ] {
             assert!(plan_stream(&bad, &base).is_err());
         }

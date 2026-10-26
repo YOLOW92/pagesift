@@ -2,6 +2,7 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
+use super::tests_parse::check_opt;
 use super::*;
 
 macro_rules! re {
@@ -32,76 +33,6 @@ re!(
 re!(YYYYMM, r"\D([12][0-9]{3}[/.-](?:1[0-2]|0[1-9]))\D");
 re!(MMYYYY, r"\D([0-1]?[0-9][/.-][12][0-9]{3})\D");
 re!(SIMPLE, format!(r"\D({YEAR})\D"));
-
-fn b() -> Bounds {
-    Bounds {
-        min: (1995, 1, 1),
-        max: (2026, 10, 21),
-    }
-}
-
-fn ex(s: &str) -> Option<String> {
-    date_expr(s, &b()).map(|d| d.render())
-}
-
-#[test]
-fn parses_expressions() {
-    assert_eq!(
-        ex("2020-06-07T08:30:00+02:00").as_deref(),
-        Some("2020-06-07T08:30:00+02:00")
-    );
-    assert_eq!(ex("2020-06-07").as_deref(), Some("2020-06-07"));
-    assert_eq!(ex("20200607").as_deref(), Some("2020-06-07"));
-    assert_eq!(ex("Posted 07.06.2020").as_deref(), Some("2020-06-07"));
-    assert_eq!(ex("June 7th, 2020").as_deref(), Some("2020-06-07"));
-    assert_eq!(ex("7. Juni 2020").as_deref(), Some("2020-06-07"));
-    assert_eq!(ex("7 de junio de 2020").as_deref(), Some("2020-06-07"));
-    assert_eq!(ex("7 червня 2020").as_deref(), Some("2020-06-07"));
-    assert_eq!(ex("7 июня 2020 г.").as_deref(), Some("2020-06-07"));
-    assert_eq!(ex("2020年6月7日").as_deref(), Some("2020-06-07"));
-    assert_eq!(ex("2020. június 7.").as_deref(), Some("2020-06-07"));
-    assert_eq!(
-        ex("الأربعاء، 07 أكتوبر 2020 - 12:09 م").as_deref(),
-        Some("2020-10-07")
-    );
-    assert_eq!(ex("26 | 01 | 2022").as_deref(), Some("2022-01-26"));
-    // 固定说法（预筛之后照样认得）
-    let bb = b();
-    assert_eq!(
-        idiosyncrasies("<p>Posted on 07/06/2020 by x</p>", &bb)
-            .map(|d| d.render())
-            .as_deref(),
-        Some("2020-06-07")
-    );
-    assert_eq!(
-        idiosyncrasies("<p>Veröffentlicht am 7.6.2020</p>", &bb)
-            .map(|d| d.render())
-            .as_deref(),
-        Some("2020-06-07")
-    );
-    assert_eq!(
-        idiosyncrasies("<p>Stand: 01.02.2021</p>", &bb)
-            .map(|d| d.render())
-            .as_deref(),
-        Some("2021-02-01")
-    );
-    assert_eq!(
-        idiosyncrasies("<p>on 2020/06/07</p>", &bb)
-            .map(|d| d.render())
-            .as_deref(),
-        Some("2020-06-07")
-    );
-    assert_eq!(idiosyncrasies("<p>build 1.2.2020</p>", &bb), None);
-    assert_eq!(
-        ex("Tue, 09 Jun 2020 08:00:00 GMT").as_deref(),
-        Some("2020-06-09T08:00:00Z")
-    );
-    // 时刻、价格、电话、超出范围的都不是日期
-    assert_eq!(ex("12:30"), None);
-    assert_eq!(ex("$2020.06"), None);
-    assert_eq!(ex("1985-06-07"), None);
-    assert_eq!(ex("2030-01-01"), None);
-}
 
 /// 单遍扫描器和原来的正则在随机文本上逐类给出完全相同的匹配。
 #[test]
@@ -205,82 +136,99 @@ fn strips_scripts_styles_and_comments() {
     assert_eq!(strip_heavy(s), "<p>a</p>    <p>é</p> ");
 }
 
-#[test]
-fn normalizes_structured_values_keeping_the_offset() {
-    assert_eq!(
-        normalize("2020-02-15T07:00:00+09:00").as_deref(),
-        Some("2020-02-15T07:00:00+09:00")
-    );
-    assert_eq!(
-        normalize("2020-04-02T04:11:00+0000").as_deref(),
-        Some("2020-04-02T04:11:00Z")
-    );
-    assert_eq!(normalize("2020-04-02").as_deref(), Some("2020-04-02"));
-    assert_eq!(
-        normalize("2020-04-02T04:11").as_deref(),
-        Some("2020-04-02T04:11:00")
-    );
-    assert_eq!(normalize("not a date"), None);
-}
-
 fn page_date(html: &str, url: Option<&str>) -> Option<String> {
     let dom = Html::parse(html);
     published(&dom, html, url).map(|d| d.render())
 }
 
+/// 整页按 htmldate 的顺序检索：(HTML, URL, 期望)。
 #[test]
 fn follows_the_htmldate_order() {
-    // URL 里不带分隔符的日期
-    assert_eq!(
-        page_date(
-            "<html></html>",
-            Some("https://www.thelocal.se/20200428/meet")
-        )
-        .as_deref(),
-        Some("2020-04-28")
-    );
-    assert_eq!(
-        page_date("<html></html>", Some("https://a.com/item/2020042812/x")),
-        None
-    );
-    // URL 优先
-    assert_eq!(
-        page_date(
-            "<html><body>x</body></html>",
-            Some("https://a.com/2020/06/07/story")
-        )
-        .as_deref(),
-        Some("2020-06-07")
-    );
-    // meta：发布日期优先于修改日期
-    let h = r#"<html><head><meta property="article:modified_time" content="2021-01-01T00:00:00Z"><meta property="article:published_time" content="2020-06-07T08:00:00+02:00"></head></html>"#;
-    assert_eq!(
-        page_date(h, None).as_deref(),
-        Some("2020-06-07T08:00:00+02:00")
-    );
-    // 只有修改日期时退而求其次
-    let h =
-        r#"<html><head><meta property="article:modified_time" content="2021-01-01"></head></html>"#;
-    assert_eq!(page_date(h, None).as_deref(), Some("2021-01-01"));
-    // 带日期类名的元素
-    let h = r#"<html><body><p>Intro text</p><div class="post-date">Published on 3 March 2019</div></body></html>"#;
-    assert_eq!(page_date(h, None).as_deref(), Some("2019-03-03"));
-    // 页头的"今日日期"不算
-    let h = r#"<html><body><div><span class="date-edition"><span>lun. 5 août 2019</span></span></div><ul class="info"><li>27 juin 2019 Par Elba</li></ul></body></html>"#;
-    assert_eq!(page_date(h, None).as_deref(), Some("2019-06-27"));
-    // meta 是 UTC、JSON-LD 是同一时刻的本地时间：取本地的
-    let h = r#"<html><head><meta property="article:published_time" content="2020-12-24T23:59:50+00:00"><script type="application/ld+json">{"datePublished":"2020-12-25T01:59:50+02:00"}</script></head></html>"#;
-    assert_eq!(
-        page_date(h, None).as_deref(),
-        Some("2020-12-25T01:59:50+02:00")
-    );
-    // 多个 <time> 取最早
-    let h = r#"<html><body><time datetime="2019-05-01">a</time><time datetime="2018-04-01">b</time></body></html>"#;
-    assert_eq!(page_date(h, None).as_deref(), Some("2018-04-01"));
-    // 整页统计：版权年份之前的日期不要
-    let h = "<html><body><p>Lorem ipsum dolor sit amet, a long paragraph mentioning 2003/01/02 in passing.</p><p>Another long paragraph with enough words to not be a short segment. © 2015 Example</p></body></html>";
-    assert_eq!(page_date(h, None).as_deref(), Some("2015-01-01"));
-    // 多字节字符紧挨着年份也不会切坏字符串
-    let h = "<html><body><p>这是一个很长很长的段落，里面没有任何像样的日期信息，只有很多很多的文字内容。2019年。</p></body></html>";
-    assert_eq!(page_date(h, None).as_deref(), Some("2019-01-01"));
+    const CASES: &[((&str, Option<&str>), Option<&str>)] = &[
+        // URL 里不带分隔符的日期
+        (
+            (
+                "<html></html>",
+                Some("https://www.thelocal.se/20200428/meet"),
+            ),
+            Some("2020-04-28"),
+        ),
+        (
+            ("<html></html>", Some("https://a.com/item/2020042812/x")),
+            None,
+        ),
+        // URL 优先
+        (
+            (
+                "<html><body>x</body></html>",
+                Some("https://a.com/2020/06/07/story"),
+            ),
+            Some("2020-06-07"),
+        ),
+        // meta：发布日期优先于修改日期
+        (
+            (
+                r#"<html><head><meta property="article:modified_time" content="2021-01-01T00:00:00Z"><meta property="article:published_time" content="2020-06-07T08:00:00+02:00"></head></html>"#,
+                None,
+            ),
+            Some("2020-06-07T08:00:00+02:00"),
+        ),
+        // 只有修改日期时退而求其次
+        (
+            (
+                r#"<html><head><meta property="article:modified_time" content="2021-01-01"></head></html>"#,
+                None,
+            ),
+            Some("2021-01-01"),
+        ),
+        // 带日期类名的元素
+        (
+            (
+                r#"<html><body><p>Intro text</p><div class="post-date">Published on 3 March 2019</div></body></html>"#,
+                None,
+            ),
+            Some("2019-03-03"),
+        ),
+        // 页头的"今日日期"不算
+        (
+            (
+                r#"<html><body><div><span class="date-edition"><span>lun. 5 août 2019</span></span></div><ul class="info"><li>27 juin 2019 Par Elba</li></ul></body></html>"#,
+                None,
+            ),
+            Some("2019-06-27"),
+        ),
+        // meta 是 UTC、JSON-LD 是同一时刻的本地时间：取本地的
+        (
+            (
+                r#"<html><head><meta property="article:published_time" content="2020-12-24T23:59:50+00:00"><script type="application/ld+json">{"datePublished":"2020-12-25T01:59:50+02:00"}</script></head></html>"#,
+                None,
+            ),
+            Some("2020-12-25T01:59:50+02:00"),
+        ),
+        // 多个 <time> 取最早
+        (
+            (
+                r#"<html><body><time datetime="2019-05-01">a</time><time datetime="2018-04-01">b</time></body></html>"#,
+                None,
+            ),
+            Some("2018-04-01"),
+        ),
+        // 整页统计：版权年份之前的日期不要
+        (
+            (
+                "<html><body><p>Lorem ipsum dolor sit amet, a long paragraph mentioning 2003/01/02 in passing.</p><p>Another long paragraph with enough words to not be a short segment. © 2015 Example</p></body></html>",
+                None,
+            ),
+            Some("2015-01-01"),
+        ),
+        // 多字节字符紧挨着年份也不会切坏字符串
+        (
+            (
+                "<html><body><p>这是一个很长很长的段落，里面没有任何像样的日期信息，只有很多很多的文字内容。2019年。</p></body></html>",
+                None,
+            ),
+            Some("2019-01-01"),
+        ),
+    ];
+    check_opt("published", CASES, |&(html, url)| page_date(html, url));
 }

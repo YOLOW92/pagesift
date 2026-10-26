@@ -245,11 +245,18 @@ impl<'a> Builder<'a> {
 
     pub(super) fn insert_html(&mut self, tag: Tag, name: (usize, usize)) {
         let push = !void(tag);
-        let foster = !matches!(
-            tag,
-            Tag::Script | Tag::Style | Tag::Template | Tag::Form | Tag::Input
-        );
+        // 表格里只有 `type=hidden` 的 input 留在表格里，别的和普通内容一样挪到表格前面
+        let foster = !matches!(tag, Tag::Script | Tag::Style | Tag::Template | Tag::Form)
+            && !(tag == Tag::Input && self.hidden_input());
         self.insert(tag, name, Ns::Html, push, foster);
+    }
+
+    /// 分词器暂存的属性里有 `type=hidden`（不分大小写，不去空白）。
+    fn hidden_input(&self) -> bool {
+        self.scratch.iter().any(|&((ns, ne), (vs, ve))| {
+            self.src[ns..ne].eq_ignore_ascii_case("type")
+                && self.src[vs..ve].eq_ignore_ascii_case("hidden")
+        })
     }
 
     /// 重复出现的 `<html>`、`<body>`：把还没有的属性补到已有元素上。
@@ -318,7 +325,8 @@ impl<'a> Builder<'a> {
     pub(super) fn boundary(&self, o: Open, scope: Scope) -> bool {
         use Tag::*;
         match o.ns {
-            Ns::Integration => true,
+            // 表格作用域的边界只有 html、table、template，外部内容的集成点挡不住
+            Ns::Integration => scope != Scope::Table,
             Ns::Foreign => false,
             Ns::Html => match scope {
                 Scope::Table => matches!(o.tag, Html | Table | Template),
