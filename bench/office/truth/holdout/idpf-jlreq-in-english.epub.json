@@ -1,0 +1,257 @@
+{
+ "file": "idpf-jlreq-in-english.epub",
+ "format": "epub",
+ "headings": [
+  [
+   1,
+   "Requirements for Japanese Text Layout"
+  ],
+  [
+   3,
+   "1.1 Purpose of This Document"
+  ],
+  [
+   3,
+   "2.1 Characters and the Principles of Setting them for Japanese Composition"
+  ],
+  [
+   4,
+   "2.2.2 Basic Templates of Page Formats"
+  ],
+  [
+   4,
+   "2.3.2 Major Differences between Vertical Writing Mode and Horizontal Writing Mode"
+  ],
+  [
+   4,
+   "2.5.2 Line Positioning based on the Kihon-hanmen Design"
+  ],
+  [
+   3,
+   "3.1 Line Composition Rules for Punctuation Marks"
+  ],
+  [
+   4,
+   "3.1.6 Positioning of Dividing Punctuation Marks (Question Mark and Exclamation Mark) and Hyphens"
+  ],
+  [
+   4,
+   "3.1.12 Examples of Line Adjustment"
+  ],
+  [
+   4,
+   "3.2.5 Handling of Tate-chu-yoko (Horizontal-in-Vertical Settings)"
+  ],
+  [
+   4,
+   "3.3.4 Choice of Sides for Ruby with Respect to Base Characters"
+  ],
+  [
+   3,
+   "3.4 Inline Cutting Note (Warichu)"
+  ],
+  [
+   4,
+   "3.5.3 Single Line Alignment Processing"
+  ],
+  [
+   3,
+   "3.7 Other Rules of Japanese Typesetting"
+  ],
+  [
+   4,
+   "3.8.1 Necessity for Line Adjustment"
+  ],
+  [
+   4,
+   "3.9.2 Grouping of Characters and Symbols depending on their Positioning"
+  ],
+  [
+   4,
+   "4.1.3 Font Selection and Heading Font Size"
+  ],
+  [
+   4,
+   "4.1.9 Processing of Run-in Headings"
+  ],
+  [
+   4,
+   "4.2.4 Processing of Endnotes in Vertical Writing Mode or Horizontal Writing Mode"
+  ],
+  [
+   4,
+   "4.3.2 Basic Concepts about Illustration Positioning"
+  ],
+  [
+   4,
+   "4.4.2 Direction of Tables Themselves"
+  ],
+  [
+   4,
+   "4.5.1 Line Gap Arrangement with Ruby and Other Objects"
+  ],
+  [
+   3,
+   "A.3 Hyphens (cl-03)"
+  ],
+  [
+   3,
+   "A.9 Iteration marks (cl-09)"
+  ],
+  [
+   3,
+   "A.16 Katakana (cl-16)"
+  ],
+  [
+   3,
+   "A.22 Simple-ruby character complexes (cl-22)"
+  ],
+  [
+   3,
+   "A.28 Warichu opening brackets (cl-28)"
+  ],
+  [
+   2,
+   "Appendix C Possibilities for Line-breaking between Characters"
+  ],
+  [
+   3,
+   "D.2 Notes"
+  ],
+  [
+   3,
+   "F.2 Principles of Jukugo-Ruby Distribution: Part 2"
+  ]
+ ],
+ "tables": [
+  {
+   "rows": 1,
+   "cols": 2,
+   "cells": [
+    "(note 1)"
+   ]
+  },
+  {
+   "rows": 1,
+   "cols": 2,
+   "cells": [
+    "e.g.",
+    "315 point = 9 point × 35 characters"
+   ]
+  },
+  {
+   "rows": 1,
+   "cols": 2,
+   "cells": [
+    "(note 4)"
+   ]
+  },
+  {
+   "rows": 1,
+   "cols": 2,
+   "cells": [
+    "(note 1)"
+   ]
+  },
+  {
+   "rows": 1,
+   "cols": 2,
+   "cells": [
+    "(note 1)"
+   ]
+  },
+  {
+   "rows": 1,
+   "cols": 3,
+   "cells": [
+    "Example:",
+    "‐〜",
+    "etc."
+   ]
+  },
+  {
+   "rows": 1,
+   "cols": 2,
+   "cells": [
+    "(note 1)"
+   ]
+  },
+  {
+   "rows": 1,
+   "cols": 2,
+   "cells": [
+    "(note 1)"
+   ]
+  },
+  {
+   "rows": 1,
+   "cols": 2,
+   "cells": [
+    "(note 2)"
+   ]
+  },
+  {
+   "rows": 17,
+   "cols": 4,
+   "cells": [
+    "Character",
+    "UCS",
+    "》",
+    "used vertical composition"
+   ]
+  }
+ ],
+ "lists": [
+  "Japanese text composition experts (The editors of \"JIS X 4051 : Formatting rules",
+  "Realm and position of headings To set a heading, first establish a rectangular s",
+  "line gap = line feed - character size",
+  "For certain publications, such as a collection of monographs, the names of autho",
+  "After full stops (cl-06), in the middle of a line, a half em space is added. At ",
+  "Between a subscript or superscript and an adjacent base character (preceding or ",
+  "Jukugo-ruby. Pronunciation is indicated for each ideographic character (cl-19), ",
+  "Centering: The space between adjacent characters is, in principle, set solid. (I",
+  "The quarter em spaces both before and after the middle dots (cl-05) are deleted ",
+  "Ideographic characters (cl-19) Example: 亜唖娃阿哀愛挨〃仝〆♂♀ etc. (note 1) In JIS X 4051",
+  "Set the heading text in the space specified with multiple number of lines from t",
+  "Character size of reference marks is one or two levels smaller than the characte",
+  "The inter-letter space between the note number and the following parallel-note t",
+  "The order of cells in a line is from top to bottom.",
+  "Interlinear reference marks",
+  "Cases where an endnote is inserted (see 4.2.4 Processing of Endnotes in Vertical",
+  "In principle iteration marks (cl-09) should be placed neither at the line head n",
+  "Very loose (Newspapers) Breaking a line is allowed before or after the following",
+  "Blank: Inter-character space expansion is not allowed because there is no line b",
+  "In a special case where a jukugo-ruby character complex is at the line-head and "
+ ],
+ "images": [
+  "W3C",
+  "Line length should be multiples of the character size.",
+  "Example of exceptional positioning of the IDEOGRAPHIC COMMA.",
+  "Setting example of full-width Latin letters and European numerals.",
+  "Examples of distribution of jukugo-ruby split across two lines.",
+  "Example of tab setting 1.",
+  "Example one of a heading set in the center of indicated multiple lines (the heading is set around the center of the page).",
+  "An example of an endnote in vertical writing mode",
+  "An example of space size around illustration",
+  "An example of divided tables with same header columns in vertical writing mode."
+ ],
+ "footnotes": [],
+ "notes": [],
+ "text": [
+  "A Japanese version of this document is also available. See also translations. Th",
+  "Using COMMA \",\" and FULL STOP \".\" (see Fig. 3.1).",
+  "The character size of emphasis dots is the half size of the base characters to b",
+  "A drop heading is frequently used in Shinsho-ban (Japanese non-fiction paperback",
+  "On the other hand when characters are inserted that are smaller than the basic c"
+ ],
+ "order": [
+  "Requirements for Japanese Text Layout",
+  "2.2.2 Basic Templates of Page Formats",
+  "3.1.6 Positioning of Dividing Punctuation Marks (Question Mark and Exclamation Mark) and Hyphens",
+  "3.4 Inline Cutting Note (Warichu)",
+  "3.9.2 Grouping of Characters and Symbols depending on their Positioning",
+  "4.2.4 Processing of Endnotes in Vertical Writing Mode or Horizontal Writing Mode",
+  "A.3 Hyphens (cl-03)",
+  "A.28 Warichu opening brackets (cl-28)"
+ ]
+}

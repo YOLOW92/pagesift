@@ -1,0 +1,5 @@
+dev	gutenberg-74.epub	文字格 196	丢 0	乱序 0	含公式的格（另计）0
+dev	idpf-accessible_epub_3.epub	文字格 1	丢 0	乱序 0	含公式的格（另计）0
+dev	idpf-linear-algebra.epub	文字格 0	丢 0	乱序 0	含公式的格（另计）500
+holdout	gutenberg-84.epub	文字格 28	丢 0	乱序 0	含公式的格（另计）0
+holdout	idpf-jlreq-in-english.epub	文字格 2	丢 0	乱序 0	含公式的格（另计）0

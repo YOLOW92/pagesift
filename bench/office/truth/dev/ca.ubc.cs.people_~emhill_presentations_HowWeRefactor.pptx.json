@@ -1,0 +1,128 @@
+{
+ "file": "ca.ubc.cs.people_~emhill_presentations_HowWeRefactor.pptx",
+ "format": "pptx",
+ "headings": [
+  [
+   2,
+   "How We Refactor, and How We Know It"
+  ],
+  [
+   2,
+   "Introduction to Refactoring"
+  ],
+  [
+   2,
+   "Introduction to Refactoring"
+  ],
+  [
+   2,
+   "Introduction to Refactoring"
+  ],
+  [
+   2,
+   "3 Research Questions"
+  ],
+  [
+   2,
+   "Do Programmers Usually Floss Refactor?"
+  ],
+  [
+   2,
+   "Do Programmers Usually Floss Refactor?"
+  ],
+  [
+   2,
+   "Do Programmers Usually Floss Refactor?"
+  ],
+  [
+   2,
+   "3 Research Questions"
+  ],
+  [
+   2,
+   "Do Programmers Refactor Often?"
+  ],
+  [
+   2,
+   "Do Programmers Refactor Often?"
+  ],
+  [
+   2,
+   "Do Programmers Refactor Often?"
+  ],
+  [
+   2,
+   "3 Research Questions"
+  ],
+  [
+   2,
+   "Do Programmers Use Refactoring Tools Often?"
+  ],
+  [
+   2,
+   "Do Programmers Use Refactoring Tools Often?"
+  ],
+  [
+   2,
+   "Do Programmers Use Refactoring Tools Often?"
+  ],
+  [
+   2,
+   "Do Programmers Use Refactoring Tools Often?"
+  ],
+  [
+   2,
+   "Do Programmers Use Refactoring Tools Often?"
+  ],
+  [
+   2,
+   "3 Research Questions"
+  ],
+  [
+   2,
+   "6 More Findings"
+  ],
+  [
+   2,
+   "Conclusion"
+  ]
+ ],
+ "tables": [],
+ "lists": [],
+ "images": [
+  "E:\\Point of View Sculpture\\f0391100 corrected.jpg",
+  "E:\\Point of View Sculpture\\f0374372.jpg",
+  "E:\\Point of View Sculpture\\f0385516.jpg",
+  "E:\\Point of View Sculpture\\f0379684.jpg"
+ ],
+ "footnotes": [],
+ "notes": [
+  "Turn off skype/email/sound Mess with slide numbers a big more on projector Thank",
+  "To understand something, we study it from one perspective When we study from dif",
+  "Transition: but let’s step back a bit and look at what refactoring really is Ref",
+  "Refactoring includes: Rename Extract local variable Add Parameter Inline Method ",
+  "Better explanation for why right is root-canal-y",
+  "Try to automate as many transitions as you can",
+  "17 “with refactorings” 65% of commits (that contained any refactoring) It was no",
+  "When we introduce the R, it’s unfamiliar because we didn’t see it before",
+  "Say that these were refactorings people could have done with tools A more contra",
+  "Questions -> findings"
+ ],
+ "text": [
+  "Thanks to Ki-Yung Ahn, Barry Anderson, Lee Beckman, Brett Cannon, Tim Chevalier,",
+  "Case studies describe root canal refactorings:",
+  "If many refactorings are done without tools,",
+  "2 in 16 programming students used them (and even then, 20% and 60% of the time)",
+  "Toolsmiths use a wider array of refactoring tools than tool users"
+ ],
+ "order": [
+  "How We Refactor, and How We Know It",
+  "Introduction to Refactoring",
+  "Do Programmers Usually Floss Refactor?",
+  "Do Programmers Usually Floss Refactor?",
+  "Do Programmers Refactor Often?",
+  "Do Programmers Use Refactoring Tools Often?",
+  "Do Programmers Use Refactoring Tools Often?",
+  "3 Research Questions"
+ ]
+}

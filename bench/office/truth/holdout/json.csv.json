@@ -1,0 +1,23 @@
+{
+ "file": "json.csv",
+ "format": "csv",
+ "headings": [],
+ "tables": [
+  {
+   "rows": 2,
+   "cols": 2,
+   "cells": [
+    "key",
+    "val",
+    "1",
+    "{\"type\": \"Point\", \"coordinates\": [102.0, 0.5]}"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": []
+}

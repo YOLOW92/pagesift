@@ -1,0 +1,225 @@
+{
+ "file": "asylum-summary-jun-2020-tables.xlsx",
+ "format": "xlsx",
+ "headings": [
+  [
+   0,
+   "Cover_sheet"
+  ],
+  [
+   0,
+   "Contents"
+  ],
+  [
+   0,
+   "Notes"
+  ],
+  [
+   0,
+   "Prot_01"
+  ],
+  [
+   0,
+   "Asy_01a"
+  ],
+  [
+   0,
+   "Asy_01b"
+  ],
+  [
+   0,
+   "Asy_01c"
+  ],
+  [
+   0,
+   "Asy_02a"
+  ],
+  [
+   0,
+   "Asy_02b"
+  ],
+  [
+   0,
+   "Asy_03a"
+  ],
+  [
+   0,
+   "Asy_03b"
+  ],
+  [
+   0,
+   "Asy_04"
+  ],
+  [
+   0,
+   "Asy_05"
+  ],
+  [
+   0,
+   "Asy_06"
+  ],
+  [
+   0,
+   "Asy_07a"
+  ],
+  [
+   0,
+   "Asy_07b"
+  ],
+  [
+   0,
+   "Asy_07c"
+  ],
+  [
+   0,
+   "Asy_07d"
+  ],
+  [
+   0,
+   "Asy_07e"
+  ],
+  [
+   0,
+   "Asy_08"
+  ],
+  [
+   0,
+   "Res_01"
+  ],
+  [
+   0,
+   "Fam_01"
+  ],
+  [
+   0,
+   "Dub_01"
+  ]
+ ],
+ "tables": [
+  {
+   "sheet": "Cover_sheet",
+   "rows": 16,
+   "cols": 1,
+   "cells": [
+    "Immigration Statistics year ending June 2020",
+    "Next update: 26 November 2020",
+    "Responsible Statistician: Bex Newell",
+    "Contents"
+   ]
+  },
+  {
+   "sheet": "Notes",
+   "rows": 47,
+   "cols": 17,
+   "cells": [
+    "Notes",
+    "Data for 2019 Q1 onwards are provisional.",
+    "X",
+    "Back to contents"
+   ]
+  },
+  {
+   "sheet": "Asy_01a",
+   "rows": 28,
+   "cols": 15,
+   "cells": [
+    "Asylum applications1 lodged in the UK, by age2",
+    "1,513",
+    "Of which: UASC3,4",
+    "Back to contents"
+   ]
+  },
+  {
+   "sheet": "Asy_01c",
+   "rows": 37,
+   "cols": 15,
+   "cells": [
+    "Asylum applications1 lodged in the UK, by nationality2",
+    "1,317",
+    "707",
+    "Back to contents"
+   ]
+  },
+  {
+   "sheet": "Asy_03a",
+   "rows": 24,
+   "cols": 15,
+   "cells": [
+    "United Kingdom",
+    "1,235",
+    "Discretionary Leave",
+    "Back to contents"
+   ]
+  },
+  {
+   "sheet": "Asy_04",
+   "rows": 22,
+   "cols": 13,
+   "cells": [
+    "Asylum applications awaiting a decision, by duration1,2",
+    "11,868",
+    "Less than 6 months",
+    "Back to contents"
+   ]
+  },
+  {
+   "sheet": "Asy_06",
+   "rows": 22,
+   "cols": 15,
+   "cells": [
+    "Total eligible for the non-suspensive appeals process1,2",
+    "1,187",
+    "1,347",
+    "Back to contents"
+   ]
+  },
+  {
+   "sheet": "Asy_07c",
+   "rows": 20,
+   "cols": 15,
+   "cells": [
+    "United Kingdom",
+    "17,066",
+    "12,639",
+    "Back to contents"
+   ]
+  },
+  {
+   "sheet": "Asy_07e",
+   "rows": 93,
+   "cols": 3,
+   "cells": [
+    "United Kingdom",
+    "1,826",
+    "408",
+    "Back to contents"
+   ]
+  },
+  {
+   "sheet": "Res_01",
+   "rows": 30,
+   "cols": 15,
+   "cells": [
+    "United Kingdom",
+    "-541",
+    "Gateway Protection Programme",
+    "Back to contents"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": [
+  "Cover_sheet",
+  "Notes",
+  "Asy_01b",
+  "Asy_02b",
+  "Asy_04",
+  "Asy_07a",
+  "Asy_07d",
+  "Res_01"
+ ]
+}

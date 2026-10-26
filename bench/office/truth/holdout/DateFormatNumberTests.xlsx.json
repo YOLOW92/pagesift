@@ -1,0 +1,45 @@
+{
+ "file": "DateFormatNumberTests.xlsx",
+ "format": "xlsx",
+ "headings": [
+  [
+   0,
+   "Flags"
+  ],
+  [
+   0,
+   "Tests"
+  ]
+ ],
+ "tables": [
+  {
+   "sheet": "Flags",
+   "rows": 4,
+   "cols": 3,
+   "cells": [
+    "Flag Name",
+    "Categories",
+    "Run the test with all standard colors specified"
+   ]
+  },
+  {
+   "sheet": "Tests",
+   "rows": 11,
+   "cols": 4,
+   "cells": [
+    "Result (expected)",
+    "1.0032134017094",
+    "Date,Time"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": [
+  "Flags",
+  "Tests"
+ ]
+}

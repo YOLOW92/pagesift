@@ -1,0 +1,239 @@
+{
+ "file": "CVLKRA-KYC_Download_File_Structure_V3.1.xlsx",
+ "format": "xlsx",
+ "headings": [
+  [
+   0,
+   "KYC HEADER"
+  ],
+  [
+   0,
+   "KYC"
+  ],
+  [
+   0,
+   "ADDL INFO"
+  ],
+  [
+   0,
+   "KYC TRAILER"
+  ],
+  [
+   0,
+   "KYC Update Type"
+  ],
+  [
+   0,
+   "Addtl KYC Update Type"
+  ],
+  [
+   0,
+   "Entity Type"
+  ],
+  [
+   0,
+   "Document & EXEMPTED & PAN COPY"
+  ],
+  [
+   0,
+   "IPV Status"
+  ],
+  [
+   0,
+   "Identity Proof"
+  ],
+  [
+   0,
+   "Address Proof"
+  ],
+  [
+   0,
+   "Gender"
+  ],
+  [
+   0,
+   "Marital Status"
+  ],
+  [
+   0,
+   "Exempt Category"
+  ],
+  [
+   0,
+   "Company Type"
+  ],
+  [
+   0,
+   "Nationality"
+  ],
+  [
+   0,
+   "Residential Status"
+  ],
+  [
+   0,
+   "NRI Residential Status Proof"
+  ],
+  [
+   0,
+   "Occupation"
+  ],
+  [
+   0,
+   "Income Slab"
+  ],
+  [
+   0,
+   "PEP Status"
+  ],
+  [
+   0,
+   "KYC Status"
+  ],
+  [
+   0,
+   "Rejection Reasons"
+  ],
+  [
+   0,
+   "Relationship Status"
+  ],
+  [
+   0,
+   "Document submission Details"
+  ],
+  [
+   0,
+   "State Master"
+  ],
+  [
+   0,
+   "Country Master"
+  ],
+  [
+   0,
+   "Dump Type"
+  ],
+  [
+   0,
+   "KYC_MODE"
+  ]
+ ],
+ "tables": [
+  {
+   "sheet": "KYC HEADER",
+   "rows": 7,
+   "cols": 9,
+   "cells": [
+    "S.No",
+    "POS CODE",
+    "BATCH_DATE"
+   ]
+  },
+  {
+   "sheet": "ADDL INFO",
+   "rows": 20,
+   "cols": 3,
+   "cells": [
+    "S.No",
+    "FILLER 1",
+    "APP_DNLDDT"
+   ]
+  },
+  {
+   "sheet": "Addtl KYC Update Type",
+   "rows": 7,
+   "cols": 3,
+   "cells": [
+    "Code",
+    "03",
+    "Old KYC Record Modification"
+   ]
+  },
+  {
+   "sheet": "IPV Status",
+   "rows": 4,
+   "cols": 3,
+   "cells": [
+    "Code",
+    "Yes",
+    "Exempted"
+   ]
+  },
+  {
+   "sheet": "Gender",
+   "rows": 3,
+   "cols": 3,
+   "cells": [
+    "Code",
+    "M",
+    "Female"
+   ]
+  },
+  {
+   "sheet": "Company Type",
+   "rows": 23,
+   "cols": 3,
+   "cells": [
+    "Code",
+    "11",
+    "OTHERS"
+   ]
+  },
+  {
+   "sheet": "NRI Residential Status Proof",
+   "rows": 4,
+   "cols": 3,
+   "cells": [
+    "Code",
+    "Passport",
+    "OCI Card"
+   ]
+  },
+  {
+   "sheet": "PEP Status",
+   "rows": 10,
+   "cols": 3,
+   "cells": [
+    "Code",
+    "BUREAUCRAT",
+    "CIVIL SERVANT"
+   ]
+  },
+  {
+   "sheet": "Relationship Status",
+   "rows": 15,
+   "cols": 3,
+   "cells": [
+    "Code",
+    "07",
+    "Director & Beneficial Owner"
+   ]
+  },
+  {
+   "sheet": "Country Master",
+   "rows": 245,
+   "cols": 3,
+   "cells": [
+    "Code",
+    "122",
+    "Curacao"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": [
+  "KYC HEADER",
+  "KYC TRAILER",
+  "Document & EXEMPTED & PAN COPY",
+  "Address Proof",
+  "Company Type",
+  "Occupation",
+  "KYC Status",
+  "State Master"
+ ]
+}

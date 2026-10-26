@@ -1,0 +1,23 @@
+{
+ "file": "utf8.csv",
+ "format": "csv",
+ "headings": [],
+ "tables": [
+  {
+   "rows": 3,
+   "cols": 3,
+   "cells": [
+    "a",
+    "b",
+    "2",
+    "ʤ"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": []
+}

@@ -1,0 +1,23 @@
+{
+ "file": "gdp.csv",
+ "format": "csv",
+ "headings": [],
+ "tables": [
+  {
+   "rows": 13980,
+   "cols": 4,
+   "cells": [
+    "Country Name",
+    "Country Code",
+    "Latin America & Caribbean",
+    "26538273498.84614"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": []
+}

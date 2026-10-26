@@ -1,0 +1,21 @@
+{
+ "file": "table-with-theme.pptx",
+ "format": "pptx",
+ "headings": [],
+ "tables": [
+  {
+   "rows": 2,
+   "cols": 1,
+   "cells": [
+    "Abc def",
+    "def hij klm nop"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": []
+}

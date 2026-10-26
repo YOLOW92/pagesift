@@ -1,0 +1,23 @@
+{
+ "file": "March2014_All_Age_Apprenticeship_by_Level_and_Age_Participation.csv",
+ "format": "csv",
+ "headings": [],
+ "tables": [
+  {
+   "rows": 14,
+   "cols": 22,
+   "cells": [
+    "AcademicYear",
+    "Period",
+    "2011/12",
+    "512400"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": []
+}

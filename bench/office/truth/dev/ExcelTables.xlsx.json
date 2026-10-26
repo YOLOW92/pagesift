@@ -1,0 +1,30 @@
+{
+ "file": "ExcelTables.xlsx",
+ "format": "xlsx",
+ "headings": [
+  [
+   0,
+   "ExcelTable"
+  ]
+ ],
+ "tables": [
+  {
+   "sheet": "ExcelTable",
+   "rows": 4,
+   "cols": 9,
+   "cells": [
+    "Name",
+    "Bertha",
+    "2"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": [
+  "ExcelTable"
+ ]
+}

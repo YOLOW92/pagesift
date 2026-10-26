@@ -1,0 +1,27 @@
+{
+ "file": "ComplexNumberedLists.docx",
+ "format": "docx",
+ "headings": [],
+ "tables": [],
+ "lists": [
+  "Entry #1",
+  "Entry #2, with children",
+  "2-a",
+  "2-b",
+  "2-c",
+  "Entry #3",
+  "Entry #4",
+  "Restarted to 1 from 5",
+  "Restarted @ 2",
+  "Restarted @ 3",
+  "Jump to new list at 10",
+  "Now 11",
+  "Carrying on @ 12",
+  "Carrying on @ 13"
+ ],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": []
+}

@@ -1,0 +1,169 @@
+{
+ "file": "idpf-linear-algebra.epub",
+ "format": "epub",
+ "headings": [
+  [
+   1,
+   "A First Course in Linear Algebra"
+  ],
+  [
+   1,
+   "Chapter 3. Diagrams"
+  ],
+  [
+   2,
+   "Subsection READ: Reading Questions"
+  ],
+  [
+   1,
+   "Section RREF Reduced Row-Echelon Form"
+  ],
+  [
+   2,
+   "Subsection NSM: Null Space of a Matrix"
+  ],
+  [
+   2,
+   "Annotated Acronyms SLE: Systems of Linear Equations"
+  ],
+  [
+   2,
+   "Subsection CAV: Complex Arithmetic and Vectors"
+  ],
+  [
+   1,
+   "Chapter 3. Chapter M Matrices"
+  ],
+  [
+   1,
+   "Section MISLE Matrix Inverses and Systems of Linear Equations"
+  ],
+  [
+   2,
+   "Subsection UM: Unitary Matrices"
+  ],
+  [
+   2,
+   "Subsection EXC: Exercises"
+  ],
+  [
+   2,
+   "Subsection EXC: Exercises"
+  ],
+  [
+   2,
+   "Subsection SOL: Solutions"
+  ],
+  [
+   2,
+   "Subsection SOL: Solutions"
+  ],
+  [
+   2,
+   "Subsection SOL: Solutions"
+  ],
+  [
+   2,
+   "Annotated Acronyms LT: Linear Transformations"
+  ],
+  [
+   2,
+   "Subsection SOL: Solutions"
+  ],
+  [
+   2,
+   "Subsection CFNLT: Canonical Form for Nilpotent Linear Transformations"
+  ],
+  [
+   2,
+   "Annotated Acronyms R: Representations"
+  ],
+  [
+   2,
+   "Computation Note GSP.MMA: Gram-Schmidt Procedure"
+  ],
+  [
+   2,
+   "Computation Note ME.TI83: Matrix Entry"
+  ],
+  [
+   2,
+   "Computation Note MI.SAGE: Matrix Inverse"
+  ],
+  [
+   2,
+   "Subsection SC: Set Cardinality"
+  ],
+  [
+   2,
+   "Proof Technique CP: Contrapositives"
+  ],
+  [
+   2,
+   "Proof Technique LC: Lemmas and Corollaries"
+  ],
+  [
+   1,
+   "Archetype I"
+  ],
+  [
+   1,
+   "Archetype R"
+  ],
+  [
+   1,
+   "Chapter 14. Section T Trace"
+  ],
+  [
+   1,
+   "Chapter 18. Chapter MD Matrix Decompositions"
+  ],
+  [
+   1,
+   "Section SR Square Roots"
+  ]
+ ],
+ "tables": [],
+ "lists": [
+  "Chapter SLE Systems of Linear Equations",
+  "Chapter VS Vector Spaces",
+  "Chapter R Representations",
+  "Appendix GFDL GNU Free Documentation License",
+  "Section HSE Homogeneous Systems of Equations",
+  "Section MM Matrix Multiplication",
+  "Section PDM Properties of Determinants of Matrices",
+  "Section SLT Surjective Linear Transformations",
+  "Section NLT Nilpotent Linear Transformations",
+  "Section TI86 Texas Instruments 86",
+  "Section SET Sets",
+  "Archetype C",
+  "Archetype G",
+  "Archetype K",
+  "Archetype N",
+  "Archetype R",
+  "Archetype V",
+  "Section T Trace",
+  "Chapter MD Matrix Decompositions",
+  "Section SR Square Roots"
+ ],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [
+  "Permission is granted to copy, distribute and/or modify this document under the ",
+  "u ∈ C m ⇒ u , u ≥ 0 u = 0 ⇒ u , u = 0 u , u = 0 ⇒ u = 0",
+  "Suppose k = m + 1 . Then every row and every column will contain an entry of the",
+  "From A First Course in Linear Algebra Version 2.30 © 2004. Licensed under the GN",
+  "Column space of the matrix, expressed as the span of a set of linearly independe"
+ ],
+ "order": [
+  "A First Course in Linear Algebra",
+  "Section RREF Reduced Row-Echelon Form",
+  "Chapter 3. Chapter M Matrices",
+  "Subsection EXC: Exercises",
+  "Annotated Acronyms LT: Linear Transformations",
+  "Annotated Acronyms R: Representations",
+  "Subsection SC: Set Cardinality",
+  "Archetype R"
+ ]
+}

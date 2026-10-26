@@ -1,0 +1,45 @@
+{
+ "file": "Housing_land_supply_template-word.CFI.docx",
+ "format": "docx",
+ "headings": [],
+ "tables": [
+  {
+   "rows": 5,
+   "cols": 2,
+   "cells": [
+    "Local plan allocation ref",
+    "Site name",
+    "Total capacity (dwellings)",
+    "Total completions in five years following adoption"
+   ]
+  },
+  {
+   "rows": 4,
+   "cols": 19,
+   "cells": [
+    "Plan period up to adoption",
+    "Years following adoption*",
+    "6",
+    "Annual completions"
+   ]
+  },
+  {
+   "rows": 7,
+   "cols": 2,
+   "cells": [
+    "Ownership and availability",
+    "Developer interest",
+    "Viability",
+    "Planning permission"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [
+  "* It should be assumed that the plan will be adopted no earlier than one year af"
+ ],
+ "order": []
+}

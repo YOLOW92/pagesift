@@ -1,0 +1,107 @@
+{
+ "file": "outcome-analysis-asylum-claims-datasets-jun-2026.xlsx",
+ "format": "xlsx",
+ "headings": [
+  [
+   0,
+   "Cover_sheet"
+  ],
+  [
+   0,
+   "Contents"
+  ],
+  [
+   0,
+   "Notes"
+  ],
+  [
+   0,
+   "List_of_Fields"
+  ],
+  [
+   0,
+   "Asy_D04"
+  ],
+  [
+   0,
+   "Data_Asy_D04"
+  ]
+ ],
+ "tables": [
+  {
+   "sheet": "Cover_sheet",
+   "rows": 10,
+   "cols": 1,
+   "cells": [
+    "Immigration System Statistics",
+    "Next update: 26 November 2026",
+    "Crown copyright © 2026"
+   ]
+  },
+  {
+   "sheet": "Contents",
+   "rows": 8,
+   "cols": 6,
+   "cells": [
+    "Immigration System Statistics, year ending June 2026",
+    "Asy_D04",
+    "26 November 2026"
+   ]
+  },
+  {
+   "sheet": "Notes",
+   "rows": 26,
+   "cols": 2,
+   "cells": [
+    "Notes",
+    "9",
+    "2"
+   ]
+  },
+  {
+   "sheet": "List_of_Fields",
+   "rows": 12,
+   "cols": 2,
+   "cells": [
+    "Field",
+    "Administrative outcomes",
+    "Estimated latest grant rate"
+   ]
+  },
+  {
+   "sheet": "Asy_D04",
+   "rows": 27,
+   "cols": 20,
+   "cells": [
+    "Select nationality (from the drop down list in cell A4)",
+    "1,437",
+    "1,532",
+    "47%"
+   ]
+  },
+  {
+   "sheet": "Data_Asy_D04",
+   "rows": 3037,
+   "cols": 22,
+   "cells": [
+    "Year of Claim",
+    "2,470",
+    "2016",
+    "7"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": [
+  "Cover_sheet",
+  "Contents",
+  "Notes",
+  "List_of_Fields",
+  "Asy_D04",
+  "Data_Asy_D04"
+ ]
+}

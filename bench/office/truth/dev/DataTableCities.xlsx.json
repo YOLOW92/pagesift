@@ -1,0 +1,62 @@
+{
+ "file": "DataTableCities.xlsx",
+ "format": "xlsx",
+ "headings": [
+  [
+   0,
+   "Formula"
+  ],
+  [
+   0,
+   "Table"
+  ],
+  [
+   0,
+   "PivotTable"
+  ]
+ ],
+ "tables": [
+  {
+   "sheet": "Formula",
+   "rows": 7,
+   "cols": 4,
+   "cells": [
+    "Big City Average Location",
+    "22.27°",
+    "15,322,400"
+   ]
+  },
+  {
+   "sheet": "Table",
+   "rows": 15,
+   "cols": 10,
+   "cells": [
+    "Big Cities",
+    "23.13°",
+    "400,000",
+    "15,322,400"
+   ]
+  },
+  {
+   "sheet": "PivotTable",
+   "rows": 14,
+   "cols": 4,
+   "cells": [
+    "City",
+    "37.62°",
+    "Moscow, Russia",
+    "198,905,700"
+   ]
+  }
+ ],
+ "lists": [],
+ "images": [],
+ "footnotes": [],
+ "notes": [],
+ "text": [],
+ "order": [
+  "Formula",
+  "Table",
+  "PivotTable"
+ ]
+}
