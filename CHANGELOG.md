@@ -2,6 +2,49 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.72.8] — 2026-10-26
+
+Truthful charset decoding and extraction signals, complete private-network allow-lists, default
+config discovery, and the fifth-to-eighth-round field-audit fixes: recipe asides, GitHub code
+views, author lists, barriers, RSS feeds, JSON-LD, image titles and video metadata.
+See [the release notes](docs/releases/0.72.8.md).
+
+### Added
+- `--allow-cidr` is now available on `crawl`, `map`, `download`, `session-fetch`, `collect` and
+  `serve`, not just `scrape`; the same list covers HTTP fetching and browser rendering.
+- Default config discovery: `--config` > `PAGESIFT_CONFIG` > the platform config file
+  (`$XDG_CONFIG_HOME/pagesift/pagesift.toml`, `~/.config/pagesift/pagesift.toml`, or
+  `%APPDATA%\pagesift\pagesift.toml` on Windows). `PAGESIFT_CONFIG=` disables config files.
+- `doctor` reports the config file that was actually loaded, or the default path to create.
+- `Config::source()` and `Config::config_files_disabled()` expose the discovery result without
+  making the fields public.
+- `metadata.pagesift.jsonLd` passes every parsed JSON-LD block through unchanged.
+- `metadata.author` is filled from `citation_author`; `citation_doi`, `citation_journal_title`,
+  `citation_conference_title`, `citation_pdf_url` and `citation_arxiv_id` are preserved.
+- RSS, Atom and RDF feeds are parsed into Markdown item lists instead of being treated as HTML.
+- `inspect` recognizes OpenAI keys, JWTs and `api_key = "…"` assignments.
+- `thin_content` warns when a substantial HTML page yields fewer than 500 characters.
+- Age-verification pages are reported with the new `interstitial` barrier kind.
+- Markdown images keep their `title` attribute.
+- Video pages with no readable body use their JSON-LD `VideoObject` for title, description,
+  author and upload date, with a `video_metadata` warning.
+
+### Fixed
+- HTTP `Content-Type`/`<meta>` charset lies no longer produce silent mojibake. A UTF-8 header
+  over a GBK body is re-decoded, a single-byte header over a UTF-8 body is corrected, and every
+  decode override or replacement character is reported in `metadata.pagesift.warnings`.
+- Invalid `--allow-cidr` values are rejected by the CLI parser instead of being silently ignored.
+- `map` no longer returns a fake success containing only the seed URL when the seed fetch fails.
+- `crawl` exits with code 1 when it collected zero pages and reported at least one error.
+- Recipe/content asides are kept, `quickview`/`teaser`/`excerpt` preview blocks are not mistaken
+  for the article, and a tiny unmarked root no longer replaces the whole page.
+- GitHub file views drop the line-number column and merge code rows into one fenced block;
+  visually-hidden headings are skipped.
+- Author blocks survive link-density pruning, so arXiv pages keep the author line.
+- German, French and Spanish block pages are classified as `ACCESS_BARRIER`.
+- Short static pages no longer trigger a redundant browser render during `crawl`.
+- `diagnose` prints the actual binary version instead of the hard-coded `0.60`.
+
 ## [0.71.0] — 2026-10-26
 
 Bug-fix release for the 0.70.0 audit: crawl scope, charset handling, proxy bypass, honest

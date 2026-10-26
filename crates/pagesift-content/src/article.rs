@@ -118,7 +118,6 @@ pub(crate) fn has_paragraph(node: &NodeR<'_>, skipper: &Skipper) -> bool {
         .any(|d| d.tag() == Some(Tag::P) && skipper.content_chars(&d) >= 80 && !skipper.skip(&d))
 }
 
-
 /// 文章模式里整个去掉的标签（trafilatura 的 MANUALLY_CLEANED 里 pagesift 默认还保留的那些）：
 /// 题图和图注、表单和按钮、时间戳。
 pub(crate) fn is_cleaned_tag(tag: Tag) -> bool {
@@ -248,6 +247,23 @@ fn container(e: Element<'_>) -> bool {
 const HEADER_EXTRA_SHARE: f64 = 1.0;
 const HEADER_EXTRA_CHARS: usize = 2000;
 
+/// 页面没有可见 `<h1>` 时，用文档标题补一个。标题过长（导航堆叠、站点拼接）时不补。
+fn document_title(dom: &Html<'_>, skipper: &Skipper) -> Option<String> {
+    let has_visible_h1 = dom.root().descendants().any(|n| {
+        n.tag() == Some(Tag::H1) && !skipper.skip(&n) && !n.ancestors().any(|a| skipper.skip(&a))
+    });
+    if has_visible_h1 {
+        return None;
+    }
+    let title = dom
+        .root()
+        .descendants()
+        .find(|n| n.tag() == Some(Tag::Title))?
+        .text();
+    let title = title.split_whitespace().collect::<Vec<_>>().join(" ");
+    (!title.is_empty() && title.chars().count() <= 200).then_some(title)
+}
+
 /// 文章主体加上它的标题：主体外面的 `<h1>` 离得近时扩到两者的公共祖先，离得远时返回标题文字，
 /// 由调用方放在最前面。
 fn with_headline<'a>(
@@ -297,7 +313,9 @@ fn with_headline<'a>(
             })
         })
     else {
-        return (root, None);
+        // 页面上唯一可见的标题可能在另一个被裁掉的预览块里（食谱站的 quickview 就是）。
+        // 标题是正文的一部分：没有可见 <h1> 时退回文档标题，别让主体孤零零地没有标题。
+        return (root, document_title(dom, skipper));
     };
     if scope.is_some_and(|owner| !h1.ancestors().any(|a| a == owner)) {
         // Keep a document-level title without expanding the content into its

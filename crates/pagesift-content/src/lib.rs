@@ -165,7 +165,7 @@ fn process_dom(
     // 评测集上这比 Readability 式的"挑一个正文节点"更好：首页、产品页、落地页没有单一的文章节点，
     // 文章页的"文章信号"（og:type、单个 <article>）也不可靠。
     let body = dom.get(body_or_root(dom));
-    let metadata = metadata::extract(dom, html, base.as_ref());
+    let mut metadata = metadata::extract(dom, html, base.as_ref());
     // 文章页先试文章模式，成功就不用再按默认规则渲染一遍
     // 网站首页是列表页，不是一篇文章（很多站点在首页也写文章类的 JSON-LD）
     let home = base.as_ref().is_some_and(|u| {
@@ -184,9 +184,18 @@ fn process_dom(
         .then(|| render_article(dom, &mut skipper, base.as_ref(), article_shaped))
         .flatten();
 
+    // `unmarked_root` 是给没有文章标记的旧版式用的。它按"标题匹配 + 附近有成段文字"挑一个区域，
+    // 碰上"导语在独立的小 `<article>` 里、正文在兄弟节点"的页面（食谱站常见）会只挑到导语。
+    // 挑出来的区域连整页的 20% 都不到时，宁可回退到整页默认规则，也不要把正文丢掉。
     let inferred = (opts.only_main_content && !metadata.is_article && !home)
         .then(|| editorial::unmarked_root(dom, &skipper))
-        .flatten();
+        .flatten()
+        .filter(|root| {
+            let page_chars = article::text_without_comments(&body, &skipper);
+            page_chars == 0
+                || article::text_without_comments(root, &skipper) as f64
+                    >= page_chars as f64 * UNMARKED_MIN_SHARE
+        });
     let output_body = inferred.unwrap_or(body);
     let mut markdown = match article {
         Some(md) => md,
@@ -204,6 +213,19 @@ fn process_dom(
         if text_chars(&alt) >= HIDDEN_FALLBACK_CHARS.max(3 * text_chars(&markdown)) {
             markdown = alt;
         }
+    }
+
+    // 视频页（YouTube 等）正文在播放器 JSON 里，HTML 路径看不到。正文为空时用页面声明的
+    // VideoObject 补标题和简介，比交白卷有用，也比伪造正文诚实。
+    if text_chars(&markdown) < HIDDEN_FALLBACK_CHARS
+        && let Some(video) = jsonld::video_markdown(
+            &metadata.json_ld,
+            metadata.title.as_deref(),
+            metadata.description.as_deref(),
+        )
+    {
+        markdown = video;
+        metadata.video_fallback = true;
     }
 
     // 只取正文时可见文字数已经算好（和拦截页识别的口径一样）：超过上限的页面直接跳过识别
@@ -319,6 +341,9 @@ const ARTICLE_MIN_SHARE_SHAPED: f64 = 0.5;
 /// 文章模式的结果至少要有默认规则下全部文字（含链接，不算评论区）的这个比例。
 const ARTICLE_MIN_DEFAULT_SHARE: f64 = 0.1;
 
+/// `editorial::unmarked_root` 挑出的区域至少要占整页（去掉评论区）这么多文字，否则视为误挑。
+const UNMARKED_MIN_SHARE: f64 = 0.2;
+
 /// 文章模式：页面声明是文章时，只渲染文章主体，里面用严格规则（trafilatura 的非正文标记、
 /// 标签白名单、链接密度）。主体有两个候选，照 trafilatura 的 compare_extraction 仲裁：
 /// 默认用容器规律找到的；它为空、Readability 打分找到的长一倍以上、或者它没有成段文字时，
@@ -379,7 +404,11 @@ fn render_article(
     skipper.set_strict(true, skipper.content_chars(&body));
     let full = article::prose(&body, skipper, markdown::Whitelist::Off);
     skipper.set_strict(false, 0);
-    let min_share = if shaped_only { ARTICLE_MIN_SHARE_SHAPED } else { ARTICLE_MIN_SHARE };
+    let min_share = if shaped_only {
+        ARTICLE_MIN_SHARE_SHAPED
+    } else {
+        ARTICLE_MIN_SHARE
+    };
     if got == 0 || !bound_to_headline && (got as f64) < full as f64 * min_share {
         return None;
     }

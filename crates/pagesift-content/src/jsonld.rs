@@ -84,6 +84,67 @@ fn parse(block: &str) -> Option<Value> {
     serde_json::from_str(s).ok()
 }
 
+/// 视频页兜底：没有可见正文时（YouTube 这类纯 JS 播放器），用页面自己声明的
+/// `VideoObject` 组装标题与简介。只在正文为空时调用，不会覆盖正常抽取结果。
+pub(crate) fn video_markdown(
+    blocks: &[Value],
+    fallback_title: Option<&str>,
+    fallback_description: Option<&str>,
+) -> Option<String> {
+    let mut nodes = Vec::new();
+    for block in blocks {
+        collect(block, &mut nodes, 0);
+    }
+    let video = nodes
+        .iter()
+        .find(|n| types(n).any(|t| t.eq_ignore_ascii_case("VideoObject")))?;
+    let name = video
+        .get("name")
+        .and_then(Value::as_str)
+        .map(one_line)
+        .filter(|s| !s.is_empty())
+        .or_else(|| fallback_title.map(one_line).filter(|s| !s.is_empty()))?;
+    let description = video
+        .get("description")
+        .and_then(Value::as_str)
+        .map(one_line)
+        .filter(|s| !s.is_empty())
+        .or_else(|| fallback_description.map(one_line).filter(|s| !s.is_empty()));
+    let author = video
+        .get("author")
+        .and_then(|a| a.get("name").or(Some(a)))
+        .and_then(Value::as_str)
+        .map(one_line)
+        .filter(|s| !s.is_empty());
+    let published = video
+        .get("uploadDate")
+        .or_else(|| video.get("datePublished"))
+        .and_then(Value::as_str)
+        .map(one_line)
+        .filter(|s| !s.is_empty());
+
+    let mut out = format!("# {name}\n");
+    if let Some(description) = description {
+        out.push('\n');
+        out.push_str(&description);
+        out.push('\n');
+    }
+    if author.is_some() || published.is_some() {
+        out.push('\n');
+        if let Some(author) = author {
+            out.push_str(&format!("- Author: {author}\n"));
+        }
+        if let Some(published) = published {
+            out.push_str(&format!("- Published: {published}\n"));
+        }
+    }
+    Some(out)
+}
+
+fn one_line(s: &str) -> String {
+    s.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 fn collect<'a>(v: &'a Value, out: &mut Vec<&'a Obj>, depth: usize) {
     if depth > 4 {
         return;

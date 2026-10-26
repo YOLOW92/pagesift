@@ -120,6 +120,22 @@ impl CrawlSink for CrawlOutput {
     }
 }
 
+fn config_detail(cfg: &pagesift::config::Config) -> String {
+    if cfg.config_files_disabled() {
+        return "defaults (config files disabled by PAGESIFT_CONFIG=)".into();
+    }
+    if let Some(path) = cfg.source() {
+        return path.display().to_string();
+    }
+    match pagesift::config::Config::default_path() {
+        Some(path) => format!(
+            "defaults (no config file; create {} to add one)",
+            path.display()
+        ),
+        None => "defaults (no config file)".into(),
+    }
+}
+
 /// 检查运行环境：浏览器、网络、数据目录。
 pub async fn doctor(cfg: &pagesift::config::Config) -> Result<ExitCode> {
     let mut ok = true;
@@ -128,11 +144,7 @@ pub async fn doctor(cfg: &pagesift::config::Config) -> Result<ExitCode> {
         ok &= good;
     };
 
-    report(
-        true,
-        "config",
-        std::env::var("PAGESIFT_CONFIG").unwrap_or_else(|_| "defaults (no config file)".into()),
-    );
+    report(true, "config", config_detail(cfg));
     // LLM 和搜索是可选能力，没配置只提示，不算失败
     report(
         true,

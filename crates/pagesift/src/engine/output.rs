@@ -122,6 +122,10 @@ pub(super) async fn process_html(
         ..Default::default()
     };
     cpu_task(move || {
+        // RSS / Atom / RDF feed 不是网页：按条目解析，别让 HTML 提取器把标签剥成一锅粥。
+        if let Some(document) = super::feed::parse(&html, copts.links) {
+            return (document, html);
+        }
         let document = CONTENT_WORKSPACE.with(|workspace| {
             pagesift_content::process_with_workspace(&html, &copts, &mut workspace.borrow_mut())
         });
@@ -193,6 +197,11 @@ pub(super) fn fill_fingerprints(ext: &mut PagesiftMeta, doc: &pagesift_content::
     }
 }
 
+/// 页面自带的 JSON-LD 原样透传到 `metadata.pagesift.jsonLd`，供下游直接消费。
+pub(super) fn fill_structured(ext: &mut PagesiftMeta, doc: &pagesift_content::Document) {
+    ext.json_ld = doc.metadata.json_ld().to_vec();
+}
+
 pub(super) fn fill_metadata(meta: &mut Metadata, m: &pagesift_content::Metadata) {
     meta.title = m.title.clone();
     meta.description = m.description.clone();
@@ -233,21 +242,45 @@ pub(super) fn finish(
     mut ext: PagesiftMeta,
     mut timings: BTreeMap<String, f64>,
     mut warnings: Vec<String>,
+    raw_bytes: Option<usize>,
+    video_fallback: bool,
     started: Instant,
 ) -> Document {
     timings.insert("total".into(), ms(started.elapsed()));
     if meta.status_code >= 400 {
         warnings.push(format!("http_error_status: HTTP {}", meta.status_code));
     }
-    if meta.status_code < 400
-        && doc
-            .markdown
-            .as_deref()
-            .is_some_and(|markdown| markdown.trim().is_empty())
-    {
+    // 只数到阈值为止：4.49 MB 的正文没必要为了一个警告全量扫一遍。
+    const THIN_MAX_CHARS: usize = 500;
+    let markdown_chars = doc.markdown.as_deref().map(|markdown| {
+        let mut count = 0;
+        for c in markdown.chars() {
+            if !c.is_whitespace() {
+                count += 1;
+                if count > THIN_MAX_CHARS {
+                    break;
+                }
+            }
+        }
+        count
+    });
+    if meta.status_code < 400 && markdown_chars == Some(0) {
         warnings.push(format!(
             "empty_content: no readable text extracted (HTTP {})",
             meta.status_code
+        ));
+    }
+    // "过薄"与"全空"是两回事：页面有实质内容（HTML 不小）却只抽出几百字，
+    // 多半是 JS 壳，或者正文选择把主体丢了。只警告，不改结果。
+    const THIN_MIN_HTML_BYTES: usize = 20_000;
+    if meta.status_code < 400
+        && !video_fallback
+        && let (Some(chars @ 1..THIN_MAX_CHARS), Some(bytes)) = (markdown_chars, raw_bytes)
+        && bytes >= THIN_MIN_HTML_BYTES
+    {
+        warnings.push(format!(
+            "thin_content: extracted {chars} characters from {} KB of HTML; the page may be a JavaScript shell or the main content was not selected",
+            bytes / 1024
         ));
     }
     ext.timings = timings;

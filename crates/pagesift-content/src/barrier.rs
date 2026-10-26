@@ -19,6 +19,8 @@ pub enum BarrierKind {
     Captcha,
     /// 要求登录才能查看。
     LoginWall,
+    /// 年龄确认、地区确认这类中间页；不是正文，但也不是拒绝。
+    Interstitial,
     /// WAF 或访问控制直接拒绝。
     Block,
 }
@@ -29,6 +31,7 @@ impl BarrierKind {
             Self::Challenge => "challenge",
             Self::Captcha => "captcha",
             Self::LoginWall => "login_wall",
+            Self::Interstitial => "interstitial",
             Self::Block => "block",
         }
     }
@@ -72,7 +75,7 @@ struct Rule {
     patterns: &'static [&'static str],
 }
 
-use BarrierKind::{Block, Captcha, Challenge, LoginWall};
+use BarrierKind::{Block, Captcha, Challenge, Interstitial, LoginWall};
 use Field::{Html as H, Text as T};
 use Signal::{Hint, Marker, Phrase};
 
@@ -155,6 +158,24 @@ static RULES: &[Rule] = rules![
         "403 forbidden", "you don't have permission to access", "your ip has been blocked",
         "访问被拒绝", "您的访问被阻断", "访问已被拦截",
     ];
+    // 德语 / 法语 / 西班牙语的通用拦截页（厂商规则未覆盖时）
+    "generic.denied_de", "generic", Block, Phrase, T, [
+        "ihre anfrage wurde blockiert", "zugriff verweigert",
+        "der zugriff auf diese seite wurde verweigert", "ihre anfrage konnte nicht bearbeitet werden",
+    ];
+    "generic.denied_fr", "generic", Block, Phrase, T, [
+        "votre requête a été bloquée", "accès refusé", "accès interdit",
+    ];
+    "generic.denied_es", "generic", Block, Phrase, T, [
+        "su solicitud ha sido bloqueada", "acceso denegado", "acceso bloqueado",
+    ];
+    // 年龄确认 / 地区确认中间页：返回的是确认表单，不是文章正文
+    "generic.age_gate", "generic", Interstitial, Phrase, T, [
+        "please enter your birth date", "please verify your age", "verify your age",
+        "are you over 18", "you must be 18", "age verification required",
+        "请输入您的出生日期", "请确认您的年龄", "年龄确认", "年齢確認", "生年月日を入力",
+    ];
+    "generic.age_gate_marker", "generic", Interstitial, Marker, H, ["agegate", "age-gate", "age_gate"];
     // 登录墙
     "login.phrase", "generic", LoginWall, Phrase, T, [
         "sign in to continue", "log in to continue", "login to continue",
@@ -233,7 +254,7 @@ fn matcher(field: Field) -> &'static Matcher {
         }
         let ac = AhoCorasickBuilder::new()
             .ascii_case_insensitive(true)
-            .kind(Some(AhoCorasickKind::DFA))
+            .kind(Some(AhoCorasickKind::ContiguousNFA))
             .build(&patterns)
             .expect("barrier patterns are valid");
         Matcher { ac, rule_of }

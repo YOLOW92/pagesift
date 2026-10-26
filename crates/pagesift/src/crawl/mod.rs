@@ -287,6 +287,7 @@ impl Scraper {
                     .await,
             );
         }
+        let mut root_error = None;
         if req.sitemap != "only" {
             // map 只要链接，不需要渲染
             let opts = ScrapeOptions {
@@ -294,14 +295,21 @@ impl Scraper {
                 engine: Some("http".into()),
                 ..Default::default()
             };
-            if let Ok(doc) = self.scrape_with(start.as_str(), &opts, mode).await {
-                found.extend(
+            match self.scrape_with(start.as_str(), &opts, mode).await {
+                Ok(doc) => found.extend(
                     doc.links
                         .unwrap_or_default()
                         .iter()
                         .filter_map(|l| Url::parse(l).ok()),
-                );
+                ),
+                Err(error) => root_error = Some(error),
             }
+        }
+        // 种子页失败且 sitemap 也没给出任何 URL 时，不要返回“只有种子”的假成功。
+        if found.is_empty()
+            && let Some(error) = root_error
+        {
+            return Err(error);
         }
         let mut seen = HashSet::new();
         let mut links: Vec<String> = Vec::new();

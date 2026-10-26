@@ -23,11 +23,34 @@ use url::Url;
     about = "Turn web pages into clean Markdown for LLMs"
 )]
 struct Cli {
-    /// Config file (default: $PAGESIFT_CONFIG); see pagesift.example.toml
+    /// Config file (default: $PAGESIFT_CONFIG, else the platform config path; empty disables config files)
     #[arg(long, global = true)]
     config: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,
+}
+
+/// 细粒度内网放行：HTTP 抓取和浏览器子请求共用同一份名单。
+#[derive(clap::Args)]
+struct AllowCidrs {
+    /// Allow private CIDR subnets (e.g. 10.0.0.0/8, 198.18.0.0/15) for HTTP fetching and browser rendering
+    #[arg(long = "allow-cidr", value_name = "CIDR", value_parser = parse_cidr)]
+    allow_cidrs: Vec<pagesift_net::IpCidr>,
+}
+
+impl AllowCidrs {
+    fn apply(&self, config: &mut pagesift::ScraperConfig) {
+        config
+            .fetcher
+            .ssrf
+            .allow_cidrs
+            .extend(self.allow_cidrs.iter().cloned());
+    }
+}
+
+fn parse_cidr(raw: &str) -> Result<pagesift_net::IpCidr, String> {
+    raw.parse()
+        .map_err(|error| format!("invalid CIDR {raw:?}: {error}"))
 }
 
 #[derive(Subcommand)]
@@ -126,6 +149,8 @@ enum Command {
         authoritative: bool,
         #[arg(long, default_value_t = 100)]
         max_pages: usize,
+        #[command(flatten)]
+        allow: AllowCidrs,
     },
     /// Archive one direct media URL with validated resume and a stable identity
     Download {
@@ -145,6 +170,8 @@ enum Command {
         /// Discard an incomplete transfer; completed items remain immutable
         #[arg(long)]
         restart: bool,
+        #[command(flatten)]
+        allow: AllowCidrs,
     },
     /// Fetch one HTTP page with an explicit persistent, origin-isolated cookie session
     SessionFetch {
@@ -158,6 +185,8 @@ enum Command {
         format: String,
         #[arg(long)]
         full: bool,
+        #[command(flatten)]
+        allow: AllowCidrs,
     },
     /// Start the Firecrawl-compatible HTTP API
     Serve {
@@ -179,6 +208,8 @@ enum Command {
         /// Disable the result cache
         #[arg(long)]
         no_cache: bool,
+        #[command(flatten)]
+        allow: AllowCidrs,
     },
     /// Scrape a single URL
     Scrape {
@@ -198,9 +229,8 @@ enum Command {
         /// Egress proxy URL (e.g. http://127.0.0.1:7890, socks5://127.0.0.1:1080)
         #[arg(long)]
         proxy: Option<String>,
-        /// Allow private CIDR subnets (e.g. 10.0.0.0/8, 198.18.0.0/15) for HTTP fetching and browser rendering
-        #[arg(long = "allow-cidr")]
-        allow_cidrs: Vec<String>,
+        #[command(flatten)]
+        allow: AllowCidrs,
     },
     /// Crawl a site; writes one Markdown file per page with --out, else JSON lines to stdout
     Crawl {
@@ -243,6 +273,8 @@ enum Command {
         /// Tuning mode: adaptive (senses hardware and dynamically scales) or conservative
         #[arg(long, default_value = "adaptive")]
         tuning_mode: String,
+        #[command(flatten)]
+        allow: AllowCidrs,
     },
     /// Proactively explore host machine's performance curve and output an autonomous tuning profile
     Tune {
@@ -273,6 +305,8 @@ enum Command {
         /// include, skip or only
         #[arg(long, default_value = "include")]
         sitemap: String,
+        #[command(flatten)]
+        allow: AllowCidrs,
     },
     /// Run the MCP server (stdio by default)
     Mcp {
@@ -554,8 +588,10 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
             reset_session,
             format,
             full,
+            allow,
         } => {
-            let sc = cfg.scraper(false)?;
+            let mut sc = cfg.scraper(false)?;
+            allow.apply(&mut sc);
             let fetcher = Arc::new(pagesift_net::Fetcher::new(sc.fetcher)?);
             let policy = pagesift_policy::Policy::new(fetcher, sc.policy);
             let state = pagesift::session::SessionFile::open(
@@ -610,8 +646,10 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
             max_bytes,
             expected_blake3,
             restart,
+            allow,
         } => {
-            let sc = cfg.scraper(false)?;
+            let mut sc = cfg.scraper(false)?;
+            allow.apply(&mut sc);
             let fetcher = Arc::new(pagesift_net::Fetcher::new(sc.fetcher)?);
             let policy = pagesift_policy::Policy::new(fetcher, sc.policy);
             let mut archive = pagesift::download::Archive::open(out)?;
@@ -637,6 +675,7 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
             max_pages,
             out,
             restart,
+            allow,
         } => {
             use pagesift::collect::{Adapter, Collection, EventLog, JsonAdapter};
             let adapter = match adapter {
@@ -657,7 +696,8 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
                 collection.abort()?;
             }
             collection.begin(&url, authoritative)?;
-            let sc = cfg.scraper(false)?;
+            let mut sc = cfg.scraper(false)?;
+            allow.apply(&mut sc);
             let fetcher = Arc::new(pagesift_net::Fetcher::new(sc.fetcher)?);
             let policy = pagesift_policy::Policy::new(fetcher, sc.policy);
             let mut sink = EventLog::open(out)?;
@@ -735,17 +775,13 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
             full,
             ignore_robots,
             proxy,
-            allow_cidrs,
+            allow,
         } => runtime()?.block_on(async move {
             let mut sc = cfg.scraper(false)?;
             if let Some(p) = proxy {
                 sc.fetcher.proxy = Some(p);
             }
-            for cidr in allow_cidrs {
-                if let Ok(parsed) = cidr.parse() {
-                    sc.fetcher.ssrf.allow_cidrs.push(parsed);
-                }
-            }
+            allow.apply(&mut sc);
             let scraper = pagesift::Scraper::new(sc)?;
             let mut opts = pagesift::api::types::ScrapeOptions {
                 only_main_content: !full,
@@ -789,6 +825,7 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
             public_url,
             data_dir,
             no_cache,
+            allow,
         } => runtime()?.block_on(async move {
             if data_dir.is_some() {
                 cfg.cache.dir = data_dir;
@@ -802,6 +839,7 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
                 None
             };
             let mut config = cfg.scraper(false)?;
+            allow.apply(&mut config);
             config.store = store.clone().filter(|_| cache);
             if store.is_some() {
                 eprintln!(
@@ -851,6 +889,7 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
             query,
             adaptive,
             tuning_mode,
+            allow,
         } => runtime()?.block_on(async move {
             let req: pagesift::api::types::CrawlRequest =
                 serde_json::from_value(serde_json::json!({
@@ -871,6 +910,7 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
                     .with_context(|| format!("creating {}", dir.display()))?;
             }
             let mut scraper_config = cfg.scraper(false)?;
+            allow.apply(&mut scraper_config);
             let tuning_mode = tuning_mode
                 .parse::<pagesift::adaptive::TuningMode>()
                 .map_err(anyhow::Error::msg)?;
@@ -883,6 +923,8 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
             let (pages, errors) = sink.counts();
             eprintln!("crawled {pages} pages, {errors} errors");
             match result {
+                // 一页都没抓到且至少有一个错误：种子就失败了，不能报成功。
+                Ok(()) if pages == 0 && errors > 0 => Ok(ExitCode::from(1)),
                 Ok(()) => Ok(ExitCode::SUCCESS),
                 Err(e) => {
                     eprintln!("{}: {}", e.code.as_str(), e.message);
@@ -895,12 +937,15 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
             limit,
             search,
             sitemap,
+            allow,
         } => runtime()?.block_on(async move {
             let req: pagesift::api::types::MapRequest =
                 serde_json::from_value(serde_json::json!({
                     "url": url, "limit": limit, "search": search, "sitemap": sitemap,
                 }))?;
-            let scraper = pagesift::Scraper::new(cfg.scraper(false)?)?;
+            let mut scraper_config = cfg.scraper(false)?;
+            allow.apply(&mut scraper_config);
+            let scraper = pagesift::Scraper::new(scraper_config)?;
             match scraper.map(&req).await {
                 Ok(links) => {
                     for l in links {
@@ -921,7 +966,10 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
                 println!("{}", serde_json::to_string_pretty(&diagnosis)?);
             } else {
                 println!("============================================================");
-                println!("  PageSift 0.60 Performance & Hardware Diagnosis");
+                println!(
+                    "  PageSift {} Performance & Hardware Diagnosis",
+                    env!("CARGO_PKG_VERSION")
+                );
                 println!("============================================================");
                 println!("  Logical CPUs:       {}", diagnosis.logical_cores);
                 println!(

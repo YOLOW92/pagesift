@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.71.0
+# pagesift 0.72.8
 
 **High-performance, memory-bounded web scraping and extraction engine built for AI agents and LLM pipelines.**  
 Turn any website, document, or archive into clean Markdown and structured data — one Rust binary, native SDKs, dual Firecrawl v1/v2 & Jina Reader APIs, at a fraction of the memory.
@@ -20,6 +20,39 @@ Turn any website, document, or archive into clean Markdown and structured data �
 **English** · [简体中文](docs/README.zh-CN.md) · [日本語](docs/README.ja.md) · [Español](docs/README.es.md)
 
 </div>
+
+---
+
+## What's New in 0.72.8
+
+**Truthful signals, complete allow-lists, better extraction.** 0.72.8 closes the fourth-round
+audit and the fifth-to-eighth-round field audits.
+
+- 🔤 **Charset headers are verified** — a lying `Content-Type` no longer produces silent
+  mojibake; Pagesift re-decodes the body and reports every correction in
+  `metadata.pagesift.warnings`.
+- 🌐 **`--allow-cidr` everywhere** — `crawl`, `map`, `download`, `session-fetch`, `collect` and
+  `serve` now accept the same private-network allow-list as `scrape`; invalid CIDRs fail loudly.
+- ⚙️ **Default config discovery** — `--config` > `PAGESIFT_CONFIG` > the platform config file
+  (`~/.config/pagesift/pagesift.toml`, `$XDG_CONFIG_HOME`, or `%APPDATA%` on Windows).
+  `PAGESIFT_CONFIG=` disables config files for Docker/CI.
+- 🩺 **`doctor` tells the truth** — it prints the config file that was actually loaded, or the
+  default path to create.
+- 🚦 **No more fake success** — `map` returns the seed error instead of a one-URL result, and
+  `crawl` exits 1 when it collected zero pages and at least one error.
+- 🍪 **Recipes keep the recipe** — content asides such as ingredient lists are no longer pruned;
+  preview blocks (`quickview`/`teaser`) no longer replace the real article.
+- 💻 **GitHub code pages are code again** — line numbers are dropped and code rows are merged
+  into one fenced block.
+- 👥 **Authors survive** — arXiv-style author lists stay in the body, and `citation_author`
+  fills `metadata.author`.
+- 🧱 **Barriers say so** — German/French/Spanish block pages are `ACCESS_BARRIER`, age gates are
+  `interstitial`, and thin extraction emits `thin_content`.
+- 📡 **Feeds are parsed** — RSS/Atom become Markdown item lists; `jsonLd` is passed through.
+- 🖼️ **Image titles and video metadata** — `title` attributes are kept, and video pages fall
+  back to their JSON-LD `VideoObject` instead of returning an empty document.
+
+Full detail: [**0.72.8 release notes**](docs/releases/0.72.8.md).
 
 ---
 
@@ -139,7 +172,7 @@ Run the standalone container (includes headless browser renderer):
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.71.0
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.72.8
 ```
 
 #### Firecrawl SDK Drop-In Replacement
@@ -224,6 +257,10 @@ pagesift scrape "https://news.ycombinator.com" --format markdown
 
 # High-concurrency polite crawl with adaptive hardware tuning
 pagesift crawl "https://docs.rs" --limit 5000 --tuning-mode adaptive --output ./data/
+
+# Config is discovered automatically from ~/.config/pagesift/pagesift.toml
+# (or $XDG_CONFIG_HOME / %APPDATA%). PAGESIFT_CONFIG= disables config files.
+pagesift doctor
 ```
 
 ---
@@ -286,7 +323,7 @@ If PageSift is useful in research or a product, cite it as:
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 0.71.0}
+  note   = {Version 0.72.8}
 }
 ```
 

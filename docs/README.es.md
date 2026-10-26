@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.71.0
+# pagesift 0.72.8
 
 **Motor de scraping y extracción web de alto rendimiento y memoria acotada para agentes de IA y pipelines de LLM.**  
 Convierte cualquier sitio web, documento o archivo en Markdown limpio y datos estructurados: un único binario en Rust, SDK nativos, APIs duales Firecrawl v1/v2 y Jina Reader, consumiendo una fracción de la memoria de la competencia.
@@ -19,6 +19,24 @@ Convierte cualquier sitio web, documento o archivo en Markdown limpio y datos es
 [English](../README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · **Español**
 
 </div>
+
+---
+
+## Novedades en 0.72.8
+
+0.72.8 cierra la cuarta auditoría y las rondas 5–8 de campo, e incorpora el descubrimiento de configuración por defecto.
+
+- **Verificación del charset**: si `Content-Type` o `<meta>` mienten, el cuerpo se vuelve a decodificar y la corrección aparece en `metadata.pagesift.warnings`.
+- **`--allow-cidr` en todos los comandos**: `crawl`, `map`, `download`, `session-fetch`, `collect` y `serve` comparten la lista de `scrape`; un CIDR inválido falla en el parser.
+- **Configuración por defecto**: `--config` > `PAGESIFT_CONFIG` > archivo de plataforma; `PAGESIFT_CONFIG=` lo desactiva. `doctor` muestra el archivo cargado.
+- **Sin falsos éxitos**: `map` devuelve el error del seed y `crawl` sale con código 1 si no obtuvo páginas y hubo errores.
+- **El cuerpo no se pierde**: se conservan los `<aside>` de contenido (listas de ingredientes) y las vistas previas `quickview`/`teaser` ya no sustituyen al artículo.
+- **Páginas de código de GitHub**: se descarta la columna de números y las líneas se agrupan en un bloque de código.
+- **Autores y metadatos**: la línea de autores de arXiv se conserva y `citation_author` rellena `metadata.author`; `jsonLd` se expone tal cual.
+- **Señales honestas**: bloqueos en alemán/francés/español son `ACCESS_BARRIER`, las puertas de edad `interstitial` y la extracción escasa `thin_content`.
+- **Feeds y medios**: RSS/Atom se convierten en listas de entradas; las imágenes conservan `title` y los vídeos usan `VideoObject` para título y descripción.
+
+Detalle: [notas de 0.72.8](releases/0.72.8.md).
 
 ---
 
@@ -124,7 +142,7 @@ Evaluado sobre servidor **AMD EPYC de Producción (32 Núcleos, 128 GB RAM)** y 
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.71.0
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.72.8
 ```
 
 #### Reemplazo Directo de Firecrawl SDK

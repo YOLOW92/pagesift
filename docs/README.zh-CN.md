@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.71.0
+# pagesift 0.72.8
 
 **为 AI 智能体与 LLM 数据工程打造的高性能、严格内存有界抓取与内容提取引擎。**  
 把任何网站、学术文档或历史档案转化为干净的 Markdown 与结构化数据——单个纯 Rust 二进制、原生多语言 SDK、完美兼容 Firecrawl v1/v2 与 Jina Reader 双协议，而内存占用仅为竞品零头。
@@ -19,6 +19,24 @@
 [English](../README.md) · **简体中文** · [日本語](README.ja.md) · [Español](README.es.md)
 
 </div>
+
+---
+
+## 0.72.8 新增内容
+
+0.72.8 完成第四轮现场审计与第五至八轮实测，并加入默认配置发现。
+
+- **字符集声明复核**：HTTP 头或 `<meta>` 说谎时不再静默乱码，而是按正文重新解码，并在 `metadata.pagesift.warnings` 中说明修正原因。
+- **`--allow-cidr` 全覆盖**：`crawl`、`map`、`download`、`session-fetch`、`collect`、`serve` 与 `scrape` 共用同一份内网放行名单；非法 CIDR 直接报错。
+- **默认配置发现**：`--config` > `PAGESIFT_CONFIG` > 平台配置文件；`PAGESIFT_CONFIG=` 可关闭。`doctor` 会显示实际加载的文件。
+- **不再假成功**：`map` 在种子失败时返回错误，`crawl` 零页且有错误时退出码为 1。
+- **正文不再误删**：食谱配料表等内容型 `<aside>` 会保留，`quickview`/`teaser` 预览块不再顶替正文。
+- **GitHub 代码页**：行号列丢弃，代码行合并进一个代码围栏。
+- **作者与元数据**：arXiv 作者行保留，`citation_author` 填入 `metadata.author`；`jsonLd` 原样透传。
+- **诚实信号**：德语/法语/西语拦截页归为 `ACCESS_BARRIER`，年龄门为 `interstitial`，过薄抽取给出 `thin_content`。
+- **Feed 与媒体**：RSS/Atom 解析成条目列表；图片保留 `title`；视频页用 `VideoObject` 补标题与简介。
+
+详见 [0.72.8 发行说明](releases/0.72.8.md)。
 
 ---
 
@@ -143,7 +161,7 @@ D1 以较高精确率换取召回率；D9 尚未覆盖定时注入内容；D4 �
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.71.0
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.72.8
 ```
 
 #### Firecrawl SDK 零改动平替接入

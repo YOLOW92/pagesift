@@ -271,6 +271,17 @@ impl Renderer<'_> {
             }
             return;
         }
+        // GitHub 的文件视图把行号和代码分成两列：行号列是一串独立数字，代码列每行一个
+        // `div`。行号列整块丢掉，代码列合并进一个围栏，否则行号会堆在正文前面。
+        if class_contains(&node, "react-line-numbers") {
+            return;
+        }
+        if class_contains(&node, "react-code-lines")
+            && let Some(block) = self.merged_code_lines(node)
+        {
+            out.push(block);
+            return;
+        }
         let name = tag(&node).unwrap_or("");
         match name {
             "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
@@ -332,6 +343,35 @@ impl Renderer<'_> {
             }
             _ => out.extend(self.blocks_of(node)),
         }
+    }
+
+    /// 把代码视图里"一行一个 `div`"的代码拼回一个围栏块。GitHub 的行号列是兄弟节点，
+    /// 已经在 [`Renderer::block`] 里整块丢掉了。
+    fn merged_code_lines(&self, node: NodeR<'_>) -> Option<Block> {
+        let mut lines = Vec::new();
+        for line in node.descendants() {
+            let Some(el) = element(&line) else { continue };
+            if class_contains_el(el, "react-file-line") {
+                // 行内 span 之间的排版换行不是代码换行；去掉，免得一行变两行。
+                lines.push(raw_text(&line).replace(['\n', '\r'], ""));
+            }
+        }
+        if lines.is_empty() {
+            return None;
+        }
+        let text = lines.join("\n");
+        let text = text.trim_end_matches(['\n', '\r']);
+        if text.trim().is_empty() {
+            return None;
+        }
+        let mut fence = "```".to_string();
+        while text.contains(&fence) {
+            fence.push('`');
+        }
+        Some(Block {
+            kind: Kind::Other,
+            text: format!("{fence}\n{text}\n{fence}"),
+        })
     }
 
     fn code_block(&self, node: NodeR<'_>) -> Option<Block> {
@@ -550,7 +590,17 @@ impl Renderer<'_> {
             return String::new();
         };
         let alt = single_line(&collapse_whitespace(el.attr("alt").unwrap_or("")));
-        format!("![{}]({})", alt.replace(['[', ']'], ""), self.resolve(src))
+        let title = single_line(&collapse_whitespace(el.attr("title").unwrap_or("")));
+        let title = if title.is_empty() {
+            String::new()
+        } else {
+            format!(" \"{}\"", title.replace('\\', "\\\\").replace('"', "\\\""))
+        };
+        format!(
+            "![{}]({}{title})",
+            alt.replace(['[', ']'], ""),
+            self.resolve(src)
+        )
     }
 
     fn resolve(&self, href: &str) -> String {
@@ -563,6 +613,15 @@ impl Renderer<'_> {
             .replace('(', "%28")
             .replace(')', "%29")
     }
+}
+
+fn class_contains(node: &NodeR<'_>, needle: &str) -> bool {
+    element(node).is_some_and(|el| class_contains_el(el, needle))
+}
+
+fn class_contains_el(el: Element<'_>, needle: &str) -> bool {
+    el.attr("class")
+        .is_some_and(|class| crate::classes::contains_ascii_ci(class, needle))
 }
 
 /// 图片地址。懒加载的图片 `src` 常是空的或 `data:` 占位图，真实地址在 `data-src`、

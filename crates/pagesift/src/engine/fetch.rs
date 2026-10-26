@@ -159,6 +159,8 @@ impl Scraper {
                 ext,
                 timings,
                 warnings,
+                None,
+                false,
                 started,
             ));
         }
@@ -174,7 +176,11 @@ impl Scraper {
         } else {
             Vec::new()
         };
-        let html = resp.take_text().text;
+        let decoded = resp.take_text();
+        if let Some(warning) = decoded.warning() {
+            warnings.push(warning);
+        }
+        let html = decoded.text;
         let t = Instant::now();
         let parse_stage = self
             .policy
@@ -192,11 +198,21 @@ impl Scraper {
             }
         };
         timings.insert("extract".into(), ms(t.elapsed()));
+        if doc.metadata.video_fallback {
+            warnings.push(
+                "video_metadata: no readable body text; used the page's embedded video metadata"
+                    .into(),
+            );
+        }
         // 拦截页如实报告，不升级到浏览器：用真浏览器去过挑战页就是绕过
         check_barrier(&doc)?;
 
         let http_chars = text_weight(&doc.markdown);
-        if choice == EngineChoice::Auto && needs_render(&doc) {
+        // 短页面不一定需要浏览器：没有脚本、HTML 本身也很小的静态页，渲染只会白抓一次
+        // （crawl 时就是种子页被请求两次）。真正需要的是带客户端代码、或 HTML 很大却几乎
+        // 没抽出文字的页面。
+        let worth_rendering = html.len() >= 4096 || has_script_tag(&html);
+        if choice == EngineChoice::Auto && needs_render(&doc) && worth_rendering {
             if opts.egress.is_some() {
                 // 浏览器不走指定的出口，用它渲染出口地址就不一致了
                 warnings.push("render_skipped_egress".into());
@@ -262,7 +278,10 @@ impl Scraper {
             timings.insert("scriptDiscovery".into(), ms(discovery_started.elapsed()));
         }
         fill_metadata(&mut meta, &doc.metadata);
+        fill_structured(&mut ext, &doc);
         fill_fingerprints(&mut ext, &doc);
+        let raw_bytes = Some(html.len());
+        let video_fallback = doc.metadata.video_fallback;
         let mut result = document(doc, opts, html);
         if let Some(links) = result.links.as_mut() {
             for link in navigation {
@@ -271,7 +290,16 @@ impl Scraper {
                 }
             }
         }
-        Ok(finish(result, meta, ext, timings, warnings, started))
+        Ok(finish(
+            result,
+            meta,
+            ext,
+            timings,
+            warnings,
+            raw_bytes,
+            video_fallback,
+            started,
+        ))
     }
 
     pub(super) async fn render(
@@ -505,16 +533,34 @@ impl Scraper {
             browser_engine: Some(r.engine.into()),
             ..Default::default()
         };
+        fill_structured(&mut ext, &r.doc);
         fill_fingerprints(&mut ext, &r.doc);
+        if r.doc.metadata.video_fallback {
+            warnings.push(
+                "video_metadata: no readable body text; used the page's embedded video metadata"
+                    .into(),
+            );
+        }
+        let raw_bytes = Some(r.html.len());
+        let video_fallback = r.doc.metadata.video_fallback;
         Ok(finish(
             document(r.doc, opts, r.html),
             meta,
             ext,
             timings,
             warnings,
+            raw_bytes,
+            video_fallback,
             started,
         ))
     }
+}
+
+/// 不解析 DOM，只扫一遍字节：判断"值不值得为短页面再开一次浏览器"够用了。
+fn has_script_tag(html: &str) -> bool {
+    html.as_bytes()
+        .windows(7)
+        .any(|w| w.eq_ignore_ascii_case(b"<script"))
 }
 
 /// 正文提取是纯 CPU 计算，放到阻塞线程池里，不占异步运行时的线程。

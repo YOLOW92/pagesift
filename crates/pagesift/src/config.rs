@@ -37,6 +37,12 @@ pub struct Config {
     pub log: Log,
     pub llm: Option<Llm>,
     pub search: Option<Search>,
+    /// 实际加载的配置文件；内置默认值时为 `None`。
+    #[serde(skip)]
+    source: Option<PathBuf>,
+    /// `PAGESIFT_CONFIG=` 显式关闭了所有配置文件。
+    #[serde(skip)]
+    disabled: bool,
 }
 
 /// 直接写值，或者 `{ env = "VAR" }`。
@@ -228,18 +234,102 @@ pub struct Search {
     pub engine_id: Option<String>,
 }
 
+fn config_base(
+    xdg: Option<&Path>,
+    home: Option<&Path>,
+    appdata: Option<&Path>,
+    userprofile: Option<&Path>,
+    windows: bool,
+) -> Option<PathBuf> {
+    if let Some(base) = xdg.filter(|path| path.is_absolute()) {
+        return Some(base.to_path_buf());
+    }
+    if windows {
+        if let Some(base) = appdata.filter(|path| path.is_absolute()) {
+            return Some(base.to_path_buf());
+        }
+        return userprofile
+            .filter(|path| path.is_absolute())
+            .map(|profile| profile.join(".config"));
+    }
+    home.filter(|path| path.is_absolute())
+        .map(|home| home.join(".config"))
+}
+
 impl Config {
-    /// 按 `--config`、`PAGESIFT_CONFIG` 的顺序找配置文件；都没有时用默认配置。
+    /// 按 `--config`、`PAGESIFT_CONFIG`、平台默认路径的顺序找配置文件。
+    ///
+    /// `PAGESIFT_CONFIG=`（空值）表示不读任何配置文件，用于 Docker/CI/测试强制默认值。
+    /// 默认路径只在文件存在时加载；显式指定的路径不存在仍然报错。
     pub fn load(explicit: Option<&Path>) -> Result<Self> {
-        let path = explicit
-            .map(Path::to_path_buf)
-            .or_else(|| std::env::var_os("PAGESIFT_CONFIG").map(PathBuf::from));
+        Self::load_resolved(
+            explicit,
+            std::env::var_os("PAGESIFT_CONFIG"),
+            Self::default_path(),
+        )
+    }
+
+    /// 可注入的加载入口：单元测试不改进程环境。
+    fn load_resolved(
+        explicit: Option<&Path>,
+        env_config: Option<std::ffi::OsString>,
+        default_path: Option<PathBuf>,
+    ) -> Result<Self> {
+        let path = match explicit {
+            Some(path) => Some(path.to_path_buf()),
+            None => match env_config {
+                Some(value) if value.is_empty() => {
+                    return Ok(Self {
+                        disabled: true,
+                        ..Self::default()
+                    });
+                }
+                Some(value) => Some(PathBuf::from(value)),
+                None => default_path.filter(|path| path.is_file()),
+            },
+        };
         let Some(path) = path else {
             return Ok(Self::default());
         };
         let text = std::fs::read_to_string(&path)
             .with_context(|| format!("reading {}", path.display()))?;
-        toml::from_str(&text).with_context(|| format!("parsing {}", path.display()))
+        let mut config: Self =
+            toml::from_str(&text).with_context(|| format!("parsing {}", path.display()))?;
+        config.source = Some(path);
+        Ok(config)
+    }
+
+    /// 平台默认配置路径：
+    ///
+    /// - `XDG_CONFIG_HOME` 为绝对路径时：`$XDG_CONFIG_HOME/pagesift/pagesift.toml`
+    /// - Linux/macOS：`$HOME/.config/pagesift/pagesift.toml`
+    /// - Windows：`%APPDATA%\pagesift\pagesift.toml`，回退
+    ///   `%USERPROFILE%\.config\pagesift\pagesift.toml`
+    ///
+    /// 空值或相对路径一律当作未设置，避免意外读取工作目录下的文件。
+    pub fn default_path() -> Option<PathBuf> {
+        let xdg = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from);
+        let home = std::env::var_os("HOME").map(PathBuf::from);
+        let appdata = std::env::var_os("APPDATA").map(PathBuf::from);
+        let userprofile = std::env::var_os("USERPROFILE").map(PathBuf::from);
+        config_base(
+            xdg.as_deref(),
+            home.as_deref(),
+            appdata.as_deref(),
+            userprofile.as_deref(),
+            cfg!(windows),
+        )
+        .map(|base| base.join("pagesift").join("pagesift.toml"))
+    }
+
+    /// 实际加载的配置文件；没有配置文件时为 `None`。
+    pub fn source(&self) -> Option<&Path> {
+        self.source.as_deref()
+    }
+
+    /// 是否被 `PAGESIFT_CONFIG=` 显式关闭了配置文件加载。
+    pub fn config_files_disabled(&self) -> bool {
+        self.disabled
     }
 
     pub fn data_dir(&self) -> PathBuf {
@@ -640,5 +730,121 @@ mod tests {
     fn example_config_parses() {
         let cfg: Config = toml::from_str(include_str!("../../../pagesift.example.toml")).unwrap();
         assert_eq!(cfg.server.persist_jobs, Some(true));
+    }
+
+    #[test]
+    fn default_config_path_follows_xdg_and_home() {
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path();
+        let home = base.join("home");
+        let xdg = base.join("xdg");
+
+        assert_eq!(
+            config_base(Some(&xdg), Some(&home), None, None, false),
+            Some(xdg.clone())
+        );
+        // 相对 XDG 不是合法 base，回退 HOME。
+        assert_eq!(
+            config_base(Some(Path::new("relative")), Some(&home), None, None, false),
+            Some(home.join(".config"))
+        );
+        // 空/相对 HOME 当作未设置。
+        assert_eq!(
+            config_base(None, Some(Path::new("")), None, None, false),
+            None
+        );
+        assert_eq!(
+            config_base(None, Some(Path::new("relative")), None, None, false),
+            None
+        );
+    }
+
+    #[test]
+    fn default_config_path_on_windows_uses_appdata_then_profile() {
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path();
+        let appdata = base.join("appdata");
+        let profile = base.join("profile");
+
+        assert_eq!(
+            config_base(None, None, Some(&appdata), Some(&profile), true),
+            Some(appdata.clone())
+        );
+        assert_eq!(
+            config_base(None, None, None, Some(&profile), true),
+            Some(profile.join(".config"))
+        );
+        assert_eq!(config_base(None, None, None, None, true), None);
+    }
+
+    #[test]
+    fn load_resolved_reads_the_default_file_and_records_its_source() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pagesift.toml");
+        std::fs::write(&path, "[server]\nport = 3999\n").unwrap();
+
+        let cfg = Config::load_resolved(None, None, Some(path.clone())).unwrap();
+        assert_eq!(cfg.server.port, Some(3999));
+        assert_eq!(cfg.source(), Some(path.as_path()));
+        assert!(!cfg.config_files_disabled());
+    }
+
+    #[test]
+    fn missing_default_file_is_not_an_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("missing.toml");
+        let cfg = Config::load_resolved(None, None, Some(path)).unwrap();
+        assert_eq!(cfg.server.port, None);
+        assert_eq!(cfg.source(), None);
+    }
+
+    #[test]
+    fn empty_pagesift_config_disables_default_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pagesift.toml");
+        std::fs::write(&path, "[server]\nport = 3999\n").unwrap();
+
+        let cfg = Config::load_resolved(None, Some(std::ffi::OsString::new()), Some(path)).unwrap();
+        assert_eq!(cfg.server.port, None);
+        assert_eq!(cfg.source(), None);
+        assert!(cfg.config_files_disabled());
+    }
+
+    #[test]
+    fn explicit_config_wins_over_the_disable_switch() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pagesift.toml");
+        std::fs::write(&path, "[server]\nport = 3999\n").unwrap();
+
+        let cfg =
+            Config::load_resolved(Some(&path), Some(std::ffi::OsString::new()), None).unwrap();
+        assert_eq!(cfg.server.port, Some(3999));
+        assert_eq!(cfg.source(), Some(path.as_path()));
+        assert!(!cfg.config_files_disabled());
+    }
+
+    #[test]
+    fn pagesift_config_env_path_is_used_before_the_default_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let env_path = dir.path().join("env.toml");
+        let default_path = dir.path().join("default.toml");
+        std::fs::write(&env_path, "[server]\nport = 4001\n").unwrap();
+        std::fs::write(&default_path, "[server]\nport = 4002\n").unwrap();
+
+        let cfg = Config::load_resolved(
+            None,
+            Some(env_path.clone().into_os_string()),
+            Some(default_path),
+        )
+        .unwrap();
+        assert_eq!(cfg.server.port, Some(4001));
+        assert_eq!(cfg.source(), Some(env_path.as_path()));
+    }
+
+    #[test]
+    fn missing_explicit_config_still_errors() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("missing.toml");
+        assert!(Config::load_resolved(Some(&path), None, None).is_err());
     }
 }

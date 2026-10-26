@@ -28,13 +28,52 @@ pub(crate) fn word_class(w: &str) -> u8 {
         | "consent" | "advert" | "advertisement" | "ad" | "ads" | "sponsor" | "sponsored"
         | "newsletter" | "subscribe" | "popup" | "modal" | "promo" | "toolbar" | "pagination"
         | "editsection" | "catlinks" | "bookmark" | "bookmarks" | "extra" | "labs" | "labstabs"
-        | "endorser" | "endorsers" | "recommender" | "recommenders" => NEG,
+        | "endorser" | "endorsers" | "recommender" | "recommenders" | "quickview" | "teaser"
+        | "excerpt" => NEG,
         "skip" | "jump" => NEG | JUMP,
         "comment" | "comments" | "byline" | "tags" | "tag" | "breadcrumb" | "breadcrumbs"
-        | "author" | "authors" | "disqus" | "rating" | "print" | "follow" | "outbrain"
-        | "taboola" | "embed" => STRICT,
+        | "disqus" | "rating" | "print" | "follow" | "outbrain" | "taboola" | "embed" => STRICT,
         _ => 0,
     }
+}
+
+/// 署名区（`authors`、`author-list`）。论文站的作者行是纯链接列表，链接密度规则会把它
+/// 当导航剪掉；作者是正文的一部分，保留。
+pub(crate) fn is_author_list(el: Element<'_>) -> bool {
+    [el.attr("class"), el.attr("id")]
+        .into_iter()
+        .flatten()
+        .any(|value| {
+            contains_ascii_ci(value, "authors")
+                || (contains_ascii_ci(value, "author") && contains_ascii_ci(value, "list"))
+        })
+}
+
+/// 只给辅助技术看的文字（`VisuallyHidden`、`sr-only`、`screen-reader-text`）。正文模式里
+/// 这些文字对普通读者不可见，常常是"Repository navigation"这类区块标题。
+pub(crate) fn is_visually_hidden(el: Element<'_>) -> bool {
+    el.attr("class").is_some_and(|class| {
+        [
+            "visuallyhidden",
+            "visually-hidden",
+            "sr-only",
+            "screen-reader-text",
+            "screenreader",
+        ]
+        .iter()
+        .any(|needle| contains_ascii_ci(class, needle))
+    })
+}
+
+/// 不分配内存的 ASCII 大小写不敏感子串判断。`reason()` 会对每个元素调用，不能在这里
+/// `to_ascii_lowercase()` 分配。
+pub(crate) fn contains_ascii_ci(haystack: &str, needle: &str) -> bool {
+    let (haystack, needle) = (haystack.as_bytes(), needle.as_bytes());
+    !needle.is_empty()
+        && needle.len() <= haystack.len()
+        && haystack
+            .windows(needle.len())
+            .any(|window| window.eq_ignore_ascii_case(needle))
 }
 
 /// 在 `<main>`、`<article>` 或 `role="main"` 里面：这里的页头、导航是正文的一部分。

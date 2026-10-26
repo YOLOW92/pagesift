@@ -58,6 +58,9 @@ pub struct PagesiftMeta {
     /// Query filter statistics.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub query_filter: Option<QueryFilterStats>,
+    /// JSON-LD blocks found on the page, parsed and passed through unchanged.
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub json_ld: Vec<Value>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]

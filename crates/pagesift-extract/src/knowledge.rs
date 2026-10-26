@@ -83,6 +83,9 @@ impl KnowledgeExtractor {
             ("github_token", S, r"\b(?:gh[pousr]_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{40,255})\b"),
             ("private_key", S, r"-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----"),
             ("stripe_secret", S, r"\bsk_(?:live|test)_[A-Za-z0-9]{16,128}\b"),
+            ("openai_key", S, r"\bsk-(?:proj-|ant-|svcacct-)?[A-Za-z0-9_-]{20,}\b"),
+            ("jwt", S, r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"),
+            ("api_key_assignment", S, r#"(?i)\bapi[_-]?key\s*[:=]\s*["'][A-Za-z0-9_\-]{16,}["']"#),
             ("slack_token", S, r"\bxox[baprs]-[A-Za-z0-9-]{20,200}\b"),
         ].into_iter().map(|(n,k,p)| EvidenceRule::new(n,k,p).expect("static evidence regex")).collect()).expect("static evidence rules")
     }

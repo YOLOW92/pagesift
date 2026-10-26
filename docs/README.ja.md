@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.71.0
+# pagesift 0.72.8
 
 **AI エージェントと LLM データ基盤のための、超高速・メモリ有界スクレイピング＆本文抽出エンジン。**  
 あらゆる Web サイト、論文、アーカイブを高品質な Markdown と構造化データに変換します。単一の純 Rust バイナリ、ネイティブ SDK、Firecrawl v1/v2 および Jina Reader デュアルプロトコル互換、そして競合のわずか一部のメモリ消費で稼働します。
@@ -19,6 +19,24 @@
 [English](../README.md) · [简体中文](README.zh-CN.md) · **日本語** · [Español](README.es.md)
 
 </div>
+
+---
+
+## 0.72.8 の新機能
+
+0.72.8 は第 4 回監査と第 5〜8 回のフィールドテストを完了し、デフォルト設定の自動検出を追加しました。
+
+- **charset 宣言の検証**：`Content-Type` や `<meta>` が誤っていても本文を再デコードし、修正内容を `metadata.pagesift.warnings` に記録します。
+- **`--allow-cidr` を全コマンドに**：`crawl`、`map`、`download`、`session-fetch`、`collect`、`serve` が `scrape` と同じ許可リストを使えます。不正な CIDR はエラーになります。
+- **デフォルト設定の検出**：`--config` > `PAGESIFT_CONFIG` > プラットフォーム設定ファイル。`PAGESIFT_CONFIG=` で無効化でき、`doctor` が読み込んだファイルを表示します。
+- **偽の成功を廃止**：`map` はシード失敗時にエラーを返し、`crawl` は 0 ページかつエラーありの場合に終了コード 1 を返します。
+- **本文の誤削除を修正**：レシピの材料リストなど本文内の `<aside>` を保持し、`quickview`/`teaser` のプレビューを本文と誤認しません。
+- **GitHub コードページ**：行番号列を捨て、コード行を 1 つのフェンスにまとめます。
+- **著者とメタデータ**：arXiv の著者行を保持し、`citation_author` を `metadata.author` に反映。`jsonLd` をそのまま透過します。
+- **正直なシグナル**：ドイツ語/フランス語/スペイン語のブロックページを `ACCESS_BARRIER`、年齢確認を `interstitial`、薄い抽出を `thin_content` として報告します。
+- **Feed とメディア**：RSS/Atom を項目リストに変換。画像の `title` を保持し、動画ページは `VideoObject` でタイトルと説明を補います。
+
+詳細：[0.72.8 リリースノート](releases/0.72.8.md)。
 
 ---
 
@@ -124,7 +142,7 @@ D1 は精度を優先して再現率が低下しました。D9 はタイマー�
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.71.0
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.72.8
 ```
 
 #### Firecrawl SDK の差し替え

@@ -6,7 +6,7 @@ use crate::dom::{collapse_whitespace, element};
 use crate::jsonld;
 
 /// 页面元数据。字段对应 Firecrawl `metadata` 里的同名字段。
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Metadata {
     pub title: Option<String>,
     pub description: Option<String>,
@@ -26,6 +26,10 @@ pub struct Metadata {
     pub is_article: bool,
     /// `og:*`、`twitter:*`、`article:*` 和 `dc.*` 这类 meta，按出现顺序保留原始键名。
     pub extra: Vec<(String, String)>,
+    /// 页面里解析成功的 JSON-LD 块，按出现顺序原样保留，供下游直接消费。
+    pub json_ld: Vec<serde_json::Value>,
+    /// 正文为空、用 JSON-LD `VideoObject` 兜底生成了 Markdown。
+    pub video_fallback: bool,
 }
 
 fn clean(s: &str) -> Option<String> {
@@ -54,6 +58,8 @@ pub(crate) fn extract(html: &Html<'_>, source: &str, base: Option<&Url>) -> Meta
     let mut meta_published = Vec::new();
     let mut meta_modified = Vec::new();
     let mut time_modified = Vec::new();
+    let mut citation_authors: Vec<String> = Vec::new();
+    let mut citation_title = None;
 
     crate::dates::walk(html.root(), |node| {
         let Some(el) = element(node) else {
@@ -92,6 +98,15 @@ pub(crate) fn extract(html: &Html<'_>, source: &str, base: Option<&Url>) -> Meta
                         if !content.starts_with("http") =>
                     {
                         set_once(&mut m.author, content.clone())
+                    }
+                    "citation_author" => citation_authors.push(content.clone()),
+                    "citation_title" => set_once(&mut citation_title, content.clone()),
+                    "citation_journal_title"
+                    | "citation_conference_title"
+                    | "citation_doi"
+                    | "citation_pdf_url"
+                    | "citation_arxiv_id" => {
+                        m.extra.push((key.trim().to_string(), content.clone()))
                     }
                     "og:title" => set_once(&mut og_title, content.clone()),
                     "og:description" => set_once(&mut og_description, content.clone()),
@@ -161,6 +176,24 @@ pub(crate) fn extract(html: &Html<'_>, source: &str, base: Option<&Url>) -> Meta
         true
     });
 
+    // 论文站（arXiv、PubMed、Google Scholar）用 citation_* 声明作者，正文里往往只有链接列表。
+    // 先收进 metadata；JSON-LD 有作者时仍然以 JSON-LD 为准（下面会覆盖）。
+    if m.author.is_none() && !citation_authors.is_empty() {
+        m.author = Some(citation_authors.join(", "));
+    }
+    // JSON-LD 原样透传：只收解析成功的块，总量控制在一页 256 KB 以内。
+    let mut budget = 256 * 1024;
+    m.json_ld = ld_blocks
+        .iter()
+        .filter_map(|block| {
+            if block.len() > budget {
+                return None;
+            }
+            let value: serde_json::Value = serde_json::from_str(block).ok()?;
+            budget -= block.len();
+            Some(value)
+        })
+        .collect();
     let ld = jsonld::extract(&ld_blocks);
     // og:type=article 很多建站工具每一页都写（WordPress 的 Yoast 就是），单独不算；
     // 要么 JSON-LD 声明了文章类型，要么 og:type=article 而且有发布时间
@@ -216,7 +249,7 @@ pub(crate) fn extract(html: &Html<'_>, source: &str, base: Option<&Url>) -> Meta
             == 1
     };
     m.is_article = ld.article || (og_article && (has_published || structural_article));
-    m.title = title_tag.or(og_title);
+    m.title = title_tag.or(og_title).or(citation_title);
     if m.description.is_none() {
         m.description = og_description;
     }
@@ -227,6 +260,13 @@ pub(crate) fn extract(html: &Html<'_>, source: &str, base: Option<&Url>) -> Meta
         m.favicon = Some(u.to_string());
     }
     m
+}
+
+impl Metadata {
+    /// 解析后的 JSON-LD 块。已经在上面的提取里解析过，这里只做克隆。
+    pub fn json_ld(&self) -> &[serde_json::Value] {
+        &self.json_ld
+    }
 }
 
 fn set_once(slot: &mut Option<String>, value: String) {

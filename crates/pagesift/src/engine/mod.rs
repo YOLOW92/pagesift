@@ -20,6 +20,7 @@ use pagesift_policy::{Policy, PolicyConfig, RequestKind, RobotsMode};
 use tokio::sync::OnceCell;
 
 mod extract;
+mod feed;
 mod fetch;
 mod frames;
 mod output;

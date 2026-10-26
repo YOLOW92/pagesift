@@ -379,6 +379,13 @@ impl Skipper {
         if !self.only_main {
             return None;
         }
+        // 署名区是正文：作者行通常是纯链接，不能当链接墙剪掉。
+        if crate::classes::is_author_list(el) {
+            return None;
+        }
+        if crate::classes::is_visually_hidden(el) {
+            return Some("visually hidden");
+        }
         if matches!(tag, Tag::Nav | Tag::Aside | Tag::Footer) && !self.landmark_is_content(node) {
             return Some("nav/aside/footer");
         }
@@ -495,6 +502,18 @@ impl Skipper {
             .unwrap_or_default();
         if v.chars as f64 >= self.total_chars as f64 * WRAPPER_SHARE
             && (v.link_chars as f64) < v.chars as f64 * WRAPPER_MAX_LINK_SHARE
+        {
+            return true;
+        }
+        // 正文区里的 `<aside>` 不一定都是"相关文章"：食谱的配料表、教程的提示框、文章的资料框
+        // 常用 `<aside>`。名字带负面词（sidebar/related/ad……）或链接密集的照旧当框架去掉。
+        if node.tag() == Some(Tag::Aside)
+            && in_content_area(node)
+            && v.chars >= 20
+            && (v.link_chars as f64) < v.chars as f64 * 0.5
+            && node
+                .as_element()
+                .is_none_or(|el| self.classes(node, el) & NEG == 0)
         {
             return true;
         }

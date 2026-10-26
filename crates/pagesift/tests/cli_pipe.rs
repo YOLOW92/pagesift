@@ -19,6 +19,10 @@ fn closed_stdout_pipe_exits_141_without_panic() {
     let mut child = Command::new(env!("CARGO_BIN_EXE_pagesift"))
         .arg("convert")
         .arg(&input)
+        // 默认配置发现不能读取开发者本机的 ~/.config/pagesift/pagesift.toml。
+        .env("XDG_CONFIG_HOME", dir.path())
+        .env("HOME", dir.path())
+        .env_remove("PAGESIFT_CONFIG")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
