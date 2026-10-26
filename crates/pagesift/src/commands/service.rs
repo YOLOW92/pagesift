@@ -49,12 +49,14 @@ pub(crate) fn run(command: Command, mut cfg: pagesift::config::Config) -> Result
             // 后台确认每个浏览器内核能不能启动，结果写进日志，不耽误服务开始监听
             let probe = scraper.clone();
             tokio::spawn(async move { probe.probe_browsers().await });
+            // 请求头读取时限在连接层生效，其余在路由的中间件里
+            let timeouts = api.timeouts;
             let app = pagesift::api::router(scraper.clone(), api);
             let listener = tokio::net::TcpListener::bind((host.as_str(), port))
                 .await
                 .with_context(|| format!("binding {host}:{port}"))?;
             eprintln!("pagesift listening on http://{}", listener.local_addr()?);
-            pagesift::api::serve(listener, app, shutdown_signal()).await?;
+            pagesift::api::serve_with(listener, app, timeouts, shutdown_signal()).await?;
             scraper.shutdown().await;
             Ok(ExitCode::SUCCESS)
         }),

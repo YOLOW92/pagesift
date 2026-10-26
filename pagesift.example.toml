@@ -29,6 +29,14 @@ persist_jobs = true
 # max_concurrent_jobs = 2
 # pages_per_day = 5000
 
+# 服务端时限（秒，必须大于 0）：读请求头、读请求体、/v2/parse 上传的请求体、整个请求到响应头发出。
+# 都超时回 408 TIMEOUT（读请求头超时直接断开连接）。整请求时限要大于请求里 scrape 的 timeout。
+# [server.timeouts]
+# header_read_secs = 30
+# body_secs = 30
+# upload_body_secs = 120
+# request_secs = 360
+
 # crawl / batch 请求里的 webhook：失败按指数退避重试，目标地址过 SSRF 校验
 # [server.webhook]
 # allow_private_network = false

@@ -244,3 +244,23 @@ fn missing_explicit_config_still_errors() {
     let path = dir.path().join("missing.toml");
     assert!(Config::load_resolved(Some(&path), None, None).is_err());
 }
+
+#[test]
+fn server_timeouts_are_configurable_and_reject_zero() {
+    let cfg: Config = toml::from_str(
+        "[server.timeouts]\nheader_read_secs = 5\nupload_body_secs = 600\nrequest_secs = 900\n",
+    )
+    .unwrap();
+    let t = cfg.api().unwrap().timeouts;
+    let d = pagesift_api::Timeouts::default();
+    assert_eq!(t.header_read, Duration::from_secs(5));
+    assert_eq!(t.body, d.body);
+    assert_eq!(t.upload_body, Duration::from_secs(600));
+    assert_eq!(t.request, Duration::from_secs(900));
+    assert_eq!(Config::default().api().unwrap().timeouts, d);
+
+    let cfg: Config = toml::from_str("[server.timeouts]\nbody_secs = 0\n").unwrap();
+    let err = cfg.api().unwrap_err().to_string();
+    assert!(err.contains("server.timeouts.body_secs"), "{err}");
+    assert!(toml::from_str::<Config>("[server.timeouts]\nbody = 3\n").is_err());
+}

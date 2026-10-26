@@ -26,6 +26,42 @@ pub struct Server {
     pub limits: Limits,
     #[serde(default)]
     pub webhook: Webhook,
+    /// 服务端时限，防慢速连接和挂死的请求。不写的项用默认值。
+    #[serde(default)]
+    pub timeouts: ServerTimeouts,
+}
+
+/// `[server.timeouts]`：都是秒数，必须大于 0。
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ServerTimeouts {
+    /// 读完请求头（HTTP/1），默认 30。
+    pub header_read_secs: Option<u64>,
+    /// 读完请求体（从请求进来算起的总时间），默认 30。
+    pub body_secs: Option<u64>,
+    /// `/v2/parse` 上传文件的请求体，默认 120（50 MB 要求至少约 0.42 MB/s）。
+    pub upload_body_secs: Option<u64>,
+    /// 整个请求到响应头发出，默认 360（同步 scrape 的 `timeout` 上限 300 秒再加 60 秒）。
+    pub request_secs: Option<u64>,
+}
+
+impl ServerTimeouts {
+    fn to_api(&self) -> Result<pagesift_api::Timeouts> {
+        let mut t = pagesift_api::Timeouts::default();
+        for (name, value, slot) in [
+            ("header_read_secs", self.header_read_secs, &mut t.header_read),
+            ("body_secs", self.body_secs, &mut t.body),
+            ("upload_body_secs", self.upload_body_secs, &mut t.upload_body),
+            ("request_secs", self.request_secs, &mut t.request),
+        ] {
+            match value {
+                Some(0) => bail!("server.timeouts.{name} must be greater than 0"),
+                Some(secs) => *slot = Duration::from_secs(secs),
+                None => {}
+            }
+        }
+        Ok(t)
+    }
 }
 
 /// 按 API key 的限额（不写的项不限）。
@@ -83,6 +119,7 @@ impl Config {
             public_url: s.public_url.clone(),
             max_batch_concurrency: s.max_batch_concurrency,
             default_limits: s.limits.to_api(None),
+            timeouts: s.timeouts.to_api()?,
             ..Default::default()
         };
         for k in &s.keys {
