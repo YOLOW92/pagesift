@@ -177,6 +177,11 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
     let mut tagged_lines = 0;
     let mut bases = Vec::with_capacity(page_ids.len());
 
+    // 书签条目按页分好组，标题匹配的长度上限也只算一次
+    let outline_by_page = structure::outline_by_page(&structure.outline, page_ids.len());
+    let outline_limit = structure::title_limit(&structure.outline);
+    // 调试输出开关只读一次
+    let dump_tables = std::env::var_os("PAGESIFT_PDF_TABLES").is_some();
     let mut fonts = HashMap::new();
     let mut frags = Vec::with_capacity(page_ids.len());
     let mut heights = Vec::with_capacity(page_ids.len());
@@ -214,17 +219,11 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
         }
         // 表格：格子里的片段换成一个原样输出的 Markdown 表格，放在表格顶部的位置
         // 书签声明的标题行（这一页和前一页的条目）标成 keep：不归图，也不当页眉页脚删
-        let outline_here: Vec<structure::Entry> = structure
-            .outline
-            .iter()
-            .filter(|e| e.page.is_some_and(|p| p == index || p + 1 == index))
-            .map(|e| structure::Entry { page: Some(0), ..e.clone() })
-            .collect();
-        structure::keep_outline_lines(std::slice::from_mut(&mut page_frags), &outline_here);
+        structure::keep_outline_lines(&mut page_frags, &outline_by_page[index], outline_limit);
         // 矢量图：图内文字（刻度、图例、标注）不进表格检测、不当标题，合成一个原样输出的块
         let figures = figure::detect(&ink.shapes, &ink.rules, &page_frags, ink.width, ink.height);
         ink.shapes = Vec::new();
-        if std::env::var_os("PAGESIFT_PDF_TABLES").is_some() {
+        if dump_tables {
             for f in &figures {
                 let head: String = figure::text_of(&page_frags, &f.lines)
                     .chars()
@@ -246,7 +245,7 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
             figure::take(&figures, &mut page_frags, std::mem::take(&mut ink.rules));
         let tables = table::extract(&table_rules, &mut page_frags, ink.width, ink.height);
         page_frags.extend(figure_blocks);
-        if std::env::var_os("PAGESIFT_PDF_TABLES").is_some() {
+        if dump_tables {
             for t in &tables {
                 let cols = t.rows.iter().map(Vec::len).max().unwrap_or(0);
                 let head: Vec<String> = t.rows.iter().take(3).map(|r| r.join(" | ")).collect();
