@@ -75,6 +75,8 @@ pub(crate) struct Scope {
     allow_subdomains: bool,
     allow_external: bool,
     path_prefix: Option<String>,
+    /// 起始 URL 是 `.../section.html` 时，`.../section/` 下的子页面也算在范围内。
+    section_prefix: Option<String>,
     include: Vec<Regex>,
     exclude: Vec<Regex>,
 }
@@ -100,6 +102,11 @@ impl Scope {
         let path_prefix = (!entire_domain)
             .then(|| start.path().trim_end_matches('/').to_string())
             .filter(|p| !p.is_empty());
+        // 静态文档站（mdBook、Sphinx 等）把章节页放在 section.html，子页面放在 section/ 下
+        let section_prefix = path_prefix.as_deref().and_then(|p| {
+            let stem = p.strip_suffix(".html").or_else(|| p.strip_suffix(".htm"))?;
+            (!stem.ends_with('/')).then(|| stem.to_string())
+        });
         Ok(Self {
             host: start
                 .host_str()
@@ -109,6 +116,7 @@ impl Scope {
             allow_subdomains,
             allow_external,
             path_prefix,
+            section_prefix,
             include: compile(include)?,
             exclude: compile(exclude)?,
         })
@@ -129,6 +137,10 @@ impl Scope {
         if same
             && let Some(prefix) = &self.path_prefix
             && !(path == prefix || path.starts_with(&format!("{prefix}/")))
+            && !self
+                .section_prefix
+                .as_ref()
+                .is_some_and(|s| path.starts_with(&format!("{s}/")))
         {
             return false;
         }
@@ -435,6 +447,46 @@ mod tests {
             "include pattern"
         );
         assert!(Scope::new(&start, false, false, false, &["(".into()], &[]).is_err());
+    }
+
+    #[test]
+    fn scope_from_a_section_page_covers_its_subdirectory() {
+        let start = u("https://example.com/book/flow_control.html");
+        let s = Scope::new(&start, false, false, false, &[], &[]).unwrap();
+        assert!(s.allows(&start));
+        assert!(s.allows(&u("https://example.com/book/flow_control/loop.html")));
+        assert!(s.allows(&u("https://example.com/book/flow_control/loop/nested.html")));
+        assert!(
+            !s.allows(&u("https://example.com/book/flow_control_extra.html")),
+            "sibling sharing the stem"
+        );
+        assert!(
+            !s.allows(&u("https://example.com/book/types.html")),
+            "sibling page"
+        );
+        let htm = Scope::new(
+            &u("https://example.com/a/b.htm"),
+            false,
+            false,
+            false,
+            &[],
+            &[],
+        )
+        .unwrap();
+        assert!(htm.allows(&u("https://example.com/a/b/c.htm")));
+        let plain = Scope::new(
+            &u("https://example.com/docs/intro"),
+            false,
+            false,
+            false,
+            &[],
+            &[],
+        )
+        .unwrap();
+        assert!(
+            !plain.allows(&u("https://example.com/docs/intro.html")),
+            "no extension, no section rule"
+        );
     }
 
     #[test]
