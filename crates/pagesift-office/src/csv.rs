@@ -56,11 +56,22 @@ fn decode(bytes: &[u8]) -> String {
         [0xFF, 0xFE, ..] | [0xFE, 0xFF, ..] => crate::xml::decode(bytes.to_vec()),
         _ => match std::str::from_utf8(bytes) {
             Ok(s) => s.to_string(),
-            Err(_) => encoding_rs::WINDOWS_1252
-                .decode_without_bom_handling(bytes)
-                .0
-                .into_owned(),
+            Err(_) => bytes.iter().map(|&b| windows_1252(b)).collect(),
         },
+    }
+}
+
+/// Windows-1252（WHATWG Encoding 标准的表）：0x80–0x9F 是印刷符号，其余字节和 Latin-1 相同；
+/// 标准里没定义的 0x81、0x8D、0x8F、0x90、0x9D 按同值的 C1 控制字符。
+fn windows_1252(b: u8) -> char {
+    const HIGH: [char; 32] = [
+        '€', '\u{81}', '‚', 'ƒ', '„', '…', '†', '‡', 'ˆ', '‰', 'Š', '‹', 'Œ', '\u{8D}', 'Ž',
+        '\u{8F}', '\u{90}', '‘', '’', '“', '”', '•', '–', '—', '˜', '™', 'š', '›', 'œ', '\u{9D}',
+        'ž', 'Ÿ',
+    ];
+    match b {
+        0x80..=0x9F => HIGH[usize::from(b - 0x80)],
+        _ => char::from(b),
     }
 }
 
@@ -207,6 +218,11 @@ mod tests {
             "| café | x |\n| --- | --- |\n"
         );
         assert_eq!(md(b"caf\xE9,x\n"), "| café | x |\n| --- | --- |\n");
+        // Windows-1252 的 0x80–0x9F：弯引号、欧元符号；没定义的 0x81 按 C1 控制字符
+        assert_eq!(
+            md(b"\x93q\x94 \x80\x81,x\n"),
+            "| \u{201C}q\u{201D} \u{20AC}\u{81} | x |\n| --- | --- |\n"
+        );
         assert_eq!(
             md(b"a|b,c\n1|2,3\n"),
             "| a\\|b | c |\n| --- | --- |\n| 1\\|2 | 3 |\n"

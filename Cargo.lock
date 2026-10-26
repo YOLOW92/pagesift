@@ -1597,7 +1597,6 @@ dependencies = [
 name = "pagesift-office"
 version = "0.80.0"
 dependencies = [
- "encoding_rs",
  "miniz_oxide",
 ]
 
