@@ -1,6 +1,9 @@
+use std::cell::RefCell;
+
 use crate::{Element, NodeId, NodeRef, Tag};
 
-use super::{AttrOp, AttrSel, Comb, Compound, Nth, Selector, Simple};
+use super::nth::{NthCache, nth_matches};
+use super::{AttrOp, AttrSel, Comb, Compound, Selector, Simple};
 
 // ---------------------------------------------------------------------------
 // 匹配
@@ -11,6 +14,18 @@ pub(crate) struct Ctx {
     pub(super) scope: Option<NodeId>,
     /// `:has()` 正在判断的元素。
     pub(super) anchor: Option<NodeId>,
+    /// `:nth-*` 的位置缓存，见 `nth` 模块。
+    pub(super) nth: RefCell<NthCache>,
+}
+
+impl Ctx {
+    pub(super) fn new(scope: Option<NodeId>, anchor: Option<NodeId>) -> Ctx {
+        Ctx {
+            scope,
+            anchor,
+            nth: RefCell::default(),
+        }
+    }
 }
 
 /// 复杂选择器的匹配结果。失败时告诉上层从哪里重新开始，避免后代组合器的指数回溯
@@ -143,55 +158,9 @@ fn attr_matches(a: &AttrSel, v: &str) -> bool {
     }
 }
 
-fn nth_matches(n: &Nth, el: NodeRef<'_>, e: &Element<'_>, cx: &Ctx) -> bool {
-    if let Some(of) = &n.of
-        && !of.matches_in(el, cx)
-    {
-        return false;
-    }
-    let tag = e.tag();
-    let counts = |s: NodeRef<'_>| {
-        let Some(st) = s.tag() else {
-            return false;
-        };
-        if n.of_type {
-            st == tag
-                && (tag != Tag::Other || s.as_element().is_some_and(|se| se.name() == e.name()))
-        } else if let Some(of) = &n.of {
-            of.matches_in(s, cx)
-        } else {
-            true
-        }
-    };
-    let mut pos = 1i64;
-    let mut cur = el;
-    loop {
-        let next = if n.last {
-            cur.next_sibling()
-        } else {
-            cur.prev_sibling()
-        };
-        let Some(s) = next else { break };
-        if counts(s) {
-            pos += 1;
-        }
-        cur = s;
-    }
-    let (a, b) = (i64::from(n.a), i64::from(n.b));
-    if a == 0 {
-        pos == b
-    } else {
-        let d = pos - b;
-        d % a == 0 && d / a >= 0
-    }
-}
-
 /// `:has()`：锚点后面（后代或之后的兄弟及其后代）有元素匹配相对选择器。
 fn has_matches(sel: &Selector, el: NodeRef<'_>, cx: &Ctx) -> bool {
-    let inner = Ctx {
-        scope: cx.scope,
-        anchor: Some(el.id()),
-    };
+    let inner = Ctx::new(cx.scope, Some(el.id()));
     sel.list.iter().any(|c| {
         let leading = c.parts[c.parts.len() - 2].comb;
         let hit = |n: NodeRef<'_>| {

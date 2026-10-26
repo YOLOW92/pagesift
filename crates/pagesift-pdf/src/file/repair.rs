@@ -29,18 +29,25 @@ pub(crate) fn scan(data: &[u8]) -> Scan {
     let mut out = Scan::default();
     let mut pos = 0;
     let mut line_start = true;
+    // 某处往后已经找不到 endstream 时，后面所有的 stream 都不用再找（否则大量没有
+    // endstream 的 stream 关键字会让扫描变成平方复杂度，模糊测试找到的）
+    let mut endstream_left = true;
     while pos < data.len() {
         let b = data[pos];
         if b == b's'
+            && endstream_left
             && data[pos..].starts_with(b"stream")
             && !data[..pos].ends_with(b"end")
             && matches!(data.get(pos + 6), Some(b'\r' | b'\n'))
         {
             // 没有 endstream 时逐字节继续，至少后面的对象还能找到
-            if let Some(rel) = find(&data[pos + 6..], b"endstream") {
-                pos += 6 + rel + 9;
-                line_start = false;
-                continue;
+            match find(&data[pos + 6..], b"endstream") {
+                Some(rel) => {
+                    pos += 6 + rel + 9;
+                    line_start = false;
+                    continue;
+                }
+                None => endstream_left = false,
             }
         }
         if b == b't' && data[pos..].starts_with(b"trailer") {

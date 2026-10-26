@@ -1489,6 +1489,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "pagesift-fuzz"
+version = "0.73.1"
+dependencies = [
+ "pagesift-content",
+ "pagesift-html",
+ "pagesift-net",
+ "pagesift-pdf",
+ "url",
+]
+
+[[package]]
 name = "pagesift-html"
 version = "0.73.1"
 dependencies = [

@@ -1,0 +1,16 @@
+[package]
+description = "Stable-toolchain mutation fuzzer for pagesift's parsers (HTML, charset detection, Markdown rendering, PDF). Development tool, not published."
+name = "pagesift-fuzz"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+pagesift-content = { path = "../pagesift-content" }
+pagesift-html = { path = "../pagesift-html" }
+pagesift-net = { path = "../pagesift-net" }
+pagesift-pdf = { path = "../pagesift-pdf" }
+url = "2.5.8"
