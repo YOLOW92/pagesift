@@ -9,6 +9,7 @@
 
 #![forbid(unsafe_code)]
 
+mod budget;
 mod cmap;
 mod encoding;
 mod figure;
@@ -141,6 +142,7 @@ const SCANNED_MIN_COVERAGE: f64 = 0.3;
 fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument, Error> {
     let start = Instant::now();
     let deadline = opts.timeout.map(|t| start + t);
+    let _budget = budget::enter(deadline);
     if bytes.len() > opts.max_input_bytes {
         return Err(Error::TooLarge("input size"));
     }
@@ -151,6 +153,7 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
     let doc = Document::open(bytes, opts.max_stream_bytes).map_err(|e| match e {
         OpenError::Encrypted => Error::Encrypted,
         OpenError::Malformed(m) => Error::Malformed(m.into()),
+        OpenError::Timeout => Error::Timeout,
     })?;
     check_deadline(deadline)?;
 

@@ -13,6 +13,8 @@ use super::xref::find;
 const MAX_OBJECTS: usize = 4_000_000;
 /// 对象头后面最多看这么远来判断它是不是 xref 流、对象流或 Catalog。
 const PEEK: usize = 2048;
+/// 扫描时每隔这么多字节检查一次截止时间。
+const CHECK_EVERY: usize = 1 << 20;
 
 #[derive(Default)]
 pub(crate) struct Scan {
@@ -32,7 +34,15 @@ pub(crate) fn scan(data: &[u8]) -> Scan {
     // 某处往后已经找不到 endstream 时，后面所有的 stream 都不用再找（否则大量没有
     // endstream 的 stream 关键字会让扫描变成平方复杂度，模糊测试找到的）
     let mut endstream_left = true;
+    // 每扫 1 MB 看一次截止时间；超时就带着已经扫到的部分返回，由调用方报超时
+    let mut next_check = CHECK_EVERY;
     while pos < data.len() {
+        if pos >= next_check {
+            if crate::budget::expired() {
+                break;
+            }
+            next_check = pos + CHECK_EVERY;
+        }
         let b = data[pos];
         if b == b's'
             && endstream_left

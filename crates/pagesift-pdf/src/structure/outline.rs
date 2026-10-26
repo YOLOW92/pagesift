@@ -41,7 +41,7 @@ pub(crate) fn entries(doc: &Document, pages: &[ObjectId]) -> Vec<Entry> {
         stack.push((first, 1));
     }
     while let Some((node, level)) = stack.pop() {
-        if out.len() >= MAX_ITEMS {
+        if out.len() >= MAX_ITEMS || (out.len() % 256 == 255 && crate::budget::expired()) {
             break;
         }
         if let Object::Reference(id) = node
