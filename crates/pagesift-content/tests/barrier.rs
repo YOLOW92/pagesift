@@ -102,11 +102,29 @@ fn imperva() {
 <body><iframe id="main-iframe" src="/_Incapsula_Resource?CWUDNSAI=9&xinfo=1" frameborder=0>
 Request unsuccessful. Incapsula incident ID: 000000000000000000-0000000000000000</iframe></body></html>"#;
     expect(incident, Some(403), "imperva", BarrierKind::Challenge);
+    // 同一个模板也会以 200 返回（真实网站，2026-10）
+    expect(incident, Some(200), "imperva", BarrierKind::Challenge);
 
     let interruption = r#"<html><head><title>Pardon Our Interruption</title></head><body>
 <h1>Pardon Our Interruption</h1><p>As you were browsing something about your browser made us think you were a bot.</p>
 </body></html>"#;
     expect(interruption, Some(200), "imperva", BarrierKind::Challenge);
+}
+
+#[test]
+fn bytedance_waf() {
+    let html = r#"<!DOCTYPE html><html><head><script id="slardar-config" type="application/json">{"slardarClient": "SlardarWAF"}</script></head>
+<body>Please wait... <p id="wci" class="_wafchallengeid"></p><p id="cs" class="eyJ2Ijp7fX0"></p>
+<script src="https://sf16-website-login.neutral.ttwstatic.com/obj/tiktok_web_login_static/obj/waf-aiso/dd9808.js"></script></body></html>"#;
+    expect(html, Some(200), "bytedance", BarrierKind::Challenge);
+}
+
+#[test]
+fn unsupported_client_page() {
+    let html = r#"<html><head><title>Unsupported client – Example</title></head><body><h1>Please update your browser</h1>
+<p>It seems you are using an old or unsupported browser. To continue, please update to a recent version of one of the following browsers:</p>
+<ul><li>Chrome</li><li>Firefox</li><li>Safari</li><li>Edge</li></ul></body></html>"#;
+    expect(html, Some(200), "generic", BarrierKind::Block);
 }
 
 #[test]
@@ -277,6 +295,11 @@ fn normal_pages_are_not_barriers() {
         page(
             r#"<script src="https://turing.captcha.qcloud.com/TCaptcha.js"></script><script src="//g.alicdn.com/AWSC/AWSC/awsc.js"></script>"#,
             "",
+        ),
+        // 12. 页头横幅提示浏览器不受支持，正文照常
+        page(
+            "",
+            r#"<div class="banner">Your browser is not supported. For the best experience, use a supported browser.</div>"#,
         ),
     ];
     for (i, html) in cases.iter().enumerate() {

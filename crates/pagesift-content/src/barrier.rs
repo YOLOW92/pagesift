@@ -114,6 +114,8 @@ static RULES: &[Rule] = rules![
     "perimeterx.sensor", "perimeterx", Captcha, Hint, H, ["_pxappid", "px-cloud.net"];
     // Imperva / Incapsula（含原 Distil）
     "imperva.incident", "imperva", Block, Marker, T, ["incapsula incident id"];
+    // 挑战页模板把事件号放在 <iframe> 的后备文字里（iframe 里加载挑战脚本），可见文字为空，只能在原始 HTML 里找
+    "imperva.incident_html", "imperva", Challenge, Marker, H, ["incapsula incident id"];
     "imperva.interruption", "imperva", Challenge, Marker, T, ["pardon our interruption"];
     "imperva.resource", "imperva", Challenge, Hint, H, ["_incapsula_resource"];
     // 阿里云 WAF / 滑块验证
@@ -125,6 +127,8 @@ static RULES: &[Rule] = rules![
     "tencent_cloud.waf", "tencent_cloud", Block, Marker, H, ["waf.tencent-cloud.com", "waf.tencent.com"];
     "tencent_cloud.waf_text", "tencent_cloud", Block, Marker, T, ["已被网站管理员设置为拦截"];
     "tencent_cloud.captcha", "tencent_cloud", Captcha, Hint, H, ["turing.captcha.qcloud.com", "captcha.qq.com", "tencentcaptcha"];
+    // 字节跳动 WAF（TikTok 等）的挑战页模板
+    "bytedance.waf_challenge", "bytedance", Challenge, Marker, H, ["_wafchallengeid"];
     // AWS WAF、Sucuri、F5、DDoS-Guard
     "aws_waf.challenge", "aws_waf", Challenge, Marker, H, ["gokuprops"];
     "aws_waf.token", "aws_waf", Challenge, Hint, H, ["awswaf.com", "aws-waf-token"];
@@ -157,6 +161,11 @@ static RULES: &[Rule] = rules![
         "access denied", "you have been blocked", "request blocked", "request rejected",
         "403 forbidden", "you don't have permission to access", "your ip has been blocked",
         "访问被拒绝", "您的访问被阻断", "访问已被拦截",
+    ];
+    // 按客户端拒绝服务的页面（"不支持的浏览器"）：整页只有这句提示，没有内容
+    "generic.unsupported_client", "generic", Block, Phrase, T, [
+        "unsupported client", "unsupported browser", "browser is not supported",
+        "browser is no longer supported", "browser isn't supported",
     ];
     // 德语 / 法语 / 西班牙语的通用拦截页（厂商规则未覆盖时）
     "generic.denied_de", "generic", Block, Phrase, T, [

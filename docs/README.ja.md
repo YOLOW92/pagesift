@@ -45,7 +45,7 @@
 - **本文の誤削除を修正**：レシピの材料リストなど本文内の `<aside>` を保持し、`quickview`/`teaser` のプレビューを本文と誤認しません。
 - **GitHub コードページ**：行番号列を捨て、コード行を 1 つのフェンスにまとめます。
 - **著者とメタデータ**：arXiv の著者行を保持し、`citation_author` を `metadata.author` に反映。`jsonLd` をそのまま透過します。
-- **正直なシグナル**：ドイツ語/フランス語/スペイン語のブロックページを `ACCESS_BARRIER`、年齢確認を `interstitial`、薄い抽出を `thin_content` として報告します。
+- **正直なシグナル**：ドイツ語/フランス語/スペイン語のブロックページを `ACCESS_BARRIER`、年齢確認を `interstitial`、薄い抽出を `thin_content`、本文の一部しか取れていない可能性が高い結果を `partial_content` / `replies_omitted` として報告します。
 - **Feed とメディア**：RSS/Atom を項目リストに変換。画像の `title` を保持し、動画ページは `VideoObject` でタイトルと説明を補います。
 
 詳細：[0.72.8 リリースノート](releases/0.72.8.md)。

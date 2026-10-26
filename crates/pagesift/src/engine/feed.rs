@@ -115,6 +115,7 @@ pub(super) fn parse(xml: &str, wants_links: bool) -> Option<Document> {
         html: None,
         images: None,
         fingerprints: None,
+        coverage: Default::default(),
     })
 }
 
