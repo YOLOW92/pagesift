@@ -124,7 +124,14 @@ pub async fn doctor(cfg: &pagesift::config::Config) -> Result<ExitCode> {
     report(
         true,
         "config",
-        std::env::var("PAGESIFT_CONFIG").unwrap_or_else(|_| "defaults (no config file)".into()),
+        match (&cfg.source, pagesift::config::Config::default_path()) {
+            (Some(p), _) => p.display().to_string(),
+            (None, Some(d)) => format!(
+                "defaults (no config file; create {} to add one)",
+                d.display()
+            ),
+            (None, None) => "defaults (no config file)".into(),
+        },
     );
     // LLM 和搜索是可选能力，没配置只提示，不算失败
     report(

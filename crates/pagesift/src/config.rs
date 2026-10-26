@@ -37,6 +37,21 @@ pub struct Config {
     pub log: Log,
     pub llm: Option<Llm>,
     pub search: Option<Search>,
+    /// 实际读到的配置文件；用默认配置时为 None。
+    #[serde(skip)]
+    pub source: Option<PathBuf>,
+}
+
+fn default_path_from(
+    xdg_config_home: Option<std::ffi::OsString>,
+    home: Option<std::ffi::OsString>,
+) -> Option<PathBuf> {
+    // XDG 规范：值为空或不是绝对路径时视为未设置
+    let base = xdg_config_home
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
+        .or_else(|| home.map(|h| PathBuf::from(h).join(".config")))?;
+    Some(base.join("pagesift").join("pagesift.toml"))
 }
 
 /// 直接写值，或者 `{ env = "VAR" }`。
@@ -229,17 +244,31 @@ pub struct Search {
 }
 
 impl Config {
-    /// 按 `--config`、`PAGESIFT_CONFIG` 的顺序找配置文件；都没有时用默认配置。
+    /// 按 `--config`、`PAGESIFT_CONFIG`、`default_path()`（存在时）的顺序找配置文件；
+    /// 都没有时用默认配置。
     pub fn load(explicit: Option<&Path>) -> Result<Self> {
         let path = explicit
             .map(Path::to_path_buf)
-            .or_else(|| std::env::var_os("PAGESIFT_CONFIG").map(PathBuf::from));
+            .or_else(|| std::env::var_os("PAGESIFT_CONFIG").map(PathBuf::from))
+            .or_else(|| Self::default_path().filter(|p| p.is_file()));
         let Some(path) = path else {
             return Ok(Self::default());
         };
         let text = std::fs::read_to_string(&path)
             .with_context(|| format!("reading {}", path.display()))?;
-        toml::from_str(&text).with_context(|| format!("parsing {}", path.display()))
+        let mut cfg: Self =
+            toml::from_str(&text).with_context(|| format!("parsing {}", path.display()))?;
+        cfg.source = Some(path);
+        Ok(cfg)
+    }
+
+    /// 默认配置文件位置：`$XDG_CONFIG_HOME/pagesift/pagesift.toml`，
+    /// 没设 XDG_CONFIG_HOME 时用 `~/.config/pagesift/pagesift.toml`。
+    pub fn default_path() -> Option<PathBuf> {
+        default_path_from(
+            std::env::var_os("XDG_CONFIG_HOME"),
+            std::env::var_os("HOME"),
+        )
     }
 
     pub fn data_dir(&self) -> PathBuf {
@@ -513,6 +542,42 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn default_path_follows_xdg_then_home() {
+        let p = |x: Option<&str>, h: Option<&str>| {
+            default_path_from(x.map(Into::into), h.map(Into::into))
+        };
+        assert_eq!(
+            p(Some("/xdg"), Some("/home/u")),
+            Some(PathBuf::from("/xdg/pagesift/pagesift.toml"))
+        );
+        assert_eq!(
+            p(None, Some("/home/u")),
+            Some(PathBuf::from("/home/u/.config/pagesift/pagesift.toml"))
+        );
+        assert_eq!(
+            p(Some(""), Some("/home/u")),
+            Some(PathBuf::from("/home/u/.config/pagesift/pagesift.toml")),
+            "empty XDG_CONFIG_HOME counts as unset"
+        );
+        assert_eq!(
+            p(Some("rel"), Some("/home/u")),
+            Some(PathBuf::from("/home/u/.config/pagesift/pagesift.toml")),
+            "relative XDG_CONFIG_HOME is ignored"
+        );
+        assert_eq!(p(None, None), None);
+    }
+
+    #[test]
+    fn load_records_the_file_it_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pagesift.toml");
+        std::fs::write(&path, "[fetch]\ntimeout_secs = 7\n").unwrap();
+        let cfg = Config::load(Some(&path)).unwrap();
+        assert_eq!(cfg.source.as_deref(), Some(path.as_path()));
+        assert_eq!(cfg.fetch.timeout_secs, Some(7));
+    }
 
     /// `api()` 会解析 `api_keys` 里引用的环境变量；测试里只看 keys、限额和 webhook。
     fn cfg_without_env_keys(cfg: &Config) -> pagesift_api::Config {

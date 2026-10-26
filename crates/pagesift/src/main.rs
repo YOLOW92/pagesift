@@ -21,7 +21,7 @@ use url::Url;
     about = "Turn web pages into clean Markdown for LLMs"
 )]
 struct Cli {
-    /// Config file (default: $PAGESIFT_CONFIG); see pagesift.example.toml
+    /// Config file (default: $PAGESIFT_CONFIG, then ~/.config/pagesift/pagesift.toml); see pagesift.example.toml
     #[arg(long, global = true)]
     config: Option<PathBuf>,
     #[command(subcommand)]
