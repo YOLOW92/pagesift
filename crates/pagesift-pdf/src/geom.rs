@@ -32,10 +32,30 @@ impl Rule {
     }
 }
 
+/// 一次绘制的路径（填充或描边），页面坐标的外框：识别矢量图（折线、柱、饼、图例色块）用。
+/// `re` 画的矩形各记一个；其余线段和曲线合成一个。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Shape {
+    pub(crate) x0: f64,
+    pub(crate) y0: f64,
+    pub(crate) x1: f64,
+    pub(crate) y1: f64,
+    /// 既不水平也不竖直的线段数（折线图、箭头、饼图的边），到 u16 上限为止。
+    pub(crate) slanted: u16,
+    /// 曲线段数（饼图、圆点、圆角），到 u16 上限为止。
+    pub(crate) curves: u16,
+    /// 是 `re` 画的矩形。
+    pub(crate) rect: bool,
+    pub(crate) fill: bool,
+    /// 白色的填充或描边（白纸上看不见）：不算图形证据，但它的边不当刻度。
+    pub(crate) visible: bool,
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct PageInk {
     pub(crate) glyphs: Vec<Glyph>,
     pub(crate) rules: Vec<Rule>,
+    pub(crate) shapes: Vec<Shape>,
     pub(crate) image_area: f64,
     pub(crate) image_count: usize,
     pub(crate) width: f64,

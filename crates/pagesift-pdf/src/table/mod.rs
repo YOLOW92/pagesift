@@ -2,6 +2,7 @@
 //! 包含有框线（Lattice）、三线表（Booktabs）与无框线（Stream）多模态提取算法。
 
 pub(crate) mod borderless;
+pub(crate) mod flow;
 pub(crate) mod grid;
 pub(crate) mod lattice;
 
@@ -109,7 +110,48 @@ pub(crate) fn extract(
         })
         .collect();
     tables.extend(ruled_only(&free_h, frags, &mut used, page_width));
-    tables.extend(stream(frags, &mut used, page_height));
+    // 无框线表格在分栏之后找：跨过栏间空白、两边像并排两栏文字的候选（两栏列表、正文和旁边的信息框、
+    // 正文和旁边的小表）不当一张表，按那条空白拆成左右两半各自再找
+    let free: Vec<&Line> = (0..frags.len())
+        .filter(|&k| !used[k])
+        .map(|k| &frags[k])
+        .collect();
+    let gs = crate::layout::gutters_of(&free);
+    let mut split: Vec<(Vec<usize>, f64)> = Vec::new();
+    tables.extend(stream(
+        frags,
+        &mut used,
+        page_height,
+        &mut |mine: &[usize]| match flow::parallel_columns(frags, mine, &gs) {
+            Some(x) => {
+                split.push((mine.to_vec(), x));
+                false
+            }
+            None => true,
+        },
+    ));
+    for (mine, x) in split {
+        let mid = |k: &usize| (frags[*k].x0 + frags[*k].x1) / 2.0;
+        for side in [
+            mine.iter()
+                .filter(|k| mid(k) < x)
+                .copied()
+                .collect::<Vec<_>>(),
+            mine.iter().filter(|k| mid(k) >= x).copied().collect(),
+        ] {
+            let mut trial = vec![true; frags.len()];
+            for &k in &side {
+                trial[k] = used[k];
+            }
+            let found = stream(frags, &mut trial, page_height, &mut |m: &[usize]| {
+                flow::parallel_columns(frags, m, &gs).is_none()
+            });
+            for &k in &side {
+                used[k] |= trial[k];
+            }
+            tables.extend(found);
+        }
+    }
     let mut it = used.iter();
     frags.retain(|_| !it.next().copied().unwrap_or(false));
     tables.sort_by(|a, b| b.top.total_cmp(&a.top));

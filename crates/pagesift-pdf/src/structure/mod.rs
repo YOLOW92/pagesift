@@ -49,8 +49,7 @@ fn title_limit(entries: &[Entry]) -> usize {
     entries.iter().map(|e| Titled::new(&e.title).full.chars().count()).max().unwrap_or(0) + 1
 }
 
-/// keep 只给页眉页脚规则看，那些规则只碰页面上下边缘区里的行和标成 Artifact 的行，别的行不用比。
-pub(crate) fn keep_outline_lines(pages: &mut [Vec<Line>], heights: &[f64], entries: &[Entry]) {
+pub(crate) fn keep_outline_lines(pages: &mut [Vec<Line>], entries: &[Entry]) {
     // 每页的行只归一化一次（书签条目多时，逐条重算是 条目数 × 行数 次），而且只归一化到最长的标题再多一个字
     let mut cache: HashMap<usize, Vec<Option<Titled>>> = HashMap::new();
     let limit = title_limit(entries);
@@ -64,17 +63,7 @@ pub(crate) fn keep_outline_lines(pages: &mut [Vec<Line>], heights: &[f64], entri
             let Some(lines) = pages.get_mut(q) else { continue };
             let titled = cache
                 .entry(q)
-                .or_insert_with(|| {
-                    let h = heights.get(q).copied().unwrap_or(792.0);
-                    lines
-                        .iter()
-                        .map(|l| {
-                            // 比页眉页脚规则的边缘区（12%）宽一些：同一行的片段基线略有出入
-                            let edge = l.y >= h * 0.83 || l.y <= h * 0.17 || l.artifact;
-                            (!l.raw && edge).then(|| Titled::with_limit(&l.text, limit))
-                        })
-                        .collect()
-                });
+                .or_insert_with(|| lines.iter().map(|l| (!l.raw).then(|| Titled::with_limit(&l.text, limit))).collect());
             for (line, t) in lines.iter_mut().zip(titled.iter()) {
                 if let Some(t) = t
                     && matches!(fit(&title, t), Some(Fit::Exact | Fit::Prefix(_)))

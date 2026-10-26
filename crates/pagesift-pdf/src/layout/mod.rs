@@ -325,15 +325,22 @@ fn make_line(glyphs: &[&Glyph]) -> Option<Line> {
 
 /// 找分栏的栏间空白，返回每条空白的 [左, 右]。
 fn gutters(frags: &[Line]) -> Vec<(f64, f64)> {
+    gutters_of(&frags.iter().collect::<Vec<_>>())
+}
+
+/// 同 `gutters`，输入是行的引用（表格检测只看还没归表格的片段）。
+pub(crate) fn gutters_of(frags: &[&Line]) -> Vec<(f64, f64)> {
     let left = frags.iter().map(|f| f.x0).fold(f64::INFINITY, f64::min);
     let right = frags.iter().map(|f| f.x1).fold(f64::NEG_INFINITY, f64::max);
     let width = right - left;
     if width.is_nan() || width <= 1.0 || frags.len() < 6 {
         return Vec::new();
     }
+    // 原样输出的块（表格、图内文字）不当候选
     let cands: Vec<&Line> = frags
         .iter()
-        .filter(|f| f.x1 - f.x0 < 0.55 * width)
+        .copied()
+        .filter(|f| f.x1 - f.x0 < 0.55 * width && !f.raw)
         .collect();
     if cands.len() < 6 {
         return Vec::new();
@@ -355,6 +362,35 @@ fn gutters(frags: &[Line]) -> Vec<(f64, f64)> {
         }
     }
     let tol = (cands.len() / 15).max(1);
+    let out = scan(&cands, &cover, tol, left, scale, min_gap, None);
+    if !out.is_empty() {
+        return out;
+    }
+    // 一条也没找到时再放宽：只看两栏正文（正文字号的行）并排的那段高度，那里没有行跨过空白就算栏间空白
+    // （图上方跨栏的小标题、图例不在这段高度里）
+    scan(
+        &cands,
+        &cover,
+        (cands.len() / 4).max(1),
+        left,
+        scale,
+        min_gap,
+        Some((tol, med)),
+    )
+}
+
+/// 在覆盖直方图里找不超过 `tol` 的空白段。`band_tol`（容差, 正文字号）给出时，再核对两边正文字号的行
+/// 并排的高度范围里，跨过空白的行不超过容差。
+fn scan(
+    cands: &[&Line],
+    cover: &[usize],
+    tol: usize,
+    left: f64,
+    scale: f64,
+    min_gap: f64,
+    band_tol: Option<(usize, f64)>,
+) -> Vec<(f64, f64)> {
+    let bins = cover.len() - 1;
     let mut out = Vec::new();
     let mut start: Option<usize> = None;
     for (i, &c) in cover.iter().enumerate() {
@@ -367,12 +403,45 @@ fn gutters(frags: &[Line]) -> Vec<(f64, f64)> {
                 if s == 0 || i >= bins || g1 - g0 < min_gap {
                     continue;
                 }
-                let lhs = cands.iter().filter(|f| f.x1 <= g0 + 0.5).count();
-                let rhs = cands.iter().filter(|f| f.x0 >= g1 - 0.5).count();
+                let lhs: Vec<&&Line> = cands.iter().filter(|f| f.x1 <= g0 + 0.5).collect();
+                let rhs: Vec<&&Line> = cands.iter().filter(|f| f.x0 >= g1 - 0.5).collect();
                 let need = (cands.len() / 10).max(3);
-                if lhs >= need && rhs >= need {
-                    out.push((g0, g1));
+                if lhs.len() < need || rhs.len() < need {
+                    continue;
                 }
+                if let Some((band_tol, med)) = band_tol {
+                    // 两边都得是正文栏：正文字号的行宽中位数不小于全宽的四分之一（不是编号列、作者名格子）
+                    let full = bins as f64 / scale;
+                    let wide = |v: &[&&Line]| {
+                        let mut w: Vec<f64> = v
+                            .iter()
+                            .filter(|f| (f.size - med).abs() < 0.5)
+                            .map(|f| f.x1 - f.x0)
+                            .collect();
+                        w.sort_by(f64::total_cmp);
+                        w.get(w.len() / 2).is_some_and(|&m| m >= 0.25 * full)
+                    };
+                    if !wide(&lhs) || !wide(&rhs) {
+                        continue;
+                    }
+                    let span = |v: &[&&Line]| {
+                        v.iter()
+                            .filter(|f| (f.size - med).abs() < 0.5)
+                            .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), f| {
+                                (lo.min(f.y), hi.max(f.y))
+                            })
+                    };
+                    let ((l0, l1), (r0, r1)) = (span(&lhs), span(&rhs));
+                    let (lo, hi) = (l0.max(r0), l1.min(r1));
+                    let crossing = cands
+                        .iter()
+                        .filter(|f| f.x0 < g0 - 0.5 && f.x1 > g1 + 0.5 && f.y >= lo && f.y <= hi)
+                        .count();
+                    if lo >= hi || crossing > band_tol {
+                        continue;
+                    }
+                }
+                out.push((g0, g1));
             }
             _ => {}
         }

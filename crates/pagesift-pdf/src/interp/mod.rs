@@ -7,15 +7,19 @@ use std::time::Instant;
 use crate::file::{Dictionary, Document, Object, ObjectId};
 
 use crate::font::{DecodedChar, Font};
-pub(crate) use crate::geom::{Glyph, Matrix, PageInk, Rule};
+pub(crate) use crate::geom::{Glyph, Matrix, PageInk, Rule, Shape};
 use crate::lexer::{Lexer, Operand};
 use crate::obj::{deref, get, get_dict, get_name, num_array, stream_bytes};
+
+mod paint;
+use paint::{EMPTY_BOX, Paint, grow};
 
 /// 一条线段最多可以偏离水平或竖直多少（页面单位）。
 const RULE_SKEW: f64 = 1.0;
 /// 填充的矩形短边不超过这个宽度时当作一条线（很多 PDF 用细长矩形画表格线）。
 const THIN_RECT: f64 = 2.5;
 const MAX_RULES_PER_PAGE: usize = 20_000;
+const MAX_SHAPES_PER_PAGE: usize = 20_000;
 
 #[derive(Clone)]
 struct GState {
@@ -27,6 +31,8 @@ struct GState {
     h_scale: f64,
     leading: f64,
     rise: f64,
+    fill: Paint,
+    stroke: Paint,
 }
 
 #[derive(Debug)]
@@ -118,6 +124,8 @@ impl<'a> Interp<'a> {
             h_scale: 1.0,
             leading: 0.0,
             rise: 0.0,
+            fill: Paint::BLACK,
+            stroke: Paint::BLACK,
         };
         self.run(&content, resources, gs, 0)?;
         Ok(self.ink)
@@ -140,6 +148,9 @@ impl<'a> Interp<'a> {
         let mut rects: Vec<(f64, f64, f64, f64)> = Vec::new();
         let mut cur = (0.0f64, 0.0f64);
         let mut start = (0.0f64, 0.0f64);
+        // 当前路径里的曲线段数和外框（用户坐标，含控制点）
+        let mut curves = 0u32;
+        let mut pbox = EMPTY_BOX;
         while let Some(op) = lx.next_op() {
             if self.ops_left == 0 {
                 break;
@@ -236,14 +247,22 @@ impl<'a> Interp<'a> {
                 b"m" => {
                     cur = (n(0), n(1));
                     start = cur;
+                    grow(&mut pbox, cur);
                 }
                 b"l" => {
                     let p = (n(0), n(1));
                     segs.push((cur.0, cur.1, p.0, p.1));
                     cur = p;
+                    grow(&mut pbox, cur);
                 }
-                b"c" => cur = (n(4), n(5)),
-                b"v" | b"y" => cur = (n(2), n(3)),
+                b"c" | b"v" | b"y" => {
+                    let k = a.len().min(6) / 2;
+                    for i in 0..k {
+                        grow(&mut pbox, (n(2 * i), n(2 * i + 1)));
+                    }
+                    cur = (n(2 * k.max(1) - 2), n(2 * k.max(1) - 1));
+                    curves += 1;
+                }
                 b"h" => {
                     segs.push((cur.0, cur.1, start.0, start.1));
                     cur = start;
@@ -256,12 +275,23 @@ impl<'a> Interp<'a> {
                 b"S" | b"s" | b"f" | b"F" | b"f*" | b"B" | b"B*" | b"b" | b"b*" => {
                     let fill = !matches!(op.name.as_slice(), b"S" | b"s");
                     self.rules(&segs, &rects, &gs.ctm, fill);
+                    self.shapes(&segs, &rects, curves, pbox, &gs, fill);
                     segs.clear();
                     rects.clear();
+                    curves = 0;
+                    pbox = EMPTY_BOX;
                 }
                 b"n" => {
                     segs.clear();
                     rects.clear();
+                    curves = 0;
+                    pbox = EMPTY_BOX;
+                }
+                b"g" | b"G" | b"rg" | b"RG" | b"k" | b"K" | b"cs" | b"CS" | b"sc" | b"scn"
+                | b"SC" | b"SCN" => {
+                    let (mut f, mut st) = (gs.fill, gs.stroke);
+                    self.color(&op.name, a, resources, &mut f, &mut st);
+                    (gs.fill, gs.stroke) = (f, st);
                 }
                 b"BI" => self.image(&gs.ctm),
                 b"BMC" | b"BDC" => {

@@ -127,7 +127,13 @@ pub(crate) fn ruled_only(
 }
 
 /// 无框线表格检测（基于多列短片段连通流分析）。
-pub(crate) fn stream(frags: &[Line], used: &mut [bool], page_height: f64) -> Vec<Table> {
+/// `accept` 再核对一遍候选的片段（分栏之后的判断）。
+pub(crate) fn stream(
+    frags: &[Line],
+    used: &mut [bool],
+    page_height: f64,
+    accept: &mut dyn FnMut(&[usize]) -> bool,
+) -> Vec<Table> {
     let free: Vec<usize> = (0..frags.len()).filter(|&k| !used[k]).collect();
     if free.len() < 6 {
         return Vec::new();
@@ -185,7 +191,9 @@ pub(crate) fn stream(frags: &[Line], used: &mut [bool], page_height: f64) -> Vec
                 .fold(f64::NEG_INFINITY, f64::max);
             let top = y(&rows[i]) + size;
             let bottom = y(&rows[j - 1]) - 0.5 * size;
-            if let Some(t) = super::grid::text_grid(frags, &mine, x0, x1, top, bottom) {
+            if let Some(t) =
+                super::grid::text_grid(frags, &mine, x0, x1, top, bottom).filter(|_| accept(&mine))
+            {
                 for k in mine {
                     used[k] = true;
                 }
