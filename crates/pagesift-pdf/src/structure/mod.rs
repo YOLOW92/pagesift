@@ -46,7 +46,12 @@ pub(crate) fn tag_lines(lines: &mut [Line], headings: &HashMap<i32, (u8, u32)>) 
 /// 去页眉页脚之前：这一页（或相邻页）书签标题对得上的行标成 keep，免得页首的小节标题被当页眉删掉。
 /// 段落文字只需归一化到最长的书签标题再多一个字符（见 `Titled::with_limit`）。
 pub(crate) fn title_limit(entries: &[Entry]) -> usize {
-    entries.iter().map(|e| Titled::new(&e.title).full.chars().count()).max().unwrap_or(0) + 1
+    entries
+        .iter()
+        .map(|e| Titled::new(&e.title).full.chars().count())
+        .max()
+        .unwrap_or(0)
+        + 1
 }
 
 /// 书签条目按页分组：第 p 页的条目也放进第 p+1 页（目标在页底时标题常在下一页）。
@@ -69,7 +74,10 @@ pub(crate) fn keep_outline_lines(lines: &mut [Line], entries: &[&Entry], limit: 
     if entries.is_empty() {
         return;
     }
-    let lazy: Vec<Option<Lazy>> = lines.iter().map(|l| (!l.raw).then(|| Lazy::new(&l.text))).collect();
+    let lazy: Vec<Option<Lazy>> = lines
+        .iter()
+        .map(|l| (!l.raw).then(|| Lazy::new(&l.text)))
+        .collect();
     for e in entries {
         let title = Titled::new(&e.title);
         if title.full.chars().count() < 2 {
@@ -77,7 +85,10 @@ pub(crate) fn keep_outline_lines(lines: &mut [Line], entries: &[&Entry], limit: 
         }
         for (line, t) in lines.iter_mut().zip(lazy.iter()) {
             if let Some(t) = t
-                && matches!(t.fit(&title, &line.text, limit), Some(Fit::Exact | Fit::Prefix(_)))
+                && matches!(
+                    t.fit(&title, &line.text, limit),
+                    Some(Fit::Exact | Fit::Prefix(_))
+                )
             {
                 line.keep = true;
             }
@@ -87,7 +98,11 @@ pub(crate) fn keep_outline_lines(lines: &mut [Line], entries: &[&Entry], limit: 
 
 /// 书签：在目标页（及相邻页）上找文字对得上的段落，标上层级；段落以标题开头、后面粘着正文时拆成两段。
 /// `bases[i]` 是第 i 页用户空间到页面坐标的变换（用来换算目标位置）。返回对上的条目数。
-pub(crate) fn mark_outline(pages: &mut [Vec<Para>], entries: &[Entry], bases: &[Option<Matrix>]) -> usize {
+pub(crate) fn mark_outline(
+    pages: &mut [Vec<Para>],
+    entries: &[Entry],
+    bases: &[Option<Matrix>],
+) -> usize {
     let mut matched = 0;
     // 每页段落的归一化文字只算一次；拆段改了某页时只作废那一页
     let mut cache: HashMap<usize, Vec<Option<Lazy>>> = HashMap::new();
@@ -106,9 +121,12 @@ pub(crate) fn mark_outline(pages: &mut [Vec<Para>], entries: &[Entry], bases: &[
         let near = [Some(p), p.checked_add(1), p.checked_sub(1)];
         for (rank, q) in near.into_iter().flatten().enumerate() {
             let Some(paras) = pages.get(q) else { continue };
-            let titled = cache
-                .entry(q)
-                .or_insert_with(|| paras.iter().map(|para| (!para.raw).then(|| Lazy::new(&para.text))).collect());
+            let titled = cache.entry(q).or_insert_with(|| {
+                paras
+                    .iter()
+                    .map(|para| (!para.raw).then(|| Lazy::new(&para.text)))
+                    .collect()
+            });
             for (i, (para, t)) in paras.iter().zip(titled.iter()).enumerate() {
                 let Some(t) = t.as_ref().filter(|_| para.hint.is_none()) else {
                     continue;
@@ -120,7 +138,11 @@ pub(crate) fn mark_outline(pages: &mut [Vec<Para>], entries: &[Entry], bases: &[
                 let dist = match (rank, top) {
                     (0, Some(t)) => {
                         let d = t - para.top;
-                        if d >= -para.size { d.abs() } else { 1e5 + d.abs() }
+                        if d >= -para.size {
+                            d.abs()
+                        } else {
+                            1e5 + d.abs()
+                        }
                     }
                     (0, None) => i as f64,
                     _ => 1e6 * rank as f64 + i as f64,

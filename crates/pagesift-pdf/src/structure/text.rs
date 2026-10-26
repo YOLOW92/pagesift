@@ -58,14 +58,19 @@ pub(super) struct Lazy {
 
 impl Lazy {
     pub(super) fn new(s: &str) -> Self {
-        let first = s.chars().map(half).find(|c| c.is_alphanumeric()).and_then(|c| c.to_lowercase().next());
-        let maybe_numbered = s
-            .trim_start()
+        let first = s
             .chars()
-            .next()
             .map(half)
-            .is_some_and(|c| c.is_ascii_digit() || c.is_ascii_uppercase() || matches!(c, '(' | '[' | '第'));
-        Lazy { first, maybe_numbered, titled: std::cell::OnceCell::new() }
+            .find(|c| c.is_alphanumeric())
+            .and_then(|c| c.to_lowercase().next());
+        let maybe_numbered = s.trim_start().chars().next().map(half).is_some_and(|c| {
+            c.is_ascii_digit() || c.is_ascii_uppercase() || matches!(c, '(' | '[' | '第')
+        });
+        Lazy {
+            first,
+            maybe_numbered,
+            titled: std::cell::OnceCell::new(),
+        }
     }
 
     /// 和 `fit(title, &Titled::with_limit(s, limit))` 结果相同；首字符就对不上的直接返回 None。
@@ -77,7 +82,10 @@ impl Lazy {
         {
             return None;
         }
-        fit(title, self.titled.get_or_init(|| Titled::with_limit(s, limit)))
+        fit(
+            title,
+            self.titled.get_or_init(|| Titled::with_limit(s, limit)),
+        )
     }
 }
 
@@ -90,7 +98,9 @@ pub(super) fn fit(title: &Titled, text: &Titled) -> Option<Fit> {
     let first = |s: &str| s.chars().next();
     if !title.full.is_empty()
         && first(&text.full) != first(&title.full)
-        && (t.is_empty() || (first(x) != first(t) && text.raw_letter_rest.as_deref().and_then(first) != first(t)))
+        && (t.is_empty()
+            || (first(x) != first(t)
+                && text.raw_letter_rest.as_deref().and_then(first) != first(t)))
     {
         return None;
     }
@@ -135,7 +145,11 @@ fn norm_n(s: &str, limit: usize) -> String {
 }
 
 fn norm_len(s: &str) -> usize {
-    s.chars().map(half).filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).count()
+    s.chars()
+        .map(half)
+        .filter(|c| c.is_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .count()
 }
 
 /// 去掉开头的章节编号：`3.2.1`、`A.1.`、`IV.`、`(1)`、`（１）`、`１．`、`第3章`、`Chapter 2`……
@@ -144,7 +158,11 @@ pub(crate) fn strip_numbering(s: &str) -> &str {
     let t = s.trim_start();
     // 编号只在开头：先只看前 64 个字符；判断时碰到了这个边界才看全文（结果与一开始就看全文相同）
     const HEAD: usize = 64;
-    let head: Vec<(usize, char)> = t.char_indices().take(HEAD).map(|(i, c)| (i, half(c))).collect();
+    let head: Vec<(usize, char)> = t
+        .char_indices()
+        .take(HEAD)
+        .map(|(i, c)| (i, half(c)))
+        .collect();
     if head.len() < HEAD {
         return strip_numbering_in(t, &head).0;
     }
@@ -185,7 +203,8 @@ fn strip_numbering_body<'a>(
     // 第N章 / 第N節 / 第N部
     if at(0) == Some('第') {
         let mut j = 1;
-        while at(j).is_some_and(|c| c.is_ascii_digit() || "一二三四五六七八九十百".contains(c)) {
+        while at(j).is_some_and(|c| c.is_ascii_digit() || "一二三四五六七八九十百".contains(c))
+        {
             j += 1;
         }
         if j > 1 && at(j).is_some_and(|c| "章節节部編编条".contains(c)) {
@@ -193,9 +212,19 @@ fn strip_numbering_body<'a>(
         }
         return t;
     }
-    for word in ["Chapter ", "CHAPTER ", "Section ", "SECTION ", "Part ", "PART ", "Appendix ", "APPENDIX "] {
+    for word in [
+        "Chapter ",
+        "CHAPTER ",
+        "Section ",
+        "SECTION ",
+        "Part ",
+        "PART ",
+        "Appendix ",
+        "APPENDIX ",
+    ] {
         if let Some(r) = t.strip_prefix(word) {
-            let tail = r.trim_start_matches(|c: char| c.is_ascii_alphanumeric() || c == '.' || c == ':');
+            let tail =
+                r.trim_start_matches(|c: char| c.is_ascii_alphanumeric() || c == '.' || c == ':');
             if tail.len() < r.len() {
                 return tail.trim_start();
             }
@@ -302,8 +331,16 @@ mod tests {
     /// 截断版（只看开头 64 个字符、只归一化到标题长度、首字符预筛）和看全文的结果相同。
     #[test]
     fn shortcuts_match_full_computation() {
-        let long_num = format!("{} 标题", (1..40).map(|i| (i % 10).to_string()).collect::<Vec<_>>().join("."));
-        let body = "Introduction to the method and a very long paragraph of body text that goes on ".repeat(5);
+        let long_num = format!(
+            "{} 标题",
+            (1..40)
+                .map(|i| (i % 10).to_string())
+                .collect::<Vec<_>>()
+                .join(".")
+        );
+        let body =
+            "Introduction to the method and a very long paragraph of body text that goes on "
+                .repeat(5);
         let texts = [
             "3.2 Results",
             "（１）概要",
@@ -318,32 +355,61 @@ mod tests {
             "",
         ];
         for t in texts {
-            let all: Vec<(usize, char)> = t.trim_start().char_indices().map(|(i, c)| (i, half(c))).collect();
-            assert_eq!(strip_numbering(t), strip_numbering_in(t.trim_start(), &all).0, "{t}");
+            let all: Vec<(usize, char)> = t
+                .trim_start()
+                .char_indices()
+                .map(|(i, c)| (i, half(c)))
+                .collect();
+            assert_eq!(
+                strip_numbering(t),
+                strip_numbering_in(t.trim_start(), &all).0,
+                "{t}"
+            );
         }
-        for title in ["Results", "3.2 Results", "Introduction", "概要", "Appendix", "Discussion", "方法"] {
+        for title in [
+            "Results",
+            "3.2 Results",
+            "Introduction",
+            "概要",
+            "Appendix",
+            "Discussion",
+            "方法",
+        ] {
             let tt = Titled::new(title);
             let limit = tt.full.chars().count() + 1;
             for t in texts {
                 let lazy = Lazy::new(t);
-                assert_eq!(lazy.fit(&tt, t, limit), fit(&tt, &Titled::new(t)), "{title} / {t}");
+                assert_eq!(
+                    lazy.fit(&tt, t, limit),
+                    fit(&tt, &Titled::new(t)),
+                    "{title} / {t}"
+                );
             }
         }
     }
 
     #[test]
     fn numbering() {
-        assert_eq!(strip_numbering("3.2.1 Scaled Dot-Product"), "Scaled Dot-Product");
+        assert_eq!(
+            strip_numbering("3.2.1 Scaled Dot-Product"),
+            "Scaled Dot-Product"
+        );
         assert_eq!(strip_numbering("B.3.1. RL Data"), "RL Data");
         assert_eq!(strip_numbering("IV. Results"), "Results");
         assert_eq!(strip_numbering("１．わが国の経済"), "わが国の経済");
-        assert_eq!(strip_numbering("（２）物価の中心的な見通し"), "物価の中心的な見通し");
+        assert_eq!(
+            strip_numbering("（２）物価の中心的な見通し"),
+            "物価の中心的な見通し"
+        );
         assert_eq!(strip_numbering("第3章 概要"), "概要");
         assert_eq!(strip_numbering("Introduction"), "Introduction");
         assert_eq!(strip_numbering("A New Approach"), "A New Approach");
         assert_eq!(strip_numbering("I think"), "I think");
         assert_eq!(strip_numbering("2 Background"), "Background");
-        assert_eq!(strip_numbering("１．2025年３月期の連結業績"), "2025年３月期の連結業績");
+        assert_eq!(
+            strip_numbering("１．2025年３月期の連結業績"),
+            "2025年３月期の連結業績"
+        );
         assert_eq!(strip_numbering("1882年（明治15年）"), "1882年（明治15年）");
         assert_eq!(strip_numbering("C."), "");
         assert_eq!(strip_numbering("CHAPTER 2"), "");
@@ -353,13 +419,28 @@ mod tests {
     #[test]
     fn fits() {
         let f = |a: &str, b: &str| fit(&Titled::new(a), &Titled::new(b));
-        assert_eq!(f("3.1 Encoder and Decoder Stacks", "3.1 Encoder and Decoder Stacks"), Some(Fit::Exact));
-        assert_eq!(f("Encoder and Decoder Stacks", "3.1 Encoder and Decoder Stacks"), Some(Fit::Exact));
+        assert_eq!(
+            f(
+                "3.1 Encoder and Decoder Stacks",
+                "3.1 Encoder and Decoder Stacks"
+            ),
+            Some(Fit::Exact)
+        );
+        assert_eq!(
+            f(
+                "Encoder and Decoder Stacks",
+                "3.1 Encoder and Decoder Stacks"
+            ),
+            Some(Fit::Exact)
+        );
         assert_eq!(f("RL Data", "B.3.1. RL Data"), Some(Fit::Exact));
         assert_eq!(f("Background", "A. Background"), Some(Fit::Exact));
         assert_eq!(f("Contributions", "A.1 Contributions"), Some(Fit::Exact));
         assert_eq!(f("Appendix", "A Appendix"), Some(Fit::Exact));
-        assert_eq!(f("＜概要＞", "＜概要＞先行きのわが国経済"), Some(Fit::Prefix(2)));
+        assert_eq!(
+            f("＜概要＞", "＜概要＞先行きのわが国経済"),
+            Some(Fit::Prefix(2))
+        );
         assert!(f("Introduction", "In this paper we").is_none());
     }
 }

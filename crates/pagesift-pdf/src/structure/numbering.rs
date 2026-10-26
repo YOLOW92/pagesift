@@ -48,13 +48,22 @@ pub(crate) fn numbering(text: &str) -> Option<(Style, &str)> {
     let t = text.trim();
     let first = t.chars().next()?;
     // 整行括起来的标题：【基本的見解】、＜概要＞（后面可能跟脚注号）
-    for (open, close, style) in [('【', '】', Style::Lenticular), ('＜', '＞', Style::Angle), ('〈', '〉', Style::Angle), ('《', '》', Style::Angle)] {
+    for (open, close, style) in [
+        ('【', '】', Style::Lenticular),
+        ('＜', '＞', Style::Angle),
+        ('〈', '〉', Style::Angle),
+        ('《', '》', Style::Angle),
+    ] {
         if first == open
             && let Some(end) = t.find(close)
         {
             let inner = &t[open.len_utf8()..end];
             let rest = t[end + close.len_utf8()..].trim();
-            if !inner.is_empty() && rest.chars().all(|c| half(c).is_ascii_digit() || c.is_whitespace()) {
+            if !inner.is_empty()
+                && rest
+                    .chars()
+                    .all(|c| half(c).is_ascii_digit() || c.is_whitespace())
+            {
                 return Some((style, inner));
             }
             return None;
@@ -98,7 +107,12 @@ pub(crate) fn numbering(text: &str) -> Option<(Style, &str)> {
         } else {
             Style::Letter(segments(head))
         }
-    } else if head.split_whitespace().next().is_some_and(|w| ["Chapter", "CHAPTER", "Section", "SECTION", "Part", "PART", "Appendix", "APPENDIX"].contains(&w)) {
+    } else if head.split_whitespace().next().is_some_and(|w| {
+        [
+            "Chapter", "CHAPTER", "Section", "SECTION", "Part", "PART", "Appendix", "APPENDIX",
+        ]
+        .contains(&w)
+    }) {
         Style::Chapter
     } else {
         return None;
@@ -109,7 +123,10 @@ pub(crate) fn numbering(text: &str) -> Option<(Style, &str)> {
 /// `3.1.2.` → 3
 fn segments(head: &str) -> u8 {
     let core = head.trim_end_matches(['.', ')', ':', '、']);
-    core.split('.').filter(|s| !s.is_empty()).count().clamp(1, 6) as u8
+    core.split('.')
+        .filter(|s| !s.is_empty())
+        .count()
+        .clamp(1, 6) as u8
 }
 
 #[cfg(test)]
@@ -119,17 +136,35 @@ mod tests {
     #[test]
     fn styles() {
         assert_eq!(numbering("2.1 DATA"), Some((Style::Decimal(2), "DATA")));
-        assert_eq!(numbering("3 Model Architecture"), Some((Style::Decimal(1), "Model Architecture")));
-        assert_eq!(numbering("B.3.1. RL Data"), Some((Style::Letter(3), "RL Data")));
-        assert_eq!(numbering("【基本的見解】 1"), Some((Style::Lenticular, "基本的見解")));
+        assert_eq!(
+            numbering("3 Model Architecture"),
+            Some((Style::Decimal(1), "Model Architecture"))
+        );
+        assert_eq!(
+            numbering("B.3.1. RL Data"),
+            Some((Style::Letter(3), "RL Data"))
+        );
+        assert_eq!(
+            numbering("【基本的見解】 1"),
+            Some((Style::Lenticular, "基本的見解"))
+        );
         assert_eq!(numbering("＜概要＞"), Some((Style::Angle, "概要")));
-        assert_eq!(numbering("１．わが国の経済・物価の現状"), Some((Style::Decimal(1), "わが国の経済・物価の現状")));
-        assert_eq!(numbering("（１）経済の中心的な見通し"), Some((Style::Paren, "経済の中心的な見通し")));
+        assert_eq!(
+            numbering("１．わが国の経済・物価の現状"),
+            Some((Style::Decimal(1), "わが国の経済・物価の現状"))
+        );
+        assert_eq!(
+            numbering("（１）経済の中心的な見通し"),
+            Some((Style::Paren, "経済の中心的な見通し"))
+        );
         assert_eq!(numbering("第2章 概要"), Some((Style::Chapter, "概要")));
         assert_eq!(numbering("[12] A. Author, Title"), None);
         assert_eq!(numbering("The model"), None);
         assert_eq!(numbering("(TS), located on Woodstock beach"), None);
-        assert_eq!(numbering("(a) First item"), Some((Style::Paren, "First item")));
+        assert_eq!(
+            numbering("(a) First item"),
+            Some((Style::Paren, "First item"))
+        );
         assert_eq!(numbering("IV. Results"), Some((Style::Roman, "Results")));
     }
 }

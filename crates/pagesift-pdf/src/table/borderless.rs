@@ -42,6 +42,24 @@ pub(crate) fn is_marker(s: &str) -> bool {
 }
 
 /// 窄栏正文过滤：检查是否误把正文或带引导线的目录识别为表格。
+/// 只有一栏有字：带边框的文字框或版面上的一块正文，不是表格
+/// （表格至少两栏有内容；Camelot 的网格模式同样要求）。只看“别的栏一个字都没有”：
+/// 真表格里一栏装下九成文字很常见（“项目 | 说明”），放宽到比例会误伤（olmOCR 表格题降 0.005）。
+pub(crate) fn single_column(t: &Table) -> bool {
+    let cols = t.rows.iter().map(Vec::len).max().unwrap_or(0);
+    if cols < 2 {
+        return false;
+    }
+    let mut per: Vec<usize> = vec![0; cols];
+    for r in &t.rows {
+        for (i, c) in r.iter().enumerate() {
+            per[i] += c.chars().filter(|ch| !ch.is_whitespace()).count();
+        }
+    }
+    let total: usize = per.iter().sum();
+    total > 0 && per.iter().filter(|&&n| n > 0).count() == 1
+}
+
 pub(crate) fn prose(t: &Table) -> bool {
     let cells: Vec<&String> = t.rows.iter().flatten().filter(|c| !c.is_empty()).collect();
     let n = cells.len().max(1) as f64;
@@ -69,12 +87,13 @@ pub(crate) fn prose(t: &Table) -> bool {
     lower / n > 0.25 || words / n > 4.0 || cjk / n > 0.25 || leader
 }
 
-/// 三线表检测（横向范围相近、上下对齐的横线组合）。
+/// 三线表检测（横向范围相近、上下对齐的横线组合）。`accept` 再核对一遍候选的片段。
 pub(crate) fn ruled_only(
     h: &[HEdge],
     frags: &[Line],
     used: &mut [bool],
     page_width: f64,
+    accept: &mut dyn FnMut(&Table, &[usize]) -> bool,
 ) -> Vec<Table> {
     let long: Vec<&HEdge> = h
         .iter()
@@ -106,7 +125,9 @@ pub(crate) fn ruled_only(
             let mut found = None;
             for b in (a + 1..group.len()).rev() {
                 let (top, bottom) = (long[group[a]].y, long[group[b]].y);
-                if let Some(t) = region(frags, used, x0, x1, top, bottom) {
+                if let Some(t) =
+                    region(frags, used, x0, x1, top, bottom).filter(|(t, m)| accept(t, m))
+                {
                     found = Some((b, t));
                     break;
                 }

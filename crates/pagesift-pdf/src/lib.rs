@@ -213,7 +213,8 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
         stats.push((text_chars, ink.image_count, scanned));
         heights.push(ink.height);
         bases.push(ink.base);
-        let mut page_frags = layout::fragments(&ink.glyphs, structure.tags.as_ref().map(|t| &t[index]));
+        let mut page_frags =
+            layout::fragments(&ink.glyphs, structure.tags.as_ref().map(|t| &t[index]));
         if let Some(tags) = &structure.tags {
             tagged_lines += structure::tag_lines(&mut page_frags, &tags[index]);
         }
@@ -243,13 +244,29 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
         }
         let (figure_blocks, table_rules) =
             figure::take(&figures, &mut page_frags, std::mem::take(&mut ink.rules));
-        let tables = table::extract(&table_rules, &mut page_frags, ink.width, ink.height);
+        let tables = table::extract(
+            &table_rules,
+            &mut page_frags,
+            &figures,
+            ink.width,
+            ink.height,
+        );
         page_frags.extend(figure_blocks);
         if dump_tables {
             for t in &tables {
                 let cols = t.rows.iter().map(Vec::len).max().unwrap_or(0);
                 let head: Vec<String> = t.rows.iter().take(3).map(|r| r.join(" | ")).collect();
-                eprintln!("table\t{}\t{:.0}\t{:.0}\t{:.0}\t{:.0}\t{}x{}\t{}", index + 1, t.x0, t.top, t.x1, t.bottom, t.rows.len(), cols, head.join(" // "));
+                eprintln!(
+                    "table\t{}\t{:.0}\t{:.0}\t{:.0}\t{:.0}\t{}x{}\t{}",
+                    index + 1,
+                    t.x0,
+                    t.top,
+                    t.x1,
+                    t.bottom,
+                    t.rows.len(),
+                    cols,
+                    head.join(" // ")
+                );
             }
         }
         if !tables.is_empty() {
@@ -291,7 +308,11 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
         structure::mark_outline(&mut paras, &structure.outline, &bases);
         layout::Mode::Hinted
     } else {
-        let located = structure.outline.iter().filter(|e| e.page.is_some()).count();
+        let located = structure
+            .outline
+            .iter()
+            .filter(|e| e.page.is_some())
+            .count();
         // 结构树没起作用时，行上的少量标签提示不能留着（否则会把段落切碎）
         for p in paras.iter_mut().flatten() {
             p.hint = None;

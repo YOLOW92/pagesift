@@ -117,8 +117,15 @@ fn compose_tex(text: &str) -> String {
 
 /// 把一页的字形聚合成行片段。`heading_of` 给出 MCID 所属的标题元素（结构树）：
 /// 同一条基线上属于不同标题元素（或一边是标题一边不是）的字形分成不同片段。
-pub(crate) fn fragments(glyphs: &[Glyph], heading_of: Option<&HashMap<i32, (u8, u32)>>) -> Vec<Line> {
-    let group = |g: &Glyph| heading_of.and_then(|h| g.mcid.and_then(|m| h.get(&m))).map(|&(_, e)| e);
+pub(crate) fn fragments(
+    glyphs: &[Glyph],
+    heading_of: Option<&HashMap<i32, (u8, u32)>>,
+) -> Vec<Line> {
+    let group = |g: &Glyph| {
+        heading_of
+            .and_then(|h| g.mcid.and_then(|m| h.get(&m)))
+            .map(|&(_, e)| e)
+    };
     let mut order: Vec<usize> = (0..glyphs.len()).collect();
     order.sort_by(|&a, &b| {
         glyphs[b]
@@ -206,7 +213,9 @@ pub(crate) fn fragments(glyphs: &[Glyph], heading_of: Option<&HashMap<i32, (u8, 
                     continue;
                 }
                 let gap = g.x - prev_end;
-                if gap > SPLIT_GAP * g.size.max(p.size) || (heading_of.is_some() && group(p) != group(g)) {
+                if gap > SPLIT_GAP * g.size.max(p.size)
+                    || (heading_of.is_some() && group(p) != group(g))
+                {
                     out.extend(make_line(&cur));
                     cur.clear();
                     prev_end = f64::NEG_INFINITY;

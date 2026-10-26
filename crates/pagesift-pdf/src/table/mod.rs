@@ -6,6 +6,7 @@ pub(crate) mod flow;
 pub(crate) mod grid;
 pub(crate) mod lattice;
 
+use crate::figure::Figure;
 use crate::interp::Rule;
 use crate::layout::Line;
 use borderless::{ruled_only, stream};
@@ -41,14 +42,44 @@ impl Table {
     }
 }
 
+/// 候选压在图区上就不是表格：图里的刻度、图例、标注常排成行列，表格却不会和图叠在一起
+/// （开发集 143 张真表格和图区的重叠都是 0）。重叠超过候选面积一成才算，碰边不算。
+fn on_figure(figures: &[Figure], frags: &[Line], mine: &[usize]) -> bool {
+    let (mut x0, mut x1, mut top, mut bottom) = (
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::NEG_INFINITY,
+        f64::INFINITY,
+    );
+    for &k in mine {
+        let f = &frags[k];
+        x0 = x0.min(f.x0);
+        x1 = x1.max(f.x1);
+        top = top.max(f.y + f.size);
+        bottom = bottom.min(f.y);
+    }
+    box_on_figure(figures, x0, x1, top, bottom)
+}
+
+fn box_on_figure(figures: &[Figure], x0: f64, x1: f64, top: f64, bottom: f64) -> bool {
+    let area = ((x1 - x0) * (top - bottom)).max(1e-6);
+    figures.iter().any(|g| {
+        let w = x1.min(g.x1) - x0.max(g.x0);
+        let h = top.min(g.top) - bottom.max(g.bottom);
+        w > 0.0 && h > 0.0 && w * h >= 0.1 * area
+    })
+}
+
 fn filled(t: &Table) -> usize {
     t.rows.iter().flatten().filter(|c| !c.is_empty()).count()
 }
 
 /// 找一页的表格。表格里的片段从 `frags` 里拿掉，返回的表格按从上到下排列。
+/// `figures` 是这一页已经识别出的图区（图内的行已经从 `frags` 拿走）。
 pub(crate) fn extract(
     rules: &[Rule],
     frags: &mut Vec<Line>,
+    figures: &[Figure],
     page_width: f64,
     page_height: f64,
 ) -> Vec<Table> {
@@ -62,7 +93,9 @@ pub(crate) fn extract(
         for cells in lattice(&h, &v) {
             if cells.len() >= 2 {
                 let mut trial = used.clone();
-                if let Some((t, crowded, horiz)) = grid(&cells, frags, &mut trial) {
+                if let Some((t, crowded, horiz)) = grid(&cells, frags, &mut trial)
+                    .filter(|(t, ..)| !box_on_figure(figures, t.x0, t.x1, t.top, t.bottom))
+                {
                     let unruled_body = t.rows.len() <= 2;
                     let should_fallback = (unruled_body
                         && (crowded > 0.3 || cells.iter().any(|c| (c.1 - c.3) > 3.5 * 10.0)))
@@ -70,6 +103,7 @@ pub(crate) fn extract(
                     if should_fallback
                         && let Some((alt, mine)) = region(frags, &used, t.x0, t.x1, t.top, t.bottom)
                         && filled(&alt) > filled(&t)
+                        && !on_figure(figures, frags, &mine)
                     {
                         for k in mine {
                             used[k] = true;
@@ -87,8 +121,9 @@ pub(crate) fn extract(
             let top = cells.iter().map(|c| c.1).fold(f64::NEG_INFINITY, f64::max);
             let bottom = cells.iter().map(|c| c.3).fold(f64::INFINITY, f64::min);
             if x1 - x0 >= 0.2 * page_width
-                && let Some((t, mine)) =
-                    region(frags, &used, x0, x1, top, bottom).filter(|(t, _)| t.rows.len() >= 3)
+                && !box_on_figure(figures, x0, x1, top, bottom)
+                && let Some((t, mine)) = region(frags, &used, x0, x1, top, bottom)
+                    .filter(|(t, mine)| t.rows.len() >= 3 && !on_figure(figures, frags, mine))
             {
                 for k in mine {
                     used[k] = true;
@@ -109,7 +144,15 @@ pub(crate) fn extract(
             })
         })
         .collect();
-    tables.extend(ruled_only(&free_h, frags, &mut used, page_width));
+    tables.extend(ruled_only(
+        &free_h,
+        frags,
+        &mut used,
+        page_width,
+        &mut |t: &Table, m: &[usize]| {
+            !box_on_figure(figures, t.x0, t.x1, t.top, t.bottom) && !on_figure(figures, frags, m)
+        },
+    ));
     // 无框线表格在分栏之后找：跨过栏间空白、两边像并排两栏文字的候选（两栏列表、正文和旁边的信息框、
     // 正文和旁边的小表）不当一张表，按那条空白拆成左右两半各自再找
     let free: Vec<&Line> = (0..frags.len())
@@ -122,12 +165,17 @@ pub(crate) fn extract(
         frags,
         &mut used,
         page_height,
-        &mut |mine: &[usize]| match flow::parallel_columns(frags, mine, &gs) {
-            Some(x) => {
-                split.push((mine.to_vec(), x));
-                false
+        &mut |mine: &[usize]| {
+            if on_figure(figures, frags, mine) {
+                return false;
             }
-            None => true,
+            match flow::parallel_columns(frags, mine, &gs) {
+                Some(x) => {
+                    split.push((mine.to_vec(), x));
+                    false
+                }
+                None => true,
+            }
         },
     ));
     for (mine, x) in split {
@@ -144,7 +192,7 @@ pub(crate) fn extract(
                 trial[k] = used[k];
             }
             let found = stream(frags, &mut trial, page_height, &mut |m: &[usize]| {
-                flow::parallel_columns(frags, m, &gs).is_none()
+                !on_figure(figures, frags, m) && flow::parallel_columns(frags, m, &gs).is_none()
             });
             for &k in &side {
                 used[k] |= trial[k];
@@ -215,7 +263,7 @@ mod tests {
             frag("42", 205.0, 666.0),
             frag("body text", 100.0, 500.0),
         ];
-        let tables = extract(&rules, &mut frags, 600.0, 800.0);
+        let tables = extract(&rules, &mut frags, &[], 600.0, 800.0);
         assert_eq!(tables.len(), 1);
         assert_eq!(tables[0].rows, [["Name", "Age"], ["Ann", "42"]]);
         assert_eq!(frags.len(), 1, "table fragments leave the body text");
@@ -239,7 +287,7 @@ mod tests {
             frag("Ship", 100.0, 634.0),
             frag("July 1", 250.0, 634.0),
         ];
-        let tables = extract(&rules, &mut frags, 600.0, 800.0);
+        let tables = extract(&rules, &mut frags, &[], 600.0, 800.0);
         assert_eq!(tables.len(), 1);
         assert_eq!(
             tables[0].rows,
@@ -271,11 +319,37 @@ mod tests {
             let y = 650.0 - 15.0 * i as f64;
             frags.extend([frag(k, 50.0, y), frag(a, 150.0, y), frag(b, 250.0, y)]);
         }
-        let tables = extract(&[], &mut frags, 600.0, 800.0);
+        let tables = extract(&[], &mut frags, &[], 600.0, 800.0);
         assert_eq!(tables.len(), 1);
         assert_eq!(tables[0].rows[0], ["Q1", "$448", "5%"]);
         assert_eq!(tables[0].rows.len(), 4);
         assert_eq!(frags.len(), 1);
+    }
+
+    #[test]
+    fn rows_of_labels_on_a_figure_are_not_a_table() {
+        let mut frags = Vec::new();
+        for (i, (k, a, b)) in [
+            ("Q1", "$448", "5%"),
+            ("Q2", "$427", "7%"),
+            ("Q3", "$512", "3%"),
+            ("Q4", "$530", "4%"),
+        ]
+        .iter()
+        .enumerate()
+        {
+            let y = 650.0 - 15.0 * i as f64;
+            frags.extend([frag(k, 50.0, y), frag(a, 150.0, y), frag(b, 250.0, y)]);
+        }
+        let figure = Figure {
+            x0: 40.0,
+            bottom: 560.0,
+            x1: 320.0,
+            top: 700.0,
+            lines: Vec::new(),
+        };
+        assert!(extract(&[], &mut frags.clone(), &[figure], 600.0, 800.0).is_empty());
+        assert_eq!(extract(&[], &mut frags, &[], 600.0, 800.0).len(), 1);
     }
 
     #[test]
@@ -298,7 +372,7 @@ mod tests {
             frags.push(frag(left[i], 50.0, y));
             frags.push(frag(right[i], 300.0, y));
         }
-        assert!(extract(&[], &mut frags, 600.0, 800.0).is_empty());
+        assert!(extract(&[], &mut frags, &[], 600.0, 800.0).is_empty());
         assert_eq!(frags.len(), 8);
     }
 
@@ -318,7 +392,7 @@ mod tests {
             frags.push(frag(&format!("{}.", i + 1), 50.0, y));
             frags.push(frag(t, 80.0, y));
         }
-        assert!(extract(&[], &mut frags, 600.0, 800.0).is_empty());
+        assert!(extract(&[], &mut frags, &[], 600.0, 800.0).is_empty());
     }
 
     #[test]

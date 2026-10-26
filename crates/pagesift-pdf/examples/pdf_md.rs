@@ -17,7 +17,11 @@ fn main() {
             pagesift_pdf::extract_with(&bytes, &opts)
         };
         let md = r.map(|d| d.markdown).unwrap_or_default();
-        let stem = std::path::Path::new(&path).file_stem().unwrap().to_string_lossy().into_owned();
+        let stem = std::path::Path::new(&path)
+            .file_stem()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
         std::fs::write(out.join(format!("{stem}.md")), md).expect("write");
     }
 }

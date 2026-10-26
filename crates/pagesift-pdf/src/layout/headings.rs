@@ -43,12 +43,20 @@ pub(crate) fn levels(cands: &[Cand]) -> Vec<usize> {
     let mut common: HashMap<i64, HashMap<(usize, u8), usize>> = HashMap::new();
     for c in cands {
         if let Some(s) = c.style {
-            *common.entry(bucket(c.size)).or_default().entry(rank(s)).or_default() += 1;
+            *common
+                .entry(bucket(c.size))
+                .or_default()
+                .entry(rank(s))
+                .or_default() += 1;
         }
     }
     let common: HashMap<i64, (usize, u8)> = common
         .into_iter()
-        .filter_map(|(b, m)| m.into_iter().max_by(|a, b| a.1.cmp(&b.1).then(b.0.cmp(&a.0))).map(|(r, _)| (b, r)))
+        .filter_map(|(b, m)| {
+            m.into_iter()
+                .max_by(|a, b| a.1.cmp(&b.1).then(b.0.cmp(&a.0)))
+                .map(|(r, _)| (b, r))
+        })
         .collect();
     let key = |c: &Cand| -> (i64, Option<(usize, u8)>) {
         let b = bucket(c.size);
@@ -60,7 +68,9 @@ pub(crate) fn levels(cands: &[Cand]) -> Vec<usize> {
     keys.dedup();
     // 超过 6 级时，先把最上面只出现一次、没编号的几档（封面的题名块）并进第一级，
     // 免得最深的几级编号被挤成同一级
-    let single = |k: &(i64, Option<(usize, u8)>)| k.1.is_none() && all.iter().filter(|x| *x == k).count() == 1;
+    let single = |k: &(i64, Option<(usize, u8)>)| {
+        k.1.is_none() && all.iter().filter(|x| *x == k).count() == 1
+    };
     let mut merged = 0;
     if keys.first().is_some_and(single) {
         while merged < keys.len().saturating_sub(6) && keys.get(merged + 1).is_some_and(single) {
@@ -85,11 +95,11 @@ mod tests {
     fn size_then_numbering() {
         let c = |size: f64, style: Option<Style>| Cand { size, style };
         let cands = [
-            c(17.0, None),                        // 文档题名
-            c(12.0, Some(Style::Decimal(1))),     // 2 PRETRAINING
-            c(10.0, Some(Style::Decimal(2))),     // 2.1 DATA
-            c(10.0, Some(Style::Decimal(3))),     // 2.1.1
-            c(12.0, None),                        // References（和一级标题同字号）
+            c(17.0, None),                    // 文档题名
+            c(12.0, Some(Style::Decimal(1))), // 2 PRETRAINING
+            c(10.0, Some(Style::Decimal(2))), // 2.1 DATA
+            c(10.0, Some(Style::Decimal(3))), // 2.1.1
+            c(12.0, None),                    // References（和一级标题同字号）
         ];
         assert_eq!(levels(&cands), vec![1, 2, 3, 4, 2]);
         // 日文：同一字号，按样式出现的先后
