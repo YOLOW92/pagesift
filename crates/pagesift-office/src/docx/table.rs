@@ -6,9 +6,19 @@ use crate::Error;
 use crate::md::Block;
 use crate::xml::{Reader, Tok, local_name};
 
-/// 表格：合并单元格展开（横向合并补空格子，纵向合并的下面几格留空），嵌套表格压成文字。
-pub(super) fn table(r: &mut Reader<'_>, ctx: &mut Ctx<'_>) -> Result<Vec<Vec<String>>, Error> {
-    let mut rows = Vec::new();
+/// 一个单元格：里面的块（段落、内层表格）和横向跨的列数。纵向合并的续格没有块。
+struct Cell {
+    blocks: Vec<Block>,
+    span: usize,
+}
+
+/// 表格：合并单元格展开（横向合并补空格子，纵向合并的下面几格留空）。
+///
+/// 单元格里还有表格的，外层是排版用的（Word 里常见：外层表摆位置，内层才是数据表），
+/// 不输出成表：按行、按单元格的顺序把里面的块原样输出，内层表格照常成表（同样的规则逐层适用）。
+/// 外层压成一张表的话，内层的行列只能挤成单元格里的几行文字，数据表的结构就丢了。
+pub(super) fn table(r: &mut Reader<'_>, ctx: &mut Ctx<'_>) -> Result<Vec<Block>, Error> {
+    let mut rows: Vec<Vec<Cell>> = Vec::new();
     let mut depth = 1;
     while let Some(t) = r.next()? {
         match t {
@@ -26,10 +36,44 @@ pub(super) fn table(r: &mut Reader<'_>, ctx: &mut Ctx<'_>) -> Result<Vec<Vec<Str
             Tok::Text(_) => {}
         }
     }
-    Ok(rows)
+    let layout = rows
+        .iter()
+        .flatten()
+        .any(|c| c.blocks.iter().any(|b| matches!(b, Block::Table(_))));
+    if layout {
+        return Ok(rows.into_iter().flatten().flat_map(|c| c.blocks).collect());
+    }
+    let mut grid = Vec::with_capacity(rows.len());
+    for row in rows {
+        let mut cells = Vec::with_capacity(row.len());
+        for c in row {
+            let lines: Vec<String> = c
+                .blocks
+                .iter()
+                .map(flat)
+                .filter(|l| !l.trim().is_empty())
+                .collect();
+            cells.push(lines.join("\n"));
+            cells.extend(std::iter::repeat_n(String::new(), c.span.saturating_sub(1)));
+        }
+        grid.push(cells);
+    }
+    Ok(if grid.is_empty() {
+        Vec::new()
+    } else {
+        vec![Block::Table(grid)]
+    })
 }
 
-fn row(r: &mut Reader<'_>, ctx: &mut Ctx<'_>) -> Result<Vec<String>, Error> {
+fn empty(n: usize) -> impl Iterator<Item = Cell> {
+    std::iter::repeat_with(|| Cell {
+        blocks: Vec::new(),
+        span: 1,
+    })
+    .take(n)
+}
+
+fn row(r: &mut Reader<'_>, ctx: &mut Ctx<'_>) -> Result<Vec<Cell>, Error> {
     let mut cells = Vec::new();
     let mut depth = 1;
     let mut after = 0;
@@ -38,7 +82,7 @@ fn row(r: &mut Reader<'_>, ctx: &mut Ctx<'_>) -> Result<Vec<String>, Error> {
             Tok::Start(name, a) => match local_name(name) {
                 "gridBefore" => {
                     let n: usize = a.get("val").and_then(|v| v.parse().ok()).unwrap_or(0);
-                    cells.extend(std::iter::repeat_n(String::new(), n.min(64)));
+                    cells.extend(empty(n.min(64)));
                     depth += 1;
                 }
                 "gridAfter" => {
@@ -49,11 +93,7 @@ fn row(r: &mut Reader<'_>, ctx: &mut Ctx<'_>) -> Result<Vec<String>, Error> {
                         .min(64);
                     depth += 1;
                 }
-                "tc" => {
-                    let (text, span) = cell(r, ctx)?;
-                    cells.push(text);
-                    cells.extend(std::iter::repeat_n(String::new(), span.saturating_sub(1)));
-                }
+                "tc" => cells.push(cell(r, ctx)?),
                 _ => depth += 1,
             },
             Tok::End(_) => {
@@ -65,15 +105,14 @@ fn row(r: &mut Reader<'_>, ctx: &mut Ctx<'_>) -> Result<Vec<String>, Error> {
             Tok::Text(_) => {}
         }
     }
-    cells.extend(std::iter::repeat_n(String::new(), after));
+    cells.extend(empty(after));
     Ok(cells)
 }
 
-/// 一个单元格：文字（段落之间换行）和横向跨的列数。纵向合并的续格内容为空。
-fn cell(r: &mut Reader<'_>, ctx: &mut Ctx<'_>) -> Result<(String, usize), Error> {
+fn cell(r: &mut Reader<'_>, ctx: &mut Ctx<'_>) -> Result<Cell, Error> {
     let mut span = 1usize;
     let mut merged = false;
-    let mut lines = Vec::new();
+    let mut blocks = Vec::new();
     let mut depth = 1;
     while let Some(t) = r.next()? {
         match t {
@@ -90,21 +129,8 @@ fn cell(r: &mut Reader<'_>, ctx: &mut Ctx<'_>) -> Result<(String, usize), Error>
                     merged = a.get("val").is_none_or(|v| v != "restart");
                     depth += 1;
                 }
-                "p" => {
-                    let mut blocks = Vec::new();
-                    paragraph(r, ctx, &mut blocks)?;
-                    lines.extend(blocks.iter().map(flat));
-                }
-                "tbl" => {
-                    for row in table(r, ctx)? {
-                        let joined: Vec<&str> = row
-                            .iter()
-                            .map(String::as_str)
-                            .filter(|c| !c.is_empty())
-                            .collect();
-                        lines.push(joined.join(" "));
-                    }
-                }
+                "p" => paragraph(r, ctx, &mut blocks)?,
+                "tbl" => blocks.extend(table(r, ctx)?),
                 _ => depth += 1,
             },
             Tok::End(_) => {
@@ -117,10 +143,9 @@ fn cell(r: &mut Reader<'_>, ctx: &mut Ctx<'_>) -> Result<(String, usize), Error>
         }
     }
     if merged {
-        return Ok((String::new(), span));
+        blocks.clear();
     }
-    let lines: Vec<String> = lines.into_iter().filter(|l| !l.trim().is_empty()).collect();
-    Ok((lines.join("\n"), span))
+    Ok(Cell { blocks, span })
 }
 
 /// 单元格里的块压成一行文字。

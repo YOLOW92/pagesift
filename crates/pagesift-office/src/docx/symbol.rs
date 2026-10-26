@@ -1,7 +1,8 @@
 //! `w:sym` 和 Symbol 字体文字的字符转换。
 
 /// `w:sym`：符号字体的字符码（常写成 F0xx 私用区）转成 Unicode。Symbol 字体按 Adobe Symbol 编码；
-/// 其他字体（Wingdings 之类是图形符号）只认普通 Unicode 字符。
+/// 对不上的（Symbol 编码里没定义的码位、Wingdings 之类的图形符号）原样保留私用区字符，
+/// 不丢掉：那里原本有个符号（表单里常是勾选框），和 Word 导出纯文本、LibreOffice、pandoc 的做法一致。
 pub(super) fn symbol_char(font: &str, code: u32) -> Option<char> {
     let low = if (0xF000..=0xF0FF).contains(&code) {
         code - 0xF000
@@ -67,11 +68,11 @@ pub(super) fn symbol_char(font: &str, code: u32) -> Option<char> {
             0xE5 => '∑',
             0xF2 => '∫',
             0x20..=0x7E => char::from_u32(low)?,
-            _ => return None,
+            _ => return char::from_u32(code),
         };
         return Some(c);
     }
-    char::from_u32(code).filter(|c| !('\u{E000}'..='\u{F8FF}').contains(c))
+    char::from_u32(code)
 }
 
 #[cfg(test)]
@@ -82,7 +83,8 @@ mod tests {
     fn symbol_font_characters() {
         assert_eq!(symbol_char("Symbol", 0xF0B4), Some('×'));
         assert_eq!(symbol_char("Symbol", 0xF061), Some('α'));
-        assert_eq!(symbol_char("Wingdings", 0xF0FC), None);
+        assert_eq!(symbol_char("Wingdings", 0xF0FC), Some('\u{F0FC}'));
+        assert_eq!(symbol_char("Symbol", 0xF094), Some('\u{F094}'));
         assert_eq!(symbol_char("Arial", 0x2192), Some('→'));
     }
 }

@@ -229,4 +229,17 @@ mod tests {
             "![A grey cat](word/media/cat.png)\n\nBoxed\n\n${E}^{2}$\n"
         );
     }
+
+    #[test]
+    fn layout_table_with_nested_table_is_unwrapped() {
+        let inner = r#"<w:tbl><w:tr><w:tc><w:p><w:r><w:t>k</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>v</w:t></w:r></w:p></w:tc></w:tr>
+<w:tr><w:tc><w:p><w:r><w:t>1</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>2</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"#;
+        let body = format!(
+            r#"<w:tbl><w:tr><w:tc><w:p><w:r><w:t>Side</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Data:</w:t></w:r></w:p>{inner}</w:tc></w:tr></w:tbl>"#
+        );
+        assert_eq!(
+            md(&docx(&body, &[])),
+            "Side\n\nData:\n\n| k | v |\n| --- | --- |\n| 1 | 2 |\n"
+        );
+    }
 }

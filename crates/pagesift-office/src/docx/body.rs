@@ -33,17 +33,12 @@ pub(super) fn container(r: &mut Reader<'_>, ctx: &mut Ctx<'_>) -> Result<Vec<Blo
                     }
                     paragraph(r, ctx, &mut blocks)?;
                 }
-                "tbl" => {
-                    let rows = table(r, ctx)?;
-                    if !rows.is_empty() {
-                        blocks.push(Block::Table(rows));
-                    }
-                }
+                "tbl" => blocks.extend(table(r, ctx)?),
                 // 删除的内容、节属性、Office 2010 以后的替代内容的旧版备份（和新版重复）
                 "del" | "moveFrom" | "sectPr" | "Fallback" => r.skip()?,
                 "oMathPara" | "oMath" => {
                     let node = math::Node::read(r, local_name(name))?;
-                    blocks.push(Block::Para(format!("$$\n{}\n$$", node.latex().trim())));
+                    blocks.push(Block::Raw(format!("$$\n{}\n$$", node.latex().trim())));
                 }
                 _ => {
                     let _ = a;

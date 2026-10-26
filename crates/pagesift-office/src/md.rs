@@ -34,7 +34,7 @@ pub(crate) fn render(blocks: &[Block]) -> String {
                 out.push(' ');
                 out.push_str(text);
             }
-            Block::Para(text) => out.push_str(&guard_line_start(text)),
+            Block::Para(text) => out.push_str(&guard_lines(text, 0)),
             Block::Item {
                 level,
                 ordered,
@@ -42,13 +42,16 @@ pub(crate) fn render(blocks: &[Block]) -> String {
                 text,
             } => {
                 // 有序列表的子项要缩进到父项文字对齐的位置；统一按 4 个空格一级，两种列表都能嵌套
-                out.push_str(&"    ".repeat(usize::from(*level)));
-                if *ordered {
-                    out.push_str(&format!("{number}. "));
+                let indent = "    ".repeat(usize::from(*level));
+                let marker = if *ordered {
+                    format!("{number}. ")
                 } else {
-                    out.push_str("- ");
-                }
-                out.push_str(&guard_line_start(text));
+                    "- ".to_string()
+                };
+                out.push_str(&indent);
+                out.push_str(&marker);
+                // 段内换行之后的续行缩进到列表项文字的位置，仍属于这一项
+                out.push_str(&guard_lines(text, indent.len() + marker.len()));
             }
             Block::Table(rows) => table(&mut out, rows),
             Block::Raw(s) => out.push_str(s),
@@ -116,6 +119,20 @@ pub(crate) fn escape(s: &str) -> String {
             out.push('\\');
         }
         out.push(ch);
+    }
+    out
+}
+
+/// 段内每一行（硬换行之后的续行也会被当成新块的开头）都做 [`guard_line_start`]，续行前补 `indent` 个空格。
+fn guard_lines(text: &str, indent: usize) -> String {
+    let pad = " ".repeat(indent);
+    let mut out = String::with_capacity(text.len());
+    for (i, line) in text.split('\n').enumerate() {
+        if i > 0 {
+            out.push('\n');
+            out.push_str(&pad);
+        }
+        out.push_str(&guard_line_start(line));
     }
     out
 }
@@ -192,6 +209,13 @@ mod tests {
                 number: 0,
                 text: "sub".into(),
             },
+            Block::Item {
+                level: 0,
+                ordered: false,
+                number: 0,
+                text: "first\\\n# second".into(),
+            },
+            Block::Para("line\\\n- not a list".into()),
             Block::Table(vec![
                 vec!["a".into(), "b|c".into()],
                 vec!["line1\nline2".into()],
@@ -199,7 +223,7 @@ mod tests {
         ]);
         assert_eq!(
             md,
-            "## Title\n\n\\# not a heading\n\n3. three\n    - sub\n\n| a | b\\|c |\n| --- | --- |\n| line1<br>line2 |  |\n"
+            "## Title\n\n\\# not a heading\n\n3. three\n    - sub\n- first\\\n  \\# second\n\nline\\\n\\- not a list\n\n| a | b\\|c |\n| --- | --- |\n| line1<br>line2 |  |\n"
         );
     }
 
