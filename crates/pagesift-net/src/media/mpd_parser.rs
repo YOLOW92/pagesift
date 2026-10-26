@@ -104,7 +104,8 @@ impl Template {
         self.media = self.media.or_else(|| p.media.clone());
         self.start_number = self.start_number.or(p.start_number);
         self.duration = self.duration.or(p.duration);
-        self.presentation_time_offset = self.presentation_time_offset.or(p.presentation_time_offset);
+        self.presentation_time_offset =
+            self.presentation_time_offset.or(p.presentation_time_offset);
         self.timeline = self.timeline.or_else(|| p.timeline.clone());
         self
     }
@@ -190,7 +191,13 @@ fn segments(
     let too_many = || DashError::InvalidValue(format!("more than {MAX_SEGMENTS} segments"));
     let push = |out: &mut Vec<DashSegment>, number: u64, time: u64, duration_s: f64| {
         out.push(DashSegment {
-            uri: resolve(&replace_template(media, &rep.id, number, rep.bandwidth, time)),
+            uri: resolve(&replace_template(
+                media,
+                &rep.id,
+                number,
+                rep.bandwidth,
+                time,
+            )),
             duration_s,
             number,
             is_init: false,
@@ -226,7 +233,8 @@ fn segments(
                 number += 1;
             }
         }
-    } else if let (Some(dur), Some(total)) = (template.duration.filter(|&d| d > 0), period_duration) {
+    } else if let (Some(dur), Some(total)) = (template.duration.filter(|&d| d > 0), period_duration)
+    {
         let seg_s = dur as f64 / timescale as f64;
         // The tolerance keeps 6.000000001 segments from becoming 7.
         let count = (total / seg_s - 1e-9).ceil().max(0.0);
@@ -349,7 +357,11 @@ impl State {
                 }
             }
             "S" => {
-                let mut s = TimelineEntry { t: None, d: 0, r: 0 };
+                let mut s = TimelineEntry {
+                    t: None,
+                    d: 0,
+                    r: 0,
+                };
                 for (k, v) in attrs(e) {
                     match k.as_str() {
                         "t" => s.t = v.parse().ok(),
@@ -466,13 +478,19 @@ pub fn parse_mpd(xml_content: &str, base_url: Option<&Url>) -> Result<DashManife
 
     let durations = period_durations(&st.periods, st.duration_s);
     for p in &st.pending {
-        let Some(template) = &p.template else { continue };
+        let Some(template) = &p.template else {
+            continue;
+        };
         let period_duration = match p.period {
             Some(i) => durations[i],
             None => st.duration_s,
         };
         // An unclosed AdaptationSet at end of input never reached `sets`.
-        let Some(rep) = st.sets.get_mut(p.set).map(|s| &mut s.representations[p.rep]) else {
+        let Some(rep) = st
+            .sets
+            .get_mut(p.set)
+            .map(|s| &mut s.representations[p.rep])
+        else {
             continue;
         };
         rep.segments = segments(rep, template, p.base.as_deref(), period_duration)?;

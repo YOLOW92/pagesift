@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let reader = BufReader::new(file);
     let lines: Vec<String> = reader
         .lines()
-        .filter_map(|l| l.ok())
+        .map_while(Result::ok)
         .filter(|l| !l.trim().is_empty())
         .collect();
     let total = lines.len();

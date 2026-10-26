@@ -25,7 +25,10 @@ fn scanned_pdf() -> Vec<u8> {
         "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
         "<< /Type /Pages /Count 1 /Kids [3 0 R] >>".into(),
         "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>".into(),
-        format!("<< /Length {} >>\nstream\n{content}\nendstream", content.len()),
+        format!(
+            "<< /Length {} >>\nstream\n{content}\nendstream",
+            content.len()
+        ),
     ];
     let mut out = b"%PDF-1.7\n".to_vec();
     let mut offsets = Vec::new();
@@ -360,14 +363,37 @@ async fn scrape_honours_pdf_parsers_like_parse() {
     assert_eq!(a["metadata"]["numPages"], 2);
     assert_eq!(a["metadata"]["totalPages"], 3);
     // Firecrawl SDK 的写法：字符串 "pdf" 和 "image"
-    let (s, v) = scrape(&app, &url, json!({"maxAge": 0, "parsers": ["pdf", "image"]})).await;
+    let (s, v) = scrape(
+        &app,
+        &url,
+        json!({"maxAge": 0, "parsers": ["pdf", "image"]}),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK, "{v}");
-    assert!(v["data"]["markdown"].as_str().unwrap().contains("Gamma page."));
+    assert!(
+        v["data"]["markdown"]
+            .as_str()
+            .unwrap()
+            .contains("Gamma page.")
+    );
     // 写错的 parsers 在抓取前报 400
-    let (s, v) = scrape(&app, &url, json!({"parsers": [{"type": "pdf", "maxPages": 0}]})).await;
+    let (s, v) = scrape(
+        &app,
+        &url,
+        json!({"parsers": [{"type": "pdf", "maxPages": 0}]}),
+    )
+    .await;
     assert_eq!(s, StatusCode::BAD_REQUEST, "{v}");
-    let (s, v) = scrape(&app, &url, json!({"parsers": [{"type": "pdf", "mode": "ocr"}]})).await;
-    assert_eq!((s, v["code"].as_str()), (StatusCode::BAD_REQUEST, Some("UNSUPPORTED_OPTION")));
+    let (s, v) = scrape(
+        &app,
+        &url,
+        json!({"parsers": [{"type": "pdf", "mode": "ocr"}]}),
+    )
+    .await;
+    assert_eq!(
+        (s, v["code"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("UNSUPPORTED_OPTION"))
+    );
 }
 
 #[tokio::test]
@@ -375,7 +401,12 @@ async fn empty_parsers_return_the_pdf_as_base64() {
     let bytes = pdf(&["Raw page."], "Raw", false);
     let app = app();
     let url = pdf_url(bytes.clone()).await;
-    let (s, v) = scrape(&app, &url, json!({"maxAge": 0, "parsers": [], "formats": ["markdown", "html"]})).await;
+    let (s, v) = scrape(
+        &app,
+        &url,
+        json!({"maxAge": 0, "parsers": [], "formats": ["markdown", "html"]}),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK, "{v}");
     let md = v["data"]["markdown"].as_str().unwrap();
     assert!(md.starts_with("JVBERi0"), "{md}"); // "%PDF-" 的 base64
@@ -390,8 +421,18 @@ async fn scrape_reports_bad_encrypted_and_scanned_pdfs_as_caller_errors() {
     let mut broken = pdf(&["x"], "t", false);
     broken.truncate(40);
     let cases = [
-        (broken, json!({}), StatusCode::BAD_REQUEST, "INVALID_REQUEST"),
-        (pdf(&["secret"], "t", true), json!({}), StatusCode::BAD_REQUEST, "UNSUPPORTED_OPTION"),
+        (
+            broken,
+            json!({}),
+            StatusCode::BAD_REQUEST,
+            "INVALID_REQUEST",
+        ),
+        (
+            pdf(&["secret"], "t", true),
+            json!({}),
+            StatusCode::BAD_REQUEST,
+            "UNSUPPORTED_OPTION",
+        ),
         (
             scanned_pdf(),
             json!({"parsers": [{"type": "pdf", "mode": "fast"}]}),

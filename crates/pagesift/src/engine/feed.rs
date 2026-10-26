@@ -177,7 +177,11 @@ fn read(xml: &str) -> Option<Feed> {
                 if e.local_name().as_ref() == "link"
                     && let Some(href) = attr(&e, "href")
                 {
-                    let link = if in_item { &mut item.link } else { &mut feed.link };
+                    let link = if in_item {
+                        &mut item.link
+                    } else {
+                        &mut feed.link
+                    };
                     if link.is_empty() {
                         *link = href;
                     }
@@ -303,7 +307,8 @@ fn strip_html(s: &str) -> String {
     while let Some(lt) = rest.find('<') {
         out.push_str(&rest[..lt]);
         let tag = &rest[lt..];
-        if !tag[1..].starts_with(|c: char| c.is_ascii_alphabetic() || matches!(c, '/' | '!' | '?')) {
+        if !tag[1..].starts_with(|c: char| c.is_ascii_alphabetic() || matches!(c, '/' | '!' | '?'))
+        {
             out.push('<');
             rest = &tag[1..];
             continue;

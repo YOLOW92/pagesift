@@ -133,12 +133,10 @@ fn template_content_never_becomes_the_body() {
 
 #[test]
 fn short_body_is_not_replaced_by_video_metadata() {
-    let html = format!(
-        r#"<html><head><title>Note</title><script type="application/ld+json">
-           {{"@type":"VideoObject","name":"Sidebar video","description":"Unrelated clip"}}</script></head>
+    let html = r#"<html><head><title>Note</title><script type="application/ld+json">
+           {"@type":"VideoObject","name":"Sidebar video","description":"Unrelated clip"}</script></head>
            <body><main><p>A short but real note of about one hundred characters, written by a human.</p></main>
-           <aside><iframe src="https://www.youtube.com/embed/x"></iframe></aside></body></html>"#
-    );
+           <aside><iframe src="https://www.youtube.com/embed/x"></iframe></aside></body></html>"#.to_string();
     let doc = process(&html, &opts());
     assert!(
         doc.markdown.contains("short but real note"),

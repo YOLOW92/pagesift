@@ -233,10 +233,10 @@ fn detect_system_memory_bytes() -> Option<u64> {
         for line in content.lines() {
             if line.starts_with("MemTotal:") {
                 let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 2 {
-                    if let Ok(kb) = parts[1].parse::<u64>() {
-                        return Some(kb * 1024);
-                    }
+                if parts.len() >= 2
+                    && let Ok(kb) = parts[1].parse::<u64>()
+                {
+                    return Some(kb * 1024);
                 }
             }
         }
@@ -250,10 +250,10 @@ fn detect_fd_limit() -> usize {
         for line in content.lines() {
             if line.contains("Max open files") {
                 let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 5 {
-                    if let Ok(soft) = parts[3].parse::<usize>() {
-                        return soft;
-                    }
+                if parts.len() >= 5
+                    && let Ok(soft) = parts[3].parse::<usize>()
+                {
+                    return soft;
                 }
             }
         }

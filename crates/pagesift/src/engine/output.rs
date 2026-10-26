@@ -251,6 +251,7 @@ pub(super) fn firecrawl_meta_key(raw: &str) -> String {
     out
 }
 
+#[allow(clippy::too_many_arguments)] // 把各阶段的结果汇成文档，只在抓取流程末尾调用一处
 pub(super) fn finish(
     mut doc: Document,
     mut meta: Metadata,

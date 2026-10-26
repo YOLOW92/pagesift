@@ -49,9 +49,17 @@ impl ServerTimeouts {
     fn to_api(&self) -> Result<pagesift_api::Timeouts> {
         let mut t = pagesift_api::Timeouts::default();
         for (name, value, slot) in [
-            ("header_read_secs", self.header_read_secs, &mut t.header_read),
+            (
+                "header_read_secs",
+                self.header_read_secs,
+                &mut t.header_read,
+            ),
             ("body_secs", self.body_secs, &mut t.body),
-            ("upload_body_secs", self.upload_body_secs, &mut t.upload_body),
+            (
+                "upload_body_secs",
+                self.upload_body_secs,
+                &mut t.upload_body,
+            ),
             ("request_secs", self.request_secs, &mut t.request),
         ] {
             match value {

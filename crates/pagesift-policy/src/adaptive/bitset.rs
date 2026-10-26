@@ -12,7 +12,7 @@ pub struct AtomicBitSet {
 impl AtomicBitSet {
     /// Creates a new `AtomicBitSet` capable of storing at least `capacity` bits.
     pub fn new(capacity: usize) -> Self {
-        let num_words = (capacity + 63) / 64;
+        let num_words = capacity.div_ceil(64);
         let mut words_vec = Vec::with_capacity(num_words);
         for _ in 0..num_words {
             words_vec.push(AtomicU64::new(0));

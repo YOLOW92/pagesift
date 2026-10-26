@@ -62,7 +62,7 @@ mod tests {
             let rec = Arc::clone(&received);
             consumers.push(thread::spawn(move || {
                 while rec.load(std::sync::atomic::Ordering::SeqCst) < total_items {
-                    if let Some(_) = q_clone.pop() {
+                    if q_clone.pop().is_some() {
                         rec.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                     } else {
                         thread::yield_now();

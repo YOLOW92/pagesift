@@ -83,41 +83,41 @@ pub struct ProductInfo {
 /// 从已提取的 JSON-LD 列表中提取统一 Product 信息
 pub fn extract_product_view(entities: &[Value]) -> Option<ProductInfo> {
     for e in entities {
-        if let Some(obj) = e.as_object() {
-            if is_type(obj, "Product") {
-                let mut prod = ProductInfo {
-                    name: get_str(obj, "name"),
-                    description: get_str(obj, "description"),
-                    image: get_str(obj, "image"),
-                    sku: get_str(obj, "sku"),
-                    mpn: get_str(obj, "mpn"),
-                    ..Default::default()
+        if let Some(obj) = e.as_object()
+            && is_type(obj, "Product")
+        {
+            let mut prod = ProductInfo {
+                name: get_str(obj, "name"),
+                description: get_str(obj, "description"),
+                image: get_str(obj, "image"),
+                sku: get_str(obj, "sku"),
+                mpn: get_str(obj, "mpn"),
+                ..Default::default()
+            };
+
+            // Brand
+            if let Some(brand_val) = obj.get("brand") {
+                prod.brand = match brand_val {
+                    Value::String(s) => Some(s.clone()),
+                    Value::Object(b_obj) => get_str(b_obj, "name"),
+                    _ => None,
                 };
-
-                // Brand
-                if let Some(brand_val) = obj.get("brand") {
-                    prod.brand = match brand_val {
-                        Value::String(s) => Some(s.clone()),
-                        Value::Object(b_obj) => get_str(b_obj, "name"),
-                        _ => None,
-                    };
-                }
-
-                // Offers
-                if let Some(offers_val) = obj.get("offers") {
-                    parse_offers(offers_val, &mut prod);
-                }
-
-                // AggregateRating
-                if let Some(rating_val) = obj.get("aggregateRating") {
-                    if let Some(r_obj) = rating_val.as_object() {
-                        prod.rating_value = get_num(r_obj, "ratingValue");
-                        prod.review_count = get_int(r_obj, "reviewCount");
-                    }
-                }
-
-                return Some(prod);
             }
+
+            // Offers
+            if let Some(offers_val) = obj.get("offers") {
+                parse_offers(offers_val, &mut prod);
+            }
+
+            // AggregateRating
+            if let Some(rating_val) = obj.get("aggregateRating")
+                && let Some(r_obj) = rating_val.as_object()
+            {
+                prod.rating_value = get_num(r_obj, "ratingValue");
+                prod.review_count = get_int(r_obj, "reviewCount");
+            }
+
+            return Some(prod);
         }
     }
     None

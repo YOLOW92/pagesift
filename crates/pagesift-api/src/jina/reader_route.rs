@@ -49,13 +49,13 @@ fn parse_target_url(raw: &str) -> String {
         if trimmed[idx..].starts_with("http://") {
             trimmed[idx..].to_string()
         } else {
-            format!("http://{}", &trimmed[idx + 6..].trim_start_matches('/'))
+            format!("http://{}", trimmed[idx + 6..].trim_start_matches('/'))
         }
     } else if let Some(idx) = trimmed.find("https:/") {
         if trimmed[idx..].starts_with("https://") {
             trimmed[idx..].to_string()
         } else {
-            format!("https://{}", &trimmed[idx + 7..].trim_start_matches('/'))
+            format!("https://{}", trimmed[idx + 7..].trim_start_matches('/'))
         }
     } else {
         format!("https://{}", trimmed.trim_start_matches('/'))

@@ -144,10 +144,11 @@ pub(super) fn parse_sitemap(xml: &[u8]) -> (Vec<String>, Vec<String>) {
                 match name.as_ref() {
                     "sitemap" => in_sitemap = true,
                     "item" | "entry" => in_item = true,
-                    "loc" if matches!(
-                        open.last().map(String::as_str),
-                        Some("url" | "sitemap" | "urlset" | "sitemapindex")
-                    ) =>
+                    "loc"
+                        if matches!(
+                            open.last().map(String::as_str),
+                            Some("url" | "sitemap" | "urlset" | "sitemapindex")
+                        ) =>
                     {
                         loc = Some(String::new())
                     }

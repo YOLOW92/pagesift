@@ -113,7 +113,9 @@ fn list_shaped_article_body_is_not_filtered_away() {
     // 列表整个删掉，保留下来的也只数非链接文字。严格规则删掉主体一半以上时改用默认规则渲染主体
     let list = |name: &str, n: usize, suffix: &str| {
         let items: String = (0..n)
-            .map(|i| format!("<li><a href=\"/wiki/{name}{i}\">{name} language {i}</a>{suffix}</li>"))
+            .map(|i| {
+                format!("<li><a href=\"/wiki/{name}{i}\">{name} language {i}</a>{suffix}</li>")
+            })
             .collect();
         format!("<h2>{name}</h2><div class=\"div-col\"><ul>{items}</ul></div>")
     };
@@ -126,6 +128,9 @@ fn list_shaped_article_body_is_not_filtered_away() {
     );
     let out = md(&html);
     assert!(out.contains("The budget takes effect in January"), "{out}");
-    assert!(out.contains("Alpha language 29") && out.contains("Beta language 59"), "{out}");
+    assert!(
+        out.contains("Alpha language 29") && out.contains("Beta language 59"),
+        "{out}"
+    );
     assert!(!out.contains("cycling lanes"), "{out}");
 }

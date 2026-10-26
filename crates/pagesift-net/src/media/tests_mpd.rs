@@ -84,6 +84,7 @@ fn table_parse_iso8601_duration() {
 // ---------------------------------------------------------------------------
 // SegmentTemplate 的占位符
 
+#[allow(clippy::type_complexity)] // 表驱动测试：一行就是一条用例，拆成 type 定义反而难读
 #[test]
 fn table_replace_template() {
     // ((模板, RepresentationID, Number, Bandwidth, Time), 期望)
@@ -114,9 +115,15 @@ fn table_replace_template() {
         (("$Number%05d$-$Number$", "v1", 7, 100, 0), "00007-7"),
         (("$Bandwidth%08d$", "v1", 7, 100, 0), "00000100"),
         // RepresentationID 不允许格式；单个 "$" 原样保留；替换结果里的 "$" 不再展开
-        (("$RepresentationID%02d$", "v1", 7, 100, 0), "$RepresentationID%02d$"),
+        (
+            ("$RepresentationID%02d$", "v1", 7, 100, 0),
+            "$RepresentationID%02d$",
+        ),
         (("a$b", "v1", 7, 100, 0), "a$b"),
-        (("$RepresentationID$-$Number$", "$Number$", 7, 100, 0), "$Number$-7"),
+        (
+            ("$RepresentationID$-$Number$", "$Number$", 7, 100, 0),
+            "$Number$-7",
+        ),
         (("$Number%0999d$", "v1", 7, 100, 0), "$Number%0999d$"), // 宽度过大不展开
     ];
     check(

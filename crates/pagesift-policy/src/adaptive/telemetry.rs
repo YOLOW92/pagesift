@@ -551,7 +551,7 @@ fn read_cgroup_memory() -> (Option<u64>, Option<u64>) {
             Some(limit) => {
                 if best
                     .as_ref()
-                    .map_or(true, |(best_limit, _)| limit < *best_limit)
+                    .is_none_or(|(best_limit, _)| limit < *best_limit)
                 {
                     best = Some((limit, current));
                 }

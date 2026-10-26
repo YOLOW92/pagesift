@@ -10,7 +10,11 @@ use url::Url;
 /// and a `T` must be followed by a time component. Years and months count as
 /// 365 and 30 days, as dash.js and Shaka do. Negative durations are rejected.
 pub(super) fn parse_iso8601_duration(s: &str) -> Option<f64> {
-    const DATE: &[(char, f64)] = &[('Y', 365.0 * 86400.0), ('M', 30.0 * 86400.0), ('D', 86400.0)];
+    const DATE: &[(char, f64)] = &[
+        ('Y', 365.0 * 86400.0),
+        ('M', 30.0 * 86400.0),
+        ('D', 86400.0),
+    ];
     const TIME: &[(char, f64)] = &[('H', 3600.0), ('M', 60.0), ('S', 1.0)];
     let rest = s.strip_prefix('P')?;
     let (date, time) = match rest.split_once('T') {

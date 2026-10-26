@@ -45,15 +45,14 @@ impl InflightBudget {
 
     /// Asynchronously acquires a permit for `bytes`.
     /// If requested bytes exceed available capacity, awaits until existing permits are released.
-    pub async fn acquire(&self, bytes: usize) -> Result<BudgetPermit, ()> {
+    /// Fails only if the budget's semaphore has been closed.
+    pub async fn acquire(&self, bytes: usize) -> Result<BudgetPermit, tokio::sync::AcquireError> {
         let requested = (bytes as u32).min(self.budget_bytes as u32).max(1);
-        match self.semaphore.clone().acquire_many_owned(requested).await {
-            Ok(permit) => Ok(BudgetPermit {
-                _permit: permit,
-                bytes: requested as usize,
-            }),
-            Err(_) => Err(()),
-        }
+        let permit = self.semaphore.clone().acquire_many_owned(requested).await?;
+        Ok(BudgetPermit {
+            _permit: permit,
+            bytes: requested as usize,
+        })
     }
 }
 

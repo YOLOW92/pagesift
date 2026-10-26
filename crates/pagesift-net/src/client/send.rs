@@ -3,6 +3,7 @@
 use super::*;
 
 impl Client {
+    #[allow(clippy::too_many_arguments)] // 构造时一次性给齐各项时限和策略，只在 Fetcher 里调用一处
     pub(crate) fn new(
         resolver: Arc<GuardedResolver>,
         connect_timeout: Duration,

@@ -142,6 +142,7 @@ fn page_date(html: &str, url: Option<&str>) -> Option<String> {
 }
 
 /// 整页按 htmldate 的顺序检索：(HTML, URL, 期望)。
+#[allow(clippy::type_complexity)] // 表驱动测试：一行就是一条用例，拆成 type 定义反而难读
 #[test]
 fn follows_the_htmldate_order() {
     const CASES: &[((&str, Option<&str>), Option<&str>)] = &[

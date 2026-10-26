@@ -592,6 +592,41 @@ fn descend<'a>(mut node: NodeR<'a>, skipper: &Skipper) -> NodeR<'a> {
     }
 }
 
+/// 页面是否**明显不是**一篇文章：链接墙、列表/卡片主导、几乎没有散文段落。
+///
+/// 只做"排除"，不做"确认"。原因是实测（WebMainBench 800 页 + WCXB 2,006 页）：
+/// - 强行给所有页面收窄：WebMainBench 0.6406、WCXB 0.6672
+/// - 要求结构"像文章"才收窄：WebMainBench 0.6013（掉 0.039）、WCXB 0.6744（只涨 0.007）
+///
+/// 也就是说"确认像文章"这个判据误杀太多真文章页，得不偿失。
+/// 这里改成只排除结构上明确是列表/卡片/链接墙的页面，其余一律照常收窄。
+pub(crate) fn clearly_not_article(dom: &Html<'_>, skipper: &Skipper) -> bool {
+    let body = dom.body();
+    let (total, link_chars, _) = skipper.stats(&body);
+    if total < 400 {
+        // 文字太少，谈不上是文章；交给后续兜底
+        return false;
+    }
+    // 链接文字占七成以上：导航页、目录页、链接墙
+    if link_chars * 100 >= total * 70 {
+        return true;
+    }
+    let mut prose_chars = 0usize;
+    let mut structured = 0usize;
+    for n in body.descendants() {
+        if skipper.skip(&n) {
+            continue;
+        }
+        match n.tag() {
+            Some(Tag::P) => prose_chars += skipper.content_chars(&n),
+            Some(Tag::Li | Tag::Td | Tag::Th) => structured += skipper.content_chars(&n),
+            _ => {}
+        }
+    }
+    // 列表项与表格单元格的文字是散文的 4 倍以上：商品列表、聚合页、数据表页
+    structured >= prose_chars.max(1) * 4
+}
+
 #[cfg(test)]
 mod title_tests {
     use super::{TitleSignature, title_agrees, title_agrees_allocating, title_agrees_ascii};
@@ -659,39 +694,4 @@ mod title_tests {
         assert!(title_agrees("Café résumé naïve", "café résumé naïve"));
         assert!(!title_agrees("Café résumé naïve", "完全不同的标题"));
     }
-}
-
-/// 页面是否**明显不是**一篇文章：链接墙、列表/卡片主导、几乎没有散文段落。
-///
-/// 只做"排除"，不做"确认"。原因是实测（WebMainBench 800 页 + WCXB 2,006 页）：
-/// - 强行给所有页面收窄：WebMainBench 0.6406、WCXB 0.6672
-/// - 要求结构"像文章"才收窄：WebMainBench 0.6013（掉 0.039）、WCXB 0.6744（只涨 0.007）
-///
-/// 也就是说"确认像文章"这个判据误杀太多真文章页，得不偿失。
-/// 这里改成只排除结构上明确是列表/卡片/链接墙的页面，其余一律照常收窄。
-pub(crate) fn clearly_not_article(dom: &Html<'_>, skipper: &Skipper) -> bool {
-    let body = dom.body();
-    let (total, link_chars, _) = skipper.stats(&body);
-    if total < 400 {
-        // 文字太少，谈不上是文章；交给后续兜底
-        return false;
-    }
-    // 链接文字占七成以上：导航页、目录页、链接墙
-    if link_chars * 100 >= total * 70 {
-        return true;
-    }
-    let mut prose_chars = 0usize;
-    let mut structured = 0usize;
-    for n in body.descendants() {
-        if skipper.skip(&n) {
-            continue;
-        }
-        match n.tag() {
-            Some(Tag::P) => prose_chars += skipper.content_chars(&n),
-            Some(Tag::Li | Tag::Td | Tag::Th) => structured += skipper.content_chars(&n),
-            _ => {}
-        }
-    }
-    // 列表项与表格单元格的文字是散文的 4 倍以上：商品列表、聚合页、数据表页
-    structured >= prose_chars.max(1) * 4
 }

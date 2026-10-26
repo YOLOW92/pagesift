@@ -52,18 +52,14 @@ fn parse_scope(scope_node: NodeRef<'_>) -> Map<String, Value> {
     }
 
     let mut properties = Map::new();
-    collect_properties(scope_node, scope_node, &mut properties);
+    collect_properties(scope_node, &mut properties);
 
     item.insert("properties".to_string(), Value::Object(properties));
     item
 }
 
 /// 递归收集当前 scope 的直接属性（跨越非 itemscope 子节点，遇到嵌套 itemscope 时作为嵌套项解析）
-fn collect_properties(
-    current: NodeRef<'_>,
-    scope_root: NodeRef<'_>,
-    props: &mut Map<String, Value>,
-) {
+fn collect_properties(current: NodeRef<'_>, props: &mut Map<String, Value>) {
     for child in current.children() {
         if let Some(itemprop_str) = get_attr(child, "itemprop") {
             let val = if get_attr(child, "itemscope").is_some() {
@@ -88,7 +84,7 @@ fn collect_properties(
         }
 
         // 继续向下递归寻找属于本层的 itemprop
-        collect_properties(child, scope_root, props);
+        collect_properties(child, props);
     }
 }
 
@@ -96,37 +92,36 @@ fn collect_properties(
 fn extract_property_value(node: NodeRef<'_>) -> Value {
     let tag = node.tag();
 
-    if tag == Some(Tag::Meta) {
-        if let Some(content) = get_attr(node, "content") {
-            return Value::String(content.to_string());
-        }
+    if tag == Some(Tag::Meta)
+        && let Some(content) = get_attr(node, "content")
+    {
+        return Value::String(content.to_string());
     }
 
-    if matches!(tag, Some(Tag::A | Tag::Area | Tag::Link)) {
-        if let Some(href) = get_attr(node, "href") {
-            return Value::String(href.to_string());
-        }
+    if matches!(tag, Some(Tag::A | Tag::Area | Tag::Link))
+        && let Some(href) = get_attr(node, "href")
+    {
+        return Value::String(href.to_string());
     }
 
     if matches!(
         tag,
         Some(Tag::Img | Tag::Audio | Tag::Video | Tag::Source | Tag::Track | Tag::Embed)
-    ) {
-        if let Some(src) = get_attr(node, "src") {
-            return Value::String(src.to_string());
-        }
+    ) && let Some(src) = get_attr(node, "src")
+    {
+        return Value::String(src.to_string());
     }
 
-    if tag == Some(Tag::Time) {
-        if let Some(datetime) = get_attr(node, "datetime") {
-            return Value::String(datetime.to_string());
-        }
+    if tag == Some(Tag::Time)
+        && let Some(datetime) = get_attr(node, "datetime")
+    {
+        return Value::String(datetime.to_string());
     }
 
-    if matches!(tag, Some(Tag::Data | Tag::Meter)) {
-        if let Some(val) = get_attr(node, "value") {
-            return Value::String(val.to_string());
-        }
+    if matches!(tag, Some(Tag::Data | Tag::Meter))
+        && let Some(val) = get_attr(node, "value")
+    {
+        return Value::String(val.to_string());
     }
 
     // 默认取纯文本并去除首尾多余空白

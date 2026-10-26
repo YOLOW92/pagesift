@@ -130,7 +130,10 @@ async fn slow_threshold_follows_the_origins_service_time() {
     assert!(probe.slow_at() >= tokio::time::Instant::now() + Duration::from_millis(1900));
     probe.finish(HostOutcome::Success);
     for _ in 0..MIN_SAMPLES {
-        control.acquire_within(cap).await.finish(HostOutcome::Success);
+        control
+            .acquire_within(cap)
+            .await
+            .finish(HostOutcome::Success);
     }
     // 快源站：阈值降到下限
     let a = control.acquire_within(cap).await;
@@ -141,7 +144,10 @@ async fn slow_threshold_follows_the_origins_service_time() {
     let c = control.acquire_within(cap).await;
     assert!(c.parked);
     let waited = t.elapsed();
-    assert!(waited >= Duration::from_millis(200) && waited < Duration::from_millis(1000), "{waited:?}");
+    assert!(
+        waited >= Duration::from_millis(200) && waited < Duration::from_millis(1000),
+        "{waited:?}"
+    );
     drop((a, b, c));
 }
 
@@ -232,6 +238,13 @@ async fn slow_completions_do_not_reset_the_queue_patience() {
     a.finish(HostOutcome::Success); // 300 ms：慢请求结束，空出一个热连接
     let (p1, p2) = (w1.await.unwrap(), w2.await.unwrap());
     // 排队从 210 ms 起算，410 ms 前后放行；若慢请求结束也重新计时要等到 500 ms
-    assert!(t.elapsed() < Duration::from_millis(470), "{:?}", t.elapsed());
-    assert!(p1.parked != p2.parked, "一个拿到空出的热连接，一个以停放身份放行");
+    assert!(
+        t.elapsed() < Duration::from_millis(470),
+        "{:?}",
+        t.elapsed()
+    );
+    assert!(
+        p1.parked != p2.parked,
+        "一个拿到空出的热连接，一个以停放身份放行"
+    );
 }

@@ -160,7 +160,10 @@ fn forbidden_status_with_little_text() {
     let html = r#"<html><head><title>Example Store</title></head><body><p>Example.com is not available to
 customers who are located outside of the supported regions. We apologize for any inconvenience.</p></body></html>"#;
     let b = detect(html, Some(403)).expect("403 page");
-    assert_eq!((b.vendor, b.kind, b.rule_id), ("generic", BarrierKind::Block, "status.403"));
+    assert_eq!(
+        (b.vendor, b.kind, b.rule_id),
+        ("generic", BarrierKind::Block, "status.403")
+    );
     // 同样的页面 200 时不算；403 但正文很长的也不算
     assert_eq!(detect(html, Some(200)), None);
     let long = format!("<html><body><article>{}</article></body></html>", prose(60));

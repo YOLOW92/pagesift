@@ -55,10 +55,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // The release gate must prove autonomous convergence. Manual capacity
     // overrides are intentionally rejected instead of becoming another grid.
-    if let Some(concurrency_override) = args.get(3).and_then(|s| s.parse::<usize>().ok()) {
-        if concurrency_override > 0 {
-            return Err("Step 4.5 forbids manual concurrency overrides".into());
-        }
+    if let Some(concurrency_override) = args.get(3).and_then(|s| s.parse::<usize>().ok())
+        && concurrency_override > 0
+    {
+        return Err("Step 4.5 forbids manual concurrency overrides".into());
     }
 
     let limit: usize = args.get(4).and_then(|s| s.parse().ok()).unwrap_or(100_000);

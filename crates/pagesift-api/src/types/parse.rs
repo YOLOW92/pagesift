@@ -189,8 +189,14 @@ mod tests {
         );
         // 内容不是 ZIP 的 .docx 认不出；ZIP 按里面的部件认
         assert_eq!(d(b"PK", "a.docx", None), None);
-        assert_eq!(d(b"a,b\n1,2", "t.csv", None), Some(UploadKind::Office(pagesift_office::Format::Csv)));
-        assert_eq!(d(b"a,b", "upload", Some("text/csv")), Some(UploadKind::Office(pagesift_office::Format::Csv)));
+        assert_eq!(
+            d(b"a,b\n1,2", "t.csv", None),
+            Some(UploadKind::Office(pagesift_office::Format::Csv))
+        );
+        assert_eq!(
+            d(b"a,b", "upload", Some("text/csv")),
+            Some(UploadKind::Office(pagesift_office::Format::Csv))
+        );
         assert_eq!(d(b"x", "upload", Some("application/octet-stream")), None);
     }
 

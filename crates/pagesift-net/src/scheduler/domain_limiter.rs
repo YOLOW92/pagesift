@@ -76,10 +76,8 @@ impl Bucket {
                 let backoff_secs = 2f64.powi(self.consecutive_penalties as i32);
                 self.penalty_until = Some(now + Duration::from_secs_f64(backoff_secs));
                 self.tokens = 0.0;
-            } else if code < 400 {
-                if self.consecutive_penalties > 0 {
-                    self.consecutive_penalties -= 1;
-                }
+            } else if code < 400 && self.consecutive_penalties > 0 {
+                self.consecutive_penalties -= 1;
             }
         }
     }

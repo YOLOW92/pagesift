@@ -19,10 +19,10 @@ pub fn extract_opengraph(html: &Html<'_>) -> Map<String, Value> {
 
             let content = el.attr("content").map(|c| c.trim());
 
-            if let (Some(k), Some(v)) = (key, content) {
-                if k.starts_with("og:") || k.starts_with("twitter:") || k.starts_with("dc.") {
-                    map.insert(k.to_string(), Value::String(v.to_string()));
-                }
+            if let (Some(k), Some(v)) = (key, content)
+                && (k.starts_with("og:") || k.starts_with("twitter:") || k.starts_with("dc."))
+            {
+                map.insert(k.to_string(), Value::String(v.to_string()));
             }
         }
     }

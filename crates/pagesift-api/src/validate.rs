@@ -48,16 +48,16 @@ pub fn check_scrape_options(opts: &ScrapeOptions, engine: &dyn Engine) -> Result
             "discoverScripts requires HTTP engine, links, and no custom headers/egress/conditional request",
         ));
     }
-    if let Some(p) = opts.proxy.as_deref() {
-        if !matches!(p, "basic" | "auto") {
-            let valid_url = url::Url::parse(p)
-                .ok()
-                .is_some_and(|u| matches!(u.scheme(), "http" | "https" | "socks5" | "socks5h"));
-            if !valid_url {
-                return Err(ApiError::unsupported(format!(
-                    "proxy {p:?} is not supported: use \"basic\", \"auto\", or a valid http/https/socks5 URL"
-                )));
-            }
+    if let Some(p) = opts.proxy.as_deref()
+        && !matches!(p, "basic" | "auto")
+    {
+        let valid_url = url::Url::parse(p)
+            .ok()
+            .is_some_and(|u| matches!(u.scheme(), "http" | "https" | "socks5" | "socks5h"));
+        if !valid_url {
+            return Err(ApiError::unsupported(format!(
+                "proxy {p:?} is not supported: use \"basic\", \"auto\", or a valid http/https/socks5 URL"
+            )));
         }
     }
     if let Some(e) = opts.engine.as_deref()

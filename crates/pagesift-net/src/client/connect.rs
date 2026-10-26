@@ -49,10 +49,11 @@ impl Client {
         let _ = tcp.set_nodelay(true);
         if !key.https {
             let result = h1_handshake(TokioIo::new(tcp)).await;
-            handshake.finish(result.as_ref().map_or_else(
-                |error| stage_outcome_for_error(error),
-                |_| StageOutcome::Success,
-            ));
+            handshake.finish(
+                result
+                    .as_ref()
+                    .map_or_else(stage_outcome_for_error, |_| StageOutcome::Success),
+            );
             return result;
         }
         let name = ServerName::try_from(key.host.trim_matches(['[', ']']).to_string())
@@ -105,10 +106,11 @@ impl Client {
             return Ok(Conn::H2(sender));
         }
         let result = h1_handshake(TokioIo::new(tls)).await;
-        handshake.finish(result.as_ref().map_or_else(
-            |error| stage_outcome_for_error(error),
-            |_| StageOutcome::Success,
-        ));
+        handshake.finish(
+            result
+                .as_ref()
+                .map_or_else(stage_outcome_for_error, |_| StageOutcome::Success),
+        );
         result
     }
 }

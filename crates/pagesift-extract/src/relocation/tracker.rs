@@ -46,16 +46,16 @@ pub fn relocate<'a>(
         let score = score_similarity(fingerprint, node);
 
         if best.is_none() || score > best.unwrap().1 {
-            if let Some((prev_node, prev_score)) = best {
-                if !is_family(prev_node, node) {
-                    runner_up = runner_up.max(prev_score);
-                }
+            if let Some((prev_node, prev_score)) = best
+                && !is_family(prev_node, node)
+            {
+                runner_up = runner_up.max(prev_score);
             }
             best = Some((node, score));
-        } else if let Some((best_node, _)) = best {
-            if !is_family(best_node, node) {
-                runner_up = runner_up.max(score);
-            }
+        } else if let Some((best_node, _)) = best
+            && !is_family(best_node, node)
+        {
+            runner_up = runner_up.max(score);
         }
     }
 

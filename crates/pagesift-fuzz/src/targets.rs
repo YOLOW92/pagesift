@@ -307,7 +307,7 @@ fn html(data: &[u8], iter: u64) {
     }
     // 短输入顺便当选择器解析
     if text.len() < 512
-        && iter % 2 == 0
+        && iter.is_multiple_of(2)
         && let Ok(s) = pagesift_html::Selector::parse(&text)
     {
         std::hint::black_box(root.select(&s).count());
@@ -318,12 +318,12 @@ fn markdown(data: &[u8], iter: u64) {
     let text = String::from_utf8_lossy(data);
     let opts = pagesift_content::Options {
         base_url: url_for(iter),
-        only_main_content: iter % 3 != 0,
+        only_main_content: !iter.is_multiple_of(3),
         plain_text: true,
-        clean_html: iter % 2 == 0,
+        clean_html: iter.is_multiple_of(2),
         links: true,
         images: true,
-        fingerprints: iter % 4 == 0,
+        fingerprints: iter.is_multiple_of(4),
         ..Default::default()
     };
     let doc = pagesift_content::process(&text, &opts);
@@ -331,7 +331,8 @@ fn markdown(data: &[u8], iter: u64) {
 }
 
 fn url_for(iter: u64) -> Option<url::Url> {
-    (iter % 5 != 0).then(|| url::Url::parse("https://example.com/a/b/page.html?q=1").unwrap())
+    (!iter.is_multiple_of(5))
+        .then(|| url::Url::parse("https://example.com/a/b/page.html?q=1").unwrap())
 }
 
 fn charset(data: &[u8], iter: u64) {

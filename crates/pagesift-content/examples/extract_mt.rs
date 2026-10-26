@@ -29,7 +29,7 @@ fn main() {
     let total_pages = pages.len();
 
     // 2. Multi-threaded benchmark using std::thread::scope
-    let chunk_size = (total_pages + threads - 1) / threads;
+    let chunk_size = total_pages.div_ceil(threads);
     let t0 = Instant::now();
     std::thread::scope(|s| {
         for chunk in pages.chunks(chunk_size) {

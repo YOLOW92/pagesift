@@ -23,7 +23,7 @@ impl StreamVerifier {
     /// Verify an MPEG-TS byte sequence.
     /// Checks 188-byte sync word (0x47), continuity counter transitions, and PES PTS/DTS order.
     pub fn verify_mpeg_ts(data: &[u8]) -> VerificationReport {
-        if data.is_empty() || data.len() % 188 != 0 {
+        if data.is_empty() || !data.len().is_multiple_of(188) {
             return VerificationReport {
                 format: "MPEG-TS".into(),
                 total_packets_or_boxes: data.len() / 188,

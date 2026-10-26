@@ -27,8 +27,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let concurrency: usize = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(32);
     let iterations: usize = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(50);
 
-    let mut config = PoolConfig::default();
-    config.max_browsers = concurrency.max(1);
+    let config = PoolConfig {
+        max_browsers: concurrency.max(1),
+        ..PoolConfig::default()
+    };
 
     eprintln!(
         "[PageSift CDP] Initializing BrowserPool (concurrency: {}, target: {})...",

@@ -47,17 +47,13 @@ pub fn analyze_statistical(
     }
 
     // 7. 西里尔文判决 (Windows-1251 vs KOI8-R vs ISO-8859-5 vs IBM866)
-    if is_spaced_text {
-        if let Some((enc, name)) = score_cyrillic(sample) {
-            return Some((enc, name));
-        }
+    if is_spaced_text && let Some((enc, name)) = score_cyrillic(sample) {
+        return Some((enc, name));
     }
 
     // 8. 欧洲特殊字符集判决 (Latin-2 vs Greek vs Hebrew vs Arabic)
-    if is_spaced_text {
-        if let Some((enc, name)) = score_special_alphabets(sample) {
-            return Some((enc, name));
-        }
+    if is_spaced_text && let Some((enc, name)) = score_special_alphabets(sample) {
+        return Some((enc, name));
     }
 
     None

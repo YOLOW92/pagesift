@@ -18,7 +18,8 @@ pub fn windows(
         return (Vec::new(), starts);
     }
     if n <= window {
-        return (vec![0..text.len()], starts);
+        let all = 0..text.len();
+        return (vec![all], starts);
     }
 
     let span = |a: usize, b: usize| starts[a]..ends[b - 1];

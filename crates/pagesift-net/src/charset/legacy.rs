@@ -32,7 +32,7 @@ pub const CP500_TABLE: [u16; 256] = [
 pub fn decode_utf32_le(bytes: &[u8]) -> (String, bool) {
     let mut out = String::with_capacity(bytes.len() / 4);
     let mut had_errors = false;
-    for chunk in bytes.chunks_exact(4) {
+    for chunk in bytes.as_chunks::<4>().0 {
         let code = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
         if let Some(ch) = char::from_u32(code) {
             out.push(ch);
@@ -48,7 +48,7 @@ pub fn decode_utf32_le(bytes: &[u8]) -> (String, bool) {
 pub fn decode_utf32_be(bytes: &[u8]) -> (String, bool) {
     let mut out = String::with_capacity(bytes.len() / 4);
     let mut had_errors = false;
-    for chunk in bytes.chunks_exact(4) {
+    for chunk in bytes.as_chunks::<4>().0 {
         let code = u32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
         if let Some(ch) = char::from_u32(code) {
             out.push(ch);

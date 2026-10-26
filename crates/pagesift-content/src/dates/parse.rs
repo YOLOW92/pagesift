@@ -133,7 +133,9 @@ pub(super) fn month_of(word: &str, glued: bool) -> Option<u32> {
         if !boundary {
             return None;
         }
-        MONTHS.get(&fold(&chars[i..].iter().collect::<String>())).copied()
+        MONTHS
+            .get(&fold(&chars[i..].iter().collect::<String>()))
+            .copied()
     })
 }
 
@@ -419,7 +421,9 @@ pub(super) fn custom_parse(s: &str, b: &Bounds) -> Option<Date> {
     }
     if let Some(c) = YM.captures_iter(s).find(|c| {
         let r = c.get(0).unwrap().range();
-        !full_dates.iter().any(|f| f.start < r.end && r.start < f.end)
+        !full_dates
+            .iter()
+            .any(|f| f.start < r.end && r.start < f.end)
     }) {
         let (y, m) = match c.get(1) {
             Some(y) => (y.as_str(), &c[2]),

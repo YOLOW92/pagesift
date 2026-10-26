@@ -196,8 +196,9 @@ impl<W: Write> WarcWriter<W> {
 }
 
 fn construct_record_block(record: &WarcRecord) -> Vec<u8> {
-    if record.record_type == RecordType::Response && record.status_code.is_some() {
-        let status = record.status_code.unwrap();
+    if record.record_type == RecordType::Response
+        && let Some(status) = record.status_code
+    {
         let reason = match status {
             200 => "OK",
             201 => "Created",

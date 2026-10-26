@@ -404,8 +404,10 @@ mod tests {
         cfg.max_bytes = 600;
         cfg.source = "test".into();
         let audit = Audit::open(cfg).unwrap();
-        let mut doc = Document::default();
-        doc.markdown = Some("tiny".into());
+        let mut doc = Document {
+            markdown: Some("tiny".into()),
+            ..Document::default()
+        };
         doc.metadata.status_code = 200;
         doc.metadata.content_type = Some("text/html".into());
         let opts = ScrapeOptions::default();

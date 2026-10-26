@@ -90,7 +90,7 @@ fn is_semantic_class(name: &str) -> bool {
         || (name.contains('-')
             && name
                 .split('-')
-                .last()
+                .next_back()
                 .is_some_and(|s| s.len() >= 6 && s.chars().all(|c| c.is_ascii_hexdigit())))
     {
         return false;

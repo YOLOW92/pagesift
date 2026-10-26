@@ -46,7 +46,11 @@ async fn slow_requests_do_not_block_fast_ones_on_the_same_origin() {
     .expect("fast request waited behind slow ones")
     .unwrap();
     assert_eq!(r.status, 200);
-    assert!(t.elapsed() < Duration::from_millis(1500), "{:?}", t.elapsed());
+    assert!(
+        t.elapsed() < Duration::from_millis(1500),
+        "{:?}",
+        t.elapsed()
+    );
 
     let stats = fetcher.host_connection_stats();
     let s = stats
@@ -119,7 +123,10 @@ async fn slow_threshold_adapts_to_a_warm_origin() {
         .unwrap(),
     );
     for _ in 0..10 {
-        let r = fetcher.fetch(FetchRequest::new(srv.url("/fast"))).await.unwrap();
+        let r = fetcher
+            .fetch(FetchRequest::new(srv.url("/fast")))
+            .await
+            .unwrap();
         assert_eq!(r.status, 200);
     }
     let mut slow = tokio::task::JoinSet::new();
@@ -137,6 +144,10 @@ async fn slow_threshold_adapts_to_a_warm_origin() {
     .expect("fast request waited behind slow ones")
     .unwrap();
     assert_eq!(r.status, 200);
-    assert!(t.elapsed() < Duration::from_millis(1000), "{:?}", t.elapsed());
+    assert!(
+        t.elapsed() < Duration::from_millis(1000),
+        "{:?}",
+        t.elapsed()
+    );
     slow.abort_all();
 }

@@ -41,10 +41,10 @@ impl RecoveryEngine {
         let mut restored = Vec::with_capacity(snapshot.pending_urls.len());
 
         for url in snapshot.pending_urls {
-            if !completed.contains(&url) {
-                if let Some(task) = CrawlTask::new(&url, 0) {
-                    restored.push(task);
-                }
+            if !completed.contains(&url)
+                && let Some(task) = CrawlTask::new(&url, 0)
+            {
+                restored.push(task);
             }
         }
 

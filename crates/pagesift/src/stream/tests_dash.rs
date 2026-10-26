@@ -91,6 +91,7 @@ fn table_iso_duration() {
 // ---------------------------------------------------------------------------
 // SegmentTemplate 占位符展开
 
+#[allow(clippy::type_complexity)] // 表驱动测试：一行就是一条用例，拆成 type 定义反而难读
 #[test]
 fn table_expand() {
     let long = "x".repeat(5000);
