@@ -83,7 +83,6 @@ pub(crate) fn grid(
     if rows.len() < 2 {
         return None;
     }
-    used.copy_from_slice(&taken);
     let table = Table {
         x0: xs[0],
         x1: xs[cols],
@@ -91,6 +90,10 @@ pub(crate) fn grid(
         bottom: ys[nrows],
         rows,
     };
+    if super::borderless::single_column(&table) {
+        return None;
+    }
+    used.copy_from_slice(&taken);
     Some((
         table,
         crowded as f64 / filled as f64,
@@ -249,7 +252,7 @@ pub(crate) fn text_grid(
         bottom,
         rows,
     };
-    (!super::borderless::prose(&t)).then_some(t)
+    (!super::borderless::prose(&t) && !super::borderless::single_column(&t)).then_some(t)
 }
 
 /// 格子里折行的文字合回上一行。
