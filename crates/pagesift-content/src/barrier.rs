@@ -104,6 +104,8 @@ static RULES: &[Rule] = rules![
     "akamai.reference", "akamai", Block, Marker, H, ["reference&#32;&#35;"];
     "akamai.bot_challenge", "akamai", Challenge, Marker, H, ["/_sec/cp_challenge/", "bm-verify"];
     "akamai.footer", "akamai", Challenge, Hint, T, ["powered and protected by akamai"];
+    // Bot Manager 的挑战页模板：挑战内容放在 id 为 sec-cpt-if 的 iframe 里，完成后回调 cp_clge_done 重载
+    "akamai.bm_challenge", "akamai", Challenge, Marker, H, ["sec-cpt-if", "sec-if-cpt-container", "cp_clge_done"];
     // DataDome
     "datadome.captcha", "datadome", Captcha, Marker, H, ["captcha-delivery.com"];
     "datadome.tag", "datadome", Captcha, Hint, H, ["datadome"];
@@ -129,6 +131,9 @@ static RULES: &[Rule] = rules![
     "tencent_cloud.captcha", "tencent_cloud", Captcha, Hint, H, ["turing.captcha.qcloud.com", "captcha.qq.com", "tencentcaptcha"];
     // 字节跳动 WAF（TikTok 等）的挑战页模板
     "bytedance.waf_challenge", "bytedance", Challenge, Marker, H, ["_wafchallengeid"];
+    // 抖音等的 acrawler JS 挑战：body 为空，脚本算出 __ac_signature 写进 cookie 后重载
+    // （byted_acrawler 签名脚本正常页面也加载，只认挑战流程专有的 __ac_signature）
+    "bytedance.ac_challenge", "bytedance", Challenge, Marker, H, ["__ac_signature"];
     // AWS WAF、Sucuri、F5、DDoS-Guard
     "aws_waf.challenge", "aws_waf", Challenge, Marker, H, ["gokuprops"];
     "aws_waf.token", "aws_waf", Challenge, Hint, H, ["awswaf.com", "aws-waf-token"];
@@ -161,6 +166,15 @@ static RULES: &[Rule] = rules![
         "access denied", "you have been blocked", "request blocked", "request rejected",
         "403 forbidden", "you don't have permission to access", "your ip has been blocked",
         "访问被拒绝", "您的访问被阻断", "访问已被拦截",
+    ];
+    // 拦截/错误页给出的事件号（各家 WAF 自定义拦截页的通用写法；只在文字很少的页面上生效）
+    "generic.incident", "generic", Block, Phrase, T, ["incident number:", "incident id:"];
+    // 地区封锁：整页只有“本站在你的国家/地区不可用”
+    "generic.geo_block", "generic", Block, Phrase, T, [
+        "not available in your country", "not available in your region",
+        "unavailable in your country", "unavailable in your region",
+        "not available in your location", "not accessible from your country",
+        "您所在的国家或地区不可用", "您所在的地区无法访问",
     ];
     // 按客户端拒绝服务的页面（"不支持的浏览器"）：整页只有这句提示，没有内容
     "generic.unsupported_client", "generic", Block, Phrase, T, [
