@@ -380,4 +380,39 @@ mod tests {
         assert_eq!(rec["kind"], "report");
         assert_eq!(rec["actual"], "nav only");
     }
+
+    /// 共享 MCP 实测里 client 恒为 unknown：旧版客户端只在 initialize 里报名字。
+    #[tokio::test]
+    async fn audit_client_comes_from_legacy_initialize() {
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("audit.jsonl");
+        let audit = crate::audit::Audit::open(crate::audit::AuditConfig::new(&path)).unwrap();
+        let config = crate::ScraperConfig {
+            audit: Some(Arc::new(audit)),
+            ..Default::default()
+        };
+        let server = pagesift_mcp::McpServer::builder("pagesift", "test")
+            .tools(tools(Arc::new(Scraper::new(config).unwrap())))
+            .build()
+            .unwrap();
+        let (mut w, sr) = tokio::io::duplex(1 << 16);
+        let (sw, r) = tokio::io::duplex(1 << 16);
+        tokio::spawn(pagesift_mcp::serve_stream(server, sr, sw));
+        let mut lines = tokio::io::BufReader::new(r).lines();
+        for msg in [
+            json!({ "jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {
+                "protocolVersion": "2025-06-18", "capabilities": {},
+                "clientInfo": { "name": "aiseek-test", "version": "1" } } }),
+            json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
+                "name": "pagesift_report_issue",
+                "arguments": { "url": "https://example.com/a", "expected": "body", "actual": "nav only" } } }),
+        ] {
+            w.write_all(format!("{msg}\n").as_bytes()).await.unwrap();
+            lines.next_line().await.unwrap().unwrap();
+        }
+        let log = std::fs::read_to_string(&path).unwrap();
+        let rec: Value = serde_json::from_str(log.trim()).unwrap();
+        assert_eq!(rec["client"], "aiseek-test");
+    }
 }

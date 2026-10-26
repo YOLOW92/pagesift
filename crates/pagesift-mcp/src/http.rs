@@ -126,6 +126,8 @@ struct Shared {
 
 struct Session {
     version: &'static str,
+    /// `initialize` 里的 `clientInfo`：旧版之后的请求不再带它，工具上下文要用这一份。
+    client: Option<Value>,
     inflight: Mutex<HashMap<Id, AbortHandle>>,
     last_seen: Mutex<Instant>,
     closed: watch::Sender<bool>,
@@ -414,6 +416,7 @@ fn initialize(st: &Shared, req: &Request) -> Response {
             sid.clone(),
             Arc::new(Session {
                 version,
+                client: crate::server::initialize_client_info(req),
                 inflight: Mutex::new(HashMap::new()),
                 last_seen: Mutex::new(Instant::now()),
                 closed: watch::channel(false).0,
@@ -456,10 +459,11 @@ fn respond(
     let server = st.server.clone();
     let id = req.id.clone();
     let task_session = session.clone();
+    let client = session.as_ref().and_then(|s| s.client.clone());
     let task_id = id.clone();
     let notify = use_sse.then(|| tx.clone());
     let task = tokio::spawn(async move {
-        let resp = server.dispatch(req, era, notify).await;
+        let resp = server.dispatch(req, era, notify, client).await;
         if let Some(s) = &task_session {
             lock(&s.inflight).remove(&task_id);
         }
@@ -515,7 +519,9 @@ async fn post_batch(
                 )
                 .to_value(),
             ),
-            Ok(Message::Request(r)) => futs.push(st.server.dispatch(r, era, None)),
+            Ok(Message::Request(r)) => {
+                futs.push(st.server.dispatch(r, era, None, session.client.clone()))
+            }
             Ok(Message::Notification(n)) => session_notification(&session, &n),
             Ok(Message::Response(_)) => {}
         }

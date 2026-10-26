@@ -35,6 +35,7 @@ where
         server,
         tx,
         legacy: None,
+        client: None,
         inflight: Arc::default(),
         tasks: JoinSet::new(),
     };
@@ -69,6 +70,8 @@ struct Connection {
     tx: mpsc::UnboundedSender<Value>,
     /// 通过 `initialize` 协商出的旧版协议版本。
     legacy: Option<&'static str>,
+    /// `initialize` 里的 `clientInfo`：旧版之后的请求不再带它，工具上下文要用这一份。
+    client: Option<Value>,
     inflight: Inflight,
     tasks: JoinSet<()>,
 }
@@ -114,10 +117,11 @@ impl Connection {
         }
         let server = self.server.clone();
         let tx = self.tx.clone();
+        let client = self.client.clone();
         let map = self.inflight.clone();
         let task_id = id.clone();
         let handle = self.tasks.spawn(async move {
-            let resp = server.dispatch(req, era, Some(tx.clone())).await;
+            let resp = server.dispatch(req, era, Some(tx.clone()), client).await;
             // 已被取消的请求不会走到这里：任务在 abort 时直接被丢弃。
             lock(&map).remove(&task_id);
             let _ = tx.send(resp.to_value());
@@ -135,6 +139,7 @@ impl Connection {
         match self.server.initialize(req) {
             Ok((version, result)) => {
                 self.legacy = Some(version);
+                self.client = crate::server::initialize_client_info(req);
                 Response::result(req.id.clone(), result)
             }
             Err(e) => Response::error(Some(req.id.clone()), e),
@@ -195,11 +200,12 @@ impl Connection {
         }
         let server = self.server.clone();
         let tx = self.tx.clone();
+        let client = self.client.clone();
         self.tasks.spawn(async move {
             let era = Era::Legacy(version);
             let futs = requests
                 .into_iter()
-                .map(|r| server.dispatch(r, era, Some(tx.clone())));
+                .map(|r| server.dispatch(r, era, Some(tx.clone()), client.clone()));
             let mut out: Vec<Value> = immediate.iter().map(Response::to_value).collect();
             out.extend(
                 futures_util::future::join_all(futs)
