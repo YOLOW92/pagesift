@@ -202,7 +202,7 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
             tagged_lines += structure::tag_lines(&mut page_frags, &tags[index]);
         }
         // 表格：格子里的片段换成一个原样输出的 Markdown 表格，放在表格顶部的位置
-        // 书签声明的标题行先标出来，不归图
+        // 书签声明的标题行（这一页和前一页的条目）标成 keep：不归图，也不当页眉页脚删
         let outline_here: Vec<structure::Entry> = structure
             .outline
             .iter()
@@ -214,8 +214,20 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
         let figures = figure::detect(&ink.shapes, &ink.rules, &page_frags, ink.width, ink.height);
         if std::env::var_os("PAGESIFT_PDF_TABLES").is_some() {
             for f in &figures {
-                let head: String = figure::text_of(&page_frags, &f.lines).chars().take(100).collect();
-                eprintln!("figure\t{}\t{:.0}\t{:.0}\t{:.0}\t{:.0}\t{}\t{}", index + 1, f.x0, f.top, f.x1, f.bottom, f.lines.len(), head.replace('\n', " / "));
+                let head: String = figure::text_of(&page_frags, &f.lines)
+                    .chars()
+                    .take(100)
+                    .collect();
+                eprintln!(
+                    "figure\t{}\t{:.0}\t{:.0}\t{:.0}\t{:.0}\t{}\t{}",
+                    index + 1,
+                    f.x0,
+                    f.top,
+                    f.x1,
+                    f.bottom,
+                    f.lines.len(),
+                    head.replace('\n', " / ")
+                );
             }
         }
         let (figure_blocks, table_rules) = figure::take(&figures, &mut page_frags, &ink.rules);
@@ -253,7 +265,7 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
     }
     check_deadline(deadline)?;
 
-    structure::keep_outline_lines(&mut frags, &structure.outline);
+    // 书签标题行的 keep 已在逐页循环里标过（图区识别之前），这里不再重复
     layout::remove_furniture(&mut frags, &heights);
     let mut paras = Vec::with_capacity(frags.len());
     for f in frags {

@@ -287,7 +287,8 @@ impl<'a> Interp<'a> {
                     curves = 0;
                     pbox = EMPTY_BOX;
                 }
-                b"g" | b"G" | b"rg" | b"RG" | b"k" | b"K" | b"cs" | b"CS" | b"sc" | b"scn" | b"SC" | b"SCN" => {
+                b"g" | b"G" | b"rg" | b"RG" | b"k" | b"K" | b"cs" | b"CS" | b"sc" | b"scn"
+                | b"SC" | b"SCN" => {
                     let (mut f, mut st) = (gs.fill, gs.stroke);
                     self.color(&op.name, a, resources, &mut f, &mut st);
                     (gs.fill, gs.stroke) = (f, st);

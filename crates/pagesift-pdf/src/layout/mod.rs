@@ -368,7 +368,15 @@ pub(crate) fn gutters_of(frags: &[&Line]) -> Vec<(f64, f64)> {
     }
     // 一条也没找到时再放宽：只看两栏正文（正文字号的行）并排的那段高度，那里没有行跨过空白就算栏间空白
     // （图上方跨栏的小标题、图例不在这段高度里）
-    scan(&cands, &cover, (cands.len() / 4).max(1), left, scale, min_gap, Some((tol, med)))
+    scan(
+        &cands,
+        &cover,
+        (cands.len() / 4).max(1),
+        left,
+        scale,
+        min_gap,
+        Some((tol, med)),
+    )
 }
 
 /// 在覆盖直方图里找不超过 `tol` 的空白段。`band_tol`（容差, 正文字号）给出时，再核对两边正文字号的行
@@ -405,7 +413,11 @@ fn scan(
                     // 两边都得是正文栏：正文字号的行宽中位数不小于全宽的四分之一（不是编号列、作者名格子）
                     let full = bins as f64 / scale;
                     let wide = |v: &[&&Line]| {
-                        let mut w: Vec<f64> = v.iter().filter(|f| (f.size - med).abs() < 0.5).map(|f| f.x1 - f.x0).collect();
+                        let mut w: Vec<f64> = v
+                            .iter()
+                            .filter(|f| (f.size - med).abs() < 0.5)
+                            .map(|f| f.x1 - f.x0)
+                            .collect();
                         w.sort_by(f64::total_cmp);
                         w.get(w.len() / 2).is_some_and(|&m| m >= 0.25 * full)
                     };
@@ -415,7 +427,9 @@ fn scan(
                     let span = |v: &[&&Line]| {
                         v.iter()
                             .filter(|f| (f.size - med).abs() < 0.5)
-                            .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), f| (lo.min(f.y), hi.max(f.y)))
+                            .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), f| {
+                                (lo.min(f.y), hi.max(f.y))
+                            })
                     };
                     let ((l0, l1), (r0, r1)) = (span(&lhs), span(&rhs));
                     let (lo, hi) = (l0.max(r0), l1.min(r1));

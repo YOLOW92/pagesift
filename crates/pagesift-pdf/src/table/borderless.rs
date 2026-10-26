@@ -191,7 +191,9 @@ pub(crate) fn stream(
                 .fold(f64::NEG_INFINITY, f64::max);
             let top = y(&rows[i]) + size;
             let bottom = y(&rows[j - 1]) - 0.5 * size;
-            if let Some(t) = super::grid::text_grid(frags, &mine, x0, x1, top, bottom).filter(|_| accept(&mine)) {
+            if let Some(t) =
+                super::grid::text_grid(frags, &mine, x0, x1, top, bottom).filter(|_| accept(&mine))
+            {
                 for k in mine {
                     used[k] = true;
                 }

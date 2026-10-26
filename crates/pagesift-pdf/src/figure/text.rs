@@ -1,6 +1,8 @@
 //! 判断一行字像不像图上的标签、题注、正文。
 
-use crate::layout::is_cjk;
+use std::cell::OnceCell;
+
+use crate::layout::{Line, is_cjk};
 
 fn cjk_share(t: &str) -> (usize, usize) {
     let n = t.chars().filter(|c| !c.is_whitespace()).count();
@@ -61,7 +63,7 @@ fn numeric(t: &str) -> bool {
 }
 
 /// 很短的标签：可以从图的左右两侧吸进来。
-pub(super) fn short_label(t: &str) -> bool {
+fn short_label(t: &str) -> bool {
     let t = t.trim();
     numeric(t) || t.chars().count() <= 6
 }
@@ -96,4 +98,43 @@ pub(super) fn prose_like(t: &str) -> bool {
         return n >= 18 && t.contains(['、', '。', '，']);
     }
     t.split_whitespace().count() >= 8 && t.chars().count() >= 40
+}
+
+/// 一行字的几种判断（吸附要反复看）。
+#[derive(Debug, Clone, Copy)]
+pub(super) struct Feat {
+    pub(super) caption: bool,
+    pub(super) label: bool,
+    pub(super) short: bool,
+    pub(super) prose: bool,
+}
+
+impl Feat {
+    pub(super) fn of(t: &str) -> Feat {
+        Feat {
+            caption: caption_like(t),
+            label: label_like(t),
+            short: short_label(t),
+            prose: prose_like(t),
+        }
+    }
+}
+
+/// 一页各行的判断，用到哪行才算哪行。
+pub(super) struct Feats<'a> {
+    lines: &'a [Line],
+    cells: Vec<OnceCell<Feat>>,
+}
+
+impl<'a> Feats<'a> {
+    pub(super) fn new(lines: &'a [Line]) -> Self {
+        Feats {
+            lines,
+            cells: vec![OnceCell::new(); lines.len()],
+        }
+    }
+
+    pub(super) fn get(&self, i: usize) -> Feat {
+        *self.cells[i].get_or_init(|| Feat::of(&self.lines[i].text))
+    }
 }

@@ -1,7 +1,5 @@
 //! 绘图证据聚类：按距离、按柱的排列、按同时碰到两类的坐标轴线把证据并成一张张图。
 
-use std::collections::HashMap;
-
 use super::{GAP, MERGE_GAP, near, union};
 
 /// 一页最多拿这么多根柱两两比较排列。
@@ -52,45 +50,9 @@ impl Cluster {
 
 /// 证据按距离聚类（网格分桶的并查集），再把相近的类合并；返回 (外框, 权重)。
 pub(super) fn cluster(items: &[Item], rules: &[Rule]) -> Vec<Cluster> {
-    const CELL: f64 = 24.0;
+    // 最终的类是“外框相距不超过 MERGE_GAP 就合并”的不动点；证据之间 GAP 以内的相近被它包含，
+    // 不必逐对比较证据（一页几万条铺满绘图区的曲线时逐对比较很慢），直接从单条证据开始合并。
     let mut parent: Vec<usize> = (0..items.len()).collect();
-    fn find(p: &mut [usize], mut i: usize) -> usize {
-        while p[i] != i {
-            p[i] = p[p[i]];
-            i = p[i];
-        }
-        i
-    }
-    let mut buckets: HashMap<(i64, i64), Vec<usize>> = HashMap::new();
-    for (k, it) in items.iter().enumerate() {
-        let b = it.b;
-        let (cx0, cy0) = (
-            ((b[0] - GAP) / CELL).floor() as i64,
-            ((b[1] - GAP) / CELL).floor() as i64,
-        );
-        let (cx1, cy1) = (
-            ((b[2] + GAP) / CELL).floor() as i64,
-            ((b[3] + GAP) / CELL).floor() as i64,
-        );
-        // 很大的外框不进桶（免得占满整页的桶），留给后面的类间合并
-        if (cx1 - cx0 + 1) * (cy1 - cy0 + 1) > 400 {
-            continue;
-        }
-        for cx in cx0..=cx1 {
-            for cy in cy0..=cy1 {
-                let v = buckets.entry((cx, cy)).or_default();
-                for &o in v.iter() {
-                    if near(&items[o].b, &b, GAP) {
-                        let (ra, rb) = (find(&mut parent, o), find(&mut parent, k));
-                        if ra != rb {
-                            parent[ra] = rb;
-                        }
-                    }
-                }
-                v.push(k);
-            }
-        }
-    }
     // 柱形图的柱可能隔得很开：同宽、上下范围重叠、间距不超过 4 个柱宽（横柱同理）的柱先并成一组
     let bars: Vec<usize> = (0..items.len()).filter(|&k| items[k].bar).collect();
     if bars.len() <= MAX_BARS {
@@ -105,7 +67,59 @@ pub(super) fn cluster(items: &[Item], rules: &[Rule]) -> Vec<Cluster> {
             }
         }
     }
-    let mut groups: HashMap<usize, Cluster> = HashMap::new();
+    // 中心落在同一个 8pt 格子里的证据外框相距不到 8pt，最后一定会并到一起：先并起来，少做几轮合并
+    // （柱不先并，柱形图的判断要看每根柱）
+    let keys: Vec<(i64, i64)> = items
+        .iter()
+        .map(|it| {
+            let b = it.b;
+            (
+                ((b[0] + b[2]) / 16.0).floor() as i64,
+                ((b[1] + b[3]) / 16.0).floor() as i64,
+            )
+        })
+        .collect();
+    let solid: Vec<usize> = (0..items.len()).filter(|&k| !items[k].bar).collect();
+    let (x0, x1) = solid
+        .iter()
+        .map(|&k| keys[k].0)
+        .fold((i64::MAX, i64::MIN), |(a, b), x| (a.min(x), b.max(x)));
+    let (y0, y1) = solid
+        .iter()
+        .map(|&k| keys[k].1)
+        .fold((i64::MAX, i64::MIN), |(a, b), y| (a.min(y), b.max(y)));
+    let mut join = |a: usize, b: usize| {
+        let (ra, rb) = (find(&mut parent, a), find(&mut parent, b));
+        if ra != rb {
+            parent[ra] = rb;
+        }
+    };
+    let (w, h) = (
+        x1.saturating_sub(x0).saturating_add(1),
+        y1.saturating_sub(y0).saturating_add(1),
+    );
+    if !solid.is_empty() && w.saturating_mul(h) <= 1 << 16 {
+        // 格子不多：每格记第一条证据，同格的并过去
+        let mut first = vec![usize::MAX; (w * h) as usize];
+        for &k in &solid {
+            let c = ((keys[k].0 - x0) * h + keys[k].1 - y0) as usize;
+            if first[c] == usize::MAX {
+                first[c] = k;
+            } else {
+                join(first[c], k);
+            }
+        }
+    } else {
+        let mut order: Vec<((i64, i64), usize)> = solid.iter().map(|&k| (keys[k], k)).collect();
+        order.sort_unstable();
+        for p in order.windows(2) {
+            if p[0].0 == p[1].0 {
+                join(p[0].1, p[1].1);
+            }
+        }
+    }
+    let mut slot: Vec<usize> = vec![usize::MAX; items.len()];
+    let mut boxes: Vec<Cluster> = Vec::new();
     for (k, it) in items.iter().enumerate() {
         let r = find(&mut parent, k);
         let one = Cluster {
@@ -113,15 +127,14 @@ pub(super) fn cluster(items: &[Item], rules: &[Rule]) -> Vec<Cluster> {
             w: it.w,
             bars: if it.bar { vec![it.b] } else { Vec::new() },
         };
-        match groups.get_mut(&r) {
-            Some(c) => c.absorb(one),
-            None => {
-                groups.insert(r, one);
-            }
+        if slot[r] == usize::MAX {
+            slot[r] = boxes.len();
+            boxes.push(one);
+        } else {
+            boxes[slot[r]].absorb(one);
         }
     }
-    let mut boxes: Vec<Cluster> = groups.into_values().collect();
-    // 并查集的根来自 HashMap，顺序不定：按权重和外框排成确定的顺序（合并结果和认领顺序都依赖它）
+    // 按权重和外框排成确定的顺序（合并结果和认领顺序都依赖它）
     boxes.sort_by(|a, b| {
         (b.w + b.bars.len() as u32)
             .cmp(&(a.w + a.bars.len() as u32))
@@ -131,9 +144,6 @@ pub(super) fn cluster(items: &[Item], rules: &[Rule]) -> Vec<Cluster> {
             .then(a.b[3].total_cmp(&b.b[3]))
     });
     // 相近的类合并（同一张图里离得稍远的柱、图例）；类不多，直接两两比
-    if boxes.len() > 2000 {
-        boxes.truncate(2000);
-    }
     merge_near(&mut boxes);
     // 坐标轴线同时碰到两类（纵轴的刻度和柱、两组柱）就把它们并起来；线不能伸出这两类合起来的范围，
     // 免得整页的分隔线把上下两张图连成一张
@@ -144,12 +154,11 @@ pub(super) fn cluster(items: &[Item], rules: &[Rule]) -> Vec<Cluster> {
     if boxes.len() > 1 && boxes.len() <= 400 {
         for r in long {
             let rb = [r.x0, r.y0, r.x1, r.y1];
-            let hit: Vec<usize> = (0..boxes.len())
-                .filter(|&i| near(&boxes[i].b, &rb, GAP))
-                .collect();
-            if hit.len() < 2 {
+            let mut hits = (0..boxes.len()).filter(|&i| near(&boxes[i].b, &rb, GAP));
+            let (Some(h0), Some(h1)) = (hits.next(), hits.next()) else {
                 continue;
-            }
+            };
+            let hit: Vec<usize> = [h0, h1].into_iter().chain(hits).collect();
             let mut u = boxes[hit[0]].b;
             for &i in &hit[1..] {
                 union(&mut u, &boxes[i].b);
@@ -180,26 +189,154 @@ fn same_series(a: &[f64; 4], b: &[f64; 4]) -> bool {
     vertical || horizontal
 }
 
-/// 相近的类合并，直到没有可并的。
+/// 相近的类合并，直到没有可并的。两类一旦相距不超过 MERGE_GAP，之后各自只会变大，迟早并到一起，
+/// 所以结果和合并的先后无关：外框放进网格，一个类的外框变大就补登记新占的格子、再拿它找邻居。
+/// 并完按每类最早的成员排回原来的先后。
 fn merge_near(boxes: &mut Vec<Cluster>) {
-    loop {
-        let mut merged = false;
-        let mut i = 0;
-        while i < boxes.len() {
-            let mut j = i + 1;
-            while j < boxes.len() {
-                if near(&boxes[i].b, &boxes[j].b, MERGE_GAP) {
-                    let o = boxes.swap_remove(j);
-                    boxes[i].absorb(o);
-                    merged = true;
-                } else {
-                    j += 1;
-                }
-            }
-            i += 1;
+    let n = boxes.len();
+    if n < 2 {
+        return;
+    }
+    let mut b: Vec<[f64; 4]> = boxes.iter().map(|c| c.b).collect();
+    let mut grid = Grid::new(&b);
+    for (i, bi) in b.iter().enumerate() {
+        grid.register(i, bi);
+    }
+    let mut parent: Vec<usize> = (0..n).collect();
+    let mut stack: Vec<usize> = (0..n).rev().collect();
+    let mut cand = Vec::new();
+    while let Some(i) = stack.pop() {
+        if parent[i] != i {
+            continue;
         }
-        if !merged {
-            break;
+        grid.candidates(i, &mut cand);
+        let mut grew = false;
+        for &c in &cand {
+            let rc = find(&mut parent, c);
+            if rc != i && near(&b[i], &b[rc], MERGE_GAP) {
+                parent[rc] = i;
+                let o = b[rc];
+                union(&mut b[i], &o);
+                grew = true;
+            }
+        }
+        if grew {
+            grid.register(i, &b[i]);
+            stack.push(i);
         }
     }
+    let mut slot: Vec<usize> = vec![usize::MAX; n];
+    let mut out: Vec<Cluster> = Vec::new();
+    for (i, c) in std::mem::take(boxes).into_iter().enumerate() {
+        let r = find(&mut parent, i);
+        if slot[r] == usize::MAX {
+            slot[r] = out.len();
+            out.push(c);
+        } else {
+            out[slot[r]].absorb(c);
+        }
+    }
+    *boxes = out;
+}
+
+/// 合并用的网格：每个类登记在它的外框（四周放宽 MERGE_GAP）占的格子里；很大的外框不登记，直接和所有类比。
+/// 网格每边最多 MAX_GRID 格，越界的格子夹到边上（夹取保序，相交的范围夹完仍相交）。
+struct Grid {
+    x0: i64,
+    y0: i64,
+    w: i64,
+    h: i64,
+    cells: Vec<Vec<usize>>,
+    big: Vec<usize>,
+    /// 已登记的格子范围；None 是还没登记或是大外框。
+    reg: Vec<Option<[i64; 4]>>,
+    is_big: Vec<bool>,
+}
+
+impl Grid {
+    const CELL: f64 = 32.0;
+    const MAX_CELLS: i64 = 400;
+    const MAX_GRID: i64 = 256;
+
+    fn span(b: &[f64; 4]) -> [i64; 4] {
+        let f = |v: f64| (v / Self::CELL).floor() as i64;
+        [
+            f(b[0] - MERGE_GAP),
+            f(b[1] - MERGE_GAP),
+            f(b[2] + MERGE_GAP),
+            f(b[3] + MERGE_GAP),
+        ]
+    }
+
+    fn new(boxes: &[[f64; 4]]) -> Self {
+        let spans: Vec<[i64; 4]> = boxes.iter().map(Self::span).collect();
+        let x0 = spans.iter().map(|s| s[0]).min().unwrap_or(0);
+        let y0 = spans.iter().map(|s| s[1]).min().unwrap_or(0);
+        let x1 = spans.iter().map(|s| s[2]).max().unwrap_or(0);
+        let y1 = spans.iter().map(|s| s[3]).max().unwrap_or(0);
+        let (w, h) = (
+            (x1.saturating_sub(x0) + 1).clamp(1, Self::MAX_GRID),
+            (y1.saturating_sub(y0) + 1).clamp(1, Self::MAX_GRID),
+        );
+        Grid {
+            x0,
+            y0,
+            w,
+            h,
+            cells: vec![Vec::new(); (w * h) as usize],
+            big: Vec::new(),
+            reg: vec![None; boxes.len()],
+            is_big: vec![false; boxes.len()],
+        }
+    }
+
+    fn register(&mut self, i: usize, b: &[f64; 4]) {
+        if self.is_big[i] {
+            return;
+        }
+        let s = Self::span(b);
+        if (s[2] - s[0] + 1).saturating_mul(s[3] - s[1] + 1) > Self::MAX_CELLS {
+            self.is_big[i] = true;
+            self.big.push(i);
+            return;
+        }
+        let cx = |v: i64| v.saturating_sub(self.x0).clamp(0, self.w - 1);
+        let cy = |v: i64| v.saturating_sub(self.y0).clamp(0, self.h - 1);
+        let c = [cx(s[0]), cy(s[1]), cx(s[2]), cy(s[3])];
+        let old = self.reg[i];
+        for x in c[0]..=c[2] {
+            for y in c[1]..=c[3] {
+                if old.is_some_and(|o| x >= o[0] && x <= o[2] && y >= o[1] && y <= o[3]) {
+                    continue;
+                }
+                self.cells[(y * self.w + x) as usize].push(i);
+            }
+        }
+        self.reg[i] = Some(c);
+    }
+
+    /// 可能和类 `i` 相近的类（可能有重复、已并掉的）。
+    fn candidates(&self, i: usize, out: &mut Vec<usize>) {
+        out.clear();
+        if self.is_big[i] {
+            out.extend(0..self.reg.len());
+            return;
+        }
+        if let Some(c) = self.reg[i] {
+            for x in c[0]..=c[2] {
+                for y in c[1]..=c[3] {
+                    out.extend(&self.cells[(y * self.w + x) as usize]);
+                }
+            }
+        }
+        out.extend(&self.big);
+    }
+}
+
+fn find(p: &mut [usize], mut i: usize) -> usize {
+    while p[i] != i {
+        p[i] = p[p[i]];
+        i = p[i];
+    }
+    i
 }

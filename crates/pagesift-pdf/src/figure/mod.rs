@@ -24,7 +24,9 @@ use crate::layout::Line;
 use cluster::{Cluster, cluster};
 use evidence::{Centers, evidence};
 use rules::Rules;
-use text::{caption_like, label_like, prose_like, short_label};
+use text::Feats;
+#[cfg(test)]
+use text::{caption_like, label_like, prose_like};
 
 /// 聚类时证据之间允许的空隙（pt）。
 pub(super) const GAP: f64 = 8.0;
@@ -98,14 +100,16 @@ pub(crate) fn detect(
     if items.is_empty() {
         return Vec::new();
     }
-    let mut boxes = cluster(&items, rules);
-    boxes.retain(|c| {
-        c.weight() >= MIN_WEIGHT && c.b[2] - c.b[0] >= MIN_W && c.b[3] - c.b[1] >= MIN_H
-    });
+    // 权重要看柱的排列，算一次存起来
+    let mut boxes: Vec<(u32, Cluster)> = cluster(&items, rules)
+        .into_iter()
+        .filter(|c| c.b[2] - c.b[0] >= MIN_W && c.b[3] - c.b[1] >= MIN_H)
+        .map(|c| (c.weight(), c))
+        .filter(|(w, _)| *w >= MIN_WEIGHT)
+        .collect();
     // 认领顺序：权重大的先认领，同权重按位置（结果要确定）
-    boxes.sort_by(|a, b| {
-        b.weight()
-            .cmp(&a.weight())
+    boxes.sort_by(|(wa, a), (wb, b)| {
+        wb.cmp(wa)
             .then(b.b[3].total_cmp(&a.b[3]))
             .then(a.b[0].total_cmp(&b.b[0]))
             .then(a.b[1].total_cmp(&b.b[1]))
@@ -115,16 +119,17 @@ pub(crate) fn detect(
         return Vec::new();
     }
     let body = body_size(lines);
+    let feats = Feats::new(lines);
     let mut taken = vec![false; lines.len()];
     let mut out = Vec::new();
-    for Cluster { mut b, .. } in boxes {
+    for (_, Cluster { mut b, .. }) in boxes {
         extend_by_rules(&mut b, rules);
         // 和已有的图重叠：同一张图被分成了几类（流程图的几列节点），并进去
         let b4 = |f: &Figure| [f.x0, f.bottom, f.x1, f.top];
         if let Some(f) = out.iter_mut().find(|f| near(&b4(f), &b, 0.0)) {
             let mut u = b4(f);
             union(&mut u, &b);
-            if let Some(g) = claim(u, lines, &mut taken, body, height, &index) {
+            if let Some(g) = claim(u, lines, &feats, &mut taken, body, height, &index) {
                 f.lines.extend(g.lines);
                 (f.x0, f.bottom, f.x1, f.top) = (
                     f.x0.min(g.x0),
@@ -135,7 +140,7 @@ pub(crate) fn detect(
             }
             continue;
         }
-        if let Some(f) = claim(b, lines, &mut taken, body, height, &index) {
+        if let Some(f) = claim(b, lines, &feats, &mut taken, body, height, &index) {
             out.push(f);
         }
     }
@@ -176,6 +181,7 @@ fn body_size(lines: &[Line]) -> f64 {
 fn claim(
     mut b: [f64; 4],
     lines: &[Line],
+    feats: &Feats,
     taken: &mut [bool],
     body: f64,
     height: f64,
@@ -200,16 +206,14 @@ fn claim(
         !taken[i] && !l.raw && !l.artifact && !l.keep && l.hint.is_none() && !big(l)
     };
     let inside: Vec<usize> = (0..lines.len())
-        .filter(|&i| free(i, taken) && !caption_like(&lines[i].text))
+        .filter(|&i| free(i, taken))
         .filter(|&i| {
             let (x, y) = center(&lines[i]);
             x >= b[0] && x <= b[2] && y >= b[1] && y <= b[3]
         })
+        .filter(|&i| !feats.get(i).caption)
         .collect();
-    let prose = inside
-        .iter()
-        .filter(|&&i| prose_like(&lines[i].text))
-        .count();
+    let prose = inside.iter().filter(|&&i| feats.get(i).prose).count();
     if prose >= 5 || (prose >= 3 && prose * 10 >= inside.len() * 3) {
         return None;
     }
@@ -227,12 +231,7 @@ fn claim(
                 continue;
             }
             let l = &lines[i];
-            let t = &l.text;
             let lb = line_box(l);
-            // 题注、句子不吸；表格格子里的字（上下都有横线）不吸：图紧挨着表格时不把表格一行行吸进来
-            if caption_like(t) || !label_like(t) || index.ruled_cell(&lb, l.size, &b) {
-                continue;
-            }
             let s = l.size;
             // 上下：横向落在图的范围内，竖向空隙不超过一个字号
             let vertical = lb[0] >= b[0] - 3.0 * s
@@ -242,9 +241,18 @@ fn claim(
             let (_, cy) = center(l);
             let side = cy >= b[1] - 0.5 * s
                 && cy <= b[3] + 0.5 * s
-                && (lb[0] - b[2]).max(b[0] - lb[2]) <= 1.2 * s
-                && short_label(t);
-            if vertical || side {
+                && (lb[0] - b[2]).max(b[0] - lb[2]) <= 1.2 * s;
+            if !vertical && !side {
+                continue;
+            }
+            // 题注、句子不吸
+            let f = feats.get(i);
+            if f.caption || !f.label {
+                continue;
+            }
+            let side = side && f.short;
+            // 表格格子里的字（上下都有横线）不吸：图紧挨着表格时不把表格一行行吸进来
+            if (vertical || side) && !index.ruled_cell(&lb, l.size, &b) {
                 taken[i] = true;
                 mine.push(i);
                 union(&mut b, &lb);
