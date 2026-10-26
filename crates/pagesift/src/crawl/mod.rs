@@ -20,6 +20,8 @@ use crate::frontier::{self, Learner};
 
 mod runner;
 mod sitemap;
+#[cfg(test)]
+mod tests_sitemap;
 
 #[cfg(test)]
 use sitemap::{gunzip_if_needed, parse_sitemap};
@@ -881,61 +883,6 @@ mod tests {
             "include pattern"
         );
         assert!(Scope::new(&start, false, false, CrawlScope::Auto, &["(".into()], &[]).is_err());
-    }
-
-    #[test]
-    fn parses_urlsets_and_indexes() {
-        let urlset =
-            br#"<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-            <url><loc>https://example.com/a</loc><lastmod>2026-01-01</lastmod></url>
-            <url><loc><![CDATA[https://example.com/b?x=1&y=2]]></loc></url>
-            <url><loc>https://example.com/c?p=1&amp;q=&#50;</loc></url></urlset>"#;
-        let (pages, children) = parse_sitemap(urlset);
-        assert_eq!(
-            pages,
-            vec![
-                "https://example.com/a",
-                "https://example.com/b?x=1&y=2",
-                "https://example.com/c?p=1&q=2"
-            ]
-        );
-        assert!(children.is_empty());
-        let index = br#"<sitemapindex><sitemap><loc>https://example.com/s1.xml.gz</loc></sitemap></sitemapindex>"#;
-        assert_eq!(
-            parse_sitemap(index),
-            (vec![], vec!["https://example.com/s1.xml.gz".to_string()])
-        );
-        assert_eq!(parse_sitemap(b"not xml <<<"), (vec![], vec![]));
-    }
-
-    #[test]
-    fn parses_feeds_and_text_sitemaps() {
-        let rss =
-            br#"<?xml version="1.0"?><rss version="2.0"><channel><link>https://example.com/</link>
-            <item><title>A</title><link>https://example.com/a?x=1&amp;y=2</link></item>
-            <item><link><![CDATA[https://example.com/b]]></link></item></channel></rss>"#;
-        assert_eq!(
-            parse_sitemap(rss).0,
-            vec!["https://example.com/a?x=1&y=2", "https://example.com/b"]
-        );
-        let atom = br#"<feed xmlns="http://www.w3.org/2005/Atom"><link href="https://example.com/"/>
-            <entry><link rel="alternate" href="https://example.com/c"/><link rel="edit" href="https://example.com/edit/c"/></entry>
-            <entry><link href="https://example.com/d"></link></entry></feed>"#;
-        assert_eq!(
-            parse_sitemap(atom).0,
-            vec!["https://example.com/c", "https://example.com/d"]
-        );
-        let txt = b"\xef\xbb\xbfhttps://example.com/e\r\n\n  http://example.com/f  \nnot a url\n";
-        assert_eq!(
-            parse_sitemap(txt),
-            (
-                vec![
-                    "https://example.com/e".to_string(),
-                    "http://example.com/f".to_string()
-                ],
-                vec![]
-            )
-        );
     }
 
     #[test]

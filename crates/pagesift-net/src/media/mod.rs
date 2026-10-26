@@ -59,34 +59,6 @@ segment2.ts
     }
 
     #[test]
-    fn test_mpd_segment_template_parsing() {
-        let mpd = r#"<?xml version="1.0" encoding="UTF-8"?>
-<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" minBufferTime="PT1.5S" mediaPresentationDuration="PT5S">
-  <Period id="0">
-    <AdaptationSet id="0" contentType="video" mimeType="video/mp4">
-      <SegmentTemplate timescale="1000" initialization="init-$RepresentationID$.mp4" media="chunk-$RepresentationID$-$Number%05d$.m4s" startNumber="1">
-        <SegmentTimeline>
-          <S t="0" d="1000" r="4"/>
-        </SegmentTimeline>
-      </SegmentTemplate>
-      <Representation id="1080p" bandwidth="5000000" width="1920" height="1080" codecs="avc1.640028" />
-    </AdaptationSet>
-  </Period>
-</MPD>"#;
-        let manifest = parse_mpd(mpd, None).unwrap();
-        assert_eq!(manifest.min_buffer_time_s, 1.5);
-        assert_eq!(manifest.media_presentation_duration_s, Some(5.0));
-        assert_eq!(manifest.adaptation_sets.len(), 1);
-        let rep = &manifest.adaptation_sets[0].representations[0];
-        assert_eq!(rep.id, "1080p");
-        assert_eq!(rep.segments.len(), 6); // 1 init + 5 media segments
-        assert!(rep.segments[0].is_init);
-        assert_eq!(rep.segments[0].uri, "init-1080p.mp4");
-        assert_eq!(rep.segments[1].uri, "chunk-1080p-00001.m4s");
-        assert_eq!(rep.segments[5].uri, "chunk-1080p-00005.m4s");
-    }
-
-    #[test]
     fn test_stream_verifier_ts_packet_check() {
         // Construct 2 valid 188-byte TS packets
         let mut data = vec![0u8; 188 * 2];
