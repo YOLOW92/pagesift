@@ -28,24 +28,39 @@ pub(crate) fn word_class(w: &str) -> u8 {
         | "consent" | "advert" | "advertisement" | "ad" | "ads" | "sponsor" | "sponsored"
         | "newsletter" | "subscribe" | "popup" | "modal" | "promo" | "toolbar" | "pagination"
         | "editsection" | "catlinks" | "bookmark" | "bookmarks" | "extra" | "labs" | "labstabs"
-        | "endorser" | "endorsers" | "recommender" | "recommenders" | "quickview" | "teaser"
-        | "excerpt" => NEG,
+        // `excerpt` 不算：博客列表的摘要、文章导语是正文（WCXB listing +0.014）。`teaser` 保留：
+        // 商品页的评论预览（`product-reviews-teaser`）是噪声，去掉它 product −0.009。
+        | "endorser" | "endorsers" | "recommender" | "recommenders" | "quickview" | "teaser" => NEG,
         "skip" | "jump" => NEG | JUMP,
         "comment" | "comments" | "byline" | "tags" | "tag" | "breadcrumb" | "breadcrumbs"
-        | "disqus" | "rating" | "print" | "follow" | "outbrain" | "taboola" | "embed" => STRICT,
+        | "author" | "disqus" | "rating" | "print" | "follow" | "outbrain" | "taboola" | "embed" => {
+            STRICT
+        }
         _ => 0,
     }
 }
 
 /// 署名区（`authors`、`author-list`）。论文站的作者行是纯链接列表，链接密度规则会把它
 /// 当导航剪掉；作者是正文的一部分，保留。
+///
+/// 按整个 class/id 词元匹配，不做子串匹配：`authors-widget`、`related-authors`、
+/// `post-authors-box` 这类侧栏组件不算（0.72.8 子串匹配把它们全放进了正文）。
 pub(crate) fn is_author_list(el: Element<'_>) -> bool {
     [el.attr("class"), el.attr("id")]
         .into_iter()
         .flatten()
-        .any(|value| {
-            contains_ascii_ci(value, "authors")
-                || (contains_ascii_ci(value, "author") && contains_ascii_ci(value, "list"))
+        .flat_map(str::split_ascii_whitespace)
+        .any(|token| {
+            [
+                "authors",
+                "author-list",
+                "authors-list",
+                "author_list",
+                "authorlist",
+                "ltx_authors",
+            ]
+            .iter()
+            .any(|name| token.eq_ignore_ascii_case(name))
         })
 }
 

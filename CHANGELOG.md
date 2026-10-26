@@ -2,6 +2,73 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.73.0] — 2026-10-26
+
+Fixes from a three-way code review and ~150 adversarial input tests. The headline fix: since
+0.70.0, `scrape`, `crawl` and `serve` ran all content extraction on a single core; the API server
+now handles 5–7× more requests per second. See [the release notes](docs/releases/0.73.0.md).
+
+### Fixed
+- Content extraction used one CPU instead of all of them. The extraction semaphore read the
+  calling thread's CPU affinity, and since 0.70 tokio workers are pinned to single CPUs, so it got
+  one permit. The CLI now sets the capacity from the cgroup-aware topology before pinning, and
+  blocking-pool threads are no longer pinned.
+- CJK pages could panic in the feed sniffer when byte 4096 fell inside a character.
+- A page declared UTF-8 with a few stray non-UTF-8 bytes was re-decoded as Windows-1252/GBK and
+  turned into mojibake; mostly-valid UTF-8 now keeps the declaration (bad bytes become U+FFFD).
+- PDFs served as `application/octet-stream` were rejected as binary.
+- Elements with tens of thousands of attributes parsed in quadratic time (40,000 attributes:
+  3 s → 0.02 s).
+- The API server now enforces header-read, body-read and whole-request timeouts (slowloris).
+- RSS/Atom items no longer emit `javascript:`/`data:` links or script text from descriptions;
+  relative item links are resolved against the feed link.
+- Lightpanda's private-network block list now covers IPv4-mapped, NAT64 and 6to4 addresses
+  that embed private IPv4 ranges; `allow_ips` are passed to Lightpanda as /32 and /128.
+- Short pages whose raw HTML contains `age-gate`/`age_gate` — Substack's inline
+  `"test_age_gate_user":false`, `language-gate` — were reported as age-verification barriers
+  (2 of 66 real Substack pages: short "hidden open thread" posts). Age gates are now detected
+  from visible confirmation text only.
+- Author lists are matched by whole class/id tokens and no longer bypass nav/aside/footer
+  pruning; author bio boxes are pruned in article mode again.
+- A `v-cloak`/`x-cloak` app root that holds the server-rendered page is no longer treated as a
+  hidden template.
+- `<template>` content can no longer be chosen as the article body.
+- `excerpt` is no longer a negative class (WCXB listing pages +0.014 F1).
+- `openai_key` no longer matches CSS variables and URL slugs such as `sk-line-height--large`.
+- Short pages with a real body keep it instead of being replaced by an embedded `VideoObject`.
+- `Content-Encoding: gzip, gzip` is decoded layer by layer; a body labelled gzip that is not
+  gzip is used as-is with a `content_encoding_mismatch` warning; corrupt streams report a
+  decoding error instead of "exceeded the size limit".
+- Redirects whose `Location` contains raw non-ASCII bytes are followed.
+- Nested emphasis (`<b><strong>…`) no longer prints runs of `*`.
+- JSON-LD is parsed once per block; blocks wrapped in comments or CDATA are now passed through
+  in `metadata.pagesift.jsonLd`.
+- `thin_content` ignores inline `data:` resources and `<style>` when sizing the page.
+- `skip + limit` on job status pages no longer overflows.
+- README examples used `crawl --output`; the flag is `--out`.
+
+### Changed
+- **Crawl scope is decided from evidence** (new `--scope auto|exact|parent|domain`, API `scope`,
+  default `auto`). The crawl starts in the narrowest directory — the seed's own path
+  (`/docs/python`), or the directory of a file-name seed (`/docs/index.html`). If the start page
+  has body text and links to fewer than 3 pages below it (a blog post, a news story, one page of
+  a manual), the scope widens to the nearest ancestor directory it links at least 3 sibling
+  pages in — never the site root — and a `crawl_scope:` warning says so. `--scope parent` skips
+  year/month/day directories to reach the post's section. Sitemap URLs held back by the narrow scope are queued
+  after widening. 0.71–0.72.8 always widened, so `/docs/python` also crawled `/docs/java`; 0.70
+  never did, so `/blog/post-3` crawled one page. `--entire-domain` / `crawlEntireDomain` equal
+  `--scope domain`.
+- With a proxy configured, hostnames are no longer resolved locally unless `allow_cidrs` or
+  `allow_ips` are set (prevents DNS leaks through `socks5h` proxies); with those set, a host
+  that resolves inside the allowed ranges still connects directly.
+- `application/json` responses are returned as a formatted ```json code block.
+- A final 3xx response (no usable `Location`) and an unconditional 304 add a warning and make
+  `pagesift scrape` exit with code 2 when the body is empty.
+- API limits: scrape `timeout` ≤ 300000 ms, crawl `limit` ≤ 100000, `maxDepth`/
+  `maxDiscoveryDepth` ≤ 100, map `limit` ≤ 100000, at most 10000 URLs per batch/extract,
+  URLs ≤ 8 KB, and `extract.schema` must be a JSON object.
+- API framework rejections (query/path parsing, 405, 415) now use the standard JSON error body.
+
 ## [0.72.8] — 2026-10-26
 
 Truthful charset decoding and extraction signals, complete private-network allow-lists, default

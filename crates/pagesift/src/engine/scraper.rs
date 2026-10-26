@@ -4,13 +4,6 @@ impl Scraper {
     pub fn new(config: ScraperConfig) -> Result<Self, ScraperError> {
         let browser_private_network = config.fetcher.ssrf.allow_private_network;
         let browser_allow = browser_allow_list(&config.fetcher.ssrf)?;
-        let browser_allow_cidrs: Vec<String> = config
-            .fetcher
-            .ssrf
-            .allow_cidrs
-            .iter()
-            .map(cidr_string)
-            .collect();
         let mut egress = Vec::new();
         for (name, proxy) in &config.egress {
             let mut fc = config.fetcher.clone();
@@ -45,10 +38,11 @@ impl Scraper {
             llm,
             search: config.search,
             browsers: {
-                let chain = pagesift_cdp::engine_chain_with_allow(
+                // allow_ips 以 /32、/128 的形式一起交给 Lightpanda；allow_hosts 它不支持（cdp 侧会告警）
+                let chain = pagesift_cdp::engine_chain_with_allow_list(
                     &config.browser,
                     browser_private_network,
-                    &browser_allow_cidrs,
+                    &browser_allow,
                 );
                 log_engine_chain(&chain);
                 chain.into_iter().map(|c| (c, OnceCell::new())).collect()
@@ -491,13 +485,6 @@ fn open_fd_count() -> usize {
     std::fs::read_dir("/proc/self/fd")
         .map(|entries| entries.count())
         .unwrap_or(0)
-}
-
-fn cidr_string(cidr: &pagesift_net::IpCidr) -> String {
-    match cidr {
-        pagesift_net::IpCidr::V4 { net, prefix } => format!("{net}/{prefix}"),
-        pagesift_net::IpCidr::V6 { net, prefix } => format!("{net}/{prefix}"),
-    }
 }
 
 /// 把网络层的 SSRF 放行名单原样映射给浏览器子请求拦截器。

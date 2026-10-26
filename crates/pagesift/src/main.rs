@@ -249,9 +249,13 @@ enum Command {
         /// Skip paths matching this regex (repeatable)
         #[arg(long)]
         exclude: Vec<String>,
-        /// Crawl the whole domain, not just pages under the start path
+        /// Crawl the whole domain, not just pages under the start path (same as --scope domain)
         #[arg(long)]
         entire_domain: bool,
+        /// Path scope: auto (start directory, widened one level when the start page is a leaf
+        /// such as a blog post), exact (never widen), parent (one level up) or domain
+        #[arg(long, default_value = "auto", value_parser = ["auto", "exact", "parent", "domain"])]
+        scope: String,
         /// Follow links to subdomains
         #[arg(long)]
         subdomains: bool,
@@ -366,18 +370,20 @@ fn print_scrape_warnings(doc: &pagesift::api::types::Document) {
             || warning.starts_with("render_unavailable")
             || warning.starts_with("render_skipped_")
             || warning.starts_with("http_error_status:")
+            || warning.starts_with("http_redirect_status:")
+            || warning.starts_with("not_modified:")
         {
             eprintln!("warning: {warning}");
         }
     }
 }
 
-/// 页面抓到了，但 HTTP 状态说明这不是一次成功的内容获取：5xx，或 404 且正文为空。
+/// 页面抓到了，但 HTTP 状态说明这不是一次成功的内容获取：5xx，404 或没跟随成功的 3xx 且正文为空。
 /// 退出码 2 便于脚本区分“请求本身失败”（1）和“服务器返回错误页”（2）。
 fn scrape_exit_code(doc: &pagesift::api::types::Document) -> ExitCode {
     let status = doc.metadata.status_code;
     let empty = doc.markdown.as_deref().is_none_or(|m| m.trim().is_empty());
-    if status >= 500 || (status == 404 && empty) {
+    if status >= 500 || ((status == 404 || (300..400).contains(&status)) && empty) {
         ExitCode::from(2)
     } else {
         ExitCode::SUCCESS
@@ -868,9 +874,7 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
                 .await
                 .with_context(|| format!("binding {host}:{port}"))?;
             eprintln!("pagesift listening on http://{}", listener.local_addr()?);
-            axum::serve(listener, app)
-                .with_graceful_shutdown(shutdown_signal())
-                .await?;
+            pagesift::api::serve(listener, app, shutdown_signal()).await?;
             scraper.shutdown().await;
             Ok(ExitCode::SUCCESS)
         }),
@@ -882,6 +886,7 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
             include,
             exclude,
             entire_domain,
+            scope,
             subdomains,
             sitemap,
             engine,
@@ -899,6 +904,7 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
                     "includePaths": include,
                     "excludePaths": exclude,
                     "crawlEntireDomain": entire_domain,
+                    "scope": scope,
                     "allowSubdomains": subdomains,
                     "sitemap": sitemap,
                     "scrapeOptions": { "engine": engine, "discoverScripts": external_scripts },
@@ -1148,6 +1154,8 @@ fn runtime() -> Result<tokio::runtime::Runtime> {
     if let Some(cap) = addr_space_worker_cap() {
         workers = workers.min(cap);
     }
+    // 必须在绑核之前：之后各线程只看得到自己那一个 CPU。
+    pagesift::set_cpu_capacity(topology.runtime_workers);
     // 地址空间不够时线程会 spawn 失败（EAGAIN）。逐次减半重试，而不是让运行时 panic
     // 或卡在没有输出的状态里——受限环境下至少还能以小并发把活干完。
     loop {
@@ -1160,8 +1168,12 @@ fn runtime() -> Result<tokio::runtime::Runtime> {
             let cpus = worker_cpus.clone();
             builder.on_thread_start(move || {
                 use std::sync::atomic::Ordering;
-                let index = next_cpu.fetch_add(1, Ordering::Relaxed) % cpus.len();
-                let _ = pagesift::adaptive::pin_current_thread(cpus[index]);
+                // 运行时先起 worker，之后按需起的是阻塞池线程（正文提取、PDF 解析）。
+                // 只绑 worker：阻塞线程交给调度器放到空闲核上，免得和某个 worker 挤在同一个核。
+                let index = next_cpu.fetch_add(1, Ordering::Relaxed);
+                if index < workers {
+                    let _ = pagesift::adaptive::pin_current_thread(cpus[index % cpus.len()]);
+                }
             });
         }
         match builder.enable_all().build() {

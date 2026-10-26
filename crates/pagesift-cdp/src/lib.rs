@@ -30,7 +30,10 @@ mod page;
 mod pool;
 
 pub use conn::{Connection, Event, EventStream, Session};
-pub use engine::{EngineKind, Footprint, detect_engines, engine_chain, engine_chain_with_allow};
+pub use engine::{
+    EngineKind, Footprint, detect_engines, engine_chain, engine_chain_with_allow,
+    engine_chain_with_allow_list,
+};
 pub use error::{Error, Result};
 pub use guard::{
     AllowListGuard, BlockResources, BoxFuture, Cidr, NetworkAllowList, PrivateNetworkGuard,

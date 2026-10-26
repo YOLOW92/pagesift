@@ -181,20 +181,23 @@ pub(crate) fn extract(html: &Html<'_>, source: &str, base: Option<&Url>) -> Meta
     if m.author.is_none() && !citation_authors.is_empty() {
         m.author = Some(citation_authors.join(", "));
     }
-    // JSON-LD 原样透传：只收解析成功的块，总量控制在一页 256 KB 以内。
-    let mut budget = 256 * 1024;
-    m.json_ld = ld_blocks
+    // 每块只解析一次：作者/日期提取和原样透传共用。透传只收解析成功的块，总量控制在一页 256 KB 以内。
+    let parsed: Vec<(usize, serde_json::Value)> = ld_blocks
         .iter()
-        .filter_map(|block| {
-            if block.len() > budget {
+        .filter_map(|block| Some((block.len(), jsonld::parse(block)?)))
+        .collect();
+    let ld = jsonld::extract(parsed.iter().map(|(_, v)| v));
+    let mut budget = 256 * 1024;
+    m.json_ld = parsed
+        .into_iter()
+        .filter_map(|(len, value)| {
+            if len > budget {
                 return None;
             }
-            let value: serde_json::Value = serde_json::from_str(block).ok()?;
-            budget -= block.len();
+            budget -= len;
             Some(value)
         })
         .collect();
-    let ld = jsonld::extract(&ld_blocks);
     // og:type=article 很多建站工具每一页都写（WordPress 的 Yoast 就是），单独不算；
     // 要么 JSON-LD 声明了文章类型，要么 og:type=article 而且有发布时间
     let og_article = m

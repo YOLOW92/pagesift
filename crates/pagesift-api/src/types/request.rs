@@ -273,6 +273,9 @@ pub struct CrawlRequest {
     pub exclude_paths: Vec<String>,
     #[serde(default)]
     pub max_discovery_depth: Option<usize>,
+    /// Firecrawl v1 的 `maxDepth`：只做上限校验，抓取深度仍看 `maxDiscoveryDepth`。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_depth: Option<u64>,
     #[serde(default = "default_crawl_limit")]
     pub limit: usize,
     #[serde(default)]
@@ -302,6 +305,24 @@ pub struct CrawlRequest {
     pub query: Option<String>,
     #[serde(default, deserialize_with = "adaptive_options")]
     pub adaptive: Option<AdaptiveOptions>,
+    /// 路径范围怎么定（PageSift 扩展）。`crawlEntireDomain: true` 等同于 `domain`。
+    #[serde(default)]
+    pub scope: CrawlScope,
+}
+
+/// crawl 的路径范围。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CrawlScope {
+    /// 先取种子所在的最窄目录；种子页看起来是叶子页（几乎没有子页链接、却链向很多同级页面）时放宽一级。
+    #[default]
+    Auto,
+    /// 只取最窄目录，不放宽。
+    Exact,
+    /// 一开始就放宽到上一级目录（不会到整站根）。
+    Parent,
+    /// 整个主机，等同于 `crawlEntireDomain`。
+    Domain,
 }
 
 fn query_or_keywords<'de, D: Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {

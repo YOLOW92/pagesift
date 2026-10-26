@@ -402,3 +402,82 @@ fn garbage_never_panics() {
         let _ = doc.root().descendants().count();
     }
 }
+
+/// 找第一个名为 `name` 的元素，返回它的全部属性。
+fn attrs_of(html: &str, name: &str) -> Vec<(String, String)> {
+    fn find(n: NodeRef<'_>, name: &str) -> Option<Vec<(String, String)>> {
+        if let Some(el) = n.as_element()
+            && el.name() == name
+        {
+            return Some(
+                el.attrs()
+                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                    .collect(),
+            );
+        }
+        n.children().find_map(|c| find(c, name))
+    }
+    let doc = Html::parse(html);
+    doc.root().children().find_map(|c| find(c, name)).unwrap()
+}
+
+#[test]
+fn duplicate_attributes_keep_first() {
+    let got = attrs_of(r#"<div a="1" B="2" A="3" b="4" c="5">x</div>"#, "div");
+    let want = [("a", "1"), ("b", "2"), ("c", "5")];
+    assert_eq!(
+        got,
+        want.map(|(k, v)| (k.to_string(), v.to_string())).to_vec()
+    );
+}
+
+#[test]
+fn duplicate_attributes_keep_first_past_linear_limit() {
+    // 超过线性比较上限后改走哈希集合，语义必须不变
+    let mut html = String::from("<div");
+    for i in 0..40 {
+        html.push_str(&format!(" a{i}=\"first{i}\""));
+    }
+    for i in 0..40 {
+        html.push_str(&format!(" A{i}=\"second{i}\""));
+    }
+    html.push_str(">x</div>");
+    let got = attrs_of(&html, "div");
+    assert_eq!(got.len(), 40);
+    for (i, (k, v)) in got.iter().enumerate() {
+        assert_eq!(
+            (k.as_str(), v.as_str()),
+            (&*format!("a{i}"), &*format!("first{i}"))
+        );
+    }
+}
+
+#[test]
+fn many_distinct_attributes_parse_quickly() {
+    // 平方复杂度时 5 万个属性要几十秒；这里只要求能跑完（测试超时即视为回归）
+    let n = 50_000;
+    let mut html = String::from("<div");
+    for i in 0..n {
+        html.push_str(&format!(" x{i}=1"));
+    }
+    html.push_str(" x0=dup>x</div>");
+    assert_eq!(attrs_of(&html, "div").len(), n);
+}
+
+#[test]
+fn repeated_body_merges_many_attributes() {
+    // 第二个 <body> 的属性补到第一个上：两边都很长时也不能平方
+    let n = 20_000;
+    let mut html = String::from("<body");
+    for i in 0..n {
+        html.push_str(&format!(" a{i}=1"));
+    }
+    html.push_str("><body a0=2");
+    for i in 0..n {
+        html.push_str(&format!(" b{i}=1"));
+    }
+    html.push_str(">x");
+    let got = attrs_of(&html, "body");
+    assert_eq!(got.len(), 2 * n);
+    assert_eq!(got[0], ("a0".to_string(), "1".to_string()));
+}

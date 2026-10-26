@@ -214,7 +214,9 @@ fn refine_against_body(decoded: &mut Decoded, bytes: &[u8], tld: Option<&[u8]>) 
 
     // 情况 1：按声明解码出现明显替换字符 → 跳过声明重新探测正文。
     // 阈值保持保守：1–2 个坏字节可能只是页面局部损坏，不值得整页换编码。
-    if decoded.replacement_chars >= 3 {
+    // 声明 UTF-8 且正文绝大多数非 ASCII 字节都组成合法 UTF-8 序列时，坏字节只是
+    // 局部混入（评论里夹一段 Latin-1 之类），坚持 UTF-8 有损解码，不整页换编码。
+    if decoded.replacement_chars >= 3 && !(decoded.encoding == UTF_8 && mostly_valid_utf8(bytes)) {
         let (encoding, name, source, skip) = detect_without_declarations(bytes, tld);
         if source == CharsetSource::Detected {
             let candidate = decode_slice(bytes, encoding, name, source, skip);
@@ -248,6 +250,45 @@ fn refine_against_body(decoded: &mut Decoded, bytes: &[u8], tld: Option<&[u8]>) 
         decoded.declared = Some(declared);
         decoded.overridden = Some(DecodeOverride::BodyIsUtf8);
     }
+}
+
+/// 合法多字节 UTF-8 序列数至少是非法片段数的这么多倍，才认定正文“本来就是 UTF-8，
+/// 只是混进了少量坏字节”。
+///
+/// 依据：把旧编码的文本当 UTF-8 读，能碰巧组成合法多字节序列的比例很低——
+/// GBK 双字节（首字节 0x81–0xFE、尾字节 0x40–0xFE）约 24% 的首字节落在 0xC2–0xDF、
+/// 约 34% 的尾字节落在 0x80–0xBF，合法 2 字节序列约占 8%，3 字节更少，
+/// 合计约 1 个合法序列对 9 个非法片段（比值 ≈ 0.1）；Shift_JIS 假名首字节 0x82/0x83
+/// 本身就是续字节，比值更低；Latin-1/windows-1252 的孤立高位字节几乎从不合法（≈ 0）。
+/// 反过来，真实 UTF-8 页面里混入几个坏字节时比值是几十到上千。取 2 倍：比旧编码
+/// 误读的最坏情况高一个数量级以上，又远低于真实 UTF-8 页面的典型值。
+const UTF8_VALID_TO_INVALID_RATIO: usize = 2;
+
+/// 正文按 UTF-8 逐段校验：合法多字节序列数 ≥ 非法片段数 × [`UTF8_VALID_TO_INVALID_RATIO`]。
+/// 非法片段按 WHATWG“最大子序列”计数，和解码器产生的 U+FFFD 一一对应。
+fn mostly_valid_utf8(bytes: &[u8]) -> bool {
+    let mut valid = 0usize;
+    let mut invalid = 0usize;
+    let mut rest = bytes;
+    loop {
+        let (good, err) = match std::str::from_utf8(rest) {
+            Ok(text) => (text, None),
+            Err(e) => {
+                // valid_up_to 之前一定是合法 UTF-8，这里不会落到默认值。
+                let good = std::str::from_utf8(&rest[..e.valid_up_to()]).unwrap_or_default();
+                (good, Some((e.valid_up_to(), e.error_len())))
+            }
+        };
+        valid += good.chars().filter(|c| !c.is_ascii()).count();
+        let Some((up_to, len)) = err else { break };
+        invalid += 1;
+        match len {
+            Some(len) => rest = &rest[up_to + len..],
+            // 末尾被截断的多字节序列
+            None => break,
+        }
+    }
+    invalid == 0 || valid >= invalid.saturating_mul(UTF8_VALID_TO_INVALID_RATIO)
 }
 
 /// 核心探测入口，返回 (WHATWG 兼容 Encoding, 规范名称, 来源, BOM 长度)。
@@ -475,6 +516,60 @@ mod tests {
         assert!(d.text.starts_with("Café"));
         assert_eq!(d.overridden, None);
         assert_eq!(d.encoding, WINDOWS_1252);
+    }
+
+    /// 声明 UTF-8 的中文页面末尾混入几个 Latin-1 字节（`café naïve résumé`）。
+    fn utf8_page_with_latin1_tail() -> Vec<u8> {
+        let mut body = b"<html><head><meta charset=\"utf-8\"></head><body>".to_vec();
+        for i in 0..40 {
+            body.extend(format!("<p>第{i}段：{SAMPLE}</p>").as_bytes());
+        }
+        body.extend_from_slice(b"<p>caf\xe9 na\xefve r\xe9sum\xe9</p></body></html>");
+        body
+    }
+
+    #[test]
+    fn mostly_utf8_page_with_stray_bytes_keeps_declared_utf8() {
+        for d in [
+            decode_owned(utf8_page_with_latin1_tail(), None, Some(b"cn")),
+            decode(&utf8_page_with_latin1_tail(), None, Some(b"cn")),
+        ] {
+            assert_eq!(d.encoding, UTF_8);
+            assert_eq!(d.source, CharsetSource::Meta);
+            assert_eq!(d.overridden, None);
+            assert_eq!(d.replacement_chars, 4);
+            assert!(d.text.contains(SAMPLE));
+            assert!(d.text.contains("caf\u{FFFD} na\u{FFFD}ve"));
+            let warning = d.warning().expect("warning");
+            assert!(
+                warning.contains("4 replacement characters under charset=UTF-8"),
+                "{warning}"
+            );
+            assert!(!warning.contains("decoded as"), "{warning}");
+        }
+    }
+
+    #[test]
+    fn lying_utf8_header_still_detects_legacy_bodies() {
+        // 反例：正文整体是旧编码时照样推翻 UTF-8 声明。
+        let french = "Le café de la gare était fermé, mais l'élève a acheté un gâteau \
+à la crème. Déjà vu : où est la bibliothèque ? Très bien, merci beaucoup.";
+        let body = WINDOWS_1252.encode(french).0.into_owned();
+        assert!(!mostly_valid_utf8(&body));
+        let d = decode(&body, Some("text/html; charset=utf-8"), Some(b"fr"));
+        assert_eq!(d.text, french);
+        assert!(matches!(
+            d.overridden,
+            Some(DecodeOverride::InvalidUnderDeclared { .. })
+        ));
+
+        let sjis = encoding_rs::SHIFT_JIS
+            .encode("これは日本語のテストページです。文字コードの判定を確認します。")
+            .0
+            .into_owned();
+        assert!(!mostly_valid_utf8(&sjis));
+        assert!(!mostly_valid_utf8(&gbk(SAMPLE)));
+        assert!(mostly_valid_utf8(&utf8_page_with_latin1_tail()));
     }
 
     #[test]

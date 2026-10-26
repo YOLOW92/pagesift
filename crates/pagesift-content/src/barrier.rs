@@ -175,7 +175,9 @@ static RULES: &[Rule] = rules![
         "are you over 18", "you must be 18", "age verification required",
         "请输入您的出生日期", "请确认您的年龄", "年龄确认", "年齢確認", "生年月日を入力",
     ];
-    "generic.age_gate_marker", "generic", Interstitial, Marker, H, ["agegate", "age-gate", "age_gate"];
+    // 不在原始 HTML 里找 `age-gate`/`age_gate`：Substack 每页的内联 JSON 都有 `"test_age_gate_user":false`，
+    // 酒类、游戏站全站加载年龄门插件但正文照常输出，`language-gate` 也含 `age-gate`（0.72.8 误伤）。
+    // 年龄门只认上面的可见确认语句。
     // 登录墙
     "login.phrase", "generic", LoginWall, Phrase, T, [
         "sign in to continue", "log in to continue", "login to continue",

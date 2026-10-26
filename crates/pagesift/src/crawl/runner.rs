@@ -61,10 +61,18 @@ impl Scraper {
         // 持久化的任务要记下入队的 URL，重启后据此恢复队列和去重表
         let track = sink.tracks_frontier();
         let mut scheduled = 0usize;
+        // sitemap 里只在放宽一级后才在范围内的 URL：种子页的证据表明要放宽时再入队
+        let mut deferred: Vec<Url> = Vec::new();
         if let Some(r) = sink.resume() {
             // 从断点继续：已完成的页面计入 limit，入过队的都算见过，没完成的按原顺序重新排队
-            for u in r.enqueued.iter().filter_map(|u| Url::parse(u).ok()) {
-                seen.insert(seen_hash(&u, req.ignore_query_parameters));
+            let enqueued: Vec<Url> = r
+                .enqueued
+                .iter()
+                .filter_map(|u| Url::parse(u).ok())
+                .collect();
+            scope.restore_widened(&enqueued);
+            for u in &enqueued {
+                seen.insert(seen_hash(u, req.ignore_query_parameters));
             }
             for (u, depth) in r.pending {
                 if let Ok(u) = Url::parse(&u) {
@@ -79,7 +87,9 @@ impl Scraper {
                 let Some(u) = candidate(&u, "", &learner) else {
                     continue;
                 };
-                if queue.len() < req.limit
+                if scope.may_widen_to(&u) {
+                    deferred.push(u);
+                } else if queue.len() < req.limit
                     && scope.allows(&u)
                     && seen.insert(seen_hash(&u, req.ignore_query_parameters))
                 {
@@ -171,8 +181,34 @@ impl Scraper {
                         .and_then(|u| Url::parse(u).ok())
                         .unwrap_or(url.clone());
                     note_duplicate(&mut learner, &url, &mut doc);
+                    let mut fresh: Vec<(String, usize)> = Vec::new();
+                    if depth == 0 && url == start && scope.can_widen() {
+                        let links: Vec<Url> = doc
+                            .links
+                            .iter()
+                            .flatten()
+                            .filter_map(|l| candidate(&base, l, &learner))
+                            .collect();
+                        if let Some(w) = scope.widen_from_seed(
+                            &start,
+                            doc.markdown.as_deref().unwrap_or_default(),
+                            &links,
+                        ) {
+                            push_warning(&mut doc, w);
+                            for u in deferred.drain(..) {
+                                if scope.allows(&u)
+                                    && scheduled + queue.len() < req.limit
+                                    && seen.insert(seen_hash(&u, req.ignore_query_parameters))
+                                {
+                                    if track {
+                                        fresh.push((u.to_string(), 0));
+                                    }
+                                    queue.push(&learner, u, 0);
+                                }
+                            }
+                        }
+                    }
                     if follow_links && depth < max_depth {
-                        let mut fresh: Vec<(String, usize)> = Vec::new();
                         let mut discovered = 0usize;
                         let mut followed = 0usize;
                         for link in doc.links.iter().flatten() {
@@ -209,13 +245,13 @@ impl Scraper {
                             push_warning(
                                 &mut doc,
                                 format!(
-                                    "crawl_followed_zero: discovered {discovered} link(s) on the start page but followed none; check the start URL's path scope, --include/--exclude, or use --entire-domain"
+                                    "crawl_followed_zero: discovered {discovered} link(s) on the start page but followed none; the start page looks like a leaf page; use --scope parent for its section, --entire-domain for the whole site, or check --include/--exclude"
                                 ),
                             );
                         }
-                        if !fresh.is_empty() {
-                            sink.enqueued(fresh).await;
-                        }
+                    }
+                    if !fresh.is_empty() {
+                        sink.enqueued(fresh).await;
                     }
                     if !wants_links {
                         doc.links = None;
@@ -292,9 +328,17 @@ impl Scraper {
                 Offer::AlreadyQueued => false,
             }
         };
+        // 同广度优先：只在放宽一级后才在范围内的 sitemap URL 先留着
+        let mut deferred: Vec<Url> = Vec::new();
         if let Some(r) = sink.resume() {
-            for u in r.enqueued.iter().filter_map(|u| Url::parse(u).ok()) {
-                seen.insert(seen_hash(&u, ignore_query));
+            let enqueued: Vec<Url> = r
+                .enqueued
+                .iter()
+                .filter_map(|u| Url::parse(u).ok())
+                .collect();
+            scope.restore_widened(&enqueued);
+            for u in &enqueued {
+                seen.insert(seen_hash(u, ignore_query));
             }
             scheduled = r.done;
             let room = req.limit.saturating_sub(scheduled);
@@ -320,6 +364,10 @@ impl Scraper {
                 let Some(u) = candidate(&u, "", &learner) else {
                     continue;
                 };
+                if scope.may_widen_to(&u) {
+                    deferred.push(u);
+                    continue;
+                }
                 if !scope.allows(&u) || seen.contains(&seen_hash(&u, ignore_query)) {
                     continue;
                 }
@@ -390,13 +438,40 @@ impl Scraper {
                     {
                         stop = a.observe(&focus.query, md);
                     }
+                    let base = doc
+                        .metadata
+                        .url
+                        .as_deref()
+                        .and_then(|u| Url::parse(u).ok())
+                        .unwrap_or(url.clone());
+                    // 正文还借给链接打分用，警告等链接处理完再写
+                    let mut scope_note = None;
+                    if depth == 0 && url == start && scope.can_widen() {
+                        let links: Vec<Url> = doc
+                            .links
+                            .iter()
+                            .flatten()
+                            .filter_map(|l| candidate(&base, l, &learner))
+                            .collect();
+                        if let Some(w) = scope.widen_from_seed(
+                            &start,
+                            doc.markdown.as_deref().unwrap_or_default(),
+                            &links,
+                        ) {
+                            scope_note = Some(w);
+                            let room = req.limit - scheduled;
+                            for u in deferred.drain(..) {
+                                if !scope.allows(&u) || seen.contains(&seen_hash(&u, ignore_query))
+                                {
+                                    continue;
+                                }
+                                let score = focus.link_score(&u, None, None, 0.0, 0);
+                                overflow |=
+                                    offer(&mut queue, &mut seen, &mut fresh, u, 0, score, room);
+                            }
+                        }
+                    }
                     if stop.is_none() && follow_links && depth < max_depth {
-                        let base = doc
-                            .metadata
-                            .url
-                            .as_deref()
-                            .and_then(|u| Url::parse(u).ok())
-                            .unwrap_or(url.clone());
                         let contexts = link_contexts(md);
                         for link in doc.links.iter().flatten() {
                             let Some(u) = candidate(&base, link, &learner) else {
@@ -422,9 +497,12 @@ impl Scraper {
                             overflow |=
                                 offer(&mut queue, &mut seen, &mut fresh, u, depth + 1, score, room);
                         }
-                        if !fresh.is_empty() {
-                            sink.enqueued(std::mem::take(&mut fresh)).await;
-                        }
+                    }
+                    if !fresh.is_empty() {
+                        sink.enqueued(std::mem::take(&mut fresh)).await;
+                    }
+                    if let Some(w) = scope_note {
+                        push_warning(&mut doc, w);
                     }
                     if !wants_links {
                         doc.links = None;

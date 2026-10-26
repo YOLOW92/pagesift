@@ -4,8 +4,8 @@ pub mod request;
 pub mod response;
 
 pub use request::{
-    AdaptiveOptions, BatchScrapeRequest, CrawlRequest, ExtractRequest, Format, Location,
-    MapRequest, QueryFilter, ScrapeOptions, ScrapeRequest, SearchRequest,
+    AdaptiveOptions, BatchScrapeRequest, CrawlRequest, CrawlScope, ExtractRequest, Format,
+    Location, MapRequest, QueryFilter, ScrapeOptions, ScrapeRequest, SearchRequest,
 };
 pub use response::{
     ChangeTracking, CrawlSummary, DocChunk, Document, JobError, JobErrors, JobStarted, JobStatus,

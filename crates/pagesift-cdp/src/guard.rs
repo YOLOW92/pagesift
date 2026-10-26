@@ -88,6 +88,27 @@ impl NetworkAllowList {
         self.ips.contains(&ip) || self.cidrs.iter().any(|cidr| cidr.contains(ip))
     }
 
+    /// 能交给内核 `--block-cidrs` 负号豁免的放行条目：`allow_cidrs` 原样，`allow_ips` 写成
+    /// `/32`、`/128`。`allow_hosts` 无法表达成 CIDR（内核自己解析 DNS，且 Lightpanda 没有按主机名
+    /// 放行的参数），见 [`Self::has_hosts`]。
+    pub fn engine_cidrs(&self) -> Vec<String> {
+        let mut out: Vec<String> = self
+            .cidrs
+            .iter()
+            .map(|c| format!("{}/{}", c.net, c.prefix))
+            .collect();
+        out.extend(self.ips.iter().map(|ip| match ip {
+            IpAddr::V4(v4) => format!("{v4}/32"),
+            IpAddr::V6(v6) => format!("{v6}/128"),
+        }));
+        out
+    }
+
+    /// 是否配了按主机名放行的条目。
+    pub fn has_hosts(&self) -> bool {
+        !self.hosts.is_empty()
+    }
+
     pub fn allows_host(&self, host: &str) -> bool {
         let host = host.trim_end_matches('.').to_ascii_lowercase();
         self.hosts
@@ -206,51 +227,117 @@ pub fn is_public_ip(ip: IpAddr) -> bool {
     }
 }
 
+/// 非公网 IPv4 网段（网络号, 前缀长度）。[`is_public_ip`] 和 Lightpanda 的 `--block-cidrs`
+/// 屏蔽清单（见 [`non_public_cidrs`]、engine.rs）都由这张表生成，两边改动只改这里即可保持同步。
+const NON_PUBLIC_V4: &[([u8; 4], u8)] = &[
+    ([0, 0, 0, 0], 8),
+    ([10, 0, 0, 0], 8),
+    ([100, 64, 0, 0], 10),
+    ([127, 0, 0, 0], 8),
+    ([169, 254, 0, 0], 16),
+    ([172, 16, 0, 0], 12),
+    ([192, 0, 0, 0], 24),
+    ([192, 0, 2, 0], 24),
+    ([192, 168, 0, 0], 16),
+    ([198, 18, 0, 0], 15),
+    ([198, 51, 100, 0], 24),
+    ([203, 0, 113, 0], 24),
+    ([224, 0, 0, 0], 4),
+    ([240, 0, 0, 0], 4),
+];
+
+/// 非公网 IPv6 网段。内嵌 IPv4 的三类（`::ffff:0:0/96` 映射、`64:ff9b::/96` NAT64、
+/// `2002::/16` 6to4）不在这里：按内嵌地址查 [`NON_PUBLIC_V4`]，见 [`embedded_v4`]。
+const NON_PUBLIC_V6: &[([u16; 8], u8)] = &[
+    // 含 `::`、`::1` 和已废弃的 IPv4 兼容地址
+    ([0, 0, 0, 0, 0, 0, 0, 0], 96),
+    ([0x0100, 0, 0, 0, 0, 0, 0, 0], 64),
+    ([0x2001, 0x0db8, 0, 0, 0, 0, 0, 0], 32),
+    ([0xfc00, 0, 0, 0, 0, 0, 0, 0], 7),
+    ([0xfe80, 0, 0, 0, 0, 0, 0, 0], 10),
+    ([0xfec0, 0, 0, 0, 0, 0, 0, 0], 10),
+    ([0xff00, 0, 0, 0, 0, 0, 0, 0], 8),
+];
+
+/// 内嵌 IPv4 的 IPv6 前缀：(前缀段, 内嵌地址起始段, 前缀长度)。
+const EMBEDDED_V4: &[([u16; 8], usize, u8)] = &[
+    // IPv4 映射 ::ffff:a.b.c.d
+    ([0, 0, 0, 0, 0, 0xffff, 0, 0], 6, 96),
+    // NAT64 64:ff9b::a.b.c.d
+    ([0x64, 0xff9b, 0, 0, 0, 0, 0, 0], 6, 96),
+    // 6to4 2002:aabb:ccdd::
+    ([0x2002, 0, 0, 0, 0, 0, 0, 0], 1, 16),
+];
+
+fn prefix_mask(bits: u32, prefix: u8) -> u128 {
+    if prefix == 0 {
+        0
+    } else {
+        (u128::MAX << (128 - u32::from(prefix))) >> (128 - bits)
+    }
+}
+
 fn is_public_v4(ip: Ipv4Addr) -> bool {
-    let [a, b, c, _] = ip.octets();
-    !(a == 0
-        || a == 10
-        || a == 127
-        || (a == 100 && (64..128).contains(&b))
-        || (a == 169 && b == 254)
-        || (a == 172 && (16..32).contains(&b))
-        || (a == 192 && b == 0 && c == 0)
-        || (a == 192 && b == 0 && c == 2)
-        || (a == 192 && b == 168)
-        || (a == 198 && (b == 18 || b == 19))
-        || (a == 198 && b == 51 && c == 100)
-        || (a == 203 && b == 0 && c == 113)
-        || a >= 224)
+    let ip = u32::from(ip);
+    !NON_PUBLIC_V4.iter().any(|&(net, prefix)| {
+        let mask = prefix_mask(32, prefix) as u32;
+        ip & mask == u32::from_be_bytes(net) & mask
+    })
+}
+
+/// 落在 [`EMBEDDED_V4`] 某个前缀里时取出内嵌的 IPv4。
+fn embedded_v4(ip: Ipv6Addr) -> Option<Ipv4Addr> {
+    let s = ip.segments();
+    let bits = u128::from(ip);
+    EMBEDDED_V4.iter().find_map(|&(pre, at, len)| {
+        let mask = prefix_mask(128, len);
+        (bits & mask == u128::from(Ipv6Addr::from(pre)) & mask).then(|| {
+            Ipv4Addr::new(
+                (s[at] >> 8) as u8,
+                s[at] as u8,
+                (s[at + 1] >> 8) as u8,
+                s[at + 1] as u8,
+            )
+        })
+    })
 }
 
 fn is_public_v6(ip: Ipv6Addr) -> bool {
-    let s = ip.segments();
-    // NAT64 和 6to4 里嵌着 IPv4，按内嵌地址判断。
-    if s[0] == 0x64 && s[1] == 0xff9b && s[2..6] == [0, 0, 0, 0] {
-        return is_public_v4(Ipv4Addr::new(
-            (s[6] >> 8) as u8,
-            s[6] as u8,
-            (s[7] >> 8) as u8,
-            s[7] as u8,
-        ));
+    // 映射、NAT64 和 6to4 里嵌着 IPv4，按内嵌地址判断。
+    if let Some(v4) = embedded_v4(ip) {
+        return is_public_v4(v4);
     }
-    if s[0] == 0x2002 {
-        return is_public_v4(Ipv4Addr::new(
-            (s[1] >> 8) as u8,
-            s[1] as u8,
-            (s[2] >> 8) as u8,
-            s[2] as u8,
-        ));
+    let bits = u128::from(ip);
+    !NON_PUBLIC_V6.iter().any(|&(net, prefix)| {
+        let mask = prefix_mask(128, prefix);
+        bits & mask == u128::from(Ipv6Addr::from(net)) & mask
+    })
+}
+
+/// 和 [`is_public_ip`] 判定一致的非公网 CIDR 清单，给只能按 CIDR 屏蔽的内核用（Lightpanda
+/// 配了放行 CIDR 时不能用 `--block-private-networks`）。内嵌 IPv4 的三类前缀按每个非公网
+/// IPv4 网段展开，而不是整段屏蔽：整段挡 `64:ff9b::/96` 会让 DNS64 环境下的所有公网站点失效，
+/// 与 Rust 侧放行内嵌公网地址的判定也不一致。IPv6 一律写成不压缩的八段十六进制，
+/// 避免解析器不认 `::ffff:a.b.c.d` 这类混写。
+pub(crate) fn non_public_cidrs() -> Vec<String> {
+    let v6 = |s: [u16; 8], prefix: u8| {
+        let segs: Vec<String> = s.iter().map(|x| format!("{x:x}")).collect();
+        format!("{}/{prefix}", segs.join(":"))
+    };
+    let mut out: Vec<String> = NON_PUBLIC_V4
+        .iter()
+        .map(|&(n, p)| format!("{}/{p}", Ipv4Addr::from(n)))
+        .collect();
+    out.extend(NON_PUBLIC_V6.iter().map(|&(s, p)| v6(s, p)));
+    for &(pre, at, len) in EMBEDDED_V4 {
+        for &([a, b, c, d], p) in NON_PUBLIC_V4 {
+            let mut s = pre;
+            s[at] = u16::from_be_bytes([a, b]);
+            s[at + 1] = u16::from_be_bytes([c, d]);
+            out.push(v6(s, len + p));
+        }
     }
-    !(ip.is_unspecified()
-        || ip.is_loopback()
-        || ip.is_multicast()
-        || (s[0] & 0xfe00) == 0xfc00
-        || (s[0] & 0xffc0) == 0xfe80
-        || (s[0] & 0xffc0) == 0xfec0
-        || (s[0] == 0x2001 && s[1] == 0x0db8)
-        || (s[0] == 0x0100 && s[1..4] == [0, 0, 0])
-        || s[0..6] == [0, 0, 0, 0, 0, 0])
+    out
 }
 
 /// 可选屏蔽的资源类别。
@@ -407,6 +494,75 @@ mod tests {
         ] {
             assert!(is_public_ip(ip.parse().unwrap()), "{ip} should be public");
         }
+    }
+
+    #[test]
+    fn non_public_cidrs_match_is_public_ip() {
+        let cidrs: Vec<Cidr> = non_public_cidrs()
+            .iter()
+            .map(|c| Cidr::parse(c).unwrap_or_else(|| panic!("bad cidr {c}")))
+            .collect();
+        // 清单里每个网段的网络号都必须被 is_public_ip 判成非公网
+        for c in &cidrs {
+            assert!(
+                !is_public_ip(c.net),
+                "{}/{} should be private",
+                c.net,
+                c.prefix
+            );
+        }
+        let listed = |ip: &str| cidrs.iter().any(|c| c.contains(ip.parse().unwrap()));
+        for ip in [
+            "10.0.0.1",
+            "169.254.169.254",
+            "::1",
+            "fd00::1",
+            "ff02::1",
+            "::ffff:127.0.0.1",
+            "::ffff:10.1.2.3",
+            "64:ff9b::a00:1",
+            "64:ff9b::a9fe:a9fe",
+            "2002:c0a8:0101::1",
+            "2002:7f00:1::",
+        ] {
+            assert!(listed(ip), "{ip} should be blocked");
+            assert!(!is_public_ip(ip.parse().unwrap()));
+        }
+        // 内嵌公网 IPv4 的地址两边都放行
+        for ip in [
+            "8.8.8.8",
+            "2606:4700::1111",
+            "::ffff:8.8.8.8",
+            "64:ff9b::808:808",
+            "2002:808:808::1",
+        ] {
+            assert!(!listed(ip), "{ip} should not be blocked");
+            assert!(is_public_ip(ip.parse().unwrap()));
+        }
+        // 三类内嵌前缀都已展开（以 127.0.0.0/8 为例）
+        let raw = non_public_cidrs();
+        for want in [
+            "0:0:0:0:0:ffff:7f00:0/104",
+            "64:ff9b:0:0:0:0:7f00:0/104",
+            "2002:7f00:0:0:0:0:0:0/24",
+        ] {
+            assert!(raw.iter().any(|c| c == want), "missing {want}");
+        }
+    }
+
+    #[test]
+    fn allow_list_engine_cidrs_include_ips() {
+        let mut allow = NetworkAllowList::default();
+        allow.allow_cidr("10.0.0.0/8").unwrap();
+        allow.allow_ip("192.168.1.5".parse().unwrap());
+        allow.allow_ip("fd00::5".parse().unwrap());
+        assert_eq!(
+            allow.engine_cidrs(),
+            ["10.0.0.0/8", "192.168.1.5/32", "fd00::5/128"]
+        );
+        assert!(!allow.has_hosts());
+        allow.allow_host("docs.internal");
+        assert!(allow.has_hosts());
     }
 
     #[tokio::test]

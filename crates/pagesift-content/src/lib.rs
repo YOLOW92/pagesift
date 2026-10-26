@@ -190,6 +190,8 @@ fn process_dom(
     let inferred = (opts.only_main_content && !metadata.is_article && !home)
         .then(|| editorial::unmarked_root(dom, &skipper))
         .flatten()
+        // <template> 里的内容浏览器不显示；整页可见文字为 0 时下面的占比检查会直接放行，先排除
+        .filter(|root| !dom::in_template(root))
         .filter(|root| {
             let page_chars = article::text_without_comments(&body, &skipper);
             page_chars == 0
@@ -217,7 +219,7 @@ fn process_dom(
 
     // 视频页（YouTube 等）正文在播放器 JSON 里，HTML 路径看不到。正文为空时用页面声明的
     // VideoObject 补标题和简介，比交白卷有用，也比伪造正文诚实。
-    if text_chars(&markdown) < HIDDEN_FALLBACK_CHARS
+    if text_chars(&markdown) < VIDEO_FALLBACK_MAX_CHARS
         && let Some(video) = jsonld::video_markdown(
             &metadata.json_ld,
             metadata.title.as_deref(),
@@ -341,6 +343,10 @@ const ARTICLE_MIN_SHARE_SHAPED: f64 = 0.5;
 /// 文章模式的结果至少要有默认规则下全部文字（含链接，不算评论区）的这个比例。
 const ARTICLE_MIN_DEFAULT_SHARE: f64 = 0.1;
 
+/// 正文几乎为空（播放器外壳）才用 VideoObject 兜底。已经有一段短正文时保留它：
+/// 侧栏嵌的视频也会声明 VideoObject，拿它整段替换会把真正的短文换掉。
+const VIDEO_FALLBACK_MAX_CHARS: usize = 30;
+
 /// `editorial::unmarked_root` 挑出的区域至少要占整页（去掉评论区）这么多文字，否则视为误挑。
 const UNMARKED_MIN_SHARE: f64 = 0.2;
 
@@ -359,8 +365,9 @@ fn render_article(
         return None;
     }
     // 两个候选和参照都只数段落文字（按严格规则遍历计数，不拼 Markdown），最后只渲染选中的那个
-    let container = article::container_root(dom, skipper);
-    let scored = article::scored_root(dom, skipper);
+    let outside_template = |r: &article::Root<'_>| !r.nodes.iter().any(dom::in_template);
+    let container = article::container_root(dom, skipper).filter(outside_template);
+    let scored = article::scored_root(dom, skipper).filter(outside_template);
     let measure = |skipper: &mut extract::Skipper, root: &Option<article::Root<'_>>| {
         root.as_ref().map(|r| {
             let chars = r.nodes.iter().map(|n| skipper.content_chars(n)).sum();

@@ -2,9 +2,14 @@
 //! health checks, and Prometheus metrics.
 
 use std::collections::HashMap;
+use std::future::Future;
+use std::pin::{Pin, pin};
 use std::sync::Arc;
-use std::time::Instant;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::task::{Context, Poll};
+use std::time::{Duration, Instant};
 
+use axum::body::{Body, Bytes, HttpBody};
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{Request, State};
 use axum::http::{HeaderMap, Method, StatusCode, header};
@@ -12,8 +17,15 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
+use http_body::{Frame, SizeHint};
+use hyper_util::rt::{TokioExecutor, TokioIo, TokioTimer};
+use hyper_util::server::conn::auto;
+use hyper_util::server::graceful::GracefulShutdown;
+use hyper_util::service::TowerToHyperService;
 use pagesift_store::Store;
+use tokio::net::TcpListener;
 use tokio::sync::Mutex;
+use tokio::time::Sleep;
 
 use crate::engine::Engine;
 use crate::error::{ApiError, ErrorCode};
@@ -25,6 +37,29 @@ use crate::webhook::{WebhookConfig, WebhookSettings, Webhooks};
 /// Maximum documents per page when querying job status.
 pub const PAGE_SIZE: usize = 100;
 pub const DEFAULT_BATCH_CONCURRENCY: usize = 8;
+
+/// 服务端超时，防 slowloris 和挂死的请求。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Timeouts {
+    /// 读完请求头的时限（HTTP/1），超时直接断开连接。只在 [`serve_with`] 里生效。
+    pub header_read: Duration,
+    /// 从请求进来到读完请求体的总时限，不是两次读之间的间隔：每 5 秒滴 1 字节也会超时。
+    pub body: Duration,
+    /// 整个请求（到响应头发出为止）的时限。要比同步 scrape 的 `timeout` 上限大，
+    /// crawl/batch 只是创建任务，很快返回，不受影响。
+    pub request: Duration,
+}
+
+impl Default for Timeouts {
+    fn default() -> Self {
+        Self {
+            header_read: Duration::from_secs(30),
+            body: Duration::from_secs(30),
+            request: Duration::from_millis(crate::validate::MAX_SCRAPE_TIMEOUT_MS)
+                + Duration::from_secs(60),
+        }
+    }
+}
 
 #[derive(Clone, Default)]
 pub struct Config {
@@ -40,6 +75,8 @@ pub struct Config {
     /// Default limits applied to other keys or unauthenticated callers.
     pub default_limits: KeyLimits,
     pub webhook: WebhookSettings,
+    /// 请求体和整请求超时；请求头超时由 [`serve_with`] 的参数决定。
+    pub timeouts: Timeouts,
 }
 
 impl std::fmt::Debug for Config {
@@ -52,6 +89,7 @@ impl std::fmt::Debug for Config {
             .field("key_limits", &self.key_limits.len())
             .field("default_limits", &self.default_limits)
             .field("webhook", &self.webhook)
+            .field("timeouts", &self.timeouts)
             .finish()
     }
 }
@@ -79,6 +117,7 @@ pub struct ExtractJob {
 
 /// Construct complete HTTP router with Firecrawl v1/v2, Jina Reader, and metrics.
 pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
+    let timeouts = config.timeouts;
     let default_limits = Arc::new(config.default_limits);
     let mut keys: HashMap<String, Arc<KeyLimits>> = config
         .api_keys
@@ -147,7 +186,188 @@ pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
         .with_state(state.clone())
         .merge(jina)
         .fallback(|| async { ApiError::new(ErrorCode::NotFound, "no such endpoint") })
+        .layer(middleware::from_fn(uniform_errors))
+        .layer(middleware::from_fn_with_state(timeouts, deadline))
         .layer(middleware::from_fn_with_state(state.clone(), observe))
+}
+
+/// 用默认超时在 `listener` 上提供服务，`shutdown` 完成后优雅退出。
+pub async fn serve(
+    listener: TcpListener,
+    app: Router,
+    shutdown: impl Future<Output = ()> + Send,
+) -> std::io::Result<()> {
+    serve_with(listener, app, Timeouts::default(), shutdown).await
+}
+
+/// 和 `axum::serve(..).with_graceful_shutdown(..)` 行为相同，另外给 HTTP/1 设了请求头读取超时
+/// （axum::serve 设不了）：收到 `shutdown` 后停止 accept，通知每个连接优雅关闭，等它们都结束再返回。
+pub async fn serve_with(
+    listener: TcpListener,
+    app: Router,
+    timeouts: Timeouts,
+    shutdown: impl Future<Output = ()> + Send,
+) -> std::io::Result<()> {
+    let mut builder = auto::Builder::new(TokioExecutor::new());
+    builder
+        .http1()
+        .timer(TokioTimer::new())
+        .header_read_timeout(timeouts.header_read);
+    let graceful = GracefulShutdown::new();
+    let mut shutdown = pin!(shutdown);
+    loop {
+        let stream = tokio::select! {
+            r = listener.accept() => match r {
+                Ok((stream, _)) => stream,
+                Err(e) => {
+                    // 和 axum::serve 一样：单个连接的错误忽略，其他错误（比如文件描述符用完）歇 1 秒再接
+                    if !matches!(
+                        e.kind(),
+                        std::io::ErrorKind::ConnectionRefused
+                            | std::io::ErrorKind::ConnectionAborted
+                            | std::io::ErrorKind::ConnectionReset
+                    ) {
+                        tracing::error!(error = %e, "accept failed");
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                    }
+                    continue;
+                }
+            },
+            () = &mut shutdown => break,
+        };
+        let conn = builder
+            .serve_connection_with_upgrades(
+                TokioIo::new(stream),
+                TowerToHyperService::new(app.clone()),
+            )
+            .into_owned();
+        let conn = graceful.watch(conn);
+        tokio::spawn(async move {
+            if let Err(e) = conn.await {
+                tracing::trace!(error = %e, "connection ended with an error");
+            }
+        });
+    }
+    drop(listener);
+    graceful.shutdown().await;
+    Ok(())
+}
+
+/// 请求体加总时限；整个请求加时限。超时都回统一的 JSON 错误（408 TIMEOUT）。
+async fn deadline(State(t): State<Timeouts>, req: Request, next: Next) -> Response {
+    let fired = Arc::new(AtomicBool::new(false));
+    let req = if req.body().is_end_stream() {
+        req
+    } else {
+        let fired = fired.clone();
+        req.map(|inner| {
+            Body::new(DeadlineBody {
+                inner,
+                sleep: Box::pin(tokio::time::sleep(t.body)),
+                fired,
+            })
+        })
+    };
+    match tokio::time::timeout(t.request, next.run(req)).await {
+        // 读请求体超时时提取器给的是 400，这里换成 408
+        Ok(_) if fired.load(Ordering::Relaxed) => ApiError::new(
+            ErrorCode::Timeout,
+            format!(
+                "request body was not received within {} s",
+                t.body.as_secs_f64()
+            ),
+        )
+        .into_response(),
+        Ok(resp) => resp,
+        Err(_) => ApiError::new(
+            ErrorCode::Timeout,
+            format!(
+                "request did not complete within {} s",
+                t.request.as_secs_f64()
+            ),
+        )
+        .into_response(),
+    }
+}
+
+/// 到点还没读完就报错的请求体。
+struct DeadlineBody {
+    inner: Body,
+    sleep: Pin<Box<Sleep>>,
+    fired: Arc<AtomicBool>,
+}
+
+impl HttpBody for DeadlineBody {
+    type Data = Bytes;
+    type Error = axum::Error;
+
+    fn poll_frame(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Frame<Bytes>, axum::Error>>> {
+        let this = self.get_mut();
+        if let Poll::Ready(frame) = Pin::new(&mut this.inner).poll_frame(cx) {
+            return Poll::Ready(frame);
+        }
+        if this.sleep.as_mut().poll(cx).is_ready() {
+            this.fired.store(true, Ordering::Relaxed);
+            return Poll::Ready(Some(Err(axum::Error::new("request body timed out"))));
+        }
+        Poll::Pending
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.inner.is_end_stream()
+    }
+
+    fn size_hint(&self) -> SizeHint {
+        self.inner.size_hint()
+    }
+}
+
+/// axum 自带的拒绝（查询参数、路径参数、JSON 解析失败、405 等）是纯文本或空 body，
+/// 统一换成 `{success: false, code, error}`，状态码和 `Allow` 等响应头不变。
+async fn uniform_errors(req: Request, next: Next) -> Response {
+    let resp = next.run(req).await;
+    let status = resp.status();
+    // 自己的错误都带 ErrorCode 扩展，不用动
+    if !status.is_client_error() || resp.extensions().get::<ErrorCode>().is_some() {
+        return resp;
+    }
+    let plain = resp
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .is_none_or(|v| v.as_bytes().starts_with(b"text/plain"));
+    if !plain {
+        return resp;
+    }
+    let (parts, body) = resp.into_parts();
+    let text = axum::body::to_bytes(body, 64 * 1024)
+        .await
+        .map(|b| String::from_utf8_lossy(&b).trim().to_string())
+        .unwrap_or_default();
+    let code = match status {
+        StatusCode::NOT_FOUND => ErrorCode::NotFound,
+        StatusCode::PAYLOAD_TOO_LARGE => ErrorCode::TooLarge,
+        StatusCode::UNAUTHORIZED => ErrorCode::Unauthorized,
+        _ => ErrorCode::InvalidRequest,
+    };
+    let message = if text.is_empty() {
+        status
+            .canonical_reason()
+            .unwrap_or("bad request")
+            .to_lowercase()
+    } else {
+        text
+    };
+    let mut out = ApiError::new(code, message).into_response();
+    *out.status_mut() = status;
+    for (name, value) in &parts.headers {
+        if name != header::CONTENT_TYPE && name != header::CONTENT_LENGTH {
+            out.headers_mut().append(name, value.clone());
+        }
+    }
+    out
 }
 
 /// Authentication and rate limiting middleware.

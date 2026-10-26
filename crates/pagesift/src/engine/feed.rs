@@ -28,7 +28,12 @@ pub(super) fn parse(xml: &str, wants_links: bool) -> Option<Document> {
     if !body.starts_with('<') {
         return None;
     }
-    let head = &body[..body.len().min(4096)];
+    // 按字符边界截：开头 4 KB 里常有中日韩标题，按字节截会切在字符中间 panic。
+    let mut end = body.len().min(4096);
+    while !body.is_char_boundary(end) {
+        end -= 1;
+    }
+    let head = &body[..end];
     let feed_like = head.contains("<rss")
         || head.contains("<feed")
         || head.contains("<rdf:RDF")
@@ -36,9 +41,14 @@ pub(super) fn parse(xml: &str, wants_links: bool) -> Option<Document> {
     if !feed_like || !(body.contains("<item") || body.contains("<entry")) {
         return None;
     }
-    let feed = read(body)?;
+    let mut feed = read(body)?;
     if feed.items.is_empty() {
         return None;
+    }
+    // 条目链接来自不可信的 XML：只留 http(s)，相对地址按 feed 自己的链接补全。
+    let base = pagesift_net::Url::parse(&feed.link).ok();
+    for item in &mut feed.items {
+        item.link = safe_link(&item.link, base.as_ref()).unwrap_or_default();
     }
 
     let mut markdown = String::new();
@@ -63,7 +73,7 @@ pub(super) fn parse(xml: &str, wants_links: bool) -> Option<Document> {
             }
             true => {
                 markdown.push_str("- ");
-                markdown.push_str(title);
+                markdown.push_str(&escape_link_text(title));
             }
         }
         if !item.date.is_empty() {
@@ -78,7 +88,6 @@ pub(super) fn parse(xml: &str, wants_links: bool) -> Option<Document> {
         }
     }
 
-    let base = pagesift_net::Url::parse(&feed.link).ok();
     let links = wants_links.then(|| {
         feed.items
             .iter()
@@ -267,21 +276,47 @@ fn escape_link_text(s: &str) -> String {
     s.replace('[', "\\[").replace(']', "\\]")
 }
 
-/// feed 的 description 常是转义后的 HTML。剥标签、还原常见实体，压成一行。
+/// 绝对 http(s) 地址原样保留；相对地址按 `base` 补全；`javascript:`、`data:` 等一律丢弃。
+fn safe_link(raw: &str, base: Option<&pagesift_net::Url>) -> Option<String> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    let url = match pagesift_net::Url::parse(raw) {
+        Ok(url) => url,
+        Err(_) => base?.join(raw).ok()?,
+    };
+    matches!(url.scheme(), "http" | "https").then(|| url.to_string())
+}
+
+/// feed 的 description 常是转义后的 HTML。剥标签、丢掉脚本和样式的内容、还原常见实体，压成一行。
+/// 结果按纯文本放进 Markdown，所以方括号要转义，免得拼出可点击的链接。
 fn strip_html(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
-    let mut in_tag = false;
-    for c in s.chars() {
-        match c {
-            '<' => in_tag = true,
-            '>' if in_tag => {
-                in_tag = false;
-                out.push(' ');
-            }
-            _ if !in_tag => out.push(c),
-            _ => {}
+    let mut rest = s;
+    while let Some(lt) = rest.find('<') {
+        out.push_str(&rest[..lt]);
+        let tag = &rest[lt..];
+        let Some(gt) = tag.find('>') else {
+            rest = "";
+            break;
+        };
+        let name: String = tag[1..gt]
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric())
+            .collect::<String>()
+            .to_ascii_lowercase();
+        rest = &tag[gt + 1..];
+        if name == "script" || name == "style" {
+            let close = format!("</{name}");
+            rest = match rest.to_ascii_lowercase().find(&close) {
+                Some(i) => rest[i..].find('>').map_or("", |g| &rest[i + g + 1..]),
+                None => "",
+            };
         }
+        out.push(' ');
     }
+    out.push_str(rest);
     let out = out
         .replace("&nbsp;", " ")
         .replace("&quot;", "\"")
@@ -290,7 +325,7 @@ fn strip_html(s: &str) -> String {
         .replace("&lt;", "<")
         .replace("&gt;", ">")
         .replace("&amp;", "&");
-    clean(&out)
+    escape_link_text(&clean(&out))
 }
 
 #[cfg(test)]
@@ -336,6 +371,50 @@ mod tests {
         );
         assert!(doc.markdown.contains("First post"), "{}", doc.markdown);
         assert!(doc.links.is_none());
+    }
+
+    #[test]
+    fn cjk_title_across_the_sniff_window_does_not_panic() {
+        let head = r#"<?xml version="1.0" encoding="utf-8"?><rss><channel><title>"#;
+        let pad = "a".repeat(4095 - head.len());
+        let xml = format!(
+            "{head}{pad}中文标题</title><item><title>条目</title><link>https://x.test/1</link></item></channel></rss>"
+        );
+        let doc = parse(&xml, false).expect("feed");
+        assert!(
+            doc.markdown.contains("[条目](https://x.test/1)"),
+            "{}",
+            doc.markdown
+        );
+        // 不是 feed 的中文页面同样不能 panic
+        let html = format!(
+            "<html><body><p>{}{}</p></body></html>",
+            "a".repeat(4083),
+            "中文".repeat(50)
+        );
+        assert!(parse(&html, false).is_none());
+    }
+
+    #[test]
+    fn unsafe_links_and_scripts_are_dropped() {
+        let xml = r#"<rss><channel><title>t</title><link>https://site.test/blog/</link>
+            <item><title>js</title><link>javascript:alert(1)</link>
+            <description><![CDATA[<script>alert(1)</script><p>kept [x](javascript:alert(2))</p><style>p{}</style>]]></description></item>
+            <item><title>data</title><link>data:text/html,hi</link></item>
+            <item><title>rel</title><link>post/2</link></item>
+        </channel></rss>"#;
+        let doc = parse(xml, true).expect("feed");
+        let md = &doc.markdown;
+        assert!(!md.contains("javascript:alert(1)"), "{md}");
+        assert!(!md.contains("](data:"), "{md}");
+        assert!(!md.contains("alert(1)"), "{md}");
+        assert!(md.contains("kept \\[x\\](javascript:alert(2))"), "{md}");
+        assert!(!md.contains("p{}"), "{md}");
+        assert!(md.contains("[rel](https://site.test/blog/post/2)"), "{md}");
+        assert!(md.contains("- js\n"), "{md}");
+        let links = doc.links.unwrap();
+        assert_eq!(links.len(), 1);
+        assert_eq!(links[0].url, "https://site.test/blog/post/2");
     }
 
     #[test]

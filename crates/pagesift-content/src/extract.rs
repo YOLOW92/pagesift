@@ -379,15 +379,16 @@ impl Skipper {
         if !self.only_main {
             return None;
         }
-        // 署名区是正文：作者行通常是纯链接，不能当链接墙剪掉。
-        if crate::classes::is_author_list(el) {
-            return None;
-        }
         if crate::classes::is_visually_hidden(el) {
             return Some("visually hidden");
         }
         if matches!(tag, Tag::Nav | Tag::Aside | Tag::Footer) && !self.landmark_is_content(node) {
             return Some("nav/aside/footer");
+        }
+        // 署名区是正文：作者行通常是纯链接，不能当链接墙剪掉。放在导航/侧栏/页脚判断之后：
+        // 侧栏里的"本站作者"列表、页脚的作者框照常剪。
+        if crate::classes::is_author_list(el) {
+            return None;
         }
         if tag == Tag::A {
             return is_skip_link(node, el).then_some("skip link");

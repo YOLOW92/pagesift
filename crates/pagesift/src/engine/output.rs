@@ -139,8 +139,23 @@ pub(super) async fn process_html(
 /// 释放的内存分散在各处还不回系统，峰值内存成倍增加；超过核数的并发也换不来吞吐。
 pub(super) static CPU_SLOTS: std::sync::LazyLock<tokio::sync::Semaphore> =
     std::sync::LazyLock::new(|| {
-        tokio::sync::Semaphore::new(std::thread::available_parallelism().map_or(4, |n| n.get()))
+        let slots = CPU_CAPACITY
+            .get()
+            .copied()
+            .unwrap_or_else(|| std::thread::available_parallelism().map_or(4, |n| n.get()));
+        tokio::sync::Semaphore::new(slots.max(1))
     });
+
+static CPU_CAPACITY: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+
+/// 进程可用的 CPU 数，由建运行时的一方在**绑核之前**设置。
+///
+/// `available_parallelism()` 在 Linux 上返回调用线程的亲和集。`CPU_SLOTS` 第一次被用到时
+/// 已经在 worker 线程里，而 CLI 的 worker 会被绑到单个 CPU：0.70–0.72 因此只有 1 个许可，
+/// 所有正文提取串行。没有设置时（Python/Node 绑定等不绑核的宿主）仍按调用线程计算。
+pub fn set_cpu_capacity(cpus: usize) {
+    let _ = CPU_CAPACITY.set(cpus.max(1));
+}
 
 pub(super) async fn cpu_task<T: Send + 'static>(
     f: impl FnOnce() -> T + Send + 'static,
@@ -249,6 +264,12 @@ pub(super) fn finish(
     timings.insert("total".into(), ms(started.elapsed()));
     if meta.status_code >= 400 {
         warnings.push(format!("http_error_status: HTTP {}", meta.status_code));
+    } else if (300..400).contains(&meta.status_code) {
+        // 跟随重定向之后仍是 3xx：没有 Location、Location 不可用，或 300 这类需要人工选择的响应。
+        warnings.push(format!(
+            "http_redirect_status: HTTP {} was not followed (missing or unusable Location)",
+            meta.status_code
+        ));
     }
     // 只数到阈值为止：4.49 MB 的正文没必要为了一个警告全量扫一遍。
     const THIN_MAX_CHARS: usize = 500;
@@ -294,6 +315,70 @@ pub(super) fn ms(d: Duration) -> f64 {
     (d.as_secs_f64() * 1000.0 * 100.0).round() / 100.0
 }
 
+/// 判断 `thin_content` 用的页面体积。正文不薄时直接用 HTML 长度，不多扫一遍；
+/// 正文薄时扣掉 `<style>` 的内容和 `data:` 内嵌资源：一张 8 MB 的 base64 图片
+/// 不代表页面“有大量内容却没抽出来”。`<script>` 不扣：内联脚本大而正文薄正是 JS 壳页的特征。
+pub(super) fn thin_basis_bytes(html: &str, markdown: &str) -> usize {
+    const ENOUGH: usize = 500;
+    if markdown
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .take(ENOUGH)
+        .count()
+        >= ENOUGH
+    {
+        return html.len();
+    }
+    let lower = html.to_ascii_lowercase();
+    let mut removed = 0usize;
+    for tag in ["style"] {
+        let (open, close) = (format!("<{tag}"), format!("</{tag}"));
+        let mut at = 0;
+        while let Some(i) = lower[at..].find(&open) {
+            let start = at + i;
+            let Some(j) = lower[start..].find(&close) else {
+                removed += lower.len() - start;
+                break;
+            };
+            removed += j;
+            at = start + j + close.len();
+        }
+    }
+    let mut at = 0;
+    while let Some(i) = lower[at..].find("data:") {
+        let start = at + i;
+        let len = lower[start..]
+            .find(['"', '\'', ')', ' ', '>'])
+            .unwrap_or(lower.len() - start);
+        removed += len;
+        at = start + len.max(1);
+    }
+    html.len().saturating_sub(removed)
+}
+
+/// JSON 响应（`application/json`、`*+json`）不是网页：当 HTML 解析只会剩下碎片。
+/// 合法 JSON 格式化后放进代码块；太大的不格式化，原样放进去。不是合法 JSON 时返回 `None`，按文本继续。
+pub(super) fn json_markdown(content_type: Option<&str>, body: &[u8]) -> Option<String> {
+    const PRETTY_MAX_BYTES: usize = 5 * 1024 * 1024;
+    let kind = content_type?.split(';').next()?.trim().to_ascii_lowercase();
+    if kind != "application/json" && kind != "text/json" && !kind.ends_with("+json") {
+        return None;
+    }
+    let text = std::str::from_utf8(body.strip_prefix(b"\xef\xbb\xbf").unwrap_or(body)).ok()?;
+    let value: serde_json::Value = serde_json::from_str(text).ok()?;
+    let rendered = if text.len() <= PRETTY_MAX_BYTES {
+        serde_json::to_string_pretty(&value).ok()?
+    } else {
+        text.trim().to_string()
+    };
+    // 内容里有三个反引号时加长围栏，保证代码块不被提前闭合。
+    let mut fence = String::from("```");
+    while rendered.contains(fence.as_str()) {
+        fence.push('`');
+    }
+    Some(format!("{fence}json\n{rendered}\n{fence}\n"))
+}
+
 pub(super) fn is_pdf(body: &[u8], content_type: Option<&str>) -> bool {
     body.starts_with(b"%PDF-")
         || content_type.is_some_and(|c| c.to_ascii_lowercase().contains("application/pdf"))
@@ -317,7 +402,8 @@ pub(super) fn unsupported_content_type(content_type: Option<&str>, body: &[u8]) 
     {
         return Some(kind);
     }
-    if kind == "application/pdf" {
+    // `application/octet-stream`、`binary/octet-stream` 返回的 PDF 很常见：认魔数，交给 PDF 解析。
+    if kind == "application/pdf" || body.starts_with(b"%PDF-") {
         return None;
     }
     if kind.starts_with("text/")
@@ -380,7 +466,43 @@ pub(crate) fn policy_error(e: pagesift_policy::Error) -> ApiError {
 
 #[cfg(test)]
 mod tests {
-    use super::unsupported_content_type;
+    use super::{is_pdf, json_markdown, thin_basis_bytes, unsupported_content_type};
+
+    #[test]
+    fn thin_basis_ignores_inline_payloads() {
+        let image = format!(
+            "<p>short</p><img src=\"data:image/png;base64,{}\">",
+            "A".repeat(100_000)
+        );
+        assert!(thin_basis_bytes(&image, "short") < 1_000);
+        let style = format!("<STYLE>{}</STYLE><p>x</p>", "y".repeat(50_000));
+        assert!(thin_basis_bytes(&style, "x") < 1_000);
+        let next = format!(
+            "<script id=\"__NEXT_DATA__\">{}</script><div id=\"app\"></div>",
+            "x".repeat(50_000)
+        );
+        assert_eq!(thin_basis_bytes(&next, ""), next.len());
+        let shell = format!("<div>{}</div>", "<span></span>".repeat(5_000));
+        assert_eq!(thin_basis_bytes(&shell, ""), shell.len());
+        let long = "word ".repeat(200);
+        assert_eq!(thin_basis_bytes(&image, &long), image.len());
+    }
+
+    #[test]
+    fn json_responses_become_code_blocks() {
+        let md = json_markdown(
+            Some("application/json; charset=utf-8"),
+            br#"{"html":"<h1>x</h1>","n":[1,2]}"#,
+        )
+        .unwrap();
+        assert!(md.starts_with("```json\n{"), "{md}");
+        assert!(md.contains("\"html\": \"<h1>x</h1>\""), "{md}");
+        assert!(md.ends_with("\n```\n"), "{md}");
+        let md = json_markdown(Some("application/ld+json"), br#"{"a":"```"}"#).unwrap();
+        assert!(md.starts_with("````json"), "{md}");
+        assert_eq!(json_markdown(Some("text/html"), b"{}"), None);
+        assert_eq!(json_markdown(Some("application/json"), b"<html>"), None);
+    }
 
     #[test]
     fn rejects_binary_content_types() {
@@ -427,5 +549,16 @@ mod tests {
             None
         );
         assert_eq!(unsupported_content_type(None, b"\x89PNG"), None);
+        for kind in ["application/octet-stream", "binary/octet-stream"] {
+            assert_eq!(
+                unsupported_content_type(Some(kind), b"%PDF-1.7\n1 0 obj"),
+                None
+            );
+            assert!(is_pdf(b"%PDF-1.7\n1 0 obj", Some(kind)));
+        }
+        assert_eq!(
+            unsupported_content_type(Some("application/octet-stream"), b"\x00\x01binary"),
+            Some("application/octet-stream".into())
+        );
     }
 }

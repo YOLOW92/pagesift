@@ -28,6 +28,7 @@ mod scraper;
 use extract::*;
 use fetch::*;
 use frames::*;
+pub use output::set_cpu_capacity;
 pub(crate) use output::*;
 
 /// F-1.9：HTTP 抓到的正文少于这么多（加权）字符时，`engine: auto` 升级到浏览器渲染。

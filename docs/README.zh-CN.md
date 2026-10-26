@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.72.8
+# pagesift 0.73.0
 
 **为 AI 智能体与 LLM 数据工程打造的高性能、严格内存有界抓取与内容提取引擎。**  
 把任何网站、学术文档或历史档案转化为干净的 Markdown 与结构化数据——单个纯 Rust 二进制、原生多语言 SDK、完美兼容 Firecrawl v1/v2 与 Jina Reader 双协议，而内存占用仅为竞品零头。
@@ -21,6 +21,18 @@
 </div>
 
 ---
+
+## 0.73.0 新增内容
+
+0.73.0 修复三路代码审查与约 150 个奇葩输入测试发现的问题。
+
+- **正文提取重新用满所有核**：0.70.0 起 `scrape`、`crawl`、`serve` 的提取只用一个核；API 服务吞吐提升 5–7 倍（16 并发：约 310 → 最高 2,196 请求/秒，p50 延迟 40 ms → 4.6 ms）。
+- **修复审查发现的崩溃与 DoS**：feed 判定在中日韩页面上 panic、UTF-8 页面被误纠正成乱码、属性解析平方复杂度（4 万个属性 3 秒 → 0.02 秒）、slowloris 慢速连接、RSS 条目里的 `javascript:` 链接。
+- **收紧误伤的启发式**：短篇 Substack 文章曾被判为年龄门；作者组件、cloak 应用根、`<template>` 内容、被当成 OpenAI 密钥的 CSS 变量都已正确处理。
+- **API 参数上限与超时**全覆盖，错误一律返回统一的 JSON 格式。
+- **crawl 范围看证据决定**（默认 `--scope auto`）：`/docs/python` 只爬 `/docs/python/*`；博客文章这类叶子页种子会放宽到所在栏目，并明确提示。
+
+质量持平或提升（WCXB F1 0.8522 → 0.8533，Firecrawl 0.680 → 0.682，AEB 0.958），真实页面提取快 3–5%。详见 [0.73.0 发行说明](releases/0.73.0.md)。
 
 ## 0.72.8 新增内容
 
@@ -70,7 +82,7 @@ D1 以较高精确率换取召回率；D9 尚未覆盖定时注入内容；D4 �
 
 ---
 
-## ⚔️ 旗舰决战：真实 100,000,000 亿级全球公网终极大决战
+## ⚔️ 旗舰决战：真实 1 亿级全球公网终极大决战
 
 **硬件测试床**：**Google Cloud `n4d-highcpu-80`（80 vCPUs AMD EPYC 9B45, 157 GiB RAM, 96 GB NVMe SSD）**  
 **实测目标集**：全球权威 Tranco Top 1,000,000 活跃域名动态展开至 **100,000,000 真实全球公网页面**，在 32 分片 × 128 并发（4,096 路物理长连接并发）下全量长征实测：
@@ -161,7 +173,7 @@ D1 以较高精确率换取召回率；D9 尚未覆盖定时注入内容；D4 �
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.72.8
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.73.0
 ```
 
 #### Firecrawl SDK 零改动平替接入
@@ -245,7 +257,7 @@ cargo install pagesift --locked
 pagesift scrape "https://news.ycombinator.com" --format markdown
 
 # 动态自适应高并发深度全网抓取
-pagesift crawl "https://docs.rs" --limit 5000 --tuning-mode adaptive --output ./data/
+pagesift crawl "https://docs.rs" --limit 5000 --tuning-mode adaptive --out ./data/
 ```
 
 ---

@@ -8,7 +8,7 @@ use crate::error::{ApiError, ErrorCode};
 use crate::jobs::{JOB_TTL, rfc3339};
 use crate::server::{AppState, ExtractJob, body};
 use crate::types::{ExtractRequest, SearchRequest};
-use crate::validate::{check_scrape_options, check_url};
+use crate::validate::{check_scrape_options, check_url, check_url_count};
 
 pub async fn search(
     State(s): State<AppState>,
@@ -42,8 +42,12 @@ pub async fn extract_start(
     if req.urls.is_empty() {
         return Err(ApiError::invalid("urls must not be empty"));
     }
+    check_url_count(req.urls.len())?;
     if req.prompt.is_none() && req.schema.is_none() {
         return Err(ApiError::invalid("extract needs a prompt or a schema"));
+    }
+    if req.schema.as_ref().is_some_and(|v| !v.is_object()) {
+        return Err(ApiError::invalid("schema must be a JSON object"));
     }
     if req.enable_web_search {
         return Err(ApiError::unsupported(

@@ -62,7 +62,9 @@ impl CrawlOutput {
         state.0 += 1;
         if let Some(warnings) = doc.metadata.pagesift.as_ref().map(|p| &p.warnings) {
             for warning in warnings {
-                if warning.starts_with("crawl_followed_zero:") {
+                if warning.starts_with("crawl_followed_zero:")
+                    || warning.starts_with("crawl_scope:")
+                {
                     eprintln!("warning: {warning}");
                 }
             }

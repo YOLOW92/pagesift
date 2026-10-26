@@ -10,7 +10,7 @@ use crate::jobs::Start;
 use crate::limits::Caller;
 use crate::server::{AppState, base_url, body, webhook};
 use crate::types::{CrawlRequest, JobStarted};
-use crate::validate::{check_scrape_options, check_url};
+use crate::validate::{MAX_CRAWL_DEPTH, MAX_CRAWL_LIMIT, check_scrape_options, check_url};
 
 pub async fn crawl_start(
     State(s): State<AppState>,
@@ -21,6 +21,17 @@ pub async fn crawl_start(
 ) -> Result<Json<JobStarted>, ApiError> {
     let req = body(req)?;
     check_url(&req.url)?;
+    if req.limit > MAX_CRAWL_LIMIT {
+        return Err(ApiError::invalid(format!(
+            "limit must not exceed {MAX_CRAWL_LIMIT}"
+        )));
+    }
+    let depths = [req.max_discovery_depth.map(|d| d as u64), req.max_depth];
+    if depths.into_iter().flatten().any(|d| d > MAX_CRAWL_DEPTH) {
+        return Err(ApiError::invalid(format!(
+            "maxDiscoveryDepth/maxDepth must not exceed {MAX_CRAWL_DEPTH}"
+        )));
+    }
     check_scrape_options(&req.scrape_options, s.engine.as_ref())?;
     for pattern in req.include_paths.iter().chain(&req.exclude_paths) {
         regex_check(pattern)?;

@@ -21,6 +21,9 @@ pub use engine::{BoxFuture, CrawlResume, CrawlSink, Engine};
 pub use error::{ApiError, ErrorCode};
 pub use jobs::{JOB_TTL, Job, JobKind, JobState, Jobs, rfc3339};
 pub use limits::KeyLimits;
-pub use server::{Config, router};
-pub use validate::{check_scrape_options, check_url};
+pub use server::{Config, Timeouts, router, serve, serve_with};
+pub use validate::{
+    MAX_CRAWL_DEPTH, MAX_CRAWL_LIMIT, MAX_MAP_LIMIT, MAX_SCRAPE_TIMEOUT_MS, MAX_URL_LEN, MAX_URLS,
+    check_scrape_options, check_url,
+};
 pub use webhook::{WebhookConfig, WebhookSettings};

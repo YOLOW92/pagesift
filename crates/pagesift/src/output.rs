@@ -11,7 +11,13 @@ pub(crate) fn write_stdout(args: fmt::Arguments<'_>, newline: bool) {
     let mut out = io::stdout().lock();
     let result = out
         .write_fmt(args)
-        .and_then(|()| if newline { out.write_all(b"\n") } else { Ok(()) })
+        .and_then(|()| {
+            if newline {
+                out.write_all(b"\n")
+            } else {
+                Ok(())
+            }
+        })
         .and_then(|()| out.flush());
     if let Err(error) = result {
         if error.kind() == io::ErrorKind::BrokenPipe {
@@ -27,7 +33,13 @@ pub(crate) fn write_stderr(args: fmt::Arguments<'_>, newline: bool) {
     let mut out = io::stderr().lock();
     let result = out
         .write_fmt(args)
-        .and_then(|()| if newline { out.write_all(b"\n") } else { Ok(()) })
+        .and_then(|()| {
+            if newline {
+                out.write_all(b"\n")
+            } else {
+                Ok(())
+            }
+        })
         .and_then(|()| out.flush());
     if let Err(error) = result
         && error.kind() == io::ErrorKind::BrokenPipe

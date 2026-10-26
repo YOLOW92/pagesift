@@ -1,8 +1,15 @@
+use std::collections::HashSet;
+
 use crate::Tag;
 use crate::dom::{Attr, Data, NONE, Node, Span};
 use crate::entity::decode_into;
 
 use super::{Builder, MAX_DEPTH, Ns, Open, Scope, is_ws, marker, table_context, void};
+
+/// 属性去重时线性比较的上限。真实页面里几乎所有元素的属性都不超过这个数，逐个比较名字比建
+/// 哈希表快；超过后一次性把已有名字放进哈希集合，避免一个标签挂几万个属性时退化成平方复杂度
+/// （4 万个属性曾要 3 秒，可被恶意页面拿来拖垮解析）。
+const LINEAR_DEDUP_MAX: usize = 16;
 
 impl<'a> Builder<'a> {
     // ---- 节点操作
@@ -173,11 +180,24 @@ impl<'a> Builder<'a> {
     pub(super) fn take_attrs(&mut self) -> (u32, u32) {
         let start = self.attrs.len() as u32;
         let scratch = std::mem::take(&mut self.scratch);
+        // 属性多于 LINEAR_DEDUP_MAX 时才建，之后都查它
+        let mut seen: Option<HashSet<String>> = None;
         for &(n, v) in &scratch {
             let name = self.lower_span(n);
-            let dup = self.attrs[start as usize..]
-                .iter()
-                .any(|a| self.str(a.name) == self.str(name));
+            let dup = match &mut seen {
+                Some(set) => !set.insert(self.str(name).to_owned()),
+                None => {
+                    let kept = &self.attrs[start as usize..];
+                    let dup = kept.iter().any(|a| self.str(a.name) == self.str(name));
+                    if !dup && kept.len() >= LINEAR_DEDUP_MAX {
+                        let mut set: HashSet<String> =
+                            kept.iter().map(|a| self.str(a.name).to_owned()).collect();
+                        set.insert(self.str(name).to_owned());
+                        seen = Some(set);
+                    }
+                    dup
+                }
+            };
             if dup {
                 continue;
             }
@@ -251,10 +271,16 @@ impl<'a> Builder<'a> {
             return;
         }
         let old: Vec<Attr> = self.attrs[attrs as usize..(attrs + attrs_len) as usize].to_vec();
+        // 新旧两边都可能很长，旧属性多时同样换成哈希集合，避免平方复杂度
+        let old_names: Option<HashSet<&str>> =
+            (old.len() > LINEAR_DEDUP_MAX).then(|| old.iter().map(|o| self.str(o.name)).collect());
         let added: Vec<Attr> = self.attrs[new_start as usize..]
             .iter()
             .copied()
-            .filter(|a| !old.iter().any(|o| self.str(o.name) == self.str(a.name)))
+            .filter(|a| match &old_names {
+                Some(set) => !set.contains(self.str(a.name)),
+                None => !old.iter().any(|o| self.str(o.name) == self.str(a.name)),
+            })
             .collect();
         self.attrs.truncate(new_start as usize);
         if added.is_empty() {

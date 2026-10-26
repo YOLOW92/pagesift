@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.72.8
+# pagesift 0.73.0
 
 **Motor de scraping y extracción web de alto rendimiento y memoria acotada para agentes de IA y pipelines de LLM.**  
 Convierte cualquier sitio web, documento o archivo en Markdown limpio y datos estructurados: un único binario en Rust, SDK nativos, APIs duales Firecrawl v1/v2 y Jina Reader, consumiendo una fracción de la memoria de la competencia.
@@ -21,6 +21,18 @@ Convierte cualquier sitio web, documento o archivo en Markdown limpio y datos es
 </div>
 
 ---
+
+## Novedades en 0.73.0
+
+0.73.0 corrige lo que encontraron una revisión de código en tres frentes y unas 150 pruebas con entradas adversas.
+
+- **La extracción vuelve a usar todos los núcleos**: desde 0.70.0, `scrape`, `crawl` y `serve` extraían en un solo núcleo; el servidor API atiende 5–7× más peticiones por segundo (16 clientes: ~310 → hasta 2.196 req/s; p50 de 40 ms a 4,6 ms).
+- **Sin los fallos ni vías de DoS encontrados**: pánico en páginas CJK, páginas UTF-8 convertidas en mojibake, análisis cuadrático de atributos (40.000 atributos: 3 s → 0,02 s), clientes slowloris y enlaces `javascript:` en elementos RSS.
+- **Heurísticas acotadas**: los artículos cortos de Substack se marcaban como verificación de edad; widgets de autores, raíces de aplicación con cloak, contenido de `<template>` y variables CSS tomadas por claves de OpenAI se tratan correctamente.
+- **Límites y tiempos de espera en la API** para cada parámetro, con el cuerpo de error JSON estándar en todas partes.
+- **Alcance de crawl decidido por evidencias** (`--scope auto`, por defecto): `/docs/python` se queda en `/docs/python/*`; una semilla hoja, como un artículo de blog, se amplía a su sección y lo avisa.
+
+La calidad se mantiene o mejora (WCXB F1 0,8522 → 0,8533; Firecrawl 0,680 → 0,682; AEB 0,958) y la extracción es un 3–5% más rápida en páginas reales. Detalle: [notas de 0.73.0](releases/0.73.0.md).
 
 ## Novedades en 0.72.8
 
@@ -142,7 +154,7 @@ Evaluado sobre servidor **AMD EPYC de Producción (32 Núcleos, 128 GB RAM)** y 
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.72.8
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.73.0
 ```
 
 #### Reemplazo Directo de Firecrawl SDK
@@ -217,7 +229,7 @@ cargo install pagesift --locked
 
 pagesift scrape "https://news.ycombinator.com" --format markdown
 
-pagesift crawl "https://docs.rs" --limit 5000 --tuning-mode adaptive --output ./data/
+pagesift crawl "https://docs.rs" --limit 5000 --tuning-mode adaptive --out ./data/
 ```
 
 ---

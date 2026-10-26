@@ -11,8 +11,12 @@ use std::time::Instant;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args().skip(1);
-    let list = args.next().ok_or("usage: encoding_scan <list.txt> <out.tsv> [threads]")?;
-    let out = args.next().ok_or("usage: encoding_scan <list.txt> <out.tsv> [threads]")?;
+    let list = args
+        .next()
+        .ok_or("usage: encoding_scan <list.txt> <out.tsv> [threads]")?;
+    let out = args
+        .next()
+        .ok_or("usage: encoding_scan <list.txt> <out.tsv> [threads]")?;
     let threads: usize = args.next().and_then(|s| s.parse().ok()).unwrap_or(16);
 
     let paths: Vec<String> = BufReader::new(File::open(&list)?)
@@ -38,8 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let p = &paths[i];
                     let enc = match std::fs::read(p) {
                         Ok(bytes) => {
-                            let (_, name, _, _) =
-                                pagesift_net::detect_charset(&bytes, None, None);
+                            let (_, name, _, _) = pagesift_net::detect_charset(&bytes, None, None);
                             name.to_string()
                         }
                         Err(_) => "error".to_string(),

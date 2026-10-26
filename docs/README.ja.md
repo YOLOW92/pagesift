@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.72.8
+# pagesift 0.73.0
 
 **AI エージェントと LLM データ基盤のための、超高速・メモリ有界スクレイピング＆本文抽出エンジン。**  
 あらゆる Web サイト、論文、アーカイブを高品質な Markdown と構造化データに変換します。単一の純 Rust バイナリ、ネイティブ SDK、Firecrawl v1/v2 および Jina Reader デュアルプロトコル互換、そして競合のわずか一部のメモリ消費で稼働します。
@@ -21,6 +21,18 @@
 </div>
 
 ---
+
+## 0.73.0 の新機能
+
+0.73.0 は、3 系統のコードレビューと約 150 件の異常入力テストで見つかった問題を修正しました。
+
+- **本文抽出が再び全コアを使用**：0.70.0 以降 `scrape`・`crawl`・`serve` の抽出は 1 コアのみでした。API サーバーのスループットは 5〜7 倍（同時 16：約 310 → 最大 2,196 リクエスト/秒、p50 40 ms → 4.6 ms）。
+- **クラッシュと DoS 経路を修正**：CJK ページでの feed 判定 panic、UTF-8 ページの文字化け誤補正、属性解析の二乗計算量（4 万属性で 3 秒 → 0.02 秒）、slowloris、RSS 項目の `javascript:` リンク。
+- **誤検出するヒューリスティックを修正**：短い Substack 記事が年齢確認ページと判定されていました。著者ウィジェット、cloak のアプリルート、`<template>` の内容、OpenAI キーと誤認された CSS 変数も正しく扱います。
+- **API の上限とタイムアウト**を全パラメータに適用し、エラーは統一 JSON 形式で返します。
+- **crawl の範囲はページの証拠で決定**（既定 `--scope auto`）：`/docs/python` は `/docs/python/*` のみ。ブログ記事のような末端ページから始めると 所属するセクションまで広げ、その旨を警告で知らせます。
+
+品質は維持または向上（WCXB F1 0.8522 → 0.8533、Firecrawl 0.680 → 0.682、AEB 0.958）、実ページの抽出は 3〜5% 高速化。詳細：[0.73.0 リリースノート](releases/0.73.0.md)。
 
 ## 0.72.8 の新機能
 
@@ -142,7 +154,7 @@ D1 は精度を優先して再現率が低下しました。D9 はタイマー�
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.72.8
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.73.0
 ```
 
 #### Firecrawl SDK の差し替え
@@ -217,7 +229,7 @@ cargo install pagesift --locked
 
 pagesift scrape "https://news.ycombinator.com" --format markdown
 
-pagesift crawl "https://docs.rs" --limit 5000 --tuning-mode adaptive --output ./data/
+pagesift crawl "https://docs.rs" --limit 5000 --tuning-mode adaptive --out ./data/
 ```
 
 ---

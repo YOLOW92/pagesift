@@ -74,6 +74,9 @@ pub enum Error {
     },
     #[error("network error: {0}")]
     Network(String),
+    /// 响应声明了压缩编码、开头也像该编码，但一个字节都解不出来。
+    #[error("content decoding failed: {0}")]
+    ContentDecoding(String),
     /// TLS 证书校验失败。类别是机器可读的，`message` 保留 rustls 的完整原因。
     /// 与 `Network` 分开：证书问题通常重试也不会好，调用方不该按网络抖动退避。
     #[error("TLS error ({kind}): {message}")]
@@ -279,6 +282,9 @@ pub struct FetchResponse {
     pub truncated: bool,
     /// 条件请求命中，服务器返回 304。
     pub not_modified: bool,
+    /// 传输层提示，例如 `content_encoding_mismatch: ...`、`content_decoding_failed: ...`、
+    /// `content_encoding_unsupported: ...`。调用方可并入页面元数据的 warnings。
+    pub warnings: Vec<String>,
 }
 
 impl FetchResponse {
@@ -369,6 +375,11 @@ pub struct Fetcher {
     bypass: ProxyBypass,
 }
 
+/// 走代理时为判断“域名是否解析到 allow_cidrs”而做的本地解析，最多等这么久。
+/// 内网 DNS 正常时毫秒级返回；2 秒足够覆盖慢的内网解析器，又不会让只能经代理
+/// 出网的环境每个请求都卡满默认 5 秒的 dns_timeout。
+const BYPASS_DNS_TIMEOUT: Duration = Duration::from_secs(2);
+
 impl fmt::Debug for Fetcher {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Fetcher")
@@ -399,7 +410,9 @@ fn detect_env_proxy() -> Option<String> {
 /// 哪些目标应该绕过代理直连。
 ///
 /// 来源：标准 `NO_PROXY`/`no_proxy` 环境变量，加上配置里的 `allow_hosts`、`allow_ips`
-/// 和 `allow_cidrs`。`allow_private_network` 打开时，解析到非公网地址的主机也直连。
+/// 和 `allow_cidrs`。`allow_private_network` 打开时，非公网 IP 字面量也直连。
+/// 域名先按名单匹配；只有显式配置了 `allow_cidrs`/`allow_ips` 时才在本地解析、
+/// 看结果是否落在这些网段里（见 [`Fetcher::direct_route`]）。
 #[derive(Debug, Default, Clone)]
 struct ProxyBypass {
     all: bool,
@@ -408,6 +421,9 @@ struct ProxyBypass {
     ips: Vec<IpAddr>,
     cidrs: Vec<IpCidr>,
     allow_private_network: bool,
+    /// 用户显式配置了 allow_cidrs / allow_ips：未列名的域名需要本地解析一次，
+    /// 解析到这些网段就直连（`--allow-cidr 10.0.0.0/8` 抓 `http://wiki.corp`）。
+    resolve_hosts: bool,
 }
 
 impl ProxyBypass {
@@ -424,6 +440,7 @@ impl ProxyBypass {
             allow_private_network: ssrf.allow_private_network,
             ips: ssrf.allow_ips.clone(),
             cidrs: ssrf.allow_cidrs.clone(),
+            resolve_hosts: !ssrf.allow_cidrs.is_empty() || !ssrf.allow_ips.is_empty(),
             ..Default::default()
         };
         if let Some(raw) = raw {
@@ -463,33 +480,39 @@ impl ProxyBypass {
         bypass
     }
 
-    async fn applies(&self, url: &Url, resolver: &GuardedResolver) -> bool {
+    /// 只看 URL 本身判断是否直连，不做 DNS 解析：IP 字面量按放行规则判断，
+    /// 域名按 NO_PROXY / allow_hosts 名单匹配。
+    fn applies(&self, url: &Url) -> bool {
         if self.all {
             return true;
         }
         match url.host() {
             Some(Host::Ipv4(ip)) => self.ip_allowed(IpAddr::V4(ip)),
             Some(Host::Ipv6(ip)) => self.ip_allowed(IpAddr::V6(ip)),
-            Some(Host::Domain(host)) => {
-                if self.host_listed(host) {
-                    return true;
-                }
-                if !self.needs_resolution() {
-                    return false;
-                }
-                // 域名可能解析到 allow_cidrs / allow_ips 里的地址。解析失败就按代理处理，
-                // 让实际请求路径去报告真正的网络/SSRF 错误。
-                match resolver.resolve_checked(host).await {
-                    Ok(ips) => ips.iter().any(|ip| self.ip_allowed(*ip)),
-                    Err(_) => false,
-                }
-            }
+            Some(Host::Domain(host)) => self.host_listed(host),
             None => false,
         }
     }
 
-    fn needs_resolution(&self) -> bool {
-        self.allow_private_network || !self.cidrs.is_empty() || !self.ips.is_empty()
+    /// [`Self::applies`] 判定走代理后，是否还要在本地解析这个域名再判断一次。
+    ///
+    /// 只有显式配置了 allow_cidrs / allow_ips 才需要；只开 `allow_private_network`
+    /// 或什么都没配时域名直接交给代理：socks5h 用户不能在本地泄露 DNS 查询，
+    /// 只能经代理出网的环境也不该每个请求都等本地 DNS。
+    fn resolution_target<'a>(&self, url: &'a Url) -> Option<&'a str> {
+        if !self.resolve_hosts {
+            return None;
+        }
+        match url.host() {
+            Some(Host::Domain(host)) => Some(host),
+            _ => None,
+        }
+    }
+
+    /// 解析结果是否落在显式放行的地址/网段里（不含 allow_private_network 总开关）。
+    fn resolved_allowed(&self, ips: &[IpAddr]) -> bool {
+        ips.iter()
+            .any(|ip| self.ips.contains(ip) || self.cidrs.iter().any(|c| c.contains(*ip)))
     }
 
     fn ip_allowed(&self, ip: IpAddr) -> bool {
@@ -594,7 +617,7 @@ impl Fetcher {
             let proxy = reqwest::Proxy::all(p.as_str())
                 .map_err(|_| Error::Config("invalid proxy URL".into()))?;
             // NO_PROXY 和放行名单里的目标不要让 reqwest 也走代理；逐请求的直连选择
-            // 在 Transport::get 里再做一次（域名解析到 allow_cidrs 的情况只有那里知道）。
+            // 在 direct_route 里再做一次（域名解析到 allow_cidrs 的情况只有那里知道）。
             let proxy = if let Some(no_proxy) = bypass.reqwest_no_proxy() {
                 proxy.no_proxy(Some(no_proxy))
             } else {
@@ -710,10 +733,21 @@ impl Fetcher {
     }
 
     /// 这个 URL 是否应该绕过代理直连。
+    ///
+    /// 配了 allow_cidrs / allow_ips 时，未列名的域名在本地解析一次，结果落在放行网段内
+    /// 才直连；解析失败或超时都交给代理，不报错。超时取 min(dns_timeout,
+    /// [`BYPASS_DNS_TIMEOUT`])，只能经代理出网的环境每个请求最多多等这么久。
     async fn direct_route(&self, url: &Url) -> bool {
-        match &self.transport {
-            Transport::Direct(_) => true,
-            Transport::Proxy { .. } => self.bypass.applies(url, &self.resolver).await,
+        if matches!(self.transport, Transport::Direct(_)) || self.bypass.applies(url) {
+            return true;
+        }
+        let Some(host) = self.bypass.resolution_target(url) else {
+            return false;
+        };
+        let limit = self.config.dns_timeout.min(BYPASS_DNS_TIMEOUT);
+        match tokio::time::timeout(limit, self.resolver.resolve_checked(host)).await {
+            Ok(Ok(ips)) => self.bypass.resolved_allowed(&ips),
+            _ => false,
         }
     }
 
@@ -762,10 +796,12 @@ impl Fetcher {
             stream.body_idle_timeout,
         )
         .await?;
+        let mut warnings = Vec::new();
         let body = if direct {
-            let (body, cut) = client::decode_body(&mut headers, body, max);
-            truncated |= cut;
-            body
+            let decoded = client::decode_body(&mut headers, body, max, truncated)?;
+            truncated = decoded.truncated;
+            warnings = decoded.warnings;
+            decoded.body
         } else {
             body
         };
@@ -784,6 +820,7 @@ impl Fetcher {
             },
             truncated,
             not_modified: status == 304,
+            warnings,
         })
     }
 
@@ -868,8 +905,7 @@ impl Fetcher {
             let location = resp
                 .headers()
                 .get(header::LOCATION)
-                .and_then(|v| v.to_str().ok())
-                .map(str::to_owned);
+                .map(|v| location_text(v.as_bytes()));
             if let (301 | 302 | 303 | 307 | 308, Some(loc)) = (status, location) {
                 if chain.len() >= self.config.max_redirects {
                     return Err(Error::TooManyRedirects(self.config.max_redirects));
@@ -974,6 +1010,26 @@ impl Fetcher {
         }
         out
     }
+}
+
+/// 把 Location 头的原始字节转成文本。`HeaderValue::to_str` 只接受可见 ASCII，
+/// 而不少服务器直接发 UTF-8 路径（`/目标 页面?q=中文`）。合法 UTF-8 原样交给 `Url::join`，
+/// 它按 WHATWG URL 规则把非 ASCII 和空格百分号编码；不是 UTF-8 时按 latin-1 读取、
+/// 把每个高位字节直接写成 `%XX`，保留服务器原本的字节（与 Firefox 一致）。
+/// SSRF 与重定向次数检查照常作用于解析结果。
+fn location_text(raw: &[u8]) -> String {
+    if let Ok(text) = std::str::from_utf8(raw) {
+        return text.trim().to_owned();
+    }
+    let mut out = String::with_capacity(raw.len() * 3);
+    for &b in raw {
+        if b.is_ascii() {
+            out.push(char::from(b));
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out.trim().to_owned()
 }
 
 fn merge_cookie(out: &mut HeaderMap, v: &HeaderValue) {
@@ -1252,6 +1308,86 @@ mod tests {
         assert!(bypass.ip_allowed("192.0.2.10".parse().unwrap()));
         assert!(bypass.ip_allowed("198.18.1.2".parse().unwrap()));
         assert!(!bypass.ip_allowed("198.20.1.2".parse().unwrap()));
+    }
+
+    fn url(s: &str) -> Url {
+        Url::parse(s).unwrap()
+    }
+
+    #[test]
+    fn proxied_route_only_bypasses_ip_literals_and_listed_hosts() {
+        let ssrf = SsrfPolicy {
+            allow_private_network: true,
+            allow_hosts: vec!["docs.internal".into()],
+            allow_cidrs: vec!["198.18.0.0/15".parse().unwrap()],
+            ..Default::default()
+        };
+        let bypass = ProxyBypass::from_raw(Some(".corp.example"), &ssrf);
+        // IP 字面量照常在本地判定
+        assert!(bypass.applies(&url("http://10.0.0.5/")));
+        assert!(bypass.applies(&url("http://[fd00::1]/")));
+        assert!(bypass.applies(&url("http://198.18.1.2/")));
+        assert!(!bypass.applies(&url("http://8.8.8.8/")));
+        // 名单里的主机名直连
+        assert!(bypass.applies(&url("http://docs.internal/a")));
+        assert!(bypass.applies(&url("https://git.corp.example/")));
+        // 其他主机名不按名单直连；配了 allow_cidrs，所以要本地解析再判断
+        assert!(!bypass.applies(&url("http://intranet.example/")));
+        assert_eq!(
+            bypass.resolution_target(&url("http://intranet.example/")),
+            Some("intranet.example")
+        );
+        assert_eq!(bypass.resolution_target(&url("http://8.8.8.8/")), None);
+        assert!(bypass.resolved_allowed(&["198.18.3.4".parse().unwrap()]));
+        // allow_private_network 总开关不让解析结果直连
+        assert!(!bypass.resolved_allowed(&["10.0.0.5".parse().unwrap()]));
+    }
+
+    #[test]
+    fn private_network_switch_alone_never_resolves_hosts() {
+        let ssrf = SsrfPolicy {
+            allow_private_network: true,
+            ..Default::default()
+        };
+        let bypass = ProxyBypass::from_raw(Some("10.0.0.0/8"), &ssrf);
+        assert!(bypass.applies(&url("http://192.168.1.1/")));
+        assert!(!bypass.applies(&url("http://intranet.example/")));
+        assert_eq!(
+            bypass.resolution_target(&url("http://intranet.example/")),
+            None
+        );
+        let none = ProxyBypass::from_raw(None, &policy());
+        assert_eq!(none.resolution_target(&url("http://example.com/")), None);
+    }
+
+    #[test]
+    fn no_proxy_rules_still_apply_without_resolution() {
+        let bypass = ProxyBypass::from_raw(Some("localhost,10.0.0.0/8"), &policy());
+        assert!(bypass.applies(&url("http://localhost:8080/")));
+        assert!(bypass.applies(&url("http://10.9.9.9/")));
+        assert!(!bypass.applies(&url("http://example.com/")));
+        let all = ProxyBypass::from_raw(Some("*"), &policy());
+        assert!(all.applies(&url("http://example.com/")));
+    }
+
+    #[test]
+    fn location_bytes_are_read_as_utf8_or_latin1() {
+        let base = url("http://example.com/dir/start");
+        let utf8 = location_text("/目标 页面?q=中文#片段".as_bytes());
+        let next = base.join(&utf8).unwrap();
+        assert_eq!(
+            next.as_str(),
+            "http://example.com/%E7%9B%AE%E6%A0%87%20%E9%A1%B5%E9%9D%A2?q=%E4%B8%AD%E6%96%87#%E7%89%87%E6%AE%B5"
+        );
+        // latin-1 字节保留原值
+        let latin1 = location_text(b"caf\xe9.html");
+        assert_eq!(latin1, "caf%E9.html");
+        assert_eq!(
+            base.join(&latin1).unwrap().as_str(),
+            "http://example.com/dir/caf%E9.html"
+        );
+        // 普通 ASCII 不变
+        assert_eq!(location_text(b"/plain?a=1"), "/plain?a=1");
     }
 
     #[test]

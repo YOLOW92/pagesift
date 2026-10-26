@@ -17,29 +17,10 @@ pub(crate) struct Info {
 
 type Obj = Map<String, Value>;
 
-pub(crate) fn extract(blocks: &[String]) -> Info {
-    let mut values = Vec::new();
-    for b in blocks {
-        // 不含这几个键的块（面包屑、站点搜索框）不用解析
-        if ![
-            "author",
-            "datePublished",
-            "dateModified",
-            "dateCreated",
-            "Article",
-            "Posting",
-        ]
-        .iter()
-        .any(|k| b.contains(k))
-        {
-            continue;
-        }
-        if let Some(v) = parse(b) {
-            values.push(v);
-        }
-    }
+/// `values` 是页面上全部解析成功的 JSON-LD 块（见 [`parse`]），和 `metadata.json_ld` 共用一次解析。
+pub(crate) fn extract<'a>(values: impl IntoIterator<Item = &'a Value>) -> Info {
     let mut nodes = Vec::new();
-    for v in &values {
+    for v in values {
         collect(v, &mut nodes, 0);
     }
     let ids: HashMap<&str, &Obj> = nodes
@@ -67,7 +48,8 @@ pub(crate) fn extract(blocks: &[String]) -> Info {
     info
 }
 
-fn parse(block: &str) -> Option<Value> {
+/// 宽松解析一个 JSON-LD 块：容忍 HTML 注释、CDATA 包装和末尾分号。
+pub(crate) fn parse(block: &str) -> Option<Value> {
     let s = block.trim();
     if let Ok(v) = serde_json::from_str(s) {
         return Some(v);
@@ -234,10 +216,10 @@ fn author(v: &Value, ids: &HashMap<&str, &Obj>) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::extract;
+    use super::{extract, parse};
 
     fn one(s: &str) -> super::Info {
-        extract(&[s.to_string()])
+        extract(parse(s).as_ref())
     }
 
     #[test]

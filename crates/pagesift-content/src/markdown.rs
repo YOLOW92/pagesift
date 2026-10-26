@@ -508,6 +508,22 @@ impl Renderer<'_> {
         });
     }
 
+    /// 同类强调已经在外层包过（`<b><b>…`、`<b><strong>…`）就不再重复加标记：
+    /// 层层嵌套的强调在 Markdown 里没有意义，只会输出满屏的 `*`。
+    fn emphasis(&self, node: NodeR<'_>, same: &[Tag], marker: &str, out: &mut String) {
+        // 最多往上看 32 层：病态的十万层行内嵌套里没有块级元素，不设上限就成了平方复杂度
+        let nested = node
+            .ancestors()
+            .take(32)
+            .take_while(|a| a.tag().is_none_or(|t| !is_block_tag(t)))
+            .any(|a| a.tag().is_some_and(|t| same.contains(&t)));
+        if nested {
+            self.inline_children_into(node, out);
+        } else {
+            out.push_str(&wrap(&self.inline_children(node), marker));
+        }
+    }
+
     fn inline_children(&self, node: NodeR<'_>) -> String {
         let mut s = String::new();
         self.inline_children_into(node, &mut s);
@@ -547,10 +563,10 @@ impl Renderer<'_> {
             Tag::Br => out.push('\n'),
             Tag::Wbr => {}
             Tag::Img => out.push_str(&self.image(el)),
-            Tag::Strong | Tag::B => out.push_str(&wrap(&self.inline_children(node), "**")),
-            Tag::Em | Tag::I => out.push_str(&wrap(&self.inline_children(node), "*")),
+            Tag::Strong | Tag::B => self.emphasis(node, &[Tag::Strong, Tag::B], "**", out),
+            Tag::Em | Tag::I => self.emphasis(node, &[Tag::Em, Tag::I], "*", out),
             Tag::Del | Tag::S | Tag::Strike => {
-                out.push_str(&wrap(&self.inline_children(node), "~~"))
+                self.emphasis(node, &[Tag::Del, Tag::S, Tag::Strike], "~~", out)
             }
             Tag::Code | Tag::Kbd | Tag::Samp | Tag::Tt => {
                 out.push_str(&inline_code(&collapse_whitespace(&raw_text(&node))))

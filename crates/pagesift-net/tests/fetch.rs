@@ -135,6 +135,90 @@ async fn decompresses_gzip() {
     assert_eq!(r.body, b"hello gzip");
 }
 
+fn gzip(data: &[u8]) -> Vec<u8> {
+    let mut enc = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+    enc.write_all(data).unwrap();
+    enc.finish().unwrap()
+}
+
+#[tokio::test]
+async fn decompresses_stacked_gzip() {
+    let srv = serve(|_| {
+        let body = gzip(&gzip(b"<p>double</p>"));
+        Some(response(200, &[("Content-Encoding", "gzip, gzip")], &body))
+    })
+    .await;
+    let r = fetcher()
+        .fetch(FetchRequest::new(srv.url("/")))
+        .await
+        .unwrap();
+    assert_eq!(r.body, b"<p>double</p>");
+    assert!(!r.truncated);
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+    assert!(r.header("content-encoding").is_none());
+}
+
+#[tokio::test]
+async fn plaintext_labelled_gzip_is_used_as_is() {
+    let srv = serve(|_| {
+        Some(response(
+            200,
+            &[("Content-Encoding", "gzip"), ("Content-Type", "text/html")],
+            b"<html>plain</html>",
+        ))
+    })
+    .await;
+    let r = fetcher()
+        .fetch(FetchRequest::new(srv.url("/")))
+        .await
+        .unwrap();
+    assert_eq!(r.body, b"<html>plain</html>");
+    assert!(!r.truncated, "not a size-limit problem");
+    assert_eq!(
+        r.warnings,
+        ["content_encoding_mismatch: declared gzip but body is not gzip; used as-is"]
+    );
+}
+
+#[tokio::test]
+async fn follows_non_ascii_location() {
+    let srv = serve(|s| {
+        Some(match s.path.as_str() {
+            "/start" => redirect(302, "/目标 页面?q=中文#片段"),
+            "/%E7%9B%AE%E6%A0%87%20%E9%A1%B5%E9%9D%A2?q=%E4%B8%AD%E6%96%87" => ok("arrived"),
+            other => response(404, &[], other.as_bytes()),
+        })
+    })
+    .await;
+    let r = fetcher()
+        .fetch(FetchRequest::new(srv.url("/start")))
+        .await
+        .unwrap();
+    assert_eq!(r.status, 200);
+    assert_eq!(r.body, b"arrived");
+    assert_eq!(r.final_url.fragment(), Some("%E7%89%87%E6%AE%B5"));
+    assert_eq!(r.redirect_chain.len(), 1);
+}
+
+#[tokio::test]
+async fn non_ascii_location_keeps_ssrf_and_redirect_limits() {
+    let srv = serve(|_| Some(redirect(302, "http://10.0.0.1/内网"))).await;
+    let err = fetcher()
+        .fetch(FetchRequest::new(srv.url("/")))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, Error::Blocked(_)), "{err}");
+    assert_eq!(srv.seen().len(), 1);
+
+    let srv = serve(|_| Some(redirect(302, "/循环 页面"))).await;
+    let err = fetcher()
+        .fetch(FetchRequest::new(srv.url("/")))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, Error::TooManyRedirects(5)), "{err}");
+    assert_eq!(srv.seen().len(), 6);
+}
+
 #[tokio::test]
 async fn truncates_large_bodies() {
     let srv = serve(|_| Some(ok(&"x".repeat(100_000)))).await;
@@ -413,6 +497,145 @@ async fn http_proxy_on_private_address_is_allowed() {
         .await
         .unwrap_err();
     assert!(matches!(err, Error::Blocked(_)));
+}
+
+/// 记录每次被查询的主机名；`hang` 里的主机永不返回（模拟只能经代理出网的环境）。
+struct RecordingDns {
+    asked: std::sync::Mutex<Vec<String>>,
+    answers: Vec<(&'static str, IpAddr)>,
+    hang: Vec<&'static str>,
+}
+
+impl RecordingDns {
+    fn new(answers: &[(&'static str, IpAddr)], hang: &[&'static str]) -> Arc<Self> {
+        let mut answers = answers.to_vec();
+        answers.push(("proxy.test", IpAddr::V4(Ipv4Addr::LOCALHOST)));
+        Arc::new(Self {
+            asked: Default::default(),
+            answers,
+            hang: hang.to_vec(),
+        })
+    }
+
+    fn asked(&self) -> Vec<String> {
+        self.asked.lock().unwrap().clone()
+    }
+}
+
+impl DnsLookup for RecordingDns {
+    fn lookup<'a>(&'a self, host: &'a str) -> BoxFuture<'a, io::Result<Vec<IpAddr>>> {
+        Box::pin(async move {
+            self.asked.lock().unwrap().push(host.to_string());
+            if self.hang.contains(&host) {
+                std::future::pending::<()>().await;
+            }
+            match self.answers.iter().find(|(h, _)| *h == host) {
+                Some((_, ip)) => Ok(vec![*ip]),
+                None => Err(io::Error::new(io::ErrorKind::NotFound, "no such host")),
+            }
+        })
+    }
+}
+
+/// 代理服务器：只接受绝对形式的请求行，回 "via proxy"。
+async fn proxy_server() -> common::Server {
+    serve(|s| {
+        assert!(s.path.starts_with("http://"), "{}", s.path);
+        Some(ok("via proxy"))
+    })
+    .await
+}
+
+fn proxied_config(
+    proxy: &common::Server,
+    dns: Arc<RecordingDns>,
+    ssrf: SsrfPolicy,
+) -> FetcherConfig {
+    FetcherConfig {
+        proxy: Some(format!("http://proxy.test:{}", proxy.addr.port())),
+        dns,
+        ssrf,
+        ..Default::default()
+    }
+}
+
+#[tokio::test]
+async fn proxy_with_private_network_switch_does_not_resolve_targets_locally() {
+    let proxy = proxy_server().await;
+    let dns = RecordingDns::new(&[], &[]);
+    let ssrf = SsrfPolicy {
+        allow_private_network: true,
+        ..Default::default()
+    };
+    let f = Fetcher::new(proxied_config(&proxy, dns.clone(), ssrf)).unwrap();
+    let r = f
+        .fetch(FetchRequest::new("http://example.com/page"))
+        .await
+        .unwrap();
+    assert_eq!(r.body, b"via proxy");
+    let asked = dns.asked();
+    assert!(
+        !asked.iter().any(|h| h == "example.com"),
+        "target must be resolved by the proxy, not locally: {asked:?}"
+    );
+}
+
+#[tokio::test]
+async fn proxy_with_allow_cidr_goes_direct_when_host_resolves_inside() {
+    let proxy = proxy_server().await;
+    let target = serve(|s| {
+        assert_eq!(s.path, "/page", "direct request uses origin-form");
+        Some(ok("direct"))
+    })
+    .await;
+    let dns = RecordingDns::new(&[("wiki.corp", IpAddr::V4(Ipv4Addr::LOCALHOST))], &[]);
+    let ssrf = SsrfPolicy {
+        allow_cidrs: vec!["127.0.0.0/8".parse().unwrap()],
+        ..Default::default()
+    };
+    let f = Fetcher::new(proxied_config(&proxy, dns, ssrf)).unwrap();
+    let r = f
+        .fetch(FetchRequest::new(format!(
+            "http://wiki.corp:{}/page",
+            target.addr.port()
+        )))
+        .await
+        .unwrap();
+    assert_eq!(r.body, b"direct");
+    assert!(proxy.seen().is_empty());
+}
+
+#[tokio::test]
+async fn proxy_with_allow_cidr_falls_back_to_proxy_when_resolution_fails() {
+    let proxy = proxy_server().await;
+    let dns = RecordingDns::new(&[], &["slow.example"]);
+    let ssrf = SsrfPolicy {
+        allow_cidrs: vec!["10.0.0.0/8".parse().unwrap()],
+        ..Default::default()
+    };
+    let mut cfg = proxied_config(&proxy, dns.clone(), ssrf);
+    cfg.dns_timeout = Duration::from_millis(200);
+    let f = Fetcher::new(cfg).unwrap();
+    // 解析失败：交给代理，不报错
+    let r = f
+        .fetch(FetchRequest::new("http://missing.example/"))
+        .await
+        .unwrap();
+    assert_eq!(r.body, b"via proxy");
+    assert!(dns.asked().iter().any(|h| h == "missing.example"));
+    // 解析超时：最多等 min(dns_timeout, 2s)，然后交给代理
+    let started = std::time::Instant::now();
+    let r = f
+        .fetch(FetchRequest::new("http://slow.example/"))
+        .await
+        .unwrap();
+    assert_eq!(r.body, b"via proxy");
+    assert!(
+        started.elapsed() < Duration::from_secs(2),
+        "{:?}",
+        started.elapsed()
+    );
+    assert_eq!(proxy.seen().len(), 2);
 }
 
 #[tokio::test]

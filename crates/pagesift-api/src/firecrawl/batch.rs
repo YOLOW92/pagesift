@@ -11,7 +11,7 @@ use crate::jobs::{Start, rfc3339};
 use crate::limits::Caller;
 use crate::server::{AppState, PAGE_SIZE, base_url, body, webhook};
 use crate::types::{BatchScrapeRequest, JobErrors, JobStarted, JobStatus};
-use crate::validate::{check_scrape_options, check_url};
+use crate::validate::{check_scrape_options, check_url, check_url_count};
 
 #[derive(Deserialize)]
 pub struct Paging {
@@ -27,6 +27,7 @@ pub async fn batch_start(
     req: Result<Json<BatchScrapeRequest>, JsonRejection>,
 ) -> Result<Json<JobStarted>, ApiError> {
     let req = body(req)?;
+    check_url_count(req.urls.len())?;
     check_scrape_options(&req.options, s.engine.as_ref())?;
     let (mut valid, mut invalid) = (Vec::new(), Vec::new());
     for u in req.urls {

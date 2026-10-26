@@ -63,7 +63,7 @@ pub(crate) fn is_hidden(node: &NodeR<'_>) -> bool {
             _ => {}
         }
     }
-    if cloaked && !is_root_element(el.name()) && !contains_landmark(node) {
+    if cloaked && !is_root_element(el.name()) && !contains_landmark(node) && !is_app_root(node) {
         return true;
     }
     if aria.is_some_and(|v| v.eq_ignore_ascii_case("true"))
@@ -82,6 +82,25 @@ pub(crate) fn is_hidden(node: &NodeR<'_>) -> bool {
         }
     }
     false
+}
+
+/// `<body>` 下直接挂着、带 cloak 且文字很多的容器是水合前的应用根（`<div id="app" v-cloak>`），
+/// 服务端已经把整页渲染在里面。弹窗、错误模板这类 cloak 内容很少超过这个字数。
+const CLOAK_APP_ROOT_MIN_CHARS: usize = 1000;
+
+fn is_app_root(node: &NodeR<'_>) -> bool {
+    node.parent()
+        .and_then(|p| element(&p).map(|el| el.name().eq_ignore_ascii_case("body")))
+        .unwrap_or(false)
+        && !short_text(node, CLOAK_APP_ROOT_MIN_CHARS)
+}
+
+/// 节点在 `<template>` 里（含自身）。模板内容是惰性的，浏览器不渲染；选正文根时要排除。
+pub(crate) fn in_template(node: &NodeR<'_>) -> bool {
+    node.tag() == Some(pagesift_html::Tag::Template)
+        || node
+            .ancestors()
+            .any(|a| a.tag() == Some(pagesift_html::Tag::Template))
 }
 
 fn is_root_element(name: &str) -> bool {

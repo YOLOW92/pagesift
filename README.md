@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.72.8
+# pagesift 0.73.0
 
 **High-performance, memory-bounded web scraping and extraction engine built for AI agents and LLM pipelines.**  
 Turn any website, document, or archive into clean Markdown and structured data — one Rust binary, native SDKs, dual Firecrawl v1/v2 & Jina Reader APIs, at a fraction of the memory.
@@ -22,6 +22,27 @@ Turn any website, document, or archive into clean Markdown and structured data �
 </div>
 
 ---
+
+## What's New in 0.73.0
+
+**All cores again, hardened inputs, fewer false positives.** 0.73.0 fixes what a three-way code
+review and ~150 adversarial input tests found.
+
+- **Extraction uses every core again.** Since 0.70.0 `scrape`, `crawl` and `serve` extracted on
+  one core; the API server now serves 5–7× more requests per second (16 clients: ~310 → up to
+  2,196 req/s, p50 40 ms → 4.6 ms).
+- **No more crashes or DoS paths found by the review**: a CJK panic in the feed sniffer, UTF-8
+  pages re-decoded into mojibake, quadratic attribute parsing (40,000 attributes: 3 s → 0.02 s),
+  slowloris clients, `javascript:` links from RSS items.
+- **Heuristics narrowed**: short Substack posts were reported as age gates; author widgets,
+  cloaked app roots, `<template>` content and CSS variables (as OpenAI keys) are handled correctly.
+- **API limits and timeouts** on every parameter, with the standard JSON error body everywhere.
+- **Crawl scope decided from evidence** (`--scope auto`, default): `/docs/python` stays in
+  `/docs/python/*`; a leaf seed such as a blog post widens to its section, and says so.
+
+Quality holds or improves (WCXB F1 0.8522 → 0.8533, Firecrawl 0.680 → 0.682, AEB 0.958), and
+extraction is 3–5% faster on real pages. Full detail:
+[**0.73.0 release notes**](docs/releases/0.73.0.md).
 
 ## What's New in 0.72.8
 
@@ -172,7 +193,7 @@ Run the standalone container (includes headless browser renderer):
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.72.8
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.73.0
 ```
 
 #### Firecrawl SDK Drop-In Replacement
@@ -256,7 +277,7 @@ cargo install pagesift --locked
 pagesift scrape "https://news.ycombinator.com" --format markdown
 
 # High-concurrency polite crawl with adaptive hardware tuning
-pagesift crawl "https://docs.rs" --limit 5000 --tuning-mode adaptive --output ./data/
+pagesift crawl "https://docs.rs" --limit 5000 --tuning-mode adaptive --out ./data/
 
 # Config is discovered automatically from ~/.config/pagesift/pagesift.toml
 # (or $XDG_CONFIG_HOME / %APPDATA%). PAGESIFT_CONFIG= disables config files.
@@ -323,7 +344,7 @@ If PageSift is useful in research or a product, cite it as:
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 0.72.8}
+  note   = {Version 0.73.0}
 }
 ```
 

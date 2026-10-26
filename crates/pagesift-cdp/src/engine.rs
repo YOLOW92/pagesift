@@ -98,6 +98,11 @@ impl EngineKind {
 
     /// 同 [`Self::configure`]，额外接受细粒度内网放行 CIDR。Lightpanda 用 `--block-cidrs`
     /// 的负号条目表达豁免；moli 不支持负号，只能维持全有/全无（见 [`engine_chain_with_allow`]）。
+    ///
+    /// 限制：Lightpanda 只有按 CIDR 的豁免，没有按主机名放行的参数，`allow_hosts` 传不进去——
+    /// 放行主机若解析到内网地址，仍会被内核挡掉。`allow_ips` 可写成 `/32`、`/128` 放进
+    /// `allow_cidrs`（[`crate::NetworkAllowList::engine_cidrs`] 已代为转换，见
+    /// [`engine_chain_with_allow_list`]）。
     pub fn configure_with_allow(
         self,
         cfg: &mut PoolConfig,
@@ -137,9 +142,10 @@ impl EngineKind {
                             .map(String::from),
                         );
                     } else if !allow_cidrs.is_empty() {
-                        // 先挡内网/保留网段，再用负号条目放行指定 CIDR。
-                        for block in LIGHTPANDA_PRIVATE_BLOCKS {
-                            args.extend(["--block-cidrs".to_string(), (*block).to_string()]);
+                        // 先挡内网/保留网段，再用负号条目放行指定 CIDR。屏蔽清单和 Rust 侧的
+                        // `is_public_ip` 由同一张常量表生成（guard.rs），含 IPv4 映射、NAT64、6to4。
+                        for block in crate::guard::non_public_cidrs() {
+                            args.extend(["--block-cidrs".to_string(), block]);
                         }
                         for allow in allow_cidrs {
                             args.extend(["--block-cidrs".to_string(), format!("-{allow}")]);
@@ -185,29 +191,6 @@ const MOLI_NON_LOOPBACK: &str = "0.0.0.0/2,64.0.0.0/3,96.0.0.0/4,112.0.0.0/5,120
 124.0.0.0/7,126.0.0.0/8,128.0.0.0/1,2000::/3,fc00::/7,fe80::/10";
 const LINK_LOCAL_V4: &str = "169.254.0.0/16";
 const LINK_LOCAL_V6: &str = "fe80::/10";
-/// Lightpanda 按 CIDR 挡内网时先挡的网段；放行名单用负号条目追加在后面。
-const LIGHTPANDA_PRIVATE_BLOCKS: &[&str] = &[
-    "0.0.0.0/8",
-    "10.0.0.0/8",
-    "100.64.0.0/10",
-    "127.0.0.0/8",
-    "169.254.0.0/16",
-    "172.16.0.0/12",
-    "192.0.0.0/24",
-    "192.0.2.0/24",
-    "192.168.0.0/16",
-    "198.18.0.0/15",
-    "198.51.100.0/24",
-    "203.0.113.0/24",
-    "224.0.0.0/4",
-    "240.0.0.0/4",
-    "::/128",
-    "::1/128",
-    "2001:db8::/32",
-    "fc00::/7",
-    "fe80::/10",
-];
-
 fn serve_args() -> Vec<String> {
     ["serve", "--host", "127.0.0.1", "--port", launch::PORT]
         .map(String::from)
@@ -242,6 +225,22 @@ pub fn detect_engines() -> Vec<(EngineKind, PathBuf)> {
 /// - 自动探测时是探测到的全部内核。都找不到时返回基础配置本身（启动时报找不到浏览器）。
 pub fn engine_chain(base: &PoolConfig, allow_private_network: bool) -> Vec<PoolConfig> {
     engine_chain_with_allow(base, allow_private_network, &[])
+}
+
+/// 同 [`engine_chain_with_allow`]，直接接收完整放行名单：`allow_cidrs` 和 `allow_ips` 都传给内核；
+/// `allow_hosts` 内核参数表达不了，配了时记一条警告（见 [`EngineKind::configure_with_allow`]）。
+pub fn engine_chain_with_allow_list(
+    base: &PoolConfig,
+    allow_private_network: bool,
+    allow: &crate::NetworkAllowList,
+) -> Vec<PoolConfig> {
+    if allow.has_hosts() && !allow_private_network {
+        tracing::warn!(
+            "allow_hosts cannot be passed to Lightpanda/moli launch flags; \
+             hosts resolving to private addresses stay blocked by the engine"
+        );
+    }
+    engine_chain_with_allow(base, allow_private_network, &allow.engine_cidrs())
 }
 
 /// 同 [`engine_chain`]，额外把细粒度内网放行 CIDR 传给内核启动参数。
@@ -357,6 +356,14 @@ mod tests {
         let args = c.args_override.unwrap();
         assert!(!args.contains(&"--block-private-networks".to_string()));
         assert!(args.contains(&"10.0.0.0/8".to_string()));
+        // IPv4 映射、NAT64、6to4 里内嵌的内网地址也要挡（和 is_public_ip 一致）
+        for embedded in [
+            "0:0:0:0:0:ffff:a00:0/104",
+            "64:ff9b:0:0:0:0:a00:0/104",
+            "2002:a00:0:0:0:0:0:0/24",
+        ] {
+            assert!(args.contains(&embedded.to_string()), "missing {embedded}");
+        }
         assert!(
             args.windows(2)
                 .any(|w| w[0] == "--block-cidrs" && w[1] == "-127.0.0.0/8")

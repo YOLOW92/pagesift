@@ -4,7 +4,28 @@ use crate::engine::Engine;
 use crate::error::ApiError;
 use crate::types::ScrapeOptions;
 
+/// URL 最长 8 KB：再长的 URL 浏览器和多数服务器都不接受，只会白白占内存。
+pub const MAX_URL_LEN: usize = 8 * 1024;
+/// 同步 scrape 的 `timeout` 上限（毫秒）；整请求超时按它留余量。
+pub const MAX_SCRAPE_TIMEOUT_MS: u64 = 300_000;
+/// `waitFor` 上限（毫秒）。
+pub const MAX_WAIT_FOR_MS: u64 = 60_000;
+/// crawl 的 `limit` 上限。
+pub const MAX_CRAWL_LIMIT: usize = 100_000;
+/// crawl 的 `maxDiscoveryDepth` / `maxDepth` 上限。
+pub const MAX_CRAWL_DEPTH: u64 = 100;
+/// map 的 `limit` 上限，和 Firecrawl 文档一致。
+pub const MAX_MAP_LIMIT: usize = 100_000;
+/// batch scrape、extract 一次最多带多少个 URL。
+pub const MAX_URLS: usize = 10_000;
+
 pub fn check_url(raw: &str) -> Result<(), ApiError> {
+    if raw.len() > MAX_URL_LEN {
+        return Err(ApiError::invalid(format!(
+            "URL is too long: {} bytes, the maximum is {MAX_URL_LEN}",
+            raw.len()
+        )));
+    }
     match url::Url::parse(raw) {
         Ok(u) if matches!(u.scheme(), "http" | "https") && u.host().is_some() => Ok(()),
         Ok(_) => Err(ApiError::invalid(format!(
@@ -86,12 +107,29 @@ pub fn check_scrape_options(opts: &ScrapeOptions, engine: &dyn Engine) -> Result
         if t < 1000 {
             return Err(ApiError::invalid("timeout must be at least 1000 ms"));
         }
+        if t > MAX_SCRAPE_TIMEOUT_MS {
+            return Err(ApiError::invalid(format!(
+                "timeout must not exceed {MAX_SCRAPE_TIMEOUT_MS} ms"
+            )));
+        }
         if opts.wait_for > t / 2 {
             return Err(ApiError::invalid("waitFor must not exceed half of timeout"));
         }
     }
-    if opts.wait_for > 60_000 {
-        return Err(ApiError::invalid("waitFor must not exceed 60000 ms"));
+    if opts.wait_for > MAX_WAIT_FOR_MS {
+        return Err(ApiError::invalid(format!(
+            "waitFor must not exceed {MAX_WAIT_FOR_MS} ms"
+        )));
+    }
+    Ok(())
+}
+
+/// URL 数量的上限检查：batch scrape 和 extract 共用。
+pub fn check_url_count(n: usize) -> Result<(), ApiError> {
+    if n > MAX_URLS {
+        return Err(ApiError::invalid(format!(
+            "too many URLs: {n}, the maximum is {MAX_URLS}"
+        )));
     }
     Ok(())
 }

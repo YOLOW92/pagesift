@@ -94,6 +94,8 @@ impl Scraper {
             engine: Some("http".into()),
             ..Default::default()
         };
+        // 网络层的解码提示（多层压缩、声明与实际不符、部分解压失败）原样带出去
+        warnings.extend(resp.warnings.iter().cloned());
         if resp.truncated {
             warnings.push("response body exceeded the size limit and was truncated".into());
         }
@@ -106,6 +108,13 @@ impl Scraper {
             ..Default::default()
         };
         if resp.not_modified {
+            if opts.if_none_match.is_none() && opts.if_modified_since.is_none() {
+                // 没发条件请求却拿到 304：服务器行为异常，这里也没有缓存可用。
+                warnings.push(
+                    "not_modified: HTTP 304 for an unconditional request; no content was returned"
+                        .into(),
+                );
+            }
             ext.timings = timings;
             ext.warnings = warnings;
             meta.pagesift = Some(ext);
@@ -153,6 +162,22 @@ impl Scraper {
             return Ok(finish(
                 Document {
                     markdown: opts.wants("markdown").then_some(pdf.markdown),
+                    ..Default::default()
+                },
+                meta,
+                ext,
+                timings,
+                warnings,
+                None,
+                false,
+                started,
+            ));
+        }
+
+        if let Some(markdown) = json_markdown(resp.content_type(), &resp.body) {
+            return Ok(finish(
+                Document {
+                    markdown: opts.wants("markdown").then_some(markdown),
                     ..Default::default()
                 },
                 meta,
@@ -280,7 +305,7 @@ impl Scraper {
         fill_metadata(&mut meta, &doc.metadata);
         fill_structured(&mut ext, &doc);
         fill_fingerprints(&mut ext, &doc);
-        let raw_bytes = Some(html.len());
+        let raw_bytes = Some(thin_basis_bytes(&html, &doc.markdown));
         let video_fallback = doc.metadata.video_fallback;
         let mut result = document(doc, opts, html);
         if let Some(links) = result.links.as_mut() {
@@ -541,7 +566,7 @@ impl Scraper {
                     .into(),
             );
         }
-        let raw_bytes = Some(r.html.len());
+        let raw_bytes = Some(thin_basis_bytes(&r.html, &r.doc.markdown));
         let video_fallback = r.doc.metadata.video_fallback;
         Ok(finish(
             document(r.doc, opts, r.html),

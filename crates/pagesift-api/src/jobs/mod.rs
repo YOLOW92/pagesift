@@ -113,7 +113,7 @@ impl Jobs {
         let mut page = {
             let map = self.inner.map.lock().await;
             let job = map.get(id)?;
-            let end = (skip + limit).min(job.data.len());
+            let end = skip.saturating_add(limit).min(job.data.len());
             StatusPage {
                 state: job.state,
                 total: job.total,
