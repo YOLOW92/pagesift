@@ -17,6 +17,8 @@ pub(crate) enum OpenError {
     Encrypted,
     /// 找不到任何可用的对象结构。
     Malformed(&'static str),
+    /// 修复扫描超过了截止时间（`Options::timeout`）。
+    Timeout,
 }
 
 /// 引用链最多跟随这么多跳，防止成环。
@@ -61,7 +63,11 @@ impl<'a> Document<'a> {
             None => None,
         };
         // 正常读出的文档没有页面时，修复结果有页面才用它
-        match (Document::repaired(data, limit), normal) {
+        let repaired = Document::repaired(data, limit);
+        if crate::budget::expired() {
+            return Err(OpenError::Timeout);
+        }
+        match (repaired, normal) {
             (Some(mut doc), normal) => {
                 doc.setup_crypt()?;
                 match normal {

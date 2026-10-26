@@ -49,7 +49,8 @@ pub(crate) fn headings(doc: &Document, pages: &[ObjectId]) -> Option<HeadingMcid
     let mut budget = MAX_NODES;
     let mut elements = 0u32;
     while let Some(f) = stack.pop() {
-        if budget == 0 {
+        // 超过截止时间就停：后面逐页循环里的检查会报超时
+        if budget == 0 || (budget.is_multiple_of(4096) && crate::budget::expired()) {
             break;
         }
         budget -= 1;

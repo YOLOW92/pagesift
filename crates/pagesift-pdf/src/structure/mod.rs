@@ -15,7 +15,7 @@ use crate::file::{Document, ObjectId};
 use crate::geom::Matrix;
 use crate::layout::{Line, Para};
 pub(crate) use text::strip_numbering;
-use text::{Fit, Lazy, Titled, fit, split_after};
+use text::{Fit, Lazy, Titled, split_after};
 
 #[derive(Default)]
 pub(crate) struct Structure {
@@ -45,31 +45,41 @@ pub(crate) fn tag_lines(lines: &mut [Line], headings: &HashMap<i32, (u8, u32)>) 
 
 /// 去页眉页脚之前：这一页（或相邻页）书签标题对得上的行标成 keep，免得页首的小节标题被当页眉删掉。
 /// 段落文字只需归一化到最长的书签标题再多一个字符（见 `Titled::with_limit`）。
-fn title_limit(entries: &[Entry]) -> usize {
+pub(crate) fn title_limit(entries: &[Entry]) -> usize {
     entries.iter().map(|e| Titled::new(&e.title).full.chars().count()).max().unwrap_or(0) + 1
 }
 
-pub(crate) fn keep_outline_lines(pages: &mut [Vec<Line>], entries: &[Entry]) {
-    // 每页的行只归一化一次（书签条目多时，逐条重算是 条目数 × 行数 次），而且只归一化到最长的标题再多一个字
-    let mut cache: HashMap<usize, Vec<Option<Titled>>> = HashMap::new();
-    let limit = title_limit(entries);
+/// 书签条目按页分组：第 p 页的条目也放进第 p+1 页（目标在页底时标题常在下一页）。
+pub(crate) fn outline_by_page(entries: &[Entry], pages: usize) -> Vec<Vec<&Entry>> {
+    let mut out: Vec<Vec<&Entry>> = vec![Vec::new(); pages];
     for e in entries {
         let Some(p) = e.page else { continue };
+        for q in [Some(p), p.checked_add(1)].into_iter().flatten() {
+            if let Some(v) = out.get_mut(q) {
+                v.push(e);
+            }
+        }
+    }
+    out
+}
+
+/// 书签标题对得上的行标成 keep（不归图、不当页眉页脚删）。`entries` 是这一页的条目（见 `outline_by_page`），
+/// `limit` 来自 `title_limit`。行只在首字符可能对上时才归一化（结果与逐行比对相同）。
+pub(crate) fn keep_outline_lines(lines: &mut [Line], entries: &[&Entry], limit: usize) {
+    if entries.is_empty() {
+        return;
+    }
+    let lazy: Vec<Option<Lazy>> = lines.iter().map(|l| (!l.raw).then(|| Lazy::new(&l.text))).collect();
+    for e in entries {
         let title = Titled::new(&e.title);
         if title.full.chars().count() < 2 {
             continue;
         }
-        for q in [Some(p), p.checked_add(1)].into_iter().flatten() {
-            let Some(lines) = pages.get_mut(q) else { continue };
-            let titled = cache
-                .entry(q)
-                .or_insert_with(|| lines.iter().map(|l| (!l.raw).then(|| Titled::with_limit(&l.text, limit))).collect());
-            for (line, t) in lines.iter_mut().zip(titled.iter()) {
-                if let Some(t) = t
-                    && matches!(fit(&title, t), Some(Fit::Exact | Fit::Prefix(_)))
-                {
-                    line.keep = true;
-                }
+        for (line, t) in lines.iter_mut().zip(lazy.iter()) {
+            if let Some(t) = t
+                && matches!(t.fit(&title, &line.text, limit), Some(Fit::Exact | Fit::Prefix(_)))
+            {
+                line.keep = true;
             }
         }
     }

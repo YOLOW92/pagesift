@@ -318,6 +318,26 @@ fn encrypted_with_password_is_rejected() {
 }
 
 #[test]
+fn page_limit_reads_only_the_first_pages() {
+    let pdf = Builder::new(vec![
+        Page::text(line("F1", 11.0, 72.0, 700.0, "First page")),
+        Page::text(line("F1", 11.0, 72.0, 700.0, "Second page")),
+    ])
+    .build();
+    // 页数上限按实际处理的页数算：两页的文件只读 1 页，上限 1 也不报错
+    let opts = Options {
+        page_limit: Some(1),
+        max_pages: 1,
+        ..Options::default()
+    };
+    let doc = extract_with(&pdf, &opts).unwrap();
+    assert_eq!(doc.pages.len(), 1);
+    assert_eq!(doc.metadata.page_count, 2);
+    assert!(doc.markdown.contains("First page"));
+    assert!(!doc.markdown.contains("Second page"));
+}
+
+#[test]
 fn limits_are_enforced() {
     let pdf = Builder::new(vec![Page::text(line("F1", 11.0, 72.0, 700.0, "Hi"))]).build();
     let opts = Options {

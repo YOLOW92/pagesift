@@ -9,6 +9,7 @@
 
 #![forbid(unsafe_code)]
 
+mod budget;
 mod cmap;
 mod encoding;
 mod figure;
@@ -44,6 +45,9 @@ pub struct Options {
     pub max_pages: usize,
     /// 单个流解压后的大小上限，防解压炸弹。
     pub max_stream_bytes: usize,
+    /// 只处理前 N 页（Firecrawl 的 `maxPages`）；后面的页不解释、不排版。
+    /// `metadata.page_count` 仍是整个文件的页数；页数上限按实际处理的页数算。
+    pub page_limit: Option<usize>,
 }
 
 impl Default for Options {
@@ -53,6 +57,7 @@ impl Default for Options {
             max_input_bytes: 256 << 20,
             max_pages: 5000,
             max_stream_bytes: 64 << 20,
+            page_limit: None,
         }
     }
 }
@@ -137,6 +142,7 @@ const SCANNED_MIN_COVERAGE: f64 = 0.3;
 fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument, Error> {
     let start = Instant::now();
     let deadline = opts.timeout.map(|t| start + t);
+    let _budget = budget::enter(deadline);
     if bytes.len() > opts.max_input_bytes {
         return Err(Error::TooLarge("input size"));
     }
@@ -147,10 +153,15 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
     let doc = Document::open(bytes, opts.max_stream_bytes).map_err(|e| match e {
         OpenError::Encrypted => Error::Encrypted,
         OpenError::Malformed(m) => Error::Malformed(m.into()),
+        OpenError::Timeout => Error::Timeout,
     })?;
     check_deadline(deadline)?;
 
-    let page_ids = doc.pages();
+    let mut page_ids = doc.pages();
+    let total_pages = page_ids.len();
+    if let Some(limit) = opts.page_limit {
+        page_ids.truncate(limit.max(1));
+    }
     if page_ids.len() > opts.max_pages {
         return Err(Error::TooLarge("page count"));
     }
@@ -166,6 +177,11 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
     let mut tagged_lines = 0;
     let mut bases = Vec::with_capacity(page_ids.len());
 
+    // 书签条目按页分好组，标题匹配的长度上限也只算一次
+    let outline_by_page = structure::outline_by_page(&structure.outline, page_ids.len());
+    let outline_limit = structure::title_limit(&structure.outline);
+    // 调试输出开关只读一次
+    let dump_tables = std::env::var_os("PAGESIFT_PDF_TABLES").is_some();
     let mut fonts = HashMap::new();
     let mut frags = Vec::with_capacity(page_ids.len());
     let mut heights = Vec::with_capacity(page_ids.len());
@@ -203,17 +219,11 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
         }
         // 表格：格子里的片段换成一个原样输出的 Markdown 表格，放在表格顶部的位置
         // 书签声明的标题行（这一页和前一页的条目）标成 keep：不归图，也不当页眉页脚删
-        let outline_here: Vec<structure::Entry> = structure
-            .outline
-            .iter()
-            .filter(|e| e.page.is_some_and(|p| p == index || p + 1 == index))
-            .map(|e| structure::Entry { page: Some(0), ..e.clone() })
-            .collect();
-        structure::keep_outline_lines(std::slice::from_mut(&mut page_frags), &outline_here);
+        structure::keep_outline_lines(&mut page_frags, &outline_by_page[index], outline_limit);
         // 矢量图：图内文字（刻度、图例、标注）不进表格检测、不当标题，合成一个原样输出的块
         let figures = figure::detect(&ink.shapes, &ink.rules, &page_frags, ink.width, ink.height);
         ink.shapes = Vec::new();
-        if std::env::var_os("PAGESIFT_PDF_TABLES").is_some() {
+        if dump_tables {
             for f in &figures {
                 let head: String = figure::text_of(&page_frags, &f.lines)
                     .chars()
@@ -235,7 +245,7 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
             figure::take(&figures, &mut page_frags, std::mem::take(&mut ink.rules));
         let tables = table::extract(&table_rules, &mut page_frags, ink.width, ink.height);
         page_frags.extend(figure_blocks);
-        if std::env::var_os("PAGESIFT_PDF_TABLES").is_some() {
+        if dump_tables {
             for t in &tables {
                 let cols = t.rows.iter().map(Vec::len).max().unwrap_or(0);
                 let head: Vec<String> = t.rows.iter().take(3).map(|r| r.join(" | ")).collect();
@@ -310,7 +320,7 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
     let scanned_pages = pages.iter().filter(|p| p.scanned).count();
     let scanned = scanned_pages > 0 && scanned_pages * 2 >= pages.len();
     let mut metadata = metadata(&doc);
-    metadata.page_count = pages.len();
+    metadata.page_count = total_pages;
     Ok(PdfDocument {
         markdown,
         pages,
