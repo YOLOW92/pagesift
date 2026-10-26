@@ -25,8 +25,18 @@ pub(super) fn push_text(t: &str, out: &mut String, tex: bool) {
     let before = out.chars().next_back();
     let ws = |o: Option<char>| o.is_none_or(char::is_whitespace);
     let alnum = |o: Option<char>| o.is_some_and(char::is_alphanumeric);
+    // 每个位置之后第一个 `]` 的下标：大量不配对的 `[` 时逐个往后找是平方复杂度（模糊测试找到的）
+    let mut next_close = vec![usize::MAX; chars.len() + 1];
+    for i in (0..chars.len()).rev() {
+        next_close[i] = if chars[i] == ']' { i } else { next_close[i + 1] };
+    }
+    // 受保护区间按位置排好序、互不重叠，跟着下标往前走
+    let mut span = 0;
     for (i, &c) in chars.iter().enumerate() {
-        if protected.iter().any(|&(a, b)| a <= i && i < b) {
+        while protected.get(span).is_some_and(|&(_, b)| b <= i) {
+            span += 1;
+        }
+        if protected.get(span).is_some_and(|&(a, _)| a <= i) {
             out.push(c);
             continue;
         }
@@ -38,10 +48,10 @@ pub(super) fn push_text(t: &str, out: &mut String, tex: bool) {
             '~' => tildes >= 2 && !(ws(p) && ws(n)),
             '_' => unders >= 2 && !(ws(p) && ws(n)) && !(alnum(p) && alnum(n)),
             '<' => n.is_some_and(|n| n.is_ascii_alphabetic() || matches!(n, '/' | '!' | '?')),
-            '[' => chars[i + 1..]
-                .iter()
-                .position(|&x| x == ']')
-                .is_some_and(|j| matches!(chars.get(i + 2 + j), Some('(' | '['))),
+            '[' => {
+                let j = next_close[i + 1];
+                j != usize::MAX && matches!(chars.get(j + 1), Some('(' | '['))
+            }
             '&' => entity_like(&chars[i + 1..]),
             _ => false,
         };
@@ -59,21 +69,28 @@ pub(super) fn tex_spans(chars: &[char]) -> Vec<(usize, usize)> {
     let find = |from: usize, pat: &[char]| {
         (from..chars.len().saturating_sub(pat.len() - 1)).find(|&k| chars[k..].starts_with(pat))
     };
+    // 某种收尾符从某处往后已经找不到时，后面同类的开头都不用再找（否则平方复杂度）
+    let mut missing = [false; 3];
     let mut i = 0;
     while i < chars.len() {
         let two = chars.get(i..i + 2);
-        let close: Option<&[char]> = match two {
-            Some(['$', '$']) => Some(&['$', '$']),
-            Some(['\\', '[']) => Some(&['\\', ']']),
-            Some(['\\', '(']) => Some(&['\\', ')']),
+        let close: Option<(usize, &[char])> = match two {
+            Some(['$', '$']) => Some((0, &['$', '$'])),
+            Some(['\\', '[']) => Some((1, &['\\', ']'])),
+            Some(['\\', '(']) => Some((2, &['\\', ')'])),
             _ => None,
         };
-        if let Some(close) = close
-            && let Some(end) = find(i + 2, close)
+        if let Some((kind, close)) = close
+            && !missing[kind]
         {
-            spans.push((i, end + 2));
-            i = end + 2;
-            continue;
+            match find(i + 2, close) {
+                Some(end) => {
+                    spans.push((i, end + 2));
+                    i = end + 2;
+                    continue;
+                }
+                None => missing[kind] = true,
+            }
         }
         if chars[i] == '$'
             && chars.get(i + 1).is_some_and(|c| !c.is_whitespace())
