@@ -1,0 +1,9 @@
+[package]
+name = "mix-pdf_oxide"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+mix-proto.workspace = true
+pdf_oxide = "=0.3.78"

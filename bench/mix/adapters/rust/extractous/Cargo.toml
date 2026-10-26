@@ -1,0 +1,13 @@
+[package]
+name = "mix-extractous"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+mix-proto.workspace = true
+extractous = "=0.3.0"
+
+# extractous 的 build.rs 用 reqwest（native-tls → openssl-sys）下载 GraalVM；本机没有 OpenSSL 开发包，用 vendored。
+[build-dependencies]
+openssl = { version = "0.10", features = ["vendored"] }

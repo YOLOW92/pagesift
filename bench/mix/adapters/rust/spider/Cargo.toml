@@ -1,0 +1,18 @@
+[package]
+name = "mix-spider"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+mix-proto.workspace = true
+spider = "=2.53.9"
+spider_transformations = "=2.39.13"
+tokio = { version = "1", features = ["rt-multi-thread"] }
+# spider 默认特性经 sqlx 拉进 native-tls → openssl-sys；本机没有 OpenSSL 开发包，用 vendored 静态编译，
+# 只影响链接方式，不改 spider 的行为。
+openssl = { version = "0.10", features = ["vendored"] }
+
+# sqlx 的过程宏在宿主侧也用 openssl-sys（resolver 2 下宿主依赖的特性单独计算），同样设成 vendored。
+[build-dependencies]
+openssl = { version = "0.10", features = ["vendored"] }

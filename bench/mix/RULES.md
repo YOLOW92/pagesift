@@ -108,7 +108,68 @@
 
 （规则定稿时填上每个类别的预期，比如“B2 表格不领先 pymupdf4llm”“C1 失败率最低”，之后不改。）
 
+装工具和冒烟时已经能看出来、跟工具本身能力有关的预期（2026-10-27，冒烟样本很少，只是方向，不是成绩）：
+
+- **Docling 在 B4 的 pptx 上可能吃亏**：冒烟里 `table_test.pptx`（只有一张表的幻灯片）Docling 输出为空；
+  docx、xlsx、EPUB 都正常（2.142.1 能直接读 EPUB）。
+- **extractous 在 B4 的结构保留率会很低**：它只输出纯文本，没有 Markdown 标题、表格、列表。文字完整度可以正常比。
+- **抓取领域不比内容质量**：Scrapy 只抓不转（输出解码后的 HTML），spider 用自带的 HTML→Markdown 转换，Crawl4AI 出
+  整页 Markdown（不是正文提取）。三者能公平比的是：完成率、乱码率（对解码后的文本算）、耗时、峰值内存、吞吐。
+- **启动开销差距大**（每个 worker 只算一次，不进单份耗时，但影响 C2 冷启动）：Rust 的 crw、spider、pdf_oxide、
+  extractous 约 20–70 ms；trafilatura、Scrapy 约 0.4–1 s；Readability（jsdom）约 1.8 s；Crawl4AI（起 Chromium）
+  约 1.6 s；pymupdf4llm 约 3.3 s；MarkItDown 约 4.8 s；Docling 见下（加载版面模型）。
+- **Crawl4AI 每页都要渲染**：冒烟里 3 页 6.4 s（3 个 worker 并行），比纯 HTTP 的 spider（3 页 0.07 s）、
+  Scrapy（0.9 s，含启动）慢一到两个数量级；它在 A2 的耗时和内存上不会占优，但对必须执行脚本的页面可能完成率更高。
+
 ## 七、还没定的事
 
 1. 参评工具名单是否要增减。
 2. 跑分排在发布前最后一步（竞品对比同一时段），抽样、抓快照、写适配器可以提前做。
+
+以下是 2026-10-27 装工具、写适配器、冒烟时发现的问题，需要拍板（细节见 tools.lock.md）：
+
+3. **Docling 和 GTX 1070**：PyPI 默认装出的 torch 2.14.1 是 CUDA 13.0 版，只有 sm_75 及以上的内核，GTX 1070
+   （Pascal，sm_61）用不了。更糟的是 `torch.cuda.is_available()` 仍是 True，**纯默认（不指定设备）时 Docling 自动
+   选 CUDA，冒烟的 3 份 PDF 全部失败**（`no kernel image is available`）。所以本机上“完全默认”的 Docling 完成率是 0。
+   能跑的两种：(a) 默认安装 + `DOCLING_DEVICE=cpu`，3 份全过；(b) 从 PyTorch 官方源装同版本 torch 的 CUDA 12.6 版
+   （`docling-cu126`），3 份全过，但冒烟里并不比 CPU 快（单份 9.5 / 12.5 / 24.5 s，CPU 是 5.7 / 2.7 / 22.4 s；
+   2 个 worker 共用一张卡，样本太少，不能下结论）。建议：Docling 主成绩用 (a)，表里注明“本机默认设备会失败，指定了
+   CPU”；(b) 作附表报 GPU 耗时（RULES 第四节要求报 GPU 和 CPU 耗时）。需要确认这个处理，以及要不要把“纯默认在旧 GPU
+   上全失败”本身也作为一条结果发布。
+4. **Docling 首次运行的模型下载**：第一次转换时才从 Hugging Face 下版面模型（约 500 MB），冒烟里头两份 PDF
+   各 77–80 s，其中一份报 torch 错误 `storage has wrong byte size`（两个 worker 同时下载、加载同一个模型）。
+   正式跑之前要先单进程预热一次把模型下好，模型目录（`$MIX/hf`）的哈希写进 tools.lock.md；预热不计时。
+5. **输出格式不统一**：extractous 只出纯文本，Scrapy 只出 HTML。建议：B4 结构保留率照常给 extractous 算（如实），
+   但表里注明“只输出纯文本”；抓取领域不评内容质量（见第六节）。
+6. **“默认参数”的边界**：唯一的统一改动是“能出 Markdown 的就要 Markdown”（trafilatura `output_format="markdown"`，
+   spider `ReturnFormat::Markdown`），其余全默认。Turndown 默认用 setext 标题（`===` 下划线），评分脚本要两种标题
+   都认。需要确认这条改动可以接受。
+7. **时间上限**：第四之二节的“最慢工具中位数 × 10”在 PDF 和 Office 上会被 Docling（CPU）定得很高，网页正文上
+   会被 Readability（jsdom）定。按冒烟的量级（Docling CPU 单页 PDF 数秒、Office 数秒；正文工具几十毫秒），
+   估计：A 类单份 30 s，B1/B2 单份 300 s（Docling CPU），B3 单份 600 s，B4 单份 120 s，C1 沿用 60 s。
+   正式值等各子类在公开基准上测完中位数再定。另外“全部工具约一小时”和 Docling CPU 跑 B1 的 10%（约 127 页）
+   能兼容，但 B3 的超大 PDF（> 500 页）Docling 单份就可能几十分钟，需要决定 B3 是否也只给 Docling 跑 10%。
+8. **16 线程组里吃内存的工具开不满 16 个**：Docling 每个 worker 约 3–4 GB，15 GB 内存最多开 2–3 个；Crawl4AI 每个
+   worker 一个 Chromium（约 400 MB），16 个能开但会挤占别的。driver 按 MemAvailable 自动压低并在汇总里写实际数。
+   需要确认：16 线程组按“实际开到的 worker 数”报，并在表里写出来。
+9. **C1 没有现成样本**：第二节写“pagesift-fuzz 找到过的全部卡死、爆内存样本（已公开在仓库）”，但 pagesift-fuzz
+   目前只记次数、不存样本，仓库里找不到这批文件。要么先改 pagesift-fuzz 把触发样本存下来再收集，要么 C1 改成
+   “用固定种子的变异器现场生成 N 份”。sample.py 的 c1 目前直接报这个问题。
+10. **A1 的数据泄漏**：pagesift 开发时用过 WCXB dev、AEB、WebMainBench、Firecrawl 数据集调参。sample.py 里 WCXB
+    只抽 test 划分；另外三套没有官方留出划分，结果里要注明“开发时见过”。
+11. **A2 按语言补样**用国家代码顶级域选站（.cn/.jp/.kr/阿拉伯国家/.ru），抓到后用 `<html lang>` 核对，对不上的
+    照样保留并记录。需要确认这个做法。
+12. **B2 的来源还不具体**：“各国政府和央行公开报告”没有公开列表；sample.py 暂用 GOV.UK 搜索接口（统计与研究类，
+    取 PDF 附件）。SEC EDGAR 的 10-K 主文件大多是 HTML 不是 PDF，按季度索引抽到的要再找 PDF 附件，可能凑不够 25 份；
+    备选是 EDGAR 全文检索里限定 PDF 附件。需要定下每个来源的具体接口。
+13. **B3 的难题类型靠随机抽保证不了**：pdf.js 测试集里很多是 `.link`（外链，不在本地），PDFium 的测试集本机没有。
+    随机抽 100 份不一定覆盖加密、超大、竖排。建议按 pdf.js `test_manifest.json` 里的标记（有密码、页数等）分层抽，
+    PDFium 的 `testing/resources` 另外拉取。
+14. **峰值内存口径**：driver 用每个 worker 的 cgroup（`memory.peak`，每份清零），包含子进程（Chromium）。cgroup
+    按“谁先读进来算谁”记页缓存，共享库如果被之前的进程读过就不再算到这个 worker 头上，所以文件页会少算、匿名内存
+    准确。对所有工具口径一致，但要在结果里写明；另一个选择是同时报进程树的 VmHWM。
+15. **网页快照的原始 URL**：现在 HTML 文件交给正文工具时没带页面 URL（Readability 用占位地址），相对链接解析不出
+    真实地址。抽样抓快照时记录了最终 URL，正式跑之前给协议加一个可选的 `url` 字段，crw、trafilatura、Readability
+    都传进去。
+16. **spider 2.53.9 的 `scrape()` + `get_pages()` 拿不到页面**（本机回放服务上 `get_pages()` 为空；只试了回放服务），适配器改用
+    README 里的订阅方式（`subscribe` + `crawl`），行为一样。如果上游修了，可以换回去。
