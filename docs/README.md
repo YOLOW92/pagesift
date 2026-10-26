@@ -13,7 +13,8 @@
 | [Script discovery](script-discovery.md) | Literal navigation and HTTP crawl integration |
 | [Editorial extraction](editorial-core.md) | Main-content selection and regression coverage |
 | [Public comparison evidence](../benchmarks/history/0.70/six/evidence/README.md) | Protocols, per-page scores and hashes |
-| [Detailed benchmark history](benchmarks.md) | Earlier metrics, data and reproducible methods |
+| [Benchmarks](benchmarks.md) | Results per domain, with direction, version and date; scripts in [benchmarks/](../benchmarks/README.md) |
+| [History](history/README.md) | 0.50–0.70 reports and retired homepage sections |
 | [Contributing](../CONTRIBUTING.md) | Local CI, resource sizing and product boundaries |
 
 Project introductions: [English](../README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [Español](README.es.md).

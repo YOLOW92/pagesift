@@ -1,5 +1,18 @@
 # Benchmarks
 
+| Domain | Section | Scripts and results |
+| :--- | :--- | :--- |
+| Main-content extraction | [§1](#1-main-content-extraction-quality-and-speed) | [benchmarks/web-extraction/](../benchmarks/web-extraction/README.md) |
+| Publication dates | [§2](#2-publication-dates) | [benchmarks/dates/](../benchmarks/dates/README.md) |
+| HTML → Markdown fidelity | [§3](#3-html--markdown-fidelity) | [benchmarks/markdown/](../benchmarks/markdown/README.md) |
+| Chunking and query filtering for RAG | [§4](#4-chunking-and-query-filtering-for-rag) | [benchmarks/rag/](../benchmarks/rag/README.md) |
+| PDF → Markdown | [§5](#5-pdf-to-markdown) | [benchmarks/pdf/](../benchmarks/pdf/README.md) |
+| Crawling and browser rendering | [§6](#6-crawling-over-http-no-rate-limit), [§7](#7-crawling-messy-real-world-sites-coverage-waste-and-politeness), [§8](#8-browser-rendering) | [benchmarks/crawl/](../benchmarks/crawl/README.md) |
+| Production workload, deployment | [§9](#9-a-production-workload-replacing-crawl4ai), [§10](#10-deployment-footprint) | [benchmarks/production/](../benchmarks/production/README.md) |
+| Office documents, EPUB, CSV | [§11](#11-office-documents-epub-and-csv-to-markdown) | [benchmarks/office/](../benchmarks/office/README.md) |
+| Scale (200M requests, core scaling) | [200M report](history/0.70_200m_regression.md) | [benchmarks/scale/](../benchmarks/scale/README.md) |
+| 0.70 and earlier | [history/](history/README.md) | [benchmarks/history/](../benchmarks/history/README.md) |
+
 For the newer six-project, 545-page comparisons and explicit remaining gaps, see the [0.20.0 evidence index](../benchmarks/history/0.70/six/evidence/README.md). The older metrics below use different datasets and methods.
 
 Every number here comes from scripts in [`benchmarks/`](../benchmarks) and can be rerun. Each metric says which direction is better. Tools see exactly the same inputs; timing runs use one tool at a time on an otherwise idle machine.
