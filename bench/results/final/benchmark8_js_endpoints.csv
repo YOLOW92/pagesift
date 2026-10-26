@@ -1,4 +1,0 @@
-tool,engine_type,total_expected_endpoints,discovered_endpoints,recall_pct,non_nav_decoy_visits,false_visit_pct,mean_scan_ms,sandbox_memory_mb
-PageSift (JS Parser),Rust Static FastRegex,13,13,100.0,0,0.0,0.42,14.2
-Katana 1.8.0,Go Headless / Regex,13,10,76.9,4,30.8,48.5,128.0
-jsluice 1.0,Go AST Parser,13,11,84.6,2,15.4,32.1,85.0

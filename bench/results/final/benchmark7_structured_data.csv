@@ -1,3 +1,0 @@
-tool,implementation,total_docs,mean_latency_us,speedup_factor,deep_nest_40_latency_us,deep_nest_speedup,peak_rss_mb,stack_safety
-PageSift (StructuredParser),Rust,1000,80.2,43.8,363.0,43.9,24.0,O(N) Streaming Safe
-extruct 0.18,Python,1000,3508.0,1.0,15921.0,1.0,85.0,Extreme CPU Bottleneck

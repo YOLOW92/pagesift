@@ -108,10 +108,10 @@ En D1 se prioriza la precisión (0,8938, segunda de 17; la primera es goose3 con
 | Dimensión de Métrica         | PageSift 0.50 (Rust)    | Spider 2.53.9 (Rust)   | Veredicto
 +------------------------------+-------------------------+------------------------+-------+
 | Sitios Reales Procesados     | 105,660 URLs            | 100,000 URLs           | Empate
-| Páginas Crudas 200 OK        | 62,937 páginas          | 72,209 (con errores)   | Spider
-| Markdown Válido (>100B)      | 60,659 documentos ricos | 59,803 documentos      | PageSift (+856 docs)
+| Páginas Crudas 200 OK        | 62,937 páginas          | 72,209 páginas         | Spider
+| Markdown Válido (>100B)      | 60,659 documentos       | 59,803 documentos      | PageSift (+856 docs)
 | Páginas con ≥100B de Markdown| 96.38%                  | 82.82%                 | PageSift
-| Memoria RAM Pico (RSS)       | 188.4 MB                | 8,978.9 MB             | PageSift (47.6× menor)
+| Memoria RAM Pico (RSS)       | 188.4 MB                | 8,978.9 MB             | PageSift (8,978.9 ÷ 188.4 ≈ 47.7)
 | Escala de millones           | No medido (extrapolación)| No medido (extrapolación)| —
 
 +-----------------------------------------------------------------------------------------+
@@ -127,33 +127,35 @@ En D1 se prioriza la precisión (0,8938, segunda de 17; la primera es goose3 con
 
 ## 🏆 Matriz de los 10 dominios (datos históricos de 0.50, no repetidos con la versión actual)
 
-Evaluado sobre servidor **AMD EPYC de Producción (32 Núcleos, 128 GB RAM)** y verificado en máquina de escritorio **Intel Core i7-10700 (8C/16T, 15.5 GB RAM)** con un **guardián de memoria de 12 GiB** activo (`MemoryMax=12288M`). Datos CSV verificables archivados en [`bench/results/final/`](https://github.com/YOLOW92/pagesift/tree/main/bench/results/final/).
+Cada cifra de la tabla procede de la tabla de mediciones del texto del informe correspondiente en `bench/results/final/` (0.50, en torno al 23 de octubre de 2026, una sola ejecución); la columna «Fuente» indica el informe y la sección. Hardware según los informes: D1–D5 y la comparación de 100k, AMD EPYC 9B45 (32 núcleos, 128 GB); D6–D10, AMD EPYC 7B13 (`c2d-standard-32`). Los cocientes son siempre la división directa de dos cifras medidas, y se indica cuáles. ↑ más alto es mejor, ↓ más bajo es mejor.
+Las cifras de la tabla anterior venían de CSV generados con valores fijos por `bench/run_full_10_benchmarks.py` (el script no ejecutaba ninguna prueba); el script y esos CSV se han eliminado.
 
-| Dominio | PageSift 0.50.0 | Principal Competidor | Ventaja / Aceleración | Memoria RAM Pico (PageSift vs Competidor) | Informe Verificado |
-| :--- | :--- | :--- | :--- | :---: | :--- |
-| **01. Extracción y Concurrencia** | **3,525 páginas/s** (0.57s)¹ | `rs-trafilatura`: 241 p/s (8.32s)<br>`trafilatura` (Py): 191 p/s (10.51s) | **14.6× ~ 18.4× más rápido** | **137.8 MB** vs 298.3 MB | [D1 Informe](https://github.com/YOLOW92/pagesift/blob/main/bench/results/final/BENCHMARK_D1_CONTENT_EXTRACTION_050.md) |
-| **02. Rastreo 100k y Gran Defensa**| **105,660 sitios (188.4 MB)**<br>Chaos: **2,727 p/s** (447.5 MB) | `Spider 2.53.9`: 8,978 MB (100k, completó)² | Unas 47.6× menos memoria (Spider es más rápido) | **188.4 MB** vs 8,978.9 MB | [100k Informe](https://github.com/YOLOW92/pagesift/blob/main/bench/results/final/BENCHMARK_100K_PAGESIFT_VS_SPIDER.md) |
-| **03. Extracción de PDF (olmOCR)** | **71.0%** aciertos, **44.3%** LaTeX<br>**3.4 ms/página** (subconjunto de 1,438 páginas)³ | `pymupdf4llm`: 64.4% aciertos, 0.0% LaTeX<br>320.0 ms/página | **94× más rápido**<br>Recuperación nativa de fórmulas TeX | **42.0 MB** vs 280.0 MB | [D3 Informe](https://github.com/YOLOW92/pagesift/blob/main/bench/results/final/BENCHMARK_D3_HEAVY_PDF_EXTRACTION_050.md) |
-| **04. Autorreparación DOM** | **93.8%** aciertos, **0.0%** falsos pos<br>**24.6 µs** latencia (500 casos)⁴ | `Scrapling`: 46.0% aciertos, **51.2% falsos pos**<br>635.3 µs latencia | **25.8× más rápido**, cero engaños<br>DOM de 200 niveles seguro (928 µs) | **39.4 MB** vs 98.0 MB | [D4 Informe](https://github.com/YOLOW92/pagesift/blob/main/bench/results/final/BENCHMARK_D4_DOM_SELF_HEALING_050.md) |
-| **05. Particionado RAG y BM25** | R@1000 = **0.895** (19.7 ms)<br>Filtro BM25: **1.35 ms/pregunta** | `semchunk`: 113.4 ms (5.8× más lento)<br>`Crawl4AI`: 804.8 ms (**595× más lento**) | **5.8× más rápido en chunks**<br>**595× más rápido en BM25** | **45.2 MB** vs 340.0 MB | [D5 Informe](https://github.com/YOLOW92/pagesift/blob/main/bench/results/final/BENCHMARK_D5_RAG_CHUNKING_050.md) |
-| **06. Detección de Codificación** | **74.4%** precisión, **99.7%** Unicode<br>**0.45 ms/archivo**⁵ | `chardet 7.7`: 68.9% prec (3.05 ms)<br>`charset-normalizer`: 46.5% prec (1.05 ms) | **Mayor precisión (+5.5%)**<br>**6.8× más rápido**⁵ | **18.5 MB** vs 42.0 MB | [D6 Informe](https://github.com/YOLOW92/pagesift/blob/main/bench/results/final/BENCHMARK_D6_CHARSET_DETECTION_050.md) |
-| **07. Datos Estructurados** | **80.2 µs/página** (estándar)<br>40 niveles de anidación: **363 µs** | `extruct 0.18`: 3,508 µs/página (43.8× más lento)<br>40 niveles de anidación: 15,921 µs | **43.8× ~ 43.9× más rápido**<br>Sin desbordamiento de pila | **24.0 MB** vs 85.0 MB | [D7 Informe](https://github.com/YOLOW92/pagesift/blob/main/bench/results/final/BENCHMARK_D7_STRUCTURED_DATA_050.md) |
-| **08. Descubrimiento JS Implícito** | **13/13 (100.0%)** (solo 13 endpoints)⁶<br>**0 visitas no navegación**, **0.42 ms** | `Katana 1.8.0`: 10/13 (76.9%)<br>4 visitas no navegación (30.8% error), 48.5 ms | **100% recuperación**, cero trampas<br>Sin coste de sandbox de navegador | **14.2 MB** vs 128.0 MB | [D8 Informe](https://github.com/YOLOW92/pagesift/blob/main/bench/results/final/BENCHMARK_D8_JS_ENDPOINTS_050.md) |
-| **09. Renderizado Headless (CDP)**| **158.4 ms/render** (pool caliente)<br>**100%** pases de canvas y SVG⁷ | `Lightpanda`: 82 ms (fallo en scripts SPA)<br>`Playwright`: 842 ms (5.3× más lento) | **5.3× más rápido que Playwright**<br>100% fidelidad de renderizado DOM | **188.0 MB** vs 1,840.0 MB | [D9 Informe](https://github.com/YOLOW92/pagesift/blob/main/bench/results/final/BENCHMARK_D9_DYNAMIC_HEADLESS_050.md) |
-| **10. Gateways de API de IA** | **308 req/s** (`/v2/scrape`, 1,000 peticiones), p50 4.37 ms⁸ | Gateway de Crawl4AI: 33.7 req/s, p50 451 ms (50 peticiones)⁸ | ≈ 9× (muestra pequeña)⁸ | **38.0 MB** vs 420.0 MB | [D10 Informe](https://github.com/YOLOW92/pagesift/blob/main/bench/results/final/BENCHMARK_D10_AI_API_GATEWAYS_050.md) |
+| Dominio | PageSift 0.50 (medido en el informe) | Competidores (medidos en el mismo informe) | Cociente (división de dos cifras medidas) | Memoria pico ↓ (PageSift frente a competidor) | Fuente |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **01. Extracción de contenido** | WCXB, 2,008 páginas: **6,273.9 páginas/s** ↑ con 16 hilos (8,833.8 con 32); media por página con un hilo 1.30 ms ↓¹ | El informe no mide el rendimiento multihilo de los competidores. Media por página con un hilo ↓: trafilatura 2.3.1 26.52 ms, Crawl4AI 0.9.5 283.38 ms | Media por página 26.52 ÷ 1.30 ≈ 20.4 (trafilatura ÷ PageSift) | No medida en el informe | [D1](../bench/results/final/BENCHMARK_D1_CONTENT_EXTRACTION_050.md) §2, §4 |
+| **02. 100k dominios reales / 50k URL sintéticas** | 100k: 62,937 respuestas 200 OK ↑, 60,659 con ≥ 100 B de Markdown ↑, 93.5 QPS ↑<br>50k sintéticas: 5,894.8 páginas/s ↑² | Spider 2.53.9, 100k: 72,209 respuestas 200 OK, 59,803 con ≥ 100 B de Markdown, 666.6 QPS<br>50k sintéticas: 6,532.3 páginas/s | **Spider es más rápido**: 666.6 ÷ 93.5 ≈ 7.1; 6,532.3 ÷ 5,894.8 ≈ 1.11<br>Memoria: 8,978.9 ÷ 188.4 ≈ 47.7; 11,316.3 ÷ 502.4 ≈ 22.5 | 100k: 188.4 MB frente a 8,978.9 MB<br>50k: 502.4 MB frente a 11,316.3 MB | [Informe 100k](../bench/results/final/BENCHMARK_100K_PAGESIFT_VS_SPIDER.md), tabla resumen; [D2](../bench/results/final/BENCHMARK_D2_MASSIVE_CRAWL_CHAOS_050.md) §2 |
+| **03. Extracción de PDF** | olmOCR-bench, 1,269 páginas: **72.4%** de aciertos global ↑, fórmulas 70.4% ↑; 2,682.2 páginas/s ↑ con 32 hilos³ | Docling 2.142.0: **73.5% (más alto)**, 0.57 páginas/s<br>PyMuPDF4LLM 2.0: 64.4%, fórmulas 50.0%, 11.1 páginas/s | Rendimiento 2,682.2 ÷ 11.1 ≈ 242 (frente a PyMuPDF4LLM) | 359.6 MB frente a 11,663.1 MB (PyMuPDF4LLM) | [D3](../bench/results/final/BENCHMARK_D3_HEAVY_PDF_EXTRACTION_050.md) §2, §3 |
+| **04. Autorreparación DOM** | 2,000 casos sintéticos: **98.85%** recuperados ↑ (1,977/2,000), 1.15% falsos positivos ↓, media 29.2 µs ↓⁴ | Scrapling 0.5: 92.95%, 7.05% falsos positivos, 990.8 µs<br>BS4 + lxml + RapidFuzz: 98.85% (empate), 2,102.9 µs | Tiempo medio 990.8 ÷ 29.2 ≈ 33.9 (Scrapling ÷ PageSift) | 63.2 MB frente a 1,330.9 MB (Scrapling) | [D4](../bench/results/final/BENCHMARK_D4_DOM_SELF_HEALING_050.md) §2 |
+| **05. Particionado RAG y filtrado** | Chroma, 472 preguntas: recursive R@1000 **0.893** ↑, particionado 12.89 ms ↓<br>QueryFilter: 0.63 ms por pregunta ↓, recall conservado 0.929 ↑ | semchunk: R@1000 0.893, 65.60 ms; LangChain: **0.895 (más alto)**, 104.80 ms<br>Crawl4AI BM25ContentFilter: 838.00 ms por pregunta, recall conservado 0.673 | Particionado 65.60 ÷ 12.89 ≈ 5.1 (semchunk)<br>Filtrado 838.00 ÷ 0.63 ≈ 1,330 (Crawl4AI) | No medida en el informe | [D5](../bench/results/final/BENCHMARK_D5_RAG_CHUNKING_050.md) §2 |
+| **06. Detección de codificación** | chardet-test-data, 3,128 archivos: **76.02%** de acierto ↑; 24,915.3 archivos/s ↑ con 32 hilos⁵ | chardet 7.7.0: 71.13%, 11,412.3 archivos/s con 32 procesos | Rendimiento 24,915.3 ÷ 11,412.3 ≈ 2.2 | No se muestra⁸ | [D6](../bench/results/final/BENCHMARK_D6_CHARSET_DETECTION_050.md) §3.1, §3.2 |
+| **07. Datos estructurados** | WCXB, 2,008 páginas: 33,512.9 páginas/s ↑, p50 0.277 ms ↓; analiza anidamientos de 2,000 niveles⁶ | extruct 0.18.0: 3,449.1 páginas/s, p50 2.442 ms; `RecursionError` a partir de 500 niveles | Rendimiento 33,512.9 ÷ 3,449.1 ≈ 9.7 | No se muestra⁸ | [D7](../bench/results/final/BENCHMARK_D7_STRUCTURED_DATA_050.md) §3.1, §4.1 |
+| **08. Descubrimiento de endpoints JS** | Conjunto sintético con señuelos, 500 archivos: precisión **100%** ↑ (1,000 endpoints reales, 0 señuelos)<br>2,000 paquetes JS reales: 160,287.0 archivos/s ↑⁷ | jsluice 1.0: precisión 40.0% (1,500 señuelos), 7,951.4 archivos/s<br>LinkFinder: precisión 66.7% | Rendimiento 160,287.0 ÷ 7,951.4 ≈ 20.2 (frente a jsluice) | No se muestra⁸ | [D8](../bench/results/final/BENCHMARK_D8_JS_ENDPOINTS_050.md) §3.1, §4.4 |
+| **09. Renderizado dinámico (CDP)** | 100 renderizados de 5 tipos de SPA locales, todos correctos; **25.7 páginas/s** ↑, p50 3,337.56 ms ↓; supera el Shadow DOM de 50 niveles⁹ | Playwright 1.64.1: 41.6 páginas/s, p50 566.66 ms, supera el Shadow DOM<br>Lightpanda 1.0.2: 71.8 páginas/s, p50 29.92 ms, falla el Shadow DOM | **Playwright es más rápido**: 41.6 ÷ 25.7 ≈ 1.6 | Sin medición por herramienta | [D9](../bench/results/final/BENCHMARK_D9_DYNAMIC_HEADLESS_050.md) §3.1, §4.2 |
+| **10. Gateway de API** | `/v2/scrape`, 1,000 peticiones: **308.0 req/s** ↑, p50 4.37 ms ↓ | Gateway de Crawl4AI, 50 peticiones: 33.7 req/s, p50 451.03 ms | 308.0 ÷ 33.7 ≈ 9.1 (distinto número de peticiones, muestra pequeña) | En reposo, unos 20.4 MB frente a unos 380 MB (cifras aproximadas del informe) | [D10](../bench/results/final/BENCHMARK_D10_AI_API_GATEWAYS_050.md) §3.1, §3.4 |
 
-**Notas por fila (revisión de octubre de 2026)**
-¹ El texto del informe D1 da 6,273.9 páginas/s para 0.50 (16 hilos), que no coincide con el CSV (3,525); ninguna de las dos cifras se ha repetido.
-² En el informe de 100k Spider terminó (pico 8,978.9 MB; 666.6 QPS frente a 93.5 de PageSift); el «OOM» corresponde a pruebas anteriores de 0.40 con límite de 12 GB.
-³ Subconjunto de 1,438 páginas; con olmOCR-bench completo (1,403 PDF / 7,019 comprobaciones) en la misma máquina con 0.70: 0,4506 frente a 0,2446 de pymupdf4llm; fórmulas 0,3530 ([D3](benchmarks/0.70_showdown_D3.md)).
-⁴ 500 casos; con 2,000 casos en la misma máquina (0.70): PageSift 0,8215, Scrapling 0,8875; 0.50 obtuvo 0,6965 ([D4](benchmarks/0.70_showdown_D4.md)).
-⁵ Sustituido por la medición de 0.70: 0,7602 frente a chardet 0,7113; velocidad 11,239 frente a 6,800 archivos/s, unas 1,65× y no 6,8× ([D6](benchmarks/0.70_showdown_D6.md)).
-⁶ Solo 13 endpoints; el mismo CSV incluye jsluice con 11/13 (84,6 %), que esta tabla no muestra.
-⁷ 0.70 en la misma máquina, 7 escenarios SPA: PageSift 3/7, Playwright 5/7 ([D9](benchmarks/0.70_showdown_D9.md)).
-⁸ La fila original del CSV («Portkey / LiteLLM, 2,450 req/s») no coincide con el texto del informe y ambos son gateways de LLM, no scrapers; no se puede rastrear, así que se eliminó el CSV y se usan las cifras del informe.
+**Notas por fila (revisión del 27 de octubre de 2026)**
+¹ La medición de 16 hilos en D1 §4 es 6,273.9 páginas/s; el 3,525 que aparece entre paréntesis en la misma fila es la cifra antigua del portátil con 0.40, que la tabla anterior usaba por error. El F1 0.8472 de §2 coincide con la puntuación WCXB de 0.70 con el evaluador oficial y el informe no explica cómo se obtuvo, así que no se muestra (la comparación WCXB en la misma máquina está en la tabla de siete dominios de arriba).
+² La comparación de 100k es una sola ejecución y ambas herramientas terminaron; PageSift procesó 105,660 URL y Spider 100,000. «96.38 % frente a 82.82 %» es la proporción de páginas 200 OK para las que el extractor de cada herramienta devolvió ≥ 100 bytes de Markdown; no mide fidelidad. Las 50k URL son un sitio sintético local (D2 §2).
+³ El informe dice «conjunto oficial completo», pero son los 5 subconjuntos de PDF nativos digitales de olmOCR-bench (los mismos que en [`benchmarks.md` §5](benchmarks.md#5-pdf-to-markdown)); las puntuaciones globales de los competidores en el informe son idénticas a las medidas con 0.12. Con olmOCR-bench completo (1,403 PDF / 7,019 comprobaciones) en la misma máquina con 0.70: 0.4506 frente a 0.2446 de pymupdf4llm; fórmulas 0.3530 ([D3](benchmarks/0.70_showdown_D3.md)).
+⁴ Conjunto sintético de mutaciones. En otro conjunto de 2,000 casos en la misma máquina (0.70): PageSift 0.8215, Scrapling 0.8875; 0.50 obtuvo 0.6965 ([D4](benchmarks/0.70_showdown_D4.md)), la conclusión contraria a esta fila.
+⁵ En las cuatro familias de idiomas distintas de Unicode chardet acierta más (p. ej., occidentales 71.62 % frente a 50.00 %, D6 §3.2). La repetición de 0.70 en la misma máquina da la misma precisión (0.7602 frente a 0.7113) y una velocidad de 11,239 frente a 6,800 archivos/s ([D6](benchmarks/0.70_showdown_D6.md)).
+⁶ Solo cuenta las entidades extraídas; no hay respuestas de referencia. La precisión está en [D7](benchmarks/0.70_showdown_D7.md) de 0.70 en la misma máquina (0.7392 frente a 0.5488 de bs4+lxml).
+⁷ Con los 2,000 paquetes reales PageSift informó 400 endpoints, jsluice 1,041 y LinkFinder 2,840; sin respuestas de referencia no se puede juzgar el recall.
+⁸ En los informes D6–D8 la memoria pico de todas las herramientas (incluidos los competidores con 32 procesos) es de solo unos 20–32 MB, lo que sugiere que solo se midió el proceso principal; como la medición es dudosa, no se muestra.
+⁹ 0.70 en la misma máquina, 7 escenarios SPA: PageSift 3/7, Playwright 5/7 ([D9](benchmarks/0.70_showdown_D9.md)).
 
 > [!TIP]
-> **Datos verificables por máquina**: Consulte el libro blanco completo en [`docs/releases/0.50.0.md`](releases/0.50.0.md) y los registros CSV en [`bench/results/final/`](https://github.com/YOLOW92/pagesift/tree/main/bench/results/final/).
+> Los JSON/JSONL en bruto de cada informe (`benchmark_d6_results.json`, `benchmark4_tier1_standard_2000.jsonl`, etc.) están en [`bench/results/final/`](../bench/results/final/). Algunas cifras no coinciden con el texto del informe (p. ej., el rendimiento de D3 y D9); la tabla sigue el texto del informe.
 
 ---
 
@@ -278,22 +280,27 @@ resultados sospechosos y la herramienta `pagesift_report_issue`. Véase
 
 ---
 
-## ¿Por qué PageSift?
+## ¿Por qué PageSift? (cifras de distintas versiones; véanse las notas bajo la tabla)
 
-| Característica | PageSift 0.51.0 | Firecrawl (Self-Hosted) | Crawl4AI | Spider |
+| Característica | PageSift (versión y fuente en las notas) | Firecrawl (Self-Hosted) | Crawl4AI | Spider |
 | :--- | :---: | :---: | :---: | :---: |
-| **Arquitectura Central** | 100% Rust Seguro (`forbid(unsafe)`) | TypeScript / Python / Redis | Python / Playwright | Rust / Tokio |
-| **Compatibilidad API** | **Firecrawl v1+v2 + Jina + MCP** | Solo Firecrawl API | API personalizada Python | API personalizada REST |
-| **Rendimiento de Extracción** | **3,525 páginas/seg** | ~150 páginas/seg | ~90 páginas/seg | ~1,200 páginas/seg |
-| **RAM Pico (100k Dominios)** | **188.4 MB (Línea plana)** | > 8 GB (Colas Redis) | > 10 GB (Pool navegadores) | **8,978 MB (Fuga masiva 47.6×)** |
-| **Tasa Conversión a Markdown** | **96.38% (Gran fidelidad)** | ~85% | ~88% | 82.82% (17.2% vacíos) |
-| **Ajuste Adaptativo Hardware**| **$\min(CPU, RAM, FD)$ Auto** | Trabajadores manuales | Semáforo manual | Semáforo estático |
-| **Autorreparación DOM** | **93.8% (0.0% Falsos Pos)** | ❌ No | ❌ No | ❌ No |
-| **Extracción PDF y LaTeX** | **71% Aprobado / 44.3% LaTeX** | Solo texto externo | Solo texto sin formato | Solo texto sin formato |
-| **Particionado RAG y BM25** | **19.7 ms / 1.35 ms BM25** | ❌ No | Chunkers Python (804 ms) | ❌ No |
+| **Arquitectura Central** | Rust; `forbid(unsafe_code)` en todos los crates salvo `pagesift-sys` (una llamada a `mallopt` de glibc) | TypeScript / Python / Redis | Python / Playwright | Rust / Tokio |
+| **Compatibilidad API** | **Firecrawl v1+v2 + Jina Reader + MCP** | Solo Firecrawl API | API personalizada Python | API personalizada REST |
+| **Rendimiento de extracción ↑** | 6,273.9 páginas/s (0.50, 16 hilos, WCXB, 2,008 páginas) ᵃ; en origen sintético local 59,309 (16 vCPU) / 947,611 (192 vCPU) ᵇ | No medido | No medido; media por página con un hilo 283.38 ms ↓ (PageSift 1.30 ms) ᵃ | No medido |
+| **RAM pico (100k dominios) ↓** | **188.4 MB** (0.50) ᶜ | No medido | No medido | 8,978.9 MB (en la misma ejecución Spider fue más rápido, 666.6 frente a 93.5 QPS) ᶜ |
+| **Páginas `200 OK` con ≥ 100 B de Markdown ↑** | 96.38% (0.50) ᶜ | No medido | No medido | 82.82% ᶜ |
+| **Ajuste Adaptativo Hardware** | **$\min(CPU, RAM, FD)$ Auto** | Trabajadores manuales | Semáforo manual | Semáforo estático |
+| **Autorreparación DOM (recuperación ↑)** | 0.8215 en un conjunto de 2,000 casos (0.70, por debajo de Scrapling, 0.8875); 98.85% en otro conjunto sintético de 2,000 casos del informe de 0.50 ᵈ | ❌ No | ❌ No | ❌ No |
+| **Extracción de PDF (aciertos ↑)** | olmOCR-bench completo 0.4506 (0.70; pymupdf4llm 0.2446); 72.4% en 5 subconjuntos según el informe de 0.50 (Docling, 73.5%, es más alto) ᵈ | Solo texto externo | Solo texto sin formato | Solo texto sin formato |
+| **Particionado RAG y filtrado (tiempo ↓)** | Particionado 12.89 ms / QueryFilter 0.63 ms por pregunta (0.50, Chroma, 472 preguntas) ᵉ | ❌ No | Filtro BM25 838.00 ms por pregunta ᵉ | ❌ No |
 | **Filosofía Anti-Bloqueo** | Ético, cortés, UA transparente | Rotación de proxies | Evasiones stealth | Evasiones stealth |
 
-> Nota: la tabla mezcla versiones y conjuntos de datos. 3,525 páginas/s es de la época 0.40; 188.4 MB, 96.38 % (páginas con ≥100 B de Markdown), 93.8 % (500 casos) y 71 % son de 0.50; las cifras de la competencia («~150 / ~90 / ~1,200 páginas/s», «> 8 GB», «> 10 GB», «~85 % / ~88 %») no tienen medición en este repositorio: son estimaciones heredadas de un README anterior, **sin verificar**. Las comparaciones medidas están en [`benchmarks.md`](benchmarks.md) y [`benchmarks/`](benchmarks/).
+ᵃ [`BENCHMARK_D1_CONTENT_EXTRACTION_050.md`](../bench/results/final/BENCHMARK_D1_CONTENT_EXTRACTION_050.md) §2, §4 (0.50, una ejecución).
+ᵇ Origen sintético en la misma máquina, sin red ([`0.70_200m_regression.md`](benchmarks/0.70_200m_regression.md)); no es comparable con las demás celdas.
+ᶜ [`BENCHMARK_100K_PAGESIFT_VS_SPIDER.md`](../bench/results/final/BENCHMARK_100K_PAGESIFT_VS_SPIDER.md) (0.50, una ejecución). El porcentaje es la proporción de páginas para las que el extractor de cada herramienta devolvió ≥ 100 bytes; no mide fidelidad.
+ᵈ Las cifras de 0.70 son las ejecuciones más recientes en la misma máquina ([D4](benchmarks/0.70_showdown_D4.md), [D3](benchmarks/0.70_showdown_D3.md)); las de 0.50 proceden del [informe D4](../bench/results/final/BENCHMARK_D4_DOM_SELF_HEALING_050.md) §2 y del [informe D3](../bench/results/final/BENCHMARK_D3_HEAVY_PDF_EXTRACTION_050.md) §2, con otros conjuntos de datos y conclusiones distintas.
+ᵉ [`BENCHMARK_D5_RAG_CHUNKING_050.md`](../bench/results/final/BENCHMARK_D5_RAG_CHUNKING_050.md) §2 (0.50).
+«No medido»: no hay ninguna medición de esa celda en el repositorio. Las cifras que había antes en esas celdas («~150 / ~90 / ~1,200 páginas/s», «> 8 GB / > 10 GB», «~85 % / ~88 %») eran estimaciones sin fuente y se han eliminado.
 
 ---
 

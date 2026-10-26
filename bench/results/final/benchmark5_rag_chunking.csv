@@ -1,6 +1,0 @@
-engine,implementation,feature_type,retrieval_at_1000_or_precision,latency_ms,speedup_factor,peak_rss_mb
-PageSift (SimdChunker),Rust,Embedding-Aware SimdChunker,0.895,19.7,5.8,45.2
-semchunk 2.2.0,Python,Semantic Token Splitter,0.895,113.4,1.0,190.0
-chonkie 0.4.0,Python,Recursive Chunking,0.871,48.2,2.4,120.0
-PageSift (BM25 QueryFilter),Rust,Inverted Index SIMD Filter,0.942,1.35,595.0,45.2
-Crawl4AI (BM25 ContentFilter),Python,Rank-BM25 Pure Python,0.938,804.8,1.0,340.0
