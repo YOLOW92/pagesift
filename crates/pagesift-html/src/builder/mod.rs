@@ -21,7 +21,7 @@ pub(crate) fn parse(html: &str) -> Html<'_> {
 }
 
 pub(crate) fn parse_with_scratch<'s>(html: &'s str, scratch: &mut ParseScratch) -> Html<'s> {
-    let src = normalize(html);
+    let (src, nuls) = normalize(html);
     let (buf, nodes, attrs) = {
         let mut tb = Builder::with_buffers(
             &src,
@@ -29,6 +29,7 @@ pub(crate) fn parse_with_scratch<'s>(html: &'s str, scratch: &mut ParseScratch) 
             std::mem::take(&mut scratch.nodes),
             std::mem::take(&mut scratch.attrs),
         );
+        tb.nuls = nuls;
         tokenize(&src, &mut tb);
         (tb.buf, tb.nodes, tb.attrs)
     };
@@ -40,14 +41,23 @@ pub(crate) fn parse_with_scratch<'s>(html: &'s str, scratch: &mut ParseScratch) 
     }
 }
 
-/// 去掉 BOM，`\r\n` 和单独的 `\r` 变成 `\n`，丢掉 NUL（正文里的 NUL 规范上本来就被忽略）。
-fn normalize(html: &str) -> Cow<'_, str> {
+/// NUL 占全部字节的比例不低于 1/`UTF16_NUL_SHARE` 时，当作被误当成 UTF-8 的 UTF-16 文本，
+/// NUL 全部删掉（每个 ASCII 字符旁边一个 NUL，删掉后能恢复出文字）。
+const UTF16_NUL_SHARE: usize = 4;
+
+/// 去掉 BOM，`\r\n` 和单独的 `\r` 变成 `\n`。NUL 按规范换成 U+FFFD（分词器各状态里都是这样），
+/// 换掉的位置记下来：正文（data 状态的 HTML 内容）里规范要求忽略 NUL，建树时按位置去掉。
+/// 看起来是误判成 UTF-8 的 UTF-16 文本时 NUL 直接删掉。
+fn normalize(html: &str) -> (Cow<'_, str>, Vec<u32>) {
     let html = html.strip_prefix('\u{feff}').unwrap_or(html);
     let bytes = html.as_bytes();
     let Some(first) = memchr::memchr2(b'\r', b'\0', bytes) else {
-        return Cow::Borrowed(html);
+        return (Cow::Borrowed(html), Vec::new());
     };
+    let drop_nul = memchr::memchr(b'\0', &bytes[first..]).is_some()
+        && memchr::memchr_iter(b'\0', bytes).count() * UTF16_NUL_SHARE >= bytes.len();
     let mut out = String::with_capacity(html.len());
+    let mut nuls = Vec::new();
     let mut last = 0;
     let mut i = first;
     loop {
@@ -57,6 +67,9 @@ fn normalize(html: &str) -> Cow<'_, str> {
             if bytes.get(i + 1) == Some(&b'\n') {
                 i += 1;
             }
+        } else if !drop_nul {
+            nuls.push(out.len() as u32);
+            out.push('\u{fffd}');
         }
         last = i + 1;
         match memchr::memchr2(b'\r', b'\0', &bytes[last..]) {
@@ -65,7 +78,7 @@ fn normalize(html: &str) -> Cow<'_, str> {
         }
     }
     out.push_str(&html[last..]);
-    Cow::Owned(out)
+    (Cow::Owned(out), nuls)
 }
 
 mod end;
@@ -151,6 +164,8 @@ struct Builder<'a> {
     quirks: bool,
     /// 规范的 frameset-ok 标志：body 里出现正文或某些元素之后，`<frameset>` 不再取代 body。
     frameset_ok: bool,
+    /// 源字符串里由 NUL 换成的 U+FFFD 的位置（升序），见 [`normalize`]。
+    nuls: Vec<u32>,
 }
 
 fn formatting(tag: Tag) -> bool {
@@ -406,6 +421,7 @@ impl<'a> Builder<'a> {
             form: NONE,
             quirks: true,
             frameset_ok: true,
+            nuls: Vec::new(),
         }
     }
 

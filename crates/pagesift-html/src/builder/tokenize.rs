@@ -321,6 +321,11 @@ impl<'a> Builder<'a> {
             self.frameset_text(s, e);
             return;
         }
+        // HTML 内容里规范要求忽略 NUL（外部内容里保留为 U+FFFD）：按 NUL 切开分别处理
+        if self.has_nul(s, e) && !self.in_foreign() {
+            self.text_without_nul(s, e, decode);
+            return;
+        }
         let span = self.text_span(s, e, decode);
         let Some(span) = self.drop_leading_lf(span) else {
             return;
@@ -335,7 +340,7 @@ impl<'a> Builder<'a> {
             span = span.skip(lead);
             self.ensure_body();
         }
-        if self.frameset_ok && !self.str(span).bytes().all(is_ws) {
+        if self.frameset_ok && !self.str(span).bytes().all(is_ws) && self.non_ws_besides_nul(s, e) {
             self.frameset_ok = false;
         }
         let cur = self.current().filter(|o| o.ns == Ns::Html).map(|o| o.tag);
@@ -350,6 +355,55 @@ impl<'a> Builder<'a> {
             self.reconstruct();
         }
         self.add_text(span, true);
+    }
+
+    /// `[s, e)` 里有没有由 NUL 换来的 U+FFFD。
+    fn has_nul(&self, s: usize, e: usize) -> bool {
+        if self.nuls.is_empty() {
+            return false;
+        }
+        let i = self.nuls.partition_point(|&p| (p as usize) < s);
+        self.nuls.get(i).is_some_and(|&p| (p as usize) < e)
+    }
+
+    /// 除了由 NUL 换来的 U+FFFD 以外还有非空白字符（规范：外部内容里的 NUL 不影响 frameset-ok）。
+    fn non_ws_besides_nul(&self, s: usize, e: usize) -> bool {
+        if !self.has_nul(s, e) {
+            return true;
+        }
+        let mut i = s;
+        for &p in &self.nuls[self.nuls.partition_point(|&p| (p as usize) < s)..] {
+            let p = p as usize;
+            if p >= e {
+                break;
+            }
+            if !self.src.as_bytes()[i..p].iter().all(|&c| is_ws(c)) {
+                return true;
+            }
+            i = p + '\u{fffd}'.len_utf8();
+        }
+        !self.src.as_bytes()[i..e].iter().all(|&c| is_ws(c))
+    }
+
+    /// 去掉由 NUL 换来的 U+FFFD，剩下的几段分别按普通文本处理。
+    fn text_without_nul(&mut self, s: usize, e: usize, decode: bool) {
+        // 规范：head 之前的 NUL 和其他字符一样隐式打开 body，然后被忽略
+        if self.mode < Mode::InBody && !self.in_template() {
+            self.ensure_body();
+        }
+        let first = self.nuls.partition_point(|&p| (p as usize) < s);
+        let mut i = s;
+        let mut k = first;
+        while let Some(&p) = self.nuls.get(k) {
+            let p = p as usize;
+            if p >= e {
+                break;
+            }
+            self.text_range(i, p, decode);
+            i = p + '\u{fffd}'.len_utf8();
+            k += 1;
+        }
+        self.text_range(i, e, decode);
     }
 
     /// raw text / RCDATA 元素的内容，直接放进当前元素。

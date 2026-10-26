@@ -558,3 +558,38 @@ fn foreign_namespaces_follow_the_spec() {
         expected.iter().map(|(n, s)| (n.to_string(), *s)).collect();
     assert_eq!(ns, expected);
 }
+
+#[test]
+fn nul_follows_the_spec() {
+    // 正文里忽略；`<` 后面跟 NUL 不是标签；plaintext、外部内容、注释里换成 U+FFFD
+    check(
+        "<p>a\0b<\0c<!--\0--><svg>\0</svg><plaintext>\0",
+        "
+    <html>
+      <head>
+      <body>
+        <p>
+          \"ab<c\"
+          <!-- \u{fffd} -->
+          <svg>
+            \"\u{fffd}\"
+        <plaintext>
+          \"\u{fffd}\"
+    ",
+    );
+    // 误当成 UTF-8 的 UTF-16（每个字符旁边一个 NUL）：NUL 全部删掉，恢复出文字
+    let utf16: String = "<p>Hello world</p>"
+        .chars()
+        .flat_map(|c| [c, '\0'])
+        .collect();
+    check(
+        &utf16,
+        r#"
+    <html>
+      <head>
+      <body>
+        <p>
+          "Hello world"
+    "#,
+    );
+}

@@ -1,10 +1,5 @@
 # html5lib 树构建用例里已知“影响正文”的差异：每行 `文件#序号<TAB>原因`。
 # 由 tests/html5lib/main.rs 读取；新出现的影响正文差异不在这里时测试失败。
-plain-text-unsafe.dat#9	NUL 在分词前一律删掉（误判成 UTF-8 的 UTF-16 页面靠这个恢复出文字）；规范在 plaintext/外部内容里换成 U+FFFD，`<`+NUL+字母 也不会变成标签
-plain-text-unsafe.dat#24	NUL 在分词前一律删掉（误判成 UTF-8 的 UTF-16 页面靠这个恢复出文字）；规范在 plaintext/外部内容里换成 U+FFFD，`<`+NUL+字母 也不会变成标签
-plain-text-unsafe.dat#38	NUL 在分词前一律删掉（误判成 UTF-8 的 UTF-16 页面靠这个恢复出文字）；规范在 plaintext/外部内容里换成 U+FFFD，`<`+NUL+字母 也不会变成标签
-plain-text-unsafe.dat#39	NUL 在分词前一律删掉（误判成 UTF-8 的 UTF-16 页面靠这个恢复出文字）；规范在 plaintext/外部内容里换成 U+FFFD，`<`+NUL+字母 也不会变成标签
-plain-text-unsafe.dat#40	NUL 在分词前一律删掉（误判成 UTF-8 的 UTF-16 页面靠这个恢复出文字）；规范在 plaintext/外部内容里换成 U+FFFD，`<`+NUL+字母 也不会变成标签
 scripted_foster01.dat#0	需要执行脚本（document.write / DOM 操作），解析器不执行脚本
 scripted_foster01.dat#1	需要执行脚本（document.write / DOM 操作），解析器不执行脚本
 scripted_webkit01.dat#0	需要执行脚本（document.write / DOM 操作），解析器不执行脚本
