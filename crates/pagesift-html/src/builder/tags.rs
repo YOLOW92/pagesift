@@ -10,6 +10,10 @@ impl<'a> Builder<'a> {
     pub(super) fn start_tag(&mut self, name: (usize, usize), self_closing: bool) -> Next {
         self.skip_lf = false;
         let tag = self.tag_of(name);
+        // 外部内容优先于插入模式（head 里的 template 中也可能有 SVG）
+        if self.in_foreign() {
+            return self.body_start_tag(tag, name, self_closing);
+        }
         if self.mode == Mode::Initial {
             if tag == Tag::Html {
                 self.ensure_html();
@@ -163,6 +167,28 @@ impl<'a> Builder<'a> {
         } else {
             tag
         };
+        // 列组里只能有 `<col>`（和 template）：别的标签先关掉列组，再按表格的规则处理
+        if self.current_is(Tag::Colgroup) && !matches!(tag, Tag::Col | Tag::Template) {
+            self.pop();
+        }
+        // 表格里的 select（规范的 “in select in table”）：表格结构标签先关掉 select
+        if matches!(
+            tag,
+            Tag::Caption
+                | Tag::Table
+                | Tag::Tbody
+                | Tag::Tfoot
+                | Tag::Thead
+                | Tag::Tr
+                | Tag::Td
+                | Tag::Th
+        ) && let Some(i) = self.in_scope(Tag::Select, Scope::Default)
+            && self.stack[..i]
+                .iter()
+                .any(|o| o.tag == Tag::Table && o.ns == Ns::Html)
+        {
+            self.pop_to(i);
+        }
         if self.in_foreign() {
             let font_breaks = tag == Tag::Font
                 && self.scratch.iter().any(|&((s, e), _)| {
@@ -189,6 +215,9 @@ impl<'a> Builder<'a> {
                 self.insert_html(tag, name)
             }
             Area | Br | Embed | Img | Keygen | Wbr | Input => {
+                if tag == Input {
+                    self.close_select();
+                }
                 self.reconstruct();
                 self.insert_html(tag, name);
             }
@@ -201,6 +230,7 @@ impl<'a> Builder<'a> {
                 return Next::RcData;
             }
             Textarea => {
+                self.close_select();
                 self.insert_html(tag, name);
                 self.skip_lf = true;
                 return Next::RcData;
@@ -312,7 +342,13 @@ impl<'a> Builder<'a> {
                 self.reconstruct();
                 self.insert_html(tag, name);
             }
+            // 规范（2025 年起的 select 解析）：select 里再出现 `<select>` 就关掉外层，标签本身忽略
             Select => {
+                if let Some(i) = self.in_scope(Select, Scope::Default) {
+                    self.pop_to(i);
+                    self.scratch.clear();
+                    return Next::Data;
+                }
                 self.reconstruct();
                 self.insert_html(tag, name);
             }
@@ -322,7 +358,7 @@ impl<'a> Builder<'a> {
                     .is_some_and(|o| o.ns == Ns::Html && table_context(o.tag));
                 if in_table && let Some(i) = self.in_scope(Table, Scope::Table) {
                     self.pop_to(i);
-                } else {
+                } else if !self.quirks {
                     self.close_p();
                 }
                 self.insert(tag, name, Ns::Html, true, false);
@@ -331,7 +367,9 @@ impl<'a> Builder<'a> {
                 self.table_part(tag, name)
             }
             Option | Optgroup => {
-                if self.current_is(Option) {
+                if self.in_scope(Select, Scope::Default).is_some() {
+                    self.implied_end_tags((tag == Option).then_some(Optgroup));
+                } else if self.current_is(Option) {
                     self.pop();
                 }
                 self.reconstruct();
@@ -339,13 +377,13 @@ impl<'a> Builder<'a> {
             }
             Rb | Rtc => {
                 if self.in_scope(Ruby, Scope::Default).is_some() {
-                    self.pop_implied(false);
+                    self.implied_end_tags(None);
                 }
                 self.insert_html(tag, name);
             }
             Rp | Rt => {
                 if self.in_scope(Ruby, Scope::Default).is_some() {
-                    self.pop_implied(true);
+                    self.implied_end_tags(Some(Rtc));
                 }
                 self.insert_html(tag, name);
             }

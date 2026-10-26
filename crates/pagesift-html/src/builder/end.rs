@@ -8,6 +8,18 @@ impl<'a> Builder<'a> {
         self.skip_lf = false;
         self.scratch.clear();
         let tag = self.tag_of(name);
+        // 外部内容里的 `</p>`、`</br>` 跳出 SVG/MathML，按 HTML 规则处理
+        if matches!(tag, Tag::P | Tag::Br) {
+            while self.in_foreign() {
+                self.pop();
+            }
+        }
+        // 列组里只能有 `<col>`：别的结束标签先关掉列组
+        if self.current_is(Tag::Colgroup)
+            && !matches!(tag, Tag::Colgroup | Tag::Col | Tag::Template)
+        {
+            self.pop();
+        }
         // 外部内容：按名字（不分大小写）在外部元素里找，碰到 HTML 元素就按 HTML 规则处理
         if self.stack.last().is_some_and(|o| o.ns != Ns::Html) {
             let raw = &self.src[name.0..name.1];
@@ -47,6 +59,8 @@ impl<'a> Builder<'a> {
                     self.close_head();
                     return;
                 }
+                // head 里的 template
+                Template => {}
                 Body | Html | Br => {
                     self.ensure_body();
                     if tag != Br {
@@ -95,6 +109,22 @@ impl<'a> Builder<'a> {
             }
             Table | Tbody | Thead | Tfoot | Tr | Td | Th | Caption | Colgroup => {
                 if let Some(i) = self.in_scope(tag, Scope::Table) {
+                    self.pop_to(i);
+                }
+            }
+            // `</template>` 不看作用域：栈里有 template 就一直关到它（表格等边界挡不住）
+            Template => {
+                if let Some(i) = self
+                    .stack
+                    .iter()
+                    .rposition(|o| o.tag == Template && o.ns == Ns::Html)
+                {
+                    self.pop_to(i);
+                }
+            }
+            // 不是“特殊”元素，但结束标签按块级元素的规则关（中间没闭合的 `<p>` 等一起关掉）
+            Dialog => {
+                if let Some(i) = self.in_scope(Dialog, Scope::Default) {
                     self.pop_to(i);
                 }
             }

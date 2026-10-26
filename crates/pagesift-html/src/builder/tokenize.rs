@@ -43,6 +43,8 @@ pub(super) fn tokenize(src: &str, tb: &mut Builder<'_>) {
             Some(c) if c.is_ascii_alphabetic() => {
                 tb.text_range(text_start, lt, true);
                 let Some(t) = scan_tag(b, lt + 1, &mut tb.scratch) else {
+                    // 到文件末尾还没结束的标签按规范丢弃，文档照常收尾
+                    tb.finish();
                     return;
                 };
                 let next = tb.start_tag(t.name, t.self_closing);
@@ -57,6 +59,8 @@ pub(super) fn tokenize(src: &str, tb: &mut Builder<'_>) {
                 Some(c) if c.is_ascii_alphabetic() => {
                     tb.text_range(text_start, lt, true);
                     let Some(t) = scan_tag(b, lt + 2, &mut tb.scratch) else {
+                        // 到文件末尾还没结束的标签按规范丢弃，文档照常收尾
+                        tb.finish();
                         return;
                     };
                     tb.end_tag(t.name);
@@ -170,6 +174,18 @@ fn raw_text(src: &str, start: usize, name: &str, next: Next, tb: &mut Builder<'_
         tb.raw_text(start, b.len(), false);
         return b.len();
     }
+    if name == "script" {
+        let Some(lt) = super::script::end(b, start) else {
+            tb.raw_text(start, b.len(), false);
+            return b.len();
+        };
+        tb.raw_text(start, lt, false);
+        let Some(t) = scan_tag(b, lt + 2, &mut tb.scratch) else {
+            return b.len();
+        };
+        tb.end_tag(t.name);
+        return t.end;
+    }
     let finder = memmem::Finder::new(b"</");
     let mut i = start;
     while let Some(off) = finder.find(&b[i..]) {
@@ -206,10 +222,10 @@ fn markup_declaration(b: &[u8], i: usize, tb: &mut Builder<'_>) -> usize {
             tb.comment(start, start);
             return start + 2;
         }
-        return match memmem::find(&b[start..], b"-->") {
-            Some(off) => {
+        return match comment_end(&b[start..]) {
+            Some((off, len)) => {
                 tb.comment(start, start + off);
-                start + off + 3
+                start + off + len
             }
             None => {
                 tb.comment(start, b.len());
@@ -218,11 +234,13 @@ fn markup_declaration(b: &[u8], i: usize, tb: &mut Builder<'_>) -> usize {
         };
     }
     if rest.len() >= 7 && rest[..7].eq_ignore_ascii_case(b"doctype") {
-        let end = memchr::memchr(b'>', rest).map_or(b.len(), |o| i + o + 1);
-        tb.doctype();
-        return end;
+        let gt = memchr::memchr(b'>', rest);
+        let content = &rest[7..gt.unwrap_or(rest.len())];
+        tb.doctype(content, gt.is_none());
+        return gt.map_or(b.len(), |o| i + o + 1);
     }
-    if rest.starts_with(b"[CDATA[") && tb.in_foreign() {
+    // CDATA 只在当前节点不是 HTML 元素时有效（集成点 mtext、foreignObject 等本身也是外部元素）
+    if rest.starts_with(b"[CDATA[") && tb.stack.last().is_some_and(|o| o.ns != Ns::Html) {
         let start = i + 7;
         return match memmem::find(&b[start..], b"]]>") {
             Some(off) => {
@@ -236,6 +254,26 @@ fn markup_declaration(b: &[u8], i: usize, tb: &mut Builder<'_>) -> usize {
         };
     }
     bogus_comment(b, i, tb)
+}
+
+/// 注释的结束：`-->`，或者规范里同样结束注释的 `--!>`。返回位置和结束符长度。
+fn comment_end(b: &[u8]) -> Option<(usize, usize)> {
+    let mut from = 0;
+    while let Some(off) = memmem::find(&b[from..], b"--") {
+        let i = from + off;
+        // 连续的 `-` 里取最后两个
+        let mut j = i + 2;
+        while b.get(j) == Some(&b'-') {
+            j += 1;
+        }
+        match b.get(j) {
+            Some(b'>') => return Some((j - 2, 3)),
+            Some(b'!') if b.get(j + 1) == Some(&b'>') => return Some((j - 2, 4)),
+            None => return None,
+            _ => from = j,
+        }
+    }
+    None
 }
 
 fn bogus_comment(b: &[u8], start: usize, tb: &mut Builder<'_>) -> usize {
@@ -254,8 +292,9 @@ fn bogus_comment(b: &[u8], start: usize, tb: &mut Builder<'_>) -> usize {
 impl<'a> Builder<'a> {
     // ---- token
 
-    pub(super) fn doctype(&mut self) {
+    pub(super) fn doctype(&mut self, content: &[u8], eof: bool) {
         if self.mode == Mode::Initial {
+            self.quirks = super::quirks::quirks(content, eof);
             let id = self.new_node(Data::Doctype);
             self.append(0, id);
         }
@@ -289,6 +328,10 @@ impl<'a> Builder<'a> {
             }
             span = span.skip(lead);
             self.ensure_body();
+        }
+        // 列组里只能有空白：有别的文字就先关掉列组（文字随后按表格规则挪到表格前面）
+        if self.current_is(Tag::Colgroup) && !self.str(span).bytes().all(is_ws) {
+            self.pop();
         }
         let table_ws = self
             .current()

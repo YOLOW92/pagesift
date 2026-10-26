@@ -203,7 +203,15 @@ impl<'a> Builder<'a> {
         }
     }
 
-    pub(super) fn pop_implied(&mut self, except_rtc: bool) {
+    /// 打开着的 select 里出现表单控件：先关掉 select（控件不能放在 select 里）。
+    pub(super) fn close_select(&mut self) {
+        if let Some(i) = self.in_scope(Tag::Select, Scope::Default) {
+            self.pop_to(i);
+        }
+    }
+
+    /// 规范的 “generate implied end tags”，`except` 那种元素不关。
+    pub(super) fn implied_end_tags(&mut self, except: Option<Tag>) {
         while let Some(o) = self.current() {
             let implied = o.ns == Ns::Html
                 && matches!(
@@ -219,7 +227,7 @@ impl<'a> Builder<'a> {
                         | Tag::Rt
                         | Tag::Rtc
                 )
-                && !(except_rtc && o.tag == Tag::Rtc);
+                && Some(o.tag) != except;
             if !implied {
                 return;
             }
