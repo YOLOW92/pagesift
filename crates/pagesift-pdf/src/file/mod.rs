@@ -10,6 +10,8 @@ mod doc;
 mod filter;
 mod parse;
 mod repair;
+#[cfg(test)]
+mod tests_objstm;
 mod xref;
 
 pub(crate) use doc::{Document, OpenError};

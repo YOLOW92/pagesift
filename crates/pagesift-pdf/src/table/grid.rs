@@ -289,3 +289,46 @@ pub(crate) fn numeric(s: &str) -> bool {
         && s.chars()
             .all(|c| c.is_ascii_digit() || " .,%$€£()+-–±:/".contains(c))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn frag(text: &str, x0: f64, y: f64) -> Line {
+        Line {
+            text: text.into(),
+            x0,
+            x1: x0 + 10.0,
+            y,
+            size: 10.0,
+            bold: false,
+            raw: false,
+            mcid: None,
+            artifact: false,
+            hint: None,
+            group: None,
+            keep: false,
+        }
+    }
+
+    /// 模糊测试找到的：坐标大到上千万的文字让列直方图的桶数和每行的扫描失控（20 秒）。
+    #[test]
+    fn huge_region_width_is_bounded() {
+        let mut frags = Vec::new();
+        for row in 0..300 {
+            let y = 700.0 - row as f64 * 12.0;
+            frags.push(frag("a", 0.0, y));
+            frags.push(frag("b", 100.0, y));
+            frags.push(frag("c", 2.0e7, y));
+        }
+        let mine: Vec<usize> = (0..frags.len()).collect();
+        let t = std::time::Instant::now();
+        let table = text_grid(&frags, &mine, 0.0, 2.0e7 + 10.0, 700.0, -3000.0);
+        assert!(
+            t.elapsed() < std::time::Duration::from_secs(1),
+            "{:?}",
+            t.elapsed()
+        );
+        std::hint::black_box(table);
+    }
+}
