@@ -9,8 +9,8 @@ from urllib.parse import urlsplit
 import urllib.request
 import urllib.error
 
-ROOT = Path(__file__).resolve().parents[2]
-PY = ROOT / "bench/data/six/venv/bin/python"
+ROOT = Path(__file__).resolve().parents[3]
+PY = ROOT / "benchmarks/data/six/venv/bin/python"
 BIN = ROOT / "target/release/pagesift"
 
 def get_peak_rss_mb(pid):
@@ -326,7 +326,7 @@ print("SDK_RESULT:", json.dumps({{"v1_ok": v1_ok, "v1_err": v1_err, "v2_ok": v2_
         target_server.shutdown()
         target_server.server_close()
 
-    out_file = ROOT / "bench/api/baseline_results.json"
+    out_file = ROOT / "benchmarks/production/api/baseline_results.json"
     out_file.write_text(json.dumps(results, indent=2))
     print(f"\nBaseline benchmark written to {out_file}")
 

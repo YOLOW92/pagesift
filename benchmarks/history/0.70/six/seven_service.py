@@ -7,9 +7,9 @@ import hashlib,json,sys
 from pathlib import Path
 import firecrawl_full as full
 import seven_corpus as corpus
-ROOT=Path(__file__).resolve().parents[2]
-DATA=ROOT/'bench/data/six/seven-next/service-input'
-OUT=ROOT/'bench/six/results/seven-next/service'
+ROOT=Path(__file__).resolve().parents[4]
+DATA=ROOT/'benchmarks/data/six/seven-next/service-input'
+OUT=ROOT/'benchmarks/history/0.70/six/results/seven-next/service'
 
 def prepare():
  DATA.mkdir(parents=True,exist_ok=False)
@@ -17,8 +17,8 @@ def prepare():
  warm=DATA/'warmup.html';warm.write_text('<article><h1>Image example</h1><p>Readiness only, excluded from all scores.</p></article>')
  (DATA/'fixtures.jsonl').write_text(json.dumps({'id':'image-readiness-only','path':str(warm),'only_main':True})+'\n')
  (DATA/'aeb.jsonl').write_text(''.join(json.dumps(dict(r,only_main=True))+'\n' for r in rows))
- binary=DATA/'rust-target/release/pagesift';binary.parent.mkdir(parents=True);binary.symlink_to(ROOT/'bench/data/six/editorial-target/debug/pagesift')
- protocol={'n':545,'same_html_bytes':True,'URL_context':'same replay /case/<UUID> path; Pagesift accesses Docker host gateway, Firecrawl accesses its extra-host replay name, as in prior established service protocol','metric':'same token multiset F1 diagnostic as seven_corpus, in replay URL context; not mixed with original-URL component scores','scope':'fixed complete self-hosted Firecrawl service, not managed cloud','readiness_excluded':'image-readiness-only','product_binary_sha256':hashlib.sha256(binary.read_bytes()).hexdigest(),'docker_images':json.loads((ROOT/'bench/six/locks/firecrawl-runtime.json').read_text()),'docker_memory_caps_mb':6784,'runner_memory_cap_mb':1408,'docker_cpu_quota_percent':720,'runner_cpu_quota_percent':80}
+ binary=DATA/'rust-target/release/pagesift';binary.parent.mkdir(parents=True);binary.symlink_to(ROOT/'benchmarks/data/six/editorial-target/debug/pagesift')
+ protocol={'n':545,'same_html_bytes':True,'URL_context':'same replay /case/<UUID> path; Pagesift accesses Docker host gateway, Firecrawl accesses its extra-host replay name, as in prior established service protocol','metric':'same token multiset F1 diagnostic as seven_corpus, in replay URL context; not mixed with original-URL component scores','scope':'fixed complete self-hosted Firecrawl service, not managed cloud','readiness_excluded':'image-readiness-only','product_binary_sha256':hashlib.sha256(binary.read_bytes()).hexdigest(),'docker_images':json.loads((ROOT/'benchmarks/history/0.70/six/locks/firecrawl-runtime.json').read_text()),'docker_memory_caps_mb':6784,'runner_memory_cap_mb':1408,'docker_cpu_quota_percent':720,'runner_cpu_quota_percent':80}
  (DATA/'protocol.json').write_text(json.dumps(protocol,indent=2)+'\n')
  print(json.dumps({'prepared':len(rows)}))
 

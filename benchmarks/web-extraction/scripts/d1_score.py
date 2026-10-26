@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""D1 评分：复用 bench/fresh/wcxb.py 的 plain()/word_f1()（即 0.50 报告用的同一指标），
+"""D1 评分：复用 benchmarks/common/fresh/wcxb.py 的 plain()/word_f1()（即 0.50 报告用的同一指标），
 配对改用本目录 manifest 的内嵌 ground-truth，避免 ID 命名差异。
 
 输出每个参赛者的整体 F1/P/R 与按页面类型的 F1。
@@ -7,10 +7,10 @@
 import json, statistics, sys
 from pathlib import Path
 
-sys.path.insert(0, "/home/yolow92/pagesift/bench/fresh")
+sys.path.insert(0, "/home/yolow92/pagesift/benchmarks/common/fresh")
 from wcxb import plain, word_f1  # noqa: E402
 
-D1 = Path("/home/yolow92/pagesift/bench/data/showdown/d1")
+D1 = Path("/home/yolow92/pagesift/benchmarks/data/showdown/d1")
 OUT = Path("/home/yolow92/pagesift/out/d1")
 REPORT = Path("/home/yolow92/pagesift/out/d1/score.json")
 

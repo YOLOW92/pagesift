@@ -12,7 +12,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import urllib.request
 from firecrawl import Firecrawl, __version__
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[4]
 
 
 class Origin(BaseHTTPRequestHandler):
@@ -74,7 +74,7 @@ def main():
                 checks.append({'name': 'unexpected-error', 'ok': False, 'error': repr(e)})
             (out / 'python.json').write_text(json.dumps({'sdk_version': __version__, 'checks': checks}, indent=2) + '\n')
             with (out / 'js.log').open('w') as jslog:
-                js = subprocess.run(['node', 'bench/six/adapters/sdk.mjs', api, base, str(out / 'js.json')],
+                js = subprocess.run(['node', 'benchmarks/history/0.70/six/adapters/sdk.mjs', api, base, str(out / 'js.json')],
                                     stdout=jslog, stderr=jslog, timeout=90)
         finally:
             service.terminate()

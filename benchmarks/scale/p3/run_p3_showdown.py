@@ -10,7 +10,7 @@ import urllib.request
 from pathlib import Path
 
 BENCH_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = BENCH_DIR.parents[1]
+PROJECT_ROOT = BENCH_DIR.parents[2]
 REPORT_MD = PROJECT_ROOT / "docs" / "benchmarks" / "0.60_p3_competitor_flaw_analysis.md"
 
 

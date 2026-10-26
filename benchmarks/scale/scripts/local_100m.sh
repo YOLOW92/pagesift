@@ -2,10 +2,10 @@
 # 本机 100M 亿级测试（16 核 / 15 GB）。口径与 P3 一致：--formal --mode full --split-pipeline。
 set -u
 cd ~/pagesift
-R=bench/p0/target/release/p2_http_reactor_runner
-O=bench/p0/target/release/stream_origin
-OUT=bench/results/0.70_local_100m
-mkdir -p bench/results
+R=benchmarks/scale/p0/target/release/p2_http_reactor_runner
+O=benchmarks/scale/p0/target/release/stream_origin
+OUT=benchmarks/scale/results/0.70_local_100m
+mkdir -p benchmarks/scale/results
 TOTAL=100000000
 
 pkill -x stream_origin 2>/dev/null; sleep 1

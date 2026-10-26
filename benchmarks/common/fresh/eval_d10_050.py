@@ -573,7 +573,7 @@ print(f"SDK_STATUS: V1={{v1_ok}}, V2={{v2_ok}}")
         "tier2_chaos": chaos_results,
         "peak_rss_mb": PEAK_RSS_BYTES / (1024*1024),
     }
-    out_json = Path("bench/results/final/benchmark_d10_results.json")
+    out_json = Path("benchmarks/history/0.50/results/benchmark_d10_results.json")
     out_json.parent.mkdir(parents=True, exist_ok=True)
     out_json.write_text(json.dumps(summary_data, indent=2))
     print(f"Saved raw metrics to {out_json}")

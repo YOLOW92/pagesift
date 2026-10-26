@@ -1,11 +1,11 @@
 // pagesift Node 包的基准，结果写进 README。两部分：
 //
 //   提取（评测集 HTML，和 Readability + Turndown 对比，在仓库根目录运行）：
-//     node crates/pagesift-node/bench/bench.mjs extract bench/data/inputs/manifest.jsonl <装了 jsdom、@mozilla/readability、turndown 的目录>
+//     node crates/pagesift-node/bench/bench.mjs extract benchmarks/data/inputs/manifest.jsonl <装了 jsdom、@mozilla/readability、turndown 的目录>
 //   抓取（本地 HTTP 服务器，在子进程里跑，不访问外网）：
 //     node crates/pagesift-node/bench/bench.mjs scrape
 //
-// manifest 由 `pagesift bench --emit-inputs` 生成，里面的路径相对仓库根目录（见 bench/compare/README.md）。
+// manifest 由 `pagesift bench --emit-inputs` 生成，里面的路径相对仓库根目录（见 benchmarks/web-extraction/compare/README.md）。
 // 每个工具在单独的子进程里跑，峰值内存互不影响。
 
 import { execFileSync, fork } from 'node:child_process'

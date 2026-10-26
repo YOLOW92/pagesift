@@ -211,7 +211,7 @@ def main():
 
     ps_bin = "/home/wyc610721/pagesift/target/release/examples/bench_structured_mt"
     wcxb_dir = Path("/tmp/wcxb_html")
-    extruct_samples = Path("/home/wyc610721/pagesift/bench/data/fresh/data/extruct-repo/tests/samples")
+    extruct_samples = Path("/home/wyc610721/pagesift/benchmarks/data/fresh/data/extruct-repo/tests/samples")
 
     if not Path(ps_bin).exists():
         sys.exit(f"PageSift binary {ps_bin} not found. Please compile it first.")
@@ -469,7 +469,7 @@ def main():
         "tier2_chaos": chaos_results,
         "peak_rss_mb": PEAK_RSS_BYTES / (1024*1024),
     }
-    out_json = Path("bench/results/final/benchmark_d7_results.json")
+    out_json = Path("benchmarks/history/0.50/results/benchmark_d7_results.json")
     out_json.parent.mkdir(parents=True, exist_ok=True)
     out_json.write_text(json.dumps(summary_data, indent=2))
     print(f"Saved raw metrics to {out_json}")

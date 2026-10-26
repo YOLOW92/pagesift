@@ -2,7 +2,7 @@
 import { createRequire } from 'node:module';
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-const require = createRequire(resolve('bench/data/six/node/package.json'));
+const require = createRequire(resolve('benchmarks/data/six/node/package.json'));
 const { CheerioCrawler, log } = require('@crawlee/cheerio');
 log.setLevel(log.LEVELS.ERROR);
 const [url, output] = process.argv.slice(2);

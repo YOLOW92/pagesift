@@ -24,7 +24,7 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 BENCH = ROOT / "bench" / "p0"
 TARGET = BENCH / "target" / "release"
 ORIGIN = TARGET / "stream_origin"
@@ -431,7 +431,7 @@ def write_report(
 
 > 环境：Google Cloud `c4-highcpu-192`，192 vCPU，4 NUMA 节点  
 > 生成时间：{generated}  
-> 原始数据：[`bench/results/scaling_cores_192.csv`](../../bench/results/scaling_cores_192.csv)
+> 原始数据：[`benchmarks/scale/results/scaling_cores_192.csv`](../../benchmarks/scale/results/scaling_cores_192.csv)
 
 ## 方法
 

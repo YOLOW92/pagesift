@@ -2,12 +2,12 @@
 cd ~/pagesift
 pkill -f "[e]1_origin.py" 2>/dev/null
 sleep 1
-mkdir -p bench/results/final/0.70/e1/origin
+mkdir -p benchmarks/history/0.70/results/e1/origin
 for spec in "8110 h1" "8111 h2" "8112 h3" "8113 h4"; do
   set -- $spec
   PORT=$1; HOST=$2; DENS=${3:-0.0}
-  nohup bench/upstream/.venv/bin/python bench/scripts/e1_origin.py "$PORT" "$HOST" "$DENS" "e1-2026" \
-    > "bench/results/final/0.70/e1/origin/$HOST.log" 2>&1 &
+  nohup benchmarks/common/vendor/.venv/bin/python benchmarks/scale/scripts/e1_origin.py "$PORT" "$HOST" "$DENS" "e1-2026" \
+    > "benchmarks/history/0.70/results/e1/origin/$HOST.log" 2>&1 &
   sleep 0.5
 done
 sleep 2

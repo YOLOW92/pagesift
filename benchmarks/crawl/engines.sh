@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 浏览器内核对比：pagesift 用不同内核（engine=browser）跑 wide 和 huge 场景，以 Chrome 为基准。
 # 每个内核每个场景最多 MEASURE_BUDGET_S 秒（默认 180），内存按 PSS 由 measure.py 看门狗保护。
-# 用法：bench/crawl/engines.sh [场景...]（默认 wide huge）
+# 用法：benchmarks/crawl/engines.sh [场景...]（默认 wide huge）
 set -uo pipefail
 cd "$(dirname "$0")"
 T=${T:-../data/tools}                       # 各浏览器内核所在目录
@@ -77,4 +77,4 @@ for s in ${@:-wide huge}; do
     for e in ${ENGINES:-chrome chs lightpanda moli auto obscura}; do engine "$e" "$s" "$hosts" "$pages" "$ph"; done
     pkill -x origin || true
 done
-echo "results in bench/crawl/$MEASURE_OUT"
+echo "results in benchmarks/crawl/$MEASURE_OUT"

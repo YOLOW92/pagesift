@@ -7,10 +7,10 @@ import base64,hashlib,json,os,secrets,subprocess,sys,tempfile,threading,time
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
-ROOT=Path(__file__).resolve().parents[2]
-OUT=ROOT/'bench/six/results/seven-next/tasks'
-BIN=ROOT/'bench/six/results/seven-next/bin-verified/pagesift'
-PY=ROOT/'bench/data/six/venv/bin/python'
+ROOT=Path(__file__).resolve().parents[4]
+OUT=ROOT/'benchmarks/history/0.70/six/results/seven-next/tasks'
+BIN=ROOT/'benchmarks/history/0.70/six/results/seven-next/bin-verified/pagesift'
+PY=ROOT/'benchmarks/data/six/venv/bin/python'
 
 def save(p,value):p.write_text(json.dumps(value,indent=2,ensure_ascii=False)+'\n')
 def digest(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
@@ -95,13 +95,13 @@ def main():
  for index,(path,(mime,body)) in enumerate(fixtures.items()):(fixture_dir/str(index)).write_bytes(body)
  save(OUT/'http-fixture-index.json',{path:{'file':str(index),'content_type':mime} for index,(path,(mime,_)) in enumerate(fixtures.items())})
  save(OUT/'mastodon-statuses.json',statuses)
- protocol={'seed':seed,'scope':'fresh controlled cases, NOT independently authored blind site validation or full feature dominance','frozen_before_first_output':True,'navigation_gold':sorted(gold),'non_navigation_candidates':sorted(rejected),'navigation_reference_modes':['Katana -jc -jsl','Crawlee native CheerioCrawler + enqueueLinks'],'relocation':relocation,'relocation_thresholds':{'pagesift_score':0.72,'pagesift_margin':0.12,'scrapling':'native default 40 percent, CSS then adaptive fallback'},'inspect_gold':pages,'media_original_sha256':media_gold,'fixture_sha256':{p:hashlib.sha256(body).hexdigest() for p,(_,body) in fixtures.items()},'stream_source_sha256':{str(p.relative_to(streams)):digest(p) for p in streams.rglob('*') if p.is_file()},'binary_sha256':digest(BIN),'driver_sha256':digest(__file__),'references':json.loads((ROOT/'bench/six/tools.lock.json').read_text())['tools'],'browser_interact_and_agent':'excluded by direct user instruction'}
+ protocol={'seed':seed,'scope':'fresh controlled cases, NOT independently authored blind site validation or full feature dominance','frozen_before_first_output':True,'navigation_gold':sorted(gold),'non_navigation_candidates':sorted(rejected),'navigation_reference_modes':['Katana -jc -jsl','Crawlee native CheerioCrawler + enqueueLinks'],'relocation':relocation,'relocation_thresholds':{'pagesift_score':0.72,'pagesift_margin':0.12,'scrapling':'native default 40 percent, CSS then adaptive fallback'},'inspect_gold':pages,'media_original_sha256':media_gold,'fixture_sha256':{p:hashlib.sha256(body).hexdigest() for p,(_,body) in fixtures.items()},'stream_source_sha256':{str(p.relative_to(streams)):digest(p) for p in streams.rglob('*') if p.is_file()},'binary_sha256':digest(BIN),'driver_sha256':digest(__file__),'references':json.loads((ROOT/'benchmarks/history/0.70/six/tools.lock.json').read_text())['tools'],'browser_interact_and_agent':'excluded by direct user instruction'}
  save(OUT/'protocol.json',protocol);summary={}
  try:
   commands={'pagesift':[BIN,'crawl',base+prefix,'--config',cfg,'--engine','http','--external-scripts','--sitemap','skip','--limit','100','--depth','4'],
-    'katana':[ROOT/'bench/data/six/bin/katana','-u',base+prefix,'-d','4','-jc','-jsl','-c','2','-p','1','-ct','20s','-timeout','5','-retry','0','-silent','-nc','-jsonl','-duc','-fs','fqdn'],
-    'crawlee':['node',ROOT/'bench/six/adapters/crawlee.mjs',base+prefix,OUT/'crawlee-output.json'],
-    'crawlee-python':[PY,ROOT/'bench/six/adapters/crawlee_py.py',base+prefix,OUT/'crawlee-py-output.json']}
+    'katana':[ROOT/'benchmarks/data/six/bin/katana','-u',base+prefix,'-d','4','-jc','-jsl','-c','2','-p','1','-ct','20s','-timeout','5','-retry','0','-silent','-nc','-jsonl','-duc','-fs','fqdn'],
+    'crawlee':['node',ROOT/'benchmarks/history/0.70/six/adapters/crawlee.mjs',base+prefix,OUT/'crawlee-output.json'],
+    'crawlee-python':[PY,ROOT/'benchmarks/history/0.70/six/adapters/crawlee_py.py',base+prefix,OUT/'crawlee-py-output.json']}
   nav={}
   for tool,cmd in commands.items():
    env=dict(os.environ,CRAWLEE_STORAGE_DIR=str(OUT/f'{tool}-storage')) if tool.startswith('crawlee') else None
@@ -132,14 +132,14 @@ def main():
    except Exception:ok=False
    inspection.append({'id':i,'ok':ok})
   summary['inspection']={'n':len(inspection),'passed':sum(r['ok'] for r in inspection),'scope':'Pagesift body/form gold only; not native Katana knowledge-base superiority'};save(OUT/'summary.json',summary)
-  kb=run('katana-knowledge',[ROOT/'bench/data/six/bin/katana','-u',base+'/inspect/','-d','2','-kb','-kb-secrets','-td','-fx','-c','2','-timeout','5','-retry','0','-ct','20s','-silent','-nc','-jsonl','-duc','-fs','fqdn'],90)
+  kb=run('katana-knowledge',[ROOT/'benchmarks/data/six/bin/katana','-u',base+'/inspect/','-d','2','-kb','-kb-secrets','-td','-fx','-c','2','-timeout','5','-retry','0','-ct','20s','-silent','-nc','-jsonl','-duc','-fs','fqdn'],90)
   kb_rows=[]
   for line in kb['stdout'].splitlines():
    try:kb_rows.append(json.loads(line))
    except json.JSONDecodeError:pass
   matched={urlsplit(r.get('request',{}).get('endpoint','')).path:r for r in kb_rows}
   summary['katana_knowledge']={'exit':kb['exit'],'expected_pages':12,'pages_with_forms':sum(bool(matched.get('/inspect/'+str(i),{}).get('response',{}).get('forms')) for i in range(12)),'pages_with_secret_findings':sum(bool(matched.get('/inspect/'+str(i),{}).get('response',{}).get('knowledgebase',{}).get('secrets')) for i in range(12)),'scope':'syntactic fake-key indicators only, no live validation; different rule coverage, no full scanner ranking'};save(OUT/'summary.json',summary)
-  media={};environment=dict(os.environ,PYTHONPATH=str(ROOT/'bench/data/six/sources/gallery-dl'))
+  media={};environment=dict(os.environ,PYTHONPATH=str(ROOT/'benchmarks/data/six/sources/gallery-dl'))
   for tool in ['pagesift','gallery-dl']:
    dest=OUT/('media-'+tool);dest.mkdir();records=[]
    for ident in statuses:

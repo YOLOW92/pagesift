@@ -3,7 +3,7 @@
 > **核心哲学**：不掩盖差距，不美化数据。拒绝本地虚假 Mock 回环，直面全球野蛮真实的公网拓扑。在严格的 128 GB 物理内存防线下（彻底废除 0.50 历史遗留的 12 GB 限制），把 PageSift 0.60 逼到公网极限。
 > **测试环境**：Google Cloud `n4d-highcpu-80`（80 vCPUs AMD EPYC 9B45, 157 GiB RAM, 96 GB NVMe SSD）
 > **内存边界**：**严格限制 128 GB (137,438,953,472 字节)**，全程禁止越界，实测监控 RSS 消耗。
-> **输入样本源**：Tranco Top 1,000,000 全球真实顶级站点库（`bench/data/top-1m.csv`）。
+> **输入样本源**：Tranco Top 1,000,000 全球真实顶级站点库（`benchmarks/data/top-1m.csv`）。
 
 ---
 
@@ -25,7 +25,7 @@
   - [x] 峰值 RSS 严格维持在 **4.75 GB**（仅占 128 GB 防线的 3.63%），**零 OOM、零崩溃、零内存泄漏**。
 - [x] **Step 4.1.3: 故障归因与韧性评定**
   - [x] 完成全球网络故障树归因分析（WAF 403: 6,385, 超时: 3,953, DNS异常: 1,291, TLS握手故障: 39）。
-  - [x] 产出官方深度报告：`docs/benchmarks/0.60_p4_wild_x_1_limits.md`。
+  - [x] 产出官方深度报告：`docs/history/0.60_p4_wild_x_1_limits.md`。
 
 ---
 
@@ -53,4 +53,4 @@
   - [x] 峰值 RSS **11.59 GB**，全程仅占 128 GB 物理防线的 **8.8%**，达成 **零 OOM、零崩溃、零内存泄漏** 的绝对稳定性！
   - [x] 纯净富文本 Markdown 净产出达 **199,422 篇（累计 2.31 GB 纯净内容）**，Zero-Disk 流式管道让 NVMe 磁盘全程零暴涨。
 - [x] **Step 4.2.3: 官方亿级决战白皮书发布**
-  - [x] 产出公开正式的《PageSift 0.60 真实亿级公网终极决战白皮书》（`docs/benchmarks/0.60_p4_wild_x_2_showdown.md`）。
+  - [x] 产出公开正式的《PageSift 0.60 真实亿级公网终极决战白皮书》（`docs/history/0.60_p4_wild_x_2_showdown.md`）。

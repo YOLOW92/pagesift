@@ -1,16 +1,16 @@
 # Benchmarks
 
-For the newer six-project, 545-page comparisons and explicit remaining gaps, see the [0.20.0 evidence index](../bench/six/evidence/README.md). The older metrics below use different datasets and methods.
+For the newer six-project, 545-page comparisons and explicit remaining gaps, see the [0.20.0 evidence index](../benchmarks/history/0.70/six/evidence/README.md). The older metrics below use different datasets and methods.
 
-Every number here comes from scripts in [`bench/`](../bench) and can be rerun. Each metric says which direction is better. Tools see exactly the same inputs; timing runs use one tool at a time on an otherwise idle machine.
+Every number here comes from scripts in [`benchmarks/`](../benchmarks) and can be rerun. Each metric says which direction is better. Tools see exactly the same inputs; timing runs use one tool at a time on an otherwise idle machine.
 
 **Machine:** Intel Core i7-10700 (8 cores / 16 threads), 15 GB RAM, NVMe SSD, Ubuntu (Linux 7.0). **Date:** 2026-10-21 (development runs), 2026-10-22 (0.20.0 run), 2026-10-23 (0.30.0 release run). **pagesift:** the tables in sections 1–8 were measured with pagesift 0.12.0 (the version named in each table; sections 3–5 and 7 re-checked 2026-10-22); nothing in this file has been re-run for 0.73 or later. Sections 1–8 are historical data. (An automatic version replacement once turned `2.0` into `0.20.0` in three cells of this file; they are restored from the commit before it, 0f978efd.)
 
-> **Release run (0.30.0, 2026-10-23):** expanded benchmark suite covering 8,854 random real pages, 120 wild sites, 148 non-UTF-8 encodings, 20,000-page (`wide`) and 50,000-page (`huge`) crawls, and 8 new competitors (`htmd`, `html-to-markdown-rs`, `go-readability`, `go-html-to-markdown`, `colly`, `mdream`, `jina-reader`, `crawlee-python`) under a strict **12 GiB memory ceiling** (`MemoryMax=12G`). Full comprehensive report: [`bench/fresh/results-0.30.0.md`](../bench/fresh/results-0.30.0.md). Earlier runs: [`bench/fresh/results-2026-10-22.md`](../bench/fresh/results-2026-10-22.md).
+> **Release run (0.30.0, 2026-10-23):** expanded benchmark suite covering 8,854 random real pages, 120 wild sites, 148 non-UTF-8 encodings, 20,000-page (`wide`) and 50,000-page (`huge`) crawls, and 8 new competitors (`htmd`, `html-to-markdown-rs`, `go-readability`, `go-html-to-markdown`, `colly`, `mdream`, `jina-reader`, `crawlee-python`) under a strict **12 GiB memory ceiling** (`MemoryMax=12G`). Full comprehensive report: [`benchmarks/common/fresh/results-0.30.0.md`](../benchmarks/common/fresh/results-0.30.0.md). Earlier runs: [`benchmarks/common/fresh/results-2026-10-22.md`](../benchmarks/common/fresh/results-2026-10-22.md).
 
 ## 1. Main-content extraction: quality and speed
 
-**Dataset:** the 597 HTML pages of Firecrawl's `scrape-content-dataset-v1` that have both an HTML snapshot and labelled truth/noise phrases (news, blogs, docs, shops, forums; many languages). Pages whose HTTP extraction is thin use a browser-rendered snapshot instead (92 pages), for every tool. Inputs are frozen in `bench/data/inputs`; adapters are in [`bench/compare`](../bench/compare).
+**Dataset:** the 597 HTML pages of Firecrawl's `scrape-content-dataset-v1` that have both an HTML snapshot and labelled truth/noise phrases (news, blogs, docs, shops, forums; many languages). Pages whose HTTP extraction is thin use a browser-rendered snapshot instead (92 pages), for every tool. Inputs are frozen in `benchmarks/data/inputs`; adapters are in [`benchmarks/web-extraction/compare`](../benchmarks/web-extraction/compare).
 
 **Metrics:**
 - *recall*: share of labelled main-content phrases found in the output (higher is better);
@@ -33,9 +33,9 @@ Every number here comes from scripts in [`bench/`](../bench) and can be rerun. E
 
 Tools with high recall and ~60% leak (MarkItDown, Defuddle, Crawl4AI raw) convert the whole page rather than extracting the main content. pagesift processes **6,489 pages/s** on 16 threads (mean page 285 KB).
 
-Reproduce: see [`bench/compare/README.md`](../bench/compare/README.md).
+Reproduce: see [`benchmarks/web-extraction/compare/README.md`](../benchmarks/web-extraction/compare/README.md).
 
-> **Audit note (2026-10-27):** the scores in this table (e.g. 0.733) could not be matched to a result file in the repository; the later runs in [`bench/fresh/results-0.30.0.md`](../bench/fresh/results-0.30.0.md) use different data and scorers. Treat the table as historical data for 0.12.0, not re-run.
+> **Audit note (2026-10-27):** the scores in this table (e.g. 0.733) could not be matched to a result file in the repository; the later runs in [`benchmarks/common/fresh/results-0.30.0.md`](../benchmarks/common/fresh/results-0.30.0.md) use different data and scorers. Treat the table as historical data for 0.12.0, not re-run.
 
 ## 2. Publication dates
 
@@ -55,11 +55,11 @@ Reproduce: see [`bench/compare/README.md`](../bench/compare/README.md).
 
 pagesift ports htmldate's search order and rules to Rust and adds month names in about twenty languages (htmldate needs the slow dateparser package for most languages), keeps the page's own time zone instead of converting to UTC, ignores "today's date" banners, and replaces the full-page regular expressions with single-pass scanners (`crates/pagesift-content/src/dates.rs`). The result matches htmldate's accuracy at 1/67 of its time.
 
-Reproduce: `bench/meta/dates.py` (see [`bench/meta/README.md`](../bench/meta/README.md)); full results: [`bench/meta/results-dates-2026-10-21.md`](../bench/meta/results-dates-2026-10-21.md).
+Reproduce: `benchmarks/dates/dates.py` (see [`benchmarks/dates/README.md`](../benchmarks/dates/README.md)); full results: [`benchmarks/dates/results-dates-2026-10-21.md`](../benchmarks/dates/results-dates-2026-10-21.md).
 
 ## 3. HTML → Markdown fidelity
 
-**Setup:** there is no standard dataset for conversion fidelity, so [`bench/markdown/fidelity.py`](../bench/markdown/fidelity.py) generates one: 600 random documents (3 seeds × 200) with headings, emphasis, strikethrough, inline code, links, images, line breaks, nested lists, tables, fenced code, quotes, rules, formulas, and text with Markdown characters that must stay literal (`*not bold*`, `1. not a list`, `<tag>`, `x | y`). They are rendered like real sites (wrapper `div`s and `span`s, syntax-highlighted code, KaTeX, MathJax, raw TeX awaiting MathJax). Each tool converts the whole page; the Markdown is parsed back with the same GFM parser and compared with the original structure, category by category. A reference conversion written straight from the structure scores 1.000 in every category, which calibrates the scorer.
+**Setup:** there is no standard dataset for conversion fidelity, so [`benchmarks/markdown/fidelity.py`](../benchmarks/markdown/fidelity.py) generates one: 600 random documents (3 seeds × 200) with headings, emphasis, strikethrough, inline code, links, images, line breaks, nested lists, tables, fenced code, quotes, rules, formulas, and text with Markdown characters that must stay literal (`*not bold*`, `1. not a list`, `<tag>`, `x | y`). They are rendered like real sites (wrapper `div`s and `span`s, syntax-highlighted code, KaTeX, MathJax, raw TeX awaiting MathJax). Each tool converts the whole page; the Markdown is parsed back with the same GFM parser and compared with the original structure, category by category. A reference conversion written straight from the structure scores 1.000 in every category, which calibrates the scorer.
 
 **Metric:** F1 per category (higher is better), mean over the 15 categories; conversion time per page (lower is better).
 
@@ -75,11 +75,11 @@ Reproduce: `bench/meta/dates.py` (see [`bench/meta/README.md`](../bench/meta/REA
 
 "Literal text" is the word-level F1 of the text; it drops when unescaped `*`, `_`, `<` or line-start `1.` turn text into formatting. pagesift escapes only what CommonMark would actually misread (paired `*` and `_` next to text, but not `a_b_c` or `2 * 3`; line-start list and heading markers, but not inside table cells), turns `<br>` into hard breaks, and converts formulas to TeX: KaTeX and Wikipedia annotations, MathJax 2 scripts, MathML (MathJax 3, LaTeXML) through its own MathML→LaTeX converter, and raw TeX in the text left untouched.
 
-On real pages the change is neutral for main-content scores (Firecrawl set 0.696 → 0.696, AEB 0.939 → 0.939); on 3,369 random sites it adds 0.13 backslashes per 1,000 characters, and on an arXiv page formulas that used to vanish now come out as TeX. Full results: [`bench/markdown/results-2026-10-21.md`](../bench/markdown/results-2026-10-21.md); reproduce: `bench/markdown/run.sh`.
+On real pages the change is neutral for main-content scores (Firecrawl set 0.696 → 0.696, AEB 0.939 → 0.939); on 3,369 random sites it adds 0.13 backslashes per 1,000 characters, and on an arXiv page formulas that used to vanish now come out as TeX. Full results: [`benchmarks/markdown/results-2026-10-21.md`](../benchmarks/markdown/results-2026-10-21.md); reproduce: `benchmarks/markdown/run.sh`.
 
 ## 4. Chunking and query filtering for RAG
 
-**Dataset:** Chroma's [chunking_evaluation](https://github.com/brandonstarxel/chunking_evaluation) data: five corpora (financial filings, PubMed papers, Wikipedia text, a State of the Union address, chat logs) and 472 questions, each labelled with the exact character spans of its answer. Questions are split into a tuning half and a hold-out half; design choices were kept only if the hold-out half agreed. Method details: [`bench/rag/README.md`](../bench/rag/README.md).
+**Dataset:** Chroma's [chunking_evaluation](https://github.com/brandonstarxel/chunking_evaluation) data: five corpora (financial filings, PubMed papers, Wikipedia text, a State of the Union address, chat logs) and 472 questions, each labelled with the exact character spans of its answer. Questions are split into a tuning half and a hold-out half; design choices were kept only if the hold-out half agreed. Method details: [`benchmarks/rag/README.md`](../benchmarks/rag/README.md).
 
 **Query filter.** Each question is asked against its own document (49,000 words on average); every tool runs with its default settings. Recall is the share of the answer text kept (higher is better); words is how much text is returned (lower is better).
 
@@ -105,13 +105,13 @@ The old filter, like Crawl4AI's, worked on paragraphs with an absolute BM25 thre
 
 pagesift's `recursive` strategy is a Rust port of semchunk (identical chunks on this data) with Markdown awareness (headings stay with their content, code blocks are not split while they fit) and CJK punctuation. Three in-house variants (TextTiling-style cuts at lexical topic shifts, cohesion-based and balanced merging) did better on the tuning half but not on the hold-out half, so they were not kept. The chunks are available from the API with `"chunking": {"type": "recursive", "size": 400}`, each with its heading path and position.
 
-Reproduce: `bench/rag/run.sh`; full results: [`bench/rag/results-2026-10-21.md`](../bench/rag/results-2026-10-21.md).
+Reproduce: `benchmarks/rag/run.sh`; full results: [`benchmarks/rag/results-2026-10-21.md`](../benchmarks/rag/results-2026-10-21.md).
 
-> **Audit note (2026-10-27):** both tables match their results files. The query-filter row comes from the full re-run of 2026-10-22 (`bench/fresh/results/2026-10-22/rag/query_filter.txt`, `pagesift-default`: 0.929 / 1,157 words / 0.038, with `minTokens` defaulting to 1000); the older `bench/rag/results-2026-10-21.md` (0.874 / 622 / 0.137) predates that default.
+> **Audit note (2026-10-27):** both tables match their results files. The query-filter row comes from the full re-run of 2026-10-22 (`benchmarks/common/fresh/results/2026-10-22/rag/query_filter.txt`, `pagesift-default`: 0.929 / 1,157 words / 0.038, with `minTokens` defaulting to 1000); the older `benchmarks/rag/results-2026-10-21.md` (0.874 / 622 / 0.137) predates that default.
 
 ## 5. PDF to Markdown
 
-**Dataset:** [olmOCR-bench](https://huggingface.co/datasets/allenai/olmOCR-bench) (ODC-BY), scored with its own code. Only the five subsets made of born-digital PDFs are used (1,269 pages, about 6,000 tests): formulas from arXiv papers, tables, multi-column reading order, small dense text, and headers and footers. Each test checks one fact on one page — a sentence is present, a header is absent, two sentences are in order, a table cell has the right neighbours, a formula renders like the reference in KaTeX. Every tool runs with its default settings. Method details: [`bench/pdf/README.md`](../bench/pdf/README.md).
+**Dataset:** [olmOCR-bench](https://huggingface.co/datasets/allenai/olmOCR-bench) (ODC-BY), scored with its own code. Only the five subsets made of born-digital PDFs are used (1,269 pages, about 6,000 tests): formulas from arXiv papers, tables, multi-column reading order, small dense text, and headers and footers. Each test checks one fact on one page — a sentence is present, a header is absent, two sentences are in order, a table cell has the right neighbours, a formula renders like the reference in KaTeX. Every tool runs with its default settings. Method details: [`benchmarks/pdf/README.md`](../benchmarks/pdf/README.md).
 
 | Tool | Overall ↑ | Formulas ↑ | Tables ↑ | Reading order ↑ | Small text ↑ | Headers/footers removed ↑ | ms per page ↓ |
 |---|---|---|---|---|---|---|---|
@@ -123,11 +123,11 @@ Reproduce: `bench/rag/run.sh`; full results: [`bench/rag/results-2026-10-21.md`]
 
 Scores are pass rates in percent. pagesift writes inline formulas as LaTeX: it reads the built-in encodings of the embedded TeX fonts, then rebuilds sub- and superscripts, accents and symbol commands from the glyphs' fonts, sizes and baselines. None of the other tools outputs formulas. Tables are found from ruled grids (pdfplumber's lattice algorithm, ported to Rust), from booktabs-style horizontal rules, and from the alignment of short text fragments when there are no rules at all. pymupdf4llm finds a few more tables and gets the reading order of more pages right with an ONNX layout model, at about 100× the time per page. Pages were split into a tuning half and a hold-out half, and changes were kept only when the hold-out half did not get worse.
 
-Reproduce: `bench/pdf/run.sh`; full results: [`bench/pdf/results-2026-10-22.md`](../bench/pdf/results-2026-10-22.md).
+Reproduce: `benchmarks/pdf/run.sh`; full results: [`benchmarks/pdf/results-2026-10-22.md`](../benchmarks/pdf/results-2026-10-22.md).
 
 ## 6. Crawling over HTTP (no rate limit)
 
-**Setup:** a local multi-site origin ([`bench/crawl`](../bench/crawl)) serving real pages from the corpus on `s{i}.localhost`, with 10 ms of added latency; every tool crawls every site with its own link discovery, unthrottled. Memory is the peak proportional set size (PSS) of the tool's whole process tree.
+**Setup:** a local multi-site origin ([`benchmarks/crawl`](../benchmarks/crawl)) serving real pages from the corpus on `s{i}.localhost`, with 10 ms of added latency; every tool crawls every site with its own link discovery, unthrottled. Memory is the peak proportional set size (PSS) of the tool's whole process tree.
 
 | Scenario | Tool | Throughput, pages/s ↑ | Peak memory ↓ |
 |---|---|---|---|
@@ -140,13 +140,13 @@ Reproduce: `bench/pdf/run.sh`; full results: [`bench/pdf/results-2026-10-22.md`]
 | | crw | — | 2.2 GB |
 | | Spider | — | > 9.5 GB (stopped by the memory watchdog) |
 
-Reproduce: `bench/crawl/run_all.sh`.
+Reproduce: `benchmarks/crawl/run_all.sh`.
 
 ## 7. Crawling messy real-world sites: coverage, waste and politeness
 
 Speed on clean sites says little about what a crawl delivers on real sites, where links carry tracking parameters and session IDs, the same page has several URLs, calendars and pagination never end, and servers fail or rate-limit. This benchmark measures how much of a site's real content each tool collects within the same page budget, and how well it behaves.
 
-**Setup:** a seeded simulation of the web ([`bench/crawl/src/bin/wild.rs`](../bench/crawl/src/bin/wild.rs)): 40 sites, each with 60 content pages (real corpus pages) linked so that following clean links alone reaches all of them. Each site gets a random subset of real-world problems: tracking parameters and session IDs on links, print versions and `index.html` aliases, relative links that grow forever (`more/more/…`), endless calendars and pagination, sort/filter combinations, links to images and archives, a robots.txt-disallowed area linked from every page, random first-attempt 503s, and a 5-requests-per-second limit answered with 429. Latency is 10–80 ms per site. Every tool may fetch 60 pages per site, so every wasted request costs a content page. The origin itself classifies every request, so no tool reports its own score.
+**Setup:** a seeded simulation of the web ([`benchmarks/crawl/src/bin/wild.rs`](../benchmarks/crawl/src/bin/wild.rs)): 40 sites, each with 60 content pages (real corpus pages) linked so that following clean links alone reaches all of them. Each site gets a random subset of real-world problems: tracking parameters and session IDs on links, print versions and `index.html` aliases, relative links that grow forever (`more/more/…`), endless calendars and pagination, sort/filter combinations, links to images and archives, a robots.txt-disallowed area linked from every page, random first-attempt 503s, and a 5-requests-per-second limit answered with 429. Latency is 10–80 ms per site. Every tool may fetch 60 pages per site, so every wasted request costs a content page. The origin itself classifies every request, so no tool reports its own score.
 
 **Metrics:**
 - *coverage*: distinct content pages fetched ÷ 60 (higher is better);
@@ -182,9 +182,9 @@ Scenarios: *fast* (no interval, 4 requests per host in flight) and *polite* (one
 
 What makes the difference (see `crates/pagesift/src/frontier.rs`): tracking parameters and session IDs are stripped before fetching; binary files and self-repeating paths are skipped; URL rewrite rules (`index.html`, `?print=1`, `more/`) are learned from duplicate pages; URL templates that keep returning duplicate content are moved behind normal pages; transient failures are retried later without blocking the crawl; and a host that answers 429 gets a wider request interval. Spider is fastest because it does not wait for rate limits or retry failures. pagesift's polite run with seed 2 is slower because one site answered its first four requests with 503 and pagesift backed off for about 30 seconds, as intended.
 
-**Real sites, no regressions:** the same rules were checked on 40 sites drawn at random from the Tranco list (crawl limit 40 pages, HTTP engine, robots.txt respected), comparing the crawler before and after these changes ([`bench/crawl/real_sites.py`](../bench/crawl/real_sites.py)). Distinct pages delivered went from 1,277 to 1,312 (higher is better). 33 sites were identical, 4 improved (one went from 0 to 40 pages), and one lost a single distinct page. The two sites with more errors returned Cloudflare challenges to the second run, which pagesift reports and never bypasses.
+**Real sites, no regressions:** the same rules were checked on 40 sites drawn at random from the Tranco list (crawl limit 40 pages, HTTP engine, robots.txt respected), comparing the crawler before and after these changes ([`benchmarks/crawl/real_sites.py`](../benchmarks/crawl/real_sites.py)). Distinct pages delivered went from 1,277 to 1,312 (higher is better). 33 sites were identical, 4 improved (one went from 0 to 40 pages), and one lost a single distinct page. The two sites with more errors returned Cloudflare challenges to the second run, which pagesift reports and never bypasses.
 
-Reproduce: `SEED=2 bench/crawl/run_wild.sh` (any seed draws a different web); full results: [`bench/crawl/results-wild-2026-10-21.md`](../bench/crawl/results-wild-2026-10-21.md).
+Reproduce: `SEED=2 benchmarks/crawl/run_wild.sh` (any seed draws a different web); full results: [`benchmarks/crawl/results-wild-2026-10-21.md`](../benchmarks/crawl/results-wild-2026-10-21.md).
 
 ## 8. Browser rendering
 
@@ -198,11 +198,11 @@ pagesift drives browsers over its own CDP client and picks an engine automatical
 | moli | 28.8 | 29.6 | 0.84–0.9 GB |
 | Google Chrome | 11.6 | 11.7 | 2.2–2.4 GB |
 
-Reproduce: `bench/crawl/engines.sh` (set `ENGINES=auto` for the default chain).
+Reproduce: `benchmarks/crawl/engines.sh` (set `ENGINES=auto` for the default chain).
 
 ## 9. A production workload: replacing Crawl4AI
 
-[AiSeek](https://aiseek.dev) fetches news and company pages with Crawl4AI 0.9.4. We ran its own benchmark (`bench.py`) against both services with the production server's limits (6 cores, 10 GB memory, CPU weight 25), on 210 real production URLs (205 hosts) and 25 fixed pages. pagesift ran behind a small adapter implementing the same `/v1/fetch` contract ([`bench/aiseek`](../bench/aiseek)).
+[AiSeek](https://aiseek.dev) fetches news and company pages with Crawl4AI 0.9.4. We ran its own benchmark (`bench.py`) against both services with the production server's limits (6 cores, 10 GB memory, CPU weight 25), on 210 real production URLs (205 hosts) and 25 fixed pages. pagesift ran behind a small adapter implementing the same `/v1/fetch` contract ([`benchmarks/production/aiseek`](../benchmarks/production/aiseek)).
 
 **Production logic** (plain HTTP first, render when the text is short):
 
@@ -243,7 +243,7 @@ Reproduce: `bench/crawl/engines.sh` (set `ENGINES=auto` for the default chain).
 
 ## 11. Office documents, EPUB and CSV to Markdown
 
-**Date:** 2026-10-27, pagesift 0.80 (`pagesift-office`). **Dataset:** 42 development files and 39 hold-out files (Word, Excel, PowerPoint, EPUB, CSV) from Apache POI test data, GOV.UK publications, IDPF EPUB 3 samples, Project Gutenberg, csv-spectrum and datasets; the hold-out files were collected only after the rules were frozen. Ground truth: pandoc 3.9 candidates corrected with python-docx style rules, LibreOffice Calc display values and the EPUB XHTML, every file checked by hand. Rules: [`bench/office/REVIEW.md`](../bench/office/REVIEW.md).
+**Date:** 2026-10-27, pagesift 0.80 (`pagesift-office`). **Dataset:** 42 development files and 39 hold-out files (Word, Excel, PowerPoint, EPUB, CSV) from Apache POI test data, GOV.UK publications, IDPF EPUB 3 samples, Project Gutenberg, csv-spectrum and datasets; the hold-out files were collected only after the rules were frozen. Ground truth: pandoc 3.9 candidates corrected with python-docx style rules, LibreOffice Calc display values and the EPUB XHTML, every file checked by hand. Rules: [`benchmarks/office/REVIEW.md`](../benchmarks/office/REVIEW.md).
 
 Structure retained ↑ = kept ground-truth elements / all ground-truth elements (headings, tables, sampled cells, list items, image alt text, footnotes, speaker notes, heading order):
 
@@ -258,4 +258,4 @@ The ground truth and the scorer were corrected after the first hold-out scoring 
 
 Speed and memory on all 81 files, same machine, one tool at a time inside the benchmark lock (2026-10-27): converting all of them takes pagesift **657 ms** in total versus MarkItDown's **48,819 ms** (time ↓, median of 5 / 3 in-process runs per file, summed); peak resident memory per file, each in its own process ↓, has a median of **14.2 MB** versus **140.1 MB** (process baselines 13.5 MB and 137.4 MB) and a maximum of **46.9 MB** versus **789.5 MB**.
 
-Reproduce: [`bench/office/README.md`](../bench/office/README.md); full results: [`bench/office/results-2026-10-27.md`](../bench/office/results-2026-10-27.md).
+Reproduce: [`benchmarks/office/README.md`](../benchmarks/office/README.md); full results: [`benchmarks/office/results-2026-10-27.md`](../benchmarks/office/results-2026-10-27.md).

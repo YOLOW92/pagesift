@@ -10,8 +10,8 @@ import tarfile
 import urllib.request
 import zipfile
 
-ROOT = Path(__file__).resolve().parents[2]
-DATA = ROOT / 'bench/data/six'
+ROOT = Path(__file__).resolve().parents[4]
+DATA = ROOT / 'benchmarks/data/six'
 
 
 def download(url, path):
@@ -68,7 +68,7 @@ def main():
     node = DATA / 'node'
     node.mkdir(exist_ok=True)
     for name in ['package.json', 'package-lock.json']:
-        shutil.copy2(ROOT / 'bench/six/locks' / name, node / name)
+        shutil.copy2(ROOT / 'benchmarks/history/0.70/six/locks' / name, node / name)
     subprocess.run(['npm', 'ci', '--no-audit', '--no-fund'], cwd=node, check=True)
 
 

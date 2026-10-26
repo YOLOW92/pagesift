@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 整站爬取对决：对每个场景启动源站，依次（不并行）运行每个工具，结果写进 results-<时间>.jsonl。
-# 用法：bench/crawl/run_all.sh [场景...]
+# 用法：benchmarks/crawl/run_all.sh [场景...]
 #   wide  200 站 × 100 页，不限速，每主机 8 并发，10 ms 延迟（默认）
 #   huge  1000 站 × 50 页，不限速，每主机 4 并发，10 ms 延迟（默认）
 #   polite 100 站 × 50 页，每主机每秒 1 个请求：只在验收"同样守规矩"门槛时单独跑
@@ -9,7 +9,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 ROOT=../..
-PAGES_DIR=${PAGES_DIR:-$ROOT/bench/data/crawl-pages}
+PAGES_DIR=${PAGES_DIR:-$ROOT/benchmarks/data/crawl-pages}
 PORT=18080
 export MEASURE_OUT=${MEASURE_OUT:-results-$(date +%Y%m%d-%H%M%S).jsonl}
 export CRAWL4AI_NO_CLOUD_NOTICE=1
@@ -18,11 +18,11 @@ export CRAWL4AI_CHROMIUM_SANDBOX=true
 export MEASURE_BUDGET_S=${MEASURE_BUDGET_S:-600}
 export MEASURE_MAX_MB=${MEASURE_MAX_MB:-12288}
 export MEASURE_ORIGIN=http://s0.localhost:$PORT/__served
-C4A=${C4A:-$ROOT/bench/data/fresh/tools/c4ai/bin/python}
-CRW=${CRW:-$ROOT/bench/data/tools/bin/crw}
+C4A=${C4A:-$ROOT/benchmarks/data/fresh/tools/c4ai/bin/python}
+CRW=${CRW:-$ROOT/benchmarks/data/tools/bin/crw}
 COLLY=${COLLY:-/home/yolow92/pagesift-bench-env/tools/bin/colly_crawl}
 # Scrapy 用的 Python（装了 scrapy 的虚拟环境）
-SCRAPY_PY=${SCRAPY_PY:-$ROOT/bench/data/fresh/tools/py/bin/python}
+SCRAPY_PY=${SCRAPY_PY:-$ROOT/benchmarks/data/fresh/tools/py/bin/python}
 
 # 等源站真正能应答再开始（页面多时启动要几秒；固定 sleep 不够，第一个工具会连不上）
 wait_origin() { # 端口
@@ -69,4 +69,4 @@ for s in "${@:-wide huge}"; do
         esac
     done
 done
-echo "results in bench/crawl/$MEASURE_OUT"
+echo "results in benchmarks/crawl/$MEASURE_OUT"

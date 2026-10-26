@@ -7,8 +7,8 @@ import shutil
 import tarfile
 import urllib.request
 
-ROOT = Path(__file__).resolve().parents[2]
-DATA = ROOT / 'bench/data/six'
+ROOT = Path(__file__).resolve().parents[4]
+DATA = ROOT / 'benchmarks/data/six'
 
 
 def fetch(url, destination, limit=100 << 20):
@@ -25,7 +25,7 @@ def fetch(url, destination, limit=100 << 20):
 
 
 def main():
-    lock = json.loads((ROOT / 'bench/six/tools.lock.json').read_text())
+    lock = json.loads((ROOT / 'benchmarks/history/0.70/six/tools.lock.json').read_text())
     DATA.mkdir(parents=True, exist_ok=True)
     inventory = {}
     for name, tool in lock['tools'].items():

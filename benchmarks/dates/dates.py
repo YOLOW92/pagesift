@@ -1,17 +1,17 @@
 """发布日期提取对比：htmldate 自带的人工标注评测集（eval_default 800 页 + eval_mediacloud_2020 200 页）。
 
-<py-venv>/bin/python -I bench/meta/dates.py [--url] [--tools a,b,...]
+<py-venv>/bin/python -I benchmarks/dates/dates.py [--url] [--tools a,b,...]
 
 口径和 htmldate 的 tests/comparison.py 相同：按天（YYYY-MM-DD）比较；输出空时，标注也为空算 TN，否则算 FN；
 输出了日期但不对算 FP。精确率、召回率、准确率、F1 都是越高越好；耗时越低越好。
 默认不把 URL 交给工具（官方口径）；--url 时把页面 URL 也交给支持的工具（真实使用时我们总是知道 URL）。
 按 sha1(url) % 2 把页面分成调参集（tune）和保留集（hold），分别报告：只在保留集上的改进才算数。
-数据：bench/data/fresh/data/htmldate（git clone adbar/htmldate，Apache-2.0）。
+数据：benchmarks/data/fresh/data/htmldate（git clone adbar/htmldate，Apache-2.0）。
 """
 import argparse, hashlib, json, os, subprocess, sys, tempfile, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DATA = os.path.join(ROOT, 'bench/data/fresh/data/htmldate/tests')
+DATA = os.path.join(ROOT, 'benchmarks/data/fresh/data/htmldate/tests')
 PAGESIFT = os.path.join(ROOT, 'target/release/examples/meta_eval')
 
 

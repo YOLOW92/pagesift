@@ -2,7 +2,7 @@
 """Pinned source-based capability inventory, with explicit evidence and open gates."""
 import hashlib,json
 from pathlib import Path
-ROOT=Path(__file__).resolve().parents[2];SRC=ROOT/'bench/data/six/sources';lock=json.loads((ROOT/'bench/six/tools.lock.json').read_text())['tools'];rows=[]
+ROOT=Path(__file__).resolve().parents[4];SRC=ROOT/'benchmarks/data/six/sources';lock=json.loads((ROOT/'benchmarks/history/0.70/six/tools.lock.json').read_text())['tools'];rows=[]
 def add(tool,cap,status,reference,local,acceptance):
  p=SRC/tool/reference;assert p.is_file(),p
  rows.append({'tool':tool,'capability':cap,'status':status,'reference_source':str(p.relative_to(ROOT)),'reference_source_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'local_evidence_or_gap':local,'acceptance_remaining':acceptance})
@@ -59,7 +59,7 @@ for cap,status,local,gate in [
  ('HLS/DASH / yt-dlp integration','partial','Native finite HLS/DASH planning, ranged segment archives and local DASH MPD preserving timing; docs/native-core.md','Independent stream families, live/renditions/negative-repeat/SegmentBase/encryption and A/V mux remain outside this implementation'),
  ('postprocessors / metadata / filename templates','partial','Rust deterministic templates, no-overwrite media+sidecar publication, recovery and integrity checks','Full naming/tagging/postprocessor ecosystem, additional filesystems, crash points and independent metadata cases')]:add('gallery-dl',cap,status,G,local,gate)
 record={'scope_exclusions':{'authority':'direct user instruction in current turn','capabilities':['persistent browser interact lifecycle','agent autonomous data-gathering API']},'scope':'40 source-based categories; browser interact and agent excluded by direct user request. Seven formerly missing categories now have bounded Rust cores; full functional leadership remains unachieved','selection':'fixed versions from tools.lock.json; no silent scope reduction','status_semantics':'implemented is not proven superior; bounded synthetic evidence is not site-wide or full-service evidence','versions':{k:{'tag':v['tag'],'sha':v['sha']} for k,v in lock.items() if k!='essence-main'},'capabilities':rows,'counts':{s:sum(r['status']==s for r in rows) for s in sorted({r['status'] for r in rows})},'next_work_order':['browser session pool and identity-scoped cache integration','fuzzy relocation as explicit optional API','external JS and network frontier','site adapters plus listing-to-archive transaction','HLS/DASH and postprocessors','independent per-task quality and full-stack performance acceptance']}
-(ROOT/'bench/six/full-capabilities.json').write_text(json.dumps(record,indent=2)+'\n')
+(ROOT/'benchmarks/history/0.70/six/full-capabilities.json').write_text(json.dumps(record,indent=2)+'\n')
 lines=['# 六项目能力清单与仍未完成的验收','',record['scope'],'','本清单按固定源码中的能力类别整理，不是全部函数/参数的穷举。每项都有源码文件哈希；“已有实现”与“优于竞品”是不同状态。未实现、策略上不做、需外部服务的能力仍计作总体目标未完成，不从分母中删掉。','']
 for tool in record['versions']:
  lines += ['## '+tool+' '+record['versions'][tool]['tag'],'','| 能力 | 当前状态 | 实现/证据或缺口 | 后续验收 |','|---|---|---|---|']
@@ -67,4 +67,4 @@ for tool in record['versions']:
   if r['tool']==tool:lines.append('| '+' | '.join(r[k].replace('|','/') for k in ['capability','status','local_evidence_or_gap','acceptance_remaining'])+' |')
  lines.append('')
 lines+=['## 如何把“领先”变成可验证的结论','','每项先冻结参考版本、任务输入、通过条件和成本边界；功能正确后，另取独立输入比质量、稳定性、吞吐、整树内存和运维代价。完整服务、离线组件和第三方托管服务分别计账。单个小样本成功不填成全站支持，未测能力不填成已领先。','','优先顺序：'+ ' → '.join(record['next_work_order'])+'。','','当前实现、公开对照与限制见 [评测报告](REPORT.md) 和 [证据索引](evidence/README.md)。早期逐轮记录仅保留在本地归档。']
-(ROOT/'bench/six/CAPABILITIES.md').write_text('\n'.join(lines)+'\n');print(json.dumps(record['counts']))
+(ROOT/'benchmarks/history/0.70/six/CAPABILITIES.md').write_text('\n'.join(lines)+'\n');print(json.dumps(record['counts']))

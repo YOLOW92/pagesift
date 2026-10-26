@@ -43,7 +43,7 @@ MAX_DISK_BYTES = 25 * 1024 * 1024 * 1024  # 25 GB Limit
 MAX_RSS_BYTES = 120 * 1024 * 1024 * 1024  # 120 GB Limit
 WATCHDOG_STOP = threading.Event()
 PEAK_RSS_BYTES = 0
-BENCH_DIR = Path("/home/wyc610721/pagesift/bench/results/final")
+BENCH_DIR = Path("/home/wyc610721/pagesift/benchmarks/history/0.50/results")
 
 def get_total_rss_bytes() -> int:
     try:
@@ -95,7 +95,7 @@ def watchdog_monitor_thread():
 
 def run_pagesift_real_web(url_file: str, limit: int, tuning_mode: str = "adaptive", concurrency: int = 0) -> dict:
     bin_path = "/home/wyc610721/pagesift/target/release/examples/bench_real_web_mt"
-    out_json = "/home/wyc610721/pagesift/bench/results/final/pagesift_real_1m.json"
+    out_json = "/home/wyc610721/pagesift/benchmarks/history/0.50/results/pagesift_real_1m.json"
     cmd = [bin_path, url_file, tuning_mode, str(concurrency), str(limit), out_json]
     
     t0 = time.perf_counter()
@@ -369,7 +369,7 @@ def main():
     watchdog = threading.Thread(target=watchdog_monitor_thread, daemon=True)
     watchdog.start()
 
-    url_file = "/home/wyc610721/pagesift/bench/data/top1m.txt"
+    url_file = "/home/wyc610721/pagesift/benchmarks/data/top1m.txt"
     if not Path(url_file).exists():
         sys.stderr.write(f"Error: {url_file} not found!\n")
         sys.exit(1)
@@ -408,7 +408,7 @@ def main():
     # ----------------- Part 3: Crash Recovery & Integrity Verification ----------------- #
     print("\n>>> PART 3: Verifying Checkpoint Crash Recovery & Zero-Duplicate Resume (Metric 6)...")
     t_rec = time.perf_counter()
-    wal_path = Path("/home/wyc610721/pagesift/bench/results/final/pagesift_real_1m.json.checkpoint.wal")
+    wal_path = Path("/home/wyc610721/pagesift/benchmarks/history/0.50/results/pagesift_real_1m.json.checkpoint.wal")
     wal_exists = wal_path.exists()
     wal_reload_ms = (time.perf_counter() - t_rec) * 1000.0 + 0.08
     print(f"        WAL Checkpoint verified in {wal_reload_ms:.2f}ms. Resumed with 0 duplicate refetches.")
@@ -425,7 +425,7 @@ def main():
     watchdog.join(timeout=1.0)
 
     # ----------------- Part 4: Save JSON and Generate Markdown Report ----------------- #
-    out_final_json = Path("/home/wyc610721/pagesift/bench/results/final/benchmark_1m_real_results.json")
+    out_final_json = Path("/home/wyc610721/pagesift/benchmarks/history/0.50/results/benchmark_1m_real_results.json")
     out_final_json.parent.mkdir(parents=True, exist_ok=True)
     summary_doc = {
         "benchmark": "PageSift 0.50 - 1 Million Real-World Public Internet Benchmark",
@@ -440,7 +440,7 @@ def main():
     out_final_json.write_text(json.dumps(summary_doc, indent=2))
     print(f"\nFinal JSON Results saved to {out_final_json}")
 
-    out_md = Path("/home/wyc610721/pagesift/bench/results/final/BENCHMARK_1M_REAL_WORLD_050.md")
+    out_md = Path("/home/wyc610721/pagesift/benchmarks/history/0.50/results/BENCHMARK_1M_REAL_WORLD_050.md")
     generate_markdown_report(all_results, out_md)
     print("================================================================================")
     print("PageSift 0.50 Real-World 1-Million Battle Royale Successfully Concluded!")

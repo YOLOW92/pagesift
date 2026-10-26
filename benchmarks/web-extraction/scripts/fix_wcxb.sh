@@ -1,11 +1,11 @@
 #!/bin/bash
-cd ~/pagesift/bench/data/wcxb
+cd ~/pagesift/benchmarks/data/wcxb
 B="https://huggingface.co/datasets/murrough-foley/web-content-extraction-benchmark/resolve/main"
 # 用 ground-truth 的 id 列表推断应有 html
 python3 - <<'PY'
 import json, os, subprocess, time
 from pathlib import Path
-root = Path("/home/yolow92/pagesift/bench/data/wcxb")
+root = Path("/home/yolow92/pagesift/benchmarks/data/wcxb")
 base = "https://huggingface.co/datasets/murrough-foley/web-content-extraction-benchmark/resolve/main"
 for split in ("dev", "test"):
     gt = root / split / "ground-truth"
@@ -29,4 +29,4 @@ for split in ("dev", "test"):
             print(f"  {split} {n}/{len(missing)}", flush=True)
 PY
 echo FIX_DONE
-for s in dev test; do echo "$s: html=$(ls ~/pagesift/bench/data/wcxb/$s/html | wc -l)"; done
+for s in dev test; do echo "$s: html=$(ls ~/pagesift/benchmarks/data/wcxb/$s/html | wc -l)"; done

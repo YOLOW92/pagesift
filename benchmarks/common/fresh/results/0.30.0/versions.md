@@ -11,7 +11,7 @@
 - **Colly** (`gocolly/colly/v2`): `v2.3.0` (Go binary `/home/yolow92/pagesift-bench-env/tools/bin/colly_crawl`)
 - **mdream** (`harlan-zw/mdream`): `2.0.3` (Node package in `/home/yolow92/pagesift-bench-env/tools/node`)
 - **jina-reader** (`jina-ai/reader` pipeline: `@mozilla/readability@0.6.0` + `turndown@7.2.4` + `turndown-plugin-gfm@1.0.2`)
-- **crawlee-python** (`apify/crawlee-python` `crawlee[beautifulsoup]`): `1.11.0` (Python package in `tools/py` and `bench/data/six/venv`)
+- **crawlee-python** (`apify/crawlee-python` `crawlee[beautifulsoup]`): `1.11.0` (Python package in `tools/py` and `benchmarks/data/six/venv`)
 
 ## Python Environment (`/home/yolow92/pagesift-bench-env/tools/py` — Python 3.14.4)
 ```text
@@ -54,7 +54,7 @@ trafilatura              2.3.1
 Crawl4AI                 0.9.5
 ```
 
-## Six-Competitor Python Environment (`/home/yolow92/pagesift/bench/data/six/venv` — Python 3.14.4)
+## Six-Competitor Python Environment (`/home/yolow92/pagesift/benchmarks/data/six/venv` — Python 3.14.4)
 ```text
 crawlee                  1.11.0
 firecrawl-py             4.30.1
@@ -76,7 +76,7 @@ scrapling                0.5 (locked source: 3a8bf4e4d3ed91257ba0aa5b7dc66241d1e
 ├── turndown@7.2.4
 └── turndown-plugin-gfm@1.0.2
 ```
-- `/home/yolow92/pagesift/bench/data/six/node`:
+- `/home/yolow92/pagesift/benchmarks/data/six/node`:
 ```text
 ├── @crawlee/cheerio@3.18.2
 ├── @crawlee/playwright@3.18.2
@@ -98,11 +98,11 @@ scrapling                0.5 (locked source: 3a8bf4e4d3ed91257ba0aa5b7dc66241d1e
   - `github.com/JohannesKaufmann/html-to-markdown/v2 v2.5.2`
 - **colly_crawl** (`/home/yolow92/pagesift-bench-env/tools/bin/colly_crawl` — Go `1.26.2`):
   - `github.com/gocolly/colly/v2 v2.3.0`
-- **Katana**: `v1.8.0` (SHA `35267ac5c8ff1db9694a319d0eb466ed97b0969f`, binary `/home/yolow92/pagesift/bench/data/six/bin/katana`)
-- **Essence**: `v0.3.0` (SHA `a4f845c6b98d3337106e74fe7b91f94d61ab599d`, binary `/home/yolow92/pagesift/bench/data/six/bin/essence`, component adapter `/home/yolow92/pagesift/bench/data/six/bin/offline-stable`)
-- **Firecrawl**: `v2.11.0` (SHA `ef12eb36b2f3382838dfe0a0c1a5add3d5df7fe5`, converter `/home/yolow92/pagesift/bench/data/six/bin/firecrawl-converter`)
+- **Katana**: `v1.8.0` (SHA `35267ac5c8ff1db9694a319d0eb466ed97b0969f`, binary `/home/yolow92/pagesift/benchmarks/data/six/bin/katana`)
+- **Essence**: `v0.3.0` (SHA `a4f845c6b98d3337106e74fe7b91f94d61ab599d`, binary `/home/yolow92/pagesift/benchmarks/data/six/bin/essence`, component adapter `/home/yolow92/pagesift/benchmarks/data/six/bin/offline-stable`)
+- **Firecrawl**: `v2.11.0` (SHA `ef12eb36b2f3382838dfe0a0c1a5add3d5df7fe5`, converter `/home/yolow92/pagesift/benchmarks/data/six/bin/firecrawl-converter`)
 
-## Browser Engines (`/home/yolow92/pagesift/bench/data/tools`)
+## Browser Engines (`/home/yolow92/pagesift/benchmarks/data/tools`)
 - **Google Chrome**: `155.0.8059.84`
 - **chrome-headless-shell**: `156.0.8078.47`
 - **moli**: `1.1.18`

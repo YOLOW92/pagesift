@@ -1,6 +1,6 @@
 #!/bin/bash
 cd ~/pagesift
-OUT=bench/results/final/0.70/e1/C5
+OUT=benchmarks/history/0.70/results/e1/C5
 rm -rf "$OUT"; mkdir -p "$OUT"
 cat > "$OUT/e1c.toml" <<'TOML'
 [fetch]

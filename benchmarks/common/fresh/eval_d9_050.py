@@ -467,7 +467,7 @@ def main():
         "tier2_chaos": chaos_results,
         "peak_rss_mb": PEAK_RSS_BYTES / (1024*1024),
     }
-    out_json = Path("/home/wyc610721/pagesift/bench/results/final/benchmark_d9_results.json")
+    out_json = Path("/home/wyc610721/pagesift/benchmarks/history/0.50/results/benchmark_d9_results.json")
     out_json.parent.mkdir(parents=True, exist_ok=True)
     out_json.write_text(json.dumps(summary_data, indent=2))
     print(f"Saved raw metrics to {out_json}")

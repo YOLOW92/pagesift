@@ -222,7 +222,7 @@ def evaluate_preds(cases: list, preds: dict):
 
 
 def main():
-    data_dir = Path("bench/data/fresh/data/chardet-test-data")
+    data_dir = Path("benchmarks/data/fresh/data/chardet-test-data")
     if not data_dir.exists():
         sys.exit(f"Data dir {data_dir} does not exist.")
 

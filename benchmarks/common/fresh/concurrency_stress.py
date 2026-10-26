@@ -19,8 +19,8 @@ import sys
 import time
 from pathlib import Path
 
-MANIFEST = "bench/data/fresh/results/wcxb_all/manifest.jsonl"
-BIN = "bench/compare/rust-tools/target/release/pagesift-compare-rust"
+MANIFEST = "benchmarks/data/fresh/results/wcxb_all/manifest.jsonl"
+BIN = "benchmarks/web-extraction/compare/rust-tools/target/release/pagesift-compare-rust"
 
 
 def run_with_threads(tool: str, threads: int, out_file: str) -> dict:

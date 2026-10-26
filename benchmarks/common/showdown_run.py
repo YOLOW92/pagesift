@@ -43,6 +43,7 @@ def main():
     ap.add_argument("--cpuset", default="0-15")
     ap.add_argument("--cmd", required=True)
     ap.add_argument("--mounts", nargs="*", default=[], help="额外 -v 挂载")
+    ap.add_argument("--tools-dir", default="benchmarks/web-extraction/scripts", help="挂到容器 /tools 的脚本目录（脚本已按领域拆开）")
     ap.add_argument("--result", required=True)
     a = ap.parse_args()
 
@@ -53,9 +54,9 @@ def main():
     cmd = [ "docker","run","--name",cname,"--network=host",
             f"--memory={a.mem}", f"--memory-swap={a.mem}",
             f"--cpuset-cpus={a.cpuset}",
-            "-v", f"{root}/bench/data:/data:ro",
+            "-v", f"{root}/benchmarks/data:/data:ro",
             "-v", f"{root}/{a.host_out}:{a.out}",
-            "-v", f"{root}/bench/scripts:/tools:ro" ]
+            "-v", f"{root}/{a.tools_dir}:/tools:ro" ]
     for m in a.mounts:
         cmd += ["-v", m]
     cmd += [a.image, "sh", "-lc", a.cmd.format(workers=a.workers, input=a.input, out=a.out)]

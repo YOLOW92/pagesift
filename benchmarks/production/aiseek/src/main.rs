@@ -1,4 +1,4 @@
-//! AiSeek 的 `POST /v1/fetch` 契约的测试适配器（`cargo build --release` 在 bench/aiseek 下）：把请求转给进程内的 pagesift Scraper，
+//! AiSeek 的 `POST /v1/fetch` 契约的测试适配器（`cargo build --release` 在 benchmarks/production/aiseek 下）：把请求转给进程内的 pagesift Scraper，
 //! 用来拿 AiSeek 现成的压测工具（`~/crawl-bench/bench.py`）和同一批网址，跟 Crawl4AI 版的
 //! document-worker 做同口径对比（第 4 阶段的可靠性测试）。只给压测用，不是 pagesift 服务端的一部分。
 //!

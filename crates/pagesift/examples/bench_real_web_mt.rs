@@ -43,7 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let url_file = args
         .get(1)
         .map(|s| s.as_str())
-        .unwrap_or("bench/data/top1m.txt");
+        .unwrap_or("benchmarks/data/top1m.txt");
 
     // Parse mode: adaptive (default) vs conservative
     let mode_str = args.get(2).map(|s| s.as_str()).unwrap_or("adaptive");
@@ -65,7 +65,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out_json = args
         .get(5)
         .map(|s| s.as_str())
-        .unwrap_or("bench/results/0.70_p2_step4_5_real_https_100k.json");
+        .unwrap_or("benchmarks/scale/results/0.70_p2_step4_5_real_https_100k.json");
 
     eprintln!("================================================================================");
     eprintln!("[PageSift 0.70] Stage-Isolated Adaptive Engine Initialized");

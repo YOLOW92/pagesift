@@ -4,8 +4,8 @@
 Evaluates extractors against WebMainBench datasets (including text, table, formula metrics).
 
 Usage:
-    python3 bench/fresh/webmain.py prepare <input-jsonl> <out-dir>
-    python3 bench/fresh/webmain.py score <gold-jsonl> <tool.jsonl>...
+    python3 benchmarks/common/fresh/webmain.py prepare <input-jsonl> <out-dir>
+    python3 benchmarks/common/fresh/webmain.py score <gold-jsonl> <tool.jsonl>...
 """
 
 from __future__ import annotations

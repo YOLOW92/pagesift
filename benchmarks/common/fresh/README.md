@@ -15,4 +15,4 @@ This directory contains standalone, reproducible Python evaluation scripts used 
 | [`eval_d9_050.py`](eval_d9_050.py) | **D9. Dynamic Headless (CDP)**| `Playwright`, `Lightpanda` | Measures warm-pool headless Chrome rendering latency and canvas/SVG rendering fidelity. |
 | [`eval_d10_050.py`](eval_d10_050.py) | **D10. AI API Gateways** | `Portkey`, `LiteLLM` | Measures gateway request throughput (req/s), P99 latency, and backpressure behavior under 429 floods. |
 
-All results and summary reports are automatically exported to [`bench/results/final/`](../results/final/).
+All results and summary reports are automatically exported to [`benchmarks/history/0.50/results/`](../../history/0.50/results/).

@@ -2,7 +2,7 @@
 # 把清单切成小份放进队列，按内存动态决定同时跑几个进程：
 # 每启动一个新进程前，确认可用内存大于"保留量 + 当前进程的最大实际占用"。
 # 报告总墙钟时间、各进程峰值内存之和和最多同时运行的进程数。
-#   bench/compare/parallel.sh <最多进程数> <manifest> <out.jsonl> -- <adapter 命令；最后补上 shard 清单和 shard 输出>
+#   benchmarks/web-extraction/compare/parallel.sh <最多进程数> <manifest> <out.jsonl> -- <adapter 命令；最后补上 shard 清单和 shard 输出>
 # 环境变量：PAR_RESERVE_MB（默认 3072），PAR_GUESS_MB（第一个进程跑起来前的占用估计，默认 500）
 set -euo pipefail
 max=$1; manifest=$2; out=$3; shift 4

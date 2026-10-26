@@ -3,9 +3,9 @@
 # 明确：unique samples = 13661 不变；这里 136,610 是 page-tasks（10 轮重复），
 # 重复只用于测吞吐与扩展性，不当作新增唯一样本。
 cd ~/pagesift
-OUT=bench/results/final/0.70/e1/A
-BIN=bench/p4_2_webmainbench/target/release/pagesift-p4-2-webmainbench
-SRC=bench/results/final/0.70/e1/corpus/manifest.jsonl
+OUT=benchmarks/history/0.70/results/e1/A
+BIN=benchmarks/web-extraction/webmainbench/target/release/pagesift-p4-2-webmainbench
+SRC=benchmarks/history/0.70/results/e1/corpus/manifest.jsonl
 REP=$OUT/manifest_x10.jsonl
 if [ ! -f "$REP" ]; then
   for i in $(seq 1 10); do

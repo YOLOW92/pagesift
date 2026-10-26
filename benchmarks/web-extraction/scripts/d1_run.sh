@@ -7,10 +7,10 @@ OUT=$PWD/out/d1; mkdir -p "$OUT"
 MAN=/data/showdown/d1/manifest.jsonl
 NPROC=16; MEM=10g
 UIDGID="$(id -u):$(id -g)"
-RUST70=$PWD/bench/compare/rust-tools/target/release/pagesift-compare-rust
-RUST50=$PWD/.worktree/050/bench/compare/rust-tools/target/release/pagesift-compare-rust
-GOBIN=$PWD/bench/thirdparty/bin
-MNT="-v $PWD/bench/data:/data:ro -v $PWD/bench/compare:/cmp:ro -v $PWD/bench/scripts:/tools:ro -v $PWD/out:/out"
+RUST70=$PWD/benchmarks/web-extraction/compare/rust-tools/target/release/pagesift-compare-rust
+RUST50=$PWD/.worktree/050/benchmarks/web-extraction/compare/rust-tools/target/release/pagesift-compare-rust
+GOBIN=$PWD/benchmarks/thirdparty/bin
+MNT="-v $PWD/benchmarks/data:/data:ro -v $PWD/benchmarks/web-extraction/compare:/cmp:ro -v $PWD/benchmarks/web-extraction/scripts:/tools:ro -v $PWD/out:/out"
 
 peak_poll () { # cname outfile
   : > "$2"

@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 
 BENCH_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = BENCH_DIR.parents[1]
+PROJECT_ROOT = BENCH_DIR.parents[2]
 SAMPLES_DIR = BENCH_DIR / "samples"
 REPORT_MD = PROJECT_ROOT / "docs" / "benchmarks" / "0.50_epyc80_100m_baseline.md"
 

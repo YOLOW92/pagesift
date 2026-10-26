@@ -1,7 +1,7 @@
 #!/bin/bash
 # E1-C 重跑：单请求超时 8 s，整轮 480 s 硬时限；未完成如实记为未完成。
 cd ~/pagesift
-OUT=bench/results/final/0.70/e1/C2
+OUT=benchmarks/history/0.70/results/e1/C2
 rm -rf "$OUT"; mkdir -p "$OUT"
 cat > "$OUT/e1c.toml" <<'TOML'
 [fetch]

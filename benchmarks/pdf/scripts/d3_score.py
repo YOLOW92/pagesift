@@ -8,10 +8,10 @@ import json, os, re, statistics, sys
 from pathlib import Path
 
 ROOT = Path("/home/yolow92/pagesift")
-sys.path.insert(0, str(ROOT / "bench/upstream/olmocr"))
+sys.path.insert(0, str(ROOT / "benchmarks/pdf/vendor/olmocr"))
 from olmocr.bench.tests import load_tests  # noqa: E402
 
-BENCH = ROOT / "bench/data/olmocr_1403/bench_data"
+BENCH = ROOT / "benchmarks/data/olmocr_1403/bench_data"
 
 def index_md(d: Path):
     """{(pdf_base, page): markdown}，文件内容预读。"""
@@ -26,7 +26,7 @@ def index_md(d: Path):
 def index_tool(p: Path):
     """竞品输出：{pdf 相对路径: markdown}。"""
     rel = {}
-    for line in (ROOT / "bench/data/showdown/d3/pdfs.jsonl").open(encoding="utf-8"):
+    for line in (ROOT / "benchmarks/data/showdown/d3/pdfs.jsonl").open(encoding="utf-8"):
         r = json.loads(line)
         rel[r["id"]] = r["rel"]
     out = {}

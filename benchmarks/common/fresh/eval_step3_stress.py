@@ -251,7 +251,7 @@ def test_deep_nesting_and_giant_page(bin_path: Path):
 
 def test_massive_concurrency(manifest_path: Path):
     print("\n--- Part 3: Massive Concurrency & Memory Saturation Test ---")
-    compare_bin = Path("bench/compare/rust-tools/target/release/pagesift-compare-rust")
+    compare_bin = Path("benchmarks/web-extraction/compare/rust-tools/target/release/pagesift-compare-rust")
     if not compare_bin.exists():
         print(f"Compare bin {compare_bin} not found, skipping concurrency test")
         return
@@ -321,7 +321,7 @@ def main():
     test_deep_nesting_and_giant_page(bin_path)
     
     # Part 3: Massive Concurrency Throughput
-    manifest_path = Path("bench/data/fresh/results/wcxb_all/manifest.jsonl")
+    manifest_path = Path("benchmarks/data/fresh/results/wcxb_all/manifest.jsonl")
     test_massive_concurrency(manifest_path)
     
     print("\n=== STEP 3 SUPER STRESS TEST COMPLETED SUCCESSFULLY ===")

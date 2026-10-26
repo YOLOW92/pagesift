@@ -1,10 +1,10 @@
-"""单核计时的公平条件：bench/fresh/pinned.sh 设 PAGESIFT_ONE_CORE=1 时，让 Python 工具只用分到的那个核。
+"""单核计时的公平条件：benchmarks/common/fresh/pinned.sh 设 PAGESIFT_ONE_CORE=1 时，让 Python 工具只用分到的那个核。
 
 taskset 只能约束进程起始的亲和性，onnxruntime（pymupdf4llm 的版面模型、MarkItDown 里的 Magika）会给自己的
 工作线程逐个重设亲和性，跑到别的物理核上去。这里在导入时把 onnxruntime 的会话改成 1 个算子内线程、1 个算子间
 线程、不自旋，它就不会再开线程池。BLAS/OpenMP 的线程数由 pinned.sh 用环境变量设成 1。
 
-安装：bench/fresh/one_core.py install <venv 的 python>（把本文件和一个 .pth 钩子放进该 venv 的 site-packages）。
+安装：benchmarks/common/fresh/one_core.py install <venv 的 python>（把本文件和一个 .pth 钩子放进该 venv 的 site-packages）。
 """
 import os
 import sys

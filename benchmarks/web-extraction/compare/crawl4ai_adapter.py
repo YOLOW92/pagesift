@@ -5,8 +5,8 @@ Uses Crawl4AI's documented path for local HTML: the HTTP crawler strategy (no br
 `raw:` URLs, cache bypassed and base_url set for link resolution. Writes two outputs:
 `raw_markdown` (whole page) and `fit_markdown` (after the pruning content filter).
 
-    bench/data/venvs/crawl4ai/bin/python -I bench/compare/crawl4ai_adapter.py \
-        bench/data/inputs/manifest.jsonl bench/data/compare/
+    benchmarks/data/venvs/crawl4ai/bin/python -I benchmarks/web-extraction/compare/crawl4ai_adapter.py \
+        benchmarks/data/inputs/manifest.jsonl benchmarks/data/compare/
 """
 
 import asyncio

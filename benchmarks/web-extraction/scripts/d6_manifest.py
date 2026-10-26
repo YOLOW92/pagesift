@@ -3,8 +3,8 @@
 import json, collections
 from pathlib import Path
 
-ROOT = Path("/home/yolow92/pagesift/bench/data/fresh/data/chardet-test-data")
-OUT = Path("/home/yolow92/pagesift/bench/data/showdown/d6")
+ROOT = Path("/home/yolow92/pagesift/benchmarks/data/fresh/data/chardet-test-data")
+OUT = Path("/home/yolow92/pagesift/benchmarks/data/showdown/d6")
 OUT.mkdir(parents=True, exist_ok=True)
 
 rows = []

@@ -1,4 +1,4 @@
-"""按页面编号把补跑的结果换进完整结果：python3 -I bench/fresh/splice.py <完整.jsonl> <补跑.jsonl>
+"""按页面编号把补跑的结果换进完整结果：python3 -I benchmarks/common/fresh/splice.py <完整.jsonl> <补跑.jsonl>
 用在个别输入页修正之后：只重跑这几页，替换完整结果里同编号的行，其余行不动。"""
 import json
 import sys

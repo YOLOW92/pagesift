@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 分批跑 JS 抽取工具：每 N 页（默认 50）开一个新的 node 进程，最后把输出接起来。
 # JSDOM 处理大量大页面时内存一路涨，分批后每批结束内存就释放；若单页触发 V8 OOM 或超时，记录该页为空并继续剩余页面。
-#   bench/compare/js_sharded.sh <工具> <node_modules 所在目录> <manifest.jsonl> <out.jsonl> [每批页数]
+#   benchmarks/web-extraction/compare/js_sharded.sh <工具> <node_modules 所在目录> <manifest.jsonl> <out.jsonl> [每批页数]
 set -uo pipefail
 tool=$1 node_dir=$2 manifest=$3 out=$4 n=${5:-50}
 tmp=$(mktemp -d)

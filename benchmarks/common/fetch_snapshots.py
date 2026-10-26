@@ -5,7 +5,7 @@ Snapshots make `pagesift bench` reproducible and offline. Fetching is polite:
 robots.txt is honoured, one request at a time per host, and the User-Agent
 identifies the benchmark. Only the Python standard library is used.
 
-    python3 bench/fetch_snapshots.py dataset/1-0-0.csv snapshots/
+    python3 benchmarks/common/fetch_snapshots.py dataset/1-0-0.csv snapshots/
 """
 
 import csv

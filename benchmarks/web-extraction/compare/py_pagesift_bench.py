@@ -3,7 +3,7 @@
 then throughput with a plain ThreadPoolExecutor (convert releases the GIL).
 Also writes JSON lines for `pagesift bench --external` to confirm output matches the Rust core.
 
-    python -I bench/compare/py_pagesift_bench.py bench/data/inputs/manifest.jsonl out.jsonl [threads]
+    python -I benchmarks/web-extraction/compare/py_pagesift_bench.py benchmarks/data/inputs/manifest.jsonl out.jsonl [threads]
 """
 
 import json

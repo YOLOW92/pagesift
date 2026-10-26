@@ -3,7 +3,7 @@
 Data: Chroma's [chunking_evaluation](https://github.com/brandonstarxel/chunking_evaluation) (MIT): five
 corpora (financial filings, PubMed papers, Wikipedia text, a State of the Union address, chat logs;
 1.4 MB) and 472 questions, each labelled with the exact character spans of its answer. Download the
-`questions_df.csv` and `corpora/*.md` files into `bench/data/fresh/data/chunkeval`.
+`questions_df.csv` and `corpora/*.md` files into `benchmarks/data/fresh/data/chunkeval`.
 
 Questions are split by `sha1(question) % 2` into a tuning half and a hold-out half; design choices
 were made on the tuning half and kept only if the hold-out half agreed.
@@ -29,5 +29,5 @@ what each tool returns with its default settings: recall, words returned (lower 
 precision. Ranked rows compare scoring units at equal word budgets (100, 250, 500 words).
 
 ```bash
-bench/rag/run.sh      # results in bench/rag/out/{chunking,query_filter,timing}.txt
+benchmarks/rag/run.sh      # results in benchmarks/rag/out/{chunking,query_filter,timing}.txt
 ```

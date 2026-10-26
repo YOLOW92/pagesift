@@ -2,7 +2,7 @@
 """PageSift Phase P5: 0.50 vs 0.60 Cross-Generation Full-Scale Benchmark Orchestrator.
 
 Generates the authoritative cross-generation benchmark whitepaper:
-docs/benchmarks/0.60_p5_cross_generation_rebench.md
+docs/history/0.60_p5_cross_generation_rebench.md
 """
 import argparse
 import json
@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 
 BENCH_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = BENCH_DIR.parents[1]
+PROJECT_ROOT = BENCH_DIR.parents[3]
 REPORT_MD = PROJECT_ROOT / "docs" / "benchmarks" / "0.60_p5_cross_generation_rebench.md"
 
 

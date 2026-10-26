@@ -1,4 +1,4 @@
-//! 整站爬取压测：同时爬 bench/crawl 源站上的全部站点，每站从首页广度优先爬到上限。
+//! 整站爬取压测：同时爬 benchmarks/crawl 源站上的全部站点，每站从首页广度优先爬到上限。
 //! 按真实 Scraper 的礼貌规则走（robots、每主机间隔、每主机并发），只把间隔和并发做成参数。
 //! `cargo run --release -p pagesift --example crawl_bench -- <port> <hosts> <pages> <interval-ms> [per-host]`
 

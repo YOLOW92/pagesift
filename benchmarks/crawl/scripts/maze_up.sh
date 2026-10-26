@@ -1,5 +1,5 @@
 #!/bin/bash
-cd ~/pagesift/bench/upstream/security-crawl-maze
+cd ~/pagesift/benchmarks/common/vendor/security-crawl-maze
 [ -d venv ] || python3 -m venv --without-pip venv
 if [ ! -x venv/bin/flask ]; then
   venv/bin/python /tmp/get-pip.py >/dev/null 2>&1

@@ -7,8 +7,8 @@ WCXB 原始 HTML 是 .html.gz；这里解到 showdown/d1/html/ 下，manifest �
 import gzip, json, collections
 from pathlib import Path
 
-ROOT = Path("/home/yolow92/pagesift/bench/data/fresh/data/wcxb")
-OUT = Path("/home/yolow92/pagesift/bench/data/showdown/d1")
+ROOT = Path("/home/yolow92/pagesift/benchmarks/data/fresh/data/wcxb")
+OUT = Path("/home/yolow92/pagesift/benchmarks/data/showdown/d1")
 HTML = OUT / "html"
 HTML.mkdir(parents=True, exist_ok=True)
 

@@ -49,8 +49,8 @@ try:
 except ImportError:
     HAS_BS4 = False
 
-DATA_DIR = Path("bench/data/d4")
-RESULTS_DIR = Path("bench/results/final")
+DATA_DIR = Path("benchmarks/data/d4")
+RESULTS_DIR = Path("benchmarks/history/0.50/results")
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 TIER1_FILE = DATA_DIR / "tier1_mutations_2000.jsonl"

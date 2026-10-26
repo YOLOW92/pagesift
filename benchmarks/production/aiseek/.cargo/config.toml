@@ -1,3 +1,3 @@
 # 和主 workspace 共用编译产物，省磁盘和时间
 [build]
-target-dir = "../../target/aiseek-bench"
+target-dir = "../../../target/aiseek-bench"

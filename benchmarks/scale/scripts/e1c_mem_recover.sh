@@ -1,8 +1,8 @@
 #!/bin/bash
 # E1-C 补充：内存约束下的回落 + 进程中断后的恢复与去重复核
 cd ~/pagesift
-OUT=bench/results/final/0.70/e1/C2
-CFG=bench/scripts/e1.toml
+OUT=benchmarks/history/0.70/results/e1/C2
+CFG=benchmarks/scale/scripts/e1.toml
 
 echo "===== 内存约束：256 MiB 地址空间上限 ====="
 rm -rf "$OUT/mem256"; ( ulimit -v 262144
@@ -39,7 +39,7 @@ def load(d):
         if f.exists():
             hashes.add(hashlib.sha256(f.read_bytes()).hexdigest())
     return urls, hashes
-root = Path("/home/yolow92/pagesift/bench/results/final/0.70/e1/C2")
+root = Path("/home/yolow92/pagesift/benchmarks/history/0.70/results/e1/C2")
 u1, h1 = load(root / "rec1")
 u2, h2 = load(root / "rec2")
 full, hf = load(root / "h1")

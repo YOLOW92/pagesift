@@ -28,11 +28,11 @@ from typing import Dict, List, Tuple
 
 import psutil
 
-DATA_DIR = Path("bench/data/d5")
+DATA_DIR = Path("benchmarks/data/d5")
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 CORPUS_50MB = DATA_DIR / "tier2_corpus_50mb.md"
 QUERIES_FILE = DATA_DIR / "tier2_queries_10k.jsonl"
-OUT_DIR = Path("bench/results/final")
+OUT_DIR = Path("benchmarks/history/0.50/results")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 MEMORY_LIMIT_GB = 120.0
@@ -201,7 +201,7 @@ def run_50mb_chunking_stress(py_bin: str, c4a_bin: str) -> dict:
     # 3. Chonkie Recursive
     print("\n[3/7] Testing chonkie-recursive (Python + Rust core)...")
     watchdog = MemoryWatchdog(limit_gb=MEMORY_LIMIT_GB)
-    py_cmd = [py_bin, "-I", "bench/rag/chunkers.py", "/tmp/chonkie_out", "200", "chonkie-recursive", "--", str(CORPUS_50MB)]
+    py_cmd = [py_bin, "-I", "benchmarks/rag/chunkers.py", "/tmp/chonkie_out", "200", "chonkie-recursive", "--", str(CORPUS_50MB)]
     t0 = time.perf_counter()
     proc = subprocess.Popen(py_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     watchdog.start([proc.pid, os.getpid()])
@@ -219,7 +219,7 @@ def run_50mb_chunking_stress(py_bin: str, c4a_bin: str) -> dict:
     # 4. Semchunk
     print("\n[4/7] Testing semchunk (Python)...")
     watchdog = MemoryWatchdog(limit_gb=MEMORY_LIMIT_GB)
-    py_cmd = [py_bin, "-I", "bench/rag/chunkers.py", "/tmp/semchunk_out", "200", "semchunk", "--", str(CORPUS_50MB)]
+    py_cmd = [py_bin, "-I", "benchmarks/rag/chunkers.py", "/tmp/semchunk_out", "200", "semchunk", "--", str(CORPUS_50MB)]
     t0 = time.perf_counter()
     proc = subprocess.Popen(py_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     watchdog.start([proc.pid, os.getpid()])
@@ -237,7 +237,7 @@ def run_50mb_chunking_stress(py_bin: str, c4a_bin: str) -> dict:
     # 5. LangChain Recursive
     print("\n[5/7] Testing langchain-recursive (Python)...")
     watchdog = MemoryWatchdog(limit_gb=MEMORY_LIMIT_GB)
-    py_cmd = [py_bin, "-I", "bench/rag/chunkers.py", "/tmp/langchain_out", "200", "langchain-recursive", "--", str(CORPUS_50MB)]
+    py_cmd = [py_bin, "-I", "benchmarks/rag/chunkers.py", "/tmp/langchain_out", "200", "langchain-recursive", "--", str(CORPUS_50MB)]
     t0 = time.perf_counter()
     proc = subprocess.Popen(py_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     watchdog.start([proc.pid, os.getpid()])
@@ -255,7 +255,7 @@ def run_50mb_chunking_stress(py_bin: str, c4a_bin: str) -> dict:
     # 6. Crawl4AI Sliding
     print("\n[6/7] Testing crawl4ai-sliding (Python)...")
     watchdog = MemoryWatchdog(limit_gb=MEMORY_LIMIT_GB)
-    py_cmd = [c4a_bin, "-I", "bench/rag/chunkers.py", "/tmp/crawl4ai_out", "200", "crawl4ai-sliding", "--", str(CORPUS_50MB)]
+    py_cmd = [c4a_bin, "-I", "benchmarks/rag/chunkers.py", "/tmp/crawl4ai_out", "200", "crawl4ai-sliding", "--", str(CORPUS_50MB)]
     t0 = time.perf_counter()
     proc = subprocess.Popen(py_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     watchdog.start([proc.pid, os.getpid()])

@@ -4,7 +4,7 @@
 
 ## How it was tested
 
-<!-- Tests added or run. For hot-path changes, before/after numbers (perf_gate, crawl_gate or bench/). -->
+<!-- Tests added or run. For hot-path changes, before/after numbers (perf_gate, crawl_gate or benchmarks/). -->
 
 ## Checklist
 

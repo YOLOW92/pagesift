@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # 模糊测试（stable 工具链，pagesift-fuzz）：每个目标按时间预算跑，每个进程限内存。
 #   scripts/fuzz.sh [每个目标的秒数，默认 1200] [目标…，默认 html markdown charset pdf]
-# 环境变量：FUZZ_OUT（输出目录，默认 bench/fuzz-out）、FUZZ_MEM（每进程内存上限，默认 2G）、
+# 环境变量：FUZZ_OUT（输出目录，默认 benchmarks/fuzz-out）、FUZZ_MEM（每进程内存上限，默认 2G）、
 #   FUZZ_PROCS（每个目标的进程数，默认按可用内存算，见 scripts/jobs.sh）、
 #   FUZZ_SEED（种子基数，默认 7919；换一个数就是另一组输入序列）。
-# 种子语料取自 bench/data（不在仓库里，见 tasks/0.80/b1-b3/RESULT.md）。
+# 种子语料取自 benchmarks/data（不在仓库里，见 tasks/0.80/b1-b3/RESULT.md）。
 # 结果：$FUZZ_OUT/summary.jsonl 每个进程一行；崩溃、超时的输入存成 crash-*.bin / timeout-*.bin；
 # 进程被杀（栈溢出、超内存）时按 progress 文件重放出输入，存成 killed-*.bin。
 set -u
@@ -15,7 +15,7 @@ targets=("$@")
 [ ${#targets[@]} -eq 0 ] && targets=(html markdown charset pdf)
 out=${FUZZ_OUT:-bench/fuzz-out}
 mem=${FUZZ_MEM:-2G}
-data=bench/data
+data=benchmarks/data
 export CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-/home/yolow92/pagesift/target}
 cargo build --release -p pagesift-fuzz || exit 1
 bin=$CARGO_TARGET_DIR/release/pagesift-fuzz

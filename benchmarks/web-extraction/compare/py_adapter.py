@@ -15,8 +15,8 @@ Writes JSON lines for `pagesift bench --external`. Each tool is called the way i
     inscriptis      inscriptis.get_text(html)                 (whole-page text)
     resiliparse     resiliparse.extract.html2text.extract_plain_text(html, main_content=True)
 
-    bench/data/venvs/pytools/bin/python -I bench/compare/py_adapter.py <trafilatura|markitdown> \
-        bench/data/inputs/manifest.jsonl out.jsonl
+    benchmarks/data/venvs/pytools/bin/python -I benchmarks/web-extraction/compare/py_adapter.py <trafilatura|markitdown> \
+        benchmarks/data/inputs/manifest.jsonl out.jsonl
 """
 
 import json

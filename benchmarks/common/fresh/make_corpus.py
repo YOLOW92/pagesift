@@ -10,7 +10,7 @@ access barriers are dropped. Output:
     <out>/manifest.jsonl       {id, url, final_url, site_rank, kind: home|page, bytes}
     <out>/sample.json          the seed, ranks and the sampled sites (for reproducibility)
 
-    python3 -I bench/fresh/make_corpus.py <tranco.zip> <out> [--sites 1500] [--seed N] [--lo 1000] [--hi 200000] [--per-site 2]
+    python3 -I benchmarks/common/fresh/make_corpus.py <tranco.zip> <out> [--sites 1500] [--seed N] [--lo 1000] [--hi 200000] [--per-site 2]
 
 Only the Python standard library is used.
 """

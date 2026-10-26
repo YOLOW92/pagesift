@@ -3,7 +3,7 @@
 每篇论文写成一个 Markdown 文档（标题、摘要、各章节和段落），每个问题取第一位给出证据的标注者，
 证据段落换算成在文档里的字符区间。无法回答的问题、证据只有图表（FLOAT SELECTED）的问题跳过。
 
-    python3 -I bench/rag/qasper.py <qasper-test-v0.3.json> <输出目录>
+    python3 -I benchmarks/rag/qasper.py <qasper-test-v0.3.json> <输出目录>
 输出：<输出目录>/corpora/<论文 id>.md、<输出目录>/questions_df.csv（question, references, corpus_id）
 """
 import csv

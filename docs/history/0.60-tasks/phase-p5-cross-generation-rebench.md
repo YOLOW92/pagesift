@@ -14,7 +14,7 @@
   - [x] 在 2C~80C 核心曲面上验证阿姆达尔定律瓶颈消除（80C 达 450,110 p/s），并确立面向 300C/384C 的自适应模型 $S(N)=\lceil N/8\rceil, C^*(N)=N \times 25$。
   - [x] 在真实全球公网上，0.60 凭借 Zero-Disk 流式管道以 42,124 p/s 斩获 **100,000,000 真实公网网页**，峰值 RSS 死守 11.59 GB，磁盘增量 < 100 MB，弥补 0.50 时代未完成的真实亿级遗憾。
 - [x] **Step 5.2: 量化全维度跃迁指标与白皮书生成**
-  - [x] 产出公开正式的《PageSift 0.50 vs 0.60 跨代代际跃迁官方白皮书》（`docs/benchmarks/0.60_p5_cross_generation_rebench.md`）。
+  - [x] 产出公开正式的《PageSift 0.50 vs 0.60 跨代代际跃迁官方白皮书》（`docs/history/0.60_p5_cross_generation_rebench.md`）。
   - [x] 完成十大人力/算力/质量/稳定性全维度量化对比。
 - [x] **Step 5.3: 0.60.0 官方发版**
   - [x] 撰写 0.60.0 正式发版文档与测试结论（`docs/releases/0.60.0.md`），更新 `CHANGELOG.md` 与 `README.md`，全工作区 crates 打包发布。

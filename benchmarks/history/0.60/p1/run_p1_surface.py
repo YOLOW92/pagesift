@@ -19,8 +19,8 @@ import time
 from pathlib import Path
 
 BENCH_P1_DIR = Path(__file__).resolve().parent
-BENCH_P0_DIR = BENCH_P1_DIR.parent / "p0"
-PROJECT_ROOT = BENCH_P1_DIR.parents[1]
+BENCH_P0_DIR = BENCH_P1_DIR.parents[3] / "benchmarks/scale/p0"
+PROJECT_ROOT = BENCH_P1_DIR.parents[3]
 RESULTS_DIR = PROJECT_ROOT / "bench" / "results"
 DOCS_DIR = PROJECT_ROOT / "docs" / "benchmarks"
 
@@ -311,7 +311,7 @@ def generate_p1_report(records):
 
 > **实验目标**: 超越单点测试，主动改变可用硬件资源，绘制 PageSift 真实物理性能曲面，找出不同算力条件下的最优工作点。  
 > **评测硬件**: Google Cloud `n4d-highcpu-80` (80 vCPUs AMD EPYC 9B45, 157 GiB RAM, 96 GB NVMe)  
-> **数据文件**: [`bench/results/p1_surface_matrix.csv`](../../bench/results/p1_surface_matrix.csv)  
+> **数据文件**: [`benchmarks/history/0.60/results/p1_surface_matrix.csv`](../../benchmarks/history/0.60/results/p1_surface_matrix.csv)  
 > **记录日期**: {time.strftime('%Y-%m-%d UTC', time.gmtime())}
 
 ---

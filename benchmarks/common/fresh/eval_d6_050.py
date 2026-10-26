@@ -417,7 +417,7 @@ def main():
     watchdog = threading.Thread(target=memory_watchdog_thread, daemon=True)
     watchdog.start()
 
-    data_dir = Path("bench/data/fresh/data/chardet-test-data")
+    data_dir = Path("benchmarks/data/fresh/data/chardet-test-data")
     ps_bin = "/home/wyc610721/pagesift/target/release/examples/detect_encoding_mt"
     
     if not data_dir.exists():
@@ -743,7 +743,7 @@ def main():
         "tier2_chaos": chaos_results,
         "peak_rss_mb": PEAK_RSS_BYTES / (1024*1024),
     }
-    out_json = Path("bench/results/final/benchmark_d6_results.json")
+    out_json = Path("benchmarks/history/0.50/results/benchmark_d6_results.json")
     out_json.parent.mkdir(parents=True, exist_ok=True)
     out_json.write_text(json.dumps(summary_data, indent=2))
     print(f"Saved raw metrics to {out_json}")

@@ -5,8 +5,8 @@ Evaluates extractors across all 2,008 pages in 7 categories (article, forum, pro
 collection, listing, documentation, service).
 
 Usage:
-    python3 bench/fresh/wcxb.py prepare <wcxb-repo> <out-dir> [dev|test|all]
-    python3 bench/fresh/wcxb.py score <wcxb-repo> <out-dir> [dev|test|all] <tool.jsonl>...
+    python3 benchmarks/common/fresh/wcxb.py prepare <wcxb-repo> <out-dir> [dev|test|all]
+    python3 benchmarks/common/fresh/wcxb.py score <wcxb-repo> <out-dir> [dev|test|all] <tool.jsonl>...
 """
 
 from __future__ import annotations

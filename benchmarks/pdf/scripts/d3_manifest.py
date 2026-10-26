@@ -3,8 +3,8 @@
 import json, collections
 from pathlib import Path
 
-SRC = Path("/home/yolow92/pagesift/bench/data/olmocr_1403/bench_data")
-OUT = Path("/home/yolow92/pagesift/bench/data/showdown/d3")
+SRC = Path("/home/yolow92/pagesift/benchmarks/data/olmocr_1403/bench_data")
+OUT = Path("/home/yolow92/pagesift/benchmarks/data/showdown/d3")
 OUT.mkdir(parents=True, exist_ok=True)
 
 # PDF 清单（相对路径，容器内前缀 /data/olmocr_1403/bench_data/pdfs/）

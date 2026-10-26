@@ -127,10 +127,10 @@ Full detail: [**0.71.0 release notes**](docs/releases/0.71.0.md).
 **The engine underneath the numbers was replaced.** 0.60 proved PageSift could finish 100,000,000 tasks; 0.70 rebuilds the data plane that does it and puts the whole system under one closed-loop controller.
 
 - ⚙️ **Hand-written NUMA-local HTTP data plane** — fixed-slot NUMA executors, a minimal HTTP/1.1 reactor, hybrid reactor↔content scheduling, per-origin adaptive connections and sharded intake with bounded work stealing. The general-purpose async client is gone from the hot path.
-- 📈 **Scaling measured 1 → 192 vCPU on a synthetic local origin, fitted with the Universal Scalability Law** — γ = 8,631.8 pages/s/core, σ = 1.34 %, κ fitted to ≈ 0, R² = 0.839. The fit is a rough description only: its own report ([`0.70_p1_cpu_scaling_usl.md`](docs/benchmarks/0.70_p1_cpu_scaling_usl.md)) says it must not be extrapolated.
+- 📈 **Scaling measured 1 → 192 vCPU on a synthetic local origin, fitted with the Universal Scalability Law** — γ = 8,631.8 pages/s/core, σ = 1.34 %, κ fitted to ≈ 0, R² = 0.839. The fit is a rough description only: its own report ([`0.70_p1_cpu_scaling_usl.md`](docs/history/0.70_p1_cpu_scaling_usl.md)) says it must not be extrapolated.
 - 🧠 **Memory is now an input.** The engine reads cgroup v2 `memory.max` and sizes itself to it: at **768 MiB** it settles on 380 connections and still sustains **817,346 pages/s** with zero OOM.
-- 🏁 **200M saturation on 192 vCPU (synthetic local origin, no network — not a real-internet speed)** — `200,000,000 / 200,000,000`, **0 failures**, **947,611 pages/s**, 211.1 s wall, **888.1 MiB peak RSS**. Source: [`0.70_200m_regression.md`](docs/benchmarks/0.70_200m_regression.md).
-- 📊 **Seven public benchmarks, published including the losses** — WebMainBench **0.6414** ROUGE-5 (level with Trafilatura 0.6402 and above Resiliparse 0.6290, but below Readability 0.6543 and magic-html 0.7138), WCEB **0.8613**, WCXB **0.8472** (official scorer, 1,869 pages), robots.txt spec **0.9621**, olmOCR-bench **0.4172**, Common Crawl **5,165 p/s**, Crawl Maze **0.0500**. Details and caveats: [baselines 1–4](docs/benchmarks/0.70_p4_step4_2_baselines_1_4.md), [baselines 5–7](docs/benchmarks/0.70_p4_step4_2_baselines_5_7.md).
+- 🏁 **200M saturation on 192 vCPU (synthetic local origin, no network — not a real-internet speed)** — `200,000,000 / 200,000,000`, **0 failures**, **947,611 pages/s**, 211.1 s wall, **888.1 MiB peak RSS**. Source: [`0.70_200m_regression.md`](docs/history/0.70_200m_regression.md).
+- 📊 **Seven public benchmarks, published including the losses** — WebMainBench **0.6414** ROUGE-5 (level with Trafilatura 0.6402 and above Resiliparse 0.6290, but below Readability 0.6543 and magic-html 0.7138), WCEB **0.8613**, WCXB **0.8472** (official scorer, 1,869 pages), robots.txt spec **0.9621**, olmOCR-bench **0.4172**, Common Crawl **5,165 p/s**, Crawl Maze **0.0500**. Details and caveats: [baselines 1–4](docs/history/0.70_p4_step4_2_baselines_1_4.md), [baselines 5–7](docs/history/0.70_p4_step4_2_baselines_5_7.md).
 - 🔧 **Four production-grade defects fixed**, all found by the stress suite: header-wait ignoring `timeout_secs`, 429 penalties that never recovered, one broken URL freezing a whole host, and a runtime panic under tight `ulimit -v`.
 - ⚖️ **Faster and cheaper per page than 0.61, on the synthetic origin**: **2.22×** absolute throughput (947,611 p/s on 192 vCPU), **+24.4 % per core**, and **−19.6 % CPU per page** — while also lifting WebMainBench ROUGE-5 by **+0.055** (the narrower main-content selection behind that gain lowered WCXB F1 from 0.6824 to 0.6652, see D1 below). Per-core output on a 16-core box sits within 4.8 % of the 192-core run.
 
@@ -144,7 +144,7 @@ Every number below is a **full-set run on the same machine**, with the suite's o
 **10 GiB memory cap**. Competitors run in the same containers. Where we lose, the loss is printed.
 
 Measured on **Intel i7-10700 (8C/16T), 15 GB RAM, Ubuntu 26.04**. Reproduce with
-[`bench/scripts/`](bench/scripts/) — every report links to the exact binaries, dataset checksums and
+[`benchmarks/`](benchmarks/) — every report links to the exact binaries, dataset checksums and
 scorer commits.
 
 | # | Domain | PageSift 0.70 | Best competitor | Rank | Peak RAM |
@@ -167,8 +167,8 @@ scorer commits.
 
 Speed where it matters: **1,403 PDFs in 0.83 s** (PageSift on 16 threads vs Python tools run as 16 shards: 31× faster than pypdf, ~290× faster than pymupdf4llm), **3,128 encoding detections at 11,239 files/s**, **21 MiB peak** for structured data.
 
-> **Where the numbers come from**: full reports under [`docs/benchmarks/0.70_showdown_D*.md`](docs/benchmarks/)
-> and harnesses under [`bench/scripts/`](bench/scripts/). Raw per-run outputs (`out/`) are not stored in the repository,
+> **Where the numbers come from**: full reports under [`docs/history/0.70_showdown_D*.md`](docs/history/)
+> and harnesses under [`benchmarks/`](benchmarks/). Raw per-run outputs (`out/`) are not stored in the repository,
 > so a re-run needs the public datasets and the scripts.
 
 ---
@@ -176,8 +176,8 @@ Speed where it matters: **1,403 PDFs in 0.83 s** (PageSift on 16 threads vs Pyth
 ## ⚔️ Historical run (0.60, October 2026): 100,000,000 requests against the live internet
 
 > **Read this as a stress test, not a "100 million pages" result.** Historical data, **not re-run for
-> the current version**. Source: [`docs/benchmarks/0.60_p4_wild_x_2_showdown.md`](docs/benchmarks/0.60_p4_wild_x_2_showdown.md);
-> runner: [`bench/p4/run_wild_x2.py`](bench/p4/run_wild_x2.py) and `bench/p4/src/wild_x2_runner.rs`. The raw
+> the current version**. Source: [`docs/history/0.60_p4_wild_x_2_showdown.md`](docs/history/0.60_p4_wild_x_2_showdown.md);
+> runner: [`benchmarks/history/0.60/p4/run_wild_x2.py`](benchmarks/history/0.60/p4/run_wild_x2.py) and `benchmarks/history/0.60/p4/src/wild_x2_runner.rs`. The raw
 > run log is not in the repository.
 
 **Setup**: Google Cloud `n4d-highcpu-80` (80 vCPU AMD EPYC 9B45, 157 GiB RAM), Tranco top-1M domains combined with a fixed list of
@@ -196,7 +196,7 @@ So the request rate says how fast pagesift fails and moves on as much as how fas
 requests returned a page. What the run does show is that a 100M-request run stays within memory and disk bounds and does not crash.
 
 > **Synthetic throughput, same hardware (0.60)**: 431,412 pages/s over 100,000,000 *synthetic* pages from a local origin
-> (0.50: 151,483 pages/s). No network is involved. See [`0.60_p5_cross_generation_rebench.md`](docs/benchmarks/0.60_p5_cross_generation_rebench.md).
+> (0.50: 151,483 pages/s). No network is involved. See [`0.60_p5_cross_generation_rebench.md`](docs/history/0.60_p5_cross_generation_rebench.md).
 
 ---
 
@@ -335,11 +335,11 @@ Shared browsers and cache, an audit line per fetch, HTML snapshots of suspicious
 | **RAG Chunking & Filtering (time ↓)** | 12.89 ms chunking / 0.63 ms QueryFilter per question (0.50, Chroma, 472 questions) ⁵ | ❌ No | BM25 filter 838.00 ms per question ⁵ | ❌ No |
 | **Anti-Bot Philosophy** | Ethical, polite, transparent UA | Proxy rotation / bypass | Stealth evasions | Stealth evasions |
 
-¹ [`BENCHMARK_D1_CONTENT_EXTRACTION_050.md`](bench/results/final/BENCHMARK_D1_CONTENT_EXTRACTION_050.md) §2, §4 (0.50, one run).
-² Synthetic origin on the same machine, no network ([`0.70_200m_regression.md`](docs/benchmarks/0.70_200m_regression.md)); not comparable with the other cells.
-³ [`BENCHMARK_100K_PAGESIFT_VS_SPIDER.md`](bench/results/final/BENCHMARK_100K_PAGESIFT_VS_SPIDER.md) (0.50, one run, 100k domains). The percentage is the share of pages for which each tool's own extractor returned ≥ 100 bytes, not a fidelity score.
-⁴ The 0.70 numbers are the newer same-machine runs ([D4](docs/benchmarks/0.70_showdown_D4.md), [D3](docs/benchmarks/0.70_showdown_D3.md)); the 0.50 numbers come from the [D4 report](bench/results/final/BENCHMARK_D4_DOM_SELF_HEALING_050.md) §2 and the [D3 report](bench/results/final/BENCHMARK_D3_HEAVY_PDF_EXTRACTION_050.md) §2, on different datasets and with different conclusions.
-⁵ [`BENCHMARK_D5_RAG_CHUNKING_050.md`](bench/results/final/BENCHMARK_D5_RAG_CHUNKING_050.md) §2 (0.50).
+¹ [`BENCHMARK_D1_CONTENT_EXTRACTION_050.md`](benchmarks/history/0.50/results/BENCHMARK_D1_CONTENT_EXTRACTION_050.md) §2, §4 (0.50, one run).
+² Synthetic origin on the same machine, no network ([`0.70_200m_regression.md`](docs/history/0.70_200m_regression.md)); not comparable with the other cells.
+³ [`BENCHMARK_100K_PAGESIFT_VS_SPIDER.md`](benchmarks/history/0.50/results/BENCHMARK_100K_PAGESIFT_VS_SPIDER.md) (0.50, one run, 100k domains). The percentage is the share of pages for which each tool's own extractor returned ≥ 100 bytes, not a fidelity score.
+⁴ The 0.70 numbers are the newer same-machine runs ([D4](docs/history/0.70_showdown_D4.md), [D3](docs/history/0.70_showdown_D3.md)); the 0.50 numbers come from the [D4 report](benchmarks/history/0.50/results/BENCHMARK_D4_DOM_SELF_HEALING_050.md) §2 and the [D3 report](benchmarks/history/0.50/results/BENCHMARK_D3_HEAVY_PDF_EXTRACTION_050.md) §2, on different datasets and with different conclusions.
+⁵ [`BENCHMARK_D5_RAG_CHUNKING_050.md`](benchmarks/history/0.50/results/BENCHMARK_D5_RAG_CHUNKING_050.md) §2 (0.50).
 "Not measured": the repository has no measurement for that cell. The figures previously in those cells ("~150 / ~90 / ~1,200 pages/sec", "> 8 GB / > 10 GB", "~85% / ~88%") were unsourced estimates and have been removed.
 
 ---

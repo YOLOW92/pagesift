@@ -1,8 +1,8 @@
 #!/bin/bash
 cd ~/pagesift
-OUT=bench/results/final/0.70/e1/C
+OUT=benchmarks/history/0.70/results/e1/C
 mkdir -p "$OUT"
-CFG=bench/scripts/e1.toml
+CFG=benchmarks/scale/scripts/e1.toml
 for spec in "8110 h1" "8111 h2" "8113 h4"; do
   set -- $spec; PORT=$1; HOST=$2
   /usr/bin/time -f "WALL=%e RSS=%M" -o "$OUT/time_$HOST.txt" \

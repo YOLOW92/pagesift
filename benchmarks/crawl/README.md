@@ -5,11 +5,11 @@ follows the same links, obeys the same politeness rules, and is measured the sam
 
 ```bash
 # once: build the origin and the Spider adapter, and pagesift's driver
-cargo build --release --manifest-path bench/crawl/Cargo.toml
+cargo build --release --manifest-path benchmarks/crawl/Cargo.toml
 cargo build --release -p pagesift --example crawl_bench
-# crw (AGPL-3.0, evaluation only): cargo install --locked --root bench/data/tools crw-cli
+# crw (AGPL-3.0, evaluation only): cargo install --locked --root benchmarks/data/tools crw-cli
 
-bench/crawl/run_all.sh            # all scenarios; or: run_all.sh polite fast scale
+benchmarks/crawl/run_all.sh            # all scenarios; or: run_all.sh polite fast scale
 ```
 
 ## Sites
@@ -17,7 +17,7 @@ bench/crawl/run_all.sh            # all scenarios; or: run_all.sh polite fast sc
 `origin` serves `s0.localhost` … `s{H-1}.localhost` from one port (`*.localhost`
 resolves to `::1`, so every site is a separate host for per-host politeness). Each site
 has P pages whose bodies are real pages from the extraction corpus
-(`bench/data/crawl-pages`: corpus pages with no access barrier). Every original `href`
+(`benchmarks/data/crawl-pages`: corpus pages with no access barrier). Every original `href`
 is renamed to `data-gone` (the name must not contain "href": some crawlers follow any
 attribute containing it), and each page gets links to pages 3j+1…3j+3 and the start
 page, so a breadth-first crawl from `/` reaches exactly P pages. A fixed per-response
@@ -52,8 +52,8 @@ classifies every request (first fetch of a content page, duplicate, trap, binary
 violation, 429/503) and reports per site at `/__report` (`/__log` lists every request).
 
 ```bash
-cargo build --release --manifest-path bench/crawl/Cargo.toml --bin wild
-bench/crawl/run_wild.sh            # fast and polite; SEED=n for another random web
+cargo build --release --manifest-path benchmarks/crawl/Cargo.toml --bin wild
+benchmarks/crawl/run_wild.sh            # fast and polite; SEED=n for another random web
 ```
 
 Each site has 60 content pages and each tool may fetch 60 pages per site, so every wasted

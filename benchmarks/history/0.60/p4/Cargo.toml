@@ -20,10 +20,10 @@ url = "2.5.8"
 socket2 = { version = "0.5", features = ["all"] }
 reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls-native-roots"] }
 
-pagesift = { path = "../../crates/pagesift" }
-pagesift-net = { path = "../../crates/pagesift-net" }
-pagesift-content = { path = "../../crates/pagesift-content" }
-pagesift-policy = { path = "../../crates/pagesift-policy" }
+pagesift = { path = "../../../../crates/pagesift" }
+pagesift-net = { path = "../../../../crates/pagesift-net" }
+pagesift-content = { path = "../../../../crates/pagesift-content" }
+pagesift-policy = { path = "../../../../crates/pagesift-policy" }
 
 [[bin]]
 name = "wild_x1_chaos_origin"

@@ -13,7 +13,7 @@ import json, re, sys, statistics, os, glob
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "bench/upstream/olmocr"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "benchmarks/pdf/vendor/olmocr"))
 from olmocr.bench.tests import load_tests
 
 def _run_one(job):

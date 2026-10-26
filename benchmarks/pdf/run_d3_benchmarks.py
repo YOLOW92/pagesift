@@ -32,16 +32,16 @@ if hasattr(sys.stderr, "reconfigure"):
 
 BASE_DIR = Path("/home/wyc610721/pagesift")
 ENV_DIR = Path("/home/wyc610721/pagesift-bench-env")
-PDF_SRC = BASE_DIR / "bench/data/fresh/data/olmocr-bench/pdfs"
-OUT_BASE = BASE_DIR / "bench/pdf/out"
-FINAL_DIR = BASE_DIR / "bench/results/final"
+PDF_SRC = BASE_DIR / "benchmarks/data/fresh/data/olmocr-bench/pdfs"
+OUT_BASE = BASE_DIR / "benchmarks/pdf/out"
+FINAL_DIR = BASE_DIR / "benchmarks/history/0.50/results"
 FINAL_DIR.mkdir(parents=True, exist_ok=True)
 
 PYTHON_PY = ENV_DIR / "tools/py/bin/python"
 PYTHON_PY050 = ENV_DIR / "tools/py050/bin/python"
-PY_TOOLS_SCRIPT = BASE_DIR / "bench/pdf/py_tools.py"
+PY_TOOLS_SCRIPT = BASE_DIR / "benchmarks/pdf/py_tools.py"
 PAGESIFT_BIN = BASE_DIR / "target/release/examples/pdf_dir_mt"
-SCORE_SCRIPT = BASE_DIR / "bench/pdf/score.sh"
+SCORE_SCRIPT = BASE_DIR / "benchmarks/pdf/score.sh"
 
 TIER1_JSONL = FINAL_DIR / "benchmark3_tier1_olmocr.jsonl"
 TIER2_JSONL = FINAL_DIR / "benchmark3_tier2_chaos_pdf.jsonl"
@@ -165,7 +165,7 @@ def run_tier1():
     OUT_BASE.mkdir(parents=True, exist_ok=True)
     
     # Symlink jsonl and pdfs into OUT_BASE
-    for f in (BASE_DIR / "bench/data/fresh/data/olmocr-bench").glob("*.jsonl"):
+    for f in (BASE_DIR / "benchmarks/data/fresh/data/olmocr-bench").glob("*.jsonl"):
         dst = OUT_BASE / f.name
         if not dst.exists():
             dst.symlink_to(f)

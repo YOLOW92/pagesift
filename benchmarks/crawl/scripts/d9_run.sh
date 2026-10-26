@@ -12,7 +12,7 @@ for eng in http browser; do
   for p in $PAGES; do
     T0=$(date +%s%N)
     M=$($DC --user $(id -u):$(id -g) -e HOME=/tmp \
-        -v $PWD/target/release/pagesift:/ps:ro -v $PWD/bench/scripts:/tools:ro \
+        -v $PWD/target/release/pagesift:/ps:ro -v $PWD/benchmarks/crawl/scripts:/tools:ro \
         pagesift-bench:browser bash -c "/ps --config /tools/d9.toml scrape http://127.0.0.1:8200/$p --engine $eng 2>&1" \
         | grep -oE "MARKER-[A-Z]+" | head -1)
     T1=$(date +%s%N)

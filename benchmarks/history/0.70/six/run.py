@@ -11,7 +11,7 @@ import subprocess
 import time
 import uuid
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[4]
 
 
 def digest(path):
@@ -72,7 +72,7 @@ def main():
         k, v = value.split('=', 1)
         env[k] = v
     run_id = time.strftime('%Y%m%dT%H%M%SZ', time.gmtime()) + '-' + a.id + '-' + uuid.uuid4().hex[:6]
-    out = ROOT / 'bench/six/results' / run_id
+    out = ROOT / 'benchmarks/history/0.70/six/results' / run_id
     out.mkdir(parents=True)
     rec = {'id': a.id, 'run_id': run_id, 'status': 'preflight', 'command': command,
            'limits': {'memory_mb': a.memory_mb, 'cpu_quota_percent': a.cpu_quota, 'cpus': a.cpus,

@@ -7,5 +7,5 @@ publish = false
 [workspace]
 
 [dependencies]
-pagesift-extract = { path = "../../../crates/pagesift-extract" }
+pagesift-extract = { path = "../../../../crates/pagesift-extract" }
 serde_json = "1.0"

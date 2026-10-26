@@ -4,7 +4,7 @@
 import json, re, statistics
 from pathlib import Path
 ROOT = Path("/home/yolow92/pagesift")
-man = [json.loads(l) for l in (ROOT/"bench/data/showdown/d7/manifest.jsonl").open()]
+man = [json.loads(l) for l in (ROOT/"benchmarks/data/showdown/d7/manifest.jsonl").open()]
 
 def norm(s):
     if not s: return ""

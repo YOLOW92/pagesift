@@ -240,9 +240,9 @@ fn walk_pdfs(dir: &Path, out: &mut Vec<PathBuf>) {
 
 #[test]
 fn high_concurrency_saturation_stress_olmocr() {
-    let mut pdf_dir = PathBuf::from("bench/pdf/out/pdfs");
+    let mut pdf_dir = PathBuf::from("benchmarks/pdf/out/pdfs");
     if !pdf_dir.exists() {
-        pdf_dir = PathBuf::from("../../bench/pdf/out/pdfs");
+        pdf_dir = PathBuf::from("../../benchmarks/pdf/out/pdfs");
     }
     if !pdf_dir.exists() {
         eprintln!("olmocr-bench pdf directory not found, skipping saturation test.");

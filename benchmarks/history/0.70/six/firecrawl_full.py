@@ -18,9 +18,9 @@ import urllib.error
 from urllib.parse import urlsplit
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-ROOT = Path(__file__).resolve().parents[2]
-DATA = ROOT / 'bench/data/six'
-STACK = [sys.executable, str(ROOT / 'bench/six/firecrawl_stack.py')]
+ROOT = Path(__file__).resolve().parents[4]
+DATA = ROOT / 'benchmarks/data/six'
+STACK = [sys.executable, str(ROOT / 'benchmarks/history/0.70/six/firecrawl_stack.py')]
 
 
 def request(url, data=None, timeout=60):

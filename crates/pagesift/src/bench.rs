@@ -1,7 +1,7 @@
 //! `pagesift bench`：在本地快照上评测正文提取质量和速度。
 //!
 //! 数据集是 Firecrawl 的 scrape-content-dataset-v1（`truth_text` 是正文片段，
-//! `lie_text` 是导航、页脚这类噪声片段），快照由 `bench/fetch_snapshots.py` 抓取。
+//! `lie_text` 是导航、页脚这类噪声片段），快照由 `benchmarks/common/fetch_snapshots.py` 抓取。
 //! 两个质量口径：
 //! - crw 口径：`truth_text` 按行切开、长度超过 20 字符的行算短语，命中 ≥ 30% 算"找到"；
 //! - 严格口径：正文召回率（命中短语比例的平均）和噪声泄漏率（`lie_text` 短语漏进输出的比例的平均），

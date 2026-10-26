@@ -40,4 +40,4 @@
 - [x] 运行 PageSift 0.60 vs Spider / Scrapy / Crawlee / Colly 横向实测
 - [x] 校验 200 OK 成功数是否全面反超历史差距（实测：0.60 达成 100% 200 OK，有效 Markdown 反超 Spider +2,860 篇）
 - [x] 确保稳态 RSS 依然守死在 200~300MB 级别（实测 129.7MB），完胜 Spider 的 975.8MB ~ 9GB+ 内存泄漏
-- [x] 编写官方深度报告：`docs/benchmarks/0.60_p3_competitor_flaw_analysis.md`
+- [x] 编写官方深度报告：`docs/history/0.60_p3_competitor_flaw_analysis.md`

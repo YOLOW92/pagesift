@@ -7,10 +7,10 @@ The extraction components and complete Firecrawl service are reported separately
 import collections,hashlib,json,re,resource,subprocess,sys,time
 from pathlib import Path
 from lxml import html as lhtml
-ROOT=Path(__file__).resolve().parents[2]
-DATA=ROOT/'bench/data/six/seven-next'
-OUT=ROOT/'bench/six/results/seven-next/content'
-sys.path.insert(0,str(ROOT/'bench/fresh'))
+ROOT=Path(__file__).resolve().parents[4]
+DATA=ROOT/'benchmarks/data/six/seven-next'
+OUT=ROOT/'benchmarks/history/0.70/six/results/seven-next/content'
+sys.path.insert(0,str(ROOT/'benchmarks/common/fresh'))
 from aeb import plain
 from validate import validate
 
@@ -25,7 +25,7 @@ def f1(a,b):
 def prepare():
  OUT.mkdir(parents=True,exist_ok=False);(DATA/'html').mkdir(exist_ok=False);(DATA/'gold').mkdir(exist_ok=False)
  old_urls=set();old_hashes=set();prior_inputs=0
- for p in [ROOT/'bench/data/six/aeb.jsonl',ROOT/'bench/data/six/core-next/gold/manifest.jsonl',ROOT/'bench/six/results/batch-next/manifest.jsonl',ROOT/'bench/six/results/editorial-core/validation/manifest.jsonl']:
+ for p in [ROOT/'benchmarks/data/six/aeb.jsonl',ROOT/'benchmarks/data/six/core-next/gold/manifest.jsonl',ROOT/'benchmarks/history/0.70/six/results/batch-next/manifest.jsonl',ROOT/'benchmarks/history/0.70/six/results/editorial-core/validation/manifest.jsonl']:
   if not p.exists():continue
   prior_inputs+=1
   for r in map(json.loads,p.open()):
@@ -47,8 +47,8 @@ def prepare():
   rows.append({'id':ident,'path':str(path),'url':url or 'https://fixture.example/'+ident,'gold_path':str(g),'sha256':sha(path),'gold_sha256':sha(g),'original_html_sha256':hashlib.sha256(raw.encode()).hexdigest(),'previous_overlap':overlap,'language':r.get('meta',{}).get('language')})
  assert len(rows)==545 and len({r['id'] for r in rows})==545
  (OUT/'manifest.jsonl').write_text(''.join(json.dumps(r,ensure_ascii=False)+'\n' for r in rows))
- frozen=json.loads((ROOT/'bench/six/evidence/2026-10-22/content/protocol.json').read_text())
- protocol={'dataset':'opendatalab/WebMainBench manually calibrated 545 subset, ALL 545 pages; not all 7809 pages','dataset_source':frozen['dataset_source'],'download':frozen['download'],'n':545,'previous_overlap':sum(r['previous_overlap'] is True for r in rows) if prior_inputs==4 else None,'no_previous_overlap':sum(r['previous_overlap'] is False for r in rows) if prior_inputs==4 else None,'annotations_removed':annotations,'preprocessing':'lxml DOM removal of all cc-* attributes and one common HTML serialization; gold never passed to extractors','metric':'mean per-page token multiset F1 of normalized visible Markdown text; CJK characters are separate tokens; our diagnostic, NOT official WebMainBench leaderboard','scorer_sha256':sha(__file__),'plain_converter_sha256':sha(ROOT/'bench/fresh/aeb.py'),'per_document_timeout_s':30,'errors':'empty output retained in denominator; no replacement or output-driven exclusion','references':json.loads((ROOT/'bench/six/tools.lock.json').read_text())['tools'],'scope_exclusions':['persistent browser interact lifecycle','agent autonomous data-gathering API'],'scope_exclusion_authority':'documented project scope','prior_inputs_available':prior_inputs,'overlap_check':'complete' if prior_inputs==4 else 'not reproduced; do not claim novel pages'}
+ frozen=json.loads((ROOT/'benchmarks/history/0.70/six/evidence/2026-10-22/content/protocol.json').read_text())
+ protocol={'dataset':'opendatalab/WebMainBench manually calibrated 545 subset, ALL 545 pages; not all 7809 pages','dataset_source':frozen['dataset_source'],'download':frozen['download'],'n':545,'previous_overlap':sum(r['previous_overlap'] is True for r in rows) if prior_inputs==4 else None,'no_previous_overlap':sum(r['previous_overlap'] is False for r in rows) if prior_inputs==4 else None,'annotations_removed':annotations,'preprocessing':'lxml DOM removal of all cc-* attributes and one common HTML serialization; gold never passed to extractors','metric':'mean per-page token multiset F1 of normalized visible Markdown text; CJK characters are separate tokens; our diagnostic, NOT official WebMainBench leaderboard','scorer_sha256':sha(__file__),'plain_converter_sha256':sha(ROOT/'benchmarks/common/fresh/aeb.py'),'per_document_timeout_s':30,'errors':'empty output retained in denominator; no replacement or output-driven exclusion','references':json.loads((ROOT/'benchmarks/history/0.70/six/tools.lock.json').read_text())['tools'],'scope_exclusions':['persistent browser interact lifecycle','agent autonomous data-gathering API'],'scope_exclusion_authority':'documented project scope','prior_inputs_available':prior_inputs,'overlap_check':'complete' if prior_inputs==4 else 'not reproduced; do not claim novel pages'}
  (OUT/'protocol.json').write_text(json.dumps(protocol,indent=2)+'\n');print(json.dumps({k:protocol[k] for k in ['n','previous_overlap','no_previous_overlap','annotations_removed']}))
 
 def run(tool,binary):

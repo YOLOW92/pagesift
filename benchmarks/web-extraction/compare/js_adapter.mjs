@@ -1,6 +1,6 @@
 // 在 pagesift bench 的输入上跑 JS 同类库，输出 `pagesift bench --external` 用的 JSON lines。
 //
-//   node bench/compare/js_adapter.mjs <readability|defuddle|article-extractor> <node_modules 所在目录> <manifest.jsonl> <out.jsonl>
+//   node benchmarks/web-extraction/compare/js_adapter.mjs <readability|defuddle|article-extractor> <node_modules 所在目录> <manifest.jsonl> <out.jsonl>
 //
 // 两个工具都需要 DOM，用 JSDOM 解析，解析时间算在耗时里。
 // Readability 输出 HTML，按惯常用法接 Turndown 转 Markdown；标题按惯例单独给出，这里拼在正文前面。

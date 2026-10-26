@@ -28,7 +28,7 @@ Crawl4AI                  0.9.5
 └── turndown@7.2.4
 
 crw 0.39.0
-spider 2.53.9 (bench/crawl/Cargo.lock)
+spider 2.53.9 (benchmarks/crawl/Cargo.lock)
 name = "crw-core"
 version = "0.37.2"
 --

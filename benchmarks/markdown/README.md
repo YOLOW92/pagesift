@@ -21,7 +21,7 @@ The scorer is calibrated with a reference conversion written directly from each 
 structure (`<dir>/ref`): it scores 1.000 in every category.
 
 ```bash
-bench/markdown/run.sh          # seeds 1 2 3, 200 documents each; results in bench/markdown/out/seed*/
+benchmarks/markdown/run.sh          # seeds 1 2 3, 200 documents each; results in benchmarks/markdown/out/seed*/
 ```
 
 Tools: pagesift (whole page, `--full`), markdownify, html2text (GPL, evaluation only), MarkItDown,

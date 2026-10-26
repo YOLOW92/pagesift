@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # 真实网络模拟对决：模拟源站（src/bin/wild.rs）按固定种子给每站随机加陷阱、重复 URL、二进制链接、
 # robots 禁区、偶发 503 和限流。每个工具单独启动一次源站（统计从零开始），跑完取 /__report。
-# 用法：bench/crawl/run_wild.sh [场景...]；SEED 换一批随机站点（默认 1）。
+# 用法：benchmarks/crawl/run_wild.sh [场景...]；SEED 换一批随机站点（默认 1）。
 #   fast    40 站 × 60 页，上限 60 页/站，不限间隔，每主机 4 并发，基准延迟 20 ms
 #   polite  40 站 × 60 页，上限 60 页/站，每主机间隔 200 ms，1 并发，基准延迟 20 ms
 # 结果：wild-<时间>/<场景>-<工具>.json（源站报告）和 measure.py 的 jsonl；汇总用 wild_score.py。
 set -euo pipefail
 cd "$(dirname "$0")"
 ROOT=../..
-PAGES_DIR=${PAGES_DIR:-$ROOT/bench/data/crawl-pages}
+PAGES_DIR=${PAGES_DIR:-$ROOT/benchmarks/data/crawl-pages}
 PORT=18090
 SEED=${SEED:-1}
 OUT=${OUT:-wild-$(date +%Y%m%d-%H%M%S)}
@@ -21,10 +21,10 @@ export MEASURE_MAX_MB=${MEASURE_MAX_MB:-12288}
 export MEASURE_ORIGIN=http://s0.localhost:$PORT/__served
 WILD_HOSTS=${WILD_HOSTS:-120}
 WILD_PAGES=${WILD_PAGES:-60}
-C4A=${C4A:-$ROOT/bench/data/venvs/crawl4ai/bin/python}
-CRW=${CRW:-$ROOT/bench/data/tools/bin/crw}
+C4A=${C4A:-$ROOT/benchmarks/data/venvs/crawl4ai/bin/python}
+CRW=${CRW:-$ROOT/benchmarks/data/tools/bin/crw}
 COLLY=${COLLY:-/home/yolow92/pagesift-bench-env/tools/bin/colly_crawl}
-SCRAPY_PY=${SCRAPY_PY:-$ROOT/bench/data/fresh/tools/py/bin/python}
+SCRAPY_PY=${SCRAPY_PY:-$ROOT/benchmarks/data/fresh/tools/py/bin/python}
 
 # 等源站真正能应答再开始（页面多时启动要几秒；固定 sleep 不够，第一个工具会连不上）
 wait_origin() { # 端口

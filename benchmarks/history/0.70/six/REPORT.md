@@ -18,7 +18,7 @@
 | HLS/DASH | 有限未加密 VOD、严格范围下载、可恢复分片归档；HLS 轨文件与保留时序/寻址的离线 DASH MPD | 直播、复杂 rendition、负 repeat、SegmentBase/index、加密及 A/V mux |
 | 后处理/元数据/模板 | 命名模板、路径清理、碰撞拒绝、媒体与侧车分步提交/恢复、私有新文件权限 | 任意插件生态、标签/EXIF/转码、更多文件系统与崩溃点 |
 
-接口、命令和精确限制见 [使用文档](../../docs/native-core.md)。[40 类清单](CAPABILITIES.md) 将这七项标为 partial，将两项标为 excluded_by_user；没有把 partial 改成 complete/superior。
+接口、命令和精确限制见 [使用文档](../../../../docs/native-core.md)。[40 类清单](CAPABILITIES.md) 将这七项标为 partial，将两项标为 excluded_by_user；没有把 partial 改成 complete/superior。
 
 所有新增产品核心、接口和测试均为 Rust。没有增加第三方 crate 版本，只将已锁定的 url 2.5.8 加为 extract 的直接依赖。[依赖差异](evidence/2026-10-22/dependencies.json)。Python/Node 是既有评测框架和竞品的运行环境，FFmpeg/ffprobe 仅用于制作与读取测试样本，产品没有调用它们。
 

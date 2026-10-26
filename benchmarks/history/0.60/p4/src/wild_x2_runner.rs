@@ -20,7 +20,7 @@ use tokio::sync::Semaphore;
 #[derive(Parser, Debug)]
 #[command(author, version, about = "PageSift WILD-X 2 Real 100M Public Internet Runner")]
 pub struct Opts {
-    #[arg(short, long, default_value = "bench/data/top-1m.csv")]
+    #[arg(short, long, default_value = "benchmarks/data/top-1m.csv")]
     pub dataset: PathBuf,
     #[arg(short, long, default_value_t = 100_000_000)]
     pub total_tasks: u64,
@@ -32,7 +32,7 @@ pub struct Opts {
     pub connect_timeout_ms: u64,
     #[arg(long, default_value_t = 5000)]
     pub total_timeout_ms: u64,
-    #[arg(long, default_value = "bench/p4/wild_x2_report.jsonl")]
+    #[arg(long, default_value = "benchmarks/history/0.60/p4/wild_x2_report.jsonl")]
     pub report_file: PathBuf,
     #[arg(long, default_value_t = 10000)]
     pub sample_rate: u64,
@@ -59,7 +59,7 @@ pub struct ShardMetrics {
 fn load_seeds(path: &Path) -> Result<Vec<String>, Box<dyn std::error::Error>> {
     let mut resolved_path = path.to_path_buf();
     if !resolved_path.exists() {
-        let alt = Path::new("../data/top-1m.csv");
+        let alt = Path::new("../../../data/top-1m.csv");
         if alt.exists() {
             resolved_path = alt.to_path_buf();
         } else {
@@ -133,7 +133,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(parent) = opts.report_file.parent() {
         let _ = fs::create_dir_all(parent);
     }
-    let samples_dir = Path::new("bench/p4/samples");
+    let samples_dir = Path::new("benchmarks/history/0.60/p4/samples");
     let _ = fs::create_dir_all(samples_dir);
 
     let mut shard_metrics: Vec<Arc<ShardMetrics>> = Vec::with_capacity(opts.shards);
@@ -319,7 +319,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                                         // 抽样落盘校验：仅按 sample_rate 比例存储一份 sample
                                         if global_idx % sample_rate == 0 {
-                                            let sample_file = format!("bench/p4/samples/{}.md", global_idx);
+                                            let sample_file = format!("benchmarks/history/0.60/p4/samples/{}.md", global_idx);
                                             let _ = fs::write(sample_file, &doc.markdown);
                                         }
                                     }

@@ -7,6 +7,6 @@ publish = false
 [workspace]
 
 [dependencies]
-pagesift-policy = { path = "../../crates/pagesift-policy" }
+pagesift-policy = { path = "../../../crates/pagesift-policy" }
 serde_json = "1.0"
 url = "2.5"

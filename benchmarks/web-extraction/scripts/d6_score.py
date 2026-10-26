@@ -3,18 +3,18 @@
 import json, statistics, sys
 from pathlib import Path
 ROOT = Path("/home/yolow92/pagesift")
-sys.path.insert(0, str(ROOT / "bench/fresh"))
+sys.path.insert(0, str(ROOT / "benchmarks/common/fresh"))
 import importlib.util
-spec = importlib.util.spec_from_file_location("d6", ROOT / "bench/fresh/eval_d6_050.py")
+spec = importlib.util.spec_from_file_location("d6", ROOT / "benchmarks/common/fresh/eval_d6_050.py")
 d6 = importlib.util.module_from_spec(spec)
 import types
 # 只取评分函数，不跑 main
-src = (ROOT / "bench/fresh/eval_d6_050.py").read_text()
+src = (ROOT / "benchmarks/common/fresh/eval_d6_050.py").read_text()
 ns = {}
 exec(compile(src.split("# ----------------- Competitor Workers")[0], "d6", "exec"), ns)
 is_compat, categorize = ns["is_compat"], ns["categorize"]
 
-man = [json.loads(l) for l in (ROOT / "bench/data/showdown/d6/manifest.jsonl").open()]
+man = [json.loads(l) for l in (ROOT / "benchmarks/data/showdown/d6/manifest.jsonl").open()]
 
 def score_tsv(p):
     pred = {}

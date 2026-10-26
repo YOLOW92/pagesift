@@ -6,15 +6,15 @@ it whenever extraction changes, then rerun every tool on it:
 
 ```bash
 # 1. snapshots (polite fetch) and rendered snapshots
-python3 -I bench/fetch_snapshots.py bench/data/1-0-0.csv bench/data/snapshots
-pagesift bench-render bench/data
+python3 -I benchmarks/common/fetch_snapshots.py benchmarks/data/1-0-0.csv benchmarks/data/snapshots
+pagesift bench-render benchmarks/data
 
 # 2. freeze the inputs for this round
-rm -rf bench/data/inputs
-pagesift bench bench/data --auto --emit-inputs bench/data/inputs
+rm -rf benchmarks/data/inputs
+pagesift bench benchmarks/data --auto --emit-inputs benchmarks/data/inputs
 
-# 3. run each tool on bench/data/inputs/manifest.jsonl (adapters below), then score
-pagesift bench bench/data --auto --external bench/data/compare/<tool>.jsonl
+# 3. run each tool on benchmarks/data/inputs/manifest.jsonl (adapters below), then score
+pagesift bench benchmarks/data --auto --external benchmarks/data/compare/<tool>.jsonl
 ```
 
 Adapters, all writing JSON lines `{id, markdown, ms}`:

@@ -29,10 +29,10 @@ struct Metrics {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
-    let url_file = args.get(1).map(|s| s.as_str()).unwrap_or("bench/data/top1m.txt");
+    let url_file = args.get(1).map(|s| s.as_str()).unwrap_or("benchmarks/data/top1m.txt");
     let concurrency: usize = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(768);
     let limit: usize = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(1_000_000);
-    let out_json = args.get(4).map(|s| s.as_str()).unwrap_or("bench/results/final/spider_real_1m.json");
+    let out_json = args.get(4).map(|s| s.as_str()).unwrap_or("benchmarks/history/0.50/results/spider_real_1m.json");
 
     eprintln!("================================================================================");
     eprintln!("[Spider 2.53.9] Real-World 1-Million Benchmark Initialized");

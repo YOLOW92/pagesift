@@ -1,9 +1,9 @@
 #!/bin/bash
 # E1-A 并发扫描：固定语料，逐步加线程，记录吞吐与 NUMA 分布。
 cd ~/pagesift
-OUT=bench/results/final/0.70/e1/A
-BIN=bench/p4_2_webmainbench/target/release/pagesift-p4-2-webmainbench
-MAN=bench/results/final/0.70/e1/corpus/manifest.jsonl
+OUT=benchmarks/history/0.70/results/e1/A
+BIN=benchmarks/web-extraction/webmainbench/target/release/pagesift-p4-2-webmainbench
+MAN=benchmarks/history/0.70/results/e1/corpus/manifest.jsonl
 mkdir -p "$OUT"
 echo "threads,wall_s,pages_per_s,peak_rss_kb" > "$OUT/sweep.csv"
 for T in 1 8 32 64 128 192; do

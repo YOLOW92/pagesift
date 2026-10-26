@@ -13,7 +13,7 @@ def h(b: bytes) -> str:
     return hashlib.sha256(b).hexdigest()
 
 def wmb(root: Path, seen: set):
-    p = root / "bench/data/p4_2_webmainbench/webmainbench.jsonl"
+    p = root / "benchmarks/data/p4_2_webmainbench/webmainbench.jsonl"
     for line in p.open(encoding="utf-8"):
         if not line.strip():
             continue
@@ -29,7 +29,7 @@ def wmb(root: Path, seen: set):
                "url": r.get("url") or "", "html": html}
 
 def wceb(root: Path, seen: set):
-    base = root / "bench/upstream/WCEB/datasets/combined/html"
+    base = root / "benchmarks/common/vendor/WCEB/datasets/combined/html"
     for ds in sorted(p for p in base.iterdir() if p.is_dir()):
         for f in sorted(ds.glob("*.html")):
             data = f.read_bytes()
@@ -41,7 +41,7 @@ def wceb(root: Path, seen: set):
                    "url": "", "html": data.decode("utf-8", "replace")}
 
 def wcxb(root: Path, seen: set):
-    base = root / "bench/data/wcxb"
+    base = root / "benchmarks/data/wcxb"
     for split in ("dev", "test"):
         d = base / split / "html"
         if not d.is_dir():

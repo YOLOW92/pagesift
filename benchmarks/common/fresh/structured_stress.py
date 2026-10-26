@@ -120,7 +120,7 @@ def main():
     print("================================================================================\n")
 
     # TEST 1: Official Extruct Test Samples (63 files)
-    samples_dir = Path("bench/data/fresh/data/extruct-repo/tests/samples")
+    samples_dir = Path("benchmarks/data/fresh/data/extruct-repo/tests/samples")
     files = sorted(samples_dir.glob("**/*.html"))
     print(f"--- Test 1: Official Extruct Benchmark Corpus ({len(files)} files) ---")
 

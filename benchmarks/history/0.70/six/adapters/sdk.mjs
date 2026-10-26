@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { writeFileSync } from 'node:fs';
-const require = createRequire(resolve('bench/data/six/node/package.json'));
+const require = createRequire(resolve('benchmarks/data/six/node/package.json'));
 const { Firecrawl } = require('@mendable/firecrawl-js');
 const [apiUrl, origin, output] = process.argv.slice(2);
 const client = new Firecrawl({ apiKey: 'test-key', apiUrl });

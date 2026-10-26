@@ -3,7 +3,7 @@
 
 python3 -I real_sites.py <旧二进制> <新二进制> <站点清单 manifest.jsonl> <种子> <站点数> <每站上限>
 
-站点清单取 bench/fresh 的随机语料（Tranco 随机站点的首页，kind=home 的行）。按种子随机抽站；
+站点清单取 benchmarks/common/fresh 的随机语料（Tranco 随机站点的首页，kind=home 的行）。按种子随机抽站；
 站点之间 8 个并行，同一站点两个版本依次跑，奇数站点先跑新版、偶数站点先跑旧版（后跑的那个
 更容易碰上站点的访问拦截，交替顺序抵消这个偏差）。每次爬取 HTTP 引擎、整站范围、遵守 robots.txt，
 限速用 pagesift 默认值。每行输出一个站点的 JSON，最后一行是合计。

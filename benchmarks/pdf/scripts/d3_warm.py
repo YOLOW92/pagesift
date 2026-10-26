@@ -4,10 +4,10 @@
 import json, sys
 from pathlib import Path
 ROOT = Path("/home/yolow92/pagesift")
-sys.path.insert(0, str(ROOT / "bench/upstream/olmocr"))
+sys.path.insert(0, str(ROOT / "benchmarks/pdf/vendor/olmocr"))
 from olmocr.bench.katex.render import render_equation  # noqa: E402
 
-BENCH = ROOT / "bench/data/olmocr_1403/bench_data"
+BENCH = ROOT / "benchmarks/data/olmocr_1403/bench_data"
 seen, ok, fail = set(), 0, 0
 for jp in sorted(BENCH.glob("*.jsonl")):
     for line in jp.open(encoding="utf-8"):

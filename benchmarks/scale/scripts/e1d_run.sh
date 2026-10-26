@@ -7,11 +7,11 @@
 #  8-10 min 停新增并排空   : 不再启动新工作，等待在途完成；超时如实计未完成
 set -u
 cd ~/pagesift
-OUT=bench/results/final/0.70/e1/D
+OUT=benchmarks/history/0.70/results/e1/D
 rm -rf "$OUT"; mkdir -p "$OUT"
-BIN=bench/p4_2_webmainbench/target/release/pagesift-p4-2-webmainbench
-CFG=bench/scripts/e1.toml
-CORPUS=bench/results/final/0.70/e1/corpus/manifest.jsonl
+BIN=benchmarks/web-extraction/webmainbench/target/release/pagesift-p4-2-webmainbench
+CFG=benchmarks/scale/scripts/e1.toml
+CORPUS=benchmarks/history/0.70/results/e1/corpus/manifest.jsonl
 PIDS=()
 
 start_crawl () { # port host limit tag
@@ -25,7 +25,7 @@ T0=$(date +%s)
 now () { echo $(( $(date +%s) - T0 )); }
 
 # 监控：每分钟采样
-bench/upstream/.venv/bin/python bench/scripts/e1d_monitor.py "$OUT" "$T0" 600 &
+benchmarks/common/vendor/.venv/bin/python benchmarks/scale/scripts/e1d_monitor.py "$OUT" "$T0" 600 &
 MON=$!
 
 echo "[$(now)s] phase1: A(32t) + B(h1,h2)"

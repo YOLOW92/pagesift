@@ -227,7 +227,7 @@ BS4 4.15.0 + lxml    [███████████████████�
 ## 6. Reproducibility & Artifacts
 
 All evaluation scripts, dataset manifests, and raw metric JSON outputs are preserved:
-- **Benchmark Driver**: [`bench/fresh/eval_d7_050.py`](file:///home/wyc610721/pagesift/bench/fresh/eval_d7_050.py)
+- **Benchmark Driver**: [`benchmarks/common/fresh/eval_d7_050.py`](file:///home/wyc610721/pagesift/benchmarks/common/fresh/eval_d7_050.py)
 - **Rust Concurrency Example**: [`crates/pagesift-extract/examples/bench_structured_mt.rs`](file:///home/wyc610721/pagesift/crates/pagesift-extract/examples/bench_structured_mt.rs)
-- **Raw Metrics JSON**: [`bench/results/final/benchmark_d7_results.json`](file:///home/wyc610721/pagesift/bench/results/final/benchmark_d7_results.json)
-- **Local Markdown Report**: [`bench/results/final/BENCHMARK_D7_STRUCTURED_DATA_050.md`](file:///home/yolow92/pagesift/bench/results/final/BENCHMARK_D7_STRUCTURED_DATA_050.md)
+- **Raw Metrics JSON**: [`benchmarks/history/0.50/results/benchmark_d7_results.json`](file:///home/wyc610721/pagesift/benchmarks/history/0.50/results/benchmark_d7_results.json)
+- **Local Markdown Report**: [`benchmarks/history/0.50/results/BENCHMARK_D7_STRUCTURED_DATA_050.md`](file:///home/yolow92/pagesift/benchmarks/history/0.50/results/BENCHMARK_D7_STRUCTURED_DATA_050.md)

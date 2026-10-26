@@ -13,11 +13,11 @@ if [[ -n "$attempt" ]]; then
     fi
     suffix="_${attempt}"
 fi
-runner="$repo_root/bench/p0/target/release/p2_http_reactor_runner"
-origin="$repo_root/bench/p0/target/release/stream_origin"
-result="$repo_root/bench/results/0.70_p3_100m_saturation${suffix}.json"
-log="$repo_root/bench/results/0.70_p3_100m_saturation${suffix}.log"
-meta="$repo_root/bench/results/0.70_p3_100m_saturation${suffix}.meta.json"
+runner="$repo_root/benchmarks/scale/p0/target/release/p2_http_reactor_runner"
+origin="$repo_root/benchmarks/scale/p0/target/release/stream_origin"
+result="$repo_root/benchmarks/scale/results/0.70_p3_100m_saturation${suffix}.json"
+log="$repo_root/benchmarks/scale/results/0.70_p3_100m_saturation${suffix}.log"
+meta="$repo_root/benchmarks/scale/results/0.70_p3_100m_saturation${suffix}.meta.json"
 unit="pagesift-p3-origin-final${suffix}.service"
 total_tasks=100000000
 
@@ -127,8 +127,8 @@ runner_sha=$(sha256sum "$runner" | awk '{print $1}')
 origin_sha=$(sha256sum "$origin" | awk '{print $1}')
 result_sha=$(sha256sum "$result" | awk '{print $1}')
 log_sha=$(sha256sum "$log" | awk '{print $1}')
-source_sha=$(sha256sum "$repo_root/bench/p0/src/p2_http_reactor_runner.rs" | awk '{print $1}')
-lock_sha=$(sha256sum "$repo_root/bench/p0/Cargo.lock" | awk '{print $1}')
+source_sha=$(sha256sum "$repo_root/benchmarks/scale/p0/src/p2_http_reactor_runner.rs" | awk '{print $1}')
+lock_sha=$(sha256sum "$repo_root/benchmarks/scale/p0/Cargo.lock" | awk '{print $1}')
 git_head=$(git -C "$repo_root" rev-parse HEAD)
 git_diff_sha=$(git -C "$repo_root" diff --binary | sha256sum | awk '{print $1}')
 kernel=$(uname -srvmo)

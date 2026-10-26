@@ -198,7 +198,7 @@ def evaluate_batch(byte_payloads, expected_map, ps_bin):
 
 
 def main():
-    data_dir = Path("bench/data/fresh/data/chardet-test-data")
+    data_dir = Path("benchmarks/data/fresh/data/chardet-test-data")
     ps_bin = "target/release/examples/detect_encoding"
     cases = collect_test_cases(data_dir)
     print(f"Loaded {len(cases)} test cases from {data_dir}\n")

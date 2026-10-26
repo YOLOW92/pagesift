@@ -4,12 +4,12 @@
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-runner="$repo_root/bench/p0/target/release/p2_http_reactor_runner"
-origin="$repo_root/bench/p0/target/release/stream_origin"
+runner="$repo_root/benchmarks/scale/p0/target/release/p2_http_reactor_runner"
+origin="$repo_root/benchmarks/scale/p0/target/release/stream_origin"
 tag="${1:-200m}"
-result="$repo_root/bench/results/0.70_200m_${tag}.json"
-log="$repo_root/bench/results/0.70_200m_${tag}.log"
-meta="$repo_root/bench/results/0.70_200m_${tag}.meta.json"
+result="$repo_root/benchmarks/scale/results/0.70_200m_${tag}.json"
+log="$repo_root/benchmarks/scale/results/0.70_200m_${tag}.log"
+meta="$repo_root/benchmarks/scale/results/0.70_200m_${tag}.meta.json"
 unit="pagesift-200m-origin-${tag}.service"
 total_tasks=200000000
 

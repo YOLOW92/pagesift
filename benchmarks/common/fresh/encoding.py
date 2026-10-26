@@ -1,7 +1,7 @@
 """编码鲁棒性测试：网站返回的原始字节（不一定是 UTF-8）交给各工具，看它们能不能正确读出来。
 
-    python3 -I bench/fresh/encoding.py pick <随机语料目录> <输出清单>   挑出不是 UTF-8 的页面，清单指向原始字节
-    python3 -I bench/fresh/encoding.py score <原始字节结果目录> <UTF-8 结果目录> <工具>...
+    python3 -I benchmarks/common/fresh/encoding.py pick <随机语料目录> <输出清单>   挑出不是 UTF-8 的页面，清单指向原始字节
+    python3 -I benchmarks/common/fresh/encoding.py score <原始字节结果目录> <UTF-8 结果目录> <工具>...
 
 评判时每个工具只和它自己比：同一页面，读原始字节得到的输出和读 UTF-8 副本得到的输出（随机语料对比里的那份）
 几乎一样（字符级相似度 ≥ 0.9）就算正确读出；输出为空算失败，其余算乱码。这样只看编码处理，不掺入抽取能力的差别。

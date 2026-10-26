@@ -228,7 +228,7 @@ Under Tier 2, all engines were subjected to adversarial attacks simulating real-
 ## 6. Reproducibility & Artifacts
 
 All evaluation scripts, dataset manifests, and raw metric JSON outputs are preserved:
-- **Benchmark Driver**: [`bench/fresh/eval_d6_050.py`](file:///home/wyc610721/pagesift/bench/fresh/eval_d6_050.py)
+- **Benchmark Driver**: [`benchmarks/common/fresh/eval_d6_050.py`](file:///home/wyc610721/pagesift/benchmarks/common/fresh/eval_d6_050.py)
 - **Rust Concurrency Binary**: [`crates/pagesift/examples/detect_encoding_mt.rs`](file:///home/wyc610721/pagesift/crates/pagesift/examples/detect_encoding_mt.rs)
-- **Raw Metrics JSON**: [`bench/results/final/benchmark_d6_results.json`](file:///home/wyc610721/pagesift/bench/results/final/benchmark_d6_results.json)
-- **Local Markdown Report**: [`bench/results/final/BENCHMARK_D6_CHARSET_DETECTION_050.md`](file:///home/yolow92/pagesift/bench/results/final/BENCHMARK_D6_CHARSET_DETECTION_050.md)
+- **Raw Metrics JSON**: [`benchmarks/history/0.50/results/benchmark_d6_results.json`](file:///home/wyc610721/pagesift/benchmarks/history/0.50/results/benchmark_d6_results.json)
+- **Local Markdown Report**: [`benchmarks/history/0.50/results/BENCHMARK_D6_CHARSET_DETECTION_050.md`](file:///home/yolow92/pagesift/benchmarks/history/0.50/results/BENCHMARK_D6_CHARSET_DETECTION_050.md)

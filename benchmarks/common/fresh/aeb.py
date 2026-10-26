@@ -2,7 +2,7 @@
 """Scrapinghub article-extraction-benchmark (AEB) with fresh runs of every tool.
 
     prepare <aeb-repo> <out>             decompress html/*.html.gz to <out>/html, write <out>/manifest.jsonl
-                                         ({id, path, url}) in the format the bench/compare adapters read
+                                         ({id, path, url}) in the format the benchmarks/web-extraction/compare adapters read
     score <aeb-repo> <out> <tool.jsonl>...   turn each adapter output ({id, markdown, ms}) into AEB's
                                          prediction format (Markdown stripped to plain text) and run the
                                          repository's own evaluate.py on a clean copy, so only these

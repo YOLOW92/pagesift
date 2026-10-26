@@ -1,6 +1,6 @@
 """Copy of AiSeek's ~/crawl-bench/bench.py, pointed at either server: Crawl4AI's document worker (~/crawl-bench/server.sh)
-or pagesift's /v1/fetch adapter (bench/aiseek/server.sh). Set SERVER=crawl4ai|pagesift; results go to
-bench/aiseek/results/<SERVER>/. URL sets are read from ~/crawl-bench. Changes from the original: the server script,
+or pagesift's /v1/fetch adapter (benchmarks/production/aiseek/server.sh). Set SERVER=crawl4ai|pagesift; results go to
+benchmarks/production/aiseek/results/<SERVER>/. URL sets are read from ~/crawl-bench. Changes from the original: the server script,
 the results directory, and the browser process count also matching lightpanda/moli.
 
 Phases (each writes JSON lines to results/<phase>-<tag>.jsonl and a resource trace to results/<phase>-<tag>-res.jsonl):

@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
-PY = ROOT / "bench/data/six/venv/bin/python"
+PY = ROOT / "benchmarks/data/six/venv/bin/python"
 BIN = ROOT / "target/release/pagesift"
 
 def get_peak_rss_mb():
@@ -261,7 +261,7 @@ def benchmark_warc():
     }
 
 def main():
-    streams_dir = ROOT / "bench/media_warc/fixtures"
+    streams_dir = ROOT / "benchmarks/media/fixtures"
     generate_fixtures(streams_dir)
 
     # HTTP server for streams
@@ -299,7 +299,7 @@ def main():
             "streams": stream_res,
             "warc": warc_res
         }
-        out_file = ROOT / "bench/media_warc/baseline_results.json"
+        out_file = ROOT / "benchmarks/media/baseline_results.json"
         out_file.write_text(json.dumps(out, indent=2))
         print(f"\nBaseline benchmark written to {out_file}")
     finally:

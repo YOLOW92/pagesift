@@ -31,7 +31,7 @@ if hasattr(sys.stderr, "reconfigure"):
 
 BASE_DIR = Path("/home/wyc610721/pagesift")
 ENV_DIR = Path("/home/wyc610721/pagesift-bench-env")
-OUT_DIR = BASE_DIR / "bench/results/final"
+OUT_DIR = BASE_DIR / "benchmarks/history/0.50/results"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 TIER1_JSONL = OUT_DIR / "benchmark2_tier1_standard_50k.jsonl"
@@ -42,10 +42,10 @@ SPIDER_BIN = ENV_DIR / "tools/bin/spider_crawl"
 COLLY_BIN = ENV_DIR / "tools/bin/colly_crawl"
 ORIGIN_BIN = ENV_DIR / "crawl-harness/target/release/origin"
 CHAOS_ORIGIN_BIN = ENV_DIR / "crawl-harness/target/release/chaos_origin"
-PAGES_DIR = BASE_DIR / "bench/data/crawl-pages"
+PAGES_DIR = BASE_DIR / "benchmarks/data/crawl-pages"
 PY_VENV = ENV_DIR / "tools/py/bin/python"
-SCRAPY_SCRIPT = BASE_DIR / "bench/crawl/scrapy_multi.py"
-CRAWLEE_SCRIPT = BASE_DIR / "bench/crawl/crawlee_multi.py"
+SCRAPY_SCRIPT = BASE_DIR / "benchmarks/crawl/scrapy_multi.py"
+CRAWLEE_SCRIPT = BASE_DIR / "benchmarks/crawl/crawlee_multi.py"
 
 MEMORY_LIMIT_MB = 120000  # 120 GiB watchdog limit as requested
 

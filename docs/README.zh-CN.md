@@ -80,7 +80,7 @@
 
 ## 🏆 七领域公开基准对照（0.70，2026-10 实测，之后的版本未重测）
 
-以下均为**同机全量测试**，使用各基准自己的评分器，并设置 10 GiB 内存上限。测试机为 Intel i7-10700（8C/16T）、15 GB RAM、Ubuntu 26.04。复现脚本见 [`bench/scripts/`](../bench/scripts/)，逐项报告见 [`docs/benchmarks/`](benchmarks/)。
+以下均为**同机全量测试**，使用各基准自己的评分器，并设置 10 GiB 内存上限。测试机为 Intel i7-10700（8C/16T）、15 GB RAM、Ubuntu 26.04。复现脚本见 [`benchmarks/`](../benchmarks/)，逐项报告见 [`docs/history/`](history/)。
 
 | 领域 | PageSift 0.70 | 最佳对手 | 名次 | 峰值内存 |
 | :--- | :--- | :--- | :---: | ---: |
@@ -99,8 +99,8 @@ D1 以较高精确率（0.8938，17 个参赛者中第二，goose3 为 0.9097）
 ## ⚔️ 历史数据（0.60，2026-10）：对真实公网发出 1 亿次请求
 
 > **这是一次压力测试，不是“1 亿个真实页面”的成绩。** 历史数据，**当前版本未复测**。出处：
-> [`docs/benchmarks/0.60_p4_wild_x_2_showdown.md`](benchmarks/0.60_p4_wild_x_2_showdown.md)；
-> 运行器：[`bench/p4/run_wild_x2.py`](../bench/p4/run_wild_x2.py) 与 `bench/p4/src/wild_x2_runner.rs`。原始运行日志不在仓库里。
+> [`docs/history/0.60_p4_wild_x_2_showdown.md`](history/0.60_p4_wild_x_2_showdown.md)；
+> 运行器：[`benchmarks/history/0.60/p4/run_wild_x2.py`](../benchmarks/history/0.60/p4/run_wild_x2.py) 与 `benchmarks/history/0.60/p4/src/wild_x2_runner.rs`。原始运行日志不在仓库里。
 
 **设置**：Google Cloud `n4d-highcpu-80`（80 vCPU AMD EPYC 9B45，157 GiB 内存）；Tranco 前 100 万域名与一组固定的常见路径组合，
 32 个无共享分片、4,096 路并发连接，**共发出 100,000,000 次请求**。
@@ -118,41 +118,41 @@ D1 以较高精确率（0.8938，17 个参赛者中第二，goose3 为 0.9097）
 这次运行能说明的是：1 亿次请求的长跑里，内存和磁盘都在界内、进程没有崩溃。
 
 > **同硬件的合成吞吐（0.60）**：对本机合成源站的 1 亿个**合成**页面，0.60 为 431,412 页/秒（0.50 为 151,483 页/秒），不涉及网络。
-> 详见 [`0.60_p5_cross_generation_rebench.md`](benchmarks/0.60_p5_cross_generation_rebench.md)。
+> 详见 [`0.60_p5_cross_generation_rebench.md`](history/0.60_p5_cross_generation_rebench.md)。
 
 ---
 
 ## 🏆 10 大专项基准矩阵（0.50 历史数据，当前版本未复测）
 
-下表每个数字都取自 `bench/results/final/` 下对应报告的正文实测表（0.50，2026-10-23 前后，单次运行），“出处”列写明报告和章节。报告写明的硬件：D1–D5、10 万对比为 AMD EPYC 9B45（32 核，128 GB）；D6–D10 为 AMD EPYC 7B13（`c2d-standard-32`）。比值只用两个实测数直接相除，并写明是哪两个数。↑ 越高越好，↓ 越低越好。
+下表每个数字都取自 `benchmarks/history/0.50/results/` 下对应报告的正文实测表（0.50，2026-10-23 前后，单次运行），“出处”列写明报告和章节。报告写明的硬件：D1–D5、10 万对比为 AMD EPYC 9B45（32 核，128 GB）；D6–D10 为 AMD EPYC 7B13（`c2d-standard-32`）。比值只用两个实测数直接相除，并写明是哪两个数。↑ 越高越好，↓ 越低越好。
 原表的数字来自 `bench/run_full_10_benchmarks.py` 写死生成的 CSV（脚本不跑任何测试），脚本和这些 CSV 已删除。
 
 | 专项评测领域 | PageSift 0.50（报告实测） | 对手（同一报告实测） | 比值（两个实测数相除） | 峰值内存 ↓（PageSift 对 对手） | 出处 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **01. 正文提取** | WCXB 2,008 页：16 线程 **6,273.9 页/秒** ↑（32 线程 8,833.8）；单线程单页平均 1.30 ms ↓¹ | 报告没有对手的多线程吞吐。单线程单页平均 ↓：trafilatura 2.3.1 26.52 ms，Crawl4AI 0.9.5 283.38 ms | 单页平均耗时 26.52 ÷ 1.30 ≈ 20.4（trafilatura ÷ PageSift） | 报告未测 | [D1](../bench/results/final/BENCHMARK_D1_CONTENT_EXTRACTION_050.md) §2、§4 |
-| **02. 10 万真实域名 / 5 万合成 URL** | 10 万：200 OK 62,937 ↑，≥ 100 B Markdown 60,659 ↑，93.5 QPS ↑<br>5 万合成：5,894.8 页/秒 ↑² | Spider 2.53.9 10 万：200 OK 72,209，≥ 100 B Markdown 59,803，666.6 QPS<br>5 万合成：6,532.3 页/秒 | **Spider 更快**：666.6 ÷ 93.5 ≈ 7.1；6,532.3 ÷ 5,894.8 ≈ 1.11<br>内存：8,978.9 ÷ 188.4 ≈ 47.7；11,316.3 ÷ 502.4 ≈ 22.5 | 10 万：188.4 MB 对 8,978.9 MB<br>5 万：502.4 MB 对 11,316.3 MB | [10 万报告](../bench/results/final/BENCHMARK_100K_PAGESIFT_VS_SPIDER.md) 总看板；[D2](../bench/results/final/BENCHMARK_D2_MASSIVE_CRAWL_CHAOS_050.md) §2 |
-| **03. PDF 解析** | olmOCR-bench 1,269 页：总通过率 **72.4%** ↑，数学公式 70.4% ↑；32 线程 2,682.2 页/秒 ↑³ | Docling 2.142.0：**73.5%（更高）**，0.57 页/秒<br>PyMuPDF4LLM 2.0：64.4%，数学 50.0%，11.1 页/秒 | 吞吐 2,682.2 ÷ 11.1 ≈ 242（对 PyMuPDF4LLM） | 359.6 MB 对 11,663.1 MB（PyMuPDF4LLM） | [D3](../bench/results/final/BENCHMARK_D3_HEAVY_PDF_EXTRACTION_050.md) §2、§3 |
-| **04. DOM 自愈** | 合成 2,000 例：找回 **98.85%** ↑（1,977/2,000），误报 1.15% ↓，平均 29.2 µs ↓⁴ | Scrapling 0.5：92.95%，误报 7.05%，990.8 µs<br>BS4 + lxml + RapidFuzz：98.85%（持平），2,102.9 µs | 平均耗时 990.8 ÷ 29.2 ≈ 33.9（Scrapling ÷ PageSift） | 63.2 MB 对 1,330.9 MB（Scrapling） | [D4](../bench/results/final/BENCHMARK_D4_DOM_SELF_HEALING_050.md) §2 |
-| **05. RAG 分块与过滤** | Chroma 472 题：recursive R@1000 **0.893** ↑，分块 12.89 ms ↓<br>QueryFilter：每题 0.63 ms ↓，保留召回 0.929 ↑ | semchunk：R@1000 0.893，65.60 ms；LangChain：**0.895（更高）**，104.80 ms<br>Crawl4AI BM25ContentFilter：每题 838.00 ms，保留召回 0.673 | 分块 65.60 ÷ 12.89 ≈ 5.1（semchunk）<br>过滤 838.00 ÷ 0.63 ≈ 1,330（Crawl4AI） | 报告未测 | [D5](../bench/results/final/BENCHMARK_D5_RAG_CHUNKING_050.md) §2 |
-| **06. 编码探测** | chardet-test-data 3,128 个文件：准确率 **76.02%** ↑；32 线程 24,915.3 文件/秒 ↑⁵ | chardet 7.7.0：71.13%，32 进程 11,412.3 文件/秒 | 吞吐 24,915.3 ÷ 11,412.3 ≈ 2.2 | 不列⁸ | [D6](../bench/results/final/BENCHMARK_D6_CHARSET_DETECTION_050.md) §3.1、§3.2 |
-| **07. 结构化数据** | WCXB 2,008 页：33,512.9 页/秒 ↑，p50 0.277 ms ↓；2,000 层嵌套可解析⁶ | extruct 0.18.0：3,449.1 页/秒，p50 2.442 ms；≥ 500 层 `RecursionError` | 吞吐 33,512.9 ÷ 3,449.1 ≈ 9.7 | 不列⁸ | [D7](../bench/results/final/BENCHMARK_D7_STRUCTURED_DATA_050.md) §3.1、§4.1 |
-| **08. JS 端点发现** | 合成诱饵集 500 个文件：精确率 **100%** ↑（1,000 个真端点，0 个诱饵）<br>真实 2,000 个 JS 包：160,287.0 文件/秒 ↑⁷ | jsluice 1.0：精确率 40.0%（1,500 个诱饵），7,951.4 文件/秒<br>LinkFinder：精确率 66.7% | 吞吐 160,287.0 ÷ 7,951.4 ≈ 20.2（对 jsluice） | 不列⁸ | [D8](../bench/results/final/BENCHMARK_D8_JS_ENDPOINTS_050.md) §3.1、§4.4 |
-| **09. 动态渲染（CDP）** | 本机 5 类 SPA 共 100 次渲染全部成功；**25.7 页/秒** ↑，p50 3,337.56 ms ↓；50 层 Shadow DOM 通过⁹ | Playwright 1.64.1：41.6 页/秒，p50 566.66 ms，Shadow DOM 通过<br>Lightpanda 1.0.2：71.8 页/秒，p50 29.92 ms，Shadow DOM 失败 | **Playwright 更快**：41.6 ÷ 25.7 ≈ 1.6 | 报告未分别测量 | [D9](../bench/results/final/BENCHMARK_D9_DYNAMIC_HEADLESS_050.md) §3.1、§4.2 |
-| **10. API 网关** | `/v2/scrape` 1,000 次请求：**308.0 请求/秒** ↑，p50 4.37 ms ↓ | Crawl4AI 网关 50 次请求：33.7 请求/秒，p50 451.03 ms | 308.0 ÷ 33.7 ≈ 9.1（请求数不同，样本小） | 空闲约 20.4 MB 对 约 380 MB（报告标为约数） | [D10](../bench/results/final/BENCHMARK_D10_AI_API_GATEWAYS_050.md) §3.1、§3.4 |
+| **01. 正文提取** | WCXB 2,008 页：16 线程 **6,273.9 页/秒** ↑（32 线程 8,833.8）；单线程单页平均 1.30 ms ↓¹ | 报告没有对手的多线程吞吐。单线程单页平均 ↓：trafilatura 2.3.1 26.52 ms，Crawl4AI 0.9.5 283.38 ms | 单页平均耗时 26.52 ÷ 1.30 ≈ 20.4（trafilatura ÷ PageSift） | 报告未测 | [D1](../benchmarks/history/0.50/results/BENCHMARK_D1_CONTENT_EXTRACTION_050.md) §2、§4 |
+| **02. 10 万真实域名 / 5 万合成 URL** | 10 万：200 OK 62,937 ↑，≥ 100 B Markdown 60,659 ↑，93.5 QPS ↑<br>5 万合成：5,894.8 页/秒 ↑² | Spider 2.53.9 10 万：200 OK 72,209，≥ 100 B Markdown 59,803，666.6 QPS<br>5 万合成：6,532.3 页/秒 | **Spider 更快**：666.6 ÷ 93.5 ≈ 7.1；6,532.3 ÷ 5,894.8 ≈ 1.11<br>内存：8,978.9 ÷ 188.4 ≈ 47.7；11,316.3 ÷ 502.4 ≈ 22.5 | 10 万：188.4 MB 对 8,978.9 MB<br>5 万：502.4 MB 对 11,316.3 MB | [10 万报告](../benchmarks/history/0.50/results/BENCHMARK_100K_PAGESIFT_VS_SPIDER.md) 总看板；[D2](../benchmarks/history/0.50/results/BENCHMARK_D2_MASSIVE_CRAWL_CHAOS_050.md) §2 |
+| **03. PDF 解析** | olmOCR-bench 1,269 页：总通过率 **72.4%** ↑，数学公式 70.4% ↑；32 线程 2,682.2 页/秒 ↑³ | Docling 2.142.0：**73.5%（更高）**，0.57 页/秒<br>PyMuPDF4LLM 2.0：64.4%，数学 50.0%，11.1 页/秒 | 吞吐 2,682.2 ÷ 11.1 ≈ 242（对 PyMuPDF4LLM） | 359.6 MB 对 11,663.1 MB（PyMuPDF4LLM） | [D3](../benchmarks/history/0.50/results/BENCHMARK_D3_HEAVY_PDF_EXTRACTION_050.md) §2、§3 |
+| **04. DOM 自愈** | 合成 2,000 例：找回 **98.85%** ↑（1,977/2,000），误报 1.15% ↓，平均 29.2 µs ↓⁴ | Scrapling 0.5：92.95%，误报 7.05%，990.8 µs<br>BS4 + lxml + RapidFuzz：98.85%（持平），2,102.9 µs | 平均耗时 990.8 ÷ 29.2 ≈ 33.9（Scrapling ÷ PageSift） | 63.2 MB 对 1,330.9 MB（Scrapling） | [D4](../benchmarks/history/0.50/results/BENCHMARK_D4_DOM_SELF_HEALING_050.md) §2 |
+| **05. RAG 分块与过滤** | Chroma 472 题：recursive R@1000 **0.893** ↑，分块 12.89 ms ↓<br>QueryFilter：每题 0.63 ms ↓，保留召回 0.929 ↑ | semchunk：R@1000 0.893，65.60 ms；LangChain：**0.895（更高）**，104.80 ms<br>Crawl4AI BM25ContentFilter：每题 838.00 ms，保留召回 0.673 | 分块 65.60 ÷ 12.89 ≈ 5.1（semchunk）<br>过滤 838.00 ÷ 0.63 ≈ 1,330（Crawl4AI） | 报告未测 | [D5](../benchmarks/history/0.50/results/BENCHMARK_D5_RAG_CHUNKING_050.md) §2 |
+| **06. 编码探测** | chardet-test-data 3,128 个文件：准确率 **76.02%** ↑；32 线程 24,915.3 文件/秒 ↑⁵ | chardet 7.7.0：71.13%，32 进程 11,412.3 文件/秒 | 吞吐 24,915.3 ÷ 11,412.3 ≈ 2.2 | 不列⁸ | [D6](../benchmarks/history/0.50/results/BENCHMARK_D6_CHARSET_DETECTION_050.md) §3.1、§3.2 |
+| **07. 结构化数据** | WCXB 2,008 页：33,512.9 页/秒 ↑，p50 0.277 ms ↓；2,000 层嵌套可解析⁶ | extruct 0.18.0：3,449.1 页/秒，p50 2.442 ms；≥ 500 层 `RecursionError` | 吞吐 33,512.9 ÷ 3,449.1 ≈ 9.7 | 不列⁸ | [D7](../benchmarks/history/0.50/results/BENCHMARK_D7_STRUCTURED_DATA_050.md) §3.1、§4.1 |
+| **08. JS 端点发现** | 合成诱饵集 500 个文件：精确率 **100%** ↑（1,000 个真端点，0 个诱饵）<br>真实 2,000 个 JS 包：160,287.0 文件/秒 ↑⁷ | jsluice 1.0：精确率 40.0%（1,500 个诱饵），7,951.4 文件/秒<br>LinkFinder：精确率 66.7% | 吞吐 160,287.0 ÷ 7,951.4 ≈ 20.2（对 jsluice） | 不列⁸ | [D8](../benchmarks/history/0.50/results/BENCHMARK_D8_JS_ENDPOINTS_050.md) §3.1、§4.4 |
+| **09. 动态渲染（CDP）** | 本机 5 类 SPA 共 100 次渲染全部成功；**25.7 页/秒** ↑，p50 3,337.56 ms ↓；50 层 Shadow DOM 通过⁹ | Playwright 1.64.1：41.6 页/秒，p50 566.66 ms，Shadow DOM 通过<br>Lightpanda 1.0.2：71.8 页/秒，p50 29.92 ms，Shadow DOM 失败 | **Playwright 更快**：41.6 ÷ 25.7 ≈ 1.6 | 报告未分别测量 | [D9](../benchmarks/history/0.50/results/BENCHMARK_D9_DYNAMIC_HEADLESS_050.md) §3.1、§4.2 |
+| **10. API 网关** | `/v2/scrape` 1,000 次请求：**308.0 请求/秒** ↑，p50 4.37 ms ↓ | Crawl4AI 网关 50 次请求：33.7 请求/秒，p50 451.03 ms | 308.0 ÷ 33.7 ≈ 9.1（请求数不同，样本小） | 空闲约 20.4 MB 对 约 380 MB（报告标为约数） | [D10](../benchmarks/history/0.50/results/BENCHMARK_D10_AI_API_GATEWAYS_050.md) §3.1、§3.4 |
 
 **上表逐行说明（2026-10-27 核对）**
 ¹ D1 报告 §4 的 16 线程实测为 6,273.9 页/秒；同一行括号里的 3,525 页/秒是 0.40 笔记本的旧数字，原表误用了它。报告 §2 的 F1 0.8472 与 0.70 用官方评分器得到的 WCXB 分数相同、口径未写明，这里不列（WCXB 同机对比见上面的七领域表）。
 ² 10 万对比为单次运行，双方都跑完；PageSift 处理了 105,660 个 URL，Spider 100,000 个。“96.38% 对 82.82%”是各自 200 OK 页面里提取器返回 ≥ 100 字节 Markdown 的比例，不是保真度。5 万 URL 是本机合成站点（D2 §2）。
-³ 报告称“官方全量”，实际是 olmOCR-bench 中原生数字 PDF 的 5 个子集（与 [`benchmarks.md` §5](benchmarks.md#5-pdf-to-markdown) 相同）；报告里对手的总分与 0.12 时的测量完全相同。0.70 同机在 olmOCR-bench 全量 1,403 份 / 7,019 项上为 0.4506 对 pymupdf4llm 0.2446，数学公式 0.3530（[D3](benchmarks/0.70_showdown_D3.md)）。
-⁴ 合成变异集。0.70 同机另一个 2,000 例集上 PageSift 0.8215、Scrapling 0.8875，0.50 为 0.6965（[D4](benchmarks/0.70_showdown_D4.md)），与本行结论相反。
-⁵ Unicode 以外的四个语系 chardet 都更准（如西欧语系 71.62% 对 50.00%，D6 §3.2）。0.70 同机重测准确率相同（0.7602 对 0.7113），速度 11,239 对 6,800 文件/秒（[D6](benchmarks/0.70_showdown_D6.md)）。
-⁶ 只统计抽到的实体数，没有标准答案；准确率见 0.70 同机 [D7](benchmarks/0.70_showdown_D7.md)（0.7392 对 bs4+lxml 0.5488）。
+³ 报告称“官方全量”，实际是 olmOCR-bench 中原生数字 PDF 的 5 个子集（与 [`benchmarks.md` §5](benchmarks.md#5-pdf-to-markdown) 相同）；报告里对手的总分与 0.12 时的测量完全相同。0.70 同机在 olmOCR-bench 全量 1,403 份 / 7,019 项上为 0.4506 对 pymupdf4llm 0.2446，数学公式 0.3530（[D3](history/0.70_showdown_D3.md)）。
+⁴ 合成变异集。0.70 同机另一个 2,000 例集上 PageSift 0.8215、Scrapling 0.8875，0.50 为 0.6965（[D4](history/0.70_showdown_D4.md)），与本行结论相反。
+⁵ Unicode 以外的四个语系 chardet 都更准（如西欧语系 71.62% 对 50.00%，D6 §3.2）。0.70 同机重测准确率相同（0.7602 对 0.7113），速度 11,239 对 6,800 文件/秒（[D6](history/0.70_showdown_D6.md)）。
+⁶ 只统计抽到的实体数，没有标准答案；准确率见 0.70 同机 [D7](history/0.70_showdown_D7.md)（0.7392 对 bs4+lxml 0.5488）。
 ⁷ 真实 2,000 个包上 PageSift 只报出 400 个端点，jsluice 1,041 个、LinkFinder 2,840 个；没有标准答案，无法判断召回。
 ⁸ D6–D8 报告里所有工具（包括 32 进程的对手）峰值内存都只有约 20–32 MB，像是只测了主进程，口径存疑，不列。
-⁹ 0.70 同机 7 个 SPA 场景：PageSift 3/7、Playwright 5/7（[D9](benchmarks/0.70_showdown_D9.md)）。
+⁹ 0.70 同机 7 个 SPA 场景：PageSift 3/7、Playwright 5/7（[D9](history/0.70_showdown_D9.md)）。
 
 > [!TIP]
-> 各报告的原始 JSON/JSONL（如 `benchmark_d6_results.json`、`benchmark4_tier1_standard_2000.jsonl`）在 [`bench/results/final/`](../bench/results/final/)；其中个别数字与报告正文有出入（如 D3、D9 的吞吐），上表以报告正文为准。
+> 各报告的原始 JSON/JSONL（如 `benchmark_d6_results.json`、`benchmark4_tier1_standard_2000.jsonl`）在 [`benchmarks/history/0.50/results/`](../benchmarks/history/0.50/results/)；其中个别数字与报告正文有出入（如 D3、D9 的吞吐），上表以报告正文为准。
 
 ---
 
@@ -302,11 +302,11 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 | **RAG 分块与过滤（耗时 ↓）** | 分块 12.89 ms / QueryFilter 每题 0.63 ms（0.50，Chroma 472 题）ᵉ | ❌ 不支持 | BM25 过滤每题 838.00 ms ᵉ | ❌ 不支持 |
 | **反爬治理哲学** | 规范守序、透明 UA、自适应礼貌队列 | 代理轮询 / 绕过 | 浏览器伪装反反爬 | 浏览器伪装反反爬 |
 
-ᵃ [`BENCHMARK_D1_CONTENT_EXTRACTION_050.md`](../bench/results/final/BENCHMARK_D1_CONTENT_EXTRACTION_050.md) §2、§4（0.50，单次运行）。
-ᵇ 合成源站、同机、无网络（[`0.70_200m_regression.md`](benchmarks/0.70_200m_regression.md)），与其他格不可比。
-ᶜ [`BENCHMARK_100K_PAGESIFT_VS_SPIDER.md`](../bench/results/final/BENCHMARK_100K_PAGESIFT_VS_SPIDER.md)（0.50，单次运行）。百分比是各自提取器返回 ≥ 100 字节的页面占比，不是保真度。
-ᵈ 0.70 的数字是较新的同机运行（[D4](benchmarks/0.70_showdown_D4.md)、[D3](benchmarks/0.70_showdown_D3.md)）；0.50 的出自 [D4 报告](../bench/results/final/BENCHMARK_D4_DOM_SELF_HEALING_050.md) §2 和 [D3 报告](../bench/results/final/BENCHMARK_D3_HEAVY_PDF_EXTRACTION_050.md) §2，数据集不同，结论也不一致。
-ᵉ [`BENCHMARK_D5_RAG_CHUNKING_050.md`](../bench/results/final/BENCHMARK_D5_RAG_CHUNKING_050.md) §2（0.50）。
+ᵃ [`BENCHMARK_D1_CONTENT_EXTRACTION_050.md`](../benchmarks/history/0.50/results/BENCHMARK_D1_CONTENT_EXTRACTION_050.md) §2、§4（0.50，单次运行）。
+ᵇ 合成源站、同机、无网络（[`0.70_200m_regression.md`](history/0.70_200m_regression.md)），与其他格不可比。
+ᶜ [`BENCHMARK_100K_PAGESIFT_VS_SPIDER.md`](../benchmarks/history/0.50/results/BENCHMARK_100K_PAGESIFT_VS_SPIDER.md)（0.50，单次运行）。百分比是各自提取器返回 ≥ 100 字节的页面占比，不是保真度。
+ᵈ 0.70 的数字是较新的同机运行（[D4](history/0.70_showdown_D4.md)、[D3](history/0.70_showdown_D3.md)）；0.50 的出自 [D4 报告](../benchmarks/history/0.50/results/BENCHMARK_D4_DOM_SELF_HEALING_050.md) §2 和 [D3 报告](../benchmarks/history/0.50/results/BENCHMARK_D3_HEAVY_PDF_EXTRACTION_050.md) §2，数据集不同，结论也不一致。
+ᵉ [`BENCHMARK_D5_RAG_CHUNKING_050.md`](../benchmarks/history/0.50/results/BENCHMARK_D5_RAG_CHUNKING_050.md) §2（0.50）。
 “未实测”：仓库里没有这一格的测量记录。旧版表格这些格里的“~150 / ~90 / ~1,200 页/秒”“> 8 GB / > 10 GB”“~85% / ~88%”是没有出处的估计，已删除。
 
 ---
@@ -329,5 +329,5 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 
 ## 开源协议与商业授权
 
-- **开源版本**：基于 [AGPL-3.0](LICENSE) 许可协议开源。
-- **商业授权**：如需闭源商业集成、免除 AGPL 开源义务或获取企业级技术支持，欢迎阅读 [商业授权指引](COMMERCIAL.md) 或联系 `licensing@pagesift.dev`。
+- **开源版本**：基于 [AGPL-3.0](../LICENSE) 许可协议开源。
+- **商业授权**：如需闭源商业集成、免除 AGPL 开源义务或获取企业级技术支持，欢迎阅读 [商业授权指引](../COMMERCIAL.md) 或联系 `licensing@pagesift.dev`。

@@ -1,7 +1,7 @@
 //! html5lib-tests 树构建用例（现在由 web-platform-tests 维护）逐条对照。
 //!
 //! 数据不进仓库，按 tasks/0.80/b1-b3/RESULT.md 的说明稀疏检出到
-//! `bench/data/wpt-parsing`；也可以用环境变量 `PAGESIFT_HTML5LIB_DIR` 指向放 `.dat` 的目录。
+//! `benchmarks/data/wpt-parsing`；也可以用环境变量 `PAGESIFT_HTML5LIB_DIR` 指向放 `.dat` 的目录。
 //! 数据缺失时跳过。
 //!
 //! `#document-fragment` 用例用 [`Html::parse_with`] 的片段解析跑（结果取根元素的子节点），
@@ -27,7 +27,7 @@ fn data_dir() -> Option<PathBuf> {
     let dir = match std::env::var_os("PAGESIFT_HTML5LIB_DIR") {
         Some(d) => PathBuf::from(d),
         None => PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../bench/data/wpt-parsing/html/syntax/parsing/resources"),
+            .join("../../benchmarks/data/wpt-parsing/html/syntax/parsing/resources"),
     };
     dir.is_dir().then_some(dir)
 }

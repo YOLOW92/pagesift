@@ -49,7 +49,7 @@ def extract(html: str) -> str:
         return markdownify(html)
     raise SystemExit(f"unknown tool {t}")
 
-HOST_DATA = "/home/yolow92/pagesift/bench/data"
+HOST_DATA = "/home/yolow92/pagesift/benchmarks/data"
 
 def resolve(path: str) -> str:
     """容器内 /data/... 直接可用；在宿主机上跑时映射回真实路径。"""

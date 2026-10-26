@@ -26,11 +26,11 @@ httparse = "1.10.1"
 crossbeam-channel = "0.5.15"
 mimalloc = { version = "0.1.43", default-features = false }
 
-pagesift-html = { path = "../../crates/pagesift-html" }
-pagesift-content = { path = "../../crates/pagesift-content" }
-pagesift-extract = { path = "../../crates/pagesift-extract" }
-pagesift-net = { path = "../../crates/pagesift-net" }
-pagesift-policy = { path = "../../crates/pagesift-policy" }
+pagesift-html = { path = "../../../crates/pagesift-html" }
+pagesift-content = { path = "../../../crates/pagesift-content" }
+pagesift-extract = { path = "../../../crates/pagesift-extract" }
+pagesift-net = { path = "../../../crates/pagesift-net" }
+pagesift-policy = { path = "../../../crates/pagesift-policy" }
 
 [[bin]]
 name = "stream_origin"

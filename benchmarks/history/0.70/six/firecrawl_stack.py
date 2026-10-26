@@ -7,8 +7,8 @@ import shutil
 import subprocess
 import time
 
-ROOT = Path(__file__).resolve().parents[2]
-DATA = ROOT / 'bench/data/six'
+ROOT = Path(__file__).resolve().parents[4]
+DATA = ROOT / 'benchmarks/data/six'
 PROJECT = 'pagesift-six-firecrawl'
 
 
@@ -17,8 +17,8 @@ def command(args, **kw):
 
 
 def prepare():
-    pins = json.loads((ROOT / 'bench/six/locks/firecrawl-images.json').read_text())
-    runtime_path = ROOT / 'bench/six/locks/firecrawl-runtime.json'
+    pins = json.loads((ROOT / 'benchmarks/history/0.70/six/locks/firecrawl-images.json').read_text())
+    runtime_path = ROOT / 'benchmarks/history/0.70/six/locks/firecrawl-runtime.json'
     previous = json.loads(runtime_path.read_text()) if runtime_path.exists() else {}
     images = {name: previous.get(name, {}).get('image', image) for name, image in
               [('api', pins['firecrawl']['image']), ('playwright', pins['playwright-service']['image']),
@@ -33,7 +33,7 @@ def prepare():
                          'pg_major': next((v for v in d['Config'].get('Env',[]) if v.startswith('PG_MAJOR=')), None)}
     if runtime['postgres']['pg_major'] != 'PG_MAJOR=17':
         raise RuntimeError('locked source expects PostgreSQL 17')
-    (ROOT / 'bench/six/locks/firecrawl-runtime.json').write_text(json.dumps(runtime,indent=2)+'\n')
+    (ROOT / 'benchmarks/history/0.70/six/locks/firecrawl-runtime.json').write_text(json.dumps(runtime,indent=2)+'\n')
     # The auxiliary images are independently versioned. Run the SQL schema from
     # the API's own locked source, not an accidental newer queue schema.
     common = {'cpuset': '0-7', 'pids_limit': 512, 'restart': 'no',

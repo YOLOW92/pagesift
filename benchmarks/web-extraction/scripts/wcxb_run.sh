@@ -1,12 +1,12 @@
 #!/bin/bash
 cd ~/pagesift
 export PATH=$HOME/.cargo/bin:$PATH
-OUT=bench/results/final/0.70/wcxb
+OUT=benchmarks/history/0.70/results/wcxb
 mkdir -p "$OUT"
-PY=bench/upstream/.venv/bin/python
+PY=benchmarks/common/vendor/.venv/bin/python
 
 echo "=== prepare ==="
-$PY bench/fresh/wcxb.py prepare bench/data/wcxb "$OUT/work" all 2>&1 | tail -3
+$PY benchmarks/common/fresh/wcxb.py prepare benchmarks/data/wcxb "$OUT/work" all 2>&1 | tail -3
 
 echo "=== build extract_jsonl ==="
 CARGO_TARGET_DIR=$HOME/pagesift/target cargo build --release -p pagesift-content --example extract_jsonl 2>&1 | tail -2
@@ -16,5 +16,5 @@ time target/release/examples/extract_jsonl "$OUT/work/manifest.jsonl" "$OUT/page
 wc -l "$OUT/pagesift.jsonl"
 
 echo "=== score ==="
-$PY bench/fresh/wcxb.py score bench/data/wcxb "$OUT/work" all "$OUT/pagesift.jsonl" 2>&1 | tail -40
+$PY benchmarks/common/fresh/wcxb.py score benchmarks/data/wcxb "$OUT/work" all "$OUT/pagesift.jsonl" 2>&1 | tail -40
 echo "WCXB_DONE"

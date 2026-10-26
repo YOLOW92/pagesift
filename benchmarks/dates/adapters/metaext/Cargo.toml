@@ -7,6 +7,6 @@ publish = false
 [workspace]
 
 [dependencies]
-pagesift-content = { path = "../../../crates/pagesift-content" }
+pagesift-content = { path = "../../../../crates/pagesift-content" }
 serde_json = "1.0"
 url = "2.5"

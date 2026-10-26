@@ -5,7 +5,7 @@
 Dataset: the human-annotated evaluation set shipped with [htmldate](https://github.com/adbar/htmldate)
 (Apache-2.0): `eval_default.json` (800 pages, multilingual with a focus on German, BBAW collection)
 and `eval_mediacloud_2020.json` (200 worldwide news pages, Data Culture Group, Northeastern University).
-Clone it into `bench/data/fresh/data/htmldate` (`git clone --depth 1 https://github.com/adbar/htmldate`).
+Clone it into `benchmarks/data/fresh/data/htmldate` (`git clone --depth 1 https://github.com/adbar/htmldate`).
 
 Scoring follows htmldate's own `tests/comparison.py`: the date is compared at day granularity
 (`YYYY-MM-DD`); an empty answer counts as a true negative when the page has no date and as a false
@@ -18,8 +18,8 @@ kept only if the hold-out half does not get worse.
 
 ```bash
 cargo build --release -p pagesift --example meta_eval
-bench/data/fresh/tools/py/bin/python -I bench/meta/dates.py            # all tools
-bench/data/fresh/tools/py/bin/python -I bench/meta/dates.py --tools pagesift --dump /tmp/d.json
+benchmarks/data/fresh/tools/py/bin/python -I benchmarks/dates/dates.py            # all tools
+benchmarks/data/fresh/tools/py/bin/python -I benchmarks/dates/dates.py --tools pagesift --dump /tmp/d.json
 cargo run --release -p pagesift --example date_trace -- page.html     # what each step finds
 cargo run --release -p pagesift --example date_scan -- dir...         # crash scan + time per step
 ```

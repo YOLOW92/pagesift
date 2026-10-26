@@ -1,9 +1,9 @@
 import json, re, statistics, sys
 from pathlib import Path
 ROOT = Path("/home/yolow92/pagesift")
-sys.path.insert(0, str(ROOT/"bench/upstream/olmocr"))
+sys.path.insert(0, str(ROOT/"benchmarks/pdf/vendor/olmocr"))
 from olmocr.bench.tests import load_tests
-B = ROOT/"bench/data/olmocr_1403/bench_data"
+B = ROOT/"benchmarks/data/olmocr_1403/bench_data"
 d = ROOT/"out/d3/md070"
 idx = {}
 for f in d.glob("**/*.md"):

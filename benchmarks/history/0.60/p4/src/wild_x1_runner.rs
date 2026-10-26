@@ -19,7 +19,7 @@ use tokio::sync::Semaphore;
 #[derive(Parser, Debug)]
 #[command(author, version, about = "PageSift WILD-X 1 Real Public Internet Limits Runner")]
 pub struct Opts {
-    #[arg(short, long, default_value = "bench/data/top-1m.csv")]
+    #[arg(short, long, default_value = "benchmarks/data/top-1m.csv")]
     pub dataset: PathBuf,
     #[arg(short, long, default_value_t = 100_000)]
     pub limit: usize,
@@ -57,7 +57,7 @@ fn load_domains(path: &Path, limit: usize) -> Result<Vec<String>, Box<dyn std::e
     let mut resolved_path = path.to_path_buf();
     if !resolved_path.exists() {
         // 尝试备用路径
-        let alt = Path::new("../data/top-1m.csv");
+        let alt = Path::new("../../../data/top-1m.csv");
         if alt.exists() {
             resolved_path = alt.to_path_buf();
         } else {

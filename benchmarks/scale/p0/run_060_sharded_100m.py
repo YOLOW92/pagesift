@@ -18,7 +18,7 @@ import urllib.request
 from pathlib import Path
 
 BENCH_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = BENCH_DIR.parents[1]
+PROJECT_ROOT = BENCH_DIR.parents[2]
 SAMPLES_DIR = BENCH_DIR / "samples_060_100m"
 REPORT_JSONL = BENCH_DIR / "060_sharded_100m_report.jsonl"
 REPORT_MD = PROJECT_ROOT / "docs" / "benchmarks" / "0.60_100m_sharded_vs_0.50_baseline.md"

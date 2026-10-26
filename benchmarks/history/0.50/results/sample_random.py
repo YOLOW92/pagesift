@@ -5,11 +5,11 @@ Samples domains from Tranco-B with a recorded random seed, pairing with real-wor
 import csv, json, random, time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[3]
-TRANCO_CSV = ROOT / "bench/data/tranco-b.csv"
-SNAPSHOTS_DIR = ROOT / "bench/data/snapshots-b"
-CRAWL_DIR = ROOT / "bench/data/crawl-pages-b"
-OUT_DIR = ROOT / "bench/results/final"
+ROOT = Path(__file__).resolve().parents[4]
+TRANCO_CSV = ROOT / "benchmarks/data/tranco-b.csv"
+SNAPSHOTS_DIR = ROOT / "benchmarks/data/snapshots-b"
+CRAWL_DIR = ROOT / "benchmarks/data/crawl-pages-b"
+OUT_DIR = ROOT / "benchmarks/history/0.50/results"
 
 SEED = 893421774
 random.seed(SEED)
@@ -58,7 +58,7 @@ def main():
         "master_seed": SEED,
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
         "sample_count": len(manifest_rows),
-        "source": "bench/data/tranco-b.csv",
+        "source": "benchmarks/data/tranco-b.csv",
         "snapshots_pool_size": len(html_files)
     }
     with open(seed_file, "w", encoding="utf-8") as f:

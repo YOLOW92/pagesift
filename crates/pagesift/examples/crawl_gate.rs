@@ -1,7 +1,7 @@
 //! 爬取性能回归线：进程内起一个多站点源站（合成页面，确定性生成），用完整的 Scraper 不限速地
 //! 爬全部站点，检查吞吐和峰值内存（VmHWM），低于下限或超过上限就以非零状态退出。
 //! 限值留了机器负载波动的余量，用来抓明显的退化（比如内存随在途页面无界增长、吞吐掉一个量级）；
-//! 和对手的正式比较用 bench/crawl。
+//! 和对手的正式比较用 benchmarks/crawl。
 //! CI 里跑：`cargo run --release -p pagesift --example crawl_gate`
 
 use std::fmt::Write;

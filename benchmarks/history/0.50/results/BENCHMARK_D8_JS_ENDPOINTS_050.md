@@ -227,7 +227,7 @@ jsluice 1.0          [  7,951.4 files/s] ━━
 ## 6. Reproducibility & Artifacts
 
 All evaluation scripts, dataset manifests, and raw metric JSON outputs are preserved:
-- **Benchmark Driver**: [`bench/fresh/eval_d8_050.py`](file:///home/wyc610721/pagesift/bench/fresh/eval_d8_050.py)
+- **Benchmark Driver**: [`benchmarks/common/fresh/eval_d8_050.py`](file:///home/wyc610721/pagesift/benchmarks/common/fresh/eval_d8_050.py)
 - **Rust Concurrency Example**: [`crates/pagesift-content/examples/bench_js_endpoints_mt.rs`](file:///home/wyc610721/pagesift/crates/pagesift-content/examples/bench_js_endpoints_mt.rs)
-- **Raw Metrics JSON**: [`bench/results/final/benchmark_d8_results.json`](file:///home/wyc610721/pagesift/bench/results/final/benchmark_d8_results.json)
-- **Local Markdown Report**: [`bench/results/final/BENCHMARK_D8_JS_ENDPOINTS_050.md`](file:///home/yolow92/pagesift/bench/results/final/BENCHMARK_D8_JS_ENDPOINTS_050.md)
+- **Raw Metrics JSON**: [`benchmarks/history/0.50/results/benchmark_d8_results.json`](file:///home/wyc610721/pagesift/benchmarks/history/0.50/results/benchmark_d8_results.json)
+- **Local Markdown Report**: [`benchmarks/history/0.50/results/BENCHMARK_D8_JS_ENDPOINTS_050.md`](file:///home/yolow92/pagesift/benchmarks/history/0.50/results/BENCHMARK_D8_JS_ENDPOINTS_050.md)

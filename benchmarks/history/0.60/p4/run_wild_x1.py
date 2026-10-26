@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 
 BENCH_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = BENCH_DIR.parents[1]
+PROJECT_ROOT = BENCH_DIR.parents[3]
 REPORT_JSONL = BENCH_DIR / "wild_x1_report.jsonl"
 REPORT_MD = PROJECT_ROOT / "docs" / "benchmarks" / "0.60_p4_wild_x_1_limits.md"
 
@@ -113,7 +113,7 @@ def main():
     parser.add_argument("--limit", type=int, default=100000, help="Number of real domains to crawl (default: 100,000)")
     parser.add_argument("--shards", type=int, default=16, help="Parallel shards (default: 16)")
     parser.add_argument("--concurrency-per-shard", type=int, default=64, help="Concurrency per shard (default: 64)")
-    parser.add_argument("--dataset", type=str, default="bench/data/top-1m.csv", help="Dataset path")
+    parser.add_argument("--dataset", type=str, default="benchmarks/data/top-1m.csv", help="Dataset path")
     parser.add_argument("--connect-timeout-ms", type=int, default=3000, help="Connect timeout ms (default: 3000)")
     parser.add_argument("--total-timeout-ms", type=int, default=5000, help="Total timeout ms (default: 5000)")
     args = parser.parse_args()

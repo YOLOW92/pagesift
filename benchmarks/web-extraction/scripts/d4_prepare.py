@@ -3,8 +3,8 @@
 import json
 from pathlib import Path
 
-ROOT = Path("/home/yolow92/pagesift/bench/data/d4")
-OUT = Path("/home/yolow92/pagesift/bench/data/showdown/d4")
+ROOT = Path("/home/yolow92/pagesift/benchmarks/data/d4")
+OUT = Path("/home/yolow92/pagesift/benchmarks/data/showdown/d4")
 OUT.mkdir(parents=True, exist_ok=True)
 (OUT / "orig").mkdir(exist_ok=True)
 (OUT / "mut").mkdir(exist_ok=True)

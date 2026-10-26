@@ -7,10 +7,10 @@ import json,shutil,signal,socket,subprocess,sys,threading,time,urllib.request
 from pathlib import Path
 from http.server import ThreadingHTTPServer
 import firecrawl_full as full
-ROOT=Path(__file__).resolve().parents[2]
-DATA=ROOT/'bench/data/six/seven-next/service-input'
-OUT=ROOT/'bench/six/results/seven-next/service-isolated'
-STACK=[sys.executable,str(ROOT/'bench/six/firecrawl_stack.py')]
+ROOT=Path(__file__).resolve().parents[4]
+DATA=ROOT/'benchmarks/data/six/seven-next/service-input'
+OUT=ROOT/'benchmarks/history/0.70/six/results/seven-next/service-isolated'
+STACK=[sys.executable,str(ROOT/'benchmarks/history/0.70/six/firecrawl_stack.py')]
 
 def main():
  OUT.mkdir(parents=True,exist_ok=False)
@@ -19,7 +19,7 @@ def main():
  origin=ThreadingHTTPServer((bridge,0),full.Origin);origin.pages={r['id']:r for r in rows};origin.requests=[]
  threading.Thread(target=origin.serve_forever,daemon=True).start()
  with socket.socket() as s:s.bind(('127.0.0.1',0));port=s.getsockname()[1]
- binary=ROOT/'bench/six/results/seven-next/bin-verified/pagesift'
+ binary=ROOT/'benchmarks/history/0.70/six/results/seven-next/bin-verified/pagesift'
  cfg=OUT/'pagesift.toml';cfg.write_text('[server]\npersist_jobs=false\n[fetch]\nallow_private_network=true\n[policy]\ninterval_ms=0\n[cache]\nenabled=false\ndir='+json.dumps(str(OUT/'candidate-data'))+'\n')
  protocol=json.loads((DATA/'protocol.json').read_text());protocol.update(fault_isolation='Every failed/timeout page kept as empty output; no retry of that page. Before next page restart candidate service or full disposable reference stack+volumes. No reference code modified.',per_document_http_deadline_s=25,api_timeout_ms=15000,revision_reason='Prior full-service run stopped after five consecutive HTTP timeouts; its 75 reference records remain separate, not used as all-545 scores.')
  (OUT/'protocol.json').write_text(json.dumps(protocol,indent=2)+'\n')

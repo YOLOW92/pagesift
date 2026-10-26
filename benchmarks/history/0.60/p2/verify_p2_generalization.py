@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 
 BENCH_P2_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = BENCH_P2_DIR.parents[1]
+PROJECT_ROOT = BENCH_P2_DIR.parents[3]
 RESULTS_DIR = PROJECT_ROOT / "bench" / "results"
 DOCS_DIR = PROJECT_ROOT / "docs" / "benchmarks"
 

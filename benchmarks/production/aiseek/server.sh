@@ -3,13 +3,13 @@
 # 6 核（taskset）、10 GB 内存（cgroup MemoryMax）、CPU 权重 25。
 # 用法：server.sh <pages> <port> [allow_hosts]
 #   pages：浏览器进程上限；0 表示让 pagesift 自适应。
-# 浏览器内核从 ENGINES_PATH（冒号分隔的目录）里自动探测，默认用 bench/data/tools 下的 Lightpanda、moli、chrome-headless-shell。
+# 浏览器内核从 ENGINES_PATH（冒号分隔的目录）里自动探测，默认用 benchmarks/data/tools 下的 Lightpanda、moli、chrome-headless-shell。
 set -euo pipefail
 PAGES=${1:-4}
 PORT=${2:-8100}
 ALLOW=${3:-}
-ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-T=$ROOT/bench/data/tools
+ROOT=$(cd "$(dirname "$0")/../../.." && pwd)
+T=$ROOT/benchmarks/data/tools
 ENGINES_PATH=${ENGINES_PATH:-$T/lightpanda:$T/moli/moli-v1.1.18-x86_64-unknown-linux-gnu:$T/chs/chrome-headless-shell-linux64}
 [ "$PAGES" = 0 ] && PAGES=
 exec systemd-run --user --scope -q -p MemoryMax=10G -p CPUWeight=25 \

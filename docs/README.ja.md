@@ -80,7 +80,7 @@
 
 ## 🏆 7 領域の公開ベンチマーク（0.70、2026-10 測定。以降のバージョンでは再測定していません）
 
-すべて**同じマシンで全件を実行**し、各ベンチマーク固有の採点器と 10 GiB のメモリ上限を使用しました。検証環境は Intel i7-10700（8C/16T）、RAM 15 GB、Ubuntu 26.04 です。再現スクリプトは [`bench/scripts/`](../bench/scripts/)、個別レポートは [`docs/benchmarks/`](benchmarks/) にあります。
+すべて**同じマシンで全件を実行**し、各ベンチマーク固有の採点器と 10 GiB のメモリ上限を使用しました。検証環境は Intel i7-10700（8C/16T）、RAM 15 GB、Ubuntu 26.04 です。再現スクリプトは [`benchmarks/`](../benchmarks/)、個別レポートは [`docs/history/`](history/) にあります。
 
 | 領域 | PageSift 0.70 | 最良の比較対象 | 順位 | 最大 RAM |
 | :--- | :--- | :--- | :---: | ---: |
@@ -121,41 +121,41 @@ D1 は精度（0.8938、17 参加者中 2 位。1 位は goose3 の 0.9097）を
 > - **メモリ**：ピークは PageSift **188.4 MB**、Spider **8,978.9 MB**（約 2.5 分で到達）。Spider も 10 万 URL を完走しており、「OOM で終了」「14 GB でハング」はこの実行の結果ではありません（100 万件規模の挙動は外挿で、測定していません）。
 > - **速度**：Spider の方が速い（持続 666.6 QPS 対 93.5、200 OK は 72,209 対 62,937）。
 > - **抽出**：「変換率」は各ツールの抽出器が 200 OK ページから 100 バイト以上の Markdown を返した割合（PageSift 96.38%、Spider 82.82%）で、忠実度ではありません。有効文書数は 60,659 対 59,803。
-> - レポート：[`bench/results/final/BENCHMARK_100K_PAGESIFT_VS_SPIDER.md`](../bench/results/final/BENCHMARK_100K_PAGESIFT_VS_SPIDER.md)（総括表）。
+> - レポート：[`benchmarks/history/0.50/results/BENCHMARK_100K_PAGESIFT_VS_SPIDER.md`](../benchmarks/history/0.50/results/BENCHMARK_100K_PAGESIFT_VS_SPIDER.md)（総括表）。
 
 ---
 
 ## 🏆 10 領域ベンチマークマトリクス（0.50 の履歴データ・現行バージョン未再測定）
 
-表の数値はすべて `bench/results/final/` にある各領域レポート本文の実測表から取ったものです（0.50、2026-10-23 前後、各 1 回の実行）。「出典」列にレポートと節を示します。レポートに記載のハードウェア：D1–D5 と 10 万比較は AMD EPYC 9B45（32 コア、128 GB）、D6–D10 は AMD EPYC 7B13（`c2d-standard-32`）。倍率は 2 つの実測値をそのまま割ったものだけを載せ、どの値どうしかを明記します。↑ 高いほど良い、↓ 低いほど良い。
+表の数値はすべて `benchmarks/history/0.50/results/` にある各領域レポート本文の実測表から取ったものです（0.50、2026-10-23 前後、各 1 回の実行）。「出典」列にレポートと節を示します。レポートに記載のハードウェア：D1–D5 と 10 万比較は AMD EPYC 9B45（32 コア、128 GB）、D6–D10 は AMD EPYC 7B13（`c2d-standard-32`）。倍率は 2 つの実測値をそのまま割ったものだけを載せ、どの値どうしかを明記します。↑ 高いほど良い、↓ 低いほど良い。
 旧表の数値は `bench/run_full_10_benchmarks.py` がハードコードして生成した CSV（スクリプトはテストを一切実行しない）に由来していたため、スクリプトと CSV は削除しました。
 
 | 評価領域 | PageSift 0.50（レポート実測） | 競合（同じレポートの実測） | 倍率（実測値どうしの割り算） | ピークメモリ ↓（PageSift 対 競合） | 出典 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **01. 本文抽出** | WCXB 2,008 ページ：16 スレッドで **6,273.9 ページ/秒** ↑（32 スレッド 8,833.8）、シングルスレッドの 1 ページ平均 1.30 ms ↓¹ | 競合のマルチスレッド・スループットはレポートになし。シングルスレッドの 1 ページ平均 ↓：trafilatura 2.3.1 26.52 ms、Crawl4AI 0.9.5 283.38 ms | 1 ページ平均 26.52 ÷ 1.30 ≈ 20.4（trafilatura ÷ PageSift） | レポートに測定なし | [D1](../bench/results/final/BENCHMARK_D1_CONTENT_EXTRACTION_050.md) §2、§4 |
-| **02. 実ドメイン 10 万件 / 合成 URL 5 万件** | 10 万件：200 OK 62,937 ↑、100 B 以上の Markdown 60,659 ↑、93.5 QPS ↑<br>合成 5 万件：5,894.8 ページ/秒 ↑² | Spider 2.53.9 10 万件：200 OK 72,209、100 B 以上の Markdown 59,803、666.6 QPS<br>合成 5 万件：6,532.3 ページ/秒 | **Spider の方が速い**：666.6 ÷ 93.5 ≈ 7.1、6,532.3 ÷ 5,894.8 ≈ 1.11<br>メモリ：8,978.9 ÷ 188.4 ≈ 47.7、11,316.3 ÷ 502.4 ≈ 22.5 | 10 万件：188.4 MB 対 8,978.9 MB<br>5 万件：502.4 MB 対 11,316.3 MB | [10 万レポート](../bench/results/final/BENCHMARK_100K_PAGESIFT_VS_SPIDER.md) 総括表、[D2](../bench/results/final/BENCHMARK_D2_MASSIVE_CRAWL_CHAOS_050.md) §2 |
-| **03. PDF 解析** | olmOCR-bench 1,269 ページ：総合合格率 **72.4%** ↑、数式 70.4% ↑、32 スレッドで 2,682.2 ページ/秒 ↑³ | Docling 2.142.0：**73.5%（より高い）**、0.57 ページ/秒<br>PyMuPDF4LLM 2.0：64.4%、数式 50.0%、11.1 ページ/秒 | スループット 2,682.2 ÷ 11.1 ≈ 242（対 PyMuPDF4LLM） | 359.6 MB 対 11,663.1 MB（PyMuPDF4LLM） | [D3](../bench/results/final/BENCHMARK_D3_HEAVY_PDF_EXTRACTION_050.md) §2、§3 |
-| **04. DOM 自己修復** | 合成 2,000 例：復旧率 **98.85%** ↑（1,977/2,000）、誤検出 1.15% ↓、平均 29.2 µs ↓⁴ | Scrapling 0.5：92.95%、誤検出 7.05%、990.8 µs<br>BS4 + lxml + RapidFuzz：98.85%（同率）、2,102.9 µs | 平均時間 990.8 ÷ 29.2 ≈ 33.9（Scrapling ÷ PageSift） | 63.2 MB 対 1,330.9 MB（Scrapling） | [D4](../bench/results/final/BENCHMARK_D4_DOM_SELF_HEALING_050.md) §2 |
-| **05. RAG 分割とフィルタ** | Chroma 472 問：recursive R@1000 **0.893** ↑、分割 12.89 ms ↓<br>QueryFilter：1 問 0.63 ms ↓、保持再現率 0.929 ↑ | semchunk：R@1000 0.893、65.60 ms。LangChain：**0.895（より高い）**、104.80 ms<br>Crawl4AI BM25ContentFilter：1 問 838.00 ms、保持再現率 0.673 | 分割 65.60 ÷ 12.89 ≈ 5.1（semchunk）<br>フィルタ 838.00 ÷ 0.63 ≈ 1,330（Crawl4AI） | レポートに測定なし | [D5](../bench/results/final/BENCHMARK_D5_RAG_CHUNKING_050.md) §2 |
-| **06. 文字コード判別** | chardet-test-data 3,128 ファイル：正解率 **76.02%** ↑、32 スレッドで 24,915.3 ファイル/秒 ↑⁵ | chardet 7.7.0：71.13%、32 プロセスで 11,412.3 ファイル/秒 | スループット 24,915.3 ÷ 11,412.3 ≈ 2.2 | 掲載せず⁸ | [D6](../bench/results/final/BENCHMARK_D6_CHARSET_DETECTION_050.md) §3.1、§3.2 |
-| **07. 構造化データ** | WCXB 2,008 ページ：33,512.9 ページ/秒 ↑、p50 0.277 ms ↓、2,000 階層のネストも解析⁶ | extruct 0.18.0：3,449.1 ページ/秒、p50 2.442 ms、500 階層以上で `RecursionError` | スループット 33,512.9 ÷ 3,449.1 ≈ 9.7 | 掲載せず⁸ | [D7](../bench/results/final/BENCHMARK_D7_STRUCTURED_DATA_050.md) §3.1、§4.1 |
-| **08. JS エンドポイント発見** | 合成の囮セット 500 ファイル：適合率 **100%** ↑（本物 1,000 件、囮 0 件）<br>実際の JS バンドル 2,000 個：160,287.0 ファイル/秒 ↑⁷ | jsluice 1.0：適合率 40.0%（囮 1,500 件）、7,951.4 ファイル/秒<br>LinkFinder：適合率 66.7% | スループット 160,287.0 ÷ 7,951.4 ≈ 20.2（対 jsluice） | 掲載せず⁸ | [D8](../bench/results/final/BENCHMARK_D8_JS_ENDPOINTS_050.md) §3.1、§4.4 |
-| **09. 動的描画（CDP）** | ローカルの 5 種類の SPA で計 100 回の描画がすべて成功、**25.7 ページ/秒** ↑、p50 3,337.56 ms ↓、50 階層 Shadow DOM 合格⁹ | Playwright 1.64.1：41.6 ページ/秒、p50 566.66 ms、Shadow DOM 合格<br>Lightpanda 1.0.2：71.8 ページ/秒、p50 29.92 ms、Shadow DOM 不合格 | **Playwright の方が速い**：41.6 ÷ 25.7 ≈ 1.6 | ツール別の測定なし | [D9](../bench/results/final/BENCHMARK_D9_DYNAMIC_HEADLESS_050.md) §3.1、§4.2 |
-| **10. API ゲートウェイ** | `/v2/scrape` 1,000 リクエスト：**308.0 req/s** ↑、p50 4.37 ms ↓ | Crawl4AI ゲートウェイ 50 リクエスト：33.7 req/s、p50 451.03 ms | 308.0 ÷ 33.7 ≈ 9.1（リクエスト数が異なり、サンプルも小さい） | アイドル時 約 20.4 MB 対 約 380 MB（レポート上の概数） | [D10](../bench/results/final/BENCHMARK_D10_AI_API_GATEWAYS_050.md) §3.1、§3.4 |
+| **01. 本文抽出** | WCXB 2,008 ページ：16 スレッドで **6,273.9 ページ/秒** ↑（32 スレッド 8,833.8）、シングルスレッドの 1 ページ平均 1.30 ms ↓¹ | 競合のマルチスレッド・スループットはレポートになし。シングルスレッドの 1 ページ平均 ↓：trafilatura 2.3.1 26.52 ms、Crawl4AI 0.9.5 283.38 ms | 1 ページ平均 26.52 ÷ 1.30 ≈ 20.4（trafilatura ÷ PageSift） | レポートに測定なし | [D1](../benchmarks/history/0.50/results/BENCHMARK_D1_CONTENT_EXTRACTION_050.md) §2、§4 |
+| **02. 実ドメイン 10 万件 / 合成 URL 5 万件** | 10 万件：200 OK 62,937 ↑、100 B 以上の Markdown 60,659 ↑、93.5 QPS ↑<br>合成 5 万件：5,894.8 ページ/秒 ↑² | Spider 2.53.9 10 万件：200 OK 72,209、100 B 以上の Markdown 59,803、666.6 QPS<br>合成 5 万件：6,532.3 ページ/秒 | **Spider の方が速い**：666.6 ÷ 93.5 ≈ 7.1、6,532.3 ÷ 5,894.8 ≈ 1.11<br>メモリ：8,978.9 ÷ 188.4 ≈ 47.7、11,316.3 ÷ 502.4 ≈ 22.5 | 10 万件：188.4 MB 対 8,978.9 MB<br>5 万件：502.4 MB 対 11,316.3 MB | [10 万レポート](../benchmarks/history/0.50/results/BENCHMARK_100K_PAGESIFT_VS_SPIDER.md) 総括表、[D2](../benchmarks/history/0.50/results/BENCHMARK_D2_MASSIVE_CRAWL_CHAOS_050.md) §2 |
+| **03. PDF 解析** | olmOCR-bench 1,269 ページ：総合合格率 **72.4%** ↑、数式 70.4% ↑、32 スレッドで 2,682.2 ページ/秒 ↑³ | Docling 2.142.0：**73.5%（より高い）**、0.57 ページ/秒<br>PyMuPDF4LLM 2.0：64.4%、数式 50.0%、11.1 ページ/秒 | スループット 2,682.2 ÷ 11.1 ≈ 242（対 PyMuPDF4LLM） | 359.6 MB 対 11,663.1 MB（PyMuPDF4LLM） | [D3](../benchmarks/history/0.50/results/BENCHMARK_D3_HEAVY_PDF_EXTRACTION_050.md) §2、§3 |
+| **04. DOM 自己修復** | 合成 2,000 例：復旧率 **98.85%** ↑（1,977/2,000）、誤検出 1.15% ↓、平均 29.2 µs ↓⁴ | Scrapling 0.5：92.95%、誤検出 7.05%、990.8 µs<br>BS4 + lxml + RapidFuzz：98.85%（同率）、2,102.9 µs | 平均時間 990.8 ÷ 29.2 ≈ 33.9（Scrapling ÷ PageSift） | 63.2 MB 対 1,330.9 MB（Scrapling） | [D4](../benchmarks/history/0.50/results/BENCHMARK_D4_DOM_SELF_HEALING_050.md) §2 |
+| **05. RAG 分割とフィルタ** | Chroma 472 問：recursive R@1000 **0.893** ↑、分割 12.89 ms ↓<br>QueryFilter：1 問 0.63 ms ↓、保持再現率 0.929 ↑ | semchunk：R@1000 0.893、65.60 ms。LangChain：**0.895（より高い）**、104.80 ms<br>Crawl4AI BM25ContentFilter：1 問 838.00 ms、保持再現率 0.673 | 分割 65.60 ÷ 12.89 ≈ 5.1（semchunk）<br>フィルタ 838.00 ÷ 0.63 ≈ 1,330（Crawl4AI） | レポートに測定なし | [D5](../benchmarks/history/0.50/results/BENCHMARK_D5_RAG_CHUNKING_050.md) §2 |
+| **06. 文字コード判別** | chardet-test-data 3,128 ファイル：正解率 **76.02%** ↑、32 スレッドで 24,915.3 ファイル/秒 ↑⁵ | chardet 7.7.0：71.13%、32 プロセスで 11,412.3 ファイル/秒 | スループット 24,915.3 ÷ 11,412.3 ≈ 2.2 | 掲載せず⁸ | [D6](../benchmarks/history/0.50/results/BENCHMARK_D6_CHARSET_DETECTION_050.md) §3.1、§3.2 |
+| **07. 構造化データ** | WCXB 2,008 ページ：33,512.9 ページ/秒 ↑、p50 0.277 ms ↓、2,000 階層のネストも解析⁶ | extruct 0.18.0：3,449.1 ページ/秒、p50 2.442 ms、500 階層以上で `RecursionError` | スループット 33,512.9 ÷ 3,449.1 ≈ 9.7 | 掲載せず⁸ | [D7](../benchmarks/history/0.50/results/BENCHMARK_D7_STRUCTURED_DATA_050.md) §3.1、§4.1 |
+| **08. JS エンドポイント発見** | 合成の囮セット 500 ファイル：適合率 **100%** ↑（本物 1,000 件、囮 0 件）<br>実際の JS バンドル 2,000 個：160,287.0 ファイル/秒 ↑⁷ | jsluice 1.0：適合率 40.0%（囮 1,500 件）、7,951.4 ファイル/秒<br>LinkFinder：適合率 66.7% | スループット 160,287.0 ÷ 7,951.4 ≈ 20.2（対 jsluice） | 掲載せず⁸ | [D8](../benchmarks/history/0.50/results/BENCHMARK_D8_JS_ENDPOINTS_050.md) §3.1、§4.4 |
+| **09. 動的描画（CDP）** | ローカルの 5 種類の SPA で計 100 回の描画がすべて成功、**25.7 ページ/秒** ↑、p50 3,337.56 ms ↓、50 階層 Shadow DOM 合格⁹ | Playwright 1.64.1：41.6 ページ/秒、p50 566.66 ms、Shadow DOM 合格<br>Lightpanda 1.0.2：71.8 ページ/秒、p50 29.92 ms、Shadow DOM 不合格 | **Playwright の方が速い**：41.6 ÷ 25.7 ≈ 1.6 | ツール別の測定なし | [D9](../benchmarks/history/0.50/results/BENCHMARK_D9_DYNAMIC_HEADLESS_050.md) §3.1、§4.2 |
+| **10. API ゲートウェイ** | `/v2/scrape` 1,000 リクエスト：**308.0 req/s** ↑、p50 4.37 ms ↓ | Crawl4AI ゲートウェイ 50 リクエスト：33.7 req/s、p50 451.03 ms | 308.0 ÷ 33.7 ≈ 9.1（リクエスト数が異なり、サンプルも小さい） | アイドル時 約 20.4 MB 対 約 380 MB（レポート上の概数） | [D10](../benchmarks/history/0.50/results/BENCHMARK_D10_AI_API_GATEWAYS_050.md) §3.1、§3.4 |
 
 **上表の行別注記（2026-10-27 確認）**
 ¹ D1 レポート §4 の 16 スレッド実測は 6,273.9 ページ/秒。同じ行の括弧内にある 3,525 ページ/秒は 0.40 のノート PC の旧数値で、旧表はこちらを誤って使っていました。§2 の F1 0.8472 は 0.70 の公式スコアラーによる WCXB スコアと同じ値で、評価方法が書かれていないため掲載しません（同一マシンでの WCXB 比較は上の 7 領域表を参照）。
 ² 10 万比較は 1 回の実行で、両者とも完走。処理数は PageSift 105,660 件、Spider 100,000 件。「96.38% 対 82.82%」は各ツールの抽出器が 200 OK ページから 100 バイト以上の Markdown を返した割合で、忠実度ではありません。5 万件はローカルの合成サイトです（D2 §2）。
-³ レポートは「公式全件」としていますが、実際は olmOCR-bench のうちボーンデジタル PDF の 5 サブセットです（[`benchmarks.md` §5](benchmarks.md#5-pdf-to-markdown) と同じ）。レポート内の競合の総合スコアは 0.12 当時の測定値とまったく同じです。0.70 の同一マシンでの olmOCR-bench 全件（1,403 件 / 7,019 項目）では 0.4506 対 pymupdf4llm 0.2446、数式 0.3530（[D3](benchmarks/0.70_showdown_D3.md)）。
-⁴ 合成の変異セット。0.70 の同一マシンでの別の 2,000 例セットでは PageSift 0.8215、Scrapling 0.8875、0.50 は 0.6965（[D4](benchmarks/0.70_showdown_D4.md)）で、この行と逆の結論です。
-⁵ Unicode 以外の 4 つの言語系統ではすべて chardet の方が正確です（例：西欧系 71.62% 対 50.00%、D6 §3.2）。0.70 の同一マシン再測定でも正解率は同じ（0.7602 対 0.7113）、速度は 11,239 対 6,800 ファイル/秒（[D6](benchmarks/0.70_showdown_D6.md)）。
-⁶ 抽出したエンティティ数を数えただけで正解データはありません。正解率は 0.70 の同一マシン [D7](benchmarks/0.70_showdown_D7.md)（0.7392 対 bs4+lxml 0.5488）を参照。
+³ レポートは「公式全件」としていますが、実際は olmOCR-bench のうちボーンデジタル PDF の 5 サブセットです（[`benchmarks.md` §5](benchmarks.md#5-pdf-to-markdown) と同じ）。レポート内の競合の総合スコアは 0.12 当時の測定値とまったく同じです。0.70 の同一マシンでの olmOCR-bench 全件（1,403 件 / 7,019 項目）では 0.4506 対 pymupdf4llm 0.2446、数式 0.3530（[D3](history/0.70_showdown_D3.md)）。
+⁴ 合成の変異セット。0.70 の同一マシンでの別の 2,000 例セットでは PageSift 0.8215、Scrapling 0.8875、0.50 は 0.6965（[D4](history/0.70_showdown_D4.md)）で、この行と逆の結論です。
+⁵ Unicode 以外の 4 つの言語系統ではすべて chardet の方が正確です（例：西欧系 71.62% 対 50.00%、D6 §3.2）。0.70 の同一マシン再測定でも正解率は同じ（0.7602 対 0.7113）、速度は 11,239 対 6,800 ファイル/秒（[D6](history/0.70_showdown_D6.md)）。
+⁶ 抽出したエンティティ数を数えただけで正解データはありません。正解率は 0.70 の同一マシン [D7](history/0.70_showdown_D7.md)（0.7392 対 bs4+lxml 0.5488）を参照。
 ⁷ 実バンドル 2,000 個で PageSift が報告したエンドポイントは 400 件、jsluice は 1,041 件、LinkFinder は 2,840 件。正解データがないため再現率は判断できません。
 ⁸ D6–D8 のレポートでは全ツール（32 プロセスの競合を含む）のピークメモリが約 20–32 MB しかなく、親プロセスだけを測った可能性があるため掲載しません。
-⁹ 0.70 の同一マシン 7 SPA シナリオ：PageSift 3/7、Playwright 5/7（[D9](benchmarks/0.70_showdown_D9.md)）。
+⁹ 0.70 の同一マシン 7 SPA シナリオ：PageSift 3/7、Playwright 5/7（[D9](history/0.70_showdown_D9.md)）。
 
 > [!TIP]
-> 各レポートの生データ JSON/JSONL（`benchmark_d6_results.json`、`benchmark4_tier1_standard_2000.jsonl` など）は [`bench/results/final/`](../bench/results/final/) にあります。一部の数値はレポート本文と食い違っており（D3、D9 のスループットなど）、上表はレポート本文に合わせています。
+> 各レポートの生データ JSON/JSONL（`benchmark_d6_results.json`、`benchmark4_tier1_standard_2000.jsonl` など）は [`benchmarks/history/0.50/results/`](../benchmarks/history/0.50/results/) にあります。一部の数値はレポート本文と食い違っており（D3、D9 のスループットなど）、上表はレポート本文に合わせています。
 
 ---
 
@@ -294,11 +294,11 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 | **RAG 分割とフィルタ（時間 ↓）** | 分割 12.89 ms / QueryFilter 1 問 0.63 ms（0.50、Chroma 472 問）ᵉ | ❌ 非対応 | BM25 フィルタ 1 問 838.00 ms ᵉ | ❌ 非対応 |
 | **巡回哲学** | 規範遵守・透明 UA・自動トークンバケット | プロキシ回避主体 | ステルス回避主体 | ステルス回避主体 |
 
-ᵃ [`BENCHMARK_D1_CONTENT_EXTRACTION_050.md`](../bench/results/final/BENCHMARK_D1_CONTENT_EXTRACTION_050.md) §2、§4（0.50、1 回の実行）。
-ᵇ 合成オリジン、同一マシン、ネットワークなし（[`0.70_200m_regression.md`](benchmarks/0.70_200m_regression.md)）。他のセルとは比較できません。
-ᶜ [`BENCHMARK_100K_PAGESIFT_VS_SPIDER.md`](../bench/results/final/BENCHMARK_100K_PAGESIFT_VS_SPIDER.md)（0.50、1 回の実行）。割合は各ツールの抽出器が 100 バイト以上を返したページの比率で、忠実度ではありません。
-ᵈ 0.70 の数値は新しい同一マシンでの実行（[D4](benchmarks/0.70_showdown_D4.md)、[D3](benchmarks/0.70_showdown_D3.md)）。0.50 の数値は [D4 レポート](../bench/results/final/BENCHMARK_D4_DOM_SELF_HEALING_050.md) §2 と [D3 レポート](../bench/results/final/BENCHMARK_D3_HEAVY_PDF_EXTRACTION_050.md) §2 によるもので、データセットが異なり結論も一致しません。
-ᵉ [`BENCHMARK_D5_RAG_CHUNKING_050.md`](../bench/results/final/BENCHMARK_D5_RAG_CHUNKING_050.md) §2（0.50）。
+ᵃ [`BENCHMARK_D1_CONTENT_EXTRACTION_050.md`](../benchmarks/history/0.50/results/BENCHMARK_D1_CONTENT_EXTRACTION_050.md) §2、§4（0.50、1 回の実行）。
+ᵇ 合成オリジン、同一マシン、ネットワークなし（[`0.70_200m_regression.md`](history/0.70_200m_regression.md)）。他のセルとは比較できません。
+ᶜ [`BENCHMARK_100K_PAGESIFT_VS_SPIDER.md`](../benchmarks/history/0.50/results/BENCHMARK_100K_PAGESIFT_VS_SPIDER.md)（0.50、1 回の実行）。割合は各ツールの抽出器が 100 バイト以上を返したページの比率で、忠実度ではありません。
+ᵈ 0.70 の数値は新しい同一マシンでの実行（[D4](history/0.70_showdown_D4.md)、[D3](history/0.70_showdown_D3.md)）。0.50 の数値は [D4 レポート](../benchmarks/history/0.50/results/BENCHMARK_D4_DOM_SELF_HEALING_050.md) §2 と [D3 レポート](../benchmarks/history/0.50/results/BENCHMARK_D3_HEAVY_PDF_EXTRACTION_050.md) §2 によるもので、データセットが異なり結論も一致しません。
+ᵉ [`BENCHMARK_D5_RAG_CHUNKING_050.md`](../benchmarks/history/0.50/results/BENCHMARK_D5_RAG_CHUNKING_050.md) §2（0.50）。
 「未測定」：このセルの測定記録はリポジトリにありません。旧表のこれらのセルにあった「〜150 / 〜90 / 〜1,200 ページ/秒」「> 8 GB / > 10 GB」「〜85% / 〜88%」は出典のない推定値だったため削除しました。
 
 ---
@@ -311,5 +311,5 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 
 ## ライセンスと商用利用
 
-- **オープンソース版**：[AGPL-3.0](LICENSE) ライセンスに基づく提供。
-- **商用ライセンス**：AGPL 義務の免除やクローズドソースへの組み込みをご希望の場合は、[商用ライセンスのご案内](COMMERCIAL.md) を確認いただくか、`licensing@pagesift.dev` までお問い合わせください。
+- **オープンソース版**：[AGPL-3.0](../LICENSE) ライセンスに基づく提供。
+- **商用ライセンス**：AGPL 義務の免除やクローズドソースへの組み込みをご希望の場合は、[商用ライセンスのご案内](../COMMERCIAL.md) を確認いただくか、`licensing@pagesift.dev` までお問い合わせください。

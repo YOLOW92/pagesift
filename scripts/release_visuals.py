@@ -6,7 +6,7 @@ from pathlib import Path
 from html import escape
 
 ROOT = Path(__file__).resolve().parents[1]
-DATA = ROOT / 'bench/six/evidence/2026-10-22'
+DATA = ROOT / 'benchmarks/history/0.70/six/evidence/2026-10-22'
 OUT = ROOT / 'docs/assets'
 S = json.loads((DATA / 'summary.json').read_text())
 VERSION = tomllib.loads((ROOT / 'Cargo.toml').read_text())['workspace']['package']['version']
