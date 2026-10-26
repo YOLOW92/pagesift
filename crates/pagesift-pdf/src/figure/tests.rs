@@ -17,7 +17,7 @@ fn line(text: &str, x0: f64, y: f64, size: f64) -> Line {
     }
 }
 
-fn polyline(x0: f64, y0: f64, x1: f64, y1: f64, segs: u32) -> Shape {
+fn polyline(x0: f64, y0: f64, x1: f64, y1: f64, segs: u16) -> Shape {
     Shape {
         x0,
         y0,

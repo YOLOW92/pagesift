@@ -156,15 +156,19 @@ impl Interp<'_> {
             }
             out
         };
+        // 看不见的路径只有矩形用得上（它的边不当刻度）
         let mut push = |b: [f64; 4], slanted: u32, curves: u32, rect: bool| {
-            if self.ink.shapes.len() < MAX_SHAPES_PER_PAGE && b.iter().all(|v| v.is_finite()) {
+            if (visible || rect)
+                && self.ink.shapes.len() < MAX_SHAPES_PER_PAGE
+                && b.iter().all(|v| v.is_finite())
+            {
                 self.ink.shapes.push(Shape {
                     x0: b[0],
                     y0: b[1],
                     x1: b[2],
                     y1: b[3],
-                    slanted,
-                    curves,
+                    slanted: slanted.min(u16::MAX as u32) as u16,
+                    curves: curves.min(u16::MAX as u32) as u16,
                     rect,
                     fill,
                     visible,

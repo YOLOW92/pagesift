@@ -309,10 +309,10 @@ pub(crate) fn text_of(lines: &[Line], members: &[usize]) -> String {
 pub(crate) fn take(
     figs: &[Figure],
     frags: &mut Vec<Line>,
-    rules: &[Rule],
+    mut rules: Vec<Rule>,
 ) -> (Vec<Line>, Vec<Rule>) {
     if figs.is_empty() {
-        return (Vec::new(), rules.to_vec());
+        return (Vec::new(), rules);
     }
     let blocks: Vec<Line> = figs
         .iter()
@@ -343,16 +343,12 @@ pub(crate) fn take(
     }
     let mut it = gone.iter();
     frags.retain(|_| !it.next().copied().unwrap_or(false));
-    let rest = rules
-        .iter()
-        .copied()
-        .filter(|r| {
-            !figs
-                .iter()
-                .any(|f| f.contains((r.x0 + r.x1) / 2.0, (r.y0 + r.y1) / 2.0))
-        })
-        .collect();
-    (blocks, rest)
+    rules.retain(|r| {
+        !figs
+            .iter()
+            .any(|f| f.contains((r.x0 + r.x1) / 2.0, (r.y0 + r.y1) / 2.0))
+    });
+    (blocks, rules)
 }
 
 #[cfg(test)]

@@ -40,10 +40,10 @@ pub(crate) struct Shape {
     pub(crate) y0: f64,
     pub(crate) x1: f64,
     pub(crate) y1: f64,
-    /// 既不水平也不竖直的线段数（折线图、箭头、饼图的边）。
-    pub(crate) slanted: u32,
-    /// 曲线段数（饼图、圆点、圆角）。
-    pub(crate) curves: u32,
+    /// 既不水平也不竖直的线段数（折线图、箭头、饼图的边），到 u16 上限为止。
+    pub(crate) slanted: u16,
+    /// 曲线段数（饼图、圆点、圆角），到 u16 上限为止。
+    pub(crate) curves: u16,
     /// 是 `re` 画的矩形。
     pub(crate) rect: bool,
     pub(crate) fill: bool,

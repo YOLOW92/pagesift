@@ -182,7 +182,7 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
                 continue;
             }
         };
-        let ink = Interp::new(&doc, &mut fonts, deadline, opts.max_stream_bytes)
+        let mut ink = Interp::new(&doc, &mut fonts, deadline, opts.max_stream_bytes)
             .run_page(page)
             .map_err(|_| Error::Timeout)?;
         let text_chars: usize = ink
@@ -212,6 +212,7 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
         structure::keep_outline_lines(std::slice::from_mut(&mut page_frags), &outline_here);
         // 矢量图：图内文字（刻度、图例、标注）不进表格检测、不当标题，合成一个原样输出的块
         let figures = figure::detect(&ink.shapes, &ink.rules, &page_frags, ink.width, ink.height);
+        ink.shapes = Vec::new();
         if std::env::var_os("PAGESIFT_PDF_TABLES").is_some() {
             for f in &figures {
                 let head: String = figure::text_of(&page_frags, &f.lines)
@@ -230,7 +231,8 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
                 );
             }
         }
-        let (figure_blocks, table_rules) = figure::take(&figures, &mut page_frags, &ink.rules);
+        let (figure_blocks, table_rules) =
+            figure::take(&figures, &mut page_frags, std::mem::take(&mut ink.rules));
         let tables = table::extract(&table_rules, &mut page_frags, ink.width, ink.height);
         page_frags.extend(figure_blocks);
         if std::env::var_os("PAGESIFT_PDF_TABLES").is_some() {

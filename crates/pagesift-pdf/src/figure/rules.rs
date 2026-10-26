@@ -56,29 +56,36 @@ impl<'a> Joints<'a> {
             j.keys = keys;
             j.keys.len()
         };
-        let mut at: Vec<(usize, u32, i32, i32)> = Vec::new();
-        let mut count = vec![0usize; j.n + 1];
-        for (n, q) in all.iter().enumerate() {
-            let (o, pos, a, b) = line_of(q);
-            if o != horizontal {
-                continue;
+        // 两遍：先数每个桶有几条，再填（不留整页的临时数组）
+        let bucket_of = |q: &Rule| {
+            let (o, pos, _, _) = line_of(q);
+            if o == horizontal {
+                j.bucket((pos * 2.0).round() as i64)
+            } else {
+                None
             }
-            if let Some(bk) = j.bucket((pos * 2.0).round() as i64) {
+        };
+        let mut count = vec![0usize; j.n + 1];
+        for q in all {
+            if let Some(bk) = bucket_of(q) {
                 count[bk + 1] += 1;
-                at.push((bk, n as u32, floor32(b), floor32(a)));
             }
         }
         for b in 1..count.len() {
             count[b] += count[b - 1];
         }
         let mut fill = count.clone();
-        j.ends = vec![(0, 0); at.len()];
-        j.starts = j.ends.clone();
-        for &(bk, q, e, s) in &at {
-            j.ends[fill[bk]] = (e, q);
-            j.starts[fill[bk]] = (s, q);
-            fill[bk] += 1;
+        let mut ends = vec![(0, 0); count[j.n]];
+        let mut starts = ends.clone();
+        for (n, q) in all.iter().enumerate() {
+            if let Some(bk) = bucket_of(q) {
+                let (_, _, a, b) = line_of(q);
+                ends[fill[bk]] = (floor32(b), n as u32);
+                starts[fill[bk]] = (floor32(a), n as u32);
+                fill[bk] += 1;
+            }
         }
+        (j.ends, j.starts) = (ends, starts);
         for b in 0..j.n {
             if count[b + 1] - count[b] > 1 {
                 j.ends[count[b]..count[b + 1]].sort_unstable_by_key(|e| e.0);

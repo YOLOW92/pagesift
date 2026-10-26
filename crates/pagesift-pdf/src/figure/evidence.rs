@@ -77,7 +77,7 @@ pub(super) fn evidence<'a>(
         {
             continue;
         }
-        let bent = s.slanted + s.curves;
+        let bent = u32::from(s.slanted) + u32::from(s.curves);
         let (weight, bar) = if bent > 0 && !s.rect {
             // 框住文字的圆角框是文本框，不是图；流程图里装一两行短字的小节点框算图
             if s.curves <= 8 && s.slanted <= 4 && w > 20.0 && h > 12.0 {
@@ -126,33 +126,40 @@ pub(super) fn evidence<'a>(
             .collect(),
         |r| r.x0,
     );
-    // 短边才会被当成刻度：只收有短边的矩形的边
-    let mut edges: Vec<(bool, i64, i64, i64)> = Vec::new();
-    if !vc.is_empty() || !hc.is_empty() {
+    // 候选短线是矩形的边就不算：候选的键排好，扫矩形（只看有短边的）时标出哪些键是矩形的边
+    let key = |r: &Rule| {
+        if r.horizontal() {
+            (true, q(r.y0), q(r.x0), q(r.x1))
+        } else {
+            (false, q(r.x0), q(r.y0), q(r.y1))
+        }
+    };
+    let mut keys: Vec<(bool, i64, i64, i64)> = vc.iter().chain(hc.iter()).map(|r| key(r)).collect();
+    keys.sort_unstable();
+    keys.dedup();
+    let mut edge = vec![false; keys.len()];
+    if !keys.is_empty() {
+        let mut mark = |k: (bool, i64, i64, i64)| {
+            if let Ok(i) = keys.binary_search(&k) {
+                edge[i] = true;
+            }
+        };
         for s in shapes.iter().filter(|s| s.rect) {
             if s.y1 - s.y0 <= TICK_LEN + 0.5 {
                 for x in [s.x0, s.x1] {
-                    edges.push((false, q(x), q(s.y0), q(s.y1)));
+                    mark((false, q(x), q(s.y0), q(s.y1)));
                 }
             }
             if s.x1 - s.x0 <= TICK_LEN + 0.5 {
                 for y in [s.y0, s.y1] {
-                    edges.push((true, q(y), q(s.x0), q(s.x1)));
+                    mark((true, q(y), q(s.x0), q(s.x1)));
                 }
             }
         }
-        edges.sort_unstable();
-        edges.dedup();
         index.prepare_joints(&vc.iter().chain(hc.iter()).copied().collect::<Vec<_>>());
     }
-    let tick = |r: &&Rule| {
-        let edge = if r.horizontal() {
-            (true, q(r.y0), q(r.x0), q(r.x1))
-        } else {
-            (false, q(r.x0), q(r.y0), q(r.y1))
-        };
-        edges.binary_search(&edge).is_err() && !index.continued(r)
-    };
+    let tick =
+        |r: &&Rule| !keys.binary_search(&key(r)).is_ok_and(|i| edge[i]) && !index.continued(r);
     let mut vt: Vec<&Rule> = vc.into_iter().filter(tick).collect();
     let mut ht: Vec<&Rule> = hc.into_iter().filter(tick).collect();
     vt.sort_by(|a, b| a.y0.total_cmp(&b.y0).then(a.x0.total_cmp(&b.x0)));
