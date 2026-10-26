@@ -13,29 +13,39 @@ on:
         description: 那次发布流程的运行编号（npm 包的构建产物从这里取）
         required: true
 
+# 登记要求：crates.io 和 npm 的 Trusted Publishing 里，本工作流 publish-rest.yml、环境 release 也要各登记一条。
 permissions:
-  contents: write
-  actions: read
+  contents: read
 
 jobs:
   crates:
     runs-on: ubuntu-latest
     environment: release
     timeout-minutes: 300
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag }}
       - uses: dtolnay/rust-toolchain@stable
+      - name: crates.io 临时令牌
+        id: auth
+        uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
       - name: crates.io（逐个发布，限流时等待）
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         run: python3 scripts/publish_crates.py
 
   npm:
     needs: crates
     runs-on: ubuntu-latest
     environment: release
+    permissions:
+      contents: read
+      actions: read         # 取另一次运行的构建产物
+      id-token: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -53,8 +63,9 @@ jobs:
       - name: npm
         working-directory: crates/pagesift-node
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
         run: |
+          npm install -g npm@^11.5.1   # Trusted Publishing 要 npm CLI 11.5.1 以上
           npm ci
           npx napi artifacts --output-dir ../../artifacts
           # 主包发布时会先由 prepublishOnly 发平台包；主包已在就说明这一版 npm 已经发完（重跑发布时跳过）
@@ -62,13 +73,15 @@ jobs:
           if [ "$(npm view "@pagesift/node@$version" version 2>/dev/null)" = "$version" ]; then
             echo "@pagesift/node $version is already published."
           else
-            npm publish --access public
+            npm publish --access public --provenance
           fi
           node scripts/publish_wrapper.mjs
 
   release:
     needs: npm
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: 发布 GitHub 版本页面
         env:
