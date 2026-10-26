@@ -10,15 +10,23 @@ pub(super) struct Para {
     pub level: u8,
     pub bullet: Option<bool>,
     pub numbered: bool,
+    /// 带加粗、斜体记号的文字。
     pub text: String,
+    /// 同样的文字，不带强调记号（标题用）。
+    pub plain: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum Content {
     Text(Vec<Para>),
-    Picture { alt: String, embed: Option<String> },
+    Picture {
+        alt: String,
+        embed: Option<String>,
+    },
     Table(Vec<Vec<String>>),
     Chart(String),
+    /// SmartArt：数据部件（`dgm:relIds/@r:dm`）的关系 id。
+    Diagram(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -129,6 +137,10 @@ fn shape(r: &mut Reader<'_>, picture: bool) -> Result<Shape, Error> {
                     content = a.get("id").map(|id| Content::Chart(id.into_owned()));
                     depth += 1;
                 }
+                "relIds" => {
+                    content = a.get("dm").map(|id| Content::Diagram(id.into_owned()));
+                    depth += 1;
+                }
                 "Fallback" | "extLst" => r.skip()?,
                 _ => depth += 1,
             },
@@ -178,6 +190,7 @@ fn paragraph(r: &mut Reader<'_>) -> Result<Para, Error> {
         bullet: None,
         numbered: false,
         text: String::new(),
+        plain: String::new(),
     };
     let mut depth = 1;
     let (mut bold, mut italic) = (false, false);
@@ -208,6 +221,7 @@ fn paragraph(r: &mut Reader<'_>) -> Result<Para, Error> {
                 }
                 "t" => {
                     let text = r.text_until_end()?;
+                    p.plain.push_str(&escape(&text));
                     let core = text.trim();
                     let marks = match (bold, italic) {
                         (true, true) => "***",
@@ -226,6 +240,7 @@ fn paragraph(r: &mut Reader<'_>) -> Result<Para, Error> {
                 }
                 "br" => {
                     p.text.push('\n');
+                    p.plain.push('\n');
                     depth += 1;
                 }
                 "r" | "fld" => {
@@ -247,6 +262,7 @@ fn paragraph(r: &mut Reader<'_>) -> Result<Para, Error> {
     }
     // 相邻同格式的片段在源文件里经常被拆成几段（**a****b**），合并掉
     p.text = squeeze(&p.text.replace("****", "").replace("**  **", " "));
+    p.plain = squeeze(&p.plain);
     Ok(p)
 }
 

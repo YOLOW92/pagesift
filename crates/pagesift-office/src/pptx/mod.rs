@@ -6,6 +6,7 @@
 //! 表格、图片替代文字、图表的缓存数据、演讲者备注都输出。
 
 mod chart;
+mod diagram;
 mod shapes;
 
 use std::collections::HashMap;
@@ -126,10 +127,10 @@ fn slide(
             Content::Text(paras) if title(s) && !has_title => {
                 let text: Vec<&str> = paras
                     .iter()
-                    .map(|p| p.text.as_str())
+                    .map(|p| p.plain.as_str())
                     .filter(|t| !t.is_empty())
                     .collect();
-                let text = crate::md::squeeze(&text.join(" ").replace('\n', " ").replace('*', ""));
+                let text = crate::md::squeeze(&text.join(" ").replace('\n', " "));
                 if !text.is_empty() {
                     blocks.push(Block::Heading(2, text));
                     has_title = true;
@@ -154,6 +155,12 @@ fn slide(
             }
             Content::Table(rows) if !rows.is_empty() => blocks.push(Block::Table(rows.clone())),
             Content::Table(_) => {}
+            Content::Diagram(id) => {
+                let Some(part) = rels.get(id) else { continue };
+                if let Some(dx) = zip.read_text(&part.target)? {
+                    diagram::read(&dx, blocks)?;
+                }
+            }
             Content::Chart(id) => {
                 let Some(part) = rels.get(id) else { continue };
                 let Some(cx) = zip.read_text(&part.target)? else {
