@@ -1,15 +1,13 @@
 //! 只取正文时的跳过规则：去掉导航、页眉页脚、侧边栏、链接密集块这类页面框架。
 
-use std::cell::Cell;
+use std::cell::{Cell, OnceCell};
 
 use pagesift_html::{Element, Html, Tag};
 
 use crate::dom::{NodeR, element, is_hidden, is_non_content_tag, short_text};
 use crate::markdown::is_block_tag;
 
-use crate::classes::{
-    JUMP, NEG, POS, SKIP_ROLES, STRICT, in_content_area, is_main_landmark, token_class,
-};
+use crate::classes::{JUMP, NEG, POS, SKIP_ROLES, STRICT, is_main_landmark, token_class};
 
 /// 正文被删过头时放宽规则的程度。
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -56,6 +54,8 @@ pub(crate) struct Skipper {
     features: Vec<Cell<u32>>,
     attachments: Vec<Cell<u8>>,
     order: Vec<pagesift_html::NodeId>,
+    /// 在不在正文区、子树里有没有 nav：第一次用到时一遍算好。
+    landmarks: OnceCell<crate::landmarks::Landmarks>,
 }
 
 /// Reusable per-worker vectors indexed by DOM node id.
@@ -253,7 +253,13 @@ impl Skipper {
             features,
             attachments,
             order,
+            landmarks: OnceCell::new(),
         }
+    }
+
+    fn landmarks(&self, node: &NodeR<'_>) -> &crate::landmarks::Landmarks {
+        self.landmarks
+            .get_or_init(|| crate::landmarks::Landmarks::compute(node.document(), &self.order))
     }
 
     pub(crate) fn recycle(self, scratch: &mut Scratch) {
@@ -472,8 +478,8 @@ impl Skipper {
         } else if self.relaxed == Relax::LinkBlocks {
             None
         } else if tag == Tag::Header
-            && !in_content_area(node)
-            && node.descendants().any(|d| d.tag() == Some(Tag::Nav))
+            && !self.landmarks(node).in_content_area(node)
+            && self.landmarks(node).has_nav_below(node)
         {
             Some("header with nav")
         } else if el.attr("role").is_some_and(|r| SKIP_ROLES.contains(&r)) {
@@ -509,7 +515,7 @@ impl Skipper {
         // 正文区里的 `<aside>` 不一定都是"相关文章"：食谱的配料表、教程的提示框、文章的资料框
         // 常用 `<aside>`。名字带负面词（sidebar/related/ad……）或链接密集的照旧当框架去掉。
         if node.tag() == Some(Tag::Aside)
-            && in_content_area(node)
+            && self.landmarks(node).in_content_area(node)
             && v.chars >= 20
             && (v.link_chars as f64) < v.chars as f64 * 0.5
             && node

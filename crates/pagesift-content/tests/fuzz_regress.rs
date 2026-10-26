@@ -82,3 +82,18 @@ fn many_images_in_one_picture() {
     assert_eq!(doc.images.map(|i| i.len()), Some(1));
     assert!(took < Duration::from_secs(2), "{took:?}");
 }
+
+/// 只取正文时判断 `<header>`、`<aside>` 是否框架，要看祖先里有没有 main/article、子树里有没有
+/// nav：逐个元素沿祖先、后代走一遍，几百层嵌套时每个元素的代价乘上几百（180 万字节 4 秒）。
+#[test]
+fn nested_headers_and_asides() {
+    for unit in ["<header>a", "<aside>aaaaaaaaaaaaaaaaaaaaaaaaa"] {
+        let html = format!(
+            "<body><article><p>{}</p>{}</article>",
+            "word ".repeat(100),
+            unit.repeat(1_000_000 / unit.len())
+        );
+        let (_, took) = render(&html);
+        assert!(took < Duration::from_secs(2), "{unit}: {took:?}");
+    }
+}
