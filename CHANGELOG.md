@@ -15,6 +15,9 @@ speed and memory do not regress. See [the release notes](docs/releases/0.80.0.md
 - PDF headings from the structure tree (`H1`–`H6`, `H`, `Title`, `/RoleMap`) and bookmarks
   (`/Outlines`, named destinations), with inference from numbering, size and bold as fallback.
 - PDF vector-figure detection: text inside a chart is one raw block, not a table or a heading.
+  Scatter plots are recognised by their grid lines.
+- pagesift-html: `Html::parse_with` and `ParseOptions` (fragment parsing with a context element,
+  parsing with scripting off).
 - Block-page rules for Imperva challenges, ByteDance WAF challenges and "unsupported browser" pages.
 
 ### Changed
@@ -32,8 +35,12 @@ speed and memory do not regress. See [the release notes](docs/releases/0.80.0.md
 - `pagesift doctor` wrote an audit record and snapshot of its self-test.
 - PDF: the last body lines of some pages were removed as footers when chart labels skewed the
   line spacing; a CFF encoding supplement was read from the wrong offset.
-- HTML tree construction checked against html5lib-tests: `</script>` inside `<!--<script>`,
-  unclosed `<select>`, `--!>`, `<template>` and table/foreign-content scoping now follow the spec.
+- PDF false tables: a ruled grid with text in only one column (a text box) and rows of labels on
+  a chart are no longer output as tables.
+- HTML tree construction checked against html5lib-tests (1,973 cases, 90.5% pass): `</script>`
+  inside `<!--<script>`, unclosed `<select>`, `--!>`, `<template>`, table/foreign-content scoping,
+  element namespaces and integration points, frameset documents, NUL characters and `<plaintext>`
+  now follow the spec.
 - Hangs and blow-ups found by fuzzing: unmatched `[` in Markdown escaping, deeply nested lists and
   quotes, `<picture>` with many images, nested `<header>`, `:nth-child` over many siblings, PDF
   object streams with shared offsets, PDF text at huge coordinates, `stream` without `endstream`.
