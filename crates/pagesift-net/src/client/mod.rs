@@ -177,6 +177,9 @@ impl Response {
         if self.in_tail {
             return;
         }
+        if let Some(permit) = self.lifecycle.as_mut() {
+            permit.park();
+        }
         if let Some(permit) = self.stage.take() {
             permit.finish(StageOutcome::Success);
         }

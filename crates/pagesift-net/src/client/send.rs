@@ -157,142 +157,151 @@ impl Client {
 
             let send_started = Instant::now();
             let send_deadline = send_started + self.0.first_byte_timeout;
+            let park_at = send_started + self.0.tail_threshold;
             match conn {
-                Conn::H1(mut s) => match timeout_at(send_deadline, s.send_request(req)).await {
-                    Ok(Ok(resp)) => {
-                        let (parts, body) = resp.into_parts();
-                        self.0.stages.record_phase(
-                            TransportPhase::Ttfb,
-                            send_started.elapsed(),
-                            stage_outcome_for_status(parts.status.as_u16()),
-                        );
-                        return Ok(Response {
-                            status: parts.status.as_u16(),
-                            headers: parts.headers,
-                            ttfb: send_started.elapsed(),
-                            body,
-                            release: Some((self.0.clone(), key, s)),
-                            lifecycle,
-                            stage,
-                            stages: self.0.stages.clone(),
-                            body_started: Instant::now(),
-                            body_recorded: false,
-                            tail_threshold: self.0.tail_threshold,
-                            in_tail: false,
-                        });
+                Conn::H1(mut s) => {
+                    match first_byte(s.send_request(req), send_deadline, park_at, &mut lifecycle)
+                        .await
+                    {
+                        Ok(Ok(resp)) => {
+                            let (parts, body) = resp.into_parts();
+                            self.0.stages.record_phase(
+                                TransportPhase::Ttfb,
+                                send_started.elapsed(),
+                                stage_outcome_for_status(parts.status.as_u16()),
+                            );
+                            return Ok(Response {
+                                status: parts.status.as_u16(),
+                                headers: parts.headers,
+                                ttfb: send_started.elapsed(),
+                                body,
+                                release: Some((self.0.clone(), key, s)),
+                                lifecycle,
+                                stage,
+                                stages: self.0.stages.clone(),
+                                body_started: Instant::now(),
+                                body_recorded: false,
+                                tail_threshold: self.0.tail_threshold,
+                                in_tail: false,
+                            });
+                        }
+                        Ok(Err(_e)) if from_pool && !retried => {
+                            self.0.stages.record_phase(
+                                TransportPhase::Ttfb,
+                                send_started.elapsed(),
+                                StageOutcome::TransientFailure,
+                            );
+                            retried = true;
+                            continue;
+                        }
+                        Ok(Err(e)) => {
+                            lifecycle
+                                .take()
+                                .expect("lifecycle permit")
+                                .finish(HostOutcome::Failure);
+                            let error = network(&e);
+                            self.0.stages.record_phase(
+                                TransportPhase::Ttfb,
+                                send_started.elapsed(),
+                                stage_outcome_for_error(&error),
+                            );
+                            stage
+                                .take()
+                                .expect("HTTP stage permit")
+                                .finish(stage_outcome_for_error(&error));
+                            return Err(error);
+                        }
+                        Err(_) => {
+                            lifecycle
+                                .take()
+                                .expect("lifecycle permit")
+                                .finish(HostOutcome::Failure);
+                            let error = Error::Timeout(TimeoutPhase::FirstByte);
+                            self.0.stages.record_phase(
+                                TransportPhase::Ttfb,
+                                send_started.elapsed(),
+                                StageOutcome::TransientFailure,
+                            );
+                            stage
+                                .take()
+                                .expect("HTTP stage permit")
+                                .finish(StageOutcome::TransientFailure);
+                            return Err(error);
+                        }
                     }
-                    Ok(Err(_e)) if from_pool && !retried => {
-                        self.0.stages.record_phase(
-                            TransportPhase::Ttfb,
-                            send_started.elapsed(),
-                            StageOutcome::TransientFailure,
-                        );
-                        retried = true;
-                        continue;
+                }
+                Conn::H2(mut s) => {
+                    match first_byte(s.send_request(req), send_deadline, park_at, &mut lifecycle)
+                        .await
+                    {
+                        Ok(Ok(resp)) => {
+                            let (parts, body) = resp.into_parts();
+                            self.0.stages.record_phase(
+                                TransportPhase::Ttfb,
+                                send_started.elapsed(),
+                                stage_outcome_for_status(parts.status.as_u16()),
+                            );
+                            return Ok(Response {
+                                status: parts.status.as_u16(),
+                                headers: parts.headers,
+                                ttfb: send_started.elapsed(),
+                                body,
+                                release: None,
+                                lifecycle,
+                                stage,
+                                stages: self.0.stages.clone(),
+                                body_started: Instant::now(),
+                                body_recorded: false,
+                                tail_threshold: self.0.tail_threshold,
+                                in_tail: false,
+                            });
+                        }
+                        Ok(Err(_e)) if from_pool && !retried => {
+                            self.0.stages.record_phase(
+                                TransportPhase::Ttfb,
+                                send_started.elapsed(),
+                                StageOutcome::TransientFailure,
+                            );
+                            retried = true;
+                            self.0.remove_h2(&key);
+                            continue;
+                        }
+                        Ok(Err(e)) => {
+                            lifecycle
+                                .take()
+                                .expect("lifecycle permit")
+                                .finish(HostOutcome::Failure);
+                            let error = network(&e);
+                            self.0.stages.record_phase(
+                                TransportPhase::Ttfb,
+                                send_started.elapsed(),
+                                stage_outcome_for_error(&error),
+                            );
+                            stage
+                                .take()
+                                .expect("HTTP stage permit")
+                                .finish(stage_outcome_for_error(&error));
+                            return Err(error);
+                        }
+                        Err(_) => {
+                            lifecycle
+                                .take()
+                                .expect("lifecycle permit")
+                                .finish(HostOutcome::Failure);
+                            let error = Error::Timeout(TimeoutPhase::FirstByte);
+                            self.0.stages.record_phase(
+                                TransportPhase::Ttfb,
+                                send_started.elapsed(),
+                                StageOutcome::TransientFailure,
+                            );
+                            stage
+                                .take()
+                                .expect("HTTP stage permit")
+                                .finish(StageOutcome::TransientFailure);
+                            return Err(error);
+                        }
                     }
-                    Ok(Err(e)) => {
-                        lifecycle
-                            .take()
-                            .expect("lifecycle permit")
-                            .finish(HostOutcome::Failure);
-                        let error = network(&e);
-                        self.0.stages.record_phase(
-                            TransportPhase::Ttfb,
-                            send_started.elapsed(),
-                            stage_outcome_for_error(&error),
-                        );
-                        stage
-                            .take()
-                            .expect("HTTP stage permit")
-                            .finish(stage_outcome_for_error(&error));
-                        return Err(error);
-                    }
-                    Err(_) => {
-                        lifecycle
-                            .take()
-                            .expect("lifecycle permit")
-                            .finish(HostOutcome::Failure);
-                        let error = Error::Timeout(TimeoutPhase::FirstByte);
-                        self.0.stages.record_phase(
-                            TransportPhase::Ttfb,
-                            send_started.elapsed(),
-                            StageOutcome::TransientFailure,
-                        );
-                        stage
-                            .take()
-                            .expect("HTTP stage permit")
-                            .finish(StageOutcome::TransientFailure);
-                        return Err(error);
-                    }
-                },
-                Conn::H2(mut s) => match timeout_at(send_deadline, s.send_request(req)).await {
-                    Ok(Ok(resp)) => {
-                        let (parts, body) = resp.into_parts();
-                        self.0.stages.record_phase(
-                            TransportPhase::Ttfb,
-                            send_started.elapsed(),
-                            stage_outcome_for_status(parts.status.as_u16()),
-                        );
-                        return Ok(Response {
-                            status: parts.status.as_u16(),
-                            headers: parts.headers,
-                            ttfb: send_started.elapsed(),
-                            body,
-                            release: None,
-                            lifecycle,
-                            stage,
-                            stages: self.0.stages.clone(),
-                            body_started: Instant::now(),
-                            body_recorded: false,
-                            tail_threshold: self.0.tail_threshold,
-                            in_tail: false,
-                        });
-                    }
-                    Ok(Err(_e)) if from_pool && !retried => {
-                        self.0.stages.record_phase(
-                            TransportPhase::Ttfb,
-                            send_started.elapsed(),
-                            StageOutcome::TransientFailure,
-                        );
-                        retried = true;
-                        self.0.remove_h2(&key);
-                        continue;
-                    }
-                    Ok(Err(e)) => {
-                        lifecycle
-                            .take()
-                            .expect("lifecycle permit")
-                            .finish(HostOutcome::Failure);
-                        let error = network(&e);
-                        self.0.stages.record_phase(
-                            TransportPhase::Ttfb,
-                            send_started.elapsed(),
-                            stage_outcome_for_error(&error),
-                        );
-                        stage
-                            .take()
-                            .expect("HTTP stage permit")
-                            .finish(stage_outcome_for_error(&error));
-                        return Err(error);
-                    }
-                    Err(_) => {
-                        lifecycle
-                            .take()
-                            .expect("lifecycle permit")
-                            .finish(HostOutcome::Failure);
-                        let error = Error::Timeout(TimeoutPhase::FirstByte);
-                        self.0.stages.record_phase(
-                            TransportPhase::Ttfb,
-                            send_started.elapsed(),
-                            StageOutcome::TransientFailure,
-                        );
-                        stage
-                            .take()
-                            .expect("HTTP stage permit")
-                            .finish(StageOutcome::TransientFailure);
-                        return Err(error);
-                    }
-                },
+                }
             }
         }
     }
@@ -300,4 +309,24 @@ impl Client {
     pub(crate) fn host_connection_stats(&self) -> Vec<HostConnectionStats> {
         self.0.host_connection_stats()
     }
+}
+
+/// 等响应头，`deadline` 前没到就超时。过了 `park_at`（尾部阈值）还没到，先把源站的
+/// 热连接名额让出来再接着等（见 [`HostPermit::park`]）。
+async fn first_byte<F: std::future::Future>(
+    fut: F,
+    deadline: Instant,
+    park_at: Instant,
+    lifecycle: &mut Option<HostPermit>,
+) -> std::result::Result<F::Output, tokio::time::error::Elapsed> {
+    tokio::pin!(fut);
+    if park_at < deadline {
+        if let Ok(out) = timeout_at(park_at, &mut fut).await {
+            return Ok(out);
+        }
+        if let Some(permit) = lifecycle.as_mut() {
+            permit.park();
+        }
+    }
+    timeout_at(deadline, fut).await
 }

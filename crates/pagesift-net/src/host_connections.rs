@@ -21,6 +21,8 @@ pub struct HostConnectionStats {
     pub hot_target: usize,
     pub active: usize,
     pub max_hot: usize,
+    /// 等得太久、已让出热连接名额的请求数（见 [`HostPermit::park`]）。
+    pub parked: usize,
     pub completed: u64,
     pub failed: u64,
     pub overloaded: u64,
@@ -37,6 +39,7 @@ struct State {
     target: usize,
     max: usize,
     active: usize,
+    parked: usize,
     completed: u64,
     failed: u64,
     overloaded: u64,
@@ -65,6 +68,7 @@ pub(crate) struct HostPermit {
     reused: bool,
     connect_time: Option<Duration>,
     finished: bool,
+    parked: bool,
 }
 
 impl HostConnectionControl {
@@ -76,6 +80,7 @@ impl HostConnectionControl {
                 target: if adaptive { max.min(2) } else { max },
                 max,
                 active: 0,
+                parked: 0,
                 completed: 0,
                 failed: 0,
                 overloaded: 0,
@@ -99,7 +104,8 @@ impl HostConnectionControl {
             let notified = self.changed.notified();
             {
                 let mut state = self.state.lock().expect("host connection lock poisoned");
-                if state.active < state.target {
+                // 停放的请求不占热连接名额，但仍算在安全上限里
+                if state.active < state.target && state.active + state.parked < state.max {
                     state.active += 1;
                     if state.active == state.target {
                         state.window_saturated = true;
@@ -110,6 +116,7 @@ impl HostConnectionControl {
                         reused: false,
                         connect_time: None,
                         finished: false,
+                        parked: false,
                     };
                 }
             }
@@ -131,6 +138,7 @@ impl HostConnectionControl {
             hot_target: state.target,
             active: state.active,
             max_hot: state.max,
+            parked: state.parked,
             completed: state.completed,
             failed: state.failed,
             overloaded: state.overloaded,
@@ -142,6 +150,16 @@ impl HostConnectionControl {
         }
     }
 
+    /// 把一个占着热连接名额的请求转为停放，空出的名额立刻给排队的请求。
+    fn park(&self) {
+        let mut state = self.state.lock().expect("host connection lock poisoned");
+        state.active = state.active.saturating_sub(1);
+        state.parked += 1;
+        drop(state);
+        self.changed.notify_waiters();
+    }
+
+    #[allow(clippy::too_many_arguments)]
     fn complete(
         &self,
         outcome: HostOutcome,
@@ -149,9 +167,14 @@ impl HostConnectionControl {
         reused: bool,
         connect_time: Option<Duration>,
         cancelled: bool,
+        parked: bool,
     ) {
         let mut state = self.state.lock().expect("host connection lock poisoned");
-        state.active = state.active.saturating_sub(1);
+        if parked {
+            state.parked = state.parked.saturating_sub(1);
+        } else {
+            state.active = state.active.saturating_sub(1);
+        }
         if outcome == HostOutcome::Neutral {
             drop(state);
             self.changed.notify_waiters();
@@ -243,6 +266,19 @@ impl HostPermit {
         self.connect_time = Some(elapsed);
     }
 
+    /// 请求等首字节或读正文超过尾部阈值时调用：让出热连接名额。
+    ///
+    /// 热连接目标从 2 起步、攒够一个观察窗口才加一。慢请求一直占着名额的话，同一源站
+    /// 后面的快请求要排到慢请求结束（批量抓取里快页面被 5 s 的慢页面拖住）。慢请求本身
+    /// 不是过载信号（过载看 429/503 和失败率），所以让它停放：不再挤占热连接，但仍受
+    /// `max` 这个安全上限约束，结束时照常计入服务时间和结果。可重复调用。
+    pub(crate) fn park(&mut self) {
+        if !self.parked && !self.finished {
+            self.parked = true;
+            self.control.park();
+        }
+    }
+
     pub(crate) fn finish(mut self, outcome: HostOutcome) {
         self.finished = true;
         self.control.complete(
@@ -251,6 +287,7 @@ impl HostPermit {
             self.reused,
             self.connect_time,
             false,
+            self.parked,
         );
     }
 
@@ -262,6 +299,7 @@ impl HostPermit {
             self.reused,
             self.connect_time,
             false,
+            self.parked,
         );
     }
 }
@@ -276,6 +314,7 @@ impl Drop for HostPermit {
                 self.reused,
                 self.connect_time,
                 true,
+                self.parked,
             );
         }
     }
@@ -365,5 +404,35 @@ mod tests {
         assert_eq!(stats.active, 0);
         assert_eq!(stats.cancelled, 1);
         assert_eq!(stats.failed, 1);
+    }
+
+    #[tokio::test]
+    async fn parking_frees_a_hot_slot_but_not_the_ceiling() {
+        let control = HostConnectionControl::new(true, 3);
+        let wait = |c: &Arc<HostConnectionControl>| {
+            let c = c.clone();
+            async move {
+                tokio::time::timeout(Duration::from_millis(20), c.acquire())
+                    .await
+                    .ok()
+            }
+        };
+        let mut a = control.acquire().await;
+        let mut b = control.acquire().await;
+        assert!(wait(&control).await.is_none(), "target is 2");
+        a.park();
+        a.park();
+        let c = wait(&control).await.expect("parked slot is free");
+        b.park();
+        assert!(wait(&control).await.is_none(), "1 active + 2 parked = max");
+        a.finish(HostOutcome::Success);
+        let d = wait(&control)
+            .await
+            .expect("finished parked request frees the ceiling");
+        let stats = control.stats("h".into());
+        assert_eq!((stats.active, stats.parked), (2, 1));
+        drop((b, c, d));
+        let stats = control.stats("h".into());
+        assert_eq!((stats.active, stats.parked), (0, 0));
     }
 }

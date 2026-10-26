@@ -70,20 +70,38 @@ def test_batch_is_single_pass(scraper, http, server):
 
 
 def test_ascrape_many_break_and_cancel(scraper, http, server):
-    urls = [f"{server}/page/0"] + [f"{server}/slow?ms=5000&i={i}" for i in range(5)]
+    # 只计“取消到结束”：第一条结果什么时候到由下面的测试管
+    urls = [f"{server}/page/0"] + [f"{server}/slow?ms=30000&i={i}" for i in range(5)]
 
     async def main():
-        t = time.perf_counter()
         batch = scraper.ascrape_many(urls, http, concurrency=6)
         async for d in batch:
             assert d.success
             break
+        t = time.perf_counter()
         batch.cancel()
         rest = [d async for d in batch]  # 取消后迭代很快结束
         return time.perf_counter() - t, rest
 
     elapsed, rest = run(main())
-    assert elapsed < 3 and rest == []
+    assert elapsed < 1 and rest == []
+
+
+def test_fast_page_not_blocked_by_slow_pages(scraper, http, server):
+    # 慢页面排在前面先占住同一主机的连接名额；快页面的结果时间不能取决于慢页面多慢
+    urls = [f"{server}/slow?ms=30000&i={i}" for i in range(5)] + [f"{server}/page/fast"]
+
+    async def main():
+        t = time.perf_counter()
+        batch = scraper.ascrape_many(urls, http, concurrency=6)
+        async for d in batch:
+            first = (time.perf_counter() - t, d.url)
+            break
+        batch.cancel()
+        return first
+
+    elapsed, url = run(main())
+    assert url.endswith("/page/fast") and elapsed < 5, (elapsed, url)
 
 
 def test_scrape_iter_cancel(scraper, http, server):
