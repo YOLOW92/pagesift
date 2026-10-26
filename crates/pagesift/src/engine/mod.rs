@@ -90,6 +90,8 @@ pub struct ScraperConfig {
     pub egress: Vec<(String, String)>,
     /// 根据进程 CPU、队列延迟、错误率与 cgroup 内存预算动态调节爬取并发。
     pub adaptive_tuning: bool,
+    /// 审计日志：每次抓取一行元数据，可疑结果留 HTML 快照（见 [`crate::audit`]）。
+    pub audit: Option<Arc<crate::audit::Audit>>,
 }
 
 /// 创建 [`Scraper`] 失败：网络层或 LLM 客户端的配置不对。
@@ -139,6 +141,7 @@ pub struct Scraper {
     target_concurrency: AtomicUsize,
     runtime_tuner: Option<RuntimeAdaptiveTuner>,
     learner: crate::learn::HostLearner,
+    audit: Option<Arc<crate::audit::Audit>>,
 }
 
 struct RuntimeAdaptiveTuner {

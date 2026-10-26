@@ -284,6 +284,17 @@ pagesift crawl "https://docs.rs" --limit 5000 --tuning-mode adaptive --out ./dat
 pagesift doctor
 ```
 
+### 5. Shared MCP Server for AI Agents
+
+```bash
+# One local service for every agent on the machine (127.0.0.1 only)
+pagesift mcp http --port 3003 --audit-log ~/.local/state/pagesift/audit.jsonl
+claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
+```
+
+Shared browsers and cache, an audit line per fetch, HTML snapshots of suspicious results and a
+`pagesift_report_issue` tool. See [Running pagesift as a shared MCP service](docs/mcp-service.md).
+
 ---
 
 ## Why PageSift?

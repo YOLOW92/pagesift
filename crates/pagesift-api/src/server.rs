@@ -235,6 +235,8 @@ pub async fn serve_with(
             },
             () = &mut shutdown => break,
         };
+        // 响应头和分块正文分两次写时，Nagle 会让第二次写等对端的延迟确认（约 40 ms）
+        let _ = stream.set_nodelay(true);
         let conn = builder
             .serve_connection_with_upgrades(
                 TokioIo::new(stream),

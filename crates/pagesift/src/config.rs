@@ -35,6 +35,8 @@ pub struct Config {
     pub egress: Vec<Egress>,
     #[serde(default)]
     pub log: Log,
+    #[serde(default)]
+    pub audit: Audit,
     pub llm: Option<Llm>,
     pub search: Option<Search>,
     /// 实际加载的配置文件；内置默认值时为 `None`。
@@ -129,6 +131,28 @@ pub struct Webhook {
     pub timeout_secs: Option<u64>,
     /// 签名密钥：每个 webhook 请求带 `X-Firecrawl-Signature: sha256=<HMAC>`。
     pub secret: Option<SecretValue>,
+}
+
+/// 审计日志（见 [`crate::audit`]）。设了 `path` 才开启；命令行 `--audit-log` 优先。
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Audit {
+    pub path: Option<PathBuf>,
+    /// 单个日志文件上限，超过就轮转成 `<path>.1`（默认 64）。
+    pub max_mb: Option<u64>,
+    /// 结果可疑时是否保存 HTML 快照（默认开）。
+    pub snapshots: Option<bool>,
+    /// 快照目录（默认日志旁边的 `snapshots/`）。
+    pub snapshot_dir: Option<PathBuf>,
+    /// 单个快照上限（KB，默认 2048）。
+    pub snapshot_max_kb: Option<usize>,
+    /// 每天最多存几个快照（默认 200）。
+    pub snapshots_per_day: Option<u32>,
+    /// URL 里的凭证是否脱敏（默认是）。
+    pub redact: Option<bool>,
+    /// 运行方式，由命令行填写，写进每条记录。
+    #[serde(skip)]
+    pub source: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -358,6 +382,38 @@ impl Config {
         }
     }
 
+    /// 配置了审计日志时打开它。
+    pub fn open_audit(&self) -> Result<Option<std::sync::Arc<crate::audit::Audit>>> {
+        let a = &self.audit;
+        let Some(path) = &a.path else {
+            return Ok(None);
+        };
+        let mut ac = crate::audit::AuditConfig::new(path);
+        if let Some(mb) = a.max_mb {
+            ac.max_bytes = mb.max(1) * 1024 * 1024;
+        }
+        if a.snapshots == Some(false) {
+            ac.snapshot_dir = None;
+        } else if let Some(d) = &a.snapshot_dir {
+            ac.snapshot_dir = Some(d.clone());
+        }
+        if let Some(kb) = a.snapshot_max_kb {
+            ac.snapshot_max_bytes = kb * 1024;
+        }
+        if let Some(n) = a.snapshots_per_day {
+            ac.snapshots_per_day = n;
+        }
+        if let Some(r) = a.redact {
+            ac.redact = r;
+        }
+        if let Some(s) = &a.source {
+            ac.source = s.clone();
+        }
+        let audit = crate::audit::Audit::open(ac)
+            .with_context(|| format!("opening the audit log {}", path.display()))?;
+        Ok(Some(std::sync::Arc::new(audit)))
+    }
+
     /// 打开数据目录里的存储（缓存和任务共用）。
     pub fn open_store(&self) -> Result<pagesift_store::Store> {
         let dir = self.data_dir().join("store");
@@ -431,7 +487,10 @@ impl Config {
 
     /// 组装引擎配置；`with_cache` 为 true 且配置没有关掉缓存时打开存储。
     pub fn scraper(&self, with_cache: bool) -> Result<ScraperConfig> {
-        let mut c = ScraperConfig::default();
+        let mut c = ScraperConfig {
+            audit: self.open_audit()?,
+            ..Default::default()
+        };
         let f = &self.fetch;
         if let Some(ua) = &f.user_agent {
             pagesift_net::validate_user_agent(ua)

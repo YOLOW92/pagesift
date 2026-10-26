@@ -26,6 +26,9 @@ struct Cli {
     /// Config file (default: $PAGESIFT_CONFIG, else the platform config path; empty disables config files)
     #[arg(long, global = true)]
     config: Option<PathBuf>,
+    /// Append one JSON line per fetch (URL, engine, status, timings, warnings) to this file, and keep HTML snapshots of suspicious results next to it
+    #[arg(long, global = true, value_name = "PATH")]
+    audit_log: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,
 }
@@ -392,14 +395,22 @@ fn scrape_exit_code(doc: &pagesift::api::types::Document) -> ExitCode {
 
 fn main() -> ExitCode {
     pagesift_sys::tune_allocator();
-    let cli = Cli::parse();
-    let cfg = match pagesift::config::Config::load(cli.config.as_deref()) {
+    let matches = <Cli as clap::CommandFactory>::command().get_matches();
+    let cli = match <Cli as clap::FromArgMatches>::from_arg_matches(&matches) {
+        Ok(c) => c,
+        Err(e) => e.exit(),
+    };
+    let mut cfg = match pagesift::config::Config::load(cli.config.as_deref()) {
         Ok(c) => c,
         Err(e) => {
             eprintln!("error: {e:#}");
             return ExitCode::FAILURE;
         }
     };
+    if cli.audit_log.is_some() {
+        cfg.audit.path = cli.audit_log;
+    }
+    cfg.audit.source = matches.subcommand_name().map(String::from);
     // 结构化日志：PAGESIFT_LOG 定级别，PAGESIFT_LOG_FORMAT 或 [log] format 选 text / json
     let json = match cfg.log_json() {
         Ok(j) => j,
@@ -1045,8 +1056,34 @@ fn run(command: Command, mut cfg: pagesift::config::Config) -> Result<ExitCode> 
         }),
         Command::Doctor => runtime()?.block_on(cli::doctor(&cfg)),
         Command::Mcp { transport, port } => runtime()?.block_on(async move {
-            let scraper = Arc::new(pagesift::Scraper::new(cfg.scraper(false)?)?);
-            let res = pagesift::mcp::run_server(scraper.clone(), &transport, port).await;
+            let mut cfg = cfg;
+            cfg.audit.source = Some(format!("mcp-{transport}"));
+            let mut sc = cfg.scraper(false)?;
+            // http 传输是一个常驻进程，按配置开缓存；stdio 每个客户端各起一个进程，存储不能多进程共用，
+            // 不开缓存。数据目录被别的进程（比如 serve）占着时照常运行，只是不缓存
+            if transport == "http" && cfg.cache.enabled.unwrap_or(true) {
+                match cfg.open_store() {
+                    Ok(store) => {
+                        eprintln!("cache: {}", cfg.data_dir().join("store").display());
+                        sc.store = Some(store);
+                    }
+                    Err(e)
+                        if e.downcast_ref::<pagesift_store::Error>()
+                            .is_some_and(pagesift_store::Error::is_locked) =>
+                    {
+                        eprintln!("warning: {e:#}; running without the cache");
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+            let scraper = Arc::new(pagesift::Scraper::new(sc)?);
+            let res = pagesift::mcp::run_server_until(
+                scraper.clone(),
+                &transport,
+                port,
+                shutdown_signal(),
+            )
+            .await;
             scraper.shutdown().await;
             res?;
             Ok(ExitCode::SUCCESS)

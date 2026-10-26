@@ -2,6 +2,37 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.73.1] — 2026-10-26
+
+Makes `pagesift mcp http` fit to run as one shared, long-lived service for every AI agent on a
+machine, and turns that service into a source of real-world bug reports. See
+[the release notes](docs/releases/0.73.1.md) and
+[Running pagesift as a shared MCP service](docs/mcp-service.md).
+
+### Added
+- Audit log: `--audit-log <path>` (any command) or `[audit] path` appends one JSON line per fetch
+  — source, client, URL, engine, status, timings, text size, warnings, error code and anti-bot
+  rule. Suspicious results (content warnings, under 200 characters from an HTML page, errors that
+  are not the caller's) get an HTML snapshot for replay. URLs are redacted, the log rotates at
+  `max_mb`, snapshots are capped per day and per file.
+- MCP tool `pagesift_report_issue` (offered when an audit log is configured): agents record a
+  wrong result — URL, expected, actual — in the same log.
+
+### Changed
+- `pagesift mcp http` uses the result cache from `[cache]`. `mcp stdio` still does not.
+- The MCP scrape tool puts a `Warnings: …` line in its text content, so agents that only read
+  text see `thin_content`, `render_unavailable` and the like.
+- A data directory can be opened by one process at a time (lock file). `mcp http` runs without
+  the cache when another process holds it; `serve` reports the conflict.
+- Minimum Rust version 1.89 (for the standard-library file lock).
+
+### Fixed
+- Every MCP-over-HTTP call on a kept-alive connection waited about 40 ms: responses are written
+  as headers plus chunked body and Nagle's algorithm held the second write for the client's
+  delayed ACK. The MCP and API servers now set `TCP_NODELAY`.
+- `pagesift mcp http` exited on `SIGTERM` without closing its browser pool; it now stops
+  accepting requests and shuts the browsers down first.
+
 ## [0.73.0] — 2026-10-26
 
 Fixes from a three-way code review and ~150 adversarial input tests. The headline fix: since

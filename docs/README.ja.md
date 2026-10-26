@@ -232,6 +232,17 @@ pagesift scrape "https://news.ycombinator.com" --format markdown
 pagesift crawl "https://docs.rs" --limit 5000 --tuning-mode adaptive --out ./data/
 ```
 
+### 5. AI エージェント共用の MCP サーバー
+
+```bash
+# マシン上のすべてのエージェントで 1 つのサービスを共有（127.0.0.1 のみ）
+pagesift mcp http --port 3003 --audit-log ~/.local/state/pagesift/audit.jsonl
+claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
+```
+
+ブラウザとキャッシュを共有し、取得ごとに監査ログを 1 行記録、疑わしい結果は HTML スナップショットを保存し、
+`pagesift_report_issue` ツールを提供します。詳細は [Running pagesift as a shared MCP service](mcp-service.md)。
+
 ---
 
 ## なぜ PageSift なのか？

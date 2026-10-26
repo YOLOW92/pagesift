@@ -35,6 +35,7 @@ impl Scraper {
                 p
             }),
             store: config.store,
+            audit: config.audit,
             llm,
             search: config.search,
             browsers: {
@@ -172,6 +173,11 @@ impl Scraper {
         self.scrape_with(url, opts, mode).await
     }
 
+    /// 审计日志（没配置时为 `None`）。
+    pub fn audit(&self) -> Option<&Arc<crate::audit::Audit>> {
+        self.audit.as_ref()
+    }
+
     pub(crate) fn policy(&self) -> &Policy {
         &self.policy
     }
@@ -260,6 +266,39 @@ impl Scraper {
     /// `queryFilter`、LLM 格式和 `changeTracking` 都在缓存之外、基于正文 Markdown 做，
     /// 缓存里存的总是完整正文。
     pub(crate) async fn scrape_with(
+        &self,
+        url: &str,
+        opts: &ScrapeOptions,
+        mode: RobotsMode,
+    ) -> Result<Document, ApiError> {
+        self.scrape_audited("scrape", url, opts, mode).await
+    }
+
+    /// 抓一页并写审计记录。`kind` 区分单页抓取和爬取里的页面。
+    pub(crate) async fn scrape_audited(
+        &self,
+        kind: &str,
+        url: &str,
+        opts: &ScrapeOptions,
+        mode: RobotsMode,
+    ) -> Result<Document, ApiError> {
+        let Some(audit) = &self.audit else {
+            return self.scrape_inner(url, opts, mode).await;
+        };
+        let started = Instant::now();
+        let mut result = self.scrape_inner(url, opts, mode).await;
+        let raw = result.as_ref().ok().and_then(|d| d.raw_html.as_deref());
+        audit.record_scrape(kind, url, opts, &result, raw, started.elapsed());
+        // 为快照内部多要的 rawHtml 不交给调用方
+        if !opts.wants("rawHtml")
+            && let Ok(doc) = &mut result
+        {
+            doc.raw_html = None;
+        }
+        result
+    }
+
+    async fn scrape_inner(
         &self,
         url: &str,
         opts: &ScrapeOptions,
@@ -402,8 +441,17 @@ impl Scraper {
         opts: &ScrapeOptions,
         mode: RobotsMode,
     ) -> Result<Document, ApiError> {
+        // 审计要存快照时内部多要一份 rawHtml；缓存键仍按调用方的参数算，写缓存前去掉
+        let capture =
+            !opts.wants("rawHtml") && self.audit.as_ref().is_some_and(|a| a.wants_raw_html());
+        let with_raw = capture.then(|| {
+            let mut o = opts.clone();
+            o.formats.push(pagesift_api::types::Format::new("rawHtml"));
+            o
+        });
+        let fetch_opts = with_raw.as_ref().unwrap_or(opts);
         let Some((store, key)) = self.cache_key(url, opts) else {
-            return self.fetch_and_extract(url, opts, mode).await;
+            return self.fetch_and_extract(url, fetch_opts, mode).await;
         };
         let policy = pagesift_store::CachePolicy::from_firecrawl(
             opts.max_age,
@@ -434,8 +482,9 @@ impl Scraper {
             // 缓存读不出来不影响抓取
             Err(e) => tracing::warn!("cache lookup failed: {e}"),
         }
-        let mut doc = self.fetch_and_extract(url, opts, mode).await?;
+        let mut doc = self.fetch_and_extract(url, fetch_opts, mode).await?;
         doc.metadata.cache_state = Some("miss".into());
+        let captured = if capture { doc.raw_html.take() } else { None };
         if policy.store_in_cache
             && let Ok(bytes) = serde_json::to_vec(&doc)
         {
@@ -443,6 +492,9 @@ impl Scraper {
             if let Ok(Err(e)) = r {
                 tracing::warn!("cache write failed: {e}");
             }
+        }
+        if captured.is_some() {
+            doc.raw_html = captured;
         }
         Ok(doc)
     }

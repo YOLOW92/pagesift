@@ -35,7 +35,7 @@ impl Scraper {
         let queued_at = std::time::Instant::now();
         let _slot = slots.acquire().await;
         let queue_wait = queued_at.elapsed();
-        let result = Box::pin(self.scrape_with(url.as_str(), opts, mode)).await;
+        let result = Box::pin(self.scrape_audited("crawl", url.as_str(), opts, mode)).await;
         self.observe_crawl(queue_wait, result.is_err());
         result
     }

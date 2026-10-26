@@ -257,6 +257,8 @@ pub(crate) struct Inner {
     last_maint_ms: AtomicU64,
     last_error: Mutex<Option<String>>,
     open: OpenReport,
+    /// 持有期间其他进程打不开同一个目录；随存储一起释放。
+    _lock: File,
 }
 
 impl Drop for Inner {
@@ -312,6 +314,24 @@ impl Store {
         }
         let start = Instant::now();
         fs::create_dir_all(&cfg.dir)?;
+        // 段文件没有跨进程协调：两个进程同时追加会互相覆盖。用目录里的锁文件保证同一时间只有一个
+        // 进程打开这个存储；拿不到锁返回 `WouldBlock`，调用方可以决定不用缓存继续运行。
+        let lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(cfg.dir.join("LOCK"))?;
+        match lock.try_lock() {
+            Ok(()) => {}
+            Err(std::fs::TryLockError::WouldBlock) => {
+                return Err(Error::Io(std::io::Error::new(
+                    std::io::ErrorKind::WouldBlock,
+                    "the directory is in use by another process",
+                )));
+            }
+            Err(std::fs::TryLockError::Error(e)) => return Err(Error::Io(e)),
+        }
         let mut ids: Vec<u32> = fs::read_dir(&cfg.dir)?
             .filter_map(|e| {
                 let name = e.ok()?.file_name();
@@ -400,6 +420,7 @@ impl Store {
             last_maint_ms: AtomicU64::new(0),
             last_error: Mutex::new(None),
             open: report,
+            _lock: lock,
         })))
     }
 

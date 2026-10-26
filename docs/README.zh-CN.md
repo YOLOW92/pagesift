@@ -260,6 +260,17 @@ pagesift scrape "https://news.ycombinator.com" --format markdown
 pagesift crawl "https://docs.rs" --limit 5000 --tuning-mode adaptive --out ./data/
 ```
 
+### 5. 给 AI 智能体共用的 MCP 服务
+
+```bash
+# 本机所有智能体共用一个服务（只监听 127.0.0.1）
+pagesift mcp http --port 3003 --audit-log ~/.local/state/pagesift/audit.jsonl
+claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
+```
+
+共用浏览器和缓存，每次抓取写一行审计日志，可疑结果保存 HTML 快照，并提供 `pagesift_report_issue`
+工具。详见 [Running pagesift as a shared MCP service](mcp-service.md)。
+
 ---
 
 ## 为什么选择 PageSift？

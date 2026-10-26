@@ -105,6 +105,11 @@ pub async fn serve_listener(
     listener: TcpListener,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> io::Result<()> {
+    use axum::serve::ListenerExt;
+    // 响应头先发、正文分块后发：不关 Nagle 的话，保持连接的客户端每次调用都要多等约 40 ms 的延迟确认
+    let listener = listener.tap_io(|tcp| {
+        let _ = tcp.set_nodelay(true);
+    });
     axum::serve(listener, router(server, config))
         .with_graceful_shutdown(shutdown)
         .await

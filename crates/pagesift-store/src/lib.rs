@@ -113,6 +113,13 @@ pub enum Error {
     },
 }
 
+impl Error {
+    /// 目录正被另一个进程（或同进程里另一个打开的实例）使用。
+    pub fn is_locked(&self) -> bool {
+        matches!(self, Error::Io(e) if e.kind() == io::ErrorKind::WouldBlock)
+    }
+}
+
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

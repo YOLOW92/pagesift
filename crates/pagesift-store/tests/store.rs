@@ -491,3 +491,15 @@ fn oversized_key_is_rejected() {
         Err(Error::KeyTooLarge(_))
     ));
 }
+
+#[test]
+fn a_second_open_of_the_same_directory_is_refused_until_the_first_is_dropped() {
+    let dir = tempfile::tempdir().unwrap();
+    let first = Store::open(config(dir.path())).unwrap();
+    let err = Store::open(config(dir.path()))
+        .err()
+        .expect("second open must fail");
+    assert!(err.is_locked(), "{err}");
+    drop(first);
+    Store::open(config(dir.path())).expect("lock released with the store");
+}
