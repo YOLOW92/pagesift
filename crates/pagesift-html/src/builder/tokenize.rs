@@ -171,6 +171,10 @@ fn scan_tag(b: &[u8], mut i: usize, attrs: &mut Vec<RawAttr>) -> Option<TagToken
 fn raw_text(src: &str, start: usize, name: &str, next: Next, tb: &mut Builder<'_>) -> usize {
     let b = src.as_bytes();
     if next == Next::PlainText {
+        // plaintext 的内容仍按 "in body" 处理字符：先重建活动格式元素
+        if start < b.len() {
+            tb.reconstruct();
+        }
         tb.raw_text(start, b.len(), false);
         return b.len();
     }
@@ -301,7 +305,7 @@ impl<'a> Builder<'a> {
     pub(super) fn comment(&mut self, s: usize, e: usize) {
         self.skip_lf = false;
         let id = self.new_node(Data::Comment(Span::source(s, e)));
-        if self.mode == Mode::Initial || self.stack.is_empty() {
+        if matches!(self.mode, Mode::Initial | Mode::AfterAfterFrameset) || self.stack.is_empty() {
             self.append(0, id);
         } else {
             self.place(id, false);
@@ -311,6 +315,10 @@ impl<'a> Builder<'a> {
     /// 普通文本（data 状态）：解码字符引用，按插入模式放置。
     pub(super) fn text_range(&mut self, s: usize, e: usize, decode: bool) {
         if s >= e {
+            return;
+        }
+        if self.in_frameset_modes() {
+            self.frameset_text(s, e);
             return;
         }
         let span = self.text_span(s, e, decode);
@@ -326,6 +334,9 @@ impl<'a> Builder<'a> {
             }
             span = span.skip(lead);
             self.ensure_body();
+        }
+        if self.frameset_ok && !self.str(span).bytes().all(is_ws) {
+            self.frameset_ok = false;
         }
         let cur = self.current().filter(|o| o.ns == Ns::Html).map(|o| o.tag);
         let mut table_ws = cur.is_some_and(|t| table_context(t) || t == Tag::Colgroup)

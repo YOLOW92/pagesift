@@ -8,6 +8,10 @@ impl<'a> Builder<'a> {
         self.skip_lf = false;
         self.scratch.clear();
         let tag = self.tag_of(name);
+        if self.in_frameset_modes() {
+            self.frameset_end_tag(tag);
+            return;
+        }
         // 外部内容里的 `</p>`、`</br>` 跳出 SVG/MathML，按 HTML 规则处理
         if self.in_foreign() && matches!(tag, Tag::P | Tag::Br) {
             while self.in_foreign() {
@@ -30,7 +34,7 @@ impl<'a> Builder<'a> {
         }
         // 最常见的情况：关的就是当前元素
         if let Some(cur) = self.current()
-            && cur.ns != Ns::Foreign
+            && !cur.ns.foreign()
             && cur.tag == tag
             && (tag != Tag::Other || self.element_name_eq(cur.id, &self.src[name.0..name.1]))
             && !matches!(tag, Tag::Html | Tag::Body)
@@ -87,6 +91,7 @@ impl<'a> Builder<'a> {
                 }
             }
             Br => {
+                self.frameset_ok = false;
                 self.reconstruct();
                 self.insert_html(Br, name);
             }
@@ -144,13 +149,13 @@ impl<'a> Builder<'a> {
         for i in (0..self.stack.len()).rev() {
             let o = self.stack[i];
             let same = o.tag == tag && (tag != Tag::Other || self.element_name_eq(o.id, raw));
-            if same && o.ns != Ns::Foreign {
+            if same && !o.ns.foreign() {
                 self.pop_to(i);
                 return;
             }
             let stop = match o.ns {
                 Ns::Html => special(o.tag),
-                Ns::Integration => true,
+                Ns::Integration | Ns::Annotation => true,
                 Ns::Foreign => false,
             };
             if stop {

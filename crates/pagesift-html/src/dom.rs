@@ -60,12 +60,22 @@ pub(crate) struct Attr {
     pub(crate) value: Span,
 }
 
+/// 元素的命名空间（规范的 HTML、SVG、MathML 三种）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Namespace {
+    #[default]
+    Html,
+    Svg,
+    MathMl,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum Data {
     Document,
     Doctype,
     Element {
         tag: Tag,
+        ns: Namespace,
         /// 只有 [`Tag::Other`] 才有名字；已知标签的名字来自 [`Tag::name`]。
         name: Span,
         attrs: u32,
@@ -319,12 +329,14 @@ impl<'a> NodeRef<'a> {
         match self.node().data {
             Data::Element {
                 tag,
+                ns,
                 name,
                 attrs,
                 attrs_len,
             } => Some(Element {
                 doc: self.doc,
                 tag,
+                ns,
                 name,
                 attrs: &self.doc.attrs[attrs as usize..(attrs + attrs_len) as usize],
             }),
@@ -371,11 +383,17 @@ impl<'a> NodeRef<'a> {
 pub struct Element<'a> {
     doc: &'a Html<'a>,
     tag: Tag,
+    ns: Namespace,
     name: Span,
     attrs: &'a [Attr],
 }
 
 impl<'a> Element<'a> {
+    /// 元素的命名空间：`<svg>`、`<math>` 和它们里面的外部元素不是 HTML。
+    pub fn namespace(&self) -> Namespace {
+        self.ns
+    }
+
     pub fn tag(&self) -> Tag {
         self.tag
     }

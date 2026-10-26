@@ -1,5 +1,5 @@
 use crate::Tag;
-use crate::dom::{Data, NONE, Span};
+use crate::dom::{Data, NONE, Namespace, Span};
 
 use super::{Builder, MAX_DEPTH, Mode, Ns, Open, Scope, special, table_context};
 
@@ -54,7 +54,7 @@ impl<'a> Builder<'a> {
     pub(super) fn special_entry(o: Open) -> bool {
         match o.ns {
             Ns::Html => special(o.tag),
-            Ns::Integration => true,
+            Ns::Integration | Ns::Annotation => true,
             Ns::Foreign => false,
         }
     }
@@ -167,7 +167,7 @@ impl<'a> Builder<'a> {
     }
 
     pub(super) fn finish(&mut self) {
-        if self.body == NONE {
+        if self.body == NONE && !self.in_frameset_modes() {
             self.ensure_body();
         }
     }
@@ -194,7 +194,7 @@ impl<'a> Builder<'a> {
             }
             let stops = match o.ns {
                 Ns::Html => special(o.tag) && !matches!(o.tag, Tag::Address | Tag::Div | Tag::P),
-                Ns::Integration => true,
+                Ns::Integration | Ns::Annotation => true,
                 Ns::Foreign => false,
             };
             if stops {
@@ -252,6 +252,7 @@ impl<'a> Builder<'a> {
         if self.html == NONE {
             self.html = self.new_node(Data::Element {
                 tag: Tag::Html,
+                ns: Namespace::Html,
                 name: Span::default(),
                 attrs: 0,
                 attrs_len: 0,
@@ -273,6 +274,7 @@ impl<'a> Builder<'a> {
         if self.head == NONE {
             self.head = self.new_node(Data::Element {
                 tag: Tag::Head,
+                ns: Namespace::Html,
                 name: Span::default(),
                 attrs: 0,
                 attrs_len: 0,
@@ -302,8 +304,11 @@ impl<'a> Builder<'a> {
             self.close_head();
         }
         if self.body == NONE {
+            // 规范 "after head" 的 "anything else"：隐式的 body 把 frameset-ok 设回 ok
+            self.frameset_ok = true;
             self.body = self.new_node(Data::Element {
                 tag: Tag::Body,
+                ns: Namespace::Html,
                 name: Span::default(),
                 attrs: 0,
                 attrs_len: 0,

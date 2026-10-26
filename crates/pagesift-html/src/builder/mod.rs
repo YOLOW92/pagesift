@@ -4,14 +4,13 @@
 //! 表格的隐式 tbody/tr 和 foster parenting、SVG/MathML 外部内容和跳出规则、
 //! raw text 和 RCDATA 元素、`<pre>` 开头的换行、脚本的转义状态、quirks 模式（只影响
 //! `<table>` 是否关掉 `<p>`）、select 和列组的内容规则。
-//! 和规范有意不同的：`<template>` 不建独立的文档片段（内容作为普通子节点）；不建
-//! frameset/frame（frameset 文档的内容照常进 body）；NUL 在分词前删掉；插入模式按当前节点
-//! 推断，不单独记录。和 html5lib-tests 的逐条对照见 `tests/html5lib`。
+//! 和规范有意不同的：`<template>` 不建独立的文档片段（内容作为普通子节点）；插入模式按当前节点
+//! 推断，不单独记录（frameset 文档的三种模式除外）。和 html5lib-tests 的逐条对照见 `tests/html5lib`。
 
 use std::borrow::Cow;
 
 use crate::Tag;
-use crate::dom::{Attr, Data, Html, NONE, Node, ParseScratch, Span};
+use crate::dom::{Attr, Data, Html, NONE, Namespace, Node, ParseScratch, Span};
 
 /// 打开元素栈的最大深度。更深的元素照样插入但不入栈，树的深度因此有上限，
 /// 递归遍历这棵树的代码不会因为恶意的深层嵌套栈溢出。
@@ -71,6 +70,7 @@ fn normalize(html: &str) -> Cow<'_, str> {
 
 mod end;
 mod format;
+mod frameset;
 mod quirks;
 mod script;
 mod tags;
@@ -88,6 +88,10 @@ enum Mode {
     InHead,
     AfterHead,
     InBody,
+    /// frameset 文档的三种模式，见 `frameset` 模块。
+    InFrameset,
+    AfterFrameset,
+    AfterAfterFrameset,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -95,9 +99,18 @@ enum Ns {
     Html,
     /// SVG / MathML 元素。
     Foreign,
-    /// SVG 的 foreignObject、desc、title，MathML 的 mi、mo、mn、ms、mtext、annotation-xml：
-    /// 外部内容里重新按 HTML 解析的地方。
+    /// SVG 的 foreignObject、desc、title，MathML 的 mi、mo、mn、ms、mtext，`encoding` 是 HTML 的
+    /// annotation-xml：外部内容里重新按 HTML 解析的地方。
     Integration,
+    /// 其他 annotation-xml：内容仍是 MathML，但和集成点一样是"特殊"元素、作用域边界。
+    Annotation,
+}
+
+impl Ns {
+    /// 按外部内容的规则分词、建树（SVG/MathML 元素，集成点除外）。
+    fn foreign(self) -> bool {
+        matches!(self, Ns::Foreign | Ns::Annotation)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -136,6 +149,8 @@ struct Builder<'a> {
     form: u32,
     /// quirks 模式（没有 DOCTYPE 或老式 DOCTYPE），见 `quirks` 模块。
     quirks: bool,
+    /// 规范的 frameset-ok 标志：body 里出现正文或某些元素之后，`<frameset>` 不再取代 body。
+    frameset_ok: bool,
 }
 
 fn formatting(tag: Tag) -> bool {
@@ -335,11 +350,24 @@ fn breaks_out_of_foreign(tag: Tag) -> bool {
     )
 }
 
-fn integration_point(name: &str) -> bool {
-    matches!(
-        name,
-        "foreignobject" | "desc" | "title" | "mi" | "mo" | "mn" | "ms" | "mtext" | "annotation-xml"
-    )
+/// 外部元素在栈上的类别：HTML 集成点、MathML 文本集成点、annotation-xml 或普通外部元素。
+/// `encoding_html` 是元素的 `encoding` 属性为 `text/html` 或 `application/xhtml+xml`。
+fn foreign_kind(ns: Namespace, name: &str, encoding_html: bool) -> Ns {
+    let is = |n: &str| name.eq_ignore_ascii_case(n);
+    match ns {
+        Namespace::Svg if is("foreignobject") || is("desc") || is("title") => Ns::Integration,
+        Namespace::MathMl if is("mi") || is("mo") || is("mn") || is("ms") || is("mtext") => {
+            Ns::Integration
+        }
+        Namespace::MathMl if is("annotation-xml") => {
+            if encoding_html {
+                Ns::Integration
+            } else {
+                Ns::Annotation
+            }
+        }
+        _ => Ns::Foreign,
+    }
 }
 
 impl<'a> Builder<'a> {
@@ -377,6 +405,7 @@ impl<'a> Builder<'a> {
             afe: Vec::new(),
             form: NONE,
             quirks: true,
+            frameset_ok: true,
         }
     }
 
@@ -389,7 +418,7 @@ impl<'a> Builder<'a> {
     }
 
     pub(super) fn in_foreign(&self) -> bool {
-        self.stack.last().is_some_and(|o| o.ns == Ns::Foreign)
+        self.stack.last().is_some_and(|o| o.ns.foreign())
     }
 
     pub(super) fn current(&self) -> Option<Open> {
@@ -398,6 +427,6 @@ impl<'a> Builder<'a> {
 
     pub(super) fn current_is(&self, tag: Tag) -> bool {
         self.current()
-            .is_some_and(|o| o.tag == tag && o.ns != Ns::Foreign)
+            .is_some_and(|o| o.tag == tag && !o.ns.foreign())
     }
 }

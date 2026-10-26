@@ -481,3 +481,80 @@ fn repeated_body_merges_many_attributes() {
     assert_eq!(got.len(), 2 * n);
     assert_eq!(got[0], ("a0".to_string(), "1".to_string()));
 }
+
+#[test]
+fn frameset_replaces_body_before_content() {
+    // 规范：`<frameset>` 取代还没有内容的 body，之后只留 frame、noframes 和空白
+    check(
+        "<title>T</title><frameset cols=2><frame src=a><frame src=b></frameset> lost <p>lost",
+        r#"
+    <html>
+      <head>
+        <title>
+          "T"
+      <frameset cols="2">
+        <frame src="a">
+        <frame src="b">
+      "  "
+    "#,
+    );
+    check(
+        "<div><frameset><noframes>x</noframes>",
+        r#"
+    <html>
+      <head>
+      <frameset>
+        <noframes>
+          "x"
+    "#,
+    );
+    // body 里已经有正文：`<frameset>` 被忽略
+    check(
+        "<p>text<frameset><frame src=a>",
+        r#"
+    <html>
+      <head>
+      <body>
+        <p>
+          "text"
+    "#,
+    );
+}
+
+#[test]
+fn foreign_namespaces_follow_the_spec() {
+    use pagesift_html::Namespace;
+    let doc = Html::parse(
+        "<svg><title>a</title><desc><mi>b</mi></desc></svg>\
+         <math><mi><mglyph/><b>c</b></mi><title>d</title>\
+         <annotation-xml><svg></svg><mi></mi></annotation-xml>\
+         <annotation-xml encoding=text/html><mi></mi></annotation-xml></math>",
+    );
+    let ns: Vec<(String, Namespace)> = doc
+        .root()
+        .descendants()
+        .filter_map(|n| n.as_element())
+        .filter(|e| !matches!(e.name(), "html" | "head" | "body"))
+        .map(|e| (e.name().to_string(), e.namespace()))
+        .collect();
+    let (h, s, m) = (Namespace::Html, Namespace::Svg, Namespace::MathMl);
+    let expected = [
+        ("svg", s),
+        ("title", s),
+        ("desc", s),
+        ("mi", h),
+        ("math", m),
+        ("mi", m),
+        ("mglyph", m),
+        ("b", h),
+        ("title", m),
+        ("annotation-xml", m),
+        ("svg", s),
+        ("mi", m),
+        ("annotation-xml", m),
+        ("mi", h),
+    ];
+    let expected: Vec<(String, Namespace)> =
+        expected.iter().map(|(n, s)| (n.to_string(), *s)).collect();
+    assert_eq!(ns, expected);
+}

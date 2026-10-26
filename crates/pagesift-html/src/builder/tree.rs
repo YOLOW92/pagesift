@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::Tag;
-use crate::dom::{Attr, Data, NONE, Node, Span};
+use crate::dom::{Attr, Data, NONE, Namespace, Node, Span};
 use crate::entity::decode_into;
 
 use super::{Builder, MAX_DEPTH, Ns, Open, Scope, is_ws, marker, table_context, void};
@@ -209,6 +209,10 @@ impl<'a> Builder<'a> {
     }
 
     pub(super) fn create(&mut self, tag: Tag, name: (usize, usize)) -> u32 {
+        self.create_ns(tag, name, Namespace::Html)
+    }
+
+    pub(super) fn create_ns(&mut self, tag: Tag, name: (usize, usize), ns: Namespace) -> u32 {
         let name = if tag == Tag::Other {
             self.lower_span(name)
         } else {
@@ -217,6 +221,7 @@ impl<'a> Builder<'a> {
         let (attrs, attrs_len) = self.take_attrs();
         self.new_node(Data::Element {
             tag,
+            ns,
             name,
             attrs,
             attrs_len,
@@ -252,7 +257,7 @@ impl<'a> Builder<'a> {
     }
 
     /// 分词器暂存的属性里有 `type=hidden`（不分大小写，不去空白）。
-    fn hidden_input(&self) -> bool {
+    pub(super) fn hidden_input(&self) -> bool {
         self.scratch.iter().any(|&((ns, ne), (vs, ve))| {
             self.src[ns..ne].eq_ignore_ascii_case("type")
                 && self.src[vs..ve].eq_ignore_ascii_case("hidden")
@@ -266,6 +271,7 @@ impl<'a> Builder<'a> {
         }
         let Data::Element {
             tag,
+            ns,
             name,
             attrs,
             attrs_len,
@@ -298,6 +304,7 @@ impl<'a> Builder<'a> {
         self.attrs.extend(added);
         self.nodes[target as usize].data = Data::Element {
             tag,
+            ns,
             name,
             attrs: start,
             attrs_len: self.attrs.len() as u32 - start,
@@ -326,7 +333,7 @@ impl<'a> Builder<'a> {
         use Tag::*;
         match o.ns {
             // 表格作用域的边界只有 html、table、template，外部内容的集成点挡不住
-            Ns::Integration => scope != Scope::Table,
+            Ns::Integration | Ns::Annotation => scope != Scope::Table,
             Ns::Foreign => false,
             Ns::Html => match scope {
                 Scope::Table => matches!(o.tag, Html | Table | Template),
@@ -369,6 +376,13 @@ impl<'a> Builder<'a> {
         match self.nodes[id as usize].data {
             Data::Element { tag, .. } => tag,
             _ => Tag::Other,
+        }
+    }
+
+    pub(super) fn node_ns(&self, id: u32) -> Namespace {
+        match self.nodes[id as usize].data {
+            Data::Element { ns, .. } => ns,
+            _ => Namespace::Html,
         }
     }
 
@@ -415,12 +429,14 @@ impl<'a> Builder<'a> {
         let (
             Data::Element {
                 tag: ta,
+                ns: sa,
                 name: na,
                 attrs: aa,
                 attrs_len: la,
             },
             Data::Element {
                 tag: tb,
+                ns: sb,
                 name: nb,
                 attrs: ab,
                 attrs_len: lb,
@@ -429,7 +445,7 @@ impl<'a> Builder<'a> {
         else {
             return false;
         };
-        if ta != tb || la != lb || self.str(na) != self.str(nb) {
+        if ta != tb || sa != sb || la != lb || self.str(na) != self.str(nb) {
             return false;
         }
         let xs = &self.attrs[aa as usize..(aa + la) as usize];
