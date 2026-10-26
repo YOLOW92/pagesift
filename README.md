@@ -37,7 +37,7 @@ Turn any website, document, or archive into clean Markdown and structured data �
 - **Headers, footers and figures**: `/Artifact` marks, running heads with page numbers and vector
   figures are recognised. olmOCR-bench `headers_footers` 0.681 → 0.734 (higher is better); false
   tables on the 13 PDFs 196 → 18 (lower is better).
-- **`POST /v2/parse`**: Firecrawl-compatible upload of PDF and HTML files.
+- **`POST /v2/parse`**: Firecrawl-compatible upload of PDF, HTML, Word (.docx), Excel (.xlsx), PowerPoint (.pptx), EPUB and CSV files; `/v2/scrape` and `pagesift scrape <file>` convert the same formats.
 - **`partial_content` and `replies_omitted` warnings** when the extracted text is likely
   incomplete. On 1,842 saved WCXB pages, losses without a warning 0.842 → 0.667 and false alarms
   0.174 → 0.130 (both lower is better).
@@ -224,7 +224,7 @@ print(res["markdown"])
 ```
 
 #### Upload a File (`/v2/parse`)
-Parse a local or non-public PDF or HTML file without hosting it at a URL — Firecrawl-compatible multipart upload, up to 50 MB, same response as `/v2/scrape` ([details](docs/parse-api.md)):
+Parse a local or non-public PDF, HTML, Word, Excel, PowerPoint, EPUB or CSV file without hosting it at a URL — Firecrawl-compatible multipart upload, up to 50 MB, same response as `/v2/scrape` ([details](docs/parse-api.md)). Office, EPUB and CSV conversion is pagesift's own Rust code (its own ZIP and XML readers); on the command line, `pagesift scrape report.docx` does the same:
 
 ```bash
 curl -s http://localhost:3002/v2/parse -H 'Authorization: Bearer sk-test' \

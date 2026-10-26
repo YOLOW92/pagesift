@@ -30,7 +30,7 @@
 - **自研 PDF 文件层**替换 lopdf：xref、对象流、解码、加密和坏文件修复都自己做，更快、更省内存。
 - **PDF 标题带真实层级**：优先读写入方给的结构树和书签，没有时按编号、字号、粗体推断。AiSeek 报告的 13 份 PDF 上（越高越好）：召回 0.595 → 0.945，精确率 0.400 → 0.872，层级一致率 0.819 → 0.956，空标题 3 → 0。
 - **页眉页脚与图表**：识别 `/Artifact` 标记、带页码的页眉页脚和矢量图。olmOCR-bench `headers_footers` 0.681 → 0.734（越高越好）；13 份 PDF 上误判的表格 196 → 18（越低越好）。
-- **`POST /v2/parse`**：兼容 Firecrawl 的 PDF、HTML 文件上传解析。
+- **`POST /v2/parse`**：兼容 Firecrawl 的文件上传解析，支持 PDF、HTML、Word（.docx）、Excel（.xlsx）、PowerPoint（.pptx）、EPUB、CSV；`/v2/scrape` 和 `pagesift scrape <文件>` 转换同样的格式。
 - **新警告 `partial_content`、`replies_omitted`**：提取的正文可能不完整时提示。在 1,842 个已保存的 WCXB 页面上，丢了正文却没警告的比例 0.842 → 0.667，误报 0.174 → 0.130（都是越低越好）。
 - **修复**：批量抓取里同一站点的快页面不再等慢页面；旧版协议的 MCP 客户端在审计日志里有名字了；`pagesift doctor` 不再写审计日志。
 
@@ -195,7 +195,7 @@ print(res["markdown"])
 ```
 
 #### 上传文件解析（`/v2/parse`）
-本地或不公开的 PDF、HTML 文件不用先放到网址上，直接上传解析；兼容 Firecrawl 的 multipart 写法，上限 50 MB，返回与 `/v2/scrape` 相同（[说明](parse-api.md)）：
+本地或不公开的 PDF、HTML、Word、Excel、PowerPoint、EPUB、CSV 文件不用先放到网址上，直接上传解析；兼容 Firecrawl 的 multipart 写法，上限 50 MB，返回与 `/v2/scrape` 相同（[说明](parse-api.md)）。Office、EPUB、CSV 的转换是 pagesift 自己用 Rust 写的（ZIP 和 XML 读取也是自己的）；命令行 `pagesift scrape report.docx` 效果相同：
 
 ```bash
 curl -s http://localhost:3002/v2/parse -H 'Authorization: Bearer sk-test' \
