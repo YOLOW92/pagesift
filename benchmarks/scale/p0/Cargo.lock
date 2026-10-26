@@ -1027,7 +1027,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-content"
-version = "0.61.0"
+version = "0.80.0"
 dependencies = [
  "aho-corasick",
  "blake3",
@@ -1041,7 +1041,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-extract"
-version = "0.61.0"
+version = "0.80.0"
 dependencies = [
  "memchr",
  "pagesift-html",
@@ -1055,14 +1055,14 @@ dependencies = [
 
 [[package]]
 name = "pagesift-html"
-version = "0.61.0"
+version = "0.80.0"
 dependencies = [
  "memchr",
 ]
 
 [[package]]
 name = "pagesift-net"
-version = "0.61.0"
+version = "0.80.0"
 dependencies = [
  "blake3",
  "brotli-decompressor 5.0.3",
@@ -1088,7 +1088,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-policy"
-version = "0.61.0"
+version = "0.80.0"
 dependencies = [
  "httpdate",
  "pagesift-net",

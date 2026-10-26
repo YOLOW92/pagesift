@@ -1,5 +1,5 @@
 /target
-/benchmarks/data/
+/benchmarks/data
 # 过渡：本机旧位置（bench/data、bench/venv）在搬到 benchmarks/ 之前或改成符号链接时不进 git
 /bench/data
 /bench/venv

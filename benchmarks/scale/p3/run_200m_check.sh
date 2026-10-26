@@ -3,7 +3,7 @@
 # 口径与 P3 100M 门禁一致（同一 origin / runner / --formal --split-pipeline）。
 set -euo pipefail
 
-repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
 runner="$repo_root/benchmarks/scale/p0/target/release/p2_http_reactor_runner"
 origin="$repo_root/benchmarks/scale/p0/target/release/stream_origin"
 tag="${1:-200m}"

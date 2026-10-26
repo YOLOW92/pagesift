@@ -26,3 +26,15 @@ cargo run --release -p pagesift --example date_scan -- dir...         # crash sc
 
 pagesift's time in `dates.py` is the whole `process()` call (Markdown, metadata, links); `date_scan`
 reports the date search alone.
+
+## Install
+
+Competitors (htmldate, trafilatura, newspaper4k, goose3) are in the shared `py` environment
+([Tool environments](../README.md#tool-environments)); the data is the htmldate clone above. The 0.70
+structured-data harness (`scripts/d7_*.py`, `adapters/metaext`) uses extruct from the same environment;
+build the adapter with `cargo build --release --manifest-path benchmarks/dates/adapters/metaext/Cargo.toml`.
+
+## Dry run (2026-10-27)
+
+`dates.py --tools pagesift` over the full 1,000 pages ran and printed the precision/recall table (the
+competitors were not rerun).

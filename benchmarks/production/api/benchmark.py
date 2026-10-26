@@ -117,7 +117,8 @@ def run_benchmark():
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp = Path(tmp_dir)
         cfg_file = tmp / "pagesift.toml"
-        cfg_file.write_text("""[fetch]
+        # 独立的 store 目录：默认目录可能被本机正在跑的 pagesift serve 占着
+        cfg_file.write_text(f"""[fetch]
 allow_private_network = true
 
 [policy]
@@ -126,6 +127,9 @@ interval_ms = 0
 [server]
 host = "127.0.0.1"
 port = 0
+
+[cache]
+dir = "{tmp / 'store'}"
 """)
         server_port = 39821
         cmd_server = [

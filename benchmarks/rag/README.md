@@ -31,3 +31,19 @@ precision. Ranked rows compare scoring units at equal word budgets (100, 250, 50
 ```bash
 benchmarks/rag/run.sh      # results in benchmarks/rag/out/{chunking,query_filter,timing}.txt
 ```
+
+## Install
+
+Chunkers and the retriever are in the shared `py` environment (bm25s, langchain-text-splitters,
+chonkie, semchunk) and Crawl4AI in `c4ai` ([Tool environments](../README.md#tool-environments));
+`run.sh` builds pagesift's `chunk_spans` and `qf_ranks` examples itself. QASPER runs use the same
+script with `DATA=benchmarks/data/fresh/data/qasper-eval`. The 0.70 D5 harness (`scripts/d5_py.py`,
+`adapters/d5eval`) builds with `cargo build --release --manifest-path benchmarks/rag/adapters/d5eval/Cargo.toml`.
+
+## Dry run (2026-10-27)
+
+`OUT=<scratch dir> benchmarks/rag/run.sh` ran end to end (2 minutes) and wrote `chunking.txt`,
+`query_filter.txt` and `timing.txt`. `run.sh` also asks for a LlamaIndex chunker
+(`llamaindex-sentence`), but `llama-index` is not installed on the benchmark machine and is not in
+`versions.md`, so that row reports "unavailable". The defaults for `OUT`, `DATA`, `PY` and `C4A` still
+pointed at `bench/…` and are fixed in this round.

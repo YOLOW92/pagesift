@@ -4,7 +4,7 @@
 # Python 环境在 benchmarks/data/fresh/tools/py。结果写到 benchmarks/pdf/out/score-<工具>.txt。
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-DATA=$(realpath benchmarks/data/fresh/data/olmocr-bench)
+DATA=$(realpath "${DATA:-benchmarks/data/fresh/data/olmocr-bench}")   # 也可以指向 dl_olmocr_1403.sh 下的 benchmarks/data/olmocr_1403/bench_data
 OUT=benchmarks/pdf/out
 mkdir -p $OUT
 for f in $DATA/*.jsonl; do ln -sfn "$f" $OUT/; done

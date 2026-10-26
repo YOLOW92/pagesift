@@ -27,3 +27,16 @@ benchmarks/markdown/run.sh          # seeds 1 2 3, 200 documents each; results i
 Tools: pagesift (whole page, `--full`), markdownify, html2text (GPL, evaluation only), MarkItDown,
 Crawl4AI's `DefaultMarkdownGenerator` (`raw_markdown`), Turndown (ATX headings, fenced code; the GFM
 plugin is not installed, so it has no tables or strikethrough), Defuddle (`markdown: true`).
+
+## Install
+
+Competitors come from the shared environments ([Tool environments](../README.md#tool-environments)):
+`py` (markdownify, html2text, MarkItDown), `c4ai` (Crawl4AI, and markdown-it-py for the scorer) and
+`node` (Turndown, Defuddle). `run.sh` builds pagesift's `md_convert` example itself. No data download:
+the documents are generated from the seed.
+
+## Dry run (2026-10-27)
+
+Five documents from seed 1 (`fidelity.py gen <dir> 5 1`), each converter run by hand with the commands
+in `run.sh`, then `fidelity.py score`: all seven converters ran and the score table printed. Defuddle
+printed a parse error for some documents and still wrote its output.

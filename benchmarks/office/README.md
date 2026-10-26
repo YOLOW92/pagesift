@@ -35,3 +35,19 @@ scripts/mem.sh <pagesift 二进制> dev holdout
 ```
 
 测速前先等机器空闲（`tasks/0.80/wait_idle.sh`：1 分钟负载连续 3 分钟低于 1.5）。
+
+## 安装
+
+- MarkItDown：`~/.venvs/markitdown`（uv 0.13.4 建的 Python 3.12 环境），评测时装的是 markitdown 0.1.9、
+  mammoth 1.13.0、openpyxl 3.1.5、pandas 3.1.0、python-pptx 1.0.2：
+  `uv venv --python 3.12 ~/.venvs/markitdown && uv pip install --python ~/.venvs/markitdown/bin/python markitdown==0.1.9 mammoth==1.13.0 openpyxl==3.1.5 pandas==3.1.0 python-pptx==1.0.2`
+- 标注和 pandoc：`~/.venvs/label`（Python 3.12），装 python-docx 1.2.0、python-pptx 1.0.2、openpyxl 3.1.5、
+  pypandoc_binary 1.17（自带 pandoc 3.9，`run_pandoc.sh` 直接用它）：
+  `uv venv --python 3.12 ~/.venvs/label && uv pip install --python ~/.venvs/label/bin/python python-docx==1.2.0 python-pptx==1.0.2 openpyxl==3.1.5 pypandoc_binary==1.17`
+- LibreOffice Calc（`make_truth.sh` 用它取 xlsx 的显示值；评测机上是 26.2.6.3）。
+
+## 空跑（2026-10-27）
+
+语料不在仓库里，用的是评测机上已下载的 dev 集里的 2 个 CSV：`run_markitdown.py`、`run_pandoc.sh`、
+`run_pagesift.sh`、`office_bench`（1 次）、`score.py` 都能跑通并出结果。`fetch.py`、`govuk.py`（要联网下载）、
+`make_truth.sh`（会改真值）没有跑。

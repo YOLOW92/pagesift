@@ -73,3 +73,23 @@ share (lower is better), robots violations and 429s received (lower is better) a
 `measure.py` records wall time, CPU time and the peak RSS summed over the whole process
 tree (so Crawl4AI's browser processes and crw's server are counted). Report every metric
 with its direction: throughput higher is better; time, CPU and memory lower is better.
+
+## Install
+
+- Origin, wild origin and the Spider adapter: `cargo build --release --manifest-path benchmarks/crawl/Cargo.toml`
+  (Spider 2.53.9, pinned in `Cargo.lock`); pagesift: `cargo build --release -p pagesift --example crawl_bench`.
+- crw 0.39.0 (AGPL-3.0, evaluation only): `cargo install --locked --root benchmarks/data/tools crw-cli`.
+- Scrapy 2.19.0 and Crawlee for Python 1.11.0: the shared `py` environment; Crawl4AI 0.9.5: `c4ai`
+  ([Tool environments](../README.md#tool-environments)).
+- Colly 2.3.0: a Go binary, `COLLY` defaults to `/home/yolow92/pagesift-bench-env/tools/bin/colly_crawl`
+  (its source is not in this repository).
+- Page bodies: `benchmarks/data/crawl-pages` (`PAGES_DIR`).
+
+## Dry run (2026-10-27)
+
+`benchmarks/crawl/run_all.sh smoke` (3 sites × 10 pages, every tool once) ran all nine entries —
+pagesift, crw, Spider, Colly, Scrapy, Crawlee for Python, Crawl4AI HTTP, multi-process and browser —
+and each fetched all 30 pages. Not run: `run_wild.sh`, whose Crawl4AI default
+(`benchmarks/data/venvs/crawl4ai`) does not exist on the benchmark machine (pass
+`C4A=benchmarks/data/fresh/tools/c4ai/bin/python`), and `engines.sh`. Both scripts run `pkill -x origin`
+before each scenario, which also stops an `origin` that another session started.

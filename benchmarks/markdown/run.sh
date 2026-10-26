@@ -3,10 +3,10 @@
 # 用法：benchmarks/markdown/run.sh [种子...]（默认 1 2 3），每个种子 200 篇；结果在 $OUT（默认 benchmarks/markdown/out）。
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-OUT=${OUT:-bench/markdown/out}
-PY=${PY:-bench/data/fresh/tools/py/bin/python}          # markdownify、html2text、markitdown
-C4A=${C4A:-bench/data/fresh/tools/c4ai/bin/python}        # crawl4ai，以及评分用的 markdown-it-py
-NODE_DIR=${NODE_DIR:-bench/data/fresh/tools/node}       # turndown、defuddle
+OUT=${OUT:-benchmarks/markdown/out}
+PY=${PY:-benchmarks/data/fresh/tools/py/bin/python}          # markdownify、html2text、markitdown
+C4A=${C4A:-benchmarks/data/fresh/tools/c4ai/bin/python}        # crawl4ai，以及评分用的 markdown-it-py
+NODE_DIR=${NODE_DIR:-benchmarks/data/fresh/tools/node}       # turndown、defuddle
 cargo build --release -q -p pagesift-content --example md_convert
 for seed in ${@:-1 2 3}; do
     D=$OUT/seed$seed

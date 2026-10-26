@@ -5,10 +5,10 @@
 # 结果写到 $OUT（默认 benchmarks/rag/out）；HALF=tune/hold/all 选问题子集（默认三个都跑）。
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-OUT=${OUT:-bench/rag/out}
-DATA=${DATA:-bench/data/fresh/data/chunkeval}
-PY=${PY:-bench/data/fresh/tools/py/bin/python}     # bm25s、langchain-text-splitters、chonkie、semchunk
-C4A=${C4A:-bench/data/fresh/tools/c4ai/bin/python}   # Crawl4AI
+OUT=${OUT:-benchmarks/rag/out}
+DATA=${DATA:-benchmarks/data/fresh/data/chunkeval}
+PY=${PY:-benchmarks/data/fresh/tools/py/bin/python}     # bm25s、langchain-text-splitters、chonkie、semchunk
+C4A=${C4A:-benchmarks/data/fresh/tools/c4ai/bin/python}   # Crawl4AI
 SIZE=${SIZE:-200}
 rm -rf "$OUT"; mkdir -p "$OUT/chunks"
 [ -f "$HOME/.cargo/env" ] && source "$HOME/.cargo/env"

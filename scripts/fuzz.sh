@@ -13,7 +13,7 @@ secs=${1:-1200}
 shift || true
 targets=("$@")
 [ ${#targets[@]} -eq 0 ] && targets=(html markdown charset pdf)
-out=${FUZZ_OUT:-bench/fuzz-out}
+out=${FUZZ_OUT:-benchmarks/fuzz-out}
 mem=${FUZZ_MEM:-2G}
 data=benchmarks/data
 export CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-/home/yolow92/pagesift/target}
