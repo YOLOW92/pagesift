@@ -6,6 +6,7 @@
 
 mod datefmt;
 mod numfmt;
+mod pivot;
 mod sheet;
 
 use std::collections::HashMap;
@@ -20,18 +21,33 @@ pub(crate) struct Book {
     shared: Vec<String>,
     /// cellXfs 下标 → 格式代码。
     formats: Vec<String>,
+    /// styles.xml 里的自定义格式：格式 id → 格式代码。
+    custom: HashMap<u32, String>,
     date1904: bool,
 }
 
 impl Book {
-    /// 一个数值单元格的显示值。
-    fn number(&self, raw: &str, style: usize) -> String {
+    /// 一个数值单元格的显示值。单元格自己是“常规”格式、又落在透视表数据区里时，
+    /// 用透视表值字段的格式 `pivot`（格式 id）。
+    fn number(&self, raw: &str, style: usize, pivot: Option<u32>) -> String {
         let Ok(v) = raw.trim().parse::<f64>() else {
             return raw.to_string();
         };
-        let code = self.formats.get(style).map_or("General", String::as_str);
-        numfmt::format(v, code, self.date1904)
+        let own = self.formats.get(style).map_or("General", String::as_str);
+        let code = match pivot {
+            Some(id) if own.eq_ignore_ascii_case("general") => code_of(&self.custom, id),
+            _ => own.to_string(),
+        };
+        numfmt::format(v, &code, self.date1904)
     }
+}
+
+fn code_of(custom: &HashMap<u32, String>, id: u32) -> String {
+    custom
+        .get(&id)
+        .cloned()
+        .or_else(|| numfmt::builtin(id).map(str::to_string))
+        .unwrap_or_else(|| "General".into())
 }
 
 pub(crate) fn convert(zip: &Zip<'_>, opts: &Options<'_>) -> Result<Converted, Error> {
@@ -49,17 +65,18 @@ pub(crate) fn convert(zip: &Zip<'_>, opts: &Options<'_>) -> Result<Converted, Er
             .unwrap_or_default(),
         None => Vec::new(),
     };
-    let formats = match rels.first("styles") {
+    let (formats, custom) = match rels.first("styles") {
         Some(r) => zip
             .read_text(&r.target)?
             .map(|x| cell_formats(&x))
             .transpose()?
             .unwrap_or_default(),
-        None => Vec::new(),
+        None => Default::default(),
     };
     let book = Book {
         shared,
         formats,
+        custom,
         date1904,
     };
 
@@ -75,7 +92,8 @@ pub(crate) fn convert(zip: &Zip<'_>, opts: &Options<'_>) -> Result<Converted, Er
         let Some(sx) = zip.read_text(&rel.target)? else {
             continue;
         };
-        let grid = sheet::read(&sx, &book, opts, &mut budget, &mut out.warnings)?;
+        let pivots = pivot::areas(zip, &rel.target)?;
+        let grid = sheet::read(&sx, &book, &pivots, opts, &mut budget, &mut out.warnings)?;
         if !grid.is_empty() {
             blocks.push(Block::Table(grid));
         }
@@ -138,8 +156,8 @@ fn shared_strings(xml: &str) -> Result<Vec<String>, Error> {
     Ok(out)
 }
 
-/// styles.xml：每个单元格格式（cellXfs/xf）对应的格式代码。
-fn cell_formats(xml: &str) -> Result<Vec<String>, Error> {
+/// styles.xml：每个单元格格式（cellXfs/xf）对应的格式代码，以及自定义格式表。
+fn cell_formats(xml: &str) -> Result<(Vec<String>, HashMap<u32, String>), Error> {
     let mut custom: HashMap<u32, String> = HashMap::new();
     let mut ids = Vec::new();
     let mut in_xfs = false;
@@ -170,16 +188,8 @@ fn cell_formats(xml: &str) -> Result<Vec<String>, Error> {
             _ => {}
         }
     }
-    Ok(ids
-        .into_iter()
-        .map(|id| {
-            custom
-                .get(&id)
-                .cloned()
-                .or_else(|| numfmt::builtin(id).map(str::to_string))
-                .unwrap_or_else(|| "General".into())
-        })
-        .collect())
+    let formats = ids.into_iter().map(|id| code_of(&custom, id)).collect();
+    Ok((formats, custom))
 }
 
 #[cfg(test)]

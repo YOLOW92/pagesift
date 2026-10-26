@@ -85,6 +85,14 @@ impl Rels {
             .find(|r| r.kind == kind)
     }
 
+    /// 按出现顺序列出某类型的所有关系。
+    pub(crate) fn all<'s>(&'s self, kind: &'s str) -> impl Iterator<Item = &'s Rel> + 's {
+        self.order
+            .iter()
+            .filter_map(|id| self.by_id.get(id))
+            .filter(move |r| r.kind == kind)
+    }
+
     /// 包的主部件（`officeDocument` 关系）。
     pub(crate) fn office_document(&self) -> Option<String> {
         self.first(&OFFICE_DOCUMENT[1..]).map(|r| r.target.clone())

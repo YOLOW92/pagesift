@@ -1,6 +1,7 @@
 //! 工作表（worksheet，ECMA-376 18.3）：流式读单元格，只留有内容的，最后排成表。
 
 use super::Book;
+use super::pivot::{Area, format_at};
 use crate::xml::{Reader, Tok, local_name};
 use crate::{Error, Options};
 
@@ -11,6 +12,7 @@ const MAX_EMPTY_RUN: u32 = 1000;
 pub(super) fn read(
     xml: &str,
     book: &Book,
+    pivots: &[Area],
     opts: &Options<'_>,
     budget: &mut usize,
     warnings: &mut Vec<String>,
@@ -85,7 +87,7 @@ pub(super) fn read(
                     }
                     "e" | "str" | "d" => v,
                     _ if v.is_empty() => String::new(),
-                    _ => book.number(&v, style),
+                    _ => book.number(&v, style, format_at(pivots, rr, cc)),
                 };
                 if text.trim().is_empty() {
                     continue;
@@ -208,7 +210,7 @@ fn cell_content(r: &mut Reader<'_>) -> Result<(String, String), Error> {
 }
 
 /// `AB12` → (行 12, 列 28)。
-fn cell_ref(s: &str) -> Option<(u32, u32)> {
+pub(super) fn cell_ref(s: &str) -> Option<(u32, u32)> {
     let letters = s.bytes().take_while(u8::is_ascii_alphabetic).count();
     if letters == 0 || letters > 3 {
         return None;
