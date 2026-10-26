@@ -124,6 +124,20 @@ impl Scraper {
             });
         }
 
+        // Word、Excel、PowerPoint、EPUB、CSV：内容、Content-Type、网址的扩展名一起判断
+        if let Some(format) = office_format(&resp.body, resp.final_url.path(), resp.content_type())
+        {
+            let progress = Progress {
+                started,
+                timings,
+                warnings,
+            };
+            let deadline = request_deadline(opts, started);
+            return self
+                .office_document(resp.body, format, opts, (meta, ext), progress, deadline)
+                .await;
+        }
+
         if let Some(kind) = unsupported_content_type(resp.content_type(), &resp.body) {
             return Err(ApiError::unsupported(format!(
                 "unsupported content type `{kind}`: pagesift extracts HTML/text; use `pagesift download` or `media-extract` for binary media"

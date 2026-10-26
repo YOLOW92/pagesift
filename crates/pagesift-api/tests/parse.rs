@@ -34,6 +34,7 @@ impl Engine for Fake {
             let kind = match file.kind {
                 UploadKind::Pdf => "pdf",
                 UploadKind::Html => "html",
+                UploadKind::Office(f) => f.extension(),
             };
             Ok(Document {
                 markdown: opts.wants("markdown").then(|| {
@@ -169,10 +170,16 @@ async fn file_type_comes_from_content_then_name_then_mime() {
         v["data"]["metadata"]["contentType"],
         "text/html; charset=gbk"
     );
-    // 认不出的类型拒绝
+    // Office 文件按扩展名认（ZIP 坏了的话由引擎报 INVALID_REQUEST）
     let (s, v) = parse(&[("file", Some("a.docx"), None, b"PK\x03\x04")]).await;
-    assert_eq!(s, StatusCode::BAD_REQUEST);
-    assert_eq!(v["code"], "UNSUPPORTED_OPTION");
+    assert_eq!(s, StatusCode::OK);
+    assert!(v["data"]["markdown"].as_str().unwrap().starts_with("docx"), "{v}");
+    // 认不出的类型拒绝（OpenDocument、旧版 .doc 不支持）
+    for name in ["a.odt", "a.doc", "a.zip"] {
+        let (s, v) = parse(&[("file", Some(name), None, b"PK\x03\x04")]).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{name}");
+        assert_eq!(v["code"], "UNSUPPORTED_OPTION");
+    }
 }
 
 #[tokio::test]

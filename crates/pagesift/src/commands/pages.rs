@@ -131,7 +131,11 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
                 opts.formats
                     .push(pagesift::api::types::Format::new("links"));
             }
-            let result = scraper.scrape(&url, &opts).await;
+            // 本地文件（路径或 file:// 网址）按上传解析：PDF、HTML、Word、Excel、PowerPoint、EPUB、CSV
+            let result = match local_file(&url) {
+                Some(path) => parse_local(&scraper, &path, &opts).await?,
+                None => scraper.scrape(&url, &opts).await,
+            };
             scraper.shutdown().await;
             match result {
                 Ok(doc) if format == "json" => {
@@ -245,4 +249,37 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
         }),
         _ => unreachable!(),
     }
+}
+
+/// `scrape` 的参数是本地文件时的路径：`file://` 网址，或者没有协议、确实存在的路径。
+fn local_file(arg: &str) -> Option<std::path::PathBuf> {
+    if arg.starts_with("file://") {
+        return url::Url::parse(arg).ok()?.to_file_path().ok();
+    }
+    let path = std::path::Path::new(arg);
+    (!arg.contains("://") && path.is_file()).then(|| path.to_path_buf())
+}
+
+async fn parse_local(
+    scraper: &pagesift::Scraper,
+    path: &std::path::Path,
+    opts: &pagesift::api::types::ScrapeOptions,
+) -> Result<Result<pagesift::api::types::Document, pagesift::api::ApiError>> {
+    use pagesift::api::types::{Upload, UploadKind};
+    let bytes = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
+    let filename = path
+        .file_name()
+        .map_or_else(|| "upload".into(), |n| n.to_string_lossy().into_owned());
+    let Some(kind) = UploadKind::detect(&bytes, &filename, None) else {
+        return Ok(Err(pagesift::api::ApiError::unsupported(format!(
+            "unsupported file type: {filename}"
+        ))));
+    };
+    let upload = Upload {
+        bytes,
+        filename,
+        content_type: None,
+        kind,
+    };
+    Ok(scraper.parse(upload, opts).await)
 }

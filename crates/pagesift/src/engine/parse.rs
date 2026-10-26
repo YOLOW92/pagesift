@@ -38,7 +38,7 @@ impl Scraper {
             UploadKind::Html => upload
                 .content_type
                 .filter(|c| c.to_ascii_lowercase().contains("html")),
-            UploadKind::Pdf => None,
+            UploadKind::Pdf | UploadKind::Office(_) => None,
         };
         let meta = Metadata {
             source_url: Some(upload.filename.clone()),
@@ -64,6 +64,17 @@ impl Scraper {
             UploadKind::Pdf => {
                 self.pdf_document(upload.bytes, opts, (meta, ext), progress, Some(deadline))
                     .await
+            }
+            UploadKind::Office(format) => {
+                self.office_document(
+                    upload.bytes,
+                    format,
+                    opts,
+                    (meta, ext),
+                    progress,
+                    Some(deadline),
+                )
+                .await
             }
             UploadKind::Html => {
                 let html = pagesift_net::decode_owned(upload.bytes, content_type.as_deref(), None);

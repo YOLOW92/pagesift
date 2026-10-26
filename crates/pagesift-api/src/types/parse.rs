@@ -21,14 +21,20 @@ pub struct Upload {
 pub enum UploadKind {
     Pdf,
     Html,
+    /// Word、Excel、PowerPoint、EPUB、CSV（见 pagesift-office）。
+    Office(pagesift_office::Format),
 }
 
 impl UploadKind {
-    /// 判断上传的文件类型：内容以 `%PDF-` 开头就是 PDF（不管文件名怎么写）；否则看扩展名，
-    /// 再看 Content-Type。和 Firecrawl 一样，认不出的类型不猜，直接拒绝。
+    /// 判断上传的文件类型：内容以 `%PDF-` 开头就是 PDF；ZIP 容器按里面的部件认 Word、Excel、
+    /// PowerPoint、EPUB（不管文件名怎么写）；否则看扩展名，再看 Content-Type。
+    /// 和 Firecrawl 一样，认不出的类型不猜，直接拒绝。
     pub fn detect(bytes: &[u8], filename: &str, content_type: Option<&str>) -> Option<Self> {
         if bytes.starts_with(b"%PDF-") {
             return Some(UploadKind::Pdf);
+        }
+        if let Some(f) = pagesift_office::Format::detect(bytes, Some(filename), content_type) {
+            return Some(UploadKind::Office(f));
         }
         let ext = filename
             .rsplit_once('.')
@@ -53,6 +59,7 @@ impl UploadKind {
         match self {
             UploadKind::Pdf => "application/pdf",
             UploadKind::Html => "text/html",
+            UploadKind::Office(f) => f.mime(),
         }
     }
 }
@@ -180,7 +187,10 @@ mod tests {
             d(b"<p>", "blob", Some("Text/HTML; charset=utf-8")),
             Some(UploadKind::Html)
         );
+        // 内容不是 ZIP 的 .docx 认不出；ZIP 按里面的部件认
         assert_eq!(d(b"PK", "a.docx", None), None);
+        assert_eq!(d(b"a,b\n1,2", "t.csv", None), Some(UploadKind::Office(pagesift_office::Format::Csv)));
+        assert_eq!(d(b"a,b", "upload", Some("text/csv")), Some(UploadKind::Office(pagesift_office::Format::Csv)));
         assert_eq!(d(b"x", "upload", Some("application/octet-stream")), None);
     }
 
