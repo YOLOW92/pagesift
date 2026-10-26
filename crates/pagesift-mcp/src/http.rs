@@ -9,32 +9,35 @@
 //! 所有请求都先校验 `Host` 和 `Origin`，防止 DNS 重绑定。
 
 use std::collections::HashMap;
-use std::convert::Infallible;
 use std::future::Future;
 use std::io;
 use std::net::SocketAddr;
-use std::pin::Pin;
 use std::sync::{Arc, Mutex};
-use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
 use axum::Router;
 use axum::body::Bytes;
 use axum::extract::{DefaultBodyLimit, State};
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
-use axum::response::sse::{Event, KeepAlive, Sse};
+use axum::response::sse::{KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
 use axum::routing::any;
-use base64::Engine as _;
-use futures_util::Stream;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 use tokio::sync::{mpsc, watch};
-use tokio::task::{AbortHandle, JoinHandle};
+use tokio::task::AbortHandle;
 
 use crate::jsonrpc::{self, ErrorObject, Id, Message, Notification, Parsed, Request};
 use crate::protocol::{self, Era};
 use crate::server::McpServer;
+
+mod guard;
+mod headers;
+mod stream;
+
+use guard::check_host_and_origin;
+use headers::check_modern_headers;
+use stream::{AbortOnDrop, JsonReply, NoEvents, ResponseStream};
 
 const SESSION_HEADER: &str = "mcp-session-id";
 const VERSION_HEADER: &str = "mcp-protocol-version";
@@ -164,62 +167,6 @@ fn method_not_allowed() -> Response {
         [(header::ALLOW, "GET, POST, DELETE")],
     )
         .into_response()
-}
-
-// ---------- 安全检查 ----------
-
-fn check_host_and_origin(cfg: &HttpConfig, headers: &HeaderMap) -> Result<(), Box<Response>> {
-    if let Some(allowed) = &cfg.allowed_hosts {
-        let host = headers
-            .get(header::HOST)
-            .and_then(|h| h.to_str().ok())
-            .map(host_without_port);
-        let ok = host.is_some_and(|h| allowed.iter().any(|a| a.eq_ignore_ascii_case(h)));
-        if !ok {
-            return Err(Box::new(forbidden("Host header is not allowed")));
-        }
-    }
-    if let Some(origin) = headers.get(header::ORIGIN) {
-        let ok = origin.to_str().ok().is_some_and(|o| origin_allowed(cfg, o));
-        if !ok {
-            return Err(Box::new(forbidden("Origin is not allowed")));
-        }
-    }
-    Ok(())
-}
-
-/// `example.com:80` → `example.com`，`[::1]:3003` → `[::1]`。
-fn host_without_port(h: &str) -> &str {
-    if h.starts_with('[') {
-        return h.find(']').map_or(h, |i| &h[..=i]);
-    }
-    h.rsplit_once(':').map_or(h, |(host, _)| host)
-}
-
-fn origin_allowed(cfg: &HttpConfig, origin: &str) -> bool {
-    if cfg.allowed_origins.iter().any(|o| o == origin) {
-        return true;
-    }
-    if !cfg.allow_loopback_origins {
-        return false;
-    }
-    let Some(rest) = origin
-        .strip_prefix("http://")
-        .or_else(|| origin.strip_prefix("https://"))
-    else {
-        return false;
-    };
-    if rest.contains('/') || rest.contains('@') {
-        return false;
-    }
-    let host = host_without_port(rest);
-    host.eq_ignore_ascii_case("localhost") || host == "127.0.0.1" || host == "[::1]"
-}
-
-fn forbidden(why: &str) -> Response {
-    // 规范允许附上不带 id 的 JSON-RPC 错误。
-    let body = json!({ "jsonrpc": "2.0", "error": { "code": jsonrpc::INVALID_REQUEST, "message": format!("Forbidden: {why}") } });
-    json_response(StatusCode::FORBIDDEN, body)
 }
 
 // ---------- POST ----------
@@ -431,92 +378,6 @@ async fn post_request(
     respond(&st, accept, req, era, Some(session))
 }
 
-fn check_modern_headers(headers: &HeaderMap, req: &Request) -> Result<(), ErrorObject> {
-    let mismatch = |msg: String| ErrorObject::new(protocol::HEADER_MISMATCH, msg);
-    for name in [VERSION_HEADER, METHOD_HEADER, NAME_HEADER] {
-        if headers.get_all(name).iter().count() > 1 {
-            return Err(mismatch(format!(
-                "Header mismatch: {name} header appears more than once"
-            )));
-        }
-    }
-    let body_version = req
-        .params
-        .as_ref()
-        .and_then(|p| p.get("_meta"))
-        .and_then(|m| m.get(protocol::META_PROTOCOL_VERSION))
-        .and_then(Value::as_str)
-        .unwrap_or("");
-    match header_str(headers, VERSION_HEADER) {
-        None => {
-            return Err(mismatch(
-                "Header mismatch: missing MCP-Protocol-Version header".into(),
-            ));
-        }
-        Some(h) if h != body_version => {
-            return Err(mismatch(format!(
-                "Header mismatch: MCP-Protocol-Version header value '{h}' does not match body value '{body_version}'"
-            )));
-        }
-        Some(_) => {}
-    }
-    match header_str(headers, METHOD_HEADER) {
-        None => {
-            return Err(mismatch(
-                "Header mismatch: missing Mcp-Method header".into(),
-            ));
-        }
-        Some(h) if h != req.method => {
-            return Err(mismatch(format!(
-                "Header mismatch: Mcp-Method header value '{h}' does not match body value '{}'",
-                req.method
-            )));
-        }
-        Some(_) => {}
-    }
-    if matches!(
-        req.method.as_str(),
-        "tools/call" | "prompts/get" | "resources/read"
-    ) {
-        let key = if req.method == "resources/read" {
-            "uri"
-        } else {
-            "name"
-        };
-        let body_name = req
-            .params
-            .as_ref()
-            .and_then(|p| p.get(key))
-            .and_then(Value::as_str);
-        let Some(raw) = header_str(headers, NAME_HEADER) else {
-            return Err(mismatch("Header mismatch: missing Mcp-Name header".into()));
-        };
-        let decoded = decode_header_value(raw)
-            .ok_or_else(|| mismatch("Header mismatch: Mcp-Name header is malformed".into()))?;
-        if Some(decoded.as_str()) != body_name {
-            return Err(mismatch(format!(
-                "Header mismatch: Mcp-Name header value '{decoded}' does not match body value '{}'",
-                body_name.unwrap_or("")
-            )));
-        }
-    }
-    Ok(())
-}
-
-/// 解码 `=?base64?...?=` 形式的头值；普通值原样返回。
-fn decode_header_value(raw: &str) -> Option<String> {
-    match raw
-        .strip_prefix("=?base64?")
-        .and_then(|r| r.strip_suffix("?="))
-    {
-        Some(b64) => {
-            let bytes = base64::engine::general_purpose::STANDARD.decode(b64).ok()?;
-            String::from_utf8(bytes).ok()
-        }
-        None => Some(raw.to_owned()),
-    }
-}
-
 fn initialize(st: &Shared, req: &Request) -> Response {
     let (version, result) = match st.server.initialize(req) {
         Ok(ok) => ok,
@@ -627,91 +488,6 @@ fn respond(
     }
 }
 
-struct AbortOnDrop(JoinHandle<()>);
-
-impl Drop for AbortOnDrop {
-    fn drop(&mut self) {
-        self.0.abort();
-    }
-}
-
-/// SSE 流：先转发通知，收到最终响应后结束。
-struct ResponseStream {
-    rx: mpsc::UnboundedReceiver<Value>,
-    _guard: AbortOnDrop,
-    done: bool,
-}
-
-impl Stream for ResponseStream {
-    type Item = Result<Event, Infallible>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if self.done {
-            return Poll::Ready(None);
-        }
-        match self.rx.poll_recv(cx) {
-            Poll::Ready(Some(v)) => {
-                // 响应带 id 且没有 method。
-                if v.get("method").is_none() {
-                    self.done = true;
-                }
-                let data = serde_json::to_string(&v).unwrap_or_default();
-                Poll::Ready(Some(Ok(Event::default().event("message").data(data))))
-            }
-            Poll::Ready(None) => Poll::Ready(None),
-            Poll::Pending => Poll::Pending,
-        }
-    }
-}
-
-struct JsonReply {
-    rx: mpsc::UnboundedReceiver<Value>,
-    _guard: AbortOnDrop,
-}
-
-impl JsonReply {
-    /// 返回一个 body 是"等待最终响应"的流式 JSON 响应，这样连接断开能被感知并取消任务。
-    fn into_response_future(self) -> Response {
-        let body = axum::body::Body::from_stream(JsonBody { reply: Some(self) });
-        let mut resp = Response::new(body);
-        resp.headers_mut().insert(
-            header::CONTENT_TYPE,
-            HeaderValue::from_static("application/json"),
-        );
-        resp
-    }
-}
-
-struct JsonBody {
-    reply: Option<JsonReply>,
-}
-
-impl Stream for JsonBody {
-    type Item = Result<Bytes, Infallible>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let Some(reply) = self.reply.as_mut() else {
-            return Poll::Ready(None);
-        };
-        loop {
-            match reply.rx.poll_recv(cx) {
-                // JSON 模式下不转发通知。
-                Poll::Ready(Some(v)) if v.get("method").is_some() => continue,
-                Poll::Ready(Some(v)) => {
-                    self.reply = None;
-                    let bytes = serde_json::to_vec(&v).unwrap_or_default();
-                    return Poll::Ready(Some(Ok(Bytes::from(bytes))));
-                }
-                Poll::Ready(None) => {
-                    self.reply = None;
-                    return Poll::Ready(None);
-                }
-                Poll::Pending => return Poll::Pending,
-            }
-        }
-    }
-}
-
 async fn post_batch(
     st: &Shared,
     session: Option<Arc<Session>>,
@@ -801,22 +577,10 @@ fn delete(st: &Shared, headers: &HeaderMap) -> Response {
     }
 }
 
-/// 不产生事件的 SSE 流，内部流结束（会话关闭）时结束。
-struct NoEvents<S>(S);
-
-impl<S: Stream<Item = ()> + Unpin> Stream for NoEvents<S> {
-    type Item = Result<Event, Infallible>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match Pin::new(&mut self.0).poll_next(cx) {
-            Poll::Ready(_) => Poll::Ready(None),
-            Poll::Pending => Poll::Pending,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use super::guard::{host_without_port, origin_allowed};
+    use super::headers::decode_header_value;
     use super::*;
 
     #[test]
