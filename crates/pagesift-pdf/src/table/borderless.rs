@@ -93,7 +93,7 @@ pub(crate) fn ruled_only(
     frags: &[Line],
     used: &mut [bool],
     page_width: f64,
-    accept: &mut dyn FnMut(&[usize]) -> bool,
+    accept: &mut dyn FnMut(&Table, &[usize]) -> bool,
 ) -> Vec<Table> {
     let long: Vec<&HEdge> = h
         .iter()
@@ -125,7 +125,8 @@ pub(crate) fn ruled_only(
             let mut found = None;
             for b in (a + 1..group.len()).rev() {
                 let (top, bottom) = (long[group[a]].y, long[group[b]].y);
-                if let Some(t) = region(frags, used, x0, x1, top, bottom).filter(|(_, m)| accept(m))
+                if let Some(t) =
+                    region(frags, used, x0, x1, top, bottom).filter(|(t, m)| accept(t, m))
                 {
                     found = Some((b, t));
                     break;

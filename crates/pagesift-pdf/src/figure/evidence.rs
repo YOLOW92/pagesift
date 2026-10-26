@@ -2,7 +2,7 @@
 
 use super::cluster::Item;
 use super::rules::Rules;
-use super::{MAX_PATH_WEIGHT, MIN_TICKS, TICK_LEN, center};
+use super::{MAX_PATH_WEIGHT, MIN_TICKS, MIN_WEIGHT, TICK_LEN, center};
 use crate::geom::{Rule, Shape};
 use crate::layout::Line;
 
@@ -166,6 +166,27 @@ pub(super) fn evidence<'a>(
     ht.sort_by(|a, b| a.x0.total_cmp(&b.x0).then(a.y0.total_cmp(&b.y0)));
     ticks(&vt, |r| r.y0, &mut items);
     ticks(&ht, |r| r.x0, &mut items);
+    // 图表的网格线：网格里画着点、折线、曲线才算，空白的表单也是一张格子大多空着的网；
+    // 填充块不算（表单格子的底色），柱形图本来就靠柱的排列成图。
+    // 够格的网格单凭自己就成图（散点图的点隔得远，自己聚不成类，落在网格里就并进来）
+    let drawn = items.len();
+    for b in super::plotgrid::plot_grids(rules, centers) {
+        let inside = |it: &Item| {
+            if it.bar {
+                return false;
+            }
+            let (x, y) = ((it.b[0] + it.b[2]) / 2.0, (it.b[1] + it.b[3]) / 2.0);
+            x > b[0] && x < b[2] && y > b[1] && y < b[3]
+        };
+        if !items[..drawn].iter().any(inside) {
+            continue;
+        }
+        items.push(Item {
+            b,
+            w: MIN_WEIGHT,
+            bar: false,
+        });
+    }
     items
 }
 

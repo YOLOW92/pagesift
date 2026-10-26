@@ -121,6 +121,7 @@ pub(crate) fn extract(
             let top = cells.iter().map(|c| c.1).fold(f64::NEG_INFINITY, f64::max);
             let bottom = cells.iter().map(|c| c.3).fold(f64::INFINITY, f64::min);
             if x1 - x0 >= 0.2 * page_width
+                && !box_on_figure(figures, x0, x1, top, bottom)
                 && let Some((t, mine)) = region(frags, &used, x0, x1, top, bottom)
                     .filter(|(t, mine)| t.rows.len() >= 3 && !on_figure(figures, frags, mine))
             {
@@ -148,7 +149,9 @@ pub(crate) fn extract(
         frags,
         &mut used,
         page_width,
-        &mut |m: &[usize]| !on_figure(figures, frags, m),
+        &mut |t: &Table, m: &[usize]| {
+            !box_on_figure(figures, t.x0, t.x1, t.top, t.bottom) && !on_figure(figures, frags, m)
+        },
     ));
     // 无框线表格在分栏之后找：跨过栏间空白、两边像并排两栏文字的候选（两栏列表、正文和旁边的信息框、
     // 正文和旁边的小表）不当一张表，按那条空白拆成左右两半各自再找
