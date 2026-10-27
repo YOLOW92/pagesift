@@ -2,6 +2,7 @@
 
 pub(crate) mod cff;
 pub(crate) mod strings;
+pub(crate) mod truetype;
 pub(crate) mod type1;
 
 use crate::file::{Dictionary, Document, Object};

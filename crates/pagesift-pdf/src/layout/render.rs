@@ -459,6 +459,7 @@ pub(crate) fn render(pages: &[Vec<Para>], mode: Mode) -> (Vec<String>, String) {
                 cands.push(headings::Cand {
                     size: p.size,
                     style: numbering(&p.text).map(|(s, _)| s),
+                    first: crate::structure::starts_at_one(&p.text),
                 });
             }
             row.push(h);

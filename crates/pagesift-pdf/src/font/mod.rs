@@ -1,6 +1,7 @@
 //! 字体解码：把显示串里的字节切成字符码，转成 Unicode 并给出字宽。
 
 pub(crate) mod cjk;
+mod cid2uni;
 use cjk::{CodeSource, code_len, fallback_text, predefined_source};
 
 use std::collections::HashMap;
@@ -28,6 +29,11 @@ struct Composite {
     dw: f64,
     widths: HashMap<u32, f64>,
     width_ranges: Vec<(u32, u32, f64)>,
+    /// 没有 ToUnicode 时按预定义字符集取码位（CFF 字体；TrueType 的码多半是字形编号，不按字符集查）
+    collection: Option<cid2uni::Collection>,
+    /// 没有 ToUnicode 的 TrueType：字形编号 → 字符（字体自带 cmap 倒查）和 CID → 字形编号（CIDToGIDMap，None 是恒等）
+    glyph_text: Option<HashMap<u32, char>>,
+    cid_to_gid: Option<Vec<u16>>,
 }
 
 #[derive(Debug)]
@@ -278,8 +284,34 @@ impl Font {
             dw: 1000.0,
             widths: HashMap::new(),
             width_ranges: Vec::new(),
+            collection: None,
+            glyph_text: None,
+            cid_to_gid: None,
         };
         if let Some(cf) = cid_font {
+            let truetype = descriptor.is_some_and(|fd| get(doc, fd, b"FontFile2").is_some())
+                || get_name(doc, cf, b"Subtype") == Some(b"CIDFontType2");
+            if truetype
+                && to_unicode.is_none()
+                && let Some(fd) = descriptor
+                && let Some(prog) = get(doc, fd, b"FontFile2").and_then(|o| stream_bytes(doc, o, stream_limit))
+            {
+                comp.glyph_text = crate::fontfile::truetype::glyph_unicode(&prog);
+                if comp.glyph_text.is_some()
+                    && let Some(o @ Object::Stream(_)) = get(doc, cf, b"CIDToGIDMap")
+                {
+                    comp.cid_to_gid = stream_bytes(doc, o, stream_limit)
+                        .map(|b| b.as_chunks::<2>().0.iter().map(|c| u16::from_be_bytes(*c)).collect());
+                }
+            }
+            if !truetype && let Some(info) = get_dict(doc, cf, b"CIDSystemInfo") {
+                let text = |k: &[u8]| match get(doc, info, k) {
+                    Some(Object::String(b, _)) => b.clone(),
+                    _ => Vec::new(),
+                };
+                comp.collection =
+                    cid2uni::Collection::from_system_info(&text(b"Registry"), &text(b"Ordering"));
+            }
             comp.dw = get_num(doc, cf, b"DW").unwrap_or(1000.0);
             if let Some(Object::Array(w)) = get(doc, cf, b"W") {
                 parse_w(doc, w, &mut comp);
@@ -322,17 +354,30 @@ impl Font {
                     let raw = &rest[..len];
                     let code = raw.iter().fold(0u32, |v, &b| v << 8 | u32::from(b));
                     i += len;
-                    let text = self
-                        .to_unicode
-                        .as_ref()
-                        .and_then(|c| c.unicode(code))
-                        .or_else(|| fallback_text(&comp.source, raw, code))
-                        .unwrap_or_default();
                     let cid = match &comp.source {
                         CodeSource::Identity => Some(code),
                         CodeSource::Embedded(cm) => cm.cid(code),
                         _ => None,
                     };
+                    let text = self
+                        .to_unicode
+                        .as_ref()
+                        .and_then(|c| c.unicode(code))
+                        .or_else(|| {
+                            let col = comp.collection?;
+                            col.unicode(cid?).map(String::from)
+                        })
+                        .or_else(|| {
+                            let map = comp.glyph_text.as_ref()?;
+                            let cid = cid?;
+                            let gid = match &comp.cid_to_gid {
+                                Some(t) => u32::from(*t.get(cid as usize)?),
+                                None => cid,
+                            };
+                            map.get(&gid).map(|c| c.to_string())
+                        })
+                        .or_else(|| fallback_text(&comp.source, raw, code))
+                        .unwrap_or_default();
                     let w = cid.map_or(comp.dw, |c| comp.width(c));
                     out.push(DecodedChar {
                         text,

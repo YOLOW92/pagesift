@@ -5,7 +5,7 @@ mod outline;
 mod tags;
 mod text;
 
-pub(crate) use numbering::{Style, numbering};
+pub(crate) use numbering::{Style, numbering, starts_at_one};
 pub(crate) use outline::Entry;
 pub(crate) use tags::HeadingMcids;
 

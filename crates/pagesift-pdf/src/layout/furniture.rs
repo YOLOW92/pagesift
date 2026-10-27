@@ -394,7 +394,9 @@ fn remove_fixed_furniture(pages: &mut [Vec<Line>], heights: &[f64]) {
                 let text: Vec<&str> = g.iter().map(|&i| lines[i].text.as_str()).collect();
                 let size = g.iter().map(|&i| lines[i].size).fold(0.0, f64::max);
                 let y = lines[g[0]].y;
-                ((y >= h * (1.0 - BAND), y.round() as i64, size.round() as i64, furniture_key(&text.join(" "))), g)
+                // 按原文比较（只合并空白、不折叠数字）：数字不同的行不是同一行，带页码的页眉由 running_folios 管
+                let key = text.join(" ").split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase();
+                ((y >= h * (1.0 - BAND), y.round() as i64, size.round() as i64, key), g)
             })
             .collect()
     };
