@@ -97,6 +97,16 @@ and each fetched all 30 pages. Not run: `run_wild.sh`, whose Crawl4AI default
 scenario, which also stopped an origin another session had started. They now use
 [`origin_ctl.sh`](origin_ctl.sh): each script stops only the origin it started (SIGTERM, then SIGKILL
 after 5 s), and a leftover from an earlier run is stopped only if it listens on the script's port and
-its executable and command line are this directory's origin binary with that port. `engines.sh` still
-ends every Chrome, chrome-headless-shell, Lightpanda, Obscura and moli process of the user after each
-engine (`cleanup`), including browsers that have nothing to do with the benchmark.
+its executable and command line are this directory's origin binary with that port.
+
+`engines.sh` used to `kill -9` every Chrome, chrome-headless-shell, Lightpanda, Obscura and moli process
+of the user after each engine, including browsers that had nothing to do with the benchmark. Now each
+engine runs in its own session (`setsid`) with a private `TMPDIR`; pagesift creates its browser profiles
+(`pagesift-cdp-*`) there, and the `pagesift-owner` file in each records the browser's PID and command
+line. After the engine, the script stops only browsers whose command line matches that record and whose
+session is this run's, then any process group still left in this run's session (SIGTERM, then SIGKILL
+after 5 s), and deletes the private `TMPDIR`. Checked on 2026-10-27 with a separate Chrome left running
+alongside: `ENGINES=chs engines.sh smoke` fetched all 30 pages and left no browser, origin or profile
+behind; a stub that launches a browser the way pagesift does and exits without stopping it (the browser
+keeps running when started on its own) had its browser stopped by the script; the separate Chrome kept
+running in both runs.
