@@ -65,3 +65,5 @@ benchmarks/pdf/out/
 # 0.50 对照构建用的 worktree
 /.worktree/
 /benchmarks/fuzz-out/
+/bench/upstream
+/benchmarks/upstream/
