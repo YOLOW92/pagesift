@@ -1,5 +1,31 @@
 # Benchmarks
 
+## 0.80 head-to-head (mixed benchmark, 2026-10-27)
+
+The 0.80.0 release binary against three tools per domain — one Rust project and two widely compared
+ones — with default settings, on one machine (i7-10700, 15 GB RAM, GTX 1070). Rules, fixed seeds and
+sample lists were frozen before sampling; every sampled item counts, and an item a tool did not finish
+scores 0. Full tables (with versions, sample counts, directions and speed) and raw per-item results:
+[benchmarks/mix/results/report-2026-10-27.md](../benchmarks/mix/results/report-2026-10-27.md);
+rules: [benchmarks/mix/RULES.md](../benchmarks/mix/RULES.md); tool versions and install commands:
+[benchmarks/mix/tools.lock.md](../benchmarks/mix/tools.lock.md).
+
+| Domain | Metric (direction) | pagesift 0.80.0 | crw / spider / pdf_oxide / extractous (Rust) | Two widely compared tools |
+| :--- | :--- | ---: | ---: | :--- |
+| Main content, AEB | F1 ↑ | **0.956** | crw 0.846 | trafilatura 0.950, Readability 0.937 |
+| Main content, WCXB | F1 ↑ | **0.866** | crw 0.815 | trafilatura 0.839, Readability 0.848 |
+| Main content, WebMainBench | F1 ↑ | 0.833 | crw 0.761 | trafilatura 0.833, Readability **0.840** |
+| Main content, Firecrawl set | truth recall ↑ | 0.477 | crw **0.511** | trafilatura 0.392, Readability 0.403 |
+| Hard web pages (166) | completion ↑ | **0.723** | crw 0.590 | trafilatura 0.470, Readability 0.488 |
+| Fetching, 269 random pages (replay) | completion ↑ | 0.937 | spider 0.970 | Scrapy **0.981**, Crawl4AI 0.926 |
+| PDF, olmOCR-bench (1,269 pages) | official score ↑ | **0.626** | pdf_oxide 0.389 | pymupdf4llm 0.484 |
+| PDF, olmOCR 144-page subset | official score ↑ | 0.650 | pdf_oxide 0.422 | pymupdf4llm 0.479, Docling (model) **0.696** |
+| Random PDFs (71) | text completeness ↑ | 0.936 | pdf_oxide **0.962** | pymupdf4llm 0.931 |
+| Hard PDFs (100) | completion ↑ | 0.560 | pdf_oxide 0.660 | pymupdf4llm **0.680** |
+| Office & e-books, held-out (39) | structure kept ↑ | **0.988** | extractous 0.075 | MarkItDown 0.717 |
+
+Older per-domain sections follow; each says which version and date it was measured with.
+
 | Domain | Section | Scripts and results |
 | :--- | :--- | :--- |
 | Main-content extraction | [§1](#1-main-content-extraction-quality-and-speed) | [benchmarks/web-extraction/](../benchmarks/web-extraction/README.md) |
