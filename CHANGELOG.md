@@ -14,7 +14,10 @@ speed and memory do not regress. See [the release notes](docs/releases/0.80.0.md
   `replies_omitted` (forum replies dropped as comments), and `comments_omitted` (the page's
   comments were left out; not counted as lost content).
 - PDF headings from the structure tree (`H1`–`H6`, `H`, `Title`, `/RoleMap`) and bookmarks
-  (`/Outlines`, named destinations), with inference from numbering, size and bold as fallback.
+  (`/Outlines`, named destinations), with inference from numbering, size and bold as fallback;
+  Chinese numbering (`一、`, `（一）`) is recognised.
+- PDF text rotated by 90°, 180° or 270° is kept (axis titles join their figure; margin stamps are
+  dropped like headers; mostly-rotated pages are turned before layout).
 - PDF vector-figure detection: text inside a chart is one raw block, not a table or a heading.
   Scatter plots are recognised by their grid lines.
 - pagesift-html: `Html::parse_with` and `ParseOptions` (fragment parsing with a context element,
@@ -27,7 +30,9 @@ speed and memory do not regress. See [the release notes](docs/releases/0.80.0.md
 - pagesift-pdf has its own file layer (xref tables and streams, object streams, filters,
   RC4/AESV2/AESV3 decryption, repair scan) instead of lopdf.
 - PDF headers and footers: `/Artifact` text is dropped; running heads with page numbers are
-  recognised across odd/even pages and chapters; borderless tables are judged after columns.
+  recognised across odd/even pages and chapters; a line repeated at the same height on three or
+  more pages within the top or bottom 20% is a running head (chapter heads of annual reports);
+  borderless tables are judged after columns.
 - Release notes follow written rules ([docs/releasing.md](docs/releasing.md)); README numbers were
   checked against their result files and old ones are marked as historical.
 
