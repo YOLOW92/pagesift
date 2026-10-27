@@ -1,6 +1,6 @@
 # 0.80.1 fix verification (read-only)
 
-Reproduction records and the performance comparison behind
+Reproduction records and measurements behind
 [docs/releases/0.80.1.md](../../../docs/releases/0.80.1.md). Everything here is synthetic and
 generated in code; no corpus and no network are needed.
 

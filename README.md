@@ -84,7 +84,7 @@ Measured with 0.70.0, not re-run for later versions.
 ## What's New in 0.80.1
 
 Fixes from the 0.80 review (HTML extraction is untouched; PDF output changes only where a raised
-footnote marker follows a word; speed within 1% of 0.80.0 on the same machine): CSV in Shift_JIS, GBK or
+footnote marker follows a word): CSV in Shift_JIS, GBK or
 any declared charset is decoded like HTML (it was mojibake with no warning); a damaged PDF that is
 only partly recovered says so (`pdf_repaired`, `pages_missing`); footnote markers after author
 names are no longer written as formulas (`Ashish $Vaswani^{\ast}$` → `Ashish Vaswani*`); a PDF

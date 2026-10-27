@@ -78,7 +78,7 @@
 
 ## 0.80.1 修复
 
-0.80 复查发现的问题（网页提取代码未动；PDF 输出只在词后上标脚注标记处有变化；同机对比 0.80.0 速度差异在 1% 内）：Shift_JIS、GBK 或任何声明了字符集的 CSV 按网页同样的方式解码（之前整页乱码且无提示）；
+0.80 复查发现的问题（网页提取代码未动；PDF 输出只在词后上标脚注标记处有变化）：Shift_JIS、GBK 或任何声明了字符集的 CSV 按网页同样的方式解码（之前整页乱码且无提示）；
 损坏的 PDF 只恢复出一部分时会说明（`pdf_repaired`、`pages_missing`）；作者名后的脚注标记不再写成公式
 （`Ashish $Vaswani^{\ast}$` → `Ashish Vaswani*`）；没有内嵌标题的 PDF 把推断的标题回填到 `metadata.title`
 （`titleSource: inferred`）；`*.localhost` 在任何机器上都解析到回环地址，测试和性能门在纯 IPv4 机器上也能跑；
