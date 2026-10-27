@@ -1,16 +1,16 @@
 //! crw-extract（AGPL-3.0，只在评测里用）：HTML 快照 → Markdown。
-//! 参数取 crw 服务端默认值：only_main_content = true（crw-core config.rs 的 ExtractionConfig::default）。
+//! 有原始 URL 就作为 source_url 传入（解析相对链接）。参数取 crw 服务端默认值：only_main_content = true（crw-core config.rs 的 ExtractionConfig::default）。
 use crw_core::types::OutputFormat;
 use crw_extract::ExtractOptions;
 
 fn main() {
-    mix_proto::serve("crw", "crw-extract 0.39.0", |input| {
+    mix_proto::serve_with_url("crw", "crw-extract 0.39.0", |input, url| {
         let html = mix_proto::read_lossy(input)?;
         let formats = [OutputFormat::Markdown];
         let doc = crw_extract::extract(ExtractOptions {
             raw_html: &html,
             content_type: None,
-            source_url: "",
+            source_url: url.unwrap_or(""),
             status_code: 200,
             rendered_with: Some("http".into()),
             elapsed_ms: 0,

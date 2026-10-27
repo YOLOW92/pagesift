@@ -55,7 +55,8 @@ done
 - **Crawl4AI 的浏览器**：`PLAYWRIGHT_BROWSERS_PATH=$MIX/ms-playwright $MIX/py/crawl4ai/bin/python -m playwright install chromium`
   （官方的 `crawl4ai-setup` 做的是同一件事，但它在下载中断时也返回 0，本机就碰到过，所以直接调 Playwright）。
 - **Docling 的模型**：第一次转换时从 Hugging Face 下（docling 官方模型仓库），driver 设 `HF_HOME=$MIX/hf`。
-- **Docling 的 GPU 版**（可选，只为 GTX 1070 这类旧卡）：PyPI 上的 torch 2.14.1 是 CUDA 13.0 版，只带 sm_75 及以上
+- **Docling 的 GPU 版**（附表用，只为 GTX 1070 这类旧卡；olmOCR 固定 20 页实测比 CPU 快 8.3 倍，见
+  `results/docling-gpu-check-2026-10-27.json`）：PyPI 上的 torch 2.14.1 是 CUDA 13.0 版，只带 sm_75 及以上
   的内核，GTX 1070（sm_61）上 `torch.cuda.is_available()` 返回 True 但一跑就报 `no kernel image is available`。
   同一版本 torch 的 CUDA 12.6 版来自 PyTorch 官方 wheel 源：
 

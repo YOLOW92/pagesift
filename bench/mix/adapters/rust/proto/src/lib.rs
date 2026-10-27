@@ -1,12 +1,20 @@
 //! 适配器协议（见 bench/mix/adapters/README.md）：
 //! 启动后先在 stdout 打一行 `{"ready":true,...}`；之后每从 stdin 读到一行 `{"id","input","out"}`，
 //! 就把结果写进 `out`，并在 stdout 回一行 `{"id","ok","ms","bytes","error"}`。超时、内存由外层 driver 管。
+//! 任务行可以带可选的 `url`（网页快照的原始地址），需要的工具用 `serve_with_url`。
 use std::io::{BufRead, Write};
 use std::time::Instant;
 
 pub fn serve<F>(tool: &str, version: &str, mut convert: F)
 where
     F: FnMut(&str) -> Result<String, String>,
+{
+    serve_with_url(tool, version, |input, _url| convert(input))
+}
+
+pub fn serve_with_url<F>(tool: &str, version: &str, mut convert: F)
+where
+    F: FnMut(&str, Option<&str>) -> Result<String, String>,
 {
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
@@ -22,8 +30,9 @@ where
         let id = job["id"].clone();
         let input = job["input"].as_str().unwrap_or_default();
         let target = job["out"].as_str().unwrap_or_default();
+        let url = job["url"].as_str();
         let t = Instant::now();
-        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| convert(input)))
+        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| convert(input, url)))
             .unwrap_or_else(|e| {
                 let msg = e
                     .downcast_ref::<String>()

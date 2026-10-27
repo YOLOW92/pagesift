@@ -13,10 +13,13 @@
 
 1. worker 启动、加载完工具后打一行：`{"ready": true, "tool": "...", "version": "...", "pid": 123}`。
    driver 把从启动到这一行的时间记成 `startup_ms`，不算进单份耗时。
-2. driver 每发一行 `{"id": "...", "input": "<文件绝对路径或 URL>", "out": "<输出文件路径>"}`，
+2. driver 每发一行 `{"id": "...", "input": "<文件绝对路径或 URL>", "out": "<输出文件路径>", "url": "<可选：网页快照的原始地址>"}`，
    worker 转换后把 Markdown（或纯文本）写进 `out`，回一行
    `{"id": "...", "ok": true|false, "ms": <工具内转换耗时>, "bytes": <输出字节数>, "error": null|"..."}`。
 3. stdin 关闭后 worker 退出。
+
+`url` 只在输入是网页快照文件、清单里记了原始地址时才有；crw（`source_url`）、trafilatura（`url=`）、Readability
+（jsdom 的 `url`）用它解析相对链接，其余工具忽略。
 
 worker 只管转换。下面这些都在 driver 里，所有工具一样：
 

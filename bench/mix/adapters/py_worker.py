@@ -28,13 +28,13 @@ def jobs():
             yield json.loads(line)
 
 
-def run_sync(tool, ver, convert):
-    """一次处理一份：convert(input) -> str。"""
+def run_sync(tool, ver, convert, with_url=False):
+    """一次处理一份：convert(input) -> str；with_url 时 convert(input, url)，url 是网页快照的原始地址（可能为 None）。"""
     reply({"ready": True, "tool": tool, "version": ver, "pid": os.getpid()})
     for job in jobs():
         t = time.perf_counter()
         try:
-            text = convert(job["input"]) or ""
+            text = (convert(job["input"], job.get("url")) if with_url else convert(job["input"])) or ""
             ms = (time.perf_counter() - t) * 1000
             with open(job["out"], "w", encoding="utf-8", errors="surrogatepass") as f:
                 f.write(text)
@@ -50,11 +50,11 @@ def trafilatura_main():
     import trafilatura
 
     # 给原始字节：trafilatura 自带编码识别。output_format 默认是 txt，这里要 markdown。
-    def convert(path):
+    def convert(path, url):
         with open(path, "rb") as f:
-            return trafilatura.extract(f.read(), output_format="markdown")
+            return trafilatura.extract(f.read(), output_format="markdown", url=url)
 
-    run_sync("trafilatura", version("trafilatura"), convert)
+    run_sync("trafilatura", version("trafilatura"), convert, with_url=True)
 
 
 # ---- PDF / Office ----

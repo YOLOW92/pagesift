@@ -1,0 +1,60 @@
+{
+ "date": "2026-10-27",
+ "pages": "olmOCR 原生数字子集按种子 2026102715 抽 21 页，第一份预热不计",
+ "result": {
+  "docling": {
+   "ok": 20,
+   "n": 20,
+   "sum_s": 154.24,
+   "median_ms": 4275.4
+  },
+  "docling-gpu": {
+   "ok": 20,
+   "n": 20,
+   "sum_s": 18.57,
+   "median_ms": 587.2
+  },
+  "speedup_sum": 8.31,
+  "speedup_median": 7.28
+ },
+ "cpu_run": {
+  "tool": "docling",
+  "versions": [
+   "2.142.1"
+  ],
+  "items": 21,
+  "workers": 1,
+  "workers_asked": "1",
+  "wall_s": 169.35,
+  "status": {
+   "ok": 21
+  },
+  "startup_ms": [
+   3331.9
+  ],
+  "max_peak_mb": 2539.3,
+  "timeout_s": 600.0,
+  "mem_max_mb": 4096,
+  "cgroup": true
+ },
+ "gpu_run": {
+  "tool": "docling-gpu",
+  "versions": [
+   "2.142.1"
+  ],
+  "items": 21,
+  "workers": 1,
+  "workers_asked": "1",
+  "wall_s": 28.747,
+  "status": {
+   "ok": 21
+  },
+  "startup_ms": [
+   3826.4
+  ],
+  "max_peak_mb": 2038.5,
+  "timeout_s": 600.0,
+  "mem_max_mb": 4096,
+  "cgroup": true
+ }
+}

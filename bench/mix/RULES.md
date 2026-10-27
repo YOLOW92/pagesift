@@ -1,9 +1,9 @@
-# 混合增强基准（Mix）：规则（草案，2026-10-27）
+# 混合增强基准（Mix）：规则（第 1 版定稿中，尚未冻结，2026-10-27）
 
 目的：在公开基准之外，用一套按规则随机抽样、混合真实场景、谁都能复现的测试集，比较 pagesift 与同类工具在
 **质量、速度、资源、稳定性**上的表现。题目是我们出的，所以下面每条规则都是为了让结果经得起别人检查。
 
-状态：草案。规则定稿后才开始抽样；抽样之后规则、样本、评分都不再改。要改，就另起一个新版本号，旧版本的结果照样保留。
+状态：**第 1 版内容已拍板，尚未冻结**（`seeds.toml` 仍是 `frozen = false`）。冻结点将是把本行和 `seeds.toml` 的 `frozen = true` 一起提交的那个提交号（`git log -1 -- bench/mix/seeds.toml`）。规则定稿后才开始抽样；抽样之后规则、样本、评分都不再改。要改，就另起一个新版本号，旧版本的结果照样保留。
 
 ---
 
@@ -29,28 +29,31 @@
 
 | 子类 | 来源 | 数量 | 评什么 |
 |---|---|---|---|
-| A1 已标注正文 | AEB、WCXB、WebMainBench、Firecrawl 四套公开标注集，按固定种子各抽 150 页 | 600 | 正文召回、噪声泄漏、F1（沿用各集自己的评分） |
-| A2 随机真实网页 | Tranco 前 100 万，按排名分 5 层（1–1k、1k–10k、10k–100k、100k–500k、500k–1M），每层随机 80 个站点（首页或一个随机内链），另按语言补中、日、韩、阿拉伯、俄各 20 页 | 500 | 不评质量（没有标注）；只评自动可判的：崩溃、超时、空输出、乱码率（U+FFFD 和明显错码的比例）、耗时、峰值内存 |
-| A4 难题 | 现成的对抗样本：编码陷阱（bench/fresh/adversarial_encoding.py）、残缺 HTML（WPT html5lib 用例改成整页）、超大页面（> 5 MB）、已抓到的拦截页和挑战页、深层嵌套 | 200 | 失败率、耗时上界、内存上界；拦截页是否被识别出来（拦截页本身就是标签，不用人工） |
+| A1 已标注正文 | AEB（共 181 页）、WCXB（只用 test 划分）、WebMainBench、Firecrawl 四套公开标注集，按固定种子各抽 150 页 | 600 | 正文召回、噪声泄漏、F1（沿用各集自己的评分） |
+| A2 随机真实网页 | Tranco 前 100 万（本机 `bench/data/top-1m.csv`，列表的哈希写进样本清单），按排名分 5 层（1–1k、1k–10k、10k–100k、100k–500k、500k–1M），每层随机 80 个站点（按种子抛硬币：首页，或首页上一条同站内链），另按语言补中、日、韩、阿拉伯、俄各 20 页（用国家代码顶级域选站：.cn、.jp、.kr、阿拉伯国家的 18 个、.ru；抓到后记下 `<html lang>`，对不上照样保留） | 500 | 不评质量（没有标注）；只评自动可判的：崩溃、超时、空输出、乱码率（U+FFFD 和明显错码的比例）、耗时、峰值内存 |
+| A4 难题 | 五个来源各 40 份，不够 40 的全要：编码陷阱（chardet-test-data 里的 HTML，按种子各做一种 bench/fresh/adversarial_encoding.py 里的变形：截头 1–3 字节、在多字节字符中间截尾、1% 字节噪声）；残缺 HTML（WPT html5lib `.dat` 用例，按种子抽，`#data` 原样当整页）；超大页面（已抓快照里 > 5 MB 的，本机只有 5 份，全要）；已抓到的拦截页和挑战页（0.80 C2 抓的 `raw-blocked*` 共 123 份）；深层嵌套（按种子生成 1k–100k 层） | 约 165 | 失败率、耗时上界、内存上界。拦截页**不评“是否识别出来”**：它们的拦截/正常标签是人工看的，用来评分会违反第一节第 4 条 |
 
 ### B. 文档
 
 | 子类 | 来源 | 数量 | 评什么 |
 |---|---|---|---|
 | B1 PDF 公开基准 | olmOCR-bench 的原生数字 PDF 子集 | 1,269 页 | 沿用 olmOCR 评分 |
-| B2 PDF 随机真实文件 | arXiv、各国政府和央行公开报告、上市公司年报（SEC EDGAR 等公开披露）、维基共享资源，按来源各 25 份，固定种子 | 100 份 | 不评结构（没有标注）；评文字完整度（输出文字对原文件文本层的覆盖率，文本层由不参评的独立库读出）、失败率、耗时、峰值内存 |
-| B3 PDF 难题 | 加密（RC4、AES）、损坏需修复、扫描件、超大（> 500 页）、竖排、公式密集；从 pdf.js、PDFium 公开测试集按固定种子抽 | 100 份 | 能否打开、失败率、耗时和内存上界 |
+| B2 PDF 随机真实文件 | 两个有公开列表的来源，固定种子：arXiv 50 份、GOV.UK 50 份（抽法见第三节；SEC EDGAR 去掉，原因见第三节） | 100 份 | 不评结构（没有标注）；评文字完整度（输出文字对原文件文本层的覆盖率，文本层由不参评的独立库读出）、失败率、耗时、峰值内存 |
+| B3 PDF 难题 | pdf.js 公开测试集里本地已有的 1010 份（`tasks/0.80/a0/list-pdfjs.txt`，含加密、损坏、扫描、超大、竖排、公式等），按固定种子抽；PDFium 的测试集本机没有，这一版不用 | 100 份 | 能否打开、失败率、耗时和内存上界 |
 | B4 Office 与电子书 | 修复 3 已建的标注集（开发集 + 留出集；答案由 python-docx、openpyxl、python-pptx、ebooklib 从原文件 XML 读出，不用人工） | 现有全部 | 结构保留率、文字完整度 |
 
 ### C. 压力与稳定性
 
 | 子类 | 内容 | 评什么 |
 |---|---|---|
-| C1 模糊测试样本 | pagesift-fuzz 找到过的全部卡死、爆内存样本（已公开在仓库） | 每个工具：崩溃数、超时数（单份 60 s）、超内存数（单进程 4 GB） |
-| C2 并发 | 同一批 A2 页面，1、4、16 并发 | 吞吐、p50 和 p95 延迟、峰值内存 |
+| C2 并发 | 同一批 A2 页面，1、4、16 路 worker（吃内存的工具开不满时按实际开到的报，见第四之三节） | 吞吐、p50 和 p95 延迟、峰值内存 |
 | C3 长时间运行 | 服务形态的工具连续处理 A2 全集 3 遍 | 内存是否持续增长、错误率是否上升 |
 
-**规模目标**：全部工具跑完控制在约一小时（16 核、15 GB）。用模型的工具（marker、docling）只跑每个子类按固定种子抽的 10%。
+**C1 这一版不做**：原计划用 pagesift-fuzz 找到过的卡死、爆内存样本，但 pagesift-fuzz 只记次数、不存触发样本，
+没有样本就不编。C1 原本要测的崩溃、超时、超内存，在 A4、B3 里照样按工具统计。
+
+**规模目标**：全部工具跑完控制在约一小时（16 核、15 GB）。用模型的工具（Docling）只跑每个子类按固定种子抽的 10%
+（`sample.py` 里每份样本的 `model_subset` 列，按 sha256(种子:id) 选，与顺序无关），B3 里超过 500 页的也一样。
 
 ---
 
@@ -65,6 +68,12 @@
   pagesift 用发布的二进制。全部列在 `bench/mix/tools.lock.md`。
 - **机器与资源**：写明 CPU、内存、系统；每个工具单独一个进程，同样的 CPU 和内存上限（systemd-run）；
   测速走 bench.lock，不和别的任务并行。
+- **B2 怎么抽**（`sample.py`，候选来自各来源的公开接口，按种子抽，抓不到的记“不可用”不换）：
+  - arXiv：按种子在 2010-01 到 2026-09 之间抽月份，查 arXiv API 该月最早提交的 50 篇作候选，再按种子抽 50 篇，取 `/pdf/<id>`；
+  - GOV.UK：查 GOV.UK 搜索 API 的“研究与统计”类，按种子取随机偏移处的 20 条作候选，抽 50 条，再用内容 API 取该页的
+    第一个 PDF 附件（没有 PDF 附件的记“不可用”）；
+  - **SEC EDGAR 去掉**：SEC 的公平访问政策要求自动访问的 UA 里写联系邮箱，我们的 UA 只写仓库地址，连 robots.txt 都
+    返回 403（2026-10-27 实测）。为了不在 UA 里放个人邮箱，这一版不用 EDGAR。
 - **一条命令重跑**：`bench/mix/run.sh`（抽样 → 快照 → 各工具运行 → 评分 → 出表）。每一步都可以单独重跑。
 
 ## 四、参评工具（2026-10-27 用户拍板）
@@ -77,7 +86,7 @@
 |---|---|---|---|
 | 网页正文提取 | crw（crw-extract） | trafilatura | Mozilla Readability（+ Turndown） |
 | 抓取 | spider（spider-rs） | Scrapy | Crawl4AI |
-| PDF | pdf_oxide | pymupdf4llm | Docling（用模型，只跑 10% 抽样，报 GPU 和 CPU 耗时） |
+| PDF | pdf_oxide | pymupdf4llm | Docling（用模型，只跑 10% 抽样；主成绩用默认安装 + CPU，GPU 见第四之三节） |
 | Office 与电子书 | extractous | MarkItDown | Docling |
 
 某个 Rust 项目装不上或不支持该领域输入时，换同领域下一个 Rust 候选（PDF：pdf-extract；Office：docx-rs 系列不算，
@@ -95,6 +104,25 @@
   2. 全部题目的分数，没完成的按零分（越高越好）；
   3. 只算所有工具都完成了的题的分数（越高越好），排除速度因素，单比质量。
 - 第 2 项体现“做得完”的优势，第 3 项防止别人说我们靠速度赢分；两项都发布。
+- **第 1 版的上限**（写在 `limits.toml`）：A 类单份 30 s，B1、B2 单份 300 s，B3 单份 600 s，B4 单份 120 s；
+  单个 worker 内存 4 GB。冻结前没来得及在公开基准上逐子类测中位数，这一版用冒烟量级定（Docling CPU 单页数秒、
+  正文工具几十毫秒到 1 s，都在上限的十分之一以内）；整批总上限 = 单份上限 × 份数 × 0.5。
+
+## 四之三、运行方式
+
+- **默认参数**，唯一的统一改动是“能出 Markdown 的就要 Markdown”（trafilatura `output_format="markdown"`，spider
+  `ReturnFormat::Markdown`）。Turndown 默认用 setext 标题，评分脚本两种标题都认。
+- **抓取领域不评内容质量**：Scrapy 只抓不转（输出 HTML），spider 和 Crawl4AI 出整页 Markdown，不是正文提取。
+  只评覆盖（完成率）、耗时、资源、失败率；乱码率对解码后的文本算。
+- **输出格式**：extractous 只输出纯文本，B4 结构保留率照常算，表里注明“只输出纯文本”。
+- **Docling**：本机 GTX 1070 上，默认安装（torch cu130）不带 sm_61 内核，但 `torch.cuda.is_available()` 为 True，
+  纯默认时 Docling 自动选 CUDA 后全部失败。主成绩用默认安装 + `DOCLING_DEVICE=cpu`，表里注明。GPU 附表的去留按
+  olmOCR 固定 20 页的 CPU/GPU 对比定：GPU（PyTorch 官方源的 cu126 版）快 1.5 倍以上才保留（结果见第七节）。
+  正式跑前先单进程预热一次，把模型下好（不计时）。Docling 的输出有问题（比如 pptx 空输出）照实记，不替它修。
+- **并发**：1 路和 16 路两组；driver 按 MemAvailable 压低吃内存的工具（Docling 每路 3–4 GB），按实际开到的路数报，
+  表里写明每个工具开了几路、为什么。工具内部的线程/进程用它自己的默认设置（见 tools.lock.md）。
+- **峰值内存口径**：每个 worker 一个 cgroup，每份前把 `memory.peak` 清零、后读取，含子进程（Chromium）。共享库的
+  文件页按“谁先读进来算谁”，可能少算；匿名内存准确。对所有工具一样，结果里写明。
 
 ## 五、发布方式
 
@@ -104,72 +132,65 @@
 - 我们输的类别照样写进 README 和发布说明，不藏在附录里。
 - 预期先写在本文件第六节；结果和预期不一致的地方，在结果文件里逐条说明。
 
-## 六、预期（冻结前填写）
+## 六、预期（冻结时填写，之后不改）
 
-（规则定稿时填上每个类别的预期，比如“B2 表格不领先 pymupdf4llm”“C1 失败率最低”，之后不改。）
+依据：0.80 开发期间的已有对比（docs/benchmarks.md、bench/office/results-2026-10-27.md）和本次冒烟。
+“领先”指同领域三个对手都不如 pagesift；“不领先”指至少有一个对手更好。
 
-装工具和冒烟时已经能看出来、跟工具本身能力有关的预期（2026-10-27，冒烟样本很少，只是方向，不是成绩）：
+- **A1 正文质量：不领先，大致打平。** 0.80 开发期留出数据上 AEB 与 trafilatura 基本相同（0.950 对 0.951），
+  Firecrawl 集上略高于 crw（0.709 对 0.703）。预期 F1 与 trafilatura 互有胜负，Readability 稍低。
+- **A1、A2 速度和内存：领先。** 预期单页耗时比 trafilatura、Readability（jsdom）低一个数量级以上，和 crw 同一量级。
+- **A2 失败率和乱码率：领先或打平。** 预期 0 崩溃；乱码率最低或并列（编码识别在 bench/fresh/adversarial_encoding.py 上测过）。
+- **A4 难题：失败率领先。** 预期深层嵌套、超大页面上 Readability（jsdom）和 trafilatura 会出现超时或爆内存，
+  pagesift 不超时；编码陷阱上输出乱码率最低。
+- **抓取领域（A2 快照回放）：完成率打平，耗时、内存领先。** 静态快照上四个工具都应能拿到页面；Crawl4AI 每页要渲染，
+  耗时、内存最高；Scrapy、spider 和 pagesift 同一量级，pagesift 预期最低或并列。
+- **B1 olmOCR：总分领先，表格和阅读顺序不领先。** 0.12 时总分 71.0 对 pymupdf4llm 64.4，但表格（56.1 对 60.3）、
+  阅读顺序（61.2 对 66.6）落后；预期 Docling（版面模型）在表格和阅读顺序上最高。公式只有 pagesift 输出 LaTeX，预期领先。
+- **B1、B2、B3 速度：领先。** 预期单页耗时低于 pymupdf4llm 两个数量级，低于 Docling（CPU）三个数量级；pdf_oxide 同一量级。
+- **B2 文字完整度：打平。** 原生文本层 PDF 上各工具都应接近完整；扫描页上 Docling（OCR）可能更高。
+- **B3 难题：失败率领先或打平。** 已知 pdf.js 的 issue19484_1/2（Acrobat 签名增量更新、V4 RC4）pagesift 读不出，
+  照实计入失败。
+- **B4 Office 与电子书：结构保留率领先。** 已有留出集上 pagesift 0.988 对 MarkItDown 0.717；预期 Docling 介于两者之间，
+  pptx 上有空输出（冒烟已见）；extractous 只出纯文本，结构保留率最低。EPUB 里只有一栏的表格 pagesift 有意不出表格，
+  这一项可能输给 MarkItDown。
+- **C2、C3：吞吐领先，内存平稳。** 预期 16 路下吞吐最高；连续三遍内存不持续增长。
 
-- **Docling 在 B4 的 pptx 上可能吃亏**：冒烟里 `table_test.pptx`（只有一张表的幻灯片）Docling 输出为空；
-  docx、xlsx、EPUB 都正常（2.142.1 能直接读 EPUB）。
-- **extractous 在 B4 的结构保留率会很低**：它只输出纯文本，没有 Markdown 标题、表格、列表。文字完整度可以正常比。
-- **抓取领域不比内容质量**：Scrapy 只抓不转（输出解码后的 HTML），spider 用自带的 HTML→Markdown 转换，Crawl4AI 出
-  整页 Markdown（不是正文提取）。三者能公平比的是：完成率、乱码率（对解码后的文本算）、耗时、峰值内存、吞吐。
-- **启动开销差距大**（每个 worker 只算一次，不进单份耗时，但影响 C2 冷启动）：Rust 的 crw、spider、pdf_oxide、
-  extractous 约 20–70 ms；trafilatura、Scrapy 约 0.4–1 s；Readability（jsdom）约 1.8 s；Crawl4AI（起 Chromium）
-  约 1.6 s；pymupdf4llm 约 3.3 s；MarkItDown 约 4.8 s；Docling 见下（加载版面模型）。
-- **Crawl4AI 每页都要渲染**：冒烟里 3 页 6.4 s（3 个 worker 并行），比纯 HTTP 的 spider（3 页 0.07 s）、
-  Scrapy（0.9 s，含启动）慢一到两个数量级；它在 A2 的耗时和内存上不会占优，但对必须执行脚本的页面可能完成率更高。
+## 七、已拍板的事与遗留
 
-## 七、还没定的事
+2026-10-27 用户拍板（主会话转达），已写进上面各节：
 
-1. 参评工具名单是否要增减。
-2. 跑分排在发布前最后一步（竞品对比同一时段），抽样、抓快照、写适配器可以提前做。
+1. Docling 主成绩用默认安装 + CPU；GPU 附表按 20 页 CPU/GPU 对比定去留（第四之三节）。对比结果（2026-10-27，
+   各 1 路，第一份预热不计）：CPU 20 页共 154.2 s、中位 4275 ms；GPU（cu126）共 18.6 s、中位 587 ms，**快 8.3 倍**
+   （中位数 7.3 倍），20 页两边都成功。**保留 GPU 附表**。原始结果在 `results/docling-gpu-check-2026-10-27.*`。
+2. 时间上限按草案（第四之二节）；B3 超过 500 页的，Docling 也只跑 10%。
+3. C1 这一版去掉（第二节 C），崩溃、超时、超内存在 A4、B3 里统计。
+4. “能出 Markdown 就要 Markdown”可以接受；抓取领域不评内容质量（第四之三节）。
+5. 并发按实际开到的路数报，写明原因（第四之三节）。
+6. B2 用 arXiv 50 份、GOV.UK 50 份；SEC EDGAR 因要求 UA 带联系邮箱而去掉（第三节）。B3 用本地 pdf.js 1010 份，
+   PDFium 这一版不用（第二节 B）；B3 可以按 pdf.js `test_manifest.json` 分层抽（只用本地已有文件），sample.py 还没改成分层。
+7. Docling 的 pptx 空输出照实记。
 
-以下是 2026-10-27 装工具、写适配器、冒烟时发现的问题，需要拍板（细节见 tools.lock.md）：
+装工具和冒烟时的其他发现（细节见 tools.lock.md）：
 
-3. **Docling 和 GTX 1070**：PyPI 默认装出的 torch 2.14.1 是 CUDA 13.0 版，只有 sm_75 及以上的内核，GTX 1070
-   （Pascal，sm_61）用不了。更糟的是 `torch.cuda.is_available()` 仍是 True，**纯默认（不指定设备）时 Docling 自动
-   选 CUDA，冒烟的 3 份 PDF 全部失败**（`no kernel image is available`）。所以本机上“完全默认”的 Docling 完成率是 0。
-   能跑的两种：(a) 默认安装 + `DOCLING_DEVICE=cpu`，3 份全过；(b) 从 PyTorch 官方源装同版本 torch 的 CUDA 12.6 版
-   （`docling-cu126`），3 份全过，但冒烟里并不比 CPU 快（单份 9.5 / 12.5 / 24.5 s，CPU 是 5.7 / 2.7 / 22.4 s；
-   2 个 worker 共用一张卡，样本太少，不能下结论）。建议：Docling 主成绩用 (a)，表里注明“本机默认设备会失败，指定了
-   CPU”；(b) 作附表报 GPU 耗时（RULES 第四节要求报 GPU 和 CPU 耗时）。需要确认这个处理，以及要不要把“纯默认在旧 GPU
-   上全失败”本身也作为一条结果发布。
-4. **Docling 首次运行的模型下载**：第一次转换时才从 Hugging Face 下版面模型（约 500 MB），冒烟里头两份 PDF
-   各 77–80 s，其中一份报 torch 错误 `storage has wrong byte size`（两个 worker 同时下载、加载同一个模型）。
-   正式跑之前要先单进程预热一次把模型下好，模型目录（`$MIX/hf`）的哈希写进 tools.lock.md；预热不计时。
-5. **输出格式不统一**：extractous 只出纯文本，Scrapy 只出 HTML。建议：B4 结构保留率照常给 extractous 算（如实），
-   但表里注明“只输出纯文本”；抓取领域不评内容质量（见第六节）。
-6. **“默认参数”的边界**：唯一的统一改动是“能出 Markdown 的就要 Markdown”（trafilatura `output_format="markdown"`，
-   spider `ReturnFormat::Markdown`），其余全默认。Turndown 默认用 setext 标题（`===` 下划线），评分脚本要两种标题
-   都认。需要确认这条改动可以接受。
-7. **时间上限**：第四之二节的“最慢工具中位数 × 10”在 PDF 和 Office 上会被 Docling（CPU）定得很高，网页正文上
-   会被 Readability（jsdom）定。按冒烟的量级（Docling CPU 单页 PDF 数秒、Office 数秒；正文工具几十毫秒），
-   估计：A 类单份 30 s，B1/B2 单份 300 s（Docling CPU），B3 单份 600 s，B4 单份 120 s，C1 沿用 60 s。
-   正式值等各子类在公开基准上测完中位数再定。另外“全部工具约一小时”和 Docling CPU 跑 B1 的 10%（约 127 页）
-   能兼容，但 B3 的超大 PDF（> 500 页）Docling 单份就可能几十分钟，需要决定 B3 是否也只给 Docling 跑 10%。
-8. **16 线程组里吃内存的工具开不满 16 个**：Docling 每个 worker 约 3–4 GB，15 GB 内存最多开 2–3 个；Crawl4AI 每个
-   worker 一个 Chromium（约 400 MB），16 个能开但会挤占别的。driver 按 MemAvailable 自动压低并在汇总里写实际数。
-   需要确认：16 线程组按“实际开到的 worker 数”报，并在表里写出来。
-9. **C1 没有现成样本**：第二节写“pagesift-fuzz 找到过的全部卡死、爆内存样本（已公开在仓库）”，但 pagesift-fuzz
-   目前只记次数、不存样本，仓库里找不到这批文件。要么先改 pagesift-fuzz 把触发样本存下来再收集，要么 C1 改成
-   “用固定种子的变异器现场生成 N 份”。sample.py 的 c1 目前直接报这个问题。
-10. **A1 的数据泄漏**：pagesift 开发时用过 WCXB dev、AEB、WebMainBench、Firecrawl 数据集调参。sample.py 里 WCXB
-    只抽 test 划分；另外三套没有官方留出划分，结果里要注明“开发时见过”。
-11. **A2 按语言补样**用国家代码顶级域选站（.cn/.jp/.kr/阿拉伯国家/.ru），抓到后用 `<html lang>` 核对，对不上的
-    照样保留并记录。需要确认这个做法。
-12. **B2 的来源还不具体**：“各国政府和央行公开报告”没有公开列表；sample.py 暂用 GOV.UK 搜索接口（统计与研究类，
-    取 PDF 附件）。SEC EDGAR 的 10-K 主文件大多是 HTML 不是 PDF，按季度索引抽到的要再找 PDF 附件，可能凑不够 25 份；
-    备选是 EDGAR 全文检索里限定 PDF 附件。需要定下每个来源的具体接口。
-13. **B3 的难题类型靠随机抽保证不了**：pdf.js 测试集里很多是 `.link`（外链，不在本地），PDFium 的测试集本机没有。
-    随机抽 100 份不一定覆盖加密、超大、竖排。建议按 pdf.js `test_manifest.json` 里的标记（有密码、页数等）分层抽，
-    PDFium 的 `testing/resources` 另外拉取。
-14. **峰值内存口径**：driver 用每个 worker 的 cgroup（`memory.peak`，每份清零），包含子进程（Chromium）。cgroup
-    按“谁先读进来算谁”记页缓存，共享库如果被之前的进程读过就不再算到这个 worker 头上，所以文件页会少算、匿名内存
-    准确。对所有工具口径一致，但要在结果里写明；另一个选择是同时报进程树的 VmHWM。
-15. **网页快照的原始 URL**：现在 HTML 文件交给正文工具时没带页面 URL（Readability 用占位地址），相对链接解析不出
-    真实地址。抽样抓快照时记录了最终 URL，正式跑之前给协议加一个可选的 `url` 字段，crw、trafilatura、Readability
-    都传进去。
-16. **spider 2.53.9 的 `scrape()` + `get_pages()` 拿不到页面**（本机回放服务上 `get_pages()` 为空；只试了回放服务），适配器改用
-    README 里的订阅方式（`subscribe` + `crawl`），行为一样。如果上游修了，可以换回去。
+- **A1 数据泄漏**：pagesift 开发时用过 WCXB dev、AEB、WebMainBench、Firecrawl 调参。WCXB 只抽 test 划分；另外三套
+  没有官方留出划分，结果里注明“开发时见过”。
+- **A4 拦截页不评识别**（理由见第二节 A）；超大页面本机只有 5 份，配额不足照实。
+- **Docling 首次运行**：模型懒加载，两个 worker 同时下载时有一份报 `storage has wrong byte size`；正式跑前先预热。
+- **spider 2.53.9 的 `scrape()` + `get_pages()`** 在本机回放服务上拿不到页面，适配器用 README 里的订阅方式
+  （`subscribe` + `crawl`）。
+- **网页快照的 URL**：A1、A2 的输入清单带页面原始 URL，正文工具（crw、trafilatura、Readability）用它解析相对链接；
+  没有 URL 的用占位地址。
+- 跑分排在发布前最后一步，等 pagesift 最终二进制定下来再跑；冻结后先只做抽样和抓快照。
+
+**进度（2026-10-27 存档，用户外出）**：
+
+- 已完成：12 个工具装好并冒烟通过（tools.lock.md）；适配器、driver、回放服务；Docling CPU/GPU 实测（保留 GPU 附表）；
+  上面各节的拍板；sample.py（A1、A2、A4、B1、B2、B3、B4）、fetch.py（A2 快照存 WARC、B2 下载，遵守 robots，已对
+  example.com、python.org、arXiv 做过小规模自测）、materialize.py（本地样本变输入，变换函数已自测）。
+- 协议加了可选 `url` 字段（crw、trafilatura、Readability 用来解析相对链接）：源码已改；crw 已按新源码重编进
+  `~/mix-tools/rust/bin`，但带 URL 的复测还没跑。
+- **下一步**：① 按 test_manifest 把 B3 改成分层抽（可选，已获准）；② 跑一次带 URL 的正文工具复测；③ 写 `limits.toml`；
+  ④ **冻结**：`seeds.toml` 改 `frozen = true`，本节改成“已冻结”，单独提交（这个提交号就是冻结点）；⑤ 执行
+  `sample.py all`、`materialize.py all`、`fetch.py a2`、`fetch.py b2`，提交样本清单（URL、SHA-256），文件本身留在
+  `~/mix-tools/inputs`；⑥ 不跑正式评分（等 pagesift 最终二进制）。

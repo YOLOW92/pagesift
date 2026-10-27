@@ -4,7 +4,7 @@
     python3 -I bench/mix/driver.py --tool trafilatura --manifest list.txt --out out/ [--workers auto|N]
            [--timeout 60] [--mem-max 4096] [--replay]
 
-- manifest：每行一份输入，`id<TAB>路径` 或只写路径（id 取文件名）。
+- manifest：每行一份输入，`id<TAB>路径[<TAB>原始 URL]` 或只写路径（id 取文件名）。原始 URL 随任务发给 worker（`url` 字段）。
 - --replay：抓取类工具。driver 起一个本地快照回放服务（replay.py），把路径换成 http://127.0.0.1:<端口>/<相对路径>。
 - 每个 worker 一个进程，用 systemd-run --user --scope 放进单独的 cgroup：MemoryMax 是单进程内存上限，
   峰值内存读 cgroup 的 memory.current（含 Chromium 等子进程）；超时就 cgroup.kill 整组杀掉，换一个新 worker 接着跑。
@@ -265,18 +265,20 @@ def read_manifest(path):
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-        if "\t" in line:
-            id_, inp = line.split("\t", 1)
+        parts = line.split("\t")
+        if len(parts) >= 2:
+            id_, inp = parts[0], parts[1]
         else:
             inp = line
             id_ = f"{i:05d}-{Path(inp).stem}"[:120]
-        items.append((id_, inp))
+        url = parts[2] if len(parts) >= 3 and parts[2] else None
+        items.append((id_, inp, url))
     return items
 
 
 def start_replay(items):
     """起本地快照回放服务，返回 (进程, 把路径换成 URL 的函数)。"""
-    root = Path(os.path.commonpath([str(Path(p).resolve().parent) for _, p in items]))
+    root = Path(os.path.commonpath([str(Path(p).resolve().parent) for _, p, _ in items]))
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
@@ -329,7 +331,7 @@ def main():
         alive, fails = False, 0
         while True:
             try:
-                id_, inp = jobs.get_nowait()
+                id_, inp, url = jobs.get_nowait()
             except queue.Empty:
                 break
             if not alive:
@@ -347,6 +349,8 @@ def main():
                     starts.append(info["startup_ms"])
                     versions.add(info["version"])
             job = {"id": id_, "input": to_url(inp) if to_url else str(Path(inp).resolve()), "out": str((out / f"{id_}.md").resolve())}
+            if url and not to_url:
+                job["url"] = url
             rec, peak = w.run(job, a.timeout)
             alive = w.proc is not None
             with res_lock:
@@ -370,7 +374,7 @@ def main():
     rows = [json.loads(l) for l in (out / "results.jsonl").read_text().splitlines()]
     done = {r["id"] for r in rows}
     with open(out / "results.jsonl", "a", encoding="utf-8") as f:
-        for id_, inp in items:
+        for id_, inp, _ in items:
             if id_ not in done:
                 r = {"tool": a.tool, "id": id_, "input": inp, "status": "crash", "error": "not run: workers failed"}
                 rows.append(r)
