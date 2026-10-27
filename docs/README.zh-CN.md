@@ -25,26 +25,32 @@
 
 ## 和同类工具比
 
-按领先幅度分三档。0.80 的最终数字正在用发布二进制、和每个领域最强的竞品重跑；跑完之前表格留空，
-不写没测过的数。每一行都会链接到方法、脚本和带日期的结果。
+2026-10-27 用 0.80.0 发布版二进制测量：每个领域对比三个工具（一个 Rust 项目、两个业界常用项目），全部默认参数，同一台机器（i7-10700，15 GB）。样本在规则冻结后按固定种子抽取，没有挑选。每一行都链接到方法、版本、样本数和原始结果。
 
 ### 大幅领先
 
 | 领域 | 指标（方向） | PageSift 0.80 | 最强竞品 | 证据 |
 | :--- | :--- | :--- | :--- | :--- |
-| _待最终对比跑完后填写_ | | | | |
+| Office & e-books (docx, xlsx, pptx, epub, csv) | Structure kept, held-out ↑ | **0.988** | MarkItDown 0.717 | [§4](../benchmarks/mix/results/report-2026-10-27.md) |
+| PDF, olmOCR-bench born-digital (1,269 pages) | Official score ↑ | **0.626** | pymupdf4llm 0.484 | [§3](../benchmarks/mix/results/report-2026-10-27.md) |
+| Hard web pages (166 adversarial) | Completion ↑ / timeouts ↓ | **0.723** / 0 | crw 0.590 / 27 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
 
 ### 领先
 
 | 领域 | 指标（方向） | PageSift 0.80 | 最强竞品 | 证据 |
 | :--- | :--- | :--- | :--- | :--- |
-| _待最终对比跑完后填写_ | | | | |
+| Main-content extraction, WCXB | F1 ↑ | **0.866** | Readability 0.848 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
+| Main-content extraction, AEB | F1 ↑ | **0.956** | trafilatura 0.950 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
 
 ### 落后但接近（正在努力开发中）
 
 | 领域 | 指标（方向） | PageSift 0.80 | 最强竞品 | 证据 |
 | :--- | :--- | :--- | :--- | :--- |
-| _待最终对比跑完后填写_ | | | | |
+| PDF vs a layout model (144-page subset) | olmOCR score ↑ | 0.650 | Docling (CPU) 0.696 | [§3](../benchmarks/mix/results/report-2026-10-27.md) |
+| Random real PDFs (71) | Text completeness ↑ | 0.936 | pdf_oxide 0.962 | [§3](../benchmarks/mix/results/report-2026-10-27.md) |
+| Fetching, 269 random pages (local replay) | Completion ↑ | 0.937 | Scrapy 0.981 | [§2 — pagesift refuses captcha/block pages](../benchmarks/mix/results/report-2026-10-27.md) |
+| Main-content extraction, Firecrawl set | Truth recall ↑ | 0.477 | crw 0.511 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
+| Hard PDFs (100 pdf.js test files) | Completion ↑ | 0.560 | pymupdf4llm 0.680 | [§3 — the largest gap](../benchmarks/mix/results/report-2026-10-27.md) |
 
 在此之前，已经测得的最新结果（每项注明方向、版本和日期）见 [benchmarks.md](benchmarks.md)；
 各领域的脚本和原始结果在 [benchmarks/](../benchmarks/)。

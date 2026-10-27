@@ -26,30 +26,37 @@ Turn any website, document, or archive into clean Markdown and structured data �
 
 ## How PageSift compares
 
-Results are grouped by how far ahead PageSift is. The final 0.80 numbers are being re-run on the
-release binary against the strongest tools in each domain; the tables stay empty until that run is
-finished, and no number is written before it is measured. Every row will link to its method,
-scripts and dated results.
+Measured on 2026-10-27 with the 0.80.0 release binary against three tools per domain (one Rust
+project and two widely compared ones), default settings, on one machine (i7-10700, 15 GB). Samples
+were drawn with fixed seeds after the rules were frozen; nothing was hand-picked. Every row links to
+the method, versions, sample counts and raw results.
 
 ### Far ahead
 
 | Domain | Metric (direction) | PageSift 0.80 | Strongest competitor | Evidence |
 | :--- | :--- | :--- | :--- | :--- |
-| _pending the final run_ | | | | |
+| Office & e-books (docx, xlsx, pptx, epub, csv) | Structure kept, held-out ↑ | **0.988** | MarkItDown 0.717 | [§4](benchmarks/mix/results/report-2026-10-27.md) |
+| PDF, olmOCR-bench born-digital (1,269 pages) | Official score ↑ | **0.626** | pymupdf4llm 0.484 | [§3](benchmarks/mix/results/report-2026-10-27.md) |
+| Hard web pages (166 adversarial) | Completion ↑ / timeouts ↓ | **0.723** / 0 | crw 0.590 / 27 | [§1](benchmarks/mix/results/report-2026-10-27.md) |
 
 ### Ahead
 
 | Domain | Metric (direction) | PageSift 0.80 | Strongest competitor | Evidence |
 | :--- | :--- | :--- | :--- | :--- |
-| _pending the final run_ | | | | |
+| Main-content extraction, WCXB | F1 ↑ | **0.866** | Readability 0.848 | [§1](benchmarks/mix/results/report-2026-10-27.md) |
+| Main-content extraction, AEB | F1 ↑ | **0.956** | trafilatura 0.950 | [§1](benchmarks/mix/results/report-2026-10-27.md) |
 
 ### Behind but close — actively being worked on
 
 | Domain | Metric (direction) | PageSift 0.80 | Strongest competitor | Evidence |
 | :--- | :--- | :--- | :--- | :--- |
-| _pending the final run_ | | | | |
+| PDF vs a layout model (144-page subset) | olmOCR score ↑ | 0.650 | Docling (CPU) 0.696 | [§3](benchmarks/mix/results/report-2026-10-27.md) |
+| Random real PDFs (71) | Text completeness ↑ | 0.936 | pdf_oxide 0.962 | [§3](benchmarks/mix/results/report-2026-10-27.md) |
+| Fetching, 269 random pages (local replay) | Completion ↑ | 0.937 | Scrapy 0.981 | [§2 — pagesift refuses captcha/block pages](benchmarks/mix/results/report-2026-10-27.md) |
+| Main-content extraction, Firecrawl set | Truth recall ↑ | 0.477 | crw 0.511 | [§1](benchmarks/mix/results/report-2026-10-27.md) |
+| Hard PDFs (100 pdf.js test files) | Completion ↑ | 0.560 | pymupdf4llm 0.680 | [§3 — the largest gap](benchmarks/mix/results/report-2026-10-27.md) |
 
-Until then, the latest measured results — each with its direction, version and date — are in
+Results for the other domains (dates, Markdown fidelity, RAG chunking, crawling at scale) — each with its direction, version and date — are in
 [docs/benchmarks.md](docs/benchmarks.md); scripts and raw results per domain are under
 [benchmarks/](benchmarks/).
 

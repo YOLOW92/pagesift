@@ -23,30 +23,32 @@ Convierte cualquier sitio web, documento o archivo en Markdown limpio y datos es
 
 ---
 
-## Cómo se compara PageSift
-
-Agrupamos los resultados según la ventaja de PageSift. Las cifras finales de 0.80 se están repitiendo
-con el binario de la versión frente a las herramientas más fuertes de cada dominio; las tablas quedan
-vacías hasta que termine esa ejecución y no se escribe ninguna cifra sin medir. Cada fila enlazará al
-método, los scripts y los resultados con fecha.
+Medido el 2026-10-27 con el binario de la versión 0.80.0 frente a tres herramientas por dominio (un proyecto en Rust y dos muy comparados), con opciones por defecto, en una sola máquina (i7-10700, 15 GB). Las muestras se tomaron con semillas fijas tras congelar las reglas, sin elegir a mano. Cada fila enlaza al método, versiones, tamaño de muestra y resultados.
 
 ### Muy por delante
 
 | Dominio | Métrica (dirección) | PageSift 0.80 | Competidor más fuerte | Evidencia |
 | :--- | :--- | :--- | :--- | :--- |
-| _pendiente de la ejecución final_ | | | | |
+| Office & e-books (docx, xlsx, pptx, epub, csv) | Structure kept, held-out ↑ | **0.988** | MarkItDown 0.717 | [§4](../benchmarks/mix/results/report-2026-10-27.md) |
+| PDF, olmOCR-bench born-digital (1,269 pages) | Official score ↑ | **0.626** | pymupdf4llm 0.484 | [§3](../benchmarks/mix/results/report-2026-10-27.md) |
+| Hard web pages (166 adversarial) | Completion ↑ / timeouts ↓ | **0.723** / 0 | crw 0.590 / 27 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
 
 ### Por delante
 
 | Dominio | Métrica (dirección) | PageSift 0.80 | Competidor más fuerte | Evidencia |
 | :--- | :--- | :--- | :--- | :--- |
-| _pendiente de la ejecución final_ | | | | |
+| Main-content extraction, WCXB | F1 ↑ | **0.866** | Readability 0.848 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
+| Main-content extraction, AEB | F1 ↑ | **0.956** | trafilatura 0.950 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
 
 ### Por detrás pero cerca (en desarrollo activo)
 
 | Dominio | Métrica (dirección) | PageSift 0.80 | Competidor más fuerte | Evidencia |
 | :--- | :--- | :--- | :--- | :--- |
-| _pendiente de la ejecución final_ | | | | |
+| PDF vs a layout model (144-page subset) | olmOCR score ↑ | 0.650 | Docling (CPU) 0.696 | [§3](../benchmarks/mix/results/report-2026-10-27.md) |
+| Random real PDFs (71) | Text completeness ↑ | 0.936 | pdf_oxide 0.962 | [§3](../benchmarks/mix/results/report-2026-10-27.md) |
+| Fetching, 269 random pages (local replay) | Completion ↑ | 0.937 | Scrapy 0.981 | [§2 — pagesift refuses captcha/block pages](../benchmarks/mix/results/report-2026-10-27.md) |
+| Main-content extraction, Firecrawl set | Truth recall ↑ | 0.477 | crw 0.511 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
+| Hard PDFs (100 pdf.js test files) | Completion ↑ | 0.560 | pymupdf4llm 0.680 | [§3 — the largest gap](../benchmarks/mix/results/report-2026-10-27.md) |
 
 Mientras tanto, los últimos resultados medidos (con dirección, versión y fecha) están en
 [benchmarks.md](benchmarks.md); los scripts y resultados de cada dominio, en [benchmarks/](../benchmarks/).
