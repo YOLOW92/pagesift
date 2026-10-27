@@ -1,0 +1,167 @@
+id	source	location	orig_url	note	model_subset
+a4enc-00	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/ascii-en/cc_aircharter.com.ng_9e67a7aa10da.html		head-trunc seed=2026102808	0
+a4enc-01	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/euc-jp-ja/_mozilla_bug426271_text-euc-jp.html		head-trunc seed=2026102809	0
+a4enc-02	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/euc-jp-ja/_mozilla_bug431054_text.html		head-trunc seed=2026102810	0
+a4enc-03	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/iso-8859-1-fr/cc_www.008th.be_9ba809f53e5b.html		head-trunc seed=2026102811	0
+a4enc-04	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/iso-8859-1-pt/cc_mysticallianceuni24.1talk.net_10b882e390bb.html		head-trunc seed=2026102812	0
+a4enc-05	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/iso-8859-15-fr/cc_www.applicpub33.com_3b61f92c8c8e.html		tail-trunc seed=2026102813	0
+a4enc-06	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/iso-8859-4-et/cc_www.aara.ee_76eb80f1481b.html		head-trunc seed=2026102814	0
+a4enc-07	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/iso-8859-4-et/cc_www.kodutud.com_0a867eaa33e3.html		noise seed=2026102815	0
+a4enc-08	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/iso-8859-4-lv/cc_musee.pieces.gfx.free.fr_9679eb1e43e7.html		head-trunc seed=2026102816	0
+a4enc-09	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/iso-8859-9-tr/cc_forkliftkiralamaservis.com_2e34bb8650cd.html		head-trunc seed=2026102817	0
+a4enc-10	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/iso-8859-9-tr/cc_gruphepsifans.123.st_629e1d908555.html		tail-trunc seed=2026102818	0
+a4enc-11	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/iso-8859-9-tr/cc_huyukgundem.com_ed402e1b742a.html		tail-trunc seed=2026102819	0
+a4enc-12	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/iso-8859-9-tr/cc_www.eham.istanbul_dd3576221f2a.html		noise seed=2026102820	0
+a4enc-13	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/iso-8859-9-tr/cc_www.lidyasardesotel.com_90abc20d672c.html		tail-trunc seed=2026102821	0
+a4enc-14	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/utf-16-de/cc_ctibrace.ch_f3a686b38984.html		head-trunc seed=2026102822	0
+a4enc-15	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/utf-16-de/cc_iccmo.de_2a553c226552.html		head-trunc seed=2026102823	0
+a4enc-16	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/utf-16-es/cc_libroswebsite.com_3fdb82bcabbc.html		tail-trunc seed=2026102824	0
+a4enc-17	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/utf-16-es/cc_www.avaluos.c-proesa.com.mx_1bbfda8d999c.html		noise seed=2026102825	0
+a4enc-18	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/utf-16-ko/cc_hb1001.or.kr_8f6edcddf70d.html		head-trunc seed=2026102826	0
+a4enc-19	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/utf-16-zh/cc_huayuntielv.com_288ca00d31fd.html		noise seed=2026102827	0
+a4enc-20	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/utf-16-zh/cc_www.huazhouzx.com_36ef4805d043.html		tail-trunc seed=2026102828	0
+a4enc-21	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/utf-8-en/cc_0009.in_993043358e07.html		head-trunc seed=2026102829	0
+a4enc-22	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/utf-8-et/cc_www.01.ee_ccdec185b686.html		tail-trunc seed=2026102830	0
+a4enc-23	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/utf-8-he/cc_www.%d7%93%d7%99%d7%92%d7%99%d7%99.co.il_a1778eb99ec5.html		noise seed=2026102831	0
+a4enc-24	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/utf-8-ja/cc_%e3%82%a6%e3%82%a9%e3%83%bc%e3%82%ad%e3%83%b3%e3%82%b0%e3%83%87%e3%83%83%e3%83%89.xyz_d7eac102aae2.html		tail-trunc seed=2026102832	0
+a4enc-25	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/utf-8-kk/cc_taximaxim.am_7821a9dcce52.html		tail-trunc seed=2026102833	1
+a4enc-26	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/utf-8-tg/cc_www.alkhorasani.com_eea4268733df.html		head-trunc seed=2026102834	0
+a4enc-27	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/utf-8-tg/cc_www.aluminum-profiles-supplier.com_23249736a0c5.html		tail-trunc seed=2026102835	1
+a4enc-28	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/utf-8-tg/cc_www.junschem.com_ba3843bc0b96.html		tail-trunc seed=2026102836	0
+a4enc-29	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/utf-8-vi/cc_101hoidap.asia_6fc302b17fa7.html		tail-trunc seed=2026102837	0
+a4enc-30	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/windows-1252-it/cc_www.1000mosche.it_641dadc5256a.html		noise seed=2026102838	0
+a4enc-31	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/windows-1252-pt/cc_pt.bclevr.com_dd1cece444ad.html		noise seed=2026102839	0
+a4enc-32	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/windows-1253-el/cc_212.251.7.50_539cbd8d5974.html		tail-trunc seed=2026102840	0
+a4enc-33	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/windows-1253-el/cc_appliedaesthetics.000webhostapp.com_e63c69b4f222.html		head-trunc seed=2026102841	0
+a4enc-34	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/windows-1254-tr/cc_diegaste-online.de_9c11db69f6f0.html		head-trunc seed=2026102842	0
+a4enc-35	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/windows-1256-ar/cc_68qishumh.cn_f3fd2a907ff4.html		tail-trunc seed=2026102843	0
+a4enc-36	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/windows-1256-ar/cc_forsanalsunah.com_148928b2323b.html		tail-trunc seed=2026102844	0
+a4enc-37	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/windows-1256-ar/cc_forsanalsunah.com_ac99b27640a9.html		tail-trunc seed=2026102845	0
+a4enc-38	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/windows-1257-lv/cc_panzerkampf.org_fbd55d35805c.html		head-trunc seed=2026102846	0
+a4enc-39	chardet-test-data HTML（编码陷阱）	fresh/data/chardet-test-data/windows-1257-lv/cc_www.latvia.mid.ru_c9438ca0a22c.html		noise seed=2026102847	0
+a4wpt-00	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/blocks.dat#42			0
+a4wpt-01	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/doctype01.dat#2			0
+a4wpt-02	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/entities01.dat#20			0
+a4wpt-03	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/entities01.dat#43			1
+a4wpt-04	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/entities01.dat#47			0
+a4wpt-05	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/foreign-fragment.dat#62			0
+a4wpt-06	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/html5test-com.dat#13			0
+a4wpt-07	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/noscript01.dat#4			0
+a4wpt-08	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/plain-text-unsafe.dat#45			0
+a4wpt-09	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/processing-instructions.dat#37			0
+a4wpt-10	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/processing-instructions.dat#75			0
+a4wpt-11	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/quirks01.dat#2			0
+a4wpt-12	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/scriptdata01.dat#9			1
+a4wpt-13	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/template.dat#46			0
+a4wpt-14	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/template.dat#8			0
+a4wpt-15	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/template.dat#97			0
+a4wpt-16	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/tests1.dat#1			0
+a4wpt-17	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/tests1.dat#13			0
+a4wpt-18	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/tests1.dat#64			0
+a4wpt-19	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/tests10.dat#40			0
+a4wpt-20	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/tests14.dat#6			0
+a4wpt-21	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/tests16.dat#111			0
+a4wpt-22	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/tests16.dat#144			0
+a4wpt-23	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/tests16.dat#172			0
+a4wpt-24	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/tests16.dat#90			0
+a4wpt-25	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/tests19.dat#1			0
+a4wpt-26	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/tests19.dat#105			0
+a4wpt-27	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/tests19.dat#16			1
+a4wpt-28	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/tests19.dat#28			0
+a4wpt-29	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/tests19.dat#70			0
+a4wpt-30	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/tests19.dat#79			0
+a4wpt-31	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/tests2.dat#16			0
+a4wpt-32	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/tests25.dat#12			0
+a4wpt-33	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/tests26.dat#2			0
+a4wpt-34	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/tests3.dat#11			0
+a4wpt-35	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/tests6.dat#27			0
+a4wpt-36	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/tests_innerHTML_1.dat#36			0
+a4wpt-37	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/tests_innerHTML_1.dat#39			0
+a4wpt-38	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/void-in-phrasing.dat#12			0
+a4wpt-39	WPT html5lib .dat 用例	wpt-parsing/html/syntax/parsing/resources/webkit02.dat#22			0
+a4big-00	已抓快照中 > 5 MB 的页面	crawl-pages/493.html			0
+a4big-01	已抓快照中 > 5 MB 的页面	snapshots-b/2148.html			0
+a4big-02	已抓快照中 > 5 MB 的页面	snapshots-b/2967.html			0
+a4big-03	已抓快照中 > 5 MB 的页面	snapshots-b/3337.html			0
+a4big-04	已抓快照中 > 5 MB 的页面	snapshots/493.html			0
+a4big-05	已抓快照中 > 5 MB 的页面	snapshots/71.html			0
+a4blk-00	0.80 C2 抓到的拦截页、挑战页	tasks:c/c2/raw-blocked/0.html			1
+a4blk-01	0.80 C2 抓到的拦截页、挑战页	tasks:c/c2/raw-blocked/1.html			0
+a4blk-02	0.80 C2 抓到的拦截页、挑战页	tasks:c/c2/raw-blocked/15.html			0
+a4blk-03	0.80 C2 抓到的拦截页、挑战页	tasks:c/c2/raw-blocked/17.html			0
+a4blk-04	0.80 C2 抓到的拦截页、挑战页	tasks:c/c2/raw-blocked/23.html			0
+a4blk-05	0.80 C2 抓到的拦截页、挑战页	tasks:c/c2/raw-blocked/24.html			0
+a4blk-06	0.80 C2 抓到的拦截页、挑战页	tasks:c/c2/raw-blocked/29.html			0
+a4blk-07	0.80 C2 抓到的拦截页、挑战页	tasks:c/c2/raw-blocked/30.html			0
+a4blk-08	0.80 C2 抓到的拦截页、挑战页	tasks:c/c2/raw-blocked/31.html			0
+a4blk-09	0.80 C2 抓到的拦截页、挑战页	tasks:c/c2/raw-blocked/32.html			0
+a4blk-10	0.80 C2 抓到的拦截页、挑战页	tasks:c/c2/raw-blocked/40.html			0
+a4blk-11	0.80 C2 抓到的拦截页、挑战页	tasks:c/c2/raw-blocked/42.html			0
+a4blk-12	0.80 C2 抓到的拦截页、挑战页	tasks:c/c2/raw-blocked/43.html			0
+a4blk-13	0.80 C2 抓到的拦截页、挑战页	tasks:c/c2/raw-blocked2/1.html			0
+a4blk-14	0.80 C2 抓到的拦截页、挑战页	tasks:c/c2/raw-blocked2/12.html			0
+a4blk-15	0.80 C2 抓到的拦截页、挑战页	tasks:c/c2/raw-blocked2/16.html			0
+a4blk-16	0.80 C2 抓到的拦截页、挑战页	tasks:c/c2/raw-blocked2/19.html			1
+a4blk-17	0.80 C2 抓到的拦截页、挑战页	tasks:c/c2/raw-blocked2/29.html			1
+a4blk-18	0.80 C2 抓到的拦截页、挑战页	tasks:c/c2/raw-blocked2/3.html			1
+a4blk-19	0.80 C2 抓到的拦截页、挑战页	tasks:c/c2/raw-blocked2/6.html			0
+a4blk-20	0.80 C2 抓到的拦截页、挑战页	tasks:c/c2/raw-blocked2/9.html			0
+a4blk-21	0.80 C2 抓到的拦截页、挑战页	tasks:fix2/c2/raw-blocked3/0.html			0
+a4blk-22	0.80 C2 抓到的拦截页、挑战页	tasks:fix2/c2/raw-blocked3/1.html			0
+a4blk-23	0.80 C2 抓到的拦截页、挑战页	tasks:fix2/c2/raw-blocked3/19.html			1
+a4blk-24	0.80 C2 抓到的拦截页、挑战页	tasks:fix2/c2/raw-blocked3/20.html			0
+a4blk-25	0.80 C2 抓到的拦截页、挑战页	tasks:fix2/c2/raw-blocked3/23.html			0
+a4blk-26	0.80 C2 抓到的拦截页、挑战页	tasks:fix2/c2/raw-blocked3/25.html			0
+a4blk-27	0.80 C2 抓到的拦截页、挑战页	tasks:fix2/c2/raw-blocked3/29.html			0
+a4blk-28	0.80 C2 抓到的拦截页、挑战页	tasks:fix2/c2/raw-blocked3/3.html			1
+a4blk-29	0.80 C2 抓到的拦截页、挑战页	tasks:fix2/c2/raw-blocked3/6.html			0
+a4blk-30	0.80 C2 抓到的拦截页、挑战页	tasks:fix2/c2/raw-blocked3/8.html			0
+a4blk-31	0.80 C2 抓到的拦截页、挑战页	tasks:fix2/c2/raw-blocked4/1.html			0
+a4blk-32	0.80 C2 抓到的拦截页、挑战页	tasks:fix2/c2/raw-blocked4/22.html			0
+a4blk-33	0.80 C2 抓到的拦截页、挑战页	tasks:fix2/c2/raw-blocked4/30.html			0
+a4blk-34	0.80 C2 抓到的拦截页、挑战页	tasks:fix2/c2/raw-blocked4/33.html			1
+a4blk-35	0.80 C2 抓到的拦截页、挑战页	tasks:fix2/c2/raw-blocked4/35.html			0
+a4blk-36	0.80 C2 抓到的拦截页、挑战页	tasks:fix2/c2/raw-blocked4/38.html			1
+a4blk-37	0.80 C2 抓到的拦截页、挑战页	tasks:fix2/c2/raw-blocked4/6.html			0
+a4blk-38	0.80 C2 抓到的拦截页、挑战页	tasks:fix2/c2/raw-blocked4/7.html			0
+a4blk-39	0.80 C2 抓到的拦截页、挑战页	tasks:fix2/c2/raw-blocked4/9.html			0
+a4deep-00	生成的深层嵌套	generated:nest:45534			1
+a4deep-01	生成的深层嵌套	generated:nest:49912			1
+a4deep-02	生成的深层嵌套	generated:nest:43284			0
+a4deep-03	生成的深层嵌套	generated:nest:13443			0
+a4deep-04	生成的深层嵌套	generated:nest:27786			1
+a4deep-05	生成的深层嵌套	generated:nest:90791			0
+a4deep-06	生成的深层嵌套	generated:nest:55137			0
+a4deep-07	生成的深层嵌套	generated:nest:64297			0
+a4deep-08	生成的深层嵌套	generated:nest:22854			0
+a4deep-09	生成的深层嵌套	generated:nest:34738			1
+a4deep-10	生成的深层嵌套	generated:nest:6496			0
+a4deep-11	生成的深层嵌套	generated:nest:51314			0
+a4deep-12	生成的深层嵌套	generated:nest:12739			0
+a4deep-13	生成的深层嵌套	generated:nest:94182			0
+a4deep-14	生成的深层嵌套	generated:nest:63781			1
+a4deep-15	生成的深层嵌套	generated:nest:86840			0
+a4deep-16	生成的深层嵌套	generated:nest:63077			0
+a4deep-17	生成的深层嵌套	generated:nest:26489			1
+a4deep-18	生成的深层嵌套	generated:nest:78220			0
+a4deep-19	生成的深层嵌套	generated:nest:1467			0
+a4deep-20	生成的深层嵌套	generated:nest:28930			0
+a4deep-21	生成的深层嵌套	generated:nest:2008			0
+a4deep-22	生成的深层嵌套	generated:nest:21476			0
+a4deep-23	生成的深层嵌套	generated:nest:52779			0
+a4deep-24	生成的深层嵌套	generated:nest:41210			1
+a4deep-25	生成的深层嵌套	generated:nest:77761			0
+a4deep-26	生成的深层嵌套	generated:nest:42793			0
+a4deep-27	生成的深层嵌套	generated:nest:44513			0
+a4deep-28	生成的深层嵌套	generated:nest:3271			0
+a4deep-29	生成的深层嵌套	generated:nest:15567			0
+a4deep-30	生成的深层嵌套	generated:nest:54943			0
+a4deep-31	生成的深层嵌套	generated:nest:79859			0
+a4deep-32	生成的深层嵌套	generated:nest:77997			0
+a4deep-33	生成的深层嵌套	generated:nest:35652			0
+a4deep-34	生成的深层嵌套	generated:nest:13648			0
+a4deep-35	生成的深层嵌套	generated:nest:11483			0
+a4deep-36	生成的深层嵌套	generated:nest:5652			1
+a4deep-37	生成的深层嵌套	generated:nest:5805			0
+a4deep-38	生成的深层嵌套	generated:nest:72780			0
+a4deep-39	生成的深层嵌套	generated:nest:67988			0

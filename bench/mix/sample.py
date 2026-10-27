@@ -16,6 +16,7 @@ import random
 import sys
 import time
 import tomllib
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -55,11 +56,19 @@ def get(url, as_json=False, min_gap=1.0):
     if wait > 0:
         time.sleep(wait)
     req = urllib.request.Request(url, headers={"User-Agent": UA})
-    try:
-        with urllib.request.urlopen(req, timeout=60) as r:
-            body = r.read()
-    finally:
-        _last[host] = time.monotonic()
+    for attempt in range(6):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                body = r.read()
+            break
+        except urllib.error.HTTPError as e:
+            # 429/503：按 Retry-After（没有就 15、30、60… 秒）退避后重试，最多 5 次
+            if e.code not in (429, 503) or attempt == 5:
+                raise
+            ra = e.headers.get("Retry-After", "")
+            time.sleep(int(ra) if ra.isdigit() else 15 * 2**attempt)
+        finally:
+            _last[host] = time.monotonic()
     return json.loads(body) if as_json else body.decode("utf-8", "replace")
 
 
@@ -72,8 +81,8 @@ def sha_id(prefix, s):
 def a1():
     n = QUOTA["a1_per_set"]
     rows = []
-    aeb = [p.stem for p in (DATA / "fresh/data/aeb/html").glob("*.html")]
-    rows += [(f"aeb-{x}", "AEB", f"fresh/data/aeb/html/{x}.html", "", "") for x in pick(SEEDS["a1_aeb"], aeb, n)]
+    aeb = [p.name.split(".")[0] for p in (DATA / "fresh/data/aeb/html").glob("*.html*")]  # 文件是 <sha256>.html.gz
+    rows += [(f"aeb-{x}", "AEB", f"fresh/data/aeb/html/{x}.html.gz", "", "") for x in pick(SEEDS["a1_aeb"], aeb, n)]
     # WCXB 只用 test 划分（dev 划分开发时看过）；原始 URL 在 ground-truth/<id>.json
     wcxb = [p.name.split(".")[0] for p in (DATA / "fresh/data/wcxb/test/html").glob("*.html*")]
     for x in pick(SEEDS["a1_wcxb"], wcxb, n):

@@ -190,4 +190,8 @@
   trafilatura 默认不输出链接）；`limits.toml`。
 - 冻结后：执行 `sample.py all`、`materialize.py all`、`fetch.py a2`、`fetch.py b2`，样本清单（URL、SHA-256）提交到
   `samples/`，文件本身留在 `~/mix-tools/inputs`（不能再分发的不进仓库）。
+- **冻结后的实现修正**（只修代码 bug，规则、种子、候选集合都不变，记在这里备查）：
+  1. `sample.py` 的 AEB 候选按 `*.html` 匹配，而文件实际是 `<sha256>.html.gz`，第一次运行 AEB 一份没抽到；改成
+     `*.html*` 后重跑 A1。候选仍是规则写的全部 181 页。
+  2. A4 的“超大页面”：规则写本机 5 份，`sample.py` 还扫了 `crawl-pages` 目录，实际共 6 份，照实全要。
 - 正式评分不在这一步：等 pagesift 最终二进制定下来，发布前最后一步再跑。
