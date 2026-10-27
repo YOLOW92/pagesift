@@ -11,7 +11,8 @@ use common::{Builder, Page, line};
 use pagesift_pdf::{Error, Options, fuzzing};
 
 const TIMEOUT: Duration = Duration::from_millis(300);
-const LIMIT: Duration = Duration::from_millis(1500);
+/// 未优化构建在忙碌的 CI 机器上慢几倍，只放宽它的上限。
+const LIMIT: Duration = Duration::from_millis(if cfg!(debug_assertions) { 5000 } else { 1500 });
 
 fn timed(data: &[u8]) -> (Duration, Result<(), Error>) {
     let opts = Options {
