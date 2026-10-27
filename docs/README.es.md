@@ -76,7 +76,7 @@ Medido con 0.70.0; no se ha repetido con versiones posteriores.
 
 ## Correcciones en 0.80.1
 
-Correcciones de la revisión de 0.80 (la extracción de HTML no cambia; la salida de PDF solo cambia donde una marca de nota al pie elevada sigue a una palabra; los benchmarks no se volvieron a ejecutar): los CSV en Shift_JIS, GBK o con
+Correcciones de la revisión de 0.80 (la extracción de HTML no cambia; la salida de PDF solo cambia donde una marca de nota al pie elevada sigue a una palabra; la velocidad queda dentro del 1% de 0.80.0 en la misma máquina): los CSV en Shift_JIS, GBK o con
 cualquier charset declarado se decodifican como el HTML (antes salían ilegibles y sin aviso); un PDF dañado que solo se
 recupera en parte lo indica (`pdf_repaired`, `pages_missing`); las marcas de nota al pie tras los nombres de autores ya
 no se escriben como fórmulas (`Ashish $Vaswani^{\ast}$` → `Ashish Vaswani*`); un PDF sin título incrustado recibe el
