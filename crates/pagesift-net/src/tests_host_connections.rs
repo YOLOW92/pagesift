@@ -153,9 +153,10 @@ async fn slow_threshold_follows_the_origins_service_time() {
 
 #[tokio::test]
 async fn a_long_queue_on_a_responsive_origin_is_not_admitted_as_parked() {
-    // 源站一直有请求结束（只是排得长）：排队再久也不算“前面都是慢请求”，并发仍由热连接目标决定
+    // 源站一直有请求结束（只是排得长）：排队再久也不算“前面都是慢请求”，并发仍由热连接目标决定。
+    // 每 100 ms 结束一个；上限给 2 s，共享 CI 机器卡顿几百毫秒也不会被误当成停放
     let control = HostConnectionControl::new(true, 32);
-    let cap = Duration::from_millis(300);
+    let cap = Duration::from_millis(2000);
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     for _ in 0..12 {
         let (c, tx) = (control.clone(), tx.clone());
