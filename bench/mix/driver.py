@@ -58,6 +58,10 @@ TOOLS = {
     # docling-auto：默认安装、不指定设备（看 docling 在 GTX 1070 上自动选设备会怎样）
     "docling-auto": py("docling", env={"HF_HOME": str(MIX / "hf")}, per_worker_mb=2500, startup_s=600),
     "docling-gpu": py("docling", venv="docling-cu126", env={"DOCLING_DEVICE": "cuda", "HF_HOME": str(MIX / "hf")}, per_worker_mb=2500, max_workers=2, startup_s=600),
+    # pagesift：发布的二进制（MIX_PAGESIFT_BIN），每份一个进程；html=网页正文，file=PDF/Office，url=抓取
+    "pagesift": dict(cmd=["python3", "-I", str(ADAPTERS / "pagesift_worker.py"), "html"], per_worker_mb=300),
+    "pagesift-file": dict(cmd=["python3", "-I", str(ADAPTERS / "pagesift_worker.py"), "file"], per_worker_mb=600),
+    "pagesift-crawl": dict(cmd=["python3", "-I", str(ADAPTERS / "pagesift_worker.py"), "url"], per_worker_mb=300, url=True),
     # Office 与电子书
     "extractous": dict(cmd=[str(RUST / "mix-extractous")], env={"LD_LIBRARY_PATH": str(RUST / "libs")}, per_worker_mb=600),
     "extractous-py": py("extractous", per_worker_mb=600),

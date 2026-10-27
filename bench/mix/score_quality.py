@@ -33,7 +33,7 @@ BENCH = CHECKOUT / "benchmarks"
 DATA = BENCH / "data"
 OFFICE = Path(os.environ.get("MIX_OFFICE", CHECKOUT / "tasks/0.80/fix3/office"))
 PAGESIFT_SCORER = os.environ.get("PAGESIFT_SCORER", "pagesift")  # 只用它的 bench --external 评分，不用它的提取
-CORES = os.cpu_count() or 1
+CORES = int(os.environ.get("MIX_SCORE_JOBS", os.cpu_count() or 1))  # 评分并发上限；机器上还有评测在跑时调小
 
 
 def load(path, name):
@@ -80,7 +80,9 @@ def score_a1(items, tools, runs):
     with open(DATA / "p4_2_webmainbench/webmainbench.jsonl", encoding="utf-8") as f:
         for line in f:
             r = json.loads(line)
-            wmb_gold[r["track_id"]] = r.get("groundtruth_content") or r.get("content", "")  # 同 webmain.py prepare
+            # 这版 webmainbench.jsonl 的标准答案字段是 convert_main_content（数据集自带的正文 Markdown）；
+            # webmain.py prepare 取的 groundtruth_content / content 在这版文件里不存在，留作后备
+            wmb_gold[r["track_id"]] = wmb.plain(r.get("convert_main_content") or r.get("groundtruth_content") or r.get("content", ""))
     per = {t: {} for t in tools}
     for t in tools:
         d, res = tool_results(runs, "a1", t)
@@ -178,7 +180,9 @@ def score_b2(items, tools, runs):
                 continue
             ow = words(output(d, res.get(it["id"])))
             per[t][it["id"]] = {"set": "B2", "f1": sum(min(c, ow[w]) for w, c in rw.items()) / total}
-    return per, None, {"B2": "文字完整度（输出对 pdftotext 文本层的词覆盖率）"}
+    def agg(scores, set_):
+        return statistics.mean(s["f1"] for s in scores) if scores else None
+    return per, agg, {"B2": "文字完整度（输出对 pdftotext 文本层的词覆盖率，逐份平均）"}
 
 
 # ---- B1：olmOCR 自己的测试 ----
