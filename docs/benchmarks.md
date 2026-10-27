@@ -23,6 +23,11 @@ rules: [benchmarks/mix/RULES.md](../benchmarks/mix/RULES.md); tool versions and 
 | Random PDFs (71) | text completeness ↑ | 0.936 | pdf_oxide **0.962** | pymupdf4llm 0.931 |
 | Hard PDFs (100) | completion ↑ | 0.560 | pdf_oxide 0.660 | pymupdf4llm **0.680** |
 | Office & e-books, held-out (39) | structure kept ↑ | **0.988** | extractous 0.075 | MarkItDown 0.717 |
+| Main content speed, 269 pages, 16 workers | pages/s ↑ | **614** | crw 387 | trafilatura 90, Readability 12 |
+| Fetching speed, 269 pages, 1 worker | pages/s ↑ | 2.7 | spider **153** | Scrapy 82, Crawl4AI 0.6 |
+| PDF speed, 144 files, 1 worker | files/s ↑ | **114** | pdf_oxide 94 | pymupdf4llm 3.9, Docling (CPU) 0.2 |
+| PDF speed, 144 files, 16 workers | files/s ↑ | 142 | pdf_oxide **526** | pymupdf4llm 5.9, Docling (CPU) 0.3 |
+| Office speed, 81 files, 1 worker | files/s ↑ | **57.4** | extractous 9.9 | MarkItDown 1.6 |
 
 Older per-domain sections follow; each says which version and date it was measured with.
 

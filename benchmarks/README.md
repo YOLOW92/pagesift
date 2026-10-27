@@ -18,8 +18,7 @@ method, the scripts to rerun it and the result files.
 | Media streams and WARC | [media/](media/) | — |
 | Shared scripts and the release-run harness | [common/](common/) | — |
 | 0.70 and earlier frameworks and evidence (read-only) | [history/](history/) | [docs/history/](../docs/history/README.md) |
-
-The mixed-enhancement benchmark is being written under [`bench/mix/`](../bench/mix/RULES.md) and moves here when it is done.
+| 0.80 mixed head-to-head against competitors (web, fetching, PDF, Office) | [mix/](mix/RULES.md) | [results/report-2026-10-27.md](mix/results/report-2026-10-27.md) |
 
 Large inputs (datasets, snapshots, tool environments) are not in the repository; scripts expect them
 under `benchmarks/data/`, which is ignored by git.

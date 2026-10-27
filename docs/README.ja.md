@@ -34,6 +34,7 @@
 | Office & e-books (docx, xlsx, pptx, epub, csv) | Structure kept, held-out ↑ | **0.988** | MarkItDown 0.717 | [§4](../benchmarks/mix/results/report-2026-10-27.md) |
 | PDF, olmOCR-bench born-digital (1,269 pages) | Official score ↑ | **0.626** | pymupdf4llm 0.484 | [§3](../benchmarks/mix/results/report-2026-10-27.md) |
 | Hard web pages (166 adversarial) | Completion ↑ / timeouts ↓ | **0.723** / 0 | crw 0.590 / 27 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
+| Office & e-books speed (81 files, 1 worker) | Files/s ↑ | **57.4** | extractous 9.9 | [§4](../benchmarks/mix/results/report-2026-10-27.md) |
 
 ### リード
 
@@ -41,6 +42,8 @@
 | :--- | :--- | :--- | :--- | :--- |
 | Main-content extraction, WCXB | F1 ↑ | **0.866** | Readability 0.848 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
 | Main-content extraction, AEB | F1 ↑ | **0.956** | trafilatura 0.950 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
+| Main-content extraction speed (269 pages, 16 workers) | Pages/s ↑ | **614** | crw 387 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
+| PDF speed (144 files, 1 worker) | Files/s ↑ | **114** | pdf_oxide 94 | [§3](../benchmarks/mix/results/report-2026-10-27.md) |
 
 ### やや劣るが僅差（改善に取り組み中）
 
@@ -51,6 +54,13 @@
 | Fetching, 269 random pages (local replay) | Completion ↑ | 0.937 | Scrapy 0.981 | [§2 — pagesift refuses captcha/block pages](../benchmarks/mix/results/report-2026-10-27.md) |
 | Main-content extraction, Firecrawl set | Truth recall ↑ | 0.477 | crw 0.511 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
 | Hard PDFs (100 pdf.js test files) | Completion ↑ | 0.560 | pymupdf4llm 0.680 | [§3 — the largest gap](../benchmarks/mix/results/report-2026-10-27.md) |
+
+### Behind
+
+| Domain | Metric (direction) | PageSift 0.80 | Strongest competitor | Evidence |
+| :--- | :--- | :--- | :--- | :--- |
+| Fetching speed (269 pages, 1 worker) | Pages/s ↑ | 2.7 | spider 153 | [§2 — default auto engine, p95 1.5 s](../benchmarks/mix/results/report-2026-10-27.md) |
+| PDF speed (144 files, 16 workers) | Files/s ↑ | 142 | pdf_oxide 526 | [§3 — one process per file scales poorly](../benchmarks/mix/results/report-2026-10-27.md) |
 
 それまでの最新の測定結果（方向・バージョン・日付付き）は [benchmarks.md](benchmarks.md)、
 領域ごとのスクリプトと生データは [benchmarks/](../benchmarks/) にあります。
