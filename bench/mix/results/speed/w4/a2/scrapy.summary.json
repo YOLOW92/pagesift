@@ -1,0 +1,29 @@
+{
+ "tool": "scrapy",
+ "versions": [
+  "2.19.0"
+ ],
+ "items": 269,
+ "workers": 4,
+ "peak_live_workers": 4,
+ "workers_asked": "4",
+ "wall_s": 1.271,
+ "reserve_mb": 3072,
+ "per_worker_mb": 200,
+ "stopped": false,
+ "status": {
+  "ok": 264,
+  "empty": 4,
+  "error": 1
+ },
+ "startup_ms": [
+  226.9,
+  230.6,
+  230.1,
+  260.4
+ ],
+ "max_peak_mb": 87.2,
+ "timeout_s": 30.0,
+ "mem_max_mb": 4096,
+ "cgroup": true
+}

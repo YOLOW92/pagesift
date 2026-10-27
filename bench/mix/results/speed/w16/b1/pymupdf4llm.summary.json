@@ -1,0 +1,40 @@
+{
+ "tool": "pymupdf4llm",
+ "versions": [
+  "pymupdf 2.0"
+ ],
+ "items": 144,
+ "workers": 16,
+ "peak_live_workers": 16,
+ "workers_asked": "16",
+ "wall_s": 24.212,
+ "reserve_mb": 3072,
+ "per_worker_mb": 500,
+ "stopped": false,
+ "status": {
+  "ok": 139,
+  "empty": 5
+ },
+ "startup_ms": [
+  1378.0,
+  1383.5,
+  1830.6,
+  2686.3,
+  2785.6,
+  2811.1,
+  3014.9,
+  3022.4,
+  3451.1,
+  3550.4,
+  4729.4,
+  5039.5,
+  5294.1,
+  5657.5,
+  5702.4,
+  5965.9
+ ],
+ "max_peak_mb": 334.8,
+ "timeout_s": 300.0,
+ "mem_max_mb": 4096,
+ "cgroup": true
+}

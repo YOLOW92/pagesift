@@ -1,0 +1,25 @@
+{
+ "tool": "docling-gpu",
+ "versions": [
+  "2.142.1"
+ ],
+ "items": 144,
+ "workers": 2,
+ "peak_live_workers": 2,
+ "workers_asked": "16",
+ "wall_s": 161.697,
+ "reserve_mb": 3072,
+ "per_worker_mb": 3600,
+ "stopped": false,
+ "status": {
+  "ok": 144
+ },
+ "startup_ms": [
+  19735.3,
+  19746.5
+ ],
+ "max_peak_mb": 2557.9,
+ "timeout_s": 300.0,
+ "mem_max_mb": 4096,
+ "cgroup": true
+}

@@ -1,0 +1,38 @@
+{
+ "tool": "crawl4ai",
+ "versions": [
+  "0.9.5"
+ ],
+ "items": 269,
+ "workers": 16,
+ "peak_live_workers": 13,
+ "workers_asked": "16",
+ "wall_s": 63.448,
+ "reserve_mb": 3072,
+ "per_worker_mb": 700,
+ "stopped": false,
+ "status": {
+  "ok": 250,
+  "error": 18,
+  "timeout": 1
+ },
+ "startup_ms": [
+  1859.8,
+  1867.8,
+  1866.4,
+  1867.2,
+  1866.8,
+  1868.8,
+  1866.8,
+  1870.5,
+  1873.7,
+  1872.2,
+  1873.1,
+  1878.9,
+  1336.2
+ ],
+ "max_peak_mb": 974.0,
+ "timeout_s": 30.0,
+ "mem_max_mb": 4096,
+ "cgroup": true
+}

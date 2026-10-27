@@ -140,7 +140,12 @@ def main():
           "pages it identifies as access barriers (4 of its 5 errors: captcha / challenge / block pages) instead of "
           "returning the barrier as content; that counts as a failure here. pagesift needs `--allow-cidr 127.0.0.1/32` "
           "to fetch from the loopback replay server (its SSRF guard blocks private addresses by default).")
-    speed_table("a2", crawl, [1, 4, 16], "fetching the 269 A2 pages from the replay server")
+    speed_table("a2", crawl, [1, 4, 16], "fetching the 269 A2 pages from the replay server",
+                "pagesift is behind here. It runs with its default `auto` engine as one CLI process per page: the median "
+                "page takes 17 ms, but the p95 is 1.5 s and the peak memory 406 MB, which suggests some pages triggered "
+                "browser rendering; this release does not investigate further. The replay server is a small Python "
+                "`ThreadingHTTPServer`; at 16 workers it is the bottleneck for the fastest tools (Scrapy is slower at 16 "
+                "than at 4 workers), so the 16-worker column understates spider and Scrapy.")
 
     # 3. PDF
     b1, b2, b3 = q("b1"), q("b2"), q("b3")
@@ -177,7 +182,10 @@ def main():
           "its numbers there are noisy.")
     speed_table("b1", pdf + ["docling", "docling-gpu"], [1, 16], "PDF, same 144 pages (B1 10 % subset) for every tool",
                 "Docling GPU uses the PyTorch cu126 build (the default PyPI build has no kernels for the GTX 1070) and is "
-                "capped at 2 workers by GPU memory. pagesift runs as one CLI process per file.")
+                "capped at 2 workers by GPU memory. pagesift runs as one CLI process per file; it is the fastest tool "
+                "per file (1 worker), but in this harness it scales poorly to 16 workers (142 vs 114 files/s), "
+                "presumably process start-up and its own threads competing for the 16 cores; not investigated in this "
+                "release. pdf_oxide (a resident Rust worker) scales to 525 files/s.")
 
     # 4. Office
     b4 = q("b4")

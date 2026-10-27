@@ -1,0 +1,25 @@
+{
+ "tool": "trafilatura",
+ "versions": [
+  "2.3.1"
+ ],
+ "items": 269,
+ "workers": 1,
+ "peak_live_workers": 1,
+ "workers_asked": "1",
+ "wall_s": 17.229,
+ "reserve_mb": 3072,
+ "per_worker_mb": 200,
+ "stopped": false,
+ "status": {
+  "ok": 253,
+  "empty": 16
+ },
+ "startup_ms": [
+  165.9
+ ],
+ "max_peak_mb": 123.4,
+ "timeout_s": 30.0,
+ "mem_max_mb": 4096,
+ "cgroup": true
+}

@@ -39,7 +39,7 @@ def py(tool, venv=None, env=None, **kw):
     return dict(cmd=[str(MIX / "py" / (venv or tool) / "bin/python"), "-I", str(ADAPTERS / "py_worker.py"), tool], env=env or {}, **kw)
 
 
-# per_worker_mb：每个 worker 的预计峰值内存（实测取整：Docling 2.5 GB，Crawl4AI 加 Chromium 0.7 GB），准入时按它预扣；
+# per_worker_mb：每个 worker 的预计峰值内存（实测取整：Docling 3.6 GB——测速轮单 worker 峰值 3.48 GB，Crawl4AI 加 Chromium 0.7 GB），准入时按它预扣；
 # max_workers：工具本身的限制（GPU 显存等）。
 TOOLS = {
     # 网页正文（输入 HTML 文件）
@@ -54,10 +54,10 @@ TOOLS = {
     "pdf_oxide": dict(cmd=[str(RUST / "mix-pdf_oxide")], per_worker_mb=500),
     "pymupdf4llm": py("pymupdf4llm", per_worker_mb=500),
     # docling：默认安装（torch cu130，不支持 GTX 1070 的 sm_61）只能用 CPU；docling-gpu 用 PyTorch 官方 cu126 源的 torch
-    "docling": py("docling", env={"DOCLING_DEVICE": "cpu", "HF_HOME": str(MIX / "hf")}, per_worker_mb=2500, startup_s=600),
+    "docling": py("docling", env={"DOCLING_DEVICE": "cpu", "HF_HOME": str(MIX / "hf")}, per_worker_mb=3600, startup_s=600),
     # docling-auto：默认安装、不指定设备（看 docling 在 GTX 1070 上自动选设备会怎样）
-    "docling-auto": py("docling", env={"HF_HOME": str(MIX / "hf")}, per_worker_mb=2500, startup_s=600),
-    "docling-gpu": py("docling", venv="docling-cu126", env={"DOCLING_DEVICE": "cuda", "HF_HOME": str(MIX / "hf")}, per_worker_mb=2500, max_workers=2, startup_s=600),
+    "docling-auto": py("docling", env={"HF_HOME": str(MIX / "hf")}, per_worker_mb=3600, startup_s=600),
+    "docling-gpu": py("docling", venv="docling-cu126", env={"DOCLING_DEVICE": "cuda", "HF_HOME": str(MIX / "hf")}, per_worker_mb=3600, max_workers=2, startup_s=600),
     # pagesift：发布的二进制（MIX_PAGESIFT_BIN），每份一个进程；html=网页正文，file=PDF/Office，url=抓取
     "pagesift": dict(cmd=["python3", "-I", str(ADAPTERS / "pagesift_worker.py"), "html"], per_worker_mb=300),
     "pagesift-file": dict(cmd=["python3", "-I", str(ADAPTERS / "pagesift_worker.py"), "file"], per_worker_mb=600),

@@ -1,0 +1,41 @@
+{
+ "tool": "scrapy",
+ "versions": [
+  "2.19.0"
+ ],
+ "items": 269,
+ "workers": 16,
+ "peak_live_workers": 16,
+ "workers_asked": "16",
+ "wall_s": 2.116,
+ "reserve_mb": 3072,
+ "per_worker_mb": 200,
+ "stopped": false,
+ "status": {
+  "ok": 264,
+  "empty": 4,
+  "error": 1
+ },
+ "startup_ms": [
+  545.2,
+  545.7,
+  545.3,
+  553.7,
+  545.3,
+  551.8,
+  553.9,
+  549.5,
+  550.3,
+  555.9,
+  548.5,
+  551.3,
+  556.9,
+  554.2,
+  553.6,
+  553.2
+ ],
+ "max_peak_mb": 82.2,
+ "timeout_s": 30.0,
+ "mem_max_mb": 4096,
+ "cgroup": true
+}
