@@ -21,5 +21,8 @@ fn many_streams_without_endstream() {
     let mut data = b"%PDF-1.4\n1 0 obj\n<< /Length 5 >>\n".to_vec();
     data.extend(b"stream\n".repeat(100_000));
     let took = quick(&data);
-    assert!(took < Duration::from_secs(2), "{took:?}");
+    assert!(
+        took < Duration::from_secs(if cfg!(debug_assertions) { 10 } else { 2 }),
+        "{took:?}"
+    );
 }

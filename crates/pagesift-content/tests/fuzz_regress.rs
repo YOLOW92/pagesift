@@ -10,6 +10,11 @@ fn render(html: &str) -> (String, Duration) {
 
 /// 文本转义时每个 `[` 都往后找 `]`：大量不配对的 `[`（比如 HTML 里当文本出现的
 /// `<![CDATA[`）曾经让 70 万字节的页面渲染 19 秒。TeX 片段的开头找不到收尾时同理。
+/// 时限防的是复杂度退化（修复前是秒级、平方增长）。调试版编译慢好几倍，CI 的共享机器也有抖动，给 10 秒；正式版 2 秒。
+fn limit() -> Duration {
+    Duration::from_secs(if cfg!(debug_assertions) { 10 } else { 2 })
+}
+
 #[test]
 fn unmatched_brackets_and_tex_openers_are_linear() {
     for unit in ["[", "x[CDATA[ ", "\\[ ", "\\( ", "$$ "] {
@@ -19,7 +24,7 @@ fn unmatched_brackets_and_tex_openers_are_linear() {
         );
         let (md, took) = render(&html);
         assert!(!md.is_empty(), "{unit}");
-        assert!(took < Duration::from_secs(2), "{unit}: {took:?}");
+        assert!(took < limit(), "{unit}: {took:?}");
     }
 }
 
@@ -48,7 +53,7 @@ fn deep_lists_and_quotes_do_not_multiply_output() {
         let (md, took) = render(&html);
         assert!(md.matches('x').count() >= 30_000, "{open}");
         assert!(md.len() < 4_000_000, "{open}: {} 字节", md.len());
-        assert!(took < Duration::from_secs(3), "{open}: {took:?}");
+        assert!(took < limit() + Duration::from_secs(1), "{open}: {took:?}");
     }
 }
 
@@ -80,7 +85,7 @@ fn many_images_in_one_picture() {
     let doc = pagesift_content::process(&html, &opts);
     let took = t.elapsed();
     assert_eq!(doc.images.map(|i| i.len()), Some(1));
-    assert!(took < Duration::from_secs(2), "{took:?}");
+    assert!(took < limit(), "{took:?}");
 }
 
 /// 只取正文时判断 `<header>`、`<aside>` 是否框架，要看祖先里有没有 main/article、子树里有没有
@@ -94,6 +99,6 @@ fn nested_headers_and_asides() {
             unit.repeat(1_000_000 / unit.len())
         );
         let (_, took) = render(&html);
-        assert!(took < Duration::from_secs(2), "{unit}: {took:?}");
+        assert!(took < limit(), "{unit}: {took:?}");
     }
 }
