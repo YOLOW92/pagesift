@@ -16,6 +16,9 @@ speed and memory do not regress. See [the release notes](docs/releases/0.80.0.md
 - PDF headings from the structure tree (`H1`–`H6`, `H`, `Title`, `/RoleMap`) and bookmarks
   (`/Outlines`, named destinations), with inference from numbering, size and bold as fallback;
   Chinese numbering (`一、`, `（一）`) is recognised.
+- PDF CJK text in CID fonts without `/ToUnicode` is decoded through the Adobe-GB1/CNS1/Japan1/Korea1
+  collections (Adobe cmap-resources, BSD-3) or the embedded TrueType font's Unicode cmap; such
+  text was dropped before.
 - PDF text rotated by 90°, 180° or 270° is kept (axis titles join their figure; margin stamps are
   dropped like headers; mostly-rotated pages are turned before layout).
 - PDF vector-figure detection: text inside a chart is one raw block, not a table or a heading.
