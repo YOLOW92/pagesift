@@ -1,7 +1,7 @@
 //! 标题编号的样式（版面推断用）：写文档的人用编号表达层级，样式和深度就是层级的线索。
 //!
 //! 十进制编号自带深度（`3`、`3.1`、`3.1.2`）；日文公文、报告常用的 `第N章`、`【…】`、`＜…＞`、
-//! `１．`、`（１）`、`①`、`ア．` 各算一个样式，层级按它们在文档里第一次出现的先后排。
+//! `１．`、`（１）`、`①`、`ア．`，中文公文、年报的 `一、`、`（一）` 各算一个样式，层级按它们在文档里第一次出现的先后排。
 
 /// 编号样式。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -24,6 +24,10 @@ pub(crate) enum Style {
     Angle,
     /// `■` `◆` `●` 之类的标记开头
     Mark,
+    /// `一、` `十二、` 中文数字编号
+    Han,
+    /// `（一）` `(十二)` 括号里的中文数字
+    HanParen,
 }
 
 impl Style {
@@ -76,6 +80,9 @@ pub(crate) fn numbering(text: &str) -> Option<(Style, &str)> {
     if ('①'..='⑳').contains(&first) {
         return Some((Style::Circled, t[first.len_utf8()..].trim_start()));
     }
+    if let Some(r) = han(t) {
+        return r;
+    }
     let rest = crate::structure::strip_numbering(t);
     if rest.len() == t.len() || rest.is_empty() {
         return None;
@@ -118,6 +125,27 @@ pub(crate) fn numbering(text: &str) -> Option<(Style, &str)> {
         return None;
     };
     Some((style, rest))
+}
+
+/// 中文数字编号：`一、…`、`（一）…`（全角、半角括号都认）。编号后要有文字。
+fn han(t: &str) -> Option<Option<(Style, &str)>> {
+    let paren = t.starts_with(['(', '（']);
+    let body = if paren { &t[t.chars().next()?.len_utf8()..] } else { t };
+    let n = body.chars().take_while(|&c| han_digit(c)).count();
+    if n == 0 {
+        return None;
+    }
+    let digits_len: usize = body.chars().take(n).map(char::len_utf8).sum();
+    let after = &body[digits_len..];
+    let close = if paren { [')', '）'].iter().find(|&&c| after.starts_with(c)) } else { ['、'].iter().find(|&&c| after.starts_with(c)) };
+    let &c = close?;
+    let rest = after[c.len_utf8()..].trim_start();
+    let style = if paren { Style::HanParen } else { Style::Han };
+    Some((!rest.is_empty()).then_some((style, rest)))
+}
+
+fn han_digit(c: char) -> bool {
+    "一二三四五六七八九十百".contains(c)
 }
 
 /// `3.1.2.` → 3
@@ -166,5 +194,8 @@ mod tests {
             Some((Style::Paren, "First item"))
         );
         assert_eq!(numbering("IV. Results"), Some((Style::Roman, "Results")));
+        assert_eq!(numbering("一、 释义"), Some((Style::Han, "释义")));
+        assert_eq!(numbering("十二、公司治理"), Some((Style::Han, "公司治理")));
+        assert_eq!(numbering("（二） 偿债能力"), Some((Style::HanParen, "偿债能力")));
     }
 }

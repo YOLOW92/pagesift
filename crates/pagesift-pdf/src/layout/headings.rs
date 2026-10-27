@@ -25,6 +25,8 @@ fn family(s: Style) -> u8 {
         Style::Lenticular => 7,
         Style::Angle => 8,
         Style::Mark => 9,
+        Style::Han => 10,
+        Style::HanParen => 11,
     }
 }
 
