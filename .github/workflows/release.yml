@@ -14,6 +14,12 @@ on:
         description: Build everything but publish nothing
         type: boolean
         default: true
+      tag:
+        # 重发：某个渠道失败后，从选中的分支按这个已有的标签再发一遍（已发布的渠道各自跳过）。
+        # 标签必须已经存在且版本号和 Cargo.toml 一致；这里不创建标签。
+        description: Republish this existing tag's version from the selected ref (dry_run must be false)
+        type: string
+        default: ""
 
 env:
   CARGO_TERM_COLOR: always
@@ -27,23 +33,38 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      # 发布用的标签名：标签推送时就是它本身；重发时是输入的已有标签；空跑时按版本号拼一个只用于命名
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - id: version
         name: Check version and tag
         shell: bash
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"])')
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
             python3 scripts/check_release.py --tag "$GITHUB_REF_NAME"
+            tag=$GITHUB_REF_NAME
+          elif [[ -n "$INPUT_TAG" ]]; then
+            python3 scripts/check_release.py --tag "$INPUT_TAG"
+            if [[ -z "$(git ls-remote --tags origin "refs/tags/$INPUT_TAG")" ]]; then
+              echo "tag $INPUT_TAG does not exist; republishing needs an existing tag" >&2
+              exit 1
+            fi
+            tag=$INPUT_TAG
           else
             python3 scripts/check_release.py
             if [[ "$PUBLISH" == true ]]; then
-              echo "Publishing requires selecting the matching v<version> tag" >&2
+              echo "Publishing requires selecting the matching v<version> tag, or naming an existing one in the tag input" >&2
               exit 1
             fi
+            tag=v$version
           fi
-          echo "version=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"])')" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
   binaries:
     needs: identity
@@ -68,7 +89,7 @@ jobs:
       - name: Package
         shell: bash
         run: |
-          name=pagesift-${GITHUB_REF_NAME}-${{ matrix.target }}
+          name=pagesift-${{ needs.identity.outputs.tag }}-${{ matrix.target }}
           mkdir "$name"
           cp target/${{ matrix.target }}/release/pagesift LICENSE NOTICE COMMERCIAL.md README.md pagesift.example.toml "$name/"
           tar czf "$name.tar.gz" "$name"
@@ -101,8 +122,8 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=${{ needs.identity.outputs.version }}
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{version}},value=${{ needs.identity.outputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.identity.outputs.tag }}
       - uses: docker/build-push-action@v6
         env:
           DOCKER_BUILD_RECORD_UPLOAD: false   # 不上传构建记录，免得发布步骤下载产物时出错
@@ -260,6 +281,7 @@ jobs:
       - name: GitHub release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.identity.outputs.tag }}
           draft: true
           files: artifacts/bin-*/*
           body_path: release-notes.md
@@ -293,4 +315,4 @@ jobs:
       - name: Publish GitHub release after all distributions succeed
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release edit "$GITHUB_REF_NAME" --draft=false --latest
+        run: gh release edit "${{ needs.identity.outputs.tag }}" --draft=false --latest
