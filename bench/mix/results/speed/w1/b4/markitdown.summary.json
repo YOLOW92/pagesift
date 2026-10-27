@@ -1,0 +1,24 @@
+{
+ "tool": "markitdown",
+ "versions": [
+  "0.1.9"
+ ],
+ "items": 81,
+ "workers": 1,
+ "peak_live_workers": 1,
+ "workers_asked": "1",
+ "wall_s": 49.367,
+ "reserve_mb": 3072,
+ "per_worker_mb": 400,
+ "stopped": false,
+ "status": {
+  "ok": 81
+ },
+ "startup_ms": [
+  865.9
+ ],
+ "max_peak_mb": 880.8,
+ "timeout_s": 120.0,
+ "mem_max_mb": 4096,
+ "cgroup": true
+}

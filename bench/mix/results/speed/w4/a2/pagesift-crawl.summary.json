@@ -1,0 +1,29 @@
+{
+ "tool": "pagesift-crawl",
+ "versions": [
+  "pagesift 0.80.0"
+ ],
+ "items": 269,
+ "workers": 4,
+ "peak_live_workers": 4,
+ "workers_asked": "4",
+ "wall_s": 33.691,
+ "reserve_mb": 3072,
+ "per_worker_mb": 300,
+ "stopped": false,
+ "status": {
+  "ok": 252,
+  "error": 5,
+  "empty": 12
+ },
+ "startup_ms": [
+  42.9,
+  42.4,
+  41.9,
+  45.4
+ ],
+ "max_peak_mb": 372.3,
+ "timeout_s": 30.0,
+ "mem_max_mb": 4096,
+ "cgroup": true
+}

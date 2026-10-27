@@ -1,0 +1,25 @@
+{
+ "tool": "pdf_oxide",
+ "versions": [
+  "pdf_oxide 0.3.78"
+ ],
+ "items": 144,
+ "workers": 1,
+ "peak_live_workers": 1,
+ "workers_asked": "1",
+ "wall_s": 1.529,
+ "reserve_mb": 3072,
+ "per_worker_mb": 500,
+ "stopped": false,
+ "status": {
+  "ok": 139,
+  "empty": 5
+ },
+ "startup_ms": [
+  28.3
+ ],
+ "max_peak_mb": 55.4,
+ "timeout_s": 300.0,
+ "mem_max_mb": 4096,
+ "cgroup": true
+}

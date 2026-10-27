@@ -1,0 +1,25 @@
+{
+ "tool": "pymupdf4llm",
+ "versions": [
+  "pymupdf 2.0"
+ ],
+ "items": 144,
+ "workers": 1,
+ "peak_live_workers": 1,
+ "workers_asked": "1",
+ "wall_s": 36.516,
+ "reserve_mb": 3072,
+ "per_worker_mb": 500,
+ "stopped": false,
+ "status": {
+  "ok": 139,
+  "empty": 5
+ },
+ "startup_ms": [
+  721.7
+ ],
+ "max_peak_mb": 450.9,
+ "timeout_s": 300.0,
+ "mem_max_mb": 4096,
+ "cgroup": true
+}

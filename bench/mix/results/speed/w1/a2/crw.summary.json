@@ -1,0 +1,25 @@
+{
+ "tool": "crw",
+ "versions": [
+  "crw-extract 0.39.0"
+ ],
+ "items": 269,
+ "workers": 1,
+ "peak_live_workers": 1,
+ "workers_asked": "1",
+ "wall_s": 4.191,
+ "reserve_mb": 3072,
+ "per_worker_mb": 150,
+ "stopped": false,
+ "status": {
+  "ok": 262,
+  "empty": 7
+ },
+ "startup_ms": [
+  23.6
+ ],
+ "max_peak_mb": 28.1,
+ "timeout_s": 30.0,
+ "mem_max_mb": 4096,
+ "cgroup": true
+}

@@ -1,0 +1,25 @@
+{
+ "tool": "docling",
+ "versions": [
+  "2.142.1"
+ ],
+ "items": 7,
+ "workers": 7,
+ "peak_live_workers": 2,
+ "workers_asked": "16",
+ "wall_s": 6.005,
+ "reserve_mb": 3072,
+ "per_worker_mb": 3600,
+ "stopped": false,
+ "status": {
+  "ok": 7
+ },
+ "startup_ms": [
+  3233.3,
+  3248.1
+ ],
+ "max_peak_mb": 563.7,
+ "timeout_s": 120.0,
+ "mem_max_mb": 4096,
+ "cgroup": true
+}

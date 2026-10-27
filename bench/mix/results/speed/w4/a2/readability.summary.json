@@ -1,0 +1,28 @@
+{
+ "tool": "readability",
+ "versions": [
+  "@mozilla/readability 0.6.0 + turndown 7.2.4 + jsdom 30.1.3"
+ ],
+ "items": 269,
+ "workers": 4,
+ "peak_live_workers": 4,
+ "workers_asked": "4",
+ "wall_s": 25.425,
+ "reserve_mb": 3072,
+ "per_worker_mb": 400,
+ "stopped": false,
+ "status": {
+  "ok": 252,
+  "empty": 17
+ },
+ "startup_ms": [
+  442.3,
+  453.4,
+  460.4,
+  469.7
+ ],
+ "max_peak_mb": 804.7,
+ "timeout_s": 30.0,
+ "mem_max_mb": 4096,
+ "cgroup": true
+}
