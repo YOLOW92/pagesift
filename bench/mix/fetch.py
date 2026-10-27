@@ -9,6 +9,9 @@
   首页）另存 <out>/a2/snapshots.warc.gz（WARC/1.1，每条记录单独 gzip）。“inner” 样本先抓首页，再按种子从首页上的
   同站链接里挑一条抓。
 - B2：PDF 存 <out>/b2/<id>.pdf；GOV.UK 先查内容 API 取页面上的第一个 PDF 附件。
+- `fetch.py a2 --retry-failed`（2026-10-27 冻结后补的抓取规则，见 RULES 第七节）：只重抓上次失败里的两类——
+  裸域名查不到地址（改抓 https://www.<域名>/）和暂时性错误（超时、DNS 暂时失败、连接被重置，隔 3 分钟重试，
+  最多 2 次）；其余失败（robots、403、证书、首页没有同站链接等）照旧。结果就地更新 fetched.tsv，原因列写明怎么补的。
 - 输出 samples/<子类>.fetched.tsv：id、状态、最终 URL、HTTP 状态、Content-Type、抓取时间（UTC）、字节数、SHA-256、
   本地路径（相对 --out）、html lang（A2）、原因。另写 <out>/<子类>.manifest 给 driver.py（id、路径、原始 URL）。
 """
@@ -185,8 +188,8 @@ def keep_headers(headers):
     return [[k, v] for k, v in headers if k.lower() not in HOP]
 
 
-def do_a2(f, row, out):
-    url = row["location"]
+def do_a2(f, row, out, url=None):
+    url = url or row["location"]
     final, status, headers, body = f.get(url, MAX_BYTES["a2"])
     note = row["note"]
     if note.startswith("inner"):
@@ -218,12 +221,83 @@ def do_b2(f, row, out):
     return final, status, headers, body, path, ""
 
 
+DNS_NOADDR = re.compile(r"\[Errno -5\]|\[Errno -2\]")
+TRANSIENT = re.compile(r"timed out|Temporary failure in name resolution|Connection reset|TimeoutError")
+RETRY_WAIT_S = 180
+
+
+def www_url(url):
+    p = urllib.parse.urlsplit(url)
+    return urllib.parse.urlunsplit((p.scheme, "www." + p.hostname, p.path, p.query, p.fragment))
+
+
+def retry_failed(a, rows, out):
+    """冻结后补的抓取规则：只补两类失败，不换样本。"""
+    path = Path(a.samples) / "a2.fetched.tsv"
+    lines = path.read_text(encoding="utf-8").splitlines()
+    head, old = lines[0], {l.split("\t", 1)[0]: l.split("\t")[1:] for l in lines[1:] if l}
+    todo = {}
+    for row in rows:
+        r = old[row["id"]]
+        if r[0] == "ok":
+            continue
+        if DNS_NOADDR.search(r[9]) and not urllib.parse.urlsplit(row["location"]).hostname.startswith("www."):
+            todo[row["id"]] = (row, "www")
+        elif TRANSIENT.search(r[9]):
+            todo[row["id"]] = (row, "retry")
+    print(f"a2 补抓：裸域名 {sum(k == 'www' for _, k in todo.values())} 份，暂时性错误 {sum(k == 'retry' for _, k in todo.values())} 份", flush=True)
+    warc = open(out / "a2" / "snapshots.warc.gz", "ab")
+    f = Fetcher(warc)
+    pending, attempt = dict(todo), 0
+    while pending and attempt <= 2:
+        if attempt:
+            print(f"a2 补抓：等 {RETRY_WAIT_S} s 后第 {attempt} 次重试 {len(pending)} 份", flush=True)
+            time.sleep(RETRY_WAIT_S)
+
+        def one(item):
+            id_, (row, kind) = item
+            at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            how = ("www 回退" if kind == "www" else "") + (f"{'，' if kind == 'www' else ''}重试第 {attempt} 次" if attempt else "")
+            try:
+                final, status, headers, body, p, lang = do_a2(f, row, out, www_url(row["location"]) if kind == "www" else None)
+                ctype = next((v for k, v in headers if k.lower() == "content-type"), "")
+                return id_, ["ok", final, str(status), ctype, at, str(len(body)), hashlib.sha256(body).hexdigest(), p.relative_to(out).as_posix(), lang, f"冻结后补抓：{how}"], False
+            except Unavailable as e:
+                return id_, ["unavailable", "", "", "", at, "", "", "", "", f"冻结后补抓（{how}）仍失败：{e}"], False
+            except Exception as e:  # noqa: BLE001
+                msg = f"{type(e).__name__}: {e}"[:200]
+                return id_, ["unavailable", "", "", "", at, "", "", "", "", f"冻结后补抓（{how}）仍失败：{msg}"], bool(TRANSIENT.search(msg))
+
+        with ThreadPoolExecutor(a.threads) as ex:
+            res = list(ex.map(one, pending.items()))
+        nxt = {}
+        for id_, r, transient in res:
+            old[id_] = r
+            if transient:
+                nxt[id_] = pending[id_]
+        pending, attempt = nxt, attempt + 1
+    warc.close()
+    with open(path, "w", encoding="utf-8") as fo:
+        fo.write(head + "\n")
+        for row in rows:
+            fo.write("\t".join([row["id"], *old[row["id"]]]).replace("\n", " ") + "\n")
+    with open(out / "a2.manifest", "w", encoding="utf-8") as fo:
+        for row in rows:
+            r = old[row["id"]]
+            if r[0] == "ok":
+                fo.write(f"{row['id']}\t{out / r[7]}\t{r[1]}\n")
+    got = sum(1 for i in todo if old[i][0] == "ok")
+    total = sum(1 for r in old.values() if r[0] == "ok")
+    print(f"a2 补抓：补到 {got}/{len(todo)}，A2 共 {total}/{len(rows)}", flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("which", choices=["a2", "b2"])
     ap.add_argument("--samples", default=str(HERE / "samples"))
     ap.add_argument("--out", default=str(Path.home() / "mix-tools/inputs"))
     ap.add_argument("--threads", type=int, default=16)
+    ap.add_argument("--retry-failed", action="store_true", help="只用于 a2：按冻结后补的抓取规则重抓两类失败")
     a = ap.parse_args()
     if not CONF.get("frozen"):
         raise SystemExit("规则还没冻结（seeds.toml: frozen = false），不抓。")
@@ -232,6 +306,10 @@ def main():
     lines = (Path(a.samples) / f"{a.which}.tsv").read_text(encoding="utf-8").splitlines()
     cols = lines[0].split("\t")
     rows = [dict(zip(cols, l.split("\t"))) for l in lines[1:] if l]
+    if a.retry_failed:
+        if a.which != "a2":
+            raise SystemExit("--retry-failed 只用于 a2")
+        return retry_failed(a, rows, out)
     warc = open(out / a.which / "snapshots.warc.gz", "wb") if a.which == "a2" else None
     f = Fetcher(warc)
     work = do_a2 if a.which == "a2" else do_b2
