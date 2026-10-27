@@ -1,0 +1,12 @@
+# 混合增强基准的 Rust 竞品适配器。独立工作区，不属于 pagesift，也不随 pagesift 发布。
+# 每个成员单独编译（cargo build --release -p mix-<工具>），版本由本目录的 Cargo.lock 锁定。
+[workspace]
+resolver = "2"
+members = ["proto", "crw", "spider", "pdf_oxide", "extractous"]
+
+[workspace.dependencies]
+mix-proto = { path = "proto" }
+serde_json = "1"
+
+[profile.release]
+debug = false

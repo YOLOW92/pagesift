@@ -1,0 +1,36 @@
+# 混合增强基准的随机种子（RULES.md 第三节）。规则冻结时把 frozen 改成 true 并和 RULES.md 一起提交，之后不改。
+# frozen = true 时 sample.py 拒绝执行，防止规则定稿前抽样。
+# 种子在看到任何样本之前选定：20261027（起草日期）加子类序号，没有挑过。
+frozen = true
+
+[seeds]
+a1_aeb = 2026102701
+a1_wcxb = 2026102702
+a1_webmainbench = 2026102703
+a1_firecrawl = 2026102704
+a2_tranco = 2026102705       # 分层抽站点；种子 +1 决定“首页还是随机内链”
+a2_lang = 2026102706         # 按语言补的 5 × 20 页（每种语言再加语言代码的字符码之和）
+a2_inner_link = 2026102707   # 抓到首页后挑哪条内链（fetch.py）
+a4_hard = 2026102708         # +0 编码陷阱、+1 WPT、+2 超大页面、+3 拦截页、+4 深层嵌套、+10 变形种类
+b2_arxiv = 2026102709
+b2_gov = 2026102710
+# 2026102711 原给 SEC EDGAR，EDGAR 去掉后不用（不挪给别的子类）
+# 2026102712 原给维基共享资源，B2 不再用它（不挪给别的子类）
+b3_hard = 2026102713
+model_subset = 2026102714    # 用模型的工具（Docling）只跑的 10% 子集
+# 2026102715 已用于冻结前的 Docling CPU/GPU 对比（docling_gpu_check.sh），不再用于抽样
+
+[quota]
+a1_per_set = 150
+a2_per_tier = 80
+a2_per_lang = 20
+a4_per_source = 40           # 5 个来源 × 40，不够的全要
+b2 = { arxiv = 50, govuk = 50 }
+b3_total = 100
+model_fraction = 0.10
+
+[a2]
+# Tranco 排名分层（左闭右开，1 起算）
+tiers = [[1, 1001], [1001, 10001], [10001, 100001], [100001, 500001], [500001, 1000001]]
+# 按语言补样：用国家代码顶级域选站点，抓到后记下 <html lang>（对不上的照样记录，不换）
+lang_tlds = { zh = ["cn"], ja = ["jp"], ko = ["kr"], ar = ["sa", "ae", "eg", "ma", "dz", "iq", "jo", "kw", "qa", "om", "bh", "tn", "lb", "ly", "sy", "ye", "sd", "ps"], ru = ["ru"] }

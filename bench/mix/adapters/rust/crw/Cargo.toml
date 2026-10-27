@@ -1,0 +1,10 @@
+[package]
+name = "mix-crw"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+mix-proto.workspace = true
+crw-core = "=0.39.0"
+crw-extract = "=0.39.0"

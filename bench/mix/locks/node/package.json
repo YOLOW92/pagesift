@@ -1,0 +1,10 @@
+{
+  "name": "mix-readability",
+  "private": true,
+  "description": "混合增强基准：Mozilla Readability + Turndown（jsdom 解析，按 Readability README 的 Node 用法）",
+  "dependencies": {
+    "@mozilla/readability": "0.6.0",
+    "jsdom": "30.1.3",
+    "turndown": "7.2.4"
+  }
+}

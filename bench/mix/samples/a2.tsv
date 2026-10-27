@@ -1,0 +1,501 @@
+id	source	location	orig_url	note	model_subset
+a2-54-pinterest.com	Tranco 1-1000	https://pinterest.com/		inner	0
+a2-78-workers.dev	Tranco 1-1000	https://workers.dev/		home	0
+a2-91-f5.com	Tranco 1-1000	https://f5.com/		home	0
+a2-113-lencr.org	Tranco 1-1000	https://lencr.org/		inner	0
+a2-124-cloudflare-dns.com	Tranco 1-1000	https://cloudflare-dns.com/		inner	0
+a2-128-windows.com	Tranco 1-1000	https://windows.com/		inner	0
+a2-132-github.io	Tranco 1-1000	https://github.io/		inner	0
+a2-144-dns-parking.com	Tranco 1-1000	https://dns-parking.com/		home	0
+a2-146-akamaized.net	Tranco 1-1000	https://akamaized.net/		home	0
+a2-159-tm-azurefd.net	Tranco 1-1000	https://tm-azurefd.net/		inner	0
+a2-161-tumblr.com	Tranco 1-1000	https://tumblr.com/		home	0
+a2-169-shopify.com	Tranco 1-1000	https://shopify.com/		home	0
+a2-174-iiko.it	Tranco 1-1000	https://iiko.it/		inner	0
+a2-178-telegram.org	Tranco 1-1000	https://telegram.org/		inner	0
+a2-185-discord.com	Tranco 1-1000	https://discord.com/		inner	0
+a2-194-yandexcloud.net	Tranco 1-1000	https://yandexcloud.net/		inner	0
+a2-268-googleblog.com	Tranco 1-1000	https://googleblog.com/		home	0
+a2-284-reuters.com	Tranco 1-1000	https://reuters.com/		home	0
+a2-285-supertms.com	Tranco 1-1000	https://supertms.com/		home	0
+a2-299-rubiconproject.com	Tranco 1-1000	https://rubiconproject.com/		home	0
+a2-328-akamaihd.net	Tranco 1-1000	https://akamaihd.net/		home	0
+a2-337-weebly.com	Tranco 1-1000	https://weebly.com/		home	0
+a2-353-trustpilot.com	Tranco 1-1000	https://trustpilot.com/		home	0
+a2-356-checkpoint.com	Tranco 1-1000	https://checkpoint.com/		inner	0
+a2-361-nasa.gov	Tranco 1-1000	https://nasa.gov/		home	0
+a2-386-hostgator.com	Tranco 1-1000	https://hostgator.com/		inner	0
+a2-392-tiktokv.us	Tranco 1-1000	https://tiktokv.us/		home	0
+a2-394-crpt.ru	Tranco 1-1000	https://crpt.ru/		inner	0
+a2-400-cdnbuild.net	Tranco 1-1000	https://cdnbuild.net/		inner	0
+a2-423-indeed.com	Tranco 1-1000	https://indeed.com/		home	0
+a2-429-aol.com	Tranco 1-1000	https://aol.com/		inner	0
+a2-442-substack.com	Tranco 1-1000	https://substack.com/		home	0
+a2-447-adobe.net	Tranco 1-1000	https://adobe.net/		inner	0
+a2-453-dnspod.net	Tranco 1-1000	https://dnspod.net/		inner	0
+a2-474-xiaomi.net	Tranco 1-1000	https://xiaomi.net/		home	0
+a2-486-dotomi.com	Tranco 1-1000	https://dotomi.com/		home	1
+a2-487-dual-s-msedge.net	Tranco 1-1000	https://dual-s-msedge.net/		inner	0
+a2-495-run.app	Tranco 1-1000	https://run.app/		home	0
+a2-505-sina.com.cn	Tranco 1-1000	https://sina.com.cn/		home	0
+a2-514-markmonitor.com	Tranco 1-1000	https://markmonitor.com/		inner	0
+a2-528-docker.com	Tranco 1-1000	https://docker.com/		inner	0
+a2-547-ezvizlife.com	Tranco 1-1000	https://ezvizlife.com/		home	0
+a2-581-deviantart.com	Tranco 1-1000	https://deviantart.com/		home	0
+a2-606-playstation.com	Tranco 1-1000	https://playstation.com/		inner	0
+a2-629-amazon.fr	Tranco 1-1000	https://amazon.fr/		home	1
+a2-635-alicdn.com	Tranco 1-1000	https://alicdn.com/		home	0
+a2-649-mega.co.nz	Tranco 1-1000	https://mega.co.nz/		inner	0
+a2-654-t-msedge.net	Tranco 1-1000	https://t-msedge.net/		inner	0
+a2-658-ovh.net	Tranco 1-1000	https://ovh.net/		inner	0
+a2-671-twimg.com	Tranco 1-1000	https://twimg.com/		inner	0
+a2-672-resolver.arpa	Tranco 1-1000	https://resolver.arpa/		home	0
+a2-677-bidswitch.net	Tranco 1-1000	https://bidswitch.net/		inner	0
+a2-680-iso.org	Tranco 1-1000	https://iso.org/		home	0
+a2-690-smaato.net	Tranco 1-1000	https://smaato.net/		home	0
+a2-710-wpguardian.io	Tranco 1-1000	https://wpguardian.io/		home	0
+a2-729-viber.com	Tranco 1-1000	https://viber.com/		inner	0
+a2-740-hostgator.com.br	Tranco 1-1000	https://hostgator.com.br/		home	0
+a2-757-mediafire.com	Tranco 1-1000	https://mediafire.com/		inner	0
+a2-772-homedepot.com	Tranco 1-1000	https://homedepot.com/		home	0
+a2-793-hugedomains.com	Tranco 1-1000	https://hugedomains.com/		home	0
+a2-795-samsungosp.com	Tranco 1-1000	https://samsungosp.com/		inner	0
+a2-806-bestbuy.com	Tranco 1-1000	https://bestbuy.com/		inner	0
+a2-808-lenovo.com	Tranco 1-1000	https://lenovo.com/		inner	0
+a2-811-ameblo.jp	Tranco 1-1000	https://ameblo.jp/		inner	0
+a2-829-33across.com	Tranco 1-1000	https://33across.com/		home	0
+a2-843-adform.net	Tranco 1-1000	https://adform.net/		inner	1
+a2-858-life360.com	Tranco 1-1000	https://life360.com/		inner	0
+a2-868-ebay.co.uk	Tranco 1-1000	https://ebay.co.uk/		inner	1
+a2-869-wcdnga.com	Tranco 1-1000	https://wcdnga.com/		home	0
+a2-877-azure-devices.net	Tranco 1-1000	https://azure-devices.net/		home	0
+a2-891-blackberry.com	Tranco 1-1000	https://blackberry.com/		inner	0
+a2-894-px-cloud.net	Tranco 1-1000	https://px-cloud.net/		inner	0
+a2-896-pornhub.com	Tranco 1-1000	https://pornhub.com/		home	0
+a2-900-worldbank.org	Tranco 1-1000	https://worldbank.org/		inner	1
+a2-908-wyzecam.com	Tranco 1-1000	https://wyzecam.com/		inner	0
+a2-915-latimes.com	Tranco 1-1000	https://latimes.com/		inner	0
+a2-920-mayoclinic.org	Tranco 1-1000	https://mayoclinic.org/		home	0
+a2-934-thenai.org	Tranco 1-1000	https://thenai.org/		inner	0
+a2-964-repubblica.it	Tranco 1-1000	https://repubblica.it/		inner	0
+a2-973-statuspage.io	Tranco 1-1000	https://statuspage.io/		inner	0
+a2-1091-douyinvod.com	Tranco 1001-10000	https://douyinvod.com/		home	0
+a2-1335-funpay.com	Tranco 1001-10000	https://funpay.com/		home	0
+a2-1863-rackspace.com	Tranco 1001-10000	https://rackspace.com/		inner	0
+a2-2196-inbake.com	Tranco 1001-10000	https://inbake.com/		inner	0
+a2-2244-5movierulz.kitchen	Tranco 1001-10000	https://5movierulz.kitchen/		inner	1
+a2-2251-constantcontact.com	Tranco 1001-10000	https://constantcontact.com/		inner	1
+a2-2451-mossturbo.com	Tranco 1001-10000	https://mossturbo.com/		inner	0
+a2-2454-siriusxm.com	Tranco 1001-10000	https://siriusxm.com/		inner	0
+a2-2782-getpocket.com	Tranco 1001-10000	https://getpocket.com/		inner	0
+a2-2808-mmstat.com	Tranco 1001-10000	https://mmstat.com/		inner	0
+a2-2976-ipwho.is	Tranco 1001-10000	https://ipwho.is/		home	1
+a2-3046-telstra.com	Tranco 1001-10000	https://telstra.com/		home	0
+a2-3098-overseashost.ru	Tranco 1001-10000	https://overseashost.ru/		inner	0
+a2-3115-jampp.com	Tranco 1001-10000	https://jampp.com/		inner	0
+a2-3137-zynga.com	Tranco 1001-10000	https://zynga.com/		home	0
+a2-3183-pornhat.com	Tranco 1001-10000	https://pornhat.com/		inner	0
+a2-3204-razorpay.com	Tranco 1001-10000	https://razorpay.com/		home	1
+a2-3301-gm.com	Tranco 1001-10000	https://gm.com/		inner	0
+a2-3334-aeroflot.ru	Tranco 1001-10000	https://aeroflot.ru/		home	0
+a2-3541-asuscomm.com	Tranco 1001-10000	https://asuscomm.com/		home	0
+a2-3566-ad-score.com	Tranco 1001-10000	https://ad-score.com/		inner	0
+a2-3571-ladsp.com	Tranco 1001-10000	https://ladsp.com/		home	0
+a2-3696-sba.gov	Tranco 1001-10000	https://sba.gov/		inner	0
+a2-3773-bale.ai	Tranco 1001-10000	https://bale.ai/		home	0
+a2-3774-amnesty.org	Tranco 1001-10000	https://amnesty.org/		inner	0
+a2-3843-domain.com	Tranco 1001-10000	https://domain.com/		home	0
+a2-3894-standard.co.uk	Tranco 1001-10000	https://standard.co.uk/		inner	0
+a2-3954-leadconnectorhq.com	Tranco 1001-10000	https://leadconnectorhq.com/		inner	0
+a2-3982-clinch.co	Tranco 1001-10000	https://clinch.co/		inner	0
+a2-4098-buymeacoffee.com	Tranco 1001-10000	https://buymeacoffee.com/		inner	0
+a2-4976-9mod.com	Tranco 1001-10000	https://9mod.com/		home	0
+a2-5275-ecfr.gov	Tranco 1001-10000	https://ecfr.gov/		inner	0
+a2-5391-rylkngdm.com	Tranco 1001-10000	https://rylkngdm.com/		inner	1
+a2-5543-immowelt.de	Tranco 1001-10000	https://immowelt.de/		inner	1
+a2-5551-chinatax.gov.cn	Tranco 1001-10000	https://chinatax.gov.cn/		home	0
+a2-5680-travelaudience.com	Tranco 1001-10000	https://travelaudience.com/		inner	0
+a2-5731-arkoselabs.com	Tranco 1001-10000	https://arkoselabs.com/		inner	0
+a2-5770-cloudrc.ru	Tranco 1001-10000	https://cloudrc.ru/		home	1
+a2-6247-honda.com	Tranco 1001-10000	https://honda.com/		inner	0
+a2-6384-o2.pl	Tranco 1001-10000	https://o2.pl/		inner	0
+a2-6638-gitlab.net	Tranco 1001-10000	https://gitlab.net/		inner	0
+a2-6640-eaton.com	Tranco 1001-10000	https://eaton.com/		home	0
+a2-6645-freeconvert.com	Tranco 1001-10000	https://freeconvert.com/		home	0
+a2-6695-mercadopago.com.ar	Tranco 1001-10000	https://mercadopago.com.ar/		home	0
+a2-6763-s-onetag.com	Tranco 1001-10000	https://s-onetag.com/		home	0
+a2-6855-xn--ngstr-lra8j.com	Tranco 1001-10000	https://xn--ngstr-lra8j.com/		home	0
+a2-7073-tchibo.de	Tranco 1001-10000	https://tchibo.de/		inner	0
+a2-7165-405kk.com	Tranco 1001-10000	https://405kk.com/		inner	0
+a2-7260-ks-live.com	Tranco 1001-10000	https://ks-live.com/		home	0
+a2-7303-fakt.pl	Tranco 1001-10000	https://fakt.pl/		home	0
+a2-7389-tokubai.co.jp	Tranco 1001-10000	https://tokubai.co.jp/		home	1
+a2-7525-spacebattles.com	Tranco 1001-10000	https://spacebattles.com/		home	0
+a2-7632-audio.com	Tranco 1001-10000	https://audio.com/		home	0
+a2-7758-valve.net	Tranco 1001-10000	https://valve.net/		home	1
+a2-7820-phonepe.com	Tranco 1001-10000	https://phonepe.com/		inner	0
+a2-7836-survicate.com	Tranco 1001-10000	https://survicate.com/		home	0
+a2-7841-punchng.com	Tranco 1001-10000	https://punchng.com/		inner	0
+a2-7863-autohero.com	Tranco 1001-10000	https://autohero.com/		inner	0
+a2-7911-fantacalcio.it	Tranco 1001-10000	https://fantacalcio.it/		inner	0
+a2-8067-ojrq.net	Tranco 1001-10000	https://ojrq.net/		inner	0
+a2-8097-conforama.fr	Tranco 1001-10000	https://conforama.fr/		home	0
+a2-8145-mk.co.kr	Tranco 1001-10000	https://mk.co.kr/		home	0
+a2-8239-plumenet.io	Tranco 1001-10000	https://plumenet.io/		inner	0
+a2-8297-maturetube.com	Tranco 1001-10000	https://maturetube.com/		home	0
+a2-8302-authorize.net	Tranco 1001-10000	https://authorize.net/		home	0
+a2-8449-fout.jp	Tranco 1001-10000	https://fout.jp/		inner	0
+a2-8568-wartank.ru	Tranco 1001-10000	https://wartank.ru/		inner	0
+a2-8583-net77.cc	Tranco 1001-10000	https://net77.cc/		home	0
+a2-8768-cinemahq.app	Tranco 1001-10000	https://cinemahq.app/		inner	0
+a2-8785-hello.porn	Tranco 1001-10000	https://hello.porn/		home	0
+a2-8887-sportal.bg	Tranco 1001-10000	https://sportal.bg/		inner	0
+a2-8911-yaeby.dad	Tranco 1001-10000	https://yaeby.dad/		home	0
+a2-9080-rawstory.com	Tranco 1001-10000	https://rawstory.com/		home	0
+a2-9222-supremevalues.com	Tranco 1001-10000	https://supremevalues.com/		inner	1
+a2-9338-ondisk.co.kr	Tranco 1001-10000	https://ondisk.co.kr/		inner	0
+a2-9436-myhentaigallery.com	Tranco 1001-10000	https://myhentaigallery.com/		home	0
+a2-9439-news-cdn.site	Tranco 1001-10000	https://news-cdn.site/		inner	0
+a2-9461-digital.gov.eg	Tranco 1001-10000	https://digital.gov.eg/		inner	0
+a2-9744-yinzcam.com	Tranco 1001-10000	https://yinzcam.com/		home	0
+a2-9928-lmu.de	Tranco 1001-10000	https://lmu.de/		inner	0
+a2-10724-dokuwiki.org	Tranco 10001-100000	https://dokuwiki.org/		inner	0
+a2-12674-sspinc.io	Tranco 10001-100000	https://sspinc.io/		inner	0
+a2-16897-the-scientist.com	Tranco 10001-100000	https://the-scientist.com/		inner	1
+a2-19951-patient.info	Tranco 10001-100000	https://patient.info/		home	0
+a2-21603-smartsuppchat.com	Tranco 10001-100000	https://smartsuppchat.com/		home	0
+a2-21632-meraki.direct	Tranco 10001-100000	https://meraki.direct/		home	0
+a2-24459-pwnedpasswords.com	Tranco 10001-100000	https://pwnedpasswords.com/		home	0
+a2-25803-stck.me	Tranco 10001-100000	https://stck.me/		inner	0
+a2-26362-usc.es	Tranco 10001-100000	https://usc.es/		inner	0
+a2-26781-catched.com	Tranco 10001-100000	https://catched.com/		home	0
+a2-27093-unn.ua	Tranco 10001-100000	https://unn.ua/		home	0
+a2-27457-yahooinc.com	Tranco 10001-100000	https://yahooinc.com/		home	0
+a2-28402-fatafatkolkata.net	Tranco 10001-100000	https://fatafatkolkata.net/		home	0
+a2-28668-4archive.org	Tranco 10001-100000	https://4archive.org/		inner	0
+a2-30327-tradovateapi.com	Tranco 10001-100000	https://tradovateapi.com/		home	0
+a2-30523-tvwiki44.net	Tranco 10001-100000	https://tvwiki44.net/		inner	0
+a2-30567-sf.gov	Tranco 10001-100000	https://sf.gov/		home	0
+a2-31566-muosepicel.com	Tranco 10001-100000	https://muosepicel.com/		inner	0
+a2-32177-jyhuanyu.cn	Tranco 10001-100000	https://jyhuanyu.cn/		home	1
+a2-32737-yindantechhk.com	Tranco 10001-100000	https://yindantechhk.com/		home	0
+a2-33151-landrover.com	Tranco 10001-100000	https://landrover.com/		home	0
+a2-33627-sugggest.com	Tranco 10001-100000	https://sugggest.com/		home	0
+a2-33849-stylist.co.uk	Tranco 10001-100000	https://stylist.co.uk/		inner	0
+a2-34782-zhibo8.cc	Tranco 10001-100000	https://zhibo8.cc/		inner	0
+a2-44198-a-a1.ru	Tranco 10001-100000	https://a-a1.ru/		home	0
+a2-45125-collo.net	Tranco 10001-100000	https://collo.net/		home	0
+a2-46344-aerithvel.com	Tranco 10001-100000	https://aerithvel.com/		home	0
+a2-46406-sweetcare.com	Tranco 10001-100000	https://sweetcare.com/		home	0
+a2-48155-tablethotels.com	Tranco 10001-100000	https://tablethotels.com/		inner	0
+a2-51969-shuashuati.com	Tranco 10001-100000	https://shuashuati.com/		inner	0
+a2-53066-umb.com	Tranco 10001-100000	https://umb.com/		home	0
+a2-55098-porndd.com	Tranco 10001-100000	https://porndd.com/		home	0
+a2-55114-sive.rs	Tranco 10001-100000	https://sive.rs/		inner	0
+a2-55558-farmaline.be	Tranco 10001-100000	https://farmaline.be/		home	0
+a2-56104-adnetwork.bet	Tranco 10001-100000	https://adnetwork.bet/		home	0
+a2-58578-ufmt.br	Tranco 10001-100000	https://ufmt.br/		home	0
+a2-59316-fu.do	Tranco 10001-100000	https://fu.do/		home	1
+a2-60079-aleque.net	Tranco 10001-100000	https://aleque.net/		home	0
+a2-60424-coinpokerbets.com	Tranco 10001-100000	https://coinpokerbets.com/		inner	0
+a2-61110-virginbet.com	Tranco 10001-100000	https://virginbet.com/		inner	0
+a2-62199-maxforlive.com	Tranco 10001-100000	https://maxforlive.com/		inner	0
+a2-63051-blackbit.exchange	Tranco 10001-100000	https://blackbit.exchange/		inner	0
+a2-64060-tarnow.pl	Tranco 10001-100000	https://tarnow.pl/		home	0
+a2-64904-vtb.am	Tranco 10001-100000	https://vtb.am/		home	1
+a2-65282-kinomax.ru	Tranco 10001-100000	https://kinomax.ru/		inner	0
+a2-66536-xgif.cc	Tranco 10001-100000	https://xgif.cc/		home	0
+a2-66775-toyota.com.au	Tranco 10001-100000	https://toyota.com.au/		inner	0
+a2-67159-ghost-lan.com	Tranco 10001-100000	https://ghost-lan.com/		inner	0
+a2-67906-livehdcams.com	Tranco 10001-100000	https://livehdcams.com/		inner	0
+a2-68374-upnjatim.ac.id	Tranco 10001-100000	https://upnjatim.ac.id/		home	0
+a2-69586-matprat.no	Tranco 10001-100000	https://matprat.no/		home	0
+a2-70664-2ix2.com	Tranco 10001-100000	https://2ix2.com/		home	0
+a2-72139-donpac.ru	Tranco 10001-100000	https://donpac.ru/		inner	1
+a2-72277-topbusinesssoftware.com	Tranco 10001-100000	https://topbusinesssoftware.com/		home	0
+a2-73287-unum.com	Tranco 10001-100000	https://unum.com/		home	1
+a2-74639-latamvibe.com	Tranco 10001-100000	https://latamvibe.com/		home	0
+a2-75771-freelancer.co.uk	Tranco 10001-100000	https://freelancer.co.uk/		inner	0
+a2-77481-w2hosting.cz	Tranco 10001-100000	https://w2hosting.cz/		inner	0
+a2-77681-filmsetc.com	Tranco 10001-100000	https://filmsetc.com/		home	0
+a2-79946-ifis.co.jp	Tranco 10001-100000	https://ifis.co.jp/		home	0
+a2-81423-tpsl-india.in	Tranco 10001-100000	https://tpsl-india.in/		home	0
+a2-82213-wetteronline-cloud.com	Tranco 10001-100000	https://wetteronline-cloud.com/		inner	0
+a2-84265-homeyou.com	Tranco 10001-100000	https://homeyou.com/		inner	1
+a2-87543-highleverage.dev	Tranco 10001-100000	https://highleverage.dev/		inner	0
+a2-90393-catneuro.su	Tranco 10001-100000	https://catneuro.su/		home	0
+a2-91274-ramayana.co.id	Tranco 10001-100000	https://ramayana.co.id/		inner	0
+a2-92699-hotelki.tv	Tranco 10001-100000	https://hotelki.tv/		inner	0
+a2-92974-kwanjai168.net	Tranco 10001-100000	https://kwanjai168.net/		home	0
+a2-93671-ruaythear168.vip	Tranco 10001-100000	https://ruaythear168.vip/		home	0
+a2-93681-s22s.jp	Tranco 10001-100000	https://s22s.jp/		inner	0
+a2-94206-vijayant.in	Tranco 10001-100000	https://vijayant.in/		home	0
+a2-94735-asianage.com	Tranco 10001-100000	https://asianage.com/		inner	0
+a2-95220-ultralytics.com	Tranco 10001-100000	https://ultralytics.com/		inner	0
+a2-95833-ositestatus.com	Tranco 10001-100000	https://ositestatus.com/		inner	0
+a2-95962-opry.com	Tranco 10001-100000	https://opry.com/		home	0
+a2-95971-mcsrvstat.us	Tranco 10001-100000	https://mcsrvstat.us/		inner	0
+a2-96612-paraloeil.com	Tranco 10001-100000	https://paraloeil.com/		inner	0
+a2-96963-newsifier.nl	Tranco 10001-100000	https://newsifier.nl/		inner	0
+a2-98312-lcp.fr	Tranco 10001-100000	https://lcp.fr/		home	0
+a2-98841-pinsightmedia.com	Tranco 10001-100000	https://pinsightmedia.com/		home	0
+a2-102896-surfearner.com	Tranco 100001-500000	https://surfearner.com/		home	0
+a2-127586-schwabapi.com	Tranco 100001-500000	https://schwabapi.com/		inner	0
+a2-139801-nextgenscience.org	Tranco 100001-500000	https://nextgenscience.org/		home	0
+a2-146410-kingshawaiian.com	Tranco 100001-500000	https://kingshawaiian.com/		home	0
+a2-146525-sasosoft.com	Tranco 100001-500000	https://sasosoft.com/		home	1
+a2-157835-rspp.ru	Tranco 100001-500000	https://rspp.ru/		home	0
+a2-163211-ifbooks.co.kr	Tranco 100001-500000	https://ifbooks.co.kr/		inner	0
+a2-165446-shaneequas.com	Tranco 100001-500000	https://shaneequas.com/		inner	0
+a2-167123-zakon.hr	Tranco 100001-500000	https://zakon.hr/		home	0
+a2-168369-cdn2234.com	Tranco 100001-500000	https://cdn2234.com/		home	1
+a2-169826-sklane.com	Tranco 100001-500000	https://sklane.com/		home	0
+a2-173607-heathrowairport.com	Tranco 100001-500000	https://heathrowairport.com/		inner	0
+a2-174670-tekionsupport.com	Tranco 100001-500000	https://tekionsupport.com/		home	0
+a2-181308-vwfs.dk	Tranco 100001-500000	https://vwfs.dk/		inner	0
+a2-182091-deviceboot.de	Tranco 100001-500000	https://deviceboot.de/		inner	0
+a2-182268-petoskeynews.com	Tranco 100001-500000	https://petoskeynews.com/		home	0
+a2-186263-cygames.com	Tranco 100001-500000	https://cygames.com/		home	0
+a2-188707-medair.pro	Tranco 100001-500000	https://medair.pro/		home	1
+a2-190946-formulare-bfinv.de	Tranco 100001-500000	https://formulare-bfinv.de/		home	0
+a2-194507-poetryclub.com.ua	Tranco 100001-500000	https://poetryclub.com.ua/		home	0
+a2-195395-as41887.it	Tranco 100001-500000	https://as41887.it/		inner	0
+a2-199126-rockhard.de	Tranco 100001-500000	https://rockhard.de/		home	0
+a2-236792-8m.nl	Tranco 100001-500000	https://8m.nl/		inner	1
+a2-240500-jerseycitynj.gov	Tranco 100001-500000	https://jerseycitynj.gov/		home	0
+a2-245373-wedevit.ro	Tranco 100001-500000	https://wedevit.ro/		home	0
+a2-245622-kabudora.com	Tranco 100001-500000	https://kabudora.com/		inner	0
+a2-252617-tokyu-plaza.com	Tranco 100001-500000	https://tokyu-plaza.com/		home	0
+a2-267873-eardepth-prisists.com	Tranco 100001-500000	https://eardepth-prisists.com/		home	0
+a2-272264-obsidianinternet.net	Tranco 100001-500000	https://obsidianinternet.net/		inner	0
+a2-280389-hostdomsolutions.com	Tranco 100001-500000	https://hostdomsolutions.com/		inner	1
+a2-280454-u2concept.net	Tranco 100001-500000	https://u2concept.net/		home	0
+a2-282230-lichtbild.com	Tranco 100001-500000	https://lichtbild.com/		inner	0
+a2-284414-ifdnrg.com	Tranco 100001-500000	https://ifdnrg.com/		inner	0
+a2-294309-upandupspace.com	Tranco 100001-500000	https://upandupspace.com/		inner	1
+a2-297264-hqabhwxzy.cc	Tranco 100001-500000	https://hqabhwxzy.cc/		home	0
+a2-300313-mytyres.gr	Tranco 100001-500000	https://mytyres.gr/		inner	0
+a2-301695-morefun-et.com	Tranco 100001-500000	https://morefun-et.com/		inner	0
+a2-304440-satincrave.com	Tranco 100001-500000	https://satincrave.com/		inner	0
+a2-308796-beseen.com	Tranco 100001-500000	https://beseen.com/		inner	0
+a2-312203-mcnetwork.pl	Tranco 100001-500000	https://mcnetwork.pl/		inner	0
+a2-316239-insurifycdn.com	Tranco 100001-500000	https://insurifycdn.com/		inner	0
+a2-319614-jide.com	Tranco 100001-500000	https://jide.com/		home	0
+a2-321126-click2stream.com	Tranco 100001-500000	https://click2stream.com/		home	0
+a2-326141-valesaude.com.br	Tranco 100001-500000	https://valesaude.com.br/		inner	0
+a2-327098-tenniswarehouse.com.au	Tranco 100001-500000	https://tenniswarehouse.com.au/		inner	0
+a2-328633-ipmedia.com.au	Tranco 100001-500000	https://ipmedia.com.au/		inner	1
+a2-331624-epson.fr	Tranco 100001-500000	https://epson.fr/		home	0
+a2-333494-hpqcorp.net	Tranco 100001-500000	https://hpqcorp.net/		home	0
+a2-338341-biblioteca.org.ar	Tranco 100001-500000	https://biblioteca.org.ar/		inner	0
+a2-342655-heredis.com	Tranco 100001-500000	https://heredis.com/		inner	0
+a2-348553-telemark.cloud	Tranco 100001-500000	https://telemark.cloud/		home	0
+a2-349106-avantaje.ro	Tranco 100001-500000	https://avantaje.ro/		home	0
+a2-353146-english3.com	Tranco 100001-500000	https://english3.com/		home	0
+a2-358555-hwk-muenchen.de	Tranco 100001-500000	https://hwk-muenchen.de/		inner	0
+a2-363081-lenoise.ca	Tranco 100001-500000	https://lenoise.ca/		home	0
+a2-369921-kalbis.ac.id	Tranco 100001-500000	https://kalbis.ac.id/		inner	0
+a2-379784-ogk2.ru	Tranco 100001-500000	https://ogk2.ru/		inner	0
+a2-385690-zealbao.com	Tranco 100001-500000	https://zealbao.com/		home	0
+a2-397060-terrabyt.com	Tranco 100001-500000	https://terrabyt.com/		home	0
+a2-410169-impacta.com.br	Tranco 100001-500000	https://impacta.com.br/		inner	1
+a2-421570-mintaibank.com	Tranco 100001-500000	https://mintaibank.com/		home	0
+a2-425093-nyakawai.shop	Tranco 100001-500000	https://nyakawai.shop/		inner	0
+a2-430793-dlhd.st	Tranco 100001-500000	https://dlhd.st/		home	0
+a2-431894-eflangtech.com	Tranco 100001-500000	https://eflangtech.com/		home	0
+a2-434724-asura-theisle.com	Tranco 100001-500000	https://asura-theisle.com/		inner	1
+a2-436823-informaticsjournals.co.in	Tranco 100001-500000	https://informaticsjournals.co.in/		home	0
+a2-438939-rgsupportboy.com	Tranco 100001-500000	https://rgsupportboy.com/		inner	0
+a2-443329-biomedpharmajournal.org	Tranco 100001-500000	https://biomedpharmajournal.org/		home	0
+a2-443846-moon7ass.top	Tranco 100001-500000	https://moon7ass.top/		inner	0
+a2-443884-qubithosting.co.uk	Tranco 100001-500000	https://qubithosting.co.uk/		inner	0
+a2-446446-lcvjzpfea.com	Tranco 100001-500000	https://lcvjzpfea.com/		inner	0
+a2-447849-irisleegallery.com	Tranco 100001-500000	https://irisleegallery.com/		inner	0
+a2-453247-floorforce.com	Tranco 100001-500000	https://floorforce.com/		inner	0
+a2-455362-autoalkatresz.hu	Tranco 100001-500000	https://autoalkatresz.hu/		inner	0
+a2-463024-fotoload.ru	Tranco 100001-500000	https://fotoload.ru/		home	0
+a2-472864-zee61hims.top	Tranco 100001-500000	https://zee61hims.top/		home	0
+a2-478742-diverssupplyinc.com	Tranco 100001-500000	https://diverssupplyinc.com/		inner	1
+a2-487307-londonslotcollective.uk	Tranco 100001-500000	https://londonslotcollective.uk/		home	0
+a2-494924-dnsguatemala7.com	Tranco 100001-500000	https://dnsguatemala7.com/		home	0
+a2-495150-dr.ca	Tranco 100001-500000	https://dr.ca/		inner	0
+a2-527586-hzlhl.com	Tranco 500001-1000000	https://hzlhl.com/		inner	0
+a2-539801-fsm.bible	Tranco 500001-1000000	https://fsm.bible/		inner	1
+a2-546410-carwiz.co.il	Tranco 500001-1000000	https://carwiz.co.il/		inner	0
+a2-546525-xmwcjd.com	Tranco 500001-1000000	https://xmwcjd.com/		inner	0
+a2-563211-lepotentiel.bj	Tranco 500001-1000000	https://lepotentiel.bj/		home	0
+a2-565446-courrierdesbalkans.fr	Tranco 500001-1000000	https://courrierdesbalkans.fr/		home	0
+a2-567123-britbonusbase.uk	Tranco 500001-1000000	https://britbonusbase.uk/		home	0
+a2-573607-clearstreet.io	Tranco 500001-1000000	https://clearstreet.io/		inner	0
+a2-574670-nameservers.digital	Tranco 500001-1000000	https://nameservers.digital/		inner	0
+a2-581308-eej.at	Tranco 500001-1000000	https://eej.at/		inner	0
+a2-582091-ageofconquest.com	Tranco 500001-1000000	https://ageofconquest.com/		home	0
+a2-582268-scandicmama.com	Tranco 500001-1000000	https://scandicmama.com/		inner	0
+a2-586263-triumph.io	Tranco 500001-1000000	https://triumph.io/		inner	0
+a2-588707-funtrade.net	Tranco 500001-1000000	https://funtrade.net/		inner	1
+a2-590946-19yxw.com	Tranco 500001-1000000	https://19yxw.com/		home	1
+a2-594507-iucecb.com	Tranco 500001-1000000	https://iucecb.com/		inner	1
+a2-599126-zooplzen.cz	Tranco 500001-1000000	https://zooplzen.cz/		home	0
+a2-636792-neonatology-nmo.ru	Tranco 500001-1000000	https://neonatology-nmo.ru/		inner	0
+a2-645373-teamdrjoseph.com	Tranco 500001-1000000	https://teamdrjoseph.com/		inner	0
+a2-645622-silestoneusa.com	Tranco 500001-1000000	https://silestoneusa.com/		inner	0
+a2-652617-e-kinco.com	Tranco 500001-1000000	https://e-kinco.com/		inner	0
+a2-667873-bilecik11.com	Tranco 500001-1000000	https://bilecik11.com/		home	0
+a2-672264-real.edu.ee	Tranco 500001-1000000	https://real.edu.ee/		inner	0
+a2-680389-neflytia.top	Tranco 500001-1000000	https://neflytia.top/		inner	0
+a2-682230-apays.ru	Tranco 500001-1000000	https://apays.ru/		home	0
+a2-684414-boutiqueottoman.com	Tranco 500001-1000000	https://boutiqueottoman.com/		inner	0
+a2-697264-fullxmovies.com	Tranco 500001-1000000	https://fullxmovies.com/		home	0
+a2-700313-trk-hq.com	Tranco 500001-1000000	https://trk-hq.com/		home	0
+a2-701695-pvatepla.com	Tranco 500001-1000000	https://pvatepla.com/		inner	0
+a2-704440-boatrace-tamagawa.com	Tranco 500001-1000000	https://boatrace-tamagawa.com/		inner	0
+a2-716239-xtratrust.com	Tranco 500001-1000000	https://xtratrust.com/		home	0
+a2-719614-goodfellowbros.com	Tranco 500001-1000000	https://goodfellowbros.com/		home	0
+a2-726141-moorparkca.gov	Tranco 500001-1000000	https://moorparkca.gov/		inner	0
+a2-728633-becauseinternational.org	Tranco 500001-1000000	https://becauseinternational.org/		inner	0
+a2-731624-siteground290.com	Tranco 500001-1000000	https://siteground290.com/		inner	0
+a2-742655-hbru.ru	Tranco 500001-1000000	https://hbru.ru/		inner	0
+a2-748553-mypinpad.io	Tranco 500001-1000000	https://mypinpad.io/		inner	0
+a2-753146-gujiuzhou.com	Tranco 500001-1000000	https://gujiuzhou.com/		home	0
+a2-758555-777a.space	Tranco 500001-1000000	https://777a.space/		home	0
+a2-763081-am-bk.co.jp	Tranco 500001-1000000	https://am-bk.co.jp/		inner	0
+a2-769921-blainebox.com	Tranco 500001-1000000	https://blainebox.com/		inner	0
+a2-779784-dfdk4152.com	Tranco 500001-1000000	https://dfdk4152.com/		inner	0
+a2-797060-insajder.com	Tranco 500001-1000000	https://insajder.com/		home	0
+a2-821570-pgspin99.digital	Tranco 500001-1000000	https://pgspin99.digital/		home	0
+a2-825093-puzia.ua	Tranco 500001-1000000	https://puzia.ua/		inner	0
+a2-831894-sexhentai.net	Tranco 500001-1000000	https://sexhentai.net/		inner	0
+a2-834724-sofinancas.com	Tranco 500001-1000000	https://sofinancas.com/		home	0
+a2-836823-suksesvip.com	Tranco 500001-1000000	https://suksesvip.com/		home	0
+a2-843329-u51y9v.com	Tranco 500001-1000000	https://u51y9v.com/		inner	0
+a2-843846-ular900kecil.site	Tranco 500001-1000000	https://ular900kecil.site/		home	0
+a2-843884-ultima.com.np	Tranco 500001-1000000	https://ultima.com.np/		home	0
+a2-847849-watchart.com	Tranco 500001-1000000	https://watchart.com/		home	0
+a2-853247-alffany.com	Tranco 500001-1000000	https://alffany.com/		home	0
+a2-863024-sitenebak.com	Tranco 500001-1000000	https://sitenebak.com/		home	0
+a2-872864-admpritobol.ru	Tranco 500001-1000000	https://admpritobol.ru/		inner	0
+a2-887307-1xbet-suyf.top	Tranco 500001-1000000	https://1xbet-suyf.top/		home	0
+a2-895150-chinapetfestival.com	Tranco 500001-1000000	https://chinapetfestival.com/		inner	0
+a2-905591-auroraking247.com	Tranco 500001-1000000	https://auroraking247.com/		inner	0
+a2-906607-vani-hyd.nic.in	Tranco 500001-1000000	https://vani-hyd.nic.in/		home	0
+a2-912429-theater-nordhausen.de	Tranco 500001-1000000	https://theater-nordhausen.de/		home	0
+a2-913431-evergreenechoes.co.uk	Tranco 500001-1000000	https://evergreenechoes.co.uk/		inner	0
+a2-914987-vabysmo-hcp.com	Tranco 500001-1000000	https://vabysmo-hcp.com/		home	1
+a2-924385-bwhealthcareworld.com	Tranco 500001-1000000	https://bwhealthcareworld.com/		inner	0
+a2-931529-meidastouch.com	Tranco 500001-1000000	https://meidastouch.com/		inner	1
+a2-938826-seputarundip.com	Tranco 500001-1000000	https://seputarundip.com/		home	0
+a2-944277-brightdigest.us	Tranco 500001-1000000	https://brightdigest.us/		inner	0
+a2-944556-torshavn.io	Tranco 500001-1000000	https://torshavn.io/		home	0
+a2-949021-emw8hqyc.xyz	Tranco 500001-1000000	https://emw8hqyc.xyz/		inner	0
+a2-956039-aissupernet.com	Tranco 500001-1000000	https://aissupernet.com/		home	0
+a2-957332-becexy.io	Tranco 500001-1000000	https://becexy.io/		home	0
+a2-958580-centrometeoemiliaromagna.com	Tranco 500001-1000000	https://centrometeoemiliaromagna.com/		inner	0
+a2-960711-erpsigep.com.br	Tranco 500001-1000000	https://erpsigep.com.br/		home	0
+a2-964628-kawasakisoaper.com	Tranco 500001-1000000	https://kawasakisoaper.com/		inner	0
+a2-968017-nsrcc.com.sg	Tranco 500001-1000000	https://nsrcc.com.sg/		home	0
+a2-970717-s1u6y20p.com	Tranco 500001-1000000	https://s1u6y20p.com/		inner	0
+a2-977714-top5credits.com	Tranco 500001-1000000	https://top5credits.com/		home	0
+a2-977931-kawa-colle.jp	Tranco 500001-1000000	https://kawa-colle.jp/		home	0
+a2-977971-myabitat.net	Tranco 500001-1000000	https://myabitat.net/		home	0
+a2-993529-websitemarketinghosting.co.uk	Tranco 500001-1000000	https://websitemarketinghosting.co.uk/		inner	0
+a2-997800-golnet.ru	Tranco 500001-1000000	https://golnet.ru/		home	0
+a2zh-83323-012316.cn	Tranco ccTLD zh	https://012316.cn/		home lang=zh	0
+a2zh-129876-yzz.cn	Tranco ccTLD zh	https://yzz.cn/		home lang=zh	0
+a2zh-198795-wxoa.cn	Tranco ccTLD zh	https://wxoa.cn/		home lang=zh	0
+a2zh-225670-jsmsjx.com.cn	Tranco ccTLD zh	https://jsmsjx.com.cn/		home lang=zh	0
+a2zh-279559-taian.cn	Tranco ccTLD zh	https://taian.cn/		home lang=zh	0
+a2zh-354130-wxit.edu.cn	Tranco ccTLD zh	https://wxit.edu.cn/		home lang=zh	1
+a2zh-388948-haochensoft.cn	Tranco ccTLD zh	https://haochensoft.cn/		home lang=zh	0
+a2zh-411785-huace.cn	Tranco ccTLD zh	https://huace.cn/		home lang=zh	0
+a2zh-448606-swmu.edu.cn	Tranco ccTLD zh	https://swmu.edu.cn/		home lang=zh	0
+a2zh-495826-chinaautoforum.cn	Tranco ccTLD zh	https://chinaautoforum.cn/		home lang=zh	0
+a2zh-509315-tanghe.gov.cn	Tranco ccTLD zh	https://tanghe.gov.cn/		home lang=zh	1
+a2zh-522643-mymps.com.cn	Tranco ccTLD zh	https://mymps.com.cn/		home lang=zh	0
+a2zh-547775-hyflex.cn	Tranco ccTLD zh	https://hyflex.cn/		home lang=zh	0
+a2zh-618379-njue.edu.cn	Tranco ccTLD zh	https://njue.edu.cn/		home lang=zh	0
+a2zh-636832-hmrog.cn	Tranco ccTLD zh	https://hmrog.cn/		home lang=zh	1
+a2zh-646007-gz161637.cn	Tranco ccTLD zh	https://gz161637.cn/		home lang=zh	0
+a2zh-707765-jszzb.gov.cn	Tranco ccTLD zh	https://jszzb.gov.cn/		home lang=zh	0
+a2zh-728081-dynamics.cn	Tranco ccTLD zh	https://dynamics.cn/		home lang=zh	0
+a2zh-832681-shopvideo.cn	Tranco ccTLD zh	https://shopvideo.cn/		home lang=zh	0
+a2zh-879446-bh7b7.com.cn	Tranco ccTLD zh	https://bh7b7.com.cn/		home lang=zh	0
+a2ja-85556-airnet.ne.jp	Tranco ccTLD ja	https://airnet.ne.jp/		home lang=ja	0
+a2ja-90183-bleague.jp	Tranco ccTLD ja	https://bleague.jp/		home lang=ja	0
+a2ja-199368-isca.jp	Tranco ccTLD ja	https://isca.jp/		home lang=ja	0
+a2ja-207008-tsukuba.lg.jp	Tranco ccTLD ja	https://tsukuba.lg.jp/		home lang=ja	0
+a2ja-284413-geospatial.jp	Tranco ccTLD ja	https://geospatial.jp/		home lang=ja	0
+a2ja-301744-libcloud.jp	Tranco ccTLD ja	https://libcloud.jp/		home lang=ja	1
+a2ja-318582-rescue.ne.jp	Tranco ccTLD ja	https://rescue.ne.jp/		home lang=ja	0
+a2ja-374064-yanmar.co.jp	Tranco ccTLD ja	https://yanmar.co.jp/		home lang=ja	0
+a2ja-408164-paravi.jp	Tranco ccTLD ja	https://paravi.jp/		home lang=ja	0
+a2ja-409356-babycome.ne.jp	Tranco ccTLD ja	https://babycome.ne.jp/		home lang=ja	0
+a2ja-459060-ebravo.jp	Tranco ccTLD ja	https://ebravo.jp/		home lang=ja	0
+a2ja-523753-omihachiman.lg.jp	Tranco ccTLD ja	https://omihachiman.lg.jp/		home lang=ja	0
+a2ja-591695-moncheri.jp	Tranco ccTLD ja	https://moncheri.jp/		home lang=ja	0
+a2ja-602489-bss-cloud.jp	Tranco ccTLD ja	https://bss-cloud.jp/		home lang=ja	0
+a2ja-609444-silverferry.jp	Tranco ccTLD ja	https://silverferry.jp/		home lang=ja	0
+a2ja-795864-idgr.jp	Tranco ccTLD ja	https://idgr.jp/		home lang=ja	0
+a2ja-803077-kooza.jp	Tranco ccTLD ja	https://kooza.jp/		home lang=ja	0
+a2ja-807742-machikagi-remote.jp	Tranco ccTLD ja	https://machikagi-remote.jp/		home lang=ja	0
+a2ja-826214-raffinegroup-online.jp	Tranco ccTLD ja	https://raffinegroup-online.jp/		home lang=ja	0
+a2ja-954717-24htv-goods.jp	Tranco ccTLD ja	https://24htv-goods.jp/		home lang=ja	0
+a2ko-65411-boardlife.co.kr	Tranco ccTLD ko	https://boardlife.co.kr/		home lang=ko	0
+a2ko-156642-ev.or.kr	Tranco ccTLD ko	https://ev.or.kr/		home lang=ko	0
+a2ko-178840-smartbill.co.kr	Tranco ccTLD ko	https://smartbill.co.kr/		home lang=ko	0
+a2ko-179719-schmc.ac.kr	Tranco ccTLD ko	https://schmc.ac.kr/		home lang=ko	0
+a2ko-217107-patent.go.kr	Tranco ccTLD ko	https://patent.go.kr/		home lang=ko	0
+a2ko-220040-maxes.co.kr	Tranco ccTLD ko	https://maxes.co.kr/		home lang=ko	0
+a2ko-336690-lomography.co.kr	Tranco ccTLD ko	https://lomography.co.kr/		home lang=ko	0
+a2ko-374090-yahoo.co.kr	Tranco ccTLD ko	https://yahoo.co.kr/		home lang=ko	0
+a2ko-415782-kdi.re.kr	Tranco ccTLD ko	https://kdi.re.kr/		home lang=ko	0
+a2ko-428629-adbeat.co.kr	Tranco ccTLD ko	https://adbeat.co.kr/		home lang=ko	0
+a2ko-563350-fromkorea.kr	Tranco ccTLD ko	https://fromkorea.kr/		home lang=ko	0
+a2ko-591511-mazia.kr	Tranco ccTLD ko	https://mazia.kr/		home lang=ko	0
+a2ko-748472-sjcu.ac.kr	Tranco ccTLD ko	https://sjcu.ac.kr/		home lang=ko	0
+a2ko-792147-gwangjinlib.seoul.kr	Tranco ccTLD ko	https://gwangjinlib.seoul.kr/		home lang=ko	0
+a2ko-825187-pyeongtaek.go.kr	Tranco ccTLD ko	https://pyeongtaek.go.kr/		home lang=ko	0
+a2ko-830684-saveshopping.kr	Tranco ccTLD ko	https://saveshopping.kr/		home lang=ko	0
+a2ko-849161-woori-house.co.kr	Tranco ccTLD ko	https://woori-house.co.kr/		home lang=ko	0
+a2ko-887004-nncoms.kr	Tranco ccTLD ko	https://nncoms.kr/		home lang=ko	0
+a2ko-925042-newsfc.co.kr	Tranco ccTLD ko	https://newsfc.co.kr/		home lang=ko	1
+a2ko-981293-namhae.go.kr	Tranco ccTLD ko	https://namhae.go.kr/		home lang=ko	0
+a2ar-35397-uot.edu.ly	Tranco ccTLD ar	https://uot.edu.ly/		home lang=ar	0
+a2ar-46932-rnu.tn	Tranco ccTLD ar	https://rnu.tn/		home lang=ar	0
+a2ar-85254-caoa.gov.eg	Tranco ccTLD ar	https://caoa.gov.eg/		home lang=ar	0
+a2ar-91860-anae.dz	Tranco ccTLD ar	https://anae.dz/		home lang=ar	0
+a2ar-108644-afmic.gov.eg	Tranco ccTLD ar	https://afmic.gov.eg/		home lang=ar	0
+a2ar-221743-moi.gov.iq	Tranco ccTLD ar	https://moi.gov.iq/		home lang=ar	1
+a2ar-267744-instashop.ae	Tranco ccTLD ar	https://instashop.ae/		home lang=ar	0
+a2ar-275016-apkgold.ae	Tranco ccTLD ar	https://apkgold.ae/		home lang=ar	0
+a2ar-291536-di.net.sa	Tranco ccTLD ar	https://di.net.sa/		home lang=ar	0
+a2ar-356169-livremoi.ma	Tranco ccTLD ar	https://livremoi.ma/		home lang=ar	0
+a2ar-598357-lafleurette.tn	Tranco ccTLD ar	https://lafleurette.tn/		home lang=ar	0
+a2ar-668345-xoilac.ae	Tranco ccTLD ar	https://xoilac.ae/		home lang=ar	0
+a2ar-673244-nnhs.ae	Tranco ccTLD ar	https://nnhs.ae/		home lang=ar	0
+a2ar-741635-caaj.gov.om	Tranco ccTLD ar	https://caaj.gov.om/		home lang=ar	0
+a2ar-744048-akhbardzair.dz	Tranco ccTLD ar	https://akhbardzair.dz/		home lang=ar	0
+a2ar-750722-maf.gov.om	Tranco ccTLD ar	https://maf.gov.om/		home lang=ar	0
+a2ar-774534-chillandlit.tn	Tranco ccTLD ar	https://chillandlit.tn/		home lang=ar	0
+a2ar-795111-hummel.tn	Tranco ccTLD ar	https://hummel.tn/		home lang=ar	0
+a2ar-827851-richbond.ma	Tranco ccTLD ar	https://richbond.ma/		home lang=ar	0
+a2ar-927574-eyeofdubai.ae	Tranco ccTLD ar	https://eyeofdubai.ae/		home lang=ar	0
+a2ru-94756-sarbc.ru	Tranco ccTLD ru	https://sarbc.ru/		home lang=ru	0
+a2ru-256269-megaindex.ru	Tranco ccTLD ru	https://megaindex.ru/		home lang=ru	0
+a2ru-302635-lemonbow.ru	Tranco ccTLD ru	https://lemonbow.ru/		home lang=ru	0
+a2ru-434201-dantser.ru	Tranco ccTLD ru	https://dantser.ru/		home lang=ru	0
+a2ru-448279-soodoo.ru	Tranco ccTLD ru	https://soodoo.ru/		home lang=ru	0
+a2ru-455900-russvoin.ru	Tranco ccTLD ru	https://russvoin.ru/		home lang=ru	0
+a2ru-467157-sonoscape.ru	Tranco ccTLD ru	https://sonoscape.ru/		home lang=ru	0
+a2ru-468149-rkcdn.ru	Tranco ccTLD ru	https://rkcdn.ru/		home lang=ru	0
+a2ru-515393-gilev.ru	Tranco ccTLD ru	https://gilev.ru/		home lang=ru	0
+a2ru-526218-vlant.ru	Tranco ccTLD ru	https://vlant.ru/		home lang=ru	0
+a2ru-527352-bp03.ru	Tranco ccTLD ru	https://bp03.ru/		home lang=ru	0
+a2ru-584344-finepower.ru	Tranco ccTLD ru	https://finepower.ru/		home lang=ru	0
+a2ru-601459-sibirlesmarket.ru	Tranco ccTLD ru	https://sibirlesmarket.ru/		home lang=ru	0
+a2ru-613848-gazprom-auto.ru	Tranco ccTLD ru	https://gazprom-auto.ru/		home lang=ru	1
+a2ru-664442-mso51.ru	Tranco ccTLD ru	https://mso51.ru/		home lang=ru	0
+a2ru-890251-petexpert.ru	Tranco ccTLD ru	https://petexpert.ru/		home lang=ru	0
+a2ru-896813-mggt.ru	Tranco ccTLD ru	https://mggt.ru/		home lang=ru	0
+a2ru-937888-verspk.ru	Tranco ccTLD ru	https://verspk.ru/		home lang=ru	0
+a2ru-976545-aktiv-company.ru	Tranco ccTLD ru	https://aktiv-company.ru/		home lang=ru	0
+a2ru-983588-ao-is.ru	Tranco ccTLD ru	https://ao-is.ru/		home lang=ru	0

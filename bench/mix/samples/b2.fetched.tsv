@@ -1,0 +1,101 @@
+id	status	final_url	http_status	content_type	fetched_at	bytes	sha256	path	html_lang	reason
+b2arxiv-1006.0059v1	ok	https://arxiv.org/pdf/1006.0059v1	200	application/pdf	2026-10-27T05:12:39Z	211627	885470026bb05ff4a94a7e2eb843f254ca28b44f94eb0b11a03c485570379e3e	b2/b2arxiv-1006.0059v1.pdf		
+b2arxiv-1010.0054v1	ok	https://arxiv.org/pdf/1010.0054v1	200	application/pdf	2026-10-27T05:12:39Z	171320	b5a8ebef9ed4e7fc3de4c8f9f495445df022d2a28eb3546b286465f0832cf04e	b2/b2arxiv-1010.0054v1.pdf		
+b2arxiv-1010.0055v3	ok	https://arxiv.org/pdf/1010.0055v3	200	application/pdf	2026-10-27T05:12:39Z	930135	a6f220d1bb6237149832205d5bb4415efbcc0343f00db2d1b79a813f26230a41	b2/b2arxiv-1010.0055v3.pdf		
+b2arxiv-1010.0057v1	ok	https://arxiv.org/pdf/1010.0057v1	200	application/pdf	2026-10-27T05:12:39Z	3527416	459480c1e18eea1c3771fd2b18b8b56d54d347a1350b4224b79e1eef7204dc3b	b2/b2arxiv-1010.0057v1.pdf		
+b2arxiv-1105.0154v1	ok	https://arxiv.org/pdf/1105.0154v1	200	application/pdf	2026-10-27T05:12:39Z	1181994	a300625a5f8829e532894ded5db3b09a3268803b31a642a3eb634035f4dac8d4	b2/b2arxiv-1105.0154v1.pdf		
+b2arxiv-1105.0174v2	ok	https://arxiv.org/pdf/1105.0174v2	200	application/pdf	2026-10-27T05:12:39Z	387354	2f690ed2d3a9f04ed380b650fcb021d0f59f4adc807376554e68b38c3b6ba95f	b2/b2arxiv-1105.0174v2.pdf		
+b2arxiv-1112.0065v1	ok	https://arxiv.org/pdf/1112.0065v1	200	application/pdf	2026-10-27T05:12:39Z	42252	129269ae2d3781c3991ca1240982827fcfeeefd1223851a9f6a81b06cf7a09af	b2/b2arxiv-1112.0065v1.pdf		
+b2arxiv-1212.0059v1	ok	https://arxiv.org/pdf/1212.0059v1	200	application/pdf	2026-10-27T05:12:39Z	508641	f8af5b6e45545d710459d302ddbfd902530f75198efa28b6b5d9d9f7b7450c52	b2/b2arxiv-1212.0059v1.pdf		
+b2arxiv-1212.0066v1	ok	https://arxiv.org/pdf/1212.0066v1	200	application/pdf	2026-10-27T05:13:05Z	788184	25d5cdcbd91d0b6138819a89661507dd1e3a34b831713a3ea4f5b93ff87d9165	b2/b2arxiv-1212.0066v1.pdf		
+b2arxiv-1212.0093v4	ok	https://arxiv.org/pdf/1212.0093v4	200	application/pdf	2026-10-27T05:13:08Z	675985	ac89ad1979d8979907f50deee545e5da8f3d212a159078856e9659ee32d22e3d	b2/b2arxiv-1212.0093v4.pdf		
+b2arxiv-1301.0040v1	ok	https://arxiv.org/pdf/1301.0040v1	200	application/pdf	2026-10-27T05:13:12Z	208902	2d2c9bfcc6a64b46e6fcd46a803fa26dc79807d69771d14f25bbc6a53590d2e3	b2/b2arxiv-1301.0040v1.pdf		
+b2arxiv-1301.0053v1	ok	https://arxiv.org/pdf/1301.0053v1	200	application/pdf	2026-10-27T05:13:17Z	1877765	919132ca4a0d040d973fff312c820c23ca3bf5c09fcb420a168995e1df83a7a3	b2/b2arxiv-1301.0053v1.pdf		
+b2arxiv-1308.0088v1	ok	https://arxiv.org/pdf/1308.0088v1	200	application/pdf	2026-10-27T05:13:21Z	314113	fed786e7581e1f8b7d7b6d9baf9e3ee73492ca88bdcb77285cac8ead736fea53	b2/b2arxiv-1308.0088v1.pdf		
+b2arxiv-1308.0095v1	ok	https://arxiv.org/pdf/1308.0095v1	200	application/pdf	2026-10-27T05:13:25Z	1283561	05f3c98870def1666a3681a32e81a47c3dbfee27173221c841be31b5069a70dc	b2/b2arxiv-1308.0095v1.pdf		
+b2arxiv-1311.0066v3	ok	https://arxiv.org/pdf/1311.0066v3	200	application/pdf	2026-10-27T05:13:28Z	325036	e3117c77be586c6d4edf99d4fe749da1955c0d21c13aac990fd4716d400c66f6	b2/b2arxiv-1311.0066v3.pdf		
+b2arxiv-1412.0326v1	ok	https://arxiv.org/pdf/1412.0326v1	200	application/pdf	2026-10-27T05:13:31Z	249117	8327db1a4c933a5297deef38dd14737c7d8a00d0ff5c343de7ee0f1fdc442af8	b2/b2arxiv-1412.0326v1.pdf		
+b2arxiv-1412.0349v2	ok	https://arxiv.org/pdf/1412.0349v2	200	application/pdf	2026-10-27T05:13:35Z	1807924	f76aec0690bdb91ed222e2d5aa70729102a471836fcaf13ede8500f287b8bbb8	b2/b2arxiv-1412.0349v2.pdf		
+b2arxiv-1501.00243v5	ok	https://arxiv.org/pdf/1501.00243v5	200	application/pdf	2026-10-27T05:13:39Z	333287	8010940ea05d673c8998cf4ea43b7ea498715c2b0ce889005377eebda5b6ddf4	b2/b2arxiv-1501.00243v5.pdf		
+b2arxiv-1505.00073v1	ok	https://arxiv.org/pdf/1505.00073v1	200	application/pdf	2026-10-27T05:13:42Z	8152467	2abb7a0f100f18f60f8723ba0e30c5a40580cdd3c7f8f0ff1aa120443a95e719	b2/b2arxiv-1505.00073v1.pdf		
+b2arxiv-1507.00111v1	ok	https://arxiv.org/pdf/1507.00111v1	200	application/pdf	2026-10-27T05:13:46Z	273660	9ee7b23a8e6b6ea8e0198b69b54363dd46572784a06089eb4d5d169d9ad2bac9	b2/b2arxiv-1507.00111v1.pdf		
+b2arxiv-1603.00122v1	ok	https://arxiv.org/pdf/1603.00122v1	200	application/pdf	2026-10-27T05:13:49Z	2272576	a934a2b7583aa5691d7f80fbe95ac646c9321f77e8c8480737900c81478a1a6e	b2/b2arxiv-1603.00122v1.pdf		
+b2arxiv-1611.00129v1	ok	https://arxiv.org/pdf/1611.00129v1	200	application/pdf	2026-10-27T05:13:54Z	784227	c1fec726faac78e8e854b76e0fc6bac329769c238cca01ea4358474c026da7e4	b2/b2arxiv-1611.00129v1.pdf		
+b2arxiv-1810.00502v1	ok	https://arxiv.org/pdf/1810.00502v1	200	application/pdf	2026-10-27T05:13:57Z	1707464	caf82f85046dc01e4a476273c9000ea133ea9436883b1de6a47a694e0b6cda2c	b2/b2arxiv-1810.00502v1.pdf		
+b2arxiv-1810.00517v1	ok	https://arxiv.org/pdf/1810.00517v1	200	application/pdf	2026-10-27T05:14:00Z	502768	45cf0b06c61eed227c8a6357a3935308e38897fdb1bec9f4786d7149e1eef90e	b2/b2arxiv-1810.00517v1.pdf		
+b2arxiv-1901.00099v2	ok	https://arxiv.org/pdf/1901.00099v2	200	application/pdf	2026-10-27T05:14:05Z	2220201	55260eccb113902ec119748d085fa683a106d189d2e27d25073ce29cc1de64da	b2/b2arxiv-1901.00099v2.pdf		
+b2arxiv-1909.00309v4	ok	https://arxiv.org/pdf/1909.00309v4	200	application/pdf	2026-10-27T05:14:09Z	816423	69ae5665b21d1b896b08cc93e43b6f43c8cb482f12363170d16b4aba4f46069f	b2/b2arxiv-1909.00309v4.pdf		
+b2arxiv-2007.00178v1	ok	https://arxiv.org/pdf/2007.00178v1	200	application/pdf	2026-10-27T05:14:17Z	5812902	cbc970cd19703d272ef2ed7b9382fd6f60696098e01a03d3fd21b37c5ebb3818	b2/b2arxiv-2007.00178v1.pdf		
+b2arxiv-2106.00167v2	ok	https://arxiv.org/pdf/2106.00167v2	200	application/pdf	2026-10-27T05:14:20Z	1810243	e25157d9897c527559dcd17d9161b134022c65f325c173836094d959e54d6ac1	b2/b2arxiv-2106.00167v2.pdf		
+b2arxiv-2111.00644v1	ok	https://arxiv.org/pdf/2111.00644v1	200	application/pdf	2026-10-27T05:14:25Z	1107882	b87fbbc886888b99ad4417fea6bbaee2dbf9cb30661c4dd67c7e18fa44cbef16	b2/b2arxiv-2111.00644v1.pdf		
+b2arxiv-2204.00170v2	ok	https://arxiv.org/pdf/2204.00170v2	200	application/pdf	2026-10-27T05:14:28Z	370692	e81c22b4b47ff4469f4967c14f50fa06c7af1542f43737c363b2cd029f505d38	b2/b2arxiv-2204.00170v2.pdf		
+b2arxiv-2301.00322v2	ok	https://arxiv.org/pdf/2301.00322v2	200	application/pdf	2026-10-27T05:14:34Z	1103375	293e3f9ce22855904910363c91e9ab26db5e2e7913b382cbde8d461396cacc70	b2/b2arxiv-2301.00322v2.pdf		
+b2arxiv-2301.00345v1	ok	https://arxiv.org/pdf/2301.00345v1	200	application/pdf	2026-10-27T05:14:38Z	15045994	1be565dbeb7619d86f96c82f91e0bf87dcb72242cfc095ee9fc474393716f115	b2/b2arxiv-2301.00345v1.pdf		
+b2arxiv-2308.00216v1	ok	https://arxiv.org/pdf/2308.00216v1	200	application/pdf	2026-10-27T05:14:42Z	982035	6e1c3856ada44699bd4971cba5cc046ad9c0ae59d2e5bdbf7096148acc313438	b2/b2arxiv-2308.00216v1.pdf		
+b2arxiv-2308.00248v2	ok	https://arxiv.org/pdf/2308.00248v2	200	application/pdf	2026-10-27T05:14:46Z	670134	d3c5eedd9e791c50cc56661c259947a17fbe458fed385120216aa60ad91e47b0	b2/b2arxiv-2308.00248v2.pdf		
+b2arxiv-2308.03775v1	ok	https://arxiv.org/pdf/2308.03775v1	200	application/pdf	2026-10-27T05:14:50Z	129823	8b01e28b78b698be00efc303b412ba82abba7e92282e60de683418855446c030	b2/b2arxiv-2308.03775v1.pdf		
+b2arxiv-2401.00620v1	ok	https://arxiv.org/pdf/2401.00620v1	200	application/pdf	2026-10-27T05:14:55Z	224495	47c4f0212dc23b71879e33db80154c1a7325a4e534676094787581014db078b7	b2/b2arxiv-2401.00620v1.pdf		
+b2arxiv-2401.00652v1	ok	https://arxiv.org/pdf/2401.00652v1	200	application/pdf	2026-10-27T05:14:59Z	3056580	5c08dce74eec31b1becd30ef2fbc3d6050d5d0aa910c496602aa552b434f4d10	b2/b2arxiv-2401.00652v1.pdf		
+b2arxiv-2401.00653v1	ok	https://arxiv.org/pdf/2401.00653v1	200	application/pdf	2026-10-27T05:15:03Z	985604	8e54382a944cd0cc2713218824edbd7847df7cac3ec168a3ce9ead83660c1f80	b2/b2arxiv-2401.00653v1.pdf		
+b2arxiv-2404.00844v1	ok	https://arxiv.org/pdf/2404.00844v1	200	application/pdf	2026-10-27T05:15:07Z	2194725	4521a3b00ed9a9fc58347c4b2c77db97530a100f065ce78b18246eb1e77c0c2c	b2/b2arxiv-2404.00844v1.pdf		
+b2arxiv-2501.00728v4	ok	https://arxiv.org/pdf/2501.00728v4	200	application/pdf	2026-10-27T05:15:16Z	634752	317fdd5cf84bd7dade8d0fd2a112e21dfcc692556e142d76c258c525bf7ede31	b2/b2arxiv-2501.00728v4.pdf		
+b2arxiv-2502.00229v2	ok	https://arxiv.org/pdf/2502.00229v2	200	application/pdf	2026-10-27T05:15:19Z	1146400	f8a716216062ed6d6786d68e2cf08f00f85f867eedc9c4731f04dcb31102b5da	b2/b2arxiv-2502.00229v2.pdf		
+b2arxiv-2506.15714v1	ok	https://arxiv.org/pdf/2506.15714v1	200	application/pdf	2026-10-27T05:15:23Z	438960	58769d8e09298583606d8a648fab61771c4e172ab03438ce5927f0a075c787ca	b2/b2arxiv-2506.15714v1.pdf		
+b2arxiv-2506.15715v2	ok	https://arxiv.org/pdf/2506.15715v2	200	application/pdf	2026-10-27T05:15:27Z	1750579	dbbbdd944e75f72560a938182e3036459ef1063162dd75c1f1e4a32bd8c44da5	b2/b2arxiv-2506.15715v2.pdf		
+b2arxiv-2509.01062v1	ok	https://arxiv.org/pdf/2509.01062v1	200	application/pdf	2026-10-27T05:15:30Z	2154817	75201f33a88896fcc542a3f267ae93c64f67dff5d0b3060079cb15fc3d6b3740	b2/b2arxiv-2509.01062v1.pdf		
+b2arxiv-2511.00363v1	ok	https://arxiv.org/pdf/2511.00363v1	200	application/pdf	2026-10-27T05:15:34Z	674659	e8edc90d7823b3116ce6b7fc2c7c3dd08ec613610048373b25f23cd1be1ad02d	b2/b2arxiv-2511.00363v1.pdf		
+b2arxiv-2604.00335v1	ok	https://arxiv.org/pdf/2604.00335v1	200	application/pdf	2026-10-27T05:15:38Z	532511	909b6e614fec9fc3b36c511d7d5a366b164261d6a87ac88f159c02c480fb6147	b2/b2arxiv-2604.00335v1.pdf		
+b2arxiv-2604.00346v2	ok	https://arxiv.org/pdf/2604.00346v2	200	application/pdf	2026-10-27T05:15:42Z	1307609	1ba5ca112fe5725d30815125ccb8e5042daab4dcf26c173bddd61da6567b227f	b2/b2arxiv-2604.00346v2.pdf		
+b2arxiv-2604.00355v1	ok	https://arxiv.org/pdf/2604.00355v1	200	application/pdf	2026-10-27T05:15:45Z	378848	945a3cc6c8dfcf75217aa98802fca54fdae676a5f7db451c0dba2bc24fb6228b	b2/b2arxiv-2604.00355v1.pdf		
+b2arxiv-2606.01517v4	ok	https://arxiv.org/pdf/2606.01517v4	200	application/pdf	2026-10-27T05:15:50Z	7971793	bf9a53e00b18f5334ea70441ee7ac229d35963f957d4e78fc5d26302d5abefa1	b2/b2arxiv-2606.01517v4.pdf		
+b2arxiv-2609.00523v1	ok	https://arxiv.org/pdf/2609.00523v1	200	application/pdf	2026-10-27T05:15:53Z	3045272	e170fe8d935790e7a35a2c5237b8c62050b8f993d5fc2bfd2c154d325aff5bd2	b2/b2arxiv-2609.00523v1.pdf		
+b2gov-a4c4f88c9ada	ok	https://assets.publishing.service.gov.uk/media/5a7ca6b4ed915d6969f46635/str-w63-e-e.pdf	200	application/pdf	2026-10-27T05:15:57Z	3492059	adc12ed7a6117f43334731a92c464d76f36b70e19f8268c6d8b3a296e58db799	b2/b2gov-a4c4f88c9ada.pdf		
+b2gov-e1f7129706c0	unavailable				2026-10-27T05:16:01Z					页面上没有 PDF 附件
+b2gov-e7f912fed578	ok	https://assets.publishing.service.gov.uk/media/5eeca6e286650c2d29c8722c/S0278_LSHTM_quarantine_test_contacts_updated.pdf	200	application/pdf	2026-10-27T05:16:02Z	96038	368c76c68aea7b79ba43724723024fe5546676e671a78ce30d172895f7cd1a29	b2/b2gov-e7f912fed578.pdf		
+b2gov-6d0224047cda	ok	https://assets.publishing.service.gov.uk/media/5a80436940f0b623026927ad/Foodfeedlaw_Q5Apr_Jun2015.pdf	200	application/pdf	2026-10-27T05:16:05Z	447650	cc9dbe832657a764bccb67c7a92e247f287825ceff8abe7896efbde2a8dd0475	b2/b2gov-6d0224047cda.pdf		
+b2gov-213abd603ad2	ok	https://assets.publishing.service.gov.uk/media/5a7c748e40f0b62aff6c1c98/13-521-identity-related-crime-uk.pdf	200	application/pdf	2026-10-27T05:16:05Z	414612	a7d8f80af36dd07de04d7a948649cb72b1118d87c3a22438f5ea81e4e96c1ebe	b2/b2gov-213abd603ad2.pdf		
+b2gov-942f7ed30fdb	ok	https://assets.publishing.service.gov.uk/media/5f2193aad3bf7f1b1593c142/S0627_NERVTAG_Respiratory_viral_infections__their_interactions_with_SARS-CoV-2_and_implications_for_a_winter_resurgence.pdf	200	application/pdf	2026-10-27T05:16:08Z	3450941	9202e21c18b3e9c796b3df19286cdfb2f94257244f8e85cea9887afbf1b03029	b2/b2gov-942f7ed30fdb.pdf		
+b2gov-55a2cceca028	ok	https://assets.publishing.service.gov.uk/media/5fdc8a32d3bf7f3a3df87309/S0921_Factors_contributing_to_risk_of_SARS_18122020.pdf	200	application/pdf	2026-10-27T05:16:08Z	1035316	1a0fc38749e4f1e6754de89243cf16b3f4e03a36b8779bcbc664b0a5dd3262b5	b2/b2gov-55a2cceca028.pdf		
+b2gov-25227aba8914	unavailable				2026-10-27T05:16:12Z					页面上没有 PDF 附件
+b2gov-634038e6eae0	ok	https://assets.publishing.service.gov.uk/media/689c7abf87bf475940723f0b/Summary+-+Review+of+support+for+victims+and+survivors+of+terrorism__3_.pdf	200	application/pdf	2026-10-27T05:16:13Z	184141	32aee7db52d686e376eddf6254ddaab685eb68be2c00745cb18a64bca28e8ba9	b2/b2gov-634038e6eae0.pdf		
+b2gov-665ce89f8f87	ok	https://assets.publishing.service.gov.uk/media/6a05bb3a5f39105e0848a27f/risk-factors-for-becoming-neet-a-statistical-analysis-using-linked-data.pdf	200	application/pdf	2026-10-27T05:16:16Z	780704	633338d7e582f489ceb316338e6059b8eaf139e5ce73815d110eb162362ab237	b2/b2gov-665ce89f8f87.pdf		
+b2gov-f2398f62f792	unavailable				2026-10-27T05:16:16Z					页面上没有 PDF 附件
+b2gov-82e97fe6c30b	ok	https://assets.publishing.service.gov.uk/media/5a79a082ed915d0422069db7/smart-meters-tracking-report-wave-1.pdf	200	application/pdf	2026-10-27T05:16:17Z	803690	5fcf7680b285bd141a188746abf9c5b264b1f7a6703f0cf6253ecaf54ee0fcd5	b2/b2gov-82e97fe6c30b.pdf		
+b2gov-5f70b1157e97	ok	https://assets.publishing.service.gov.uk/media/5fbba6ffd3bf7f5739417dd7/Social_work_teaching_partnerships_an_evaluation_final_report.pdf	200	application/pdf	2026-10-27T05:16:21Z	685680	1dc391da3b02957d64e66336432ffef19bcabed2a2fb2e2d75ff40bba521f0a5	b2/b2gov-5f70b1157e97.pdf		
+b2gov-285f4adaa816	ok	https://assets.publishing.service.gov.uk/media/5f219206d3bf7f1b1593c13f/S0624_SAGE47_200715_SPI-M-O_Consensus_Statement.pdf	200	application/pdf	2026-10-27T05:16:22Z	2725649	6d736067e455257297fce963540c20e1abcb1019d6e7f9c54fa1d7472b0953b7	b2/b2gov-285f4adaa816.pdf		
+b2gov-9318426209ba	ok	https://assets.publishing.service.gov.uk/media/5a7f11b9ed915d74e33f4244/the-banking-needs-of-universal-credit-claimants-the-potential-role-of-budgeting-accounts.pdf	200	application/pdf	2026-10-27T05:16:23Z	1807369	d92f5e4b10f81060c588d0da4ab0da4bb4f77f6610ca47ea5a5c0c0b5538d7c0	b2/b2gov-9318426209ba.pdf		
+b2gov-f1bebcaa2f7c	unavailable				2026-10-27T05:16:25Z					页面上没有 PDF 附件
+b2gov-5a881c6bae55	unavailable				2026-10-27T05:16:27Z					页面上没有 PDF 附件
+b2gov-cc62cb890ed4	unavailable				2026-10-27T05:16:28Z					页面上没有 PDF 附件
+b2gov-5d3e3a6b926d	unavailable				2026-10-27T05:16:32Z					页面上没有 PDF 附件
+b2gov-69ec14e7e31b	unavailable				2026-10-27T05:16:32Z					页面上没有 PDF 附件
+b2gov-5fbfc5ca67cd	unavailable				2026-10-27T05:16:33Z					页面上没有 PDF 附件
+b2gov-56a924ffc4c4	ok	https://assets.publishing.service.gov.uk/media/5a7c0beee5274a7202e19367/fertiliseruse-2010report.pdf	200	application/pdf	2026-10-27T05:16:35Z	1265547	e964c402585e63ce7990c922d3bc69589241f16a94a4a871831dca16d345801e	b2/b2gov-56a924ffc4c4.pdf		
+b2gov-c156dc5f038e	unavailable				2026-10-27T05:16:36Z					页面上没有 PDF 附件
+b2gov-13516354cd1d	unavailable				2026-10-27T05:16:38Z					页面上没有 PDF 附件
+b2gov-06c88cb33dd4	unavailable				2026-10-27T05:16:39Z					页面上没有 PDF 附件
+b2gov-df71775e1eee	ok	https://assets.publishing.service.gov.uk/media/5a74a5f5ed915d0e8e399e59/Revised_Web_2012_Council_Tax_Base_Nov_2012.pdf	200	application/pdf	2026-10-27T05:16:40Z	128981	56c3a8692057896d84219a334b37090d0085616c3df5a09cec03e96a816755f5	b2/b2gov-df71775e1eee.pdf		
+b2gov-4060aee31356	unavailable				2026-10-27T05:16:41Z					页面上没有 PDF 附件
+b2gov-3e7ffa73f150	unavailable				2026-10-27T05:16:45Z					页面上没有 PDF 附件
+b2gov-f5e839244459	unavailable				2026-10-27T05:16:46Z					页面上没有 PDF 附件
+b2gov-3138d16a8d32	unavailable				2026-10-27T05:16:48Z					页面上没有 PDF 附件
+b2gov-33247245289b	unavailable				2026-10-27T05:16:50Z					页面上没有 PDF 附件
+b2gov-b22932b90ad7	unavailable				2026-10-27T05:16:50Z					页面上没有 PDF 附件
+b2gov-528b3768ffb8	unavailable				2026-10-27T05:16:54Z					页面上没有 PDF 附件
+b2gov-973facab95f1	unavailable				2026-10-27T05:16:54Z					页面上没有 PDF 附件
+b2gov-658f8b6ff3d2	ok	https://assets.publishing.service.gov.uk/media/5d5bec29ed915d08cdc07666/Income_Tax__NICs__tax_credits_and_Child_Benefit_statistics_for_EEA_nationals_2015-2016.pdf	200	application/pdf	2026-10-27T05:16:56Z	776568	3bee91345310575eb76c601af4cf67b68b61dd39e376520c99322e31ef1db39c	b2/b2gov-658f8b6ff3d2.pdf		
+b2gov-ef9fd23ecb5b	ok	https://assets.publishing.service.gov.uk/media/5a7c67c6e5274a5255bce6af/foi-tracker-survey-wave-14.pdf	200	application/pdf	2026-10-27T05:16:57Z	89959	815d959e056a895d868cbf3ad57a58a14a68fc143c159c418bb26044594d715c	b2/b2gov-ef9fd23ecb5b.pdf		
+b2gov-a90bfc266ca8	ok	https://assets.publishing.service.gov.uk/media/5a81a767e5274a2e8ab5524d/Local_authority_and_children_s_homes_in_England_inspection_outcomes_-_Key_Findings.pdf	200	application/pdf	2026-10-27T05:16:57Z	726063	f43441064a8720edebe6c3c04b0acb76a46fde8b6bc8dc6942698d0a3553d59b	b2/b2gov-a90bfc266ca8.pdf		
+b2gov-67fe18dbda12	ok	https://assets.publishing.service.gov.uk/media/5a7c6a3640f0b626628abe48/ltp_pensioners.pdf	200	application/pdf	2026-10-27T05:16:59Z	29675	e797964a32f101614b0ff2d458c6047a0d2c26c812d792c3e87af8dffd54e934	b2/b2gov-67fe18dbda12.pdf		
+b2gov-14a61a5e7e4f	ok	https://assets.publishing.service.gov.uk/media/5a7c1a24e5274a1f5cc75cb0/osr16-2012v3.pdf	200	application/pdf	2026-10-27T05:17:01Z	488323	3bbddfccbc150e29a723e2e9fd2f90eab07968984b050377f994cd74d663e474	b2/b2gov-14a61a5e7e4f.pdf		
+b2gov-f2ed246649cd	unavailable				2026-10-27T05:17:03Z					页面上没有 PDF 附件
+b2gov-4be6a17cd617	ok	https://assets.publishing.service.gov.uk/media/646f07f1ab40bf0010196a0a/organic_farming_2022_stats_notice_25may23.pdf	200	application/pdf	2026-10-27T05:17:05Z	731441	3691173416df3124f8c37faf609e21f9242ac8f9652023848e0e08838b7b7aa6	b2/b2gov-4be6a17cd617.pdf		
+b2gov-1a5b94afde37	unavailable				2026-10-27T05:17:07Z					页面上没有 PDF 附件
+b2gov-2c71b94b9cdc	unavailable				2026-10-27T05:17:13Z					页面上没有 PDF 附件
+b2gov-22cbd45ddf45	unavailable				2026-10-27T05:17:17Z					页面上没有 PDF 附件
+b2gov-4bc8277348a0	unavailable				2026-10-27T05:17:21Z					页面上没有 PDF 附件
+b2gov-d81eebd2f3e3	unavailable				2026-10-27T05:17:24Z					页面上没有 PDF 附件
+b2gov-64dbcd7a894e	unavailable				2026-10-27T05:17:24Z					页面上没有 PDF 附件
+b2gov-2e469e2470eb	unavailable				2026-10-27T05:17:27Z					页面上没有 PDF 附件
+b2gov-930aece307b6	ok	https://assets.publishing.service.gov.uk/media/5a7f192bed915d74e33f4520/20151013-UK_Defence_in_Numbers_screen.pdf	200	application/pdf	2026-10-27T05:17:28Z	921270	18c4577ca461f29a888ec07414aebf5d3b1136c0b3d1067f25097e392926e7f1	b2/b2gov-930aece307b6.pdf		
+b2gov-79bc21c9edb6	unavailable				2026-10-27T05:17:30Z					页面上没有 PDF 附件
