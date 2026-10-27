@@ -6,36 +6,36 @@ a2-113-lencr.org	ok	https://letsencrypt.org/ca/docs/lencr.org/	200	text/html; ch
 a2-124-cloudflare-dns.com	ok	https://one.one.one.one/uk-UA/dns/	200	text/html; charset=utf-8	2026-10-27T05:08:26Z	236757	f7a067c9c2d304b5124d56b8ca2f6e81caffa2735c8c28532426103bdd86da25	a2/a2-124-cloudflare-dns.com.html	uk-UA	
 a2-128-windows.com	ok	https://www.microsoft.com/en-us/dynamics-365	200	text/html; charset=utf-8	2026-10-27T05:08:26Z	430273	9db1bb3f026c1680b63545043ccf9c16a69ad82b123539907ef2d71b140e471e	a2/a2-128-windows.com.html	en-US	
 a2-132-github.io	unavailable				2026-10-27T05:08:26Z					首页上没有同站链接
-a2-144-dns-parking.com	unavailable				2026-10-27T05:08:26Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
-a2-146-akamaized.net	unavailable				2026-10-27T05:08:26Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
-a2-159-tm-azurefd.net	unavailable				2026-10-27T05:08:26Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-144-dns-parking.com	unavailable				2026-10-27T05:20:27Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
+a2-146-akamaized.net	unavailable				2026-10-27T05:20:27Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
+a2-159-tm-azurefd.net	unavailable				2026-10-27T05:20:27Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-161-tumblr.com	ok	https://www.tumblr.com/	200	text/html; charset=utf-8	2026-10-27T05:08:26Z	117201	705c5708fed99a53550895ff065026c2f49251dda4c41c68160cbfcf4b3db713	a2/a2-161-tumblr.com.html	en-US	
 a2-169-shopify.com	ok	https://www.shopify.com/	200	text/html; charset=utf-8	2026-10-27T05:08:26Z	710932	9c339464fcd14d501e30134d8bd45f1d9e7888c3ca2cd32ba5bbc2c891f0aca9	a2/a2-169-shopify.com.html	en	
-a2-174-iiko.it	unavailable				2026-10-27T05:08:26Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-174-iiko.it	unavailable				2026-10-27T05:20:27Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-178-telegram.org	ok	https://telegram.org/?setln=es	200	text/html; charset=utf-8	2026-10-27T05:08:26Z	20122	3ce44c3ded1e3e5ce985513b0949f09050a82f96d273780512eb07df7c68204f	a2/a2-178-telegram.org.html		
 a2-185-discord.com	ok	https://discord.com/blog	200	text/html; charset=utf-8	2026-10-27T05:08:26Z	205921	021ff0e10feb76dea78b319cd2539bfc18d4d8dd21a2c67df98b11a8739efa6e	a2/a2-185-discord.com.html		
-a2-194-yandexcloud.net	unavailable				2026-10-27T05:08:26Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-194-yandexcloud.net	unavailable				2026-10-27T05:20:27Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-268-googleblog.com	ok	https://blog.google/	200	text/html; charset=utf-8	2026-10-27T05:08:27Z	368893	b03d5c606dc64b06bfcbe7f15116285b0afec6886782e25d6514e747a58ab725	a2/a2-268-googleblog.com.html	en-us	
 a2-284-reuters.com	unavailable				2026-10-27T05:08:27Z					robots.txt 禁止：https://www.reuters.com/
-a2-285-supertms.com	unavailable				2026-10-27T05:08:27Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-285-supertms.com	unavailable				2026-10-27T05:40:05Z					冻结后补抓（www 回退，重试第 2 次）仍失败：URLError: <urlopen error timed out>
 a2-299-rubiconproject.com	ok	https://www.magnite.com/	200	text/html; charset=UTF-8	2026-10-27T05:08:27Z	177898	0678bd02528ac6f4cdea337e78d871141b20e188fe73456de0d07d2b0f509368	a2/a2-299-rubiconproject.com.html	en-US	
-a2-328-akamaihd.net	unavailable				2026-10-27T05:08:28Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-328-akamaihd.net	unavailable				2026-10-27T05:20:27Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-337-weebly.com	ok	https://www.weebly.com/	200	text/html; charset=UTF-8	2026-10-27T05:08:28Z	120260	1e501a882125849ed6224abcd9e066d1114d53351f81bd1e35e7bf58f7ae628c	a2/a2-337-weebly.com.html	en	
 a2-353-trustpilot.com	unavailable				2026-10-27T05:08:28Z					robots.txt 禁止：https://www.trustpilot.com/
 a2-356-checkpoint.com	ok	https://www.checkpoint.com/exposure-management/	200	text/html; charset=UTF-8	2026-10-27T05:08:29Z	148724	f9aea5610533a5a1f4d89e4edd87f2de7aa93d093278cedb228f1e02860a0404	a2/a2-356-checkpoint.com.html	en-US	
 a2-361-nasa.gov	ok	https://www.nasa.gov/	200	text/html; charset=UTF-8	2026-10-27T05:08:29Z	347030	d08e6a77429ce1a3b5c8fa87fe5191976834765774d4571ef3efb151bbcc55f3	a2/a2-361-nasa.gov.html	en-US	
 a2-386-hostgator.com	unavailable				2026-10-27T05:08:29Z					robots.txt 禁止：https://www.hostgator.com/
-a2-392-tiktokv.us	unavailable				2026-10-27T05:08:30Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-392-tiktokv.us	unavailable				2026-10-27T05:20:27Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-394-crpt.ru	ok	https://crpt.ru/news/1/2291/	200	text/html; charset=UTF-8	2026-10-27T05:08:30Z	18107	f43bfcb9b002e372ba1554c3d0235071fd8f35f4f7340c13a7e23c0e9dcb77e2	a2/a2-394-crpt.ru.html	ru	
-a2-400-cdnbuild.net	unavailable				2026-10-27T05:08:30Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-400-cdnbuild.net	unavailable				2026-10-27T05:20:27Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-423-indeed.com	unavailable				2026-10-27T05:08:30Z					HTTP 403（需要登录、付费或拒绝访问）
 a2-429-aol.com	ok	https://www.aol.com/articles/did-alexander-brothers-inside-sex-200223000.html	200	text/html; charset=utf-8	2026-10-27T05:08:30Z	838117	2435c283767111893b632413469cb8f46015135742175e73c75eddb78895ff1e	a2/a2-429-aol.com.html	en-US	
 a2-442-substack.com	ok	https://substack.com/	200	text/html; charset=utf-8	2026-10-27T05:08:30Z	249630	722d78953e9b753331c75683c515412757f550ad089bbf90b43804fde9d1f606	a2/a2-442-substack.com.html	en	
 a2-447-adobe.net	unavailable				2026-10-27T05:08:31Z					URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'adobe.net'. (_ssl.c:1081)>
-a2-453-dnspod.net	unavailable				2026-10-27T05:08:31Z					URLError: <urlopen error timed out>
+a2-453-dnspod.net	unavailable				2026-10-27T05:40:05Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
 a2-474-xiaomi.net	unavailable				2026-10-27T05:08:31Z					URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'xiaomi.net'. (_ssl.c:1081)>
 a2-486-dotomi.com	ok	https://www.epsilon.com/us?redirect=dotomi	200	text/html; charset=utf-8	2026-10-27T05:08:31Z	314011	62e45e930b44ee603a5fe70bec8d436eb5840619ed6546346b17a0ad1775e27e	a2/a2-486-dotomi.com.html	en	
-a2-487-dual-s-msedge.net	unavailable				2026-10-27T05:08:31Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-487-dual-s-msedge.net	unavailable				2026-10-27T05:20:27Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-495-run.app	unavailable				2026-10-27T05:08:31Z					HTTP 404
 a2-505-sina.com.cn	ok	https://www.sina.com.cn/	200	text/html	2026-10-27T05:08:31Z	402563	98526d7232a02d41ec3be1680a80be674866e8ee3f5e817f829f8637f3d6c481	a2/a2-505-sina.com.cn.html		
 a2-514-markmonitor.com	unavailable				2026-10-27T05:08:32Z					robots.txt 禁止：https://markmonitor.com/
@@ -44,31 +44,31 @@ a2-547-ezvizlife.com	ok	https://www.ezviz.com/jp/	200	text/html; charset=UTF-8	2
 a2-581-deviantart.com	ok	https://www.deviantart.com/	200	text/html; charset=utf-8	2026-10-27T05:08:32Z	1384988	6dd642cb3b4e7eb890930eeb8d5e7c6583dceb8a0e0cb53fac3cf8a71f3f0ba1	a2/a2-581-deviantart.com.html	en	
 a2-606-playstation.com	ok	https://www.playstation.com/ja-jp/games/control-resonant/	200	text/html;charset=utf-8	2026-10-27T05:08:32Z	453370	b173af808b3801402519cfc8ba20c33459da5e85c08b1ed548908797d9b48dc8	a2/a2-606-playstation.com.html	ja-JP	
 a2-629-amazon.fr	ok	https://www.amazon.fr/	200	text/html;charset=UTF-8	2026-10-27T05:08:33Z	1075708	b0f3d611c527847427fdbe97cdcc313005eb611dbfa39254e5e5839d9b1f2c1a	a2/a2-629-amazon.fr.html	fr-fr	
-a2-635-alicdn.com	unavailable				2026-10-27T05:08:33Z					URLError: <urlopen error timed out>
+a2-635-alicdn.com	unavailable				2026-10-27T05:40:05Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
 a2-649-mega.co.nz	unavailable				2026-10-27T05:08:33Z					首页上没有同站链接
-a2-654-t-msedge.net	unavailable				2026-10-27T05:08:33Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-654-t-msedge.net	unavailable				2026-10-27T05:20:27Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-658-ovh.net	unavailable				2026-10-27T05:08:33Z					robots.txt 禁止：https://proof.ovh.net/files/
-a2-671-twimg.com	unavailable				2026-10-27T05:08:34Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
-a2-672-resolver.arpa	unavailable				2026-10-27T05:08:35Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
-a2-677-bidswitch.net	unavailable				2026-10-27T05:08:35Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-671-twimg.com	unavailable				2026-10-27T05:20:27Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
+a2-672-resolver.arpa	unavailable				2026-10-27T05:20:27Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-677-bidswitch.net	unavailable				2026-10-27T05:20:27Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-680-iso.org	unavailable				2026-10-27T05:08:36Z					robots.txt 禁止：https://iso.org/
-a2-690-smaato.net	unavailable				2026-10-27T05:08:36Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-690-smaato.net	unavailable				2026-10-27T05:20:28Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-710-wpguardian.io	ok	https://wpguardian.com/	200	text/html; charset=UTF-8	2026-10-27T05:08:36Z	240444	1c8c955bfe169705e3051ea11676e0745dd864c5e310637d64de27a1cb453faa	a2/a2-710-wpguardian.io.html	en-US	
 a2-729-viber.com	ok	https://www.viber.com/es/	200	text/html; charset=UTF-8	2026-10-27T05:08:36Z	58800	51949eae3144b47a7f5fc5cd015987bcdd176bfb0911e407724037eb9eaee791	a2/a2-729-viber.com.html	es-ES	
 a2-740-hostgator.com.br	unavailable				2026-10-27T05:08:36Z					robots.txt 禁止：https://hostgator.com.br/
 a2-757-mediafire.com	ok	https://www.mediafire.com/index.php	200	text/html; charset=UTF-8	2026-10-27T05:08:36Z	38084	b60a0030bea683864e4acb7b3c4df2ecd4aead897fdec61dc07f07ed5f192d33	a2/a2-757-mediafire.com.html	en-US	
 a2-772-homedepot.com	unavailable				2026-10-27T05:08:36Z					robots.txt 禁止：https://www.homedepot.com/
 a2-793-hugedomains.com	ok	https://www.hugedomains.com/	200	text/html;charset=UTF-8	2026-10-27T05:08:36Z	56319	f7441d31149717a5c1c15f312cdbf915785ed08fdcb386efe00a27e68d6f6ae8	a2/a2-793-hugedomains.com.html	en	
-a2-795-samsungosp.com	unavailable				2026-10-27T05:08:36Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
-a2-806-bestbuy.com	unavailable				2026-10-27T05:08:37Z					TimeoutError: The read operation timed out
+a2-795-samsungosp.com	unavailable				2026-10-27T05:20:28Z					冻结后补抓（www 回退）仍失败：首页上没有同站链接
+a2-806-bestbuy.com	unavailable				2026-10-27T05:40:05Z					冻结后补抓（重试第 2 次）仍失败：TimeoutError: The read operation timed out
 a2-808-lenovo.com	ok	https://www.lenovo.com/us/en/compliance/	200	text/html;charset=UTF-8	2026-10-27T05:08:37Z	695374	f820289c16e744a37026c159a5eb4bb8425d9b178bda139934ff1dbe72364571	a2/a2-808-lenovo.com.html	en-US	
 a2-811-ameblo.jp	ok	https://ameblo.jp/baronmamadesu/entry-12982824620.html	200	text/html; charset=utf-8	2026-10-27T05:08:37Z	218442	5e61aa984926a38ce71b353939a13a7bff8ec291b212ffbae2020cff2b41f502	a2/a2-811-ameblo.jp.html	ja	
 a2-829-33across.com	unavailable				2026-10-27T05:08:37Z					robots.txt 禁止：https://www.33across.com/
 a2-843-adform.net	unavailable				2026-10-27T05:08:38Z					robots.txt 禁止：https://adform.net/
 a2-858-life360.com	ok	https://intl.life360.com/download?icid=hp_intl	200	text/html; charset=utf-8	2026-10-27T05:08:39Z	91215	f2c71c7f2b10cdc5f7ca21e1e6e62b14cf98878223a80da314e1cdaa654ae7bf	a2/a2-858-life360.com.html	en	
 a2-868-ebay.co.uk	unavailable				2026-10-27T05:08:39Z					HTTP 403（需要登录、付费或拒绝访问）
-a2-869-wcdnga.com	unavailable				2026-10-27T05:08:39Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
-a2-877-azure-devices.net	unavailable				2026-10-27T05:08:39Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-869-wcdnga.com	unavailable				2026-10-27T05:20:28Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
+a2-877-azure-devices.net	unavailable				2026-10-27T05:20:28Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-891-blackberry.com	ok	https://www.blackberry.com/en/legal	200	text/html; charset=utf-8	2026-10-27T05:08:39Z	4546781	a4acfee7c042e6b7fb51b1f7d1dce5d110264541582a154943d10b322f4e3877	a2/a2-891-blackberry.com.html	en	
 a2-894-px-cloud.net	unavailable				2026-10-27T05:08:40Z					HTTP 404
 a2-896-pornhub.com	ok	https://www.pornhub.com/	200	text/html; charset=UTF-8	2026-10-27T05:08:40Z	1266899	efbbe3c05cefb07e63a3da259f1c2177d0cc830b3ce3f98a20642b56b327faa0	a2/a2-896-pornhub.com.html	en	
@@ -79,19 +79,19 @@ a2-920-mayoclinic.org	unavailable				2026-10-27T05:08:41Z					robots.txt 禁止�
 a2-934-thenai.org	ok	https://thenai.org/nai-state-law-processing-addendum/	200	text/html; charset=UTF-8	2026-10-27T05:08:41Z	297271	5ccec4ee58bf53f36126edb77ededa00ef44b8a6fb9a4897c22f2dceef7e812e	a2/a2-934-thenai.org.html	en-US	
 a2-964-repubblica.it	ok	https://www.repubblica.it/dossier/economia/top-story/2026/10/26/video/andrea_ciampalini_direttore_generale_di_lazio_innova_un_sistema_articolato_di_misure_a_sostegno_dellinnovazione-425675950/	200	text/html; charset=utf-8	2026-10-27T05:08:42Z	120282	617b5504360de35a8fab3ccf0ed83c45261a39eee9ca7bf8dafce8ab7ff597ce	a2/a2-964-repubblica.it.html	it	
 a2-973-statuspage.io	ok	https://www.atlassian.com/software/statuspage/public-pages	200	text/html; charset=utf-8	2026-10-27T05:08:42Z	1158078	632250fbbe4b587cbcff68c29140ad9ddbc6ede8283d01deda44f0ad1419aa96	a2/a2-973-statuspage.io.html	en	
-a2-1091-douyinvod.com	unavailable				2026-10-27T05:08:43Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-1091-douyinvod.com	unavailable				2026-10-27T05:20:28Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-1335-funpay.com	ok	https://funpay.com/	200	text/html; charset=utf-8	2026-10-27T05:08:43Z	645174	7638ec46c7b738a3da46513a8246664df8b3f959725b3bd13a4b06304a7e91bb	a2/a2-1335-funpay.com.html	ru	
 a2-1863-rackspace.com	ok	https://www.rackspace.com:443/about/culture	200	text/html; charset=UTF-8	2026-10-27T05:08:43Z	94217	ff5a4977de45206c57a8d2b98cc7d0839194566821e09964188e07ad44ea2d8f	a2/a2-1863-rackspace.com.html	en	
-a2-2196-inbake.com	unavailable				2026-10-27T05:08:44Z					URLError: <urlopen error timed out>
+a2-2196-inbake.com	unavailable				2026-10-27T05:40:05Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
 a2-2244-5movierulz.kitchen	ok	https://www.5movierulz.green/movies/page/1	200	text/html; charset=UTF-8	2026-10-27T05:08:44Z	37610	86046e3c504f10044ef6b9fd374dc019ae8a3896e0da91459b0d4df316f9cf50	a2/a2-2244-5movierulz.kitchen.html	en-US	
 a2-2251-constantcontact.com	unavailable				2026-10-27T05:08:44Z					HTTP 403（需要登录、付费或拒绝访问）
-a2-2451-mossturbo.com	unavailable				2026-10-27T05:08:45Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-2451-mossturbo.com	unavailable				2026-10-27T05:20:28Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-2454-siriusxm.com	ok	https://www.siriusxm.com/infotainment	200	text/html; charset=utf-8	2026-10-27T05:08:46Z	195796	b20c0760cbdee78b40cf20a3e9ecc47f49f06f6fec2f1ac952b844024293f4ef	a2/a2-2454-siriusxm.com.html	en-US	
 a2-2782-getpocket.com	ok	https://getpocket.com/tos?src=footer_v2	200	text/html; charset=utf-8	2026-10-27T05:08:46Z	119172	05e3f24a70dc7bfc5fe25c30c913b0c4d71d34de99cb6544649ca946365e2de9	a2/a2-2782-getpocket.com.html	en	
-a2-2808-mmstat.com	unavailable				2026-10-27T05:08:46Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-2808-mmstat.com	unavailable				2026-10-27T05:20:28Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-2976-ipwho.is	ok	https://ipwho.is/	200	application/json; charset=utf-8	2026-10-27T05:08:47Z	923	3018ee32b726427dffcda3a325e24e590d62c0e6085fb0f4aa7c497947a9edb1	a2/a2-2976-ipwho.is.html		
 a2-3046-telstra.com	ok	https://www.telstra.com.au/	200	text/html;charset=utf-8	2026-10-27T05:08:48Z	305976	9b93efff297dcceb34d733d896ce579719486a1aab4acaa61a1230f34c946fca	a2/a2-3046-telstra.com.html	en	
-a2-3098-overseashost.ru	unavailable				2026-10-27T05:08:48Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-3098-overseashost.ru	unavailable				2026-10-27T05:20:28Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-3115-jampp.com	ok	https://www.jampp.com/blog/burger-king-r-brazil-exceeds-kpis-with-jampps-app-retargeting-solution	200	text/html; charset=utf-8	2026-10-27T05:08:48Z	51835	2d5d9ad8ea2fd544af9cd387f505119805facf224bfb078156dc04c4284f87e5	a2/a2-3115-jampp.com.html	en	
 a2-3137-zynga.com	ok	https://www.zynga.com/	200	text/html; charset=UTF-8	2026-10-27T05:08:48Z	96540	b1de27f4a28fe1a5e43f0bbc391979a12d5cdbc4f12f2cb11007a571090c314a	a2/a2-3137-zynga.com.html	en-US	
 a2-3183-pornhat.com	ok	https://www.pornhat.com/video/dana-dearmond-shows-her-soles/	200	text/html; charset=utf-8	2026-10-27T05:08:49Z	501884	c7246c1b4edb4d22da10dcfe60371d8ecd723f3b14348bd61443c93152d14aa7	a2/a2-3183-pornhat.com.html	en	
@@ -113,35 +113,35 @@ a2-4976-9mod.com	ok	https://9mod.com/	200	text/html; charset=UTF-8	2026-10-27T05
 a2-5275-ecfr.gov	unavailable				2026-10-27T05:08:54Z					robots.txt 禁止：https://unblock.federalregister.gov
 a2-5391-rylkngdm.com	ok	https://www.dreamgames.com/en/terms	200	text/html; charset=utf-8	2026-10-27T05:08:55Z	143526	419dd3f1c6dea6b090baba977c69e42948e77de5b14081fee8a9de090cff3947	a2/a2-5391-rylkngdm.com.html	en	
 a2-5543-immowelt.de	unavailable				2026-10-27T05:08:55Z					HTTP 403（需要登录、付费或拒绝访问）
-a2-5551-chinatax.gov.cn	unavailable				2026-10-27T05:08:55Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-5551-chinatax.gov.cn	unavailable				2026-10-27T05:20:29Z					冻结后补抓（www 回退）仍失败：robots.txt 禁止：https://www.chinatax.gov.cn/
 a2-5680-travelaudience.com	ok	https://www.amadeus-hospitality.com/solutions/reservations-and-guest-management/web-solutions/	200	text/html; charset=UTF-8	2026-10-27T05:08:56Z	469146	9b6dc41b695d4473d162a62202726b426abb3fdf90ee98f524f11249c426118c	a2/a2-5680-travelaudience.com.html	en-US	
 a2-5731-arkoselabs.com	ok	https://www.arkoselabs.com/arkose-scraping-protection	200	text/html; charset=utf-8	2026-10-27T05:08:56Z	68485	94bcf2cd76715939b3b08583d43bd1aca30c8c3259de4c4ea94fe7bc58eeda59	a2/a2-5731-arkoselabs.com.html	en	
-a2-5770-cloudrc.ru	unavailable				2026-10-27T05:08:57Z					URLError: <urlopen error [Errno -3] Temporary failure in name resolution>
+a2-5770-cloudrc.ru	unavailable				2026-10-27T05:40:05Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error [Errno -3] Temporary failure in name resolution>
 a2-6247-honda.com	unavailable				2026-10-27T05:08:57Z					robots.txt 禁止：https://www.honda.com/
 a2-6384-o2.pl	ok	https://www.o2.pl/tag/ksi%C4%85%C5%BC%C4%99-william/	200	text/html; charset=utf-8	2026-10-27T05:08:58Z	213955	e0ee237262d32dddcdd28354d0eef69f64d86d15d37f35e4426edf30fd3900d5	a2/a2-6384-o2.pl.html	pl	
-a2-6638-gitlab.net	unavailable				2026-10-27T05:08:58Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
-a2-6640-eaton.com	unavailable				2026-10-27T05:08:58Z					TimeoutError: The read operation timed out
+a2-6638-gitlab.net	unavailable				2026-10-27T05:20:29Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
+a2-6640-eaton.com	unavailable				2026-10-27T05:40:05Z					冻结后补抓（重试第 2 次）仍失败：TimeoutError: The read operation timed out
 a2-6645-freeconvert.com	ok	https://www.freeconvert.com/	200	text/html; charset=utf-8	2026-10-27T05:08:59Z	284295	42bcbe069fcede5877df58e3e20c19bc0393225a6cfcb5b8d1ed8adf352caf95	a2/a2-6645-freeconvert.com.html	en	
 a2-6695-mercadopago.com.ar	ok	https://www.mercadopago.com.ar/	200	text/html; charset=utf-8	2026-10-27T05:08:59Z	114444	67ae4f05bdd6ece9e0887046e183b7fa01ce86aae2751bcd41724095c08448ce	a2/a2-6695-mercadopago.com.ar.html	es-AR	
 a2-6763-s-onetag.com	unavailable				2026-10-27T05:08:59Z					URLError: <urlopen error [Errno 111] Connection refused>
-a2-6855-xn--ngstr-lra8j.com	unavailable				2026-10-27T05:09:00Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-6855-xn--ngstr-lra8j.com	unavailable				2026-10-27T05:20:29Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-7073-tchibo.de	ok	https://www.tchibo.de:443/categories/wohnen	200	text/html;charset=utf-8	2026-10-27T05:09:00Z	1869495	74c708202d34a00bea2af1d4ac0e8459cf5758aeadde2eb638622d9a9867941f	a2/a2-7073-tchibo.de.html	de-DE	
 a2-7165-405kk.com	ok	https://405kk.com/assets/privacy-policy.html	200	text/html	2026-10-27T05:09:00Z	6479	c5144e9b67ae9f9de0dcf816e7e343619c710dfa5204fdffcc1b413401816476	a2/a2-7165-405kk.com.html	en	
-a2-7260-ks-live.com	unavailable				2026-10-27T05:09:00Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-7260-ks-live.com	unavailable				2026-10-27T05:40:05Z					冻结后补抓（www 回退，重试第 2 次）仍失败：URLError: <urlopen error timed out>
 a2-7303-fakt.pl	ok	https://www.fakt.pl/	200	text/html	2026-10-27T05:09:01Z	571356	6b37370c15f1f46cac28fbeee1ae21b1de477af6fc641069d160b1f312176fe2	a2/a2-7303-fakt.pl.html	pl	
 a2-7389-tokubai.co.jp	ok	https://tokubai.co.jp/	200	text/html; charset=utf-8	2026-10-27T05:09:01Z	71640	0598b861af24c8b149591c9c220b3dcbae99fb9d46d44dcee776054ded9f0462	a2/a2-7389-tokubai.co.jp.html		
 a2-7525-spacebattles.com	ok	https://forums.spacebattles.com/	200	text/html; charset=utf-8	2026-10-27T05:09:01Z	116617	2acf55eb5f854664730135e44d14eef613fb6ad44980c479922f518e54f6957a	a2/a2-7525-spacebattles.com.html	en-US	
 a2-7632-audio.com	unavailable				2026-10-27T05:09:01Z					HTTP 403（需要登录、付费或拒绝访问）
-a2-7758-valve.net	unavailable				2026-10-27T05:09:02Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-7758-valve.net	unavailable				2026-10-27T05:20:30Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-7820-phonepe.com	ok	https://www.phonepe.com/credit-cards/wish-card/	200	text/html	2026-10-27T05:09:02Z	249837	62d32401e90d982a140542dc7c1549d154d3cdfa2803b2f20aadbf87caecbbfc	a2/a2-7820-phonepe.com.html	en	
 a2-7836-survicate.com	ok	https://survicate.com/	200	text/html; charset=utf-8	2026-10-27T05:09:03Z	155773	299910f7f9201f6a1900f00023e5180511172411834fdd19958d1a5edfc8ac89	a2/a2-7836-survicate.com.html	en	
 a2-7841-punchng.com	ok	https://punchng.com/will-nigerias-30-value-addition-plan-deliver-industrial-wealth/	200	text/html; charset=UTF-8	2026-10-27T05:09:03Z	200333	a19ba1a5cf222a8608a1a8dcc4a81d1571b950fe3a3776736a4e4159d7be6345	a2/a2-7841-punchng.com.html	en-US	
 a2-7863-autohero.com	ok	https://www.autohero.com:443/de/auto/toyota/	200	text/html; charset=utf-8	2026-10-27T05:09:03Z	1078052	df2582b4d21093880cbe22580af281100de56d1074b98d6ccec4c15774907d58	a2/a2-7863-autohero.com.html	de	
 a2-7911-fantacalcio.it	ok	https://www.fantacalcio.it/news/calcio-estero/conference-league	200	text/html; charset=utf-8	2026-10-27T05:09:04Z	87203	71d55b896c4d4e0abb2490747772bdb6db1fea5c30d3aa312ee3b592970e7511	a2/a2-7911-fantacalcio.it.html	it	
-a2-8067-ojrq.net	unavailable				2026-10-27T05:09:05Z					URLError: <urlopen error timed out>
+a2-8067-ojrq.net	unavailable				2026-10-27T05:40:05Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
 a2-8097-conforama.fr	unavailable				2026-10-27T05:09:05Z					robots.txt 禁止：https://conforama.fr/
 a2-8145-mk.co.kr	ok	https://www.mk.co.kr/	200	text/html;charset=UTF-8	2026-10-27T05:09:05Z	289699	c38f0892b14493021f7e69c6eeebe2155a9fcf60e7607d5eb6304f1411d54268	a2/a2-8145-mk.co.kr.html	ko	
-a2-8239-plumenet.io	unavailable				2026-10-27T05:09:05Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-8239-plumenet.io	unavailable				2026-10-27T05:20:30Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-8297-maturetube.com	ok	https://www.maturetube.com/	200	text/html; charset=UTF-8	2026-10-27T05:09:05Z	566465	83413606dbdcb6ff6496e835c61c06f239c7619a0f0011dff37cc02bae518164	a2/a2-8297-maturetube.com.html	en	
 a2-8302-authorize.net	ok	https://www.authorize.net/	200	text/html;charset=utf-8	2026-10-27T05:09:06Z	193102	796b1a8694bf898a848b04793debe72b1d0b74401e18b094875dda21ac66b083	a2/a2-8302-authorize.net.html	en-us	
 a2-8449-fout.jp	ok	https://www.fout.co.jp/company/philosophy/	200	text/html; charset=UTF-8	2026-10-27T05:09:06Z	15598	b91c89275cb1b7ee66d69146a3b60121ac50cd37d8b242454b29cb8cab7b399d	a2/a2-8449-fout.jp.html	ja	
@@ -150,24 +150,24 @@ a2-8583-net77.cc	unavailable				2026-10-27T05:09:07Z					HTTP 403（需要登录
 a2-8768-cinemahq.app	unavailable				2026-10-27T05:09:08Z					robots.txt 禁止：https://cinemahq.app/dl/
 a2-8785-hello.porn	ok	https://hello.porn/	200	text/html; charset=utf-8	2026-10-27T05:09:09Z	169723	18364a61b63a2d49f299cfb6054d67254354826899f0813944ba2f703a2ee274	a2/a2-8785-hello.porn.html	en	
 a2-8887-sportal.bg	ok	https://sportal.bg/football/league-25	200	text/html; charset=UTF-8	2026-10-27T05:09:09Z	278000	93a80781058fb90afc6c9ba6c2825da75fe449841593b9232a1ab17c2a46a019	a2/a2-8887-sportal.bg.html	bg	
-a2-8911-yaeby.dad	unavailable				2026-10-27T05:09:10Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-8911-yaeby.dad	unavailable				2026-10-27T05:20:30Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-9080-rawstory.com	ok	https://www.rawstory.com/	200	text/html; charset=utf-8	2026-10-27T05:09:10Z	590890	55d839c68502e7cacdc1bcd79b3b87745ffdd9605559a2284092d0465efe3dd2	a2/a2-9080-rawstory.com.html	en	
 a2-9222-supremevalues.com	ok	https://supremevalues.com/mm2/calculator	200	text/html; charset=UTF-8	2026-10-27T05:09:11Z	105953	961d9a0ca9f61149d9f65af26743912a1a52a3f322385b845ef66adb5408da17	a2/a2-9222-supremevalues.com.html	en	
 a2-9338-ondisk.co.kr	unavailable				2026-10-27T05:09:11Z					首页上没有同站链接
 a2-9436-myhentaigallery.com	ok	https://myhentaigallery.com/	200	text/html; charset=UTF-8	2026-10-27T05:09:11Z	288722	b54cd16166ed9fd8b170fdc804827d5570c2036c30253bacde9fe5f10e8eabe6	a2/a2-9436-myhentaigallery.com.html	en	
-a2-9439-news-cdn.site	unavailable				2026-10-27T05:09:12Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-9439-news-cdn.site	unavailable				2026-10-27T05:20:30Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-9461-digital.gov.eg	unavailable				2026-10-27T05:09:12Z					首页上没有同站链接
 a2-9744-yinzcam.com	ok	https://www.yinzcam.com/	200	text/html	2026-10-27T05:09:13Z	700558	c789134993b6639efa93c33e7f587a9eb9f8d04130707f24fd7d9725f8014a61	a2/a2-9744-yinzcam.com.html	en-US	
 a2-9928-lmu.de	ok	https://www.lmu.de/de/studium/hochschulzugang/	200	text/html	2026-10-27T05:09:13Z	38001	1f8c061618983850d87a04d53870622068144844f6a0150b0a60ecb305c34402	a2/a2-9928-lmu.de.html	de	
 a2-10724-dokuwiki.org	unavailable				2026-10-27T05:09:13Z					HTTP 402（需要登录、付费或拒绝访问）
-a2-12674-sspinc.io	unavailable				2026-10-27T05:09:14Z					URLError: <urlopen error [Errno 104] Connection reset by peer>
+a2-12674-sspinc.io	unavailable				2026-10-27T05:40:05Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error [Errno 104] Connection reset by peer>
 a2-16897-the-scientist.com	unavailable				2026-10-27T05:09:14Z					robots.txt 禁止：https://www.the-scientist.com/
 a2-19951-patient.info	unavailable				2026-10-27T05:09:15Z					robots.txt 禁止：https://patient.info/
 a2-21603-smartsuppchat.com	ok	https://smartsuppchat.com/	204		2026-10-27T05:09:15Z	0	e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	a2/a2-21603-smartsuppchat.com.html		
-a2-21632-meraki.direct	unavailable				2026-10-27T05:09:15Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
-a2-24459-pwnedpasswords.com	unavailable				2026-10-27T05:09:16Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-21632-meraki.direct	unavailable				2026-10-27T05:20:31Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
+a2-24459-pwnedpasswords.com	unavailable				2026-10-27T05:20:31Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-25803-stck.me	ok	https://stck.me/print-calculator/	200	text/html	2026-10-27T05:09:16Z	67125	b506a27d481a8cadcc353299200001dacaa12507e7645524c90218cce822f482	a2/a2-25803-stck.me.html	en	
-a2-26362-usc.es	unavailable				2026-10-27T05:09:16Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-26362-usc.es	ok	https://www.usc.gal/gl/xornal/eventos	200	text/html; charset=utf-8	2026-10-27T05:20:31Z	65581	bc1dbd1602e090bbf26d16d430f34fbb4a8d19e6dc33cd67cc499d743830610e	a2/a2-26362-usc.es.html	gl	冻结后补抓：www 回退
 a2-26781-catched.com	ok	https://catched.com/	200	text/html; charset=UTF-8	2026-10-27T05:09:17Z	6189	9822d43af60e3fb96477dcc345b5316b5fc19fae2ecf64272b6fdaeaf2cde8d5	a2/a2-26781-catched.com.html	en	
 a2-27093-unn.ua	ok	https://unn.ua/	200	text/html; charset=utf-8	2026-10-27T05:09:17Z	462946	fa8db5f4e8d5ff5ef8d9c064735b3fdee50e62e9ac90d9fb21abb70dad44bee7	a2/a2-27093-unn.ua.html	uk	
 a2-27457-yahooinc.com	ok	https://www.yahooinc.com/	200	text/html; charset=utf-8	2026-10-27T05:09:18Z	58123	b0b28fd8f437c74cbce9fb8184479376476e0685ab019124a326f7311ccbb5bc	a2/a2-27457-yahooinc.com.html	en	
@@ -176,7 +176,7 @@ a2-28668-4archive.org	ok	https://4archive.org/board/e/	200	text/html; charset=UT
 a2-30327-tradovateapi.com	ok	https://tradovateapi.com/	200		2026-10-27T05:09:20Z	4	19d8c9921b99c82d78c985136a5e28f6382011641fb6160c0c1a7573a402ea66	a2/a2-30327-tradovateapi.com.html		
 a2-30523-tvwiki44.net	ok	https://tvwiki56.net/want	200	text/html; charset=utf-8	2026-10-27T05:09:20Z	134303	b43baec29d3782e3fb0b8acb6eaf76539c46ace933e30b2dd05e07e8b76eb8a9	a2/a2-30523-tvwiki44.net.html	ko	
 a2-30567-sf.gov	ok	https://www.sf.gov	200	text/html; charset=utf-8	2026-10-27T05:09:20Z	282103	d6695e8e29c2fa5fff0bbf68b00c0e944160d1cdddde858c722f4512ac02d32e	a2/a2-30567-sf.gov.html	en	
-a2-31566-muosepicel.com	unavailable				2026-10-27T05:09:21Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-31566-muosepicel.com	unavailable				2026-10-27T05:20:31Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-32177-jyhuanyu.cn	unavailable				2026-10-27T05:09:21Z					RemoteDisconnected: Remote end closed connection without response
 a2-32737-yindantechhk.com	ok	https://yindantechhk.com/	200	text/html	2026-10-27T05:09:22Z	12101	e0e072c665bec473474d77f54e653f05a4dea78fbeafa8044c64a7f9a024ca67	a2/a2-32737-yindantechhk.com.html	en	
 a2-33151-landrover.com	ok	https://www.landrover.com/market-selector/index.html	200	text/html;charset=utf-8	2026-10-27T05:09:23Z	272868	8649f83f049361bb206cbe8b5471cc40b7735d611aff2eb29867fc39586a8889	a2/a2-33151-landrover.com.html	en	
@@ -184,7 +184,7 @@ a2-33627-sugggest.com	ok	https://sugggest.com/	200	text/html; charset=utf-8	2026
 a2-33849-stylist.co.uk	ok	https://www.stylist.co.uk/travel	200	text/html; charset=utf-8	2026-10-27T05:09:23Z	373124	5260156014761a840f8cbe8b677ddf4ebb8c4c41f91967165e63a593117ec382	a2/a2-33849-stylist.co.uk.html	en	
 a2-34782-zhibo8.cc	ok	https://www.zhibo8.com/zhibo/zuqiu/2026/match2172387v.htm?redirect=animate	200	text/html	2026-10-27T05:09:23Z	35671	59268b0d0c9c587828139d8beb2845a2320a182e72bf78bd22d21a51740bbc52	a2/a2-34782-zhibo8.cc.html		
 a2-44198-a-a1.ru	unavailable				2026-10-27T05:09:24Z					robots.txt 禁止：https://a-a1.ru/
-a2-45125-collo.net	unavailable				2026-10-27T05:09:25Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-45125-collo.net	unavailable				2026-10-27T05:20:31Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-46344-aerithvel.com	unavailable				2026-10-27T05:09:25Z					URLError: <urlopen error [SSL: TLSV1_ALERT_INTERNAL_ERROR] tlsv1 alert internal error (_ssl.c:1081)>
 a2-46406-sweetcare.com	ok	https://www.sweetcare.com/	200	text/html; charset=utf-8	2026-10-27T05:09:26Z	238098	aa9ba53ffb42146b85c2be2265f3602a34c19fdb51af0168072a6fdda77952f6	a2/a2-46406-sweetcare.com.html	en-US	
 a2-48155-tablethotels.com	unavailable				2026-10-27T05:09:26Z					首页上没有同站链接
@@ -193,10 +193,10 @@ a2-53066-umb.com	ok	https://www.umb.com/	200	text/html; charset=UTF-8	2026-10-27
 a2-55098-porndd.com	ok	https://porndd.com/	200	text/html; charset=utf-8	2026-10-27T05:09:27Z	57704	f1d7ac50e0da856d6489e2976318531da3f8840e8255dcd0af68246b342276b4	a2/a2-55098-porndd.com.html	en	
 a2-55114-sive.rs	ok	https://sive.rs/contact	200	text/html;charset=utf-8	2026-10-27T05:09:27Z	23692	efe51ad4494b60cb0f3bad255b339230aafb3ae93751c426cfbd545bda70c346	a2/a2-55114-sive.rs.html	en	
 a2-55558-farmaline.be	ok	https://www.farmaline.be/nl/	200	text/html; charset=utf-8	2026-10-27T05:09:30Z	415007	ca8314ac7d747b1ceb7dcdd634703614806104c8ccb55793a0c3e871e47f8033	a2/a2-55558-farmaline.be.html	nl-BE	
-a2-56104-adnetwork.bet	unavailable				2026-10-27T05:09:30Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
-a2-58578-ufmt.br	unavailable				2026-10-27T05:09:30Z					URLError: <urlopen error timed out>
+a2-56104-adnetwork.bet	unavailable				2026-10-27T05:20:31Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
+a2-58578-ufmt.br	unavailable				2026-10-27T05:40:05Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
 a2-59316-fu.do	ok	https://fu.do/es/	200	text/html	2026-10-27T05:09:31Z	178491	eb07de16b74908557e64c0ac14e182244e87ac47950dc02f12b708bafe59cf97	a2/a2-59316-fu.do.html	es	
-a2-60079-aleque.net	unavailable				2026-10-27T05:09:32Z					URLError: <urlopen error timed out>
+a2-60079-aleque.net	unavailable				2026-10-27T05:40:05Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
 a2-60424-coinpokerbets.com	ok	https://coinpokerbets.com/bonus/	200	text/html	2026-10-27T05:09:32Z	78400	bab80f0f8cc3df184f91172e3744d172c2d1ed64a5937a05677b5ddc71835ff2	a2/a2-60424-coinpokerbets.com.html	en-GB	
 a2-61110-virginbet.com	unavailable				2026-10-27T05:09:32Z					首页上没有同站链接
 a2-62199-maxforlive.com	unavailable				2026-10-27T05:09:32Z					HTTP 429
@@ -209,26 +209,26 @@ a2-66775-toyota.com.au	unavailable				2026-10-27T05:09:37Z					HTTP 403（需要
 a2-67159-ghost-lan.com	unavailable				2026-10-27T05:09:38Z					URLError: <urlopen error [SSL: TLSV1_UNRECOGNIZED_NAME] tlsv1 unrecognized name (_ssl.c:1081)>
 a2-67906-livehdcams.com	unavailable				2026-10-27T05:09:38Z					首页上没有同站链接
 a2-68374-upnjatim.ac.id	ok	https://upnjatim.ac.id/	200	text/html; charset=UTF-8	2026-10-27T05:09:38Z	168925	e86574003a263d04b725bf3fc14a0ab63502ed5580caae66b8b57b2e8a51f6b4	a2/a2-68374-upnjatim.ac.id.html	en-US	
-a2-69586-matprat.no	unavailable				2026-10-27T05:09:38Z					URLError: <urlopen error timed out>
+a2-69586-matprat.no	unavailable				2026-10-27T05:40:05Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
 a2-70664-2ix2.com	ok	https://www.2ix2.com/	200	text/html; charset=UTF-8	2026-10-27T05:09:39Z	65150	4bf2f08a11c50ca12a57fdbf882df8c63f4954b5d91fc3137e5c6853cc87c6cf	a2/a2-70664-2ix2.com.html	de	
-a2-72139-donpac.ru	unavailable				2026-10-27T05:09:40Z					URLError: <urlopen error timed out>
+a2-72139-donpac.ru	unavailable				2026-10-27T05:40:05Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
 a2-72277-topbusinesssoftware.com	ok	https://topbusinesssoftware.com/	200	text/html; charset=utf-8	2026-10-27T05:09:40Z	578052	315cc817e238e8c7ac32fd0c13ca4a0a1219d1ea141ba7c0e45111014afd29e2	a2/a2-72277-topbusinesssoftware.com.html	en	
 a2-73287-unum.com	ok	https://www.unum.com/	200	text/html; charset=utf-8	2026-10-27T05:09:41Z	156037	416d222fc05b81fea9092fdfaedc7a9227191003ef327d80defa0b538e981a89	a2/a2-73287-unum.com.html	en	
 a2-74639-latamvibe.com	unavailable				2026-10-27T05:09:41Z					robots.txt 禁止：https://latamvibe.com/
 a2-75771-freelancer.co.uk	ok	https://www.freelancer.co.uk/articles/starting-your-business/finding-the-best-freelancer	200	text/html; charset=utf-8	2026-10-27T05:09:41Z	1347356	a871f46ac35fa2a39207e56bf820ce5656dcca1e2611eeac877addfdd467ec2b	a2/a2-75771-freelancer.co.uk.html	en	
 a2-77481-w2hosting.cz	unavailable				2026-10-27T05:09:42Z					首页上没有同站链接
-a2-77681-filmsetc.com	unavailable				2026-10-27T05:09:42Z					URLError: <urlopen error [Errno -2] Name or service not known>
+a2-77681-filmsetc.com	ok	https://filmiy.in/	200	text/html; charset=utf-8	2026-10-27T05:20:33Z	49881	09e9f819664dc3cffbc28cd2c7e96cce3a3149337b4f26b4290212a731776304	a2/a2-77681-filmsetc.com.html	en	冻结后补抓：www 回退
 a2-79946-ifis.co.jp	ok	https://www.ifis.co.jp/	200	text/html; charset=UTF-8	2026-10-27T05:09:43Z	31207	191666e4abff8ffa624cd35b1781d67dea48628de6c4237a1c112c41ee40381b	a2/a2-79946-ifis.co.jp.html	ja	
 a2-81423-tpsl-india.in	unavailable				2026-10-27T05:09:43Z					HTTP 404
-a2-82213-wetteronline-cloud.com	unavailable				2026-10-27T05:09:44Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-82213-wetteronline-cloud.com	unavailable				2026-10-27T05:20:36Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-84265-homeyou.com	unavailable				2026-10-27T05:09:45Z					robots.txt 禁止：https://www.homeyou.com/
-a2-87543-highleverage.dev	unavailable				2026-10-27T05:09:45Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-87543-highleverage.dev	unavailable				2026-10-27T05:20:38Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-90393-catneuro.su	unavailable				2026-10-27T05:09:46Z					HTTP 404
 a2-91274-ramayana.co.id	ok	https://ramayana.co.id/content/quarterly-financial-reports	200	text/html; charset=UTF-8	2026-10-27T05:09:46Z	580974	0315660e9288ff9aa2b6f4db3fadf9eb1a9aaaeac3dd19a2ef283e9469c4f12a	a2/a2-91274-ramayana.co.id.html		
 a2-92699-hotelki.tv	ok	https://hotelki.tv/xy-plus.html	200	text/html; charset=UTF-8	2026-10-27T05:09:47Z	21561	635d93935dca8af4f55033923b88d5177e52a5d42e94bda663a563ec35c1e1b9	a2/a2-92699-hotelki.tv.html	ru-ru	
 a2-92974-kwanjai168.net	ok	https://kwanjai168.net/	200	text/html	2026-10-27T05:09:47Z	1651	6ef3a0f985d32aa6e15160fae10f0bf8480bf015e5ac39b1ea10faaa180174ce	a2/a2-92974-kwanjai168.net.html	th	
 a2-93671-ruaythear168.vip	ok	https://ruaythear168.vip/	200	text/html	2026-10-27T05:09:48Z	1666	3cae8e0ff62d0f6fcae0f6800d7aac53c491276bdbf19db73fc164f0b244a026	a2/a2-93671-ruaythear168.vip.html	th	
-a2-93681-s22s.jp	unavailable				2026-10-27T05:09:48Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-93681-s22s.jp	ok	https://www.s22s.jp/faq.php	200	text/html; charset=UTF-8	2026-10-27T05:20:39Z	13643	8801d69c01049d6024d0cc71169e1bd998d0d53320ec613901b13cc1fd585037	a2/a2-93681-s22s.jp.html	ja	冻结后补抓：www 回退
 a2-94206-vijayant.in	ok	https://vijayant.in/	200	text/html;charset=utf-8	2026-10-27T05:09:48Z	81006	dcd8e9f879cf146335b501f76ecd2051e2404a40fdc3057271c4c4c990601d44	a2/a2-94206-vijayant.in.html	en-IN	
 a2-94735-asianage.com	ok	https://www.asianage.com/books/book-review-a-politics-that-does-not-inspire-1998448	200	text/html; charset=utf-8	2026-10-27T05:09:49Z	329744	cddd798c433d8e75285222bd378c667f125482416cd80ac6f5aebc43f04e704d	a2/a2-94735-asianage.com.html	en	
 a2-95220-ultralytics.com	ok	https://www.ultralytics.com/events	200	text/html; charset=utf-8	2026-10-27T05:09:49Z	258556	197bb70d0e7c5b65abbf8c1b5f3148d5015406dc2e63748f3234094aab23009f	a2/a2-95220-ultralytics.com.html	en	
@@ -236,11 +236,11 @@ a2-95833-ositestatus.com	unavailable				2026-10-27T05:09:49Z					HTTP 403（需�
 a2-95962-opry.com	ok	https://www.opry.com/	200	text/html; charset=UTF-8	2026-10-27T05:09:50Z	17437	8e3d67aa7c416e45ff6608a75803be9d29b90cff18185ab6d338c95fa6e8611c	a2/a2-95962-opry.com.html		
 a2-95971-mcsrvstat.us	unavailable				2026-10-27T05:09:50Z					HTTP 403（需要登录、付费或拒绝访问）
 a2-96612-paraloeil.com	unavailable				2026-10-27T05:09:51Z					首页上没有同站链接
-a2-96963-newsifier.nl	unavailable				2026-10-27T05:09:52Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-96963-newsifier.nl	unavailable				2026-10-27T05:20:42Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-98312-lcp.fr	ok	https://lcp.fr/	200	text/html; charset=UTF-8	2026-10-27T05:09:53Z	120032	178cd23373bbfea1c7a197301de196c0b1cc944f22f6f7e57bae1305f82f35f7	a2/a2-98312-lcp.fr.html	fr	
-a2-98841-pinsightmedia.com	unavailable				2026-10-27T05:09:53Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-98841-pinsightmedia.com	unavailable				2026-10-27T05:20:43Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -5] No address associated with hostname>
 a2-102896-surfearner.com	ok	https://surfearner.com/	200	text/html	2026-10-27T05:09:53Z	1107071	c9ced2dbae82e4163ef0fd9133bd2a70577abfcc5f0ce3c8733a001fc0cf4f23	a2/a2-102896-surfearner.com.html	ru	
-a2-127586-schwabapi.com	unavailable				2026-10-27T05:09:53Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-127586-schwabapi.com	unavailable				2026-10-27T05:20:43Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-139801-nextgenscience.org	ok	https://www.nextgenscience.org/	200	text/html; charset=UTF-8	2026-10-27T05:09:54Z	49334	cc1cd3a3da297a697cc73be3e58a58b53031e914711d63034cb8cb40716e57cc	a2/a2-139801-nextgenscience.org.html	en	
 a2-146410-kingshawaiian.com	ok	https://kingshawaiian.com/	200	text/html; charset=UTF-8	2026-10-27T05:09:54Z	207639	df45b134ffa3565a8f233500b6f89cf9ad24c8b6602d6a74ecfbda89b24951a4	a2/a2-146410-kingshawaiian.com.html	en	
 a2-146525-sasosoft.com	unavailable				2026-10-27T05:09:54Z					URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate (_ssl.c:1081)>
@@ -248,34 +248,34 @@ a2-157835-rspp.ru	ok	https://rspp.ru/	200	text/html; charset=utf-8	2026-10-27T05
 a2-163211-ifbooks.co.kr	ok	https://ifbooks.co.kr/journalIf/magazine.html	200	text/html	2026-10-27T05:09:56Z	50	a0232c1e6a18492f787a31e08133c425ec3bcac7bd809de269d878ab96bd127d	a2/a2-163211-ifbooks.co.kr.html		
 a2-165446-shaneequas.com	unavailable				2026-10-27T05:09:56Z					首页上没有同站链接
 a2-167123-zakon.hr	ok	https://www.zakon.hr/	200	text/html;charset=utf-8	2026-10-27T05:09:57Z	107103	840f15a43681f69cdbeb093a4ebcdedfc00379ae4de4f379dec73754f362b7bc	a2/a2-167123-zakon.hr.html	hr	
-a2-168369-cdn2234.com	unavailable				2026-10-27T05:09:58Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-168369-cdn2234.com	unavailable				2026-10-27T05:20:44Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-169826-sklane.com	ok	https://sklane.com/	200	text/html	2026-10-27T05:09:58Z	8814	e550caba73dad611b85ad9f8258b105942e3478bf61efbbb6606e910a2c429d8	a2/a2-169826-sklane.com.html	ru	
 a2-173607-heathrowairport.com	ok	https://www.heathrow.com/at-the-airport/shops-a-z?&type=store	200	text/html;charset=utf-8	2026-10-27T05:09:59Z	1108014	59fc31d1d04ec0ec798a2f478078d664500fc00b0d4dd51c1c538a6b092826e3	a2/a2-173607-heathrowairport.com.html	en-GB	
-a2-174670-tekionsupport.com	unavailable				2026-10-27T05:09:59Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
-a2-181308-vwfs.dk	unavailable				2026-10-27T05:10:00Z					URLError: <urlopen error [Errno -3] Temporary failure in name resolution>
-a2-182091-deviceboot.de	unavailable				2026-10-27T05:10:00Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-174670-tekionsupport.com	unavailable				2026-10-27T05:20:44Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
+a2-181308-vwfs.dk	unavailable				2026-10-27T05:40:05Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error [Errno -3] Temporary failure in name resolution>
+a2-182091-deviceboot.de	unavailable				2026-10-27T05:20:46Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'www.deviceboot.de'. (_ssl.c:1081)>
 a2-182268-petoskeynews.com	unavailable				2026-10-27T05:10:01Z					robots.txt 禁止：https://www.petoskeynews.com/
 a2-186263-cygames.com	ok	https://cygames.com/	200	text/html; charset=utf-8	2026-10-27T05:10:01Z	80638	a1c621654649591ea6db56571b1e65de44e02c115f4a3777aecf558dff66ec27	a2/a2-186263-cygames.com.html	ja	
 a2-188707-medair.pro	ok	https://medair.pro/	200	text/html; charset=UTF-8	2026-10-27T05:10:01Z	252720	17bccb5db7de91b7da1c6ed203b917c36171070bba66682c96756c9cbb930834	a2/a2-188707-medair.pro.html	ru-RU	
 a2-190946-formulare-bfinv.de	ok	https://formulare-bfinv.de/	200	text/html; charset=UTF-8	2026-10-27T05:10:02Z	10044	e59bf397d8623bc4b3e319825aa462d3dbdae08ac4a1488d999cb678e5296889	a2/a2-190946-formulare-bfinv.de.html	de	
 a2-194507-poetryclub.com.ua	ok	https://www.poetryclub.com.ua/	200	text/html; charset=windows-1251	2026-10-27T05:10:02Z	85179	b3be199689343a130dee77e261a66f3da0bc7dc0a2d1b47900ae7dd86892afac	a2/a2-194507-poetryclub.com.ua.html	uk	
-a2-195395-as41887.it	unavailable				2026-10-27T05:10:03Z					URLError: <urlopen error timed out>
-a2-199126-rockhard.de	unavailable				2026-10-27T05:10:06Z					URLError: <urlopen error timed out>
-a2-236792-8m.nl	unavailable				2026-10-27T05:10:07Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-195395-as41887.it	unavailable				2026-10-27T05:40:05Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
+a2-199126-rockhard.de	unavailable				2026-10-27T05:40:06Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
+a2-236792-8m.nl	unavailable				2026-10-27T05:21:10Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-240500-jerseycitynj.gov	ok	https://www.jerseycitynj.gov/	200	text/html; charset=utf-8	2026-10-27T05:10:07Z	137359	c4e045ca5a486f78532339f4a4b1d1b068c342901986d1e18da2c3d069365a50	a2/a2-240500-jerseycitynj.gov.html	en-US	
 a2-245373-wedevit.ro	ok	https://www.wedev-it.ro/	200	text/html; charset=UTF-8	2026-10-27T05:10:08Z	465901	34c5f4e6660c7bdd19d6ac163e79fba18c21323bca0041b3f6deccc81352293b	a2/a2-245373-wedevit.ro.html	ro-RO	
 a2-245622-kabudora.com	unavailable				2026-10-27T05:10:08Z					URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'kabudora.com'. (_ssl.c:1081)>
 a2-252617-tokyu-plaza.com	ok	https://tokyu-plaza.com/	200	text/html; charset=UTF-8	2026-10-27T05:10:09Z	69300	f3454c8613ee238c9f675ad3595c2251e55fe7cef63d6e21258589332c93d6f1	a2/a2-252617-tokyu-plaza.com.html	ja	
 a2-267873-eardepth-prisists.com	unavailable				2026-10-27T05:10:09Z					HTTP 404
-a2-272264-obsidianinternet.net	unavailable				2026-10-27T05:10:10Z					URLError: <urlopen error timed out>
+a2-272264-obsidianinternet.net	unavailable				2026-10-27T05:40:25Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
 a2-280389-hostdomsolutions.com	ok	https://hostdomsolutions.com/website-builder/	200	text/html; charset=UTF-8	2026-10-27T05:10:11Z	82130	2284dfa976985e31da78b686dec19a52758da6d63327ef4058894fc27a764b46	a2/a2-280389-hostdomsolutions.com.html	en-US	
 a2-280454-u2concept.net	ok	https://u2concept.net/	200	text/html	2026-10-27T05:10:11Z	0	e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	a2/a2-280454-u2concept.net.html		
 a2-282230-lichtbild.com	ok	https://www.lichtbild.com/agb	200	text/html; charset=utf-8	2026-10-27T05:10:12Z	193715	526b390d4de20493293c15de29fbe34262e5ef6d6113c9ef270a4113029c1e2e	a2/a2-282230-lichtbild.com.html	en	
 a2-284414-ifdnrg.com	ok	https://ifdnrg.com/web/	200	text/html; charset=UTF-8	2026-10-27T05:10:14Z	15199	ba6a713a4dbf83307141ddb0676862b1a1921550dcae408e22b831bd36dae98c	a2/a2-284414-ifdnrg.com.html		
 a2-294309-upandupspace.com	ok	https://upandupspace.com/billing/index.php?rp=%2Flogin&language=swedish	200	text/html; charset=utf-8	2026-10-27T05:10:17Z	42486	6a26c9224b1e733a5082fe8f4fc9842d9981f21ed6d15526677b4f4cd6bbc107	a2/a2-294309-upandupspace.com.html	sv	
-a2-297264-hqabhwxzy.cc	unavailable				2026-10-27T05:10:18Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-297264-hqabhwxzy.cc	ok	https://www.lgaynlrz.cc/	200	text/html; charset=UTF-8	2026-10-27T05:21:26Z	262383	5959b171822ca3a8d7490d52fb55c67649863353e312a63074722a17a8d6754a	a2/a2-297264-hqabhwxzy.cc.html	zh-CN	冻结后补抓：www 回退
 a2-300313-mytyres.gr	ok	https://mytyres.gr/brand/12-uniroyal	200	text/html; charset=utf-8	2026-10-27T05:10:19Z	584284	f4796a25c1e8d32c69d89445ff8ad127ade5927bf02eb9c0ec0bad2cd1b3cb5f	a2/a2-300313-mytyres.gr.html	el-GR	
-a2-301695-morefun-et.com	unavailable				2026-10-27T05:10:19Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-301695-morefun-et.com	ok	https://www.morefun-et.com/Products/Traditional_POS/55.html	200	text/html	2026-10-27T05:21:28Z	17394	e94cd849a405a18d5534d11967fcc308aeb0a4c4152157b37b940f202ca97069	a2/a2-301695-morefun-et.com.html	en	冻结后补抓：www 回退
 a2-304440-satincrave.com	unavailable				2026-10-27T05:10:20Z					HTTP 500
 a2-308796-beseen.com	unavailable				2026-10-27T05:10:23Z					HTTP 403（需要登录、付费或拒绝访问）
 a2-312203-mcnetwork.pl	ok	https://mcnetwork.pl/dla-wydawcy/	200	text/html; charset=UTF-8	2026-10-27T05:10:24Z	74145	24aa8b49fe0667dc469e2518be22e9f95d6f16a92e140b1ede59904056a8207b	a2/a2-312203-mcnetwork.pl.html	pl-PL	
@@ -284,10 +284,10 @@ a2-319614-jide.com	ok	https://jide.com/	200	text/html	2026-10-27T05:10:26Z	6101	
 a2-321126-click2stream.com	ok	https://click2stream.com/	200	text/html	2026-10-27T05:10:29Z	12149	87b84aa15c5f392f42c69ed3780ca72151dd19c7321c44b0cff5cbba2fd816b6	a2/a2-321126-click2stream.com.html	en	
 a2-326141-valesaude.com.br	ok	https://www.valesaude.com.br/especialidades/?letter=C	200	text/html; charset=utf-8	2026-10-27T05:10:31Z	151328	f729e2f4b6d80fb1f9e67e00978e14937f36ad5ed2a4cfe71649ee08b8f03e5e	a2/a2-326141-valesaude.com.br.html	pt-BR	
 a2-327098-tenniswarehouse.com.au	unavailable				2026-10-27T05:10:31Z					HTTP 403（需要登录、付费或拒绝访问）
-a2-328633-ipmedia.com.au	unavailable				2026-10-27T05:10:32Z					URLError: <urlopen error [Errno -3] Temporary failure in name resolution>
+a2-328633-ipmedia.com.au	unavailable				2026-10-27T05:40:25Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error [Errno -3] Temporary failure in name resolution>
 a2-331624-epson.fr	ok	https://www.epson.fr/fr_FR	200	text/html;charset=UTF-8	2026-10-27T05:10:33Z	289354	dca4ae18527ed6cf7885811b9c9af4ddb47dad30f5755a2658d9921f638c5d6a	a2/a2-331624-epson.fr.html	fr-FR	
-a2-333494-hpqcorp.net	unavailable				2026-10-27T05:10:33Z					URLError: <urlopen error [Errno -3] Temporary failure in name resolution>
-a2-338341-biblioteca.org.ar	unavailable				2026-10-27T05:10:34Z					URLError: <urlopen error [Errno -2] Name or service not known>
+a2-333494-hpqcorp.net	unavailable				2026-10-27T05:40:36Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error [Errno -3] Temporary failure in name resolution>
+a2-338341-biblioteca.org.ar	unavailable				2026-10-27T05:21:31Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-342655-heredis.com	ok	https://home.heredis.com/heredis-online-nouvelle-generation/	200	text/html; charset=UTF-8	2026-10-27T05:10:36Z	120766	30ce7789965ad8b10e1f15e87f3da49b73e3f19b2b62ee2727334b21aae2fd58	a2/a2-342655-heredis.com.html	fr-FR	
 a2-348553-telemark.cloud	ok	https://www.telemark.de/	200	text/html; charset=utf-8	2026-10-27T05:10:36Z	300008	d9e68f02d07d4baab9b9f3447a37210b43285e937689bd511ccacffe7134ca52	a2/a2-348553-telemark.cloud.html	de	
 a2-349106-avantaje.ro	ok	https://www.avantaje.ro/	200	text/html; charset=UTF-8	2026-10-27T05:10:36Z	310570	b0c8d022b8591da0ede1673a312edba298f4f28a9591632997a275851d23364c	a2/a2-349106-avantaje.ro.html	ro-RO	
@@ -300,26 +300,26 @@ a2-385690-zealbao.com	ok	https://zealbao.com/	200	text/html; charset=UTF-8	2026-
 a2-397060-terrabyt.com	unavailable				2026-10-27T05:10:42Z					HTTP 403（需要登录、付费或拒绝访问）
 a2-410169-impacta.com.br	ok	https://www.impacta.com.br/sobre	200	text/html; charset=utf-8	2026-10-27T05:10:43Z	320650	2a39a8bbb8b5e596f532febff91327d2362e4ff7319a35e45748f1d51535a266	a2/a2-410169-impacta.com.br.html	pt-br	
 a2-421570-mintaibank.com	unavailable				2026-10-27T05:10:44Z					HTTP 412
-a2-425093-nyakawai.shop	unavailable				2026-10-27T05:10:44Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-425093-nyakawai.shop	unavailable				2026-10-27T05:21:31Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-430793-dlhd.st	ok	https://thedaddy.pk/	200	text/html; charset=UTF-8	2026-10-27T05:10:45Z	850586	042f74dd08d0cd4d9e809ce6900690d9bb4947794bb1a2f3fd85b30094d2fa9c	a2/a2-430793-dlhd.st.html	en	
 a2-431894-eflangtech.com	ok	https://eflangtech.com/	200	text/html; charset=UTF-8	2026-10-27T05:10:46Z	2451	9399087d59a967c6b5d40524bb64c9c8291c6f7e35777d7b047f4afcca0dcfcb	a2/a2-431894-eflangtech.com.html	en	
-a2-434724-asura-theisle.com	unavailable				2026-10-27T05:10:46Z					URLError: <urlopen error [Errno 104] Connection reset by peer>
+a2-434724-asura-theisle.com	unavailable				2026-10-27T05:21:32Z					冻结后补抓（）仍失败：URLError: <urlopen error [Errno 111] Connection refused>
 a2-436823-informaticsjournals.co.in	unavailable				2026-10-27T05:10:46Z					robots.txt 禁止：https://informaticsjournals.co.in/
 a2-438939-rgsupportboy.com	ok	https://rgsupportboy.com/term-and-condition	200	text/html; charset=UTF-8	2026-10-27T05:10:47Z	171389	beacc20fcbe50f4bedc2f5d135d3d9b3c66a6fb94f40b47adb9db03ae67c9b1f	a2/a2-438939-rgsupportboy.com.html	en-US	
 a2-443329-biomedpharmajournal.org	unavailable				2026-10-27T05:10:47Z					HTTP 409
-a2-443846-moon7ass.top	unavailable				2026-10-27T05:10:47Z					URLError: <urlopen error [Errno -2] Name or service not known>
+a2-443846-moon7ass.top	unavailable				2026-10-27T05:21:32Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-443884-qubithosting.co.uk	unavailable				2026-10-27T05:10:48Z					首页上没有同站链接
-a2-446446-lcvjzpfea.com	unavailable				2026-10-27T05:10:48Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-446446-lcvjzpfea.com	unavailable				2026-10-27T05:21:33Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-447849-irisleegallery.com	ok	https://irisleegallery.com/collections/people	200	text/html; charset=utf-8	2026-10-27T05:10:49Z	1061083	a623da4dce8219df1c86799a233f463bddc692edc35d0ac708ecb87e627075fc	a2/a2-447849-irisleegallery.com.html	en	
 a2-453247-floorforce.com	unavailable				2026-10-27T05:10:49Z					HTTP 404
 a2-455362-autoalkatresz.hu	unavailable				2026-10-27T05:10:49Z					robots.txt 禁止：https://www.autoalkatresz.hu/
 a2-463024-fotoload.ru	ok	https://fotoload.ru/	200	text/html; charset=UTF-8	2026-10-27T05:10:50Z	333556	65cfbd5c7741f168c13ceb04219e4154135257c5b1f3877f6928a53ebfa23e9a	a2/a2-463024-fotoload.ru.html		
-a2-472864-zee61hims.top	unavailable				2026-10-27T05:10:50Z					URLError: <urlopen error [Errno -2] Name or service not known>
+a2-472864-zee61hims.top	unavailable				2026-10-27T05:21:33Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-478742-diverssupplyinc.com	ok	https://www.diverssupplyinc.com/gifts/statues.html	200	text/html; charset=UTF-8	2026-10-27T05:10:50Z	117046	5ff4bfbbf726c5cd6b04c66f9179e26564e0d40a586a3529b93d9f1cf8f98266	a2/a2-478742-diverssupplyinc.com.html	en	
 a2-487307-londonslotcollective.uk	unavailable				2026-10-27T05:10:51Z					robots.txt 禁止：https://londonslotcollective.uk/
 a2-494924-dnsguatemala7.com	ok	https://dnsguatemala7.com/	200	text/html	2026-10-27T05:10:51Z	0	e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	a2/a2-494924-dnsguatemala7.com.html		
 a2-495150-dr.ca	ok	https://dr.ca/collections/hearts-flowers-silicone-molds	200	text/html; charset=utf-8	2026-10-27T05:10:51Z	1568845	5bd161d9108125d840a16f3bdbd63dafacc375e84e7945271ae5ce8344d1b03a	a2/a2-495150-dr.ca.html	en	
-a2-527586-hzlhl.com	unavailable				2026-10-27T05:10:51Z					URLError: <urlopen error timed out>
+a2-527586-hzlhl.com	unavailable				2026-10-27T05:40:36Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
 a2-539801-fsm.bible	ok	https://fsm.bible/details.php?id=nkr	200	text/html; charset=UTF-8	2026-10-27T05:10:53Z	3460	801404027763147bdbc3943d07a1f8649b5ef64e5af484130b209b099b9c66c4	a2/a2-539801-fsm.bible.html		
 a2-546410-carwiz.co.il	ok	https://carwiz.co.il/used-cars/%D7%9E%D7%99%D7%A6%D7%95%D7%91%D7%99%D7%A9%D7%99	200	text/html; charset=utf-8	2026-10-27T05:10:54Z	705167	2397f454f4e0ae3250fa28389f6ad9538e6d112905a9c252fff859d15057489a	a2/a2-546410-carwiz.co.il.html	he	
 a2-546525-xmwcjd.com	unavailable				2026-10-27T05:10:54Z					URLError: <urlopen error [SSL: TLSV1_UNRECOGNIZED_NAME] tlsv1 unrecognized name (_ssl.c:1081)>
@@ -327,16 +327,16 @@ a2-563211-lepotentiel.bj	ok	https://lepotentiel.bj/	200	text/html; charset=UTF-8
 a2-565446-courrierdesbalkans.fr	ok	https://www.courrierdesbalkans.fr/	200	text/html; charset=UTF-8	2026-10-27T05:10:57Z	231798	46049474cc6ef53674de549c257391d827591a6146f6c5fce1f87c2b752ba5b1	a2/a2-565446-courrierdesbalkans.fr.html	fr-FR	
 a2-567123-britbonusbase.uk	unavailable				2026-10-27T05:10:57Z					robots.txt 禁止：https://britbonusbase.uk/
 a2-573607-clearstreet.io	ok	https://www.clearstreet.io/services	200	text/html;charset=utf-8	2026-10-27T05:10:57Z	245901	cc89b2b2bf58fe093426993c296d0c6a896fdb0b7a8109f1ea8232e0950039f2	a2/a2-573607-clearstreet.io.html		
-a2-574670-nameservers.digital	unavailable				2026-10-27T05:10:59Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-574670-nameservers.digital	unavailable				2026-10-27T05:21:33Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-581308-eej.at	unavailable				2026-10-27T05:10:59Z					HTTP 404
 a2-582091-ageofconquest.com	ok	https://www.ageofconquest.com/	200	text/html; charset=UTF-8	2026-10-27T05:11:00Z	14780	f1813e75d5d9740acbfc7cfec28cb0e134e6d96e60cadf126d7064a28cc1df11	a2/a2-582091-ageofconquest.com.html	en	
 a2-582268-scandicmama.com	ok	https://scandicmama.com/product-category/sets/	200	text/html	2026-10-27T05:11:01Z	246158	8cffa0156f8e02d89a4349f13dce823d0f0f41299130ad72467c1413426a91b6	a2/a2-582268-scandicmama.com.html	en	
 a2-586263-triumph.io	ok	https://triumph.io/broker/audit/	200	text/html; charset=utf-8	2026-10-27T05:11:01Z	175257	cdf2b7ebd9e59f52ecd02d13a3e97d1a36cdee02f77f8b6ba7878b1496d5b311	a2/a2-586263-triumph.io.html	en	
 a2-588707-funtrade.net	unavailable				2026-10-27T05:11:02Z					robots.txt 禁止：https://funtrade.net/
-a2-590946-19yxw.com	unavailable				2026-10-27T05:11:02Z					URLError: <urlopen error timed out>
+a2-590946-19yxw.com	ok	https://www.19yxw.com/	200	text/html; charset=UTF-8	2026-10-27T05:40:36Z	57499	f65997ae9678876df01213582151d1d730896ccaa83a385d83046ddf0fe027a7	a2/a2-590946-19yxw.com.html		冻结后补抓：重试第 2 次
 a2-594507-iucecb.com	ok	https://iucecb.com/main.php?p=news%2F&page=17	200	text/html; charset="windows-1251"	2026-10-27T05:11:02Z	18845	7d171f56d660ce7b954a3a5b3ff3d5d0319b7c772c41868151b12095cd6e1c92	a2/a2-594507-iucecb.com.html		
 a2-599126-zooplzen.cz	ok	https://zooplzen.cz/	200	text/html; charset=utf-8	2026-10-27T05:11:02Z	26848	2c400a92309b2b3641e05b9c81b49b52f1b38f1b2303ce351ffcf696f0cad190	a2/a2-599126-zooplzen.cz.html	cs	
-a2-636792-neonatology-nmo.ru	unavailable				2026-10-27T05:11:04Z					URLError: <urlopen error timed out>
+a2-636792-neonatology-nmo.ru	unavailable				2026-10-27T05:40:36Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
 a2-645373-teamdrjoseph.com	ok	https://www.teamdrjoseph.com/c/spotify-playlist/	200	text/html; charset=UTF-8	2026-10-27T05:11:05Z	356547	6f23a3c7e874110fcd5e084f43936d1882ba229a3b70ed78012c249e1c40e2e0	a2/a2-645373-teamdrjoseph.com.html	de-DE	
 a2-645622-silestoneusa.com	unavailable				2026-10-27T05:11:05Z					首页上没有同站链接
 a2-652617-e-kinco.com	ok	https://e-kinco.com/index.html	200	text/html; charset=UTF-8	2026-10-27T05:11:06Z	41106	4d056f550d26854ea21c57cad44eb7fd3b54b33c65f8a2d2fb8923a6d2d845fe	a2/a2-652617-e-kinco.com.html	ja	
@@ -354,13 +354,13 @@ a2-719614-goodfellowbros.com	ok	https://goodfellowbros.com/	200	text/html; chars
 a2-726141-moorparkca.gov	ok	https://moorparkca.gov/419/Job-Opportunities	200	text/html; charset=utf-8	2026-10-27T05:11:13Z	93533	40fbff89a1b9c3083ac06a8bd7468b05b5eb4daaf6d6baff244a3d8c5f1058df	a2/a2-726141-moorparkca.gov.html	en	
 a2-728633-becauseinternational.org	ok	https://becauseinternational.org/pages/shipping-returns	200	text/html; charset=utf-8	2026-10-27T05:11:14Z	434799	8741d1b18a89870c44b0ed009093b1d5aab902fc386abf3e6978a8dbd02d9018	a2/a2-728633-becauseinternational.org.html	en	
 a2-731624-siteground290.com	unavailable				2026-10-27T05:11:14Z					URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'siteground290.com'. (_ssl.c:1081)>
-a2-742655-hbru.ru	unavailable				2026-10-27T05:11:14Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
-a2-748553-mypinpad.io	unavailable				2026-10-27T05:11:15Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
-a2-753146-gujiuzhou.com	unavailable				2026-10-27T05:11:15Z					URLError: <urlopen error timed out>
+a2-742655-hbru.ru	unavailable				2026-10-27T05:40:36Z					冻结后补抓（www 回退，重试第 2 次）仍失败：URLError: <urlopen error timed out>
+a2-748553-mypinpad.io	unavailable				2026-10-27T05:21:34Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
+a2-753146-gujiuzhou.com	unavailable				2026-10-27T05:40:36Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
 a2-758555-777a.space	ok	https://777a.space/	200	text/html; charset=utf-8	2026-10-27T05:11:16Z	39672	b8d97e8c3d5ea68bbe4f195671694ffcae7a9b942190cc817d5d01e18e5287f2	a2/a2-758555-777a.space.html		
 a2-763081-am-bk.co.jp	ok	https://www.am-bk.co.jp/kojin/support/seminar/	200	text/html; charset=UTF-8	2026-10-27T05:11:16Z	109111	e0f6619e0bddb49dd28d70c7259018ba07e7854dc051dd659d60e62636b23b9f	a2/a2-763081-am-bk.co.jp.html	ja	
 a2-769921-blainebox.com	unavailable				2026-10-27T05:11:16Z					HTTP 406
-a2-779784-dfdk4152.com	unavailable				2026-10-27T05:11:16Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-779784-dfdk4152.com	unavailable				2026-10-27T05:21:34Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-797060-insajder.com	ok	https://insajder.com/	200	text/html; charset=utf-8	2026-10-27T05:11:16Z	163996	6fcdc94c996903d50798448d7bc9f91711f2d2d1ec9cc1acce9e01bd51e2bf20	a2/a2-797060-insajder.com.html	sl	
 a2-821570-pgspin99.digital	ok	https://pgspin99.shop/	200	text/html	2026-10-27T05:11:17Z	9038	b9c5e48ae35e768c8f7c5c3107b8ff9dc361d68dcf6a0c5806ff67cbbdf78509	a2/a2-821570-pgspin99.digital.html	th	
 a2-825093-puzia.ua	ok	https://puzia.ua/dytiachyi-odiah/dlia-divchatok/kofty-ta-komplekty	200	text/html; charset=utf-8	2026-10-27T05:11:17Z	51000	fd77096d8fff620cc3e6797b4043623b6842209e2b78541589bc4d5898f8e0eb	a2/a2-825093-puzia.ua.html	uk-ua	
@@ -374,8 +374,8 @@ a2-847849-watchart.com	ok	https://watchart.com/	200	text/html; charset=UTF-8	202
 a2-853247-alffany.com	unavailable				2026-10-27T05:11:21Z					URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081)>
 a2-863024-sitenebak.com	ok	https://sitenebak.com/	200	text/html	2026-10-27T05:11:21Z	0	e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	a2/a2-863024-sitenebak.com.html		
 a2-872864-admpritobol.ru	unavailable				2026-10-27T05:11:21Z					HTTP 404
-a2-887307-1xbet-suyf.top	unavailable				2026-10-27T05:11:22Z					URLError: <urlopen error [Errno -3] Temporary failure in name resolution>
-a2-895150-chinapetfestival.com	unavailable				2026-10-27T05:11:22Z					URLError: <urlopen error [Errno -2] Name or service not known>
+a2-887307-1xbet-suyf.top	unavailable				2026-10-27T05:40:36Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error [Errno -3] Temporary failure in name resolution>
+a2-895150-chinapetfestival.com	unavailable				2026-10-27T05:21:35Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-905591-auroraking247.com	unavailable				2026-10-27T05:11:23Z					robots.txt 禁止：https://auroraking247.com/
 a2-906607-vani-hyd.nic.in	unavailable				2026-10-27T05:11:23Z					HTTP 403（需要登录、付费或拒绝访问）
 a2-912429-theater-nordhausen.de	unavailable				2026-10-27T05:11:23Z					robots.txt 禁止：https://theater-nordhausen.de/
@@ -386,7 +386,7 @@ a2-931529-meidastouch.com	unavailable				2026-10-27T05:11:24Z					HTTP 403（需
 a2-938826-seputarundip.com	ok	https://seputarundip.com/	200	text/html; charset=utf-8	2026-10-27T05:11:24Z	6359	e5fa25c6af66ddce8cb6a74921fab8d6cc830dd440deb72ae286ef2257a445c2	a2/a2-938826-seputarundip.com.html	en	
 a2-944277-brightdigest.us	unavailable				2026-10-27T05:11:25Z					robots.txt 禁止：https://brightdigest.us/
 a2-944556-torshavn.io	ok	https://torshavn.io/	200	text/html	2026-10-27T05:11:25Z	76706	767567124bf77170d4b2dd1444342f6d374c3e12ea0374e6049b1d7ff009c256	a2/a2-944556-torshavn.io.html	de	
-a2-949021-emw8hqyc.xyz	unavailable				2026-10-27T05:11:25Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2-949021-emw8hqyc.xyz	unavailable				2026-10-27T05:21:35Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2-956039-aissupernet.com	ok	https://www.aissupernet.com/	200	text/html; charset=UTF-8	2026-10-27T05:11:25Z	24180	e24fa889cc799be179aea7244f412d2016e41174fdf90d7988bc0342ee207579	a2/a2-956039-aissupernet.com.html		
 a2-957332-becexy.io	ok	https://becexy.io/index.html	200	text/html	2026-10-27T05:11:25Z	19314	0aad4e1a1eae841543714a23171e272d6dca80f8d910110bdc846d1c5b637b0c	a2/a2-957332-becexy.io.html	en	
 a2-958580-centrometeoemiliaromagna.com	ok	https://www.centrometeoemiliaromagna.com/associazione	200	text/html; charset=UTF-8	2026-10-27T05:11:26Z	44816	9b7b3b1036b15634a52f4f6982626967f205850b3b944a1d9aca5607682843a8	a2/a2-958580-centrometeoemiliaromagna.com.html	it-IT	
@@ -399,44 +399,44 @@ a2-977931-kawa-colle.jp	ok	https://kawa-colle.jp/	200	text/html; charset=UTF-8	2
 a2-977971-myabitat.net	unavailable				2026-10-27T05:11:28Z					URLError: <urlopen error [Errno 113] No route to host>
 a2-993529-websitemarketinghosting.co.uk	ok	https://websitemarketinghosting.co.uk/?C=N;O=D	200	text/html;charset=ISO-8859-1	2026-10-27T05:11:28Z	658	65b28e566759346d0a88f6d2cd37e094a814a4b2d8ea3798f7ee36487feed2df	a2/a2-993529-websitemarketinghosting.co.uk.html		
 a2-997800-golnet.ru	ok	https://www.golnet.ru/	200	text/html; charset=UTF-8	2026-10-27T05:11:29Z	63530	5d249d2a9d56838e2a1536a9fe8c4fdb4159fdfde9b359bcc51f6ade8d3e9510	a2/a2-997800-golnet.ru.html	ru-RU	
-a2zh-83323-012316.cn	unavailable				2026-10-27T05:11:29Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2zh-83323-012316.cn	unavailable				2026-10-27T05:21:36Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'www.012316.cn'. (_ssl.c:1081)>
 a2zh-129876-yzz.cn	unavailable				2026-10-27T05:11:29Z					URLError: <urlopen error [SSL: TLSV1_ALERT_INTERNAL_ERROR] tlsv1 alert internal error (_ssl.c:1081)>
 a2zh-198795-wxoa.cn	unavailable				2026-10-27T05:11:30Z					robots.txt 禁止：https://wxoa.cn/
 a2zh-225670-jsmsjx.com.cn	unavailable				2026-10-27T05:11:31Z					URLError: <urlopen error [Errno 111] Connection refused>
-a2zh-279559-taian.cn	unavailable				2026-10-27T05:11:31Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
-a2zh-354130-wxit.edu.cn	unavailable				2026-10-27T05:11:31Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
-a2zh-388948-haochensoft.cn	unavailable				2026-10-27T05:11:32Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2zh-279559-taian.cn	unavailable				2026-10-27T05:21:37Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
+a2zh-354130-wxit.edu.cn	ok	https://www.wxit.edu.cn/	200	text/html	2026-10-27T05:21:38Z	39962	bfe6fd00af640de2f33a31ae8f56d7ffdc2f3487ad62ee64fe34031bddb28da0	a2/a2zh-354130-wxit.edu.cn.html	zh-CN	冻结后补抓：www 回退
+a2zh-388948-haochensoft.cn	unavailable				2026-10-27T05:21:38Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2zh-411785-huace.cn	ok	https://www.huace.cn/	200	text/html; charset=utf-8	2026-10-27T05:11:32Z	105785	55d3fc3024123501f1d7aaacf5705b4d658b54a0a1f3f8fbcc1710d1da51be9e	a2/a2zh-411785-huace.cn.html	zh	
-a2zh-448606-swmu.edu.cn	unavailable				2026-10-27T05:11:32Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2zh-448606-swmu.edu.cn	unavailable				2026-10-27T05:21:39Z					冻结后补抓（www 回退）仍失败：robots.txt 禁止：https://www.swmu.edu.cn/
 a2zh-495826-chinaautoforum.cn	unavailable				2026-10-27T05:11:33Z					URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'chinaautoforum.cn'. (_ssl.c:1081)>
-a2zh-509315-tanghe.gov.cn	unavailable				2026-10-27T05:11:33Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2zh-509315-tanghe.gov.cn	unavailable				2026-10-27T05:21:41Z					冻结后补抓（www 回退）仍失败：robots.txt 禁止：https://www.tanghe.gov.cn/
 a2zh-522643-mymps.com.cn	unavailable				2026-10-27T05:11:33Z					HTTP 403（需要登录、付费或拒绝访问）
-a2zh-547775-hyflex.cn	unavailable				2026-10-27T05:11:33Z					URLError: <urlopen error timed out>
-a2zh-618379-njue.edu.cn	unavailable				2026-10-27T05:11:33Z					URLError: <urlopen error [Errno -2] Name or service not known>
+a2zh-547775-hyflex.cn	unavailable				2026-10-27T05:40:36Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
+a2zh-618379-njue.edu.cn	unavailable				2026-10-27T05:21:50Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2zh-636832-hmrog.cn	unavailable				2026-10-27T05:11:34Z					URLError: <urlopen error [Errno 111] Connection refused>
-a2zh-646007-gz161637.cn	unavailable				2026-10-27T05:11:34Z					URLError: <urlopen error [Errno -2] Name or service not known>
-a2zh-707765-jszzb.gov.cn	unavailable				2026-10-27T05:11:34Z					URLError: <urlopen error timed out>
-a2zh-728081-dynamics.cn	unavailable				2026-10-27T05:11:35Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2zh-646007-gz161637.cn	unavailable				2026-10-27T05:21:52Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
+a2zh-707765-jszzb.gov.cn	unavailable				2026-10-27T05:40:36Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
+a2zh-728081-dynamics.cn	unavailable				2026-10-27T05:22:04Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2zh-832681-shopvideo.cn	ok	https://shopvideo.cn/	200	text/html	2026-10-27T05:11:35Z	27417	d75ba0e015d40c9cb4370793e92ad032a4c33d37f8f8890cde0728d0d3b01219	a2/a2zh-832681-shopvideo.cn.html	en	
-a2zh-879446-bh7b7.com.cn	unavailable				2026-10-27T05:11:35Z					URLError: <urlopen error [Errno -2] Name or service not known>
-a2ja-85556-airnet.ne.jp	unavailable				2026-10-27T05:11:35Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2zh-879446-bh7b7.com.cn	unavailable				2026-10-27T05:22:05Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
+a2ja-85556-airnet.ne.jp	ok	https://www.airnet.ne.jp/	200	text/html	2026-10-27T05:22:06Z	19146	5fc041fa95c7d241440f4664e72045b9039dde183f0b80afda7dc6a3090be59f	a2/a2ja-85556-airnet.ne.jp.html		冻结后补抓：www 回退
 a2ja-90183-bleague.jp	ok	https://www.bleague.jp/	200	text/html; charset=utf-8	2026-10-27T05:11:36Z	971211	476b1cbd1866260d0bad596464945fc25dd81c9fba75993122b19fe6d5504d6a	a2/a2ja-90183-bleague.jp.html	ja	
-a2ja-199368-isca.jp	unavailable				2026-10-27T05:11:36Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
-a2ja-207008-tsukuba.lg.jp	unavailable				2026-10-27T05:11:36Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2ja-199368-isca.jp	unavailable				2026-10-27T05:22:08Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
+a2ja-207008-tsukuba.lg.jp	unavailable				2026-10-27T05:22:09Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2ja-284413-geospatial.jp	unavailable				2026-10-27T05:11:36Z					URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'geospatial.jp'. (_ssl.c:1081)>
-a2ja-301744-libcloud.jp	unavailable				2026-10-27T05:11:37Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2ja-301744-libcloud.jp	unavailable				2026-10-27T05:22:09Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2ja-318582-rescue.ne.jp	ok	https://www.rescue.ne.jp/	200	text/html	2026-10-27T05:11:37Z	11282	1d18a62abc6b4c000f1182ecb63f82507c0a95c7f24b5462ff43b31a8d2586dd	a2/a2ja-318582-rescue.ne.jp.html		
-a2ja-374064-yanmar.co.jp	unavailable				2026-10-27T05:11:37Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2ja-374064-yanmar.co.jp	unavailable				2026-10-27T05:40:37Z					冻结后补抓（www 回退，重试第 2 次）仍失败：URLError: <urlopen error timed out>
 a2ja-408164-paravi.jp	ok	https://www.paravi.jp/	200	text/html; charset=utf-8	2026-10-27T05:11:38Z	6025	1043e48c82ef456f719d1120b98463192aa8e85bb2c8962af5ef38d7fc562b8a	a2/a2ja-408164-paravi.jp.html	ja	
-a2ja-409356-babycome.ne.jp	unavailable				2026-10-27T05:11:38Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2ja-409356-babycome.ne.jp	ok	https://www.babycome.ne.jp/common/maint/babycome.html	200	text/html	2026-10-27T05:22:10Z	2663	567f643403bbd92513df6ddb88804b4d7cfb8581106b034b15e25dd1a2b3a866	a2/a2ja-409356-babycome.ne.jp.html	ja	冻结后补抓：www 回退
 a2ja-459060-ebravo.jp	ok	https://ebravo.jp/	200	text/html; charset=UTF-8	2026-10-27T05:11:38Z	305303	44143d487b61d141871b7bedccf05aa329ae34e26b6985cd6e102cc832f66b75	a2/a2ja-459060-ebravo.jp.html	ja	
-a2ja-523753-omihachiman.lg.jp	unavailable				2026-10-27T05:11:38Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2ja-523753-omihachiman.lg.jp	unavailable				2026-10-27T05:22:10Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2ja-591695-moncheri.jp	ok	https://moncheri.jp/	200	text/html; charset=utf-8	2026-10-27T05:11:38Z	1743785	1a6196b22e86a0e7d8ed2d366d18f0b3d7f490c6f0e97393ff70a44c52f553a6	a2/a2ja-591695-moncheri.jp.html	ja	
 a2ja-602489-bss-cloud.jp	ok	https://bss-cloud.jp/login	200	text/html; charset=UTF-8	2026-10-27T05:11:39Z	43337	3e9511189986a1d728505bb6cf2378945d8ac0ffb9bd8075056201bd880c25cf	a2/a2ja-602489-bss-cloud.jp.html	ja	
 a2ja-609444-silverferry.jp	ok	https://www.silverferry.jp/	200	text/html; charset=UTF-8	2026-10-27T05:11:39Z	148294	26f89fe04554f4f16c878f00fd6f47f7e56f28e4fb0e695be89fbe07bba74f9a	a2/a2ja-609444-silverferry.jp.html	ja	
 a2ja-795864-idgr.jp	unavailable				2026-10-27T05:11:39Z					robots.txt 禁止：https://idgr.jp/
-a2ja-803077-kooza.jp	unavailable				2026-10-27T05:11:40Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
-a2ja-807742-machikagi-remote.jp	unavailable				2026-10-27T05:11:40Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2ja-803077-kooza.jp	ok	https://www.kooza.jp/	200	text/html	2026-10-27T05:22:11Z	19898	d045ce07abc607b8a125209ad2587289544f3e72b70e4f5707f57ffa042f32bb	a2/a2ja-803077-kooza.jp.html	ja	冻结后补抓：www 回退
+a2ja-807742-machikagi-remote.jp	unavailable				2026-10-27T05:22:11Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2ja-826214-raffinegroup-online.jp	ok	https://raffinegroup-online.jp/Login/Index	200	text/html; charset=utf-8	2026-10-27T05:11:40Z	7953	7ba05096f21a997216168feab9e5f5ee16838f80bb3a7eeb5575d1b2012ed0db	a2/a2ja-826214-raffinegroup-online.jp.html		
 a2ja-954717-24htv-goods.jp	ok	https://24htv-goods.jp/	200	text/html; charset=EUC-JP	2026-10-27T05:11:40Z	26524	53c8f4a42eec29fb625ab26fc8a3d220962ab0e60d6aa49a2803fd3ade162414	a2/a2ja-954717-24htv-goods.jp.html		
 a2ko-65411-boardlife.co.kr	unavailable				2026-10-27T05:11:41Z					HTTP 403（需要登录、付费或拒绝访问）
@@ -447,36 +447,36 @@ a2ko-217107-patent.go.kr	unavailable				2026-10-27T05:11:42Z					robots.txt 禁�
 a2ko-220040-maxes.co.kr	unavailable				2026-10-27T05:11:42Z					URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate (_ssl.c:1081)>
 a2ko-336690-lomography.co.kr	unavailable				2026-10-27T05:11:42Z					HTTP 403（需要登录、付费或拒绝访问）
 a2ko-374090-yahoo.co.kr	unavailable				2026-10-27T05:11:43Z					URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'yahoo.co.kr'. (_ssl.c:1081)>
-a2ko-415782-kdi.re.kr	unavailable				2026-10-27T05:11:43Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
-a2ko-428629-adbeat.co.kr	unavailable				2026-10-27T05:11:43Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2ko-415782-kdi.re.kr	ok	https://www.kdi.re.kr/	200	text/html; charset=utf-8	2026-10-27T05:22:12Z	165670	2c9d842e85226cc1fb75587d73cc53d953ab4441c582fe14289f446fae7db9fa	a2/a2ko-415782-kdi.re.kr.html	ko	冻结后补抓：www 回退
+a2ko-428629-adbeat.co.kr	unavailable				2026-10-27T05:22:13Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'www.adbeat.co.kr'. (_ssl.c:1081)>
 a2ko-563350-fromkorea.kr	ok	https://fromkorea.kr/	200	text/html; charset=utf-8	2026-10-27T05:11:43Z	60491	3e410018bd30cea7091db620a264cee58f7e6551d3b82c384f9dbb3653649325	a2/a2ko-563350-fromkorea.kr.html	ko	
 a2ko-591511-mazia.kr	ok	https://mazia.kr/	200	text/html	2026-10-27T05:11:44Z	631516	b43f4aed8bcbc2b699a483803927c433403cb465d72f4086eaab814a107afb23	a2/a2ko-591511-mazia.kr.html		
 a2ko-748472-sjcu.ac.kr	unavailable				2026-10-27T05:11:44Z					URLError: <urlopen error [Errno 111] Connection refused>
 a2ko-792147-gwangjinlib.seoul.kr	ok	https://gwangjinlib.seoul.kr/	200	text/html;charset=UTF-8	2026-10-27T05:11:44Z	184	a02616c051fbdf256c4359a9bf5c2c3112651df4f216ce00df12e668347fda8b	a2/a2ko-792147-gwangjinlib.seoul.kr.html	ko	
 a2ko-825187-pyeongtaek.go.kr	unavailable				2026-10-27T05:11:45Z					robots.txt 禁止：https://www.pyeongtaek.go.kr/
-a2ko-830684-saveshopping.kr	unavailable				2026-10-27T05:11:45Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
-a2ko-849161-woori-house.co.kr	unavailable				2026-10-27T05:11:45Z					URLError: <urlopen error timed out>
+a2ko-830684-saveshopping.kr	ok	https://www.saveshopping.kr/	200	application/json;charset=UTF-8	2026-10-27T05:22:13Z	35	6276587d3096d4cb3e817e84796bddc6b0615df29ca8d08bb471043afda404c5	a2/a2ko-830684-saveshopping.kr.html		冻结后补抓：www 回退
+a2ko-849161-woori-house.co.kr	unavailable				2026-10-27T05:40:37Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
 a2ko-887004-nncoms.kr	ok	https://nncoms.kr/	200	text/html; charset=utf-8	2026-10-27T05:11:45Z	88145	77983405f154944e29ac75288f38fc1ff5fd234f82c49cee2c1c8e6dedf229bf	a2/a2ko-887004-nncoms.kr.html	ko	
 a2ko-925042-newsfc.co.kr	ok	https://newsfc.co.kr/	200	text/html; charset=UTF-8	2026-10-27T05:11:46Z	103123	0b64b563187e8bb666681c4c8b757e867ad2bd1f4b960f845eec9b8c885b25cc	a2/a2ko-925042-newsfc.co.kr.html	ko	
-a2ko-981293-namhae.go.kr	unavailable				2026-10-27T05:11:46Z					URLError: <urlopen error timed out>
+a2ko-981293-namhae.go.kr	unavailable				2026-10-27T05:40:39Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
 a2ar-35397-uot.edu.ly	ok	https://uot.edu.ly/	200	text/html; charset=UTF-8	2026-10-27T05:11:46Z	84675	12121ff81dff5de7de1e959c045cb3f13a83a61f959b69391a17ec2d22383b6b	a2/a2ar-35397-uot.edu.ly.html	ar	
-a2ar-46932-rnu.tn	unavailable				2026-10-27T05:11:47Z					URLError: <urlopen error timed out>
-a2ar-85254-caoa.gov.eg	unavailable				2026-10-27T05:11:47Z					URLError: <urlopen error timed out>
+a2ar-46932-rnu.tn	unavailable				2026-10-27T05:40:45Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
+a2ar-85254-caoa.gov.eg	unavailable				2026-10-27T05:40:56Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
 a2ar-91860-anae.dz	ok	https://anae.dz/	200	text/html; charset=utf-8	2026-10-27T05:11:48Z	52461	57d9dc4924a9a292a4c7ee1e718adb796706acba12faf15435a5930e9d194cec	a2/a2ar-91860-anae.dz.html	ar	
-a2ar-108644-afmic.gov.eg	unavailable				2026-10-27T05:11:48Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2ar-108644-afmic.gov.eg	unavailable				2026-10-27T05:33:25Z					冻结后补抓（www 回退，重试第 1 次）仍失败：URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'www.afmic.gov.eg'. (_ssl.c:1081)>
 a2ar-221743-moi.gov.iq	unavailable				2026-10-27T05:11:50Z					robots.txt 禁止：https://moi.gov.iq/
 a2ar-267744-instashop.ae	unavailable				2026-10-27T05:11:50Z					robots.txt 禁止：https://instashop.ae/
 a2ar-275016-apkgold.ae	ok	https://apkgold.ae/	200	text/html; charset=UTF-8	2026-10-27T05:11:51Z	159381	1ab1b419dccbf90bff7f569faecf96a1f6c77bce9c356cfbde2d48b5bc544f12	a2/a2ar-275016-apkgold.ae.html	ar	
-a2ar-291536-di.net.sa	unavailable				2026-10-27T05:11:53Z					URLError: <urlopen error timed out>
+a2ar-291536-di.net.sa	unavailable				2026-10-27T05:40:56Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
 a2ar-356169-livremoi.ma	ok	https://www.livremoi.ma/	200	text/html; charset=UTF-8	2026-10-27T05:11:53Z	581500	a0985b497b8ee7f5660358be3e7a2e8773764effe32a6fd23b32a4b75fab6c54	a2/a2ar-356169-livremoi.ma.html	fr	
 a2ar-598357-lafleurette.tn	ok	https://lafleurette.tn/	200	text/html; charset=UTF-8	2026-10-27T05:11:54Z	370573	b297f991b82fb638584f377b9961bdb3d422a507a5aea50ca6b31de5c4fcdb0a	a2/a2ar-598357-lafleurette.tn.html	fr-FR	
 a2ar-668345-xoilac.ae	unavailable				2026-10-27T05:11:56Z					robots.txt 禁止：https://crazycamel.io/
-a2ar-673244-nnhs.ae	unavailable				2026-10-27T05:11:56Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
-a2ar-741635-caaj.gov.om	unavailable				2026-10-27T05:11:57Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2ar-673244-nnhs.ae	unavailable				2026-10-27T05:22:28Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
+a2ar-741635-caaj.gov.om	unavailable				2026-10-27T05:22:30Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -5] No address associated with hostname>
 a2ar-744048-akhbardzair.dz	ok	https://akhbardzair.dz/	200	text/html	2026-10-27T05:11:58Z	11813	eb6d5dd456279723da44ea1560c20efcdd33d6cd4641e46d5b338e1c44b5cb07	a2/a2ar-744048-akhbardzair.dz.html		
-a2ar-750722-maf.gov.om	unavailable				2026-10-27T05:11:59Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
+a2ar-750722-maf.gov.om	unavailable				2026-10-27T05:22:31Z					冻结后补抓（www 回退）仍失败：URLError: <urlopen error [Errno -2] Name or service not known>
 a2ar-774534-chillandlit.tn	ok	https://chillandlit.tn/	200	text/html; charset=utf-8	2026-10-27T05:12:00Z	269100	fbb757896bddd751d5d24dd0838aa38163fd08c3c5e15e92572f149db99a081f	a2/a2ar-774534-chillandlit.tn.html	fr	
-a2ar-795111-hummel.tn	unavailable				2026-10-27T05:12:01Z					URLError: <urlopen error timed out>
+a2ar-795111-hummel.tn	unavailable				2026-10-27T05:40:56Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
 a2ar-827851-richbond.ma	ok	https://www.richbond.ma/	200	text/html; charset=UTF-8	2026-10-27T05:12:02Z	131448	98f2b76f6a17124a80624c2207d562c1aa489f3fe503079805ef72e1a732fe1f	a2/a2ar-827851-richbond.ma.html	fr	
 a2ar-927574-eyeofdubai.ae	unavailable				2026-10-27T05:12:03Z					robots.txt 禁止：https://eyeofdubai.ae/
 a2ru-94756-sarbc.ru	ok	https://www.sarbc.ru/	200	text/html; charset=utf-8	2026-10-27T05:12:03Z	76384	98a9e23d7aea9d514761f6742da5f6450dead14f265eec0591a5ff8eb9b7f6d4	a2/a2ru-94756-sarbc.ru.html		
@@ -488,14 +488,14 @@ a2ru-455900-russvoin.ru	ok	https://russvoin.ru/	200	text/html; charset=utf-8	202
 a2ru-467157-sonoscape.ru	ok	https://sonoscape.ru/	200	text/html; charset=utf-8	2026-10-27T05:12:10Z	96738	5829d64690165e47264db7a4d1ce065d9a81d8da8fa7ac27adbc0ef1cb184059	a2/a2ru-467157-sonoscape.ru.html	ru	
 a2ru-468149-rkcdn.ru	unavailable				2026-10-27T05:12:13Z					robots.txt 禁止：https://rkcdn.ru/
 a2ru-515393-gilev.ru	unavailable				2026-10-27T05:12:13Z					robots.txt 禁止：http://www.gilev.ru/
-a2ru-526218-vlant.ru	unavailable				2026-10-27T05:12:14Z					URLError: <urlopen error [Errno -5] No address associated with hostname>
-a2ru-527352-bp03.ru	unavailable				2026-10-27T05:12:14Z					URLError: <urlopen error timed out>
+a2ru-526218-vlant.ru	ok	https://www.vlant.ru/	200	text/html; charset=UTF-8	2026-10-27T05:22:34Z	99420	33a45d8b22d613f02f170b797d470360f7179b49bc95823e8018e6914243146c	a2/a2ru-526218-vlant.ru.html	ru-RU	冻结后补抓：www 回退
+a2ru-527352-bp03.ru	unavailable				2026-10-27T05:41:06Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
 a2ru-584344-finepower.ru	unavailable				2026-10-27T05:12:15Z					HTTP 401（需要登录、付费或拒绝访问）
 a2ru-601459-sibirlesmarket.ru	ok	https://www.sibirlesmarket.ru/	200	text/html; charset=utf-8	2026-10-27T05:12:17Z	170962	19555c0cd6e91f3db88670ead270a1baac8182367a107f5067104fd5cc4e2bc8	a2/a2ru-601459-sibirlesmarket.ru.html	ru-ru	
 a2ru-613848-gazprom-auto.ru	ok	https://gazprom-auto.ru/	200	text/html; charset=utf-8	2026-10-27T05:12:17Z	159201	ad80610ad64aea76dd51e5bcaee8cf49f10e32e8cd8b65753ba1a6a130dfbb9a	a2/a2ru-613848-gazprom-auto.ru.html	ru	
 a2ru-664442-mso51.ru	unavailable				2026-10-27T05:12:20Z					URLError: <urlopen error [Errno 111] Connection refused>
 a2ru-890251-petexpert.ru	ok	https://petexpert.ru/	200	text/html; charset=UTF-8	2026-10-27T05:12:20Z	899155	545e79ac8cd82a34ce9ee0c23a177de5256f187613ead2ce0f72b99fe901fce5	a2/a2ru-890251-petexpert.ru.html		
-a2ru-896813-mggt.ru	unavailable				2026-10-27T05:12:21Z					URLError: <urlopen error timed out>
+a2ru-896813-mggt.ru	unavailable				2026-10-27T05:41:06Z					冻结后补抓（重试第 2 次）仍失败：URLError: <urlopen error timed out>
 a2ru-937888-verspk.ru	unavailable				2026-10-27T05:12:23Z					URLError: <urlopen error [Errno 113] No route to host>
 a2ru-976545-aktiv-company.ru	ok	https://www.aktiv-company.ru/	200	text/html; charset=utf-8	2026-10-27T05:12:23Z	34020	ee1f21437601d86cc7d3b0aa9bce307c760b7f8ae7a82b9e6dd1b493627491da	a2/a2ru-976545-aktiv-company.ru.html		
 a2ru-983588-ao-is.ru	unavailable				2026-10-27T05:12:25Z					robots.txt 禁止：https://ao-is.ru/
