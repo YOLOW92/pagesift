@@ -5,7 +5,6 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 source ./origin_ctl.sh   # 只结束本脚本起的源站
-trap stop_origin EXIT
 T=${T:-../data/tools}                       # 各浏览器内核所在目录
 PAGES_DIR=${PAGES_DIR:-../data/crawl-pages}  # 源站用的页面
 PORT=18080
@@ -16,18 +15,36 @@ export MEASURE_ORIGIN=http://s0.localhost:$PORT/__served
 export MEASURE_OUT=${MEASURE_OUT:-results-engines-$(date +%Y%m%d-%H%M%S).jsonl}
 ISO='--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE *.localhost'
 
-# 按可执行文件路径结束浏览器进程（不用 pkill -f：模式会匹配到调用它的 shell 自己）
-cleanup() {
-    for pid in $(ls /proc | grep -E '^[0-9]+$'); do
-        exe=$(readlink "/proc/$pid/exe" 2>/dev/null) || continue
-        case $exe in
-            /opt/google/chrome/*|*/chrome-headless-shell-linux64/*|*/lightpanda-x86_64-linux|*/obscura|*/obscura-worker|*/moli)
-                kill -9 "$pid" 2>/dev/null ;;
-        esac
-    done
-    find /tmp -maxdepth 1 \( -name ".com.google.Chrome.*" -o -name "com.google.Chrome.*" -o -name "pagesift-cdp-*" \) \
-        -user "$(id -u)" -exec rm -rf {} + 2>/dev/null || true
+# 每个内核单独起一个会话（setsid），并给它一个私有的 TMPDIR。pagesift 起的浏览器在 TMPDIR 里建配置目录
+# （pagesift-cdp-*），里面的 pagesift-owner 记着属主进程号、浏览器进程号和命令行（crates/pagesift-cdp/src/sweep.rs）。
+# 结束时只停本次运行的进程：浏览器要命令行和记录一致、且在本次的会话里；再停本次会话里剩下的进程组。
+# 都是先 SIGTERM，5 秒后还在再 SIGKILL。不按进程名杀进程（机器是共用的，用户自己的 Chrome 也在跑）。
+RUN_TMP= RUN_SID=
+stat_field() { sed 's/^.*) //' "/proc/$1/stat" 2>/dev/null | awk -v n="$2" '{print $n}'; }  # 2=ppid 3=pgrp 4=session
+stop_group() { # 进程组号
+    local g=$1
+    kill -TERM -- "-$g" 2>/dev/null || return 0
+    for _ in $(seq 1 50); do kill -0 -- "-$g" 2>/dev/null || return 0; sleep 0.1; done
+    kill -KILL -- "-$g" 2>/dev/null || true
 }
+stop_run() {
+    [ -n "$RUN_SID" ] || return 0
+    local f pid g
+    for f in "$RUN_TMP"/pagesift-cdp-*/pagesift-owner; do
+        [ -f "$f" ] || continue
+        pid=$(sed -n 2p "$f")
+        [ -n "$pid" ] && [ "$(stat_field "$pid" 4)" = "$RUN_SID" ] || continue
+        tail -n +3 "$f" | cmp -s - "/proc/$pid/cmdline" || continue
+        stop_group "$(stat_field "$pid" 3)"
+    done
+    stop_group "$RUN_SID"
+    for pid in $(ls /proc | grep -E '^[0-9]+$'); do   # 本次会话里还剩的（例如没来得及写 pagesift-owner 的浏览器）
+        [ "$(stat_field "$pid" 4)" = "$RUN_SID" ] && stop_group "$(stat_field "$pid" 3)"
+    done
+    rm -rf "$RUN_TMP"
+    RUN_TMP= RUN_SID=
+}
+trap 'stop_run; stop_origin' EXIT
 
 # 等源站真正能应答再开始（页面多时启动要几秒；固定 sleep 不够，第一个工具会连不上）
 wait_origin() { # 端口
@@ -61,8 +78,12 @@ engine() { # 名字 场景 hosts pages per_host
             "BROWSER_ARGS=--allow-private-network serve --host 127.0.0.1 --port {port} --proxy http://[::1]:$PORT"
             BROWSER_MAX=4 BROWSER_TABS=4) ;;
     esac
-    env "${env[@]}" python3 -I measure.py "$scen/$name" -- ${PAGESIFT_BIN:-../../target/release/examples/crawl_bench} $PORT "$hosts" "$pages" 0 "$ph" 2>/dev/null
-    cleanup
+    RUN_TMP=$(mktemp -d)
+    # 后台启动时本进程不是进程组组长，setsid 不再 fork：$! 就是新会话号（也是进程组号）
+    env TMPDIR="$RUN_TMP" "${env[@]}" setsid python3 -I measure.py "$scen/$name" -- ${PAGESIFT_BIN:-../../target/release/examples/crawl_bench} $PORT "$hosts" "$pages" 0 "$ph" 2>/dev/null &
+    RUN_SID=$!
+    wait "$RUN_SID"
+    stop_run
 }
 
 for s in ${@:-wide huge}; do
