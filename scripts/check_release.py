@@ -36,9 +36,13 @@ def check(tag=None):
     assert lock['version'] == lock['packages']['']['version'] == version
     pyproject = tomllib.loads((ROOT/'crates/pagesift-py/pyproject.toml').read_text())
     assert 'version' in pyproject['project']['dynamic']
-    # wheel 和 sdist 里的 LICENSE、NOTICE 是根目录文件的副本，不能漂移
+    # Python 包目录里的 LICENSE、NOTICE 是根目录文件的副本（随 wheel 和 sdist 走），不能漂移。
+    # 不能放在 crate 目录：maturin 会把它们写成 sdist 根目录的 License-File，而工作区 crate 的 sdist
+    # 以工作区为根，PyPI 找不到文件就拒收（0.80.1 发布时踩过）
+    pkg = ROOT/'crates/pagesift-py/python/pagesift'
     for name in ('LICENSE', 'NOTICE'):
-        assert (ROOT/'crates/pagesift-py'/name).read_bytes() == (ROOT/name).read_bytes(), f'crates/pagesift-py/{name} differs from {name}'
+        assert (pkg/name).read_bytes() == (ROOT/name).read_bytes(), f'python/pagesift/{name} differs from {name}'
+        assert not (ROOT/'crates/pagesift-py'/name).exists(), f'crates/pagesift-py/{name} must not exist (breaks the sdist)'
     assert (ROOT/f'docs/releases/{version}.md').is_file(), 'release notes missing'
     print(f'Release identity OK: {version}, {len(names)} Rust packages, {len(platforms)} npm platforms, dynamic Python version')
     return metadata

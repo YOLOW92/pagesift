@@ -147,8 +147,8 @@ jobs:
         os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, macos-15-intel]
     steps:
       - uses: actions/checkout@v7
-      # crates/pagesift-py/LICENSE、NOTICE 是根目录文件的副本（check_release.py 核对），
-      # maturin 自动把它们打进 wheel 和 sdist；临时 cp 进去的文件进不了 sdist（只打包 git 里的文件）
+      # 许可证和署名的副本在 crates/pagesift-py/python/pagesift/ 里，作为包数据随 wheel 和 sdist 走
+      # （check_release.py 核对副本和根目录一致）
       - uses: PyO3/maturin-action@v1
         with:
           working-directory: crates/pagesift-py
