@@ -38,7 +38,7 @@ pub use coverage::Coverage;
 #[doc(hidden)]
 pub use dates::{time_published, trace_published};
 pub use fingerprint::{Fingerprints, hash_hex};
-pub use links::{Image, Link, same_site};
+pub use links::{Image, Link, same_site, site_key};
 pub use metadata::Metadata;
 pub use script_links::{ScriptScan, scan_script};
 pub use text::{estimate_tokens, normalize_text};

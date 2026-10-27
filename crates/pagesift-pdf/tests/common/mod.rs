@@ -67,6 +67,8 @@ pub struct Builder {
     pub info: Option<Dictionary>,
     /// 额外的字体资源（名字 → 字体字典）。
     pub extra_fonts: Vec<(String, Dictionary)>,
+    /// 书签：(标题, 目标页下标)，平铺一级。
+    pub outline: Vec<(&'static str, usize)>,
 }
 
 impl Builder {
@@ -76,6 +78,7 @@ impl Builder {
             cjk: None,
             info: None,
             extra_fonts: Vec::new(),
+            outline: Vec::new(),
         }
     }
 
@@ -145,12 +148,47 @@ impl Builder {
         doc.objects.insert(
             pages_id,
             Object::Dictionary(dictionary! {
-                "Type" => "Pages", "Kids" => kids, "Count" => count,
+                "Type" => "Pages", "Kids" => kids.clone(), "Count" => count,
                 "Resources" => resources,
                 "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
             }),
         );
-        let catalog = doc.add_object(dictionary! { "Type" => "Catalog", "Pages" => pages_id });
+        let mut catalog = dictionary! { "Type" => "Catalog", "Pages" => pages_id };
+        if !self.outline.is_empty() {
+            let outlines_id = doc.new_object_id();
+            let mut items: Vec<ObjectId> = Vec::new();
+            for (title, page) in &self.outline {
+                let target = kids[*page].clone();
+                items.push(doc.add_object(dictionary! {
+                    "Title" => Object::string_literal(*title),
+                    "Parent" => outlines_id,
+                    "Dest" => vec![target, "XYZ".into(), Object::Null, 792.into(), Object::Null],
+                }));
+            }
+            for i in 0..items.len() {
+                let (prev, next) = (
+                    i.checked_sub(1).map(|j| items[j]),
+                    items.get(i + 1).copied(),
+                );
+                if let Some(Object::Dictionary(d)) = doc.objects.get_mut(&items[i]) {
+                    if let Some(p) = prev {
+                        d.set("Prev", p);
+                    }
+                    if let Some(n) = next {
+                        d.set("Next", n);
+                    }
+                }
+            }
+            doc.objects.insert(
+                outlines_id,
+                Object::Dictionary(dictionary! {
+                    "Type" => "Outlines", "First" => items[0], "Last" => items[items.len() - 1],
+                    "Count" => items.len() as i64,
+                }),
+            );
+            catalog.set("Outlines", outlines_id);
+        }
+        let catalog = doc.add_object(catalog);
         doc.trailer.set("Root", catalog);
         if let Some(info) = self.info {
             let id = doc.add_object(info);

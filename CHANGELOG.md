@@ -2,6 +2,54 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.80.2] — 2026-10-28
+
+The focused crawl (`query`) rewritten after a tester ran it over 159 university sites and got
+25.6% useful pages; two PDF follow-ups from the 0.80.1 review; two flaky macOS tests. All crawl
+changes are verified on synthetic sites only (the development container cannot reach the real
+ones). See [the release notes](docs/releases/0.80.2.md).
+
+### Added
+- Crawl: `attachments` (CLI `--attachments`) fetches PDFs and Office documents linked from
+  relevant pages with their own budget (`attachmentLimit`, `--attachment-limit`), outside the
+  path scope, through the existing PDF/Office pipeline; needs `query`.
+- Crawl: `metadata.pagesift.crawl` on every result (`depth`, `parent`, `score`, `attachmentOf`);
+  `index.jsonl` gains `relevance`, `depth`, `parent`, `score`, `attachmentOf` and `status`.
+- MCP: `pagesift_crawl` accepts `query`, `adaptive`, `attachments`, `attachmentLimit`.
+- pagesift-api: `CrawlTrace`; pagesift-content: `site_key` (registrable domain).
+- `focus_gate` example (8 synthetic campus sites plus a SaaS developer portal and a city
+  services site with their own queries) runs from `scripts/ci.sh` with a precision floor.
+
+### Changed
+- Focused crawl: links are scored from their anchor text whether or not they sit in the main
+  content (navigation links included), the words in the URL (host labels, path, query string) and
+  the line around them; query terms are weighted by document frequency across the crawled pages;
+  news/press/changelog/events/about/legal paths and short furniture anchors are demoted (×0.2,
+  never for a word the query asks for), dated leaves (`/2026/05/…`) ×0.1, hub pages and article
+  lists (little text outside link labels) halved, long same-section link lists discounted;
+  top-level section links (`/docs/`, `/services/`) get a floor score so they are explored before
+  dated news; the queue alternates between sections and leaves a slot empty rather than fetch a
+  link far weaker than the best page in flight; "English" entries on non-English sites get a
+  floor score for ASCII queries.
+- Focused crawl: subdomains of the same registrable domain are in scope by default
+  (`allowSubdomains` unset); crawls without a query keep the same-host default.
+- Focused crawl: responses with status ≥ 400 are reported as errors, not pages, and their links
+  are not followed.
+- Adaptive stop: pages under relevance 0.3 give no evidence; after relevant pages have been
+  found, `patience` irrelevant pages in a row end the crawl as `saturated`, unless a queued link
+  outscores all of them (the best candidates have not been tried yet).
+- PDF: when bookmarks or the structure tree set the headings but none is the document title, the
+  first page's largest short paragraph becomes the level-1 heading and the writer's level-1
+  headings move to level 2; `inferred_title` and `metadata.title` follow (0.80.1 S-4 follow-up).
+- Tests: `multihost` compares against the slow host's progress instead of a 600 ms wall clock;
+  the full-page scan waits a whole `scroll_delay` before its final bottom check.
+
+### Fixed
+- PDF: a truncated linearized file whose `/Pages` root was cut away was rejected with "document
+  has no pages"; the surviving page objects are now converted in order (the linearization
+  dictionary's `/O` first) with `pages_missing` computed from its `/N` (0.80.1 D-2 follow-up).
+- Focused crawl: `CrawlSummary.pages` did not count attachments.
+
 ## [0.80.1] — 2026-10-28
 
 Fixes from the 0.80 review: CSV character sets, silent partial recovery of damaged PDFs,

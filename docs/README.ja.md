@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.80.1
+# pagesift 0.80.2
 
 **AI エージェントと LLM データ基盤のための、超高速・メモリ有界スクレイピング＆本文抽出エンジン。**  
 あらゆる Web サイト、論文、アーカイブを高品質な Markdown と構造化データに変換します。単一の Rust バイナリ、ネイティブ SDK、Firecrawl v1/v2 および Jina Reader デュアルプロトコル互換。測定した競合よりメモリ消費が少なくなっています（[benchmarks.md 第 9 節](benchmarks.md) 参照）。
@@ -76,6 +76,18 @@
 
 ---
 
+## 0.80.2 の変更
+
+**フォーカスクロールが、求められたページを取ってくるようになりました。** テスターが 159 大学のサイトで
+`crawl --query`（*international students admission tuition scholarship visa*、各サイト 12 ページ）を実行したところ、
+有用なページは 25.6% でした。リンクの採点・スケジューリング・停止規則を書き直しています：すべてのリンクをアンカーテキストで
+採点（ナビゲーションも対象）、検索語をサイト内での希少さで重み付け、ニュースや「大学について」系を減点、セクションを順番に処理、
+サブドメインを既定で対象に、エラーページを除外、関連ページだけを根拠にする適応停止。報告の失敗パターンを再現した合成 8 サイトでは
+有用ページが 7.3% → 82.6%。**開発環境から実サイトへは接続できないため、この数値は合成サイトのみのものです。**
+新機能：`attachments` が関連ページからリンクされた PDF・Office 文書を取得；各結果にクロール経路（`depth`、`parent`、`score`、`attachmentOf`）。
+PDF の追加修正：章だけのしおりでもタイトルが空にならない；ページツリーのルートより前で切れた線形化 PDF をエラーにせず変換。
+詳細：[0.80.2 リリースノート](releases/0.80.2.md)。
+
 ## 0.80.1 の修正
 
 0.80 のレビューで見つかった問題の修正です（HTML 抽出は変更なし。PDF の出力は語の後ろに上付きの脚注記号がある箇所だけ変わります。）：Shift_JIS、GBK、または文字セットが宣言された
@@ -114,7 +126,7 @@ CSV を HTML と同じ方法でデコード（以前は警告なしに文字化�
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.1
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.2
 ```
 
 #### Firecrawl SDK の差し替え

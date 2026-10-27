@@ -21,6 +21,23 @@ pub struct CrawlSummary {
 }
 
 /// PageSift extensions inside `metadata.pagesift`.
+/// 带查询的爬取里一页的来历（`metadata.pagesift.crawl`）。
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CrawlTrace {
+    /// 从种子页算起的深度；种子是 0。
+    pub depth: usize,
+    /// 发现这个链接的页面；种子和 sitemap 里的 URL 没有。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent: Option<String>,
+    /// 链接入队时的分数（越高越先抓）；种子没有。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub score: Option<f32>,
+    /// 附件（PDF、Office 文档）的来源页；普通页面没有。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attachment_of: Option<String>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PagesiftMeta {
@@ -55,6 +72,9 @@ pub struct PagesiftMeta {
     /// Query relevance score (0.0 to 1.0).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub relevance: Option<f32>,
+    /// 带查询的爬取里这一页是怎么来的：深度、父页、入队分数、附件的来源页。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub crawl: Option<CrawlTrace>,
     /// Query filter statistics.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub query_filter: Option<QueryFilterStats>,
@@ -144,6 +164,9 @@ pub struct Document {
     pub raw_html: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub links: Option<Vec<String>>,
+    /// `links` 里每个链接的锚文本（同序），爬虫给链接打分用；不进 JSON。
+    #[serde(skip)]
+    pub link_text: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub images: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]

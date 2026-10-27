@@ -351,10 +351,15 @@ pub(super) async fn scan_full_page(ctx: &PageCtx<'_>, scan: &FullPageScan) -> Re
         }
         if bottom >= height - 2.0 {
             // IntersectionObserver and scroll handlers may start a fetch after
-            // network idle is observed. Require several quiet bottom scans.
+            // network idle is observed. Require several quiet bottom scans, and
+            // give the last one a whole scroll_delay: on a slow machine the
+            // handler's fetch can trail the scroll by more than the quiet window.
             stable_bottom += 1;
             if stable_bottom >= 3 {
                 break;
+            }
+            if stable_bottom == 2 {
+                tokio::time::sleep(scan.scroll_delay).await;
             }
         } else {
             stable_bottom = 0;

@@ -1,0 +1,27 @@
+# perf_gate (HTML, median ms, lower is better) x3
+blog 100KB: median 6.52 ms (limit 8 ms) ok
+wiki 250KB: median 30.64 ms (limit 30 ms) TOO SLOW
+blog 100KB: median 6.00 ms (limit 8 ms) ok
+wiki 250KB: median 31.79 ms (limit 30 ms) TOO SLOW
+blog 100KB: median 6.13 ms (limit 8 ms) ok
+wiki 250KB: median 31.12 ms (limit 30 ms) TOO SLOW
+# pdf_one best-of-7 ms, chars
+/tmp/claude-0/-home-user-pagesift/ffa28646-d095-52fe-ab22-7f6478d6d356/scratchpad/fixtures/paper.pdf	101.45	225767
+/tmp/claude-0/-home-user-pagesift/ffa28646-d095-52fe-ab22-7f6478d6d356/scratchpad/fixtures/paper.pdf	94.44	225767
+/tmp/claude-0/-home-user-pagesift/ffa28646-d095-52fe-ab22-7f6478d6d356/scratchpad/fixtures/paper.pdf	97.86	225767
+# pdf_one instructions (3 runs)
+pdf_one paper.pdf instr 2206525819
+# office_bench median ms (runs=7), md bytes
+ascii.csv	137.744	5821664
+sjis.csv	62.667	1819844
+gbk.csv	54.141	1621844
+utf8-cjk.csv	48.198	1621844
+# office_bench instructions (runs=3)
+office_bench ascii.csv instr 4318532851
+office_bench sjis.csv instr 1625366457
+office_bench gbk.csv instr 1794055065
+office_bench utf8-cjk.csv instr 1182426573
+# crawl_gate
+crawl 20x60: 1200/1200 pages, 0 errors, 708 pages/s (min 1500), peak RSS 33 MB (max 120) FAIL
+crawl 20x60: 1200/1200 pages, 0 errors, 650 pages/s (min 1500), peak RSS 32 MB (max 120) FAIL
+crawl 20x60: 1200/1200 pages, 0 errors, 697 pages/s (min 1500), peak RSS 31 MB (max 120) FAIL

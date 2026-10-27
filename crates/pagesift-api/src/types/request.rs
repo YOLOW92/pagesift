@@ -282,8 +282,9 @@ pub struct CrawlRequest {
     pub crawl_entire_domain: bool,
     #[serde(default)]
     pub allow_external_links: bool,
+    /// 没给时：带 `query` 的爬取默认允许同一站点（可注册域名相同）的子域名，广度优先爬取不允许。
     #[serde(default)]
-    pub allow_subdomains: bool,
+    pub allow_subdomains: Option<bool>,
     #[serde(default)]
     pub ignore_robots_txt: bool,
     #[serde(default = "default_sitemap")]
@@ -308,6 +309,12 @@ pub struct CrawlRequest {
     /// 路径范围怎么定（PageSift 扩展）。`crawlEntireDomain: true` 等同于 `domain`。
     #[serde(default)]
     pub scope: CrawlScope,
+    /// 带查询的爬取：相关页面上同站点的 PDF/Office 文档也抓回来解析（PageSift 扩展）。
+    #[serde(default)]
+    pub attachments: bool,
+    /// 附件的数量上限，默认等于 `limit`。
+    #[serde(default)]
+    pub attachment_limit: Option<usize>,
 }
 
 /// crawl 的路径范围。

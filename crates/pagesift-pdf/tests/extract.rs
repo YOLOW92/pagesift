@@ -441,6 +441,86 @@ fn truncated_file_keeps_its_pages_and_warns() {
     );
 }
 
+/// 页树根丢了的截断文件（线性化的 PDF 切掉后半截时常见：第一页的对象在文件头，/Pages 在后面）：
+/// 剩下的页面对象按线性化字典的 /O（第一页）和对象号恢复成页面，/N 是声明的页数，差额有警告。
+#[test]
+fn pages_are_recovered_when_the_page_tree_root_is_lost() {
+    let whole = plain_pdf(&[
+        "Page one.",
+        "Page two.",
+        "Page three.",
+        "Page four.",
+        "Page five.",
+    ]);
+    // 去掉页树根（对象 2），当它在丢失的那一半里；前面加一个线性化字典；切在第 4 页的页面对象里
+    let root = whole.windows(8).position(|w| w == b"2 0 obj\n").unwrap();
+    let end = root
+        + whole[root..]
+            .windows(6)
+            .position(|w| w == b"endobj")
+            .unwrap()
+        + 7;
+    let mut cut = b"%PDF-1.7\n99 0 obj\n<< /Linearized 1 /O 4 /N 5 >>\nendobj\n".to_vec();
+    cut.extend_from_slice(&whole[9..root]);
+    cut.extend_from_slice(&whole[end..]);
+    let stop = cut.windows(9).position(|w| w == b"10 0 obj\n").unwrap() + 20;
+    let doc = extract(&cut[..stop]).unwrap();
+    assert_eq!(doc.pages.len(), 3, "{:?}", doc.warnings);
+    assert_eq!(doc.metadata.page_count, 3);
+    let md = &doc.markdown;
+    assert!(md.find("Page one.") < md.find("Page two."), "{md}");
+    assert!(md.find("Page two.") < md.find("Page three."), "{md}");
+    assert!(!md.contains("Page four."));
+    assert_eq!(doc.warnings.len(), 2, "{:?}", doc.warnings);
+    assert_eq!(
+        doc.warnings[1],
+        "pages_missing: 2 of 5 pages could not be recovered from the damaged file; 3 converted"
+    );
+    // 没有线性化字典、也没有 /Pages 节点：不知道该有几页，只报修复过
+    let mut cut = b"%PDF-1.7\n".to_vec();
+    cut.extend_from_slice(&whole[9..root]);
+    cut.extend_from_slice(&whole[end..]);
+    let stop = cut.windows(9).position(|w| w == b"10 0 obj\n").unwrap() + 20;
+    let doc = extract(&cut[..stop]).unwrap();
+    assert_eq!(doc.pages.len(), 3);
+    assert_eq!(doc.warnings.len(), 1, "{:?}", doc.warnings);
+}
+
+/// 书签只到章节、/Info 又没有 /Title 的论文（arXiv 常见）：题名不是书签条目，按提示排版时也要
+/// 从第一页的版式把它找出来，推断的标题才不是空的。
+#[test]
+fn document_title_is_inferred_even_when_bookmarks_set_the_headings() {
+    let mut c = line("F1", 20.0, 72.0, 740.0, "Attention Is All You Need");
+    c.push_str(&line("F1", 10.0, 72.0, 715.0, "Ashish Vaswani"));
+    c.push_str(&line("F1", 12.0, 72.0, 690.0, "1 Introduction"));
+    let mut y = 670.0;
+    for p in [P1, P2] {
+        let (s, ny) = paragraph(10.0, 72.0, y, 13.0, 85, p);
+        c.push_str(&s);
+        y = ny - 12.0;
+    }
+    let mut second = line("F1", 12.0, 72.0, 740.0, "2 Background");
+    second.push_str(&paragraph(10.0, 72.0, 720.0, 13.0, 85, P3).0);
+    let mut b = Builder::new(vec![Page::text(c), Page::text(second)]);
+    b.outline = vec![("1 Introduction", 0), ("2 Background", 1)];
+    let doc = extract(&b.build()).unwrap();
+    assert_eq!(doc.metadata.title, None);
+    assert!(
+        doc.markdown.contains("## 1 Introduction"),
+        "{}",
+        doc.markdown
+    );
+    assert!(
+        doc.markdown.starts_with("# Attention Is All You Need\n"),
+        "{}",
+        doc.markdown
+    );
+    assert_eq!(
+        doc.inferred_title.as_deref(),
+        Some("Attention Is All You Need")
+    );
+}
+
 /// /Info 没有标题时，第一页的一级标题作为推断的标题单独给出；有 /Title 时两者都在。
 #[test]
 fn document_title_is_inferred_from_the_first_heading() {

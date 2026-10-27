@@ -73,8 +73,23 @@ impl CrawlOutput {
             Some(dir) => {
                 let name = self.file_name(&url, &mut state.2);
                 std::fs::write(dir.join(&name), doc.markdown.as_deref().unwrap_or_default())?;
-                let line =
+                let mut line =
                     serde_json::json!({ "url": url, "file": name, "title": doc.metadata.title });
+                // 带查询的爬取：相关度和来历一起落盘，下游规则可以直接用
+                if let Some(p) = doc.metadata.pagesift.as_ref() {
+                    if let Some(r) = p.relevance {
+                        line["relevance"] = serde_json::json!(r);
+                    }
+                    if let Some(t) = &p.crawl {
+                        line["depth"] = serde_json::json!(t.depth);
+                        line["parent"] = serde_json::json!(t.parent);
+                        line["score"] = serde_json::json!(t.score);
+                        if let Some(a) = &t.attachment_of {
+                            line["attachmentOf"] = serde_json::json!(a);
+                        }
+                    }
+                }
+                line["status"] = serde_json::json!(doc.metadata.status_code);
                 let mut index = std::fs::OpenOptions::new()
                     .create(true)
                     .append(true)

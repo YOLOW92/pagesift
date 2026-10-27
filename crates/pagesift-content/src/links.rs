@@ -286,7 +286,7 @@ pub fn same_site(base: &Url, url: &str) -> bool {
     }
 }
 
-fn site_key(host: &str) -> String {
+pub fn site_key(host: &str) -> String {
     let host = host.trim_end_matches('.').to_ascii_lowercase();
     let labels: Vec<&str> = host.split('.').collect();
     let n = labels.len();

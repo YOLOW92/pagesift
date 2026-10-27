@@ -9,9 +9,11 @@ use pagesift_net::Url;
 use pagesift_policy::RobotsMode;
 use pagesift_policy::adaptive::AdaptiveConcurrencyGate;
 
+use super::attachments::{Attachments, is_document_url};
 use crate::engine::Scraper;
-use crate::focus::{Adaptive, BestFirst, Focus, Offer, link_contexts};
+use crate::focus::{Adaptive, BestFirst, Focus, MIN_RELEVANCE, Offer, cluster_key, link_contexts};
 use crate::frontier::{Learner, Seen, Tiered};
+use pagesift_api::types::CrawlTrace;
 
 use super::{Crawl, MAX_WAIT, Retries, candidate, push_warning, seen_hash};
 
@@ -280,7 +282,7 @@ impl Scraper {
         query: &str,
     ) -> Result<(), ApiError> {
         let (req, sink, scope, mode) = (c.req, c.sink, c.scope, c.mode);
-        let focus = Focus::new(query);
+        let mut focus = Focus::new(query);
         let mut adaptive = req
             .adaptive
             .clone()
@@ -299,6 +301,22 @@ impl Scraper {
         let mut overflow = false;
         let track = sink.tracks_frontier();
         let mut scheduled = 0usize;
+        // 每个簇（主机 + 第一段路径）已调度的页数：一个子树最多占一半预算，除非别处没有像样的候选
+        let mut clusters: HashMap<String, usize> = HashMap::new();
+        let cluster_cap = (req.limit / 3).max(3);
+        // 在途页面的分数：队首比在途的最好页面差得多时先等它们回来再调度，
+        // 否则首页一返回就把并发槽位全填上新闻页，真正相关的子页还没发现预算已经用掉了
+        let mut inflight_scores: HashMap<String, f32> = HashMap::new();
+        // 每个排队链接的父页（按去重哈希），出队时转成来历记录
+        let mut parents: HashMap<u64, String> = HashMap::new();
+        // 自适应停止：连续没有新信息的页面里分数最高的（见下面的"不算饱和"规则）
+        let mut stale_max: f32 = 0.0;
+        // 已调度页面的来历：深度、父页、分数、是不是附件
+        let mut traces: HashMap<String, CrawlTrace> = HashMap::new();
+        let mut attachments = req
+            .attachments
+            .then(|| Attachments::new(req.attachment_limit.unwrap_or(req.limit)));
+        let start_site = pagesift_content::site_key(start.host_str().unwrap_or_default());
         // 新入队的 URL（持久化的任务要回报）
         let mut fresh: Vec<(String, usize)> = Vec::new();
         // 放进队列，维护去重表；返回有没有页面因为 limit 被挤掉或进不来
@@ -394,15 +412,50 @@ impl Scraper {
                 stop = Some("cancelled");
                 break;
             }
-            while stop.is_none() && inflight.len() < self.concurrency().min(concurrency_ceiling) {
-                let pick = match retries.due() {
-                    Some(r) => Some(r),
-                    None if scheduled < req.limit => queue.pop().map(|(u, d, _)| {
-                        scheduled += 1;
-                        (u, d, 0)
-                    }),
-                    None => None,
+            // 自适应停止之后不再调度页面，但相关页面上已经发现的附件照抓
+            while inflight.len() < self.concurrency().min(concurrency_ceiling) {
+                let pick = match (stop.is_none(), retries.due()) {
+                    (false, _) => None,
+                    (true, Some(r)) => Some(r),
+                    (true, None) if scheduled < req.limit => {
+                        let best_inflight = inflight_scores.values().copied().fold(0.0, f32::max);
+                        let head = queue.peek_score().unwrap_or(0.0);
+                        if !inflight_scores.is_empty() && head < PATIENCE_RATIO * best_inflight {
+                            break;
+                        }
+                        queue.pop_diverse(&clusters, cluster_cap).map(|(u, d, s)| {
+                            scheduled += 1;
+                            *clusters.entry(cluster_key(&u)).or_default() += 1;
+                            inflight_scores.insert(u.to_string(), s);
+                            traces.insert(
+                                u.to_string(),
+                                CrawlTrace {
+                                    depth: d,
+                                    parent: parents.remove(&seen_hash(&u, ignore_query)),
+                                    score: s.is_finite().then_some(s),
+                                    attachment_of: None,
+                                },
+                            );
+                            (u, d, 0)
+                        })
+                    }
+                    (true, None) => None,
                 };
+                // 页面预算用完或暂时没有页面可调度时，抓排队的附件
+                let pick = pick.or_else(|| {
+                    let (u, d, s) = attachments.as_mut()?.next()?;
+                    let parent = parents.remove(&seen_hash(&u, ignore_query));
+                    traces.insert(
+                        u.to_string(),
+                        CrawlTrace {
+                            depth: d,
+                            parent: parent.clone(),
+                            score: Some(s),
+                            attachment_of: parent,
+                        },
+                    );
+                    Some((u, d, 0))
+                });
                 let Some((url, depth, attempt)) = pick else {
                     break;
                 };
@@ -425,25 +478,51 @@ impl Scraper {
                     None => break,
                 },
             };
+            inflight_scores.remove(url.as_str());
             if stop.is_none() && retries.offer(&result, &url, depth, attempt) {
                 continue;
             }
+            let trace = traces.remove(url.as_str());
+            let is_attachment = trace.as_ref().is_some_and(|t| t.attachment_of.is_some());
             match result {
+                // 错误状态页（404 模板、400 桩页）不是内容：不输出、不跟它的链接，只占用预算
+                Ok(doc) if doc.metadata.status_code >= 400 => {
+                    let status = doc.metadata.status_code;
+                    sink.error(
+                        url.as_str(),
+                        ApiError::new(
+                            pagesift_api::ErrorCode::UpstreamError,
+                            format!("HTTP {status}: not a content page"),
+                        ),
+                    )
+                    .await;
+                }
                 Ok(mut doc) => {
                     note_duplicate(&mut learner, &url, &mut doc);
-                    let md = doc.markdown.as_deref().unwrap_or_default();
-                    let relevance = focus.page_relevance(doc.metadata.title.as_deref(), md);
-                    if stop.is_none()
-                        && let Some(a) = adaptive.as_mut()
-                    {
-                        stop = a.observe(&focus.query, md);
-                    }
                     let base = doc
                         .metadata
                         .url
                         .as_deref()
                         .and_then(|u| Url::parse(u).ok())
                         .unwrap_or(url.clone());
+                    let md = doc.markdown.as_deref().unwrap_or_default();
+                    let links_n = doc.links.as_ref().map_or(0, Vec::len);
+                    focus.observe_page(md);
+                    let relevance =
+                        focus.page_relevance(&base, doc.metadata.title.as_deref(), md, links_n);
+                    if stop.is_none()
+                        && let Some(a) = adaptive.as_mut()
+                    {
+                        let before = a.stale();
+                        stop = a.observe(&focus.query, md, relevance);
+                        // 记下这一轮"没有新信息"的页面里分数最高的；有收获就清零
+                        let score = trace.as_ref().and_then(|t| t.score).unwrap_or(0.0);
+                        stale_max = if a.stale() > before {
+                            stale_max.max(score)
+                        } else {
+                            0.0
+                        };
+                    }
                     // 正文还借给链接打分用，警告等链接处理完再写
                     let mut scope_note = None;
                     if depth == 0 && url == start && scope.can_widen() {
@@ -471,21 +550,59 @@ impl Scraper {
                             }
                         }
                     }
-                    if stop.is_none() && follow_links && depth < max_depth {
+                    if stop.is_none() && follow_links && depth < max_depth && !is_attachment {
                         let contexts = link_contexts(md);
+                        // 导航、页脚里的链接不在正文 Markdown 里，锚文本从 DOM 的链接列表取
+                        let anchors: HashMap<&str, &str> = doc
+                            .links
+                            .iter()
+                            .flatten()
+                            .zip(doc.link_text.iter().flatten())
+                            .map(|(u, t)| (u.as_str(), t.as_str()))
+                            .collect();
+                        // 同一页上指向同一个簇的链接数：几十条新闻、展品组成的列表整体降权
+                        let mut per_cluster: HashMap<String, usize> = HashMap::new();
+                        for link in doc.links.iter().flatten() {
+                            if let Some(u) = candidate(&base, link, &learner) {
+                                *per_cluster.entry(cluster_key(&u)).or_default() += 1;
+                            }
+                        }
                         for link in doc.links.iter().flatten() {
                             let Some(u) = candidate(&base, link, &learner) else {
                                 continue;
                             };
                             let h = seen_hash(&u, ignore_query);
+                            // 开了附件收割：相关页面上同站点的文档走附件队列，不受路径范围限制
+                            if let Some(att) = attachments.as_mut()
+                                && is_document_url(&u)
+                            {
+                                let same_site = u
+                                    .host_str()
+                                    .is_some_and(|h| pagesift_content::site_key(h) == start_site);
+                                if same_site && relevance >= MIN_RELEVANCE && !seen.contains(&h) {
+                                    let ctx = contexts.get(link.split('#').next().unwrap_or(link));
+                                    let anchor = ctx
+                                        .map(|c| c.anchor.as_str())
+                                        .or_else(|| anchors.get(link.as_str()).copied());
+                                    let score =
+                                        focus.link_score(&u, anchor, None, relevance, depth + 1);
+                                    parents.entry(h).or_insert_with(|| base.to_string());
+                                    att.offer(h, u, depth + 1, score);
+                                }
+                                continue;
+                            }
                             // 已经调度过的页面不再入队；还在排队的可以按更高的分数前移
                             if !scope.allows(&u) || (seen.contains(&h) && !queue.contains(h)) {
                                 continue;
                             }
                             let ctx = contexts.get(link.split('#').next().unwrap_or(link));
+                            let anchor = ctx
+                                .map(|c| c.anchor.as_str())
+                                .or_else(|| anchors.get(link.as_str()).copied())
+                                .filter(|a| !a.is_empty());
                             let mut score = focus.link_score(
                                 &u,
-                                ctx.map(|c| c.anchor.as_str()),
+                                anchor,
                                 ctx.map(|c| c.line.as_str()),
                                 relevance,
                                 depth + 1,
@@ -493,13 +610,32 @@ impl Scraper {
                             if learner.demoted(&u) {
                                 score *= DEMOTED_SCORE;
                             }
+                            let siblings = per_cluster.get(&cluster_key(&u)).copied().unwrap_or(1);
+                            if siblings > crate::focus::LIST_FREE {
+                                score *= (crate::focus::LIST_FREE as f32 / siblings as f32).sqrt();
+                            }
                             let room = req.limit - scheduled;
+                            let was_queued = queue.contains(h);
                             overflow |=
                                 offer(&mut queue, &mut seen, &mut fresh, u, depth + 1, score, room);
+                            // 第一次发现它的页面是父页；分数被抬高时父页不换
+                            if queue.contains(h) && !was_queued {
+                                parents.insert(h, base.to_string());
+                            }
                         }
                     }
                     if !fresh.is_empty() {
                         sink.enqueued(std::mem::take(&mut fresh)).await;
+                    }
+                    // 队列头的链接比刚才那几页没用的页面分数都高（常见：栏目页刚抓回来，它的子页才入队）：
+                    // 最好的候选还没试过，不算饱和
+                    if stop == Some("saturated")
+                        && let Some(a) = adaptive.as_mut()
+                        && queue.peek_score().is_some_and(|s| s > stale_max)
+                    {
+                        a.forgive();
+                        stale_max = 0.0;
+                        stop = None;
                     }
                     if let Some(w) = scope_note {
                         push_warning(&mut doc, w);
@@ -510,16 +646,21 @@ impl Scraper {
                     if !wants_md {
                         doc.markdown = None;
                     }
-                    doc.metadata
-                        .pagesift
-                        .get_or_insert_with(Default::default)
-                        .relevance = Some((relevance * 1000.0).round() / 1000.0);
+                    let ext = doc.metadata.pagesift.get_or_insert_with(Default::default);
+                    ext.relevance = Some((relevance * 1000.0).round() / 1000.0);
+                    ext.crawl = trace.map(|mut t| {
+                        t.score = t.score.map(|s| (s * 1000.0).round() / 1000.0);
+                        t
+                    });
                     sink.page(doc).await;
                 }
                 Err(e) => sink.error(url.as_str(), e).await,
             }
             let pending = if stop.is_some() { 0 } else { queue.len() };
-            sink.total((scheduled + pending).min(req.limit)).await;
+            let att = attachments
+                .as_ref()
+                .map_or(0, |a| a.scheduled + a.pending());
+            sink.total((scheduled + pending).min(req.limit) + att).await;
         }
         let stop_reason = stop.unwrap_or(
             if scheduled >= req.limit && (overflow || !queue.is_empty()) {
@@ -544,7 +685,7 @@ impl Scraper {
                 .as_ref()
                 .map(|a| (a.coverage() * 1000.0).round() / 1000.0),
             term_evidence,
-            pages: scheduled,
+            pages: scheduled + attachments.as_ref().map_or(0, |a| a.scheduled),
         })
         .await;
         Ok(())
@@ -557,6 +698,8 @@ fn frontier_host(u: &Url) -> String {
 
 /// 带查询的爬取里，模板已降级的链接分数乘以它：排到几乎所有正常链接之后。
 const DEMOTED_SCORE: f32 = 0.01;
+/// 队首分数低于在途页面最高分的这个比例时，等在途页面回来再调度（它们的链接大概率更好）。
+const PATIENCE_RATIO: f32 = 0.6;
 
 /// 记下抓到的页面内容；和之前某页全文相同时在元数据里标出那一页。
 fn note_duplicate(learner: &mut Learner, url: &Url, doc: &mut pagesift_api::types::Document) {

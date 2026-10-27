@@ -445,7 +445,62 @@ impl<'a> Document<'a> {
     }
 
     /// 页树遍历的完整结果：页面，加上声明的页数和丢失的子节点（截断的文件）。
+    /// 页树一页都给不出时，把文件里散落的页面对象当页面（见 [`Self::orphan_pages`]）。
     pub(crate) fn page_tree(&self) -> PageTree {
+        let mut out = self.walk_page_tree();
+        if out.ids.is_empty() {
+            self.orphan_pages(&mut out);
+        }
+        out
+    }
+
+    /// 页树根丢了（最常见的是线性化的 PDF 被截断：第一页的对象在文件头，/Pages 字典在丢掉的
+    /// 后半截里）：文件里所有 `/Type /Page` 的对象按对象号当页面，线性化字典的 /O 指的那页排第一，
+    /// /N（或剩下的 /Pages 节点里最大的 /Count）是写入方声明的页数，差额记为丢失的页。
+    fn orphan_pages(&self, out: &mut PageTree) {
+        let mut nums: Vec<u32> = self.slots.keys().copied().collect();
+        nums.sort_unstable();
+        let mut ids: Vec<ObjectId> = Vec::new();
+        let mut first: Option<u32> = None;
+        let mut declared: Option<usize> = None;
+        let count = |o: &Object| usize::try_from(self.resolve(o).as_i64()?).ok();
+        for (i, num) in nums.into_iter().enumerate() {
+            if i % 1024 == 1023 && crate::budget::expired() {
+                break;
+            }
+            let generation = match self.slots[&num].entry {
+                Entry::Offset { generation, .. } => generation,
+                Entry::Compressed { .. } => 0,
+                Entry::Free => continue,
+            };
+            let Some(Object::Dictionary(d)) = self.get_object((num, generation)) else {
+                continue;
+            };
+            match d.type_name() {
+                Some(b"Page") => ids.push((num, generation)),
+                Some(b"Pages") => declared = declared.max(d.get(b"Count").and_then(count)),
+                _ if d.get(b"Linearized").is_some() => {
+                    first = d
+                        .get(b"O")
+                        .and_then(Object::as_i64)
+                        .and_then(|n| u32::try_from(n).ok());
+                    declared = declared.max(d.get(b"N").and_then(count));
+                }
+                _ => {}
+            }
+        }
+        if let Some(pos) = first.and_then(|o| ids.iter().position(|id| id.0 == o))
+            && pos > 0
+        {
+            let id = ids.remove(pos);
+            ids.insert(0, id);
+        }
+        out.missing = declared.map_or(0, |n| n.saturating_sub(ids.len()));
+        out.declared = declared.or(out.declared);
+        out.ids = ids;
+    }
+
+    fn walk_page_tree(&self) -> PageTree {
         let mut out = PageTree::default();
         let Some(Object::Reference(root)) = self.trailer.get(b"Root") else {
             return out;

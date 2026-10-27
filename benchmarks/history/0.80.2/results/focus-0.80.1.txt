@@ -1,0 +1,10 @@
+site      pattern                         U   M   X  pages err  stop
+portal    audience portal                  0   0  12    12   0  limit_reached
+newsy     news cluster hijack              0   0  12    12   0  saturated
+subdom    services on a subdomain          0   2  10    12   0  limit_reached
+nihon     non-English portal               0   0  12    12   0  limit_reached
+trap      single-subtree trap              0   1  11    12   0  saturated
+broken    error pages                      0   1  11    12   0  saturated
+gov       about/governance cluster         0   1  11    12   0  limit_reached
+good      direct international section     1   1  10    12   0  saturated
+focus 8x12: U+M 7/96 = 7.3% (min 0.0%), U 1.0%, median 1/12, zero-score sites 3 (max 8), 242.8 pages/s, cpu 0.18 s ok

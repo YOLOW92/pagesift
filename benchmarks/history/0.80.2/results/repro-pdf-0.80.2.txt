@@ -1,0 +1,15 @@
+== untitled-bookmarked.pdf
+ title: Attention Is All You Need inferred | pages: None None | warnings: None
+ md: # Attention Is All You Need||Ashish Vaswani*||Noam $Shazee^{\ast}r$ Niki Parmar † Jakob Uszkoreit *||Paragraph line 0 on page 1 explains the model in 
+== paper-bookmarked.pdf
+ title: Attention Is All You Need None | pages: None None | warnings: None
+ md: # Attention Is All You Need||Ashish Vaswani*||Noam $Shazee^{\ast}r$ Niki Parmar † Jakob Uszkoreit *||Paragraph line 0 on page 1 explains the model in 
+== paper-untitled.pdf
+ title: Attention Is All You Need inferred | pages: None None | warnings: None
+ md: # Attention Is All You Need||## Ashish Vaswani*||## Noam $Shazee^{\ast}r$ Niki Parmar † Jakob Uszkoreit *||Paragraph line 0 on page 1 explains the mod
+== paper-linearized-55.pdf
+ title: Attention Is All You Need None | pages: None None | warnings: ['pdf_repaired: the cross-reference table was unusable; objects were recovered by scanning the file', 'pages_missing: 4 of 8 pages could not be recovered from the damaged file; 4 converted']
+ md: # Attention Is All You Need||## Ashish Vaswani*||## Noam $Shazee^{\ast}r$ Niki Parmar † Jakob Uszkoreit *||Paragraph line 0 on page 1 explains the mod
+== paper-rootlost-55.pdf
+ title: Attention Is All You Need inferred | pages: None None | warnings: ['pdf_repaired: the cross-reference table was unusable; objects were recovered by scanning the file', 'pages_missing: 4 of 8 pages could not be recovered from the damaged file; 4 converted']
+ md: # Attention Is All You Need||## Ashish Vaswani*||## Noam Shazee*r Niki Parmar y Jakob Uszkoreit *||Paragraph line 0 on page 1 explains the model in pr

@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.80.1
+# pagesift 0.80.2
 
 **High-performance, memory-bounded web scraping and extraction engine built for AI agents and LLM pipelines.**  
 Turn any website, document, or archive into clean Markdown and structured data — one Rust binary, native SDKs, dual Firecrawl v1/v2 & Jina Reader APIs, at a fraction of the memory.
@@ -81,6 +81,23 @@ Measured with 0.70.0, not re-run for later versions.
 
 ---
 
+## What's New in 0.80.2
+
+**The focused crawl finds the pages it was asked for.** A tester ran `crawl --query` over 159
+university sites (*international students admission tuition scholarship visa*, 12 pages each) and
+got 25.6% useful pages. The link scoring, scheduling and stopping rule are rewritten: anchor text
+for every link (navigation included), query terms weighted by how rare they are on the site, news
+and about pages demoted, sections taken in turn, subdomains in scope, error pages excluded, and an
+adaptive stop that only counts relevant pages. On the synthetic 8-site gate that reproduces the
+report's failure patterns, useful pages went from 7.3% to 82.6%, and two synthetic sites from other
+domains (a developer portal, a city services site) with their own queries keep the rules honest;
+**real sites were not reachable from the development container, so those numbers are synthetic
+only.** New: `attachments` fetches
+the PDFs and Office documents linked from relevant pages; every result carries a crawl trace
+(`depth`, `parent`, `score`, `attachmentOf`). PDF follow-ups: a title under section-only bookmarks
+is no longer empty; a linearized PDF cut before its page tree root is converted instead of
+rejected. Details: [0.80.2 release notes](docs/releases/0.80.2.md).
+
 ## What's New in 0.80.1
 
 Fixes from the 0.80 review (HTML extraction is untouched; PDF output changes only where a raised
@@ -134,7 +151,7 @@ Run the standalone container (includes headless browser renderer):
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.1
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.2
 ```
 
 #### Firecrawl SDK Drop-In Replacement
@@ -293,7 +310,7 @@ If PageSift is useful in research or a product, cite it as:
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 0.80.1}
+  note   = {Version 0.80.2}
 }
 ```
 

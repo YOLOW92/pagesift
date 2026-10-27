@@ -88,16 +88,25 @@ async fn a_long_queue_on_one_host_does_not_block_the_others() {
         "{:?}",
         pages.iter().map(|p| &p.1).collect::<Vec<_>>()
     );
-    // 子域名的页面在慢页面排队期间就抓完了，不用等 30 个慢页面
+    // 子域名的页面在慢页面排队期间就抓完了，不用等 30 个慢页面：每个都在第 10 个慢页面之前完成
+    // （慢页面在一个主机上串行、各 50 ms；按它们的进度而不是绝对时间来比，慢的 CI 机器上也成立）
+    let mut slow: Vec<Instant> = pages
+        .iter()
+        .filter(|(_, u)| u.contains("/slow/"))
+        .map(|(t, _)| *t)
+        .collect();
+    slow.sort();
+    let bar = slow[9];
     for s in ["a", "b", "c", "d"] {
         let (t, _) = pages
             .iter()
             .find(|(_, u)| u.contains(&format!("//{s}.root.localhost")))
             .unwrap();
         assert!(
-            t.duration_since(t0) < Duration::from_millis(600),
-            "{s} done after {:?}",
-            t.duration_since(t0)
+            *t < bar,
+            "{s} done after {:?}, the 10th slow page after {:?}",
+            t.duration_since(t0),
+            bar.duration_since(t0)
         );
     }
 }

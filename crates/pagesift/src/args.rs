@@ -246,6 +246,12 @@ pub(crate) enum Command {
         /// With --query: stop early once the collected pages cover the query
         #[arg(long, requires = "query")]
         adaptive: bool,
+        /// With --query: also fetch and convert PDF/Office documents linked from relevant pages
+        #[arg(long, requires = "query")]
+        attachments: bool,
+        /// Maximum number of attachments (default: same as --limit)
+        #[arg(long, requires = "attachments")]
+        attachment_limit: Option<usize>,
         /// Tuning mode: adaptive (senses hardware and dynamically scales) or conservative
         #[arg(long, default_value = "adaptive")]
         tuning_mode: String,

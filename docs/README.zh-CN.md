@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.80.1
+# pagesift 0.80.2
 
 **为 AI 智能体与 LLM 数据工程打造的高性能、严格内存有界抓取与内容提取引擎。**  
 把任何网站、学术文档或历史档案转化为干净的 Markdown 与结构化数据——单个纯 Rust 二进制、原生多语言 SDK、兼容 Firecrawl v1/v2 与 Jina Reader 双协议，内存占用明显低于所测竞品（见 [benchmarks.md 第 9 节](benchmarks.md)）。
@@ -76,6 +76,17 @@
 
 ---
 
+## 0.80.2 更新
+
+**聚焦爬取抓到的是要找的页面。** 一位测试者用 `crawl --query` 跑了 159 所大学官网（查询 *international students
+admission tuition scholarship visa*，每站 12 页），有用页面只占 25.6%。这一版重写了链接打分、调度和停止规则：
+每个链接都按锚文本打分（导航栏里的也算）、查询词按在站内的稀有程度加权、新闻和"关于"类页面降权、各栏目轮流出队、
+子域名默认在范围内、错误页不算页面、自适应停止只拿相关页当证据。在复现报告里各种失败模式的 8 个合成站点上，
+有用页面从 7.3% 提到 82.6%；**开发环境连不上真实大学站点，这些数字只来自合成站点。**
+新增：`attachments` 抓取相关页面上链到的 PDF 和 Office 文档；每条结果带爬取轨迹（`depth`、`parent`、`score`、`attachmentOf`）。
+PDF 两项补修：书签只到章节时标题不再为空；线性化 PDF 截断到页树根之前时照常转换而不是报错。
+详见 [0.80.2 发行说明](releases/0.80.2.md)。
+
 ## 0.80.1 修复
 
 0.80 复查发现的问题（网页提取代码未动；PDF 输出只在词后上标脚注标记处有变化）：Shift_JIS、GBK 或任何声明了字符集的 CSV 按网页同样的方式解码（之前整页乱码且无提示）；
@@ -115,7 +126,7 @@
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.1
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.2
 ```
 
 #### Firecrawl SDK 零改动平替接入

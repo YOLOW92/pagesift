@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.80.1
+# pagesift 0.80.2
 
 **Motor de scraping y extracción web de alto rendimiento y memoria acotada para agentes de IA y pipelines de LLM.**  
 Convierte cualquier sitio web, documento o archivo en Markdown limpio y datos estructurados: un único binario en Rust, SDK nativos, APIs duales Firecrawl v1/v2 y Jina Reader, con menos memoria que las alternativas medidas (véase la [sección 9 de benchmarks.md](benchmarks.md)).
@@ -74,6 +74,21 @@ Medido con 0.70.0; no se ha repetido con versiones posteriores.
 
 ---
 
+## Novedades en 0.80.2
+
+**El rastreo enfocado encuentra las páginas que se le pidieron.** Un probador ejecutó `crawl --query`
+sobre 159 sitios universitarios (*international students admission tuition scholarship visa*, 12 páginas
+por sitio) y obtuvo un 25,6% de páginas útiles. Se reescribieron la puntuación de enlaces, la planificación
+y la regla de parada: texto de ancla para todos los enlaces (navegación incluida), términos ponderados por
+su rareza en el sitio, páginas de noticias y "acerca de" degradadas, secciones por turnos, subdominios
+dentro del alcance, páginas de error excluidas y una parada adaptativa que solo cuenta páginas relevantes.
+En los 8 sitios sintéticos que reproducen los patrones de fallo del informe, las páginas útiles pasaron del
+7,3% al 82,6%; **los sitios reales no eran accesibles desde el entorno de desarrollo, así que esas cifras
+son solo sintéticas.** Nuevo: `attachments` descarga los PDF y documentos Office enlazados desde páginas
+relevantes; cada resultado lleva la traza del rastreo (`depth`, `parent`, `score`, `attachmentOf`).
+PDF: un título bajo marcadores que solo cubren las secciones ya no queda vacío; un PDF linealizado cortado
+antes de la raíz del árbol de páginas se convierte en vez de rechazarse. Detalle: [notas de 0.80.2](releases/0.80.2.md).
+
 ## Correcciones en 0.80.1
 
 Correcciones de la revisión de 0.80 (la extracción de HTML no cambia; la salida de PDF solo cambia donde una marca de nota al pie elevada sigue a una palabra): los CSV en Shift_JIS, GBK o con
@@ -114,7 +129,7 @@ se conservan sin cambios y con sus fuentes en [history/homepage-es.md](history/h
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.1
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.2
 ```
 
 #### Reemplazo Directo de Firecrawl SDK

@@ -18,6 +18,7 @@ use regex::Regex;
 use crate::engine::{Scraper, policy_error};
 use crate::frontier::{self, Learner};
 
+mod attachments;
 mod runner;
 mod sitemap;
 #[cfg(test)]
@@ -191,7 +192,9 @@ impl Scope {
         let host = u.host_str().unwrap_or_default().to_ascii_lowercase();
         let bare = host.trim_start_matches("www.");
         let same = bare == self.host;
-        let sub = host.ends_with(&format!(".{}", self.host));
+        // 同一站点的任何子域名（可注册域名相同）：`iss.example.edu` 和 `www.example.edu`，
+        // 不只是起点主机的后代
+        let sub = pagesift_content::site_key(bare) == pagesift_content::site_key(&self.host);
         if !(same || (self.allow_subdomains && sub) || self.allow_external) {
             return false;
         }
@@ -568,9 +571,12 @@ impl Scraper {
             .policy()
             .robots_mode(RequestKind::Crawl, req.ignore_robots_txt)
             .map_err(policy_error)?;
+        if req.attachments && req.query.is_none() {
+            return Err(ApiError::invalid("attachments need a query"));
+        }
         let scope = Scope::new(
             &start,
-            req.allow_subdomains,
+            allow_subdomains(req),
             req.allow_external_links,
             if req.crawl_entire_domain {
                 CrawlScope::Domain
@@ -617,7 +623,7 @@ impl Scraper {
         }
         // 允许子域名或外链时会同时访问多个主机：默认并发放到全局上限，每主机仍受各自的并发和间隔约束
         let rate = self.policy().limiter().config();
-        let default = if req.allow_subdomains || req.allow_external_links {
+        let default = if allow_subdomains(req) || req.allow_external_links {
             rate.global_concurrency
         } else {
             rate.per_host_concurrency
@@ -625,6 +631,11 @@ impl Scraper {
         let concurrency = req.max_concurrency.unwrap_or(default).max(1);
         (Arc::new(opts), concurrency)
     }
+}
+
+/// 要不要进同站点的其他子域名：没明说时，带查询的爬取要（国际生服务、招生常在子域上），广度优先不要。
+pub(crate) fn allow_subdomains(req: &CrawlRequest) -> bool {
+    req.allow_subdomains.unwrap_or(req.query.is_some())
 }
 
 /// 一次爬取在各阶段之间共享的参数。

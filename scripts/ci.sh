@@ -35,5 +35,6 @@ fi
 step "perf gate"
 cargo run --release --locked -p pagesift-content --example perf_gate
 cargo run --release --locked -p pagesift --example crawl_gate
+cargo run --release --locked -p pagesift --example focus_gate
 
 printf '\nall checks passed\n'

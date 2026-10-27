@@ -11,8 +11,9 @@ pub use request::{
     Location, MapRequest, QueryFilter, ScrapeOptions, ScrapeRequest, SearchRequest,
 };
 pub use response::{
-    ChangeTracking, CrawlSummary, DocChunk, Document, JobError, JobErrors, JobStarted, JobStatus,
-    MapLink, MapResponse, Metadata, PageMarkdown, PagesiftMeta, QueryFilterStats, ScrapeResponse,
+    ChangeTracking, CrawlSummary, CrawlTrace, DocChunk, Document, JobError, JobErrors, JobStarted,
+    JobStatus, MapLink, MapResponse, Metadata, PageMarkdown, PagesiftMeta, QueryFilterStats,
+    ScrapeResponse,
 };
 
 #[cfg(test)]

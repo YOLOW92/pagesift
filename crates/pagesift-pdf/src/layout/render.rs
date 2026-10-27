@@ -65,7 +65,7 @@ fn numbered_line(
     Some(style)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct Para {
     pub(crate) text: String,
     pub(crate) x0: f64,
@@ -467,17 +467,32 @@ pub(crate) fn render(pages: &[Vec<Para>], mode: Mode) -> (Vec<String>, String) {
         is_cand.push(row);
     }
     let mut levels = headings::levels(&cands).into_iter();
+    // 写入方给了章节标题却没标文档题名（书签只到章节）：第一页按版式找出题名，提成一级标题，
+    // 否则 /Info 没有 /Title 的文件推断不出标题
+    let title = (mode == Mode::Hinted)
+        .then(|| {
+            pages
+                .first()
+                .and_then(|ps| crate::structure::title_candidate(ps, body))
+        })
+        .flatten();
+    // 题名提成一级标题后，写入方从一级开始标的章节标题整体降一级（题名在章节之上）
+    let shift = usize::from(title.is_some() && pages.iter().flatten().any(|p| p.hint == Some(1)));
     let kinds: Vec<Vec<Kind>> = pages
         .iter()
         .zip(&is_cand)
-        .map(|(ps, hs)| {
+        .enumerate()
+        .map(|(page, (ps, hs))| {
             ps.iter()
                 .zip(hs)
-                .map(|(p, &h)| {
+                .enumerate()
+                .map(|(i, (p, &h))| {
                     if p.raw {
                         Kind::Raw
                     } else if mode == Mode::Hinted && p.hint.is_some() {
-                        Kind::Heading(usize::from(p.hint.unwrap_or(1)).clamp(1, 6))
+                        Kind::Heading((usize::from(p.hint.unwrap_or(1)) + shift).clamp(1, 6))
+                    } else if page == 0 && title == Some(i) {
+                        Kind::Heading(1)
                     } else if h {
                         Kind::Heading(levels.next().unwrap_or(1))
                     } else if p.bullet {

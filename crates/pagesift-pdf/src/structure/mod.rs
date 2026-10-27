@@ -9,7 +9,7 @@ mod title;
 pub(crate) use numbering::{Style, numbering, starts_at_one};
 pub(crate) use outline::Entry;
 pub(crate) use tags::HeadingMcids;
-pub(crate) use title::inferred as inferred_title;
+pub(crate) use title::{candidate as title_candidate, inferred as inferred_title};
 
 use std::collections::HashMap;
 

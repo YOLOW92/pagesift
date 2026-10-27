@@ -175,6 +175,8 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
             external_scripts,
             query,
             adaptive,
+            attachments,
+            attachment_limit,
             tuning_mode,
             allow,
         } => runtime()?.block_on(async move {
@@ -187,11 +189,13 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
                     "excludePaths": exclude,
                     "crawlEntireDomain": entire_domain,
                     "scope": scope,
-                    "allowSubdomains": subdomains,
+                    "allowSubdomains": subdomains.then_some(true),
                     "sitemap": sitemap,
                     "scrapeOptions": { "engine": engine, "discoverScripts": external_scripts },
                     "query": query,
                     "adaptive": adaptive,
+                    "attachments": attachments,
+                    "attachmentLimit": attachment_limit,
                 }))?;
             if let Some(dir) = &out {
                 std::fs::create_dir_all(dir)

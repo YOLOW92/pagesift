@@ -193,6 +193,10 @@ pub(super) fn document(
         markdown: opts.wants("markdown").then_some(doc.markdown),
         html: doc.html,
         raw_html: opts.wants("rawHtml").then_some(raw_html),
+        link_text: doc
+            .links
+            .as_ref()
+            .map(|l| l.iter().map(|l| l.text.clone()).collect()),
         links: doc.links.map(|l| l.into_iter().map(|l| l.url).collect()),
         images: doc.images.map(|i| i.into_iter().map(|i| i.src).collect()),
         ..Default::default()

@@ -1,0 +1,4 @@
+ascii.csv ms: 136.893	5821664  instr: 4318530413
+sjis.csv ms: 76.703	1819844  instr: 1625363985
+gbk.csv ms: 54.223	1621844  instr: 1794052640
+utf8-cjk.csv ms: 39.242	1621844  instr: 1182424119

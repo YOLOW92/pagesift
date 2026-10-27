@@ -214,6 +214,10 @@ pub fn crawl_def() -> ToolDef {
             "webhookHeaders": { "type": "object", "additionalProperties": { "type": "string" } },
             "deduplicateSimilarURLs": { "type": "boolean" },
             "ignoreQueryParameters": { "type": "boolean" },
+            "query": { "type": "string", "description": "Crawl the pages most relevant to this query first." },
+            "adaptive": { "type": "boolean", "description": "With query: stop once the collected pages cover it." },
+            "attachments": { "type": "boolean", "description": "With query: also fetch PDF/Office documents linked from relevant pages." },
+            "attachmentLimit": { "type": "number" },
             "scrapeOptions": scrape_options
         },
         "required": ["url"]
