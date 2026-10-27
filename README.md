@@ -72,11 +72,15 @@ Measured with 0.70.0, not re-run for later versions.
   broken files, faster and with less memory.
 - **PDF headings with real levels**, read from the writer's structure tree and bookmarks first and
   inferred from numbering, size and weight otherwise. On the 13 PDFs of the AiSeek report
-  (higher is better): recall 0.595 → 0.945, precision 0.400 → 0.872, level agreement 0.819 →
-  0.956, empty headings 3 → 0.
+  (higher is better): recall 0.595 → 0.947, precision 0.400 → 0.876, level agreement 0.819 →
+  0.957, empty headings 3 → 0.
 - **Headers, footers and figures**: `/Artifact` marks, running heads with page numbers and vector
   figures are recognised. olmOCR-bench `headers_footers` 0.681 → 0.734 (higher is better); false
-  tables on the 13 PDFs 196 → 18 (lower is better).
+  tables on the 13 PDFs 196 → 9 (lower is better).
+- **CJK text without ToUnicode**: Chinese, Japanese and Korean PDFs whose CID fonts carry no
+  `/ToUnicode` map (LaTeX/ctex with Fandol fonts, many others) lost all CJK text; it is now decoded
+  through the Adobe-GB1/CNS1/Japan1/Korea1 collections or the embedded TrueType cmap. On 19 diverse
+  Chinese PDFs, inferred-heading recall 0.497 → 0.826 (higher is better).
 - **`POST /v2/parse`**: Firecrawl-compatible upload of PDF, HTML, Word (.docx), Excel (.xlsx), PowerPoint (.pptx), EPUB and CSV files; `/v2/scrape` and `pagesift scrape <file>` convert the same formats.
 - **`partial_content` and `replies_omitted` warnings** when the extracted text is likely
   incomplete. On 1,842 saved WCXB pages, losses without a warning 0.842 → 0.667 and false alarms
