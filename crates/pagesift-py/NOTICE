@@ -1,0 +1,105 @@
+pagesift
+Copyright (C) 2026 YOLOW92
+
+This product includes ideas, rules and data derived from the following projects.
+No source code from them is included; the algorithms were reimplemented in Rust.
+Binary distributions (release archives, the Docker image, the npm and Python packages)
+carry this file so that the notices below travel with the binaries.
+
+- trafilatura (https://github.com/adbar/trafilatura), Apache License 2.0,
+  Copyright (C) Adrien Barbaresi and contributors.
+  Content-container class/id patterns, boilerplate patterns, the tag whitelist,
+  link-density tests and the extraction arbitration heuristics used by the
+  article mode (crates/pagesift-content/src/features.rs, article.rs, lib.rs).
+
+- Mozilla Readability (https://github.com/mozilla/readability), Apache License 2.0,
+  Copyright (c) 2010 Arc90 Inc and the Mozilla contributors.
+  The paragraph scoring, candidate selection and sibling rules
+  (crates/pagesift-content/src/readability.rs) and its class/id word lists.
+
+- htmldate (https://github.com/adbar/htmldate), Apache License 2.0,
+  Copyright (C) Adrien Barbaresi and contributors.
+  The search order, meta attribute lists, date patterns, candidate selection and
+  plausibility rules of the publication-date search
+  (crates/pagesift-content/src/dates.rs). Its annotated evaluation set is used,
+  unmodified and not redistributed, by benchmarks/dates/dates.py.
+
+- courlan (https://github.com/adbar/courlan), Apache License 2.0,
+  Copyright (C) Adrien Barbaresi and contributors.
+  The tracking-parameter rules used when cleaning crawl URLs
+  (crates/pagesift/src/frontier.rs).
+
+- Heritrix (https://github.com/internetarchive/heritrix3), Apache License 2.0,
+  Copyright (C) Internet Archive.
+  The session-ID stripping and pathological-path rules of the crawl frontier
+  (crates/pagesift/src/frontier.rs).
+
+- Scrapy (https://github.com/scrapy/scrapy), BSD 3-Clause License,
+  Copyright (c) Scrapy developers.
+  The retry policy (status codes, retry count, rescheduling instead of waiting)
+  of the crawler (crates/pagesift/src/crawl.rs).
+
+- semchunk (https://github.com/isaacus-dev/semchunk), MIT License,
+  Copyright (c) Isaacus.
+  The recursive chunking algorithm: splitter priorities and greedy merging of
+  sibling splits (crates/pagesift-extract/src/recursive.rs).
+
+- pdfplumber (https://github.com/jsvine/pdfplumber), MIT License,
+  Copyright (c) 2015, Jeremy Singer-Vine.
+  The lattice table algorithm: snapping and joining ruling lines, intersections,
+  smallest cells and grouping cells into tables (crates/pagesift-pdf/src/table.rs).
+
+- CFF standard strings (Adobe Technical Note #5176, Appendix A), as listed in
+  pdfminer.six (https://github.com/pdfminer/pdfminer.six), MIT License
+  (crates/pagesift-pdf/src/fontfile.rs).
+
+This product also includes data from the following project, compiled into the binaries.
+
+- Adobe cmap-resources (https://github.com/adobe-type-tools/cmap-resources),
+  BSD 3-Clause License, Copyright 1990-2019 Adobe. All rights reserved.
+  The CID-to-Unicode tables of the Adobe-GB1, Adobe-CNS1, Adobe-Japan1 and Adobe-Korea1
+  character collections (cid2code.txt), converted to the binary tables in
+  crates/pagesift-pdf/src/font/cid2uni/ and used to decode CJK text in PDFs whose
+  CID fonts carry no ToUnicode map. The license text follows.
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are
+  met:
+
+  Redistributions of source code must retain the above copyright notice,
+  this list of conditions and the following disclaimer.
+
+  Redistributions in binary form must reproduce the above copyright
+  notice, this list of conditions and the following disclaimer in the
+  documentation and/or other materials provided with the distribution.
+
+  Neither the name of Adobe nor the names of its contributors may be
+  used to endorse or promote products derived from this software without
+  specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+  HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+The PDF benchmark uses olmOCR-bench (https://huggingface.co/datasets/allenai/olmOCR-bench,
+ODC-BY 1.0) and its scoring code (https://github.com/allenai/olmocr, Apache License 2.0);
+both are downloaded, not redistributed.
+
+The chunking and query-filter benchmarks use the evaluation data of Chroma's
+chunking_evaluation (https://github.com/brandonstarxel/chunking_evaluation,
+MIT License); it is downloaded, not redistributed.
+
+The URL rewrite-rule learning follows the DUST idea from Bar-Yossef, Keidar and
+Schonfeld, "Do not crawl in the DUST: different URLs with similar text" (WWW 2007),
+and Dasgupta et al., "De-duping URLs via rewrite rules" (KDD 2008).
+
+- markup5ever (https://github.com/servo/html5ever), MIT OR Apache-2.0.
+  The HTML named character reference table (crates/pagesift-html/src/entities.rs).

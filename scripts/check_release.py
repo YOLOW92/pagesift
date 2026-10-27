@@ -36,6 +36,9 @@ def check(tag=None):
     assert lock['version'] == lock['packages']['']['version'] == version
     pyproject = tomllib.loads((ROOT/'crates/pagesift-py/pyproject.toml').read_text())
     assert 'version' in pyproject['project']['dynamic']
+    # wheel 和 sdist 里的 LICENSE、NOTICE 是根目录文件的副本，不能漂移
+    for name in ('LICENSE', 'NOTICE'):
+        assert (ROOT/'crates/pagesift-py'/name).read_bytes() == (ROOT/name).read_bytes(), f'crates/pagesift-py/{name} differs from {name}'
     assert (ROOT/f'docs/releases/{version}.md').is_file(), 'release notes missing'
     print(f'Release identity OK: {version}, {len(names)} Rust packages, {len(platforms)} npm platforms, dynamic Python version')
     return metadata
