@@ -429,6 +429,10 @@ fn remove_fixed_furniture(pages: &mut [Vec<Line>], heights: &[f64]) {
                 }
             }
         }
+        // 页眉页脚不会是一页的全部文字：删完不剩别的（每页只有一两行的测试页、每页同一句话）就一行不删
+        if (0..lines.len()).all(|i| drop[i] || lines[i].raw) && !lines.iter().any(|l| l.raw) {
+            continue;
+        }
         let mut it = drop.iter();
         lines.retain(|_| !it.next().copied().unwrap_or(false));
     }
