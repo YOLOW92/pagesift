@@ -372,7 +372,9 @@ fn remove_fixed_furniture(pages: &mut [Vec<Line>], heights: &[f64]) {
     type Row = ((bool, i64, i64, String), Vec<usize>);
     let rows_of = |lines: &[Line], h: f64| -> Vec<Row> {
         let mut idx: Vec<usize> = (0..lines.len())
-            .filter(|&i| !lines[i].raw && (lines[i].y >= h * (1.0 - BAND) || lines[i].y <= h * BAND))
+            .filter(|&i| {
+                !lines[i].raw && (lines[i].y >= h * (1.0 - BAND) || lines[i].y <= h * BAND)
+            })
             .collect();
         idx.sort_by(|&a, &b| lines[b].y.total_cmp(&lines[a].y));
         let mut groups: Vec<Vec<usize>> = Vec::new();
@@ -395,12 +397,29 @@ fn remove_fixed_furniture(pages: &mut [Vec<Line>], heights: &[f64]) {
                 let size = g.iter().map(|&i| lines[i].size).fold(0.0, f64::max);
                 let y = lines[g[0]].y;
                 // 按原文比较（只合并空白、不折叠数字）：数字不同的行不是同一行，带页码的页眉由 running_folios 管
-                let key = text.join(" ").split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase();
-                ((y >= h * (1.0 - BAND), y.round() as i64, size.round() as i64, key), g)
+                let key = text
+                    .join(" ")
+                    .split_whitespace()
+                    .collect::<Vec<_>>()
+                    .join(" ")
+                    .to_lowercase();
+                (
+                    (
+                        y >= h * (1.0 - BAND),
+                        y.round() as i64,
+                        size.round() as i64,
+                        key,
+                    ),
+                    g,
+                )
             })
             .collect()
     };
-    let all: Vec<Vec<Row>> = pages.iter().zip(heights).map(|(l, &h)| rows_of(l, h)).collect();
+    let all: Vec<Vec<Row>> = pages
+        .iter()
+        .zip(heights)
+        .map(|(l, &h)| rows_of(l, h))
+        .collect();
     // 同一键在几页上出现；高度允许差 1pt：把 y±1 的键都算上
     let mut pages_of: HashMap<(bool, i64, i64, &str), HashSet<usize>> = HashMap::new();
     for (p, rows) in all.iter().enumerate() {
@@ -409,12 +428,17 @@ fn remove_fixed_furniture(pages: &mut [Vec<Line>], heights: &[f64]) {
                 continue;
             }
             for dy in -1..=1 {
-                pages_of.entry((*top, y + dy, *size, text.as_str())).or_default().insert(p);
+                pages_of
+                    .entry((*top, y + dy, *size, text.as_str()))
+                    .or_default()
+                    .insert(p);
             }
         }
     }
     let fixed = |k: &(bool, i64, i64, String)| {
-        pages_of.get(&(k.0, k.1, k.2, k.3.as_str())).is_some_and(|s| s.len() >= 3)
+        pages_of
+            .get(&(k.0, k.1, k.2, k.3.as_str()))
+            .is_some_and(|s| s.len() >= 3)
     };
     for (lines, rows) in pages.iter_mut().zip(&all) {
         let mut drop = vec![false; lines.len()];
@@ -439,4 +463,3 @@ fn remove_fixed_furniture(pages: &mut [Vec<Line>], heights: &[f64]) {
         lines.retain(|_| !it.next().copied().unwrap_or(false));
     }
 }
-

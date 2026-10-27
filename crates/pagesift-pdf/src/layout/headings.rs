@@ -110,9 +110,7 @@ pub(crate) fn levels(cands: &[Cand]) -> Vec<usize> {
     keys.dedup();
     // 超过 6 级时，先把最上面只出现一次、没编号的几档（封面的题名块）并进第一级，
     // 免得最深的几级编号被挤成同一级
-    let single = |k: &Key| {
-        k.1.is_none() && all.iter().filter(|x| *x == k).count() == 1
-    };
+    let single = |k: &Key| k.1.is_none() && all.iter().filter(|x| *x == k).count() == 1;
     let mut merged = 0;
     if keys.first().is_some_and(single) {
         while merged < keys.len().saturating_sub(6) && keys.get(merged + 1).is_some_and(single) {

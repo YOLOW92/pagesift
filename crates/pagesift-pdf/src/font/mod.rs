@@ -1,7 +1,7 @@
 //! 字体解码：把显示串里的字节切成字符码，转成 Unicode 并给出字宽。
 
-pub(crate) mod cjk;
 mod cid2uni;
+pub(crate) mod cjk;
 use cjk::{CodeSource, code_len, fallback_text, predefined_source};
 
 use std::collections::HashMap;
@@ -294,14 +294,20 @@ impl Font {
             if truetype
                 && to_unicode.is_none()
                 && let Some(fd) = descriptor
-                && let Some(prog) = get(doc, fd, b"FontFile2").and_then(|o| stream_bytes(doc, o, stream_limit))
+                && let Some(prog) =
+                    get(doc, fd, b"FontFile2").and_then(|o| stream_bytes(doc, o, stream_limit))
             {
                 comp.glyph_text = crate::fontfile::truetype::glyph_unicode(&prog);
                 if comp.glyph_text.is_some()
                     && let Some(o @ Object::Stream(_)) = get(doc, cf, b"CIDToGIDMap")
                 {
-                    comp.cid_to_gid = stream_bytes(doc, o, stream_limit)
-                        .map(|b| b.as_chunks::<2>().0.iter().map(|c| u16::from_be_bytes(*c)).collect());
+                    comp.cid_to_gid = stream_bytes(doc, o, stream_limit).map(|b| {
+                        b.as_chunks::<2>()
+                            .0
+                            .iter()
+                            .map(|c| u16::from_be_bytes(*c))
+                            .collect()
+                    });
                 }
             }
             if !truetype && let Some(info) = get_dict(doc, cf, b"CIDSystemInfo") {

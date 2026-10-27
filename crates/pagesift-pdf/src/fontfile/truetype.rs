@@ -11,7 +11,12 @@ fn u16_at(b: &[u8], i: usize) -> Option<u32> {
 }
 
 fn u32_at(b: &[u8], i: usize) -> Option<u32> {
-    Some(u32::from_be_bytes([*b.get(i)?, *b.get(i + 1)?, *b.get(i + 2)?, *b.get(i + 3)?]))
+    Some(u32::from_be_bytes([
+        *b.get(i)?,
+        *b.get(i + 1)?,
+        *b.get(i + 2)?,
+        *b.get(i + 3)?,
+    ]))
 }
 
 /// 字形编号 → 字符。读不出 Unicode 子表返回 None。一个字形对应多个码位时取最小的（常用字在前）。
@@ -20,7 +25,9 @@ pub(crate) fn glyph_unicode(font: &[u8]) -> Option<HashMap<u32, char>> {
     let tables = u16_at(font, 4)? as usize;
     let cmap = (0..tables).find_map(|k| {
         let e = 12 + 16 * k;
-        (font.get(e..e + 4)? == b"cmap").then(|| u32_at(font, e + 8)).flatten()
+        (font.get(e..e + 4)? == b"cmap")
+            .then(|| u32_at(font, e + 8))
+            .flatten()
     })? as usize;
     let subtables = u16_at(font, cmap + 2)? as usize;
     // 挑子表：全平面的格式 12 优先，其次 BMP 的格式 4
@@ -49,11 +56,13 @@ pub(crate) fn glyph_unicode(font: &[u8]) -> Option<HashMap<u32, char>> {
             return;
         }
         if let Some(c) = char::from_u32(cp) {
-            map.entry(gid).and_modify(|e| {
-                if c < *e {
-                    *e = c;
-                }
-            }).or_insert(c);
+            map.entry(gid)
+                .and_modify(|e| {
+                    if c < *e {
+                        *e = c;
+                    }
+                })
+                .or_insert(c);
         }
     };
     if rank == 2 {
@@ -106,7 +115,10 @@ mod tests {
         let mut cmap = Vec::new();
         cmap.extend([0, 0, 0, 1]); // 版本、子表数
         cmap.extend([0, 3, 0, 1, 0, 0, 0, 12]); // (3,1) 偏移 12
-        let segs: [(u16, u16, u16); 2] = [(0x4E2D, 0x4E2D, 7u16.wrapping_sub(0x4E2D)), (0xFFFF, 0xFFFF, 1)];
+        let segs: [(u16, u16, u16); 2] = [
+            (0x4E2D, 0x4E2D, 7u16.wrapping_sub(0x4E2D)),
+            (0xFFFF, 0xFFFF, 1),
+        ];
         let mut sub = vec![0, 4, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0];
         for s in segs {
             sub.extend(s.1.to_be_bytes());

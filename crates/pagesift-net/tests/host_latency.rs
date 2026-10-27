@@ -80,7 +80,8 @@ impl Origin {
     }
 
     fn take_peak(&self) -> usize {
-        self.peak.swap(self.active.load(Ordering::SeqCst), Ordering::SeqCst)
+        self.peak
+            .swap(self.active.load(Ordering::SeqCst), Ordering::SeqCst)
     }
 }
 
@@ -126,7 +127,10 @@ async fn latency_rising_with_load_shrinks_and_recovers() {
     let f = fetcher(Duration::from_secs(2));
     // 低负载下先建立这个源站的基线延迟（20 ms）
     for i in 0..16 {
-        let r = f.fetch(FetchRequest::new(o.url(&format!("/w{i}")))).await.unwrap();
+        let r = f
+            .fetch(FetchRequest::new(o.url(&format!("/w{i}"))))
+            .await
+            .unwrap();
         assert_eq!(r.status, 200);
     }
 
@@ -156,11 +160,16 @@ async fn latency_independent_of_load_does_not_shrink() {
     let o = Origin::start().await;
     let f = fetcher(Duration::from_secs(2));
     for i in 0..16 {
-        f.fetch(FetchRequest::new(o.url(&format!("/w{i}")))).await.unwrap();
+        f.fetch(FetchRequest::new(o.url(&format!("/w{i}"))))
+            .await
+            .unwrap();
     }
     burst(&f, &o, 96).await;
     let t = target(&f, &o);
-    eprintln!("constant latency: target {t}, origin peak {}", o.take_peak());
+    eprintln!(
+        "constant latency: target {t}, origin peak {}",
+        o.take_peak()
+    );
     assert!(t >= 4, "target {t}");
 }
 
@@ -182,16 +191,26 @@ async fn cold_start_uses_the_tail_threshold_until_eight_samples() {
     let (f1, url) = (f.clone(), o.url("/slow?ms=450"));
     let slow = tokio::spawn(async move { f1.fetch(FetchRequest::new(url)).await.unwrap() });
     tokio::time::sleep(Duration::from_millis(350)).await;
-    assert_eq!(parked(&f), 0, "cold start parks only after the tail threshold");
+    assert_eq!(
+        parked(&f),
+        0,
+        "cold start parks only after the tail threshold"
+    );
     assert_eq!(slow.await.unwrap().status, 200);
 
     // 攒够 8 个 20 ms 的样本：阈值降到下限 250 ms，同样的请求 350 ms 时已停放
     for i in 0..8 {
-        f.fetch(FetchRequest::new(o.url(&format!("/w{i}")))).await.unwrap();
+        f.fetch(FetchRequest::new(o.url(&format!("/w{i}"))))
+            .await
+            .unwrap();
     }
     let (f2, url) = (f.clone(), o.url("/slow?ms=450"));
     let slow = tokio::spawn(async move { f2.fetch(FetchRequest::new(url)).await.unwrap() });
     tokio::time::sleep(Duration::from_millis(350)).await;
-    assert_eq!(parked(&f), 1, "warm origin parks after its own slow threshold");
+    assert_eq!(
+        parked(&f),
+        1,
+        "warm origin parks after its own slow threshold"
+    );
     assert_eq!(slow.await.unwrap().status, 200);
 }

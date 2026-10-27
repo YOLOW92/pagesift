@@ -62,7 +62,9 @@ impl Collection {
             }
         }
         let (start, len, uni) = rec(lo.checked_sub(1)?);
-        (cid < start + len).then(|| char::from_u32(uni + (cid - start))).flatten()
+        (cid < start + len)
+            .then(|| char::from_u32(uni + (cid - start)))
+            .flatten()
     }
 }
 

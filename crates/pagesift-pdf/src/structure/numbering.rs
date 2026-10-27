@@ -122,14 +122,15 @@ pub(crate) fn numbering(text: &str) -> Option<(Style, &str)> {
             Style::Letter(segments(head))
         }
     } else {
-        let unit = head.split_whitespace().next().and_then(|w| {
-            match w.to_ascii_lowercase().as_str() {
-                "part" => Some(0),
-                "chapter" | "appendix" => Some(1),
-                "section" => Some(2),
-                _ => None,
-            }
-        })?;
+        let unit =
+            head.split_whitespace()
+                .next()
+                .and_then(|w| match w.to_ascii_lowercase().as_str() {
+                    "part" => Some(0),
+                    "chapter" | "appendix" => Some(1),
+                    "section" => Some(2),
+                    _ => None,
+                })?;
         Style::Chapter(unit)
     };
     Some((style, rest))
@@ -138,14 +139,22 @@ pub(crate) fn numbering(text: &str) -> Option<(Style, &str)> {
 /// 中文数字编号：`一、…`、`（一）…`（全角、半角括号都认）。编号后要有文字。
 fn han(t: &str) -> Option<Option<(Style, &str)>> {
     let paren = t.starts_with(['(', '（']);
-    let body = if paren { &t[t.chars().next()?.len_utf8()..] } else { t };
+    let body = if paren {
+        &t[t.chars().next()?.len_utf8()..]
+    } else {
+        t
+    };
     let n = body.chars().take_while(|&c| han_digit(c)).count();
     if n == 0 {
         return None;
     }
     let digits_len: usize = body.chars().take(n).map(char::len_utf8).sum();
     let after = &body[digits_len..];
-    let close = if paren { [')', '）'].iter().find(|&&c| after.starts_with(c)) } else { ['、'].iter().find(|&&c| after.starts_with(c)) };
+    let close = if paren {
+        [')', '）'].iter().find(|&&c| after.starts_with(c))
+    } else {
+        ['、'].iter().find(|&&c| after.starts_with(c))
+    };
     let &c = close?;
     let rest = after[c.len_utf8()..].trim_start();
     let style = if paren { Style::HanParen } else { Style::Han };
@@ -211,7 +220,10 @@ mod tests {
             Some((Style::Paren, "経済の中心的な見通し"))
         );
         assert_eq!(numbering("第2章 概要"), Some((Style::Chapter(1), "概要")));
-        assert_eq!(numbering("第三节 公司简介"), Some((Style::Chapter(2), "公司简介")));
+        assert_eq!(
+            numbering("第三节 公司简介"),
+            Some((Style::Chapter(2), "公司简介"))
+        );
         assert_eq!(numbering("[12] A. Author, Title"), None);
         assert_eq!(numbering("The model"), None);
         assert_eq!(numbering("(TS), located on Woodstock beach"), None);
@@ -222,8 +234,19 @@ mod tests {
         assert_eq!(numbering("IV. Results"), Some((Style::Roman, "Results")));
         assert_eq!(numbering("一、 释义"), Some((Style::Han, "释义")));
         assert_eq!(numbering("十二、公司治理"), Some((Style::Han, "公司治理")));
-        assert_eq!(numbering("（二） 偿债能力"), Some((Style::HanParen, "偿债能力")));
-        assert!(starts_at_one("（一） 盈利能力") && starts_at_one("1. Intro") && starts_at_one("一、释义"));
-        assert!(!starts_at_one("12. Data") && !starts_at_one("十一、其他") && !starts_at_one("（二） 偿债"));
+        assert_eq!(
+            numbering("（二） 偿债能力"),
+            Some((Style::HanParen, "偿债能力"))
+        );
+        assert!(
+            starts_at_one("（一） 盈利能力")
+                && starts_at_one("1. Intro")
+                && starts_at_one("一、释义")
+        );
+        assert!(
+            !starts_at_one("12. Data")
+                && !starts_at_one("十一、其他")
+                && !starts_at_one("（二） 偿债")
+        );
     }
 }
