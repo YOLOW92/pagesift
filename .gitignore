@@ -1,18 +1,21 @@
 /target
-/bench/data/
-/bench/compare/rust-tools/target/
-/bench/compare/html-parity/target/
-/bench/six/adapters/offline/target/
-/bench/aiseek/results/
+/benchmarks/data
+# 过渡：本机旧位置（bench/data、bench/venv）在搬到 benchmarks/ 之前或改成符号链接时不进 git
+/bench/data
+/bench/venv
+/benchmarks/web-extraction/compare/rust-tools/target/
+/benchmarks/web-extraction/compare/html-parity/target/
+/benchmarks/history/0.70/six/adapters/offline/target/
+/benchmarks/production/aiseek/results/
 __pycache__/
-bench/crawl/wild-*/
-bench/crawl/wild-*.log
-bench/markdown/out/
-bench/rag/out/
-bench/pdf/out/
+benchmarks/crawl/wild-*/
+benchmarks/crawl/wild-*.log
+benchmarks/markdown/out/
+benchmarks/rag/out/
+benchmarks/pdf/out/
 
 # Local benchmark evidence, binaries and snapshots; public summaries live in evidence/.
-/bench/six/results/
+/benchmarks/history/0.70/six/results/
 
 # Local development-tool configuration and private work notes
 /.claude/
@@ -22,26 +25,29 @@ bench/pdf/out/
 /AGENTS.md
 
 # Raw benchmark process logs stay local
-/bench/fresh/results/**/*.log
-/bench/ultra/
+/benchmarks/common/fresh/results/**/*.log
+/benchmarks/ultra/
 
-# 基准上游仓库的虚拟环境与大体量样例数据（源码按需 vendor，见 bench/upstream/README.md）
-/bench/upstream/.venv/
-/bench/upstream/*/.git/
-/bench/upstream/*/results/
-/bench/upstream/*/data/
-/bench/upstream/*/benchmark/
+# 基准上游仓库的虚拟环境与大体量样例数据（源码按需 vendor，见 benchmarks/web-extraction/vendor/README.md）
+/benchmarks/common/vendor/.venv/
+/benchmarks/*/vendor/*/.git/
+/benchmarks/*/vendor/*/results/
+/benchmarks/*/vendor/*/data/
+/benchmarks/*/vendor/*/benchmark/
 # 基准执行产物：只保留小体积汇总，原始预测与遥测不入库
-/bench/results/final/*/pred_*.jsonl
-/bench/results/final/*/*/pred_*.jsonl
-/bench/results/final/*/work/
-/bench/results/final/*/*/work/
-/bench/results/final/*/md/
-/bench/results/0.70_p3_100m_saturation*.json
-/bench/results/0.70_200m_*.json
-/bench/results/0.70_local_100m.json
-/bench/robots_spec/target/
-/bench/p4_2_webmainbench/target/
+/benchmarks/history/*/results/pred_*.jsonl
+/benchmarks/history/*/results/*/pred_*.jsonl
+/benchmarks/history/*/results/*/*/pred_*.jsonl
+/benchmarks/history/*/results/work/
+/benchmarks/history/*/results/*/work/
+/benchmarks/history/*/results/*/*/work/
+/benchmarks/history/*/results/md/
+/benchmarks/history/*/results/*/md/
+/benchmarks/scale/results/0.70_p3_100m_saturation*.json
+/benchmarks/scale/results/0.70_200m_*.json
+/benchmarks/scale/results/0.70_local_100m.json
+/benchmarks/crawl/robots_spec/target/
+/benchmarks/web-extraction/webmainbench/target/
 
 # 0.50 对照构建用的 worktree
 /.worktree/
@@ -49,13 +55,13 @@ bench/pdf/out/
 # 基准执行期的本地缓存与第三方工具链（体积大、可重建，不入库）
 /.cache/
 /out/
-/bench/venv/
-/bench/thirdparty/
+/benchmarks/venv/
+/benchmarks/thirdparty/
 # 基准构建产物
-/bench/tools/*/target/
-/bench/compare/rust-tools/target/
-/bench/p4_2_webmainbench/target/
-/bench/robots_spec/target/
+/benchmarks/*/adapters/*/target/
+/benchmarks/web-extraction/compare/rust-tools/target/
+/benchmarks/web-extraction/webmainbench/target/
+/benchmarks/crawl/robots_spec/target/
 # 0.50 对照构建用的 worktree
 /.worktree/
-/bench/fuzz-out/
+/benchmarks/fuzz-out/

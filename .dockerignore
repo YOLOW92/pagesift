@@ -1,13 +1,13 @@
 target
 .git
 .claude
-bench/data
+benchmarks/data
 **/node_modules
 **/__pycache__
 *.node
 
-bench/six/results
-bench/six/evidence
+benchmarks/history/0.70/six/results
+benchmarks/history/0.70/six/evidence
 
 # Build the product without benchmark, documentation or tool-workspace files
 bench

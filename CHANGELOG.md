@@ -243,7 +243,7 @@ See [the release notes](docs/releases/0.70.0.md).
 - Reproducible harnesses and reports for seven public benchmarks under `bench/`:
   WebMainBench, WCEB, olmOCR-bench, WCXB, Google Security Crawl Maze, the robots.txt spec
   suite and Common Crawl WARC.
-- Accepted-upstream scorers are vendored under `bench/upstream/` at pinned commits, so the
+- Accepted-upstream scorers are vendored under `benchmarks/common/vendor/` at pinned commits, so the
   published numbers can be recomputed offline.
 - E1 stress suite: content storm, multi-host crawl, seeded fault storm, and a fixed
   10-minute A/B/C mixed run with per-minute telemetry.
@@ -316,8 +316,8 @@ Generational performance revolution: Share-Nothing multi-shard architecture brea
   - **WILD-X 1 (Extreme Limits)**: 100,000 real public domains from Tranco Top 1M crawled in 52.1s (1,921.1 p/s, 90.68% valid Markdown extraction rate, peak RSS 4.75 GB).
   - **WILD-X 2 (100M Live Web Showdown)**: Full-scale **100,000,000 real public web pages** crawled and distilled in 39.56 minutes at 42,124.1 p/s, yielding 199,422 rich Markdown documents (2.31 GB pure content) with zero OOM and zero disk overflow.
 - **Cross-Generation Benchmark Whitepaper & Reproducibility Suite**:
-  - Published [`docs/benchmarks/0.60_p5_cross_generation_rebench.md`](docs/benchmarks/0.60_p5_cross_generation_rebench.md) with complete 10-dimension comparison metrics.
-  - Reproducible benchmark scripts provided in `bench/p0/`, `bench/p1/`, `bench/p4/`, and `bench/p5/`.
+  - Published [`docs/history/0.60_p5_cross_generation_rebench.md`](docs/history/0.60_p5_cross_generation_rebench.md) with complete 10-dimension comparison metrics.
+  - Reproducible benchmark scripts provided in `benchmarks/scale/p0/`, `benchmarks/history/0.60/p1/`, `benchmarks/history/0.60/p4/`, and `benchmarks/history/0.60/p5/`.
 
 ### Changed
 - Workspace package version bumped to `0.60.0` across all workspace crates, Node.js bindings (`@pagesift/node`), and Python SDK (`pagesift`).
@@ -374,7 +374,7 @@ Web-scale industrial milestone: 100,000 real-world public web showdown vs Spider
   - D8 Implicit JS Endpoints Discovery (100% recall, 0 decoy visits vs Katana 76.9%, 4 false visits).
   - D9 Dynamic Headless CDP Rendering (158.4 ms/render vs Playwright 842 ms, 5.3× faster).
   - D10 AI API Gateway (2,450 req/s, P99 = 1.82 ms vs Portkey 480 req/s, LiteLLM 340 req/s).
-  - Master CSV generator [`bench/run_full_10_benchmarks.py`](bench/run_full_10_benchmarks.py).
+  - Master CSV generator `bench/run_full_10_benchmarks.py` (since removed).
 - **Official Product Branding Assets**:
   - Embedded official logo in `assets/logo.png` and `docs/assets/logo.png`, integrated across READMEs and release documentation.
 
@@ -389,8 +389,8 @@ Dual-protocol Firecrawl v1 and v2 API compatibility layer, Jina Reader protocol 
 ### Added
 - Dual-protocol Firecrawl v1/v2 routing in `crates/pagesift-api/src/firecrawl/` with 100% official SDK compatibility (`/v1/scrape`, `/v1/crawl`, `/v1/batch/scrape`, `/v1/map` and `/v2/*`).
 - Jina Reader protocol adapter in `crates/pagesift-api/src/jina/` supporting `GET /r/{*url}`, `POST /r`, and `Accept: text/event-stream` Server-Sent Events.
-- Synthetic Chaos Origin server (`bench/crawl/src/bin/chaos_origin.rs`) generating 100,000 URLs with 150-level nested DOMs, spider traps, and 503/429 chaos backpressure.
-- Official 8-domain benchmark whitepaper (`docs/releases/0.40.0.md` & `bench/results/final/`) measuring extraction concurrency, 12 GiB RAM defense, PDF extraction, DOM self-healing, RAG chunking, charset detection, structured data, and JS endpoint discovery.
+- Synthetic Chaos Origin server (`benchmarks/crawl/src/bin/chaos_origin.rs`) generating 100,000 URLs with 150-level nested DOMs, spider traps, and 503/429 chaos backpressure.
+- Official 8-domain benchmark whitepaper (`docs/releases/0.40.0.md` & `benchmarks/history/0.50/results/`) measuring extraction concurrency, 12 GiB RAM defense, PDF extraction, DOM self-healing, RAG chunking, charset detection, structured data, and JS endpoint discovery.
 
 ### Changed
 - Workspace crates, npm packages, and Python bindings bumped to `0.40.0`.
@@ -472,7 +472,7 @@ The first public release.
 - Publication dates are searched the way htmldate does (URL, about 80 meta names, JSON-LD, date elements, `<time>`, text patterns, page-wide statistics), with month names in about twenty languages and CJK dates; the page's own time zone is kept (`2024-06-24T10:00:00+02:00`, or `2024-06-24` when only the day is known) instead of converting to UTC. On htmldate's annotated set: F1 0.948, the same as htmldate, at 0.06 ms per page.
 - `queryFilter` keeps at least 1,000 tokens by default (`minTokens`), so medium-length pages keep enough context: on QASPER papers 62% of the answer text in 875 words, against 56% in 1,000 words for Crawl4AI's filter.
 - Pages that hide their whole content in `display:none` until scripts run, or only provide it in `<noscript>`, are no longer returned empty.
-- Release benchmark run with fresh data, the latest competitors and recorded seeds: `bench/fresh/results-2026-10-22.md`.
+- Release benchmark run with fresh data, the latest competitors and recorded seeds: `benchmarks/common/fresh/results-2026-10-22.md`.
 - Access barriers (challenge and access-denied pages) are detected and reported as `ACCESS_BARRIER`, never bypassed.
 
 ### Crawling

@@ -1,0 +1,39 @@
+[package]
+name = "pagesift-bench-p3"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+axum = "0.8.9"
+tokio = { version = "1.54.0", features = ["full"] }
+hyper = { version = "1.12.0", features = ["full"] }
+hyper-util = { version = "0.1.21", features = ["full"] }
+http-body-util = "0.1.5"
+blake3 = "1.8.7"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+clap = { version = "4.6.7", features = ["derive"] }
+url = "2.5.8"
+socket2 = { version = "0.5", features = ["all"] }
+reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls-native-roots"] }
+
+pagesift = { path = "../../../crates/pagesift" }
+pagesift-net = { path = "../../../crates/pagesift-net" }
+pagesift-content = { path = "../../../crates/pagesift-content" }
+pagesift-policy = { path = "../../../crates/pagesift-policy" }
+
+[[bin]]
+name = "adversarial_origin"
+path = "src/adversarial_origin.rs"
+
+[[bin]]
+name = "competitor_showdown"
+path = "src/competitor_showdown.rs"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1

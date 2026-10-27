@@ -1,0 +1,7 @@
+[fetch]
+allow_private_network = true
+[policy]
+interval_ms = 0
+[cache]
+enabled = false
+dir = "/home/yolow92/pagesift/benchmarks/common/fresh/results/0.30.0/six/sdk/store"

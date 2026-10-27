@@ -163,7 +163,7 @@ npm test             # node --test, local HTTP server only
 Benchmarks, from the repository root:
 
 ```bash
-node crates/pagesift-node/bench/bench.mjs extract bench/data/inputs/manifest.jsonl <dir with jsdom, @mozilla/readability, turndown in node_modules>
+node crates/pagesift-node/bench/bench.mjs extract benchmarks/data/inputs/manifest.jsonl <dir with jsdom, @mozilla/readability, turndown in node_modules>
 node crates/pagesift-node/bench/bench.mjs scrape
 ```
 

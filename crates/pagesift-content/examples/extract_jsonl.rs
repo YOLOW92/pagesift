@@ -1,4 +1,4 @@
-//! 对比评测用的 pagesift 适配器：和 bench/compare 里其他工具的适配器一样，读清单
+//! 对比评测用的 pagesift 适配器：和 benchmarks/web-extraction/compare 里其他工具的适配器一样，读清单
 //! （每行 `{id, path, url, base_url}`），逐页单线程转换正文，写出 `{id, markdown, ms}`。
 //! 每页只计一次耗时（和其他适配器一致），不含读文件。
 //! `cargo run --release -p pagesift-content --example extract_jsonl -- <manifest.jsonl> <out.jsonl>`

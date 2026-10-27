@@ -1,0 +1,11 @@
+[package]
+name = "pagesift-d5eval"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+pagesift-extract = { path = "../../../../crates/pagesift-extract" }
+serde_json = "1.0"

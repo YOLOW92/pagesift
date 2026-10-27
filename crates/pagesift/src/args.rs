@@ -297,7 +297,7 @@ pub(crate) enum Command {
     Doctor,
     /// Evaluate content extraction on local dataset snapshots
     Bench {
-        /// Directory holding 1-0-0.csv and snapshots/ (see bench/fetch_snapshots.py)
+        /// Directory holding 1-0-0.csv and snapshots/ (see benchmarks/common/fetch_snapshots.py)
         dir: PathBuf,
         /// Write per-page results as JSON lines
         #[arg(long)]

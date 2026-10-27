@@ -1,0 +1,12 @@
+[package]
+name = "pagesift-p4-2-webmainbench"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+pagesift-content = { path = "../../../crates/pagesift-content" }
+serde_json = "1.0"
+url = "2.5"

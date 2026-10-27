@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# 正文抽取全量对比：Firecrawl 标注集（质量 + 单线程耗时）、AEB 新闻集（token F1）、随机语料（耗时、输出长度）。
+# 单线程耗时：各工具同时跑、各占一个物理核（pinned.sh），条件相同；全核吞吐单独跑。所有工具看到同一份冻结的 HTML。
+# 用法：benchmarks/common/fresh/run_extract.sh <结果目录> [prep|run|all]
+#   prep：准备输入（浏览器渲染内容太少的页、冻结输入、记 pagesift 全核吞吐），要独占机器
+#   run：各工具转换（经 pinned.sh 绑核，可以和其他领域的单线程评测同时跑）和评分；run-only 只转换
+set -uo pipefail
+cd "$(dirname "$0")/../../.."
+R=$1/extract
+MODE=${2:-all}
+mkdir -p "$R"
+T=benchmarks/data/fresh/tools
+PY=$T/py/bin/python
+C4A=$T/c4ai/bin/python
+NODE=$T/node
+RT=benchmarks/web-extraction/compare/rust-tools/target/release/pagesift-compare-rust
+PS=target/release/pagesift
+AEB=benchmarks/data/fresh/data/aeb
+
+cargo build --release -q -p pagesift-content --example extract_jsonl
+if [ "$MODE" != run ]; then
+# 1. 输入：Firecrawl 集（内容太少的页用浏览器渲染快照）、AEB、随机语料
+$PS bench-render benchmarks/data > "$R/render.log" 2>&1
+rm -rf benchmarks/data/inputs
+# 顺便记下 pagesift 的全核吞吐（pages/s）
+$PS bench benchmarks/data --auto --emit-inputs benchmarks/data/inputs > "$R/firecrawl-throughput.txt" 2>&1
+python3 -I benchmarks/common/fresh/aeb.py prepare "$AEB" "$R/aeb" > /dev/null
+# 随机语料是原始字节，编码五花八门（Shift_JIS、GBK、cp1251……）。先按页面声明的编码（没有声明就自动检测）
+# 统一转成 UTF-8 存一份，并把 meta 里的 charset 改成 utf-8，所有工具（包括 pagesift）读同一份文本。
+$PY -I - "$R/random-manifest.jsonl" <<'PY'
+import json, re, sys
+from pathlib import Path
+from charset_normalizer import from_bytes
+src, dst = Path("benchmarks/data/random/pages"), Path("benchmarks/data/random/utf8")
+dst.mkdir(exist_ok=True)
+META = re.compile(rb'<meta[^>]+charset\s*=\s*["\']?\s*([A-Za-z0-9_.:-]+)', re.I)
+counts = {}
+with open(sys.argv[1], "w") as out:
+    for line in open("benchmarks/data/random/manifest.jsonl"):
+        r = json.loads(line)
+        raw = (src / f"{r['id']}.html").read_bytes()
+        enc, text = None, None
+        m = META.search(raw[:4096])
+        if m:
+            enc = m.group(1).decode("ascii", "ignore").lower()
+            try:
+                # 声明了编码就按声明解码，个别坏字节用替换字符（浏览器也是这样），不另猜编码
+                text = raw.decode(enc, "replace")
+            except LookupError:
+                text = None
+        if text is None:
+            try:
+                text, enc = raw.decode("utf-8"), "utf-8"
+            except UnicodeDecodeError:
+                best = from_bytes(raw).best()
+                enc = best.encoding if best else "cp1252"
+                text = str(best) if best else raw.decode("cp1252", "replace")
+        counts[enc] = counts.get(enc, 0) + 1
+        text = re.sub(r'(<meta[^>]+charset\s*=\s*["\']?\s*)[A-Za-z0-9_.:-]+', r"\1utf-8", text, count=1, flags=re.I)
+        (dst / f"{r['id']}.html").write_text(text, encoding="utf-8")
+        out.write(json.dumps({"id": r["id"], "path": str(dst / f"{r['id']}.html"),
+                              "url": r["final_url"], "base_url": r["final_url"]}) + "\n")
+print("encodings:", dict(sorted(counts.items(), key=lambda kv: -kv[1])), file=sys.stderr)
+PY
+fi
+[ "$MODE" = prep ] && exit 0
+
+sets="firecrawl:benchmarks/data/inputs/manifest.jsonl aeb:$R/aeb/manifest.jsonl random:$R/random-manifest.jsonl"
+# 三个数据集的全部任务一次放进物理核池：一个工具跑完，它的核马上接下一个任务。
+# 输出已经完整（行数等于清单）的任务跳过，所以中断后可以接着跑。
+# 已经有进程在写这个输出（上一轮留下的长任务）也跳过，评分前会等它写完
+done_ok() { { [ -s "$1" ] && [ "$(wc -l < "$1")" -eq "$(wc -l < "$2")" ]; } || pgrep -f "$1" > /dev/null; }
+for s in $sets; do
+    name=${s%%:*}; m=${s#*:}
+    done_ok "$R/$name-pagesift.jsonl" "$m" || echo "target/release/examples/extract_jsonl $m $R/$name-pagesift.jsonl"
+    for t in trafilatura markitdown; do
+        done_ok "$R/$name-$t.jsonl" "$m" || echo "$PY -I benchmarks/web-extraction/compare/py_adapter.py $t $m $R/$name-$t.jsonl 2>/dev/null"
+    done
+    for t in readability defuddle; do
+        done_ok "$R/$name-$t.jsonl" "$m" || echo "benchmarks/web-extraction/compare/js_sharded.sh $t $NODE $m $R/$name-$t.jsonl 2>$R/$name-$t.err"
+    done
+    for t in crw dom_smoothie; do
+        done_ok "$R/$name-$t.jsonl" "$m" || echo "$RT $t $m $R/$name-$t.jsonl 2>/dev/null"
+    done
+    done_ok "$R/$name-crawl4ai/crawl4ai-raw.jsonl" "$m" || echo "CRAWL4AI_NO_CLOUD_NOTICE=1 $C4A -I benchmarks/web-extraction/compare/crawl4ai_adapter.py $m $R/$name-crawl4ai 2>/dev/null"
+done | benchmarks/common/fresh/pinned.sh
+# 别的进程（比如上一轮留下的长任务）还在写这里的输出时，等它写完再评分
+while pgrep -f "$R/[a-z]*-" >/dev/null; do sleep 10; done
+[ "$MODE" = run-only ] && exit 0
+
+# 2. 评分
+for f in "$R"/firecrawl-*.jsonl "$R"/firecrawl-crawl4ai/*.jsonl; do
+    echo "== $(basename "$f")"
+    $PS bench benchmarks/data --auto --external "$f" 2>&1 | tail -12
+done > "$R/firecrawl-scores.txt"
+python3 -I benchmarks/common/fresh/aeb.py score "$AEB" "$R/aeb" "$R"/aeb-*.jsonl "$R"/aeb-crawl4ai/*.jsonl > "$R/aeb-scores.txt" 2>&1
+python3 - "$R" <<'PY' > "$R/random-timing.txt"
+import glob, json, os, statistics, sys
+R = sys.argv[1]
+for f in sorted(glob.glob(f"{R}/random-*.jsonl") + glob.glob(f"{R}/random-crawl4ai/*.jsonl")):
+    if f.endswith("manifest.jsonl"):
+        continue
+    rows = [json.loads(l) for l in open(f) if l.strip()]
+    ms = sorted(r["ms"] for r in rows if r.get("ms") is not None)
+    chars = [len(r.get("markdown") or "") for r in rows]
+    empty = sum(1 for c in chars if c == 0)
+    if ms:
+        p = lambda q: ms[min(len(ms) - 1, int(q * len(ms)))]
+        print(f"{os.path.basename(f):40} pages {len(rows):5}  p50 {p(.5):8.2f} ms  p95 {p(.95):8.2f} ms  "
+              f"mean chars {statistics.mean(chars):8.0f}  empty {empty}")
+PY
+echo "== extract done $(date +%T)"
