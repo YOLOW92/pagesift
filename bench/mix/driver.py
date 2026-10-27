@@ -119,12 +119,13 @@ class Worker:
         self.cg = None
         self.lines = queue.Queue()
 
-    def start(self):
-        if STOP.is_set():
+    def start(self, want=lambda: True):
+        if STOP.is_set() or not want():
             return None
         self.slot = admit.acquire(self.name, self.spec["per_worker_mb"])  # 每启动一个 worker 前都重新检查
-        if STOP.is_set():
+        if STOP.is_set() or not want():  # 等名额期间份数可能已被别的线程领完：交还名额，不白起一个 worker
             self.slot.release()
+            self.slot = None
             return None
         with Worker.seq_lock:
             Worker.seq += 1
@@ -415,9 +416,9 @@ def main():
                 break
             if not alive:
                 # 先拿准入、起好 worker，再领份数：排队等准入的线程手里不压着份数
-                info = w.start()
+                info = w.start(want=lambda: not jobs.empty())
                 if info is None:
-                    if STOP.is_set():
+                    if STOP.is_set() or jobs.empty():
                         break
                     fails += 1
                     try:

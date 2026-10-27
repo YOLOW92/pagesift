@@ -347,6 +347,10 @@ def main():
     (out / f"quality-{sub}.json").write_text(json.dumps(report, ensure_ascii=False, indent=1))
     with open(out / f"quality-{sub}.md", "w", encoding="utf-8") as f:
         f.write(f"# 质量轮 {sub.upper()}（竞品；pagesift 一栏待最终二进制）\n\n")
+        if sub == "b1":
+            f.write("olmOCR 主分是官方 benchmark.py 一次运行的汇总（Average Score：各类通过率的平均，含它给每个 PDF 加的 "
+                    "baseline 类），所有工具用同一个评分脚本；另附“去掉 baseline 的各类平均”。docs/benchmarks.md 旧表的 64.4 "
+                    "是按子集分别跑、分别汇总的，口径不同，不能和这里直接比。\n\n")
         f.write("| 工具 | 份数 | 完成率 ↑ | ok | empty | error | timeout | oom | crash |" + (" 乱码字符比例 ↓ | 有乱码的页 ↓ |" if sub == "a2" else "") + "\n")
         f.write("|---|---|---|---|---|---|---|---|---|" + ("---|---|" if sub == "a2" else "") + "\n")
         for t, r in report["tools"].items():
