@@ -1,0 +1,23 @@
+# perf_gate (HTML, median ms, lower is better)
+blog 100KB: median 6.12 ms (limit 8 ms) ok
+wiki 250KB: median 28.36 ms (limit 30 ms) ok
+# pdf_one best-of-7 ms, chars
+paper.pdf	92.88	226707
+paper.pdf	92.36	226707
+paper.pdf	91.50	226707
+# pdf_one instructions (3 runs)
+pdf_one paper.pdf instr 2194527360
+# office_bench median ms (runs=7), md bytes
+ascii.csv	151.551	5821664
+sjis.csv	54.200	2401855
+gbk.csv	55.540	1891852
+utf8-cjk.csv	37.056	1621844
+# office_bench instructions (runs=3)
+office_bench ascii.csv instr 4296566432
+office_bench sjis.csv instr 1586495037
+office_bench gbk.csv instr 1459031365
+office_bench utf8-cjk.csv instr 1176671975
+# crawl_gate (pages/s, peak MB; needs *.localhost resolution)
+   5: crawl_gate::main
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+crawl_gate failed

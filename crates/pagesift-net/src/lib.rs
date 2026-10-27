@@ -16,6 +16,7 @@ mod credentials;
 mod dns;
 mod fetch;
 mod host_connections;
+mod localhost;
 pub mod media;
 pub mod scheduler;
 mod session;

@@ -5,6 +5,7 @@ use std::cell::{OnceCell, RefCell};
 use std::collections::HashMap;
 
 use super::crypt::Crypt;
+use super::damage::{Damage, PageTree};
 use super::filter;
 use super::parse::Parser;
 use super::repair;
@@ -42,6 +43,8 @@ pub(crate) struct Document<'a> {
     encrypt_ref: Option<ObjectId>,
     /// 偏移指错时的后备索引，第一次需要时才扫描全文。
     rescue: OnceCell<HashMap<u32, (usize, u16)>>,
+    /// xref 不可用，对象索引是扫描重建的（见 `repaired`）。
+    repaired: bool,
     limit: usize,
 }
 
@@ -72,7 +75,10 @@ impl<'a> Document<'a> {
                 doc.setup_crypt()?;
                 match normal {
                     Some(n) if !doc.healthy() => Ok(n),
-                    _ => Ok(doc),
+                    _ => {
+                        doc.repaired = true;
+                        Ok(doc)
+                    }
                 }
             }
             (None, normal) => normal.ok_or(OpenError::Malformed("no objects found")),
@@ -98,6 +104,7 @@ impl<'a> Document<'a> {
             crypt: None,
             encrypt_ref: None,
             rescue: OnceCell::new(),
+            repaired: false,
             limit,
         }
     }
@@ -434,7 +441,12 @@ impl<'a> Document<'a> {
     /// 页树里的页面，按顺序。规则与 lopdf 的页树遍历相同：
     /// 子节点必须是引用，`/Type` 必须直接写成 /Page 或 /Pages，深度不超过 256。
     pub(crate) fn pages(&self) -> Vec<ObjectId> {
-        let mut out = Vec::new();
+        self.page_tree().ids
+    }
+
+    /// 页树遍历的完整结果：页面，加上声明的页数和丢失的子节点（截断的文件）。
+    pub(crate) fn page_tree(&self) -> PageTree {
+        let mut out = PageTree::default();
         let Some(Object::Reference(root)) = self.trailer.get(b"Root") else {
             return out;
         };
@@ -442,6 +454,11 @@ impl<'a> Document<'a> {
         else {
             return out;
         };
+        out.declared = self
+            .dictionary(*tree)
+            .and_then(|d| d.get(b"Count"))
+            .and_then(|c| self.resolve(c).as_i64())
+            .and_then(|n| usize::try_from(n).ok());
         let kids_of = |id: ObjectId| -> Option<&[Object]> {
             match self.resolve(self.dictionary(id)?.get(b"Kids")?) {
                 Object::Array(a) => Some(a.as_slice()),
@@ -460,20 +477,32 @@ impl<'a> Document<'a> {
                 kids = Some(rest);
                 let Object::Reference(id) = kid else { continue };
                 match self.dictionary(*id).and_then(Dictionary::type_name) {
-                    Some(b"Page") => out.push(*id),
+                    Some(b"Page") => out.ids.push(*id),
                     Some(b"Pages") if stack.len() < MAX_TREE_DEPTH => {
                         if !rest.is_empty() {
                             stack.push(rest);
                         }
                         kids = kids_of(*id);
                     }
-                    _ => {}
+                    // 引用的对象不在文件里，或者只剩半截（截断、损坏）：这一页丢了
+                    _ => out.missing += 1,
                 }
             }
             match stack.pop() {
                 Some(k) => kids = Some(k),
                 None => return out,
             }
+        }
+    }
+
+    /// 这份文件的损坏情况（`tree` 是 `page_tree` 的结果）。读对象的过程中可能触发扫描，
+    /// 所以要在内容都读完之后再问。
+    pub(crate) fn damage(&self, tree: &PageTree) -> Damage {
+        Damage {
+            repaired: self.repaired,
+            rescued: self.rescue.get().is_some(),
+            declared_pages: tree.declared,
+            missing_pages: tree.missing,
         }
     }
 }

@@ -37,6 +37,7 @@ impl Scraper {
         let content_type = match upload.kind {
             UploadKind::Html => upload
                 .content_type
+                .clone()
                 .filter(|c| c.to_ascii_lowercase().contains("html")),
             UploadKind::Pdf | UploadKind::Office(_) => None,
         };
@@ -66,15 +67,13 @@ impl Scraper {
                     .await
             }
             UploadKind::Office(format) => {
-                self.office_document(
-                    upload.bytes,
+                let input = office::OfficeInput {
+                    bytes: upload.bytes,
                     format,
-                    opts,
-                    (meta, ext),
-                    progress,
-                    Some(deadline),
-                )
-                .await
+                    content_type: upload.content_type,
+                };
+                self.office_document(input, opts, (meta, ext), progress, Some(deadline))
+                    .await
             }
             UploadKind::Html => {
                 let html = pagesift_net::decode_owned(upload.bytes, content_type.as_deref(), None);

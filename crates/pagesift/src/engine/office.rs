@@ -10,9 +10,21 @@ use super::*;
 const DEFAULT_OFFICE_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// 把一份 Office/EPUB/CSV 文档转成 Markdown，供引擎和评测共用。`deadline` 到了报超时。
+/// CSV 的字符集按正文探测；知道 Content-Type 时用 [`office_markdown_from`]。
 pub fn office_markdown(
     bytes: &[u8],
     format: Format,
+    deadline: Option<Instant>,
+) -> Result<Converted, pagesift_office::Error> {
+    office_markdown_from(bytes, format, None, deadline)
+}
+
+/// 同 [`office_markdown`]，另给文件来源的 Content-Type（响应头或上传时的）：CSV 按它的
+/// `charset` 解码，和网页一样；声明和正文对不上时纠正并给 `decode:` 警告。
+pub fn office_markdown_from(
+    bytes: &[u8],
+    format: Format,
+    content_type: Option<&str>,
     deadline: Option<Instant>,
 ) -> Result<Converted, pagesift_office::Error> {
     let html = |xhtml: &str, path: &str| {
@@ -32,6 +44,12 @@ pub fn office_markdown(
         html: Some(&html),
         ..Default::default()
     };
+    if format == Format::Csv {
+        let (text, warning) = csv_text::decode(bytes, content_type);
+        let mut doc = pagesift_office::convert_csv_text(&text, &opts)?;
+        doc.warnings.extend(warning);
+        return Ok(doc);
+    }
     pagesift_office::convert(bytes, format, &opts)
 }
 
@@ -42,11 +60,17 @@ pub(super) fn office_format(body: &[u8], name: &str, content_type: Option<&str>)
     Format::detect(body, Some(name), content_type).filter(|f| !(html && *f == Format::Csv))
 }
 
+/// 一份待转换的文档：字节、格式，以及来源的 Content-Type（响应头或上传字段；CSV 按它的 `charset` 解码）。
+pub(super) struct OfficeInput {
+    pub(super) bytes: Vec<u8>,
+    pub(super) format: Format,
+    pub(super) content_type: Option<String>,
+}
+
 impl Scraper {
     pub(super) async fn office_document(
         &self,
-        bytes: Vec<u8>,
-        format: Format,
+        input: OfficeInput,
         opts: &ScrapeOptions,
         (mut meta, ext): (Metadata, PagesiftMeta),
         mut p: Progress,
@@ -58,9 +82,15 @@ impl Scraper {
             .acquire_stage(pagesift_net::NetworkStage::Parse)
             .await;
         let t = Instant::now();
+        let format = input.format;
         let result = cpu_task(move || {
             let deadline = deadline.unwrap_or_else(|| Instant::now() + DEFAULT_OFFICE_TIMEOUT);
-            office_markdown(&bytes, format, Some(deadline))
+            office_markdown_from(
+                &input.bytes,
+                input.format,
+                input.content_type.as_deref(),
+                Some(deadline),
+            )
         })
         .await?;
         let doc = match result {

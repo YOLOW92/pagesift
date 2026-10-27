@@ -2,6 +2,51 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.80.1] — 2026-10-28
+
+Fixes from the 0.80 review: CSV character sets, silent partial recovery of damaged PDFs,
+author-name footnote markers turned into formulas, missing PDF titles, IPv4-only machines, and the
+third-party notices that must travel with the binaries. See
+[the release notes](docs/releases/0.80.1.md).
+
+### Added
+- PDF: `metadata.title` falls back to the title inferred from the layout (the first page's
+  top-level heading) when the file's `/Info` has no `/Title`; `metadata.titleSource: "inferred"`
+  says so. pagesift-pdf exposes it as `PdfDocument::inferred_title`.
+- PDF warnings for damaged files that were only partly recovered: `pdf_repaired` (the
+  cross-reference table was unusable or pointed at the wrong offsets; objects were found by
+  scanning the file) and `pages_missing` (page objects referenced by the page tree are gone, as in
+  a truncated download: `2 of 5 pages could not be recovered …; 3 converted`). The audit log
+  counts `pages_missing` as a suspicious result; the CLI prints it. pagesift-pdf exposes them as
+  `PdfDocument::warnings`.
+- pagesift-office: `convert_csv_text` for callers that have already decoded the CSV.
+- pagesift: `office_markdown_from`, which takes the file's Content-Type.
+
+### Changed
+- `localhost` and `*.localhost` resolve to the loopback addresses without a DNS lookup
+  (RFC 6761), so local origins work on machines whose resolver does not know subdomains of
+  `localhost`. The multi-host test and the `crawl_gate` performance gate in `scripts/ci.sh` serve
+  on `127.0.0.1` instead of `[::1]`, so they run on IPv4-only machines.
+- `NOTICE` lists Adobe cmap-resources (BSD-3-Clause; the CID-to-Unicode tables compiled into the
+  binaries) with its license text, and is now shipped in the release archives, the Docker image
+  (`/usr/share/doc/pagesift/`), the npm packages and the Python wheels and sdist, together with
+  `LICENSE`.
+- Correction to the 0.80.0 notes: `POST /v2/parse` accepts Word (`.docx`), Excel (`.xlsx`),
+  PowerPoint (`.pptx`), EPUB and CSV files as well as PDF and HTML (pagesift-office shipped in
+  0.80.0; the CHANGELOG and release notes listed only PDF and HTML).
+
+### Fixed
+- CSV fetched or uploaded in Shift_JIS, GBK or any charset other than UTF-8/Windows-1252 came out
+  as mojibake with no warning, and a `Content-Type: text/csv; charset=…` header was ignored. CSV is
+  now decoded like HTML: BOM, then the header's `charset`, then body detection; a declaration that
+  contradicts the body is corrected with a `decode:` warning.
+- PDF: a footnote marker from a math font raised after a name (`Ashish Vaswani∗`, `Shazeer†`,
+  the author line of arXiv papers) was treated as a formula and written as
+  `Ashish $Vaswani^{\ast}$`. Such markers are plain text now (`Ashish Vaswani*`); the same symbols
+  on the baseline or attached to math-font variables are still formulas.
+- A truncated PDF whose cross-reference table and last pages were lost returned the surviving
+  pages with no indication that anything was missing (see `pages_missing` above).
+
 ## [0.80.0] — 2026-10-27
 
 Correctness and trust: PDFs keep their structure, results say when they may be incomplete, and

@@ -368,3 +368,150 @@ fn pathological_content_finishes() {
     let doc = extract(&Builder::new(vec![Page::text(c)]).build()).unwrap();
     assert!(doc.markdown.contains("still here"));
 }
+
+/// 手写的 PDF：Catalog、Pages、字体在前，每页一个页面对象和内容流在后，xref 在文件尾。
+/// 对象顺序固定，截断时丢的是后面的页。
+fn plain_pdf(pages: &[&str]) -> Vec<u8> {
+    let n = pages.len();
+    let mut objs: Vec<String> = vec![
+        "<< /Type /Catalog /Pages 2 0 R >>".into(),
+        format!(
+            "<< /Type /Pages /Count {n} /Kids [{}] >>",
+            (0..n)
+                .map(|i| format!("{} 0 R", 4 + 2 * i))
+                .collect::<Vec<_>>()
+                .join(" ")
+        ),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".into(),
+    ];
+    for (i, text) in pages.iter().enumerate() {
+        let content = format!("BT /F1 12 Tf 72 720 Td {} Tj ET", lit(text));
+        objs.push(format!(
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents {} 0 R >>",
+            5 + 2 * i
+        ));
+        objs.push(format!(
+            "<< /Length {} >>\nstream\n{content}\nendstream",
+            content.len()
+        ));
+    }
+    let mut out = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, o) in objs.iter().enumerate() {
+        offsets.push(out.len());
+        out.extend_from_slice(format!("{} 0 obj\n{o}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref = out.len();
+    out.extend_from_slice(format!("xref\n0 {}\n0000000000 65535 f \n", objs.len() + 1).as_bytes());
+    for off in offsets {
+        out.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    out.extend_from_slice(
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n",
+            objs.len() + 1
+        )
+        .as_bytes(),
+    );
+    out
+}
+
+/// 截断的文件：xref 丢了、后两页的对象丢了。前三页照常恢复，结果里要说明少了两页。
+#[test]
+fn truncated_file_keeps_its_pages_and_warns() {
+    let whole = plain_pdf(&[
+        "Page one.",
+        "Page two.",
+        "Page three.",
+        "Page four.",
+        "Page five.",
+    ]);
+    assert!(extract(&whole).unwrap().warnings.is_empty());
+    // 切在第 4 页的页面对象里（对象号 10）
+    let cut = whole.windows(9).position(|w| w == b"10 0 obj\n").unwrap() + 20;
+    let doc = extract(&whole[..cut]).unwrap();
+    assert_eq!(doc.pages.len(), 3);
+    assert_eq!(doc.metadata.page_count, 3);
+    assert!(doc.markdown.contains("Page three.") && !doc.markdown.contains("Page four."));
+    assert_eq!(doc.warnings.len(), 2, "{:?}", doc.warnings);
+    assert!(doc.warnings[0].starts_with("pdf_repaired: the cross-reference table was unusable"));
+    assert_eq!(
+        doc.warnings[1],
+        "pages_missing: 2 of 5 pages could not be recovered from the damaged file; 3 converted"
+    );
+}
+
+/// /Info 没有标题时，第一页的一级标题作为推断的标题单独给出；有 /Title 时两者都在。
+#[test]
+fn document_title_is_inferred_from_the_first_heading() {
+    let mut c = line("F1", 20.0, 72.0, 740.0, "Attention Is All You Need");
+    let mut y = 700.0;
+    for p in [P1, P2, P3] {
+        let (s, ny) = paragraph(10.0, 72.0, y, 13.0, 85, p);
+        c.push_str(&s);
+        y = ny - 12.0;
+    }
+    let doc = extract(&Builder::new(vec![Page::text(c.clone())]).build()).unwrap();
+    assert_eq!(doc.metadata.title, None);
+    assert_eq!(
+        doc.inferred_title.as_deref(),
+        Some("Attention Is All You Need")
+    );
+    assert!(doc.markdown.starts_with("# Attention Is All You Need\n"));
+    let mut b = Builder::new(vec![Page::text(c)]);
+    b.info = Some(dictionary! { "Title" => Object::string_literal("From Info") });
+    let doc = extract(&b.build()).unwrap();
+    assert_eq!(doc.metadata.title.as_deref(), Some("From Info"));
+    assert_eq!(
+        doc.inferred_title.as_deref(),
+        Some("Attention Is All You Need")
+    );
+    // 没有标题行的文档：推断不出来
+    let body = paragraph(10.0, 72.0, 700.0, 13.0, 85, P1).0;
+    let doc = extract(&Builder::new(vec![Page::text(body)]).build()).unwrap();
+    assert_eq!(doc.inferred_title, None);
+}
+
+/// 作者名后面上标的星号来自数学字体（CMSY），是脚注引用，不是公式：`Ashish Vaswani*`，
+/// 不是 `Ashish $Vaswani^{\ast}$`。正文里真正的公式照旧。
+#[test]
+fn footnote_markers_after_author_names_are_plain_text() {
+    let mut b = Builder::new(Vec::new());
+    b.extra_fonts.push((
+        "F4".into(),
+        dictionary! {
+            "Type" => "Font", "Subtype" => "Type1", "BaseFont" => "CMSY10",
+            "Encoding" => dictionary! {
+                "Type" => "Encoding",
+                "Differences" => vec![Object::Integer(20), Object::Name(b"lessequal".to_vec()),
+                    Object::Integer(42), Object::Name(b"asteriskmath".to_vec())],
+            },
+        },
+    ));
+    let mut c = line("F1", 20.0, 72.0, 740.0, "Attention Is All You Need");
+    // 名字 12 pt，星号 8 pt 抬高 3.6 pt，紧跟在名字后面
+    c.push_str(&line("F1", 12.0, 72.0, 712.0, "Ashish Vaswani"));
+    c.push_str(&line("F4", 8.0, 157.0, 715.6, "*"));
+    c.push_str(&line("F1", 12.0, 180.0, 712.0, "Noam Shazeer"));
+    c.push_str(&line("F4", 8.0, 261.0, 715.6, "*"));
+    let mut y = 680.0;
+    for p in [P1, P2, P3] {
+        let (s, ny) = paragraph(10.0, 72.0, y, 13.0, 85, p);
+        c.push_str(&s);
+        y = ny - 12.0;
+    }
+    let doc = extract(
+        &Builder {
+            pages: vec![Page::text(c)],
+            ..b
+        }
+        .build(),
+    )
+    .unwrap();
+    assert!(
+        doc.markdown.contains("Ashish Vaswani* Noam Shazeer*"),
+        "{}",
+        doc.markdown
+    );
+    assert!(!doc.markdown.contains("\\ast"), "{}", doc.markdown);
+}

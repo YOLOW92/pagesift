@@ -33,6 +33,8 @@ ADD --chmod=755 \
     https://github.com/lightpanda-io/browser/releases/download/${LIGHTPANDA_VERSION}/lightpanda-x86_64-linux \
     /usr/local/bin/lightpanda
 COPY --from=build /pagesift /usr/local/bin/pagesift
+# 许可证和第三方署名随镜像走
+COPY LICENSE NOTICE COMMERCIAL.md /usr/share/doc/pagesift/
 ENV PAGESIFT_DATA_DIR=/data \
     PAGESIFT_LOG=info \
     PAGESIFT_LOG_FORMAT=json \

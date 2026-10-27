@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.80.0
+# pagesift 0.80.1
 
 **Motor de scraping y extracción web de alto rendimiento y memoria acotada para agentes de IA y pipelines de LLM.**  
 Convierte cualquier sitio web, documento o archivo en Markdown limpio y datos estructurados: un único binario en Rust, SDK nativos, APIs duales Firecrawl v1/v2 y Jina Reader, con menos memoria que las alternativas medidas (véase la [sección 9 de benchmarks.md](benchmarks.md)).
@@ -74,6 +74,16 @@ Medido con 0.70.0; no se ha repetido con versiones posteriores.
 
 ---
 
+## Correcciones en 0.80.1
+
+Correcciones de la revisión de 0.80 (la extracción de HTML no cambia; la salida de PDF solo cambia donde una marca de nota al pie elevada sigue a una palabra; los benchmarks no se volvieron a ejecutar): los CSV en Shift_JIS, GBK o con
+cualquier charset declarado se decodifican como el HTML (antes salían ilegibles y sin aviso); un PDF dañado que solo se
+recupera en parte lo indica (`pdf_repaired`, `pages_missing`); las marcas de nota al pie tras los nombres de autores ya
+no se escriben como fórmulas (`Ashish $Vaswani^{\ast}$` → `Ashish Vaswani*`); un PDF sin título incrustado recibe el
+título inferido en `metadata.title` (`titleSource: inferred`); `*.localhost` resuelve a loopback en cualquier máquina,
+así que las pruebas y las puertas de rendimiento funcionan en equipos solo IPv4; `NOTICE` (ahora con la licencia de
+Adobe cmap-resources) acompaña a cada binario. Detalle: [notas de 0.80.1](releases/0.80.1.md).
+
 ## Novedades en 0.80.0
 
 **PDF que conservan su estructura y resultados que avisan de lo que pueden haber perdido.**
@@ -104,7 +114,7 @@ se conservan sin cambios y con sus fuentes en [history/homepage-es.md](history/h
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.0
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.1
 ```
 
 #### Reemplazo Directo de Firecrawl SDK

@@ -78,6 +78,7 @@ const SUSPICIOUS_WARNINGS: &[&str] = &[
     "thin_content",
     "partial_content",
     "replies_omitted",
+    "pages_missing",
     "render_unavailable",
     "render_skipped_",
 ];

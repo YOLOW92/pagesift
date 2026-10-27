@@ -15,7 +15,7 @@
 | Excel | `.xlsx`（含 xlsm/xltx） | 每个工作表一个二级标题和一张表，单元格是按数字格式显示的值 |
 | PowerPoint | `.pptx`（含 pptm/ppsx） | 每张幻灯片 `<!-- Slide N -->`、标题、要点、表格、图片、图表数据、演讲者备注 |
 | EPUB | `.epub` | 按 spine 顺序，每章交给和网页相同的 HTML 提取器（保留整章） |
-| CSV | `.csv`、`.tsv` | 一张表（RFC 4180，编码和分隔符自动识别） |
+| CSV | `.csv`、`.tsv` | 一张表（RFC 4180，分隔符自动识别；字符集和网页一样：BOM、Content-Type 的 `charset`、正文探测，声明和正文对不上时纠正并给 `decode:` 警告） |
 
 旧版二进制格式（`.doc`、`.xls`、`.ppt`）、OpenDocument（`.odt` 等）、RTF 不支持，明确报错，不会猜。
 `/v2/scrape` 抓到这些格式时走同一段转换代码（见文末）；`pagesift scrape <本地文件>` 也一样。
@@ -79,6 +79,11 @@ Excel（`xl/workbook.xml`）、PowerPoint（`ppt/presentation.xml`）、EPUB（`
 和 `/v2/scrape` 相同：`{"success": true, "data": {markdown, ..., metadata}}`。
 
 - PDF：`markdown` 与用 `/v2/scrape` 抓同一份文件逐字相同；`metadata.title`、`numPages`、`totalPages` 也相同。
+  `/Info` 里没有 `/Title` 时，`metadata.title` 是版面推断的标题（第一页的一级标题），并给
+  `metadata.titleSource: "inferred"`；文件自带标题时没有这个字段。
+  损坏的文件能恢复多少给多少，但会说明：`pdf_repaired`（交叉引用表不可用或偏移指错，对象是扫描
+  全文找到的）、`pages_missing`（页树引用的页面对象丢了，例如截断的文件：`2 of 5 pages could not be
+  recovered ...; 3 converted`，`numPages`、`totalPages` 是恢复出的页数）。审计日志把 `pages_missing` 算作可疑结果。
 - HTML：正文提取和 scrape 相同。没有 `<base href>` 时相对链接按 `file:///<文件名>` 解析，不冒充任何网址；
   `links` 只收 http(s) 链接，所以这些相对链接不出现在 `links` 里。
   上传的页面看起来像拦截页时照样提取，只给 `access_barrier` 警告（抓取时这是错误）。

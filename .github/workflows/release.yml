@@ -70,7 +70,7 @@ jobs:
         run: |
           name=pagesift-${GITHUB_REF_NAME}-${{ matrix.target }}
           mkdir "$name"
-          cp target/${{ matrix.target }}/release/pagesift LICENSE COMMERCIAL.md README.md pagesift.example.toml "$name/"
+          cp target/${{ matrix.target }}/release/pagesift LICENSE NOTICE COMMERCIAL.md README.md pagesift.example.toml "$name/"
           tar czf "$name.tar.gz" "$name"
           shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
       - uses: actions/upload-artifact@v4
@@ -126,6 +126,8 @@ jobs:
         os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, macos-15-intel]
     steps:
       - uses: actions/checkout@v7
+      # maturin 自动把包目录里的 LICENSE*、NOTICE* 打进 wheel（第三方署名随二进制走）
+      - run: cp LICENSE NOTICE crates/pagesift-py/
       - uses: PyO3/maturin-action@v1
         with:
           working-directory: crates/pagesift-py
@@ -149,6 +151,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - run: cp LICENSE NOTICE crates/pagesift-py/
       - uses: PyO3/maturin-action@v1
         with:
           working-directory: crates/pagesift-py
@@ -278,6 +281,8 @@ jobs:
         run: |
           npm ci
           npx napi artifacts --output-dir ../../artifacts
+          # npm 总是打包目录里的 LICENSE 和 NOTICE：主包和每个平台包都带上
+          for dir in . npm/*/; do cp ../../LICENSE ../../NOTICE "$dir"; done
           # 主包发布时会先由 prepublishOnly 发平台包；主包已在就说明这一版 npm 已经发完（重跑发布时跳过）
           version=$(node -p "require('./package.json').version")
           if [ "$(npm view "@pagesift/node@$version" version 2>/dev/null)" = "$version" ]; then

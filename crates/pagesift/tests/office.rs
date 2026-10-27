@@ -247,3 +247,73 @@ async fn broken_encrypted_and_xxe_documents_are_handled() {
     assert_eq!(s, StatusCode::OK, "{v}");
     assert_eq!(v["data"]["markdown"], "&x;\n");
 }
+
+/// CSV 的字符集和网页一样处理：响应头的 `charset` 算数，没有声明时按正文探测（Shift_JIS、GBK），
+/// 声明和正文对不上时以正文为准并给 `decode:` 警告；上传的文件也一样。
+/// 0.80.0 把这些表格整页解成乱码，而且没有任何提示。
+#[tokio::test]
+async fn csv_charset_from_the_header_or_the_body() {
+    let app = app();
+    let ja = "番号,都市\n1,東京\n2,大阪\n";
+    let (sjis, _, _) = encoding_rs::SHIFT_JIS.encode(ja);
+    let sjis = sjis.into_owned();
+    let zh: String = "编号,城市,备注\n".to_string()
+        + &(0..40)
+            .map(|i| format!("{i},北京上海广州深圳成都,订单 {i} 的备注信息很长很长\n"))
+            .collect::<String>();
+    let (gbk, _, _) = encoding_rs::GBK.encode(&zh);
+    let gbk = gbk.into_owned();
+    let base = site(vec![
+        ("declared.csv", "text/csv; charset=shift_jis", sjis.clone()),
+        ("detected.csv", "text/csv", gbk.clone()),
+        ("lying.csv", "text/csv; charset=utf-8", gbk.clone()),
+    ])
+    .await;
+    let (s, v) = scrape(&app, &format!("{base}/declared.csv")).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(
+        v["data"]["markdown"],
+        "| 番号 | 都市 |\n| --- | --- |\n| 1 | 東京 |\n| 2 | 大阪 |\n"
+    );
+    assert!(
+        v["data"]["metadata"]["pagesift"]["warnings"]
+            .as_array()
+            .is_none_or(|w| w.is_empty()),
+        "{v}"
+    );
+    let (s, v) = scrape(&app, &format!("{base}/detected.csv")).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let md = v["data"]["markdown"].as_str().unwrap();
+    assert!(
+        md.starts_with("| 编号 | 城市 | 备注 |\n")
+            && md.contains("| 39 | 北京上海广州深圳成都 | 订单 39 的备注信息很长很长 |"),
+        "{md}"
+    );
+    let (s, v) = scrape(&app, &format!("{base}/lying.csv")).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert!(
+        v["data"]["markdown"]
+            .as_str()
+            .unwrap()
+            .starts_with("| 编号 | 城市 | 备注 |\n"),
+        "{v}"
+    );
+    let warnings = v["data"]["metadata"]["pagesift"]["warnings"].to_string();
+    assert!(warnings.contains("decode:"), "{warnings}");
+    // 上传：multipart 里文件的 Content-Type 带 charset
+    let (s, v) = upload(&app, "data.csv", "text/csv; charset=shift_jis", &sjis).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(
+        v["data"]["markdown"],
+        "| 番号 | 都市 |\n| --- | --- |\n| 1 | 東京 |\n| 2 | 大阪 |\n"
+    );
+    let (s, v) = upload(&app, "data.csv", "text/csv", &gbk).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert!(
+        v["data"]["markdown"]
+            .as_str()
+            .unwrap()
+            .starts_with("| 编号 | 城市 | 备注 |\n"),
+        "{v}"
+    );
+}

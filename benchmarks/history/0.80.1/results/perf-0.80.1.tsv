@@ -1,0 +1,22 @@
+# perf_gate (HTML, median ms, lower is better)
+blog 100KB: median 6.31 ms (limit 8 ms) ok
+wiki 250KB: median 27.69 ms (limit 30 ms) ok
+# pdf_one best-of-7 ms, chars
+paper.pdf	91.13	225767
+paper.pdf	93.93	225767
+paper.pdf	94.72	225767
+# pdf_one instructions (3 runs)
+pdf_one paper.pdf instr 2207402868
+# office_bench median ms (runs=7), md bytes
+ascii.csv	160.655	5821664
+sjis.csv	181.465	1819844
+gbk.csv	289.380	1621844
+utf8-cjk.csv	56.249	1621844
+# office_bench instructions (runs=3)
+office_bench ascii.csv instr 4626570021
+office_bench sjis.csv instr 5821962746
+office_bench gbk.csv instr 10302597906
+office_bench utf8-cjk.csv instr 1181647029
+# crawl_gate (pages/s, peak MB; needs *.localhost resolution)
+crawl 20x60: 1200/1200 pages, 0 errors, 675 pages/s (min 1500), peak RSS 33 MB (max 120) FAIL
+crawl_gate failed

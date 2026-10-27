@@ -19,6 +19,7 @@ use pagesift_net::{FetchRequest, Fetcher, FetcherConfig, Url};
 use pagesift_policy::{Policy, PolicyConfig, RequestKind, RobotsMode};
 use tokio::sync::OnceCell;
 
+mod csv_text;
 mod extract;
 mod feed;
 mod fetch;
@@ -31,8 +32,8 @@ mod render;
 mod scraper;
 use extract::*;
 use frames::*;
-pub use office::office_markdown;
 use office::*;
+pub use office::{office_markdown, office_markdown_from};
 pub use output::set_cpu_capacity;
 pub(crate) use output::*;
 use render::*;

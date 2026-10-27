@@ -453,3 +453,117 @@ async fn scrape_reports_bad_encrypted_and_scanned_pdfs_as_caller_errors() {
     let warnings = v["data"]["metadata"]["pagesift"]["warnings"].to_string();
     assert!(warnings.contains("scanned PDF"), "{warnings}");
 }
+
+/// 没有 /Info 的 PDF：第一页一个大字号的标题行和几行正文。
+fn pdf_with_heading(heading: &str) -> Vec<u8> {
+    let mut content = format!("BT /F1 20 Tf 72 740 Td ({heading}) Tj ET\n");
+    for i in 0..6 {
+        content.push_str(&format!(
+            "BT /F1 10 Tf 72 {} Td (Body line {i} of the paper explains the model in prose.) Tj ET\n",
+            700 - 13 * i
+        ));
+    }
+    let objs = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
+        "<< /Type /Pages /Count 1 /Kids [4 0 R] >>".into(),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".into(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>".into(),
+        format!(
+            "<< /Length {} >>\nstream\n{content}\nendstream",
+            content.len()
+        ),
+    ];
+    let mut out = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, o) in objs.iter().enumerate() {
+        offsets.push(out.len());
+        out.extend_from_slice(format!("{} 0 obj\n{o}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref = out.len();
+    out.extend_from_slice(b"xref\n0 6\n0000000000 65535 f \n");
+    for off in offsets {
+        out.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    out.extend_from_slice(
+        format!("trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n").as_bytes(),
+    );
+    out
+}
+
+/// /Info 里没有标题的 PDF：`metadata.title` 回填版面推断的标题，并标明 `titleSource: inferred`；
+/// /Info 有标题时照用 /Info 的，不标来源。
+#[tokio::test]
+async fn pdf_title_falls_back_to_the_inferred_heading() {
+    let app = app();
+    let (s, v) = upload(
+        &app,
+        "paper.pdf",
+        "application/pdf",
+        &pdf_with_heading("Attention Is All You Need"),
+        json!({}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["data"]["metadata"]["title"], "Attention Is All You Need");
+    assert_eq!(v["data"]["metadata"]["titleSource"], "inferred");
+    assert!(
+        v["data"]["markdown"]
+            .as_str()
+            .unwrap()
+            .starts_with("# Attention Is All You Need\n")
+    );
+    let (_, v) = upload(
+        &app,
+        "titled.pdf",
+        "application/pdf",
+        &pdf(&["Alpha page."], "From Info", false),
+        json!({}),
+    )
+    .await;
+    assert_eq!(v["data"]["metadata"]["title"], "From Info");
+    assert!(v["data"]["metadata"].get("titleSource").is_none());
+}
+
+/// 截断的 PDF（xref 和最后一页的对象丢了）：恢复出的页照常返回，但要有 `pdf_repaired` 和
+/// `pages_missing` 警告，不能让少了的页悄悄消失。
+#[tokio::test]
+async fn truncated_pdf_returns_the_recovered_pages_with_a_warning() {
+    let app = app();
+    let whole = pdf(
+        &["Alpha page.", "Beta page.", "Gamma page."],
+        "Three",
+        false,
+    );
+    // 第 3 页的页面对象是 9 号；切在它中间
+    let cut = whole.windows(8).position(|w| w == b"9 0 obj\n").unwrap() + 16;
+    let (s, v) = upload(&app, "cut.pdf", "application/pdf", &whole[..cut], json!({})).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let md = v["data"]["markdown"].as_str().unwrap();
+    assert!(md.contains("Beta page.") && !md.contains("Gamma"), "{md}");
+    assert_eq!(v["data"]["metadata"]["numPages"], 2);
+    assert_eq!(v["data"]["metadata"]["totalPages"], 2);
+    let warnings = v["data"]["metadata"]["pagesift"]["warnings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|w| w.as_str().unwrap().to_string())
+        .collect::<Vec<_>>();
+    assert!(
+        warnings.iter().any(|w| w.starts_with("pdf_repaired:")),
+        "{warnings:?}"
+    );
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w == "pages_missing: 1 of 3 pages could not be recovered from the damaged file; 2 converted"),
+        "{warnings:?}"
+    );
+    // 完整的文件没有这些警告
+    let (_, v) = upload(&app, "whole.pdf", "application/pdf", &whole, json!({})).await;
+    assert!(
+        v["data"]["metadata"]["pagesift"]["warnings"]
+            .as_array()
+            .is_none_or(|w| w.is_empty()),
+        "{v}"
+    );
+}

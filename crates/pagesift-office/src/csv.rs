@@ -2,20 +2,25 @@
 //!
 //! 照 RFC 4180 解析引号字段（`""` 是一个引号，引号里可以有分隔符和换行），行尾 CRLF、LF、CR 都认；
 //! 不规范的写法（未加引号的字段里出现引号）按字面保留，不报错。编码：有 BOM 按 BOM，
-//! 合法 UTF-8 按 UTF-8，否则按 Windows-1252。分隔符在逗号、分号、制表符、竖线里按前几十行判断。
+//! 合法 UTF-8 按 UTF-8，否则按 Windows-1252；知道字符集（HTTP 头、探测器）的调用方先自己解码，
+//! 再走 [`convert_text`]。分隔符在逗号、分号、制表符、竖线里按前几十行判断。
 
 use crate::md::{Block, escape, render};
 use crate::{Converted, Error, Options, check_deadline};
 
 pub(crate) fn convert(bytes: &[u8], opts: &Options<'_>) -> Result<Converted, Error> {
-    let text = decode(bytes);
-    let delim = sniff(&text);
+    convert_text(&decode(bytes), opts)
+}
+
+/// 已经解码成 UTF-8 的 CSV。
+pub(crate) fn convert_text(text: &str, opts: &Options<'_>) -> Result<Converted, Error> {
+    let delim = sniff(text);
     let mut out = Converted::default();
     let max_cols = opts.limits.max_columns;
     let mut budget = opts.limits.max_cells;
     let mut rows: Vec<Vec<String>> = Vec::new();
     let mut wide = false;
-    for (i, mut row) in Records::new(&text, delim).enumerate() {
+    for (i, mut row) in Records::new(text, delim).enumerate() {
         if i % 4096 == 4095 {
             check_deadline(opts)?;
         }

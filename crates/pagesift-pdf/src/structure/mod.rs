@@ -4,10 +4,12 @@ mod numbering;
 mod outline;
 mod tags;
 mod text;
+mod title;
 
 pub(crate) use numbering::{Style, numbering, starts_at_one};
 pub(crate) use outline::Entry;
 pub(crate) use tags::HeadingMcids;
+pub(crate) use title::inferred as inferred_title;
 
 use std::collections::HashMap;
 

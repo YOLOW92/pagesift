@@ -14,6 +14,7 @@ pub(crate) fn print_scrape_warnings(doc: &pagesift::api::types::Document) {
             || warning.starts_with("http_error_status:")
             || warning.starts_with("http_redirect_status:")
             || warning.starts_with("not_modified:")
+            || warning.starts_with("pages_missing:")
         {
             eprintln!("warning: {warning}");
         }

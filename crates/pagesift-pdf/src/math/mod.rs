@@ -1,6 +1,7 @@
 //! 数学公式解析与 LaTeX 重构引擎。
 //! 包含数学字体识别、TeX 命令映射、上下标多级分层树与行内/行间公式渲染。
 
+pub(crate) mod footnote;
 pub(crate) mod symbols;
 pub(crate) mod tex;
 
@@ -133,6 +134,57 @@ mod tests {
         ]];
         let refs: Vec<&[Glyph]> = w.iter().map(|v| v.as_slice()).collect();
         assert_eq!(line(&refs).unwrap(), "$t^{2}_{1}{}^{n}S_{i}'{}_{j}$");
+    }
+
+    /// 作者名后面上标的星号、剑号是脚注引用（arXiv 1706.03762 的作者行），不是公式。
+    #[test]
+    fn footnote_markers_after_names_are_not_math() {
+        let w = [
+            vec![glyph("Ashish", 0.0, 100.0, 10.0, Text)],
+            vec![
+                glyph("Vaswani", 35.0, 100.0, 10.0, Text),
+                glyph("∗", 70.0, 103.6, 7.0, Symbol),
+            ],
+            vec![glyph("Noam", 80.0, 100.0, 10.0, Text)],
+            vec![
+                glyph("Shazeer", 105.0, 100.0, 10.0, Text),
+                glyph("†", 140.0, 103.6, 7.0, Symbol),
+            ],
+            // 标记和名字之间有空格
+            vec![glyph("Niki", 150.0, 100.0, 10.0, Text)],
+            vec![glyph("Parmar", 175.0, 100.0, 10.0, Text)],
+            vec![glyph("∗", 210.0, 103.6, 7.0, Symbol)],
+        ];
+        let refs: Vec<&[Glyph]> = w.iter().map(|v| v.as_slice()).collect();
+        assert_eq!(
+            line(&refs).unwrap(),
+            "Ashish Vaswani* Noam Shazeer† Niki Parmar *"
+        );
+    }
+
+    /// 同样的符号在基线上、和公式字体的变量连在一起时仍是公式。
+    #[test]
+    fn baseline_asterisk_and_math_superscripts_stay_math() {
+        let w = [vec![
+            glyph("x", 0.0, 100.0, 10.0, Italic),
+            glyph("∗", 5.0, 100.0, 10.0, Symbol),
+            glyph("y", 12.0, 100.0, 10.0, Italic),
+        ]];
+        let refs: Vec<&[Glyph]> = w.iter().map(|v| v.as_slice()).collect();
+        assert_eq!(line(&refs).unwrap(), "$x\\ast y$");
+        let w = [vec![
+            glyph("f", 0.0, 100.0, 10.0, Italic),
+            glyph("∗", 5.0, 103.6, 7.0, Symbol),
+        ]];
+        let refs: Vec<&[Glyph]> = w.iter().map(|v| v.as_slice()).collect();
+        assert_eq!(line(&refs).unwrap(), "$f^{\\ast}$");
+        // 单独的上标数字跟在文字后面可能是指数，照旧
+        let w = [
+            vec![glyph("size", 0.0, 100.0, 10.0, Text)],
+            vec![glyph("2", 25.0, 103.6, 7.0, Symbol)],
+        ];
+        let refs: Vec<&[Glyph]> = w.iter().map(|v| v.as_slice()).collect();
+        assert!(line(&refs).unwrap().contains("^{2}"));
     }
 
     #[test]

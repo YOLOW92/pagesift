@@ -1386,7 +1386,7 @@ checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
 name = "pagesift"
-version = "0.80.0"
+version = "0.80.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -1429,7 +1429,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-api"
-version = "0.80.0"
+version = "0.80.1"
 dependencies = [
  "axum",
  "http-body",
@@ -1454,7 +1454,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-cdp"
-version = "0.80.0"
+version = "0.80.1"
 dependencies = [
  "base64 0.23.1",
  "futures-util",
@@ -1470,7 +1470,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-content"
-version = "0.80.0"
+version = "0.80.1"
 dependencies = [
  "aho-corasick",
  "blake3",
@@ -1484,7 +1484,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-diff"
-version = "0.80.0"
+version = "0.80.1"
 dependencies = [
  "blake3",
  "proptest",
@@ -1496,7 +1496,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-extract"
-version = "0.80.0"
+version = "0.80.1"
 dependencies = [
  "memchr",
  "pagesift-html",
@@ -1510,7 +1510,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-fuzz"
-version = "0.80.0"
+version = "0.80.1"
 dependencies = [
  "pagesift-content",
  "pagesift-html",
@@ -1521,14 +1521,14 @@ dependencies = [
 
 [[package]]
 name = "pagesift-html"
-version = "0.80.0"
+version = "0.80.1"
 dependencies = [
  "memchr",
 ]
 
 [[package]]
 name = "pagesift-llm"
-version = "0.80.0"
+version = "0.80.1"
 dependencies = [
  "reqwest",
  "serde",
@@ -1539,7 +1539,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-mcp"
-version = "0.80.0"
+version = "0.80.1"
 dependencies = [
  "axum",
  "base64 0.23.1",
@@ -1554,7 +1554,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-net"
-version = "0.80.0"
+version = "0.80.1"
 dependencies = [
  "blake3",
  "brotli-decompressor 5.0.3",
@@ -1580,7 +1580,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-node"
-version = "0.80.0"
+version = "0.80.1"
 dependencies = [
  "napi",
  "napi-build",
@@ -1595,14 +1595,14 @@ dependencies = [
 
 [[package]]
 name = "pagesift-office"
-version = "0.80.0"
+version = "0.80.1"
 dependencies = [
  "miniz_oxide",
 ]
 
 [[package]]
 name = "pagesift-pdf"
-version = "0.80.0"
+version = "0.80.1"
 dependencies = [
  "aes",
  "brotli-decompressor 6.0.1",
@@ -1616,7 +1616,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-policy"
-version = "0.80.0"
+version = "0.80.1"
 dependencies = [
  "httpdate",
  "pagesift-net",
@@ -1629,7 +1629,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-py"
-version = "0.80.0"
+version = "0.80.1"
 dependencies = [
  "pagesift",
  "pagesift-cdp",
@@ -1643,7 +1643,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-search"
-version = "0.80.0"
+version = "0.80.1"
 dependencies = [
  "reqwest",
  "serde_json",
@@ -1653,7 +1653,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-store"
-version = "0.80.0"
+version = "0.80.1"
 dependencies = [
  "blake3",
  "crc32fast",
@@ -1668,7 +1668,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-sys"
-version = "0.80.0"
+version = "0.80.1"
 dependencies = [
  "libc",
 ]

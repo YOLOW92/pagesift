@@ -237,6 +237,15 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+/// 转换一份已经解码成 UTF-8 的 CSV。[`convert`] 自己只认 BOM、UTF-8 和 Windows-1252；
+/// 知道字符集（HTTP 头的 `charset`、探测器）的调用方先解码再用这个入口。
+pub fn convert_csv_text(text: &str, opts: &Options<'_>) -> Result<Converted, Error> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        csv::convert_text(text, opts)
+    }))
+    .unwrap_or_else(|_| Err(Error::Malformed("converter panicked".into())))
+}
+
 /// 转换一份文档。
 pub fn convert(bytes: &[u8], format: Format, opts: &Options<'_>) -> Result<Converted, Error> {
     // 依赖代码在畸形输入上万一 panic，也转成错误返回

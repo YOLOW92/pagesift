@@ -6,6 +6,7 @@
 //! 扫描全文重建对象索引。
 
 mod crypt;
+mod damage;
 mod doc;
 mod filter;
 mod parse;

@@ -34,6 +34,6 @@ pub mod stream;
 pub use crawl::normalize as normalize_url;
 pub use engine::{
     AUTO_RENDER_ARTICLE_MIN_CHARS, AUTO_RENDER_MIN_CHARS, Scraper, ScraperConfig, ScraperError,
-    needs_render, office_markdown, set_cpu_capacity, text_weight,
+    needs_render, office_markdown, office_markdown_from, set_cpu_capacity, text_weight,
 };
 pub use pagesift_api as api;

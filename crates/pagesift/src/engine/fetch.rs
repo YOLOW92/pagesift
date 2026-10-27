@@ -133,8 +133,13 @@ impl Scraper {
                 warnings,
             };
             let deadline = request_deadline(opts, started);
+            let input = office::OfficeInput {
+                content_type: resp.content_type().map(str::to_owned),
+                bytes: resp.body,
+                format,
+            };
             return self
-                .office_document(resp.body, format, opts, (meta, ext), progress, deadline)
+                .office_document(input, opts, (meta, ext), progress, deadline)
                 .await;
         }
 

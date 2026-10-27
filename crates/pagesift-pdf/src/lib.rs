@@ -123,6 +123,12 @@ pub struct PdfDocument {
     pub metadata: Metadata,
     /// 至少一半的页面是扫描件（没有文字层）。
     pub scanned: bool,
+    /// 从版面推断的文档标题：第一页的第一个一级标题。`metadata.title`（/Info 的 /Title）
+    /// 缺失时调用方可以用它；两者都给，由调用方决定。
+    pub inferred_title: Option<String>,
+    /// 文件损坏但部分恢复时的提示（`标识: 说明`）：`pdf_repaired`（xref 不可用或偏移指错，
+    /// 对象是扫描全文找到的）、`pages_missing`（页树引用的页面对象丢了，结果少页）。
+    pub warnings: Vec<String>,
 }
 
 /// 用默认选项提取。
@@ -158,7 +164,8 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
     })?;
     check_deadline(deadline)?;
 
-    let mut page_ids = doc.pages();
+    let tree = doc.page_tree();
+    let mut page_ids = tree.ids.clone();
     let total_pages = page_ids.len();
     if let Some(limit) = opts.page_limit {
         page_ids.truncate(limit.max(1));
@@ -374,11 +381,18 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
     let scanned = scanned_pages > 0 && scanned_pages * 2 >= pages.len();
     let mut metadata = metadata(&doc);
     metadata.page_count = total_pages;
+    let inferred_title = pages
+        .first()
+        .and_then(|p| structure::inferred_title(&p.markdown));
+    // 对象都读完了，这时才知道有没有靠扫描纠正过偏移
+    let warnings = doc.damage(&tree).warnings(total_pages);
     Ok(PdfDocument {
         markdown,
         pages,
         metadata,
         scanned,
+        inferred_title,
+        warnings,
     })
 }
 

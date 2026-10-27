@@ -1,5 +1,6 @@
 //! TeX 语法树构建与公式排版逻辑。
 
+use super::footnote;
 use super::symbols::{ACCENTS, FUNCS, is_combining, is_greek, is_math_symbol, push_char};
 use crate::font::MathKind;
 use crate::interp::Glyph;
@@ -230,9 +231,34 @@ pub(crate) fn build(atoms: &[Atom], base_y: f64, base_size: f64, out: &mut Strin
 
 /// 一行的文字。没有公式时返回 None，调用方照普通文字拼。
 pub(crate) fn line_text(words: &[Vec<Item<'_>>], base_y: f64, base_size: f64) -> Option<String> {
-    let kinds: Vec<Word> = words.iter().map(|w| classify(w)).collect();
+    let mut kinds: Vec<Word> = words.iter().map(|w| classify(w)).collect();
+    // 词尾上标的脚注标记（`Vaswani∗`）是普通文字，不是公式
+    let mut footnote = vec![false; words.len()];
+    for i in 0..words.len() {
+        if kinds[i] == Word::Math {
+            let after_text = i > 0 && kinds[i - 1] == Word::Text && !footnote[i - 1];
+            if footnote::is_marker_word(&words[i], base_y, base_size, after_text) {
+                kinds[i] = Word::Text;
+                footnote[i] = true;
+            }
+        }
+    }
+    let word_text = |i: usize| {
+        if footnote[i] {
+            footnote::plain(&words[i])
+        } else {
+            plain(&words[i])
+        }
+    };
     if !kinds.contains(&Word::Math) {
-        return None;
+        if !footnote.contains(&true) {
+            return None;
+        }
+        let mut out = String::new();
+        for i in 0..words.len() {
+            push_word(&mut out, &word_text(i));
+        }
+        return Some(out);
     }
     let mut spans: Vec<(usize, usize)> = Vec::new();
     let mut i = 0;
@@ -276,7 +302,7 @@ pub(crate) fn line_text(words: &[Vec<Item<'_>>], base_y: f64, base_size: f64) ->
     let mut w = 0;
     for (start, end) in spans {
         while w < start {
-            push_word(&mut out, &plain(&words[w]));
+            push_word(&mut out, &word_text(w));
             w += 1;
         }
         let items: Vec<&Item> = words[start..end].iter().flatten().collect();
@@ -305,7 +331,7 @@ pub(crate) fn line_text(words: &[Vec<Item<'_>>], base_y: f64, base_size: f64) ->
         w = end;
     }
     while w < words.len() {
-        push_word(&mut out, &plain(&words[w]));
+        push_word(&mut out, &word_text(w));
         w += 1;
     }
     Some(out)

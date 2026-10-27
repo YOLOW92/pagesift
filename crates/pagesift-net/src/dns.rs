@@ -71,6 +71,10 @@ impl GuardedResolver {
 
     pub async fn resolve_checked(&self, host: &str) -> Result<Vec<IpAddr>, ResolveError> {
         let permit = self.stages.acquire(NetworkStage::Dns).await;
+        // localhost 和 *.localhost 是回环地址，不查系统解析器（它可能不认子域名，或者没有 IPv6）
+        if let Some(ips) = crate::localhost::loopback(host) {
+            return self.finish_checked(host, Ok(ips), permit);
+        }
         let slot = {
             let mut cache = self.cache.lock().expect("DNS cache lock poisoned");
             if cache.len() >= 16_384 && !cache.contains_key(host) {

@@ -81,7 +81,16 @@ impl Scraper {
                 "max_pages: converted the first {converted} of {total} pages"
             ));
         }
+        // 损坏的文件部分恢复：pdf_repaired、pages_missing
+        p.warnings.extend(pdf.warnings);
         meta.title = pdf.metadata.title.clone();
+        // /Info 没有标题时用版面推断的标题（第一页的一级标题），并标明来源
+        if meta.title.is_none()
+            && let Some(title) = pdf.inferred_title
+        {
+            meta.title = Some(title);
+            meta.extra.insert("titleSource".into(), "inferred".into());
+        }
         // 和 Firecrawl 一样：numPages 是实际转换的页数，totalPages 是整个文件的页数
         meta.extra.insert("numPages".into(), converted.into());
         meta.extra.insert("totalPages".into(), total.into());

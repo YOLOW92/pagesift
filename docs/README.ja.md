@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.80.0
+# pagesift 0.80.1
 
 **AI エージェントと LLM データ基盤のための、超高速・メモリ有界スクレイピング＆本文抽出エンジン。**  
 あらゆる Web サイト、論文、アーカイブを高品質な Markdown と構造化データに変換します。単一の Rust バイナリ、ネイティブ SDK、Firecrawl v1/v2 および Jina Reader デュアルプロトコル互換。測定した競合よりメモリ消費が少なくなっています（[benchmarks.md 第 9 節](benchmarks.md) 参照）。
@@ -76,6 +76,15 @@
 
 ---
 
+## 0.80.1 の修正
+
+0.80 のレビューで見つかった問題の修正です（HTML 抽出は変更なし。PDF の出力は語の後ろに上付きの脚注記号がある箇所だけ変わります。ベンチマークは再測定していません）：Shift_JIS、GBK、または文字セットが宣言された
+CSV を HTML と同じ方法でデコード（以前は警告なしに文字化け）；破損した PDF を部分的にしか復元できないときはその旨を警告
+（`pdf_repaired`、`pages_missing`）；著者名の後の脚注記号を数式にしない（`Ashish $Vaswani^{\ast}$` → `Ashish Vaswani*`）；
+タイトルが埋め込まれていない PDF は推定したタイトルを `metadata.title` に入れる（`titleSource: inferred`）；
+`*.localhost` はどのマシンでもループバックに解決され、テストと性能ゲートが IPv4 のみの環境でも動作；
+`NOTICE`（Adobe cmap-resources のライセンスを追加）をすべてのバイナリに同梱。詳細：[0.80.1 リリースノート](releases/0.80.1.md)。
+
 ## 0.80.0 の新機能
 
 **PDF の構造を保ち、取りこぼしの可能性を自分で知らせる。**
@@ -105,7 +114,7 @@
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.0
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.1
 ```
 
 #### Firecrawl SDK の差し替え
