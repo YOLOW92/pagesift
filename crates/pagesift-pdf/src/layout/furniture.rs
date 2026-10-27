@@ -187,6 +187,7 @@ fn remove_page_furniture(lines: &mut Vec<Line>, h: f64) {
 pub(crate) fn remove_furniture(pages: &mut [Vec<Line>], heights: &[f64]) {
     // 跨页重复先算（Artifact 片段和同一行的其他文字一起才对得上别的页）
     remove_repeated_furniture(pages, heights);
+    remove_fixed_furniture(pages, heights);
     for lines in pages.iter_mut() {
         remove_artifacts(lines);
     }
@@ -360,3 +361,76 @@ fn running_folios(pages: &[Vec<Line>], all_rows: &[EdgeRows]) -> HashSet<(usize,
     }
     out
 }
+
+/// 固定位置的页眉页脚：同一行字（字号相同）在至少 3 页上出现在同一高度（相差 1pt 内），算页眉页脚。
+/// 不看出现比例，所以只在一章里出现的章名页眉也能认出来；位置一点不变是比出现比例更强的证据，
+/// 所以范围放宽到页面上下各 20%（年报的页眉常在离页顶 12%–16% 处）。
+/// 只从页边往里剥连续的一段：遇到第一行不是固定位置重复的就停，不删到正文中间去。
+fn remove_fixed_furniture(pages: &mut [Vec<Line>], heights: &[f64]) {
+    const BAND: f64 = 0.20;
+    // 每页边缘区里的行：(在页顶, 高度取整, 字号取整, 归一化文字) 和行里的片段序号，按离页边由近到远排
+    type Row = ((bool, i64, i64, String), Vec<usize>);
+    let rows_of = |lines: &[Line], h: f64| -> Vec<Row> {
+        let mut idx: Vec<usize> = (0..lines.len())
+            .filter(|&i| !lines[i].raw && (lines[i].y >= h * (1.0 - BAND) || lines[i].y <= h * BAND))
+            .collect();
+        idx.sort_by(|&a, &b| lines[b].y.total_cmp(&lines[a].y));
+        let mut groups: Vec<Vec<usize>> = Vec::new();
+        for i in idx {
+            match groups.last_mut() {
+                Some(g)
+                    if (lines[g[0]].y - lines[i].y).abs()
+                        < 0.35 * lines[g[0]].size.max(lines[i].size) =>
+                {
+                    g.push(i)
+                }
+                _ => groups.push(vec![i]),
+            }
+        }
+        groups
+            .into_iter()
+            .map(|mut g| {
+                g.sort_by(|&a, &b| lines[a].x0.total_cmp(&lines[b].x0));
+                let text: Vec<&str> = g.iter().map(|&i| lines[i].text.as_str()).collect();
+                let size = g.iter().map(|&i| lines[i].size).fold(0.0, f64::max);
+                let y = lines[g[0]].y;
+                ((y >= h * (1.0 - BAND), y.round() as i64, size.round() as i64, furniture_key(&text.join(" "))), g)
+            })
+            .collect()
+    };
+    let all: Vec<Vec<Row>> = pages.iter().zip(heights).map(|(l, &h)| rows_of(l, h)).collect();
+    // 同一键在几页上出现；高度允许差 1pt：把 y±1 的键都算上
+    let mut pages_of: HashMap<(bool, i64, i64, &str), HashSet<usize>> = HashMap::new();
+    for (p, rows) in all.iter().enumerate() {
+        for ((top, y, size, text), _) in rows {
+            if text.is_empty() {
+                continue;
+            }
+            for dy in -1..=1 {
+                pages_of.entry((*top, y + dy, *size, text.as_str())).or_default().insert(p);
+            }
+        }
+    }
+    let fixed = |k: &(bool, i64, i64, String)| {
+        pages_of.get(&(k.0, k.1, k.2, k.3.as_str())).is_some_and(|s| s.len() >= 3)
+    };
+    for (lines, rows) in pages.iter_mut().zip(&all) {
+        let mut drop = vec![false; lines.len()];
+        // 页顶从上往下、页底从下往上
+        let tops = rows.iter().filter(|(k, _)| k.0);
+        let bottoms = rows.iter().rev().filter(|(k, _)| !k.0);
+        for side in [tops.collect::<Vec<_>>(), bottoms.collect::<Vec<_>>()] {
+            for (k, g) in side {
+                if !fixed(k) || g.iter().any(|&i| lines[i].keep || lines[i].hint.is_some()) {
+                    break;
+                }
+                for &i in g {
+                    drop[i] = true;
+                }
+            }
+        }
+        let mut it = drop.iter();
+        lines.retain(|_| !it.next().copied().unwrap_or(false));
+    }
+}
+

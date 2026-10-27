@@ -205,3 +205,24 @@ fn white_fills_are_ignored() {
         .collect();
     assert!(detect(&shapes, &[], &[], 612.0, 792.0).is_empty());
 }
+
+#[test]
+fn stacked_bar_panels_stay_apart() {
+    // 上下排的两张柱形图：柱同宽、左右错开一点，中间隔着下面那张图的标题和上面那张图的横轴标签
+    let mut shapes = Vec::new();
+    for (k, &h) in [30.0, 50.0, 20.0, 40.0, 60.0, 25.0].iter().enumerate() {
+        let x = 120.0 + 40.0 * k as f64;
+        shapes.push(rect(x, 500.0, x + 15.0, 500.0 + h));
+        shapes.push(rect(x + 20.0, 380.0, x + 35.0, 380.0 + h));
+    }
+    // 每根柱下面一个年份
+    let mut lines = vec![line("Figure 2. Lending", 120.0, 470.0, 8.0)];
+    for k in 0..6 {
+        let x = 120.0 + 40.0 * k as f64;
+        let year = format!("{}", 2019 + k);
+        lines.push(line(&year, x, 488.0, 8.0));
+        lines.push(line(&year, x + 20.0, 368.0, 8.0));
+    }
+    let figs = detect(&shapes, &[], &lines, 612.0, 792.0);
+    assert_eq!(figs.len(), 2, "{figs:?}");
+}
