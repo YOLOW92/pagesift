@@ -11,7 +11,9 @@
 evaluate.py，Firecrawl 集用 pagesift bench --external 的逐页结果，Office 用 benchmarks/office/scripts/score.py）。
 """
 import argparse
+import functools
 import importlib.util
+import multiprocessing as mp
 import json
 import os
 import re
@@ -21,6 +23,7 @@ import sys
 import tempfile
 import unicodedata
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -30,6 +33,7 @@ BENCH = CHECKOUT / "benchmarks"
 DATA = BENCH / "data"
 OFFICE = Path(os.environ.get("MIX_OFFICE", CHECKOUT / "tasks/0.80/fix3/office"))
 PAGESIFT_SCORER = os.environ.get("PAGESIFT_SCORER", "pagesift")  # 只用它的 bench --external 评分，不用它的提取
+CORES = os.cpu_count() or 1
 
 
 def load(path, name):
@@ -149,12 +153,20 @@ def words(s):
     return Counter(WORD.findall(unicodedata.normalize("NFKC", s).casefold()))
 
 
+B2_REF = {}
+
+
+def b2_refs(items):
+    """pdftotext 读文本层，按核数并发调用。"""
+    def one(it):
+        txt = subprocess.run(["pdftotext", "-enc", "UTF-8", str(it["path"]), "-"], capture_output=True, timeout=600).stdout
+        return it["id"], words(txt.decode("utf-8", "replace"))
+    with ThreadPoolExecutor(CORES) as ex:
+        B2_REF.update(ex.map(one, items))
+
+
 def score_b2(items, tools, runs):
-    ref = {}
-    for it in items:
-        p = Path(it["path"])
-        txt = subprocess.run(["pdftotext", "-enc", "UTF-8", str(p), "-"], capture_output=True, timeout=600).stdout.decode("utf-8", "replace")
-        ref[it["id"]] = words(txt)
+    ref = B2_REF
     per = {t: {} for t in tools}
     for t in tools:
         d, res = tool_results(runs, "b2", t)
@@ -192,13 +204,19 @@ def score_b1(items, tools, runs):
                     f = cand / f"{rel}_pg1_repeat1.md"
                     f.parent.mkdir(parents=True, exist_ok=True)
                     f.write_text(md, encoding="utf-8")
-            out = Path(tmp) / "tests.jsonl"
-            subprocess.run([str(py), "-I", str(HERE / "score_olmocr.py"), str(tdata), str(cand), str(out)], cwd=bench, check=True,
-                           env={**os.environ, "PYTHONPATH": str(bench)})
+            k = max(1, CORES // max(1, NTOOLS))  # 各工具同时评，核按工具数分
+            outs = [Path(tmp) / f"tests.{i}.jsonl" for i in range(k)]
+            procs = [subprocess.Popen([str(py), "-I", str(HERE / "score_olmocr.py"), str(tdata), str(cand), str(o), str(i), str(k)],
+                                      cwd=bench, env={**os.environ, "PYTHONPATH": str(bench)}, stderr=subprocess.DEVNULL)
+                     for i, o in enumerate(outs)]
+            for pr in procs:
+                if pr.wait() != 0:
+                    raise SystemExit("score_olmocr.py 失败")
             by_pdf = {}
-            for line in out.read_text().splitlines():
-                r = json.loads(line)
-                by_pdf.setdefault(r["pdf"], []).append(r)
+            for o in outs:
+                for line in o.read_text().splitlines():
+                    r = json.loads(line)
+                    by_pdf.setdefault(r["pdf"], []).append(r)
         for it in items:
             rel = str(Path(it["location"]).relative_to("olmocr_1403/bench_data/pdfs"))
             ts = by_pdf.get(rel, [])
@@ -257,6 +275,12 @@ def score_b4(items, tools, runs):
 
 # ---- 汇总 ----
 
+NTOOLS = 1
+
+
+def score_one(fn, items, tool, runs):
+    return fn(items, [tool], runs)[0][tool]
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("sub", choices=["a1", "a2", "a4", "b1", "b2", "b3", "b4"])
@@ -268,16 +292,16 @@ def main():
     samples = {r["id"]: r for r in rows_tsv(HERE / f"samples/{sub}.tsv")}
     man = {l.split("\t")[0]: l.split("\t")[1] for l in (MIX / f"inputs/{sub}.manifest").read_text(encoding="utf-8").splitlines() if l}
     items = [{**samples[i], "path": p} for i, p in man.items()]  # 只算拿到了输入的份（抓不到的已在 fetched.tsv 里记不可用）
-    if sub == "a1":
-        per, agg, label = score_a1(items, tools, runs)
-    elif sub == "b1":
-        per, agg, label = score_b1(items, tools, runs)
-    elif sub == "b2":
-        per, agg, label = score_b2(items, tools, runs)
-    elif sub == "b4":
-        per, agg, label = score_b4(items, tools, runs)
-    else:
-        per, agg, label = score_robust(sub, items, tools, runs)
+    fn = {"a1": score_a1, "b1": score_b1, "b2": score_b2, "b4": score_b4}.get(sub)
+    fn = fn or functools.partial(score_robust, sub)
+    global NTOOLS
+    NTOOLS = len(tools)
+    if sub == "b2":
+        b2_refs(items)
+    _, agg, label = fn(items, [], runs)  # 只取汇总函数和指标名
+    # 各工具在 fork 出来的子进程里同时评（multiprocessing，fork 继承已读入的数据）
+    with mp.get_context("fork").Pool(len(tools)) as pool:
+        per = dict(zip(tools, pool.starmap(score_one, [(fn, items, t, runs) for t in tools])))
 
     model_ids = {i["id"] for i in items if i.get("model_subset") == "1"}
     assigned = {t: ({i["id"] for i in items} & model_ids if t.startswith("docling") else {i["id"] for i in items}) for t in tools}

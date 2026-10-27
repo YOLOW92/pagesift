@@ -28,6 +28,8 @@ import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import admit  # noqa: E402  跨 driver 的 worker 准入（内存、核数）
 ADAPTERS = HERE / "adapters"
 MIX = Path(os.environ.get("MIX_TOOLS", Path.home() / "mix-tools"))
 RUST = Path(os.environ.get("MIX_RUST_BIN", MIX / "rust/bin"))  # 编好后从 target/release 拷来的二进制和 extractous 的 libs/
@@ -37,7 +39,8 @@ def py(tool, venv=None, env=None, **kw):
     return dict(cmd=[str(MIX / "py" / (venv or tool) / "bin/python"), "-I", str(ADAPTERS / "py_worker.py"), tool], env=env or {}, **kw)
 
 
-# per_worker_mb：每个 worker 的预计内存，用来算能开几个；max_workers：工具本身的限制（GPU 显存等）。
+# per_worker_mb：每个 worker 的预计峰值内存（实测取整：Docling 2.5 GB，Crawl4AI 加 Chromium 0.7 GB），准入时按它预扣；
+# max_workers：工具本身的限制（GPU 显存等）。
 TOOLS = {
     # 网页正文（输入 HTML 文件）
     "crw": dict(cmd=[str(RUST / "mix-crw")], per_worker_mb=150),
@@ -46,15 +49,15 @@ TOOLS = {
     # 抓取（输入 URL，配 --replay）
     "spider": dict(cmd=[str(RUST / "mix-spider")], per_worker_mb=150, url=True),
     "scrapy": py("scrapy", per_worker_mb=200, url=True),
-    "crawl4ai": py("crawl4ai", env={"PLAYWRIGHT_BROWSERS_PATH": str(MIX / "ms-playwright"), "CRAWL4AI_NO_CLOUD_NOTICE": "1"}, per_worker_mb=900, url=True, startup_s=120),
+    "crawl4ai": py("crawl4ai", env={"PLAYWRIGHT_BROWSERS_PATH": str(MIX / "ms-playwright"), "CRAWL4AI_NO_CLOUD_NOTICE": "1"}, per_worker_mb=700, url=True, startup_s=120),
     # PDF
     "pdf_oxide": dict(cmd=[str(RUST / "mix-pdf_oxide")], per_worker_mb=500),
     "pymupdf4llm": py("pymupdf4llm", per_worker_mb=500),
     # docling：默认安装（torch cu130，不支持 GTX 1070 的 sm_61）只能用 CPU；docling-gpu 用 PyTorch 官方 cu126 源的 torch
-    "docling": py("docling", env={"DOCLING_DEVICE": "cpu", "HF_HOME": str(MIX / "hf")}, per_worker_mb=3500, startup_s=600),
+    "docling": py("docling", env={"DOCLING_DEVICE": "cpu", "HF_HOME": str(MIX / "hf")}, per_worker_mb=2500, startup_s=600),
     # docling-auto：默认安装、不指定设备（看 docling 在 GTX 1070 上自动选设备会怎样）
-    "docling-auto": py("docling", env={"HF_HOME": str(MIX / "hf")}, per_worker_mb=3500, startup_s=600),
-    "docling-gpu": py("docling", venv="docling-cu126", env={"DOCLING_DEVICE": "cuda", "HF_HOME": str(MIX / "hf")}, per_worker_mb=3500, max_workers=2, startup_s=600),
+    "docling-auto": py("docling", env={"HF_HOME": str(MIX / "hf")}, per_worker_mb=2500, startup_s=600),
+    "docling-gpu": py("docling", venv="docling-cu126", env={"DOCLING_DEVICE": "cuda", "HF_HOME": str(MIX / "hf")}, per_worker_mb=2500, max_workers=2, startup_s=600),
     # Office 与电子书
     "extractous": dict(cmd=[str(RUST / "mix-extractous")], env={"LD_LIBRARY_PATH": str(RUST / "libs")}, per_worker_mb=600),
     "extractous-py": py("extractous", per_worker_mb=600),
@@ -62,6 +65,12 @@ TOOLS = {
 }
 
 CG_ROOT = Path("/sys/fs/cgroup")
+LIVE = set()  # 活着的 Worker
+LIVE_LOCK = threading.Lock()
+STOP = threading.Event()
+PEAK_LIVE = [0]
+LOCK_FD = int(os.environ["MIX_LOCK_FD"]) if os.environ.get("MIX_LOCK_FD") else None  # 外层 bench.lock：传给子进程，最后一个退出才放锁
+SLICE = {"name": None, "set": False}
 HAVE_SYSTEMD = shutil.which("systemd-run") is not None and os.environ.get("MIX_NO_SYSTEMD") != "1"
 
 
@@ -107,6 +116,12 @@ class Worker:
         self.lines = queue.Queue()
 
     def start(self):
+        if STOP.is_set():
+            return None
+        self.slot = admit.acquire(self.name, self.spec["per_worker_mb"])  # 每启动一个 worker 前都重新检查
+        if STOP.is_set():
+            self.slot.release()
+            return None
         with Worker.seq_lock:
             Worker.seq += 1
             n = Worker.seq
@@ -114,10 +129,14 @@ class Worker:
         cmd = list(self.spec["cmd"])
         if HAVE_SYSTEMD:
             unit = f"mix-{self.name}-{os.getpid()}-{n}"
-            cmd = ["systemd-run", "--user", "--scope", "--quiet", f"--unit={unit}",
+            cmd = ["systemd-run", "--user", "--scope", "--quiet", f"--unit={unit}", f"--slice={SLICE['name']}",
                    "-p", f"MemoryMax={self.mem_max}M", "-p", "MemorySwapMax=0", "--"] + cmd
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self.log,
-                                     env=env, text=True, encoding="utf-8", start_new_session=True)
+                                     env=env, text=True, encoding="utf-8", start_new_session=True,
+                                     pass_fds=(LOCK_FD,) if LOCK_FD is not None else ())
+        with LIVE_LOCK:
+            LIVE.add(self)
+            PEAK_LIVE[0] = max(PEAK_LIVE[0], len(LIVE))
         self.lines = queue.Queue()
         threading.Thread(target=self._read, args=(self.proc, self.lines), daemon=True).start()
         t0 = time.perf_counter()
@@ -126,6 +145,8 @@ class Worker:
             self.kill()
             return None
         self.cg = self._cgroup()
+        self.slot.set_cgroup(self.cg)
+        set_slice_limit()
         self.oom_seen = self._oom_count()
         self.peak_fd = None
         if self.cg:
@@ -227,7 +248,32 @@ class Worker:
         st = "ok" if r.get("ok") and r.get("bytes", 0) > 0 else ("empty" if r.get("ok") else "error")
         return {"status": st, "ms": r.get("ms"), "wall_ms": wall, "bytes": r.get("bytes", 0), "error": r.get("error")}, peak[0]
 
+    def terminate(self, grace_s=20):
+        """先给 cgroup 里每个进程发 SIGTERM，等它们自己退出；到点还没退才整组杀（Chromium 也在组里，不会遗留）。"""
+        if self.cg:
+            try:
+                for pid in (self.cg / "cgroup.procs").read_text().split():
+                    os.kill(int(pid), signal.SIGTERM)
+            except (OSError, ValueError):
+                pass
+        elif self.proc:
+            try:
+                os.killpg(self.proc.pid, signal.SIGTERM)
+            except (ProcessLookupError, PermissionError):
+                pass
+        if self.proc:
+            try:
+                self.proc.wait(timeout=grace_s)
+            except subprocess.TimeoutExpired:
+                pass
+        self.kill()
+
     def kill(self):
+        if getattr(self, "slot", None) is not None:
+            self.slot.release()
+            self.slot = None
+        with LIVE_LOCK:
+            LIVE.discard(self)
         if getattr(self, "peak_fd", None) is not None:
             os.close(self.peak_fd)
             self.peak_fd = None
@@ -259,6 +305,32 @@ class Worker:
             self.kill()
 
 
+def set_slice_limit():
+    """这个工具的全部 worker 合计的硬上限：内存总量减去保留量，超了只在这个工具的 slice 里杀进程。"""
+    if not HAVE_SYSTEMD or SLICE["set"]:
+        return
+    SLICE["set"] = True
+    with open("/proc/meminfo") as f:
+        total = next(int(l.split()[1]) // 1024 for l in f if l.startswith("MemTotal:"))
+    subprocess.run(["systemctl", "--user", "set-property", "--runtime", SLICE["name"],
+                    f"MemoryMax={total - admit.RESERVE_MB}M", "MemorySwapMax=0"], check=False,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def on_sigterm(signum, frame):
+    """收到 SIGTERM：不再领新份数，给活着的 worker 发 TERM 并等它们退出。"""
+    if STOP.is_set():
+        return
+    STOP.set()
+
+    def stop_all():
+        with LIVE_LOCK:
+            ws = list(LIVE)
+        for w in ws:
+            threading.Thread(target=w.terminate, daemon=True).start()
+    threading.Thread(target=stop_all, daemon=True).start()
+
+
 def read_manifest(path):
     items = []
     for i, line in enumerate(Path(path).read_text().splitlines()):
@@ -282,7 +354,8 @@ def start_replay(items):
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
-    proc = subprocess.Popen([sys.executable, "-I", str(HERE / "replay.py"), str(root), str(port)])
+    proc = subprocess.Popen([sys.executable, "-I", str(HERE / "replay.py"), str(root), str(port)],
+                            pass_fds=(LOCK_FD,) if LOCK_FD is not None else ())
     for _ in range(100):
         try:
             socket.create_connection(("127.0.0.1", port), timeout=0.1).close()
@@ -300,7 +373,7 @@ def main():
     ap.add_argument("--workers", default="auto")
     ap.add_argument("--timeout", type=float, default=60.0, help="单份上限（秒），见 limits.toml")
     ap.add_argument("--mem-max", type=int, default=4096, help="单个 worker 的内存上限（MB）")
-    ap.add_argument("--reserve", type=int, default=3072, help="给系统保留的内存（MB）")
+    ap.add_argument("--reserve", type=int, default=None, help="给系统保留的内存（MB，默认 3072，见 admit.py）")
     ap.add_argument("--replay", action="store_true", help="输入是快照文件，用本地回放服务转成 URL 给抓取工具")
     a = ap.parse_args()
 
@@ -309,10 +382,14 @@ def main():
     out = Path(a.out) / a.tool
     out.mkdir(parents=True, exist_ok=True)
 
-    by_mem = max(1, (mem_available_mb() - a.reserve) // spec["per_worker_mb"])
-    cap = min(os.cpu_count() or 1, len(items) or 1, by_mem, spec.get("max_workers", 1 << 30))
-    asked = cap if a.workers == "auto" else int(a.workers)
-    n_workers = max(1, min(asked, by_mem, spec.get("max_workers", 1 << 30), len(items) or 1))
+    if a.reserve is not None:
+        admit.RESERVE_MB = a.reserve
+    # 线程数只是上限；每个线程启动 worker 前都要经过 admit.acquire（重新看 MemAvailable 和全机 worker 数），
+    # 所以实际同时活着的 worker 数随内存动态变化，汇总里记 peak_live_workers
+    cap = min(os.cpu_count() or 1, len(items) or 1, spec.get("max_workers", 1 << 30))
+    n_workers = max(1, min(cap if a.workers == "auto" else int(a.workers), cap))
+    SLICE["name"] = f"mix-{a.tool}-{os.getpid()}.slice"
+    signal.signal(signal.SIGTERM, on_sigterm)
 
     replay, to_url = (None, None)
     if spec.get("url") or a.replay:
@@ -329,15 +406,20 @@ def main():
     def loop():
         w = Worker(a.tool, spec, a.mem_max, log)
         alive, fails = False, 0
-        while True:
-            try:
-                id_, inp, url = jobs.get_nowait()
-            except queue.Empty:
+        while not STOP.is_set():
+            if jobs.empty():
                 break
             if not alive:
+                # 先拿准入、起好 worker，再领份数：排队等准入的线程手里不压着份数
                 info = w.start()
                 if info is None:
+                    if STOP.is_set():
+                        break
                     fails += 1
+                    try:
+                        id_, inp, url = jobs.get_nowait()
+                    except queue.Empty:
+                        break
                     rec = {"status": "crash", "error": "worker failed to start"}
                     with res_lock:
                         res_f.write(json.dumps({"tool": a.tool, "id": id_, "input": inp, **rec}, ensure_ascii=False) + "\n")
@@ -348,10 +430,16 @@ def main():
                 with res_lock:
                     starts.append(info["startup_ms"])
                     versions.add(info["version"])
+            try:
+                id_, inp, url = jobs.get_nowait()
+            except queue.Empty:
+                break
             job = {"id": id_, "input": to_url(inp) if to_url else str(Path(inp).resolve()), "out": str((out / f"{id_}.md").resolve())}
             if url and not to_url:
                 job["url"] = url
             rec, peak = w.run(job, a.timeout)
+            if STOP.is_set() and rec["status"] in ("crash", "timeout"):
+                rec = {"status": "stopped", "error": "driver 收到 SIGTERM"}  # 被我们停掉的，不算工具失败
             alive = w.proc is not None
             with res_lock:
                 peaks.append(peak)
@@ -376,7 +464,8 @@ def main():
     with open(out / "results.jsonl", "a", encoding="utf-8") as f:
         for id_, inp, _ in items:
             if id_ not in done:
-                r = {"tool": a.tool, "id": id_, "input": inp, "status": "crash", "error": "not run: workers failed"}
+                r = {"tool": a.tool, "id": id_, "input": inp, "status": "stopped" if STOP.is_set() else "crash",
+                     "error": "not run: driver stopped" if STOP.is_set() else "not run: workers failed"}
                 rows.append(r)
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
     counts = {}
@@ -384,7 +473,8 @@ def main():
         counts[r["status"]] = counts.get(r["status"], 0) + 1
     summary = {
         "tool": a.tool, "versions": sorted(v for v in versions if v), "items": len(items),
-        "workers": n_workers, "workers_asked": a.workers, "wall_s": round(wall, 3),
+        "workers": n_workers, "peak_live_workers": PEAK_LIVE[0], "workers_asked": a.workers, "wall_s": round(wall, 3),
+        "reserve_mb": admit.RESERVE_MB, "per_worker_mb": spec["per_worker_mb"], "stopped": STOP.is_set(),
         "status": counts, "startup_ms": [round(s, 1) for s in starts],
         "max_peak_mb": round(max(peaks, default=0), 1), "timeout_s": a.timeout, "mem_max_mb": a.mem_max,
         "cgroup": HAVE_SYSTEMD,

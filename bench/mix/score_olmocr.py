@@ -1,6 +1,8 @@
 """B1：用 olmOCR-bench 自己的测试逐条判分（在 olmocr-bench 目录下、用它的 Python 环境运行）。
 
-    cd <olmocr-bench> && PYTHONPATH=. <py>/bin/python -I <本文件> <bench_data 目录> <候选目录> <结果.jsonl>
+    cd <olmocr-bench> && PYTHONPATH=. <py>/bin/python -I <本文件> <bench_data 目录> <候选目录> <结果.jsonl> [分片号 分片数]
+
+给了分片号和分片数时只评 crc32(pdf) % 分片数 == 分片号 的 PDF，外层并发跑多个分片。
 
 候选目录里是 <pdf 相对路径去掉 .pdf>_pg1_repeat1.md（与 benchmark.py 的约定相同）；没有输出的页，它的测试都记失败
 （benchmark.py 对缺文件也是这样）。直接调官方测试的 run()，不加预筛。
@@ -9,6 +11,7 @@
 """
 import json
 import os
+import zlib
 import sys
 from pathlib import Path
 
@@ -16,6 +19,7 @@ sys.path.insert(0, os.getcwd())
 from olmocr.bench.tests import BaselineTest, load_tests
 
 data, cand, out = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
+shard, nshards = (int(sys.argv[4]), int(sys.argv[5])) if len(sys.argv) > 5 else (0, 1)
 tests = []
 for jl in sorted(data.glob("*.jsonl")):
     tests += [(jl.stem, t) for t in load_tests(str(jl))]
@@ -24,6 +28,8 @@ for pdf in sorted({t.pdf for _, t in tests}):
         tests.append(("baseline", BaselineTest(id=f"{pdf}_baseline", pdf=pdf, page=1, type="baseline")))
 with open(out, "w", encoding="utf-8") as fo:
     for cat, t in tests:
+        if zlib.crc32(t.pdf.encode()) % nshards != shard:
+            continue
         md = cand / (os.path.splitext(t.pdf)[0] + f"_pg{t.page}_repeat1.md")
         if not md.exists():
             passed, why = False, "missing"
