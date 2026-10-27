@@ -1,6 +1,1363 @@
 {
  "sub": "a2",
  "tools": {
+  "pagesift": {
+   "items": 269,
+   "status": {
+    "ok": 253,
+    "empty": 16
+   },
+   "completion": 0.9405204460966543,
+   "garble_mean": 4.14874556750987e-06,
+   "garble_pages": 1,
+   "per_item": {
+    "a2-78-workers.dev": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-91-f5.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-113-lencr.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-124-cloudflare-dns.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-128-windows.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-161-tumblr.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-169-shopify.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-178-telegram.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-185-discord.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-268-googleblog.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-299-rubiconproject.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-337-weebly.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-356-checkpoint.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-361-nasa.gov": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-394-crpt.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-429-aol.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-442-substack.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-486-dotomi.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-505-sina.com.cn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-528-docker.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-547-ezvizlife.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-581-deviantart.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-606-playstation.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-629-amazon.fr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-710-wpguardian.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-729-viber.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-757-mediafire.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-793-hugedomains.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-808-lenovo.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-811-ameblo.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-858-life360.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-891-blackberry.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-896-pornhub.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-900-worldbank.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-908-wyzecam.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-915-latimes.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-934-thenai.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-964-repubblica.it": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-973-statuspage.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-1335-funpay.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-1863-rackspace.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-2244-5movierulz.kitchen": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-2454-siriusxm.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-2782-getpocket.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-2976-ipwho.is": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3046-telstra.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3115-jampp.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3137-zynga.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3183-pornhat.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3204-razorpay.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3301-gm.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3696-sba.gov": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3773-bale.ai": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3774-amnesty.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3894-standard.co.uk": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3982-clinch.co": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-4098-buymeacoffee.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-4976-9mod.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-5391-rylkngdm.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-5680-travelaudience.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-5731-arkoselabs.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-6384-o2.pl": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-6645-freeconvert.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-6695-mercadopago.com.ar": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7073-tchibo.de": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7165-405kk.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7303-fakt.pl": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7389-tokubai.co.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7525-spacebattles.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7820-phonepe.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7836-survicate.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7841-punchng.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7863-autohero.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7911-fantacalcio.it": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8145-mk.co.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8297-maturetube.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8302-authorize.net": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8449-fout.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8568-wartank.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8785-hello.porn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8887-sportal.bg": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-9080-rawstory.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-9222-supremevalues.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-9436-myhentaigallery.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-9744-yinzcam.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-9928-lmu.de": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-21603-smartsuppchat.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-25803-stck.me": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-26362-usc.es": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-26781-catched.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-27093-unn.ua": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-27457-yahooinc.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-28402-fatafatkolkata.net": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-28668-4archive.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-30327-tradovateapi.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-30523-tvwiki44.net": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-30567-sf.gov": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-32737-yindantechhk.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-33151-landrover.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-33627-sugggest.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-33849-stylist.co.uk": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-34782-zhibo8.cc": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-46406-sweetcare.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-53066-umb.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-55098-porndd.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-55114-sive.rs": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-55558-farmaline.be": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-59316-fu.do": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-60424-coinpokerbets.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-64060-tarnow.pl": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-64904-vtb.am": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-66536-xgif.cc": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-68374-upnjatim.ac.id": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-70664-2ix2.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-72277-topbusinesssoftware.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-73287-unum.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-75771-freelancer.co.uk": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-77681-filmsetc.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-79946-ifis.co.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-91274-ramayana.co.id": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-92699-hotelki.tv": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-92974-kwanjai168.net": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-93671-ruaythear168.vip": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-93681-s22s.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-94206-vijayant.in": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-94735-asianage.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-95220-ultralytics.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-95962-opry.com": {
+     "set": "A2",
+     "garble": 0.001049632628579997,
+     "f1": null
+    },
+    "a2-98312-lcp.fr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-102896-surfearner.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-139801-nextgenscience.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-146410-kingshawaiian.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-157835-rspp.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-163211-ifbooks.co.kr": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-167123-zakon.hr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-169826-sklane.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-173607-heathrowairport.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-186263-cygames.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-188707-medair.pro": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-190946-formulare-bfinv.de": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-194507-poetryclub.com.ua": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-240500-jerseycitynj.gov": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-245373-wedevit.ro": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-252617-tokyu-plaza.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-280389-hostdomsolutions.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-280454-u2concept.net": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-282230-lichtbild.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-284414-ifdnrg.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-294309-upandupspace.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-297264-hqabhwxzy.cc": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-300313-mytyres.gr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-301695-morefun-et.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-312203-mcnetwork.pl": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-319614-jide.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-321126-click2stream.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-326141-valesaude.com.br": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-331624-epson.fr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-342655-heredis.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-348553-telemark.cloud": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-349106-avantaje.ro": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-353146-english3.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-358555-hwk-muenchen.de": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-363081-lenoise.ca": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-369921-kalbis.ac.id": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-379784-ogk2.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-385690-zealbao.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-410169-impacta.com.br": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-430793-dlhd.st": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-431894-eflangtech.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-438939-rgsupportboy.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-447849-irisleegallery.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-463024-fotoload.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-478742-diverssupplyinc.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-494924-dnsguatemala7.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-495150-dr.ca": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-539801-fsm.bible": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-546410-carwiz.co.il": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-563211-lepotentiel.bj": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-565446-courrierdesbalkans.fr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-573607-clearstreet.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-582091-ageofconquest.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-582268-scandicmama.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-586263-triumph.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-590946-19yxw.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-594507-iucecb.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-599126-zooplzen.cz": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-645373-teamdrjoseph.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-652617-e-kinco.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-667873-bilecik11.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-672264-real.edu.ee": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-680389-neflytia.top": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-682230-apays.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-684414-boutiqueottoman.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-697264-fullxmovies.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-700313-trk-hq.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-701695-pvatepla.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-704440-boatrace-tamagawa.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-716239-xtratrust.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-719614-goodfellowbros.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-726141-moorparkca.gov": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-728633-becauseinternational.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-758555-777a.space": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-763081-am-bk.co.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-797060-insajder.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-821570-pgspin99.digital": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-825093-puzia.ua": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-831894-sexhentai.net": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-834724-sofinancas.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-843846-ular900kecil.site": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-843884-ultima.com.np": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-847849-watchart.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-863024-sitenebak.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-914987-vabysmo-hcp.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-938826-seputarundip.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-944556-torshavn.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-956039-aissupernet.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-957332-becexy.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-958580-centrometeoemiliaromagna.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-960711-erpsigep.com.br": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-964628-kawasakisoaper.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-968017-nsrcc.com.sg": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-977714-top5credits.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-977931-kawa-colle.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-993529-websitemarketinghosting.co.uk": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-997800-golnet.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2zh-354130-wxit.edu.cn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2zh-411785-huace.cn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2zh-832681-shopvideo.cn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-85556-airnet.ne.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-90183-bleague.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-318582-rescue.ne.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-408164-paravi.jp": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2ja-409356-babycome.ne.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-459060-ebravo.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-591695-moncheri.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-602489-bss-cloud.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-609444-silverferry.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-803077-kooza.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-826214-raffinegroup-online.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-954717-24htv-goods.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-156642-ev.or.kr": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2ko-179719-schmc.ac.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-415782-kdi.re.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-563350-fromkorea.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-591511-mazia.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-792147-gwangjinlib.seoul.kr": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2ko-830684-saveshopping.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-887004-nncoms.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-925042-newsfc.co.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-35397-uot.edu.ly": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-91860-anae.dz": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-275016-apkgold.ae": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-356169-livremoi.ma": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-598357-lafleurette.tn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-744048-akhbardzair.dz": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-774534-chillandlit.tn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-827851-richbond.ma": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-94756-sarbc.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-256269-megaindex.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-302635-lemonbow.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-434201-dantser.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-448279-soodoo.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-455900-russvoin.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-467157-sonoscape.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-526218-vlant.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-601459-sibirlesmarket.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-613848-gazprom-auto.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-890251-petexpert.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-976545-aktiv-company.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    }
+   }
+  },
   "crw": {
    "items": 269,
    "status": {
@@ -2715,6 +4072,4079 @@
     }
    }
   },
+  "readability": {
+   "items": 269,
+   "status": {
+    "ok": 252,
+    "empty": 17
+   },
+   "completion": 0.9368029739776952,
+   "garble_mean": 0.008296602385363906,
+   "garble_pages": 7,
+   "per_item": {
+    "a2-78-workers.dev": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-91-f5.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-113-lencr.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-124-cloudflare-dns.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-128-windows.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-161-tumblr.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-169-shopify.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-178-telegram.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-185-discord.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-268-googleblog.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-299-rubiconproject.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-337-weebly.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-356-checkpoint.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-361-nasa.gov": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-394-crpt.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-429-aol.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-442-substack.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-486-dotomi.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-505-sina.com.cn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-528-docker.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-547-ezvizlife.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-581-deviantart.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-606-playstation.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-629-amazon.fr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-710-wpguardian.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-729-viber.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-757-mediafire.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-793-hugedomains.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-808-lenovo.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-811-ameblo.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-858-life360.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-891-blackberry.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-896-pornhub.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-900-worldbank.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-908-wyzecam.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-915-latimes.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-934-thenai.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-964-repubblica.it": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-973-statuspage.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-1335-funpay.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-1863-rackspace.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-2244-5movierulz.kitchen": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-2454-siriusxm.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-2782-getpocket.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-2976-ipwho.is": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3046-telstra.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3115-jampp.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3137-zynga.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3183-pornhat.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3204-razorpay.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3301-gm.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3696-sba.gov": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3773-bale.ai": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3774-amnesty.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3894-standard.co.uk": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3982-clinch.co": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-4098-buymeacoffee.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-4976-9mod.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-5391-rylkngdm.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-5680-travelaudience.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-5731-arkoselabs.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-6384-o2.pl": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-6645-freeconvert.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-6695-mercadopago.com.ar": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7073-tchibo.de": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7165-405kk.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7303-fakt.pl": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7389-tokubai.co.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7525-spacebattles.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7820-phonepe.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7836-survicate.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7841-punchng.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7863-autohero.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7911-fantacalcio.it": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8145-mk.co.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8297-maturetube.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8302-authorize.net": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8449-fout.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8568-wartank.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8785-hello.porn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8887-sportal.bg": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-9080-rawstory.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-9222-supremevalues.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-9436-myhentaigallery.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-9744-yinzcam.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-9928-lmu.de": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-21603-smartsuppchat.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-25803-stck.me": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-26362-usc.es": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-26781-catched.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-27093-unn.ua": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-27457-yahooinc.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-28402-fatafatkolkata.net": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-28668-4archive.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-30327-tradovateapi.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-30523-tvwiki44.net": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-30567-sf.gov": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-32737-yindantechhk.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-33151-landrover.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-33627-sugggest.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-33849-stylist.co.uk": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-34782-zhibo8.cc": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-46406-sweetcare.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-53066-umb.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-55098-porndd.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-55114-sive.rs": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-55558-farmaline.be": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-59316-fu.do": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-60424-coinpokerbets.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-64060-tarnow.pl": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-64904-vtb.am": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-66536-xgif.cc": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-68374-upnjatim.ac.id": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-70664-2ix2.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-72277-topbusinesssoftware.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-73287-unum.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-75771-freelancer.co.uk": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-77681-filmsetc.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-79946-ifis.co.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-91274-ramayana.co.id": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-92699-hotelki.tv": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-92974-kwanjai168.net": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-93671-ruaythear168.vip": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-93681-s22s.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-94206-vijayant.in": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-94735-asianage.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-95220-ultralytics.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-95962-opry.com": {
+     "set": "A2",
+     "garble": 0.42863802346360036,
+     "f1": null
+    },
+    "a2-98312-lcp.fr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-102896-surfearner.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-139801-nextgenscience.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-146410-kingshawaiian.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-157835-rspp.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-163211-ifbooks.co.kr": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-167123-zakon.hr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-169826-sklane.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-173607-heathrowairport.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-186263-cygames.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-188707-medair.pro": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-190946-formulare-bfinv.de": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-194507-poetryclub.com.ua": {
+     "set": "A2",
+     "garble": 0.5768348623853211,
+     "f1": null
+    },
+    "a2-240500-jerseycitynj.gov": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-245373-wedevit.ro": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-252617-tokyu-plaza.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-280389-hostdomsolutions.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-280454-u2concept.net": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-282230-lichtbild.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-284414-ifdnrg.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-294309-upandupspace.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-297264-hqabhwxzy.cc": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-300313-mytyres.gr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-301695-morefun-et.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-312203-mcnetwork.pl": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-319614-jide.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-321126-click2stream.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-326141-valesaude.com.br": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-331624-epson.fr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-342655-heredis.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-348553-telemark.cloud": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-349106-avantaje.ro": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-353146-english3.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-358555-hwk-muenchen.de": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-363081-lenoise.ca": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-369921-kalbis.ac.id": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-379784-ogk2.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-385690-zealbao.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-410169-impacta.com.br": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-430793-dlhd.st": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-431894-eflangtech.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-438939-rgsupportboy.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-447849-irisleegallery.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-463024-fotoload.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-478742-diverssupplyinc.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-494924-dnsguatemala7.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-495150-dr.ca": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-539801-fsm.bible": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-546410-carwiz.co.il": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-563211-lepotentiel.bj": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-565446-courrierdesbalkans.fr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-573607-clearstreet.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-582091-ageofconquest.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-582268-scandicmama.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-586263-triumph.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-590946-19yxw.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-594507-iucecb.com": {
+     "set": "A2",
+     "garble": 0.18506671540851763,
+     "f1": null
+    },
+    "a2-599126-zooplzen.cz": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-645373-teamdrjoseph.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-652617-e-kinco.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-667873-bilecik11.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-672264-real.edu.ee": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-680389-neflytia.top": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-682230-apays.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-684414-boutiqueottoman.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-697264-fullxmovies.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-700313-trk-hq.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-701695-pvatepla.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-704440-boatrace-tamagawa.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-716239-xtratrust.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-719614-goodfellowbros.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-726141-moorparkca.gov": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-728633-becauseinternational.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-758555-777a.space": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-763081-am-bk.co.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-797060-insajder.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-821570-pgspin99.digital": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-825093-puzia.ua": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-831894-sexhentai.net": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-834724-sofinancas.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-843846-ular900kecil.site": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-843884-ultima.com.np": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-847849-watchart.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-863024-sitenebak.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-914987-vabysmo-hcp.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-938826-seputarundip.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-944556-torshavn.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-956039-aissupernet.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-957332-becexy.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-958580-centrometeoemiliaromagna.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-960711-erpsigep.com.br": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-964628-kawasakisoaper.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-968017-nsrcc.com.sg": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-977714-top5credits.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-977931-kawa-colle.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-993529-websitemarketinghosting.co.uk": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-997800-golnet.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2zh-354130-wxit.edu.cn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2zh-411785-huace.cn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2zh-832681-shopvideo.cn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-85556-airnet.ne.jp": {
+     "set": "A2",
+     "garble": 0.0806058495821727,
+     "f1": null
+    },
+    "a2ja-90183-bleague.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-318582-rescue.ne.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-408164-paravi.jp": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2ja-409356-babycome.ne.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-459060-ebravo.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-591695-moncheri.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-602489-bss-cloud.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-609444-silverferry.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-803077-kooza.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-826214-raffinegroup-online.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-954717-24htv-goods.jp": {
+     "set": "A2",
+     "garble": 0.12325986078886311,
+     "f1": null
+    },
+    "a2ko-156642-ev.or.kr": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2ko-179719-schmc.ac.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-415782-kdi.re.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-563350-fromkorea.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-591511-mazia.kr": {
+     "set": "A2",
+     "garble": 0.2164945362972734,
+     "f1": null
+    },
+    "a2ko-792147-gwangjinlib.seoul.kr": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2ko-830684-saveshopping.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-887004-nncoms.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-925042-newsfc.co.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-35397-uot.edu.ly": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-91860-anae.dz": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-275016-apkgold.ae": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-356169-livremoi.ma": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-598357-lafleurette.tn": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2ar-744048-akhbardzair.dz": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-774534-chillandlit.tn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-827851-richbond.ma": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-94756-sarbc.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-256269-megaindex.ru": {
+     "set": "A2",
+     "garble": 0.4798439531859558,
+     "f1": null
+    },
+    "a2ru-302635-lemonbow.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-434201-dantser.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-448279-soodoo.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-455900-russvoin.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-467157-sonoscape.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-526218-vlant.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-601459-sibirlesmarket.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-613848-gazprom-auto.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-890251-petexpert.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-976545-aktiv-company.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    }
+   }
+  },
+  "pagesift-crawl": {
+   "items": 269,
+   "status": {
+    "ok": 252,
+    "error": 5,
+    "empty": 12
+   },
+   "completion": 0.9368029739776952,
+   "garble_mean": 4.165208843571417e-06,
+   "garble_pages": 1,
+   "per_item": {
+    "a2-78-workers.dev": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-91-f5.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-113-lencr.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-124-cloudflare-dns.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-128-windows.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-161-tumblr.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-169-shopify.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-178-telegram.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-185-discord.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-268-googleblog.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-299-rubiconproject.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-337-weebly.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-356-checkpoint.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-361-nasa.gov": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-394-crpt.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-429-aol.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-442-substack.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-486-dotomi.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-505-sina.com.cn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-528-docker.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-547-ezvizlife.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-581-deviantart.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-606-playstation.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-629-amazon.fr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-710-wpguardian.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-729-viber.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-757-mediafire.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-793-hugedomains.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-808-lenovo.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-811-ameblo.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-858-life360.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-891-blackberry.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-896-pornhub.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-900-worldbank.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-908-wyzecam.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-915-latimes.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-934-thenai.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-964-repubblica.it": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-973-statuspage.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-1335-funpay.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-1863-rackspace.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-2244-5movierulz.kitchen": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-2454-siriusxm.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-2782-getpocket.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-2976-ipwho.is": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3046-telstra.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3115-jampp.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3137-zynga.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3183-pornhat.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3204-razorpay.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3301-gm.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3696-sba.gov": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3773-bale.ai": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3774-amnesty.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3894-standard.co.uk": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3982-clinch.co": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-4098-buymeacoffee.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-4976-9mod.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-5391-rylkngdm.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-5680-travelaudience.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-5731-arkoselabs.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-6384-o2.pl": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-6645-freeconvert.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-6695-mercadopago.com.ar": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7073-tchibo.de": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7165-405kk.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7303-fakt.pl": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7389-tokubai.co.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7525-spacebattles.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7820-phonepe.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7836-survicate.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7841-punchng.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7863-autohero.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7911-fantacalcio.it": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8145-mk.co.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8297-maturetube.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8302-authorize.net": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8449-fout.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8568-wartank.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8785-hello.porn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8887-sportal.bg": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-9080-rawstory.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-9222-supremevalues.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-9436-myhentaigallery.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-9744-yinzcam.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-9928-lmu.de": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-21603-smartsuppchat.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-25803-stck.me": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-26362-usc.es": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-26781-catched.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-27093-unn.ua": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-27457-yahooinc.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-28402-fatafatkolkata.net": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-28668-4archive.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-30327-tradovateapi.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-30523-tvwiki44.net": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-30567-sf.gov": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-32737-yindantechhk.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-33151-landrover.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-33627-sugggest.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-33849-stylist.co.uk": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-34782-zhibo8.cc": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-46406-sweetcare.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-53066-umb.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-55098-porndd.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-55114-sive.rs": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-55558-farmaline.be": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-59316-fu.do": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-60424-coinpokerbets.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-64060-tarnow.pl": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-64904-vtb.am": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-66536-xgif.cc": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-68374-upnjatim.ac.id": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-70664-2ix2.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-72277-topbusinesssoftware.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-73287-unum.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-75771-freelancer.co.uk": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-77681-filmsetc.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-79946-ifis.co.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-91274-ramayana.co.id": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-92699-hotelki.tv": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-92974-kwanjai168.net": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-93671-ruaythear168.vip": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-93681-s22s.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-94206-vijayant.in": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-94735-asianage.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-95220-ultralytics.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-95962-opry.com": {
+     "set": "A2",
+     "garble": 0.001049632628579997,
+     "f1": null
+    },
+    "a2-98312-lcp.fr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-102896-surfearner.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-139801-nextgenscience.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-146410-kingshawaiian.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-157835-rspp.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-163211-ifbooks.co.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-167123-zakon.hr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-169826-sklane.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-173607-heathrowairport.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-186263-cygames.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-188707-medair.pro": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-190946-formulare-bfinv.de": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-194507-poetryclub.com.ua": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-240500-jerseycitynj.gov": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-245373-wedevit.ro": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-252617-tokyu-plaza.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-280389-hostdomsolutions.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-280454-u2concept.net": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-282230-lichtbild.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-284414-ifdnrg.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-294309-upandupspace.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-297264-hqabhwxzy.cc": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-300313-mytyres.gr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-301695-morefun-et.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-312203-mcnetwork.pl": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-319614-jide.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-321126-click2stream.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-326141-valesaude.com.br": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-331624-epson.fr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-342655-heredis.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-348553-telemark.cloud": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-349106-avantaje.ro": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-353146-english3.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-358555-hwk-muenchen.de": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-363081-lenoise.ca": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-369921-kalbis.ac.id": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-379784-ogk2.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-385690-zealbao.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-410169-impacta.com.br": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-430793-dlhd.st": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-431894-eflangtech.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-438939-rgsupportboy.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-447849-irisleegallery.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-463024-fotoload.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-478742-diverssupplyinc.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-494924-dnsguatemala7.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-495150-dr.ca": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-539801-fsm.bible": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-546410-carwiz.co.il": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-563211-lepotentiel.bj": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-565446-courrierdesbalkans.fr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-573607-clearstreet.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-582091-ageofconquest.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-582268-scandicmama.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-586263-triumph.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-590946-19yxw.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-594507-iucecb.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-599126-zooplzen.cz": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-645373-teamdrjoseph.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-652617-e-kinco.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-667873-bilecik11.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-672264-real.edu.ee": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-680389-neflytia.top": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-682230-apays.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-684414-boutiqueottoman.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-697264-fullxmovies.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-700313-trk-hq.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-701695-pvatepla.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-704440-boatrace-tamagawa.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-716239-xtratrust.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-719614-goodfellowbros.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-726141-moorparkca.gov": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-728633-becauseinternational.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-758555-777a.space": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-763081-am-bk.co.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-797060-insajder.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-821570-pgspin99.digital": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-825093-puzia.ua": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-831894-sexhentai.net": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-834724-sofinancas.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-843846-ular900kecil.site": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-843884-ultima.com.np": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-847849-watchart.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-863024-sitenebak.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-914987-vabysmo-hcp.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-938826-seputarundip.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-944556-torshavn.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-956039-aissupernet.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-957332-becexy.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-958580-centrometeoemiliaromagna.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-960711-erpsigep.com.br": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-964628-kawasakisoaper.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-968017-nsrcc.com.sg": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-977714-top5credits.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-977931-kawa-colle.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-993529-websitemarketinghosting.co.uk": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-997800-golnet.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2zh-354130-wxit.edu.cn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2zh-411785-huace.cn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2zh-832681-shopvideo.cn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-85556-airnet.ne.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-90183-bleague.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-318582-rescue.ne.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-408164-paravi.jp": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2ja-409356-babycome.ne.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-459060-ebravo.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-591695-moncheri.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-602489-bss-cloud.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-609444-silverferry.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-803077-kooza.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-826214-raffinegroup-online.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-954717-24htv-goods.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-156642-ev.or.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-179719-schmc.ac.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-415782-kdi.re.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-563350-fromkorea.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-591511-mazia.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-792147-gwangjinlib.seoul.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-830684-saveshopping.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-887004-nncoms.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-925042-newsfc.co.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-35397-uot.edu.ly": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-91860-anae.dz": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-275016-apkgold.ae": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-356169-livremoi.ma": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-598357-lafleurette.tn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-744048-akhbardzair.dz": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2ar-774534-chillandlit.tn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-827851-richbond.ma": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-94756-sarbc.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-256269-megaindex.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-302635-lemonbow.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-434201-dantser.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-448279-soodoo.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-455900-russvoin.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-467157-sonoscape.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-526218-vlant.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-601459-sibirlesmarket.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-613848-gazprom-auto.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-890251-petexpert.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-976545-aktiv-company.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    }
+   }
+  },
+  "spider": {
+   "items": 269,
+   "status": {
+    "ok": 261,
+    "empty": 3,
+    "error": 5
+   },
+   "completion": 0.9702602230483272,
+   "garble_mean": 4.174854325050203e-06,
+   "garble_pages": 1,
+   "per_item": {
+    "a2-78-workers.dev": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-91-f5.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-113-lencr.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-124-cloudflare-dns.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-128-windows.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-161-tumblr.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-169-shopify.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-178-telegram.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-185-discord.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-268-googleblog.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-299-rubiconproject.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-337-weebly.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-356-checkpoint.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-361-nasa.gov": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-394-crpt.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-429-aol.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-442-substack.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-486-dotomi.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-505-sina.com.cn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-528-docker.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-547-ezvizlife.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-581-deviantart.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-606-playstation.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-629-amazon.fr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-710-wpguardian.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-729-viber.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-757-mediafire.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-793-hugedomains.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-808-lenovo.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-811-ameblo.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-858-life360.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-891-blackberry.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-896-pornhub.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-900-worldbank.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-908-wyzecam.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-915-latimes.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-934-thenai.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-964-repubblica.it": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-973-statuspage.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-1335-funpay.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-1863-rackspace.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-2244-5movierulz.kitchen": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-2454-siriusxm.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-2782-getpocket.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-2976-ipwho.is": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3046-telstra.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3115-jampp.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3137-zynga.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3183-pornhat.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3204-razorpay.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3301-gm.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3696-sba.gov": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3773-bale.ai": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3774-amnesty.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3894-standard.co.uk": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-3982-clinch.co": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-4098-buymeacoffee.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-4976-9mod.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-5391-rylkngdm.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-5680-travelaudience.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-5731-arkoselabs.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-6384-o2.pl": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-6645-freeconvert.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-6695-mercadopago.com.ar": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7073-tchibo.de": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7165-405kk.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7303-fakt.pl": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7389-tokubai.co.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7525-spacebattles.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7820-phonepe.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7836-survicate.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7841-punchng.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7863-autohero.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-7911-fantacalcio.it": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8145-mk.co.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8297-maturetube.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8302-authorize.net": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8449-fout.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8568-wartank.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8785-hello.porn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-8887-sportal.bg": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-9080-rawstory.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-9222-supremevalues.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-9436-myhentaigallery.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-9744-yinzcam.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-9928-lmu.de": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-21603-smartsuppchat.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-25803-stck.me": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-26362-usc.es": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-26781-catched.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-27093-unn.ua": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-27457-yahooinc.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-28402-fatafatkolkata.net": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-28668-4archive.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-30327-tradovateapi.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-30523-tvwiki44.net": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-30567-sf.gov": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-32737-yindantechhk.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-33151-landrover.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-33627-sugggest.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-33849-stylist.co.uk": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-34782-zhibo8.cc": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-46406-sweetcare.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-53066-umb.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-55098-porndd.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-55114-sive.rs": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-55558-farmaline.be": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-59316-fu.do": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-60424-coinpokerbets.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-64060-tarnow.pl": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-64904-vtb.am": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-66536-xgif.cc": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-68374-upnjatim.ac.id": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-70664-2ix2.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-72277-topbusinesssoftware.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-73287-unum.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-75771-freelancer.co.uk": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-77681-filmsetc.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-79946-ifis.co.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-91274-ramayana.co.id": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-92699-hotelki.tv": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-92974-kwanjai168.net": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-93671-ruaythear168.vip": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-93681-s22s.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-94206-vijayant.in": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-94735-asianage.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-95220-ultralytics.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-95962-opry.com": {
+     "set": "A2",
+     "garble": 0.001089636978838103,
+     "f1": null
+    },
+    "a2-98312-lcp.fr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-102896-surfearner.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-139801-nextgenscience.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-146410-kingshawaiian.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-157835-rspp.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-163211-ifbooks.co.kr": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-167123-zakon.hr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-169826-sklane.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-173607-heathrowairport.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-186263-cygames.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-188707-medair.pro": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-190946-formulare-bfinv.de": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-194507-poetryclub.com.ua": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-240500-jerseycitynj.gov": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-245373-wedevit.ro": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-252617-tokyu-plaza.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-280389-hostdomsolutions.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-280454-u2concept.net": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-282230-lichtbild.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-284414-ifdnrg.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-294309-upandupspace.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-297264-hqabhwxzy.cc": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-300313-mytyres.gr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-301695-morefun-et.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-312203-mcnetwork.pl": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-319614-jide.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-321126-click2stream.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-326141-valesaude.com.br": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-331624-epson.fr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-342655-heredis.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-348553-telemark.cloud": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-349106-avantaje.ro": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-353146-english3.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-358555-hwk-muenchen.de": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-363081-lenoise.ca": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-369921-kalbis.ac.id": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-379784-ogk2.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-385690-zealbao.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-410169-impacta.com.br": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-430793-dlhd.st": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-431894-eflangtech.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-438939-rgsupportboy.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-447849-irisleegallery.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-463024-fotoload.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-478742-diverssupplyinc.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-494924-dnsguatemala7.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-495150-dr.ca": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-539801-fsm.bible": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-546410-carwiz.co.il": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-563211-lepotentiel.bj": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-565446-courrierdesbalkans.fr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-573607-clearstreet.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-582091-ageofconquest.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-582268-scandicmama.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-586263-triumph.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-590946-19yxw.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-594507-iucecb.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-599126-zooplzen.cz": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-645373-teamdrjoseph.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-652617-e-kinco.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-667873-bilecik11.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-672264-real.edu.ee": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-680389-neflytia.top": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-682230-apays.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-684414-boutiqueottoman.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-697264-fullxmovies.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-700313-trk-hq.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-701695-pvatepla.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-704440-boatrace-tamagawa.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-716239-xtratrust.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-719614-goodfellowbros.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-726141-moorparkca.gov": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-728633-becauseinternational.org": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-758555-777a.space": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-763081-am-bk.co.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-797060-insajder.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-821570-pgspin99.digital": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-825093-puzia.ua": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-831894-sexhentai.net": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-834724-sofinancas.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-843846-ular900kecil.site": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-843884-ultima.com.np": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-847849-watchart.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-863024-sitenebak.com": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2-914987-vabysmo-hcp.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-938826-seputarundip.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-944556-torshavn.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-956039-aissupernet.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-957332-becexy.io": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-958580-centrometeoemiliaromagna.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-960711-erpsigep.com.br": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-964628-kawasakisoaper.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-968017-nsrcc.com.sg": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-977714-top5credits.com": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-977931-kawa-colle.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-993529-websitemarketinghosting.co.uk": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2-997800-golnet.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2zh-354130-wxit.edu.cn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2zh-411785-huace.cn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2zh-832681-shopvideo.cn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-85556-airnet.ne.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-90183-bleague.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-318582-rescue.ne.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-408164-paravi.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-409356-babycome.ne.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-459060-ebravo.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-591695-moncheri.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-602489-bss-cloud.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-609444-silverferry.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-803077-kooza.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-826214-raffinegroup-online.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ja-954717-24htv-goods.jp": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-156642-ev.or.kr": {
+     "set": "A2",
+     "garble": null,
+     "f1": null
+    },
+    "a2ko-179719-schmc.ac.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-415782-kdi.re.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-563350-fromkorea.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-591511-mazia.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-792147-gwangjinlib.seoul.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-830684-saveshopping.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-887004-nncoms.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ko-925042-newsfc.co.kr": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-35397-uot.edu.ly": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-91860-anae.dz": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-275016-apkgold.ae": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-356169-livremoi.ma": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-598357-lafleurette.tn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-744048-akhbardzair.dz": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-774534-chillandlit.tn": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ar-827851-richbond.ma": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-94756-sarbc.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-256269-megaindex.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-302635-lemonbow.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-434201-dantser.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-448279-soodoo.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-455900-russvoin.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-467157-sonoscape.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-526218-vlant.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-601459-sibirlesmarket.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-613848-gazprom-auto.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-890251-petexpert.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    },
+    "a2ru-976545-aktiv-company.ru": {
+     "set": "A2",
+     "garble": 0.0,
+     "f1": null
+    }
+   }
+  },
   "scrapy": {
    "items": 269,
    "status": {
@@ -4073,15 +9503,15 @@
     }
    }
   },
-  "spider": {
+  "crawl4ai": {
    "items": 269,
    "status": {
-    "ok": 261,
-    "empty": 3,
-    "error": 5
+    "ok": 249,
+    "error": 18,
+    "timeout": 2
    },
-   "completion": 0.9702602230483272,
-   "garble_mean": 4.174854325050203e-06,
+   "completion": 0.9256505576208178,
+   "garble_mean": 1.4692022158507819e-06,
    "garble_pages": 1,
    "per_item": {
     "a2-78-workers.dev": {
@@ -4221,7 +9651,7 @@
     },
     "a2-793-hugedomains.com": {
      "set": "A2",
-     "garble": 0.0,
+     "garble": null,
      "f1": null
     },
     "a2-808-lenovo.com": {
@@ -4326,7 +9756,7 @@
     },
     "a2-3183-pornhat.com": {
      "set": "A2",
-     "garble": 0.0,
+     "garble": null,
      "f1": null
     },
     "a2-3204-razorpay.com": {
@@ -4531,7 +9961,7 @@
     },
     "a2-26781-catched.com": {
      "set": "A2",
-     "garble": 0.0,
+     "garble": null,
      "f1": null
     },
     "a2-27093-unn.ua": {
@@ -4556,7 +9986,7 @@
     },
     "a2-30327-tradovateapi.com": {
      "set": "A2",
-     "garble": 0.0,
+     "garble": null,
      "f1": null
     },
     "a2-30523-tvwiki44.net": {
@@ -4691,17 +10121,17 @@
     },
     "a2-92974-kwanjai168.net": {
      "set": "A2",
-     "garble": 0.0,
+     "garble": null,
      "f1": null
     },
     "a2-93671-ruaythear168.vip": {
      "set": "A2",
-     "garble": 0.0,
+     "garble": null,
      "f1": null
     },
     "a2-93681-s22s.jp": {
      "set": "A2",
-     "garble": 0.0,
+     "garble": null,
      "f1": null
     },
     "a2-94206-vijayant.in": {
@@ -4721,7 +10151,7 @@
     },
     "a2-95962-opry.com": {
      "set": "A2",
-     "garble": 0.001089636978838103,
+     "garble": 0.0,
      "f1": null
     },
     "a2-98312-lcp.fr": {
@@ -4781,7 +10211,7 @@
     },
     "a2-190946-formulare-bfinv.de": {
      "set": "A2",
-     "garble": 0.0,
+     "garble": 0.0003658313517468447,
      "f1": null
     },
     "a2-194507-poetryclub.com.ua": {
@@ -4856,7 +10286,7 @@
     },
     "a2-321126-click2stream.com": {
      "set": "A2",
-     "garble": 0.0,
+     "garble": null,
      "f1": null
     },
     "a2-326141-valesaude.com.br": {
@@ -4926,7 +10356,7 @@
     },
     "a2-431894-eflangtech.com": {
      "set": "A2",
-     "garble": 0.0,
+     "garble": null,
      "f1": null
     },
     "a2-438939-rgsupportboy.com": {
@@ -5106,7 +10536,7 @@
     },
     "a2-821570-pgspin99.digital": {
      "set": "A2",
-     "garble": 0.0,
+     "garble": null,
      "f1": null
     },
     "a2-825093-puzia.ua": {
@@ -5241,7 +10671,7 @@
     },
     "a2ja-408164-paravi.jp": {
      "set": "A2",
-     "garble": 0.0,
+     "garble": null,
      "f1": null
     },
     "a2ja-409356-babycome.ne.jp": {
@@ -5286,7 +10716,7 @@
     },
     "a2ko-156642-ev.or.kr": {
      "set": "A2",
-     "garble": null,
+     "garble": 0.0,
      "f1": null
     },
     "a2ko-179719-schmc.ac.kr": {
@@ -5296,7 +10726,7 @@
     },
     "a2ko-415782-kdi.re.kr": {
      "set": "A2",
-     "garble": 0.0,
+     "garble": null,
      "f1": null
     },
     "a2ko-563350-fromkorea.kr": {
@@ -5311,7 +10741,7 @@
     },
     "a2ko-792147-gwangjinlib.seoul.kr": {
      "set": "A2",
-     "garble": 0.0,
+     "garble": null,
      "f1": null
     },
     "a2ko-830684-saveshopping.kr": {

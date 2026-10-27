@@ -2,9 +2,9 @@
 
     MIX_PAGESIFT_BIN=<二进制> python3 -I bench/mix/adapters/pagesift_worker.py <html|file|url>
 
-- html：网页快照 → `pagesift convert <文件> [--url <原始 URL>]`（正文提取，默认只保留正文）
+- html：网页快照 → `pagesift convert <文件> [--base-url <原始 URL>]`（正文提取，默认只保留正文）
 - file：PDF / Office / 电子书 → `pagesift scrape <文件>`
-- url：抓取领域，回放服务上的地址 → `pagesift scrape <URL>`
+- url：抓取领域，回放服务上的地址 → `pagesift scrape --allow-cidr 127.0.0.1/32 <URL>`（只放行回环，其余默认）
 每份一个子进程：单份耗时里包括进程启动（几毫秒）。测速轮另议。
 """
 import json
@@ -27,8 +27,11 @@ def cmd(job):
     if MODE == "html":
         c = [BIN, "convert", job["input"]]
         if job.get("url"):
-            c += ["--url", job["url"]]
+            c += ["--base-url", job["url"]]
         return c
+    if MODE == "url":
+        # 快照在本地回放服务（127.0.0.1）上；pagesift 默认拦截内网地址（SSRF 防护），用官方的 --allow-cidr 只放行回环这一个地址
+        return [BIN, "scrape", "--allow-cidr", "127.0.0.1/32", job["input"]]
     return [BIN, "scrape", job["input"]]
 
 

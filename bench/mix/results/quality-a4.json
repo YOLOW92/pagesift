@@ -1,6 +1,846 @@
 {
  "sub": "a4",
  "tools": {
+  "pagesift": {
+   "items": 166,
+   "status": {
+    "ok": 120,
+    "empty": 46
+   },
+   "completion": 0.7228915662650602,
+   "per_item": {
+    "a4enc-00": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-01": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-02": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-03": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-04": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-05": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-06": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-07": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-08": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-09": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-10": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-11": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-12": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-13": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-14": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-15": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-16": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-17": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-18": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-19": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-20": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-21": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-22": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-23": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-24": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-25": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-26": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-27": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-28": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-29": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-30": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-31": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-32": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-33": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-34": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-35": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-36": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-37": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-38": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-39": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-00": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-01": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-02": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-03": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-04": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-05": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-06": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-07": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-08": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-09": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-10": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-11": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-12": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-13": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-14": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-15": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-16": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-17": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-18": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-19": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-20": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-21": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-22": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-23": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-24": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-25": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-26": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-27": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-28": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-29": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-30": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-31": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-32": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-33": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-34": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-35": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-36": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-37": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-38": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-39": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4big-00": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4big-01": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4big-02": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4big-03": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4big-04": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4big-05": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-00": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-01": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-02": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-03": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-04": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-05": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-06": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-07": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-08": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-09": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-10": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-11": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-12": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-13": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-14": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-15": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-16": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-17": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-18": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-19": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-20": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-21": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-22": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-23": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-24": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-25": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-26": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-27": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-28": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-29": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-30": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-31": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-32": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-33": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-34": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-35": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-36": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-37": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-38": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-39": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-00": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-01": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-02": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-03": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-04": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-05": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-06": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-07": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-08": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-09": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-10": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-11": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-12": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-13": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-14": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-15": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-16": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-17": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-18": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-19": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-20": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-21": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-22": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-23": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-24": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-25": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-26": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-27": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-28": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-29": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-30": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-31": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-32": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-33": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-34": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-35": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-36": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-37": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-38": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-39": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    }
+   }
+  },
   "crw": {
    "items": 166,
    "status": {
@@ -850,6 +1690,848 @@
     "empty": 88
    },
    "completion": 0.46987951807228917,
+   "per_item": {
+    "a4enc-00": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-01": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-02": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-03": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-04": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-05": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-06": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-07": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-08": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-09": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-10": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-11": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-12": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-13": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-14": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-15": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-16": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-17": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-18": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-19": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-20": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-21": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-22": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-23": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-24": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-25": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-26": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-27": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-28": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-29": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-30": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-31": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-32": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-33": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-34": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-35": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-36": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-37": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-38": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4enc-39": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-00": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-01": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-02": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-03": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-04": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-05": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-06": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-07": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-08": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-09": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-10": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-11": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-12": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-13": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-14": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-15": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-16": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-17": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-18": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-19": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-20": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-21": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-22": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-23": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-24": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-25": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-26": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-27": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-28": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-29": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-30": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-31": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-32": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-33": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-34": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-35": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-36": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-37": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-38": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4wpt-39": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4big-00": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4big-01": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4big-02": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4big-03": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4big-04": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4big-05": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-00": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-01": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-02": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-03": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-04": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-05": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-06": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-07": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-08": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-09": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-10": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-11": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-12": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-13": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-14": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-15": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-16": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-17": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-18": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-19": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-20": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-21": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-22": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-23": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-24": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-25": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-26": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-27": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-28": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-29": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-30": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-31": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-32": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-33": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-34": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-35": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-36": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-37": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-38": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4blk-39": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-00": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-01": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-02": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-03": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-04": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-05": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-06": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-07": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-08": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-09": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-10": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-11": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-12": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-13": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-14": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-15": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-16": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-17": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-18": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-19": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-20": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-21": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-22": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-23": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-24": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-25": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-26": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-27": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-28": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-29": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-30": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-31": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-32": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-33": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-34": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-35": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-36": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-37": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-38": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    },
+    "a4deep-39": {
+     "set": "A4",
+     "garble": null,
+     "f1": null
+    }
+   }
+  },
+  "readability": {
+   "items": 166,
+   "status": {
+    "ok": 81,
+    "timeout": 38,
+    "empty": 44,
+    "error": 3
+   },
+   "completion": 0.4879518072289157,
    "per_item": {
     "a4enc-00": {
      "set": "A4",

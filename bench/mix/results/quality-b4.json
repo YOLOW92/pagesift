@@ -1,6 +1,501 @@
 {
  "sub": "b4",
  "tools": {
+  "pagesift-file": {
+   "items": 81,
+   "status": {
+    "ok": 81
+   },
+   "completion": 1.0,
+   "per_item": {
+    "b4-dev-pptx-20180411_Board_level_PPT_MC_PB": {
+     "set": "B4 dev",
+     "kept": 31,
+     "total": 31,
+     "f1": 1.0
+    },
+    "b4-dev-csv-ActiveIQ_InfoHub2026": {
+     "set": "B4 dev",
+     "kept": 5,
+     "total": 5,
+     "f1": 1.0
+    },
+    "b4-dev-pptx-AiG_Month_Event_starting_soon_slide": {
+     "set": "B4 dev",
+     "kept": 0,
+     "total": 0,
+     "f1": null
+    },
+    "b4-dev-xlsx-AverageTaxRates": {
+     "set": "B4 dev",
+     "kept": 21,
+     "total": 21,
+     "f1": 1.0
+    },
+    "b4-dev-xlsx-CVLKRA-KYC_Download_File_Structure_V3.1": {
+     "set": "B4 dev",
+     "kept": 77,
+     "total": 77,
+     "f1": 1.0
+    },
+    "b4-dev-docx-ComplexNumberedLists": {
+     "set": "B4 dev",
+     "kept": 14,
+     "total": 14,
+     "f1": 1.0
+    },
+    "b4-dev-xlsx-DataTableCities": {
+     "set": "B4 dev",
+     "kept": 19,
+     "total": 20,
+     "f1": 0.95
+    },
+    "b4-dev-xlsx-DateFormatTests": {
+     "set": "B4 dev",
+     "kept": 13,
+     "total": 13,
+     "f1": 1.0
+    },
+    "b4-dev-docx-DfE_ASYE_support_and_assessment_agreement": {
+     "set": "B4 dev",
+     "kept": 38,
+     "total": 38,
+     "f1": 1.0
+    },
+    "b4-dev-docx-EM_Template_2025_-_Final": {
+     "set": "B4 dev",
+     "kept": 40,
+     "total": 40,
+     "f1": 1.0
+    },
+    "b4-dev-xlsx-ExcelTables": {
+     "set": "B4 dev",
+     "kept": 6,
+     "total": 6,
+     "f1": 1.0
+    },
+    "b4-dev-docx-Housing_land_supply_template-word.CFI": {
+     "set": "B4 dev",
+     "kept": 15,
+     "total": 15,
+     "f1": 1.0
+    },
+    "b4-dev-docx-IllustrativeCases": {
+     "set": "B4 dev",
+     "kept": 35,
+     "total": 35,
+     "f1": 1.0
+    },
+    "b4-dev-docx-MHRA_Clinical_AR_Template": {
+     "set": "B4 dev",
+     "kept": 102,
+     "total": 102,
+     "f1": 1.0
+    },
+    "b4-dev-csv-March2014_All_Age_Apprenticeship_by_Level_and_Age_Participation": {
+     "set": "B4 dev",
+     "kept": 5,
+     "total": 5,
+     "f1": 1.0
+    },
+    "b4-dev-docx-RFG_Meeting_Notes_South_West_7efg_13.09.22": {
+     "set": "B4 dev",
+     "kept": 22,
+     "total": 22,
+     "f1": 1.0
+    },
+    "b4-dev-pptx-SampleShow": {
+     "set": "B4 dev",
+     "kept": 6,
+     "total": 6,
+     "f1": 1.0
+    },
+    "b4-dev-pptx-Tackling_high_blood_pressure_-_standard_slide-set": {
+     "set": "B4 dev",
+     "kept": 67,
+     "total": 67,
+     "f1": 1.0
+    },
+    "b4-dev-docx-VariousPictures": {
+     "set": "B4 dev",
+     "kept": 5,
+     "total": 5,
+     "f1": 1.0
+    },
+    "b4-dev-xlsx-asylum-summary-jun-2020-tables": {
+     "set": "B4 dev",
+     "kept": 81,
+     "total": 81,
+     "f1": 1.0
+    },
+    "b4-dev-pptx-bar-chart": {
+     "set": "B4 dev",
+     "kept": 2,
+     "total": 2,
+     "f1": 1.0
+    },
+    "b4-dev-docx-bib-chernigovka.netdo.ru_download_docs_17459": {
+     "set": "B4 dev",
+     "kept": 5,
+     "total": 5,
+     "f1": 1.0
+    },
+    "b4-dev-pptx-ca.ubc.cs.people_~emhill_presentations_HowWeRefactor": {
+     "set": "B4 dev",
+     "kept": 43,
+     "total": 43,
+     "f1": 1.0
+    },
+    "b4-dev-csv-comma_in_quotes": {
+     "set": "B4 dev",
+     "kept": 5,
+     "total": 5,
+     "f1": 1.0
+    },
+    "b4-dev-csv-country-codes": {
+     "set": "B4 dev",
+     "kept": 5,
+     "total": 5,
+     "f1": 1.0
+    },
+    "b4-dev-pptx-ececapstonespring2012": {
+     "set": "B4 dev",
+     "kept": 20,
+     "total": 20,
+     "f1": 1.0
+    },
+    "b4-dev-csv-escaped_quotes": {
+     "set": "B4 dev",
+     "kept": 5,
+     "total": 5,
+     "f1": 1.0
+    },
+    "b4-dev-docx-footnotes": {
+     "set": "B4 dev",
+     "kept": 1,
+     "total": 1,
+     "f1": 1.0
+    },
+    "b4-dev-epub-gutenberg-1342": {
+     "set": "B4 dev",
+     "kept": 56,
+     "total": 57,
+     "f1": 0.9824561403508771
+    },
+    "b4-dev-epub-gutenberg-74": {
+     "set": "B4 dev",
+     "kept": 52,
+     "total": 62,
+     "f1": 0.8387096774193549
+    },
+    "b4-dev-docx-heading123": {
+     "set": "B4 dev",
+     "kept": 6,
+     "total": 6,
+     "f1": 1.0
+    },
+    "b4-dev-epub-idpf-accessible_epub_3": {
+     "set": "B4 dev",
+     "kept": 61,
+     "total": 61,
+     "f1": 1.0
+    },
+    "b4-dev-epub-idpf-childrens-literature": {
+     "set": "B4 dev",
+     "kept": 58,
+     "total": 59,
+     "f1": 0.9830508474576272
+    },
+    "b4-dev-epub-idpf-linear-algebra": {
+     "set": "B4 dev",
+     "kept": 58,
+     "total": 58,
+     "f1": 1.0
+    },
+    "b4-dev-epub-idpf-wasteland": {
+     "set": "B4 dev",
+     "kept": 27,
+     "total": 29,
+     "f1": 0.9310344827586207
+    },
+    "b4-dev-csv-newlines_crlf": {
+     "set": "B4 dev",
+     "kept": 5,
+     "total": 5,
+     "f1": 1.0
+    },
+    "b4-dev-xlsx-outcome-analysis-asylum-claims-datasets-jun-2026": {
+     "set": "B4 dev",
+     "kept": 38,
+     "total": 38,
+     "f1": 1.0
+    },
+    "b4-dev-csv-quotes_and_newlines": {
+     "set": "B4 dev",
+     "kept": 5,
+     "total": 5,
+     "f1": 1.0
+    },
+    "b4-dev-xlsx-sponsorship-summary-sep-2019-tables": {
+     "set": "B4 dev",
+     "kept": 68,
+     "total": 68,
+     "f1": 1.0
+    },
+    "b4-dev-pptx-table_test": {
+     "set": "B4 dev",
+     "kept": 0,
+     "total": 0,
+     "f1": null
+    },
+    "b4-dev-csv-utf8": {
+     "set": "B4 dev",
+     "kept": 5,
+     "total": 5,
+     "f1": 1.0
+    },
+    "b4-dev-pptx-with_japanese": {
+     "set": "B4 dev",
+     "kept": 11,
+     "total": 11,
+     "f1": 1.0
+    },
+    "b4-holdout-docx-16-17_tariff_consultation_-_survey_questions": {
+     "set": "B4 holdout",
+     "kept": 13,
+     "total": 13,
+     "f1": 1.0
+    },
+    "b4-holdout-xlsx-57893-many-merges": {
+     "set": "B4 holdout",
+     "kept": 0,
+     "total": 0,
+     "f1": null
+    },
+    "b4-holdout-xlsx-App_Reg_V3.5": {
+     "set": "B4 holdout",
+     "kept": 19,
+     "total": 19,
+     "f1": 1.0
+    },
+    "b4-holdout-xlsx-Booleans": {
+     "set": "B4 holdout",
+     "kept": 6,
+     "total": 6,
+     "f1": 1.0
+    },
+    "b4-holdout-docx-Bug51170": {
+     "set": "B4 holdout",
+     "kept": 0,
+     "total": 0,
+     "f1": null
+    },
+    "b4-holdout-docx-CONSULTATION_DOCUMENT_JTAI": {
+     "set": "B4 holdout",
+     "kept": 50,
+     "total": 50,
+     "f1": 1.0
+    },
+    "b4-holdout-xlsx-Chart_of_Accounts_Dry_Run_-_College_sector_mapping_sheet": {
+     "set": "B4 holdout",
+     "kept": 19,
+     "total": 19,
+     "f1": 1.0
+    },
+    "b4-holdout-xlsx-ConditionalFormattingSamples": {
+     "set": "B4 holdout",
+     "kept": 76,
+     "total": 76,
+     "f1": 1.0
+    },
+    "b4-holdout-xlsx-Data_Tables_in_Excel__xlsx__Format_-_Individual_voluntary_arrangement_terminations_by_duration_and_by_de": {
+     "set": "B4 holdout",
+     "kept": 35,
+     "total": 35,
+     "f1": 1.0
+    },
+    "b4-holdout-xlsx-DateFormatNumberTests": {
+     "set": "B4 holdout",
+     "kept": 12,
+     "total": 12,
+     "f1": 1.0
+    },
+    "b4-holdout-xlsx-ElapsedFormatTests": {
+     "set": "B4 holdout",
+     "kept": 13,
+     "total": 13,
+     "f1": 1.0
+    },
+    "b4-holdout-pptx-For_Online-_5G_Create_Briefing": {
+     "set": "B4 holdout",
+     "kept": 20,
+     "total": 20,
+     "f1": 1.0
+    },
+    "b4-holdout-pptx-MV005_VMD_Customer_Satisfaction_Survey_2018_final_staff_pres": {
+     "set": "B4 holdout",
+     "kept": 50,
+     "total": 50,
+     "f1": 1.0
+    },
+    "b4-holdout-docx-STC_consultation_questionnaire_May_2015": {
+     "set": "B4 holdout",
+     "kept": 60,
+     "total": 60,
+     "f1": 1.0
+    },
+    "b4-holdout-pptx-SmartArt": {
+     "set": "B4 holdout",
+     "kept": 0,
+     "total": 0,
+     "f1": null
+    },
+    "b4-holdout-pptx-aascu.org_hbcu_leadershipsummit_cooper_": {
+     "set": "B4 holdout",
+     "kept": 65,
+     "total": 65,
+     "f1": 1.0
+    },
+    "b4-holdout-pptx-alterman_security": {
+     "set": "B4 holdout",
+     "kept": 33,
+     "total": 34,
+     "f1": 0.9705882352941176
+    },
+    "b4-holdout-pptx-aptia": {
+     "set": "B4 holdout",
+     "kept": 40,
+     "total": 40,
+     "f1": 1.0
+    },
+    "b4-holdout-docx-bug65649": {
+     "set": "B4 holdout",
+     "kept": 85,
+     "total": 85,
+     "f1": 1.0
+    },
+    "b4-holdout-docx-drawing": {
+     "set": "B4 holdout",
+     "kept": 34,
+     "total": 34,
+     "f1": 1.0
+    },
+    "b4-holdout-docx-endnotes": {
+     "set": "B4 holdout",
+     "kept": 1,
+     "total": 1,
+     "f1": 1.0
+    },
+    "b4-holdout-docx-form_footnotes": {
+     "set": "B4 holdout",
+     "kept": 28,
+     "total": 28,
+     "f1": 1.0
+    },
+    "b4-holdout-csv-gdp": {
+     "set": "B4 holdout",
+     "kept": 5,
+     "total": 5,
+     "f1": 1.0
+    },
+    "b4-holdout-csv-geo-spend-aug11": {
+     "set": "B4 holdout",
+     "kept": 5,
+     "total": 5,
+     "f1": 1.0
+    },
+    "b4-holdout-csv-geo-spend-jan12": {
+     "set": "B4 holdout",
+     "kept": 5,
+     "total": 5,
+     "f1": 1.0
+    },
+    "b4-holdout-epub-gutenberg-11": {
+     "set": "B4 holdout",
+     "kept": 36,
+     "total": 36,
+     "f1": 1.0
+    },
+    "b4-holdout-epub-gutenberg-84": {
+     "set": "B4 holdout",
+     "kept": 42,
+     "total": 47,
+     "f1": 0.8936170212765957
+    },
+    "b4-holdout-epub-idpf-cc-shared-culture": {
+     "set": "B4 holdout",
+     "kept": 21,
+     "total": 21,
+     "f1": 1.0
+    },
+    "b4-holdout-epub-idpf-israelsailing": {
+     "set": "B4 holdout",
+     "kept": 35,
+     "total": 35,
+     "f1": 1.0
+    },
+    "b4-holdout-epub-idpf-jlreq-in-english": {
+     "set": "B4 holdout",
+     "kept": 88,
+     "total": 94,
+     "f1": 0.9361702127659575
+    },
+    "b4-holdout-epub-idpf-moby-dick": {
+     "set": "B4 holdout",
+     "kept": 48,
+     "total": 48,
+     "f1": 1.0
+    },
+    "b4-holdout-docx-issue_51265_1": {
+     "set": "B4 holdout",
+     "kept": 1,
+     "total": 1,
+     "f1": 1.0
+    },
+    "b4-holdout-csv-json": {
+     "set": "B4 holdout",
+     "kept": 5,
+     "total": 5,
+     "f1": 1.0
+    },
+    "b4-holdout-csv-location_coordinates": {
+     "set": "B4 holdout",
+     "kept": 5,
+     "total": 5,
+     "f1": 1.0
+    },
+    "b4-holdout-csv-newlines": {
+     "set": "B4 holdout",
+     "kept": 5,
+     "total": 5,
+     "f1": 1.0
+    },
+    "b4-holdout-pptx-pie-chart": {
+     "set": "B4 holdout",
+     "kept": 2,
+     "total": 2,
+     "f1": 1.0
+    },
+    "b4-holdout-csv-population": {
+     "set": "B4 holdout",
+     "kept": 5,
+     "total": 5,
+     "f1": 1.0
+    },
+    "b4-holdout-csv-simple_crlf": {
+     "set": "B4 holdout",
+     "kept": 5,
+     "total": 5,
+     "f1": 1.0
+    },
+    "b4-holdout-pptx-table-with-theme": {
+     "set": "B4 holdout",
+     "kept": 3,
+     "total": 3,
+     "f1": 1.0
+    }
+   }
+  },
   "extractous": {
    "items": 81,
    "status": {
@@ -1495,6 +1990,12 @@
  "scores": {
   "all": {
    "B4 dev": {
+    "pagesift-file": {
+     "all_zero_fail": 0.986990459670425,
+     "n_all": 40,
+     "common_only": 0.9779527559055118,
+     "n_common": 28
+    },
     "extractous": {
      "all_zero_fail": 0.10147441457068516,
      "n_all": 40,
@@ -1509,6 +2010,12 @@
     }
    },
    "B4 holdout": {
+    "pagesift-file": {
+     "all_zero_fail": 0.9878419452887538,
+     "n_all": 36,
+     "common_only": 0.9780876494023905,
+     "n_common": 23
+    },
     "extractous": {
      "all_zero_fail": 0.07497467071935157,
      "n_all": 36,
@@ -1525,6 +2032,12 @@
   },
   "model_subset": {
    "B4 dev": {
+    "pagesift-file": {
+     "all_zero_fail": 0.9943502824858758,
+     "n_all": 5,
+     "common_only": 0.9866666666666667,
+     "n_common": 4
+    },
     "extractous": {
      "all_zero_fail": 0.05084745762711865,
      "n_all": 5,
@@ -1545,6 +2058,12 @@
     }
    },
    "B4 holdout": {
+    "pagesift-file": {
+     "all_zero_fail": 1.0,
+     "n_all": 2,
+     "common_only": 1.0,
+     "n_common": 1
+    },
     "extractous": {
      "all_zero_fail": 0.0,
      "n_all": 2,
