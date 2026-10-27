@@ -202,12 +202,42 @@ def b2():
     return b2_arxiv(q["arxiv"], SEEDS["b2_arxiv"]) + b2_gov(q["govuk"], SEEDS["b2_gov"])
 
 
-# ---- B3 PDF 难题：本地 pdf.js 测试集 1010 份里按种子抽 100 ----
+# ---- B3 PDF 难题：本地 pdf.js 测试集 1010 份，按 test_manifest 分 5 层，每层按种子抽 20 ----
+
+def b3_stratum(path, entries):
+    """按可客观判断的特征归层，依次判断、取第一个满足的。"""
+    b = path.read_bytes()
+    if any("password" in e for e in entries) or b"/Encrypt" in b:
+        return "encrypted"
+    if len(b) > 2**20:
+        return "large"
+    if any(k in e for e in entries for k in ("forms", "annotations", "annotationStorage", "enableXfa", "print")):
+        return "forms"
+    if not entries or any(e.get("type") == "load" for e in entries):
+        return "load"  # 清单里只测能否加载的，或不在清单里的回归样本（多为损坏、畸形文件）
+    return "other"
+
 
 def b3():
     lst = (TASKS / "a0/list-pdfjs.txt").read_text().split()
-    cands = [Path(x).resolve().relative_to(DATA.resolve()).as_posix() for x in lst]
-    return [(f"b3-{Path(x).stem}", "pdf.js test/pdfs", x, "", "") for x in pick(SEEDS["b3_hard"], cands, QUOTA["b3_total"])]
+    manifest = json.loads((DATA / "pdfjs/test/test_manifest.json").read_text())
+    by_file = {}
+    for e in manifest:
+        by_file.setdefault(Path(e.get("file", "")).name, []).append(e)
+    strata = {}
+    for x in lst:
+        p = Path(x).resolve()
+        strata.setdefault(b3_stratum(p, by_file.get(p.name, [])), []).append(p.relative_to(DATA.resolve()).as_posix())
+    per = QUOTA["b3_total"] // len(strata)
+    rows, left = [], []
+    for i, name in enumerate(sorted(strata)):
+        chosen = pick(SEEDS["b3_hard"] + i, strata[name], per)
+        rows += [(f"b3-{Path(x).stem}", f"pdf.js test/pdfs（{name}）", x, "", f"stratum={name}") for x in chosen]
+        left += [(name, x) for x in strata[name] if x not in chosen]
+    # 某层不够 per 份时，空出来的名额从各层剩下的文件里按种子补
+    for name, x in pick(SEEDS["b3_hard"] + 99, left, QUOTA["b3_total"] - len(rows)):
+        rows.append((f"b3-{Path(x).stem}", f"pdf.js test/pdfs（{name}）", x, "", f"stratum={name} fill"))
+    return rows
 
 
 # ---- B4 Office 与电子书：修复 3 的开发集 + 留出集，全部 ----

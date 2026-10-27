@@ -1,0 +1,15 @@
+# 混合增强基准第 1 版的资源上限（RULES.md 第四之二节），冻结后不改。
+# 单份上限：到点没出结果算“没完成”（driver.py --timeout）。整批总上限 = 单份上限 × 份数 × batch_factor。
+batch_factor = 0.5
+worker_mem_mb = 4096         # 单个 worker 的 cgroup 内存上限（driver.py --mem-max），超了算超内存
+
+[per_item_s]
+a1 = 30
+a2 = 30
+a4 = 30
+b1 = 300
+b2 = 300
+b3 = 600
+b4 = 120
+c2 = 30                      # 用 A2 的页面
+c3 = 30

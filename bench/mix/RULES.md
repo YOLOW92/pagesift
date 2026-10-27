@@ -1,9 +1,9 @@
-# 混合增强基准（Mix）：规则（第 1 版定稿中，尚未冻结，2026-10-27）
+# 混合增强基准（Mix）：规则（第 1 版，2026-10-27 冻结）
 
 目的：在公开基准之外，用一套按规则随机抽样、混合真实场景、谁都能复现的测试集，比较 pagesift 与同类工具在
 **质量、速度、资源、稳定性**上的表现。题目是我们出的，所以下面每条规则都是为了让结果经得起别人检查。
 
-状态：**第 1 版内容已拍板，尚未冻结**（`seeds.toml` 仍是 `frozen = false`）。冻结点将是把本行和 `seeds.toml` 的 `frozen = true` 一起提交的那个提交号（`git log -1 -- bench/mix/seeds.toml`）。规则定稿后才开始抽样；抽样之后规则、样本、评分都不再改。要改，就另起一个新版本号，旧版本的结果照样保留。
+状态：**第 1 版，已冻结**。冻结点就是把本行和 `seeds.toml` 的 `frozen = true` 一起提交的那个提交号（`git log -1 --format=%H -- bench/mix/seeds.toml`）。规则定稿后才开始抽样；抽样之后规则、样本、评分都不再改。要改，就另起一个新版本号，旧版本的结果照样保留。
 
 ---
 
@@ -39,7 +39,7 @@
 |---|---|---|---|
 | B1 PDF 公开基准 | olmOCR-bench 的原生数字 PDF 子集 | 1,269 页 | 沿用 olmOCR 评分 |
 | B2 PDF 随机真实文件 | 两个有公开列表的来源，固定种子：arXiv 50 份、GOV.UK 50 份（抽法见第三节；SEC EDGAR 去掉，原因见第三节） | 100 份 | 不评结构（没有标注）；评文字完整度（输出文字对原文件文本层的覆盖率，文本层由不参评的独立库读出）、失败率、耗时、峰值内存 |
-| B3 PDF 难题 | pdf.js 公开测试集里本地已有的 1010 份（`tasks/0.80/a0/list-pdfjs.txt`，含加密、损坏、扫描、超大、竖排、公式等），按固定种子抽；PDFium 的测试集本机没有，这一版不用 | 100 份 | 能否打开、失败率、耗时和内存上界 |
+| B3 PDF 难题 | pdf.js 公开测试集里本地已有的 1010 份（`tasks/0.80/a0/list-pdfjs.txt`），按 `test_manifest.json` 和文件本身分 5 层，依次判断：加密（清单给了口令或文件含 `/Encrypt`，27 份）、大文件（> 1 MB，27）、表单/注释/XFA（102）、加载与回归类（清单只测加载，或不在清单里，233）、其余（621）；每层按种子抽 20 份，不够的空位从剩余里补。PDFium 的测试集本机没有，这一版不用 | 100 份 | 能否打开、失败率、耗时和内存上界 |
 | B4 Office 与电子书 | 修复 3 已建的标注集（开发集 + 留出集；答案由 python-docx、openpyxl、python-pptx、ebooklib 从原文件 XML 读出，不用人工） | 现有全部 | 结构保留率、文字完整度 |
 
 ### C. 压力与稳定性
@@ -104,7 +104,7 @@
   2. 全部题目的分数，没完成的按零分（越高越好）；
   3. 只算所有工具都完成了的题的分数（越高越好），排除速度因素，单比质量。
 - 第 2 项体现“做得完”的优势，第 3 项防止别人说我们靠速度赢分；两项都发布。
-- **第 1 版的上限**（写在 `limits.toml`）：A 类单份 30 s，B1、B2 单份 300 s，B3 单份 600 s，B4 单份 120 s；
+- **第 1 版的上限**（写在 `limits.toml`，C2、C3 用 A2 的 30 s）：A 类单份 30 s，B1、B2 单份 300 s，B3 单份 600 s，B4 单份 120 s；
   单个 worker 内存 4 GB。冻结前没来得及在公开基准上逐子类测中位数，这一版用冒烟量级定（Docling CPU 单页数秒、
   正文工具几十毫秒到 1 s，都在上限的十分之一以内）；整批总上限 = 单份上限 × 份数 × 0.5。
 
@@ -168,7 +168,7 @@
 4. “能出 Markdown 就要 Markdown”可以接受；抓取领域不评内容质量（第四之三节）。
 5. 并发按实际开到的路数报，写明原因（第四之三节）。
 6. B2 用 arXiv 50 份、GOV.UK 50 份；SEC EDGAR 因要求 UA 带联系邮箱而去掉（第三节）。B3 用本地 pdf.js 1010 份，
-   PDFium 这一版不用（第二节 B）；B3 可以按 pdf.js `test_manifest.json` 分层抽（只用本地已有文件），sample.py 还没改成分层。
+   PDFium 这一版不用（第二节 B）；B3 按 pdf.js `test_manifest.json` 分层抽（只用本地已有文件，第二节 B）。
 7. Docling 的 pptx 空输出照实记。
 
 装工具和冒烟时的其他发现（细节见 tools.lock.md）：
@@ -183,14 +183,11 @@
   没有 URL 的用占位地址。
 - 跑分排在发布前最后一步，等 pagesift 最终二进制定下来再跑；冻结后先只做抽样和抓快照。
 
-**进度（2026-10-27 存档，用户外出）**：
+**进度**：
 
-- 已完成：12 个工具装好并冒烟通过（tools.lock.md）；适配器、driver、回放服务；Docling CPU/GPU 实测（保留 GPU 附表）；
-  上面各节的拍板；sample.py（A1、A2、A4、B1、B2、B3、B4）、fetch.py（A2 快照存 WARC、B2 下载，遵守 robots，已对
-  example.com、python.org、arXiv 做过小规模自测）、materialize.py（本地样本变输入，变换函数已自测）。
-- 协议加了可选 `url` 字段（crw、trafilatura、Readability 用来解析相对链接）：源码已改；crw 已按新源码重编进
-  `~/mix-tools/rust/bin`，但带 URL 的复测还没跑。
-- **下一步**：① 按 test_manifest 把 B3 改成分层抽（可选，已获准）；② 跑一次带 URL 的正文工具复测；③ 写 `limits.toml`；
-  ④ **冻结**：`seeds.toml` 改 `frozen = true`，本节改成“已冻结”，单独提交（这个提交号就是冻结点）；⑤ 执行
-  `sample.py all`、`materialize.py all`、`fetch.py a2`、`fetch.py b2`，提交样本清单（URL、SHA-256），文件本身留在
-  `~/mix-tools/inputs`；⑥ 不跑正式评分（等 pagesift 最终二进制）。
+- 冻结前已完成：12 个工具装好并冒烟通过（tools.lock.md）；适配器、driver、回放服务；Docling CPU/GPU 实测（保留 GPU
+  附表）；B3 分层抽样；协议的可选 `url` 字段（带 URL 的正文工具复测 3 份全过，crw、Readability 的链接解析成真实地址；
+  trafilatura 默认不输出链接）；`limits.toml`。
+- 冻结后：执行 `sample.py all`、`materialize.py all`、`fetch.py a2`、`fetch.py b2`，样本清单（URL、SHA-256）提交到
+  `samples/`，文件本身留在 `~/mix-tools/inputs`（不能再分发的不进仓库）。
+- 正式评分不在这一步：等 pagesift 最终二进制定下来，发布前最后一步再跑。

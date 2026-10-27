@@ -112,7 +112,7 @@ rm -rf ~/mix-tools/rust/target   # 中间产物约 3.6 GB，可删
 | 工具 | 调用 | 和默认值不同的地方 |
 |---|---|---|
 | crw | `crw_extract::extract`，formats = [Markdown] | `only_main_content = true` 本来就是 crw 服务端默认 |
-| trafilatura | `trafilatura.extract(原始字节, output_format="markdown")` | 默认 `txt` → `markdown` |
+| trafilatura | `trafilatura.extract(原始字节, output_format="markdown", url=原始 URL)` | 默认 `txt` → `markdown`；默认 `include_links=False`，所以输出里没有链接（照默认） |
 | Readability + Turndown | `new Readability(jsdom.document).parse()` → `new TurndownService().turndown(content)`，标题拼在前面 | 无（Turndown 默认标题是 setext 风格） |
 | spider | `Website::new(url).with_limit(1)`，subscribe + crawl；`transform_content(TransformConfig{return_format: Markdown, ..Default})` | 默认返回原始 HTML → Markdown；限一页 |
 | Scrapy | `CrawlerRunner()` 默认设置，一个只抓一页的 spider，输出 `response.text` | 无 |

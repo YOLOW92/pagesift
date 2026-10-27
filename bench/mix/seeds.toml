@@ -1,7 +1,7 @@
 # 混合增强基准的随机种子（RULES.md 第三节）。规则冻结时把 frozen 改成 true 并和 RULES.md 一起提交，之后不改。
-# frozen = false 时 sample.py 拒绝执行，防止规则定稿前抽样。
+# frozen = true 时 sample.py 拒绝执行，防止规则定稿前抽样。
 # 种子在看到任何样本之前选定：20261027（起草日期）加子类序号，没有挑过。
-frozen = false
+frozen = true
 
 [seeds]
 a1_aeb = 2026102701
