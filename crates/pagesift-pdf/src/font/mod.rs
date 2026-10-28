@@ -14,11 +14,12 @@ use crate::encoding::{
 };
 use crate::fontfile::builtin_encoding;
 use crate::obj::{deref, get, get_dict, get_name, get_num, num, num_array, stream_bytes};
+use crate::short::Short;
 
 /// 一个字符码解码后的结果。`width` 是字号为 1 时在文本空间里的前进宽度。
 #[derive(Debug, Clone)]
 pub(crate) struct DecodedChar {
-    pub(crate) text: String,
+    pub(crate) text: Short,
     pub(crate) width: f64,
     pub(crate) is_space: bool,
 }
@@ -40,7 +41,7 @@ struct Composite {
 pub(crate) struct Font {
     composite: Option<Composite>,
     to_unicode: Option<CMap>,
-    simple_map: Vec<Option<String>>,
+    simple_map: Vec<Option<Short>>,
     first_char: u32,
     widths: Vec<f64>,
     missing_width: f64,
@@ -133,7 +134,7 @@ impl Font {
             composite: None,
             to_unicode: None,
             simple_map: (0..=255u8)
-                .map(|c| base_char(BaseEncoding::WinAnsi, c).map(String::from))
+                .map(|c| base_char(BaseEncoding::WinAnsi, c).map(Short::from))
                 .collect(),
             first_char: 0,
             widths: Vec::new(),
@@ -230,10 +231,14 @@ impl Font {
         font.simple_map = match builtin {
             Some(names) => names
                 .iter()
-                .map(|n| n.as_ref().and_then(|n| glyph_to_unicode(n.as_bytes())))
+                .map(|n| {
+                    n.as_ref()
+                        .and_then(|n| glyph_to_unicode(n.as_bytes()))
+                        .map(Short::from)
+                })
                 .collect(),
             None => (0..=255u8)
-                .map(|c| base_char(base, c).map(String::from))
+                .map(|c| base_char(base, c).map(Short::from))
                 .collect(),
         };
         if let Some(diffs) = differences {
@@ -245,11 +250,12 @@ impl Font {
                         if code < 256 {
                             // Type3 的字形名是字形过程的名字，常是自造的（/BT、/a12）；认不出的按基础
                             // 编码取这个码的字（码和字母一一对应是 Type3 的通常写法，poppler、pdf.js 同样）
-                            font.simple_map[code] = glyph_to_unicode(n).or_else(|| {
-                                (subtype == b"Type3")
-                                    .then(|| base_char(base, code as u8).map(String::from))
-                                    .flatten()
-                            });
+                            font.simple_map[code] =
+                                glyph_to_unicode(n).map(Short::from).or_else(|| {
+                                    (subtype == b"Type3")
+                                        .then(|| base_char(base, code as u8).map(Short::from))
+                                        .flatten()
+                                });
                         }
                         code += 1;
                     }
@@ -382,7 +388,7 @@ impl Font {
                         .and_then(|c| c.unicode(code))
                         .or_else(|| {
                             let col = comp.collection?;
-                            col.unicode(cid?).map(String::from)
+                            col.unicode(cid?).map(Short::from)
                         })
                         .or_else(|| {
                             let map = comp.glyph_text.as_ref()?;
@@ -391,9 +397,9 @@ impl Font {
                                 Some(t) => u32::from(*t.get(cid as usize)?),
                                 None => cid,
                             };
-                            map.get(&gid).map(|c| c.to_string())
+                            map.get(&gid).map(|&c| Short::from(c))
                         })
-                        .or_else(|| fallback_text(&comp.source, raw, code))
+                        .or_else(|| fallback_text(&comp.source, raw, code).map(Short::from))
                         .unwrap_or_default();
                     let w = cid.map_or(comp.dw, |c| comp.width(c));
                     out.push(DecodedChar {

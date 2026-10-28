@@ -8,7 +8,7 @@ use crate::interp::Glyph;
 /// 一个字形和它规范化后的文字。
 pub(crate) struct Item<'a> {
     pub(crate) g: &'a Glyph,
-    pub(crate) text: String,
+    pub(crate) text: crate::short::Short,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

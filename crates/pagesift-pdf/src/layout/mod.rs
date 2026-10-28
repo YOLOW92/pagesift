@@ -239,12 +239,15 @@ fn make_line(glyphs: &[&Glyph]) -> Option<Line> {
     let mut prev_end = f64::NEG_INFINITY;
     let mut bold_chars = 0usize;
     let mut all_chars = 0usize;
-    let mut sizes: HashMap<i64, (usize, f64, f64)> = HashMap::new();
-    let mut mcids: HashMap<i32, usize> = HashMap::new();
+    // 一行里的字号、MCID 通常只有一两种：小数组线性找，不建哈希表
+    let mut sizes: Vec<(i64, (usize, f64, f64))> = Vec::new();
+    let mut mcids: Vec<(i32, usize)> = Vec::new();
     let mut artifact_chars = 0usize;
     let mut last_char: Option<char> = None;
+    // 规范化后的字，每个字形复用同一个缓冲区
+    let mut t = String::new();
     for g in glyphs {
-        let mut t = String::new();
+        t.clear();
         for c in g.text.chars() {
             normalize_char(c, &mut t);
         }
@@ -270,18 +273,27 @@ fn make_line(glyphs: &[&Glyph]) -> Option<Line> {
             bold_chars += n;
         }
         if let Some(m) = g.mcid {
-            *mcids.entry(m).or_default() += n;
+            match mcids.iter_mut().find(|(k, _)| *k == m) {
+                Some((_, c)) => *c += n,
+                None => mcids.push((m, n)),
+            }
         }
         if g.artifact {
             artifact_chars += n;
         }
         let key = (g.size * 10.0).round() as i64;
-        let e = sizes.entry(key).or_insert((0, g.size, g.y));
+        let e = match sizes.iter().position(|(k, _)| *k == key) {
+            Some(i) => &mut sizes[i].1,
+            None => {
+                sizes.push((key, (0, g.size, g.y)));
+                &mut sizes.last_mut().expect("just pushed").1
+            }
+        };
         e.0 += n;
         last_char = t.chars().last().or(last_char);
         let item = crate::math::Item {
             g,
-            text: t.trim_start().to_string(),
+            text: t.trim_start().into(),
         };
         match words.last_mut() {
             Some(w) if !new_word => w.push(item),
@@ -292,7 +304,8 @@ fn make_line(glyphs: &[&Glyph]) -> Option<Line> {
     }
     // 字号取字符数最多的那个，基线也跟着它
     let (_, size, y) = sizes
-        .into_values()
+        .into_iter()
+        .map(|(_, v)| v)
         .max_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)))?;
     let text = crate::math::line_text(&words, y, size).unwrap_or_else(|| {
         let mut text = String::new();

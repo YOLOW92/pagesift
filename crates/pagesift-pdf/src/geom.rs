@@ -4,7 +4,7 @@ use crate::font::MathKind;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Glyph {
-    pub(crate) text: String,
+    pub(crate) text: crate::short::Short,
     pub(crate) x: f64,
     pub(crate) y: f64,
     pub(crate) x_end: f64,

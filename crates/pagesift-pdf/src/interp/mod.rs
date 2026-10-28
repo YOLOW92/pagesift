@@ -5,6 +5,7 @@ use std::rc::Rc;
 use std::time::Instant;
 
 use crate::file::{Dictionary, Document, Object, ObjectId};
+use crate::short::Short;
 
 use crate::font::{DecodedChar, Font};
 pub(crate) use crate::geom::{Glyph, Matrix, PageInk, Rule, Shape};
@@ -567,7 +568,7 @@ impl<'a> Interp<'a> {
             let width = 0.5f64.min((x1 - x0 - 4.0).max(size) / (n * size));
             chars.clear();
             chars.extend(line.chars().map(|c| DecodedChar {
-                text: c.to_string(),
+                text: Short::from(c),
                 width,
                 is_space: c == ' ',
             }));

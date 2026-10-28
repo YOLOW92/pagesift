@@ -23,6 +23,7 @@ mod lexer;
 mod math;
 mod obj;
 mod orient;
+mod short;
 mod structure;
 mod table;
 
@@ -498,7 +499,7 @@ pub mod fuzzing {
             .take(len)
             .fold(0u32, |v, &b| v << 8 | u32::from(b));
         cm.cid(code);
-        cm.unicode(code)
+        cm.unicode(code).map(|s| s.to_string())
     }
 
     /// 字形：(文本, x, y, 宽, 字号, 粗体)。
@@ -512,7 +513,7 @@ pub mod fuzzing {
                 let glyphs: Vec<interp::Glyph> = gs
                     .iter()
                     .map(|(text, x, y, w, size, bold)| interp::Glyph {
-                        text: text.clone(),
+                        text: text.as_str().into(),
                         x: *x,
                         y: *y,
                         x_end: x + w,

@@ -1,5 +1,6 @@
 //! CMap 解析：ToUnicode（bfchar/bfrange）和编码 CMap（codespace、cidchar/cidrange）。
 
+use crate::short::Short;
 use std::collections::HashMap;
 
 use crate::encoding::glyph_to_unicode;
@@ -25,7 +26,7 @@ struct UniRange {
 #[derive(Debug, Clone, Default)]
 pub(crate) struct CMap {
     codespace: Vec<Codespace>,
-    uni: HashMap<u32, String>,
+    uni: HashMap<u32, Short>,
     uni_ranges: Vec<UniRange>,
     cid: HashMap<u32, u32>,
     cid_ranges: Vec<(u32, u32, u32)>,
@@ -57,10 +58,10 @@ fn utf16_units(bytes: &[u8]) -> Vec<u16> {
         .collect()
 }
 
-fn units_to_string(units: &[u16]) -> String {
-    char::decode_utf16(units.iter().copied())
-        .map(|r| r.unwrap_or(char::REPLACEMENT_CHARACTER))
-        .collect()
+fn units_to_string(units: &[u16]) -> Short {
+    Short::from_chars(
+        char::decode_utf16(units.iter().copied()).map(|r| r.unwrap_or(char::REPLACEMENT_CHARACTER)),
+    )
 }
 
 impl CMap {
@@ -100,7 +101,7 @@ impl CMap {
                         let dst = match &pair[1] {
                             Operand::Str(d) => units_to_string(&utf16_units(d)),
                             Operand::Name(n) => match glyph_to_unicode(n) {
-                                Some(s) => s,
+                                Some(s) => Short::from(s),
                                 None => continue,
                             },
                             _ => continue,
@@ -207,7 +208,7 @@ impl CMap {
         if shortest == usize::MAX { 1 } else { shortest }
     }
 
-    pub(crate) fn unicode(&self, code: u32) -> Option<String> {
+    pub(crate) fn unicode(&self, code: u32) -> Option<Short> {
         if let Some(s) = self.uni.get(&code) {
             return Some(s.clone());
         }
@@ -231,12 +232,17 @@ impl CMap {
 }
 
 /// bfrange 的目标值：最后一个 UTF-16 单元加上偏移。
-fn offset_string(base: &[u16], off: u32) -> String {
-    let mut units = base.to_vec();
-    if let Some(last) = units.last_mut() {
-        *last = last.wrapping_add(off as u16);
-    }
-    units_to_string(&units)
+fn offset_string(base: &[u16], off: u32) -> Short {
+    // 最后一个 UTF-16 单元加上偏移；不复制 base
+    let n = base.len();
+    let units = base.iter().enumerate().map(|(i, &u)| {
+        if i + 1 == n {
+            u.wrapping_add(off as u16)
+        } else {
+            u
+        }
+    });
+    Short::from_chars(char::decode_utf16(units).map(|r| r.unwrap_or(char::REPLACEMENT_CHARACTER)))
 }
 
 #[cfg(test)]
