@@ -11,6 +11,20 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 - `index.jsonl` rows and crawl JSON lines carry `warning` when the page has a data risk.
 
 ### Fixed
+- Word, Excel, PowerPoint, CSV and EPUB have an output budget like HTML (response size limit) and
+  PDF (page limit): conversion stops once the text passes `Limits::max_output_bytes` (16 MB) and
+  returns what it has with an `output_truncated` warning. A 408 KB DOCX that unpacks to 120 MB of
+  XML gave 84 MB of Markdown with a 348 MB peak and no warning; now 17 MB, 171 MB peak, warned.
+  One counter in the shared places (XML reader text, CSV rows, EPUB chapters), no per-format code.
+  An EPUB spine that lists the same chapter many times converts it once.
+- PDF damage warnings: `content_missing` and `fonts_missing` count against the document's page
+  count, not the pages recovered; a page that lost only some of its content streams says so
+  (`1 (1 of 2 streams)`, e.g. arXiv's watermark stream at the end of the file). When the page tree
+  is lost and nothing in the file states the page count, `pages_missing` says the total is unknown
+  instead of staying silent (a 15-page paper cut to 15% came back as 13 pages with no warning).
+- A body that is plainly HTML is handled as a web page even when the server labels it
+  `application/pdf` (CDN or WAF block pages), so barrier detection applies; `%PDF-` bodies stay PDF
+  whatever the label.
 - Warnings that mean the result is incomplete or wrong (`content_missing`, `pages_missing`,
   `fonts_missing`, `thin_content`, `partial_content`, `empty_content`, `max_pages`, scanned PDF,
   decoding errors, HTTP error status, skipped rendering …) now fill Firecrawl's `data.warning`

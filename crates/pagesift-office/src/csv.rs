@@ -20,9 +20,16 @@ pub(crate) fn convert_text(text: &str, opts: &Options<'_>) -> Result<Converted, 
     let mut budget = opts.limits.max_cells;
     let mut rows: Vec<Vec<String>> = Vec::new();
     let mut wide = false;
+    let mut unbilled = 0usize;
     for (i, mut row) in Records::new(text, delim).enumerate() {
         if i % 4096 == 4095 {
             check_deadline(opts)?;
+        }
+        // 输出预算（见 `budget` 模块）：一个字段可以有几十 MB
+        unbilled += row.iter().map(String::len).sum::<usize>();
+        if unbilled >= crate::budget::BATCH && !crate::budget::spend(std::mem::take(&mut unbilled))
+        {
+            break;
         }
         if row.len() > max_cols {
             row.truncate(max_cols);
@@ -247,5 +254,33 @@ mod tests {
         let got = convert(big.as_bytes(), &opts).unwrap();
         assert_eq!(got.parts, 50);
         assert!(!got.warnings.is_empty());
+    }
+
+    #[test]
+    fn a_huge_field_stops_the_conversion_at_the_output_budget() {
+        let mut csv = b"a,b\n1,2\n3,\"".to_vec();
+        csv.extend(std::iter::repeat_n(b'x', 1 << 20));
+        csv.extend(b"\"\n5,6\n");
+        let opts = Options {
+            limits: crate::Limits {
+                max_output_bytes: 256 << 10,
+                ..crate::Limits::default()
+            },
+            ..Options::default()
+        };
+        let got = crate::convert(&csv, crate::Format::Csv, &opts).unwrap();
+        assert!(
+            got.markdown.starts_with("| a | b |"),
+            "{}",
+            &got.markdown[..40]
+        );
+        assert!(!got.markdown.contains("| 5 | 6 |"));
+        assert!(
+            got.warnings
+                .iter()
+                .any(|w| w.starts_with("output_truncated:")),
+            "{:?}",
+            got.warnings
+        );
     }
 }

@@ -5,7 +5,7 @@ use std::cell::{OnceCell, RefCell};
 use std::collections::HashMap;
 
 use super::crypt::Crypt;
-use super::damage::{Damage, PageTree};
+use super::damage::{Damage, LostContent, PageTree};
 use super::filter;
 use super::parse::Parser;
 use super::repair;
@@ -497,6 +497,7 @@ impl<'a> Document<'a> {
         }
         out.missing = declared.map_or(0, |n| n.saturating_sub(ids.len()));
         out.declared = declared.or(out.declared);
+        out.count_unknown = out.declared.is_none() && !ids.is_empty();
         out.ids = ids;
     }
 
@@ -558,11 +559,16 @@ impl<'a> Document<'a> {
         &self,
         pages: &[ObjectId],
         limit: usize,
-    ) -> (Vec<usize>, Vec<usize>) {
+    ) -> (Vec<LostContent>, Vec<usize>) {
         let (mut content, mut fonts) = (Vec::new(), Vec::new());
         for (i, id) in pages.iter().enumerate() {
-            if !self.page_content_complete(*id, limit) {
-                content.push(i + 1);
+            let (lost, streams) = self.page_lost_streams(*id, limit);
+            if lost > 0 {
+                content.push(LostContent {
+                    page: i + 1,
+                    lost,
+                    streams,
+                });
             } else if !self.page_fonts_complete(*id) {
                 fonts.push(i + 1);
             }
@@ -570,23 +576,28 @@ impl<'a> Document<'a> {
         (content, fonts)
     }
 
-    /// 页面的每一段内容流都在、能解码。
-    fn page_content_complete(&self, id: ObjectId, limit: usize) -> bool {
+    /// 页面的内容流里丢了几段（不在、或解不出来），一共几段。页面字典本身读不出时算 (1, 1)。
+    /// 只丢一部分很常见：arXiv 把侧边水印作为第二段内容流追加在文件末尾，截掉尾部只丢水印。
+    fn page_lost_streams(&self, id: ObjectId, limit: usize) -> (usize, usize) {
         let Some(page) = self.dictionary(id) else {
-            return false;
+            return (1, 1);
         };
         let Some(contents) = page.get(b"Contents") else {
             // 没有内容流的空白页
-            return true;
+            return (0, 0);
         };
         // 引用指向的对象不在文件里时解出来是 Null：内容流丢了，不是空白页
         let parts: Vec<&Object> = match self.resolve(contents) {
             Object::Array(a) => a.iter().collect(),
             _ => vec![contents],
         };
-        parts.into_iter().all(|part| {
-            matches!(self.resolve(part), Object::Stream(s) if self.stream_data(s, limit).is_some())
-        })
+        let lost = parts
+            .iter()
+            .filter(|part| {
+                !matches!(self.resolve(part), Object::Stream(s) if self.stream_data(s, limit).is_some())
+            })
+            .count();
+        (lost, parts.len().max(1))
     }
 
     /// 页面资源里的每个字体字典都在（资源可以从页树的祖先继承）。
@@ -632,6 +643,7 @@ impl<'a> Document<'a> {
             rescued: self.rescue.get().is_some(),
             declared_pages: tree.declared,
             missing_pages: tree.missing,
+            page_count_unknown: tree.count_unknown,
             incomplete_pages: Vec::new(),
             fontless_pages: Vec::new(),
         }

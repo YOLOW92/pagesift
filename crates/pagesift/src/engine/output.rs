@@ -385,9 +385,12 @@ pub(super) fn json_markdown(content_type: Option<&str>, body: &[u8]) -> Option<S
     Some(format!("{fence}json\n{rendered}\n{fence}\n"))
 }
 
+/// 魔数优先：`%PDF-` 开头就是 PDF（不管头怎么写）。只有头说是 PDF 时，正文明显是 HTML/XML
+/// 的不算——CDN、WAF 把拦截页、登录页标成 `application/pdf` 返回时按网页处理，拦截页识别照常生效。
 pub(super) fn is_pdf(body: &[u8], content_type: Option<&str>) -> bool {
     body.starts_with(b"%PDF-")
-        || content_type.is_some_and(|c| c.to_ascii_lowercase().contains("application/pdf"))
+        || (content_type.is_some_and(|c| c.to_ascii_lowercase().contains("application/pdf"))
+            && !looks_like_markup(body))
 }
 
 /// 非 HTML/文本内容（图片、音视频、字体、压缩包等）不应该被当作文本抽取。
@@ -562,6 +565,15 @@ mod tests {
             );
             assert!(is_pdf(b"%PDF-1.7\n1 0 obj", Some(kind)));
         }
+        // 头说是 PDF：正文是网页（拦截页、登录页）时按网页处理；不是网页的照样交给 PDF 解析
+        let pdf = Some("application/pdf");
+        assert!(!is_pdf(
+            b"<!DOCTYPE html><html><body>Access denied</body></html>",
+            pdf
+        ));
+        assert!(!is_pdf(b"\n  <html><body>x</body></html>", pdf));
+        assert!(is_pdf(b"junk before the header %PDF-1.4", pdf));
+        assert!(is_pdf(b"%PDF-1.4", Some("text/html")));
         assert_eq!(
             unsupported_content_type(Some("application/octet-stream"), b"\x00\x01binary"),
             Some("application/octet-stream".into())

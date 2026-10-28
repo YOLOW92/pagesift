@@ -11,6 +11,7 @@
 use std::fmt;
 use std::time::Instant;
 
+mod budget;
 mod csv;
 mod docx;
 mod epub;
@@ -167,6 +168,9 @@ pub struct Limits {
     pub max_cells: usize,
     /// Excel 的列数上限（规范上限是 16384 列）；超过的列截掉。
     pub max_columns: usize,
+    /// 转出的文字累计超过这么多字节就停止转换：已经转出的部分照常返回，加 `output_truncated` 警告
+    /// （和 HTML 的响应体上限同一个量级；见 `budget` 模块）。
+    pub max_output_bytes: usize,
 }
 
 impl Default for Limits {
@@ -178,6 +182,7 @@ impl Default for Limits {
             max_ratio: 400,
             max_cells: 2_000_000,
             max_columns: 1_024,
+            max_output_bytes: 16 << 20,
         }
     }
 }
@@ -240,16 +245,30 @@ impl std::error::Error for Error {}
 /// 转换一份已经解码成 UTF-8 的 CSV。[`convert`] 自己只认 BOM、UTF-8 和 Windows-1252；
 /// 知道字符集（HTTP 头的 `charset`、探测器）的调用方先解码再用这个入口。
 pub fn convert_csv_text(text: &str, opts: &Options<'_>) -> Result<Converted, Error> {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        csv::convert_text(text, opts)
-    }))
-    .unwrap_or_else(|_| Err(Error::Malformed("converter panicked".into())))
+    budgeted(opts, || csv::convert_text(text, opts))
+}
+
+/// 在输出预算下运行一次转换；预算用完提前停下时加 `output_truncated` 警告。
+/// 依赖代码在畸形输入上万一 panic，也转成错误返回。
+fn budgeted(
+    opts: &Options<'_>,
+    run: impl FnOnce() -> Result<Converted, Error>,
+) -> Result<Converted, Error> {
+    let guard = budget::enter(opts.limits.max_output_bytes);
+    let mut out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(run))
+        .unwrap_or_else(|_| Err(Error::Malformed("converter panicked".into())))?;
+    if guard.truncated() {
+        out.warnings.push(format!(
+            "output_truncated: the document holds more than {} MB of text; conversion stopped there and the rest was left out",
+            opts.limits.max_output_bytes >> 20
+        ));
+    }
+    Ok(out)
 }
 
 /// 转换一份文档。
 pub fn convert(bytes: &[u8], format: Format, opts: &Options<'_>) -> Result<Converted, Error> {
-    // 依赖代码在畸形输入上万一 panic，也转成错误返回
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match format {
+    budgeted(opts, || match format {
         Format::Csv => csv::convert(bytes, opts),
         _ => {
             if is_ole_encrypted(bytes) {
@@ -264,8 +283,7 @@ pub fn convert(bytes: &[u8], format: Format, opts: &Options<'_>) -> Result<Conve
                 Format::Csv => unreachable!(),
             }
         }
-    }))
-    .unwrap_or_else(|_| Err(Error::Malformed("converter panicked".into())))
+    })
 }
 
 /// 加了口令的 OOXML 不是 ZIP，而是 OLE 复合文件（MS-OFFCRYPTO），开头是这个签名。

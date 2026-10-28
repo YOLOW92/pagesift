@@ -242,4 +242,34 @@ mod tests {
             "Side\n\nData:\n\n| k | v |\n| --- | --- |\n| 1 | 2 |\n"
         );
     }
+
+    /// 小文件展开出大量文字（重复段落压缩得很小）：超过输出预算就停下，转出的部分加警告返回。
+    #[test]
+    fn expansion_beyond_the_output_budget_is_truncated_with_a_warning() {
+        let body = "<w:p><w:r><w:t>The same paragraph, over and over again.</w:t></w:r></w:p>"
+            .repeat(50_000);
+        let file = docx(&body, &[]);
+        let opts = Options {
+            limits: crate::Limits {
+                max_output_bytes: 256 << 10,
+                ..crate::Limits::default()
+            },
+            ..Options::default()
+        };
+        let got = crate::convert(&file, crate::Format::Docx, &opts).unwrap();
+        // 预算按 64 KB 一批记账：停在预算加一批以内
+        assert!(got.markdown.len() < 400 << 10, "{}", got.markdown.len());
+        assert!(got.markdown.starts_with("The same paragraph"));
+        assert!(
+            got.warnings
+                .iter()
+                .any(|w| w.starts_with("output_truncated:")),
+            "{:?}",
+            got.warnings
+        );
+        // 默认预算下同一份文件完整转换、没有警告
+        let all = crate::convert(&file, crate::Format::Docx, &Options::default()).unwrap();
+        assert!(all.markdown.len() > 2 << 20);
+        assert!(all.warnings.is_empty(), "{:?}", all.warnings);
+    }
 }

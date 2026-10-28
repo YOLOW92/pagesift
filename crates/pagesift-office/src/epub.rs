@@ -40,7 +40,12 @@ pub(crate) fn convert(zip: &Zip<'_>, opts: &Options<'_>) -> Result<Converted, Er
         }
     }
     let mut parts = Vec::new();
+    // spine 里同一个文档只转一次（规范要求每个 itemref 指向不同的条目；重复引用会把同一章放大几百遍）
+    let mut seen = std::collections::HashSet::new();
     for idref in &pkg.spine {
+        if !seen.insert(idref) {
+            continue;
+        }
         let Some((href, media)) = pkg
             .manifest
             .iter()
@@ -65,6 +70,10 @@ pub(crate) fn convert(zip: &Zip<'_>, opts: &Options<'_>) -> Result<Converted, Er
         let md = html(&doc, &path);
         if !md.trim().is_empty() {
             parts.push(md.trim().to_string());
+        }
+        // 输出预算（见 `budget` 模块）
+        if !crate::budget::spend(md.len()) {
+            break;
         }
     }
     out.parts = parts.len();
@@ -243,5 +252,34 @@ mod tests {
             crate::convert(&epub(&[]), crate::Format::Epub, &Options::default()),
             Err(Error::Unsupported(_))
         ));
+    }
+
+    #[test]
+    fn a_chapter_repeated_in_the_spine_is_converted_once() {
+        let container =
+            r#"<container><rootfiles><rootfile full-path="c.opf"/></rootfiles></container>"#;
+        let spine = r#"<itemref idref="a"/>"#.repeat(500);
+        let opf = format!(
+            r#"<package><manifest><item id="a" href="a.xhtml" media-type="application/xhtml+xml"/></manifest><spine>{spine}</spine></package>"#
+        );
+        let file = build(&[
+            ("mimetype", b"application/epub+zip", false),
+            ("META-INF/container.xml", container.as_bytes(), true),
+            ("c.opf", opf.as_bytes(), true),
+            ("a.xhtml", b"<h1>Only once</h1>", true),
+        ]);
+        let f = to_md;
+        let opts = Options {
+            html: Some(&f),
+            ..Options::default()
+        };
+        let got = crate::convert(&file, crate::Format::Epub, &opts).unwrap();
+        assert_eq!(
+            got.markdown.matches("Only once").count(),
+            1,
+            "{}",
+            got.markdown
+        );
+        assert_eq!(got.parts, 1);
     }
 }

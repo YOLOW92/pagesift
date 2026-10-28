@@ -476,14 +476,19 @@ fn pages_are_recovered_when_the_page_tree_root_is_lost() {
         doc.warnings[1],
         "pages_missing: 2 of 5 pages could not be recovered from the damaged file; 3 converted"
     );
-    // 没有线性化字典、也没有 /Pages 节点：不知道该有几页，只报修复过
+    // 没有线性化字典、也没有 /Pages 节点：不知道该有几页，要明说"后面的页可能丢了"，
+    // 不能把找回的 3 页当成整份文件（0.80.3 只报修复过，丢页悄无声息）
     let mut cut = b"%PDF-1.7\n".to_vec();
     cut.extend_from_slice(&whole[9..root]);
     cut.extend_from_slice(&whole[end..]);
     let stop = cut.windows(9).position(|w| w == b"10 0 obj\n").unwrap() + 20;
     let doc = extract(&cut[..stop]).unwrap();
     assert_eq!(doc.pages.len(), 3);
-    assert_eq!(doc.warnings.len(), 1, "{:?}", doc.warnings);
+    assert_eq!(doc.warnings.len(), 2, "{:?}", doc.warnings);
+    assert_eq!(
+        doc.warnings[1],
+        "pages_missing: the page tree was lost; 3 pages were recovered by scanning the file, but the total page count is unknown, so later pages may be missing"
+    );
 }
 
 /// 书签只到章节、/Info 又没有 /Title 的论文（arXiv 常见）：题名不是书签条目，按提示排版时也要

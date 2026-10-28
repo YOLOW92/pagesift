@@ -59,6 +59,10 @@ pub(crate) struct Reader<'a> {
     depth: usize,
     /// 空元素的结束事件，下一次 `next` 先给出。
     pending_end: Option<&'a str>,
+    /// 还没记进输出预算的文字字节数（攒够 [`crate::budget::BATCH`] 记一次）。
+    unbilled: usize,
+    /// 输出预算用完了：之后当作文档结束。创建时和记账时各查一次，逐个事件只看这个字段。
+    stopped: bool,
 }
 
 impl<'a> Reader<'a> {
@@ -68,10 +72,24 @@ impl<'a> Reader<'a> {
             pos: 0,
             depth: 0,
             pending_end: None,
+            unbilled: 0,
+            stopped: crate::budget::exhausted(),
         }
     }
 
+    /// 记一段文字的字节数；输出预算用完时返回 false（之后当作文档结束）。
+    fn bill(&mut self, n: usize) -> bool {
+        self.unbilled += n;
+        if self.unbilled < crate::budget::BATCH {
+            return true;
+        }
+        self.stopped = !crate::budget::spend(std::mem::take(&mut self.unbilled));
+        !self.stopped
+    }
+
     /// 下一个事件；文档结束时返回 `None`。只有空白的文本照样返回（排版有时依赖它）。
+    /// 这次转换的输出预算用完后也返回 `None`：各格式的循环照常收尾，转出的部分保留
+    /// （见 `budget` 模块）。
     pub(crate) fn next(&mut self) -> Result<Option<Tok<'a>>, Error> {
         if let Some(name) = self.pending_end.take() {
             self.depth -= 1;
@@ -79,17 +97,23 @@ impl<'a> Reader<'a> {
         }
         loop {
             let rest = &self.s[self.pos..];
-            if rest.is_empty() {
+            if rest.is_empty() || self.stopped {
                 return Ok(None);
             }
             if !rest.starts_with('<') {
                 let end = rest.find('<').unwrap_or(rest.len());
                 self.pos += end;
+                if !self.bill(end) {
+                    return Ok(None);
+                }
                 return Ok(Some(Tok::Text(unescape(&rest[..end]))));
             }
             if let Some(body) = rest.strip_prefix("<![CDATA[") {
                 let end = body.find("]]>").ok_or_else(|| bad("unterminated CDATA"))?;
                 self.pos += 9 + end + 3;
+                if !self.bill(end) {
+                    return Ok(None);
+                }
                 return Ok(Some(Tok::Text(Cow::Borrowed(&body[..end]))));
             }
             if rest.starts_with("<!--") {

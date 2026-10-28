@@ -11,6 +11,17 @@ pub(crate) struct PageTree {
     pub(crate) declared: Option<usize>,
     /// 页树里引用了、但对象不存在、只剩半截或不是页面字典的子节点数（截断、损坏的文件）。
     pub(crate) missing: usize,
+    /// 页树根丢了，页面是扫描散落的页面对象找回的，文件里也没有任何地方还写着总页数：
+    /// 后面的页可能丢了，但丢了几页不知道。
+    pub(crate) count_unknown: bool,
+}
+
+/// 丢了内容流的一页：第几页（从 1 数），这一页一共几段内容流，丢了几段。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct LostContent {
+    pub(crate) page: usize,
+    pub(crate) lost: usize,
+    pub(crate) streams: usize,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -21,8 +32,10 @@ pub(crate) struct Damage {
     pub(crate) rescued: bool,
     pub(crate) declared_pages: Option<usize>,
     pub(crate) missing_pages: usize,
-    /// 页面在、但内容流丢了的页（从 1 数）：页数对，正文不全。
-    pub(crate) incomplete_pages: Vec<usize>,
+    /// 见 [`PageTree::count_unknown`]。
+    pub(crate) page_count_unknown: bool,
+    /// 页面在、但内容流丢了（全部或其中几段）的页：页数对，正文不全。
+    pub(crate) incomplete_pages: Vec<LostContent>,
     /// 内容流在、但字体字典丢了的页：字还在，可能解码错。
     pub(crate) fontless_pages: Vec<usize>,
 }
@@ -45,29 +58,46 @@ impl Damage {
                     .to_string(),
             );
         }
+        // 文档的总页数：/Count 可能比子节点数多或少，按两者里大的算。content_missing、fonts_missing
+        // 也用它作分母（以前用找到的页数，丢了页时分母会跟着变小）
+        let total = self
+            .declared_pages
+            .unwrap_or(0)
+            .max(found + self.missing_pages);
         if self.missing_pages > 0 {
-            // /Count 可能比子节点数多或少；按两者里大的算总数
-            let total = self
-                .declared_pages
-                .unwrap_or(0)
-                .max(found + self.missing_pages);
             out.push(format!(
                 "pages_missing: {} of {total} pages could not be recovered from the damaged file; {found} converted",
                 total - found
             ));
+        } else if self.page_count_unknown {
+            out.push(format!(
+                "pages_missing: the page tree was lost; {found} pages were recovered by scanning the file, but the total page count is unknown, so later pages may be missing"
+            ));
         }
         if !self.incomplete_pages.is_empty() {
+            let pages: Vec<String> = self
+                .incomplete_pages
+                .iter()
+                .map(|l| {
+                    if l.lost < l.streams {
+                        format!("{} ({} of {} streams)", l.page, l.lost, l.streams)
+                    } else {
+                        l.page.to_string()
+                    }
+                })
+                .collect();
             out.push(format!(
-                "content_missing: {} of {found} pages lost their content streams in the damaged file; their text is missing or incomplete (pages {})",
+                "content_missing: {} of {total} pages lost content streams in the damaged file; their text is missing or incomplete (pages {})",
                 self.incomplete_pages.len(),
-                listed(&self.incomplete_pages)
+                listed(&pages)
             ));
         }
         if !self.fontless_pages.is_empty() {
+            let pages: Vec<String> = self.fontless_pages.iter().map(usize::to_string).collect();
             out.push(format!(
-                "fonts_missing: {} of {found} pages lost font definitions in the damaged file; some characters may be decoded wrongly (pages {})",
+                "fonts_missing: {} of {total} pages lost font definitions in the damaged file; some characters may be decoded wrongly (pages {})",
                 self.fontless_pages.len(),
-                listed(&self.fontless_pages)
+                listed(&pages)
             ));
         }
         out
@@ -75,14 +105,14 @@ impl Damage {
 }
 
 /// 页码列表，最多 [`LISTED_PAGES`] 个，多了用省略号。
-fn listed(pages: &[usize]) -> String {
-    let mut out: Vec<String> = pages
+fn listed(pages: &[String]) -> String {
+    let mut out: Vec<&str> = pages
         .iter()
         .take(LISTED_PAGES)
-        .map(usize::to_string)
+        .map(String::as_str)
         .collect();
     if pages.len() > LISTED_PAGES {
-        out.push("…".into());
+        out.push("…");
     }
     out.join(", ")
 }
@@ -103,8 +133,7 @@ mod tests {
             rescued: true,
             declared_pages: Some(5),
             missing_pages: 2,
-            incomplete_pages: Vec::new(),
-            fontless_pages: Vec::new(),
+            ..Damage::default()
         };
         let w = d.warnings(3);
         assert_eq!(w.len(), 2);
@@ -119,8 +148,7 @@ mod tests {
             rescued: true,
             declared_pages: Some(1),
             missing_pages: 1,
-            incomplete_pages: Vec::new(),
-            fontless_pages: Vec::new(),
+            ..Damage::default()
         };
         let w = d.warnings(3);
         assert!(w[0].contains("offsets were wrong"));
@@ -133,17 +161,26 @@ mod tests {
         assert!(d.warnings(3).is_empty());
     }
 
+    fn lost(page: usize, lost: usize, streams: usize) -> LostContent {
+        LostContent {
+            page,
+            lost,
+            streams,
+        }
+    }
+
     #[test]
     fn pages_with_lost_content_are_listed() {
+        // 第 1 页两段内容流丢了一段（arXiv 加在文件末尾的侧边水印），第 4 页全丢
         let d = Damage {
             repaired: true,
-            incomplete_pages: vec![1, 4],
+            incomplete_pages: vec![lost(1, 1, 2), lost(4, 1, 1)],
             ..Damage::default()
         };
         let w = d.warnings(15);
         assert_eq!(
             w[1],
-            "content_missing: 2 of 15 pages lost their content streams in the damaged file; their text is missing or incomplete (pages 1, 4)"
+            "content_missing: 2 of 15 pages lost content streams in the damaged file; their text is missing or incomplete (pages 1 (1 of 2 streams), 4)"
         );
         let fonts = Damage {
             fontless_pages: vec![3],
@@ -151,9 +188,38 @@ mod tests {
         };
         assert!(fonts.warnings(15)[0].starts_with("fonts_missing: 1 of 15 pages"));
         let many = Damage {
-            incomplete_pages: (1..=12).collect(),
+            incomplete_pages: (1..=12).map(|p| lost(p, 1, 1)).collect(),
             ..Damage::default()
         };
         assert!(many.warnings(12)[0].ends_with("(pages 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, …)"));
+    }
+
+    #[test]
+    fn the_denominator_is_the_document_not_what_was_recovered() {
+        // 15 页的文件丢了 2 页：内容流丢失的分母仍是 15
+        let d = Damage {
+            declared_pages: Some(15),
+            missing_pages: 2,
+            incomplete_pages: vec![lost(1, 2, 2)],
+            ..Damage::default()
+        };
+        let w = d.warnings(13);
+        assert!(w[0].starts_with("pages_missing: 2 of 15 pages"), "{w:?}");
+        assert!(w[1].starts_with("content_missing: 1 of 15 pages"), "{w:?}");
+    }
+
+    #[test]
+    fn an_unknown_page_count_is_said_out_loud() {
+        // 页树根丢了、哪里都没写总页数：找回 13 页，不能当作文件就是 13 页
+        let d = Damage {
+            repaired: true,
+            page_count_unknown: true,
+            ..Damage::default()
+        };
+        let w = d.warnings(13);
+        assert!(
+            w[1].starts_with("pages_missing: the page tree was lost; 13 pages were recovered"),
+            "{w:?}"
+        );
     }
 }
