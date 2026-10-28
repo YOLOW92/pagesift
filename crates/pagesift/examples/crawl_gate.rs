@@ -15,6 +15,10 @@ use axum::extract::Path;
 use axum::http::HeaderMap;
 use axum::response::Html;
 use axum::routing::get;
+
+/// 和发布的可执行程序一样的全局分配器。
+#[global_allocator]
+static ALLOC: pagesift_sys::SmallCache = pagesift_sys::SmallCache;
 use pagesift::api::types::{CrawlRequest, Document};
 use pagesift::api::{ApiError, BoxFuture, CrawlSink};
 use pagesift::{Scraper, ScraperConfig};

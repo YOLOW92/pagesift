@@ -1,5 +1,5 @@
 [package]
-description = "Process-level tuning for the pagesift binary (glibc allocator thresholds)."
+description = "Process-level tuning for the pagesift binary (glibc allocator thresholds, NUMA-sharded small-block allocator cache)."
 name = "pagesift-sys"
 version.workspace = true
 edition.workspace = true

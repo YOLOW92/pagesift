@@ -18,6 +18,8 @@ sha2 = "0.11.1"
 
 [dev-dependencies]
 pagesift-testkit = { path = "../pagesift-testkit" }
+# 性能示例和发布的可执行程序用同一个全局分配器
+pagesift-sys = { path = "../pagesift-sys" }
 # 测试里用 lopdf 生成 PDF：独立的写入方，正好检验自研的读取
 lopdf = { version = "0.45.0", default-features = false }
 proptest = { version = "1.7.0", default-features = false, features = ["std"] }

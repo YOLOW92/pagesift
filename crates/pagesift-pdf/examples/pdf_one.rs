@@ -2,6 +2,10 @@
 //! 峰值内存用外部工具量（如 `/usr/bin/time -f %M`），所以每个文件单独起一个进程。
 use std::time::Instant;
 
+/// 和发布的可执行程序一样的全局分配器，量出来的才是用户拿到的。
+#[global_allocator]
+static ALLOC: pagesift_sys::SmallCache = pagesift_sys::SmallCache;
+
 fn main() {
     let mut args = std::env::args().skip(1);
     let path = args.next().expect("usage: pdf_one <file.pdf> [runs]");

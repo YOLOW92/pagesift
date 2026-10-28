@@ -22,6 +22,10 @@ use url::Url;
 use args::*;
 use util::*;
 
+/// 小块（≤512 字节）走按 NUMA 节点分片的线程缓存，大块交给系统分配器。
+#[global_allocator]
+static ALLOC: pagesift_sys::SmallCache = pagesift_sys::SmallCache;
+
 #[derive(Parser)]
 #[command(
     name = "pagesift",

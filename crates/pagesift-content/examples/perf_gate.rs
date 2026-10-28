@@ -9,6 +9,10 @@ use std::time::Instant;
 
 use pagesift_content::{Options, process};
 
+/// 和发布的可执行程序一样的全局分配器，量出来的才是用户拿到的。
+#[global_allocator]
+static ALLOC: pagesift_sys::SmallCache = pagesift_sys::SmallCache;
+
 const RUNS: usize = 50;
 
 fn paragraph(i: usize) -> String {

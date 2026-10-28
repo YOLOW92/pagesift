@@ -19,3 +19,5 @@ url = "2.5.8"
 
 [dev-dependencies]
 pagesift-testkit = { path = "../pagesift-testkit" }
+# 性能示例和发布的可执行程序用同一个全局分配器
+pagesift-sys = { path = "../pagesift-sys" }

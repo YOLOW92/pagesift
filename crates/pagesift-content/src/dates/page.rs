@@ -569,7 +569,7 @@ mod tests {
             let b: Vec<u8> = (0..len)
                 .map(|_| {
                     let k = next() % BYTES.len() as u64;
-                    if !digits && matches!(BYTES[k as usize], b'0'..=b'9') {
+                    if !digits && BYTES[k as usize].is_ascii_digit() {
                         b'x'
                     } else {
                         BYTES[k as usize]
