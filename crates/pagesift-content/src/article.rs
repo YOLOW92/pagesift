@@ -189,18 +189,36 @@ pub(crate) struct Root<'a> {
 
 /// 容器规律找到的主体（[`find_root`]），带上标题区。
 pub(crate) fn container_root<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option<Root<'a>> {
-    let root = find_root(dom, skipper)?;
-    let (root, headline) = with_headline(dom, root, skipper);
+    let (root, teaser) = find_root(dom, skipper)?;
+    // 标题所在的 <article> 只是导语时，正文在它外面：标题从导语那里拿
+    let (root, headline) = match teaser {
+        Some(t) => (root, headline_text(&t)),
+        None => with_headline(dom, root, skipper),
+    };
     Some(Root {
         nodes: vec![root],
         headline,
     })
 }
 
+/// 导语里的标题文字（`<h1>`，没有时 `<h2>`）。
+fn headline_text(teaser: &NodeR<'_>) -> Option<String> {
+    let h = teaser
+        .descendants()
+        .find(|n| n.tag() == Some(Tag::H1))
+        .or_else(|| teaser.descendants().find(|n| n.tag() == Some(Tag::H2)))?;
+    let title = h.text().split_whitespace().collect::<Vec<_>>().join(" ");
+    (!title.is_empty()).then_some(title)
+}
+
 /// Readability 打分找到的主体：正文外面的 `<h1>` 离得近时扩到同时包含标题和正文的最小容器
 /// （导语、署名、日期一般在这里），离得远时把标题单独放在前面。
 pub(crate) fn scored_root<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option<Root<'a>> {
-    let nodes = crate::readability::content_nodes(dom, skipper)?;
+    let mut nodes = crate::readability::content_nodes(dom, skipper)?;
+    // 打分也可能落在两栏的公共容器上：和容器规律一样按标题收窄
+    if let [only] = nodes.as_mut_slice() {
+        *only = narrow_to_headline(dom, *only, skipper);
+    }
     let first = *nodes.first()?;
     if nodes
         .iter()
@@ -212,8 +230,9 @@ pub(crate) fn scored_root<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option<Ro
         });
     }
     match with_headline(dom, first, skipper) {
+        // 扩到标题和正文的公共容器时，这个容器也可能连着侧栏（打分选中的本来就是侧栏的卡片列表）
         (region, None) if region.id() != first.id() => Some(Root {
-            nodes: vec![region],
+            nodes: vec![narrow_to_headline(dom, region, skipper)],
             headline: None,
         }),
         (_, headline) => Some(Root { nodes, headline }),
@@ -281,19 +300,27 @@ fn with_headline<'a>(
         .chain(root.ancestors())
         .find(|n| n.tag() == Some(Tag::Article));
     let headline_scope = scope.unwrap_or_else(|| dom.root());
-    let Some(h1) = headline_scope
-        .descendants()
-        .find(|n| {
-            let title = n.tag() == Some(Tag::H1)
-                || (scope.is_some()
-                    && n.tag() == Some(Tag::H2)
-                    && (n.parent().is_some_and(|p| p.tag() == Some(Tag::Header))
-                        || n.as_element()
-                            .is_some_and(|e| e.attr("itemprop") == Some("headline"))));
-            title
-                && !skipper.skip(n)
-                && !n.ancestors().any(|a| skipper.skip(&a))
-                && (scope.is_some() || !n.ancestors().any(|a| a.tag() == Some(Tag::Article)))
+    // 不在 <article> 里时先找和文档标题一致的那个：页面唯一的 <h1> 常常是栏目名（"Asiya"、
+    // "News"），文章标题是 <h2>；拿栏目名当标题会把范围扩到栏目和正文的公共容器，连侧栏一起
+    let agreeing = scope
+        .is_none()
+        .then(|| page_headline(dom, dom.root(), skipper))
+        .flatten()
+        .filter(|h| !h.ancestors().any(|a| a.tag() == Some(Tag::Article)));
+    let Some(h1) = agreeing
+        .or_else(|| {
+            headline_scope.descendants().find(|n| {
+                let title = n.tag() == Some(Tag::H1)
+                    || (scope.is_some()
+                        && n.tag() == Some(Tag::H2)
+                        && (n.parent().is_some_and(|p| p.tag() == Some(Tag::Header))
+                            || n.as_element()
+                                .is_some_and(|e| e.attr("itemprop") == Some("headline"))));
+                title
+                    && !skipper.skip(n)
+                    && !n.ancestors().any(|a| skipper.skip(&a))
+                    && (scope.is_some() || !n.ancestors().any(|a| a.tag() == Some(Tag::Article)))
+            })
         })
         .or_else(|| {
             scope?;
@@ -502,9 +529,13 @@ pub(crate) fn headline_owner<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option
 
 /// 找文章主体。信号从强到弱：`itemprop="articleBody"`、文字最多的 `<article>`、常见的正文类名；
 /// 都没有时从 `<main>`（或 body）往下，收窄到装着大部分文字的最小容器。
-fn find_root<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option<NodeR<'a>> {
+/// 标题所在的 `<article>` 只是导语时（见 [`teaser_body`]），返回正文块和那个导语。
+fn find_root<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option<(NodeR<'a>, Option<NodeR<'a>>)> {
     if let Some(owner) = headline_owner(dom, skipper) {
-        return Some(owner);
+        return Some(match teaser_body(dom, owner, skipper) {
+            Some(body) => (body, Some(owner)),
+            None => (owner, None),
+        });
     }
     // 一次遍历收集每种信号下文字最多的候选：itemprop、第 0 层、<article>、第 1–2 层、<main>
     const ITEMPROP: usize = 0;
@@ -556,20 +587,171 @@ fn find_root<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option<NodeR<'a>> {
             }
         }
     }
-    // 按信号强弱的顺序取第一个够长的
+    // 按信号强弱的顺序取第一个够长的。`itemprop="articleBody"` 是页面自己标的正文，原样用；
+    // 其余的（类名、<article>、往下收窄）可能连侧栏一起框进来，按标题再收一次
     for slot in [ITEMPROP, 1, ARTICLE, 3, 4] {
         if let Some((chars, n)) = best[slot]
             && chars >= MIN_ROOT_CHARS
         {
-            return Some(if slot == ARTICLE {
-                descend(n, skipper)
-            } else {
-                n
+            return Some(match slot {
+                ITEMPROP => (n, None),
+                ARTICLE => (narrow_to_headline(dom, descend(n, skipper), skipper), None),
+                _ => (narrow_to_headline(dom, n, skipper), None),
             });
         }
     }
     let root = descend(main.unwrap_or_else(|| dom.body()), skipper);
-    (skipper.content_chars(&root) >= MIN_ROOT_CHARS).then_some(root)
+    (skipper.content_chars(&root) >= MIN_ROOT_CHARS)
+        .then(|| (narrow_to_headline(dom, root, skipper), None))
+}
+
+/// 按标题收窄时，标题所在的容器至少要装着主体这个比例的正文。
+const NARROW_SHARE: f64 = 0.8;
+/// 卡片摘要最多这么多字：别的文章的一两句导语。
+const CARD_SUMMARY_MAX_CHARS: usize = 400;
+/// 往上找卡片标题链接时最多看几层。
+const CARD_DEPTH: usize = 3;
+
+/// 主体比正文宽时按页面标题收窄：从和 `<title>` 一致的那个 `<h1>`/`<h2>` 往上，找到装着主体
+/// [`NARROW_SHARE`] 以上正文的最小容器。主体是由类名或"装着大部分文字"框出来的，碰上两栏版式
+/// （正文一栏、新闻列表一栏）常常停在两栏的公共容器上；标题所在的那一栏才是文章。
+/// 正文按非链接文字算，但不算卡片摘要（[`card_summaries`]）：侧栏新闻卡片的摘要是非链接文字，
+/// 却是别的文章。
+fn narrow_to_headline<'a>(dom: &'a Html<'a>, root: NodeR<'a>, skipper: &Skipper) -> NodeR<'a> {
+    let Some(headline) = page_headline(dom, root, skipper) else {
+        return root;
+    };
+    let cards = card_summaries(root, skipper);
+    let prose = |n: &NodeR<'_>| {
+        let cards: usize = cards
+            .iter()
+            .filter(|(p, _)| p == n || p.ancestors().any(|a| a == *n))
+            .map(|(_, c)| c)
+            .sum();
+        skipper.content_chars(n).saturating_sub(cards)
+    };
+    let total = prose(&root);
+    for a in headline.ancestors() {
+        if a == root {
+            break;
+        }
+        let chars = prose(&a);
+        if chars >= MIN_ROOT_CHARS && chars as f64 >= total as f64 * NARROW_SHARE {
+            return a;
+        }
+    }
+    root
+}
+
+/// 当作页面标题的 `<h1>`/`<h2>` 至少要有文档标题这个比例的长度（字母、数字、汉字）：
+/// `<title>` 常把小节名一起列出来（"Uses, Side Effects, Interactions"），小节标题
+/// "Side Effects" 也"和标题一致"，但它不是文章标题。
+const HEADLINE_MIN_TITLE_SHARE: f64 = 0.4;
+
+/// `root` 里和文档标题一致、长度够的第一个可见 `<h1>` 或 `<h2>`。
+fn page_headline<'a>(dom: &'a Html<'a>, root: NodeR<'a>, skipper: &Skipper) -> Option<NodeR<'a>> {
+    let title = dom
+        .root()
+        .descendants()
+        .find(|n| n.tag() == Some(Tag::Title))?
+        .text()
+        .to_lowercase();
+    let len = |s: &str| s.chars().filter(|c| c.is_alphanumeric()).count();
+    let min_len = (len(&title) as f64 * HEADLINE_MIN_TITLE_SHARE).ceil() as usize;
+    let signature = TitleSignature::new(&title);
+    root.descendants().find(|n| {
+        matches!(n.tag(), Some(Tag::H1 | Tag::H2))
+            && !skipper.skip(n)
+            && {
+                let text = n.text();
+                len(&text) >= min_len && title_agrees_with(&signature, &text)
+            }
+            && !n
+                .ancestors()
+                .take_while(|a| *a != root)
+                .any(|a| skipper.skip(&a))
+    })
+}
+
+/// 子树里新闻卡片摘要（[`card_summaries`]）的非链接文字数。
+pub(crate) fn card_chars(root: NodeR<'_>, skipper: &Skipper) -> usize {
+    card_summaries(root, skipper).iter().map(|(_, c)| c).sum()
+}
+
+/// 新闻卡片的摘要：以省略号结尾的短段落，旁边（往上 [`CARD_DEPTH`] 层以内）有指向别处的链接
+/// （卡片的标题或图片）。CMS 自动截出来的摘要都是这样，正文段落很少以省略号结尾。
+fn card_summaries<'a>(root: NodeR<'a>, skipper: &Skipper) -> Vec<(NodeR<'a>, usize)> {
+    root.descendants()
+        .filter(|n| n.tag() == Some(Tag::P))
+        .filter_map(|p| {
+            let chars = skipper.content_chars(&p);
+            if chars == 0 || chars > CARD_SUMMARY_MAX_CHARS {
+                return None;
+            }
+            let text = p.text();
+            let text = text.trim_end();
+            if !(text.ends_with("...") || text.ends_with('…')) {
+                return None;
+            }
+            let linked = p.ancestors().take(CARD_DEPTH).any(|a| {
+                a.descendants().any(|d| {
+                    d.tag() == Some(Tag::A)
+                        && !d.ancestors().any(|x| x == p)
+                        && d.as_element().is_some_and(|e| e.attr("href").is_some())
+                })
+            });
+            linked.then_some((p, chars))
+        })
+        .collect()
+}
+
+/// 导语最多这么多非链接文字：一两段摘要。再长的 `<article>` 不当导语看。
+const TEASER_MAX_CHARS: usize = 3 * MIN_ROOT_CHARS;
+/// 拿正文段落的前这么多个字（字母、数字、汉字，小写）去导语里找。
+const TEASER_KEY_CHARS: usize = 60;
+
+/// 标题所在的 `<article>` 只是导语：它的文字是从页面别处一段正文里摘的（那段的开头在导语里
+/// 原样出现），而那段所在的块比导语长一倍以上。新闻稿、通讯社稿件的模板常把标题和摘要单独
+/// 包成一个 `<article>`，正文放在它外面；只取这个 `<article>` 就只有一段以 "..." 结尾的摘要。
+/// 返回装着那段正文、又不包含导语的最小的够长容器。
+fn teaser_body<'a>(dom: &'a Html<'a>, owner: NodeR<'a>, skipper: &Skipper) -> Option<NodeR<'a>> {
+    let own = skipper.content_chars(&owner);
+    if own > TEASER_MAX_CHARS {
+        return None;
+    }
+    let key = |n: &NodeR<'_>| -> String {
+        n.text()
+            .chars()
+            .filter(|c| c.is_alphanumeric())
+            .flat_map(char::to_lowercase)
+            .collect()
+    };
+    let teaser = key(&owner);
+    for p in dom.root().descendants() {
+        if p.tag() != Some(Tag::P) || p.ancestors().any(|a| a == owner) {
+            continue;
+        }
+        let text = key(&p);
+        let Some((cut, _)) = text.char_indices().nth(TEASER_KEY_CHARS) else {
+            continue;
+        };
+        if !teaser.contains(&text[..cut])
+            || skipper.skip(&p)
+            || p.ancestors().any(|a| skipper.skip(&a))
+        {
+            continue;
+        }
+        for a in p.ancestors() {
+            if owner.ancestors().any(|o| o == a) {
+                break;
+            }
+            let chars = skipper.content_chars(&a);
+            if chars >= 2 * own && chars >= MIN_ROOT_CHARS {
+                return Some(a);
+            }
+        }
+    }
+    None
 }
 
 /// 往下收窄：只要某个子元素装着这一层大部分的非链接文字，就进到子元素里。

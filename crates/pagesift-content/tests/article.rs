@@ -163,3 +163,83 @@ fn disclosure_headers_of_accordions_are_kept() {
     }
     assert!(!out.contains("Expand all"), "{out}");
 }
+
+const OG_ARTICLE: &str = r#"<meta property="og:type" content="article">"#;
+
+#[test]
+fn a_headline_article_that_only_holds_the_teaser_yields_the_body_outside_it() {
+    // 新闻稿模板：标题和截断的摘要单独包成一个 <article>，正文在它外面
+    let html = format!(
+        "<html><head><title>Council approves budget</title>{OG_ARTICLE}</head><body>\
+         <article class=\"article-topper\"><header><h1>Council approves budget</h1></header>\
+         <p class=\"article-topper__excerpt\">The city council approved the new budget on Tuesday after a long debate about \
+         funding for public transport, schools and the renovation of the old central library. Supporters \
+         said the plan would cut commuting times, while critics warned that the cost of the library project \
+         had doubled since it was first proposed three years ago. The budget takes effect in January and \
+         will be reviewed again in the middle of next year, when the council expects updated figures from \
+         the transport authority. Council members will meet residents in every district...</p></article>\
+         <div class=\"columns\"><div class=\"body\">{BODY}<p>Council members will meet residents in every \
+         district before the review, the mayor's office said in a statement on Wednesday morning.</p>\
+         <p>The transport authority has promised to publish monthly ridership numbers so that the council \
+         can check whether the new bus lanes are reducing journey times as the plan assumes.</p>\
+         <p>Opposition members said they would table amendments at the next session, arguing that the \
+         library money should be released in stages tied to the contractor meeting its deadlines.</p>\
+         <p>Business groups welcomed the decision, saying that reliable transport would help shops in the \
+         old town recover from two difficult years of road works and falling numbers of visitors.</p>\
+         <p>The full budget documents, including the breakdown for each district, will be published on the \
+         council website next week together with the minutes of Tuesday's meeting.</p></div>\
+         <aside><a href=\"/x\">Most read</a></aside></div></body></html>"
+    );
+    let out = md(&html);
+    assert!(out.contains("# Council approves budget"), "{out}");
+    assert!(out.contains("will be reviewed again"), "{out}");
+    assert!(out.contains("meet residents in every district"), "{out}");
+    assert!(!out.contains("every district..."), "{out}");
+}
+
+#[test]
+fn story_cards_in_a_side_column_are_not_part_of_the_article() {
+    // 没有 <article>、也没有正文类名的两栏版式：右栏是别的新闻的卡片（标题链接 + 截断的摘要）
+    let card = |i: usize| {
+        format!(
+            "<div class=\"card\"><h5><a href=\"/news/{i}\">Another story number {i} from the city desk</a></h5>\
+             <p>CITY: Officials said on Monday that the plans for the new district were still being \
+             discussed by several committees and residents of the area...</p></div>"
+        )
+    };
+    let cards: String = (0..8).map(card).collect();
+    let html = format!(
+        "<html><head><title>Council approves budget | City News</title>{OG_ARTICLE}</head><body>\
+         <div class=\"wrapper\"><div class=\"left\"><div class=\"banner\"><h2>Council approves budget</h2>\
+         <p>City News<br>28 Oct 2026</p><div class=\"text\">{BODY}</div></div></div>\
+         <div class=\"right\"><h3>International</h3>{cards}</div></div></body></html>"
+    );
+    let out = md(&html);
+    assert!(out.contains("Council approves budget"), "{out}");
+    assert!(out.contains("will be reviewed again"), "{out}");
+    assert!(!out.contains("Another story number"), "{out}");
+    assert!(!out.contains("several committees"), "{out}");
+}
+
+#[test]
+fn a_section_name_in_h1_is_not_taken_for_the_headline() {
+    // 页面唯一的 <h1> 是栏目名，文章标题是 <h2>；正文标了 articleBody，旁边是一长串新闻链接
+    let feed: String = (0..30)
+        .map(|i| {
+            format!(
+                "<li><a href=\"/n/{i}\">Headline of another news item number {i} today</a></li>"
+            )
+        })
+        .collect();
+    let html = format!(
+        "<html><head><title>Council approves budget</title>{OG_ARTICLE}</head><body>\
+         <main><div class=\"container\"><h1>Asia</h1><div class=\"page\"><div class=\"left\">\
+         <h2>Council approves budget</h2><div itemprop=\"articleBody\">{BODY}</div></div>\
+         <div class=\"feed\"><h3>News feed</h3><ul>{feed}</ul></div></div></div></main></body></html>"
+    );
+    let out = md(&html);
+    assert!(out.contains("Council approves budget"), "{out}");
+    assert!(out.contains("will be reviewed again"), "{out}");
+    assert!(!out.contains("another news item"), "{out}");
+    assert!(!out.contains("Asia"), "{out}");
+}

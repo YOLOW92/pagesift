@@ -441,7 +441,13 @@ fn render_article(
     } else {
         ARTICLE_MIN_SHARE
     };
-    if got == 0 || !bound_to_headline && (got as f64) < full as f64 * min_share {
+    // 侧栏新闻卡片的摘要是别的文章，不算这一页的正文（只在可能不够时才数）
+    if got == 0
+        || !bound_to_headline
+            && (got as f64) < full as f64 * min_share
+            && (got as f64)
+                < full.saturating_sub(article::card_chars(body, skipper)) as f64 * min_share
+    {
         return None;
     }
     // 兜底：连默认规则的全部文字（含链接文字，不算评论区）的 10% 都不到，多半是把页面类型
