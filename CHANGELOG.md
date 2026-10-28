@@ -12,6 +12,11 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
   so pages with `scroll-behavior: smooth` no longer wait out the animation (3.0 s → 0.8 s on a
   100-row list).
 
+### Docs
+- `SECURITY.md` listed 0.20.x as the supported line since 0.20; it now lists 0.80.x.
+  `scripts/check_release.py` fails when the table does not name the current release line, so a
+  version bump can no longer leave it behind.
+
 ### Tests
 - Complexity guards (parsers, PDF, content extraction, robots matching, checkpoint recovery)
   measure the CPU time of the calling thread instead of wall time, through the unpublished

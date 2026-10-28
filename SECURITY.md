@@ -9,10 +9,12 @@ pagesift fetches URLs on behalf of its callers, so it is a natural target for se
 
 ## Supported versions
 
+Security fixes go into the latest release line only; upgrade to its newest patch release.
+
 | Version | Supported |
 |---|---|
-| 0.20.x | ✅ |
-| < 0.20 | ❌ |
+| 0.80.x | ✅ |
+| < 0.80 | ❌ |
 
 ## Reporting a vulnerability
 

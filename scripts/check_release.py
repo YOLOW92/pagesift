@@ -44,6 +44,11 @@ def check(tag=None):
         assert (pkg/name).read_bytes() == (ROOT/name).read_bytes(), f'python/pagesift/{name} differs from {name}'
         assert not (ROOT/'crates/pagesift-py'/name).exists(), f'crates/pagesift-py/{name} must not exist (breaks the sdist)'
     assert (ROOT/f'docs/releases/{version}.md').is_file(), 'release notes missing'
+    # SECURITY.md 的支持版本表要跟着发布线走：0.20 起没人改它，0.80.3 时还写着只支持 0.20.x
+    line = '.'.join(version.split('.')[:2])
+    security = (ROOT/'SECURITY.md').read_text()
+    assert f'| {line}.x | ✅ |' in security and f'| < {line} | ❌ |' in security, \
+        f'SECURITY.md supported-versions table must list {line}.x as supported and < {line} as not'
     print(f'Release identity OK: {version}, {len(names)} Rust packages, {len(platforms)} npm platforms, dynamic Python version')
     return metadata
 
