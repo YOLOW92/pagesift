@@ -130,10 +130,12 @@ fn stress_crash_kill_recovery_50000_pages_zero_loss() {
     );
 
     // 模拟重启：反序列化检查点并验证 BLAKE3 完整性
-    let t1 = Instant::now();
-    let recovered_snapshot = RecoveryEngine::load_checkpoint(&ckpt_path).expect("recovery load");
-    let (done, to_crawl) = RecoveryEngine::restore_tasks(recovered_snapshot);
-    let recover_ms = t1.elapsed().as_secs_f64() * 1000.0;
+    // 本线程的 CPU 时间：机器忙时墙钟会翻倍，要验的是恢复本身的工作量
+    let ((done, to_crawl), recover) = pagesift_testkit::cpu_time(|| {
+        let recovered = RecoveryEngine::load_checkpoint(&ckpt_path).expect("recovery load");
+        RecoveryEngine::restore_tasks(recovered)
+    });
+    let recover_ms = recover.as_secs_f64() * 1000.0;
     println!(
         "50,000-page checkpoint verified & restored in {:.2} ms",
         recover_ms

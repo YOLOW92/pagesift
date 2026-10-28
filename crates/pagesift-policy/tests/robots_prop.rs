@@ -48,11 +48,7 @@ fn pathological_wildcards_are_fast() {
     let pattern = format!("user-agent: *\ndisallow: /{}b\n", "*a".repeat(200));
     let r = Robots::parse(&pattern);
     let path = format!("/{}", "a".repeat(5000));
-    let t = std::time::Instant::now();
-    assert!(r.is_allowed("pagesift", &path));
-    assert!(
-        t.elapsed() < std::time::Duration::from_secs(2),
-        "{:?}",
-        t.elapsed()
-    );
+    let (allowed, took) = pagesift_testkit::cpu_time(|| r.is_allowed("pagesift", &path));
+    assert!(allowed);
+    assert!(took < std::time::Duration::from_secs(2), "{took:?}");
 }

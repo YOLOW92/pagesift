@@ -4,11 +4,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use common::{Builder, Page, paragraph};
 use lopdf::{Document, Object, Stream, dictionary};
 use pagesift_pdf::extract;
+use pagesift_testkit::cpu_time;
 
 #[test]
 fn adversarial_form_xobject_recursion_bomb() {
@@ -79,13 +80,11 @@ fn adversarial_form_xobject_recursion_bomb() {
     let mut bytes = Vec::new();
     doc.save_to(&mut bytes).unwrap();
 
-    let t0 = Instant::now();
-    let res = extract(&bytes);
-    let elapsed = t0.elapsed();
+    let (res, elapsed) = cpu_time(|| extract(&bytes));
 
-    // 严防栈溢出：必须在短时间内（< 100ms）正常返回且截断，不能 Panic 崩溃
+    // 严防栈溢出：必须在短时间内（< 100ms CPU）正常返回且截断，不能 Panic 崩溃
     assert!(res.is_ok());
-    assert!(elapsed.as_millis() < 100);
+    assert!(elapsed.as_millis() < 100, "{elapsed:?}");
     let text = res.unwrap().markdown;
     assert!(text.contains("Root Text"));
 }
@@ -100,12 +99,11 @@ fn pathological_micro_rules_storm() {
         content.push_str(&format!("{x} {y} m {} {} l S\n", x + 5.0, y));
     }
     let doc = Builder::new(vec![Page::text(content)]).build();
-    let t0 = Instant::now();
-    let res = extract(&doc);
-    let dt = t0.elapsed();
+    let (res, dt) = cpu_time(|| extract(&doc));
     assert!(res.is_ok());
-    // 规则上限截断保护（MAX_RULES_PER_PAGE），确保在毫秒级内完成，无二次方爆炸
-    assert!(dt.as_millis() < 250);
+    // 规则上限截断保护（MAX_RULES_PER_PAGE），无二次方爆炸：未优化构建本身要 150 ms 左右，
+    // 二次方的话 1.5 万条线段是几十秒
+    assert!(dt < Duration::from_secs(1), "{dt:?}");
 }
 
 #[test]
@@ -208,9 +206,7 @@ fn massive_500_page_continuous_document_stress() {
         doc_bytes.len() as f64 / 1_048_576.0
     );
 
-    let t0 = Instant::now();
-    let res = extract(&doc_bytes);
-    let dt = t0.elapsed();
+    let (res, dt) = cpu_time(|| extract(&doc_bytes));
 
     assert!(res.is_ok());
     let doc = res.unwrap();

@@ -18,7 +18,7 @@ mod tree;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use classify::Class;
 use pagesift_html::{Html, Namespace, ParseOptions};
@@ -81,16 +81,17 @@ fn html5lib_tree_construction() {
                 scripting: case.scripting != Some(false),
                 context,
             };
-            let start = Instant::now();
-            let actual = std::panic::catch_unwind(|| {
-                let doc = Html::parse_with(&case.data, &opts);
-                if context.is_some() {
-                    tree::from_fragment(&doc)
-                } else {
-                    tree::from_html(&doc)
-                }
+            // 量本线程的 CPU 时间：机器忙时墙钟会翻倍，平方级退化才是要抓的
+            let (actual, elapsed) = pagesift_testkit::cpu_time(|| {
+                std::panic::catch_unwind(|| {
+                    let doc = Html::parse_with(&case.data, &opts);
+                    if context.is_some() {
+                        tree::from_fragment(&doc)
+                    } else {
+                        tree::from_html(&doc)
+                    }
+                })
             });
-            let elapsed = start.elapsed();
             if elapsed > Duration::from_millis(500) {
                 slow.push(format!("{id} {elapsed:?}"));
             }

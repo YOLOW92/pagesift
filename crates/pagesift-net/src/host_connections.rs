@@ -1,5 +1,8 @@
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+// 全部用 tokio 的时钟：排队、停放阈值、服务时间是同一条时间线（测试里可以暂停时钟逐步推进）。
+use tokio::time::Instant;
 
 use tokio::sync::Notify;
 
@@ -68,7 +71,7 @@ struct State {
     slow_after_us: u64,
     /// 上一次有请求及时结束（没超过“慢”阈值）的时刻：排队的请求只有在这么久没有任何进展时
     /// 才算“前面都是慢请求”。
-    last_progress: tokio::time::Instant,
+    last_progress: Instant,
     /// 延迟随负载上升（被压垮）：停放名额收紧到热连接目标，免得停放的请求让并发继续升到上限。
     /// 只看延迟相对这个源站自己基线的变化，不看绝对值：一直很慢但和并发无关的源站不收紧。
     slow_limited: bool,
@@ -150,7 +153,7 @@ impl HostConnectionControl {
                 samples: Vec::with_capacity(SAMPLES),
                 next_sample: 0,
                 slow_after_us: 0,
-                last_progress: tokio::time::Instant::now(),
+                last_progress: Instant::now(),
                 slow_limited: false,
             }),
             changed: Notify::new(),
@@ -168,12 +171,12 @@ impl HostConnectionControl {
     /// 慢请求一代一代地释放名额，排在 N 个慢请求后面的快请求要等 N/目标 个阈值。有请求陆续及时
     /// 结束的长队列（源站健康、只是排得长）不会因此放行，并发仍由热连接目标决定。
     pub(crate) async fn acquire_within(self: &Arc<Self>, cap: Duration) -> HostPermit {
-        let queued_at = tokio::time::Instant::now();
+        let queued_at = Instant::now();
         loop {
             let notified = self.changed.notified();
             let impatient_at = {
                 let mut state = self.state.lock().expect("host connection lock poisoned");
-                let now = tokio::time::Instant::now();
+                let now = Instant::now();
                 let slow_after = state.slow_after(cap);
                 let impatient_at = queued_at.max(state.last_progress).checked_add(slow_after);
                 let impatient = impatient_at.is_some_and(|t| now >= t);
@@ -201,7 +204,7 @@ impl HostConnectionControl {
                 impatient_at
             };
             match impatient_at {
-                Some(t) if tokio::time::Instant::now() < t => {
+                Some(t) if Instant::now() < t => {
                     tokio::select! {
                         _ = notified => {}
                         _ = tokio::time::sleep_until(t) => {}
@@ -274,7 +277,7 @@ impl HostConnectionControl {
         // 没超过“慢”阈值就结束的请求才算进展：慢请求结束不能让排队者重新计时，
         // 否则一直很慢的源站上排队的请求迟迟放不进来
         if !slow {
-            state.last_progress = tokio::time::Instant::now();
+            state.last_progress = Instant::now();
         }
         if outcome == HostOutcome::Neutral {
             drop(state);
@@ -375,8 +378,8 @@ impl HostPermit {
     }
 
     /// 过了这个时刻还没结束就算慢请求，该调用 [`HostPermit::park`]。
-    pub(crate) fn slow_at(&self) -> tokio::time::Instant {
-        tokio::time::Instant::from_std(self.started + self.slow_after)
+    pub(crate) fn slow_at(&self) -> Instant {
+        self.started + self.slow_after
     }
 
     /// 请求等首字节或读正文超过“慢”阈值（[`HostPermit::slow_at`]）时调用：让出热连接名额。

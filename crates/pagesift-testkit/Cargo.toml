@@ -1,0 +1,12 @@
+[package]
+description = "Shared helpers for pagesift's own tests (CPU-time budgets for complexity guards). Development only, not published."
+name = "pagesift-testkit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.191"

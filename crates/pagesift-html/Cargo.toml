@@ -9,3 +9,6 @@ rust-version.workspace = true
 
 [dependencies]
 memchr = "2.8.3"
+
+[dev-dependencies]
+pagesift-testkit = { path = "../pagesift-testkit" }

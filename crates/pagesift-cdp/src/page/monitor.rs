@@ -369,15 +369,42 @@ pub(super) async fn scan_full_page(ctx: &PageCtx<'_>, scan: &FullPageScan) -> Re
     Ok(())
 }
 
+/// 每次滚动后先等这次滚动的 `scroll` 事件派发出来，再等页面改完 DOM（静默 50ms，最多 `waitMs`）才收集。
+/// 滚动事件要等浏览器下一次出帧才派发，机器忙时会晚几百毫秒；只按固定时间等的话，会在旧内容上收集，
+/// 接下来的几次滚动又被浏览器合并成一个事件，中间几屏就整屏丢了。滚动用 `instant`，
+/// 页面设了平滑滚动时位置也立即生效；位置没动说明到底了，再静等一轮收集迟到的内容后结束。
 pub(super) const VIRTUAL_JS: &str = r#"(async (sel, count, by, waitMs) => {
   const c = document.querySelector(sel);
   if (!c) return null;
+  const own = c.scrollHeight > c.clientHeight + 1 && getComputedStyle(c).overflowY !== 'visible';
+  const target = own ? c : window;
+  const pos = () => own ? c.scrollTop : scrollY;
+  const watch = { childList: true, subtree: true, characterData: true };
   const quiet = max => new Promise(res => {
     let t = null;
     const done = () => { ob.disconnect(); clearTimeout(cap); clearTimeout(t); res(); };
     const ob = new MutationObserver(() => { clearTimeout(t); t = setTimeout(done, 50); });
-    ob.observe(c, { childList: true, subtree: true, characterData: true });
+    ob.observe(c, watch);
     const cap = setTimeout(done, max);
+  });
+  // 位置已经变了才调用：滚动事件一定会来，兜底上限只防页面卡死。
+  const settle = () => new Promise(res => {
+    let fired = false, changed = false, t = null, cap = null;
+    const done = () => {
+      ob.disconnect(); target.removeEventListener('scroll', onScroll);
+      clearTimeout(t); clearTimeout(cap); res();
+    };
+    const soon = () => { clearTimeout(t); t = setTimeout(done, 50); };
+    const ob = new MutationObserver(() => { if (fired) soon(); else changed = true; });
+    const onScroll = () => {
+      if (fired) return;
+      fired = true;
+      clearTimeout(cap); cap = setTimeout(done, waitMs);
+      if (changed) soon();
+    };
+    ob.observe(c, watch);
+    target.addEventListener('scroll', onScroll, { passive: true });
+    cap = setTimeout(done, Math.max(waitMs, 3000));
   });
   const seen = new Set(), items = [];
   const grab = () => {
@@ -386,16 +413,14 @@ pub(super) const VIRTUAL_JS: &str = r#"(async (sel, count, by, waitMs) => {
       if (!seen.has(k)) { seen.add(k); items.push(ch.outerHTML); }
     }
   };
-  const own = c.scrollHeight > c.clientHeight + 1 && getComputedStyle(c).overflowY !== 'visible';
   grab();
   for (let i = 0; i < count; i++) {
     const step = by === 'container' ? (own ? c.clientHeight : innerHeight) : by === 'page' ? innerHeight : by;
-    const before = own ? c.scrollTop : scrollY;
-    const wait = quiet(waitMs);
-    if (own) c.scrollTop += step; else window.scrollBy(0, step);
-    await wait;
+    const before = pos();
+    (own ? c : window).scrollTo({ top: before + step, behavior: 'instant' });
+    if (pos() === before) { await quiet(waitMs); grab(); break; }
+    await settle();
     grab();
-    if ((own ? c.scrollTop : scrollY) === before) break;
   }
   const key = Math.random().toString(36).slice(2);
   c.setAttribute('data-pagesift-vs', key);

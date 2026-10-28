@@ -178,14 +178,23 @@ async fn egress_is_used_for_http_and_refused_for_browser() {
 #[tokio::test]
 async fn an_engine_that_cannot_launch_is_skipped_after_the_first_failure() {
     let base = site().await;
-    // 假浏览器：像沙箱不可用的 Chrome 一样，报错退出
+    // 假浏览器：像沙箱不可用的 Chrome 一样，报错退出；每次启动记一行，数启动了几次
     let dir = tempfile::tempdir().unwrap();
     let fake = dir.path().join("chrome");
+    let launches = dir.path().join("launches");
     std::fs::write(
         &fake,
-        "#!/bin/sh\necho 'FATAL: No usable sandbox!' >&2\nexit 1\n",
+        format!(
+            "#!/bin/sh\necho x >> '{}'\necho 'FATAL: No usable sandbox!' >&2\nexit 1\n",
+            launches.display()
+        ),
     )
     .unwrap();
+    let launched = || {
+        std::fs::read_to_string(&launches)
+            .map(|s| s.lines().count())
+            .unwrap_or(0)
+    };
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
 
@@ -201,13 +210,10 @@ async fn an_engine_that_cannot_launch_is_skipped_after_the_first_failure() {
 
     let err = s.scrape(&url, &o).await.unwrap_err();
     assert!(err.message.contains("sandbox"), "{err}");
+    // root 下不启动就直接报沙箱错误，这时是 0 次；否则启动过一次
+    let first = launched();
     // 第二次不再去启动它
-    let t = Instant::now();
     let err = s.scrape(&url, &o).await.unwrap_err();
-    assert!(
-        t.elapsed() < Duration::from_millis(200),
-        "{:?}",
-        t.elapsed()
-    );
+    assert_eq!(launched(), first, "the failed engine was launched again");
     assert_eq!(err.code, ErrorCode::UpstreamError, "{err}");
 }

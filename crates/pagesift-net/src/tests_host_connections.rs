@@ -1,8 +1,10 @@
 //! 源站自适应连接控制器的单元测试。
+//!
+//! 时钟是暂停的：只有所有任务都在等时才推进到下一个到期时刻，结果和机器快慢、负载无关。
 
 use super::*;
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn healthy_saturated_host_grows_without_scanning() {
     let control = HostConnectionControl::new(true, 8);
     for _ in 0..8 {
@@ -16,7 +18,7 @@ async fn healthy_saturated_host_grows_without_scanning() {
     assert_eq!(stats.failed, 0);
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn overload_shrinks_only_its_own_host() {
     let slow = HostConnectionControl::new(true, 8);
     let fast = HostConnectionControl::new(true, 8);
@@ -30,7 +32,7 @@ async fn overload_shrinks_only_its_own_host() {
     assert_eq!(fast.stats("fast".into()).hot_target, 2);
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn one_overload_episode_causes_only_one_backoff() {
     let control = HostConnectionControl::new(true, 8);
     while control.stats("host".into()).hot_target < 5 {
@@ -55,7 +57,7 @@ async fn one_overload_episode_causes_only_one_backoff() {
     assert_eq!(control.stats("host".into()).hot_target, 4);
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn cancelled_acquire_is_released_and_counted() {
     let control = HostConnectionControl::new(true, 2);
     let permit = control.acquire().await;
@@ -66,7 +68,7 @@ async fn cancelled_acquire_is_released_and_counted() {
     assert_eq!(stats.failed, 1);
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn parking_frees_a_hot_slot_but_not_the_ceiling() {
     let control = HostConnectionControl::new(true, 3);
     let wait = |c: &Arc<HostConnectionControl>| {
@@ -96,7 +98,7 @@ async fn parking_frees_a_hot_slot_but_not_the_ceiling() {
     assert_eq!((stats.active, stats.parked), (0, 0));
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn impatient_waiters_are_admitted_as_parked_within_the_ceiling() {
     let control = HostConnectionControl::new(true, 4);
     let patience = Duration::from_millis(50);
@@ -121,13 +123,13 @@ async fn impatient_waiters_are_admitted_as_parked_within_the_ceiling() {
     assert_eq!((stats.active, stats.parked), (2, 0));
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn slow_threshold_follows_the_origins_service_time() {
     let control = HostConnectionControl::new(true, 8);
     let cap = Duration::from_secs(2);
     // 样本不够时用上限
     let probe = control.acquire_within(cap).await;
-    assert!(probe.slow_at() >= tokio::time::Instant::now() + Duration::from_millis(1900));
+    assert!(probe.slow_at() >= Instant::now() + Duration::from_millis(1900));
     probe.finish(HostOutcome::Success);
     for _ in 0..MIN_SAMPLES {
         control
@@ -138,7 +140,7 @@ async fn slow_threshold_follows_the_origins_service_time() {
     // 快源站：阈值降到下限
     let a = control.acquire_within(cap).await;
     let b = control.acquire_within(cap).await;
-    assert!(a.slow_at() <= tokio::time::Instant::now() + SLOW_FLOOR);
+    assert!(a.slow_at() <= Instant::now() + SLOW_FLOOR);
     // a、b 一直不结束：排队的请求过一个阈值就以停放身份放行，而不是等满上限
     let t = Instant::now();
     let c = control.acquire_within(cap).await;
@@ -151,7 +153,7 @@ async fn slow_threshold_follows_the_origins_service_time() {
     drop((a, b, c));
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn a_long_queue_on_a_responsive_origin_is_not_admitted_as_parked() {
     // 源站一直有请求结束（只是排得长）：排队再久也不算“前面都是慢请求”，并发仍由热连接目标决定。
     // 每 100 ms 结束一个；上限给 2 s，共享 CI 机器卡顿几百毫秒也不会被误当成停放
@@ -184,7 +186,7 @@ async fn run_window(control: &Arc<HostConnectionControl>, cap: Duration, each: D
     }
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn a_constantly_slow_origin_keeps_its_concurrency() {
     // 一直很慢、但延迟和负载无关：不算过载，目标不收缩，慢请求照常停放
     let control = HostConnectionControl::new(true, 32);
@@ -200,7 +202,7 @@ async fn a_constantly_slow_origin_keeps_its_concurrency() {
     drop((a, b));
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn latency_rising_with_load_is_treated_as_overloaded() {
     // 延迟相对这个源站的基线明显上升：目标减一，停放名额收紧到热连接目标
     let control = HostConnectionControl::new(true, 32);
@@ -223,7 +225,7 @@ async fn latency_rising_with_load_is_treated_as_overloaded() {
     drop((a, b));
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn slow_completions_do_not_reset_the_queue_patience() {
     // 慢请求结束不算进展：一直很慢的源站上，排队的请求照样在一个阈值后以停放身份放行
     let control = HostConnectionControl::new(true, 32);

@@ -3,11 +3,12 @@
 
 mod common;
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use common::{Builder, Page, line, paragraph, save_raw};
 use pagesift_pdf::Options;
 use pagesift_pdf::fuzzing;
+use pagesift_testkit::cpu_time;
 use proptest::prelude::*;
 
 const CONTENT_TOKENS: &[&str] = &[
@@ -196,9 +197,9 @@ proptest! {
             image: false,
         }])
         .build();
-        let start = Instant::now();
-        prop_assert!(fuzzing::extract_unguarded(&pdf, &quick()).is_ok());
-        prop_assert!(start.elapsed() < Duration::from_secs(5));
+        let (r, took) = cpu_time(|| fuzzing::extract_unguarded(&pdf, &quick()));
+        prop_assert!(r.is_ok());
+        prop_assert!(took < Duration::from_secs(5), "{:?}", took);
     }
 
     #[test]
@@ -212,8 +213,7 @@ proptest! {
         if truncate {
             pdf.truncate(cut.index(pdf.len()));
         }
-        let start = Instant::now();
-        let _ = fuzzing::extract_unguarded(&pdf, &quick());
-        prop_assert!(start.elapsed() < Duration::from_secs(5));
+        let (_, took) = cpu_time(|| fuzzing::extract_unguarded(&pdf, &quick()));
+        prop_assert!(took < Duration::from_secs(5), "{:?}", took);
     }
 }

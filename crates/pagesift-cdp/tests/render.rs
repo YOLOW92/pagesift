@@ -120,7 +120,8 @@ fn route(r: &Req) -> Resp {
             ..html_raw("data from api")
         }
         .delayed(200),
-        "/slow.png" => not_found().delayed(2000),
+        // 比下面"不等它"的上限（3 s）慢得多，忙的机器上也分得清等没等
+        "/slow.png" => not_found().delayed(4000),
         // 一直轮询的页面：正文另外由一次接口请求渲染。
         "/poll" => html(
             r#"<div id="c">loading</div>
@@ -470,7 +471,7 @@ async fn network_idle_does_not_wait_for_slow_images() {
     let fast = pool.render(&url, &opts()).await.unwrap();
     assert!(fast.html.contains("data from api"), "{}", fast.html);
     assert!(
-        fast.timings.navigation + fast.timings.wait < Duration::from_millis(1500),
+        fast.timings.navigation + fast.timings.wait < Duration::from_secs(3),
         "{:?}",
         fast.timings
     );
@@ -514,10 +515,11 @@ async fn readiness_ignores_polling_workers_and_abandoned_documents() {
     let (base, _) = serve(route).await;
     let pool = BrowserPool::new(config(), allow_all()).await.unwrap();
     // 轮询永远不停，但同一个地址重复请求不算未完成的加载；正文接口仍然要等到。
+    // 判错时会等满网络空闲的上限（5 s），上限 4 s 给忙的机器留余量。
     let poll = pool.render(&format!("{base}/poll"), &opts()).await.unwrap();
     assert!(poll.html.contains("data from api"), "{}", poll.html);
     assert!(
-        poll.timings.wait < Duration::from_secs(2),
+        poll.timings.wait < Duration::from_secs(4),
         "{:?}",
         poll.timings
     );
@@ -527,7 +529,7 @@ async fn readiness_ignores_polling_workers_and_abandoned_documents() {
         .unwrap();
     assert!(worker.html.contains("page with a worker"));
     assert!(
-        worker.timings.wait < Duration::from_secs(2),
+        worker.timings.wait < Duration::from_secs(4),
         "{:?}",
         worker.timings
     );
@@ -539,6 +541,7 @@ async fn readiness_ignores_polling_workers_and_abandoned_documents() {
         matches!(redirect, Err(Error::Navigation(_))),
         "{redirect:?}"
     );
-    assert!(start.elapsed() < Duration::from_secs(5));
+    // 判错时要等到整体超时（30 s）
+    assert!(start.elapsed() < Duration::from_secs(15));
     shutdown(pool).await;
 }

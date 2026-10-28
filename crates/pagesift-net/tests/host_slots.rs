@@ -145,7 +145,8 @@ async fn slow_threshold_adapts_to_a_warm_origin() {
     .unwrap();
     assert_eq!(r.status, 200);
     assert!(
-        t.elapsed() < Duration::from_millis(1000),
+        // 判错时要等满尾部阈值（2 s）
+        t.elapsed() < Duration::from_millis(1500),
         "{:?}",
         t.elapsed()
     );

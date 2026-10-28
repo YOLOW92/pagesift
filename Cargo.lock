@@ -1476,6 +1476,7 @@ dependencies = [
  "blake3",
  "memchr",
  "pagesift-html",
+ "pagesift-testkit",
  "regex",
  "serde_json",
  "unicode-normalization",
@@ -1524,6 +1525,7 @@ name = "pagesift-html"
 version = "0.80.3"
 dependencies = [
  "memchr",
+ "pagesift-testkit",
 ]
 
 [[package]]
@@ -1566,6 +1568,7 @@ dependencies = [
  "httpdate",
  "hyper",
  "hyper-util",
+ "pagesift-testkit",
  "quick-xml",
  "reqwest",
  "rustls-native-certs",
@@ -1610,6 +1613,7 @@ dependencies = [
  "lopdf",
  "md-5",
  "miniz_oxide",
+ "pagesift-testkit",
  "proptest",
  "sha2",
 ]
@@ -1620,6 +1624,7 @@ version = "0.80.3"
 dependencies = [
  "httpdate",
  "pagesift-net",
+ "pagesift-testkit",
  "proptest",
  "rustix",
  "serde",
@@ -1668,6 +1673,13 @@ dependencies = [
 
 [[package]]
 name = "pagesift-sys"
+version = "0.80.3"
+dependencies = [
+ "libc",
+]
+
+[[package]]
+name = "pagesift-testkit"
 version = "0.80.3"
 dependencies = [
  "libc",

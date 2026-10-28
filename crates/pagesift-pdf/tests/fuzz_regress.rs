@@ -1,6 +1,6 @@
 //! stable 模糊测试（`pagesift-fuzz pdf`，见 scripts/fuzz.sh）找到的用例，最小化后放在这里。
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use pagesift_pdf::{Options, fuzzing};
 
@@ -9,9 +9,8 @@ fn quick(data: &[u8]) -> Duration {
         timeout: Some(Duration::from_secs(10)),
         ..Options::default()
     };
-    let t = Instant::now();
-    let _ = fuzzing::extract_unguarded(data, &opts);
-    t.elapsed()
+    // 本线程的 CPU 时间：机器忙时墙钟会翻倍，要抓的是退化成平方级
+    pagesift_testkit::cpu_time(|| fuzzing::extract_unguarded(data, &opts)).1
 }
 
 /// 修复扫描里每个没有 endstream 的 `stream` 关键字都从当前位置找到文件末尾：

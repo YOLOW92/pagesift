@@ -10,14 +10,12 @@ fn stress_oversized_script_budget_rejection() {
     let huge = "const X = 1;\n".repeat(100_000);
     assert!(huge.len() > 1024 * 1024);
 
-    let t0 = std::time::Instant::now();
-    let scan = scan_script(&huge, &base);
-    let elapsed = t0.elapsed();
+    let (scan, elapsed) = pagesift_testkit::cpu_time(|| scan_script(&huge, &base));
 
     // 超限时应毫秒级直接拒绝，不消耗 CPU
     assert!(scan.budget_exceeded);
     assert!(scan.navigation.is_empty());
-    assert!(elapsed.as_millis() < 50);
+    assert!(elapsed.as_millis() < 50, "{elapsed:?}");
 }
 
 #[test]

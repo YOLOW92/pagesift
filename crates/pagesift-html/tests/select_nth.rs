@@ -80,18 +80,15 @@ fn cached_select_equals_uncached_matches() {
 fn many_siblings_nth_is_linear() {
     let html = format!("<ul>{}</ul>", "<li>".repeat(80_000));
     let doc = Html::parse(&html);
-    let t = std::time::Instant::now();
-    for s in [
-        "ul li:nth-child(2n+1)",
-        "li:nth-last-child(3)",
-        "li:nth-of-type(7n)",
-    ] {
-        let sel = Selector::parse(s).unwrap();
-        assert!(doc.select(&sel).count() > 0);
-    }
-    assert!(
-        t.elapsed() < std::time::Duration::from_secs(1),
-        "{:?}",
-        t.elapsed()
-    );
+    let (_, took) = pagesift_testkit::cpu_time(|| {
+        for s in [
+            "ul li:nth-child(2n+1)",
+            "li:nth-last-child(3)",
+            "li:nth-of-type(7n)",
+        ] {
+            let sel = Selector::parse(s).unwrap();
+            assert!(doc.select(&sel).count() > 0);
+        }
+    });
+    assert!(took < std::time::Duration::from_secs(1), "{took:?}");
 }

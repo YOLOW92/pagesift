@@ -1,11 +1,14 @@
 //! stable 模糊测试（`pagesift-fuzz markdown`，见 scripts/fuzz.sh）找到的用例。
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
+use pagesift_testkit::cpu_time;
+
+/// 返回 Markdown 和本线程用掉的 CPU 时间（机器忙时墙钟会翻倍，要抓的是退化成平方级）。
 fn render(html: &str) -> (String, Duration) {
-    let t = Instant::now();
-    let doc = pagesift_content::process(html, &pagesift_content::Options::default());
-    (doc.markdown, t.elapsed())
+    let (doc, took) =
+        cpu_time(|| pagesift_content::process(html, &pagesift_content::Options::default()));
+    (doc.markdown, took)
 }
 
 /// 文本转义时每个 `[` 都往后找 `]`：大量不配对的 `[`（比如 HTML 里当文本出现的
@@ -81,9 +84,7 @@ fn many_images_in_one_picture() {
         images: true,
         ..Default::default()
     };
-    let t = Instant::now();
-    let doc = pagesift_content::process(&html, &opts);
-    let took = t.elapsed();
+    let (doc, took) = cpu_time(|| pagesift_content::process(&html, &opts));
     assert_eq!(doc.images.map(|i| i.len()), Some(1));
     assert!(took < limit(), "{took:?}");
 }

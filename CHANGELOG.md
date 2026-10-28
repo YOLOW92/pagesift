@@ -2,6 +2,26 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- `pagesift-cdp` virtual scroll (`RenderOptions::virtual_scroll`) lost whole screens of rows
+  when the browser was slow to paint: it collected after a fixed wait, so on a busy machine it
+  read the old rows and the next scrolls merged into one `scroll` event. Each step now waits for
+  its own `scroll` event, then for the DOM to settle (`wait_after_scroll` counts from the event). Steps scroll with `behavior: instant`,
+  so pages with `scroll-behavior: smooth` no longer wait out the animation (3.0 s → 0.8 s on a
+  100-row list).
+
+### Tests
+- Complexity guards (parsers, PDF, content extraction, robots matching, checkpoint recovery)
+  measure the CPU time of the calling thread instead of wall time, through the unpublished
+  `pagesift-testkit` crate; other tests competing for the CPU no longer trip them.
+- The per-origin connection controller keeps all its times on tokio's clock and its tests run on
+  a paused clock, so they are exact rather than timing-dependent.
+- Wall-clock bounds that remain (browser readiness, slow-image, redirect, warm-origin threshold)
+  sit just under the time the bug would take instead of close to the expected time; the
+  failed-engine test counts launches instead of timing the second call.
+
 ## [0.80.3] — 2026-10-28
 
 The focused crawl checked and fixed on 38 real university sites (0.80.2 had only synthetic ones),
