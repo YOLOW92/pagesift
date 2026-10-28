@@ -83,6 +83,13 @@ fn table(out: &mut String, rows: &[Vec<String>]) {
 /// 表格单元格：竖线转义，换行变 `<br>`，空白合一。
 fn cell(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
+    cell_into(&mut out, s);
+    out
+}
+
+/// 表格单元格的文字：行内换行变 `<br>`，空白压成一个空格，`|` 转义。追加到 `out` 末尾。
+fn cell_into(out: &mut String, s: &str) {
+    let start = out.len();
     for (i, line) in s
         .split('\n')
         .map(str::trim)
@@ -98,7 +105,7 @@ fn cell(s: &str) -> String {
                 space = true;
                 continue;
             }
-            if space && !out.is_empty() && !out.ends_with("<br>") {
+            if space && out.len() > start && !out[start..].ends_with("<br>") {
                 out.push(' ');
             }
             space = false;
@@ -108,19 +115,116 @@ fn cell(s: &str) -> String {
             out.push(ch);
         }
     }
-    out
 }
 
 /// 行内文字转义：会被当成 Markdown 记号的字符前面加反斜杠。
 pub(crate) fn escape(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 8);
+    escape_into(&mut out, s);
+    out
+}
+
+/// [`escape`]，追加到 `out` 末尾。
+pub(crate) fn escape_into(out: &mut String, s: &str) {
     for ch in s.chars() {
         if matches!(ch, '\\' | '`' | '*' | '_' | '[' | ']' | '<' | '>') {
             out.push('\\');
         }
         out.push(ch);
     }
-    out
+}
+
+/// 连续存放的表格：各单元格整理好的文字按行顺序写在同一个缓冲区里，另记每格、每行的结束位置。
+/// 几十万格的 CSV 存成 `Vec<Vec<String>>` 时每格单独分配、散在堆上，读写都跳着走
+/// （cachegrind：末级缓存未命中占 CSV 转换估算周期的约 15%，八成出在分配和拷贝上）。
+#[derive(Debug, Default)]
+pub(crate) struct Grid {
+    text: String,
+    cell_ends: Vec<usize>,
+    row_ends: Vec<usize>,
+}
+
+impl Grid {
+    /// 当前行追加一格；`escaped` 是已经 [`escape`] 过的行内文字，这里再按单元格整理。
+    pub(crate) fn push_cell(&mut self, escaped: &str) {
+        cell_into(&mut self.text, escaped);
+        self.cell_ends.push(self.text.len());
+    }
+
+    /// 结束当前行。
+    pub(crate) fn end_row(&mut self) {
+        self.row_ends.push(self.cell_ends.len());
+    }
+
+    pub(crate) fn rows(&self) -> usize {
+        self.row_ends.len()
+    }
+
+    /// 只保留前 `n` 行。
+    pub(crate) fn truncate_rows(&mut self, n: usize) {
+        if n >= self.row_ends.len() {
+            return;
+        }
+        self.row_ends.truncate(n);
+        let cells = self.row_ends.last().copied().unwrap_or(0);
+        self.cell_ends.truncate(cells);
+        self.text
+            .truncate(self.cell_ends.last().copied().unwrap_or(0));
+    }
+
+    /// 第 `r` 行的单元格。
+    fn row(&self, r: usize) -> impl Iterator<Item = &str> {
+        let first = if r == 0 { 0 } else { self.row_ends[r - 1] };
+        let start = if first == 0 {
+            0
+        } else {
+            self.cell_ends[first - 1]
+        };
+        self.cell_ends[first..self.row_ends[r]]
+            .iter()
+            .scan(start, |at, &end| {
+                let s = &self.text[*at..end];
+                *at = end;
+                Some(s)
+            })
+    }
+
+    /// 渲染成 Markdown 表格（和 `render(&[Block::Table(..)])` 输出相同），第一行当表头。
+    pub(crate) fn render(&self) -> String {
+        let rows = self.rows();
+        let cols = (0..rows)
+            .map(|r| {
+                let first = if r == 0 { 0 } else { self.row_ends[r - 1] };
+                self.row_ends[r] - first
+            })
+            .max()
+            .unwrap_or(0)
+            .max(1);
+        // 每格多出 `| ` 和空格，表头下面一行分隔线
+        let mut out = String::with_capacity(self.text.len() + (rows + 1) * (cols * 6 + 2) + 1);
+        for r in 0..rows {
+            out.push('|');
+            let mut n = 0;
+            for c in self.row(r) {
+                out.push(' ');
+                out.push_str(c);
+                out.push_str(" |");
+                n += 1;
+            }
+            for _ in n..cols {
+                out.push_str("  |");
+            }
+            if r == 0 {
+                out.push_str("\n|");
+                out.push_str(&" --- |".repeat(cols));
+            }
+            if r + 1 < rows {
+                out.push('\n');
+            }
+        }
+        out.push('\n');
+        out
+    }
 }
 
 /// 段内每一行（硬换行之后的续行也会被当成新块的开头）都做 [`guard_line_start`]，续行前补 `indent` 个空格。
@@ -225,6 +329,28 @@ mod tests {
             md,
             "## Title\n\n\\# not a heading\n\n3. three\n    - sub\n- first\\\n  \\# second\n\nline\\\n\\- not a list\n\n| a | b\\|c |\n| --- | --- |\n| line1<br>line2 |  |\n"
         );
+    }
+
+    #[test]
+    fn grid_renders_like_a_table_block() {
+        let rows = vec![
+            vec!["a".to_string(), "b|c".into(), "x  y".into()],
+            vec!["line1\nline2".into()],
+            vec![],
+            vec!["".into(), " ".into()],
+        ];
+        let mut g = Grid::default();
+        for row in &rows {
+            for c in row {
+                g.push_cell(c);
+            }
+            g.end_row();
+        }
+        assert_eq!(g.render(), render(&[Block::Table(rows.clone())]));
+        // 只留前两行
+        g.truncate_rows(2);
+        assert_eq!(g.render(), render(&[Block::Table(rows[..2].to_vec())]));
+        assert_eq!(g.rows(), 2);
     }
 
     #[test]

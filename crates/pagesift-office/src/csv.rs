@@ -5,7 +5,7 @@
 //! 合法 UTF-8 按 UTF-8，否则按 Windows-1252；知道字符集（HTTP 头、探测器）的调用方先自己解码，
 //! 再走 [`convert_text`]。分隔符在逗号、分号、制表符、竖线里按前几十行判断。
 
-use crate::md::{Block, escape, render};
+use crate::md::{Grid, escape_into};
 use crate::{Converted, Error, Options, check_deadline};
 
 pub(crate) fn convert(bytes: &[u8], opts: &Options<'_>) -> Result<Converted, Error> {
@@ -18,46 +18,64 @@ pub(crate) fn convert_text(text: &str, opts: &Options<'_>) -> Result<Converted, 
     let mut out = Converted::default();
     let max_cols = opts.limits.max_columns;
     let mut budget = opts.limits.max_cells;
-    let mut rows: Vec<Vec<String>> = Vec::new();
+    // 整张表连续存放（见 `md::Grid`）；一条记录的字段读进同一个复用的缓冲区，不按格分配
+    let mut grid = Grid::default();
+    let mut fields = String::new();
+    let mut ends: Vec<usize> = Vec::new();
+    let mut escaped = String::new();
+    let mut records = Records::new(text, delim);
     let mut wide = false;
     let mut unbilled = 0usize;
-    for (i, mut row) in Records::new(text, delim).enumerate() {
+    // 末尾连续几行全是空字段（文件末尾的空行，不输出）
+    let mut empty_tail = 0usize;
+    let mut i = 0usize;
+    while records.next_fields(&mut fields, &mut ends) {
         if i % 4096 == 4095 {
             check_deadline(opts)?;
         }
+        i += 1;
         // 输出预算（见 `budget` 模块）：一个字段可以有几十 MB
-        unbilled += row.iter().map(String::len).sum::<usize>();
+        unbilled += fields.len();
         if unbilled >= crate::budget::BATCH && !crate::budget::spend(std::mem::take(&mut unbilled))
         {
             break;
         }
-        if row.len() > max_cols {
-            row.truncate(max_cols);
+        let mut n = ends.len();
+        if n > max_cols {
+            n = max_cols;
             wide = true;
         }
-        if row.len() > budget {
+        if n > budget {
             out.warnings.push(format!(
                 "CSV truncated at the cell limit ({} cells)",
                 opts.limits.max_cells
             ));
             break;
         }
-        budget -= row.len();
-        rows.push(row.iter().map(|c| escape(c)).collect());
+        budget -= n;
+        let mut start = 0;
+        let mut empty = true;
+        for &end in &ends[..n] {
+            let field = &fields[start..end];
+            start = end;
+            empty &= field.is_empty();
+            escaped.clear();
+            escape_into(&mut escaped, field);
+            grid.push_cell(&escaped);
+        }
+        grid.end_row();
+        empty_tail = if empty { empty_tail + 1 } else { 0 };
     }
-    // 文件末尾的空行
-    while rows.last().is_some_and(|r| r.iter().all(String::is_empty)) {
-        rows.pop();
-    }
+    grid.truncate_rows(grid.rows() - empty_tail);
     if wide {
         out.warnings
             .push(format!("columns beyond {max_cols} were dropped"));
     }
-    out.parts = rows.len();
-    out.markdown = if rows.is_empty() {
+    out.parts = grid.rows();
+    out.markdown = if grid.rows() == 0 {
         String::new()
     } else {
-        render(&[Block::Table(rows)])
+        grid.render()
     };
     Ok(out)
 }
@@ -91,11 +109,15 @@ fn windows_1252(b: u8) -> char {
 fn sniff(text: &str) -> char {
     let mut best = (',', 0usize, 0usize);
     for d in [',', ';', '\t', '|'] {
-        let counts: Vec<usize> = Records::new(text, d)
-            .take(50)
-            .map(|r| r.len())
-            .filter(|&n| n > 0)
-            .collect();
+        let mut records = Records::new(text, d);
+        let (mut fields, mut ends) = (String::new(), Vec::new());
+        let mut counts: Vec<usize> = Vec::new();
+        for _ in 0..50 {
+            if !records.next_fields(&mut fields, &mut ends) {
+                break;
+            }
+            counts.push(ends.len());
+        }
         if counts.is_empty() {
             continue;
         }
@@ -140,15 +162,16 @@ impl<'a> Records<'a> {
     }
 }
 
-impl Iterator for Records<'_> {
-    type Item = Vec<String>;
-
-    fn next(&mut self) -> Option<Vec<String>> {
+impl Records<'_> {
+    /// 读下一条记录：各字段依次写进 `fields`（先清空），`ends` 记每个字段在其中的结束位置。
+    /// 没有记录了返回 false。
+    fn next_fields(&mut self, fields: &mut String, ends: &mut Vec<usize>) -> bool {
+        fields.clear();
+        ends.clear();
         if self.pos >= self.s.len() {
-            return None;
+            return false;
         }
-        let mut row = Vec::new();
-        let mut field = String::new();
+        let field = fields;
         let mut chars = self.s[self.pos..].char_indices().peekable();
         let mut quoted = false;
         let mut at_start = true;
@@ -173,7 +196,7 @@ impl Iterator for Records<'_> {
                     at_start = false;
                 }
                 c if c == self.delim => {
-                    row.push(std::mem::take(&mut field));
+                    ends.push(field.len());
                     at_start = true;
                 }
                 '\r' | '\n' => {
@@ -190,9 +213,9 @@ impl Iterator for Records<'_> {
                 }
             }
         }
-        row.push(field);
+        ends.push(field.len());
         self.pos += consumed;
-        Some(row)
+        true
     }
 }
 
