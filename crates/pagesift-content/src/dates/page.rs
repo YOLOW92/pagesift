@@ -102,6 +102,27 @@ pub(super) struct Numeric<'t> {
     pub(super) simple: Vec<&'t str>,
 }
 
+/// 从 `i` 起第一个 ASCII 数字的位置（没有时是 `b.len()`）。页面文字绝大部分不是数字：
+/// 一次看 8 个字节（SWAR），字节 x 是数字当且仅当 x ^ b'0' < 10；整块都不是数字就跳过。
+fn next_digit(b: &[u8], mut i: usize) -> usize {
+    const ONES: u64 = 0x0101_0101_0101_0101;
+    const HIGH: u64 = 0x8080_8080_8080_8080;
+    while i + 8 <= b.len() {
+        let mut word = [0u8; 8];
+        word.copy_from_slice(&b[i..i + 8]);
+        let x = u64::from_le_bytes(word) ^ (ONES * u64::from(b'0'));
+        // 有没有字节小于 10（bit twiddling hacks 的 hasless）
+        if x.wrapping_sub(ONES * 10) & !x & HIGH != 0 {
+            break;
+        }
+        i += 8;
+    }
+    while i < b.len() && !b[i].is_ascii_digit() {
+        i += 1;
+    }
+    i
+}
+
 pub(super) fn scan_numeric(text: &str) -> Numeric<'_> {
     let b = text.as_bytes();
     let n = b.len();
@@ -128,7 +149,11 @@ pub(super) fn scan_numeric(text: &str) -> Numeric<'_> {
     let mut last = [0usize; 8];
     let mut s = 1;
     while s < n {
-        if !b[s].is_ascii_digit() || b[s - 1].is_ascii_digit() {
+        if !b[s].is_ascii_digit() {
+            s = next_digit(b, s + 1);
+            continue;
+        }
+        if b[s - 1].is_ascii_digit() {
             s += 1;
             continue;
         }
@@ -300,7 +325,11 @@ pub(super) fn parse_long_scan(text: &str) -> Option<Date> {
     };
     let mut s = 0;
     while s + 4 <= b.len() {
-        if !(b[s].is_ascii_digit() && (s == 0 || !b[s - 1].is_ascii_digit())) {
+        if !b[s].is_ascii_digit() {
+            s = next_digit(b, s + 1);
+            continue;
+        }
+        if s > 0 && b[s - 1].is_ascii_digit() {
             s += 1;
             continue;
         }
@@ -519,4 +548,38 @@ pub(super) fn search_page(text: &str, b: &Bounds) -> Option<Date> {
     let occ = count(&num.simple, leading_year, b);
     let s = select_candidate(&occ, leading_year, b)?;
     after_copyright(Date::ymd(s.parse().ok()?, 1, 1), copyear, b)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn next_digit_matches_a_byte_scan() {
+        // 边界字节：'/'（0x2f）和 ':'（0x3a）紧挨着数字；0x00、0xff 和高位置位的 '9'
+        const BYTES: [u8; 9] = [b'a', b'0', b'9', b'/', b':', 0x00, 0xff, 0x39 ^ 0x80, b'5'];
+        let mut seed = 0x9e37_79b9_7f4a_7c15u64;
+        let mut next = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        for _ in 0..20_000 {
+            let len = (next() % 40) as usize;
+            let digits = next() % 4 == 0;
+            let b: Vec<u8> = (0..len)
+                .map(|_| {
+                    let k = next() % BYTES.len() as u64;
+                    if !digits && matches!(BYTES[k as usize], b'0'..=b'9') {
+                        b'x'
+                    } else {
+                        BYTES[k as usize]
+                    }
+                })
+                .collect();
+            for from in 0..=b.len() {
+                let want = (from..b.len()).find(|&i| b[i].is_ascii_digit()).unwrap_or(b.len());
+                assert_eq!(super::next_digit(&b, from), want, "{b:?} {from}");
+            }
+        }
+    }
 }

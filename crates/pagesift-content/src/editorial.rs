@@ -17,12 +17,13 @@ fn tokens(node: &NodeR<'_>, wanted: &[&str]) -> bool {
 /// Exceptions are scoped to a compact attachment inside an article. Negative
 /// ancestors still win, and the renderer still applies hard visibility rules.
 pub(crate) fn attachment(node: &NodeR<'_>) -> bool {
-    let chain: Vec<_> = std::iter::once(*node)
-        .chain(node.ancestors())
-        .take(10)
-        .collect();
-    if !chain.iter().any(|n| n.tag() == Some(Tag::Article))
-        || chain.iter().any(|n| {
+    let up = || std::iter::once(*node).chain(node.ancestors()).take(10);
+    // 每个元素都要查，绝大多数不在 <article> 里：先不分配地看一眼
+    if !up().any(|n| n.tag() == Some(Tag::Article)) {
+        return false;
+    }
+    let chain: Vec<_> = up().collect();
+    if chain.iter().any(|n| {
             tokens(
                 n,
                 &[
@@ -87,6 +88,7 @@ pub(crate) fn unmarked_root<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option<
         .descendants()
         .find(|n| n.tag() == Some(Tag::Title))?
         .text();
+    let signature = crate::article::TitleSignature::new(&title);
     let mut found = None;
     for heading in dom
         .body()
@@ -96,7 +98,7 @@ pub(crate) fn unmarked_root<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option<
         let (chars, linked, _) = skipper.stats(&heading);
         if !(12..=180).contains(&chars)
             || linked != 0
-            || !crate::article::title_agrees(&title, &heading.text())
+            || !crate::article::title_agrees_with(&signature, &heading.text())
             || heading.ancestors().any(|a| skipper.skip(&a))
         {
             continue;
