@@ -8,3 +8,10 @@ edition = "2024"
 license = "AGPL-3.0-only"
 repository = "https://github.com/YOLOW92/pagesift"
 rust-version = "1.89"
+
+# 发布版：整个程序一起优化（跨 crate 内联），不切块编译。cachegrind 估算周期（scripts/perf_counts.sh）：
+# HTML 正文抽取 −13.6%、PDF −4.7%、CSV +0.9%（thin LTO 分别 −10.9%、−4.9%、+1.0%）。只影响 release
+# 构建的时间；panic 仍然 unwind（PDF、Office、MCP 用 catch_unwind 兜住解析器的意外 panic）。
+[profile.release]
+lto = "fat"
+codegen-units = 1
