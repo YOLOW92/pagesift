@@ -45,27 +45,44 @@ pub(crate) fn builtin(id: u32) -> Option<&'static str> {
     })
 }
 
+/// 编译好的格式代码：各段分好词。一张表只有几种格式，按格式缓存（[`super::Book`]），
+/// 不必每个单元格重新切段、分词。
+pub(crate) struct Compiled {
+    sections: Vec<Vec<Tok>>,
+}
+
+pub(crate) fn compile(code: &str) -> Compiled {
+    Compiled {
+        sections: split_sections(code).into_iter().map(tokenize).collect(),
+    }
+}
+
 /// 按格式代码渲染数值。
+#[cfg(test)]
 pub(crate) fn format(v: f64, code: &str, date1904: bool) -> String {
+    format_compiled(v, &compile(code), date1904)
+}
+
+/// 按编译好的格式代码渲染数值。
+pub(crate) fn format_compiled(v: f64, code: &Compiled, date1904: bool) -> String {
     if !v.is_finite() {
         return general(v);
     }
-    let sections = split_sections(code);
-    let (section, abs) = match sections.len() {
+    let sections = &code.sections;
+    let (toks, abs) = match sections.len() {
         0 => return general(v),
-        1 => (sections[0], false),
-        2 => (if v < 0.0 { sections[1] } else { sections[0] }, v < 0.0),
+        1 => (&sections[0], false),
+        2 => (if v < 0.0 { &sections[1] } else { &sections[0] }, v < 0.0),
         _ => {
             if v < 0.0 {
-                (sections[1], true)
+                (&sections[1], true)
             } else if v == 0.0 {
-                (sections[2], false)
+                (&sections[2], false)
             } else {
-                (sections[0], false)
+                (&sections[0], false)
             }
         }
     };
-    let toks = tokenize(section);
     if toks.iter().all(|t| matches!(t, Tok::Lit(_) | Tok::General))
         && !toks.iter().any(|t| matches!(t, Tok::General))
         && !toks.is_empty()
@@ -78,7 +95,7 @@ pub(crate) fn format(v: f64, code: &str, date1904: bool) -> String {
     }
     let value = if abs { v.abs() } else { v };
     if toks.iter().any(|t| matches!(t, Tok::Date(_))) {
-        return super::datefmt::date(value, &toks, date1904);
+        return super::datefmt::date(value, toks, date1904);
     }
     // 文本格式 @ 用在数值上时，数值按常规格式显示
     let no_digits = !toks.iter().any(|t| matches!(t, Tok::Digit(_)));
@@ -87,7 +104,7 @@ pub(crate) fn format(v: f64, code: &str, date1904: bool) -> String {
         || (no_digits && toks.contains(&Tok::Text))
     {
         let mut out = String::new();
-        for t in &toks {
+        for t in toks {
             match t {
                 Tok::General | Tok::Text => out.push_str(&general(value)),
                 Tok::Lit(s) => out.push_str(s),
@@ -96,7 +113,7 @@ pub(crate) fn format(v: f64, code: &str, date1904: bool) -> String {
         }
         return if out.is_empty() { general(value) } else { out };
     }
-    number(value, &toks)
+    number(value, toks)
 }
 
 /// “常规”格式：整数照写；小数最多 15 位有效数字（去掉末尾的 0）；很大或很小时用科学计数。

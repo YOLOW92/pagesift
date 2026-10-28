@@ -27,30 +27,57 @@ pub(crate) struct Attrs<'a>(&'a str);
 impl<'a> Attrs<'a> {
     /// 按本地名（去掉命名空间前缀）取属性值。
     pub(crate) fn get(&self, local: &str) -> Option<Cow<'a, str>> {
-        self.iter()
+        // 名字对上了才反转义：一个单元格要取三四个属性，以前每次都把途经的值全反转义一遍
+        self.raw()
             .find(|(k, _)| local_name(k) == local)
-            .map(|(_, v)| v)
+            .map(|(_, v)| unescape(v))
     }
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = (&'a str, Cow<'a, str>)> {
+        self.raw().map(|(k, v)| (k, unescape(v)))
+    }
+
+    /// (名字, 没反转义的值)。`=` 和引号是 ASCII，按字节找，不会落在多字节字符中间。属性串只有
+    /// 十几个字节：普通的字节循环比 memchr（SIMD，启动有固定开销）快。
+    fn raw(&self) -> impl Iterator<Item = (&'a str, &'a str)> {
         let mut s = self.0;
         std::iter::from_fn(move || {
-            s = s.trim_start();
-            let eq = s.find('=')?;
+            s = trim_start(s);
+            let eq = s.bytes().position(|c| c == b'=')?;
             let key = s[..eq].trim();
-            let rest = s[eq + 1..].trim_start();
-            let quote = rest.chars().next().filter(|c| *c == '"' || *c == '\'')?;
-            let end = rest[1..].find(quote)? + 1;
-            let value = unescape(&rest[1..end]);
+            let rest = trim_start(&s[eq + 1..]);
+            let quote = *rest
+                .as_bytes()
+                .first()
+                .filter(|c| matches!(c, b'"' | b'\''))?;
+            let end = rest.as_bytes()[1..].iter().position(|&c| c == quote)? + 1;
+            let value = &rest[1..end];
             s = &rest[end + 1..];
             Some((key, value))
         })
     }
 }
 
+/// [`str::trim_start`]：先按字节跳过 ASCII 空白，遇到非 ASCII 字节才交给标准库（Unicode 空白）。
+fn trim_start(s: &str) -> &str {
+    let n = s
+        .bytes()
+        .take_while(|b| matches!(b, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c))
+        .count();
+    let s = &s[n..];
+    if s.as_bytes().first().is_some_and(|&b| b >= 0x80) {
+        s.trim_start()
+    } else {
+        s
+    }
+}
+
 /// `w:p` → `p`。
 pub(crate) fn local_name(name: &str) -> &str {
-    name.rsplit_once(':').map_or(name, |(_, l)| l)
+    match name.bytes().rposition(|b| b == b':') {
+        Some(i) => &name[i + 1..],
+        None => name,
+    }
 }
 
 pub(crate) struct Reader<'a> {
@@ -146,7 +173,8 @@ impl<'a> Reader<'a> {
                 None => (inner, false),
             };
             let split = inner
-                .find(|c: char| c.is_ascii_whitespace())
+                .bytes()
+                .position(|c| c.is_ascii_whitespace())
                 .unwrap_or(inner.len());
             let name = &inner[..split];
             if name.is_empty() {
@@ -299,6 +327,28 @@ fn utf16(b: &[u8], f: fn([u8; 2]) -> u16) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn fast_trim_start_matches_the_standard_one() {
+        const ATOMS: &[&str] = &[
+            " ", "\t", "\n", "\r", "\u{0b}", "\u{0c}", "\u{85}", "\u{a0}", "\u{3000}", "\u{2028}",
+            "a", "é", "=", "\"",
+        ];
+        let mut seed = 0x2545_f491_4f6c_dd1du64;
+        for _ in 0..20_000 {
+            let mut s = String::new();
+            for _ in 0..8 {
+                seed ^= seed << 13;
+                seed ^= seed >> 7;
+                seed ^= seed << 17;
+                s.push_str(ATOMS[(seed % ATOMS.len() as u64) as usize]);
+            }
+            assert_eq!(super::trim_start(&s), s.trim_start(), "{s:?}");
+        }
+        assert_eq!(super::local_name("w:p"), "p");
+        assert_eq!(super::local_name("p"), "p");
+        assert_eq!(super::local_name("a:b:c"), "c");
+    }
+
     use super::*;
 
     fn all(s: &str) -> Vec<Tok<'_>> {

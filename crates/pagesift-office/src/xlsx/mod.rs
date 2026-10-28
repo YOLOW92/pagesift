@@ -24,6 +24,8 @@ pub(crate) struct Book {
     /// styles.xml 里的自定义格式：格式 id → 格式代码。
     custom: HashMap<u32, String>,
     date1904: bool,
+    /// 编译好的格式代码，按代码缓存：一张表只有几种格式，几十万个单元格不必每格重新解析。
+    compiled: std::cell::RefCell<HashMap<String, std::rc::Rc<numfmt::Compiled>>>,
 }
 
 impl Book {
@@ -34,11 +36,23 @@ impl Book {
             return raw.to_string();
         };
         let own = self.formats.get(style).map_or("General", String::as_str);
+        let pivot_code;
         let code = match pivot {
-            Some(id) if own.eq_ignore_ascii_case("general") => code_of(&self.custom, id),
-            _ => own.to_string(),
+            Some(id) if own.eq_ignore_ascii_case("general") => {
+                pivot_code = code_of(&self.custom, id);
+                pivot_code.as_str()
+            }
+            _ => own,
         };
-        numfmt::format(v, &code, self.date1904)
+        let cached = self.compiled.borrow().get(code).cloned();
+        let compiled = cached.unwrap_or_else(|| {
+            let c = std::rc::Rc::new(numfmt::compile(code));
+            self.compiled
+                .borrow_mut()
+                .insert(code.to_string(), c.clone());
+            c
+        });
+        numfmt::format_compiled(v, &compiled, self.date1904)
     }
 }
 
@@ -78,6 +92,7 @@ pub(crate) fn convert(zip: &Zip<'_>, opts: &Options<'_>) -> Result<Converted, Er
         formats,
         custom,
         date1904,
+        compiled: Default::default(),
     };
 
     let mut out = Converted::default();
