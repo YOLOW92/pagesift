@@ -391,8 +391,10 @@ fn render_article(
     }
     // 两个候选和参照都只数段落文字（按严格规则遍历计数，不拼 Markdown），最后只渲染选中的那个
     let outside_template = |r: &article::Root<'_>| !r.nodes.iter().any(dom::in_template);
-    let container = article::container_root(dom, skipper).filter(outside_template);
-    let scored = article::scored_root(dom, skipper).filter(outside_template);
+    // 页面标题只找一次：两种主体都按它补标题、收窄
+    let headline = article::page_headline(dom, skipper);
+    let container = article::container_root(dom, skipper, headline).filter(outside_template);
+    let scored = article::scored_root(dom, skipper, headline).filter(outside_template);
     let measure = |skipper: &mut extract::Skipper, root: &Option<article::Root<'_>>| {
         root.as_ref().map(|r| {
             let chars = r.nodes.iter().map(|n| skipper.content_chars(n)).sum();

@@ -188,12 +188,17 @@ pub(crate) struct Root<'a> {
 }
 
 /// 容器规律找到的主体（[`find_root`]），带上标题区。
-pub(crate) fn container_root<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option<Root<'a>> {
-    let (root, teaser) = find_root(dom, skipper)?;
+/// `headline` 是页面标题（[`page_headline`]），每页只找一次。
+pub(crate) fn container_root<'a>(
+    dom: &'a Html<'a>,
+    skipper: &Skipper,
+    headline: Option<NodeR<'a>>,
+) -> Option<Root<'a>> {
+    let (root, teaser) = find_root(dom, skipper, headline)?;
     // 标题所在的 <article> 只是导语时，正文在它外面：标题从导语那里拿
     let (root, headline) = match teaser {
         Some(t) => (root, headline_text(&t)),
-        None => with_headline(dom, root, skipper),
+        None => with_headline(dom, root, skipper, headline),
     };
     Some(Root {
         nodes: vec![root],
@@ -213,11 +218,15 @@ fn headline_text(teaser: &NodeR<'_>) -> Option<String> {
 
 /// Readability 打分找到的主体：正文外面的 `<h1>` 离得近时扩到同时包含标题和正文的最小容器
 /// （导语、署名、日期一般在这里），离得远时把标题单独放在前面。
-pub(crate) fn scored_root<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option<Root<'a>> {
+pub(crate) fn scored_root<'a>(
+    dom: &'a Html<'a>,
+    skipper: &Skipper,
+    headline: Option<NodeR<'a>>,
+) -> Option<Root<'a>> {
     let mut nodes = crate::readability::content_nodes(dom, skipper)?;
     // 打分也可能落在两栏的公共容器上：和容器规律一样按标题收窄
     if let [only] = nodes.as_mut_slice() {
-        *only = narrow_to_headline(dom, *only, skipper);
+        *only = narrow_to_headline(*only, headline, skipper);
     }
     let first = *nodes.first()?;
     if nodes
@@ -229,10 +238,10 @@ pub(crate) fn scored_root<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option<Ro
             headline: None,
         });
     }
-    match with_headline(dom, first, skipper) {
+    match with_headline(dom, first, skipper, headline) {
         // 扩到标题和正文的公共容器时，这个容器也可能连着侧栏（打分选中的本来就是侧栏的卡片列表）
         (region, None) if region.id() != first.id() => Some(Root {
-            nodes: vec![narrow_to_headline(dom, region, skipper)],
+            nodes: vec![narrow_to_headline(region, headline, skipper)],
             headline: None,
         }),
         (_, headline) => Some(Root { nodes, headline }),
@@ -289,6 +298,7 @@ fn with_headline<'a>(
     dom: &'a Html<'a>,
     root: NodeR<'a>,
     skipper: &Skipper,
+    page_title: Option<NodeR<'a>>,
 ) -> (NodeR<'a>, Option<String>) {
     let inside = root.descendants().any(|d| d.tag() == Some(Tag::H1));
     if inside {
@@ -302,10 +312,8 @@ fn with_headline<'a>(
     let headline_scope = scope.unwrap_or_else(|| dom.root());
     // 不在 <article> 里时先找和文档标题一致的那个：页面唯一的 <h1> 常常是栏目名（"Asiya"、
     // "News"），文章标题是 <h2>；拿栏目名当标题会把范围扩到栏目和正文的公共容器，连侧栏一起
-    let agreeing = scope
-        .is_none()
-        .then(|| page_headline(dom, dom.root(), skipper))
-        .flatten()
+    let agreeing = page_title
+        .filter(|_| scope.is_none())
         .filter(|h| !h.ancestors().any(|a| a.tag() == Some(Tag::Article)));
     let Some(h1) = agreeing
         .or_else(|| {
@@ -530,7 +538,11 @@ pub(crate) fn headline_owner<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option
 /// 找文章主体。信号从强到弱：`itemprop="articleBody"`、文字最多的 `<article>`、常见的正文类名；
 /// 都没有时从 `<main>`（或 body）往下，收窄到装着大部分文字的最小容器。
 /// 标题所在的 `<article>` 只是导语时（见 [`teaser_body`]），返回正文块和那个导语。
-fn find_root<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option<(NodeR<'a>, Option<NodeR<'a>>)> {
+fn find_root<'a>(
+    dom: &'a Html<'a>,
+    skipper: &Skipper,
+    headline: Option<NodeR<'a>>,
+) -> Option<(NodeR<'a>, Option<NodeR<'a>>)> {
     if let Some(owner) = headline_owner(dom, skipper) {
         return Some(match teaser_body(dom, owner, skipper) {
             Some(body) => (body, Some(owner)),
@@ -595,14 +607,17 @@ fn find_root<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option<(NodeR<'a>, Opt
         {
             return Some(match slot {
                 ITEMPROP => (n, None),
-                ARTICLE => (narrow_to_headline(dom, descend(n, skipper), skipper), None),
-                _ => (narrow_to_headline(dom, n, skipper), None),
+                ARTICLE => (
+                    narrow_to_headline(descend(n, skipper), headline, skipper),
+                    None,
+                ),
+                _ => (narrow_to_headline(n, headline, skipper), None),
             });
         }
     }
     let root = descend(main.unwrap_or_else(|| dom.body()), skipper);
     (skipper.content_chars(&root) >= MIN_ROOT_CHARS)
-        .then(|| (narrow_to_headline(dom, root, skipper), None))
+        .then(|| (narrow_to_headline(root, headline, skipper), None))
 }
 
 /// 按标题收窄时，标题所在的容器至少要装着主体这个比例的正文。
@@ -617,8 +632,12 @@ const CARD_DEPTH: usize = 3;
 /// （正文一栏、新闻列表一栏）常常停在两栏的公共容器上；标题所在的那一栏才是文章。
 /// 正文按非链接文字算，但不算卡片摘要（[`card_summaries`]）：侧栏新闻卡片的摘要是非链接文字，
 /// 却是别的文章。
-fn narrow_to_headline<'a>(dom: &'a Html<'a>, root: NodeR<'a>, skipper: &Skipper) -> NodeR<'a> {
-    let Some(headline) = page_headline(dom, root, skipper) else {
+fn narrow_to_headline<'a>(
+    root: NodeR<'a>,
+    headline: Option<NodeR<'a>>,
+    skipper: &Skipper,
+) -> NodeR<'a> {
+    let Some(headline) = headline.filter(|h| h.ancestors().any(|a| a == root)) else {
         return root;
     };
     let cards = card_summaries(root, skipper);
@@ -648,8 +667,8 @@ fn narrow_to_headline<'a>(dom: &'a Html<'a>, root: NodeR<'a>, skipper: &Skipper)
 /// "Side Effects" 也"和标题一致"，但它不是文章标题。
 const HEADLINE_MIN_TITLE_SHARE: f64 = 0.4;
 
-/// `root` 里和文档标题一致、长度够的第一个可见 `<h1>` 或 `<h2>`。
-fn page_headline<'a>(dom: &'a Html<'a>, root: NodeR<'a>, skipper: &Skipper) -> Option<NodeR<'a>> {
+/// 页面标题：和文档标题一致、长度够的第一个可见 `<h1>` 或 `<h2>`。
+pub(crate) fn page_headline<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option<NodeR<'a>> {
     let title = dom
         .root()
         .descendants()
@@ -659,17 +678,14 @@ fn page_headline<'a>(dom: &'a Html<'a>, root: NodeR<'a>, skipper: &Skipper) -> O
     let len = |s: &str| s.chars().filter(|c| c.is_alphanumeric()).count();
     let min_len = (len(&title) as f64 * HEADLINE_MIN_TITLE_SHARE).ceil() as usize;
     let signature = TitleSignature::new(&title);
-    root.descendants().find(|n| {
+    dom.root().descendants().find(|n| {
         matches!(n.tag(), Some(Tag::H1 | Tag::H2))
             && !skipper.skip(n)
             && {
                 let text = n.text();
                 len(&text) >= min_len && title_agrees_with(&signature, &text)
             }
-            && !n
-                .ancestors()
-                .take_while(|a| *a != root)
-                .any(|a| skipper.skip(&a))
+            && !n.ancestors().any(|a| skipper.skip(&a))
     })
 }
 
@@ -688,9 +704,14 @@ fn card_summaries<'a>(root: NodeR<'a>, skipper: &Skipper) -> Vec<(NodeR<'a>, usi
             if chars == 0 || chars > CARD_SUMMARY_MAX_CHARS {
                 return None;
             }
-            let text = p.text();
-            let text = text.trim_end();
-            if !(text.ends_with("...") || text.ends_with('…')) {
+            // 只看最后一段非空文字的结尾，不拼整段文字
+            let last = p
+                .descendants()
+                .filter_map(|d| d.as_text())
+                .map(str::trim_end)
+                .filter(|t| !t.is_empty())
+                .last()?;
+            if !(last.ends_with("...") || last.ends_with('…')) {
                 return None;
             }
             let linked = p.ancestors().take(CARD_DEPTH).any(|a| {
