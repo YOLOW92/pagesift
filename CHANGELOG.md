@@ -25,6 +25,15 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
   rewritten and skipped. On a 62-university run, same-path duplicates fell from 38 to 7.
 
 ### Fixed
+- PDF: text in annotation appearances is extracted, as viewers show it: filled-in form fields,
+  FreeText notes, stamps, signature blocks. Fields without an appearance stream
+  (`/NeedAppearances`) contribute their value. Only the text is taken (field borders are not
+  table rules); hidden annotations, links, popups and push buttons are skipped. On the pdf.js
+  test files of the mixed benchmark, completion goes from 0.56 to 0.61.
+- PDF: Type3 fonts whose `FontMatrix` is not the usual 1/1000 (for example `[1 0 0 -1]` with a
+  `0.12 Tf`) were sized at a fraction of a point and dropped as invisible; the size is now
+  corrected from the glyph widths when it is off by more than 4×. Made-up glyph names in a
+  Type3 font's `/Differences` (`/BT`, `/a12`) fall back to the base encoding for that code.
 - Browser engines are also looked for outside `PATH`: `~/.local/bin`, `~/bin`, `/usr/local/bin`,
   `/usr/bin` and `/opt/homebrew/bin` (`sudo`, systemd and cron often start pagesift with a
   stripped `PATH`), Lightpanda's release file names (`lightpanda-x86_64-linux` …), and the newest

@@ -173,19 +173,24 @@ impl Font {
         } else {
             None
         };
-        if subtype == b"Type3" {
-            let m = get(doc, dict, b"FontMatrix")
-                .map(|o| num_array(doc, o))
-                .unwrap_or_default();
-            if m.len() == 6 {
-                font.scale = sane(m[0], 0.001);
-            }
+        let type3_matrix = (subtype == b"Type3")
+            .then(|| {
+                get(doc, dict, b"FontMatrix")
+                    .map(|o| num_array(doc, o))
+                    .unwrap_or_default()
+            })
+            .filter(|m| m.len() == 6);
+        if let Some(m) = &type3_matrix {
+            font.scale = sane(m[0], 0.001);
         }
         font.first_char = get_num(doc, dict, b"FirstChar").unwrap_or(0.0).max(0.0) as u32;
         font.widths = get(doc, dict, b"Widths")
             .map(|o| num_array(doc, o))
             .unwrap_or_default();
         font.widths.truncate(256);
+        if let Some(m) = &type3_matrix {
+            font.size_factor = type3_size_factor(m[3], &font.widths);
+        }
         font.missing_width = descriptor
             .and_then(|d| get_num(doc, d, b"MissingWidth"))
             .unwrap_or(0.0);
@@ -238,7 +243,13 @@ impl Font {
                     Object::Integer(i) => code = (*i).clamp(0, 256) as usize,
                     Object::Name(n) => {
                         if code < 256 {
-                            font.simple_map[code] = glyph_to_unicode(n);
+                            // Type3 的字形名是字形过程的名字，常是自造的（/BT、/a12）；认不出的按基础
+                            // 编码取这个码的字（码和字母一一对应是 Type3 的通常写法，poppler、pdf.js 同样）
+                            font.simple_map[code] = glyph_to_unicode(n).or_else(|| {
+                                (subtype == b"Type3")
+                                    .then(|| base_char(base, code as u8).map(String::from))
+                                    .flatten()
+                            });
                         }
                         code += 1;
                     }
@@ -452,6 +463,28 @@ fn parse_w(doc: &Document, w: &[Object], comp: &mut Composite) {
         }
     }
     comp.width_ranges.sort_by_key(|r| r.0);
+}
+
+/// Type3 字体的字号校正：字号 = Tf × 文本矩阵的缩放 × 它。字形空间是任意的，一个 em 在字形
+/// 空间里多大要估：按非零字宽的中位数的两倍（字宽平均约半个 em）。FontMatrix 纵向缩放乘上它
+/// 就是一个 em 在文本空间里的大小，常见的（TeX 的位图字体等）接近 1，不校正；差到 4 倍以外
+/// （`[1 0 0 -1]` 配 `0.12 Tf` 这种）才用它，否则字号算成零点几、被当成看不见的字丢掉。
+fn type3_size_factor(matrix_d: f64, widths: &[f64]) -> f64 {
+    let mut w: Vec<f64> = widths
+        .iter()
+        .copied()
+        .filter(|w| w.is_finite() && *w > 0.0)
+        .collect();
+    if w.is_empty() {
+        return 1.0;
+    }
+    w.sort_by(f64::total_cmp);
+    let em = w[w.len() / 2] * 2.0 * matrix_d.abs();
+    if em.is_finite() && !(0.25..=4.0).contains(&em) && em > 0.0 {
+        em
+    } else {
+        1.0
+    }
 }
 
 fn sane(v: f64, default: f64) -> f64 {

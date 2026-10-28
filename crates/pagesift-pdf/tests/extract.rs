@@ -628,3 +628,104 @@ fn pages_whose_content_stream_was_cut_away_are_named() {
         doc.warnings
     );
 }
+
+/// 表单域、文本框注释的字在注释的外观流里（不在页面内容里）：照阅读器那样画进来。
+/// 没有外观的文本域（/NeedAppearances）取它的值；隐藏的注释和按钮不收。
+#[test]
+fn annotation_appearances_and_field_values_are_text() {
+    let content = line("F1", 14.0, 72.0, 720.0, "Application form");
+    let mut doc = Builder::new(vec![Page::text(content)]).document();
+    let helv = doc.add_object(dictionary! {
+        "Type" => "Font", "Subtype" => "Type1",
+        "BaseFont" => "Helvetica", "Encoding" => "WinAnsiEncoding",
+    });
+    let mut appearance = |text: &str| {
+        doc.add_object(lopdf::Stream::new(
+            dictionary! {
+                "Type" => "XObject", "Subtype" => "Form",
+                "BBox" => vec![0.into(), 0.into(), 150.into(), 20.into()],
+                "Resources" => dictionary! { "Font" => dictionary! { "Helv" => helv } },
+            },
+            format!("BT /Helv 12 Tf 2 5 Td {} Tj ET", lit(text)).into_bytes(),
+        ))
+    };
+    let (name_ap, submit_ap, secret_ap) = (
+        appearance("Jane Doe"),
+        appearance("Submit"),
+        appearance("Secret note"),
+    );
+    let rect = |y: i64| vec![72.into(), y.into(), 222.into(), (y + 20).into()];
+    let annots: Vec<Object> = vec![
+        dictionary! {
+            "Type" => "Annot", "Subtype" => "Widget", "FT" => "Tx", "F" => 4,
+            "Rect" => rect(660), "AP" => dictionary! { "N" => name_ap },
+        }
+        .into(),
+        dictionary! {
+            "Type" => "Annot", "Subtype" => "Widget", "FT" => "Tx", "F" => 4,
+            "Rect" => rect(620), "DA" => Object::string_literal("/Helv 0 Tf 0 g"),
+            "V" => Object::string_literal("Account 12345"),
+        }
+        .into(),
+        dictionary! {
+            "Type" => "Annot", "Subtype" => "Widget", "FT" => "Btn", "Ff" => 65536, "F" => 4,
+            "Rect" => rect(580), "AP" => dictionary! { "N" => submit_ap },
+        }
+        .into(),
+        dictionary! {
+            "Type" => "Annot", "Subtype" => "FreeText", "F" => 2,
+            "Rect" => rect(540), "AP" => dictionary! { "N" => secret_ap },
+        }
+        .into(),
+    ];
+    let page_id = doc.get_pages()[&1];
+    doc.get_object_mut(page_id)
+        .unwrap()
+        .as_dict_mut()
+        .unwrap()
+        .set("Annots", annots);
+    let md = extract(&save(doc)).unwrap().markdown;
+    for want in ["Application form", "Jane Doe", "Account 12345"] {
+        assert!(md.contains(want), "{want}: {md}");
+    }
+    for unwanted in ["Submit", "Secret note"] {
+        assert!(!md.contains(unwanted), "{unwanted}: {md}");
+    }
+}
+
+/// Type3 字体：FontMatrix 是 1:1（不是常见的 1/1000）配 0.12 的字号时，字号按字宽估出的 em 校正，
+/// 不当成看不见的小字；字形名是自造的（/BT、/CP）时按基础编码取这个码的字。
+#[test]
+fn type3_font_with_unit_matrix_and_made_up_glyph_names() {
+    let mut b = Builder::new(vec![Page::text(
+        "BT /T3 0.12 Tf 1 0 0 -1 72 700 Tm (Type) Tj 60 0 Td (three) Tj ET\n".to_string(),
+    )]);
+    let glyph = || Object::from(lopdf::Stream::new(dictionary! {}, b"80 0 d0".to_vec()));
+    let names = ["BT", "CP", "CR", "CS", "CT", "CW", "CX", "D0"];
+    let mut procs = lopdf::Dictionary::new();
+    for n in names {
+        procs.set(n, glyph());
+    }
+    b.extra_fonts.push((
+        "T3".to_string(),
+        dictionary! {
+            "Type" => "Font", "Subtype" => "Type3",
+            "FontMatrix" => vec![1.into(), 0.into(), 0.into(), (-1).into(), 0.into(), 0.into()],
+            "FontBBox" => vec![0.into(), 0.into(), 1.into(), (-1).into()],
+            "FirstChar" => 84, "LastChar" => 121,
+            "Widths" => (84..=121).map(|_| Object::Integer(70)).collect::<Vec<_>>(),
+            "Encoding" => dictionary! {
+                "Type" => "Encoding", "BaseEncoding" => "WinAnsiEncoding",
+                "Differences" => vec![
+                    84.into(), "BT".into(), 101.into(), "CP".into(), 104.into(), "CR".into(),
+                    112.into(), "CS".into(), 114.into(), "CT".into(), 116.into(), "CW".into(),
+                    121.into(), "CX".into(),
+                ],
+            },
+            "CharProcs" => procs,
+            "Resources" => dictionary! {},
+        },
+    ));
+    let md = extract(&b.build()).unwrap().markdown;
+    assert!(md.contains("Type three"), "{md}");
+}
