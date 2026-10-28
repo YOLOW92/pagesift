@@ -67,6 +67,8 @@ fn test_stress_warc_throughput_and_multi_member_decompression() {
     let start = pagesift_testkit::thread_cpu_time();
     let mut total_uncompressed_bytes = 0usize;
     let mut total_records = 0usize;
+    // 写前一半页面花的 CPU 时间（后一半和它比，见下面的线性检查）
+    let mut half = std::time::Duration::ZERO;
 
     {
         let mut writer = WarcWriter::new(&mut gz_buffer, true);
@@ -75,7 +77,10 @@ fn test_stress_warc_throughput_and_multi_member_decompression() {
             .unwrap();
         total_records += 1;
 
-        for snap in &snapshots {
+        for (i, snap) in snapshots.iter().enumerate() {
+            if i == snapshots.len() / 2 {
+                half = pagesift_testkit::thread_cpu_time().saturating_sub(start);
+            }
             // 1. Root response record
             let mut root_record = WarcRecord::new(
                 RecordType::Response,
@@ -131,14 +136,21 @@ fn test_stress_warc_throughput_and_multi_member_decompression() {
         gz_buffer.len() as f64 / (1024.0 * 1024.0)
     );
 
-    // Verify throughput is strictly superior to warcio baseline
-    let min_expected = if cfg!(debug_assertions) { 5.0 } else { 50.0 };
+    // 写入是线性的：后一半页面的 CPU 时间不超过前一半的 3 倍（每条记录变慢、整体成平方时远超）。
+    // 不在 debug 构建里卡绝对吞吐：未优化的压缩速度随机器差一倍（macOS ARM 上 4.7 MB/s），
+    // 那是机器的速度，不是写入器的毛病
+    let second = elapsed.saturating_sub(half);
     assert!(
-        throughput_mbs > min_expected,
-        "Throughput {:.2} MB/s must beat baseline threshold ({:.1} MB/s)",
-        throughput_mbs,
-        min_expected
+        second.as_secs_f64() < 3.0 * half.as_secs_f64(),
+        "second half {second:?} vs first half {half:?}: writing slows down as the archive grows"
     );
+    // 优化构建里另外对照 warcio 的基线
+    if !cfg!(debug_assertions) {
+        assert!(
+            throughput_mbs > 50.0,
+            "Throughput {throughput_mbs:.2} MB/s must beat the warcio baseline (50 MB/s)"
+        );
+    }
 
     // Decompress with multi-member gzip decoder and verify integrity
     let mut decoder = MultiGzDecoder::new(Cursor::new(&gz_buffer));
