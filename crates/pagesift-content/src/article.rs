@@ -904,7 +904,8 @@ pub(crate) fn clearly_not_article(dom: &Html<'_>, skipper: &Skipper) -> bool {
 #[cfg(test)]
 mod title_tests {
     use super::{
-        TitleSignature, title_agrees, title_agrees_allocating, title_agrees_ascii, title_agrees_whole,
+        TitleSignature, title_agrees, title_agrees_allocating, title_agrees_ascii,
+        title_agrees_whole,
     };
 
     #[test]
@@ -968,9 +969,31 @@ mod title_tests {
     #[test]
     fn streaming_comparison_matches_the_whole_string_one() {
         const ATOMS: &[&str] = &[
-            "Global", "market", "MARKET", "tech", " ", "-", ",", "İstanbul", "ΣΟΦΙΑ", "σοφίας", "café",
-            "Café", "中文标题", "标题", "ab", "x", "123", "news", "item", "#1", "\u{307}", "ǅ", "Ⅻ",
-            "straße", "STRASSE",
+            "Global",
+            "market",
+            "MARKET",
+            "tech",
+            " ",
+            "-",
+            ",",
+            "İstanbul",
+            "ΣΟΦΙΑ",
+            "σοφίας",
+            "café",
+            "Café",
+            "中文标题",
+            "标题",
+            "ab",
+            "x",
+            "123",
+            "news",
+            "item",
+            "#1",
+            "\u{307}",
+            "ǅ",
+            "Ⅻ",
+            "straße",
+            "STRASSE",
         ];
         let titles = [
             "Global Market Tech Breakthrough News Item #1",

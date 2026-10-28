@@ -577,7 +577,9 @@ mod tests {
                 })
                 .collect();
             for from in 0..=b.len() {
-                let want = (from..b.len()).find(|&i| b[i].is_ascii_digit()).unwrap_or(b.len());
+                let want = (from..b.len())
+                    .find(|&i| b[i].is_ascii_digit())
+                    .unwrap_or(b.len());
                 assert_eq!(super::next_digit(&b, from), want, "{b:?} {from}");
             }
         }

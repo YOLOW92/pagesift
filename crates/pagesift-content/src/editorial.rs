@@ -24,20 +24,19 @@ pub(crate) fn attachment(node: &NodeR<'_>) -> bool {
     }
     let chain: Vec<_> = up().collect();
     if chain.iter().any(|n| {
-            tokens(
-                n,
-                &[
-                    "related",
-                    "recommended",
-                    "sponsored",
-                    "advertisement",
-                    "playlist",
-                    "control",
-                    "toolbar",
-                ],
-            )
-        })
-    {
+        tokens(
+            n,
+            &[
+                "related",
+                "recommended",
+                "sponsored",
+                "advertisement",
+                "playlist",
+                "control",
+                "toolbar",
+            ],
+        )
+    }) {
         return false;
     }
     if quotation(node) || procedural_product(node) {

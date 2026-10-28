@@ -191,7 +191,9 @@ mod tests {
                     .windows(n.len())
                     .any(|w| w.eq_ignore_ascii_case(n.as_bytes()))
         };
-        const ATOMS: &[&str] = &["a", "A", "au", "Author", "THOR", "-", "x", "é", "中", " ", "aut", "sr-"];
+        const ATOMS: &[&str] = &[
+            "a", "A", "au", "Author", "THOR", "-", "x", "é", "中", " ", "aut", "sr-",
+        ];
         let mut seed = 0x51_7cc1_b727_220au64;
         let mut next = || {
             seed ^= seed << 13;
