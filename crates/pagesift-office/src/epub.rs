@@ -12,6 +12,9 @@ const FONT_OBFUSCATION: [&str; 2] = [
     "http://ns.adobe.com/pdf/enc#RC",
 ];
 
+/// 截短一章的 XHTML 时，每个字节的输出余量留多少字节的输入。
+const INPUT_PER_OUTPUT: usize = 16;
+
 pub(crate) fn convert(zip: &Zip<'_>, opts: &Options<'_>) -> Result<Converted, Error> {
     let html = opts
         .html
@@ -67,12 +70,20 @@ pub(crate) fn convert(zip: &Zip<'_>, opts: &Options<'_>) -> Result<Converted, Er
             out.warnings.push(format!("spine item {path} is missing"));
             continue;
         };
-        let md = html(&doc, &path);
+        // 输出预算（见 `budget` 模块）：一章就可能有上百 MB。转换前按余量截短输入
+        // （标记再多，一个字节的 Markdown 也用不了 INPUT_PER_OUTPUT 个字节的 XHTML），
+        // 转换后截到余量以内再收下
+        let mut doc = doc;
+        crate::budget::truncate(
+            &mut doc,
+            crate::budget::left().saturating_mul(INPUT_PER_OUTPUT),
+        );
+        let mut md = html(&doc, &path).trim().to_string();
+        let room = crate::budget::clip(&mut md);
         if !md.trim().is_empty() {
-            parts.push(md.trim().to_string());
+            parts.push(md.trim_end().to_string());
         }
-        // 输出预算（见 `budget` 模块）
-        if !crate::budget::spend(md.len()) {
+        if !room {
             break;
         }
     }
@@ -281,5 +292,40 @@ mod tests {
             got.markdown
         );
         assert_eq!(got.parts, 1);
+    }
+
+    #[test]
+    fn one_huge_chapter_is_cut_at_the_output_budget() {
+        let big = format!("<h1>One</h1>{}", "<p>word word word</p>\n".repeat(100_000));
+        let container =
+            r#"<container><rootfiles><rootfile full-path="c.opf"/></rootfiles></container>"#;
+        let opf = r#"<package><manifest><item id="a" href="a.xhtml" media-type="application/xhtml+xml"/><item id="b" href="b.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="a"/><itemref idref="b"/></spine></package>"#;
+        let file = build(&[
+            ("mimetype", b"application/epub+zip", false),
+            ("META-INF/container.xml", container.as_bytes(), true),
+            ("c.opf", opf.as_bytes(), true),
+            ("a.xhtml", big.as_bytes(), true),
+            ("b.xhtml", b"<h1>After</h1>", true),
+        ]);
+        let f = |h: &str, _: &str| h.replace("<p>", "").replace("</p>", "");
+        let opts = Options {
+            html: Some(&f),
+            limits: crate::Limits {
+                max_output_bytes: 64 << 10,
+                ..crate::Limits::default()
+            },
+            ..Options::default()
+        };
+        let got = crate::convert(&file, crate::Format::Epub, &opts).unwrap();
+        assert!(got.markdown.len() <= 64 << 10, "{}", got.markdown.len());
+        assert!(got.markdown.len() > 32 << 10, "{}", got.markdown.len());
+        assert!(!got.markdown.contains("After"));
+        assert!(
+            got.warnings
+                .iter()
+                .any(|w| w.starts_with("output_truncated:")),
+            "{:?}",
+            got.warnings
+        );
     }
 }

@@ -88,6 +88,7 @@ mod tests {
     fn other_threads_do_not_count() {
         let (_, own) = cpu_time(|| {
             std::thread::spawn(|| {
+                // wall-clock: only how long the other thread spins; the assertion is about this thread's CPU time
                 let t = std::time::Instant::now();
                 while t.elapsed() < Duration::from_millis(150) {
                     std::hint::black_box(0);

@@ -257,7 +257,12 @@ fn budgeted(
     let guard = budget::enter(opts.limits.max_output_bytes);
     let mut out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(run))
         .unwrap_or_else(|_| Err(Error::Malformed("converter panicked".into())))?;
-    if guard.truncated() {
+    // 各格式按产出的文字记账，表格的分隔符、转义、批量记账的尾数不在里面：
+    // 最后按成品的字节数再卡一次，上限是硬的
+    let limit = opts.limits.max_output_bytes;
+    let over = out.markdown.len() > limit;
+    budget::truncate(&mut out.markdown, limit);
+    if guard.truncated() || over {
         out.warnings.push(format!(
             "output_truncated: the document holds more than {} MB of text; conversion stopped there and the rest was left out",
             opts.limits.max_output_bytes >> 20

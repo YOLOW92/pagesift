@@ -11,7 +11,7 @@ Thanks for helping. Bug reports, benchmark results from your own sites, and pull
 
 ## Development
 
-Requirements: Rust 1.88 or newer. For browser rendering, one of Lightpanda, moli or Chrome/Chromium on `PATH` (`pagesift doctor` shows what it found).
+Requirements: Rust 1.89 or newer (the `rust-version` in Cargo.toml). For browser rendering, one of Lightpanda, moli or Chrome/Chromium on `PATH` or in a usual install location (`pagesift doctor` shows what it found and starts each one).
 
 ```bash
 cargo build --release

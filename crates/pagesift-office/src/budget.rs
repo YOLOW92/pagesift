@@ -57,6 +57,37 @@ pub(crate) fn spend(n: usize) -> bool {
     })
 }
 
+/// 还剩多少字节。
+pub(crate) fn left() -> usize {
+    LEFT.with(Cell::get)
+}
+
+/// 记下一段整块产出的文字（EPUB 的一章）：超出余量的部分截掉。还有余量时返回 true。
+pub(crate) fn clip(text: &mut String) -> bool {
+    let left = left();
+    if text.len() > left {
+        truncate(text, left);
+        spend(left);
+        return false;
+    }
+    spend(text.len())
+}
+
+/// 截到不超过 `max` 字节：尽量在最后一个换行处断开（表格行、段落完整），否则在字符边界。
+pub(crate) fn truncate(text: &mut String, max: usize) {
+    if text.len() <= max {
+        return;
+    }
+    let mut end = max;
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    if let Some(nl) = text[..end].rfind('\n') {
+        end = nl + 1;
+    }
+    text.truncate(end);
+}
+
 /// 预算已经用完。
 pub(crate) fn exhausted() -> bool {
     HIT.with(Cell::get)
@@ -80,5 +111,17 @@ mod tests {
         // 守卫恢复了外层（没有预算）的状态
         assert!(!exhausted());
         assert!(spend(usize::MAX / 2));
+    }
+
+    #[test]
+    fn clipping_keeps_whole_lines_within_what_is_left() {
+        let _g = enter(10);
+        let mut s = "abc\ndef\nghijkl\n".to_string();
+        assert!(!clip(&mut s));
+        assert_eq!(s, "abc\ndef\n");
+        assert!(exhausted());
+        let mut wide = "日本語".to_string();
+        truncate(&mut wide, 4);
+        assert_eq!(wide, "日");
     }
 }

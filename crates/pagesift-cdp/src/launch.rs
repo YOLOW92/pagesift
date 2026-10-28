@@ -97,7 +97,7 @@ fn playwright_browsers(cache: &Path) -> Vec<PathBuf> {
                 .then(|| (version(&name), e.path()))
         })
         .collect();
-    versions.sort_by(|a, b| b.0.cmp(&a.0));
+    versions.sort_by_key(|v| std::cmp::Reverse(v.0));
     const EXECUTABLES: &[&str] = &[
         "chrome-headless-shell",
         "headless_shell",

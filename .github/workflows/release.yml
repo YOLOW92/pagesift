@@ -15,9 +15,10 @@ on:
         type: boolean
         default: true
       tag:
-        # 重发：某个渠道失败后，从选中的分支按这个已有的标签再发一遍（已发布的渠道各自跳过）。
-        # 标签必须已经存在且版本号和 Cargo.toml 一致；这里不创建标签。
-        description: Republish this existing tag's version from the selected ref (dry_run must be false)
+        # 重发：某个渠道失败后，按这个已有的标签再发一遍（已发布的渠道各自跳过）。
+        # 所有任务都检出标签指向的提交，不是运行时选的分支：标签之后 main 上的提交不会混进产物。
+        # 标签必须已经存在且版本号和它的 Cargo.toml 一致；这里不创建标签。
+        description: Republish this existing tag, built from the tag's own commit (dry_run must be false)
         type: string
         default: ""
 
@@ -35,8 +36,12 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       # 发布用的标签名：标签推送时就是它本身；重发时是输入的已有标签；空跑时按版本号拼一个只用于命名
       tag: ${{ steps.version.outputs.tag }}
+      # 所有任务检出的提交：标签推送时是标签本身，重发时是输入的标签指向的提交，空跑时是选中的分支
+      sha: ${{ steps.version.outputs.sha }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag != '' && format('refs/tags/{0}', inputs.tag) || github.ref }}
       - uses: dtolnay/rust-toolchain@stable
       - id: version
         name: Check version and tag
@@ -65,6 +70,7 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   binaries:
     needs: identity
@@ -81,6 +87,8 @@ jobs:
           - { os: macos-latest, target: x86_64-apple-darwin }
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.identity.outputs.sha }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -108,6 +116,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.identity.outputs.sha }}
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -124,6 +134,9 @@ jobs:
             type=raw,value=${{ needs.identity.outputs.version }}
             type=semver,pattern={{version}},value=${{ needs.identity.outputs.tag }}
             type=semver,pattern={{major}}.{{minor}},value=${{ needs.identity.outputs.tag }}
+          # 重发时 github.sha 是选中分支的提交，镜像标注的要是实际构建的提交
+          labels: |
+            org.opencontainers.image.revision=${{ needs.identity.outputs.sha }}
       - uses: docker/build-push-action@v6
         env:
           DOCKER_BUILD_RECORD_UPLOAD: false   # 不上传构建记录，免得发布步骤下载产物时出错
@@ -147,6 +160,8 @@ jobs:
         os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, macos-15-intel]
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.identity.outputs.sha }}
       # 许可证和署名的副本在 crates/pagesift-py/python/pagesift/ 里，作为包数据随 wheel 和 sdist 走
       # （check_release.py 核对副本和根目录一致）
       - uses: PyO3/maturin-action@v1
@@ -172,6 +187,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.identity.outputs.sha }}
       - uses: PyO3/maturin-action@v1
         with:
           working-directory: crates/pagesift-py
@@ -200,6 +217,8 @@ jobs:
         working-directory: crates/pagesift-node
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.identity.outputs.sha }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -226,6 +245,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.identity.outputs.sha }}
       - name: Build and test with native musl Node on Alpine
         run: |
           docker run --rm --cpus=4 --memory=6g \
@@ -253,6 +274,8 @@ jobs:
     timeout-minutes: 300
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.identity.outputs.sha }}
       - uses: dtolnay/rust-toolchain@stable
       - name: crates.io
         env:
@@ -270,6 +293,8 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.identity.outputs.sha }}
       - uses: actions/download-artifact@v4
         with:
           path: artifacts

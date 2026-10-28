@@ -19,6 +19,20 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
   `/usr/bin` and `/opt/homebrew/bin` (`sudo`, systemd and cron often start pagesift with a
   stripped `PATH`), Lightpanda's release file names (`lightpanda-x86_64-linux` …), and the newest
   Chromium in Playwright's browser cache (`$PLAYWRIGHT_BROWSERS_PATH` or the default cache).
+- The Office/EPUB/CSV output budget (`max_output_bytes`) is now a hard limit. An EPUB chapter
+  was converted and kept whole before the budget was checked, so one 100 MB chapter passed a
+  16 MB limit; chapters are now cut to what is left (and their XHTML shortened before conversion).
+  CSV counted cell text but not the table's separators and escapes. Every conversion's final
+  Markdown is now cut at the limit, at a line boundary, with the `output_truncated` warning.
+- Manually re-running the release workflow for an existing tag built whatever branch was
+  selected in the form; every job now checks out the tag's own commit (and the Docker image's
+  revision label names it).
+- The MSRV check in `scripts/ci.sh` used Rust 1.88 while `Cargo.toml` declares 1.89, and was
+  skipped when that toolchain was missing. It now reads `rust-version`, installs the toolchain if
+  needed, and also runs in CI.
+- `scripts/check_wall_clock.py` now also checks `#[cfg(test)]` code inside ordinary source files
+  (inline `mod tests`, test-only helpers, out-of-line `mod tests;` files), ignoring comments and
+  strings; `tokio::time::Instant` inside a `start_paused` test counts as the paused clock.
 
 ## [0.80.5] — 2026-10-28
 

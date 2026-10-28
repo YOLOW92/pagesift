@@ -49,6 +49,10 @@ def check(tag=None):
     security = (ROOT/'SECURITY.md').read_text()
     assert f'| {line}.x | ✅ |' in security and f'| < {line} | ❌ |' in security, \
         f'SECURITY.md supported-versions table must list {line}.x as supported and < {line} as not'
+    # 文档里写的最低 Rust 版本跟 Cargo.toml 的 rust-version 走（ci.sh 和 CI 按后者检查）
+    msrv = workspace['workspace']['package']['rust-version']
+    assert f'Rust {msrv} or newer' in (ROOT/'CONTRIBUTING.md').read_text(), \
+        f'CONTRIBUTING.md must say "Rust {msrv} or newer" (rust-version in Cargo.toml)'
     print(f'Release identity OK: {version}, {len(names)} Rust packages, {len(platforms)} npm platforms, dynamic Python version')
     return metadata
 

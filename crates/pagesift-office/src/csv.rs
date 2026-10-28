@@ -257,6 +257,29 @@ mod tests {
     }
 
     #[test]
+    fn the_rendered_table_is_capped_even_when_the_cells_fit() {
+        // 3 万行一个字节的单元格：文字 30 KB，渲染成表格是 180 KB
+        let csv = "h\n".to_string() + &"x\n".repeat(30_000);
+        let opts = Options {
+            limits: crate::Limits {
+                max_output_bytes: 64 << 10,
+                ..crate::Limits::default()
+            },
+            ..Options::default()
+        };
+        let got = crate::convert(csv.as_bytes(), crate::Format::Csv, &opts).unwrap();
+        assert!(got.markdown.len() <= 64 << 10, "{}", got.markdown.len());
+        assert!(got.markdown.ends_with("| x |\n"), "cut at a row boundary");
+        assert!(
+            got.warnings
+                .iter()
+                .any(|w| w.starts_with("output_truncated:")),
+            "{:?}",
+            got.warnings
+        );
+    }
+
+    #[test]
     fn a_huge_field_stops_the_conversion_at_the_output_budget() {
         let mut csv = b"a,b\n1,2\n3,\"".to_vec();
         csv.extend(std::iter::repeat_n(b'x', 1 << 20));

@@ -20,12 +20,11 @@ RUSTFLAGS="-D warnings" cargo clippy --workspace --all-targets --locked
 step "test"
 RUSTFLAGS="-D warnings" cargo test --workspace --locked
 
-step "msrv (1.88)"
-if rustup toolchain list | grep -q '^1\.88'; then
-    cargo +1.88 check --workspace --locked
-else
-    echo "skipped: run 'rustup toolchain install 1.88' to enable"
-fi
+# 最低版本取自 Cargo.toml 的 rust-version，没装就装上：不跳过（macOS CI 里也有同一步）
+msrv=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["rust-version"])')
+step "msrv ($msrv)"
+rustup toolchain list | grep -q "^$msrv" || rustup toolchain install "$msrv" --profile minimal
+cargo "+$msrv" check --workspace --locked
 
 step "cargo deny"
 if command -v cargo-deny >/dev/null; then
