@@ -68,7 +68,6 @@ struct Pools {
 
 struct Inner {
     resolver: Arc<GuardedResolver>,
-    tls: TlsConnector,
     connect_timeout: Duration,
     dns_timeout: Duration,
     tls_timeout: Duration,

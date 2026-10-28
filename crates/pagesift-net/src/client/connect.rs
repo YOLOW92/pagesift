@@ -4,6 +4,12 @@ use super::*;
 
 impl Client {
     pub(super) async fn connect(&self, key: &Key) -> Result<Conn> {
+        // TLS 配置（系统根证书）在拨号之前取：读不到时不白白建一条 TCP 连接
+        let connector = if key.https {
+            Some(TlsConnector::from(send::tls_config()?))
+        } else {
+            None
+        };
         let ips: Vec<IpAddr> = match key.host.trim_matches(['[', ']']).parse::<IpAddr>() {
             // IP 字面量在 check_url 里已经按 SSRF 规则校验过
             Ok(ip) => vec![ip],
@@ -47,7 +53,7 @@ impl Client {
             }
         };
         let _ = tcp.set_nodelay(true);
-        if !key.https {
+        let Some(connector) = connector else {
             let result = h1_handshake(TokioIo::new(tcp)).await;
             handshake.finish(
                 result
@@ -55,12 +61,12 @@ impl Client {
                     .map_or_else(stage_outcome_for_error, |_| StageOutcome::Success),
             );
             return result;
-        }
+        };
         let name = ServerName::try_from(key.host.trim_matches(['[', ']']).to_string())
             .map_err(|_| Error::InvalidUrl(key.host.clone()))?;
         let tls_deadline = Instant::now() + self.0.tls_timeout;
         let tls_started = Instant::now();
-        let tls = match timeout_at(tls_deadline, self.0.tls.connect(name, tcp)).await {
+        let tls = match timeout_at(tls_deadline, connector.connect(name, tcp)).await {
             Err(_) => {
                 self.0.stages.record_phase(
                     TransportPhase::Tls,

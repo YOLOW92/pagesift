@@ -114,7 +114,7 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
             ignore_robots,
             proxy,
             allow,
-        } => runtime()?.block_on(async move {
+        } => light_runtime()?.block_on(async move {
             let mut sc = cfg.scraper(false)?;
             if let Some(p) = proxy {
                 sc.fetcher.proxy = Some(p);

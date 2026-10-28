@@ -121,6 +121,18 @@ pub(crate) fn addr_space_worker_cap() -> Option<usize> {
     Some(((free / ADDR_SPACE_PER_WORKER) as usize).max(1))
 }
 
+/// 只处理一份输入的命令（`scrape`）用的运行时：一个调度线程，不探测 CPU 拓扑、不绑核。
+/// [`runtime`] 的绑核是给独占机器的长任务（爬取、服务）用的；单份命令常是脚本里一份一个进程、
+/// 十几个进程同时跑，每个进程都把自己的 worker 绑到同样的几个核上，再加上按核数起线程、
+/// 读 sysfs 探测拓扑，这些开销都比转换一份文件本身大。CPU 密集的活（正文提取、PDF 解析）
+/// 照样在阻塞线程池里做，许可数仍按核数。
+pub(crate) fn light_runtime() -> Result<tokio::runtime::Runtime> {
+    pagesift::set_cpu_capacity(std::thread::available_parallelism().map_or(4, |n| n.get()));
+    Ok(tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?)
+}
+
 pub(crate) fn runtime() -> Result<tokio::runtime::Runtime> {
     let topology = pagesift::adaptive::HardwareTopology::detect();
     let worker_cpus = topology.cpu_topology.runtime_worker_cpus();

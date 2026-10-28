@@ -24,6 +24,13 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
   `limit`; once two variants prove a query parameter changes nothing, queued variants are
   rewritten and skipped. On a 62-university run, same-path duplicates fell from 38 to 7.
 
+- `pagesift scrape` (one URL or file per process) starts lighter: a single-threaded runtime
+  without CPU topology probing or thread pinning (pinning stays for crawl, map and serve, which
+  own the machine), and the system root certificates are read once per process, on the first
+  HTTPS connection, instead of once per HTTP client at start-up. A local file never reads them.
+  CPU per call on a small PDF 6.3 → 4.3 ms; one-process-per-file throughput +23% with 1 worker
+  and +44% with 4 workers on a 4-core machine.
+
 ### Fixed
 - PDF: text in annotation appearances is extracted, as viewers show it: filled-in form fields,
   FreeText notes, stamps, signature blocks. Fields without an appearance stream

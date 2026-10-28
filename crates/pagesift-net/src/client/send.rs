@@ -2,6 +2,34 @@
 
 use super::*;
 
+/// 进程里所有直连客户端共用一份 TLS 配置，第一次建 HTTPS 连接时才读系统根证书：
+/// 解析证书包要一两毫秒，只处理本地文件、只走 HTTP 的调用（每份文件起一个进程时尤其）用不上它，
+/// 以前每建一个客户端读一遍。
+static TLS: std::sync::OnceLock<Arc<rustls::ClientConfig>> = std::sync::OnceLock::new();
+
+pub(crate) fn tls_config() -> Result<Arc<rustls::ClientConfig>> {
+    if let Some(c) = TLS.get() {
+        return Ok(c.clone());
+    }
+    let mut roots = rustls::RootCertStore::empty();
+    let native = rustls_native_certs::load_native_certs();
+    for cert in native.certs {
+        // 个别系统证书格式不对时跳过，不影响其他证书
+        let _ = roots.add(cert);
+    }
+    if roots.is_empty() {
+        return Err(Error::Config("no system root certificates found".into()));
+    }
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let mut tls = rustls::ClientConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        .map_err(|e| Error::Config(e.to_string()))?
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+    tls.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+    Ok(TLS.get_or_init(|| Arc::new(tls)).clone())
+}
+
 impl Client {
     #[allow(clippy::too_many_arguments)] // 构造时一次性给齐各项时限和策略，只在 Fetcher 里调用一处
     pub(crate) fn new(
@@ -19,25 +47,8 @@ impl Client {
         stages: StageController,
         user_agent: HeaderValue,
     ) -> Result<Self> {
-        let mut roots = rustls::RootCertStore::empty();
-        let native = rustls_native_certs::load_native_certs();
-        for cert in native.certs {
-            // 个别系统证书格式不对时跳过，不影响其他证书
-            let _ = roots.add(cert);
-        }
-        if roots.is_empty() {
-            return Err(Error::Config("no system root certificates found".into()));
-        }
-        let provider = Arc::new(rustls::crypto::ring::default_provider());
-        let mut tls = rustls::ClientConfig::builder_with_provider(provider)
-            .with_safe_default_protocol_versions()
-            .map_err(|e| Error::Config(e.to_string()))?
-            .with_root_certificates(roots)
-            .with_no_client_auth();
-        tls.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
         Ok(Self(Arc::new(Inner {
             resolver,
-            tls: TlsConnector::from(Arc::new(tls)),
             connect_timeout,
             dns_timeout,
             tls_timeout,
