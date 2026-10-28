@@ -1,0 +1,5 @@
+https://documents.manchester.ac.uk/display.aspx?DocID=79610: TIMEOUT total timeout
+https://www.studentsupport.manchester.ac.uk/finances/tuition-fees/payments/: TIMEOUT connect timeout
+https://www.studentsupport.manchester.ac.uk/immigration-and-visas/visas-and-applications/other-visa-types: TIMEOUT connect timeout
+stopped: coverage_reached (coverage 1.00)
+crawled 12 pages, 3 errors

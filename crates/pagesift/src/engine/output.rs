@@ -197,6 +197,7 @@ pub(super) fn document(
             .links
             .as_ref()
             .map(|l| l.iter().map(|l| l.text.clone()).collect()),
+        alternates: doc.metadata.alternates.clone(),
         links: doc.links.map(|l| l.into_iter().map(|l| l.url).collect()),
         images: doc.images.map(|i| i.into_iter().map(|i| i.src).collect()),
         ..Default::default()

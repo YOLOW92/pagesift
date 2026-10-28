@@ -15,6 +15,12 @@ pub(crate) struct TermWeights {
     weights: Vec<f32>,
 }
 
+/// IDF 归一到 (0, 1]，再夹到 [MIN_WEIGHT, 1]：ln((N + 1) / (df + 0.5)) / ln(N + 1)。
+fn idf(n: u32, df: u32) -> f32 {
+    let n = n as f32;
+    (((n + 1.0) / (df as f32 + 0.5)).ln() / (n + 1.0).ln()).clamp(MIN_WEIGHT, 1.0)
+}
+
 impl TermWeights {
     pub(crate) fn new(terms: usize) -> Self {
         Self {
@@ -35,11 +41,8 @@ impl TermWeights {
         if self.pages < MIN_PAGES {
             return;
         }
-        let n = self.pages as f32;
         for (w, &d) in self.weights.iter_mut().zip(&self.df) {
-            // ln((N + 1) / (df + 0.5))，再按 ln(N + 1) 归一到 (0, 1]
-            let idf = ((n + 1.0) / (d as f32 + 0.5)).ln() / (n + 1.0).ln();
-            *w = idf.clamp(MIN_WEIGHT, 1.0);
+            *w = idf(self.pages, d);
         }
     }
 

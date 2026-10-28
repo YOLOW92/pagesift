@@ -386,7 +386,7 @@ impl Fetcher {
                 if chain.len() >= self.config.max_redirects {
                     return Err(Error::TooManyRedirects(self.config.max_redirects));
                 }
-                let next = self.redirect_target(&url, &loc)?;
+                let next = upgrade_downgrade(&url, self.redirect_target(&url, &loc)?, &chain);
                 if req.same_origin_redirects && next.origin() != origin.origin() {
                     return Err(Error::Config(
                         "cross-origin redirect outside request scope".into(),
@@ -486,4 +486,20 @@ impl Fetcher {
         }
         out
     }
+}
+
+/// 同一主机把 https 跳到 http（老站点的规范化规则常这样写：`https://x/a` → `http://x/a/`）：
+/// 直接走 https。刚才就是用 https 连上的这个主机，明文那一跳通常只会再跳回 https；省掉它既少一次
+/// 往返，也不在明文里走一遍（只放行 https 的网络里，明文那一跳会直接失败）。服务器真要强制
+/// http（升级后的地址已经在跳转链里，再升级就成环）时照它的来。
+fn upgrade_downgrade(from: &Url, mut next: Url, chain: &[RedirectHop]) -> Url {
+    if from.scheme() != "https" || next.scheme() != "http" || from.host_str() != next.host_str() {
+        return next;
+    }
+    let http = next.clone();
+    if next.set_scheme("https").is_err() || next.set_port(from.port()).is_err() {
+        return http;
+    }
+    let looped = next == *from || chain.iter().any(|hop| hop.url == next);
+    if looped { http } else { next }
 }

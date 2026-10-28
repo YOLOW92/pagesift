@@ -308,6 +308,44 @@ fn detect_without_declarations(
     detect_inner(bytes, None, tld, false)
 }
 
+/// chardetng 每个字节都要喂给几十个候选编码，是解码里最贵的一步（64 KiB 的 GBK 表格上占三成）。
+/// 按块喂，喂够 [`DETECT_MIN_BYTES`] 以后每块问一次猜测：连续 [`DETECT_STABLE_CHECKS`] 次
+/// 结果相同（而且是高置信度）就停。CJK、西里尔这类多字节文本几十 KB 里早就定了；
+/// 猜测还在变的样本照旧喂完。
+fn feed_until_stable(bytes: &[u8], tld: Option<&[u8]>) -> chardetng::EncodingDetector {
+    let mut det = chardetng::EncodingDetector::new();
+    let mut pos = 0;
+    let mut last: Option<&'static Encoding> = None;
+    let mut stable = 0;
+    while pos < bytes.len() {
+        let end = (pos + DETECT_CHUNK).min(bytes.len());
+        let done = end == bytes.len();
+        det.feed(&bytes[pos..end], done);
+        pos = end;
+        if done || pos < DETECT_MIN_BYTES {
+            continue;
+        }
+        let (guess, confident) = det.guess_assess(tld, true);
+        if confident && last == Some(guess) {
+            stable += 1;
+            if stable >= DETECT_STABLE_CHECKS {
+                break;
+            }
+        } else {
+            stable = 0;
+            last = confident.then_some(guess);
+        }
+    }
+    det
+}
+
+/// 每次喂给 chardetng 的字节数。
+const DETECT_CHUNK: usize = 4 * 1024;
+/// 至少喂这么多才开始看猜测稳不稳。
+const DETECT_MIN_BYTES: usize = 16 * 1024;
+/// 猜测连续这么多次不变就停。
+const DETECT_STABLE_CHECKS: usize = 3;
+
 fn detect_inner(
     bytes: &[u8],
     content_type: Option<&str>,
@@ -359,9 +397,8 @@ fn detect_inner(
         return (WINDOWS_1252, "cp500", CharsetSource::Detected, 0);
     }
 
-    // 8. chardetng 高置信度识别
-    let mut det = chardetng::EncodingDetector::new();
-    det.feed(bytes, true);
+    // 8. chardetng 高置信度识别（猜测稳定下来就不再往下喂，见 [`feed_until_stable`]）
+    let det = feed_until_stable(bytes, tld);
     let (guessed, high_conf) = det.guess_assess(tld, true);
     if high_conf {
         let name = if guessed == WINDOWS_1254 {
@@ -400,6 +437,24 @@ mod tests {
 
     fn gbk(s: &str) -> Vec<u8> {
         encoding_rs::GBK.encode(s).0.into_owned()
+    }
+
+    #[test]
+    fn long_documents_are_detected_from_a_stable_prefix() {
+        // 远超一个检测块的长文本：猜测稳定后提前停下，结果和喂完一样
+        let zh = "国际学生的学费、奖学金和签证说明，以及申请材料清单。".repeat(4000);
+        let ja = "留学生の授業料、奨学金とビザについての案内です。".repeat(4000);
+        let ru = "Плата за обучение, стипендии и визы для иностранных студентов. ".repeat(4000);
+        for (text, enc) in [
+            (&zh, encoding_rs::GBK),
+            (&ja, encoding_rs::SHIFT_JIS),
+            (&ru, encoding_rs::WINDOWS_1251),
+        ] {
+            let bytes = enc.encode(text).0.into_owned();
+            assert!(bytes.len() > 4 * DETECT_MIN_BYTES);
+            let d = decode(&bytes, None, None);
+            assert_eq!(d.text, *text, "{}", enc.name());
+        }
     }
 
     #[test]

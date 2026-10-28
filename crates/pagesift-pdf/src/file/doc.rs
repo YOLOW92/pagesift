@@ -550,6 +550,80 @@ impl<'a> Document<'a> {
         }
     }
 
+    /// 损坏的文件里丢了东西的页（从 1 数）：页面字典还在、页数也对，但内容流丢了（这一页的
+    /// 正文读不全，截断时最常见：第一页的内容流写在文件后半），或者字体字典丢了（字还在，
+    /// 但可能解码错）。返回（丢了内容流的页，只丢了字体的页）。
+    /// 只在文件经过修复时调用，完好的文件不用付这个成本。
+    pub(crate) fn incomplete_pages(
+        &self,
+        pages: &[ObjectId],
+        limit: usize,
+    ) -> (Vec<usize>, Vec<usize>) {
+        let (mut content, mut fonts) = (Vec::new(), Vec::new());
+        for (i, id) in pages.iter().enumerate() {
+            if !self.page_content_complete(*id, limit) {
+                content.push(i + 1);
+            } else if !self.page_fonts_complete(*id) {
+                fonts.push(i + 1);
+            }
+        }
+        (content, fonts)
+    }
+
+    /// 页面的每一段内容流都在、能解码。
+    fn page_content_complete(&self, id: ObjectId, limit: usize) -> bool {
+        let Some(page) = self.dictionary(id) else {
+            return false;
+        };
+        let Some(contents) = page.get(b"Contents") else {
+            // 没有内容流的空白页
+            return true;
+        };
+        // 引用指向的对象不在文件里时解出来是 Null：内容流丢了，不是空白页
+        let parts: Vec<&Object> = match self.resolve(contents) {
+            Object::Array(a) => a.iter().collect(),
+            _ => vec![contents],
+        };
+        parts.into_iter().all(|part| {
+            matches!(self.resolve(part), Object::Stream(s) if self.stream_data(s, limit).is_some())
+        })
+    }
+
+    /// 页面资源里的每个字体字典都在（资源可以从页树的祖先继承）。
+    fn page_fonts_complete(&self, id: ObjectId) -> bool {
+        let Some(page) = self.dictionary(id) else {
+            return false;
+        };
+        let mut node = Some(page);
+        let mut resources = None;
+        for _ in 0..MAX_TREE_DEPTH {
+            let Some(n) = node else { break };
+            if let Some(r) = n.get(b"Resources") {
+                resources = Some(r);
+                break;
+            }
+            node = match n.get(b"Parent").map(|p| self.resolve(p)) {
+                Some(Object::Dictionary(d)) => Some(d),
+                _ => None,
+            };
+        }
+        let fonts = resources
+            .map(|r| self.resolve(r))
+            .and_then(|r| match r {
+                Object::Dictionary(d) => d.get(b"Font"),
+                _ => None,
+            })
+            .map(|f| self.resolve(f));
+        if let Some(Object::Dictionary(fonts)) = fonts {
+            for (_, font) in fonts.0.iter() {
+                if !matches!(self.resolve(font), Object::Dictionary(_)) {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
     /// 这份文件的损坏情况（`tree` 是 `page_tree` 的结果）。读对象的过程中可能触发扫描，
     /// 所以要在内容都读完之后再问。
     pub(crate) fn damage(&self, tree: &PageTree) -> Damage {
@@ -558,6 +632,8 @@ impl<'a> Document<'a> {
             rescued: self.rescue.get().is_some(),
             declared_pages: tree.declared,
             missing_pages: tree.missing,
+            incomplete_pages: Vec::new(),
+            fontless_pages: Vec::new(),
         }
     }
 }

@@ -84,6 +84,13 @@ const WORDS: &[&str] = &[
     "cookies",
     "cookie",
     "disclaimer",
+    "imprint",
+    "impressum",
+    "data-protection",
+    "datenschutz",
+    "legal-notice",
+    "cookies",
+    "footer",
     "copyright",
     "contact",
     "contacts",
@@ -97,8 +104,24 @@ const WORDS: &[&str] = &[
     "signin",
     "sign-in",
     "account",
+    "password",
+    "sso",
+    "auth",
+    "idp",
+    "cas",
+    "my",
+    "portal",
+    "intranet",
+    "webmail",
+    "mail",
+    "outlook",
+    "canvas",
+    "moodle",
+    "blackboard",
     "cart",
     "checkout",
+    "shop",
+    "store",
     // 招聘、捐赠、校友
     "careers",
     "jobs",
@@ -124,6 +147,7 @@ const WORDS: &[&str] = &[
     "wp-json",
     "wp-admin",
     "cgi-bin",
+    "bin",
     "api",
 ];
 
@@ -147,7 +171,8 @@ pub(crate) fn is_dated_url(u: &Url) -> bool {
     is_date_path(&segs)
 }
 
-/// URL 是不是家具页：任一路径段是家具词（含 `news-and-events` 这类连字符组合），或者带日期路径。
+/// URL 是不是家具页：任一路径段或主机标签（`mail.e.edu`、`my.e.edu`；`www` 和可注册域名不算）
+/// 是家具词（含 `news-and-events` 这类连字符组合），或者带日期路径。
 /// `wanted` 说一个词是不是查询本身要找的（查 "api" 时 `/api/` 不是家具）。
 pub(crate) fn is_furniture_url(u: &Url, wanted: &dyn Fn(&str) -> bool) -> bool {
     let segs: Vec<&str> = u.path().split('/').filter(|s| !s.is_empty()).collect();
@@ -155,10 +180,18 @@ pub(crate) fn is_furniture_url(u: &Url, wanted: &dyn Fn(&str) -> bool) -> bool {
         return true;
     }
     let hit = |w: &str| is_word(w) && !wanted(w);
-    segs.iter().any(|seg| {
-        let stem = seg.rsplit_once('.').map_or(*seg, |(stem, _)| stem);
-        hit(seg) || hit(stem) || stem.split(['-', '_']).any(hit)
-    })
+    let host = u.host_str().unwrap_or_default();
+    let site = pagesift_content::site_key(host);
+    let labels = host
+        .strip_suffix(site.as_str())
+        .unwrap_or_default()
+        .split('.')
+        .filter(|l| !l.is_empty() && *l != "www");
+    labels.into_iter().any(hit)
+        || segs.iter().any(|seg| {
+            let stem = seg.rsplit_once('.').map_or(*seg, |(stem, _)| stem);
+            hit(seg) || hit(stem) || stem.split(['-', '_']).any(hit)
+        })
 }
 
 /// 锚文本是不是家具：很短（最多 3 个词）而且有一个词是家具词（查询要找的词不算）。
@@ -203,12 +236,22 @@ mod tests {
             assert!(is_furniture_url(&u(p), &no), "{p}");
         }
         for p in [
+            "https://mail.e.edu/",
+            "https://my.e.edu/portal/",
+            "https://auth.e.edu/login",
+        ] {
+            assert!(is_furniture_url(&u(p), &no), "{p}");
+        }
+        for p in [
             "https://e.edu/",
             "https://e.edu/admissions/international/",
             "https://e.edu/study/degrees/",
             "https://iss.e.edu/visa/",
             "https://e.edu/prospective/tuition/",
         ] {
+            assert!(!is_furniture_url(&u(p), &no), "{p}");
+        }
+        for p in ["https://international.e.edu/", "https://www.e.edu/study/"] {
             assert!(!is_furniture_url(&u(p), &no), "{p}");
         }
     }

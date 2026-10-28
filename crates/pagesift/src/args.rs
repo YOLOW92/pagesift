@@ -226,8 +226,9 @@ pub(crate) enum Command {
         entire_domain: bool,
         /// Path scope: auto (start directory, widened one level when the start page is a leaf
         /// such as a blog post), exact (never widen), parent (one level up) or domain
-        #[arg(long, default_value = "auto", value_parser = ["auto", "exact", "parent", "domain"])]
-        scope: String,
+        /// (default: auto; domain with --query)
+        #[arg(long, value_parser = ["auto", "exact", "parent", "domain"])]
+        scope: Option<String>,
         /// Follow links to subdomains
         #[arg(long)]
         subdomains: bool,

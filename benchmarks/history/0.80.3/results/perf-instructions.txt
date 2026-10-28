@@ -1,0 +1,7 @@
+# instruction counts (callgrind), 0.80.0 tag vs 0.80.3, same container, 2026-10-28
+perf_gate                     0.80.0 14177064528   0.80.3 14170319553
+pdf_one paper.pdf x3          0.80.0  2194527360   0.80.3  2204204971
+office_bench ascii.csv x3     0.80.0  4296566432   0.80.3  4318536098
+office_bench sjis.csv x3      0.80.0  1586495037   0.80.3  1485456080
+office_bench gbk.csv x3       0.80.0  1459031365   0.80.3  1472941891
+office_bench utf8-cjk.csv x3  0.80.0  1176671975   0.80.3  1182429852

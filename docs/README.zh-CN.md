@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.80.2
+# pagesift 0.80.3
 
 **为 AI 智能体与 LLM 数据工程打造的高性能、严格内存有界抓取与内容提取引擎。**  
 把任何网站、学术文档或历史档案转化为干净的 Markdown 与结构化数据——单个纯 Rust 二进制、原生多语言 SDK、兼容 Firecrawl v1/v2 与 Jina Reader 双协议，内存占用明显低于所测竞品（见 [benchmarks.md 第 9 节](benchmarks.md)）。
@@ -76,6 +76,15 @@
 
 ---
 
+## 0.80.3 更新
+
+**聚焦爬取在真实大学站点上验证过了。** 用 0.80.0 和 0.80.3 对同样 38 所大学首页跑
+`crawl --query "international students admission tuition scholarship visa" --adaptive --limit 12`，
+两版都能访问的 32 所上：有用页面 29.6% → 66.1%，国际生专属页面 6.3% → 38.9%，每校有用页中位数 1.5 → 8
+（按 URL 和标题自动判定；脚本和原始结果在 `benchmarks/history/0.80.3/`）。带查询的爬取默认覆盖整站、失败的抓取
+退还页面预算、通过 `hreflang` 和英文子域名找到英文站、不再把导航大菜单当列表。截断的 PDF 丢了某页的内容时
+会指出是哪一页（`content_missing`）。详见 [0.80.3 发行说明](releases/0.80.3.md)。
+
 ## 0.80.2 更新
 
 **聚焦爬取抓到的是要找的页面。** 一位测试者用 `crawl --query` 跑了 159 所大学官网（查询 *international students
@@ -126,7 +135,7 @@ PDF 两项补修：书签只到章节时标题不再为空；线性化 PDF 截�
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.2
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.3
 ```
 
 #### Firecrawl SDK 零改动平替接入

@@ -1,0 +1,4 @@
+https://www.eusa.ed.ac.uk/activities/list?type=international: ROBOTS_DISALLOWED disallowed by robots.txt: https://www.eusa.ed.ac.uk/activities/list?type=international
+https://global.ed.ac.uk/study-abroad: ACCESS_BARRIER the site returned an access barrier (cloudflare challenge); pagesift does not bypass it
+stopped: limit_reached (coverage 0.50)
+crawled 12 pages, 2 errors

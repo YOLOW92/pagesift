@@ -1,0 +1,13 @@
+https://scholar.aas.hku.hk/: TIMEOUT connect timeout
+https://intlaffairs.hku.hk/: TIMEOUT connect timeout
+https://intlaffairs.hku.hk/exchange: TIMEOUT connect timeout
+https://admissions.hku.hk/fees-and-scholarships/fees: TIMEOUT connect timeout
+https://admissions.hku.hk/fees-and-scholarships/scholarships: TIMEOUT connect timeout
+https://gradsch.hku.hk/prospective_students/application/how_to_apply: TIMEOUT connect timeout
+https://admissions.hku.hk/experience/hear-from-our-students: TIMEOUT connect timeout
+https://aas.hku.hk/: TIMEOUT connect timeout
+https://admissions.hku.hk/tpg/: TIMEOUT connect timeout
+https://gradsch.hku.hk/: TIMEOUT connect timeout
+https://admissions.hku.hk/: TIMEOUT connect timeout
+stopped: limit_reached (coverage 0.72)
+crawled 12 pages, 11 errors

@@ -1,0 +1,4 @@
+https://www.miraikikin.osaka-u.ac.jp/: ACCESS_BARRIER the site returned an access barrier (generic block); pagesift does not bypass it
+https://www.osaka-u.ac.jp/ja/international/action: ACCESS_BARRIER the site returned an access barrier (generic login_wall); pagesift does not bypass it
+stopped: limit_reached (coverage 0.00)
+crawled 10 pages, 2 errors

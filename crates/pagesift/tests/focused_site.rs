@@ -103,6 +103,11 @@ async fn serve(headers: HeaderMap, uri: Uri) -> Response {
     let page = |title: &str, paragraphs: &[&str], links: &[(&str, &str)]| {
         Html(render(title, nav, paragraphs, links)).into_response()
     };
+    if host.starts_with("slow.") {
+        // 一个超时的子域名：每页都比请求超时慢
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+        return page("Slow", &["International students admission."], &[]);
+    }
     if host.starts_with("iss.") {
         return match path {
             "/" => page(
@@ -151,11 +156,25 @@ async fn serve(headers: HeaderMap, uri: Uri) -> Response {
                 ("/admissions/international/apply/", "How to apply"),
             ],
         ),
-        "/admissions/international/apply/" => page(
-            "How to apply",
-            &["Submit the admission form with your visa and scholarship documents."],
-            &[],
-        ),
+        "/admissions/international/apply/" => {
+            let slow: Vec<String> = (1..=4)
+                .map(|i| format!("http://slow.uni.localhost:{port}/visa-{i}/"))
+                .collect();
+            let links: Vec<(&str, &str)> = slow
+                .iter()
+                .map(|u| (u.as_str(), "International student visa"))
+                .chain([
+                    ("/intl/", "International students (old address)"),
+                    ("/slow-1/", "International student visa checklist"),
+                    ("/slow-2/", "International student tuition table"),
+                ])
+                .collect();
+            page(
+                "How to apply",
+                &["Submit the admission form with your visa and scholarship documents."],
+                &links,
+            )
+        }
         "/files/fees.pdf" => {
             ([("content-type", "application/pdf")], pdf("Tuition fees")).into_response()
         }
@@ -163,6 +182,17 @@ async fn serve(headers: HeaderMap, uri: Uri) -> Response {
             ([("content-type", "application/pdf")], pdf("Visa guide")).into_response()
         }
         "/privacy/" => page("Privacy", &[], &[]),
+        // 主站上两个超时的页面：主站已经交付过页面，不能因为它们把整个主站停掉
+        "/slow-1/" | "/slow-2/" => {
+            tokio::time::sleep(Duration::from_millis(1500)).await;
+            page("Slow", &[], &[])
+        }
+        // 旧地址跳到新地址：两个链接指向同一页
+        "/intl/" => (
+            StatusCode::MOVED_PERMANENTLY,
+            [(header::LOCATION, intl.clone())],
+        )
+            .into_response(),
         // 真实站点的 404 也是带导航、带查询词的模板页：不能当内容，也不能跟它的链接
         "/gone/" => (
             StatusCode::NOT_FOUND,
@@ -371,8 +401,12 @@ async fn crawl_trace_records_depth_parent_and_score() {
 async fn attachments_are_harvested_from_relevant_pages_with_their_own_budget() {
     let base = site().await;
     let seed = format!("{base}/admissions/");
-    // 不开附件：从 /admissions/ 起爬，/files/ 不在路径范围里，PDF 不抓
-    let c = crawl(&base, json!({ "url": seed, "query": QUERY, "limit": 20 })).await;
+    // 不开附件：从 /admissions/ 起爬、路径范围 auto，/files/ 不在范围里，PDF 不抓
+    let c = crawl(
+        &base,
+        json!({ "url": seed, "query": QUERY, "limit": 20, "scope": "auto" }),
+    )
+    .await;
     assert!(
         !order(&c).iter().any(|p| p.ends_with(".pdf")),
         "{:?}",
@@ -381,7 +415,7 @@ async fn attachments_are_harvested_from_relevant_pages_with_their_own_budget() {
     // 开了附件：相关页面上的 PDF 不受路径范围限制，按自己的预算抓回来，记着来源页
     let c = crawl(
         &base,
-        json!({ "url": seed, "query": QUERY, "limit": 4, "attachments": true, "attachmentLimit": 1 }),
+        json!({ "url": seed, "query": QUERY, "limit": 4, "scope": "auto", "attachments": true, "attachmentLimit": 1 }),
     )
     .await;
     let o = order(&c);
@@ -430,4 +464,100 @@ async fn attachments_need_a_query() {
         .await
         .unwrap_err();
     assert!(err.message.contains("query"), "{err:?}");
+}
+
+#[tokio::test]
+async fn query_crawls_cover_the_whole_site_by_default() {
+    // 从 /admissions/ 起爬：不带查询时路径范围是 /admissions，带查询时是整站
+    let base = site().await;
+    let seed = format!("{base}/admissions/");
+    let plain = crawl(
+        &base,
+        json!({ "url": seed, "limit": 20, "allowSubdomains": false }),
+    )
+    .await;
+    assert!(
+        order(&plain)
+            .iter()
+            .all(|p| p.starts_with("uni.localhost/admissions/")),
+        "{:?}",
+        order(&plain)
+    );
+    let focused = crawl(&base, json!({ "url": seed, "query": QUERY, "limit": 20 })).await;
+    assert!(
+        order(&focused).iter().any(|p| p == "uni.localhost/"),
+        "{:?}",
+        order(&focused)
+    );
+}
+
+#[tokio::test]
+async fn failures_do_not_use_the_page_budget_and_dead_hosts_are_dropped() {
+    // /gone/ 是 404，slow.* 每页都超时：失败不占 limit，交付的页面数照样是 limit；
+    // 一个主机超时两次以后，它排队的其余页面不再调度
+    let base = site().await;
+    let c = crawl(
+        &base,
+        json!({
+            "query": QUERY,
+            "limit": 8,
+            "scrapeOptions": { "formats": ["markdown"], "engine": "http", "timeout": 400 },
+        }),
+    )
+    .await;
+    let o = order(&c);
+    let errors = c.errors.lock().unwrap().clone();
+    let summary = c.summary.lock().unwrap().clone();
+    assert_eq!(o.len(), 8, "{o:?} {errors:?} {summary:?}");
+    let slow = errors.iter().filter(|(u, _)| u.contains("slow.")).count();
+    assert!(slow <= 2, "{errors:?}");
+    // 主站上的两页超时了，主站后面的页面照样抓（交付满 8 页说明主站没被停）
+    let main_timeouts = errors.iter().filter(|(u, _)| u.contains("/slow-")).count();
+    assert_eq!(main_timeouts, 2, "{errors:?}");
+    // 旧地址跳到已经交付过的页面：不重复交付
+    let intl = o
+        .iter()
+        .filter(|p| *p == "uni.localhost/admissions/international/")
+        .count();
+    assert!(intl <= 1, "{o:?}");
+}
+
+#[tokio::test]
+async fn the_english_version_declared_by_hreflang_is_followed() {
+    // 日文首页只在 <head> 里用 hreflang 声明英文版，页面上没有链接（语言切换是脚本画的）
+    let app = Router::new().fallback(get(|uri: Uri| async move {
+        let body = match uri.path() {
+            "/ja/" => r#"<html lang="ja"><head><title>大学</title>
+                <link rel="alternate" hreflang="en" href="/en/">
+                <link rel="alternate" hreflang="ja" href="/ja/"></head>
+                <body><main><h1>大学</h1><p>ようこそ。</p><a href="/ja/news/">ニュース</a></main></body></html>"#,
+            "/en/" => r#"<html><head><title>University</title></head><body><main><h1>University</h1>
+                <p>Welcome.</p><a href="/en/international/">International students</a></main></body></html>"#,
+            "/en/international/" => r#"<html><head><title>International students</title></head><body><main>
+                <h1>International students</h1><p>Admission, tuition, scholarship and visa for international students.</p>
+                </main></body></html>"#,
+            "/ja/news/" => r#"<html><head><title>ニュース</title></head><body><main><p>お知らせ</p></main></body></html>"#,
+            _ => return (StatusCode::NOT_FOUND, Html(String::new())).into_response(),
+        };
+        Html(body.to_string()).into_response()
+    }));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let base = format!("http://uni.localhost:{port}");
+    let c = crawl(
+        &base,
+        json!({ "url": format!("{base}/ja/"), "query": QUERY, "limit": 3 }),
+    )
+    .await;
+    let o = order(&c);
+    assert_eq!(
+        o[..3],
+        [
+            "uni.localhost/ja/",
+            "uni.localhost/en/",
+            "uni.localhost/en/international/"
+        ],
+        "{o:?}"
+    );
 }

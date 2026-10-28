@@ -1,0 +1,5 @@
+http://grad.berkeley.edu/students/: UPSTREAM_ERROR HTTP 405: not a content page
+http://studentcentral.berkeley.edu/: UPSTREAM_ERROR HTTP 405: not a content page
+http://registrar.berkeley.edu/Registration/feesched.html: UPSTREAM_ERROR HTTP 405: not a content page
+stopped: limit_reached (coverage 0.83)
+crawled 9 pages, 3 errors

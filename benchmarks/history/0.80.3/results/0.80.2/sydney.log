@@ -1,0 +1,4 @@
+https://www.sydney.edu.au/students/home.html: UPSTREAM_ERROR HTTP 405: not a content page
+https://www.sydney.edu.au/students/study-dates.html: UPSTREAM_ERROR HTTP 405: not a content page
+stopped: coverage_reached (coverage 0.94)
+crawled 8 pages, 2 errors

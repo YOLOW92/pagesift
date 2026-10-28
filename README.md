@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.80.2
+# pagesift 0.80.3
 
 **High-performance, memory-bounded web scraping and extraction engine built for AI agents and LLM pipelines.**  
 Turn any website, document, or archive into clean Markdown and structured data — one Rust binary, native SDKs, dual Firecrawl v1/v2 & Jina Reader APIs, at a fraction of the memory.
@@ -81,6 +81,18 @@ Measured with 0.70.0, not re-run for later versions.
 
 ---
 
+## What's New in 0.80.3
+
+**Focused crawling, checked on real university sites.** The same 38 university home pages were
+crawled by 0.80.0 and 0.80.3 with `crawl --query "international students admission tuition
+scholarship visa" --adaptive --limit 12`. On the 32 sites both reached: useful pages 29.6% →
+66.1%, international-student pages 6.3% → 38.9%, median useful pages per site 1.5 → 8 (graded
+automatically by URL and title; scripts and raw results in `benchmarks/history/0.80.3/`). Query
+crawls now cover the whole site, refund failed fetches to the page budget, find the English site
+through `hreflang` and English subdomains, and stop treating menus as lists. A PDF that lost a
+page's content to truncation now says which page (`content_missing`). Details:
+[0.80.3 release notes](docs/releases/0.80.3.md).
+
 ## What's New in 0.80.2
 
 **The focused crawl finds the pages it was asked for.** A tester ran `crawl --query` over 159
@@ -151,7 +163,7 @@ Run the standalone container (includes headless browser renderer):
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.2
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.3
 ```
 
 #### Firecrawl SDK Drop-In Replacement
@@ -310,7 +322,7 @@ If PageSift is useful in research or a product, cite it as:
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 0.80.2}
+  note   = {Version 0.80.3}
 }
 ```
 

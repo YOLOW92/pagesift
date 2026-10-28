@@ -67,7 +67,8 @@ const TRACKERS: &[&str] = &[
     "scm",
 ];
 /// 以这些前缀开头的查询参数都是跟踪参数。
-const TRACKER_PREFIXES: &[&str] = &["utm_", "mtm_", "itm_"];
+/// 带前缀的跟踪参数：utm_*、Matomo 的 mtm_*、内部链接归因的 internal_*、Eloqua 的 elq*。
+const TRACKER_PREFIXES: &[&str] = &["utm_", "mtm_", "itm_", "internal_", "elq"];
 /// 会话 ID 参数。`sid` 太短太常见，只在值像随机 ID 时才算（见 [`is_session`]）。
 const SESSIONS: &[&str] = &[
     "jsessionid",
@@ -659,6 +660,11 @@ mod tests {
         assert_eq!(
             cleaned("https://a.com/a?b=1&a=2"),
             "https://a.com/a?b=1&a=2"
+        );
+        // 内部链接归因（internal_*）、Eloqua（elqTrackId）也是跟踪参数
+        assert_eq!(
+            cleaned("https://a.com/x?internal_medium=website&elqTrackId=abc&page=2"),
+            "https://a.com/x?page=2"
         );
     }
 

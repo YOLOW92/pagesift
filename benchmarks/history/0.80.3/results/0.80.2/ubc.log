@@ -1,0 +1,6 @@
+http://www.grad.ubc.ca/prospective-students/application-admission/apply-online: UPSTREAM_ERROR HTTP 405: not a content page
+http://www.grad.ubc.ca/prospective-students: UPSTREAM_ERROR HTTP 405: not a content page
+http://students.ok.ubc.ca/aboriginal/access.html: UPSTREAM_ERROR HTTP 405: not a content page
+http://gradstudies.ok.ubc.ca/prospective/application-admission/application-process.html: UPSTREAM_ERROR HTTP 405: not a content page
+stopped: saturated (coverage 0.56)
+crawled 7 pages, 4 errors

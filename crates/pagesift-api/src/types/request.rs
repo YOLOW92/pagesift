@@ -307,8 +307,10 @@ pub struct CrawlRequest {
     #[serde(default, deserialize_with = "adaptive_options")]
     pub adaptive: Option<AdaptiveOptions>,
     /// 路径范围怎么定（PageSift 扩展）。`crawlEntireDomain: true` 等同于 `domain`。
+    /// 不填时普通爬取是 `auto`，带查询的爬取是 `domain`（相关性打分决定往哪走，路径前缀只会挡路：
+    /// 首页跳到 `/top/` 的站点，招生页在 `/inst/` 下）。
     #[serde(default)]
-    pub scope: CrawlScope,
+    pub scope: Option<CrawlScope>,
     /// 带查询的爬取：相关页面上同站点的 PDF/Office 文档也抓回来解析（PageSift 扩展）。
     #[serde(default)]
     pub attachments: bool,

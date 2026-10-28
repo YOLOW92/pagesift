@@ -1,0 +1,4 @@
+http://www.kyoto-u.ac.jp/en: UPSTREAM_ERROR HTTP 405: not a content page
+http://www.kyoto-u.ac.jp/en/: UPSTREAM_ERROR HTTP 405: not a content page
+stopped: limit_reached (coverage 0.89)
+crawled 10 pages, 2 errors

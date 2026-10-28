@@ -167,6 +167,9 @@ pub struct Document {
     /// `links` 里每个链接的锚文本（同序），爬虫给链接打分用；不进 JSON。
     #[serde(skip)]
     pub link_text: Option<Vec<String>>,
+    /// 页面声明的其他语言版本（`hreflang`）：(语言, 地址)。爬虫找英文版用；不进 JSON。
+    #[serde(skip)]
+    pub alternates: Vec<(String, String)>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub images: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]

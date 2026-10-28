@@ -1,0 +1,5 @@
+http://www.student.admin.auckland.ac.nz/: UPSTREAM_ERROR HTTP 405: not a content page
+http://www.student.auckland.ac.nz/: UPSTREAM_ERROR HTTP 405: not a content page
+http://www.concursolutions.auckland.ac.nz/: UPSTREAM_ERROR HTTP 405: not a content page
+stopped: limit_reached (coverage 0.00)
+crawled 9 pages, 3 errors

@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.80.2
+# pagesift 0.80.3
 
 **Motor de scraping y extracción web de alto rendimiento y memoria acotada para agentes de IA y pipelines de LLM.**  
 Convierte cualquier sitio web, documento o archivo en Markdown limpio y datos estructurados: un único binario en Rust, SDK nativos, APIs duales Firecrawl v1/v2 y Jina Reader, con menos memoria que las alternativas medidas (véase la [sección 9 de benchmarks.md](benchmarks.md)).
@@ -74,6 +74,18 @@ Medido con 0.70.0; no se ha repetido con versiones posteriores.
 
 ---
 
+## Novedades en 0.80.3
+
+**Rastreo enfocado, comprobado en sitios universitarios reales.** Las mismas 38 portadas de
+universidades se rastrearon con 0.80.0 y 0.80.3 (`crawl --query "international students admission
+tuition scholarship visa" --adaptive --limit 12`). En los 32 sitios que ambas alcanzaron: páginas
+útiles 29,6% → 66,1%, páginas para estudiantes internacionales 6,3% → 38,9%, mediana de páginas
+útiles por sitio 1,5 → 8 (clasificación automática por URL y título; scripts y datos en
+`benchmarks/history/0.80.3/`). Los rastreos con consulta cubren todo el sitio, devuelven al
+presupuesto las descargas fallidas, encuentran el sitio en inglés por `hreflang` y subdominios en
+inglés, y ya no tratan los menús como listas. Un PDF truncado que perdió el contenido de una página
+dice cuál (`content_missing`). Detalle: [notas de 0.80.3](releases/0.80.3.md).
+
 ## Novedades en 0.80.2
 
 **El rastreo enfocado encuentra las páginas que se le pidieron.** Un probador ejecutó `crawl --query`
@@ -129,7 +141,7 @@ se conservan sin cambios y con sus fuentes en [history/homepage-es.md](history/h
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.2
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.3
 ```
 
 #### Reemplazo Directo de Firecrawl SDK

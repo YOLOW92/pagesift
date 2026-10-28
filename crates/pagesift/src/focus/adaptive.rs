@@ -7,8 +7,14 @@ use std::collections::HashSet;
 use pagesift_api::types::AdaptiveOptions;
 use pagesift_extract::Query;
 
-/// 相关度低于它的页面不计入证据，也不算"没有新信息"的一页。
-pub(crate) const MIN_RELEVANCE: f32 = 0.3;
+/// 相关度低于它的页面算无关：不计入证据，而且找到相关内容之后连着出现就算"抓完了"。
+/// 按 31 所真实大学站点的分布定（0.80.3，benchmarks/history/0.80.3）：目标页相关度中位数 0.16、
+/// 无用页 0.07；0.12 之下 62% 的目标页不会被误判。真实页面很少同时覆盖全部查询词，而且常见词的
+/// 权重被压低，所以绝对值比合成站点低得多。附件收割也用它。
+pub(crate) const MIN_RELEVANCE: f32 = 0.12;
+/// 相关度不低于它的页面才贡献证据、才参与"有没有新信息"的判断；两者之间的页面不算数
+/// （沾了点边的页面：既不能让覆盖度提前达标，也不能把相关的部分判成抓完了）。
+pub(crate) const EVIDENCE_RELEVANCE: f32 = 0.3;
 
 /// 自适应爬取的状态：每个查询词的证据数、已经见过的相关段落、连续没有新信息的页数。
 pub(crate) struct Adaptive {
@@ -76,6 +82,9 @@ impl Adaptive {
                     return Some("saturated");
                 }
             }
+            return None;
+        }
+        if relevance < EVIDENCE_RELEVANCE {
             return None;
         }
         let hasher = BuildHasherDefault::<DefaultHasher>::default();
@@ -165,10 +174,12 @@ mod tests {
             a.observe(&q, "Refund policy in full.", 0.9),
             Some("coverage_reached")
         );
-        // 有了收获之后连着几页无关：相关的部分抓完了
+        // 有了收获之后连着几页无关：相关的部分抓完了；沾点边的页面（两个门槛之间）不算数
         let mut a = Adaptive::new(opts(1.0, 100, 2), q.len());
         assert_eq!(a.observe(&q, "Refund policy in full.", 0.9), None);
         assert_eq!(a.observe(&q, "Team page.", 0.0), None);
+        assert_eq!(a.observe(&q, "Refund mentioned once.", 0.2), None);
+        assert_eq!(a.evidence(), &[1, 1]);
         assert_eq!(a.observe(&q, "Careers page.", 0.0), Some("saturated"));
     }
 }

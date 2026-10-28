@@ -30,6 +30,9 @@ pub struct Metadata {
     pub json_ld: Vec<serde_json::Value>,
     /// 正文为空、用 JSON-LD `VideoObject` 兜底生成了 Markdown。
     pub video_fallback: bool,
+    /// `<link rel="alternate" hreflang="…">` 声明的其他语言版本：(语言, 绝对地址)，按出现顺序。
+    /// 语言切换常常是脚本画的菜单，页面里只有这里写着英文版在哪。
+    pub alternates: Vec<(String, String)>,
 }
 
 fn clean(s: &str) -> Option<String> {
@@ -168,6 +171,14 @@ pub(crate) fn extract(html: &Html<'_>, source: &str, base: Option<&Url>) -> Meta
                     if rels.contains(&"icon") {
                         set_once(&mut m.favicon, resolve(base, href));
                     }
+                    if rels.contains(&"alternate")
+                        && let Some(lang) = el.attr("hreflang").map(str::trim)
+                        && !lang.is_empty()
+                        && m.alternates.len() < MAX_ALTERNATES
+                    {
+                        m.alternates
+                            .push((lang.to_ascii_lowercase(), resolve(base, href)));
+                    }
                 }
                 return false;
             }
@@ -271,6 +282,9 @@ impl Metadata {
         &self.json_ld
     }
 }
+
+/// 最多记这么多个语言版本（多语言站点的头部可能列几十个）。
+const MAX_ALTERNATES: usize = 64;
 
 fn set_once(slot: &mut Option<String>, value: String) {
     if slot.is_none() {

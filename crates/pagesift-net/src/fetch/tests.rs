@@ -129,3 +129,29 @@ fn missing_no_proxy_is_empty() {
     assert!(!bypass.host_listed("example.com"));
     assert!(!bypass.ip_allowed("127.0.0.1".parse().unwrap()));
 }
+
+#[test]
+fn same_host_https_to_http_redirects_stay_on_https() {
+    let from = url("https://www.e.edu/studentservices");
+    let hop = |u: &str| RedirectHop {
+        url: url(u),
+        status: 301,
+    };
+    // 同一主机降级：走 https
+    let next = upgrade_downgrade(&from, url("http://www.e.edu/studentservices/"), &[]);
+    assert_eq!(next.as_str(), "https://www.e.edu/studentservices/");
+    // 别的主机、本来就是 http 起步的：照原样
+    let other = upgrade_downgrade(&from, url("http://finance.e.edu/fees"), &[]);
+    assert_eq!(other.scheme(), "http");
+    let plain = upgrade_downgrade(&url("http://www.e.edu/a"), url("http://www.e.edu/b"), &[]);
+    assert_eq!(plain.as_str(), "http://www.e.edu/b");
+    // 服务器坚持要 http（升级后又回到来处，或者已经在跳转链里）：照它的来，不成环
+    let same = upgrade_downgrade(&from, url("http://www.e.edu/studentservices"), &[]);
+    assert_eq!(same.scheme(), "http");
+    let seen = upgrade_downgrade(
+        &url("https://www.e.edu/b"),
+        url("http://www.e.edu/a"),
+        &[hop("https://www.e.edu/a")],
+    );
+    assert_eq!(seen.scheme(), "http");
+}

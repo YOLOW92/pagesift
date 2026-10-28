@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.80.2
+# pagesift 0.80.3
 
 **AI エージェントと LLM データ基盤のための、超高速・メモリ有界スクレイピング＆本文抽出エンジン。**  
 あらゆる Web サイト、論文、アーカイブを高品質な Markdown と構造化データに変換します。単一の Rust バイナリ、ネイティブ SDK、Firecrawl v1/v2 および Jina Reader デュアルプロトコル互換。測定した競合よりメモリ消費が少なくなっています（[benchmarks.md 第 9 節](benchmarks.md) 参照）。
@@ -76,6 +76,16 @@
 
 ---
 
+## 0.80.3 の変更
+
+**フォーカスクロールを実在の大学サイトで検証しました。** 同じ 38 大学のトップページを 0.80.0 と 0.80.3 で
+`crawl --query "international students admission tuition scholarship visa" --adaptive --limit 12`。
+両方が到達できた 32 サイトで：有用なページ 29.6% → 66.1%、留学生向けページ 6.3% → 38.9%、サイトあたり
+有用ページの中央値 1.5 → 8（URL とタイトルによる自動判定。スクリプトと生データは `benchmarks/history/0.80.3/`）。
+クエリ付きクロールはサイト全体を対象にし、失敗した取得はページ予算に戻し、`hreflang` と英語サブドメインから
+英語サイトを見つけ、ナビゲーションのメガメニューを一覧扱いしません。切り詰められた PDF でページの本文が
+失われた場合はそのページを示します（`content_missing`）。詳細：[0.80.3 リリースノート](releases/0.80.3.md)。
+
 ## 0.80.2 の変更
 
 **フォーカスクロールが、求められたページを取ってくるようになりました。** テスターが 159 大学のサイトで
@@ -126,7 +136,7 @@ CSV を HTML と同じ方法でデコード（以前は警告なしに文字化�
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.2
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.3
 ```
 
 #### Firecrawl SDK の差し替え

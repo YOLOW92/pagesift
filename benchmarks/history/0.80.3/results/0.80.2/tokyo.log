@@ -1,0 +1,5 @@
+https://dcs.adm.u-tokyo.ac.jp/en/: TLS_UNTRUSTED_ROOT TLS error (untrusted root): error sending request: client error (Connect): invalid peer certificate: UnknownIssuer
+https://www.u-tokyo.ac.jp/adm/jle/en/index.html: UPSTREAM_ERROR HTTP 404: not a content page
+https://www.lib.u-tokyo.ac.jp/en: TIMEOUT connect timeout
+stopped: saturated (coverage 0.33)
+crawled 9 pages, 3 errors

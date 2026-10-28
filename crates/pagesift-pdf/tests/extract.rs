@@ -595,3 +595,31 @@ fn footnote_markers_after_author_names_are_plain_text() {
     );
     assert!(!doc.markdown.contains("\\ast"), "{}", doc.markdown);
 }
+
+/// 页面字典还在、页数也对，内容流却丢了（arXiv 文件的第一页内容流写在文件后半，截断时就是这样）：
+/// 不能悄悄少一页正文，要用 content_missing 指出是哪几页。
+#[test]
+fn pages_whose_content_stream_was_cut_away_are_named() {
+    let whole = plain_pdf(&["Page one.", "Page two.", "Page three."]);
+    // 把第一页的内容流（对象 5）挪到文件末尾的 xref 之后，再截掉：页面字典在，内容流没了
+    let start = whole.windows(8).position(|w| w == b"5 0 obj\n").unwrap();
+    let end = start
+        + whole[start..]
+            .windows(6)
+            .position(|w| w == b"endobj")
+            .unwrap()
+        + 7;
+    let xref = whole.windows(5).position(|w| w == b"xref\n").unwrap();
+    let mut cut = whole[..start].to_vec();
+    cut.extend_from_slice(&whole[end..xref]);
+    let doc = extract(&cut).unwrap();
+    assert_eq!(doc.pages.len(), 3);
+    assert!(!doc.markdown.contains("Page one.") && doc.markdown.contains("Page three."));
+    assert!(
+        doc.warnings
+            .iter()
+            .any(|w| w.starts_with("content_missing: 1 of 3 pages") && w.ends_with("(pages 1)")),
+        "{:?}",
+        doc.warnings
+    );
+}

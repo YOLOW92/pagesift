@@ -1,0 +1,4 @@
+https://www.organisatiegids.universiteitleiden.nl/faculteiten-en-instituten/sociale-wetenschappen/instituten/psychologie/international-student-platform-psychology-isp: HOST_COOLDOWN host `www.organisatiegids.universiteitleiden.nl` is cooling down
+https://www.organisatiegids.universiteitleiden.nl/expertisecentra/studenten--en-onderwijszaken: NETWORK_ERROR network error: error sending request: client error (SendRequest): connection error: peer closed connection without sending TLS close_notify: https://docs.rs/rustls/latest/rustls/manual/_03_howto/index.html#unexpected-eof
+stopped: saturated (coverage 0.39)
+crawled 10 pages, 2 errors

@@ -38,15 +38,33 @@ fn score_bits(score: f32) -> u32 {
     }
 }
 
-/// 簇的键：主机加第一段路径（`news`、`admissions`、`exhibition`…），没有路径时就是主机。
+/// 簇的键：主机加第一段路径（`news`、`admissions`、`exhibition`…）。
+/// 各个主机的首页（`/`、`/en/`、`/index.html`）同属一个簇：大学首页链着几十个院系子站，
+/// 每个子站首页都是不同的主机，不归到一起的话按簇分散反而会把预算摊给它们。
 pub(crate) fn cluster_key(u: &Url) -> String {
-    let first = u
-        .path()
-        .trim_start_matches('/')
-        .split('/')
-        .next()
-        .unwrap_or_default();
-    format!("{}/{first}", u.host_str().unwrap_or_default())
+    let segs: Vec<&str> = u.path().split('/').filter(|s| !s.is_empty()).collect();
+    // 首页：没有路径，或者只有一段语言代码（`en`、`en-gb`）或 `index`（可以带扩展名）
+    let home_segment = |seg: &str| {
+        let stem = seg
+            .split_once('.')
+            .map_or(seg, |(s, _)| s)
+            .to_ascii_lowercase();
+        let lang = |p: &str| p.len() == 2 && p.bytes().all(|b| b.is_ascii_alphabetic());
+        stem == "index"
+            || lang(&stem)
+            || stem
+                .split_once('-')
+                .is_some_and(|(a, b)| lang(a) && (2..=4).contains(&b.len()))
+    };
+    let root = match segs.as_slice() {
+        [] => true,
+        [one] => home_segment(one),
+        _ => false,
+    };
+    if root {
+        return "*/".to_string();
+    }
+    format!("{}/{}", u.host_str().unwrap_or_default(), segs[0])
 }
 
 impl BestFirst {
@@ -201,6 +219,11 @@ mod tests {
         assert_eq!(q.pop_diverse(&counts, 3).unwrap().0.path(), "/news/1");
         // 剩下的 about 分太低，不够资格插队
         assert_eq!(q.pop_diverse(&counts, 3).unwrap().0.path(), "/news/2");
-        assert_eq!(cluster_key(&u("https://e.com/")), "e.com/");
+        assert_eq!(cluster_key(&u("https://e.com/")), "*/");
+        assert_eq!(cluster_key(&u("https://cs.e.com/en/")), "*/");
+        assert_eq!(cluster_key(&u("https://e.com/en.html")), "*/");
+        assert_eq!(cluster_key(&u("https://e.com/en-gb/")), "*/");
+        assert_eq!(cluster_key(&u("https://e.com/news/")), "e.com/news");
+        assert_eq!(cluster_key(&u("https://e.com/study")), "e.com/study");
     }
 }

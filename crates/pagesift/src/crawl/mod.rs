@@ -383,6 +383,16 @@ fn seed_names_page(start: &Url) -> bool {
 /// 先按固定规则清洗，再按这次爬取学到的改写规则改成规范写法。
 pub(super) fn candidate(base: &Url, link: &str, learner: &Learner) -> Option<Url> {
     let mut u = base.join(link).ok()?;
+    // 页面是 https 拿到的，它链回同一站点的 http 地址（老模板）：直接用 https，省一次跳转，
+    // 而且跟不了跳转的环境（只放行 https 的代理）也抓得到
+    if u.scheme() == "http"
+        && base.scheme() == "https"
+        && u.host_str().zip(base.host_str()).is_some_and(|(a, b)| {
+            a == b || pagesift_content::site_key(a) == pagesift_content::site_key(b)
+        })
+    {
+        let _ = u.set_scheme("https");
+    }
     frontier::clean(&mut u);
     learner.rewrite(&mut u);
     (!frontier::skip(&u)).then_some(u)
@@ -581,7 +591,11 @@ impl Scraper {
             if req.crawl_entire_domain {
                 CrawlScope::Domain
             } else {
-                req.scope
+                req.scope.unwrap_or(if req.query.is_some() {
+                    CrawlScope::Domain
+                } else {
+                    CrawlScope::Auto
+                })
             },
             &req.include_paths,
             &req.exclude_paths,
@@ -652,6 +666,23 @@ mod tests {
 
     fn u(s: &str) -> Url {
         Url::parse(s).unwrap()
+    }
+
+    #[test]
+    fn same_host_http_links_upgrade_to_https() {
+        let learner = Learner::default();
+        let base = Url::parse("https://www.e.edu/study/").unwrap();
+        let same = candidate(&base, "http://www.e.edu/fees/", &learner).unwrap();
+        assert_eq!(same.as_str(), "https://www.e.edu/fees/");
+        // 同一站点的子域名也升级；别的站点不知道有没有 https：照原样
+        let sub = candidate(&base, "http://grad.e.edu/", &learner).unwrap();
+        assert_eq!(sub.scheme(), "https");
+        let other = candidate(&base, "http://other.org/", &learner).unwrap();
+        assert_eq!(other.scheme(), "http");
+        // 种子本来就是 http：不动
+        let http_base = Url::parse("http://www.e.edu/").unwrap();
+        let kept = candidate(&http_base, "http://www.e.edu/fees/", &learner).unwrap();
+        assert_eq!(kept.scheme(), "http");
     }
 
     #[test]

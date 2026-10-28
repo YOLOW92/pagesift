@@ -1,0 +1,3 @@
+https://registrar.washington.edu/residency-groups/american-indian-students/ais-resident-tuition/: TLS_UNTRUSTED_ROOT TLS error (untrusted root): error sending request: client error (Connect): invalid peer certificate: UnknownIssuer
+stopped: limit_reached (coverage 0.83)
+crawled 12 pages, 1 errors

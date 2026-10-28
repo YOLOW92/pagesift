@@ -385,7 +385,13 @@ fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument,
         .first()
         .and_then(|p| structure::inferred_title(&p.markdown));
     // 对象都读完了，这时才知道有没有靠扫描纠正过偏移
-    let warnings = doc.damage(&tree).warnings(total_pages);
+    let mut damage = doc.damage(&tree);
+    // 修复过的文件再查一遍：页面字典在、页数对，内容流或字体却可能丢了（截断时常见）
+    if damage.repaired || damage.rescued {
+        (damage.incomplete_pages, damage.fontless_pages) =
+            doc.incomplete_pages(&page_ids, opts.max_stream_bytes);
+    }
+    let warnings = damage.warnings(total_pages);
     Ok(PdfDocument {
         markdown,
         pages,

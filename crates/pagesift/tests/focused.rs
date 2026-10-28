@@ -307,8 +307,8 @@ async fn adaptive_crawl_stops_once_the_query_is_covered() {
 #[tokio::test]
 async fn adaptive_crawl_stops_when_new_pages_add_nothing() {
     let base = site().await;
-    // "warranty" 在站点上从来没出现：覆盖度到不了。抓过几页以后 "refund" 每页都有、不再算证据，
-    // 只命中它的页面也不再算相关，连续 3 页没有新信息就停
+    // "warranty" 在站点上从来没出现：覆盖度到不了。退款页面（相关度过线）抓完以后，
+    // 连续 3 页无关的页面就停
     let c = crawl(
         &base,
         json!({
@@ -318,7 +318,7 @@ async fn adaptive_crawl_stops_when_new_pages_add_nothing() {
     )
     .await;
     let o = order(&c);
-    assert_eq!(o.len(), 5, "{o:?}");
+    assert_eq!(o.len(), 7, "{o:?}");
     assert!(o[1..4].iter().all(|t| t.starts_with("Refund")), "{o:?}");
     let s = c.summary.lock().unwrap().clone().unwrap();
     assert_eq!(s.stop_reason, "saturated");

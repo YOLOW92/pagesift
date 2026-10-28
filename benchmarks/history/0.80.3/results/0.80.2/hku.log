@@ -1,0 +1,8 @@
+https://rise.hku.hk/en: TIMEOUT connect timeout
+https://intlaffairs.hku.hk/: TIMEOUT connect timeout
+https://aas.hku.hk/: TIMEOUT connect timeout
+https://admissions.hku.hk/fees-and-scholarships/fees: TIMEOUT connect timeout
+https://admissions.hku.hk/fees-and-scholarships/scholarships: TIMEOUT connect timeout
+https://admissions.hku.hk/: TIMEOUT connect timeout
+stopped: limit_reached (coverage 0.72)
+crawled 6 pages, 6 errors

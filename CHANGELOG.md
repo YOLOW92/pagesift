@@ -2,6 +2,45 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.80.3] — 2026-10-28
+
+The focused crawl checked and fixed on 38 real university sites (0.80.2 had only synthetic ones),
+and the D-2 follow-up found on the real arXiv paper. On the 32 sites both versions reached, useful
+pages went from 29.6% (0.80.0) to 66.1%, international-student pages from 6.3% to 38.9%. See
+[the release notes](docs/releases/0.80.3.md) and `benchmarks/history/0.80.3/`.
+
+### Added
+- PDF warnings `content_missing` (pages of a repaired file whose content streams are gone, named
+  by page) and `fonts_missing` (pages whose font definitions are gone). The audit log counts
+  `content_missing` as suspicious; the CLI prints it.
+- Query crawls follow the start page's `<link rel="alternate" hreflang="en">` for English queries.
+- pagesift-content: `Metadata::alternates` (hreflang alternates).
+
+### Changed
+- Query crawls default to the whole site (`scope: domain`); `scope` is now optional and crawls
+  without a query keep `auto`. CLI `--scope` has no fixed default any more.
+- Query crawls: failed fetches (errors, error statuses, challenges, robots-disallowed) are refunded
+  to the page budget, up to `limit` refunds; hosts that time out twice or answer a challenge before
+  delivering any page are dropped; two URLs that land on the same page deliver it once.
+- Focused scoring: English home pages ending in `.html` and English subdomains are English entries;
+  department subdomains' `/en/` are not; `/en/<section>/` counts as a section; home pages of all
+  hosts share one cluster; the list discount counts only main-content links; hubs are judged by
+  text outside link labels; adaptive relevance thresholds set from real pages (irrelevant below
+  0.12, evidence from 0.3); more furniture (login/SSO/portal/LMS hosts and paths, shops, imprint,
+  data protection, cookies); English queries demote other-language paths.
+- Charset detection (HTML without a declared charset, CSV) feeds chardetng in 4 KiB blocks and
+  stops once the guess has been stable for three blocks after 16 KiB: Shift_JIS CSV −6.4% and GBK
+  CSV +1.0% instructions against 0.80.0 (the 0.80.1 decoding fix had cost +2.5% and +23%).
+- Fetching: a same-host redirect from https to http is followed over https unless that would loop;
+  query crawls fetch same-site `http://` links over https. `internal_*` and `elq*` query
+  parameters are stripped as tracking parameters.
+
+### Fixed
+- A truncated PDF that kept every page dictionary but lost a page's content stream (the real arXiv
+  1706.03762 cut at 50–80% loses page 1) reported all pages and no loss.
+- A query crawl stopped after three pages when one page of the main host was behind a firewall
+  rule (NTU), and spent its budget on timeouts and challenges (Manchester).
+
 ## [0.80.2] — 2026-10-28
 
 The focused crawl (`query`) rewritten after a tester ran it over 159 university sites and got

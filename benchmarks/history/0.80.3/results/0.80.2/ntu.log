@@ -1,0 +1,4 @@
+https://www.ntu.edu.sg/education/colleges-schools/s.rajaratnam-school-of-international-studies: ACCESS_BARRIER the site returned an access barrier (cloudflare challenge); pagesift does not bypass it
+https://student-intranet.ntu.edu.sg/: ROBOTS_DISALLOWED disallowed by robots.txt: https://entuedu.sharepoint.com/sites/student
+stopped: limit_reached (coverage 0.78)
+crawled 10 pages, 2 errors

@@ -21,7 +21,14 @@ pub(crate) struct Damage {
     pub(crate) rescued: bool,
     pub(crate) declared_pages: Option<usize>,
     pub(crate) missing_pages: usize,
+    /// 页面在、但内容流丢了的页（从 1 数）：页数对，正文不全。
+    pub(crate) incomplete_pages: Vec<usize>,
+    /// 内容流在、但字体字典丢了的页：字还在，可能解码错。
+    pub(crate) fontless_pages: Vec<usize>,
 }
+
+/// 警告里最多列出这么多个页码。
+const LISTED_PAGES: usize = 10;
 
 impl Damage {
     /// 给调用方的警告，格式和引擎其他警告一样：`标识: 说明`。`found` 是实际找到的页数。
@@ -49,8 +56,35 @@ impl Damage {
                 total - found
             ));
         }
+        if !self.incomplete_pages.is_empty() {
+            out.push(format!(
+                "content_missing: {} of {found} pages lost their content streams in the damaged file; their text is missing or incomplete (pages {})",
+                self.incomplete_pages.len(),
+                listed(&self.incomplete_pages)
+            ));
+        }
+        if !self.fontless_pages.is_empty() {
+            out.push(format!(
+                "fonts_missing: {} of {found} pages lost font definitions in the damaged file; some characters may be decoded wrongly (pages {})",
+                self.fontless_pages.len(),
+                listed(&self.fontless_pages)
+            ));
+        }
         out
     }
+}
+
+/// 页码列表，最多 [`LISTED_PAGES`] 个，多了用省略号。
+fn listed(pages: &[usize]) -> String {
+    let mut out: Vec<String> = pages
+        .iter()
+        .take(LISTED_PAGES)
+        .map(usize::to_string)
+        .collect();
+    if pages.len() > LISTED_PAGES {
+        out.push("…".into());
+    }
+    out.join(", ")
 }
 
 #[cfg(test)]
@@ -69,6 +103,8 @@ mod tests {
             rescued: true,
             declared_pages: Some(5),
             missing_pages: 2,
+            incomplete_pages: Vec::new(),
+            fontless_pages: Vec::new(),
         };
         let w = d.warnings(3);
         assert_eq!(w.len(), 2);
@@ -83,6 +119,8 @@ mod tests {
             rescued: true,
             declared_pages: Some(1),
             missing_pages: 1,
+            incomplete_pages: Vec::new(),
+            fontless_pages: Vec::new(),
         };
         let w = d.warnings(3);
         assert!(w[0].contains("offsets were wrong"));
@@ -93,5 +131,29 @@ mod tests {
             ..Damage::default()
         };
         assert!(d.warnings(3).is_empty());
+    }
+
+    #[test]
+    fn pages_with_lost_content_are_listed() {
+        let d = Damage {
+            repaired: true,
+            incomplete_pages: vec![1, 4],
+            ..Damage::default()
+        };
+        let w = d.warnings(15);
+        assert_eq!(
+            w[1],
+            "content_missing: 2 of 15 pages lost their content streams in the damaged file; their text is missing or incomplete (pages 1, 4)"
+        );
+        let fonts = Damage {
+            fontless_pages: vec![3],
+            ..Damage::default()
+        };
+        assert!(fonts.warnings(15)[0].starts_with("fonts_missing: 1 of 15 pages"));
+        let many = Damage {
+            incomplete_pages: (1..=12).collect(),
+            ..Damage::default()
+        };
+        assert!(many.warnings(12)[0].ends_with("(pages 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, …)"));
     }
 }

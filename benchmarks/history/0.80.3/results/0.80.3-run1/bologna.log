@@ -1,0 +1,8 @@
+https://studenti.unibo.it/sol/welcome.htm?siteLanguage=en: ROBOTS_DISALLOWED disallowed by robots.txt: https://studenti.unibo.it/sol/welcome.htm?siteLanguage=en
+https://studenti.unibo.it/: ROBOTS_DISALLOWED disallowed by robots.txt: https://studenti.unibo.it/
+https://almarm.unibo.it/almarm/welcomeStudenti.htm: ROBOTS_DISALLOWED disallowed by robots.txt: https://almarm.unibo.it/almarm/welcomeStudenti.htm
+https://almarm.unibo.it/almarm/personale/home.htm: ROBOTS_DISALLOWED disallowed by robots.txt: https://almarm.unibo.it/almarm/personale/home.htm
+https://almaesami.unibo.it/almaesami/studenti/home.htm: ROBOTS_DISALLOWED disallowed by robots.txt: https://almaesami.unibo.it/almaesami/studenti/home.htm
+https://jobplacement.unibo.it/en/students-and-graduates/job-offers: ROBOTS_DISALLOWED disallowed by robots.txt: https://webauth.unibo.it/apps/sso?next=https://jobplacement.unibo.it/acl_users/credentials_cookie_auth/logged_in&came_from=https://jobplacement.unibo.it/en/students-and-graduates/job-offers
+stopped: limit_reached (coverage 0.00)
+crawled 12 pages, 6 errors
