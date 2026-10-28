@@ -1,0 +1,10 @@
+# 混合增强基准第 2 版的资源上限（RULES.md 第五节），冻结后不改。原有类别沿用 ../limits.toml。
+batch_factor = 0.5
+worker_mem_mb = 4096
+model_worker_mem_mb = 8192   # MinerU、Marker、Docling、MinerU-HTML
+
+[per_item_s]
+a3 = 60
+b5 = 600
+d = 600                      # 每个“学校 × 方向”
+c3 = 30

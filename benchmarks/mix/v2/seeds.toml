@@ -1,0 +1,23 @@
+# 混合增强基准第 2 版：新类别的随机种子（RULES.md 第二节）。原有类别沿用 ../seeds.toml，不重抽。
+# 规则冻结时 frozen = true 和 RULES.md 一起提交，之后不改。种子在看到任何样本之前选定：20261028（起草日期）加序号，没有挑过。
+frozen = true
+
+[seeds]
+a3_tranco = 2026102801       # A3 分层抽候选站点的顺序
+d_universities = 2026102802  # D 从 Hipo 名单（去掉 69 所开发集）里抽 30 所的顺序
+
+[quota]
+a3_per_tier = 20             # 5 层 × 20 份合格页
+d_universities = 30
+
+[a3]
+# 合格判定（只看静态抓到的原始 HTML）
+max_visible_chars = 500
+min_external_scripts = 3
+mount_ids = ["root", "app", "__next", "__nuxt", "svelte"]
+
+[d]
+source = "https://github.com/Hipo/university-domains-list"
+source_commit = "603e10f51b67c6553b9bca9aecc0db4c2417ed10"
+exclude = "benchmarks/history/0.80.9/sites.txt"
+page_budget = 12
