@@ -68,17 +68,20 @@ mod tests {
     #[test]
     fn sleeping_uses_no_cpu_and_spinning_does() {
         let (_, slept) = cpu_time(|| std::thread::sleep(Duration::from_millis(200)));
+        // 固定的工作量，不按墙钟转圈：机器忙时线程被抢走，按墙钟转 100 ms 用到的 CPU 可能不到一半
         let (_, spun) = cpu_time(|| {
-            let t = std::time::Instant::now();
             let mut x = 0u64;
-            while t.elapsed() < Duration::from_millis(100) {
-                x = std::hint::black_box(x.wrapping_add(1));
+            for i in 0..20_000_000u64 {
+                x = std::hint::black_box(x.wrapping_add(i));
             }
         });
         if cfg!(unix) {
             assert!(slept < Duration::from_millis(50), "{slept:?}");
         }
-        assert!(spun >= Duration::from_millis(50), "{spun:?}");
+        assert!(
+            spun > Duration::from_millis(1) && spun > slept,
+            "{spun:?} vs {slept:?}"
+        );
     }
 
     #[test]
