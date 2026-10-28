@@ -21161,15 +21161,15 @@
       ],
       [
        "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
        true
-      ],
-      [
-       "old_scans",
-       false
-      ],
-      [
-       "old_scans",
-       false
       ],
       [
        "old_scans",
@@ -21519,6 +21519,10 @@
      "tests": [
       [
        "old_scans",
+       true
+      ],
+      [
+       "old_scans",
        false
       ],
       [
@@ -21536,10 +21540,6 @@
       [
        "old_scans",
        false
-      ],
-      [
-       "old_scans",
-       true
       ],
       [
        "baseline",
@@ -21651,11 +21651,11 @@
       ],
       [
        "old_scans",
-       true
+       false
       ],
       [
        "old_scans",
-       false
+       true
       ],
       [
        "old_scans",
@@ -21711,11 +21711,11 @@
      "tests": [
       [
        "old_scans",
-       false
+       true
       ],
       [
        "old_scans",
-       true
+       false
       ],
       [
        "old_scans",
@@ -21737,15 +21737,15 @@
       ],
       [
        "old_scans",
-       false
-      ],
-      [
-       "old_scans",
-       false
-      ],
-      [
-       "old_scans",
        true
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
       ],
       [
        "baseline",
@@ -22203,11 +22203,11 @@
       ],
       [
        "old_scans",
-       false
+       true
       ],
       [
        "old_scans",
-       true
+       false
       ],
       [
        "old_scans",
@@ -22557,15 +22557,15 @@
      "tests": [
       [
        "old_scans",
+       true
+      ],
+      [
+       "old_scans",
+       true
+      ],
+      [
+       "old_scans",
        false
-      ],
-      [
-       "old_scans",
-       true
-      ],
-      [
-       "old_scans",
-       true
       ],
       [
        "old_scans",
@@ -22887,11 +22887,11 @@
       ],
       [
        "old_scans",
-       false
+       true
       ],
       [
        "old_scans",
-       true
+       false
       ],
       [
        "old_scans",
@@ -26433,10 +26433,10 @@
   "mineru": {
    "items": 134,
    "status": {
-    "ok": 21,
-    "not_run": 113
+    "ok": 23,
+    "stopped": 111
    },
-   "completion": 0.15671641791044777,
+   "completion": 0.17164179104477612,
    "per_item": {
     "b5-old_scans-1": {
      "set": "olmOCR",
@@ -26447,11 +26447,11 @@
       ],
       [
        "old_scans",
-       false
+       true
       ],
       [
        "old_scans",
-       true
+       false
       ],
       [
        "old_scans",
@@ -26813,19 +26813,19 @@
       ],
       [
        "old_scans",
+       true
+      ],
+      [
+       "old_scans",
+       true
+      ],
+      [
+       "old_scans",
+       true
+      ],
+      [
+       "old_scans",
        false
-      ],
-      [
-       "old_scans",
-       true
-      ],
-      [
-       "old_scans",
-       true
-      ],
-      [
-       "old_scans",
-       true
       ],
       [
        "baseline",
@@ -26933,6 +26933,14 @@
      "tests": [
       [
        "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
        true
       ],
       [
@@ -26942,14 +26950,6 @@
       [
        "old_scans",
        true
-      ],
-      [
-       "old_scans",
-       false
-      ],
-      [
-       "old_scans",
-       false
       ],
       [
        "baseline",
@@ -27023,15 +27023,15 @@
       ],
       [
        "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
        true
-      ],
-      [
-       "old_scans",
-       false
-      ],
-      [
-       "old_scans",
-       false
       ],
       [
        "baseline",
@@ -27105,7 +27105,19 @@
      "tests": [
       [
        "old_scans",
-       false
+       true
+      ],
+      [
+       "old_scans",
+       true
+      ],
+      [
+       "old_scans",
+       true
+      ],
+      [
+       "old_scans",
+       true
       ],
       [
        "old_scans",
@@ -27113,26 +27125,14 @@
       ],
       [
        "old_scans",
-       false
-      ],
-      [
-       "old_scans",
-       false
-      ],
-      [
-       "old_scans",
-       false
-      ],
-      [
-       "old_scans",
-       false
+       true
       ],
       [
        "baseline",
-       false
+       true
       ]
      ],
-     "f1": 0.0
+     "f1": 0.8571428571428571
     },
     "b5-old_scans-3": {
      "set": "olmOCR",
@@ -27147,7 +27147,7 @@
       ],
       [
        "old_scans",
-       false
+       true
       ],
       [
        "old_scans",
@@ -27155,10 +27155,10 @@
       ],
       [
        "baseline",
-       false
+       true
       ]
      ],
-     "f1": 0.0
+     "f1": 0.4
     },
     "b5-old_scans-30": {
      "set": "olmOCR",
@@ -31809,7 +31809,7 @@
      "n_common": 0
     },
     "mineru": {
-     "all_zero_fail": 0.08080320829313509,
+     "all_zero_fail": 0.08958061404006583,
      "n_all": 134,
      "common_only": null,
      "n_common": 0
@@ -31847,7 +31847,7 @@
      "n_common": 0
     },
     "mineru": {
-     "all_zero_fail": 0.04657794676806084,
+     "all_zero_fail": 0.05228136882129278,
      "n_all": 134,
      "common_only": null,
      "n_common": 0

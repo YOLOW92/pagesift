@@ -233,7 +233,7 @@ def main():
                                      f3(score(b5, g, "olmOCR 去掉 baseline", t))]) + " |")
         print("\npagesift and the other text-layer tools do no OCR; on these scans only 15 of 134 pages have a text layer. "
               "Docling ran on the GPU build only (its CPU and GPU builds scored the same on B1). MinerU's default tier "
-              "is still running at publication; its row is updated when it finishes.")
+              "needs about 25 s per scanned page here and was stopped after 23 of 134 pages; the rest count as not finished.")
 
     # 6. JS-rendered pages (A3)
     a3 = RES / "quality-a3.md"

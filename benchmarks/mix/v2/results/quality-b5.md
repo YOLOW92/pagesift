@@ -7,7 +7,7 @@
 | pymupdf4llm | 134 | 0.112 | 15 | 119 | 0 | 0 | 0 | 0 |
 | kreuzberg | 134 | 0.112 | 15 | 119 | 0 | 0 | 0 | 0 |
 | docling-gpu | 134 | 1.000 | 134 | 0 | 0 | 0 | 0 | 0 |
-| mineru | 134 | 0.157 | 21 | 0 | 0 | 0 | 0 | 0 |
+| mineru | 134 | 0.172 | 23 | 0 | 0 | 0 | 0 | 0 |
 
 ## 分数（全部样本）
 
@@ -31,10 +31,10 @@
 | olmOCR | olmOCR-bench 官方总分（各类平均，含 baseline 类） | pymupdf4llm | 0.037 | 134 | — | 0 |
 | olmOCR | olmOCR-bench 官方总分（各类平均，含 baseline 类） | kreuzberg | 0.037 | 134 | — | 0 |
 | olmOCR | olmOCR-bench 官方总分（各类平均，含 baseline 类） | docling-gpu | 0.410 | 134 | — | 0 |
-| olmOCR | olmOCR-bench 官方总分（各类平均，含 baseline 类） | mineru | 0.081 | 134 | — | 0 |
+| olmOCR | olmOCR-bench 官方总分（各类平均，含 baseline 类） | mineru | 0.090 | 134 | — | 0 |
 | olmOCR 去掉 baseline | 各类平均，不含 baseline 类 | pagesift-file | 0.000 | 134 | — | 0 |
 | olmOCR 去掉 baseline | 各类平均，不含 baseline 类 | pdf_oxide | 0.000 | 134 | — | 0 |
 | olmOCR 去掉 baseline | 各类平均，不含 baseline 类 | pymupdf4llm | 0.000 | 134 | — | 0 |
 | olmOCR 去掉 baseline | 各类平均，不含 baseline 类 | kreuzberg | 0.000 | 134 | — | 0 |
 | olmOCR 去掉 baseline | 各类平均，不含 baseline 类 | docling-gpu | 0.125 | 134 | — | 0 |
-| olmOCR 去掉 baseline | 各类平均，不含 baseline 类 | mineru | 0.047 | 134 | — | 0 |
+| olmOCR 去掉 baseline | 各类平均，不含 baseline 类 | mineru | 0.052 | 134 | — | 0 |
