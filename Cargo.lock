@@ -1601,6 +1601,7 @@ dependencies = [
 name = "pagesift-office"
 version = "0.80.10"
 dependencies = [
+ "memchr",
  "miniz_oxide",
 ]
 

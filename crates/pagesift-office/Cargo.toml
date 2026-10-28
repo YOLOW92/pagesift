@@ -10,3 +10,5 @@ rust-version.workspace = true
 [dependencies]
 # ZIP 里的 deflate 解压（pagesift-pdf 也用它）；其余（ZIP 目录、XML、各格式）都是自己实现的
 miniz_oxide = "0.9.1"
+# CSV 按字节成段扫描（找分隔符、引号、换行用 SIMD）；工作区里别的 crate 已经在用，不增加依赖
+memchr = "2.8.3"

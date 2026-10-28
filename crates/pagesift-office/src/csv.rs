@@ -164,56 +164,69 @@ impl<'a> Records<'a> {
 
 impl Records<'_> {
     /// 读下一条记录：各字段依次写进 `fields`（先清空），`ends` 记每个字段在其中的结束位置。
-    /// 没有记录了返回 false。
+    /// 没有记录了返回 false。按字节成段处理：用 memchr 跳到下一个分隔符、换行或引号，中间整段
+    /// 一次拷贝（分隔符、引号、换行都是 ASCII，UTF-8 里不会出现在多字节字符中间）。
     fn next_fields(&mut self, fields: &mut String, ends: &mut Vec<usize>) -> bool {
         fields.clear();
         ends.clear();
         if self.pos >= self.s.len() {
             return false;
         }
-        let field = fields;
-        let mut chars = self.s[self.pos..].char_indices().peekable();
-        let mut quoted = false;
+        let s = &self.s[self.pos..];
+        let b = s.as_bytes();
+        let delim = self.delim as u8;
+        let mut i = 0;
         let mut at_start = true;
-        let mut consumed = self.s.len() - self.pos;
-        while let Some((i, c)) = chars.next() {
-            if quoted {
-                if c == '"' {
-                    if chars.peek().is_some_and(|(_, n)| *n == '"') {
-                        field.push('"');
-                        chars.next();
-                    } else {
-                        quoted = false;
+        let mut consumed = b.len();
+        while i < b.len() {
+            if at_start && b[i] == b'"' {
+                // 引号字段：`""` 是一个引号，别的（分隔符、换行）都是字面
+                i += 1;
+                at_start = false;
+                loop {
+                    match memchr::memchr(b'"', &b[i..]) {
+                        None => {
+                            fields.push_str(&s[i..]);
+                            i = b.len();
+                            break;
+                        }
+                        Some(k) => {
+                            fields.push_str(&s[i..i + k]);
+                            i += k + 1;
+                            if b.get(i) == Some(&b'"') {
+                                fields.push('"');
+                                i += 1;
+                            } else {
+                                break;
+                            }
+                        }
                     }
-                } else {
-                    field.push(c);
                 }
                 continue;
             }
-            match c {
-                '"' if at_start => {
-                    quoted = true;
-                    at_start = false;
-                }
-                c if c == self.delim => {
-                    ends.push(field.len());
-                    at_start = true;
-                }
-                '\r' | '\n' => {
-                    let mut end = i + 1;
-                    if c == '\r' && chars.peek().is_some_and(|(_, n)| *n == '\n') {
-                        end += 1;
-                    }
-                    consumed = end;
+            match memchr::memchr3(delim, b'\n', b'\r', &b[i..]) {
+                None => {
+                    fields.push_str(&s[i..]);
                     break;
                 }
-                c => {
-                    field.push(c);
-                    at_start = false;
+                Some(k) => {
+                    fields.push_str(&s[i..i + k]);
+                    let c = b[i + k];
+                    i += k + 1;
+                    if c == delim {
+                        ends.push(fields.len());
+                        at_start = true;
+                    } else {
+                        if c == b'\r' && b.get(i) == Some(&b'\n') {
+                            i += 1;
+                        }
+                        consumed = i;
+                        break;
+                    }
                 }
             }
         }
-        ends.push(field.len());
+        ends.push(fields.len());
         self.pos += consumed;
         true
     }
@@ -222,6 +235,85 @@ impl Records<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 旧的逐字符解析，作为成段处理版本的参照。
+    fn records_reference(s: &str, delim: char) -> Vec<Vec<String>> {
+        let mut out = Vec::new();
+        let mut pos = 0;
+        while pos < s.len() {
+            let mut row = Vec::new();
+            let mut field = String::new();
+            let mut chars = s[pos..].char_indices().peekable();
+            let mut quoted = false;
+            let mut at_start = true;
+            let mut consumed = s.len() - pos;
+            while let Some((i, c)) = chars.next() {
+                if quoted {
+                    if c == '"' {
+                        if chars.peek().is_some_and(|(_, n)| *n == '"') {
+                            field.push('"');
+                            chars.next();
+                        } else {
+                            quoted = false;
+                        }
+                    } else {
+                        field.push(c);
+                    }
+                    continue;
+                }
+                match c {
+                    '"' if at_start => {
+                        quoted = true;
+                        at_start = false;
+                    }
+                    c if c == delim => {
+                        row.push(std::mem::take(&mut field));
+                        at_start = true;
+                    }
+                    '\r' | '\n' => {
+                        let mut end = i + 1;
+                        if c == '\r' && chars.peek().is_some_and(|(_, n)| *n == '\n') {
+                            end += 1;
+                        }
+                        consumed = end;
+                        break;
+                    }
+                    c => {
+                        field.push(c);
+                        at_start = false;
+                    }
+                }
+            }
+            row.push(field);
+            pos += consumed;
+            out.push(row);
+        }
+        out
+    }
+
+    #[test]
+    fn byte_run_parser_matches_the_char_by_char_one() {
+        for text in crate::md::tests::tricky_strings(20_000) {
+            for d in [',', ';', '\t', '|'] {
+                let mut r = Records::new(&text, d);
+                let (mut fields, mut ends) = (String::new(), Vec::new());
+                let mut got = Vec::new();
+                while r.next_fields(&mut fields, &mut ends) {
+                    let mut start = 0;
+                    got.push(
+                        ends.iter()
+                            .map(|&e| {
+                                let f = fields[start..e].to_string();
+                                start = e;
+                                f
+                            })
+                            .collect::<Vec<_>>(),
+                    );
+                }
+                assert_eq!(got, records_reference(&text, d), "{text:?} {d:?}");
+            }
+        }
+    }
 
     fn md(s: &[u8]) -> String {
         convert(s, &Options::default()).unwrap().markdown

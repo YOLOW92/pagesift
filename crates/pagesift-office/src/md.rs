@@ -87,34 +87,79 @@ fn cell(s: &str) -> String {
     out
 }
 
-/// 表格单元格的文字：行内换行变 `<br>`，空白压成一个空格，`|` 转义。追加到 `out` 末尾。
+/// 表格单元格的文字：各行去掉首尾空白、跳过空行，行之间用 `<br>`；行内的空白压成一个空格，
+/// `|` 转义。追加到 `out` 末尾。按字节成段处理：普通字节整段拷贝，只有 ASCII 空白、`|`、换行和
+/// 可能是 Unicode 空白的首字节（见 [`maybe_space`]）才逐个看。
 fn cell_into(out: &mut String, s: &str) {
     let start = out.len();
-    for (i, line) in s
-        .split('\n')
-        .map(str::trim)
-        .filter(|l| !l.is_empty())
-        .enumerate()
-    {
-        if i > 0 {
-            out.push_str("<br>");
+    let b = s.as_bytes();
+    // 这一格已经输出过字符；这一行已经输出过字符；上一个输出的字符后面有空白
+    let (mut any, mut line, mut space) = (false, false, false);
+    let mut i = 0;
+    while i < b.len() {
+        // 普通字节的一段
+        let run = i;
+        while i < b.len() && !maybe_space(b[i]) && b[i] != b'|' {
+            i += 1;
         }
-        let mut space = false;
-        for ch in line.chars() {
-            if ch.is_whitespace() {
-                space = true;
-                continue;
+        if i > run {
+            emit_lead(out, start, &mut any, &mut line, &mut space);
+            out.push_str(&s[run..i]);
+        }
+        if i == b.len() {
+            break;
+        }
+        match b[i] {
+            b'\n' => {
+                line = false;
+                space = false;
+                i += 1;
             }
-            if space && out.len() > start && !out[start..].ends_with("<br>") {
-                out.push(' ');
+            b'|' => {
+                emit_lead(out, start, &mut any, &mut line, &mut space);
+                out.push_str("\\|");
+                i += 1;
             }
-            space = false;
-            if ch == '|' {
-                out.push('\\');
+            c if c < 0x80 => {
+                // ASCII 空白：行首的不算（行要去掉首尾空白）
+                space |= line;
+                i += 1;
             }
-            out.push(ch);
+            _ => {
+                let ch = s[i..].chars().next().expect("char boundary");
+                let n = ch.len_utf8();
+                if ch.is_whitespace() {
+                    space |= line;
+                } else {
+                    emit_lead(out, start, &mut any, &mut line, &mut space);
+                    out.push_str(&s[i..i + n]);
+                }
+                i += n;
+            }
         }
     }
+}
+
+/// 输出一个非空白字符之前：新的一行（前面有过内容）先补 `<br>`，行内空白补一个空格
+/// （这一格的文字正以 `<br>` 结尾时不补）。`start` 是这一格在 `out` 里的起点。
+fn emit_lead(out: &mut String, start: usize, any: &mut bool, line: &mut bool, space: &mut bool) {
+    if !*line && *any {
+        out.push_str("<br>");
+    } else if *space && !out[start..].ends_with("<br>") {
+        out.push(' ');
+    }
+    *any = true;
+    *line = true;
+    *space = false;
+}
+
+/// 这个字节可能是空白的开头：ASCII 空白，或 Unicode 空白（U+0085、U+00A0、U+1680、
+/// U+2000–U+205F、U+3000）的 UTF-8 首字节。
+fn maybe_space(b: u8) -> bool {
+    matches!(
+        b,
+        b' ' | b'\t' | b'\n' | 0x0b | 0x0c | b'\r' | 0xC2 | 0xE1 | 0xE2 | 0xE3
+    )
 }
 
 /// 行内文字转义：会被当成 Markdown 记号的字符前面加反斜杠。
@@ -126,12 +171,16 @@ pub(crate) fn escape(s: &str) -> String {
 
 /// [`escape`]，追加到 `out` 末尾。
 pub(crate) fn escape_into(out: &mut String, s: &str) {
-    for ch in s.chars() {
-        if matches!(ch, '\\' | '`' | '*' | '_' | '[' | ']' | '<' | '>') {
+    // 要转义的都是 ASCII：按字节找，中间整段拷贝
+    let mut run = 0;
+    for (i, &c) in s.as_bytes().iter().enumerate() {
+        if matches!(c, b'\\' | b'`' | b'*' | b'_' | b'[' | b']' | b'<' | b'>') {
+            out.push_str(&s[run..i]);
             out.push('\\');
+            run = i;
         }
-        out.push(ch);
     }
+    out.push_str(&s[run..]);
 }
 
 /// 连续存放的表格：各单元格整理好的文字按行顺序写在同一个缓冲区里，另记每格、每行的结束位置。
@@ -293,7 +342,7 @@ pub(crate) fn squeeze(s: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     #[test]
@@ -329,6 +378,85 @@ mod tests {
             md,
             "## Title\n\n\\# not a heading\n\n3. three\n    - sub\n- first\\\n  \\# second\n\nline\\\n\\- not a list\n\n| a | b\\|c |\n| --- | --- |\n| line1<br>line2 |  |\n"
         );
+    }
+
+    /// 旧的逐字符实现，作为成段处理版本的参照。
+    fn cell_reference(s: &str) -> String {
+        let mut out = String::new();
+        for (i, line) in s
+            .split('\n')
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .enumerate()
+        {
+            if i > 0 {
+                out.push_str("<br>");
+            }
+            let mut space = false;
+            for ch in line.chars() {
+                if ch.is_whitespace() {
+                    space = true;
+                    continue;
+                }
+                if space && !out.is_empty() && !out.ends_with("<br>") {
+                    out.push(' ');
+                }
+                space = false;
+                if ch == '|' {
+                    out.push('\\');
+                }
+                out.push(ch);
+            }
+        }
+        out
+    }
+
+    fn escape_reference(s: &str) -> String {
+        let mut out = String::new();
+        for ch in s.chars() {
+            if matches!(ch, '\\' | '`' | '*' | '_' | '[' | ']' | '<' | '>') {
+                out.push('\\');
+            }
+            out.push(ch);
+        }
+        out
+    }
+
+    /// 由片段随机拼成的字符串（xorshift，固定种子）：各种空白、换行、`|`、字面的 `<br>`、多字节字符。
+    pub(crate) fn tricky_strings(n: usize) -> Vec<String> {
+        const ATOMS: &[&str] = &[
+            "a", "Bc", " ", "  ", "\t", "\n", "\r", "\r\n", "|", "<br>", "<br> ", "\u{a0}",
+            "\u{3000}", "\u{2028}", "\u{85}", "\u{1680}", "\u{205f}", "\u{200b}", "\u{2009}", "é",
+            "中文", "Ÿ", "\u{e2}", "*_`", "[x]", "\\", "\"", "\"\"", ",", ";", "x,y", "\u{feff}",
+            "😀",
+        ];
+        let mut seed = 0x9e37_79b9_7f4a_7c15u64;
+        let mut next = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        (0..n)
+            .map(|_| {
+                let len = (next() % 12) as usize;
+                (0..len)
+                    .map(|_| ATOMS[(next() % ATOMS.len() as u64) as usize])
+                    .collect()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn byte_run_versions_match_the_char_by_char_ones() {
+        for s in tricky_strings(20_000) {
+            assert_eq!(cell(&s), cell_reference(&s), "{s:?}");
+            assert_eq!(escape(&s), escape_reference(&s), "{s:?}");
+            // 接在别的单元格后面写（共用缓冲区）结果也一样
+            let mut out = String::from("x<br>");
+            cell_into(&mut out, &s);
+            assert_eq!(out, format!("x<br>{}", cell_reference(&s)), "{s:?}");
+        }
     }
 
     #[test]
