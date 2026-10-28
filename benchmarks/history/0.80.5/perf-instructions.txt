@@ -1,0 +1,9 @@
+# instruction counts (callgrind), 0.80.0 tag vs 0.80.5, same container, 2026-10-28
+# fixtures and commands as in benchmarks/history/0.80.3 (perf_gate; pdf_one paper.pdf 3; office_bench 3 <csv>)
+perf_gate                     0.80.0 14177064528   0.80.5 14203986300   +0.19%
+pdf_one paper.pdf x3          0.80.0  2194527360   0.80.5  2206211466   +0.53%
+office_bench ascii.csv x3     0.80.0  4296566432   0.80.5  4327180458   +0.71%
+office_bench sjis.csv x3      0.80.0  1586495037   0.80.5  1488817497   -6.16%
+office_bench gbk.csv x3       0.80.0  1459031365   0.80.5  1476303180   +1.18%
+office_bench utf8-cjk.csv x3  0.80.0  1176671975   0.80.5  1185791153   +0.78%
+# DOCX (6.5 MB document.xml, 20,000 paragraphs; not in the 0.80.0 set): before the output budget 2338027088, after 2343262760 (+0.22%)

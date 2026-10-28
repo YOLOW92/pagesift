@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.80.3
+# pagesift 0.80.5
 
 **AI エージェントと LLM データ基盤のための、超高速・メモリ有界スクレイピング＆本文抽出エンジン。**  
 あらゆる Web サイト、論文、アーカイブを高品質な Markdown と構造化データに変換します。単一の Rust バイナリ、ネイティブ SDK、Firecrawl v1/v2 および Jina Reader デュアルプロトコル互換。測定した競合よりメモリ消費が少なくなっています（[benchmarks.md 第 9 節](benchmarks.md) 参照）。
@@ -76,6 +76,19 @@
 
 ---
 
+## 0.80.5 の変更
+
+**正常に見えて実は問題のある結果を、はっきり知らせるようになりました。** 結果が不完全または誤っている可能性が
+ある警告（PDF のページや本文の欠落、本文が薄い・一部だけ、出力の切り詰め、シェルだけのレンダリングなど）を
+Firecrawl の `data.warning` に入れるので、Firecrawl 形式のクライアントにも見えます。`crawl --out` は
+`summary.json` も書きます。大きなサイト枠の中の年齢確認（Steam の `/agecheck/`）と PDF と表示された HTML の
+ブロックページは本文ではなく `ACCESS_BARRIER` を返します。Word・Excel・PowerPoint・CSV・EPUB は 16 MB の
+テキストで止まり `output_truncated` を出します（408 KB の DOCX が 84 MB の Markdown に展開されていました）。
+PDF の損傷警告は文書の実際のページ数で数え、一部だけ失われたページも示します。ネットワークが静かになっても
+ページが空のシェルのままなら、レンダリングは最大 1.5 秒待ちます。`--engine`・`--format`・`--sitemap` の
+綴り間違いはエラーです。すべてのベンチマークは 0.80.0 から 2% 以内。0.80.4 はリリースしていません。
+詳細：[0.80.5 リリースノート](releases/0.80.5.md)。
+
 ## 0.80.3 の変更
 
 **フォーカスクロールを実在の大学サイトで検証しました。** 同じ 38 大学のトップページを 0.80.0 と 0.80.3 で
@@ -136,7 +149,7 @@ CSV を HTML と同じ方法でデコード（以前は警告なしに文字化�
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.3
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.5
 ```
 
 #### Firecrawl SDK の差し替え

@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.80.3
+# pagesift 0.80.5
 
 **为 AI 智能体与 LLM 数据工程打造的高性能、严格内存有界抓取与内容提取引擎。**  
 把任何网站、学术文档或历史档案转化为干净的 Markdown 与结构化数据——单个纯 Rust 二进制、原生多语言 SDK、兼容 Firecrawl v1/v2 与 Jina Reader 双协议，内存占用明显低于所测竞品（见 [benchmarks.md 第 9 节](benchmarks.md)）。
@@ -76,6 +76,16 @@
 
 ---
 
+## 0.80.5 更新
+
+**看起来正常、其实有问题的结果会明说了。** 结果可能不完整或不对时（PDF 丢页丢内容、正文过薄或只抽到一部分、
+输出被截断、渲染只拿到壳……），警告会写进 Firecrawl 的 `data.warning`，按 Firecrawl 格式读的程序也能看到；
+`crawl --out` 另写 `summary.json`。大站框架里的年龄门（Steam 的 `/agecheck/`）和标成 PDF 的 HTML 拦截页
+报 `ACCESS_BARRIER`，不再当正文返回。Word、Excel、PowerPoint、CSV、EPUB 的输出到 16 MB 文字就停，并给出
+`output_truncated`（以前 408 KB 的 DOCX 能展开成 84 MB Markdown）。PDF 损伤警告按文档真实页数计数，并点出只丢了
+一部分的页。网络静默时页面还是空壳的，渲染最多再等 1.5 秒。`--engine`、`--format`、`--sitemap` 拼错会报错。
+所有基准对 0.80.0 都在 2% 以内。没有发布 0.80.4。详见 [0.80.5 发行说明](releases/0.80.5.md)。
+
 ## 0.80.3 更新
 
 **聚焦爬取在真实大学站点上验证过了。** 用 0.80.0 和 0.80.3 对同样 38 所大学首页跑
@@ -135,7 +145,7 @@ PDF 两项补修：书签只到章节时标题不再为空；线性化 PDF 截�
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.3
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.5
 ```
 
 #### Firecrawl SDK 零改动平替接入

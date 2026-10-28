@@ -109,6 +109,12 @@ fn route(r: &Req) -> Resp {
                  list.addEventListener('scroll', render); render();
                </script>"#,
         ),
+        // 不发请求、用定时器延后渲染：网络一开始就静默，只有"loading…"的壳
+        "/late" => html(
+            r#"<div id="c">loading…</div>
+               <script>setTimeout(() => { document.getElementById('c').textContent =
+                 'Rendered after a timer. '.repeat(20); }, 1000);</script>"#,
+        ),
         "/tall" => html(r#"<div style="height:4000px; background:linear-gradient(red, blue)">tall</div>"#),
         // 图片很慢，正文由 fetch 渲染。
         "/slow-image" => html(
@@ -506,6 +512,17 @@ async fn network_idle_does_not_wait_for_slow_images() {
         "{:?}",
         shot.timings
     );
+    shutdown(pool).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_page_that_renders_after_a_timer_is_waited_for() {
+    require_browser!();
+    let (base, _) = serve(route).await;
+    let pool = BrowserPool::new(config(), allow_all()).await.unwrap();
+    let page = pool.render(&format!("{base}/late"), &opts()).await.unwrap();
+    // 脚本源码里也有那句话，所以看占位的"loading…"有没有被换掉
+    assert!(!page.html.contains("loading…"), "{}", page.html);
     shutdown(pool).await;
 }
 

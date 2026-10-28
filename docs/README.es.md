@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.80.3
+# pagesift 0.80.5
 
 **Motor de scraping y extracción web de alto rendimiento y memoria acotada para agentes de IA y pipelines de LLM.**  
 Convierte cualquier sitio web, documento o archivo en Markdown limpio y datos estructurados: un único binario en Rust, SDK nativos, APIs duales Firecrawl v1/v2 y Jina Reader, con menos memoria que las alternativas medidas (véase la [sección 9 de benchmarks.md](benchmarks.md)).
@@ -74,6 +74,21 @@ Medido con 0.70.0; no se ha repetido con versiones posteriores.
 
 ---
 
+## Novedades en 0.80.5
+
+**Los resultados que parecen correctos pero no lo son ahora lo dicen.** Las advertencias que indican
+un resultado incompleto o erróneo (páginas o contenido perdidos en un PDF, texto escaso o parcial,
+salida truncada, un renderizado que solo trae el esqueleto…) llenan el `data.warning` de Firecrawl,
+así que los clientes de Firecrawl las ven; `crawl --out` añade `summary.json`. Los controles de edad
+dentro de un sitio grande (`/agecheck/` de Steam) y las páginas de bloqueo HTML etiquetadas como PDF
+se informan como `ACCESS_BARRIER` en lugar de contenido. Word, Excel, PowerPoint, CSV y EPUB se
+detienen en 16 MB de texto con `output_truncated` (un DOCX de 408 KB llegaba a 84 MB de Markdown).
+Las advertencias de PDF dañados cuentan sobre las páginas reales del documento y nombran las páginas
+perdidas a medias. El renderizado espera hasta 1,5 s más a las páginas que siguen vacías cuando la
+red ya está en silencio. Los valores mal escritos de `--engine`, `--format` y `--sitemap` son
+errores. Todas las pruebas de rendimiento quedan a menos del 2% de 0.80.0. No hubo 0.80.4. Detalle:
+[notas de 0.80.5](releases/0.80.5.md).
+
 ## Novedades en 0.80.3
 
 **Rastreo enfocado, comprobado en sitios universitarios reales.** Las mismas 38 portadas de
@@ -141,7 +156,7 @@ se conservan sin cambios y con sus fuentes en [history/homepage-es.md](history/h
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.3
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.5
 ```
 
 #### Reemplazo Directo de Firecrawl SDK

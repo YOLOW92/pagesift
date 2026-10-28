@@ -2,7 +2,13 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.80.5] — 2026-10-28
+
+Fixes from two more rounds of outside testing on 0.80.3 (there was no 0.80.4 release; everything
+since 0.80.3 is here): data-risk warnings reach Firecrawl's `data.warning`, age gates and block pages
+are recognised as barriers, Office/CSV/EPUB conversion has an output budget, PDF damage warnings
+count correctly, and rendering waits for pages that fill in after a timer. Instruction counts stay
+within 2% of 0.80.0. See [the release notes](docs/releases/0.80.5.md).
 
 ### Added
 - `crawl --out` writes `summary.json` next to `index.jsonl`: `stopReason`, `coverage` (with
@@ -11,6 +17,15 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 - `index.jsonl` rows and crawl JSON lines carry `warning` when the page has a data risk.
 
 ### Fixed
+- Rendering waited only for the network to go quiet (100 ms), so a page that fills itself in from
+  a timer, without a request, came back as its "loading…" shell (about 100 ms of waiting on every
+  engine; moli only looked better because of incidental requests). When the network is quiet but
+  the page has almost no text (under 200 characters), rendering looks again every 250 ms for up to
+  1.5 s and stops as soon as text appears; pages that already have text are not delayed.
+- When one browser engine renders only a shell and the engines after it fail, the shell is
+  returned with a `render_incomplete` warning naming them, instead of silently.
+- Command-line options with a fixed set of values (`--engine`, `--format`, `--sitemap`,
+  `tune --profile`) reject anything else: `--engine potato` used to run as `auto` without a word.
 - Word, Excel, PowerPoint, CSV and EPUB have an output budget like HTML (response size limit) and
   PDF (page limit): conversion stops once the text passes `Limits::max_output_bytes` (16 MB) and
   returns what it has with an `output_truncated` warning. A 408 KB DOCX that unpacks to 120 MB of
@@ -40,9 +55,9 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 - `pagesift-cdp` virtual scroll (`RenderOptions::virtual_scroll`) lost whole screens of rows
   when the browser was slow to paint: it collected after a fixed wait, so on a busy machine it
   read the old rows and the next scrolls merged into one `scroll` event. Each step now waits for
-  its own `scroll` event, then for the DOM to settle (`wait_after_scroll` counts from the event). Steps scroll with `behavior: instant`,
-  so pages with `scroll-behavior: smooth` no longer wait out the animation (3.0 s → 0.8 s on a
-  100-row list).
+  its own `scroll` event, then for the DOM to settle (`wait_after_scroll` counts from the event).
+  Steps scroll with `behavior: instant`, so pages with `scroll-behavior: smooth` no longer wait out
+  the animation (3.0 s → 0.8 s on a 100-row list).
 
 ### Docs
 - `SECURITY.md` listed 0.20.x as the supported line since 0.20; it now lists 0.80.x.

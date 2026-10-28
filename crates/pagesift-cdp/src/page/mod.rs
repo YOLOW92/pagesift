@@ -34,6 +34,11 @@ const NET_IDLE_CAP: Duration = Duration::from_secs(5);
 pub(super) const CONTENT_POLL: Duration = Duration::from_millis(250);
 /// 页面文字（`innerText`）到这么多字符就算正文已经渲染出来了。
 pub(super) const CONTENT_READY_CHARS: u64 = 1500;
+/// 网络静默时页面文字少于这么多字符，就像是还没渲染的壳（"loading…"）：脚本可能在用定时器
+/// 延后渲染，不发请求，网络静默判断看不出来。
+pub(super) const SHELL_MAX_CHARS: u64 = 200;
+/// 壳页面在网络静默之后再等多久，期间每隔 [`CONTENT_POLL`] 看一次文字；正常页面不受影响。
+pub(super) const SHELL_GRACE: Duration = Duration::from_millis(1500);
 pub(super) const TEXT_LEN: &str = "(() => { const b = document.body; return b ? (b.innerText || b.textContent || '').length : 0; })()";
 /// 截图前等 `load` 的上限。
 pub(super) const LOAD_CAP: Duration = Duration::from_secs(10);

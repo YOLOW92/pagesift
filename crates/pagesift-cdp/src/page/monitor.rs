@@ -10,8 +10,8 @@ use crate::options::*;
 
 use super::actions::{eval, eval_value, js_str};
 use super::{
-    CONTENT_POLL, CONTENT_READY_CHARS, LOAD_CAP, Metrics, NET_QUIET, PageCtx, Shared, TEXT_LEN,
-    TRACKED,
+    CONTENT_POLL, CONTENT_READY_CHARS, LOAD_CAP, Metrics, NET_QUIET, PageCtx, SHELL_GRACE,
+    SHELL_MAX_CHARS, Shared, TEXT_LEN, TRACKED,
 };
 
 /// 只用网络事件判断就绪，不读响应体：缓冲区设到最小，浏览器不必替每个请求保留一份内容。
@@ -271,10 +271,12 @@ pub(super) async fn set_metrics(
 /// 网络静默后再在页面里跑一条空命令：它要排在正在执行的脚本之后，
 /// 长脚本执行完又发出的请求就不会被误判成已经空闲。
 /// 等页面就绪：网络静默，或者正文已经够多且两次检查之间没有变化（服务端渲染的页面，
-/// 剩下的请求多是广告和统计）。最多等 `cap`。
+/// 剩下的请求多是广告和统计）。网络静默时页面几乎没有文字的，再给 [`SHELL_GRACE`]：
+/// 文字出来就返回（定时器延后渲染的页面）。最多等 `cap`。
 pub(super) async fn wait_ready(session: &Session, shared: &Shared, cap: Duration) {
     let deadline = Instant::now() + cap;
     let mut last_len = None;
+    let mut shell_until: Option<Instant> = None;
     loop {
         let left = deadline.saturating_duration_since(Instant::now());
         if left.is_zero() {
@@ -307,10 +309,32 @@ pub(super) async fn wait_ready(session: &Session, shared: &Shared, cap: Duration
         {
             return;
         }
-        let net = shared.net.lock().unwrap();
-        if net.inflight.is_empty() && net.last_change < probe {
+        {
+            let net = shared.net.lock().unwrap();
+            if !(net.inflight.is_empty() && net.last_change < probe) {
+                continue;
+            }
+        }
+        // 网络静默了。页面已经有文字（绝大多数页面）就绪；几乎没有文字的壳在宽限期内再看几次
+        let left = deadline.saturating_duration_since(Instant::now());
+        let len = tokio::time::timeout(left, eval_value(session, TEXT_LEN))
+            .await
+            .ok()
+            .and_then(Result::ok)
+            .and_then(|v| v.as_u64());
+        if len.is_none_or(|n| n >= SHELL_MAX_CHARS) {
             return;
         }
+        let until = *shell_until.get_or_insert_with(|| Instant::now() + SHELL_GRACE);
+        let pause = until
+            .min(deadline)
+            .saturating_duration_since(Instant::now())
+            .min(CONTENT_POLL);
+        if pause.is_zero() {
+            tracing::trace!(chars = len, "render: page stayed nearly empty");
+            return;
+        }
+        tokio::time::sleep(pause).await;
     }
 }
 

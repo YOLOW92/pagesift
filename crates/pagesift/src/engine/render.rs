@@ -90,6 +90,8 @@ impl Scraper {
         // 后面的内核都不可用或失败时，用前面拿到的结果。
         let mut best: Option<Rendered> = None;
         let mut last_err = None;
+        // 拿到结果之后还失败了的内核：结果正文太少、又没有内核能接手时要告诉调用方
+        let mut failed_after: Vec<&'static str> = Vec::new();
         let from = self
             .learner
             .start_engine(&host)
@@ -121,6 +123,9 @@ impl Scraper {
                         pagesift_cdp::Error::Launch(_) | pagesift_cdp::Error::Connect(_)
                     ) {
                         self.note_launch_failure(i, engine.name(), &e);
+                    }
+                    if best.is_some() {
+                        failed_after.push(engine.name());
                     }
                     // 完整内核（渲染和 Chrome 一致）报的导航错误是网络层的结果（地址打不开、
                     // 被拦截），换内核也一样，不再往下试
@@ -220,6 +225,18 @@ impl Scraper {
         }
         timings.insert("extract".into(), ms(r.extract));
         check_barrier(&r.doc)?;
+        // 前一个内核只渲染出壳（正文太少），后面能接手的内核都失败了：照常返回，但要说出来
+        let chars = text_weight(&r.doc.markdown);
+        if !failed_after.is_empty()
+            && r.status.is_none_or(|s| s < 400)
+            && chars < RENDER_FALLBACK_MIN_CHARS
+        {
+            warnings.push(format!(
+                "render_incomplete: {} rendered only {chars} characters and {} could not render the page; the content may not have loaded",
+                r.engine,
+                failed_after.join(", ")
+            ));
+        }
         let mut meta = Metadata {
             url: Some(r.final_url.to_string()),
             source_url: Some(url.to_string()),

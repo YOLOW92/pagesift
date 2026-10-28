@@ -343,3 +343,20 @@ fn crawl_out_writes_a_summary_next_to_the_index() {
     assert_eq!(rows.len(), 3);
     assert!(rows.iter().all(|r| r.get("warning").is_none()), "{index}");
 }
+
+/// 取值固定的参数拼错了要报错，不能悄悄按默认值干活（`--engine potato` 以前照常按 auto 抓取）。
+#[test]
+fn misspelled_choices_are_rejected() {
+    for args in [
+        ["scrape", "http://127.0.0.1:9/", "--engine", "potato"],
+        ["scrape", "http://127.0.0.1:9/", "--format", "yaml"],
+        ["crawl", "http://127.0.0.1:9/", "--engine", "chrome"],
+        ["crawl", "http://127.0.0.1:9/", "--sitemap", "never"],
+        ["map", "http://127.0.0.1:9/", "--sitemap", "no"],
+    ] {
+        let output = Command::new(bin()).args(args).output().unwrap();
+        assert!(!output.status.success(), "{args:?} was accepted");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains("invalid value"), "{args:?}: {stderr}");
+    }
+}

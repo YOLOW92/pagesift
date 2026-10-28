@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.80.3
+# pagesift 0.80.5
 
 **High-performance, memory-bounded web scraping and extraction engine built for AI agents and LLM pipelines.**  
 Turn any website, document, or archive into clean Markdown and structured data — one Rust binary, native SDKs, dual Firecrawl v1/v2 & Jina Reader APIs, at a fraction of the memory.
@@ -80,6 +80,19 @@ Results for the other domains (dates, Markdown fidelity, RAG chunking, crawling 
 Measured with 0.70.0, not re-run for later versions.
 
 ---
+
+## What's New in 0.80.5
+
+**Results that look fine but are not now say so.** Warnings that mean a result is incomplete or
+wrong (lost PDF pages or content, thin or partial text, truncated output, a shell render …) now fill
+Firecrawl's `data.warning`, so Firecrawl clients see them; `crawl --out` adds `summary.json`. Age
+gates inside a big site frame (Steam's `/agecheck/`) and HTML block pages labelled as PDF are
+reported as `ACCESS_BARRIER` instead of content. Word, Excel, PowerPoint, CSV and EPUB stop at 16 MB
+of text with `output_truncated` (a 408 KB DOCX used to expand into 84 MB of Markdown). PDF damage
+warnings count against the document's real page count and name half-lost pages. Rendering waits up
+to 1.5 s more for pages that are still an empty shell when the network goes quiet. Misspelled
+`--engine`/`--format`/`--sitemap` values are errors. Every benchmark stays within 2% of 0.80.0.
+There was no 0.80.4. Details: [0.80.5 release notes](docs/releases/0.80.5.md).
 
 ## What's New in 0.80.3
 
@@ -163,7 +176,7 @@ Run the standalone container (includes headless browser renderer):
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.3
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.5
 ```
 
 #### Firecrawl SDK Drop-In Replacement
@@ -322,7 +335,7 @@ If PageSift is useful in research or a product, cite it as:
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 0.80.3}
+  note   = {Version 0.80.5}
 }
 ```
 

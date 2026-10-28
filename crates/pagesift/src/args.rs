@@ -187,10 +187,10 @@ pub(crate) enum Command {
     Scrape {
         url: String,
         /// Output: md prints the Markdown, json prints the Firecrawl response
-        #[arg(long, default_value = "md")]
+        #[arg(long, default_value = "md", value_parser = ["md", "json"])]
         format: String,
         /// http, browser or auto
-        #[arg(long, default_value = "auto")]
+        #[arg(long, default_value = "auto", value_parser = ["http", "browser", "auto"])]
         engine: String,
         /// Keep the whole page instead of only the main content
         #[arg(long)]
@@ -234,10 +234,10 @@ pub(crate) enum Command {
         #[arg(long)]
         subdomains: bool,
         /// include, skip or only
-        #[arg(long, default_value = "include")]
+        #[arg(long, default_value = "include", value_parser = ["include", "skip", "only"])]
         sitemap: String,
         /// http, browser or auto
-        #[arg(long, default_value = "auto")]
+        #[arg(long, default_value = "auto", value_parser = ["http", "browser", "auto"])]
         engine: String,
         /// Follow bounded same-origin external JS candidates (requires --engine http)
         #[arg(long)]
@@ -263,7 +263,7 @@ pub(crate) enum Command {
     /// Proactively explore host machine's performance curve and output an autonomous tuning profile
     Tune {
         /// Target profile intensity: standard, aggressive, or extreme
-        #[arg(long, default_value = "extreme")]
+        #[arg(long, default_value = "extreme", value_parser = ["standard", "aggressive", "extreme"])]
         profile: String,
         /// File to write the JSON profile to (prints to stdout if omitted)
         #[arg(long)]
@@ -287,7 +287,7 @@ pub(crate) enum Command {
         #[arg(long)]
         search: Option<String>,
         /// include, skip or only
-        #[arg(long, default_value = "include")]
+        #[arg(long, default_value = "include", value_parser = ["include", "skip", "only"])]
         sitemap: String,
         #[command(flatten)]
         allow: AllowCidrs,

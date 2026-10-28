@@ -30,6 +30,7 @@ pub const CONTENT_RISK: &[&str] = &[
     "not_modified",
     // 需要浏览器渲染却没有渲染
     "render_unavailable",
+    "render_incomplete",
     "render_skipped_",
 ];
 
