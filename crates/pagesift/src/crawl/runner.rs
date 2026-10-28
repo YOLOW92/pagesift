@@ -543,8 +543,39 @@ impl Scraper {
                 },
             };
             inflight_scores.remove(url.as_str());
+            let seed = depth == 0 && url == start;
+            // 每次失败的尝试都马上记到主机头上，不等重试用完：以前一页要重试满两次才记一次，
+            // 等重试的空档里同一主机的下一页照样派出去，死掉的主机要挂掉好几页才停（而且挂几页
+            // 看重试等待和超时谁先到）。主机停掉时，它等着重试的页面也不再重试。种子页照旧在
+            // 最后一次失败时记（它重试得多，失败了整个爬取也就结束了）。
+            if !seed && let Err(e) = &result {
+                let host = url.host_str().unwrap_or_default();
+                let weight = failure_weight(e);
+                if weight > 0 && !host_ok.contains(host) {
+                    *host_failures.entry(host.to_string()).or_default() += weight;
+                    if host_blocked(&host_failures, &url) {
+                        for (u, last) in retries.drop_host(host) {
+                            let attachment = traces
+                                .remove(u.as_str())
+                                .is_some_and(|t| t.attachment_of.is_some());
+                            if !attachment && refunds < req.limit {
+                                refunds += 1;
+                                scheduled -= 1;
+                            }
+                            let err = last.unwrap_or_else(|| {
+                                ApiError::new(
+                                    pagesift_api::ErrorCode::UpstreamError,
+                                    "host dropped after repeated failures",
+                                )
+                            });
+                            sink.error(u.as_str(), err).await;
+                        }
+                    }
+                }
+            }
             if stop.is_none()
-                && retries.offer(&result, &url, depth, attempt, depth == 0 && url == start)
+                && (seed || !host_blocked(&host_failures, &url))
+                && retries.offer(&result, &url, depth, attempt, seed)
             {
                 continue;
             }
@@ -827,13 +858,10 @@ impl Scraper {
                     sink.page(doc).await;
                 }
                 Err(e) => {
-                    let weight = match e.code {
-                        pagesift_api::ErrorCode::AccessBarrier => HOST_FAILURE_LIMIT,
-                        pagesift_api::ErrorCode::RobotsDisallowed => 0,
-                        _ => 1,
-                    };
+                    // 别的页面每次失败时已经记过（见上面）
+                    let weight = failure_weight(&e);
                     let host = url.host_str().unwrap_or_default();
-                    if weight > 0 && !host_ok.contains(host) {
+                    if seed && weight > 0 && !host_ok.contains(host) {
                         *host_failures.entry(host.to_string()).or_default() += weight;
                     }
                     if !is_attachment && refunds < req.limit {
@@ -897,6 +925,15 @@ fn room_left(limit: usize, scheduled: usize, refunds: usize) -> usize {
 }
 
 /// 这个 URL 的主机已经失败够多次了。
+/// 一次失败记到主机头上的分量：屏障一次就停，robots 禁止不算（是这一页的事）。
+fn failure_weight(e: &ApiError) -> u32 {
+    match e.code {
+        pagesift_api::ErrorCode::AccessBarrier => HOST_FAILURE_LIMIT,
+        pagesift_api::ErrorCode::RobotsDisallowed => 0,
+        _ => 1,
+    }
+}
+
 fn host_blocked(failures: &HashMap<String, u32>, u: &Url) -> bool {
     failures
         .get(u.host_str().unwrap_or_default())

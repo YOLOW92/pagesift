@@ -405,7 +405,8 @@ pub(super) fn candidate(base: &Url, link: &str, learner: &Learner) -> Option<Url
 /// 等着重试的页面：到点了才重新调度。
 #[derive(Default)]
 pub(super) struct Retries {
-    items: Vec<(tokio::time::Instant, Url, usize, u32)>,
+    /// (到点时间, 地址, 深度, 下一次是第几次, 上一次的错误)
+    items: Vec<(tokio::time::Instant, Url, usize, u32, Option<ApiError>)>,
 }
 
 impl Retries {
@@ -431,6 +432,7 @@ impl Retries {
                     url.clone(),
                     depth,
                     attempt + 1,
+                    result.as_ref().err().cloned(),
                 ));
                 true
             }
@@ -444,8 +446,21 @@ impl Retries {
         let i = (0..self.items.len())
             .filter(|&i| self.items[i].0 <= now)
             .min_by_key(|&i| self.items[i].0)?;
-        let (_, u, d, a) = self.items.swap_remove(i);
+        let (_, u, d, a, _) = self.items.swap_remove(i);
         Some((u, d, a))
+    }
+
+    /// 取出这个主机上所有等着重试的页面和它们上一次的错误（主机已经停掉，不再重试）。
+    pub(super) fn drop_host(&mut self, host: &str) -> Vec<(Url, Option<ApiError>)> {
+        let mut out = Vec::new();
+        self.items.retain(|(_, u, _, _, e)| {
+            let keep = u.host_str() != Some(host);
+            if !keep {
+                out.push((u.clone(), e.clone()));
+            }
+            keep
+        });
+        out
     }
 
     pub(super) fn is_empty(&self) -> bool {
