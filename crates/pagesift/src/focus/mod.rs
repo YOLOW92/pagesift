@@ -36,6 +36,12 @@ const LANGUAGE_PORTAL_SCORE: f32 = 0.6;
 /// 锚文本本身常常不含查询词，内容却都在它下面。定义成"一条锚文本命中半个查询的家具链接"的分数：
 /// 栏目先于新闻、博客探，但不先于锚文本真命中查询词的普通链接（那是 W_ANCHOR × 覆盖度 ≥ 0.4）。
 const SECTION_PRIOR: f32 = furniture::FURNITURE_FACTOR * (W_ANCHOR * 0.5 + PHRASE_BONUS);
+/// 链接的分数不高于栏目保底分：它本身没有查询词的线索，抓它是"盲探"（自适应停止用，
+/// 见 [`Adaptive::observe`]）。种子页（分数无穷大）不算。
+pub(crate) fn is_blind(score: f32) -> bool {
+    score <= SECTION_PRIOR
+}
+
 /// 别的主机的根（院系、图书馆、系统的子站首页）的保底分：是另一个站，排在本站的栏目之后。
 const SUBSITE_PRIOR: f32 = SECTION_PRIOR * 0.5;
 /// 英文查询碰到别的语言版本的入口（`/de/`、`/ja/`）：和家具页一样打折。
@@ -55,6 +61,8 @@ pub(crate) struct PageSignal {
     body: u64,
     factor: f32,
     fixed: f32,
+    /// 页面声明的语言不是英文（`lang` 不以 `en` 开头）。
+    foreign: bool,
 }
 
 impl PageSignal {
@@ -119,6 +127,8 @@ pub(crate) struct Focus {
     english_home: bool,
     /// 排队链接上一次打分时的词权重（见 [`Self::weights_moved`]）。
     scored_with: Vec<f32>,
+    /// 种子页是英文的（见 [`Self::english_target`]）。
+    english_seed: bool,
 }
 
 impl Focus {
@@ -131,7 +141,20 @@ impl Focus {
             weights,
             host: None,
             english_home: false,
+            english_seed: false,
         }
+    }
+
+    /// 记下种子页声明的语言。
+    pub(crate) fn note_seed_language(&mut self, lang: Option<&str>) {
+        self.english_seed = lang.is_some_and(is_english);
+    }
+
+    /// 英文查询、而且已经知道站点的英文内容在哪（种子页就是英文的，或者找到了英文首页）：
+    /// 这时别的语言的页面上的栏目链接不再拿保底分。挪威语主站、德语主站的导航不是线索，
+    /// 跟着它们走就把预算花在查询读不懂的页面上了。
+    fn english_target(&self) -> bool {
+        self.english() && (self.english_home || self.english_seed)
     }
 
     /// 记下抓到了本站的英文版首页（见 [`Self::is_language_portal`]）。
@@ -188,7 +211,7 @@ impl Focus {
         markdown: &str,
         links: usize,
     ) -> f32 {
-        self.relevance(&self.page_signal(url, title, markdown, links))
+        self.relevance(&self.page_signal(url, title, markdown, links, None))
     }
 
     /// 相关度的组成（见 [`Self::page_relevance`]）：词权重变了以后按它重算。
@@ -198,6 +221,7 @@ impl Focus {
         title: Option<&str>,
         markdown: &str,
         links: usize,
+        lang: Option<&str>,
     ) -> PageSignal {
         let mut factor = 1.0;
         if furniture::is_hub(links, prose_words(markdown)) {
@@ -211,6 +235,7 @@ impl Focus {
             body: self.query.hit_mask(markdown),
             factor,
             fixed: 0.0,
+            foreign: lang.is_some_and(|l| !is_english(l)),
         }
     }
 
@@ -309,6 +334,7 @@ impl Focus {
         let raw = match s.shape {
             Shape::Plain => raw,
             Shape::Factor(f) => raw * f,
+            Shape::Floor(_) if s.parent.foreign && self.english_target() => raw,
             Shape::Floor(f) => raw.max(f),
             Shape::Fixed(v) => return v * s.factor,
         };
@@ -345,10 +371,13 @@ enum Section {
 }
 
 /// 栏目入口：路径一段的是栏目，路径为空的是子站的根；锚文本都要短（1 到 4 个词）。
-/// 开头的语言代码段不算（`/en/studies/` 是英文版的一级栏目）。
+/// 开头的语言段不算（`/en/studies/`、`/english/research/` 是英文版的一级栏目）。
 fn section(url: &Url, anchor: Option<&str>) -> Option<Section> {
     let mut segs: Vec<&str> = url.path().split('/').filter(|s| !s.is_empty()).collect();
-    if segs.first().is_some_and(|s| is_language_code(s)) {
+    if segs
+        .first()
+        .is_some_and(|s| is_language_code(s) || is_language_name(s))
+    {
         segs.remove(0);
     }
     let segments = segs.len();
@@ -403,6 +432,17 @@ fn language_portal(url: &Url, anchor: Option<&str>) -> bool {
                 "en" | "english" | "en-us" | "en-gb"
             )
         })
+}
+
+/// 路径段是英文版的名字（`english`、`eng`）：和语言代码一样是语言段。
+fn is_language_name(seg: &str) -> bool {
+    matches!(language_code(seg).as_str(), "english" | "eng")
+}
+
+/// 语言标签是英文（`en`、`en-US`）。
+fn is_english(lang: &str) -> bool {
+    let primary = lang.split(['-', '_']).next().unwrap_or_default();
+    primary.eq_ignore_ascii_case("en")
 }
 
 /// 路径段是语言代码：两个字母，或者 `xx-yy`（可以带扩展名）。
@@ -505,6 +545,17 @@ mod tests {
         assert!(
             (en_section - section).abs() < 1e-6,
             "{en_section} {section}"
+        );
+        let english_section = f.link_score(
+            &u("https://e.com/english/research/"),
+            Some("Research"),
+            None,
+            0.0,
+            1,
+        );
+        assert!(
+            (english_section - section).abs() < 1e-6,
+            "{english_section} {section}"
         );
         assert!(f.is_language_portal(&u("https://e.com/en/")));
         assert!(f.is_language_portal(&u("https://e.com/en.html")));

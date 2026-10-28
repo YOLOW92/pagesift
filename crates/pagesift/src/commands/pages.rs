@@ -2,6 +2,11 @@
 
 use crate::*;
 
+/// `crawl` 没给 `--limit` 时的页数上限。
+const CRAWL_DEFAULT_LIMIT: usize = 100;
+/// `crawl --adaptive` 没给 `--limit` 时的上限：页数由自适应停止决定，这只是防失控的保险。
+const CRAWL_ADAPTIVE_CAP: usize = 500;
+
 pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<ExitCode> {
     match command {
         Command::Collect {
@@ -181,6 +186,12 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
             tuning_mode,
             allow,
         } => runtime()?.block_on(async move {
+            // 自适应时页数由停止规则决定，没给 --limit 时只留一个防失控的上限
+            let limit = limit.unwrap_or(if adaptive {
+                CRAWL_ADAPTIVE_CAP
+            } else {
+                CRAWL_DEFAULT_LIMIT
+            });
             let req: pagesift::api::types::CrawlRequest =
                 serde_json::from_value(serde_json::json!({
                     "url": url,

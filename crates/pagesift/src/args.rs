@@ -207,8 +207,10 @@ pub(crate) enum Command {
     /// Crawl a site; writes one Markdown file per page with --out, else JSON lines to stdout
     Crawl {
         url: String,
-        #[arg(long, default_value_t = 100)]
-        limit: usize,
+        /// Maximum number of pages (default: 100; with --adaptive the crawl decides when to stop,
+        /// up to 500)
+        #[arg(long)]
+        limit: Option<usize>,
         /// Directory for the Markdown files, an index.jsonl (one line per page) and a summary.json
         /// (why the crawl stopped; coverage with --adaptive)
         #[arg(long)]
@@ -249,7 +251,8 @@ pub(crate) enum Command {
         /// Crawl the pages most relevant to this query first
         #[arg(long)]
         query: Option<String>,
-        /// With --query: stop early once the collected pages cover the query
+        /// With --query: decide how many pages to crawl. Stops once the pages cover the query and
+        /// stop adding anything new, or when nothing relevant turns up; --limit is then only a cap
         #[arg(long, requires = "query")]
         adaptive: bool,
         /// With --query: also fetch and convert PDF/Office documents linked from relevant pages

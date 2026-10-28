@@ -8,7 +8,8 @@ use std::collections::BTreeMap;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CrawlSummary {
-    /// `coverage_reached`, `saturated`, `limit_reached`, `exhausted`, `cancelled`.
+    /// `coverage_reached`, `saturated`, `no_relevant_pages` (adaptive: nothing relevant found and
+    /// no lead left to follow), `limit_reached`, `exhausted`, `cancelled`.
     pub stop_reason: String,
     /// Coverage percentage (0.0 to 1.0) when adaptive crawl completes.
     #[serde(skip_serializing_if = "Option::is_none")]

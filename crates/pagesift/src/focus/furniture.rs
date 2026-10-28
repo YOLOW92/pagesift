@@ -171,6 +171,9 @@ pub(crate) fn is_dated_url(u: &Url) -> bool {
     is_date_path(&segs)
 }
 
+/// 以查询词命名的栏目段最多这么多个词（`housing`、`student-housing`）。
+const SECTION_MAX_WORDS: usize = 2;
+
 /// URL 是不是家具页：任一路径段或主机标签（`mail.e.edu`、`my.e.edu`；`www` 和可注册域名不算）
 /// 是家具词（含 `news-and-events` 这类连字符组合），或者带日期路径。
 /// `wanted` 说一个词是不是查询本身要找的（查 "api" 时 `/api/` 不是家具）。
@@ -178,6 +181,15 @@ pub(crate) fn is_furniture_url(u: &Url, wanted: &dyn Fn(&str) -> bool) -> bool {
     let segs: Vec<&str> = u.path().split('/').filter(|s| !s.is_empty()).collect();
     if is_date_path(&segs) {
         return true;
+    }
+    // 家具栏目下面的、以查询词命名的短栏目（`/about/housing/`、`/news/international-students/`）
+    // 是内容：大学常把住宿、图书馆这类服务放在"关于"下面。长的文章 slug 不算，那还是新闻
+    let wanted_section = segs.iter().any(|seg| {
+        let words: Vec<&str> = seg.split(['-', '_']).filter(|w| !w.is_empty()).collect();
+        words.len() <= SECTION_MAX_WORDS && words.iter().any(|w| !is_word(w) && wanted(w))
+    });
+    if wanted_section {
+        return false;
     }
     let hit = |w: &str| is_word(w) && !wanted(w);
     let host = u.host_str().unwrap_or_default();
@@ -254,6 +266,24 @@ mod tests {
         for p in ["https://international.e.edu/", "https://www.e.edu/study/"] {
             assert!(!is_furniture_url(&u(p), &no), "{p}");
         }
+        // 家具栏目下以查询词命名的短栏目是内容；长的新闻 slug 和带日期的路径还是家具
+        let housing = |w: &str| w.eq_ignore_ascii_case("housing");
+        assert!(!is_furniture_url(
+            &u("https://e.edu/about/housing/"),
+            &housing
+        ));
+        assert!(!is_furniture_url(
+            &u("https://e.edu/about/student-housing/"),
+            &housing
+        ));
+        assert!(is_furniture_url(
+            &u("https://e.edu/news/housing-crisis-hits-the-city/"),
+            &housing
+        ));
+        assert!(is_furniture_url(
+            &u("https://e.edu/news/2026/05/housing/"),
+            &housing
+        ));
     }
 
     #[test]

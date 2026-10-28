@@ -363,13 +363,22 @@ fn adaptive_options<'de, D: Deserializer<'de>>(d: D) -> Result<Option<AdaptiveOp
     })
 }
 
-/// Adaptive crawl stopping conditions (PageSift extension `adaptive`).
+/// Adaptive crawl stopping conditions (PageSift extension `adaptive`). With them the crawl decides
+/// how many pages it needs; `limit` is only a cap.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AdaptiveOptions {
+    /// Share of query terms that must have `evidencePerTerm` pieces of evidence (from at least two
+    /// pages) before the query counts as covered. Once covered, the crawl stops after
+    /// `ceil(patience / 2)` pages in a row that add nothing new (`coverage_reached`).
     pub coverage_threshold: f64,
     pub evidence_per_term: usize,
+    /// Pages in a row without new relevant content before the crawl stops (`saturated`). While
+    /// nothing relevant has been found, `2 × patience` pages in a row reached only through links
+    /// without any sign of the query stop it (`no_relevant_pages`).
     pub patience: usize,
+    /// A page whose new relevant content is less than this share of everything collected so far
+    /// counts as adding nothing new.
     pub min_gain: f64,
 }
 

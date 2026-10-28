@@ -569,16 +569,27 @@ impl Scraper {
                     if focus.weights_moved() {
                         queue.rescore(|s| focus.score(s));
                     }
-                    let page =
-                        focus.page_signal(&base, doc.metadata.title.as_deref(), md, contexts.len());
+                    let lang = doc.metadata.language.as_deref();
+                    if depth == 0 && url == start {
+                        focus.note_seed_language(lang);
+                    }
+                    let page = focus.page_signal(
+                        &base,
+                        doc.metadata.title.as_deref(),
+                        md,
+                        contexts.len(),
+                        lang,
+                    );
                     let relevance = focus.relevance(&page);
                     if stop.is_none()
                         && let Some(a) = adaptive.as_mut()
                     {
                         let before = a.stale();
-                        stop = a.observe(&focus.query, md, relevance);
-                        // 记下这一轮"没有新信息"的页面里分数最高的；有收获就清零
                         let score = trace.as_ref().and_then(|t| t.score).unwrap_or(0.0);
+                        let blind = trace.as_ref().is_some_and(|t| t.score.is_some())
+                            && crate::focus::is_blind(score);
+                        stop = a.observe(&focus.query, md, relevance, blind);
+                        // 记下这一轮"没有新信息"的页面里分数最高的；有收获就清零
                         stale_max = if a.stale() > before {
                             stale_max.max(score)
                         } else {
@@ -619,6 +630,8 @@ impl Scraper {
                         let portal = focus.is_language_portal(&base);
                         if portal {
                             focus.found_english_home();
+                            // 别的语言的页面上排着的栏目链接不再拿保底分（见 Focus::english_target）
+                            queue.rescore(|s| focus.score(s));
                         }
                         let link_depth = if portal { depth } else { depth + 1 };
                         // 导航、页脚里的链接不在正文 Markdown 里，锚文本从 DOM 的链接列表取
@@ -729,13 +742,24 @@ impl Scraper {
                         sink.enqueued(std::mem::take(&mut fresh)).await;
                     }
                     // 队列头的链接比刚才那几页没用的页面分数都高（常见：栏目页刚抓回来，它的子页才入队）：
-                    // 最好的候选还没试过，不算饱和
-                    if stop == Some("saturated")
-                        && let Some(a) = adaptive.as_mut()
-                        && queue.peek_score().is_some_and(|s| s > stale_max)
+                    // 最好的候选还没试过，不算饱和。查询已经覆盖了的话，还要队首本身有查询的线索：
+                    // 剩下的只是栏目保底分的链接时，再盲探下去没有意义
+                    if let Some(a) = adaptive.as_mut()
+                        && let Some(head) = queue.peek_score()
+                        && head > stale_max
+                        && (stop == Some("saturated")
+                            || stop == Some("coverage_reached") && !crate::focus::is_blind(head))
                     {
                         a.forgive();
                         stale_max = 0.0;
+                        stop = None;
+                    }
+                    // 一直盲探、什么也没找到，但这一页刚带来了有线索的链接：先抓它们再说
+                    if stop == Some("no_relevant_pages")
+                        && queue
+                            .peek_score()
+                            .is_some_and(|s| !crate::focus::is_blind(s))
+                    {
                         stop = None;
                     }
                     if let Some(w) = scope_note {
