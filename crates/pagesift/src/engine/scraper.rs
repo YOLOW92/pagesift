@@ -298,8 +298,21 @@ impl Scraper {
         result
     }
 
-    /// 基础文档（抓取或上传文件解析）之上，再做 `queryFilter`、分块、LLM 格式和变化检测。
+    /// 单页抓取、爬取里的页面、上传文件解析共同的出口：结果有数据风险时填 `data.warning`。
     pub(super) async fn scrape_inner(
+        &self,
+        source: Source<'_>,
+        opts: &ScrapeOptions,
+    ) -> Result<Document, ApiError> {
+        let mut result = self.scrape_document(source, opts).await;
+        if let Ok(doc) = &mut result {
+            crate::notice::fill_warning(doc);
+        }
+        result
+    }
+
+    /// 基础文档（抓取或上传文件解析）之上，再做 `queryFilter`、分块、LLM 格式和变化检测。
+    async fn scrape_document(
         &self,
         source: Source<'_>,
         opts: &ScrapeOptions,

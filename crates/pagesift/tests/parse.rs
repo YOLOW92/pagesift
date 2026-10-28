@@ -558,6 +558,17 @@ async fn truncated_pdf_returns_the_recovered_pages_with_a_warning() {
             .any(|w| w == "pages_missing: 1 of 3 pages could not be recovered from the damaged file; 2 converted"),
         "{warnings:?}"
     );
+    // 丢页同时写进 Firecrawl 的 data.warning 和顶层 warning（按 Firecrawl 格式消费的流水线只看它们）；
+    // pdf_repaired 只是说明，不进
+    for w in [&v["data"]["warning"], &v["warning"]] {
+        assert_eq!(
+            w.as_str(),
+            Some(
+                "pages_missing: 1 of 3 pages could not be recovered from the damaged file; 2 converted"
+            ),
+            "{v}"
+        );
+    }
     // 完整的文件没有这些警告
     let (_, v) = upload(&app, "whole.pdf", "application/pdf", &whole, json!({})).await;
     assert!(

@@ -194,9 +194,15 @@ static RULES: &[Rule] = rules![
     ];
     // 年龄确认 / 地区确认中间页：返回的是确认表单，不是文章正文
     "generic.age_gate", "generic", Interstitial, Phrase, T, [
-        "please enter your birth date", "please verify your age", "verify your age",
-        "are you over 18", "you must be 18", "age verification required",
-        "请输入您的出生日期", "请确认您的年龄", "年龄确认", "年齢確認", "生年月日を入力",
+        "please enter your birth date", "enter your birth date", "enter your date of birth",
+        "enter your birthdate", "please verify your age", "verify your age", "confirm your age",
+        "are you over 18", "are you 18 or older", "are you 21 or older", "you must be 18",
+        "i am 18 or older", "i am 21 or older", "of legal drinking age", "age verification required",
+        "geburtsdatum ein", "alter bestätigen", "bist du über 18", "sind sie über 18",
+        "votre date de naissance", "confirmez votre âge", "avez-vous 18 ans",
+        "tu fecha de nacimiento", "su fecha de nacimiento", "confirma tu edad", "eres mayor de 18",
+        "请输入您的出生日期", "请输入出生日期", "请确认您的年龄", "年龄确认", "已年满18",
+        "年齢確認", "生年月日を入力", "생년월일을 입력", "연령 확인",
     ];
     // 不在原始 HTML 里找 `age-gate`/`age_gate`：Substack 每页的内联 JSON 都有 `"test_age_gate_user":false`，
     // 酒类、游戏站全站加载年龄门插件但正文照常输出，`language-gate` 也含 `age-gate`（0.72.8 误伤）。
@@ -211,6 +217,13 @@ static RULES: &[Rule] = rules![
     "login.authwall", "linkedin", LoginWall, Hint, H, ["authwall"];
     "login.password_field", "generic", LoginWall, Hint, H, ["type=\"password\"", "type='password'", "type=password"];
 ];
+
+/// 正文就是拦截页：整页被导航、页脚撑过了上限，但抽出的正文只有确认表单（Steam 的年龄门：
+/// 整页约 2300 字，正文不到 500 字）。正文不超过这么多字、提示语在正文里时也算。
+const MAIN_GATE_MAX_CHARS: usize = 800;
+/// 正文里有一块超过这么多字（不含空白），说明是成段的文章（讲年龄验证的新闻），不是只有短句和
+/// 控件的确认页（确认页最长的一句一般不到 100 字）。
+const MAIN_GATE_MAX_BLOCK_CHARS: usize = 150;
 
 /// 2xx 等正常状态码下，各类特征生效时可见文字的上限（非空白字符数）。
 const MARKER_MAX_CHARS: usize = 2000;
@@ -413,6 +426,44 @@ pub(crate) fn detect(
             score = base_score(primary.signal);
         }
     }
+    Some(finish(
+        primary.vendor,
+        primary.kind,
+        primary.id,
+        score,
+        &valid,
+        blocked,
+    ))
+}
+
+/// 只看抽出的正文（Markdown）：正文很短、全是短句（没有成段文字）、拦截提示语就在正文里。
+/// 整页识别因为导航和页脚文字多而放行时用它补上；只认提示语，不认会嵌在正常页面里的组件。
+pub(crate) fn detect_in_main(markdown: &str, status: Option<u16>) -> Option<Barrier> {
+    let mut total = 0;
+    for block in markdown.split("\n\n") {
+        let chars = crate::text_chars(block);
+        total += chars;
+        if chars > MAIN_GATE_MAX_BLOCK_CHARS || total > MAIN_GATE_MAX_CHARS {
+            return None;
+        }
+    }
+    if total == 0 {
+        return None;
+    }
+    let mut hits = vec![false; RULES.len()];
+    mark_hits(T, markdown, &mut hits);
+    let valid: Vec<&Rule> = RULES
+        .iter()
+        .zip(&hits)
+        .filter(|(r, h)| {
+            **h && r.signal == Phrase && (r.kind != LoginWall || total <= LOGIN_PHRASE_MAX_CHARS)
+        })
+        .map(|(r, _)| r)
+        .collect();
+    let primary = *valid.first()?;
+    // 证据比整页识别弱一档：页面别处的文字没参与判断
+    let score = base_score(Phrase) - 0.05;
+    let blocked = status.is_some_and(is_blocked_status);
     Some(finish(
         primary.vendor,
         primary.kind,

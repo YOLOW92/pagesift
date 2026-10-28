@@ -242,9 +242,19 @@ fn process_dom(
     // 只取正文时可见文字数已经算好（和拦截页识别的口径一样）：超过上限的页面直接跳过识别
     let surely_content =
         opts.only_main_content && skipper.total_chars() > barrier::visible_limit(opts.status);
-    let barrier = (opts.detect_barrier && !surely_content)
-        .then(|| barrier::detect(dom, html, metadata.title.as_deref(), opts.status))
-        .flatten();
+    let barrier = if opts.detect_barrier {
+        (!surely_content)
+            .then(|| barrier::detect(dom, html, metadata.title.as_deref(), opts.status))
+            .flatten()
+            // 整页文字多（导航、页脚）但正文只有确认表单：按正文再认一次
+            .or_else(|| {
+                opts.only_main_content
+                    .then(|| barrier::detect_in_main(&markdown, opts.status))
+                    .flatten()
+            })
+    } else {
+        None
+    };
     let plain_text =
         (opts.plain_text || opts.fingerprints).then(|| text::render(output_body, &skipper));
     let fingerprints = opts
@@ -492,7 +502,7 @@ fn render_strict(
 }
 
 /// Markdown 里可见文字的非空白字符数：链接和图片的地址 `](...)` 不算。
-fn text_chars(md: &str) -> usize {
+pub(crate) fn text_chars(md: &str) -> usize {
     let mut n = 0;
     let mut rest = md;
     // 按字符找 `]`（走 memchr），再看后面是不是 `(`

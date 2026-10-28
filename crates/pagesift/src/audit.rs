@@ -73,7 +73,7 @@ pub struct Audit {
 }
 
 /// 这一类问题值得留快照：页面抓到了，但正文可能丢了。
-const SUSPICIOUS_WARNINGS: &[&str] = &[
+pub(crate) const SUSPICIOUS_WARNINGS: &[&str] = &[
     "empty_content",
     "thin_content",
     "partial_content",

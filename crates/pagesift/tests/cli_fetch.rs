@@ -293,3 +293,53 @@ fn doctor_does_not_write_the_audit_log() {
     let written = std::fs::read_to_string(&log).unwrap_or_default();
     assert!(written.is_empty(), "doctor wrote the audit log:\n{written}");
 }
+
+/// `--out` 目录里除了每页一行的 index.jsonl，还有 summary.json：停止原因和覆盖度不只打在 stderr。
+/// 没有数据风险的页面，index 行里没有 warning。
+#[test]
+fn crawl_out_writes_a_summary_next_to_the_index() {
+    let addr = serve_pages();
+    let root = format!("http://{addr}/");
+    let xdg = tempfile::tempdir().unwrap();
+    let out = tempfile::tempdir().unwrap();
+
+    let mut crawl = Command::new(bin());
+    isolated(&mut crawl, xdg.path());
+    let crawl = run({
+        crawl.args([
+            "crawl",
+            &root,
+            "--engine",
+            "http",
+            "--sitemap",
+            "skip",
+            "--limit",
+            "5",
+            "--query",
+            "fixture page",
+            "--adaptive",
+            "--allow-cidr",
+            "127.0.0.1/32",
+            "--out",
+        ]);
+        crawl.arg(out.path());
+        crawl
+    });
+    assert!(
+        crawl.status.success(),
+        "crawl failed: {}",
+        String::from_utf8_lossy(&crawl.stderr)
+    );
+    let summary: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(out.path().join("summary.json")).unwrap()).unwrap();
+    assert!(summary["stopReason"].is_string(), "{summary}");
+    assert!(summary["coverage"].is_number(), "{summary}");
+    assert_eq!(summary["pages"], 3, "{summary}");
+    let index = std::fs::read_to_string(out.path().join("index.jsonl")).unwrap();
+    let rows: Vec<serde_json::Value> = index
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    assert_eq!(rows.len(), 3);
+    assert!(rows.iter().all(|r| r.get("warning").is_none()), "{index}");
+}

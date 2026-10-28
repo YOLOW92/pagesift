@@ -154,3 +154,52 @@ fn age_gate_is_classified_as_an_interstitial() {
     let barrier = doc.barrier.expect("barrier");
     assert_eq!(barrier.kind, BarrierKind::Interstitial);
 }
+
+/// 导航和页脚很长（整页文字超过整页识别的上限），正文只有年龄确认表单：仍是年龄门（Steam 的
+/// `/agecheck/` 页，0.80.3 返回 547 字的表单正文、退出码 0）。
+fn store_page(main: &str) -> String {
+    let nav: String = (0..60)
+        .map(|i| format!("<li><a href=\"/c/{i}\">Category number {i} with games</a></li>"))
+        .collect();
+    let footer = "<p>All trademarks are property of their respective owners in the US and other countries. \
+         VAT included in all prices where applicable. Privacy Policy, Legal, Subscriber Agreement, Refunds.</p>"
+        .repeat(4);
+    format!(
+        "<html><head><title>GAME</title></head><body><header><nav><ul>{nav}</ul></nav></header>\
+         <main>{main}</main><footer>{footer}</footer></body></html>"
+    )
+}
+
+#[test]
+fn an_age_gate_inside_a_large_site_frame_is_classified() {
+    let html = store_page(
+        "<h1>GAME</h1><h2>This game may contain content not appropriate for all ages.</h2>\
+         <p>Please enter your birth date to continue:</p>\
+         <select name=\"ageDay\"><option>1</option></select>\
+         <select name=\"ageMonth\"><option>January</option></select>\
+         <select name=\"ageYear\"><option>2026</option></select>\
+         <p>This data is for verification purposes only and will not be stored.</p>\
+         <a href=\"#\">View Page</a>",
+    );
+    let doc = process(&html, &Options::default());
+    let barrier = doc.barrier.expect("barrier");
+    assert_eq!(barrier.kind, BarrierKind::Interstitial);
+    assert_eq!(barrier.rule_id, "generic.age_gate");
+}
+
+#[test]
+fn a_short_article_about_age_checks_is_not_a_gate() {
+    // 正文短，也含"verify your age"，但它是成段的文字
+    let html = store_page(
+        "<h1>New rules for online shops</h1><p>From next year, sites that sell games rated for adults \
+         will have to ask buyers to verify your age before checkout, the regulator said on Tuesday, \
+         adding that the rules apply to stores of every size.</p>",
+    );
+    assert!(process(&html, &Options::default()).barrier.is_none());
+    // 正文长的页面完全不走正文识别
+    let long = store_page(&format!(
+        "<h1>Game</h1><p>Please enter your birth date to continue.</p>{}",
+        "<p>A long description of the game that goes on for a while.</p>".repeat(40)
+    ));
+    assert!(process(&long, &Options::default()).barrier.is_none());
+}

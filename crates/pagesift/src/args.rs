@@ -209,7 +209,8 @@ pub(crate) enum Command {
         url: String,
         #[arg(long, default_value_t = 100)]
         limit: usize,
-        /// Directory for the Markdown files and an index.jsonl
+        /// Directory for the Markdown files, an index.jsonl (one line per page) and a summary.json
+        /// (why the crawl stopped; coverage with --adaptive)
         #[arg(long)]
         out: Option<PathBuf>,
         /// Maximum discovery depth from the start page

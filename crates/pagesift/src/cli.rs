@@ -90,6 +90,10 @@ impl CrawlOutput {
                     }
                 }
                 line["status"] = serde_json::json!(doc.metadata.status_code);
+                // 结果有数据风险（正文薄、文件损坏……）时和 JSON 的 data.warning 一致
+                if let Some(w) = &doc.warning {
+                    line["warning"] = serde_json::json!(w);
+                }
                 let mut index = std::fs::OpenOptions::new()
                     .create(true)
                     .append(true)
@@ -98,7 +102,10 @@ impl CrawlOutput {
                 eprintln!("{url} -> {name}");
             }
             None => {
-                let line = serde_json::json!({ "url": url, "title": doc.metadata.title, "markdown": doc.markdown });
+                let mut line = serde_json::json!({ "url": url, "title": doc.metadata.title, "markdown": doc.markdown });
+                if let Some(w) = &doc.warning {
+                    line["warning"] = serde_json::json!(w);
+                }
                 println!("{line}");
             }
         }
@@ -132,6 +139,16 @@ impl CrawlSink for CrawlOutput {
         match s.coverage {
             Some(c) => eprintln!("stopped: {} (coverage {c:.2})", s.stop_reason),
             None => eprintln!("stopped: {}", s.stop_reason),
+        }
+        // 停止原因和覆盖度不只打在 stderr：--out 目录里另存一份，脚本按文件读
+        // （stopReason、coverage（--adaptive 时）、termEvidence、pages，和 API 任务状态里的 pagesift 字段一样）
+        if let Some(dir) = &self.dir {
+            let written = serde_json::to_vec_pretty(&s)
+                .map_err(std::io::Error::other)
+                .and_then(|json| std::fs::write(dir.join("summary.json"), json));
+            if let Err(e) = written {
+                eprintln!("could not write summary.json: {e}");
+            }
         }
         Box::pin(async {})
     }

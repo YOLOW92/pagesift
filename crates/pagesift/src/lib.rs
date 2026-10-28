@@ -26,6 +26,7 @@ mod frontier;
 mod learn;
 pub mod mcp;
 pub mod media;
+pub mod notice;
 pub mod postprocess;
 pub mod scripts;
 pub mod session;

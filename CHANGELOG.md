@@ -4,7 +4,25 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+### Added
+- `crawl --out` writes `summary.json` next to `index.jsonl`: `stopReason`, `coverage` (with
+  `--adaptive`), `termEvidence` and `pages`, the same fields as the API job status. Until now the
+  stop reason and coverage were only printed on stderr; `index.jsonl` never had a coverage field.
+- `index.jsonl` rows and crawl JSON lines carry `warning` when the page has a data risk.
+
 ### Fixed
+- Warnings that mean the result is incomplete or wrong (`content_missing`, `pages_missing`,
+  `fonts_missing`, `thin_content`, `partial_content`, `empty_content`, `max_pages`, scanned PDF,
+  decoding errors, HTTP error status, skipped rendering …) now fill Firecrawl's `data.warning`
+  (and the response's top-level `warning`) for scrape, crawl pages and `/v2/parse`. They were only
+  in `metadata.pagesift.warnings` and on the CLI's stderr, so pipelines reading the Firecrawl
+  field saw nothing. One list (`pagesift::notice`) drives both `data.warning` and stderr.
+- Age gates inside a large site frame are classified as an access barrier (`interstitial`,
+  `generic.age_gate`): Steam's `/agecheck/` page was returned as a 547-character "page" with exit
+  code 0, because the menus and footer pushed the page past the size where barrier phrases count.
+  When the extracted main content is short, made of short lines, and holds a barrier phrase, it
+  is classified on the main content alone; a short article that mentions age checks is not.
+  More age-gate phrases (EN/DE/FR/ES/ZH/JA/KO). HTML benchmark: +0.19% instructions against 0.80.0.
 - `pagesift-cdp` virtual scroll (`RenderOptions::virtual_scroll`) lost whole screens of rows
   when the browser was slow to paint: it collected after a fixed wait, so on a busy machine it
   read the old rows and the next scrolls merged into one `scroll` event. Each step now waits for

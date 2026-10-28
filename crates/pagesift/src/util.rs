@@ -2,23 +2,17 @@
 
 use crate::*;
 
-/// 抓取输出层要显式告知的 warning：空正文、auto 降级、HTTP 错误状态。
+/// 抓取输出层要显式告知的 warning：和 JSON 里的 `data.warning` 是同一份名单（[`pagesift::notice`]）。
 pub(crate) fn print_scrape_warnings(doc: &pagesift::api::types::Document) {
     let Some(p) = doc.metadata.pagesift.as_ref() else {
         return;
     };
-    for warning in &p.warnings {
-        if warning.starts_with("empty_content:")
-            || warning.starts_with("render_unavailable")
-            || warning.starts_with("render_skipped_")
-            || warning.starts_with("http_error_status:")
-            || warning.starts_with("http_redirect_status:")
-            || warning.starts_with("not_modified:")
-            || warning.starts_with("pages_missing:")
-            || warning.starts_with("content_missing:")
-        {
-            eprintln!("warning: {warning}");
-        }
+    for warning in p
+        .warnings
+        .iter()
+        .filter(|w| pagesift::notice::is_content_risk(w))
+    {
+        eprintln!("warning: {warning}");
     }
 }
 
