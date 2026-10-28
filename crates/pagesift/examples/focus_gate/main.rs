@@ -2,7 +2,9 @@
 //! 查询也不同），每站从首页 `crawl --query --adaptive --limit 12`，按 URL 真值统计每校抓到的 U（国际生专属）、M（一般招生）、
 //! X（无用）页数，报告总体精度 (U+M)/页数、U 占比、零分校数、每校中位数，以及吞吐和 CPU 时间。
 //! 口径和《聚焦爬取改进测试规格》一致，只是站点是合成的。
-//! 运行：`cargo run --release -p pagesift --example focus_gate [-- --subdomains] [--attachments] [--no-adaptive] [-v]`
+//! 运行：`cargo run --release -p pagesift --example focus_gate [-- --auto] [--subdomains] [--attachments] [--no-adaptive] [-v]`
+//! `--auto` 不给上限（页数由自适应停止决定，`crawl --adaptive` 不给 `--limit` 时的用法）。
+//! 精度报两个：全部页面的，和不算种子页的（首页是调用方给的，不是爬取选的）。
 //! 门槛（MIN_*）按 0.80.2 的结果定；低于门槛以非零状态退出。
 
 mod campus;
@@ -24,8 +26,12 @@ use pagesift::api::{ApiError, BoxFuture, CrawlSink};
 use pagesift::{Scraper, ScraperConfig};
 
 const LIMIT: usize = 12;
-/// 总体精度 (U+M)/页数 的下限，和零分校数的上限（按 0.80.2 定，0.80.1 基线见 benchmarks/history）。
-const MIN_PRECISION: f64 = 0.75;
+/// `--auto` 时的上限：和命令行 `crawl --adaptive` 不给 `--limit` 时一样，只是保险。
+const AUTO_CAP: usize = 500;
+/// 总体精度 (U+M)/页数 的下限，和零分校数的上限（0.80.2 定为 0.75，0.80.11 提到 0.8）。
+const MIN_PRECISION: f64 = 0.8;
+/// 不算种子页（首页是调用方给的，不是爬取选的）的精度下限（0.80.11）。
+const MIN_PRECISION_CRAWLED: f64 = 0.9;
 /// 允许几个站点一页有用的都没抓到（`usize` 让门槛可以放宽）。
 const MAX_ZERO_SITES: usize = 0;
 
@@ -155,6 +161,9 @@ struct SiteResult {
     m: usize,
     x: usize,
     pages: usize,
+    /// 种子页的 U+M（0 或 1）和它在不在结果里。
+    seed_um: usize,
+    seed: usize,
     errors: usize,
     stop: String,
 }
@@ -165,6 +174,9 @@ fn main() -> ExitCode {
     let attachments = args.iter().any(|a| a == "--attachments");
     let adaptive = !args.iter().any(|a| a == "--no-adaptive");
     let verbose = args.iter().any(|a| a == "-v");
+    // --auto：不给上限，页数由自适应停止决定（`crawl --adaptive` 不给 --limit 时的用法）
+    let auto = args.iter().any(|a| a == "--auto");
+    let limit = if auto { AUTO_CAP } else { LIMIT };
 
     let origin = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
@@ -203,7 +215,7 @@ fn main() -> ExitCode {
             });
             let mut req = serde_json::json!({
                 "url": campus.url("/"),
-                "limit": LIMIT,
+                "limit": limit,
                 "query": campus.query,
                 "adaptive": adaptive,
                 "scrapeOptions": { "formats": ["markdown"], "engine": "http" },
@@ -219,6 +231,8 @@ fn main() -> ExitCode {
             scraper.crawl(&req, sink.clone()).await.unwrap();
             let pages = sink.pages.lock().unwrap().clone();
             let mut counts: BTreeMap<Kind, usize> = BTreeMap::new();
+            let seed_url = campus.url("/");
+            let (mut seed, mut seed_um) = (0, 0);
             let docs = pages.iter().filter(|(u, _)| u.ends_with(".pdf")).count();
             if docs > 0 {
                 eprintln!("  {}: {docs} attachment(s)", campus.name);
@@ -226,6 +240,10 @@ fn main() -> ExitCode {
             for (url, trace) in &pages {
                 let kind = campus.kind_of(url).unwrap_or(Kind::X);
                 *counts.entry(kind).or_default() += 1;
+                if *url == seed_url {
+                    seed += 1;
+                    seed_um += usize::from(kind != Kind::X);
+                }
                 if verbose {
                     eprintln!("  {kind:?}  {url}  [{trace}]");
                 }
@@ -237,6 +255,8 @@ fn main() -> ExitCode {
                 m: counts.get(&Kind::M).copied().unwrap_or(0),
                 x: counts.get(&Kind::X).copied().unwrap_or(0),
                 pages: pages.len(),
+                seed_um,
+                seed,
                 errors: *sink.errors.lock().unwrap(),
                 stop: sink
                     .summary
@@ -254,6 +274,7 @@ fn main() -> ExitCode {
 
     println!("site      pattern                              U   M   X  pages err  stop");
     let (mut u_all, mut m_all, mut pages_all, mut zero) = (0, 0, 0, 0);
+    let (mut seeds, mut seeds_um) = (0, 0);
     let mut scores = Vec::new();
     for r in &results {
         println!(
@@ -263,6 +284,8 @@ fn main() -> ExitCode {
         u_all += r.u;
         m_all += r.m;
         pages_all += r.pages;
+        seeds += r.seed;
+        seeds_um += r.seed_um;
         if r.u + r.m == 0 {
             zero += 1;
         }
@@ -272,15 +295,27 @@ fn main() -> ExitCode {
     let median = scores[scores.len() / 2];
     let precision = (u_all + m_all) as f64 / pages_all.max(1) as f64;
     let u_share = u_all as f64 / pages_all.max(1) as f64;
+    let crawled = pages_all - seeds;
+    let crawled_um = u_all + m_all - seeds_um;
+    let crawled_precision = crawled_um as f64 / crawled.max(1) as f64;
     #[allow(clippy::absurd_extreme_comparisons)]
-    let ok = precision >= MIN_PRECISION && zero <= MAX_ZERO_SITES;
+    let ok = precision >= MIN_PRECISION
+        && crawled_precision >= MIN_PRECISION_CRAWLED
+        && zero <= MAX_ZERO_SITES;
+    let mode = if auto {
+        "auto".to_string()
+    } else {
+        LIMIT.to_string()
+    };
     println!(
-        "focus {}x{LIMIT}: U+M {}/{pages_all} = {:.1}% (min {:.1}%), U {:.1}%, median {median}/{LIMIT}, \
-         zero-score sites {zero} (max {MAX_ZERO_SITES}), {:.1} pages/s, cpu {cpu:.2} s {}",
+        "focus {}x{mode}: U+M {}/{pages_all} = {:.1}% (min {:.1}%), without start pages {crawled_um}/{crawled} = {:.1}% \
+         (min {:.1}%), U {:.1}%, median {median}, zero-score sites {zero} (max {MAX_ZERO_SITES}), {:.1} pages/s, cpu {cpu:.2} s {}",
         results.len(),
         u_all + m_all,
         precision * 100.0,
         MIN_PRECISION * 100.0,
+        crawled_precision * 100.0,
+        MIN_PRECISION_CRAWLED * 100.0,
         u_share * 100.0,
         pages_all as f64 / secs,
         if ok { "ok" } else { "FAIL" }

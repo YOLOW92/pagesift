@@ -68,7 +68,9 @@ impl Attachments {
         if self.scheduled >= self.limit {
             return None;
         }
-        let item = self.queue.pop_diverse(&Default::default(), usize::MAX)?;
+        let item = self
+            .queue
+            .pop_diverse(&Default::default(), usize::MAX, |_| false)?;
         self.scheduled += 1;
         Some(item)
     }

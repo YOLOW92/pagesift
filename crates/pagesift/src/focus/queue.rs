@@ -165,20 +165,39 @@ impl<S> BestFirst<S> {
     }
 
     /// 按簇分散地出队：分数最高的链接所在的簇已经调度了 `cap` 页时，改出别的簇里分数不低于
-    /// 最高分一半的最好链接；没有这样的链接就还是出最高分的。`scheduled` 是每个簇已调度的页数。
+    /// 最高分一半的最好链接；没有这样的链接就还是出最高分的。`scheduled` 是每个簇已调度的页数，
+    /// `proven` 说一个簇是不是已经证明了产出好：这样的簇不受 `cap` 限制，而且队首在没证明过的簇
+    /// 里时，证明过的簇里分数不低于最高分一半的链接先出。
     pub(crate) fn pop_diverse(
         &mut self,
         scheduled: &HashMap<String, usize>,
         cap: usize,
+        proven: impl Fn(&str) -> bool,
     ) -> Option<(Url, usize, f32)> {
         let (&top_key, top) = self.order.last_key_value()?;
         let top_url = &top.url;
         let top_score = f32::from_bits(top_key.0);
-        let full = |u: &Url| scheduled.get(&cluster_key(u)).copied().unwrap_or(0) >= cap;
+        let full = |u: &Url| {
+            let key = cluster_key(u);
+            scheduled.get(&key).copied().unwrap_or(0) >= cap && !proven(&key)
+        };
+        let floor = top_score * DIVERSITY_RATIO;
+        // 利用：队首所在的簇还没证明产出，而已经证明高产的簇里有分数够得上的链接时，先抓它
+        // （和下面的分散对称：一个是别把预算全押在一个簇上，一个是别为了没验证过的簇丢下高产的簇）
+        if !proven(&cluster_key(top_url))
+            && let Some(k) = self
+                .order
+                .iter()
+                .rev()
+                .take_while(|(k, _)| f32::from_bits(k.0) >= floor)
+                .find(|(_, e)| proven(&cluster_key(&e.url)))
+                .map(|(k, _)| *k)
+        {
+            return self.take(k);
+        }
         if !full(top_url) {
             return self.take(top_key);
         }
-        let floor = top_score * DIVERSITY_RATIO;
         let pick = self
             .order
             .iter()
@@ -262,10 +281,30 @@ mod tests {
         let mut counts = HashMap::new();
         counts.insert("e.com/news".to_string(), 3);
         // news 已经抓了 3 页：先出 study（0.6 ≥ 1.0 × 0.5），再回到 news
-        assert_eq!(q.pop_diverse(&counts, 3).unwrap().0.path(), "/study/intl");
-        assert_eq!(q.pop_diverse(&counts, 3).unwrap().0.path(), "/news/1");
+        assert_eq!(
+            q.pop_diverse(&counts, 3, |_| false).unwrap().0.path(),
+            "/study/intl"
+        );
+        assert_eq!(
+            q.pop_diverse(&counts, 3, |_| false).unwrap().0.path(),
+            "/news/1"
+        );
         // 剩下的 about 分太低，不够资格插队
-        assert_eq!(q.pop_diverse(&counts, 3).unwrap().0.path(), "/news/2");
+        assert_eq!(
+            q.pop_diverse(&counts, 3, |_| false).unwrap().0.path(),
+            "/news/2"
+        );
+        // 产出已经证明好的簇不受上限限制
+        let mut q = BestFirst::default();
+        q.offer(1, u("https://e.com/news/1"), 1, 1.0, (), 10);
+        q.offer(3, u("https://e.com/study/intl"), 1, 0.6, (), 10);
+        assert_eq!(
+            q.pop_diverse(&counts, 3, |k| k == "e.com/news")
+                .unwrap()
+                .0
+                .path(),
+            "/news/1"
+        );
         assert_eq!(cluster_key(&u("https://e.com/")), "*/");
         assert_eq!(cluster_key(&u("https://cs.e.com/en/")), "*/");
         assert_eq!(cluster_key(&u("https://e.com/en.html")), "*/");

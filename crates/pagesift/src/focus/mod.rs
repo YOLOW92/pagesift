@@ -17,7 +17,7 @@ mod weights;
 pub(crate) use adaptive::{Adaptive, MIN_RELEVANCE};
 pub(crate) use context::link_contexts;
 use context::prose_words;
-pub(crate) use harvest::Harvest;
+pub(crate) use harvest::{Harvest, subtree};
 pub(crate) use queue::{BestFirst, Offer, cluster_key};
 
 use pagesift_extract::Query;

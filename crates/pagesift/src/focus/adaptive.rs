@@ -39,6 +39,8 @@ pub(crate) struct Adaptive {
     cold: usize,
     /// 贡献过新证据的页数。
     sources: usize,
+    /// 上一页带来了新的切题内容。
+    last_fresh: bool,
 }
 
 impl Adaptive {
@@ -51,6 +53,7 @@ impl Adaptive {
             stale: 0,
             cold: 0,
             sources: 0,
+            last_fresh: false,
         }
     }
 
@@ -69,6 +72,21 @@ impl Adaptive {
 
     pub(crate) fn evidence(&self) -> &[usize] {
         &self.evidence
+    }
+
+    /// 已经有过收获（某一页带来了新的切题内容）。
+    pub(crate) fn has_found(&self) -> bool {
+        self.collected > 0
+    }
+
+    /// 查询已经覆盖：覆盖度到阈值，而且至少两页贡献过证据。
+    pub(crate) fn covered(&self) -> bool {
+        self.coverage() >= self.opts.coverage_threshold && self.sources >= MIN_SOURCES
+    }
+
+    /// 上一次 [`Self::observe`] 的页面带来了新的切题内容（有收获）。
+    pub(crate) fn last_fresh(&self) -> bool {
+        self.last_fresh
     }
 
     /// 连续没有新信息的页数。
@@ -95,6 +113,7 @@ impl Adaptive {
         relevance: f32,
         blind: bool,
     ) -> Option<&'static str> {
+        self.last_fresh = false;
         use std::hash::{BuildHasher, BuildHasherDefault, DefaultHasher};
         if self.collected == 0 {
             if blind && relevance < MIN_RELEVANCE {
@@ -142,6 +161,7 @@ impl Adaptive {
             self.stale += 1;
         } else {
             self.stale = 0;
+            self.last_fresh = true;
         }
         self.verdict()
     }
@@ -151,8 +171,7 @@ impl Adaptive {
     /// 连着几页没有新东西才停，比没覆盖时的耐心短一半。一页就可能把每个词都提够次数
     /// （栏目首页、综合介绍页），所以覆盖要有两页以上的证据才算。
     fn verdict(&self) -> Option<&'static str> {
-        let covered =
-            self.coverage() >= self.opts.coverage_threshold && self.sources >= MIN_SOURCES;
+        let covered = self.covered();
         if covered && self.stale >= self.opts.patience.div_ceil(2).max(1) {
             Some("coverage_reached")
         } else if self.stale >= self.opts.patience.max(1) {

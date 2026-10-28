@@ -13,7 +13,7 @@ use super::attachments::{Attachments, is_document_url};
 use crate::engine::Scraper;
 use crate::focus::{
     Adaptive, BestFirst, Focus, Harvest, LinkSignal, MIN_RELEVANCE, Offer, PageSignal, cluster_key,
-    link_contexts,
+    link_contexts, subtree,
 };
 use crate::frontier::{Learner, Seen, Tiered};
 use pagesift_api::types::CrawlTrace;
@@ -307,6 +307,15 @@ impl Scraper {
         // 每个簇（主机 + 第一段路径）已调度的页数：一个子树最多占一半预算，除非别处没有像样的候选
         let mut clusters: HashMap<String, usize> = HashMap::new();
         let cluster_cap = (req.limit / 3).max(3);
+        // 自适应时每抓一页记下它有没有带来新的切题内容，按簇和按子树统计（见 focus::harvest）：
+        // 收获率明显高于别处的簇不受上限限制；明显追不上别处的子树（撞词的陷阱）不再往里抓
+        let mut by_cluster = Harvest::default();
+        let mut by_subtree = Harvest::default();
+        let seed_host = start
+            .host_str()
+            .unwrap_or_default()
+            .trim_start_matches("www.")
+            .to_ascii_lowercase();
         // 在途页面的分数：队首比在途的最好页面差得多时先等它们回来再调度，
         // 否则首页一返回就把并发槽位全填上新闻页，真正相关的子页还没发现预算已经用掉了
         let mut inflight_scores: HashMap<String, f32> = HashMap::new();
@@ -321,8 +330,6 @@ impl Scraper {
         // 已经正常交付过页面的主机不算（大站点的某一页被防火墙拦了，不代表整个主机都不通）
         let mut host_failures: HashMap<String, u32> = HashMap::new();
         let mut host_ok: HashSet<String> = HashSet::new();
-        // 各子树的收成：抓了不少页、相关度一直远低于好页面的子树（撞词的陷阱）不再往里抓
-        let mut harvest = Harvest::new(start.host_str().unwrap_or_default());
         // 已经交付的页面（按跳转后的地址）：两个地址跳到同一页时只交付一次
         let mut delivered: HashSet<u64> = HashSet::new();
         // 已调度页面的来历：深度、父页、分数、是不是附件
@@ -439,10 +446,29 @@ impl Scraper {
                         if !inflight_scores.is_empty() && head < PATIENCE_RATIO * best_inflight {
                             break;
                         }
-                        let mut next = queue.pop_diverse(&clusters, cluster_cap);
+                        // 队首只是盲探（链接本身没有查询的线索）时一页一页地探：一个展品列表、
+                        // 新闻列表回来，几十条盲探链接一次全派出去，停止的判断还没来得及做出来
+                        // 它们就都在途了；在途的页面回来也往往带来有线索的链接
+                        if !inflight_scores.is_empty() && crate::focus::is_blind(head) {
+                            break;
+                        }
+                        // 还没有任何收获时一页一页地抓：每一页都可能改变后面的判断（英文首页回来
+                        // 以后日文栏目不再领保底分；栏目页带来有线索的链接，别的栏目就不用盲探），
+                        // 同时派出去的几页是在知道这些之前选的。一有收获就恢复并发
+                        if !inflight_scores.is_empty()
+                            && !adaptive.as_ref().is_some_and(|a| a.has_found())
+                        {
+                            break;
+                        }
+                        let mut next =
+                            queue.pop_diverse(&clusters, cluster_cap, |k| by_cluster.is_proven(k));
                         while let Some((u, _, _)) = &mut next {
-                            if host_blocked(&host_failures, u) || harvest.is_dry(u) {
-                                next = queue.pop_diverse(&clusters, cluster_cap);
+                            if host_blocked(&host_failures, u)
+                                || by_subtree.is_dry(&subtree(&seed_host, u))
+                            {
+                                next = queue.pop_diverse(&clusters, cluster_cap, |k| {
+                                    by_cluster.is_proven(k)
+                                });
                                 continue;
                             }
                             // 入队之后学到的改写规则（`?ref=` 这类不改内容的参数）：
@@ -452,7 +478,9 @@ impl Scraper {
                                 let after = seen_hash(u, ignore_query);
                                 let parent = parents.remove(&before);
                                 if !seen.insert(after) {
-                                    next = queue.pop_diverse(&clusters, cluster_cap);
+                                    next = queue.pop_diverse(&clusters, cluster_cap, |k| {
+                                        by_cluster.is_proven(k)
+                                    });
                                     continue;
                                 }
                                 parents.extend(parent.map(|p| (after, p)));
@@ -585,9 +613,6 @@ impl Scraper {
                         lang,
                     );
                     let relevance = focus.relevance(&page);
-                    if !is_attachment {
-                        harvest.observe(&base, relevance);
-                    }
                     if stop.is_none()
                         && let Some(a) = adaptive.as_mut()
                     {
@@ -596,6 +621,11 @@ impl Scraper {
                         let blind = trace.as_ref().is_some_and(|t| t.score.is_some())
                             && crate::focus::is_blind(score);
                         stop = a.observe(&focus.query, md, relevance, blind);
+                        if !is_attachment {
+                            let hit = a.last_fresh();
+                            by_cluster.observe(cluster_key(&base), hit);
+                            by_subtree.observe(subtree(&seed_host, &base), hit);
+                        }
                         // 记下这一轮"没有新信息"的页面里分数最高的；有收获就清零
                         stale_max = if a.stale() > before {
                             stale_max.max(score)
@@ -760,6 +790,16 @@ impl Scraper {
                         a.forgive();
                         stale_max = 0.0;
                         stop = None;
+                    }
+                    // 查询已经覆盖、这一页没带来新东西，而能走的最好的链接也只是盲探（没有任何
+                    // 查询的线索）：不用再数几页没收获，现在就停。还有带线索的候选时照常继续
+                    if stop.is_none()
+                        && let Some(a) = adaptive.as_ref()
+                        && a.covered()
+                        && !a.last_fresh()
+                        && queue.peek_score().is_none_or(crate::focus::is_blind)
+                    {
+                        stop = Some("coverage_reached");
                     }
                     // 一直盲探、什么也没找到，但这一页刚带来了有线索的链接：先抓它们再说
                     if stop == Some("no_relevant_pages")

@@ -293,16 +293,22 @@ async fn adaptive_crawl_stops_once_the_query_is_covered() {
         }),
     )
     .await;
-    // 第一页退款页就覆盖了查询，但后面的退款页还有新内容：都抓完；之后连着 ceil(5 / 2) = 3 页
-    // 没有新东西、剩下的又只是没有线索的链接，就停
+    // 第一页退款页就覆盖了查询，但后面的退款页还有新内容：都抓完；之后剩下的只是没有线索的
+    // 链接（团队、关于、博客），不用再数几页没收获，马上停
     let o = order(&c);
-    assert_eq!(o.len(), 7, "{o:?}");
-    assert_eq!(o[0], "Help center");
-    assert!(o[1..4].iter().all(|t| t.starts_with("Refund")), "{o:?}");
+    assert_eq!(
+        o,
+        [
+            "Help center",
+            "Refund policy",
+            "Refund timeline",
+            "Refund exceptions"
+        ]
+    );
     let s = c.summary.lock().unwrap().clone().unwrap();
     assert_eq!(s.stop_reason, "coverage_reached");
     assert_eq!(s.coverage, Some(1.0));
-    assert_eq!(s.pages, 7);
+    assert_eq!(s.pages, 4);
     assert!(
         s.term_evidence["refund"] >= 3 && s.term_evidence["policy"] >= 3,
         "{s:?}"

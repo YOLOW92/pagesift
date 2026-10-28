@@ -1,93 +1,94 @@
-//! 子树的收成：一个子站或栏目抓了不少页、相关度却一直远低于这次爬取里的好页面，就是撞词的
-//! 陷阱（期刊系统一期期目录、科研新闻、商店商品页），之后不再往里抓。
+//! 各部分的收成：每抓一页，记下它有没有带来新的切题内容（自适应停止判断的"有收获"），按子树
+//! 或簇分开统计收获率，用置信区间和其余部分比较（多臂老虎机的逐次淘汰）。
 //!
-//! 只拿已抓页面的相关度和本次爬取里的好页面比，不看站点、不看具体的词，所以对任何查询都成立。
+//! - 某部分收获率的上界低于其余部分收获率的下界：再抓下去也追不上，枯竭（撞词的陷阱：期刊系统
+//!   一期期目录、商店商品页，每页都沾一个查询词，却从不带来新的切题内容）；
+//! - 某部分收获率的下界高于其余部分收获率的下界：产出确实好，按簇分散的上限不该把它赶走。
+//!
+//! 没有按数据调出来的门槛：样本少时区间宽，不轻易下结论；一直颗粒无收的部分，抓得越多区间越窄，
+//! 很快就会被淘汰。置信区间是 Wilson 区间（95%）。
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use pagesift_net::Url;
 
-use super::adaptive::EVIDENCE_RELEVANCE;
+/// 95% 置信度的正态分位数。
+const Z: f64 = 1.96;
 
-/// 一个子树至少抓了这么多页才判断它是不是枯竭。
-const MIN_PAGES: u32 = 8;
-/// 子树的平均相关度低于好页面平均相关度的这个比例，就算枯竭。在 69 所大学 × 5 个方向的结果上
-/// 回放（benchmarks/history/0.80.11）：0.3 时少抓约十分之一的页面、有用页只丢几十页；
-/// 0.4 以上开始切掉爱丁堡研究生申请那种相关度不高、但确实有用的大栏目。
-const DRY_SHARE: f32 = 0.3;
+/// 收获率的 Wilson 置信区间 (下界, 上界)；没有样本时是 (0, 1)。
+fn wilson(hits: u32, n: u32) -> (f64, f64) {
+    if n == 0 {
+        return (0.0, 1.0);
+    }
+    let n = f64::from(n);
+    let p = f64::from(hits) / n;
+    let z2 = Z * Z;
+    let center = (p + z2 / (2.0 * n)) / (1.0 + z2 / n);
+    let half = Z * (p * (1.0 - p) / n + z2 / (4.0 * n * n)).sqrt() / (1.0 + z2 / n);
+    ((center - half).max(0.0), (center + half).min(1.0))
+}
 
-/// 各子树的收成。
+/// 按某种分法（子树或簇）统计的收获。
+#[derive(Default)]
 pub(crate) struct Harvest {
-    /// 种子页的主机（去掉 www.）。
-    seed_host: String,
-    /// 子树 → (页数, 相关度之和)。
-    trees: HashMap<String, (u32, f32)>,
-    /// 好页面（相关度到证据线）的 (页数, 相关度之和)。
-    good: (u32, f32),
-    dry: HashSet<String>,
+    /// 部分 → (页数, 有收获的页数)。
+    parts: HashMap<String, (u32, u32)>,
+    total: (u32, u32),
 }
 
 impl Harvest {
-    pub(crate) fn new(seed_host: &str) -> Self {
-        Self {
-            seed_host: seed_host.trim_start_matches("www.").to_ascii_lowercase(),
-            trees: HashMap::new(),
-            good: (0, 0.0),
-            dry: HashSet::new(),
-        }
+    /// 记下属于 `part` 的一页，`hit` 说它有没有带来新的切题内容。
+    pub(crate) fn observe(&mut self, part: String, hit: bool) {
+        let p = self.parts.entry(part).or_default();
+        p.0 += 1;
+        p.1 += u32::from(hit);
+        self.total.0 += 1;
+        self.total.1 += u32::from(hit);
     }
 
-    /// 页面所在的子树：别的主机（子站）整个算一棵；种子主机上按页面的上级目录分，跳过开头的
-    /// 语言段，最多两段（`/research-highlight/某篇` → `research-highlight`，
-    /// `/en/education/programmes/x` → `education/programmes`）。只按第一段分的话，整站都在
-    /// `/en/` 下的站点就成了一棵树，判它枯竭等于停掉整个爬取。
-    fn tree(&self, url: &Url) -> String {
-        let host = url
-            .host_str()
-            .unwrap_or_default()
-            .trim_start_matches("www.")
-            .to_ascii_lowercase();
-        if host != self.seed_host {
-            return host;
-        }
-        let mut segs: Vec<&str> = url.path().split('/').filter(|s| !s.is_empty()).collect();
-        segs.pop();
-        if segs
-            .first()
-            .is_some_and(|s| super::is_language_code(s) || super::is_language_name(s))
-        {
-            segs.remove(0);
-        }
-        segs.truncate(2);
-        format!("{host}/{}", segs.join("/"))
+    /// 这一部分和其余部分各自的 (页数, 有收获的页数)。
+    fn split(&self, part: &str) -> ((u32, u32), (u32, u32)) {
+        let mine = self.parts.get(part).copied().unwrap_or_default();
+        (mine, (self.total.0 - mine.0, self.total.1 - mine.1))
     }
 
-    /// 记下抓到的一页和它的相关度。
-    pub(crate) fn observe(&mut self, url: &Url, relevance: f32) {
-        if relevance >= EVIDENCE_RELEVANCE {
-            self.good.0 += 1;
-            self.good.1 += relevance;
-        }
-        let tree = self.tree(url);
-        let t = self.trees.entry(tree.clone()).or_default();
-        t.0 += 1;
-        t.1 += relevance;
-        let (pages, sum) = *t;
-        // 还没有好页面时拿证据线当参照
-        let reference = if self.good.0 > 0 {
-            self.good.1 / self.good.0 as f32
-        } else {
-            EVIDENCE_RELEVANCE
-        };
-        if pages >= MIN_PAGES && sum / (pages as f32) < DRY_SHARE * reference {
-            self.dry.insert(tree);
-        }
+    /// 枯竭：收获率的上界低于其余部分收获率的下界。
+    pub(crate) fn is_dry(&self, part: &str) -> bool {
+        let ((n, h), (rn, rh)) = self.split(part);
+        n > 0 && wilson(h, n).1 < wilson(rh, rn).0
     }
 
-    /// 这个 URL 所在的子树已经枯竭。
-    pub(crate) fn is_dry(&self, url: &Url) -> bool {
-        !self.dry.is_empty() && self.dry.contains(&self.tree(url))
+    /// 产出证明了好：收获率的下界高于其余部分收获率的下界。两边都用下界：其余部分只有一两页时
+    /// （开局时只有种子页），它的点估计是 0 或 1，拿来比没有意义，下界会把样本少的一边自然压低。
+    pub(crate) fn is_proven(&self, part: &str) -> bool {
+        let ((n, h), (rn, rh)) = self.split(part);
+        n > 0 && wilson(h, n).0 > wilson(rh, rn).0
     }
+}
+
+/// 页面所在的子树：别的主机（子站）整个算一棵；种子主机上按页面的上级目录分，跳过开头的
+/// 语言段，最多两段（`/research-highlight/某篇` → `research-highlight`，
+/// `/en/education/programmes/x` → `education/programmes`）。只按第一段分的话，整站都在
+/// `/en/` 下的站点就成了一棵树，判它枯竭等于停掉整个爬取。`seed_host` 已去掉 `www.`、小写。
+pub(crate) fn subtree(seed_host: &str, url: &Url) -> String {
+    let host = url
+        .host_str()
+        .unwrap_or_default()
+        .trim_start_matches("www.")
+        .to_ascii_lowercase();
+    if host != seed_host {
+        return host;
+    }
+    let mut segs: Vec<&str> = url.path().split('/').filter(|s| !s.is_empty()).collect();
+    segs.pop();
+    if segs
+        .first()
+        .is_some_and(|s| super::is_language_code(s) || super::is_language_name(s))
+    {
+        segs.remove(0);
+    }
+    segs.truncate(2);
+    format!("{host}/{}", segs.join("/"))
 }
 
 #[cfg(test)]
@@ -99,37 +100,48 @@ mod tests {
     }
 
     #[test]
-    fn a_subtree_far_below_the_good_pages_runs_dry() {
-        let mut h = Harvest::new("www.e.edu");
-        h.observe(&u("https://www.e.edu/library/hours/"), 0.6);
-        h.observe(&u("https://www.e.edu/library/borrow/"), 0.5);
-        // 期刊系统：子站上一页页都只沾一点边
-        for i in 0..7 {
-            h.observe(
-                &u(&format!("https://journals.e.edu/j{i}/issue/current")),
-                0.07,
-            );
+    fn a_part_that_never_pays_off_is_dropped_once_the_evidence_is_clear() {
+        let mut h = Harvest::default();
+        // 图书馆的正经页面：一半有收获
+        for i in 0..10 {
+            h.observe("lib".into(), i % 2 == 0);
         }
-        assert!(
-            !h.is_dry(&u("https://journals.e.edu/j9/")),
-            "seven pages are not enough"
+        // 期刊系统：颗粒无收。几页的时候还说不准，多了就清楚了
+        for _ in 0..3 {
+            h.observe("journals".into(), false);
+        }
+        assert!(!h.is_dry("journals"));
+        for _ in 0..12 {
+            h.observe("journals".into(), false);
+        }
+        assert!(h.is_dry("journals"));
+        assert!(!h.is_dry("lib"));
+        assert!(h.is_proven("lib"));
+        assert!(!h.is_proven("journals"));
+        // 收获率一般、和其余部分差不多的部分不算枯竭
+        let mut h = Harvest::default();
+        for i in 0..40 {
+            h.observe("study".into(), i % 5 == 0);
+            h.observe("other".into(), i % 4 == 0);
+        }
+        assert!(!h.is_dry("study") && !h.is_dry("other"));
+    }
+
+    #[test]
+    fn subtrees_follow_parent_directories() {
+        let seed = "e.edu";
+        assert_eq!(
+            subtree(seed, &u("https://journals.e.edu/j1/issue/current")),
+            "journals.e.edu"
         );
-        h.observe(&u("https://journals.e.edu/j7/issue/current"), 0.07);
-        assert!(h.is_dry(&u("https://journals.e.edu/j9/")));
-        // 别的子树不受影响；种子主机上按第一段路径分
-        assert!(!h.is_dry(&u("https://www.e.edu/library/visit/")));
-        for i in 0..8 {
-            h.observe(
-                &u(&format!("https://e.edu/research-highlight/story-{i}")),
-                0.05,
-            );
-        }
-        assert!(h.is_dry(&u("https://www.e.edu/research-highlight/story-99")));
-        assert!(!h.is_dry(&u("https://www.e.edu/research/")));
-        // 相关度一般、但和好页面差得不多的大栏目不算枯竭
-        for i in 0..20 {
-            h.observe(&u(&format!("https://e.edu/study/programme-{i}")), 0.2);
-        }
-        assert!(!h.is_dry(&u("https://e.edu/study/programme-99")));
+        assert_eq!(
+            subtree(seed, &u("https://www.e.edu/en/research-highlight/story-1")),
+            "e.edu/research-highlight"
+        );
+        assert_eq!(
+            subtree(seed, &u("https://e.edu/en/education/programmes/x/y")),
+            "e.edu/education/programmes"
+        );
+        assert_eq!(subtree(seed, &u("https://e.edu/about")), "e.edu/");
     }
 }
