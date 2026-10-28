@@ -134,3 +134,32 @@ fn list_shaped_article_body_is_not_filtered_away() {
     );
     assert!(!out.contains("cycling lanes"), "{out}");
 }
+
+/// 手风琴、FAQ 的标题按钮（`aria-expanded`、`aria-controls`）是下面那段内容的小标题：
+/// 文章模式只输出白名单元素、删按钮时也保留它；"展开全部"这类短按钮照删。
+#[test]
+fn disclosure_headers_of_accordions_are_kept() {
+    let item = |n: usize, q: &str| {
+        format!(
+            "<div class=\"accordion__item\">\
+             <button type=\"button\" class=\"accordion__header\" aria-expanded=\"false\" \
+             aria-controls=\"panel-{n}\">{q}</button>\
+             <div class=\"accordion__content\" id=\"panel-{n}\"><p>{BODY}</p></div></div>"
+        )
+    };
+    let html = format!(
+        "<html><body><main><article><h1>Questions</h1>{BODY}\
+         <div class=\"accordion\"><button type=\"button\">Expand all</button>{}{}</div>\
+         </article></main></body></html>",
+        item(1, "How long does the budget review take?"),
+        item(2, "Who pays for the library renovation?")
+    );
+    let out = md(&html);
+    for q in [
+        "How long does the budget review take?",
+        "Who pays for the library renovation?",
+    ] {
+        assert!(out.contains(q), "{q}: {out}");
+    }
+    assert!(!out.contains("Expand all"), "{out}");
+}

@@ -237,6 +237,8 @@ fn unlikely(f: u32, n: &NodeR<'_>) -> bool {
         n.tag(),
         Some(Tag::Body | Tag::Html | Tag::A | Tag::Article | Tag::Main)
     ) && f & crate::features::UNLIKELY != 0
+        // 手风琴的标题按钮常叫 `accordion__header`：不是页眉
+        && !crate::extract::is_disclosure_header(n)
 }
 
 fn skipped(n: &NodeR<'_>, skipper: &Skipper) -> bool {

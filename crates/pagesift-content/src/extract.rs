@@ -144,6 +144,16 @@ fn is_text_button(node: &NodeR<'_>) -> bool {
     node.tag() == Some(Tag::Button) && !short_text(node, TEXT_BUTTON_MIN_CHARS)
 }
 
+/// 手风琴、折叠块的标题（WAI-ARIA 的 disclosure 模式：`aria-expanded`、`aria-controls`
+/// 指向它展开的内容），文字够长（同 [`TEXT_BUTTON_MIN_CHARS`]）：它是下面那段内容的小标题，
+/// 和 `<details>` 的 `<summary>` 一样。文章模式删按钮时不删它。
+pub(crate) fn is_disclosure_header(node: &NodeR<'_>) -> bool {
+    is_text_button(node)
+        && element(node).is_some_and(|el| {
+            el.attr("aria-expanded").is_some() || el.attr("aria-controls").is_some()
+        })
+}
+
 /// 自底向上一遍算出每个元素的可见文字统计和"有没有块级后代"。
 fn compute(
     html: &Html<'_>,
@@ -427,7 +437,7 @@ impl Skipper {
             if crate::editorial::recommendation_list(node) {
                 return Some("article: attributed recommendation list");
             }
-            if crate::article::is_cleaned_tag(tag) {
+            if crate::article::is_cleaned_tag(tag) && !is_disclosure_header(node) {
                 return Some("article: cleaned tag");
             }
             if crate::article::link_dense(node, self) {

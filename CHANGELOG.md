@@ -32,6 +32,11 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
   and +44% with 4 workers on a 4-core machine.
 
 ### Fixed
+- Main-content extraction keeps the headers of accordions and FAQ blocks: a `<button>` with
+  `aria-expanded`/`aria-controls` and real text (the WAI-ARIA disclosure pattern, like
+  `<summary>`) was dropped in article mode, where buttons are removed and only paragraph-like
+  elements are rendered, so answers appeared without their questions. Short controls ("Expand
+  all") are still dropped.
 - PDF: text in annotation appearances is extracted, as viewers show it: filled-in form fields,
   FreeText notes, stamps, signature blocks. Fields without an appearance stream
   (`/NeedAppearances`) contribute their value. Only the text is taken (field borders are not

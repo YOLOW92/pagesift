@@ -109,6 +109,7 @@ impl<'a> Renderer<'a> {
                     | Tag::Code,
                 ) => true,
                 Some(Tag::Div) => div || crate::dom::is_heading(node),
+                Some(Tag::Button) => crate::extract::is_disclosure_header(node),
                 _ => false,
             },
         }
@@ -255,6 +256,8 @@ impl Renderer<'_> {
         }
         match node.tag() {
             Some(t) if is_block_tag(t) => true,
+            // 手风琴的标题按钮自成一段（它是下面内容的小标题）
+            Some(Tag::Button) if crate::extract::is_disclosure_header(node) => true,
             Some(t) if is_inline_tag(t) => self.skipper.has_block_descendant(node),
             Some(_) => self.skipper.has_block_descendant(node),
             None => false,
