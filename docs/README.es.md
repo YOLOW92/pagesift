@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.80.5
+# pagesift 0.80.9
 
 **Motor de scraping y extracción web de alto rendimiento y memoria acotada para agentes de IA y pipelines de LLM.**  
 Convierte cualquier sitio web, documento o archivo en Markdown limpio y datos estructurados: un único binario en Rust, SDK nativos, APIs duales Firecrawl v1/v2 y Jina Reader, con menos memoria que las alternativas medidas (véase la [sección 9 de benchmarks.md](benchmarks.md)).
@@ -73,6 +73,19 @@ Mientras tanto, los últimos resultados medidos (con dirección, versión y fech
 Medido con 0.70.0; no se ha repetido con versiones posteriores.
 
 ---
+
+## Novedades en 0.80.9
+
+**La última versión de la serie 0.80.** El rastreo enfocado se comprobó en 69 universidades y cinco
+direcciones (estudiantes internacionales, posgrado, alojamiento, informática, biblioteca): frente a
+0.80.0, páginas justo sobre la consulta 2,6% → 19,0% y relacionadas 18,4% → 49,6%; los enlaces en cola
+se puntúan de nuevo al aprender los pesos y una página con varias URL se entrega una vez. Los PDF
+incluyen el texto de campos rellenados, notas, sellos y firmas (archivos difíciles de pdf.js
+0,56 → 0,61). `scrape` arranca más ligero con un proceso por archivo (CPU por llamada 6,3 → 4,3 ms).
+`doctor` arranca cada motor y avisa si alguno no funciona; se encuentran motores fuera del `PATH` y en
+la caché de Playwright; `crawl`/`map` aceptan `--ignore-robots`. Los títulos de acordeones y FAQ se
+conservan. Todas las pruebas quedan dentro del 2% de 0.80.0. No hubo 0.80.6–0.80.8. Detalles:
+[notas de 0.80.9](releases/0.80.9.md).
 
 ## Novedades en 0.80.5
 
@@ -156,7 +169,7 @@ se conservan sin cambios y con sus fuentes en [history/homepage-es.md](history/h
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.5
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.9
 ```
 
 #### Reemplazo Directo de Firecrawl SDK

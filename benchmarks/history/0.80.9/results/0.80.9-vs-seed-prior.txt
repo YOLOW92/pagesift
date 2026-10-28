@@ -1,0 +1,13 @@
+topic    sites  version  pages          U        U+M  median U U=0 sites
+intl        62  0.80.9     697  205 29.4%  441 63.3%       3.0        10
+intl        62  seed-prior-dropped   691  199 28.8%  418 60.5%       3.0        12
+grad        62  0.80.9     707  170 24.0%  393 55.6%       2.0        18
+grad        62  seed-prior-dropped   709  138 19.5%  358 50.5%       2.0        19
+housing     61  0.80.9     676   96 14.2%  147 21.7%         1        23
+housing     61  seed-prior-dropped   632  128 20.3%  153 24.2%         1        24
+cs          61  0.80.9     671   51  7.6%  452 67.4%         0        40
+cs          61  seed-prior-dropped   642   61  9.5%  418 65.1%         0        37
+library     60  0.80.9     652  129 19.8%  264 40.5%       1.0        22
+library     60  seed-prior-dropped   653  130 19.9%  271 41.5%       1.0        22
+all             0.80.9    3403  651 19.1% 1697 49.9%
+all             seed-prior-dropped  3327  656 19.7% 1618 48.6%

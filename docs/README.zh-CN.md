@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.80.5
+# pagesift 0.80.9
 
 **为 AI 智能体与 LLM 数据工程打造的高性能、严格内存有界抓取与内容提取引擎。**  
 把任何网站、学术文档或历史档案转化为干净的 Markdown 与结构化数据——单个纯 Rust 二进制、原生多语言 SDK、兼容 Firecrawl v1/v2 与 Jina Reader 双协议，内存占用明显低于所测竞品（见 [benchmarks.md 第 9 节](benchmarks.md)）。
@@ -76,6 +76,15 @@
 
 ---
 
+## 0.80.9 更新
+
+**0.80 的收尾版本。** 聚焦爬取扩大到 69 所大学、五个方向（国际生、研究生申请、住宿、计算机系、图书馆）实测：
+对 0.80.0，正中查询的页面 2.6% → 19.0%，相关以上 18.4% → 49.6%；排队的链接随学到的词权重重新打分，
+同一页的不同写法只交付一次。PDF 收进表单域的值、批注、图章和签名里的字（pdf.js 困难测试文件 0.56 → 0.61）。
+每份文件起一个进程时 `scrape` 启动更轻（每次 CPU 6.3 → 4.3 ms）。`doctor` 逐个启动引擎，起不来的会警告；
+PATH 以外和 Playwright 缓存里的引擎也能找到；`crawl`、`map` 支持 `--ignore-robots`。手风琴、FAQ 的标题保留在正文里。
+所有基准对 0.80.0 都在 2% 以内。没有发布 0.80.6–0.80.8。详见 [0.80.9 发行说明](releases/0.80.9.md)。
+
 ## 0.80.5 更新
 
 **看起来正常、其实有问题的结果会明说了。** 结果可能不完整或不对时（PDF 丢页丢内容、正文过薄或只抽到一部分、
@@ -145,7 +154,7 @@ PDF 两项补修：书签只到章节时标题不再为空；线性化 PDF 截�
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.5
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.9
 ```
 
 #### Firecrawl SDK 零改动平替接入

@@ -1,0 +1,12 @@
+{"url": "https://www.uva.nl/en", "title": "University of Amsterdam", "status": 200, "score": null, "depth": 0}
+{"url": "https://student.uva.nl/en", "title": "student.uva.nl", "status": 200, "score": 0.9380000233650208, "depth": 1}
+{"url": "https://student.uva.nl/en/information/central-student-service-desk", "title": "Central Student Service Desk", "status": 200, "score": 0.8100000023841858, "depth": 2}
+{"url": "https://student.uva.nl/en/information/study-adviser", "title": "Study adviser", "status": 200, "score": 0.8100000023841858, "depth": 2}
+{"url": "https://student.uva.nl/en/study-results", "title": "Study results", "status": 200, "score": 0.8100000023841858, "depth": 2}
+{"url": "https://student.uva.nl/en/categories/examinations-and-resits", "title": "Examinations and resits", "status": 200, "score": 0.1979999989271164, "depth": 3}
+{"url": "https://serviceportal.uva.nl/esc?id=sc_cat_item&table=sc_cat_item&sys_id=0a05e28b3b0dd210a0adf26765e45a31", "title": "Aanmelden - Serviceportal", "status": 200, "score": 0.17900000512599945, "depth": 3}
+{"url": "https://sis.uva.nl/psc/S3PRD/EMPLOYEE/SA/c/SNS_CUSTOMIZATIONS_NLD.SNS_PGLT_LOADER_FL.GBL?pageletname=U_SSS_PW_RESULTATEN&", "title": "Sign In", "status": 200, "score": 0.17900000512599945, "depth": 3}
+{"url": "https://uba.uva.nl/en/visiting-and-studying/study-spaces/study-spaces.html", "title": "Study Spaces - Library UvA - University of Amsterdam", "status": 200, "score": 0.1979999989271164, "depth": 2}
+{"url": "https://uba.uva.nl/en/home", "title": "University Library - Library UvA - University of Amsterdam", "status": 200, "score": 0.15000000596046448, "depth": 1}
+{"url": "https://student.uva.nl/en/information/resitting-examinations", "title": "Resitting examinations", "status": 200, "score": 0.20999999344348907, "depth": 4}
+{"url": "https://student.uva.nl/en/information/studying-with-an-illness-or-chronic-condition", "title": "Studying with an illness or chronic condition", "status": 200, "score": 0.1599999964237213, "depth": 3}

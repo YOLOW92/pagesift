@@ -2,7 +2,13 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.80.9] — 2026-10-28
+
+The last 0.80 release (0.80.6–0.80.8 were not released; everything since 0.80.5 is here):
+engine discovery and `doctor` from the thirteenth round of outside testing, a wider focused-crawl
+check on 69 universities in five directions, work on the weak spots of the mixed benchmark
+(hard PDFs, one-process-per-file start-up, main-content recall), and four fixes from code review.
+Instruction counts stay within 2% of 0.80.0. See [the release notes](docs/releases/0.80.9.md).
 
 ### Added
 - `crawl --ignore-robots` and `map --ignore-robots`. On the command line the flag is the

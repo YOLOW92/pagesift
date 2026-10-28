@@ -1,0 +1,12 @@
+{"url": "https://www.u-tokyo.ac.jp/", "title": "東京大学", "status": 200, "score": null, "depth": 0}
+{"url": "https://www.u-tokyo.ac.jp/en/index.html", "title": "The University of Tokyo", "status": 200, "score": 0.5400000214576721, "depth": 1}
+{"url": "https://mooc.he.u-tokyo.ac.jp/en/", "title": "top － UTokyo MOOC", "status": 200, "score": 0.5059999823570251, "depth": 2}
+{"url": "https://www.lib.u-tokyo.ac.jp/en", "title": "University of Tokyo Library System", "status": 200, "score": 0.5059999823570251, "depth": 2}
+{"url": "https://www.lib.u-tokyo.ac.jp/en/library/general", "title": "General Library | University of Tokyo Library System", "status": 200, "score": 1.5499999523162842, "depth": 3}
+{"url": "https://www.lib.u-tokyo.ac.jp/en/library/komaba", "title": "Komaba Library | University of Tokyo Library System", "status": 200, "score": 1.5499999523162842, "depth": 3}
+{"url": "https://www.lib.u-tokyo.ac.jp/en/library/kashiwa", "title": "Kashiwa Library | University of Tokyo Library System", "status": 200, "score": 1.5499999523162842, "depth": 3}
+{"url": "https://www.lib.u-tokyo.ac.jp/en/library/contents/guide/general", "title": "General Library | University of Tokyo Library System", "status": 200, "score": 0.367000013589859, "depth": 3}
+{"url": "https://www.lib.u-tokyo.ac.jp/en/library/contents/guide/asia", "title": "Asian Research Library | University of Tokyo Library System", "status": 200, "score": 0.367000013589859, "depth": 3}
+{"url": "https://www.lib.u-tokyo.ac.jp/en/library/contents/guide/law_politics", "title": "Graduate Schools for Law and Politics / Faculty of Law Library | University of Tokyo Library System", "status": 200, "score": 0.367000013589859, "depth": 3}
+{"url": "https://www.lib.u-tokyo.ac.jp/en/library/contents/guide/medical", "title": "Medical Library | University of Tokyo Library System", "status": 200, "score": 0.367000013589859, "depth": 3}
+{"url": "https://www.lib.u-tokyo.ac.jp/en/library/contents/guide/eng_libraries", "title": "Libraries for Engineering and Information Science & Technology | University of Tokyo Library System", "status": 200, "score": 0.367000013589859, "depth": 3}

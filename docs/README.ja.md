@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.80.5
+# pagesift 0.80.9
 
 **AI エージェントと LLM データ基盤のための、超高速・メモリ有界スクレイピング＆本文抽出エンジン。**  
 あらゆる Web サイト、論文、アーカイブを高品質な Markdown と構造化データに変換します。単一の Rust バイナリ、ネイティブ SDK、Firecrawl v1/v2 および Jina Reader デュアルプロトコル互換。測定した競合よりメモリ消費が少なくなっています（[benchmarks.md 第 9 節](benchmarks.md) 参照）。
@@ -75,6 +75,17 @@
 0.70.0 での測定値で、以降のバージョンでは再測定していません。
 
 ---
+
+## 0.80.9 の変更
+
+**0.80 系の最終版。** 集中クロールを 69 大学・5 方向（留学生、大学院出願、住居、計算機科学科、図書館）で検証：
+0.80.0 と比べて、クエリにぴったりのページ 2.6% → 19.0%、関連以上 18.4% → 49.6%。キューのリンクは学習した
+語の重みで採点し直し、同じページの別 URL は一度だけ返します。PDF はフォームの入力値、注釈、スタンプ、署名の
+文字も取り出します（pdf.js の難しいテストファイル 0.56 → 0.61）。1 ファイル 1 プロセスの `scrape` は起動が軽く
+なりました（1 回の CPU 6.3 → 4.3 ms）。`doctor` は各エンジンを実際に起動し、起動できないものを警告します。
+PATH 外や Playwright キャッシュのエンジンも見つけ、`crawl`／`map` に `--ignore-robots` を追加。アコーディオンや
+FAQ の見出しを本文に残します。全ベンチマークは 0.80.0 比 2% 以内。0.80.6–0.80.8 はリリースしていません。
+詳細：[0.80.9 リリースノート](releases/0.80.9.md)。
 
 ## 0.80.5 の変更
 
@@ -149,7 +160,7 @@ CSV を HTML と同じ方法でデコード（以前は警告なしに文字化�
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.5
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.9
 ```
 
 #### Firecrawl SDK の差し替え
