@@ -2,6 +2,47 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.80.10] — 2026-10-28
+
+The page limit of a focused crawl becomes adaptive, and the discovery problems from the
+fourteenth round of outside testing are fixed; three extraction problems from the AiSeek report
+(teasers instead of the body, sidebars kept, relative links in uploads) are fixed too. See
+[the release notes](docs/releases/0.80.10.md).
+
+### Added
+- `crawl --query … --adaptive` without `--limit`: the crawl decides how many pages it needs and
+  `--limit` is only a cap (500 when not given; without `--adaptive` the default stays 100). The
+  HTTP API's `limit` already was a cap.
+- Adaptive stop reason `no_relevant_pages`: nothing relevant has been found and `2 × patience`
+  pages in a row were reached only through links without any sign of the query (their score is
+  the section prior). Such sites used to be crawled up to the limit.
+- `POST /v2/parse` takes an optional `url` field: the address the uploaded HTML came from.
+  Relative links resolve against it (a `<base href>` in the page still wins) and it becomes
+  `metadata.sourceURL`. It is never fetched.
+
+### Changed
+- Adaptive crawl: reaching the coverage threshold no longer stops the crawl at once. While pages
+  keep adding new relevant content the crawl goes on; it stops after `ceil(patience / 2)` pages in
+  a row that add nothing new, and only when the best queued link carries a sign of the query.
+  Coverage also needs evidence from at least two pages (one overview page can mention every term
+  often enough).
+- Focused crawl, English query: once the site's English content is known (the start page is
+  English, or the English home page was found), links on pages in other languages no longer get
+  the section prior. German and Norwegian main sites used to take most of the budget.
+  `/english/research/` counts as a first-level section of the English site, like `/en/research/`.
+- Focused crawl: a short section named after a query word under an about/news section
+  (`/about/housing/`) is content, not furniture.
+- Article extraction: when the `<article>` that holds the headline is only a teaser whose text
+  reappears in a longer body elsewhere on the page, that body is extracted (press-release
+  templates). In two-column layouts without an article marker, the region is narrowed to the
+  column of the headline that matches `<title>`; story cards (a link and a summary ending in an
+  ellipsis) do not count as body text. A section name in the only `<h1>` is no longer taken for
+  the headline when an `<h2>` matches `<title>`.
+
+### Fixed
+- `/v2/parse` and `scrape <file>` of HTML now give the same completeness warnings as fetched
+  pages (`partial_content` and the others).
+
 ## [0.80.9] — 2026-10-28
 
 The last 0.80 release (0.80.6–0.80.8 were not released; everything since 0.80.5 is here):

@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.80.9
+# pagesift 0.80.10
 
 **High-performance, memory-bounded web scraping and extraction engine built for AI agents and LLM pipelines.**  
 Turn any website, document, or archive into clean Markdown and structured data — one Rust binary, native SDKs, dual Firecrawl v1/v2 & Jina Reader APIs, at a fraction of the memory.
@@ -80,6 +80,18 @@ Results for the other domains (dates, Markdown fidelity, RAG chunking, crawling 
 Measured with 0.70.0, not re-run for later versions.
 
 ---
+
+## What's New in 0.80.10
+
+**An adaptive page limit.** `crawl --query … --adaptive` no longer needs `--limit`: the crawl keeps
+going while pages add new relevant content and stops when they stop doing so, or when nothing
+relevant can be found (`no_relevant_pages`); the limit is only a cap (500 when not given). On 69
+universities in five directions the adaptive crawl found 4,208 pages squarely on the query
+against 645 with `--limit 12` and 1,856 with `--limit 100` (0.80.9), and a larger share of
+its pages was useful (25.7% against 20.0% and 17.2%). Discovery: foreign-language main
+sites no longer take the budget of an English query, and `/about/housing/` is content, not an
+"about" page. Extraction: press-release teasers, news sidebars and relative links in uploads
+(`/v2/parse` takes a `url` field). Details: [0.80.10 release notes](docs/releases/0.80.10.md).
 
 ## What's New in 0.80.9
 
@@ -189,7 +201,7 @@ Run the standalone container (includes headless browser renderer):
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.9
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.10
 ```
 
 #### Firecrawl SDK Drop-In Replacement
@@ -348,7 +360,7 @@ If PageSift is useful in research or a product, cite it as:
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 0.80.9}
+  note   = {Version 0.80.10}
 }
 ```
 

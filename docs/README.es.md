@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.80.9
+# pagesift 0.80.10
 
 **Motor de scraping y extracción web de alto rendimiento y memoria acotada para agentes de IA y pipelines de LLM.**  
 Convierte cualquier sitio web, documento o archivo en Markdown limpio y datos estructurados: un único binario en Rust, SDK nativos, APIs duales Firecrawl v1/v2 y Jina Reader, con menos memoria que las alternativas medidas (véase la [sección 9 de benchmarks.md](benchmarks.md)).
@@ -73,6 +73,18 @@ Mientras tanto, los últimos resultados medidos (con dirección, versión y fech
 Medido con 0.70.0; no se ha repetido con versiones posteriores.
 
 ---
+
+## Novedades en 0.80.10
+
+**Un límite de páginas adaptativo.** `crawl --query … --adaptive` ya no necesita `--limit`: el rastreo
+sigue mientras las páginas aportan contenido relevante nuevo y se detiene cuando dejan de hacerlo, o
+cuando no encuentra nada relevante (`no_relevant_pages`); el límite es solo un tope (500 si no se da).
+En 69 universidades y cinco temas, el rastreo adaptativo encontró 4,208 páginas justo sobre la
+consulta, frente a 645 con `--limit 12` y 1,856 con `--limit 100` (0.80.9), con más páginas
+útiles en proporción (25.7% frente a 20.0% y 17.2%). Descubrimiento: los sitios principales en
+otro idioma ya no consumen el presupuesto de una consulta en inglés, y `/about/housing/` es contenido.
+Extracción: avances de notas de prensa, barras laterales de noticias y enlaces relativos en archivos
+subidos (`/v2/parse` acepta `url`). Detalles: [notas de 0.80.10](releases/0.80.10.md).
 
 ## Novedades en 0.80.9
 
@@ -169,7 +181,7 @@ se conservan sin cambios y con sus fuentes en [history/homepage-es.md](history/h
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.9
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.10
 ```
 
 #### Reemplazo Directo de Firecrawl SDK

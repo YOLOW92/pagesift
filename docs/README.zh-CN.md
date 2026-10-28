@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.80.9
+# pagesift 0.80.10
 
 **为 AI 智能体与 LLM 数据工程打造的高性能、严格内存有界抓取与内容提取引擎。**  
 把任何网站、学术文档或历史档案转化为干净的 Markdown 与结构化数据——单个纯 Rust 二进制、原生多语言 SDK、兼容 Firecrawl v1/v2 与 Jina Reader 双协议，内存占用明显低于所测竞品（见 [benchmarks.md 第 9 节](benchmarks.md)）。
@@ -75,6 +75,15 @@
 0.70.0 实测，之后的版本未重测。
 
 ---
+
+## 0.80.10 更新
+
+**页数上限变成自适应的。** `crawl --query … --adaptive` 不用再给 `--limit`：页面还在带来新的相关内容
+就接着抓，不再带来时停；一直找不到相关内容时也停（`no_relevant_pages`）；上限只是保险（不给时 500）。
+69 所大学、五个方向实测：正中查询的页面，自适应 4,208 页，0.80.9 的 `--limit 12` 是 645 页、
+`--limit 100` 是 1,856 页，而且有用页的比例更高（25.7% 对 20.0% 和 17.2%）。发现：英文
+查询不再被外语主站吃掉预算，`/about/housing/` 这类服务页不再当"关于"页。正文提取：新闻稿导语、
+新闻侧栏、上传 HTML 的相对链接（`/v2/parse` 新增 `url` 字段）。详见 [0.80.10 发行说明](releases/0.80.10.md)。
 
 ## 0.80.9 更新
 
@@ -154,7 +163,7 @@ PDF 两项补修：书签只到章节时标题不再为空；线性化 PDF 截�
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.9
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.10
 ```
 
 #### Firecrawl SDK 零改动平替接入
