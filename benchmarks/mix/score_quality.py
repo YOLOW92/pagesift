@@ -192,6 +192,10 @@ def score_b2(items, tools, runs):
 
 # ---- B1：olmOCR 自己的测试 ----
 
+def score_b5(items, tools, runs):
+    return score_b1(items, tools, runs, "b5")
+
+
 def score_b1(items, tools, runs, sub="b1"):
     """B1：olmOCR-bench 原生 PDF 五类（不含 old_scans*）；第 2 版 B5：只用 old_scans、old_scans_math 两类。"""
     bench = DATA / "fresh/tools/olmocr-bench"
@@ -303,7 +307,7 @@ def main():
     samples = {r["id"]: r for r in rows_tsv(sp if sp.exists() else HERE / f"v2/samples/{sub}.tsv")}  # 第 2 版新类别的清单在 v2/samples
     man = {l.split("\t")[0]: l.split("\t")[1] for l in (MIX / f"inputs/{sub}.manifest").read_text(encoding="utf-8").splitlines() if l}
     items = [{**samples[i], "path": p} for i, p in man.items()]  # 只算拿到了输入的份（抓不到的已在 fetched.tsv 里记不可用）
-    fn = {"a1": score_a1, "b1": score_b1, "b2": score_b2, "b4": score_b4, "b5": lambda i, t, r: score_b1(i, t, r, "b5")}.get(sub)
+    fn = {"a1": score_a1, "b1": score_b1, "b2": score_b2, "b4": score_b4, "b5": score_b5}.get(sub)
     fn = fn or functools.partial(score_robust, sub)
     global NTOOLS
     NTOOLS = len(tools)

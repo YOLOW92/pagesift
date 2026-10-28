@@ -218,5 +218,43 @@ def main():
                 [1, 16], "Office and e-books, 81 files (Docling: its 7-file subset)")
 
 
+    # 5. Scanned PDFs (B5)
+    b5 = q("b5")
+    if b5:
+        print("\n## 5. Scanned PDFs (B5: olmOCR-bench old_scans + old_scans_math, all 134 pages)\n")
+        print("| Tool | Pages | Completion ↑ | olmOCR score ↑ (official) | Without baseline ↑ |")
+        print("|---|---|---|---|---|")
+        for t in ["pagesift-file", "pdf_oxide", "pymupdf4llm", "kreuzberg", "docling-gpu", "mineru"]:
+            r = b5["tools"].get(t)
+            if not r:
+                continue
+            g = "model_subset" if t in ("docling-gpu", "mineru") else "all"
+            print("| " + " | ".join([name(t), str(r["items"]), f3(r["completion"]), f3(score(b5, g, "olmOCR", t)),
+                                     f3(score(b5, g, "olmOCR 去掉 baseline", t))]) + " |")
+        print("\npagesift and the other text-layer tools do no OCR; on these scans only 15 of 134 pages have a text layer. "
+              "Docling ran on the GPU build only (its CPU and GPU builds scored the same on B1). MinerU's default tier "
+              "is still running at publication; its row is updated when it finishes.")
+
+    # 6. JS-rendered pages (A3)
+    a3 = RES / "quality-a3.md"
+    if a3.exists():
+        print("\n## 6. Pages that need JavaScript (A3, 100 live pages)\n")
+        lines = a3.read_text(encoding="utf-8").splitlines()
+        tbl = [l for l in lines if l.startswith("|")]
+        print("| Tool | Completion ↑ | Reference-word coverage ↑ (all, unfinished = 0) | Coverage ↑ (pages both finished) | p50 ms ↓ | p95 ms ↓ | Peak MB ↓ |")
+        print("|---|---|---|---|---|---|---|")
+        for l in tbl[2:]:
+            cells = l.strip("|").split("|")
+            cells[0] = " " + name(cells[0].strip().replace("pagesift-crawl", "pagesift")) + " "
+            print("|" + "|".join(cells) + "|")
+        print("\nLive fetch, both tools in the same half hour, 4 workers each, while MinerU (B5) was still running on the "
+              "machine. Reference text: Firefox (Playwright, not a competitor) rendered every page before and after the "
+              "tools; only words present in both renders count. pagesift keeps the main content (default "
+              "`onlyMainContent`), Crawl4AI returns whole-page Markdown, while the reference is the whole page's text; that "
+              "is why Crawl4AI covers more on pages both finished. Firecrawl (self-hosted, official images) could not be "
+              "deployed on this machine: its RabbitMQ container cannot read its Erlang cookie (`eacces`), see "
+              "`v2/NOTES.md`.")
+
+
 if __name__ == "__main__":
     main()

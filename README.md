@@ -27,7 +27,7 @@ Turn any website, document, or archive into clean Markdown and structured data �
 <!-- perf-glance -->
 ## Performance at a glance (0.80.9)
 
-Measured on 2026-10-28 with pagesift 0.80.9 on one machine (i7-10700 8C/16T, 15 GB, GTX 1070), same inputs, same worker count, one tool at a time on a quiet machine; default settings for every tool. Only the rows where PageSift is fastest are listed here; where it is behind, see [How PageSift compares](#how-pagesift-compares) and the [full report](benchmarks/mix/v2/results/report-2026-10-28.md).
+Measured on 2026-10-28 with pagesift 0.80.9 on one machine (i7-10700 8C/16T, 15 GB, GTX 1070), same inputs, same worker count, one tool at a time on a quiet machine; default settings for every tool. Only the rows where PageSift is fastest are listed here; where it is behind, see [How PageSift compares](#how-pagesift-compares) and the [full report](benchmarks/mix/v2/results/report-2026-10-28.md). 0.80.10 does the same work as 0.80.9 (instruction counts: HTML extraction on 394 real pages +0.05 %, PDF and CSV unchanged; `benchmarks/history/0.80.10/`), so these speed numbers carry over; its extraction-quality changes were not re-measured here.
 
 | Workload | Workers | PageSift (↑ items/s) | Fastest competitor (↑ items/s) | Speed-up | Peak MB per worker (↓, PageSift / competitor) |
 |---|---|---|---|---|---|

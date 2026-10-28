@@ -4,20 +4,12 @@ frozen = true
 
 [seeds]
 a3_tranco = 2026102801       # A3 分层抽候选站点的顺序
-d_universities = 2026102802  # D 从 Hipo 名单（去掉 69 所开发集）里抽 30 所的顺序
 
 [quota]
 a3_per_tier = 20             # 5 层 × 20 份合格页
-d_universities = 30
 
 [a3]
 # 合格判定（只看静态抓到的原始 HTML）
 max_visible_chars = 500
 min_external_scripts = 3
 mount_ids = ["root", "app", "__next", "__nuxt", "svelte"]
-
-[d]
-source = "https://github.com/Hipo/university-domains-list"
-source_commit = "603e10f51b67c6553b9bca9aecc0db4c2417ed10"
-exclude = "benchmarks/history/0.80.9/sites.txt"
-page_budget = 12

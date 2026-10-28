@@ -4,7 +4,7 @@
 
 ## 用户的决定
 
-- **C3 长时间运行去掉**（第 3 阶段只做 B5、D）。
+- **C3 长时间运行去掉**（第 3 阶段只做 B5）。
 - **MinerU flash 档在 B1、B2 上不重跑**：按低估的内存预扣开到 10 路时撑爆整机、被停下；已完成的份照实计分，
   没跑到的算没完成（第 1 版 RULES 第四之二节）。用户原话：这是它的问题、我们的优势。
 - **Marker 不出分**：默认安装在本机跑不起来（详见 `tools.lock.md`），不替它另装外部的 `llama-server`。
@@ -39,5 +39,12 @@
 
 - **4 路不测**：本机测速只测单路和 16 路。A2 第一次误按第 1 版脚本多跑了 4 路，结果已全部删除，不进报告。
 - **MinerU 默认档的 16 路不测**：它单 worker 峰值约 4–5 GB，按内存最多只能开 1–2 路，16 路和 1 路几乎是同一个数，却要多跑十几分钟。
-- **A3（JS 渲染页）和 D（定向爬取）本轮没做**（用户给的时间只剩半小时，21:33 决定）：A3 的 100 份样本和 D 的 30 所学校已抽好、冻结在
-  `samples/`，运行脚本（`a3_reference.py`、`score_a3.py`、`run_d.sh`、`d_crawl4ai.py`）也在，下一轮直接用。
+
+## 第 3 阶段（21:45 以后）
+
+- **Firecrawl 自托管部署失败**：官方镜像照 compose 配置起 5 个服务（`firecrawl_up.sh`），RabbitMQ 容器读不了
+  `/var/lib/rabbitmq/.erlang.cookie`（`eacces`），挂命名卷后仍一样；API 依赖 RabbitMQ 一起退出。只试了两次，没有再深挖。
+  A3 只比 pagesift 和 Crawl4AI。
+- **B5 的 Docling CPU 版中途停掉**：整机内存紧（看门狗 21:43 杀过一个 5 GB 的 MinerU worker），而 Docling GPU 版 B5 已跑完，
+  B1 上 CPU、GPU 两版质量分相同。B5 只报 Docling GPU 版。
+- **A3 与 B5 的 MinerU 同时在跑**：A3 的耗时主要是网络和渲染，报告注明。

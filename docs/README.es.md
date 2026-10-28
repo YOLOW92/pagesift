@@ -26,7 +26,7 @@ Convierte cualquier sitio web, documento o archivo en Markdown limpio y datos es
 <!-- perf-glance -->
 ## Rendimiento de un vistazo (0.80.9)
 
-Medido el 2026-10-28 con pagesift 0.80.9 en una sola máquina (i7-10700 8C/16T, 15 GB, GTX 1070): mismas entradas, mismo número de workers, una herramienta a la vez con la máquina en reposo, opciones por defecto en todas. Aquí solo aparecen las filas en las que PageSift es el más rápido; donde va por detrás, consulte la comparación de abajo y el [informe completo](../benchmarks/mix/v2/results/report-2026-10-28.md).
+Medido el 2026-10-28 con pagesift 0.80.9 en una sola máquina (i7-10700 8C/16T, 15 GB, GTX 1070): mismas entradas, mismo número de workers, una herramienta a la vez con la máquina en reposo, opciones por defecto en todas. Aquí solo aparecen las filas en las que PageSift es el más rápido; donde va por detrás, consulte la comparación de abajo y el [informe completo](../benchmarks/mix/v2/results/report-2026-10-28.md). 0.80.10 hace el mismo trabajo que 0.80.9 (instrucciones: extracción de 394 páginas reales +0,05 %, PDF y CSV sin cambios; `benchmarks/history/0.80.10/`), así que estas cifras de velocidad valen también para 0.80.10; sus cambios de calidad de extracción no se han vuelto a medir aquí.
 
 | Tarea | Workers | PageSift (↑ elementos/s) | Competidor más rápido (↑ elementos/s) | Aceleración | MB pico por worker (↓, PageSift / competidor) |
 |---|---|---|---|---|---|
