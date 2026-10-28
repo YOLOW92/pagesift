@@ -118,6 +118,35 @@ impl Scraper {
         reason
     }
 
+    /// 把内核链里的每个内核真的启动一次，逐个给出结果（`doctor` 用）：文件在不等于能启动，
+    /// 启动即崩的兜底内核要说出来。
+    pub async fn probe_engines(&self) -> Vec<EngineProbe> {
+        let mut out = Vec::new();
+        for i in 0..self.browsers.len() {
+            let cfg = &self.browsers[i].0;
+            let engine = cfg.engine.map_or("chrome", |k| k.name());
+            let location = match &cfg.source {
+                pagesift_cdp::BrowserSource::Executable(p) => p.display().to_string(),
+                pagesift_cdp::BrowserSource::Remote(u) => u.to_string(),
+                pagesift_cdp::BrowserSource::Auto => "auto".into(),
+            };
+            let result = match self.browser(i).await {
+                Some(pool) => pool.probe().await.map_err(|e| e.to_string()),
+                None => Err(self.launch_notes[i]
+                    .lock()
+                    .unwrap()
+                    .clone()
+                    .unwrap_or_else(|| "could not start".into())),
+            };
+            out.push(EngineProbe {
+                engine,
+                location,
+                result,
+            });
+        }
+        out
+    }
+
     /// 服务启动时在后台把每个内核启动一次，确认哪些能用（日志里写明），能用的浏览器留着备用。
     pub async fn probe_browsers(&self) {
         for i in 0..self.browsers.len() {

@@ -82,6 +82,15 @@ pub fn needs_render(doc: &pagesift_content::Document) -> bool {
 /// 单页应用可能渲染不出内容）。最后一个内核的结果照常返回。
 pub const RENDER_FALLBACK_MIN_CHARS: usize = 200;
 
+/// 内核链里一个内核的启动检查结果（[`Scraper::probe_engines`]）。
+#[derive(Debug, Clone)]
+pub struct EngineProbe {
+    pub engine: &'static str,
+    /// 可执行文件路径或远程地址。
+    pub location: String,
+    pub result: Result<(), String>,
+}
+
 #[derive(Clone, Default)]
 pub struct ScraperConfig {
     pub fetcher: FetcherConfig,

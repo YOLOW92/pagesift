@@ -177,6 +177,8 @@ pub async fn doctor(cfg: &pagesift::config::Config) -> Result<ExitCode> {
         println!("{} {what}: {detail}", if good { "ok  " } else { "FAIL" });
         ok &= good;
     };
+    // 不影响退出码的问题：主力内核能用、兜底内核起不来
+    let warn = |what: &str, detail: String| println!("WARN {what}: {detail}");
 
     report(true, "config", config_detail(cfg));
     // LLM 和搜索是可选能力，没配置只提示，不算失败
@@ -229,11 +231,49 @@ pub async fn doctor(cfg: &pagesift::config::Config) -> Result<ExitCode> {
                 chain.join(" → ")
             ),
         );
-    } else {
+    }
+    let probe = !chain.is_empty()
+        && (matches!(sc.browser.source, pagesift_cdp::BrowserSource::Remote(_))
+            || !pagesift_cdp::running_as_root());
+    if probe {
         report(true, "browser", chain.join(" → "));
     }
 
     let scraper = pagesift::Scraper::new(sc)?;
+    // 文件在不等于能启动：逐个真的启动一次。一个都起不来算失败；只是兜底的起不来给警告
+    if probe {
+        let probes = scraper.probe_engines().await;
+        let started = probes.iter().filter(|p| p.result.is_ok()).count();
+        let first_ok = probes.iter().position(|p| p.result.is_ok());
+        for (i, p) in probes.iter().enumerate() {
+            match &p.result {
+                Ok(()) => report(
+                    true,
+                    &format!("engine {}", p.engine),
+                    format!("starts ({})", p.location),
+                ),
+                Err(e) if started == 0 => report(
+                    false,
+                    &format!("engine {}", p.engine),
+                    format!("does not start ({}): {e}", p.location),
+                ),
+                Err(e) => {
+                    // 排在第一个能用的内核前面：页面改由它渲染；排在后面：它兜不了底
+                    let effect = match first_ok {
+                        Some(j) if j > i => {
+                            format!("pages are rendered by {} instead", probes[j].engine)
+                        }
+                        _ => "pages the engines before it cannot render get no fallback".into(),
+                    };
+                    warn(
+                        &format!("engine {}", p.engine),
+                        format!("does not start ({}): {e}; {effect}", p.location),
+                    )
+                }
+            }
+        }
+        scraper.shutdown().await;
+    }
     let opts = pagesift::api::types::ScrapeOptions {
         engine: Some("http".into()),
         ..Default::default()

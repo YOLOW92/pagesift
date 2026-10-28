@@ -195,7 +195,7 @@ pub(crate) enum Command {
         /// Keep the whole page instead of only the main content
         #[arg(long)]
         full: bool,
-        /// Ignore robots.txt for this page (single-page scrapes only)
+        /// Ignore robots.txt for this page
         #[arg(long)]
         ignore_robots: bool,
         /// Egress proxy URL (e.g. http://127.0.0.1:7890, socks5://127.0.0.1:1080)
@@ -239,6 +239,10 @@ pub(crate) enum Command {
         /// http, browser or auto
         #[arg(long, default_value = "auto", value_parser = ["http", "browser", "auto"])]
         engine: String,
+        /// Ignore robots.txt. On the command line this flag is the permission itself; the HTTP API
+        /// also needs `allow_crawl_ignore_robots = true` in the config (the operator's switch)
+        #[arg(long)]
+        ignore_robots: bool,
         /// Follow bounded same-origin external JS candidates (requires --engine http)
         #[arg(long)]
         external_scripts: bool,
@@ -289,6 +293,10 @@ pub(crate) enum Command {
         /// include, skip or only
         #[arg(long, default_value = "include", value_parser = ["include", "skip", "only"])]
         sitemap: String,
+        /// Ignore robots.txt. On the command line this flag is the permission itself; the HTTP API
+        /// also needs `allow_crawl_ignore_robots = true` in the config (the operator's switch)
+        #[arg(long)]
+        ignore_robots: bool,
         #[command(flatten)]
         allow: AllowCidrs,
     },

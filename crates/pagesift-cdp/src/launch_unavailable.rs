@@ -8,7 +8,7 @@ use crate::error::{Error, Result};
 
 pub(crate) const PORT: &str = "{port}";
 
-pub(crate) fn find_in_path(_: &[&str]) -> Option<PathBuf> {
+pub(crate) fn find_command(_: &[&str]) -> Option<PathBuf> {
     None
 }
 
@@ -76,7 +76,7 @@ mod tests {
     #[test]
     fn local_launch_is_explicitly_unavailable() {
         assert!(detect_browser().is_none());
-        assert!(find_in_path(&["chrome"]).is_none());
+        assert!(find_command(&["chrome"]).is_none());
         let error = ensure_not_root().unwrap_err();
         assert!(matches!(error, Error::InvalidOptions(_)));
         assert!(error.to_string().contains("remote CDP"));

@@ -2,6 +2,24 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- `crawl --ignore-robots` and `map --ignore-robots`. On the command line the flag is the
+  permission: whoever runs the CLI can edit its config, so they are the operator. The HTTP API
+  still needs `allow_crawl_ignore_robots = true` before a request may set `ignoreRobotsTxt`.
+  Until now only single-page `scrape` had the flag, and crawls could ignore robots.txt only
+  through the API.
+- `doctor` starts every engine in the chain once instead of only checking that the file exists.
+  An engine that is installed but crashes on launch is reported: `FAIL` when no engine starts,
+  `WARN` when another engine covers for it (with what that means for rendering).
+
+### Fixed
+- Browser engines are also looked for outside `PATH`: `~/.local/bin`, `~/bin`, `/usr/local/bin`,
+  `/usr/bin` and `/opt/homebrew/bin` (`sudo`, systemd and cron often start pagesift with a
+  stripped `PATH`), Lightpanda's release file names (`lightpanda-x86_64-linux` …), and the newest
+  Chromium in Playwright's browser cache (`$PLAYWRIGHT_BROWSERS_PATH` or the default cache).
+
 ## [0.80.5] — 2026-10-28
 
 Fixes from two more rounds of outside testing on 0.80.3 (there was no 0.80.4 release; everything

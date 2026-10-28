@@ -40,35 +40,121 @@ const ABSOLUTE_PATHS: &[&str] = &[
     "/opt/google/chrome/chrome",
 ];
 
-/// 在 `PATH` 里按顺序找第一个可执行的 `names`。
-pub(crate) fn find_in_path(names: &[&str]) -> Option<PathBuf> {
-    let path = std::env::var_os("PATH")?;
-    for dir in std::env::split_paths(&path) {
-        for name in names {
-            let p = dir.join(name);
-            if is_executable(&p) {
-                return Some(p);
-            }
-        }
-    }
-    None
+/// 找名为 `names` 之一的可执行文件：先按 `PATH` 的顺序，再看 `PATH` 之外常见的安装目录
+/// （见 [`command_dirs`]）。
+pub(crate) fn find_command(names: &[&str]) -> Option<PathBuf> {
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    find_command_in(names, std::env::var_os("PATH"), home.as_deref())
 }
 
-/// 在 `PATH` 和常见安装位置里找 Chrome/Chromium。
+fn find_command_in(
+    names: &[&str],
+    path: Option<std::ffi::OsString>,
+    home: Option<&Path>,
+) -> Option<PathBuf> {
+    command_dirs(path, home)
+        .into_iter()
+        .flat_map(|dir| names.iter().map(move |n| dir.join(n)))
+        .find(|p| is_executable(p))
+}
+
+/// 找可执行文件的目录：`PATH` 里的，然后是 `~/.local/bin`、`~/bin` 和系统的 bin 目录。
+/// 后面这些不一定在 `PATH` 里：`sudo` 换成 secure_path、systemd 和 cron 只给精简的 `PATH`，
+/// 用户装在自己目录里的内核就"明明在却找不到"。重复的目录只看一次。
+fn command_dirs(path: Option<std::ffi::OsString>, home: Option<&Path>) -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = path
+        .map(|p| std::env::split_paths(&p).collect())
+        .unwrap_or_default();
+    if let Some(home) = home {
+        dirs.push(home.join(".local/bin"));
+        dirs.push(home.join("bin"));
+    }
+    for d in ["/usr/local/bin", "/usr/bin", "/opt/homebrew/bin"] {
+        dirs.push(PathBuf::from(d));
+    }
+    let mut seen = std::collections::HashSet::new();
+    dirs.retain(|d| !d.as_os_str().is_empty() && seen.insert(d.clone()));
+    dirs
+}
+
+/// Playwright 下载的浏览器（`npx playwright install`，做 Agent 的机器上很常见）：
+/// `$PLAYWRIGHT_BROWSERS_PATH` 或默认缓存目录里各版本的 Chromium，新版本在前。
+fn playwright_browsers(cache: &Path) -> Vec<PathBuf> {
+    // 版本目录名形如 chromium-1243、chromium_headless_shell-1243
+    let version = |name: &str| {
+        name.rsplit('-')
+            .next()
+            .and_then(|v| v.parse::<u32>().ok())
+            .unwrap_or(0)
+    };
+    let mut versions: Vec<(u32, PathBuf)> = std::fs::read_dir(cache)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| {
+            let name = e.file_name().into_string().ok()?;
+            name.starts_with("chromium")
+                .then(|| (version(&name), e.path()))
+        })
+        .collect();
+    versions.sort_by(|a, b| b.0.cmp(&a.0));
+    const EXECUTABLES: &[&str] = &[
+        "chrome-headless-shell",
+        "headless_shell",
+        "chrome",
+        "Chromium.app/Contents/MacOS/Chromium",
+        "Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+    ];
+    versions
+        .into_iter()
+        .flat_map(|(_, dir)| {
+            let mut subdirs: Vec<PathBuf> = std::fs::read_dir(&dir)
+                .into_iter()
+                .flatten()
+                .flatten()
+                .map(|e| e.path())
+                .collect();
+            subdirs.sort();
+            subdirs
+        })
+        .flat_map(|sub| EXECUTABLES.iter().map(move |n| sub.join(n)))
+        .filter(|p| is_executable(p))
+        .collect()
+}
+
+fn playwright_cache(home: Option<&Path>) -> Option<PathBuf> {
+    if let Some(p) = std::env::var_os("PLAYWRIGHT_BROWSERS_PATH").filter(|p| !p.is_empty()) {
+        return Some(PathBuf::from(p));
+    }
+    let home = home?;
+    Some(if cfg!(target_os = "macos") {
+        home.join("Library/Caches/ms-playwright")
+    } else {
+        home.join(".cache/ms-playwright")
+    })
+}
+
+/// 在 `PATH`、常见安装位置和 Playwright 的浏览器缓存里找 Chrome/Chromium。
 pub fn detect_browser() -> Option<PathBuf> {
-    if let Some(p) = find_in_path(PATH_NAMES) {
+    if let Some(p) = find_command(PATH_NAMES) {
         return Some(p);
     }
+    let home = std::env::var_os("HOME").map(PathBuf::from);
     let mut candidates: Vec<PathBuf> = ABSOLUTE_PATHS.iter().map(PathBuf::from).collect();
     if cfg!(target_os = "macos")
-        && let Some(home) = std::env::var_os("HOME")
+        && let Some(home) = &home
     {
-        let home = PathBuf::from(home);
         for p in ABSOLUTE_PATHS {
             candidates.push(home.join(p.trim_start_matches('/')));
         }
     }
-    candidates.into_iter().find(|p| is_executable(p))
+    candidates
+        .into_iter()
+        .find(|p| is_executable(p))
+        .or_else(|| {
+            playwright_cache(home.as_deref())
+                .and_then(|c| playwright_browsers(&c).into_iter().next())
+        })
 }
 
 fn is_executable(p: &Path) -> bool {
@@ -409,6 +495,52 @@ fn find_ws_url(line: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn exe(path: &Path) {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, b"#!/bin/sh\n").unwrap();
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    #[test]
+    fn commands_are_found_in_path_then_in_the_users_bin_dirs() {
+        let t = tempfile::tempdir().unwrap();
+        let (custom, home) = (t.path().join("custom"), t.path().join("home"));
+        exe(&custom.join("lightpanda"));
+        exe(&home.join(".local/bin/moli"));
+        let path = Some(std::ffi::OsString::from(custom.as_os_str()));
+        // PATH 里的目录（任意位置，比如版本管理器的）
+        assert_eq!(
+            find_command_in(&["lightpanda"], path.clone(), Some(&home)),
+            Some(custom.join("lightpanda"))
+        );
+        // ~/.local/bin 不在 PATH 里（sudo、systemd、cron 的精简 PATH）也找得到
+        assert_eq!(
+            find_command_in(&["moli"], None, Some(&home)),
+            Some(home.join(".local/bin/moli"))
+        );
+        // 不可执行的文件不算
+        std::fs::write(custom.join("chromium"), b"x").unwrap();
+        assert_eq!(find_command_in(&["chromium"], path, Some(&home)), None);
+    }
+
+    #[test]
+    fn the_newest_playwright_chromium_is_found() {
+        let t = tempfile::tempdir().unwrap();
+        exe(&t.path().join("chromium-1100/chrome-linux/chrome"));
+        exe(&t.path().join("chromium-1243/chrome-linux64/chrome"));
+        exe(&t
+            .path()
+            .join("chromium_headless_shell-1243/chrome-linux/headless_shell"));
+        std::fs::create_dir_all(t.path().join("ffmpeg-1011")).unwrap();
+        let found = playwright_browsers(t.path());
+        assert_eq!(found.len(), 3, "{found:?}");
+        assert!(found[0].to_string_lossy().contains("1243"), "{found:?}");
+        assert!(
+            found[2].ends_with("chromium-1100/chrome-linux/chrome"),
+            "{found:?}"
+        );
+    }
 
     #[test]
     fn rejects_sandbox_and_ua_flags() {

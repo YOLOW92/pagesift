@@ -172,6 +172,7 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
             subdomains,
             sitemap,
             engine,
+            ignore_robots,
             external_scripts,
             query,
             adaptive,
@@ -196,6 +197,7 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
                     "adaptive": adaptive,
                     "attachments": attachments,
                     "attachmentLimit": attachment_limit,
+                    "ignoreRobotsTxt": ignore_robots,
                 }))?;
             if let Some(dir) = &out {
                 std::fs::create_dir_all(dir)
@@ -203,6 +205,8 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
             }
             let mut scraper_config = cfg.scraper(false)?;
             allow.apply(&mut scraper_config);
+            // 跑命令行的人就是管理员：--ignore-robots 本身就是许可（HTTP API 仍要配置里放行）
+            scraper_config.policy.allow_crawl_ignore_robots |= ignore_robots;
             let tuning_mode = tuning_mode
                 .parse::<pagesift::adaptive::TuningMode>()
                 .map_err(anyhow::Error::msg)?;
@@ -229,14 +233,17 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
             limit,
             search,
             sitemap,
+            ignore_robots,
             allow,
         } => runtime()?.block_on(async move {
             let req: pagesift::api::types::MapRequest =
                 serde_json::from_value(serde_json::json!({
                     "url": url, "limit": limit, "search": search, "sitemap": sitemap,
+                    "ignoreRobotsTxt": ignore_robots,
                 }))?;
             let mut scraper_config = cfg.scraper(false)?;
             allow.apply(&mut scraper_config);
+            scraper_config.policy.allow_crawl_ignore_robots |= ignore_robots;
             let scraper = pagesift::Scraper::new(scraper_config)?;
             match scraper.map(&req).await {
                 Ok(links) => {

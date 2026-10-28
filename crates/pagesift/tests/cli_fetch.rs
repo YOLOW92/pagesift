@@ -24,6 +24,10 @@ fn run(mut cmd: Command) -> Output {
 
 /// Tiny blocking HTTP fixture: `/`, `/a.html`, `/b.html`, robots.
 fn serve_pages() -> SocketAddr {
+    serve_pages_with_robots("User-agent: *\nAllow: /\n")
+}
+
+fn serve_pages_with_robots(robots: &'static str) -> SocketAddr {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
     std::thread::spawn(move || {
@@ -34,7 +38,7 @@ fn serve_pages() -> SocketAddr {
             let request = String::from_utf8_lossy(&buf);
             let path = request.split_whitespace().nth(1).unwrap_or("/");
             let (status, body) = match path {
-                "/robots.txt" => ("200 OK", "User-agent: *\nAllow: /\n".to_string()),
+                "/robots.txt" => ("200 OK", robots.to_string()),
                 "/sitemap.xml" => ("404 Not Found", "no sitemap".to_string()),
                 "/" => (
                     "200 OK",
@@ -359,4 +363,104 @@ fn misspelled_choices_are_rejected() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(stderr.contains("invalid value"), "{args:?}: {stderr}");
     }
+}
+
+/// crawl 和 map 也有 --ignore-robots：命令行用户自己就是管理员，参数本身就是许可，
+/// 不用再改配置（0.80.5 以前命令行里没有办法，只能经 HTTP API 并在配置里放行）。
+#[test]
+fn crawl_and_map_can_ignore_robots_on_the_command_line() {
+    let addr = serve_pages_with_robots("User-agent: *\nDisallow: /\n");
+    let root = format!("http://{addr}/");
+    let xdg = tempfile::tempdir().unwrap();
+    let crawl = |extra: &[&str]| {
+        let mut cmd = Command::new(bin());
+        isolated(&mut cmd, xdg.path());
+        cmd.args([
+            "crawl",
+            &root,
+            "--engine",
+            "http",
+            "--sitemap",
+            "skip",
+            "--limit",
+            "5",
+            "--allow-cidr",
+            "127.0.0.1/32",
+        ])
+        .args(extra);
+        run(cmd)
+    };
+    let pages = |o: &Output| {
+        o.stdout
+            .split(|b| *b == b'\n')
+            .filter(|l| !l.is_empty())
+            .count()
+    };
+    // robots.txt 不许抓：默认照办
+    let respected = crawl(&[]);
+    assert_eq!(
+        pages(&respected),
+        0,
+        "{}",
+        String::from_utf8_lossy(&respected.stderr)
+    );
+    let ignored = crawl(&["--ignore-robots"]);
+    assert!(
+        ignored.status.success(),
+        "{}",
+        String::from_utf8_lossy(&ignored.stderr)
+    );
+    assert_eq!(pages(&ignored), 3);
+
+    let mut map = Command::new(bin());
+    isolated(&mut map, xdg.path());
+    map.args([
+        "map",
+        &root,
+        "--sitemap",
+        "skip",
+        "--allow-cidr",
+        "127.0.0.1/32",
+        "--ignore-robots",
+    ]);
+    let map = run(map);
+    assert!(
+        map.status.success(),
+        "{}",
+        String::from_utf8_lossy(&map.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&map.stdout).lines().count(), 3);
+}
+
+/// doctor 真的启动内核：文件在、但一启动就崩的内核要报出来（0.80.5 只看文件在不在，报整条链 ok）。
+#[test]
+fn doctor_reports_an_engine_that_does_not_start() {
+    if pagesift_cdp::running_as_root() {
+        // root 下 doctor 直接报"不能以 root 运行浏览器"，不做启动检查
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let stub = dir.path().join("lightpanda");
+    std::fs::write(&stub, "#!/bin/sh\necho 'crashed at startup' >&2\nexit 1\n").unwrap();
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let xdg = tempfile::tempdir().unwrap();
+    let mut doctor = Command::new(bin());
+    isolated(&mut doctor, xdg.path());
+    let path = format!(
+        "{}:{}",
+        dir.path().display(),
+        std::env::var("PATH").unwrap_or_default()
+    );
+    doctor.env("PATH", path).arg("doctor");
+    let out = String::from_utf8_lossy(&run(doctor).stdout).into_owned();
+    let line = out
+        .lines()
+        .find(|l| l.contains("engine lightpanda"))
+        .unwrap_or_else(|| panic!("no launch check for the stub engine:\n{out}"));
+    assert!(line.contains("does not start"), "{line}");
+    assert!(
+        line.starts_with("WARN") || line.starts_with("FAIL"),
+        "{line}"
+    );
 }

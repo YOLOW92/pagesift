@@ -197,7 +197,14 @@ fn serve_args() -> Vec<String> {
         .to_vec()
 }
 
-const LIGHTPANDA_NAMES: &[&str] = &["lightpanda"];
+/// 包管理器装的叫 `lightpanda`；从 GitHub 下载的发行版文件名带平台。
+const LIGHTPANDA_NAMES: &[&str] = &[
+    "lightpanda",
+    "lightpanda-x86_64-linux",
+    "lightpanda-aarch64-linux",
+    "lightpanda-aarch64-macos",
+    "lightpanda-x86_64-macos",
+];
 const MOLI_NAMES: &[&str] = &["moli"];
 const HEADLESS_SHELL_NAMES: &[&str] = &["chrome-headless-shell"];
 
@@ -209,11 +216,11 @@ pub fn detect_engines() -> Vec<(EngineKind, PathBuf)> {
         (EngineKind::Lightpanda, LIGHTPANDA_NAMES),
         (EngineKind::Moli, MOLI_NAMES),
     ] {
-        if let Some(p) = launch::find_in_path(names) {
+        if let Some(p) = launch::find_command(names) {
             out.push((kind, p));
         }
     }
-    if let Some(p) = launch::find_in_path(HEADLESS_SHELL_NAMES).or_else(launch::detect_browser) {
+    if let Some(p) = launch::find_command(HEADLESS_SHELL_NAMES).or_else(launch::detect_browser) {
         out.push((EngineKind::Chrome, p));
     }
     out
