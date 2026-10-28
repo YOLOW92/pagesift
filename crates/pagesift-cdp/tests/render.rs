@@ -186,6 +186,7 @@ async fn storybook_iframe_content_is_inlined() {
             "{path}: {:?}",
             page.blocked_requests
         );
+        // wall-clock: compares two parts of one measurement with each other, not with a fixed time
         assert!(page.timings.iframes <= page.timings.html);
     }
     // 关掉后保留原始 iframe，不含正文。
@@ -331,6 +332,8 @@ async fn full_page_scan_triggers_lazy_loading() {
             page.html
         );
     }
+    // wall-clock: a scan that never sees the end of the feed runs to its 10 s timeout; 8 s is
+    // below that and far above the five scroll steps it takes
     assert!(
         page.timings.wait < Duration::from_secs(8),
         "{:?}",
@@ -476,6 +479,8 @@ async fn network_idle_does_not_wait_for_slow_images() {
     let url = format!("{base}/slow-image");
     let fast = pool.render(&url, &opts()).await.unwrap();
     assert!(fast.html.contains("data from api"), "{}", fast.html);
+    // wall-clock: the image takes 4 s, the data 0.2 s. Lower bounds (load, screenshot) only need
+    // the server's delay to have happened; the 3 s upper bound sits below the 4 s the bug waits
     assert!(
         fast.timings.navigation + fast.timings.wait < Duration::from_secs(3),
         "{:?}",
@@ -491,6 +496,7 @@ async fn network_idle_does_not_wait_for_slow_images() {
         )
         .await
         .unwrap();
+    // wall-clock: lower bound, the 4 s image delay is on the server
     assert!(
         load.timings.navigation >= Duration::from_secs(2),
         "{:?}",
@@ -507,6 +513,7 @@ async fn network_idle_does_not_wait_for_slow_images() {
         )
         .await
         .unwrap();
+    // wall-clock: lower bound, the 4 s image delay is on the server
     assert!(
         shot.timings.screenshot >= Duration::from_millis(1000),
         "{:?}",
@@ -535,6 +542,7 @@ async fn readiness_ignores_polling_workers_and_abandoned_documents() {
     // 判错时会等满网络空闲的上限（5 s），上限 4 s 给忙的机器留余量。
     let poll = pool.render(&format!("{base}/poll"), &opts()).await.unwrap();
     assert!(poll.html.contains("data from api"), "{}", poll.html);
+    // wall-clock: see above, the bug waits the 5 s network-idle limit
     assert!(
         poll.timings.wait < Duration::from_secs(4),
         "{:?}",
@@ -545,6 +553,7 @@ async fn readiness_ignores_polling_workers_and_abandoned_documents() {
         .await
         .unwrap();
     assert!(worker.html.contains("page with a worker"));
+    // wall-clock: the bug waits the 5 s network-idle limit
     assert!(
         worker.timings.wait < Duration::from_secs(4),
         "{:?}",

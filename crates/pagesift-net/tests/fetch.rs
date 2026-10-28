@@ -113,6 +113,7 @@ async fn fetches_and_decodes() {
     assert_eq!(r.text().text, "<p>你好</p>");
     assert_eq!(r.etag(), Some("\"v1\""));
     assert!(!r.truncated && !r.not_modified && r.redirect_chain.is_empty());
+    // wall-clock: compares two parts of one measurement with each other, not with a fixed time
     assert!(r.timings.total >= r.timings.first_byte);
     let ua = srv.seen()[0].header("user-agent").unwrap().to_string();
     assert!(ua.starts_with("pagesift/"), "{ua}");

@@ -82,7 +82,9 @@ async fn per_host_wait_is_reported_separately_from_fetch_time() {
     let base = site().await;
     let mut cfg = ScraperConfig::default();
     cfg.fetcher.ssrf.allow_private_network = true;
-    cfg.policy.rate.default_interval = Duration::from_millis(80);
+    // 第二个请求要等第一个之后一个间隔；两个请求进队的先后差（忙的 macOS 机器上几十毫秒）从
+    // 等待里扣掉，所以间隔取得远大于它，断言只要求等待超过报警的 10 ms
+    cfg.policy.rate.default_interval = Duration::from_millis(500);
     cfg.policy.rate.per_host_concurrency = 2;
     let s = Scraper::new(cfg).unwrap();
     let o = opts(json!({ "engine": "http", "ignoreRobotsTxt": true }));
@@ -90,11 +92,12 @@ async fn per_host_wait_is_reported_separately_from_fetch_time() {
 
     let (a, b) = tokio::join!(s.scrape(&url, &o), s.scrape(&url, &o));
     let docs = [a.unwrap(), b.unwrap()];
+    // wall-clock: the bug reports no wait (0 ms); the bound is 10 ms against a 500 ms interval
     let queued = docs
         .iter()
         .map(|d| d.metadata.pagesift.as_ref().unwrap().timings["queue"])
         .collect::<Vec<_>>();
-    assert!(queued.iter().any(|ms| *ms >= 60.0), "{queued:?}");
+    assert!(queued.iter().any(|ms| *ms >= 10.0), "{queued:?}");
     let waited = docs.iter().any(|d| {
         d.metadata
             .pagesift

@@ -80,6 +80,7 @@ async fn phase_timings() {
                 .await
                 .unwrap();
             ok += p.html.contains(expect) as usize;
+            // wall-clock: a benchmark that prints the timings, nothing is asserted on them
             let t = &p.timings;
             for (c, d) in
                 cols.iter_mut()

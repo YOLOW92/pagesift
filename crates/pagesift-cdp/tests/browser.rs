@@ -208,6 +208,7 @@ async fn renders_javascript_and_reports_status() {
         .unwrap();
     assert_eq!(page.status, Some(404));
     assert!(page.html.contains("gone"));
+    // wall-clock: compares two parts of one measurement with each other, not with a fixed time
     assert!(page.timings.total >= page.timings.navigation);
     pool.shutdown().await;
 }

@@ -17,6 +17,10 @@ red runs in 0.80.x). Tests should not need the wall clock:
 - ordering ("the fast host finished before the slow one"): compare events with each other,
   not with a fixed number of milliseconds.
 
+Durations the product measures itself (`.timings`, a permit's `.waited()`) are wall-clock
+reads too: a test that asserts "the queue wait was at least 60 ms" fails when the runner starts
+the second request late (run 170). They need the same reason, written before the statement.
+
 Where the wall clock is the point (a deadline the product enforces, a polling loop's upper
 bound), put `// wall-clock: <reason>` on the line or in the three lines above `Instant::now()`,
 saying why the bound holds on a busy machine (for example: it sits far above the expected time
@@ -189,16 +193,19 @@ def unexplained(path, scope):
     paused = paused_ranges(code)
     tokio_instant = re.search(r'use tokio::time::(Instant\b|\{[^}]*\bInstant\b)', code)
     out = []
-    for m in re.finditer(r'Instant::now\(\)', code):
+    for m in re.finditer(r'Instant::now\(\)|\.timings\b|\.waited\(\)', code):
         if ranges is not None and not any(a <= m.start() < b for a, b in ranges):
             continue
-        # tokio 的暂停时钟上的 Instant 不是墙钟
+        # tokio 的暂停时钟上的 Instant 不是墙钟（产品报告的耗时也是按 tokio 时钟量的）
         tokio = tokio_instant or code[max(0, m.start() - 13):m.start()] == 'tokio::time::'
         if tokio and any(a <= m.start() < b for a, b in paused):
             continue
-        i = next(k for k in range(len(starts) - 1) if starts[k] <= m.start() < starts[k + 1])
-        window = lines[max(0, i - LOOKBACK):i + 1]
-        if not any('wall-clock:' in w for w in window):
+        line = lambda pos: next(k for k in range(len(starts) - 1) if starts[k] <= pos < starts[k + 1])
+        i = line(m.start())
+        # 理由写在语句前面就行（多行的 assert!，耗时只出现在后面几行的打印参数里）
+        stmt = max(code.rfind(c, 0, m.start()) for c in ';{}') + 1
+        window = lines[max(0, line(stmt) - LOOKBACK):i + 1]
+        if not any('wall-clock:' in w for w in window) and (not out or out[-1][0] != i + 1):
             out.append((i + 1, lines[i].strip()))
     return out
 
