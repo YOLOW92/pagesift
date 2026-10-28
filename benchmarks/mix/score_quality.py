@@ -36,6 +36,11 @@ PAGESIFT_SCORER = os.environ.get("PAGESIFT_SCORER", "pagesift")  # 只用它的 
 CORES = int(os.environ.get("MIX_SCORE_JOBS", os.cpu_count() or 1))  # 评分并发上限；机器上还有评测在跑时调小
 
 
+def is_model(t):
+    """用模型、只跑 10% 子集的工具（第 1 版只有 docling*；第 2 版加 MinerU 默认档 mineru）。"""
+    return t.startswith(("docling", "marker")) or t == "mineru"
+
+
 def load(path, name):
     spec = importlib.util.spec_from_file_location(name, path)
     m = importlib.util.module_from_spec(spec)
@@ -187,19 +192,20 @@ def score_b2(items, tools, runs):
 
 # ---- B1：olmOCR 自己的测试 ----
 
-def score_b1(items, tools, runs):
+def score_b1(items, tools, runs, sub="b1"):
+    """B1：olmOCR-bench 原生 PDF 五类（不含 old_scans*）；第 2 版 B5：只用 old_scans、old_scans_math 两类。"""
     bench = DATA / "fresh/tools/olmocr-bench"
     py = DATA / "fresh/tools/py/bin/python"
     bdata = DATA / "olmocr_1403/bench_data"
     per = {t: {} for t in tools}
     for t in tools:
-        d, res = tool_results(runs, "b1", t)
+        d, res = tool_results(runs, sub, t)
         with tempfile.TemporaryDirectory() as tmp:
             cand = Path(tmp) / "cand"
             tdata = Path(tmp) / "data"
             tdata.mkdir()
             for jl in bdata.glob("*.jsonl"):
-                if not jl.stem.startswith("old_scans"):
+                if jl.stem.startswith("old_scans") == (sub == "b5"):
                     (tdata / jl.name).symlink_to(jl)
             for it in items:
                 md = output(d, res.get(it["id"]))
@@ -287,16 +293,17 @@ def score_one(fn, items, tool, runs):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("sub", choices=["a1", "a2", "a4", "b1", "b2", "b3", "b4"])
+    ap.add_argument("sub", choices=["a1", "a2", "a4", "b1", "b2", "b3", "b4", "b5"])
     ap.add_argument("tools", nargs="+")
     ap.add_argument("--runs", default=str(MIX / "runs/quality"))
     ap.add_argument("--out", default=str(HERE / "results"))
     a = ap.parse_args()
     runs, sub, tools = Path(a.runs), a.sub, a.tools
-    samples = {r["id"]: r for r in rows_tsv(HERE / f"samples/{sub}.tsv")}
+    sp = HERE / f"samples/{sub}.tsv"
+    samples = {r["id"]: r for r in rows_tsv(sp if sp.exists() else HERE / f"v2/samples/{sub}.tsv")}  # 第 2 版新类别的清单在 v2/samples
     man = {l.split("\t")[0]: l.split("\t")[1] for l in (MIX / f"inputs/{sub}.manifest").read_text(encoding="utf-8").splitlines() if l}
     items = [{**samples[i], "path": p} for i, p in man.items()]  # 只算拿到了输入的份（抓不到的已在 fetched.tsv 里记不可用）
-    fn = {"a1": score_a1, "b1": score_b1, "b2": score_b2, "b4": score_b4}.get(sub)
+    fn = {"a1": score_a1, "b1": score_b1, "b2": score_b2, "b4": score_b4, "b5": lambda i, t, r: score_b1(i, t, r, "b5")}.get(sub)
     fn = fn or functools.partial(score_robust, sub)
     global NTOOLS
     NTOOLS = len(tools)
@@ -308,7 +315,7 @@ def main():
         per = dict(zip(tools, pool.starmap(score_one, [(fn, items, t, runs) for t in tools])))
 
     model_ids = {i["id"] for i in items if i.get("model_subset") == "1"}
-    assigned = {t: ({i["id"] for i in items} & model_ids if t.startswith("docling") else {i["id"] for i in items}) for t in tools}
+    assigned = {t: ({i["id"] for i in items} & model_ids if is_model(t) else {i["id"] for i in items}) for t in tools}
     status = {t: {k: v["status"] for k, v in tool_results(runs, sub, t)[1].items()} for t in tools}
     report = {"sub": sub, "tools": {}, "label": label}
     for t in tools:
@@ -325,13 +332,13 @@ def main():
     # 三样分数：按集（数据集）分开算
     if agg:
         sets = sorted({v["set"] for t in tools for v in per[t].values()})
-        if sub == "b1":
+        if sub in ("b1", "b5"):
             sets.append("olmOCR 去掉 baseline")
         base_set = lambda x: "olmOCR" if x == "olmOCR 去掉 baseline" else x
-        groups = {"all": [t for t in tools if not t.startswith("docling")], "model_subset": tools}
+        groups = {"all": [t for t in tools if not is_model(t)], "model_subset": tools}
         report["scores"] = {}
         for gname, gtools in groups.items():
-            if not gtools or (gname == "model_subset" and not any(t.startswith("docling") for t in tools)):
+            if not gtools or (gname == "model_subset" and not any(is_model(t) for t in tools)):
                 continue
             base = model_ids if gname == "model_subset" else {i["id"] for i in items}
             common = {i for i in base if all(status[t].get(i) == "ok" for t in gtools)}

@@ -77,11 +77,14 @@ class Slot:
 _seq = [0]
 
 
-def acquire(tool, peak_mb, poll_s=1.0):
-    """阻塞到可以启动一个预计峰值为 peak_mb 的 worker，返回 Slot。"""
+def acquire(tool, peak_mb, poll_s=1.0, cancel=None):
+    """阻塞到可以启动一个预计峰值为 peak_mb 的 worker，返回 Slot。cancel() 为真时不再等，返回 None
+    （第 2 版补：份数已被别的 worker 领完时，排队等内存的线程不该把整个 driver 拖住）。"""
     LEDGER.mkdir(parents=True, exist_ok=True)
     with open(LEDGER / ".lock", "a") as lf:
         while True:
+            if cancel is not None and cancel():
+                return None
             fcntl.flock(lf, fcntl.LOCK_EX)
             try:
                 es = _entries()

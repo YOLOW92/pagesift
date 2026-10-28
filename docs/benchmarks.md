@@ -1,5 +1,15 @@
 # Benchmarks
 
+## 0.80.9 head-to-head (mixed benchmark v2, 2026-10-28)
+
+pagesift 0.80.9 against the v1 tools plus Resiliparse, newspaper4k, Crawlee, Kreuzberg, MinerU (flash and default
+tier), pandoc and Docling (CPU and GPU), on the same frozen v1 samples and the same machine (i7-10700, 15 GB, GTX 1070);
+0.80.0 re-run alongside as a baseline. Single-worker and 16-worker speed only. Full tables, every deviation from the
+frozen rules and the tools that could not run (Marker): [report](../benchmarks/mix/v2/results/report-2026-10-28.md),
+[rules](../benchmarks/mix/v2/RULES.md), [run notes](../benchmarks/mix/v2/NOTES.md),
+[tool versions](../benchmarks/mix/v2/tools.lock.md). The v1 16-worker PDF row below (142 vs pdf_oxide 526) was a harness
+artefact (memory admission waited a second per batch); re-measured, pagesift 0.80.9 does 543 files/s vs pdf_oxide 502.
+
 ## 0.80 head-to-head (mixed benchmark, 2026-10-27)
 
 The 0.80.0 release binary against three tools per domain — one Rust project and two widely compared

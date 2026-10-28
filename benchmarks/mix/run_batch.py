@@ -31,12 +31,23 @@ sys.path.insert(0, str(HERE))
 import driver  # noqa: E402  只用它的 TOOLS 表
 
 
+V2_LIMITS = tomllib.loads((HERE / "v2/limits.toml").read_text())
+
+
+def mem_max(tool):
+    """单 worker 内存上限：第 2 版 RULES 第五节，用模型的工具 8 GB，其余沿用第 1 版的 4 GB。"""
+    if tool.startswith(("docling", "marker")) or tool == "mineru":
+        return V2_LIMITS["model_worker_mem_mb"]
+    return LIMITS["worker_mem_mb"]
+
+
 def manifest(sub, tool, limit=None):
     out = OUT_ROOT / sub / "manifests"
     out.mkdir(parents=True, exist_ok=True)
     lines = (MIX / f"inputs/{sub}.manifest").read_text(encoding="utf-8").splitlines()
-    if tool.startswith("docling") or SUBSET == "model":  # 测速轮的 PDF 用同一个 10% 子集比所有工具
-        rows = (HERE / f"samples/{sub}.tsv").read_text(encoding="utf-8").splitlines()
+    if tool.startswith(("docling", "marker")) or tool == "mineru" or SUBSET == "model":  # 用模型的工具只跑 10% 子集；测速轮的 PDF 用同一个 10% 子集比所有工具
+        sp = HERE / f"samples/{sub}.tsv"
+        rows = (sp if sp.exists() else HERE / f"v2/samples/{sub}.tsv").read_text(encoding="utf-8").splitlines()  # 第 2 版新类别的清单在 v2/samples
         cols = rows[0].split("\t")
         keep = {r["id"] for r in (dict(zip(cols, l.split("\t"))) for l in rows[1:]) if r.get("model_subset") == "1"}
         lines = [l for l in lines if l.split("\t", 1)[0] in keep]
@@ -72,7 +83,7 @@ def main():
         fcntl.flock(lockf, fcntl.LOCK_EX)
         out = OUT_ROOT / j["sub"]
         cmd = [sys.executable, "-I", str(HERE / "driver.py"), "--tool", j["tool"], "--manifest", str(j["man"]), "--out", str(out), "--workers", j["workers"],
-               "--timeout", str(LIMITS["per_item_s"][j["sub"]]), "--mem-max", str(LIMITS["worker_mem_mb"])]
+               "--timeout", str({**LIMITS["per_item_s"], **V2_LIMITS["per_item_s"]}[j["sub"]]), "--mem-max", str(mem_max(j["tool"]))]
         env = {**os.environ, "MIX_LOCK_FD": str(lockf.fileno())}
         p = subprocess.Popen(cmd, stdout=open(out / f"{j['tool']}.summary.json", "w"), stderr=open(out / f"{j['tool']}.driver.log", "w"),
                              env=env, pass_fds=(lockf.fileno(),))

@@ -66,6 +66,26 @@ TOOLS = {
     "extractous": dict(cmd=[str(RUST / "mix-extractous")], env={"LD_LIBRARY_PATH": str(RUST / "libs")}, per_worker_mb=600),
     "extractous-py": py("extractous", per_worker_mb=600),
     "markitdown": py("markitdown", per_worker_mb=400),
+    # ---- 第 2 版新加（v2/RULES.md 第四节）----
+    "resiliparse": py("resiliparse", per_worker_mb=200),
+    "newspaper4k": py("newspaper4k", per_worker_mb=300),
+    "crawlee": py("crawlee", per_worker_mb=300, url=True),
+    "kreuzberg": py("kreuzberg", per_worker_mb=800),
+    "mineru-flash": py("mineru-flash", venv="mineru", env={"MINERU_HOME": str(MIX / "mineru-home")}, per_worker_mb=1500, startup_s=120),  # 实测单 worker 峰值 B1 1.7 GB、B2 3.3 GB；按平均预扣、多开，靠 v2/mem_guard.sh 兜底
+    "mineru": py("mineru", env={"MINERU_HOME": str(MIX / "mineru-home")}, per_worker_mb=4000, startup_s=900),  # 默认档：默认安装用上了 GTX 1070（每个 worker 约 2 GB 显存、GPU 利用率 100%）；实测单 worker 内存峰值 4.0 GB
+    # Marker：默认安装的 torch 是 CUDA 13 版，GTX 1070 用不了，主成绩用 CPU；GPU 附表用 cu126 的 torch（marker-cu126 环境）
+    "marker": py("marker", env={"TORCH_DEVICE": "cpu", "CUDA_VISIBLE_DEVICES": "", "HF_HOME": str(MIX / "hf")}, per_worker_mb=4000, startup_s=900),
+    "marker-gpu": py("marker", venv="marker-cu126", env={"TORCH_DEVICE": "cuda", "HF_HOME": str(MIX / "hf")}, per_worker_mb=4000, max_workers=1, startup_s=900),
+    # Firecrawl 自托管（官方镜像，本机 docker 起在 127.0.0.1:3002），worker 只发 HTTP 请求；内存记在 docker 容器里，不在 worker 的 cgroup
+    "firecrawl": py("firecrawl", venv="kreuzberg", env={"MIX_FIRECRAWL_URL": "http://127.0.0.1:3002"}, per_worker_mb=100, url=True),
+    "pandoc": py("pandoc", venv="kreuzberg", env={"MIX_PANDOC": str(MIX / "bin/pandoc/bin/pandoc")}, per_worker_mb=600),  # 只借 kreuzberg 的 Python 跑 worker，不导入它
+    # pagesift 0.80.0 基线（同机重跑，发布页的二进制）和常驻的 pagesift serve（官方推荐配置）
+    "pagesift-080": dict(cmd=["python3", "-I", str(ADAPTERS / "pagesift_worker.py"), "html"], env={"MIX_PAGESIFT_BIN": str(MIX / "bin/pagesift-0.80.0/pagesift")}, per_worker_mb=300),
+    "pagesift-080-file": dict(cmd=["python3", "-I", str(ADAPTERS / "pagesift_worker.py"), "file"], env={"MIX_PAGESIFT_BIN": str(MIX / "bin/pagesift-0.80.0/pagesift")}, per_worker_mb=600),
+    "pagesift-080-crawl": dict(cmd=["python3", "-I", str(ADAPTERS / "pagesift_worker.py"), "url"], env={"MIX_PAGESIFT_BIN": str(MIX / "bin/pagesift-0.80.0/pagesift")}, per_worker_mb=300, url=True),
+    "pagesift-serve": dict(cmd=["python3", "-I", str(ADAPTERS / "pagesift_serve_worker.py"), "html"], per_worker_mb=300, startup_s=60),
+    "pagesift-serve-file": dict(cmd=["python3", "-I", str(ADAPTERS / "pagesift_serve_worker.py"), "file"], per_worker_mb=600, startup_s=60),
+    "pagesift-serve-crawl": dict(cmd=["python3", "-I", str(ADAPTERS / "pagesift_serve_worker.py"), "url"], per_worker_mb=400, url=True, startup_s=60),
 }
 
 CG_ROOT = Path("/sys/fs/cgroup")
@@ -122,7 +142,9 @@ class Worker:
     def start(self, want=lambda: True):
         if STOP.is_set() or not want():
             return None
-        self.slot = admit.acquire(self.name, self.spec["per_worker_mb"])  # 每启动一个 worker 前都重新检查
+        self.slot = admit.acquire(self.name, self.spec["per_worker_mb"], cancel=lambda: STOP.is_set() or not want())  # 每启动一个 worker 前都重新检查
+        if self.slot is None:  # 等名额期间份数已领完
+            return None
         if STOP.is_set() or not want():  # 等名额期间份数可能已被别的线程领完：交还名额，不白起一个 worker
             self.slot.release()
             self.slot = None
@@ -382,7 +404,9 @@ def main():
     ap.add_argument("--replay", action="store_true", help="输入是快照文件，用本地回放服务转成 URL 给抓取工具")
     a = ap.parse_args()
 
-    spec = TOOLS[a.tool]
+    spec = dict(TOOLS[a.tool])
+    if os.environ.get("MIX_PER_WORKER_MB"):  # 第 2 版 16 路补测：按 1 路实测峰值统一预扣（v2/peaks.py 生成的 JSON）
+        spec["per_worker_mb"] = json.loads(Path(os.environ["MIX_PER_WORKER_MB"]).read_text()).get(a.tool, spec["per_worker_mb"])
     items = read_manifest(a.manifest)
     out = Path(a.out) / a.tool
     out.mkdir(parents=True, exist_ok=True)
@@ -397,7 +421,8 @@ def main():
     signal.signal(signal.SIGTERM, on_sigterm)
 
     replay, to_url = (None, None)
-    if spec.get("url") or a.replay:
+    live = all(str(p).startswith(("http://", "https://")) for _, p, _ in items)  # 第 2 版 A3：清单里就是实时网址，不回放
+    if (spec.get("url") or a.replay) and not live:
         replay, to_url = start_replay(items)
 
     jobs = queue.Queue()
@@ -439,7 +464,7 @@ def main():
                 id_, inp, url = jobs.get_nowait()
             except queue.Empty:
                 break
-            job = {"id": id_, "input": to_url(inp) if to_url else str(Path(inp).resolve()), "out": str((out / f"{id_}.md").resolve())}
+            job = {"id": id_, "input": to_url(inp) if to_url else (inp if live else str(Path(inp).resolve())), "out": str((out / f"{id_}.md").resolve())}
             if url and not to_url:
                 job["url"] = url
             rec, peak = w.run(job, a.timeout)

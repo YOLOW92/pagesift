@@ -1,0 +1,4605 @@
+{
+ "sub": "b3",
+ "tools": {
+  "pagesift-file": {
+   "items": 100,
+   "status": {
+    "empty": 26,
+    "ok": 64,
+    "error": 10
+   },
+   "completion": 0.64,
+   "per_item": {
+    "b3-bug1782186": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug900822": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-empty_protected": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-encrypted-attachment": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15893_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17069": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17215": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19484_1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19484_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue21579": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue3371": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6010_1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6010_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue7665": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9972-3": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-poppler-742-0-fuzzed": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr6531_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-print_protection": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-saslprep-r6": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-secHandler": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-choice-widget": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-line-without-appearance-empty-Rect": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-line-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-polyline-polygon-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-square-circle-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-tx": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1796741": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1974436": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2055455": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2082236": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-checkbox-bad-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue11362": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14130": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15815": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue18072": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr12828": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr7352": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-prefilled_f1040": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-rc_annotation": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-widget_hidden_print": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-22060_A1_01_Plans": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-Brotli-Prototype-FileA": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-PDFJS-9279-reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1978317": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-comments": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-freeculture": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19239": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19360": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19971": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue20513": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5481": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5567": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6286": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6894": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue7229": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8795_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9262_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tracemonkey_annotation_on_page_8": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tracemonkey_with_editable_annotations": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-xfa_filled_imm1344e": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-REDHAT-1531897-0": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1820909.1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1898053_minimal": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2026037": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-chrome-text-selection-markedContent": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-dates": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-doc_2_3_pages": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-evaljs": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-fields_order": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-highlight_popup": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue10900": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue11878_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14847": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15690": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue16278": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17846": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-js-authors": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-poppler-85140-0": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-red_stamp": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-resetform_parent": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-IndexedCS_negative_and_high": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bigboundingbox": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bitmap-composite-or-xor-replace-halftone": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bitmap-randomaccess": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-blendmode": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug852992_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug921409": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-clippath": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-close-path-bug": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14999_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue16091": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue2840": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5747": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6931_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8565": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8586": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9713": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-noembed-identity": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-rotated": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tiling-pattern-large-steps": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    }
+   }
+  },
+  "pagesift-080-file": {
+   "items": 100,
+   "status": {
+    "empty": 33,
+    "ok": 56,
+    "error": 11
+   },
+   "completion": 0.56,
+   "per_item": {
+    "b3-bug1782186": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug900822": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-empty_protected": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-encrypted-attachment": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15893_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17069": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17215": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19484_1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19484_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue21579": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue3371": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6010_1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6010_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue7665": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9972-3": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-poppler-742-0-fuzzed": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr6531_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-print_protection": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-saslprep-r6": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-secHandler": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-choice-widget": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-line-without-appearance-empty-Rect": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-line-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-polyline-polygon-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-square-circle-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-tx": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1796741": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1974436": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2055455": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2082236": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-checkbox-bad-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue11362": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14130": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15815": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue18072": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr12828": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr7352": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-prefilled_f1040": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-rc_annotation": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-widget_hidden_print": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-22060_A1_01_Plans": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-Brotli-Prototype-FileA": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-PDFJS-9279-reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1978317": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-comments": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-freeculture": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19239": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19360": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19971": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue20513": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5481": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5567": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6286": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6894": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue7229": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8795_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9262_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tracemonkey_annotation_on_page_8": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tracemonkey_with_editable_annotations": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-xfa_filled_imm1344e": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-REDHAT-1531897-0": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1820909.1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1898053_minimal": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2026037": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-chrome-text-selection-markedContent": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-dates": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-doc_2_3_pages": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-evaljs": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-fields_order": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-highlight_popup": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue10900": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue11878_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14847": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15690": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue16278": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17846": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-js-authors": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-poppler-85140-0": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-red_stamp": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-resetform_parent": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-IndexedCS_negative_and_high": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bigboundingbox": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bitmap-composite-or-xor-replace-halftone": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bitmap-randomaccess": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-blendmode": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug852992_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug921409": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-clippath": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-close-path-bug": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14999_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue16091": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue2840": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5747": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6931_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8565": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8586": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9713": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-noembed-identity": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-rotated": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tiling-pattern-large-steps": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    }
+   }
+  },
+  "pdf_oxide": {
+   "items": 100,
+   "status": {
+    "empty": 29,
+    "ok": 66,
+    "error": 5
+   },
+   "completion": 0.66,
+   "per_item": {
+    "b3-bug1782186": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug900822": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-empty_protected": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-encrypted-attachment": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15893_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17069": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17215": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19484_1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19484_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue21579": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue3371": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6010_1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6010_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue7665": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9972-3": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-poppler-742-0-fuzzed": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr6531_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-print_protection": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-saslprep-r6": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-secHandler": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-choice-widget": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-line-without-appearance-empty-Rect": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-line-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-polyline-polygon-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-square-circle-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-tx": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1796741": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1974436": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2055455": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2082236": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-checkbox-bad-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue11362": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14130": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15815": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue18072": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr12828": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr7352": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-prefilled_f1040": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-rc_annotation": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-widget_hidden_print": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-22060_A1_01_Plans": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-Brotli-Prototype-FileA": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-PDFJS-9279-reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1978317": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-comments": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-freeculture": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19239": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19360": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19971": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue20513": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5481": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5567": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6286": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6894": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue7229": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8795_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9262_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tracemonkey_annotation_on_page_8": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tracemonkey_with_editable_annotations": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-xfa_filled_imm1344e": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-REDHAT-1531897-0": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1820909.1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1898053_minimal": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2026037": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-chrome-text-selection-markedContent": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-dates": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-doc_2_3_pages": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-evaljs": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-fields_order": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-highlight_popup": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue10900": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue11878_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14847": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15690": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue16278": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17846": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-js-authors": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-poppler-85140-0": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-red_stamp": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-resetform_parent": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-IndexedCS_negative_and_high": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bigboundingbox": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bitmap-composite-or-xor-replace-halftone": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bitmap-randomaccess": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-blendmode": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug852992_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug921409": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-clippath": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-close-path-bug": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14999_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue16091": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue2840": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5747": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6931_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8565": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8586": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9713": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-noembed-identity": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-rotated": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tiling-pattern-large-steps": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    }
+   }
+  },
+  "pymupdf4llm": {
+   "items": 100,
+   "status": {
+    "ok": 68,
+    "error": 15,
+    "empty": 16,
+    "timeout": 1
+   },
+   "completion": 0.68,
+   "per_item": {
+    "b3-bug1782186": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug900822": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-empty_protected": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-encrypted-attachment": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15893_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17069": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17215": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19484_1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19484_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue21579": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue3371": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6010_1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6010_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue7665": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9972-3": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-poppler-742-0-fuzzed": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr6531_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-print_protection": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-saslprep-r6": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-secHandler": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-choice-widget": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-line-without-appearance-empty-Rect": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-line-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-polyline-polygon-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-square-circle-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-tx": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1796741": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1974436": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2055455": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2082236": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-checkbox-bad-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue11362": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14130": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15815": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue18072": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr12828": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr7352": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-prefilled_f1040": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-rc_annotation": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-widget_hidden_print": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-22060_A1_01_Plans": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-Brotli-Prototype-FileA": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-PDFJS-9279-reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1978317": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-comments": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-freeculture": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19239": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19360": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19971": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue20513": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5481": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5567": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6286": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6894": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue7229": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8795_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9262_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tracemonkey_annotation_on_page_8": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tracemonkey_with_editable_annotations": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-xfa_filled_imm1344e": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-REDHAT-1531897-0": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1820909.1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1898053_minimal": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2026037": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-chrome-text-selection-markedContent": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-dates": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-doc_2_3_pages": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-evaljs": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-fields_order": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-highlight_popup": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue10900": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue11878_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14847": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15690": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue16278": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17846": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-js-authors": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-poppler-85140-0": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-red_stamp": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-resetform_parent": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-IndexedCS_negative_and_high": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bigboundingbox": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bitmap-composite-or-xor-replace-halftone": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bitmap-randomaccess": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-blendmode": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug852992_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug921409": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-clippath": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-close-path-bug": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14999_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue16091": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue2840": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5747": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6931_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8565": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8586": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9713": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-noembed-identity": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-rotated": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tiling-pattern-large-steps": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    }
+   }
+  },
+  "kreuzberg": {
+   "items": 100,
+   "status": {
+    "empty": 35,
+    "ok": 54,
+    "error": 11
+   },
+   "completion": 0.54,
+   "per_item": {
+    "b3-bug1782186": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug900822": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-empty_protected": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-encrypted-attachment": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15893_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17069": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17215": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19484_1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19484_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue21579": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue3371": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6010_1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6010_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue7665": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9972-3": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-poppler-742-0-fuzzed": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr6531_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-print_protection": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-saslprep-r6": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-secHandler": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-choice-widget": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-line-without-appearance-empty-Rect": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-line-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-polyline-polygon-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-square-circle-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-tx": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1796741": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1974436": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2055455": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2082236": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-checkbox-bad-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue11362": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14130": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15815": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue18072": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr12828": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr7352": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-prefilled_f1040": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-rc_annotation": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-widget_hidden_print": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-22060_A1_01_Plans": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-Brotli-Prototype-FileA": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-PDFJS-9279-reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1978317": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-comments": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-freeculture": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19239": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19360": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19971": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue20513": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5481": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5567": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6286": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6894": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue7229": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8795_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9262_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tracemonkey_annotation_on_page_8": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tracemonkey_with_editable_annotations": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-xfa_filled_imm1344e": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-REDHAT-1531897-0": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1820909.1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1898053_minimal": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2026037": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-chrome-text-selection-markedContent": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-dates": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-doc_2_3_pages": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-evaljs": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-fields_order": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-highlight_popup": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue10900": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue11878_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14847": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15690": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue16278": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17846": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-js-authors": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-poppler-85140-0": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-red_stamp": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-resetform_parent": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-IndexedCS_negative_and_high": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bigboundingbox": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bitmap-composite-or-xor-replace-halftone": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bitmap-randomaccess": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-blendmode": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug852992_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug921409": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-clippath": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-close-path-bug": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14999_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue16091": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue2840": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5747": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6931_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8565": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8586": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9713": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-noembed-identity": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-rotated": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tiling-pattern-large-steps": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    }
+   }
+  },
+  "mineru-flash": {
+   "items": 100,
+   "status": {
+    "ok": 59,
+    "error": 14,
+    "empty": 27
+   },
+   "completion": 0.59,
+   "per_item": {
+    "b3-bug1782186": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug900822": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-empty_protected": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-encrypted-attachment": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15893_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17069": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17215": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19484_1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19484_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue21579": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue3371": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6010_1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6010_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue7665": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9972-3": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-poppler-742-0-fuzzed": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr6531_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-print_protection": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-saslprep-r6": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-secHandler": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-choice-widget": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-line-without-appearance-empty-Rect": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-line-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-polyline-polygon-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-square-circle-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-tx": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1796741": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1974436": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2055455": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2082236": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-checkbox-bad-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue11362": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14130": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15815": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue18072": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr12828": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr7352": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-prefilled_f1040": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-rc_annotation": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-widget_hidden_print": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-22060_A1_01_Plans": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-Brotli-Prototype-FileA": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-PDFJS-9279-reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1978317": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-comments": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-freeculture": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19239": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19360": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19971": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue20513": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5481": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5567": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6286": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6894": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue7229": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8795_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9262_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tracemonkey_annotation_on_page_8": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tracemonkey_with_editable_annotations": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-xfa_filled_imm1344e": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-REDHAT-1531897-0": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1820909.1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1898053_minimal": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2026037": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-chrome-text-selection-markedContent": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-dates": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-doc_2_3_pages": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-evaljs": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-fields_order": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-highlight_popup": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue10900": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue11878_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14847": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15690": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue16278": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17846": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-js-authors": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-poppler-85140-0": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-red_stamp": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-resetform_parent": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-IndexedCS_negative_and_high": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bigboundingbox": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bitmap-composite-or-xor-replace-halftone": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bitmap-randomaccess": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-blendmode": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug852992_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug921409": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-clippath": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-close-path-bug": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14999_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue16091": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue2840": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5747": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6931_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8565": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8586": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9713": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-noembed-identity": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-rotated": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tiling-pattern-large-steps": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    }
+   }
+  },
+  "mineru": {
+   "items": 100,
+   "status": {
+    "not_run": 92,
+    "ok": 5,
+    "oom": 2,
+    "empty": 1
+   },
+   "completion": 0.05,
+   "per_item": {
+    "b3-bug1782186": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug900822": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-empty_protected": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-encrypted-attachment": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15893_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17069": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17215": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19484_1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19484_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue21579": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue3371": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6010_1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6010_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue7665": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9972-3": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-poppler-742-0-fuzzed": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr6531_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-print_protection": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-saslprep-r6": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-secHandler": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-choice-widget": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-line-without-appearance-empty-Rect": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-line-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-polyline-polygon-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-square-circle-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-tx": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1796741": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1974436": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2055455": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2082236": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-checkbox-bad-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue11362": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14130": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15815": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue18072": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr12828": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr7352": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-prefilled_f1040": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-rc_annotation": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-widget_hidden_print": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-22060_A1_01_Plans": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-Brotli-Prototype-FileA": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-PDFJS-9279-reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1978317": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-comments": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-freeculture": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19239": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19360": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19971": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue20513": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5481": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5567": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6286": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6894": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue7229": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8795_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9262_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tracemonkey_annotation_on_page_8": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tracemonkey_with_editable_annotations": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-xfa_filled_imm1344e": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-REDHAT-1531897-0": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1820909.1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1898053_minimal": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2026037": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-chrome-text-selection-markedContent": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-dates": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-doc_2_3_pages": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-evaljs": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-fields_order": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-highlight_popup": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue10900": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue11878_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14847": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15690": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue16278": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17846": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-js-authors": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-poppler-85140-0": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-red_stamp": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-resetform_parent": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-IndexedCS_negative_and_high": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bigboundingbox": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bitmap-composite-or-xor-replace-halftone": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bitmap-randomaccess": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-blendmode": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug852992_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug921409": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-clippath": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-close-path-bug": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14999_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue16091": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue2840": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5747": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6931_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8565": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8586": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9713": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-noembed-identity": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-rotated": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tiling-pattern-large-steps": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    }
+   }
+  },
+  "docling": {
+   "items": 8,
+   "status": {
+    "ok": 6,
+    "empty": 2
+   },
+   "completion": 0.75,
+   "per_item": {
+    "b3-bug1782186": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug900822": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-empty_protected": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-encrypted-attachment": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15893_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17069": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17215": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19484_1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19484_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue21579": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue3371": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6010_1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6010_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue7665": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9972-3": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-poppler-742-0-fuzzed": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr6531_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-print_protection": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-saslprep-r6": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-secHandler": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-choice-widget": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-line-without-appearance-empty-Rect": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-line-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-polyline-polygon-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-square-circle-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-tx": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1796741": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1974436": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2055455": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2082236": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-checkbox-bad-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue11362": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14130": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15815": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue18072": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr12828": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr7352": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-prefilled_f1040": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-rc_annotation": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-widget_hidden_print": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-22060_A1_01_Plans": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-Brotli-Prototype-FileA": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-PDFJS-9279-reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1978317": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-comments": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-freeculture": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19239": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19360": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19971": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue20513": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5481": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5567": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6286": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6894": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue7229": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8795_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9262_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tracemonkey_annotation_on_page_8": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tracemonkey_with_editable_annotations": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-xfa_filled_imm1344e": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-REDHAT-1531897-0": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1820909.1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1898053_minimal": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2026037": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-chrome-text-selection-markedContent": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-dates": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-doc_2_3_pages": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-evaljs": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-fields_order": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-highlight_popup": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue10900": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue11878_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14847": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15690": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue16278": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17846": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-js-authors": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-poppler-85140-0": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-red_stamp": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-resetform_parent": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-IndexedCS_negative_and_high": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bigboundingbox": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bitmap-composite-or-xor-replace-halftone": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bitmap-randomaccess": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-blendmode": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug852992_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug921409": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-clippath": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-close-path-bug": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14999_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue16091": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue2840": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5747": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6931_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8565": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8586": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9713": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-noembed-identity": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-rotated": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tiling-pattern-large-steps": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    }
+   }
+  },
+  "docling-gpu": {
+   "items": 8,
+   "status": {
+    "ok": 6,
+    "empty": 2
+   },
+   "completion": 0.75,
+   "per_item": {
+    "b3-bug1782186": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug900822": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-empty_protected": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-encrypted-attachment": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15893_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17069": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17215": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19484_1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19484_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue21579": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue3371": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6010_1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6010_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue7665": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9972-3": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-poppler-742-0-fuzzed": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr6531_2": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-print_protection": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-saslprep-r6": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-secHandler": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-choice-widget": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-line-without-appearance-empty-Rect": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-line-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-polyline-polygon-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-square-circle-without-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-annotation-tx": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1796741": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1974436": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2055455": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2082236": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-checkbox-bad-appearance": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue11362": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14130": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15815": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue18072": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr12828": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-pr7352": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-prefilled_f1040": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-rc_annotation": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-widget_hidden_print": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-22060_A1_01_Plans": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-Brotli-Prototype-FileA": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-PDFJS-9279-reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1978317": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-comments": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-freeculture": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19239": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19360": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue19971": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue20513": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5481": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5567": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6286": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6894": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue7229": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8795_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9262_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tracemonkey_annotation_on_page_8": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tracemonkey_with_editable_annotations": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-xfa_filled_imm1344e": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-REDHAT-1531897-0": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1820909.1": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug1898053_minimal": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug2026037": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-chrome-text-selection-markedContent": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-dates": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-doc_2_3_pages": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-evaljs": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-fields_order": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-highlight_popup": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue10900": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue11878_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14847": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue15690": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue16278": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue17846": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-js-authors": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-poppler-85140-0": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-red_stamp": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-resetform_parent": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-IndexedCS_negative_and_high": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bigboundingbox": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bitmap-composite-or-xor-replace-halftone": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bitmap-randomaccess": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-blendmode": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug852992_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-bug921409": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-clippath": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-close-path-bug": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue14999_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue16091": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue2840": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue5747": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue6931_reduced": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8565": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue8586": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-issue9713": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-noembed-identity": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-rotated": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    },
+    "b3-tiling-pattern-large-steps": {
+     "set": "B3",
+     "garble": null,
+     "f1": null
+    }
+   }
+  }
+ },
+ "label": {}
+}

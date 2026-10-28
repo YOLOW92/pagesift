@@ -23,6 +23,23 @@ Convierte cualquier sitio web, documento o archivo en Markdown limpio y datos es
 
 ---
 
+<!-- perf-glance -->
+## Rendimiento de un vistazo (0.80.9)
+
+Medido el 2026-10-28 con pagesift 0.80.9 en una sola máquina (i7-10700 8C/16T, 15 GB, GTX 1070): mismas entradas, mismo número de workers, una herramienta a la vez con la máquina en reposo, opciones por defecto en todas. Aquí solo aparecen las filas en las que PageSift es el más rápido; donde va por detrás, consulte la comparación de abajo y el [informe completo](../benchmarks/mix/v2/results/report-2026-10-28.md).
+
+| Tarea | Workers | PageSift (↑ elementos/s) | Competidor más rápido (↑ elementos/s) | Aceleración | MB pico por worker (↓, PageSift / competidor) |
+|---|---|---|---|---|---|
+| PDF, 144 páginas de olmOCR-bench | 1 | **190.0** (`serve` residente) | pdf_oxide 100.6 | **×1.9** | 198 / 29 |
+| PDF, 144 páginas de olmOCR-bench | 16 | **543.4** | pdf_oxide 501.7 | **×1.08** | 16 / 11 |
+| Office y libros electrónicos, 81 archivos | 1 | **63.3** (`serve` residente) | Kreuzberg 19.5 | **×3.2** | 308 / 231 |
+| Office y libros electrónicos, 81 archivos | 16 | **178.4** | Kreuzberg 34.5 | **×5.2** | 70 / 219 |
+| Extracción del contenido principal, 269 páginas aleatorias | 16 | **573.6** | Resiliparse 559.3 | **×1.03** | 17 / 43 |
+| PDF frente a herramientas con modelos de maquetación (MinerU, Docling), mismas 144 páginas | 1 | **190.0** (`serve` residente) | Docling (GPU, cu126) 1.3 | **×148.4** | 198 / 2638 |
+<!-- /perf-glance -->
+
+---
+
 Medido el 2026-10-27 con el binario de la versión 0.80.0 frente a tres herramientas por dominio (un proyecto en Rust y dos muy comparados), con opciones por defecto, en una sola máquina (i7-10700, 15 GB). Las muestras se tomaron con semillas fijas tras congelar las reglas, sin elegir a mano. Cada fila enlaza al método, versiones, tamaño de muestra y resultados.
 
 ### Muy por delante
