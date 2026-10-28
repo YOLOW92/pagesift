@@ -58,10 +58,13 @@ general improvement, so it was dropped.
 Reproduced locally with the public inputs of `benchmarks/mix` (frozen sample lists, SHA-256
 checked where the files are redistributable):
 
-- **Hard PDFs (B3, 100 pdf.js test files).** Completion 0.56 → 0.61 with this release. Of the 44
-  failures: 8 need a user password (pdf.js's test manifest lists it), 26 have no text at all
-  (pdftotext also gives 0 words), 10 had their text in annotation appearances (form fields,
-  FreeText, stamps, signatures) and 1 used a Type3 font with a 1:1 FontMatrix. A further 250
+- **Hard PDFs (B3, 100 pdf.js test files).** Same machine, before and after: 53 → 61 completed
+  (the benchmark's own 0.80.0 run scored 0.56 on its machine). The 47 failures before: 8 need a
+  user password (pdf.js's test manifest lists it), 2 have no readable page (no page object; a
+  fuzzed file with one empty page), 26 have no text at all (pdftotext also gives 0 words), 10 had
+  their text in annotation appearances (form fields, FreeText, stamps, signatures) and 1 used a
+  Type3 font with a 1:1 FontMatrix. Fixed: the Type3 file and 7 of the 10; the other 3 contain only
+  push-button captions, which are skipped on purpose. A further 250
   pdf.js test files and 15 arXiv papers were compared old against new: 18 outputs changed, all by
   added field values, signatures, notes or figure text.
 - **PDF throughput, one process per file.** A small PDF parses in 0.07 ms while the `scrape`

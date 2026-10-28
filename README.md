@@ -87,7 +87,7 @@ Measured with 0.70.0, not re-run for later versions.
 (international, graduate admission, housing, computer science, library): pages squarely on the query
 2.6% → 19.0%, on or near it 18.4% → 49.6% against 0.80.0; queued links are now re-scored as term
 weights are learned, and one page reached under several URLs is delivered once. PDFs include the
-text of filled-in form fields, notes, stamps and signatures (hard pdf.js test files 0.56 → 0.61).
+text of filled-in form fields, notes, stamps and signatures (hard pdf.js test files: 53 → 61 of 100).
 `scrape` starts lighter when run once per file (CPU per call 6.3 → 4.3 ms). `doctor` starts every
 engine and warns when one cannot run; engines outside `PATH` and in Playwright's cache are found;
 `crawl`/`map` take `--ignore-robots`. Accordion and FAQ headers stay in extracted content. Every

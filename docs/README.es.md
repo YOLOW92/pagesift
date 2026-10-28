@@ -81,7 +81,7 @@ direcciones (estudiantes internacionales, posgrado, alojamiento, informática, b
 0.80.0, páginas justo sobre la consulta 2,6% → 19,0% y relacionadas 18,4% → 49,6%; los enlaces en cola
 se puntúan de nuevo al aprender los pesos y una página con varias URL se entrega una vez. Los PDF
 incluyen el texto de campos rellenados, notas, sellos y firmas (archivos difíciles de pdf.js
-0,56 → 0,61). `scrape` arranca más ligero con un proceso por archivo (CPU por llamada 6,3 → 4,3 ms).
+53 → 61 de 100). `scrape` arranca más ligero con un proceso por archivo (CPU por llamada 6,3 → 4,3 ms).
 `doctor` arranca cada motor y avisa si alguno no funciona; se encuentran motores fuera del `PATH` y en
 la caché de Playwright; `crawl`/`map` aceptan `--ignore-robots`. Los títulos de acordeones y FAQ se
 conservan. Todas las pruebas quedan dentro del 2% de 0.80.0. No hubo 0.80.6–0.80.8. Detalles:

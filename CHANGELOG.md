@@ -47,7 +47,7 @@ Instruction counts stay within 2% of 0.80.0. See [the release notes](docs/releas
   FreeText notes, stamps, signature blocks. Fields without an appearance stream
   (`/NeedAppearances`) contribute their value. Only the text is taken (field borders are not
   table rules); hidden annotations, links, popups and push buttons are skipped. On the pdf.js
-  test files of the mixed benchmark, completion goes from 0.56 to 0.61.
+  test files of the mixed benchmark, 61 of 100 complete instead of 53 (same machine, before and after).
 - PDF: Type3 fonts whose `FontMatrix` is not the usual 1/1000 (for example `[1 0 0 -1]` with a
   `0.12 Tf`) were sized at a fraction of a point and dropped as invisible; the size is now
   corrected from the glyph widths when it is off by more than 4×. Made-up glyph names in a
