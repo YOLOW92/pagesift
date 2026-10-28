@@ -1,8 +1,6 @@
 //! 仅 release 下断言耗时：`cargo test --release -p pagesift-diff`。
 #![cfg(not(debug_assertions))]
 
-use std::time::Instant;
-
 use pagesift_diff::diff;
 
 fn doc(n: usize, tweak: bool) -> String {
@@ -22,9 +20,8 @@ fn doc(n: usize, tweak: bool) -> String {
 #[test]
 fn one_mb_under_50ms() {
     let (a, b) = (doc(1000, false), doc(1000, true));
-    let t = Instant::now();
-    let r = diff(&a, &b);
-    let el = t.elapsed();
+    // 本线程的 CPU 时间：机器忙时墙钟会翻倍
+    let (r, el) = pagesift_testkit::cpu_time(|| diff(&a, &b));
     assert!(r.stats.modified > 100);
     assert!(el.as_millis() < 50, "took {el:?}");
 }

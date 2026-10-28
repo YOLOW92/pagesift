@@ -8,6 +8,8 @@ step() { printf '\n==> %s\n' "$*"; }
 
 step "release identity"
 python3 scripts/check_release.py
+step "wall-clock reads in tests"
+python3 scripts/check_wall_clock.py
 
 step "fmt"
 cargo fmt --all --check

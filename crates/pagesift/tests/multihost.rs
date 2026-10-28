@@ -22,6 +22,8 @@ impl CrawlSink for Collect {
         self.pages
             .lock()
             .unwrap()
+            // wall-clock: completion times are compared with each other (the slow pages' progress),
+            // not with a fixed number
             .push((Instant::now(), doc.metadata.url.unwrap_or_default()));
         Box::pin(async {})
     }
@@ -79,6 +81,7 @@ async fn a_long_queue_on_one_host_does_not_block_the_others() {
     }))
     .unwrap();
     let sink = Arc::new(Collect::default());
+    // wall-clock: only used as the origin for printing the compared completion times
     let t0 = Instant::now();
     scraper.crawl(&req, sink.clone()).await.unwrap();
     let pages = sink.pages.lock().unwrap();

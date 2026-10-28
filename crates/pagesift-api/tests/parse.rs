@@ -386,6 +386,7 @@ async fn upload_body_deadline_is_separate() {
         )
         .body(body)
         .unwrap();
+    // wall-clock: a lower bound only: a slow machine makes the wait longer, never shorter
     let started = std::time::Instant::now();
     let (s, v) = send(&app, req).await;
     assert_eq!(s, StatusCode::REQUEST_TIMEOUT, "{v}");

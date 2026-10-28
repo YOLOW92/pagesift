@@ -20,6 +20,8 @@ fn timed(data: &[u8]) -> (Duration, Result<(), Error>) {
         max_pages: 100_000,
         ..Options::default()
     };
+    // wall-clock: checks the product's own 300 ms deadline; the debug limit is 5 s, over sixteen
+    // times that
     let t = Instant::now();
     let r = fuzzing::extract_unguarded(data, &opts).map(|_| ());
     (t.elapsed(), r)

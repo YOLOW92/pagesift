@@ -3,7 +3,6 @@
 use flate2::read::MultiGzDecoder;
 use pagesift_store::warc::{DigestCalculator, RecordType, WarcRecord, WarcWriter, WebpageSnapshot};
 use std::io::{Cursor, Read};
-use std::time::Instant;
 
 #[test]
 fn test_stress_warc_throughput_and_multi_member_decompression() {
@@ -64,7 +63,8 @@ fn test_stress_warc_throughput_and_multi_member_decompression() {
         });
     }
 
-    let start = Instant::now();
+    // 吞吐量按本线程的 CPU 时间算（写入在这个线程里）：机器忙时墙钟会翻倍，断言就成了抽签
+    let start = pagesift_testkit::thread_cpu_time();
     let mut total_uncompressed_bytes = 0usize;
     let mut total_records = 0usize;
 
@@ -111,13 +111,13 @@ fn test_stress_warc_throughput_and_multi_member_decompression() {
         writer.flush().unwrap();
     }
 
-    let elapsed = start.elapsed();
+    let elapsed = pagesift_testkit::thread_cpu_time().saturating_sub(start);
     let throughput_mbs =
         (total_uncompressed_bytes as f64 / (1024.0 * 1024.0)) / elapsed.as_secs_f64();
     let records_per_sec = total_records as f64 / elapsed.as_secs_f64();
 
     println!(
-        "\n[STRESS WARC] Wrote {} records ({} uncompressed MB) in {:.3} s",
+        "\n[STRESS WARC] Wrote {} records ({} uncompressed MB) in {:.3} s of CPU",
         total_records,
         total_uncompressed_bytes / (1024 * 1024),
         elapsed.as_secs_f64()

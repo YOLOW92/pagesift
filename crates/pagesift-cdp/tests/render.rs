@@ -552,6 +552,7 @@ async fn readiness_ignores_polling_workers_and_abandoned_documents() {
     );
     // 以前会一直等原文档的 DOMContentLoaded，直到整体超时；现在很快报导航失败，
     // 不把浏览器的错误页当正文返回。
+    // wall-clock: the bug waits for the 30 s render timeout; 15 s is far above the normal time
     let start = std::time::Instant::now();
     let redirect = pool.render(&format!("{base}/js-redirect"), &opts()).await;
     assert!(

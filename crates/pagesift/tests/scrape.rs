@@ -114,6 +114,8 @@ async fn per_host_wait_is_reported_separately_from_fetch_time() {
 async fn timeout_is_a_total_deadline() {
     let base = site().await;
     let s = scraper(Vec::new());
+    // wall-clock: the request has a 1 s total deadline; 5 s is five times that, and the bug waits
+    // for the slow page
     let t = Instant::now();
     let err = s
         .scrape(

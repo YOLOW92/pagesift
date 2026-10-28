@@ -20,4 +20,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: python3 scripts/check_release.py
+      # 测试里读墙钟要写明为什么慢机器上也成立（这台机器忙时，按墙钟判快慢的测试轮流失败）
+      - run: python3 scripts/check_wall_clock.py
       - run: cargo test --workspace --locked

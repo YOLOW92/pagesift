@@ -624,6 +624,7 @@ async fn proxy_with_allow_cidr_falls_back_to_proxy_when_resolution_fails() {
     assert_eq!(r.body, b"via proxy");
     assert!(dns.asked().iter().any(|h| h == "missing.example"));
     // 解析超时：最多等 min(dns_timeout, 2s)，然后交给代理
+    // wall-clock: the DNS timeout is 200 ms; the bug waits for the 2 s cap, which is the bound
     let started = std::time::Instant::now();
     let r = f
         .fetch(FetchRequest::new("http://slow.example/"))

@@ -206,6 +206,7 @@ pub async fn shutdown(pool: BrowserPool) {
 }
 
 pub fn group_gone(pgid: u32) -> bool {
+    // wall-clock: upper bound of a polling loop; a slow machine only polls longer
     let deadline = Instant::now() + Duration::from_secs(10);
     while Instant::now() < deadline {
         if nix::sys::signal::killpg(nix::unistd::Pid::from_raw(pgid as i32), None).is_err() {

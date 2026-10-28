@@ -164,6 +164,7 @@ fn route(
 }
 
 fn group_gone(pgid: u32) -> bool {
+    // wall-clock: upper bound of a polling loop; a slow machine only polls longer
     let deadline = Instant::now() + Duration::from_secs(10);
     while Instant::now() < deadline {
         let alive = nix::sys::signal::killpg(nix::unistd::Pid::from_raw(pgid as i32), None).is_ok();
@@ -486,6 +487,8 @@ async fn timeout_releases_the_tab() {
     )
     .await
     .unwrap();
+    // wall-clock: the render has a 2 s timeout; 10 s leaves room for a slow machine, and the bug
+    // hangs until the test times out
     let start = Instant::now();
     let r = pool
         .render(

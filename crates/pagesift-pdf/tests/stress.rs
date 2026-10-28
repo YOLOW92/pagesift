@@ -257,6 +257,8 @@ fn high_concurrency_saturation_stress_olmocr() {
     let total_parsed = Arc::new(AtomicUsize::new(0));
     let total_bytes = Arc::new(AtomicUsize::new(0));
 
+    // wall-clock: a throughput floor for the local olmocr corpus, which CI does not have (the test
+    // returns early without it); 100 pages/s in debug is far below what a developer machine does
     let t0 = Instant::now();
     std::thread::scope(|s| {
         for chunk in chunks {

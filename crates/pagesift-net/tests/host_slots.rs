@@ -37,6 +37,8 @@ async fn slow_requests_do_not_block_fast_ones_on_the_same_origin() {
     }
     tokio::time::sleep(Duration::from_millis(50)).await;
 
+    // wall-clock: the fast request is let through after one 500 ms threshold; the bug makes it wait
+    // four (2 s); 1.5 s sits between them
     let t = Instant::now();
     let r = tokio::time::timeout(
         Duration::from_secs(5),
@@ -135,6 +137,8 @@ async fn slow_threshold_adapts_to_a_warm_origin() {
         slow.spawn(async move { f.fetch(FetchRequest::new(url)).await });
     }
     tokio::time::sleep(Duration::from_millis(50)).await;
+    // wall-clock: the warm origin's threshold is about 250 ms; the bug waits for the 2 s tail
+    // threshold; 1.5 s sits between them
     let t = Instant::now();
     let r = tokio::time::timeout(
         Duration::from_secs(5),

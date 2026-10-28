@@ -242,6 +242,7 @@ fn background_maintenance_enforces_cap() {
     for i in 0..200 {
         store.cache().put(format!("u{i}"), &[1; 1000]).unwrap();
     }
+    // wall-clock: upper bound of a polling loop; a slow machine only polls longer
     let deadline = std::time::Instant::now() + Duration::from_secs(10);
     while store.stats().disk_bytes > 50_000 {
         assert!(std::time::Instant::now() < deadline, "{:?}", store.stats());

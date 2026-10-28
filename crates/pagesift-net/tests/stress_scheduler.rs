@@ -17,6 +17,7 @@ fn stress_50000_pages_queue_and_domain_limiter_throughput() {
     let pages_per_domain = 50;
 
     let pool = WorkerPool::new(queue_capacity, 0.0, 8, 16);
+    // wall-clock: throughput is printed, not asserted
     let t0 = Instant::now();
 
     // 1. 快速生产 50,000 个任务
@@ -113,6 +114,7 @@ fn stress_crash_kill_recovery_50000_pages_zero_loss() {
         pending.push(format!("http://s{}.localhost/p/{}", i % 1000, i / 1000));
     }
 
+    // wall-clock: the save time is printed, not asserted (recovery is checked with CPU time)
     let t0 = Instant::now();
     let snapshot = TaskSnapshot::new(
         "job_huge_50000",

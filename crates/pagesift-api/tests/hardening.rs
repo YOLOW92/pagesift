@@ -139,6 +139,9 @@ async fn slow_headers_are_cut_off() {
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
     });
+    // wall-clock: the server cuts the drip off after its 300 ms header-read timeout; 3 s is ten
+    // times
+    // that, and the bug (no cut-off) runs into the 5 s client timeout
     let started = Instant::now();
     let mut buf = [0u8; 1024];
     let closed = tokio::time::timeout(Duration::from_secs(5), async {
@@ -190,6 +193,8 @@ async fn slow_body_gets_408_json() {
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
     });
+    // wall-clock: the server answers 408 after its 300 ms body timeout; 3 s is ten times that, and
+    // the bug (no timeout) runs into the 5 s client timeout
     let started = Instant::now();
     let mut out = Vec::new();
     let _ = tokio::time::timeout(Duration::from_secs(5), rd.read_to_end(&mut out)).await;
