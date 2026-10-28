@@ -12,7 +12,7 @@ use pagesift_policy::adaptive::AdaptiveConcurrencyGate;
 use super::attachments::{Attachments, is_document_url};
 use crate::engine::Scraper;
 use crate::focus::{
-    Adaptive, BestFirst, Focus, LinkSignal, MIN_RELEVANCE, Offer, PageSignal, cluster_key,
+    Adaptive, BestFirst, Focus, Harvest, LinkSignal, MIN_RELEVANCE, Offer, PageSignal, cluster_key,
     link_contexts,
 };
 use crate::frontier::{Learner, Seen, Tiered};
@@ -174,7 +174,7 @@ impl Scraper {
                     host_inflight.remove(&frontier_host(&url));
                 }
             }
-            if retries.offer(&result, &url, depth, attempt) {
+            if retries.offer(&result, &url, depth, attempt, depth == 0 && url == start) {
                 continue;
             }
             match result {
@@ -321,6 +321,8 @@ impl Scraper {
         // 已经正常交付过页面的主机不算（大站点的某一页被防火墙拦了，不代表整个主机都不通）
         let mut host_failures: HashMap<String, u32> = HashMap::new();
         let mut host_ok: HashSet<String> = HashSet::new();
+        // 各子树的收成：抓了不少页、相关度一直远低于好页面的子树（撞词的陷阱）不再往里抓
+        let mut harvest = Harvest::new(start.host_str().unwrap_or_default());
         // 已经交付的页面（按跳转后的地址）：两个地址跳到同一页时只交付一次
         let mut delivered: HashSet<u64> = HashSet::new();
         // 已调度页面的来历：深度、父页、分数、是不是附件
@@ -439,7 +441,7 @@ impl Scraper {
                         }
                         let mut next = queue.pop_diverse(&clusters, cluster_cap);
                         while let Some((u, _, _)) = &mut next {
-                            if host_blocked(&host_failures, u) {
+                            if host_blocked(&host_failures, u) || harvest.is_dry(u) {
                                 next = queue.pop_diverse(&clusters, cluster_cap);
                                 continue;
                             }
@@ -513,7 +515,9 @@ impl Scraper {
                 },
             };
             inflight_scores.remove(url.as_str());
-            if stop.is_none() && retries.offer(&result, &url, depth, attempt) {
+            if stop.is_none()
+                && retries.offer(&result, &url, depth, attempt, depth == 0 && url == start)
+            {
                 continue;
             }
             let trace = traces.remove(url.as_str());
@@ -581,6 +585,9 @@ impl Scraper {
                         lang,
                     );
                     let relevance = focus.relevance(&page);
+                    if !is_attachment {
+                        harvest.observe(&base, relevance);
+                    }
                     if stop.is_none()
                         && let Some(a) = adaptive.as_mut()
                     {

@@ -40,6 +40,10 @@ const MAX_RETRIES: u32 = 2;
 pub(super) const MAX_WAIT: Duration = Duration::from_secs(60);
 /// 没有 Retry-After 时，第 n 次重试前等 RETRY_BASE × 2^(n-1)。
 const RETRY_BASE: Duration = Duration::from_millis(500);
+/// 种子页的重试次数和等待基数：种子页失败整个爬取就什么都没有了（站点一时超时，0.5 秒、1 秒后
+/// 两次重试常常还在同一个波动里），多等几次、等久一点（2、4、8、16 秒）。
+const SEED_MAX_RETRIES: u32 = 4;
+const SEED_RETRY_BASE: Duration = Duration::from_secs(2);
 
 /// URL 规范化（F-6.2），用来去重：去掉 fragment；查询参数排序，或者整个去掉。
 /// 协议和主机的小写、默认端口、`..` 路径由 URL 解析本身处理。
@@ -406,15 +410,22 @@ pub(super) struct Retries {
 
 impl Retries {
     /// 第 `attempt` 次失败的结果值得重试就排进来，返回 true；否则返回 false，结果照常交付。
+    /// `seed` 说它是不是种子页（重试得多、等得久）。
     pub(super) fn offer(
         &mut self,
         result: &Result<pagesift_api::types::Document, ApiError>,
         url: &Url,
         depth: usize,
         attempt: u32,
+        seed: bool,
     ) -> bool {
-        match retry_wait(result, attempt) {
-            Some(wait) if attempt < MAX_RETRIES && wait <= MAX_WAIT => {
+        let (max, base) = if seed {
+            (SEED_MAX_RETRIES, SEED_RETRY_BASE)
+        } else {
+            (MAX_RETRIES, RETRY_BASE)
+        };
+        match retry_wait(result, attempt, base) {
+            Some(wait) if attempt < max && wait <= MAX_WAIT => {
                 self.items.push((
                     tokio::time::Instant::now() + wait,
                     url.clone(),
@@ -450,8 +461,9 @@ impl Retries {
 fn retry_wait(
     result: &Result<pagesift_api::types::Document, ApiError>,
     attempt: u32,
+    base: Duration,
 ) -> Option<Duration> {
-    let backoff = RETRY_BASE * 2u32.pow(attempt.min(6));
+    let backoff = base * 2u32.pow(attempt.min(6));
     match result {
         Ok(doc) => matches!(
             doc.metadata.status_code,
@@ -935,5 +947,31 @@ mod tests {
             .unwrap();
         let xml = gunzip_if_needed(enc.finish().unwrap()).unwrap();
         assert_eq!(parse_sitemap(&xml).0, vec!["https://example.com/z"]);
+    }
+
+    #[test]
+    fn the_seed_page_is_retried_longer_than_other_pages() {
+        let timeout: Result<pagesift_api::types::Document, ApiError> =
+            Err(ApiError::new(ErrorCode::Timeout, "first byte timeout"));
+        let url = Url::parse("https://example.com/").unwrap();
+        // 普通页面：两次重试，0.5 秒、1 秒
+        let mut r = Retries::default();
+        assert!(r.offer(&timeout, &url, 1, 0, false));
+        assert!(r.offer(&timeout, &url, 1, 1, false));
+        assert!(!r.offer(&timeout, &url, 1, 2, false));
+        assert_eq!(
+            retry_wait(&timeout, 0, RETRY_BASE),
+            Some(Duration::from_millis(500))
+        );
+        // 种子页：四次重试，2、4、8、16 秒
+        let mut s = Retries::default();
+        for attempt in 0..4 {
+            assert!(s.offer(&timeout, &url, 0, attempt, true), "{attempt}");
+            assert_eq!(
+                retry_wait(&timeout, attempt, SEED_RETRY_BASE),
+                Some(Duration::from_secs(2 << attempt))
+            );
+        }
+        assert!(!s.offer(&timeout, &url, 0, 4, true));
     }
 }

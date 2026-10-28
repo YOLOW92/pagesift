@@ -10,12 +10,14 @@
 mod adaptive;
 mod context;
 pub(crate) mod furniture;
+mod harvest;
 mod queue;
 mod weights;
 
 pub(crate) use adaptive::{Adaptive, MIN_RELEVANCE};
 pub(crate) use context::link_contexts;
 use context::prose_words;
+pub(crate) use harvest::Harvest;
 pub(crate) use queue::{BestFirst, Offer, cluster_key};
 
 use pagesift_extract::Query;
@@ -153,6 +155,13 @@ impl Focus {
     /// 英文查询、而且已经知道站点的英文内容在哪（种子页就是英文的，或者找到了英文首页）：
     /// 这时别的语言的页面上的栏目链接不再拿保底分。挪威语主站、德语主站的导航不是线索，
     /// 跟着它们走就把预算花在查询读不懂的页面上了。
+    /// 还在找本站的英文版：英文查询，种子页不是英文的，也还没找到英文首页。种子页本身就是英文时
+    /// 不找：`english.washington.edu`（英语系）以前被当成英文版入口拿保底分，英文站点上的
+    /// 计算机方向一路先抓英语系。
+    fn seeking_english(&self) -> bool {
+        self.english() && !self.english_home && !self.english_seed
+    }
+
     fn english_target(&self) -> bool {
         self.english() && (self.english_home || self.english_seed)
     }
@@ -298,7 +307,7 @@ impl Focus {
             Shape::Factor(furniture::FURNITURE_FACTOR)
         } else if self.english() && foreign_language_segment(url) {
             Shape::Factor(FOREIGN_LANGUAGE_FACTOR)
-        } else if self.english() && !self.english_home && self.english_entry(url, anchor) {
+        } else if self.seeking_english() && self.english_entry(url, anchor) {
             Shape::Floor(LANGUAGE_PORTAL_SCORE)
         } else {
             // 本站的一级栏目拿栏目的保底分；别的主机上的（子站的根或它的一级栏目）拿子站的
@@ -344,7 +353,7 @@ impl Focus {
     /// 这一页是不是本站英文版的首页（`/en/`、`/en.html`、`/top/en/`），而且是第一个：
     /// 它是第二个首页，链接不多衰减一层（它下面的 `/en/studies/` 按一级栏目算，见 [`section`]）。
     pub(crate) fn is_language_portal(&self, url: &Url) -> bool {
-        self.english() && !self.english_home && self.english_entry(url, None)
+        self.seeking_english() && self.english_entry(url, None)
     }
 
     /// 种子页用 hreflang 声明的英文版的分数（英文查询、还没找到英文首页时）：和英文入口一样，
@@ -352,8 +361,7 @@ impl Focus {
     /// 英文版，跟着走就成了按语言重抓一遍）。
     pub(crate) fn alternate_score(&self, lang: &str, depth: usize) -> Option<f32> {
         let english = lang == "en" || lang.starts_with("en-");
-        (self.english() && english && depth == 0 && !self.english_home)
-            .then_some(LANGUAGE_PORTAL_SCORE)
+        (self.seeking_english() && english && depth == 0).then_some(LANGUAGE_PORTAL_SCORE)
     }
 
     /// 查询词全是 ASCII（英文）。
