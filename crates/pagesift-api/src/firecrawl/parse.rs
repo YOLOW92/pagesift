@@ -16,7 +16,7 @@ use crate::limits::Caller;
 use crate::metrics::PageSource;
 use crate::server::AppState;
 use crate::types::{ScrapeOptions, ScrapeResponse, Upload, UploadKind};
-use crate::validate::{MAX_PARSE_FILE_BYTES, check_parse_options};
+use crate::validate::{MAX_PARSE_FILE_BYTES, MAX_URL_LEN, check_parse_options, check_url};
 
 /// `options` 字段的上限：JSON 选项再大也用不了 1 MB（json 格式的 schema 也够）。
 const MAX_OPTIONS_BYTES: usize = 1024 * 1024;
@@ -49,6 +49,7 @@ pub async fn parse(
 
     let mut file: Option<(Vec<u8>, String, Option<String>)> = None;
     let mut options: Option<ScrapeOptions> = None;
+    let mut page_url: Option<url::Url> = None;
     while let Some(field) = form.next_field().await.map_err(multipart_error)? {
         match field.name() {
             Some("file") => {
@@ -68,6 +69,15 @@ pub async fn parse(
             Some("options") => {
                 let raw = read_field(field, MAX_OPTIONS_BYTES, 0).await?;
                 options = Some(parse_options(&raw)?);
+            }
+            // pagesift 扩展：上传的 HTML 原来所在的网址，相对链接按它解析
+            Some("url") => {
+                let raw = read_field(field, MAX_URL_LEN, 0).await?;
+                let raw = std::str::from_utf8(&raw)
+                    .map_err(|_| ApiError::invalid("the 'url' field must be UTF-8 text"))?
+                    .trim();
+                check_url(raw)?;
+                page_url = url::Url::parse(raw).ok();
             }
             // 其他字段读过去不用，和 Firecrawl 一样
             _ => {}
@@ -93,6 +103,7 @@ pub async fn parse(
         filename,
         content_type,
         kind,
+        url: page_url,
     };
     let data = s.engine.parse(upload, &opts).await?;
     s.metrics.page(PageSource::Parse);

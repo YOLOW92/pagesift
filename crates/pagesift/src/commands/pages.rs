@@ -291,6 +291,7 @@ async fn parse_local(
         filename,
         content_type: None,
         kind,
+        url: None,
     };
     Ok(scraper.parse(upload, opts).await)
 }

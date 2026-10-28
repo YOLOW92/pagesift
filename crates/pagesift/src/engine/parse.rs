@@ -41,8 +41,13 @@ impl Scraper {
                 .filter(|c| c.to_ascii_lowercase().contains("html")),
             UploadKind::Pdf | UploadKind::Office(_) => None,
         };
+        // 调用方给了页面的原地址时，它就是来源；否则用文件名
+        let source = upload
+            .url
+            .as_ref()
+            .map_or_else(|| upload.filename.clone(), Url::to_string);
         let meta = Metadata {
-            source_url: Some(upload.filename.clone()),
+            source_url: Some(source),
             status_code: 200,
             content_type: Some(
                 content_type
@@ -77,15 +82,9 @@ impl Scraper {
             }
             UploadKind::Html => {
                 let html = pagesift_net::decode_owned(upload.bytes, content_type.as_deref(), None);
-                self.parse_html(
-                    html,
-                    &upload.filename,
-                    opts,
-                    (meta, ext),
-                    progress,
-                    deadline,
-                )
-                .await
+                let base = upload.url.unwrap_or_else(|| upload_base(&upload.filename));
+                self.parse_html(html, &base, opts, (meta, ext), progress, deadline)
+                    .await
             }
         }
     }
@@ -93,7 +92,7 @@ impl Scraper {
     async fn parse_html(
         &self,
         decoded: pagesift_net::Decoded,
-        filename: &str,
+        base: &Url,
         opts: &ScrapeOptions,
         (mut meta, mut ext): (Metadata, PagesiftMeta),
         mut p: Progress,
@@ -102,14 +101,13 @@ impl Scraper {
         if let Some(warning) = decoded.warning() {
             p.warnings.push(warning);
         }
-        let base = upload_base(filename);
         let stage = self
             .policy
             .fetcher()
             .acquire_stage(pagesift_net::NetworkStage::Parse)
             .await;
         let t = Instant::now();
-        let work = process_html(decoded.text, &base, Some(200), opts);
+        let work = process_html(decoded.text, base, Some(200), opts);
         let (doc, html) = match tokio::time::timeout_at(deadline.into(), work).await {
             Ok(Ok(result)) => {
                 stage.finish(pagesift_net::StageOutcome::Success);
@@ -152,6 +150,8 @@ impl Scraper {
         }
         fill_structured(&mut ext, &doc);
         fill_fingerprints(&mut ext, &doc);
+        // 正文可能不完整的警告（partial_content 等）和抓取时一样给
+        p.warnings.extend(doc.coverage.warnings());
         let raw_bytes = Some(thin_basis_bytes(&html, &doc.markdown));
         let video_fallback = doc.metadata.video_fallback;
         Ok(finish(
@@ -167,8 +167,8 @@ impl Scraper {
     }
 }
 
-/// 上传 HTML 里相对链接的基准：没有 `<base href>` 时按 `file:///<文件名>` 解析，
-/// 不冒充任何真实网址。
+/// 上传 HTML 里相对链接的基准：调用方没给页面地址（`url` 字段）、页面也没有 `<base href>` 时
+/// 按 `file:///<文件名>` 解析，不冒充任何真实网址。
 fn upload_base(filename: &str) -> Url {
     let mut base = Url::parse("file:///").expect("static URL");
     base.set_path(filename);

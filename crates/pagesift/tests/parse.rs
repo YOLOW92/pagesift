@@ -153,6 +153,18 @@ async fn upload(
     data: &[u8],
     options: Value,
 ) -> (StatusCode, Value) {
+    upload_with(app, name, ctype, data, options, &[]).await
+}
+
+/// 同 [`upload`]，另带几个文本字段（`url`）。
+async fn upload_with(
+    app: &Router,
+    name: &str,
+    ctype: &str,
+    data: &[u8],
+    options: Value,
+    fields: &[(&str, &str)],
+) -> (StatusCode, Value) {
     let b = "pagesiftTestBoundary";
     let mut body = format!(
         "--{b}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{name}\"\r\nContent-Type: {ctype}\r\n\r\n"
@@ -161,10 +173,17 @@ async fn upload(
     body.extend_from_slice(data);
     body.extend_from_slice(
         format!(
-            "\r\n--{b}\r\nContent-Disposition: form-data; name=\"options\"\r\n\r\n{options}\r\n--{b}--\r\n"
+            "\r\n--{b}\r\nContent-Disposition: form-data; name=\"options\"\r\n\r\n{options}\r\n"
         )
         .as_bytes(),
     );
+    for (name, value) in fields {
+        body.extend_from_slice(
+            format!("--{b}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n")
+                .as_bytes(),
+        );
+    }
+    body.extend_from_slice(format!("--{b}--\r\n").as_bytes());
     let req = Request::post("/v2/parse")
         .header("content-type", format!("multipart/form-data; boundary={b}"))
         .body(Body::from(body))
@@ -323,6 +342,64 @@ async fn html_upload_matches_scrape_of_the_same_bytes() {
     assert_eq!(b["metadata"]["sourceURL"], "page.html");
     // 猜出来的 file:///favicon.ico 不给
     assert!(b["metadata"].get("favicon").is_none(), "{b}");
+}
+
+#[tokio::test]
+async fn html_upload_resolves_links_against_the_given_page_url() {
+    let app = app();
+    let opts = json!({"formats": ["markdown", "links"]});
+    let page = "https://news.example.org/2026/10/story.html";
+    let (s, v) = upload_with(
+        &app,
+        "page.html",
+        "text/html",
+        HTML.as_bytes(),
+        opts.clone(),
+        &[("url", page)],
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let md = v["data"]["markdown"].as_str().unwrap();
+    assert!(
+        md.contains("(https://news.example.org/2026/10/rel/y)"),
+        "{md}"
+    );
+    assert!(!md.contains("file:"), "{md}");
+    assert_eq!(
+        v["data"]["links"],
+        json!([
+            "https://news.example.org/home",
+            "https://example.com/x",
+            "https://news.example.org/2026/10/rel/y"
+        ])
+    );
+    assert_eq!(v["data"]["metadata"]["sourceURL"], page);
+    // 页面自己的 <base href> 照样优先
+    let with_base = HTML.replace("<head>", "<head><base href=\"https://cdn.example.org/a/\">");
+    let (_, v) = upload_with(
+        &app,
+        "page.html",
+        "text/html",
+        with_base.as_bytes(),
+        opts.clone(),
+        &[("url", page)],
+    )
+    .await;
+    let md = v["data"]["markdown"].as_str().unwrap();
+    assert!(md.contains("(https://cdn.example.org/a/rel/y)"), "{md}");
+    // 不是 http(s) 网址的回 400
+    for bad in ["file:///etc/passwd", "not a url"] {
+        let (s, v) = upload_with(
+            &app,
+            "page.html",
+            "text/html",
+            HTML.as_bytes(),
+            opts.clone(),
+            &[("url", bad)],
+        )
+        .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{bad}: {v}");
+    }
 }
 
 #[tokio::test]

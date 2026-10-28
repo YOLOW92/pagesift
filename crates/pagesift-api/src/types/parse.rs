@@ -15,6 +15,9 @@ pub struct Upload {
     /// multipart 里这个文件的 Content-Type。
     pub content_type: Option<String>,
     pub kind: UploadKind,
+    /// 调用方给的页面原地址（`url` 字段）：HTML 的相对链接按它解析，也作为 `metadata.sourceURL`。
+    /// 只用来解析地址，不会去抓。
+    pub url: Option<url::Url>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

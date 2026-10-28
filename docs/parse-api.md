@@ -28,6 +28,7 @@
 | :--- | :--- | :--- |
 | `file` | 是 | 文件本身，上限 **50 MB**。文件名作为结果的 `metadata.sourceURL`（只保留最后一段路径）。 |
 | `options` | 否 | JSON 对象的字符串，字段同 scrape 的选项，见下表。 |
+| `url` | 否 | pagesift 扩展：上传的 HTML 原来所在的网址（http/https）。相对链接按它解析（页面里的 `<base href>` 仍然优先），它也作为 `metadata.sourceURL`。只用来解析地址，不会去抓。不给时相对链接解析成 `file:///…`，不进 `links`。 |
 
 ```bash
 curl -s http://localhost:3002/v2/parse \
