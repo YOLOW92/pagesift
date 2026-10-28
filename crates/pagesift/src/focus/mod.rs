@@ -43,6 +43,72 @@ const FOREIGN_LANGUAGE_FACTOR: f32 = furniture::FURNITURE_FACTOR;
 /// 同一页上指向同一个簇的链接超过这个数（新闻列表、展品列表），每条按 sqrt(上限/条数) 打折。
 pub(crate) const LIST_FREE: usize = 8;
 
+/// 词权重变化超过这么多（最大的那个词）才把排队的链接重新打分：权重随抓到的页面渐渐稳定，
+/// 后期几乎不用重算；队列长度不超过 limit，一次重算很便宜。
+const RESCORE_DELTA: f32 = 0.05;
+
+/// 页面相关度的组成：标题、正文命中的查询词，枢纽页和家具页的折扣。
+/// `fixed` 是直接给定的相关度（没有页面可看的链接，测试）。
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct PageSignal {
+    title: u64,
+    body: u64,
+    factor: f32,
+    fixed: f32,
+}
+
+impl PageSignal {
+    pub(crate) fn fixed(relevance: f32) -> Self {
+        Self {
+            fixed: relevance,
+            ..Self::default()
+        }
+    }
+}
+
+/// URL 的形状对分数的作用：打折（家具、日期、别的语言），保底（栏目、子站、英文入口），
+/// 或者直接给定（种子页、hreflang 声明的英文版）。
+#[derive(Clone, Copy, Debug)]
+enum Shape {
+    Plain,
+    Factor(f32),
+    Floor(f32),
+    Fixed(f32),
+}
+
+/// 链接分数的组成（见 [`Focus::link_signal`]）。
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct LinkSignal {
+    anchor: u64,
+    locator: u64,
+    context: u64,
+    parent: PageSignal,
+    shape: Shape,
+    depth: u8,
+    /// 调用方另乘的折扣（模板降级、同一页上的长列表）。
+    factor: f32,
+}
+
+impl LinkSignal {
+    /// 直接给定分数的链接：重新打分时不变。
+    pub(crate) fn fixed(score: f32) -> Self {
+        Self {
+            anchor: 0,
+            locator: 0,
+            context: 0,
+            parent: PageSignal::default(),
+            shape: Shape::Fixed(score),
+            depth: 0,
+            factor: 1.0,
+        }
+    }
+
+    /// 另乘一个折扣。
+    pub(crate) fn scale(&mut self, factor: f32) {
+        self.factor *= factor;
+    }
+}
+
 /// 查询和从它派生的打分规则。
 pub(crate) struct Focus {
     pub query: Query,
@@ -51,6 +117,8 @@ pub(crate) struct Focus {
     host: Option<String>,
     /// 已经抓到本站的英文版首页：之后别的 `/xx/en/` 不再拿英文入口的保底分（那是子栏目的英文版）。
     english_home: bool,
+    /// 排队链接上一次打分时的词权重（见 [`Self::weights_moved`]）。
+    scored_with: Vec<f32>,
 }
 
 impl Focus {
@@ -58,6 +126,7 @@ impl Focus {
         let query = Query::new(query);
         let weights = TermWeights::new(query.len());
         Self {
+            scored_with: weights.current().to_vec(),
             query,
             weights,
             host: None,
@@ -109,12 +178,9 @@ impl Focus {
         self.weights.observe(self.query.hit_mask(markdown));
     }
 
-    fn coverage(&self, text: &str) -> f32 {
-        self.weights.coverage(self.query.hit_mask(text))
-    }
-
     /// 页面和查询的相关度，0 到 1：标题和正文各占一半；枢纽页（链接标签以外的正文比链接少）和
     /// 家具页打折。`links` 是页面上的链接数。
+    #[cfg(test)]
     pub(crate) fn page_relevance(
         &self,
         url: &Url,
@@ -122,14 +188,51 @@ impl Focus {
         markdown: &str,
         links: usize,
     ) -> f32 {
-        let mut r = 0.5 * self.coverage(title.unwrap_or_default()) + 0.5 * self.coverage(markdown);
+        self.relevance(&self.page_signal(url, title, markdown, links))
+    }
+
+    /// 相关度的组成（见 [`Self::page_relevance`]）：词权重变了以后按它重算。
+    pub(crate) fn page_signal(
+        &self,
+        url: &Url,
+        title: Option<&str>,
+        markdown: &str,
+        links: usize,
+    ) -> PageSignal {
+        let mut factor = 1.0;
         if furniture::is_hub(links, prose_words(markdown)) {
-            r *= furniture::HUB_FACTOR;
+            factor *= furniture::HUB_FACTOR;
         }
         if furniture::is_furniture_url(url, &self.wanted()) {
-            r *= furniture::FURNITURE_FACTOR;
+            factor *= furniture::FURNITURE_FACTOR;
         }
-        r
+        PageSignal {
+            title: self.query.hit_mask(title.unwrap_or_default()),
+            body: self.query.hit_mask(markdown),
+            factor,
+            fixed: 0.0,
+        }
+    }
+
+    pub(crate) fn relevance(&self, p: &PageSignal) -> f32 {
+        p.fixed
+            + p.factor
+                * (0.5 * self.weights.coverage(p.title) + 0.5 * self.weights.coverage(p.body))
+    }
+
+    /// 词权重和上次重新打分时比变得够多了（变化最大的词差 [`RESCORE_DELTA`] 以上）：
+    /// 排队链接的分数要按新权重重算。返回 true 时记下现在的权重。
+    pub(crate) fn weights_moved(&mut self) -> bool {
+        let moved = self
+            .weights
+            .current()
+            .iter()
+            .zip(&self.scored_with)
+            .any(|(a, b)| (a - b).abs() > RESCORE_DELTA);
+        if moved {
+            self.scored_with = self.weights.current().to_vec();
+        }
+        moved
     }
 
     /// 一个词是不是查询要找的：查 "api"、"events" 时，`/api/`、`/events/` 不是家具。
@@ -147,35 +250,69 @@ impl Focus {
         parent: f32,
         depth: usize,
     ) -> f32 {
-        let anchor_mask = self.query.hit_mask(anchor.unwrap_or_default());
-        let mut raw = W_ANCHOR * self.weights.coverage(anchor_mask)
-            + W_LOCATOR * self.coverage(&locator(url))
-            + W_CONTEXT * self.coverage(context.unwrap_or_default())
-            + W_PARENT * parent;
-        if anchor_mask.count_ones() >= 2 {
-            raw += PHRASE_BONUS;
-        }
+        self.score(&self.link_signal(url, anchor, context, PageSignal::fixed(parent), depth))
+    }
+
+    /// 链接分数的组成（见 [`Self::score`]）：命中了哪些词、所在页面、URL 的形状和深度。
+    /// 存下它，词权重变了以后不用再看一遍页面就能重算分数。
+    pub(crate) fn link_signal(
+        &self,
+        url: &Url,
+        anchor: Option<&str>,
+        context: Option<&str>,
+        parent: PageSignal,
+        depth: usize,
+    ) -> LinkSignal {
         let wanted = self.wanted();
         let furniture = furniture::is_furniture_url(url, &wanted)
             || anchor.is_some_and(|a| furniture::is_furniture_anchor(a, &wanted));
-        if furniture::is_dated_url(url) {
+        let shape = if furniture::is_dated_url(url) {
             // 按日期归档的文章是叶子：再切题也通不到别处
-            raw *= furniture::DATED_FACTOR;
+            Shape::Factor(furniture::DATED_FACTOR)
         } else if furniture {
-            raw *= furniture::FURNITURE_FACTOR;
+            Shape::Factor(furniture::FURNITURE_FACTOR)
         } else if self.english() && foreign_language_segment(url) {
-            raw *= FOREIGN_LANGUAGE_FACTOR;
+            Shape::Factor(FOREIGN_LANGUAGE_FACTOR)
         } else if self.english() && !self.english_home && self.english_entry(url, anchor) {
-            raw = raw.max(LANGUAGE_PORTAL_SCORE);
+            Shape::Floor(LANGUAGE_PORTAL_SCORE)
         } else {
             // 本站的一级栏目拿栏目的保底分；别的主机上的（子站的根或它的一级栏目）拿子站的
             match section(url, anchor) {
-                Some(Section::SameHost) if self.same_host(url) => raw = raw.max(SECTION_PRIOR),
-                Some(_) => raw = raw.max(SUBSITE_PRIOR),
-                None => {}
+                Some(Section::SameHost) if self.same_host(url) => Shape::Floor(SECTION_PRIOR),
+                Some(_) => Shape::Floor(SUBSITE_PRIOR),
+                None => Shape::Plain,
             }
+        };
+        LinkSignal {
+            anchor: self.query.hit_mask(anchor.unwrap_or_default()),
+            locator: self.query.hit_mask(&locator(url)),
+            context: self.query.hit_mask(context.unwrap_or_default()),
+            parent,
+            shape,
+            depth: depth.min(64) as u8,
+            factor: 1.0,
         }
-        raw * DEPTH_DECAY.powi(depth.min(64) as i32)
+    }
+
+    /// 链接的分数：锚文本、URL、所在行按当前词权重的覆盖率，加上所在页面的相关度，
+    /// 按 URL 的形状打折或给保底分，再按深度衰减。
+    pub(crate) fn score(&self, s: &LinkSignal) -> f32 {
+        let raw = W_ANCHOR * self.weights.coverage(s.anchor)
+            + W_LOCATOR * self.weights.coverage(s.locator)
+            + W_CONTEXT * self.weights.coverage(s.context)
+            + W_PARENT * self.relevance(&s.parent)
+            + if s.anchor.count_ones() >= 2 {
+                PHRASE_BONUS
+            } else {
+                0.0
+            };
+        let raw = match s.shape {
+            Shape::Plain => raw,
+            Shape::Factor(f) => raw * f,
+            Shape::Floor(f) => raw.max(f),
+            Shape::Fixed(v) => return v * s.factor,
+        };
+        raw * DEPTH_DECAY.powi(i32::from(s.depth)) * s.factor
     }
 
     /// 这一页是不是本站英文版的首页（`/en/`、`/en.html`、`/top/en/`），而且是第一个：

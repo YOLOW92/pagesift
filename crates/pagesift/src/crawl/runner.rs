@@ -11,7 +11,10 @@ use pagesift_policy::adaptive::AdaptiveConcurrencyGate;
 
 use super::attachments::{Attachments, is_document_url};
 use crate::engine::Scraper;
-use crate::focus::{Adaptive, BestFirst, Focus, MIN_RELEVANCE, Offer, cluster_key, link_contexts};
+use crate::focus::{
+    Adaptive, BestFirst, Focus, LinkSignal, MIN_RELEVANCE, Offer, PageSignal, cluster_key,
+    link_contexts,
+};
 use crate::frontier::{Learner, Seen, Tiered};
 use pagesift_api::types::CrawlTrace;
 
@@ -294,7 +297,7 @@ impl Scraper {
         // 去重表只记已调度和正在排队的页面；被挤出队列的链接从表里删掉，以后还能以更高的分数回来。
         // 两者加起来不超过 limit，和广度优先一样有界
         let mut seen: HashSet<u64> = HashSet::new();
-        let mut queue = BestFirst::default();
+        let mut queue: BestFirst<LinkSignal> = BestFirst::default();
         let mut learner = Learner::default();
         let mut retries = Retries::default();
         // 有页面因为 limit 没能进队列
@@ -329,17 +332,17 @@ impl Scraper {
         // 新入队的 URL（持久化的任务要回报）
         let mut fresh: Vec<(String, usize)> = Vec::new();
         // 放进队列，维护去重表；返回有没有页面因为 limit 被挤掉或进不来
-        let offer = |queue: &mut BestFirst,
+        let offer = |queue: &mut BestFirst<LinkSignal>,
                      seen: &mut HashSet<u64>,
                      fresh: &mut Vec<(String, usize)>,
                      u: Url,
                      depth: usize,
-                     score: f32,
+                     (score, signal): (f32, LinkSignal),
                      room: usize|
          -> bool {
             let h = seen_hash(&u, ignore_query);
             let entry = track.then(|| (u.to_string(), depth));
-            match queue.offer(h, u, depth, score, room) {
+            match queue.offer(h, u, depth, score, signal, room) {
                 Offer::Queued => {
                     seen.insert(h);
                     fresh.extend(entry);
@@ -373,8 +376,9 @@ impl Scraper {
             let mut known = Vec::new();
             for (u, depth) in r.pending {
                 if let Ok(u) = Url::parse(&u) {
-                    let score = focus.link_score(&u, None, None, 0.0, depth);
-                    overflow |= offer(&mut queue, &mut seen, &mut known, u, depth, score, room);
+                    let s = focus.link_signal(&u, None, None, PageSignal::default(), depth);
+                    let scored = (focus.score(&s), s);
+                    overflow |= offer(&mut queue, &mut seen, &mut known, u, depth, scored, room);
                 }
             }
         } else {
@@ -384,7 +388,7 @@ impl Scraper {
                 &mut fresh,
                 start.clone(),
                 0,
-                f32::INFINITY,
+                (f32::INFINITY, LinkSignal::fixed(f32::INFINITY)),
                 req.limit,
             );
             for u in self.initial_sitemap(&c, &start).await {
@@ -398,8 +402,9 @@ impl Scraper {
                 if !scope.allows(&u) || seen.contains(&seen_hash(&u, ignore_query)) {
                     continue;
                 }
-                let score = focus.link_score(&u, None, None, 0.0, 0);
-                overflow |= offer(&mut queue, &mut seen, &mut fresh, u, 0, score, req.limit);
+                let s = focus.link_signal(&u, None, None, PageSignal::default(), 0);
+                let scored = (focus.score(&s), s);
+                overflow |= offer(&mut queue, &mut seen, &mut fresh, u, 0, scored, req.limit);
             }
         }
         if !fresh.is_empty() {
@@ -433,10 +438,24 @@ impl Scraper {
                             break;
                         }
                         let mut next = queue.pop_diverse(&clusters, cluster_cap);
-                        while let Some((u, _, _)) = &next
-                            && host_blocked(&host_failures, u)
-                        {
-                            next = queue.pop_diverse(&clusters, cluster_cap);
+                        while let Some((u, _, _)) = &mut next {
+                            if host_blocked(&host_failures, u) {
+                                next = queue.pop_diverse(&clusters, cluster_cap);
+                                continue;
+                            }
+                            // 入队之后学到的改写规则（`?ref=` 这类不改内容的参数）：
+                            // 改写后已经见过的就不抓了；父页记录跟着改写后的地址走
+                            let before = seen_hash(u, ignore_query);
+                            if learner.rewrite(u) {
+                                let after = seen_hash(u, ignore_query);
+                                let parent = parents.remove(&before);
+                                if !seen.insert(after) {
+                                    next = queue.pop_diverse(&clusters, cluster_cap);
+                                    continue;
+                                }
+                                parents.extend(parent.map(|p| (after, p)));
+                            }
+                            break;
                         }
                         next.map(|(u, d, s)| {
                             scheduled += 1;
@@ -517,7 +536,15 @@ impl Scraper {
                     .await;
                 }
                 Ok(mut doc) => {
-                    note_duplicate(&mut learner, &url, &mut doc);
+                    // 和已经交付的某页全文相同（同一页的不同写法）：不交付、不占预算，
+                    // 它的链接和那一页一样
+                    if note_duplicate(&mut learner, &url, &mut doc) && !is_attachment {
+                        if refunds < req.limit {
+                            refunds += 1;
+                            scheduled -= 1;
+                        }
+                        continue;
+                    }
                     let base = doc
                         .metadata
                         .url
@@ -538,12 +565,13 @@ impl Scraper {
                     // 正文里的链接（导航、页脚不算）：枢纽页的判断按它，真实站点的大菜单有几百条链接
                     let contexts = link_contexts(md);
                     focus.observe_page(md);
-                    let relevance = focus.page_relevance(
-                        &base,
-                        doc.metadata.title.as_deref(),
-                        md,
-                        contexts.len(),
-                    );
+                    // 词权重变了：排队的链接按新权重重排（入队时各页的词权重不一样，分数不可比）
+                    if focus.weights_moved() {
+                        queue.rescore(|s| focus.score(s));
+                    }
+                    let page =
+                        focus.page_signal(&base, doc.metadata.title.as_deref(), md, contexts.len());
+                    let relevance = focus.relevance(&page);
                     if stop.is_none()
                         && let Some(a) = adaptive.as_mut()
                     {
@@ -578,9 +606,10 @@ impl Scraper {
                                 {
                                     continue;
                                 }
-                                let score = focus.link_score(&u, None, None, 0.0, 0);
+                                let s = focus.link_signal(&u, None, None, PageSignal::default(), 0);
+                                let scored = (focus.score(&s), s);
                                 overflow |=
-                                    offer(&mut queue, &mut seen, &mut fresh, u, 0, score, room);
+                                    offer(&mut queue, &mut seen, &mut fresh, u, 0, scored, room);
                             }
                         }
                     }
@@ -641,25 +670,35 @@ impl Scraper {
                                 .map(|c| c.anchor.as_str())
                                 .or_else(|| anchors.get(link.as_str()).copied())
                                 .filter(|a| !a.is_empty());
-                            let mut score = focus.link_score(
+                            let mut signal = focus.link_signal(
                                 &u,
                                 anchor,
                                 ctx.map(|c| c.line.as_str()),
-                                relevance,
+                                page,
                                 link_depth,
                             );
                             if learner.demoted(&u) {
-                                score *= DEMOTED_SCORE;
+                                signal.scale(DEMOTED_SCORE);
                             }
                             let siblings = per_cluster.get(&cluster_key(&u)).copied().unwrap_or(1);
                             // 英文入口和院系子站首页同簇，但它不是列表里的一项
                             if siblings > crate::focus::LIST_FREE && !focus.is_language_portal(&u) {
-                                score *= (crate::focus::LIST_FREE as f32 / siblings as f32).sqrt();
+                                signal.scale(
+                                    (crate::focus::LIST_FREE as f32 / siblings as f32).sqrt(),
+                                );
                             }
+                            let scored = (focus.score(&signal), signal);
                             let room = room_left(req.limit, scheduled, refunds);
                             let was_queued = queue.contains(h);
-                            overflow |=
-                                offer(&mut queue, &mut seen, &mut fresh, u, depth + 1, score, room);
+                            overflow |= offer(
+                                &mut queue,
+                                &mut seen,
+                                &mut fresh,
+                                u,
+                                depth + 1,
+                                scored,
+                                room,
+                            );
                             // 第一次发现它的页面是父页；分数被抬高时父页不换
                             if queue.contains(h) && !was_queued {
                                 parents.insert(h, base.to_string());
@@ -678,8 +717,9 @@ impl Scraper {
                                 continue;
                             }
                             let room = room_left(req.limit, scheduled, refunds);
+                            let scored = (score, LinkSignal::fixed(score));
                             overflow |=
-                                offer(&mut queue, &mut seen, &mut fresh, u, depth, score, room);
+                                offer(&mut queue, &mut seen, &mut fresh, u, depth, scored, room);
                             if queue.contains(h) {
                                 parents.insert(h, base.to_string());
                             }
@@ -792,13 +832,19 @@ fn host_blocked(failures: &HashMap<String, u32>, u: &Url) -> bool {
         .is_some_and(|&n| n >= HOST_FAILURE_LIMIT)
 }
 
-/// 记下抓到的页面内容；和之前某页全文相同时在元数据里标出那一页。
-fn note_duplicate(learner: &mut Learner, url: &Url, doc: &mut pagesift_api::types::Document) {
+/// 记下抓到的页面内容；和之前某页全文相同时在元数据里标出那一页，返回 true。
+fn note_duplicate(
+    learner: &mut Learner,
+    url: &Url,
+    doc: &mut pagesift_api::types::Document,
+) -> bool {
     let md = doc.markdown.as_deref().unwrap_or_default();
     if let Seen::Duplicate(first) = learner.observe(url, md) {
         doc.metadata
             .pagesift
             .get_or_insert_with(Default::default)
             .duplicate_of = Some(first);
+        return true;
     }
+    false
 }

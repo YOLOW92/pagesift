@@ -388,3 +388,51 @@ async fn focused_crawl_records_its_frontier_and_resumes_from_it() {
     );
     assert_eq!(resumed.summary.lock().unwrap().clone().unwrap().pages, 4);
 }
+
+/// 首页从导航、页脚、侧栏三处链到同一页，只差一个跟踪参数（`?ref=`）：同一页只交付一次、
+/// 不占预算；抓到两个写法内容相同以后学到这个参数没用，排队的第三个写法改写后跳过。
+#[tokio::test]
+async fn url_variants_of_one_page_are_delivered_once() {
+    let app = Router::new()
+        .route(
+            "/kb/",
+            get(|| async {
+                plain(
+                    "Help center",
+                    &[
+                        ("/kb/billing?ref=nav", "Refund billing"),
+                        ("/kb/billing?ref=footer", "Refund billing"),
+                        ("/kb/billing?ref=side", "Refund billing"),
+                        ("/kb/refund-a", "Refund rules"),
+                        ("/kb/refund-b", "Refund timeline"),
+                    ],
+                )
+            }),
+        )
+        .route(
+            "/kb/billing",
+            get(|| async { page("Billing", &["How a refund is billed."], &[]) }),
+        )
+        .route(
+            "/kb/refund-a",
+            get(|| async { page("Refund rules", &["Refund rules apply."], &[]) }),
+        )
+        .route(
+            "/kb/refund-b",
+            get(|| async { page("Refund timeline", &["Refund in five days."], &[]) }),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let base = format!("http://{addr}");
+
+    let c = crawl(&base, json!({ "query": "refund", "limit": 4 })).await;
+    let mut titles = order(&c);
+    assert_eq!(titles.len(), 4, "{titles:?}");
+    titles.sort();
+    assert_eq!(
+        titles,
+        ["Billing", "Help center", "Refund rules", "Refund timeline"],
+        "each page once, and the duplicates did not use up the limit"
+    );
+}

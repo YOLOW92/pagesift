@@ -62,8 +62,7 @@ impl TermWeights {
         hit / total
     }
 
-    #[cfg(test)]
-    pub(crate) fn weights(&self) -> &[f32] {
+    pub(crate) fn current(&self) -> &[f32] {
         &self.weights
     }
 }
@@ -79,7 +78,7 @@ mod tests {
         for page in 0..6u64 {
             w.observe(0b001 | if page % 3 == 0 { 0b010 } else { 0 });
         }
-        let ws = w.weights();
+        let ws = w.current();
         assert!(ws[0] < ws[1] && ws[1] < ws[2], "{ws:?}");
         assert_eq!(ws[2], 1.0);
         assert!(ws[0] >= MIN_WEIGHT);
@@ -93,7 +92,7 @@ mod tests {
         let mut w = TermWeights::new(2);
         w.observe(0b01);
         w.observe(0b01);
-        assert_eq!(w.weights(), &[1.0, 1.0]);
+        assert_eq!(w.current(), &[1.0, 1.0]);
         assert_eq!(w.coverage(0b01), 0.5);
     }
 }

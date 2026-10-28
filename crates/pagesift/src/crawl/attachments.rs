@@ -51,7 +51,7 @@ impl Attachments {
             return;
         }
         let room = self.limit.saturating_sub(self.scheduled);
-        match self.queue.offer(hash, url, depth, score, room) {
+        match self.queue.offer(hash, url, depth, score, (), room) {
             Offer::Queued => {
                 self.seen.insert(hash);
             }

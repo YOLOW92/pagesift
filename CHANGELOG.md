@@ -14,6 +14,16 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
   An engine that is installed but crashes on launch is reported: `FAIL` when no engine starts,
   `WARN` when another engine covers for it (with what that means for rendering).
 
+### Changed
+- Focused crawl (`--query`): queued links are re-scored when the term weights change. Weights
+  are learned from the pages fetched so far, and until now each link kept the score it got
+  when it was found, so the first links from the homepage (scored before any weights existed)
+  stayed ahead of better links found later.
+- Focused crawl: a page whose text is identical to one already delivered (the same page under
+  another URL, such as `?ref=` tracking variants) is not delivered and does not count against
+  `limit`; once two variants prove a query parameter changes nothing, queued variants are
+  rewritten and skipped. On a 62-university run, same-path duplicates fell from 38 to 7.
+
 ### Fixed
 - Browser engines are also looked for outside `PATH`: `~/.local/bin`, `~/bin`, `/usr/local/bin`,
   `/usr/bin` and `/opt/homebrew/bin` (`sudo`, systemd and cron often start pagesift with a
