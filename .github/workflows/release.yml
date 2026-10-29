@@ -79,12 +79,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # pgo：本机能运行这个目标的二进制，才能跑训练负载做 PGO
         include:
-          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
-          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
-          - { os: macos-latest, target: aarch64-apple-darwin }
-          # 只编译不运行，在 Apple Silicon 上交叉编译：Intel 机器少、慢，常要排队
-          - { os: macos-latest, target: x86_64-apple-darwin }
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, pgo: true }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, pgo: true }
+          - { os: macos-latest, target: aarch64-apple-darwin, pgo: true }
+          # 只编译不运行，在 Apple Silicon 上交叉编译：Intel 机器少、慢，常要排队；跑不了训练，不做 PGO
+          - { os: macos-latest, target: x86_64-apple-darwin, pgo: false }
     steps:
       - uses: actions/checkout@v7
         with:
@@ -93,7 +94,51 @@ jobs:
         with:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release --locked -p pagesift --target ${{ matrix.target }}
+      # PGO：插桩编译 → 跑训练负载（scripts/pgo_train.sh，全程离线）→ 合并画像 → 按画像编译最终二进制。
+      # PGO 只是锦上添花：这一步任何地方失败（含超时）都不挡发布，下一步回退到普通编译再打包。
+      - name: Build with PGO
+        id: pgo
+        if: matrix.pgo
+        continue-on-error: true
+        timeout-minutes: 60
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          PGO_DIR: ${{ runner.temp }}/pgo
+        run: |
+          set -euo pipefail
+          # llvm-profdata 用 rustup 的 llvm-tools，和 rustc 的 LLVM 版本一致，画像格式才对得上
+          rustup component add llvm-tools-preview
+          profdata=
+          for tool in "$(rustc --print sysroot)"/lib/rustlib/*/bin/llvm-profdata; do
+            [ -x "$tool" ] && profdata=$tool && break
+          done
+          [ -n "$profdata" ] || { echo "llvm-profdata not found in the rustup llvm-tools component" >&2; exit 1; }
+          rm -rf "$PGO_DIR"
+          mkdir -p "$PGO_DIR/profraw"
+          # 插桩版放在 target/ 之外的单独目录：不和正式产物混在一起，rust-cache 也不会把它存进缓存
+          CARGO_TARGET_DIR="$PGO_DIR/target" RUSTFLAGS="-Cprofile-generate=$PGO_DIR/profraw" \
+            cargo build --release --locked -p pagesift --target "$TARGET"
+          scripts/pgo_train.sh "$PGO_DIR/target/$TARGET/release/pagesift" "$PGO_DIR/train"
+          count=$(find "$PGO_DIR/profraw" -name '*.profraw' | wc -l | tr -d ' ')
+          [ "$count" -gt 0 ] || { echo "training wrote no .profraw files" >&2; exit 1; }
+          "$profdata" merge -o "$PGO_DIR/merged.profdata" "$PGO_DIR/profraw"
+          # 不加 -Cllvm-args=-pgo-warn-missing-function：训练覆盖不到的函数很多，警告只会刷屏
+          RUSTFLAGS="-Cprofile-use=$PGO_DIR/merged.profdata" \
+            cargo build --release --locked -p pagesift --target "$TARGET"
+          "target/$TARGET/release/pagesift" --version
+          echo "::notice::PGO build for $TARGET ($count profiles merged)"
+      # 不做 PGO 的目标照旧编译；做 PGO 但失败了的，回退到同一条普通编译命令（RUSTFLAGS 不同，cargo 会整体重编）
+      - name: Build
+        if: ${{ !matrix.pgo || steps.pgo.outcome != 'success' }}
+        shell: bash
+        run: |
+          if [ "${{ matrix.pgo }}" = true ]; then
+            echo "::warning::PGO failed for ${{ matrix.target }} (outcome: ${{ steps.pgo.outcome }}); falling back to a regular release build"
+          else
+            echo "::notice::PGO not used for ${{ matrix.target }} (cross-compiled, cannot run the training workload)"
+          fi
+          cargo build --release --locked -p pagesift --target ${{ matrix.target }}
       - name: Package
         shell: bash
         run: |

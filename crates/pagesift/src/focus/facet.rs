@@ -157,7 +157,14 @@ impl FacetStats {
             return;
         }
         let n = f64::from(self.pages);
-        let idf = |df: u32| ((n + 1.0) / (f64::from(df) + 0.5)).ln().max(0.0) as f32;
+        // 哪一页都没有的单位分不出页面，不计权重（否则它的 IDF 最大、证据永远是 0，把每页都压低）
+        let idf = |df: u32| {
+            if df == 0 {
+                0.0
+            } else {
+                ((n + 1.0) / (f64::from(df) + 0.5)).ln().max(0.0) as f32
+            }
+        };
         let t = self.terms;
         for k in 0..t {
             self.weights[k] = idf(self.df[k]);
