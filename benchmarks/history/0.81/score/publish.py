@@ -30,28 +30,28 @@ FILES = {
 LABEL = {
     "en": dict(title="Performance at a glance", far="Far ahead", ahead="Ahead", gaps="Largest gaps",
                home="How PageSift compares", behind="Still behind", closest="Closest comparisons",
-               head=["Domain", "Workload", "Metric", "PageSift 0.81", "Fastest rival", "Rival", "Gap", "Rival data"],
+               head=["Domain", "Workload", "Metric", "PageSift 0.81", "Fastest rival", "Rival", "Gap"],
                mem="Peak MB/worker (PageSift / rival)",
                a2note="A2 was re-fetched on 2026-10-29; its absolute times are not directly comparable with the 10-28 A2.",
                intro="PageSift {v} was re-measured on {date}; competitor numbers are the recorded 2026-10-21/22/27/28 data and were not re-run. One row per workload, best PageSift configuration; memory is a column, not a separate rank.",
                report="Full report"),
     "zh": dict(title="性能一览", far="大幅领先", ahead="领先", gaps="最大差距",
                home="和同类工具比", behind="仍落后", closest="最接近的对照",
-               head=["领域", "工作负载", "指标", "PageSift 0.81", "最快对手", "对手", "差距", "对手数据"],
+               head=["领域", "工作负载", "指标", "PageSift 0.81", "最快对手", "对手", "差距"],
                mem="峰值内存 MB（PageSift / 对手）",
                a2note="A2 的 269 页于 2026-10-29 重新抓取，绝对耗时不能和 10-28 的 A2 直接比较。",
                intro="PageSift {v} 于 {date} 新测；竞品为 2026-10-21/22/27/28 的原始数据，未重跑。每行一个工作负载，PageSift 取该负载的最佳配置；内存单列，不单独进榜。",
                report="完整报告"),
     "ja": dict(title="パフォーマンス概要", far="大幅リード", ahead="リード", gaps="最大の差",
                home="他ツールとの比較", behind="まだ後れている項目", closest="最も接近した比較",
-               head=["分野", "ワークロード", "指標", "PageSift 0.81", "最速の競合", "競合", "差", "競合データ"],
+               head=["分野", "ワークロード", "指標", "PageSift 0.81", "最速の競合", "競合", "差"],
                mem="ピークメモリ MB（PageSift / 競合）",
                a2note="A2 は 2026-10-29 に再取得したため、絶対時間は 10-28 の A2 と直接比較できません。",
                intro="PageSift {v} を {date} に再計測。競合の数値は 2026-10-21/22/27/28 の記録で、再実行していません。1 行 = 1 ワークロード、PageSift は最良の構成。メモリは列で、別の順位にはしません。",
                report="完全なレポート"),
     "es": dict(title="Rendimiento de un vistazo", far="Muy por delante", ahead="Por delante", gaps="Mayores diferencias",
                home="Cómo se compara PageSift", behind="Aún por detrás", closest="Comparaciones más cercanas",
-               head=["Dominio", "Carga de trabajo", "Métrica", "PageSift 0.81", "Rival más rápido", "Rival", "Diferencia", "Datos del rival"],
+               head=["Dominio", "Carga de trabajo", "Métrica", "PageSift 0.81", "Rival más rápido", "Rival", "Diferencia"],
                mem="MB pico/trabajador (PageSift / rival)",
                a2note="A2 se volvió a capturar el 2026-10-29; sus tiempos absolutos no son comparables con los del A2 del 10-28.",
                intro="PageSift {v} se midió de nuevo el {date}; los números de la competencia son los registros del 2026-10-21/22/27/28 y no se repitieron. Una fila por carga de trabajo, la mejor configuración de PageSift; la memoria es una columna, no una clasificación aparte.",
@@ -100,7 +100,7 @@ def table(rows, lang):
     show_mem = any(r.get("psift_mem_value") is not None or r.get("rival_mem_value") is not None for r in rows)
     head = list(L["head"])
     if show_mem:
-        head.insert(-1, L["mem"])
+        head.append(L["mem"])
     out = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
     for r in rows:
         domain = r["domain_zh"] if lang == "zh" else r["domain_en"]
@@ -110,7 +110,6 @@ def table(rows, lang):
                  fmt(r, r["rival"]), f"**{gap(r)}**"]
         if show_mem:
             cells.append(mem_cell(r))
-        cells.append(r["rival_date"])
         out.append("| " + " | ".join(cells) + " |")
     return "\n".join(out)
 

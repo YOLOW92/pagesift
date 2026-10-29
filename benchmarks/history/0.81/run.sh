@@ -53,17 +53,21 @@ cp -f "$MIX/inputs"/*.manifest "$RUN/manifests/" 2>/dev/null || true
 cp -f "$MIX/inputs"/manifests/*.tsv "$RUN/manifests/" 2>/dev/null || true
 [[ -f "$MIX/inputs/prep.txt" ]] && cp -f "$MIX/inputs/prep.txt" "$RUN/prep.txt"
 
-{
-    echo "run	$RUN"
-    echo "archive	$ARCHIVE"
-    echo "started	$(date -Is)"
-    echo "pagesift	$PAGESIFT_VERSION"
-    echo "binary	$BIN"
-    echo "binary_sha256	$(sha256sum "$BIN" | cut -d' ' -f1)"
-    echo "git_head	$(git -C "$REPO" rev-parse HEAD)"
-    echo "git_status_begin"
-    git -C "$REPO" status --short
-} > "$RUN/run.txt"
+# Keep the original timeline when `run.sh report` is run later against the
+# same RUN_ROOT; only a fresh run creates run.txt.
+if [[ ! -f "$RUN/run.txt" ]]; then
+    {
+        echo "run	$RUN"
+        echo "archive	$ARCHIVE"
+        echo "started	$(date -Is)"
+        echo "pagesift	$PAGESIFT_VERSION"
+        echo "binary	$BIN"
+        echo "binary_sha256	$(sha256sum "$BIN" | cut -d' ' -f1)"
+        echo "git_head	$(git -C "$REPO" rev-parse HEAD)"
+        echo "git_status_begin"
+        git -C "$REPO" status --short
+    } > "$RUN/run.txt"
+fi
 
 archive() {
     mkdir -p "$ARCHIVE"
@@ -119,7 +123,7 @@ for s in "${STAGES[@]}"; do
     esac
 done
 
-echo "finished	$(date -Is)" >> "$RUN/run.txt"
+grep -q '^finished' "$RUN/run.txt" || echo "finished	$(date -Is)" >> "$RUN/run.txt"
 archive
 if [[ " ${STAGES[*]} " == *" report "* ]]; then
     :

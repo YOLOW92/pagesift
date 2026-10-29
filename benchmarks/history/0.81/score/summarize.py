@@ -145,12 +145,10 @@ def table(rows, lang):
         head = ["领域", "工作负载", "指标", "PageSift 0.81", "最快对手", "对手", "差距"]
         if show_mem:
             head.append("峰值内存 MB（PageSift / 对手）")
-        head.append("对手数据")
     else:
         head = ["Domain", "Workload", "Metric", "PageSift 0.81", "Fastest rival", "Rival", "Gap"]
         if show_mem:
             head.append("Peak MB/worker (PageSift / rival)")
-        head.append("Rival data")
     lines = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
     for r in rows:
         vals = r["_fmt"]
@@ -162,7 +160,6 @@ def table(rows, lang):
         ]
         if show_mem:
             cells.append(mem_cell(r))
-        cells.append(r["rival_date"])
         lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines) + "\n"
 
