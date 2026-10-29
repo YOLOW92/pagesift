@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.80.10
+# pagesift 0.81.0
 
 **High-performance, memory-bounded web scraping and extraction engine built for AI agents and LLM pipelines.**  
 Turn any website, document, or archive into clean Markdown and structured data — one Rust binary, native SDKs, dual Firecrawl v1/v2 & Jina Reader APIs, at a fraction of the memory.
@@ -27,7 +27,7 @@ Turn any website, document, or archive into clean Markdown and structured data �
 <!-- perf-glance -->
 ## Performance at a glance (0.80.9)
 
-Measured on 2026-10-28 with pagesift 0.80.9 on one machine (i7-10700 8C/16T, 15 GB, GTX 1070), same inputs, same worker count, one tool at a time on a quiet machine; default settings for every tool. Only the rows where PageSift is fastest are listed here; where it is behind, see [How PageSift compares](#how-pagesift-compares) and the [full report](benchmarks/mix/v2/results/report-2026-10-28.md). 0.80.10 does the same work as 0.80.9 (instruction counts: HTML extraction on 394 real pages +0.05 %, PDF and CSV unchanged; `benchmarks/history/0.80.10/`), so these speed numbers carry over; its extraction-quality changes were not re-measured here.
+Measured on 2026-10-28 with pagesift 0.80.9 on one machine (i7-10700 8C/16T, 15 GB, GTX 1070), same inputs, same worker count, one tool at a time on a quiet machine; default settings for every tool. Only the rows where PageSift is fastest are listed here; where it is behind, see [How PageSift compares](#how-pagesift-compares) and the [full report](benchmarks/mix/v2/results/report-2026-10-28.md). 0.80.10 does the same work as 0.80.9 (instruction counts: HTML extraction on 394 real pages +0.05 %, PDF and CSV unchanged; `benchmarks/history/0.80.10/`), so these speed numbers carry over; its extraction-quality changes were not re-measured here. 0.81.0 is faster than 0.80.10 (see the [0.81.0 release notes](docs/releases/0.81.0.md)); these numbers have not been re-measured with it yet.
 
 | Workload | Workers | PageSift (↑ items/s) | Fastest competitor (↑ items/s) | Speed-up | Peak MB per worker (↓, PageSift / competitor) |
 |---|---|---|---|---|---|
@@ -97,6 +97,17 @@ Results for the other domains (dates, Markdown fidelity, RAG chunking, crawling 
 Measured with 0.70.0, not re-run for later versions.
 
 ---
+
+## What's New in 0.81.0
+
+**Relevance by facet, and faster everywhere.** Focused crawls score how much a page is *about* each
+facet of the query (query words, plus adjacent query words the site uses as a phrase, such as
+*computer science*; title, URL and headings count more than the body; each facet weighted by its
+rarity on the site), all estimated from the crawl's own pages. On 1,833 pages judged by content,
+separating useful from useless pages improves from AUC 0.79 to 0.86 on held-out universities.
+Speed: an allocator cache per thread and NUMA node, inline glyph strings for PDF, a linear title
+check for HTML, contiguous tables for CSV and xlsx, fat LTO and profile-guided release builds; output
+is byte-identical to 0.80.10. Details: [0.81.0 release notes](docs/releases/0.81.0.md).
 
 ## What's New in 0.80.10
 
@@ -218,7 +229,7 @@ Run the standalone container (includes headless browser renderer):
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.10
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.81.0
 ```
 
 #### Firecrawl SDK Drop-In Replacement
@@ -377,7 +388,7 @@ If PageSift is useful in research or a product, cite it as:
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 0.80.10}
+  note   = {Version 0.81.0}
 }
 ```
 

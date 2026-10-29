@@ -18,7 +18,7 @@ ignored). `run.sh <binary> <out> <limit|auto>` runs `crawl --query … --adaptiv
 | `results/perf-instructions.txt` | callgrind instruction counts against 0.80.0 |
 
 `python3 cmp.py ../0.80.9/results/0.80.9 results/0.80.9-limit100 results/0.80.10-auto` gives
-the table in the [release notes](../../docs/releases/0.80.10.md). A few crawls were still
+the table in the [release notes](../../../docs/releases/0.80.10.md). A few crawls were still
 running when the numbers were taken and are left out. The auto run had up to five directions
 running at once (each site saw at most five crawls with different queries at the same time).
 

@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.80.10
+# pagesift 0.81.0
 
 **Motor de scraping y extracción web de alto rendimiento y memoria acotada para agentes de IA y pipelines de LLM.**  
 Convierte cualquier sitio web, documento o archivo en Markdown limpio y datos estructurados: un único binario en Rust, SDK nativos, APIs duales Firecrawl v1/v2 y Jina Reader, con menos memoria que las alternativas medidas (véase la [sección 9 de benchmarks.md](benchmarks.md)).
@@ -26,7 +26,7 @@ Convierte cualquier sitio web, documento o archivo en Markdown limpio y datos es
 <!-- perf-glance -->
 ## Rendimiento de un vistazo (0.80.9)
 
-Medido el 2026-10-28 con pagesift 0.80.9 en una sola máquina (i7-10700 8C/16T, 15 GB, GTX 1070): mismas entradas, mismo número de workers, una herramienta a la vez con la máquina en reposo, opciones por defecto en todas. Aquí solo aparecen las filas en las que PageSift es el más rápido; donde va por detrás, consulte la comparación de abajo y el [informe completo](../benchmarks/mix/v2/results/report-2026-10-28.md). 0.80.10 hace el mismo trabajo que 0.80.9 (instrucciones: extracción de 394 páginas reales +0,05 %, PDF y CSV sin cambios; `benchmarks/history/0.80.10/`), así que estas cifras de velocidad valen también para 0.80.10; sus cambios de calidad de extracción no se han vuelto a medir aquí.
+Medido el 2026-10-28 con pagesift 0.80.9 en una sola máquina (i7-10700 8C/16T, 15 GB, GTX 1070): mismas entradas, mismo número de workers, una herramienta a la vez con la máquina en reposo, opciones por defecto en todas. Aquí solo aparecen las filas en las que PageSift es el más rápido; donde va por detrás, consulte la comparación de abajo y el [informe completo](../benchmarks/mix/v2/results/report-2026-10-28.md). 0.80.10 hace el mismo trabajo que 0.80.9 (instrucciones: extracción de 394 páginas reales +0,05 %, PDF y CSV sin cambios; `benchmarks/history/0.80.10/`), así que estas cifras de velocidad valen también para 0.80.10; sus cambios de calidad de extracción no se han vuelto a medir aquí. 0.81.0 es más rápido que 0.80.10 (véanse las [notas de 0.81.0](releases/0.81.0.md)); estas cifras aún no se han vuelto a medir con él.
 
 | Tarea | Workers | PageSift (↑ elementos/s) | Competidor más rápido (↑ elementos/s) | Aceleración | MB pico por worker (↓, PageSift / competidor) |
 |---|---|---|---|---|---|
@@ -90,6 +90,18 @@ Mientras tanto, los últimos resultados medidos (con dirección, versión y fech
 Medido con 0.70.0; no se ha repetido con versiones posteriores.
 
 ---
+
+## Novedades en 0.81.0
+
+**Relevancia por facetas, y más velocidad en todo.** El rastreo enfocado mide cuánto trata una página
+de cada faceta de la consulta (las palabras de la consulta y los pares contiguos que el sitio usa como
+frase, como *computer science*; título, URL y encabezados pesan más que el cuerpo; cada faceta pesa
+según su rareza en el sitio), todo estimado con las páginas del propio rastreo. Sobre 1,833 páginas
+juzgadas por su contenido, separar páginas útiles de inútiles pasa de AUC 0.79 a 0.86 en
+universidades reservadas. Velocidad: caché de asignación por hilo y nodo NUMA, texto de glifos en línea
+para PDF, comparación de títulos lineal en HTML, tablas contiguas en CSV y xlsx, LTO completo y
+compilación guiada por perfiles; la salida es idéntica byte a byte a 0.80.10. Detalles:
+[notas de 0.81.0](releases/0.81.0.md).
 
 ## Novedades en 0.80.10
 
@@ -198,7 +210,7 @@ se conservan sin cambios y con sus fuentes en [history/homepage-es.md](history/h
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.80.10
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.81.0
 ```
 
 #### Reemplazo Directo de Firecrawl SDK

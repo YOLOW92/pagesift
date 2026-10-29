@@ -2,6 +2,54 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.81.0] — 2026-10-29
+
+Page relevance for focused crawls is rebuilt around the facets of the query, measured against
+pages judged by reading their content; the whole pipeline is made faster by working with the
+hardware (contiguous data, fewer allocations, a small-block allocator cache aware of NUMA nodes,
+whole-program LTO, profile-guided optimisation of the release binaries). See
+[the release notes](docs/releases/0.81.0.md).
+
+### Changed
+- Focused crawl: page relevance scores how much a page is *about* each facet of the query instead
+  of how many query words it contains. The units are the query words plus adjacent query words
+  that occur together on the site far more often than chance (`computer science`,
+  `student housing`); a unit counts more in the title, the URL or a heading than in the body, the
+  body term frequency is normalised by the site's mean page length, and each unit is weighted by
+  its inverse document frequency on the site. Everything is estimated from the pages the crawl has
+  fetched. On 1,833 pages judged by content (61 universities, five directions, half of the
+  universities held out), separating useful from useless pages: AUC 0.79 → 0.86. The adaptive stop
+  thresholds were converted on the same pages (0.12 → 0.05, 0.3 → 0.15; same share of useful pages
+  kept). Relevance values in `index.jsonl` and the crawl output are on the new scale.
+- Focused crawl: a subtree whose harvest rate is clearly below the rest of the crawl (95% Wilson
+  intervals, successive elimination) is no longer scheduled; a cluster that has proven productive
+  is exempt from the per-cluster cap. Blind links (no sign of the query) are probed one at a time,
+  and once the query is covered with only blind links left, the crawl stops.
+- English query on an English start page: `english.<site>` (an English department) is no longer
+  taken for the English version of the site.
+- The start page of a crawl is retried up to four times (2, 4, 8, 16 s) on timeouts, network
+  errors and 5xx; other pages keep two retries.
+
+### Performance
+- Release builds use fat LTO with one codegen unit (CLI binary 42 MB → 25 MB) and, on Linux x86-64,
+  Linux arm64 and macOS arm64, profile-guided optimisation trained on generated pages and the
+  repository's document fixtures (falls back to a plain build if any PGO step fails).
+- The CLI uses its own small-block allocator cache: allocations up to 512 bytes come from
+  per-thread free lists, refilled in batches from global pools sharded by NUMA node; each thread
+  keeps at most its share of the L2 cache (read from sysfs).
+- PDF: glyph text is an inline short string instead of two heap allocations per glyph.
+- HTML main-content extraction: the `<title>` comparison is linear instead of quadratic and its
+  signature is built once per page; attribute and date scans skip ahead bytewise.
+- CSV: the table is stored contiguously and fields, escaping and cell cleanup work on byte runs.
+- xlsx: number formats are compiled once per code; attributes are unescaped only when matched.
+- Output of every converter is byte-identical to 0.80.10 on the benchmark corpora (394 web pages,
+  271 PDFs, 377 Office/CSV files).
+
+### Fixed
+- Crawl: every failed attempt on a non-start page counts against its host at once; when the host is
+  dropped, its pages waiting for a retry are reported instead of retried (a dead host used to take
+  six timeouts to stop, now two).
+
 ## [0.80.10] — 2026-10-28
 
 The page limit of a focused crawl becomes adaptive, and the discovery problems from the
