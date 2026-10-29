@@ -1,0 +1,5315 @@
+{
+ "sub": "b5",
+ "tools": {
+  "pagesift-081-file": {
+   "items": 134,
+   "status": {
+    "empty": 119,
+    "ok": 15
+   },
+   "completion": 0.11194029850746269,
+   "per_item": {
+    "b5-old_scans-1": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-10": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-11": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-12": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-13": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-14": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-15": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-16": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-17": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-18": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-19": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-2": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-20": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-21": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-22": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-23": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-24": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-25": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-26": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-27": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-28": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-29": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-3": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-30": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-31": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-32": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-33": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-34": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-35": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-36": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-37": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-38": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-39": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-4": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-40": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-41": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-42": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-43": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-44": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-45": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-46": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-47": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-48": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-49": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-5": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-50": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-51": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-52": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-53": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-54": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-55": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-56": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-57": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-58": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-59": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-6": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-60": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-61": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-62": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-63": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-64": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-65": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-67": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-68": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-69": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-7": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-70": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-71": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-72": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-73": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-74": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-75": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-76": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-77": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-78": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-79": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-8": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-80": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-81": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-82": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-83": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-84": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-85": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-86": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-87": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-88": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-89": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-9": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-90": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-91": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-92": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-93": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-94": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-95": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-96": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-97": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-98": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans-99": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "old_scans",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans_math-1_pg10": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans_math-1_pg113": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans_math-1_pg125": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans_math-1_pg131": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans_math-1_pg19": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans_math-1_pg40": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans_math-1_pg61": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans_math-1_pg63": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans_math-1_pg72": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans_math-2_pg189": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       true
+      ]
+     ],
+     "f1": 0.07692307692307693
+    },
+    "b5-old_scans_math-2_pg238": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       true
+      ]
+     ],
+     "f1": 0.058823529411764705
+    },
+    "b5-old_scans_math-2_pg349": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       true
+      ]
+     ],
+     "f1": 0.045454545454545456
+    },
+    "b5-old_scans_math-2_pg39": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       true
+      ]
+     ],
+     "f1": 0.05555555555555555
+    },
+    "b5-old_scans_math-2_pg65": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       true
+      ]
+     ],
+     "f1": 0.0625
+    },
+    "b5-old_scans_math-3_pg101": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans_math-3_pg148": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans_math-3_pg199": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans_math-3_pg204": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans_math-3_pg251": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans_math-3_pg270": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans_math-3_pg39": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans_math-3_pg634": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans_math-3_pg94": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans_math-4_pg186": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       true
+      ]
+     ],
+     "f1": 0.06666666666666667
+    },
+    "b5-old_scans_math-4_pg281": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       true
+      ]
+     ],
+     "f1": 0.14285714285714285
+    },
+    "b5-old_scans_math-4_pg355": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       true
+      ]
+     ],
+     "f1": 0.2
+    },
+    "b5-old_scans_math-4_pg380": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       true
+      ]
+     ],
+     "f1": 0.043478260869565216
+    },
+    "b5-old_scans_math-4_pg396": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       true
+      ]
+     ],
+     "f1": 0.08333333333333333
+    },
+    "b5-old_scans_math-4_pg433": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       true
+      ]
+     ],
+     "f1": 0.2
+    },
+    "b5-old_scans_math-4_pg451": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       true
+      ]
+     ],
+     "f1": 0.09090909090909091
+    },
+    "b5-old_scans_math-4_pg48": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       true
+      ]
+     ],
+     "f1": 0.04
+    },
+    "b5-old_scans_math-4_pg512": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       true
+      ]
+     ],
+     "f1": 0.043478260869565216
+    },
+    "b5-old_scans_math-4_pg98": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       true
+      ]
+     ],
+     "f1": 0.14285714285714285
+    },
+    "b5-old_scans_math-5_pg174": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans_math-5_pg281": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    },
+    "b5-old_scans_math-5_pg558": {
+     "set": "olmOCR",
+     "tests": [
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "old_scans_math",
+       false
+      ],
+      [
+       "baseline",
+       false
+      ]
+     ],
+     "f1": 0.0
+    }
+   }
+  }
+ },
+ "label": {
+  "olmOCR": "olmOCR-bench 官方总分（各类平均，含 baseline 类）",
+  "olmOCR 去掉 baseline": "各类平均，不含 baseline 类"
+ },
+ "scores": {
+  "all": {
+   "olmOCR": {
+    "pagesift-081-file": {
+     "all_zero_fail": 0.0373134328358209,
+     "n_all": 134,
+     "common_only": 0.5,
+     "n_common": 15
+    }
+   },
+   "olmOCR 去掉 baseline": {
+    "pagesift-081-file": {
+     "all_zero_fail": 0.0,
+     "n_all": 134,
+     "common_only": 0.0,
+     "n_common": 15
+    }
+   }
+  }
+ }
+}

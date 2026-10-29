@@ -1,0 +1,10 @@
+도메인 종료 안내
+
+2026년 12월 1일부터 아래 주소로는 NHN Cloud에 접속할 수 없습니다.
+변경된 주소로 접속해 주세요.
+
+기존 주소
+https://www.toast.com/kr
+변경 주소
+https://www.nhncloud.com/kr
+변경 주소로 이동

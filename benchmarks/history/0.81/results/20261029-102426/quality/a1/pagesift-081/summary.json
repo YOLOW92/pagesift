@@ -1,0 +1,40 @@
+{
+ "tool": "pagesift-081",
+ "versions": [
+  "pagesift 0.81.0"
+ ],
+ "items": 600,
+ "workers": 16,
+ "peak_live_workers": 16,
+ "workers_asked": "auto",
+ "wall_s": 0.671,
+ "reserve_mb": 3072,
+ "per_worker_mb": 300,
+ "stopped": false,
+ "status": {
+  "ok": 592,
+  "empty": 8
+ },
+ "startup_ms": [
+  108.7,
+  114.7,
+  105.9,
+  111.7,
+  103.0,
+  113.5,
+  107.6,
+  110.5,
+  109.5,
+  110.2,
+  115.2,
+  110.4,
+  122.8,
+  112.2,
+  113.6,
+  124.2
+ ],
+ "max_peak_mb": 14.4,
+ "timeout_s": 30.0,
+ "mem_max_mb": 4096,
+ "cgroup": true
+}

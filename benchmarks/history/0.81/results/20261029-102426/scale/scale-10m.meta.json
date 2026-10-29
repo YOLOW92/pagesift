@@ -1,0 +1,12 @@
+{
+ "total_tasks": 10000000,
+ "wall_s": 130.16,
+ "completed": 10000000,
+ "valid": 10000000,
+ "failed": 0,
+ "sustained_pages_per_s": 76828.51874615857,
+ "process_cpu_time_s": 1626.26,
+ "peak_rss_bytes": 134717440,
+ "capacity_adjustments": 5,
+ "origin_requests": 10000000
+}

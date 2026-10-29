@@ -1,0 +1,24 @@
+run	/home/yolow92/mix-tools/runs-081/20261029-102426
+archive	/home/yolow92/pagesift/benchmarks/history/0.81/results/20261029-102426
+started	2026-10-29T10:55:32+09:00
+pagesift	pagesift 0.81.0
+binary	/home/yolow92/pagesift/target/release/pagesift
+binary_sha256	38a33392f9ae69579765e2628326423a461d0093e9407198b7573bf86bbc6208
+git_head	8c1c799a40447bf33e5c772075e63a917903bb41
+git_status_begin
+ M README.md
+ M benchmarks/dates/dates.py
+ M benchmarks/mix/driver.py
+ M benchmarks/mix/v2/peaks.py
+ M benchmarks/mix/v2/readme_perf.py
+ M benchmarks/mix/v2/report.py
+ M benchmarks/scale/p0/Cargo.lock
+ M docs/README.es.md
+ M docs/README.ja.md
+ M docs/README.zh-CN.md
+ M docs/benchmarks.md
+?? bench/
+?? benchmarks/history/0.81/
+?? benchmarks/mix/v2/run_speed_081.sh
+?? target-exp/
+finished	2026-10-29T10:55:34+09:00

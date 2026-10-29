@@ -1,0 +1,2 @@
+tool             heading      text    strong        em    strike code_inli      link     image     break list_item     table code_bloc     quote        hr      math  mean F1↑
+pagesift           1.000     1.000     1.000     1.000     1.000     1.000     1.000     1.000     1.000     1.000     1.000     1.000     1.000     1.000     1.000     1.000

@@ -1,0 +1,63 @@
+EN中文
+Rare USDT
+
+USDT Rare Address Generator
+
+Rare USDT is a powerful web3 tool using your web browser to generate USDT rare addresses.
+Enter a short prefix/suffix of your choice, and click ‘generate’ to start
+
+Start now
+What's a USDT rare address?
+
+A USDT rare address is an address which part of it is chosen by yourself,Show your dignity and be different.
+Examples:
+TRrh6kKGwQekkzUHVwY56Q2gfDtHe22222
+TH9eKEx58MVNhVSd6nDNPijfPvZNyAAAAA
+T12345CyyhK2PWPc7Du3EqEDVqj7XfYywL
+TEqmqqkiiobBK1gtVeEcciTx7mBmq98765
+
+How it works
+
+Enter the prefix/suffix of your choice, and click ‘generate’ to start. Your browser will generate lots of random addresses which matches your input.
+Once an address is found, you can copy the private key, or click the 'save' button to download a password-encrypted keystore file.
+You can increase the number of working threads to reach higher speeds, or decrease it if you computer struggles.
+
+
+Security
+
+As explained above, everything is computed only in your browser.
+Nothing ever leaves your machine, or even your browser tab. There is no database, no server-side code. Everything vanishes when you close your tab.
+Rare USDT cannot and will never store you private key.Once the web page is loaded,you can turn off the internet and continue playing,it will work seamlessly.
+Rare USDT use a cryptographically secure pseudorandom number generator (CSPRNG) to generate USDT addresses.
+The keystore file is encrypted with a AES-128-CTR cipher using the BKDF2-SHA256 derivation function with 65536 hashing rounds.
+
+Performance
+
+For some reason, the performance of Rare USDT can vary a lot from a browser to another. Currently, Chrome provides the best results.
+Using Rare USDT on your phone or tablet will work, but don't expect to reach the speed of a good old computer.
+
+Compatibility
+
+Any address generated with Rare USDT is TRC-20 compatible, which means you can use it for an ICO, an airdrop, or just to withdraw your funds from an exchange.
+The keystore file is 100% compatible with TronLink.
+
+E.g. T****F07Fc30Bdc0de16b17a4E0Cf3af2F
+Case-sensitive
+Anywhere
+Suffix
+Extra addrs with identical digits
+Extra addrs with orderly digits
+Extra addrs with identical letters
+Extra addrs with orderly letters
+16 threads (recommended)
+Difficulty: 1
+Generated: 0addresses
+50% probability:0 addresses
+Speed: 0 addr/s
+Start at: Waiting
+Stop at: Waiting
+Status: Waiting
+0%
+Probability
+Having trouble importing the private key to the Tronlink wallet? Tronlink official tutorial link: click here
+ Donation Address: TQBpRjnea8G7QsU34J2oQTR42zT7777777

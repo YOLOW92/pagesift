@@ -12,7 +12,7 @@ import argparse, hashlib, json, os, subprocess, sys, tempfile, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DATA = os.path.join(ROOT, 'benchmarks/data/fresh/data/htmldate/tests')
-PAGESIFT = os.path.join(ROOT, 'target/release/examples/meta_eval')
+PAGESIFT = os.environ.get('PAGESIFT_META_EVAL', os.path.join(ROOT, 'target/release/examples/meta_eval'))
 
 
 def pages():

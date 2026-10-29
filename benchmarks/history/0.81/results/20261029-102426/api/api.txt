@@ -1,0 +1,24 @@
+PageSift Server started: Ready=True, Startup=7.6ms, RSS=14.6MB
+
+Testing Firecrawl v1 Scrape (/v1/scrape)...
+  /v1/scrape: Status=200, Latency=6.4ms
+
+Testing Firecrawl v1 Map (/v1/map)...
+  /v1/map: Status=200, Latency=1.5ms
+
+Testing Firecrawl v1 Crawl (/v1/crawl)...
+  /v1/crawl: Status=200, Latency=0.4ms
+
+Testing Firecrawl v2 Scrape (/v2/scrape)...
+  /v2/scrape: Status=200, Latency=0.9ms
+
+Testing Jina Reader (/r/https://...)...
+  GET /r/...: Status=200, Latency=0.5ms
+
+Testing Jina Reader SSE Streaming...
+  GET /r/ (SSE): Status=200, Latency=0.5ms
+
+Testing Official Firecrawl Python SDK (V1FirecrawlApp & FirecrawlApp)...
+  Official SDK Compatibility: V1_OK=True (Err: ), V2_OK=True (Err: )
+
+Baseline benchmark written to /home/yolow92/pagesift/benchmarks/production/api/baseline_results.json

@@ -1,0 +1,21 @@
+228 questions (hold)
+method                   R@100   P@100   R@250   P@250   R@500   P@500  R(kept)   words  P(kept)
+pagesift-default                                                          0.934    1144    0.040
+pagesift-old-default                                                      0.991   26416    0.008
+pagesift-para            0.264   0.113   0.371   0.075   0.486   0.054
+pagesift-rec100          0.522   0.268   0.710   0.153   0.822   0.080
+pagesift-rec100ctx       0.296   0.147   0.620   0.137   0.824   0.082
+pagesift-rec200          0.412   0.185   0.653   0.164   0.808   0.092
+pagesift-rec50           0.536   0.253   0.711   0.125   0.809   0.073
+rec100-abs1.0-default                                                     0.990   14285    0.013
+rec100-floor1000-default                                                    0.932    1194    0.039
+rec100-floor1300-default                                                    0.945    1433    0.033
+rec100-floor300-default                                                    0.889     745    0.080
+rec100-floor500-default                                                    0.902     842    0.062
+rec100-floor800-default                                                    0.916    1041    0.046
+rec100-rel0.3-default                                                     0.949    1925    0.061
+rec100-rel0.5-default                                                     0.866     676    0.128
+rec100-rel0.7-default                                                     0.771     288    0.215
+rec100-top10-default                                                      0.883     762    0.054
+rec100-top3-default                                                       0.722     231    0.139
+rec100-top5-default                                                       0.797     382    0.094

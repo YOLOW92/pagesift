@@ -24,61 +24,53 @@ Convierte cualquier sitio web, documento o archivo en Markdown limpio y datos es
 ---
 
 <!-- perf-glance -->
-## Rendimiento de un vistazo (0.80.9)
+## Rendimiento de un vistazo (0.81)
 
-Medido el 2026-10-28 con pagesift 0.80.9 en una sola máquina (i7-10700 8C/16T, 15 GB, GTX 1070): mismas entradas, mismo número de workers, una herramienta a la vez con la máquina en reposo, opciones por defecto en todas. Aquí solo aparecen las filas en las que PageSift es el más rápido; donde va por detrás, consulte la comparación de abajo y el [informe completo](../benchmarks/mix/v2/results/report-2026-10-28.md). 0.80.10 hace el mismo trabajo que 0.80.9 (instrucciones: extracción de 394 páginas reales +0,05 %, PDF y CSV sin cambios; `benchmarks/history/0.80.10/`), así que estas cifras de velocidad valen también para 0.80.10; sus cambios de calidad de extracción no se han vuelto a medir aquí. 0.81.0 es más rápido que 0.80.10 (véanse las [notas de 0.81.0](releases/0.81.0.md)); estas cifras aún no se han vuelto a medir con él.
+PageSift 0.81 se midió de nuevo el 2026-10-29; los números de la competencia son los registros del 2026-10-21/22/27/28 y no se repitieron. Una fila por carga de trabajo, la mejor configuración de PageSift; la memoria es una columna, no una clasificación aparte.
 
-| Tarea | Workers | PageSift (↑ elementos/s) | Competidor más rápido (↑ elementos/s) | Aceleración | MB pico por worker (↓, PageSift / competidor) |
-|---|---|---|---|---|---|
-| PDF, 144 páginas de olmOCR-bench | 1 | **190.0** (`serve` residente) | pdf_oxide 100.6 | **×1.9** | 198 / 29 |
-| PDF, 144 páginas de olmOCR-bench | 16 | **543.4** | pdf_oxide 501.7 | **×1.08** | 16 / 11 |
-| Office y libros electrónicos, 81 archivos | 1 | **63.3** (`serve` residente) | Kreuzberg 19.5 | **×3.2** | 308 / 231 |
-| Office y libros electrónicos, 81 archivos | 16 | **178.4** | Kreuzberg 34.5 | **×5.2** | 70 / 219 |
-| Extracción del contenido principal, 269 páginas aleatorias | 16 | **573.6** | Resiliparse 559.3 | **×1.03** | 17 / 43 |
-| PDF frente a herramientas con modelos de maquetación (MinerU, Docling), mismas 144 páginas | 1 | **190.0** (`serve` residente) | Docling (GPU, cu126) 1.3 | **×148.4** | 198 / 2638 |
+
+### Muy por delante
+
+| Dominio | Carga de trabajo | Métrica | PageSift 0.81 | Rival más rápido | Rival | Diferencia | MB pico/trabajador (PageSift / rival) | Datos del rival |
+|---|---|---|---|---|---|---|---|---|
+| PDF → Markdown | olmOCR-bench 1,269 pages, per page (single thread) | ms/page | **2.2** | pypdf | 50.0 | **×22.32** | — | 2026-10-22 |
+| HTML → Markdown | 600 generated documents, per page | ms/page | **0.24** | Turndown | 1.9 | **×8.24** | — | 2026-10-21 |
+| Main content | Firecrawl 597 pages, single thread | p50 ms/page | **1.0** | crw | 7.4 | **×7.23** | — | 2026-10-21 |
+| Publication dates | htmldate 1,000 pages, date search | ms/page | **0.31** | htmldate (fast) | 2.0 | **×6.45** | — | 2026-10-21 |
+| Office / e-books | B4 81 files, in-process | files/s | **94.1** | Kreuzberg | 19.5 | **×4.82** | 38 / 231 | 2026-10-28 |
+| RAG chunking | 5 corpora, 1.4 MB | total ms | **11** | chonkie recursive | 35 | **×3.24** | — | 2026-10-21 |
+| PDF → Markdown | B1 144 pages, 1 worker | files/s | **258.5** | pdf_oxide | 100.6 | **×2.57** | 163 / 29 | 2026-10-28 |
+| RAG query filter | 472 questions, default settings | answer recall | **0.929** | Crawl4AI BM25 | 0.673 | **+0.256** | — | 2026-10-21 |
+| Wild crawl | polite, 40 sites × 60 pages, coverage | coverage | **0.740** | Crawl4AI (HTTP) | 0.529 | **+0.211** | — | 2026-10-21 |
+| Wild crawl | fast, 40 sites × 60 pages, coverage | coverage | **0.685** | Crawl4AI (HTTP) | 0.499 | **+0.186** | — | 2026-10-21 |
+| Office / e-books | B4 hold-out 39 files, structure kept | structure kept | **0.988** | Kreuzberg | 0.816 | **+0.172** | — | 2026-10-28 |
+| PDF → Markdown | olmOCR-bench 1,269 pages | official score | **0.628** | pymupdf4llm | 0.484 | **+0.144** | — | 2026-10-28 |
+
+
+### Por delante
+
+| Dominio | Carga de trabajo | Métrica | PageSift 0.81 | Rival más rápido | Rival | Diferencia | MB pico/trabajador (PageSift / rival) | Datos del rival |
+|---|---|---|---|---|---|---|---|---|
+| PDF → Markdown | B1 144 pages, 16 workers | files/s | **580.6** | pdf_oxide | 501.7 | **×1.16** | 14 / 11 | 2026-10-28 |
+| Main content | A2 269 random pages, 16 workers | pages/s | **630.0** | Resiliparse | 559.3 | **×1.13** | 17 / 54 | 2026-10-28 |
+| HTML → Markdown | 600 generated documents, fidelity | mean F1 | **1.000** | markdownify | 0.936 | **+0.064** | — | 2026-10-21 |
+| Main content | WCXB test split, 150 pages | F1 | **0.866** | Readability + Turndown | 0.848 | **+0.018** | — | 2026-10-28 |
+
+
+*A2 se volvió a capturar el 2026-10-29; sus tiempos absolutos no son comparables con los del A2 del 10-28.*
+
+
+[Informe completo](../benchmarks/history/0.81/results/20261029-102426/report.md)
+
 <!-- /perf-glance -->
 
 ---
 
-Medido el 2026-10-27 con el binario de la versión 0.80.0 frente a tres herramientas por dominio (un proyecto en Rust y dos muy comparados), con opciones por defecto, en una sola máquina (i7-10700, 15 GB). Las muestras se tomaron con semillas fijas tras congelar las reglas, sin elegir a mano. Cada fila enlaza al método, versiones, tamaño de muestra y resultados.
+## Cómo se compara PageSift
 
-### Muy por delante
+**Aún por detrás:** A2 replay, 269 pages, 1 worker 2.4 pages/s vs spider 156.6 pages/s; fast, 40 sites × 60 pages, time 16.6 seconds vs spider 1.4 seconds; B5 134 pages, completion 0.112 vs Docling (GPU) 1.000.
 
-| Dominio | Métrica (dirección) | PageSift 0.80 | Competidor más fuerte | Evidencia |
-| :--- | :--- | :--- | :--- | :--- |
-| Office & e-books (docx, xlsx, pptx, epub, csv) | Structure kept, held-out ↑ | **0.988** | MarkItDown 0.717 | [§4](../benchmarks/mix/results/report-2026-10-27.md) |
-| PDF, olmOCR-bench born-digital (1,269 pages) | Official score ↑ | **0.626** | pymupdf4llm 0.484 | [§3](../benchmarks/mix/results/report-2026-10-27.md) |
-| Hard web pages (166 adversarial) | Completion ↑ / timeouts ↓ | **0.723** / 0 | crw 0.590 / 27 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
-| Office & e-books speed (81 files, 1 worker) | Files/s ↑ | **57.4** | extractous 9.9 | [§4](../benchmarks/mix/results/report-2026-10-27.md) |
-
-### Por delante
-
-| Dominio | Métrica (dirección) | PageSift 0.80 | Competidor más fuerte | Evidencia |
-| :--- | :--- | :--- | :--- | :--- |
-| Main-content extraction, WCXB | F1 ↑ | **0.866** | Readability 0.848 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
-| Main-content extraction, AEB | F1 ↑ | **0.956** | trafilatura 0.950 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
-| Main-content extraction speed (269 pages, 16 workers) | Pages/s ↑ | **614** | crw 387 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
-| PDF speed (144 files, 1 worker) | Files/s ↑ | **114** | pdf_oxide 94 | [§3](../benchmarks/mix/results/report-2026-10-27.md) |
-
-### Por detrás pero cerca (en desarrollo activo)
-
-| Dominio | Métrica (dirección) | PageSift 0.80 | Competidor más fuerte | Evidencia |
-| :--- | :--- | :--- | :--- | :--- |
-| PDF vs a layout model (144-page subset) | olmOCR score ↑ | 0.650 | Docling (CPU) 0.696 | [§3](../benchmarks/mix/results/report-2026-10-27.md) |
-| Random real PDFs (71) | Text completeness ↑ | 0.936 | pdf_oxide 0.962 | [§3](../benchmarks/mix/results/report-2026-10-27.md) |
-| Fetching, 269 random pages (local replay) | Completion ↑ | 0.937 | Scrapy 0.981 | [§2 — pagesift refuses captcha/block pages](../benchmarks/mix/results/report-2026-10-27.md) |
-| Main-content extraction, Firecrawl set | Truth recall ↑ | 0.477 | crw 0.511 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
-| Hard PDFs (100 pdf.js test files) | Completion ↑ | 0.560 | pymupdf4llm 0.680 | [§3 — the largest gap](../benchmarks/mix/results/report-2026-10-27.md) |
-
-### Behind
-
-| Domain | Metric (direction) | PageSift 0.80 | Strongest competitor | Evidence |
-| :--- | :--- | :--- | :--- | :--- |
-| Fetching speed (269 pages, 1 worker) | Pages/s ↑ | 2.7 | spider 153 | [§2 — default auto engine, p95 1.5 s](../benchmarks/mix/results/report-2026-10-27.md) |
-| PDF speed (144 files, 16 workers) | Files/s ↑ | 142 | pdf_oxide 526 | [§3 — one process per file scales poorly](../benchmarks/mix/results/report-2026-10-27.md) |
-
-Mientras tanto, los últimos resultados medidos (con dirección, versión y fecha) están en
-[benchmarks.md](benchmarks.md); los scripts y resultados de cada dominio, en [benchmarks/](../benchmarks/).
+[Informe completo](../benchmarks/history/0.81/results/20261029-102426/report.md).
 
 ---
 

@@ -1,0 +1,1 @@
+{"tool": "pagesift-081-serve", "versions": ["pagesift 0.81.0"], "items": 269, "workers": 1, "peak_live_workers": 1, "workers_asked": "1", "wall_s": 2.125, "reserve_mb": 3072, "per_worker_mb": 300, "stopped": false, "status": {"ok": 253, "error": 5, "empty": 11}, "startup_ms": [105.2], "max_peak_mb": 219.8, "timeout_s": 30.0, "mem_max_mb": 4096, "cgroup": true}

@@ -1,0 +1,70 @@
+{
+  "server": {
+    "startup_ms": 7.608873999743082,
+    "peak_rss_mb": 14.60546875,
+    "binary_size_mb": 22.74610137939453,
+    "external_dependencies": "None (pure Safe Rust single binary)"
+  },
+  "firecrawl_v1": {
+    "scrape": {
+      "status": 200,
+      "latency_ms": 6.4420440003232216,
+      "supported": true,
+      "body_snippet": "{\"success\":true,\"data\":{\"markdown\":\"# High Performance Headline /article-1\\n\\nThis is the main authoritative text body of article /article-1 containing detailed information for LLM indexing.\\n\",\"html\""
+    },
+    "map": {
+      "status": 200,
+      "latency_ms": 1.5208439999696566,
+      "supported": true
+    },
+    "crawl": {
+      "status": 200,
+      "latency_ms": 0.41707999935169937,
+      "supported": true
+    },
+    "official_sdk_compatible": true,
+    "sdk_error": ""
+  },
+  "firecrawl_v2": {
+    "scrape": {
+      "status": 200,
+      "latency_ms": 0.933952000195859,
+      "supported": true
+    },
+    "official_sdk_compatible": true,
+    "sdk_error": ""
+  },
+  "jina_reader": {
+    "direct_get": {
+      "status": 200,
+      "latency_ms": 0.5388820000007399,
+      "supported": true
+    },
+    "sse_streaming": {
+      "status": 200,
+      "supported": true
+    }
+  },
+  "comparison": {
+    "official_firecrawl_stack": {
+      "containers": [
+        "api",
+        "playwright",
+        "postgres",
+        "redis",
+        "rabbitmq"
+      ],
+      "total_containers": 5,
+      "baseline_ram_mb": 2500.0,
+      "cold_start_s": 30.0,
+      "external_runtime": [
+        "Docker",
+        "Node.js",
+        "Python",
+        "PostgreSQL",
+        "Redis",
+        "RabbitMQ"
+      ]
+    }
+  }
+}

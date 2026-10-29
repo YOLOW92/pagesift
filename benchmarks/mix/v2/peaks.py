@@ -7,7 +7,7 @@ import os
 import sys
 from pathlib import Path
 
-RUNS = Path(os.environ.get("MIX_TOOLS", Path.home() / "mix-tools")) / "runs-v2/speed/w1"
+RUNS = Path(os.environ.get("MIX_SPEED_ROOT", Path(os.environ.get("MIX_TOOLS", Path.home() / "mix-tools")) / "runs-v2/speed")) / "w1"
 out = {}
 for sub in sys.argv[1:]:
     for d in sorted((RUNS / sub).iterdir()):

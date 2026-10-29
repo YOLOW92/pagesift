@@ -1,0 +1,89 @@
+HStats.dev
+Home
+Overall Stats
+Mods
+Documentation
+Login / Register
+
+HSTATS LIVE NETWORK
+
+Real-time analytics for Hytale Mods
+
+See how many servers run your mod, where they're located, and how usage trends over time without collecting player data.
+
+Live network: 1,596 servers | 686 players | 52 countries
+Open Dashboard
+Documentation
+
+DEVELOPERS
+
+121
+
+MODS TRACKED
+
+183
+
+GETTING STARTED
+
+How It Works
+1
+
+Add the HStats API to your mod
+
+Drop in the integration and initialize tracking in your mod startup.
+
+2
+
+Servers report anonymous stats
+
+Heartbeat and usage metrics are sent without collecting personal player data.
+
+3
+
+Read live analytics in the dashboard
+
+Track servers, players, geography, and trends as your mod grows.
+
+EXAMPLE MOD TREND
+
+Sample 24-hour usage curve
+
+PEAK SERVERS
+
+160
+
+PEAK PLAYERS
+
+190
+
+UPDATE WINDOW
+
+24h
+
+Built for Privacy and Trust
+
+Open Source SDK
+
+Inspectable integration code so developers can verify behavior.
+
+Privacy-first
+
+No IP storage. No player identifiers. No personal data.
+
+Anonymous Tracking IDs
+
+Random UUIDs identify servers without exposing identity.
+
+SUPPORT HSTATS
+
+Donations help keep HStats online
+
+If HStats is useful for your mod or server, Ko-fi support helps cover hosting and future development.
+
+HStats - live Hytale mod analytics. Created by Al3x
+
+GitHub
+Discord
+bStats for Hytale
+TOS
+Privacy Policy

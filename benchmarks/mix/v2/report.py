@@ -20,6 +20,8 @@ NAME = {
     "pagesift": "**pagesift 0.80.9**", "pagesift-file": "**pagesift 0.80.9**", "pagesift-crawl": "**pagesift 0.80.9**",
     "pagesift-080": "pagesift 0.80.0", "pagesift-080-file": "pagesift 0.80.0", "pagesift-080-crawl": "pagesift 0.80.0",
     "pagesift-serve": "**pagesift 0.80.9 serve**", "pagesift-serve-file": "**pagesift 0.80.9 serve**", "pagesift-serve-crawl": "**pagesift 0.80.9 serve**",
+    "pagesift-081": "**pagesift 0.81**", "pagesift-081-file": "**pagesift 0.81**", "pagesift-081-crawl": "**pagesift 0.81**",
+    "pagesift-081-serve": "**pagesift 0.81 serve**", "pagesift-081-serve-file": "**pagesift 0.81 serve**", "pagesift-081-serve-crawl": "**pagesift 0.81 serve**",
     "readability": "Readability + Turndown", "resiliparse": "Resiliparse", "newspaper4k": "newspaper4k", "crawlee": "Crawlee",
     "crawl4ai": "Crawl4AI", "scrapy": "Scrapy", "markitdown": "MarkItDown", "kreuzberg": "Kreuzberg", "pandoc": "pandoc",
     "mineru": "MinerU (default tier)", "mineru-flash": "MinerU (flash tier)", "docling": "Docling (CPU)", "docling-gpu": "Docling (GPU, cu126)",
@@ -125,7 +127,7 @@ def main():
           "list in `v2/samples/a4-missing.tsv`); completion = non-empty output within 30 s. Resiliparse and newspaper4k output "
           "plain text only. newspaper4k runs with `fetch_images=False` (its default downloads page images over the network "
           "during parsing; every tool here reads the same local snapshot).")
-    speed_table("a2", web + ["pagesift-serve"], [1, 16], "main-content extraction on the 269 A2 pages",
+    speed_table("a2", web + ["pagesift-serve", "pagesift-081", "pagesift-081-serve"], [1, 16], "main-content extraction on the 269 A2 pages",
                 "`pagesift` is the CLI run once per page (as in v1), so its per-item time includes process start-up; "
                 "`pagesift serve` is the resident HTTP server (`POST /v2/parse`), like the other tools' resident workers.")
 
@@ -144,7 +146,7 @@ def main():
     print("\npagesift refuses pages it identifies as access barriers (captcha / challenge / block pages) instead of returning "
           "the barrier as content; that counts as a failure here. Crawlee's `HttpCrawler` does not decode bodies, so its "
           "mojibake count would measure the adapter, not Crawlee (n/a).")
-    speed_table("a2", crawl, [1, 16], "fetching the 269 A2 pages from the replay server",
+    speed_table("a2", crawl + ["pagesift-081-crawl", "pagesift-081-serve-crawl"], [1, 16], "fetching the 269 A2 pages from the replay server",
                 "The replay server is a small Python `ThreadingHTTPServer`; at 16 workers it can be the bottleneck for the "
                 "fastest tools.")
 
@@ -192,7 +194,7 @@ def main():
                                  str(sum(fails(r3))) if r3 else "—"]) + " |")
     print("\nB2 text completeness: share of the words of the PDF's text layer (read by poppler `pdftotext`, not a competitor) "
           "that appear in the output. The model tools ran only the fixed 10 % subset (5 B2 files, 8 B3 files).")
-    speed_table("b1", ["pagesift-file", "pagesift-serve-file", "pagesift-080-file", "pdf_oxide", "pymupdf4llm", "kreuzberg", "mineru-flash"] + models,
+    speed_table("b1", ["pagesift-file", "pagesift-081-file", "pagesift-serve-file", "pagesift-081-serve-file", "pagesift-080-file", "pdf_oxide", "pymupdf4llm", "kreuzberg", "mineru-flash"] + models,
                 [1, 16], "PDF, same 144 pages (B1 10 % subset) for every tool",
                 "Workers are admitted by available memory, so the memory-hungry tools run fewer than 16 (last column).")
 
@@ -214,7 +216,7 @@ def main():
           f"{f3(score(b4, 'model_subset', 'B4 holdout', 'pagesift-file'))}). MinerU parses Office/EPUB/CSV only at its flash "
           "tier. extractous outputs plain text only. Six EPUB inputs were re-packed from the same IDPF commit (same content, "
           "different zip timestamps; `v2/samples/b4-repacked.tsv`).")
-    speed_table("b4", ["pagesift-file", "pagesift-serve-file", "pagesift-080-file", "kreuzberg", "markitdown", "mineru-flash", "pandoc", "extractous", "docling"],
+    speed_table("b4", ["pagesift-file", "pagesift-081-file", "pagesift-serve-file", "pagesift-081-serve-file", "pagesift-080-file", "kreuzberg", "markitdown", "mineru-flash", "pandoc", "extractous", "docling"],
                 [1, 16], "Office and e-books, 81 files (Docling: its 7-file subset)")
 
 

@@ -24,63 +24,53 @@
 ---
 
 <!-- perf-glance -->
-## パフォーマンス概要（0.80.9）
+## パフォーマンス概要 (0.81)
 
-2026-10-28、pagesift 0.80.9 を同じマシン（i7-10700 8 コア 16 スレッド、15 GB、GTX 1070）で計測。同じ入力・同じワーカー数で、マシンが空いている状態で 1 ツールずつ実行し、すべて既定設定。ここには PageSift が最速の項目だけを載せています。劣る項目は下の[他ツールとの比較](#他ツールとの比較)と[完全なレポート](../benchmarks/mix/v2/results/report-2026-10-28.md)を参照してください。0.80.10 の計算量は 0.80.9 と同じ（命令数：実ページ 394 件の本文抽出 +0.05%、PDF と CSV は変化なし。`benchmarks/history/0.80.10/` を参照）なので、ここの速度は 0.80.10 にもそのまま当てはまります。0.80.10 の抽出品質の変更はここでは再計測していません。0.81.0 は 0.80.10 より速くなっていますが（[0.81.0 リリースノート](releases/0.81.0.md)）、ここの数字はまだ 0.81.0 で再計測していません。
+PageSift 0.81 を 2026-10-29 に再計測。競合の数値は 2026-10-21/22/27/28 の記録で、再実行していません。1 行 = 1 ワークロード、PageSift は最良の構成。メモリは列で、別の順位にはしません。
 
-| 処理 | ワーカー数 | PageSift（件/秒、高いほど良い） | 最速の競合（件/秒、高いほど良い） | 倍率 | ワーカーあたりピークメモリ MB（低いほど良い、PageSift / 競合） |
-|---|---|---|---|---|---|
-| PDF、olmOCR-bench 144 ページ | 1 | **190.0**（常駐 `serve`） | pdf_oxide 100.6 | **×1.9** | 198 / 29 |
-| PDF、olmOCR-bench 144 ページ | 16 | **543.4** | pdf_oxide 501.7 | **×1.08** | 16 / 11 |
-| Office と電子書籍、81 ファイル | 1 | **63.3**（常駐 `serve`） | Kreuzberg 19.5 | **×3.2** | 308 / 231 |
-| Office と電子書籍、81 ファイル | 16 | **178.4** | Kreuzberg 34.5 | **×5.2** | 70 / 219 |
-| 本文抽出、ランダムな 269 ページ | 16 | **573.6** | Resiliparse 559.3 | **×1.03** | 17 / 43 |
-| PDF 対レイアウトモデル系ツール（MinerU、Docling）、同じ 144 ページ | 1 | **190.0**（常駐 `serve`） | Docling (GPU, cu126) 1.3 | **×148.4** | 198 / 2638 |
+
+### 大幅リード
+
+| 分野 | ワークロード | 指標 | PageSift 0.81 | 最速の競合 | 競合 | 差 | ピークメモリ MB（PageSift / 競合） | 競合データ |
+|---|---|---|---|---|---|---|---|---|
+| PDF → Markdown | olmOCR-bench 1,269 pages, per page (single thread) | ms/page | **2.2** | pypdf | 50.0 | **×22.32** | — | 2026-10-22 |
+| HTML → Markdown | 600 generated documents, per page | ms/page | **0.24** | Turndown | 1.9 | **×8.24** | — | 2026-10-21 |
+| Main content | Firecrawl 597 pages, single thread | p50 ms/page | **1.0** | crw | 7.4 | **×7.23** | — | 2026-10-21 |
+| Publication dates | htmldate 1,000 pages, date search | ms/page | **0.31** | htmldate (fast) | 2.0 | **×6.45** | — | 2026-10-21 |
+| Office / e-books | B4 81 files, in-process | files/s | **94.1** | Kreuzberg | 19.5 | **×4.82** | 38 / 231 | 2026-10-28 |
+| RAG chunking | 5 corpora, 1.4 MB | total ms | **11** | chonkie recursive | 35 | **×3.24** | — | 2026-10-21 |
+| PDF → Markdown | B1 144 pages, 1 worker | files/s | **258.5** | pdf_oxide | 100.6 | **×2.57** | 163 / 29 | 2026-10-28 |
+| RAG query filter | 472 questions, default settings | answer recall | **0.929** | Crawl4AI BM25 | 0.673 | **+0.256** | — | 2026-10-21 |
+| Wild crawl | polite, 40 sites × 60 pages, coverage | coverage | **0.740** | Crawl4AI (HTTP) | 0.529 | **+0.211** | — | 2026-10-21 |
+| Wild crawl | fast, 40 sites × 60 pages, coverage | coverage | **0.685** | Crawl4AI (HTTP) | 0.499 | **+0.186** | — | 2026-10-21 |
+| Office / e-books | B4 hold-out 39 files, structure kept | structure kept | **0.988** | Kreuzberg | 0.816 | **+0.172** | — | 2026-10-28 |
+| PDF → Markdown | olmOCR-bench 1,269 pages | official score | **0.628** | pymupdf4llm | 0.484 | **+0.144** | — | 2026-10-28 |
+
+
+### リード
+
+| 分野 | ワークロード | 指標 | PageSift 0.81 | 最速の競合 | 競合 | 差 | ピークメモリ MB（PageSift / 競合） | 競合データ |
+|---|---|---|---|---|---|---|---|---|
+| PDF → Markdown | B1 144 pages, 16 workers | files/s | **580.6** | pdf_oxide | 501.7 | **×1.16** | 14 / 11 | 2026-10-28 |
+| Main content | A2 269 random pages, 16 workers | pages/s | **630.0** | Resiliparse | 559.3 | **×1.13** | 17 / 54 | 2026-10-28 |
+| HTML → Markdown | 600 generated documents, fidelity | mean F1 | **1.000** | markdownify | 0.936 | **+0.064** | — | 2026-10-21 |
+| Main content | WCXB test split, 150 pages | F1 | **0.866** | Readability + Turndown | 0.848 | **+0.018** | — | 2026-10-28 |
+
+
+*A2 は 2026-10-29 に再取得したため、絶対時間は 10-28 の A2 と直接比較できません。*
+
+
+[完全なレポート](../benchmarks/history/0.81/results/20261029-102426/report.md)
+
 <!-- /perf-glance -->
 
 ---
 
 ## 他ツールとの比較
 
-2026-10-27、0.80.0 リリース版バイナリで測定。各領域 3 ツール（Rust 製 1 つ、広く比較される 2 つ）、すべて既定設定、同一マシン（i7-10700、15 GB）。サンプルはルール凍結後に固定シードで抽出し、選別していません。各行は手法・バージョン・件数・生データにリンクしています。
+**まだ後れている項目：** A2 replay, 269 pages, 1 worker 2.4 pages/s vs spider 156.6 pages/s; fast, 40 sites × 60 pages, time 16.6 seconds vs spider 1.4 seconds; B5 134 pages, completion 0.112 vs Docling (GPU) 1.000.
 
-### 大差でリード
-
-| 領域 | 指標（方向） | PageSift 0.80 | 最強の競合 | 根拠 |
-| :--- | :--- | :--- | :--- | :--- |
-| Office & e-books (docx, xlsx, pptx, epub, csv) | Structure kept, held-out ↑ | **0.988** | MarkItDown 0.717 | [§4](../benchmarks/mix/results/report-2026-10-27.md) |
-| PDF, olmOCR-bench born-digital (1,269 pages) | Official score ↑ | **0.626** | pymupdf4llm 0.484 | [§3](../benchmarks/mix/results/report-2026-10-27.md) |
-| Hard web pages (166 adversarial) | Completion ↑ / timeouts ↓ | **0.723** / 0 | crw 0.590 / 27 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
-| Office & e-books speed (81 files, 1 worker) | Files/s ↑ | **57.4** | extractous 9.9 | [§4](../benchmarks/mix/results/report-2026-10-27.md) |
-
-### リード
-
-| 領域 | 指標（方向） | PageSift 0.80 | 最強の競合 | 根拠 |
-| :--- | :--- | :--- | :--- | :--- |
-| Main-content extraction, WCXB | F1 ↑ | **0.866** | Readability 0.848 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
-| Main-content extraction, AEB | F1 ↑ | **0.956** | trafilatura 0.950 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
-| Main-content extraction speed (269 pages, 16 workers) | Pages/s ↑ | **614** | crw 387 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
-| PDF speed (144 files, 1 worker) | Files/s ↑ | **114** | pdf_oxide 94 | [§3](../benchmarks/mix/results/report-2026-10-27.md) |
-
-### やや劣るが僅差（改善に取り組み中）
-
-| 領域 | 指標（方向） | PageSift 0.80 | 最強の競合 | 根拠 |
-| :--- | :--- | :--- | :--- | :--- |
-| PDF vs a layout model (144-page subset) | olmOCR score ↑ | 0.650 | Docling (CPU) 0.696 | [§3](../benchmarks/mix/results/report-2026-10-27.md) |
-| Random real PDFs (71) | Text completeness ↑ | 0.936 | pdf_oxide 0.962 | [§3](../benchmarks/mix/results/report-2026-10-27.md) |
-| Fetching, 269 random pages (local replay) | Completion ↑ | 0.937 | Scrapy 0.981 | [§2 — pagesift refuses captcha/block pages](../benchmarks/mix/results/report-2026-10-27.md) |
-| Main-content extraction, Firecrawl set | Truth recall ↑ | 0.477 | crw 0.511 | [§1](../benchmarks/mix/results/report-2026-10-27.md) |
-| Hard PDFs (100 pdf.js test files) | Completion ↑ | 0.560 | pymupdf4llm 0.680 | [§3 — the largest gap](../benchmarks/mix/results/report-2026-10-27.md) |
-
-### Behind
-
-| Domain | Metric (direction) | PageSift 0.80 | Strongest competitor | Evidence |
-| :--- | :--- | :--- | :--- | :--- |
-| Fetching speed (269 pages, 1 worker) | Pages/s ↑ | 2.7 | spider 153 | [§2 — default auto engine, p95 1.5 s](../benchmarks/mix/results/report-2026-10-27.md) |
-| PDF speed (144 files, 16 workers) | Files/s ↑ | 142 | pdf_oxide 526 | [§3 — one process per file scales poorly](../benchmarks/mix/results/report-2026-10-27.md) |
-
-それまでの最新の測定結果（方向・バージョン・日付付き）は [benchmarks.md](benchmarks.md)、
-領域ごとのスクリプトと生データは [benchmarks/](../benchmarks/) にあります。
+[完全なレポート](../benchmarks/history/0.81/results/20261029-102426/report.md).
 
 ---
 

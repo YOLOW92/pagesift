@@ -1,0 +1,1 @@
+queryFilter: 1.70 ms/question (whole document each time)

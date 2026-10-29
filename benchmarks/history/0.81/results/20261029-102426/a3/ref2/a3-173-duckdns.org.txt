@@ -1,0 +1,13 @@
+Duck DNS spec about why install faqs 
+reddit
+
+Duck DNS
+free dynamic DNS hosted on AWS
+
+news: faster UDP under load, and cleaner addresses
+support us: become a Patreon
+
+
+฿ Bitcoin 16gHnv3NTjpF5ZavMi9QYBFxUkNchdicUS
+Terms of Use
+Privacy Statement

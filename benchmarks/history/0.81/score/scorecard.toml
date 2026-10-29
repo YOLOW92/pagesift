@@ -1,0 +1,753 @@
+# 0.81 refresh scorecard
+#
+# One row = one workload + one metric.  The PageSift value is read from
+# $RUN/metrics.tsv by the key in `psift`; the competitor value is the frozen
+# number from the date in `rival_source` and is NOT re-run in this round.
+#
+# Classification (see summarize.py):
+#   speed   ratio = psift/rival (up) or rival/psift (down)
+#           far >= 1.75x, ahead >= 1.10x
+#   quality delta = psift-rival (up) or rival-psift (down)
+#           far >= +0.10, ahead >= +0.01
+#   memory is shown as a column and never enters the two headline tables.
+#
+# `headline = false` keeps a row in the detailed report only.
+# `gap = true` marks the rows used for the one-line "largest gaps" sentence.
+
+[meta]
+date = "2026-10-29"
+machine = "Intel Core i7-10700 (8C/16T), 15 GB RAM, NVMe, Linux 7.0"
+pagesift = "0.81"
+rival_note = "competitor numbers are the recorded 2026-10-21/22/27/28 runs; they were not re-run for 0.81"
+
+[[row]]
+id = "a1-firecrawl"
+domain_zh = "网页正文"
+domain_en = "Main content"
+workload_zh = "Firecrawl 集 150 页，正文召回"
+workload_en = "Firecrawl set, 150 pages, truth recall"
+metric_zh = "正文召回"
+metric_en = "truth recall"
+direction = "up"
+kind = "quality"
+psift = "quality.a1.firecrawl"
+rival_name = "crw"
+rival = 0.511
+rival_source = "mixed benchmark v2, 2026-10-28, A1 Firecrawl"
+rival_date = "2026-10-28"
+gap = true
+
+[[row]]
+id = "a1-aeb"
+domain_zh = "网页正文"
+domain_en = "Main content"
+workload_zh = "AEB 新闻集 150 页"
+workload_en = "AEB news set, 150 pages"
+metric_zh = "F1"
+metric_en = "F1"
+direction = "up"
+kind = "quality"
+psift = "quality.a1.aeb"
+rival_name = "trafilatura"
+rival = 0.950
+rival_source = "mixed benchmark v2, 2026-10-28, A1 AEB"
+rival_date = "2026-10-28"
+
+[[row]]
+id = "a1-wcxb"
+domain_zh = "网页正文"
+domain_en = "Main content"
+workload_zh = "WCXB 测试集 150 页"
+workload_en = "WCXB test split, 150 pages"
+metric_zh = "F1"
+metric_en = "F1"
+direction = "up"
+kind = "quality"
+psift = "quality.a1.wcxb"
+rival_name = "Readability + Turndown"
+rival = 0.848
+rival_source = "mixed benchmark v2, 2026-10-28, A1 WCXB"
+rival_date = "2026-10-28"
+
+[[row]]
+id = "a1-webmain"
+domain_zh = "网页正文"
+domain_en = "Main content"
+workload_zh = "WebMainBench 150 页"
+workload_en = "WebMainBench, 150 pages"
+metric_zh = "F1"
+metric_en = "F1"
+direction = "up"
+kind = "quality"
+psift = "quality.a1.webmain"
+rival_name = "Readability + Turndown"
+rival = 0.840
+rival_source = "mixed benchmark v2, 2026-10-28, A1 WebMainBench"
+rival_date = "2026-10-28"
+
+[[row]]
+id = "extract-speed"
+domain_zh = "网页正文"
+domain_en = "Main content"
+workload_zh = "Firecrawl 597 页，单线程"
+workload_en = "Firecrawl 597 pages, single thread"
+metric_zh = "单页中位耗时"
+metric_en = "p50 ms/page"
+direction = "down"
+kind = "speed"
+psift = "extract.1t.p50"
+rival_name = "crw"
+rival = 7.38
+rival_source = "docs/benchmarks.md §1, 2026-10-21"
+rival_date = "2026-10-21"
+
+[[row]]
+id = "a2-latency"
+domain_zh = "网页正文"
+domain_en = "Main content"
+workload_zh = "A2 随机 269 页，常驻 worker，单页"
+workload_en = "A2 269 random pages, resident worker, per page"
+metric_zh = "单页中位耗时"
+metric_en = "p50 ms/page"
+direction = "down"
+kind = "speed"
+psift = "v2.a2.serve.1w.p50"
+rival_name = "Resiliparse"
+rival = 2.1
+rival_source = "mixed benchmark v2, 2026-10-28, A2 speed"
+rival_mem = 54
+rival_date = "2026-10-28"
+psift_mem = "v2.a2.serve.1w.peak"
+headline = false
+
+[[row]]
+id = "a2-throughput"
+domain_zh = "网页正文"
+domain_en = "Main content"
+workload_zh = "A2 随机 269 页，16 路"
+workload_en = "A2 269 random pages, 16 workers"
+metric_zh = "吞吐"
+metric_en = "pages/s"
+direction = "up"
+kind = "speed"
+psift = "v2.a2.cli.16w.tput"
+rival_name = "Resiliparse"
+rival = 559.3
+rival_source = "mixed benchmark v2, 2026-10-28, A2 speed"
+rival_date = "2026-10-28"
+psift_mem = "v2.a2.cli.16w.peak"
+rival_mem = 54
+
+[[row]]
+id = "fetch-completion"
+domain_zh = "抓取"
+domain_en = "Fetching"
+workload_zh = "A2 回放 269 页，完成率"
+workload_en = "A2 replay, 269 pages, completion"
+metric_zh = "完成率"
+metric_en = "completion"
+direction = "up"
+kind = "quality"
+psift = "quality.a2crawl.completion"
+rival_name = "Scrapy"
+rival = 0.981
+rival_source = "mixed benchmark v2, 2026-10-28, A2"
+rival_date = "2026-10-28"
+
+[[row]]
+id = "fetch-speed"
+domain_zh = "抓取"
+domain_en = "Fetching"
+workload_zh = "A2 回放 269 页，1 路"
+workload_en = "A2 replay, 269 pages, 1 worker"
+metric_zh = "吞吐"
+metric_en = "pages/s"
+direction = "up"
+kind = "speed"
+psift = "v2.a2crawl.cli.1w.tput"
+rival_name = "spider"
+rival = 156.6
+rival_source = "mixed benchmark v2, 2026-10-28, A2 speed"
+rival_date = "2026-10-28"
+gap = true
+psift_mem = "v2.a2crawl.cli.1w.peak"
+rival_mem = 39
+
+[[row]]
+id = "dates-f1"
+domain_zh = "发布日期"
+domain_en = "Publication dates"
+workload_zh = "htmldate 1,000 页，保留集"
+workload_en = "htmldate 1,000 pages, hold-out"
+metric_zh = "F1"
+metric_en = "F1"
+direction = "up"
+kind = "quality"
+psift = "dates.f1_hold"
+rival_name = "htmldate (extensive)"
+rival = 0.945
+rival_source = "docs/benchmarks.md §2, 2026-10-21"
+rival_date = "2026-10-21"
+
+[[row]]
+id = "dates-ms"
+domain_zh = "发布日期"
+domain_en = "Publication dates"
+workload_zh = "htmldate 1,000 页，日期搜索"
+workload_en = "htmldate 1,000 pages, date search"
+metric_zh = "单页耗时"
+metric_en = "ms/page"
+direction = "down"
+kind = "speed"
+psift = "dates.ms_all"
+rival_name = "htmldate (fast)"
+rival = 2.00
+rival_source = "docs/benchmarks.md §2, 2026-10-21"
+rival_date = "2026-10-21"
+
+[[row]]
+id = "markdown-f1"
+domain_zh = "HTML → Markdown"
+domain_en = "HTML → Markdown"
+workload_zh = "600 篇生成文档，保真度"
+workload_en = "600 generated documents, fidelity"
+metric_zh = "平均 F1"
+metric_en = "mean F1"
+direction = "up"
+kind = "quality"
+psift = "markdown.f1"
+rival_name = "markdownify"
+rival = 0.936
+rival_source = "docs/benchmarks.md §3, 2026-10-21"
+rival_date = "2026-10-21"
+
+[[row]]
+id = "markdown-ms"
+domain_zh = "HTML → Markdown"
+domain_en = "HTML → Markdown"
+workload_zh = "600 篇生成文档，单页"
+workload_en = "600 generated documents, per page"
+metric_zh = "单页耗时"
+metric_en = "ms/page"
+direction = "down"
+kind = "speed"
+psift = "markdown.ms"
+rival_name = "Turndown"
+rival = 1.95
+rival_source = "docs/benchmarks.md §3, 2026-10-21"
+rival_date = "2026-10-21"
+
+[[row]]
+id = "rag-chunk-recall"
+domain_zh = "RAG 分块"
+domain_en = "RAG chunking"
+workload_zh = "472 题，250 词预算"
+workload_en = "472 questions, 250-word budget"
+metric_zh = "召回"
+metric_en = "recall"
+direction = "up"
+kind = "quality"
+psift = "rag.chunk.recall250"
+rival_name = "LangChain recursive"
+rival = 0.626
+rival_source = "docs/benchmarks.md §4, 2026-10-21"
+rival_date = "2026-10-21"
+
+[[row]]
+id = "rag-chunk-ms"
+domain_zh = "RAG 分块"
+domain_en = "RAG chunking"
+workload_zh = "5 份语料，1.4 MB"
+workload_en = "5 corpora, 1.4 MB"
+metric_zh = "总耗时"
+metric_en = "total ms"
+direction = "down"
+kind = "speed"
+psift = "rag.chunk.ms"
+rival_name = "chonkie recursive"
+rival = 35
+rival_source = "docs/benchmarks.md §4, 2026-10-21"
+rival_date = "2026-10-21"
+
+[[row]]
+id = "rag-qf-recall"
+domain_zh = "RAG 查询过滤"
+domain_en = "RAG query filter"
+workload_zh = "472 题，默认配置"
+workload_en = "472 questions, default settings"
+metric_zh = "答案召回"
+metric_en = "answer recall"
+direction = "up"
+kind = "quality"
+psift = "rag.qf.recall_kept"
+rival_name = "Crawl4AI BM25"
+rival = 0.673
+rival_source = "docs/benchmarks.md §4, 2026-10-21"
+rival_date = "2026-10-21"
+
+[[row]]
+id = "rag-qf-ms"
+domain_zh = "RAG 查询过滤"
+domain_en = "RAG query filter"
+workload_zh = "472 题，每题（进程内筛选）"
+workload_en = "472 questions, per question (in-process filter)"
+metric_zh = "单题耗时"
+metric_en = "ms/question"
+direction = "down"
+kind = "speed"
+psift = "rag.qf.ms"
+rival_name = "Crawl4AI BM25"
+rival = 775
+rival_source = "docs/benchmarks.md §4, 2026-10-21"
+rival_date = "2026-10-21"
+headline = false
+
+[[row]]
+id = "pdf-score"
+domain_zh = "PDF → Markdown"
+domain_en = "PDF → Markdown"
+workload_zh = "olmOCR-bench 1,269 页"
+workload_en = "olmOCR-bench 1,269 pages"
+metric_zh = "官方总分"
+metric_en = "official score"
+direction = "up"
+kind = "quality"
+psift = "pdf.olmocr"
+rival_name = "pymupdf4llm"
+rival = 0.484
+rival_source = "mixed benchmark v2, 2026-10-28, B1"
+rival_date = "2026-10-28"
+
+[[row]]
+id = "pdf-ms"
+domain_zh = "PDF → Markdown"
+domain_en = "PDF → Markdown"
+workload_zh = "olmOCR-bench 1,269 页，单页（单线程）"
+workload_en = "olmOCR-bench 1,269 pages, per page (single thread)"
+metric_zh = "单页耗时"
+metric_en = "ms/page"
+direction = "down"
+kind = "speed"
+psift = "pdf.ms"
+rival_name = "pypdf"
+rival = 50
+rival_source = "docs/benchmarks.md §5, 2026-10-22"
+rival_date = "2026-10-22"
+
+[[row]]
+id = "pdf-1w"
+domain_zh = "PDF → Markdown"
+domain_en = "PDF → Markdown"
+workload_zh = "B1 144 页，1 路"
+workload_en = "B1 144 pages, 1 worker"
+metric_zh = "吞吐"
+metric_en = "files/s"
+direction = "up"
+kind = "speed"
+psift = "v2.b1.serve.1w.tput"
+rival_name = "pdf_oxide"
+rival = 100.6
+rival_source = "mixed benchmark v2, 2026-10-28, B1 speed"
+rival_date = "2026-10-28"
+psift_mem = "v2.b1.serve.1w.peak"
+rival_mem = 29
+
+[[row]]
+id = "pdf-16w"
+domain_zh = "PDF → Markdown"
+domain_en = "PDF → Markdown"
+workload_zh = "B1 144 页，16 路"
+workload_en = "B1 144 pages, 16 workers"
+metric_zh = "吞吐"
+metric_en = "files/s"
+direction = "up"
+kind = "speed"
+psift = "v2.b1.cli.16w.tput"
+rival_name = "pdf_oxide"
+rival = 501.7
+rival_source = "mixed benchmark v2, 2026-10-28, B1 speed"
+rival_date = "2026-10-28"
+psift_mem = "v2.b1.cli.16w.peak"
+rival_mem = 11
+
+[[row]]
+id = "b2-completeness"
+domain_zh = "随机真实 PDF"
+domain_en = "Random real PDFs"
+workload_zh = "B2 71 份，文字完整度"
+workload_en = "B2 71 files, text completeness"
+metric_zh = "文字完整度"
+metric_en = "text completeness"
+direction = "up"
+kind = "quality"
+psift = "quality.b2.completeness"
+rival_name = "pdf_oxide"
+rival = 0.962
+rival_source = "mixed benchmark v2, 2026-10-28, B2"
+rival_date = "2026-10-28"
+
+[[row]]
+id = "b3-completion"
+domain_zh = "难题 PDF"
+domain_en = "Hard PDFs"
+workload_zh = "B3 100 份 pdf.js，完成率"
+workload_en = "B3 100 pdf.js files, completion"
+metric_zh = "完成率"
+metric_en = "completion"
+direction = "up"
+kind = "quality"
+psift = "quality.b3.completion"
+rival_name = "pymupdf4llm"
+rival = 0.680
+rival_source = "mixed benchmark v2, 2026-10-28, B3"
+rival_date = "2026-10-28"
+gap = true
+
+[[row]]
+id = "b5-completion"
+domain_zh = "扫描件 PDF"
+domain_en = "Scanned PDFs"
+workload_zh = "B5 134 页，完成率"
+workload_en = "B5 134 pages, completion"
+metric_zh = "完成率"
+metric_en = "completion"
+direction = "up"
+kind = "quality"
+psift = "quality.b5.completion"
+rival_name = "Docling (GPU)"
+rival = 1.000
+rival_source = "mixed benchmark v2, 2026-10-28, B5"
+rival_date = "2026-10-28"
+
+[[row]]
+id = "office-quality"
+domain_zh = "Office / 电子书"
+domain_en = "Office / e-books"
+workload_zh = "B4 留出集 39 份，结构保留率"
+workload_en = "B4 hold-out 39 files, structure kept"
+metric_zh = "结构保留率"
+metric_en = "structure kept"
+direction = "up"
+kind = "quality"
+psift = "quality.b4.holdout"
+rival_name = "Kreuzberg"
+rival = 0.816
+rival_source = "mixed benchmark v2, 2026-10-28, B4"
+rival_date = "2026-10-28"
+
+[[row]]
+id = "office-speed"
+domain_zh = "Office / 电子书"
+domain_en = "Office / e-books"
+workload_zh = "B4 81 份，单进程"
+workload_en = "B4 81 files, in-process"
+metric_zh = "吞吐"
+metric_en = "files/s"
+direction = "up"
+kind = "speed"
+psift = "v2.b4.cli.1w.tput"
+rival_name = "Kreuzberg"
+rival = 19.5
+rival_source = "mixed benchmark v2, 2026-10-28, B4 speed"
+rival_date = "2026-10-28"
+psift_mem = "v2.b4.cli.1w.peak"
+rival_mem = 231
+
+[[row]]
+id = "crawl-wide"
+domain_zh = "整站抓取"
+domain_en = "Whole-site crawl"
+workload_zh = "wide 200 × 100 页"
+workload_en = "wide 200 × 100 pages"
+metric_zh = "吞吐"
+metric_en = "pages/s"
+direction = "up"
+kind = "speed"
+psift = "crawl.wide.tput"
+rival_name = "spider"
+rival = 2700
+rival_source = "docs/benchmarks.md §6, 2026-10-21"
+rival_date = "2026-10-21"
+psift_mem = "crawl.wide.peak"
+rival_mem = 5500
+
+[[row]]
+id = "crawl-wide-memory"
+domain_zh = "整站抓取"
+domain_en = "Whole-site crawl"
+workload_zh = "wide 200 × 100 页"
+workload_en = "wide 200 × 100 pages"
+metric_zh = "峰值内存"
+metric_en = "peak memory"
+direction = "down"
+kind = "memory"
+psift = "crawl.wide.peak"
+rival_name = "spider"
+rival = 5500
+rival_source = "docs/benchmarks.md §6, 2026-10-21"
+rival_date = "2026-10-21"
+headline = false
+
+[[row]]
+id = "crawl-huge"
+domain_zh = "整站抓取"
+domain_en = "Whole-site crawl"
+workload_zh = "huge 1,000 × 50 页"
+workload_en = "huge 1,000 × 50 pages"
+metric_zh = "吞吐"
+metric_en = "pages/s"
+direction = "up"
+kind = "speed"
+psift = "crawl.huge.tput"
+rival_name = "spider"
+rival = 0
+rival_source = "no completed rival run (Spider was stopped by the memory watchdog)"
+rival_date = "2026-10-21"
+headline = false
+
+[[row]]
+id = "wild-fast-coverage"
+domain_zh = "真实站点抓取"
+domain_en = "Wild crawl"
+workload_zh = "fast，40 站 × 60 页，覆盖"
+workload_en = "fast, 40 sites × 60 pages, coverage"
+metric_zh = "覆盖率"
+metric_en = "coverage"
+direction = "up"
+kind = "quality"
+psift = "wild.fast.coverage"
+rival_name = "Crawl4AI (HTTP)"
+rival = 0.499
+rival_source = "docs/benchmarks.md §7, 2026-10-21"
+rival_date = "2026-10-21"
+
+[[row]]
+id = "wild-fast-waste"
+domain_zh = "真实站点抓取"
+domain_en = "Wild crawl"
+workload_zh = "fast，40 站 × 60 页，浪费"
+workload_en = "fast, 40 sites × 60 pages, waste"
+metric_zh = "浪费率"
+metric_en = "waste"
+direction = "down"
+kind = "quality"
+psift = "wild.fast.waste"
+rival_name = "Crawl4AI (HTTP)"
+rival = 0.429
+rival_source = "docs/benchmarks.md §7, 2026-10-21"
+rival_date = "2026-10-21"
+headline = false
+
+[[row]]
+id = "wild-polite-coverage"
+domain_zh = "真实站点抓取"
+domain_en = "Wild crawl"
+workload_zh = "polite，40 站 × 60 页，覆盖"
+workload_en = "polite, 40 sites × 60 pages, coverage"
+metric_zh = "覆盖率"
+metric_en = "coverage"
+direction = "up"
+kind = "quality"
+psift = "wild.polite.coverage"
+rival_name = "Crawl4AI (HTTP)"
+rival = 0.529
+rival_source = "docs/benchmarks.md §7, 2026-10-21"
+rival_date = "2026-10-21"
+
+[[row]]
+id = "wild-fast-time"
+domain_zh = "真实站点抓取"
+domain_en = "Wild crawl"
+workload_zh = "fast，40 站 × 60 页，耗时"
+workload_en = "fast, 40 sites × 60 pages, time"
+metric_zh = "耗时"
+metric_en = "seconds"
+direction = "down"
+kind = "speed"
+psift = "wild.fast.wall"
+rival_name = "spider"
+rival = 1.4
+rival_source = "docs/benchmarks.md §7, 2026-10-21"
+rival_date = "2026-10-21"
+headline = false
+
+[[row]]
+id = "wild-polite-time"
+domain_zh = "真实站点抓取"
+domain_en = "Wild crawl"
+workload_zh = "polite，40 站 × 60 页，耗时"
+workload_en = "polite, 40 sites × 60 pages, time"
+metric_zh = "耗时"
+metric_en = "seconds"
+direction = "down"
+kind = "speed"
+psift = "wild.polite.wall"
+rival_name = "spider"
+rival = 12.5
+rival_source = "docs/benchmarks.md §7, 2026-10-21"
+rival_date = "2026-10-21"
+headline = false
+
+[[row]]
+id = "a3-completion"
+domain_zh = "需要 JS 的网页"
+domain_en = "JavaScript pages"
+workload_zh = "A3 100 个实时页，完成率"
+workload_en = "A3 100 live pages, completion"
+metric_zh = "完成率"
+metric_en = "completion"
+direction = "up"
+kind = "quality"
+psift = "a3.completion"
+rival_name = "Crawl4AI"
+rival = 0.650
+rival_source = "mixed benchmark v2, 2026-10-28, A3 (different live snapshot)"
+rival_date = "2026-10-28"
+appendix = true
+headline = false
+
+[[row]]
+id = "a3-coverage"
+domain_zh = "需要 JS 的网页"
+domain_en = "JavaScript pages"
+workload_zh = "A3 100 个实时页，参照词覆盖"
+workload_en = "A3 100 live pages, reference coverage"
+metric_zh = "参照词覆盖"
+metric_en = "coverage"
+direction = "up"
+kind = "quality"
+psift = "a3.coverage_all"
+rival_name = "Crawl4AI"
+rival = 0.425
+rival_source = "mixed benchmark v2, 2026-10-28, A3 (different live snapshot)"
+rival_date = "2026-10-28"
+appendix = true
+headline = false
+
+[[row]]
+id = "browser-auto"
+domain_zh = "浏览器渲染"
+domain_en = "Browser rendering"
+workload_zh = "wide，200 × 100 页，自动内核"
+workload_en = "wide, 200 × 100 pages, auto engine"
+metric_zh = "吞吐"
+metric_en = "pages/s"
+direction = "up"
+kind = "speed"
+psift = "browser.auto.tput"
+rival_name = "Google Chrome"
+rival = 11.6
+rival_source = "docs/benchmarks.md §8, 2026-10-21"
+rival_date = "2026-10-21"
+appendix = true
+headline = false
+
+[[row]]
+id = "browser-auto-memory"
+domain_zh = "浏览器渲染"
+domain_en = "Browser rendering"
+workload_zh = "wide，200 × 100 页，自动内核"
+workload_en = "wide, 200 × 100 pages, auto engine"
+metric_zh = "峰值内存"
+metric_en = "peak memory"
+direction = "down"
+kind = "memory"
+psift = "browser.auto.peak"
+rival_name = "Google Chrome"
+rival = 2300
+rival_source = "docs/benchmarks.md §8, 2026-10-21"
+rival_date = "2026-10-21"
+appendix = true
+headline = false
+
+# --- appendix: measured, but no same-method frozen competitor -------------
+
+[[row]]
+id = "b2-speed"
+domain_zh = "随机真实 PDF"
+domain_en = "Random real PDFs"
+workload_zh = "B2 71 份，1 路"
+workload_en = "B2 71 files, 1 worker"
+metric_zh = "吞吐"
+metric_en = "files/s"
+direction = "up"
+kind = "speed"
+psift = "b2.tput.1w"
+rival_name = "（无同口径对手）"
+rival = 0
+rival_source = "not compared in the old table"
+rival_date = "—"
+appendix = true
+headline = false
+
+[[row]]
+id = "b3-speed"
+domain_zh = "难题 PDF"
+domain_en = "Hard PDFs"
+workload_zh = "B3 100 份，1 路"
+workload_en = "B3 100 files, 1 worker"
+metric_zh = "吞吐"
+metric_en = "files/s"
+direction = "up"
+kind = "speed"
+psift = "b3.tput.1w"
+rival_name = "（无同口径对手）"
+rival = 0
+rival_source = "completion only in the old table"
+rival_date = "—"
+appendix = true
+headline = false
+
+[[row]]
+id = "b5-speed"
+domain_zh = "扫描件 PDF"
+domain_en = "Scanned PDFs"
+workload_zh = "B5 134 页，1 路"
+workload_en = "B5 134 pages, 1 worker"
+metric_zh = "吞吐"
+metric_en = "pages/s"
+direction = "up"
+kind = "speed"
+psift = "b5.tput.1w"
+rival_name = "（无同口径对手）"
+rival = 0
+rival_source = "completion only in the old table"
+rival_date = "—"
+appendix = true
+headline = false
+
+[[row]]
+id = "scale-10m"
+domain_zh = "规模"
+domain_en = "Scale"
+workload_zh = "本地 10M 请求，16 线程"
+workload_en = "local 10M requests, 16 threads"
+metric_zh = "持续吞吐"
+metric_en = "pages/s"
+direction = "up"
+kind = "speed"
+psift = "scale.10m.sustained_pages_per_s"
+rival_name = "（无同口径对手）"
+rival = 0
+rival_source = "0.70 200M used 192 vCPUs; not comparable"
+rival_date = "—"
+appendix = true
+headline = false
+
+[[row]]
+id = "api-binary"
+domain_zh = "部署"
+domain_en = "Deployment"
+workload_zh = "单二进制"
+workload_en = "single binary"
+metric_zh = "二进制大小"
+metric_en = "binary size"
+direction = "down"
+kind = "speed"
+psift = "api.binary_size_mb"
+rival_name = "（无同口径对手）"
+rival = 0
+rival_source = "no same-method competitor measured"
+rival_date = "—"
+appendix = true
+headline = false

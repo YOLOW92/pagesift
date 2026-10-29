@@ -1,0 +1,289 @@
+Skip to
+content
+Competitions
+Benchmarks
+Arenas
+Game Arena
+Data Hub
+more_horiz
+Login
+Sign Up
+menu
+Skip to
+content
+
+Create
+
+Home
+
+Competitions
+
+Benchmarks
+
+Arenas
+
+Game Arena
+
+Data Hub
+
+More
+
+Kaggle uses cookies from Google to deliver and enhance the quality of its services and to analyze traffic.
+Learn more
+OK, Got it.
+
+Kaggle is for
+
+Solution Seekers
+Benchmark Climbers
+AI Practitioners
+Standard Setters
+Solution Seekers
+Solution Seekers, Benchmark Climbers, AI Practitioners, Standard Setters
+Evaluating what works at AI’s frontier
+
+Crowdsourced benchmarks, competitions, and hackathons where the community shapes real-world progress in AI.
+
+Benchmark
+Benchmark
+Competition
+Competition
+21h ago
+21h ago
+6d ago
+15d ago
+Code2Video Arena by HeyGen
+MineBench Arena by MineBench
+Google Quantum AI - Verifiable Quantum Circuit Compilation by Google Quantum AI
+Name That LLM by Kaggle
+
+Trusted by teams at
+
+Featured Benchmarks
+
+Discover the state-of-the-art in AI
+
+Top benchmarks from leading labs, researchers, and companies.
+
+View all
+Trending
+Recently added
+Game Arena
+Game Arena
+Measuring the frontier of model capabilities through dynamic game environments.
+Kaggle
+
+#1
+
+Gemini 4 Argon
+
+535
+
+#2
+
+GPT-6 Astra
+
+491
+
+#3
+
+Claude Opus 5
+
+436
+
++ 36 more models
+
+Updated 9d ago
+arrow_drop_up
+187
+Enterprise Operations Bench
+Evaluates LLMs against real world, domain-specific enterprise operational workflows
+IBM Research
+
+#1
+
+Gemini 3 Pro Preview
+
+64%
+
+#2
+
+o3
+
+60%
+
+#3
+
+GPT-5
+
+60%
+
++ 10 more models
+
+Updated 1mo ago
+arrow_drop_up
+426
+FACTS Grounding
+FACTS is a novel benchmark from Google DeepMind and Google Research designed to evaluate the factual accuracy and grounding of AI models.
+Google
+
+#1
+
+GPT-6 Astra
+
+80%
+
+#2
+
+GPT-6.1 Sol
+
+78%
+
+#3
+
+Gemma 4 26B A4B
+
+78%
+
++ 12 more models
+
+Updated 1d ago
+arrow_drop_up
+83
+ParseBench: Doc OCR for AI agents
+Parsing text, layouts, and scanned tables
+LlamaIndex
+
+#1
+
+GPT-6.1 Sol
+
+80%
+
+#2
+
+GPT-6 Sol
+
+80%
+
+#3
+
+GPT-6 Astra
+
+79%
+
++ 31 more models
+
+Updated 9h ago
+arrow_drop_up
+237
+
+Competitions and Hackathons
+
+Put AI to work to solve real problems
+
+Compete for prizes or host a competition and put global AI practitioners to work.
+
+Join a competition
+Abstraction and Reasoning Corpus
+Competition
+ARC Prize 2026 - ARC-AGI-3
+
+Create an AI capable of fluid intelligence
+
+4,944 Teams · 5,634 Participants
+
+trophy
+$850,000
+5d to go
+Abstraction and Reasoning Corpus
+Competition
+ARC Prize 2026 - ARC-AGI-2
+
+Create an AI capable of novel reasoning
+
+3,479 Teams · 3,872 Participants
+
+trophy
+$700,000
+5d to go
+Abstraction and Reasoning Corpus
+Hackathon
+ARC Prize 2026 - Paper Track
+
+Document your conceptual approach for the ARC Prize 2026
+
+344 Teams · 366 Participants
+
+trophy
+$450,000
+12d to go
+Google Quantum AI
+Competition
+Google Quantum AI - Verifiable Quantum Circuit Compilation
+
+Reducing the resources required for quantum applications
+
+1,457 Teams · 1,553 Participants
+
+trophy
+$150,000
+3mo to go
+
+Models
+
+Explore over 52K models
+View all
+Mayo Clinic x Kaggle: advancing stroke treatment
+Learn more
+Mayo Clinic
+Google
+Happy Whale
+IceCube
+Everything you need to build your own benchmark
+
+Turn your evaluation criteria into benchmarks with custom tasks, private test sets, and reproducible leaderboards.
+
+Create a benchmark
+52K+ Models
+771K Datasets
+12K+ evaluation tasks
+1.8M public notebooks
+Learn from our expert community
+View all
+Interview: Designing Robust Evals
+Build AI Evals Locally with Kaggle Benchmarks
+Live Q&A: Measuring Progress Toward AGI
+About Kaggle
+
+Kaggle is the leading platform for independent, crowdsourced AI evaluation. Our competitions, benchmarks, and hackathons attract the world’s largest community of AI experts, producing transparent, reproducible results at the frontier. We work with organizations to turn internal priorities into public challenges the whole field can build on, resulting in AI that’s better for everyone.
+
+Run with transparent methodologies
+Open source and validated by the community
+Trusted by leading research labs and AI teams
+Company
+Our Team
+Contact Us
+Product
+Competitions
+Hackathons
+Benchmarks
+Datasets
+Notebooks
+Legal
+Privacy Policy
+Terms
+Resources
+Documentation
+Blog
+Host a Competition
+APIs
+Community Guidelines
+
+Kaggle © 2026
+
+Social
+LinkedIn
+X
+YouTube
+Discord

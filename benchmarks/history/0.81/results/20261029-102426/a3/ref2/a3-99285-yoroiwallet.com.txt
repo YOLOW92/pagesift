@@ -1,0 +1,54 @@
+Yoroi and SecondFi are winding down.
+
+Following the recent security incident, EMURGO has made the decision to wind down the Yoroi wallet and SecondFi. Our focus is on supporting affected users and helping everyone move their assets securely. Please follow our official channels for guidance on migrating your assets and, for affected users, the recovery process.
+
+Official updates: @secondfiapp and @secondfi_jp
+
+Yoroi and SecondFi are winding down.
+
+Following the recent security incident, EMURGO has made the decision to wind down the Yoroi wallet and SecondFi. Our focus is on supporting affected users and helping everyone move their assets securely. Please follow our official channels for guidance on migrating your assets and, for affected users, the recovery process.
+
+Official updates: @secondfiapp and @secondfi_jp
+
+HOME
+ABOUT
+SUPPORT
+HOME
+ABOUT
+SUPPORT
+Your gateway to the
+Cardano ecosystem
+Yoroi Wallet is an open-source crypto wallet
+that empowers your Web3 journey
+
+DOWNLOAD
+
+WATCH THE VIDEO
+Secure
+Yoroi Wallet is a self custodial open-source light wallet built in the open for the Cardano ecosystem. The level of transparency enhances the security. Anyone may explore or inspect the Yoroi source code on Github. Private keys are encrypted, and never shared with our servers or third party providers.
+Fast
+Quickly access your ADA, NFTs, and Cardano Native Assets through your mobile device and/or browser extension. Yoroi’s lightweight design empowers you to seamlessly engage with the Cardano Web3 ecosystem—including DEXs, DeFi platforms, and NFTs—without the burden of downloading the full blockchain.
+Simple
+We believe that software should have a simple structure and a beautiful user interface. Developed by EMURGO Fintech a division within EMURGO – a founding entity of Cardano blockchain – Yoroi was the first light wallet supporting Cardano ADA. We’ve been providing users with intuitive, scalable and robust innovation since 2018.
+Features
+NFT Gallery
+Elevate your NFT experience. Display, manage, and store your NFTs.
+Swap
+Find the best exchanges rates through in-wallet swaps, powered by the MuesliSwap DEX aggregator.
+Stake
+Earn ~3.5% by staking to your favorite stake pool.
+Connect
+Interact with all of your favorite Cardano DApps and protocols.
+Vote
+Have your say in the future of Cardano.
+Easy Onboarding
+Easily top-up your Yoroi Wallet to get started.
+Our Collaborators
+HOME
+ABOUT
+SUPPORT
+TERMS & CONDITIONS
+
+DOWNLOAD
+
+All rights reserved | 2018-2022 Yoroi

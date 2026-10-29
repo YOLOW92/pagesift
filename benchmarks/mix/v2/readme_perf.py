@@ -13,7 +13,7 @@ import report as R  # noqa: E402
 
 LANG = sys.argv[1]
 LINK = "benchmarks/mix/v2/results/report-2026-10-28.md" if LANG == "en" else "../benchmarks/mix/v2/results/report-2026-10-28.md"
-OURS = {"a2": ["pagesift", "pagesift-serve"], "b1": ["pagesift-file", "pagesift-serve-file"], "b4": ["pagesift-file", "pagesift-serve-file"]}
+OURS = {"a2": ["pagesift", "pagesift-serve", "pagesift-081", "pagesift-081-serve"], "b1": ["pagesift-file", "pagesift-serve-file", "pagesift-081-file", "pagesift-081-serve-file"], "b4": ["pagesift-file", "pagesift-serve-file", "pagesift-081-file", "pagesift-081-serve-file"]}
 RIVALS = {
     "a2": ["crw", "trafilatura", "readability", "resiliparse", "newspaper4k"],
     "b1": ["pdf_oxide", "pymupdf4llm", "kreuzberg", "mineru-flash", "mineru", "docling", "docling-gpu"],
