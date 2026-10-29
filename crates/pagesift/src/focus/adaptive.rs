@@ -9,13 +9,13 @@ use pagesift_api::types::AdaptiveOptions;
 use pagesift_extract::Query;
 
 /// 相关度低于它的页面算无关：不计入证据，而且找到相关内容之后连着出现就算"抓完了"。
-/// 按 31 所真实大学站点的分布定（0.80.3，benchmarks/history/0.80.3）：目标页相关度中位数 0.16、
-/// 无用页 0.07；0.12 之下 62% 的目标页不会被误判。真实页面很少同时覆盖全部查询词，而且常见词的
-/// 权重被压低，所以绝对值比合成站点低得多。附件收割也用它。
-pub(crate) const MIN_RELEVANCE: f32 = 0.12;
+/// 附件收割也用它。0.81 换成按方面打分的相关度（[`super::facet`]）后，两条门槛按 1,833 个
+/// 人工判过的页面换算：保留下来的有用页比例和换算前一样（0.12 → 0.05 都约 90%，
+/// 0.3 → 0.15 都约 52%），保留下来的页面里有用的比例略高。
+pub(crate) const MIN_RELEVANCE: f32 = 0.05;
 /// 相关度不低于它的页面才贡献证据、才参与"有没有新信息"的判断；两者之间的页面不算数
 /// （沾了点边的页面：既不能让覆盖度提前达标，也不能把相关的部分判成抓完了）。
-pub(crate) const EVIDENCE_RELEVANCE: f32 = 0.3;
+pub(crate) const EVIDENCE_RELEVANCE: f32 = 0.15;
 
 /// 还没有收获时，连续盲探多少倍 patience 页才放弃。在 69 所大学 × 5 个方向、上限 100 的结果上
 /// 模拟（benchmarks/history/0.80.10）：2 倍（默认 10 页）省下约四分之一的页数，丢掉的有用页
@@ -246,7 +246,7 @@ mod tests {
         let mut a = Adaptive::new(opts(1.0, 1, 1), q.len());
         // 新闻页提了一句 refund：相关度低，不算证据，也不算"没有新信息"
         assert_eq!(
-            a.observe(&q, "A refund was mentioned in passing.", 0.1, false),
+            a.observe(&q, "A refund was mentioned in passing.", 0.03, false),
             None
         );
         assert_eq!(a.evidence(), &[0, 0]);
@@ -262,7 +262,7 @@ mod tests {
         let mut a = Adaptive::new(opts(1.0, 100, 2), q.len());
         assert_eq!(a.observe(&q, "Refund policy in full.", 0.9, false), None);
         assert_eq!(a.observe(&q, "Team page.", 0.0, false), None);
-        assert_eq!(a.observe(&q, "Refund mentioned once.", 0.2, false), None);
+        assert_eq!(a.observe(&q, "Refund mentioned once.", 0.1, false), None);
         assert_eq!(a.evidence(), &[1, 1]);
         assert_eq!(
             a.observe(&q, "Careers page.", 0.0, false),
@@ -282,7 +282,7 @@ mod tests {
         for _ in 0..3 {
             assert_eq!(a.observe(&q, "About us.", 0.0, true), None);
         }
-        assert_eq!(a.observe(&q, "Refund mentioned once.", 0.2, true), None);
+        assert_eq!(a.observe(&q, "Refund mentioned once.", 0.1, true), None);
         for _ in 0..3 {
             assert_eq!(a.observe(&q, "Careers.", 0.0, true), None);
         }

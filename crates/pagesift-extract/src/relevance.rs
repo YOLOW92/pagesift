@@ -76,6 +76,15 @@ impl Query {
         mask
     }
 
+    /// 按顺序走一遍文本里的词：每个词对应第几个查询词，不是查询词的给 None。
+    pub fn for_each_term(&self, text: &str, mut f: impl FnMut(Option<usize>)) {
+        let mut buf = String::new();
+        for_each_token(text, false, &mut buf, |t| {
+            let s = stem(t);
+            f(self.terms.iter().position(|term| term_matches(s, term)));
+        });
+    }
+
     /// 文本覆盖了多大比例的查询词，0 到 1；查询为空时是 0。
     pub fn coverage(&self, text: &str) -> f32 {
         if self.terms.is_empty() {

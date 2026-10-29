@@ -627,11 +627,6 @@ impl Scraper {
                     let md = doc.markdown.as_deref().unwrap_or_default();
                     // 正文里的链接（导航、页脚不算）：枢纽页的判断按它，真实站点的大菜单有几百条链接
                     let contexts = link_contexts(md);
-                    focus.observe_page(md);
-                    // 词权重变了：排队的链接按新权重重排（入队时各页的词权重不一样，分数不可比）
-                    if focus.weights_moved() {
-                        queue.rescore(|s| focus.score(s));
-                    }
                     let lang = doc.metadata.language.as_deref();
                     if depth == 0 && url == start {
                         focus.note_seed_language(lang);
@@ -643,6 +638,12 @@ impl Scraper {
                         contexts.len(),
                         lang,
                     );
+                    // 这一页也计入本站统计量，再算它的相关度
+                    focus.observe_page(&page);
+                    // 权重变了：排队的链接按新权重重排（入队时各页的权重不一样，分数不可比）
+                    if focus.weights_moved() {
+                        queue.rescore(|s| focus.score(s));
+                    }
                     let relevance = focus.relevance(&page);
                     if stop.is_none()
                         && let Some(a) = adaptive.as_mut()

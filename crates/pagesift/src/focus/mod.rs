@@ -9,6 +9,7 @@
 
 mod adaptive;
 mod context;
+mod facet;
 pub(crate) mod furniture;
 mod harvest;
 mod queue;
@@ -20,6 +21,7 @@ use context::prose_words;
 pub(crate) use harvest::{Harvest, subtree};
 pub(crate) use queue::{BestFirst, Offer, cluster_key};
 
+use facet::{FacetStats, Facets};
 use pagesift_extract::Query;
 use pagesift_net::Url;
 use weights::TermWeights;
@@ -55,12 +57,13 @@ pub(crate) const LIST_FREE: usize = 8;
 /// 后期几乎不用重算；队列长度不超过 limit，一次重算很便宜。
 const RESCORE_DELTA: f32 = 0.05;
 
-/// 页面相关度的组成：标题、正文命中的查询词，枢纽页和家具页的折扣。
+/// 页面相关度的组成：各查询方面的证据（[`facet`]），枢纽页和家具页的折扣。
 /// `fixed` 是直接给定的相关度（没有页面可看的链接，测试）。
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct PageSignal {
     title: u64,
     body: u64,
+    facets: Facets,
     factor: f32,
     fixed: f32,
     /// 页面声明的语言不是英文（`lang` 不以 `en` 开头）。
@@ -123,6 +126,8 @@ impl LinkSignal {
 pub(crate) struct Focus {
     pub query: Query,
     weights: TermWeights,
+    /// 页面相关度用的本站统计量。
+    facets: FacetStats,
     /// 种子页的主机（去掉 www.）：英文版入口的保底分只给本站的 `/en/`，别的主机的 `/en/` 是子站。
     host: Option<String>,
     /// 已经抓到本站的英文版首页：之后别的 `/xx/en/` 不再拿英文入口的保底分（那是子栏目的英文版）。
@@ -137,10 +142,17 @@ impl Focus {
     pub(crate) fn new(query: &str) -> Self {
         let query = Query::new(query);
         let weights = TermWeights::new(query.len());
+        let facets = FacetStats::new(query.len());
         Self {
-            scored_with: weights.current().to_vec(),
+            scored_with: weights
+                .current()
+                .iter()
+                .copied()
+                .chain(facets.shares())
+                .collect(),
             query,
             weights,
+            facets,
             host: None,
             english_home: false,
             english_seed: false,
@@ -205,9 +217,11 @@ impl Focus {
         same_site && english_label && root
     }
 
-    /// 记下一页正文命中的词，调整词权重。抓到的每一页都要记（包括无用页：正是它们说明哪些词常见）。
-    pub(crate) fn observe_page(&mut self, markdown: &str) {
-        self.weights.observe(self.query.hit_mask(markdown));
+    /// 记下一页（正文命中的词、各方面的证据），调整词权重和本站统计量。抓到的每一页都要记
+    /// （包括无用页：正是它们说明哪些词常见）。
+    pub(crate) fn observe_page(&mut self, page: &PageSignal) {
+        self.weights.observe(page.body);
+        self.facets.observe(&page.facets);
     }
 
     /// 页面和查询的相关度，0 到 1：标题和正文各占一半；枢纽页（链接标签以外的正文比链接少）和
@@ -239,9 +253,11 @@ impl Focus {
         if furniture::is_furniture_url(url, &self.wanted()) {
             factor *= furniture::FURNITURE_FACTOR;
         }
+        let title = title.unwrap_or_default();
         PageSignal {
-            title: self.query.hit_mask(title.unwrap_or_default()),
+            title: self.query.hit_mask(title),
             body: self.query.hit_mask(markdown),
+            facets: Facets::of(&self.query, title, &locator(url), markdown),
             factor,
             fixed: 0.0,
             foreign: lang.is_some_and(|l| !is_english(l)),
@@ -249,22 +265,29 @@ impl Focus {
     }
 
     pub(crate) fn relevance(&self, p: &PageSignal) -> f32 {
-        p.fixed
-            + p.factor
-                * (0.5 * self.weights.coverage(p.title) + 0.5 * self.weights.coverage(p.body))
+        // 只有给定值的信号（链接的父页面未知、测试）没有页面可看
+        if p.title == 0 && p.body == 0 && p.facets.is_empty() {
+            return p.fixed;
+        }
+        p.fixed + p.factor * self.facets.relevance(&p.facets)
     }
 
     /// 词权重和上次重新打分时比变得够多了（变化最大的词差 [`RESCORE_DELTA`] 以上）：
     /// 排队链接的分数要按新权重重算。返回 true 时记下现在的权重。
     pub(crate) fn weights_moved(&mut self) -> bool {
-        let moved = self
+        let now: Vec<f32> = self
             .weights
             .current()
+            .iter()
+            .copied()
+            .chain(self.facets.shares())
+            .collect();
+        let moved = now
             .iter()
             .zip(&self.scored_with)
             .any(|(a, b)| (a - b).abs() > RESCORE_DELTA);
         if moved {
-            self.scored_with = self.weights.current().to_vec();
+            self.scored_with = now;
         }
         moved
     }
@@ -651,7 +674,7 @@ mod tests {
         let hub = f.page_relevance(&home, None, text, 40);
         // 正文全是带查询词的链接标签（文章列表）：也是枢纽页
         let list = "- [International students admission](https://e.edu/a)\n- [International students admission](https://e.edu/b)\n- [International students admission](https://e.edu/c)\n- [International students admission](https://e.edu/d)\n- [International students admission](https://e.edu/e)\n- [International students admission](https://e.edu/f)\n- [International students admission](https://e.edu/g)\n- [International students admission](https://e.edu/h)\n";
-        assert!(f.page_relevance(&home, None, list, 8) < article);
+        assert!(f.page_relevance(&home, None, list, 8) < f.page_relevance(&home, None, list, 0));
         let dated = f.page_relevance(&u("https://e.edu/news/2026/"), None, text, 3);
         assert!(hub < article && dated < article, "{article} {hub} {dated}");
     }
@@ -664,11 +687,13 @@ mod tests {
         assert!(intl > plain && plain == 0.0, "{intl} {plain}");
         // 每一页都有 students，visa 只在一页出现：后者的权重更高
         for i in 0..6 {
-            f.observe_page(if i == 0 {
+            let text = if i == 0 {
                 "students visa"
             } else {
                 "students and more students"
-            });
+            };
+            let page = f.page_signal(&u("https://e.edu/p"), None, text, 0, None);
+            f.observe_page(&page);
         }
         let students = f.link_score(&u("https://e.edu/x"), Some("students"), None, 0.0, 1);
         let visa = f.link_score(&u("https://e.edu/y"), Some("visa"), None, 0.0, 1);
