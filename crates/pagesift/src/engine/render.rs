@@ -11,6 +11,8 @@ impl Scraper {
         progress: Progress,
         // `engine: auto` 从 HTTP 升级过来时，HTTP 正文的字符数（用来学这个站值不值得渲染）
         http_chars: Option<usize>,
+        // `engine: auto` 的早停探针；显式 `engine: browser` 传 `None`
+        early_stop: Option<pagesift_cdp::EarlyStop>,
     ) -> Result<Document, ApiError> {
         let Progress {
             started,
@@ -108,6 +110,20 @@ impl Scraper {
                 continue;
             };
             let engine = pool.engine();
+            // 裸跳转页需要完整浏览器执行脚本再跟随跳转；Lightpanda 只会白等
+            // 一轮网络静默，直接跳到完整内核。
+            if early_stop.as_ref().is_some_and(|s| s.cap_navigation) && !engine.renders_iframes() {
+                continue;
+            }
+            // 导航上限对所有内核生效；内容探针只给完整内核，避免 Lightpanda
+            // 的薄结果把后面 Chrome 的机会提前掐掉。
+            ropts.early_stop = early_stop.clone();
+            ropts.early_stop_probe = engine.renders_iframes();
+            ropts.nav_patience = match early_stop.as_ref() {
+                Some(stop) if stop.baseline_chars > 0 => self.render_stats.nav_patience(),
+                Some(stop) if stop.cap_navigation => Some(stop.http_elapsed.saturating_mul(20)),
+                _ => None,
+            };
             ropts.timeout = deadline.saturating_duration_since(Instant::now());
             if ropts.timeout < MIN_ATTEMPT {
                 // 剩下的时间不够再试一个内核：有结果就用，没有就算超时
@@ -145,6 +161,8 @@ impl Scraper {
                 content_type,
                 timings: page_timings,
                 iframes_inlined,
+                early_stopped,
+                first_content,
                 ..
             } = page;
             let mut missing_iframes = 0;
@@ -163,6 +181,14 @@ impl Scraper {
             let t = Instant::now();
             let (doc, html) = process_html(html, &final_url, status, opts).await?;
             let extract = t.elapsed();
+            let gained = http_chars.is_some_and(|n| text_weight(&doc.markdown) > n);
+            self.render_stats.note_render(
+                page_timings.navigation,
+                page_timings.wait,
+                page_timings.total,
+                first_content,
+                gained,
+            );
             // 错误页正文少是正常的，换内核也一样
             let thin = status.is_none_or(|s| s < 400)
                 && text_weight(&doc.markdown) < RENDER_FALLBACK_MIN_CHARS;
@@ -177,6 +203,11 @@ impl Scraper {
                 doc,
                 html,
             };
+            // 早停拿到的就是当前 DOM 的快照，不再换内核重试。
+            if early_stopped {
+                best = Some(r);
+                break;
+            }
             // 完整内核（moli、Chrome 系）渲染结果一致：正文少就是页面本身少，不再换内核
             if (missing_iframes == 0 && !thin) || engine.renders_iframes() {
                 best = Some(r);

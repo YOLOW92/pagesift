@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.81.0
+# pagesift 0.81.1
 
 **AI エージェントと LLM データ基盤のための、超高速・メモリ有界スクレイピング＆本文抽出エンジン。**  
 あらゆる Web サイト、論文、アーカイブを高品質な Markdown と構造化データに変換します。単一の Rust バイナリ、ネイティブ SDK、Firecrawl v1/v2 および Jina Reader デュアルプロトコル互換。測定した競合よりメモリ消費が少なくなっています（[benchmarks.md 第 9 節](benchmarks.md) 参照）。
@@ -82,6 +82,10 @@ PageSift 0.81 を 2026-10-29 に再計測。競合の数値は 2026-10-21/22/27/
 0.70.0 での測定値で、以降のバージョンでは再測定していません。
 
 ---
+
+## 0.81.1 の変更
+
+**適応型ブラウザ昇格。** `engine: auto` は本文が増えなくなった時点でブラウザ昇格を止め、固定秒数ではなくナビゲーションと安定待ちのオンライン分布を使います。A2 269 ページのリプレイで、16 worker は 28.4 s → 10.5 s（9.5 → 25.7 ページ/s）、1 worker は 119.2 s → 77.3 s。抽出本文は全体で 301 文字だけ減少。HTTP 本文が 0 のページは従来どおりフルレンダー時間を確保します。詳細：[0.81.1 リリースノート](releases/0.81.1.md)。
 
 ## 0.81.0 の変更
 
@@ -188,7 +192,7 @@ CSV を HTML と同じ方法でデコード（以前は警告なしに文字化�
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.81.0
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.81.1
 ```
 
 #### Firecrawl SDK の差し替え

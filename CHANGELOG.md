@@ -2,6 +2,26 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.81.1] — 2026-10-29
+
+`engine: auto` browser upgrades are now self-limiting. The HTTP document is already a valid
+result; a browser upgrade is stopped when the extracted main content stops improving, using
+running distributions of navigation, settle and first-content times instead of fixed seconds.
+Pages whose HTTP extraction was empty keep the full render time, and explicit
+`engine: browser` is unchanged. See [the release notes](docs/releases/0.81.1.md).
+
+### Performance
+- A2 replay, 269 pages: 1 worker 119.2 s → 77.3 s (2.3 → 3.5 pages/s); 16 workers 28.4 s → 10.5 s
+  (9.5 → 25.7 pages/s), with 301 fewer extracted characters over the whole set.
+- Browser upgrades that reproduce the HTTP text now return the HTTP document, keeping the smaller
+  memory footprint and the original timings.
+
+### Changed
+- Added `render_no_gain_http_fallback`, `render_timeout_http_fallback` and
+  `render_failed_http_fallback` warnings for `engine: auto` upgrades that fall back to HTTP.
+- A bare client-side redirect with no HTTP content is sent directly to a full browser; Lightpanda
+  is skipped for that page.
+
 ## [0.81.0] — 2026-10-29
 
 Page relevance for focused crawls is rebuilt around the facets of the query, measured against

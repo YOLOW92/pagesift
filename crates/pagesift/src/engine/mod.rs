@@ -29,6 +29,7 @@ mod output;
 mod parse;
 mod pdf;
 mod render;
+mod render_stats;
 mod scraper;
 use extract::*;
 use frames::*;
@@ -157,6 +158,8 @@ pub struct Scraper {
     target_concurrency: AtomicUsize,
     runtime_tuner: Option<RuntimeAdaptiveTuner>,
     learner: crate::learn::HostLearner,
+    /// 自动升级的在线耗时分布：预算、导航耐心、早停时机都从这里来。
+    render_stats: render_stats::RenderStats,
     audit: Option<Arc<crate::audit::Audit>>,
 }
 

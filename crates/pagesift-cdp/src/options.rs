@@ -1,5 +1,6 @@
 //! 渲染选项和结果。`Action` 的 JSON 形状对齐 Firecrawl v2 的 `actions`。
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -22,12 +23,48 @@ pub const SUPPORTED_ACTIONS: &[&str] = &[
     "pdf",
 ];
 
+/// `engine: auto` 升级到浏览器时的早停探针。
+///
+/// `baseline_chars` 是 HTTP 已经提取到的正文权重；页面文字超过它时记下
+/// “第一次看到新内容”的时间，供调用方学习早停时机。
+/// `after` 是从历史样本学到的探针时间（`None` 表示只在网络静默时探针）；
+/// 到点或页面文字连续两次采样不变时，抓一份当前 DOM 交给 `probe`，
+/// `probe` 返回 true 就提前结束等待。显式 `engine: browser` 不设置它。
+#[derive(Clone)]
+pub struct EarlyStop {
+    pub baseline_chars: u64,
+    /// HTTP 正文为 0、但页面只是一个小型客户端跳转时，允许用本页 HTTP 抓取
+    /// 耗时做导航上限；普通 JS 应用保持不限，渲染是它们唯一的正文来源。
+    pub cap_navigation: bool,
+    /// 本页 HTTP 抓取的耗时，用作客户端跳转页的导航时间尺度。
+    pub http_elapsed: Duration,
+    pub after: Option<Duration>,
+    pub probe: Arc<dyn Fn(&str) -> bool + Send + Sync>,
+}
+
+impl std::fmt::Debug for EarlyStop {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EarlyStop")
+            .field("baseline_chars", &self.baseline_chars)
+            .field("after", &self.after)
+            .finish_non_exhaustive()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct RenderOptions {
     /// 页面加载完成后再等多久（Firecrawl 的 `waitFor`）。
     pub wait_for: Duration,
     /// 整个渲染（含排队等标签页）的总时长上限。
     pub timeout: Duration,
+    /// 自动升级时等主框架导航提交的上限；`None` 表示按完整超时等。
+    /// 由调用方从历史导航耗时分布估计，显式 `engine: browser` 不设置。
+    pub nav_patience: Option<Duration>,
+    /// 自动升级时的早停条件；`None` 表示不早停。
+    pub early_stop: Option<EarlyStop>,
+    /// 当前内核是否执行内容探针。Lightpanda 这类不完整内核只共享导航上限，
+    /// 不参与“正文没有增益就停”，否则会错过后面完整内核的渲染机会。
+    pub early_stop_probe: bool,
     /// 只模拟移动端视口和触屏，不改 UA。
     pub mobile: bool,
     /// `location.languages`，映射到 Accept-Language 和 `navigator.languages`。
@@ -118,6 +155,9 @@ impl Default for RenderOptions {
         RenderOptions {
             wait_for: Duration::ZERO,
             timeout: Duration::from_secs(30),
+            nav_patience: None,
+            early_stop: None,
+            early_stop_probe: false,
             mobile: false,
             languages: Vec::new(),
             actions: Vec::new(),
@@ -344,6 +384,12 @@ pub struct RenderedPage {
     pub iframes_skipped: usize,
     /// 虚拟滚动收集到的条目数；没请求或找不到容器时为 `None`。
     pub virtual_scroll_items: Option<usize>,
+    /// 自动升级的早停条件命中，页面没有继续等下去；调用方应把这份结果当作
+    /// “当前 DOM 的快照”，不要再去试下一个浏览器内核。
+    pub early_stopped: bool,
+    /// 从开始等待就绪算起，页面文字第一次超过 HTTP 正文权重的时间。
+    /// 只用于调用方学习早停时机，不影响渲染结果。
+    pub first_content: Option<Duration>,
     pub timings: Timings,
 }
 

@@ -273,57 +273,129 @@ pub(super) async fn set_metrics(
 /// 等页面就绪：网络静默，或者正文已经够多且两次检查之间没有变化（服务端渲染的页面，
 /// 剩下的请求多是广告和统计）。网络静默时页面几乎没有文字的，再给 [`SHELL_GRACE`]：
 /// 文字出来就返回（定时器延后渲染的页面）。最多等 `cap`。
-pub(super) async fn wait_ready(session: &Session, shared: &Shared, cap: Duration) {
-    let deadline = Instant::now() + cap;
+pub(super) struct ReadyOutcome {
+    pub early_stopped: bool,
+    pub first_content: Option<Duration>,
+}
+
+/// 等页面就绪：网络静默，或者正文已经够多且两次检查之间没有变化（服务端渲染的页面，
+/// 剩下的请求多是广告和统计）。网络静默时页面几乎没有文字的，再给 [`SHELL_GRACE`]：
+/// 文字出来就返回（定时器延后渲染的页面）。最多等 `cap`。
+///
+/// 自动升级（`opts.early_stop`）时，页面文字稳定或到了历史学到的探针时间，
+/// 就抓一份当前 DOM 交给调用方的 `probe`；probe 认为不会比 HTTP 结果更好时提前结束。
+/// 这里比较的是最终正文提取结果，不是原始 `innerText`，导航栏和广告不会被误当成增益。
+pub(super) async fn wait_ready(
+    ctx: &PageCtx<'_>,
+    cap: Duration,
+    nav_elapsed: Duration,
+) -> ReadyOutcome {
+    let session = ctx.session;
+    let shared = ctx.shared;
+    let started = Instant::now();
+    let deadline = started + cap;
     let mut last_len = None;
     let mut shell_until: Option<Instant> = None;
+    let mut first_content = None;
+    let mut first_text_at: Option<Duration> = None;
+    let mut probed_len: Option<u64> = None;
+    let mut early_stopped = false;
+    let early_stop = ctx
+        .opts
+        .early_stop
+        .as_ref()
+        .filter(|_| ctx.opts.early_stop_probe);
     loop {
         let left = deadline.saturating_duration_since(Instant::now());
         if left.is_zero() {
-            return;
+            break;
         }
+        // 页面文字一直在变（轮播、广告刷新）时，历史样本给出的探针时间到点也探一次，
+        // 否则这类页面永远等不到“连续两次不变”。没有跨页样本时（例如每次请求一个
+        // 独立进程），用页面自己的时间尺度：文字首次出现后，再等同样长的时间量级；
+        // 一直没有文字时，用导航耗时做同样的相对判断。HTTP 已有正文时自动升级只是
+        // 加分项，可以这样早停；HTTP 为空时渲染是唯一来源，仍然等到网络静默。
+        let local_due = early_stop.is_some_and(|s| s.baseline_chars > 0)
+            && started.elapsed() >= first_text_at.unwrap_or(nav_elapsed).saturating_mul(3);
+        let due_by_time = local_due
+            || early_stop
+                .and_then(|s| s.after)
+                .is_some_and(|after| started.elapsed() >= after);
         if !shared.wait_idle(NET_QUIET, left.min(CONTENT_POLL)).await {
             let len = tokio::time::timeout(left, eval_value(session, TEXT_LEN))
                 .await
                 .ok()
                 .and_then(Result::ok)
                 .and_then(|v| v.as_u64());
+            note_first_text(&mut first_text_at, len, started);
+            note_first_content(&mut first_content, len, early_stop, started);
             if let Some(n) = len
                 && n >= CONTENT_READY_CHARS
                 && last_len == Some(n)
             {
+                // 正文已经够多且稳定：自动升级先让探针确认是否真的比 HTTP 多；
+                // 没有增益就提前结束，否则按正常就绪返回。
+                if early_stop.is_some()
+                    && let Some(stop) = probe(ctx, n, &mut probed_len).await
+                {
+                    if stop {
+                        early_stopped = true;
+                        break;
+                    }
+                }
                 tracing::trace!(
                     chars = n,
                     "render: content stable, not waiting for network idle"
                 );
-                return;
+                break;
             }
             last_len = len;
+            if due_by_time
+                && let Some(n) = len
+                && let Some(stop) = probe(ctx, n, &mut probed_len).await
+            {
+                if stop {
+                    early_stopped = true;
+                    break;
+                }
+            }
             continue;
         }
-        let probe = Instant::now();
-        let left = deadline.saturating_duration_since(probe);
+        let probe_at = Instant::now();
+        let left = deadline.saturating_duration_since(probe_at);
         if tokio::time::timeout(left, eval(session, "0"))
             .await
             .is_err()
         {
-            return;
+            break;
         }
         {
             let net = shared.net.lock().unwrap();
-            if !(net.inflight.is_empty() && net.last_change < probe) {
+            if !(net.inflight.is_empty() && net.last_change < probe_at) {
                 continue;
             }
         }
-        // 网络静默了。页面已经有文字（绝大多数页面）就绪；几乎没有文字的壳在宽限期内再看几次
+        // 网络静默了。页面已经有文字（绝大多数页面）就绪；几乎没有文字的壳在宽限期内再看几次。
+        // 自动升级在返回前先探针一次：当前 DOM 的正文如果还不如 HTTP，就没必要再等。
         let left = deadline.saturating_duration_since(Instant::now());
         let len = tokio::time::timeout(left, eval_value(session, TEXT_LEN))
             .await
             .ok()
             .and_then(Result::ok)
             .and_then(|v| v.as_u64());
+        note_first_text(&mut first_text_at, len, started);
+        note_first_content(&mut first_content, len, early_stop, started);
+        if let Some(n) = len
+            && early_stop.is_some()
+            && let Some(stop) = probe(ctx, n, &mut probed_len).await
+        {
+            if stop {
+                early_stopped = true;
+                break;
+            }
+        }
         if len.is_none_or(|n| n >= SHELL_MAX_CHARS) {
-            return;
+            break;
         }
         let until = *shell_until.get_or_insert_with(|| Instant::now() + SHELL_GRACE);
         let pause = until
@@ -332,9 +404,53 @@ pub(super) async fn wait_ready(session: &Session, shared: &Shared, cap: Duration
             .min(CONTENT_POLL);
         if pause.is_zero() {
             tracing::trace!(chars = len, "render: page stayed nearly empty");
-            return;
+            break;
         }
         tokio::time::sleep(pause).await;
+    }
+    ReadyOutcome {
+        early_stopped,
+        first_content,
+    }
+}
+
+fn note_first_text(first: &mut Option<Duration>, len: Option<u64>, started: Instant) {
+    if first.is_none() && len.is_some_and(|n| n > 0) {
+        *first = Some(started.elapsed());
+    }
+}
+
+fn note_first_content(
+    first: &mut Option<Duration>,
+    len: Option<u64>,
+    early_stop: Option<&EarlyStop>,
+    started: Instant,
+) {
+    if first.is_none()
+        && let (Some(n), Some(stop)) = (len, early_stop)
+        && n > stop.baseline_chars
+    {
+        *first = Some(started.elapsed());
+    }
+}
+
+/// 抓当前 DOM 交给调用方判断是否还值得继续等。抓取失败就当探针没结论，继续正常等待。
+async fn probe(ctx: &PageCtx<'_>, len: u64, probed_len: &mut Option<u64>) -> Option<bool> {
+    let stop = ctx.opts.early_stop.as_ref()?;
+    if *probed_len == Some(len) {
+        return None;
+    }
+    *probed_len = Some(len);
+    match ctx.html().await {
+        Ok(captured) => {
+            let stop = (stop.probe)(&captured.html);
+            tracing::trace!(chars = len, stop, "render: early-stop probe");
+            Some(stop)
+        }
+        Err(e) => {
+            tracing::debug!(error = %e, "render: early-stop probe capture failed");
+            None
+        }
     }
 }
 

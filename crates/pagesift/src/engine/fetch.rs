@@ -45,6 +45,7 @@ impl Scraper {
                         warnings,
                     },
                     None,
+                    None,
                 )
                 .await;
         }
@@ -81,6 +82,11 @@ impl Scraper {
                 ));
             }
         }
+        // Keep the admission permit optional: auto-render releases it before
+        // handing the page to the browser, but if the browser upgrade times out
+        // and we fall back to HTTP, the permit is already gone and the rest of
+        // the HTTP path must not try to drop it twice.
+        let mut permit = Some(permit);
         timings.insert("fetch".into(), ms(resp.timings.total));
         let mut ext = PagesiftMeta {
             redirect_chain: resp
@@ -240,20 +246,83 @@ impl Scraper {
                 // HTTP extraction no longer needs its admission slots. Rendering
                 // takes a fresh slot below; retaining both can deadlock a batch
                 // when every per-host slot is held by an auto-upgrade.
-                drop(permit);
-                return self
-                    .render(
-                        url,
-                        opts,
-                        mode,
-                        Progress {
-                            started,
-                            timings,
-                            warnings,
-                        },
-                        Some(http_chars),
-                    )
-                    .await;
+                permit.take();
+                // Auto-upgrade is opportunistic: the HTTP document is already a
+                // valid result. The probe compares the *extracted* content of
+                // the live DOM with what HTTP already produced, so navigation
+                // bars and ad text cannot masquerade as a gain. The budget and
+                // probe time come from observed render distributions, not from
+                // fixed seconds.
+                let probe_opts = opts.clone();
+                let probe_base = resp.final_url.clone();
+                let baseline = http_chars;
+                let probe = Arc::new(move |html: &str| {
+                    let copts = pagesift_content::Options {
+                        base_url: Some(probe_base.clone()),
+                        only_main_content: probe_opts.only_main_content,
+                        status: None,
+                        detect_barrier: false,
+                        ..Default::default()
+                    };
+                    let doc = pagesift_content::process(html, &copts);
+                    text_weight(&doc.markdown) <= baseline
+                });
+                let early_stop = pagesift_cdp::EarlyStop {
+                    baseline_chars: http_chars as u64,
+                    cap_navigation: http_chars == 0
+                        && html.len() < 4096
+                        && has_client_redirect(&html),
+                    http_elapsed: resp.timings.total,
+                    after: self.render_stats.early_stop_after(),
+                    probe,
+                };
+                let budget = self.render_stats.budget();
+                let progress = Progress {
+                    started,
+                    timings: timings.clone(),
+                    warnings: warnings.clone(),
+                };
+                let render = self.render(
+                    url,
+                    opts,
+                    mode,
+                    progress,
+                    Some(http_chars),
+                    Some(early_stop),
+                );
+                let outcome = match budget {
+                    Some(budget) => match tokio::time::timeout(budget, render).await {
+                        Ok(result) => Some(result),
+                        Err(_) => {
+                            warnings.push(format!(
+                                "render_timeout_http_fallback: browser exceeded the learned {:.0} ms budget",
+                                budget.as_millis()
+                            ));
+                            None
+                        }
+                    },
+                    None => Some(render.await),
+                };
+                if let Some(outcome) = outcome {
+                    match outcome {
+                        Ok(rendered) => {
+                            // A render that only reproduced the HTTP text is not
+                            // an upgrade; keep the HTTP document and its lower
+                            // memory footprint.
+                            if text_weight(rendered.markdown.as_deref().unwrap_or_default())
+                                > http_chars
+                            {
+                                return Ok(rendered);
+                            }
+                            warnings.push("render_no_gain_http_fallback".into());
+                        }
+                        Err(e) => {
+                            // A failed upgrade is not a failed scrape: keep the
+                            // HTTP result and say why the browser was not used.
+                            warnings.push(format!("render_failed_http_fallback: {}", e.message));
+                        }
+                    }
+                }
             } else {
                 warnings.push(format!(
                     "render_unavailable: {}",
@@ -267,7 +336,7 @@ impl Scraper {
             // Release the document's admission permit before dependency fetches:
             // concurrent root pages must not occupy every per-host slot while
             // waiting on their own scripts.
-            drop(permit);
+            permit.take();
             let discovery_started = Instant::now();
             let work = crate::scripts::discover_script_graph(
                 &self.policy,
@@ -326,4 +395,19 @@ fn has_script_tag(html: &str) -> bool {
     html.as_bytes()
         .windows(7)
         .any(|w| w.eq_ignore_ascii_case(b"<script"))
+}
+
+/// 页面本身几乎没有正文，只是用脚本跳到另一个地址。这样的页面可以给导航
+/// 设一个按本页标签页获取耗时缩放的上限；真正的 JS 应用不适用。
+fn has_client_redirect(html: &str) -> bool {
+    const PATTERNS: &[&[u8]] = &[
+        b"location.href",
+        b"location.replace",
+        b"location.assign",
+        b"window.location",
+    ];
+    let bytes = html.as_bytes();
+    PATTERNS
+        .iter()
+        .any(|p| bytes.windows(p.len()).any(|w| w.eq_ignore_ascii_case(p)))
 }

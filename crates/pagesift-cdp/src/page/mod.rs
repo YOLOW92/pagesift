@@ -393,20 +393,36 @@ pub(crate) async fn render_page(
     };
     tracing::trace!(?loader, first_event, "render: waiting for navigation");
     if let Some(l) = &loader {
-        shared.wait_navigation(l, first_event).await;
+        // HTTP 已经有正文时，自动升级只是加分项：跨页统计给出导航上界后
+        // 才限制等待，没有样本就不猜（热进程里 acquire 可能接近 0，不能拿它
+        // 当耐心）。HTTP 正文为 0 时渲染是唯一来源，慢页面也要等，不能为了
+        // 一个挑战页把真正的 JS 应用一起砍掉。只有裸跳转页按自身 HTTP 抓取
+        // 耗时缩放，避免为一个打不开的目标站等十几秒。
+        let nav_patience = opts.early_stop.as_ref().and_then(|s| {
+            if s.baseline_chars > 0 {
+                opts.nav_patience
+            } else if s.cap_navigation {
+                Some(s.http_elapsed.saturating_mul(20))
+            } else {
+                None
+            }
+        });
+        match nav_patience {
+            Some(patience) => {
+                if tokio::time::timeout(patience, shared.wait_navigation(l, first_event))
+                    .await
+                    .is_err()
+                {
+                    return Err(Error::Timeout);
+                }
+            }
+            None => shared.wait_navigation(l, first_event).await,
+        }
     }
     tracing::trace!("render: navigation done");
     timings.navigation = nav_start.elapsed();
     check_interception(&shared)?;
 
-    let wait_start = Instant::now();
-    if opts.wait_until == WaitUntil::NetworkIdle {
-        wait_ready(&session, &shared, NET_IDLE_CAP).await;
-    }
-    tracing::trace!("render: ready");
-    if !opts.wait_for.is_zero() {
-        tokio::time::sleep(opts.wait_for).await;
-    }
     let mut ctx = PageCtx {
         conn,
         session: &session,
@@ -415,6 +431,21 @@ pub(crate) async fn render_page(
         opts,
         virtual_items: BTreeMap::new(),
     };
+    let wait_start = Instant::now();
+    let ready = if opts.wait_until == WaitUntil::NetworkIdle {
+        wait_ready(&ctx, NET_IDLE_CAP, timings.navigation).await
+    } else {
+        monitor::ReadyOutcome {
+            early_stopped: false,
+            first_content: None,
+        }
+    };
+    let early_stopped = ready.early_stopped;
+    let first_content = ready.first_content;
+    tracing::trace!("render: ready");
+    if !opts.wait_for.is_zero() {
+        tokio::time::sleep(opts.wait_for).await;
+    }
     if let Some(scan) = &opts.scan_full_page {
         scan_full_page(&ctx, scan).await?;
     }
@@ -484,6 +515,8 @@ pub(crate) async fn render_page(
         iframes_inlined: captured.inlined,
         iframes_skipped: captured.skipped,
         virtual_scroll_items,
+        early_stopped,
+        first_content,
         timings: timings.clone(),
     })
 }

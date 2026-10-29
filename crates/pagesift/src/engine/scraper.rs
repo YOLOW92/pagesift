@@ -53,6 +53,7 @@ impl Scraper {
             browser_private_network,
             browser_allow,
             learner: crate::learn::HostLearner::default(),
+            render_stats: super::render_stats::RenderStats::new(),
         })
         .map(|mut s| {
             s.launch_failed = (0..s.browsers.len()).map(|_| Default::default()).collect();
