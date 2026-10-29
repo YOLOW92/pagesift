@@ -112,12 +112,8 @@ fn validate(o: &ScrapeOptions) -> Result<(), ApiError> {
             "engine must be http, browser or auto, got {e:?}"
         )));
     }
-    // 引擎还没有实现按标签筛选：明确报错，不悄悄忽略
-    if !o.include_tags.is_empty() || !o.exclude_tags.is_empty() {
-        return Err(ApiError::unsupported(
-            "include_tags / exclude_tags are not supported by this build yet",
-        ));
-    }
+    pagesift_content::TagFilter::new(&o.include_tags, &o.exclude_tags)
+        .map_err(ApiError::invalid)?;
     if let Some(t) = o.timeout {
         if t < 1000 {
             return Err(ApiError::invalid(

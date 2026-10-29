@@ -94,8 +94,8 @@ def test_options_object(scraper, server):
         ({"wait_for": 70_000}, pagesift.InvalidRequest),
         ({"engine": "stealth"}, pagesift.InvalidRequest),
         ({"formats": ["screenshot"]}, pagesift.UnsupportedOption),
-        ({"include_tags": ["article"]}, pagesift.UnsupportedOption),
-        ({"exclude_tags": ["nav"]}, pagesift.UnsupportedOption),
+        ({"include_tags": ["p["]}, pagesift.InvalidRequest),
+        ({"exclude_tags": ["nav", ":hover"]}, pagesift.InvalidRequest),
     ],
 )
 def test_invalid_options_raise_early(options, exc):

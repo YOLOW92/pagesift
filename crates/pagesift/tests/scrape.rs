@@ -29,6 +29,19 @@ async fn site() -> String {
             }),
         )
         .route(
+            "/tags",
+            get(|| async {
+                Html(
+                    r#"<html><head><title>Tags</title></head><body>
+                    <nav><a href="/x">Menu link</a></nav>
+                    <div class="intro"><p>Intro paragraph that only includeTags should keep.</p></div>
+                    <article><h1>Main</h1><p>Body paragraph with enough words to count as content.</p>
+                    <aside class="promo"><p>Promo block to exclude.</p></aside></article>
+                    <footer><p>Footer text.</p></footer></body></html>"#,
+                )
+            }),
+        )
+        .route(
             "/slow",
             get(|| async {
                 tokio::time::sleep(Duration::from_secs(10)).await;
@@ -221,4 +234,53 @@ async fn an_engine_that_cannot_launch_is_skipped_after_the_first_failure() {
     let err = s.scrape(&url, &o).await.unwrap_err();
     assert_eq!(launched(), first, "the failed engine was launched again");
     assert_eq!(err.code, ErrorCode::UpstreamError, "{err}");
+}
+
+#[tokio::test]
+async fn include_and_exclude_tags_filter_before_extraction() {
+    let base = site().await;
+    let s = scraper(Vec::new());
+    let url = format!("{base}/tags");
+    let scrape = |v: serde_json::Value| {
+        let (s, url) = (&s, &url);
+        async move { s.scrape(url, &opts(v)).await }
+    };
+    let doc = scrape(json!({
+        "ignoreRobotsTxt": true, "engine": "http", "onlyMainContent": false,
+        "formats": ["markdown", "rawHtml"],
+        "includeTags": [".intro", "article"], "excludeTags": [".promo"],
+    }))
+    .await
+    .unwrap();
+    let md = doc.markdown.unwrap();
+    assert!(
+        md.contains("Intro paragraph") && md.contains("Body paragraph"),
+        "{md}"
+    );
+    assert!(
+        !md.contains("Menu link") && !md.contains("Promo") && !md.contains("Footer"),
+        "{md}"
+    );
+    assert_eq!(doc.metadata.title.as_deref(), Some("Tags"));
+    // rawHtml 仍是原始页面
+    assert!(doc.raw_html.unwrap().contains("Promo block"));
+
+    let doc = scrape(json!({
+        "ignoreRobotsTxt": true, "engine": "http", "onlyMainContent": false,
+        "excludeTags": ["nav", "footer"],
+    }))
+    .await
+    .unwrap();
+    let md = doc.markdown.unwrap();
+    assert!(
+        md.contains("Intro paragraph") && md.contains("Promo block"),
+        "{md}"
+    );
+    assert!(!md.contains("Menu link") && !md.contains("Footer"), "{md}");
+
+    let err = scrape(json!({ "ignoreRobotsTxt": true, "includeTags": ["p["] }))
+        .await
+        .unwrap_err();
+    assert_eq!(err.code, ErrorCode::InvalidRequest);
+    assert!(err.message.contains("includeTags"), "{}", err.message);
 }

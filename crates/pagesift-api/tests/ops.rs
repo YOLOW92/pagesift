@@ -720,6 +720,74 @@ async fn requests_per_minute_returns_firecrawl_429() {
     );
 }
 
+/// Jina Reader 路由（`/r/...`）和 Firecrawl 路由同样要鉴权、计入每分钟请求数和每日页数配额。
+#[tokio::test]
+async fn jina_routes_require_key_and_count_against_limits() {
+    let dir = tempfile::tempdir().unwrap();
+    let (fake, scraped) = Fake::new(0);
+    let app = limited(
+        KeyLimits {
+            requests_per_minute: Some(3),
+            pages_per_day: Some(2),
+            ..Default::default()
+        },
+        fake,
+        Some(dir.path()),
+    );
+    let get = format!("/r/{BASE}/j/0");
+    for key in [None, Some("nope")] {
+        let (status, _, v) = call(&app, "GET", &get, None, key).await;
+        assert_eq!(
+            (status, v["code"].as_str()),
+            (StatusCode::UNAUTHORIZED, Some("UNAUTHORIZED"))
+        );
+        let body = json!({"url": format!("{BASE}/j/1")});
+        let (status, _, _) = call(&app, "POST", "/r", Some(body), key).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+    }
+    assert!(scraped.lock().unwrap().is_empty(), "no anonymous scrape");
+
+    // 有 key：两页用完每日配额，第三次被配额挡住，不再抓取
+    let (status, _, v) = call(&app, "GET", &get, None, Some("limited")).await;
+    assert_eq!(status, StatusCode::OK, "{v}");
+    let body = json!({"url": format!("{BASE}/j/1")});
+    let (status, _, _) = call(&app, "POST", "/r", Some(body), Some("limited")).await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, _, v) = call(
+        &app,
+        "GET",
+        &format!("/r/{BASE}/j/2"),
+        None,
+        Some("limited"),
+    )
+    .await;
+    assert_eq!(
+        (status, v["code"].as_str()),
+        (StatusCode::TOO_MANY_REQUESTS, Some("QUOTA_EXCEEDED"))
+    );
+    assert_eq!(scraped.lock().unwrap().len(), 2);
+
+    // 第四个请求超过每分钟 3 次：GET /r/ 也计数
+    let (status, _, v) = call(
+        &app,
+        "GET",
+        &format!("/r/{BASE}/j/3"),
+        None,
+        Some("limited"),
+    )
+    .await;
+    assert_eq!(
+        (status, v["code"].as_str()),
+        (StatusCode::TOO_MANY_REQUESTS, Some("RATE_LIMIT_EXCEEDED"))
+    );
+
+    // 没配 key 的服务照旧开放
+    let (fake, _) = Fake::new(0);
+    let open = router(fake, Config::default());
+    let (status, _, _) = call(&open, "GET", &get, None, None).await;
+    assert_eq!(status, StatusCode::OK);
+}
+
 #[tokio::test]
 async fn concurrent_jobs_are_capped_per_key() {
     let (fake, _) = Fake::new(30);

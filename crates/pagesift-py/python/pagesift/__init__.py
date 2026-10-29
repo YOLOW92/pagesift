@@ -91,7 +91,7 @@ class ScrapeOptions:
     - ``timeout``：总超时，毫秒；
     - ``wait_for``：浏览器渲染后再等多少毫秒；
     - ``headers``：额外的请求头；
-    - ``include_tags``、``exclude_tags``：按标签筛选（这个版本还不支持，传了会报 UnsupportedOption）；
+    - ``include_tags``、``exclude_tags``：提取前按 CSS 选择器只保留／删掉匹配的元素（标签名、``.class``、``#id`` 等），选择器写错报 InvalidRequest；
     - ``ignore_robots_txt``：不检查 robots.txt；
     - ``mobile``：浏览器渲染时模拟手机；
     - ``languages``：浏览器渲染时的 Accept-Language，例如 ``["zh-CN", "en"]``。

@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.81.2
+# pagesift 0.81.3
 
 **High-performance, memory-bounded web scraping and extraction engine built for AI agents and LLM pipelines.**  
 Turn any website, document, or archive into clean Markdown and structured data — one Rust binary, native SDKs, dual Firecrawl v1/v2 & Jina Reader APIs, at a fraction of the memory.
@@ -83,6 +83,14 @@ PageSift 0.81 was re-measured on 2026-10-29; competitor numbers are the recorded
 Measured with 0.70.0, not re-run for later versions.
 
 ---
+
+## What's New in 0.81.3
+
+**Tag filters and authenticated Jina routes.** Firecrawl's `includeTags` / `excludeTags` now work:
+CSS selectors (tag, `.class`, `#id`, …) keep or drop elements before extraction, `<head>` metadata
+is kept and `rawHtml` is unchanged; an invalid selector is rejected before fetching. The Jina Reader
+routes (`/r/`) now require an API key when keys are configured and count against rate limits and
+page quotas. Details: [0.81.3 release notes](docs/releases/0.81.3.md).
 
 ## What's New in 0.81.2
 
@@ -233,7 +241,7 @@ Run the standalone container (includes headless browser renderer):
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.81.2
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.81.3
 ```
 
 #### Firecrawl SDK Drop-In Replacement
@@ -392,7 +400,7 @@ If PageSift is useful in research or a product, cite it as:
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 0.81.2}
+  note   = {Version 0.81.3}
 }
 ```
 

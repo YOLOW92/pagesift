@@ -6,19 +6,17 @@ pub mod stream_sse;
 
 use axum::Router;
 use axum::routing::{get, post};
-use std::sync::Arc;
 
-use crate::engine::Engine;
-pub use reader_route::{handle_jina_get, handle_jina_post};
+use crate::server::AppState;
+pub(crate) use reader_route::{handle_jina_get, handle_jina_post};
 pub use stream_sse::stream_markdown_sse;
 
-/// Mount Jina Reader protocol routes onto the router.
-pub fn jina_router(engine: Arc<dyn Engine>) -> Router {
+/// Jina Reader 路由。和 Firecrawl 路由挂在同一层鉴权、限流和配额之后。
+pub(crate) fn jina_routes() -> Router<AppState> {
     Router::new()
         .route("/r/{*url}", get(handle_jina_get))
         .route("/r", post(handle_jina_post))
         .route("/r/", post(handle_jina_post))
-        .with_state(engine)
 }
 
 #[cfg(test)]

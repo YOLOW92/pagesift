@@ -121,17 +121,29 @@ pub(super) async fn process_html(
         fingerprints: opts.wants("changeTracking"),
         ..Default::default()
     };
+    let tags = tag_filter(opts)?;
     cpu_task(move || {
         // RSS / Atom / RDF feed 不是网页：按条目解析，别让 HTML 提取器把标签剥成一锅粥。
         if let Some(document) = super::feed::parse(&html, copts.links) {
             return (document, html);
         }
+        // includeTags / excludeTags 只影响提取；rawHtml 仍是原始页面
+        let filtered = tags.map(|t| t.apply(&html));
+        let source = filtered.as_deref().unwrap_or(&html);
         let document = CONTENT_WORKSPACE.with(|workspace| {
-            pagesift_content::process_with_workspace(&html, &copts, &mut workspace.borrow_mut())
+            pagesift_content::process_with_workspace(source, &copts, &mut workspace.borrow_mut())
         });
         (document, html)
     })
     .await
+}
+
+/// `includeTags` / `excludeTags` 的筛选规则；都没给时为 `None`，选择器写错时返回 `INVALID_REQUEST`。
+pub(crate) fn tag_filter(
+    opts: &ScrapeOptions,
+) -> Result<Option<pagesift_content::TagFilter>, ApiError> {
+    pagesift_content::TagFilter::new(&opts.include_tags, &opts.exclude_tags)
+        .map_err(ApiError::invalid)
 }
 
 /// 同时进行的 CPU 密集任务（正文提取、PDF 解析）不超过核数。

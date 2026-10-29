@@ -334,6 +334,8 @@ impl Scraper {
         source: Source<'_>,
         opts: &ScrapeOptions,
     ) -> Result<Document, ApiError> {
+        // 选择器写错了在抓取之前就报，不白抓一次
+        tag_filter(opts)?;
         let mut result = self.scrape_document(source, opts).await;
         if let Ok(doc) = &mut result {
             crate::notice::fill_warning(doc);

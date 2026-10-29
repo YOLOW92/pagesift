@@ -2,14 +2,16 @@
 //! Provides direct Markdown extraction and JSON responses for AI Agents.
 
 use axum::Json;
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
-use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 use super::stream_sse::stream_markdown_sse;
-use crate::engine::Engine;
+use crate::limits::Caller;
+use crate::metrics::PageSource;
+use crate::server::AppState;
 use crate::types::ScrapeOptions;
 
 #[derive(Debug, Deserialize)]
@@ -17,28 +19,26 @@ pub struct JinaPostRequest {
     pub url: String,
 }
 
-pub struct JinaState {
-    pub engine: Arc<dyn Engine>,
-}
-
 /// Handler for `GET /r/{*target_url}`.
-pub async fn handle_jina_get(
-    State(engine): State<Arc<dyn Engine>>,
+pub(crate) async fn handle_jina_get(
+    State(s): State<AppState>,
+    caller: Option<Extension<Caller>>,
     headers: HeaderMap,
     Path(raw_url): Path<String>,
 ) -> Response {
     let clean_url = parse_target_url(&raw_url);
-    process_jina_scrape(engine, headers, &clean_url).await
+    process_jina_scrape(s, caller, headers, &clean_url).await
 }
 
 /// Handler for `POST /r`.
-pub async fn handle_jina_post(
-    State(engine): State<Arc<dyn Engine>>,
+pub(crate) async fn handle_jina_post(
+    State(s): State<AppState>,
+    caller: Option<Extension<Caller>>,
     headers: HeaderMap,
     Json(payload): Json<JinaPostRequest>,
 ) -> Response {
     let clean_url = parse_target_url(&payload.url);
-    process_jina_scrape(engine, headers, &clean_url).await
+    process_jina_scrape(s, caller, headers, &clean_url).await
 }
 
 fn parse_target_url(raw: &str) -> String {
@@ -63,11 +63,17 @@ fn parse_target_url(raw: &str) -> String {
 }
 
 async fn process_jina_scrape(
-    engine: Arc<dyn Engine>,
+    s: AppState,
+    caller: Option<Extension<Caller>>,
     headers: HeaderMap,
     target_url: &str,
 ) -> Response {
     if let Err(e) = crate::validate::check_url(target_url) {
+        return e.into_response();
+    }
+    if let Some(Extension(c)) = &caller
+        && let Err(e) = s.limiter.check_quota(c)
+    {
         return e.into_response();
     }
 
@@ -76,8 +82,13 @@ async fn process_jina_scrape(
         ..Default::default()
     };
 
-    match engine.scrape(target_url, &opts).await {
+    match s.engine.scrape(target_url, &opts).await {
         Ok(doc) => {
+            s.metrics.scrape_ok.fetch_add(1, Ordering::Relaxed);
+            s.metrics.page(PageSource::Scrape);
+            if let Some(Extension(c)) = &caller {
+                s.limiter.consume_pages(c, 1).await;
+            }
             let markdown = doc.markdown.unwrap_or_default();
             let title = doc.metadata.title.as_deref();
 
@@ -111,6 +122,9 @@ async fn process_jina_scrape(
                     })
             }
         }
-        Err(e) => e.into_response(),
+        Err(e) => {
+            s.metrics.scrape_err.fetch_add(1, Ordering::Relaxed);
+            e.into_response()
+        }
     }
 }

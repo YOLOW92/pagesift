@@ -4,7 +4,7 @@ Thanks for helping. Bug reports, benchmark results from your own sites, and pull
 
 ## Before you start
 
-- **Ground rules.** pagesift scrapes politely: it respects robots.txt, rate-limits per host, and never bypasses anti-bot protection. Pull requests that add stealth, browser or TLS fingerprint impersonation, CAPTCHA solving or proxy rotation will be closed.
+- **Ground rules.** pagesift scrapes politely: it respects robots.txt by default, rate-limits per site across all egress IPs, and never solves CAPTCHAs. Pull requests that add stealth, browser or TLS fingerprint impersonation, or CAPTCHA solving will be closed. Egress switching is allowed only for IP-reputation blocks: it must never raise the request rate to a site, and rate-limit responses (429, 503 with Retry-After) must always be backed off, never routed around.
 - **CLA.** pagesift is dual-licensed (AGPL-3.0 and commercial, see [COMMERCIAL.md](COMMERCIAL.md)), so every contributor signs the [Contributor License Agreement](CLA.md) once. A bot asks you on your first pull request.
 - **Dependencies.** Only permissively licensed dependencies (MIT, Apache-2.0, BSD, ISC, Zlib, Unicode, CC0). `cargo deny check` enforces this.
 - **Big changes.** Open an issue first so we can agree on the approach.

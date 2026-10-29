@@ -2,6 +2,30 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.81.3] — 2026-10-30
+
+Firecrawl's `includeTags` / `excludeTags` now work, and the Jina Reader routes sit behind the same
+authentication, rate limits and page quotas as the Firecrawl routes. See
+[the release notes](docs/releases/0.81.3.md).
+
+### Added
+- `includeTags` / `excludeTags` (HTTP API, MCP, Python `include_tags` / `exclude_tags`): CSS
+  selectors (tag, `.class`, `#id`, …) applied before extraction. `excludeTags` drops matching
+  elements with their subtrees; `includeTags` keeps only the outermost matches in the body, in
+  document order, and keeps `<head>` so metadata is still extracted. `rawHtml` is unchanged. An
+  invalid selector returns `INVALID_REQUEST` before anything is fetched; the Python SDK used to
+  raise `UnsupportedOption` for these options.
+
+### Security
+- `GET /r/{url}` and `POST /r` (Jina Reader) were mounted outside the API-key middleware, so with
+  `PAGESIFT_API_KEYS` set they could still be called without a key and did not count against
+  per-minute limits or page quotas. They now require a key, count as scraping requests, consume
+  one page each and are reported in `/metrics`.
+
+### Documentation
+- CONTRIBUTING, SECURITY and the bot page state the per-site (not per-IP) rate-limit rule for
+  deployments with several egress proxies.
+
 ## [0.81.2] — 2026-10-30
 
 Restore the content that 0.81.1 dropped on bare client-side redirect pages, without giving up the

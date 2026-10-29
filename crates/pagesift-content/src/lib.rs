@@ -27,6 +27,7 @@ mod math;
 mod metadata;
 mod readability;
 mod script_links;
+mod tag_filter;
 mod text;
 
 use extract::Relax;
@@ -41,6 +42,7 @@ pub use fingerprint::{Fingerprints, hash_hex};
 pub use links::{Image, Link, same_site, site_key};
 pub use metadata::Metadata;
 pub use script_links::{ScriptScan, scan_script};
+pub use tag_filter::TagFilter;
 pub use text::{estimate_tokens, normalize_text};
 
 #[derive(Debug, Clone)]

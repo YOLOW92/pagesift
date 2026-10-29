@@ -1,6 +1,6 @@
 {
   "name": "@pagesift/node-win32-x64-msvc",
-  "version": "0.81.2",
+  "version": "0.81.3",
   "cpu": [
     "x64"
   ],

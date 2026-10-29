@@ -3,7 +3,7 @@
 pagesift fetches URLs on behalf of its callers, so it is a natural target for server-side request forgery (SSRF). We treat these as security bugs:
 
 - reaching private, loopback, link-local or cloud-metadata addresses when `allow_private_network` is off — through redirects, DNS rebinding, IP literal tricks, browser sub-requests, iframes, or webhooks;
-- bypassing robots.txt handling or the per-host rate limits;
+- bypassing robots.txt handling or the per-site rate limits, including by spreading requests to one site across several egress IPs or by switching egress after a rate-limit response;
 - leaking API keys, credentials configured for one host to another host, or job data between API keys;
 - crashes or unbounded memory use triggered by a page or a request (denial of service).
 

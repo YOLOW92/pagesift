@@ -150,7 +150,7 @@ unknown keywords raise `TypeError`.
 | `timeout` | `None` | total timeout, milliseconds (at least 1000) |
 | `wait_for` | `0` | extra wait after browser rendering, milliseconds |
 | `headers` | `None` | extra request headers |
-| `include_tags`, `exclude_tags` | `None` | not supported yet: raises `UnsupportedOption` rather than being ignored |
+| `include_tags`, `exclude_tags` | `None` | CSS selectors (tag, `.class`, `#id`, …): keep only / drop matching elements before extraction; an invalid selector raises `InvalidRequest` |
 | `ignore_robots_txt` | `False` | skip robots.txt for this scrape |
 | `mobile` | `False` | mobile emulation when rendering |
 | `languages` | `None` | `Accept-Language` when rendering, e.g. `["de-DE", "en"]` |

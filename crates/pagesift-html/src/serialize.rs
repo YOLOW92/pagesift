@@ -7,7 +7,7 @@ impl NodeRef<'_> {
     /// 节点自身及其子树的 HTML（元素的 outer HTML）。
     pub fn html(&self) -> String {
         let mut out = String::new();
-        write_tree(*self, &mut out, true);
+        write_tree(*self, &mut out, true, &|_| false);
         out
     }
 
@@ -15,8 +15,15 @@ impl NodeRef<'_> {
     pub fn inner_html(&self) -> String {
         let mut out = String::new();
         for c in self.children() {
-            write_tree(c, &mut out, false);
+            write_tree(c, &mut out, false, &|_| false);
         }
+        out
+    }
+
+    /// 和 [`html`](Self::html) 一样，但 `skip` 返回 true 的后代节点连同子树一起略去（节点自身总会写出）。
+    pub fn html_without(&self, skip: &dyn Fn(NodeRef<'_>) -> bool) -> String {
+        let mut out = String::new();
+        write_tree(*self, &mut out, true, skip);
         out
     }
 }
@@ -58,19 +65,28 @@ fn is_raw_text(tag: Option<Tag>) -> bool {
 }
 
 /// 非递归地先序遍历 `root` 的子树。`root_is_top` 时 `root` 的文本按没有父元素处理（总是转义）。
-fn write_tree(root: NodeRef<'_>, out: &mut String, root_is_top: bool) {
+/// `skip` 为 true 的后代节点整棵子树不写。
+fn write_tree(
+    root: NodeRef<'_>,
+    out: &mut String,
+    root_is_top: bool,
+    skip: &dyn Fn(NodeRef<'_>) -> bool,
+) {
     let mut n = root;
     loop {
-        let raw = !(root_is_top && n == root) && is_raw_text(n.parent().and_then(|p| p.tag()));
-        open(n, out, raw);
-        if !is_void(n.tag())
-            && let Some(c) = n.first_child()
-        {
-            n = c;
-            continue;
-        }
-        loop {
+        if n == root || !skip(n) {
+            let raw = !(root_is_top && n == root) && is_raw_text(n.parent().and_then(|p| p.tag()));
+            open(n, out, raw);
+            if !is_void(n.tag())
+                && let Some(c) = n.first_child()
+            {
+                n = c;
+                continue;
+            }
             close(n, out);
+        }
+        // `n` 写完（或略过）了：找下一个兄弟，没有就逐层关闭父元素
+        loop {
             if n == root {
                 return;
             }
@@ -80,7 +96,10 @@ fn write_tree(root: NodeRef<'_>, out: &mut String, root_is_top: bool) {
                     break;
                 }
                 None => match n.parent() {
-                    Some(p) => n = p,
+                    Some(p) => {
+                        n = p;
+                        close(n, out);
+                    }
                     None => return,
                 },
             }
@@ -175,5 +194,27 @@ mod tests {
             .unwrap();
         assert_eq!(script.inner_html(), "if (a < b) {}");
         assert_eq!(script.first_child().unwrap().html(), "if (a &lt; b) {}");
+    }
+
+    #[test]
+    fn html_without_skips_whole_subtrees() {
+        let doc = Html::parse("<div><p>a<b>x</b></p><nav><a>n</a></nav><p>c</p><nav>z</nav></div>");
+        let div = doc
+            .root()
+            .descendants()
+            .find(|n| n.tag() == Some(Tag::Div))
+            .unwrap();
+        let skip_nav = |n: crate::NodeRef<'_>| n.tag() == Some(Tag::Nav);
+        assert_eq!(
+            div.html_without(&skip_nav),
+            "<div><p>a<b>x</b></p><p>c</p></div>"
+        );
+        // 根节点自身不会被略去；不略去任何节点时和 html() 一致
+        assert_eq!(div.html_without(&|n| n == div), div.html());
+        let skip_b = |n: crate::NodeRef<'_>| n.tag() == Some(Tag::B);
+        assert_eq!(
+            div.html_without(&skip_b),
+            "<div><p>a</p><nav><a>n</a></nav><p>c</p><nav>z</nav></div>"
+        );
     }
 }

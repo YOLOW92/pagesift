@@ -179,16 +179,16 @@ pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
         metrics,
     };
 
-    let firecrawl = crate::firecrawl::firecrawl_routes()
+    // Jina Reader 路由也会抓取页面，和 Firecrawl 路由一起放在鉴权、限流和配额之后
+    let api = crate::firecrawl::firecrawl_routes()
+        .merge(crate::jina::jina_routes())
         .route_layer(middleware::from_fn_with_state(state.clone(), auth));
-    let jina = crate::jina::jina_router(engine);
 
     Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .route("/metrics", get(render_metrics))
-        .merge(firecrawl)
+        .merge(api)
         .with_state(state.clone())
-        .merge(jina)
         .fallback(|| async { ApiError::new(ErrorCode::NotFound, "no such endpoint") })
         .layer(middleware::from_fn(uniform_errors))
         .layer(middleware::from_fn_with_state(timeouts, deadline))
@@ -408,7 +408,8 @@ async fn auth(
             }
         }
     };
-    if req.method() == Method::POST
+    // 计入每分钟请求数的是会抓取的请求：POST，以及 Jina 的 `GET /r/{url}`；轮询类 GET 不算
+    if (req.method() == Method::POST || req.uri().path().starts_with("/r/"))
         && let Err(e) = s.limiter.check_rate(&caller)
     {
         let mut resp = e.into_response();
