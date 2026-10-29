@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.81.1
+# pagesift 0.81.2
 
 **High-performance, memory-bounded web scraping and extraction engine built for AI agents and LLM pipelines.**  
 Turn any website, document, or archive into clean Markdown and structured data — one Rust binary, native SDKs, dual Firecrawl v1/v2 & Jina Reader APIs, at a fraction of the memory.
@@ -69,7 +69,7 @@ PageSift 0.81 was re-measured on 2026-10-29; competitor numbers are the recorded
 
 ## How PageSift compares
 
-**Still behind:** A2 replay, 269 pages, 1 worker 3.5 pages/s in the 0.81.1 local replay (2.4 in the 0.81 report) vs spider 156.6 pages/s; fast, 40 sites × 60 pages, time 16.6 seconds vs spider 1.4 seconds; B5 134 pages, completion 0.112 vs Docling (GPU) 1.000.
+**Still behind:** A2 replay, 269 pages, 1 worker 3.1 pages/s in the 0.81.2 local replay (2.4 in the 0.81 report) vs spider 156.6 pages/s; fast, 40 sites × 60 pages, time 16.6 seconds vs spider 1.4 seconds; B5 134 pages, completion 0.112 vs Docling (GPU) 1.000.
 
 [Full report](benchmarks/history/0.81/results/20261029-102426/report.md).
 
@@ -83,6 +83,15 @@ PageSift 0.81 was re-measured on 2026-10-29; competitor numbers are the recorded
 Measured with 0.70.0, not re-run for later versions.
 
 ---
+
+## What's New in 0.81.2
+
+**Zero content loss for adaptive upgrades.** A bare client-side redirect with no HTTP content now
+captures its target's DOM as soon as main-frame text appears, instead of waiting for
+`DOMContentLoaded` or network idle. The wait is bounded relative to the page's HTTP time and the
+caller's timeout. On the 269-page A2 replay, 0.81.0's 110.7 s / 21.9 s (1/16 workers) becomes
+88.0 s / 13.5 s, with **zero pages losing content** and 174 more extracted characters. Details:
+[0.81.2 release notes](docs/releases/0.81.2.md).
 
 ## What's New in 0.81.1
 
@@ -224,7 +233,7 @@ Run the standalone container (includes headless browser renderer):
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.81.1
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.81.2
 ```
 
 #### Firecrawl SDK Drop-In Replacement
@@ -383,7 +392,7 @@ If PageSift is useful in research or a product, cite it as:
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 0.81.1}
+  note   = {Version 0.81.2}
 }
 ```
 

@@ -8,7 +8,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-pagesift-sys = { version = "0.81.1", path = "../pagesift-sys" }
+pagesift-sys = { version = "0.81.2", path = "../pagesift-sys" }
 anyhow = "1.0.104"
 blake3 = "1.8.7"
 axum = "0.8.9"
@@ -19,20 +19,20 @@ flate2 = "1.1.10"
 futures-util = "0.3.34"
 fs2 = "0.4.3"
 httpdate = "1.0.3"
-pagesift-api = { version = "0.81.1", path = "../pagesift-api" }
-pagesift-cdp = { version = "0.81.1", path = "../pagesift-cdp" }
-pagesift-content = { version = "0.81.1", path = "../pagesift-content" }
-pagesift-diff = { version = "0.81.1", path = "../pagesift-diff" }
-pagesift-extract = { version = "0.81.1", path = "../pagesift-extract" }
-pagesift-html = { version = "0.81.1", path = "../pagesift-html" }
-pagesift-llm = { version = "0.81.1", path = "../pagesift-llm" }
-pagesift-mcp = { version = "0.81.1", path = "../pagesift-mcp" }
-pagesift-net = { version = "0.81.1", path = "../pagesift-net" }
-pagesift-office = { version = "0.81.1", path = "../pagesift-office" }
-pagesift-pdf = { version = "0.81.1", path = "../pagesift-pdf" }
-pagesift-policy = { version = "0.81.1", path = "../pagesift-policy" }
-pagesift-search = { version = "0.81.1", path = "../pagesift-search" }
-pagesift-store = { version = "0.81.1", path = "../pagesift-store" }
+pagesift-api = { version = "0.81.2", path = "../pagesift-api" }
+pagesift-cdp = { version = "0.81.2", path = "../pagesift-cdp" }
+pagesift-content = { version = "0.81.2", path = "../pagesift-content" }
+pagesift-diff = { version = "0.81.2", path = "../pagesift-diff" }
+pagesift-extract = { version = "0.81.2", path = "../pagesift-extract" }
+pagesift-html = { version = "0.81.2", path = "../pagesift-html" }
+pagesift-llm = { version = "0.81.2", path = "../pagesift-llm" }
+pagesift-mcp = { version = "0.81.2", path = "../pagesift-mcp" }
+pagesift-net = { version = "0.81.2", path = "../pagesift-net" }
+pagesift-office = { version = "0.81.2", path = "../pagesift-office" }
+pagesift-pdf = { version = "0.81.2", path = "../pagesift-pdf" }
+pagesift-policy = { version = "0.81.2", path = "../pagesift-policy" }
+pagesift-search = { version = "0.81.2", path = "../pagesift-search" }
+pagesift-store = { version = "0.81.2", path = "../pagesift-store" }
 quick-xml = "0.42.0"
 regex = "1.13.1"
 serde = { version = "1.0.229", features = ["derive"] }

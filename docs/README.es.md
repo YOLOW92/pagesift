@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.81.1
+# pagesift 0.81.2
 
 **Motor de scraping y extracción web de alto rendimiento y memoria acotada para agentes de IA y pipelines de LLM.**  
 Convierte cualquier sitio web, documento o archivo en Markdown limpio y datos estructurados: un único binario en Rust, SDK nativos, APIs duales Firecrawl v1/v2 y Jina Reader, con menos memoria que las alternativas medidas (véase la [sección 9 de benchmarks.md](benchmarks.md)).
@@ -82,6 +82,15 @@ PageSift 0.81 se midió de nuevo el 2026-10-29; los números de la competencia s
 Medido con 0.70.0; no se ha repetido con versiones posteriores.
 
 ---
+
+## Novedades en 0.81.2
+
+**Cero pérdida de contenido en la mejora adaptativa.** Una redirección de cliente sin contenido
+HTTP ahora captura el DOM del destino en cuanto aparece texto en el marco principal, sin esperar a
+`DOMContentLoaded` ni a la calma de red. El límite de espera se escala con el tiempo HTTP de la
+página y el timeout total de la llamada. En el replay A2 de 269 páginas, 110.7 s / 21.9 s de 0.81.0
+(1/16 workers) pasan a 88.0 s / 13.5 s, **sin ninguna página con menos contenido** y con 174
+caracteres más en total. Detalles: [notas de 0.81.2](releases/0.81.2.md).
 
 ## Novedades en 0.81.1
 
@@ -211,7 +220,7 @@ se conservan sin cambios y con sus fuentes en [history/homepage-es.md](history/h
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.81.1
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.81.2
 ```
 
 #### Reemplazo Directo de Firecrawl SDK

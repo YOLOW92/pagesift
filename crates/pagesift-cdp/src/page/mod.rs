@@ -11,7 +11,7 @@ use tokio::task::JoinHandle;
 mod actions;
 mod monitor;
 
-use actions::{ActionError, capture, run_action};
+use actions::{ActionError, capture, eval_value, run_action};
 use monitor::{
     check_interception, enable_interception, enable_network, monitor, scan_full_page, set_metrics,
     virtual_scroll, wait_load, wait_ready,
@@ -392,22 +392,51 @@ pub(crate) async fn render_page(
         _ => "DOMContentLoaded",
     };
     tracing::trace!(?loader, first_event, "render: waiting for navigation");
+    let mut redirect_ready = false;
     if let Some(l) = &loader {
         // HTTP 已经有正文时，自动升级只是加分项：跨页统计给出导航上界后
         // 才限制等待，没有样本就不猜（热进程里 acquire 可能接近 0，不能拿它
         // 当耐心）。HTTP 正文为 0 时渲染是唯一来源，慢页面也要等，不能为了
-        // 一个挑战页把真正的 JS 应用一起砍掉。只有裸跳转页按自身 HTTP 抓取
-        // 耗时缩放，避免为一个打不开的目标站等十几秒。
+        // 一个挑战页把真正的 JS 应用一起砍掉。
+        let redirect_page = opts.early_stop.as_ref().is_some_and(|s| s.cap_navigation);
         let nav_patience = opts.early_stop.as_ref().and_then(|s| {
             if s.baseline_chars > 0 {
                 opts.nav_patience
             } else if s.cap_navigation {
-                Some(s.http_elapsed.saturating_mul(20))
+                // 裸跳转页的正文由目标站脚本决定，和它自己的 HTTP 耗时只有
+                // 松散关系；用调用方的总时限做相对上限，同时不短于 HTTP 耗时
+                // 的 200 倍。内容一出现就抓，不等 DOMContentLoaded/网络静默。
+                Some(s.http_elapsed.saturating_mul(200).max(opts.timeout / 2))
             } else {
                 None
             }
         });
         match nav_patience {
+            Some(patience) if redirect_page => {
+                let deadline = Instant::now() + patience;
+                loop {
+                    if shared.has_event(l, first_event) {
+                        break;
+                    }
+                    let len = tokio::time::timeout(
+                        Duration::from_millis(500),
+                        eval_value(&session, TEXT_LEN),
+                    )
+                    .await
+                    .ok()
+                    .and_then(Result::ok)
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                    if len > 0 {
+                        redirect_ready = true;
+                        break;
+                    }
+                    if Instant::now() >= deadline {
+                        return Err(Error::Timeout);
+                    }
+                    tokio::time::sleep(CONTENT_POLL).await;
+                }
+            }
             Some(patience) => {
                 if tokio::time::timeout(patience, shared.wait_navigation(l, first_event))
                     .await
@@ -432,7 +461,13 @@ pub(crate) async fn render_page(
         virtual_items: BTreeMap::new(),
     };
     let wait_start = Instant::now();
-    let ready = if opts.wait_until == WaitUntil::NetworkIdle {
+    let ready = if redirect_ready {
+        // 裸跳转页的正文已经出现：直接抓当前 DOM，不再等导航完成或网络静默。
+        monitor::ReadyOutcome {
+            early_stopped: false,
+            first_content: Some(timings.navigation),
+        }
+    } else if opts.wait_until == WaitUntil::NetworkIdle {
         wait_ready(&ctx, NET_IDLE_CAP, timings.navigation).await
     } else {
         monitor::ReadyOutcome {

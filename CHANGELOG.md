@@ -2,6 +2,21 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.81.2] — 2026-10-30
+
+Restore the content that 0.81.1 dropped on bare client-side redirect pages, without giving up the
+adaptive browser-upgrade stop. For a redirect page with no HTTP content, the browser now captures
+the target's DOM as soon as main-frame text appears, instead of waiting for `DOMContentLoaded` or
+network idle. The wait is bounded relative to the page's HTTP time and the caller's timeout, not by
+a fixed number of seconds. See [the release notes](docs/releases/0.81.2.md).
+
+### Performance
+- A2 replay, 269 pages: 0.81.0 110.7 s / 21.9 s (1/16 workers) → 0.81.2 88.0 s / 13.5 s.
+- Per-page comparison against 0.81.0: zero pages lose content; total extracted characters
+  2,376,184 → 2,376,358 (+174).
+- The redirect page that lost 405 characters in 0.81.1 now returns 476 characters in 9.4 s
+  (0.81.0: 405 characters in 17.0 s).
+
 ## [0.81.1] — 2026-10-29
 
 `engine: auto` browser upgrades are now self-limiting. The HTTP document is already a valid
