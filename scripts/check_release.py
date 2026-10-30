@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 import subprocess
+import sys
 import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,6 +54,8 @@ def check(tag=None):
     msrv = workspace['workspace']['package']['rust-version']
     assert f'Rust {msrv} or newer' in (ROOT/'CONTRIBUTING.md').read_text(), \
         f'CONTRIBUTING.md must say "Rust {msrv} or newer" (rust-version in Cargo.toml)'
+    # 首页 README 的模板、徽章白名单、标题版本号（0.90 起必须按模板改版）
+    subprocess.run([sys.executable, '-I', str(ROOT/'scripts/check_readme.py'), '--release'], check=True)
     print(f'Release identity OK: {version}, {len(names)} Rust packages, {len(platforms)} npm platforms, dynamic Python version')
     return metadata
 
