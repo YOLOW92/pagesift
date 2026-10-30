@@ -2,6 +2,19 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.81.4] — 2026-10-31
+
+Dependency security update. See [the release notes](docs/releases/0.81.4.md).
+
+### Security
+- tokio 1.54.0 → 1.54.1 (RUSTSEC-2026-0384), zstd 0.13.3 → 0.14.3 (RUSTSEC-2026-0391) and
+  zstd-safe 7.3.0 → 8.2.0 (RUSTSEC-2026-0398, RUSTSEC-2026-0403). Crates that pinned
+  tokio 1.54.0 now require 1.54.1 or newer.
+
+### Fixed
+- `cargo deny` license exceptions now list `pagesift-fuzz`, `pagesift-office` and
+  `pagesift-testkit`.
+
 ## [0.81.3] — 2026-10-30
 
 Firecrawl's `includeTags` / `excludeTags` now work, and the Jina Reader routes sit behind the same

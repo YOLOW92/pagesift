@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.81.3
+# pagesift 0.81.4
 
 **Convierte páginas web, PDF y archivos de Office en Markdown limpio para LLM y agentes de IA.**  
 Un único binario en Rust, autoalojado: CLI, API HTTP compatible con Firecrawl, endpoint de Jina Reader, servidor MCP, paquetes para Python y Node.js.
@@ -41,7 +41,7 @@ Puede sustituir o acompañar a: **Firecrawl** (la misma API v1/v2, autoalojada),
 - **Memoria:** pico de 14–380 MB por trabajador en las pruebas de 0.81 (el mínimo, con 16 trabajadores en HTML y PDF); la capacidad se ajusta al límite de memoria del cgroup (sin OOM con 768 MiB)
 - **No sirve para:** OCR de PDF escaneados o imágenes; pagesift solo lee la capa de texto (ver *cuándo usarlo* más abajo)
 - **Licencia:** AGPL-3.0, o una [licencia comercial](COMMERCIAL.md)
-- **Última versión:** 0.81.3 · [notas de la versión](releases/0.81.3.md)
+- **Última versión:** 0.81.4 · [notas de la versión](releases/0.81.4.md)
 
 <!-- section: install -->
 ## Instalación y uso
@@ -51,7 +51,7 @@ Puede sustituir o acompañar a: **Firecrawl** (la misma API v1/v2, autoalojada),
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await scrape("https://example.com")).markdown` |
-| Servidor | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:0.81.3` | `curl localhost:3002/r/https://example.com` |
+| Servidor | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:0.81.4` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -94,7 +94,7 @@ for await (const p of scrapeMany(['https://a.com', 'https://b.com'], { concurren
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.81.3
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.81.4
 ```
 
 ```python
@@ -189,11 +189,11 @@ Arquitectura: [architecture.md](architecture.md).
 [licencia comercial](COMMERCIAL.md) o escribe a `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
-## Novedades en 0.81.3
+## Novedades en 0.81.4
 
-`includeTags` / `excludeTags` de Firecrawl ya funcionan (los selectores CSS conservan o eliminan elementos antes de la extracción;
-un selector inválido se rechaza antes de descargar), y las rutas de Jina Reader exigen una clave de API cuando hay claves
-configuradas. [Notas de la versión](releases/0.81.3.md) · [todas las versiones](releases/) · [CHANGELOG](../CHANGELOG.md)
+Actualización de seguridad de dependencias: tokio 1.54.1 y zstd 0.14.3 (zstd-safe 8.2.0) corrigen cuatro avisos de RustSec
+(RUSTSEC-2026-0384, -0391, -0398, -0403). Sin cambios en la API.
+[Notas de la versión](releases/0.81.4.md) · [todas las versiones](releases/) · [CHANGELOG](../CHANGELOG.md)
 
 ---
 
@@ -209,7 +209,7 @@ Preguntas o comentarios: [Discord](https://discord.gg/esA3wMZVvA) · [Issues](ht
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 0.81.3}
+  note   = {Version 0.81.4}
 }
 ```
 
