@@ -70,6 +70,8 @@ PageSift 0.81 を 2026-10-29 に再計測。競合の数値は 2026-10-21/22/27/
 
 **まだ後れている項目：** A2 replay, 269 pages, 1 worker 2.4 pages/s vs spider 156.6 pages/s; fast, 40 sites × 60 pages, time 16.6 seconds vs spider 1.4 seconds; B5 134 pages, completion 0.112 vs Docling (GPU) 1.000.
 
+*A2 のスループットは単一のループバックアドレス上のリプレイサーバーに対して測定しており、269 ページすべてが同じホストになります。PageSift は既定で同一ホストへのリクエスト間隔を 1 秒空けますが、spider にはこの制限がありません。この行の差は主にこの間隔によるもので、エンジン速度の差ではありません。*
+
 [完全なレポート](../benchmarks/history/0.81/results/20261029-102426/report.md).
 
 ---

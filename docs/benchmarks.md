@@ -39,6 +39,9 @@ PageSift 0.81 was re-measured on 2026-10-29; competitor numbers are the recorded
 **Largest gaps:** A2 replay, 269 pages, 1 worker 2.4 pages/s vs spider 156.6 pages/s; fast, 40 sites × 60 pages, time 16.6 seconds vs spider 1.4 seconds; B5 134 pages, completion 0.112 vs Docling (GPU) 1.000.
 
 
+*A2 throughput is measured against a replay server on a single loopback address, so all 269 pages count as one host. PageSift waits 1 s between requests to the same host by default; spider has no such limit. This row mostly reflects that politeness interval, not engine speed.*
+
+
 *A2 was re-fetched on 2026-10-29; its absolute times are not directly comparable with the 10-28 A2.*
 
 

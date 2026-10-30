@@ -70,6 +70,8 @@ PageSift 0.81 于 2026-10-29 新测；竞品为 2026-10-21/22/27/28 的原始数
 
 **仍落后：** A2 回放 269 页，1 路 2.4 pages/s vs spider 156.6 pages/s；fast，40 站 × 60 页，耗时 16.6 seconds vs spider 1.4 seconds；B5 134 页，完成率 0.112 vs Docling (GPU) 1.000。
 
+*A2 吞吐是对一个回环地址上的回放服务测的，269 页都算同一个主机。PageSift 默认对同一主机两次请求之间间隔 1 秒，spider 不限速；这一行主要反映这个礼貌间隔，而不是引擎速度。*
+
 [完整报告](../benchmarks/history/0.81/results/20261029-102426/report.md).
 
 ---

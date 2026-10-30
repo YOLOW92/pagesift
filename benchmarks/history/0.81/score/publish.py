@@ -32,6 +32,7 @@ LABEL = {
                home="How PageSift compares", behind="Still behind", closest="Closest comparisons",
                head=["Domain", "Workload", "Metric", "PageSift 0.81", "Fastest rival", "Rival", "Gap"],
                mem="Peak MB/worker (PageSift / rival)",
+               a2rate="A2 throughput is measured against a replay server on a single loopback address, so all 269 pages count as one host. PageSift waits 1 s between requests to the same host by default; spider has no such limit. This row mostly reflects that politeness interval, not engine speed.",
                a2note="A2 was re-fetched on 2026-10-29; its absolute times are not directly comparable with the 10-28 A2.",
                intro="PageSift {v} was re-measured on {date}; competitor numbers are the recorded 2026-10-21/22/27/28 data and were not re-run. One row per workload, best PageSift configuration; memory is a column, not a separate rank.",
                report="Full report"),
@@ -39,6 +40,7 @@ LABEL = {
                home="和同类工具比", behind="仍落后", closest="最接近的对照",
                head=["领域", "工作负载", "指标", "PageSift 0.81", "最快对手", "对手", "差距"],
                mem="峰值内存 MB（PageSift / 对手）",
+               a2rate="A2 吞吐是对一个回环地址上的回放服务测的，269 页都算同一个主机。PageSift 默认对同一主机两次请求之间间隔 1 秒，spider 不限速；这一行主要反映这个礼貌间隔，而不是引擎速度。",
                a2note="A2 的 269 页于 2026-10-29 重新抓取，绝对耗时不能和 10-28 的 A2 直接比较。",
                intro="PageSift {v} 于 {date} 新测；竞品为 2026-10-21/22/27/28 的原始数据，未重跑。每行一个工作负载，PageSift 取该负载的最佳配置；内存单列，不单独进榜。",
                report="完整报告"),
@@ -46,6 +48,7 @@ LABEL = {
                home="他ツールとの比較", behind="まだ後れている項目", closest="最も接近した比較",
                head=["分野", "ワークロード", "指標", "PageSift 0.81", "最速の競合", "競合", "差"],
                mem="ピークメモリ MB（PageSift / 競合）",
+               a2rate="A2 のスループットは単一のループバックアドレス上のリプレイサーバーに対して測定しており、269 ページすべてが同じホストになります。PageSift は既定で同一ホストへのリクエスト間隔を 1 秒空けますが、spider にはこの制限がありません。この行の差は主にこの間隔によるもので、エンジン速度の差ではありません。",
                a2note="A2 は 2026-10-29 に再取得したため、絶対時間は 10-28 の A2 と直接比較できません。",
                intro="PageSift {v} を {date} に再計測。競合の数値は 2026-10-21/22/27/28 の記録で、再実行していません。1 行 = 1 ワークロード、PageSift は最良の構成。メモリは列で、別の順位にはしません。",
                report="完全なレポート"),
@@ -53,6 +56,7 @@ LABEL = {
                home="Cómo se compara PageSift", behind="Aún por detrás", closest="Comparaciones más cercanas",
                head=["Dominio", "Carga de trabajo", "Métrica", "PageSift 0.81", "Rival más rápido", "Rival", "Diferencia"],
                mem="MB pico/trabajador (PageSift / rival)",
+               a2rate="El rendimiento de A2 se mide contra un servidor de reproducción en una sola dirección loopback, así que las 269 páginas cuentan como un mismo host. PageSift espera por defecto 1 s entre peticiones al mismo host; spider no tiene ese límite. Esta fila refleja sobre todo ese intervalo de cortesía, no la velocidad del motor.",
                a2note="A2 se volvió a capturar el 2026-10-29; sus tiempos absolutos no son comparables con los del A2 del 10-28.",
                intro="PageSift {v} se midió de nuevo el {date}; los números de la competencia son los registros del 2026-10-21/22/27/28 y no se repitieron. Una fila por carga de trabajo, la mejor configuración de PageSift; la memoria es una columna, no una clasificación aparte.",
                report="Informe completo"),
@@ -157,7 +161,7 @@ def perf_block(data, lang, link, show_gaps=True):
     if gaps and show_gaps:
         label = L["gaps"] if gap_kind == "behind" else L["closest"]
         sep = "：" if lang in ("zh", "ja") else ":"
-        s += [f"\n\n**{label}{sep}** {gap_line(gaps, lang)}"]
+        s += [f"\n\n**{label}{sep}** {gap_line(gaps, lang)}", f"\n\n*{L['a2rate']}*"]
     s += [f"\n\n*{L['a2note']}*", f"\n\n[{L['report']}]({link})\n"]
     return "\n".join(s)
 
@@ -188,6 +192,7 @@ def main():
             sep = "：" if lang in ("zh", "ja") else ":"
             repl = (f"## {LABEL[lang]['home']}\n\n"
                     f"**{label}{sep}** {line}\n\n"
+                    f"*{LABEL[lang]['a2rate']}*\n\n"
                     f"[{LABEL[lang]['report']}]({link}).\n\n---\n\n")
             s, n = re.subn(r"## (?:How PageSift compares|和同类工具比|他ツールとの比較|Cómo se compara PageSift).*?\n---\n\n",
                            repl, s, count=1, flags=re.S)

@@ -29,7 +29,6 @@ results are in [benchmarks.md](../benchmarks.md); scripts and raw results of the
 - [0.70_200m_regression](0.70_200m_regression.md)
 - [0.70_p0_192core_061_baseline](0.70_p0_192core_061_baseline.md)
 - [0.70_p1_cpu_scaling_usl](0.70_p1_cpu_scaling_usl.md)
-- [0.70_p2_custom_rust_microkernel_plan](0.70_p2_custom_rust_microkernel_plan.md)
 - [0.70_p2_real_https_10k](0.70_p2_real_https_10k.md)
 - [0.70_p2_step1_component_attribution](0.70_p2_step1_component_attribution.md)
 - [0.70_p2_step2_numa_executor](0.70_p2_step2_numa_executor.md)
@@ -53,10 +52,3 @@ results are in [benchmarks.md](../benchmarks.md); scripts and raw results of the
 - [0.70_showdown_D6](0.70_showdown_D6.md)
 - [0.70_showdown_D7](0.70_showdown_D7.md)
 - [0.70_showdown_D9](0.70_showdown_D9.md)
-
-## 0.60 development plans
-
-- [0.60.0-tasks](0.60-tasks/0.60.0-tasks.md)
-- [phase-p3-competitor-flaws](0.60-tasks/phase-p3-competitor-flaws.md)
-- [phase-p4-wild-x-showdown](0.60-tasks/phase-p4-wild-x-showdown.md)
-- [phase-p5-cross-generation-rebench](0.60-tasks/phase-p5-cross-generation-rebench.md)

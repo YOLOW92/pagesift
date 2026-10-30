@@ -187,6 +187,13 @@ def strength_key(r):
     return r["_ratio"] if r["_ratio"] is not None else 1.0 + (r["_delta"] or 0.0)
 
 
+# A2 回放只有一个主机，吞吐差距主要来自按主机的默认间隔；写在差距句后面。
+A2_RATE = {
+    "zh": "A2 吞吐是对一个回环地址上的回放服务测的，269 页都算同一个主机。PageSift 默认对同一主机两次请求之间间隔 1 秒，spider 不限速；这一行主要反映这个礼貌间隔，而不是引擎速度。",
+    "en": "A2 throughput is measured against a replay server on a single loopback address, so all 269 pages count as one host. PageSift waits 1 s between requests to the same host by default; spider has no such limit. This row mostly reflects that politeness interval, not engine speed.",
+}
+
+
 def gap_sentence(rows, lang="zh"):
     parts = []
     for r in rows:
@@ -252,7 +259,7 @@ def main():
     )
 
     md = [f"# PageSift 0.81 performance refresh ({meta['date']})\n", header, "\n## 大幅领先\n", table(far, "zh"),
-          "\n## 领先\n", table(ahead, "zh"), "\n## 最大差距\n", gap_sentence(gaps, "zh"), "\n",
+          "\n## 领先\n", table(ahead, "zh"), "\n## 最大差距\n", gap_sentence(gaps, "zh"), "\n", A2_RATE["zh"] + "\n",
           "## 完整对照\n",
           "每一行是一个工作负载 + 一个指标；PageSift 取该工作负载的最佳配置。"
           "`持平` 和 `落后` 不进入首屏，但全部列在下面。\n"]
@@ -280,6 +287,7 @@ def main():
             md.append("| " + " | ".join(cells) + " |")
     md.append("\n## 方法与限制\n")
     md.append("- 输入、样本、评分规则沿用 `benchmarks/mix/v2/RULES.md` 和各领域 README；0.81 只跑 PageSift，竞品不重跑。")
+    md.append("- " + A2_RATE["zh"])
     md.append("- A2 的 269 页快照在 2026-10-29 重新抓取，绝对耗时不能和 10-28 的旧 A2 直接比；B1/B4 输入不变。")
     md.append("- 每个输出文件的 SHA-256 存在 `hashes/`；这是“只跑 0.81”下的输出哈希存档，不是 0.80.10 的字节级对比。")
     md.append("- 浏览器、A3、10M scale、Deployment/API 是没有同口径竞品的附录项，不进入两级表。")
@@ -298,6 +306,7 @@ def main():
     g = gap_sentence(gaps)
     if g:
         zh.append(("最大差距：" if gap_kind == "behind" else "最接近的对照：") + g + "\n")
+        zh.append("\n" + A2_RATE["zh"] + "\n")
     (out / "headline-zh.md").write_text("\n".join(zh), encoding="utf-8")
 
     en = [f"## Performance at a glance (PageSift {meta['pagesift']})\n",
@@ -307,6 +316,7 @@ def main():
     g_en = gap_sentence(gaps, "en")
     if g_en:
         en.append(("Largest gaps: " if gap_kind == "behind" else "Closest comparisons: ") + g_en + "\n")
+        en.append("\n" + A2_RATE["en"] + "\n")
     (out / "headline-en.md").write_text("\n".join(en), encoding="utf-8")
 
     data = {
