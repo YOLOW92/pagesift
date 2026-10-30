@@ -19,7 +19,7 @@ hyper-util = { version = "0.1.21", features = ["tokio"] }
 quick-xml = "0.42.0"
 rustls-native-certs = "0.8.5"
 tokio-rustls = { version = "0.26.6", default-features = false, features = ["ring", "tls12", "logging"] }
-zstd = "0.13.3"
+zstd = "0.14.3"
 encoding_rs = "0.8.35"
 httpdate = "1.0.3"
 reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls-native-roots", "http2", "gzip", "brotli", "zstd", "deflate", "socks"] }
