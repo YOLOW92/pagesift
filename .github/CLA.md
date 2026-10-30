@@ -2,7 +2,7 @@
 
 <!-- TODO(owner): have this text reviewed by a lawyer before accepting outside contributions. -->
 
-Thank you for contributing to pagesift. pagesift is offered under the AGPL-3.0 and under a commercial license (see [COMMERCIAL.md](COMMERCIAL.md)). To keep offering both, the project needs permission to distribute your contribution under either license. This agreement gives that permission while you keep the copyright in your work.
+Thank you for contributing to pagesift. pagesift is offered under the AGPL-3.0 and under a commercial license (see [COMMERCIAL.md](../docs/COMMERCIAL.md)). To keep offering both, the project needs permission to distribute your contribution under either license. This agreement gives that permission while you keep the copyright in your work.
 
 By submitting a Contribution (a pull request, patch, or other material intentionally sent for inclusion in pagesift), you ("You") agree to the following with the pagesift maintainer, YOLOW92 ("the Maintainer"):
 

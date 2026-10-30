@@ -16,10 +16,10 @@
 - [Shared MCP service](https://github.com/YOLOW92/pagesift/blob/main/docs/mcp-service.md): one local MCP server for every agent on a machine
 - [Architecture](https://github.com/YOLOW92/pagesift/blob/main/docs/architecture.md)
 - [Benchmarks](https://github.com/YOLOW92/pagesift/blob/main/docs/benchmarks.md): methods, datasets and results against other tools
-- [Example config](https://github.com/YOLOW92/pagesift/blob/main/pagesift.example.toml)
+- [Example config](https://github.com/YOLOW92/pagesift/blob/main/docs/pagesift.example.toml)
 
 ## Optional
 
 - [Release notes](https://github.com/YOLOW92/pagesift/tree/main/docs/releases)
 - [Changelog](https://github.com/YOLOW92/pagesift/blob/main/CHANGELOG.md)
-- [Commercial license](https://github.com/YOLOW92/pagesift/blob/main/COMMERCIAL.md)
+- [Commercial license](https://github.com/YOLOW92/pagesift/blob/main/docs/COMMERCIAL.md)

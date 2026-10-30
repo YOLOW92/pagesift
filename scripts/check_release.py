@@ -47,12 +47,12 @@ def check(tag=None):
     assert (ROOT/f'docs/releases/{version}.md').is_file(), 'release notes missing'
     # SECURITY.md 的支持版本表要跟着发布线走：0.20 起没人改它，0.80.3 时还写着只支持 0.20.x
     line = '.'.join(version.split('.')[:2])
-    security = (ROOT/'SECURITY.md').read_text()
+    security = (ROOT/'.github/SECURITY.md').read_text()
     assert f'| {line}.x | ✅ |' in security and f'| < {line} | ❌ |' in security, \
         f'SECURITY.md supported-versions table must list {line}.x as supported and < {line} as not'
     # 文档里写的最低 Rust 版本跟 Cargo.toml 的 rust-version 走（ci.sh 和 CI 按后者检查）
     msrv = workspace['workspace']['package']['rust-version']
-    assert f'Rust {msrv} or newer' in (ROOT/'CONTRIBUTING.md').read_text(), \
+    assert f'Rust {msrv} or newer' in (ROOT/'.github/CONTRIBUTING.md').read_text(), \
         f'CONTRIBUTING.md must say "Rust {msrv} or newer" (rust-version in Cargo.toml)'
     # 首页 README 的模板、徽章白名单、标题版本号（0.90 起必须按模板改版）
     subprocess.run([sys.executable, '-I', str(ROOT/'scripts/check_readme.py'), '--release'], check=True)

@@ -1,6 +1,6 @@
 name: CLA
 
-# 外部贡献者第一次提 PR 时要签 CLA（见 CLA.md），签名记在 cla-signatures 分支。
+# 外部贡献者第一次提 PR 时要签 CLA（见 .github/CLA.md），签名记在 cla-signatures 分支。
 on:
   issue_comment:
     types: [created]
@@ -23,6 +23,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           path-to-signatures: signatures/cla.json
-          path-to-document: https://github.com/YOLOW92/pagesift/blob/main/CLA.md
+          path-to-document: https://github.com/YOLOW92/pagesift/blob/main/.github/CLA.md
           branch: cla-signatures
           allowlist: YOLOW92,bot*   # 仓库主人和机器人免签

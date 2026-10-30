@@ -34,7 +34,7 @@ ADD --chmod=755 \
     /usr/local/bin/lightpanda
 COPY --from=build /pagesift /usr/local/bin/pagesift
 # 许可证和第三方署名随镜像走
-COPY LICENSE NOTICE COMMERCIAL.md /usr/share/doc/pagesift/
+COPY LICENSE NOTICE docs/COMMERCIAL.md /usr/share/doc/pagesift/
 ENV PAGESIFT_DATA_DIR=/data \
     PAGESIFT_LOG=info \
     PAGESIFT_LOG_FORMAT=json \

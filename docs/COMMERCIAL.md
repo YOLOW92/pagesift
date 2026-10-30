@@ -2,7 +2,7 @@
 
 pagesift is dual-licensed.
 
-- **Open source: [AGPL-3.0-only](LICENSE).** Free to use, modify and self-host. If you modify pagesift and let others use it over a network (for example as part of a hosted API or SaaS), the AGPL requires you to offer those users the source code of your modified version.
+- **Open source: [AGPL-3.0-only](../LICENSE).** Free to use, modify and self-host. If you modify pagesift and let others use it over a network (for example as part of a hosted API or SaaS), the AGPL requires you to offer those users the source code of your modified version.
 - **Commercial license.** For organisations that want to use pagesift without the AGPL's obligations — embedding it in closed-source products, offering it as part of a proprietary hosted service, or keeping modifications private — a commercial license is available. It can include support, priority fixes and help with deployment.
 
 ## Do I need a commercial license?
@@ -24,4 +24,4 @@ To ask about a commercial license, contact: **[yolow92@outlook.com](mailto:yolow
 
 ## Contributions
 
-Contributions are accepted under the [Contributor License Agreement](CLA.md), which lets the project offer both licenses. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Contributions are accepted under the [Contributor License Agreement](../.github/CLA.md), which lets the project offer both licenses. See [CONTRIBUTING.md](../.github/CONTRIBUTING.md).

@@ -222,4 +222,4 @@ The tests and the benchmark start a local HTTP server and never touch the intern
 
 ## License
 
-AGPL-3.0-only, with a commercial license available for use without AGPL obligations. See the repository's [LICENSE](../../LICENSE) and [COMMERCIAL.md](../../COMMERCIAL.md).
+AGPL-3.0-only, with a commercial license available for use without AGPL obligations. See the repository's [LICENSE](../../LICENSE) and [COMMERCIAL.md](../../docs/COMMERCIAL.md).

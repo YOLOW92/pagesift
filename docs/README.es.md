@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
+<img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
 # pagesift 0.81.3
 
@@ -8,7 +8,7 @@
 Un único binario en Rust, autoalojado: CLI, API HTTP compatible con Firecrawl, endpoint de Jina Reader, servidor MCP, paquetes para Python y Node.js.
 
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](../LICENSE)
-[![Commercial license](https://img.shields.io/badge/commercial-license%20available-green.svg)](../COMMERCIAL.md)
+[![Commercial license](https://img.shields.io/badge/commercial-license%20available-green.svg)](COMMERCIAL.md)
 [![Release](https://img.shields.io/github/v/release/YOLOW92/pagesift?include_prereleases)](https://github.com/YOLOW92/pagesift/releases)
 [![crates.io](https://img.shields.io/crates/v/pagesift.svg)](https://crates.io/crates/pagesift)
 [![PyPI](https://img.shields.io/pypi/v/pagesift.svg)](https://pypi.org/project/pagesift/)
@@ -40,7 +40,7 @@ Puede sustituir o acompañar a: **Firecrawl** (la misma API v1/v2, autoalojada),
 - **Rastreo:** robots.txt y límites de tasa por host por defecto, sitemaps, rastreos enfocados por consulta, memoria acotada
 - **Memoria:** pico de 14–380 MB por trabajador en las pruebas de 0.81 (el mínimo, con 16 trabajadores en HTML y PDF); la capacidad se ajusta al límite de memoria del cgroup (sin OOM con 768 MiB)
 - **No sirve para:** OCR de PDF escaneados o imágenes; pagesift solo lee la capa de texto (ver *cuándo usarlo* más abajo)
-- **Licencia:** AGPL-3.0, o una [licencia comercial](../COMMERCIAL.md)
+- **Licencia:** AGPL-3.0, o una [licencia comercial](COMMERCIAL.md)
 - **Última versión:** 0.81.3 · [notas de la versión](releases/0.81.3.md)
 
 <!-- section: install -->
@@ -186,7 +186,7 @@ Arquitectura: [architecture.md](architecture.md).
 ## Licencia
 
 [AGPL-3.0](../LICENSE). Para enlazar con software propietario o desplegar en privado sin las obligaciones de la AGPL, consulta la
-[licencia comercial](../COMMERCIAL.md) o escribe a `licensing@pagesift.dev`.
+[licencia comercial](COMMERCIAL.md) o escribe a `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
 ## Novedades en 0.81.3

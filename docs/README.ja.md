@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
+<img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
 # pagesift 0.81.3
 
@@ -8,7 +8,7 @@
 セルフホストできる単一の Rust バイナリ：CLI、Firecrawl 互換 HTTP API、Jina Reader エンドポイント、MCP サーバー、Python・Node.js パッケージ。
 
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](../LICENSE)
-[![Commercial license](https://img.shields.io/badge/commercial-license%20available-green.svg)](../COMMERCIAL.md)
+[![Commercial license](https://img.shields.io/badge/commercial-license%20available-green.svg)](COMMERCIAL.md)
 [![Release](https://img.shields.io/github/v/release/YOLOW92/pagesift?include_prereleases)](https://github.com/YOLOW92/pagesift/releases)
 [![crates.io](https://img.shields.io/crates/v/pagesift.svg)](https://crates.io/crates/pagesift)
 [![PyPI](https://img.shields.io/pypi/v/pagesift.svg)](https://pypi.org/project/pagesift/)
@@ -40,7 +40,7 @@ pagesift は URL を取得する（JavaScript のレンダリングはページ�
 - **クロール：** 既定で robots.txt とホストごとのレート制限、サイトマップ、クエリによるフォーカスクロール、有界メモリ
 - **メモリ：** 0.81 の各ベンチマークでワーカーあたりピーク 14–380 MB（16 ワーカーで HTML・PDF を処理するときが最小）。容量は cgroup のメモリ上限から自動で決まります（768 MiB で OOM なし）
 - **向かない用途：** スキャン PDF や画像の OCR。pagesift はテキスト層のみを読みます（下の「向いている場面、向いていない場面」を参照）
-- **ライセンス：** AGPL-3.0、または[商用ライセンス](../COMMERCIAL.md)
+- **ライセンス：** AGPL-3.0、または[商用ライセンス](COMMERCIAL.md)
 - **最新版：** 0.81.3 · [リリースノート](releases/0.81.3.md)
 
 <!-- section: install -->
@@ -186,7 +186,7 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 ## ライセンス
 
 [AGPL-3.0](../LICENSE)。AGPL の義務なしでのプロプライエタリなリンクや非公開デプロイについては、
-[商用ライセンス](../COMMERCIAL.md)を確認するか、`licensing@pagesift.dev` までご連絡ください。
+[商用ライセンス](COMMERCIAL.md)を確認するか、`licensing@pagesift.dev` までご連絡ください。
 
 <!-- section: changelog -->
 ## 0.81.3 の変更

@@ -12,6 +12,7 @@ benchmarks/history/0.70/six/evidence
 # Build the product without benchmark, documentation or tool-workspace files
 bench
 docs
+!docs/COMMERCIAL.md
 .github
 .codex
 .agents

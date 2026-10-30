@@ -3,7 +3,7 @@
 
     pagesift serve --port 3999 --api-key test-key &
     pip install firecrawl-py
-    python tests/compat/firecrawl_sdk.py
+    python scripts/firecrawl_sdk_compat.py
 
 Uses live sites (one request each, robots.txt respected). Exits non-zero on any mismatch.
 """

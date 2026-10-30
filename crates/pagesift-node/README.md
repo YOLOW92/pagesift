@@ -174,4 +174,4 @@ This crate doesn't use `#![forbid(unsafe_code)]`, because the napi-rs macros gen
 
 ## License
 
-AGPL-3.0-only, with a commercial license available for use without AGPL obligations. See the repository's [LICENSE](../../LICENSE) and [COMMERCIAL.md](../../COMMERCIAL.md).
+AGPL-3.0-only, with a commercial license available for use without AGPL obligations. See the repository's [LICENSE](../../LICENSE) and [COMMERCIAL.md](../../docs/COMMERCIAL.md).

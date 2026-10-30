@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
+<img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
 # pagesift 0.81.3
 
@@ -8,7 +8,7 @@
 一个自托管的 Rust 二进制：CLI、兼容 Firecrawl 的 HTTP API、Jina Reader 端点、MCP 服务器、Python 和 Node.js 包。
 
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](../LICENSE)
-[![Commercial license](https://img.shields.io/badge/commercial-license%20available-green.svg)](../COMMERCIAL.md)
+[![Commercial license](https://img.shields.io/badge/commercial-license%20available-green.svg)](COMMERCIAL.md)
 [![Release](https://img.shields.io/github/v/release/YOLOW92/pagesift?include_prereleases)](https://github.com/YOLOW92/pagesift/releases)
 [![crates.io](https://img.shields.io/crates/v/pagesift.svg)](https://crates.io/crates/pagesift)
 [![PyPI](https://img.shields.io/pypi/v/pagesift.svg)](https://pypi.org/project/pagesift/)
@@ -40,7 +40,7 @@ pagesift 抓取一个 URL（只在页面需要时才渲染 JavaScript）或读�
 - **爬取：** 默认遵守 robots.txt 并按主机限速，支持站点地图、按查询的聚焦爬取，内存有界
 - **内存：** 0.81 各项基准中每个 worker 峰值 14–380 MB（16 路处理 HTML、PDF 时最低）；容量按 cgroup 内存上限自动确定（768 MiB 下无 OOM）
 - **不适用：** 扫描版 PDF 或图片的 OCR；pagesift 只读取文本层（见下文“什么时候用”）
-- **许可证：** AGPL-3.0，或[商业许可](../COMMERCIAL.md)
+- **许可证：** AGPL-3.0，或[商业许可](COMMERCIAL.md)
 - **最新版本：** 0.81.3 · [发行说明](releases/0.81.3.md)
 
 <!-- section: install -->
@@ -186,7 +186,7 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 ## 许可证
 
 [AGPL-3.0](../LICENSE)。如需专有链接或不承担 AGPL 义务的私有部署，请见
-[商业许可](../COMMERCIAL.md) 或写信到 `licensing@pagesift.dev`。
+[商业许可](COMMERCIAL.md) 或写信到 `licensing@pagesift.dev`。
 
 <!-- section: changelog -->
 ## 0.81.3 更新

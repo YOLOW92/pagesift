@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/assets/logo.png" alt="PageSift Logo" width="300" />
+<img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
 # pagesift 0.81.3
 
@@ -8,7 +8,7 @@
 One self-hosted Rust binary: CLI, Firecrawl-compatible HTTP API, Jina Reader endpoint, MCP server, Python and Node.js packages.
 
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-[![Commercial license](https://img.shields.io/badge/commercial-license%20available-green.svg)](COMMERCIAL.md)
+[![Commercial license](https://img.shields.io/badge/commercial-license%20available-green.svg)](docs/COMMERCIAL.md)
 [![Release](https://img.shields.io/github/v/release/YOLOW92/pagesift?include_prereleases)](https://github.com/YOLOW92/pagesift/releases)
 [![crates.io](https://img.shields.io/crates/v/pagesift.svg)](https://crates.io/crates/pagesift)
 [![PyPI](https://img.shields.io/pypi/v/pagesift.svg)](https://pypi.org/project/pagesift/)
@@ -40,7 +40,7 @@ Can replace or sit alongside: **Firecrawl** (same v1/v2 API, self-hosted), **Jin
 - **Crawling:** robots.txt and per-host rate limits by default, sitemaps, focused crawls by query, bounded memory
 - **Memory:** 14–380 MB peak per worker across the 0.81 benchmarks (lowest at 16 workers on HTML and PDF); capacity is sized from the cgroup limit (no OOM at 768 MiB)
 - **Not for:** OCR of scanned PDFs or images; pagesift reads the text layer only (see *When to use it* below)
-- **License:** AGPL-3.0, or a [commercial license](COMMERCIAL.md)
+- **License:** AGPL-3.0, or a [commercial license](docs/COMMERCIAL.md)
 - **Latest:** 0.81.3 · [release notes](docs/releases/0.81.3.md)
 
 <!-- section: install -->
@@ -186,7 +186,7 @@ Architecture: [docs/architecture.md](docs/architecture.md).
 ## License
 
 [AGPL-3.0](LICENSE). For proprietary linking or private deployment without AGPL obligations, see the
-[commercial license](COMMERCIAL.md) or write to `licensing@pagesift.dev`.
+[commercial license](docs/COMMERCIAL.md) or write to `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
 ## What's new in 0.81.3

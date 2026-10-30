@@ -126,7 +126,7 @@ fn parses_a_full_config_and_rejects_browser_like_user_agents() {
 
 #[test]
 fn example_config_parses() {
-    let cfg: Config = toml::from_str(include_str!("../../../pagesift.example.toml")).unwrap();
+    let cfg: Config = toml::from_str(include_str!("../../../docs/pagesift.example.toml")).unwrap();
     assert_eq!(cfg.server.persist_jobs, Some(true));
 }
 

@@ -9,6 +9,6 @@
 ## Checklist
 
 - [ ] `scripts/ci.sh` passes
-- [ ] No new copyleft dependencies (`cargo deny check`)
+- [ ] No new copyleft dependencies (`cargo deny --config .github/deny.toml check`)
 - [ ] Nothing that bypasses robots.txt, rate limits or anti-bot protection
-- [ ] I have signed the [CLA](../CLA.md) (the bot asks on your first PR)
+- [ ] I have signed the [CLA](CLA.md) (the bot asks on your first PR)

@@ -28,7 +28,7 @@ cargo "+$msrv" check --workspace --locked
 
 step "cargo deny"
 if command -v cargo-deny >/dev/null; then
-    cargo deny check
+    cargo deny --config .github/deny.toml check
 else
     echo "skipped: run 'cargo install cargo-deny --locked' to enable"
 fi
