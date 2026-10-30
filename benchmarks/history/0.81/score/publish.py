@@ -62,6 +62,11 @@ LABEL = {
                report="Informe completo"),
 }
 
+COMPACT = {'en': {'chead': ['Task', 'Metric', 'PageSift', 'Best other tool', 'Gap'], 'legend': '↑ higher is better · ↓ lower is better. Strongest result per domain; methods and sources in the full report.', 'up': '↑', 'down': '↓'},
+    'zh': {'chead': ['任务', '指标', 'PageSift', '最好的其他工具', '差距'], 'legend': '↑ 越高越好 · ↓ 越低越好。每个领域取最强的一项；方法和出处见完整报告。', 'up': '↑', 'down': '↓'},
+    'ja': {'chead': ['タスク', '指標', 'PageSift', '最良の他ツール', '差'], 'legend': '↑ 高いほど良い · ↓ 低いほど良い。分野ごとに最も強い 1 項目。方法と出典は完全なレポートに。', 'up': '↑', 'down': '↓'},
+    'es': {'chead': ['Tarea', 'Métrica', 'PageSift', 'Mejor otra herramienta', 'Diferencia'], 'legend': '↑ más alto es mejor · ↓ más bajo es mejor. El resultado más fuerte por dominio; métodos y fuentes en el informe completo.', 'up': '↑', 'down': '↓'}}
+
 
 def unit(row):
     m = row["metric_en"]
@@ -148,6 +153,36 @@ def row_strength(r):
     return 1.0 + (r.get("delta") or 0.0)
 
 
+def compact_rows(data, n=8):
+    """首页精简表：领先的行里每个领域取最强的一行，最多 n 行。"""
+    rows = sorted([r for r in data["rows"] if r["tier"] in ("far", "ahead") and r.get("headline", True) and not r.get("appendix")],
+                  key=row_strength, reverse=True)
+    out, seen = [], set()
+    for r in rows:
+        if r["domain_en"] not in seen:
+            seen.add(r["domain_en"])
+            out.append(r)
+    return out[:n]
+
+
+def compact_block(data, lang, link):
+    """按模板改版后的首页性能段：一张精简表 + 落后项 + 口径说明 + 完整报告链接。"""
+    L, C = LABEL[lang], COMPACT[lang]
+    out = ["| " + " | ".join(C["chead"]) + " |", "|---|---|---:|---|---:|"]
+    for r in compact_rows(data):
+        workload = r["workload_zh"] if lang == "zh" else r["workload_en"]
+        domain = r["domain_zh"] if lang == "zh" else r["domain_en"]
+        metric = r["metric_zh"] if lang == "zh" else r["metric_en"]
+        arrow = C["up"] if r.get("direction") == "up" else C["down"]
+        out.append(f"| {domain} — {workload} | {metric} {arrow} | **{fmt(r, r['psift_value'])}** | "
+                   f"{r['rival_name']} {fmt(r, r['rival'])} | **{gap(r)}** |")
+    gaps, gap_kind = gap_rows(data)
+    label = L["behind"] if gap_kind == "behind" else L["closest"]
+    sep = "：" if lang in ("zh", "ja") else ":"
+    return "\n".join([C["legend"] + "\n", *out, f"\n**{label}{sep}** {gap_line(gaps, lang)}",
+                      f"\n*{L['a2rate']}*", f"\n[{L['report']}]({link})\n"])
+
+
 def perf_block(data, lang, link, show_gaps=True):
     L = LABEL[lang]
     far = sorted([r for r in data["rows"] if r["tier"] == "far" and r.get("headline", True) and not r.get("appendix")],
@@ -177,8 +212,18 @@ def main():
     stamp = a.stamp or a.scorecard.parent.name
     for lang, path in FILES.items():
         link = f"benchmarks/history/0.81/results/{stamp}/report.md" if lang == "en" else f"../benchmarks/history/0.81/results/{stamp}/report.md"
-        block = f"<!-- perf-glance -->\n{perf_block(data, lang, link, show_gaps=not a.homepage)}\n<!-- /perf-glance -->\n\n---\n\n"
         s = path.read_text(encoding="utf-8")
+        if "<!-- readme-template: v1 -->" in s:
+            # 按模板改版后：性能段里只放精简表，不再有首页大表和 How PageSift compares
+            block = f"<!-- perf-glance -->\n{compact_block(data, lang, link)}\n<!-- /perf-glance -->"
+            s = re.sub(r"<!-- perf-glance -->.*?<!-- /perf-glance -->", lambda _: block, s, flags=re.S)
+            if a.write:
+                path.write_text(s, encoding="utf-8")
+                print(f"updated {path.relative_to(REPO)}")
+            else:
+                print(f"===== {path.relative_to(REPO)} =====\n{block}")
+            continue
+        block = f"<!-- perf-glance -->\n{perf_block(data, lang, link, show_gaps=not a.homepage)}\n<!-- /perf-glance -->\n\n---\n\n"
         if "<!-- perf-glance -->" in s:
             s = re.sub(r"<!-- perf-glance -->.*?<!-- /perf-glance -->\n\n---\n\n", block, s, flags=re.S)
         else:

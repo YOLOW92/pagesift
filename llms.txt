@@ -1,0 +1,25 @@
+# pagesift
+
+> Turn web pages, PDFs and Office files into clean Markdown for LLMs and AI agents. One self-hosted Rust binary with a CLI, a Firecrawl-compatible HTTP API (v1/v2), a Jina Reader endpoint (`/r/<url>`), an MCP server, and Python and Node.js packages. AGPL-3.0 or commercial license.
+
+- Input: URLs (HTTP, or a headless browser when needed), HTML, PDF, DOCX, XLSX, PPTX, EPUB, CSV
+- Output: Markdown, HTML, raw HTML, links, images, metadata, JSON; warnings when a result is incomplete
+- Install: `cargo install pagesift --locked` · `pip install pagesift` · `npm install @pagesift/node` · `docker run -p 3002:3002 ghcr.io/yolow92/pagesift`
+- First call: `pagesift scrape https://example.com` · `pagesift.scrape(url).markdown` · `curl localhost:3002/r/https://example.com`
+- MCP: `pagesift mcp` (stdio) or `pagesift mcp http --port 3003`; tools `pagesift_scrape`, `pagesift_batch_scrape`, `pagesift_crawl`, `pagesift_crawl_status`, `pagesift_map`
+- Not for: OCR of scanned PDFs or images (text layer only)
+
+## Docs
+
+- [README](https://github.com/YOLOW92/pagesift/blob/main/README.md): what it is, install, examples, when to use it, performance summary
+- [File upload API](https://github.com/YOLOW92/pagesift/blob/main/docs/parse-api.md): `POST /v2/parse` for PDF, Office, EPUB, CSV and HTML files
+- [Shared MCP service](https://github.com/YOLOW92/pagesift/blob/main/docs/mcp-service.md): one local MCP server for every agent on a machine
+- [Architecture](https://github.com/YOLOW92/pagesift/blob/main/docs/architecture.md)
+- [Benchmarks](https://github.com/YOLOW92/pagesift/blob/main/docs/benchmarks.md): methods, datasets and results against other tools
+- [Example config](https://github.com/YOLOW92/pagesift/blob/main/pagesift.example.toml)
+
+## Optional
+
+- [Release notes](https://github.com/YOLOW92/pagesift/tree/main/docs/releases)
+- [Changelog](https://github.com/YOLOW92/pagesift/blob/main/CHANGELOG.md)
+- [Commercial license](https://github.com/YOLOW92/pagesift/blob/main/COMMERCIAL.md)

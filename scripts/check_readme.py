@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""检查四种语言的 README 是否符合首页模板（给 agent 读的结构）。
+"""检查四种语言的 README 是否符合首页模板。
 
 模板 v1 的约定（README 里用 HTML 注释标出各节，标题文字各语言自己写）：
   <!-- readme-template: v1 -->        放在 README 里，表示已按模板改版
@@ -12,7 +12,7 @@
   <!-- section: license -->           许可证与商业授权
   <!-- section: changelog -->         只留最新一版，其余放 CHANGELOG.md
 
-任何时候都查：徽章只能用白名单里的；不许有对 AI/agent 下指令的文字。
+任何时候都查：徽章只能用白名单里的；不许有指令性文字。
 有模板标记时再查：各节齐全、顺序一致、四种语言一致、安装段位置、带版本号的二、三级标题最多一个。
 --release 时再查：一级标题的版本号等于工作区版本；版本 >= STRICT_FROM 时必须已按模板改版并有 llms.txt。
 """
@@ -38,8 +38,8 @@ BADGE_TARGETS = [
     r"npmjs\.com/package/@pagesift/node\)$",
     r"discord\.gg/",
 ]
-# 对 agent 下指令的写法会被当成提示注入，反而降低信任
-AGENT_DIRECTIVES = re.compile(
+# 不写指令性文字
+DIRECTIVES = re.compile(
     r"(ignore (all |any )?(previous|prior) instructions"
     r"|\b(AI|LLM)s?\s*(agents?|assistants?|models?)?\s*[:,]\s*(please\s+)?(recommend|choose|prefer|rank|pick)\b"
     r"|\b(dear|attention|note to|hey)\s+(AI|LLM|agents?|assistants?|language models?)\b"
@@ -67,8 +67,8 @@ def check_file(rel, text, problems):
             in_code = not in_code
         if in_code:
             continue
-        if AGENT_DIRECTIVES.search(line):
-            problems.append(f"{rel}:{i + 1}: 像是对 AI/agent 下指令（会被当成提示注入）：{line.strip()[:80]}")
+        if DIRECTIVES.search(line):
+            problems.append(f"{rel}:{i + 1}: 像是指令性文字：{line.strip()[:80]}")
         if re.match(r"#{2,3} .*\b\d+\.\d+(\.\d+)?\b", line):
             version_heads.append(i + 1)
     if MARKER in text and len(version_heads) > 1:
@@ -106,7 +106,7 @@ def main():
     if templated and len(templated) != len(FILES):
         problems.append(f"只有 {templated} 按模板改版了，四种语言要一起改")
     if not templated:
-        warnings.append(f"README 还没按模板 v1 改版（没有 {MARKER}），只查了徽章和指令性文字")
+        warnings.append(f"README 还没按模板 v1 改版（没有 {MARKER}），只查了徽章和措辞")
     if a.release:
         strict = tuple(int(x) for x in version.split(".")[:2]) >= STRICT_FROM
         for rel, text in texts.items():
