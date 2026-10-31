@@ -2,6 +2,20 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.81.5] — 2026-10-31
+
+Linux glibc builds now load on glibc 2.28 and newer. See [the release notes](docs/releases/0.81.5.md).
+
+### Fixed
+- The Linux gnu Node binding and command-line binary (x86_64 and aarch64) were built on a glibc 2.39
+  system and required glibc 2.34 and 2.35 symbols, so they failed to load on older distributions with
+  `GLIBC_2.35 not found`. They are now built in the `manylinux_2_28` container and the release fails if a
+  build requires a glibc newer than 2.28.
+
+### Changed
+- Release CI runs the Node binding tests on Node 18, 20, 22, 24 and 26 (Linux x64) and on Node 18 and 26
+  on the other platforms; a failure blocks publishing.
+
 ## [0.81.4] — 2026-10-31
 
 Dependency security update. See [the release notes](docs/releases/0.81.4.md).

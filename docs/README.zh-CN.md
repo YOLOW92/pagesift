@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.81.4
+# pagesift 0.81.5
 
 **把网页、PDF 和 Office 文件转成供 LLM 和 AI 智能体使用的干净 Markdown。**  
 一个自托管的 Rust 二进制：CLI、兼容 Firecrawl 的 HTTP API、Jina Reader 端点、MCP 服务器、Python 和 Node.js 包。
@@ -37,12 +37,12 @@ pagesift 抓取一个 URL（只在页面需要时才渲染 JavaScript）或读�
 - **输入：** URL（HTTP，必要时用无头浏览器）、HTML、PDF、Word（.docx）、Excel（.xlsx）、PowerPoint（.pptx）、EPUB、CSV
 - **输出：** Markdown、HTML、原始 HTML、链接、图片、元数据（标题、发布日期……）、JSON；结果不完整时给出警告
 - **接口：** CLI · Firecrawl v1/v2 HTTP API · Jina Reader `/r/` · MCP（stdio 或 HTTP）· Python · Node.js / TypeScript · Rust crate
-- **平台：** Linux x86_64 / aarch64（glibc 和 musl）、macOS x86_64 / arm64、Windows x86_64；Docker 镜像 `ghcr.io/yolow92/pagesift`
+- **平台：** Linux x86_64 / aarch64（glibc ≥ 2.28 和 musl）、macOS x86_64 / arm64、Windows x86_64；Docker 镜像 `ghcr.io/yolow92/pagesift`
 - **爬取：** 默认遵守 robots.txt 并按主机限速，支持站点地图、按查询的聚焦爬取，内存有界
 - **内存：** 0.81 各项基准中每个 worker 峰值 14–380 MB（16 路处理 HTML、PDF 时最低）；容量按 cgroup 内存上限自动确定（768 MiB 下无 OOM）
 - **不适用：** 扫描版 PDF 或图片的 OCR；pagesift 只读取文本层（见下文“什么时候用”）
 - **许可证：** AGPL-3.0，或[商业许可](COMMERCIAL.md)
-- **最新版本：** 0.81.4 · [发行说明](releases/0.81.4.md)
+- **最新版本：** 0.81.5 · [发行说明](releases/0.81.5.md)
 
 <!-- section: install -->
 ## 安装与使用
@@ -52,7 +52,7 @@ pagesift 抓取一个 URL（只在页面需要时才渲染 JavaScript）或读�
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await scrape("https://example.com")).markdown` |
-| 服务器 | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:0.81.4` | `curl localhost:3002/r/https://example.com` |
+| 服务器 | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:0.81.5` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -95,7 +95,7 @@ for await (const p of scrapeMany(['https://a.com', 'https://b.com'], { concurren
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.81.4
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.81.5
 ```
 
 ```python
@@ -190,11 +190,11 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 [商业许可](COMMERCIAL.md) 或写信到 `licensing@pagesift.dev`。
 
 <!-- section: changelog -->
-## 0.81.4 更新
+## 0.81.5 更新
 
-依赖安全更新：升级到 tokio 1.54.1 和 zstd 0.14.3（zstd-safe 8.2.0），修复四条 RustSec 安全公告
-（RUSTSEC-2026-0384、-0391、-0398、-0403）。API 没有变化。
-[发行说明](releases/0.81.4.md) · [全部版本](releases/) · [CHANGELOG](../CHANGELOG.md)
+Linux glibc 版本（Node 绑定和命令行二进制）改为针对 glibc 2.28 编译，可在更老的发行版上加载；
+0.81.4 及以前需要 glibc 2.34 到 2.35 的符号。API 没有变化。
+[发行说明](releases/0.81.5.md) · [全部版本](releases/) · [CHANGELOG](../CHANGELOG.md)
 
 ---
 
@@ -210,7 +210,7 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 0.81.4}
+  note   = {Version 0.81.5}
 }
 ```
 

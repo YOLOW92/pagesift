@@ -1,6 +1,6 @@
 {
   "name": "@pagesift/node-linux-arm64-gnu",
-  "version": "0.81.4",
+  "version": "0.81.5",
   "cpu": [
     "arm64"
   ],

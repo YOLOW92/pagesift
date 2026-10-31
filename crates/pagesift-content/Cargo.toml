@@ -10,7 +10,7 @@ rust-version.workspace = true
 [dependencies]
 aho-corasick = "1.1.5"
 memchr = "2.8.3"
-pagesift-html = { version = "0.81.4", path = "../pagesift-html" }
+pagesift-html = { version = "0.81.5", path = "../pagesift-html" }
 regex = "1.13.1"
 serde_json = "1.0.154"
 blake3 = "1.8.7"

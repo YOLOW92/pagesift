@@ -1,6 +1,6 @@
 {
   "name": "@pagesift/node-darwin-arm64",
-  "version": "0.81.4",
+  "version": "0.81.5",
   "cpu": [
     "arm64"
   ],

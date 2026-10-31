@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.81.4
+# pagesift 0.81.5
 
 **Convierte páginas web, PDF y archivos de Office en Markdown limpio para LLM y agentes de IA.**  
 Un único binario en Rust, autoalojado: CLI, API HTTP compatible con Firecrawl, endpoint de Jina Reader, servidor MCP, paquetes para Python y Node.js.
@@ -37,12 +37,12 @@ Puede sustituir o acompañar a: **Firecrawl** (la misma API v1/v2, autoalojada),
 - **Entrada:** URL (por HTTP, o con un navegador sin interfaz cuando hace falta), HTML, PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx), EPUB, CSV
 - **Salida:** Markdown, HTML, HTML sin procesar, enlaces, imágenes, metadatos (título, fecha de publicación, …), JSON; avisos cuando un resultado está incompleto
 - **Interfaces:** CLI · API HTTP Firecrawl v1/v2 · Jina Reader `/r/` · MCP (stdio o HTTP) · Python · Node.js / TypeScript · crate de Rust
-- **Plataformas:** Linux x86_64 / aarch64 (glibc y musl), macOS x86_64 / arm64, Windows x86_64; imagen Docker `ghcr.io/yolow92/pagesift`
+- **Plataformas:** Linux x86_64 / aarch64 (glibc ≥ 2.28 y musl), macOS x86_64 / arm64, Windows x86_64; imagen Docker `ghcr.io/yolow92/pagesift`
 - **Rastreo:** robots.txt y límites de tasa por host por defecto, sitemaps, rastreos enfocados por consulta, memoria acotada
 - **Memoria:** pico de 14–380 MB por trabajador en las pruebas de 0.81 (el mínimo, con 16 trabajadores en HTML y PDF); la capacidad se ajusta al límite de memoria del cgroup (sin OOM con 768 MiB)
 - **No sirve para:** OCR de PDF escaneados o imágenes; pagesift solo lee la capa de texto (ver *cuándo usarlo* más abajo)
 - **Licencia:** AGPL-3.0, o una [licencia comercial](COMMERCIAL.md)
-- **Última versión:** 0.81.4 · [notas de la versión](releases/0.81.4.md)
+- **Última versión:** 0.81.5 · [notas de la versión](releases/0.81.5.md)
 
 <!-- section: install -->
 ## Instalación y uso
@@ -52,7 +52,7 @@ Puede sustituir o acompañar a: **Firecrawl** (la misma API v1/v2, autoalojada),
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await scrape("https://example.com")).markdown` |
-| Servidor | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:0.81.4` | `curl localhost:3002/r/https://example.com` |
+| Servidor | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:0.81.5` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -95,7 +95,7 @@ for await (const p of scrapeMany(['https://a.com', 'https://b.com'], { concurren
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.81.4
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.81.5
 ```
 
 ```python
@@ -190,11 +190,11 @@ Arquitectura: [architecture.md](architecture.md).
 [licencia comercial](COMMERCIAL.md) o escribe a `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
-## Novedades en 0.81.4
+## Novedades en 0.81.5
 
-Actualización de seguridad de dependencias: tokio 1.54.1 y zstd 0.14.3 (zstd-safe 8.2.0) corrigen cuatro avisos de RustSec
-(RUSTSEC-2026-0384, -0391, -0398, -0403). Sin cambios en la API.
-[Notas de la versión](releases/0.81.4.md) · [todas las versiones](releases/) · [CHANGELOG](../CHANGELOG.md)
+Las compilaciones de Linux con glibc (enlace de Node y binario de línea de comandos) ahora se compilan contra glibc 2.28 y
+cargan en distribuciones más antiguas; 0.81.4 y anteriores requerían símbolos de glibc 2.34 a 2.35. Sin cambios en la API.
+[Notas de la versión](releases/0.81.5.md) · [todas las versiones](releases/) · [CHANGELOG](../CHANGELOG.md)
 
 ---
 
@@ -210,7 +210,7 @@ Preguntas o comentarios: [Discord](https://discord.gg/esA3wMZVvA) · [Issues](ht
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 0.81.4}
+  note   = {Version 0.81.5}
 }
 ```
 

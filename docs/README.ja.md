@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.81.4
+# pagesift 0.81.5
 
 **Web ページ、PDF、Office ファイルを LLM と AI エージェント向けのクリーンな Markdown に変換します。**  
 セルフホストできる単一の Rust バイナリ：CLI、Firecrawl 互換 HTTP API、Jina Reader エンドポイント、MCP サーバー、Python・Node.js パッケージ。
@@ -37,12 +37,12 @@ pagesift は URL を取得する（JavaScript のレンダリングはページ�
 - **入力：** URL（HTTP、必要な場合はヘッドレスブラウザ）、HTML、PDF、Word（.docx）、Excel（.xlsx）、PowerPoint（.pptx）、EPUB、CSV
 - **出力：** Markdown、HTML、生 HTML、リンク、画像、メタデータ（タイトル、公開日など）、JSON。結果が不完全な場合は警告
 - **インターフェース：** CLI · Firecrawl v1/v2 HTTP API · Jina Reader `/r/` · MCP（stdio または HTTP）· Python · Node.js / TypeScript · Rust crate
-- **プラットフォーム：** Linux x86_64 / aarch64（glibc と musl）、macOS x86_64 / arm64、Windows x86_64。Docker イメージ `ghcr.io/yolow92/pagesift`
+- **プラットフォーム：** Linux x86_64 / aarch64（glibc 2.28 以上と musl）、macOS x86_64 / arm64、Windows x86_64。Docker イメージ `ghcr.io/yolow92/pagesift`
 - **クロール：** 既定で robots.txt とホストごとのレート制限、サイトマップ、クエリによるフォーカスクロール、有界メモリ
 - **メモリ：** 0.81 の各ベンチマークでワーカーあたりピーク 14–380 MB（16 ワーカーで HTML・PDF を処理するときが最小）。容量は cgroup のメモリ上限から自動で決まります（768 MiB で OOM なし）
 - **向かない用途：** スキャン PDF や画像の OCR。pagesift はテキスト層のみを読みます（下の「向いている場面、向いていない場面」を参照）
 - **ライセンス：** AGPL-3.0、または[商用ライセンス](COMMERCIAL.md)
-- **最新版：** 0.81.4 · [リリースノート](releases/0.81.4.md)
+- **最新版：** 0.81.5 · [リリースノート](releases/0.81.5.md)
 
 <!-- section: install -->
 ## インストールと使い方
@@ -52,7 +52,7 @@ pagesift は URL を取得する（JavaScript のレンダリングはページ�
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await scrape("https://example.com")).markdown` |
-| サーバー | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:0.81.4` | `curl localhost:3002/r/https://example.com` |
+| サーバー | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:0.81.5` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -95,7 +95,7 @@ for await (const p of scrapeMany(['https://a.com', 'https://b.com'], { concurren
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.81.4
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.81.5
 ```
 
 ```python
@@ -190,11 +190,11 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 [商用ライセンス](COMMERCIAL.md)を確認するか、`licensing@pagesift.dev` までご連絡ください。
 
 <!-- section: changelog -->
-## 0.81.4 の変更
+## 0.81.5 の変更
 
-依存関係のセキュリティ更新：tokio 1.54.1 と zstd 0.14.3（zstd-safe 8.2.0）に上げ、RustSec の 4 件の勧告
-（RUSTSEC-2026-0384、-0391、-0398、-0403）を修正しました。API の変更はありません。
-[リリースノート](releases/0.81.4.md) · [全リリース](releases/) · [CHANGELOG](../CHANGELOG.md)
+Linux の glibc 版（Node バインディングとコマンドラインのバイナリ）を glibc 2.28 向けにビルドするようにし、
+古いディストリビューションでも読み込めるようにしました。0.81.4 以前は glibc 2.34〜2.35 のシンボルを必要としていました。API の変更はありません。
+[リリースノート](releases/0.81.5.md) · [全リリース](releases/) · [CHANGELOG](../CHANGELOG.md)
 
 ---
 
@@ -210,7 +210,7 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 0.81.4}
+  note   = {Version 0.81.5}
 }
 ```
 

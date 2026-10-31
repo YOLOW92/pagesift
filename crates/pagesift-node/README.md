@@ -143,12 +143,13 @@ The timing figures above predate this 0.20.0 scheduling change; rerun them on yo
 
 | Target | Status |
 |---|---|
-| linux-x64-gnu, linux-arm64-gnu | native build and full binding tests in Linux CI |
+| linux-x64-gnu, linux-arm64-gnu | native build in a glibc 2.28 container (requires glibc 2.28 or newer, checked at release) and full binding tests in Linux CI |
 | darwin-x64, darwin-arm64 | native build and full binding tests in macOS CI |
 | linux-x64-musl | native musl build and full binding tests on Alpine |
 | win32-x64-msvc | native MSVC build and full binding tests on Windows |
 
-Node 18 or newer is required. `npm install pagesift` selects the matching optional native package;
+Node 18 or newer is required. Release CI runs the full binding tests on Node 18, 20, 22, 24 and 26
+(Linux x64 on glibc 2.28; the other platforms on 18 and 26). `npm install pagesift` selects the matching optional native package;
 Linux musl and glibc packages are separate. Windows supports conversion and HTTP scraping;
 local browser process management is unavailable. The Rust CDP client can connect to an existing remote endpoint.
 

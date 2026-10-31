@@ -1,6 +1,6 @@
 {
   "name": "@pagesift/node-linux-x64-musl",
-  "version": "0.81.4",
+  "version": "0.81.5",
   "cpu": [
     "x64"
   ],
