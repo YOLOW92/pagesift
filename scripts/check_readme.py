@@ -37,6 +37,7 @@ BADGE_TARGETS = [
     r"pypi\.org/project/pagesift/?\)$",
     r"npmjs\.com/package/@pagesift/node\)$",
     r"discord\.gg/",
+    r"glama\.ai/mcp/servers/YOLOW92/pagesift\)$",
 ]
 # 不写指令性文字
 DIRECTIVES = re.compile(
