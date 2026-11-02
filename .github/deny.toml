@@ -35,10 +35,12 @@ exceptions = [
     { name = "pagesift-office", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-node", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-pdf", allow = ["AGPL-3.0-only"] },
+    { name = "pagesift-plan", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-policy", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-py", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-search", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-store", allow = ["AGPL-3.0-only"] },
+    { name = "pagesift-stat", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-sys", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-testkit", allow = ["AGPL-3.0-only"] },
 ]

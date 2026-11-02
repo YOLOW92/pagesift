@@ -1,0 +1,10 @@
+[package]
+description = "Mergeable online statistics and decision rules for pagesift's adaptive control (no dependencies)."
+name = "pagesift-stat"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]

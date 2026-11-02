@@ -35,9 +35,36 @@ pub struct Coverage {
     comment_chars: Option<usize>,
     /// 文章模式选中的主体在评论（回复）区里。
     root_in_comments: bool,
+    /// 整页（默认规则下）不在链接里的可见文字数，每页都算。
+    page_chars: usize,
 }
 
 impl Coverage {
+    /// 输出的可见文字数（只数到判断够用为止，是下界）。
+    pub fn out_chars(&self) -> usize {
+        self.out_chars
+    }
+
+    /// 默认规则下评论区以外的非链接文字数；整页文字少到不可能触发警告时没有算，为 `None`。
+    pub fn main_chars(&self) -> Option<usize> {
+        self.main_chars
+    }
+
+    /// 评论（回复）区的文字数；同 [`main_chars`](Self::main_chars)，没算时为 `None`。
+    pub fn comment_chars(&self) -> Option<usize> {
+        self.comment_chars
+    }
+
+    /// 整页不在链接里的可见文字数（[`out_chars`](Self::out_chars) 只数到判断够用为止，比值要先截断到 1）。
+    pub fn page_chars(&self) -> usize {
+        self.page_chars
+    }
+
+    /// 文章模式选中的主体在评论（回复）区里。
+    pub fn root_in_comments(&self) -> bool {
+        self.root_in_comments
+    }
+
     /// 结果可能不完整时的警告：`partial_content`、`replies_omitted`、`comments_omitted`。
     pub fn warnings(&self) -> Vec<String> {
         let mut out = Vec::new();
@@ -95,6 +122,7 @@ pub(crate) fn measure(
     let mut cov = Coverage {
         out_chars: got,
         root_in_comments,
+        page_chars: page,
         ..Default::default()
     };
     let partial_possible =

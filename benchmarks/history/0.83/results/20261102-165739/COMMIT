@@ -1,0 +1,12 @@
+1718e8158e110e12eddb97bcc7b165dfd5879683
+dirty:  M Cargo.lock
+dirty:  D crates/pagesift-cdp/src/pool.rs
+dirty:  M crates/pagesift-content/src/coverage.rs
+dirty:  D crates/pagesift-store/src/engine.rs
+dirty:  M crates/pagesift/src/adaptive.rs
+dirty:  M crates/pagesift/src/commands/pages.rs
+dirty:  M crates/pagesift/src/config.rs
+dirty:  M crates/pagesift/src/config_tests.rs
+dirty:  M crates/pagesift/src/crawl/mod.rs
+dirty:  D crates/pagesift/src/crawl/runner.rs
+dirty:  D crates/pagesift/src/frontier.rs

@@ -1,0 +1,16 @@
+[package]
+description = "Execution planning for pagesift: calibrated result quality, executor choice and block-level merging."
+name = "pagesift-plan"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+pagesift-content = { version = "0.81.5", path = "../pagesift-content" }
+pagesift-stat = { version = "0.81.5", path = "../pagesift-stat" }
+
+[dev-dependencies]
+serde_json = "1.0.154"
+url = "2.5.8"

@@ -1623,6 +1623,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pagesift-plan"
+version = "0.81.5"
+dependencies = [
+ "pagesift-content",
+ "pagesift-stat",
+ "serde_json",
+ "url",
+]
+
+[[package]]
 name = "pagesift-policy"
 version = "0.81.5"
 dependencies = [
@@ -1659,6 +1669,10 @@ dependencies = [
  "thiserror",
  "tokio",
 ]
+
+[[package]]
+name = "pagesift-stat"
+version = "0.81.5"
 
 [[package]]
 name = "pagesift-store"
