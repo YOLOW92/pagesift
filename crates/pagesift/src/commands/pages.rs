@@ -223,6 +223,7 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
                 .map_err(anyhow::Error::msg)?;
             pagesift::adaptive::TuningProfile::new(tuning_mode)
                 .apply_to_config(&mut scraper_config);
+            cfg.apply_user_limits(&mut scraper_config);
             let scraper = pagesift::Scraper::new(scraper_config)?;
             let sink = Arc::new(cli::CrawlOutput::new(out));
             let result = scraper.crawl(&req, sink.clone()).await;

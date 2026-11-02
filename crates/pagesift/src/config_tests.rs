@@ -264,3 +264,27 @@ fn server_timeouts_are_configurable_and_reject_zero() {
     assert!(err.contains("server.timeouts.body_secs"), "{err}");
     assert!(toml::from_str::<Config>("[server.timeouts]\nbody = 3\n").is_err());
 }
+
+#[test]
+fn tuning_profile_keeps_the_limits_written_in_the_config() {
+    let cfg: Config = toml::from_str(
+        "[fetch]\nmax_body_mb = 3\n[policy]\nper_host_concurrency = 5\nglobal_concurrency = 7\n",
+    )
+    .unwrap();
+    let mut c = cfg.scraper(false).unwrap();
+    crate::adaptive::TuningProfile::new(crate::adaptive::TuningMode::Adaptive)
+        .apply_to_config(&mut c);
+    cfg.apply_user_limits(&mut c);
+    assert_eq!(c.fetcher.max_body_bytes, 3 * 1024 * 1024);
+    assert_eq!(c.policy.rate.per_host_concurrency, 5);
+    assert_eq!(c.policy.rate.global_concurrency, 7);
+
+    // 没写的项仍由调优决定
+    let profile = crate::adaptive::TuningProfile::new(crate::adaptive::TuningMode::Adaptive);
+    let empty = Config::default();
+    let mut c = empty.scraper(false).unwrap();
+    profile.apply_to_config(&mut c);
+    empty.apply_user_limits(&mut c);
+    assert_eq!(c.policy.rate.global_concurrency, profile.global_concurrency);
+    assert_eq!(c.fetcher.max_body_bytes, profile.max_body_bytes);
+}

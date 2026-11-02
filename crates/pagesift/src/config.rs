@@ -410,9 +410,6 @@ impl Config {
                 .min((budget / 4).max(Duration::from_millis(500)));
             c.fetcher.timeouts_explicit = true;
         }
-        if let Some(mb) = f.max_body_mb {
-            c.fetcher.max_body_bytes = mb * 1024 * 1024;
-        }
         if let Some(n) = f.max_redirects {
             c.fetcher.max_redirects = n;
         }
@@ -454,12 +451,7 @@ impl Config {
         if let Some(ms) = p.interval_ms {
             c.policy.rate.default_interval = Duration::from_millis(ms);
         }
-        if let Some(n) = p.per_host_concurrency {
-            c.policy.rate.per_host_concurrency = n;
-        }
-        if let Some(n) = p.global_concurrency {
-            c.policy.rate.global_concurrency = n;
-        }
+        self.apply_user_limits(&mut c);
         c.policy.allow_crawl_ignore_robots = p.allow_crawl_ignore_robots;
 
         let b = &self.browser;
@@ -507,6 +499,20 @@ impl Config {
             c.search = Some(self.search_backend(s)?);
         }
         Ok(c)
+    }
+
+    /// 配置里写了的 body 上限和并发写进 `c`。[`scraper`](Self::scraper) 会调用；
+    /// 自适应调优（`TuningProfile::apply_to_config`）改写过 `c` 之后要再调一次，用户写了的值优先。
+    pub fn apply_user_limits(&self, c: &mut ScraperConfig) {
+        if let Some(mb) = self.fetch.max_body_mb {
+            c.fetcher.max_body_bytes = mb * 1024 * 1024;
+        }
+        if let Some(n) = self.policy.per_host_concurrency {
+            c.policy.rate.per_host_concurrency = n;
+        }
+        if let Some(n) = self.policy.global_concurrency {
+            c.policy.rate.global_concurrency = n;
+        }
     }
 
     fn search_backend(&self, s: &Search) -> Result<Arc<dyn pagesift_search::SearchBackend>> {

@@ -210,6 +210,8 @@ impl TuningProfile {
     ///
     /// 调用方显式设过 `[fetch] timeout_secs` 时不覆盖超时字段：用户给的是单次请求预算，
     /// 自适应只能调并发度，不能把它改大——否则配了 8 s 的爬取实际会等 30 s。
+    /// body 上限和并发会被改写；配置文件里写了这几项时，调用方之后要再调
+    /// `Config::apply_user_limits` 恢复用户的值。
     pub fn apply_to_config(&self, cfg: &mut ScraperConfig) {
         if !cfg.fetcher.timeouts_explicit {
             cfg.fetcher.connect_timeout = self.connect_timeout;
