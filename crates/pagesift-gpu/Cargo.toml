@@ -1,0 +1,15 @@
+[package]
+description = "NVIDIA GPU backend for pagesift-infer: SGEMM, convolution and activations as PTX kernels, loaded through the CUDA driver at run time."
+name = "pagesift-gpu"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+pagesift-infer = { version = "0.91.1", path = "../pagesift-infer" }
+
+[[test]]
+name = "it"
+path = "tests/it.rs"

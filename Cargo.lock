@@ -1629,6 +1629,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "pagesift-gpu"
+version = "0.91.1"
+dependencies = [
+ "pagesift-infer",
+]
+
+[[package]]
 name = "pagesift-hooks"
 version = "0.91.1"
 dependencies = [

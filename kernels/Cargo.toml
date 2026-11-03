@@ -1,0 +1,24 @@
+# pagesift 的 GPU 内核（NVIDIA PTX）。独立的 cargo 项目，不进仓库的 workspace：
+# 只能用 nightly 的 nvptx64-nvidia-cuda 目标编译（abi_ptx、asm_experimental_arch、-Z build-std=core）。
+# 用 scripts/build_kernels.sh 生成 PTX，产物提交在 crates/pagesift-gpu/ptx/，主程序用 stable 编译。
+[package]
+name = "pagesift-kernels"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[profile.release]
+opt-level = 3
+panic = "abort"
+lto = "fat"
+codegen-units = 1
+
+[profile.dev]
+panic = "abort"
+
+# 空 workspace 表：让本目录自成一个 workspace 根，不被仓库根的 workspace 收进去
+[workspace]
