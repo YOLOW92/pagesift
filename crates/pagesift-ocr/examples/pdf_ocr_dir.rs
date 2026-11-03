@@ -22,7 +22,12 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
 fn main() {
     let a: Vec<PathBuf> = std::env::args().skip(1).map(PathBuf::from).collect();
     let (src, dst) = (&a[0], &a[1]);
-    let engine = PdfOcr::from_dirs(a[2].clone(), a[3].clone()).expect("载入模型");
+    let engine = PdfOcr::from_dirs(
+        a[2].clone(),
+        a[3].clone(),
+        pagesift_ocr::device::Device::Cpu,
+    )
+    .expect("载入模型");
     // 按字节数估的时限没算 OCR 的耗时：关掉，只靠逐页的识别
     let opts = pagesift_pdf::Options {
         ocr: Some(Arc::new(engine)),

@@ -4,8 +4,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{Result, anyhow};
-use pagesift_ocr::models::{Model, Quality};
-use pagesift_ocr::pdf::{Fetch, PdfOcr};
+use pagesift_ocr::device::{Device, ModelChoice, Quality, select_models};
+use pagesift_ocr::models::Model;
+use pagesift_ocr::pdf::{Fetch, PdfOcr, PdfOcrConfig};
 use serde::Deserialize;
 
 use super::Config;
@@ -113,9 +114,23 @@ impl Config {
             })
     }
 
-    /// 这个配置要用的模型（检测、识别）。
-    pub fn ocr_models(&self) -> (Model, Model) {
-        Quality::from(self.ocr.quality).models(false)
+    /// 想用的设备，以及是不是明确要了 GPU。`PAGESIFT_GPU=off` 不改变“想用”：GPU 由 `pagesift-gpu`
+    /// 拒绝打开，退回 CPU 并如实报告；配置里写 `off` 才是本来就不用。
+    pub fn ocr_device(&self) -> Result<(Device, bool)> {
+        let mode = match self.gpu_mode()? {
+            GpuMode::Off => self.gpu.mode,
+            mode => mode,
+        };
+        Ok(match mode {
+            GpuMode::Off => (Device::Cpu, false),
+            GpuMode::Auto => (Device::Gpu { index: 0 }, false),
+            GpuMode::Cuda(n) => (Device::Gpu { index: n as usize }, true),
+        })
+    }
+
+    /// 这个配置现在会选的模型（`auto` 看显存）。
+    pub fn ocr_models(&self) -> Result<ModelChoice> {
+        Ok(select_models(self.ocr.quality.into(), self.ocr_device()?.0))
     }
 
     /// 组装 OCR 引擎（懒加载，这里不碰网络和模型文件）；没打开时返回 `None`。
@@ -127,11 +142,17 @@ impl Config {
             return Ok(None);
         }
         let root = self.models_root()?;
-        let (det, rec) = self.ocr_models();
+        let (device, gpu_required) = self.ocr_device()?;
         let fetch: Fetch = {
             let (root, fetcher) = (root.clone(), fetcher.clone());
             Arc::new(move |m: &Model| crate::models::fetch_blocking(&fetcher, &root, m))
         };
-        Ok(Some(Arc::new(PdfOcr::new(root, det, rec, Some(fetch)))))
+        Ok(Some(Arc::new(PdfOcr::new(PdfOcrConfig {
+            root,
+            quality: self.ocr.quality.into(),
+            device,
+            gpu_required,
+            fetch: Some(fetch),
+        }))))
     }
 }

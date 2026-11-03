@@ -6,71 +6,88 @@ use std::sync::{Arc, OnceLock};
 
 use pagesift_pdf::{OcrInfo, OcrLine, PageOcr};
 
-use crate::models::Model;
+use crate::device::{Device, ModelChoice, Quality, select_models};
+use crate::models::{Model, SMALL_REC};
 use crate::pipeline::Engine;
 use crate::{Image, Line};
 
 /// 把模型下载到 `<缓存根>/<仓库名>`（只在文件不全时调用），边下边校验。
 pub type Fetch = Arc<dyn Fn(&Model) -> Result<(), String> + Send + Sync>;
 
+/// 模型和设备怎么定。
+pub struct PdfOcrConfig {
+    pub root: PathBuf,
+    pub quality: Quality,
+    pub device: Device,
+    /// 调用方明确要了 GPU（`cuda`、`cuda:N`）。`auto` 时本机没有 N 卡不算退回，不报 `gpu_fallback`。
+    pub gpu_required: bool,
+    /// 没有时缺模型就报错（离线环境，提前用 `pagesift models fetch` 下好）。
+    pub fetch: Option<Fetch>,
+}
+
+struct Loaded {
+    engine: Engine,
+    choice: ModelChoice,
+}
+
 /// 懒加载的 PDF OCR 引擎。
 pub struct PdfOcr {
-    root: PathBuf,
-    det: Model,
-    rec: Model,
-    /// 没有时缺模型就报错（离线环境，提前用 `pagesift models fetch` 下好）。
-    fetch: Option<Fetch>,
-    engine: OnceLock<Result<Engine, String>>,
+    config: PdfOcrConfig,
+    loaded: OnceLock<Result<Loaded, String>>,
 }
 
 impl PdfOcr {
-    pub fn new(root: PathBuf, det: Model, rec: Model, fetch: Option<Fetch>) -> Self {
+    pub fn new(config: PdfOcrConfig) -> Self {
         Self {
-            root,
-            det,
-            rec,
-            fetch,
-            engine: OnceLock::new(),
+            config,
+            loaded: OnceLock::new(),
         }
     }
 
     /// 模型目录直接给（测评用）：立刻载入，不走缓存和下载。
-    pub fn from_dirs(det_dir: PathBuf, rec_dir: PathBuf) -> Result<Self, String> {
-        let this = Self::new(
-            PathBuf::new(),
-            crate::models::SMALL_DET,
-            crate::models::SMALL_REC,
-            None,
-        );
-        let _ = this.engine.set(Ok(Engine::load(&det_dir, &rec_dir)?));
+    pub fn from_dirs(det_dir: PathBuf, rec_dir: PathBuf, device: Device) -> Result<Self, String> {
+        let this = Self::new(PdfOcrConfig {
+            root: PathBuf::new(),
+            quality: Quality::Fast,
+            device,
+            gpu_required: false,
+            fetch: None,
+        });
+        let engine = Engine::load_with(&det_dir, &rec_dir, device)?;
+        let choice = select_models(Quality::Fast, device);
+        let _ = this.loaded.set(Ok(Loaded { engine, choice }));
         Ok(this)
     }
 
-    fn load(&self) -> Result<Engine, String> {
-        for m in [&self.det, &self.rec] {
-            if m.present(&self.root) {
+    fn load(&self) -> Result<Loaded, String> {
+        let c = &self.config;
+        let choice = select_models(c.quality, c.device);
+        for m in [&choice.det, &choice.rec] {
+            if m.present(&c.root) {
                 continue;
             }
-            match &self.fetch {
+            match &c.fetch {
                 Some(fetch) => fetch(m)?,
                 None => {
                     return Err(format!(
                         "model {} is missing from {}; run `pagesift models fetch`",
                         m.repo,
-                        self.root.display()
+                        c.root.display()
                     ));
                 }
             }
         }
-        Engine::load(&self.det.dir(&self.root), &self.rec.dir(&self.root))
+        let engine =
+            Engine::load_with(&choice.det.dir(&c.root), &choice.rec.dir(&c.root), c.device)?;
+        Ok(Loaded { engine, choice })
     }
 }
 
 impl std::fmt::Debug for PdfOcr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PdfOcr")
-            .field("det", &self.det.repo)
-            .field("rec", &self.rec.repo)
+            .field("quality", &self.config.quality)
+            .field("device", &self.config.device)
             .finish_non_exhaustive()
     }
 }
@@ -93,8 +110,8 @@ fn to_ocr_line(l: Line) -> OcrLine {
 
 impl PageOcr for PdfOcr {
     fn recognize(&self, width: u32, height: u32, gray: &[u8]) -> Result<Vec<OcrLine>, String> {
-        let engine = self
-            .engine
+        let loaded = self
+            .loaded
             .get_or_init(|| self.load())
             .as_ref()
             .map_err(Clone::clone)?;
@@ -104,16 +121,46 @@ impl PageOcr for PdfOcr {
             channels: 1,
             data: gray.to_vec(),
         };
-        Ok(engine.run(&img)?.into_iter().map(to_ocr_line).collect())
+        Ok(loaded
+            .engine
+            .run(&img)?
+            .into_iter()
+            .map(to_ocr_line)
+            .collect())
     }
 
     fn info(&self) -> OcrInfo {
-        OcrInfo {
-            engine: "pp-ocrv6".into(),
-            model: self.rec.repo.into(),
+        let mut info = OcrInfo {
+            engine: ENGINE.into(),
+            model: SMALL_REC.repo.into(),
             device: "cpu".into(),
-            fallback: None,
-            error: self.engine.get().and_then(|r| r.as_ref().err().cloned()),
+            ..Default::default()
+        };
+        match self.loaded.get() {
+            None => {}
+            Some(Err(e)) => info.error = Some(e.clone()),
+            Some(Ok(l)) => {
+                info.model = l.choice.rec.repo.into();
+                let status = l.engine.device_status();
+                info.device = device_name(status.actual);
+                // auto 模式在没有 N 卡的机器上用 CPU 是正常情况，不算退回
+                let expected = self.config.gpu_required || pagesift_gpu::device_count() > 0;
+                if status.fell_back() && expected {
+                    info.fallback = status.fallback;
+                }
+            }
         }
+        info
+    }
+}
+
+/// [`OcrInfo::engine`]。
+const ENGINE: &str = "pp-ocrv6";
+
+/// `cpu` 或 `cuda:N`。
+fn device_name(d: Device) -> String {
+    match d {
+        Device::Cpu => "cpu".into(),
+        Device::Gpu { index } => format!("cuda:{index}"),
     }
 }

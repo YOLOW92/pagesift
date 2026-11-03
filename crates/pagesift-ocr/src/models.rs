@@ -57,18 +57,18 @@ impl Model {
         for f in self.files {
             let p = dir.join(f.name);
             let mut hash = Hasher::new(f);
-            let mut file = std::fs::File::open(&p).map_err(|e| format!("{}：{e}", p.display()))?;
+            let mut file = std::fs::File::open(&p).map_err(|e| format!("{}: {e}", p.display()))?;
             let mut buf = vec![0u8; READ_CHUNK];
             loop {
                 let n = file
                     .read(&mut buf)
-                    .map_err(|e| format!("{}：{e}", p.display()))?;
+                    .map_err(|e| format!("{}: {e}", p.display()))?;
                 if n == 0 {
                     break;
                 }
                 hash.update(&buf[..n]);
             }
-            hash.finish().map_err(|e| format!("{}：{e}", p.display()))?;
+            hash.finish().map_err(|e| format!("{}: {e}", p.display()))?;
         }
         Ok(())
     }
@@ -101,7 +101,7 @@ impl<'a> Hasher<'a> {
     /// 大小和 SHA-256 都对才算过；返回问题描述。
     pub fn finish(self) -> Result<(), String> {
         if self.size != self.file.size {
-            return Err(format!("大小 {} 字节，应为 {}", self.size, self.file.size));
+            return Err(format!("{} bytes, expected {}", self.size, self.file.size));
         }
         let got: String = self
             .sha
@@ -110,7 +110,7 @@ impl<'a> Hasher<'a> {
             .map(|b| format!("{b:02x}"))
             .collect();
         if got != self.file.sha256 {
-            return Err(format!("SHA-256 是 {got}，应为 {}", self.file.sha256));
+            return Err(format!("SHA-256 is {got}, expected {}", self.file.sha256));
         }
         Ok(())
     }
@@ -294,33 +294,6 @@ pub const LAYOUT: Model = Model {
     ],
 };
 
-/// OCR 质量档。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Quality {
-    /// 有 GPU 且显存放得下时用中模型，否则小模型。
-    Auto,
-    /// 小模型。
-    Fast,
-    /// 中模型。
-    Accurate,
-}
-
-impl Quality {
-    /// 这一档要用的检测和识别模型（`gpu_fits_medium`：GPU 能用且显存放得下中模型）。
-    pub fn models(self, gpu_fits_medium: bool) -> (Model, Model) {
-        let medium = match self {
-            Quality::Auto => gpu_fits_medium,
-            Quality::Fast => false,
-            Quality::Accurate => true,
-        };
-        if medium {
-            (MEDIUM_DET, MEDIUM_REC)
-        } else {
-            (SMALL_DET, SMALL_REC)
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -342,13 +315,5 @@ mod tests {
     fn rejects_wrong_bytes() {
         let f = &SMALL_DET.files[1];
         assert!(check(f, b"{}").is_err());
-    }
-
-    #[test]
-    fn quality_picks_models() {
-        assert_eq!(Quality::Fast.models(true).1.repo, SMALL_REC.repo);
-        assert_eq!(Quality::Accurate.models(false).1.repo, MEDIUM_REC.repo);
-        assert_eq!(Quality::Auto.models(true).0.repo, MEDIUM_DET.repo);
-        assert_eq!(Quality::Auto.models(false).0.repo, SMALL_DET.repo);
     }
 }

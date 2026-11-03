@@ -284,23 +284,36 @@ fn tempfile_in(dir: &std::path::Path) -> bool {
 
 /// doctor 的 OCR 和 GPU 部分：没打开 OCR、没有显卡都不算失败，只如实说明。
 fn report_ocr(cfg: &pagesift::config::Config, warn: &impl Fn(&str, String)) -> Result<()> {
-    use pagesift::config::GpuMode;
-    let mode = cfg.gpu_mode()?;
-    let gpu = if mode == GpuMode::Off {
-        "off".to_string()
-    } else {
-        match pagesift_gpu::Gpu::open() {
-            Ok(g) => {
-                let (major, minor) = g.compute_capability();
-                format!("{} (compute capability {major}.{minor})", g.name())
-            }
-            Err(e) => format!("not available, inference runs on the CPU: {e}"),
+    use pagesift_ocr::device::Device;
+    const MIB: u64 = 1 << 20; // [协议] 1 MiB
+    let (device, _) = cfg.ocr_device()?;
+    let next = match device {
+        Device::Cpu => {
+            println!("ok   gpu: off");
+            "cpu".to_string()
         }
+        Device::Gpu { index } => match pagesift_gpu::probe(index) {
+            Ok(g) => {
+                let (major, minor) = g.compute_capability;
+                println!(
+                    "ok   gpu: {} (compute capability {major}.{minor}, {} of {} MiB free, driver {}, kernels {})",
+                    g.name,
+                    g.memory_free / MIB,
+                    g.memory_total / MIB,
+                    g.driver_version.as_deref().unwrap_or("unknown"),
+                    g.ptx,
+                );
+                format!("cuda:{index}")
+            }
+            Err(e) => {
+                println!("ok   gpu: not available: {e}");
+                "cpu".to_string()
+            }
+        },
     };
-    println!("ok   gpu: {gpu}");
     let root = cfg.models_root()?;
-    let (det, rec) = cfg.ocr_models();
-    let missing: Vec<&str> = [det, rec]
+    let choice = cfg.ocr_models()?;
+    let missing: Vec<&str> = [choice.det, choice.rec]
         .iter()
         .filter(|m| !m.present(&root))
         .map(|m| m.repo)
@@ -311,12 +324,15 @@ fn report_ocr(cfg: &pagesift::config::Config, warn: &impl Fn(&str, String)) -> R
             "ok   ocr: off (optional): scanned PDF pages have no text. Turn on with [ocr] enabled = true or --ocr"
         );
     } else if missing.is_empty() {
-        println!("ok   ocr: {} and {} in {where_}", det.repo, rec.repo);
+        println!(
+            "ok   ocr: {} and {} in {where_}; the next inference runs on {next}",
+            choice.det.repo, choice.rec.repo
+        );
     } else {
         warn(
             "ocr",
             format!(
-                "{} not in {where_}; downloaded the first time a scanned page needs them, or now with `pagesift models fetch`",
+                "{} not in {where_}; downloaded the first time a scanned page needs them, or now with `pagesift models fetch`; the next inference runs on {next}",
                 missing.join(", ")
             ),
         );

@@ -331,7 +331,7 @@ fn gpu_and_ocr_sections() {
     assert_eq!(cfg.ocr.quality, OcrQuality::Fast);
     assert_eq!(cfg.models_root().unwrap(), PathBuf::from("/m"));
     assert_eq!(
-        cfg.ocr_models().1.repo,
+        cfg.ocr_models().unwrap().rec.repo,
         pagesift_ocr::models::SMALL_REC.repo
     );
     // 打开时组装引擎但不碰网络和模型文件；默认关

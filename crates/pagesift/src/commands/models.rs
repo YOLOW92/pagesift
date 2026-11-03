@@ -6,17 +6,18 @@ pub(crate) fn run(action: ModelsCommand, cfg: pagesift::config::Config) -> Resul
     match action {
         ModelsCommand::Fetch { quality } => {
             let root = cfg.models_root()?;
-            let (det, rec) = match quality.as_deref() {
-                None | Some("auto") => cfg.ocr_models(),
-                Some("fast") => pagesift_ocr::models::Quality::Fast.models(false),
-                Some("accurate") => pagesift_ocr::models::Quality::Accurate.models(false),
+            use pagesift_ocr::device::{Device, Quality, select_models};
+            let choice = match quality.as_deref() {
+                None | Some("auto") => cfg.ocr_models()?,
+                Some("fast") => select_models(Quality::Fast, Device::Cpu),
+                Some("accurate") => select_models(Quality::Accurate, Device::Cpu),
                 Some(other) => {
                     anyhow::bail!("--quality must be auto, fast or accurate, not {other:?}")
                 }
             };
             let fetcher = cfg.scraper(false)?.fetcher;
             runtime()?.block_on(async {
-                for m in [det, rec] {
+                for m in [choice.det, choice.rec] {
                     pagesift::models::fetch(&fetcher, &root, &m, |f| {
                         println!("downloading {}/{} ({} bytes)", m.repo, f.name, f.size);
                     })
