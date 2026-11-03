@@ -94,6 +94,7 @@ impl Engine {
 
     /// 在 `f` 里，当前线程直接调 `pagesift_infer::ops` 和 `nn` 层的模型（公式、版面）按实测开销把大算子
     /// 分流到 GPU。没有 GPU 时就是直接调 `f`。第一次调用会校准几十毫秒。
+    /// 流水线目前没有用它：真实的公式模型上结果和 CPU 有差异（见 `Engine::run`）。
     pub fn with_gpu_ops<R>(&self, f: impl FnOnce() -> R) -> R {
         let b = self.backend.get_or_init(|| {
             let g = self.gpu.as_ref()?;
@@ -128,17 +129,17 @@ impl Engine {
     }
 
     /// 识别整页图，按检测给的顺序（从上到下、从左到右）返回各行；有公式模型时公式排在最后。
-    /// 版面和公式模型直接调 `ops`，经 [`Engine::with_gpu_ops`] 把大算子分流到 GPU。
+    /// 版面和公式模型留在 CPU：B5 上经 [`Engine::with_gpu_ops`] 分流后更慢、分数更低，原因还没查明。
     pub fn run(&self, page: &Image) -> Result<Vec<Line>, String> {
         let formulas = match &self.math {
-            Some(m) => self.with_gpu_ops(|| m.formula_boxes(page))?,
+            Some(m) => m.formula_boxes(page)?,
             None => Vec::new(),
         };
         let mut out = self.run_text(page, &formulas)?;
         crate::script::drop_stray_east_asian(&mut out);
         if let Some(m) = &self.math {
             for r in &formulas {
-                out.extend(self.with_gpu_ops(|| m.recognize(page, r))?);
+                out.extend(m.recognize(page, r)?);
             }
         }
         Ok(out)
