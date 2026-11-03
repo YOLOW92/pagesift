@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use crate::error::ApiError;
 use crate::types::{
-    CrawlRequest, CrawlSummary, Document, ExtractRequest, MapLink, MapRequest, ScrapeOptions,
-    SearchRequest, Upload,
+    CrawlRequest, CrawlSummary, Document, ExtractRequest, InteractRequest, InteractResponse,
+    InteractStopped, MapLink, MapRequest, ScrapeOptions, SearchRequest, Upload,
 };
 use serde_json::Value;
 
@@ -77,6 +77,52 @@ pub trait Engine: Send + Sync + 'static {
     /// 是否支持 `actions`（需要浏览器渲染）。
     fn supports_actions(&self) -> bool {
         false
+    }
+
+    /// 是否支持 `/v2/scrape/{id}/interact`。支持时 `/v2/scrape` 走 [`Engine::scrape_session`]。
+    fn supports_interact(&self) -> bool {
+        false
+    }
+
+    /// `/v2/scrape`：抓一页，结果带 `metadata.scrapeId`。`keep` 时保留浏览器页面（`keepSession`），
+    /// 否则只记下回放信息。`owner` 是调用方的账号，之后的 interact 只认同一个账号。
+    fn scrape_session<'a>(
+        &'a self,
+        _url: &'a str,
+        _opts: &'a ScrapeOptions,
+        _keep: bool,
+        _owner: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<Document, ApiError>> {
+        Box::pin(async {
+            Err(ApiError::unsupported(
+                "keepSession is not available in this build",
+            ))
+        })
+    }
+
+    fn interact<'a>(
+        &'a self,
+        _id: &'a str,
+        _req: &'a InteractRequest,
+        _owner: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<InteractResponse, ApiError>> {
+        Box::pin(async {
+            Err(ApiError::unsupported(
+                "interact is not available in this build",
+            ))
+        })
+    }
+
+    fn stop_interact<'a>(
+        &'a self,
+        _id: &'a str,
+        _owner: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<InteractStopped, ApiError>> {
+        Box::pin(async {
+            Err(ApiError::unsupported(
+                "interact is not available in this build",
+            ))
+        })
     }
 
     /// 统一准入现在允许的在途抓取数：批量任务的并发按它定，用户的

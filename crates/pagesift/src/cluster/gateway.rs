@@ -13,8 +13,8 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
 use pagesift_api::types::{
-    CrawlRequest, Document, ExtractRequest, MapLink, MapRequest, ScrapeOptions, SearchRequest,
-    Upload,
+    CrawlRequest, Document, ExtractRequest, InteractRequest, InteractResponse, InteractStopped,
+    MapLink, MapRequest, ScrapeOptions, SearchRequest, Upload,
 };
 use pagesift_api::{ApiError, BoxFuture, CrawlSink, Engine, ErrorCode};
 use pagesift_cluster::{
@@ -378,10 +378,46 @@ impl Engine for ClusterEngine {
         Engine::supports_actions(&*self.scraper)
     }
 
+    // 页面由工人执行，下一个请求未必到同一台机器，账本也没有按机器定向派活的路：
+    // 保留会话在网关上明确报错，`/v2/scrape` 的结果不带 `scrapeId`。
+
+    fn scrape_session<'a>(
+        &'a self,
+        _url: &'a str,
+        _opts: &'a ScrapeOptions,
+        _keep: bool,
+        _owner: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<Document, ApiError>> {
+        Box::pin(async { Err(interact_on_gateway()) })
+    }
+
+    fn interact<'a>(
+        &'a self,
+        _id: &'a str,
+        _req: &'a InteractRequest,
+        _owner: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<InteractResponse, ApiError>> {
+        Box::pin(async { Err(interact_on_gateway()) })
+    }
+
+    fn stop_interact<'a>(
+        &'a self,
+        _id: &'a str,
+        _owner: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<InteractStopped, ApiError>> {
+        Box::pin(async { Err(interact_on_gateway()) })
+    }
+
     /// 在线工人准入值之和（至少 1：没有工人在线时任务照常排队等工人）。
     fn admitted_concurrency(&self) -> Option<usize> {
         Some(self.dispatch.capacity().max(1))
     }
+}
+
+fn interact_on_gateway() -> ApiError {
+    ApiError::unsupported(
+        "keepSession and interact are not available through a cluster gateway: a browser session lives on one machine and pages here run on whichever worker is free; send the request to a standalone `pagesift serve`",
+    )
 }
 
 /// 接受工人（和温备）的连接，直到监听出错。每条连接一个任务；TLS 握手失败的连接直接关掉。

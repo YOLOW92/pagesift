@@ -29,6 +29,7 @@ mod frames;
 mod hooked;
 mod http_extract;
 mod images;
+mod interact;
 mod office;
 mod output;
 mod parse;
@@ -39,6 +40,7 @@ mod render_stats;
 mod scraper;
 mod speculate;
 pub use hooked::ScraperBuilder;
+pub use interact::InteractLimits;
 mod structured;
 use cpu::{CONTENT_WORKSPACE, cpu_task};
 pub use cpu::{set_cpu_capacity, set_cpu_groups};
@@ -127,6 +129,8 @@ pub struct ScraperConfig {
     pub secrets: std::collections::BTreeMap<String, String>,
     /// 扫描页 OCR（`[ocr] enabled`）；不设时扫描页只有说明，并报 `scanned_pages_without_ocr`。
     pub ocr: Option<Arc<dyn pagesift_pdf::PageOcr>>,
+    /// `/interact` 保留会话的时长上限（默认 Firecrawl 文档的值）。
+    pub interact: InteractLimits,
 }
 
 /// 创建 [`Scraper`] 失败：网络层或 LLM 客户端的配置不对。
@@ -187,6 +191,8 @@ pub struct Scraper {
     secrets: std::collections::BTreeMap<String, String>,
     /// 多服务器网关：爬取里的页面交给它（工人执行，见 `pagesift` 的 `cluster` 模块）。单主机不设，路径不变。
     pages: std::sync::OnceLock<Arc<dyn crate::PageRunner>>,
+    /// `/interact` 的会话表。
+    sessions: Arc<interact::Sessions>,
 }
 
 /// 文档从哪来：抓一个网址，或解析调用方上传的文件（`/v2/parse`）。
@@ -246,6 +252,37 @@ impl Engine for Scraper {
         req: &'a pagesift_api::types::ExtractRequest,
     ) -> BoxFuture<'a, Result<serde_json::Value, ApiError>> {
         Box::pin(Scraper::extract(self, req))
+    }
+
+    fn supports_interact(&self) -> bool {
+        self.interact_available()
+    }
+
+    fn scrape_session<'a>(
+        &'a self,
+        url: &'a str,
+        opts: &'a ScrapeOptions,
+        keep: bool,
+        owner: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<Document, ApiError>> {
+        Box::pin(Scraper::scrape_session(self, url, opts, keep, owner))
+    }
+
+    fn interact<'a>(
+        &'a self,
+        id: &'a str,
+        req: &'a pagesift_api::types::InteractRequest,
+        owner: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<pagesift_api::types::InteractResponse, ApiError>> {
+        Box::pin(Scraper::interact(self, id, req, owner))
+    }
+
+    fn stop_interact<'a>(
+        &'a self,
+        id: &'a str,
+        owner: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<pagesift_api::types::InteractStopped, ApiError>> {
+        Box::pin(Scraper::stop_interact(self, id, owner))
     }
 
     /// 统一准入：批量任务的并发取当前全局在途数目标（限速器的 USL 控制器）。

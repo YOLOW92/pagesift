@@ -24,6 +24,8 @@ impl Scraper {
             mut timings,
             mut warnings,
         } = progress;
+        // `keepSession`：只用能做 interact 的内核，渲染完不关页面
+        let keep = super::interact::KEEP.try_with(Arc::clone).ok();
         if !self.has_browser().await {
             let why = format!(
                 "browser rendering is unavailable: {}",
@@ -90,7 +92,8 @@ impl Scraper {
                 fonts: true,
                 media: true,
                 // 只取 HTML，图片不影响正文：src 属性还在，加载失败和离线时一样。以后支持截图时要放开。
-                images: true,
+                // 保留的页面之后还要点击和截图，图片要加载（影响布局）。
+                images: keep.is_none(),
             },
             proxy,
             wait_until: wait_until(opts.respond_timing.as_deref()),
@@ -109,8 +112,13 @@ impl Scraper {
             .learner
             .start_engine(&host)
             .min(self.browsers.len().saturating_sub(1));
+        // 要保留页面时从头找能做 interact 的内核，不用按主机学到的起点
+        let from = if keep.is_some() { 0 } else { from };
         for i in from..self.browsers.len() {
             if ropts.proxy.is_some() && !proxy_capable(&self.browsers[i].0) {
+                continue;
+            }
+            if keep.is_some() && !super::interact::interact_capable(&self.browsers[i].0) {
                 continue;
             }
             if self.launch_failed[i]
@@ -156,7 +164,14 @@ impl Scraper {
                 break;
             };
             ropts.timeout = deadline.saturating_duration_since(Instant::now());
-            let page = match pool.render(url, &ropts).await {
+            let rendered = match &keep {
+                Some(slot) => pool.render_kept(url, &ropts).await.map(|(p, kept)| {
+                    slot.put(kept, pool.clone());
+                    p
+                }),
+                None => pool.render(url, &ropts).await,
+            };
+            let page = match rendered {
                 Ok(p) => {
                     self.render_stats.note_launch_ok(i);
                     let t = &p.timings;
@@ -348,46 +363,99 @@ impl Scraper {
                 failed_after.join(", ")
             ));
         }
-        let mut meta = Metadata {
-            url: Some(r.final_url.to_string()),
-            source_url: Some(url.to_string()),
-            status_code: r.status.unwrap_or(200),
-            content_type: r.content_type.clone(),
-            proxy_used: "basic".into(),
-            ..Default::default()
-        };
-        fill_metadata(&mut meta, &r.doc.metadata);
-        let mut ext = PagesiftMeta {
-            engine: Some("browser".into()),
-            browser_engine: Some(r.engine.into()),
-            ..Default::default()
-        };
-        fill_structured(&mut ext, &r.doc);
-        fill_fingerprints(&mut ext, &r.doc);
-        if r.doc.metadata.video_fallback {
-            warnings.push(
-                "video_metadata: no readable body text; used the page's embedded video metadata"
-                    .into(),
-            );
-        }
-        warnings.extend(r.doc.coverage.warnings());
-        let raw_bytes = Some(thin_basis_bytes(&r.html, &r.doc.markdown));
-        let video_fallback = r.doc.metadata.video_fallback;
-        // 渲染结果的质量分：HTTP 结果按块合并时用（`fetch.rs`），内容层的覆盖率等特征到这里还在
-        let quality = super::planner::quality(&r.doc, r.html.len());
-        let mut doc = document(r.doc, opts, r.html);
-        doc.quality = quality;
-        Ok(finish(
+        Ok(rendered_document(r, url, opts, timings, warnings, started))
+    }
+
+    /// 保留页面上取到的结果 → 文档（`/interact`）：和渲染的结果走同一段组装。
+    pub(super) async fn live_document(
+        &self,
+        page: RenderedPage,
+        url: &str,
+        opts: &ScrapeOptions,
+        warnings: Vec<String>,
+        started: Instant,
+    ) -> Result<Document, ApiError> {
+        let final_url = Url::parse(&page.final_url)
+            .map_err(|e| ApiError::new(ErrorCode::UpstreamError, format!("page URL: {e}")))?;
+        let t = Instant::now();
+        let RenderedPage {
+            html,
+            status,
+            content_type,
+            timings: page_timings,
+            ..
+        } = page;
+        let (doc, html) = process_html(html, &final_url, status, opts).await?;
+        check_barrier(&doc)?;
+        let r = Rendered {
+            index: 0,
+            engine: pagesift_cdp::EngineKind::Chrome.name(),
+            final_url,
+            status,
+            content_type,
+            timings: page_timings,
+            extract: t.elapsed(),
             doc,
-            meta,
-            ext,
-            timings,
+            html,
+        };
+        Ok(rendered_document(
+            r,
+            url,
+            opts,
+            BTreeMap::new(),
             warnings,
-            raw_bytes,
-            video_fallback,
             started,
         ))
     }
+}
+
+/// 渲染结果组装成文档。
+fn rendered_document(
+    r: Rendered,
+    url: &str,
+    opts: &ScrapeOptions,
+    timings: BTreeMap<String, f64>,
+    mut warnings: Vec<String>,
+    started: Instant,
+) -> Document {
+    let mut meta = Metadata {
+        url: Some(r.final_url.to_string()),
+        source_url: Some(url.to_string()),
+        status_code: r.status.unwrap_or(200),
+        content_type: r.content_type.clone(),
+        proxy_used: "basic".into(),
+        ..Default::default()
+    };
+    fill_metadata(&mut meta, &r.doc.metadata);
+    let mut ext = PagesiftMeta {
+        engine: Some("browser".into()),
+        browser_engine: Some(r.engine.into()),
+        ..Default::default()
+    };
+    fill_structured(&mut ext, &r.doc);
+    fill_fingerprints(&mut ext, &r.doc);
+    if r.doc.metadata.video_fallback {
+        warnings.push(
+            "video_metadata: no readable body text; used the page's embedded video metadata".into(),
+        );
+    }
+    warnings.extend(r.doc.coverage.warnings());
+    let raw_bytes = Some(thin_basis_bytes(&r.html, &r.doc.markdown));
+    let video_fallback = r.doc.metadata.video_fallback;
+    // 渲染结果的质量分：HTTP 结果按块合并时用（`fetch.rs`），内容层的覆盖率等特征到这里还在
+    let quality = super::planner::quality(&r.doc, r.html.len());
+    let mut doc = document(r.doc, opts, r.html);
+    doc.quality = quality;
+    finish(
+        doc,
+        meta,
+        ext,
+        timings,
+        warnings,
+        raw_bytes,
+        video_fallback,
+        started,
+    )
 }
 
 /// 正文提取是纯 CPU 计算，放到阻塞线程池里，不占异步运行时的线程。

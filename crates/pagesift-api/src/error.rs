@@ -43,6 +43,10 @@ pub enum ErrorCode {
     TlsError,
     /// 在请求的时限内等不到空闲的浏览器。
     Busy,
+    /// 资源属于另一个账号。
+    Forbidden,
+    /// 保留的浏览器会话已经结束（关闭、回收、服务重启）。
+    SessionGone,
 }
 
 impl ErrorCode {
@@ -72,12 +76,17 @@ impl ErrorCode {
             ErrorCode::TlsUntrustedRoot => "TLS_UNTRUSTED_ROOT",
             ErrorCode::TlsError => "TLS_ERROR",
             ErrorCode::Busy => "BUSY",
+            ErrorCode::Forbidden => "FORBIDDEN",
+            ErrorCode::SessionGone => "SESSION_GONE",
         }
     }
 
     pub fn status(self) -> StatusCode {
         match self {
-            ErrorCode::RobotsDisallowed | ErrorCode::AccessBarrier => StatusCode::FORBIDDEN,
+            ErrorCode::RobotsDisallowed | ErrorCode::AccessBarrier | ErrorCode::Forbidden => {
+                StatusCode::FORBIDDEN
+            }
+            ErrorCode::SessionGone => StatusCode::GONE,
             ErrorCode::RateLimited
             | ErrorCode::RateLimitExceeded
             | ErrorCode::ConcurrencyLimitExceeded

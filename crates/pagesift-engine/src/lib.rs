@@ -37,7 +37,7 @@ pub trait PageRunner: Send + Sync {
 
 pub use crawl::normalize as normalize_url;
 pub use engine::{
-    AUTO_RENDER_ARTICLE_MIN_CHARS, AUTO_RENDER_MIN_CHARS, EngineProbe, Scraper, ScraperBuilder,
-    ScraperConfig, ScraperError, needs_render, office_markdown, office_markdown_from,
-    set_cpu_capacity, set_cpu_groups, text_weight,
+    AUTO_RENDER_ARTICLE_MIN_CHARS, AUTO_RENDER_MIN_CHARS, EngineProbe, InteractLimits, Scraper,
+    ScraperBuilder, ScraperConfig, ScraperError, needs_render, office_markdown,
+    office_markdown_from, set_cpu_capacity, set_cpu_groups, text_weight,
 };

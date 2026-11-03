@@ -118,6 +118,11 @@ pub struct ScrapeOptions {
     /// `http`, `browser`, `auto` (default).
     #[serde(default)]
     pub engine: Option<String>,
+    /// PageSift extension: keep the browser page open for `/v2/scrape/{id}/interact`
+    /// (only on `POST /v2/scrape`). Without it the first interact opens the URL again.
+    /// Not serialized when false, so cluster tasks and audit records stay byte-identical.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub keep_session: bool,
     /// PageSift extension: bounded, stateless same-origin external JS discovery.
     #[serde(default)]
     pub discover_scripts: bool,

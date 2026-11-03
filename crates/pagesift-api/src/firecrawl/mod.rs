@@ -3,6 +3,7 @@
 
 pub mod batch;
 pub mod crawl;
+pub mod interact;
 pub mod map;
 pub mod parse;
 pub mod scrape;
@@ -19,7 +20,11 @@ use crate::server::AppState;
 pub fn firecrawl_routes() -> Router<AppState> {
     Router::new()
         // Firecrawl v2 API endpoints
-        .route("/v2/scrape", post(scrape::scrape))
+        .route("/v2/scrape", post(scrape::scrape_v2))
+        .route(
+            "/v2/scrape/{id}/interact",
+            post(interact::interact).delete(interact::stop),
+        )
         .route("/v2/attachments/{id}", get(crate::attachments::download))
         .route(
             "/v2/parse",

@@ -1,14 +1,15 @@
 //! 解析一次 → 缓存 → 自愈 → LLM 兜底（0.97）。
 //!
 //! - **页面快照**：每个有文字或关键属性的元素一行：短 id、角色、可见文字、关键属性。纯 HTTP 页从
-//!   pagesift 的 DOM 推出（浏览器的 `Accessibility.getFullAXTree` 路径没有接：这台机器上浏览器不可用）。
+//!   pagesift 的 DOM 推出；`act` 和 `/interact` 在真实页面上用 `Accessibility.getFullAXTree`（`interact/act.rs`）。
 //!   快照的 token 上限 = 模型上下文 − 提示 − 输出上限（[`snapshot_budget`]）。
 //! - **生成 schema**：`{"type": "extract", "intent": "…"}` 没有 schema 时，意图加快照交给 LLM，要它输出
 //!   pagesift 的 schema JSON（不是代码），当场在页面上验证；为空或不合法时把错误反馈给模型，只重试一次。
 //!   缓存键是“注册域 + URL 形状 + 意图哈希”，存在 `pagesift-store`。
 //! - **语义字段**：字段只写 `describe` 时，第一次用时由 LLM 解析出选择器并写回缓存。
 //! - **自愈顺序**：缓存的选择器（精确）→ 0.93 的 `locate` → LLM 重新解析；走到哪一步写进 warnings。
-//! - **observe**：给出候选元素（选择器、角色、名称），供 act 用（act 需要浏览器动作）。
+//! - **observe**：从 HTTP 抓到的页面给出候选元素（选择器、角色、名称）。`act` 不走这里：
+//!   它要在同一个真实页面上选和做，见 `interact/act.rs`。
 
 use pagesift_api::types::ScrapeOptions;
 use pagesift_api::{ApiError, ErrorCode};
@@ -20,7 +21,7 @@ use super::extract::llm_error;
 
 /// 快照一行里文字的最大字符数：超过的截断（快照按 token 总预算裁剪，这里只防一个元素吃掉全部预算）。
 /// [推导] 取总预算的 1/64（下限一句话的量级 80 字符）：64 个元素以上才会触发截断
-fn per_node_chars(budget_tokens: usize) -> usize {
+pub(super) fn per_node_chars(budget_tokens: usize) -> usize {
     (budget_tokens / 64).max(80) // [推导] 见上
 }
 
@@ -141,7 +142,7 @@ pub struct LlmUse {
 }
 
 /// `max_out`：输出上限，等于快照预算（`structured.rs` 的对称划分：输入、输出各一半）。
-async fn ask(
+pub(super) async fn ask(
     llm: &ChatClient,
     system: &str,
     user: String,
@@ -357,41 +358,6 @@ impl super::Scraper {
         let budget = self.snapshot_budget_pub().await;
         let c = observe(llm, instruction, &html, budget, &mut used).await?;
         Ok((c, used))
-    }
-
-    /// act：observe 选出元素，再用浏览器动作执行（`text` 给了时输入它，否则点击）。`text` 里的
-    /// `{{secret:NAME}}` 在本地换成配置的凭证，模型和日志都看不到值。返回执行后的页面。
-    pub async fn act(
-        &self,
-        url: &str,
-        instruction: &str,
-        text: Option<&str>,
-    ) -> Result<(pagesift_api::types::Document, Value), ApiError> {
-        let (cands, used) = self.observe(url, instruction).await?;
-        let Some(target) = cands.first() else {
-            return Err(ApiError::new(
-                ErrorCode::NotFound,
-                format!("no element on the page matches {instruction:?}"),
-            ));
-        };
-        let sel = target["selector"].clone();
-        let mut actions = match text {
-            Some(t) => vec![
-                json!({ "type": "click", "selector": sel }),
-                json!({ "type": "write", "text": t }),
-            ],
-            None => vec![json!({ "type": "click", "selector": sel })],
-        };
-        fill_secrets(&mut actions, &self.secrets)?;
-        actions.push(json!({ "type": "scrape" }));
-        let opts: ScrapeOptions =
-            serde_json::from_value(json!({ "engine": "browser", "actions": actions }))
-                .map_err(|e| ApiError::invalid(e.to_string()))?;
-        let doc = self.scrape(url, &opts).await?;
-        Ok((
-            doc,
-            json!({ "element": target, "llmCalls": used.calls, "llmTokens": used.tokens }),
-        ))
     }
 }
 

@@ -166,6 +166,9 @@ pub struct ChangeTracking {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Metadata {
+    /// `/v2/scrape`：`/v2/scrape/{id}/interact` 用的 id。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scrape_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

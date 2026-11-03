@@ -26,11 +26,21 @@ impl Scraper {
             .transpose()
             .map_err(ScraperError::Llm)?;
         let rate = &config.policy.rate;
+        let interact_limits = config.interact;
         let initial_conc = rate
             .global_ceiling
             .map_or(rate.global_concurrency, |c| rate.global_concurrency.min(c))
             .max(1);
         let crawl_slots = pagesift_policy::AdaptiveConcurrencyGate::new(initial_conc);
+        let chain = pagesift_cdp::engine_chain_with_allow_list(
+            &config.browser,
+            browser_private_network,
+            &browser_allow,
+        );
+        let sessions = Arc::new(super::interact::Sessions::new(
+            interact_limits,
+            super::interact::record_budget(&chain),
+        ));
         Ok(Self {
             crawl_slots,
             policy: Arc::new({
@@ -52,11 +62,6 @@ impl Scraper {
             ocr: config.ocr,
             browsers: {
                 // allow_ips 以 /32、/128 的形式一起交给 Lightpanda；allow_hosts 它不支持（cdp 侧会告警）
-                let chain = pagesift_cdp::engine_chain_with_allow_list(
-                    &config.browser,
-                    browser_private_network,
-                    &browser_allow,
-                );
                 log_engine_chain(&chain);
                 chain.into_iter().map(|c| (c, OnceCell::new())).collect()
             },
@@ -69,6 +74,7 @@ impl Scraper {
             planner: super::planner::RenderPlanner::default(),
             render_stats: super::render_stats::RenderStats::new(),
             pages: std::sync::OnceLock::new(),
+            sessions,
         })
         .map(|mut s| {
             s.launch_failed = (0..s.browsers.len()).map(|_| Default::default()).collect();
@@ -217,6 +223,7 @@ impl Scraper {
     }
 
     pub async fn shutdown(&self) {
+        self.sessions.shutdown().await;
         if let Some(store) = &self.store
             && let Err(e) = super::planner::save(&self.planner, store)
         {

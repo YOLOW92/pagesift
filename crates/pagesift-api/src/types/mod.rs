@@ -1,11 +1,16 @@
 //! Firecrawl v1/v2 request and response types.
 
 pub mod attachment;
+pub mod interact;
 pub mod parse;
 pub mod request;
 pub mod response;
 
 pub use attachment::Attachment;
+pub use interact::{
+    InteractRequest, InteractResponse, InteractStopped, LIVE_VIEW_UNAVAILABLE, SESSION_REPLAYED,
+    instance_tag, is_scrape_id, issued_elsewhere, scrape_id, session_gone,
+};
 pub use parse::{PdfParser, Upload, UploadKind};
 
 pub use request::{
