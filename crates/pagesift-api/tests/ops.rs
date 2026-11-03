@@ -1216,3 +1216,58 @@ fn a_failed_result_write_fails_the_job_instead_of_counting_the_page() {
         assert_eq!(unique.len(), sources.len());
     });
 }
+
+/// 本地存储写不进去（磁盘满）：任务停止、以 failed 结束，写失败的那一页不算完成，完成数和轮询到的文档数
+/// 一致，错误里有原因。存储恢复后重启，任务从存储里的断点继续，页面不重不漏。
+#[test]
+fn a_full_disk_fails_the_job_and_the_job_resumes_after_a_restart() {
+    let dir = tempfile::tempdir().unwrap();
+    let limit = 40;
+    let (fake, _) = Fake::new(2);
+    let rt = runtime();
+    let id = rt.block_on(async {
+        let s = store(dir.path());
+        let app = router(
+            fake.clone(),
+            Config {
+                public_url: Some("http://pagesift.test".into()),
+                store: Some(s.clone()),
+                ..Default::default()
+            },
+        );
+        let (status, _, v) = call(
+            &app,
+            "POST",
+            "/v2/crawl",
+            Some(json!({"url": format!("{BASE}/p/0"), "limit": limit})),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{v}");
+        let id = v["id"].as_str().unwrap().to_string();
+        let path = format!("/v2/crawl/{id}");
+        wait(&app, &path, |v| v["completed"].as_u64().unwrap() >= 5).await;
+        s.fail_writes(true);
+        let v = wait(&app, &path, |v| v["status"] != "scraping").await;
+        assert_eq!(v["status"], "failed", "{v}");
+        let completed = v["completed"].as_u64().unwrap() as usize;
+        assert!(completed < limit, "{v}");
+        assert_eq!(all_sources(&app, &path).await.len(), completed);
+        let (_, _, e) = call(&app, "GET", &format!("{path}/errors"), None, None).await;
+        assert!(e.to_string().contains("injected write failure"), "{e}");
+        s.fail_writes(false);
+        id
+    });
+    drop(rt);
+    let rt = runtime();
+    rt.block_on(async {
+        let app = persisted(fake.clone(), dir.path());
+        let path = format!("/v2/crawl/{id}");
+        let v = wait(&app, &path, |v| v["status"] != "scraping").await;
+        assert_eq!(v["status"], "completed", "{v}");
+        let sources = all_sources(&app, &path).await;
+        assert_eq!(sources.len(), limit);
+        let unique: HashSet<&String> = sources.iter().collect();
+        assert_eq!(unique.len(), limit, "no page missing or duplicated");
+    });
+}

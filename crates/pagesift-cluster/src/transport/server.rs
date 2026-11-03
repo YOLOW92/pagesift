@@ -22,10 +22,11 @@ pub const ERROR_HEADER: &str = "pagesift-cluster-error";
 pub trait Accept: Send + Sync + 'static {
     fn tokens(&self) -> &TokenStore;
     fn max_frame(&self) -> usize;
-    /// 一个通过认证的帧流。返回的 future 在会话结束时完成。
+    /// 一个通过认证的帧流，`version` 是协商出的协议版本。返回的 future 在会话结束时完成。
     fn session(
         self: Arc<Self>,
         worker: WorkerId,
+        version: u32,
         reader: FrameReader<Incoming>,
         out: Outbox,
     ) -> BoxFuture<'static, ()>;
@@ -67,7 +68,7 @@ fn handle<H: Accept>(h: &Arc<H>, req: Request<Incoming>) -> Response<ChanBody> {
     }
     let (out, body) = Outbox::pair();
     let reader = FrameReader::new(req.into_body(), h.max_frame());
-    tokio::spawn(Arc::clone(h).session(worker, reader, out));
+    tokio::spawn(Arc::clone(h).session(worker, version, reader, out));
     let mut r = Response::new(body);
     r.headers_mut().insert(VERSION_HEADER, version.into());
     r

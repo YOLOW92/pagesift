@@ -65,6 +65,9 @@ codec_enum! {
         18 => Ship { from: u64 }, // [协议] 同上
         /// 一批日志（空批是心跳），`heartbeat` 是主网关的心跳间隔。
         19 => Records { start: u64, heartbeat: Duration, entries: Vec<Vec<u8>> }, // [协议] 同上
+        /// 温备确认收到了第 `batches` 批（从 1 数，含心跳），并承诺在收到它之后 `window` 内不接管
+        /// （协议版本 2 起；主网关据此续租，见 `ledger::lease`）。
+        20 => ShipAck { batches: u64, window: Duration }, // [协议] 同上
     }
 }
 
@@ -223,6 +226,10 @@ mod tests {
                 start: 12,
                 heartbeat: Duration::from_secs(1),
                 entries: vec![vec![1], vec![]],
+            },
+            Msg::ShipAck {
+                batches: 3,
+                window: Duration::from_millis(2500),
             },
         ];
         for (i, m) in msgs.into_iter().enumerate() {

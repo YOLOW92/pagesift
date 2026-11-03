@@ -16,6 +16,7 @@ use hyper::body::Incoming;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::Notify;
 
+use crate::clock::ms;
 use crate::coordinator::{BoxFuture, Coordinator, Deliver};
 use crate::frame::{Msg, WireLease};
 use crate::hrw::HostMap;
@@ -41,6 +42,9 @@ pub struct GatewayConfig {
     pub standby: Option<WorkerId>,
     /// 允许经帧协议提交、取消任务的 id（默认没有：工人只拉取、续约、提交分给自己的任务）。
     pub submitters: Vec<WorkerId>,
+    /// 配了 `standby` 时用租约隔离（默认开，见 `ledger::lease`）：温备的确认停了就停止写入，
+    /// 温备接管时两边不会同时写。关掉后温备停了照常写，但主备之间断网时可能两边同时写。
+    pub fencing: bool,
 }
 
 impl Default for GatewayConfig {
@@ -53,6 +57,7 @@ impl Default for GatewayConfig {
             boot: 0,
             standby: None,
             submitters: Vec::new(),
+            fencing: true,
         }
     }
 }
@@ -105,6 +110,9 @@ impl GatewayCoordinator {
             !ledger.is_local(),
             "GatewayCoordinator needs a cluster ledger"
         );
+        if cfg.fencing && cfg.standby.is_some() {
+            ledger.require_lease();
+        }
         let id: fn(Vec<u8>) -> Vec<u8> = |b| b;
         let front = LedgerFront::with(ledger, sink, "gateway", cfg.boot, Some((id, id)));
         Self {
@@ -200,6 +208,7 @@ impl Gw {
     async fn run(
         self: Arc<Self>,
         worker: WorkerId,
+        version: u32,
         mut reader: FrameReader<Incoming>,
         out: Outbox,
     ) {
@@ -213,7 +222,7 @@ impl Gw {
                     let _ = out.send(corr, &Msg::Ack { r });
                     return;
                 }
-                self.ship(from, reader, out).await
+                self.ship(from, version, reader, out).await
             }
             Ok(Some((
                 corr,
@@ -380,14 +389,39 @@ impl Gw {
     }
 
     /// 日志传送：把 `from` 之后的记录持续推给温备；空闲时每个心跳间隔发一个空批。
-    async fn ship(self: Arc<Self>, from: u64, mut reader: FrameReader<Incoming>, out: Outbox) {
+    async fn ship(
+        self: Arc<Self>,
+        from: u64,
+        version: u32,
+        mut reader: FrameReader<Incoming>,
+        out: Outbox,
+    ) {
         let Some(journal) = self.ledger().journal() else {
             let r = Err(Error::Rejected("gateway has no journal".into()));
             let _ = out.send(0, &Msg::Ack { r });
             return;
         };
+        // 每批的发出时刻（本账本时钟），按批号；温备的确认据此续租（`ledger::lease`）
+        let sent = Arc::new(Mutex::new(std::collections::VecDeque::<(u64, u64)>::new()));
+        let (ledger, acks) = (Arc::clone(self.ledger()), Arc::clone(&sent));
         // 温备断开时读端结束，借此停止推送
-        let gone = tokio::spawn(async move { while let Ok(Some(_)) = reader.next().await {} });
+        let gone = tokio::spawn(async move {
+            while let Ok(Some((_, m))) = reader.next().await {
+                if let Msg::ShipAck { batches, window } = m {
+                    let mut q = lock(&acks);
+                    while q.front().is_some_and(|&(n, _)| n < batches) {
+                        q.pop_front();
+                    }
+                    if let Some(&(n, at)) = q.front()
+                        && n == batches
+                    {
+                        q.pop_front();
+                        ledger.extend_lease(at + ms(window));
+                    }
+                }
+            }
+        });
+        let mut batches = 0u64;
         let mut next = from;
         // [推导] 一批记录占帧上限的一半，留出每条 4 字节长度前缀与帧头的余量
         let budget = self.cfg.max_frame / 2;
@@ -410,6 +444,12 @@ impl Gw {
                 heartbeat: self.cfg.heartbeat,
                 entries: batch.into_iter().map(|(_, raw)| raw).collect(),
             };
+            // 先记发出时刻再发：确认不会早于记录到达
+            // [协议] 版本 1 的温备不回确认，不记（否则队列只增不减）
+            if version >= 2 {
+                batches += 1;
+                lock(&sent).push_back((batches, self.ledger().clock().now_ms()));
+            }
             if out.send(0, &msg).is_err() {
                 break;
             }
@@ -430,10 +470,11 @@ impl Accept for Gw {
     fn session(
         self: Arc<Self>,
         worker: WorkerId,
+        version: u32,
         reader: FrameReader<Incoming>,
         out: Outbox,
     ) -> BoxFuture<'static, ()> {
-        Box::pin(self.run(worker, reader, out))
+        Box::pin(self.run(worker, version, reader, out))
     }
 }
 

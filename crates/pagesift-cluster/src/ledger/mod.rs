@@ -11,6 +11,7 @@ mod app;
 mod cluster;
 mod drr;
 mod duration;
+mod lease;
 mod quota;
 mod shard;
 pub(crate) mod snapshot;
@@ -139,6 +140,8 @@ pub struct Ledger {
     app: std::sync::OnceLock<Arc<dyn AppState>>,
     /// 回放上层写入失败的次数（见 [`Ledger::app_failures`]）。
     app_failures: AtomicU64,
+    /// 主网关租约的到期时刻（毫秒，见 `lease`）；`u64::MAX` 表示不要求租约。
+    lease_until: AtomicU64,
 }
 
 static LEDGER_IDS: AtomicU64 = AtomicU64::new(0);
@@ -189,6 +192,7 @@ impl Ledger {
             snapshotting: AtomicBool::new(false),
             app: std::sync::OnceLock::new(),
             app_failures: AtomicU64::new(0),
+            lease_until: AtomicU64::new(lease::UNFENCED),
         }
     }
 
@@ -226,6 +230,8 @@ impl Ledger {
     /// 温备接管：停止回放，以 `term+1` 成为主网关。旧任期的写入此后一律被栅栏拒绝。
     pub fn take_over(&self) -> Result<u64, Error> {
         self.follower.store(false, Ordering::SeqCst);
+        // 接管后自己是主网关：要不要租约由它的网关配置决定（`GatewayCoordinator::new`）
+        self.lease_until.store(lease::UNFENCED, Ordering::Release);
         self.start_term()
     }
 
@@ -343,6 +349,7 @@ impl Ledger {
         if self.is_follower() {
             return Err(Error::Rejected("standby does not accept writes".into()));
         }
+        self.check_lease()?;
         Ok(self.term())
     }
 

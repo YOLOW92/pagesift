@@ -217,6 +217,7 @@ impl JobSink {
         }
         // 任务级的错误（配额、失败原因）进单独的列表：0.90 放在页面错误里，重启后被算进完成数；
         // 也经过镜像复制（0.90 直接写本地存储，温备上没有）
+        let mut kept = self.store().is_none();
         if let (Some(store), false) = (self.store(), extra.is_empty()) {
             let (key, items) = (list_key(&self.id, "notes"), extra.clone());
             let m = inner.mirror.clone();
@@ -231,7 +232,9 @@ impl JobSink {
                 })
                 .await;
             if let Err(e) = r {
+                // 存不进去（多半就是让任务失败的那个存储错误）：留在内存里，至少进程还在时查得到原因
                 tracing::error!(job = %self.id, error = %e, "saving the job's final errors failed");
+                kept = true;
             }
         }
         let final_state = {
@@ -245,7 +248,7 @@ impl JobSink {
                 } else {
                     JobState::Failed
                 };
-                if self.store().is_none() {
+                if kept {
                     job.errors.extend(extra);
                 }
                 job.touch();

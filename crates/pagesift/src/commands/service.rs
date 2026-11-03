@@ -262,6 +262,7 @@ async fn start_gateway(
     let gcfg = pagesift_cluster::GatewayConfig {
         boot,
         standby: c.standby.as_deref().map(pagesift_cluster::WorkerId::new),
+        fencing: c.fencing.unwrap_or(true),
         ..Default::default()
     };
     let d = pagesift::cluster::Dispatch::new(ledger, c.tokens()?, gcfg, page_budget);

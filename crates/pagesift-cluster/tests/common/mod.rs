@@ -56,6 +56,18 @@ pub fn gateway(
     GatewayCoordinator,
     mpsc::UnboundedReceiver<Completed<Vec<u8>>>,
 ) {
+    gateway_with(clock, journal, false)
+}
+
+/// `fencing`：主网关的租约隔离（`GatewayConfig::fencing`）。其他测试不连温备，关掉。
+pub fn gateway_with(
+    clock: Arc<ManualClock>,
+    journal: Option<Journal>,
+    fencing: bool,
+) -> (
+    GatewayCoordinator,
+    mpsc::UnboundedReceiver<Completed<Vec<u8>>>,
+) {
     let mut cfg = LedgerConfig::new(clock, false);
     cfg.shards = 4;
     if let Some(j) = journal {
@@ -69,6 +81,7 @@ pub fn gateway(
         TokenStore::new(),
         GatewayConfig {
             standby: Some(WorkerId::new("standby")),
+            fencing,
             ..GatewayConfig::default()
         },
     );

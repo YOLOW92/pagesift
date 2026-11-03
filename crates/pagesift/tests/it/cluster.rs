@@ -350,12 +350,14 @@ fn cluster_app(
     listener: tokio::net::TcpListener,
     ids: &[&str],
     standby: Option<&str>,
+    fencing: bool,
 ) -> Router {
     let d = Dispatch::new(
         ledger.clone(),
         tokens(ids),
         GatewayConfig {
             standby: standby.map(WorkerId::new),
+            fencing,
             ..GatewayConfig::default()
         },
         Duration::from_secs(30),
@@ -414,7 +416,7 @@ fn manual_standby_does_not_take_over() {
         let addr = l.local_addr().unwrap().to_string();
         let mirror = pagesift::cluster::replicate_jobs(&ledger, &s);
         (
-            cluster_app(ledger, s, mirror, l, &[sb_id], Some(sb_id)),
+            cluster_app(ledger, s, mirror, l, &[sb_id], Some(sb_id), true),
             addr,
         )
     });
@@ -487,7 +489,16 @@ fn takeover(late: bool, tag: &str) {
         let addr = l.local_addr().unwrap().to_string();
         let mirror = pagesift::cluster::replicate_jobs(&ledger, &s);
         (
-            cluster_app(ledger.clone(), s, mirror, l, &ids_ref, Some(sb_id.as_str())),
+            // 温备晚到时主网关先独自跑一段：关掉租约隔离（开着的话温备确认之前不接受写入）
+            cluster_app(
+                ledger.clone(),
+                s,
+                mirror,
+                l,
+                &ids_ref,
+                Some(sb_id.as_str()),
+                !late,
+            ),
             ledger,
             addr,
         )
@@ -530,7 +541,7 @@ fn takeover(late: bool, tag: &str) {
                     .unwrap();
             assert!(term.is_some());
             let ids: Vec<&str> = ids.iter().map(String::as_str).collect();
-            let _ = tx.send(cluster_app(ledger, s, mirror, listener, &ids, None));
+            let _ = tx.send(cluster_app(ledger, s, mirror, listener, &ids, None, false));
         });
         rx
     };
@@ -542,6 +553,17 @@ fn takeover(late: bool, tag: &str) {
     let w = worker_of(&worker_id, &[&gw_addr, &sb_addr]);
 
     let status = gw_rt.block_on(async {
+        // 租约隔离开着时（温备先到），主网关要等温备第一次确认才接受写入
+        if !late {
+            for i in 0.. {
+                let now = primary_ledger.clock().now_ms();
+                if primary_ledger.lease_until().is_some_and(|l| l.0 > now) {
+                    break;
+                }
+                assert!(i < 4000, "the standby never acknowledged");
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        }
         let c = start(&primary, "crawl", &base).await;
         for i in 0.. {
             let trimmed = primary_ledger.journal().unwrap().head() > 0;

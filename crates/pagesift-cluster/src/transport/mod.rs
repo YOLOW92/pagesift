@@ -35,8 +35,8 @@ pub const WORKER_HEADER: &str = "pagesift-worker";
 
 /// [协议] 本实现支持的协议版本区间；改帧格式或语义时加一，旧版本在一个发布周期内继续接受（滚动升级）
 pub const PROTO_MIN: u32 = 1;
-/// [协议] 同上
-pub const PROTO_MAX: u32 = 1;
+/// [协议] 同上；2 加了温备的 `ShipAck`（主网关的租约隔离）
+pub const PROTO_MAX: u32 = 2;
 
 /// 版本协商：两边区间的交集里取最高；没有交集时为 `None`。
 pub fn negotiate(offer: &str) -> Option<u32> {

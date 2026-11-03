@@ -25,6 +25,8 @@ pub struct Dial {
 pub struct Stream {
     pub out: Outbox,
     pub reader: FrameReader<Incoming>,
+    /// 网关选定的协议版本。
+    pub version: u32,
 }
 
 fn err(e: impl std::fmt::Display) -> Error {
@@ -76,7 +78,8 @@ where
         s => return Err(Error::Rejected(format!("{s}: {}", reason()))),
     }
     // 网关选定的版本必须在本工人支持的区间里
-    resp.headers()
+    let version = resp
+        .headers()
         .get(VERSION_HEADER)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.parse::<u32>().ok())
@@ -85,5 +88,6 @@ where
     Ok(Stream {
         out,
         reader: FrameReader::new(resp.into_body(), d.max_frame),
+        version,
     })
 }

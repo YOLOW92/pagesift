@@ -8,6 +8,9 @@
 //! 失联判定：主网关空闲时按固定间隔发空批（心跳）。温备记录"以心跳结束的到达间隔"，
 //! 判定时限取其 `q(1−δ)` 的置信上界（不低于心跳间隔本身）；样本还不够给出上界时取两个心跳间隔
 //! （允许丢一个心跳；已有间隔样本时取其中最大者与心跳间隔的较大值）。最后一次收到消息后超过时限即判定失联。从未收到过主网关消息时不判定。
+//!
+//! 租约（协议版本 2 起，见 `ledger::lease`）：每收到一批就回 `ShipAck`，承诺收到后的这段时限内不接管；
+//! 判定时刻因此不早于"承诺到期 + 一个心跳间隔"（心跳间隔是给两边时钟走速差的余量）。
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -27,6 +30,10 @@ struct Beats {
     last: Option<u64>,
     gaps: Sketch,
     heartbeat: Duration,
+    /// 对主网关承诺的不接管期限（本账本时钟的毫秒）：每次确认时的"收到时刻 + 时限"的最大值。
+    promised: Option<u64>,
+    /// 已确认的批数。
+    batches: u64,
 }
 
 pub struct Standby {
@@ -83,20 +90,38 @@ impl Standby {
         Ok(())
     }
 
-    /// 判定主网关失联的时刻；从未收到消息时为 `None`。
-    pub fn deadline(&self) -> Option<Deadline> {
-        let b = self.beats();
-        let last = b.last?;
-        let delta = self.ledger.delta();
-        let allowed = match upper(&b.gaps, delta) {
+    /// 失联判定时限：最后一次收到消息后多久没消息算失联（见模块说明）。
+    fn allowed(&self, b: &Beats) -> Duration {
+        match upper(&b.gaps, self.ledger.delta()) {
             Some(q) => Duration::from_secs_f64(q).max(b.heartbeat),
             None => {
                 b.heartbeat
                     .max(Duration::from_secs_f64(b.gaps.max().max(0.0)))
                     * 2
             }
-        };
-        Some(Deadline(last + ms(allowed)))
+        }
+    }
+
+    /// 判定主网关失联的时刻；从未收到消息时为 `None`。不早于对主网关承诺的租约期限加一个心跳间隔。
+    pub fn deadline(&self) -> Option<Deadline> {
+        let b = self.beats();
+        let last = b.last?;
+        let lost = last + ms(self.allowed(&b));
+        let fenced = b.promised.map_or(0, |p| p + ms(b.heartbeat));
+        Some(Deadline(lost.max(fenced)))
+    }
+
+    /// 记下对刚收到的一批的承诺，返回要回给主网关的确认。
+    fn promise(&self) -> Msg {
+        let now = self.ledger.clock().now_ms();
+        let mut b = self.beats();
+        let window = self.allowed(&b);
+        b.batches += 1;
+        b.promised = Some(b.promised.unwrap_or(0).max(now + ms(window)));
+        Msg::ShipAck {
+            batches: b.batches,
+            window,
+        }
     }
 
     pub fn primary_lost(&self) -> bool {
@@ -144,13 +169,21 @@ impl Standby {
         let mut s = open(io, dial).await?;
         let from = self.ledger.shipped_len();
         s.out.send(1, &Msg::Ship { from })?;
+        // 每个连接从头数批数（主网关那边也按连接数）
+        self.beats().batches = 0;
         while let Some((_, m)) = s.reader.next().await? {
             match m {
                 Msg::Records {
                     start,
                     heartbeat,
                     entries,
-                } => self.on_records(start, heartbeat, &entries)?,
+                } => {
+                    self.on_records(start, heartbeat, &entries)?;
+                    // [协议] 版本 2 起回确认（主网关的租约，见 `ledger::lease`）
+                    if s.version >= 2 {
+                        s.out.send(0, &self.promise())?;
+                    }
+                }
                 Msg::Ack { r: Err(e) } => return Err(e),
                 _ => {}
             }

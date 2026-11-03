@@ -114,6 +114,8 @@ pub(crate) struct Inner {
     last_maint_disk: AtomicU64,
     last_maint_garbage: AtomicU64,
     last_error: Mutex<Option<String>>,
+    /// 故障注入：为真时每次写入都失败（[`Store::fail_writes`]）。
+    fail_writes: AtomicBool,
     open: OpenReport,
     /// 持有期间其他进程打不开同一个目录；随存储一起释放。
     _lock: File,
@@ -251,6 +253,7 @@ impl Store {
             last_maint_disk: AtomicU64::new(0),
             last_maint_garbage: AtomicU64::new(0),
             last_error: Mutex::new(None),
+            fail_writes: AtomicBool::new(false),
             open: report,
             _lock: lock,
         })))
@@ -358,6 +361,15 @@ impl Store {
         rep.compacted_segments = self.compact()?;
         rep.disk_bytes_after = self.state_r().disk;
         Ok(rep)
+    }
+
+    /// 故障注入（测试用）：打开后每次写入都返回 `StorageFull` 错误，就像磁盘满了；关掉后恢复。
+    /// 读不受影响。
+    #[doc(hidden)]
+    pub fn fail_writes(&self, on: bool) {
+        self.0
+            .fail_writes
+            .store(on, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// 在 tokio 的阻塞线程池里调用存储，例如

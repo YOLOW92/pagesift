@@ -6,7 +6,8 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use common::{Harness, Mode, connect, free, gateway, task, worker_config};
+use common::{Harness, Mode, connect, free, gateway, gateway_with, task, worker_config};
+use pagesift_cluster::Clock as _;
 use pagesift_cluster::{
     Coordinator, Error, Fence, Journal, Ledger, LedgerConfig, LocalCoordinator, ManualClock, Owner,
     Resources, SiteKey, SiteState, SiteStates, Standby, WorkerId,
@@ -178,10 +179,10 @@ async fn standby_takes_over_and_old_gateway_is_fenced() {
     standby.caught_up(len).await;
     assert!(!standby.primary_lost());
 
-    // 主网关与温备之间断网
+    // 主网关与温备之间断网。判定时限 2 个心跳间隔，再加给主网关租约的一个心跳间隔余量
     serve.abort();
     let _ = follow.await;
-    clock.advance(Duration::from_secs(3));
+    clock.advance(Duration::from_secs(4));
     assert!(standby.primary_lost());
     let term = standby.take_over().unwrap();
     assert_eq!(term, primary.ledger().term() + 1);
@@ -405,4 +406,76 @@ async fn authenticated_workers_only_touch_their_own_leases() {
     });
     let r = standby.follow(a, &common::dial("w0")).await;
     assert!(rejected(r), "a worker must not receive the journal");
+}
+
+/// 主备之间断网、旧主网关仍在服务：旧主网关的租约先过期、拒绝写入，温备在那之后才判定失联并接管，
+/// 任何时刻至多一方接受写入（0.90 没有租约：断网后旧主网关一直能写，温备照样接管）。
+/// 配了温备的主网关启动后、温备确认之前也不接受写入。
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn partition_fences_the_old_primary_before_the_standby_takes_over() {
+    let clock = ManualClock::new();
+    let (d1, d2) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let (primary, _rx) = gateway_with(clock.clone(), Some(store(&d1)), true);
+    let p = primary.ledger().clone();
+    let rejected =
+        |r: Result<pagesift_cluster::TaskId, Error>| matches!(r, Err(Error::Rejected(_)));
+    assert!(
+        rejected(p.submit(task(1, "early"))),
+        "fenced until the standby acknowledges"
+    );
+
+    let standby = Arc::new(Standby::new(Arc::new(
+        Ledger::follower(LedgerConfig::new(clock.clone(), false).with_journal(store(&d2))).unwrap(),
+    )));
+    primary
+        .tokens()
+        .add(WorkerId::new("standby"), &common::token("standby"));
+    let (a, b) = tokio::io::duplex(1 << 16);
+    let g = primary.clone();
+    let serve = tokio::spawn(async move { g.serve(b).await });
+    let s = standby.clone();
+    let follow = tokio::spawn(async move { s.follow(a, &common::dial("standby")).await });
+    for i in 0.. {
+        if p.lease_until().is_some_and(|l| l.0 > clock.now_ms()) {
+            break;
+        }
+        assert!(i < 2000, "the standby never acknowledged");
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    let id = p.submit(task(1, "a")).unwrap();
+    standby.caught_up(p.journal().unwrap().len()).await;
+
+    // 断网：两边都还活着，各自只看自己的时钟
+    serve.abort();
+    let _ = follow.await;
+    let lease = p.lease_until().unwrap().0;
+    let lost_at = standby.deadline().unwrap().0;
+    assert!(
+        lease < lost_at,
+        "lease {lease} must end before the standby may take over at {lost_at}"
+    );
+    // 租约内：主网关能写，温备不判定失联
+    assert!(!standby.primary_lost());
+    // 租约过期后、温备判定之前：主网关已经停写
+    clock.advance(Duration::from_millis(lease + 1 - clock.now_ms()));
+    assert!(rejected(p.submit(task(2, "b"))));
+    assert!(!standby.primary_lost());
+    // 温备判定失联、接管；旧主网关仍然拒绝写入（也拒绝发租约）
+    clock.advance(Duration::from_millis(lost_at + 1 - clock.now_ms()));
+    assert!(standby.primary_lost());
+    standby.take_over().unwrap();
+    let nl = standby.ledger();
+    nl.submit(task(3, "c")).unwrap();
+    assert!(rejected(p.submit(task(4, "d"))));
+    let w = WorkerId::new("w");
+    p.join(&w, 1.0, Duration::ZERO);
+    assert!(p.pull(Some(&w), &free(), Duration::ZERO).is_err());
+    // 接管前提交的任务在新主网关上
+    nl.join(&w, 1.0, Duration::ZERO);
+    let mut got = BTreeSet::new();
+    while let Some(x) = nl.pull(Some(&w), &free(), Duration::ZERO).unwrap() {
+        got.insert(x.task);
+        nl.commit(x.task, x.fence(), None, None, |_| {}).unwrap();
+    }
+    assert!(got.contains(&id));
 }
