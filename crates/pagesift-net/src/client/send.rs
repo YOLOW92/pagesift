@@ -45,6 +45,7 @@ impl Client {
         max_hot_per_host: usize,
         stages: StageController,
         user_agent: HeaderValue,
+        fingerprint: Option<crate::fingerprint::FingerprintProfile>,
     ) -> Result<Self> {
         Ok(Self(Arc::new(Inner {
             resolver,
@@ -61,6 +62,7 @@ impl Client {
             pools: Mutex::new(Pools::default()),
             hosts: Mutex::new(HashMap::new()),
             stages,
+            fingerprint: fingerprint.map(shaped::FingerprintState::new),
         })))
     }
 
@@ -142,28 +144,36 @@ impl Client {
                 .map_err(|e| Error::Network(e.to_string()))?;
 
             let h = req.headers_mut();
-            if matches!(conn, Conn::H1(_)) {
+            // 这个主机这次的模式（`connect` 可能刚把它记成退回普通连接）
+            let fingerprint = self.fingerprint_use(&key);
+            if let shaped::FingerprintUse::Active(profile) = fingerprint {
+                let http1_authority = matches!(conn, Conn::H1(_)).then_some(authority.as_str());
+                crate::fingerprint::fill_request_headers(profile, h, http1_authority, &headers)?;
+            } else {
+                if matches!(conn, Conn::H1(_)) {
+                    h.insert(
+                        header::HOST,
+                        HeaderValue::from_str(&authority)
+                            .map_err(|_| Error::Header("host".into()))?,
+                    );
+                }
+                h.insert(header::USER_AGENT, self.0.user_agent.clone());
+                // 现代合规 Accept 与 Accept-Language 头部，显著降低 CDN/WAF 误判拦截率
                 h.insert(
-                    header::HOST,
-                    HeaderValue::from_str(&authority).map_err(|_| Error::Header("host".into()))?,
+                    header::ACCEPT,
+                    HeaderValue::from_static("text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"),
                 );
-            }
-            h.insert(header::USER_AGENT, self.0.user_agent.clone());
-            // 现代合规 Accept 与 Accept-Language 头部，显著降低 CDN/WAF 误判拦截率
-            h.insert(
-                header::ACCEPT,
-                HeaderValue::from_static("text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"),
-            );
-            h.insert(
-                header::ACCEPT_LANGUAGE,
-                HeaderValue::from_static("en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7"),
-            );
-            h.insert(
-                header::ACCEPT_ENCODING,
-                HeaderValue::from_static(ACCEPT_ENCODING),
-            );
-            for (k, v) in headers.iter() {
-                h.insert(k, v.clone());
+                h.insert(
+                    header::ACCEPT_LANGUAGE,
+                    HeaderValue::from_static("en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7"),
+                );
+                h.insert(
+                    header::ACCEPT_ENCODING,
+                    HeaderValue::from_static(ACCEPT_ENCODING),
+                );
+                for (k, v) in headers.iter() {
+                    h.insert(k, v.clone());
+                }
             }
 
             let send_started = Instant::now();
@@ -194,6 +204,7 @@ impl Client {
                                 status: parts.status.as_u16(),
                                 headers: parts.headers,
                                 ttfb: send_started.elapsed(),
+                                fingerprint,
                                 body,
                                 release: Some((self.0.clone(), key, s)),
                                 lifecycle,
@@ -271,6 +282,7 @@ impl Client {
                                 status: parts.status.as_u16(),
                                 headers: parts.headers,
                                 ttfb: send_started.elapsed(),
+                                fingerprint,
                                 body,
                                 release: None,
                                 lifecycle,

@@ -128,6 +128,10 @@ pub struct FetcherConfig {
     pub wait_price: Arc<crate::WaitPrice>,
     /// 全局风险水平 `δ`。
     pub delta: pagesift_stat::Delta,
+    /// 指纹模拟（默认关）：ClientHello、HTTP/2 连接特征和请求头按这个档案发。
+    /// `user_agent` 不变，robots.txt 仍按它的产品标识匹配；线上的 UA 是档案的。
+    /// 不能和代理同时用（[`Fetcher::new`] 报错）。
+    pub browser_fingerprint: Option<crate::FingerprintProfile>,
 }
 
 impl Default for FetcherConfig {
@@ -169,6 +173,7 @@ impl Default for FetcherConfig {
             happy_eyeballs_delay: Duration::from_millis(250),
             wait_price: Arc::new(crate::WaitPrice::new()),
             delta: pagesift_stat::Delta::DEFAULT,
+            browser_fingerprint: None,
         }
     }
 }
@@ -284,8 +289,10 @@ pub struct FetchResponse {
     /// 条件请求命中，服务器返回 304。
     pub not_modified: bool,
     /// 传输层提示，例如 `content_encoding_mismatch: ...`、`content_decoding_failed: ...`、
-    /// `content_encoding_unsupported: ...`。调用方可并入页面元数据的 warnings。
+    /// `content_encoding_unsupported: ...`、`fingerprint_fallback: ...`。调用方可并入页面元数据的 warnings。
     pub warnings: Vec<String>,
+    /// 这次请求确实按这个档案发（退回普通连接时是 `None`，并有 `fingerprint_fallback` 警告）。
+    pub browser_fingerprint: Option<crate::FingerprintProfile>,
 }
 
 impl FetchResponse {

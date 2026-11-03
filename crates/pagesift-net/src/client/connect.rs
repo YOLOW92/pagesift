@@ -4,8 +4,14 @@ use super::*;
 
 impl Client {
     pub(super) async fn connect(&self, key: &Key, wait: &HostWait) -> Result<Conn> {
+        // 开了指纹模拟且这个主机没退回过普通连接时走 `shaped.rs`
+        let shaped = self
+            .0
+            .fingerprint
+            .as_ref()
+            .filter(|state| !state.has_fallen_back(key));
         // TLS 配置（系统根证书）在拨号之前取：读不到时不白白建一条 TCP 连接
-        let connector = if key.https {
+        let connector = if key.https && shaped.is_none() {
             Some(TlsConnector::from(send::tls_config()?))
         } else {
             None
@@ -70,6 +76,9 @@ impl Client {
             }
         };
         let _ = tcp.set_nodelay(true);
+        if let Some(state) = shaped {
+            return self.connect_shaped(key, wait, tcp, handshake, state).await;
+        }
         let Some(connector) = connector else {
             let result = h1_handshake(TokioIo::new(tcp)).await;
             handshake.finish(

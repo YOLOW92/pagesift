@@ -6,8 +6,8 @@
 //! - 池的大小由并发需求推出：同一站点同时在途的请求各用一个会话（共享 cookie 的并行请求会互相
 //!   覆盖服务端的会话状态），所以池的大小等于这个站点的在途上限（Little 定律 L = λW 里的 L，
 //!   由限速器的每站点并发给出）；需求下降时多余的槽在退役后不再补；
-//! - 档案只有请求层面的字段（`Accept-Language` 等）。User-Agent 不随会话变化，TLS 和 HTTP/2 指纹
-//!   不模拟（`egress` 的约定；指纹模拟默认关）。
+//! - 档案里 `fingerprint` 是可选的浏览器指纹（默认 `None`，见 `pagesift_net::FingerprintProfile`）；
+//!   其余是请求层面的字段（`Accept-Language` 等）。池子还没接进抓取路径，这个字段目前只是类型上的绑定。
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -18,6 +18,8 @@ use crate::egress::Outcome;
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Profile {
     pub accept_language: Option<String>,
+    /// 这个会话用的浏览器指纹。
+    pub fingerprint: Option<pagesift_net::FingerprintProfile>,
 }
 
 /// 一个会话：cookie、出口名（`None` 是默认出口）、档案。

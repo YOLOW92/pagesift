@@ -38,11 +38,13 @@ use crate::wait::{HostWait, Phase, WaitTable};
 mod connect;
 mod decode;
 mod send;
+mod shaped;
 #[cfg(test)]
 mod tests;
 
 use connect::*;
 pub(crate) use decode::*;
+pub(crate) use shaped::FingerprintUse;
 
 /// HTTP/1 每次读取的固定大小，也就是每条连接读缓冲的常驻大小。
 /// [协议] TLS 记录明文的最大长度 2^14 = 16 KiB（RFC 8446 §5.1、RFC 5246 §6.2.1）：rustls 一次
@@ -104,6 +106,8 @@ struct Inner {
     pools: Mutex<Pools>,
     hosts: Mutex<HashMap<Key, Arc<HostConnectionControl>>>,
     stages: StageController,
+    /// 开了指纹模拟时的档案和状态（默认 `None`）。
+    fingerprint: Option<shaped::FingerprintState>,
 }
 
 #[derive(Clone)]
@@ -113,6 +117,7 @@ pub(crate) struct Response {
     pub status: u16,
     pub headers: HeaderMap,
     pub ttfb: Duration,
+    pub fingerprint: FingerprintUse,
     body: Incoming,
     /// HTTP/1 连接：正文读完后放回池里。
     release: Option<(Arc<Inner>, Key, H1)>,

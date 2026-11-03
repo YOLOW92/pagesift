@@ -230,6 +230,14 @@ impl Resp {
             response.abandon();
         }
     }
+
+    pub(super) fn fingerprint(&self) -> client::FingerprintUse {
+        match self {
+            Resp::Direct(response) => response.fingerprint,
+            // 走代理时开不了指纹模拟（`new_inner` 拒绝这种配置）
+            Resp::Proxy(_) => client::FingerprintUse::Off,
+        }
+    }
 }
 
 pub(super) fn map_reqwest(e: reqwest::Error) -> Error {

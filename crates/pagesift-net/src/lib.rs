@@ -13,6 +13,7 @@ mod client;
 mod credentials;
 mod dns;
 mod fetch;
+mod fingerprint;
 mod host_connections;
 pub mod http_message;
 mod localhost;
@@ -41,6 +42,7 @@ pub use fetch::{
     BoxError, Error, FetchRequest, FetchResponse, FetchStream, Fetcher, FetcherConfig,
     RedirectGuard, RedirectHop, Result, TimeoutPhase, Timings,
 };
+pub use fingerprint::FingerprintProfile;
 pub use host_connections::HostConnectionStats;
 pub use offload::{CpuJob, set_cpu_executor};
 pub use reqwest::header::HeaderMap;

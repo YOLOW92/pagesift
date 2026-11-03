@@ -45,6 +45,9 @@ pub struct Fetcher {
 /// 出网的环境每个请求都卡满默认 5 秒的 dns_timeout。实际等待与 DNS 阶段相同。
 const BYPASS_DNS_TIMEOUT: Duration = Duration::from_secs(2);
 
+/// 档案的 UA 和 TLS 指纹必须一致，一次请求不能改。
+const FIXED_USER_AGENT: &str = "user-agent is fixed by browser_fingerprint";
+
 impl fmt::Debug for Fetcher {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Fetcher")
@@ -71,6 +74,13 @@ impl Fetcher {
             && let Some(env_p) = detect_env_proxy()
         {
             config.proxy = Some(env_p);
+        }
+        // 代理走 reqwest，发的是 reqwest 的指纹。不悄悄降级：配置就不通过。
+        if config.browser_fingerprint.is_some() && config.proxy.is_some() {
+            return Err(Error::Config(
+                "browser_fingerprint does not work through a proxy yet; remove the proxy or the fingerprint (a proxy from the environment can be ignored with env_proxy = false)"
+                    .into(),
+            ));
         }
         let mut exempt = Vec::new();
         let mut builder = reqwest::Client::builder();
@@ -126,11 +136,18 @@ impl Fetcher {
         ));
         let ua = HeaderValue::from_str(&config.user_agent)
             .map_err(|_| Error::Header("user-agent".into()))?;
-        let credentials = config
+        let credentials: Vec<(HostCredentials, HeaderMap)> = config
             .credentials
             .iter()
             .map(|c| Ok((c.clone(), credential_headers(c)?)))
             .collect::<Result<_>>()?;
+        if config.browser_fingerprint.is_some()
+            && credentials
+                .iter()
+                .any(|(_, h)| h.contains_key(header::USER_AGENT))
+        {
+            return Err(Error::Header(FIXED_USER_AGENT.into()));
+        }
         // 直连用自研客户端（内存可控）；有出口代理时交给 reqwest 处理代理协议。
         // 即使配了代理也保留直连客户端：NO_PROXY / allow_hosts / allow_cidrs 命中的目标
         // 必须绕过代理，否则内网地址会进出口代理日志。
@@ -147,6 +164,7 @@ impl Fetcher {
             config.max_connections_per_host,
             stages.clone(),
             ua.clone(),
+            config.browser_fingerprint,
         )?;
         if config.proxy.is_none() {
             return Ok(Self {
@@ -197,6 +215,15 @@ impl Fetcher {
             bypass,
             waits,
         })
+    }
+
+    /// 测试用：指纹模拟路径改用自己的 CA。
+    #[cfg(test)]
+    pub(crate) fn direct_client(&self) -> &client::Client {
+        match &self.transport {
+            Transport::Direct(client) => client,
+            Transport::Proxy { direct, .. } => direct,
+        }
     }
 
     pub fn config(&self) -> &FetcherConfig {
@@ -285,6 +312,7 @@ impl Fetcher {
         let status = stream.status;
         let mut headers = stream.headers;
         let direct = matches!(stream.response, Resp::Direct(_));
+        let fingerprint = stream.response.fingerprint();
         let (body, mut truncated) = read_body(
             stream.response,
             max,
@@ -312,6 +340,17 @@ impl Fetcher {
         if let Some(usage) = stream.session_use.take() {
             usage.finish(status);
         }
+        let browser_fingerprint = match fingerprint {
+            client::FingerprintUse::Active(profile) => Some(profile),
+            client::FingerprintUse::Off => None,
+            client::FingerprintUse::FellBack(profile) => {
+                warnings.push(format!(
+                    "fingerprint_fallback: {} chose a TLS algorithm that profile {profile} offers but pagesift does not implement; this request used an ordinary pagesift connection and user agent",
+                    stream.final_url.host_str().unwrap_or_default(),
+                ));
+                None
+            }
+        };
         Ok(FetchResponse {
             final_url: stream.final_url,
             status,
@@ -325,6 +364,7 @@ impl Fetcher {
             truncated,
             not_modified: status == 304,
             warnings,
+            browser_fingerprint,
         })
     }
 
@@ -352,6 +392,9 @@ impl Fetcher {
         let request_override = req.timeout;
         let total_cap = req.timeout.unwrap_or(self.config.total_timeout);
         let extra = request_headers(&req)?;
+        if self.config.browser_fingerprint.is_some() && extra.contains_key(header::USER_AGENT) {
+            return Err(Error::Header(FIXED_USER_AGENT.into()));
+        }
         let origin = self.check_url(&req.url)?;
         if req.session.is_some() && extra.contains_key(header::COOKIE) {
             return Err(Error::Header(
