@@ -19,10 +19,24 @@ fn east_asian(c: char) -> bool {
         | 0xFF00..=0xFFEF) // [协议] 全角与半角形式
 }
 
-/// 拉丁文为主的页上去掉零星的东亚文字，去完变空的行丢掉。
+/// 和数学符号形似的汉字：数学页上的减号、等号、加号常被认成它们。
+fn lookalike(c: char) -> Option<char> {
+    match c {
+        '一' => Some('-'),
+        '二' => Some('='),
+        '十' => Some('+'),
+        _ => None,
+    }
+}
+
+/// 拉丁文为主的页上去掉零星的东亚文字（形似符号的换回符号），去完变空的行丢掉。
+/// 形似符号的字不计入占比：公式多的页上它们可能很多，但不说明这是中文页。
 pub(crate) fn drop_stray_east_asian(lines: &mut Vec<Line>) {
     let (mut ea, mut letters) = (0usize, 0usize);
     for c in lines.iter().flat_map(|l| l.text.chars()) {
+        if lookalike(c).is_some() {
+            continue;
+        }
         if east_asian(c) {
             ea += 1;
             letters += 1;
@@ -30,12 +44,18 @@ pub(crate) fn drop_stray_east_asian(lines: &mut Vec<Line>) {
             letters += 1;
         }
     }
-    if ea == 0 || ea as f64 > letters as f64 * STRAY_SHARE {
+    if ea as f64 > letters as f64 * STRAY_SHARE
+        || !lines.iter().any(|l| l.text.chars().any(east_asian))
+    {
         return;
     }
     for l in lines.iter_mut() {
         if l.text.chars().any(east_asian) {
-            l.text = l.text.chars().filter(|&c| !east_asian(c)).collect();
+            l.text = l
+                .text
+                .chars()
+                .filter_map(|c| lookalike(c).or((!east_asian(c)).then_some(c)))
+                .collect();
         }
     }
     lines.retain(|l| l.text.chars().any(char::is_alphanumeric));
@@ -67,7 +87,7 @@ mod tests {
         drop_stray_east_asian(&mut l);
         assert_eq!(
             texts(&l),
-            ["God then sends at Head quarters that no doubt", "2a-x  1 x"]
+            ["God then sends at Head quarters that no doubt", "2a-x - 1 x"]
         );
     }
 
@@ -79,5 +99,12 @@ mod tests {
         let mut mixed = vec![line("The word 中文 means Chinese")];
         drop_stray_east_asian(&mut mixed);
         assert_eq!(texts(&mixed), ["The word 中文 means Chinese"]);
+    }
+
+    #[test]
+    fn 数学页的形似字换回符号() {
+        let mut l = vec![line("dx dz =一"), line("1+ 二 7 x 2 十 y 一")];
+        drop_stray_east_asian(&mut l);
+        assert_eq!(texts(&l), ["dx dz =-", "1+ = 7 x 2 + y -"]);
     }
 }
