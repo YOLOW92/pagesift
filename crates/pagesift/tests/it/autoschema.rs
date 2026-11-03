@@ -63,10 +63,19 @@ async fn generate_cache_heal_and_resolve() {
     let (r, c) = (replies.clone(), calls.clone());
     let llm = Router::new()
         .route("/v1/models/{m}", get(|| async { axum::Json(json!({"context_window": 8192, "max_completion_tokens": 1024})) }))
-        .route("/v1/chat/completions", post(move || {
-            c.fetch_add(1, Ordering::SeqCst);
-            let content = r.lock().unwrap().pop_front().unwrap_or(json!({})).to_string();
-            async move { axum::Json(json!({"choices": [{"message": {"role": "assistant", "content": content}, "finish_reason": "stop"}]})) }
+        .route("/v1/chat/completions", post(move |body: String| {
+            // 限额探测（max_tokens = 1）单独回应：带限额响应头，不消耗录制的回复
+            let probe = body.contains("\"max_tokens\":1}") || body.contains("\"max_tokens\":1,");
+            if !probe {
+                c.fetch_add(1, Ordering::SeqCst);
+            }
+            let content = if probe { "{}".to_string() } else { r.lock().unwrap().pop_front().unwrap_or(json!({})).to_string() };
+            async move {
+                (
+                    [("x-ratelimit-limit-tokens", "8000")],
+                    axum::Json(json!({"choices": [{"message": {"role": "assistant", "content": content}, "finish_reason": "stop"}]})),
+                )
+            }
         }));
     let l2 = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let llm_url = format!("http://{}/v1", l2.local_addr().unwrap());
