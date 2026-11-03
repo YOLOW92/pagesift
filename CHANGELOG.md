@@ -2,6 +2,14 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.91.1] — 2026-11-03
+
+Fixes a small bug. See [the release notes](docs/releases/0.91.1.md).
+
+### Fixed
+- `pagesift-cluster` did not compile with newer stable Rust under `-D warnings` (deprecated
+  `AtomicU64::fetch_update` in the gateway lease code).
+
 ## [0.91.0] — 2026-11-03
 
 Fixes from a code review of 0.90.0: failures that 0.90 logged and reported as success are now reported.
