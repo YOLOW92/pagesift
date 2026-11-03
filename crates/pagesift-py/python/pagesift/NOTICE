@@ -103,3 +103,7 @@ and Dasgupta et al., "De-duping URLs via rewrite rules" (KDD 2008).
 
 - markup5ever (https://github.com/servo/html5ever), MIT OR Apache-2.0.
   The HTML named character reference table (crates/pagesift-html/src/entities.rs).
+
+- rustls (https://github.com/rustls/rustls), Apache-2.0 OR ISC OR MIT.
+  crates/pagesift-rustls is the rustls 0.23.46 source with one added hook; its
+  license files and the list of changes are in that directory.

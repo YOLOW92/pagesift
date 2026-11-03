@@ -12,7 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ja4 import summarize  # noqa: E402
 
-# 档案有意改掉的请求头（见 fingerprint.md 的已知差异）：录制用的是无头版，档案写普通版的值。
+# 档案有意改掉的请求头：录制用的是无头版，档案写普通版的值。
 HEADLESS = {"user-agent": ("HeadlessChrome/", "Chrome/")}
 # 本来就每连接不同，不比较：扩展的线上顺序、ECH payload 的长度（144/176/208/240 随机）、authority 无关项
 SKIP_DETAILS = {"fe0d ech_outer"}
