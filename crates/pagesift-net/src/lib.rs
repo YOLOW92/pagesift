@@ -8,9 +8,7 @@
 
 #![forbid(unsafe_code)]
 
-pub mod budget;
 mod charset;
-pub mod checkpoint;
 mod client;
 mod credentials;
 mod dns;
@@ -18,42 +16,40 @@ mod fetch;
 mod host_connections;
 mod localhost;
 pub mod media;
-pub mod scheduler;
+mod offload;
+pub mod resources;
 mod session;
 mod ssrf;
 mod stages;
 mod tls;
 mod ua;
+mod wait;
 
-pub use budget::{
-    BackpressureController, BudgetStatus, DEFAULT_MAX_BYTES, DEFAULT_WARN_BYTES, LeakDetector,
-    MemGuard,
-};
-pub use checkpoint::{RecoveryEngine, TaskSnapshot};
 pub use media::{
-    ChunkFetcher, DashAdaptationSet, DashError, DashManifest, DashRepresentation, DashSegment,
-    HlsMasterPlaylist, HlsMediaPlaylist, HlsPlaylist, HlsSegment, HlsVariant, M3u8Error,
-    StreamVerifier, VerificationReport, parse_m3u8, parse_mpd,
+    DashAdaptationSet, DashError, DashManifest, DashRepresentation, DashSegment, HlsMasterPlaylist,
+    HlsMediaPlaylist, HlsPlaylist, HlsSegment, HlsVariant, M3u8Error, StreamVerifier,
+    VerificationReport, parse_m3u8, parse_mpd,
 };
-pub use scheduler::{CrawlResult, CrawlTask, DomainLimiter, PushError, RingQueue, WorkerPool};
 
 /// 只做"看字节猜编码"，不解码。基准测试与诊断工具用它。
 pub use charset::detect as detect_charset;
 pub use charset::{CharsetSource, Decoded, decode, decode_owned};
 pub use credentials::{HostCredentials, Secret, redact_url};
-pub use dns::{BoxFuture, DnsLookup, SystemLookup};
+pub use dns::{BoxFuture, DnsLookup, SystemLookup, negative_ttl};
 pub use fetch::{
     BoxError, Error, FetchRequest, FetchResponse, FetchStream, Fetcher, FetcherConfig,
     RedirectGuard, RedirectHop, Result, TimeoutPhase, Timings,
 };
 pub use host_connections::HostConnectionStats;
+pub use offload::{CpuJob, set_cpu_executor};
 pub use reqwest::header::HeaderMap;
 pub use session::{CookieSession, SessionConfig, SessionError, SessionSnapshot, SessionStats};
 pub use ssrf::{Blocked, IpCidr, SsrfPolicy, check_url, is_public};
 pub use stages::{
-    NetworkStage, PhaseSnapshot, StageController, StageControllerConfig, StageLimit, StageOutcome,
-    StagePermit, StageSnapshot, TransportPhase,
+    NetworkStage, PhaseSnapshot, StageController, StageOutcome, StagePermit, StageSnapshot,
+    TransportPhase,
 };
 pub use tls::TlsErrorKind;
 pub use ua::{DEFAULT_USER_AGENT, UserAgentError, product_token, validate_user_agent};
 pub use url::Url;
+pub use wait::WaitPrice;

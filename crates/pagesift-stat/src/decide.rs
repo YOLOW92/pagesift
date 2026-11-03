@@ -1,11 +1,11 @@
-//! 决策（DESIGN §5.4）：影子价格、"价值 − 价格 × 成本"的取舍、Thompson 选择、信息价值、等待。
+//! 决策：影子价格、"价值 − 价格 × 成本"的取舍、Thompson 选择、信息价值、等待。
 
 use crate::beta::Posterior;
 use crate::rng::Rng;
 use crate::special::beta_inc;
 use crate::survival::Survival;
 
-/// 准入器管理的四种资源（DESIGN §6.2）。
+/// 准入器管理的四种资源。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Resource {
     /// CPU 秒。
@@ -69,10 +69,10 @@ impl ShadowPrices {
     }
 }
 
-/// 影子价格的排队近似（DESIGN §5.4-D）：`λ ≈ W/(1−ρ)`，`ρ` 是利用率、`W` 是平均服务时间。
+/// 影子价格的排队近似：`λ ≈ W/(1−ρ)`，`ρ` 是利用率、`W` 是平均服务时间。
 ///
 /// M/M/1 的平均逗留时间是 `W/(1−ρ)`（Kleinrock, Queueing Systems Vol. 1, 1975, §3.2）；
-/// 用它对占用量的导数量级作为边际排队代价。DESIGN 写的是 M/M/c 近似，这里对每种资源取
+/// 用它对占用量的导数量级作为边际排队代价。多服务台本应按 M/M/c，这里对每种资源取
 /// 单服务台形式，c 台时 `ρ` 用总利用率，误差只在中等负载、且只影响价格的大小不影响方向。
 /// 空闲时价格趋于 `W`，饱和时趋于无穷。
 pub fn shadow_price(utilization: f64, service_time: f64) -> f64 {
@@ -95,7 +95,7 @@ pub struct Why {
     pub sampled: bool,
 }
 
-/// 做 `a` ⇔ `P(有增益)·价值 > Σ λ_r·成本_r(a)`（DESIGN §5.4-D）；`P` 用 Thompson 采样从后验抽取。
+/// 做 `a` ⇔ `P(有增益)·价值 > Σ λ_r·成本_r(a)`；`P` 用 Thompson 采样从后验抽取。
 pub fn decide(
     post: &Posterior,
     value: f64,
@@ -168,7 +168,7 @@ pub fn value_of_information(post: &Posterior, value: f64, charge: f64) -> f64 {
     (perfect - (mean * value - charge).max(0.0)).max(0.0)
 }
 
-/// 等待决策（DESIGN §5.4-W）：已等 `waited`，再等 `step`：
+/// 等待决策：已等 `waited`，再等 `step`：
 /// 继续 ⇔ `h(t, Δ)·价值 > λ·Δ·占用`。没有足够数据（`h` 为 NaN）时返回 `None`，由调用方用上层分布。
 pub fn keep_waiting(
     done: &Survival,
@@ -185,7 +185,7 @@ pub fn keep_waiting(
     Some(h * value > price * step * occupancy)
 }
 
-/// 下次重试的时刻（DESIGN §5.4-W）：故障持续时长分布上恢复概率达到 `1−δ` 的时刻。
+/// 下次重试的时刻：故障持续时长分布上恢复概率达到 `1−δ` 的时刻。
 pub fn retry_after(outage: &Survival, delta: crate::Delta) -> Option<f64> {
     outage.time_to(1.0 - delta.get())
 }

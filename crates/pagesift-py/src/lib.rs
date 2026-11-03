@@ -3,15 +3,19 @@
 //! 这个 crate 不写 `#![forbid(unsafe_code)]`：PyO3 的宏会生成 unsafe 代码（PRD 第 7 节规定绑定层是唯一的例外）。
 //! 我们自己的代码里不写 unsafe。抓取和处理都在 Rust 里完成，期间释放 GIL。
 
+mod crawl;
 mod document;
 mod engine;
 mod errors;
 mod options;
+mod parse;
 
 #[pyo3::pymodule]
 mod _pagesift {
     use pyo3::prelude::*;
 
+    #[pymodule_export]
+    use crate::crawl::Crawl;
     #[pymodule_export]
     use crate::document::Document;
     #[pymodule_export]

@@ -99,6 +99,14 @@ pub(crate) enum Command {
         /// Decode the input with this charset (e.g. Shift_JIS, GBK) instead of detecting it
         #[arg(long)]
         charset: Option<String>,
+        /// Write the Markdown file and an index.jsonl line into this directory (same layout as
+        /// crawl --out) instead of printing
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Export the images the page references (fetched politely relative to --base-url) into
+        /// <out>/images/<hash>.<ext> and point the Markdown links there
+        #[arg(long, requires = "out")]
+        export_images: bool,
     },
     /// Incrementally collect a JSON API; emit acknowledged upsert/delete events
     Collect {
@@ -180,6 +188,9 @@ pub(crate) enum Command {
         /// Disable the result cache
         #[arg(long)]
         no_cache: bool,
+        /// Deployment role (default: cluster.role in the config, else standalone)
+        #[arg(long, value_parser = ["standalone", "all", "gateway", "worker", "standby"])]
+        role: Option<String>,
         #[command(flatten)]
         allow: AllowCidrs,
     },
@@ -201,6 +212,21 @@ pub(crate) enum Command {
         /// Egress proxy URL (e.g. http://127.0.0.1:7890, socks5://127.0.0.1:1080)
         #[arg(long)]
         proxy: Option<String>,
+        /// Write the Markdown file and an index.jsonl line into this directory (same layout as
+        /// crawl --out) instead of printing
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Also write the page to this WARC file (.warc, or .warc.gz for gzip members)
+        #[arg(long)]
+        warc: Option<PathBuf>,
+        /// Print how the result was produced (render and merge decisions with their inputs) to
+        /// stderr; also in metadata.pagesift.plan with --format json
+        #[arg(long)]
+        explain: bool,
+        /// Export images (PDF embedded images, Office media, web page images fetched politely) as
+        /// files: with --out they go to images/<hash>.<ext> and Markdown links point there
+        #[arg(long)]
+        export_images: bool,
         #[command(flatten)]
         allow: AllowCidrs,
     },
@@ -215,6 +241,9 @@ pub(crate) enum Command {
         /// (why the crawl stopped; coverage with --adaptive)
         #[arg(long)]
         out: Option<PathBuf>,
+        /// Also write every page to this WARC file (.warc, or .warc.gz for gzip members)
+        #[arg(long)]
+        warc: Option<PathBuf>,
         /// Maximum discovery depth from the start page
         #[arg(long)]
         depth: Option<usize>,
@@ -261,24 +290,29 @@ pub(crate) enum Command {
         /// Maximum number of attachments (default: same as --limit)
         #[arg(long, requires = "attachments")]
         attachment_limit: Option<usize>,
-        /// Tuning mode: adaptive (senses hardware and dynamically scales) or conservative
-        #[arg(long, default_value = "adaptive")]
-        tuning_mode: String,
+        /// Ignored (kept so old scripts still run). Concurrency now adapts online: the global limit
+        /// follows the measured scalability curve (USL) and each site follows its latency gradient
+        #[arg(long, hide = true)]
+        tuning_mode: Option<String>,
+        /// Export images (PDF embedded images, Office media, web page images fetched politely) as
+        /// files: with --out they go to images/<hash>.<ext> and Markdown links point there
+        #[arg(long)]
+        export_images: bool,
         #[command(flatten)]
         allow: AllowCidrs,
     },
-    /// Proactively explore host machine's performance curve and output an autonomous tuning profile
+    /// Print the detected hardware and the cold-start concurrency as JSON (tuning itself happens online)
     Tune {
-        /// Target profile intensity: standard, aggressive, or extreme
+        /// Ignored; kept for compatibility
         #[arg(long, default_value = "extreme", value_parser = ["standard", "aggressive", "extreme"])]
         profile: String,
         /// File to write the JSON profile to (prints to stdout if omitted)
         #[arg(long)]
         out: Option<PathBuf>,
     },
-    /// Diagnose current performance bottlenecks, latency distributions, and hardware saturation
+    /// Show CPU topology, memory budget, file-descriptor headroom and the concurrency limits
     Diagnose {
-        /// Include deep performance saturation and latency quantile analysis
+        /// Also show the fitted scalability curve (USL), when there are samples
         #[arg(long)]
         performance: bool,
         /// Output diagnosis report in JSON format

@@ -8,7 +8,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-pagesift-sys = { version = "0.81.5", path = "../pagesift-sys" }
+pagesift-sys = { version = "0.90.0", path = "../pagesift-sys" }
 anyhow = "1.0.104"
 blake3 = "1.8.7"
 axum = "0.8.9"
@@ -19,22 +19,33 @@ flate2 = "1.1.10"
 futures-util = "0.3.34"
 fs2 = "0.4.3"
 httpdate = "1.0.3"
-pagesift-api = { version = "0.81.5", path = "../pagesift-api" }
-pagesift-cdp = { version = "0.81.5", path = "../pagesift-cdp" }
-pagesift-content = { version = "0.81.5", path = "../pagesift-content" }
-pagesift-diff = { version = "0.81.5", path = "../pagesift-diff" }
-pagesift-extract = { version = "0.81.5", path = "../pagesift-extract" }
-pagesift-html = { version = "0.81.5", path = "../pagesift-html" }
-pagesift-llm = { version = "0.81.5", path = "../pagesift-llm" }
-pagesift-mcp = { version = "0.81.5", path = "../pagesift-mcp" }
-pagesift-net = { version = "0.81.5", path = "../pagesift-net" }
-pagesift-office = { version = "0.81.5", path = "../pagesift-office" }
-pagesift-pdf = { version = "0.81.5", path = "../pagesift-pdf" }
-pagesift-policy = { version = "0.81.5", path = "../pagesift-policy" }
-pagesift-search = { version = "0.81.5", path = "../pagesift-search" }
-pagesift-store = { version = "0.81.5", path = "../pagesift-store" }
+pagesift-api = { version = "0.90.0", path = "../pagesift-api" }
+pagesift-cdp = { version = "0.90.0", path = "../pagesift-cdp" }
+pagesift-cluster = { version = "0.90.0", path = "../pagesift-cluster" }
+pagesift-content = { version = "0.90.0", path = "../pagesift-content" }
+pagesift-engine = { version = "0.90.0", path = "../pagesift-engine" }
+pagesift-flow = { version = "0.90.0", path = "../pagesift-flow" }
+pagesift-frontier = { version = "0.90.0", path = "../pagesift-frontier" }
+pagesift-plan = { version = "0.90.0", path = "../pagesift-plan" }
+pagesift-sink = { version = "0.90.0", path = "../pagesift-sink" }
+pagesift-stat = { version = "0.90.0", path = "../pagesift-stat" }
+pagesift-diff = { version = "0.90.0", path = "../pagesift-diff" }
+pagesift-extract = { version = "0.90.0", path = "../pagesift-extract" }
+pagesift-html = { version = "0.90.0", path = "../pagesift-html" }
+pagesift-media = { version = "0.90.0", path = "../pagesift-media" }
+pagesift-llm = { version = "0.90.0", path = "../pagesift-llm" }
+pagesift-mcp = { version = "0.90.0", path = "../pagesift-mcp" }
+pagesift-net = { version = "0.90.0", path = "../pagesift-net" }
+pagesift-office = { version = "0.90.0", path = "../pagesift-office" }
+pagesift-pdf = { version = "0.90.0", path = "../pagesift-pdf" }
+pagesift-policy = { version = "0.90.0", path = "../pagesift-policy" }
+pagesift-search = { version = "0.90.0", path = "../pagesift-search" }
+pagesift-store = { version = "0.90.0", path = "../pagesift-store" }
 quick-xml = "0.42.0"
 regex = "1.13.1"
+# 多服务器模式的网关证书与工人信任根（workspace 里已有，见 pagesift-net、pagesift-cluster）
+rustls-native-certs = "0.8.5"
+tokio-rustls = { version = "0.26.6", default-features = false, features = ["ring", "tls12", "logging"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "net", "signal", "fs", "io-util"] }
@@ -45,6 +56,8 @@ url = "2.5.8"
 
 [dev-dependencies]
 http-body-util = "0.1.5"
+# 一页一棵 DOM 的不变量测试要数建树次数（tests/dom_once.rs）
+pagesift-html = { path = "../pagesift-html", features = ["count-builds"] }
 pagesift-store = { path = "../pagesift-store" }
 serde_json = "1.0.154"
 tempfile = "3.27.0"

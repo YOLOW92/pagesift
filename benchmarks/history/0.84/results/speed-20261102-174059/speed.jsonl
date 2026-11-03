@@ -1,0 +1,12 @@
+{"bin": "old", "round": 1, "concurrency": 1, "pages": 1834, "p50_ms": 3.903, "p95_ms": 17.995, "pages_per_s": 157.2}
+{"bin": "old", "round": 1, "concurrency": 16, "pages": 1834, "p50_ms": 6.43, "p95_ms": 23.681, "pages_per_s": 808.8}
+{"bin": "new", "round": 1, "concurrency": 1, "pages": 1834, "p50_ms": 4.142, "p95_ms": 16.912, "pages_per_s": 156.2}
+{"bin": "new", "round": 1, "concurrency": 16, "pages": 1834, "p50_ms": 7.887, "p95_ms": 59.399, "pages_per_s": 745.4}
+{"bin": "old", "round": 2, "concurrency": 1, "pages": 1834, "p50_ms": 4.311, "p95_ms": 18.571, "pages_per_s": 146.7}
+{"bin": "old", "round": 2, "concurrency": 16, "pages": 1834, "p50_ms": 9.059, "p95_ms": 59.414, "pages_per_s": 768.2}
+{"bin": "new", "round": 2, "concurrency": 1, "pages": 1834, "p50_ms": 4.594, "p95_ms": 19.725, "pages_per_s": 137.0}
+{"bin": "new", "round": 2, "concurrency": 16, "pages": 1834, "p50_ms": 22.145, "p95_ms": 178.626, "pages_per_s": 320.0}
+{"bin": "old", "round": 3, "concurrency": 1, "pages": 1834, "p50_ms": 3.881, "p95_ms": 17.614, "pages_per_s": 159.0}
+{"bin": "old", "round": 3, "concurrency": 16, "pages": 1834, "p50_ms": 8.681, "p95_ms": 58.998, "pages_per_s": 733.5}
+{"bin": "new", "round": 3, "concurrency": 1, "pages": 1834, "p50_ms": 4.216, "p95_ms": 17.534, "pages_per_s": 150.2}
+{"bin": "new", "round": 3, "concurrency": 16, "pages": 1834, "p50_ms": 7.266, "p95_ms": 49.756, "pages_per_s": 913.9}

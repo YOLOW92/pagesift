@@ -114,6 +114,38 @@ fn parses_a_full_config_and_rejects_browser_like_user_agents() {
     )
     .unwrap();
     assert!(dup.scraper(false).is_err(), "duplicate egress names");
+    // 旧配置没有 class：缺省 direct；direct 可以不写代理；其他类别必须有代理
+    assert_eq!(
+        sc.egress_classes.get("tunnel-a"),
+        Some(&pagesift_policy::EgressClass::Direct)
+    );
+    let classes: Config = toml::from_str(
+        "[[egress]]\nname = \"dc\"\nproxy = \"http://h:1\"\nclass = \"datacenter\"\n[[egress]]\nname = \"home\"\nclass = \"direct\"",
+    )
+    .unwrap();
+    let csc = classes.scraper(false).unwrap();
+    assert_eq!(
+        csc.egress,
+        [
+            ("dc".to_string(), "http://h:1".to_string()),
+            ("home".to_string(), String::new())
+        ]
+    );
+    assert_eq!(
+        csc.egress_classes.get("dc"),
+        Some(&pagesift_policy::EgressClass::Datacenter)
+    );
+    let no_proxy: Config = toml::from_str("[[egress]]\nname = \"m\"\nclass = \"mobile\"").unwrap();
+    assert!(
+        no_proxy.scraper(false).is_err(),
+        "mobile egress needs a proxy"
+    );
+    assert!(
+        toml::from_str::<Config>(
+            "[[egress]]\nname = \"x\"\nproxy = \"http://h:1\"\nclass = \"satellite\""
+        )
+        .is_err()
+    );
 
     let bad: Config =
         toml::from_str("[fetch]\nuser_agent = \"Mozilla/5.0 (Windows NT 10.0)\"").unwrap();
@@ -266,25 +298,24 @@ fn server_timeouts_are_configurable_and_reject_zero() {
 }
 
 #[test]
-fn tuning_profile_keeps_the_limits_written_in_the_config() {
+fn limits_written_in_the_config_are_priors_and_hard_caps() {
     let cfg: Config = toml::from_str(
         "[fetch]\nmax_body_mb = 3\n[policy]\nper_host_concurrency = 5\nglobal_concurrency = 7\n",
     )
     .unwrap();
-    let mut c = cfg.scraper(false).unwrap();
-    crate::adaptive::TuningProfile::new(crate::adaptive::TuningMode::Adaptive)
-        .apply_to_config(&mut c);
-    cfg.apply_user_limits(&mut c);
+    let c = cfg.scraper(false).unwrap();
     assert_eq!(c.fetcher.max_body_bytes, 3 * 1024 * 1024);
     assert_eq!(c.policy.rate.per_host_concurrency, 5);
     assert_eq!(c.policy.rate.global_concurrency, 7);
+    assert_eq!(c.policy.rate.global_ceiling, Some(7));
 
-    // 没写的项仍由调优决定
-    let profile = crate::adaptive::TuningProfile::new(crate::adaptive::TuningMode::Adaptive);
-    let empty = Config::default();
-    let mut c = empty.scraper(false).unwrap();
-    profile.apply_to_config(&mut c);
-    empty.apply_user_limits(&mut c);
-    assert_eq!(c.policy.rate.global_concurrency, profile.global_concurrency);
-    assert_eq!(c.fetcher.max_body_bytes, profile.max_body_bytes);
+    // 没写的项：冷启动值是 0.81 的现值，全局并发没有用户上限（由 USL 控制器在安全余量内调整）
+    let c = Config::default().scraper(false).unwrap();
+    let d = pagesift_policy::RateLimitConfig::default();
+    assert_eq!(c.policy.rate.global_concurrency, d.global_concurrency);
+    assert_eq!(c.policy.rate.global_ceiling, None);
+    assert_eq!(
+        c.fetcher.max_body_bytes,
+        pagesift_net::FetcherConfig::default().max_body_bytes
+    );
 }

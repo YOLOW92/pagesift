@@ -29,6 +29,7 @@ mod readability;
 mod script_links;
 mod tag_filter;
 mod text;
+mod title_match;
 
 use extract::Relax;
 use pagesift_html::Html;
@@ -139,6 +140,21 @@ pub fn process_with_workspace(
     let document = process_dom(html, opts, &dom, Some(&mut workspace.extract));
     workspace.html.recycle(dom);
     document
+}
+
+/// 和 [`process_with_workspace`] 一样，提取完后在同一棵 DOM 上再执行 `then`（例如判断页面有没有客户端代码），
+/// 一页只建一棵树。
+pub fn process_with_workspace_then<R>(
+    html: &str,
+    opts: &Options,
+    workspace: &mut ProcessWorkspace,
+    then: impl FnOnce(&Html<'_>, &Document) -> R,
+) -> (Document, R) {
+    let dom = Html::parse_with_scratch(html, &mut workspace.html);
+    let document = process_dom(html, opts, &dom, Some(&mut workspace.extract));
+    let extra = then(&dom, &document);
+    workspace.html.recycle(dom);
+    (document, extra)
 }
 
 /// 是否对所有页面都强制尝试正文定位（对照用，默认关闭）。

@@ -9,16 +9,26 @@ pub struct Rng {
     s: [u64; 4], // [推导] 256 位状态
 }
 
+/// [推导] SplitMix64 的状态增量（黄金比例 2^64/φ，Steele, Lea, Flood, OOPSLA 2014）
+pub const SPLITMIX64_GAMMA: u64 = 0x9E37_79B9_7F4A_7C15;
+
+/// SplitMix64 的一步（G. L. Steele, D. Lea, C. H. Flood, "Fast Splittable Pseudorandom Number
+/// Generators", OOPSLA 2014；常数取自 S. Vigna 的参考实现 splitmix64.c）：状态加增量后混合输出。
+/// 输出只由输入决定，也当作 64 位整数的混合哈希用。
+pub fn splitmix64(x: u64) -> u64 {
+    let mut z = x.wrapping_add(SPLITMIX64_GAMMA);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9); // [推导] SplitMix64 的移位与乘子
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB); // [推导] 同上
+    z ^ (z >> 31) // [推导] 同上
+}
+
 impl Rng {
     pub fn seed(seed: u64) -> Self {
         let mut x = seed;
         let mut next = || {
-            // [推导] SplitMix64（Steele, Lea, Flood, OOPSLA 2014）的增量与混合常数
-            x = x.wrapping_add(0x9E37_79B9_7F4A_7C15);
-            let mut z = x;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9); // [推导] 同上
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB); // [推导] 同上
-            z ^ (z >> 31) // [推导] 同上
+            let z = splitmix64(x);
+            x = x.wrapping_add(SPLITMIX64_GAMMA);
+            z
         };
         Self {
             s: [next(), next(), next(), next()],

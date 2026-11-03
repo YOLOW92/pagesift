@@ -16,10 +16,9 @@ use crate::dns::{
     BoxFuture, DnsLookup, GuardedResolver, ReqwestResolver, ResolveError, SystemLookup,
 };
 use crate::ssrf::{Blocked, IpCidr, SsrfPolicy, is_public};
-use crate::stages::{
-    NetworkStage, PhaseSnapshot, StageController, StageControllerConfig, StagePermit, StageSnapshot,
-};
+use crate::stages::{NetworkStage, PhaseSnapshot, StageController, StagePermit, StageSnapshot};
 use crate::ua::{DEFAULT_USER_AGENT, UserAgentError, validate_user_agent};
+use crate::wait::{HostWait, Phase, WaitTable};
 
 mod proxy;
 #[cfg(test)]
@@ -38,11 +37,12 @@ pub struct Fetcher {
     stages: StageController,
     resolver: Arc<GuardedResolver>,
     bypass: ProxyBypass,
+    waits: Arc<WaitTable>,
 }
 
-/// 走代理时为判断“域名是否解析到 allow_cidrs”而做的本地解析，最多等这么久。
-/// 内网 DNS 正常时毫秒级返回；2 秒足够覆盖慢的内网解析器，又不会让只能经代理
-/// 出网的环境每个请求都卡满默认 5 秒的 dns_timeout。
+/// [策略] 先验包 v0：0.81 的现值。走代理时为判断“域名是否解析到 allow_cidrs”而做的本地解析的
+/// 硬上限：内网 DNS 正常时毫秒级返回；2 秒足够覆盖慢的内网解析器，又不会让只能经代理
+/// 出网的环境每个请求都卡满默认 5 秒的 dns_timeout。实际等待与 DNS 阶段相同。
 const BYPASS_DNS_TIMEOUT: Duration = Duration::from_secs(2);
 
 impl fmt::Debug for Fetcher {
@@ -107,7 +107,12 @@ impl Fetcher {
         }
         // 白名单里的主机解析到内网地址也放行
         exempt.extend(config.ssrf.allow_hosts.iter().cloned());
-        let stages = StageController::new(config.stage_controller.clone());
+        let stages = StageController::new();
+        let waits = Arc::new(WaitTable::new(
+            config.wait_price.clone(),
+            config.delta,
+            config.happy_eyeballs_delay,
+        ));
         let resolver = Arc::new(GuardedResolver::new(
             config.dns.clone(),
             config.ssrf.clone(),
@@ -116,6 +121,7 @@ impl Fetcher {
             config.dns_negative_ttl,
             config.dns_transient_retries,
             stages.clone(),
+            waits.clone(),
         ));
         let ua = HeaderValue::from_str(&config.user_agent)
             .map_err(|_| Error::Header("user-agent".into()))?;
@@ -133,8 +139,7 @@ impl Fetcher {
             config.dns_timeout,
             config.tls_timeout,
             config.first_byte_timeout,
-            config.happy_eyeballs_delay,
-            config.tail_threshold,
+            waits.clone(),
             config.pool_idle_timeout,
             config.pool_max_idle_per_host,
             config.adaptive_host_connections,
@@ -150,6 +155,7 @@ impl Fetcher {
                 stages,
                 resolver,
                 bypass,
+                waits,
             });
         }
         let build = |builder: reqwest::ClientBuilder| {
@@ -188,6 +194,7 @@ impl Fetcher {
             stages,
             resolver,
             bypass,
+            waits,
         })
     }
 
@@ -220,10 +227,21 @@ impl Fetcher {
         let Some(host) = self.bypass.resolution_target(url) else {
             return false;
         };
-        let limit = self.config.dns_timeout.min(BYPASS_DNS_TIMEOUT);
-        match tokio::time::timeout(limit, self.resolver.resolve_checked(host)).await {
+        let cap = self.config.dns_timeout.min(BYPASS_DNS_TIMEOUT);
+        let wait = self.waits.host(host);
+        let started = Instant::now();
+        match tokio::time::timeout(
+            wait.limit(Phase::Dns, cap),
+            self.resolver.resolve_checked(host),
+        )
+        .await
+        {
             Ok(Ok(ips)) => self.bypass.resolved_allowed(&ips),
-            _ => false,
+            Ok(Err(_)) => false,
+            Err(_) => {
+                wait.gave_up(Phase::Dns, started.elapsed(), cap);
+                false
+            }
         }
     }
 
@@ -235,8 +253,7 @@ impl Fetcher {
         self.stages.phase_snapshots()
     }
 
-    /// Admission for parsing or bounded tail work, sharing the same controller
-    /// as the network stages. Callers must finish the permit with the real outcome.
+    /// 解析阶段的遥测（与网络阶段同一个控制器，不排队）。调用方要用真实结果结束这个许可。
     pub async fn acquire_stage(&self, stage: NetworkStage) -> StagePermit {
         self.stages.acquire(stage).await
     }
@@ -259,7 +276,9 @@ impl Fetcher {
         guard: &dyn RedirectGuard,
     ) -> Result<FetchResponse> {
         let start = Instant::now();
-        let max = req.max_body_bytes.unwrap_or(self.config.max_body_bytes);
+        let max = req
+            .max_body_bytes
+            .unwrap_or_else(|| crate::resources::body_cap(self.config.max_body_bytes));
         let mut stream = self.open(req, guard, false).await?;
         let first_byte = stream.first_byte;
         let status = stream.status;
@@ -270,11 +289,19 @@ impl Fetcher {
             max,
             stream.deadline,
             stream.body_idle_timeout,
+            &mut stream.wait,
         )
         .await?;
         let mut warnings = Vec::new();
         let body = if direct {
-            let decoded = client::decode_body(&mut headers, body, max, truncated)?;
+            // 解压是纯 CPU 活：预计比跨线程往返还久时交给执行器（pagesift 的 CPU 工人），否则就地做
+            let (decoded, h) = crate::offload::on_cpu(body.len(), move || {
+                let decoded = client::decode_body(&mut headers, body, max, truncated);
+                (decoded, headers)
+            })
+            .await;
+            headers = h;
+            let decoded = decoded?;
             truncated = decoded.truncated;
             warnings = decoded.warnings;
             decoded.body
@@ -322,7 +349,7 @@ impl Fetcher {
     ) -> Result<FetchStream> {
         let start = Instant::now();
         let request_override = req.timeout;
-        let body_budget = req.timeout.unwrap_or(self.config.total_timeout);
+        let total_cap = req.timeout.unwrap_or(self.config.total_timeout);
         let extra = request_headers(&req)?;
         let origin = self.check_url(&req.url)?;
         if req.session.is_some() && extra.contains_key(header::COOKIE) {
@@ -368,10 +395,18 @@ impl Fetcher {
                     send.await?
                 }
             } else {
-                let first_byte = Instant::now() + self.config.first_byte_timeout;
-                match timeout_at(first_byte, send).await {
-                    Err(_) => return Err(Error::Timeout(TimeoutPhase::FirstByte)),
-                    Ok(result) => result?,
+                let wait = self.waits.host(url.host_str().unwrap_or_default());
+                let cap = self.config.first_byte_timeout;
+                let sent = Instant::now();
+                match timeout_at(sent + wait.limit(Phase::FirstByte, cap), send).await {
+                    Err(_) => {
+                        wait.gave_up(Phase::FirstByte, sent.elapsed(), cap);
+                        return Err(Error::Timeout(TimeoutPhase::FirstByte));
+                    }
+                    Ok(result) => {
+                        wait.done(Phase::FirstByte, sent.elapsed());
+                        result?
+                    }
                 }
             };
             let status = resp.status();
@@ -415,10 +450,10 @@ impl Fetcher {
                 ));
             }
             let measured_ttfb = resp.ttfb().unwrap_or_else(|| start.elapsed());
-            if measured_ttfb >= self.config.tail_threshold {
-                resp.move_to_tail(&self.stages).await;
-            }
-            let deadline = Instant::now() + body_budget;
+            let wait = self.waits.host(url.host_str().unwrap_or_default());
+            let body_started = Instant::now();
+            let deadline = body_started + wait.limit(Phase::Total, total_cap);
+            let body_idle_timeout = wait.limit(Phase::BodyIdle, self.config.body_idle_timeout);
             return Ok(FetchStream {
                 final_url: url,
                 status,
@@ -427,8 +462,15 @@ impl Fetcher {
                 first_byte: measured_ttfb,
                 response: resp,
                 deadline,
-                body_idle_timeout: self.config.body_idle_timeout,
+                body_idle_timeout,
                 session_use,
+                wait: BodyWait {
+                    host: wait,
+                    started: body_started,
+                    total_cap,
+                    idle_cap: self.config.body_idle_timeout,
+                    max_gap: Duration::ZERO,
+                },
             });
         }
     }

@@ -1,4 +1,4 @@
-//! 层级收缩：全局 → 站点 → 路径族（DESIGN §5.6），以及只在显著时更新的稳定性规则（§5.7）。
+//! 层级收缩：全局 → 站点 → 路径族，以及只在显著时更新的稳定性规则。
 //!
 //! 经验贝叶斯（H. Robbins, 1956；B. Efron, C. Morris, JASA 70(350), 1975）：把各组的比例看成来自
 //! 共同的 `Beta(μm, (1−μ)m)`，用矩估计求先验：组间方差 `V` 减去平均抽样方差得 `τ²`，
@@ -48,7 +48,7 @@ pub fn beta_prior(groups: &[BetaCounts]) -> Option<Prior> {
     ))
 }
 
-/// 只在显著时更新（DESIGN §5.7）：新估计与当前值之差超过 `z(1−δ)·SE` 才算变化。
+/// 只在显著时更新：新估计与当前值之差超过 `z(1−δ)·SE` 才算变化。
 pub fn significant(current: f64, estimate: f64, std_err: f64, delta: Delta) -> bool {
     (estimate - current).abs() > delta.z() * std_err
 }

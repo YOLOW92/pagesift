@@ -13,6 +13,12 @@
     async for doc in pagesift.ascrape_many(urls):      # 异步批量，按完成顺序
         ...
 
+    with pagesift.Scraper() as s:
+        for doc in s.crawl("https://example.com/docs/", limit=50):   # 整站爬取，一页完成产出一页
+            ...
+        links = s.map("https://example.com")                        # 站点链接列表
+        doc = s.parse(open("a.pdf", "rb").read(), "a.pdf")          # 解析本地文件
+
 抓取和处理都在 Rust 里完成，等待期间释放 GIL；批量接口的并发在 Rust 侧完成；
 Document 的字段访问时才转换成 Python 对象。
 """
@@ -22,10 +28,10 @@ from __future__ import annotations
 import atexit
 import dataclasses
 import threading
-from typing import Any, Iterable, List, Literal, Mapping, Optional, Sequence
+from typing import Any, Dict, Iterable, List, Literal, Mapping, Optional, Sequence, Tuple, Union
 
 from . import _pagesift
-from ._pagesift import Batch, Document, __version__, convert
+from ._pagesift import Batch, Crawl, Document, __version__, convert
 from .errors import (
     AccessBarrier,
     Busy,
@@ -47,6 +53,7 @@ from .errors import (
 __all__ = [
     "__version__",
     "Batch",
+    "Crawl",
     "Document",
     "ScrapeOptions",
     "Scraper",
@@ -77,6 +84,8 @@ __all__ = [
 
 Format = Literal["markdown", "html", "raw_html", "links", "images"]
 EngineName = Literal["http", "browser", "auto"]
+SitemapMode = Literal["include", "skip", "only"]
+BytesLike = Union[bytes, bytearray, memoryview]
 
 DEFAULT_CONCURRENCY = 16
 
@@ -151,6 +160,14 @@ def _native(options: Optional[ScrapeOptions], overrides: Mapping[str, Any]) -> _
         )
     base = options or _DEFAULT_OPTIONS
     return (base.replace(**overrides) if overrides else base)._native
+
+
+def _bytes(data: BytesLike) -> bytes:
+    if isinstance(data, bytes):
+        return data
+    if isinstance(data, (bytearray, memoryview)):
+        return bytes(data)
+    raise TypeError(f"data must be bytes, got {type(data).__name__}")
 
 
 def _urls(urls: Iterable[str]) -> List[str]:
@@ -254,6 +271,137 @@ class Scraper:
         已完成但还没取出的结果也丢弃）。
         """
         return self._engine.stream(_urls(urls), _native(options, overrides), concurrency)
+
+    def crawl(
+        self,
+        url: str,
+        options: Optional[ScrapeOptions] = None,
+        *,
+        limit: Optional[int] = None,
+        max_depth: Optional[int] = None,
+        include_paths: Optional[Sequence[str]] = None,
+        exclude_paths: Optional[Sequence[str]] = None,
+        crawl_entire_domain: bool = False,
+        allow_subdomains: Optional[bool] = None,
+        sitemap: SitemapMode = "include",
+        query: Optional[str] = None,
+        adaptive: bool = False,
+        max_concurrency: Optional[int] = None,
+        **overrides: Any,
+    ) -> Crawl:
+        """整站爬取，一页完成产出一页：``for doc in scraper.crawl(url, limit=50)``（``async for`` 也可以）。
+
+        - ``limit``：最多抓多少页（不给时和 HTTP 接口的默认值一样）；带 ``adaptive`` 时只是上限；
+        - ``max_depth``：从起始页算起最多跟几层链接；
+        - ``include_paths``、``exclude_paths``：按路径的正则只抓／不抓匹配的页面；
+        - ``crawl_entire_domain``：不限于起始页所在目录，整个主机都爬；
+        - ``allow_subdomains``：也爬同一站点的子域名；
+        - ``sitemap``：``include``（默认，sitemap 和页面链接都用）、``skip``（不读 sitemap）、``only``（只抓 sitemap 里的）；
+        - ``query``：按和查询的相关性优先爬取；``adaptive``：内容覆盖查询后自动停止（需要 ``query``）；
+        - ``max_concurrency``：这次爬取同时在抓的页面数上限；
+        - 其余关键字参数和 ``options`` 是每页的抓取选项；其中 ``ignore_robots_txt`` 也作用于整个爬取。
+
+        调用时立即开始。失败页也会产出（``success`` 为 False），爬取本身出错（比如路径正则写错）时迭代抛异常。
+        ``break`` 或 ``crawl.cancel()`` 停止爬取；结束后 ``crawl.summary`` 给出停止原因。
+        消费方慢时爬取在交付处等待，不丢页。
+        """
+        return self._engine.crawl(
+            url,
+            _native(options, overrides),
+            limit=limit,
+            max_depth=max_depth,
+            include_paths=list(include_paths) if include_paths else None,
+            exclude_paths=list(exclude_paths) if exclude_paths else None,
+            crawl_entire_domain=crawl_entire_domain,
+            allow_subdomains=allow_subdomains,
+            sitemap=sitemap,
+            query=query,
+            adaptive=adaptive,
+            max_concurrency=max_concurrency,
+        )
+
+    def map(
+        self,
+        url: str,
+        *,
+        limit: Optional[int] = None,
+        search: Optional[str] = None,
+        sitemap: SitemapMode = "include",
+        ignore_robots_txt: bool = False,
+    ) -> List[Dict[str, Optional[str]]]:
+        """站点的链接列表：每项是 ``{"url", "title", "description"}``（``title``、``description`` 可能为 None）。
+
+        ``search``：地址里命中搜索词多的链接排在前面，没命中的保留在后面；``sitemap`` 的取值同 :meth:`crawl`。
+        """
+        return self._engine.map(
+            url, limit=limit, search=search, sitemap=sitemap, ignore_robots_txt=ignore_robots_txt
+        )
+
+    async def amap(
+        self,
+        url: str,
+        *,
+        limit: Optional[int] = None,
+        search: Optional[str] = None,
+        sitemap: SitemapMode = "include",
+        ignore_robots_txt: bool = False,
+    ) -> List[Dict[str, Optional[str]]]:
+        """``map`` 的异步版本。"""
+        return await self._engine.amap(
+            url, limit=limit, search=search, sitemap=sitemap, ignore_robots_txt=ignore_robots_txt
+        )
+
+    def parse(
+        self,
+        data: BytesLike,
+        filename: str,
+        options: Optional[ScrapeOptions] = None,
+        *,
+        content_type: Optional[str] = None,
+        url: Optional[str] = None,
+        **overrides: Any,
+    ) -> Document:
+        """解析一个文件：PDF、HTML、Word、Excel、PowerPoint、EPUB、CSV。结果和 :meth:`scrape` 一样。
+
+        类型按内容识别，认不出时再看 ``filename`` 的扩展名和 ``content_type``；仍认不出抛 UnsupportedOption。
+        ``url`` 是页面原地址（HTML 的相对链接按它解析），不会去抓。不支持浏览器渲染相关的选项。
+        """
+        return self._engine.parse(
+            _bytes(data), filename, _native(options, overrides), content_type=content_type, url=url
+        )
+
+    async def aparse(
+        self,
+        data: BytesLike,
+        filename: str,
+        options: Optional[ScrapeOptions] = None,
+        *,
+        content_type: Optional[str] = None,
+        url: Optional[str] = None,
+        **overrides: Any,
+    ) -> Document:
+        """``parse`` 的异步版本。"""
+        return await self._engine.aparse(
+            _bytes(data), filename, _native(options, overrides), content_type=content_type, url=url
+        )
+
+    def parse_many(
+        self,
+        files: Iterable[Tuple[BytesLike, str]],
+        options: Optional[ScrapeOptions] = None,
+        *,
+        concurrency: int = DEFAULT_CONCURRENCY,
+        **overrides: Any,
+    ) -> Batch:
+        """批量解析 ``(字节, 文件名)``，按完成顺序产出：``for doc in scraper.parse_many(files)``（``async for`` 也可以）。
+
+        调用时立即开始；``doc.index`` 是它在输入里的位置，``doc.url`` 是文件名。单个失败不抛异常。
+        取消语义和 :meth:`ascrape_many` 一样。
+        """
+        if isinstance(files, (bytes, str)):
+            raise TypeError("files must be an iterable of (data, filename) pairs")
+        items = [(_bytes(data), name) for data, name in files]
+        return self._engine.parse_stream(items, _native(options, overrides), concurrency)
 
     def close(self) -> None:
         """关闭浏览器池。可以重复调用。"""

@@ -16,21 +16,27 @@ use serde_json::{Map, Value, json};
 
 use crate::Scraper;
 
-/// batch scrape 的默认并发上限；同一主机的请求仍然受礼貌限速约束。
-const BATCH_CONCURRENCY: usize = 8;
-
 pub fn tools(scraper: Arc<Scraper>) -> Vec<Arc<dyn ToolHandler>> {
+    let audit = scraper.audit().cloned();
+    engine_tools(scraper, audit)
+}
+
+/// 同 [`tools`]，页面交给任意引擎执行：多服务器网关传 `ClusterEngine`，MCP 的抓取和任务走网关的任务系统。
+pub fn engine_tools(
+    engine: Arc<dyn Engine>,
+    audit: Option<Arc<crate::audit::Audit>>,
+) -> Vec<Arc<dyn ToolHandler>> {
     let jobs = Jobs::default();
     let mut tools: Vec<Arc<dyn ToolHandler>> = vec![
-        Arc::new(Scrape(scraper.clone())),
-        Arc::new(MapTool(scraper.clone())),
-        Arc::new(Crawl(scraper.clone(), jobs.clone())),
+        Arc::new(Scrape(engine.clone())),
+        Arc::new(MapTool(engine.clone())),
+        Arc::new(Crawl(engine.clone(), jobs.clone())),
         Arc::new(Status(jobs.clone())),
     ];
-    if let Some(audit) = scraper.audit() {
-        tools.push(Arc::new(Report(audit.clone())));
+    if let Some(audit) = audit {
+        tools.push(Arc::new(Report(audit)));
     }
-    tools.push(Arc::new(Batch(scraper, jobs)));
+    tools.push(Arc::new(Batch(engine, jobs)));
     tools
 }
 
@@ -66,8 +72,19 @@ pub async fn run_server_until(
     port: u16,
     shutdown: impl std::future::Future<Output = ()> + Send + 'static,
 ) -> anyhow::Result<()> {
+    serve_tools(tools(scraper), transport, port, shutdown).await
+}
+
+/// 用给定的工具集起 MCP 服务（stdio 或 http，http 只监听本机）。
+pub async fn serve_tools(
+    tools: Vec<Arc<dyn ToolHandler>>,
+    transport: &str,
+    port: u16,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+) -> anyhow::Result<()> {
     let server = pagesift_mcp::McpServer::builder("pagesift", env!("CARGO_PKG_VERSION"))
-        .tools(tools(scraper))
+        .tools(tools)
+        .resources(Arc::new(Attachments))
         .build()
         .map_err(|e| anyhow::anyhow!("building the MCP server: {e:?}"))?;
     match transport {
@@ -94,6 +111,19 @@ pub async fn run_server_until(
     Ok(())
 }
 
+/// 导出图片的资源 URI 前缀：`pagesift://attachments/<id>`。
+const ATTACHMENT_URI: &str = "pagesift://attachments/";
+
+/// `resources/read`：从附件存储里取（保留期与结果相同）。
+struct Attachments;
+
+impl pagesift_mcp::ResourceReader for Attachments {
+    fn read(&self, uri: &str) -> Option<(String, Vec<u8>)> {
+        let id = uri.strip_prefix(ATTACHMENT_URI)?;
+        pagesift_api::attachments::get(id).map(|(data, mime)| (mime.to_string(), data.to_vec()))
+    }
+}
+
 fn parse<T: serde::de::DeserializeOwned>(args: Value) -> Result<T, ToolError> {
     serde_json::from_value(args).map_err(|e| ToolError::new(format!("invalid arguments: {e}")))
 }
@@ -106,7 +136,7 @@ fn tool_error(e: ApiError) -> ToolError {
     ToolError::new(format!("{}: {}", e.code.as_str(), e.message)).with_details(details)
 }
 
-struct Scrape(Arc<Scraper>);
+struct Scrape(Arc<dyn Engine>);
 
 impl ToolHandler for Scrape {
     fn definition(&self) -> ToolDef {
@@ -137,6 +167,16 @@ impl ToolHandler for Scrape {
             };
             let mut out = ToolOutput::text(text);
             out.structured_content = serde_json::to_value(&doc).ok();
+            // 导出的图片：内容存起来，结果里给资源链接（`resources/read` 取）
+            pagesift_api::attachments::keep(&doc);
+            out.content.extend(doc.attachments.iter().map(|a| {
+                pagesift_mcp::Content::ResourceLink {
+                    uri: format!("{ATTACHMENT_URI}{}", a.id),
+                    name: a.id.clone(),
+                    mime_type: a.mime().into(),
+                    size: Some(a.bytes),
+                }
+            }));
             Ok(out)
         })
     }
@@ -192,7 +232,7 @@ impl ToolHandler for Report {
     }
 }
 
-struct MapTool(Arc<Scraper>);
+struct MapTool(Arc<dyn Engine>);
 
 impl ToolHandler for MapTool {
     fn definition(&self) -> ToolDef {
@@ -209,7 +249,7 @@ impl ToolHandler for MapTool {
     }
 }
 
-struct Crawl(Arc<Scraper>, Jobs);
+struct Crawl(Arc<dyn Engine>, Jobs);
 
 impl ToolHandler for Crawl {
     fn definition(&self) -> ToolDef {
@@ -226,10 +266,7 @@ impl ToolHandler for Crawl {
                     "webhooks are not available in this build",
                 )));
             }
-            let id = self
-                .1
-                .start_crawl(self.0.clone() as Arc<dyn Engine>, req)
-                .await;
+            let id = self.1.start_crawl(self.0.clone(), req).await;
             Ok(ToolOutput::json(json!({
                 "id": id,
                 "status": "scraping",
@@ -239,7 +276,7 @@ impl ToolHandler for Crawl {
     }
 }
 
-struct Batch(Arc<Scraper>, Jobs);
+struct Batch(Arc<dyn Engine>, Jobs);
 
 impl ToolHandler for Batch {
     fn definition(&self) -> ToolDef {
@@ -267,19 +304,14 @@ impl ToolHandler for Batch {
             if urls.is_empty() {
                 return Err(ToolError::new("no valid URLs"));
             }
-            let concurrency = req
-                .max_concurrency
-                .unwrap_or(BATCH_CONCURRENCY)
-                .min(BATCH_CONCURRENCY);
+            // 统一准入：批量里的抓取都要过限速器的全局名额和每站点名额，
+            // 批量自己的并发取当前全局在途数目标（USL 控制器），调用方给的值只能更小。
+            let admitted = self.0.admitted_concurrency().unwrap_or(1).max(1);
+            let concurrency = req.max_concurrency.unwrap_or(admitted).clamp(1, admitted);
             let options: ScrapeOptions = req.options;
             let id = self
                 .1
-                .start_batch(
-                    self.0.clone() as Arc<dyn Engine>,
-                    urls,
-                    options,
-                    concurrency,
-                )
+                .start_batch(self.0.clone(), urls, options, concurrency)
                 .await;
             Ok(ToolOutput::json(
                 json!({ "id": id, "status": "scraping", "invalidURLs": invalid }),
@@ -351,9 +383,10 @@ mod tests {
 
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("audit.jsonl");
-        let audit = crate::audit::Audit::open(crate::audit::AuditConfig::new(&path)).unwrap();
+        let audit =
+            Arc::new(crate::audit::Audit::open(crate::audit::AuditConfig::new(&path)).unwrap());
         let config = crate::ScraperConfig {
-            audit: Some(Arc::new(audit)),
+            audit: Some(audit.clone()),
             ..Default::default()
         };
         let all = tools(Arc::new(Scraper::new(config).unwrap()));
@@ -375,6 +408,7 @@ mod tests {
         let mut missing = args;
         missing.remove("actual");
         assert!(report.call(missing, ToolContext::default()).await.is_err());
+        audit.flush();
         let log = std::fs::read_to_string(&path).unwrap();
         let rec: Value = serde_json::from_str(log.trim()).unwrap();
         assert_eq!(rec["kind"], "report");
@@ -387,9 +421,10 @@ mod tests {
         use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("audit.jsonl");
-        let audit = crate::audit::Audit::open(crate::audit::AuditConfig::new(&path)).unwrap();
+        let audit =
+            Arc::new(crate::audit::Audit::open(crate::audit::AuditConfig::new(&path)).unwrap());
         let config = crate::ScraperConfig {
-            audit: Some(Arc::new(audit)),
+            audit: Some(audit.clone()),
             ..Default::default()
         };
         let server = pagesift_mcp::McpServer::builder("pagesift", "test")
@@ -411,6 +446,7 @@ mod tests {
             w.write_all(format!("{msg}\n").as_bytes()).await.unwrap();
             lines.next_line().await.unwrap().unwrap();
         }
+        audit.flush();
         let log = std::fs::read_to_string(&path).unwrap();
         let rec: Value = serde_json::from_str(log.trim()).unwrap();
         assert_eq!(rec["client"], "aiseek-test");

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::engine::{CrawlResume, Engine};
 use crate::limits::{Caller, KeyLimits};
 use crate::types::{CrawlRequest, CrawlSummary, ScrapeOptions};
-use crate::webhook::WebhookConfig;
+use crate::webhook::{WebhookConfig, ack_key, outbox_key, seq_key};
 
 use super::{JOB_TTL, Job, JobKind, JobState, Jobs};
 
@@ -96,20 +96,22 @@ impl Jobs {
             return;
         };
         let key = meta_key(id);
+        let m = self.inner.mirror.clone();
         let r = store
             .blocking(move |s| -> pagesift_store::Result<()> {
-                let t = s.tasks();
-                let Some(raw) = t.kv_get(&key)? else {
-                    return Ok(());
-                };
-                let Ok(mut meta) = serde_json::from_slice::<Meta>(&raw) else {
-                    return Ok(());
-                };
-                meta.state = state;
-                meta.total = total;
-                meta.completed = completed;
-                meta.summary = summary;
-                t.kv_put(&key, &serde_json::to_vec(&meta).unwrap_or_default())
+                super::mirror::write(s, m.as_deref(), |t| {
+                    let Some(raw) = t.kv_get(&key)? else {
+                        return Ok(());
+                    };
+                    let Ok(mut meta) = serde_json::from_slice::<Meta>(&raw) else {
+                        return Ok(());
+                    };
+                    meta.state = state;
+                    meta.total = total;
+                    meta.completed = completed;
+                    meta.summary = summary;
+                    t.kv_put(&key, &serde_json::to_vec(&meta).unwrap_or_default())
+                })
             })
             .await;
         if let Err(e) = r {
@@ -153,12 +155,12 @@ impl Jobs {
                 .and_then(|v| serde_json::from_slice::<Meta>(&v).ok())
             else {
                 tracing::warn!(job = %id, "dropping an unreadable saved job");
-                delete_job(store, &id);
+                delete_job(store, self.inner.mirror.as_deref(), &id);
                 continue;
             };
             let created = UNIX_EPOCH + Duration::from_millis(meta.created_ms);
             if created + JOB_TTL <= now {
-                delete_job(store, &id);
+                delete_job(store, self.inner.mirror.as_deref(), &id);
                 expired += 1;
                 continue;
             }
@@ -174,6 +176,12 @@ impl Jobs {
             job.total = job.total.max(job.completed);
             if job.state != JobState::Scraping {
                 finished += 1;
+                // 结束前还没投完的 webhook 事件（比如 completed）：起一个投递任务发完就退出
+                if let (Some(w), Some(cfg)) = (&self.inner.webhooks, meta.webhook)
+                    && t.list_len(outbox_key(&id)) > 0
+                {
+                    drop(w.start(&id, meta.kind.as_str(), cfg, Some(store.clone())));
+                }
                 self.inner
                     .map
                     .try_lock()
@@ -189,7 +197,9 @@ impl Jobs {
             // 进行中的任务：算出还没做完的部分，接着跑
             let done = list_key(&id, "done");
             let hook = match (&self.inner.webhooks, meta.webhook) {
-                (Some(w), Some(cfg)) => Some(w.start(&id, meta.kind.as_str(), cfg)),
+                (Some(w), Some(cfg)) => {
+                    Some(w.start(&id, meta.kind.as_str(), cfg, Some(store.clone())))
+                }
                 _ => None,
             };
             match (meta.kind, meta.crawl, meta.batch) {
@@ -271,16 +281,18 @@ impl Jobs {
 }
 
 /// 删除一个任务在存储里的全部数据。
-pub(super) fn delete_job(store: &Store, id: &str) {
-    let t = store.tasks();
-    let r = (|| -> pagesift_store::Result<()> {
+pub(super) fn delete_job(store: &Store, mirror: Option<&super::mirror::JobMirror>, id: &str) {
+    let r = super::mirror::write(store, mirror, |t| {
         for what in ["pages", "errors", "frontier"] {
-            t.list_clear(list_key(id, what))?;
+            t.list_clear(&list_key(id, what))?;
         }
-        t.set_clear(list_key(id, "done"))?;
-        t.kv_delete(meta_key(id))?;
+        t.set_clear(&list_key(id, "done"))?;
+        t.list_clear(&outbox_key(id))?;
+        t.kv_delete(&seq_key(id))?;
+        t.kv_delete(&ack_key(id))?;
+        t.kv_delete(&meta_key(id))?;
         Ok(())
-    })();
+    });
     if let Err(e) = r {
         tracing::warn!(job = %id, error = %e, "deleting an expired job failed");
     }

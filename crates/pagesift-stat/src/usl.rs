@@ -94,7 +94,7 @@ mod tests {
     use super::*;
     use crate::rng::Rng;
 
-    /// 合成数据恢复 USL 参数（DESIGN 0.83 模块测试）。
+    /// 合成数据恢复 USL 参数。
     #[test]
     fn usl_recovers_parameters() {
         let (lambda, sigma, kappa) = (100.0, 0.05, 0.001);

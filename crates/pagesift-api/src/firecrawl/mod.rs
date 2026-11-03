@@ -7,6 +7,7 @@ pub mod map;
 pub mod parse;
 pub mod scrape;
 pub mod search;
+pub mod stream;
 
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
@@ -19,6 +20,7 @@ pub fn firecrawl_routes() -> Router<AppState> {
     Router::new()
         // Firecrawl v2 API endpoints
         .route("/v2/scrape", post(scrape::scrape))
+        .route("/v2/attachments/{id}", get(crate::attachments::download))
         .route(
             "/v2/parse",
             post(parse::parse).layer(DefaultBodyLimit::max(parse::MAX_PARSE_BODY_BYTES)),
@@ -29,6 +31,7 @@ pub fn firecrawl_routes() -> Router<AppState> {
             get(batch::job_status).delete(batch::job_cancel),
         )
         .route("/v2/batch/scrape/{id}/errors", get(batch::job_errors))
+        .route("/v2/batch/scrape/{id}/stream", get(stream::job_stream))
         .route("/v2/map", post(map::map))
         .route("/v2/search", post(search::search))
         .route("/v2/extract", post(search::extract_start))
@@ -40,6 +43,7 @@ pub fn firecrawl_routes() -> Router<AppState> {
             get(batch::job_status).delete(batch::job_cancel),
         )
         .route("/v2/crawl/{id}/errors", get(batch::job_errors))
+        .route("/v2/crawl/{id}/stream", get(stream::job_stream))
         // Firecrawl v1 API endpoints (full backward compatibility with v1 Python & Node SDKs)
         .route("/v1/scrape", post(scrape::scrape))
         .route("/v1/batch/scrape", post(batch::batch_start))

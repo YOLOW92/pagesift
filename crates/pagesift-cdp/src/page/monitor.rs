@@ -8,10 +8,10 @@ use crate::error::{Error, Result};
 use crate::guard::{BlockResources, RequestGuard, SubRequest, Verdict};
 use crate::options::*;
 
-use super::actions::{eval, eval_value, js_str};
+use super::actions::{eval, eval_value};
 use super::{
-    CONTENT_POLL, CONTENT_READY_CHARS, LOAD_CAP, Metrics, NET_QUIET, PageCtx, SHELL_GRACE,
-    SHELL_MAX_CHARS, Shared, TEXT_LEN, TRACKED,
+    CONTENT_POLL, CONTENT_READY_CHARS, Metrics, NET_QUIET, PageCtx, SHELL_MAX_CHARS, Shared,
+    TEXT_LEN, TRACKED,
 };
 
 /// 只用网络事件判断就绪，不读响应体：缓冲区设到最小，浏览器不必替每个请求保留一份内容。
@@ -24,12 +24,16 @@ pub(super) async fn enable_network(session: &Session) -> Result<Value> {
         .await
 }
 
-pub(super) async fn enable_interception(session: &Session) -> Result<()> {
+/// `proxy_auth`：上下文走的代理要认证时打开 `handleAuthRequests`，由 [`monitor`] 回答。
+pub(super) async fn enable_interception(session: &Session, proxy_auth: bool) -> Result<()> {
     // 两条互不依赖，一起发；都完成之前不会放行导航或子 target。
     tokio::try_join!(
         session.call(
             "Fetch.enable",
-            json!({ "patterns": [{ "urlPattern": "*", "requestStage": "Request" }] }),
+            json!({
+                "patterns": [{ "urlPattern": "*", "requestStage": "Request" }],
+                "handleAuthRequests": proxy_auth,
+            }),
         ),
         // 跨站 iframe 和 worker 是单独的 target，要自动附加上去分别开拦截。
         session.call(
@@ -68,6 +72,25 @@ pub(super) async fn monitor(
                     (shared.clone(), guard.clone(), block.clone(), p.clone());
                 tokio::spawn(async move {
                     on_request(&session, &shared, &*guard, &block, &p, is_page).await
+                });
+            }
+            "Fetch.authRequired" => {
+                // 只回答代理的质询；网站自己的认证（401）一律取消，和没有界面的浏览器一样
+                let session = conn.session(sid);
+                let response = match (&shared.proxy_auth, p.pointer("/authChallenge/source")) {
+                    (Some((user, pass)), Some(src)) if src == "Proxy" => json!({
+                        "response": "ProvideCredentials", "username": user, "password": pass,
+                    }),
+                    _ => json!({ "response": "CancelAuth" }),
+                };
+                let request_id = p["requestId"].clone();
+                tokio::spawn(async move {
+                    let _ = session
+                        .call(
+                            "Fetch.continueWithAuth",
+                            json!({ "requestId": request_id, "authChallengeResponse": response }),
+                        )
+                        .await;
                 });
             }
             "Target.attachedToTarget" => {
@@ -179,7 +202,7 @@ pub(super) async fn attach_child(child: &Session, kind: &str, shared: &Shared) {
         if kind == "iframe" {
             let _ = enable_network(child).await;
         }
-    } else if let Err(e) = enable_interception(child).await {
+    } else if let Err(e) = enable_interception(child, shared.proxy_auth.is_some()).await {
         // 开不了拦截就让它一直停着，并让本次渲染失败。
         *shared.intercept_error.lock().unwrap() = Some(format!("{kind} target: {e}"));
         return;
@@ -279,21 +302,46 @@ pub(super) struct ReadyOutcome {
 }
 
 /// 等页面就绪：网络静默，或者正文已经够多且两次检查之间没有变化（服务端渲染的页面，
-/// 剩下的请求多是广告和统计）。网络静默时页面几乎没有文字的，再给 [`SHELL_GRACE`]：
-/// 文字出来就返回（定时器延后渲染的页面）。最多等 `cap`。
+/// 剩下的请求多是广告和统计）。网络静默时页面几乎没有文字的，再给一段壳页面宽限：
+/// 文字出来就返回（定时器延后渲染的页面）。
+///
+/// 两个上限都从完成时间学（[`crate::learn`]，先验是 0.81 的 5 s 和 1.5 s）：
+/// - 就绪上限：就绪（网络静默或正文稳定）= 完成；到上限、探针早停 = 截尾。
+/// - 壳页面宽限：宽限内文字出现 = 完成；宽限用完或到就绪上限 = 截尾。
 ///
 /// 自动升级（`opts.early_stop`）时，页面文字稳定或到了历史学到的探针时间，
 /// 就抓一份当前 DOM 交给调用方的 `probe`；probe 认为不会比 HTTP 结果更好时提前结束。
 /// 这里比较的是最终正文提取结果，不是原始 `innerText`，导航栏和广告不会被误当成增益。
-pub(super) async fn wait_ready(
-    ctx: &PageCtx<'_>,
-    cap: Duration,
-    nav_elapsed: Duration,
-) -> ReadyOutcome {
+pub(super) async fn wait_ready(ctx: &PageCtx<'_>, nav_elapsed: Duration) -> ReadyOutcome {
     let session = ctx.session;
     let shared = ctx.shared;
+    let ready = &shared.waits.net_idle;
+    let grace = &shared.waits.shell_grace;
+    let (ready_prior, grace_prior) = (ready.prior(), grace.prior());
+    let grace_cap = grace.cap();
     let started = Instant::now();
-    let deadline = started + cap;
+    let deadline = started + ready.cap();
+    // 就绪等待记过样本没有；壳页面宽限开始的时刻
+    let mut ready_noted = false;
+    let mut note_ready = |done: bool| {
+        if !std::mem::replace(&mut ready_noted, true) {
+            if done {
+                ready.done(started.elapsed(), ready_prior);
+            } else {
+                ready.cut(started.elapsed(), ready_prior);
+            }
+        }
+    };
+    let mut grace_from: Option<Instant> = None;
+    let note_grace = |from: Option<Instant>, done: bool| {
+        if let Some(g) = from {
+            if done {
+                grace.done(g.elapsed(), grace_prior);
+            } else {
+                grace.cut(g.elapsed(), grace_prior);
+            }
+        }
+    };
     let mut last_len = None;
     let mut shell_until: Option<Instant> = None;
     let mut first_content = None;
@@ -308,6 +356,8 @@ pub(super) async fn wait_ready(
     loop {
         let left = deadline.saturating_duration_since(Instant::now());
         if left.is_zero() {
+            note_ready(false);
+            note_grace(grace_from.take(), false);
             break;
         }
         // 页面文字一直在变（轮播、广告刷新）时，历史样本给出的探针时间到点也探一次，
@@ -337,12 +387,15 @@ pub(super) async fn wait_ready(
                 // 没有增益就提前结束，否则按正常就绪返回。
                 if early_stop.is_some()
                     && let Some(stop) = probe(ctx, n, &mut probed_len).await
+                    && stop
                 {
-                    if stop {
-                        early_stopped = true;
-                        break;
-                    }
+                    note_ready(false);
+                    note_grace(grace_from.take(), false);
+                    early_stopped = true;
+                    break;
                 }
+                note_ready(true);
+                note_grace(grace_from.take(), true);
                 tracing::trace!(
                     chars = n,
                     "render: content stable, not waiting for network idle"
@@ -353,11 +406,12 @@ pub(super) async fn wait_ready(
             if due_by_time
                 && let Some(n) = len
                 && let Some(stop) = probe(ctx, n, &mut probed_len).await
+                && stop
             {
-                if stop {
-                    early_stopped = true;
-                    break;
-                }
+                note_ready(false);
+                note_grace(grace_from.take(), false);
+                early_stopped = true;
+                break;
             }
             continue;
         }
@@ -367,6 +421,8 @@ pub(super) async fn wait_ready(
             .await
             .is_err()
         {
+            note_ready(false);
+            note_grace(grace_from.take(), false);
             break;
         }
         {
@@ -377,6 +433,7 @@ pub(super) async fn wait_ready(
         }
         // 网络静默了。页面已经有文字（绝大多数页面）就绪；几乎没有文字的壳在宽限期内再看几次。
         // 自动升级在返回前先探针一次：当前 DOM 的正文如果还不如 HTTP，就没必要再等。
+        note_ready(true);
         let left = deadline.saturating_duration_since(Instant::now());
         let len = tokio::time::timeout(left, eval_value(session, TEXT_LEN))
             .await
@@ -388,21 +445,27 @@ pub(super) async fn wait_ready(
         if let Some(n) = len
             && early_stop.is_some()
             && let Some(stop) = probe(ctx, n, &mut probed_len).await
+            && stop
         {
-            if stop {
-                early_stopped = true;
-                break;
-            }
-        }
-        if len.is_none_or(|n| n >= SHELL_MAX_CHARS) {
+            note_grace(grace_from.take(), false);
+            early_stopped = true;
             break;
         }
-        let until = *shell_until.get_or_insert_with(|| Instant::now() + SHELL_GRACE);
+        if len.is_none_or(|n| n >= SHELL_MAX_CHARS) {
+            note_grace(grace_from.take(), len.is_some());
+            break;
+        }
+        let until = *shell_until.get_or_insert_with(|| {
+            let now = Instant::now();
+            grace_from = Some(now);
+            now + grace_cap
+        });
         let pause = until
             .min(deadline)
             .saturating_duration_since(Instant::now())
             .min(CONTENT_POLL);
         if pause.is_zero() {
+            note_grace(grace_from.take(), false);
             tracing::trace!(chars = len, "render: page stayed nearly empty");
             break;
         }
@@ -443,7 +506,7 @@ async fn probe(ctx: &PageCtx<'_>, len: u64, probed_len: &mut Option<u64>) -> Opt
     *probed_len = Some(len);
     match ctx.html().await {
         Ok(captured) => {
-            let stop = (stop.probe)(&captured.html);
+            let stop = (stop.probe)(captured.html).await;
             tracing::trace!(chars = len, stop, "render: early-stop probe");
             Some(stop)
         }
@@ -454,147 +517,15 @@ async fn probe(ctx: &PageCtx<'_>, len: u64, probed_len: &mut Option<u64>) -> Opt
     }
 }
 
-/// 截图要等图片和字体；主框架当前文档的 `load` 最多等 `LOAD_CAP`。
+/// 截图要等图片和字体；主框架当前文档的 `load` 最多等学到的上限（先验 0.81 的 10 s）。
 pub(super) async fn wait_load(shared: &Shared) {
     let loader = shared.main_loader.lock().unwrap().clone();
     if let Some(l) = loader {
-        let _ = tokio::time::timeout(LOAD_CAP, shared.wait_event(&l, "load")).await;
-    }
-}
-
-pub(super) async fn scan_full_page(ctx: &PageCtx<'_>, scan: &FullPageScan) -> Result<()> {
-    const STEP: &str = "(() => { window.scrollBy(0, window.innerHeight); \
-        const se = document.scrollingElement || document.documentElement; \
-        return [window.scrollY + window.innerHeight, se.scrollHeight]; })()";
-    const POS: &str = "(() => { const se = document.scrollingElement || document.documentElement; \
-        return [window.scrollY + window.innerHeight, se.scrollHeight]; })()";
-    let pos =
-        |v: Value| -> (f64, f64) { (v[0].as_f64().unwrap_or(0.0), v[1].as_f64().unwrap_or(0.0)) };
-    let start = Instant::now();
-    let mut last_height = pos(eval_value(ctx.session, POS).await?).1;
-    let mut stable_bottom = 0;
-    for _ in 0..scan.max_steps {
-        if start.elapsed() >= scan.timeout {
-            break;
-        }
-        eval_value(ctx.session, STEP).await?;
-        // 给懒加载一点时间发出请求，再等它们结束。
-        tokio::time::sleep(Duration::from_millis(50)).await;
-        ctx.shared
-            .wait_idle(Duration::from_millis(100), scan.scroll_delay)
-            .await;
-        let (bottom, height) = pos(eval_value(ctx.session, POS).await?);
-        if height > last_height {
-            last_height = height;
-            stable_bottom = 0;
-            continue;
-        }
-        if bottom >= height - 2.0 {
-            // IntersectionObserver and scroll handlers may start a fetch after
-            // network idle is observed. Require several quiet bottom scans, and
-            // give the last one a whole scroll_delay: on a slow machine the
-            // handler's fetch can trail the scroll by more than the quiet window.
-            stable_bottom += 1;
-            if stable_bottom >= 3 {
-                break;
-            }
-            if stable_bottom == 2 {
-                tokio::time::sleep(scan.scroll_delay).await;
-            }
-        } else {
-            stable_bottom = 0;
+        let learn = &shared.waits.load;
+        let started = Instant::now();
+        match tokio::time::timeout(learn.cap(), shared.wait_event(&l, "load")).await {
+            Ok(()) => learn.done(started.elapsed(), learn.prior()),
+            Err(_) => learn.cut(started.elapsed(), learn.prior()),
         }
     }
-    eval_value(ctx.session, "window.scrollTo(0, 0)").await?;
-    Ok(())
-}
-
-/// 每次滚动后先等这次滚动的 `scroll` 事件派发出来，再等页面改完 DOM（静默 50ms，最多 `waitMs`）才收集。
-/// 滚动事件要等浏览器下一次出帧才派发，机器忙时会晚几百毫秒；只按固定时间等的话，会在旧内容上收集，
-/// 接下来的几次滚动又被浏览器合并成一个事件，中间几屏就整屏丢了。滚动用 `instant`，
-/// 页面设了平滑滚动时位置也立即生效；位置没动说明到底了，再静等一轮收集迟到的内容后结束。
-pub(super) const VIRTUAL_JS: &str = r#"(async (sel, count, by, waitMs) => {
-  const c = document.querySelector(sel);
-  if (!c) return null;
-  const own = c.scrollHeight > c.clientHeight + 1 && getComputedStyle(c).overflowY !== 'visible';
-  const target = own ? c : window;
-  const pos = () => own ? c.scrollTop : scrollY;
-  const watch = { childList: true, subtree: true, characterData: true };
-  const quiet = max => new Promise(res => {
-    let t = null;
-    const done = () => { ob.disconnect(); clearTimeout(cap); clearTimeout(t); res(); };
-    const ob = new MutationObserver(() => { clearTimeout(t); t = setTimeout(done, 50); });
-    ob.observe(c, watch);
-    const cap = setTimeout(done, max);
-  });
-  // 位置已经变了才调用：滚动事件一定会来，兜底上限只防页面卡死。
-  const settle = () => new Promise(res => {
-    let fired = false, changed = false, t = null, cap = null;
-    const done = () => {
-      ob.disconnect(); target.removeEventListener('scroll', onScroll);
-      clearTimeout(t); clearTimeout(cap); res();
-    };
-    const soon = () => { clearTimeout(t); t = setTimeout(done, 50); };
-    const ob = new MutationObserver(() => { if (fired) soon(); else changed = true; });
-    const onScroll = () => {
-      if (fired) return;
-      fired = true;
-      clearTimeout(cap); cap = setTimeout(done, waitMs);
-      if (changed) soon();
-    };
-    ob.observe(c, watch);
-    target.addEventListener('scroll', onScroll, { passive: true });
-    cap = setTimeout(done, Math.max(waitMs, 3000));
-  });
-  const seen = new Set(), items = [];
-  const grab = () => {
-    for (const ch of c.children) {
-      const k = (ch.textContent || '').replace(/\s+/g, ' ').trim() || ch.outerHTML;
-      if (!seen.has(k)) { seen.add(k); items.push(ch.outerHTML); }
-    }
-  };
-  grab();
-  for (let i = 0; i < count; i++) {
-    const step = by === 'container' ? (own ? c.clientHeight : innerHeight) : by === 'page' ? innerHeight : by;
-    const before = pos();
-    (own ? c : window).scrollTo({ top: before + step, behavior: 'instant' });
-    if (pos() === before) { await quiet(waitMs); grab(); break; }
-    await settle();
-    grab();
-  }
-  const key = Math.random().toString(36).slice(2);
-  c.setAttribute('data-pagesift-vs', key);
-  return { key, items };
-})"#;
-
-/// 返回容器标记和按出现顺序去重后的条目；找不到容器时返回 `None`。
-pub(super) async fn virtual_scroll(
-    session: &Session,
-    vs: &VirtualScroll,
-) -> Result<Option<(String, Vec<String>)>> {
-    let by = match vs.scroll_by {
-        ScrollBy::ContainerHeight => json!("container"),
-        ScrollBy::PageHeight => json!("page"),
-        ScrollBy::Pixels(px) => json!(px),
-    };
-    let expr = format!(
-        "{VIRTUAL_JS}({}, {}, {by}, {})",
-        js_str(&vs.container_selector),
-        vs.scroll_count,
-        vs.wait_after_scroll.as_millis()
-    );
-    let v = eval_value(session, &expr).await?;
-    if v.is_null() {
-        return Ok(None);
-    }
-    let key = v["key"].as_str().unwrap_or_default().to_owned();
-    let items = v["items"]
-        .as_array()
-        .map(|a| {
-            a.iter()
-                .filter_map(|i| i.as_str().map(str::to_owned))
-                .collect()
-        })
-        .unwrap_or_default();
-    Ok(Some((key, items)))
 }

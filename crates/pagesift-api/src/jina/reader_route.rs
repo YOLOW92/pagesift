@@ -8,7 +8,7 @@ use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
 use std::sync::atomic::Ordering;
 
-use super::stream_sse::stream_markdown_sse;
+use super::stream_sse::{error_event, sse_events, sse_response};
 use crate::limits::Caller;
 use crate::metrics::PageSource;
 use crate::server::AppState;
@@ -81,25 +81,26 @@ async fn process_jina_scrape(
         only_main_content: true,
         ..Default::default()
     };
+    let accept = headers
+        .get(header::ACCEPT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if accept.contains("text/event-stream") {
+        return stream_scrape(
+            s,
+            caller.map(|Extension(c)| c),
+            target_url.to_string(),
+            opts,
+        );
+    }
 
     match s.engine.scrape(target_url, &opts).await {
         Ok(doc) => {
-            s.metrics.scrape_ok.fetch_add(1, Ordering::Relaxed);
-            s.metrics.page(PageSource::Scrape);
-            if let Some(Extension(c)) = &caller {
-                s.limiter.consume_pages(c, 1).await;
-            }
+            record_ok(&s, caller.as_ref().map(|Extension(c)| c)).await;
             let markdown = doc.markdown.unwrap_or_default();
             let title = doc.metadata.title.as_deref();
 
-            let accept = headers
-                .get(header::ACCEPT)
-                .and_then(|v| v.to_str().ok())
-                .unwrap_or("");
-
-            if accept.contains("text/event-stream") {
-                stream_markdown_sse(target_url, title, &markdown)
-            } else if accept.contains("application/json") {
+            if accept.contains("application/json") {
                 let json_data = serde_json::json!({
                     "code": 200,
                     "status": 20000,
@@ -127,4 +128,45 @@ async fn process_jina_scrape(
             e.into_response()
         }
     }
+}
+
+async fn record_ok(s: &AppState, caller: Option<&Caller>) {
+    s.metrics.scrape_ok.fetch_add(1, Ordering::Relaxed);
+    s.metrics.page(PageSource::Scrape);
+    if let Some(c) = caller {
+        s.limiter.consume_pages(c, 1).await;
+    }
+}
+
+/// SSE：响应头立刻发出，抓取在流里进行；抓完逐个写出 progress、各段 content 和 done，
+/// 每段一产出就写，不拼成整块。客户端中途断开就停止抓取。响应头发出后才失败的，用 `error` 事件报告。
+fn stream_scrape(
+    s: AppState,
+    caller: Option<Caller>,
+    url: String,
+    opts: ScrapeOptions,
+) -> Response {
+    let (tx, body) = crate::stream_body::channel();
+    tokio::spawn(async move {
+        let r = tokio::select! {
+            r = s.engine.scrape(&url, &opts) => r,
+            () = tx.closed() => return,
+        };
+        match r {
+            Ok(doc) => {
+                record_ok(&s, caller.as_ref()).await;
+                let markdown = doc.markdown.unwrap_or_default();
+                for event in sse_events(&url, doc.metadata.title.as_deref(), &markdown) {
+                    if tx.send(event.into()).await.is_err() {
+                        return;
+                    }
+                }
+            }
+            Err(e) => {
+                s.metrics.scrape_err.fetch_add(1, Ordering::Relaxed);
+                let _ = tx.send(error_event(&e).into()).await;
+            }
+        }
+    });
+    sse_response(body)
 }

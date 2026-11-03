@@ -126,6 +126,7 @@ async fn main() {
     cfg.policy.rate.per_host_concurrency = per_host;
     if let Some(g) = std::env::var("GLOBAL").ok().and_then(|v| v.parse().ok()) {
         cfg.policy.rate.global_concurrency = g;
+        cfg.policy.rate.global_ceiling = Some(g);
     }
     // 浏览器内核（ENGINE=browser 时用）：BROWSER_EXE、BROWSER_ARGS（可用 {port}、{user_data_dir}）、
     // BROWSER_MAX、BROWSER_TABS、BROWSER_RECYCLE（每个进程处理多少页后换新进程）

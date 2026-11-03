@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, SystemTime};
+use tokio::sync::watch;
 
 use crate::limits::Caller;
 use crate::metrics::PageSource;
@@ -67,6 +68,8 @@ pub struct Job {
     pub summary: Option<CrawlSummary>,
     pub(crate) stored_docs: usize,
     pub(crate) owner: Option<Caller>,
+    /// 新完成了文档或者状态变了就响一下，叫醒在等这个任务的流（`/stream`）。任务删掉时随之关闭。
+    pub(crate) changed: watch::Sender<()>,
 }
 
 impl Job {
@@ -83,7 +86,13 @@ impl Job {
             summary: None,
             stored_docs: 0,
             owner,
+            changed: watch::channel(()).0,
         }
+    }
+
+    /// 通知在等这个任务的流：有新文档或状态变了。没有人在等也没关系。
+    pub(crate) fn touch(&self) {
+        self.changed.send_replace(());
     }
 
     pub fn expires_at(&self) -> SystemTime {

@@ -5,15 +5,27 @@
 
 #![forbid(unsafe_code)]
 
-pub mod adaptive;
 mod backoff;
+mod concurrency;
+pub mod egress;
 mod error;
+pub mod gate;
 mod limiter;
+mod outage;
 mod policy;
 mod robots;
+pub mod slots;
+pub mod topology;
 
 pub use backoff::{Backoff, BackoffConfig, parse_retry_after};
+pub use concurrency::wait_price;
+pub use egress::{
+    Action as EgressAction, EgressClass, EgressPool, Outcome as EgressOutcome, Pick as EgressPick,
+    Site,
+};
 pub use error::{Error, ErrorCode};
+pub use gate::{AdaptiveConcurrencyGate, AdaptiveConcurrencyPermit};
 pub use limiter::{Permit, RateLimitConfig, RateLimiter};
 pub use policy::{Policy, PolicyConfig, RequestKind, RobotsCache, RobotsMode, robots_mode};
 pub use robots::{MAX_ROBOTS_BYTES, Robots, RobotsMatcher};
+pub use slots::{Slot, Slots};

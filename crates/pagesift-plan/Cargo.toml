@@ -8,9 +8,9 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-pagesift-content = { version = "0.81.5", path = "../pagesift-content" }
-pagesift-stat = { version = "0.81.5", path = "../pagesift-stat" }
-
-[dev-dependencies]
+blake3 = "1.8.7"
+pagesift-content = { version = "0.90.0", path = "../pagesift-content" }
+pagesift-diff = { version = "0.90.0", path = "../pagesift-diff" }
+pagesift-stat = { version = "0.90.0", path = "../pagesift-stat" }
 serde_json = "1.0.154"
 url = "2.5.8"

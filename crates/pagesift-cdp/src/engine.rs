@@ -299,16 +299,21 @@ pub fn engine_chain_with_allow(
 
 /// 回退用的池只接少数页面（本机压测约 1%），用少量进程多开标签页，空闲很快就关：
 /// 否则常驻的 moli / Chrome 比主力 Lightpanda 还占内存。
+///
+/// 自动决定进程数时，回退池从 0.81 的进程数起步（先验包 v0：Chrome 1 个、其他 2 个），
+/// 之后和主力池一样由 USL 调：只有请求在排队（到达率超过 `L = λW` 能接住的量，Little 定律）
+/// 的窗口才向上探，越过吞吐峰值时收，上限按内存和核数估。
 fn fallback(mut c: PoolConfig, base: &PoolConfig) -> PoolConfig {
-    c.max_browsers = if base.max_browsers == 0 {
-        match c.engine {
+    if base.max_browsers == 0 {
+        c.max_browsers = 0;
+        c.start_browsers = match c.engine {
             Some(EngineKind::Chrome) => 1,
             _ => 2,
-        }
+        };
     } else {
         // 指定的进程数是给主力内核的；回退内核只分到四分之一
-        (base.max_browsers / 4).max(1)
-    };
+        c.max_browsers = (base.max_browsers / 4).max(1); // [策略] 用户指定的进程数给主力内核，回退内核分四分之一（0.81 的现值）
+    }
     if c.engine != Some(EngineKind::Lightpanda) {
         c.max_tabs_per_browser = base.max_tabs_per_browser.max(4);
     }
@@ -316,6 +321,7 @@ fn fallback(mut c: PoolConfig, base: &PoolConfig) -> PoolConfig {
     c
 }
 
+/// 回退池空闲多久关闭的先验和上限；实际按空闲后被再用的时间学（[`crate::learn`]）。
 const FALLBACK_IDLE: std::time::Duration = std::time::Duration::from_secs(15);
 
 #[cfg(test)]
@@ -384,11 +390,12 @@ mod tests {
         let mut moli = PoolConfig::default();
         EngineKind::Moli.configure(&mut moli, false);
         let moli = fallback(moli, &base);
-        assert_eq!((moli.max_browsers, moli.max_tabs_per_browser), (2, 4));
+        assert_eq!((moli.start_browsers, moli.max_tabs_per_browser), (2, 4));
+        assert_eq!(moli.max_browsers, 0);
         assert_eq!(moli.idle_timeout, FALLBACK_IDLE);
         let mut chrome = PoolConfig::default();
         EngineKind::Chrome.configure(&mut chrome, false);
-        assert_eq!(fallback(chrome, &base).max_browsers, 1);
+        assert_eq!(fallback(chrome, &base).start_browsers, 1);
         // 指定了进程数时，回退内核只分到四分之一
         let fixed = PoolConfig {
             max_browsers: 8,

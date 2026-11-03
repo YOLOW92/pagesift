@@ -17,6 +17,18 @@ pub use inline::{InlineOp, InlineSegment, inline_diff};
 pub use noise::NoiseCategory;
 pub use unified::{DiffLine, Hunk, LineKind, UnifiedDiff, unified_diff};
 
+/// 两个 id 序列的对齐（patience 取锚点、锚点间 Myers），返回相等位置对 `(i, j)`，按序递增。
+/// 给块级合并用：调用方把块映射成 id（相同内容同一个 id）。
+pub fn align(a: &[u32], b: &[u32]) -> Vec<(usize, usize)> {
+    algo::diff(a, b)
+        .into_iter()
+        .filter_map(|e| match e {
+            Edit::Equal(i, j) => Some((i, j)),
+            _ => None,
+        })
+        .collect()
+}
+
 use algo::Edit;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

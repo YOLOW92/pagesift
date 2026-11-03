@@ -120,6 +120,14 @@ pub struct ScrapeOptions {
     /// PageSift extension: bounded, stateless same-origin external JS discovery.
     #[serde(default)]
     pub discover_scripts: bool,
+    /// PageSift extension: write how the result was produced (render and merge decisions with their
+    /// inputs) to `metadata.pagesift.plan`.
+    #[serde(default)]
+    pub explain: bool,
+    /// PageSift extension: export images as attachments — PDF embedded images in their original
+    /// encoding, Office media, and web page images (fetched politely, robots and SSRF rules apply).
+    #[serde(default)]
+    pub export_images: bool,
     #[serde(default)]
     pub if_none_match: Option<String>,
     #[serde(default)]
@@ -384,10 +392,16 @@ pub struct AdaptiveOptions {
 
 impl Default for AdaptiveOptions {
     fn default() -> Self {
+        // 请求参数是用户策略，这里是不填时的默认值：
         Self {
+            // [策略] 先验包 v0：0.81 的现值。覆盖度只决定"覆盖后耐心减半"，不单独停止爬取
             coverage_threshold: 0.9,
+            // [策略] 先验包 v0：0.81 的现值（每个词要三段不同的证据，单段可能是导航、转载）
             evidence_per_term: 3,
+            // [策略] 先验包 v0：0.81 的现值；连续这么多页没有新内容才停
             patience: 5,
+            // [δ] 新内容不到已收集总量的 δ 算"没有新信息"：低于全局风险水平的增量当作噪声
+            // （δ 默认 0.05，与 0.81 的值相同）
             min_gain: 0.05,
         }
     }

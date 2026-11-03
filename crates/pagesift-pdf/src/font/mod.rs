@@ -52,6 +52,8 @@ pub(crate) struct Font {
     pub(crate) size_factor: f64,
     pub(crate) bold: bool,
     pub(crate) math: MathKind,
+    /// 复核路径（[`Font::load_alt`]）：ToUnicode 给出乱码的码改走字体自己的编码和字体程序。
+    alt: bool,
 }
 
 /// 数学字体的类别，按字体名判断（TeX 的 CM/AMS/LM/TX/PX 系列、Cambria Math、STIX 等）。
@@ -144,10 +146,21 @@ impl Font {
             size_factor: 1.0,
             bold: false,
             math: MathKind::Text,
+            alt: false,
         }
     }
 
     pub(crate) fn load(doc: &Document, dict: &Dictionary, stream_limit: usize) -> Font {
+        Font::load_with(doc, dict, stream_limit, false)
+    }
+
+    /// 低分页复核用的读法（见 quality.rs）：写入方的 ToUnicode 可能是坏的（映射到控制字符、
+    /// 私用区），这时不信它，按字体自己的编码、字体程序里的 cmap 和字形名取字。
+    pub(crate) fn load_alt(doc: &Document, dict: &Dictionary, stream_limit: usize) -> Font {
+        Font::load_with(doc, dict, stream_limit, true)
+    }
+
+    fn load_with(doc: &Document, dict: &Dictionary, stream_limit: usize, alt: bool) -> Font {
         let subtype = get_name(doc, dict, b"Subtype").unwrap_or(b"");
         let base_font = get_name(doc, dict, b"BaseFont")
             .map(|n| String::from_utf8_lossy(n).into_owned())
@@ -161,11 +174,14 @@ impl Font {
             .filter(|c| !c.is_empty_mapping());
 
         if subtype == b"Type0" {
-            return Font::load_composite(doc, dict, &base_font, to_unicode, stream_limit);
+            let mut f = Font::load_composite(doc, dict, &base_font, to_unicode, stream_limit, alt);
+            f.alt = alt;
+            return f;
         }
 
         let descriptor = get_dict(doc, dict, b"FontDescriptor");
         let mut font = Font::fallback();
+        font.alt = alt;
         font.to_unicode = to_unicode;
         font.bold = is_bold(doc, &base_font, descriptor);
         font.math = math_kind(&base_font);
@@ -272,6 +288,7 @@ impl Font {
         base_font: &str,
         to_unicode: Option<CMap>,
         stream_limit: usize,
+        alt: bool,
     ) -> Font {
         let source = match get(doc, dict, b"Encoding") {
             Some(Object::Name(n)) => predefined_source(n),
@@ -309,7 +326,7 @@ impl Font {
             let truetype = descriptor.is_some_and(|fd| get(doc, fd, b"FontFile2").is_some())
                 || get_name(doc, cf, b"Subtype") == Some(b"CIDFontType2");
             if truetype
-                && to_unicode.is_none()
+                && (to_unicode.is_none() || alt)
                 && let Some(fd) = descriptor
                 && let Some(prog) =
                     get(doc, fd, b"FontFile2").and_then(|o| stream_bytes(doc, o, stream_limit))
@@ -359,6 +376,7 @@ impl Font {
                         .to_unicode
                         .as_ref()
                         .and_then(|c| c.unicode(code))
+                        .filter(|t| self.trusted(t))
                         .or_else(|| self.simple_map[usize::from(b)].clone())
                         .unwrap_or_default();
                     let width = self.simple_width(code, &text);
@@ -386,6 +404,7 @@ impl Font {
                         .to_unicode
                         .as_ref()
                         .and_then(|c| c.unicode(code))
+                        .filter(|t| self.trusted(t))
                         .or_else(|| {
                             let col = comp.collection?;
                             col.unicode(cid?).map(Short::from)
@@ -410,6 +429,11 @@ impl Font {
                 }
             }
         }
+    }
+
+    /// ToUnicode 给的字能不能用：平常一律用；复核路径上含乱码字符的不用。
+    fn trusted(&self, text: &str) -> bool {
+        !self.alt || !text.chars().any(crate::quality::garbled)
     }
 
     fn simple_width(&self, code: u32, text: &str) -> f64 {

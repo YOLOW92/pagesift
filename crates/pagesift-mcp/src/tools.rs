@@ -72,6 +72,7 @@ pub fn scrape_options_schema() -> Value {
                 "properties": { "maxPages": { "type": "integer", "minimum": 1, "maximum": 10000 } }
             },
             "onlyMainContent": { "type": "boolean", "description": "Keep only the main content. Defaults to true." },
+            "exportImages": { "type": "boolean", "description": "Export the page's images (PDF embedded images, Office media, web images); returned as resource links." },
             "redactPII": { "type": "boolean" },
             "includeTags": str_array,
             "excludeTags": str_array,

@@ -149,9 +149,14 @@ pub(crate) fn is_main_landmark(el: Element<'_>) -> bool {
     el.tag() == pagesift_html::Tag::Main || el.attr("role") == Some("main")
 }
 pub(crate) fn token_class(el: Element<'_>) -> u8 {
+    token_class_of(el.attr("class"), el.attr("id"))
+}
+
+/// [`token_class`]，class 和 id 分开给（小标题按自己文字生成的锚点 id 不算，见 [`is_text_slug`]）。
+pub(crate) fn token_class_of(class_attr: Option<&str>, id_attr: Option<&str>) -> u8 {
     let mut class = 0;
     let mut buf = [0u8; MAX_TOKEN];
-    for value in [el.attr("class"), el.attr("id")].into_iter().flatten() {
+    for value in [class_attr, id_attr].into_iter().flatten() {
         let mut len = 0usize;
         let mut name = 0u8;
         for &c in value.as_bytes().iter().chain(std::iter::once(&b' ')) {
@@ -178,9 +183,49 @@ pub(crate) fn token_class(el: Element<'_>) -> u8 {
     class
 }
 
+/// `id` 是不是由元素自己的文字生成的锚点（slug）：id 里的每个词（字母数字串，纯数字的去重后缀
+/// 不算）都出现在文字里。文档站、Markdown 渲染器按小标题文字生成 id
+/// （`## Not Recommended: …` → `id="not-recommended-…"`），这种 id 说的是标题内容，不是页面框架的
+/// 名字；拿它查噪声词会把 "Recommended"、"Sharing"、"Related work" 这样的小标题删掉。
+pub(crate) fn is_text_slug(id: &str, text: &str) -> bool {
+    let text = text.to_lowercase();
+    let words: Vec<&str> = text
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .collect();
+    let mut any = false;
+    for token in id
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|t| !t.is_empty() && !t.bytes().all(|b| b.is_ascii_digit()))
+    {
+        let token = token.to_lowercase();
+        if !words.contains(&token.as_str()) {
+            return false;
+        }
+        any = true;
+    }
+    any
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{contains_any_ascii_ci, contains_ascii_ci};
+    use super::{contains_any_ascii_ci, contains_ascii_ci, is_text_slug};
+
+    #[test]
+    fn heading_slug_ids_are_recognised() {
+        assert!(is_text_slug(
+            "not-recommended-filtering-in-publishing-node",
+            "Not Recommended: Filtering in Publishing Node"
+        ));
+        assert!(is_text_slug("related-work-2", "Related Work"));
+        assert!(is_text_slug(
+            "Sharing_data",
+            "Sharing data between components"
+        ));
+        assert!(!is_text_slug("related-posts", "You may also like"));
+        assert!(!is_text_slug("sidebar", "Recent posts"));
+        assert!(!is_text_slug("123", "Recent posts"));
+    }
 
     #[test]
     fn contains_ascii_ci_matches_the_window_scan() {

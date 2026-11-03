@@ -11,11 +11,14 @@ mod doc;
 mod filter;
 mod parse;
 mod repair;
+mod stream;
 #[cfg(test)]
 mod tests_objstm;
 mod xref;
 
 pub(crate) use doc::{Document, OpenError};
+pub(crate) use filter::decode as decode_filters;
+pub(crate) use stream::is_image_filter;
 
 /// 对象号 + 代号。
 pub(crate) type ObjectId = (u32, u16);
@@ -74,6 +77,11 @@ impl Dictionary {
         self.0.iter().rev().find(|(k, _)| k == key).map(|(_, v)| v)
     }
 
+    /// 按出现顺序的键值对（重复的键都在）。
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (&[u8], &Object)> {
+        self.0.iter().map(|(k, v)| (k.as_slice(), v))
+    }
+
     pub(crate) fn push(&mut self, key: Vec<u8>, value: Object) {
         self.0.push((key, value));
     }
@@ -107,4 +115,10 @@ pub(crate) enum StreamData {
     /// 已经在内存里的数据（对象流里不会有流，这里只给测试和内联构造用）。
     #[allow(dead_code)]
     Owned(Vec<u8>),
+}
+
+/// 内联图像 `BI … ID` 之间的键值对（ISO 32000-2 §8.9.7），按普通字典的语法解析。
+/// 键是缩写还是全名不在这里处理。
+pub(crate) fn inline_dict(header: &[u8]) -> Dictionary {
+    parse::Parser::new(header, 0).dict_body(0)
 }

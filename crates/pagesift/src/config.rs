@@ -19,6 +19,10 @@ use crate::ScraperConfig;
 mod server;
 pub use server::*;
 
+#[path = "config_cluster.rs"]
+mod cluster;
+pub use cluster::*;
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
@@ -43,6 +47,9 @@ pub struct Config {
     pub audit: Audit,
     pub llm: Option<Llm>,
     pub search: Option<Search>,
+    /// 多服务器部署；没有这一段时是单主机。
+    #[serde(default)]
+    pub cluster: Cluster,
     /// 实际加载的配置文件；内置默认值时为 `None`。
     #[serde(skip)]
     source: Option<PathBuf>,
@@ -120,11 +127,17 @@ pub struct Fetch {
 }
 
 /// 一个命名出口：走指定的代理（`http://`、`https://` 或 `socks5://`）。
+/// 配置了两个及以上命名出口时，请求不指定 `egress` 就由出口池按统计选择。
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Egress {
     pub name: String,
-    pub proxy: String,
+    /// 代理地址。`class = "direct"` 时可以不写：与默认出口相同（含 `[fetch].proxy`）。
+    #[serde(default)]
+    pub proxy: Option<String>,
+    /// 出口类别：`datacenter`、`residential`、`mobile`、`direct`（缺省，兼容旧配置）。
+    #[serde(default)]
+    pub class: pagesift_policy::EgressClass,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -137,6 +150,27 @@ pub struct Policy {
     /// 管理员开关：允许 crawl 和 map 请求忽略 robots.txt（F-2.4）。
     #[serde(default)]
     pub allow_crawl_ignore_robots: bool,
+    /// 按站点限速（请求间隔、每站点并发、Crawl-delay）。默认开；`false` 时只受全局并发约束。
+    pub politeness: Option<bool>,
+    /// 限流响应（429、带 Retry-After 的 503）和连续失败时按站点退避。默认开。
+    pub backoff: Option<bool>,
+    /// 遵守 robots.txt。默认开；`false` 时所有请求都不看 robots.txt。
+    pub robots: Option<bool>,
+}
+
+impl Policy {
+    /// 被关掉的开关名（`politeness`、`backoff`、`robots`），用于启动时提示。
+    pub fn disabled_switches(&self) -> Vec<&'static str> {
+        [
+            ("politeness", self.politeness),
+            ("backoff", self.backoff),
+            ("robots", self.robots),
+        ]
+        .into_iter()
+        .filter(|(_, on)| *on == Some(false))
+        .map(|(name, _)| name)
+        .collect()
+    }
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -396,7 +430,7 @@ impl Config {
         if let Some(t) = f.timeout_secs {
             // `timeout_secs` 是**单次请求的总预算**。以前只写 total_timeout，而等响应头用的是
             // 独立的 first_byte_timeout（默认 30 s），于是配置成 8 s 的请求仍可能等 30 s。
-            // 这里让所有阶段都不超过总预算，并标记为显式设置，供自适应调优尊重。
+            // 这里让所有阶段都不超过总预算，并标记为显式设置（用户的超时是硬上限）。
             let budget = Duration::from_secs(t);
             c.fetcher.total_timeout = budget;
             c.fetcher.first_byte_timeout = c.fetcher.first_byte_timeout.min(budget);
@@ -404,10 +438,6 @@ impl Config {
             c.fetcher.connect_timeout = c.fetcher.connect_timeout.min(budget);
             c.fetcher.dns_timeout = c.fetcher.dns_timeout.min(budget);
             c.fetcher.tls_timeout = c.fetcher.tls_timeout.min(budget);
-            c.fetcher.tail_threshold = c
-                .fetcher
-                .tail_threshold
-                .min((budget / 4).max(Duration::from_millis(500)));
             c.fetcher.timeouts_explicit = true;
         }
         if let Some(n) = f.max_redirects {
@@ -426,7 +456,17 @@ impl Config {
             if e.name.is_empty() || c.egress.iter().any(|(n, _)| *n == e.name) {
                 bail!("egress names must be unique and non-empty: {:?}", e.name);
             }
-            c.egress.push((e.name.clone(), e.proxy.clone()));
+            let proxy = match (&e.proxy, e.class) {
+                (Some(p), _) if !p.is_empty() => p.clone(),
+                (_, pagesift_policy::EgressClass::Direct) => String::new(),
+                (_, class) => bail!(
+                    "egress {:?} of class {} needs a proxy",
+                    e.name,
+                    class.as_str()
+                ),
+            };
+            c.egress.push((e.name.clone(), proxy));
+            c.egress_classes.insert(e.name.clone(), e.class);
         }
         for cred in &self.credentials {
             let mut hc = HostCredentials::new(cred.host.clone());
@@ -452,6 +492,9 @@ impl Config {
             c.policy.rate.default_interval = Duration::from_millis(ms);
         }
         self.apply_user_limits(&mut c);
+        c.policy.rate.politeness = p.politeness.unwrap_or(true);
+        c.policy.backoff.enabled = p.backoff.unwrap_or(true);
+        c.policy.respect_robots = p.robots.unwrap_or(true);
         c.policy.allow_crawl_ignore_robots = p.allow_crawl_ignore_robots;
 
         let b = &self.browser;
@@ -501,8 +544,8 @@ impl Config {
         Ok(c)
     }
 
-    /// 配置里写了的 body 上限和并发写进 `c`。[`scraper`](Self::scraper) 会调用；
-    /// 自适应调优（`TuningProfile::apply_to_config`）改写过 `c` 之后要再调一次，用户写了的值优先。
+    /// 配置里写了的 body 上限和并发写进 `c`（[`scraper`](Self::scraper) 会调用）。
+    /// 用户写明的全局并发既是冷启动值也是硬上限：USL 控制器只在它以下调整。
     pub fn apply_user_limits(&self, c: &mut ScraperConfig) {
         if let Some(mb) = self.fetch.max_body_mb {
             c.fetcher.max_body_bytes = mb * 1024 * 1024;
@@ -512,6 +555,7 @@ impl Config {
         }
         if let Some(n) = self.policy.global_concurrency {
             c.policy.rate.global_concurrency = n;
+            c.policy.rate.global_ceiling = Some(n);
         }
     }
 

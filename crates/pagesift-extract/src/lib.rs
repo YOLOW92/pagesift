@@ -30,6 +30,7 @@ mod forms;
 mod fuzzy;
 mod identity;
 mod knowledge;
+mod pack;
 mod patterns;
 mod recursive;
 mod relevance;

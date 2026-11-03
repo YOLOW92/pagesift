@@ -1,0 +1,17 @@
+[package]
+description = "pagesift data plane: per-core CPU workers and unified admission."
+name = "pagesift-flow"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+pagesift-net = { version = "0.90.0", path = "../pagesift-net" }
+pagesift-policy = { version = "0.90.0", path = "../pagesift-policy" }
+pagesift-stat = { version = "0.90.0", path = "../pagesift-stat" }
+tokio = { version = "1.54.1", features = ["sync"] }
+
+[dev-dependencies]
+tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "time"] }

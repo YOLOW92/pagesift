@@ -45,6 +45,10 @@ await scraper.close()
 | `scraper.scrape(url, options?)` | `Promise<Page>` | Rejects with `PagesiftError` |
 | `scraper.scrapeMany(urls, options?)` | `Promise<BatchItem[]>` | Same order as input; one failure only affects its own item |
 | `scraper.scrapeStream(urls, options?)` | async iterable of `BatchItem` | Completion order; leaving the loop cancels pending work |
+| `scraper.crawl(url, options?)` | `CrawlStream`, async iterable of `CrawlItem` | Whole-site crawl, one item per finished page; leaving the loop or `cancel()` stops the crawl |
+| `scraper.map(url, options?)` | `Promise<MapLink[]>` | The site's links: `{ url, title?, description? }` |
+| `scraper.parse(data, filename, options?)` | `Promise<Page>` | Parse a local file (PDF, HTML, Word, Excel, PowerPoint, EPUB, CSV); rejects with `PagesiftError` |
+| `scraper.parseStream(files, options?)` | async iterable of `BatchItem` | `files` are `{ data, filename, contentType?, url? }`; completion order, same concurrency and cancellation as `scrapeStream`; `url` of each item is the file name |
 | `scraper.close()` | `Promise<void>` | Stops browser processes |
 
 `html` is a `string` or UTF-8 bytes (`Uint8Array` / `Buffer`). Don't modify a buffer while a call that uses it is running.
@@ -56,6 +60,20 @@ await scraper.close()
 **`Page`.** `markdown`, `html`, `rawHtml`, `links`, `images` (`null` when not requested) and `metadata`
 (title, description, language, `statusCode`, `og*` keys, and `metadata.pagesift`: content hashes, redirect chain, ETag, engine used, timings).
 Each property read copies that one field into JS; fields you never read are never copied. `toJSON()` returns everything as a plain object.
+
+**Crawl, map, parse.** `crawl` options: `limit` (default: the HTTP API's), `maxDepth`, `includePaths` / `excludePaths` (path regexes),
+`crawlEntireDomain`, `allowSubdomains`, `sitemap` (`include` (default) / `skip` / `only`), `query`, `adaptive` (needs `query`),
+`ignoreRobotsTxt` (the crawl and every page), `maxConcurrency`, and per-page `formats`, `onlyMainContent`, `engine`.
+Invalid options throw `PagesiftError` from `crawl()` itself. Results go through a bounded channel whose capacity is the crawl's concurrency:
+when the consumer is slower, the crawl waits instead of dropping pages. A `CrawlItem` is `{ url, page?, error? }` (failed pages look like failed
+`BatchItem`s, without `index`). An error in the crawl itself (for example an invalid path regex) rejects the iteration with an `Error` whose
+message starts with the code (`INVALID_REQUEST: …`). `stream.summary` is `null` until the crawl ends, then `{ stopReason, pages, coverage?, termEvidence }`;
+crawls with `query` get it from the engine, other crawls report `limit_reached`, `exhausted` or `cancelled` from the page counts.
+`stream.total`, `stream.pages` and `stream.errors` are live counters.
+`map` options: `limit`, `search` (links containing more of its terms come first), `sitemap`, `ignoreRobotsTxt`.
+`parse` takes a `Uint8Array` / `Buffer`; the type is detected from the content, then the file name extension and `contentType`.
+`parse` options are the scrape options plus `contentType` and `url` (resolves relative links in HTML, never fetched); unknown types and URL-only options
+(`engine: 'browser'`, `waitFor`, `mobile`, conditional requests) reject with `UNSUPPORTED_OPTION`.
 
 **`BatchItem`.** `{ index, url, page?, error? }`, with exactly one of `page` or `error`.
 `error` is `{ code, message, details?, retryAfter? }`, a plain object rather than an `Error`, so a big batch doesn't collect stack traces.

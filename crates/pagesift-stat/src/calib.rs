@@ -1,4 +1,4 @@
-//! 概率校准模型：逻辑回归（Firth 修正）与保序回归（DESIGN §6.4）。
+//! 概率校准模型：逻辑回归（Firth 修正）与保序回归。
 
 use crate::{DecodeError, Reader, Writer};
 

@@ -25,9 +25,11 @@ mod launch;
 #[cfg(not(unix))]
 #[path = "launch_unavailable.rs"]
 mod launch;
+pub mod learn;
 mod options;
 mod page;
 mod pool;
+mod proxy;
 #[cfg(unix)]
 mod sweep;
 
@@ -46,3 +48,4 @@ pub use options::*;
 pub use pool::{
     BrowserPool, BrowserSource, BrowserStats, PoolConfig, auto_browsers, auto_browsers_for,
 };
+pub use proxy::BrowserProxy;

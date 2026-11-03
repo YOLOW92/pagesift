@@ -6,7 +6,7 @@ use pagesift::api::ApiError;
 use pagesift::api::types::{self, Metadata, PagesiftMeta};
 use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
-use pyo3::types::{PyDict, PyString};
+use pyo3::types::{PyBytes, PyDict, PyList, PyString};
 use serde_json::Value;
 
 use crate::engine::Outcome;
@@ -20,8 +20,6 @@ pub struct Document {
     url: Option<String>,
     doc: Option<types::Document>,
     err: Option<ApiError>,
-    /// `convert` 的结果沿用原始 meta 键名（`og:image`），抓取结果用 snake_case（`og_image`）。
-    raw_meta_keys: bool,
     markdown_py: StrCache,
     html_py: StrCache,
     raw_html_py: StrCache,
@@ -34,7 +32,7 @@ impl From<Outcome> for Document {
             Ok(d) => (Some(d), None),
             Err(e) => (None, Some(e)),
         };
-        Self::new(o.index, Some(o.url), doc, err, false)
+        Self::new(o.index, Some(o.url), doc, err)
     }
 }
 
@@ -44,14 +42,12 @@ impl Document {
         url: Option<String>,
         doc: Option<types::Document>,
         err: Option<ApiError>,
-        raw_meta_keys: bool,
     ) -> Self {
         Self {
             index,
             url,
             doc,
             err,
-            raw_meta_keys,
             markdown_py: PyOnceLock::new(),
             html_py: PyOnceLock::new(),
             raw_html_py: PyOnceLock::new(),
@@ -63,35 +59,22 @@ impl Document {
         self.index
     }
 
-    /// `convert` 的结果：只有 markdown 和元数据，元数据键名和以前一样。
+    /// `convert` 的结果：只有 markdown 和元数据，键名和抓取结果一样（`pagesift_sink::meta`）。
     pub fn converted(doc: pagesift_content::Document) -> Self {
-        let m = doc.metadata;
-        let mut extra = std::collections::BTreeMap::new();
-        for (k, v) in [("author", m.author), ("canonical_url", m.canonical_url)] {
-            if let Some(v) = v {
-                extra.insert(k.to_string(), Value::String(v));
-            }
-        }
-        for (k, v) in m.extra {
-            extra.insert(k, Value::String(v));
+        let mut metadata = Metadata::default();
+        pagesift_sink::meta::fill(&mut metadata, &doc.metadata);
+        // 抓取结果没有这一项（Firecrawl 不给），convert 以前给，保留
+        if let Some(c) = doc.metadata.canonical_url {
+            metadata
+                .extra
+                .insert("canonicalUrl".into(), Value::String(c));
         }
         let d = types::Document {
             markdown: Some(doc.markdown),
-            metadata: Metadata {
-                title: m.title,
-                description: m.description,
-                language: m.language,
-                keywords: m.keywords,
-                robots: m.robots,
-                favicon: m.favicon,
-                published_time: m.published_time,
-                modified_time: m.modified_time,
-                extra,
-                ..Default::default()
-            },
+            metadata,
             ..Default::default()
         };
-        Self::new(None, None, Some(d), None, true)
+        Self::new(None, None, Some(d), None)
     }
 
     fn meta(&self) -> Option<&Metadata> {
@@ -102,8 +85,9 @@ impl Document {
         self.meta().and_then(|m| m.pagesift.as_ref())
     }
 
+    /// 抓取来的结果（有请求地址）；`convert` 的结果没有状态码。
     fn scraped(&self) -> bool {
-        self.doc.is_some() && !self.raw_meta_keys
+        self.doc.is_some() && self.url.is_some()
     }
 }
 
@@ -115,22 +99,6 @@ fn cached<'py>(
     cell.get_or_init(py, || s.map(|s| PyString::new(py, s).unbind()))
         .as_ref()
         .map(|p| p.bind(py).clone())
-}
-
-/// `ogImage` → `og_image`、`numPages` → `num_pages`。
-fn snake_case(k: &str) -> String {
-    let mut out = String::with_capacity(k.len() + 4);
-    for c in k.chars() {
-        if c.is_ascii_uppercase() {
-            if !out.is_empty() {
-                out.push('_');
-            }
-            out.push(c.to_ascii_lowercase());
-        } else {
-            out.push(c);
-        }
-    }
-    out
 }
 
 #[pymethods]
@@ -187,6 +155,26 @@ impl Document {
         let l = self.doc.as_ref()?.images.as_ref()?;
         Some(l.iter().map(String::as_str).collect())
     }
+    /// 导出的文件（`export_images=True`）：每项 `id`、`format`、`bytes`（字节数）、`hash`（SHA-256）、
+    /// `source`（原地址或文档里的部件路径，PDF 图片为 None）、`data`（内容，bytes）。
+    #[getter]
+    fn attachments<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+        let list = PyList::empty(py);
+        let Some(doc) = self.doc.as_ref() else {
+            return Ok(list);
+        };
+        for a in &doc.attachments {
+            let d = PyDict::new(py);
+            d.set_item("id", &a.id)?;
+            d.set_item("format", &a.format)?;
+            d.set_item("bytes", a.bytes)?;
+            d.set_item("hash", &a.hash)?;
+            d.set_item("source", a.source.as_deref())?;
+            d.set_item("data", a.data.as_deref().map(|b| PyBytes::new(py, b)))?;
+            list.append(d)?;
+        }
+        Ok(list)
+    }
     #[getter]
     fn metadata<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let d = PyDict::new(py);
@@ -199,6 +187,7 @@ impl Document {
             ("robots", &m.robots),
             ("favicon", &m.favicon),
             ("published_time", &m.published_time),
+            ("author", &m.author),
             ("modified_time", &m.modified_time),
             ("content_type", &m.content_type),
         ] {
@@ -207,12 +196,7 @@ impl Document {
             }
         }
         for (k, v) in &m.extra {
-            let v = json(py, v)?;
-            if self.raw_meta_keys {
-                d.set_item(k, v)?;
-            } else {
-                d.set_item(snake_case(k), v)?;
-            }
+            d.set_item(pagesift_sink::meta::snake_case(k), json(py, v)?)?;
         }
         Ok(d)
     }

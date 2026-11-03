@@ -15,13 +15,16 @@ use pagesift::{Scraper, ScraperConfig};
 use pagesift_cdp::BrowserSource;
 use pyo3::exceptions::{PyStopAsyncIteration, PyValueError};
 use pyo3::prelude::*;
+use pyo3::types::{PyBytes, PyDict};
 use tokio::runtime::Runtime;
 use tokio::sync::{Semaphore, mpsc};
 use tokio::task::JoinSet;
 
+use crate::crawl::{self, Crawl, CrawlArgs, MapArgs};
 use crate::document::Document;
 use crate::errors::to_py_err;
 use crate::options::{Options, check_url};
+use crate::parse::{self, FileInput};
 
 pub struct Outcome {
     pub index: Option<usize>,
@@ -29,7 +32,7 @@ pub struct Outcome {
     pub result: Result<types::Document, ApiError>,
 }
 
-fn runtime() -> &'static Runtime {
+pub(crate) fn runtime() -> &'static Runtime {
     pyo3_async_runtimes::tokio::get_runtime()
 }
 
@@ -95,8 +98,12 @@ impl Engine {
         }
         cfg.policy.rate.default_interval = Duration::from_secs_f64(request_interval);
         cfg.policy.rate.per_host_concurrency = per_host_concurrency;
+        // `max_concurrency` 是用户给的上限：在线调整只在它之下（冷启动就是它，和 0.81 一样）
         cfg.policy.rate.global_concurrency = max_concurrency;
+        cfg.policy.rate.global_ceiling = Some(max_concurrency);
         cfg.browser.max_browsers = max_browsers;
+        // 用库的人就是管理员（和命令行一样）：crawl、map 的 ignore_robots_txt 由调用方自己决定
+        cfg.policy.allow_crawl_ignore_robots = true;
         cfg.browser.source = match (browser_executable, browser_url) {
             (Some(_), Some(_)) => {
                 return Err(PyValueError::new_err(
@@ -167,12 +174,164 @@ impl Engine {
         let total = urls.len();
         let (tx, rx) = mpsc::unbounded_channel();
         let tasks = spawn_all(&self.scraper, urls, &options.inner, concurrency, tx)?;
-        Ok(Batch {
-            rx: Arc::new(tokio::sync::Mutex::new(rx)),
-            tasks: Mutex::new(Some(tasks)),
-            cancelled: Arc::new(AtomicBool::new(false)),
-            total,
+        Ok(Batch::new(rx, tasks, total))
+    }
+
+    /// 整站爬取，返回按完成顺序产出页面的 [`Crawl`]（同步、异步迭代都可以）。
+    #[pyo3(signature = (
+        url,
+        options,
+        *,
+        limit = None,
+        max_depth = None,
+        include_paths = None,
+        exclude_paths = None,
+        crawl_entire_domain = false,
+        allow_subdomains = None,
+        sitemap = "include".to_string(),
+        query = None,
+        adaptive = false,
+        max_concurrency = None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn crawl(
+        &self,
+        url: String,
+        options: &Options,
+        limit: Option<usize>,
+        max_depth: Option<usize>,
+        include_paths: Option<Vec<String>>,
+        exclude_paths: Option<Vec<String>>,
+        crawl_entire_domain: bool,
+        allow_subdomains: Option<bool>,
+        sitemap: String,
+        query: Option<String>,
+        adaptive: bool,
+        max_concurrency: Option<usize>,
+    ) -> PyResult<Crawl> {
+        let args = CrawlArgs {
+            limit,
+            max_depth,
+            include_paths,
+            exclude_paths,
+            crawl_entire_domain,
+            allow_subdomains,
+            sitemap,
+            query,
+            adaptive,
+            max_concurrency,
+        };
+        crawl::start(&self.scraper, url, &options.inner, args)
+    }
+
+    /// 站点的链接列表（sitemap 加页面上的链接），每项是 `{"url", "title", "description"}`。
+    #[pyo3(signature = (url, *, limit = None, search = None, sitemap = "include".to_string(), ignore_robots_txt = false))]
+    fn map<'py>(
+        &self,
+        py: Python<'py>,
+        url: String,
+        limit: Option<usize>,
+        search: Option<String>,
+        sitemap: String,
+        ignore_robots_txt: bool,
+    ) -> PyResult<Vec<Bound<'py, PyDict>>> {
+        let args = MapArgs {
+            limit,
+            search,
+            sitemap,
+            ignore_robots_txt,
+        };
+        let req = crawl::map_request(url, args).map_err(|e| to_py_err(&e, None))?;
+        crawl::map_blocking(py, &self.scraper, req)
+    }
+
+    #[pyo3(signature = (url, *, limit = None, search = None, sitemap = "include".to_string(), ignore_robots_txt = false))]
+    fn amap<'py>(
+        &self,
+        py: Python<'py>,
+        url: String,
+        limit: Option<usize>,
+        search: Option<String>,
+        sitemap: String,
+        ignore_robots_txt: bool,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let args = MapArgs {
+            limit,
+            search,
+            sitemap,
+            ignore_robots_txt,
+        };
+        let req = crawl::map_request(url, args).map_err(|e| to_py_err(&e, None))?;
+        let scraper = self.scraper.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let links = scraper.map(&req).await.map_err(|e| to_py_err(&e, None))?;
+            Python::attach(|py| {
+                crawl::links_to_py(py, links)
+                    .map(|l| l.into_iter().map(Bound::unbind).collect::<Vec<_>>())
+            })
         })
+    }
+
+    /// 解析一个文件（PDF、HTML、Office 文档等），失败时抛出对应的异常。
+    #[pyo3(signature = (data, filename, options, *, content_type = None, url = None))]
+    fn parse(
+        &self,
+        py: Python<'_>,
+        data: &Bound<'_, PyBytes>,
+        filename: String,
+        options: &Options,
+        content_type: Option<String>,
+        url: Option<String>,
+    ) -> PyResult<Document> {
+        let file = file_input(data, filename, content_type, url);
+        let opts = options.inner.clone();
+        parse::check_options(&self.scraper, &opts).map_err(|e| to_py_err(&e, None))?;
+        let scraper = self.scraper.clone();
+        let out = block_on(py, async move {
+            parse::parse_one(&scraper, None, file, &opts).await
+        })?;
+        raise_or_document(out)
+    }
+
+    #[pyo3(signature = (data, filename, options, *, content_type = None, url = None))]
+    fn aparse<'py>(
+        &self,
+        py: Python<'py>,
+        data: &Bound<'_, PyBytes>,
+        filename: String,
+        options: &Options,
+        content_type: Option<String>,
+        url: Option<String>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let file = file_input(data, filename, content_type, url);
+        let opts = options.inner.clone();
+        parse::check_options(&self.scraper, &opts).map_err(|e| to_py_err(&e, None))?;
+        let scraper = self.scraper.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            raise_or_document(parse::parse_one(&scraper, None, file, &opts).await)
+        })
+    }
+
+    /// 立即开始批量解析，返回按完成顺序产出结果的 [`Batch`]；`files` 是 `(字节, 文件名)` 的列表。
+    fn parse_stream(
+        &self,
+        files: Vec<(Bound<'_, PyBytes>, String)>,
+        options: &Options,
+        concurrency: usize,
+    ) -> PyResult<Batch> {
+        parse::check_options(&self.scraper, &options.inner).map_err(|e| to_py_err(&e, None))?;
+        let total = files.len();
+        let inputs: Vec<FileInput> = files
+            .into_iter()
+            .map(|(data, name)| file_input(&data, name, None, None))
+            .collect();
+        let (tx, rx) = mpsc::unbounded_channel();
+        let (scraper, opts) = (self.scraper.clone(), options.inner.clone());
+        let tasks = spawn_jobs(inputs, concurrency, tx, move |i, f| {
+            let (scraper, opts) = (scraper.clone(), opts.clone());
+            async move { parse::parse_one(&scraper, Some(i), f, &opts).await }
+        })?;
+        Ok(Batch::new(rx, tasks, total))
     }
 
     /// 关闭浏览器池。连接池随对象释放。
@@ -211,6 +370,17 @@ async fn next_outcome(
     }
     let next = rx.lock().await.recv().await;
     next.filter(|_| !cancelled.load(Ordering::Acquire))
+}
+
+impl Batch {
+    fn new(rx: mpsc::UnboundedReceiver<Outcome>, tasks: JoinSet<()>, total: usize) -> Self {
+        Self {
+            rx: Arc::new(tokio::sync::Mutex::new(rx)),
+            tasks: Mutex::new(Some(tasks)),
+            cancelled: Arc::new(AtomicBool::new(false)),
+            total,
+        }
+    }
 }
 
 #[pymethods]
@@ -279,6 +449,20 @@ fn raise_or_document(o: Outcome) -> PyResult<Document> {
     }
 }
 
+fn file_input(
+    data: &Bound<'_, PyBytes>,
+    filename: String,
+    content_type: Option<String>,
+    url: Option<String>,
+) -> FileInput {
+    FileInput {
+        bytes: data.as_bytes().to_vec(),
+        filename,
+        content_type,
+        url,
+    }
+}
+
 /// 每个 URL 一个任务，信号量控制同时进行的数量；结果按完成顺序送进 `tx`。
 fn spawn_all(
     scraper: &Arc<Scraper>,
@@ -287,19 +471,39 @@ fn spawn_all(
     concurrency: usize,
     tx: mpsc::UnboundedSender<Outcome>,
 ) -> PyResult<JoinSet<()>> {
+    let (scraper, opts) = (scraper.clone(), opts.clone());
+    spawn_jobs(urls, concurrency, tx, move |i, url| {
+        let (scraper, opts) = (scraper.clone(), opts.clone());
+        async move { scrape_one(&scraper, Some(i), url, &opts).await }
+    })
+}
+
+/// 每一项一个任务（第 `i` 项交给 `job(i, item)`），信号量控制同时进行的数量；结果按完成顺序送进 `tx`。
+fn spawn_jobs<T, F, Fut>(
+    items: Vec<T>,
+    concurrency: usize,
+    tx: mpsc::UnboundedSender<Outcome>,
+    job: F,
+) -> PyResult<JoinSet<()>>
+where
+    T: Send + 'static,
+    F: Fn(usize, T) -> Fut + Send + Sync + 'static,
+    Fut: Future<Output = Outcome> + Send + 'static,
+{
     if concurrency == 0 {
         return Err(PyValueError::new_err("concurrency must be at least 1"));
     }
     let sem = Arc::new(Semaphore::new(concurrency));
+    let job = Arc::new(job);
     let mut set = JoinSet::new();
-    for (i, url) in urls.into_iter().enumerate() {
-        let (scraper, opts, sem, tx) = (scraper.clone(), opts.clone(), sem.clone(), tx.clone());
+    for (i, item) in items.into_iter().enumerate() {
+        let (job, sem, tx) = (job.clone(), sem.clone(), tx.clone());
         set.spawn_on(
             async move {
                 let Ok(_permit) = sem.acquire().await else {
                     return;
                 };
-                let _ = tx.send(scrape_one(&scraper, Some(i), url, &opts).await);
+                let _ = tx.send(job(i, item).await);
             },
             runtime().handle(),
         );
@@ -308,7 +512,7 @@ fn spawn_all(
 }
 
 /// 在运行时上等待 `fut`，期间释放 GIL；每 100ms 检查一次 Ctrl-C，收到就取消。
-fn block_on<F>(py: Python<'_>, fut: F) -> PyResult<F::Output>
+pub(crate) fn block_on<F>(py: Python<'_>, fut: F) -> PyResult<F::Output>
 where
     F: Future + Send,
     F::Output: Send,

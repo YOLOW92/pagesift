@@ -82,6 +82,42 @@ pub struct PagesiftMeta {
     /// JSON-LD blocks found on the page, parsed and passed through unchanged.
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub json_ld: Vec<Value>,
+    /// How the result was produced: one entry per decision (render or not, merge or not) with its inputs.
+    /// Only present when the request asks for an explanation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan: Option<PlanTrace>,
+}
+
+/// `metadata.pagesift.plan`：每一步决策的依据。
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanTrace {
+    pub steps: Vec<PlanStep>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanStep {
+    /// `render`（是否开浏览器）；`adopt`（是否采用渲染结果）或 `merge`（采用的是 HTTP 与渲染按块合并的结果）。
+    pub action: String,
+    pub chosen: bool,
+    /// 依据来自学到的后验；`false` 表示冷启动时沿用的规则。
+    pub learned: bool,
+    /// 用来决策的概率（Thompson 抽样值）。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub p: Option<f64>,
+    /// 可得的价值（质量单位）。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<f64>,
+    /// 资源与时间的代价（质量单位）。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub charge: Option<f64>,
+    /// 这一步之后结果的校准质量分。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quality: Option<f64>,
+    /// 合并时各块的来源：两边都有、只来自 HTTP、只来自渲染。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blocks: Option<[usize; 3]>, // [推导] 来源种类数
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -171,6 +207,9 @@ pub struct Document {
     /// 页面声明的其他语言版本（`hreflang`）：(语言, 地址)。爬虫找英文版用；不进 JSON。
     #[serde(skip)]
     pub alternates: Vec<(String, String)>,
+    /// 引擎内部用的校准质量分 `P(完整可用)`，渲染决策和按块合并用；不进 JSON、不进缓存。
+    #[serde(skip)]
+    pub quality: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub images: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -187,6 +226,10 @@ pub struct Document {
     pub change_tracking: Option<ChangeTracking>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chunks: Option<Vec<DocChunk>>,
+    /// PageSift extension: exported files (`exportImages`). JSON lists `{id, format, bytes, hash}`;
+    /// the content is downloaded from `GET /v2/attachments/{id}`.
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub attachments: Vec<super::Attachment>,
     pub metadata: Metadata,
 }
 

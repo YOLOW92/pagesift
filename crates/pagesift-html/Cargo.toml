@@ -7,6 +7,10 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+[features]
+# 测试用：统计建树次数。默认关闭，平时没有任何开销。
+count-builds = []
+
 [dependencies]
 memchr = "2.8.3"
 

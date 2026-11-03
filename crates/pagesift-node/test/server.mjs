@@ -37,6 +37,18 @@ document.head.appendChild(a);}());</script></body></html>`
 
 const heavyPage = heavy(300)
 
+/** 爬取用的小站点：`/site/` 链到 a、b 和被 robots.txt 禁止的 secret，a、b 链回首页。 */
+const sitePage = (title, links) => `<!DOCTYPE html><html lang="en"><head><title>${title}</title></head><body>
+<article><h1>${title}</h1>
+${links.map((l) => `<p><a href="${l}">${l}</a></p>`).join('\n')}
+${prose(10)}
+</article></body></html>`
+const site = {
+  '/site/': sitePage('Site home', ['/site/a', '/site/b', '/site/secret']),
+  '/site/a': sitePage('Site A', ['/site/']),
+  '/site/b': sitePage('Site B', ['/site/']),
+}
+
 export async function startServer(host = '127.0.0.1') {
   const hits = new Map()
   const server = createServer((req, res) => {
@@ -48,9 +60,10 @@ export async function startServer(host = '127.0.0.1') {
     }
     if (path === '/robots.txt') {
       res.writeHead(200, { 'content-type': 'text/plain' })
-      return res.end('User-agent: *\nDisallow: /private\n')
+      return res.end('User-agent: *\nDisallow: /private\nDisallow: /site/secret\n')
     }
     if (path === '/article') return html(200, article, { etag: '"v1"' })
+    if (site[path]) return html(200, site[path])
     if (path === '/etag') {
       if (req.headers['if-none-match'] === '"v1"') {
         res.writeHead(304, { etag: '"v1"' })

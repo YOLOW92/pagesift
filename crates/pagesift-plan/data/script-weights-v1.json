@@ -1,0 +1,57 @@
+{
+  "Arabic": {
+    "chars": 6925,
+    "entropy_nats": 3.533362855730694,
+    "weight": 1.1165589706243608
+  },
+  "Common": {
+    "chars": 3291385,
+    "entropy_nats": 3.464888600461028,
+    "weight": 1.0
+  },
+  "Cyrillic": {
+    "chars": 80739,
+    "entropy_nats": 3.2578230808531385,
+    "weight": 1.0294871300110002
+  },
+  "Devanagari": {
+    "chars": 1581,
+    "entropy_nats": 3.4018368190367947,
+    "weight": 1.0
+  },
+  "Greek": {
+    "chars": 1107,
+    "entropy_nats": 3.993646610850664,
+    "weight": 1.262010761678973
+  },
+  "Han": {
+    "chars": 590138,
+    "entropy_nats": 6.391622153653246,
+    "weight": 2.0197821010452337
+  },
+  "Hangul": {
+    "chars": 5966,
+    "entropy_nats": 5.4259235108304535,
+    "weight": 1.7146168727373765
+  },
+  "Hebrew": {
+    "chars": 5169,
+    "entropy_nats": 3.0771666036984024,
+    "weight": 1.0
+  },
+  "Kana": {
+    "chars": 26891,
+    "entropy_nats": 4.237768222868337,
+    "weight": 1.3391543178182828
+  },
+  "Latin": {
+    "chars": 14907903,
+    "entropy_nats": 3.1645107412059907,
+    "weight": 1.0
+  },
+  "Thai": {
+    "chars": 405,
+    "entropy_nats": 3.5708315025849697,
+    "weight": 1.0
+  }
+}

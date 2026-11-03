@@ -83,18 +83,29 @@ impl Store {
         if !inner.cfg.background {
             return;
         }
-        let (over, compact) = {
+        let (over, compact, disk, garbage) = {
             let st = self.state_r();
             let over = inner.cfg.max_bytes.is_some_and(|m| st.disk > m);
-            (over, self.needs_compact(&st))
+            (
+                over,
+                self.needs_compact(&st),
+                st.disk,
+                st.disk.saturating_sub(st.live),
+            )
         };
         if !(over || compact) {
             return;
         }
         let now = to_ms(SystemTime::now());
-        if now.saturating_sub(inner.last_maint_ms.load(Ordering::Relaxed)) < 1000
-            || inner.busy.swap(true, Ordering::AcqRel)
-        {
+        let elapsed = now.saturating_sub(inner.last_maint_ms.load(Ordering::Relaxed));
+        let grown = grown_since(
+            (
+                inner.last_maint_disk.load(Ordering::Relaxed),
+                inner.last_maint_garbage.load(Ordering::Relaxed),
+            ),
+            (disk, garbage),
+        );
+        if (elapsed < MAINT_MAX_GAP_MS && !grown) || inner.busy.swap(true, Ordering::AcqRel) {
             return;
         }
         let s = self.clone();
@@ -108,6 +119,12 @@ impl Store {
                 };
                 if let Err(e) = r {
                     *lock(&s.0.last_error) = Some(e.to_string());
+                }
+                {
+                    let st = s.state_r();
+                    s.0.last_maint_disk.store(st.disk, Ordering::Relaxed);
+                    s.0.last_maint_garbage
+                        .store(st.disk.saturating_sub(st.live), Ordering::Relaxed);
                 }
                 s.0.last_maint_ms
                     .store(to_ms(SystemTime::now()), Ordering::Relaxed);
@@ -201,5 +218,35 @@ impl Store {
         fs::remove_file(seg_path(&self.0.cfg.dir, id))?;
         sync_dir(&self.0.cfg.dir)?;
         Ok(())
+    }
+}
+
+/// 两次后台维护之间最长等多久。[策略] 先验包 v0：0.81 的现值 1000 ms，作为上限保留：
+/// 维护做完仍超限（比如剩下的都是不可淘汰的任务状态）时，每秒最多重试一次，不空转。
+const MAINT_MAX_GAP_MS: u64 = 1000;
+
+/// 维护的触发按垃圾增长：上次维护以后，
+/// 无效数据或磁盘总量的增长超过上次磁盘总量的 `δ`（以它为分辨率：小于它的变化改变不了
+/// "要不要压缩/淘汰"的判断）就可以马上再维护，不必等满 [`MAINT_MAX_GAP_MS`]。
+/// 写得越快，越早再维护；没有增长时退回 0.81 的每秒一次。改用"增长量"而不是"增长率 × 间隔"：
+/// 两者等价（增长量 = 速率 × 时间），增长量不用估计速率，也就没有估计误差。
+fn grown_since(last: (u64, u64), now: (u64, u64)) -> bool {
+    let resolution = pagesift_stat::Delta::DEFAULT.get() * last.0.max(1) as f64;
+    now.1.saturating_sub(last.1) as f64 >= resolution
+        || now.0.saturating_sub(last.0) as f64 >= resolution
+}
+
+#[cfg(test)]
+mod maint_tests {
+    use super::grown_since;
+
+    /// 增长不到上次磁盘总量的 δ 不算；垃圾或总量长够了就算；首次（上次为 0）任何增长都算。
+    #[test]
+    fn maintenance_triggers_on_garbage_growth() {
+        let last = (1_000_000, 400_000);
+        assert!(!grown_since(last, (1_010_000, 440_000)));
+        assert!(grown_since(last, (1_010_000, 450_000)));
+        assert!(grown_since(last, (1_050_000, 400_000)));
+        assert!(grown_since((0, 0), (10, 0)));
     }
 }

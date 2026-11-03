@@ -87,7 +87,7 @@ pub(crate) fn unmarked_root<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option<
         .descendants()
         .find(|n| n.tag() == Some(Tag::Title))?
         .text();
-    let signature = crate::article::TitleSignature::new(&title);
+    let signature = crate::title_match::TitleSignature::new(&title);
     let mut found = None;
     for heading in dom
         .body()
@@ -97,7 +97,7 @@ pub(crate) fn unmarked_root<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option<
         let (chars, linked, _) = skipper.stats(&heading);
         if !(12..=180).contains(&chars)
             || linked != 0
-            || !crate::article::title_agrees_with(&signature, &heading.text())
+            || !crate::title_match::title_agrees_with(&signature, &heading.text())
             || heading.ancestors().any(|a| skipper.skip(&a))
         {
             continue;

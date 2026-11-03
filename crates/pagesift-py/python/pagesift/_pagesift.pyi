@@ -1,6 +1,6 @@
 # pagesift 原生模块（Rust）的类型存根。公开接口见 pagesift/__init__.py。
 
-from typing import Any, Awaitable, Dict, Iterator, List, Mapping, Optional, Sequence
+from typing import Any, Awaitable, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple, TypedDict
 
 from .errors import PagesiftError
 
@@ -18,7 +18,7 @@ class Document:
 
     @property
     def url(self) -> Optional[str]:
-        """请求的地址。"""
+        """请求的地址；``parse`` 的结果是文件名。"""
     @property
     def final_url(self) -> Optional[str]:
         """跟随重定向后的最终地址。"""
@@ -41,7 +41,7 @@ class Document:
     @property
     def metadata(self) -> Dict[str, Any]:
         """页面元数据：title、description、language、keywords、robots、favicon、
-        published_time、modified_time、content_type，以及 og_image 等其他 meta 标签。"""
+        published_time、author、modified_time、content_type，以及 og_image 等其他 meta 标签（scrape 和 convert 键名相同）。"""
     @property
     def error(self) -> Optional[PagesiftError]: ...
     @property
@@ -100,7 +100,7 @@ class Options:
     ) -> None: ...
 
 class Batch:
-    """进行中的批量抓取，按完成顺序产出 Document。``for`` 和 ``async for`` 都可以用，只能迭代一遍。"""
+    """进行中的批量抓取或批量解析，按完成顺序产出 Document。``for`` 和 ``async for`` 都可以用，只能迭代一遍。"""
 
     def __len__(self) -> int: ...
     def __iter__(self) -> Iterator[Document]: ...
@@ -109,6 +109,46 @@ class Batch:
     def __anext__(self) -> Awaitable[Document]: ...
     def cancel(self) -> None:
         """取消整批：未完成的抓取全部取消，之后迭代立即结束；已完成但还没取出的结果也丢弃。"""
+
+class CrawlSummary(TypedDict):
+    stop_reason: str
+    """``limit_reached``、``exhausted``、``cancelled``；带 query 时还有 ``coverage_reached``、``saturated``、``no_relevant_pages``。"""
+    pages: int
+    coverage: Optional[float]
+    """自适应爬取结束时的覆盖度（0–1），其他爬取为 None。"""
+    term_evidence: Dict[str, int]
+    """自适应爬取里每个查询词收集到的证据块数，其他爬取为空。"""
+
+class MapLink(TypedDict):
+    url: str
+    title: Optional[str]
+    description: Optional[str]
+
+class Crawl:
+    """进行中的整站爬取，每完成一页产出一个 Document（失败页 ``success`` 为 False）。
+
+    ``for`` 和 ``async for`` 都可以用，只能迭代一遍；爬取本身出错（比如路径正则写错）时迭代抛出异常。
+    迭代器被丢弃或 ``cancel()`` 后爬取停止。
+    """
+
+    def __iter__(self) -> Iterator[Document]: ...
+    def __next__(self) -> Document: ...
+    def __aiter__(self) -> "Crawl": ...
+    def __anext__(self) -> Awaitable[Document]: ...
+    def cancel(self) -> None:
+        """停止爬取，之后迭代立即结束；已完成但还没取出的页面也丢弃。"""
+    @property
+    def total(self) -> int:
+        """已经确定要抓的页面数（随着发现新链接增长，不超过 ``limit``）。"""
+    @property
+    def pages(self) -> int:
+        """引擎已经交付的成功页数（含还没取出的）。"""
+    @property
+    def errors(self) -> int:
+        """引擎已经交付的失败页数（含还没取出的）。"""
+    @property
+    def summary(self) -> Optional[CrawlSummary]:
+        """爬取结束后的说明，结束前为 None。"""
 
 class Engine:
     def __init__(
@@ -129,5 +169,58 @@ class Engine:
     def ascrape(self, url: str, options: Options) -> Awaitable[Document]: ...
     def scrape_many(self, urls: List[str], options: Options, concurrency: int) -> List[Document]: ...
     def stream(self, urls: List[str], options: Options, concurrency: int) -> Batch: ...
+    def crawl(
+        self,
+        url: str,
+        options: Options,
+        *,
+        limit: Optional[int] = None,
+        max_depth: Optional[int] = None,
+        include_paths: Optional[List[str]] = None,
+        exclude_paths: Optional[List[str]] = None,
+        crawl_entire_domain: bool = False,
+        allow_subdomains: Optional[bool] = None,
+        sitemap: str = "include",
+        query: Optional[str] = None,
+        adaptive: bool = False,
+        max_concurrency: Optional[int] = None,
+    ) -> Crawl: ...
+    def map(
+        self,
+        url: str,
+        *,
+        limit: Optional[int] = None,
+        search: Optional[str] = None,
+        sitemap: str = "include",
+        ignore_robots_txt: bool = False,
+    ) -> List[MapLink]: ...
+    def amap(
+        self,
+        url: str,
+        *,
+        limit: Optional[int] = None,
+        search: Optional[str] = None,
+        sitemap: str = "include",
+        ignore_robots_txt: bool = False,
+    ) -> Awaitable[List[MapLink]]: ...
+    def parse(
+        self,
+        data: bytes,
+        filename: str,
+        options: Options,
+        *,
+        content_type: Optional[str] = None,
+        url: Optional[str] = None,
+    ) -> Document: ...
+    def aparse(
+        self,
+        data: bytes,
+        filename: str,
+        options: Options,
+        *,
+        content_type: Optional[str] = None,
+        url: Optional[str] = None,
+    ) -> Awaitable[Document]: ...
+    def parse_stream(self, files: List[Tuple[bytes, str]], options: Options, concurrency: int) -> Batch: ...
     def close(self) -> None: ...
     def aclose(self) -> Awaitable[None]: ...

@@ -87,7 +87,7 @@ impl Fit {
             .sum()
     }
 
-    /// 单个新观测的预测区间上界（DESIGN §5.4-M）：`ŷ + t(1−δ; n−k) · s · √(1 + xᵀ(XᵀX)⁻¹x)`。
+    /// 单个新观测的预测区间上界：`ŷ + t(1−δ; n−k) · s · √(1 + xᵀ(XᵀX)⁻¹x)`。
     pub fn upper_prediction(&self, x: &[f64], delta: Delta) -> f64 {
         let t = t_quantile(1.0 - delta.get(), self.dof);
         self.predict(x) + t * (self.s2 * (1.0 + self.leverage(x))).sqrt()

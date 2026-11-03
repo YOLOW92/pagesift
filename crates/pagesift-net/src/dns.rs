@@ -14,12 +14,29 @@ use tokio::time::{Instant, sleep};
 
 use crate::ssrf::{Blocked, SsrfPolicy};
 use crate::stages::{NetworkStage, StageController, StageOutcome};
+use crate::wait::{Phase, WaitTable};
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 /// 底层域名查询。默认用系统解析器；测试或自定义解析时可以替换。
 pub trait DnsLookup: Send + Sync + 'static {
     fn lookup<'a>(&'a self, host: &'a str) -> BoxFuture<'a, io::Result<Vec<IpAddr>>>;
+
+    /// 带缓存时长的查询：能拿到记录 TTL 的解析器（自带 DNS 报文解析的实现）覆盖它，
+    /// 肯定回答返回记录 TTL 的最小值（RFC 1035 §3.2.1、RFC 2181 §5.2），否定回答返回
+    /// SOA 的 `min(TTL, MINIMUM)`（RFC 2308 §5），见 [`negative_ttl`]。
+    /// 默认（系统解析器 getaddrinfo 不给 TTL）返回 `None`，由配置的回退值决定缓存时长。
+    fn lookup_ttl<'a>(
+        &'a self,
+        host: &'a str,
+    ) -> BoxFuture<'a, (io::Result<Vec<IpAddr>>, Option<Duration>)> {
+        Box::pin(async move { (self.lookup(host).await, None) })
+    }
+}
+
+/// RFC 2308 §5：否定回答的缓存时长取 SOA 记录自身 TTL 与 MINIMUM 字段中较小的一个。
+pub fn negative_ttl(soa_ttl: u32, soa_minimum: u32) -> Duration {
+    Duration::from_secs(u64::from(soa_ttl.min(soa_minimum)))
 }
 
 /// 系统解析器（getaddrinfo）。
@@ -44,10 +61,21 @@ pub(crate) struct GuardedResolver {
     pub negative_ttl: Duration,
     pub transient_retries: usize,
     pub stages: StageController,
-    cache: Mutex<HashMap<String, Arc<AsyncMutex<Option<CachedAnswer>>>>>,
+    waits: Arc<WaitTable>,
+    cache: Mutex<DnsCache>,
+}
+
+/// [策略] 先验包 v0：0.81 的现值。缓存项第一次到这个数时清掉过期项；之后门槛按清理后
+/// 存活数的两倍（摊还 O(1)，`wait::next_sweep`），缓存不超过存活项的两倍
+const DNS_SWEEP_AT: usize = 16_384;
+
+struct DnsCache {
+    map: HashMap<String, Arc<AsyncMutex<Option<CachedAnswer>>>>,
+    sweep_at: usize,
 }
 
 impl GuardedResolver {
+    #[allow(clippy::too_many_arguments)] // 构造时一次性给齐策略与共享统计，只在 Fetcher 里调用一处
     pub(crate) fn new(
         lookup: Arc<dyn DnsLookup>,
         policy: SsrfPolicy,
@@ -56,6 +84,7 @@ impl GuardedResolver {
         negative_ttl: Duration,
         transient_retries: usize,
         stages: StageController,
+        waits: Arc<WaitTable>,
     ) -> Self {
         Self {
             lookup,
@@ -65,7 +94,11 @@ impl GuardedResolver {
             negative_ttl,
             transient_retries,
             stages,
-            cache: Mutex::new(HashMap::new()),
+            waits,
+            cache: Mutex::new(DnsCache {
+                map: HashMap::new(),
+                sweep_at: DNS_SWEEP_AT,
+            }),
         }
     }
 
@@ -77,15 +110,20 @@ impl GuardedResolver {
         }
         let slot = {
             let mut cache = self.cache.lock().expect("DNS cache lock poisoned");
-            if cache.len() >= 16_384 && !cache.contains_key(host) {
-                cache.retain(|_, slot| {
+            if cache.map.len() >= cache.sweep_at && !cache.map.contains_key(host) {
+                cache.map.retain(|_, slot| {
                     Arc::strong_count(slot) > 1
                         || slot.try_lock().map_or(true, |entry| {
                             entry.as_ref().is_some_and(|e| e.expires > Instant::now())
                         })
                 });
+                cache.sweep_at = crate::wait::next_sweep(cache.map.len(), DNS_SWEEP_AT);
             }
-            cache.entry(host.to_ascii_lowercase()).or_default().clone()
+            cache
+                .map
+                .entry(host.to_ascii_lowercase())
+                .or_default()
+                .clone()
         };
         let mut cached = slot.lock().await;
         if let Some(answer) = cached
@@ -96,22 +134,47 @@ impl GuardedResolver {
             return self.finish_checked(host, result, permit);
         }
 
-        let mut attempt = 0;
-        let lookup = loop {
-            match self.lookup.lookup(host).await {
-                Ok(ips) => break Ok(ips),
-                Err(error) if is_transient(&error) && attempt < self.transient_retries => {
-                    attempt += 1;
-                    sleep(Duration::from_millis(25 * (1_u64 << attempt.min(4)))).await;
+        // 瞬时失败的重试：次数按恢复时长分布（先验是配置值），第 k 次前等 底数·2^k，
+        // 底数是解析器 RTT 的中位数（先验 25 ms，0.81 的现值）。总时长受调用方的 DNS 上限约束
+        let net = &self.waits.net;
+        let retries = net.dns_retries(self.transient_retries);
+        let started = Instant::now();
+        let mut first_failure = None;
+        let mut attempt: u32 = 0;
+        let (lookup, record_ttl) = loop {
+            let tried = Instant::now();
+            match self.lookup.lookup_ttl(host).await {
+                (Ok(ips), ttl) => {
+                    net.dns_answered(host, tried.elapsed());
+                    if let Some(failed) = first_failure {
+                        net.dns_recovery(host, Instant::now() - failed, true);
+                    }
+                    break (Ok(ips), ttl);
                 }
-                Err(error) => break Err(error),
+                (Err(error), _) if is_transient(&error) && (attempt as usize) < retries => {
+                    first_failure.get_or_insert(tried);
+                    attempt += 1;
+                    sleep(
+                        net.dns_backoff_base()
+                            .saturating_mul(2u32.saturating_pow(attempt)),
+                    )
+                    .await;
+                }
+                (Err(error), ttl) => {
+                    if let Some(failed) = first_failure {
+                        net.dns_recovery(host, Instant::now() - failed, false);
+                    }
+                    break (Err(error), ttl);
+                }
             }
         };
-        let ttl = if lookup.is_ok() {
+        // 真正查过一次（不是缓存命中）：这台主机 DNS 阶段的一个完成样本
+        self.waits.host(host).done(Phase::Dns, started.elapsed());
+        let ttl = record_ttl.unwrap_or(if lookup.is_ok() {
             self.positive_ttl
         } else {
             self.negative_ttl
-        };
+        });
         *cached = Some(CachedAnswer::from_result(&lookup, Instant::now() + ttl));
         self.finish_checked(host, lookup, permit)
     }

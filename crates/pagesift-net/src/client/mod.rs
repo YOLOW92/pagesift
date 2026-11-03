@@ -33,6 +33,7 @@ use crate::host_connections::{
 };
 use crate::ssrf::Blocked;
 use crate::stages::{NetworkStage, StageController, StageOutcome, StagePermit, TransportPhase};
+use crate::wait::{HostWait, Phase, WaitTable};
 
 mod connect;
 mod decode;
@@ -44,9 +45,16 @@ use connect::*;
 pub(crate) use decode::*;
 
 /// HTTP/1 每次读取的固定大小，也就是每条连接读缓冲的常驻大小。
+/// [协议] TLS 记录明文的最大长度 2^14 = 16 KiB（RFC 8446 §5.1、RFC 5246 §6.2.1）：rustls 一次
+/// 解出一个记录，缓冲再大也不会让一次读拿到更多；更小则一个满记录要分几次读。明文 HTTP 沿用同一值。
+/// 不按正文大小分布调：HTTP/1 的正文是流式读出交给调用方的，缓冲大小只影响读的次数，
+/// 不影响能读多少；常驻内存（每条空闲连接一份）也以这个上界为准。
 const READ_BUF: usize = 16 * 1024;
-/// 空闲连接总数超过这个值时，顺手清掉过期的。
+/// [策略] 先验包 v0：0.81 的现值。空闲连接总数第一次到这个数时顺手清掉过期的；
+/// 之后的门槛按清理后存活数的两倍（摊还 O(1)，见 `wait::next_sweep`）
 const SWEEP_AT: usize = 4096;
+/// [策略] 先验包 v0：0.81 的现值。HTTP/1 池的主机数第一次到这个数时清理；之后同上翻倍
+const SWEEP_KEYS_AT: usize = 512;
 const ACCEPT_ENCODING: &str = "gzip, br, zstd, deflate";
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -59,11 +67,25 @@ struct Key {
 type H1 = http1::SendRequest<Empty<Bytes>>;
 type H2 = http2::SendRequest<Empty<Bytes>>;
 
-#[derive(Default)]
 struct Pools {
     h1: HashMap<Key, Vec<(H1, Instant)>>,
     h2: HashMap<Key, H2>,
     idle: usize,
+    /// 下次清理的门槛（空闲连接数、主机数）。
+    sweep_idle: usize,
+    sweep_keys: usize,
+}
+
+impl Default for Pools {
+    fn default() -> Self {
+        Self {
+            h1: HashMap::new(),
+            h2: HashMap::new(),
+            idle: 0,
+            sweep_idle: SWEEP_AT,
+            sweep_keys: SWEEP_KEYS_AT,
+        }
+    }
 }
 
 struct Inner {
@@ -72,8 +94,8 @@ struct Inner {
     dns_timeout: Duration,
     tls_timeout: Duration,
     first_byte_timeout: Duration,
-    happy_eyeballs_delay: Duration,
-    tail_threshold: Duration,
+    /// 每（主机，阶段）的等待统计与上限。
+    waits: Arc<WaitTable>,
     idle_timeout: Duration,
     max_idle: usize,
     adaptive_connections: bool,
@@ -99,8 +121,6 @@ pub(crate) struct Response {
     stages: StageController,
     body_started: Instant,
     body_recorded: bool,
-    tail_threshold: Duration,
-    in_tail: bool,
     /// 源站的“慢”阈值到点的时刻：读正文到这时还没完就让出热连接名额（不换阶段）。
     slow_at: Option<Instant>,
 }
@@ -109,26 +129,18 @@ impl Response {
     /// 下一段正文；读完返回 `None`，此时连接回到池里。
     pub async fn chunk(&mut self) -> Result<Option<Bytes>> {
         loop {
-            let frame = if self.in_tail {
-                self.body.frame().await
-            } else {
-                let tail_at = self.body_started + self.tail_threshold;
-                let park_at = self.slow_at.filter(|&t| t < tail_at);
-                match timeout_at(park_at.unwrap_or(tail_at), self.body.frame()).await {
+            let frame = match self.slow_at {
+                Some(at) => match timeout_at(at, self.body.frame()).await {
                     Ok(frame) => frame,
-                    Err(_) if park_at.is_some() => {
+                    Err(_) => {
                         self.slow_at = None;
                         if let Some(permit) = self.lifecycle.as_mut() {
                             permit.park();
                         }
                         continue;
                     }
-                    Err(_) => {
-                        let stages = self.stages.clone();
-                        self.move_to_tail(&stages).await;
-                        continue;
-                    }
-                }
+                },
+                None => self.body.frame().await,
             };
             match frame {
                 None => {
@@ -180,20 +192,6 @@ impl Response {
             permit.finish(stage_outcome_for_status(self.status));
         }
         self.record_body(stage_outcome_for_status(self.status));
-    }
-
-    pub(crate) async fn move_to_tail(&mut self, stages: &StageController) {
-        if self.in_tail {
-            return;
-        }
-        if let Some(permit) = self.lifecycle.as_mut() {
-            permit.park();
-        }
-        if let Some(permit) = self.stage.take() {
-            permit.finish(StageOutcome::Success);
-        }
-        self.stage = Some(stages.acquire(NetworkStage::Tail).await);
-        self.in_tail = true;
     }
 
     fn record_body(&mut self, outcome: StageOutcome) {

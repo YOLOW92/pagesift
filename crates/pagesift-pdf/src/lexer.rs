@@ -383,19 +383,23 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    /// 内联图像：`BI ... ID <二进制> EI`，跳过二进制数据。
-    fn skip_inline_image(&mut self) {
+    /// 内联图像：`BI ... ID <二进制> EI`，跳过二进制数据。返回字典部分（`BI` 与 `ID` 之间）和
+    /// 图像数据的字节范围，图片识别（image 模块）按需再解析。
+    fn skip_inline_image(&mut self) -> Option<((usize, usize), (usize, usize))> {
+        let head = self.pos;
         // 先找 ID
-        loop {
+        let head_end = loop {
+            let at = self.pos;
             match self.token() {
-                None => return,
-                Some(Token::Keyword(k)) if k == b"ID" => break,
+                None => return None,
+                Some(Token::Keyword(k)) if k == b"ID" => break at,
                 Some(_) => {}
             }
-        }
+        };
         // ID 后面跟一个空白字节
         self.pos += 1;
         let data = self.data;
+        let start = self.pos.min(data.len());
         let mut i = self.pos;
         while i + 1 < data.len() {
             if data[i] == b'E'
@@ -404,11 +408,13 @@ impl<'a> Lexer<'a> {
                 && data.get(i + 2).is_none_or(|&c| is_white(c))
             {
                 self.pos = i + 2;
-                return;
+                // EI 前面的那个空白不属于数据
+                return Some(((head, head_end), (start, i.saturating_sub(1).max(start))));
             }
             i += 1;
         }
         self.pos = data.len();
+        Some(((head, head_end), (start, data.len())))
     }
 
     pub(crate) fn next_op(&mut self) -> Option<Op> {
@@ -456,7 +462,11 @@ impl<'a> Lexer<'a> {
                         }
                     }
                     if k == b"BI" {
-                        self.skip_inline_image();
+                        args.clear();
+                        if let Some(((h0, h1), (d0, d1))) = self.skip_inline_image() {
+                            args.push(Operand::Str(self.data[h0..h1].to_vec()));
+                            args.push(Operand::Str(self.data[d0..d1].to_vec()));
+                        }
                     }
                     return Some(Op { name: k, args });
                 }
@@ -531,6 +541,14 @@ mod tests {
         assert_eq!(
             names,
             vec![b"q".to_vec(), b"BI".to_vec(), b"Q".to_vec(), b"Tj".to_vec()]
+        );
+        // 字典部分和数据（EI 前的空白不算数据）留给图片识别
+        assert_eq!(
+            v[1].args,
+            vec![
+                Operand::Str(b" /W 2 /H 2".to_vec()),
+                Operand::Str(b"\x00 EIx\xff".to_vec())
+            ]
         );
     }
 

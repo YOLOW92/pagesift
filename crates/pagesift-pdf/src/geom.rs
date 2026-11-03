@@ -51,6 +51,41 @@ pub(crate) struct Shape {
     pub(crate) visible: bool,
 }
 
+/// 页面上画的一次图像（Do 一个图像 XObject，或一段内联图像），页面坐标的外框。
+#[derive(Debug, Clone)]
+pub(crate) struct Placed {
+    pub(crate) source: ImageSource,
+    pub(crate) x0: f64,
+    pub(crate) y0: f64,
+    pub(crate) x1: f64,
+    pub(crate) y1: f64,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum ImageSource {
+    /// 图像 XObject 的对象号。
+    Object(crate::file::ObjectId),
+    /// 内联图像：`BI` 与 `ID` 之间的字典文本、`ID` 与 `EI` 之间的数据。
+    Inline(std::rc::Rc<(Vec<u8>, Vec<u8>)>),
+}
+
+/// 解释一页时顺带数的文字质量证据（见 quality.rs）。
+#[derive(Debug, Default, Clone, Copy)]
+pub(crate) struct TextEvidence {
+    /// 解码出的字符数（不含空白）。
+    pub(crate) chars: usize,
+    /// 其中的乱码字符：U+FFFD、私用区、C0/C1 控制字符。
+    pub(crate) garbled: usize,
+    /// 字体给不出 Unicode、被丢掉的字形数。
+    pub(crate) unmapped: usize,
+    /// 内容流里相邻两个字形之间的换行次数。
+    pub(crate) breaks: usize,
+    /// 其中往回跳的次数：下一个字形比上一个高出一行以上，且横向范围重叠（同一栏里倒着走）。
+    pub(crate) jumps: usize,
+    /// 页面上没画的按钮表单域个数（没有别的字时复核用）。
+    pub(crate) buttons: usize,
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct PageInk {
     /// 水平书写的字，页面坐标。
@@ -61,6 +96,9 @@ pub(crate) struct PageInk {
     pub(crate) shapes: Vec<Shape>,
     pub(crate) image_area: f64,
     pub(crate) image_count: usize,
+    /// 每次画的图像（注释外观里的不算）。
+    pub(crate) images: Vec<Placed>,
+    pub(crate) evidence: TextEvidence,
     pub(crate) width: f64,
     pub(crate) height: f64,
     /// 用户空间 → 页面坐标（书签目标的位置要用它换算）；页面旋转过时为 None。

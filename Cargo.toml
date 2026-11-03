@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.81.5"
+version = "0.90.0"
 edition = "2024"
 license = "AGPL-3.0-only"
 repository = "https://github.com/YOLOW92/pagesift"
@@ -22,3 +22,15 @@ codegen-units = 1
 inherits = "release"
 lto = "thin"
 codegen-units = 16
+
+# 日常改代码后跑测试用（`cargo test --profile quick`）：自己的代码增量编译、轻度优化、不做 LTO，
+# 改一个文件只重编改动的部分；第三方依赖按 opt-level 2 编一次后缓存（解析、压缩这类热点不至于太慢）。
+# 带 debug_assertions，计时类测试走放宽的分支。测速和发布不用它。
+[profile.quick]
+inherits = "dev"
+opt-level = 1
+debug = "line-tables-only"
+incremental = true
+
+[profile.quick.package."*"]
+opt-level = 2

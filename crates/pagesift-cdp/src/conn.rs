@@ -238,12 +238,21 @@ impl Connection {
     }
 
     pub async fn create_browser_context(&self) -> Result<String> {
+        self.create_browser_context_via(None).await
+    }
+
+    /// 同 [`Connection::create_browser_context`]，`proxy_server`（`scheme://host:port`）给了时
+    /// 这个上下文的所有请求都走它（`Target.createBrowserContext` 的 `proxyServer`）。
+    pub async fn create_browser_context_via(&self, proxy_server: Option<&str>) -> Result<String> {
+        let mut params = json!({ "disposeOnDetach": true });
+        if let Some(server) = proxy_server {
+            params["proxyServer"] = Value::String(server.to_owned());
+            // Chrome 默认不让回环地址走代理（隐含的 `<local>` 绕过规则）；`<-loopback>` 去掉这条，
+            // 所有请求都经过出口，不会有请求悄悄直连
+            params["proxyBypassList"] = Value::String("<-loopback>".into());
+        }
         let r = self
-            .call(
-                "Target.createBrowserContext",
-                json!({ "disposeOnDetach": true }),
-                None,
-            )
+            .call("Target.createBrowserContext", params, None)
             .await?;
         str_field(&r, "browserContextId")
     }

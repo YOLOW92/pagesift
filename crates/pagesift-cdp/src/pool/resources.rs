@@ -11,24 +11,37 @@ pub fn auto_browsers(tabs_per_browser: usize, reserve_mb: u64) -> usize {
 /// 同 [`auto_browsers`]，按给定内核的资源占用估算。
 pub fn auto_browsers_for(fp: Footprint, tabs_per_browser: usize, reserve_mb: u64) -> usize {
     let cores = std::thread::available_parallelism().map_or(1, usize::from);
+    auto_browsers_with_cores(fp, tabs_per_browser, reserve_mb, cores)
+}
+
+/// 自适应池的起点：按 [`auto_browsers_for`]，但核数不超过 Footprint 实测时的机器规模。
+/// 每 4 核几个进程是在 16 核本机上测的，往更大的机器线性外推没有依据（0.70 在 192 vCPU 上
+/// 真实网页提取 32 线程见顶、192 线程反降 29%）；更大的机器从这里起步，由 USL 往上探。
+pub(super) fn adaptive_start(fp: Footprint, tabs_per_browser: usize, reserve_mb: u64) -> usize {
+    let cores = std::thread::available_parallelism().map_or(1, usize::from);
+    auto_browsers_with_cores(
+        fp,
+        tabs_per_browser,
+        reserve_mb,
+        cores.min(FOOTPRINT_MEASURED_CORES),
+    )
+}
+
+/// [策略] 先验包 v0：Footprint 表（engine.rs）的"每 4 核进程数"在 16 核本机压测得出
+const FOOTPRINT_MEASURED_CORES: usize = 16;
+
+fn auto_browsers_with_cores(
+    fp: Footprint,
+    tabs_per_browser: usize,
+    reserve_mb: u64,
+    cores: usize,
+) -> usize {
     let by_cpu = (cores * fp.browsers_per_4_cores / 4).max(1);
     let per_browser = (fp.browser_mb + fp.tab_mb * tabs_per_browser as u64).max(1);
     let by_memory = mem_available_mb().map_or(by_cpu, |avail| {
         (avail.saturating_sub(reserve_mb) / per_browser) as usize
     });
     by_memory.clamp(1, by_cpu)
-}
-
-/// Linux `/proc/stat` 的（空闲 + iowait，总计）jiffies；读不到时返回 `None`。
-pub(super) fn cpu_times() -> Option<(u64, u64)> {
-    let s = std::fs::read_to_string("/proc/stat").ok()?;
-    let line = s.lines().next()?.strip_prefix("cpu ")?;
-    let v: Vec<u64> = line
-        .split_whitespace()
-        .filter_map(|x| x.parse().ok())
-        .collect();
-    let idle = v.get(3)? + v.get(4).copied().unwrap_or(0);
-    Some((idle, v.iter().sum()))
 }
 
 /// 系统可用内存（MB）；读不到时返回 `None`，不做限制。

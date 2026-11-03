@@ -120,7 +120,7 @@ pub(crate) fn convert(zip: &Zip<'_>, opts: &Options<'_>) -> Result<Converted, Er
 }
 
 /// 工作表（名字、关系 id，按工作簿里的顺序）和日期系统。
-fn workbook(xml: &str) -> Result<(Vec<(String, String)>, bool), Error> {
+pub(crate) fn workbook(xml: &str) -> Result<(Vec<(String, String)>, bool), Error> {
     let mut sheets = Vec::new();
     let mut date1904 = false;
     let mut r = Reader::new(xml);

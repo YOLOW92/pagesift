@@ -1,4 +1,4 @@
-//! 质量分（DESIGN §6.4）：校准过的 `P(结果完整可用)`。
+//! 质量分：校准过的 `P(结果完整可用)`。
 //!
 //! 特征来自提取结果本身（正文长度、覆盖率、结构、拦截置信、链接密度）。先用 Firth 修正的逻辑回归
 //! 打分（权重总是有限，近乎可分的特征不会把预测推得过于自信），再用保序回归校准（Zadrozny & Elkan 2002）。
@@ -194,6 +194,17 @@ impl QualityModel {
         })
     }
 
+    /// 随二进制发布的模型（先验包）：0.83 在四个带标准答案的评测集上交叉拟合、通过校准判定（`pagesift_stat::verdict::calibrated`）的那一版，
+    /// 来源 `benchmarks/history/0.83/results/20261102-165739/quality-model.bin`。版本对不上时为 `None`。
+    pub fn builtin() -> Option<&'static Self> {
+        static MODEL: std::sync::LazyLock<Option<QualityModel>> = std::sync::LazyLock::new(|| {
+            QualityModel::decode(include_bytes!("../data/quality-v1.bin"))
+                .ok()
+                .flatten()
+        });
+        MODEL.as_ref()
+    }
+
     /// 校准后的 `P(完整可用)`。
     pub fn predict(&self, f: &Features) -> f64 {
         let sum: f64 = self
@@ -240,6 +251,11 @@ impl QualityModel {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn builtin_model_decodes() {
+        assert!(QualityModel::builtin().is_some());
+    }
 
     #[test]
     fn markdown_shape_counts_blocks_and_link_text() {

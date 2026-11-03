@@ -1,0 +1,13 @@
+{
+  "items": 2204,
+  "different": 0,
+  "first_differences": [],
+  "pass1_cache": {
+    "miss": 2192,
+    "None": 12
+  },
+  "pass2_cache": {
+    "hit": 2192,
+    "None": 12
+  }
+}

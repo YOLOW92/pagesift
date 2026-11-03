@@ -5,11 +5,12 @@
 #   scripts/check_literals.sh <rev>          # 相对 <rev> 的改动，例如一个内部编号开始时的提交
 #   scripts/check_literals.sh --all [路径…]  # 不看改动，列出指定文件（默认全部运行时代码）里所有未标注的字面量
 #
-# 每个字面量所在行、所在语句（跨多行时）的任一行，或紧挨在语句上面的连续注释里，要有下面四个标记之一：
+# 每个字面量所在行、所在语句（跨多行时）的任一行，或紧挨在语句上面的连续注释里，要有下面的标记之一：
 #   [协议]  协议、格式、物理单位等外部给定的常数，写明出处（RFC、规范章节）
 #   [策略]  用户策略的默认值，写明推导依据
 #   [δ]     全局风险水平
 #   [推导]  公式里的系数，写明公式和出处
+#   [待迁移] 0.81 已有的值，只是换了位置（迁移完成时去掉）
 # 0、½、1、2 以及 1000/1024 的幂、60/3600/86400 这类单位换算不用标；元组下标（x.0）、数组下标（a[3]）、
 # 属性 #[...] 里的数字不算。
 # 只查运行时 crate 的 src/：跳过 tests/、examples/、benches/、*_tests.rs、#[cfg(test)] 模块、
@@ -24,7 +25,7 @@ from collections import Counter
 import sys
 from pathlib import Path
 
-TAGS = ("[协议]", "[策略]", "[δ]", "[推导]")
+TAGS = ("[协议]", "[策略]", "[δ]", "[推导]", "[待迁移]")
 EXEMPT = {0, 0.5, 1, 2, 60, 3600, 86400} | {1000 ** k for k in range(1, 5)} | {1024 ** k for k in range(1, 5)}
 SKIP_CRATES = ("crates/pagesift-fuzz/", "crates/pagesift-testkit/")
 

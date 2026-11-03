@@ -39,6 +39,15 @@ struct Cli {
     /// Append one JSON line per fetch (URL, engine, status, timings, warnings) to this file, and keep HTML snapshots of suspicious results next to it
     #[arg(long, global = true, value_name = "PATH")]
     audit_log: Option<PathBuf>,
+    /// Turn off per-site rate limiting (request interval, per-site concurrency, Crawl-delay); only the global concurrency limit applies. Same as `[policy] politeness = false`
+    #[arg(long, global = true)]
+    no_politeness: bool,
+    /// Turn off per-site backoff after 429 / 503 with Retry-After and repeated failures. Same as `[policy] backoff = false`
+    #[arg(long, global = true)]
+    no_backoff: bool,
+    /// Ignore robots.txt for every request. Same as `[policy] robots = false`
+    #[arg(long, global = true)]
+    no_robots: bool,
     #[command(subcommand)]
     command: Command,
 }
@@ -61,6 +70,19 @@ fn main() -> ExitCode {
         cfg.audit.path = cli.audit_log;
     }
     cfg.audit.source = matches.subcommand_name().map(String::from);
+    for (flag, switch) in [
+        (cli.no_politeness, &mut cfg.policy.politeness),
+        (cli.no_backoff, &mut cfg.policy.backoff),
+        (cli.no_robots, &mut cfg.policy.robots),
+    ] {
+        if flag {
+            *switch = Some(false);
+        }
+    }
+    let off = cfg.policy.disabled_switches();
+    if !off.is_empty() {
+        eprintln!("note: crawl policy switched off: {}", off.join(", "));
+    }
     // 结构化日志：PAGESIFT_LOG 定级别，PAGESIFT_LOG_FORMAT 或 [log] format 选 text / json
     let json = match cfg.log_json() {
         Ok(j) => j,

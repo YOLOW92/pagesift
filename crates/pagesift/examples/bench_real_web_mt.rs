@@ -1,15 +1,15 @@
 //! PageSift 0.70 Step 4.5: frozen real-web adaptive release gate.
-//! Usage: `bench_real_web_mt <url_file> [mode=adaptive] [reserved=0] [limit=100000] [out_json]`
+//! Usage: `bench_real_web_mt <url_file> [mode=ignored] [reserved=0] [limit=100000] [out_json]`
+//!
+//! 0.86：TuningProfile 已删除，全局并发由限速器的 USL 控制器在线调整；`mode` 参数保留但不再使用。
 
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
-use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
-use pagesift::adaptive::{HostHardware, TuningMode, TuningProfile};
 use pagesift::api::ErrorCode;
 use pagesift::api::types::{Format, ScrapeOptions};
 use pagesift::{Scraper, ScraperConfig};
@@ -45,14 +45,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|s| s.as_str())
         .unwrap_or("benchmarks/data/top1m.txt");
 
-    // Parse mode: adaptive (default) vs conservative
-    let mode_str = args.get(2).map(|s| s.as_str()).unwrap_or("adaptive");
-    let mode = TuningMode::from_str(mode_str).unwrap_or(TuningMode::Adaptive);
-
-    // Hardware detection & bottleneck-constrained adaptive tuning profile generation
-    let hw = HostHardware::detect();
-    let profile = TuningProfile::new(mode);
-
     // The release gate must prove autonomous convergence. Manual capacity
     // overrides are intentionally rejected instead of becoming another grid.
     if let Some(concurrency_override) = args.get(3).and_then(|s| s.parse::<usize>().ok())
@@ -69,33 +61,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     eprintln!("================================================================================");
     eprintln!("[PageSift 0.70] Stage-Isolated Adaptive Engine Initialized");
+    let cfg = ScraperConfig::default();
+    let scraper = Arc::new(Scraper::new(cfg)?);
+    // 工人任务数只是上限：实际在途数由限速器的全局名额（USL 控制器）决定，排队的任务只占一个 future
+    let concurrency = 1024;
+    let channel_cap = concurrency * 2;
     eprintln!(
-        "Host Detected : {} logical cores, {:.1} GB RAM, FD Limit: {} | Tier: {}",
-        hw.logical_cores,
-        hw.memory_gb(),
-        hw.fd_limit,
-        hw.tier.name()
-    );
-    eprintln!(
-        "Tuning Profile: Mode [{}] | Concurrency: {} (Bottleneck Safe) | Connect Timeout: {:.1}s | Total Timeout: {:.1}s",
-        profile.mode,
-        profile.global_concurrency,
-        profile.connect_timeout.as_secs_f64(),
-        profile.total_timeout.as_secs_f64()
+        "Concurrency   : online (cold start {}, adaptive via USL)",
+        scraper.concurrency()
     );
     eprintln!(
         "Target Dataset: {} (Limit: {} URLs) | Channel Buffer: {}",
-        url_file, limit, profile.mpsc_buffer_capacity
+        url_file, limit, channel_cap
     );
     eprintln!("================================================================================");
 
-    let mut cfg = ScraperConfig::default();
-    profile.apply_to_config(&mut cfg);
-
-    let concurrency = profile.global_concurrency;
-    let channel_cap = profile.mpsc_buffer_capacity;
-
-    let scraper = Arc::new(Scraper::new(cfg)?);
     let metrics = Arc::new(Metrics::default());
     let seen_hashes = Arc::new(Mutex::new(HashSet::<[u8; 16]>::new()));
     let opts = Arc::new(ScrapeOptions {
@@ -461,14 +441,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "honest_user_agent": pagesift_net::DEFAULT_USER_AGENT,
         },
         "tuning_profile": {
-            "mode": profile.mode.to_string(),
-            "hardware_tier": profile.hardware.tier.name(),
-            "detected_cores": profile.hardware.logical_cores,
-            "detected_ram_gb": profile.hardware.memory_gb(),
-            "detected_fd_limit": profile.hardware.fd_limit,
-            "global_concurrency": profile.global_concurrency,
-            "connect_timeout_s": profile.connect_timeout.as_secs_f64(),
-            "total_timeout_s": profile.total_timeout.as_secs_f64(),
+            "mode": "online",
+            "final_global_concurrency": scraper.concurrency(),
         },
         "urls_processed": succ + failed,
         "elapsed_s": elapsed_s,

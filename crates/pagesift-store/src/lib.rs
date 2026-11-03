@@ -85,13 +85,22 @@ impl Config {
         Self {
             dir: dir.into(),
             sync: SyncPolicy::Interval(Duration::from_secs(1)),
+            // [策略] 先验包 v0：0.81 的现值 64 MiB（单段上限；压缩按段重写，段越大一次重写越久）
             max_segment_bytes: 64 << 20,
             max_bytes: None,
+            // [策略] 先验包 v0：0.81 的现值；超限时淘汰到上限的 90%，留出余量避免每次写入都触发 gc
             low_watermark: 0.9,
+            // [推导] 无效数据不少于有效数据时压缩：一次压缩回收的字节（无效 g）不少于要重写的字节
+            // （有效 1−g），即每回收一字节最多重写一字节，g ≥ 1/2（Rosenblum & Ousterhout,
+            // "The Design and Implementation of a Log-Structured File System", SOSP 1991 §3.6
+            // 的清理代价 (1+u)/(1−u) 在 u = 1/2 时写放大为 3，之后陡增）
             compact_ratio: 0.5,
+            // [策略] 先验包 v0：0.81 的现值；小存储压缩不划算
             compact_min_bytes: 16 << 20,
             background: true,
+            // [策略] 先验包 v0：0.81 的现值；单个快照的大小上限（用户可改）
             snapshot_max_bytes: 512 << 10,
+            // [待迁移] 0.87 开机自标定决定 zstd 级别
             snapshot_zstd_level: 3,
             hash_mask: u64::MAX,
         }

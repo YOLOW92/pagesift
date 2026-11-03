@@ -106,6 +106,11 @@ impl<'a> Zip<'a> {
         })
     }
 
+    /// 所有条目的名字和解压后的大小（目录里写的），按目录顺序。
+    pub(crate) fn names(&self) -> impl Iterator<Item = (&str, u64)> {
+        self.entries.iter().map(|e| (e.name.as_str(), e.size))
+    }
+
     pub(crate) fn contains(&self, name: &str) -> bool {
         self.by_name.contains_key(&name.to_lowercase())
     }

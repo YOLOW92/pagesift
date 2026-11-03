@@ -33,3 +33,7 @@ pub use dom::{
 };
 pub use select::{Select, Selector, SelectorError};
 pub use tag::Tag;
+
+/// 建树次数计数器，只在 `count-builds` feature 下存在（测试用）。
+#[cfg(feature = "count-builds")]
+pub use builder::BUILDS as DOM_BUILDS;

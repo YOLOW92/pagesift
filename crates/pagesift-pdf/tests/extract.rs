@@ -229,7 +229,43 @@ fn scanned_pages_are_flagged() {
     assert!(doc.scanned);
     assert!(doc.pages[0].scanned);
     assert_eq!(doc.pages[0].image_count, 1);
-    assert_eq!(doc.markdown, "");
+    // 扫描页：一句说明 + 引用那张图；图进图片表（默认只识别扫描页的图）
+    assert_eq!(doc.images.len(), 1);
+    let img = &doc.images[0];
+    assert_eq!(
+        doc.markdown,
+        format!(
+            "*Page 1 is a scanned image with no text layer.*\n\n![](images/{})\n",
+            img.file_name()
+        )
+    );
+    assert_eq!((img.width, img.height, img.bits_per_component), (2, 2, 8));
+    assert_eq!(img.encoding, pagesift_pdf::ImageEncoding::Pixels);
+    assert_eq!(img.color_space, "DeviceGray");
+    assert_eq!(img.extension, "png");
+    assert!(img.data.is_none());
+    let p = img.placements[0];
+    assert_eq!(
+        (p.page, p.x, p.y, p.width, p.height),
+        (1, 0.0, 0.0, 612.0, 792.0)
+    );
+    assert_eq!(doc.pages[0].images, [0]);
+
+    // 打开导出：无损像素编成 PNG
+    let opts = pagesift_pdf::Options {
+        images: pagesift_pdf::ImageOptions {
+            export: true,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let scan = Page {
+        content: String::new(),
+        image: true,
+    };
+    let doc = pagesift_pdf::extract_with(&Builder::new(vec![scan]).build(), &opts).unwrap();
+    let png = doc.images[0].data.as_ref().unwrap();
+    assert!(png.starts_with(b"\x89PNG\r\n\x1a\n"));
 
     // 有图有字的页面不算扫描件
     let mixed = Page {

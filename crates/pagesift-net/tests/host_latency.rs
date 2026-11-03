@@ -85,7 +85,7 @@ impl Origin {
     }
 }
 
-fn fetcher(tail: Duration) -> Arc<Fetcher> {
+fn fetcher(_tail: Duration) -> Arc<Fetcher> {
     Arc::new(
         Fetcher::new(FetcherConfig {
             ssrf: SsrfPolicy {
@@ -93,7 +93,6 @@ fn fetcher(tail: Duration) -> Arc<Fetcher> {
                 ..Default::default()
             },
             dns: FakeDns::new(&[]),
-            tail_threshold: tail,
             first_byte_timeout: Duration::from_secs(20),
             max_connections_per_host: 16,
             ..Default::default()

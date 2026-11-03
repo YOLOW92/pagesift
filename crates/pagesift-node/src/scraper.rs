@@ -10,20 +10,23 @@ use pagesift::api::{ApiError, ErrorCode};
 use tokio::sync::{Mutex, Semaphore, mpsc};
 use tokio::task::{Id, JoinError, JoinHandle, JoinSet};
 
+use crate::crawl::{self, CrawlOptions, CrawlStream, MapLink, MapOptions};
 use crate::error::{self, BatchError, Fallible};
-use crate::options::{BatchOptions, ScrapeOptions, ScraperConfig, check_url};
+use crate::options::{BatchOptions, ParseOptions, ScrapeOptions, ScraperConfig, check_url};
 use crate::page::Page;
+use crate::parse::{self, FileInput, ParseFile};
 
 const DEFAULT_CONCURRENCY: u32 = 16;
 
 type ApiOptions = pagesift::api::types::ScrapeOptions;
 type Core = Arc<pagesift::Scraper>;
 
-/// 批量抓取里一个 URL 的结果：`page` 和 `error` 恰好有一个。
+/// 批量抓取（或批量解析）里一项的结果：`page` 和 `error` 恰好有一个。
 #[napi(object, object_from_js = false)]
 pub struct BatchItem {
     /// 在输入数组里的下标。
     pub index: u32,
+    /// 抓取时是 URL，解析时是文件名。
     pub url: String,
     pub page: Option<Page>,
     pub error: Option<BatchError>,
@@ -104,7 +107,13 @@ impl Scraper {
             };
             let n = urls.len();
             let (tx, mut rx) = mpsc::channel(concurrency);
-            let _driver = AbortOnDrop(tokio::spawn(drive(core, opts, urls, concurrency, tx)));
+            let _driver = AbortOnDrop(tokio::spawn(drive_scrape(
+                core,
+                opts,
+                urls,
+                concurrency,
+                tx,
+            )));
             let mut items: Vec<Option<BatchItem>> = (0..n).map(|_| None).collect();
             while let Some(item) = rx.recv().await {
                 let i = item.index as usize;
@@ -129,7 +138,112 @@ impl Scraper {
             .batch(urls, options)
             .map_err(|e| error::to_js(env, &e))?;
         let (tx, rx) = mpsc::channel(concurrency);
-        let driver = napi::bindgen_prelude::spawn(drive(core, opts, urls, concurrency, tx));
+        let driver = napi::bindgen_prelude::spawn(drive_scrape(core, opts, urls, concurrency, tx));
+        Ok(ScrapeStream {
+            rx: Arc::new(Mutex::new(rx)),
+            _driver: AbortOnDrop(driver),
+        })
+    }
+
+    /// 整站爬取，每完成一页产出一项（`for await`）；提前 `break` 或 `cancel()` 停止爬取。
+    #[napi]
+    pub fn crawl(
+        &self,
+        env: &Env,
+        url: String,
+        options: Option<CrawlOptions>,
+    ) -> Result<CrawlStream> {
+        self.live()
+            .and_then(|core| crawl::start(core, url, options.unwrap_or_default()))
+            .map_err(|e| error::to_js(env, &e))
+    }
+
+    /// 站点的链接列表（sitemap 加页面上的链接）。失败时 Promise 以 `PagesiftError` 拒绝。
+    #[napi(ts_return_type = "Promise<MapLink[]>")]
+    pub fn map<'e>(
+        &self,
+        env: &'e Env,
+        url: String,
+        options: Option<MapOptions>,
+    ) -> Result<PromiseRaw<'e, Vec<MapLink>>> {
+        let ready = self
+            .live()
+            .and_then(|core| Ok((core, crawl::map_request(url, options.unwrap_or_default())?)));
+        let fut = async move {
+            Ok(match ready {
+                Ok((core, req)) => core
+                    .map(&req)
+                    .await
+                    .map(|links| links.into_iter().map(MapLink::from).collect()),
+                Err(e) => Err(e),
+            })
+        };
+        env.spawn_future_with_callback(fut, |env, out: Fallible<Vec<MapLink>>| {
+            out.map_err(|e| error::to_js(env, &e))
+        })
+    }
+
+    /// 解析一个文件（PDF、HTML、Word、Excel、PowerPoint、EPUB、CSV），结果和 `scrape` 一样。
+    /// 类型按内容识别，认不出时再看文件名的扩展名和 `contentType`。失败时 Promise 以 `PagesiftError` 拒绝。
+    #[napi(
+        ts_args_type = "data: Uint8Array, filename: string, options?: ParseOptions | undefined | null",
+        ts_return_type = "Promise<Page>"
+    )]
+    pub fn parse<'e>(
+        &self,
+        env: &'e Env,
+        data: Uint8Array,
+        filename: String,
+        options: Option<ParseOptions>,
+    ) -> Result<PromiseRaw<'e, Page>> {
+        let options = options.unwrap_or_default();
+        let file = FileInput {
+            bytes: data.to_vec(),
+            filename,
+            content_type: options.content_type.clone(),
+            url: options.url.clone(),
+        };
+        let ready = self.live().and_then(|core| {
+            let opts = options.to_api()?;
+            parse::check_options(&core, &opts)?;
+            Ok((core, opts))
+        });
+        let fut = async move {
+            Ok(match ready {
+                Ok((core, opts)) => parse::parse_one(&core, file, &opts).await,
+                Err(e) => Err(e),
+            })
+        };
+        env.spawn_future_with_callback(fut, |env, out: Fallible<Page>| {
+            out.map_err(|e| error::to_js(env, &e))
+        })
+    }
+
+    /// 解析一批文件，按完成顺序逐个产出（`for await`），`url` 是文件名；并发和取消语义同 `scrapeStream`。
+    #[napi]
+    pub fn parse_stream(
+        &self,
+        env: &Env,
+        files: Vec<ParseFile>,
+        options: Option<BatchOptions>,
+    ) -> Result<ScrapeStream> {
+        let files: Vec<(String, FileInput)> = files
+            .into_iter()
+            .map(|f| (f.filename.clone(), FileInput::from(f)))
+            .collect();
+        let (core, opts, concurrency) = self
+            .batch(Vec::new(), options)
+            .and_then(|(core, opts, _, concurrency)| {
+                parse::check_options(&core, &opts)?;
+                Ok((core, opts, concurrency))
+            })
+            .map_err(|e| error::to_js(env, &e))?;
+        let (tx, rx) = mpsc::channel(concurrency);
+        let job = move |_: String, f: FileInput| {
+            let (core, opts) = (core.clone(), opts.clone());
+            async move { parse::parse_one(&core, f, &opts).await }
+        };
+        let driver = napi::bindgen_prelude::spawn(drive(files, concurrency, tx, job));
         Ok(ScrapeStream {
             rx: Arc::new(Mutex::new(rx)),
             _driver: AbortOnDrop(driver),
@@ -166,7 +280,7 @@ impl Scraper {
     }
 }
 
-/// 按完成顺序产出 `BatchItem` 的异步迭代器。
+/// 按完成顺序产出 `BatchItem` 的异步迭代器（`scrapeStream`、`parseStream`）。
 #[napi(async_iterator)]
 pub struct ScrapeStream {
     rx: Arc<Mutex<mpsc::Receiver<BatchItem>>>,
@@ -209,20 +323,39 @@ async fn scrape_one(core: &pagesift::Scraper, url: &str, opts: &ApiOptions) -> F
     core.scrape(url, opts).await.map(Page::from_scrape)
 }
 
-/// 按输入顺序开始抓取，最多 `concurrency` 个同时进行，每完成一个就发到 `tx`。
-/// 消费方不要了（`tx` 关闭）时停止；整个任务被取消时，正在进行的抓取一起取消。
-async fn drive(
+async fn drive_scrape(
     core: Core,
     opts: Arc<ApiOptions>,
     urls: Vec<String>,
     concurrency: usize,
     tx: mpsc::Sender<BatchItem>,
 ) {
+    let items = urls.into_iter().map(|u| (u, ())).collect();
+    let job = move |url: String, ()| {
+        let (core, opts) = (core.clone(), opts.clone());
+        async move { scrape_one(&core, &url, &opts).await }
+    };
+    drive(items, concurrency, tx, job).await;
+}
+
+/// 按输入顺序开始处理（第 `i` 项交给 `job(名字, 数据)`），最多 `concurrency` 个同时进行，每完成一个就发到 `tx`。
+/// 消费方不要了（`tx` 关闭）时停止；整个任务被取消时，正在进行的处理一起取消。
+async fn drive<T, F, Fut>(
+    items: Vec<(String, T)>,
+    concurrency: usize,
+    tx: mpsc::Sender<BatchItem>,
+    job: F,
+) where
+    T: Send + 'static,
+    F: Fn(String, T) -> Fut + Send + Sync + 'static,
+    Fut: Future<Output = Fallible<Page>> + Send + 'static,
+{
+    let job = Arc::new(job);
     let slots = Arc::new(Semaphore::new(concurrency));
     let mut tasks = JoinSet::new();
-    // 某一页 panic 时按任务 id 找回它的 URL，照样产出一条错误结果
+    // 某一项 panic 时按任务 id 找回它的名字，照样产出一条错误结果
     let mut pending = HashMap::new();
-    for (i, url) in urls.into_iter().enumerate() {
+    for (i, (url, item)) in items.into_iter().enumerate() {
         let Ok(slot) = slots.clone().acquire_owned().await else {
             break;
         };
@@ -232,11 +365,11 @@ async fn drive(
         if tx.is_closed() {
             return;
         }
-        let (core, opts, tx) = (core.clone(), opts.clone(), tx.clone());
+        let (job, tx) = (job.clone(), tx.clone());
         let target = url.clone();
         let handle = tasks.spawn(async move {
             let _slot = slot;
-            let out = scrape_one(&core, &target, &opts).await;
+            let out = job(target.clone(), item).await;
             let _ = tx.send(BatchItem::new(i, target, out)).await;
         });
         pending.insert(handle.id(), (i, url));

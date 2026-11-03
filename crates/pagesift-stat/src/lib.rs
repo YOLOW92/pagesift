@@ -1,4 +1,4 @@
-//! 可合并的在线统计与决策规则（DESIGN §5）。
+//! 可合并的在线统计与决策规则。
 //!
 //! 所有估计器都实现 [`Stat`]：线程之间、机器之间、时间段之间的汇总是同一个 `merge`，
 //! 与合并顺序无关。不依赖其他 pagesift crate，也不依赖第三方 crate。
@@ -11,17 +11,21 @@ pub mod change;
 pub mod codec;
 pub mod countmin;
 pub mod decide;
+pub mod hazard;
 pub mod hll;
+pub mod limit;
 pub mod moments;
 pub mod regress;
 pub mod rng;
 pub mod shrink;
+pub mod size_time;
 pub mod sketch;
 pub mod special;
 pub mod survival;
 pub mod table;
 pub mod usl;
 pub mod verdict;
+pub mod window;
 
 pub use codec::{DecodeError, Reader, Writer};
 
@@ -35,7 +39,7 @@ pub trait Stat: Default + Clone + Send + Sync {
     fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError>;
 }
 
-/// 全局风险水平 `δ`（DESIGN §5.2）：分位数上界用 `q(1−δ)`，检验的显著性水平是 `δ`，
+/// 全局风险水平 `δ`：分位数上界用 `q(1−δ)`，检验的显著性水平是 `δ`，
 /// SPRT 的两类错误率都是 `δ`。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Delta(f64);

@@ -1,65 +1,46 @@
 //! CLI 辅助：crawl 的输出和 doctor 环境检查。
 
-use std::io::Write;
 use std::path::PathBuf;
 use std::process::ExitCode;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use pagesift::api::types::{CrawlSummary, Document};
 use pagesift::api::{ApiError, BoxFuture, CrawlSink};
+use pagesift_sink::out::{DirOut, Fanout, LinesOut, PageOut, WarcOut};
 
 /// crawl 的结果：有输出目录时每页一个 .md 文件，加一个 index.jsonl；否则每页一行 JSON 打到标准输出。
+/// 给了 `--warc` 时同时写 WARC。布局在 `pagesift_sink::out`，和 scrape、convert 的 `--out` 一样。
 pub struct CrawlOutput {
-    dir: Option<PathBuf>,
-    state: Mutex<(usize, usize, std::collections::HashSet<String>)>,
+    dir: Option<Arc<DirOut>>,
+    out: Fanout,
+    counts: Mutex<(usize, usize)>,
 }
 
 impl CrawlOutput {
-    pub fn new(dir: Option<PathBuf>) -> Self {
-        Self {
-            dir,
-            state: Mutex::new((0, 0, Default::default())),
+    pub fn new(dir: Option<PathBuf>, warc: Option<PathBuf>) -> std::io::Result<Self> {
+        let dir = dir.map(DirOut::create).transpose()?.map(Arc::new);
+        let mut out = Fanout::default();
+        match &dir {
+            Some(d) => out.0.push(Box::new(Shared(d.clone()))),
+            None => out.0.push(Box::new(LinesOut)),
         }
+        if let Some(w) = warc {
+            out.0.push(Box::new(WarcOut::create(&w)?));
+        }
+        Ok(Self {
+            dir,
+            out,
+            counts: Mutex::new((0, 0)),
+        })
     }
 
     pub fn counts(&self) -> (usize, usize) {
-        let s = self.state.lock().expect("lock");
-        (s.0, s.1)
-    }
-
-    fn file_name(&self, url: &str, used: &mut std::collections::HashSet<String>) -> String {
-        let trimmed = url.split_once("://").map_or(url, |(_, rest)| rest);
-        let mut name: String = trimmed
-            .chars()
-            .map(|c| {
-                if c.is_ascii_alphanumeric() || c == '-' || c == '.' {
-                    c
-                } else {
-                    '_'
-                }
-            })
-            .collect();
-        name.truncate(150);
-        let name = name.trim_matches('_').to_string();
-        let mut candidate = format!("{name}.md");
-        let mut n = 2;
-        while !used.insert(candidate.clone()) {
-            candidate = format!("{name}-{n}.md");
-            n += 1;
-        }
-        candidate
+        *self.counts.lock().expect("lock")
     }
 
     fn write_page(&self, doc: &Document) -> std::io::Result<()> {
-        let url = doc
-            .metadata
-            .source_url
-            .clone()
-            .or(doc.metadata.url.clone())
-            .unwrap_or_default();
-        let mut state = self.state.lock().expect("lock");
-        state.0 += 1;
+        self.counts.lock().expect("lock").0 += 1;
         if let Some(warnings) = doc.metadata.pagesift.as_ref().map(|p| &p.warnings) {
             for warning in warnings {
                 if warning.starts_with("crawl_followed_zero:")
@@ -69,47 +50,16 @@ impl CrawlOutput {
                 }
             }
         }
-        match &self.dir {
-            Some(dir) => {
-                let name = self.file_name(&url, &mut state.2);
-                std::fs::write(dir.join(&name), doc.markdown.as_deref().unwrap_or_default())?;
-                let mut line =
-                    serde_json::json!({ "url": url, "file": name, "title": doc.metadata.title });
-                // 带查询的爬取：相关度和来历一起落盘，下游规则可以直接用
-                if let Some(p) = doc.metadata.pagesift.as_ref() {
-                    if let Some(r) = p.relevance {
-                        line["relevance"] = serde_json::json!(r);
-                    }
-                    if let Some(t) = &p.crawl {
-                        line["depth"] = serde_json::json!(t.depth);
-                        line["parent"] = serde_json::json!(t.parent);
-                        line["score"] = serde_json::json!(t.score);
-                        if let Some(a) = &t.attachment_of {
-                            line["attachmentOf"] = serde_json::json!(a);
-                        }
-                    }
-                }
-                line["status"] = serde_json::json!(doc.metadata.status_code);
-                // 结果有数据风险（正文薄、文件损坏……）时和 JSON 的 data.warning 一致
-                if let Some(w) = &doc.warning {
-                    line["warning"] = serde_json::json!(w);
-                }
-                let mut index = std::fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(dir.join("index.jsonl"))?;
-                writeln!(index, "{line}")?;
-                eprintln!("{url} -> {name}");
-            }
-            None => {
-                let mut line = serde_json::json!({ "url": url, "title": doc.metadata.title, "markdown": doc.markdown });
-                if let Some(w) = &doc.warning {
-                    line["warning"] = serde_json::json!(w);
-                }
-                println!("{line}");
-            }
-        }
-        Ok(())
+        self.out.page(doc)
+    }
+}
+
+/// 目录出口还要在结束时写 summary.json，所以 crawl 自己也持有一份。
+struct Shared(Arc<DirOut>);
+
+impl PageOut for Shared {
+    fn page(&self, doc: &Document) -> std::io::Result<()> {
+        self.0.page(doc)
     }
 }
 
@@ -122,7 +72,7 @@ impl CrawlSink for CrawlOutput {
     }
 
     fn error<'a>(&'a self, url: &'a str, err: ApiError) -> BoxFuture<'a, ()> {
-        self.state.lock().expect("lock").1 += 1;
+        self.counts.lock().expect("lock").1 += 1;
         eprintln!("{url}: {} {}", err.code.as_str(), err.message);
         Box::pin(async {})
     }
@@ -145,10 +95,13 @@ impl CrawlSink for CrawlOutput {
         if let Some(dir) = &self.dir {
             let written = serde_json::to_vec_pretty(&s)
                 .map_err(std::io::Error::other)
-                .and_then(|json| std::fs::write(dir.join("summary.json"), json));
+                .and_then(|json| dir.summary(&json));
             if let Err(e) = written {
                 eprintln!("could not write summary.json: {e}");
             }
+        }
+        if let Err(e) = self.out.finish() {
+            eprintln!("could not finish output: {e}");
         }
         Box::pin(async {})
     }

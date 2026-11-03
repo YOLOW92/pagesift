@@ -30,7 +30,7 @@ impl Default for Sketch {
     }
 }
 
-/// [推导] 默认 `α`：取 §5.3 公式 `ε ≈ z(1−δ)·√(p(1−p)/n) / (f(q)·q)` 在 `p = 1−δ`、
+/// [推导] 默认 `α`：取 [`matched_alpha`] 的公式 `ε ≈ z(1−δ)·√(p(1−p)/n) / (f(q)·q)` 在 `p = 1−δ`、
 /// `n` 为单个路径族常见样本量量级时的值。对指数型分布 `f(q)·q = (1−p)·ln(1/(1−p))`，
 /// `δ = 0.05`、`n ≈ 10³` 时 `ε ≈ 0.6`；分位数本身的统计误差已经远大于 1%，
 /// 取 `α = 0.01` 保证草图误差可以忽略，且每十倍跨度只需约 115 个桶。
@@ -38,7 +38,7 @@ pub fn default_alpha() -> f64 {
     0.01 // [推导] 见上
 }
 
-/// DESIGN §5.3：与样本分位数本身统计误差同量级的相对误差
+/// 与样本分位数本身统计误差同量级的相对误差
 /// `ε ≈ z(1−δ)·√(p(1−p)/n) / (f(q)·q)`；`density_times_q` 是分位点处的 `f(q)·q`。
 pub fn matched_alpha(p: f64, n: f64, density_times_q: f64, delta: Delta) -> f64 {
     normal_quantile(1.0 - delta.get()) * (p * (1.0 - p) / n).sqrt() / density_times_q

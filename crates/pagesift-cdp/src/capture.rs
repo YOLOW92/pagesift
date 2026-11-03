@@ -12,9 +12,9 @@ use serde_json::{Value, json};
 
 use crate::conn::{Connection, Session};
 use crate::error::{Error, Result};
+use crate::learn::WaitCap;
 
 const WORLD: &str = "pagesift";
-const FRAME_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// 收集 iframe、shadow host 和 slot，放到隔离 world 的全局变量里，返回 iframe 数组。
 const PREPARE_JS: &str = r#"function (shadow, wantFrames) {
@@ -109,6 +109,8 @@ pub(crate) struct CaptureOptions<'a> {
     pub shadow: bool,
     /// 虚拟滚动收集到的条目：容器标记 -> 条目 HTML。
     pub virtual_items: &'a BTreeMap<String, Vec<String>>,
+    /// 单个 iframe 抓取的上限（先验 = 0.81 的 `FRAME_TIMEOUT` 5 s，见 [`crate::learn`]）。
+    pub frame_cap: &'a WaitCap,
 }
 
 #[derive(Debug, Default)]
@@ -272,11 +274,16 @@ fn capture_frame<'a>(
             };
             let fid = fid.clone();
             async move {
-                tokio::time::timeout(FRAME_TIMEOUT, capture_frame(ctx, s, fid, depth + 1))
-                    .await
-                    .ok()
-                    .and_then(Result::ok)
-                    .flatten()
+                let learn = ctx.opts.frame_cap;
+                let (prior, cap) = (learn.prior(), learn.cap());
+                let started = Instant::now();
+                let r = tokio::time::timeout(cap, capture_frame(ctx, s, fid, depth + 1)).await;
+                // 抓到（含报错、内容为空）都算这次等待有了结果；只有到上限才是截尾
+                match &r {
+                    Ok(_) => learn.done(started.elapsed(), prior),
+                    Err(_) => learn.cut(started.elapsed(), prior),
+                }
+                r.ok().and_then(Result::ok).flatten()
             }
         }))
         .await;

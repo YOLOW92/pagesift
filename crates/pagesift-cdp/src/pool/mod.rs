@@ -14,10 +14,12 @@ use crate::engine::{EngineKind, Footprint};
 use crate::error::{Error, Result};
 use crate::guard::RequestGuard;
 use crate::launch::{self, BrowserProcess, LaunchSpec};
+use crate::learn::{PageWaits, WaitCap};
 use crate::options::{RenderOptions, RenderedPage, Timings};
 use crate::page::{PageEnv, PageResources, render_page};
 
 mod inner;
+mod memory;
 mod resources;
 
 use inner::*;
@@ -44,13 +46,17 @@ pub struct PoolConfig {
     /// 0 表示按可用内存和 CPU 核数自动决定（见 [`auto_browsers`]）。
     /// 一个浏览器的吞吐受它的 UI 线程限制，几个标签页就能占满，要更高的并发得多开浏览器。
     pub max_browsers: usize,
+    /// 自动决定数量（`max_browsers == 0`）时从几个浏览器起步；0 表示按资源估（见 [`auto_browsers`]）。
+    /// 之后由 USL 按实测吞吐调（满载时向上探，越过峰值时收）。
+    pub start_browsers: usize,
     pub max_tabs_per_browser: usize,
     /// 每个浏览器处理这么多页面后回收；0 表示不回收。
     pub recycle_after_pages: usize,
     /// 健康检查时保持至少这么多个浏览器在运行。
     pub min_browsers: usize,
-    /// 0 表示不做后台健康检查。
+    /// 0 表示不做后台健康检查。开了空闲关闭时，实际间隔取它和学到的空闲上限的一半中较小的。
     pub health_check_interval: Duration,
+    /// 启动浏览器的上限的先验；实际上限按启动耗时学（[`crate::learn`]），不超过它。
     pub launch_timeout: Duration,
     pub allow_execute_javascript: bool,
     /// 开新标签页或启动浏览器前，系统至少要剩这么多可用内存（Linux 的 MemAvailable，MB），
@@ -66,6 +72,8 @@ pub struct PoolConfig {
     /// 由 [`EngineKind::configure`] 换成各内核自己的参数。
     pub loopback_only: bool,
     /// 空闲超过这么久的浏览器关掉（保留 `min_browsers` 个）；0 表示一直留着。
+    /// 这是先验和上限：实际按"空闲的浏览器多久内会被再用到"学（[`crate::learn`]），
+    /// 空闲到 `t` 还没被用、而之后（到这个值为止）被再用的比例显著低于 `δ` 时就关。
     pub idle_timeout: Duration,
 }
 
@@ -76,6 +84,7 @@ impl Default for PoolConfig {
             args_override: None,
             extra_args: Vec::new(),
             max_browsers: 0,
+            start_browsers: 0,
             max_tabs_per_browser: 4,
             recycle_after_pages: 100,
             min_browsers: 0,
@@ -112,6 +121,10 @@ struct Slot {
     dead: bool,
     /// 最近一次变成空闲的时间。
     idle_since: Instant,
+    /// 这段空闲最多留多久（变成空闲时从学到的上限取，含探索）。
+    idle_cap: Duration,
+    /// 正处在一段要记样本的空闲里（刚启动就被领走的不算）。
+    idle_open: bool,
 }
 
 impl Slot {
@@ -139,10 +152,18 @@ struct PoolState {
     launching: usize,
     next_id: u64,
     closed: bool,
+    /// 自上个观测窗以来标签页被占用的总时长（Little 定律求平均在途数）。
+    busy: Duration,
+    /// 标签页占用时长的窗口均值（按精度截窗，见 `pagesift_stat::window`）。
+    service: pagesift_stat::window::WindowMean,
+    /// 最近一个窗口发布的平均占用时长（秒）。
+    service_mean: Option<f64>,
 }
 
-/// 因为内存不够在等时，隔多久重新看一次（内存可能被别的进程释放，不一定有归还事件）。
-const MEMORY_RECHECK: Duration = Duration::from_millis(250);
+/// 因为内存不够在等、又没有归还事件时，隔多久重新看一次的先验（先验包 v0：0.81 的现值）。
+/// 有了占用时长的窗口均值 `W` 后改为"下一次归还的期望时刻" `W / 在用标签数`（见 [`PoolInner::memory_recheck`]）。
+/// [策略] 先验包 v0：0.81 的现值
+const MEMORY_RECHECK_PRIOR: Duration = Duration::from_millis(250);
 
 enum Source {
     Local(LaunchSpec),
@@ -163,6 +184,14 @@ struct PoolInner {
     completed: AtomicU64,
     /// 这个窗口里有没有请求因为没有空位在排队。
     waited: AtomicBool,
+    /// 页面渲染里各类等待的上限，按这个内核学。
+    waits: Arc<PageWaits>,
+    /// 空闲浏览器保留多久（先验 `cfg.idle_timeout`）。
+    idle: WaitCap,
+    /// 启动一个浏览器最多等多久（先验 `cfg.launch_timeout`）。
+    launch: WaitCap,
+    /// 实测的每浏览器、每标签内存和给系统其余部分的余量（先验：Footprint 表、`min_available_memory_mb`）。
+    mem: memory::MemLearn,
 }
 
 /// 浏览器池。克隆后共享同一个池。
@@ -207,6 +236,8 @@ impl BrowserPool {
             target = match cfg.source {
                 // 远程端点的资源不归本机管，保持保守。
                 BrowserSource::Remote(_) => 2,
+                _ if adaptive && cfg.start_browsers > 0 => cfg.start_browsers,
+                _ if adaptive => adaptive_start(fp, tabs, reserve),
                 _ => auto_browsers_for(fp, tabs, reserve),
             };
             cfg.max_browsers = if adaptive {
@@ -244,16 +275,12 @@ impl BrowserPool {
                 })
             }
         };
-        // 有空闲回收时检查得勤一些，空闲的浏览器最多多留半个超时
-        let mut interval = cfg.health_check_interval;
-        if !cfg.idle_timeout.is_zero() {
-            let half = cfg.idle_timeout / 2;
-            interval = if interval.is_zero() {
-                half
-            } else {
-                interval.min(half)
-            };
-        }
+        let background = !cfg.health_check_interval.is_zero() || !cfg.idle_timeout.is_zero();
+        let (idle, launch_cap) = (cfg.idle_timeout, cfg.launch_timeout);
+        let mem = memory::MemLearn::new(
+            cfg.engine.unwrap_or(EngineKind::Chrome).footprint(),
+            cfg.min_available_memory_mb,
+        );
         let inner = Arc::new(PoolInner {
             cfg,
             source,
@@ -264,17 +291,21 @@ impl BrowserPool {
             target: AtomicUsize::new(target.max(1)),
             completed: AtomicU64::new(0),
             waited: AtomicBool::new(false),
+            waits: Arc::new(PageWaits::default()),
+            idle: WaitCap::new(idle),
+            launch: WaitCap::new(launch_cap),
+            mem,
         });
         if inner.cfg.min_browsers > 0 {
             inner.health_check().await;
         }
-        if !interval.is_zero() {
+        if background {
             let weak = Arc::downgrade(&inner);
             inner
                 .health
                 .lock()
                 .unwrap()
-                .push(tokio::spawn(health_loop(weak, interval)));
+                .push(tokio::spawn(health_loop(weak)));
         }
         if adaptive && inner.cfg.max_browsers > 1 {
             let weak = Arc::downgrade(&inner);
@@ -291,6 +322,12 @@ impl BrowserPool {
     pub async fn render(&self, url: &str, opts: &RenderOptions) -> Result<RenderedPage> {
         let start = Instant::now();
         opts.validate(self.inner.cfg.allow_execute_javascript)?;
+        if opts.proxy.is_some() && self.engine() != EngineKind::Chrome {
+            return Err(Error::InvalidOptions(format!(
+                "{} cannot route a browser context through a proxy; only Chrome can",
+                self.engine().name()
+            )));
+        }
         let mut lease: Option<Lease> = None;
         let mut timings = Timings::default();
         let r = tokio::time::timeout(opts.timeout, async {
@@ -300,6 +337,7 @@ impl BrowserPool {
                 guard: self.inner.guard.clone(),
                 user_agent: l.user_agent.clone(),
                 intercept: !self.inner.cfg.engine_network_guard,
+                waits: self.inner.waits.clone(),
             };
             render_page(&l.conn, &mut l.res, &env, url, opts, &mut timings).await
         })
@@ -320,6 +358,12 @@ impl BrowserPool {
         page.timings.close = close_start.elapsed();
         page.timings.total = start.elapsed();
         Ok(page)
+    }
+
+    /// 当前能同时渲染的标签数：目标浏览器数（USL 调出来的）× 每个浏览器的标签数。
+    /// 上层的准入门面（`pagesift_flow::Admission`）按它设浏览器标签名额。
+    pub fn tab_capacity(&self) -> usize {
+        self.inner.target.load(Ordering::Relaxed) * self.inner.cfg.max_tabs_per_browser
     }
 
     /// 池用的内核种类。
@@ -351,7 +395,9 @@ impl BrowserPool {
                 slot.shutdown().await;
                 Err(Error::PoolClosed)
             }
-            Ok(slot) => {
+            Ok(mut slot) => {
+                // 预热的浏览器从现在起空闲，第一次被领走算一次"空闲后被再用"
+                self.inner.open_idle(&mut slot);
                 st.slots.push(slot);
                 drop(st);
                 self.inner.notify.notify_waiters();

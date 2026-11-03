@@ -3,7 +3,7 @@
 use super::*;
 
 impl Client {
-    pub(super) async fn connect(&self, key: &Key) -> Result<Conn> {
+    pub(super) async fn connect(&self, key: &Key, wait: &HostWait) -> Result<Conn> {
         // TLS 配置（系统根证书）在拨号之前取：读不到时不白白建一条 TCP 连接
         let connector = if key.https {
             Some(TlsConnector::from(send::tls_config()?))
@@ -14,9 +14,14 @@ impl Client {
             // IP 字面量在 check_url 里已经按 SSRF 规则校验过
             Ok(ip) => vec![ip],
             Err(_) => {
-                let dns_deadline = Instant::now() + self.0.dns_timeout;
+                let dns_started = Instant::now();
+                let dns_deadline = dns_started + wait.limit(Phase::Dns, self.0.dns_timeout);
                 match timeout_at(dns_deadline, self.0.resolver.resolve_checked(&key.host)).await {
-                    Err(_) => return Err(Error::Timeout(TimeoutPhase::Dns)),
+                    Err(_) => {
+                        // 完成样本由解析器记（只记真正的查询，不记缓存命中），截尾在这里记
+                        wait.gave_up(Phase::Dns, dns_started.elapsed(), self.0.dns_timeout);
+                        return Err(Error::Timeout(TimeoutPhase::Dns));
+                    }
                     Ok(Err(ResolveError::Blocked(Blocked::NoAddress(h)))) => {
                         return Err(Error::Dns(format!("no address for `{h}`")));
                     }
@@ -29,12 +34,15 @@ impl Client {
             }
         };
         let handshake = self.0.stages.acquire(NetworkStage::Handshake).await;
-        let connect_deadline = Instant::now() + self.0.connect_timeout;
         let tcp_started = Instant::now();
-        let tcp = match happy_eyeballs(ips, key.port, connect_deadline, self.0.happy_eyeballs_delay)
-            .await
-        {
-            Ok(tcp) => {
+        let connect_deadline = tcp_started + wait.limit(Phase::Connect, self.0.connect_timeout);
+        let stagger = self.0.waits.net.happy_eyeballs_delay();
+        let tcp = match happy_eyeballs(ips, key.port, connect_deadline, stagger).await {
+            Ok((tcp, ip, own)) => {
+                wait.done(Phase::Connect, tcp_started.elapsed());
+                if ip.is_ipv6() {
+                    self.0.waits.net.ipv6_connected(&key.host, own);
+                }
                 self.0.stages.record_phase(
                     TransportPhase::Tcp,
                     tcp_started.elapsed(),
@@ -43,6 +51,15 @@ impl Client {
                 tcp
             }
             Err(error) => {
+                if matches!(error, Error::Timeout(_)) {
+                    wait.gave_up(
+                        Phase::Connect,
+                        tcp_started.elapsed(),
+                        self.0.connect_timeout,
+                    );
+                } else {
+                    wait.done(Phase::Connect, tcp_started.elapsed());
+                }
                 self.0.stages.record_phase(
                     TransportPhase::Tcp,
                     tcp_started.elapsed(),
@@ -64,10 +81,11 @@ impl Client {
         };
         let name = ServerName::try_from(key.host.trim_matches(['[', ']']).to_string())
             .map_err(|_| Error::InvalidUrl(key.host.clone()))?;
-        let tls_deadline = Instant::now() + self.0.tls_timeout;
         let tls_started = Instant::now();
+        let tls_deadline = tls_started + wait.limit(Phase::Tls, self.0.tls_timeout);
         let tls = match timeout_at(tls_deadline, connector.connect(name, tcp)).await {
             Err(_) => {
+                wait.gave_up(Phase::Tls, tls_started.elapsed(), self.0.tls_timeout);
                 self.0.stages.record_phase(
                     TransportPhase::Tls,
                     tls_started.elapsed(),
@@ -77,6 +95,7 @@ impl Client {
                 return Err(Error::Timeout(TimeoutPhase::Tls));
             }
             Ok(Err(error)) => {
+                wait.done(Phase::Tls, tls_started.elapsed());
                 self.0.stages.record_phase(
                     TransportPhase::Tls,
                     tls_started.elapsed(),
@@ -86,6 +105,7 @@ impl Client {
                 return Err(crate::tls::from_io(&error));
             }
             Ok(Ok(tls)) => {
+                wait.done(Phase::Tls, tls_started.elapsed());
                 self.0.stages.record_phase(
                     TransportPhase::Tls,
                     tls_started.elapsed(),
@@ -126,7 +146,7 @@ pub(super) async fn happy_eyeballs(
     port: u16,
     deadline: Instant,
     fallback_delay: Duration,
-) -> Result<TcpStream> {
+) -> Result<(TcpStream, IpAddr, Duration)> {
     let candidates = interleave_address_families(ips);
     if candidates.is_empty() {
         return Err(Error::Network("no addresses to connect to".into()));
@@ -138,8 +158,9 @@ pub(super) async fn happy_eyeballs(
             if !delay.is_zero() {
                 tokio::time::sleep(delay).await;
             }
+            let started = Instant::now();
             match timeout_at(deadline, TcpStream::connect((ip, port))).await {
-                Ok(result) => result,
+                Ok(result) => result.map(|s| (s, ip, started.elapsed())),
                 Err(_) => Err(std::io::Error::new(
                     std::io::ErrorKind::TimedOut,
                     "connect timed out",
@@ -150,9 +171,9 @@ pub(super) async fn happy_eyeballs(
     let mut last = None;
     while let Some(result) = attempts.join_next().await {
         match result {
-            Ok(Ok(stream)) => {
+            Ok(Ok(won)) => {
                 attempts.abort_all();
-                return Ok(stream);
+                return Ok(won);
             }
             Ok(Err(error)) => last = Some(error),
             Err(error) if error.is_cancelled() => {}
@@ -269,7 +290,7 @@ impl Inner {
         stats
     }
 
-    pub(super) async fn take(&self, key: &Key) -> Option<Conn> {
+    pub(super) async fn take(&self, key: &Key, wait: &HostWait) -> Option<Conn> {
         if let Some(h2) = self.h2_for(key) {
             let mut s = h2;
             if s.ready().await.is_ok() {
@@ -289,6 +310,8 @@ impl Inner {
                 pools.idle -= 1;
                 entry
             };
+            // 一次复用请求在空闲 `since.elapsed()` 后到达：复用间隔分布的一个完成样本
+            wait.done(Phase::PoolGap, since.elapsed());
             if since.elapsed() >= self.idle_timeout || s.is_closed() {
                 continue;
             }
@@ -330,17 +353,28 @@ impl Inner {
             .saturating_add(1)
             .min(self.max_idle);
         let mut pools = self.pools.lock().expect("lock poisoned");
-        if pools.idle >= SWEEP_AT || pools.h1.len() >= 512 {
-            let timeout = self.idle_timeout;
+        if pools.idle >= pools.sweep_idle || pools.h1.len() >= pools.sweep_keys {
+            let cap = self.idle_timeout;
             let mut removed = 0;
-            pools.h1.retain(|_, list| {
+            pools.h1.retain(|key, list| {
+                // 每主机的保留上限：复用间隔分布上有把握覆盖 1−δ 的时刻，不超过配置值
+                let wait = self.waits.peek(&key.host);
+                let limit = wait.as_ref().map_or(cap, |w| w.limit(Phase::PoolGap, cap));
                 let before = list.len();
-                list.retain(|(s, since)| since.elapsed() < timeout && !s.is_closed());
+                list.retain(|(s, since)| {
+                    let keep = since.elapsed() < limit && !s.is_closed();
+                    if !keep && let Some(w) = &wait {
+                        w.gave_up(Phase::PoolGap, since.elapsed(), cap);
+                    }
+                    keep
+                });
                 removed += before - list.len();
                 !list.is_empty()
             });
             pools.idle -= removed;
             pools.h2.retain(|_, s| !s.is_closed());
+            pools.sweep_idle = crate::wait::next_sweep(pools.idle, SWEEP_AT);
+            pools.sweep_keys = crate::wait::next_sweep(pools.h1.len(), SWEEP_KEYS_AT);
         }
         let list = pools.h1.entry(key).or_default();
         if list.len() >= idle_target {

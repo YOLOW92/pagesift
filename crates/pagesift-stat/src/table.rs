@@ -1,4 +1,4 @@
-//! 按（作用域，指标）索引的统计表、持久化格式、冻结模式与先验包（DESIGN §5.8、§5.9、§6.10）。
+//! 按（作用域，指标）索引的统计表、持久化格式、冻结模式与先验包。
 
 use std::collections::HashMap;
 
@@ -22,7 +22,7 @@ pub struct Key {
     pub metric: MetricId,
 }
 
-/// [协议] 存储格式的魔数 "PSST" 与版本；版本不兼容时整表丢弃，从先验包重来（§5.9）
+/// [协议] 存储格式的魔数 "PSST" 与版本；版本不兼容时整表丢弃，从先验包重来
 const MAGIC: [u8; 4] = *b"PSST";
 /// [协议] 当前格式版本；改动编码布局时加一
 pub const FORMAT_VERSION: u32 = 1;
@@ -41,7 +41,7 @@ impl From<DecodeError> for LoadError {
     }
 }
 
-/// 统计表的工作方式（DESIGN §6.10）。所有新旧对比测速都必须在冻结模式下进行。
+/// 统计表的工作方式。所有新旧对比测速都必须在冻结模式下进行。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Mode {
     /// 读写：观测会更新统计并持久化。
@@ -105,7 +105,7 @@ impl<T: Stat> StatTable<T> {
         self.entries.iter()
     }
 
-    /// 表超出预算时淘汰信息量最低的条目（DESIGN §5.9：样本少、后验接近上层的先走）。
+    /// 表超出预算时淘汰信息量最低的条目（样本少、后验接近上层的先走）。
     /// `info` 给每个条目打分，越大越值得留；全局作用域的条目总是保留。
     pub fn retain_most_informative(&mut self, budget: usize, info: impl Fn(&Key, &T) -> f64) {
         if self.entries.len() <= budget {
@@ -176,7 +176,7 @@ impl<T: Stat> StatTable<T> {
         Ok(Self { entries, mode })
     }
 
-    /// 先验包：只保留全局作用域的条目（基准集上学到的全局统计，随版本发布，DESIGN §5.8）。
+    /// 先验包：只保留全局作用域的条目（基准集上学到的全局统计，随版本发布）。
     pub fn prior_pack(&self) -> Vec<u8> {
         let global = Self {
             entries: self

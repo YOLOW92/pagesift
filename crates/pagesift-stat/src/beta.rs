@@ -7,7 +7,7 @@ use crate::{DecodeError, Delta, Reader, Stat, Writer};
 /// 观测到的成功和失败次数（可以是带权的分数次数）。
 ///
 /// 后验 `Beta(α₀ + s, β₀ + f)`，先验 `(α₀, β₀)` 由调用方给（上层后验收缩而来，见 [`crate::shrink`]，
-/// 或无信息先验 `Beta(1,1)`，DESIGN §5.8）。合并只加计数，先验不参与合并，所以与顺序无关。
+/// 或无信息先验 `Beta(1,1)`）。合并只加计数，先验不参与合并，所以与顺序无关。
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct BetaCounts {
     pub success: f64,
@@ -142,6 +142,24 @@ pub fn wilson(k: f64, n: f64, delta: Delta) -> (f64, f64) {
     )
 }
 
+/// 同 [`wilson`]，但分位数 `z` 由调用方预先算好：热路径上反复比较区间时不必每次求 `Φ⁻¹`。
+/// `z` 取 `Delta::z()`（单侧 `z(1−δ)`）或双侧的 `Φ⁻¹(1−δ/2)`。
+pub fn wilson_z(k: f64, n: f64, z: f64) -> (f64, f64) {
+    if n <= 0.0 {
+        return (0.0, 1.0);
+    }
+    let p = k / n;
+    let z2n = z * z / n;
+    // [推导] Wilson 区间：(p + z²/2n ± z√(p(1−p)/n + z²/4n²)) / (1 + z²/n)
+    let centre = p + 0.5 * z2n;
+    let half = z * (p * (1.0 - p) / n + 0.25 * z2n / n).sqrt(); // [推导] z²/4n² 项
+    let den = 1.0 + z2n;
+    (
+        ((centre - half) / den).max(0.0),
+        ((centre + half) / den).min(1.0),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -159,5 +177,9 @@ mod tests {
         // 大样本时两种区间接近
         assert!((wl - lo).abs() < 0.01 && (wh - hi).abs() < 0.01);
         assert_eq!(wilson(0.0, 0.0, Delta::DEFAULT), (0.0, 1.0));
+        assert_eq!(
+            wilson_z(75.0, 300.0, Delta::DEFAULT.z()),
+            wilson(75.0, 300.0, Delta::DEFAULT)
+        );
     }
 }

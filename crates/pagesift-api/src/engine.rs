@@ -78,6 +78,12 @@ pub trait Engine: Send + Sync + 'static {
     fn supports_actions(&self) -> bool {
         false
     }
+
+    /// 统一准入现在允许的在途抓取数：批量任务的并发按它定，用户的
+    /// `max_batch_concurrency` 只作上限。引擎还没接准入时返回 `None`，API 用配置或先验。
+    fn admitted_concurrency(&self) -> Option<usize> {
+        None
+    }
 }
 
 /// 整站爬取的进度回报，由 API 层的任务管理实现。

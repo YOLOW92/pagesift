@@ -248,7 +248,7 @@ fn segments(
     Ok(out)
 }
 
-/// Start, duration of each Period (§5.3.2.1): a missing start follows the previous
+/// Start, duration of each Period : a missing start follows the previous
 /// Period, a missing duration runs to the next start or the presentation end.
 fn period_durations(periods: &[PeriodInfo], total: Option<f64>) -> Vec<Option<f64>> {
     let mut out = Vec::with_capacity(periods.len());

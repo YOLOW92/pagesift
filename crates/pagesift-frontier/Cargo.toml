@@ -1,0 +1,16 @@
+[package]
+description = "pagesift crawl frontier and focused-crawl scoring: deduplication, URL traps, link scoring, stop rules."
+name = "pagesift-frontier"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+pagesift-api = { version = "0.90.0", path = "../pagesift-api" }
+pagesift-content = { version = "0.90.0", path = "../pagesift-content" }
+pagesift-extract = { version = "0.90.0", path = "../pagesift-extract" }
+pagesift-stat = { version = "0.90.0", path = "../pagesift-stat" }
+regex = "1.13.1"
+url = "2.5.8"

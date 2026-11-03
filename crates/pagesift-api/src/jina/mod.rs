@@ -36,4 +36,61 @@ mod tests {
             "text/event-stream; charset=utf-8"
         );
     }
+
+    /// 改成流式之前的实现，原样保留做字节对照。
+    fn old_sse_text(url: &str, title: Option<&str>, markdown: &str) -> String {
+        let mut sse_text = String::new();
+        let progress_payload = serde_json::json!({
+            "status": "processing",
+            "url": url,
+            "title": title.unwrap_or(""),
+        });
+        sse_text.push_str(&format!("event: progress\ndata: {}\n\n", progress_payload));
+        let paragraphs: Vec<&str> = markdown.split("\n\n").collect();
+        for p in paragraphs {
+            if !p.trim().is_empty() {
+                let data_payload = serde_json::json!({
+                    "chunk": p,
+                });
+                sse_text.push_str(&format!("event: content\ndata: {}\n\n", data_payload));
+            }
+        }
+        let done_payload = serde_json::json!({
+            "status": "completed",
+            "url": url,
+        });
+        sse_text.push_str(&format!("event: done\ndata: {}\n\n", done_payload));
+        sse_text
+    }
+
+    #[tokio::test]
+    async fn streamed_sse_bytes_match_the_old_whole_body() {
+        use crate::test_engine::{FakeEngine, frames};
+        let markdown =
+            "# Hello \"q\"\n\n\n\nWorld paragraph\nline two\n\n  \n\n- 列表\n- \u{1F600}";
+        let engine = FakeEngine {
+            title: Some("Test <Title>".into()),
+            markdown: Some(markdown.into()),
+            ..FakeEngine::open()
+        };
+        let app = crate::router(std::sync::Arc::new(engine), crate::Config::default());
+        let url = "https://site.example/x";
+        let req = axum::http::Request::get(format!("/r/{url}"))
+            .header("accept", "text/event-stream")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let (status, headers, f) = frames(&app, req).await;
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert_eq!(headers["content-type"], "text/event-stream; charset=utf-8");
+        let want = old_sse_text(url, Some("Test <Title>"), markdown);
+        assert_eq!(String::from_utf8(f.concat()).unwrap(), want);
+        // 一段一帧：progress、3 个 content、done
+        assert_eq!(f.len(), 5);
+        // 整块接口字节也不变
+        let whole = stream_markdown_sse(url, Some("Test <Title>"), markdown);
+        let body = axum::body::to_bytes(whole.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert_eq!(body, want.as_bytes());
+    }
 }

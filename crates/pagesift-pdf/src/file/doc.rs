@@ -1,12 +1,10 @@
 //! 文档：按需读取对象并缓存，对象流、解密、流解码都在这里接起来。
 
-use std::borrow::Cow;
 use std::cell::{OnceCell, RefCell};
 use std::collections::HashMap;
 
 use super::crypt::Crypt;
 use super::damage::{Damage, LostContent, PageTree};
-use super::filter;
 use super::parse::Parser;
 use super::repair;
 use super::xref::{self, Entries, Entry, find, stream_extent};
@@ -34,12 +32,12 @@ struct Slot {
 }
 
 pub(crate) struct Document<'a> {
-    data: &'a [u8],
+    pub(super) data: &'a [u8],
     pub(crate) trailer: Dictionary,
     slots: HashMap<u32, Slot>,
     /// 正在读的对象号：读对象 A 时又要读 A（/Length 指向自己、对象流套自己）就当读不出。
     loading: RefCell<Vec<u32>>,
-    crypt: Option<Crypt>,
+    pub(super) crypt: Option<Crypt>,
     encrypt_ref: Option<ObjectId>,
     /// 偏移指错时的后备索引，第一次需要时才扫描全文。
     rescue: OnceCell<HashMap<u32, (usize, u16)>>,
@@ -394,48 +392,6 @@ impl<'a> Document<'a> {
             _ => header.iter().position(|h| h.0 == num)?,
         };
         parse(k)
-    }
-
-    /// 取流解码后的数据（先解密）。超过 `limit`、或用到不支持的过滤器时返回 None。
-    pub(crate) fn stream_data(&self, s: &Stream, limit: usize) -> Option<Vec<u8>> {
-        let raw: Cow<'_, [u8]> = match &s.data {
-            StreamData::Range(a, b) => Cow::Borrowed(self.data.get(*a..*b)?),
-            StreamData::Owned(v) => Cow::Borrowed(v),
-        };
-        let raw = match (s.crypt_id, &self.crypt) {
-            (Some(id), Some(c)) => Cow::Owned(match &s.crypt_name {
-                Some(name) => c.decrypt_named(name, id, &raw),
-                None => c.decrypt_stream(id, &raw),
-            }),
-            _ => raw,
-        };
-        let names: Vec<&[u8]> = match s.dict.get(b"Filter").map(|o| self.resolve(o)) {
-            Some(Object::Name(n)) => vec![n.as_slice()],
-            Some(Object::Array(a)) => a
-                .iter()
-                .map(|o| self.resolve(o).as_name())
-                .collect::<Option<_>>()?,
-            _ => Vec::new(),
-        };
-        let params: Vec<Option<&Dictionary>> =
-            match s.dict.get(b"DecodeParms").map(|o| self.resolve(o)) {
-                // 只有一份参数字典时每一层都用它（只有 Flate/LZW 读参数），与 lopdf 一致
-                Some(Object::Dictionary(d)) => vec![Some(d); names.len()],
-                Some(Object::Array(a)) => a
-                    .iter()
-                    .map(|o| match self.resolve(o) {
-                        Object::Dictionary(d) => Some(d),
-                        _ => None,
-                    })
-                    .collect(),
-                _ => Vec::new(),
-            };
-        let filters: Vec<(&[u8], Option<&Dictionary>)> = names
-            .into_iter()
-            .enumerate()
-            .map(|(i, n)| (n, params.get(i).copied().flatten()))
-            .collect();
-        filter::decode(&raw, &filters, limit).ok()
     }
 
     /// 页树里的页面，按顺序。规则与 lopdf 的页树遍历相同：

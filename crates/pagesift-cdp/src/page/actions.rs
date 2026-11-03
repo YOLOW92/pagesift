@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::sync::LazyLock;
+use std::time::{Duration, Instant};
+
+use crate::learn::{CONTEXT_PRIOR, WaitCap};
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as B64;
@@ -11,6 +14,9 @@ use crate::options::*;
 
 use super::monitor::{set_metrics, wait_load};
 use super::{MAX_CAPTURE_PX, Metrics, PageCtx};
+
+/// 页面跳转后等新执行上下文的上限，全进程一份（[`crate::learn`]）。
+static CONTEXT: LazyLock<WaitCap> = LazyLock::new(|| WaitCap::new(CONTEXT_PRIOR));
 
 pub(super) enum ActionError {
     Cdp(Error),
@@ -30,7 +36,8 @@ pub(super) struct RemoteValue {
 
 /// 执行一段表达式。外层错误是协议错误，内层是页面里的 JS 异常。
 pub(super) async fn eval(session: &Session, expr: &str) -> Result<Result<RemoteValue, String>> {
-    let mut attempt = 0;
+    // 第一次碰到执行上下文失效的时刻和这次最多等多久（学到的上限，先验 0.81 的 5 s）
+    let mut lost: Option<(Instant, Duration)> = None;
     loop {
         let r = session
             .call(
@@ -42,13 +49,22 @@ pub(super) async fn eval(session: &Session, expr: &str) -> Result<Result<RemoteV
             // 页面刚跳转时旧的执行上下文会失效，稍等再试。
             Err(Error::Protocol { ref message, .. })
                 if (message.contains("context") || message.contains("navigated or closed"))
-                    && attempt < 50 =>
+                    && lost.is_none_or(|(at, cap)| at.elapsed() < cap) =>
             {
-                attempt += 1;
+                lost.get_or_insert_with(|| (Instant::now(), CONTEXT.cap()));
+                // [待迁移] 0.81 的重试间隔 100 ms
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
-            Err(e) => return Err(e),
+            Err(e) => {
+                if let Some((at, _)) = lost {
+                    CONTEXT.cut(at.elapsed(), CONTEXT.prior());
+                }
+                return Err(e);
+            }
             Ok(v) => {
+                if let Some((at, _)) = lost {
+                    CONTEXT.done(at.elapsed(), CONTEXT.prior());
+                }
                 if let Some(ex) = v.get("exceptionDetails") {
                     let msg = ex
                         .pointer("/exception/description")

@@ -44,10 +44,7 @@ pub async fn batch_start(
         owner: caller.map(|Extension(c)| c),
         webhook: webhook(&s, req.webhook.as_ref())?,
     };
-    let concurrency = req
-        .max_concurrency
-        .unwrap_or(s.batch_concurrency)
-        .min(s.batch_concurrency);
+    let concurrency = s.batch_concurrency_for(req.max_concurrency);
     let id = s
         .jobs
         .start_batch_with(s.engine.clone(), valid, req.options, concurrency, start)

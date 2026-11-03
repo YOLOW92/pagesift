@@ -1,0 +1,25 @@
+[package]
+description = "pagesift media: HLS/DASH stream download, media items, resumable downloads and post-processing."
+name = "pagesift-media"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow = "1.0.104"
+blake3 = "1.8.7"
+fs2 = "0.4.3"
+pagesift-html = { version = "0.90.0", path = "../pagesift-html" }
+pagesift-net = { version = "0.90.0", path = "../pagesift-net" }
+pagesift-policy = { version = "0.90.0", path = "../pagesift-policy" }
+pagesift-stat = { version = "0.90.0", path = "../pagesift-stat" }
+quick-xml = "0.42.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "fs", "io-util"] }
+url = "2.5.8"
+
+[dev-dependencies]
+tempfile = "3.27.0"

@@ -25,16 +25,35 @@ pub fn tune_allocator() {
     {
         let (cpu_node, l2_share) = topology::detect();
         alloc::configure(&cpu_node, l2_share);
-        /// 显式设置后 glibc 不再动态调整阈值。
+        /// [策略] 显式设置后 glibc 不再动态调整阈值。256 KB 是本机比较过的几档里最好的（见上）。
         const MMAP_THRESHOLD: libc::c_int = 256 * 1024;
-        const ARENA_MAX: libc::c_int = 4;
         // SAFETY: mallopt 只修改分配器参数，任何时候调用都安全；返回 0 表示参数不被接受，忽略即可。
         #[allow(unsafe_code)]
         unsafe {
             libc::mallopt(libc::M_MMAP_THRESHOLD, MMAP_THRESHOLD);
-            libc::mallopt(libc::M_ARENA_MAX, ARENA_MAX);
+            libc::mallopt(libc::M_ARENA_MAX, arena_max(available_cpus()));
         }
     }
+}
+
+/// glibc 的 arena 数。4 个 arena 只在 16 个逻辑 CPU 上验证过（每 4 个 CPU 一个）；192 vCPU 上上百个线程
+/// 共用 4 个 arena 没测过。所以保持验证过的比例：每 4 个可用
+/// CPU 一个，不少于 4 个——16 个 CPU 及以下和原来完全一样，更大的机器 arena 跟着线程数增长，
+/// 每个 arena 上争锁的线程数不变。小块分配本来就不走 glibc（[`SmallCache`]），这里管的是中等大小的块。
+fn arena_max(cpus: usize) -> libc::c_int {
+    // [策略] 先验包 v0：0.81 在 16 个逻辑 CPU 上验证过的 4 个 arena，即每 4 个 CPU 一个
+    const VALIDATED_ARENAS: usize = 4;
+    const VALIDATED_CPUS: usize = 16; // [策略] 同上
+    let arenas = cpus
+        .div_ceil(VALIDATED_CPUS / VALIDATED_ARENAS)
+        .max(VALIDATED_ARENAS);
+    libc::c_int::try_from(arenas).unwrap_or(libc::c_int::MAX)
+}
+
+/// 进程能用的逻辑 CPU 数（亲和性和 cgroup 配额之内）。
+#[cfg(all(target_os = "linux", target_env = "gnu"))]
+fn available_cpus() -> usize {
+    std::thread::available_parallelism().map_or(1, |n| n.get())
 }
 
 /// 显式通知 glibc 分配器向操作系统释放无用堆页面。
@@ -137,5 +156,20 @@ mod topology {
                 assert!(l2.is_some_and(|b| b >= 4096), "{l2:?}");
             }
         }
+    }
+}
+
+#[cfg(test)]
+#[cfg(all(target_os = "linux", target_env = "gnu"))]
+mod tests {
+    #[test]
+    fn arenas_keep_the_validated_ratio_and_floor() {
+        // 16 个 CPU 及以下和 0.81 一样是 4 个
+        for cpus in [1, 2, 4, 8, 15, 16] {
+            assert_eq!(super::arena_max(cpus), 4, "{cpus}");
+        }
+        assert_eq!(super::arena_max(17), 5);
+        assert_eq!(super::arena_max(192), 48);
+        assert_eq!(super::arena_max(384), 96);
     }
 }

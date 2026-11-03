@@ -700,7 +700,7 @@ async fn body_idle_timeout_is_distinct_from_total_timeout() {
 }
 
 #[tokio::test]
-async fn slow_ttfb_transfers_to_bounded_tail_stage_until_body_completion() {
+async fn slow_ttfb_is_recorded_in_http_stage_and_ttfb_phase() {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -716,7 +716,6 @@ async fn slow_ttfb_transfers_to_bounded_tail_stage_until_body_completion() {
             .unwrap();
     });
     let fetcher = Fetcher::new(FetcherConfig {
-        tail_threshold: Duration::from_millis(10),
         ssrf: SsrfPolicy {
             allow_ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
             ..Default::default()
@@ -734,13 +733,8 @@ async fn slow_ttfb_transfers_to_bounded_tail_stage_until_body_completion() {
         .iter()
         .find(|snapshot| snapshot.stage == pagesift_net::NetworkStage::Http)
         .unwrap();
-    let tail = snapshots
-        .iter()
-        .find(|snapshot| snapshot.stage == pagesift_net::NetworkStage::Tail)
-        .unwrap();
     assert_eq!(http.completed, 1);
-    assert_eq!(tail.completed, 1);
-    assert_eq!(tail.active, 0);
+    assert_eq!(http.active, 0);
     let ttfb = fetcher
         .phase_snapshots()
         .into_iter()

@@ -1,8 +1,8 @@
-//! 拟合质量模型并做 DESIGN §9.3 的校准判定。
+//! 拟合质量模型并做校准判定（`pagesift_stat::verdict::calibrated`）。
 //!
 //! `cargo run --release -p pagesift-plan --example quality_fit -- <features.jsonl> <recall.jsonl> <model.bin> <report.json>`
 //!
-//! - 标签（§6.4）：召回率不低于同一数据集召回率分布的 `q(δ)` 为正例。
+//! - 标签：召回率不低于同一数据集召回率分布的 `q(δ)` 为正例。
 //! - 三折交叉验证：按 id 的哈希把页面分成三份，每份由另外两份交叉拟合的模型（[`QualityModel::fit_cross`]）
 //!   预测；三份的样本外预测合在一起判定（每页都只被没见过它的模型预测，判定用上全部页面，
 //!   不依赖哪一份碰巧负例多）。逐折结果也写进报告。
@@ -72,7 +72,7 @@ fn main() {
     let mut parts: [Vec<(Features, bool)>; 3] = Default::default();
     let mut halves: [Vec<(Features, bool)>; 2] = Default::default();
     for (id, set, f) in &rows {
-        // "不低于"门槛即为正例（DESIGN §6.4）。召回为 0（标准答案一句都没取到）无论门槛在哪都不算完整：
+        // "不低于"门槛即为正例。召回为 0（标准答案一句都没取到）无论门槛在哪都不算完整：
         // 这是定义上的下限，Firecrawl 集 22% 的页召回为 0、q(δ) 落在 0 上时起作用
         let y = recall[id] >= cut[set] && recall[id] > 0.0;
         parts[(fnv(id) % 3) as usize].push((*f, y));

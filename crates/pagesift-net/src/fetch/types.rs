@@ -88,6 +88,9 @@ impl RedirectGuard for NoGuard {
 #[derive(Clone)]
 pub struct FetcherConfig {
     pub user_agent: String,
+    /// 各阶段超时是硬上限（用户的 `timeout` 或慢速攻击防护的策略值）。实际等多久按每（主机，阶段）
+    /// 的完成时间分布和 [`wait_price`](Self::wait_price) 决定，只会比上限短；
+    /// 价格为 0（默认）时就是上限本身。
     pub connect_timeout: Duration,
     pub dns_timeout: Duration,
     pub tls_timeout: Duration,
@@ -97,6 +100,8 @@ pub struct FetcherConfig {
     /// 调用方显式设过超时（`[fetch] timeout_secs`）。为真时自适应调优不得放宽这些值。
     pub timeouts_explicit: bool,
     pub max_redirects: usize,
+    /// 单页 body 的用户上限（硬上限）。实际生效的是 `min(它, 内存预算 / 期望在途页数)`
+    /// （见 [`crate::resources::body_cap`]）；内存充裕时就是它。
     pub max_body_bytes: usize,
     pub ssrf: SsrfPolicy,
     /// 出口代理：`http://`、`https://` 或 `socks5://`。
@@ -116,39 +121,50 @@ pub struct FetcherConfig {
     pub dns_negative_ttl: Duration,
     pub dns_transient_retries: usize,
     pub happy_eyeballs_delay: Duration,
-    /// Requests whose TTFB crosses this boundary transfer from the main HTTP
-    /// stage into the bounded tail stage until the body finishes.
-    pub tail_threshold: Duration,
-    pub stage_controller: StageControllerConfig,
+    /// 等待的影子价格（`λ·占用/价值`，每秒），由统一准入按负载发布；见 [`crate::WaitPrice`]。
+    pub wait_price: Arc<crate::WaitPrice>,
+    /// 全局风险水平 `δ`。
+    pub delta: pagesift_stat::Delta,
 }
 
 impl Default for FetcherConfig {
     fn default() -> Self {
         Self {
             user_agent: DEFAULT_USER_AGENT.to_string(),
+            // [策略] 先验包 v0：0.81 的现值。各阶段的硬上限（慢速攻击防护，属用户策略）；
+            // 实际等待按每（主机，阶段）的 Survival 与继续等待规则（`crate::wait`）在上限内收紧
             connect_timeout: Duration::from_secs(10),
-            dns_timeout: Duration::from_secs(5),
-            tls_timeout: Duration::from_secs(10),
-            first_byte_timeout: Duration::from_secs(30),
-            body_idle_timeout: Duration::from_secs(15),
+            dns_timeout: Duration::from_secs(5),  // [策略] 同上
+            tls_timeout: Duration::from_secs(10), // [策略] 同上
+            first_byte_timeout: Duration::from_secs(30), // [策略] 同上
+            body_idle_timeout: Duration::from_secs(15), // [策略] 同上
             total_timeout: Duration::from_secs(60),
             timeouts_explicit: false,
             max_redirects: 5,
+            // [策略] 先验包 v0：0.81 的现值，用户上限的默认值；内存预算更紧时自动收小
             max_body_bytes: 15 * 1024 * 1024,
             ssrf: SsrfPolicy::default(),
             proxy: None,
             credentials: Vec::new(),
             dns: Arc::new(SystemLookup),
+            // [策略] 先验包 v0：0.81 的现值，空闲连接保留的上限；每主机按复用间隔分布的 q(1−δ) 收紧
             pool_idle_timeout: Duration::from_secs(90),
+            // [策略] 每主机空闲连接的内存上限（0.81 的现值）；实际保留数是每源站热连接目标 + 1
+            // （见 client::put_h1），目标由每源站控制器按测量给出
             pool_max_idle_per_host: 8,
             adaptive_host_connections: true,
+            // [策略] 每源站连接数的安全上限（礼貌与 fd 保护，0.81 的现值）；实际目标由每源站控制器给出
             max_connections_per_host: 32,
+            // [协议] 回退值（0.81 的现值）：解析器带回记录 TTL 时用记录 TTL（RFC 1035 §3.2.1），
+            // 否定回答用 SOA 的 min(TTL, MINIMUM)（RFC 2308 §5）；系统解析器拿不到 TTL 时用这两个值
             dns_positive_ttl: Duration::from_secs(300),
-            dns_negative_ttl: Duration::from_secs(30),
+            dns_negative_ttl: Duration::from_secs(30), // [协议] 同上
+            // [策略] 先验包 v0：0.81 的现值；有足够的恢复样本后按恢复时长分布定次数（wait::shared）
             dns_transient_retries: 1,
+            // [协议] RFC 8305 §5 建议的 Connection Attempt Delay，作先验；有样本后用 IPv6 建连耗时的 q(1−δ)
             happy_eyeballs_delay: Duration::from_millis(250),
-            tail_threshold: Duration::from_secs(2),
-            stage_controller: StageControllerConfig::default(),
+            wait_price: Arc::new(crate::WaitPrice::new()),
+            delta: pagesift_stat::Delta::DEFAULT,
         }
     }
 }
@@ -297,6 +313,15 @@ impl FetchResponse {
         charset::decode_owned(body, content_type.as_deref(), self.tld())
     }
 
+    /// 和 [`take_text`](Self::take_text) 一样，但返回一个可以挪到别的线程上执行的转码任务，
+    /// 让转码在 CPU 工人上做，不占异步线程。
+    pub fn take_text_job(&mut self) -> impl FnOnce() -> Decoded + Send + 'static {
+        let body = std::mem::take(&mut self.body);
+        let content_type = self.content_type().map(str::to_owned);
+        let tld = self.tld().map(<[u8]>::to_vec);
+        move || charset::decode_owned(body, content_type.as_deref(), tld.as_deref())
+    }
+
     fn tld(&self) -> Option<&[u8]> {
         self.final_url
             .domain()
@@ -317,6 +342,38 @@ pub struct FetchStream {
     pub(super) deadline: Instant,
     pub(super) body_idle_timeout: Duration,
     pub(super) session_use: Option<crate::session::SessionUse>,
+    pub(super) wait: BodyWait,
+}
+
+/// 读正文时的等待样本：正文空闲阶段的样本是一次响应里最长的块间间隔
+/// （上限要容得下它这次响应才能读完），总时长阶段的样本是读完正文用的时间。
+/// 每块只更新本地的最大值，读完或超时时各记一次，不在每块上碰共享统计。
+pub(crate) struct BodyWait {
+    pub(super) host: Arc<HostWait>,
+    pub(super) started: Instant,
+    pub(super) total_cap: Duration,
+    pub(super) idle_cap: Duration,
+    pub(super) max_gap: Duration,
+}
+
+impl BodyWait {
+    pub(super) fn gap(&mut self, gap: Duration) {
+        self.max_gap = self.max_gap.max(gap);
+    }
+
+    pub(super) fn finished(&self) {
+        self.host.done(Phase::BodyIdle, self.max_gap);
+        self.host.done(Phase::Total, self.started.elapsed());
+    }
+
+    pub(super) fn idle_out(&self, gap: Duration) {
+        self.host.gave_up(Phase::BodyIdle, gap, self.idle_cap);
+    }
+
+    pub(super) fn total_out(&self) {
+        self.host
+            .gave_up(Phase::Total, self.started.elapsed(), self.total_cap);
+    }
 }
 
 impl FetchStream {
@@ -325,16 +382,23 @@ impl FetchStream {
     }
 
     pub async fn chunk(&mut self) -> Result<Option<bytes::Bytes>> {
-        let idle_deadline = (Instant::now() + self.body_idle_timeout).min(self.deadline);
-        let chunk = timeout_at(idle_deadline, self.response.chunk())
-            .await
-            .map_err(|_| {
-                if idle_deadline == self.deadline {
-                    Error::Timeout(TimeoutPhase::Total)
-                } else {
-                    Error::Timeout(TimeoutPhase::BodyIdle)
-                }
-            })?;
+        let asked = Instant::now();
+        let idle_deadline = (asked + self.body_idle_timeout).min(self.deadline);
+        let chunk = match timeout_at(idle_deadline, self.response.chunk()).await {
+            Err(_) if idle_deadline == self.deadline => {
+                self.wait.total_out();
+                return Err(Error::Timeout(TimeoutPhase::Total));
+            }
+            Err(_) => {
+                self.wait.idle_out(asked.elapsed());
+                return Err(Error::Timeout(TimeoutPhase::BodyIdle));
+            }
+            Ok(chunk) => chunk,
+        };
+        self.wait.gap(asked.elapsed());
+        if matches!(chunk, Ok(None)) {
+            self.wait.finished();
+        }
         if matches!(chunk, Ok(None))
             && let Some(usage) = self.session_use.take()
         {

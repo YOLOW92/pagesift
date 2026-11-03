@@ -1,6 +1,7 @@
 //! npm 包 `pagesift`：Rust 核心外面的一层薄包装（napi-rs），按性能优先设计：
 //!
-//! - 批量接口（`convertMany`、`Scraper.scrapeMany`、`Scraper.scrapeStream`）的并发调度都在 Rust 侧，
+//! - 批量接口（`convertMany`、`Scraper.scrapeMany`、`Scraper.scrapeStream`、`Scraper.parseStream`、
+//!   `Scraper.crawl`）的并发调度都在 Rust 侧，
 //!   每批只跨一次 JS/Rust 边界（流式接口每页一次）；
 //! - 结果是 [`page::Page`] 对象，大字段留在 Rust 侧，读到才复制成 JS 字符串；
 //! - CPU 密集的转换在 Rust 的线程上跑，不占 Node 主线程，也不受 libuv 线程池大小限制。
@@ -9,15 +10,19 @@
 //! 我们自己的代码里不写 unsafe。
 
 mod convert;
+mod crawl;
 mod error;
 mod options;
 mod page;
+mod parse;
 mod scraper;
 
 pub use convert::{convert, convert_async, convert_many};
+pub use crawl::{CrawlItem, CrawlOptions, CrawlStream, CrawlSummary, MapLink, MapOptions};
 pub use error::BatchError;
-pub use options::{BatchOptions, ConvertOptions, ScrapeOptions, ScraperConfig};
+pub use options::{BatchOptions, ConvertOptions, ParseOptions, ScrapeOptions, ScraperConfig};
 pub use page::Page;
+pub use parse::ParseFile;
 pub use scraper::{BatchItem, ScrapeStream, Scraper};
 
 use napi::bindgen_prelude::*;

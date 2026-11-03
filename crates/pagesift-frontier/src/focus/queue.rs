@@ -1,0 +1,338 @@
+//! 相关性优先的待爬队列（best-first），容量有界，出队时按簇分散。
+
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, HashMap};
+
+use url::Url;
+
+/// 相关性优先的待爬队列。容量由调用方按"还能再抓几页"给出，满了以后新链接只有比队里最差的
+/// 好才挤进来：队列长度不超过 limit，和广度优先一样内存有界。
+/// 每项带一个打分依据 `S`（[`super::LinkSignal`]），词权重变了以后按它重新打分（[`Self::rescore`]）。
+pub struct BestFirst<S = ()> {
+    /// (分数的位表示, 发现顺序取反) → 项。分数非负，位表示的大小顺序和数值一致；
+    /// 最后一项是分数最高、同分里最早发现的。
+    order: BTreeMap<Key, Entry<S>>,
+    index: HashMap<u64, Key>,
+    seq: u64,
+    /// 最近一次出队的项的打分依据（[`Self::take_signal`]）。
+    taken: Option<S>,
+}
+
+type Key = (u32, Reverse<u64>);
+
+struct Entry<S> {
+    hash: u64,
+    url: Url,
+    depth: usize,
+    signal: S,
+}
+
+impl<S> Default for BestFirst<S> {
+    fn default() -> Self {
+        Self {
+            order: BTreeMap::new(),
+            index: HashMap::new(),
+            seq: 0,
+            taken: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Offer {
+    Queued,
+    /// 已经在队里，按更高的分数调整了位置（或者分数没更高，保持不变）。
+    AlreadyQueued,
+    /// 队列满了，挤掉了这个哈希对应的链接；调用方要把它从去重表里删掉，以后还能再进来。
+    Evicted(u64),
+    Rejected,
+}
+
+/// 出队时的分散规则：一个簇（主机 + 第一段路径）已经调度了 `cap` 页后，
+/// 只要别的簇里有分数不低于最高分 [`DIVERSITY_RATIO`] 倍的候选，就先出它。
+pub const DIVERSITY_RATIO: f32 = 0.5;
+
+fn score_bits(score: f32) -> u32 {
+    if score.is_nan() {
+        0
+    } else {
+        score.max(0.0).to_bits()
+    }
+}
+
+/// 簇的键：主机加第一段路径（`news`、`admissions`、`exhibition`…）。
+/// 各个主机的首页（`/`、`/en/`、`/index.html`）同属一个簇：大学首页链着几十个院系子站，
+/// 每个子站首页都是不同的主机，不归到一起的话按簇分散反而会把预算摊给它们。
+pub fn cluster_key(u: &Url) -> String {
+    let segs: Vec<&str> = u.path().split('/').filter(|s| !s.is_empty()).collect();
+    // 首页：没有路径，或者只有一段语言代码（`en`、`en-gb`）或 `index`（可以带扩展名）
+    let home_segment = |seg: &str| {
+        let stem = seg
+            .split_once('.')
+            .map_or(seg, |(s, _)| s)
+            .to_ascii_lowercase();
+        let lang = |p: &str| p.len() == 2 && p.bytes().all(|b| b.is_ascii_alphabetic());
+        stem == "index"
+            || lang(&stem)
+            || stem
+                .split_once('-')
+                .is_some_and(|(a, b)| lang(a) && (2..=4).contains(&b.len()))
+    };
+    let root = match segs.as_slice() {
+        [] => true,
+        [one] => home_segment(one),
+        _ => false,
+    };
+    if root {
+        return "*/".to_string();
+    }
+    format!("{}/{}", u.host_str().unwrap_or_default(), segs[0])
+}
+
+impl<S> BestFirst<S> {
+    pub fn len(&self) -> usize {
+        self.order.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.order.is_empty()
+    }
+
+    pub fn contains(&self, hash: u64) -> bool {
+        self.index.contains_key(&hash)
+    }
+
+    /// 放入一个链接。`room` 是队列现在最多能有多少项（limit 减去已经调度的页数）。
+    /// 已经在队里的，分数更高时换成这次的分数和打分依据。
+    pub fn offer(
+        &mut self,
+        hash: u64,
+        url: Url,
+        depth: usize,
+        score: f32,
+        signal: S,
+        room: usize,
+    ) -> Offer {
+        let bits = score_bits(score);
+        if let Some(&old) = self.index.get(&hash) {
+            if bits > old.0
+                && let Some(mut entry) = self.order.remove(&old)
+            {
+                entry.signal = signal;
+                self.order.insert((bits, old.1), entry);
+                self.index.insert(hash, (bits, old.1));
+            }
+            return Offer::AlreadyQueued;
+        }
+        let mut evicted = None;
+        if self.order.len() >= room {
+            match self.order.first_key_value() {
+                Some((&worst, _)) if worst.0 < bits => {
+                    let e = self.order.remove(&worst).expect("present");
+                    self.index.remove(&e.hash);
+                    evicted = Some(e.hash);
+                }
+                _ => return Offer::Rejected,
+            }
+        }
+        let key = (bits, Reverse(self.seq));
+        self.seq += 1;
+        self.order.insert(
+            key,
+            Entry {
+                hash,
+                url,
+                depth,
+                signal,
+            },
+        );
+        self.index.insert(hash, key);
+        evicted.map_or(Offer::Queued, Offer::Evicted)
+    }
+
+    /// 按打分依据重算每一项的分数，同分的还按发现顺序。
+    pub fn rescore(&mut self, score: impl Fn(&S) -> f32) {
+        let old = std::mem::take(&mut self.order);
+        for ((_, seq), entry) in old {
+            let key = (score_bits(score(&entry.signal)), seq);
+            self.index.insert(entry.hash, key);
+            self.order.insert(key, entry);
+        }
+    }
+
+    /// 取出分数最高的链接：(URL, 深度, 分数)。
+    #[cfg(test)]
+    pub fn pop(&mut self) -> Option<(Url, usize, f32)> {
+        let key = *self.order.last_key_value()?.0;
+        self.take(key)
+    }
+
+    /// 按簇分散地出队：分数最高的链接所在的簇已经调度了 `cap` 页时，改出别的簇里分数不低于
+    /// 最高分一半的最好链接；没有这样的链接就还是出最高分的。`scheduled` 是每个簇已调度的页数，
+    /// `proven` 说一个簇是不是已经证明了产出好：这样的簇不受 `cap` 限制，而且队首在没证明过的簇
+    /// 里时，证明过的簇里分数不低于最高分一半的链接先出。
+    pub fn pop_diverse(
+        &mut self,
+        scheduled: &HashMap<String, usize>,
+        cap: usize,
+        proven: impl Fn(&str) -> bool,
+    ) -> Option<(Url, usize, f32)> {
+        let (&top_key, top) = self.order.last_key_value()?;
+        let top_url = &top.url;
+        let top_score = f32::from_bits(top_key.0);
+        let full = |u: &Url| {
+            let key = cluster_key(u);
+            scheduled.get(&key).copied().unwrap_or(0) >= cap && !proven(&key)
+        };
+        let floor = top_score * DIVERSITY_RATIO;
+        // 利用：队首所在的簇还没证明产出，而已经证明高产的簇里有分数够得上的链接时，先抓它
+        // （和下面的分散对称：一个是别把预算全押在一个簇上，一个是别为了没验证过的簇丢下高产的簇）
+        if !proven(&cluster_key(top_url))
+            && let Some(k) = self
+                .order
+                .iter()
+                .rev()
+                .take_while(|(k, _)| f32::from_bits(k.0) >= floor)
+                .find(|(_, e)| proven(&cluster_key(&e.url)))
+                .map(|(k, _)| *k)
+        {
+            return self.take(k);
+        }
+        if !full(top_url) {
+            return self.take(top_key);
+        }
+        let pick = self
+            .order
+            .iter()
+            .rev()
+            .take_while(|(k, _)| f32::from_bits(k.0) >= floor)
+            .find(|(_, e)| !full(&e.url))
+            .map(|(k, _)| *k)
+            .unwrap_or(top_key);
+        self.take(pick)
+    }
+
+    /// 队首（分数最高）的分数。
+    pub fn peek_score(&self) -> Option<f32> {
+        self.order
+            .last_key_value()
+            .map(|(k, _)| f32::from_bits(k.0))
+    }
+
+    fn take(&mut self, key: Key) -> Option<(Url, usize, f32)> {
+        let e = self.order.remove(&key)?;
+        self.index.remove(&e.hash);
+        self.taken = Some(e.signal);
+        Some((e.url, e.depth, f32::from_bits(key.0)))
+    }
+
+    /// 最近一次出队的项的打分依据（取走）。
+    pub fn take_signal(&mut self) -> Option<S> {
+        self.taken.take()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn u(s: &str) -> Url {
+        Url::parse(s).unwrap()
+    }
+
+    #[test]
+    fn best_first_pops_highest_score_then_discovery_order() {
+        let mut q = BestFirst::default();
+        q.offer(1, u("https://e.com/a"), 1, 0.5, (), 10);
+        q.offer(2, u("https://e.com/b"), 1, 2.0, (), 10);
+        q.offer(3, u("https://e.com/c"), 1, 0.5, (), 10);
+        assert_eq!(q.pop().unwrap().0.path(), "/b");
+        assert_eq!(q.pop().unwrap().0.path(), "/a");
+        assert_eq!(q.pop().unwrap().0.path(), "/c");
+        assert!(q.pop().is_none());
+    }
+
+    #[test]
+    fn best_first_is_bounded_and_evicts_the_worst() {
+        let mut q = BestFirst::default();
+        assert_eq!(
+            q.offer(1, u("https://e.com/a"), 1, 0.1, (), 2),
+            Offer::Queued
+        );
+        assert_eq!(
+            q.offer(2, u("https://e.com/b"), 1, 0.2, (), 2),
+            Offer::Queued
+        );
+        assert_eq!(
+            q.offer(3, u("https://e.com/c"), 1, 0.05, (), 2),
+            Offer::Rejected
+        );
+        assert_eq!(
+            q.offer(4, u("https://e.com/d"), 1, 0.3, (), 2),
+            Offer::Evicted(1)
+        );
+        assert_eq!(q.len(), 2);
+        assert!(!q.contains(1) && q.contains(4));
+        assert_eq!(
+            q.offer(4, u("https://e.com/d"), 1, 0.9, (), 2),
+            Offer::AlreadyQueued
+        );
+        assert_eq!(q.pop().unwrap().2, 0.9);
+    }
+
+    #[test]
+    fn diverse_pop_leaves_a_saturated_cluster_for_a_close_rival() {
+        let mut q = BestFirst::default();
+        q.offer(1, u("https://e.com/news/1"), 1, 1.0, (), 10);
+        q.offer(2, u("https://e.com/news/2"), 1, 0.9, (), 10);
+        q.offer(3, u("https://e.com/study/intl"), 1, 0.6, (), 10);
+        q.offer(4, u("https://e.com/about"), 1, 0.2, (), 10);
+        let mut counts = HashMap::new();
+        counts.insert("e.com/news".to_string(), 3);
+        // news 已经抓了 3 页：先出 study（0.6 ≥ 1.0 × 0.5），再回到 news
+        assert_eq!(
+            q.pop_diverse(&counts, 3, |_| false).unwrap().0.path(),
+            "/study/intl"
+        );
+        assert_eq!(
+            q.pop_diverse(&counts, 3, |_| false).unwrap().0.path(),
+            "/news/1"
+        );
+        // 剩下的 about 分太低，不够资格插队
+        assert_eq!(
+            q.pop_diverse(&counts, 3, |_| false).unwrap().0.path(),
+            "/news/2"
+        );
+        // 产出已经证明好的簇不受上限限制
+        let mut q = BestFirst::default();
+        q.offer(1, u("https://e.com/news/1"), 1, 1.0, (), 10);
+        q.offer(3, u("https://e.com/study/intl"), 1, 0.6, (), 10);
+        assert_eq!(
+            q.pop_diverse(&counts, 3, |k| k == "e.com/news")
+                .unwrap()
+                .0
+                .path(),
+            "/news/1"
+        );
+        assert_eq!(cluster_key(&u("https://e.com/")), "*/");
+        assert_eq!(cluster_key(&u("https://cs.e.com/en/")), "*/");
+        assert_eq!(cluster_key(&u("https://e.com/en.html")), "*/");
+        assert_eq!(cluster_key(&u("https://e.com/en-gb/")), "*/");
+        assert_eq!(cluster_key(&u("https://e.com/news/")), "e.com/news");
+        assert_eq!(cluster_key(&u("https://e.com/study")), "e.com/study");
+    }
+
+    #[test]
+    fn rescoring_reorders_by_the_new_scores_and_keeps_ties_in_discovery_order() {
+        let mut q: BestFirst<f32> = BestFirst::default();
+        q.offer(1, u("https://e.com/a"), 1, 0.9, 0.1, 10);
+        q.offer(2, u("https://e.com/b"), 1, 0.5, 0.7, 10);
+        q.offer(3, u("https://e.com/c"), 1, 0.4, 0.7, 10);
+        q.rescore(|s| *s);
+        assert_eq!(q.peek_score(), Some(0.7));
+        assert_eq!(q.pop().unwrap().0.path(), "/b");
+        assert_eq!(q.pop().unwrap().0.path(), "/c");
+        assert_eq!(q.pop().unwrap().0.path(), "/a");
+        assert!(q.is_empty() && !q.contains(1));
+    }
+}

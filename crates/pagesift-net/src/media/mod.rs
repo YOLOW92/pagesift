@@ -1,12 +1,10 @@
-//! Native multimedia stream ingestion, manifest parsing, concurrent fetching, and pure Rust container verification.
+//! Native multimedia stream ingestion, manifest parsing and pure Rust container verification.
 
-pub mod chunk_fetcher;
 pub mod m3u8_parser;
 pub mod mpd_parser;
 mod mpd_template;
 pub mod stream_verifier;
 
-pub use chunk_fetcher::{ChunkFetcher, FetchError, FetchedChunk};
 pub use m3u8_parser::{
     HlsMasterPlaylist, HlsMediaPlaylist, HlsPlaylist, HlsSegment, HlsVariant, M3u8Error, parse_m3u8,
 };

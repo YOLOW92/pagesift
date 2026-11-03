@@ -112,7 +112,7 @@ impl Survival {
         }
     }
 
-    /// 已经等了 `t`，再等 `dt` 能完成的条件概率 `h(t, Δ) = [S(t) − S(t+Δ)] / S(t)`（DESIGN §5.4-W）。
+    /// 已经等了 `t`，再等 `dt` 能完成的条件概率 `h(t, Δ) = [S(t) − S(t+Δ)] / S(t)`。
     /// `S(t) = 0`（观测里没有等这么久的）时返回 NaN：信息不足，由调用方按上层先验处理。
     pub fn finish_within(&self, t: f64, dt: f64) -> f64 {
         let steps = self.steps();
@@ -138,6 +138,90 @@ impl Survival {
             .find(|s| 1.0 - s.survival >= p)
             .map(|s| s.time)
     }
+
+    /// 完整的 KM 表：每个有事件或截尾的时间点一行（时间升序），含风险集大小。
+    ///
+    /// 需要风险集的决策（例如对条件完成概率 `h(t, Δ)` 做小样本区间估计、判断某时刻之后还有没有观测）
+    /// 用它；[`survival`](Self::survival) 等只给出台阶值。
+    pub fn risk_table(&self) -> Vec<RiskRow> {
+        let mut at_risk = self.count() as f64;
+        let mut s = 1.0;
+        let mut out = Vec::new();
+        let mut row = |time: f64, d: f64, c: f64, at_risk: &mut f64| {
+            if d + c <= 0.0 {
+                return;
+            }
+            if d > 0.0 && *at_risk > 0.0 {
+                s *= 1.0 - d / *at_risk;
+            }
+            out.push(RiskRow {
+                time,
+                at_risk: *at_risk,
+                events: d,
+                censored: c,
+                survival: s,
+            });
+            *at_risk -= d + c;
+        };
+        row(
+            0.0,
+            self.events.zeros() as f64,
+            self.censored.zeros() as f64,
+            &mut at_risk,
+        );
+        let mut e = self.events.buckets().peekable();
+        let mut c = self.censored.buckets().peekable();
+        loop {
+            let i = match (e.peek(), c.peek()) {
+                (None, None) => break,
+                (Some(&(a, _)), None) => a,
+                (None, Some(&(b, _))) => b,
+                (Some(&(a, _)), Some(&(b, _))) => a.min(b),
+            };
+            let d = e.next_if(|&(k, _)| k == i).map_or(0, |(_, n)| n);
+            let cc = c.next_if(|&(k, _)| k == i).map_or(0, |(_, n)| n);
+            row(self.events.upper(i), d as f64, cc as f64, &mut at_risk);
+        }
+        out
+    }
+
+    /// 已经等了 `after` 仍未完成的条件下，**有把握**完成概率达到 `p` 的最早时刻：
+    /// 最小的 `t > after`，使条件完成概率 `F(t | after) = 1 − Ŝ(t)/Ŝ(after)` 的 Wilson 下界
+    /// （水平 `δ`，样本量取 `after` 之后仍在风险中的个数）不低于 `p`。
+    ///
+    /// 和 [`time_to`](Self::time_to) 的区别：样本少时下界低，到不了 `p` 就返回 `None`，
+    /// 由调用方用先验（样本够不够不设最小样本数，由区间宽度决定）。
+    pub fn confident_time_to(&self, p: f64, after: f64, delta: crate::Delta) -> Option<f64> {
+        let rows = self.risk_table();
+        let base = rows
+            .iter()
+            .take_while(|r| r.time <= after)
+            .last()
+            .map_or(1.0, |r| r.survival);
+        let n = rows.iter().find(|r| r.time > after)?.at_risk;
+        if base <= 0.0 || n <= 0.0 {
+            return None;
+        }
+        rows.iter()
+            .filter(|r| r.time > after)
+            .find(|r| crate::beta::wilson((1.0 - r.survival / base) * n, n, delta).0 >= p)
+            .map(|r| r.time)
+    }
+}
+
+/// KM 表的一行（[`Survival::risk_table`]）。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RiskRow {
+    /// 时间点（桶上界）。
+    pub time: f64,
+    /// 这一时刻之前仍在风险中的个数 `nᵢ`（时间 ≥ 本时刻的观测数）。
+    pub at_risk: f64,
+    /// 本时刻的事件数 `dᵢ`。
+    pub events: f64,
+    /// 本时刻的截尾数。
+    pub censored: f64,
+    /// 这一行之后的 `Ŝ`。
+    pub survival: f64,
 }
 
 impl Stat for Survival {
@@ -202,6 +286,26 @@ mod tests {
         // 指数分布无记忆：h(t, Δ) 与 t 无关，等于 1 − e^{−Δ}
         let h = s.finish_within(1.0, 0.5);
         assert!((h - (1.0 - (-0.5f64).exp())).abs() < 0.03, "{h}");
+        // 风险表与台阶函数一致：每行的 Ŝ 与 survival() 相同，风险集逐行减去事件和截尾
+        let table = s.risk_table();
+        assert_eq!(table[0].at_risk, s.count() as f64);
+        for w in table.windows(2) {
+            assert_eq!(w[1].at_risk, w[0].at_risk - w[0].events - w[0].censored);
+        }
+        for r in table.iter().step_by(97) {
+            assert_eq!(r.survival, s.survival(r.time));
+        }
+        // 有把握的分位数不早于点估计；指数分布无记忆，条件 95% 时刻 ≈ after + ln 20
+        let d = crate::Delta::DEFAULT;
+        let point = s.time_to(0.95).unwrap();
+        let sure = s.confident_time_to(0.95, 0.0, d).unwrap();
+        assert!(sure >= point && sure < point * 1.2, "{point} {sure}");
+        let cond = s.confident_time_to(0.95, 1.0, d).unwrap();
+        assert!((cond - 1.0 - 20f64.ln()).abs() < 0.4, "{cond}");
+        // 样本太少时到不了：三个事件的 Wilson 下界只有约 0.53
+        let mut few = Survival::with_alpha(0.01);
+        (1..=3).for_each(|i| few.event(i as f64));
+        assert_eq!(few.confident_time_to(0.95, 0.0, d), None);
         halves.0.merge(&halves.1);
         assert_eq!(halves.0, s);
         let mut w = Writer::new();

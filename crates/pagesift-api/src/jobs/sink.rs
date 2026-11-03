@@ -32,6 +32,9 @@ pub(super) struct JobSink {
     pub(super) resume: StdMutex<Option<CrawlResume>>,
     /// 调用方当天的页面配额用完了，任务提前结束。
     pub(super) quota_hit: AtomicBool,
+    /// 停止摘要要不要存进任务状态（API 的 `pagesift` 字段）。引擎对所有爬取都回调摘要，
+    /// 但 API 只在带查询的爬取里给这个字段，响应的形状和以前一样。
+    pub(super) keep_summary: bool,
 }
 
 impl JobSink {
@@ -70,6 +73,7 @@ impl JobSink {
 
     /// 记一个完成的页面；`done` 是恢复时用来认出它的键（URL 或批量里的下标）。
     pub(super) async fn record_page(&self, done: String, doc: Document) {
+        crate::attachments::keep(&doc);
         let inner = &self.jobs.inner;
         if !self.running().await {
             return;
@@ -79,17 +83,18 @@ impl JobSink {
         if let Some(store) = self.store() {
             let doc = keep.take().expect("set above");
             let (pages, done_set) = (list_key(&self.id, "pages"), list_key(&self.id, "done"));
+            let m = inner.mirror.clone();
             let r = store
                 .blocking(move |s| -> pagesift_store::Result<()> {
-                    let t = s.tasks();
                     let value = serde_json::to_vec(&Completion {
                         value: &doc,
                         done: &done,
                     })
                     .map_err(std::io::Error::other)?;
-                    t.list_push(pages, &value)?;
-                    t.set_insert(done_set, done)?;
-                    Ok(())
+                    super::mirror::write(s, m.as_deref(), |t| {
+                        t.list_push(&pages, &value)?;
+                        t.set_insert(&done_set, done.as_bytes())
+                    })
                 })
                 .await;
             if let Err(e) = r {
@@ -110,6 +115,7 @@ impl JobSink {
                 Some(doc) => job.data.push(doc),
                 None => job.stored_docs += 1,
             }
+            job.touch();
             job.owner.clone()
         };
         inner.metrics.page(self.kind.pages());
@@ -117,7 +123,7 @@ impl JobSink {
             inner.limiter.consume_pages(&c, 1).await;
         }
         if let (Some(hook), Some(doc)) = (&self.hook, page_doc) {
-            hook.send(Event::Page, vec![doc], None);
+            hook.send(Event::Page, vec![doc], None).await;
         }
     }
 
@@ -132,17 +138,18 @@ impl JobSink {
         if let Some(store) = self.store() {
             let e = keep.take().expect("set above");
             let (errors, done_set) = (list_key(&self.id, "errors"), list_key(&self.id, "done"));
+            let m = inner.mirror.clone();
             let r = store
                 .blocking(move |s| -> pagesift_store::Result<()> {
-                    let t = s.tasks();
                     let value = serde_json::to_vec(&Completion {
                         value: &e,
                         done: &done,
                     })
                     .map_err(std::io::Error::other)?;
-                    t.list_push(errors, &value)?;
-                    t.set_insert(done_set, done)?;
-                    Ok(())
+                    super::mirror::write(s, m.as_deref(), |t| {
+                        t.list_push(&errors, &value)?;
+                        t.set_insert(&done_set, done.as_bytes())
+                    })
                 })
                 .await;
             if let Err(e) = r {
@@ -203,6 +210,7 @@ impl JobSink {
                 if self.store().is_none() {
                     job.errors.extend(extra);
                 }
+                job.touch();
             }
             (job.state, job.completed)
         };
@@ -220,8 +228,9 @@ impl JobSink {
             match (state, &result) {
                 (JobState::Failed, Err((_, e))) => {
                     hook.send(Event::Failed, Vec::new(), Some(e.to_string()))
+                        .await
                 }
-                (JobState::Completed, _) => hook.send(Event::Completed, Vec::new(), None),
+                (JobState::Completed, _) => hook.send(Event::Completed, Vec::new(), None).await,
                 _ => {}
             }
         }
@@ -262,6 +271,9 @@ impl CrawlSink for JobSink {
 
     fn summary(&self, summary: CrawlSummary) -> BoxFuture<'_, ()> {
         Box::pin(async move {
+            if !self.keep_summary {
+                return;
+            }
             if let Some(job) = self.jobs.inner.map.lock().await.get_mut(&self.id) {
                 job.summary = Some(summary);
             }
@@ -276,13 +288,15 @@ impl CrawlSink for JobSink {
                 return;
             };
             let key = list_key(&self.id, "frontier");
+            let m = self.jobs.inner.mirror.clone();
             let r = store
                 .blocking(move |s| -> pagesift_store::Result<()> {
-                    let t = s.tasks();
-                    for u in urls {
-                        t.list_push(&key, &serde_json::to_vec(&u).unwrap_or_default())?;
-                    }
-                    Ok(())
+                    super::mirror::write(s, m.as_deref(), |t| {
+                        for u in urls {
+                            t.list_push(&key, &serde_json::to_vec(&u).unwrap_or_default())?;
+                        }
+                        Ok(())
+                    })
                 })
                 .await;
             if let Err(e) = r {

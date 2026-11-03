@@ -27,6 +27,7 @@ use crate::metrics::Metrics;
 use crate::types::{CrawlRequest, JobError, ScrapeOptions};
 use crate::webhook::{Event, Hook, Webhooks};
 
+pub mod mirror;
 mod sink;
 pub mod state;
 mod store;
@@ -44,6 +45,8 @@ struct Inner {
     limiter: Arc<Limiter>,
     webhooks: Option<Webhooks>,
     metrics: Arc<Metrics>,
+    /// 多服务器网关：任务存储的写入同时复制到温备（见 [`mirror`]）。
+    mirror: Option<Arc<mirror::JobMirror>>,
 }
 
 #[derive(Clone)]
@@ -54,7 +57,7 @@ pub struct Jobs {
 impl Default for Jobs {
     /// 只在内存里的任务表：不落盘、不限额、不发 webhook。
     fn default() -> Self {
-        Self::new(None, Arc::default(), None, Arc::default())
+        Self::new(None, Arc::default(), None, Arc::default(), None)
     }
 }
 
@@ -64,6 +67,7 @@ impl Jobs {
         limiter: Arc<Limiter>,
         webhooks: Option<Webhooks>,
         metrics: Arc<Metrics>,
+        mirror: Option<Arc<mirror::JobMirror>>,
     ) -> Self {
         Self {
             inner: Arc::new(Inner {
@@ -72,6 +76,7 @@ impl Jobs {
                 limiter,
                 webhooks,
                 metrics,
+                mirror,
             }),
         }
     }
@@ -92,10 +97,11 @@ impl Jobs {
             ids
         };
         if let (Some(store), false) = (&self.inner.store, expired.is_empty()) {
+            let m = self.inner.mirror.clone();
             store
                 .blocking(move |s| {
                     for id in expired {
-                        delete_job(s, &id);
+                        delete_job(s, m.as_deref(), &id);
                     }
                 })
                 .await;
@@ -147,6 +153,17 @@ impl Jobs {
         Some(page)
     }
 
+    /// 订阅任务的变化（新文档、状态变化）。任务不存在时返回 `None`；任务过期删掉后接收端随之关闭。
+    pub(crate) async fn subscribe(&self, id: &str) -> Option<tokio::sync::watch::Receiver<()>> {
+        self.sweep().await;
+        self.inner
+            .map
+            .lock()
+            .await
+            .get(id)
+            .map(|j| j.changed.subscribe())
+    }
+
     /// 任务的页面错误和被 robots.txt 拦下的 URL。
     pub(crate) async fn errors(&self, id: &str) -> Option<(Vec<JobError>, Vec<String>)> {
         self.sweep().await;
@@ -180,6 +197,7 @@ impl Jobs {
                 Some(j) => {
                     if j.state == JobState::Scraping {
                         j.state = JobState::Cancelled;
+                        j.touch();
                     }
                     true
                 }
@@ -251,7 +269,9 @@ impl Jobs {
         }
         if let Some(store) = &self.inner.store {
             let (key, value) = (meta_key(&id), serde_json::to_vec(&meta).unwrap_or_default());
-            if let Err(e) = store.blocking(move |s| s.tasks().kv_put(key, &value)).await {
+            let m = self.inner.mirror.clone();
+            let put = move |s: &Store| mirror::write(s, m.as_deref(), |w| w.kv_put(&key, &value));
+            if let Err(e) = store.blocking(put).await {
                 tracing::warn!(job = %id, error = %e, "saving job failed; it will not survive a restart");
             }
         }
@@ -264,8 +284,8 @@ impl Jobs {
         );
         let hook = match (&self.inner.webhooks, start.webhook) {
             (Some(w), Some(cfg)) => {
-                let hook = w.start(&id, kind.as_str(), cfg);
-                hook.send(Event::Started, Vec::new(), None);
+                let hook = w.start(&id, kind.as_str(), cfg, self.inner.store.clone());
+                hook.send(Event::Started, Vec::new(), None).await;
                 Some(hook)
             }
             _ => None,
@@ -328,6 +348,7 @@ impl Jobs {
             hook,
             resume: StdMutex::new(resume),
             quota_hit: AtomicBool::new(false),
+            keep_summary: true,
         })
     }
 
@@ -399,7 +420,10 @@ impl Jobs {
         hook: Option<Hook>,
         resume: Option<CrawlResume>,
     ) {
-        let sink = self.sink(&id, JobKind::Crawl, hook, resume);
+        let mut sink = self.sink(&id, JobKind::Crawl, hook, resume);
+        if let Some(s) = Arc::get_mut(&mut sink) {
+            s.keep_summary = req.query.is_some();
+        }
         tokio::spawn(async move {
             let result = engine.crawl(&req, sink.clone()).await;
             sink.finish(result.map_err(|e| (req.url.clone(), e))).await;

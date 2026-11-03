@@ -457,5 +457,5 @@ fn micros(value: f64) -> Duration {
 }
 
 #[cfg(test)]
-#[path = "tests_host_connections.rs"]
+#[path = "host_connections_tests.rs"]
 mod tests;

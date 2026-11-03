@@ -16,11 +16,14 @@ mod csv;
 mod docx;
 mod epub;
 mod md;
+mod media;
 mod opc;
 mod pptx;
 mod xlsx;
 mod xml;
 mod zip;
+
+pub use media::{Media, MediaLocation, media, media_bytes};
 
 /// 支持的格式。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

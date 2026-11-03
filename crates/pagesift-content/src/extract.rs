@@ -306,7 +306,14 @@ impl Skipper {
         if c != UNKNOWN {
             return c;
         }
-        let c = token_class(el);
+        // 小标题按自己文字生成的锚点 id（`id="related-work"`）不当类名看，见 is_text_slug
+        let id = el.attr("id").filter(|id| {
+            !(matches!(
+                el.tag(),
+                Tag::H1 | Tag::H2 | Tag::H3 | Tag::H4 | Tag::H5 | Tag::H6
+            ) && crate::classes::is_text_slug(id, &node.text()))
+        });
+        let c = crate::classes::token_class_of(el.attr("class"), id);
         cell.set(c);
         c
     }

@@ -1,4 +1,4 @@
-//! 文字体系权重的在线估计，取代固定的 `CJK_WEIGHT = 3`（CONSTANTS.md A 类）。
+//! 文字体系权重的在线估计，取代固定的 `CJK_WEIGHT = 3`。
 //!
 //! 权重的定义：该文字体系每个字符的平均信息量与拉丁字母的比值。信息量用已提取正文里
 //! 该体系字符的一元分布熵估计 `Ĥ = −Σ p̂ ln p̂`，加 Miller–Madow 偏差修正 `(K−1)/(2N)`
@@ -70,6 +70,28 @@ pub struct ScriptStats {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ScriptWeights {
     weights: Vec<(Script, f64)>,
+}
+
+impl ScriptWeights {
+    /// 随二进制发布的权重（先验包）：拟合内置质量模型（`QualityModel::builtin`）时用的那一份，
+    /// 来源 `benchmarks/history/0.83/results/20261102-165739/weights.json`。打分必须和拟合时用同一份权重。
+    pub fn builtin() -> &'static Self {
+        static W: std::sync::LazyLock<ScriptWeights> = std::sync::LazyLock::new(|| {
+            let table: serde_json::Value =
+                serde_json::from_str(include_str!("../data/script-weights-v1.json"))
+                    .unwrap_or_default();
+            ScriptWeights {
+                weights: Script::ALL
+                    .iter()
+                    .map(|&s| {
+                        let w = table[format!("{s:?}")]["weight"].as_f64().unwrap_or(1.0);
+                        (s, w)
+                    })
+                    .collect(),
+            }
+        });
+        &W
+    }
 }
 
 impl Default for ScriptWeights {
@@ -199,6 +221,13 @@ impl Stat for ScriptStats {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn builtin_weights_load_the_fitted_table() {
+        let w = ScriptWeights::builtin();
+        assert!((w.weight(Script::Arabic) - 1.1165589706243608).abs() < 1e-12);
+        assert_eq!(w.weight(Script::Common), 1.0);
+    }
     use pagesift_stat::Delta;
 
     #[test]

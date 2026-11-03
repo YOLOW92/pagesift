@@ -110,6 +110,9 @@ pub(crate) struct Inner {
     maint: Mutex<()>,
     busy: AtomicBool,
     last_maint_ms: AtomicU64,
+    /// 上次维护结束时的磁盘总量和无效数据量（字节），判断之后垃圾长了多少（[`Store::maybe_maintain`]）。
+    last_maint_disk: AtomicU64,
+    last_maint_garbage: AtomicU64,
     last_error: Mutex<Option<String>>,
     open: OpenReport,
     /// 持有期间其他进程打不开同一个目录；随存储一起释放。
@@ -245,6 +248,8 @@ impl Store {
             maint: Mutex::new(()),
             busy: AtomicBool::new(false),
             last_maint_ms: AtomicU64::new(0),
+            last_maint_disk: AtomicU64::new(0),
+            last_maint_garbage: AtomicU64::new(0),
             last_error: Mutex::new(None),
             open: report,
             _lock: lock,

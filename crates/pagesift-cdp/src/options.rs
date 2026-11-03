@@ -39,8 +39,13 @@ pub struct EarlyStop {
     /// 本页 HTTP 抓取的耗时，用作客户端跳转页的导航时间尺度。
     pub http_elapsed: Duration,
     pub after: Option<Duration>,
-    pub probe: Arc<dyn Fn(&str) -> bool + Send + Sync>,
+    /// 判断当前 DOM 的提取结果会不会比 HTTP 更好（`true` = 不会，可以停）。是异步的：
+    /// 调用方把提取交给自己的 CPU 工人，不占 CDP 的异步线程。
+    pub probe: Arc<dyn Fn(String) -> ProbeFuture + Send + Sync>,
 }
+
+/// [`EarlyStop::probe`] 返回的 future。
+pub type ProbeFuture = std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send>>;
 
 impl std::fmt::Debug for EarlyStop {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -87,6 +92,8 @@ pub struct RenderOptions {
     pub scan_full_page: Option<FullPageScan>,
     /// 会回收节点的虚拟列表：滚动时收集出现过的条目（Crawl4AI 的 `VirtualScrollConfig`）。
     pub virtual_scroll: Option<VirtualScroll>,
+    /// 这个页面的浏览器上下文走的代理（出口）。只有 Chrome 支持；见 [`crate::BrowserProxy`]。
+    pub proxy: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
@@ -170,6 +177,7 @@ impl Default for RenderOptions {
             flatten_shadow_dom: true,
             scan_full_page: None,
             virtual_scroll: None,
+            proxy: None,
         }
     }
 }
@@ -420,6 +428,9 @@ pub fn parse_actions(v: &Value) -> crate::Result<Vec<Action>> {
 impl RenderOptions {
     pub(crate) fn validate(&self, allow_js: bool) -> crate::Result<()> {
         use crate::Error::InvalidOptions as Bad;
+        if let Some(p) = &self.proxy {
+            crate::BrowserProxy::parse(p).map_err(Bad)?;
+        }
         if self.actions.len() > MAX_ACTIONS {
             return Err(Bad(format!("at most {MAX_ACTIONS} actions are allowed")));
         }

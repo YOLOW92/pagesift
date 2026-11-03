@@ -42,26 +42,18 @@ pub fn cores() -> usize {
 
 fn run(html: &str, plan: &ConvertPlan) -> Page {
     let doc = pagesift_content::process(html, &plan.opts);
-    let m = doc.metadata;
     let mut meta = Map::new();
-    for (k, v) in [
-        ("title", m.title),
-        ("description", m.description),
-        ("language", m.language),
-        ("keywords", m.keywords),
-        ("robots", m.robots),
-        ("favicon", m.favicon),
-        ("publishedTime", m.published_time),
-        ("modifiedTime", m.modified_time),
-        ("url", plan.url.clone()),
-        ("sourceURL", plan.url.clone()),
-    ] {
+    for (k, v) in pagesift_sink::meta::standard(&doc.metadata) {
         if let Some(v) = v {
-            meta.insert(k.into(), v.into());
+            meta.insert(k.into(), v.clone().into());
         }
     }
-    for (k, v) in m.extra {
-        meta.entry(meta_key(&k)).or_insert(v.into());
+    if let Some(url) = &plan.url {
+        meta.insert("url".into(), url.clone().into());
+        meta.insert("sourceURL".into(), url.clone().into());
+    }
+    for (k, v) in pagesift_sink::meta::extra(&doc.metadata) {
+        meta.entry(k).or_insert_with(|| v.clone().into());
     }
     Page::new(
         plan.markdown.then_some(doc.markdown),
@@ -71,23 +63,6 @@ fn run(html: &str, plan: &ConvertPlan) -> Page {
         doc.images.map(|i| i.into_iter().map(|i| i.src).collect()),
         Value::Object(meta),
     )
-}
-
-/// `og:image` → `ogImage`，和 `scrape` 的键名一致。
-fn meta_key(raw: &str) -> String {
-    let mut out = String::with_capacity(raw.len());
-    let mut upper = false;
-    for c in raw.chars() {
-        if matches!(c, ':' | '_' | '-' | '.') {
-            upper = true;
-        } else if upper {
-            out.extend(c.to_uppercase());
-            upper = false;
-        } else {
-            out.push(c);
-        }
-    }
-    out
 }
 
 fn plan(options: Option<ConvertOptions>) -> Fallible<ConvertPlan> {
@@ -200,15 +175,4 @@ pub fn convert_many<'e>(
     env.spawn_future_with_callback(fut, |env, out: Fallible<Vec<Page>>| {
         out.map_err(|e| error::to_js(env, &e))
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::meta_key;
-
-    #[test]
-    fn meta_keys_follow_firecrawl_style() {
-        assert_eq!(meta_key("og:site_name"), "ogSiteName");
-        assert_eq!(meta_key("dc.title"), "dcTitle");
-    }
 }

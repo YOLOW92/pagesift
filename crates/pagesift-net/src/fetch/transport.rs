@@ -111,6 +111,7 @@ pub(super) async fn read_body(
     max: usize,
     deadline: Instant,
     body_idle_timeout: Duration,
+    wait: &mut BodyWait,
 ) -> Result<(Vec<u8>, bool)> {
     // 有 Content-Length 就一次分配到位，免得边读边扩容（扩容会多占一倍并反复拷贝）
     let hint = resp
@@ -121,13 +122,22 @@ pub(super) async fn read_body(
         .map_or(0, |n| n.min(max as u64) as usize);
     let mut body = Vec::with_capacity(hint);
     loop {
-        let idle_deadline = (Instant::now() + body_idle_timeout).min(deadline);
+        let asked = Instant::now();
+        let idle_deadline = (asked + body_idle_timeout).min(deadline);
         let chunk = match timeout_at(idle_deadline, resp.chunk()).await {
-            Err(_) if idle_deadline == deadline => return Err(Error::Timeout(TimeoutPhase::Total)),
-            Err(_) => return Err(Error::Timeout(TimeoutPhase::BodyIdle)),
+            Err(_) if idle_deadline == deadline => {
+                wait.total_out();
+                return Err(Error::Timeout(TimeoutPhase::Total));
+            }
+            Err(_) => {
+                wait.idle_out(asked.elapsed());
+                return Err(Error::Timeout(TimeoutPhase::BodyIdle));
+            }
             Ok(c) => c?,
         };
+        wait.gap(asked.elapsed());
         let Some(chunk) = chunk else {
+            wait.finished();
             return Ok((body, false));
         };
         let room = max - body.len();
@@ -218,12 +228,6 @@ impl Resp {
     pub(super) fn abandon(&mut self) {
         if let Resp::Direct(response) = self {
             response.abandon();
-        }
-    }
-
-    pub(super) async fn move_to_tail(&mut self, stages: &StageController) {
-        if let Resp::Direct(response) = self {
-            response.move_to_tail(stages).await;
         }
     }
 }

@@ -20,7 +20,6 @@ async fn slow_requests_do_not_block_fast_ones_on_the_same_origin() {
                 ..Default::default()
             },
             dns: FakeDns::new(&[]),
-            tail_threshold: Duration::from_millis(500),
             first_byte_timeout: Duration::from_secs(20),
             max_connections_per_host: 16,
             ..Default::default()
@@ -29,7 +28,8 @@ async fn slow_requests_do_not_block_fast_ones_on_the_same_origin() {
     );
 
     // 热连接目标从 2 起步：7 个慢请求排在前面。按名额一代代释放（每个阈值放 2 个）
-    // 快请求要等 4 个阈值；排队方等满一个阈值就放行，与前面有几个慢请求无关
+    // 快请求要等 4 个阈值；排队方等满一个阈值就放行，与前面有几个慢请求无关。
+    // 冷启动的"慢"阈值是全部源站首字节耗时 q(1−δ) 的先验 2 s
     let mut slow = tokio::task::JoinSet::new();
     for _ in 0..7 {
         let (f, url) = (fetcher.clone(), srv.url("/slow"));
@@ -37,22 +37,18 @@ async fn slow_requests_do_not_block_fast_ones_on_the_same_origin() {
     }
     tokio::time::sleep(Duration::from_millis(50)).await;
 
-    // wall-clock: the fast request is let through after one 500 ms threshold; the bug makes it wait
-    // four (2 s); 1.5 s sits between them
+    // wall-clock: the fast request is let through after one 2 s threshold; the bug makes it wait
+    // four (8 s); 4 s sits between them
     let t = Instant::now();
     let r = tokio::time::timeout(
-        Duration::from_secs(5),
+        Duration::from_secs(10),
         fetcher.fetch(FetchRequest::new(srv.url("/fast"))),
     )
     .await
     .expect("fast request waited behind slow ones")
     .unwrap();
     assert_eq!(r.status, 200);
-    assert!(
-        t.elapsed() < Duration::from_millis(1500),
-        "{:?}",
-        t.elapsed()
-    );
+    assert!(t.elapsed() < Duration::from_secs(4), "{:?}", t.elapsed());
 
     let stats = fetcher.host_connection_stats();
     let s = stats
@@ -73,7 +69,6 @@ async fn parked_requests_still_count_toward_the_ceiling() {
                 ..Default::default()
             },
             dns: FakeDns::new(&[]),
-            tail_threshold: Duration::from_millis(100),
             first_byte_timeout: Duration::from_secs(20),
             max_connections_per_host: 2,
             ..Default::default()
@@ -85,7 +80,8 @@ async fn parked_requests_still_count_toward_the_ceiling() {
         let (f, url) = (fetcher.clone(), srv.url("/slow"));
         slow.spawn(async move { f.fetch(FetchRequest::new(url)).await });
     }
-    tokio::time::sleep(Duration::from_millis(300)).await;
+    // 冷启动的"慢"阈值是 2 s 的先验：过了它两个都停放
+    tokio::time::sleep(Duration::from_millis(2300)).await;
     // 两个都停放了，但上限是 2：第三个只能等
     let blocked = tokio::time::timeout(
         Duration::from_millis(500),
@@ -107,8 +103,8 @@ async fn parked_requests_still_count_toward_the_ceiling() {
 
 #[tokio::test]
 async fn slow_threshold_adapts_to_a_warm_origin() {
-    // 源站已有一批快请求的服务时间：“慢”按它自己的中位数判断（不低于 250 ms），
-    // 不必等满尾部阈值（这里 2 s）才让快请求过去
+    // 源站已有一批快请求的服务时间：“慢”按它自己的服务时间判断，
+    // 不必等满冷启动阈值（先验 2 s）才让快请求过去
     let srv = serve(|s| (s.path != "/slow").then(|| ok("fast"))).await;
     let fetcher = Arc::new(
         Fetcher::new(FetcherConfig {
@@ -117,7 +113,6 @@ async fn slow_threshold_adapts_to_a_warm_origin() {
                 ..Default::default()
             },
             dns: FakeDns::new(&[]),
-            tail_threshold: Duration::from_secs(2),
             first_byte_timeout: Duration::from_secs(20),
             max_connections_per_host: 16,
             ..Default::default()
@@ -137,8 +132,8 @@ async fn slow_threshold_adapts_to_a_warm_origin() {
         slow.spawn(async move { f.fetch(FetchRequest::new(url)).await });
     }
     tokio::time::sleep(Duration::from_millis(50)).await;
-    // wall-clock: the warm origin's threshold is about 250 ms; the bug waits for the 2 s tail
-    // threshold; 1.5 s sits between them
+    // wall-clock: the warm origin's threshold is far below 1 s; the bug waits for the 2 s
+    // cold-start threshold; 1.5 s sits between them
     let t = Instant::now();
     let r = tokio::time::timeout(
         Duration::from_secs(5),
@@ -149,7 +144,7 @@ async fn slow_threshold_adapts_to_a_warm_origin() {
     .unwrap();
     assert_eq!(r.status, 200);
     assert!(
-        // 判错时要等满尾部阈值（2 s）
+        // 判错时要等满冷启动阈值（2 s）
         t.elapsed() < Duration::from_millis(1500),
         "{:?}",
         t.elapsed()

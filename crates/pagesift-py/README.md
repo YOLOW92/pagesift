@@ -6,9 +6,10 @@ Python bindings for [pagesift](https://github.com/YOLOW92/pagesift): turn web pa
 Markdown for LLMs. Fetching, robots.txt, rate limiting, content extraction, PDF parsing and browser
 rendering all run in Rust. No Playwright, no Rust toolchain needed to install.
 
-pagesift follows the rules: it obeys robots.txt and Crawl-delay, rate-limits per host, and never
-bypasses anti-bot protection. A blocked page is reported as an error (`AccessBarrier`), not retried
-with tricks.
+pagesift obeys robots.txt and Crawl-delay and rate-limits per host; the per-site budget is shared by
+every egress. A blocked or challenge page is reported as an error (`AccessBarrier`). When two or more
+egresses are configured (`[[egress]]`), a page denied through one egress (an IP block or a challenge
+page) can be retried through another; rate limiting (429, `Retry-After`) only backs off.
 
 ## Quick start
 
@@ -125,6 +126,10 @@ refetches robots.txt.
 | `ascrape_many(urls, options=None, *, concurrency=16, **overrides) -> Batch` | `async for doc in …`, completion order |
 | `convert(html, url=None, only_main_content=True) -> Document` | HTML → Markdown, no network |
 | `Scraper(...)` | all of the above as methods, plus `close()` / `aclose()`; `with` / `async with` |
+| `Scraper.crawl(url, options=None, *, limit=None, max_depth=None, include_paths=None, exclude_paths=None, crawl_entire_domain=False, allow_subdomains=None, sitemap="include", query=None, adaptive=False, max_concurrency=None, **overrides) -> Crawl` | whole-site crawl; `for` / `async for`, one `Document` per finished page |
+| `Scraper.map(url, *, limit=None, search=None, sitemap="include", ignore_robots_txt=False) -> list[dict]` | the site's links as `{"url", "title", "description"}`; `await amap(...)` is the async form |
+| `Scraper.parse(data, filename, options=None, *, content_type=None, url=None, **overrides) -> Document` | parse a local file (PDF, HTML, Word, Excel, PowerPoint, EPUB, CSV); `await aparse(...)` is the async form |
+| `Scraper.parse_many(files, options=None, *, concurrency=16, **overrides) -> Batch` | `files` are `(data, filename)` pairs; `for` / `async for`, completion order |
 | `default_scraper()` | the `Scraper` the module-level functions use |
 | `ScrapeOptions(...)` | validated, reusable options; `.replace(**changes)` |
 
@@ -135,6 +140,36 @@ or `async for`), supports `len()`, and `batch.cancel()` (or dropping it) cancels
 and a robots.txt `Crawl-delay` takes precedence over the configured request interval. Use
 `engine="http"` for HTTP-only batches; the default `engine="auto"` preserves browser fallback for
 short or client-rendered pages.
+
+### Crawl, map, parse
+
+`crawl` starts as soon as it is called and yields pages as they finish. Failed pages are yielded
+too (`success=False`, same shape as failed batch items; `index` is `None`); an error in the crawl
+itself (for example an invalid `include_paths` regex) is raised from the iteration. Results go
+through a bounded channel whose capacity is the crawl's concurrency: when the consumer is slower,
+the crawl waits instead of dropping pages. `break` (dropping the iterator) or `crawl.cancel()`
+stops the crawl. After the iteration ends, `crawl.summary` is a dict with `stop_reason`, `pages`,
+`coverage` and `term_evidence`; crawls with `query` get it from the engine, other crawls report
+`limit_reached`, `exhausted` or `cancelled` from the page counts. `crawl.total`, `crawl.pages` and
+`crawl.errors` are live counters.
+
+| crawl option | default | |
+|---|---|---|
+| `limit` | HTTP API default | maximum pages; with `adaptive` only a cap |
+| `max_depth` | `None` | link depth from the start page |
+| `include_paths`, `exclude_paths` | `None` | path regexes: crawl only / skip matching pages |
+| `crawl_entire_domain` | `False` | the whole host, not just the start page's section |
+| `allow_subdomains` | `None` | also crawl subdomains of the same site |
+| `sitemap` | `"include"` | `include`, `skip` (no sitemap) or `only` (sitemap URLs only) |
+| `query`, `adaptive` | `None`, `False` | relevance-first crawl; `adaptive` stops once the query is covered (needs `query`) |
+| `max_concurrency` | `None` | pages in flight for this crawl |
+| `options`, `**overrides` | | per-page scrape options; `ignore_robots_txt` also applies to the crawl itself |
+
+`map` orders links that contain more `search` terms first and keeps the rest after them.
+`parse` detects the type from the content first, then from the file name extension and
+`content_type`; unknown types raise `UnsupportedOption`, as do options that only make sense for
+URLs (`engine="browser"`, `wait_for`, `mobile`, conditional requests). `url` resolves relative
+links in HTML; it is never fetched. A parsed `Document` has the file name as `url`.
 
 ### Options
 
@@ -174,11 +209,11 @@ apply, so a batch against one host is as polite as single requests.
 
 | field | |
 |---|---|
-| `index` | position in the batch input (`None` for single scrapes) |
-| `url`, `final_url` | requested URL, URL after redirects |
+| `index` | position in the batch input (`None` for single scrapes and crawl pages) |
+| `url`, `final_url` | requested URL (the file name for `parse`), URL after redirects |
 | `success`, `status_code` | HTTP 4xx/5xx pages are not errors: you get the page and its `status_code` |
 | `markdown`, `html`, `raw_html`, `links`, `images` | `None` unless requested in `formats` |
-| `metadata` | dict: `title`, `description`, `language`, `keywords`, `robots`, `favicon`, `published_time`, `modified_time`, `content_type`, plus other meta tags such as `og_image` |
+| `metadata` | dict: `title`, `description`, `language`, `keywords`, `robots`, `favicon`, `published_time`, `author`, `modified_time`, `content_type`, plus other meta tags such as `og_image` (same keys for `scrape` and `convert`) |
 | `error`, `error_code`, `error_message` | set when `success` is `False` |
 | `engine` | `http` or `browser` |
 | `content_hash`, `raw_hash`, `text_hash` | content fingerprints for change detection |

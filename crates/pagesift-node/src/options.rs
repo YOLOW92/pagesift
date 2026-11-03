@@ -57,6 +57,8 @@ impl ScraperConfig {
         if let Some(n) = self.max_browsers {
             c.browser.max_browsers = n.max(1) as usize;
         }
+        // 用库的人就是管理员（和命令行一样）：crawl、map 的 ignoreRobotsTxt 由调用方自己决定
+        c.policy.allow_crawl_ignore_robots = true;
         c
     }
 }
@@ -158,6 +160,8 @@ macro_rules! scrape_options {
             pub if_modified_since: Option<String>,
             /// 出口代理（http://, https://, socks5://）。
             pub proxy: Option<String>,
+            /// 导出图片（PDF 内嵌图片、Office 媒体、网页图片），在 `page.attachments` 里返回字节。
+            pub export_images: Option<bool>,
         }
 
         impl $name {
@@ -172,6 +176,7 @@ macro_rules! scrape_options {
                     if_none_match: self.if_none_match.clone(),
                     if_modified_since: self.if_modified_since.clone(),
                     proxy: self.proxy.clone(),
+                    export_images: self.export_images.unwrap_or(false),
                     ..Default::default()
                 };
                 if let Some(v) = self.only_main_content {
@@ -194,6 +199,16 @@ macro_rules! scrape_options {
 scrape_options!(
     #[doc = "单页抓取选项。"]
     ScrapeOptions {}
+);
+
+scrape_options!(
+    #[doc = "`parse` 的选项：`ScrapeOptions` 的字段（浏览器渲染、条件请求等只对网址有意义的选项会被拒绝），加上文件的 Content-Type 和原地址。"]
+    ParseOptions {
+        #[doc = "文件的 Content-Type，按内容和扩展名都认不出类型时再看它。"]
+        pub content_type: Option<String>,
+        #[doc = "页面原地址：HTML 的相对链接按它解析，也作为 `metadata.sourceURL`；不会去抓。"]
+        pub url: Option<String>,
+    }
 );
 
 scrape_options!(

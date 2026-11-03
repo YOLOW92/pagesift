@@ -2,6 +2,28 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.90.0] — 2026-11-03
+
+Limits, timeouts and thresholds estimated from observed data; render decisions per path family; multi-server
+roles and an egress pool. See [the release notes](docs/releases/0.90.0.md).
+
+### Added
+- `explain` scrape option (`scrape --explain`) writing render, merge and fallback decisions to `metadata.pagesift.plan`.
+- Speculative rendering, page data islands (`__NEXT_DATA__`, `__NUXT_DATA__`, JSON-LD) merged into HTTP results.
+- `--out` and `--warc` for `scrape`, `crawl` and `convert`; crawl and batch SSE / NDJSON streams with resume.
+- `exportImages`: PDF images in their original encoding, Office media and web images in every output.
+- `serve --role gateway|worker|standby` with a `[cluster]` section; `[[egress]]` classes and the egress pool.
+
+### Changed
+- Limits, timeouts and thresholds start from the 0.81.5 values and change only on significant evidence.
+- Binary cache format (0.81 cache entries are not read); `{"type":"recursive"}` chunking merges by block structure.
+- The `pagesift` crate is split into `pagesift-engine`, `pagesift-frontier` and `pagesift-media`; `pagesift`
+  re-exports the same public API.
+
+### Removed
+- `pagesift-net` `scheduler`, `checkpoint`, `budget` and `ChunkFetcher`; `pagesift-policy` `adaptive`;
+  `--tuning-mode` is accepted and ignored.
+
 ## [0.81.5] — 2026-10-31
 
 Linux glibc builds now load on glibc 2.28 and newer. See [the release notes](docs/releases/0.81.5.md).

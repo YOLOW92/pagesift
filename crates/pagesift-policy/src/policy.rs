@@ -9,8 +9,10 @@ use pagesift_net::{
 use tokio::time::Instant;
 
 use crate::backoff::{Backoff, BackoffConfig, parse_retry_after};
+use crate::egress::{EgressClass, EgressPool, PoolConfig};
 use crate::error::Error;
 use crate::limiter::{Permit, RateLimitConfig, RateLimiter};
+use crate::outage::Outages;
 use crate::robots::{MAX_ROBOTS_BYTES, Robots};
 
 #[derive(Debug, Clone)]
@@ -18,10 +20,13 @@ pub struct PolicyConfig {
     pub rate: RateLimitConfig,
     pub backoff: BackoffConfig,
     pub robots_ttl: Duration,
-    /// robots.txt 返回 5xx（按全部禁止处理）时的缓存时间，比正常结果短，方便站点恢复后尽快重试。
+    /// robots.txt 返回 5xx（按全部禁止处理）时缓存时间的上限。实际时长按 robots 故障持续时长的
+    /// 分布：已持续 `e` 的故障有把握恢复（概率 ≥ 1−δ）的时刻，不超过这个值。
     pub robots_error_ttl: Duration,
     /// 管理员开关：是否允许 crawl 和 map 忽略 robots.txt（F-2.4）。
     pub allow_crawl_ignore_robots: bool,
+    /// 管理员总开关：关掉后所有请求都不看 robots.txt，不需要请求里带 `ignoreRobotsTxt`。默认开。
+    pub respect_robots: bool,
 }
 
 impl Default for PolicyConfig {
@@ -30,8 +35,10 @@ impl Default for PolicyConfig {
             rate: RateLimitConfig::default(),
             backoff: BackoffConfig::default(),
             robots_ttl: Duration::from_secs(24 * 3600),
+            // [策略] 先验包 v0：0.81 的现值，作上限；故障时长分布有把握后按它缩短
             robots_error_ttl: Duration::from_secs(600),
             allow_crawl_ignore_robots: false,
+            respect_robots: true,
         }
     }
 }
@@ -56,6 +63,9 @@ pub fn robots_mode(
     ignore_robots_txt: bool,
     config: &PolicyConfig,
 ) -> Result<RobotsMode, Error> {
+    if !config.respect_robots {
+        return Ok(RobotsMode::Ignore);
+    }
     match (kind, ignore_robots_txt) {
         (_, false) => Ok(RobotsMode::Respect),
         (RequestKind::Scrape, true) => Ok(RobotsMode::Ignore),
@@ -71,7 +81,14 @@ pub struct RobotsCache {
     fetcher: Arc<Fetcher>,
     ttl: Duration,
     error_ttl: Duration,
-    entries: Mutex<HashMap<String, Slot>>,
+    entries: Mutex<Entries>,
+    /// robots.txt 故障（5xx、429 等按全部禁止处理的回答）持续时长的分布。
+    outages: Outages,
+}
+
+struct Entries {
+    map: HashMap<String, Slot>,
+    prune_at: usize,
 }
 
 #[derive(Clone)]
@@ -80,10 +97,14 @@ struct RobotsEntry {
     robots: Arc<Robots>,
     etag: Option<String>,
     last_modified: Option<SystemTime>,
+    /// 这一轮 robots 故障从什么时候开始；正常结果为 `None`。
+    failing_since: Option<Instant>,
 }
 
 type Slot = Arc<tokio::sync::Mutex<Option<RobotsEntry>>>;
 
+/// [策略] 先验包 v0：0.81 的现值。缓存第一次到这么多源时清理过期项；之后门槛是清理后存活数的
+/// 两倍（摊还 O(1)，动态表，CLRS §17.4），缓存不超过存活项的两倍
 const ROBOTS_CACHE_PRUNE_AT: usize = 4096;
 
 impl RobotsCache {
@@ -92,7 +113,11 @@ impl RobotsCache {
             fetcher,
             ttl,
             error_ttl,
-            entries: Mutex::new(HashMap::new()),
+            entries: Mutex::new(Entries {
+                map: HashMap::new(),
+                prune_at: ROBOTS_CACHE_PRUNE_AT,
+            }),
+            outages: Outages::default(),
         }
     }
 
@@ -101,16 +126,21 @@ impl RobotsCache {
         let origin = url.origin().ascii_serialization();
         let slot = {
             let mut entries = self.entries.lock().expect("lock poisoned");
-            if entries.len() >= ROBOTS_CACHE_PRUNE_AT && !entries.contains_key(&origin) {
+            if entries.map.len() >= entries.prune_at && !entries.map.contains_key(&origin) {
                 let now = Instant::now();
-                entries.retain(|_, s| {
+                entries.map.retain(|_, s| {
                     Arc::strong_count(s) > 1
                         || s.try_lock().map_or(true, |g| {
                             g.as_ref().is_some_and(|entry| entry.expires > now)
                         })
                 });
+                entries.prune_at = entries
+                    .map
+                    .len()
+                    .saturating_mul(2)
+                    .max(ROBOTS_CACHE_PRUNE_AT);
             }
-            entries.entry(origin.clone()).or_default().clone()
+            entries.map.entry(origin.clone()).or_default().clone()
         };
         let mut guard = slot.lock().await;
         if let Some(entry) = guard.as_ref()
@@ -119,10 +149,12 @@ impl RobotsCache {
             return Ok(entry.robots.clone());
         }
         let refreshed = self.fetch(&origin, guard.as_ref()).await?;
+        let now = Instant::now();
+        let failing_since = guard.as_ref().and_then(|e| e.failing_since);
         let entry = match refreshed {
             RobotsRefresh::NotModified(ttl) => {
                 let mut entry = guard.take().expect("conditional robots entry");
-                entry.expires = Instant::now() + ttl;
+                entry.expires = now + ttl;
                 entry
             }
             RobotsRefresh::Replace {
@@ -130,12 +162,30 @@ impl RobotsCache {
                 ttl,
                 etag,
                 last_modified,
-            } => RobotsEntry {
-                expires: Instant::now() + ttl,
-                robots: Arc::new(robots),
-                etag,
-                last_modified,
-            },
+                failed,
+            } => {
+                let (ttl, failing_since) = if failed {
+                    // 故障已持续 e：有把握恢复的时刻再来取，不超过配置的上限
+                    let since = failing_since.unwrap_or(now);
+                    let wait = self
+                        .outages
+                        .retry_in(now - since)
+                        .map_or(ttl, |d| d.min(ttl));
+                    (wait, Some(since))
+                } else {
+                    if let Some(since) = failing_since {
+                        self.outages.recovered(now - since);
+                    }
+                    (ttl, None)
+                };
+                RobotsEntry {
+                    expires: now + ttl,
+                    robots: Arc::new(robots),
+                    etag,
+                    last_modified,
+                    failing_since,
+                }
+            }
         };
         let robots = entry.robots.clone();
         *guard = Some(entry);
@@ -164,16 +214,20 @@ impl RobotsCache {
                 last_modified: r
                     .last_modified()
                     .and_then(|v| httpdate::parse_http_date(v).ok()),
+                failed: false,
             }),
             // 4xx（含 429 以外的客户端错误）：没有可用的 robots.txt，全部允许。
             Ok(r) if (400..500).contains(&r.status) && r.status != 429 => {
                 Ok(RobotsRefresh::replace(Robots::allow_all(), self.ttl))
             }
             // 5xx、429 以及其他异常状态：按全部禁止处理。
-            Ok(_) => Ok(RobotsRefresh::replace(
-                Robots::disallow_all(),
-                self.error_ttl,
-            )),
+            Ok(_) => Ok(RobotsRefresh::Replace {
+                robots: Robots::disallow_all(),
+                ttl: self.error_ttl,
+                etag: None,
+                last_modified: None,
+                failed: true,
+            }),
             // RFC 9309：重定向超过 5 次可以视为不可用，按全部允许处理。
             Err(pagesift_net::Error::TooManyRedirects(_)) => {
                 Ok(RobotsRefresh::replace(Robots::allow_all(), self.ttl))
@@ -190,6 +244,8 @@ enum RobotsRefresh {
         ttl: Duration,
         etag: Option<String>,
         last_modified: Option<SystemTime>,
+        /// 5xx、429 等按全部禁止处理的回答（robots 故障）。
+        failed: bool,
     },
 }
 
@@ -200,6 +256,7 @@ impl RobotsRefresh {
             ttl,
             etag: None,
             last_modified: None,
+            failed: false,
         }
     }
 }
@@ -209,6 +266,10 @@ pub struct Policy {
     fetcher: Arc<Fetcher>,
     /// 命名的出口（各自走不同的代理）。请求可以指定其中一个；robots.txt 仍走默认出口。
     egress: HashMap<String, Arc<Fetcher>>,
+    /// 命名出口的类别，按加入顺序（出口池的编号）。
+    egress_order: Vec<(String, EgressClass)>,
+    /// 两个及以上命名出口时的出口池：请求没指定出口时由它选。
+    pool: Option<EgressPool>,
     config: PolicyConfig,
     robots: RobotsCache,
     limiter: RateLimiter,
@@ -221,17 +282,64 @@ impl Policy {
         Self {
             robots: RobotsCache::new(fetcher.clone(), config.robots_ttl, config.robots_error_ttl),
             limiter: RateLimiter::new(config.rate.clone()),
-            backoff: Backoff::new(config.backoff.clone()),
+            backoff: Backoff::new(config.backoff.clone()).with_politeness(config.rate.politeness),
             token: product_token(fetcher.user_agent()).to_string(),
             fetcher,
             egress: HashMap::new(),
+            egress_order: Vec::new(),
+            pool: None,
             config,
         }
     }
 
-    /// 加一个命名出口。同名的会被替换。
+    /// 加一个命名出口（类别 `direct`）。同名的会被替换。
     pub fn add_egress(&mut self, name: impl Into<String>, fetcher: Arc<Fetcher>) {
-        self.egress.insert(name.into(), fetcher);
+        self.add_egress_class(name, EgressClass::Direct, fetcher);
+    }
+
+    /// 加一个指定类别的命名出口。同名的会被替换。命名出口有两个及以上时建出口池
+    /// （统计从头开始，只应在启动时调用）。
+    pub fn add_egress_class(
+        &mut self,
+        name: impl Into<String>,
+        class: EgressClass,
+        fetcher: Arc<Fetcher>,
+    ) {
+        let name = name.into();
+        match self.egress_order.iter_mut().find(|(n, _)| *n == name) {
+            Some(slot) => slot.1 = class,
+            None => self.egress_order.push((name.clone(), class)),
+        }
+        self.egress.insert(name, fetcher);
+        self.pool = (self.egress_order.len() >= 2)
+            .then(|| EgressPool::new(self.egress_order.clone(), PoolConfig::default()));
+    }
+
+    /// 出口池（命名出口少于两个时为 `None`，请求不指定出口就走默认出口，和以前一样）。
+    pub fn egress_pool(&self) -> Option<&EgressPool> {
+        self.pool.as_ref()
+    }
+
+    /// 命名出口的代理地址；名字本身是代理 URL 时返回它。默认出口、`direct` 出口或不认识的名字返回 `None`。
+    pub fn egress_proxy(&self, name: &str) -> Option<String> {
+        match self.egress.get(name) {
+            Some(f) => f.config().proxy.clone(),
+            None if is_proxy_url(name) => Some(name.to_string()),
+            None => None,
+        }
+    }
+
+    /// 配置里有这个命名出口。
+    pub fn has_egress(&self, name: &str) -> bool {
+        self.egress.contains_key(name)
+    }
+
+    /// 请求发往 `host` 时是否会带上管理员配置的 Cookie（出口池据此把会话固定在一个出口）。
+    pub fn has_configured_cookies(&self, host: &str) -> bool {
+        let host = host.trim_end_matches('.');
+        self.fetcher.config().credentials.iter().any(|c| {
+            !c.cookies.is_empty() && c.host.trim_end_matches('.').eq_ignore_ascii_case(host)
+        })
     }
 
     pub fn config(&self) -> &PolicyConfig {
@@ -265,6 +373,15 @@ impl Policy {
         ignore_robots_txt: bool,
     ) -> Result<RobotsMode, Error> {
         robots_mode(kind, ignore_robots_txt, &self.config)
+    }
+
+    /// robots.txt 被忽略（[`RobotsMode::Ignore`]）时的原因，写进审计日志。
+    pub fn robots_ignore_reason(&self, kind: RequestKind) -> &'static str {
+        match kind {
+            _ if !self.config.respect_robots => "respect_robots=false",
+            RequestKind::Scrape => "ignoreRobotsTxt",
+            RequestKind::Crawl | RequestKind::Map => "ignoreRobotsTxt+allow_crawl_ignore_robots",
+        }
     }
 
     /// 检查 robots.txt，返回适用的 Crawl-delay。
@@ -313,11 +430,7 @@ impl Policy {
             None => &self.fetcher,
             Some(name) => match self.egress.get(name) {
                 Some(f) => f.as_ref(),
-                None if name.starts_with("http://")
-                    || name.starts_with("https://")
-                    || name.starts_with("socks5://")
-                    || name.starts_with("socks5h://") =>
-                {
+                None if is_proxy_url(name) => {
                     let mut fc = self.fetcher.config().clone();
                     fc.proxy = Some(name.to_string());
                     dynamic_fetcher = Arc::new(Fetcher::new_egress(fc)?);
@@ -409,7 +522,7 @@ impl Policy {
                 self.backoff.on_throttled(host, retry_after);
                 // 服务端给了 Retry-After 就表示"按这个节奏来"，我们照做即可；
                 // 再永久加大整站的请求间隔会把站点越压越慢。只有没给指引时才收紧。
-                if retry_after.is_none() {
+                if retry_after.is_none() && self.backoff.enabled() {
                     self.limiter.throttled(host);
                 }
                 return Err(Error::RateLimited { retry_after });
@@ -434,6 +547,13 @@ impl Policy {
                 retry_after,
             })
     }
+}
+
+/// 请求的 `egress` 直接写了代理地址（不是配置里的名字）。
+fn is_proxy_url(name: &str) -> bool {
+    ["http://", "https://", "socks5://", "socks5h://"]
+        .iter()
+        .any(|p| name.starts_with(p))
 }
 
 /// 每一跳重定向：目标主机冷却检查和 robots 校验（SSRF 由 Fetcher 做）。
@@ -483,6 +603,19 @@ mod tests {
             let err = robots_mode(kind, true, &strict).unwrap_err();
             assert_eq!(err.code().as_str(), "UNSUPPORTED_OPTION");
             assert_eq!(robots_mode(kind, true, &open).unwrap(), RobotsMode::Ignore);
+        }
+    }
+
+    #[test]
+    fn robots_switch_off_ignores_robots_for_every_request() {
+        let off = PolicyConfig {
+            respect_robots: false,
+            ..Default::default()
+        };
+        for kind in [RequestKind::Scrape, RequestKind::Crawl, RequestKind::Map] {
+            for asked in [false, true] {
+                assert_eq!(robots_mode(kind, asked, &off).unwrap(), RobotsMode::Ignore);
+            }
         }
     }
 }

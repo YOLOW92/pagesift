@@ -12,30 +12,18 @@
 
 #![forbid(unsafe_code)]
 
-pub mod adaptive;
-pub mod audit;
-mod change;
+pub mod cluster;
 pub mod collect;
 pub mod config;
-mod crawl;
-mod discovery;
-pub mod download;
-mod engine;
-mod focus;
-mod frontier;
-mod learn;
 pub mod mcp;
-pub mod media;
-pub mod notice;
-pub mod postprocess;
-pub mod scripts;
 pub mod session;
-pub mod stream;
 
-pub use crawl::normalize as normalize_url;
-pub use engine::{
-    AUTO_RENDER_ARTICLE_MIN_CHARS, AUTO_RENDER_MIN_CHARS, EngineProbe, Scraper, ScraperConfig,
-    ScraperError, needs_render, office_markdown, office_markdown_from, set_cpu_capacity,
-    text_weight,
-};
 pub use pagesift_api as api;
+pub use pagesift_engine::{
+    AUTO_RENDER_ARTICLE_MIN_CHARS, AUTO_RENDER_MIN_CHARS, EngineProbe, PageRunner, Scraper,
+    ScraperConfig, ScraperError, audit, needs_render, normalize_url, notice, office_markdown,
+    office_markdown_from, scripts, set_cpu_capacity, set_cpu_groups, text_weight,
+};
+#[doc(hidden)]
+pub use pagesift_engine::{change, crawl, discovery, engine, focus, frontier, learn};
+pub use pagesift_media::{download, media, postprocess, stream};

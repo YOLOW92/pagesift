@@ -1386,7 +1386,7 @@ checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
 name = "pagesift"
-version = "0.81.5"
+version = "0.90.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1401,25 +1401,35 @@ dependencies = [
  "httpdate",
  "pagesift-api",
  "pagesift-cdp",
+ "pagesift-cluster",
  "pagesift-content",
  "pagesift-diff",
+ "pagesift-engine",
  "pagesift-extract",
+ "pagesift-flow",
+ "pagesift-frontier",
  "pagesift-html",
  "pagesift-llm",
  "pagesift-mcp",
+ "pagesift-media",
  "pagesift-net",
  "pagesift-office",
  "pagesift-pdf",
+ "pagesift-plan",
  "pagesift-policy",
  "pagesift-search",
+ "pagesift-sink",
+ "pagesift-stat",
  "pagesift-store",
  "pagesift-sys",
  "quick-xml",
  "regex",
+ "rustls-native-certs",
  "serde",
  "serde_json",
  "tempfile",
  "tokio",
+ "tokio-rustls",
  "toml",
  "tower",
  "tracing",
@@ -1429,13 +1439,14 @@ dependencies = [
 
 [[package]]
 name = "pagesift-api"
-version = "0.81.5"
+version = "0.90.0"
 dependencies = [
  "axum",
  "http-body",
  "http-body-util",
  "hyper",
  "hyper-util",
+ "pagesift-cluster",
  "pagesift-net",
  "pagesift-office",
  "pagesift-store",
@@ -1454,11 +1465,12 @@ dependencies = [
 
 [[package]]
 name = "pagesift-cdp"
-version = "0.81.5"
+version = "0.90.0"
 dependencies = [
  "base64 0.23.1",
  "futures-util",
  "nix",
+ "pagesift-stat",
  "serde",
  "serde_json",
  "tempfile",
@@ -1469,8 +1481,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "pagesift-cluster"
+version = "0.90.0"
+dependencies = [
+ "blake3",
+ "bytes",
+ "http-body",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "pagesift-stat",
+ "pagesift-store",
+ "ring",
+ "tempfile",
+ "tokio",
+ "tokio-rustls",
+]
+
+[[package]]
 name = "pagesift-content"
-version = "0.81.5"
+version = "0.90.0"
 dependencies = [
  "aho-corasick",
  "blake3",
@@ -1486,7 +1516,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-diff"
-version = "0.81.5"
+version = "0.90.0"
 dependencies = [
  "blake3",
  "pagesift-testkit",
@@ -1498,8 +1528,57 @@ dependencies = [
 ]
 
 [[package]]
+name = "pagesift-engine"
+version = "0.90.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "blake3",
+ "csv",
+ "encoding_rs",
+ "flate2",
+ "fs2",
+ "futures-util",
+ "http-body-util",
+ "httpdate",
+ "pagesift-api",
+ "pagesift-cdp",
+ "pagesift-cluster",
+ "pagesift-content",
+ "pagesift-diff",
+ "pagesift-extract",
+ "pagesift-flow",
+ "pagesift-frontier",
+ "pagesift-html",
+ "pagesift-llm",
+ "pagesift-mcp",
+ "pagesift-media",
+ "pagesift-net",
+ "pagesift-office",
+ "pagesift-pdf",
+ "pagesift-plan",
+ "pagesift-policy",
+ "pagesift-search",
+ "pagesift-sink",
+ "pagesift-stat",
+ "pagesift-store",
+ "pagesift-sys",
+ "quick-xml",
+ "regex",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-rustls",
+ "toml",
+ "tower",
+ "tracing",
+ "url",
+]
+
+[[package]]
 name = "pagesift-extract"
-version = "0.81.5"
+version = "0.90.0"
 dependencies = [
  "memchr",
  "pagesift-html",
@@ -1512,8 +1591,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "pagesift-flow"
+version = "0.90.0"
+dependencies = [
+ "pagesift-net",
+ "pagesift-policy",
+ "pagesift-stat",
+ "tokio",
+]
+
+[[package]]
+name = "pagesift-frontier"
+version = "0.90.0"
+dependencies = [
+ "pagesift-api",
+ "pagesift-content",
+ "pagesift-extract",
+ "pagesift-stat",
+ "regex",
+ "url",
+]
+
+[[package]]
 name = "pagesift-fuzz"
-version = "0.81.5"
+version = "0.90.0"
 dependencies = [
  "pagesift-content",
  "pagesift-html",
@@ -1524,7 +1625,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-html"
-version = "0.81.5"
+version = "0.90.0"
 dependencies = [
  "memchr",
  "pagesift-testkit",
@@ -1532,7 +1633,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-llm"
-version = "0.81.5"
+version = "0.90.0"
 dependencies = [
  "reqwest",
  "serde",
@@ -1543,7 +1644,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-mcp"
-version = "0.81.5"
+version = "0.90.0"
 dependencies = [
  "axum",
  "base64 0.23.1",
@@ -1557,8 +1658,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "pagesift-media"
+version = "0.90.0"
+dependencies = [
+ "anyhow",
+ "blake3",
+ "fs2",
+ "pagesift-html",
+ "pagesift-net",
+ "pagesift-policy",
+ "pagesift-stat",
+ "quick-xml",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "pagesift-net"
-version = "0.81.5"
+version = "0.90.0"
 dependencies = [
  "blake3",
  "brotli-decompressor 5.0.3",
@@ -1570,6 +1690,7 @@ dependencies = [
  "httpdate",
  "hyper",
  "hyper-util",
+ "pagesift-stat",
  "pagesift-testkit",
  "quick-xml",
  "reqwest",
@@ -1585,13 +1706,14 @@ dependencies = [
 
 [[package]]
 name = "pagesift-node"
-version = "0.81.5"
+version = "0.90.0"
 dependencies = [
  "napi",
  "napi-build",
  "napi-derive",
  "pagesift",
  "pagesift-content",
+ "pagesift-sink",
  "serde",
  "serde_json",
  "tokio",
@@ -1600,15 +1722,16 @@ dependencies = [
 
 [[package]]
 name = "pagesift-office"
-version = "0.81.5"
+version = "0.90.0"
 dependencies = [
  "memchr",
  "miniz_oxide",
+ "sha2",
 ]
 
 [[package]]
 name = "pagesift-pdf"
-version = "0.81.5"
+version = "0.90.0"
 dependencies = [
  "aes",
  "brotli-decompressor 6.0.1",
@@ -1616,6 +1739,7 @@ dependencies = [
  "lopdf",
  "md-5",
  "miniz_oxide",
+ "pagesift-stat",
  "pagesift-sys",
  "pagesift-testkit",
  "proptest",
@@ -1624,9 +1748,11 @@ dependencies = [
 
 [[package]]
 name = "pagesift-plan"
-version = "0.81.5"
+version = "0.90.0"
 dependencies = [
+ "blake3",
  "pagesift-content",
+ "pagesift-diff",
  "pagesift-stat",
  "serde_json",
  "url",
@@ -1634,10 +1760,11 @@ dependencies = [
 
 [[package]]
 name = "pagesift-policy"
-version = "0.81.5"
+version = "0.90.0"
 dependencies = [
  "httpdate",
  "pagesift-net",
+ "pagesift-stat",
  "pagesift-testkit",
  "proptest",
  "rustix",
@@ -1648,11 +1775,12 @@ dependencies = [
 
 [[package]]
 name = "pagesift-py"
-version = "0.81.5"
+version = "0.90.0"
 dependencies = [
  "pagesift",
  "pagesift-cdp",
  "pagesift-content",
+ "pagesift-sink",
  "pyo3",
  "pyo3-async-runtimes",
  "serde_json",
@@ -1662,7 +1790,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-search"
-version = "0.81.5"
+version = "0.90.0"
 dependencies = [
  "reqwest",
  "serde_json",
@@ -1671,16 +1799,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "pagesift-sink"
+version = "0.90.0"
+dependencies = [
+ "pagesift-api",
+ "pagesift-content",
+ "pagesift-store",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
 name = "pagesift-stat"
-version = "0.81.5"
+version = "0.90.0"
 
 [[package]]
 name = "pagesift-store"
-version = "0.81.5"
+version = "0.90.0"
 dependencies = [
  "blake3",
  "crc32fast",
  "flate2",
+ "pagesift-stat",
  "pagesift-testkit",
  "proptest",
  "sha2",
@@ -1692,14 +1836,14 @@ dependencies = [
 
 [[package]]
 name = "pagesift-sys"
-version = "0.81.5"
+version = "0.90.0"
 dependencies = [
  "libc",
 ]
 
 [[package]]
 name = "pagesift-testkit"
-version = "0.81.5"
+version = "0.90.0"
 dependencies = [
  "libc",
 ]

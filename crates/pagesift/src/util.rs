@@ -125,7 +125,7 @@ pub(crate) fn addr_space_worker_cap() -> Option<usize> {
 /// [`runtime`] 的绑核是给独占机器的长任务（爬取、服务）用的；单份命令常是脚本里一份一个进程、
 /// 十几个进程同时跑，每个进程都把自己的 worker 绑到同样的几个核上，再加上按核数起线程、
 /// 读 sysfs 探测拓扑，这些开销都比转换一份文件本身大。CPU 密集的活（正文提取、PDF 解析）
-/// 照样在阻塞线程池里做，许可数仍按核数。
+/// 照样在 CPU 工人上做，工人数按核数、不绑核。
 pub(crate) fn light_runtime() -> Result<tokio::runtime::Runtime> {
     pagesift::set_cpu_capacity(std::thread::available_parallelism().map_or(4, |n| n.get()));
     Ok(tokio::runtime::Builder::new_current_thread()
@@ -134,14 +134,17 @@ pub(crate) fn light_runtime() -> Result<tokio::runtime::Runtime> {
 }
 
 pub(crate) fn runtime() -> Result<tokio::runtime::Runtime> {
-    let topology = pagesift::adaptive::HardwareTopology::detect();
-    let worker_cpus = topology.cpu_topology.runtime_worker_cpus();
-    let mut workers = topology.runtime_workers.max(1);
+    let topology = pagesift_policy::topology::CpuTopology::detect();
+    let worker_cpus = topology.runtime_worker_cpus();
+    let runtime_workers = worker_cpus.len().max(1);
+    let mut workers = runtime_workers;
     if let Some(cap) = addr_space_worker_cap() {
         workers = workers.min(cap);
     }
     // 必须在绑核之前：之后各线程只看得到自己那一个 CPU。
-    pagesift::set_cpu_capacity(topology.runtime_workers);
+    pagesift::set_cpu_capacity(runtime_workers);
+    // CPU 工人按 NUMA 节点分组、绑到节点的 CPU 集（节点内由调度器安排）；只有一个节点时不绑
+    pagesift::set_cpu_groups(topology.node_cpu_sets());
     // 地址空间不够时线程会 spawn 失败（EAGAIN）。逐次减半重试，而不是让运行时 panic
     // 或卡在没有输出的状态里——受限环境下至少还能以小并发把活干完。
     loop {
@@ -150,24 +153,32 @@ pub(crate) fn runtime() -> Result<tokio::runtime::Runtime> {
         builder
             .worker_threads(workers)
             .thread_name("pagesift-worker");
-        if !worker_cpus.is_empty() {
-            let cpus = worker_cpus.clone();
+        // 第 k 个 worker 绑到 runtime_worker_cpus()[k] 所在 NUMA 节点的全部逻辑 CPU，节点内由内核调度迁移。
+        // 不逐逻辑 CPU 硬绑：0.70 在 192 vCPU / 4 NUMA 上实测逐核硬绑 −33.9%、物理核硬绑 −45.7%，
+        // 绑节点 CPU 集 +8.63%（docs/history/0.70_p2_step2_numa_executor.md）。只有一个节点时等于不绑。
+        let node_sets: Vec<Vec<usize>> = worker_cpus
+            .iter()
+            .map(|&cpu| topology.node_cpu_set_of(cpu).unwrap_or_else(|| vec![cpu]))
+            .collect();
+        if topology.node_cpu_sets().len() > 1 && !node_sets.is_empty() {
+            let sets = node_sets.clone();
             builder.on_thread_start(move || {
                 use std::sync::atomic::Ordering;
-                // 运行时先起 worker，之后按需起的是阻塞池线程（正文提取、PDF 解析）。
-                // 只绑 worker：阻塞线程交给调度器放到空闲核上，免得和某个 worker 挤在同一个核。
+                // 运行时先起 worker，之后按需起的是阻塞池线程（文件读写这类偶发的阻塞调用）。
+                // 只绑 worker：阻塞线程交给调度器放到空闲核上。
                 let index = next_cpu.fetch_add(1, Ordering::Relaxed);
                 if index < workers {
-                    let _ = pagesift::adaptive::pin_current_thread(cpus[index % cpus.len()]);
+                    let _ = pagesift_policy::topology::pin_current_thread_to_set(
+                        &sets[index % sets.len()],
+                    );
                 }
             });
         }
         match builder.enable_all().build() {
             Ok(rt) => {
-                if workers < topology.runtime_workers {
+                if workers < runtime_workers {
                     eprintln!(
-                        "note: 地址空间受限，runtime worker 由 {} 降到 {workers}",
-                        topology.runtime_workers
+                        "note: 地址空间受限，runtime worker 由 {runtime_workers} 降到 {workers}"
                     );
                 }
                 return Ok(rt);

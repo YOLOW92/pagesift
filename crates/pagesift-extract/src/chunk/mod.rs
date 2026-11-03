@@ -13,6 +13,7 @@ pub(crate) use self::markdown_ast::atx_heading;
 use self::markdown_ast::{BlockKind, Doc};
 pub use self::tokenizer_cache::{TokenIndex, count_range, is_cjk, token_spans};
 use crate::Error;
+pub(crate) use crate::pack::Pack;
 
 /// 分块策略。JSON 形式是 `{"type": "sliding_window", "window": 100, "step": 50}`，
 /// 参数名也接受 Crawl4AI 的写法（`window_size`、`chunk_size`）。
@@ -45,8 +46,10 @@ pub enum ChunkStrategy {
         window: usize,
         overlap: usize,
     },
-    /// 每块不超过 `size` 个 token，在最有结构意义的位置切开（段落、句子、标点…），
-    /// 不跨更高层级的边界；Markdown 标题、表格和代码块按整块保护处理。RAG 推荐用这个。
+    /// 每块不超过 `size` 个 token，在最有结构意义的位置切开（Markdown 块、段落、行、句子、标点…），
+    /// 不跨更高层级的边界。不超过 `size` 的整块（段落、列表、表格、代码块）不切开；整块之间合并时
+    /// 块长不超过 `size` 的一半和相邻最长块中较大的那个；超长块内部切的刀数最少；块长均衡；
+    /// 标题和后面的内容在一起。RAG 推荐用这个。
     Recursive {
         #[serde(alias = "chunk_size")]
         size: usize,
@@ -81,6 +84,15 @@ pub struct Chunk {
 
 /// 把 Markdown 切成块。参数不合法（窗口为 0、重叠不小于窗口、正则写错）时返回错误。
 pub fn chunk(markdown: &str, strategy: &ChunkStrategy) -> Result<Vec<Chunk>, Error> {
+    chunk_packed(markdown, strategy, Pack::Structure)
+}
+
+/// 同 [`chunk`]，但可以指定 `Recursive` 的合并方式（queryFilter 的打分单位用 [`Pack::Greedy`]）。
+pub(crate) fn chunk_packed(
+    markdown: &str,
+    strategy: &ChunkStrategy,
+    pack: Pack,
+) -> Result<Vec<Chunk>, Error> {
     let need_blocks = matches!(
         strategy,
         ChunkStrategy::Paragraphs | ChunkStrategy::Sentences
@@ -150,7 +162,7 @@ pub fn chunk(markdown: &str, strategy: &ChunkStrategy) -> Result<Vec<Chunk>, Err
             };
             let starts: Vec<usize> = token_spans(markdown).map(|t| t.start).collect();
             let count = |r: Range<usize>| count_range(markdown, &starts, r);
-            let out = crate::recursive::recursive(markdown, &pieces, *size, &count);
+            let out = crate::recursive::recursive(markdown, &pieces, *size, &count, pack);
             pre_starts = Some(starts);
             out
         }

@@ -3,7 +3,7 @@
 //! E. S. Page, "Continuous Inspection Schemes", Biometrika 41, 1954；
 //! D. V. Hinkley, Biometrika 58(3), 1971。正态均值从 `μ₀` 移到 `μ₀ ± μ_Δ` 时，
 //! 单步对数似然比是 `(μ_Δ/σ²)(x − μ₀ ∓ μ_Δ/2)`；把累计和超过 `ln(1/δ)` 作为报警
-//! （Wald SPRT 的门槛，Ann. Math. Statist. 16, 1945），换算到观测尺度就是 DESIGN §5.5 的
+//! （Wald SPRT 的门槛，Ann. Math. Statist. 16, 1945），换算到观测尺度就是
 //! `h = (σ²/μ_Δ)·ln(1/δ)`。Lorden（Ann. Math. Statist. 42, 1971）证明此门槛下
 //! 平均误报间隔不少于 `1/δ`，即每个观测的误报率不超过 `δ`。
 //!
@@ -19,7 +19,7 @@ pub enum Shift {
     Down,
 }
 
-/// 检测到变化时交出旧段，调用方把它降为新段的先验（DESIGN §5.5）。
+/// 检测到变化时交出旧段，调用方把它降为新段的先验。
 #[derive(Debug, Clone, PartialEq)]
 pub struct Change {
     pub shift: Shift,

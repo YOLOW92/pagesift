@@ -146,6 +146,13 @@ pub enum Content {
         data: String,
         mime_type: String,
     },
+    /// 指向一个资源（`resources/read` 取内容），例如导出的图片。
+    ResourceLink {
+        uri: String,
+        name: String,
+        mime_type: String,
+        size: Option<u64>,
+    },
 }
 
 impl Content {
@@ -154,6 +161,18 @@ impl Content {
             Content::Text(t) => json!({ "type": "text", "text": t }),
             Content::Image { data, mime_type } => {
                 json!({ "type": "image", "data": data, "mimeType": mime_type })
+            }
+            Content::ResourceLink {
+                uri,
+                name,
+                mime_type,
+                size,
+            } => {
+                let mut v = json!({ "type": "resource_link", "uri": uri, "name": name, "mimeType": mime_type });
+                if let Some(s) = size {
+                    v["size"] = json!(s);
+                }
+                v
             }
         }
     }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 0.83 质量分校准：AEB、WCXB（test）、WebMainBench 545、Firecrawl 597 四个带标准答案的集，
-# 用 pagesift-plan 的离线 example 提取特征、拟合模型，三折交叉验证的样本外预测按 DESIGN §9.3 判定校准是否达标。
+# 用 pagesift-plan 的离线 example 提取特征、拟合模型，三折交叉验证的样本外预测按可靠性（分箱 Wilson 区间）和区分度（Brier 分数）判定校准是否达标。
 #
 #   benchmarks/history/0.83/run.sh
 #

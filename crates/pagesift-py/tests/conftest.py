@@ -30,6 +30,20 @@ def article(title: str, extra: str = "") -> str:
 <footer>Copyright footer text</footer></body></html>"""
 
 
+def site_page(title: str, links: list) -> str:
+    """爬取用的小站点：`/site/` 链到 a、b 和被 robots.txt 禁止的 secret，a、b 链回首页。"""
+    anchors = "".join(f'<p><a href="{link}">{link}</a></p>' for link in links)
+    return f"""<!DOCTYPE html><html lang="en"><head><title>{title}</title></head><body>
+<article><h1>{title}</h1>{anchors}{PROSE}</article></body></html>"""
+
+
+SITE = {
+    "/site/": site_page("Site home", ["/site/a", "/site/b", "/site/secret"]),
+    "/site/a": site_page("Site A", ["/site/"]),
+    "/site/b": site_page("Site B", ["/site/"]),
+}
+
+
 CHALLENGE = """<!DOCTYPE html><html><head><title>Just a moment...</title></head>
 <body><div class="main-wrapper"><h1>example.com</h1>
 <h2 id="challenge-running">Checking if the site connection is secure</h2>
@@ -62,7 +76,9 @@ class Handler(BaseHTTPRequestHandler):
         q = parse_qs(u.query)
         p = u.path
         if p == "/robots.txt":
-            self.send(200, "User-agent: *\nDisallow: /private\n", "text/plain")
+            self.send(200, "User-agent: *\nDisallow: /private\nDisallow: /site/secret\n", "text/plain")
+        elif p in SITE:
+            self.send(200, SITE[p])
         elif p.startswith("/page/") or p == "/article" or p.startswith("/private"):
             self.send(200, article(f"Page {p}"))
         elif p == "/slow":

@@ -38,8 +38,7 @@ impl Client {
         dns_timeout: Duration,
         tls_timeout: Duration,
         first_byte_timeout: Duration,
-        happy_eyeballs_delay: Duration,
-        tail_threshold: Duration,
+        waits: Arc<WaitTable>,
         idle_timeout: Duration,
         max_idle: usize,
         adaptive_connections: bool,
@@ -53,8 +52,7 @@ impl Client {
             dns_timeout,
             tls_timeout,
             first_byte_timeout,
-            happy_eyeballs_delay,
-            tail_threshold,
+            waits,
             idle_timeout,
             max_idle,
             adaptive_connections,
@@ -85,7 +83,8 @@ impl Client {
             port,
         };
         let control = self.0.host_control(&key);
-        let mut lifecycle = Some(control.acquire_within(self.0.tail_threshold).await);
+        let wait = self.0.waits.host(&key.host);
+        let mut lifecycle = Some(control.acquire_within(self.0.waits.net.slow_cap()).await);
         let mut stage = None;
         let path = match url.query() {
             Some(q) => format!("{}?{q}", url.path()),
@@ -98,7 +97,7 @@ impl Client {
 
         // 先用池里的连接；若池化连接已在空闲期被对端单方面关闭（如 broken pipe / RST / channel closed），
         // 自动利用全新连接进行一次透明重试（符合 RFC 规范中对幂等 GET 请求在池化连接上的标准容错要求）。
-        let mut pooled = self.0.take(&key).await;
+        let mut pooled = self.0.take(&key, &wait).await;
         let mut retried = false;
 
         loop {
@@ -109,7 +108,7 @@ impl Client {
                 }
                 None => {
                     let started = Instant::now();
-                    match self.connect(&key).await {
+                    match self.connect(&key, &wait).await {
                         Ok(conn) => {
                             lifecycle
                                 .as_mut()
@@ -168,16 +167,23 @@ impl Client {
             }
 
             let send_started = Instant::now();
-            let send_deadline = send_started + self.0.first_byte_timeout;
+            let first_byte_cap = self.0.first_byte_timeout;
+            let first_byte_limit = wait.limit(Phase::FirstByte, first_byte_cap);
+            let send_deadline = send_started + first_byte_limit;
             // 源站自己的“慢”阈值（不超过尾部阈值），从拿到名额起算
             let slow_at = lifecycle.as_ref().map(HostPermit::slow_at);
-            let park_at = slow_at.unwrap_or(send_started + self.0.tail_threshold);
+            let park_at = slow_at.unwrap_or(send_started + self.0.waits.net.slow_cap());
             match conn {
                 Conn::H1(mut s) => {
                     match first_byte(s.send_request(req), send_deadline, park_at, &mut lifecycle)
                         .await
                     {
                         Ok(Ok(resp)) => {
+                            wait.done(Phase::FirstByte, send_started.elapsed());
+                            self.0
+                                .waits
+                                .net
+                                .first_byte(&key.host, send_started.elapsed());
                             let (parts, body) = resp.into_parts();
                             self.0.stages.record_phase(
                                 TransportPhase::Ttfb,
@@ -195,8 +201,6 @@ impl Client {
                                 stages: self.0.stages.clone(),
                                 body_started: Instant::now(),
                                 body_recorded: false,
-                                tail_threshold: self.0.tail_threshold,
-                                in_tail: false,
                                 slow_at,
                             });
                         }
@@ -210,6 +214,7 @@ impl Client {
                             continue;
                         }
                         Ok(Err(e)) => {
+                            wait.done(Phase::FirstByte, send_started.elapsed());
                             lifecycle
                                 .take()
                                 .expect("lifecycle permit")
@@ -227,6 +232,7 @@ impl Client {
                             return Err(error);
                         }
                         Err(_) => {
+                            wait.gave_up(Phase::FirstByte, send_started.elapsed(), first_byte_cap);
                             lifecycle
                                 .take()
                                 .expect("lifecycle permit")
@@ -250,6 +256,11 @@ impl Client {
                         .await
                     {
                         Ok(Ok(resp)) => {
+                            wait.done(Phase::FirstByte, send_started.elapsed());
+                            self.0
+                                .waits
+                                .net
+                                .first_byte(&key.host, send_started.elapsed());
                             let (parts, body) = resp.into_parts();
                             self.0.stages.record_phase(
                                 TransportPhase::Ttfb,
@@ -267,8 +278,6 @@ impl Client {
                                 stages: self.0.stages.clone(),
                                 body_started: Instant::now(),
                                 body_recorded: false,
-                                tail_threshold: self.0.tail_threshold,
-                                in_tail: false,
                                 slow_at,
                             });
                         }
@@ -283,6 +292,7 @@ impl Client {
                             continue;
                         }
                         Ok(Err(e)) => {
+                            wait.done(Phase::FirstByte, send_started.elapsed());
                             lifecycle
                                 .take()
                                 .expect("lifecycle permit")
@@ -300,6 +310,7 @@ impl Client {
                             return Err(error);
                         }
                         Err(_) => {
+                            wait.gave_up(Phase::FirstByte, send_started.elapsed(), first_byte_cap);
                             lifecycle
                                 .take()
                                 .expect("lifecycle permit")

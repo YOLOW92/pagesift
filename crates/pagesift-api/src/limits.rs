@@ -2,6 +2,10 @@
 //! 超限时返回 Firecrawl 兼容的 429 错误体。没配置任何限额时什么都不检查。
 //!
 //! 当天已用的页数写进存储（有的话），重启不会把配额清零。
+//!
+//! 多服务器网关上（[`Limiter::with_ledger`]）每分钟请求数和每日页数改记在 `pagesift-cluster` 的账本里：
+//! 用量是追加的冻结 / 结算记录，崩溃重放、温备接管后一致；令牌桶在账本里，接管时由最近一分钟的
+//! 请求记录重建。单主机不经过账本，行为不变。
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -78,6 +82,21 @@ pub(crate) struct Limiter {
     buckets: Mutex<HashMap<Arc<str>, Bucket>>,
     usage: Mutex<HashMap<Arc<str>, Usage>>,
     store: Option<Store>,
+    ledger: Option<Arc<pagesift_cluster::Ledger>>,
+}
+
+fn rate_error(rpm: u32, wait: u64) -> ApiError {
+    ApiError::new(
+        ErrorCode::RateLimitExceeded,
+        format!(
+            "rate limit exceeded: {rpm} requests per minute for this API key; retry after {wait}s"
+        ),
+    )
+    .with_retry_after(wait)
+}
+
+fn ledger_error(e: impl std::fmt::Display) -> ApiError {
+    ApiError::new(ErrorCode::Internal, format!("quota ledger: {e}"))
 }
 
 fn today() -> u64 {
@@ -105,11 +124,43 @@ impl Limiter {
         }
     }
 
+    /// 网关：限额记在账本里。`accounts` 是全部账户（名字 → 限额），事先登记。
+    pub(crate) fn with_ledger(
+        ledger: Arc<pagesift_cluster::Ledger>,
+        accounts: &HashMap<String, Arc<KeyLimits>>,
+    ) -> Self {
+        for (name, l) in accounts {
+            ledger.set_limits(
+                name,
+                pagesift_cluster::AccountLimits {
+                    pages_per_day: l.pages_per_day,
+                    requests_per_minute: l.requests_per_minute,
+                },
+            );
+        }
+        Self {
+            ledger: Some(ledger),
+            ..Default::default()
+        }
+    }
+
     /// 每分钟请求数：容量等于每分钟请求数的令牌桶，匀速补充，允许短时突发。
     pub(crate) fn check_rate(&self, c: &Caller) -> Result<(), ApiError> {
         let Some(rpm) = c.limits.requests_per_minute else {
             return Ok(());
         };
+        if let Some(l) = &self.ledger {
+            use pagesift_cluster::Refusal;
+            return match l.check_rate(&c.account) {
+                Ok(()) => Ok(()),
+                Err(Refusal::Rate { retry_after, .. }) => Err(rate_error(
+                    rpm,
+                    retry_after.as_secs_f64().ceil().max(1.0) as u64,
+                )),
+                Err(Refusal::Quota { .. }) => Err(quota_error(c)),
+                Err(Refusal::Error(e)) => Err(ledger_error(e)),
+            };
+        }
         let cap = f64::from(rpm.max(1));
         let per_sec = cap / 60.0;
         let now = Instant::now();
@@ -125,11 +176,7 @@ impl Limiter {
             return Ok(());
         }
         let wait = ((1.0 - b.tokens) / per_sec).ceil().max(1.0) as u64;
-        Err(ApiError::new(
-            ErrorCode::RateLimitExceeded,
-            format!("rate limit exceeded: {rpm} requests per minute for this API key; retry after {wait}s"),
-        )
-        .with_retry_after(wait))
+        Err(rate_error(rpm, wait))
     }
 
     /// 同时进行的任务数是否还能再加一个。
@@ -172,6 +219,9 @@ impl Limiter {
     /// 当天还剩多少页；没设配额时是 `None`。
     pub(crate) fn remaining_pages(&self, c: &Caller) -> Option<u64> {
         let max = c.limits.pages_per_day?;
+        if let Some(l) = &self.ledger {
+            return l.balance(&c.account);
+        }
         Some(max.saturating_sub(self.usage(&c.account).used))
     }
 
@@ -185,6 +235,22 @@ impl Limiter {
     /// 记入当天用掉的页数。只有设了配额的调用方才计数和落盘。
     pub(crate) async fn consume_pages(&self, c: &Caller, n: u64) {
         if c.limits.pages_per_day.is_none() || n == 0 {
+            return;
+        }
+        if let Some(l) = &self.ledger {
+            // 冻结后立即按实际用量结算：页面已经抓完。余额不够冻结时（并发请求都通过了检查）
+            // 当天已经用满，不再记账，余额照样是 0
+            match l.reserve(&c.account, n) {
+                Ok(hold) => {
+                    if let Err(e) = l.settle(&hold, n) {
+                        tracing::warn!(error = %e, "settling page quota failed");
+                    }
+                }
+                Err(pagesift_cluster::Refusal::Error(e)) => {
+                    tracing::warn!(error = %e, "reserving page quota failed");
+                }
+                Err(_) => {}
+            }
             return;
         }
         let u = self.usage(&c.account);
@@ -262,6 +328,42 @@ mod tests {
         let anon = caller(KeyLimits::default());
         assert!(anon.account.starts_with("key-") && !anon.account.contains("secret"));
         assert_eq!(&*Caller::new(None, Arc::default()).account, "anonymous");
+    }
+
+    /// 网关：限额记在账本里，行为与单主机一致（桶先突发后 429，配额用完 QUOTA_EXCEEDED）。
+    #[tokio::test]
+    async fn ledger_backed_limits_match_the_local_ones() {
+        let ledger = Arc::new(
+            pagesift_cluster::Ledger::open(pagesift_cluster::LedgerConfig::new(
+                pagesift_cluster::MonoClock::new(),
+                false,
+            ))
+            .unwrap(),
+        );
+        let limits = Arc::new(KeyLimits {
+            requests_per_minute: Some(2),
+            pages_per_day: Some(2),
+            ..Default::default()
+        });
+        let c = Caller::new(Some("k"), limits.clone());
+        let accounts = HashMap::from([(c.account.to_string(), limits)]);
+        let l = Limiter::with_ledger(ledger, &accounts);
+        l.check_rate(&c).unwrap();
+        l.check_rate(&c).unwrap();
+        let e = l.check_rate(&c).unwrap_err();
+        assert_eq!(e.code, ErrorCode::RateLimitExceeded);
+        assert!(e.retry_after.unwrap() >= 1);
+        assert_eq!(l.remaining_pages(&c), Some(2));
+        l.consume_pages(&c, 1).await;
+        assert!(l.check_quota(&c).is_ok());
+        l.consume_pages(&c, 1).await;
+        assert_eq!(l.remaining_pages(&c), Some(0));
+        assert_eq!(
+            l.check_quota(&c).unwrap_err().code,
+            ErrorCode::QuotaExceeded
+        );
+        // 不限额的调用方不受影响
+        l.check_rate(&caller(KeyLimits::default())).unwrap();
     }
 
     #[tokio::test]

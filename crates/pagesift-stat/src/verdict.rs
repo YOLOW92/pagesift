@@ -1,4 +1,4 @@
-//! 验收判定（DESIGN §9.2、§9.3）：Brier 分数、可靠性分箱、配对 bootstrap、Benjamini–Hochberg。
+//! 验收判定：Brier 分数、可靠性分箱、配对 bootstrap、Benjamini–Hochberg。
 
 use crate::Delta;
 use crate::beta::wilson;
@@ -45,7 +45,7 @@ pub struct Bin {
     pub hi: f64,
 }
 
-/// 按预测概率的分位数分箱（DESIGN §9.3）：箱数从 2 起加倍，直到每箱观测频率的 Wilson 区间宽度
+/// 按预测概率的分位数分箱：箱数从 2 起加倍，直到每箱观测频率的 Wilson 区间宽度
 /// 超过相邻箱平均预测之差（再分细就分辨不出来了），取上一个箱数。
 pub fn reliability(probs: &[f64], ys: &[bool], delta: Delta) -> Vec<Bin> {
     let mut idx: Vec<usize> = (0..probs.len()).collect();
@@ -87,7 +87,7 @@ pub fn reliability(probs: &[f64], ys: &[bool], delta: Delta) -> Vec<Bin> {
     best
 }
 
-/// §9.3 的校准判定：每箱平均预测落在观测频率的 Wilson 区间内（多箱用 BH 控制），
+/// 校准判定：每箱平均预测落在观测频率的 Wilson 区间内（多箱用 BH 控制），
 /// 并且 Brier 分数显著低于常数基准率预测器（配对 bootstrap 的单侧上界 < 0）。
 pub fn calibrated(
     probs: &[f64],
@@ -130,7 +130,7 @@ pub struct Interval {
 
 /// 配对差的均值的 bootstrap 百分位区间（Efron, Tibshirani, An Introduction to the Bootstrap,
 /// 1993, 第 13 章），两端各 `δ`。重抽样次数从 `1/δ` 的量级起加倍，直到端点的蒙特卡洛标准误
-/// 小于统计标准误的一个数量级（DESIGN §9.2）。
+/// 小于统计标准误的一个数量级。
 pub fn paired_bootstrap(diffs: &[f64], delta: Delta, rng: &mut Rng) -> Interval {
     let n = diffs.len();
     let mean = diffs.iter().sum::<f64>() / n as f64;

@@ -1,0 +1,10 @@
+{"bin": "new", "round": 1, "concurrency": 1, "pages": 1834, "p50_ms": 4.234, "p95_ms": 18.039, "pages_per_s": 147.6}
+{"bin": "new", "round": 1, "concurrency": 16, "pages": 1834, "p50_ms": 8.864, "p95_ms": 23.323, "pages_per_s": 791.7}
+{"bin": "new", "round": 2, "concurrency": 1, "pages": 1834, "p50_ms": 4.165, "p95_ms": 19.436, "pages_per_s": 144.2}
+{"bin": "new", "round": 2, "concurrency": 16, "pages": 1834, "p50_ms": 5.981, "p95_ms": 50.007, "pages_per_s": 813.7}
+{"bin": "new", "round": 3, "concurrency": 1, "pages": 1834, "p50_ms": 4.515, "p95_ms": 21.634, "pages_per_s": 133.7}
+{"bin": "new", "round": 3, "concurrency": 16, "pages": 1834, "p50_ms": 25.724, "p95_ms": 148.042, "pages_per_s": 343.7}
+{"bin": "new", "round": 4, "concurrency": 1, "pages": 1834, "p50_ms": 4.4, "p95_ms": 18.887, "pages_per_s": 139.0}
+{"bin": "new", "round": 4, "concurrency": 16, "pages": 1834, "p50_ms": 6.3, "p95_ms": 23.898, "pages_per_s": 816.0}
+{"bin": "new", "round": 5, "concurrency": 1, "pages": 1834, "p50_ms": 4.235, "p95_ms": 18.347, "pages_per_s": 147.1}
+{"bin": "new", "round": 5, "concurrency": 16, "pages": 1834, "p50_ms": 8.236, "p95_ms": 58.741, "pages_per_s": 805.1}

@@ -10,26 +10,29 @@ use tokio::task::JoinHandle;
 
 mod actions;
 mod monitor;
+mod scroll;
 
 use actions::{ActionError, capture, eval_value, run_action};
 use monitor::{
-    check_interception, enable_interception, enable_network, monitor, scan_full_page, set_metrics,
-    virtual_scroll, wait_load, wait_ready,
+    check_interception, enable_interception, enable_network, monitor, set_metrics, wait_load,
+    wait_ready,
 };
+use scroll::{scan_full_page, virtual_scroll};
 
 use crate::capture::{CaptureOptions, Captured, capture_html};
 use crate::conn::{Connection, Session};
 use crate::error::{Error, Result};
 use crate::guard::RequestGuard;
+use crate::learn::PageWaits;
 use crate::options::*;
 
 const DESKTOP: (u32, u32, f64) = (1920, 1080, 1.0);
 const MOBILE: (u32, u32, f64) = (390, 844, 3.0);
 pub(super) const MAX_CAPTURE_PX: f64 = 16384.0;
+/// 没指定 `languages` 时浏览器发的 Accept-Language：与 pagesift-net 的 HTTP 抓取（`client/send.rs`）一致。
+pub const DEFAULT_ACCEPT_LANGUAGE: &str = "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7";
 /// 网络静默多久算就绪。
 pub(super) const NET_QUIET: Duration = Duration::from_millis(100);
-/// DOMContentLoaded 之后最多等多久网络静默（长轮询之类的页面永远等不到）。
-const NET_IDLE_CAP: Duration = Duration::from_secs(5);
 /// 等网络静默时每隔多久看一次正文：正文已经够多、而且不再变化，就不必等广告和统计脚本结束。
 pub(super) const CONTENT_POLL: Duration = Duration::from_millis(250);
 /// 页面文字（`innerText`）到这么多字符就算正文已经渲染出来了。
@@ -37,11 +40,7 @@ pub(super) const CONTENT_READY_CHARS: u64 = 1500;
 /// 网络静默时页面文字少于这么多字符，就像是还没渲染的壳（"loading…"）：脚本可能在用定时器
 /// 延后渲染，不发请求，网络静默判断看不出来。
 pub(super) const SHELL_MAX_CHARS: u64 = 200;
-/// 壳页面在网络静默之后再等多久，期间每隔 [`CONTENT_POLL`] 看一次文字；正常页面不受影响。
-pub(super) const SHELL_GRACE: Duration = Duration::from_millis(1500);
 pub(super) const TEXT_LEN: &str = "(() => { const b = document.body; return b ? (b.innerText || b.textContent || '').length : 0; })()";
-/// 截图前等 `load` 的上限。
-pub(super) const LOAD_CAP: Duration = Duration::from_secs(10);
 /// 这些类型的请求没结束，页面内容就可能还在变；图片、字体、样式不影响 HTML。
 pub(super) const TRACKED: &[&str] = &["Document", "Script", "XHR", "Fetch"];
 /// 同一个 GET URL 已经请求过这么多次，再请求就当作轮询或心跳，不再等它。
@@ -53,6 +52,8 @@ pub(crate) struct PageEnv {
     /// 用 CDP 的 Fetch 拦截逐个检查子请求。内核自己按 CIDR 挡内网时（见
     /// [`crate::PoolConfig::engine_network_guard`]）为 false。
     pub intercept: bool,
+    /// 这个内核学到的各类等待上限（见 [`crate::learn`]）。
+    pub waits: Arc<PageWaits>,
 }
 
 /// 渲染过程中创建的浏览器资源，超时被取消后也要能清理。
@@ -100,6 +101,9 @@ struct Shared {
     net: Mutex<Net>,
     /// 跨进程 iframe 的 target id -> session id。
     oopif: Mutex<HashMap<String, String>>,
+    waits: Arc<PageWaits>,
+    /// 上下文代理的认证（用户名，密码）：只用来回答代理的 `Fetch.authRequired`。
+    proxy_auth: Option<(String, String)>,
 }
 
 impl Shared {
@@ -215,6 +219,7 @@ impl PageCtx<'_> {
                 max_iframes: o.max_iframes,
                 shadow: o.flatten_shadow_dom,
                 virtual_items: &self.virtual_items,
+                frame_cap: &self.shared.waits.frame,
             },
         )
         .await
@@ -271,7 +276,23 @@ pub(crate) async fn render_page(
 ) -> Result<RenderedPage> {
     let setup_start = Instant::now();
     // 每个页面一个独立的浏览器上下文，cookie 和缓存不会串到别的请求。
-    res.context_id = conn.create_browser_context().await.ok();
+    // 指定了出口时上下文走它的代理；建不出来就不渲染，不能悄悄退回直连。
+    let proxy = opts
+        .proxy
+        .as_deref()
+        .map(crate::BrowserProxy::parse)
+        .transpose()
+        .map_err(Error::InvalidOptions)?;
+    if proxy.as_ref().is_some_and(|p| p.auth.is_some()) && !env.intercept {
+        return Err(Error::InvalidOptions(
+            "proxy authentication needs CDP request interception".into(),
+        ));
+    }
+    res.context_id = match &proxy {
+        Some(p) => Some(conn.create_browser_context_via(Some(&p.server)).await?),
+        None => conn.create_browser_context().await.ok(),
+    };
+    let proxy_auth = proxy.and_then(|p| p.auth);
     let target = conn
         .create_target("about:blank", res.context_id.as_deref())
         .await?;
@@ -292,16 +313,29 @@ pub(crate) async fn render_page(
         Ok(())
     };
     let languages = async {
-        if !opts.languages.is_empty() {
-            // 原样传回浏览器自己的 UA，只改 Accept-Language。
-            session
-                .call(
-                    "Emulation.setUserAgentOverride",
-                    json!({ "userAgent": env.user_agent, "acceptLanguage": opts.languages.join(",") }),
-                )
-                .await?;
+        // 原样传回浏览器自己的 UA，只改 Accept-Language。没指定语言时用和 HTTP 抓取相同的值，
+        // 不随浏览器所在系统的语言变（否则同一页 HTTP 拿英文、浏览器拿中文）。
+        let explicit = !opts.languages.is_empty();
+        if !explicit && env.user_agent.is_empty() {
+            // 不知道浏览器自己的 UA 时不覆盖，免得把 UA 清空
+            return Ok(());
         }
-        Ok::<_, Error>(())
+        let lang = if explicit {
+            opts.languages.join(",")
+        } else {
+            DEFAULT_ACCEPT_LANGUAGE.to_owned()
+        };
+        let r = session
+            .call(
+                "Emulation.setUserAgentOverride",
+                json!({ "userAgent": env.user_agent, "acceptLanguage": lang }),
+            )
+            .await;
+        // 调用方指定的语言必须生效；默认值是尽力而为（有的内核不支持这条命令）
+        match r {
+            Err(e) if explicit => Err(e),
+            _ => Ok::<_, Error>(()),
+        }
     };
     // 这些命令互不依赖，一起发出去，省掉逐条往返。
     // 拦截打不开就不渲染：不能让子请求绕过检查。空白页不发请求，事件晚点消费也不会丢。
@@ -310,7 +344,7 @@ pub(crate) async fn render_page(
         session.call("Page.getFrameTree", json!({})),
         async {
             if env.intercept {
-                enable_interception(&session).await
+                enable_interception(&session, proxy_auth.is_some()).await
             } else {
                 // 不拦截也要自动附加子 target，好跟踪它们的网络和 iframe
                 session
@@ -350,6 +384,8 @@ pub(crate) async fn render_page(
             gets: HashMap::new(),
         }),
         oopif: Mutex::new(HashMap::new()),
+        waits: env.waits.clone(),
+        proxy_auth,
     });
     // 事件已经在 `events` 里缓冲着，晚一点开始消费不会丢。
     res.monitor = Some(tokio::spawn(monitor(
@@ -399,23 +435,31 @@ pub(crate) async fn render_page(
         // 当耐心）。HTTP 正文为 0 时渲染是唯一来源，慢页面也要等，不能为了
         // 一个挑战页把真正的 JS 应用一起砍掉。
         let redirect_page = opts.early_stop.as_ref().is_some_and(|s| s.cap_navigation);
+        // 裸跳转页的正文由目标站脚本决定，和它自己的 HTTP 耗时只有松散关系；先验（0.81 的现值）
+        // 用调用方的总时限做相对上限，同时不短于 HTTP 耗时的 200 倍。实际耐心按"等到内容出现"的
+        // 完成时间学（占先验的比例，见 [`crate::learn`]）。内容一出现就抓，不等 DOMContentLoaded/网络静默。
+        let redirect_prior = opts.early_stop.as_ref().and_then(|s| {
+            (s.baseline_chars == 0 && s.cap_navigation)
+                // [策略] 先验包 v0：0.81 的现值（HTTP 耗时 × 200 与时限的一半取大）
+                .then(|| s.http_elapsed.saturating_mul(200).max(opts.timeout / 2))
+        });
         let nav_patience = opts.early_stop.as_ref().and_then(|s| {
             if s.baseline_chars > 0 {
                 opts.nav_patience
-            } else if s.cap_navigation {
-                // 裸跳转页的正文由目标站脚本决定，和它自己的 HTTP 耗时只有
-                // 松散关系；用调用方的总时限做相对上限，同时不短于 HTTP 耗时
-                // 的 200 倍。内容一出现就抓，不等 DOMContentLoaded/网络静默。
-                Some(s.http_elapsed.saturating_mul(200).max(opts.timeout / 2))
             } else {
-                None
+                redirect_prior.map(|p| env.waits.redirect.cap_for(p))
             }
         });
         match nav_patience {
             Some(patience) if redirect_page => {
-                let deadline = Instant::now() + patience;
+                let waited = Instant::now();
+                let prior = redirect_prior.unwrap_or(patience);
+                let deadline = waited + patience;
                 loop {
                     if shared.has_event(l, first_event) {
+                        if redirect_prior.is_some() {
+                            env.waits.redirect.done(waited.elapsed(), prior);
+                        }
                         break;
                     }
                     let len = tokio::time::timeout(
@@ -428,10 +472,16 @@ pub(crate) async fn render_page(
                     .and_then(|v| v.as_u64())
                     .unwrap_or(0);
                     if len > 0 {
+                        if redirect_prior.is_some() {
+                            env.waits.redirect.done(waited.elapsed(), prior);
+                        }
                         redirect_ready = true;
                         break;
                     }
                     if Instant::now() >= deadline {
+                        if redirect_prior.is_some() {
+                            env.waits.redirect.cut(waited.elapsed(), prior);
+                        }
                         return Err(Error::Timeout);
                     }
                     tokio::time::sleep(CONTENT_POLL).await;
@@ -468,7 +518,7 @@ pub(crate) async fn render_page(
             first_content: Some(timings.navigation),
         }
     } else if opts.wait_until == WaitUntil::NetworkIdle {
-        wait_ready(&ctx, NET_IDLE_CAP, timings.navigation).await
+        wait_ready(&ctx, timings.navigation).await
     } else {
         monitor::ReadyOutcome {
             early_stopped: false,

@@ -24,11 +24,17 @@ pub(crate) fn parse_with_scratch<'s>(html: &'s str, scratch: &mut ParseScratch) 
     parse_with_options(html, scratch, &ParseOptions::default())
 }
 
+/// 进程内建树的总次数（`count-builds` feature）。
+#[cfg(feature = "count-builds")]
+pub static BUILDS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 pub(crate) fn parse_with_options<'s>(
     html: &'s str,
     scratch: &mut ParseScratch,
     opts: &ParseOptions<'_>,
 ) -> Html<'s> {
+    #[cfg(feature = "count-builds")]
+    BUILDS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let (src, nuls) = normalize(html);
     let (buf, nodes, attrs) = {
         let mut tb = Builder::with_buffers(

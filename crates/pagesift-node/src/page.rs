@@ -20,7 +20,27 @@ pub struct Page {
     links: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     images: Option<Vec<String>>,
+    /// 导出的文件；`toJSON` 里只列元数据（字节不进 JSON）。
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    attachments: Vec<pagesift::api::types::Attachment>,
     metadata: Value,
+}
+
+/// 一个导出的文件（`exportImages`）。
+#[napi(object)]
+pub struct PageAttachment {
+    /// 内容寻址的文件名：SHA-256 前 32 位十六进制加扩展名。
+    pub id: String,
+    /// 格式（扩展名）。
+    pub format: String,
+    /// 字节数。
+    pub bytes: i64,
+    /// 内容的 SHA-256（小写十六进制）。
+    pub hash: String,
+    /// 原地址或文档里的部件路径；PDF 图片为 null。
+    pub source: Option<String>,
+    /// 内容。
+    pub data: Buffer,
 }
 
 impl Page {
@@ -31,6 +51,7 @@ impl Page {
             raw_html: doc.raw_html,
             links: doc.links,
             images: doc.images,
+            attachments: doc.attachments,
             metadata: serde_json::to_value(&doc.metadata).unwrap_or(Value::Null),
         }
     }
@@ -49,6 +70,7 @@ impl Page {
             raw_html,
             links,
             images,
+            attachments: Vec::new(),
             metadata,
         }
     }
@@ -80,6 +102,22 @@ impl Page {
         self.links
             .as_ref()
             .map(|v| v.iter().map(String::as_str).collect())
+    }
+
+    /// 导出的文件（`exportImages: true`），每项带字节（`data`）。
+    #[napi(getter)]
+    pub fn attachments(&self) -> Vec<PageAttachment> {
+        self.attachments
+            .iter()
+            .map(|a| PageAttachment {
+                id: a.id.clone(),
+                format: a.format.clone(),
+                bytes: a.bytes as i64,
+                hash: a.hash.clone(),
+                source: a.source.clone(),
+                data: a.data.as_deref().unwrap_or_default().to_vec().into(),
+            })
+            .collect()
     }
 
     /// 页面里的图片地址（`formats` 含 `images` 时才有）。

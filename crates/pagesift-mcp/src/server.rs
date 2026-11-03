@@ -31,6 +31,7 @@ struct Inner {
     tools: Vec<(ToolDef, Arc<dyn ToolHandler>)>,
     index: HashMap<String, usize>,
     validate_arguments: bool,
+    resources: Option<Arc<dyn crate::resource::ResourceReader>>,
 }
 
 impl fmt::Debug for McpServer {
@@ -50,6 +51,7 @@ pub struct ServerBuilder {
     instructions: Option<String>,
     tools: Vec<Arc<dyn ToolHandler>>,
     validate_arguments: bool,
+    resources: Option<Arc<dyn crate::resource::ResourceReader>>,
 }
 
 /// 构建服务器时发现的问题。
@@ -105,6 +107,12 @@ impl ServerBuilder {
         self
     }
 
+    /// 工具结果里 `resource_link` 指向的内容由它读（`resources/read`），并声明 `resources` 能力。
+    pub fn resources(mut self, reader: Arc<dyn crate::resource::ResourceReader>) -> Self {
+        self.resources = Some(reader);
+        self
+    }
+
     /// 调用前是否按 `inputSchema` 校验参数（默认开启）。校验失败返回 `isError` 结果。
     pub fn validate_arguments(mut self, on: bool) -> Self {
         self.validate_arguments = on;
@@ -136,6 +144,7 @@ impl ServerBuilder {
                 tools,
                 index,
                 validate_arguments: self.validate_arguments,
+                resources: self.resources,
             }),
         })
     }
@@ -157,6 +166,7 @@ impl McpServer {
             instructions: None,
             tools: Vec::new(),
             validate_arguments: true,
+            resources: None,
         }
     }
 
@@ -253,10 +263,11 @@ impl McpServer {
             .unwrap_or(protocol::LEGACY_VERSIONS[0]);
         let mut result = Map::new();
         result.insert("protocolVersion".into(), json!(version));
-        result.insert(
-            "capabilities".into(),
-            json!({ "tools": { "listChanged": false } }),
-        );
+        let mut caps = json!({ "tools": { "listChanged": false } });
+        if self.inner.resources.is_some() {
+            caps["resources"] = json!({});
+        }
+        result.insert("capabilities".into(), caps);
         result.insert("serverInfo".into(), self.server_info());
         if let Some(i) = &self.inner.instructions {
             result.insert("instructions".into(), json!(i));
@@ -267,8 +278,14 @@ impl McpServer {
     /// 该方法在这一代协议里是否存在（HTTP 传输据此返回 404）。
     pub(crate) fn has_method(era: Era, method: &str) -> bool {
         match era {
-            Era::Modern(_) => matches!(method, "server/discover" | "tools/list" | "tools/call"),
-            Era::Legacy(_) => matches!(method, "ping" | "tools/list" | "tools/call"),
+            Era::Modern(_) => matches!(
+                method,
+                "server/discover" | "tools/list" | "tools/call" | "resources/read"
+            ),
+            Era::Legacy(_) => matches!(
+                method,
+                "ping" | "tools/list" | "tools/call" | "resources/read"
+            ),
         }
     }
 
@@ -289,6 +306,12 @@ impl McpServer {
             (Era::Modern(_), "server/discover") => Ok(self.discover()),
             (_, "tools/list") => self.list_tools(&req),
             (_, "tools/call") => self.call_tool(&req, notify, session_client).await,
+            (_, "resources/read") => match &self.inner.resources {
+                Some(r) => {
+                    crate::resource::read(r.as_ref(), req.params.as_ref().unwrap_or(&Value::Null))
+                }
+                None => Err(ErrorObject::method_not_found("resources/read")),
+            },
             (_, m) => Err(ErrorObject::method_not_found(m)),
         };
         match outcome {
@@ -323,7 +346,11 @@ impl McpServer {
             "supportedVersions".into(),
             json!(protocol::supported_versions()),
         );
-        m.insert("capabilities".into(), json!({ "tools": {} }));
+        let mut caps = json!({ "tools": {} });
+        if self.inner.resources.is_some() {
+            caps["resources"] = json!({});
+        }
+        m.insert("capabilities".into(), caps);
         if let Some(i) = &self.inner.instructions {
             m.insert("instructions".into(), json!(i));
         }

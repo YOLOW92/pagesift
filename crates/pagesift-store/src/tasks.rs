@@ -131,6 +131,33 @@ impl<'a> Tasks<'a> {
         Ok(n)
     }
 
+    /// 列表下一个元素的序号（追加过的总数）；只截断头部时不变，列表删空后从 0 重新计数。
+    pub fn list_next(&self, list: impl AsRef<[u8]>) -> u64 {
+        self.store
+            .group(ns::LIST_ITEM, list.as_ref())
+            .map_or(0, |g| g.next)
+    }
+
+    /// 截断头部：删掉序号小于 `before` 的元素，返回删除个数。
+    pub fn list_trim(&self, list: impl AsRef<[u8]>, before: u64) -> Result<u64> {
+        let list = list.as_ref();
+        let mut tx = self.store.tx();
+        let mut n = 0;
+        if let Some(g) = tx.group(ns::LIST_ITEM, list) {
+            for seq in g.head..before.min(g.next) {
+                if tx.delete(ns::LIST_ITEM, &group_key(list, &seq.to_be_bytes())?)? {
+                    n += 1;
+                }
+            }
+            if before > g.head && before < g.next {
+                tx.set_head(ns::LIST_ITEM, list, before);
+            }
+        }
+        drop(tx);
+        self.store.finish();
+        Ok(n)
+    }
+
     // ---- 集合 ----
 
     /// 返回是否是新加入的成员。

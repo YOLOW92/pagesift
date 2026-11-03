@@ -93,7 +93,7 @@ pub(crate) fn convert(zip: &Zip<'_>, opts: &Options<'_>) -> Result<Converted, Er
     Ok(out)
 }
 
-fn rootfile(xml: &str) -> Result<String, Error> {
+pub(crate) fn rootfile(xml: &str) -> Result<String, Error> {
     let mut r = Reader::new(xml);
     let mut first = None;
     while let Some(t) = r.next()? {
@@ -135,14 +135,14 @@ fn drm(xml: &str) -> Result<bool, Error> {
     Ok(false)
 }
 
-struct Package {
-    meta: Vec<(String, String)>,
+pub(crate) struct Package {
+    pub(crate) meta: Vec<(String, String)>,
     /// (id, href, media-type)
-    manifest: Vec<(String, String, String)>,
-    spine: Vec<String>,
+    pub(crate) manifest: Vec<(String, String, String)>,
+    pub(crate) spine: Vec<String>,
 }
 
-fn package(xml: &str) -> Result<Package, Error> {
+pub(crate) fn package(xml: &str) -> Result<Package, Error> {
     let mut pkg = Package {
         meta: Vec::new(),
         manifest: Vec::new(),

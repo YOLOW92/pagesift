@@ -36,6 +36,9 @@ use crate::webhook::{WebhookConfig, WebhookSettings, Webhooks};
 
 /// Maximum documents per page when querying job status.
 pub const PAGE_SIZE: usize = 100;
+/// 批量抓取的并发：引擎的统一准入给出值时用它（[`Engine::admitted_concurrency`]），
+/// `max_batch_concurrency` 配置是用户上限。两者都没有时用这个先验。
+/// [策略] 先验包 v0：0.81 的现值 8（准入接好以前的行为不变）。
 pub const DEFAULT_BATCH_CONCURRENCY: usize = 8;
 
 /// 服务端超时，防 slowloris 和挂死的请求。
@@ -81,7 +84,17 @@ pub struct Config {
     pub webhook: WebhookSettings,
     /// 请求体和整请求超时；请求头超时由 [`serve_with`] 的参数决定。
     pub timeouts: Timeouts,
+    /// 多服务器网关：配额和每分钟请求数记在账本里（追加记录，崩溃重放、温备回放后一致）。
+    /// 单主机不设，照旧用本进程的令牌桶和存储里的当天用量。
+    pub ledger: Option<Arc<pagesift_cluster::Ledger>>,
+    /// 多服务器网关：任务存储的写入复制到温备（[`crate::JobMirror`]）。单主机不设。
+    pub job_mirror: Option<Arc<crate::JobMirror>>,
+    /// 追加在 `/metrics` 后面的指标（多服务器网关：按工人加标签的统计）。
+    pub extra_metrics: Option<ExtraMetrics>,
 }
+
+/// 生成额外指标文本（Prometheus 文本格式）的回调。
+pub type ExtraMetrics = Arc<dyn Fn() -> String + Send + Sync>;
 
 impl std::fmt::Debug for Config {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -94,6 +107,9 @@ impl std::fmt::Debug for Config {
             .field("default_limits", &self.default_limits)
             .field("webhook", &self.webhook)
             .field("timeouts", &self.timeouts)
+            .field("ledger", &self.ledger.is_some())
+            .field("job_mirror", &self.job_mirror.is_some())
+            .field("extra_metrics", &self.extra_metrics.is_some())
             .finish()
     }
 }
@@ -104,12 +120,60 @@ pub struct AppState {
     pub keys: Arc<HashMap<String, Arc<KeyLimits>>>,
     pub default_limits: Arc<KeyLimits>,
     pub public_url: Option<String>,
-    pub batch_concurrency: usize,
+    /// 用户配置的批量并发上限（`max_batch_concurrency`），没配是 `None`。
+    pub batch_concurrency: Option<usize>,
     pub jobs: Jobs,
     pub limiter: Arc<Limiter>,
     pub webhooks: Webhooks,
     pub extracts: Arc<Mutex<HashMap<String, ExtractJob>>>,
     pub metrics: Arc<Metrics>,
+    pub extra_metrics: Option<ExtraMetrics>,
+}
+
+impl AppState {
+    /// 一个批量任务的并发：`min(请求的 maxConcurrency, 准入值, 用户上限)`。
+    /// 准入值来自引擎的统一准入（[`Engine::admitted_concurrency`]）；引擎还不给时，用户配了上限
+    /// 就用上限（和 0.81 一样），都没有时用先验 [`DEFAULT_BATCH_CONCURRENCY`]。
+    pub fn batch_concurrency_for(&self, requested: Option<usize>) -> usize {
+        batch_concurrency(
+            requested,
+            self.engine.admitted_concurrency(),
+            self.batch_concurrency,
+        )
+    }
+}
+
+fn batch_concurrency(
+    requested: Option<usize>,
+    admitted: Option<usize>,
+    cap: Option<usize>,
+) -> usize {
+    let admitted = admitted.unwrap_or(cap.unwrap_or(DEFAULT_BATCH_CONCURRENCY));
+    requested
+        .unwrap_or(admitted)
+        .min(admitted)
+        .min(cap.unwrap_or(usize::MAX))
+        .max(1)
+}
+
+#[cfg(test)]
+mod batch_concurrency_tests {
+    use super::batch_concurrency;
+
+    /// 准入还没接（None）时和 0.81 完全一样：没配置是 min(请求, 8)，配置了是 min(请求, 配置)；
+    /// 准入给值以后按准入，用户配置仍是上限。
+    #[test]
+    fn admission_decides_and_the_user_caps() {
+        assert_eq!(batch_concurrency(None, None, None), 8);
+        assert_eq!(batch_concurrency(Some(20), None, None), 8);
+        assert_eq!(batch_concurrency(Some(3), None, None), 3);
+        assert_eq!(batch_concurrency(None, None, Some(32)), 32);
+        assert_eq!(batch_concurrency(Some(64), None, Some(32)), 32);
+        assert_eq!(batch_concurrency(None, Some(50), None), 50);
+        assert_eq!(batch_concurrency(None, Some(50), Some(32)), 32);
+        assert_eq!(batch_concurrency(Some(5), Some(50), None), 5);
+        assert_eq!(batch_concurrency(Some(0), Some(0), None), 1);
+    }
 }
 
 pub struct ExtractJob {
@@ -141,13 +205,24 @@ pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
         .collect();
 
     let metrics = Arc::new(Metrics::default());
-    let limiter = Arc::new(Limiter::new(config.store.clone()));
-    let webhooks = Webhooks::new(config.webhook, metrics.clone());
+    let limiter = Arc::new(match config.ledger {
+        Some(ledger) => {
+            // 所有账户的限额事先登记进账本（不在每个请求上登记）；没有 key 的调用方是 anonymous
+            let mut all = accounts.clone();
+            all.entry("anonymous".into())
+                .or_insert_with(|| default_limits.clone());
+            Limiter::with_ledger(ledger, &all)
+        }
+        None => Limiter::new(config.store.clone()),
+    });
+    let mut webhooks = Webhooks::new(config.webhook, metrics.clone());
+    webhooks.mirror = config.job_mirror.clone();
     let jobs = Jobs::new(
         config.store,
         limiter.clone(),
         Some(webhooks.clone()),
         metrics.clone(),
+        config.job_mirror,
     );
 
     if tokio::runtime::Handle::try_current().is_ok() {
@@ -169,14 +244,13 @@ pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
         public_url: config
             .public_url
             .map(|u| u.trim_end_matches('/').to_string()),
-        batch_concurrency: config
-            .max_batch_concurrency
-            .unwrap_or(DEFAULT_BATCH_CONCURRENCY),
+        batch_concurrency: config.max_batch_concurrency,
         jobs,
         limiter,
         webhooks,
         extracts: Arc::default(),
         metrics,
+        extra_metrics: config.extra_metrics,
     };
 
     // Jina Reader 路由也会抓取页面，和 Firecrawl 路由一起放在鉴权、限流和配额之后
@@ -204,6 +278,11 @@ pub async fn serve(
     serve_with(listener, app, Timeouts::default(), shutdown).await
 }
 
+/// accept 因资源耗尽出错后，没有连接结束时最多等多久再试。
+/// [策略] 0.81 的 1 秒作为兜底上限（axum::serve 同值）：资源由别的进程释放时收不到通知，只能定时重试；
+/// 本进程的连接结束会提前叫醒（见 [`serve_with`]）。
+const ACCEPT_RETRY_CAP: Duration = Duration::from_secs(1);
+
 /// 和 `axum::serve(..).with_graceful_shutdown(..)` 行为相同，另外给 HTTP/1 设了请求头读取超时
 /// （axum::serve 设不了）：收到 `shutdown` 后停止 accept，通知每个连接优雅关闭，等它们都结束再返回。
 pub async fn serve_with(
@@ -219,12 +298,17 @@ pub async fn serve_with(
         .header_read_timeout(timeouts.header_read);
     let graceful = GracefulShutdown::new();
     let mut shutdown = pin!(shutdown);
+    // 有连接结束（释放了文件描述符）时叫醒因 accept 出错而在等的循环
+    let released = Arc::new(tokio::sync::Notify::new());
     loop {
         let stream = tokio::select! {
             r = listener.accept() => match r {
                 Ok((stream, _)) => stream,
                 Err(e) => {
-                    // 和 axum::serve 一样：单个连接的错误忽略，其他错误（比如文件描述符用完）歇 1 秒再接
+                    // 和 axum::serve 一样：单个连接的错误忽略。其他错误多半是文件描述符或内核缓冲
+                    // 用完（EMFILE、ENFILE、ENOBUFS），要等资源释放：事件驱动，任一连接结束就重试
+                    // （它释放了描述符）；没有连接结束时最多等 ACCEPT_RETRY_CAP 再试（别的进程释放的
+                    // 资源我们收不到通知）。取代 0.81 固定歇 1 秒：描述符一释放就接，不白等。
                     if !matches!(
                         e.kind(),
                         std::io::ErrorKind::ConnectionRefused
@@ -232,7 +316,11 @@ pub async fn serve_with(
                             | std::io::ErrorKind::ConnectionReset
                     ) {
                         tracing::error!(error = %e, "accept failed");
-                        tokio::time::sleep(Duration::from_secs(1)).await;
+                        tokio::select! {
+                            () = released.notified() => {}
+                            () = tokio::time::sleep(ACCEPT_RETRY_CAP) => {}
+                            () = &mut shutdown => break,
+                        }
                     }
                     continue;
                 }
@@ -248,10 +336,12 @@ pub async fn serve_with(
             )
             .into_owned();
         let conn = graceful.watch(conn);
+        let released = released.clone();
         tokio::spawn(async move {
             if let Err(e) = conn.await {
                 tracing::trace!(error = %e, "connection ended with an error");
             }
+            released.notify_one();
         });
     }
     drop(listener);
@@ -480,7 +570,10 @@ pub fn webhook(
 }
 
 async fn render_metrics(State(s): State<AppState>) -> impl IntoResponse {
-    let out = s.metrics.render(&s.jobs.counts().await);
+    let mut out = s.metrics.render(&s.jobs.counts().await);
+    if let Some(extra) = &s.extra_metrics {
+        out.push_str(&extra());
+    }
     (
         StatusCode::OK,
         [(header::CONTENT_TYPE, "text/plain; version=0.0.4")],

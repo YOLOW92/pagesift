@@ -190,7 +190,13 @@ fn units(markdown: &str) -> Vec<Unit> {
     let mut out = Vec::new();
     for sec in chunk(markdown, &ChunkStrategy::Headings { max_level: 6 }).unwrap_or_default() {
         let text = &markdown[sec.start..sec.end];
-        for c in chunk(text, &ChunkStrategy::Recursive { size: UNIT_TOKENS }).unwrap_or_default() {
+        for c in crate::chunk::chunk_packed(
+            text,
+            &ChunkStrategy::Recursive { size: UNIT_TOKENS },
+            crate::chunk::Pack::Greedy,
+        )
+        .unwrap_or_default()
+        {
             out.push(Unit {
                 range: sec.start + c.start..sec.start + c.end,
                 path: sec.heading_path.clone(),

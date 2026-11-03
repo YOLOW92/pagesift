@@ -1,0 +1,33 @@
+{
+ "sub": "b3",
+ "completion": {
+  "n": 100,
+  "old": 0.64,
+  "new": 0.72,
+  "delta": 0.08,
+  "ci95": [
+   0.03,
+   0.14
+  ],
+  "one_sided_lo": 0.04,
+  "one_sided_hi": 0.13,
+  "B": 4000,
+  "verdict": "提升",
+  "changed": 8
+ },
+ "text_completion": {
+  "n": 100,
+  "old": 0.64,
+  "new": 0.67,
+  "delta": 0.03,
+  "ci95": [
+   0.0,
+   0.07
+  ],
+  "one_sided_lo": 0.01,
+  "one_sided_hi": 0.06,
+  "B": 4000,
+  "verdict": "提升",
+  "changed": 3
+ }
+}
