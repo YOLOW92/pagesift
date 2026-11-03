@@ -8,6 +8,7 @@
 //! 导出（默认关）：不重新编码，JPEG、JPEG 2000 原样；CCITT 套 TIFF 头；JBIG2 拼上全局段；
 //! 其余（无损像素）自己写 PNG。见 [`export`]。
 
+pub(crate) mod decode;
 mod export;
 mod jbig2;
 mod png;

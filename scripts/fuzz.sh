@@ -34,6 +34,8 @@ seeds() {
     pdf)
       { find "$data/pdfjs" -name '*.pdf' -size -2M | sort | awk 'NR % 4 == 0'
         find crates/pagesift-pdf -name '*.pdf' -size -2M | sort; } ;;
+    jpeg)
+      find crates/pagesift-pdf -name '*.jpg' -size -1024k | sort ;;
   esac
 }
 

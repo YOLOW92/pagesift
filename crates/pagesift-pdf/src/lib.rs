@@ -283,6 +283,23 @@ pub mod fuzzing {
         run(bytes, &opts, false)
     }
 
+    /// 解一段 JPEG（DCTDecode 的图像编码层数据）：(宽, 高, 分量数, 像素)。
+    /// `color_transform` 同 DCTDecode 的 /ColorTransform；`gray` 为真时输出灰度。
+    /// 内存上限取 [`Options::max_stream_bytes`] 的默认值。
+    pub fn decode_jpeg(
+        data: &[u8],
+        color_transform: Option<bool>,
+        gray: bool,
+    ) -> Result<(u32, u32, u8, Vec<u8>), String> {
+        let max = Options::default().max_stream_bytes;
+        let r = if gray {
+            image::decode::jpeg::decode_gray(data, color_transform, max)?
+        } else {
+            image::decode::jpeg::decode(data, color_transform, max)?
+        };
+        Ok((r.width, r.height, r.channels, r.data))
+    }
+
     /// 返回操作符个数。
     pub fn lex(data: &[u8]) -> usize {
         let mut lx = lexer::Lexer::new(data);

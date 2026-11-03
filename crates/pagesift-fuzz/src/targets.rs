@@ -41,6 +41,29 @@ pub const TARGETS: &[Target] = &[
         // 解析器自己的超时是 10 秒，看门狗留出余量
         timeout: Duration::from_secs(20),
     },
+    Target {
+        name: "jpeg",
+        run: jpeg,
+        dict: JPEG_DICT,
+        max_len: 1 << 20,
+        timeout: Duration::from_secs(5),
+    },
+];
+
+/// JPEG 标记（T.81 表 B.1）：SOI、SOF0/1/2、DHT、DQT、DRI、SOS、RST0、EOI、APP14、填充。
+const JPEG_DICT: &[&[u8]] = &[
+    b"\xff\xd8",
+    b"\xff\xc0",
+    b"\xff\xc1",
+    b"\xff\xc2",
+    b"\xff\xc4",
+    b"\xff\xdb",
+    b"\xff\xdd",
+    b"\xff\xda",
+    b"\xff\xd0",
+    b"\xff\xd9",
+    b"\xff\xeeAdobe",
+    b"\xff\x00",
 ];
 
 const HTML_DICT: &[&[u8]] = &[
@@ -366,4 +389,14 @@ fn pdf(data: &[u8], _iter: u64) {
         ..Default::default()
     };
     let _ = std::hint::black_box(pagesift_pdf::fuzzing::extract_unguarded(data, &opts));
+}
+
+fn jpeg(data: &[u8], iter: u64) {
+    // 轮流试 /ColorTransform 的三种取值和灰度输出
+    let ct = [None, Some(false), Some(true)][(iter % 3) as usize];
+    let _ = std::hint::black_box(pagesift_pdf::fuzzing::decode_jpeg(
+        data,
+        ct,
+        iter.is_multiple_of(2),
+    ));
 }
