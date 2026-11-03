@@ -172,7 +172,7 @@ pub fn scrape_options_schema(caps: &Capabilities) -> Value {
         "proxy",
         json!({
             "type": "string",
-            "description": "\"basic\", \"auto\", or an http/https/socks5 proxy URL. pagesift does not bypass bot protection."
+            "description": "\"basic\", \"auto\", or an http/https/socks5 proxy URL. pagesift does not solve CAPTCHAs; a block or challenge page is reported as an error."
         }),
     );
     put(

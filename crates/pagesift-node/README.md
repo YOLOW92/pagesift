@@ -81,7 +81,7 @@ crawls with `query` get it from the engine, other crawls report `limit_reached`,
 **Errors.** Single calls throw or reject with `PagesiftError` (`code`, `details`, `retryAfter`). The codes match the pagesift HTTP API:
 `ROBOTS_DISALLOWED`, `ACCESS_BARRIER`, `RATE_LIMITED`, `HOST_COOLDOWN`, `TIMEOUT`, `SSRF_BLOCKED`, `TOO_LARGE`,
 `UPSTREAM_ERROR`, `NETWORK_ERROR`, `DNS_FAILURE`, `BUSY`, `UNSUPPORTED_OPTION`, `INVALID_REQUEST`, `INTERNAL_ERROR`.
-pagesift never tries to get around a block: an access barrier is reported with `details` (vendor, kind, confidence), not bypassed.
+When a site returns a block, pagesift reports it as an access barrier with `details` (vendor, kind, confidence) and does not retry to get past it. The optional server-side `browser_fingerprint` setting, off by default, changes what sites see on every request; see docs/bot.md.
 
 **`Scraper` config.** `userAgent`, `allowPrivateNetwork` (off by default), `requestIntervalMs` (per host, default 1000),
 `perHostConcurrency` (default 2), `maxBrowsers`.

@@ -150,7 +150,7 @@ pub(super) fn check_barrier(doc: &pagesift_content::Document) -> Result<(), ApiE
     Err(ApiError::new(
         ErrorCode::AccessBarrier,
         format!(
-            "the site returned an access barrier ({} {}); pagesift does not bypass it",
+            "the site returned an access barrier ({} {}); pagesift reports it and does not retry to get past it",
             b.vendor,
             b.kind.as_str()
         ),

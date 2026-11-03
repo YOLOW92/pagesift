@@ -10,5 +10,5 @@
 
 - [ ] `scripts/ci.sh` passes
 - [ ] No new copyleft dependencies (`cargo deny --config .github/deny.toml check`)
-- [ ] Nothing that bypasses robots.txt, rate limits or anti-bot protection
+- [ ] Nothing that bypasses robots.txt or rate limits, solves CAPTCHAs, retries past challenge pages, or turns browser fingerprint mode on by default
 - [ ] I have signed the [CLA](CLA.md) (the bot asks on your first PR)

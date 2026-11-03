@@ -59,6 +59,10 @@ persist_jobs = true
 [fetch]
 # 自定义 UA 必须表明是机器人；冒充浏览器的 UA 会被拒绝。
 # user_agent = "acme-bot/1.0 (+https://acme.example/bot)"
+# Browser fingerprint mode, off by default. HTTP fetches then present Chrome's TLS, HTTP/2 and request headers, so
+# sites see Chrome and not pagesift. Whether that complies with a site's terms is the operator's responsibility.
+# robots.txt (matched against user_agent above) and rate limits still apply. Does not work through a proxy yet.
+# browser_fingerprint = "chrome"
 timeout_secs = 60
 max_body_mb = 15
 # 企业网络出口代理（不是代理池）
