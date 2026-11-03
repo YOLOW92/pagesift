@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use pagesift_api::fields::names;
 use pagesift_api::types::{
-    BatchScrapeRequest, CrawlRequest, MapRequest, ScrapeOptions, ScrapeRequest,
+    BatchScrapeRequest, CrawlRequest, InteractRequest, MapRequest, ScrapeOptions, ScrapeRequest,
 };
 use pagesift_api::{ApiError, Engine, Jobs, check_scrape_options, check_url, rfc3339};
 use pagesift_mcp::{
@@ -38,6 +38,10 @@ pub fn engine_tools(
     if let Some(audit) = audit {
         tools.push(Arc::new(Report(audit)));
     }
+    if caps.interact {
+        tools.push(Arc::new(Interact(engine.clone())));
+        tools.push(Arc::new(InteractStop(engine.clone())));
+    }
     tools.push(Arc::new(Batch(engine, jobs, caps)));
     tools
 }
@@ -49,7 +53,7 @@ pub fn capabilities(engine: &dyn Engine) -> Capabilities {
     } else {
         &[]
     };
-    Capabilities::new(engine.supported_formats(), actions)
+    Capabilities::new(engine.supported_formats(), actions).with_interact(engine.supports_interact())
 }
 
 /// 客户端自报的名字，写进审计日志区分是哪个会话发起的抓取。
@@ -178,11 +182,21 @@ impl ToolHandler for Scrape {
 
     fn call(&self, args: Map<String, Value>, ctx: ToolContext) -> BoxFuture<'_, ToolResult> {
         Box::pin(async move {
-            let req: ScrapeRequest = parse(Value::Object(args), &[&["url"], scrape_fields()])?;
+            let mut req: ScrapeRequest = parse(Value::Object(args), &[&["url"], scrape_fields()])?;
             check_url(&req.url).map_err(tool_error)?;
+            let keep = std::mem::take(&mut req.options.keep_session);
             check_scrape_options(&req.options, self.0.as_ref()).map_err(tool_error)?;
+            let scraping = async {
+                if keep {
+                    self.0
+                        .scrape_session(&req.url, &req.options, true, None)
+                        .await
+                } else {
+                    self.0.scrape(&req.url, &req.options).await
+                }
+            };
             let doc = crate::audit::CLIENT
-                .scope(client_name(&ctx), self.0.scrape(&req.url, &req.options))
+                .scope(client_name(&ctx), scraping)
                 .await
                 .map_err(tool_error)?;
             // 智能体最需要的是正文：Markdown 放在文本内容里，完整文档放在结构化结果里。
@@ -198,6 +212,13 @@ impl ToolHandler for Scrape {
                 }
                 None => serde_json::to_string_pretty(&doc).unwrap_or_default(),
             };
+            // 保留了页面：调用方要靠这个 id 继续，放在最前面
+            let text = match &doc.metadata.scrape_id {
+                Some(id) => {
+                    format!("scrapeId: {id} (pagesift_interact, pagesift_interact_stop)\n{text}")
+                }
+                None => text,
+            };
             let mut out = ToolOutput::text(text);
             out.structured_content = serde_json::to_value(&doc).ok();
             // 导出的图片：内容存起来，结果里给资源链接（`resources/read` 取）
@@ -211,6 +232,69 @@ impl ToolHandler for Scrape {
                 }
             }));
             Ok(out)
+        })
+    }
+}
+
+/// `pagesift_interact`：在 `keepSession` 保留的页面上继续操作。
+struct Interact(Arc<dyn Engine>);
+
+impl ToolHandler for Interact {
+    fn definition(&self) -> ToolDef {
+        let actions: Vec<String> = pagesift_cdp::SUPPORTED_ACTIONS
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        tools::interact_def(&actions)
+    }
+
+    fn call(&self, mut args: Map<String, Value>, _ctx: ToolContext) -> BoxFuture<'_, ToolResult> {
+        Box::pin(async move {
+            let id = args
+                .remove("scrapeId")
+                .and_then(|v| v.as_str().map(str::to_string))
+                .ok_or_else(|| ToolError::new("missing scrapeId"))?;
+            let known: &[&str] = &["prompt", "actions", "timeout"];
+            let req: InteractRequest = parse(Value::Object(args), &[known])?;
+            req.check().map_err(tool_error)?;
+            let resp = self.0.interact(&id, &req, None).await.map_err(tool_error)?;
+            // 智能体最需要的是回答和动作后的正文：放在文本内容里，完整结果放在结构化结果里
+            let mut parts = Vec::new();
+            if let Some(e) = &resp.error {
+                parts.push(format!("Failed: {e}"));
+            }
+            if let Some(o) = &resp.output {
+                parts.push(o.clone());
+            }
+            if let Some(md) = resp.data.as_ref().and_then(|d| d.markdown.as_ref()) {
+                parts.push(md.clone());
+            }
+            let mut out = ToolOutput::text(parts.join("\n\n"));
+            out.structured_content = serde_json::to_value(&resp).ok();
+            Ok(out)
+        })
+    }
+}
+
+/// `pagesift_interact_stop`：关掉保留的页面。
+struct InteractStop(Arc<dyn Engine>);
+
+impl ToolHandler for InteractStop {
+    fn definition(&self) -> ToolDef {
+        tools::interact_stop_def()
+    }
+
+    fn call(&self, args: Map<String, Value>, _ctx: ToolContext) -> BoxFuture<'_, ToolResult> {
+        Box::pin(async move {
+            let id = args
+                .get("scrapeId")
+                .and_then(Value::as_str)
+                .ok_or_else(|| ToolError::new("missing scrapeId"))?;
+            let stopped = self.0.stop_interact(id, None).await.map_err(tool_error)?;
+            Ok(ToolOutput::json(json!({
+                "success": stopped.success,
+                "sessionDurationMs": stopped.session_duration_ms,
+            })))
         })
     }
 }

@@ -21,6 +21,8 @@ pub const MAP: &str = "pagesift_map";
 pub const CRAWL: &str = "pagesift_crawl";
 pub const CRAWL_STATUS: &str = "pagesift_crawl_status";
 pub const BATCH_SCRAPE: &str = "pagesift_batch_scrape";
+pub const INTERACT: &str = "pagesift_interact";
+pub const INTERACT_STOP: &str = "pagesift_interact_stop";
 
 /// 单页抓取选项（不含 `url`），由引擎能力生成，见 [`crate::options`]。
 pub fn scrape_options_schema(caps: &Capabilities) -> Value {
@@ -61,6 +63,57 @@ pub fn scrape_def(caps: &Capabilities) -> ToolDef {
              returning their content.",
         )
         .annotations(annotations("pagesift scrape", true))
+}
+
+/// 会改页面状态（点击可能提交表单），不是只读，也不保证无害。
+fn acting_annotations(title: &str) -> ToolAnnotations {
+    ToolAnnotations {
+        title: Some(title.into()),
+        read_only_hint: Some(false),
+        destructive_hint: Some(true),
+        idempotent_hint: Some(false),
+        open_world_hint: Some(true),
+    }
+}
+
+/// `actions` 是浏览器实际支持的动作类型。
+pub fn interact_def(actions: &[String]) -> ToolDef {
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "scrapeId": { "type": "string", "description": "metadata.scrapeId of a pagesift_scrape call with keepSession." },
+            "prompt": { "type": "string", "description": "What to do on the page, in plain language (needs an LLM on the server). Send prompt or actions." },
+            "actions": { "type": "array", "items": crate::options::action_schema(actions), "description": "Browser actions to run on the page. Send prompt or actions." },
+            // [协议] Firecrawl API reference：timeout 1–300 秒
+            "timeout": { "type": "number", "minimum": 1, "maximum": 300, "description": "Seconds, default 30." }
+        },
+        "required": ["scrapeId"],
+        "additionalProperties": false
+    });
+    ToolDef::new(INTERACT, schema)
+        .title("Act on a kept page")
+        .description(
+            "Continue on a browser page kept by pagesift_scrape with keepSession: click, type, press keys, \
+             then read the page again. State carries over between calls. Returns the page afterwards in \
+             data; with a prompt also output (the answer) and steps. No live view or CDP URL is offered. \
+             Sessions are reclaimed when idle (at most 5 minutes, sooner when memory is short) and after 10 minutes.",
+        )
+        .annotations(acting_annotations("pagesift interact"))
+}
+
+pub fn interact_stop_def() -> ToolDef {
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "scrapeId": { "type": "string", "description": "metadata.scrapeId of the kept page." }
+        },
+        "required": ["scrapeId"],
+        "additionalProperties": false
+    });
+    ToolDef::new(INTERACT_STOP, schema)
+        .title("Close a kept page")
+        .description("Close a browser page kept for pagesift_interact and free its memory.")
+        .annotations(acting_annotations("pagesift interact stop"))
 }
 
 pub fn map_def() -> ToolDef {

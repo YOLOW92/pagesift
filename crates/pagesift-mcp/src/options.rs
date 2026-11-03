@@ -13,6 +13,8 @@ pub struct Capabilities {
     pub formats: Vec<String>,
     /// 浏览器支持的动作类型（`pagesift_cdp::SUPPORTED_ACTIONS`）；没有浏览器时为空。
     pub actions: Vec<String>,
+    /// `Engine::supports_interact`：出现 `keepSession` 和 `pagesift_interact` 工具。
+    pub interact: bool,
 }
 
 impl Capabilities {
@@ -20,7 +22,13 @@ impl Capabilities {
         Self {
             formats: formats.iter().map(|s| s.to_string()).collect(),
             actions: actions.iter().map(|s| s.to_string()).collect(),
+            interact: false,
         }
+    }
+
+    pub fn with_interact(mut self, on: bool) -> Self {
+        self.interact = on;
+        self
     }
 
     /// 不带浏览器、不带 LLM 和存储时的最小能力（占位工具、测试用）。
@@ -40,6 +48,35 @@ pub const NOT_EXPOSED: &[(&str, &str)] = &[
         "not offered to agents: whether robots.txt may be ignored is the operator's decision in pagesift.toml",
     ),
 ];
+
+/// 一个浏览器动作的参数表：抓取前的 `actions` 和 `pagesift_interact` 共用。
+pub fn action_schema(actions: &[String]) -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "type": { "type": "string", "enum": actions },
+            "selector": { "type": "string" },
+            "all": { "type": "boolean" },
+            "milliseconds": { "type": "integer", "minimum": 0 },
+            "text": { "type": "string" },
+            "key": { "type": "string" },
+            "direction": { "type": "string", "enum": ["up", "down"] },
+            "script": { "type": "string" },
+            "fullPage": { "type": "boolean" },
+            // [协议] JPEG 质量 1–100（CDP Page.captureScreenshot 的 quality）
+            "quality": { "type": "integer", "minimum": 1, "maximum": 100 },
+            "viewport": {
+                "type": "object",
+                "properties": { "width": { "type": "integer" }, "height": { "type": "integer" } },
+                "required": ["width", "height"]
+            },
+            "format": { "type": "string" },
+            "landscape": { "type": "boolean" },
+            "scale": { "type": "number" }
+        },
+        "required": ["type"]
+    })
+}
 
 fn str_array() -> Value {
     json!({ "type": "array", "items": { "type": "string" } })
@@ -100,32 +137,17 @@ pub fn scrape_options_schema(caps: &Capabilities) -> Value {
             "actions",
             json!({
                 "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "type": { "type": "string", "enum": caps.actions.clone() },
-                        "selector": { "type": "string" },
-                        "all": { "type": "boolean" },
-                        "milliseconds": { "type": "integer", "minimum": 0 },
-                        "text": { "type": "string" },
-                        "key": { "type": "string" },
-                        "direction": { "type": "string", "enum": ["up", "down"] },
-                        "script": { "type": "string" },
-                        "fullPage": { "type": "boolean" },
-                        // [协议] JPEG 质量 1–100（CDP Page.captureScreenshot 的 quality）
-                        "quality": { "type": "integer", "minimum": 1, "maximum": 100 },
-                        "viewport": {
-                            "type": "object",
-                            "properties": { "width": { "type": "integer" }, "height": { "type": "integer" } },
-                            "required": ["width", "height"]
-                        },
-                        "format": { "type": "string" },
-                        "landscape": { "type": "boolean" },
-                        "scale": { "type": "number" }
-                    },
-                    "required": ["type"]
-                },
+                "items": action_schema(&caps.actions),
                 "description": "Browser actions to run before capturing the page."
+            }),
+        );
+    }
+    if caps.interact {
+        put(
+            "keepSession",
+            json!({
+                "type": "boolean",
+                "description": "Keep the browser page open and return its id in metadata.scrapeId, to continue with pagesift_interact. Only on pagesift_scrape. Close it with pagesift_interact_stop."
             }),
         );
     }
@@ -235,6 +257,7 @@ mod tests {
             &["markdown", "html", "json"],
             &["wait", "click", "screenshot", "pdf"],
         )
+        .with_interact(true)
     }
 
     /// 每个属性都是 `ScrapeOptions` 的真实字段；每个字段要么暴露，要么在 `NOT_EXPOSED` 里写明原因。
