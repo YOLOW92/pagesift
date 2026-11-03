@@ -7,6 +7,7 @@
 
 pub mod det;
 pub mod lcnet;
+pub mod models;
 pub mod pipeline;
 pub mod rec;
 

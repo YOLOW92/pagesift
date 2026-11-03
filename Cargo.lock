@@ -1751,6 +1751,7 @@ dependencies = [
  "pagesift-infer",
  "pagesift-pdf",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]
