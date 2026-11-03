@@ -8,7 +8,7 @@ use axum::http::{HeaderMap, Uri};
 use crate::error::ApiError;
 use crate::jobs::Start;
 use crate::limits::Caller;
-use crate::server::{AppState, base_url, body, webhook};
+use crate::server::{AppState, base_url, lenient_body, webhook};
 use crate::types::{CrawlRequest, JobStarted};
 use crate::validate::{MAX_CRAWL_DEPTH, MAX_CRAWL_LIMIT, check_scrape_options, check_url};
 
@@ -17,9 +17,11 @@ pub async fn crawl_start(
     caller: Option<Extension<Caller>>,
     headers: HeaderMap,
     uri: Uri,
-    req: Result<Json<CrawlRequest>, JsonRejection>,
+    req: Result<Json<serde_json::Value>, JsonRejection>,
 ) -> Result<Json<JobStarted>, ApiError> {
-    let req = body(req)?;
+    use crate::fields;
+    let known = [fields::names::<CrawlRequest>(), fields::CLIENT_IDENTITY];
+    let (req, ignored): (CrawlRequest, _) = lenient_body(req, &known)?;
     check_url(&req.url)?;
     if req.limit > MAX_CRAWL_LIMIT {
         return Err(ApiError::invalid(format!(
@@ -54,6 +56,7 @@ pub async fn crawl_start(
         url: format!("{}{prefix}/crawl/{id}", base_url(&s, &headers)),
         id,
         invalid_urls: None,
+        warnings: fields::ignored_warning(&ignored).into_iter().collect(),
     }))
 }
 

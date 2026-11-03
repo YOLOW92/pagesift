@@ -7,6 +7,21 @@ use serde_json::Value;
 
 pub type Fallible<T> = std::result::Result<T, ApiError>;
 
+/// pagesift 自己的入口不接收未知字段：JS 传来的选项对象先作为 JSON 收下，未知字段全部列出后拒收，
+/// 再按类型解析（napi 的对象转换会悄悄丢掉不认识的键）。没传或传了 `null`/`undefined` 时用默认值。
+pub fn strict<T>(v: Option<Value>) -> Fallible<T>
+where
+    T: serde::de::DeserializeOwned + Default,
+{
+    let Some(v) = v.filter(|v| !v.is_null()) else {
+        return Ok(T::default());
+    };
+    if let Some(obj) = v.as_object() {
+        pagesift::api::fields::reject_unknown(obj, &[pagesift::api::fields::names::<T>()])?;
+    }
+    serde_json::from_value(v).map_err(|e| ApiError::invalid(format!("invalid options: {e}")))
+}
+
 /// 在模块加载时执行一次，得到 `PagesiftError` 类（napi 没法直接定义继承 `Error` 的类）。
 pub const CLASS_SOURCE: &str = r#"(class PagesiftError extends Error {
   constructor(message, code) {

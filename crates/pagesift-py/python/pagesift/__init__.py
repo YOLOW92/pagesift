@@ -146,7 +146,15 @@ class ScrapeOptions:
         object.__setattr__(self, "_native", native)
 
     def replace(self, **changes: Any) -> "ScrapeOptions":
-        """返回改了部分选项的新对象。"""
+        """返回改了部分选项的新对象。不认识的选项名全部列出后抛 TypeError，不悄悄忽略。"""
+        known = {f.name for f in dataclasses.fields(self) if f.init}
+        unknown = [k for k in changes if k not in known]
+        if unknown:
+            raise TypeError(
+                "unknown option"
+                + ("s " if len(unknown) > 1 else " ")
+                + ", ".join(repr(k) for k in unknown)
+            )
         return dataclasses.replace(self, **changes)
 
 

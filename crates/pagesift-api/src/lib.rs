@@ -8,6 +8,7 @@
 pub mod attachments;
 mod engine;
 mod error;
+pub mod fields;
 pub(crate) mod firecrawl;
 pub mod jina;
 mod jobs;

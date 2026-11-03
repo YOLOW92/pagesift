@@ -4,13 +4,14 @@
 
 use std::sync::Arc;
 
+use pagesift_api::fields::names;
 use pagesift_api::types::{
     BatchScrapeRequest, CrawlRequest, MapRequest, ScrapeOptions, ScrapeRequest,
 };
 use pagesift_api::{ApiError, Engine, Jobs, check_scrape_options, check_url, rfc3339};
 use pagesift_mcp::{
-    BoxFuture, ToolAnnotations, ToolContext, ToolDef, ToolError, ToolHandler, ToolOutput,
-    ToolResult, tools,
+    BoxFuture, Capabilities, ToolAnnotations, ToolContext, ToolDef, ToolError, ToolHandler,
+    ToolOutput, ToolResult, tools,
 };
 use serde_json::{Map, Value, json};
 
@@ -27,17 +28,28 @@ pub fn engine_tools(
     audit: Option<Arc<crate::audit::Audit>>,
 ) -> Vec<Arc<dyn ToolHandler>> {
     let jobs = Jobs::default();
+    let caps = capabilities(engine.as_ref());
     let mut tools: Vec<Arc<dyn ToolHandler>> = vec![
-        Arc::new(Scrape(engine.clone())),
+        Arc::new(Scrape(engine.clone(), caps.clone())),
         Arc::new(MapTool(engine.clone())),
-        Arc::new(Crawl(engine.clone(), jobs.clone())),
+        Arc::new(Crawl(engine.clone(), jobs.clone(), caps.clone())),
         Arc::new(Status(jobs.clone())),
     ];
     if let Some(audit) = audit {
         tools.push(Arc::new(Report(audit)));
     }
-    tools.push(Arc::new(Batch(engine, jobs)));
+    tools.push(Arc::new(Batch(engine, jobs, caps)));
     tools
+}
+
+/// 参数表按引擎实际能力生成：格式取 `supported_formats`，动作只在有浏览器时出现。
+pub fn capabilities(engine: &dyn Engine) -> Capabilities {
+    let actions: &[&str] = if engine.supports_actions() {
+        pagesift_cdp::SUPPORTED_ACTIONS
+    } else {
+        &[]
+    };
+    Capabilities::new(engine.supported_formats(), actions)
 }
 
 /// 客户端自报的名字，写进审计日志区分是哪个会话发起的抓取。
@@ -124,7 +136,12 @@ impl pagesift_mcp::ResourceReader for Attachments {
     }
 }
 
-fn parse<T: serde::de::DeserializeOwned>(args: Value) -> Result<T, ToolError> {
+/// pagesift 自己的入口：参数表外的字段直接拒收（MCP 服务器按 inputSchema 先校验一遍，这里再按
+/// 类型的真实字段核一遍，`known` 为空时只解析）。
+fn parse<T: serde::de::DeserializeOwned>(args: Value, known: &[&[&str]]) -> Result<T, ToolError> {
+    if let (Some(obj), false) = (args.as_object(), known.is_empty()) {
+        pagesift_api::fields::reject_unknown(obj, known).map_err(tool_error)?;
+    }
     serde_json::from_value(args).map_err(|e| ToolError::new(format!("invalid arguments: {e}")))
 }
 
@@ -136,16 +153,32 @@ fn tool_error(e: ApiError) -> ToolError {
     ToolError::new(format!("{}: {}", e.code.as_str(), e.message)).with_details(details)
 }
 
-struct Scrape(Arc<dyn Engine>);
+/// MCP 暴露给调用方的抓取选项字段（`ScrapeOptions` 的字段减去不暴露的那几个）。
+fn scrape_fields() -> &'static [&'static str] {
+    static FIELDS: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+    FIELDS.get_or_init(|| {
+        names::<ScrapeOptions>()
+            .iter()
+            .copied()
+            .filter(|f| {
+                !pagesift_mcp::options::NOT_EXPOSED
+                    .iter()
+                    .any(|(n, _)| n == f)
+            })
+            .collect()
+    })
+}
+
+struct Scrape(Arc<dyn Engine>, Capabilities);
 
 impl ToolHandler for Scrape {
     fn definition(&self) -> ToolDef {
-        tools::scrape_def()
+        tools::scrape_def(&self.1)
     }
 
     fn call(&self, args: Map<String, Value>, ctx: ToolContext) -> BoxFuture<'_, ToolResult> {
         Box::pin(async move {
-            let req: ScrapeRequest = parse(Value::Object(args))?;
+            let req: ScrapeRequest = parse(Value::Object(args), &[&["url"], scrape_fields()])?;
             check_url(&req.url).map_err(tool_error)?;
             check_scrape_options(&req.options, self.0.as_ref()).map_err(tool_error)?;
             let doc = crate::audit::CLIENT
@@ -241,7 +274,7 @@ impl ToolHandler for MapTool {
 
     fn call(&self, args: Map<String, Value>, _ctx: ToolContext) -> BoxFuture<'_, ToolResult> {
         Box::pin(async move {
-            let req: MapRequest = parse(Value::Object(args))?;
+            let req: MapRequest = parse(Value::Object(args), &[names::<MapRequest>()])?;
             check_url(&req.url).map_err(tool_error)?;
             let links = self.0.map(&req).await.map_err(tool_error)?;
             Ok(ToolOutput::json(json!({ "links": links })))
@@ -249,16 +282,19 @@ impl ToolHandler for MapTool {
     }
 }
 
-struct Crawl(Arc<dyn Engine>, Jobs);
+struct Crawl(Arc<dyn Engine>, Jobs, Capabilities);
 
 impl ToolHandler for Crawl {
     fn definition(&self) -> ToolDef {
-        tools::crawl_def()
+        tools::crawl_def(&self.2)
     }
 
     fn call(&self, args: Map<String, Value>, _ctx: ToolContext) -> BoxFuture<'_, ToolResult> {
         Box::pin(async move {
-            let req: CrawlRequest = parse(Value::Object(args))?;
+            if let Some(Value::Object(o)) = args.get("scrapeOptions") {
+                pagesift_api::fields::reject_unknown(o, &[scrape_fields()]).map_err(tool_error)?;
+            }
+            let req: CrawlRequest = parse(Value::Object(args), &[names::<CrawlRequest>()])?;
             check_url(&req.url).map_err(tool_error)?;
             check_scrape_options(&req.scrape_options, self.0.as_ref()).map_err(tool_error)?;
             if req.webhook.is_some() {
@@ -276,22 +312,27 @@ impl ToolHandler for Crawl {
     }
 }
 
-struct Batch(Arc<dyn Engine>, Jobs);
+struct Batch(Arc<dyn Engine>, Jobs, Capabilities);
 
 impl ToolHandler for Batch {
     fn definition(&self) -> ToolDef {
-        tools::batch_scrape_def()
+        tools::batch_scrape_def(&self.2)
     }
 
     fn call(&self, mut args: Map<String, Value>, _ctx: ToolContext) -> BoxFuture<'_, ToolResult> {
         Box::pin(async move {
             // firecrawl-mcp 把抓取选项放在 options 里；展开成 batch 请求的顶层字段
             if let Some(Value::Object(opts)) = args.remove("options") {
+                pagesift_api::fields::reject_unknown(&opts, &[scrape_fields()])
+                    .map_err(tool_error)?;
                 for (k, v) in opts {
                     args.entry(k).or_insert(v);
                 }
             }
-            let req: BatchScrapeRequest = parse(Value::Object(args))?;
+            let req: BatchScrapeRequest = parse(
+                Value::Object(args),
+                &[BatchScrapeRequest::OWN_FIELDS, scrape_fields()],
+            )?;
             check_scrape_options(&req.options, self.0.as_ref()).map_err(tool_error)?;
             let mut urls = Vec::new();
             let mut invalid = Vec::new();

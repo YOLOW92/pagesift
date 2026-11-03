@@ -121,6 +121,50 @@ async fn scrape_returns_firecrawl_shape() {
     assert_eq!(v["data"]["metadata"]["statusCode"], 200);
 }
 
+/// 兼容接口照常接收未知字段，但在 warnings 里如实列出；客户端自报身份的字段不算。
+#[tokio::test]
+async fn ignored_fields_are_reported_as_warnings() {
+    let app = app(&[]);
+    let (status, v) = call(
+        &app,
+        "POST",
+        "/v2/scrape",
+        Some(
+            json!({"url": "https://example.com/a", "origin": "python-sdk",
+                    "zeroDataRetention": true, "lockdown": false}),
+        ),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        v["data"]["metadata"]["pagesift"]["warnings"],
+        json!(["ignored_fields: lockdown, zeroDataRetention"])
+    );
+    let (_, v) = call(
+        &app,
+        "POST",
+        "/v1/crawl",
+        Some(json!({"url": "https://example.com", "prompt": "x",
+                    "scrapeOptions": {"formats": ["markdown"], "redactPII": true}})),
+        None,
+    )
+    .await;
+    assert_eq!(
+        v["warnings"],
+        json!(["ignored_fields: prompt, scrapeOptions.redactPII"])
+    );
+    let (_, v) = call(
+        &app,
+        "POST",
+        "/v2/scrape",
+        Some(json!({"url": "https://example.com/a", "integration": "x"})),
+        None,
+    )
+    .await;
+    assert!(v["data"]["metadata"]["pagesift"].is_null(), "{v}");
+}
+
 #[tokio::test]
 async fn bypass_options_and_unsupported_features_are_rejected() {
     let app = app(&[]);

@@ -1,7 +1,7 @@
 //! 工具参数校验：只实现工具 inputSchema 用到的 JSON Schema 子集。
 //!
 //! 支持 `type`、`properties`、`required`、`additionalProperties`、`items`、`enum`、`const`、
-//! `minimum`/`maximum`、`minLength`/`maxLength`、`minItems`/`maxItems`、`format: "uri"`。
+//! `minimum`/`maximum`、`minLength`/`maxLength`、`minItems`/`maxItems`、`format: "uri"`、`anyOf`。
 //! 其余关键字忽略（视为放行）。
 
 use serde_json::{Map, Value};
@@ -26,6 +26,23 @@ fn check(schema: &Value, value: &Value, path: &str, depth: usize) -> Result<(), 
         return Ok(());
     }
 
+    if let Some(Value::Array(alts)) = s.get("anyOf") {
+        let mut first = None;
+        for alt in alts {
+            match check(alt, value, path, depth + 1) {
+                Ok(()) => {
+                    first = None;
+                    break;
+                }
+                Err(e) => {
+                    first.get_or_insert(e);
+                }
+            }
+        }
+        if let Some(e) = first {
+            return Err(e);
+        }
+    }
     if let Some(t) = s.get("type") {
         let ok = match t {
             Value::String(t) => type_matches(t, value),

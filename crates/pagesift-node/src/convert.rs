@@ -65,13 +65,13 @@ fn run(html: &str, plan: &ConvertPlan) -> Page {
     )
 }
 
-fn plan(options: Option<ConvertOptions>) -> Fallible<ConvertPlan> {
-    options.unwrap_or_default().plan()
+fn plan(options: Option<Value>) -> Fallible<ConvertPlan> {
+    crate::error::strict::<ConvertOptions>(options)?.plan()
 }
 
 /// 把一段 HTML 转成 Markdown，在当前线程上同步执行（会阻塞事件循环，适合脚本和小页面）。
 #[napi(ts_args_type = "html: string | Uint8Array, options?: ConvertOptions")]
-pub fn convert(env: &Env, html: Html, options: Option<ConvertOptions>) -> Result<Page> {
+pub fn convert(env: &Env, html: Html, options: Option<Value>) -> Result<Page> {
     let plan = plan(options).map_err(|e| error::to_js(env, &e))?;
     Ok(run(&text(&html), &plan))
 }
@@ -84,7 +84,7 @@ pub fn convert(env: &Env, html: Html, options: Option<ConvertOptions>) -> Result
 pub fn convert_async<'e>(
     env: &'e Env,
     html: Html,
-    options: Option<ConvertOptions>,
+    options: Option<Value>,
 ) -> Result<PromiseRaw<'e, Page>> {
     let plan = plan(options);
     let fut = async move {
@@ -114,7 +114,7 @@ pub fn convert_async<'e>(
 pub fn convert_many<'e>(
     env: &'e Env,
     htmls: Array<'e>,
-    options: Option<ConvertOptions>,
+    options: Option<Value>,
 ) -> Result<PromiseRaw<'e, Vec<Page>>> {
     let reject = |e: ApiError| {
         env.spawn_future_with_callback(async { Ok(()) }, move |env, ()| -> Result<Vec<Page>> {

@@ -278,6 +278,9 @@ pub struct JobStarted {
     pub url: String,
     #[serde(rename = "invalidURLs", skip_serializing_if = "Option::is_none")]
     pub invalid_urls: Option<Vec<String>>,
+    /// Request fields that were accepted but ignored (`ignored_fields: a, b`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -316,4 +319,7 @@ pub struct JobErrors {
 pub struct MapResponse {
     pub success: bool,
     pub links: Vec<MapLink>,
+    /// Request fields that were accepted but ignored (`ignored_fields: a, b`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
 }

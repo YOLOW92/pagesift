@@ -29,6 +29,7 @@
 
 pub mod http;
 pub mod jsonrpc;
+pub mod options;
 pub mod protocol;
 pub mod resource;
 pub mod schema;
@@ -38,6 +39,7 @@ mod tool;
 pub mod tools;
 
 pub use http::{HttpConfig, router, serve_http, serve_listener};
+pub use options::Capabilities;
 pub use protocol::{Era, LATEST_PROTOCOL_VERSION};
 pub use resource::ResourceReader;
 pub use server::{BuildError, McpServer, ServerBuilder};

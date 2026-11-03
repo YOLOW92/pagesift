@@ -1,15 +1,16 @@
-//! PRD F-7.2 的 5 个工具：定义（参数结构对齐 firecrawl-mcp）和返回示例数据的占位实现。
+//! PRD F-7.2 的 5 个工具：定义（参数名对齐 firecrawl-mcp，取值范围按引擎能力生成）和返回示例数据的占位实现。
 //!
 //! 真正的抓取由上层实现 [`ToolHandler`]，`definition()` 直接返回这里的定义即可：
 //!
 //! ```text
-//! fn definition(&self) -> ToolDef { pagesift_mcp::tools::scrape_def() }
+//! fn definition(&self) -> ToolDef { pagesift_mcp::tools::scrape_def(&caps) }
 //! ```
 
 use std::sync::Arc;
 
 use serde_json::{Map, Value, json};
 
+use crate::options::Capabilities;
 use crate::tool::{
     BoxFuture, ToolAnnotations, ToolContext, ToolDef, ToolError, ToolHandler, ToolOutput,
     ToolResult,
@@ -21,118 +22,9 @@ pub const CRAWL: &str = "pagesift_crawl";
 pub const CRAWL_STATUS: &str = "pagesift_crawl_status";
 pub const BATCH_SCRAPE: &str = "pagesift_batch_scrape";
 
-/// 单页抓取选项（不含 `url`），对应 firecrawl-mcp 的 `scrapeParamsSchema`，
-/// 加上 pagesift 扩展 `engine`、`ifNoneMatch`、`ifModifiedSince`。
-pub fn scrape_options_schema() -> Value {
-    let str_array = json!({ "type": "array", "items": { "type": "string" } });
-    json!({
-        "type": "object",
-        "properties": {
-            "formats": {
-                "type": "array",
-                "items": {
-                    "type": "string",
-                    "enum": ["markdown", "html", "rawHtml", "screenshot", "links", "images", "summary",
-                             "changeTracking", "branding", "json", "query", "audio"]
-                },
-                "description": "Output formats. Defaults to [\"markdown\"]."
-            },
-            "jsonOptions": {
-                "type": "object",
-                "properties": {
-                    "prompt": { "type": "string" },
-                    "schema": { "type": "object" }
-                },
-                "description": "Options for the json format."
-            },
-            "queryOptions": {
-                "type": "object",
-                "properties": {
-                    "prompt": { "type": "string", "maxLength": 10000 },
-                    "mode": { "type": "string", "enum": ["directQuote", "freeform"], "default": "freeform" }
-                },
-                "required": ["prompt"],
-                "description": "Options for the query format."
-            },
-            "screenshotOptions": {
-                "type": "object",
-                "properties": {
-                    "fullPage": { "type": "boolean" },
-                    "quality": { "type": "number" },
-                    "viewport": {
-                        "type": "object",
-                        "properties": { "width": { "type": "number" }, "height": { "type": "number" } },
-                        "required": ["width", "height"]
-                    }
-                }
-            },
-            "parsers": { "type": "array", "items": { "type": "string", "enum": ["pdf"] } },
-            "pdfOptions": {
-                "type": "object",
-                "properties": { "maxPages": { "type": "integer", "minimum": 1, "maximum": 10000 } }
-            },
-            "onlyMainContent": { "type": "boolean", "description": "Keep only the main content. Defaults to true." },
-            "exportImages": { "type": "boolean", "description": "Export the page's images (PDF embedded images, Office media, web images); returned as resource links." },
-            "redactPII": { "type": "boolean" },
-            "includeTags": str_array,
-            "excludeTags": str_array,
-            "waitFor": { "type": "number", "description": "Milliseconds to wait before capturing the page." },
-            "actions": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "type": {
-                            "type": "string",
-                            "enum": ["wait", "screenshot", "scroll", "scrape", "click", "write", "press",
-                                     "executeJavascript", "generatePDF"]
-                        },
-                        "selector": { "type": "string" },
-                        "milliseconds": { "type": "number" },
-                        "text": { "type": "string" },
-                        "key": { "type": "string" },
-                        "direction": { "type": "string", "enum": ["up", "down"] },
-                        "script": { "type": "string" },
-                        "fullPage": { "type": "boolean" }
-                    },
-                    "required": ["type"]
-                },
-                "description": "Browser actions to run before capturing the page."
-            },
-            "mobile": { "type": "boolean" },
-            "skipTlsVerification": { "type": "boolean" },
-            "removeBase64Images": { "type": "boolean" },
-            "location": {
-                "type": "object",
-                "properties": {
-                    "country": { "type": "string" },
-                    "languages": str_array
-                }
-            },
-            "storeInCache": { "type": "boolean" },
-            "zeroDataRetention": { "type": "boolean" },
-            "maxAge": { "type": "number", "description": "Accept a cached copy at most this many milliseconds old; 0 forces a live fetch." },
-            "lockdown": { "type": "boolean" },
-            "proxy": {
-                "type": "string",
-                "enum": ["basic", "stealth", "enhanced", "auto"],
-                "description": "Only basic and auto are supported; pagesift does not bypass bot protection."
-            },
-            "profile": {
-                "type": "object",
-                "properties": { "name": { "type": "string" }, "saveChanges": { "type": "boolean" } },
-                "required": ["name"]
-            },
-            "timeout": { "type": "integer", "minimum": 1, "description": "Timeout in milliseconds." },
-            "engine": {
-                "type": "string",
-                "enum": ["http", "browser", "auto"],
-                "description": "pagesift extension: fetch with plain HTTP, a headless browser, or decide automatically (default)."
-            },
-            "ifNoneMatch": { "type": "string", "description": "pagesift extension: ETag for a conditional request." },
-            "ifModifiedSince": { "type": "string", "description": "pagesift extension: HTTP date for a conditional request." }
-        }
-    })
+/// 单页抓取选项（不含 `url`），由引擎能力生成，见 [`crate::options`]。
+pub fn scrape_options_schema(caps: &Capabilities) -> Value {
+    crate::options::scrape_options_schema(caps)
 }
 
 fn with_url(mut options: Value, url_schema: Value, extra_required: &[&str]) -> Value {
@@ -153,9 +45,9 @@ fn annotations(title: &str, read_only: bool) -> ToolAnnotations {
     }
 }
 
-pub fn scrape_def() -> ToolDef {
+pub fn scrape_def(caps: &Capabilities) -> ToolDef {
     let schema = with_url(
-        scrape_options_schema(),
+        scrape_options_schema(caps),
         json!({ "type": "string", "format": "uri", "description": "The page to scrape." }),
         &[],
     );
@@ -179,10 +71,12 @@ pub fn map_def() -> ToolDef {
             "search": { "type": "string", "description": "Only return URLs related to this term." },
             "sitemap": { "type": "string", "enum": ["include", "skip", "only"] },
             "includeSubdomains": { "type": "boolean" },
-            "limit": { "type": "number" },
-            "ignoreQueryParameters": { "type": "boolean" }
+            "limit": { "type": "integer", "minimum": 1 },
+            "ignoreQueryParameters": { "type": "boolean" },
+            "timeout": { "type": "integer", "minimum": 1, "description": "Timeout in milliseconds." }
         },
-        "required": ["url"]
+        "required": ["url"],
+        "additionalProperties": false
     });
     ToolDef::new(MAP, schema)
         .title("Map a site")
@@ -193,35 +87,35 @@ pub fn map_def() -> ToolDef {
         .annotations(annotations("pagesift map", true))
 }
 
-pub fn crawl_def() -> ToolDef {
-    let mut scrape_options = scrape_options_schema();
+pub fn crawl_def(caps: &Capabilities) -> ToolDef {
+    let mut scrape_options = scrape_options_schema(caps);
     scrape_options["description"] = json!("Scrape options applied to every crawled page.");
     let schema = json!({
         "type": "object",
         "properties": {
             "url": { "type": "string", "description": "The URL to start crawling from." },
-            "prompt": { "type": "string" },
             "excludePaths": { "type": "array", "items": { "type": "string" }, "description": "Regular expressions for paths to skip." },
             "includePaths": { "type": "array", "items": { "type": "string" }, "description": "Regular expressions for paths to keep." },
-            "maxDiscoveryDepth": { "type": "number" },
+            "maxDiscoveryDepth": { "type": "integer", "minimum": 0 },
+            "maxDepth": { "type": "integer", "minimum": 0, "description": "Firecrawl v1 name; only checked against the limit, maxDiscoveryDepth sets the depth." },
             "sitemap": { "type": "string", "enum": ["skip", "include", "only"] },
-            "limit": { "type": "number", "description": "Maximum number of pages to crawl." },
+            "limit": { "type": "integer", "minimum": 1, "description": "Maximum number of pages to crawl." },
             "allowExternalLinks": { "type": "boolean" },
             "allowSubdomains": { "type": "boolean" },
             "crawlEntireDomain": { "type": "boolean" },
             "delay": { "type": "number", "description": "Seconds to wait between requests to the same host." },
-            "maxConcurrency": { "type": "number" },
-            "webhook": { "type": "string" },
-            "webhookHeaders": { "type": "object", "additionalProperties": { "type": "string" } },
-            "deduplicateSimilarURLs": { "type": "boolean" },
+            "maxConcurrency": { "type": "integer", "minimum": 1 },
+            "webhook": { "type": ["string", "object"], "description": "URL, or {url, headers, metadata, events}." },
             "ignoreQueryParameters": { "type": "boolean" },
+            "scope": { "type": "string", "enum": ["auto", "exact", "parent", "domain"], "description": "How far the crawl may leave the seed's directory." },
             "query": { "type": "string", "description": "Crawl the pages most relevant to this query first." },
-            "adaptive": { "type": "boolean", "description": "With query: stop once the collected pages cover it." },
+            "adaptive": { "type": ["boolean", "object"], "description": "With query: stop once the collected pages cover it; an object sets coverageThreshold, evidencePerTerm, patience, minGain." },
             "attachments": { "type": "boolean", "description": "With query: also fetch PDF/Office documents linked from relevant pages." },
-            "attachmentLimit": { "type": "number" },
+            "attachmentLimit": { "type": "integer", "minimum": 0 },
             "scrapeOptions": scrape_options
         },
-        "required": ["url"]
+        "required": ["url"],
+        "additionalProperties": false
     });
     ToolDef::new(CRAWL, schema)
         .title("Crawl a site")
@@ -252,7 +146,7 @@ pub fn crawl_status_def() -> ToolDef {
         })
 }
 
-pub fn batch_scrape_def() -> ToolDef {
+pub fn batch_scrape_def(caps: &Capabilities) -> ToolDef {
     let schema = json!({
         "type": "object",
         "properties": {
@@ -262,9 +156,10 @@ pub fn batch_scrape_def() -> ToolDef {
                 "minItems": 1,
                 "description": "The URLs to scrape."
             },
-            "options": scrape_options_schema()
+            "options": scrape_options_schema(caps)
         },
-        "required": ["urls"]
+        "required": ["urls"],
+        "additionalProperties": false
     });
     ToolDef::new(BATCH_SCRAPE, schema)
         .title("Batch scrape")
@@ -276,19 +171,19 @@ pub fn batch_scrape_def() -> ToolDef {
 }
 
 /// 5 个工具的定义，顺序固定。
-pub fn definitions() -> Vec<ToolDef> {
+pub fn definitions(caps: &Capabilities) -> Vec<ToolDef> {
     vec![
-        scrape_def(),
+        scrape_def(caps),
         map_def(),
-        crawl_def(),
+        crawl_def(caps),
         crawl_status_def(),
-        batch_scrape_def(),
+        batch_scrape_def(caps),
     ]
 }
 
 /// 返回固定示例数据的占位工具，用于测试和联调。
 pub fn placeholder_tools() -> Vec<Arc<dyn ToolHandler>> {
-    definitions()
+    definitions(&Capabilities::basic())
         .into_iter()
         .map(|def| Arc::new(Placeholder { def }) as Arc<dyn ToolHandler>)
         .collect()
@@ -355,21 +250,29 @@ mod tests {
 
     #[test]
     fn definitions_are_well_formed() {
-        let defs = definitions();
+        let caps = Capabilities::basic();
+        let defs = definitions(&caps);
         let names: Vec<&str> = defs.iter().map(|d| d.name.as_str()).collect();
         assert_eq!(names, [SCRAPE, MAP, CRAWL, CRAWL_STATUS, BATCH_SCRAPE]);
         for d in &defs {
             assert_eq!(d.input_schema["type"], "object", "{}", d.name);
             assert!(d.description.is_some());
         }
-        assert_eq!(scrape_def().input_schema["required"], json!(["url"]));
+        assert_eq!(scrape_def(&caps).input_schema["required"], json!(["url"]));
         assert!(
-            crawl_def().input_schema["properties"]["scrapeOptions"]["properties"]["url"].is_null()
+            crawl_def(&caps).input_schema["properties"]["scrapeOptions"]["properties"]["url"]
+                .is_null()
         );
     }
 
     #[test]
     fn firecrawl_style_arguments_validate() {
+        let caps = Capabilities::basic();
+        let (scrape_def, crawl_def, batch_scrape_def) = (
+            || scrape_def(&caps),
+            || crawl_def(&caps),
+            || batch_scrape_def(&caps),
+        );
         let ok = json!({
             "url": "https://example.com",
             "formats": ["markdown", "links"],
@@ -393,6 +296,22 @@ mod tests {
         );
         assert!(validate(&batch_scrape_def().input_schema, &json!({"urls": []})).is_err());
         assert!(validate(&crawl_status_def().input_schema, &json!({})).is_err());
+    }
+
+    /// crawl、map 的每个属性都是请求类型的真实字段。
+    #[test]
+    fn crawl_and_map_properties_are_real_fields() {
+        use pagesift_api::fields::names;
+        use pagesift_api::types::{CrawlRequest, MapRequest};
+        let caps = Capabilities::basic();
+        for (schema, fields) in [
+            (crawl_def(&caps).input_schema, names::<CrawlRequest>()),
+            (map_def().input_schema, names::<MapRequest>()),
+        ] {
+            for k in schema["properties"].as_object().unwrap().keys() {
+                assert!(fields.contains(&k.as_str()), "{k}");
+            }
+        }
     }
 
     #[tokio::test]

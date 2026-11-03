@@ -49,6 +49,7 @@ pub async fn parse(
 
     let mut file: Option<(Vec<u8>, String, Option<String>)> = None;
     let mut options: Option<ScrapeOptions> = None;
+    let mut ignored: Vec<String> = Vec::new();
     let mut page_url: Option<url::Url> = None;
     while let Some(field) = form.next_field().await.map_err(multipart_error)? {
         match field.name() {
@@ -68,7 +69,9 @@ pub async fn parse(
             }
             Some("options") => {
                 let raw = read_field(field, MAX_OPTIONS_BYTES, 0).await?;
-                options = Some(parse_options(&raw)?);
+                let (o, i) = parse_options(&raw)?;
+                options = Some(o);
+                ignored = i;
             }
             // pagesift 扩展：上传的 HTML 原来所在的网址，相对链接按它解析
             Some("url") => {
@@ -105,7 +108,14 @@ pub async fn parse(
         kind,
         url: page_url,
     };
-    let data = s.engine.parse(upload, &opts).await?;
+    let mut data = s.engine.parse(upload, &opts).await?;
+    if let Some(w) = crate::fields::ignored_warning(&ignored) {
+        data.metadata
+            .pagesift
+            .get_or_insert_with(Default::default)
+            .warnings
+            .push(w);
+    }
     crate::attachments::keep_in(&data, s.jobs.disk().as_ref());
     s.metrics.page(PageSource::Parse);
     if let Some(Extension(c)) = &caller {
@@ -135,18 +145,28 @@ async fn read_field(
     Ok(buf)
 }
 
-fn parse_options(raw: &[u8]) -> Result<ScrapeOptions, ApiError> {
+/// 选项和它们里面没人认的字段名（写进 `ignored_fields` 警告）。
+fn parse_options(raw: &[u8]) -> Result<(ScrapeOptions, Vec<String>), ApiError> {
     let v: Value = serde_json::from_slice(raw).map_err(|e| {
         ApiError::invalid(format!(
             "invalid JSON in the 'options' field: {e}; provide a JSON object string"
         ))
     })?;
-    if !v.is_object() {
+    let Some(obj) = v.as_object() else {
         return Err(ApiError::invalid(
             "the 'options' field must parse to a JSON object",
         ));
-    }
-    serde_json::from_value(v).map_err(|e| ApiError::invalid(format!("invalid options: {e}")))
+    };
+    let ignored = crate::fields::unknown(
+        obj,
+        &[
+            crate::fields::names::<ScrapeOptions>(),
+            crate::fields::CLIENT_IDENTITY,
+        ],
+    );
+    let opts = serde_json::from_value(v)
+        .map_err(|e| ApiError::invalid(format!("invalid options: {e}")))?;
+    Ok((opts, ignored))
 }
 
 fn default_options() -> ScrapeOptions {

@@ -10,8 +10,9 @@ use pagesift::api::types::{self as api, Format};
 use crate::error::Fallible;
 
 /// `Scraper` 的构造参数。
-#[napi(object)]
-#[derive(Default)]
+#[napi(object, object_from_js = false)]
+#[derive(Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ScraperConfig {
     /// 请求头里的 User-Agent。
     pub user_agent: Option<String>,
@@ -79,8 +80,9 @@ fn parse_formats(formats: &Option<Vec<String>>) -> Fallible<Vec<Format>> {
 }
 
 /// `convert`、`convertAsync`、`convertMany` 的选项。
-#[napi(object)]
-#[derive(Default)]
+#[napi(object, object_from_js = false)]
+#[derive(Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ConvertOptions {
     /// 页面地址：把相对链接转成绝对地址，也写进 `metadata.url`。
     pub url: Option<String>,
@@ -130,8 +132,9 @@ impl ConvertOptions {
 macro_rules! scrape_options {
     ($(#[$meta:meta])* $name:ident { $($extra:tt)* }) => {
         $(#[$meta])*
-        #[napi(object)]
-        #[derive(Default)]
+        #[napi(object, object_from_js = false)]
+        #[derive(Default, serde::Deserialize)]
+        #[serde(rename_all = "camelCase", deny_unknown_fields)]
         pub struct $name {
             $($extra)*
             /// 计算哪些输出，默认 `['markdown']`；只算需要的，越少越快。

@@ -5,15 +5,17 @@ use axum::extract::State;
 use axum::extract::rejection::JsonRejection;
 
 use crate::error::ApiError;
-use crate::server::{AppState, body};
+use crate::server::{AppState, lenient_body};
 use crate::types::{MapRequest, MapResponse};
 use crate::validate::{MAX_MAP_LIMIT, check_url};
 
 pub async fn map(
     State(s): State<AppState>,
-    req: Result<Json<MapRequest>, JsonRejection>,
+    req: Result<Json<serde_json::Value>, JsonRejection>,
 ) -> Result<Json<MapResponse>, ApiError> {
-    let req = body(req)?;
+    use crate::fields;
+    let known = [fields::names::<MapRequest>(), fields::CLIENT_IDENTITY];
+    let (req, ignored): (MapRequest, _) = lenient_body(req, &known)?;
     check_url(&req.url)?;
     if req.limit > MAX_MAP_LIMIT {
         return Err(ApiError::invalid(format!(
@@ -24,5 +26,6 @@ pub async fn map(
     Ok(Json(MapResponse {
         success: true,
         links,
+        warnings: fields::ignored_warning(&ignored).into_iter().collect(),
     }))
 }

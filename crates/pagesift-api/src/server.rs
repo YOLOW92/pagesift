@@ -538,6 +538,34 @@ pub fn body<T>(r: Result<Json<T>, JsonRejection>) -> Result<T, ApiError> {
         .map_err(|e| ApiError::invalid(format!("invalid request body: {}", e.body_text())))
 }
 
+/// 兼容 Firecrawl 的请求体：照常解析（未知字段不报错），另外返回没人认的字段名——顶层的，以及
+/// `scrapeOptions` 里的（写成 `scrapeOptions.<名字>`）。调用方把它们写进 `warnings`（`ignored_fields`）。
+pub fn lenient_body<T: serde::de::DeserializeOwned>(
+    r: Result<Json<serde_json::Value>, JsonRejection>,
+    known: &[&[&str]],
+) -> Result<(T, Vec<String>), ApiError> {
+    use crate::fields;
+    let value = body(r)?;
+    let mut ignored = Vec::new();
+    if let Some(obj) = value.as_object() {
+        ignored = fields::unknown(obj, known);
+        if let Some(nested) = obj.get("scrapeOptions").and_then(|v| v.as_object()) {
+            let scrape = [
+                fields::names::<crate::types::ScrapeOptions>(),
+                fields::CLIENT_IDENTITY,
+            ];
+            ignored.extend(
+                fields::unknown(nested, &scrape)
+                    .into_iter()
+                    .map(|k| format!("scrapeOptions.{k}")),
+            );
+        }
+    }
+    let parsed = serde_json::from_value(value)
+        .map_err(|e| ApiError::invalid(format!("invalid request body: {e}")))?;
+    Ok((parsed, ignored))
+}
+
 pub fn base_url(s: &AppState, headers: &HeaderMap) -> String {
     if let Some(u) = &s.public_url {
         return u.clone();

@@ -25,8 +25,9 @@ use crate::error::{BatchError, Fallible};
 use crate::page::Page;
 
 /// `Scraper.crawl` 的选项：爬取范围，加上每页的抓取选项（`formats`、`onlyMainContent`、`engine`）。
-#[napi(object)]
-#[derive(Default)]
+#[napi(object, object_from_js = false)]
+#[derive(Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CrawlOptions {
     /// 最多抓多少页；不给时和 HTTP 接口的默认值一样。带 `adaptive` 时只是上限。
     pub limit: Option<u32>,
@@ -62,8 +63,9 @@ pub struct CrawlOptions {
 }
 
 /// `Scraper.map` 的选项。
-#[napi(object)]
-#[derive(Default)]
+#[napi(object, object_from_js = false)]
+#[derive(Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct MapOptions {
     /// 最多返回多少个链接；不给时和 HTTP 接口的默认值一样。
     pub limit: Option<u32>,

@@ -1,6 +1,7 @@
 //! Firecrawl v1/v2 request types and options.
 //! Fields and defaults align with Firecrawl source `apps/api/src/controllers/v2/types.ts`.
-//! Unknown fields in requests are ignored for backward/forward compatibility.
+//! Unknown fields are accepted by the Firecrawl-compatible routes and listed in `warnings`
+//! (`ignored_fields`, see [`crate::fields`]); pagesift's own entry points reject them.
 
 use std::collections::BTreeMap;
 
@@ -261,6 +262,13 @@ pub struct BatchScrapeRequest {
     pub webhook: Option<Value>,
     #[serde(flatten)]
     pub options: ScrapeOptions,
+}
+
+impl BatchScrapeRequest {
+    /// Its own top-level fields, besides the flattened `ScrapeOptions` (serde cannot list fields of
+    /// a struct with `flatten`; a test checks this list against the serialized form).
+    pub const OWN_FIELDS: &'static [&'static str] =
+        &["urls", "ignoreInvalidUrls", "maxConcurrency", "webhook"];
 }
 
 fn default_crawl_limit() -> usize {

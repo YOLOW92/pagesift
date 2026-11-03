@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use pagesift::api::{ApiError, ErrorCode};
+use serde_json::Value;
 use tokio::sync::{Mutex, Semaphore, mpsc};
 use tokio::task::{Id, JoinError, JoinHandle, JoinSet};
 
@@ -56,9 +57,14 @@ pub struct Scraper {
 
 #[napi]
 impl Scraper {
-    #[napi(constructor)]
-    pub fn new(env: &Env, config: Option<ScraperConfig>) -> Result<Self> {
-        let config = config.unwrap_or_default().into_core();
+    #[napi(
+        constructor,
+        ts_args_type = "config?: ScraperConfig | undefined | null"
+    )]
+    pub fn new(env: &Env, config: Option<Value>) -> Result<Self> {
+        let config = crate::error::strict::<ScraperConfig>(config)
+            .map_err(|e| error::to_js(env, &e))?
+            .into_core();
         let inner = napi::bindgen_prelude::within_runtime_if_available(|| {
             pagesift::Scraper::new(config)
         })
@@ -70,16 +76,20 @@ impl Scraper {
     }
 
     /// 抓取一个 URL。失败时 Promise 以 `PagesiftError` 拒绝。
-    #[napi(ts_return_type = "Promise<Page>")]
+    #[napi(
+        ts_args_type = "url: string, options?: ScrapeOptions | undefined | null",
+        ts_return_type = "Promise<Page>"
+    )]
     pub fn scrape<'e>(
         &self,
         env: &'e Env,
         url: String,
-        options: Option<ScrapeOptions>,
+        options: Option<Value>,
     ) -> Result<PromiseRaw<'e, Page>> {
-        let ready = self
-            .live()
-            .and_then(|core| Ok((core, options.unwrap_or_default().to_api()?)));
+        let ready = self.live().and_then(|core| {
+            let opts = crate::error::strict::<ScrapeOptions>(options)?.to_api()?;
+            Ok((core, opts))
+        });
         let fut = async move {
             Ok(match ready {
                 Ok((core, opts)) => scrape_one(&core, &url, &opts).await,
@@ -92,12 +102,15 @@ impl Scraper {
     }
 
     /// 抓取一批 URL，全部完成后一次返回，顺序和输入一致；单个失败只影响它自己的那一项。
-    #[napi(ts_return_type = "Promise<BatchItem[]>")]
+    #[napi(
+        ts_args_type = "urls: Array<string>, options?: BatchOptions | undefined | null",
+        ts_return_type = "Promise<BatchItem[]>"
+    )]
     pub fn scrape_many<'e>(
         &self,
         env: &'e Env,
         urls: Vec<String>,
-        options: Option<BatchOptions>,
+        options: Option<Value>,
     ) -> Result<PromiseRaw<'e, Vec<BatchItem>>> {
         let ready = self.batch(urls, options);
         let fut = async move {
@@ -127,12 +140,12 @@ impl Scraper {
     }
 
     /// 抓取一批 URL，按完成顺序逐个产出（`for await`）。提前 `break` 会取消还没完成的抓取。
-    #[napi]
+    #[napi(ts_args_type = "urls: Array<string>, options?: BatchOptions | undefined | null")]
     pub fn scrape_stream(
         &self,
         env: &Env,
         urls: Vec<String>,
-        options: Option<BatchOptions>,
+        options: Option<Value>,
     ) -> Result<ScrapeStream> {
         let (core, opts, urls, concurrency) = self
             .batch(urls, options)
@@ -146,29 +159,31 @@ impl Scraper {
     }
 
     /// 整站爬取，每完成一页产出一项（`for await`）；提前 `break` 或 `cancel()` 停止爬取。
-    #[napi]
-    pub fn crawl(
-        &self,
-        env: &Env,
-        url: String,
-        options: Option<CrawlOptions>,
-    ) -> Result<CrawlStream> {
+    #[napi(ts_args_type = "url: string, options?: CrawlOptions | undefined | null")]
+    pub fn crawl(&self, env: &Env, url: String, options: Option<Value>) -> Result<CrawlStream> {
         self.live()
-            .and_then(|core| crawl::start(core, url, options.unwrap_or_default()))
+            .and_then(|core| {
+                let o = crate::error::strict::<CrawlOptions>(options)?;
+                crawl::start(core, url, o)
+            })
             .map_err(|e| error::to_js(env, &e))
     }
 
     /// 站点的链接列表（sitemap 加页面上的链接）。失败时 Promise 以 `PagesiftError` 拒绝。
-    #[napi(ts_return_type = "Promise<MapLink[]>")]
+    #[napi(
+        ts_args_type = "url: string, options?: MapOptions | undefined | null",
+        ts_return_type = "Promise<MapLink[]>"
+    )]
     pub fn map<'e>(
         &self,
         env: &'e Env,
         url: String,
-        options: Option<MapOptions>,
+        options: Option<Value>,
     ) -> Result<PromiseRaw<'e, Vec<MapLink>>> {
-        let ready = self
-            .live()
-            .and_then(|core| Ok((core, crawl::map_request(url, options.unwrap_or_default())?)));
+        let ready = self.live().and_then(|core| {
+            let o = crate::error::strict::<MapOptions>(options)?;
+            Ok((core, crawl::map_request(url, o)?))
+        });
         let fut = async move {
             Ok(match ready {
                 Ok((core, req)) => core
@@ -194,9 +209,12 @@ impl Scraper {
         env: &'e Env,
         data: Uint8Array,
         filename: String,
-        options: Option<ParseOptions>,
+        options: Option<Value>,
     ) -> Result<PromiseRaw<'e, Page>> {
-        let options = options.unwrap_or_default();
+        let options = match crate::error::strict::<ParseOptions>(options) {
+            Ok(o) => o,
+            Err(e) => return Err(error::to_js(env, &e)),
+        };
         let file = FileInput {
             bytes: data.to_vec(),
             filename,
@@ -220,12 +238,12 @@ impl Scraper {
     }
 
     /// 解析一批文件，按完成顺序逐个产出（`for await`），`url` 是文件名；并发和取消语义同 `scrapeStream`。
-    #[napi]
+    #[napi(ts_args_type = "files: Array<ParseFile>, options?: BatchOptions | undefined | null")]
     pub fn parse_stream(
         &self,
         env: &Env,
         files: Vec<ParseFile>,
-        options: Option<BatchOptions>,
+        options: Option<Value>,
     ) -> Result<ScrapeStream> {
         let files: Vec<(String, FileInput)> = files
             .into_iter()
@@ -271,10 +289,10 @@ impl Scraper {
     fn batch(
         &self,
         urls: Vec<String>,
-        options: Option<BatchOptions>,
+        options: Option<Value>,
     ) -> Fallible<(Core, Arc<ApiOptions>, Vec<String>, usize)> {
         let core = self.live()?;
-        let options = options.unwrap_or_default();
+        let options = crate::error::strict::<BatchOptions>(options)?;
         let concurrency = options.concurrency.unwrap_or(DEFAULT_CONCURRENCY).max(1) as usize;
         Ok((core, Arc::new(options.to_api()?), urls, concurrency))
     }

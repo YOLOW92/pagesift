@@ -53,7 +53,8 @@ Excel（`xl/workbook.xml`）、PowerPoint（`ppt/presentation.xml`）、EPUB（`
 | `parsers` | `["pdf", "image"]` | PDF 选项见下表。 |
 | `queryFilter`、`chunking` | 无 | pagesift 扩展，同 scrape。 |
 | `proxy` | 无 | 只接受 `basic`、`auto`（不联网，无实际作用）。 |
-| `headers`、`skipTlsVerification`、`removeBase64Images`、`blockAds`、`origin`、`integration`、`zeroDataRetention` 等 | | 照收，不影响结果。 |
+| `headers`、`skipTlsVerification`、`removeBase64Images`、`blockAds`、`origin`、`integration` | | 照收，不影响结果。 |
+| 其他字段（如 `zeroDataRetention`） | | 照收、不起作用，在 `metadata.pagesift.warnings` 里列为 `ignored_fields: <字段名>`。 |
 
 不能用的选项回 400 `UNSUPPORTED_OPTION`：`actions`、`waitFor`、`location`、`mobile`、
 `engine: "browser"`、`egress`、`discoverScripts`、条件请求、`basic`/`auto` 以外的 `proxy`。

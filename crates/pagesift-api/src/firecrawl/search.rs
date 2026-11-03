@@ -5,16 +5,18 @@ use axum::extract::rejection::JsonRejection;
 use axum::extract::{Path, State};
 
 use crate::error::{ApiError, ErrorCode};
+use crate::fields;
 use crate::jobs::{JOB_TTL, rfc3339};
-use crate::server::{AppState, ExtractJob, body};
+use crate::server::{AppState, ExtractJob, lenient_body};
 use crate::types::{ExtractRequest, SearchRequest};
 use crate::validate::{check_scrape_options, check_url, check_url_count};
 
 pub async fn search(
     State(s): State<AppState>,
-    req: Result<Json<SearchRequest>, JsonRejection>,
+    req: Result<Json<serde_json::Value>, JsonRejection>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let req = body(req)?;
+    let known = [fields::names::<SearchRequest>(), fields::CLIENT_IDENTITY];
+    let (req, ignored): (SearchRequest, _) = lenient_body(req, &known)?;
     if req.query.trim().is_empty() {
         return Err(ApiError::invalid("query must not be empty"));
     }
@@ -26,19 +28,24 @@ pub async fn search(
     }
     let data = s.engine.search(&req).await?;
     let credits = data["web"].as_array().map_or(0, Vec::len);
-    Ok(Json(serde_json::json!({
+    let mut out = serde_json::json!({
         "success": true,
         "data": data,
         "creditsUsed": credits,
         "id": uuid::Uuid::new_v4().to_string(),
-    })))
+    });
+    if let Some(w) = fields::ignored_warning(&ignored) {
+        out["warnings"] = serde_json::json!([w]);
+    }
+    Ok(Json(out))
 }
 
 pub async fn extract_start(
     State(s): State<AppState>,
-    req: Result<Json<ExtractRequest>, JsonRejection>,
+    req: Result<Json<serde_json::Value>, JsonRejection>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let req = body(req)?;
+    let known = [fields::names::<ExtractRequest>(), fields::CLIENT_IDENTITY];
+    let (req, ignored): (ExtractRequest, _) = lenient_body(req, &known)?;
     if req.urls.is_empty() {
         return Err(ApiError::invalid("urls must not be empty"));
     }
@@ -92,7 +99,11 @@ pub async fn extract_start(
             }
         }
     });
-    Ok(Json(serde_json::json!({ "success": true, "id": id })))
+    let mut out = serde_json::json!({ "success": true, "id": id });
+    if let Some(w) = fields::ignored_warning(&ignored) {
+        out["warnings"] = serde_json::json!([w]);
+    }
+    Ok(Json(out))
 }
 
 pub async fn extract_status(

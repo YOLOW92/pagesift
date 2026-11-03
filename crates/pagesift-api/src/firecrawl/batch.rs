@@ -9,7 +9,7 @@ use serde::Deserialize;
 use crate::error::{ApiError, ErrorCode};
 use crate::jobs::{Start, rfc3339};
 use crate::limits::Caller;
-use crate::server::{AppState, PAGE_SIZE, base_url, body, webhook};
+use crate::server::{AppState, PAGE_SIZE, base_url, lenient_body, webhook};
 use crate::types::{BatchScrapeRequest, JobErrors, JobStarted, JobStatus};
 use crate::validate::{check_scrape_options, check_url, check_url_count};
 
@@ -24,9 +24,15 @@ pub async fn batch_start(
     caller: Option<Extension<Caller>>,
     headers: HeaderMap,
     uri: Uri,
-    req: Result<Json<BatchScrapeRequest>, JsonRejection>,
+    req: Result<Json<serde_json::Value>, JsonRejection>,
 ) -> Result<Json<JobStarted>, ApiError> {
-    let req = body(req)?;
+    use crate::fields;
+    let known = [
+        BatchScrapeRequest::OWN_FIELDS,
+        fields::names::<crate::types::ScrapeOptions>(),
+        fields::CLIENT_IDENTITY,
+    ];
+    let (req, ignored): (BatchScrapeRequest, _) = lenient_body(req, &known)?;
     check_url_count(req.urls.len())?;
     check_scrape_options(&req.options, s.engine.as_ref())?;
     let (mut valid, mut invalid) = (Vec::new(), Vec::new());
@@ -59,6 +65,7 @@ pub async fn batch_start(
         url: format!("{}{prefix}/batch/scrape/{id}", base_url(&s, &headers)),
         id,
         invalid_urls: req.ignore_invalid_urls.then_some(invalid),
+        warnings: fields::ignored_warning(&ignored).into_iter().collect(),
     }))
 }
 
