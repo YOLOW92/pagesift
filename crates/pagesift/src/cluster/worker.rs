@@ -180,7 +180,7 @@ pub async fn run(
             Err(e) => tracing::warn!("worker {}: connecting to {addr}: {e:#}", opts.link.id),
         }
         // 列表里还有没试过的网关就马上试下一个；一轮都失败再等
-        if k % opts.gateways.len() == 0 {
+        if k.is_multiple_of(opts.gateways.len()) {
             let floor = idle.rtt_hi();
             let w = idle.wait(floor);
             tokio::select! {

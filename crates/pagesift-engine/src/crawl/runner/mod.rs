@@ -283,7 +283,7 @@ impl Scraper {
         // 所有爬取结束时都报告停止原因（带查询的见 crawl_focused），绑定不用自己推断
         let stop_reason = if cancelled {
             "cancelled"
-        } else if scheduled >= req.limit && (overflow || queue.len() > 0) {
+        } else if scheduled >= req.limit && (overflow || !queue.is_empty()) {
             "limit_reached"
         } else {
             "exhausted"
@@ -388,6 +388,23 @@ impl HostFailures {
     }
 }
 
+/// 记下抓到的页面内容；和之前某页全文相同时在元数据里标出那一页，返回 true。
+fn note_duplicate(
+    learner: &mut Learner,
+    url: &Url,
+    doc: &mut pagesift_api::types::Document,
+) -> bool {
+    let md = doc.markdown.as_deref().unwrap_or_default();
+    if let Seen::Duplicate(first) = learner.observe(url, md) {
+        doc.metadata
+            .pagesift
+            .get_or_insert_with(Default::default)
+            .duplicate_of = Some(first);
+        return true;
+    }
+    false
+}
+
 #[cfg(test)]
 mod host_failure_tests {
     use super::HostFailures;
@@ -409,21 +426,4 @@ mod host_failure_tests {
         b.add("x.com", HostFailures::IMMEDIATE);
         assert!(b.blocked(&pagesift_net::Url::parse("https://x.com/a").unwrap()));
     }
-}
-
-/// 记下抓到的页面内容；和之前某页全文相同时在元数据里标出那一页，返回 true。
-fn note_duplicate(
-    learner: &mut Learner,
-    url: &Url,
-    doc: &mut pagesift_api::types::Document,
-) -> bool {
-    let md = doc.markdown.as_deref().unwrap_or_default();
-    if let Seen::Duplicate(first) = learner.observe(url, md) {
-        doc.metadata
-            .pagesift
-            .get_or_insert_with(Default::default)
-            .duplicate_of = Some(first);
-        return true;
-    }
-    false
 }

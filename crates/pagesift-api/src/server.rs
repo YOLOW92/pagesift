@@ -156,26 +156,6 @@ fn batch_concurrency(
         .max(1)
 }
 
-#[cfg(test)]
-mod batch_concurrency_tests {
-    use super::batch_concurrency;
-
-    /// 准入还没接（None）时和 0.81 完全一样：没配置是 min(请求, 8)，配置了是 min(请求, 配置)；
-    /// 准入给值以后按准入，用户配置仍是上限。
-    #[test]
-    fn admission_decides_and_the_user_caps() {
-        assert_eq!(batch_concurrency(None, None, None), 8);
-        assert_eq!(batch_concurrency(Some(20), None, None), 8);
-        assert_eq!(batch_concurrency(Some(3), None, None), 3);
-        assert_eq!(batch_concurrency(None, None, Some(32)), 32);
-        assert_eq!(batch_concurrency(Some(64), None, Some(32)), 32);
-        assert_eq!(batch_concurrency(None, Some(50), None), 50);
-        assert_eq!(batch_concurrency(None, Some(50), Some(32)), 32);
-        assert_eq!(batch_concurrency(Some(5), Some(50), None), 5);
-        assert_eq!(batch_concurrency(Some(0), Some(0), None), 1);
-    }
-}
-
 pub struct ExtractJob {
     pub status: &'static str,
     pub data: Option<serde_json::Value>,
@@ -579,4 +559,24 @@ async fn render_metrics(State(s): State<AppState>) -> impl IntoResponse {
         [(header::CONTENT_TYPE, "text/plain; version=0.0.4")],
         out,
     )
+}
+
+#[cfg(test)]
+mod batch_concurrency_tests {
+    use super::batch_concurrency;
+
+    /// 准入还没接（None）时和 0.81 完全一样：没配置是 min(请求, 8)，配置了是 min(请求, 配置)；
+    /// 准入给值以后按准入，用户配置仍是上限。
+    #[test]
+    fn admission_decides_and_the_user_caps() {
+        assert_eq!(batch_concurrency(None, None, None), 8);
+        assert_eq!(batch_concurrency(Some(20), None, None), 8);
+        assert_eq!(batch_concurrency(Some(3), None, None), 3);
+        assert_eq!(batch_concurrency(None, None, Some(32)), 32);
+        assert_eq!(batch_concurrency(Some(64), None, Some(32)), 32);
+        assert_eq!(batch_concurrency(None, Some(50), None), 50);
+        assert_eq!(batch_concurrency(None, Some(50), Some(32)), 32);
+        assert_eq!(batch_concurrency(Some(5), Some(50), None), 5);
+        assert_eq!(batch_concurrency(Some(0), Some(0), None), 1);
+    }
 }

@@ -137,7 +137,7 @@ fn saturate(n: usize) -> u32 {
 
 /// 通道里的消息：一页（成功或失败），或者爬取结束（引擎的返回值）。
 enum Event {
-    Item(CrawlItem),
+    Item(Box<CrawlItem>),
     Done(std::result::Result<(), ApiError>),
 }
 
@@ -200,7 +200,7 @@ impl ChannelSink {
             return;
         }
         // 消费方已经不在（迭代器被回收）：当作取消
-        if self.tx.send(Event::Item(item)).await.is_err() {
+        if self.tx.send(Event::Item(Box::new(item))).await.is_err() {
             self.shared.cancel();
         }
     }
@@ -380,7 +380,7 @@ impl AsyncGenerator for CrawlStream {
                 return Ok(None);
             }
             match next {
-                Some(Event::Item(item)) => Ok(Some(item)),
+                Some(Event::Item(item)) => Ok(Some(*item)),
                 Some(Event::Done(r)) => {
                     shared.ended.store(true, Ordering::Release);
                     r.map(|()| None).map_err(|e| {

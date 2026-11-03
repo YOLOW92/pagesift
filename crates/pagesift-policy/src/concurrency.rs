@@ -54,7 +54,7 @@ pub(crate) struct GlobalCtl {
 /// 改用：协调方给的"价格 = shadow_price(利用率, 服务时间)"在空闲时等于 `W` 而不是 0，量纲是秒而
 /// 等待规则要每秒，所以只取排队部分并除以价值。
 pub fn wait_price(utilization: f64, service: f64) -> f64 {
-    if !(utilization > 0.0) || !(service > 0.0) {
+    if utilization.is_nan() || utilization <= 0.0 || service.is_nan() || service <= 0.0 {
         return 0.0;
     }
     if utilization >= 1.0 {

@@ -111,7 +111,7 @@ impl Stats {
             let f = m.entry((kind, key)).or_default();
             f.pending.observe(gain);
             let due = !f.at_gateway || {
-                let mut all = f.sent.clone();
+                let mut all = f.sent;
                 pagesift_stat::Stat::merge(&mut all, &f.pending);
                 let (before, after) = (
                     f.sent.posterior(Prior::UNIFORM),
@@ -137,7 +137,7 @@ impl Stats {
             return;
         };
         let mut t = StatTable::<BetaCounts>::new(Mode::Live);
-        t.update(key, |slot| *slot = counts.clone());
+        t.update(key, |slot| *slot = counts);
         rc.publish_stats(StatsDelta {
             kind,
             seq: self.seq.fetch_add(1, Ordering::Relaxed),
@@ -176,7 +176,7 @@ impl Stats {
                     metric: PLANNER_METRIC,
                 };
                 if let Some(c) = t.get(&key).filter(|c| c.trials() > 0.0) {
-                    scraper.planner().import(k, c.clone());
+                    scraper.planner().import(k, *c);
                     lock(&self.families)
                         .entry((PLANNER, key))
                         .or_default()

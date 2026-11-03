@@ -11,6 +11,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 LOCKS=${BENCH_LOCK_DIR:-tasks/0.80}
 jobs=$(scripts/jobs.sh)
+# 磁盘余量不到 10 GiB 时先删增量编译缓存（随时可重建）：增量缓存每次改动留一份旧的，cargo 不清理，
+# 几十次编译后能涨到十几 GB，曾把 100 GB 的分区写满、编译中途失败
+free_kib=$(df --output=avail -k "${CARGO_TARGET_DIR:-target}" 2>/dev/null | tail -1 || echo 0)
+if [ "${free_kib:-0}" -lt $((10 * 1024 * 1024)) ]; then
+    find "${CARGO_TARGET_DIR:-target}" -maxdepth 2 -type d -name incremental -prune -exec rm -rf {} + 2>/dev/null || true
+fi
 dir=$(realpath -m "${CARGO_TARGET_DIR:-target}")
 slot=$(printf '%s' "$dir" | sha1sum | cut -c1-12)
 

@@ -62,12 +62,12 @@ impl LinkModel {
         let logit: f64 = self.mean.iter().zip(&xs).map(|(m, x)| m * x).sum();
         let p = 1.0 / (1.0 + (-logit).exp());
         let y = if hit { 1.0 } else { 0.0 };
-        for i in 0..=BIAS {
-            if xs[i] == 0.0 {
+        for (i, &x) in xs.iter().enumerate().take(BIAS + 1) {
+            if x == 0.0 {
                 continue;
             }
-            self.precision[i] += p * (1.0 - p) * xs[i] * xs[i];
-            self.mean[i] += (y - p) * xs[i] / self.precision[i];
+            self.precision[i] += p * (1.0 - p) * x * x;
+            self.mean[i] += (y - p) * x / self.precision[i];
         }
         let mut changed = false;
         for i in 0..FEATURES {

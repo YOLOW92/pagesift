@@ -13,8 +13,8 @@ Security fixes go into the latest release line only; upgrade to its newest patch
 
 | Version | Supported |
 |---|---|
-| 0.81.x | ✅ |
-| < 0.81 | ❌ |
+| 0.90.x | ✅ |
+| < 0.90 | ❌ |
 
 ## Reporting a vulnerability
 

@@ -54,6 +54,10 @@ impl Tiered {
         self.normal_len + self.low.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn push(&mut self, learner: &Learner, url: Url, depth: usize) {
         let key = shape_key(&url);
         if learner.demoted_key(key) {

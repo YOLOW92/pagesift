@@ -2,8 +2,8 @@
 //!
 //! - 全局在途数：USL 峰值 `N*` 的 `1−δ` 置信下界（[`crate::concurrency`]），冷启动等于
 //!   `global_concurrency`，用户写明的 `global_ceiling` 是硬上限。
-//! - 每站点并发：按并发档位的延迟梯度控制（[`GradientLimit`]，Netflix Gradient2 / TCP Vegas，
-//!），冷启动等于 `per_host_concurrency`（0.81 的 2），只在相邻档的延迟差显著时调整，
+//! - 每站点并发：按并发档位的延迟梯度控制（[`GradientLimit`]，Netflix Gradient2 / TCP Vegas），
+//!   冷启动等于 `per_host_concurrency`（0.81 的 2），只在相邻档的延迟差显著时调整，
 //!   延迟到没有排队时的 1.5 倍（0.81 的阈值）直接退一档。上限是礼貌策略（`per_host_concurrency` 本身）
 //!   和 Crawl-delay：间隔 `I` 下同时在途超过 `⌈RTT 的 1−δ 预测上界 / I⌉` 不会让请求更早开始（Little 定律）。
 //!   429 只加大请求间隔（同 0.81）。礼貌开关关闭时不设每站点上限。
@@ -646,6 +646,7 @@ mod tests {
     #[test]
     fn penalty_bisects_between_rejected_and_accepted_spacing() {
         let mut p = Penalty::default();
+        // wall-clock: only a starting point; the test advances it by hand and never measures elapsed time
         let mut now = Instant::now();
         p.throttled(now); // 0 被拒 → 250 ms（先验）
         now += PENALTY_MAX;

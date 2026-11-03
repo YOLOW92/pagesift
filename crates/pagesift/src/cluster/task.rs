@@ -53,7 +53,7 @@ impl PageTask {
 
 #[derive(Serialize, Deserialize)]
 enum Outcome {
-    Page(Document),
+    Page(Box<Document>),
     Failed(WireError),
 }
 
@@ -151,7 +151,7 @@ pub(crate) fn encode_outcome(
     r: &Result<Document, ApiError>,
 ) -> Vec<u8> {
     let outcome = match r {
-        Ok(d) => Outcome::Page(d.clone()),
+        Ok(d) => Outcome::Page(Box::new(d.clone())),
         Err(e) => Outcome::Failed(WireError {
             code: e.code.as_str().to_owned(),
             message: e.message.clone(),
@@ -194,7 +194,7 @@ pub(crate) fn decode_outcome(bytes: &[u8]) -> Reply {
 
 fn outcome(o: Outcome) -> Result<Document, ApiError> {
     match o {
-        Outcome::Page(d) => Ok(d),
+        Outcome::Page(d) => Ok(*d),
         Outcome::Failed(w) => {
             let (code, message) = match CODES.iter().find(|c| c.as_str() == w.code) {
                 Some(&c) => (c, w.message),

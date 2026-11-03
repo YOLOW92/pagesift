@@ -5,6 +5,7 @@ use super::*;
 pub(super) use super::render_stats::LAUNCH_RETRY;
 
 impl Scraper {
+    #[allow(clippy::too_many_arguments)] // 渲染入口：请求参数、进度、HTTP 升级来的基线和出口，只在抓取流程里调用
     pub(super) async fn render(
         &self,
         url: &str,
