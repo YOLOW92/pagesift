@@ -1,9 +1,12 @@
 //! 纯 Rust 的小型神经网络推理：张量、卷积与 Transformer 层、safetensors 权重读取。
-//! 给 OCR（PP-OCRv6 检测与识别）用，只做前向、批大小 1、f32。
+//! 给 OCR（PP-OCRv6 检测与识别）用，只做前向、f32。接口上批大小是 1；拼批和 GPU 经 [`exec`] 与
+//! [`backend`] 两个接缝接入，见各自的说明。
 //!
 //! 约定：图像特征是 `[C, H, W]`（PyTorch 的 NCHW 去掉 N），序列是 `[T, C]`。各算子的语义与
 //! PyTorch 同名算子一致（`torch.nn.functional`），实现上可以换更快的算法，但结果只允许浮点舍入差。
 
+pub mod backend;
+pub mod exec;
 mod fastmath;
 mod nn;
 pub mod ops;

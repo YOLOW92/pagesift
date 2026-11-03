@@ -258,3 +258,47 @@ fn info_and_probe_agree() {
     assert!(e.contains("9999"), "{e}");
     assert!(Gpu::open_index(9999).is_err());
 }
+
+/// 透明分流：模型直接调 `ops`，大算子按实测开销走 GPU，小算子留在 CPU，结果都和 CPU 一致。
+#[test]
+fn backend_offloads_by_measured_cost() {
+    if gpu().is_none() {
+        return;
+    }
+    let worker = std::sync::Arc::new(pagesift_gpu::Worker::spawn(0).unwrap());
+    let b = pagesift_gpu::GpuBackend::new(worker).unwrap();
+    let c = b.costs();
+    eprintln!("实测开销：{c:?}");
+    assert!(c.latency > 0.0 && c.up > 0.0 && c.down > 0.0, "{c:?}");
+    let mut rng = Rng(0x1234_5678_9abc_def1);
+
+    // 公式编码器全局注意力的形状（48² 个 token、线性层 768 维）
+    let (big_a, big_b) = (rng.tensor(vec![2304, 768]), rng.tensor(vec![768, 2304]));
+    let (small_a, small_b) = (rng.tensor(vec![4, 8]), rng.tensor(vec![8, 4]));
+    let x = rng.tensor(vec![128, 256, 256]);
+    let w = rng.tensor(vec![128, 128, 3, 3]);
+    let bias: Vec<f32> = (0..128).map(|_| rng.next()).collect();
+
+    let cpu_big = ops::matmul(&big_a, &big_b);
+    let cpu_small = ops::matmul(&small_a, &small_b);
+    let cpu_conv = ops::conv2d(&x, &w, Some(&bias), (1, 1), (1, 1), (1, 1), 1);
+    let (got_big, got_small, got_conv) = pagesift_infer::backend::scoped(&b, || {
+        let before = b.offloaded();
+        let s = ops::matmul(&small_a, &small_b);
+        assert_eq!(b.offloaded(), before, "这么小的矩阵乘不该走 GPU");
+        let big = ops::matmul(&big_a, &big_b);
+        // 权重走两次：第二次命中内容哈希缓存，结果也要一样
+        let first = ops::conv2d(&x, &w, Some(&bias), (1, 1), (1, 1), (1, 1), 1);
+        let second = ops::conv2d(&x, &w, Some(&bias), (1, 1), (1, 1), (1, 1), 1);
+        assert_eq!(first.data, second.data);
+        (big, s, first)
+    });
+    assert_eq!(b.last_error(), None);
+    assert_eq!(got_small.data, cpu_small.data);
+    assert!(norm_rel_err(&got_big.data, &cpu_big.data) <= TOL);
+    assert!(norm_rel_err(&got_conv.data, &cpu_conv.data) <= TOL);
+    eprintln!("走 GPU 的算子：{}", b.offloaded());
+    if c.gemm_on_gpu((2304, 2304, 768), false) {
+        assert!(b.offloaded() > 0, "开销模型说该走 GPU，实际没走");
+    }
+}

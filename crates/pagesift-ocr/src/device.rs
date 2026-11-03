@@ -21,7 +21,8 @@ pub struct DeviceStatus {
     pub actual: Device,
     /// `actual` 是 GPU 时它的情况（显存空闲量是打开时的值）。
     pub gpu: Option<GpuInfo>,
-    /// 退回 CPU 的原因；没有退回（包括本来就要 CPU）时为 None。
+    /// 退回 CPU 的原因；没有退回（包括本来就要 CPU）时为 None。`actual` 仍是 GPU 而这里有值，
+    /// 说明只有个别页、行因为显存不够在 CPU 上算过。
     pub fallback: Option<String>,
 }
 
@@ -31,6 +32,7 @@ impl DeviceStatus {
         self.fallback.is_some()
     }
 
+    /// 不想用 GPU。
     pub(crate) fn cpu() -> DeviceStatus {
         DeviceStatus {
             requested: Device::Cpu,
@@ -40,6 +42,7 @@ impl DeviceStatus {
         }
     }
 
+    /// GPU 打不开，退回 CPU。
     pub(crate) fn fallback(index: usize, why: String) -> DeviceStatus {
         DeviceStatus {
             requested: Device::Gpu { index },
@@ -49,19 +52,14 @@ impl DeviceStatus {
         }
     }
 
-    /// 先只查设备情况；真正打开在 [`crate::pipeline::Engine::load_with`] 里。
-    pub(crate) fn open(device: Device) -> DeviceStatus {
-        let Device::Gpu { index } = device else {
-            return DeviceStatus::cpu();
-        };
-        match pagesift_gpu::probe(index) {
-            Ok(info) => DeviceStatus {
-                requested: device,
-                actual: device,
-                gpu: Some(info),
-                fallback: None,
-            },
-            Err(why) => DeviceStatus::fallback(index, why),
+    /// GPU 打开了。
+    pub(crate) fn on_gpu(index: usize, info: GpuInfo) -> DeviceStatus {
+        let device = Device::Gpu { index };
+        DeviceStatus {
+            requested: device,
+            actual: device,
+            gpu: Some(info),
+            fallback: None,
         }
     }
 }
@@ -146,7 +144,8 @@ mod tests {
 
     #[test]
     fn 不存在的显卡退回_cpu_并带原因() {
-        let s = DeviceStatus::open(Device::Gpu { index: 9999 });
+        let e = pagesift_gpu::probe(9999).unwrap_err();
+        let s = DeviceStatus::fallback(9999, e);
         assert_eq!(s.actual, Device::Cpu);
         assert!(s.fell_back());
         assert_eq!(s.requested, Device::Gpu { index: 9999 });

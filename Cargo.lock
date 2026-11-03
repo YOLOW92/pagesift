@@ -1762,6 +1762,7 @@ dependencies = [
  "pagesift-gpu",
  "pagesift-infer",
  "pagesift-pdf",
+ "pagesift-stat",
  "serde_json",
  "sha2",
 ]

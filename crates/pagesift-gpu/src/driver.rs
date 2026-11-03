@@ -139,7 +139,7 @@ impl Driver {
         let h = unsafe { dlopen(lib.as_ptr(), RTLD_NOW) };
         if h.is_null() {
             return Err(format!(
-                "载入 {} 失败：没有安装 NVIDIA 驱动",
+                "failed to load {}: NVIDIA driver not installed",
                 lib.to_string_lossy()
             ));
         }
@@ -147,7 +147,7 @@ impl Driver {
             let c = CString::new(name).map_err(|e| e.to_string())?;
             let p = unsafe { dlsym(h, c.as_ptr()) };
             if p.is_null() {
-                Err(format!("驱动缺少函数 {name}（驱动太旧？）"))
+                Err(format!("driver lacks function {name} (driver too old?)"))
             } else {
                 Ok(p)
             }
@@ -190,7 +190,7 @@ impl Driver {
 
     #[cfg(not(unix))]
     pub(crate) fn load() -> Result<Driver, String> {
-        Err("GPU 后端只支持 Linux 上的 NVIDIA 驱动".into())
+        Err("the GPU backend only supports the NVIDIA driver on Linux".into())
     }
 
     /// 把驱动返回码转成 `Result`，错误信息带上调用名和驱动给的说明。
@@ -201,10 +201,10 @@ impl Driver {
         let mut s: *const c_char = std::ptr::null();
         unsafe { (self.get_error_string)(r, &mut s) };
         let msg = if s.is_null() {
-            "未知错误".into()
+            "unknown error".into()
         } else {
             unsafe { CStr::from_ptr(s) }.to_string_lossy().into_owned()
         };
-        Err(format!("{what} 失败：错误码 {r}（{msg}）"))
+        Err(format!("{what} failed: error {r} ({msg})"))
     }
 }

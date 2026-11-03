@@ -10,7 +10,7 @@ mod reference;
 #[cfg(test)]
 mod tests;
 
-use crate::{Tensor, par};
+use crate::{Tensor, backend, par};
 
 /// 二维卷积（`F.conv2d`）。`x` 是 `[C, H, W]`，`w` 是 `[O, C/groups, kh, kw]`；
 /// `pad` 是上下、左右各补的 0，`stride`、`dilation` 按 (行, 列)。
@@ -30,6 +30,11 @@ pub fn conv2d(
     assert_eq!(o % groups, 0, "输出通道 {o} 不能被 groups {groups} 整除");
     let oh = (h + 2 * pad.0 - dilation.0 * (kh - 1) - 1) / stride.0 + 1;
     let ow = (wd + 2 * pad.1 - dilation.1 * (kw - 1) - 1) / stride.1 + 1;
+    if let Some(data) =
+        backend::current().and_then(|b| b.conv2d(x, w, bias, stride, pad, dilation, groups))
+    {
+        return Tensor::new(vec![o, oh, ow], data);
+    }
     let g = conv::Geom {
         stride,
         pad,
@@ -202,9 +207,17 @@ pub fn interpolate_nearest(x: &Tensor, oh: usize, ow: usize) -> Tensor {
 
 /// 矩阵乘：`a` 是 `[M, K]`，`b` 是 `[K, N]`，结果 `[M, N]`。
 pub fn matmul(a: &Tensor, b: &Tensor) -> Tensor {
+    matmul_with(a, b, false)
+}
+
+/// 同 [`matmul`]，`b_is_weight` 告诉后端 `b` 是长期不变的权重（`Linear` 用），值得缓存在显存。
+pub(crate) fn matmul_with(a: &Tensor, b: &Tensor, b_is_weight: bool) -> Tensor {
     let (m, k) = a.tc();
     let (kb, n) = b.tc();
     assert_eq!(k, kb, "矩阵乘的内维不同");
+    if let Some(data) = backend::current().and_then(|d| d.matmul(a, b, b_is_weight)) {
+        return Tensor::new(vec![m, n], data);
+    }
     Tensor::new(
         vec![m, n],
         gemm::gemm_new((m, n, k), &a.data, k, &b.data, n, None),

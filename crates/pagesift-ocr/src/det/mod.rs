@@ -1,4 +1,5 @@
-//! 文字检测（PP-OCRv6 small det：LCNetV4 骨干 + RepLKFPN 颈部 + DB 头 + DB 后处理）。
+//! 文字检测（PP-OCRv6 small 和 medium det：LCNetV4 骨干 + 颈部（small 是 RepLKFPN，medium 是
+//! LK-PAN + 类内关系块）+ DB 头 + DB 后处理）。
 //!
 //! 流程：预处理（[`preprocess`]）→ 骨干（[`crate::lcnet`]）→ 颈部与头（[`neck`]）得到与
 //! 网络输入同尺寸的文字概率图 → DB 后处理（[`postprocess`]，几何在 [`geometry`]、轮廓在
@@ -7,10 +8,14 @@
 pub mod contour;
 pub mod geometry;
 pub mod neck;
+pub mod neck_medium;
 pub mod postprocess;
 pub mod preprocess;
 
 use std::path::Path;
+
+use pagesift_infer::Tensor;
+use pagesift_infer::exec::{Cpu, Exec};
 
 use crate::{Image, Quad, lcnet};
 use postprocess::{DbParams, ProbMap};
@@ -19,11 +24,17 @@ use preprocess::Preprocess;
 /// [策略] 阅读顺序里“同一行”的容差（原图像素），同 PaddleOCR `sorted_boxes` 的 10
 const LINE_TOL: f32 = 10.0;
 
+/// 两档模型的颈部。
+enum AnyNeck {
+    Small(neck::Neck),
+    Medium(neck_medium::MediumNeck),
+}
+
 /// 载入好的检测模型。
 pub struct Det {
     pre: Preprocess,
     backbone: lcnet::Backbone,
-    neck: neck::Neck,
+    neck: AnyNeck,
     head: neck::Head,
     /// DB 后处理参数；缺省同参考实现，可按需调整。
     pub params: DbParams,
@@ -36,37 +47,60 @@ impl Det {
         let pre = Preprocess::from_json(&crate::read_json(dir, "preprocessor_config.json")?)?;
         let w = crate::read_weights(dir)?;
         let bcfg = lcnet::Config::from_json(&cfg)?;
-        let ncfg = neck::NeckConfig::from_json(&cfg)?;
+        // [协议] 权重名前缀：model.backbone.encoder、model.neck、head；
+        // model_type 区分两档结构（config.json）
+        let neck = match cfg["model_type"].as_str().unwrap_or("") {
+            "pp_ocrv6_medium_det" => {
+                AnyNeck::Medium(neck_medium::MediumNeck::load(&w, "model.neck")?)
+            }
+            _ => AnyNeck::Small(neck::Neck::load(
+                &w,
+                "model.neck",
+                &neck::NeckConfig::from_json(&cfg)?,
+            )?),
+        };
         Ok(Det {
             pre,
-            // [协议] 权重名前缀：model.backbone.encoder、model.neck、head
             backbone: lcnet::Backbone::load(&w, "model.backbone.encoder", &bcfg)?,
-            neck: neck::Neck::load(&w, "model.neck", &ncfg)?,
-            head: neck::Head::load(&w, "head", &ncfg)?,
+            neck,
+            head: neck::Head::load(&w, "head", neck::head_kernels(&cfg)?)?,
             params: DbParams::default(),
         })
     }
 
     /// 整页图 → 文字概率图（网络输入尺寸，按行存放）及其宽、高。
     pub fn prob_map(&self, page: &Image) -> Result<(Vec<f32>, usize, usize), String> {
+        let x = self.preprocess(page)?;
+        let prob = self.prob_on(&Cpu, &x)?;
+        let (_, h, w) = prob.chw();
+        Ok((prob.data, w, h))
+    }
+
+    /// 预处理整页图成网络输入 `[3, H, W]`。
+    pub fn preprocess(&self, page: &Image) -> Result<Tensor, String> {
         if page.width == 0 || page.height == 0 {
             return Err("图像为空".into());
         }
         if page.channels != 1 && page.channels != 3 {
             return Err(format!("只支持灰度或 RGB 图，实际 {} 通道", page.channels));
         }
-        let x = self.pre.run(page);
-        let feats = self.backbone.forward(&x);
-        let fused = self.neck.forward(&feats)?;
-        let prob = self.head.forward(&fused);
-        let (_, h, w) = prob.chw();
-        if (h, w) != (x.shape[1], x.shape[2]) {
-            return Err(format!(
-                "概率图尺寸 {h}×{w} 与输入 {}×{} 不符",
-                x.shape[1], x.shape[2]
-            ));
+        Ok(self.pre.run(page))
+    }
+
+    /// 网络部分：`[3, H, W]` → `[1, H, W]` 的概率图，在执行器上算。
+    pub fn prob_on<E: Exec>(&self, e: &E, x: &E::T) -> Result<E::T, String> {
+        let feats = self.backbone.forward_on(e, x);
+        let fused = match &self.neck {
+            AnyNeck::Small(n) => n.forward_on(e, &feats)?,
+            AnyNeck::Medium(n) => n.forward_on(e, &feats)?,
+        };
+        drop(feats);
+        let prob = self.head.forward_on(e, &fused);
+        let (got, want) = (e.shape(&prob), e.shape(x));
+        if got[1..] != want[1..] {
+            return Err(format!("概率图尺寸 {got:?} 与输入 {want:?} 不符"));
         }
-        Ok((prob.data, w, h))
+        Ok(prob)
     }
 
     /// 检测整页图里的文字行，返回各行的四边形（原图像素坐标），从上到下、从左到右排好。

@@ -12,7 +12,7 @@ use crate::buffer::{Args, DeviceBuffer};
 use crate::driver::DevPtr;
 
 /// 一维内核每块的线程数，与 `kernels/src/lib.rs` 的约定一致。
-const BLOCK_1D: u32 = 256; // [策略] 256 线程/块：Pascal 每 SM 可驻留 2048 线程，8 块就能占满
+pub(crate) const BLOCK_1D: u32 = 256; // [策略] 256 线程/块：Pascal 每 SM 可驻留 2048 线程，8 块就能占满
 /// SGEMM 每块算的 C 子块边长与线程块边长，与 `kernels/src/gemm.rs` 的 BM/BN 和 16×16 线程一致。
 const GEMM_TILE: usize = 64; // [推导] kernels/src/gemm.rs：BM = BN = 64
 const GEMM_SIDE: u32 = 16; // [推导] kernels/src/gemm.rs：每块 16×16 线程
@@ -45,6 +45,19 @@ impl ConvShape {
         (oh, ow)
     }
 
+    /// 要不要先 im2col：深度卷积走直接内核，1×1、步长 1、不补边时输入本身就是 GEMM 的 B。
+    pub(crate) fn needs_col(&self) -> bool {
+        let depthwise = self.c == self.groups;
+        let direct = self.kh == 1 && self.kw == 1 && self.stride == (1, 1) && self.pad == (0, 0);
+        !depthwise && !direct
+    }
+
+    /// 单个样本 im2col 展开后的元素数。
+    pub(crate) fn col_len(&self) -> usize {
+        let (oh, ow) = self.out_hw();
+        self.c * self.kh * self.kw * oh * ow
+    }
+
     /// 与 CPU 版相同的形状检查（不合法就 panic，属于调用方的编程错误）。
     fn check(&self) {
         assert!(
@@ -72,14 +85,19 @@ impl ConvShape {
     }
 }
 
-fn blocks_1d(n: usize) -> u32 {
+/// `n` 个 f32 的字节数，用于设备地址的偏移。
+fn bytes_of(n: usize) -> u64 {
+    crate::pool::bytes(n)
+}
+
+pub(crate) fn blocks_1d(n: usize) -> u32 {
     u32::try_from(n.div_ceil(BLOCK_1D as usize)).expect("一维网格超出 u32")
 }
 
 impl Gpu {
     /// 批量 SGEMM：对 z ∈ 0..batch，`C_z[m×n] = A_z[m×k] · B_z[k×n]`，`A_z = a + z·sa`（单位：元素）。
     #[allow(clippy::too_many_arguments)]
-    fn sgemm_raw(
+    pub(crate) fn sgemm_raw(
         &self,
         a: DevPtr,
         b: DevPtr,
@@ -90,7 +108,7 @@ impl Gpu {
     ) -> Result<(), String> {
         let gy = m.div_ceil(GEMM_TILE);
         if gy > GRID_YZ_MAX || batch > GRID_YZ_MAX {
-            return Err(format!("SGEMM 网格超限：M = {m}、批次 {batch}"));
+            return Err(format!("SGEMM grid too large: M = {m}, batch {batch}"));
         }
         let grid = (
             u32::try_from(n.div_ceil(GEMM_TILE)).map_err(|e| e.to_string())?,
@@ -153,7 +171,6 @@ impl Gpu {
     ) -> Result<(), String> {
         s.check();
         let cg = s.c / s.groups;
-        let og = s.o / s.groups;
         assert_eq!(x.len(), s.c * s.h * s.w, "输入长度与形状不符");
         assert_eq!(w.len(), s.o * cg * s.kh * s.kw, "权重长度与形状不符");
         assert!(
@@ -167,10 +184,48 @@ impl Gpu {
         let col_len = s.c * s.kh * s.kw * ohw;
         if out.len() > u32::MAX as usize || col_len > u32::MAX as usize {
             return Err(format!(
-                "卷积太大：输出 {} 个元素、展开 {col_len} 个元素，超过 2³²",
+                "convolution too large: {} output and {col_len} unfolded elements exceed 2^32",
                 out.len()
             ));
         }
+        let col = if s.needs_col() {
+            Some(self.alloc(col_len)?)
+        } else {
+            None
+        };
+        self.conv_raw(
+            x.ptr(),
+            w.ptr(),
+            bias.map(|b| b.ptr()),
+            s,
+            1,
+            out.ptr(),
+            col.as_ref().map(|c| c.ptr()),
+        )?;
+        // col 在这里释放：cuMemFree 会等用到它的内核跑完
+        drop(col);
+        Ok(())
+    }
+
+    /// 一批 `n` 个样本的卷积，全部用设备地址：`x` 是 `[n, c, h, w]`，`out` 是 `[n, o, OH, OW]`，
+    /// 权重和偏置各样本共用；`col` 是 im2col 的临时缓冲（`n·col_len` 个元素），不需要时为 None。
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn conv_raw(
+        &self,
+        x: DevPtr,
+        w: DevPtr,
+        bias: Option<DevPtr>,
+        s: &ConvShape,
+        n: usize,
+        out: DevPtr,
+        col: Option<DevPtr>,
+    ) -> Result<(), String> {
+        s.check();
+        let cg = s.c / s.groups;
+        let og = s.o / s.groups;
+        let (oh, ow) = s.out_hw();
+        let ohw = oh * ow;
+        let total = n * s.o * ohw;
         let geom = |a: Args| {
             a.u32(s.h)
                 .u32(s.w)
@@ -186,59 +241,71 @@ impl Gpu {
                 .u32(ow)
         };
         if cg == 1 {
-            // 深度卷积：直接内核，偏置在内核里加
+            // 深度卷积：直接内核，偏置在内核里加；权重、偏置按 oc % o 取，各样本共用
             let args = Args::default()
-                .ptr(x)
-                .ptr(w)
-                .opt_ptr(bias)
-                .ptr(out)
-                .u32(s.o)
+                .raw_ptr(x)
+                .raw_ptr(w)
+                .raw_ptr(bias.unwrap_or(0))
+                .raw_ptr(out)
+                .u32(n * s.o)
                 .u32(og)
+                .u32(s.o)
                 .u32(bias.is_some() as usize);
-            self.launch(
+            return self.launch(
                 self.k.depthwise,
-                (blocks_1d(s.o * ohw), 1, 1),
+                (blocks_1d(total), 1, 1),
                 (BLOCK_1D, 1, 1),
                 geom(args),
-            )?;
-            return Ok(());
+            );
         }
         let kk = cg * s.kh * s.kw; // GEMM 的 K：每组一个输出元素用到的输入个数
-        let direct = s.kh == 1 && s.kw == 1 && s.stride == (1, 1) && s.pad == (0, 0);
-        let col = if direct {
-            None // 1×1：x 的 [c, h·w] 本身就是 B
-        } else {
-            let col = self.alloc(col_len)?;
-            let args = geom(Args::default().ptr(x).ptr(&col).u32(s.c));
-            self.launch(
-                self.k.im2col,
-                (blocks_1d(col.len()), 1, 1),
-                (BLOCK_1D, 1, 1),
-                args,
-            )?;
-            Some(col)
+        let b = match col {
+            None => x, // 1×1：x 的 [c, h·w] 本身就是 B
+            Some(col) => {
+                let len = n * s.col_len();
+                let args = geom(Args::default().raw_ptr(x).raw_ptr(col).u32(n * s.c));
+                self.launch(
+                    self.k.im2col,
+                    (blocks_1d(len), 1, 1),
+                    (BLOCK_1D, 1, 1),
+                    args,
+                )?;
+                col
+            }
         };
-        let b = col.as_ref().map_or(x.ptr(), |c| c.ptr());
         // 组 g：A = 权重第 g·og 行起的 [og, kk]；B = 第 g·kk 行起的 [kk, ohw]；C = 输出第 g·og 个通道起
-        self.sgemm_raw(
-            w.ptr(),
-            b,
-            out.ptr(),
-            (og, ohw, kk),
-            s.groups,
-            (og * kk, kk * ohw, og * ohw),
-        )?;
+        let (sb, sc) = (kk * ohw, og * ohw);
+        if s.groups == 1 {
+            // 批次沿 z 维：权重不动（sa = 0），B、C 按样本走
+            self.sgemm_raw(w, b, out, (og, ohw, kk), n, (0, sb, sc))?;
+        } else {
+            // 分组又有批次：每个样本一次，A 的步长已被组占用
+            for z in 0..n {
+                let off = |per: usize| bytes_of(z * s.groups * per);
+                self.sgemm_raw(
+                    w,
+                    b + off(sb),
+                    out + off(sc),
+                    (og, ohw, kk),
+                    s.groups,
+                    (og * kk, sb, sc),
+                )?;
+            }
+        }
         if let Some(bias) = bias {
-            let args = Args::default().ptr(out).ptr(bias).u32(ohw).u32(out.len());
+            let args = Args::default()
+                .raw_ptr(out)
+                .raw_ptr(bias)
+                .u32(ohw)
+                .u32(s.o)
+                .u32(total);
             self.launch(
                 self.k.add_bias,
-                (blocks_1d(out.len()), 1, 1),
+                (blocks_1d(total), 1, 1),
                 (BLOCK_1D, 1, 1),
                 args,
             )?;
         }
-        // col 在这里释放：cuMemFree 会等用到它的内核跑完
-        drop(col);
         Ok(())
     }
 
@@ -264,7 +331,12 @@ impl Gpu {
         hw: usize,
     ) -> Result<(), String> {
         assert_eq!(x.len(), bias.len() * hw, "偏置长度与张量形状不符");
-        let args = Args::default().ptr(x).ptr(bias).u32(hw).u32(x.len());
+        let args = Args::default()
+            .ptr(x)
+            .ptr(bias)
+            .u32(hw)
+            .u32(bias.len())
+            .u32(x.len());
         self.launch(
             self.k.add_bias,
             (blocks_1d(x.len()), 1, 1),

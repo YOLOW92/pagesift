@@ -1,6 +1,6 @@
 //! 带权重的层（语义同 `torch.nn` 的同名模块），从 [`Weights`] 按前缀取参数。
 
-use crate::{Tensor, Weights, fastmath, ops, par};
+use crate::{Tensor, Weights, backend, fastmath, ops, par};
 
 /// 激活函数（语义同 transformers 的 `ACT2FN` 与 `torch.nn` 的同名模块）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,6 +33,9 @@ impl Activation {
     /// 对每个元素做 [`apply`](Self::apply)。大张量切段多线程，结果与逐个调用逐位相同。
     pub fn apply_all(self, t: &mut Tensor) {
         if self == Activation::Identity {
+            return;
+        }
+        if backend::current().is_some_and(|b| b.activate(&mut t.data, self)) {
             return;
         }
         // [推导] 每个元素折合的乘加次数（实测）：含 exp 的（GELU 里的 erf 也是）SSE2 下约 2.5 ns 一个，
@@ -246,7 +249,7 @@ impl Linear {
     }
 
     pub fn forward(&self, x: &Tensor) -> Tensor {
-        let mut y = ops::matmul(x, &self.weight_t);
+        let mut y = ops::matmul_with(x, &self.weight_t, true);
         if let Some(b) = &self.bias {
             for row in y.data.chunks_mut(b.len()) {
                 for (v, b) in row.iter_mut().zip(b) {

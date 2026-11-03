@@ -3,9 +3,16 @@
 //! 高是宽的 1.5 倍以上时当作竖排，转 90°。
 
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
+
+use pagesift_gpu::{GpuBackend, is_oom};
+use pagesift_infer::{Tensor, backend};
 
 use crate::det::Det;
 use crate::device::{Device, DeviceStatus};
+use crate::gpu_run::{GpuRunner, GpuStats};
+use crate::layout::Region;
 use crate::math::{Math, inside_any};
 use crate::rec::Rec;
 use crate::{Image, Line, Quad};
@@ -18,9 +25,14 @@ const MIN_SCORE: f32 = 0.5;
 
 /// 检测加识别。
 pub struct Engine {
-    det: Det,
-    rec: Rec,
-    status: DeviceStatus,
+    det: Arc<Det>,
+    rec: Arc<Rec>,
+    /// GPU 打不开或出过无法恢复的错时为 None / 被 `gpu_off` 关掉。
+    gpu: Option<GpuRunner>,
+    gpu_off: AtomicBool,
+    status: Mutex<DeviceStatus>,
+    /// 透明分流的后端，第一次要用时才校准。
+    backend: OnceLock<Option<GpuBackend>>,
     /// 行间公式（可选，模型大、每个公式要几秒）。
     math: Option<Math>,
 }
@@ -34,10 +46,25 @@ impl Engine {
     /// 载入模型并打开 `device`。GPU 打不开（没有驱动、PTX 编译失败、`PAGESIFT_GPU=off` 等）不算
     /// 错误：退回 CPU，原因见 [`Engine::device_status`]。只有模型文件的问题才返回 `Err`。
     pub fn load_with(det_dir: &Path, rec_dir: &Path, device: Device) -> Result<Engine, String> {
+        let det = Arc::new(Det::load(det_dir)?);
+        let rec = Arc::new(Rec::load(rec_dir)?);
+        let (gpu, status) = match device {
+            Device::Cpu => (None, DeviceStatus::cpu()),
+            Device::Gpu { index } => match GpuRunner::start(index, det.clone(), rec.clone()) {
+                Ok(g) => {
+                    let info = g.worker().info().clone();
+                    (Some(g), DeviceStatus::on_gpu(index, info))
+                }
+                Err(why) => (None, DeviceStatus::fallback(index, why)),
+            },
+        };
         Ok(Engine {
-            det: Det::load(det_dir)?,
-            rec: Rec::load(rec_dir)?,
-            status: DeviceStatus::open(device),
+            det,
+            rec,
+            gpu,
+            gpu_off: AtomicBool::new(false),
+            status: Mutex::new(status),
+            backend: OnceLock::new(),
             math: None,
         })
     }
@@ -50,18 +77,86 @@ impl Engine {
 
     /// 实际用的设备、是否退回了 CPU、退回原因。
     pub fn device_status(&self) -> DeviceStatus {
-        self.status.clone()
+        self.status
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
-    /// 识别整页图，按检测给的顺序（从上到下、从左到右）返回各行。
+    /// GPU 的显存和批次统计；没在用 GPU 时为 None。
+    pub fn gpu_stats(&self) -> Option<GpuStats> {
+        self.gpu.as_ref().map(GpuRunner::stats)
+    }
+
+    /// 在 `f` 里，当前线程直接调 `pagesift_infer::ops` 和 `nn` 层的模型（公式、版面）按实测开销把大算子
+    /// 分流到 GPU。没有 GPU 时就是直接调 `f`。第一次调用会校准几十毫秒。
+    pub fn with_gpu_ops<R>(&self, f: impl FnOnce() -> R) -> R {
+        let b = self.backend.get_or_init(|| {
+            let g = self.gpu.as_ref()?;
+            match GpuBackend::new(g.worker().clone()) {
+                Ok(b) => Some(b),
+                Err(e) => {
+                    self.note_fallback(&format!("GPU calibration failed: {e}"), false);
+                    None
+                }
+            }
+        });
+        match (b, self.gpu_active()) {
+            (Some(b), Some(_)) => backend::scoped(b, f),
+            _ => f(),
+        }
+    }
+
+    fn gpu_active(&self) -> Option<&GpuRunner> {
+        self.gpu
+            .as_ref()
+            .filter(|_| !self.gpu_off.load(Ordering::Relaxed))
+    }
+
+    /// 记下退回的原因；`permanent` 时之后都不再用 GPU。
+    fn note_fallback(&self, why: &str, permanent: bool) {
+        let mut s = self.status.lock().unwrap_or_else(|e| e.into_inner());
+        s.fallback = Some(why.to_owned());
+        if permanent {
+            self.gpu_off.store(true, Ordering::Relaxed);
+            s.actual = Device::Cpu;
+        }
+    }
+
+    /// 识别整页图，按检测给的顺序（从上到下、从左到右）返回各行；有公式模型时公式排在最后。
+    /// 版面和公式模型直接调 `ops`，经 [`Engine::with_gpu_ops`] 把大算子分流到 GPU。
     pub fn run(&self, page: &Image) -> Result<Vec<Line>, String> {
         let formulas = match &self.math {
-            Some(m) => m.formula_boxes(page)?,
+            Some(m) => self.with_gpu_ops(|| m.formula_boxes(page))?,
             None => Vec::new(),
         };
+        let mut out = self.run_text(page, &formulas)?;
+        crate::script::drop_stray_east_asian(&mut out);
+        if let Some(m) = &self.math {
+            for r in &formulas {
+                out.extend(self.with_gpu_ops(|| m.recognize(page, r))?);
+            }
+        }
+        Ok(out)
+    }
+
+    /// 文字行：优先 GPU，GPU 出了显存不足以外的错就从此退回 CPU。
+    fn run_text(&self, page: &Image, formulas: &[Region]) -> Result<Vec<Line>, String> {
+        if let Some(g) = self.gpu_active() {
+            match self.run_gpu(g, page, formulas) {
+                Ok(lines) => return Ok(lines),
+                // 模型输入本身的问题（空图等）换设备也没用，别的都是 GPU 的问题
+                Err(RunError::Input(e)) => return Err(e),
+                Err(RunError::Gpu(e)) => self.note_fallback(&e, true),
+            }
+        }
+        self.run_cpu(page, formulas)
+    }
+
+    fn run_cpu(&self, page: &Image, formulas: &[Region]) -> Result<Vec<Line>, String> {
         let mut out = Vec::new();
         for quad in self.det.detect(page)? {
-            if inside_any(&quad, &formulas) {
+            if inside_any(&quad, formulas) {
                 continue;
             }
             let crop = crop(page, &quad);
@@ -78,14 +173,101 @@ impl Engine {
                 });
             }
         }
-        crate::script::drop_stray_east_asian(&mut out);
-        if let Some(m) = &self.math {
-            for r in &formulas {
-                out.extend(m.recognize(page, r)?);
+        Ok(out)
+    }
+
+    /// 流程和 [`Engine::run_cpu`] 一样，只是检测网络在工人上跑、各行拼批。显存不够的页、行单独退回 CPU。
+    fn run_gpu(
+        &self,
+        g: &GpuRunner,
+        page: &Image,
+        formulas: &[Region],
+    ) -> Result<Vec<Line>, RunError> {
+        let _page = g.page();
+        let x = self.det.preprocess(page).map_err(RunError::Input)?;
+        let (prob, w, h) = match g.prob_map(&x) {
+            Ok(r) => r,
+            Err(e) if is_oom(&e) => {
+                self.note_fallback(&e, false);
+                self.det.prob_map(page).map_err(RunError::Input)?
+            }
+            Err(e) => return Err(RunError::Gpu(e)),
+        };
+        drop(x);
+        let quads: Vec<Quad> = self
+            .det
+            .boxes_from_prob(&prob, w, h, page.width, page.height)
+            .into_iter()
+            .map(|(q, _)| q)
+            .filter(|q| !inside_any(q, formulas))
+            .collect();
+        drop(prob);
+        let inputs = self.crop_inputs(page, &quads).map_err(RunError::Input)?;
+        let (kept, xs): (Vec<usize>, Vec<Tensor>) = inputs.into_iter().unzip();
+        let digests = g.recognize_many(xs);
+        let mut out = Vec::new();
+        for (i, r) in kept.into_iter().zip(digests) {
+            let quad = quads[i];
+            let (text, score) = match r {
+                Ok(rows) => self.rec.decode(&rows),
+                Err(e) if is_oom(&e) => {
+                    self.note_fallback(&e, false);
+                    self.rec
+                        .recognize(&crop(page, &quad))
+                        .map_err(RunError::Input)?
+                }
+                Err(e) => return Err(RunError::Gpu(e)),
+            };
+            if score >= MIN_SCORE && !text.trim().is_empty() {
+                out.push(Line {
+                    quad,
+                    text,
+                    score,
+                    formula: false,
+                });
             }
         }
         Ok(out)
     }
+
+    /// 裁出各行并预处理成网络输入，多线程。返回 (四边形下标, 输入)，跳过空的裁剪。
+    fn crop_inputs(&self, page: &Image, quads: &[Quad]) -> Result<Vec<(usize, Tensor)>, String> {
+        let threads = std::thread::available_parallelism()
+            .map_or(1, |n| n.get())
+            .min(quads.len().max(1));
+        let chunk = quads.len().div_ceil(threads).max(1);
+        let one = |base: usize, part: &[Quad]| -> Result<Vec<(usize, Tensor)>, String> {
+            let mut v = Vec::with_capacity(part.len());
+            for (i, q) in part.iter().enumerate() {
+                let c = crop(page, q);
+                if c.width > 0 && c.height > 0 {
+                    v.push((base + i, self.rec.preprocess(&c)?));
+                }
+            }
+            Ok(v)
+        };
+        std::thread::scope(|s| {
+            let hs: Vec<_> = quads
+                .chunks(chunk)
+                .enumerate()
+                .map(|(i, part)| s.spawn(move || one(i * chunk, part)))
+                .collect();
+            let mut out = Vec::with_capacity(quads.len());
+            for h in hs {
+                out.extend(
+                    h.join()
+                        .map_err(|_| "a crop thread panicked".to_owned())??,
+                );
+            }
+            Ok(out)
+        })
+    }
+}
+
+/// 整页跑 GPU 时的错误：分清是输入的问题还是 GPU 的问题。
+enum RunError {
+    Input(String),
+    Gpu(String),
 }
 
 fn dist(a: (f32, f32), b: (f32, f32)) -> f32 {

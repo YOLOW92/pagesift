@@ -10,6 +10,7 @@ pub mod det;
 pub mod device;
 pub mod formula;
 pub mod formula_enc;
+mod gpu_run;
 pub mod layout;
 pub mod lcnet;
 pub mod math;
@@ -20,6 +21,7 @@ pub mod rec;
 mod script;
 
 pub use device::{Device, DeviceStatus, ModelChoice, Quality, select_models};
+pub use gpu_run::GpuStats;
 
 /// 一张 8 位图：灰度（1 通道）或 RGB（3 通道），按行存放、无行间填充。
 #[derive(Debug, Clone)]

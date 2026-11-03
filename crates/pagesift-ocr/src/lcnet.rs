@@ -2,7 +2,8 @@
 //! （Apache-2.0，PaddlePaddle 与 HuggingFace）：大 stem + 4 段深度可分离卷积块。
 //! 批归一化在载入时并进卷积。
 
-use pagesift_infer::{Activation, BN_EPS, BatchNorm, Conv2d, Tensor, Weights, ops};
+use pagesift_infer::exec::{Cpu, Exec};
+use pagesift_infer::{Activation, BN_EPS, BatchNorm, Conv2d, Tensor, Weights};
 
 /// 每个块的配置：(核大小, 输入通道, 输出通道, 步长 (行, 列), 是否用 SE)，对应 config.json 的 `block_configs`。
 pub type BlockConfig = (usize, usize, usize, (usize, usize), bool);
@@ -86,8 +87,12 @@ impl ConvBn {
     }
 
     pub fn forward(&self, x: &Tensor) -> Tensor {
-        let mut y = self.conv.forward(x);
-        self.act.apply_all(&mut y);
+        self.forward_on(&Cpu, x)
+    }
+
+    pub fn forward_on<E: Exec>(&self, e: &E, x: &E::T) -> E::T {
+        let mut y = e.conv(&self.conv, x);
+        e.act(self.act, &mut y);
         y
     }
 }
@@ -118,14 +123,13 @@ impl Se {
         })
     }
 
-    fn forward(&self, x: &mut Tensor) {
-        let c = x.shape[0];
-        let pooled = Tensor::new(vec![c, 1, 1], ops::global_avg_pool(x));
-        let mut s = self.c1.forward(&pooled);
-        Activation::Relu.apply_all(&mut s);
-        let mut s = self.c2.forward(&s);
-        Activation::HardSigmoid.apply_all(&mut s);
-        ops::scale_channels(x, &s.data);
+    fn forward_on<E: Exec>(&self, e: &E, x: &mut E::T) {
+        let pooled = e.global_avg(x);
+        let mut s = e.conv(&self.c1, &pooled);
+        e.act(Activation::Relu, &mut s);
+        let mut s = e.conv(&self.c2, &s);
+        e.act(Activation::HardSigmoid, &mut s);
+        e.scale_channels(x, &s);
     }
 }
 
@@ -190,13 +194,13 @@ impl Block {
         })
     }
 
-    fn forward(&self, x: &Tensor) -> Tensor {
-        let mut t = self.token.forward(x);
+    fn forward_on<E: Exec>(&self, e: &E, x: &E::T) -> E::T {
+        let mut t = e.conv(&self.token, x);
         if let Some(se) = &self.se {
-            se.forward(&mut t);
+            se.forward_on(e, &mut t);
         }
-        let y = self.ch2.forward(&self.ch1.forward(&t));
-        if self.residual { ops::add(&t, &y) } else { y }
+        let y = self.ch2.forward_on(e, &self.ch1.forward_on(e, &t));
+        if self.residual { e.add(&t, &y) } else { y }
     }
 }
 
@@ -244,19 +248,43 @@ impl Backbone {
 
     /// 输入 `[3, H, W]`（已归一化），返回 4 段各自的输出（stage1–stage4）。
     pub fn forward(&self, x: &Tensor) -> Vec<Tensor> {
-        let e = ops::pad_right_bottom(&self.stem1.forward(x), 1, 1);
-        let a = ops::pad_right_bottom(&self.stem2a.forward(&e), 1, 1);
-        let a = self.stem2b.forward(&a);
-        let pooled = ops::max_pool2d(&e, (2, 2), (1, 1), true);
-        let cat = ops::concat_channels(&[&pooled, &a]);
-        let mut h = self.stem4.forward(&self.stem3.forward(&cat));
-        let mut outs = Vec::new();
+        self.forward_on(&Cpu, x)
+    }
+
+    /// 同 [`Backbone::forward`]，在执行器 `ex` 上算。
+    pub fn forward_on<E: Exec>(&self, ex: &E, x: &E::T) -> Vec<E::T> {
+        let stem = self.stem_on(ex, x);
+        let mut outs: Vec<E::T> = Vec::with_capacity(self.stages.len());
         for stage in &self.stages {
-            for b in stage {
-                h = b.forward(&h);
-            }
-            outs.push(h.clone());
+            let h = self.stage_on(ex, stage, outs.last().unwrap_or(&stem));
+            outs.push(h);
         }
         outs
+    }
+
+    /// 只要最后一段的输出（识别用）。中间特征算完就释放，显存峰值低得多。
+    pub fn forward_last_on<E: Exec>(&self, ex: &E, x: &E::T) -> E::T {
+        let mut h = self.stem_on(ex, x);
+        for stage in &self.stages {
+            h = self.stage_on(ex, stage, &h);
+        }
+        h
+    }
+
+    fn stem_on<E: Exec>(&self, ex: &E, x: &E::T) -> E::T {
+        let e = ex.pad_right_bottom(&self.stem1.forward_on(ex, x), 1, 1);
+        let a = ex.pad_right_bottom(&self.stem2a.forward_on(ex, &e), 1, 1);
+        let a = self.stem2b.forward_on(ex, &a);
+        let pooled = ex.max_pool2d(&e, (2, 2), (1, 1), true);
+        let cat = ex.concat(&[&pooled, &a]);
+        self.stem4.forward_on(ex, &self.stem3.forward_on(ex, &cat))
+    }
+
+    fn stage_on<E: Exec>(&self, ex: &E, stage: &[Block], x: &E::T) -> E::T {
+        let mut h = stage[0].forward_on(ex, x);
+        for b in &stage[1..] {
+            h = b.forward_on(ex, &h);
+        }
+        h
     }
 }

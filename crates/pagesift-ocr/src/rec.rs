@@ -10,9 +10,8 @@
 
 use std::path::Path;
 
-use pagesift_infer::{
-    Activation, BN_EPS, BatchNorm, Conv2d, LayerNorm, Linear, Tensor, Weights, ops,
-};
+use pagesift_infer::exec::{Cpu, Exec};
+use pagesift_infer::{Activation, BN_EPS, BatchNorm, Conv2d, LayerNorm, Linear, Tensor, Weights};
 
 use crate::Image;
 use crate::lcnet::{Backbone, Config as BackboneConfig};
@@ -51,9 +50,9 @@ impl ConvAct {
         Ok(ConvAct { conv, act })
     }
 
-    fn forward(&self, x: &Tensor) -> Tensor {
-        let mut y = self.conv.forward(x);
-        self.act.apply_all(&mut y);
+    fn forward_on<E: Exec>(&self, e: &E, x: &E::T) -> E::T {
+        let mut y = e.conv(&self.conv, x);
+        e.act(self.act, &mut y);
         y
     }
 }
@@ -66,38 +65,11 @@ struct Attention {
 }
 
 impl Attention {
-    fn forward(&self, x: &Tensor) -> Tensor {
-        let (t, c) = x.tc();
-        let hd = c / self.heads;
-        let qkv = self.qkv.forward(x); // [T, 3C]，列 = s·C + h·hd + d
-        // [协议] scaling = head_dim^−0.5（`PPOCRV6SmallRecAttention.scale`）
-        let scale = (hd as f32).powf(-0.5);
-        let mut out = vec![0f32; t * c];
-        // 取第 s 份（0 = q、1 = k、2 = v）第 h 个头，成 [T, hd]
-        let take = |s: usize, h: usize| {
-            let mut d = Vec::with_capacity(t * hd);
-            for row in qkv.data.chunks(3 * c) {
-                let at = s * c + h * hd;
-                d.extend_from_slice(&row[at..at + hd]);
-            }
-            Tensor::new(vec![t, hd], d)
-        };
-        for h in 0..self.heads {
-            let q = take(0, h);
-            let kt = ops::transpose(&take(1, h));
-            let v = take(2, h);
-            let mut a = ops::matmul(&q, &kt); // [T, T]
-            for s in &mut a.data {
-                *s *= scale;
-            }
-            ops::softmax_rows(&mut a);
-            let o = ops::matmul(&a, &v); // [T, hd]
-            // 各头拼回 [T, C]：列 = h·hd + d
-            for (i, row) in o.data.chunks(hd).enumerate() {
-                out[i * c + h * hd..i * c + (h + 1) * hd].copy_from_slice(row);
-            }
-        }
-        self.proj.forward(&Tensor::new(vec![t, c], out))
+    fn forward_on<E: Exec>(&self, e: &E, x: &E::T) -> E::T {
+        // [T, 3C]，列 = s·C + h·hd + d；分数的缩放见 Exec::attention
+        let qkv = e.linear(&self.qkv, x);
+        let o = e.attention(&qkv, self.heads);
+        e.linear(&self.proj, &o)
     }
 }
 
@@ -127,11 +99,11 @@ impl Block {
         })
     }
 
-    fn forward(&self, x: Tensor) -> Tensor {
-        let x = ops::add(&x, &self.attn.forward(&self.ln1.forward(&x)));
-        let mut h = self.fc1.forward(&self.ln2.forward(&x));
-        self.act.apply_all(&mut h);
-        ops::add(&x, &self.fc2.forward(&h))
+    fn forward_on<E: Exec>(&self, e: &E, x: E::T) -> E::T {
+        let x = e.add(&x, &self.attn.forward_on(e, &e.layer_norm(&self.ln1, &x)));
+        let mut h = e.linear(&self.fc1, &e.layer_norm(&self.ln2, &x));
+        e.act(self.act, &mut h);
+        e.add(&x, &e.linear(&self.fc2, &h))
     }
 }
 
@@ -222,57 +194,68 @@ impl Rec {
 
     /// 识别一行字的图（已裁出、拉正成水平的一行）。返回文字和置信度。
     pub fn recognize(&self, line: &Image) -> Result<(String, f32), String> {
+        let x = self.preprocess(line)?;
+        let logits = self.logits_on(&Cpu, &x);
+        let rows = Cpu.ctc_digest(&logits);
+        Ok(self.decode(&rows[0]))
+    }
+
+    /// 网络输入的通道数。
+    pub fn input_channels(&self) -> usize {
+        3 // [协议] BGR 三通道（见 preprocess）
+    }
+
+    /// 网络输入的高。
+    pub fn input_height(&self) -> usize {
+        TARGET_H
+    }
+
+    /// 预处理一行图成网络输入 `[3, 48, W]`。
+    pub fn preprocess(&self, line: &Image) -> Result<Tensor, String> {
         if line.width == 0 || line.height == 0 {
             return Err("行图为空".into());
         }
         if line.channels != 1 && line.channels != 3 {
             return Err(format!("不支持 {} 通道的图", line.channels));
         }
-        let x = preprocess(line, self.max_w);
-        let feats = self.backbone.forward(&x);
-        let last = feats.last().ok_or("骨干没有输出")?;
+        Ok(preprocess(line, self.max_w))
+    }
+
+    /// 网络部分：`[3, 48, W]` → `[T, 字符表]` 的 logits，在执行器上算。
+    pub fn logits_on<E: Exec>(&self, e: &E, x: &E::T) -> E::T {
+        let last = self.backbone.forward_last_on(e, x);
         // [协议] `PPOCRV6SmallRecModel.forward`：F.avg_pool2d(stage4, (3, 2))
-        let pooled = ops::avg_pool2d(last, (3, 2));
-        let seq = self.encode(&pooled);
-        let logits = self.head.forward(&seq);
-        Ok(self.decode(&logits))
+        let pooled = e.avg_pool2d(&last, (3, 2));
+        drop(last);
+        let seq = self.encode_on(e, &pooled);
+        e.linear(&self.head, &seq)
     }
 
     /// EncoderWithSVTR：`[C, 1, T]` → `[T, hidden]`。
-    fn encode(&self, x: &Tensor) -> Tensor {
-        let (_, h, w) = x.chw();
-        let residual = ops::chw_to_seq(&self.skip.forward(x));
-        let r = self.reduce.forward(x);
-        let r = ops::add(&r, &self.local.forward(&r));
-        let mut s = ops::chw_to_seq(&r);
+    fn encode_on<E: Exec>(&self, e: &E, x: &E::T) -> E::T {
+        let residual = e.chw_to_seq(&self.skip.forward_on(e, x));
+        let r = self.reduce.forward_on(e, x);
+        let r = e.add(&r, &self.local.forward_on(e, &r));
+        let mut s = e.chw_to_seq(&r);
+        drop(r);
         for b in &self.blocks {
-            s = b.forward(s);
+            s = b.forward_on(e, s);
         }
-        debug_assert_eq!(s.tc().0, h * w);
         // 高已是 1，序列顺序即从左到右
-        ops::add(&self.norm.forward(&s), &residual)
+        e.add(&e.layer_norm(&self.norm, &s), &residual)
     }
 
-    /// softmax + CTC 贪心解码：每步取概率最大的类，先去相邻重复、再去 blank；
+    /// CTC 贪心解码：输入每步的（最大类，其概率）。先去相邻重复、再去 blank；
     /// 置信度是保留下来的各字最大概率的平均。
-    fn decode(&self, logits: &Tensor) -> (String, f32) {
-        let (_, n) = logits.tc();
+    pub fn decode(&self, rows: &[(u32, f32)]) -> (String, f32) {
         let mut text = String::new();
         let (mut sum, mut kept) = (0f32, 0usize);
-        let mut prev = usize::MAX;
-        for row in logits.data.chunks(n) {
-            // softmax 的最大概率 = 1 / Σ exp(xᵢ − max)，取最大的类不用整行归一化
-            let (mut arg, mut m) = (0usize, f32::NEG_INFINITY);
-            for (i, &v) in row.iter().enumerate() {
-                if v > m {
-                    (arg, m) = (i, v);
-                }
-            }
-            let z: f32 = row.iter().map(|&v| (v - m).exp()).sum();
+        let mut prev = u32::MAX;
+        for &(arg, p) in rows {
             // [协议] 下标 0 是 blank（character_list[0] = "blank"）
             if arg != prev && arg != 0 {
-                text.push_str(&self.chars[arg]);
-                sum += 1.0 / z;
+                text.push_str(&self.chars[arg as usize]);
+                sum += p;
                 kept += 1;
             }
             prev = arg;

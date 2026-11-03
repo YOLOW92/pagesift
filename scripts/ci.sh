@@ -34,6 +34,14 @@ step "test"
 # 和 GitHub 的命令一致（不带目标参数：也编 examples、跑文档测试），只是换成 quick 档
 RUSTFLAGS="-D warnings" scripts/build.sh cargo test --workspace --locked --profile quick --exclude pagesift-cdp
 RUSTFLAGS="-D warnings" scripts/build.sh cargo test -p pagesift-cdp --locked --profile quick --lib --test protocol --test browser --test bench
+step "gpu consistency"
+# GPU 和 CPU 逐层比较，误差不超过 fp32 累加误差界（设计 G3）。检测到 N 卡才跑；一次只占一个工人，
+# 和上面的 workspace 测试分开跑，失败时一眼看出是数值问题
+if command -v nvidia-smi >/dev/null && nvidia-smi -L 2>/dev/null | grep -q '^GPU '; then
+    RUSTFLAGS="-D warnings" scripts/build.sh cargo test -p pagesift-ocr --locked --profile quick --test gpu_consistency -- --test-threads=1 --nocapture
+else
+    echo "no NVIDIA GPU: skipped"
+fi
 # GitHub 上跑的是 macOS：Linux 本地看不见"只在 Linux 才有"的引用（例如只给 Linux 引入的 libc）。
 # 对 macOS 做一遍完整的类型检查（不链接）；本机没有 macOS 的 C 工具链，构建脚本里的 C 编译用
 # scripts/check-cc.sh 生成空目标文件代替，check 用不到它们

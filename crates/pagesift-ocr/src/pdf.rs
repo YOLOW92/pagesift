@@ -47,6 +47,11 @@ impl PdfOcr {
         }
     }
 
+    /// 已载入的引擎（设备状态、GPU 统计从这里取）；还没遇到扫描页、没载入时为 None。
+    pub fn engine(&self) -> Option<&Engine> {
+        self.loaded.get()?.as_ref().ok().map(|l| &l.engine)
+    }
+
     /// 模型目录直接给（测评用）：立刻载入，不走缓存和下载。
     pub fn from_dirs(
         det_dir: PathBuf,

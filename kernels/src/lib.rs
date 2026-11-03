@@ -19,6 +19,8 @@ mod conv;
 mod elementwise;
 mod gemm;
 mod math;
+mod seq;
+mod tensor;
 
 use core::arch::nvptx::{_block_dim_x, _block_idx_x, _thread_idx_x, trap};
 

@@ -97,6 +97,7 @@ pub unsafe extern "ptx-kernel" fn im2col(
 /// 每组只有一个输入通道（`C/groups = 1`，深度卷积及其通道倍增形式）的直接卷积。
 /// 每线程算一个输出元素：输出通道 `oc` 读输入通道 `oc / og`（`og = O/groups`），
 /// 先放偏置（`has_bias` 为 0 时放 0），再按 ky、kx 的顺序累加，与 CPU 参考实现的顺序相同。
+/// 批量时 `o` 是 N·O、`wrap` 是一个样本的输出通道数 O：权重和偏置按 `oc % wrap` 取，各样本共用。
 #[unsafe(no_mangle)]
 pub unsafe extern "ptx-kernel" fn depthwise(
     x: *const f32,
@@ -105,6 +106,7 @@ pub unsafe extern "ptx-kernel" fn depthwise(
     out: *mut f32,
     o: u32,
     og: u32,
+    wrap: u32,
     has_bias: u32,
     h: u32,
     w: u32,
@@ -142,9 +144,10 @@ pub unsafe extern "ptx-kernel" fn depthwise(
     let (oc, pos) = (i / ohw, i % ohw);
     let (oy, ox) = (pos / g.ow, pos % g.ow);
     let xc = x.add((oc / og) as usize * g.plane());
-    let wc = wt.add(oc as usize * (g.kh * g.kw) as usize);
+    let oc1 = oc % wrap;
+    let wc = wt.add(oc1 as usize * (g.kh * g.kw) as usize);
     let mut s = if has_bias != 0 {
-        *bias.add(oc as usize)
+        *bias.add(oc1 as usize)
     } else {
         0.0
     };
@@ -152,6 +155,65 @@ pub unsafe extern "ptx-kernel" fn depthwise(
         for kx in 0..g.kw {
             if let Some(at) = g.input_at(oy, ox, ky, kx) {
                 s += *xc.add(at) * *wc.add((ky * g.kw + kx) as usize);
+            }
+        }
+    }
+    *out.add(i as usize) = s;
+}
+
+/// 转置卷积（`F.conv_transpose2d`，groups = 1，无输出补边）。权重 `[C, O, kh, kw]`，输出
+/// `[N·O, OH, OW]`。每线程一个输出元素：沿每个核位置反推输入坐标，整除才有贡献。
+#[unsafe(no_mangle)]
+pub unsafe extern "ptx-kernel" fn conv_transpose(
+    x: *const f32,
+    wt: *const f32,
+    bias: *const f32,
+    out: *mut f32,
+    c: u32,
+    o: u32,
+    has_bias: u32,
+    h: u32,
+    w: u32,
+    kh: u32,
+    kw: u32,
+    sh: u32,
+    sw: u32,
+    ph: u32,
+    pw: u32,
+    oh: u32,
+    ow: u32,
+    total: u32,
+) {
+    let plane = oh * ow;
+    let i = global_index();
+    if i >= total as u64 {
+        return;
+    }
+    let i = i as u32;
+    let (oct, pos) = (i / plane, i % plane);
+    let (z, oc) = (oct / o, oct % o);
+    let (oy, ox) = (pos / ow, pos % ow);
+    let mut s = if has_bias != 0 {
+        *bias.add(oc as usize)
+    } else {
+        0.0
+    };
+    for ky in 0..kh {
+        let dy = (oy + ph).wrapping_sub(ky);
+        if dy > oy + ph || dy % sh != 0 || dy / sh >= h {
+            continue;
+        }
+        let iy = dy / sh;
+        for kx in 0..kw {
+            let dx = (ox + pw).wrapping_sub(kx);
+            if dx > ox + pw || dx % sw != 0 || dx / sw >= w {
+                continue;
+            }
+            let at = iy * w + dx / sw;
+            for ic in 0..c {
+                let v = *x.add((((z * c + ic) * h * w) + at) as usize);
+                let k = *wt.add((((ic * o + oc) * kh + ky) * kw + kx) as usize);
+                s += v * k;
             }
         }
     }

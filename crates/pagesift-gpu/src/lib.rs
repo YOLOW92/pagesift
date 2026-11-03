@@ -16,15 +16,24 @@
 //! # Ok::<(), String>(())
 //! ```
 
+mod backend;
 mod buffer;
 mod driver;
+mod exec;
+mod exec_ops;
 mod ops;
+mod pool;
+mod worker;
 
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr::null_mut;
 
+pub use backend::{Costs, GpuBackend};
 pub use buffer::{DeviceBuffer, Timer};
+pub use exec::{BatchExec, Ctx, DevTensor, Owner};
 pub use ops::ConvShape;
+pub use pool::{OOM_TAG, is_oom};
+pub use worker::{SharedWorker, Worker};
 
 use driver::{
     ATTR_CC_MAJOR, ATTR_CC_MINOR, Driver, Handle, JIT_ERROR_LOG_BUFFER,
@@ -47,6 +56,23 @@ pub(crate) struct Kernels {
     pub gelu: Handle,
     pub hardsigmoid: Handle,
     pub sigmoid: Handle,
+    pub se_gate: Handle,
+    pub zero_cols: Handle,
+    pub pad_rb: Handle,
+    pub pool_max: Handle,
+    pub pool_avg: Handle,
+    pub global_avg: Handle,
+    pub scale_ch: Handle,
+    pub add2: Handle,
+    pub copy_part: Handle,
+    pub interp_nearest: Handle,
+    pub chw_to_seq: Handle,
+    pub conv_transpose: Handle,
+    pub layer_norm: Handle,
+    pub attn_split: Handle,
+    pub attn_softmax: Handle,
+    pub attn_merge: Handle,
+    pub ctc_digest: Handle,
 }
 
 /// 一块 N 卡上的上下文、载好的内核模块和函数表。所有方法取 `&self`，可以跨线程共享。
@@ -104,7 +130,7 @@ pub struct GpuInfo {
 pub fn disabled_by_env() -> Option<String> {
     let v = std::env::var("PAGESIFT_GPU").ok()?;
     v.eq_ignore_ascii_case("off")
-        .then(|| "环境变量 PAGESIFT_GPU=off 关闭了 GPU".to_owned())
+        .then(|| "GPU disabled by PAGESIFT_GPU=off".to_owned())
 }
 
 /// 驱动里挑出的一个设备：已 `cuInit`，序号也核对过。
@@ -129,10 +155,10 @@ fn pick(index: usize) -> Result<Picked, String> {
         "cuDeviceGetCount",
     )?;
     if count == 0 {
-        return Err("没有 NVIDIA GPU".into());
+        return Err("no NVIDIA GPU found".into());
     }
     if index >= count as usize {
-        return Err(format!("没有 {index} 号 GPU：本机只有 {count} 块"));
+        return Err(format!("no GPU {index}: this machine has {count}"));
     }
     let mut dev = 0;
     drv.check(
@@ -263,6 +289,12 @@ impl Gpu {
         self.cc
     }
 
+    /// 现在的空闲显存（字节）。
+    pub fn memory_free(&self) -> Result<u64, String> {
+        self.bind()?;
+        Ok(memory_info(&self.drv)?.0)
+    }
+
     /// 型号、算力、显存总量和空闲量、驱动版本、选中的 PTX 版本。
     pub fn info(&self) -> Result<GpuInfo, String> {
         self.bind()?;
@@ -319,7 +351,7 @@ fn select_ptx(cc: (i32, i32)) -> Result<&'static Ptx, String> {
         (major, _) if major >= 7 => Ok(&SM70),
         (6, minor) if minor >= 1 => Ok(&SM61),
         (major, minor) => Err(format!(
-            "GPU 算力 {major}.{minor} 太老，至少要 6.1（Pascal）"
+            "GPU compute capability {major}.{minor} is too old, need at least 6.1 (Pascal)"
         )),
     }
 }
@@ -328,7 +360,7 @@ fn device_name(drv: &Driver, dev: c_int) -> String {
     let mut buf = [0 as c_char; 256]; // [策略] 设备名缓冲，驱动给的名字远短于此
     let r = unsafe { (drv.device_get_name)(buf.as_mut_ptr(), buf.len() as c_int, dev) };
     if r != 0 {
-        return "未知 NVIDIA GPU".into();
+        return "unknown NVIDIA GPU".into();
     }
     unsafe { CStr::from_ptr(buf.as_ptr()) }
         .to_string_lossy()
@@ -355,7 +387,7 @@ fn load_module(drv: &Driver, ptx: &str) -> Result<Handle, String> {
         let text = CStr::from_bytes_until_nul(&log)
             .map(|c| c.to_string_lossy().into_owned())
             .unwrap_or_default();
-        return Err(format!("{e}；JIT 日志：{}", text.trim()));
+        return Err(format!("{e}; JIT log: {}", text.trim()));
     }
     Ok(module)
 }
@@ -373,6 +405,23 @@ impl Kernels {
             gelu: n,
             hardsigmoid: n,
             sigmoid: n,
+            se_gate: n,
+            zero_cols: n,
+            pad_rb: n,
+            pool_max: n,
+            pool_avg: n,
+            global_avg: n,
+            scale_ch: n,
+            add2: n,
+            copy_part: n,
+            interp_nearest: n,
+            chw_to_seq: n,
+            conv_transpose: n,
+            layer_norm: n,
+            attn_split: n,
+            attn_softmax: n,
+            attn_merge: n,
+            ctc_digest: n,
         }
     }
 
@@ -396,6 +445,23 @@ impl Kernels {
             gelu: f(c"gelu")?,
             hardsigmoid: f(c"hardsigmoid")?,
             sigmoid: f(c"sigmoid")?,
+            se_gate: f(c"se_gate")?,
+            zero_cols: f(c"zero_cols")?,
+            pad_rb: f(c"pad_rb")?,
+            pool_max: f(c"pool_max")?,
+            pool_avg: f(c"pool_avg")?,
+            global_avg: f(c"global_avg")?,
+            scale_ch: f(c"scale_ch")?,
+            add2: f(c"add2")?,
+            copy_part: f(c"copy_part")?,
+            interp_nearest: f(c"interp_nearest")?,
+            chw_to_seq: f(c"chw_to_seq")?,
+            conv_transpose: f(c"conv_transpose")?,
+            layer_norm: f(c"layer_norm")?,
+            attn_split: f(c"attn_split")?,
+            attn_softmax: f(c"attn_softmax")?,
+            attn_merge: f(c"attn_merge")?,
+            ctc_digest: f(c"ctc_digest")?,
         })
     }
 }
@@ -403,6 +469,14 @@ impl Kernels {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// PTX 编译失败要返回错误并带 JIT 日志（调用方据此退回 CPU），不能 panic。没有驱动时跳过。
+    #[test]
+    fn bad_ptx_is_an_error() {
+        let Ok(g) = Gpu::open() else { return };
+        let e = load_module(&g.drv, "this is not ptx\0").err().unwrap();
+        assert!(e.contains("cuModuleLoadDataEx"), "{e}");
+    }
 
     #[test]
     fn ptx_by_compute_capability() {

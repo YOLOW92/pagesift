@@ -20,7 +20,9 @@ impl Gpu {
         self.bind()?;
         let mut ptr = 0;
         if len > 0 {
-            let bytes = len.checked_mul(size_of::<f32>()).ok_or("显存大小溢出")?;
+            let bytes = len
+                .checked_mul(size_of::<f32>())
+                .ok_or("GPU buffer size overflow")?;
             self.drv.check(
                 unsafe { (self.drv.mem_alloc)(&mut ptr, bytes) },
                 "cuMemAlloc",
@@ -92,6 +94,42 @@ impl<'g> DeviceBuffer<'g> {
         g.drv.check(r, "cuMemcpyDtoH")
     }
 
+    /// 把 `data` 拷到开头（`data` 可以比缓冲短，缓冲池给的容量常常多一点）。
+    pub(crate) fn write_prefix(&self, data: &[f32]) -> Result<(), String> {
+        assert!(data.len() <= self.len, "拷入长度超过显存长度");
+        if data.is_empty() {
+            return Ok(());
+        }
+        let g = self.gpu;
+        g.bind()?;
+        let r = unsafe {
+            (g.drv.memcpy_htod)(
+                self.ptr,
+                data.as_ptr() as *const c_void,
+                std::mem::size_of_val(data),
+            )
+        };
+        g.drv.check(r, "cuMemcpyHtoD")
+    }
+
+    /// 从开头拷回 `out.len()` 个元素。默认流上同步执行：之前提交的内核先跑完。
+    pub(crate) fn read_prefix(&self, out: &mut [f32]) -> Result<(), String> {
+        assert!(out.len() <= self.len, "拷回长度超过显存长度");
+        if out.is_empty() {
+            return Ok(());
+        }
+        let g = self.gpu;
+        g.bind()?;
+        let r = unsafe {
+            (g.drv.memcpy_dtoh)(
+                out.as_mut_ptr() as *mut c_void,
+                self.ptr,
+                std::mem::size_of_val(out),
+            )
+        };
+        g.drv.check(r, "cuMemcpyDtoH")
+    }
+
     /// 拷回成新的 `Vec`。
     pub fn to_vec(&self) -> Result<Vec<f32>, String> {
         let mut v = vec![0f32; self.len];
@@ -135,12 +173,6 @@ impl Args {
         self
     }
 
-    /// 可空的设备指针（例如没有偏置时传 0）。
-    pub fn opt_ptr(mut self, b: Option<&DeviceBuffer<'_>>) -> Self {
-        self.slots.push(b.map_or(0, |b| b.ptr()));
-        self
-    }
-
     pub fn raw_ptr(mut self, p: DevPtr) -> Self {
         self.slots.push(p);
         self
@@ -155,6 +187,11 @@ impl Args {
 
     pub fn u64(mut self, v: usize) -> Self {
         self.slots.push(v as u64);
+        self
+    }
+
+    pub fn f32(mut self, v: f32) -> Self {
+        self.slots.push(v.to_bits() as u64);
         self
     }
 }

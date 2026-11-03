@@ -4,9 +4,8 @@
 //!   每段大核深度卷积 + 逐点卷积（到 24 通道）+ SE 残差 → 都上采样到步长 4 → 按 p5、p4、p3、p2 拼接；
 //! - 头：3×3 卷积 + BN + ReLU → 转置卷积 ×2 + BN + ReLU → 转置卷积 ×2 → sigmoid，得到原尺寸概率图。
 
-use pagesift_infer::{
-    Activation, BN_EPS, BatchNorm, Conv2d, ConvTranspose2d, Tensor, Weights, ops,
-};
+use pagesift_infer::exec::{Cpu, Exec};
+use pagesift_infer::{Activation, BN_EPS, BatchNorm, Conv2d, ConvTranspose2d, Tensor, Weights};
 
 /// 颈部和头的配置（config.json 顶层）。
 #[derive(Debug, Clone)]
@@ -14,7 +13,17 @@ pub struct NeckConfig {
     pub in_channels: Vec<usize>,
     pub out_channels: usize,
     pub kernel_size: usize,
-    pub head_kernels: [usize; 3],
+}
+
+/// 读配置里的 `kernel_list`（头的三个核大小）。
+// [协议] kernel_list 固定三项：conv_down、conv_up、conv_final
+pub fn head_kernels(v: &serde_json::Value) -> Result<[usize; 3], String> {
+    let a = v["kernel_list"].as_array().ok_or("缺 kernel_list")?;
+    let k: Vec<usize> = a
+        .iter()
+        .map(|x| x.as_u64().map(|n| n as usize).ok_or("kernel_list 应为整数"))
+        .collect::<Result<_, _>>()?;
+    k.try_into().map_err(|_| "kernel_list 应有 3 个数".into())
 }
 
 impl NeckConfig {
@@ -38,16 +47,11 @@ impl NeckConfig {
         if in_channels.len() != 4 {
             return Err("layer_list_out_channels 应有 4 段".into());
         }
-        let hk = ints("kernel_list")?;
-        if hk.len() != 3 {
-            return Err("kernel_list 应有 3 个数".into());
-        }
         Ok(NeckConfig {
             in_channels,
             // [协议] neck_out_channels 缺省 96、dilated_kernel_size 缺省 7（PPOCRV6SmallDetConfig）
             out_channels: v["neck_out_channels"].as_u64().unwrap_or(96) as usize,
             kernel_size: v["dilated_kernel_size"].as_u64().unwrap_or(7) as usize,
-            head_kernels: [hk[0], hk[1], hk[2]],
         })
     }
 }
@@ -69,19 +73,13 @@ impl SeResidual {
         })
     }
 
-    fn apply(&self, x: &mut Tensor) {
-        let c = x.shape[0];
-        let pooled = Tensor::new(vec![c, 1, 1], ops::global_avg_pool(x));
-        let mut s = self.c1.forward(&pooled);
-        Activation::Relu.apply_all(&mut s);
-        let s = self.c2.forward(&s);
-        // [协议] 颈部 SE 用 Paddle 式硬 sigmoid：clamp(0.2·x + 0.5, 0, 1)（不是 PyTorch 的 x/6 + 1/2）
-        let k: Vec<f32> = s
-            .data
-            .iter()
-            .map(|v| 1.0 + (0.2 * v + 0.5).clamp(0.0, 1.0))
-            .collect();
-        ops::scale_channels(x, &k);
+    fn apply_on<E: Exec>(&self, e: &E, x: &mut E::T) {
+        let pooled = e.global_avg(x);
+        let mut s = e.conv(&self.c1, &pooled);
+        e.act(Activation::Relu, &mut s);
+        let mut s = e.conv(&self.c2, &s);
+        e.se_gate(&mut s);
+        e.scale_channels(x, &s);
     }
 }
 
@@ -93,9 +91,9 @@ struct InsertConv {
 }
 
 impl InsertConv {
-    fn forward(&self, x: &Tensor) -> Tensor {
-        let mut h = self.conv.forward(x);
-        self.se.apply(&mut h);
+    fn forward_on<E: Exec>(&self, e: &E, x: &E::T) -> E::T {
+        let mut h = e.conv(&self.conv, x);
+        self.se.apply_on(e, &mut h);
         h
     }
 }
@@ -109,9 +107,9 @@ struct InputConv {
 }
 
 impl InputConv {
-    fn forward(&self, x: &Tensor) -> Tensor {
-        let mut h = self.pointwise.forward(&self.depthwise.forward(x));
-        self.se.apply(&mut h);
+    fn forward_on<E: Exec>(&self, e: &E, x: &E::T) -> E::T {
+        let mut h = e.conv(&self.pointwise, &e.conv(&self.depthwise, x));
+        self.se.apply_on(e, &mut h);
         h
     }
 }
@@ -123,13 +121,10 @@ pub struct Neck {
     input: Vec<InputConv>,
 }
 
-/// 最近邻放大整数倍（`F.interpolate(scale_factor=s, mode="nearest")`）。
-fn upsample(x: &Tensor, s: usize) -> Tensor {
-    if s == 1 {
-        return x.clone();
-    }
-    let (_, h, w) = x.chw();
-    ops::interpolate_nearest(x, h * s, w * s)
+/// 最近邻放大整数倍（`F.interpolate(scale_factor=s, mode="nearest")`），`s > 1`。
+pub(super) fn upsample_on<E: Exec>(e: &E, x: &E::T, s: usize) -> E::T {
+    let shape = e.shape(x);
+    e.upsample(x, shape[1] * s, shape[2] * s)
 }
 
 impl Neck {
@@ -172,6 +167,11 @@ impl Neck {
 
     /// 输入骨干的 4 段特征（步长 4、8、16、32），输出步长 4 的融合特征。
     pub fn forward(&self, feats: &[Tensor]) -> Result<Tensor, String> {
+        self.forward_on(&Cpu, feats)
+    }
+
+    /// 同 [`Neck::forward`]，在执行器上算。
+    pub fn forward_on<E: Exec>(&self, e: &E, feats: &[E::T]) -> Result<E::T, String> {
         if feats.len() != self.insert.len() {
             return Err(format!(
                 "骨干给了 {} 段特征，颈部要 {} 段",
@@ -179,35 +179,41 @@ impl Neck {
                 self.insert.len()
             ));
         }
-        let mut fused: Vec<Tensor> = self
+        let mut fused: Vec<E::T> = self
             .insert
             .iter()
             .zip(feats)
-            .map(|(m, f)| m.forward(f))
+            .map(|(m, f)| m.forward_on(e, f))
             .collect();
         // 自顶向下：p4 += up(p5)，p3 += up(p4)，p2 += up(p3)
         for i in (0..fused.len() - 1).rev() {
-            let up = upsample(&fused[i + 1], 2);
-            if up.shape != fused[i].shape {
+            let up = upsample_on(e, &fused[i + 1], 2);
+            if e.shape(&up) != e.shape(&fused[i]) {
                 return Err(format!(
                     "颈部上采样尺寸不符：{:?} 与 {:?}",
-                    up.shape, fused[i].shape
+                    e.shape(&up),
+                    e.shape(&fused[i])
                 ));
             }
-            for (a, b) in fused[i].data.iter_mut().zip(&up.data) {
-                *a += b;
-            }
+            e.add_assign(&mut fused[i], &up);
         }
-        let processed: Vec<Tensor> = self
+        let processed: Vec<E::T> = self
             .input
             .iter()
             .zip(&fused)
             .enumerate()
-            .map(|(i, (m, f))| upsample(&m.forward(f), 1 << i))
+            .map(|(i, (m, f))| {
+                let h = m.forward_on(e, f);
+                if i == 0 {
+                    h
+                } else {
+                    upsample_on(e, &h, 1 << i)
+                }
+            })
             .collect();
         // [协议] 按 [p5, p4, p3, p2] 的顺序拼通道
-        let refs: Vec<&Tensor> = processed.iter().rev().collect();
-        Ok(ops::concat_channels(&refs))
+        let refs: Vec<&E::T> = processed.iter().rev().collect();
+        Ok(e.concat(&refs))
     }
 }
 
@@ -220,9 +226,9 @@ pub struct Head {
 }
 
 impl Head {
-    /// `p` 是权重名前缀（`head`）。
-    pub fn load(w: &Weights, p: &str, cfg: &NeckConfig) -> Result<Head, String> {
-        let k = cfg.head_kernels;
+    /// `p` 是权重名前缀（`head`），`k` 是配置里的 `kernel_list`。
+    // [协议] kernel_list 固定三项，见 head_kernels
+    pub fn load(w: &Weights, p: &str, k: [usize; 3]) -> Result<Head, String> {
         // [协议] conv_down 补边 kernel_list[0] // 2、无偏置；两个转置卷积步长 2、无补边
         let mut down = Conv2d::load(
             w,
@@ -249,12 +255,17 @@ impl Head {
 
     /// 返回 `[1, H, W]` 的概率图（已过 sigmoid）。
     pub fn forward(&self, x: &Tensor) -> Tensor {
-        let mut h = self.down.forward(x);
-        Activation::Relu.apply_all(&mut h);
-        let mut h = self.up.forward(&h);
-        Activation::Relu.apply_all(&mut h);
-        let mut h = self.fin.forward(&h);
-        Activation::Sigmoid.apply_all(&mut h);
+        self.forward_on(&Cpu, x)
+    }
+
+    /// 同 [`Head::forward`]，在执行器上算。
+    pub fn forward_on<E: Exec>(&self, e: &E, x: &E::T) -> E::T {
+        let mut h = e.conv(&self.down, x);
+        e.act(Activation::Relu, &mut h);
+        let mut h = e.conv_transpose(&self.up, &h);
+        e.act(Activation::Relu, &mut h);
+        let mut h = e.conv_transpose(&self.fin, &h);
+        e.act(Activation::Sigmoid, &mut h);
         h
     }
 }
