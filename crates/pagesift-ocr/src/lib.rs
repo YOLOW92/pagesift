@@ -8,6 +8,7 @@
 
 pub mod det;
 pub mod device;
+pub mod formula;
 pub mod formula_enc;
 pub mod layout;
 pub mod lcnet;
