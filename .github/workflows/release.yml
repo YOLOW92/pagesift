@@ -86,8 +86,7 @@ jobs:
           - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, pgo: true, container: "quay.io/pypa/manylinux_2_28_x86_64" }
           - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, pgo: true, container: "quay.io/pypa/manylinux_2_28_aarch64" }
           - { os: macos-latest, target: aarch64-apple-darwin, pgo: true }
-          # 只编译不运行，在 Apple Silicon 上交叉编译：Intel 机器少、慢，常要排队；跑不了训练，不做 PGO
-          - { os: macos-latest, target: x86_64-apple-darwin, pgo: false }
+          # macOS x86_64（Intel）从 0.91.1 起不再发布：Intel runner 少、慢，常排队，计时类测试偶发失败
     container: ${{ matrix.container }}
     steps:
       - uses: actions/checkout@v7
@@ -215,7 +214,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, macos-15-intel]
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -269,7 +268,6 @@ jobs:
           - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, container: "quay.io/pypa/manylinux_2_28_x86_64" }
           - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, container: "quay.io/pypa/manylinux_2_28_aarch64" }
           - { os: macos-latest, target: aarch64-apple-darwin }
-          - { os: macos-15-intel, target: x86_64-apple-darwin }
           - { os: windows-latest, target: x86_64-pc-windows-msvc }
     container: ${{ matrix.container }}
     defaults:
@@ -324,8 +322,6 @@ jobs:
           - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, node: 26, container: "quay.io/pypa/manylinux_2_28_aarch64" }
           - { os: macos-latest, target: aarch64-apple-darwin, node: 18 }
           - { os: macos-latest, target: aarch64-apple-darwin, node: 26 }
-          - { os: macos-15-intel, target: x86_64-apple-darwin, node: 18 }
-          - { os: macos-15-intel, target: x86_64-apple-darwin, node: 26 }
           - { os: windows-latest, target: x86_64-pc-windows-msvc, node: 18 }
           - { os: windows-latest, target: x86_64-pc-windows-msvc, node: 26 }
     container: ${{ matrix.container }}

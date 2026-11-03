@@ -37,7 +37,7 @@ Can replace or sit alongside: **Firecrawl** (same v1/v2 API, self-hosted), **Jin
 - **Input:** URLs (HTTP, or a headless browser when needed), HTML, PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx), EPUB, CSV
 - **Output:** Markdown, HTML, raw HTML, links, images, metadata (title, publication date, …), JSON; warnings when a result is incomplete
 - **Interfaces:** CLI · Firecrawl v1/v2 HTTP API · Jina Reader `/r/` · MCP (stdio or HTTP) · Python · Node.js / TypeScript · Rust crate
-- **Platforms:** Linux x86_64 / aarch64 (glibc ≥ 2.28 and musl), macOS x86_64 / arm64, Windows x86_64; Docker image `ghcr.io/yolow92/pagesift`
+- **Platforms:** Linux x86_64 / aarch64 (glibc ≥ 2.28 and musl), macOS arm64 (Apple Silicon), Windows x86_64; Docker image `ghcr.io/yolow92/pagesift`
 - **Crawling:** robots.txt and per-host rate limits by default, sitemaps, focused crawls by query, bounded memory
 - **Memory:** 14–380 MB peak per worker across the 0.81 benchmarks (lowest at 16 workers on HTML and PDF); capacity is sized from the cgroup limit (no OOM at 768 MiB)
 - **Not for:** OCR of scanned PDFs or images; pagesift reads the text layer only (see *When to use it* below)
@@ -192,8 +192,8 @@ Architecture: [docs/architecture.md](docs/architecture.md).
 <!-- section: changelog -->
 ## What's new in 0.91.1
 
-Fixes a small bug: the cluster crate did not compile with newer stable Rust when warnings are denied. No
-behaviour change. 0.91.0 fixed the problems found in a code review of 0.90.0 (failures reported instead of
+Fixes a small bug (the cluster crate did not compile with newer stable Rust when warnings are denied) and stops
+building for macOS x86_64 (Intel). 0.91.0 fixed the problems found in a code review of 0.90.0 (failures reported instead of
 counted as done, lease fencing for the standby, small JSON-LD islands, bounded block merge, persisted
 attachments).
 [Release notes](docs/releases/0.91.1.md) · [0.91.0](docs/releases/0.91.0.md) · [all releases](docs/releases/) · [CHANGELOG](CHANGELOG.md)

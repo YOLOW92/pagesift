@@ -37,7 +37,7 @@ Puede sustituir o acompañar a: **Firecrawl** (la misma API v1/v2, autoalojada),
 - **Entrada:** URL (por HTTP, o con un navegador sin interfaz cuando hace falta), HTML, PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx), EPUB, CSV
 - **Salida:** Markdown, HTML, HTML sin procesar, enlaces, imágenes, metadatos (título, fecha de publicación, …), JSON; avisos cuando un resultado está incompleto
 - **Interfaces:** CLI · API HTTP Firecrawl v1/v2 · Jina Reader `/r/` · MCP (stdio o HTTP) · Python · Node.js / TypeScript · crate de Rust
-- **Plataformas:** Linux x86_64 / aarch64 (glibc ≥ 2.28 y musl), macOS x86_64 / arm64, Windows x86_64; imagen Docker `ghcr.io/yolow92/pagesift`
+- **Plataformas:** Linux x86_64 / aarch64 (glibc ≥ 2.28 y musl), macOS arm64 (Apple Silicon), Windows x86_64; imagen Docker `ghcr.io/yolow92/pagesift`
 - **Rastreo:** robots.txt y límites de tasa por host por defecto, sitemaps, rastreos enfocados por consulta, memoria acotada
 - **Memoria:** pico de 14–380 MB por trabajador en las pruebas de 0.81 (el mínimo, con 16 trabajadores en HTML y PDF); la capacidad se ajusta al límite de memoria del cgroup (sin OOM con 768 MiB)
 - **No sirve para:** OCR de PDF escaneados o imágenes; pagesift solo lee la capa de texto (ver *cuándo usarlo* más abajo)
@@ -192,8 +192,8 @@ Arquitectura: [architecture.md](architecture.md).
 <!-- section: changelog -->
 ## Novedades en 0.91.1
 
-Corrige un pequeño error: el crate del clúster no compilaba con Rust estable reciente cuando los avisos se tratan
-como errores. Sin cambios de comportamiento. 0.91.0 corrigió los problemas encontrados en una revisión de código
+Corrige un pequeño error (el crate del clúster no compilaba con Rust estable reciente cuando los avisos se tratan
+como errores) y deja de publicar compilaciones para macOS x86_64 (Intel). 0.91.0 corrigió los problemas encontrados en una revisión de código
 de 0.90.0.
 [Notas de la versión](releases/0.91.1.md) · [0.91.0](releases/0.91.0.md) · [todas las versiones](releases/) · [CHANGELOG](../CHANGELOG.md)
 

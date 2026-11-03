@@ -4,7 +4,12 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [0.91.1] — 2026-11-03
 
-Fixes a small bug. See [the release notes](docs/releases/0.91.1.md).
+Fixes a small bug and drops macOS x86_64 (Intel) builds. See [the release notes](docs/releases/0.91.1.md).
+
+### Removed
+- macOS x86_64 (Intel) release builds: the command-line binary, the Python wheel and the Node package
+  `@pagesift/node-darwin-x64`. macOS arm64 (Apple Silicon) is still built and tested. Intel Macs can build from
+  source (`cargo install pagesift`, `pip install` from the sdist).
 
 ### Fixed
 - `pagesift-cluster` did not compile with newer stable Rust under `-D warnings` (deprecated

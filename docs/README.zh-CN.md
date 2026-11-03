@@ -37,7 +37,7 @@ pagesift 抓取一个 URL（只在页面需要时才渲染 JavaScript）或读�
 - **输入：** URL（HTTP，必要时用无头浏览器）、HTML、PDF、Word（.docx）、Excel（.xlsx）、PowerPoint（.pptx）、EPUB、CSV
 - **输出：** Markdown、HTML、原始 HTML、链接、图片、元数据（标题、发布日期……）、JSON；结果不完整时给出警告
 - **接口：** CLI · Firecrawl v1/v2 HTTP API · Jina Reader `/r/` · MCP（stdio 或 HTTP）· Python · Node.js / TypeScript · Rust crate
-- **平台：** Linux x86_64 / aarch64（glibc ≥ 2.28 和 musl）、macOS x86_64 / arm64、Windows x86_64；Docker 镜像 `ghcr.io/yolow92/pagesift`
+- **平台：** Linux x86_64 / aarch64（glibc ≥ 2.28 和 musl）、macOS arm64（Apple Silicon）、Windows x86_64；Docker 镜像 `ghcr.io/yolow92/pagesift`
 - **爬取：** 默认遵守 robots.txt 并按主机限速，支持站点地图、按查询的聚焦爬取，内存有界
 - **内存：** 0.81 各项基准中每个 worker 峰值 14–380 MB（16 路处理 HTML、PDF 时最低）；容量按 cgroup 内存上限自动确定（768 MiB 下无 OOM）
 - **不适用：** 扫描版 PDF 或图片的 OCR；pagesift 只读取文本层（见下文“什么时候用”）
@@ -192,7 +192,7 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 <!-- section: changelog -->
 ## 0.91.1 更新
 
-修复了一个小 bug：开启"警告即错误"时，集群 crate 在较新的稳定版 Rust 上编译不过。行为没有变化。0.91.0 修复了 0.90.0
+修复了一个小 bug（开启"警告即错误"时，集群 crate 在较新的稳定版 Rust 上编译不过），并且不再发布 macOS x86_64（Intel）版本。0.91.0 修复了 0.90.0
 代码审查发现的问题（失败如实报告、温备租约隔离、小 JSON-LD 数据岛、按块合并有上限、附件持久化等）。
 [发行说明](releases/0.91.1.md) · [0.91.0](releases/0.91.0.md) · [全部版本](releases/) · [CHANGELOG](../CHANGELOG.md)
 

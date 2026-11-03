@@ -37,7 +37,7 @@ pagesift は URL を取得する（JavaScript のレンダリングはページ�
 - **入力：** URL（HTTP、必要な場合はヘッドレスブラウザ）、HTML、PDF、Word（.docx）、Excel（.xlsx）、PowerPoint（.pptx）、EPUB、CSV
 - **出力：** Markdown、HTML、生 HTML、リンク、画像、メタデータ（タイトル、公開日など）、JSON。結果が不完全な場合は警告
 - **インターフェース：** CLI · Firecrawl v1/v2 HTTP API · Jina Reader `/r/` · MCP（stdio または HTTP）· Python · Node.js / TypeScript · Rust crate
-- **プラットフォーム：** Linux x86_64 / aarch64（glibc 2.28 以上と musl）、macOS x86_64 / arm64、Windows x86_64。Docker イメージ `ghcr.io/yolow92/pagesift`
+- **プラットフォーム：** Linux x86_64 / aarch64（glibc 2.28 以上と musl）、macOS arm64（Apple Silicon）、Windows x86_64。Docker イメージ `ghcr.io/yolow92/pagesift`
 - **クロール：** 既定で robots.txt とホストごとのレート制限、サイトマップ、クエリによるフォーカスクロール、有界メモリ
 - **メモリ：** 0.81 の各ベンチマークでワーカーあたりピーク 14–380 MB（16 ワーカーで HTML・PDF を処理するときが最小）。容量は cgroup のメモリ上限から自動で決まります（768 MiB で OOM なし）
 - **向かない用途：** スキャン PDF や画像の OCR。pagesift はテキスト層のみを読みます（下の「向いている場面、向いていない場面」を参照）
@@ -192,8 +192,8 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 <!-- section: changelog -->
 ## 0.91.1 の変更
 
-小さなバグを修正しました：警告をエラーとして扱う設定で、クラスター crate が新しい安定版 Rust でコンパイルできませんでした。
-動作の変更はありません。0.91.0 では 0.90.0 のコードレビューで見つかった問題を修正しました。
+小さなバグを修正しました（警告をエラーとして扱う設定で、クラスター crate が新しい安定版 Rust でコンパイルできませんでした）。
+macOS x86_64（Intel）向けのビルドは提供しなくなりました。0.91.0 では 0.90.0 のコードレビューで見つかった問題を修正しました。
 [リリースノート](releases/0.91.1.md) · [0.91.0](releases/0.91.0.md) · [全リリース](releases/) · [CHANGELOG](../CHANGELOG.md)
 
 ---

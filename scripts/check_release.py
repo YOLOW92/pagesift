@@ -28,7 +28,7 @@ def check(tag=None):
     node_config = json.loads((node/'package.json').read_text())
     expected = {'x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu',
                 'x86_64-unknown-linux-musl', 'x86_64-pc-windows-msvc',
-                'x86_64-apple-darwin', 'aarch64-apple-darwin'}
+                'aarch64-apple-darwin'}
     assert set(node_config['napi']['targets']) == expected, 'Node target matrix incomplete'
     assert len(platforms) == len(expected), 'Node platform packages incomplete'
     for path in [node/'package.json', *platforms]:

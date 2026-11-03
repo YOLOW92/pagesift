@@ -162,7 +162,7 @@ The timing figures above predate this 0.20.0 scheduling change; rerun them on yo
 | Target | Status |
 |---|---|
 | linux-x64-gnu, linux-arm64-gnu | native build in a glibc 2.28 container (requires glibc 2.28 or newer, checked at release) and full binding tests in Linux CI |
-| darwin-x64, darwin-arm64 | native build and full binding tests in macOS CI |
+| darwin-arm64 | native build and full binding tests in macOS CI |
 | linux-x64-musl | native musl build and full binding tests on Alpine |
 | win32-x64-msvc | native MSVC build and full binding tests on Windows |
 
