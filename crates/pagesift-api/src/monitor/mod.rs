@@ -223,6 +223,9 @@ const MAX_TARGETS: usize = 50;
 pub(crate) struct Monitors {
     pub map: Arc<Mutex<HashMap<String, MonitorState>>>,
     pub wake: Arc<Notify>,
+    /// 调度任务在跑：只在有监控时运行（它持有服务状态和存储，空闲时不该占着）。
+    pub running: Arc<std::sync::atomic::AtomicBool>,
+    pub leader: Arc<std::sync::Mutex<Option<Leader>>>,
 }
 
 const KNOWN: &[&str] = &[
@@ -381,6 +384,7 @@ pub(crate) async fn create(
     run::persist(&s, &state);
     s.monitors.map.lock().await.insert(id, state);
     s.monitors.wake.notify_one();
+    run::ensure_running(&s);
     Ok(Json(json!({ "success": true, "data": view })))
 }
 
@@ -424,6 +428,8 @@ pub(crate) async fn delete(
     owned(&mut map, &id, &owner_of(&caller)).await?;
     map.remove(&id);
     run::forget(&s, &id);
+    // 调度任务在等下一个到期时间：叫醒它，监控清空时让它退出
+    s.monitors.wake.notify_one();
     Ok(Json(json!({ "success": true })))
 }
 

@@ -42,9 +42,9 @@ pub(super) fn forget(s: &AppState, id: &str) {
     }
 }
 
-/// 启动调度：先读回落盘的监控，再循环“睡到最早的到期时间 → 检查到期的网址”。
-/// `leader` 为假时（多服务器、本机不持有网关租约）不检查，只等。
+/// 读回落盘的监控；有监控时启动调度。`leader` 为假时（多服务器、本机不持有网关租约）不检查，只等。
 pub(crate) fn start_scheduler(s: AppState, leader: Option<Leader>) {
+    *s.monitors.leader.lock().unwrap_or_else(|e| e.into_inner()) = leader;
     if let Some(store) = s.jobs.store()
         && let Ok(keys) = store.tasks().kv_keys("monitor/")
     {
@@ -60,11 +60,36 @@ pub(crate) fn start_scheduler(s: AppState, leader: Option<Leader>) {
                 map.insert(m.id.clone(), m);
             }
         }
+        if map.is_empty() {
+            return;
+        }
+    } else {
+        return;
     }
+    ensure_running(&s);
+}
+
+/// 没有在跑的调度任务时启动一个。监控全部删掉后它自己退出（释放它持有的服务状态和存储）。
+pub(crate) fn ensure_running(s: &AppState) {
+    use std::sync::atomic::Ordering;
+    if s.monitors.running.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let s = s.clone();
+    let leader = s
+        .monitors
+        .leader
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
     tokio::spawn(async move {
         loop {
             let due = {
                 let map = s.monitors.map.lock().await;
+                if map.is_empty() {
+                    s.monitors.running.store(false, Ordering::SeqCst);
+                    return;
+                }
                 map.values()
                     .filter(|m| m.status == "active")
                     .filter_map(MonitorState::next_due)
