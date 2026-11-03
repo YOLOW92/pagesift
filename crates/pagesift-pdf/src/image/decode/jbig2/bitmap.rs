@@ -47,8 +47,8 @@ pub(super) enum Op {
 
 impl Op {
     pub(super) fn from_bits(v: u8) -> Result<Op, String> {
-        // [协议] 0 OR、1 AND、2 XOR、3 XNOR、4 REPLACE（T.88 §7.4.1.5）
         Ok(match v {
+            // [协议] 0 OR、1 AND、2 XOR、3 XNOR、4 REPLACE（T.88 §7.4.1.5）
             0 => Op::Or,
             1 => Op::And,
             2 => Op::Xor,

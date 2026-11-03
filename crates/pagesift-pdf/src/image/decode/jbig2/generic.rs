@@ -14,7 +14,8 @@ pub(super) struct Params<'a> {
     /// GBTEMPLATE，0–3。
     pub(super) template: u8,
     pub(super) tpgdon: bool,
-    /// GBAT：自适应模板像素相对当前像素的偏移 (x, y)；模板 0 用 4 个，其余用第 1 个。
+    /// [协议] GBAT：自适应模板像素相对当前像素的偏移 (x, y)；模板 0 用 4 个，其余用第 1 个
+    /// （T.88 §6.2.5.3）。
     /// 段里写的是有符号字节，图样字典的 A1 = (−HDPW, 0) 可到 −255，所以用 i16。
     pub(super) at: [(i16, i16); 4],
     /// USESKIP 时的 SKIP 位图：为 1 的像素不解码、置 0。
@@ -30,6 +31,7 @@ pub(super) fn context_count(template: u8) -> usize {
 /// [协议] 各模板默认的 AT 像素（T.88 §6.2.5.3 图 3–6 里 A1–A4 的位置）
 pub(super) fn default_at(template: u8) -> [(i16, i16); 4] {
     match template {
+        // [协议] 模板 0 有 A1–A4，模板 1–3 只有 A1，其余位置不用（T.88 图 3–6）
         0 => [(3, -1), (-3, -1), (2, -2), (-2, -2)],
         1 => [(3, -1), (0, 0), (0, 0), (0, 0)],
         _ => [(2, -1), (0, 0), (0, 0), (0, 0)],
@@ -45,6 +47,7 @@ pub(super) enum Px {
 }
 
 /// 测试用：按 TEMPLATES 逐像素算上下文，与滑动分组的结果对照。
+/// [协议] AT 像素至多 4 个（T.88 §6.2.5.3）
 #[cfg(test)]
 pub(super) fn context_slow(b: &Bitmap, t: usize, at: &[(i16, i16); 4], x: i64, y: i64) -> usize {
     TEMPLATES[t].iter().enumerate().fold(0, |c, (bit, &px)| {
@@ -57,6 +60,7 @@ pub(super) fn context_slow(b: &Bitmap, t: usize, at: &[(i16, i16); 4], x: i64, y
 }
 
 /// 测试用：按 GROUPS、AT_BITS 算上下文。
+/// [协议] AT 像素至多 4 个（T.88 §6.2.5.3）
 #[cfg(test)]
 pub(super) fn context_fast(b: &Bitmap, t: usize, at: &[(i16, i16); 4], x: i64, y: i64) -> usize {
     let mut c = 0;
@@ -144,7 +148,7 @@ const SLTP: [usize; 4] = [0x9B25, 0x0795, 0x00E5, 0x0195];
 /// 算术编码的通用区域解码（T.88 §6.2.5.7）。`cx` 至少 [`context_count`] 个，
 /// 符号字典里多个符号共用同一组上下文，所以由调用方持有。
 pub(super) fn decode(mq: &mut Mq, cx: &mut [Cx], p: &Params) -> Result<Bitmap, String> {
-    let t = usize::from(p.template & 3);
+    let t = usize::from(p.template & 3); // [协议] GBTEMPLATE 只有 0–3（T.88 §7.4.6.2）
     if cx.len() < context_count(p.template) {
         return Err("通用区域的上下文表太小".into());
     }
@@ -170,6 +174,7 @@ pub(super) fn decode(mq: &mut Mq, cx: &mut [Cx], p: &Params) -> Result<Bitmap, S
         // 固定像素按行分组滑动：每组是同一行上连续的几个像素，左边的在高位；
         // 每前进一列，组里移进右边新的一个像素。AT 像素逐个取。
         let groups = GROUPS[t];
+        // [协议] 模板的固定像素至多分布在 3 行（y − 2、y − 1、y，T.88 图 3–6），每行一组
         let mut win = [0usize; 3];
         for (g, w) in groups.iter().zip(&mut win) {
             for i in 0..g.n {
@@ -244,8 +249,8 @@ pub(super) fn mmr(data: &[u8], w: usize, h: usize) -> Result<(Bitmap, usize), St
     let left = w * h;
     bitmap::charge(left)?;
     let (r, used) = ccitt::decode_counted(data, &p, left)?;
-    // [协议] black_is_1 时黑解成 255
     for (o, &v) in out.data.iter_mut().zip(&r.data) {
+        // [协议] black_is_1 时黑解成 255
         *o = u8::from(v == 255);
     }
     Ok((out, used))
@@ -256,8 +261,9 @@ pub(super) fn segment(data: &[u8], info: &RegionInfo) -> Result<Bitmap, String> 
     let flags = *data.first().ok_or("通用区域段太短")?;
     // [协议] 标志位：位 0 MMR，位 1–2 GBTEMPLATE，位 3 TPGDON，位 4 EXTTEMPLATE（§7.4.6.2）
     let is_mmr = flags & 1 != 0;
-    let template = (flags >> 1) & 3;
-    let tpgdon = flags & 8 != 0;
+    let template = (flags >> 1) & 3; // [协议] 位 1–2 GBTEMPLATE
+    let tpgdon = flags & 8 != 0; // [协议] 位 3 TPGDON
+    // [协议] 位 4 EXTTEMPLATE
     if flags & 0x10 != 0 {
         return Err("不支持扩展模板（EXTTEMPLATE）".into());
     }

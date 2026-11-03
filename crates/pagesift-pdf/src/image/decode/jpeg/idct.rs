@@ -15,9 +15,9 @@ pub(super) struct Idct {
 
 /// [推导] AAN 蝶形里的四个乘数：2cos(π/4)、2cos(π/8)、2(cos(π/8) − cos(3π/8))、2(cos(π/8) + cos(3π/8))
 const M_C4: f32 = std::f32::consts::SQRT_2;
-const M_C2: f32 = 1.847_759;
-const M_C2_MINUS_C6: f32 = 1.082_392_2;
-const M_C2_PLUS_C6: f32 = 2.613_126;
+const M_C2: f32 = 1.847_759; // [推导] 2cos(π/8)
+const M_C2_MINUS_C6: f32 = 1.082_392_2; // [推导] 2(cos(π/8) − cos(3π/8))
+const M_C2_PLUS_C6: f32 = 2.613_126; // [推导] 2(cos(π/8) + cos(3π/8))
 
 impl Idct {
     pub(super) fn new(quant: &[u16; COEFS]) -> Idct {
@@ -60,6 +60,7 @@ impl Idct {
                 }
                 continue;
             }
+            // [协议] 一列 8 个系数，v = 0..7（8×8 块，T.81 §A.3.3）
             let col = butterfly([at(0), at(1), at(2), at(3), at(4), at(5), at(6), at(7)]);
             for v in 0..BLOCK {
                 w[v * BLOCK + u] = col[v];
@@ -111,5 +112,6 @@ fn butterfly(i: [f32; BLOCK]) -> [f32; BLOCK] {
 /// [协议] 8 位样本的电平偏移 128（T.81 §A.3.1），截到 0–255
 #[inline(always)]
 fn level(s: f32) -> u8 {
+    // [协议] 加电平偏移 128，截到 8 位样本范围 0–255（T.81 §A.3.1）
     (s + 128.0).round().clamp(0.0, 255.0) as u8
 }

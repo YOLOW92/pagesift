@@ -81,8 +81,8 @@ pub(super) fn frame(body: &[u8], progressive: bool) -> Result<Frame, String> {
     if body.len() < 6 {
         return Err("帧头太短".into());
     }
+    // [协议] 样本精度 P 只支持 8 位；12 位（扩展方式）不支持（T.81 表 B.2）
     if body[0] != 8 {
-        // [协议] 样本精度 8 位；12 位（扩展方式）不支持
         return Err(format!("不支持 {} 位样本精度", body[0]));
     }
     let height = usize::from(u16::from_be_bytes([body[1], body[2]]));
@@ -92,11 +92,13 @@ pub(super) fn frame(body: &[u8], progressive: bool) -> Result<Frame, String> {
         // 高度为 0 时由 DNL 段给出（T.81 §B.2.5），写入方几乎不用，不支持
         return Err("帧宽或帧高为 0".into());
     }
+    // [协议] 6 字节固定头 + 每分量 3 字节（T.81 表 B.2）
     if body.len() < 6 + 3 * n || n == 0 {
         return Err("帧头分量表被截断".into());
     }
     let comps = (0..n)
         .map(|i| {
+            // [协议] 第 i 个分量的 3 字节 Ci、Hi/Vi、Tqi，排在 6 字节固定头之后（T.81 表 B.2）
             let b = &body[6 + 3 * i..9 + 3 * i];
             let (h, v) = (usize::from(b[1] >> 4), usize::from(b[1] & 0x0F)); // [协议] 采样因子各占 4 位
             if !(1..=4).contains(&h) || !(1..=4).contains(&v) {
@@ -104,8 +106,8 @@ pub(super) fn frame(body: &[u8], progressive: bool) -> Result<Frame, String> {
                 return Err(format!("分量 {} 的采样因子 {h}×{v} 不合法", b[0]));
             }
             let tq = usize::from(b[2]);
+            // [协议] 量化表号 0–3（T.81 表 B.2）
             if tq > 3 {
-                // [协议] 量化表号 0–3
                 return Err(format!("量化表号 {tq} 不合法"));
             }
             Ok(Component { id: b[0], h, v, tq })
@@ -120,6 +122,7 @@ pub(super) fn frame(body: &[u8], progressive: bool) -> Result<Frame, String> {
 }
 
 /// DQT（T.81 §B.2.4.1）：可以一次定义多张表；表按之字形顺序存放，这里换成自然顺序。
+/// [协议] 表号 0–3，共 4 张（T.81 §B.2.4.1）
 pub(super) fn quant(body: &[u8], tables: &mut [Option<[u16; COEFS]>; 4]) -> Result<(), String> {
     let mut i = 0;
     while i < body.len() {
@@ -145,7 +148,8 @@ pub(super) fn quant(body: &[u8], tables: &mut [Option<[u16; COEFS]>; 4]) -> Resu
     Ok(())
 }
 
-/// DHT（T.81 §B.2.4.2）：可以一次定义多张表。`dc`、`ac` 各 4 张。
+/// DHT（T.81 §B.2.4.2）：可以一次定义多张表。
+/// [协议] `dc`、`ac` 各 4 张，表号 0–3（T.81 §B.2.4.2）
 pub(super) fn huffman(
     body: &[u8],
     dc: &mut [Option<Huffman>; 4],

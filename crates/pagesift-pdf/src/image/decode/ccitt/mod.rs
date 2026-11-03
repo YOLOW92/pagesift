@@ -77,7 +77,7 @@ pub(crate) fn decode_counted(
     // （JBIG2 半色调的灰度位平面就是这样首尾相接的，T.88 §6.2.6）
     // [协议] EOFB 是两个 EOL，共 24 位（T.6 §2.4.3）
     if p.k < 0 && done == rows && bits.peek(24) == 0x1001 {
-        bits.skip(24);
+        bits.skip(24); // [协议] EOFB 共 24 位
     }
     if done == 0 {
         return Err("没有解出任何行".into());
@@ -105,7 +105,9 @@ fn row_start(bits: &mut Bits, p: &Ccitt) -> Option<bool> {
         if bits.at_end() {
             return None;
         }
+        // [协议] 12 位的 EOL（000000000001，T.4 §4.1.2）
         if bits.peek(12) == 1 {
+            // [协议] 两个 EOL 连写即 EOFB：24 位 0x001001（T.6）
             if bits.peek(24) == 0x1001 {
                 bits.skip(24); // [协议] EOFB 共 24 位
             }
@@ -174,8 +176,10 @@ enum Mode {
 
 /// [协议] T.4 表 4 的二维模式码
 fn mode(bits: &mut Bits) -> Result<Mode, String> {
+    // [协议] 二维模式码最长 7 位（T.4 表 4）
     let v = bits.peek(7);
     let (len, m) = match v {
+        // [协议] 按 T.4 表 4 各码字的前缀分段；元组第一项是码长，Vertical 里是 a1 相对 b1 的偏移
         0b100_0000..=0b111_1111 => (1, Mode::Vertical(0)),
         0b011_0000..=0b011_1111 => (3, Mode::Vertical(1)),
         0b010_0000..=0b010_1111 => (3, Mode::Vertical(-1)),

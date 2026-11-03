@@ -45,6 +45,7 @@ pub(crate) fn decode_gray(
     let c0 = &p.frame.comps[0];
     // Y 分量本身就是全分辨率时才能直接拿它当灰度
     let full = c0.h == p.frame.hmax() && c0.v == p.frame.vmax();
+    // [协议] 3 分量按 YCbCr 解释时第 0 个分量是 Y（JFIF / T.871）
     if n == 1 || (n == 3 && full && transform(n, color_transform, p.adobe)) {
         let y = p.samples(0)?;
         let only = Frame {
@@ -64,7 +65,7 @@ pub(crate) fn decode_gray(
 struct Parsed {
     frame: Frame,
     planes: Vec<Plane>,
-    quant: [Option<[u16; COEFS]>; 4],
+    quant: [Option<[u16; COEFS]>; 4], // [协议] 量化表号 0–3（T.81 §B.2.4.1）
     adobe: Option<u8>,
 }
 
@@ -98,13 +99,14 @@ fn parse(data: &[u8], max_bytes: usize) -> Result<Parsed, String> {
     let mut pos = 2;
     let mut frame: Option<Frame> = None;
     let mut planes: Vec<Plane> = Vec::new();
-    let mut quant: [Option<[u16; COEFS]>; 4] = [None; 4];
-    let mut dc: [Option<Huffman>; 4] = Default::default();
-    let mut ac: [Option<Huffman>; 4] = Default::default();
+    let mut quant: [Option<[u16; COEFS]>; 4] = [None; 4]; // [协议] 量化表号 0–3（T.81 §B.2.4.1）
+    let mut dc: [Option<Huffman>; 4] = Default::default(); // [协议] DC 表号 0–3（T.81 §B.2.4.2）
+    let mut ac: [Option<Huffman>; 4] = Default::default(); // [协议] AC 表号 0–3（T.81 §B.2.4.2）
     let mut restart = 0usize;
     let mut adobe: Option<u8> = None;
     let mut scans = 0usize;
     while pos + 1 < data.len() {
+        // [协议] 标记以 FF 开头（T.81 §B.1.1.2）
         if data[pos] != 0xFF {
             // 标记之间的垃圾字节：跳过（写入方的错误，解码器通常容忍）
             pos += 1;
@@ -124,6 +126,7 @@ fn parse(data: &[u8], max_bytes: usize) -> Result<Parsed, String> {
                         if frame.is_some() {
                             return Err("出现了第二个帧头".into());
                         }
+                        // [协议] SOF2 是渐进方式（T.81 表 B.1）
                         let f = marker::frame(body, m == 0xC2)?;
                         let need = footprint(&f);
                         if need > max_bytes as u64 {
@@ -134,6 +137,7 @@ fn parse(data: &[u8], max_bytes: usize) -> Result<Parsed, String> {
                     }
                     // [协议] 其余 SOFn：无损、分层、算术编码（DHT 是 C4、JPG 是 C8、DAC 是 CC，不在其中）
                     0xC3 | 0xC5..=0xC7 | 0xC9..=0xCB | 0xCD..=0xCF => {
+                        // [协议] SOFn 的标记是 FFC0 + n（T.81 表 B.1）
                         return Err(format!("不支持的编码方式 SOF{}", m - 0xC0));
                     }
                     0xC4 => marker::huffman(body, &mut dc, &mut ac)?, // [协议] DHT
@@ -193,6 +197,7 @@ fn inverse(p: &Plane, q: &[u16; COEFS]) -> Vec<u8> {
 /// 默认：3 分量做 YCbCr 变换；4 分量只有 Adobe 标记说是 YCCK 才变换。
 fn transform(n: usize, color_transform: Option<bool>, adobe: Option<u8>) -> bool {
     color_transform.unwrap_or(match (n, adobe) {
+        // [协议] 3 分量按 JFIF 惯例是 YCbCr（T.871），Adobe 标志 0 表示不变换（Adobe 技术说明 #5116）
         (3, Some(t)) => t != 0,
         (3, None) => true,
         (4, Some(t)) => t == 2, // [协议] Adobe 变换 2 = YCCK
@@ -237,25 +242,29 @@ fn assemble(
         samples[k][(y * c.v / vmax) * stride + cols[k][x]]
     };
     let transform = transform(n, color_transform, adobe);
+    // [协议] 3 分量是 RGB / YCbCr，4 分量是 CMYK / YCCK；2 分量没有约定的解释，只取第 0 个当灰度
     let channels = if n >= 3 { n } else { 1 };
     let mut data = Vec::with_capacity(w * h * channels);
     for y in 0..h {
         for x in 0..w {
             match n {
+                // [协议] 3 分量 YCbCr（JFIF / T.871）；at 的第一个参数是分量号
                 1 | 2 => data.push(at(0, x, y)),
                 3 if transform => {
                     let (r, g, b) = ycc_to_rgb(at(0, x, y), at(1, x, y), at(2, x, y));
                     data.extend([r, g, b]);
                 }
+                // [协议] 3 分量不变换时就是 RGB，原样输出
                 3 => data.extend([at(0, x, y), at(1, x, y), at(2, x, y)]),
                 _ => {
                     let (c, m, yy, k) = if transform {
                         let (r, g, b) = ycc_to_rgb(at(0, x, y), at(1, x, y), at(2, x, y));
                         (255 - r, 255 - g, 255 - b, at(3, x, y)) // [协议] YCCK：YCC 换出 RGB 的补色即 CMY
                     } else {
+                        // [协议] 4 分量不变换时就是 CMYK，分量号 0–3
                         (at(0, x, y), at(1, x, y), at(2, x, y), at(3, x, y))
                     };
-                    // Adobe 写的 CMYK JPEG 存的是反相值（Adobe 技术说明 #5116 的惯例）
+                    // [协议] Adobe 写的 CMYK JPEG 存反相值 255 − v（Adobe 技术说明 #5116 的惯例）
                     let inv = |v: u8| if adobe.is_some() { 255 - v } else { v };
                     data.extend([inv(c), inv(m), inv(yy), inv(k)]);
                 }
@@ -272,6 +281,7 @@ fn assemble(
 
 /// [协议] JFIF 1.02 / ITU-T T.871 §7 的 YCbCr → RGB 系数
 fn ycc_to_rgb(y: u8, cb: u8, cr: u8) -> (u8, u8, u8) {
+    // [协议] 色差分量以 128 为零点（T.871 §7）
     let (y, cb, cr) = (f32::from(y), f32::from(cb) - 128.0, f32::from(cr) - 128.0);
     let clip = |v: f32| v.round().clamp(0.0, 255.0) as u8; // [协议] 8 位样本 0–255
     (

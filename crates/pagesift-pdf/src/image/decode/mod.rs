@@ -18,6 +18,7 @@ impl Raster {
     /// 转成灰度（OCR 只需要亮度）。RGB 按 ITU-R BT.601 的亮度系数；CMYK 先换成 RGB。
     pub(crate) fn to_gray(&self) -> Raster {
         let data = match self.channels {
+            // [协议] 分量数：1 是灰度，3 是 RGB，4 是 CMYK（ISO 32000-2 §8.6.4 的设备色彩空间）
             1 => self.data.clone(),
             3 => self
                 .data

@@ -193,7 +193,7 @@ pub(super) fn segment(
     let head = if template == 0 {
         let b = data.get(1..5).ok_or("细化区域段的 AT 像素不全")?;
         at = [(b[0] as i8, b[1] as i8), (b[2] as i8, b[3] as i8)];
-        5
+        5 // [协议] 标志 1 字节 + AT 4 字节
     } else {
         1
     };

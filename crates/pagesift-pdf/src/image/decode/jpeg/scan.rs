@@ -32,6 +32,7 @@ impl Plane {
 /// 解一个扫描。返回熵编码数据之后的位置（下一个标记的 FF）。
 /// 扫描要用到的表：DC、AC 霍夫曼表各 4 张，和重启间隔（以 MCU 计，0 表示没有）。
 pub(super) struct Tables<'a> {
+    /// [协议] 霍夫曼表号 0–3（T.81 §B.2.4.2）
     pub(super) dc: &'a [Option<Huffman>; 4],
     pub(super) ac: &'a [Option<Huffman>; 4],
     pub(super) restart: usize,
@@ -47,9 +48,10 @@ pub(super) fn decode(
 ) -> Result<usize, String> {
     let (dc, ac, restart) = (t.dc, t.ac, t.restart);
     let mut bits = Bits::new(data, pos);
-    let mut pred = [0i32; 4];
+    let mut pred = [0i32; 4]; // [协议] 一个扫描至多 4 个分量（T.81 §B.2.3），各一个 DC 预测值
     let mut eobrun = 0u32;
     let mode = Mode::of(frame, scan)?;
+    // [协议] 霍夫曼表号 0–3（T.81 §B.2.4.2）
     fn table<'t>(
         set: &'t [Option<Huffman>; 4],
         i: usize,
@@ -101,7 +103,7 @@ pub(super) fn decode(
     for (n, &(row, col)) in units.iter().enumerate() {
         if restart > 0 && n > 0 && n % restart == 0 {
             bits.restart();
-            pred = [0; 4];
+            pred = [0; 4]; // [协议] 4 个分量的 DC 预测在重启处清零（T.81 附录 F）
             eobrun = 0;
         }
         if scan.comps.len() == 1 {
@@ -208,6 +210,7 @@ fn unit(
                 let rs = bits.decode(ac)?;
                 let (r, s) = (usize::from(rs >> 4), u32::from(rs & 0x0F)); // [协议] RRRR/SSSS 各 4 位（T.81 §F.1.2.2）
                 if s == 0 {
+                    // [协议] SSSS = 0 时 RRRR = 15 是 ZRL，其余是 EOB（T.81 §F.1.2.2）
                     if r != 15 {
                         break; // EOB
                     }
@@ -255,6 +258,7 @@ fn ac_first(
         let rs = bits.decode(ac)?;
         let (r, s) = (u32::from(rs >> 4), u32::from(rs & 0x0F)); // [协议] RRRR/SSSS 各 4 位
         if s == 0 {
+            // [协议] RRRR < 15 是 EOBn，RRRR = 15 是 ZRL（T.81 §G.1.2.2）
             if r < 15 {
                 // EOBn：本块和之后 2^r − 1 + 附加位 个块在本频带内都没有系数（T.81 §G.1.2.2）
                 *eobrun = (1 << r) - 1 + bits.bits(r);
@@ -298,6 +302,7 @@ fn ac_refine(
             if s != 0 {
                 // 逐次逼近扫描里新系数的 SSSS 只能是 1（T.81 §G.1.2.3）
                 value = if bits.bit() { p1 } else { m1 };
+                // [协议] 下一分支：SSSS = 0 时 RRRR = 15 是 ZRL，其余是 EOBn（T.81 §G.1.2.3）
             } else if r != 15 {
                 *eobrun = (1 << r) + bits.bits(r as u32);
                 break;

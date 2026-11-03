@@ -42,7 +42,7 @@ struct Header {
     ctx_retained: bool,
     template: u8,
     rtemplate: u8,
-    at: [(i16, i16); 4],
+    at: [(i16, i16); 4], // [协议] SDAT 至多 4 个（§7.4.2.1.2）
     rat: [(i8, i8); 2],
     /// SDNUMNEWSYMS（SDNUMEXSYMS 只用于核对，导出个数以游程为准）。
     num_new: u32,
@@ -51,10 +51,10 @@ struct Header {
 fn header(data: &[u8]) -> Result<(Header, &[u8]), String> {
     let f = data.get(0..2).ok_or("符号字典段太短")?; // [协议] 标志 2 字节（§7.4.2.1.1）
     let f = u16::from_be_bytes([f[0], f[1]]);
-    // [协议] 位 0 SDHUFF、位 1 SDREFAGG、位 2–3 SDHUFFDH、位 4–5 SDHUFFDW、位 6 SDHUFFBMSIZE、
-    // 位 7 SDHUFFAGGINST、位 8 上下文沿用、位 9 上下文保留、位 10–11 SDTEMPLATE、位 12 SDRTEMPLATE
-    // （§7.4.2.1.1）
     let mut h = Header {
+        // [协议] 位 0 SDHUFF、位 1 SDREFAGG、位 2–3 SDHUFFDH、位 4–5 SDHUFFDW、位 6 SDHUFFBMSIZE、
+        // 位 7 SDHUFFAGGINST、位 8 上下文沿用、位 9 上下文保留、位 10–11 SDTEMPLATE、位 12 SDRTEMPLATE
+        // （§7.4.2.1.1）
         huff: f & 1 != 0,
         refagg: f & 2 != 0,
         sel_dh: (f >> 2) & 3,
@@ -87,11 +87,11 @@ fn header(data: &[u8]) -> Result<(Header, &[u8]), String> {
             .get(pos..pos + 4)
             .ok_or("符号字典段的细化 AT 像素不全")?;
         h.rat = [(b[0] as i8, b[1] as i8), (b[2] as i8, b[3] as i8)];
-        pos += 4;
+        pos += 4; // [协议] 细化 AT 像素 4 字节
     }
     // [协议] SDNUMEXSYMS、SDNUMNEWSYMS 各 4 字节（§7.4.2.1.4、§7.4.2.1.5）
     h.num_new = super::be32(data, pos + 4)?;
-    pos += 8;
+    pos += 8; // [协议] SDNUMEXSYMS、SDNUMNEWSYMS 共 8 字节
     Ok((h, data.get(pos..).ok_or("符号字典段太短")?))
 }
 

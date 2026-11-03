@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use super::super::bitmap::Bitmap;
 use super::super::huffman::{self, Bits, Table};
-use super::super::mq::{Cx, IdDecoder, IntDecoder, Mq};
+use super::super::mq::{Cx, IdDecoder, IntDecoder, Mq, STARVED};
 use super::super::refine;
 
 /// 文本区域里用整数解码过程解的字段（表 9）。
@@ -90,6 +90,10 @@ pub(in crate::image::decode::jbig2) struct Arith<'a> {
 
 impl Source for Arith<'_> {
     fn int(&mut self, f: Field) -> Result<Option<i32>, String> {
+        // 每个实例都要读整数字段，在这里查一次就覆盖了按计数循环的文本区域和符号字典聚合
+        if self.mq.starved() {
+            return Err(STARVED.into());
+        }
         let c = &mut self.cx;
         let d = match f {
             Field::Dt => &mut c.dt,
@@ -181,7 +185,7 @@ pub(in crate::image::decode::jbig2) struct HuffTables<'t> {
 /// 霍夫曼编码时符号 ID 的码：文本区域段里是段内给出的码表（§7.4.3.1.7），
 /// 符号字典的聚合里是 SBSYMCODELEN 位的定长码（§6.5.8.2.3）。
 pub(in crate::image::decode::jbig2) enum Ids {
-    Table(Table),
+    Table(Box<Table>),
     Fixed(u32),
 }
 

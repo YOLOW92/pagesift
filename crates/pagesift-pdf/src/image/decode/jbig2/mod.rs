@@ -89,18 +89,18 @@ enum Flow {
 /// [协议] 段类型（T.88 §7.3 表 2）
 mod kind {
     pub(super) const SYMBOL_DICT: u8 = 0;
-    pub(super) const TEXT: [u8; 3] = [4, 6, 7];
-    pub(super) const PATTERN_DICT: u8 = 16;
-    pub(super) const HALFTONE: [u8; 3] = [20, 22, 23];
-    pub(super) const GENERIC: [u8; 3] = [36, 38, 39];
-    pub(super) const REFINE: [u8; 3] = [40, 42, 43];
-    /// 中间区域段：结果不上页，留给细化区域引用。
+    pub(super) const TEXT: [u8; 3] = [4, 6, 7]; // [协议] 中间、立即、立即无损文本区域
+    pub(super) const PATTERN_DICT: u8 = 16; // [协议] 图样字典
+    pub(super) const HALFTONE: [u8; 3] = [20, 22, 23]; // [协议] 中间、立即、立即无损半色调区域
+    pub(super) const GENERIC: [u8; 3] = [36, 38, 39]; // [协议] 中间、立即、立即无损通用区域
+    pub(super) const REFINE: [u8; 3] = [40, 42, 43]; // [协议] 中间、立即、立即无损细化区域
+    /// [协议] 中间区域段（文本、半色调、通用、细化四种）：结果不上页，留给细化区域引用。
     pub(super) const INTERMEDIATE: [u8; 4] = [4, 20, 36, 40];
-    pub(super) const PAGE_INFO: u8 = 48;
-    pub(super) const END_OF_PAGE: u8 = 49;
-    pub(super) const END_OF_STRIPE: u8 = 50;
-    pub(super) const END_OF_FILE: u8 = 51;
-    pub(super) const TABLES: u8 = 53;
+    pub(super) const PAGE_INFO: u8 = 48; // [协议] 页信息
+    pub(super) const END_OF_PAGE: u8 = 49; // [协议] 页尾
+    pub(super) const END_OF_STRIPE: u8 = 50; // [协议] 条带尾
+    pub(super) const END_OF_FILE: u8 = 51; // [协议] 文件尾
+    pub(super) const TABLES: u8 = 53; // [协议] 码表
 }
 
 impl State {
@@ -181,7 +181,7 @@ impl State {
             return Err("出现了第二个页信息段".into());
         }
         let w = be32(data, 0)? as usize;
-        let h = be32(data, 4)?;
+        let h = be32(data, 4)?; // [协议] 页高在第 4 字节起（§7.4.8.2）
         // [协议] 宽、高、x 分辨率、y 分辨率各 4 字节，然后 1 字节标志；位 2 是缺省像素值（§7.4.8.5）
         let flags = *data.get(16).ok_or("页信息段太短")?;
         let default = (flags >> 2) & 1;
@@ -201,7 +201,7 @@ impl State {
         let k = seg.kind;
         // [协议] 高度 0xFFFFFFFF 的立即通用区域：实际行数在段数据最后 4 字节（§7.4.6.4）
         if kind::GENERIC.contains(&k) && info.h == u32::MAX as usize {
-            let n = seg.data.len().checked_sub(4).ok_or("通用区域段太短")?;
+            let n = seg.data.len().checked_sub(4).ok_or("通用区域段太短")?; // [协议] 最后 4 字节
             info.h = be32(seg.data, n)? as usize;
         }
         let bm = if kind::GENERIC.contains(&k) {

@@ -29,26 +29,28 @@ fn header<'a>(b: &[u8]) -> Result<(Segment<'a>, usize, Option<usize>), String> {
     let flags = *b.get(4).ok_or("段头被截断")?; // [协议] 段号之后是 1 字节标志（§7.2.3）
     // [协议] 低 6 位是类型，位 6 表示页关联字段占 4 字节
     let kind = flags & 0x3F;
-    let wide_page = flags & 0x40 != 0;
+    let wide_page = flags & 0x40 != 0; // [协议] 位 6（§7.2.3）
     let mut i = 5; // [协议] 段号 4 字节 + 标志 1 字节
     let first = *b.get(i).ok_or("段头被截断")?;
     // [协议] 引用段数（§7.2.4）：高 3 位；为 7 时是长格式，4 字节里的低 29 位，后跟保留位
     let count = if first >> 5 == 7 {
-        let n = (be32(b, i)? & 0x1FFF_FFFF) as usize;
+        let n = (be32(b, i)? & 0x1FFF_FFFF) as usize; // [协议] 长格式：4 字节里的低 29 位
+        // [协议] 4 字节计数之后，本段和每个被引用段各一个保留位，按字节补齐（§7.2.4）
         i += 4 + (n + 1).div_ceil(8);
         n
     } else {
         i += 1;
-        usize::from(first >> 5)
+        usize::from(first >> 5) // [协议] 短格式：高 3 位
     };
-    // [协议] 被引用段号的宽度由本段号决定：≤256 一字节，≤65536 两字节，否则四字节（§7.2.5）
     let width = match number {
+        // [协议] 被引用段号的宽度由本段号决定：≤256 一字节，≤65536 两字节，否则四字节（§7.2.5）
         0..=256 => 1,
         257..=65_536 => 2,
         _ => 4,
     };
     let need = count.checked_mul(width).ok_or("引用段数溢出")?;
     let list = b.get(i..i + need).ok_or("段头被截断")?;
+    // [协议] 被引用段号按大端存放，每字节 8 位（§7.2.5）
     let refs = list
         .chunks(width)
         .map(|c| c.iter().fold(0u32, |v, &x| (v << 8) | u32::from(x)))
@@ -72,8 +74,9 @@ fn header<'a>(b: &[u8]) -> Result<(Segment<'a>, usize, Option<usize>), String> {
 fn unknown_length(b: &[u8]) -> Result<usize, String> {
     // [协议] 区域段信息 17 字节，其后 1 字节通用区域标志，位 0 是 MMR（§7.4.1、§7.4.6.2）
     let flags = *b.get(17).ok_or("通用区域段太短")?;
+    // [协议] 结束标记：MMR 是 0x0000，算术编码是 0xFFAC（§7.2.7）
     let marker: [u8; 2] = if flags & 1 != 0 { [0, 0] } else { [0xFF, 0xAC] };
-    let from = 18;
+    let from = 18; // [协议] 区域段信息 17 字节 + 标志 1 字节
     let at = b
         .get(from..)
         .and_then(|r| r.windows(2).position(|w| w == marker))
@@ -94,7 +97,7 @@ pub(super) fn parse(data: &[u8]) -> Result<Vec<Segment<'_>>, String> {
         // [协议] 文件头：ID 串 8 字节、标志 1 字节；标志位 0 为 1 是顺序组织，位 1 为 0 时跟 4 字节页数（附录 D.4）
         let flags = *data.get(8).ok_or("文件头被截断")?;
         random = flags & 1 == 0;
-        i = if flags & 2 == 0 { 13 } else { 9 };
+        i = if flags & 2 == 0 { 13 } else { 9 }; // [协议] 文件头 9 字节，跟页数时再加 4 字节
     }
     let mut out = Vec::new();
     if random {

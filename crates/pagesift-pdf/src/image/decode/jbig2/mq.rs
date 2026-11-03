@@ -71,7 +71,20 @@ pub(super) struct Mq<'a> {
     a: u32,
     c: u32,
     ct: u32,
+    /// 停在标记上（数据末尾之后也当作标记）之后又做了多少次判定（见 [`Mq::starved`]）。
+    /// 解码器遇到标记就不再前进、只补 1，标记可能在数据中间，所以不能只看读到了哪里。
+    past_end: u32,
+    stalled: bool,
 }
+
+/// [策略] 停在标记上（含数据读完）之后最多再做的判定次数。合法码流读过末尾只是为了解完最后一点内容
+/// （编码器 FLUSH 之后的尾巴、被删掉的末尾 0xFF 0x7F），2^20 次判定足够解完数万个文本实例的
+/// 字段，远超这点尾巴所需；恶意码流（例如声明十几亿个实例）在数据读完后会无限空转，这个上限
+/// 把空转限制在毫秒级。通用区域的逐像素解码不受此限（像素数已由分配上限约束）。
+const STARVE_LIMIT: u32 = 1 << 20;
+
+/// [`Mq::starved`] 为真时的错误信息。
+pub(super) const STARVED: &str = "算术编码数据已读完，码流里的计数和数据对不上";
 
 impl<'a> Mq<'a> {
     /// INITDEC（§E.3.5，图 E.20）。
@@ -82,11 +95,14 @@ impl<'a> Mq<'a> {
             a: 0,
             c: 0,
             ct: 0,
+            past_end: 0,
+            stalled: false,
         };
+        // [协议] INITDEC：C = B << 16，BYTEIN，再 C <<= 7、CT −= 7（图 E.20）
         d.c = u32::from(d.byte(0)) << 16;
         d.byte_in();
-        d.c <<= 7;
-        d.ct -= 7;
+        d.c <<= 7; // [协议] 图 E.20
+        d.ct -= 7; // [协议] 图 E.20
         d.a = 0x8000; // [协议] A 的初值（图 E.20）
         d
     }
@@ -94,7 +110,7 @@ impl<'a> Mq<'a> {
     /// 数据末尾之后当 0xFF（§E.3.4：解码器读过末尾时相当于读到标记）。
     #[inline]
     fn byte(&self, i: usize) -> u8 {
-        self.data.get(i).copied().unwrap_or(0xFF)
+        self.data.get(i).copied().unwrap_or(0xFF) // [协议] 读过末尾当 0xFF（§E.3.4）
     }
 
     /// BYTEIN（§E.3.4，图 E.19）。
@@ -102,27 +118,35 @@ impl<'a> Mq<'a> {
     fn byte_in(&mut self) {
         // [协议] 0xFF 之后大于 0x8F 的字节是标记：不前进，补 1（图 E.19）
         if self.byte(self.bp) == 0xFF {
+            // [协议] 下一字节大于 0x8F：FF 是标记的开头（图 E.19）
             if self.byte(self.bp + 1) > 0x8F {
-                self.c = self.c.wrapping_add(0xFF00);
-                self.ct = 8;
+                self.c = self.c.wrapping_add(0xFF00); // [协议] 补 1 位（图 E.19）
+                self.ct = 8; // [协议] 图 E.19
+                self.stalled = true;
             } else {
                 self.bp += 1;
+                // [协议] FF 之后的字节填充过一位，只取 7 位：左移 9、CT = 7（图 E.19）
                 self.c = self.c.wrapping_add(u32::from(self.byte(self.bp)) << 9);
-                self.ct = 7;
+                self.ct = 7; // [协议] 图 E.19
             }
         } else {
             self.bp += 1;
+            // [协议] 普通字节：左移 8、CT = 8（图 E.19）
             self.c = self.c.wrapping_add(u32::from(self.byte(self.bp)) << 8);
-            self.ct = 8;
+            self.ct = 8; // [协议] 图 E.19
         }
     }
 
     /// DECODE（§E.3.2，图 E.15–E.18）：用上下文 `cx` 解一位。
     #[inline]
     pub(super) fn decode(&mut self, cx: &mut Cx) -> u8 {
+        if self.stalled {
+            self.past_end = self.past_end.saturating_add(1);
+        }
         let (qe, nmps, nlps, switch) = QE[cx.index as usize];
         self.a -= qe;
         let d;
+        // [协议] 比较 C 的高 16 位 Chigh 与 Qe（图 E.15）
         if (self.c >> 16) < qe {
             // LPS_EXCHANGE（图 E.17）
             if self.a < qe {
@@ -138,7 +162,8 @@ impl<'a> Mq<'a> {
             self.a = qe;
             self.renorm();
         } else {
-            self.c -= qe << 16;
+            self.c -= qe << 16; // [协议] Chigh −= Qe（图 E.15）
+            // [协议] A 不小于 0x8000 时不用重新归一（图 E.15）
             if self.a & 0x8000 != 0 {
                 return cx.mps;
             }
@@ -156,6 +181,12 @@ impl<'a> Mq<'a> {
             self.renorm();
         }
         d
+    }
+
+    /// 数据早已读完、只靠补的 0xFF 在解：符号字典、文本区域这类按码流里的计数循环的地方，
+    /// 每轮查一次，为真就停（计数和数据对不上，码流损坏或是恶意构造）。
+    pub(super) fn starved(&self) -> bool {
+        self.past_end > STARVE_LIMIT
     }
 
     /// RENORMD（§E.3.3，图 E.18）。
@@ -196,7 +227,7 @@ impl IntDecoder {
             prev = if prev < 256 {
                 (prev << 1) | usize::from(d)
             } else {
-                (((prev << 1) | usize::from(d)) & 511) | 256
+                (((prev << 1) | usize::from(d)) & 511) | 256 // [协议] 留低 9 位，再置第 9 位
             };
             d
         };
@@ -205,15 +236,15 @@ impl IntDecoder {
         let (bits, offset) = if bit(mq) == 0 {
             (2, 0)
         } else if bit(mq) == 0 {
-            (4, 4)
+            (4, 4) // [协议] 前缀 10：4 位，从 4 起
         } else if bit(mq) == 0 {
-            (6, 20)
+            (6, 20) // [协议] 前缀 110：6 位，从 20 起
         } else if bit(mq) == 0 {
-            (8, 84)
+            (8, 84) // [协议] 前缀 1110：8 位，从 84 起
         } else if bit(mq) == 0 {
-            (12, 340)
+            (12, 340) // [协议] 前缀 11110：12 位，从 340 起
         } else {
-            (32, 4436)
+            (32, 4436) // [协议] 前缀 11111：32 位，从 4436 起
         };
         let mut v: u32 = 0;
         for _ in 0..bits {

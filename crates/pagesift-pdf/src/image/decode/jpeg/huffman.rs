@@ -91,11 +91,12 @@ impl<'a> Bits<'a> {
                         self.stopped = true;
                         0
                     }
+                    // [协议] FF 开头的是标记，或数据里的 FF 加填充 00（T.81 §B.1.1.2、§F.1.2.3）
                     Some(&0xFF) => match self.data.get(self.pos + 1) {
                         // [协议] FF 00 是数据里的 FF（T.81 §F.1.2.3）
                         Some(0x00) => {
                             self.pos += 2;
-                            0xFF
+                            0xFF // [协议] FF 00 还原成数据字节 FF
                         }
                         _ => {
                             self.stopped = true;
@@ -138,8 +139,9 @@ impl<'a> Bits<'a> {
         }
         let peek = (self.acc >> (64 - LOOKUP_BITS)) as usize; // [协议] 64 位累加器
         let e = t.lookup[peek];
+        // [推导] 查找表项自定的打包：高 8 位是码长（0 表示走慢路径），低 8 位是一字节码值
         if e >> 8 != 0 {
-            let len = u32::from(e >> 8);
+            let len = u32::from(e >> 8); // [推导] 同上，高 8 位是码长
             self.acc <<= len;
             self.count -= len;
             return Ok(e as u8);
@@ -179,7 +181,7 @@ impl<'a> Bits<'a> {
         self.acc = 0;
         self.count = 0;
         self.stopped = false;
-        // 标记前可能有填充的 FF（T.81 §B.1.1.2）
+        // [协议] 标记前可能有填充的 FF（T.81 §B.1.1.2）
         while self.data.get(self.pos) == Some(&0xFF) && self.data.get(self.pos + 1) == Some(&0xFF) {
             self.pos += 1;
         }

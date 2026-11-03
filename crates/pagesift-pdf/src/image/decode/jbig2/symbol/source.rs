@@ -7,7 +7,7 @@ use std::rc::Rc;
 use super::super::bitmap::Bitmap;
 use super::super::generic;
 use super::super::huffman::{self, Table};
-use super::super::mq::{Cx, IntDecoder, Mq};
+use super::super::mq::{Cx, IntDecoder, Mq, STARVED};
 use super::super::text::coder::{Arith, ArithCx, Huff, HuffTables, Ids, Picker, Reader, Source};
 use super::Header;
 
@@ -50,7 +50,7 @@ pub(super) struct ArithDict<'a> {
     /// 通用区域的上下文，同一字典里所有符号共用（§6.5.8.1）。
     gb: Vec<Cx>,
     template: u8,
-    at: [(i16, i16); 4],
+    at: [(i16, i16); 4], // [协议] SDAT 至多 4 个（§7.4.2.1.2）
 }
 
 impl<'a> ArithDict<'a> {
@@ -90,6 +90,9 @@ impl DictSource for ArithDict<'_> {
             DictField::AggInst => &mut self.ai,
             DictField::Ex => &mut self.ex,
         };
+        if self.t.mq.starved() {
+            return Err(STARVED.into());
+        }
         Ok(d.decode(&mut self.t.mq))
     }
 
@@ -138,13 +141,13 @@ impl<'a, 't> HuffDict<'a, 't> {
         // 一位选择值 1 是自定义表；SDHUFFDH 0/1 是 B.4/B.5，SDHUFFDW 0/1 是 B.2/B.3，
         // SDHUFFBMSIZE、SDHUFFAGGINST 0 是 B.1（§7.4.2.1.1）
         let dh = pk.pick("SDHUFFDH", h.sel_dh, 3, &[4, 5])?;
-        let dw = pk.pick("SDHUFFDW", h.sel_dw, 3, &[2, 3])?;
+        let dw = pk.pick("SDHUFFDW", h.sel_dw, 3, &[2, 3])?; // [协议] 同上，3 是自定义表
         let bmsize = pk.pick("SDHUFFBMSIZE", h.sel_bmsize, 1, &[1])?;
         let agg = pk.pick("SDHUFFAGGINST", h.sel_agginst, 1, &[1])?;
-        // [协议] 细化/聚合时文本区域用的表（表 17）：FS B.6、DS B.8、DT B.11、RDW/RDH/RDX/RDY B.15、
-        // RSIZE B.1；只有一个实例时的 RDX、RDY 用 B.15，BMSIZE 用 B.1（§6.5.8.2.2），与此相同
         let text = if h.refagg {
             HuffTables {
+                // [协议] 细化/聚合时文本区域用的表（表 17）：FS B.6、DS B.8、DT B.11、RDW/RDH/RDX/RDY B.15、
+                // RSIZE B.1；只有一个实例时的 RDX、RDY 用 B.15，BMSIZE 用 B.1（§6.5.8.2.2），与此相同
                 fs: huffman::standard(6)?,
                 ds: huffman::standard(8)?,
                 dt: huffman::standard(11)?,
@@ -229,7 +232,7 @@ impl DictSource for HuffDict<'_, '_> {
                 for (x, px) in bm.row_mut(y).iter_mut().enumerate() {
                     // [协议] 字节内高位在前（§6.5.9 步骤 3）；数据不足的部分当白
                     let byte = row.get(x / 8).copied().unwrap_or(0);
-                    *px = (byte >> (7 - x % 8)) & 1;
+                    *px = (byte >> (7 - x % 8)) & 1; // [协议] 第 x % 8 位，最高位是 7
                 }
             }
             bm

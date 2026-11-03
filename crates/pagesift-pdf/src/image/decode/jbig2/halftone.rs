@@ -19,7 +19,7 @@ pub(super) fn pattern_dict(data: &[u8]) -> Result<Vec<Bitmap>, String> {
     let flags = data[0];
     // [协议] 标志：位 0 HDMMR，位 1–2 HDTEMPLATE（§7.4.4.1.1）
     let is_mmr = flags & 1 != 0;
-    let template = (flags >> 1) & 3;
+    let template = (flags >> 1) & 3; // [协议] 位 1–2 HDTEMPLATE
     let (pw, ph) = (usize::from(data[1]), usize::from(data[2])); // [协议] HDPW、HDPH（§7.4.4.1.2–3）
     let graymax = be32(data, 3)? as usize; // [协议] GRAYMAX 在第 3 字节起（§7.4.4.1.4）
     if pw == 0 || ph == 0 {
@@ -36,7 +36,7 @@ pub(super) fn pattern_dict(data: &[u8]) -> Result<Vec<Bitmap>, String> {
         // （§6.7.5 步骤 1 表 27）
         // HDPW 是 1 字节（§7.4.4.1.2），−HDPW 至少 −255，i16 放得下
         let a1 = -i16::from(u8::try_from(pw).map_err(|_| format!("HDPW = {pw} 超过 1 字节"))?);
-        let at = [(a1, 0), (-3, -1), (2, -2), (-2, -2)];
+        let at = [(a1, 0), (-3, -1), (2, -2), (-2, -2)]; // [协议] 即上面表 27 的四个 AT 像素
         let mut mq = Mq::new(body);
         let mut cx = contexts(generic::context_count(template));
         generic::decode(
@@ -110,7 +110,7 @@ impl Header {
         let (m, n) = (mg as i64, ng as i64);
         // [协议] 坐标是 1/256 像素的定点数，算术右移 8 位取整（§6.6.5.2）
         let x = (self.gx + m * self.ry + n * self.rx) >> 8;
-        let y = (self.gy + m * self.rx - n * self.ry) >> 8;
+        let y = (self.gy + m * self.rx - n * self.ry) >> 8; // [协议] 同样右移 8 位（§6.6.5.2）
         (x, y)
     }
 

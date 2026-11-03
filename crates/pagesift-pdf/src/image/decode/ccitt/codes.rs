@@ -18,8 +18,9 @@ impl Tables {
     pub(super) fn get(&self, white: bool, next13: u32) -> Option<(u32, usize)> {
         let t = if white { &self.white } else { &self.black };
         let e = t[next13 as usize];
+        // [推导] 表项自定的打包：低 12 位放游程（最大 2560 < 2^12，T.4 表 3），高 4 位放码长（≤ 13）
         let len = u32::from(e >> 12);
-        (len > 0).then_some((len, usize::from(e & 0x0FFF)))
+        (len > 0).then_some((len, usize::from(e & 0x0FFF))) // [推导] 同上，取低 12 位
     }
 }
 

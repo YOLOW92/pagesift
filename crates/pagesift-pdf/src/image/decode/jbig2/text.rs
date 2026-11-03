@@ -162,7 +162,7 @@ fn instance<'s>(
     if !p.refine || !src.ri()? {
         return Ok(Cow::Borrowed(sym));
     }
-    let mut d = [0i64; 4];
+    let mut d = [0i64; 4]; // [协议] RDW、RDH、RDX、RDY 四个字段（§6.4.11.1）
     for (v, f) in d
         .iter_mut()
         .zip([Field::Rdw, Field::Rdh, Field::Rdx, Field::Rdy])
@@ -211,19 +211,17 @@ pub(super) fn region(
     symbols: &[Rc<Bitmap>],
     tables: &[Rc<Table>],
 ) -> Result<Bitmap, String> {
-    // [协议] 文本区域段标志 2 字节（§7.4.3.1.1）：位 0 SBHUFF、位 1 SBREFINE、位 2–3 LOG2SBSTRIPS、
-    // 位 4–5 REFCORNER、位 6 TRANSPOSED、位 7–8 SBCOMBOP、位 9 SBDEFPIXEL、位 10–14 SBDSOFFSET、
-    // 位 15 SBRTEMPLATE
+    // [协议] 文本区域段标志 2 字节，各字段的位置见每行（§7.4.3.1.1）
     let flags = be16(data, 0)?;
-    let huff = flags & 1 != 0;
-    let refine = flags & 2 != 0;
-    let log_strips = u32::from((flags >> 2) & 3);
-    let corner = Corner::from_bits(flags >> 4);
-    let transposed = flags & 0x40 != 0;
-    let op = Op::from_bits(((flags >> 7) & 3) as u8)?;
-    let default_pixel = ((flags >> 9) & 1) as u8;
-    let ds_offset = ds_offset(flags);
-    let rtemplate = (flags >> 15) as u8;
+    let huff = flags & 1 != 0; // [协议] 位 0 SBHUFF
+    let refine = flags & 2 != 0; // [协议] 位 1 SBREFINE
+    let log_strips = u32::from((flags >> 2) & 3); // [协议] 位 2–3 LOG2SBSTRIPS
+    let corner = Corner::from_bits(flags >> 4); // [协议] 位 4–5 REFCORNER
+    let transposed = flags & 0x40 != 0; // [协议] 位 6 TRANSPOSED
+    let op = Op::from_bits(((flags >> 7) & 3) as u8)?; // [协议] 位 7–8 SBCOMBOP
+    let default_pixel = ((flags >> 9) & 1) as u8; // [协议] 位 9 SBDEFPIXEL
+    let ds_offset = ds_offset(flags); // [协议] 位 10–14 SBDSOFFSET
+    let rtemplate = (flags >> 15) as u8; // [协议] 位 15 SBRTEMPLATE
     let mut pos = 2; // [协议] 标志之后
     let hflags = if huff {
         let v = be16(data, pos)?;
@@ -239,7 +237,7 @@ pub(super) fn region(
             .get(pos..pos + 4)
             .ok_or("文本区域段的细化 AT 像素不全")?;
         rat = [(b[0] as i8, b[1] as i8), (b[2] as i8, b[3] as i8)];
-        pos += 4;
+        pos += 4; // [协议] 细化 AT 像素 4 字节
     }
     let instances = super::be32(data, pos)?;
     pos += 4; // [协议] SBNUMINSTANCES 4 字节（§7.4.3.1.4）
@@ -271,7 +269,7 @@ pub(super) fn region(
         let t = huff_tables(hflags, tables)?;
         let mut rd = Reader::new(rest);
         // 符号 ID 码表在段数据里，读完对齐字节（§7.4.3.1.7）
-        let ids = Ids::Table(huffman::symbol_ids(rd.bits_mut(), symbols.len())?);
+        let ids = Ids::Table(Box::new(huffman::symbol_ids(rd.bits_mut(), symbols.len())?));
         let mut src = Huff { rd, t, ids, gr };
         decode(&mut src, &p, &syms)
     } else {
@@ -290,8 +288,8 @@ fn huff_tables<'t>(f: u16, tables: &'t [Rc<Table>]) -> Result<HuffTables<'t>, St
     let mut pk = Picker::new(tables);
     // [协议] 两位的选择值 3、一位的选择值 1 表示自定义表（§7.4.3.1.2）
     const C2: u16 = 3;
-    // [协议] 各字段的位置和选择值对应的标准表（§7.4.3.1.2）
     Ok(HuffTables {
+        // [协议] 各字段的位置和选择值对应的标准表（§7.4.3.1.2）
         fs: pk.pick("SBHUFFFS", f & 3, C2, &[6, 7])?,
         ds: pk.pick("SBHUFFDS", (f >> 2) & 3, C2, &[8, 9, 10])?,
         dt: pk.pick("SBHUFFDT", (f >> 4) & 3, C2, &[11, 12, 13])?,
