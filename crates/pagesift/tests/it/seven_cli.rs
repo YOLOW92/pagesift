@@ -111,7 +111,7 @@ async fn real_cli_extracts_archives_resumes_and_publishes_metadata() {
 }
 
 #[test]
-fn real_cli_exposes_fuzzy_abstention_forms_and_redacted_indicators() {
+fn real_cli_exposes_locate_abstention_forms_and_redacted_indicators() {
     let dir = tempfile::tempdir().unwrap();
     let config = dir.path().join("config.toml");
     std::fs::write(&config, "").unwrap();

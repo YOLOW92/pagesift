@@ -2,9 +2,7 @@
 //! 输入 JSON Lines: `{"id": "...", "original_html": "...", "selector": "...", "mutated_html": "..."}`
 //! 输出 TSV: `<id>\t<found>\t<matched_text>\t<score>\t<latency_us>`
 
-use pagesift_extract::relocation::{
-    ElementFingerprint, RelocateOutcome, RelocationOptions, relocate,
-};
+use pagesift_extract::locate::{Located, Target, locate};
 use pagesift_html::Html;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
@@ -48,11 +46,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let lines = Arc::new(lines);
     let next_index = Arc::new(AtomicUsize::new(0));
 
-    let opts = RelocationOptions {
-        min_score: 0.50,
-        min_margin: 0.05,
-    };
-
     let t_start = Instant::now();
 
     let mut handles = Vec::with_capacity(num_threads);
@@ -79,12 +72,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let t0 = Instant::now();
                 let orig_doc = Html::parse(orig_html);
 
-                let (found, text, score) = match ElementFingerprint::capture(&orig_doc, selector) {
+                let (found, text, score) = match Target::capture(orig_doc.root(), selector, None) {
                     Ok(fp) => {
                         let mut_doc = Html::parse(mut_html);
-                        match relocate(&fp, &mut_doc, opts) {
-                            RelocateOutcome::Found { node, score, .. } => {
+                        match locate(mut_doc.root(), &fp) {
+                            Located::Relocated { node, score, .. } => {
                                 (true, node.text().replace(['\t', '\n', '\r'], " "), score)
+                            }
+                            Located::Exact(node) | Located::Anchored(node) => {
+                                (true, node.text().replace(['\t', '\n', '\r'], " "), 1.0)
                             }
                             _ => (false, String::new(), 0.0),
                         }

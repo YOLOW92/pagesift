@@ -131,5 +131,23 @@ fn run(command: Command, cfg: pagesift::config::Config) -> Result<ExitCode> {
         | Command::Tune { .. }
         | Command::Doctor
         | Command::Mcp { .. }) => commands::service::run(command, cfg),
+        Command::Extract {
+            urls,
+            schema,
+            engine,
+            ignore_robots,
+            concurrency,
+            allow,
+        } => commands::extract::run(
+            commands::extract::ExtractArgs {
+                urls,
+                schema,
+                engine,
+                ignore_robots,
+                concurrency,
+                allow,
+            },
+            cfg,
+        ),
     }
 }

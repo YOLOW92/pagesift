@@ -35,6 +35,7 @@ impl Options {
         if_none_match = None,
         if_modified_since = None,
         export_images = false,
+        extract_schema = None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -53,6 +54,7 @@ impl Options {
         if_none_match: Option<String>,
         if_modified_since: Option<String>,
         export_images: bool,
+        extract_schema: Option<String>,
     ) -> PyResult<Self> {
         let mut o = ScrapeOptions::default();
         if let Some(f) = formats {
@@ -71,6 +73,15 @@ impl Options {
         o.if_none_match = if_none_match;
         o.if_modified_since = if_modified_since;
         o.export_images = export_images;
+        if let Some(schema) = extract_schema {
+            // schema 以 JSON 文本传进来（Python 层负责 dumps），格式选项里带上它
+            let value: serde_json::Value = serde_json::from_str(&schema)
+                .map_err(|e| to_py_err(&ApiError::invalid(format!("extract schema: {e}")), None))?;
+            let mut f = Format::new("extract");
+            f.options.insert("schema".into(), value);
+            o.formats.retain(|f| f.kind != "extract");
+            o.formats.push(f);
+        }
         if let Some(l) = languages {
             o.location = Some(Location {
                 country: None,
@@ -101,7 +112,7 @@ fn validate(o: &ScrapeOptions) -> Result<(), ApiError> {
     if let Some(f) = o
         .formats
         .iter()
-        .find(|f| !FORMATS.contains(&f.kind.as_str()))
+        .find(|f| !FORMATS.contains(&f.kind.as_str()) && f.kind != "extract")
     {
         return Err(ApiError::unsupported(format!(
             "format {:?} is not supported (supported: markdown, html, raw_html, links, images)",

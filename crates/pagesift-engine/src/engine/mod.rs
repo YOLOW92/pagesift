@@ -36,6 +36,7 @@ mod render;
 mod render_stats;
 mod scraper;
 mod speculate;
+mod structured;
 use cpu::{CONTENT_WORKSPACE, cpu_task};
 pub use cpu::{set_cpu_capacity, set_cpu_groups};
 use extract::*;
@@ -248,12 +249,13 @@ impl Engine for Scraper {
                 "rawHtml",
                 "links",
                 "images",
+                "extract",
                 "summary",
                 "json",
                 "changeTracking",
             ],
             (true, false) => &[
-                "markdown", "html", "rawHtml", "links", "images", "summary", "json",
+                "markdown", "html", "rawHtml", "links", "images", "extract", "summary", "json",
             ],
             (false, true) => &[
                 "markdown",
@@ -261,9 +263,10 @@ impl Engine for Scraper {
                 "rawHtml",
                 "links",
                 "images",
+                "extract",
                 "changeTracking",
             ],
-            (false, false) => &["markdown", "html", "rawHtml", "links", "images"],
+            (false, false) => &["markdown", "html", "rawHtml", "links", "images", "extract"],
         }
     }
 }

@@ -22,6 +22,7 @@ mod engine;
 mod index;
 mod items;
 mod record;
+mod selectors;
 mod snapshot;
 mod tasks;
 #[cfg(test)]
@@ -36,6 +37,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 pub use cache::{Cache, CacheEntry, CacheLookup, CachePolicy};
 pub use engine::Store;
 pub use items::Items;
+pub use selectors::{SelectorEntry, Selectors};
 pub use snapshot::{ContentHash, SnapshotMeta, SnapshotPut, Snapshots};
 pub use tasks::Tasks;
 pub use warc::{

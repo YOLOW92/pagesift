@@ -66,6 +66,7 @@ fn serve_pages_with_robots(robots: &'static str) -> SocketAddr {
 fn every_fetch_command_exposes_allow_cidr() {
     for command in [
         "scrape",
+        "extract",
         "crawl",
         "map",
         "download",

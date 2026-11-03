@@ -14,6 +14,7 @@ mod credentials;
 mod dns;
 mod fetch;
 mod host_connections;
+pub mod http_message;
 mod localhost;
 pub mod media;
 mod offload;

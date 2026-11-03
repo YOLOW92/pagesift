@@ -61,12 +61,16 @@ pub fn scrape_options_schema(caps: &Capabilities) -> Value {
                     { "type": "string", "enum": formats },
                     {
                         "type": "object",
-                        "properties": { "type": { "type": "string", "enum": formats } },
+                        "properties": {
+                            "type": { "type": "string", "enum": formats },
+                            "schema": { "type": "object", "description": "extract: CSS schema {baseSelector, fields}; json: JSON Schema for the LLM." },
+                            "prompt": { "type": "string", "description": "json: what to extract." }
+                        },
                         "required": ["type"]
                     }
                 ]
             },
-            "description": "Output formats. Defaults to [\"markdown\"]. Object form passes options, e.g. {\"type\": \"json\", \"schema\": {...}, \"prompt\": \"...\"}."
+            "description": "Output formats. Defaults to [\"markdown\"]. Object form passes options: {\"type\": \"extract\", \"schema\": {\"baseSelector\": ..., \"fields\": [...]}} extracts structured data with CSS selectors (no LLM; selectors are relocated after a redesign), {\"type\": \"json\", \"schema\": {...}, \"prompt\": \"...\"} asks the LLM."
         }),
     );
     put(

@@ -168,6 +168,12 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
                 opts.formats
                     .push(pagesift::api::types::Format::new("rawHtml"));
             }
+            // WARC 存档：逐页转换，不联网
+            if let Some(path) = local_file(&url).filter(|p| super::warc_in::is_warc(p)) {
+                let pages = super::warc_in::scrape_archive(&scraper, &path, &opts).await;
+                scraper.shutdown().await;
+                return super::warc_in::emit(pages?, &format, out.as_deref());
+            }
             // 本地文件（路径或 file:// 网址）按上传解析：PDF、HTML、Word、Excel、PowerPoint、EPUB、CSV
             let result = match local_file(&url) {
                 Some(path) => parse_local(&scraper, &path, &opts).await?,
@@ -245,6 +251,7 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
             attachment_limit,
             tuning_mode,
             export_images,
+            from_warc,
             allow,
         } => runtime()?.block_on(async move {
             // 自适应时页数由停止规则决定，没给 --limit 时只留一个防失控的上限
@@ -311,6 +318,18 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
                     .push(pagesift::api::types::Format::new("rawHtml"));
             }
             let sink = Arc::new(cli::CrawlOutput::new(out, warc).context("opening the output")?);
+            if let Some(path) = from_warc {
+                let r = super::warc_in::crawl_archive(&scraper, &path, &url, &req, sink.clone()).await;
+                scraper.shutdown().await;
+                r?;
+                let (pages, errors) = sink.counts();
+                eprintln!("converted {pages} archived pages, {errors} errors");
+                return Ok(if pages == 0 && errors > 0 {
+                    ExitCode::from(1)
+                } else {
+                    ExitCode::SUCCESS
+                });
+            }
             let result = scraper.crawl(&req, sink.clone()).await;
             scraper.shutdown().await;
             let (pages, errors) = sink.counts();

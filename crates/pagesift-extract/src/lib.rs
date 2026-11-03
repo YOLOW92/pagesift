@@ -20,6 +20,7 @@
 
 #![forbid(unsafe_code)]
 
+mod adaptive;
 pub mod bm25;
 pub mod chunk;
 pub mod classifier;
@@ -27,26 +28,27 @@ mod css;
 mod engine;
 mod error;
 mod forms;
-mod fuzzy;
 mod identity;
 mod knowledge;
+pub mod locate;
 mod pack;
 mod patterns;
 mod recursive;
 mod relevance;
 mod relocate;
-pub mod relocation;
 mod schema;
 pub mod structured;
 mod text;
 mod xpath;
 
+pub use adaptive::{
+    AdaptiveOutcome, FieldRelocation, InMemory, NoMemory, SelectorMemory, extract_adaptive,
+};
 pub use bm25::{Bm25Options, ScoredBlock, bm25_filter, bm25_scores, filter_markdown, tokenize};
 pub use chunk::{Chunk, ChunkStrategy, TokenIndex, chunk};
 pub use css::JsonCssExtractor;
 pub use error::Error;
 pub use forms::{Control, Form, discover_forms, plan_form_get};
-pub use fuzzy::{FuzzyAnchor, FuzzyMatch, FuzzyOptions};
 pub use identity::{IdentifiedItem, discover_items};
 pub use knowledge::{EvidenceRule, Finding, FindingKind, Knowledge, KnowledgeExtractor};
 pub use patterns::{BuiltinPattern, RegexExtractor, RegexMatch, RegexOutput, UniqueMatch};

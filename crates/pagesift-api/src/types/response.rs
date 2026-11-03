@@ -217,6 +217,9 @@ pub struct Document {
     pub screenshot: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub json: Option<Value>,
+    /// PageSift extension: items extracted with the `extract` format's CSS schema.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extract: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

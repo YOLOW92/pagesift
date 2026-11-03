@@ -141,6 +141,8 @@ export declare class Page {
   get links(): Array<string> | null
   /** 页面里的图片地址（`formats` 含 `images` 时才有）。 */
   get images(): Array<string> | null
+  /** `extractSchema` 按 CSS schema 抽出的列表（每个列表项一个对象）；没要时为 null。 */
+  get extract(): Array<Record<string, unknown>> | null
   /** 标题、描述、状态码、`og:*` 等元数据，以及 `pagesift` 扩展字段。 */
   get metadata(): PageMetadata
   /** 一次性取出全部字段，得到普通对象（`JSON.stringify(page)` 也会调用它）。 */
@@ -154,6 +156,13 @@ export declare class Scraper {
   scrape(url: string, options?: ScrapeOptions | undefined | null): Promise<Page>
   /** 抓取一批 URL，全部完成后一次返回，顺序和输入一致；单个失败只影响它自己的那一项。 */
   scrapeMany(urls: Array<string>, options?: BatchOptions | undefined | null): Promise<BatchItem[]>
+  /**
+   * 按 CSS schema 批量抽取，全部完成后按输入顺序返回；结果在 `page.extract`。
+   * 等同于 `scrapeMany(urls, { ...options, extractSchema: schema })`。
+   */
+  extract(urls: Array<string>, schema: Record<string, unknown>, options?: BatchOptions | undefined | null): Promise<BatchItem[]>
+  /** 按 CSS schema 批量抽取，按完成顺序逐个产出（同 `scrapeStream`）。 */
+  extractStream(urls: Array<string>, schema: Record<string, unknown>, options?: BatchOptions | undefined | null): ScrapeStream
   /** 抓取一批 URL，按完成顺序逐个产出（`for await`）。提前 `break` 会取消还没完成的抓取。 */
   scrapeStream(urls: Array<string>, options?: BatchOptions | undefined | null): ScrapeStream
   /** 整站爬取，每完成一页产出一项（`for await`）；提前 `break` 或 `cancel()` 停止爬取。 */
@@ -231,6 +240,13 @@ export interface BatchOptions {
   ifModifiedSince?: string
   /** 出口代理（http://, https://, socks5://）。 */
   proxy?: string
+  /** 导出图片（PDF 内嵌图片、Office 媒体、网页图片），在 `page.attachments` 里返回字节。 */
+  exportImages?: boolean
+  /**
+   * 按 CSS schema 抽取结构化数据（`baseSelector`、`fields`），结果在 `page.extract`；
+   * 选择器失效时自动重定位并在 `warnings` 里报 `relocated`。
+   */
+  extractSchema?: Record<string, unknown>
 }
 
 /** 把一段 HTML 转成 Markdown，在当前线程上同步执行（会阻塞事件循环，适合脚本和小页面）。 */
@@ -370,6 +386,13 @@ export interface ParseOptions {
   ifModifiedSince?: string
   /** 出口代理（http://, https://, socks5://）。 */
   proxy?: string
+  /** 导出图片（PDF 内嵌图片、Office 媒体、网页图片），在 `page.attachments` 里返回字节。 */
+  exportImages?: boolean
+  /**
+   * 按 CSS schema 抽取结构化数据（`baseSelector`、`fields`），结果在 `page.extract`；
+   * 选择器失效时自动重定位并在 `warnings` 里报 `relocated`。
+   */
+  extractSchema?: Record<string, unknown>
 }
 
 /** 单页抓取选项。 */
@@ -398,6 +421,13 @@ export interface ScrapeOptions {
   ifModifiedSince?: string
   /** 出口代理（http://, https://, socks5://）。 */
   proxy?: string
+  /** 导出图片（PDF 内嵌图片、Office 媒体、网页图片），在 `page.attachments` 里返回字节。 */
+  exportImages?: boolean
+  /**
+   * 按 CSS schema 抽取结构化数据（`baseSelector`、`fields`），结果在 `page.extract`；
+   * 选择器失效时自动重定位并在 `warnings` 里报 `relocated`。
+   */
+  extractSchema?: Record<string, unknown>
 }
 
 /** `Scraper` 的构造参数。 */

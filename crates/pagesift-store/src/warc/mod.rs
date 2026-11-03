@@ -2,10 +2,12 @@
 
 pub mod asset_snapshot;
 pub mod checksum;
+pub mod reader;
 pub mod warc_writer;
 
 pub use asset_snapshot::{AssetSniffer, SubresourceAsset, WebpageSnapshot};
 pub use checksum::{DigestCalculator, WarcDigests};
+pub use reader::{ReadRecord, WarcReader};
 pub use warc_writer::{RecordType, WarcRecord, WarcWriter};
 
 #[cfg(test)]

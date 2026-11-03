@@ -9,7 +9,8 @@
 | [File upload API](parse-api.md) | `POST /v2/parse`: PDF/HTML upload, options, errors and limits |
 | [HTTP sessions](http-sessions.md) | Origin isolation, persisted Cookie state and retirement |
 | [Media archives](media-archive.md) | Validated resume, checksums and recovery |
-| [Additional native cores](native-core.md) | Fuzzy relocation, forms, indicators, modules, media and VOD limits |
+| [Structured extraction](structured-extract.md) | `extract` format: CSS schemas, selector memory and relocation |
+| [Additional native cores](native-core.md) | Element relocation, forms, indicators, modules, media and VOD limits |
 | [Script discovery](script-discovery.md) | Literal navigation and HTTP crawl integration |
 | [Editorial extraction](editorial-core.md) | Main-content selection and regression coverage |
 | [Public comparison evidence](../benchmarks/history/0.70/six/evidence/README.md) | Protocols, per-page scores and hashes |

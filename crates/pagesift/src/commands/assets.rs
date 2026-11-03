@@ -21,35 +21,41 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
             file,
             original,
             selector,
+            identity,
         } => {
-            use pagesift_extract::{FuzzyAnchor, FuzzyMatch, FuzzyOptions};
+            use pagesift_extract::locate::{Located, Target, locate, robust_selector};
             let old = read_bounded(Some(original), 4 * 1024 * 1024)?;
             let new = read_bounded(Some(file), 4 * 1024 * 1024)?;
             let old = pagesift_html::Html::parse(&old);
             let new = pagesift_html::Html::parse(&new);
-            let anchor = FuzzyAnchor::capture(&old, &selector).map_err(anyhow::Error::msg)?;
-            let result = match anchor
-                .locate(&new, FuzzyOptions::default())
-                .map_err(anyhow::Error::msg)?
-            {
-                FuzzyMatch::Candidate {
-                    node,
+            let target = Target::capture(old.root(), &selector, identity.as_deref())
+                .map_err(anyhow::Error::msg)?;
+            let located = locate(new.root(), &target);
+            let mut result = serde_json::json!({ "status": located.step() });
+            match &located {
+                Located::Relocated {
                     score,
-                    runner_up,
+                    posterior,
+                    p,
+                    ..
                 } => {
-                    serde_json::json!({"status":"candidate","score":score,"runner_up":runner_up,"text":node.text(),"html":node.html()})
+                    result["score"] = (*score).into();
+                    result["posterior"] = (*posterior).into();
+                    result["p"] = (*p).into();
                 }
-                FuzzyMatch::LowConfidence { best_score } => {
-                    serde_json::json!({"status":"low_confidence","score":best_score})
-                }
-                FuzzyMatch::Ambiguous {
-                    best_score,
-                    runner_up,
+                Located::Ambiguous {
+                    best, posterior, ..
                 } => {
-                    serde_json::json!({"status":"ambiguous","score":best_score,"runner_up":runner_up})
+                    result["score"] = (*best).into();
+                    result["posterior"] = (*posterior).into();
                 }
-                FuzzyMatch::BudgetExceeded => serde_json::json!({"status":"budget_exceeded"}),
-            };
+                _ => {}
+            }
+            if let Some(node) = located.node() {
+                result["selector"] = robust_selector(node, new.root()).into();
+                result["text"] = node.text().into();
+                result["html"] = node.html().into();
+            }
             println!("{result}");
             Ok(ExitCode::SUCCESS)
         }

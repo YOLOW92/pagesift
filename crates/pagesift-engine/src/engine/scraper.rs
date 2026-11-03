@@ -421,7 +421,7 @@ impl Scraper {
     }
 
     /// 基础文档（抓取或上传文件解析）之上，再做 `queryFilter`、分块、LLM 格式和变化检测。
-    async fn scrape_document(
+    pub(super) async fn scrape_content(
         &self,
         source: Source<'_>,
         opts: &ScrapeOptions,

@@ -20,6 +20,9 @@ pub struct Page {
     links: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     images: Option<Vec<String>>,
+    /// `extractSchema` 抽出的列表。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    extract: Option<Value>,
     /// 导出的文件；`toJSON` 里只列元数据（字节不进 JSON）。
     #[serde(skip_serializing_if = "Vec::is_empty")]
     attachments: Vec<pagesift::api::types::Attachment>,
@@ -51,6 +54,7 @@ impl Page {
             raw_html: doc.raw_html,
             links: doc.links,
             images: doc.images,
+            extract: doc.extract,
             attachments: doc.attachments,
             metadata: serde_json::to_value(&doc.metadata).unwrap_or(Value::Null),
         }
@@ -70,6 +74,7 @@ impl Page {
             raw_html,
             links,
             images,
+            extract: None,
             attachments: Vec::new(),
             metadata,
         }
@@ -126,6 +131,15 @@ impl Page {
         self.images
             .as_ref()
             .map(|v| v.iter().map(String::as_str).collect())
+    }
+
+    /// `extractSchema` 按 CSS schema 抽出的列表（每个列表项一个对象）；没要时为 null。
+    #[napi(getter, ts_return_type = "Array<Record<string, unknown>> | null")]
+    pub fn extract<'e>(&self, env: &'e Env) -> Result<Unknown<'e>> {
+        match &self.extract {
+            Some(v) => env.to_js_value(v),
+            None => env.to_js_value(&Value::Null),
+        }
     }
 
     /// 标题、描述、状态码、`og:*` 等元数据，以及 `pagesift` 扩展字段。

@@ -9,7 +9,13 @@ pagesift relocate current.html --original previous.html --selector '.product'
 pagesift inspect page.html --base-url https://example.org/products/
 ```
 
-`FuzzyAnchor` 是显式选择的外观候选接口，与稳定业务 ID 的 `Anchor` 分开。保存文本、描述属性与父级描述 token，采用加权 Dice 相似度；主要比较相同元素标签；article/section/div 标签变化还要求属性 Dice 至少 0.75、文本 Dice 至少 0.85，并施加 0.04 分惩罚。默认分数至少 0.72、领先第二名至少 0.12，同分始终弃权。CLI 返回 candidate/low_confidence/ambiguous/budget_exceeded。它可以处理部分布局和文字变化，不能证明两个看起来一样的商品具有同一业务身份，也不支持任意标签变化或完整 Scrapling 模糊算法等价。扫描上限 20,000 节点，特征上限 128 token，子树采样上限 256 节点。
+`relocate` 和结构化抽取共用一套 `pagesift_extract::locate`，按固定顺序走，结果里的 `status` 是走到的那一步：
+
+1. `exact`：旧选择器在新页面上恰好命中一个元素（给了 `--identity` 时身份属性也要对上）；
+2. `anchor`：给了 `--identity`（例如 `data-sku`）时按身份属性全文查找，恰好一个才算找到；没有是 `missing`，重复是 `ambiguous`，不退回到相似度；
+3. `fingerprint`：逐个特征（标签、稳定属性、不像哈希的类名、文字、祖先、兄弟文字、子元素标签）比较结构指纹，每个特征的相似度按“同一页面上有多少元素至少同样像”换算成似然比（被改版毁掉的特征自动变成中性），最高者是目标的后验概率 ≥ 1 − δ（δ = 0.05）才接受，`posterior` 写在结果里；否则 `ambiguous`。
+
+找到时同时给出在新页面上恰好命中它的稳健选择器（优先稳定 `id`、测试属性、语义属性，再到语义类名，最后才用 `:nth-of-type`）。它不能证明两个看起来一样的元素具有同一业务身份；需要这种保证时用 `--identity`。
 
 `discover_forms` 读取 action/method、input/select/textarea/button、名称、标签、required/disabled/readonly 和敏感类型。支持外部 `form=` 所有者与 disabled fieldset 的首个 legend 例外。元数据不输出输入值、密码或隐藏 token。`plan_form_get` 接受调用方明确提供的字段值，生成 GET URL；不会发送请求，拒绝 POST/dialog、密码、文件、未知替换字段。重复名称、已选复选框、多选项和 disabled optgroup 有独立处理。它不是浏览器完整约束验证器，不处理脚本事件、点击提交按钮的覆盖属性、图片坐标或完整自动填表。调用方仍须对生成 URL 应用 scope、robots 和 SSRF 策略。表单行为参考 [HTML form](https://html.spec.whatwg.org/multipage/forms.html)；本实现对不支持的操作保留显式边界。
 

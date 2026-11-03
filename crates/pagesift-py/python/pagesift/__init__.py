@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import atexit
 import dataclasses
+import json
 import threading
 from typing import Any, Dict, Iterable, List, Literal, Mapping, Optional, Sequence, Tuple, Union
 
@@ -103,7 +104,9 @@ class ScrapeOptions:
     - ``include_tags``、``exclude_tags``：提取前按 CSS 选择器只保留／删掉匹配的元素（标签名、``.class``、``#id`` 等），选择器写错报 InvalidRequest；
     - ``ignore_robots_txt``：不检查 robots.txt；
     - ``mobile``：浏览器渲染时模拟手机；
-    - ``languages``：浏览器渲染时的 Accept-Language，例如 ``["zh-CN", "en"]``。
+    - ``languages``：浏览器渲染时的 Accept-Language，例如 ``["zh-CN", "en"]``；
+    - ``extract_schema``：按 CSS schema 抽取结构化数据（``baseSelector``、``fields``），结果在
+      ``Document.extract``；选择器失效时自动重定位并在 ``warnings`` 里报 ``relocated``。
     """
 
     formats: Sequence[Format] = ("markdown",)
@@ -120,6 +123,7 @@ class ScrapeOptions:
     proxy: Optional[str] = None
     if_none_match: Optional[str] = None
     if_modified_since: Optional[str] = None
+    extract_schema: Optional[Mapping[str, Any]] = None
     _native: _pagesift.Options = dataclasses.field(
         init=False, repr=False, compare=False, hash=False
     )
@@ -142,6 +146,7 @@ class ScrapeOptions:
             proxy=self.proxy,
             if_none_match=self.if_none_match,
             if_modified_since=self.if_modified_since,
+            extract_schema=json.dumps(self.extract_schema) if self.extract_schema is not None else None,
         )
         object.__setattr__(self, "_native", native)
 
@@ -264,6 +269,33 @@ class Scraper:
         调用时立即开始；``doc.index`` 是它在输入里的位置。等待期间释放 GIL。
         """
         return self._engine.stream(_urls(urls), _native(options, overrides), concurrency)
+
+    def extract(
+        self,
+        urls: Iterable[str],
+        schema: Mapping[str, Any],
+        options: Optional[ScrapeOptions] = None,
+        *,
+        concurrency: int = DEFAULT_CONCURRENCY,
+        **overrides: Any,
+    ) -> List[Document]:
+        """按 CSS schema 批量抽取，全部完成后按输入顺序返回；结果在 ``doc.extract``。
+
+        等同于 ``scrape_many(urls, extract_schema=schema)``。单个失败不抛异常（``success`` 为 False）。
+        """
+        return self.scrape_many(urls, options, concurrency=concurrency, extract_schema=schema, **overrides)
+
+    def extract_iter(
+        self,
+        urls: Iterable[str],
+        schema: Mapping[str, Any],
+        options: Optional[ScrapeOptions] = None,
+        *,
+        concurrency: int = DEFAULT_CONCURRENCY,
+        **overrides: Any,
+    ) -> Batch:
+        """按 CSS schema 批量抽取，按完成顺序产出（同 ``scrape_iter``）。"""
+        return self.scrape_iter(urls, options, concurrency=concurrency, extract_schema=schema, **overrides)
 
     def ascrape_many(
         self,

@@ -219,6 +219,14 @@ impl Document {
         self.err.as_ref().map(|e| e.message.as_str())
     }
     /// 实际使用的引擎：`http` 或 `browser`。
+    /// ``extract`` 格式（``extract_schema``）抽出的列表；没要时为 None。
+    #[getter]
+    fn extract<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        match self.doc.as_ref().and_then(|d| d.extract.as_ref()) {
+            Some(v) => Ok(Some(json(py, v)?)),
+            None => Ok(None),
+        }
+    }
     #[getter]
     fn engine(&self) -> Option<&str> {
         self.ext()?.engine.as_deref()
@@ -323,6 +331,7 @@ const FIELDS: &[&str] = &[
     "raw_html",
     "links",
     "images",
+    "extract",
     "metadata",
     "error_code",
     "error_message",

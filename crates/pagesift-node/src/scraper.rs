@@ -139,6 +139,36 @@ impl Scraper {
         })
     }
 
+    /// 按 CSS schema 批量抽取，全部完成后按输入顺序返回；结果在 `page.extract`。
+    /// 等同于 `scrapeMany(urls, { ...options, extractSchema: schema })`。
+    #[napi(
+        ts_args_type = "urls: Array<string>, schema: Record<string, unknown>, options?: BatchOptions | undefined | null",
+        ts_return_type = "Promise<BatchItem[]>"
+    )]
+    pub fn extract<'e>(
+        &self,
+        env: &'e Env,
+        urls: Vec<String>,
+        schema: Value,
+        options: Option<Value>,
+    ) -> Result<PromiseRaw<'e, Vec<BatchItem>>> {
+        self.scrape_many(env, urls, Some(with_schema(options, schema)))
+    }
+
+    /// 按 CSS schema 批量抽取，按完成顺序逐个产出（同 `scrapeStream`）。
+    #[napi(
+        ts_args_type = "urls: Array<string>, schema: Record<string, unknown>, options?: BatchOptions | undefined | null"
+    )]
+    pub fn extract_stream(
+        &self,
+        env: &Env,
+        urls: Vec<String>,
+        schema: Value,
+        options: Option<Value>,
+    ) -> Result<ScrapeStream> {
+        self.scrape_stream(env, urls, Some(with_schema(options, schema)))
+    }
+
     /// 抓取一批 URL，按完成顺序逐个产出（`for await`）。提前 `break` 会取消还没完成的抓取。
     #[napi(ts_args_type = "urls: Array<string>, options?: BatchOptions | undefined | null")]
     pub fn scrape_stream(
@@ -276,6 +306,16 @@ impl Scraper {
         }
         Ok(())
     }
+}
+
+/// 选项对象里加上 `extractSchema`（没给选项时新建一个）。
+fn with_schema(options: Option<Value>, schema: Value) -> Value {
+    let mut o = match options {
+        Some(Value::Object(m)) => m,
+        _ => serde_json::Map::new(),
+    };
+    o.insert("extractSchema".into(), schema);
+    Value::Object(o)
 }
 
 impl Scraper {

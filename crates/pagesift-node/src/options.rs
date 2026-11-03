@@ -165,6 +165,10 @@ macro_rules! scrape_options {
             pub proxy: Option<String>,
             /// 导出图片（PDF 内嵌图片、Office 媒体、网页图片），在 `page.attachments` 里返回字节。
             pub export_images: Option<bool>,
+            /// 按 CSS schema 抽取结构化数据（`baseSelector`、`fields`），结果在 `page.extract`；
+            /// 选择器失效时自动重定位并在 `warnings` 里报 `relocated`。
+            #[napi(ts_type = "Record<string, unknown>")]
+            pub extract_schema: Option<serde_json::Value>,
         }
 
         impl $name {
@@ -190,6 +194,12 @@ macro_rules! scrape_options {
                 }
                 if let Some(v) = self.block_ads {
                     o.block_ads = v;
+                }
+                if let Some(schema) = &self.extract_schema {
+                    let mut f = Format::new("extract");
+                    f.options.insert("schema".into(), schema.clone());
+                    o.formats.retain(|f| f.kind != "extract");
+                    o.formats.push(f);
                 }
                 validate(&o)?;
                 Ok(o)

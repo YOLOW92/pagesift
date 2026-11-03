@@ -1,0 +1,271 @@
+{
+  "cases": 1463,
+  "pagesift": {
+    "holdout": {
+      "all": {
+        "n": 916,
+        "correct": 0.5328,
+        "wrong": 0.1867,
+        "abstain": 0.2806,
+        "median_us": 2925,
+        "p95_us": 74894
+      },
+      "combo": {
+        "n": 144,
+        "correct": 0.5764,
+        "wrong": 0.1111,
+        "abstain": 0.3125,
+        "median_us": 3614,
+        "p95_us": 52214
+      },
+      "drop_attrs": {
+        "n": 144,
+        "correct": 0.5,
+        "wrong": 0.0625,
+        "abstain": 0.4375,
+        "median_us": 4560,
+        "p95_us": 81508
+      },
+      "hash_classes": {
+        "n": 144,
+        "correct": 0.6944,
+        "wrong": 0.0486,
+        "abstain": 0.2569,
+        "median_us": 3010,
+        "p95_us": 54302
+      },
+      "insert_siblings": {
+        "n": 144,
+        "correct": 0.4028,
+        "wrong": 0.4514,
+        "abstain": 0.1458,
+        "median_us": 2024,
+        "p95_us": 68871
+      },
+      "real": {
+        "n": 52,
+        "correct": 0.6538,
+        "wrong": 0.1731,
+        "abstain": 0.1731,
+        "median_us": 204,
+        "p95_us": 16371
+      },
+      "retag": {
+        "n": 144,
+        "correct": 0.4028,
+        "wrong": 0.25,
+        "abstain": 0.3472,
+        "median_us": 2956,
+        "p95_us": 78665
+      },
+      "wrap": {
+        "n": 144,
+        "correct": 0.5764,
+        "wrong": 0.2014,
+        "abstain": 0.2222,
+        "median_us": 2569,
+        "p95_us": 52977
+      }
+    },
+    "tune": {
+      "all": {
+        "n": 547,
+        "correct": 0.5101,
+        "wrong": 0.1792,
+        "abstain": 0.3108,
+        "median_us": 8591,
+        "p95_us": 48776
+      },
+      "combo": {
+        "n": 72,
+        "correct": 0.5278,
+        "wrong": 0.1389,
+        "abstain": 0.3333,
+        "median_us": 8940,
+        "p95_us": 44195
+      },
+      "drop_attrs": {
+        "n": 72,
+        "correct": 0.4306,
+        "wrong": 0.1111,
+        "abstain": 0.4583,
+        "median_us": 10153,
+        "p95_us": 58450
+      },
+      "hash_classes": {
+        "n": 72,
+        "correct": 0.6528,
+        "wrong": 0.0972,
+        "abstain": 0.25,
+        "median_us": 8339,
+        "p95_us": 33672
+      },
+      "insert_siblings": {
+        "n": 72,
+        "correct": 0.5,
+        "wrong": 0.3194,
+        "abstain": 0.1806,
+        "median_us": 9662,
+        "p95_us": 59369
+      },
+      "real": {
+        "n": 115,
+        "correct": 0.5652,
+        "wrong": 0.1217,
+        "abstain": 0.313,
+        "median_us": 2910,
+        "p95_us": 25187
+      },
+      "retag": {
+        "n": 72,
+        "correct": 0.3889,
+        "wrong": 0.1944,
+        "abstain": 0.4167,
+        "median_us": 9997,
+        "p95_us": 54604
+      },
+      "wrap": {
+        "n": 72,
+        "correct": 0.4722,
+        "wrong": 0.3056,
+        "abstain": 0.2222,
+        "median_us": 8930,
+        "p95_us": 49224
+      }
+    }
+  },
+  "scrapling": {
+    "holdout": {
+      "all": {
+        "n": 916,
+        "correct": 0.4651,
+        "wrong": 0.5349,
+        "abstain": 0.0,
+        "median_us": 36114,
+        "p95_us": 419543
+      },
+      "combo": {
+        "n": 144,
+        "correct": 0.5347,
+        "wrong": 0.4653,
+        "abstain": 0.0,
+        "median_us": 45074,
+        "p95_us": 482193
+      },
+      "drop_attrs": {
+        "n": 144,
+        "correct": 0.4097,
+        "wrong": 0.5903,
+        "abstain": 0.0,
+        "median_us": 52188,
+        "p95_us": 452474
+      },
+      "hash_classes": {
+        "n": 144,
+        "correct": 0.7847,
+        "wrong": 0.2153,
+        "abstain": 0.0,
+        "median_us": 43953,
+        "p95_us": 427408
+      },
+      "insert_siblings": {
+        "n": 144,
+        "correct": 0.0,
+        "wrong": 1.0,
+        "abstain": 0.0,
+        "median_us": 12010,
+        "p95_us": 41654
+      },
+      "real": {
+        "n": 52,
+        "correct": 0.7308,
+        "wrong": 0.2692,
+        "abstain": 0.0,
+        "median_us": 12252,
+        "p95_us": 139134
+      },
+      "retag": {
+        "n": 144,
+        "correct": 0.3056,
+        "wrong": 0.6944,
+        "abstain": 0.0,
+        "median_us": 41046,
+        "p95_us": 454943
+      },
+      "wrap": {
+        "n": 144,
+        "correct": 0.6597,
+        "wrong": 0.3403,
+        "abstain": 0.0,
+        "median_us": 39147,
+        "p95_us": 419543
+      }
+    },
+    "tune": {
+      "all": {
+        "n": 547,
+        "correct": 0.4552,
+        "wrong": 0.532,
+        "abstain": 0.0128,
+        "median_us": 54623,
+        "p95_us": 235158
+      },
+      "combo": {
+        "n": 72,
+        "correct": 0.5,
+        "wrong": 0.5,
+        "abstain": 0.0,
+        "median_us": 75228,
+        "p95_us": 282193
+      },
+      "drop_attrs": {
+        "n": 72,
+        "correct": 0.4028,
+        "wrong": 0.5972,
+        "abstain": 0.0,
+        "median_us": 72841,
+        "p95_us": 292665
+      },
+      "hash_classes": {
+        "n": 72,
+        "correct": 0.6944,
+        "wrong": 0.3056,
+        "abstain": 0.0,
+        "median_us": 70994,
+        "p95_us": 223465
+      },
+      "insert_siblings": {
+        "n": 72,
+        "correct": 0.0,
+        "wrong": 1.0,
+        "abstain": 0.0,
+        "median_us": 13072,
+        "p95_us": 37060
+      },
+      "real": {
+        "n": 115,
+        "correct": 0.6174,
+        "wrong": 0.3217,
+        "abstain": 0.0609,
+        "median_us": 30068,
+        "p95_us": 176190
+      },
+      "retag": {
+        "n": 72,
+        "correct": 0.3611,
+        "wrong": 0.6389,
+        "abstain": 0.0,
+        "median_us": 77816,
+        "p95_us": 288799
+      },
+      "wrap": {
+        "n": 72,
+        "correct": 0.5139,
+        "wrong": 0.4861,
+        "abstain": 0.0,
+        "median_us": 63020,
+        "p95_us": 254500
+      }
+    }
+  }
+}

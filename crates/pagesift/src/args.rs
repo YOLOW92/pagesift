@@ -33,13 +33,18 @@ pub(crate) enum Command {
         #[arg(long)]
         base_url: Url,
     },
-    /// Find a likely element after layout changes, with explicit abstention
+    /// Find an element again after a layout change (selector, identity attribute, then structural
+    /// fingerprint with an outlier test); reports ambiguous instead of guessing
     Relocate {
         file: PathBuf,
         #[arg(long)]
         original: PathBuf,
         #[arg(long)]
         selector: String,
+        /// Stable business identity attribute (e.g. data-sku): when set, a mismatch is reported as
+        /// missing instead of falling back to similarity
+        #[arg(long)]
+        identity: Option<String>,
     },
     /// Discover same-origin external JS modules and static navigation candidates
     DiscoverJs {
@@ -230,6 +235,27 @@ pub(crate) enum Command {
         #[command(flatten)]
         allow: AllowCidrs,
     },
+    /// Extract structured data with a CSS schema (baseSelector, fields); one JSON line per URL.
+    /// With a store ([cache]) selectors are remembered and relocated after a page redesign
+    Extract {
+        #[arg(required = true)]
+        urls: Vec<String>,
+        /// The schema file (JSON)
+        #[arg(long)]
+        schema: PathBuf,
+        /// http, browser or auto
+        #[arg(long, default_value = "auto", value_parser = ["http", "browser", "auto"])]
+        engine: String,
+        /// Ignore robots.txt for these pages
+        #[arg(long)]
+        ignore_robots: bool,
+        /// Pages in flight at once; by default the admission controller's current target
+        /// (per-host politeness limits apply either way)
+        #[arg(long)]
+        concurrency: Option<usize>,
+        #[command(flatten)]
+        allow: AllowCidrs,
+    },
     /// Crawl a site; writes one Markdown file per page with --out, else JSON lines to stdout
     Crawl {
         url: String,
@@ -298,6 +324,11 @@ pub(crate) enum Command {
         /// files: with --out they go to images/<hash>.<ext> and Markdown links point there
         #[arg(long)]
         export_images: bool,
+        /// Read the pages from this WARC file (.warc or .warc.gz) instead of the network: archived
+        /// pages on the start URL's host that pass --include/--exclude, up to --limit; links are
+        /// not followed
+        #[arg(long)]
+        from_warc: Option<PathBuf>,
         #[command(flatten)]
         allow: AllowCidrs,
     },

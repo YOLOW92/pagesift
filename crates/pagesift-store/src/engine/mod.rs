@@ -31,6 +31,7 @@ pub(crate) mod ns {
     pub const LIST_ITEM: u8 = 5;
     pub const SET_MEMBER: u8 = 6;
     pub const ITEM: u8 = 7;
+    pub const SELECTOR: u8 = 8; // [协议] 本存储格式的命名空间编号（接在 ITEM = 7 之后）
 }
 
 fn evictable(n: u8) -> bool {
@@ -278,6 +279,10 @@ impl Store {
 
     pub fn items(&self) -> Items<'_> {
         Items::new(self)
+    }
+
+    pub fn selectors(&self) -> crate::Selectors<'_> {
+        crate::Selectors::new(self)
     }
 
     pub fn tasks(&self) -> Tasks<'_> {

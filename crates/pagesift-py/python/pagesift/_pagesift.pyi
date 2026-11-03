@@ -39,6 +39,9 @@ class Document:
     @property
     def images(self) -> Optional[List[str]]: ...
     @property
+    def extract(self) -> Optional[List[Dict[str, Any]]]:
+        """``extract_schema`` 抽出的列表（每个列表项一个对象）；没要时为 None。"""
+    @property
     def metadata(self) -> Dict[str, Any]:
         """页面元数据：title、description、language、keywords、robots、favicon、
         published_time、author、modified_time、content_type，以及 og_image 等其他 meta 标签（scrape 和 convert 键名相同）。"""
