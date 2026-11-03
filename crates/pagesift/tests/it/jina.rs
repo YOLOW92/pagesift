@@ -420,3 +420,113 @@ async fn search_fetches_and_converts_the_results() {
     let c = v["data"][0]["content"].as_str().unwrap();
     assert!(!c.contains("/docs)") && c.contains("Main title"), "{c}");
 }
+
+// 预设、做不到的头、SSE 输出参数
+header_case!(
+    preset_reader_works_with_a_warning,
+    "/page",
+    [("x-preset", "reader")],
+    |st, ct, w, b| {
+        assert_eq!(st, 200, "{b}");
+        assert!(b.starts_with("---\n"), "{b}");
+        assert!(w.contains("preset_partial"), "{w}");
+    }
+);
+header_case!(
+    return_format_is_an_alias,
+    "/page",
+    [("x-return-format", "frontmatter")],
+    |st, ct, w, b| {
+        assert_eq!(st, 200, "{b}");
+        assert!(b.starts_with("---\n"), "{b}");
+    }
+);
+header_case!(
+    assert_status_rejects_a_mismatch,
+    "/page",
+    [("x-assert-status-code", "201")],
+    |st, ct, w, b| {
+        assert_eq!(st, 422, "{b}");
+        assert!(b.contains("ASSERTION_FAILED"), "{b}");
+    }
+);
+header_case!(
+    md_defaults_are_accepted,
+    "/page",
+    [
+        ("x-md-heading-style", "atx"),
+        ("x-md-bullet-list-marker", "-"),
+        ("x-md-link-style", "inlined")
+    ],
+    |st, ct, w, b| {
+        assert_eq!(st, 200, "{b}");
+    }
+);
+header_case!(
+    md_link_discarded_keeps_the_text,
+    "/page",
+    [("x-md-link-style", "discarded")],
+    |st, ct, w, b| {
+        assert_eq!(st, 200, "{b}");
+        // 视频链接归 x-retain-media，这里只看普通链接
+        assert!(b.contains("Read the documentation and"), "{b}");
+    }
+);
+header_case!(
+    iframe_false_does_not_need_a_browser,
+    "/page",
+    [("x-with-iframe", "false"), ("x-with-shadow-dom", "false")],
+    |st, ct, w, b| {
+        assert_eq!(st, 200, "{b}");
+    }
+);
+
+#[tokio::test]
+async fn headers_it_cannot_honour_are_refused() {
+    for (k, v) in [
+        ("x-md-heading-style", "setext"),
+        ("x-md-bullet-list-marker", "*"),
+        ("x-md-em-delimiter", "_"),
+        ("x-md-strong-delimiter", "__"),
+        ("x-md-hr", "***"),
+        ("x-md-link-style", "referenced"),
+        ("x-md-link-reference-style", "full"),
+        ("x-no-gfm", "true"),
+        ("x-keep-img-data-url", "true"),
+        ("x-remove-overlay", "true"),
+        ("x-page", "2"),
+        ("x-base", "initial"),
+        ("x-robots-txt", "Googlebot"),
+    ] {
+        let (st, _, _, b) = read("/page", &[(k, v)]).await;
+        assert_eq!(st, 400, "{k}: {b}");
+        assert!(b.contains("UNSUPPORTED_OPTION"), "{k}: {b}");
+    }
+}
+
+#[tokio::test]
+async fn sse_applies_the_output_headers() {
+    let (st, _, _, b) = read(
+        "/page",
+        &[("accept", "text/event-stream"), ("x-respond-with", "html")],
+    )
+    .await;
+    assert_eq!(st, 200, "{b}");
+    assert!(b.contains("event: content"), "{b}");
+    assert!(
+        b.contains("<html") || b.contains("<body") || b.contains("<p"),
+        "{b}"
+    );
+    let (_, _, _, b) = read(
+        "/page",
+        &[("accept", "text/event-stream"), ("x-max-tokens", "3")],
+    )
+    .await;
+    assert!(b.contains("output_truncated"), "{b}");
+    let (_, _, _, b) = read(
+        "/page",
+        &[("accept", "text/event-stream"), ("x-token-budget", "1")],
+    )
+    .await;
+    assert!(b.contains("event: error") && b.contains("TOO_LARGE"), "{b}");
+}

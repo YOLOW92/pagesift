@@ -702,6 +702,27 @@ fn limited(limits: KeyLimits, engine: Arc<Fake>, dir: Option<&std::path::Path>) 
 }
 
 #[tokio::test]
+async fn jina_search_counts_against_the_rate_limit() {
+    let (fake, _) = Fake::new(0);
+    let app = limited(
+        KeyLimits {
+            requests_per_minute: Some(1),
+            ..Default::default()
+        },
+        fake,
+        None,
+    );
+    // 第一次不管有没有配搜索后端，都计一次
+    let (status, _, _) = call(&app, "GET", "/s/first", None, Some("limited")).await;
+    assert_ne!(status, StatusCode::TOO_MANY_REQUESTS);
+    let (status, _, v) = call(&app, "GET", "/s/second", None, Some("limited")).await;
+    assert_eq!(
+        (status, v["code"].as_str()),
+        (StatusCode::TOO_MANY_REQUESTS, Some("RATE_LIMIT_EXCEEDED"))
+    );
+}
+
+#[tokio::test]
 async fn requests_per_minute_returns_firecrawl_429() {
     let (fake, _) = Fake::new(0);
     let app = limited(

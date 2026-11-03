@@ -139,14 +139,29 @@ fn yaml_str(v: &str) -> String {
 pub struct Rendered {
     pub content_type: &'static str,
     pub body: String,
+    /// 纯文本响应：不分块时同 `body`；分块时是 front matter、用分隔线连起来的各块、汇总。
+    pub text: String,
     pub warnings: Vec<String>,
     /// 分块时的各块（`Accept: application/json` 时返回数组）。
     pub chunks: Option<Vec<String>>,
 }
 
 pub fn render(doc: &Document, url: &str, p: &JinaParams) -> Result<Rendered, ApiError> {
+    if let Some(want) = p.assert_status
+        && doc.metadata.status_code != want
+    {
+        return Err(ApiError::new(
+            ErrorCode::AssertionFailed,
+            format!(
+                "the page answered {}, not the asserted {want}",
+                doc.metadata.status_code
+            ),
+        ));
+    }
     let title = doc.metadata.title.as_deref().unwrap_or_default();
-    let mut warnings = Vec::new();
+    let mut warnings = p.notes.clone();
+    // 分块时纯文本响应的开头和结尾（front matter、汇总）：块替换的只是正文
+    let (mut head, mut tail) = (String::new(), String::new());
     let (content_type, body) = match p.respond_with {
         RespondWith::Html => (
             "text/html; charset=utf-8",
@@ -169,24 +184,23 @@ pub fn render(doc: &Document, url: &str, p: &JinaParams) -> Result<Rendered, Api
             let md = doc.markdown.clone().unwrap_or_default();
             let (mut md, links, images) = reshape(&md, p);
             if let Some(all) = p.images_summary {
-                md.push_str(&summary("Images", &images, all, true));
+                tail.push_str(&summary("Images", &images, all, true));
             }
             if let Some(all) = p.links_summary {
-                md.push_str(&summary("Links/Buttons", &links, all, false));
+                tail.push_str(&summary("Links/Buttons", &links, all, false));
             }
+            md.push_str(&tail);
             match p.respond_with {
                 RespondWith::Text => ("text/plain; charset=utf-8", markdown_text(&md)),
                 RespondWith::Frontmatter | RespondWith::MarkdownFrontmatter => {
                     let desc = doc.metadata.description.as_deref().unwrap_or_default();
-                    (
-                        "text/markdown; charset=utf-8",
-                        format!(
-                            "---\ntitle: {}\ndescription: {}\nurl: {}\n---\n\n{md}",
-                            yaml_str(title),
-                            yaml_str(desc),
-                            yaml_str(url)
-                        ),
-                    )
+                    head = format!(
+                        "---\ntitle: {}\ndescription: {}\nurl: {}\n---\n\n",
+                        yaml_str(title),
+                        yaml_str(desc),
+                        yaml_str(url)
+                    );
+                    ("text/markdown; charset=utf-8", format!("{head}{md}"))
                 }
                 _ => ("text/markdown; charset=utf-8", md),
             }
@@ -203,6 +217,18 @@ pub fn render(doc: &Document, url: &str, p: &JinaParams) -> Result<Rendered, Api
             .with_details(serde_json::json!({ "tokens": n, "budget": budget })));
         }
     }
+    // 分块来自原 Markdown：每块同样应用保留方式；纯文本时块里也要是纯文本
+    let mut chunks = p.chunking.as_ref().and(doc.chunks.as_ref()).map(|c| {
+        c.iter()
+            .map(|ch| {
+                let md = reshape(&ch.text, p).0;
+                match p.respond_with {
+                    RespondWith::Text => markdown_text(&md),
+                    _ => md,
+                }
+            })
+            .collect::<Vec<_>>()
+    });
     if let Some(max) = p.max_tokens {
         let (cut, truncated) = truncate_tokens(&body, max);
         if truncated {
@@ -213,19 +239,51 @@ pub fn render(doc: &Document, url: &str, p: &JinaParams) -> Result<Rendered, Api
             ));
             body = cut;
         }
+        // 块和正文共用同一个上限：超出的块丢掉，跨线的那块截断
+        if let Some(c) = &mut chunks {
+            truncate_chunks(c, max);
+        }
     }
-    // 分块来自原 Markdown：每块同样应用保留方式（汇总只在整页正文末尾）
-    let chunks = p.chunking.as_ref().and(doc.chunks.as_ref()).map(|c| {
-        c.iter()
-            .map(|ch| reshape(&ch.text, p).0)
-            .collect::<Vec<_>>()
-    });
+    let text = match &chunks {
+        Some(c) => {
+            let (joined, _) = truncate_tokens(
+                &format!("{head}{}{tail}", c.join(CHUNK_SEPARATOR)),
+                p.max_tokens.unwrap_or(usize::MAX),
+            );
+            joined
+        }
+        None => body.clone(),
+    };
     Ok(Rendered {
         content_type,
         body,
+        text,
         warnings,
         chunks,
     })
+}
+
+/// 纯文本分块响应里块与块之间的分隔：一个空行加 `---` 再一个空行（Markdown 的分隔线，不和正文混淆）。
+const CHUNK_SEPARATOR: &str = "\n\n---\n\n";
+
+/// 让所有块加起来不超过 `max` 个 token。
+fn truncate_chunks(chunks: &mut Vec<String>, max: usize) {
+    let mut left = max;
+    let mut keep = 0;
+    for c in chunks.iter_mut() {
+        if left == 0 {
+            break;
+        }
+        let n = token_count(c);
+        if n > left {
+            *c = truncate_tokens(c, left).0;
+            keep += 1;
+            break;
+        }
+        left -= n;
+        keep += 1;
+    }
+    chunks.truncate(keep);
 }
 
 #[cfg(test)]
@@ -274,6 +332,68 @@ mod tests {
             1,
             "deduplicated: {}",
             r.body
+        );
+    }
+
+    fn chunk(text: &str) -> crate::types::DocChunk {
+        crate::types::DocChunk {
+            text: text.into(),
+            heading_path: Vec::new(),
+            start: 0,
+            end: 0,
+            tokens: 0,
+        }
+    }
+
+    fn chunked_doc() -> Document {
+        Document {
+            markdown: Some(
+                "## A\n\nalpha words\n\n## B\n\nbeta words [l](https://a.test/x)".into(),
+            ),
+            chunks: Some(vec![
+                chunk("## A\n\nalpha words"),
+                chunk("## B\n\nbeta words [l](https://a.test/x)"),
+            ]),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn chunks_keep_frontmatter_summary_and_limit() {
+        let p = params(&[
+            ("x-respond-with", "frontmatter"),
+            ("x-markdown-chunking", "h2"),
+            ("x-with-links-summary", "true"),
+        ]);
+        let r = render(&chunked_doc(), "https://a.test/", &p).unwrap();
+        assert!(r.text.starts_with("---\ntitle:"), "{}", r.text);
+        assert!(r.text.contains("alpha words\n\n---\n\n## B"), "{}", r.text);
+        assert!(r.text.contains("Links/Buttons"), "{}", r.text);
+        assert_eq!(r.chunks.as_ref().unwrap().len(), 2);
+        let p = params(&[("x-markdown-chunking", "h2"), ("x-max-tokens", "4")]);
+        let r = render(&chunked_doc(), "u", &p).unwrap();
+        assert!(
+            r.warnings[0].starts_with("output_truncated"),
+            "{:?}",
+            r.warnings
+        );
+        let c = r.chunks.unwrap();
+        assert_eq!(c.len(), 1, "{c:?}");
+        assert!(token_count(&r.text) <= 4, "{}", r.text);
+    }
+
+    #[test]
+    fn asserted_status_and_preset_notes() {
+        let mut doc = chunked_doc();
+        doc.metadata.status_code = 404;
+        let e = render(&doc, "u", &params(&[("x-assert-status-code", "200")])).unwrap_err();
+        assert_eq!(e.code, ErrorCode::AssertionFailed);
+        assert!(render(&doc, "u", &params(&[("x-assert-status-code", "404")])).is_ok());
+        let r = render(&doc, "u", &params(&[("x-preset", "reader")])).unwrap();
+        assert!(
+            r.warnings[0].starts_with("preset_partial"),
+            "{:?}",
+            r.warnings
         );
     }
 

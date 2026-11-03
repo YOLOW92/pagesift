@@ -21,6 +21,8 @@ pub enum ErrorCode {
     Timeout,
     SsrfBlocked,
     TooLarge,
+    /// Jina 的 `x-assert-status-code`：页面状态码和断言的不一样。
+    AssertionFailed,
     UpstreamError,
     UnsupportedOption,
     InvalidRequest,
@@ -56,6 +58,7 @@ impl ErrorCode {
             ErrorCode::Timeout => "TIMEOUT",
             ErrorCode::SsrfBlocked => "SSRF_BLOCKED",
             ErrorCode::TooLarge => "TOO_LARGE",
+            ErrorCode::AssertionFailed => "ASSERTION_FAILED",
             ErrorCode::UpstreamError => "UPSTREAM_ERROR",
             ErrorCode::UnsupportedOption => "UNSUPPORTED_OPTION",
             ErrorCode::InvalidRequest => "INVALID_REQUEST",
@@ -85,6 +88,8 @@ impl ErrorCode {
                 StatusCode::BAD_REQUEST
             }
             ErrorCode::TooLarge => StatusCode::PAYLOAD_TOO_LARGE,
+            // [协议] Jina：断言失败回 422
+            ErrorCode::AssertionFailed => StatusCode::UNPROCESSABLE_ENTITY,
             ErrorCode::UpstreamError | ErrorCode::DnsFailure | ErrorCode::NetworkError => {
                 StatusCode::BAD_GATEWAY
             }

@@ -1,14 +1,14 @@
 # Jina Reader compatibility (`/r/`, `/s/`)
 
 `GET /r/<url>` (and `POST /r` with `{"url": ...}`) reads one page; `GET /s/<query>` searches and reads
-the top results. Both sit behind the same API keys, rate limits and quotas as the Firecrawl routes.
+the top results. Both sit behind the same API keys, per-minute rate limits and quotas as the Firecrawl routes.
 Request headers follow the [jina-ai/reader README](https://github.com/jina-ai/reader#using-request-headers);
 a header pagesift recognizes but cannot honour is answered with `400 UNSUPPORTED_OPTION`, never
 silently ignored. Unknown `x-` headers are ignored (proxies add their own).
 
 | Header | pagesift |
 |---|---|
-| `x-respond-with` | `markdown` (whole page, no main-content detection), `html` (the fetched HTML), `text`, `frontmatter` (YAML `title`/`description`/`url` + main content), `markdown+frontmatter` (whole page), `screenshot` / `pageshot` (a `data:` URL; needs browser actions); `vlm`, `readerlm-v2`, `content` → unsupported. Without the header: main-content Markdown, as before |
+| `x-respond-with` (old name `x-return-format`) | `markdown` (whole page, no main-content detection), `html` (the fetched HTML), `text`, `frontmatter` (YAML `title`/`description`/`url` + main content), `markdown+frontmatter` (whole page), `screenshot` / `pageshot` (a `data:` URL; needs browser actions); `vlm`, `readerlm-v2`, `content` → unsupported. Without the header: main-content Markdown, as before |
 | `x-engine` | `browser`, `curl` / `direct` (HTTP), `auto` |
 | `x-target-selector` / `x-remove-selector` | `includeTags` / `excludeTags` (CSS selectors; a target selector turns off main-content detection) |
 | `x-wait-for-selector` | a `wait` action before capture (needs browser actions) |
@@ -21,13 +21,20 @@ silently ignored. Unknown `x-` headers are ignored (proxies add their own).
 | `x-retain-media` | `link`, `none`, `text`, `image` (video/audio by file extension or YouTube/Vimeo/Bilibili address); `html` → unsupported |
 | `x-with-links-summary` / `x-with-images-summary` | `Links/Buttons:` / `Images:` footer, deduplicated; `all` keeps duplicates |
 | `x-markdown-chunking` | `true` / `h1`…`h5` split at headings; `structured` / `s1`…`s5`: sections, paragraphs, lines, sentences, clauses. JSON responses carry `data.chunks`; text responses separate chunks with `---` |
-| `x-preset` | `reader`, `index`, `research`, `agent`, `spider` (the bundles in Jina's cookbooks.md); explicit headers win |
+| `x-preset` | `reader`, `index`, `research`, `agent`, `spider` (the bundles in Jina's cookbooks.md); explicit headers win. `reader` leaves out `retainMedia: html`, `detachInvisibles` and `removeOverlay`, with warning `preset_partial` |
+| `x-user-agent`, `x-referer`, `x-locale` | sent as `User-Agent`, `Referer`, `Accept-Language` |
+| `x-assert-status-code` | another status → `422 ASSERTION_FAILED` |
+| `x-md-heading-style`, `x-md-hr`, `x-md-bullet-list-marker`, `x-md-em-delimiter`, `x-md-strong-delimiter` | pagesift writes `atx`, `---`, `-`, `*`, `**`; another value is unsupported |
+| `x-md-link-style` | `inlined`; `discarded` is `x-retain-links: text`; `referenced` is unsupported. `x-md-link-reference-style` is unsupported |
+| `x-base` | `final` (relative URLs resolve against the final URL); `initial` is unsupported |
+| `x-robots-txt` | robots.txt is always checked as pagesift; `true` is accepted, another bot name is unsupported |
 | `x-no-cache` / `x-cache-tolerance` | `maxAge: 0` / `maxAge: <seconds>` |
 | `x-set-cookie` | sent as the request `Cookie`; such requests are not cached |
 | `x-proxy-url` | only the name of an `[[egress]]` configured in `pagesift.toml`; proxy URLs are refused so a request cannot be routed into an internal network |
-| `x-with-generated-alt`, `x-detach-invisibles` | unsupported |
+| `x-with-iframe`, `x-with-shadow-dom` | true → browser rendering, which expands them; false → no effect |
+| `x-with-generated-alt`, `x-detach-invisibles`, `x-remove-overlay`, `x-no-gfm`, `x-keep-img-data-url`, `x-page` | unsupported |
 | `Accept: application/json` | `{"code": 200, "status": 20000, "data": {title, description, url, content, chunks?, warnings?}}` |
-| `Accept: text/event-stream` | progress / content / done events |
+| `Accept: text/event-stream` | progress / content / done events; the same output headers apply, one content event per paragraph or chunk, warnings in `done` |
 
 Warnings of a text response are in the `x-pagesift-warnings` response header.
 

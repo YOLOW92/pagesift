@@ -58,6 +58,10 @@ pub struct JinaParams {
     pub links_summary: Option<bool>,
     pub images_summary: Option<bool>,
     pub chunking: Option<Chunking>,
+    /// `x-assert-status-code`：页面状态码不是它就报错。
+    pub assert_status: Option<u16>,
+    /// 解析请求头时产生的警告（预设里做不到的项）。
+    pub notes: Vec<String>,
 }
 
 fn get<'a>(h: &'a HeaderMap, name: &str) -> Option<&'a str> {
@@ -90,8 +94,9 @@ fn uint(h: &HeaderMap, name: &str) -> Result<Option<u64>, ApiError> {
 fn preset(name: &str) -> Result<&'static [(&'static str, &'static str)], ApiError> {
     Ok(match name {
         "reader" => &[
+            // Jina 的 reader 还有 retainMedia: html、detachInvisibles、removeOverlay，pagesift 做不到，
+            // 由 parse 写 preset_partial 警告；预设不能因此让请求失败
             ("x-respond-with", "frontmatter"),
-            ("x-retain-media", "html"),
         ],
         "index" => &[
             ("x-retain-links", "text"),
@@ -128,9 +133,17 @@ fn preset(name: &str) -> Result<&'static [(&'static str, &'static str)], ApiErro
 pub fn parse(headers: &HeaderMap) -> Result<(ScrapeOptions, JinaParams), ApiError> {
     // 预设只补没给的头：先把预设展开成一份头表，调用方的头覆盖它
     let mut h = HeaderMap::new();
+    let mut notes = Vec::new();
     if let Some(p) = get(headers, "x-preset") {
-        for (k, v) in preset(&p.to_ascii_lowercase())? {
+        let name = p.to_ascii_lowercase();
+        for (k, v) in preset(&name)? {
             h.insert(*k, v.parse().expect("static header value"));
+        }
+        if name == "reader" {
+            notes.push(
+                "preset_partial: reader without retainMedia html, detachInvisibles and removeOverlay, which pagesift does not support"
+                    .to_string(),
+            );
         }
     }
     for (k, v) in headers {
@@ -138,8 +151,19 @@ pub fn parse(headers: &HeaderMap) -> Result<(ScrapeOptions, JinaParams), ApiErro
     }
     let h = &h;
     let mut opts = ScrapeOptions::default();
+    for (name, to) in [
+        ("x-user-agent", "User-Agent"),
+        ("x-referer", "Referer"),
+        ("x-locale", "Accept-Language"),
+    ] {
+        if let Some(v) = get(h, name) {
+            opts.headers.insert(to.into(), v.to_string());
+        }
+    }
 
+    check_unsupported(h)?;
     let respond_with = match get(h, "x-respond-with")
+        .or_else(|| get(h, "x-return-format")) // Jina 的旧名字
         .map(str::to_ascii_lowercase)
         .as_deref()
     {
@@ -265,7 +289,7 @@ pub fn parse(headers: &HeaderMap) -> Result<(ScrapeOptions, JinaParams), ApiErro
             "x-detach-invisibles is not supported",
         ));
     }
-    if get(h, "x-with-iframe").is_some() || get(h, "x-with-shadow-dom").is_some() {
+    if truthy(get(h, "x-with-iframe")) || truthy(get(h, "x-with-shadow-dom")) {
         // 浏览器渲染本来就展开 iframe 和 shadow DOM；HTTP 抓取做不到
         opts.engine.get_or_insert_with(|| "browser".into());
     }
@@ -296,6 +320,9 @@ pub fn parse(headers: &HeaderMap) -> Result<(ScrapeOptions, JinaParams), ApiErro
             "x-retain-links: gpt-oss citations are not supported; use all, none or text",
         ));
     }
+    // Turndown 的 discarded：链接只留文字，等于 x-retain-links: text
+    let links_discarded = get(h, "x-md-link-style").is_some_and(|v| v == "discarded")
+        && get(h, "x-retain-links").is_none();
     let retain_links = retain(
         "x-retain-links",
         &[
@@ -359,13 +386,85 @@ pub fn parse(headers: &HeaderMap) -> Result<(ScrapeOptions, JinaParams), ApiErro
             max_tokens: uint(h, "x-max-tokens")?.map(|n| n as usize),
             token_budget: uint(h, "x-token-budget")?.map(|n| n as usize),
             retain_images,
-            retain_links,
+            retain_links: if links_discarded {
+                Retain::Text
+            } else {
+                retain_links
+            },
             retain_media,
             links_summary: summary("x-with-links-summary"),
             images_summary: summary("x-with-images-summary"),
             chunking,
+            assert_status: uint(h, "x-assert-status-code")?.map(|n| n as u16),
+            notes,
         },
     ))
+}
+
+/// pagesift 的 Markdown 固定写法。请求头要的和它一样就接受，不一样就报不支持（没有配置写法的开关）。
+const MD_FIXED: &[(&str, &str)] = &[
+    ("x-md-heading-style", "atx"),
+    ("x-md-hr", "---"),
+    ("x-md-bullet-list-marker", "-"),
+    ("x-md-em-delimiter", "*"),
+    ("x-md-strong-delimiter", "**"),
+];
+
+/// 认识但做不到的请求头：明确报不支持（设为否定值的除外）。
+fn check_unsupported(h: &HeaderMap) -> Result<(), ApiError> {
+    for (name, fixed) in MD_FIXED {
+        if let Some(v) = get(h, name)
+            && v != *fixed
+        {
+            return Err(ApiError::unsupported(format!(
+                "{name}: {v} is not supported; pagesift writes {fixed}"
+            )));
+        }
+    }
+    if let Some(v) = get(h, "x-md-link-style")
+        && !matches!(v, "inlined" | "discarded")
+    {
+        return Err(ApiError::unsupported(format!(
+            "x-md-link-style: {v} is not supported; use inlined or discarded"
+        )));
+    }
+    if get(h, "x-md-link-reference-style").is_some() {
+        return Err(ApiError::unsupported(
+            "x-md-link-reference-style is not supported: pagesift writes inline links",
+        ));
+    }
+    for (name, why) in [
+        ("x-no-gfm", "pagesift writes GitHub-flavored tables"),
+        ("x-keep-img-data-url", "data URLs are not kept in Markdown"),
+        ("x-remove-overlay", "overlays are not removed"),
+    ] {
+        if truthy(get(h, name)) {
+            return Err(ApiError::unsupported(format!(
+                "{name} is not supported: {why}"
+            )));
+        }
+    }
+    if get(h, "x-page").is_some() {
+        return Err(ApiError::unsupported(
+            "x-page is not supported: /r/ does not take file uploads; use /v2/parse",
+        ));
+    }
+    if let Some(v) = get(h, "x-base")
+        && !v.eq_ignore_ascii_case("final")
+    {
+        return Err(ApiError::unsupported(format!(
+            "x-base: {v} is not supported; relative URLs resolve against the final URL"
+        )));
+    }
+    // robots.txt 一直遵守，用的是 pagesift 自己的 User-Agent；不能换成调用方指定的爬虫名
+    if let Some(v) = get(h, "x-robots-txt")
+        && !matches!(v.to_ascii_lowercase().as_str(), "true" | "1" | "pagesift")
+    {
+        return Err(ApiError::unsupported(format!(
+            "x-robots-txt: {v} is not supported; robots.txt is always checked as pagesift"
+        )));
+    }
+    Ok(())
 }
 
 /// [协议] Jina README：`x-timeout` ≥ 20 秒隐含 `network-idle`。

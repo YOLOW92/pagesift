@@ -92,7 +92,7 @@ pub(crate) async fn handle_jina_search(
     for ((url, r), hit) in pages.into_iter().zip(&hits) {
         let title = hit["title"].as_str().unwrap_or_default().to_string();
         let description = hit["description"].as_str().unwrap_or_default().to_string();
-        let (content, warnings) =
+        let (content, chunks, warnings) =
             match r.and_then(|doc| super::respond::render(&doc, &url, &params).map(|x| (x, doc))) {
                 Ok((x, doc)) => {
                     if let Some(Extension(c)) = &caller {
@@ -104,15 +104,16 @@ pub(crate) async fn handle_jina_search(
                         .map(|m| m.warnings)
                         .unwrap_or_default();
                     w.extend(x.warnings);
-                    (x.body, w)
+                    (x.text, x.chunks, w)
                 }
                 // 单条失败不影响其他结果：如实写出错误
                 Err(e) => (
                     String::new(),
+                    None,
                     vec![format!("{}: {}", e.code.as_str(), e.message)],
                 ),
             };
-        out.push((title, url, description, content, warnings));
+        out.push((title, url, description, content, chunks, warnings));
     }
     let accept = headers
         .get(header::ACCEPT)
@@ -121,8 +122,12 @@ pub(crate) async fn handle_jina_search(
     if accept.contains("application/json") {
         let data: Vec<serde_json::Value> = out
             .iter()
-            .map(|(t, u, d, c, w)| {
-                serde_json::json!({ "title": t, "url": u, "description": d, "content": c, "warnings": w })
+            .map(|(t, u, d, c, chunks, w)| {
+                let mut one = serde_json::json!({ "title": t, "url": u, "description": d, "content": c, "warnings": w });
+                if let Some(chunks) = chunks {
+                    one["chunks"] = serde_json::json!(chunks);
+                }
+                one
             })
             .collect();
         // [协议] Jina Reader JSON 响应的固定外壳：code 200、status 20000
@@ -130,7 +135,7 @@ pub(crate) async fn handle_jina_search(
             .into_response();
     }
     let mut text = String::new();
-    for (i, (t, u, d, c, w)) in out.iter().enumerate() {
+    for (i, (t, u, d, c, _, w)) in out.iter().enumerate() {
         let n = i + 1;
         text.push_str(&format!(
             "[{n}] Title: {t}\n[{n}] URL Source: {u}\n[{n}] Description: {d}\n"

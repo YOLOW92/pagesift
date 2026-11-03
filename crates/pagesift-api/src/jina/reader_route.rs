@@ -8,7 +8,7 @@ use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
 use std::sync::atomic::Ordering;
 
-use super::stream_sse::{error_event, sse_events, sse_response};
+use super::stream_sse::{error_event, split_paragraphs, sse_parts, sse_response};
 use crate::limits::Caller;
 use crate::metrics::PageSource;
 use crate::server::AppState;
@@ -94,6 +94,7 @@ async fn process_jina_scrape(
             caller.map(|Extension(c)| c),
             target_url.to_string(),
             opts,
+            params,
         );
     }
 
@@ -128,11 +129,7 @@ async fn process_jina_scrape(
                 Json(serde_json::json!({ "code": 200, "status": 20000, "data": data }))
                     .into_response()
             } else {
-                // 分块时按 Jina 的纯文本形式：块之间用一行分隔
-                let body = match &r.chunks {
-                    Some(c) => c.join(CHUNK_SEPARATOR),
-                    None => r.body,
-                };
+                let body = r.text;
                 let mut resp = Response::builder().header(header::CONTENT_TYPE, r.content_type);
                 // 纯文本响应没有放警告的字段：写进响应头（`x-pagesift-warnings`，多条用 `; ` 隔开）
                 if let Some(v) = (!warnings.is_empty())
@@ -153,9 +150,6 @@ async fn process_jina_scrape(
     }
 }
 
-/// 纯文本分块响应里块与块之间的分隔：一个空行加 `---` 再一个空行（Markdown 的分隔线，不和正文混淆）。
-const CHUNK_SEPARATOR: &str = "\n\n---\n\n";
-
 async fn record_ok(s: &AppState, caller: Option<&Caller>) {
     s.metrics.scrape_ok.fetch_add(1, Ordering::Relaxed);
     s.metrics.page(PageSource::Scrape);
@@ -174,8 +168,16 @@ fn stream_scrape(
     caller: Option<Caller>,
     url: String,
     opts: ScrapeOptions,
+    params: super::headers::JinaParams,
 ) -> Response {
-    stream_scrape_with(s, caller, url, opts, crate::firecrawl::stream::KEEPALIVE)
+    stream_scrape_with(
+        s,
+        caller,
+        url,
+        opts,
+        params,
+        crate::firecrawl::stream::KEEPALIVE,
+    )
 }
 
 /// 同 [`stream_scrape`]，`keepalive` 是抓取期间写心跳注释（`: keepalive`）的间隔：渲染、慢站点
@@ -186,6 +188,7 @@ fn stream_scrape_with(
     caller: Option<Caller>,
     url: String,
     opts: ScrapeOptions,
+    params: super::headers::JinaParams,
     keepalive: std::time::Duration,
 ) -> Response {
     let (tx, body) = crate::stream_body::channel();
@@ -207,8 +210,27 @@ fn stream_scrape_with(
         match r {
             Ok(doc) => {
                 record_ok(&s, caller.as_ref()).await;
-                let markdown = doc.markdown.unwrap_or_default();
-                for event in sse_events(&url, doc.metadata.title.as_deref(), &markdown) {
+                // 和普通响应走同一份渲染：respond-with、保留方式、上限、分块都生效
+                let r = match super::respond::render(&doc, &url, &params) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        let _ = tx.send(error_event(&e).into()).await;
+                        return;
+                    }
+                };
+                let mut warnings = doc
+                    .metadata
+                    .pagesift
+                    .as_ref()
+                    .map(|m| m.warnings.clone())
+                    .unwrap_or_default();
+                warnings.extend(r.warnings.iter().cloned());
+                let parts: Vec<String> = match r.chunks {
+                    Some(c) => c,
+                    None => split_paragraphs(&r.body),
+                };
+                let events = sse_parts(&url, doc.metadata.title.as_deref(), &parts, &warnings);
+                for event in events {
                     if tx.send(event.into()).await.is_err() {
                         return;
                     }

@@ -495,8 +495,9 @@ async fn auth(
             }
         }
     };
-    // 计入每分钟请求数的是会抓取的请求：POST，以及 Jina 的 `GET /r/{url}`；轮询类 GET 不算
-    if (req.method() == Method::POST || req.uri().path().starts_with("/r/"))
+    // 计入每分钟请求数的是会抓取的请求：POST，以及 Jina 的 `GET /r/{url}`、`GET /s/{query}`；轮询类 GET 不算
+    let path = req.uri().path();
+    if (req.method() == Method::POST || path.starts_with("/r/") || path.starts_with("/s/"))
         && let Err(e) = s.limiter.check_rate(&caller)
     {
         let mut resp = e.into_response();
