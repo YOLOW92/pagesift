@@ -235,6 +235,11 @@ pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
         tracing::warn!("router built outside a tokio runtime: saved jobs are not resumed");
     }
 
+    let monitors = crate::monitor::Monitors {
+        accounts: Arc::new(accounts),
+        default_limits: default_limits.clone(),
+        ..Default::default()
+    };
     let state = AppState {
         engine: engine.clone(),
         keys: Arc::new(keys),
@@ -248,7 +253,7 @@ pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
         webhooks,
         extracts: Arc::default(),
         agents,
-        monitors: Default::default(),
+        monitors,
         metrics,
         extra_metrics: config.extra_metrics,
     };

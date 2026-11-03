@@ -1,7 +1,7 @@
 //! `schedule` 的周期：Firecrawl 的 cron（常见的等间隔写法）和自然语言文本，换算成秒。
 //!
 //! 给了 cron 或文本时，监控按这个周期检查（最短、最长间隔都等于它，和 Firecrawl 一样）；
-//! pagesift 扩展 `minInterval`、`maxInterval`（秒）给出时，在这个区间里按变化率的后验自适应。
+//! pagesift 扩展 `minIntervalMs`、`maxIntervalMs`（毫秒）给出时，在这个区间里按变化率的后验自适应。
 
 use crate::error::ApiError;
 
@@ -74,6 +74,40 @@ pub fn text_period(text: &str) -> Result<u64, ApiError> {
             "schedule.text {text:?}: use every N minutes, hourly, every N hours, daily, daily at …, or weekly"
         ))
     })
+}
+
+/// 只取了周期、没有实现的部分（时刻、时区），如实写成警告。
+pub fn unsupported(s: &super::Schedule, period: Option<u64>) -> Vec<String> {
+    let mut out = Vec::new();
+    let Some(period) = period else {
+        return out;
+    };
+    let normalized = normalized_cron(period);
+    if let Some(c) = &s.cron
+        && c.split_whitespace().collect::<Vec<_>>().join(" ") != normalized
+    {
+        out.push(format!(
+            "monitor_time_ignored: cron {c:?} runs every {period} s from the moment the monitor was created; the time of day and weekday are not applied"
+        ));
+    }
+    // 文本写法里周期后面还带时刻（daily at 9am、starting at :07）
+    if let Some(t) = s.text.as_deref().filter(|_| s.cron.is_none())
+        && t.to_ascii_lowercase().contains(" at ")
+    {
+        out.push(format!(
+            "monitor_time_ignored: {t:?} runs every {period} s from the moment the monitor was created; the time is not applied"
+        ));
+    }
+    if let Some(z) = s
+        .timezone
+        .as_deref()
+        .filter(|z| !z.eq_ignore_ascii_case("UTC"))
+    {
+        out.push(format!(
+            "monitor_timezone_ignored: timezone {z:?} is not applied; schedules are computed in UTC"
+        ));
+    }
+    out
 }
 
 /// 归一化的 cron（响应里回给调用方，和 Firecrawl 一样总是给 cron）。

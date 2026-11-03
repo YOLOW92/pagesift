@@ -1,15 +1,18 @@
 //! 监控的调度和一次检查：到期的网址抓一遍（带条件请求），和上次的内容做块级 diff，
 //! 更新变化率后验、算下次到期时间，记检查结果，发 webhook，落盘。
 
-use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use pagesift_stat::poisson::ChangeRate;
 use serde_json::{Value, json};
 
+use super::crawl::check_crawl;
 use super::{Check, Leader, MonitorState, PageResult, PageState};
+use crate::error::ErrorCode;
+use crate::limits::Caller;
 use crate::server::AppState;
-use crate::types::{CrawlRequest, Document, ScrapeOptions};
+use crate::types::{Document, ScrapeOptions};
 
 /// [δ] 全局风险水平：下次检查放在“漏掉变化的后验概率”到 δ 的时刻。
 const DELTA: f64 = 0.05;
@@ -54,10 +57,24 @@ pub(crate) fn start_scheduler(s: AppState, leader: Option<Leader>) {
             .try_lock()
             .expect("monitors are not shared yet");
         for k in keys {
-            if let Ok(Some(v)) = store.tasks().kv_get(&k)
-                && let Ok(m) = serde_json::from_slice::<MonitorState>(&v)
-            {
-                map.insert(m.id.clone(), m);
+            let parsed = match store.tasks().kv_get(&k) {
+                Ok(Some(v)) => {
+                    serde_json::from_slice::<MonitorState>(&v).map_err(|e| e.to_string())
+                }
+                Ok(None) => continue,
+                Err(e) => Err(e.to_string()),
+            };
+            match parsed {
+                Ok(m) => {
+                    map.insert(m.id.clone(), m);
+                }
+                // 记录留在存储里，不删：修好之后还能读回来
+                Err(error) => {
+                    tracing::error!(record = %String::from_utf8_lossy(&k), %error, "could not read a saved monitor; it is not scheduled");
+                    s.metrics
+                        .monitor_load_failures
+                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                }
             }
         }
         if map.is_empty() {
@@ -71,7 +88,6 @@ pub(crate) fn start_scheduler(s: AppState, leader: Option<Leader>) {
 
 /// 没有在跑的调度任务时启动一个。监控全部删掉后它自己退出（释放它持有的服务状态和存储）。
 pub(crate) fn ensure_running(s: &AppState) {
-    use std::sync::atomic::Ordering;
     if s.monitors.running.swap(true, Ordering::SeqCst) {
         return;
     }
@@ -142,6 +158,7 @@ pub(crate) async fn run_check(s: &AppState, id: &str) {
     let mut results = Vec::new();
     let mut updates: Vec<(String, PageState)> = Vec::new();
     let substantive_only = snapshot.req.notify.as_deref() != Some("any");
+    let caller = s.monitors.caller(&snapshot.owner);
     for (url, prev) in due {
         let target = snapshot
             .req
@@ -150,11 +167,27 @@ pub(crate) async fn run_check(s: &AppState, id: &str) {
             .find(|t| t.id.as_deref() == Some(prev.target.as_str()));
         let Some(target) = target else { continue };
         let opts = target.scrape_options.clone().unwrap_or_default();
-        if let Some(seed) = url.strip_prefix("crawl:").and(target.url.clone()) {
-            let (pages, any_changed) =
-                check_crawl(s, &snapshot, &seed, target, &opts, substantive_only).await;
+        // 配额用完就不抓：这次没有观测，到下一个间隔再试
+        if let Err(e) = s.limiter.check_quota(&caller) {
             let mut next = prev.clone();
-            observe(&snapshot, &mut next, started, any_changed);
+            observe(&snapshot, &mut next, started, None);
+            results.push(failure(&url, &e));
+            updates.push((url, next));
+            continue;
+        }
+        if let Some(seed) = url.strip_prefix("crawl:").and(target.url.clone()) {
+            let (pages, observed) = check_crawl(
+                s,
+                &snapshot,
+                &seed,
+                target,
+                &opts,
+                substantive_only,
+                &caller,
+            )
+            .await;
+            let mut next = prev.clone();
+            observe(&snapshot, &mut next, started, observed);
             updates.push((url, next));
             for (u, st, r) in pages {
                 updates.push((u, st));
@@ -162,10 +195,9 @@ pub(crate) async fn run_check(s: &AppState, id: &str) {
             }
             continue;
         }
-        let (result, next) = check_page(s, &url, &prev, &opts, substantive_only).await;
-        let changed = matches!(result.status.as_str(), "changed");
+        let (result, next) = check_page(s, &url, &prev, &opts, substantive_only, &caller).await;
         let mut next = next;
-        observe(&snapshot, &mut next, started, changed);
+        observe(&snapshot, &mut next, started, observation(&result));
         updates.push((url, next));
         results.push(result);
     }
@@ -173,10 +205,10 @@ pub(crate) async fn run_check(s: &AppState, id: &str) {
         id: uuid::Uuid::new_v4().to_string(),
         started_at: rfc3339_secs(started),
         finished_at: rfc3339_secs(now_secs()),
-        status: if results.iter().any(|r| r.status == "error") {
-            "partial".into()
-        } else {
-            "completed".into()
+        status: match results.iter().filter(|r| r.status == "error").count() {
+            0 => "completed".into(),
+            n if n == results.len() => "failed".into(),
+            _ => "partial".into(),
         },
         pages: results,
     };
@@ -231,7 +263,7 @@ fn parse_rfc3339(s: &str) -> Option<f64> {
 /// 这个监控的预算；在同一预算下让平均发现延迟最小的分配是 T_i = (Σ√λ_j) / (R·√λ_i)
 /// （最小化 Σ λ_i T_i / 2，约束 Σ 1/T_i = R，拉格朗日乘子法；由 Cauchy–Schwarz 不比均匀轮询差）。
 /// 只有一个网址时 T = t，和 δ 规则相同。结果夹在最短、最长间隔之间。
-fn allocate(m: &mut MonitorState) {
+pub(super) fn allocate(m: &mut MonitorState) {
     if m.period.is_some() {
         return;
     }
@@ -248,7 +280,7 @@ fn allocate(m: &mut MonitorState) {
         return;
     }
     for p in m.pages.values_mut().filter(|p| p.next_due.is_finite()) {
-        let (Some(l), Some(last)) = (p.rate_mean, p.last_check) else {
+        let (Some(l), Some(last)) = (p.rate_mean, p.last_attempt.or(p.last_check)) else {
             continue;
         };
         let t = (s / (budget * l.sqrt())).max(min);
@@ -257,20 +289,45 @@ fn allocate(m: &mut MonitorState) {
     }
 }
 
-/// 记一次观测、算下次到期时间。
-fn observe(m: &MonitorState, p: &mut PageState, now: f64, changed: bool) {
+/// 这次检查对变化率的观测：抓取失败什么也没看到（`None`），不算“没变”。
+fn observation(r: &PageResult) -> Option<bool> {
+    match r.status.as_str() {
+        "error" => None,
+        "same" => Some(false),
+        _ => Some(true),
+    }
+}
+
+/// 一个网址这次没有结果。
+pub(super) fn failure(url: &str, e: &crate::ApiError) -> PageResult {
+    PageResult {
+        url: url.into(),
+        status: "error".into(),
+        error: Some(format!("{}: {}", e.code.as_str(), e.message)),
+        noise_only: false,
+        diff: None,
+        field_changes: Vec::new(),
+        not_modified: false,
+    }
+}
+
+/// 记一次观测（`None`：没有结果，变化率不动），算下次到期时间。
+pub(super) fn observe(m: &MonitorState, p: &mut PageState, now: f64, changed: Option<bool>) {
     let mut rate = ChangeRate::default();
     if let Some(e) = p.exposure {
         rate.exposure = e;
     }
     rate.changed = p.changed_intervals.clone();
-    if let Some(last) = p.last_check {
-        rate.observe(now - last, changed);
+    if let Some(changed) = changed {
+        if let Some(last) = p.last_check {
+            rate.observe(now - last, changed);
+        }
+        p.last_check = Some(now);
     }
     p.exposure = Some(rate.exposure);
     p.changed_intervals = rate.changed.clone();
     p.rate_mean = Some(rate.mean());
-    p.last_check = Some(now);
+    p.last_attempt = Some(now);
     let interval = match m.period {
         Some(period) => period as f64,
         None => {
@@ -289,6 +346,7 @@ async fn check_page(
     prev: &PageState,
     opts: &ScrapeOptions,
     substantive_only: bool,
+    caller: &Caller,
 ) -> (PageResult, PageState) {
     let mut o = opts.clone();
     o.max_age = Some(0);
@@ -299,32 +357,38 @@ async fn check_page(
     let mut next = prev.clone();
     match s.engine.scrape(url, &o).await {
         Ok(doc) => {
+            s.limiter.consume_pages(caller, 1).await;
             let r = compare(url, prev, &doc, substantive_only, &mut next);
             (r, next)
         }
-        Err(e) => {
-            let gone = matches!(e.code, crate::error::ErrorCode::NotFound);
-            let r = PageResult {
-                url: url.into(),
-                status: if gone && prev.markdown.is_some() {
-                    "removed"
-                } else {
-                    "error"
-                }
-                .into(),
-                error: Some(format!("{}: {}", e.code.as_str(), e.message)),
-                noise_only: false,
-                diff: None,
-                field_changes: Vec::new(),
-                not_modified: false,
-            };
+        Err(e) if matches!(e.code, ErrorCode::NotFound) => {
+            let mut r = failure(url, &e);
+            mark_gone(prev, &mut next, &mut r);
             (r, next)
         }
+        Err(e) => (failure(url, &e), next),
+    }
+}
+
+/// 页面不在了：第一次报 removed 并清掉旧内容，之后是 same；从来没拿到过内容的还是 error。
+pub(super) fn mark_gone(prev: &PageState, next: &mut PageState, r: &mut PageResult) {
+    if prev.removed {
+        r.status = "same".into();
+        r.error = None;
+    } else if prev.markdown.is_some() {
+        r.status = "removed".into();
+        next.removed = true;
+        next.markdown = None;
+        next.extract = None;
+        next.etag = None;
+        next.last_modified = None;
+    } else {
+        r.status = "error".into();
     }
 }
 
 /// 和上次的内容比较，更新 `next` 里的内容和校验值。
-fn compare(
+pub(super) fn compare(
     url: &str,
     prev: &PageState,
     doc: &Document,
@@ -345,14 +409,17 @@ fn compare(
     };
     // [协议] 404 Not Found、410 Gone（RFC 9110 §15.5.5、§15.5.11）
     if status_code == 404 || status_code == 410 {
-        r.status = if prev.markdown.is_some() {
-            "removed"
-        } else {
-            "error"
-        }
-        .into();
+        r.error = Some(format!("HTTP {status_code}"));
+        mark_gone(prev, next, &mut r);
         return r;
     }
+    // [协议] 4xx、5xx 是错误响应（RFC 9110 §15）：这是抓取失败，不是页面的新内容
+    if status_code >= 400 {
+        r.status = "error".into();
+        r.error = Some(format!("HTTP {status_code}"));
+        return r;
+    }
+    next.removed = false;
     if not_modified {
         return r;
     }
@@ -422,96 +489,6 @@ fn field_changes(old: Option<&Value>, new: Option<&Value>) -> Vec<Value> {
         }
     }
     out
-}
-
-/// crawl 目标：爬一遍，逐页比较；上次有、这次没爬到的页面报 removed。
-async fn check_crawl(
-    s: &AppState,
-    m: &MonitorState,
-    seed: &str,
-    target: &super::Target,
-    opts: &ScrapeOptions,
-    substantive_only: bool,
-) -> (Vec<(String, PageState, PageResult)>, bool) {
-    let mut body = target.crawl_options.clone().unwrap_or_else(|| json!({}));
-    body["url"] = json!(seed);
-    let req: CrawlRequest = match serde_json::from_value::<CrawlRequest>(body) {
-        Ok(mut r) => {
-            let mut o = opts.clone();
-            o.max_age = Some(0);
-            r.scrape_options = o;
-            r
-        }
-        Err(_) => return (Vec::new(), false),
-    };
-    let sink = Arc::new(Collect::default());
-    let _ = s.engine.crawl(&req, sink.clone()).await;
-    let docs = std::mem::take(&mut *sink.docs.lock().await);
-    let tid = target.id.clone().unwrap_or_default();
-    let mut out = Vec::new();
-    let mut seen = std::collections::HashSet::new();
-    let mut any = false;
-    for doc in docs {
-        let url = doc
-            .metadata
-            .source_url
-            .clone()
-            .or(doc.metadata.url.clone())
-            .unwrap_or_default();
-        seen.insert(url.clone());
-        let prev = m.pages.get(&url).cloned().unwrap_or(PageState {
-            target: tid.clone(),
-            next_due: f64::INFINITY,
-            ..Default::default()
-        });
-        let mut next = prev.clone();
-        let r = compare(&url, &prev, &doc, substantive_only, &mut next);
-        any |= matches!(r.status.as_str(), "changed" | "new" | "removed");
-        next.next_due = f64::INFINITY; // 爬取目标里的页面跟着目标一起检查
-        out.push((url, next, r));
-    }
-    for (u, p) in &m.pages {
-        if p.target == tid && !u.starts_with("crawl:") && !seen.contains(u) && p.markdown.is_some()
-        {
-            any = true;
-            let mut gone = p.clone();
-            gone.markdown = None;
-            out.push((
-                u.clone(),
-                gone,
-                PageResult {
-                    url: u.clone(),
-                    status: "removed".into(),
-                    error: None,
-                    noise_only: false,
-                    diff: None,
-                    field_changes: Vec::new(),
-                    not_modified: false,
-                },
-            ));
-        }
-    }
-    (out, any)
-}
-
-#[derive(Default)]
-struct Collect {
-    docs: tokio::sync::Mutex<Vec<Document>>,
-}
-
-impl crate::CrawlSink for Collect {
-    fn page(&self, doc: Document) -> crate::BoxFuture<'_, ()> {
-        Box::pin(async move { self.docs.lock().await.push(doc) })
-    }
-    fn error<'a>(&'a self, _: &'a str, _: crate::ApiError) -> crate::BoxFuture<'a, ()> {
-        Box::pin(async {})
-    }
-    fn total(&self, _: usize) -> crate::BoxFuture<'_, ()> {
-        Box::pin(async {})
-    }
-    fn cancelled(&self) -> crate::BoxFuture<'_, bool> {
-        Box::pin(async { false })
-    }
 }
 
 /// webhook：每个有变化的页面一条 `monitor.page`（`same` 不发），每次检查一条 `monitor.check.completed`。

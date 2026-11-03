@@ -46,6 +46,8 @@ pub(crate) struct Metrics {
     in_flight: AtomicI64,
     pub(crate) scrape_ok: AtomicU64,
     pub(crate) scrape_err: AtomicU64,
+    /// 启动时读不回来的监控记录数。
+    pub(crate) monitor_load_failures: AtomicU64,
     pages: [AtomicU64; 4],
     /// (错误码, 来源)：`http` 是请求本身的错误响应，`job` 是任务里单个页面的错误。
     errors: Mutex<BTreeMap<(&'static str, &'static str), u64>>,
@@ -173,6 +175,18 @@ impl Metrics {
             out,
             "pagesift_scrapes_total{{outcome=\"error\"}} {}",
             self.scrape_err.load(Ordering::Relaxed)
+        );
+
+        header(
+            &mut out,
+            "pagesift_monitor_load_failures_total",
+            "counter",
+            "Saved monitor records that could not be read at startup.",
+        );
+        let _ = writeln!(
+            out,
+            "pagesift_monitor_load_failures_total {}",
+            self.monitor_load_failures.load(Ordering::Relaxed)
         );
 
         header(

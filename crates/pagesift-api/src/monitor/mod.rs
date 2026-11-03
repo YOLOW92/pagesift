@@ -7,7 +7,7 @@
 //!   `{"type": "crawl", "url": "...", "crawlOptions": {...}}`（每次检查爬一遍，比较新增、变化、消失的页面）。
 //!   `search` 目标不支持（如实报错）。
 //! - 计划：给了 `schedule.cron` 或 `schedule.text` 就按那个周期（和 Firecrawl 一样）；pagesift 扩展
-//!   `schedule.minInterval`、`schedule.maxInterval`（秒）或不给计划时，每个网址的间隔按变化率的后验
+//!   `schedule.minIntervalMs`、`schedule.maxIntervalMs`（毫秒）或不给计划时，每个网址的间隔按变化率的后验
 //!   自适应（`pagesift_stat::poisson`），下界 5 分钟（Firecrawl 的最短间隔）。
 //! - 检查带 `If-None-Match` / `If-Modified-Since`；变化用块级、区分噪声的 diff 判断，默认只有实质变化
 //!   才算 `changed`（pagesift 扩展 `notify: "any"` 时噪声变化也算）；配了 `extract` 格式时附字段级变化。
@@ -15,6 +15,7 @@
 //!   `goal` 的 LLM 判断不支持：`notification` 报错，`goal` 照存但在 `warnings` 里说明没有判断。
 //! - 服务端调度；多服务器时只有持有网关租约的机器调度（`Config::monitor_leader`）。
 
+mod crawl;
 mod run;
 pub mod schedule;
 
@@ -29,7 +30,7 @@ use serde_json::{Value, json};
 use tokio::sync::{Mutex, Notify};
 
 use crate::error::{ApiError, ErrorCode};
-use crate::limits::Caller;
+use crate::limits::{Caller, KeyLimits};
 use crate::server::{AppState, lenient_body};
 use crate::types::ScrapeOptions;
 use crate::webhook::WebhookConfig;
@@ -72,11 +73,11 @@ pub struct Schedule {
     pub text: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timezone: Option<String>,
-    /// pagesift 扩展：最短、最长检查间隔（秒）。
+    /// pagesift 扩展：最短、最长检查间隔（毫秒）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub min_interval: Option<u64>,
+    pub min_interval_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_interval: Option<u64>,
+    pub max_interval_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -104,8 +105,14 @@ pub(crate) struct PageState {
     pub extract: Option<Value>,
     pub etag: Option<String>,
     pub last_modified: Option<String>,
-    /// 上次检查（Unix 秒）。
+    /// 上次拿到结果的检查（Unix 秒）：变化率的观测区间从这里算，抓取失败不动它。
     pub last_check: Option<f64>,
+    /// 上次尝试（Unix 秒，失败也算）：下次到期时间从这里算。
+    #[serde(default)]
+    pub last_attempt: Option<f64>,
+    /// 已经报过 `removed`：还是 404 就不再报。
+    #[serde(default)]
+    pub removed: bool,
     /// 变化率观测（`pagesift_stat::poisson::ChangeRate` 的字段）：没变的总时长、各个变了的区间。
     pub exposure: Option<f64>,
     #[serde(default)]
@@ -115,10 +122,16 @@ pub(crate) struct PageState {
     pub rate_mean: Option<f64>,
     #[serde(default)]
     pub delta_interval: Option<f64>,
+    /// 爬取目标里的页面跟着目标检查，是 INFINITY；JSON 里写成 null，读回时还原。
+    #[serde(deserialize_with = "due_or_never")]
     pub next_due: f64,
     /// crawl 目标：这个网址来自哪个目标（消失时报 removed）。
     #[serde(default)]
     pub target: String,
+}
+
+fn due_or_never<'de, D: serde::Deserializer<'de>>(d: D) -> Result<f64, D::Error> {
+    Ok(Option::<f64>::deserialize(d)?.unwrap_or(f64::INFINITY))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -191,10 +204,12 @@ impl MonitorState {
     fn view(&self) -> Value {
         let schedule = match self.period {
             Some(p) => {
-                json!({ "cron": schedule::normalized_cron(p), "timezone": self.req.schedule.as_ref().and_then(|s| s.timezone.clone()).unwrap_or_else(|| "UTC".into()) })
+                // cron 原样回显；时刻和时区不生效时 `warnings` 里有说明，实际按 UTC 的周期算
+                let given = self.req.schedule.as_ref().and_then(|s| s.cron.clone());
+                json!({ "cron": given.unwrap_or_else(|| schedule::normalized_cron(p)), "timezone": "UTC" })
             }
             None => {
-                json!({ "adaptive": true, "minInterval": self.min_interval, "maxInterval": self.max_interval })
+                json!({ "adaptive": true, "minIntervalMs": self.min_interval * 1000, "maxIntervalMs": self.max_interval.map(|m| m * 1000) })
             }
         };
         let next = self.next_due().map(run::rfc3339_secs);
@@ -226,6 +241,16 @@ pub(crate) struct Monitors {
     /// 调度任务在跑：只在有监控时运行（它持有服务状态和存储，空闲时不该占着）。
     pub running: Arc<std::sync::atomic::AtomicBool>,
     pub leader: Arc<std::sync::Mutex<Option<Leader>>>,
+    /// 各账户的限额：后台检查按监控的主人扣页面配额。
+    pub accounts: Arc<HashMap<String, Arc<KeyLimits>>>,
+    pub default_limits: Arc<KeyLimits>,
+}
+
+impl Monitors {
+    fn caller(&self, owner: &str) -> Caller {
+        let limits = self.accounts.get(owner).unwrap_or(&self.default_limits);
+        Caller::named(owner, limits.clone())
+    }
 }
 
 const KNOWN: &[&str] = &[
@@ -299,15 +324,17 @@ pub(crate) async fn create(
     if period.is_some_and(|p| p < schedule::MIN_INTERVAL_SECS) {
         return Err(ApiError::invalid("the minimum interval is 5 minutes"));
     }
-    let adaptive = sched.min_interval.is_some() || sched.max_interval.is_some() || period.is_none();
+    warnings.extend(schedule::unsupported(&sched, period));
+    let adaptive =
+        sched.min_interval_ms.is_some() || sched.max_interval_ms.is_some() || period.is_none();
     let min_interval = sched
-        .min_interval
-        .unwrap_or(schedule::MIN_INTERVAL_SECS)
+        .min_interval_ms
+        .map_or(schedule::MIN_INTERVAL_SECS, |ms| ms.div_ceil(1000))
         .max(schedule::MIN_INTERVAL_SECS);
-    let max_interval = sched.max_interval.or(period);
+    let max_interval = sched.max_interval_ms.map(|ms| ms / 1000).or(period);
     if max_interval.is_some_and(|m| m < min_interval) {
         return Err(ApiError::invalid(
-            "maxInterval must not be shorter than minInterval",
+            "maxIntervalMs must not be shorter than minIntervalMs",
         ));
     }
     let webhook = match &req.webhook {
@@ -345,6 +372,9 @@ pub(crate) async fn create(
                     .clone()
                     .ok_or_else(|| ApiError::invalid("a crawl target needs url"))?;
                 crate::validate::check_url(&u)?;
+                crawl::crawl_request(t, &u).and_then(|r| {
+                    crate::firecrawl::crawl::check_crawl_request(&r, s.engine.as_ref())
+                })?;
                 // 爬取目标的“网址”是起始页：整个目标一起检查，变化率按“有没有任何页面变化”记
                 pages.insert(
                     format!("crawl:{}", t.id.clone().unwrap_or_default()),
@@ -505,3 +535,6 @@ pub(crate) fn routes() -> axum::Router<AppState> {
     }
     r
 }
+
+#[cfg(test)]
+mod tests;
