@@ -177,6 +177,7 @@ def main():
     ap.add_argument("--base-url", help="OpenAI-compatible service; without it the recorded replies are used")
     ap.add_argument("--model")
     ap.add_argument("--api-key-env", default="GROQ_API_KEY", help="name of the environment variable with the key")
+    ap.add_argument("--llm-timeout-secs", type=int, help="[llm] timeout_secs, for slow model services")
     ap.add_argument("--effort", choices=["low", "medium", "high"], default="low")
     ap.add_argument("--snapshots", default=os.environ.get("PAGESIFT_AGENT_SNAPSHOTS", DEFAULT_SNAPSHOTS))
     ap.add_argument("--target-dir", default=os.environ.get("CARGO_TARGET_DIR", str(REPO / "target")))
@@ -229,10 +230,11 @@ def main():
             config = Path(tmp) / "pagesift.toml"
             # 只写环境变量的名字，key 不进文件
             key_line = f'api_key = {{ env = "{args.api_key_env}" }}\n' if live else ""
+            timeout_line = f"timeout_secs = {args.llm_timeout_secs}\n" if args.llm_timeout_secs else ""
             config.write_text(
                 "[cache]\nenabled = false\n"
                 '[fetch]\nallow_cidrs = ["127.0.0.0/8"]\n'
-                f'[llm]\nbase_url = "{llm_url}"\nmodel = "{model}"\n{key_line}'
+                f'[llm]\nbase_url = "{llm_url}"\nmodel = "{model}"\n{key_line}{timeout_line}'
                 f'[search]\nbackend = "searxng"\nendpoint = "{base}"\n'
             )
             port = free_port()
