@@ -106,7 +106,7 @@ class ScrapeOptions:
     - ``mobile``：浏览器渲染时模拟手机；
     - ``languages``：浏览器渲染时的 Accept-Language，例如 ``["zh-CN", "en"]``；
     - ``extract_schema``：按 CSS schema 抽取结构化数据（``baseSelector``、``fields``），结果在
-      ``Document.extract``；选择器失效时自动重定位并在 ``warnings`` 里报 ``relocated``。
+      ``Document.extract``；``Scraper`` 给了 ``store_path`` 时，选择器失效会自动重定位并在 ``warnings`` 里报 ``relocated``。
     """
 
     formats: Sequence[Format] = ("markdown",)
@@ -200,7 +200,9 @@ class Scraper:
     - ``per_host_concurrency``、``max_concurrency``：单主机和全局的并发上限；
     - ``browser_executable``、``browser_url``：指定 Chrome 路径，或连接已经在运行的浏览器
       （``ws://…`` / ``http://host:port``）；
-    - ``max_browsers``：浏览器池里最多几个浏览器进程。
+    - ``max_browsers``：浏览器池里最多几个浏览器进程；
+    - ``store_path``：存储目录。给了才有页面缓存和选择器记忆（``extract_schema`` 的自动重定位要它）；
+      一个目录同时只能被一个进程打开。
 
     所有方法都接受一个可选的 :class:`ScrapeOptions`，再加上覆盖其中字段的关键字参数。
     """
@@ -218,6 +220,7 @@ class Scraper:
         browser_executable: Optional[str] = None,
         browser_url: Optional[str] = None,
         max_browsers: int = 2,
+        store_path: Optional[str] = None,
     ) -> None:
         self._engine = _pagesift.Engine(
             user_agent=user_agent,
@@ -230,6 +233,7 @@ class Scraper:
             browser_executable=browser_executable,
             browser_url=browser_url,
             max_browsers=max_browsers,
+            store_path=store_path,
         )
 
     def scrape(self, url: str, options: Optional[ScrapeOptions] = None, **overrides: Any) -> Document:

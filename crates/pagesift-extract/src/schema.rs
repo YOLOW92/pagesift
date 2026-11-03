@@ -27,6 +27,8 @@ pub struct Field {
     /// 取不到值时的默认值（任意 JSON）。
     pub default: Option<Value>,
     pub transform: Option<Transform>,
+    /// 业务身份属性名（如 `data-sku`）：配了时重定位走 Anchor 步，按属性值找，对不上报 missing，不猜。
+    pub identity: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -68,9 +70,47 @@ impl Transform {
     }
 }
 
+/// schema 顶层认识的键（`name` 是 Crawl4AI schema 的说明性名字）。
+const SCHEMA_KEYS: &[&str] = &["name", "baseSelector", "baseFields", "fields"];
+/// 字段认识的键（`expression`、`function` 是 Crawl4AI 的 computed 字段，只接收不执行；
+/// `describe` 是语义字段，由引擎交给 LLM 解析）。
+const FIELD_KEYS: &[&str] = &[
+    "name",
+    "selector",
+    "source",
+    "type",
+    "attribute",
+    "pattern",
+    "group",
+    "default",
+    "transform",
+    "fields",
+    "expression",
+    "function",
+    "describe",
+    "identity",
+];
+
+/// 未知键直接拒收，全部列出（写错键名会悄悄抽不到东西）。
+fn reject_unknown(obj: &Map<String, Value>, known: &[&str], path: &str) -> Result<(), Error> {
+    let bad: Vec<&str> = obj
+        .keys()
+        .map(String::as_str)
+        .filter(|k| !known.contains(k))
+        .collect();
+    if bad.is_empty() {
+        return Ok(());
+    }
+    Err(schema_err(
+        path,
+        format!("unknown keys: {}", bad.join(", ")),
+    ))
+}
+
 impl Schema {
     pub fn from_json(value: &Value) -> Result<Self, Error> {
         let obj = as_object(value, "$")?;
+        reject_unknown(obj, SCHEMA_KEYS, "$")?;
         let base_selector = match obj.get("baseSelector") {
             Some(Value::String(s)) if !s.trim().is_empty() => s.clone(),
             Some(Value::String(_)) => return Err(schema_err("baseSelector", "must not be empty")),
@@ -156,10 +196,12 @@ fn opt_string(obj: &Map<String, Value>, key: &str, path: &str) -> Result<Option<
 
 fn parse_field(v: &Value, path: &str) -> Result<Field, Error> {
     let obj = as_object(v, path)?;
+    reject_unknown(obj, FIELD_KEYS, path)?;
     let name = opt_string(obj, "name", path)?
         .ok_or_else(|| schema_err(&format!("{path}.name"), "is required"))?;
     let selector = opt_string(obj, "selector", path)?;
     let source = opt_string(obj, "source", path)?;
+    let identity = opt_string(obj, "identity", path)?;
     if let Some(src) = &source
         && !src.trim_start().starts_with('+')
     {
@@ -238,6 +280,7 @@ fn parse_field(v: &Value, path: &str) -> Result<Field, Error> {
         kind,
         default: obj.get("default").cloned(),
         transform,
+        identity,
     })
 }
 
@@ -350,6 +393,13 @@ mod tests {
         assert!(
             err(r#"{"baseSelector": "a", "fields": [{"name": "x", "type": ["text", 3]}]}"#)
                 .contains("`fields[0].type[1]`")
+        );
+        assert!(
+            err(r#"{"baseSelector": "a", "fields": [], "bse": 1}"#).contains("unknown keys: bse")
+        );
+        assert!(
+            err(r#"{"baseSelector": "a", "fields": [{"name": "x", "type": "text", "selctor": "a"}]}"#)
+                .contains("`fields[0]`: unknown keys: selctor")
         );
     }
 

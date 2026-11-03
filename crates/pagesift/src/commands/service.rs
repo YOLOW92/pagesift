@@ -201,22 +201,10 @@ pub(crate) fn run(command: Command, mut cfg: pagesift::config::Config) -> Result
             let mut cfg = cfg;
             cfg.audit.source = Some(format!("mcp-{transport}"));
             let mut sc = cfg.scraper(false)?;
-            // http 传输是一个常驻进程，按配置开缓存；stdio 每个客户端各起一个进程，存储不能多进程共用，
-            // 不开缓存。数据目录被别的进程（比如 serve）占着时照常运行，只是不缓存
-            if transport == "http" && cfg.cache.enabled.unwrap_or(true) {
-                match cfg.open_store() {
-                    Ok(store) => {
-                        eprintln!("cache: {}", cfg.data_dir().join("store").display());
-                        sc.store = Some(store);
-                    }
-                    Err(e)
-                        if e.downcast_ref::<pagesift_store::Error>()
-                            .is_some_and(pagesift_store::Error::is_locked) =>
-                    {
-                        eprintln!("warning: {e:#}; running without the cache");
-                    }
-                    Err(e) => return Err(e),
-                }
+            // 按配置开存储（缓存和选择器记忆）。存储不能多进程共用：数据目录被别的进程（serve、
+            // 另一个 stdio 客户端）占着时照常运行，只是没有缓存和记忆
+            if commands::extract::attach_store(&cfg, &mut sc)? {
+                eprintln!("cache: {}", cfg.data_dir().join("store").display());
             }
             let scraper = Arc::new(pagesift::Scraper::new(sc)?);
             let res = pagesift::mcp::run_server_until(

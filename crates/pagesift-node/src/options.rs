@@ -28,11 +28,19 @@ pub struct ScraperConfig {
     pub per_host_concurrency: Option<u32>,
     /// 浏览器渲染时最多启动的浏览器进程数。
     pub max_browsers: Option<u32>,
+    /// 存储目录。给了才有页面缓存和选择器记忆（`extractSchema` 的自动重定位要它）；
+    /// 一个目录同时只能被一个进程打开。
+    pub store_path: Option<String>,
 }
 
 impl ScraperConfig {
-    pub fn into_core(self) -> pagesift::ScraperConfig {
+    pub fn into_core(self) -> Fallible<pagesift::ScraperConfig> {
         let mut c = pagesift::ScraperConfig::default();
+        if let Some(dir) = &self.store_path {
+            let store = pagesift::store::Store::open_dir(std::path::Path::new(dir))
+                .map_err(|e| ApiError::invalid(format!("opening the store in {dir}: {e}")))?;
+            c.store = Some(store);
+        }
         if let Some(ua) = self.user_agent {
             c.fetcher.user_agent = ua;
         }
@@ -60,7 +68,7 @@ impl ScraperConfig {
         }
         // 用库的人就是管理员（和命令行一样）：crawl、map 的 ignoreRobotsTxt 由调用方自己决定
         c.policy.allow_crawl_ignore_robots = true;
-        c
+        Ok(c)
     }
 }
 

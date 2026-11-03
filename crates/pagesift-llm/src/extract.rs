@@ -61,7 +61,7 @@ pub async fn extract_json(
                 Ok(()) => return Ok(v),
                 Err(errs) => errs.join("; "),
             },
-            Err(e) => format!("不是合法 JSON: {e}"),
+            Err(e) => format!("not valid JSON: {e}"),
         };
         last_err = problem.clone();
         if round == 0 {

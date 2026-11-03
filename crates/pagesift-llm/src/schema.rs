@@ -38,7 +38,7 @@ fn check(schema: &Value, v: &Value, path: &str, errors: &mut Vec<String>) {
     match schema.get("type") {
         Some(Value::String(t)) => {
             if !type_matches(t, v) {
-                errors.push(format!("{path}: 期望类型 {t}"));
+                errors.push(format!("{path}: expected type {t}"));
                 return;
             }
         }
@@ -48,7 +48,7 @@ fn check(schema: &Value, v: &Value, path: &str, errors: &mut Vec<String>) {
                 .filter_map(Value::as_str)
                 .any(|t| type_matches(t, v)) =>
         {
-            errors.push(format!("{path}: 类型不在允许列表内"));
+            errors.push(format!("{path}: type is not in the allowed list"));
             return;
         }
         _ => {}
@@ -56,13 +56,13 @@ fn check(schema: &Value, v: &Value, path: &str, errors: &mut Vec<String>) {
     if let Some(Value::Array(options)) = schema.get("enum")
         && !options.contains(v)
     {
-        errors.push(format!("{path}: 不在 enum 允许的取值内"));
+        errors.push(format!("{path}: value is not in the enum"));
     }
     if let Some(obj) = v.as_object() {
         if let Some(Value::Array(req)) = schema.get("required") {
             for key in req.iter().filter_map(Value::as_str) {
                 if !obj.contains_key(key) {
-                    errors.push(format!("{path}: 缺少必填字段 {key}"));
+                    errors.push(format!("{path}: missing required field {key}"));
                 }
             }
         }

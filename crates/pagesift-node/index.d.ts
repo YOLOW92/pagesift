@@ -244,7 +244,7 @@ export interface BatchOptions {
   exportImages?: boolean
   /**
    * 按 CSS schema 抽取结构化数据（`baseSelector`、`fields`），结果在 `page.extract`；
-   * 选择器失效时自动重定位并在 `warnings` 里报 `relocated`。
+   * `Scraper` 配了 `storePath` 时，选择器失效会自动重定位并在 `warnings` 里报 `relocated`。
    */
   extractSchema?: Record<string, unknown>
 }
@@ -390,7 +390,7 @@ export interface ParseOptions {
   exportImages?: boolean
   /**
    * 按 CSS schema 抽取结构化数据（`baseSelector`、`fields`），结果在 `page.extract`；
-   * 选择器失效时自动重定位并在 `warnings` 里报 `relocated`。
+   * `Scraper` 配了 `storePath` 时，选择器失效会自动重定位并在 `warnings` 里报 `relocated`。
    */
   extractSchema?: Record<string, unknown>
 }
@@ -425,7 +425,7 @@ export interface ScrapeOptions {
   exportImages?: boolean
   /**
    * 按 CSS schema 抽取结构化数据（`baseSelector`、`fields`），结果在 `page.extract`；
-   * 选择器失效时自动重定位并在 `warnings` 里报 `relocated`。
+   * `Scraper` 配了 `storePath` 时，选择器失效会自动重定位并在 `warnings` 里报 `relocated`。
    */
   extractSchema?: Record<string, unknown>
 }
@@ -446,4 +446,9 @@ export interface ScraperConfig {
   perHostConcurrency?: number
   /** 浏览器渲染时最多启动的浏览器进程数。 */
   maxBrowsers?: number
+  /**
+   * 存储目录。给了才有页面缓存和选择器记忆（`extractSchema` 的自动重定位要它）；
+   * 一个目录同时只能被一个进程打开。
+   */
+  storePath?: string
 }

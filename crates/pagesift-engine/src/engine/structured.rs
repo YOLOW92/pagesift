@@ -123,14 +123,22 @@ impl Scraper {
         let budget = self.snapshot_budget().await;
         // schema：请求里给的，或按意图从缓存取 / 让 LLM 生成
         let (mut raw, cache_key) = match (&parsed, &intent) {
-            (Some(_), _) => (
-                opts.formats
+            (Some(_), _) => {
+                let v = opts
+                    .formats
                     .iter()
                     .find(|f| f.kind == EXTRACT)
                     .and_then(|f| f.options.get("schema").cloned())
-                    .unwrap_or_default(),
-                None,
-            ),
+                    .unwrap_or_default();
+                // 有语义字段：解析结果按“注册域 + URL 形状 + schema id”缓存，之后不再调模型
+                let key = has_semantic(&v)
+                    .then(|| super::autoschema::cache_key(&url, &schema_id(&v)))
+                    .flatten();
+                match key.as_ref().and_then(|k| self.kv_get(k)) {
+                    Some(resolved) => (resolved, key),
+                    None => (v, key),
+                }
+            }
             (None, Some(intent)) => {
                 let key = super::autoschema::cache_key(&url, intent);
                 let cached = key.as_ref().and_then(|k| self.kv_get(k));
@@ -195,35 +203,64 @@ impl Scraper {
         let mut outcome = self
             .extract_with(&html, &schema, site.clone(), &mem_id)
             .await?;
-        // LLM 兜底：缓存的选择器和 locate 都没找回的字段，让 LLM 重新解析一次
-        if let (Some(llm), false) = (self.llm.as_ref(), outcome.unresolved.is_empty()) {
-            let item = first_item_html(&html, &schema.base_selector);
-            let mut healed = false;
-            for (key, _) in outcome.unresolved.clone() {
-                let Some(name) = key.strip_prefix("fields.") else {
-                    continue;
-                };
-                let Some(i) = raw["fields"]
-                    .as_array()
-                    .and_then(|fs| fs.iter().position(|f| f["name"] == name))
-                else {
-                    continue;
-                };
-                let d = raw["fields"][i]["describe"]
-                    .as_str()
-                    .unwrap_or(name)
-                    .to_string();
-                let r = super::autoschema::resolve_field(llm, &d, &item, budget, &mut used).await?;
-                patch_field(&mut raw["fields"][i], &r);
-                notes.push(format!("selector_healed: fields.{name} via llm"));
-                healed = true;
+        // LLM 兜底：缓存的选择器和 locate 都没找回的，让 LLM 重新解析一次。先修列表项，字段要在列表项里找
+        if let Some(llm) = self.llm.as_ref() {
+            let mut healed: Vec<String> = Vec::new();
+            if outcome.unresolved.iter().any(|(k, _)| k == BASE_KEY) {
+                let r = super::autoschema::resolve_base(
+                    llm,
+                    &field_list(&raw),
+                    &html,
+                    budget,
+                    &mut used,
+                )
+                .await?;
+                let mut trial = raw.clone();
+                trial[BASE_KEY] = r["selector"].clone();
+                if compiles(&trial) {
+                    raw = trial;
+                    healed.push(BASE_KEY.to_string());
+                    outcome = self.extract_raw(&html, &raw, site.clone(), &mem_id).await?;
+                }
             }
-            if healed {
-                let schema = Schema::from_json(&raw)
-                    .map_err(|e| ApiError::invalid(format!("schema: {e}")))?;
-                outcome = self
-                    .extract_with(&html, &schema, site.clone(), &mem_id)
-                    .await?;
+            let fields: Vec<String> = outcome
+                .unresolved
+                .iter()
+                .filter_map(|(k, _)| k.strip_prefix("fields.").map(str::to_string))
+                .collect();
+            if !fields.is_empty() {
+                let item = first_item_html(&html, raw[BASE_KEY].as_str().unwrap_or("body"));
+                let mut patched = false;
+                for name in fields {
+                    let Some(i) = raw["fields"]
+                        .as_array()
+                        .and_then(|fs| fs.iter().position(|f| f["name"] == name.as_str()))
+                    else {
+                        continue;
+                    };
+                    let d = raw["fields"][i]["describe"]
+                        .as_str()
+                        .unwrap_or(&name)
+                        .to_string();
+                    let r =
+                        super::autoschema::resolve_field(llm, &d, &item, budget, &mut used).await?;
+                    let mut trial = raw.clone();
+                    patch_field(&mut trial["fields"][i], &r);
+                    if compiles(&trial) {
+                        raw = trial;
+                        patched = true;
+                        healed.push(format!("fields.{name}"));
+                    }
+                }
+                if patched {
+                    outcome = self.extract_raw(&html, &raw, site.clone(), &mem_id).await?;
+                }
+            }
+            // 模型给的选择器真的命中了才算修好
+            for key in healed {
+                if !outcome.unresolved.iter().any(|(k, _)| *k == key) {
+                    notes.push(format!("selector_healed: {key} via llm"));
+                }
             }
         }
         if let Some(k) = &cache_key
@@ -249,6 +286,37 @@ impl Scraper {
         doc.extract = Some(Value::Array(outcome.items));
         Ok(doc)
     }
+}
+
+const BASE_KEY: &str = "baseSelector";
+
+/// 有没有只写了 `describe`、还没有选择器的语义字段。
+fn has_semantic(raw: &Value) -> bool {
+    raw["fields"].as_array().is_some_and(|fs| {
+        fs.iter()
+            .any(|f| f.get("selector").is_none() && f.get("describe").is_some())
+    })
+}
+
+/// 给模型看的字段清单：名字，有说明时带说明。
+fn field_list(raw: &Value) -> String {
+    let fields = raw["fields"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+    fields
+        .iter()
+        .map(|f| {
+            let name = f["name"].as_str().unwrap_or_default();
+            match f["describe"].as_str() {
+                Some(d) => format!("{name} ({d})"),
+                None => name.to_string(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// 模型给的选择器能不能用：写坏的不写进 schema（否则这次请求整个报错）。
+fn compiles(raw: &Value) -> bool {
+    Schema::from_json(raw).is_ok_and(|s| pagesift_extract::JsonCssExtractor::new(&s).is_ok())
 }
 
 /// 第一个列表项的 HTML（找不到时整页）：语义字段和 LLM 兜底在它的快照里找选择器。
@@ -278,6 +346,18 @@ fn patch_field(field: &mut Value, r: &Value) {
 }
 
 impl Scraper {
+    async fn extract_raw(
+        &self,
+        html: &str,
+        raw: &Value,
+        site: Option<String>,
+        id: &str,
+    ) -> Result<pagesift_extract::AdaptiveOutcome, ApiError> {
+        let schema =
+            Schema::from_json(raw).map_err(|e| ApiError::invalid(format!("schema: {e}")))?;
+        self.extract_with(html, &schema, site, id).await
+    }
+
     async fn extract_with(
         &self,
         html: &str,

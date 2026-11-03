@@ -3,6 +3,7 @@
 pub mod agent;
 pub mod attachment;
 pub mod interact;
+pub mod locate;
 pub mod parse;
 pub mod request;
 pub mod response;
@@ -15,6 +16,10 @@ pub use attachment::Attachment;
 pub use interact::{
     InteractRequest, InteractResponse, InteractStopped, LIVE_VIEW_UNAVAILABLE, SESSION_REPLAYED,
     instance_tag, is_scrape_id, issued_elsewhere, scrape_id, session_gone,
+};
+pub use locate::{
+    ObserveRequest, ObserveResponse, Observed, SimilarData, SimilarItem, SimilarRequest,
+    SimilarResponse,
 };
 pub use parse::{PdfParser, Upload, UploadKind};
 

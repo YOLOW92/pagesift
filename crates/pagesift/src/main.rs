@@ -182,6 +182,22 @@ fn run(command: Command, cfg: pagesift::config::Config) -> Result<ExitCode> {
             },
             cfg,
         ),
+        Command::Similar {
+            url,
+            selector,
+            engine,
+            ignore_robots,
+            allow,
+        } => commands::extract::run_similar(
+            commands::extract::SimilarArgs {
+                url,
+                selector,
+                engine,
+                ignore_robots,
+                allow,
+            },
+            cfg,
+        ),
         Command::Extract {
             urls,
             schema,

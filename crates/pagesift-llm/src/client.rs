@@ -119,10 +119,10 @@ pub struct ChatClient {
 impl ChatClient {
     pub fn new(config: LlmConfig) -> Result<Self> {
         if config.base_url.trim().is_empty() {
-            return Err(LlmError::Config("base_url 不能为空".into()));
+            return Err(LlmError::Config("base_url must not be empty".into()));
         }
         if config.model.trim().is_empty() {
-            return Err(LlmError::Config("model 不能为空".into()));
+            return Err(LlmError::Config("model must not be empty".into()));
         }
         let http = reqwest::Client::builder()
             .timeout(config.timeout)
@@ -314,11 +314,11 @@ fn parse_success(text: &str) -> Result<ChatResponse> {
         serde_json::from_str(text).map_err(|e| LlmError::InvalidResponse(e.to_string()))?;
     let choice = v
         .pointer("/choices/0")
-        .ok_or_else(|| LlmError::InvalidResponse("缺少 choices[0]".into()))?;
+        .ok_or_else(|| LlmError::InvalidResponse("missing choices[0]".into()))?;
     let content = choice
         .pointer("/message/content")
         .and_then(Value::as_str)
-        .ok_or_else(|| LlmError::InvalidResponse("缺少 message.content".into()))?
+        .ok_or_else(|| LlmError::InvalidResponse("missing message.content".into()))?
         .to_owned();
     let finish_reason = choice
         .get("finish_reason")

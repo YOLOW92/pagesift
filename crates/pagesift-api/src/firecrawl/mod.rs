@@ -5,6 +5,7 @@ pub mod agent;
 pub mod batch;
 pub mod crawl;
 pub mod interact;
+pub mod locate;
 pub mod map;
 pub mod parse;
 pub mod scrape;
@@ -26,6 +27,8 @@ pub fn firecrawl_routes() -> Router<AppState> {
             "/v2/scrape/{id}/interact",
             post(interact::interact).delete(interact::stop),
         )
+        .route("/v2/observe", post(locate::observe))
+        .route("/v2/similar", post(locate::similar))
         .route("/v2/attachments/{id}", get(crate::attachments::download))
         .route(
             "/v2/parse",

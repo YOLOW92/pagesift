@@ -149,6 +149,11 @@ pub(super) async fn ask(
     max_out: usize,
     used: &mut LlmUse,
 ) -> Result<Value, ApiError> {
+    // 快照预算可能大于模型的输出上限（预算只把输出上限从输入里扣掉），超了服务回 400
+    let max_out = match llm.model_limits().await {
+        Some((_, Some(limit))) => max_out.min(limit),
+        _ => max_out,
+    };
     let req = ChatRequest {
         messages: vec![
             ChatMessage::new(Role::System, system),
@@ -243,6 +248,30 @@ pub async fn resolve_field(
         llm,
         FIELD_SYSTEM,
         format!("Field: {describe}\n\nItem snapshot:\n{snap}"),
+        budget,
+        used,
+    )
+    .await
+}
+
+const BASE_SYSTEM: &str = "You find CSS selectors for pagesift. Reply with one JSON object only: \
+{\"selector\": \"<CSS selector matching every repeated item that holds these fields, or the single item>\"}. \
+Use only tags, classes and attributes that appear in the page snapshot.";
+
+/// `baseSelector` 失效：在整页快照里让 LLM 找列表项。
+pub async fn resolve_base(
+    llm: &ChatClient,
+    fields: &str,
+    html: &str,
+    budget: usize,
+    used: &mut LlmUse,
+) -> Result<Value, ApiError> {
+    let doc = Html::parse(html);
+    let (snap, _) = snapshot(&doc, budget);
+    ask(
+        llm,
+        BASE_SYSTEM,
+        format!("Fields of each item: {fields}\n\nPage snapshot:\n{snap}"),
         budget,
         used,
     )

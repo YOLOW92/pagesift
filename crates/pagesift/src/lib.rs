@@ -30,3 +30,4 @@ pub use pagesift_engine::{
 pub use pagesift_engine::{change, crawl, discovery, engine, focus, frontier, learn};
 pub use pagesift_hooks as hooks;
 pub use pagesift_media::{download, media, postprocess, stream};
+pub use pagesift_store as store;

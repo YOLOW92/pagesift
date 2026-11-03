@@ -129,6 +129,33 @@ pub trait Engine: Send + Sync + 'static {
         })
     }
 
+    /// `/v2/observe`：页面上和指令对应的候选元素（选择器、角色、名称），返回候选和用量警告。
+    fn observe<'a>(
+        &'a self,
+        _url: &'a str,
+        _instruction: &'a str,
+    ) -> BoxFuture<'a, Result<crate::types::Observed, ApiError>> {
+        Box::pin(async {
+            Err(ApiError::unsupported(
+                "observe is not available in this build",
+            ))
+        })
+    }
+
+    /// `/v2/similar`：和例子结构相同的兄弟元素。
+    fn find_similar<'a>(
+        &'a self,
+        _url: &'a str,
+        _selector: &'a str,
+        _opts: &'a ScrapeOptions,
+    ) -> BoxFuture<'a, Result<crate::types::SimilarData, ApiError>> {
+        Box::pin(async {
+            Err(ApiError::unsupported(
+                "find_similar is not available in this build",
+            ))
+        })
+    }
+
     fn interact<'a>(
         &'a self,
         _id: &'a str,

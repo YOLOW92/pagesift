@@ -18,6 +18,7 @@ mod collect;
 mod crawl;
 mod download;
 mod extract;
+mod extract_entry;
 mod focused;
 mod focused_site;
 mod frontier;

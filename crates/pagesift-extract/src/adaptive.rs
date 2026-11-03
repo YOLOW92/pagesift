@@ -108,24 +108,23 @@ pub fn extract_adaptive(
     })?;
     let first = doc.select(&base_sel).next();
     match first {
-        Some(n) => refresh(memory, BASE, n, &schema.base_selector),
-        None => {
-            if let Some(t) = memory.recall(BASE) {
-                match relocate_base(root, &t) {
-                    Ok((node, new, step)) => {
-                        out.relocated.push(FieldRelocation {
-                            field: BASE.into(),
-                            old: schema.base_selector.clone(),
-                            new: new.clone(),
-                            step,
-                        });
-                        refresh(memory, BASE, node, &new);
-                        patched.base_selector = new;
-                    }
-                    Err(why) => out.unresolved.push((BASE.into(), why)),
+        Some(n) => refresh(memory, BASE, n, &schema.base_selector, None),
+        None => match memory.recall(BASE) {
+            Some(t) => match relocate_base(root, &t) {
+                Ok((node, new, step)) => {
+                    out.relocated.push(FieldRelocation {
+                        field: BASE.into(),
+                        old: schema.base_selector.clone(),
+                        new: new.clone(),
+                        step,
+                    });
+                    refresh(memory, BASE, node, &new, None);
+                    patched.base_selector = new;
                 }
-            }
-        }
+                Err(why) => out.unresolved.push((BASE.into(), why)),
+            },
+            None => out.unresolved.push((BASE.into(), "missing")),
+        },
     }
 
     // 顶层字段（相对列表项）
@@ -133,6 +132,10 @@ pub fn extract_adaptive(
         Ok(s) => doc.select(&s).collect(),
         Err(_) => Vec::new(),
     };
+    // 列表项都没找到：字段没有作用域，报列表项一条就够
+    if items.is_empty() {
+        return Ok(out);
+    }
     for (i, field) in schema.fields.iter().enumerate() {
         let (Some(sel_text), None) = (&field.selector, &field.source) else {
             continue;
@@ -146,10 +149,11 @@ pub fn extract_adaptive(
         };
         let hit = items.iter().find_map(|it| it.select(&sel).next());
         if let Some(n) = hit {
-            refresh(memory, &key, n, sel_text);
+            refresh(memory, &key, n, sel_text, field.identity.as_deref());
             continue;
         }
         let Some(t) = memory.recall(&key) else {
+            out.unresolved.push((key, "missing"));
             continue;
         };
         let mut why = "missing";
@@ -186,7 +190,7 @@ pub fn extract_adaptive(
                     new: new.clone(),
                     step,
                 });
-                refresh(memory, &key, n, &new);
+                refresh(memory, &key, n, &new, field.identity.as_deref());
                 patched.fields[i].selector = Some(new);
             }
             None => out.unresolved.push((key, why)),
@@ -197,9 +201,15 @@ pub fn extract_adaptive(
     Ok(out)
 }
 
-fn refresh(memory: &dyn SelectorMemory, key: &str, node: NodeRef<'_>, selector: &str) {
-    let identity = memory.recall(key).and_then(|t| t.identity).map(|(k, _)| k);
-    if let Ok(t) = Target::from_node(node, selector, identity.as_deref()) {
+/// 记下命中的元素。配了身份属性而元素上没有时不记（没有身份的记忆会退回相似度去猜）。
+fn refresh(
+    memory: &dyn SelectorMemory,
+    key: &str,
+    node: NodeRef<'_>,
+    selector: &str,
+    identity: Option<&str>,
+) {
+    if let Ok(t) = Target::from_node(node, selector, identity) {
         memory.remember(key, &t);
     }
 }
@@ -297,5 +307,54 @@ mod tests {
         // 第三次：记忆里已是新选择器，精确命中
         let third = extract_adaptive(&v2, &schema, &mem).unwrap();
         assert_eq!(third.items, second.items);
+    }
+
+    fn single(field: serde_json::Value) -> Schema {
+        Schema::from_json(&json!({"baseSelector": "main", "fields": [field]})).unwrap()
+    }
+
+    #[test]
+    fn missing_is_reported_without_memory() {
+        let doc = Html::parse("<main><p>x</p></main>");
+        let f = extract_adaptive(
+            &doc,
+            &single(json!({"name": "t", "selector": "h1", "type": "text"})),
+            &NoMemory,
+        )
+        .unwrap();
+        assert_eq!(f.warnings(), ["extract_missing: fields.t"]);
+        let s = Schema::from_json(&json!({"baseSelector": "ul", "fields": [
+            {"name": "t", "selector": "h1", "type": "text"}]}))
+        .unwrap();
+        let b = extract_adaptive(&doc, &s, &NoMemory).unwrap();
+        assert_eq!(b.warnings(), ["extract_missing: baseSelector"]);
+    }
+
+    #[test]
+    fn identity_reaches_the_anchor_step_and_never_guesses() {
+        let schema = single(
+            json!({"name": "sku", "selector": "span.sku", "type": "text", "identity": "data-sku"}),
+        );
+        let remembered = || {
+            let mem = InMemory::default();
+            let v1 =
+                Html::parse("<main><span class='sku' data-sku='A1'>one</span><p>other</p></main>");
+            let first = extract_adaptive(&v1, &schema, &mem).unwrap();
+            assert!(first.warnings().is_empty());
+            mem
+        };
+        // 改版：类名、标签都变了，身份还在
+        let v2 = Html::parse("<main><b class='x' data-sku='A1'>one</b><p>other</p></main>");
+        let moved = extract_adaptive(&v2, &schema, &remembered()).unwrap();
+        assert_eq!(moved.relocated[0].step, "anchor", "{moved:?}");
+        assert_eq!(moved.items[0]["sku"], "one");
+        // 身份重复：不猜
+        let dup = Html::parse("<main><b data-sku='A1'>one</b><b data-sku='A1'>two</b></main>");
+        let amb = extract_adaptive(&dup, &schema, &remembered()).unwrap();
+        assert_eq!(amb.warnings(), ["extract_ambiguous: fields.sku"]);
+        // 身份消失：报 missing，也不退回相似度
+        let gone = Html::parse("<main><b data-sku='Z9'>one</b></main>");
+        let miss = extract_adaptive(&gone, &schema, &remembered()).unwrap();
+        assert_eq!(miss.warnings(), ["extract_missing: fields.sku"]);
     }
 }

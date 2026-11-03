@@ -274,8 +274,25 @@ pub(crate) enum Command {
         #[command(flatten)]
         allow: AllowCidrs,
     },
+    /// Find the structural siblings of one example element (the whole list from one item);
+    /// prints one JSON object (selector, depth, items)
+    Similar {
+        url: String,
+        /// CSS selector of the example element (the first match is used)
+        #[arg(long)]
+        selector: String,
+        /// http, browser or auto
+        #[arg(long, default_value = "auto", value_parser = ["http", "browser", "auto"])]
+        engine: String,
+        /// Ignore robots.txt for this page
+        #[arg(long)]
+        ignore_robots: bool,
+        #[command(flatten)]
+        allow: AllowCidrs,
+    },
     /// Extract structured data with a CSS schema (baseSelector, fields); one JSON line per URL.
-    /// With a store ([cache]) selectors are remembered and relocated after a page redesign
+    /// With a store ([cache], on by default) selectors are remembered and relocated after a page
+    /// redesign; when another process holds the data directory it warns and runs without memory
     Extract {
         #[arg(required = true)]
         urls: Vec<String>,

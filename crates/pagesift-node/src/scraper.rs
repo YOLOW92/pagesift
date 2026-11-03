@@ -63,8 +63,8 @@ impl Scraper {
     )]
     pub fn new(env: &Env, config: Option<Value>) -> Result<Self> {
         let config = crate::error::strict::<ScraperConfig>(config)
-            .map_err(|e| error::to_js(env, &e))?
-            .into_core();
+            .and_then(ScraperConfig::into_core)
+            .map_err(|e| error::to_js(env, &e))?;
         let inner = napi::bindgen_prelude::within_runtime_if_available(|| {
             pagesift::Scraper::new(config)
         })

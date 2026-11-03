@@ -42,6 +42,7 @@ mod scraper;
 mod speculate;
 pub use hooked::ScraperBuilder;
 pub use interact::InteractLimits;
+mod similar;
 mod structured;
 use cpu::{CONTENT_WORKSPACE, cpu_task};
 pub use cpu::{set_cpu_capacity, set_cpu_groups};
@@ -276,6 +277,27 @@ impl Engine for Scraper {
         owner: Option<&'a str>,
     ) -> BoxFuture<'a, Result<Document, ApiError>> {
         Box::pin(Scraper::scrape_session(self, url, opts, keep, owner))
+    }
+
+    fn observe<'a>(
+        &'a self,
+        url: &'a str,
+        instruction: &'a str,
+    ) -> BoxFuture<'a, Result<pagesift_api::types::Observed, ApiError>> {
+        Box::pin(async move {
+            let (found, used) = Scraper::observe(self, url, instruction).await?;
+            let usage = format!("llm_usage: {} calls, {} tokens", used.calls, used.tokens);
+            Ok((found, vec![usage]))
+        })
+    }
+
+    fn find_similar<'a>(
+        &'a self,
+        url: &'a str,
+        selector: &'a str,
+        opts: &'a ScrapeOptions,
+    ) -> BoxFuture<'a, Result<pagesift_api::types::SimilarData, ApiError>> {
+        Box::pin(Scraper::find_similar(self, url, selector, opts))
     }
 
     fn interact<'a>(

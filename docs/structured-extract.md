@@ -7,7 +7,7 @@ extension format; Firecrawl's `json` format is a different thing (it asks the co
 |---|---|
 | HTTP (`/v1`, `/v2` scrape, batch, crawl) | `"formats": [{"type": "extract", "schema": {...}}]`; result in `data.extract` |
 | MCP `pagesift_scrape` | same `formats` object form |
-| CLI | `pagesift extract --schema schema.json URL...` — one JSON line per URL |
+| CLI | `pagesift extract --schema schema.json URL...` — one JSON line per URL; pages are always fetched fresh, selector memory uses the store |
 | Python | `Scraper.extract(urls, schema)`, `Scraper.extract_iter(urls, schema)`, or `extract_schema=` on any scrape |
 | Node | `scraper.extract(urls, schema)`, `scraper.extractStream(urls, schema)`, or `extractSchema` on any scrape |
 
@@ -30,16 +30,27 @@ with `INVALID_REQUEST` before the page is fetched.
 
 ## Selector memory and relocation
 
-When a store is configured (`[cache]` in `pagesift.toml`), pagesift remembers, for each registered
-domain + schema + field, the element's structural fingerprint and the selector that last matched.
-The schema id is a hash of the schema JSON, so editing the schema starts a fresh memory.
+When a store is open, pagesift remembers, for each registered domain + schema + field, the element's
+structural fingerprint and the selector that last matched. The schema id is a hash of the schema JSON,
+so editing the schema starts a fresh memory.
+
+| Entry point | Store |
+|---|---|
+| HTTP (`serve`), MCP (http and stdio), CLI `extract` | `[cache]` in `pagesift.toml`, on by default. One process can hold a data directory: when another one has it, a warning goes to stderr and that process runs without cache and memory |
+| Python | `Scraper(store_path=...)`; no store by default |
+| Node | `new Scraper({ storePath })`; no store by default |
+
+Relocation covers `baseSelector` and top-level fields that have a `selector`. Sub-fields of `nested`,
+`list` and `nested_list` fields, `source` fields and `baseFields` are extracted exactly, never
+relocated, and a failed one produces no warning.
 
 When a selector stops matching, `pagesift_extract::locate` looks for the element again, in this order,
 and stops at the first step that decides:
 
 1. **exact** — the selector (or the remembered current selector) matches exactly one element;
-2. **anchor** — if an identity attribute was configured, find the element carrying the same value;
-   none is `missing`, several are `ambiguous`; similarity is never used as a fallback;
+2. **anchor** — if the field names an identity attribute (`"identity": "data-sku"`), find the element
+   carrying the value seen last time; none is `missing`, several are `ambiguous`; similarity is never
+   used as a fallback. An element without that attribute is not remembered;
 3. **fingerprint** — compare every element with the remembered fingerprint, feature by feature
    (tag, stable attributes, non-hashed class names, text, ancestors, sibling text, child tags; Dice
    coefficients). Each feature's similarity is turned into evidence by asking how many elements of the
@@ -61,10 +72,35 @@ reported in `metadata.pagesift.warnings`:
 | `extract_missing: <field>` | the selector does not match and the element could not be found |
 | `extract_ambiguous: <field>` | several candidates fit equally well; pagesift does not guess |
 
-Without a store the extraction is exact only (no relocation).
+Without a store the extraction is exact only (no relocation); a selector that matches nothing still
+reports `extract_missing`. When `[llm]` is configured, whatever is still unresolved (`baseSelector`
+first, then fields) goes to the model once, with or without a store, and a selector that then matches
+reports `selector_healed: <field> via llm`. Each unresolved field costs a model call on every run,
+including a field that is legitimately absent from the page. Fields that only have `describe` are
+resolved by the model on first use; with a store the result is cached per registered domain + URL
+shape + schema, so repeat runs make no model call.
 
-`find_similar` (Rust: `pagesift_extract::locate::find_similar`) returns the structural siblings of one
-example element, so a single example is enough to address a whole list.
+Unknown keys in a schema or a field are rejected with `INVALID_REQUEST`.
+
+## Finding similar elements
+
+From one example element, find its structural siblings (same tag, semantic classes and child tags),
+so a single example is enough to address a whole list. The walk goes up from the example until a level
+has look-alike siblings; `depth` says how many levels (0 = the example itself).
+
+| Entry point | Form |
+|---|---|
+| HTTP | `POST /v2/similar` with `{"url": ..., "selector": <CSS of the example>, "engine": "auto"}` |
+| CLI | `pagesift similar URL --selector CSS` — one JSON object |
+
+The result is `{"selector", "depth", "items": [{"text", "html"}]}`. `selector` is null when none could
+be built that picks out exactly those items; `depth` is null and `items` empty when the example has no
+structural siblings. A selector that matches nothing is `INVALID_REQUEST`.
+
+## Observe
+
+`POST /v2/observe` with `{"url": ..., "instruction": ...}` needs `[llm]` and returns candidate elements,
+best first: `{"success": true, "data": [{"selector", "role", "name"}], "warnings": ["llm_usage: ..."]}`.
 
 ## Measured accuracy
 

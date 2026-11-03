@@ -56,6 +56,7 @@ impl Engine {
         browser_executable = None,
         browser_url = None,
         max_browsers = 2,
+        store_path = None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -69,6 +70,7 @@ impl Engine {
         browser_executable: Option<PathBuf>,
         browser_url: Option<String>,
         max_browsers: usize,
+        store_path: Option<PathBuf>,
     ) -> PyResult<Self> {
         if !(request_interval.is_finite() && request_interval >= 0.0) {
             return Err(PyValueError::new_err(
@@ -102,6 +104,11 @@ impl Engine {
         cfg.policy.rate.global_concurrency = max_concurrency;
         cfg.policy.rate.global_ceiling = Some(max_concurrency);
         cfg.browser.max_browsers = max_browsers;
+        if let Some(dir) = store_path {
+            cfg.store = Some(pagesift::store::Store::open_dir(&dir).map_err(|e| {
+                PyValueError::new_err(format!("opening the store in {}: {e}", dir.display()))
+            })?);
+        }
         // 用库的人就是管理员（和命令行一样）：crawl、map 的 ignore_robots_txt 由调用方自己决定
         cfg.policy.allow_crawl_ignore_robots = true;
         cfg.browser.source = match (browser_executable, browser_url) {
