@@ -101,8 +101,7 @@ impl<'g> Ctx<'g> {
         let data = make();
         let buf = self.upload_or_trim(&data)?;
         let ptr = buf.ptr();
-        self.weight_bytes
-            .set(self.weight_bytes.get() + bytes(data.len()));
+        self.count_weight(data.len());
         self.weights.borrow_mut().insert(
             key,
             Cached {
@@ -111,6 +110,11 @@ impl<'g> Ctx<'g> {
             },
         );
         Ok(ptr)
+    }
+
+    /// 记下又有 `len` 个 f32 的权重常驻显存。
+    pub(crate) fn count_weight(&self, len: usize) {
+        self.weight_bytes.set(self.weight_bytes.get() + bytes(len));
     }
 
     /// 上传；显存不够时腾掉缓冲池的空闲部分再试一次。

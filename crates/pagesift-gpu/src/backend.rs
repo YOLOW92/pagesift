@@ -158,6 +158,7 @@ impl<'g> Ctx<'g> {
         }
         let b = self.upload_or_trim(data)?;
         let p = b.ptr();
+        self.count_weight(data.len());
         self.hashed.borrow_mut().insert(hash, b);
         Ok(p)
     }

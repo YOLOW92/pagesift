@@ -85,7 +85,11 @@ impl Engine {
 
     /// GPU 的显存和批次统计；没在用 GPU 时为 None。
     pub fn gpu_stats(&self) -> Option<GpuStats> {
-        self.gpu.as_ref().map(GpuRunner::stats)
+        let mut s = self.gpu.as_ref().map(GpuRunner::stats)?;
+        if let Some(Some(b)) = self.backend.get() {
+            s.offloaded_ops = b.offloaded();
+        }
+        Some(s)
     }
 
     /// 在 `f` 里，当前线程直接调 `pagesift_infer::ops` 和 `nn` 层的模型（公式、版面）按实测开销把大算子

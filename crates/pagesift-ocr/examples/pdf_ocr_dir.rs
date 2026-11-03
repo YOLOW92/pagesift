@@ -94,13 +94,14 @@ fn main() {
     println!("device: {:?}, fallback: {:?}", st.actual, st.fallback);
     if let Some(g) = e.gpu_stats() {
         println!(
-            "gpu: peak {} MiB, needed {} MiB, {} batches, {} lines, {:.1} lines/batch, {} splits",
+            "gpu: peak {} MiB, needed {} MiB, {} batches, {} lines, {:.1} lines/batch, {} splits, {} offloaded ops",
             g.peak_bytes >> 20,
             g.needed_bytes >> 20,
             g.batches,
             g.lines,
             g.lines as f64 / g.batches.max(1) as f64,
-            g.splits
+            g.splits,
+            g.offloaded_ops
         );
     }
 }

@@ -102,19 +102,11 @@ impl ModelChoice {
     }
 }
 
-/// 一个模型文件清单里 model.safetensors 的字节数。
-fn weight_bytes(m: &Model) -> u64 {
-    m.files
-        .iter()
-        .filter(|f| f.name == "model.safetensors")
-        .map(|f| f.size)
-        .sum()
-}
-
 /// medium 在显存里至少要占多少字节（权重加一页的工作内存）。
 pub fn medium_vram_bytes() -> u64 {
-    // [推导] 工作内存按权重的同量估：显存层的特征图、im2col 缓冲和权重同一量级，放不下时工人还会减小批次
-    2 * (weight_bytes(&MEDIUM_DET) + weight_bytes(&MEDIUM_REC))
+    // [推导] B5 上实测的“真正需要”峰值 2288 MiB（benchmarks/history/1.0/g3，权重 + 在用张量，并行 1 页）。
+    // 这是批大小按显存放开时的值，显存少时批会变小，所以这个门槛偏保守
+    2288 << 20
 }
 
 /// 按质量档和设备选模型。`Quality::Auto` 用 [`pagesift_gpu::probe`] 查空闲显存；查不到（没有 GPU、

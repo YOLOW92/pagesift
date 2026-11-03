@@ -39,6 +39,8 @@ pub struct GpuStats {
     pub lines: u64,
     /// 显存不够、对半切开重来的次数。
     pub splits: u64,
+    /// 透明分流（公式、版面模型）走了 GPU 的算子个数。
+    pub offloaded_ops: u64,
 }
 
 /// 队列里的一行。
