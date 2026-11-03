@@ -104,6 +104,12 @@ def normalize(s):
     return " " + re.sub(r"[\W_]+", " ", str(s).lower()).strip() + " "
 
 
+def matches(accept, value):
+    """按词比较；中文没有词边界，按子串比较。"""
+    a, v = normalize(accept), normalize(value)
+    return a in v or (a.strip() in v and any("\u4e00" <= c <= "\u9fff" for c in a))
+
+
 def flat(v):
     if isinstance(v, list):
         return " ".join(flat(x) for x in v)
@@ -121,7 +127,7 @@ def score(q, status, base):
         if accept is None:
             ok.append(value in (None, "", []))
         else:
-            ok.append(any(normalize(a) in normalize(flat(value)) for a in accept))
+            ok.append(any(matches(a, flat(value)) for a in accept))
     correct = all(ok)
     expect = q.get("expect", {})
     if expect.get("none"):

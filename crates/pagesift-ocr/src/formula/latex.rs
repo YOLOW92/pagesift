@@ -13,7 +13,29 @@ const TEXT_COMMANDS: &[&str] = &["operatorname", "mathrm", "text", "mathbf"];
 
 /// 把解码出的文本整理成 LaTeX。
 pub fn to_latex(text: &str) -> String {
-    normalize(&remove_chinese_text_wrapping(text))
+    render_safe(&normalize(&remove_chinese_text_wrapping(text)))
+}
+
+/// 参考实现之外的一步：模型会输出 `\textlangle`、`\textrangle`，KaTeX 不认，整个公式渲染失败；
+/// 换成数学模式下同一个符号。
+fn render_safe(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut rest = s;
+    while let Some(i) = rest.find("\\text") {
+        let (head, tail) = rest.split_at(i);
+        out.push_str(head);
+        let word = tail[1..]
+            .find(|c: char| !c.is_ascii_alphabetic())
+            .map_or(tail.len(), |n| n + 1);
+        out.push_str(match &tail[..word] {
+            "\\textlangle" => "\\langle",
+            "\\textrangle" => "\\rangle",
+            other => other,
+        });
+        rest = &tail[word..];
+    }
+    out.push_str(rest);
+    out
 }
 
 /// Python `re` 的 `\s`（Unicode 空白；str 模式下还含 U+001C–U+001F）。
@@ -235,6 +257,14 @@ mod tests {
 
     /// 期望值是把参考实现的 `post_process_generation`（去掉 ftfy）用 Python 标准库 `re`
     /// 原样跑出来的；第一条的结果与 transformers 文档里该模型的样例输出逐字相同。
+    #[test]
+    fn replaces_symbols_katex_rejects() {
+        assert_eq!(
+            render_safe(r"\textlangle x \textrangle + \textbf{a} \textlangles"),
+            r"\langle x \rangle + \textbf{a} \textlangles"
+        );
+    }
+
     #[test]
     fn matches_reference_post_process() {
         let cases = [

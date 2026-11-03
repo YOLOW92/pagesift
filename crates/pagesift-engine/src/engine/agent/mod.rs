@@ -188,10 +188,14 @@ impl Run<'_> {
     }
 
     fn budget_line(&self) -> String {
-        format!(
+        let mut line = format!(
             "{} of {} pages read, {} of {} model calls used",
             self.usage.pages, self.budget.max_pages, self.usage.llm_calls, self.budget.max_calls
-        )
+        );
+        if let Some(c) = self.budget.max_credits {
+            line.push_str(&format!(", {} of {c} credits used", self.usage.credits()));
+        }
+        line
     }
 
     /// 组装这一轮的提示。任务本身放不下时返回 `None`。

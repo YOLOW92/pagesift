@@ -9,6 +9,7 @@ with a real model, the only outside traffic is the calls to the model service.
 | `corpus_server.rs` | Example `agent_corpus`: serves `benchmarks/data/snapshots` with scripts, styles, images and outbound links removed, and indexes it with the existing BM25 behind a SearXNG-shaped `/search`. `/robots.txt` disallows `/private/` |
 | `run.py` | Starts the corpus, `pagesift serve` and (for recorded runs) a fake model service, runs every question through `POST /v2/agent`, scores it, writes `results/` |
 | `results/recorded.json` | Result of the recorded run |
+| `results/live-claude-haiku-5-5.json` | Result of the run with a real model |
 
 The snapshots are not committed (245 MB, 833 files; 766 have text after cleaning). Every request sets
 `allowedHosts: ["127.0.0.1"]`, so a model that names another URL is refused.
@@ -41,7 +42,7 @@ q22 `stopReason: credit_limit_reached`.
 ## Recorded run
 
 2026-11-04, quick build. **This checks the flow, not quality.** The recorded replies contain the expected answers,
-so the 22 of 22 correct says nothing about how well a model does; no real model has been run on this set. Tokens are
+so the 22 of 22 correct says nothing about how well a model does. Tokens are
 pagesift's estimate (bytes / 3) because the fake service reports no usage, and exclude a real model's reasoning.
 
 | Measure | Result |
@@ -57,3 +58,24 @@ pagesift's estimate (bytes / 3) because the fake service reports no usage, and e
 The two values that do depend on pagesift rather than the replies are the last two rows, since provenance is checked
 against the text the run archived. The miss is q10: the phone number did not reach the evidence for the recorded query.
 q11 reads the same page with a different query and its value, next to the phone number on that page, did.
+
+## Real model
+
+2026-11-04, Claude Haiku 5.5, `effort: low`. Each question ran once. The prompts went through a local relay to a
+Claude Code session instead of the model API, so token counts are the relay's estimate (characters / 3), not billed
+tokens, and seconds per question measure the relay, not the model. The run's `tokensEstimated` field said false; the
+saved file corrects it to true.
+
+| Measure | Result |
+|---|---|
+| Questions correct (↑) | 22 of 22 |
+| Pages per question (↓) | mean 0.95, max 2 |
+| Model calls per question (↓) | mean 3.05 |
+| Estimated tokens per question (↓) | mean 3417 |
+| Questions with the expected page among the field sources (↑) | 19 of 19 |
+| Fields whose value was found in the evidence (↑) | 30 of 30 |
+
+The first scoring gave 21 of 22: q21 answered 农村生活污水治理 against the accepted 农村生活污水, and the scorer
+compared whole words, which Chinese text does not have. The scorer now compares Chinese values as substrings, and the
+saved answers were rescored without running the model again. The questions and corpus were written for this bench, so
+the figure shows the flow works with a real model and does not predict results on the open web.
