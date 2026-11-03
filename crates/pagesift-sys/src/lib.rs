@@ -40,6 +40,7 @@ pub fn tune_allocator() {
 /// 共用 4 个 arena 没测过。所以保持验证过的比例：每 4 个可用
 /// CPU 一个，不少于 4 个——16 个 CPU 及以下和原来完全一样，更大的机器 arena 跟着线程数增长，
 /// 每个 arena 上争锁的线程数不变。小块分配本来就不走 glibc（[`SmallCache`]），这里管的是中等大小的块。
+#[cfg(all(target_os = "linux", target_env = "gnu"))]
 fn arena_max(cpus: usize) -> libc::c_int {
     // [策略] 先验包 v0：0.81 在 16 个逻辑 CPU 上验证过的 4 个 arena，即每 4 个 CPU 一个
     const VALIDATED_ARENAS: usize = 4;
