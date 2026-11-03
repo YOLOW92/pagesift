@@ -38,6 +38,84 @@ impl<'c, 'g> BatchExec<'c, 'g> {
     }
 }
 
+impl<'c, 'g> BatchExec<'c, 'g> {
+    /// 隐式卷积：见 [`ConvShape::implicit`]。权重按 `[kh, kw, o, c]` 重排后存放，每个核位置是连续的
+    /// `[o, c]`；输出先写到行距 `nw` 的临时缓冲，最后裁掉每行多余的列。每个通道算
+    /// `(oh − 1)·nw + ow` 列：最后一行只算有效的 `ow` 列，窗口才不会读出补边后的平面。
+    fn conv_implicit(
+        &self,
+        l: &Conv2d,
+        x: &DevTensor<'c, 'g>,
+        s: &ConvShape,
+        out: &DevTensor<'c, 'g>,
+        bias: Option<u64>,
+    ) {
+        let (oh, ow) = s.out_hw();
+        let (nh, nw) = (s.h + 2 * s.pad.0, s.w + 2 * s.pad.1);
+        let none = || Rc::new(Vec::new());
+        let k = &self.ctx.gpu.k;
+        let padded = self.new_tensor(vec![s.c, nh, nw], none());
+        let total = self.elems(&padded.shape);
+        let args = Args::default()
+            .raw_ptr(x.ptr())
+            .raw_ptr(padded.ptr())
+            .u32(self.n * s.c)
+            .u32(s.h)
+            .u32(s.w)
+            .u32(s.pad.0)
+            .u32(s.pad.1)
+            .u32(nh)
+            .u32(nw);
+        self.d1(k.pad_all, total, args);
+        let cols = (oh - 1) * nw + ow;
+        let wide = self.new_tensor(vec![s.o, cols], none());
+        let wt = self.weight_kernel_first(l);
+        let per_k = s.o * s.c; // 一个核位置的权重个数
+        let ldb = nh * nw;
+        for (i, (ky, kx)) in (0..s.kh)
+            .flat_map(|ky| (0..s.kw).map(move |kx| (ky, kx)))
+            .enumerate()
+        {
+            if !self.live() {
+                break;
+            }
+            let (a, b) = (
+                wt + bytes_of(i * per_k),
+                padded.ptr() + bytes_of(ky * nw + kx),
+            );
+            self.check(self.ctx.gpu.sgemm_ext(
+                a,
+                b,
+                wide.ptr(),
+                (s.o, cols, s.c),
+                ldb,
+                i > 0,
+                self.n,
+                (0, s.c * ldb, s.o * cols),
+            ));
+        }
+        let total = self.elems(&out.shape);
+        let args = Args::default()
+            .raw_ptr(wide.ptr())
+            .raw_ptr(out.ptr())
+            .u32(cols)
+            .u32(nw)
+            .u32(oh)
+            .u32(ow)
+            .u32(total);
+        self.d1(k.crop_cols, total, args);
+        if let Some(b) = bias {
+            let args = Args::default()
+                .raw_ptr(out.ptr())
+                .raw_ptr(b)
+                .u32(oh * ow)
+                .u32(s.o)
+                .u32(total);
+            self.d1(k.add_bias, total, args);
+        }
+    }
+}
+
 impl<'c, 'g> Exec for BatchExec<'c, 'g> {
     type T = DevTensor<'c, 'g>;
 
@@ -64,8 +142,13 @@ impl<'c, 'g> Exec for BatchExec<'c, 'g> {
             (v + 2 * s.pad.1 - s.dilation.1 * (s.kw - 1) - 1) / s.stride.1 + 1
         });
         let out = self.new_tensor(vec![s.o, oh, ow], widths);
-        let wt = self.weight(&l.weight.data);
         let bias = l.bias.as_deref().map(|b| self.weight(b));
+        if s.implicit() {
+            self.conv_implicit(l, x, &s, &out, bias);
+            self.mask(&out);
+            return out;
+        }
+        let wt = self.weight(&l.weight.data);
         // im2col 的临时缓冲也要算进试算的峰值
         let col = s.needs_col().then(|| {
             let len = self.n * s.col_len();

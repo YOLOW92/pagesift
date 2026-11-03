@@ -73,6 +73,8 @@ pub(crate) struct Kernels {
     pub attn_softmax: Handle,
     pub attn_merge: Handle,
     pub ctc_digest: Handle,
+    pub pad_all: Handle,
+    pub crop_cols: Handle,
 }
 
 /// 一块 N 卡上的上下文、载好的内核模块和函数表。所有方法取 `&self`，可以跨线程共享。
@@ -422,6 +424,8 @@ impl Kernels {
             attn_softmax: n,
             attn_merge: n,
             ctc_digest: n,
+            pad_all: n,
+            crop_cols: n,
         }
     }
 
@@ -462,6 +466,8 @@ impl Kernels {
             attn_softmax: f(c"attn_softmax")?,
             attn_merge: f(c"attn_merge")?,
             ctc_digest: f(c"ctc_digest")?,
+            pad_all: f(c"pad_all")?,
+            crop_cols: f(c"crop_cols")?,
         })
     }
 }

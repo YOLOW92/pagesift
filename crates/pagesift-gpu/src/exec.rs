@@ -17,7 +17,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use pagesift_infer::Tensor;
+use pagesift_infer::{Conv2d, Tensor};
 
 use crate::Gpu;
 use crate::buffer::{Args, DeviceBuffer};
@@ -74,6 +74,11 @@ impl<'g> Ctx<'g> {
         self.pool.borrow().peak() + self.weight_bytes.get()
     }
 
+    /// 真正需要的显存峰值：在用的张量 + 权重（不含池里闲着的，字节）。
+    pub fn needed_bytes(&self) -> u64 {
+        self.pool.borrow().in_use_peak() + self.weight_bytes.get()
+    }
+
     pub fn reset_peak(&self) {
         self.pool.borrow_mut().reset_peak();
     }
@@ -84,12 +89,17 @@ impl<'g> Ctx<'g> {
     }
 
     /// 把权重传上显存（已在就直接返回），`Err` 时已经试过腾出缓冲池。
-    pub(crate) fn weight(&self, data: &[f32], owner: &Owner) -> Result<DevPtr, String> {
-        let key = (data.as_ptr() as usize, data.len());
+    fn weight(
+        &self,
+        key: (usize, usize),
+        make: impl FnOnce() -> Vec<f32>,
+        owner: &Owner,
+    ) -> Result<DevPtr, String> {
         if let Some(c) = self.weights.borrow().get(&key) {
             return Ok(c.buf.ptr());
         }
-        let buf = self.upload_or_trim(data)?;
+        let data = make();
+        let buf = self.upload_or_trim(&data)?;
         let ptr = buf.ptr();
         self.weight_bytes
             .set(self.weight_bytes.get() + bytes(data.len()));
@@ -114,12 +124,6 @@ impl<'g> Ctx<'g> {
                 )
             })
         })
-    }
-
-    pub(crate) fn weight_known(&self, data: &[f32]) -> bool {
-        self.weights
-            .borrow()
-            .contains_key(&(data.as_ptr() as usize, data.len()))
     }
 }
 
@@ -171,6 +175,15 @@ pub struct BatchExec<'c, 'g> {
     err: RefCell<Option<String>>,
     /// 各样本有效宽度上传后的显存，同样的宽度只传一次。
     masks: RefCell<HashMap<Vec<u32>, DeviceBuffer<'g>>>,
+}
+
+impl Drop for BatchExec<'_, '_> {
+    fn drop(&mut self) {
+        // 这一批没用到的容量档不留：下一批宽度相近时还能复用，差得远的不再占着显存
+        if self.dry.is_none() {
+            self.ctx.pool.borrow_mut().end_batch();
+        }
+    }
 }
 
 impl<'c, 'g> BatchExec<'c, 'g> {
@@ -255,18 +268,38 @@ impl<'c, 'g> BatchExec<'c, 'g> {
 
     /// 权重的设备地址；试算时只累计大小。
     pub(crate) fn weight(&self, data: &[f32]) -> DevPtr {
+        self.weight_keyed(data.as_ptr() as usize, data.len(), || data.to_vec())
+    }
+
+    /// 卷积权重重排成 `[kh, kw, o, c]`（隐式卷积用），缓存键是原权重地址加 1（f32 地址 4 字节对齐，不会撞）。
+    pub(crate) fn weight_kernel_first(&self, l: &Conv2d) -> DevPtr {
+        let w = &l.weight;
+        let (o, c, kh, kw) = (w.shape[0], w.shape[1], w.shape[2], w.shape[3]);
+        self.weight_keyed(w.data.as_ptr() as usize + 1, w.data.len(), || {
+            let mut out = vec![0f32; w.data.len()];
+            for ko in 0..kh * kw {
+                for oc in 0..o {
+                    for ic in 0..c {
+                        out[(ko * o + oc) * c + ic] = w.data[(oc * c + ic) * kh * kw + ko];
+                    }
+                }
+            }
+            out
+        })
+    }
+
+    fn weight_keyed(&self, addr: usize, len: usize, make: impl FnOnce() -> Vec<f32>) -> DevPtr {
+        let key = (addr, len);
         if self.dry.is_some() {
-            if !self.ctx.weight_known(data) {
-                self.dry_weights
-                    .borrow_mut()
-                    .insert(data.as_ptr() as usize, bytes(data.len()));
+            if !self.ctx.weights.borrow().contains_key(&key) {
+                self.dry_weights.borrow_mut().insert(addr, bytes(len));
             }
             return 0;
         }
         if !self.live() {
             return 0;
         }
-        self.ctx.weight(data, &self.owner).unwrap_or_else(|e| {
+        self.ctx.weight(key, make, &self.owner).unwrap_or_else(|e| {
             self.fail(e);
             0
         })

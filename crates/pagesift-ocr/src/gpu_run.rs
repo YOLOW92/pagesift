@@ -32,6 +32,8 @@ pub(crate) type Digest = Vec<(u32, f32)>;
 pub struct GpuStats {
     /// 占用显存的峰值（缓冲池 + 权重，字节）。
     pub peak_bytes: u64,
+    /// 真正需要的显存峰值（在用的张量 + 权重，字节），比 `peak_bytes` 少池里闲着的部分。
+    pub needed_bytes: u64,
     /// 跑过的识别批次数和行数，行数 / 批次数就是平均批大小。
     pub batches: u64,
     pub lines: u64,
@@ -204,10 +206,10 @@ impl GpuRunner {
     pub fn stats(&self) -> GpuStats {
         let mut s = self.shared.lock().stats;
         // 工人线程查不到就保留 0
-        s.peak_bytes = self
+        (s.peak_bytes, s.needed_bytes) = self
             .worker
-            .call(|ctx: &Ctx<'_>| ctx.peak_bytes())
-            .unwrap_or(0);
+            .call(|ctx: &Ctx<'_>| (ctx.peak_bytes(), ctx.needed_bytes()))
+            .unwrap_or((0, 0));
         s
     }
 

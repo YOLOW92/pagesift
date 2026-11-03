@@ -234,3 +234,54 @@ pub unsafe extern "ptx-kernel" fn chw_to_seq(
     let (t, cc) = (r / c, r % c);
     *out.add(i as usize) = *x.add(((z * c + cc) * hw + t) as usize);
 }
+
+/// 四周补 0：`x` 是 `[c, h, w]`，`out` 是 `[c, nh, nw]`，原图放在 (ph, pw) 处。
+/// 隐式卷积用：窗口在补边后的输入上按指针偏移取。
+#[unsafe(no_mangle)]
+pub unsafe extern "ptx-kernel" fn pad_all(
+    x: *const f32,
+    out: *mut f32,
+    c: u32,
+    h: u32,
+    w: u32,
+    ph: u32,
+    pw: u32,
+    nh: u32,
+    nw: u32,
+) {
+    let plane = nh * nw;
+    let i = global_index();
+    if i >= c as u64 * plane as u64 {
+        return;
+    }
+    let i = i as u32;
+    let (ch, pos) = (i / plane, i % plane);
+    let (y, col) = (pos / nw, pos % nw);
+    // 减成负数时 wrapping 成极大值，一次比较同时排除两侧
+    let (iy, ix) = (y.wrapping_sub(ph), col.wrapping_sub(pw));
+    *out.add(i as usize) = if iy < h && ix < w {
+        *x.add(((ch * h + iy) * w + ix) as usize)
+    } else {
+        0.0
+    };
+}
+
+/// 隐式卷积的收尾：`src` 每个通道 `cols` 个元素、行距 `nw`；`dst` 是紧排的 `[C, oh, ow]`，共 `n` 个元素。
+#[unsafe(no_mangle)]
+pub unsafe extern "ptx-kernel" fn crop_cols(
+    src: *const f32,
+    dst: *mut f32,
+    cols: u32,
+    nw: u32,
+    oh: u32,
+    ow: u32,
+    n: u32,
+) {
+    let i = global_index();
+    if i < n as u64 {
+        let i = i as u32;
+        let (r, col) = (i / ow, i % ow);
+        let (ch, y) = (r / oh, r % oh);
+        *dst.add(i as usize) = *src.add((ch * cols + y * nw + col) as usize);
+    }
+}

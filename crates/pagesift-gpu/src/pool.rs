@@ -1,7 +1,7 @@
 //! 显存池：`cuMemAlloc` 一次要几百微秒，每层都分配会吃掉连续执行省下的时间。
 //! 所有内核都排在同一条流上按序执行，所以缓冲一还回来就能给后面的内核用，不用等它们跑完。
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::Gpu;
 use crate::buffer::DeviceBuffer;
@@ -28,60 +28,88 @@ pub(crate) fn capacity_class(len: usize) -> usize {
 /// 空闲缓冲按容量档存放；同时记录显存用量。
 pub(crate) struct Pool<'g> {
     free: HashMap<usize, Vec<DeviceBuffer<'g>>>,
+    /// 这一批用过的容量档。
+    used: HashSet<usize>,
     /// 分配过、还没还给驱动的字节数（在用的加空闲的）。
     held: u64,
     peak: u64,
+    in_use: u64,
+    in_use_peak: u64,
 }
 
 impl<'g> Pool<'g> {
     pub fn new() -> Pool<'g> {
         Pool {
             free: HashMap::new(),
+            used: HashSet::new(),
             held: 0,
             peak: 0,
+            in_use: 0,
+            in_use_peak: 0,
         }
     }
 
     /// 取一块至少 `cap` 个元素的缓冲。`cap` 必须已经是容量档。显存不够时先把空闲的还给驱动再试。
     pub fn take(&mut self, gpu: &'g Gpu, cap: usize) -> Result<DeviceBuffer<'g>, String> {
-        if let Some(b) = self.free.get_mut(&cap).and_then(Vec::pop) {
-            return Ok(b);
-        }
-        let b = match gpu.alloc(cap) {
-            Ok(b) => b,
-            Err(_) => {
-                self.trim();
-                gpu.alloc(cap)
-                    .map_err(|e| format!("{OOM_TAG}: need {} bytes ({e})", bytes(cap)))?
+        self.used.insert(cap);
+        let b = match self.free.get_mut(&cap).and_then(Vec::pop) {
+            Some(b) => b,
+            None => {
+                let b = match gpu.alloc(cap) {
+                    Ok(b) => b,
+                    Err(_) => {
+                        self.trim();
+                        gpu.alloc(cap)
+                            .map_err(|e| format!("{OOM_TAG}: need {} bytes ({e})", bytes(cap)))?
+                    }
+                };
+                self.held += bytes(cap);
+                self.peak = self.peak.max(self.held);
+                b
             }
         };
-        self.held += bytes(cap);
-        self.peak = self.peak.max(self.held);
+        self.in_use += bytes(cap);
+        self.in_use_peak = self.in_use_peak.max(self.in_use);
         Ok(b)
     }
 
     /// 还回来。
     pub fn give(&mut self, cap: usize, b: DeviceBuffer<'g>) {
+        self.in_use -= bytes(cap);
         self.free.entry(cap).or_default().push(b);
     }
 
     /// 把空闲缓冲全还给驱动。
     pub fn trim(&mut self) {
-        let idle: u64 = self
-            .free
-            .iter()
-            .map(|(&cap, v)| bytes(cap) * v.len() as u64)
-            .sum();
+        self.held -= self.idle();
         self.free.clear();
-        self.held -= idle;
+    }
+
+    /// 一批结束：这批没用到的容量档还给驱动。
+    pub fn end_batch(&mut self) {
+        let used = std::mem::take(&mut self.used);
+        let mut freed = 0;
+        self.free.retain(|cap, v| {
+            let keep = used.contains(cap);
+            if !keep {
+                freed += bytes(*cap) * v.len() as u64;
+            }
+            keep
+        });
+        self.held -= freed;
     }
 
     pub fn peak(&self) -> u64 {
         self.peak
     }
 
+    pub fn in_use_peak(&self) -> u64 {
+        self.in_use_peak
+    }
+
     pub fn reset_peak(&mut self) {
         self.peak = self.held;
+        self.in_use_peak = self.in_use;
     }
 
     /// 空闲缓冲占的字节数（需要时能还给驱动）。

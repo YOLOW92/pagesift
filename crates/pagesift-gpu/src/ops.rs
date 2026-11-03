@@ -52,6 +52,16 @@ impl ConvShape {
         !depthwise && !direct
     }
 
+    /// 能不能走隐式卷积：步长 1、无空洞、不分组的普通卷积。输入补边后本身就是 GEMM 的 B，按核位置偏移指针，
+    /// 拆成 kh·kw 次累加式 SGEMM。比 im2col 省下展开的显存（9×9 时差约 80 倍）和搬数据的时间。
+    pub(crate) fn implicit(&self) -> bool {
+        self.groups == 1
+            && self.stride == (1, 1)
+            && self.dilation == (1, 1)
+            && self.c > 1
+            && self.kh * self.kw > 1
+    }
+
     /// 单个样本 im2col 展开后的元素数。
     pub(crate) fn col_len(&self) -> usize {
         let (oh, ow) = self.out_hw();
@@ -104,6 +114,22 @@ impl Gpu {
         c: DevPtr,
         (m, n, k): (usize, usize, usize),
         batch: usize,
+        strides: (usize, usize, usize),
+    ) -> Result<(), String> {
+        self.sgemm_ext(a, b, c, (m, n, k), n, false, batch, strides)
+    }
+
+    /// 同 [`Gpu::sgemm_raw`]，B 的行距是 `ldb`，`accumulate` 时结果累加进 C。
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn sgemm_ext(
+        &self,
+        a: DevPtr,
+        b: DevPtr,
+        c: DevPtr,
+        (m, n, k): (usize, usize, usize),
+        ldb: usize,
+        accumulate: bool,
+        batch: usize,
         (sa, sb, sc): (usize, usize, usize),
     ) -> Result<(), String> {
         let gy = m.div_ceil(GEMM_TILE);
@@ -122,6 +148,8 @@ impl Gpu {
             .u32(m)
             .u32(n)
             .u32(k)
+            .u32(ldb)
+            .u32(accumulate as usize)
             .u64(sa)
             .u64(sb)
             .u64(sc);

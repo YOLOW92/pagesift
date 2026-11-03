@@ -1,5 +1,6 @@
 //! 共享内存分块 SGEMM，带批次：对每个批次 z（网格的 z 维），
 //! `C_z[M×N] = A_z[M×K] · B_z[K×N]`，行优先；`A_z = a + z·sa`，B、C 同理。
+//! B 的行距是 `ldb`（可以大于 N，隐式卷积靠它在补过边的输入上开窗）；`accumulate` 非 0 时结果累加进 C。
 //!
 //! 每块 16×16 线程算 C 的 64×64 子块，每线程 4×4 个元素。线程 (tx, ty) 负责的行是 `ty + 16·i`、
 //! 列是 `tx + 16·j`（i, j ∈ 0..4）：相邻线程读共享内存的相邻字（无 bank 冲突），写 C 时相邻线程写
@@ -40,6 +41,8 @@ pub unsafe extern "ptx-kernel" fn sgemm(
     m: u32,
     n: u32,
     k: u32,
+    ldb: u32,
+    accumulate: u32,
     sa: u64,
     sb: u64,
     sc: u64,
@@ -48,7 +51,7 @@ pub unsafe extern "ptx-kernel" fn sgemm(
     let a = a.add(z * sa as usize);
     let b = b.add(z * sb as usize);
     let c = c.add(z * sc as usize);
-    let (m, n, k) = (m as usize, n as usize, k as usize);
+    let (m, n, k, ldb) = (m as usize, n as usize, k as usize, ldb as usize);
     let tx = _thread_idx_x() as usize;
     let ty = _thread_idx_y() as usize;
     let tid = ty * SIDE + tx;
@@ -74,7 +77,7 @@ pub unsafe extern "ptx-kernel" fn sgemm(
             let (p, j) = (idx / BN, idx % BN);
             let (gp, gj) = (kk + p, col0 + j);
             *s_b.add(p * BN + j) = if gp < k && gj < n {
-                *b.add(gp * n + gj)
+                *b.add(gp * ldb + gj)
             } else {
                 0.0
             };
@@ -102,7 +105,12 @@ pub unsafe extern "ptx-kernel" fn sgemm(
             for j in 0..4 {
                 let col = col0 + tx + SIDE * j;
                 if col < n {
-                    *c.add(row * n + col) = acc[i][j];
+                    let p = c.add(row * n + col);
+                    *p = if accumulate != 0 {
+                        *p + acc[i][j]
+                    } else {
+                        acc[i][j]
+                    };
                 }
             }
         }
