@@ -122,7 +122,7 @@ pagesift mcp http --port 3003                   # 一个共享的本地服务（
 claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 ```
 
-工具：`pagesift_scrape`、`pagesift_batch_scrape`、`pagesift_crawl`、`pagesift_crawl_status`、`pagesift_map`。
+工具：`pagesift_scrape`、`pagesift_batch_scrape`、`pagesift_crawl`、`pagesift_crawl_status`、`pagesift_map`、`pagesift_interact`、`pagesift_interact_stop`。
 共享浏览器和缓存、审计日志和问题上报工具：[共享 MCP 服务](mcp-service.md)。
 
 <!-- section: choose -->

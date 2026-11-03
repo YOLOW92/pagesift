@@ -122,7 +122,7 @@ pagesift mcp http --port 3003                   # 共有のローカルサービ
 claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 ```
 
-ツール：`pagesift_scrape`、`pagesift_batch_scrape`、`pagesift_crawl`、`pagesift_crawl_status`、`pagesift_map`。
+ツール：`pagesift_scrape`、`pagesift_batch_scrape`、`pagesift_crawl`、`pagesift_crawl_status`、`pagesift_map`、`pagesift_interact`、`pagesift_interact_stop`。
 ブラウザとキャッシュの共有、監査ログ、問題報告ツール：[共有 MCP サービス](mcp-service.md)。
 
 <!-- section: choose -->

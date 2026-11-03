@@ -122,7 +122,7 @@ pagesift mcp http --port 3003                   # un servicio local compartido (
 claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 ```
 
-Herramientas: `pagesift_scrape`, `pagesift_batch_scrape`, `pagesift_crawl`, `pagesift_crawl_status`, `pagesift_map`.
+Herramientas: `pagesift_scrape`, `pagesift_batch_scrape`, `pagesift_crawl`, `pagesift_crawl_status`, `pagesift_map`, `pagesift_interact`, `pagesift_interact_stop`.
 Navegadores y caché compartidos, un registro de auditoría y una herramienta para reportar problemas: [servicio MCP compartido](mcp-service.md).
 
 <!-- section: choose -->
