@@ -66,6 +66,9 @@ pub struct Ocr {
     pub enabled: bool,
     #[serde(default)]
     pub quality: OcrQuality,
+    /// 也识别行间公式，输出 `$$…$$`（多下载 860 MB 模型，每个公式要几秒）。
+    #[serde(default)]
+    pub formulas: bool,
     /// 模型目录；缺省 `$XDG_CACHE_HOME/pagesift/models`（`~/.cache/pagesift/models`）。
     pub models_dir: Option<PathBuf>,
 }
@@ -152,6 +155,7 @@ impl Config {
             quality: self.ocr.quality.into(),
             device,
             gpu_required,
+            formulas: self.ocr.formulas,
             fetch: Some(fetch),
         }))))
     }

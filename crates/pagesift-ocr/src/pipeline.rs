@@ -6,6 +6,7 @@ use std::path::Path;
 
 use crate::det::Det;
 use crate::device::{Device, DeviceStatus};
+use crate::math::{Math, inside_any};
 use crate::rec::Rec;
 use crate::{Image, Line, Quad};
 
@@ -20,6 +21,8 @@ pub struct Engine {
     det: Det,
     rec: Rec,
     status: DeviceStatus,
+    /// 行间公式（可选，模型大、每个公式要几秒）。
+    math: Option<Math>,
 }
 
 impl Engine {
@@ -35,7 +38,14 @@ impl Engine {
             det: Det::load(det_dir)?,
             rec: Rec::load(rec_dir)?,
             status: DeviceStatus::open(device),
+            math: None,
         })
+    }
+
+    /// 同时识别行间公式，输出 `$$…$$`。
+    pub fn with_math(mut self, math: Math) -> Engine {
+        self.math = Some(math);
+        self
     }
 
     /// 实际用的设备、是否退回了 CPU、退回原因。
@@ -45,18 +55,35 @@ impl Engine {
 
     /// 识别整页图，按检测给的顺序（从上到下、从左到右）返回各行。
     pub fn run(&self, page: &Image) -> Result<Vec<Line>, String> {
+        let formulas = match &self.math {
+            Some(m) => m.formula_boxes(page)?,
+            None => Vec::new(),
+        };
         let mut out = Vec::new();
         for quad in self.det.detect(page)? {
+            if inside_any(&quad, &formulas) {
+                continue;
+            }
             let crop = crop(page, &quad);
             if crop.width == 0 || crop.height == 0 {
                 continue;
             }
             let (text, score) = self.rec.recognize(&crop)?;
             if score >= MIN_SCORE && !text.trim().is_empty() {
-                out.push(Line { quad, text, score });
+                out.push(Line {
+                    quad,
+                    text,
+                    score,
+                    formula: false,
+                });
             }
         }
         crate::script::drop_stray_east_asian(&mut out);
+        if let Some(m) = &self.math {
+            for r in &formulas {
+                out.extend(m.recognize(page, r)?);
+            }
+        }
         Ok(out)
     }
 }

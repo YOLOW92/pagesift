@@ -39,6 +39,30 @@ pub struct OcrLine {
     pub y1: f32,
     pub text: String,
     pub score: f32,
+    /// `text` 是整行的行间公式（`$$…$$`）：原样成行，不和前后的文字拼成段落。
+    pub formula: bool,
+}
+
+/// 一页识别出的内容：文字（参与版面重建）和行间公式（页面坐标）。
+#[derive(Default)]
+pub(crate) struct Recognized {
+    pub(crate) glyphs: Vec<Glyph>,
+    pub(crate) formulas: Vec<Formula>,
+}
+
+impl Recognized {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.glyphs.is_empty() && self.formulas.is_empty()
+    }
+}
+
+/// 行间公式在页面上的位置。
+pub(crate) struct Formula {
+    pub(crate) text: String,
+    pub(crate) x0: f64,
+    pub(crate) x1: f64,
+    /// 框顶（页面的 y 向上）。
+    pub(crate) top: f64,
 }
 
 /// [策略] OCR 解图时的内存上限是单个流上限的几倍：OCR 是调用方明确打开的，整页扫描常是
@@ -56,7 +80,7 @@ pub(crate) fn recognize_page(
     placed: &[Placed],
     engine: &dyn PageOcr,
     limit: usize,
-) -> Vec<Glyph> {
+) -> Recognized {
     let area = |p: &Placed| (p.x1 - p.x0) * (p.y1 - p.y0);
     let mut order: Vec<&Placed> = placed.iter().collect();
     order.sort_by(|a, b| area(b).total_cmp(&area(a)));
@@ -75,12 +99,32 @@ pub(crate) fn recognize_page(
         let Ok(lines) = engine.recognize(r.width, r.height, &r.data) else {
             continue;
         };
-        let glyphs = to_glyphs(&lines, p, r.width, r.height);
-        if !glyphs.is_empty() {
-            return glyphs;
+        let (formulas, text): (Vec<OcrLine>, Vec<OcrLine>) =
+            lines.into_iter().partition(|l| l.formula);
+        let found = Recognized {
+            glyphs: to_glyphs(&text, p, r.width, r.height),
+            formulas: to_formulas(&formulas, p, r.width, r.height),
+        };
+        if !found.is_empty() {
+            return found;
         }
     }
-    Vec::new()
+    Recognized::default()
+}
+
+/// 公式框换到页面坐标。
+fn to_formulas(lines: &[OcrLine], p: &Placed, iw: u32, ih: u32) -> Vec<Formula> {
+    let sx = (p.x1 - p.x0) / f64::from(iw);
+    let sy = (p.y1 - p.y0) / f64::from(ih);
+    lines
+        .iter()
+        .map(|l| Formula {
+            text: l.text.clone(),
+            x0: p.x0 + f64::from(l.x0) * sx,
+            x1: p.x0 + f64::from(l.x1) * sx,
+            top: p.y1 - f64::from(l.y0) * sy,
+        })
+        .collect()
 }
 
 /// 图上的行换到页面坐标（y 向上），每行一个字形。整行不拆成词：手写和打字稿的相邻两行常在

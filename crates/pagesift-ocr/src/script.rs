@@ -70,6 +70,7 @@ mod tests {
             quad: [(0.0, 0.0); 4],
             text: t.into(),
             score: 1.0,
+            formula: false,
         }
     }
 

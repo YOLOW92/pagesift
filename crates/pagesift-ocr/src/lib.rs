@@ -12,6 +12,7 @@ pub mod formula;
 pub mod formula_enc;
 pub mod layout;
 pub mod lcnet;
+pub mod math;
 pub mod models;
 pub mod pdf;
 pub mod pipeline;
@@ -48,6 +49,8 @@ pub struct Line {
     pub text: String,
     /// 识别置信度（CTC 各字的概率平均），0–1。
     pub score: f32,
+    /// 行间公式：`text` 是 `$$…$$`。
+    pub formula: bool,
 }
 
 /// 读模型目录下的 config.json。

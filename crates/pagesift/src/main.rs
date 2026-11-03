@@ -51,6 +51,9 @@ struct Cli {
     /// Turn on OCR for scanned PDF pages; models are downloaded the first time they are needed. Same as `[ocr] enabled = true`
     #[arg(long, global = true)]
     ocr: bool,
+    /// Also recognize display formulas as LaTeX (downloads 860 MB more; seconds per formula). Same as `[ocr] formulas = true`
+    #[arg(long, global = true)]
+    ocr_formulas: bool,
     /// GPU for OCR: auto, off, cuda or cuda:N. Same as `[gpu] mode`
     #[arg(long, global = true, value_name = "MODE")]
     gpu: Option<pagesift::config::GpuMode>,
@@ -80,6 +83,7 @@ fn main() -> ExitCode {
     }
     cfg.audit.source = matches.subcommand_name().map(String::from);
     cfg.ocr.enabled |= cli.ocr;
+    cfg.ocr.formulas |= cli.ocr_formulas;
     if let Some(mode) = cli.gpu {
         cfg.gpu.mode = mode;
     }

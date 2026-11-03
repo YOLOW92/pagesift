@@ -1,7 +1,7 @@
 //! 带 OCR 的批量转换：把目录（递归）里的每个 PDF 转成 Markdown，扫描页用 PP-OCRv6 识别；
 //! 按 olmOCR-bench 的命名写出 `<输出目录>/<相对路径去掉 .pdf>_pg1_repeat1.md`。
 //!
-//!     pdf_ocr_dir <pdf 目录> <输出目录> <检测模型目录> <识别模型目录>
+//!     pdf_ocr_dir <pdf 目录> <输出目录> <检测模型目录> <识别模型目录> [<版面模型目录> <公式模型目录>]
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
@@ -22,9 +22,11 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
 fn main() {
     let a: Vec<PathBuf> = std::env::args().skip(1).map(PathBuf::from).collect();
     let (src, dst) = (&a[0], &a[1]);
+    let math = (a.len() >= 6).then(|| (a[4].clone(), a[5].clone()));
     let engine = PdfOcr::from_dirs(
         a[2].clone(),
         a[3].clone(),
+        math,
         pagesift_ocr::device::Device::Cpu,
     )
     .expect("载入模型");
@@ -32,6 +34,8 @@ fn main() {
     let opts = pagesift_pdf::Options {
         ocr: Some(Arc::new(engine)),
         adaptive_timeout: false,
+        // 所有带图的页都识别（Firecrawl 的 mode: "ocr"）：MRC 页有文字层，不判为扫描页
+        force_ocr: std::env::var_os("PDF_OCR_FORCE").is_some(),
         ..Default::default()
     };
     let mut files = Vec::new();

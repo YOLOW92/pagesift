@@ -7,7 +7,8 @@ use std::sync::{Arc, OnceLock};
 use pagesift_pdf::{OcrInfo, OcrLine, PageOcr};
 
 use crate::device::{Device, ModelChoice, Quality, select_models};
-use crate::models::{Model, SMALL_REC};
+use crate::math::Math;
+use crate::models::{FORMULA, LAYOUT, Model, SMALL_REC};
 use crate::pipeline::Engine;
 use crate::{Image, Line};
 
@@ -21,6 +22,8 @@ pub struct PdfOcrConfig {
     pub device: Device,
     /// 调用方明确要了 GPU（`cuda`、`cuda:N`）。`auto` 时本机没有 N 卡不算退回，不报 `gpu_fallback`。
     pub gpu_required: bool,
+    /// 也识别行间公式（多下载 860 MB 模型，每个公式要几秒）。
+    pub formulas: bool,
     /// 没有时缺模型就报错（离线环境，提前用 `pagesift models fetch` 下好）。
     pub fetch: Option<Fetch>,
 }
@@ -45,15 +48,24 @@ impl PdfOcr {
     }
 
     /// 模型目录直接给（测评用）：立刻载入，不走缓存和下载。
-    pub fn from_dirs(det_dir: PathBuf, rec_dir: PathBuf, device: Device) -> Result<Self, String> {
+    pub fn from_dirs(
+        det_dir: PathBuf,
+        rec_dir: PathBuf,
+        math_dirs: Option<(PathBuf, PathBuf)>,
+        device: Device,
+    ) -> Result<Self, String> {
         let this = Self::new(PdfOcrConfig {
             root: PathBuf::new(),
             quality: Quality::Fast,
             device,
             gpu_required: false,
+            formulas: false,
             fetch: None,
         });
-        let engine = Engine::load_with(&det_dir, &rec_dir, device)?;
+        let mut engine = Engine::load_with(&det_dir, &rec_dir, device)?;
+        if let Some((layout, formula)) = math_dirs {
+            engine = engine.with_math(Math::load(&layout, &formula)?);
+        }
         let choice = select_models(Quality::Fast, device);
         let _ = this.loaded.set(Ok(Loaded { engine, choice }));
         Ok(this)
@@ -62,7 +74,8 @@ impl PdfOcr {
     fn load(&self) -> Result<Loaded, String> {
         let c = &self.config;
         let choice = select_models(c.quality, c.device);
-        for m in [&choice.det, &choice.rec] {
+        let math: &[Model] = if c.formulas { &[LAYOUT, FORMULA] } else { &[] };
+        for m in [&choice.det, &choice.rec].into_iter().chain(math) {
             if m.present(&c.root) {
                 continue;
             }
@@ -77,8 +90,11 @@ impl PdfOcr {
                 }
             }
         }
-        let engine =
+        let mut engine =
             Engine::load_with(&choice.det.dir(&c.root), &choice.rec.dir(&c.root), c.device)?;
+        if c.formulas {
+            engine = engine.with_math(Math::load(&LAYOUT.dir(&c.root), &FORMULA.dir(&c.root))?);
+        }
         Ok(Loaded { engine, choice })
     }
 }
@@ -103,6 +119,7 @@ fn to_ocr_line(l: Line) -> OcrLine {
         y0: min(ys),
         x1: max(xs),
         y1: max(ys),
+        formula: l.formula,
         text: l.text,
         score: l.score,
     }

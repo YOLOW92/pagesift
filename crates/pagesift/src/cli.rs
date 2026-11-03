@@ -313,8 +313,14 @@ fn report_ocr(cfg: &pagesift::config::Config, warn: &impl Fn(&str, String)) -> R
     };
     let root = cfg.models_root()?;
     let choice = cfg.ocr_models()?;
-    let missing: Vec<&str> = [choice.det, choice.rec]
-        .iter()
+    let math: &[pagesift_ocr::models::Model] = if cfg.ocr.formulas {
+        &[pagesift_ocr::models::LAYOUT, pagesift_ocr::models::FORMULA]
+    } else {
+        &[]
+    };
+    let missing: Vec<&str> = [&choice.det, &choice.rec]
+        .into_iter()
+        .chain(math)
         .filter(|m| !m.present(&root))
         .map(|m| m.repo)
         .collect();

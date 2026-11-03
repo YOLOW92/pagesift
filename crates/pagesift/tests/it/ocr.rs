@@ -31,6 +31,7 @@ impl PageOcr for Fake {
             y1: height as f32 / 2.0,
             text: "Recognized words".into(),
             score: 0.9,
+            formula: false,
         }])
     }
 

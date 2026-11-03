@@ -108,21 +108,23 @@ pub(crate) fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<P
         page_images.push(idx.iter().flatten().copied().collect::<Vec<_>>());
         // 扫描页 OCR：识别出文字就当作这页的文字层，不再写扫描页说明
         let mut ocred = false;
+        let mut ocr_formulas = Vec::new();
         if (scanned || force_ocr)
             && let Some(engine) = &opts.ocr
         {
-            let glyphs = ocr::recognize_page(
+            let found = ocr::recognize_page(
                 &doc,
                 &placed,
                 engine.as_ref(),
                 opts.max_stream_bytes.saturating_mul(ocr::RASTER_BUDGET),
             );
-            ocred = !glyphs.is_empty();
+            ocred = !found.is_empty();
             if ocred {
                 // 扫描页的文字层是零星的水印、页码；强制 OCR 时文字层被认为不可信
                 ink.glyphs.clear();
             }
-            ink.glyphs.extend(glyphs);
+            ink.glyphs.extend(found.glyphs);
+            ocr_formulas = found.formulas;
         }
         ocr_pages.push(ocred);
         let note = scanned && !ocred;
@@ -248,6 +250,21 @@ pub(crate) fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<P
             &mut referenced,
             size,
         );
+        lines.extend(ocr_formulas.into_iter().map(|f| layout::Line {
+            text: f.text,
+            x0: f.x0,
+            x1: f.x1,
+            y: f.top,
+            size,
+            bold: false,
+            raw: true,
+            mcid: None,
+            artifact: false,
+            hint: None,
+            group: None,
+            keep: true,
+            turned: false,
+        }));
         // 扫描页的图读不出来：只写说明，放在页顶
         if note && !lines.iter().any(|l| l.keep) {
             lines.push(layout::Line {

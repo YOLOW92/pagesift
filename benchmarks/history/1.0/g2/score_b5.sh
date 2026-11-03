@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # G2：B5（olmOCR-bench 的 old_scans、old_scans_math，扫描页）上带 OCR 的 pagesift 得分。
-#   benchmarks/history/1.0/g2/score_b5.sh <输出目录> [检测模型目录 识别模型目录 | none]
+#   [PDF_OCR_FORCE=1] benchmarks/history/1.0/g2/score_b5.sh <输出目录> [检测模型目录 识别模型目录 [版面模型目录 公式模型目录]] | none
 # 模型目录缺省是 ~/.cache/pagesift/models 下的 PP-OCRv6 small；给 none 时不开 OCR（对照）。
 # 分数口径同 benchmarks/mix/score_quality.py 的 b5：各类别通过率的平均（含 baseline 类，官方口径）。
 set -euo pipefail
@@ -9,6 +9,7 @@ out=${1:?输出目录}
 m=${XDG_CACHE_HOME:-$HOME/.cache}/pagesift/models
 det=${2:-$m/PP-OCRv6_small_det_safetensors}
 rec=${3:-$m/PP-OCRv6_small_rec_safetensors}
+math=("${@:4:2}")
 data=benchmarks/data/olmocr_1403/bench_data
 bench=benchmarks/data/fresh/tools/olmocr-bench
 py=$PWD/benchmarks/data/fresh/tools/py/bin/python
@@ -23,7 +24,7 @@ if [ "$det" = none ]; then
   target/release-fast/examples/pdf_dir "$out/pdfs" "$out/cand" | tee "$out/convert.txt"
 else
   cargo build --profile release-fast -q -p pagesift-ocr --example pdf_ocr_dir
-  target/release-fast/examples/pdf_ocr_dir "$out/pdfs" "$out/cand" "$det" "$rec" 2> "$out/times.tsv" | tee "$out/convert.txt"
+  target/release-fast/examples/pdf_ocr_dir "$out/pdfs" "$out/cand" "$det" "$rec" "${math[@]}" 2> "$out/times.tsv" | tee "$out/convert.txt"
 fi
 # 分片并发判分
 k=$(nproc)

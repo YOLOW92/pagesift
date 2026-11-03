@@ -7,6 +7,7 @@ pub(crate) fn run(action: ModelsCommand, cfg: pagesift::config::Config) -> Resul
         ModelsCommand::Fetch { quality } => {
             let root = cfg.models_root()?;
             use pagesift_ocr::device::{Device, Quality, select_models};
+            use pagesift_ocr::models::{FORMULA, LAYOUT, Model};
             let choice = match quality.as_deref() {
                 None | Some("auto") => cfg.ocr_models()?,
                 Some("fast") => select_models(Quality::Fast, Device::Cpu),
@@ -17,8 +18,13 @@ pub(crate) fn run(action: ModelsCommand, cfg: pagesift::config::Config) -> Resul
             };
             let fetcher = cfg.scraper(false)?.fetcher;
             runtime()?.block_on(async {
-                for m in [choice.det, choice.rec] {
-                    pagesift::models::fetch(&fetcher, &root, &m, |f| {
+                let math: &[Model] = if cfg.ocr.formulas {
+                    &[LAYOUT, FORMULA]
+                } else {
+                    &[]
+                };
+                for m in [&choice.det, &choice.rec].into_iter().chain(math) {
+                    pagesift::models::fetch(&fetcher, &root, m, |f| {
                         println!("downloading {}/{} ({} bytes)", m.repo, f.name, f.size);
                     })
                     .await?;
