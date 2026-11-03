@@ -116,6 +116,8 @@ pub struct Fetch {
     pub max_redirects: Option<usize>,
     /// 企业网络的出口代理（不是代理池）。
     pub proxy: Option<String>,
+    /// 没写 `proxy` 时是否用环境变量里的代理（`HTTPS_PROXY` 等）；默认是。
+    pub env_proxy: Option<bool>,
     #[serde(default)]
     pub allow_private_network: bool,
     /// 单独放行的主机名（完全匹配），解析到内网地址也可以抓，例如内部服务。
@@ -444,6 +446,7 @@ impl Config {
             c.fetcher.max_redirects = n;
         }
         c.fetcher.proxy = f.proxy.clone();
+        c.fetcher.env_proxy = f.env_proxy.unwrap_or(true);
         c.fetcher.ssrf.allow_private_network = f.allow_private_network;
         c.fetcher.ssrf.allow_hosts = f.allow_hosts.clone();
         for cidr in &f.allow_cidrs {

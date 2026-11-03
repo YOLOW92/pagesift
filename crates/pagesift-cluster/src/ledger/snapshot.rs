@@ -106,8 +106,15 @@ impl Ledger {
             return Ok(());
         };
         let (mut since, mut snap, mut section) = (0, 0, 0);
+        // 截断过的日志一定从快照开始；截断做到一半时崩溃会在前面留下快照之前的记录，跳过它们
+        // （0.90 照常回放这些残留，状态因此不再"新"，后面的快照被当成已是最新而跳过）
+        let mut leftover = j.head() > 0;
         for (_, raw) in j.read(0, usize::MAX)? {
             let e = Entry::decode(&raw)?;
+            if leftover && !matches!(e.rec, Record::SnapBegin { .. }) {
+                continue;
+            }
+            leftover = false;
             let n = raw.len() as u64;
             match e.rec {
                 Record::SnapBegin { .. } => section = n,
@@ -309,5 +316,79 @@ impl Ledger {
             _ => {}
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::clock::ManualClock;
+    use crate::journal::{Journal, Record, encode};
+    use crate::ledger::{Ledger, LedgerConfig};
+    use crate::types::{Resource, Resources, SiteKey, Task, TaskId};
+    use std::time::Duration;
+
+    fn task(site: u64) -> Task {
+        Task {
+            site: SiteKey(site),
+            class: 1,
+            timeout: Duration::from_secs(60),
+            need: Resources::default().with(Resource::Cpu, 1.0),
+            body: b"t".to_vec(),
+        }
+    }
+
+    fn count(l: &Ledger) -> usize {
+        let free = Resources::default().with(Resource::Cpu, 4.0);
+        let mut n = 0;
+        while let Some(x) = l.pull(None, &free, Duration::ZERO).unwrap() {
+            l.commit(x.task, x.fence(), None, None, |_| {}).unwrap();
+            n += 1;
+        }
+        n
+    }
+
+    /// 截断做到一半时崩溃：日志开头是快照之前的残留记录。重启后跳过残留、载入快照，任务一个不少
+    /// （0.90 先回放残留，状态不再"新"，快照被跳过，只剩残留里的任务）。
+    #[test]
+    fn replay_skips_records_left_before_the_snapshot_by_an_interrupted_trim() {
+        let (d1, d2) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let s1 = pagesift_store::Store::open_dir(d1.path()).unwrap();
+        let l1 = Ledger::open(
+            LedgerConfig::new(ManualClock::new(), true).with_journal(Journal::new(s1.clone())),
+        )
+        .unwrap();
+        for i in 0..5 {
+            l1.submit(task(i)).unwrap();
+        }
+        let j1 = l1.journal().unwrap();
+        let live = j1.read(0, usize::MAX).unwrap();
+        assert!(matches!(
+            crate::journal::Entry::decode(&live[0].1).unwrap().rec,
+            Record::SnapBegin { .. }
+        ));
+        drop(l1);
+        // 第二份日志：两条残留（一个不在快照里的任务），后面是第一份的快照和之后的记录，再删掉第一条
+        let s2 = pagesift_store::Store::open_dir(d2.path()).unwrap();
+        let stray = encode(
+            1,
+            &Record::Submit {
+                id: TaskId((999 << crate::ledger::SLOT_BITS) | 1),
+                task: task(99),
+                account: None,
+            },
+        );
+        let j2 = Journal::new(s2.clone());
+        j2.append_raw(&stray).unwrap();
+        j2.append_raw(&stray).unwrap();
+        for (_, raw) in &live {
+            j2.append_raw(raw).unwrap();
+        }
+        s2.tasks().list_trim(b"cluster/journal", 1).unwrap();
+        drop(j2);
+        let l2 = Ledger::open(
+            LedgerConfig::new(ManualClock::new(), true).with_journal(Journal::new(s2)),
+        )
+        .unwrap();
+        assert_eq!(count(&l2), 5);
     }
 }

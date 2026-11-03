@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 fn fetcher() -> Fetcher {
     let mut config = FetcherConfig::default();
+    config.env_proxy = false; // 不让机器上的代理改道本地测试
     config.ssrf.allow_private_network = true;
     Fetcher::new(config).unwrap()
 }
@@ -54,6 +55,7 @@ async fn cookies_survive_redirects_but_do_not_cross_hosts_or_pollute_stateless_r
         .unwrap();
     let session = Arc::new(CookieSession::new(&origin, Default::default()).unwrap());
     let mut config = FetcherConfig::default();
+    config.env_proxy = false; // 不让机器上的代理改道本地测试
     config.ssrf.allow_private_network = true;
     config.dns = FakeDns::new(&[("a.test", &["127.0.0.1"]), ("b.test", &["127.0.0.1"])]);
     let f = Fetcher::new(config).unwrap();
@@ -81,6 +83,7 @@ async fn identity_jars_are_isolated_and_static_cookie_credentials_do_not_merge()
     alice.set_cookie(&origin, "id=ALICE; Path=/");
     bob.set_cookie(&origin, "id=BOB; Path=/");
     let mut config = FetcherConfig::default();
+    config.env_proxy = false; // 不让机器上的代理改道本地测试
     config.ssrf.allow_private_network = true;
     config.credentials = vec![HostCredentials::new("127.0.0.1").cookie("legacy", "SHARED")];
     let f = Fetcher::new(config).unwrap();

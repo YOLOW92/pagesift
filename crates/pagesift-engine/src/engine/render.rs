@@ -25,10 +25,18 @@ impl Scraper {
             mut warnings,
         } = progress;
         if !self.has_browser().await {
-            return Err(ApiError::unsupported(format!(
+            let why = format!(
                 "browser rendering is unavailable: {}",
                 self.browser_unavailable_reason()
-            )));
+            );
+            // 一个内核都没找到：这台机器不支持这个选项。找到了但起不来（例如以 root 运行时拒绝启动）：
+            // 和启动后立即退出一样是上游错误（0.90 前者报 UPSTREAM_ERROR、后者报 UNSUPPORTED_OPTION，
+            // 同一种故障的错误码取决于在哪一步失败）
+            return Err(if self.browser_launch_failed() {
+                ApiError::new(ErrorCode::UpstreamError, why)
+            } else {
+                ApiError::unsupported(why)
+            });
         }
         let target = Url::parse(url).map_err(|e| ApiError::invalid(e.to_string()))?;
         let host = target.host_str().unwrap_or_default().to_string();

@@ -88,6 +88,7 @@ impl Origin {
 fn fetcher(_tail: Duration) -> Arc<Fetcher> {
     Arc::new(
         Fetcher::new(FetcherConfig {
+            env_proxy: false, // 不让机器上的代理改道本地测试
             ssrf: SsrfPolicy {
                 allow_ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
                 ..Default::default()

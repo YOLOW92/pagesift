@@ -160,6 +160,8 @@ pub struct Scraper {
     launch_failed: Vec<std::sync::Mutex<Option<Instant>>>,
     /// 每个内核最近一次启动失败的原因，用来在“浏览器不可用”时告诉调用方真因（root、沙箱等）。
     launch_notes: Vec<std::sync::Mutex<Option<String>>>,
+    /// 有内核找到了浏览器、但创建或启动失败（不是"没找到浏览器"）。
+    launch_broken: std::sync::atomic::AtomicBool,
     /// 爬取里同时进行的抓取数，等于全局并发。排队的页面只占一个很小的等待 future，
     /// 拿到名额才创建完整的抓取状态机（十几 KB）：同时爬上千个站时，排队的页面不再各占一份。
     /// 上限跟着限速器的全局在途数目标走（USL 控制器，见 `pagesift_policy::RateLimiter`）。

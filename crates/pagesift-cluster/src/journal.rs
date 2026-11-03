@@ -118,6 +118,10 @@ pub struct Journal {
     /// 最近一次快照之后追加的字节数，与最近一次快照本身的字节数（决定何时做下一次快照）。
     pub(crate) since: AtomicU64,
     pub(crate) snap: AtomicU64,
+    /// 截断的目标下标（最近一次快照的开始），在开始删除之前就设好。截断一条条删除，删到一半时
+    /// 按存活条数算出的头部不是快照的开始；读的一方从不低于它的位置读，不会从半截日志开始
+    /// （0.90：温备偶尔从截断中途的普通记录收起，报日志缺口后停下）。
+    floor: AtomicU64,
 }
 
 impl Journal {
@@ -135,6 +139,7 @@ impl Journal {
             offset: AtomicU64::new(offset),
             since: AtomicU64::new(0),
             snap: AtomicU64::new(0),
+            floor: AtomicU64::new(0),
         }
     }
 
@@ -164,13 +169,15 @@ impl Journal {
         self.len() == 0
     }
 
-    /// 第一条存活记录的下标。
+    /// 第一条存活记录的下标（截断进行中时是截断的目标）。
     pub fn head(&self) -> u64 {
-        self.len() - self.store.tasks().list_len(LIST)
+        let live = self.len() - self.store.tasks().list_len(LIST);
+        live.max(self.floor.load(Ordering::Acquire))
     }
 
     /// 截掉下标小于 `before` 的记录。
     pub(crate) fn trim(&self, before: u64) -> Result<(), Error> {
+        self.floor.fetch_max(before, Ordering::AcqRel);
         let phys = before.saturating_sub(self.offset());
         self.store.tasks().list_trim(LIST, phys)?;
         Ok(())
@@ -178,6 +185,7 @@ impl Journal {
 
     /// 清空并让下一条的下标从 `index` 开始（温备从主网关的快照重新同步）。
     pub(crate) fn reset_to(&self, index: u64) -> Result<(), Error> {
+        self.floor.store(index, Ordering::Release);
         let t = self.store.tasks();
         t.list_trim(LIST, u64::MAX)?;
         let offset = index - t.list_next(LIST);
@@ -193,7 +201,9 @@ impl Journal {
         let mut used = 0usize;
         let mut i = from.max(self.head());
         let off = self.offset();
-        while let Some(raw) = self.store.tasks().list_range(LIST, i - off, 1)?.pop() {
+        // 按下标逐条精确读：`list_range` 遇到已删除的下标会返回后面的记录（0.90 因此在截断中途
+        // 把同一条 SnapBegin 当成一串下标发给温备，中间的记录丢了）
+        while let Some(raw) = self.store.tasks().list_get(LIST, i - off)? {
             used += raw.len();
             if used > budget && !out.is_empty() {
                 break;
@@ -216,6 +226,40 @@ mod tests {
     use super::*;
     use crate::types::{Resource, Resources, SiteKey, StatKind};
     use std::time::Duration;
+
+    fn store() -> (tempfile::TempDir, Store) {
+        let d = tempfile::tempdir().unwrap();
+        let s = Store::open_dir(d.path()).unwrap();
+        (d, s)
+    }
+
+    /// 截断删到一半时读：从截断目标（快照开始）读起，每条都是它自己的下标上的记录。
+    #[test]
+    fn reads_during_a_partial_trim_start_at_the_snapshot_and_keep_indices() {
+        let (_d, s) = store();
+        let j = Journal::new(s.clone());
+        for i in 0..10u64 {
+            let rec = if i == 5 {
+                Record::SnapBegin {
+                    task_hw: 0,
+                    hold_hw: 0,
+                }
+            } else {
+                Record::Term {}
+            };
+            assert_eq!(j.append(i, &rec).unwrap(), i);
+        }
+        // 模拟 trim(5) 的中途：目标已经设好，物理上只删掉了前三条
+        j.floor.fetch_max(5, Ordering::AcqRel);
+        s.tasks().list_trim(LIST, 3).unwrap();
+        assert_eq!(j.head(), 5);
+        let got = j.read(0, usize::MAX).unwrap();
+        assert_eq!(got.first().map(|(i, _)| *i), Some(5));
+        for (i, raw) in &got {
+            assert_eq!(Entry::decode(raw).unwrap().term, *i, "record at {i}");
+        }
+        assert_eq!(got.len(), 5);
+    }
 
     #[test]
     fn every_record_round_trips() {

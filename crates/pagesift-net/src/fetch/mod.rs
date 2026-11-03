@@ -67,6 +67,7 @@ impl Fetcher {
     fn new_inner(mut config: FetcherConfig, honor_bypass: bool) -> Result<Self> {
         validate_user_agent(&config.user_agent)?;
         if config.proxy.is_none()
+            && config.env_proxy
             && let Some(env_p) = detect_env_proxy()
         {
             config.proxy = Some(env_p);

@@ -15,6 +15,7 @@ async fn slow_requests_do_not_block_fast_ones_on_the_same_origin() {
     let srv = serve(|s| (s.path != "/slow").then(|| ok("fast"))).await;
     let fetcher = Arc::new(
         Fetcher::new(FetcherConfig {
+            env_proxy: false, // 不让机器上的代理改道本地测试
             ssrf: SsrfPolicy {
                 allow_ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
                 ..Default::default()
@@ -64,6 +65,7 @@ async fn parked_requests_still_count_toward_the_ceiling() {
     let srv = serve(|s| (s.path != "/slow").then(|| ok("fast"))).await;
     let fetcher = Arc::new(
         Fetcher::new(FetcherConfig {
+            env_proxy: false, // 不让机器上的代理改道本地测试
             ssrf: SsrfPolicy {
                 allow_ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
                 ..Default::default()
@@ -108,6 +110,7 @@ async fn slow_threshold_adapts_to_a_warm_origin() {
     let srv = serve(|s| (s.path != "/slow").then(|| ok("fast"))).await;
     let fetcher = Arc::new(
         Fetcher::new(FetcherConfig {
+            env_proxy: false, // 不让机器上的代理改道本地测试
             ssrf: SsrfPolicy {
                 allow_ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
                 ..Default::default()

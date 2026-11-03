@@ -10,6 +10,7 @@ use pagesift_policy::{ErrorCode, Policy, PolicyConfig, RateLimitConfig, RobotsMo
 
 fn policy() -> Policy {
     let fetcher = Fetcher::new(FetcherConfig {
+        env_proxy: false, // 不让机器上的代理改道本地测试
         ssrf: SsrfPolicy {
             allow_ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
             ..Default::default()
@@ -88,6 +89,7 @@ async fn expired_robots_cache_revalidates_conditionally_without_bypassing_rules(
     })
     .await;
     let fetcher = Fetcher::new(FetcherConfig {
+        env_proxy: false, // 不让机器上的代理改道本地测试
         ssrf: SsrfPolicy {
             allow_ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
             ..Default::default()

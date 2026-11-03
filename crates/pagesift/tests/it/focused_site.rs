@@ -266,6 +266,7 @@ async fn crawl(base: &str, extra: serde_json::Value) -> Arc<Collect> {
         .extend(extra.as_object().unwrap().clone());
     let req: CrawlRequest = serde_json::from_value(v).unwrap();
     let mut cfg = ScraperConfig::default();
+    cfg.fetcher.env_proxy = false; // 不让机器上的代理改道本地测试
     cfg.fetcher.ssrf.allow_private_network = true;
     cfg.policy.rate.default_interval = Duration::from_millis(1);
     let sink = Arc::new(Collect::default());
@@ -457,6 +458,7 @@ async fn attachments_need_a_query() {
     let req: CrawlRequest =
         serde_json::from_value(json!({ "url": format!("{base}/"), "attachments": true })).unwrap();
     let mut cfg = ScraperConfig::default();
+    cfg.fetcher.env_proxy = false; // 不让机器上的代理改道本地测试
     cfg.fetcher.ssrf.allow_private_network = true;
     let err = Scraper::new(cfg)
         .unwrap()

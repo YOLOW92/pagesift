@@ -15,6 +15,7 @@ use pagesift_net::{
 /// 只放行测试服务器所在的 127.0.0.1，其余内网地址照常拦截。
 fn config(dns: Arc<dyn DnsLookup>) -> FetcherConfig {
     FetcherConfig {
+        env_proxy: false, // 不让机器上的代理改道本地测试
         ssrf: SsrfPolicy {
             allow_ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
             ..Default::default()
@@ -58,6 +59,7 @@ async fn dns_singleflight_cache_and_transient_retry_are_bounded() {
     });
     let fetcher = Arc::new(
         Fetcher::new(FetcherConfig {
+            env_proxy: false, // 不让机器上的代理改道本地测试
             dns: dns.clone(),
             dns_transient_retries: 1,
             ssrf: SsrfPolicy {
@@ -319,6 +321,7 @@ async fn allowlisted_host_may_resolve_to_a_private_address() {
     let port = Url::parse(&srv.url("/")).unwrap().port().unwrap();
     let dns = FakeDns::new(&[("svc.test", &["127.0.0.1"]), ("other.test", &["127.0.0.1"])]);
     let f = Fetcher::new(FetcherConfig {
+        env_proxy: false, // 不让机器上的代理改道本地测试
         ssrf: SsrfPolicy {
             allow_hosts: vec!["svc.test".into()],
             ..Default::default()
@@ -422,6 +425,7 @@ async fn credentials_stay_on_their_host() {
 #[test]
 fn debug_output_redacts_secrets() {
     let mut cfg = FetcherConfig {
+        env_proxy: false, // 不让机器上的代理改道本地测试
         proxy: Some("http://user:hunter2@proxy.corp:3128".into()),
         ..Default::default()
     };
@@ -436,6 +440,7 @@ fn debug_output_redacts_secrets() {
 #[tokio::test]
 async fn rejects_browser_user_agents() {
     let cfg = FetcherConfig {
+        env_proxy: false, // 不让机器上的代理改道本地测试
         user_agent: "Mozilla/5.0 (X11; Linux x86_64) Chrome/120".into(),
         ..Default::default()
     };
@@ -456,6 +461,7 @@ async fn rejects_browser_user_agents() {
 fn rejects_invalid_proxy_schemes() {
     for p in ["socks4://proxy:1080", "ftp://proxy"] {
         let cfg = FetcherConfig {
+            env_proxy: false, // 不让机器上的代理改道本地测试
             proxy: Some(p.into()),
             ..Default::default()
         };
@@ -467,6 +473,7 @@ fn rejects_invalid_proxy_schemes() {
         "socks5h://proxy.corp:1080",
     ] {
         let cfg = FetcherConfig {
+            env_proxy: false, // 不让机器上的代理改道本地测试
             proxy: Some(p.into()),
             ..Default::default()
         };
@@ -483,6 +490,7 @@ async fn http_proxy_on_private_address_is_allowed() {
     })
     .await;
     let cfg = FetcherConfig {
+        env_proxy: false, // 不让机器上的代理改道本地测试
         proxy: Some(format!("http://proxy.test:{}", proxy.addr.port())),
         dns: FakeDns::new(&[("proxy.test", &["127.0.0.1"])]),
         ..Default::default()
@@ -553,6 +561,7 @@ fn proxied_config(
     ssrf: SsrfPolicy,
 ) -> FetcherConfig {
     FetcherConfig {
+        env_proxy: false, // 不让机器上的代理改道本地测试
         proxy: Some(format!("http://proxy.test:{}", proxy.addr.port())),
         dns,
         ssrf,
@@ -644,6 +653,7 @@ async fn proxy_with_allow_cidr_falls_back_to_proxy_when_resolution_fails() {
 async fn first_byte_timeout() {
     let srv = serve(|_| None).await;
     let cfg = FetcherConfig {
+        env_proxy: false, // 不让机器上的代理改道本地测试
         first_byte_timeout: Duration::from_millis(200),
         ..config(FakeDns::new(&[]))
     };
@@ -680,6 +690,7 @@ async fn body_idle_timeout_is_distinct_from_total_timeout() {
         tokio::time::sleep(Duration::from_secs(2)).await;
     });
     let fetcher = Fetcher::new(FetcherConfig {
+        env_proxy: false, // 不让机器上的代理改道本地测试
         body_idle_timeout: Duration::from_millis(50),
         total_timeout: Duration::from_secs(1),
         ssrf: SsrfPolicy {
@@ -716,6 +727,7 @@ async fn slow_ttfb_is_recorded_in_http_stage_and_ttfb_phase() {
             .unwrap();
     });
     let fetcher = Fetcher::new(FetcherConfig {
+        env_proxy: false, // 不让机器上的代理改道本地测试
         ssrf: SsrfPolicy {
             allow_ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
             ..Default::default()
@@ -841,6 +853,7 @@ async fn adaptive_hot_watermarks_are_isolated_per_origin() {
     let overloaded = serve(|_| Some(response(503, &[], b"busy"))).await;
     let fetcher = Arc::new(
         Fetcher::new(FetcherConfig {
+            env_proxy: false, // 不让机器上的代理改道本地测试
             max_connections_per_host: 8,
             ..config(FakeDns::new(&[]))
         })
@@ -925,6 +938,7 @@ async fn proxy_raw_stream_preserves_byte_representation_and_rejects_encoding() {
     })
     .await;
     let f = Fetcher::new(FetcherConfig {
+        env_proxy: false, // 不让机器上的代理改道本地测试
         proxy: Some(format!("http://proxy.test:{}", proxy.addr.port())),
         dns: FakeDns::new(&[("proxy.test", &["127.0.0.1"])]),
         ..Default::default()

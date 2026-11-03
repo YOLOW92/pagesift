@@ -69,6 +69,7 @@ async fn a_long_queue_on_one_host_does_not_block_the_others() {
     tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
     let mut cfg = ScraperConfig::default();
+    cfg.fetcher.env_proxy = false; // 不让机器上的代理改道本地测试
     cfg.fetcher.ssrf.allow_private_network = true;
     cfg.policy.rate.default_interval = Duration::from_millis(1);
     cfg.policy.rate.per_host_concurrency = 1;

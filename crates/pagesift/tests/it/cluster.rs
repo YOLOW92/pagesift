@@ -74,6 +74,7 @@ fn site(rt: &tokio::runtime::Runtime, hits: Hits, ip: &str) -> String {
 
 fn scraper() -> Arc<Scraper> {
     let mut cfg = ScraperConfig::default();
+    cfg.fetcher.env_proxy = false; // 不让机器上的代理改道本地测试
     cfg.fetcher.ssrf.allow_private_network = true;
     cfg.policy.rate.default_interval = Duration::from_millis(1);
     cfg.policy.rate.per_host_concurrency = 4;
@@ -610,6 +611,7 @@ fn learning_site(rt: &tokio::runtime::Runtime, ip: &str) -> String {
 /// 工人的抓取器：本机设置不遵守 robots（证明工人只按任务里网关判定的模式执行），审计记录随结果交给网关。
 fn worker_scraper() -> Arc<Scraper> {
     let mut cfg = ScraperConfig::default();
+    cfg.fetcher.env_proxy = false; // 不让机器上的代理改道本地测试
     cfg.fetcher.ssrf.allow_private_network = true;
     cfg.policy.rate.default_interval = Duration::from_millis(1);
     cfg.policy.respect_robots = false;
@@ -657,6 +659,7 @@ fn priors_audit_and_metrics_go_through_the_gateway() {
             None,
         ));
         let mut cfg = ScraperConfig::default();
+        cfg.fetcher.env_proxy = false; // 不让机器上的代理改道本地测试
         cfg.fetcher.ssrf.allow_private_network = true;
         let mut ac = pagesift::audit::AuditConfig::new(&audit_path);
         ac.snapshot_dir = None;

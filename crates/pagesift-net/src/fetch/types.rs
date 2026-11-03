@@ -106,6 +106,9 @@ pub struct FetcherConfig {
     pub ssrf: SsrfPolicy,
     /// 出口代理：`http://`、`https://` 或 `socks5://`。
     pub proxy: Option<String>,
+    /// 没设 `proxy` 时是否用环境变量里的代理（`ALL_PROXY`、`HTTPS_PROXY`、`HTTP_PROXY`，按 `NO_PROXY` 绕行），
+    /// 默认是。关掉后只用 `proxy`：自定义 DNS 把名字解析到本地服务的测试和嵌入方不会被机器上的代理改道。
+    pub env_proxy: bool,
     pub credentials: Vec<HostCredentials>,
     pub dns: Arc<dyn DnsLookup>,
     pub pool_idle_timeout: Duration,
@@ -145,6 +148,7 @@ impl Default for FetcherConfig {
             max_body_bytes: 15 * 1024 * 1024,
             ssrf: SsrfPolicy::default(),
             proxy: None,
+            env_proxy: true,
             credentials: Vec::new(),
             dns: Arc::new(SystemLookup),
             // [策略] 先验包 v0：0.81 的现值，空闲连接保留的上限；每主机按复用间隔分布的 q(1−δ) 收紧

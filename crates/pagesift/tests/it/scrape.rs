@@ -56,6 +56,7 @@ async fn site() -> String {
 
 fn scraper(egress: Vec<(String, String)>) -> Scraper {
     let mut cfg = ScraperConfig::default();
+    cfg.fetcher.env_proxy = false; // 不让机器上的代理改道本地测试
     cfg.fetcher.ssrf.allow_private_network = true;
     cfg.policy.rate.default_interval = Duration::ZERO;
     cfg.egress = egress;
@@ -94,6 +95,7 @@ async fn short_cjk_article_is_kept_from_http_with_author() {
 async fn per_host_wait_is_reported_separately_from_fetch_time() {
     let base = site().await;
     let mut cfg = ScraperConfig::default();
+    cfg.fetcher.env_proxy = false; // 不让机器上的代理改道本地测试
     cfg.fetcher.ssrf.allow_private_network = true;
     // 第二个请求要等第一个之后一个间隔；两个请求进队的先后差（忙的 macOS 机器上几十毫秒）从
     // 等待里扣掉，所以间隔取得远大于它，断言只要求等待超过报警的 10 ms
@@ -217,6 +219,7 @@ async fn an_engine_that_cannot_launch_is_skipped_after_the_first_failure() {
     std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
 
     let mut cfg = ScraperConfig::default();
+    cfg.fetcher.env_proxy = false; // 不让机器上的代理改道本地测试
     cfg.fetcher.ssrf.allow_private_network = true;
     cfg.policy.rate.default_interval = Duration::ZERO;
     cfg.browser.source = pagesift_cdp::BrowserSource::Executable(fake);

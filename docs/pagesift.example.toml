@@ -63,6 +63,8 @@ timeout_secs = 60
 max_body_mb = 15
 # 企业网络出口代理（不是代理池）
 # proxy = "http://proxy.internal:3128"
+# 没写 proxy 时用环境变量里的代理（HTTPS_PROXY、HTTP_PROXY、ALL_PROXY，按 NO_PROXY 绕行）；false 时不用
+# env_proxy = true
 allow_private_network = false
 
 [policy]

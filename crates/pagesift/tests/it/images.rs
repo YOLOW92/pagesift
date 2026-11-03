@@ -47,6 +47,7 @@ async fn site(hits: Arc<AtomicUsize>) -> String {
 
 fn scraper() -> Scraper {
     let mut cfg = ScraperConfig::default();
+    cfg.fetcher.env_proxy = false; // 不让机器上的代理改道本地测试
     cfg.fetcher.ssrf.allow_private_network = true;
     cfg.policy.rate.default_interval = Duration::ZERO;
     Scraper::new(cfg).unwrap()

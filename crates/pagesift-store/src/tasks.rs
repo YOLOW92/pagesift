@@ -87,6 +87,16 @@ impl<'a> Tasks<'a> {
             .collect())
     }
 
+    /// 序号恰好为 `seq` 的元素；已删除或还没有时为 `None`。
+    /// （[`Self::list_range`] 遇到已删除的序号会跳到后面还在的元素，按下标逐条读时用这个。）
+    pub fn list_get(&self, list: impl AsRef<[u8]>, seq: u64) -> Result<Option<Vec<u8>>> {
+        let list = list.as_ref();
+        Ok(self
+            .store
+            .get(ns::LIST_ITEM, &group_key(list, &seq.to_be_bytes())?)?
+            .map(|(_, v)| v))
+    }
+
     /// 从序号 `from` 开始最多 `limit` 个元素，跳过已弹出的。只追加、不弹出的列表里序号就是下标，
     /// 可以用来分页。
     pub fn list_range(

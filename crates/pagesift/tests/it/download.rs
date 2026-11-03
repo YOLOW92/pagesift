@@ -13,6 +13,7 @@ use std::time::Duration;
 
 fn policy() -> Policy {
     let mut config = FetcherConfig::default();
+    config.env_proxy = false; // 不让机器上的代理改道本地测试
     config.ssrf.allow_private_network = true;
     config.max_body_bytes = 1024; // Streaming must not buffer/truncate like fetch().
     let mut pc = PolicyConfig::default();

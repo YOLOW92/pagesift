@@ -73,6 +73,7 @@ async fn site() -> String {
 
 fn scraper() -> Scraper {
     let mut cfg = ScraperConfig::default();
+    cfg.fetcher.env_proxy = false; // 不让机器上的代理改道本地测试
     cfg.fetcher.ssrf.allow_private_network = true;
     cfg.policy.rate.default_interval = Duration::from_millis(1);
     cfg.policy.rate.per_host_concurrency = 8;
@@ -339,6 +340,7 @@ async fn cache_hits_skip_the_network() {
 
     let dir = tempfile::tempdir().unwrap();
     let mut cfg = ScraperConfig::default();
+    cfg.fetcher.env_proxy = false; // 不让机器上的代理改道本地测试
     cfg.fetcher.ssrf.allow_private_network = true;
     cfg.policy.rate.default_interval = Duration::from_millis(1);
     cfg.store = Some(pagesift_store::Store::open_dir(dir.path()).unwrap());

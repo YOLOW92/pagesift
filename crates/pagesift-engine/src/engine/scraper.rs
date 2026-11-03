@@ -59,6 +59,7 @@ impl Scraper {
             },
             launch_failed: Vec::new(),
             launch_notes: Vec::new(),
+            launch_broken: Default::default(),
             browser_private_network,
             browser_allow,
             learner: crate::learn::HostLearner::default(),
@@ -93,6 +94,10 @@ impl Scraper {
                 Err(e) => {
                     let engine = cfg.engine.map_or("browser", |k| k.name());
                     *self.launch_notes[i].lock().unwrap() = Some(format!("{engine}: {e}"));
+                    if !matches!(e, pagesift_cdp::Error::NoBrowserFound) {
+                        self.launch_broken
+                            .store(true, std::sync::atomic::Ordering::Relaxed);
+                    }
                     tracing::warn!("{engine} rendering unavailable: {e}");
                     None
                 }
@@ -109,6 +114,12 @@ impl Scraper {
             }
         }
         false
+    }
+
+    /// 有内核找到了浏览器、但创建失败（不是"一个都没找到"）。
+    pub(super) fn browser_launch_failed(&self) -> bool {
+        self.launch_broken
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// 浏览器不可用时给调用方的说明：逐个内核列出启动失败原因；都还在尝试时退回“没找到”。
