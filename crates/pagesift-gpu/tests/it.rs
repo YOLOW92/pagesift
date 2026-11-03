@@ -242,3 +242,19 @@ fn bias_then_activation_on_device() {
     let e = norm_rel_err(&d.to_vec().unwrap(), &want.data);
     assert!(e <= TOL, "加偏置再激活 相对误差 {e:.2e}");
 }
+
+/// `info()` 和不载内核的 `probe()` 看到的是同一块卡；不存在的序号要带原因报错。
+#[test]
+fn info_and_probe_agree() {
+    let Some(g) = gpu() else { return };
+    let (a, b) = (g.info().unwrap(), pagesift_gpu::probe(0).unwrap());
+    assert_eq!(a.name, b.name);
+    assert_eq!(a.compute_capability, b.compute_capability);
+    assert_eq!(a.memory_total, b.memory_total);
+    assert_eq!(a.ptx, b.ptx);
+    assert!(a.memory_total >= a.memory_free && a.memory_free > 0);
+    assert!(a.cuda_version.0 > 0);
+    let e = pagesift_gpu::probe(9999).unwrap_err();
+    assert!(e.contains("9999"), "{e}");
+    assert!(Gpu::open_index(9999).is_err());
+}

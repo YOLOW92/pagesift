@@ -5,6 +5,7 @@
 use std::path::Path;
 
 use crate::det::Det;
+use crate::device::{Device, DeviceStatus};
 use crate::rec::Rec;
 use crate::{Image, Line, Quad};
 
@@ -18,14 +19,28 @@ const MIN_SCORE: f32 = 0.5;
 pub struct Engine {
     det: Det,
     rec: Rec,
+    status: DeviceStatus,
 }
 
 impl Engine {
+    /// 在 CPU 上跑，同 `load_with(det_dir, rec_dir, Device::Cpu)`。
     pub fn load(det_dir: &Path, rec_dir: &Path) -> Result<Engine, String> {
+        Engine::load_with(det_dir, rec_dir, Device::Cpu)
+    }
+
+    /// 载入模型并打开 `device`。GPU 打不开（没有驱动、PTX 编译失败、`PAGESIFT_GPU=off` 等）不算
+    /// 错误：退回 CPU，原因见 [`Engine::device_status`]。只有模型文件的问题才返回 `Err`。
+    pub fn load_with(det_dir: &Path, rec_dir: &Path, device: Device) -> Result<Engine, String> {
         Ok(Engine {
             det: Det::load(det_dir)?,
             rec: Rec::load(rec_dir)?,
+            status: DeviceStatus::open(device),
         })
+    }
+
+    /// 实际用的设备、是否退回了 CPU、退回原因。
+    pub fn device_status(&self) -> DeviceStatus {
+        self.status.clone()
     }
 
     /// 识别整页图，按检测给的顺序（从上到下、从左到右）返回各行。

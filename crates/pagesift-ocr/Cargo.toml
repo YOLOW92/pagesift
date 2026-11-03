@@ -1,5 +1,5 @@
 [package]
-description = "Pure-Rust OCR for scanned PDF pages: PP-OCRv6 text detection and recognition on CPU."
+description = "Pure-Rust OCR for scanned PDF pages: PP-OCRv6 text detection and recognition, on CPU or an NVIDIA GPU."
 name = "pagesift-ocr"
 version.workspace = true
 edition.workspace = true
@@ -8,6 +8,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+pagesift-gpu = { version = "0.91.1", path = "../pagesift-gpu" }
 pagesift-infer = { version = "0.91.1", path = "../pagesift-infer" }
 # 适配 PDF 的扫描页接口（pagesift-pdf 本身不依赖模型）
 pagesift-pdf = { version = "0.91.1", path = "../pagesift-pdf" }

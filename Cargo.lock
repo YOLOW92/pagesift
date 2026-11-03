@@ -1757,6 +1757,7 @@ dependencies = [
 name = "pagesift-ocr"
 version = "0.91.1"
 dependencies = [
+ "pagesift-gpu",
  "pagesift-infer",
  "pagesift-pdf",
  "serde_json",

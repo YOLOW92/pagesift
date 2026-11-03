@@ -53,11 +53,13 @@ pub(crate) struct Kernels {
 pub struct Gpu {
     drv: Driver,
     dev: c_int,
+    index: usize,
     ctx: Handle,
     module: Handle,
     k: Kernels,
     name: String,
     cc: (i32, i32),
+    ptx: &'static Ptx,
 }
 
 // SAFETY: 驱动 API 是线程安全的；上下文是设备的主上下文，每个入口先在当前线程设为当前上下文
@@ -76,33 +78,158 @@ pub fn device_count() -> usize {
     count.max(0) as usize
 }
 
-impl Gpu {
-    /// 打开 0 号 N 卡：载入驱动、取主上下文、按算力挑 PTX 并 JIT。
-    /// 没有驱动、没有设备、算力低于 6.1 或 JIT 失败时返回错误（不 panic）。
-    pub fn open() -> Result<Gpu, String> {
-        let drv = Driver::load()?;
-        drv.check(unsafe { (drv.init)(0) }, "cuInit")?;
-        let mut count = 0;
+/// 一块 N 卡的情况（给 doctor 和模型选择用）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GpuInfo {
+    /// 设备序号（`cuda:N` 的 N）。
+    pub index: usize,
+    /// 设备名，例如 “NVIDIA GeForce GTX 1070”。
+    pub name: String,
+    /// 算力 (主, 次)，例如 (6, 1)。
+    pub compute_capability: (i32, i32),
+    /// 显存总量（字节）。
+    pub memory_total: u64,
+    /// 查询时的空闲显存（字节）。
+    pub memory_free: u64,
+    /// 真实驱动版本（来自 NVML，例如 “550.54.14”）；没有 NVML 时为 None。
+    pub driver_version: Option<String>,
+    /// 驱动支持的 CUDA API 版本 (主, 次)，例如 (12, 4)。
+    pub cuda_version: (i32, i32),
+    /// 选中的 PTX 版本：“sm_61” 或 “sm_70”。
+    pub ptx: &'static str,
+}
+
+/// `PAGESIFT_GPU=off` 时返回原因字符串：这时 [`Gpu::open`]、[`Gpu::open_index`]、[`probe`] 都报错，
+/// 调用方照常退回 CPU。
+pub fn disabled_by_env() -> Option<String> {
+    let v = std::env::var("PAGESIFT_GPU").ok()?;
+    v.eq_ignore_ascii_case("off")
+        .then(|| "环境变量 PAGESIFT_GPU=off 关闭了 GPU".to_owned())
+}
+
+/// 驱动里挑出的一个设备：已 `cuInit`，序号也核对过。
+struct Picked {
+    drv: Driver,
+    dev: c_int,
+    cc: (i32, i32),
+    ptx: &'static Ptx,
+    name: String,
+}
+
+/// 载入驱动并取出第 `index` 块卡；不碰上下文。
+fn pick(index: usize) -> Result<Picked, String> {
+    if let Some(why) = disabled_by_env() {
+        return Err(why);
+    }
+    let drv = Driver::load()?;
+    drv.check(unsafe { (drv.init)(0) }, "cuInit")?;
+    let mut count = 0;
+    drv.check(
+        unsafe { (drv.device_get_count)(&mut count) },
+        "cuDeviceGetCount",
+    )?;
+    if count == 0 {
+        return Err("没有 NVIDIA GPU".into());
+    }
+    if index >= count as usize {
+        return Err(format!("没有 {index} 号 GPU：本机只有 {count} 块"));
+    }
+    let mut dev = 0;
+    drv.check(
+        unsafe { (drv.device_get)(&mut dev, index as c_int) },
+        "cuDeviceGet",
+    )?;
+    let attr = |a| -> Result<i32, String> {
+        let mut v = 0;
         drv.check(
-            unsafe { (drv.device_get_count)(&mut count) },
-            "cuDeviceGetCount",
+            unsafe { (drv.device_get_attribute)(&mut v, a, dev) },
+            "cuDeviceGetAttribute",
         )?;
-        if count == 0 {
-            return Err("没有 NVIDIA GPU".into());
-        }
-        let mut dev = 0;
-        drv.check(unsafe { (drv.device_get)(&mut dev, 0) }, "cuDeviceGet")?;
-        let attr = |a| -> Result<i32, String> {
-            let mut v = 0;
-            drv.check(
-                unsafe { (drv.device_get_attribute)(&mut v, a, dev) },
-                "cuDeviceGetAttribute",
-            )?;
-            Ok(v)
-        };
-        let cc = (attr(ATTR_CC_MAJOR)?, attr(ATTR_CC_MINOR)?);
-        let ptx = select_ptx(cc)?;
-        let name = device_name(&drv, dev);
+        Ok(v)
+    };
+    let cc = (attr(ATTR_CC_MAJOR)?, attr(ATTR_CC_MINOR)?);
+    let ptx = select_ptx(cc)?;
+    let name = device_name(&drv, dev);
+    Ok(Picked {
+        drv,
+        dev,
+        cc,
+        ptx,
+        name,
+    })
+}
+
+/// 取当前上下文所在设备的显存 (空闲, 总量)，字节。
+fn memory_info(drv: &Driver) -> Result<(u64, u64), String> {
+    let (mut free, mut total) = (0usize, 0usize);
+    drv.check(
+        unsafe { (drv.mem_get_info)(&mut free, &mut total) },
+        "cuMemGetInfo",
+    )?;
+    Ok((free as u64, total as u64))
+}
+
+/// 汇总当前上下文所在设备的情况。
+fn build_info(
+    drv: &Driver,
+    index: usize,
+    name: &str,
+    cc: (i32, i32),
+    ptx: &Ptx,
+) -> Result<GpuInfo, String> {
+    let (memory_free, memory_total) = memory_info(drv)?;
+    let mut v = 0;
+    drv.check(
+        unsafe { (drv.driver_get_version)(&mut v) },
+        "cuDriverGetVersion",
+    )?;
+    // [协议] cuDriverGetVersion 的编码：主版本 × 1000 + 次版本 × 10
+    let cuda_version = (v / 1000, (v % 1000) / 10);
+    Ok(GpuInfo {
+        index,
+        name: name.to_owned(),
+        compute_capability: cc,
+        memory_total,
+        memory_free,
+        driver_version: driver::nvml_driver_version(),
+        cuda_version,
+        ptx: ptx.name,
+    })
+}
+
+/// 查第 `index` 块 N 卡的情况，不载内核（不 JIT，比 [`Gpu::open_index`] 轻）。
+/// 没有驱动、没有这块卡、算力不够或 `PAGESIFT_GPU=off` 时，错误就是可以给用户看的原因。
+pub fn probe(index: usize) -> Result<GpuInfo, String> {
+    let p = pick(index)?;
+    let mut ctx = null_mut();
+    p.drv.check(
+        unsafe { (p.drv.primary_ctx_retain)(&mut ctx, p.dev) },
+        "cuDevicePrimaryCtxRetain",
+    )?;
+    let r = p
+        .drv
+        .check(unsafe { (p.drv.ctx_set_current)(ctx) }, "cuCtxSetCurrent")
+        .and_then(|()| build_info(&p.drv, index, &p.name, p.cc, p.ptx));
+    unsafe { (p.drv.primary_ctx_release)(p.dev) };
+    r
+}
+
+impl Gpu {
+    /// 打开 0 号 N 卡，同 [`Gpu::open_index`]`(0)`。
+    pub fn open() -> Result<Gpu, String> {
+        Gpu::open_index(0)
+    }
+
+    /// 打开第 `index` 块 N 卡：载入驱动、取主上下文、按算力挑 PTX 并 JIT。
+    /// 没有驱动、没有这块卡、算力低于 6.1、JIT 失败或 `PAGESIFT_GPU=off` 时返回错误（不 panic）。
+    pub fn open_index(index: usize) -> Result<Gpu, String> {
+        let Picked {
+            drv,
+            dev,
+            cc,
+            ptx,
+            name,
+        } = pick(index)?;
         let mut ctx = null_mut();
         drv.check(
             unsafe { (drv.primary_ctx_retain)(&mut ctx, dev) },
@@ -112,14 +239,16 @@ impl Gpu {
         let mut gpu = Gpu {
             drv,
             dev,
+            index,
             ctx,
             module: null_mut(),
             k: Kernels::null(),
             name,
             cc,
+            ptx,
         };
         gpu.bind()?;
-        gpu.module = load_module(&gpu.drv, ptx)?;
+        gpu.module = load_module(&gpu.drv, ptx.source)?;
         gpu.k = Kernels::get(&gpu.drv, gpu.module)?;
         Ok(gpu)
     }
@@ -132,6 +261,12 @@ impl Gpu {
     /// 算力 (主, 次)，例如 (6, 1)。
     pub fn compute_capability(&self) -> (i32, i32) {
         self.cc
+    }
+
+    /// 型号、算力、显存总量和空闲量、驱动版本、选中的 PTX 版本。
+    pub fn info(&self) -> Result<GpuInfo, String> {
+        self.bind()?;
+        build_info(&self.drv, self.index, &self.name, self.cc, self.ptx)
     }
 
     /// 等设备上已提交的工作全部完成。
@@ -161,13 +296,28 @@ impl Drop for Gpu {
     }
 }
 
+/// 一份嵌入的 PTX。
+struct Ptx {
+    name: &'static str,
+    source: &'static str,
+}
+
+static SM70: Ptx = Ptx {
+    name: "sm_70",
+    source: PTX_SM70,
+};
+static SM61: Ptx = Ptx {
+    name: "sm_61",
+    source: PTX_SM61,
+};
+
 /// 按算力挑 PTX：≥ 7.0 用 sm_70 原版；6.1、6.2 用改过文件头的 sm_61 版；更老的不支持
 /// （.target sm_61 的 PTX 在 6.0 的卡上 JIT 会失败）。
-fn select_ptx(cc: (i32, i32)) -> Result<&'static str, String> {
+fn select_ptx(cc: (i32, i32)) -> Result<&'static Ptx, String> {
     match cc {
         // [协议] PTX ISA：sm_70 是 Volta 的算力 7.0；sm_61 覆盖算力 6.1 与 6.2
-        (major, _) if major >= 7 => Ok(PTX_SM70),
-        (6, minor) if minor >= 1 => Ok(PTX_SM61),
+        (major, _) if major >= 7 => Ok(&SM70),
+        (6, minor) if minor >= 1 => Ok(&SM61),
         (major, minor) => Err(format!(
             "GPU 算力 {major}.{minor} 太老，至少要 6.1（Pascal）"
         )),
@@ -256,12 +406,15 @@ mod tests {
 
     #[test]
     fn ptx_by_compute_capability() {
-        assert!(select_ptx((8, 6)).unwrap().contains("\n.target sm_70\n"));
-        assert!(select_ptx((7, 0)).unwrap().contains("\n.target sm_70\n"));
-        assert!(select_ptx((6, 1)).unwrap().contains("\n.target sm_61\n"));
-        assert!(select_ptx((6, 2)).unwrap().contains("\n.target sm_61\n"));
-        assert!(select_ptx((6, 0)).is_err());
-        assert!(select_ptx((5, 2)).is_err());
+        let src = |cc| select_ptx(cc).map(|p| p.source);
+        assert!(src((8, 6)).unwrap().contains("\n.target sm_70\n"));
+        assert!(src((7, 0)).unwrap().contains("\n.target sm_70\n"));
+        assert!(src((6, 1)).unwrap().contains("\n.target sm_61\n"));
+        assert!(src((6, 2)).unwrap().contains("\n.target sm_61\n"));
+        assert_eq!(select_ptx((6, 1)).unwrap().name, "sm_61");
+        assert_eq!(select_ptx((8, 6)).unwrap().name, "sm_70");
+        assert!(src((6, 0)).is_err());
+        assert!(src((5, 2)).is_err());
         assert!(
             PTX_SM61.is_ascii() && PTX_SM70.is_ascii(),
             "ptxas 只收 ASCII"

@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use sha2::{Digest, Sha256};
 
 /// 一个模型文件。
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct File {
     pub name: &'static str,
     pub size: u64,
@@ -17,7 +17,7 @@ pub struct File {
 }
 
 /// 一个模型（一个 Hugging Face 仓库的一个锁定版本）。
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Model {
     /// 仓库名，也是本地缓存里的目录名。
     pub repo: &'static str,

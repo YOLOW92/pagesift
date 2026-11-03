@@ -80,6 +80,54 @@ pub(crate) struct Driver {
     pub event_synchronize: unsafe extern "C" fn(Handle) -> CuResult,
     pub event_elapsed_time: unsafe extern "C" fn(*mut f32, Handle, Handle) -> CuResult,
     pub get_error_string: unsafe extern "C" fn(CuResult, *mut *const c_char) -> CuResult,
+    pub mem_get_info: unsafe extern "C" fn(*mut usize, *mut usize) -> CuResult,
+    pub driver_get_version: unsafe extern "C" fn(*mut c_int) -> CuResult,
+}
+
+/// 驱动库的名字；`PAGESIFT_GPU_LIB` 可以换成别的路径（驱动装在非标准位置时用，测试也靠它模拟载入失败）。
+#[cfg(unix)]
+fn library_name() -> CString {
+    let custom = std::env::var("PAGESIFT_GPU_LIB")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .and_then(|v| CString::new(v).ok());
+    custom.unwrap_or_else(|| c"libcuda.so.1".to_owned())
+}
+
+/// 用 NVML 读真实的驱动版本（如 “550.54.14”）。NVML 只是报告用途，缺了就返回 None。
+#[cfg(unix)]
+pub(crate) fn nvml_driver_version() -> Option<String> {
+    let h = unsafe { dlopen(c"libnvidia-ml.so.1".as_ptr(), RTLD_NOW) };
+    if h.is_null() {
+        return None;
+    }
+    let sym = |name: &CStr| {
+        let p = unsafe { dlsym(h, name.as_ptr()) };
+        (!p.is_null()).then_some(p)
+    };
+    type Init = unsafe extern "C" fn() -> c_int;
+    type Version = unsafe extern "C" fn(*mut c_char, c_uint) -> c_int;
+    // SAFETY: 符号来自 NVML，签名照 nvml.h；函数指针与数据指针同宽
+    let init: Init = unsafe { std::mem::transmute_copy(&sym(c"nvmlInit_v2")?) };
+    let version: Version =
+        unsafe { std::mem::transmute_copy(&sym(c"nvmlSystemGetDriverVersion")?) };
+    let shutdown: Init = unsafe { std::mem::transmute_copy(&sym(c"nvmlShutdown")?) };
+    if unsafe { init() } != 0 {
+        return None;
+    }
+    let mut buf = [0 as c_char; 96]; // [协议] nvml.h：NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE 是 80，留点余量
+    let r = unsafe { version(buf.as_mut_ptr(), buf.len() as c_uint) };
+    unsafe { shutdown() };
+    (r == 0).then(|| {
+        unsafe { CStr::from_ptr(buf.as_ptr()) }
+            .to_string_lossy()
+            .into_owned()
+    })
+}
+
+#[cfg(not(unix))]
+pub(crate) fn nvml_driver_version() -> Option<String> {
+    None
 }
 
 impl Driver {
@@ -87,9 +135,13 @@ impl Driver {
     #[cfg(unix)]
     pub(crate) fn load() -> Result<Driver, String> {
         // 句柄不关：驱动库在进程里只载一次，函数指针要一直有效
-        let h = unsafe { dlopen(c"libcuda.so.1".as_ptr(), RTLD_NOW) };
+        let lib = library_name();
+        let h = unsafe { dlopen(lib.as_ptr(), RTLD_NOW) };
         if h.is_null() {
-            return Err("载入 libcuda.so.1 失败：没有安装 NVIDIA 驱动".into());
+            return Err(format!(
+                "载入 {} 失败：没有安装 NVIDIA 驱动",
+                lib.to_string_lossy()
+            ));
         }
         let sym = |name: &str| -> Result<*mut c_void, String> {
             let c = CString::new(name).map_err(|e| e.to_string())?;
@@ -131,6 +183,8 @@ impl Driver {
             event_synchronize: f!("cuEventSynchronize"),
             event_elapsed_time: f!("cuEventElapsedTime"),
             get_error_string: f!("cuGetErrorString"),
+            mem_get_info: f!("cuMemGetInfo_v2"),
+            driver_get_version: f!("cuDriverGetVersion"),
         })
     }
 
