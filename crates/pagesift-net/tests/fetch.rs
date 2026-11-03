@@ -352,7 +352,7 @@ async fn unresolvable_host_is_a_dns_failure_not_an_ssrf_block() {
 #[tokio::test]
 async fn dns_rebinding_with_one_private_answer_is_blocked() {
     let dns = FakeDns::new(&[
-        ("rebind.test", &["93.184.216.34", "127.0.0.2"]),
+        ("rebind.test", &["93.184.216.34", "127.0.0.2"]), // loopback: not bound（解析结果，不监听）
         ("v6.test", &["2606:4700::1111", "::ffff:10.0.0.1"]),
     ]);
     let f = Fetcher::new(config(dns)).unwrap();

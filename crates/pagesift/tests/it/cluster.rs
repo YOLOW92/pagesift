@@ -29,6 +29,23 @@ type Hits = Arc<Mutex<HashMap<usize, usize>>>;
 
 /// 第 i 页链接到 2i+1、2i+2；每次请求慢一点，好在中途杀工人。
 /// `ip`：每个测试用自己的回环地址（127.0.0.0/8），一个测试释放的端口不会被另一个测试占到同一个地址上。
+/// 第 `n` 个测试用的回环地址。Linux 上整个 127.0.0.0/8 都是回环，各测试用不同地址互不占端口；
+/// macOS、Windows 默认只有 127.0.0.1，都用它（端口由系统分配）。
+/// 非 Linux 上各测试共用 127.0.0.1：一个测试放掉的端口可能被另一个测试接走（连到别人的网关），
+/// 所以这些测试在那里排队一个个跑；Linux 上各用各的地址，照常并行。
+fn serial() -> Option<std::sync::MutexGuard<'static, ()>> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    (!cfg!(target_os = "linux")).then(|| LOCK.lock().unwrap_or_else(|e| e.into_inner()))
+}
+
+fn loopback(n: u8) -> &'static str {
+    if cfg!(target_os = "linux") {
+        ["127.0.0.1", "127.0.0.2", "127.0.0.3", "127.0.0.4"][usize::from(n - 1)]
+    } else {
+        "127.0.0.1"
+    }
+}
+
 fn site(rt: &tokio::runtime::Runtime, hits: Hits, ip: &str) -> String {
     let app = Router::new().route(
         "/p/{i}",
@@ -221,6 +238,7 @@ async fn finish(app: &Router, status: &str) -> BTreeMap<String, (String, String)
 
 #[test]
 fn gateway_with_two_workers_matches_standalone_and_survives_a_killed_worker() {
+    let _serial = serial();
     let site_rt = runtime();
     let hits: Hits = Arc::default();
     let base = site(&site_rt, hits.clone(), "127.0.0.1");
@@ -359,12 +377,14 @@ fn cluster_app(
 /// 主网关在爬取中途失联：温备接管，`/v2/crawl/{id}` 在温备上能查到，任务从断点继续并完成，结果与单主机一致。
 #[test]
 fn standby_takes_over_a_running_crawl() {
+    let _serial = serial();
     takeover(false, "b");
 }
 
 /// 温备在主网关做过第一次快照、截掉了日志开头之后才连上（从快照重新同步），之后同样接管并完成爬取。
 #[test]
 fn standby_joining_after_the_first_snapshot_takes_over() {
+    let _serial = serial();
     takeover(true, "c");
 }
 
@@ -373,7 +393,7 @@ fn takeover(late: bool, tag: &str) {
     let ids: Vec<String> = vec![worker_id.clone(), sb_id.clone()];
     let site_rt = runtime();
     let hits: Hits = Arc::default();
-    let ip = if late { "127.0.0.3" } else { "127.0.0.2" };
+    let ip = if late { loopback(3) } else { loopback(2) };
     let base = site(&site_rt, hits.clone(), ip);
     let rt = runtime();
     let crawl_ref = rt.block_on(async {
@@ -542,7 +562,8 @@ fn render_step(doc: &Value) -> Value {
 /// - 网关的 `/metrics` 按工人加标签。
 #[test]
 fn priors_audit_and_metrics_go_through_the_gateway() {
-    let ip = "127.0.0.4";
+    let _serial = serial();
+    let ip = loopback(4);
     let site_rt = runtime();
     let base = learning_site(&site_rt, ip);
     let rt = runtime();
