@@ -41,6 +41,7 @@ impl Engine {
                 out.push(Line { quad, text, score });
             }
         }
+        crate::script::drop_stray_east_asian(&mut out);
         Ok(out)
     }
 }

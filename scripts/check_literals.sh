@@ -45,7 +45,7 @@ NUM = re.compile(
     r"0[xX][0-9a-fA-F_]+|0[oO][0-7_]+|0[bB][01_]+"
     r"|[0-9][0-9_]*(?:\.[0-9][0-9_]*)?(?:[eE][+-]?[0-9_]+)?"
 )
-IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+IDENT = re.compile(r"[^\W\d]\w*")  # Rust 标识符可以是 Unicode（XID）
 
 
 def lex(src: str):

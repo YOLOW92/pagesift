@@ -10,6 +10,7 @@ pub mod lcnet;
 pub mod models;
 pub mod pipeline;
 pub mod rec;
+mod script;
 
 /// 一张 8 位图：灰度（1 通道）或 RGB（3 通道），按行存放、无行间填充。
 #[derive(Debug, Clone)]

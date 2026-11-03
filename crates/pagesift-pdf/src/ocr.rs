@@ -1,5 +1,5 @@
 //! 扫描页 OCR 的接入：调用方提供识别引擎（[`PageOcr`]，例如 pagesift-ocr 的 PP-OCRv6），
-//! 这里把扫描页上的图解成灰度、交给引擎，再把识别出的行按词拆成 [`Glyph`] 放回页面，
+//! 这里把扫描页上的图解成灰度、交给引擎，再把识别出的每行作为一个 [`Glyph`] 放回页面，
 //! 后面的版面重建（分栏、标题、表格）照常处理。本 crate 不依赖任何模型。
 
 use crate::file::Document;
@@ -65,40 +65,37 @@ pub(crate) fn recognize_page(
     Vec::new()
 }
 
-/// 图上的行换到页面坐标（y 向上），每个词一个字形，词的横向位置按字数在行宽里均分。
+/// 图上的行换到页面坐标（y 向上），每行一个字形。整行不拆成词：手写和打字稿的相邻两行常在
+/// y 方向重叠，拆开后版面重建会把两行的词按 x 交错拼成一行。字号全页统一取行高的中位数：
+/// 识别框的高低随笔迹起伏，按各行高度给字号会把较高的行当成标题。
 fn to_glyphs(lines: &[OcrLine], p: &Placed, iw: u32, ih: u32) -> Vec<Glyph> {
     let sx = (p.x1 - p.x0) / f64::from(iw);
     let sy = (p.y1 - p.y0) / f64::from(ih);
-    let mut out = Vec::new();
-    for l in lines {
-        let words: Vec<&str> = l.text.split_whitespace().collect();
-        if words.is_empty() {
-            continue;
-        }
-        let x0 = p.x0 + f64::from(l.x0) * sx;
-        let x1 = p.x0 + f64::from(l.x1) * sx;
-        // 基线取框底（图的 y 向下，页面的 y 向上）
-        let base = p.y1 - f64::from(l.y1) * sy;
-        let size = (f64::from(l.y1 - l.y0) * sy * SIZE_OF_LINE_HEIGHT).max(1.0);
-        // 词间的空格也算一个字的宽度
-        let total: usize = words.iter().map(|w| w.chars().count()).sum::<usize>() + words.len() - 1;
-        let per = (x1 - x0) / total.max(1) as f64;
-        let mut at = 0usize;
-        for w in words {
-            let n = w.chars().count();
-            out.push(Glyph {
-                text: w.into(),
-                x: x0 + at as f64 * per,
-                y: base,
-                x_end: x0 + (at + n) as f64 * per,
-                size,
-                bold: false,
-                math: Default::default(),
-                mcid: None,
-                artifact: false,
-            });
-            at += n + 1;
-        }
-    }
-    out
+    let lines: Vec<&OcrLine> = lines.iter().filter(|l| !l.text.trim().is_empty()).collect();
+    let mut heights: Vec<f64> = lines.iter().map(|l| f64::from(l.y1 - l.y0) * sy).collect();
+    heights.sort_by(f64::total_cmp);
+    let Some(&median) = heights.get(heights.len() / 2) else {
+        return Vec::new();
+    };
+    let size = (median * SIZE_OF_LINE_HEIGHT).max(1.0);
+    lines
+        .iter()
+        .map(|l| Glyph {
+            text: l
+                .text
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .into(),
+            x: p.x0 + f64::from(l.x0) * sx,
+            // 基线取框底（图的 y 向下，页面的 y 向上）
+            y: p.y1 - f64::from(l.y1) * sy,
+            x_end: p.x0 + f64::from(l.x1) * sx,
+            size,
+            bold: false,
+            math: Default::default(),
+            mcid: None,
+            artifact: false,
+        })
+        .collect()
 }
