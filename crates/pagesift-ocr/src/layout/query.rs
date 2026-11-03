@@ -6,6 +6,9 @@ use pagesift_infer::{LayerNorm, Linear, Tensor, Weights, ops};
 use super::deform::Level;
 use super::layers::Mlp;
 
+/// [协议] 一个框的四个分量：(cx, cy, w, h) 或 (x0, y0, x1, y1)
+pub(crate) type Bbox = [f32; 4];
+
 /// σ(x)。
 #[inline]
 pub(crate) fn sigmoid(x: f32) -> f32 {
@@ -37,7 +40,7 @@ pub(crate) fn topk(scores: &[f32], k: usize) -> Vec<usize> {
 
 /// 一行掩码 logit（`h × w`，按行）里大于 0 的外接框，归一化成 (cx, cy, w, h)；全空时全 0
 /// （`mask_to_box_coordinate`）。
-pub(crate) fn mask_box(row: &[f32], h: usize, w: usize) -> [f32; 4] {
+pub(crate) fn mask_box(row: &[f32], h: usize, w: usize) -> Bbox {
     let (mut x0, mut y0, mut x1, mut y1) = (usize::MAX, usize::MAX, 0, 0);
     for (y, r) in row.chunks_exact(w).enumerate() {
         let mut any = false;
@@ -54,7 +57,7 @@ pub(crate) fn mask_box(row: &[f32], h: usize, w: usize) -> [f32; 4] {
         }
     }
     if x0 == usize::MAX {
-        return [0.0; 4];
+        return Bbox::default();
     }
     let (fw, fh) = (w as f32, h as f32);
     let (xa, xb) = (x0 as f32 / fw, x1 as f32 / fw);
@@ -62,12 +65,14 @@ pub(crate) fn mask_box(row: &[f32], h: usize, w: usize) -> [f32; 4] {
     [(xa + xb) / 2.0, (ya + yb) / 2.0, xb - xa, yb - ya]
 }
 
+/// [协议] 源码里的 eps（在 f32 上比较，边界上的点算无效）
+const ANCHOR_EPS: f64 = 1e-2;
+
 /// 每个位置的锚点是否有效（`_cached_generate_anchors` 的 `valid_mask`）：中心和宽高都在 (eps, 1 − eps)。
 /// 宽高 0.05·2^层号，对这个模型总在界内，所以只看中心。
 pub(crate) fn anchor_valid(levels: &[Level]) -> Vec<bool> {
-    // [协议] 源码里的 eps = 1e-2（在 f32 上比较，边界上的点算无效）
-    let eps = 1e-2f32;
-    let hi = (1.0f64 - 1e-2) as f32;
+    let eps = ANCHOR_EPS as f32;
+    let hi = (1.0 - ANCHOR_EPS) as f32;
     let ok = |v: f32| v > eps && v < hi;
     let mut out = Vec::new();
     for lv in levels {
@@ -111,7 +116,7 @@ impl QuerySelect {
         src: &Tensor,
         levels: &[Level],
         mask_feat: &Tensor,
-    ) -> (Tensor, Vec<[f32; 4]>) {
+    ) -> (Tensor, Vec<Bbox>) {
         let (s, c) = src.tc();
         // 锚点无效的位置清零再过线性层（源码 `memory = valid_mask * source_flatten`）
         let mut memory = src.clone();

@@ -6,14 +6,23 @@ use pagesift_infer::Tensor;
 
 use crate::Image;
 
+/// [协议] 网络输入是 RGB 三通道
+const CHANNELS: usize = 3;
+/// [协议] `PPDocLayoutV3ImageProcessor.size` 的缺省值
+const DEFAULT_SIZE: u64 = 800;
+/// [协议] 8 位像素的最大值
+const MAX_U8: f32 = 255.0;
+/// [协议] 双三次插值每个方向 4 个抽头
+const TAPS: usize = 4;
+
 /// 预处理参数（preprocessor_config.json）。
 #[derive(Debug, Clone)]
 pub struct Preprocess {
     pub height: usize,
     pub width: usize,
     pub rescale: f32,
-    pub mean: [f32; 3],
-    pub std: [f32; 3],
+    pub mean: [f32; CHANNELS],
+    pub std: [f32; CHANNELS],
 }
 
 /// [协议] PIL 的重采样编号：3 是 BICUBIC
@@ -30,24 +39,26 @@ impl Preprocess {
         if v["resample"].as_u64().unwrap_or(RESAMPLE_BICUBIC) != RESAMPLE_BICUBIC {
             return Err("只支持双三次插值".into());
         }
-        let triple = |key: &str, def: f32| -> Result<[f32; 3], String> {
+        let triple = |key: &str, def: f32| -> Result<[f32; CHANNELS], String> {
             match v[key].as_array() {
-                None => Ok([def; 3]),
-                Some(a) if a.len() == 3 => {
-                    let mut out = [0f32; 3];
+                None => Ok([def; CHANNELS]),
+                Some(a) if a.len() == CHANNELS => {
+                    let mut out = [0f32; CHANNELS];
                     for (o, x) in out.iter_mut().zip(a) {
                         *o = x.as_f64().ok_or(format!("{key} 应为数字"))? as f32;
                     }
                     Ok(out)
                 }
-                Some(_) => Err(format!("{key} 应有 3 个数")),
+                Some(_) => Err(format!("{key} 应有 {CHANNELS} 个数")),
             }
         };
-        // [协议] 缺省值取 PPDocLayoutV3ImageProcessor 的类属性：800 × 800、均值 0、标准差 1、1/255
+        // 缺省值取 PPDocLayoutV3ImageProcessor 的类属性：均值 0、标准差 1、1/255
         Ok(Preprocess {
-            height: v["size"]["height"].as_u64().unwrap_or(800) as usize,
-            width: v["size"]["width"].as_u64().unwrap_or(800) as usize,
-            rescale: v["rescale_factor"].as_f64().unwrap_or(1.0 / 255.0) as f32,
+            height: v["size"]["height"].as_u64().unwrap_or(DEFAULT_SIZE) as usize,
+            width: v["size"]["width"].as_u64().unwrap_or(DEFAULT_SIZE) as usize,
+            rescale: v["rescale_factor"]
+                .as_f64()
+                .unwrap_or(1.0 / f64::from(MAX_U8)) as f32,
             mean: triple("image_mean", 0.0)?,
             std: triple("image_std", 1.0)?,
         })
@@ -55,9 +66,9 @@ impl Preprocess {
 
     /// 整页图 → `[3, H, W]`，RGB 顺序；灰度图三个通道相同。
     pub fn run(&self, img: &Image) -> Tensor {
-        let planes = if img.channels == 1 { 1 } else { 3 };
+        let planes = if img.channels == 1 { 1 } else { CHANNELS };
         let (h, w) = (self.height, self.width);
-        let mut out = vec![0f32; 3 * h * w];
+        let mut out = vec![0f32; CHANNELS * h * w];
         for c in 0..planes {
             let src: Vec<f32> = (0..img.height * img.width)
                 .map(|i| f32::from(img.data[i * img.channels + c]))
@@ -66,7 +77,7 @@ impl Preprocess {
             let dst = &mut out[c * h * w..(c + 1) * h * w];
             for (d, v) in dst.iter_mut().zip(r) {
                 // torchvision 对 8 位图：插值后四舍五入（到偶）并截到 0–255，再做后面的归一化
-                let v = v.round_ties_even().clamp(0.0, 255.0);
+                let v = v.round_ties_even().clamp(0.0, MAX_U8);
                 *d = (v * self.rescale - self.mean[c]) / self.std[c];
             }
         }
@@ -75,12 +86,12 @@ impl Preprocess {
             rest[..h * w].copy_from_slice(first);
             rest[h * w..].copy_from_slice(first);
         }
-        Tensor::new(vec![3, h, w], out)
+        Tensor::new(vec![CHANNELS, h, w], out)
     }
 }
 
 /// 一个输出坐标的四个抽头：起始下标（可越界，取值时截到边上）和权重。
-fn cubic_taps(input: usize, output: usize) -> Vec<(isize, [f32; 4])> {
+fn cubic_taps(input: usize, output: usize) -> Vec<(isize, [f32; TAPS])> {
     let scale = input as f32 / output as f32;
     (0..output)
         .map(|o| {
@@ -93,7 +104,7 @@ fn cubic_taps(input: usize, output: usize) -> Vec<(isize, [f32; 4])> {
 }
 
 /// PyTorch `upsample_bicubic2d` 的 `get_cubic_upsample_coefficients`，t 是到左邻点的距离。
-fn cubic_weights(t: f32) -> [f32; 4] {
+fn cubic_weights(t: f32) -> [f32; TAPS] {
     [
         cubic_outer(t + 1.0),
         cubic_inner(t),
@@ -125,7 +136,7 @@ fn resize_bicubic(src: &[f32], h: usize, w: usize, oh: usize, ow: usize) -> Vec<
     // 只有被纵向抽头用到的行才做横向一遍：大图缩小时省掉大部分行
     let mut used = vec![false; h];
     for &(s, _) in &ty {
-        for k in 0..4 {
+        for k in 0..TAPS as isize {
             used[at(s + k, h)] = true;
         }
     }
@@ -133,7 +144,7 @@ fn resize_bicubic(src: &[f32], h: usize, w: usize, oh: usize, ow: usize) -> Vec<
     for y in (0..h).filter(|&y| used[y]) {
         let row = &src[y * w..(y + 1) * w];
         for (d, (s, wt)) in mid[y * ow..(y + 1) * ow].iter_mut().zip(&tx) {
-            *d = (0..4)
+            *d = (0..TAPS)
                 .map(|k| row[at(s + k as isize, w)] * wt[k])
                 .sum::<f32>();
         }

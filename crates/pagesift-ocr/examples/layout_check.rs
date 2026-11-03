@@ -1,5 +1,5 @@
 //! 版面检测检查：载入模型，读一张 PGM/PPM（P5/P6）图，把区域写成文本（每行 x0 y0 x1 y1 分数 类别 细分类）。
-//!     cargo run --profile release-fast -p pagesift-ocr --example layout_check -- <模型目录> <图> <输出>
+//!     cargo run --profile release-fast -p pagesift-ocr --example layout_check -- <模型目录> <图> <输出> [分数阈值]
 //! 耗时打到标准错误。
 use std::fmt::Write;
 use std::time::Instant;
@@ -47,9 +47,15 @@ fn read_pnm(path: &str) -> pagesift_ocr::Image {
 
 fn main() {
     let a: Vec<String> = std::env::args().skip(1).collect();
-    assert_eq!(a.len(), 3, "用法：layout_check <模型目录> <图> <输出>");
+    assert!(
+        a.len() == 3 || a.len() == 4,
+        "用法：layout_check <模型目录> <图> <输出> [分数阈值]"
+    );
     let t = Instant::now();
-    let m = pagesift_ocr::layout::Layout::load(std::path::Path::new(&a[0])).unwrap();
+    let mut m = pagesift_ocr::layout::Layout::load(std::path::Path::new(&a[0])).unwrap();
+    if let Some(th) = a.get(3) {
+        m.threshold = th.parse().unwrap();
+    }
     eprintln!("载入 {:.0} ms", t.elapsed().as_secs_f64() * 1e3);
     let img = read_pnm(&a[1]);
     let t = Instant::now();

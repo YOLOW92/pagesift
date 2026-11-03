@@ -26,6 +26,15 @@ pub struct Config {
     pub labels: Vec<String>,
 }
 
+/// [协议] `PPDocLayoutV3Config.feat_strides` 的缺省值
+const DEFAULT_STRIDES: [usize; 3] = [8, 16, 32];
+/// [协议] `encoder_attention_heads`、`decoder_attention_heads` 的缺省值
+const DEFAULT_HEADS: usize = 8;
+/// [协议] `decoder_n_points` 的缺省值
+const DEFAULT_POINTS: usize = 4;
+/// [协议] `num_queries` 的缺省值
+const DEFAULT_QUERIES: usize = 300;
+
 fn activation(name: &str) -> Result<Activation, String> {
     match name {
         "relu" => Ok(Activation::Relu),
@@ -80,8 +89,8 @@ impl Config {
         // 步长 (8, 16, 32)、AIFI 在第 2 层、指针头宽 64、位置编码温度 10000
         let d_model = int("d_model", 256)?;
         let feat_strides = match v["feat_strides"].as_array() {
-            Some(_) => list("feat_strides", &[8, 16, 32])?,
-            None => list("feature_strides", &[8, 16, 32])?,
+            Some(_) => list("feat_strides", &DEFAULT_STRIDES)?,
+            None => list("feature_strides", &DEFAULT_STRIDES)?,
         };
         let proj = list("encode_proj_layers", &[2])?;
         if proj.len() != 1 || int("encoder_layers", 1)? != 1 {
@@ -94,10 +103,10 @@ impl Config {
         let labels = parse_labels(&v["id2label"])?;
         Ok(Config {
             d_model,
-            encoder_heads: int("encoder_attention_heads", 8)?,
-            decoder_heads: int("decoder_attention_heads", 8)?,
-            decoder_points: int("decoder_n_points", 4)?,
-            num_queries: int("num_queries", 300)?,
+            encoder_heads: int("encoder_attention_heads", DEFAULT_HEADS)?,
+            decoder_heads: int("decoder_attention_heads", DEFAULT_HEADS)?,
+            decoder_points: int("decoder_n_points", DEFAULT_POINTS)?,
+            num_queries: int("num_queries", DEFAULT_QUERIES)?,
             aifi_level: proj[0],
             feat_strides,
             act: act("activation_function", "silu")?,

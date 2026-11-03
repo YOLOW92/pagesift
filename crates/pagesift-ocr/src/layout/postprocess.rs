@@ -2,14 +2,14 @@
 //! 按阈值过滤，框从 (cx, cy, w, h) 换成原图像素的 (x0, y0, x1, y1)，按预测的阅读顺序排。
 //! 掩码转多边形不做。
 
-use super::query::{sigmoid, topk};
+use super::query::{Bbox, sigmoid, topk};
 
 /// 一个检测结果。
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Detection {
     pub class: usize,
     pub score: f32,
-    pub xyxy: [f32; 4],
+    pub xyxy: Bbox,
 }
 
 /// 由阅读顺序 logit `[Q, Q]` 算每个查询的名次（`_get_order_seqs`）：
@@ -34,7 +34,7 @@ pub(crate) fn order_ranks(logits: &[f32], n: usize) -> Vec<usize> {
 
 /// (cx, cy, w, h)（相对 0–1）→ 原图像素的 (x0, y0, x1, y1)。
 /// [策略] 参考实现不截断；这里截到图内，方便调用方直接裁图。
-pub(crate) fn decode_box(b: [f32; 4], img_w: f32, img_h: f32) -> [f32; 4] {
+pub(crate) fn decode_box(b: Bbox, img_w: f32, img_h: f32) -> Bbox {
     let [cx, cy, w, h] = b;
     [
         ((cx - 0.5 * w) * img_w).clamp(0.0, img_w),
@@ -48,7 +48,7 @@ pub(crate) fn decode_box(b: [f32; 4], img_w: f32, img_h: f32) -> [f32; 4] {
 pub(crate) fn select(
     logits: &[f32],
     classes: usize,
-    boxes: &[[f32; 4]],
+    boxes: &[Bbox],
     ranks: &[usize],
     threshold: f32,
     img_w: f32,

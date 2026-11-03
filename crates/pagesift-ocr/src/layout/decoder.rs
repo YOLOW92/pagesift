@@ -7,7 +7,7 @@ use pagesift_infer::{LayerNorm, Linear, Tensor, Weights, ops};
 use super::config::Config;
 use super::deform::{DeformAttn, Level};
 use super::layers::{Ffn, Mlp, SelfAttention, add_norm, conv_bn, count};
-use super::query::{QuerySelect, inverse_sigmoid, sigmoid};
+use super::query::{Bbox, QuerySelect, inverse_sigmoid, sigmoid};
 use crate::lcnet::ConvBn;
 
 /// 解码器的一层（`PPDocLayoutV3DecoderLayer`，后归一化）。
@@ -45,7 +45,7 @@ impl Layer {
         pos: &Tensor,
         src: &Tensor,
         levels: &[Level],
-        refs: &[[f32; 4]],
+        refs: &[Bbox],
     ) -> Tensor {
         let h = add_norm(x, &self.attn.forward(x, pos), &self.norm1);
         let cross = self.cross.forward(&ops::add(&h, pos), src, levels, refs);
@@ -60,7 +60,7 @@ pub struct Raw {
     /// 类别 logit `[Q, K]`。
     pub logits: Tensor,
     /// 框 (cx, cy, w, h)，相对网络输入 0–1。
-    pub boxes: Vec<[f32; 4]>,
+    pub boxes: Vec<Bbox>,
     /// 阅读顺序 logit `[Q, Q]`，下三角（含对角线）无意义。
     pub order: Tensor,
 }
@@ -140,7 +140,7 @@ impl Decoder {
             let pos = self.query_pos.forward(&boxes_tensor(&refs));
             h = l.forward(&h, &pos, &src, &levels, &refs);
             let delta = self.bbox.forward(&h);
-            for (r, d) in refs.iter_mut().zip(delta.data.chunks_exact(BOX_LEN)) {
+            for (r, d) in refs.iter_mut().zip(delta.data.as_chunks::<BOX_LEN>().0) {
                 for (v, d) in r.iter_mut().zip(d) {
                     *v = sigmoid(d + inverse_sigmoid(*v));
                 }
@@ -160,10 +160,10 @@ impl Decoder {
     }
 }
 
-/// [协议] 一个框的分量数（cx, cy, w, h）
-const BOX_LEN: usize = 4;
+/// 一个框的分量数。
+const BOX_LEN: usize = size_of::<Bbox>() / size_of::<f32>();
 
-fn boxes_tensor(refs: &[[f32; 4]]) -> Tensor {
+fn boxes_tensor(refs: &[Bbox]) -> Tensor {
     Tensor::new(vec![refs.len(), BOX_LEN], refs.concat())
 }
 

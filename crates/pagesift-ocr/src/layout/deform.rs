@@ -4,6 +4,8 @@
 
 use pagesift_infer::{Linear, Tensor, Weights, ops};
 
+use super::query::Bbox;
+
 /// 一层特征在展平序列里的位置。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Level {
@@ -87,7 +89,7 @@ impl DeformAttn {
         query: &Tensor,
         src: &Tensor,
         levels: &[Level],
-        refs: &[[f32; 4]],
+        refs: &[Bbox],
     ) -> Tensor {
         let (q, c) = query.tc();
         let (heads, points, nl) = (self.heads, self.points, levels.len());

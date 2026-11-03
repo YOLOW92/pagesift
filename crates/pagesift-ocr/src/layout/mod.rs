@@ -84,6 +84,7 @@ impl Layout {
         if img.width == 0 || img.height == 0 {
             return Err("图像为空".into());
         }
+        // [协议] `Image` 只有灰度（1）、RGB（3）两种
         if img.channels != 1 && img.channels != 3 {
             return Err(format!("只支持灰度或 RGB 图，实际 {} 通道", img.channels));
         }
