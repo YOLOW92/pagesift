@@ -76,6 +76,9 @@ pub struct PagesiftMeta {
     /// `lightpanda`, `moli`, or `chrome`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub browser_engine: Option<String>,
+    /// 这次 HTTP 抓取确实按这个档案发（如 `chrome_156`）：站点看到的是这个浏览器，不是 pagesift。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub browser_fingerprint: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub warnings: Vec<String>,
     /// Timing per phase in milliseconds.

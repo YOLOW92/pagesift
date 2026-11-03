@@ -157,6 +157,29 @@ fn parses_a_full_config_and_rejects_browser_like_user_agents() {
 }
 
 #[test]
+fn browser_fingerprint_is_off_unless_named() {
+    let off: Config = toml::from_str("").unwrap();
+    assert_eq!(
+        off.scraper(false).unwrap().fetcher.browser_fingerprint,
+        None
+    );
+    let on: Config = toml::from_str("[fetch]\nbrowser_fingerprint = \"chrome\"").unwrap();
+    let on = on.scraper(false).unwrap();
+    assert_eq!(
+        on.fetcher.browser_fingerprint,
+        Some(pagesift_net::FingerprintProfile::Chrome156)
+    );
+    // robots.txt 的匹配依据不变
+    assert_eq!(
+        pagesift_net::product_token(&on.fetcher.user_agent),
+        "pagesift"
+    );
+    let bad: Config = toml::from_str("[fetch]\nbrowser_fingerprint = \"netscape\"").unwrap();
+    let error = bad.scraper(false).map(|_| ()).unwrap_err().to_string();
+    assert!(error.contains("browser_fingerprint"), "{error}");
+}
+
+#[test]
 fn example_config_parses() {
     let cfg: Config = toml::from_str(include_str!("../../../docs/pagesift.example.toml")).unwrap();
     assert_eq!(cfg.server.persist_jobs, Some(true));

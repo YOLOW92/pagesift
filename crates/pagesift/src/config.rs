@@ -128,6 +128,10 @@ pub struct Log {
 pub struct Fetch {
     /// 自定义 UA 必须表明是机器人，冒充浏览器的 UA 会被拒绝。
     pub user_agent: Option<String>,
+    /// 浏览器指纹模拟（默认关）：`chrome` 或具体版本 `chrome_156`。开启后站点看到的是这个浏览器：
+    /// TLS、HTTP/2 和请求头（含 User-Agent）都按档案发；`user_agent` 只用来匹配 robots.txt。
+    /// 是否符合对方站点的条款由部署者负责。不能和代理同时用。
+    pub browser_fingerprint: Option<String>,
     pub timeout_secs: Option<u64>,
     pub max_body_mb: Option<usize>,
     pub max_redirects: Option<usize>,
@@ -446,6 +450,14 @@ impl Config {
             pagesift_net::validate_user_agent(ua)
                 .map_err(|e| anyhow::anyhow!("fetch.user_agent: {e}"))?;
             c.fetcher.user_agent = ua.clone();
+        }
+        if let Some(name) = &f.browser_fingerprint {
+            c.fetcher.browser_fingerprint =
+                Some(pagesift_net::FingerprintProfile::parse(name).ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "fetch.browser_fingerprint: unknown profile {name:?} (use \"chrome\" or \"chrome_156\")"
+                    )
+                })?);
         }
         if let Some(t) = f.timeout_secs {
             // `timeout_secs` 是**单次请求的总预算**。以前只写 total_timeout，而等响应头用的是

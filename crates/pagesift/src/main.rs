@@ -48,6 +48,9 @@ struct Cli {
     /// Ignore robots.txt for every request. Same as `[policy] robots = false`
     #[arg(long, global = true)]
     no_robots: bool,
+    /// Send HTTP fetches with this browser's TLS, HTTP/2 and request headers: chrome or chrome_156. Sites then see that browser, not pagesift; whether that meets a site's terms is up to you. robots.txt and rate limits still apply. Same as `[fetch] browser_fingerprint`
+    #[arg(long, global = true, value_name = "PROFILE")]
+    browser_fingerprint: Option<String>,
     /// Turn on OCR for scanned PDF pages; models are downloaded the first time they are needed. Same as `[ocr] enabled = true`
     #[arg(long, global = true)]
     ocr: bool,
@@ -82,6 +85,9 @@ fn main() -> ExitCode {
         cfg.audit.path = cli.audit_log;
     }
     cfg.audit.source = matches.subcommand_name().map(String::from);
+    if cli.browser_fingerprint.is_some() {
+        cfg.fetch.browser_fingerprint = cli.browser_fingerprint;
+    }
     cfg.ocr.enabled |= cli.ocr;
     cfg.ocr.formulas |= cli.ocr_formulas;
     if let Some(mode) = cli.gpu {

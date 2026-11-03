@@ -171,6 +171,20 @@ pub async fn doctor(cfg: &pagesift::config::Config) -> Result<ExitCode> {
     let mut sc = cfg.scraper(false)?;
     // 自检抓取不是真实流量：写进审计日志只会每次多一条可疑记录和快照
     sc.audit = None;
+    report(
+        true,
+        "browser fingerprint",
+        match sc.fetcher.browser_fingerprint {
+            Some(profile) => format!(
+                "on ({profile}): HTTP fetches present TLS, HTTP/2 and headers of that browser, so sites see that browser and not pagesift; whether this meets a site's terms is up to the operator. robots.txt (as {:?}) and rate limits still apply",
+                pagesift_net::product_token(&sc.fetcher.user_agent),
+            ),
+            None => format!(
+                "off (default): HTTP fetches identify as {:?}",
+                pagesift_net::product_token(&sc.fetcher.user_agent),
+            ),
+        },
+    );
     let chain: Vec<String> =
         pagesift_cdp::engine_chain(&sc.browser, sc.fetcher.ssrf.allow_private_network)
             .iter()

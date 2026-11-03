@@ -110,6 +110,7 @@ impl Scraper {
             last_modified: resp.last_modified().map(str::to_string),
             not_modified: resp.not_modified,
             engine: Some("http".into()),
+            browser_fingerprint: resp.browser_fingerprint.map(|p| p.as_str().to_string()),
             ..Default::default()
         };
         // 网络层的解码提示（多层压缩、声明与实际不符、部分解压失败）原样带出去
