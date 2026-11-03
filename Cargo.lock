@@ -1408,6 +1408,7 @@ dependencies = [
  "pagesift-extract",
  "pagesift-flow",
  "pagesift-frontier",
+ "pagesift-hooks",
  "pagesift-html",
  "pagesift-llm",
  "pagesift-mcp",
@@ -1552,6 +1553,7 @@ dependencies = [
  "pagesift-extract",
  "pagesift-flow",
  "pagesift-frontier",
+ "pagesift-hooks",
  "pagesift-html",
  "pagesift-llm",
  "pagesift-mcp",
@@ -1623,6 +1625,17 @@ dependencies = [
  "pagesift-html",
  "pagesift-net",
  "pagesift-pdf",
+ "url",
+]
+
+[[package]]
+name = "pagesift-hooks"
+version = "0.91.1"
+dependencies = [
+ "pagesift-api",
+ "serde",
+ "serde_json",
+ "toml",
  "url",
 ]
 

@@ -317,7 +317,11 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
                     .formats
                     .push(pagesift::api::types::Format::new("rawHtml"));
             }
-            let sink = Arc::new(cli::CrawlOutput::new(out, warc).context("opening the output")?);
+            let sink = Arc::new(
+                cli::CrawlOutput::new(out, warc)
+                    .context("opening the output")?
+                    .sink_hooks(scraper.hooks()),
+            );
             if let Some(path) = from_warc {
                 let r = super::warc_in::crawl_archive(&scraper, &path, &url, &req, sink.clone()).await;
                 scraper.shutdown().await;

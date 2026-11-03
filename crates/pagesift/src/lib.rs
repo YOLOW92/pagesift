@@ -21,9 +21,10 @@ pub mod session;
 pub use pagesift_api as api;
 pub use pagesift_engine::{
     AUTO_RENDER_ARTICLE_MIN_CHARS, AUTO_RENDER_MIN_CHARS, EngineProbe, PageRunner, Scraper,
-    ScraperConfig, ScraperError, audit, needs_render, normalize_url, notice, office_markdown,
-    office_markdown_from, scripts, set_cpu_capacity, set_cpu_groups, text_weight,
+    ScraperBuilder, ScraperConfig, ScraperError, audit, needs_render, normalize_url, notice,
+    office_markdown, office_markdown_from, scripts, set_cpu_capacity, set_cpu_groups, text_weight,
 };
 #[doc(hidden)]
 pub use pagesift_engine::{change, crawl, discovery, engine, focus, frontier, learn};
+pub use pagesift_hooks as hooks;
 pub use pagesift_media::{download, media, postprocess, stream};

@@ -45,6 +45,7 @@ impl Scraper {
             }),
             store: config.store,
             audit: config.audit,
+            hooks: config.hooks,
             llm,
             search: config.search,
             browsers: {
@@ -373,7 +374,7 @@ impl Scraper {
     }
 
     /// 单页抓取、爬取里的页面、上传文件解析共同的出口：结果有数据风险时填 `data.warning`。
-    pub(super) async fn scrape_inner(
+    pub(super) async fn scrape_plain(
         &self,
         source: Source<'_>,
         opts: &ScrapeOptions,

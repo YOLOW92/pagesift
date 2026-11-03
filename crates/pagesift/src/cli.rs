@@ -15,6 +15,8 @@ pub struct CrawlOutput {
     dir: Option<Arc<DirOut>>,
     out: Fanout,
     counts: Mutex<(usize, usize)>,
+    /// 输出阶段的钩子（`SinkHook`）：写出前改写或丢弃文档。
+    hooks: pagesift_hooks::Hooks,
 }
 
 impl CrawlOutput {
@@ -32,7 +34,13 @@ impl CrawlOutput {
             dir,
             out,
             counts: Mutex::new((0, 0)),
+            hooks: Default::default(),
         })
+    }
+
+    pub fn sink_hooks(mut self, hooks: &pagesift_hooks::Hooks) -> Self {
+        self.hooks = hooks.clone();
+        self
     }
 
     pub fn counts(&self) -> (usize, usize) {
@@ -65,6 +73,14 @@ impl PageOut for Shared {
 
 impl CrawlSink for CrawlOutput {
     fn page(&self, doc: Document) -> BoxFuture<'_, ()> {
+        let doc = if self.hooks.is_empty() {
+            Some(doc)
+        } else {
+            self.hooks.run_sink(doc)
+        };
+        let Some(doc) = doc else {
+            return Box::pin(async {});
+        };
         if let Err(e) = self.write_page(&doc) {
             eprintln!("could not write page: {e}");
         }

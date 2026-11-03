@@ -20,6 +20,7 @@ futures-util = "0.3.34"
 fs2 = "0.4.3"
 httpdate = "1.0.3"
 pagesift-api = { version = "0.91.1", path = "../pagesift-api" }
+pagesift-hooks = { version = "0.91.1", path = "../pagesift-hooks" }
 pagesift-cdp = { version = "0.91.1", path = "../pagesift-cdp" }
 pagesift-cluster = { version = "0.91.1", path = "../pagesift-cluster" }
 pagesift-content = { version = "0.91.1", path = "../pagesift-content" }

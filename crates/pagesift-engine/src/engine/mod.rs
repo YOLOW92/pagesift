@@ -25,6 +25,7 @@ mod extract;
 mod feed;
 mod fetch;
 mod frames;
+mod hooked;
 mod http_extract;
 mod images;
 mod office;
@@ -36,6 +37,7 @@ mod render;
 mod render_stats;
 mod scraper;
 mod speculate;
+pub use hooked::ScraperBuilder;
 mod structured;
 use cpu::{CONTENT_WORKSPACE, cpu_task};
 pub use cpu::{set_cpu_capacity, set_cpu_groups};
@@ -118,6 +120,8 @@ pub struct ScraperConfig {
     pub egress_classes: std::collections::HashMap<String, pagesift_policy::EgressClass>,
     /// 审计日志：每次抓取一行元数据，可疑结果留 HTML 快照（见 [`crate::audit`]）。
     pub audit: Option<Arc<crate::audit::Audit>>,
+    /// 扩展点（`pagesift_hooks`）：代码注册的钩子和 `[[rules]]` 编译出的规则。空时不经过任何钩子。
+    pub hooks: pagesift_hooks::Hooks,
 }
 
 /// 创建 [`Scraper`] 失败：网络层或 LLM 客户端的配置不对。
@@ -173,6 +177,7 @@ pub struct Scraper {
     /// 自动升级的在线耗时分布：预算、导航耐心、早停时机都从这里来。
     render_stats: render_stats::RenderStats,
     audit: Option<Arc<crate::audit::Audit>>,
+    hooks: pagesift_hooks::Hooks,
     /// 多服务器网关：爬取里的页面交给它（工人执行，见 `pagesift` 的 `cluster` 模块）。单主机不设，路径不变。
     pages: std::sync::OnceLock<Arc<dyn crate::PageRunner>>,
 }

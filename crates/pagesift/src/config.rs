@@ -28,6 +28,9 @@ pub use cluster::*;
 pub struct Config {
     #[serde(default)]
     pub server: Server,
+    /// `[[rules]]`：按主机和路径匹配的抓取规则，启动时编译成钩子（`pagesift_hooks::rules`）。
+    #[serde(default)]
+    pub rules: Vec<pagesift_hooks::rules::Rule>,
     #[serde(default)]
     pub fetch: Fetch,
     #[serde(default)]
@@ -421,6 +424,7 @@ impl Config {
     pub fn scraper(&self, with_cache: bool) -> Result<ScraperConfig> {
         let mut c = ScraperConfig {
             audit: self.open_audit()?,
+            hooks: pagesift_hooks::rules::compile(&self.rules).map_err(anyhow::Error::msg)?,
             ..Default::default()
         };
         let f = &self.fetch;

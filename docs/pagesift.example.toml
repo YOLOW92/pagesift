@@ -105,3 +105,16 @@ enabled = true
 # [search]
 # backend = "searxng"
 # endpoint = "http://localhost:8080"
+
+# 按主机和路径匹配的抓取规则，启动时编译成钩子；写错的键启动时报错。主机也匹配子域名；
+# path_glob：`*` 一段路径内任意、`**` 跨段、`?` 一个字符。
+# [[rules]]
+# match = { host = "example.com", path_glob = "/blog/**" }
+# headers = { "Accept-Language" = "en" }
+# include_tags = ["article"]
+# exclude_tags = [".ads"]
+# engine = "http"
+# schema = { baseSelector = "li.post", fields = [{ name = "title", selector = "h2", type = "text" }] }
+# drop_fields = ["links", "extract.internal_id"]
+# rename_fields = { title = "headline" }
+# priority = 0

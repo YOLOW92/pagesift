@@ -29,6 +29,7 @@ pagesift-sink = { version = "0.91.1", path = "../pagesift-sink" }
 pagesift-stat = { version = "0.91.1", path = "../pagesift-stat" }
 pagesift-diff = { version = "0.91.1", path = "../pagesift-diff" }
 pagesift-extract = { version = "0.91.1", path = "../pagesift-extract" }
+pagesift-hooks = { version = "0.91.1", path = "../pagesift-hooks" }
 pagesift-html = { version = "0.91.1", path = "../pagesift-html" }
 pagesift-media = { version = "0.91.1", path = "../pagesift-media" }
 pagesift-llm = { version = "0.91.1", path = "../pagesift-llm" }

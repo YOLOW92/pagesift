@@ -17,6 +17,7 @@ mod extract;
 mod focused;
 mod focused_site;
 mod frontier;
+mod hooks;
 mod images;
 mod jina;
 mod monitor;

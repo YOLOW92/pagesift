@@ -14,6 +14,7 @@ mod limiter;
 mod outage;
 mod policy;
 mod robots;
+pub mod session_pool;
 pub mod slots;
 pub mod topology;
 
