@@ -1,6 +1,8 @@
-"""G1：pagesift 的 CCITT 解码对照参照图（libtiff 编码前的原图，或 pdfimages -png 解出的图）。
+"""G1：pagesift 的黑白图解码（CCITT、JBIG2）对照参照图（libtiff 编码前的原图，或 pdfimages -png 解出的图）。
 
-    python3 -I benchmarks/history/1.0/g1/compare_ccitt.py <参照 png 目录> <ccitt_check 输出目录> <ccitt_check 的 tsv>
+    python3 -I benchmarks/history/1.0/g1/compare_ccitt.py <参照 png 目录> <输出目录> <tsv>
+
+输出目录和 tsv 来自 ccitt_check 或 jbig2_check（两者格式相同）。
 
 黑白图没有容差：逐像素必须相同。参照图整张反色时（pdfimages 按 /Decode 输出）记为“反色一致”。
 """

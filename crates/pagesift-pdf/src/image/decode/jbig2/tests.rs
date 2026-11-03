@@ -28,3 +28,46 @@ fn mq_conformance() {
     }
     let _ = IntDecoder::new();
 }
+
+/// 滑动分组算出的上下文与规范图 3–6 的逐像素定义一致（随机位图、随机 AT）。
+#[test]
+fn generic_context_groups_match_templates() {
+    use super::bitmap::{Bitmap, set_budget};
+    use super::generic::{context_fast, context_slow, default_at};
+    set_budget(1 << 20);
+    let (w, h) = (23usize, 9usize);
+    let mut b = Bitmap::new(w, h, 0).unwrap();
+    let mut seed = 0x2545_F491u32;
+    let mut rnd = || {
+        // [策略] xorshift32，只为造确定的测试数据
+        seed ^= seed << 13;
+        seed ^= seed >> 17;
+        seed ^= seed << 5;
+        seed
+    };
+    for v in &mut b.data {
+        *v = (rnd() & 1) as u8;
+    }
+    for t in 0..4 {
+        let mut ats = vec![default_at(t as u8)];
+        for _ in 0..8 {
+            let mut at = [(0i8, 0i8); 4];
+            for a in &mut at {
+                // [策略] AT 偏移取 −8…7、行 −8…0，覆盖图外取 0
+                *a = ((rnd() % 16) as i8 - 8, -((rnd() % 9) as i8));
+            }
+            ats.push(at);
+        }
+        for at in &ats {
+            for y in 0..h as i64 {
+                for x in 0..w as i64 {
+                    assert_eq!(
+                        context_fast(&b, t, at, x, y),
+                        context_slow(&b, t, at, x, y),
+                        "模板 {t} AT {at:?} 位置 ({x},{y})"
+                    );
+                }
+            }
+        }
+    }
+}

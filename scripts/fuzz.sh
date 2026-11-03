@@ -38,6 +38,16 @@ seeds() {
       find crates/pagesift-pdf -name '*.jpg' -size -1024k | sort ;;
     ccitt)
       find crates/pagesift-pdf -name '*.ccitt' -size -1024k | sort ;;
+    jbig2)
+      # 种子是 pdf.js 测试集里 JBIG2 PDF 的嵌入码流，用 pdfimages（poppler）提取一次
+      local dir=$out/seeds/jbig2
+      if [ ! -d "$dir" ]; then
+        mkdir -p "$dir"
+        for f in "$data"/pdfjs/test/pdfs/bitmap-*.pdf "$data"/pdfjs/test/pdfs/jbig2_*.pdf; do
+          [ -f "$f" ] && timeout 5 pdfimages -jbig2 "$f" "$dir/$(basename "$f" .pdf)" 2>/dev/null
+        done
+      fi
+      find "$dir" -name '*.jb2e' | sort ;;
   esac
 }
 

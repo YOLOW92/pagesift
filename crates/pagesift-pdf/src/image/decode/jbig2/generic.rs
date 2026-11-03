@@ -36,17 +36,48 @@ pub(super) fn default_at(template: u8) -> [(i8, i8); 4] {
 }
 
 /// 一个模板像素：固定偏移，或第几个 AT 像素。
+#[cfg(test)]
 #[derive(Clone, Copy)]
-enum Px {
+pub(super) enum Px {
     At(usize),
     Fixed(i8, i8),
 }
 
+/// 测试用：按 TEMPLATES 逐像素算上下文，与滑动分组的结果对照。
+#[cfg(test)]
+pub(super) fn context_slow(b: &Bitmap, t: usize, at: &[(i8, i8); 4], x: i64, y: i64) -> usize {
+    TEMPLATES[t].iter().enumerate().fold(0, |c, (bit, &px)| {
+        let (dx, dy) = match px {
+            At(k) => (i64::from(at[k].0), i64::from(at[k].1)),
+            Fixed(dx, dy) => (i64::from(dx), i64::from(dy)),
+        };
+        c | usize::from(b.get(x + dx, y + dy)) << bit
+    })
+}
+
+/// 测试用：按 GROUPS、AT_BITS 算上下文。
+#[cfg(test)]
+pub(super) fn context_fast(b: &Bitmap, t: usize, at: &[(i8, i8); 4], x: i64, y: i64) -> usize {
+    let mut c = 0;
+    for g in GROUPS[t] {
+        for i in 0..g.n {
+            let v = b.get(x + g.left + i64::from(i), y + g.dy);
+            c |= usize::from(v) << (g.shift + g.n - 1 - i);
+        }
+    }
+    for &(k, bit) in AT_BITS[t] {
+        c |= usize::from(b.get(x + i64::from(at[k].0), y + i64::from(at[k].1))) << bit;
+    }
+    c
+}
+
+#[cfg(test)]
 use Px::{At, Fixed};
 
 /// [协议] 各模板的像素，按上下文的位从低到高（T.88 图 3–6；与参考实现的位序一致，
-/// TPGDON 的伪像素上下文 SLTP 依赖这个位序）
-const TEMPLATES: [&[Px]; 4] = [
+/// TPGDON 的伪像素上下文 SLTP 依赖这个位序）。解码用由它归并出的 [`GROUPS`]、[`AT_BITS`]。
+#[cfg(test)]
+pub(super) const TEMPLATES: [&[Px]; 4] = [
     &[
         Fixed(-1, 0),
         Fixed(-2, 0),
@@ -116,13 +147,10 @@ pub(super) fn decode(mq: &mut Mq, cx: &mut [Cx], p: &Params) -> Result<Bitmap, S
     if cx.len() < context_count(p.template) {
         return Err("通用区域的上下文表太小".into());
     }
-    let offs: Vec<(i64, i64)> = TEMPLATES[t]
-        .iter()
-        .map(|&px| match px {
-            At(k) => (i64::from(p.at[k].0), i64::from(p.at[k].1)),
-            Fixed(x, y) => (i64::from(x), i64::from(y)),
-        })
-        .collect();
+    let offs: Vec<(i64, i64)> =
+        p.at.iter()
+            .map(|&(x, y)| (i64::from(x), i64::from(y)))
+            .collect();
     let mut out = Bitmap::new(p.w, p.h, 0)?;
     let mut ltp = 0u8;
     for y in 0..p.h {
@@ -138,23 +166,65 @@ pub(super) fn decode(mq: &mut Mq, cx: &mut [Cx], p: &Params) -> Result<Bitmap, S
             }
         }
         let yy = y as i64;
+        // 固定像素按行分组滑动：每组是同一行上连续的几个像素，左边的在高位；
+        // 每前进一列，组里移进右边新的一个像素。AT 像素逐个取。
+        let groups = GROUPS[t];
+        let mut win = [0usize; 3];
+        for (g, w) in groups.iter().zip(&mut win) {
+            for i in 0..g.n {
+                *w = (*w << 1) | usize::from(out.get(g.left + i64::from(i), yy + g.dy));
+            }
+        }
         for x in 0..p.w {
-            if p.skip.is_some_and(|s| s.get(x as i64, yy) == 1) {
-                continue;
-            }
             let xx = x as i64;
-            let mut ctx = 0usize;
-            for (bit, &(dx, dy)) in offs.iter().enumerate() {
-                ctx |= usize::from(out.get(xx + dx, yy + dy)) << bit;
+            if !p.skip.is_some_and(|s| s.get(xx, yy) == 1) {
+                let mut ctx = 0usize;
+                for (g, &w) in groups.iter().zip(&win) {
+                    ctx |= w << g.shift;
+                }
+                for &(k, bit) in AT_BITS[t] {
+                    ctx |= usize::from(out.get(xx + offs[k].0, yy + offs[k].1)) << bit;
+                }
+                if mq.decode(&mut cx[ctx]) != 0 {
+                    out.set(x, y, 1);
+                }
             }
-            let v = mq.decode(&mut cx[ctx]);
-            if v != 0 {
-                out.set(x, y, 1);
+            for (g, w) in groups.iter().zip(&mut win) {
+                let next = out.get(xx + 1 + g.left + i64::from(g.n) - 1, yy + g.dy);
+                *w = ((*w << 1) | usize::from(next)) & ((1 << g.n) - 1);
             }
         }
     }
     Ok(out)
 }
+
+/// 模板里同一行上连续的固定像素：行偏移、最左像素的列偏移、个数、在上下文里的最低位。
+struct Group {
+    dy: i64,
+    left: i64,
+    n: u32,
+    shift: u32,
+}
+
+const fn g(dy: i64, left: i64, n: u32, shift: u32) -> Group {
+    Group { dy, left, n, shift }
+}
+
+/// [推导] 由 TEMPLATES 按行归并出的分组（测试里逐位核对两者一致）
+const GROUPS: [&[Group]; 4] = [
+    &[g(-2, -1, 3, 12), g(-1, -2, 5, 5), g(0, -4, 4, 0)],
+    &[g(-2, -1, 4, 9), g(-1, -2, 5, 4), g(0, -3, 3, 0)],
+    &[g(-2, -1, 3, 7), g(-1, -2, 4, 3), g(0, -2, 2, 0)],
+    &[g(-1, -3, 5, 5), g(0, -4, 4, 0)],
+];
+
+/// [推导] 各模板 AT 像素在上下文里的位：(第几个 AT, 位)，同样由 TEMPLATES 得出
+const AT_BITS: [&[(usize, u32)]; 4] = [
+    &[(0, 4), (1, 10), (2, 11), (3, 15)],
+    &[(0, 3)],
+    &[(0, 2)],
+    &[(0, 4)],
+];
 
 /// MMR 编码的通用区域（T.88 §6.2.6）：T.6 码流，黑像素是 1。返回位图和用掉的字节数。
 pub(super) fn mmr(data: &[u8], w: usize, h: usize) -> Result<(Bitmap, usize), String> {

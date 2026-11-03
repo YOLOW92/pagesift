@@ -55,6 +55,32 @@ pub const TARGETS: &[Target] = &[
         max_len: 1 << 20,
         timeout: Duration::from_secs(5),
     },
+    Target {
+        name: "jbig2",
+        run: jbig2,
+        dict: JBIG2_DICT,
+        max_len: 1 << 20,
+        timeout: Duration::from_secs(5),
+    },
+];
+
+/// JBIG2 段头的常见片段（T.88 §7.2、表 2）：各段类型的标志字节配上短格式引用和 1 字节页关联、
+/// 文件头 ID、MQ 码流里的标记、页尺寸未知。
+const JBIG2_DICT: &[&[u8]] = &[
+    b"\x00\x00\x00\x00\x30\x00\x01",
+    b"\x00\x00\x00\x01\x00\x00\x01",
+    b"\x00\x00\x00\x02\x06\x20\x01",
+    b"\x00\x00\x00\x02\x26\x00\x01",
+    b"\x00\x00\x00\x02\x27\x00\x01",
+    b"\x00\x00\x00\x02\x2a\x00\x01",
+    b"\x00\x00\x00\x02\x10\x00\x01",
+    b"\x00\x00\x00\x02\x16\x20\x01",
+    b"\x00\x00\x00\x02\x35\x00\x01",
+    b"\x00\x00\x00\x03\x32\x00\x01",
+    b"\x97JB2\r\n\x1a\n",
+    b"\xff\xac",
+    b"\xff\xff\xff\xff",
+    b"\x00\x00\x00\x00",
 ];
 
 /// CCITT 码（T.4 表 2–4）：EOL、EOFB、各二维模式码、长的组合码，按字节对齐放。
@@ -430,6 +456,17 @@ fn ccitt(data: &[u8], iter: u64) {
     let _ = std::hint::black_box(pagesift_pdf::fuzzing::decode_ccitt(
         data, k, cols, rows, black1, align,
     ));
+}
+
+fn jbig2(data: &[u8], iter: u64) {
+    // 偶尔把输入切成全局段和页段两份（PDF 的 /JBIG2Globals）
+    let (g, page) = if iter.is_multiple_of(4) && data.len() > 1 {
+        let at = (iter / 4) as usize % data.len();
+        (Some(&data[..at]), &data[at..])
+    } else {
+        (None, data)
+    };
+    let _ = std::hint::black_box(pagesift_pdf::fuzzing::decode_jbig2(page, g));
 }
 
 fn jpeg(data: &[u8], iter: u64) {

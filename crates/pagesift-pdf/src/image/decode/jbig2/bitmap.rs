@@ -74,7 +74,10 @@ impl Bitmap {
     /// 全部填 `fill`（0 或 1）。超过本次解码的分配上限时报错。
     pub(super) fn new(w: usize, h: usize, fill: u8) -> Result<Bitmap, String> {
         let n = w.checked_mul(h).ok_or("位图尺寸溢出")?;
-        charge(n).map_err(|e| format!("{w}×{h} 的位图：{e}"))?;
+        // 宽或高为 0 的位图按 1 计：不占内存，但逐行逐列的循环也要受上限约束
+        // （宽 0、高 10 亿行的区域能让解码器空转 10 亿次）
+        let cost = w.max(1).checked_mul(h.max(1)).ok_or("位图尺寸溢出")?;
+        charge(cost).map_err(|e| format!("{w}×{h} 的位图：{e}"))?;
         Ok(Bitmap {
             w,
             h,
