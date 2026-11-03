@@ -66,7 +66,7 @@ impl Scraper {
         ScraperBuilder { config }
     }
 
-    /// 输出阶段的钩子由写结果的一方调用（CLI 的输出、绑定的批量接口）。
+    /// 输出阶段的钩子由写结果的一方调用：Rust 用户在自己写结果的地方调；内置入口里只有 CLI 的 crawl 调用。
     pub fn hooks(&self) -> &pagesift_hooks::Hooks {
         &self.hooks
     }

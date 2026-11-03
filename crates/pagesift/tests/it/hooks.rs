@@ -146,6 +146,13 @@ async fn rules_from_toml_set_headers_and_drop_fields() {
     assert!(d.links.is_none());
     let other = s.scrape(&format!("{base}/blog"), &o).await.unwrap();
     assert!(!other.markdown.unwrap().contains("language de"));
+    for bad in [
+        "[[rules]]\ninclude_tags = [\"a[\"]",
+        "[[rules]]\nschema = { name = \"t\", baseSelector = \"li\", fields = [{ name = \"a\", selector = \"b\", type = \"nope\" }] }",
+    ] {
+        let config: pagesift::config::Config = toml::from_str(bad).unwrap();
+        assert!(config.scraper(false).is_err(), "{bad}");
+    }
     assert!(toml::from_str::<pagesift::config::Config>("[[rules]]\nheadrs = {}").is_err());
     s.shutdown().await;
 }

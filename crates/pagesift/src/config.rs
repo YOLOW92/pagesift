@@ -440,6 +440,7 @@ impl Config {
 
     /// 组装引擎配置；`with_cache` 为 true 且配置没有关掉缓存时打开存储。
     pub fn scraper(&self, with_cache: bool) -> Result<ScraperConfig> {
+        check_rules(&self.rules)?;
         let mut c = ScraperConfig {
             audit: self.open_audit()?,
             hooks: pagesift_hooks::rules::compile(&self.rules).map_err(anyhow::Error::msg)?,
@@ -643,6 +644,19 @@ impl Config {
         };
         Ok(backend)
     }
+}
+
+/// 规则里的选择器和 schema 写错时启动就报错，不等第一个匹配的请求才暴露。
+fn check_rules(rules: &[pagesift_hooks::rules::Rule]) -> Result<()> {
+    for r in rules {
+        pagesift_content::TagFilter::new(&r.include_tags, &r.exclude_tags)
+            .map_err(|e| anyhow::anyhow!("rules: {e}"))?;
+        if let Some(schema) = &r.schema {
+            pagesift_extract::Schema::from_json(schema)
+                .map_err(|e| anyhow::anyhow!("rules: schema: {e}"))?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
