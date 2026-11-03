@@ -73,6 +73,10 @@ async fn site() -> Site {
     cfg.fetcher.ssrf.allow_private_network = true;
     cfg.policy.rate.default_interval = Duration::from_millis(1);
     cfg.search = Some(Arc::new(OneHit(format!("{base}/page"))));
+    // 不启动真实浏览器：这些测试只测请求头映射；路由销毁时不会关闭浏览器池，起了的浏览器会留下来
+    cfg.browser.source =
+        pagesift_cdp::BrowserSource::Executable("/nonexistent/pagesift-no-browser".into());
+    cfg.browser.args_override = Some(vec!["--headless".into()]);
     let scraper = Arc::new(Scraper::new(cfg).unwrap());
     let api = pagesift_api::router(scraper, pagesift_api::Config::default());
     Site { base, api }
