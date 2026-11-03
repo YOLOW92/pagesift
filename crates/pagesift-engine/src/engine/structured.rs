@@ -95,7 +95,8 @@ impl Scraper {
         let intent = super::autoschema::intent_of(opts);
         let parsed = parse_format(opts)?;
         if parsed.is_none() && intent.is_none() {
-            return self.scrape_content(source, opts).await;
+            // 装箱截断 future 的类型嵌套（爬取、绑定里的 async 块层数多，编译器的布局查询会超深度）
+            return Box::pin(self.scrape_content(source, opts)).await;
         }
         let site = match &source {
             Source::Url(url, _) => url::Url::parse(url)
@@ -109,7 +110,7 @@ impl Scraper {
         if !wants_raw {
             inner.formats.push(Format::new("rawHtml"));
         }
-        let mut doc = self.scrape_content(source, &inner).await?;
+        let mut doc = Box::pin(self.scrape_content(source, &inner)).await?;
         let html = if wants_raw {
             doc.raw_html.clone()
         } else {

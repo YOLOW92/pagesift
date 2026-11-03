@@ -19,7 +19,7 @@ impl Scraper {
         let (url, mode) = match source {
             Source::Url(url, mode) => (url.to_string(), mode),
             Source::Upload(_) => {
-                let doc = self.scrape_plain(source, opts).await?;
+                let doc = Box::pin(self.scrape_plain(source, opts)).await?;
                 let name = doc.metadata.source_url.clone().unwrap_or_default();
                 return Ok(self.hooks.run_document(&name, doc));
             }
@@ -36,16 +36,14 @@ impl Scraper {
                     format!("skipped by a request hook: {why}"),
                 )
             })?;
-        let mut doc = self
-            .scrape_plain(Source::Url(&req.url, mode), &req.options)
-            .await?;
+        let mut doc =
+            Box::pin(self.scrape_plain(Source::Url(&req.url, mode), &req.options)).await?;
         match self.hooks.run_response(&req.url, &doc) {
             Verdict::Keep => {}
             // 只重试一次：钩子再要求重试也照用第二次的结果
             Verdict::Retry => {
-                doc = self
-                    .scrape_plain(Source::Url(&req.url, mode), &req.options)
-                    .await?;
+                doc =
+                    Box::pin(self.scrape_plain(Source::Url(&req.url, mode), &req.options)).await?;
             }
             Verdict::Drop(why) => {
                 return Err(ApiError::new(
