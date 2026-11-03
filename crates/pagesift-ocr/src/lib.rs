@@ -6,6 +6,7 @@
 //! [`rec::Rec::recognize`] 得到文字和置信度。
 
 pub mod det;
+pub mod formula_enc;
 pub mod lcnet;
 pub mod models;
 pub mod pipeline;
