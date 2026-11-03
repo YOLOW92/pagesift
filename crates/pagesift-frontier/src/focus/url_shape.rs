@@ -122,3 +122,31 @@ pub(super) fn locator(url: &Url) -> String {
     }
     s
 }
+
+/// 网址的“形状”：同一模板生成的页面（`/item/123`、`/item/456`）形状相同。路径段全是数字的写成
+/// `{n}`，含数字的写成 `{id}`，其余照原样；查询串只留参数名（排序）。结构化抽取缓存 LLM 生成的
+/// schema 时用它作键的一部分（0.97）。
+pub fn shape(url: &Url) -> String {
+    let mut out = String::new();
+    for seg in url.path().split('/').filter(|s| !s.is_empty()) {
+        out.push('/');
+        if seg.bytes().all(|b| b.is_ascii_digit()) {
+            out.push_str("{n}");
+        } else if seg.bytes().any(|b| b.is_ascii_digit()) {
+            out.push_str("{id}");
+        } else {
+            out.push_str(seg);
+        }
+    }
+    let mut keys: Vec<String> = url.query_pairs().map(|(k, _)| k.into_owned()).collect();
+    keys.sort();
+    keys.dedup();
+    if !keys.is_empty() {
+        out.push('?');
+        out.push_str(&keys.join("&"));
+    }
+    if out.is_empty() {
+        out.push('/');
+    }
+    out
+}

@@ -1,0 +1,178 @@
+[
+ {
+  "url": "https://books.toscrape.com/",
+  "intent": "book titles and prices",
+  "first": {
+   "items": 20,
+   "fields": [
+    "price",
+    "title"
+   ],
+   "filled": 0.5,
+   "calls": 1,
+   "tokens": 1216,
+   "seconds": 3.4,
+   "schema": [
+    "extract_schema: generated"
+   ],
+   "sample": [
+    {
+     "price": "\u00a351.77",
+     "title": ""
+    },
+    {
+     "price": "\u00a353.74",
+     "title": ""
+    }
+   ]
+  },
+  "repeat": {
+   "items": 20,
+   "fields": [
+    "price",
+    "title"
+   ],
+   "filled": 0.5,
+   "calls": 0,
+   "tokens": 0,
+   "seconds": 0.2,
+   "schema": [
+    "extract_schema: cached"
+   ],
+   "sample": [
+    {
+     "price": "\u00a351.77",
+     "title": ""
+    },
+    {
+     "price": "\u00a353.74",
+     "title": ""
+    }
+   ]
+  }
+ },
+ {
+  "url": "https://quotes.toscrape.com/",
+  "intent": "quote text and author",
+  "first": {
+   "items": 10,
+   "fields": [
+    "author",
+    "quote"
+   ],
+   "filled": 1.0,
+   "calls": 1,
+   "tokens": 1034,
+   "seconds": 1.7,
+   "schema": [
+    "extract_schema: generated"
+   ],
+   "sample": [
+    {
+     "author": "Albert Einstein",
+     "quote": "\u201cThe world as we have created it is a process of our thinking. It cannot be changed without changing our thinking.\u201d"
+    },
+    {
+     "author": "J.K. Rowling",
+     "quote": "\u201cIt is our choices, Harry, that show what we truly are, far more than our abilities.\u201d"
+    }
+   ]
+  },
+  "repeat": {
+   "items": 10,
+   "fields": [
+    "author",
+    "quote"
+   ],
+   "filled": 1.0,
+   "calls": 0,
+   "tokens": 0,
+   "seconds": 0.2,
+   "schema": [
+    "extract_schema: cached"
+   ],
+   "sample": [
+    {
+     "author": "Albert Einstein",
+     "quote": "\u201cThe world as we have created it is a process of our thinking. It cannot be changed without changing our thinking.\u201d"
+    },
+    {
+     "author": "J.K. Rowling",
+     "quote": "\u201cIt is our choices, Harry, that show what we truly are, far more than our abilities.\u201d"
+    }
+   ]
+  }
+ },
+ {
+  "url": "https://news.ycombinator.com/",
+  "intent": "story titles and their links",
+  "first": {
+   "items": 30,
+   "fields": [
+    "link",
+    "title"
+   ],
+   "filled": 1.0,
+   "calls": 1,
+   "tokens": 1442,
+   "seconds": 27.0,
+   "schema": [
+    "extract_schema: generated"
+   ],
+   "sample": [
+    {
+     "link": "https://rikiyat.github.io/blog/weight-space-programming/",
+     "title": "Astra can read and write weights to improve Qwen"
+    },
+    {
+     "link": "https://github.com/NVIDIA/auto-ontology",
+     "title": "Nvidia \u2013 open-source auto-ontology"
+    }
+   ]
+  },
+  "repeat": {
+   "items": 30,
+   "fields": [
+    "link",
+    "title"
+   ],
+   "filled": 1.0,
+   "calls": 0,
+   "tokens": 0,
+   "seconds": 4.0,
+   "schema": [
+    "extract_schema: cached"
+   ],
+   "sample": [
+    {
+     "link": "https://rikiyat.github.io/blog/weight-space-programming/",
+     "title": "Astra can read and write weights to improve Qwen"
+    },
+    {
+     "link": "https://github.com/NVIDIA/auto-ontology",
+     "title": "Nvidia \u2013 open-source auto-ontology"
+    }
+   ]
+  }
+ },
+ {
+  "url": "https://en.wikipedia.org/wiki/Rust_(programming_language)",
+  "intent": "release versions and dates from the infobox",
+  "first": {
+   "error": "HTTP Error 502: Bad Gateway"
+  },
+  "repeat": {
+   "error": "HTTP Error 502: Bad Gateway"
+  }
+ },
+ {
+  "url": "https://www.python.org/",
+  "intent": "upcoming events with dates",
+  "first": {
+   "error": "HTTP Error 502: Bad Gateway"
+  },
+  "repeat": {
+   "error": "HTTP Error 502: Bad Gateway"
+  }
+ }
+]

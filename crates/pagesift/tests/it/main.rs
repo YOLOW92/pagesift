@@ -6,6 +6,7 @@
 mod common;
 
 mod ai_content;
+mod autoschema;
 mod cli_fetch;
 mod cli_pipe;
 mod cli_signals;

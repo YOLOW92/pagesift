@@ -46,6 +46,7 @@ impl Scraper {
             store: config.store,
             audit: config.audit,
             hooks: config.hooks,
+            secrets: config.secrets,
             llm,
             search: config.search,
             browsers: {

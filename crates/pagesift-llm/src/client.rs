@@ -48,7 +48,8 @@ impl LlmConfig {
             timeout: Duration::from_secs(60),
             max_retries: 2,
             retry_backoff: Duration::from_millis(500),
-            max_retry_wait: Duration::from_secs(30),
+            // [协议] 服务的 token 限额按分钟计（`x-ratelimit-*-tokens`）：60 秒内必然恢复，等满一个窗口
+            max_retry_wait: Duration::from_secs(60),
             schema_mode: SchemaMode::Auto,
         }
     }
@@ -101,6 +102,8 @@ pub struct ChatResponse {
 pub struct ChatClient {
     http: reqwest::Client,
     config: LlmConfig,
+    /// 服务在响应头里报的每分钟 token 限额（`x-ratelimit-limit-tokens`，OpenAI、Groq 都给）。
+    token_limit: std::sync::Arc<std::sync::atomic::AtomicUsize>,
 }
 
 impl ChatClient {
@@ -115,7 +118,11 @@ impl ChatClient {
             .timeout(config.timeout)
             .build()
             .map_err(|e| LlmError::Config(e.to_string()))?;
-        Ok(Self { http, config })
+        Ok(Self {
+            http,
+            config,
+            token_limit: Default::default(),
+        })
     }
 
     pub fn config(&self) -> &LlmConfig {
@@ -150,6 +157,41 @@ impl ChatClient {
     }
 
     /// 发送请求；429 和 5xx 按 Retry-After（缺省用指数退避）有限次重试。
+    /// 每分钟 token 限额（还没见过响应头时发一个 1 token 的探测请求读出来）；服务不报时 `None`。
+    pub async fn token_rate_limit(&self) -> Option<usize> {
+        use std::sync::atomic::Ordering;
+        let n = self.token_limit.load(Ordering::Relaxed);
+        if n > 0 {
+            return Some(n);
+        }
+        let probe = ChatRequest {
+            messages: vec![ChatMessage::new(Role::User, "ok")],
+            max_tokens: Some(1),
+            ..Default::default()
+        };
+        let _ = self.chat(&probe).await;
+        let n = self.token_limit.load(Ordering::Relaxed);
+        (n > 0).then_some(n)
+    }
+
+    /// 模型的上下文长度和输出上限（OpenAI 兼容服务的 `GET /models/{model}`，Groq 等会给
+    /// `context_window`、`max_completion_tokens`）；服务不给时返回 `None`。
+    pub async fn model_limits(&self) -> Option<(usize, Option<usize>)> {
+        let url = format!(
+            "{}/models/{}",
+            self.config.base_url.trim_end_matches('/'),
+            self.config.model
+        );
+        let mut req = self.http.get(&url);
+        if let Some(k) = &self.config.api_key {
+            req = req.bearer_auth(k);
+        }
+        let v: serde_json::Value =
+            serde_json::from_str(&req.send().await.ok()?.text().await.ok()?).ok()?;
+        let ctx = v["context_window"].as_u64()? as usize;
+        Some((ctx, v["max_completion_tokens"].as_u64().map(|n| n as usize)))
+    }
+
     pub async fn chat(&self, req: &ChatRequest) -> Result<ChatResponse> {
         let url = format!(
             "{}/chat/completions",
@@ -199,6 +241,15 @@ impl ChatClient {
             rb = rb.header(AUTHORIZATION, format!("Bearer {key}"));
         }
         let resp = rb.send().await.map_err(|e| (map_transport(e), None))?;
+        if let Some(n) = resp
+            .headers()
+            .get("x-ratelimit-limit-tokens")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.parse::<usize>().ok())
+        {
+            self.token_limit
+                .store(n, std::sync::atomic::Ordering::Relaxed);
+        }
         let status = resp.status();
         let retry_after = resp
             .headers()

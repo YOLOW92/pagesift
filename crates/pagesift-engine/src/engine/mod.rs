@@ -17,6 +17,7 @@ use pagesift_net::{FetchRequest, Fetcher, FetcherConfig, Url};
 use pagesift_policy::{Policy, PolicyConfig, RequestKind, RobotsMode};
 use tokio::sync::OnceCell;
 
+mod autoschema;
 mod cache;
 mod cpu;
 mod csv_text;
@@ -122,6 +123,8 @@ pub struct ScraperConfig {
     pub audit: Option<Arc<crate::audit::Audit>>,
     /// 扩展点（`pagesift_hooks`）：代码注册的钩子和 `[[rules]]` 编译出的规则。空时不经过任何钩子。
     pub hooks: pagesift_hooks::Hooks,
+    /// `[secrets]`：act 动作里 `{{secret:NAME}}` 在本地替换成的值（不经过模型）。
+    pub secrets: std::collections::BTreeMap<String, String>,
 }
 
 /// 创建 [`Scraper`] 失败：网络层或 LLM 客户端的配置不对。
@@ -178,6 +181,7 @@ pub struct Scraper {
     render_stats: render_stats::RenderStats,
     audit: Option<Arc<crate::audit::Audit>>,
     hooks: pagesift_hooks::Hooks,
+    secrets: std::collections::BTreeMap<String, String>,
     /// 多服务器网关：爬取里的页面交给它（工人执行，见 `pagesift` 的 `cluster` 模块）。单主机不设，路径不变。
     pages: std::sync::OnceLock<Arc<dyn crate::PageRunner>>,
 }

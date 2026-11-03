@@ -15,6 +15,7 @@ mod harvest;
 mod model;
 mod queue;
 mod url_shape;
+pub use url_shape::shape as url_shape;
 mod weights;
 
 pub use adaptive::{Adaptive, MIN_RELEVANCE};

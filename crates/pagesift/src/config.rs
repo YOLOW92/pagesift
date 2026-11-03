@@ -31,6 +31,10 @@ pub struct Config {
     /// `[[rules]]`：按主机和路径匹配的抓取规则，启动时编译成钩子（`pagesift_hooks::rules`）。
     #[serde(default)]
     pub rules: Vec<pagesift_hooks::rules::Rule>,
+    /// `[secrets]`：`NAME = { env = "VAR" }`，act 动作里的 `{{secret:NAME}}` 在本地换成它（不经过模型）。
+    /// （`[[credentials]]` 是另一回事：按主机下发的授权凭证。）
+    #[serde(default)]
+    pub secrets: std::collections::BTreeMap<String, SecretValue>,
     #[serde(default)]
     pub fetch: Fetch,
     #[serde(default)]
@@ -544,6 +548,12 @@ impl Config {
                 lc.timeout = Duration::from_secs(t);
             }
             c.llm = Some(lc);
+        }
+        for (name, v) in &self.secrets {
+            c.secrets.insert(
+                name.clone(),
+                v.resolve().with_context(|| format!("secrets.{name}"))?,
+            );
         }
         if let Some(s) = &self.search {
             c.search = Some(self.search_backend(s)?);
