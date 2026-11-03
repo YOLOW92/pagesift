@@ -112,6 +112,7 @@ pub fn scrape_options_schema(caps: &Capabilities) -> Value {
                         "direction": { "type": "string", "enum": ["up", "down"] },
                         "script": { "type": "string" },
                         "fullPage": { "type": "boolean" },
+                        // [协议] JPEG 质量 1–100（CDP Page.captureScreenshot 的 quality）
                         "quality": { "type": "integer", "minimum": 1, "maximum": 100 },
                         "viewport": {
                             "type": "object",

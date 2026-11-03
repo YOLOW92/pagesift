@@ -108,6 +108,7 @@ pub fn ignored_warning(ignored: &[String]) -> Option<String> {
 }
 
 /// 单页抓取请求（`url` 加 `ScrapeOptions` 的全部字段）认得的字段。
+// [推导] 三组：url、ScrapeOptions 的字段、客户端身份
 pub fn scrape_request() -> [&'static [&'static str]; 3] {
     [
         &["url"],
