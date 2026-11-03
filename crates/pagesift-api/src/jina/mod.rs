@@ -104,7 +104,6 @@ mod tests {
             title: Some("T".into()),
             markdown: Some("# A\n\nB".into()),
             gate: Some(gate.clone()),
-            ..FakeEngine::open()
         };
         let app = crate::router(std::sync::Arc::new(engine), crate::Config::default());
         let open = gate.clone();

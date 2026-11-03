@@ -58,8 +58,11 @@ fn remove(d: &Disk, id: &str) {
     }
 }
 
+/// （键，值）。
+type Kv = (String, Vec<u8>);
+
 /// 存储里的全部附件：（（内容键，内容），（到期键，到期时刻））。快照用。
-pub(crate) fn stored(t: &pagesift_store::Tasks<'_>) -> Vec<((String, Vec<u8>), (String, Vec<u8>))> {
+pub(crate) fn stored(t: &pagesift_store::Tasks<'_>) -> Vec<(Kv, Kv)> {
     let mut out = Vec::new();
     for k in t.kv_keys("attachment-exp/").unwrap_or_default() {
         let Ok(k) = String::from_utf8(k) else {

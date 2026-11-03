@@ -6,8 +6,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 fn policy() -> Policy {
-    let mut fc = FetcherConfig::default();
-    fc.env_proxy = false; // 不让机器上的代理改道本地测试
+    // 不让机器上的代理改道本地测试
+    let mut fc = FetcherConfig {
+        env_proxy: false,
+        ..Default::default()
+    };
     fc.ssrf.allow_private_network = true;
     let mut pc = PolicyConfig::default();
     pc.rate.default_interval = Duration::ZERO;

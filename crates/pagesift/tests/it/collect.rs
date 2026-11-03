@@ -51,8 +51,11 @@ async fn wordpress_http_checkpoint_update_delete_and_robots() -> anyhow::Result<
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
     let origin = format!("http://{}", listener.local_addr()?);
     let server = tokio::spawn(async { axum::serve(listener, app).await.unwrap() });
-    let mut config = FetcherConfig::default();
-    config.env_proxy = false; // 不让机器上的代理改道本地测试
+    // 不让机器上的代理改道本地测试
+    let mut config = FetcherConfig {
+        env_proxy: false,
+        ..Default::default()
+    };
     config.ssrf.allow_private_network = true;
     let mut pc = PolicyConfig::default();
     pc.rate.default_interval = std::time::Duration::from_millis(1);
