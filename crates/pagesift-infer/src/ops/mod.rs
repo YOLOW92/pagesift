@@ -10,7 +10,7 @@ mod reference;
 #[cfg(test)]
 mod tests;
 
-use crate::Tensor;
+use crate::{Tensor, par};
 
 /// 二维卷积（`F.conv2d`）。`x` 是 `[C, H, W]`，`w` 是 `[O, C/groups, kh, kw]`；
 /// `pad` 是上下、左右各补的 0，`stride`、`dilation` 按 (行, 列)。
@@ -71,7 +71,6 @@ pub fn pad_right_bottom(x: &Tensor, right: usize, bottom: usize) -> Tensor {
     Tensor::new(vec![c, nh, nw], out)
 }
 
-
 /// 最大池化（`F.max_pool2d`，无补边）。`ceil_mode` 为真时输出尺寸向上取整，越界的窗口只取界内。
 pub fn max_pool2d(
     x: &Tensor,
@@ -91,18 +90,30 @@ pub fn max_pool2d(
     };
     let (oh, ow) = (size(h, k.0, stride.0), size(w, k.1, stride.1));
     let mut out = vec![f32::NEG_INFINITY; c * oh * ow];
-    // 逐个输出：扫窗口与输入相交的部分，每行是一段连续切片
-    for (i, o) in out.iter_mut().enumerate() {
-        let (ch, oy, ox) = (i / (oh * ow), i / ow % oh, i % ow);
-        let (y0, x0) = (oy * stride.0, ox * stride.1);
-        let (y1, x1) = ((y0 + k.0).min(h), (x0 + k.1).min(w));
-        for iy in y0..y1 {
-            let row = &x.data[(ch * h + iy) * w..(ch * h + iy) * w + x1];
-            for &v in &row[x0..] {
-                *o = o.max(v);
+    let threads = par::threads_for(out.len() * k.0 * k.1, c);
+    // 按通道多线程；每个输出行对窗口里的每个 (ky, kx) 扫一遍输入行，步长为 1 时是连续切片
+    par::for_chunks_mut(&mut out, oh * ow, threads, |ch, plane| {
+        let xc = &x.data[ch * h * w..(ch + 1) * h * w];
+        for (oy, orow) in plane.chunks_exact_mut(ow).enumerate() {
+            let y0 = oy * stride.0;
+            for iy in y0..(y0 + k.0).min(h) {
+                let irow = &xc[iy * w..(iy + 1) * w];
+                for kx in 0..k.1.min(w) {
+                    // 满足 ox·s + kx < w 的输出列数
+                    let n = ((w - 1 - kx) / stride.1 + 1).min(ow);
+                    if stride.1 == 1 {
+                        for (o, &v) in orow[..n].iter_mut().zip(&irow[kx..kx + n]) {
+                            *o = o.max(v);
+                        }
+                    } else {
+                        for (ox, o) in orow[..n].iter_mut().enumerate() {
+                            *o = o.max(irow[ox * stride.1 + kx]);
+                        }
+                    }
+                }
             }
         }
-    }
+    });
     Tensor::new(vec![c, oh, ow], out)
 }
 
@@ -111,17 +122,21 @@ pub fn avg_pool2d(x: &Tensor, k: (usize, usize)) -> Tensor {
     let (c, h, w) = x.chw();
     let (oh, ow) = (h / k.0, w / k.1);
     let n = (k.0 * k.1) as f32;
-    let mut out = vec![0f32; c * oh * ow];
-    for (i, o) in out.iter_mut().enumerate() {
-        let (ch, oy, ox) = (i / (oh * ow), i / ow % oh, i % ow);
-        let mut s = 0f32;
-        for ky in 0..k.0 {
-            let at = (ch * h + oy * k.0 + ky) * w + ox * k.1;
-            for &v in &x.data[at..at + k.1] {
-                s += v;
+    let mut out = Vec::with_capacity(c * oh * ow);
+    // 逐通道、逐输出行，下标按行递推，免去每个元素的除法
+    for ch in 0..c {
+        for oy in 0..oh {
+            for ox in 0..ow {
+                let mut s = 0f32;
+                for ky in 0..k.0 {
+                    let at = (ch * h + oy * k.0 + ky) * w + ox * k.1;
+                    for &v in &x.data[at..at + k.1] {
+                        s += v;
+                    }
+                }
+                out.push(s / n);
             }
         }
-        *o = s / n;
     }
     Tensor::new(vec![c, oh, ow], out)
 }
@@ -149,7 +164,7 @@ pub fn scale_channels(x: &mut Tensor, s: &[f32]) {
 /// 按通道拼接（`torch.cat(dim=0)`，各张量的 H、W 相同）。
 pub fn concat_channels(xs: &[&Tensor]) -> Tensor {
     let (_, h, w) = xs[0].chw();
-    let mut data = Vec::new();
+    let mut data = Vec::with_capacity(xs.iter().map(|x| x.data.len()).sum());
     let mut c = 0;
     for x in xs {
         let (xc, xh, xw) = x.chw();
@@ -166,7 +181,6 @@ pub fn add(a: &Tensor, b: &Tensor) -> Tensor {
     let data = a.data.iter().zip(&b.data).map(|(x, y)| x + y).collect();
     Tensor::new(a.shape.clone(), data)
 }
-
 
 /// 最近邻插值到 `oh × ow`（`F.interpolate(mode="nearest")`：源坐标 = ⌊目标坐标 · 输入/输出⌋）。
 pub fn interpolate_nearest(x: &Tensor, oh: usize, ow: usize) -> Tensor {
@@ -191,7 +205,10 @@ pub fn matmul(a: &Tensor, b: &Tensor) -> Tensor {
     let (m, k) = a.tc();
     let (kb, n) = b.tc();
     assert_eq!(k, kb, "矩阵乘的内维不同");
-    Tensor::new(vec![m, n], gemm::gemm_new((m, n, k), &a.data, k, &b.data, n, None))
+    Tensor::new(
+        vec![m, n],
+        gemm::gemm_new((m, n, k), &a.data, k, &b.data, n, None),
+    )
 }
 
 /// [推导] 转置的分块边长：源块、目标块各 32×32×4 B = 4 KB，合起来在 L1d（32 KB）里，

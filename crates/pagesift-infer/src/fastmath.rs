@@ -12,14 +12,15 @@ const ROUND_MAGIC: f32 = 12_582_912.0;
 /// [推导] ln2 拆成高低两段（Cody–Waite），高段尾数低位为 0，n·LN2_HI 精确
 const LN2_HI: f32 = 0.693_359_4;
 const LN2_LO: f32 = -2.121_944_4e-4;
-/// [协议] Cephes `expf` 在 |r| ≤ ln2/2 上的极小化多项式系数（从 r⁵ 到 r⁰ 的高次部分）
+/// [协议] Cephes `expf` 在 |r| ≤ ln2/2 上的极小化多项式系数（从 r⁵ 到 r⁰ 的高次部分）；
+/// 末项原文 5.0000001201e-1，在 f32 里就是 0.5
 const EXP_P: [f32; 6] = [
     1.987_569_1e-4,
     1.398_199_9e-3,
     8.333_452e-3,
     4.166_579_6e-2,
     1.666_666_5e-1,
-    5.000_000_1e-1,
+    0.5,
 ];
 /// [协议] IEEE 754 单精度：指数偏置 127，尾数 23 位
 const F32_BIAS: i32 = 127;
@@ -73,7 +74,11 @@ pub(crate) fn gelu(x: f32) -> f32 {
     let t = 1.0 / (1.0 + P * z);
     let poly = t * (A[0] + t * (A[1] + t * (A[2] + t * (A[3] + t * A[4]))));
     let erfc = poly * exp(-z * z);
-    let phi = if x >= 0.0 { 1.0 - 0.5 * erfc } else { 0.5 * erfc };
+    let phi = if x >= 0.0 {
+        1.0 - 0.5 * erfc
+    } else {
+        0.5 * erfc
+    };
     x * phi
 }
 

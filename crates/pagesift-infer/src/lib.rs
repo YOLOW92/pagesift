@@ -6,8 +6,8 @@
 
 mod fastmath;
 mod nn;
-mod par;
 pub mod ops;
+mod par;
 mod safetensors;
 
 pub use nn::{Activation, BN_EPS, BatchNorm, Conv2d, ConvTranspose2d, LayerNorm, Linear, erf};

@@ -17,7 +17,9 @@ pub(crate) fn max_threads() -> usize {
 
 /// 工作量 `work`（约等于乘加次数）、最多能分成 `items` 份时该开几个线程（含当前线程）。
 pub(crate) fn threads_for(work: usize, items: usize) -> usize {
-    (work / MIN_WORK_PER_THREAD).clamp(1, max_threads()).min(items.max(1))
+    (work / MIN_WORK_PER_THREAD)
+        .clamp(1, max_threads())
+        .min(items.max(1))
 }
 
 /// 跨线程传可写指针。调用方保证各线程写的位置互不重叠，且指针在 scope 结束前有效。
@@ -85,6 +87,9 @@ pub(crate) fn for_each<S>(
     std::thread::scope(|sc| fan_out(sc, 0, threads, &work));
 }
 
+/// 一段：(段号, 段)。
+type Part<'a> = (usize, &'a mut [f32]);
+
 /// 把 `data` 按 `chunk` 个元素一段切开，连续的若干段归一组，每组交给一个线程；`f(段号, 段)`。
 /// 各段工作量相近时用它。
 pub(crate) fn for_chunks_mut(
@@ -93,7 +98,7 @@ pub(crate) fn for_chunks_mut(
     threads: usize,
     f: impl Fn(usize, &mut [f32]) + Sync,
 ) {
-    let mut parts: Vec<(usize, &mut [f32])> = data.chunks_mut(chunk.max(1)).enumerate().collect();
+    let mut parts: Vec<Part> = data.chunks_mut(chunk.max(1)).enumerate().collect();
     let threads = threads.min(parts.len());
     if threads <= 1 {
         for (i, s) in parts {
@@ -103,8 +108,7 @@ pub(crate) fn for_chunks_mut(
     }
     let per = parts.len().div_ceil(threads);
     // 每组一把锁只是为了把可变借用安全地交给领到它的线程，不会有争用
-    let groups: Vec<Mutex<&mut [(usize, &mut [f32])]>> =
-        parts.chunks_mut(per).map(Mutex::new).collect();
+    let groups: Vec<Mutex<&mut [Part]>> = parts.chunks_mut(per).map(Mutex::new).collect();
     for_each(
         groups.len(),
         threads,

@@ -73,7 +73,16 @@ fn conv2d_matches_reference() {
         ((4, 9, 10), 8, 4, (3, 3), (1, 1), (1, 1), (1, 1), true),
         ((1, 9, 10), 4, 1, (3, 3), (1, 1), (1, 1), (1, 1), true),
         ((8, 2, 2), 8, 8, (3, 3), (1, 1), (1, 1), (1, 1), true),
-        ((256, 64, 64), 256, 256, (3, 3), (1, 1), (1, 1), (1, 1), true),
+        (
+            (256, 64, 64),
+            256,
+            256,
+            (3, 3),
+            (1, 1),
+            (1, 1),
+            (1, 1),
+            true,
+        ),
         // 普通卷积：im2col + 矩阵乘
         ((5, 9, 11), 7, 1, (3, 3), (1, 1), (1, 1), (1, 1), true),
         ((5, 9, 11), 7, 1, (3, 3), (2, 2), (1, 1), (1, 1), true),
@@ -107,7 +116,13 @@ fn conv2d_matches_reference() {
 #[test]
 fn conv_transpose2d_matches_reference() {
     // (输入 C、H、W)、输出通道、核、步长、补边
-    type Case = ((usize, usize, usize), usize, (usize, usize), (usize, usize), (usize, usize));
+    type Case = (
+        (usize, usize, usize),
+        usize,
+        (usize, usize),
+        (usize, usize),
+        (usize, usize),
+    );
     // [策略] 常见的 2×2/4×4 上采样、步长 1、非方形，最后一个够大会多线程
     let cases: &[Case] = &[
         ((6, 5, 7), 4, (2, 2), (2, 2), (0, 0)),
@@ -143,7 +158,11 @@ fn matmul_and_transpose_match_reference() {
         let b = r.tensor(vec![k, n]);
         let what = format!("matmul {m}×{k}·{k}×{n}");
         assert_close(&super::matmul(&a, &b), &reference::matmul(&a, &b), &what);
-        assert_eq!(super::transpose(&b), reference::transpose(&b), "transpose {k}×{n}");
+        assert_eq!(
+            super::transpose(&b),
+            reference::transpose(&b),
+            "transpose {k}×{n}"
+        );
     }
 }
 

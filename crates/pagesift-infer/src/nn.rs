@@ -134,11 +134,11 @@ impl Conv2d {
         let o = self.weight.shape[0];
         let per = self.weight.data.len() / o;
         let mut bias = self.bias.take().unwrap_or_else(|| vec![0.0; o]);
-        for oc in 0..o {
-            for v in &mut self.weight.data[oc * per..(oc + 1) * per] {
+        for (oc, (w, b)) in self.weight.data.chunks_mut(per).zip(&mut bias).enumerate() {
+            for v in w {
                 *v *= bn.scale[oc];
             }
-            bias[oc] = bias[oc] * bn.scale[oc] + bn.shift[oc];
+            *b = *b * bn.scale[oc] + bn.shift[oc];
         }
         self.bias = Some(bias);
     }
@@ -185,8 +185,8 @@ impl ConvTranspose2d {
             }
         }
         let mut bias = self.bias.take().unwrap_or_else(|| vec![0.0; o]);
-        for oc in 0..o {
-            bias[oc] = bias[oc] * bn.scale[oc] + bn.shift[oc];
+        for (b, (s, t)) in bias.iter_mut().zip(bn.scale.iter().zip(&bn.shift)) {
+            *b = *b * s + t;
         }
         self.bias = Some(bias);
     }

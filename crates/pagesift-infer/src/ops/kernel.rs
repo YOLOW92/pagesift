@@ -59,7 +59,7 @@ unsafe fn generic(
         )
     };
     let mut acc = [[0f32; NR]; MR];
-    for (ap, bp) in a.chunks_exact(MR).zip(b.chunks_exact(NR)) {
+    for (ap, bp) in a.as_chunks::<MR>().0.iter().zip(b.as_chunks::<NR>().0) {
         for (row, &av) in acc.iter_mut().zip(ap) {
             for (s, &bv) in row.iter_mut().zip(bp) {
                 *s += av * bv;

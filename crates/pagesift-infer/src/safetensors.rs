@@ -45,18 +45,24 @@ impl Weights {
             let values: Vec<f32> = match dtype {
                 // [协议] F32 是 4 字节小端 IEEE 754
                 "F32" => raw
-                    .chunks_exact(4)
-                    .map(|c| f32::from_le_bytes(c.try_into().unwrap()))
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .map(|&c| f32::from_le_bytes(c))
                     .collect(),
                 // [协议] F16、BF16 是 2 字节小端
                 "F16" => raw
-                    .chunks_exact(2)
-                    .map(|c| f16_to_f32(u16::from_le_bytes([c[0], c[1]])))
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|&c| f16_to_f32(u16::from_le_bytes(c)))
                     .collect(),
                 // [协议] BF16 是 f32 的高 16 位
                 "BF16" => raw
-                    .chunks_exact(2)
-                    .map(|c| f32::from_bits(u32::from(u16::from_le_bytes([c[0], c[1]])) << 16))
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|&c| f32::from_bits(u32::from(u16::from_le_bytes(c)) << 16))
                     .collect(),
                 _ => return Err(format!("{name}：不支持的 dtype {dtype}")),
             };

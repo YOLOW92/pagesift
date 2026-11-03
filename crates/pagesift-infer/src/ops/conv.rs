@@ -103,20 +103,25 @@ unsafe fn depthwise(
     let (kh, kw) = g.k;
     let plane = oh * ow;
     let threads = par::threads_for(o * plane * kh * kw, o);
-    par::for_each(o, threads, || (), |_, oc| {
-        let xc = &x.data[(oc / og) * h * wd..(oc / og + 1) * h * wd];
-        let wk = &w.data[oc * kh * kw..(oc + 1) * kh * kw];
-        let v = bias.map_or(0.0, |b| b[oc]);
-        // SAFETY：通道 oc 的平面只属于这一项；先逐个写入偏置，再当作已初始化的切片用
-        let dst = unsafe {
-            let p = out.get().add(oc * plane);
-            for i in 0..plane {
-                p.add(i).write(v);
-            }
-            std::slice::from_raw_parts_mut(p, plane)
-        };
-        depthwise_plane(xc, wk, g, dst);
-    });
+    par::for_each(
+        o,
+        threads,
+        || (),
+        |_, oc| {
+            let xc = &x.data[(oc / og) * h * wd..(oc / og + 1) * h * wd];
+            let wk = &w.data[oc * kh * kw..(oc + 1) * kh * kw];
+            let v = bias.map_or(0.0, |b| b[oc]);
+            // SAFETY：通道 oc 的平面只属于这一项；先逐个写入偏置，再当作已初始化的切片用
+            let dst = unsafe {
+                let p = out.get().add(oc * plane);
+                for i in 0..plane {
+                    p.add(i).write(v);
+                }
+                std::slice::from_raw_parts_mut(p, plane)
+            };
+            depthwise_plane(xc, wk, g, dst);
+        },
+    );
 }
 
 /// 单通道卷积：对每个输出行、每个核位置，把一段输入行乘权重加到输出行上。

@@ -36,7 +36,7 @@ pub(crate) enum Init<'a> {
 
 impl<'a> Init<'a> {
     /// 从第 `i0` 行开始的子块对应的初值。
-    fn from_row(self, i0: usize) -> Init<'a> {
+    fn rows_from(self, i0: usize) -> Init<'a> {
         match self {
             Init::Fill(Some(b)) => Init::Fill(Some(&b[i0..])),
             other => other,
@@ -179,7 +179,11 @@ unsafe fn gemm_tile(
 }
 
 /// 检查切片够长：A 是 m×k（行距 lda）、B 是 k×n（行距 ldb）。
-fn check_ab((m, n, k): (usize, usize, usize), (a, lda): (&[f32], usize), (b, ldb): (&[f32], usize)) {
+fn check_ab(
+    (m, n, k): (usize, usize, usize),
+    (a, lda): (&[f32], usize),
+    (b, ldb): (&[f32], usize),
+) {
     assert!(lda >= k && ldb >= n, "矩阵乘的行距小于列数");
     assert!(m == 0 || a.len() >= (m - 1) * lda + k, "矩阵乘的 A 太短");
     assert!(k == 0 || b.len() >= (k - 1) * ldb + n, "矩阵乘的 B 太短");
@@ -217,7 +221,7 @@ pub(crate) unsafe fn gemm_serial(
                     ldb,
                     c.add(i0 * ldc + j0),
                     ldc,
-                    init.from_row(i0),
+                    init.rows_from(i0),
                     s,
                 )
             };
@@ -281,7 +285,7 @@ pub(crate) unsafe fn gemm(
                 ldb,
                 cp.get().add(i0 * ldc + j0),
                 ldc,
-                init.from_row(i0),
+                init.rows_from(i0),
                 &mut s.packs,
             )
         };
@@ -304,7 +308,17 @@ pub(crate) fn gemm_new(
     let mut out = Vec::with_capacity(m * n);
     // SAFETY：容量 m·n，行距 n；Init::Fill 让每个元素先被写入，全部写完才 set_len
     unsafe {
-        gemm(kernel::best(), dims, a, lda, b, ldb, out.as_mut_ptr(), n, Init::Fill(bias));
+        gemm(
+            kernel::best(),
+            dims,
+            a,
+            lda,
+            b,
+            ldb,
+            out.as_mut_ptr(),
+            n,
+            Init::Fill(bias),
+        );
         out.set_len(m * n);
     }
     out
@@ -364,7 +378,17 @@ mod tests {
                     };
                     // SAFETY：got 有 m 行、行距 ldc，且已初始化
                     unsafe {
-                        gemm(kern, (m, n, k), &a, lda, &b, ldb, got.as_mut_ptr(), ldc, init)
+                        gemm(
+                            kern,
+                            (m, n, k),
+                            &a,
+                            lda,
+                            &b,
+                            ldb,
+                            got.as_mut_ptr(),
+                            ldc,
+                            init,
+                        )
                     };
                     for (idx, (g, w)) in got.iter().zip(&want).enumerate() {
                         // [策略] 相对误差 1e-4，量级不足 1 时按 1 算
