@@ -21,15 +21,19 @@ impl Tokenizer {
     pub fn from_json(j: &serde_json::Value) -> Result<Tokenizer, String> {
         let decoder = j["decoder"]["type"].as_str().unwrap_or("");
         if decoder != "ByteLevel" {
-            return Err(format!("不支持的解码器 {decoder:?}，只支持 ByteLevel"));
+            return Err(format!(
+                "unsupported decoder {decoder:?}, only ByteLevel is supported"
+            ));
         }
         let model = j["model"]["type"].as_str().unwrap_or("");
         if model != "BPE" {
-            return Err(format!("不支持的分词模型 {model:?}，只支持 BPE"));
+            return Err(format!(
+                "unsupported tokenizer model {model:?}, only BPE is supported"
+            ));
         }
         let vocab = j["model"]["vocab"]
             .as_object()
-            .ok_or("tokenizer.json 缺 model.vocab")?;
+            .ok_or("tokenizer.json has no model.vocab")?;
         let table = byte_table();
         let mut bytes: Vec<Option<Vec<u8>>> = Vec::new();
         let mut put = |id: usize, v: Option<Vec<u8>>| {
@@ -39,13 +43,17 @@ impl Tokenizer {
             bytes[id] = v;
         };
         for (tok, id) in vocab {
-            let id = id.as_u64().ok_or("词表 id 不是整数")? as usize;
+            let id = id.as_u64().ok_or("a vocabulary id is not an integer")? as usize;
             put(id, Some(token_bytes(tok, &table)));
         }
         // 追加的 token 覆盖词表里的同 id 项；特殊的解码时跳过
         for a in j["added_tokens"].as_array().into_iter().flatten() {
-            let id = a["id"].as_u64().ok_or("added_tokens 的 id 不是整数")? as usize;
-            let content = a["content"].as_str().ok_or("added_tokens 缺 content")?;
+            let id = a["id"]
+                .as_u64()
+                .ok_or("an added_tokens id is not an integer")? as usize;
+            let content = a["content"]
+                .as_str()
+                .ok_or("an added_tokens entry has no content")?;
             let special = a["special"].as_bool().unwrap_or(false);
             put(id, (!special).then(|| token_bytes(content, &table)));
         }

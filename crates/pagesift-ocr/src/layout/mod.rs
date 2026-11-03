@@ -85,7 +85,7 @@ impl Layout {
         let (q, classes) = raw.logits.tc();
         if classes != self.labels.len() {
             return Err(format!(
-                "模型输出 {classes} 类，配置里有 {} 类",
+                "the model outputs {classes} classes but the config has {}",
                 self.labels.len()
             ));
         }
@@ -116,14 +116,17 @@ impl Layout {
     /// 网络的原始输出（后处理之前），用来和参考实现逐数对照。
     pub fn raw(&self, img: &Image) -> Result<decoder::Raw, String> {
         if img.width == 0 || img.height == 0 {
-            return Err("图像为空".into());
+            return Err("empty image".into());
         }
         // [协议] `Image` 只有灰度（1）、RGB（3）两种
         if img.channels != 1 && img.channels != 3 {
-            return Err(format!("只支持灰度或 RGB 图，实际 {} 通道", img.channels));
+            return Err(format!(
+                "only grayscale or RGB images are supported, got {} channels",
+                img.channels
+            ));
         }
         if img.data.len() != img.width * img.height * img.channels {
-            return Err("图像数据长度与宽高不符".into());
+            return Err("image data length does not match its width and height".into());
         }
         let x = self.pre.run(img);
         let feats = self.backbone.forward(&x);

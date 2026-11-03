@@ -79,10 +79,13 @@ impl Det {
     /// 预处理整页图成网络输入 `[3, H, W]`。
     pub fn preprocess(&self, page: &Image) -> Result<Tensor, String> {
         if page.width == 0 || page.height == 0 {
-            return Err("图像为空".into());
+            return Err("empty image".into());
         }
         if page.channels != 1 && page.channels != 3 {
-            return Err(format!("只支持灰度或 RGB 图，实际 {} 通道", page.channels));
+            return Err(format!(
+                "only grayscale or RGB images are supported, got {} channels",
+                page.channels
+            ));
         }
         Ok(self.pre.run(page))
     }
@@ -98,7 +101,9 @@ impl Det {
         let prob = self.head.forward_on(e, &fused);
         let (got, want) = (e.shape(&prob), e.shape(x));
         if got[1..] != want[1..] {
-            return Err(format!("概率图尺寸 {got:?} 与输入 {want:?} 不符"));
+            return Err(format!(
+                "probability map size {got:?} does not match the input {want:?}"
+            ));
         }
         Ok(prob)
     }

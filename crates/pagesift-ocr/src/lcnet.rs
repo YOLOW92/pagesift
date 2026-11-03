@@ -21,19 +21,28 @@ impl Config {
     pub fn from_json(v: &serde_json::Value) -> Result<Config, String> {
         let b = &v["backbone_config"];
         if b["stem_type"].as_str().unwrap_or("large") != "large" {
-            return Err("只支持 large stem".into());
+            return Err("only the large stem is supported".into());
         }
         if b["use_learnable_affine_block"].as_bool().unwrap_or(false) {
-            return Err("不支持可学习仿射块".into());
+            return Err("learnable affine blocks are not supported".into());
         }
-        let int = |x: &serde_json::Value| x.as_u64().map(|v| v as usize).ok_or("配置里应为整数");
-        let sc = b["stem_channels"].as_array().ok_or("缺 stem_channels")?;
+        let int = |x: &serde_json::Value| {
+            x.as_u64()
+                .map(|v| v as usize)
+                .ok_or("expected an integer in the config")
+        };
+        let sc = b["stem_channels"]
+            .as_array()
+            .ok_or("missing stem_channels")?;
         let stem_channels = [int(&sc[0])?, int(&sc[1])?, int(&sc[2])?];
         let mut blocks = Vec::new();
-        for stage in b["block_configs"].as_array().ok_or("缺 block_configs")? {
+        for stage in b["block_configs"]
+            .as_array()
+            .ok_or("missing block_configs")?
+        {
             let mut s = Vec::new();
-            for blk in stage.as_array().ok_or("block_configs 格式不对")? {
-                let a = blk.as_array().ok_or("block_configs 格式不对")?;
+            for blk in stage.as_array().ok_or("malformed block_configs")? {
+                let a = blk.as_array().ok_or("malformed block_configs")?;
                 // 步长可以是一个数，也可以是 [行, 列]
                 let stride = match a[3].as_array() {
                     Some(p) => (int(&p[0])?, int(&p[1])?),

@@ -34,10 +34,12 @@ impl Preprocess {
             || v["do_rescale"].as_bool() == Some(false)
             || v["do_normalize"].as_bool() == Some(false)
         {
-            return Err("只支持缩放、归一化全开的预处理".into());
+            return Err(
+                "only preprocessing with resize, rescale and normalize all on is supported".into(),
+            );
         }
         if v["resample"].as_u64().unwrap_or(RESAMPLE_BICUBIC) != RESAMPLE_BICUBIC {
-            return Err("只支持双三次插值".into());
+            return Err("only bicubic resampling is supported".into());
         }
         let triple = |key: &str, def: f32| -> Result<[f32; CHANNELS], String> {
             match v[key].as_array() {
@@ -45,11 +47,11 @@ impl Preprocess {
                 Some(a) if a.len() == CHANNELS => {
                     let mut out = [0f32; CHANNELS];
                     for (o, x) in out.iter_mut().zip(a) {
-                        *o = x.as_f64().ok_or(format!("{key} 应为数字"))? as f32;
+                        *o = x.as_f64().ok_or(format!("{key} must be a number"))? as f32;
                     }
                     Ok(out)
                 }
-                Some(_) => Err(format!("{key} 应有 {CHANNELS} 个数")),
+                Some(_) => Err(format!("{key} must have {CHANNELS} numbers")),
             }
         };
         // 缺省值取 PPDocLayoutV3ImageProcessor 的类属性：均值 0、标准差 1、1/255

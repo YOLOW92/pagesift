@@ -28,7 +28,7 @@ impl Neck {
         let k = w.get(&format!("{p}.conv1.weight"))?;
         // [协议] 卷积权重是 [O, C, kh, kw] 四维
         if k.shape.len() != 4 || k.shape[2] != 1 || k.shape[3] != 1 {
-            return Err(format!("{p}.conv1 不是 1×1 卷积：{:?}", k.shape));
+            return Err(format!("{p}.conv1 is not a 1x1 convolution: {:?}", k.shape));
         }
         let flat = Tensor::new(vec![k.shape[0], k.shape[1]], k.data.clone());
         Ok(Neck {

@@ -86,7 +86,7 @@ impl Decoder {
             format!("model.decoder.layers.{i}.self_attn.q_proj.weight")
         });
         if n == 0 {
-            return Err("权重里没有解码层".into());
+            return Err("no decoder layers in the weights".into());
         }
         let layers = (0..n)
             .map(|i| Layer::load(w, &format!("model.decoder.layers.{i}"), cfg))

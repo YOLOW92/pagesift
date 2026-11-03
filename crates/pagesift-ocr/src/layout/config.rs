@@ -40,7 +40,7 @@ fn activation(name: &str) -> Result<Activation, String> {
         "relu" => Ok(Activation::Relu),
         "silu" | "swish" => Ok(Activation::Silu),
         "gelu" => Ok(Activation::Gelu),
-        _ => Err(format!("不支持的激活函数 {name}")),
+        _ => Err(format!("unsupported activation {name}")),
     }
 }
 
@@ -52,7 +52,7 @@ impl Config {
                 x => x
                     .as_u64()
                     .map(|n| n as usize)
-                    .ok_or(format!("{key} 应为整数")),
+                    .ok_or(format!("{key} must be an integer")),
             }
         };
         let list = |key: &str, def: &[usize]| -> Result<Vec<usize>, String> {
@@ -63,7 +63,7 @@ impl Config {
                     .map(|x| {
                         x.as_u64()
                             .map(|n| n as usize)
-                            .ok_or(format!("{key} 应为整数"))
+                            .ok_or(format!("{key} must be an integer"))
                     })
                     .collect(),
             }
@@ -73,16 +73,19 @@ impl Config {
 
         // 只实现发布权重的结构：后归一化、查询取自编码器输出、掩码框作初始参考框、CSP 不扩通道
         if flag("normalize_before", false) {
-            return Err("不支持 normalize_before".into());
+            return Err("normalize_before is not supported".into());
         }
         if flag("learn_initial_query", false) {
-            return Err("不支持 learn_initial_query".into());
+            return Err("learn_initial_query is not supported".into());
         }
         if !flag("mask_enhanced", true) {
-            return Err("只支持 mask_enhanced（掩码框作初始参考框）".into());
+            return Err(
+                "only mask_enhanced is supported (mask boxes as the initial reference boxes)"
+                    .into(),
+            );
         }
         if v["hidden_expansion"].as_f64().unwrap_or(1.0) != 1.0 {
-            return Err("只支持 hidden_expansion = 1".into());
+            return Err("only hidden_expansion = 1 is supported".into());
         }
 
         // [协议] 缺省值取 PPDocLayoutV3Config：d_model 256、注意力头 8、采样点 4、查询 300、
@@ -94,11 +97,11 @@ impl Config {
         };
         let proj = list("encode_proj_layers", &[2])?;
         if proj.len() != 1 || int("encoder_layers", 1)? != 1 {
-            return Err("只支持一层 AIFI".into());
+            return Err("only one AIFI layer is supported".into());
         }
         let levels = int("num_feature_levels", feat_strides.len())?;
         if levels != feat_strides.len() || int("encoder_hidden_dim", d_model)? != d_model {
-            return Err("只支持解码器各层直接取编码器输出（层数、通道相同）".into());
+            return Err("only decoder layers that take encoder outputs directly are supported (same layer count and channels)".into());
         }
         let labels = parse_labels(&v["id2label"])?;
         Ok(Config {
@@ -125,16 +128,19 @@ impl Config {
 
 /// `id2label`：键是类别号的字符串。
 fn parse_labels(v: &serde_json::Value) -> Result<Vec<String>, String> {
-    let obj = v.as_object().ok_or("config.json 缺 id2label")?;
+    let obj = v.as_object().ok_or("config.json has no id2label")?;
     let mut labels = vec![String::new(); obj.len()];
     for (k, name) in obj {
         let i: usize = k
             .parse()
-            .map_err(|_| format!("id2label 的键 {k} 不是整数"))?;
+            .map_err(|_| format!("id2label key {k} is not an integer"))?;
         let slot = labels
             .get_mut(i)
-            .ok_or(format!("id2label 的类别号 {i} 不连续"))?;
-        *slot = name.as_str().ok_or("id2label 的值应为字符串")?.to_string();
+            .ok_or(format!("id2label class ids are not contiguous at {i}"))?;
+        *slot = name
+            .as_str()
+            .ok_or("id2label values must be strings")?
+            .to_string();
     }
     Ok(labels)
 }

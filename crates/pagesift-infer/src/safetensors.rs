@@ -14,12 +14,13 @@ pub struct Weights {
 impl Weights {
     pub fn from_bytes(b: &[u8]) -> Result<Weights, String> {
         // [协议] 头长度是 8 字节小端 u64
-        let n = u64::from_le_bytes(b.get(..8).ok_or("文件太短")?.try_into().unwrap()) as usize;
-        let head = b.get(8..8 + n).ok_or("头长度越界")?;
+        let n =
+            u64::from_le_bytes(b.get(..8).ok_or("file too short")?.try_into().unwrap()) as usize;
+        let head = b.get(8..8 + n).ok_or("header length out of bounds")?;
         let data = &b[8 + n..];
         let json: serde_json::Value =
-            serde_json::from_slice(head).map_err(|e| format!("头不是合法 JSON：{e}"))?;
-        let obj = json.as_object().ok_or("头不是 JSON 对象")?;
+            serde_json::from_slice(head).map_err(|e| format!("header is not valid JSON: {e}"))?;
+        let obj = json.as_object().ok_or("header is not a JSON object")?;
         let mut map = HashMap::new();
         for (name, v) in obj {
             if name == "__metadata__" {
@@ -27,21 +28,27 @@ impl Weights {
             }
             let dtype = v["dtype"]
                 .as_str()
-                .ok_or_else(|| format!("{name} 没有 dtype"))?;
+                .ok_or_else(|| format!("{name} has no dtype"))?;
             let shape: Vec<usize> = v["shape"]
                 .as_array()
-                .ok_or_else(|| format!("{name} 没有 shape"))?
+                .ok_or_else(|| format!("{name} has no shape"))?
                 .iter()
-                .map(|d| d.as_u64().map(|d| d as usize).ok_or("shape 不是整数"))
+                .map(|d| {
+                    d.as_u64()
+                        .map(|d| d as usize)
+                        .ok_or("shape is not an integer")
+                })
                 .collect::<Result<_, _>>()?;
             let off = v["data_offsets"]
                 .as_array()
-                .ok_or_else(|| format!("{name} 没有 data_offsets"))?;
+                .ok_or_else(|| format!("{name} has no data_offsets"))?;
             let (s, e) = (
-                off[0].as_u64().ok_or("偏移不是整数")? as usize,
-                off[1].as_u64().ok_or("偏移不是整数")? as usize,
+                off[0].as_u64().ok_or("offset is not an integer")? as usize,
+                off[1].as_u64().ok_or("offset is not an integer")? as usize,
             );
-            let raw = data.get(s..e).ok_or_else(|| format!("{name} 的数据越界"))?;
+            let raw = data
+                .get(s..e)
+                .ok_or_else(|| format!("{name} data out of bounds"))?;
             let values: Vec<f32> = match dtype {
                 // [协议] F32 是 4 字节小端 IEEE 754
                 "F32" => raw
@@ -64,10 +71,10 @@ impl Weights {
                     .iter()
                     .map(|&c| f32::from_bits(u32::from(u16::from_le_bytes(c)) << 16))
                     .collect(),
-                _ => return Err(format!("{name}：不支持的 dtype {dtype}")),
+                _ => return Err(format!("{name}: unsupported dtype {dtype}")),
             };
             if values.len() != shape.iter().product::<usize>() {
-                return Err(format!("{name}：数据长度与形状不符"));
+                return Err(format!("{name}: data length does not match the shape"));
             }
             map.insert(name.clone(), Tensor::new(shape, values));
         }
@@ -77,7 +84,7 @@ impl Weights {
     pub fn get(&self, name: &str) -> Result<&Tensor, String> {
         self.map
             .get(name)
-            .ok_or_else(|| format!("权重里没有 {name}"))
+            .ok_or_else(|| format!("no {name} in the weights"))
     }
 
     pub fn opt(&self, name: &str) -> Option<&Tensor> {

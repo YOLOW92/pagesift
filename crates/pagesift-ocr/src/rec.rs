@@ -139,7 +139,7 @@ impl Rec {
             "silu" | "swish" => Activation::Silu,
             "gelu" => Activation::Gelu,
             "relu" => Activation::Relu,
-            a => return Err(format!("不支持的 hidden_act {a}")),
+            a => return Err(format!("unsupported hidden_act {a}")),
         };
         let heads = cfg["num_attention_heads"]
             .as_u64()
@@ -157,22 +157,28 @@ impl Rec {
             blocks.push(Block::load(&w, &format!("{p}.svtr_block.{i}"), heads, act)?);
         }
         if blocks.is_empty() {
-            return Err("权重里没有 svtr_block".into());
+            return Err("no svtr_block in the weights".into());
         }
         let hidden = w.get(&format!("{p}.norm.weight"))?.shape[0];
         if hidden % heads != 0 {
-            return Err(format!("hidden_size {hidden} 不能被头数 {heads} 整除"));
+            return Err(format!(
+                "hidden_size {hidden} is not divisible by {heads} heads"
+            ));
         }
         let chars: Vec<String> = pre["character_list"]
             .as_array()
-            .ok_or("preprocessor_config.json 缺 character_list")?
+            .ok_or("preprocessor_config.json has no character_list")?
             .iter()
-            .map(|c| c.as_str().map(str::to_owned).ok_or("字符表里有非字符串项"))
+            .map(|c| {
+                c.as_str()
+                    .map(str::to_owned)
+                    .ok_or("the character list has a non-string item")
+            })
             .collect::<Result<_, _>>()?;
         let head = Linear::load(&w, "head.head")?;
         if head.weight_t.shape[1] != chars.len() {
             return Err(format!(
-                "输出层 {} 类与字符表 {} 项不符",
+                "output layer has {} classes but the character list has {} items",
                 head.weight_t.shape[1],
                 chars.len()
             ));
@@ -213,10 +219,13 @@ impl Rec {
     /// 预处理一行图成网络输入 `[3, 48, W]`。
     pub fn preprocess(&self, line: &Image) -> Result<Tensor, String> {
         if line.width == 0 || line.height == 0 {
-            return Err("行图为空".into());
+            return Err("empty line image".into());
         }
         if line.channels != 1 && line.channels != 3 {
-            return Err(format!("不支持 {} 通道的图", line.channels));
+            return Err(format!(
+                "images with {} channels are not supported",
+                line.channels
+            ));
         }
         Ok(preprocess(line, self.max_w))
     }

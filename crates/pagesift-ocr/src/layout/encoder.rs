@@ -52,7 +52,7 @@ fn merge_rep(mut a: ConvBn, b: &ConvBn) -> Result<ConvBn, String> {
         a.conv.weight.shape[3],
     );
     if b.conv.weight.shape != [o, c, 1, 1] {
-        return Err("RepVGG 两路卷积的通道不同".into());
+        return Err("the two RepVGG convolutions have different channels".into());
     }
     let center = (kh / 2) * kw + kw / 2;
     let per = kh * kw;

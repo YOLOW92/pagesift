@@ -127,7 +127,7 @@ impl MediumNeck {
             i += 1;
         }
         if i == 0 {
-            return Err("权重里没有 medium 颈部".into());
+            return Err("no medium neck in the weights".into());
         }
         Ok(n)
     }
@@ -136,7 +136,10 @@ impl MediumNeck {
     pub fn forward_on<E: Exec>(&self, e: &E, feats: &[E::T]) -> Result<E::T, String> {
         let n = self.adjust.len();
         if feats.len() != n {
-            return Err(format!("骨干给了 {} 段特征，颈部要 {n} 段", feats.len()));
+            return Err(format!(
+                "the backbone gave {} feature stages, the neck needs {n}",
+                feats.len()
+            ));
         }
         let mut td: Vec<E::T> = self
             .adjust
@@ -148,7 +151,7 @@ impl MediumNeck {
             let up = upsample_on(e, &td[i + 1], 2);
             if e.shape(&up) != e.shape(&td[i]) {
                 return Err(format!(
-                    "颈部上采样尺寸不符：{:?} 与 {:?}",
+                    "neck upsampling size mismatch: {:?} and {:?}",
                     e.shape(&up),
                     e.shape(&td[i])
                 ));

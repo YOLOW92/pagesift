@@ -18,12 +18,17 @@ pub struct NeckConfig {
 /// 读配置里的 `kernel_list`（头的三个核大小）。
 // [协议] kernel_list 固定三项：conv_down、conv_up、conv_final
 pub fn head_kernels(v: &serde_json::Value) -> Result<[usize; 3], String> {
-    let a = v["kernel_list"].as_array().ok_or("缺 kernel_list")?;
+    let a = v["kernel_list"].as_array().ok_or("missing kernel_list")?;
     let k: Vec<usize> = a
         .iter()
-        .map(|x| x.as_u64().map(|n| n as usize).ok_or("kernel_list 应为整数"))
+        .map(|x| {
+            x.as_u64()
+                .map(|n| n as usize)
+                .ok_or("kernel_list must be integers")
+        })
         .collect::<Result<_, _>>()?;
-    k.try_into().map_err(|_| "kernel_list 应有 3 个数".into())
+    k.try_into()
+        .map_err(|_| "kernel_list must have 3 numbers".into())
 }
 
 impl NeckConfig {
@@ -31,21 +36,21 @@ impl NeckConfig {
         let ints = |key: &str| -> Result<Vec<usize>, String> {
             v[key]
                 .as_array()
-                .ok_or(format!("缺 {key}"))?
+                .ok_or(format!("missing {key}"))?
                 .iter()
                 .map(|x| {
                     x.as_u64()
                         .map(|n| n as usize)
-                        .ok_or(format!("{key} 应为整数"))
+                        .ok_or(format!("{key} must be an integer"))
                 })
                 .collect()
         };
         if v["interpolate_mode"].as_str().unwrap_or("nearest") != "nearest" {
-            return Err("颈部只支持最近邻上采样".into());
+            return Err("the neck only supports nearest-neighbor upsampling".into());
         }
         let in_channels = ints("layer_list_out_channels")?;
         if in_channels.len() != 4 {
-            return Err("layer_list_out_channels 应有 4 段".into());
+            return Err("layer_list_out_channels must have 4 stages".into());
         }
         Ok(NeckConfig {
             in_channels,
@@ -174,7 +179,7 @@ impl Neck {
     pub fn forward_on<E: Exec>(&self, e: &E, feats: &[E::T]) -> Result<E::T, String> {
         if feats.len() != self.insert.len() {
             return Err(format!(
-                "骨干给了 {} 段特征，颈部要 {} 段",
+                "the backbone gave {} feature stages, the neck needs {}",
                 feats.len(),
                 self.insert.len()
             ));
@@ -190,7 +195,7 @@ impl Neck {
             let up = upsample_on(e, &fused[i + 1], 2);
             if e.shape(&up) != e.shape(&fused[i]) {
                 return Err(format!(
-                    "颈部上采样尺寸不符：{:?} 与 {:?}",
+                    "neck upsampling size mismatch: {:?} and {:?}",
                     e.shape(&up),
                     e.shape(&fused[i])
                 ));
@@ -247,7 +252,9 @@ impl Head {
             ("conv_final", fin.weight.shape[2], k[2]),
         ] {
             if got != want {
-                return Err(format!("{name} 的核大小 {got} 与配置 {want} 不符"));
+                return Err(format!(
+                    "{name} has kernel size {got}, the config says {want}"
+                ));
             }
         }
         Ok(Head { down, up, fin })

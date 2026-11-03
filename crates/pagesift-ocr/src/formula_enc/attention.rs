@@ -76,13 +76,15 @@ impl Attention {
         let proj = Linear::load(w, &format!("{p}.proj"))?;
         let c = proj.weight_t.shape[1];
         if !c.is_multiple_of(heads) || qkv.weight_t.shape[1] != QKV_PARTS * c {
-            return Err(format!("{p}：通道 {c} 与头数 {heads} 或 qkv 形状不符"));
+            return Err(format!(
+                "{p}: {c} channels do not match {heads} heads or the qkv shape"
+            ));
         }
         let hd = c / heads;
         let table = |name: &str| -> Result<Vec<f32>, String> {
             let t = w.get(&format!("{p}.{name}"))?;
             if t.shape.len() != 2 || t.shape[1] != hd {
-                return Err(format!("{p}.{name} 形状 {:?} 不是 [L, {hd}]", t.shape));
+                return Err(format!("{p}.{name} has shape {:?}, not [L, {hd}]", t.shape));
             }
             Ok(rel_pos(&t.data, hd, side, side))
         };

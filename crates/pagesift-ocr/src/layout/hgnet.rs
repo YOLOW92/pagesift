@@ -52,7 +52,7 @@ impl Block {
             format!("{p}.layers.{i}.conv1.convolution.weight")
         }));
         if n == 0 {
-            return Err(format!("{p} 没有卷积层"));
+            return Err(format!("{p} has no convolution layers"));
         }
         let layers = (0..n)
             .map(|i| Layer::load(w, &format!("{p}.layers.{i}")))
@@ -155,7 +155,7 @@ impl Backbone {
             format!("{p}.encoder.stages.{i}.blocks.0.aggregation.0.convolution.weight")
         });
         if n == 0 {
-            return Err(format!("{p} 没有 stage"));
+            return Err(format!("{p} has no stages"));
         }
         let stages = (0..n)
             .map(|i| Stage::load(w, &format!("{p}.encoder.stages.{i}")))

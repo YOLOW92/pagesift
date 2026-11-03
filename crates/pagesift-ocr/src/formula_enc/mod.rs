@@ -51,24 +51,24 @@ impl Config {
         let int = |k: &str| {
             c[k].as_u64()
                 .map(|x| x as usize)
-                .ok_or_else(|| format!("vision_config 缺整数 {k}"))
+                .ok_or_else(|| format!("vision_config has no integer {k}"))
         };
         for k in ["use_abs_pos", "use_rel_pos"] {
             if c[k].as_bool() != Some(true) {
-                return Err(format!("只支持 {k} = true"));
+                return Err(format!("only {k} = true is supported"));
             }
         }
         if c["hidden_act"].as_str().unwrap_or("gelu") != "gelu" {
-            return Err("只支持 hidden_act = gelu".into());
+            return Err("only hidden_act = gelu is supported".into());
         }
         let global_attn_indexes = c["global_attn_indexes"]
             .as_array()
-            .ok_or("vision_config 缺 global_attn_indexes")?
+            .ok_or("vision_config has no global_attn_indexes")?
             .iter()
             .map(|x| {
                 x.as_u64()
                     .map(|x| x as usize)
-                    .ok_or("global_attn_indexes 应为整数")
+                    .ok_or("global_attn_indexes must be integers")
             })
             .collect::<Result<_, _>>()?;
         let cfg = Config {
@@ -81,16 +81,19 @@ impl Config {
             global_attn_indexes,
             layer_norm_eps: c["layer_norm_eps"]
                 .as_f64()
-                .ok_or("vision_config 缺 layer_norm_eps")? as f32,
+                .ok_or("vision_config has no layer_norm_eps")? as f32,
         };
         if cfg.image_size != SIZE {
-            return Err(format!("预处理固定输出 {SIZE}，配置是 {}", cfg.image_size));
+            return Err(format!(
+                "preprocessing always outputs {SIZE}, the config says {}",
+                cfg.image_size
+            ));
         }
         if cfg.patch_size == 0 || !cfg.image_size.is_multiple_of(cfg.patch_size) {
-            return Err("image_size 不是 patch_size 的倍数".into());
+            return Err("image_size is not a multiple of patch_size".into());
         }
         if cfg.heads == 0 || !cfg.hidden_size.is_multiple_of(cfg.heads) {
-            return Err("hidden_size 不能被头数整除".into());
+            return Err("hidden_size is not divisible by the number of heads".into());
         }
         Ok(cfg)
     }
@@ -135,7 +138,7 @@ impl Encoder {
         // [协议] pos_embed 是 [1, grid, grid, hidden]（通道在最后，与序列布局一致）
         if pos.shape != [1, g, g, c] {
             return Err(format!(
-                "pos_embed 形状 {:?}，应为 [1, {g}, {g}, {c}]",
+                "pos_embed has shape {:?}, expected [1, {g}, {g}, {c}]",
                 pos.shape
             ));
         }
@@ -183,7 +186,7 @@ impl Encoder {
         let s = self.cfg.image_size;
         // [协议] 输入三通道（`num_channels`）
         if x.shape != [3, s, s] {
-            return Err(format!("输入应为 [3, {s}, {s}]，实际 {:?}", x.shape));
+            return Err(format!("input must be [3, {s}, {s}], got {:?}", x.shape));
         }
         let g = self.cfg.grid();
         let mut h = ops::chw_to_seq(&self.patch.forward(x));

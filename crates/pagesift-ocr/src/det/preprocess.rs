@@ -35,7 +35,7 @@ impl Preprocess {
             "max" => LimitType::Max,
             "min" => LimitType::Min,
             "resize_long" => LimitType::ResizeLong,
-            t => return Err(format!("不支持的 limit_type：{t}")),
+            t => return Err(format!("unsupported limit_type: {t}")),
         };
         let triple = |key: &str, def: [f32; 3]| -> Result<[f32; 3], String> {
             match v[key].as_array() {
@@ -43,18 +43,20 @@ impl Preprocess {
                 Some(a) if a.len() == 3 => {
                     let mut out = [0f32; 3];
                     for (o, x) in out.iter_mut().zip(a) {
-                        *o = x.as_f64().ok_or(format!("{key} 应为数字"))? as f32;
+                        *o = x.as_f64().ok_or(format!("{key} must be a number"))? as f32;
                     }
                     Ok(out)
                 }
-                Some(_) => Err(format!("{key} 应有 3 个数")),
+                Some(_) => Err(format!("{key} must have 3 numbers")),
             }
         };
         if v["do_resize"].as_bool() == Some(false)
             || v["do_rescale"].as_bool() == Some(false)
             || v["do_normalize"].as_bool() == Some(false)
         {
-            return Err("只支持缩放、归一化全开的预处理".into());
+            return Err(
+                "only preprocessing with resize, rescale and normalize all on is supported".into(),
+            );
         }
         // [协议] 缺省值取 PPOCRV5ServerDetImageProcessor 的类属性：limit_side_len 960、
         // max_side_limit 4000、image_mean/std 如下、rescale 1/255

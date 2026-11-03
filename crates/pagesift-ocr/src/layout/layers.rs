@@ -79,7 +79,7 @@ impl Mlp {
     pub(crate) fn load(w: &Weights, p: &str) -> Result<Mlp, String> {
         let n = count(w, |i| format!("{p}.layers.{i}.weight"));
         if n == 0 {
-            return Err(format!("权重里没有 {p}.layers"));
+            return Err(format!("no {p}.layers in the weights"));
         }
         let layers = (0..n)
             .map(|i| Linear::load(w, &format!("{p}.layers.{i}")))

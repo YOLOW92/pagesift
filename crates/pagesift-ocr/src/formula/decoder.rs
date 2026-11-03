@@ -105,7 +105,7 @@ fn cfg_usize(c: &Value, key: &str) -> Result<usize, String> {
     c[key]
         .as_u64()
         .map(|v| v as usize)
-        .ok_or_else(|| format!("配置缺 {key}"))
+        .ok_or_else(|| format!("the config has no {key}"))
 }
 
 impl Decoder {
@@ -123,13 +123,15 @@ impl Decoder {
         let d_model = cfg_usize(text, "d_model")?;
         let heads = cfg_usize(text, "decoder_attention_heads")?;
         if heads == 0 || !d_model.is_multiple_of(heads) {
-            return Err(format!("d_model {d_model} 不能被头数 {heads} 整除"));
+            return Err(format!(
+                "d_model {d_model} is not divisible by {heads} heads"
+            ));
         }
         let act = match text["activation_function"].as_str().unwrap_or("") {
             "gelu" => Activation::Gelu,
             "relu" => Activation::Relu,
             "silu" | "swish" => Activation::Silu,
-            a => return Err(format!("不支持的激活函数 {a:?}")),
+            a => return Err(format!("unsupported activation {a:?}")),
         };
         let layers = (0..cfg_usize(text, "decoder_layers")?)
             .map(|i| Layer::load(w, &format!("{PREFIX}.layers.{i}"), heads, act))
@@ -137,7 +139,9 @@ impl Decoder {
         let embed_tokens = w.get(&format!("{PREFIX}.embed_tokens.weight"))?.clone();
         let embed_positions = w.get(&format!("{PREFIX}.embed_positions.weight"))?.clone();
         if embed_tokens.tc().1 != d_model || embed_positions.tc().1 != d_model {
-            return Err(format!("词向量或位置向量的维度与 d_model {d_model} 不符"));
+            return Err(format!(
+                "token or position embedding size does not match d_model {d_model}"
+            ));
         }
         let embed_scale = if text["scale_embedding"].as_bool().unwrap_or(false) {
             (d_model as f32).sqrt()
@@ -207,7 +211,7 @@ impl Decoder {
     pub(super) fn new_cache(&self, memory: &Tensor) -> Result<Cache, String> {
         if memory.shape.len() != 2 || memory.shape[1] != self.d_model || memory.shape[0] == 0 {
             return Err(format!(
-                "memory 应为 [L, {}]，实际 {:?}",
+                "memory must be [L, {}], got {:?}",
                 self.d_model, memory.shape
             ));
         }
@@ -234,7 +238,7 @@ impl Decoder {
         let (past, memory_len) = (cache.len, cache.memory_len);
         if past + ids.len() > self.max_positions() {
             return Err(format!(
-                "序列长度 {} 超过位置向量表 {}",
+                "sequence length {} exceeds the position table of {}",
                 past + ids.len(),
                 self.max_positions()
             ));
@@ -243,7 +247,7 @@ impl Decoder {
         for (i, &id) in ids.iter().enumerate() {
             let id = id as usize;
             if id >= vocab {
-                return Err(format!("token {id} 超出词表 {vocab}"));
+                return Err(format!("token {id} is outside the vocabulary of {vocab}"));
             }
             let tok = &self.embed_tokens.data[id * d..(id + 1) * d];
             let at = (past + i + POSITION_OFFSET) * d;
@@ -266,7 +270,7 @@ impl Decoder {
         let last = Tensor::new(vec![1, d], hidden.data[(t - 1) * d..].to_vec());
         let y = self.lm_head.forward(&last).data;
         if y.iter().any(|v| !v.is_finite()) {
-            return Err("logits 里有 NaN 或无穷".into());
+            return Err("NaN or infinity in the logits".into());
         }
         Ok(y)
     }
