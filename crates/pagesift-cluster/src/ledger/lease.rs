@@ -29,11 +29,19 @@ impl Ledger {
 
     /// 温备确认后续租到 `until`（本账本时钟的毫秒）。没有租约要求时不做什么。
     pub fn extend_lease(&self, until: u64) {
-        let _ = self
-            .lease_until
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |v| {
-                (v != UNFENCED && v < until).then_some(until)
-            });
+        // 比较交换循环（`fetch_update` 在新版本里改名为 `try_update` 并弃用旧名，最低支持版本里还没有新名）
+        let mut v = self.lease_until.load(Ordering::Acquire);
+        while v != UNFENCED && v < until {
+            match self.lease_until.compare_exchange_weak(
+                v,
+                until,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => return,
+                Err(now) => v = now,
+            }
+        }
     }
 
     /// 当前租约的到期时刻；没有租约要求时为 `None`。
