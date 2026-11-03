@@ -193,7 +193,7 @@ Architecture: [docs/architecture.md](docs/architecture.md).
 ## What's new in 0.90.0
 
 Most hard-coded limits, timeouts and thresholds are now estimated from what the process observes: they start
-from the 0.90.0 values and change only on statistically significant evidence. Also new: per-path-family render
+from the 0.81.5 values and change only on statistically significant evidence. Also new: per-path-family render
 decisions with an `explain` trace, speculative rendering, a binary cache, `--out` / `--warc` outputs, crawl and
 batch streams, structure-aware RAG chunking, PDF page quality checks and image export, an egress pool, and
 multi-server roles (`gateway`, `worker`, `standby`).

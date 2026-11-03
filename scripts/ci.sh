@@ -2,6 +2,7 @@
 # 本地检查：和发布前要求的检查一致。GitHub 上只保留 macOS 测试（本机是 Linux，macOS 只能在那里测）。
 #
 #   scripts/ci.sh          完整检查（发版前）：再加最低 Rust 版本、cargo deny、性能门槛
+#   scripts/ci.sh --fast --bindings  推送标签（发版）前：再加 Node、Python 绑定的测试（发布流程里打包前都要跑）
 #   scripts/ci.sh --fast   推送前（.git/hooks/pre-push 调用）：GitHub macOS CI 会跑的检查——发版一致性、
 #                          测试里的计时、fmt、clippy 和测试（警告当错误，和 CI 的 RUSTFLAGS 一致），
 #                          以及对 macOS 的类型检查
@@ -9,7 +10,11 @@
 # 警告当错误的编译和日常编译共用 target/：RUSTFLAGS 不同时会重编，但磁盘上只留一份（单独目录会再占一整份）。
 set -euo pipefail
 cd "$(dirname "$0")/.."
-fast=; [ "${1:-}" = "--fast" ] && fast=1
+fast=; bindings=
+for a in "$@"; do
+    case "$a" in --fast) fast=1 ;; --bindings) bindings=1 ;; esac
+done
+[ -z "$fast" ] && bindings=1
 
 step() { printf '\n==> %s\n' "$*"; }
 
@@ -46,6 +51,20 @@ rustup target list --installed | grep -qx aarch64-apple-darwin \
 CC_aarch64_apple_darwin=$PWD/scripts/check-cc.sh AR_aarch64_apple_darwin=$PWD/scripts/check-cc.sh \
     RUSTFLAGS="-D warnings" scripts/build.sh cargo check --workspace --locked --target aarch64-apple-darwin \
     --all-targets --exclude pagesift-fuzz
+if [ -n "$bindings" ]; then
+    # 发布流程在打 npm 包、wheel 之前跑这两套测试；不在本地跑，引擎改了行为要到发版时才发现
+    step "node binding tests"
+    scripts/build.sh cargo build --profile quick --locked -p pagesift-node
+    cp "${CARGO_TARGET_DIR:-target}/quick/libpagesift_node.so" crates/pagesift-node/pagesift.linux-x64-gnu.node
+    (cd crates/pagesift-node && node --test --test-concurrency=1)
+    step "python binding tests"
+    venv=${PY_VENV:-benchmarks/venv}
+    [ -x "$venv/bin/maturin" ] && [ -x "$venv/bin/pytest" ] \
+        || { echo "missing maturin/pytest in $venv (PY_VENV)"; exit 1; }
+    (cd crates/pagesift-py && VIRTUAL_ENV=$PWD/../../$venv PATH=$PWD/../../$venv/bin:$PATH \
+        ../../$venv/bin/maturin develop --profile quick --locked)
+    "$venv/bin/python" -m pytest crates/pagesift-py/tests -q
+fi
 [ -n "$fast" ] && { step "fast checks passed"; exit 0; }
 
 # 最低版本取自 Cargo.toml 的 rust-version，没装就装上：不跳过（macOS CI 里也有同一步）

@@ -192,7 +192,7 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 <!-- section: changelog -->
 ## 0.90.0 更新
 
-以前写死的大部分上限、超时和阈值，现在按进程实际观测到的数据估计：从 0.90.0 的值起步，只在统计上显著时才改变。
+以前写死的大部分上限、超时和阈值，现在按进程实际观测到的数据估计：从 0.81.5 的值起步，只在统计上显著时才改变。
 其他新增：按路径族的渲染决策（可用 `explain` 查看每一步）、推测执行、二进制缓存、`--out` / `--warc` 输出、爬取和批量任务的
 流式输出、按块结构的 RAG 分块、PDF 按页质量检查和图片导出、出口池，以及多服务器角色（`gateway`、`worker`、`standby`）。
 [发行说明](releases/0.90.0.md) · [全部版本](releases/) · [CHANGELOG](../CHANGELOG.md)

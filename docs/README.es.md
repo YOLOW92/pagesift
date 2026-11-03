@@ -193,7 +193,7 @@ Arquitectura: [architecture.md](architecture.md).
 ## Novedades en 0.90.0
 
 La mayoría de los límites, tiempos de espera y umbrales que antes eran fijos ahora se estiman a partir de lo que observa
-el proceso: parten de los valores de 0.90.0 y solo cambian cuando la diferencia es estadísticamente significativa. Además:
+el proceso: parten de los valores de 0.81.5 y solo cambian cuando la diferencia es estadísticamente significativa. Además:
 decisiones de renderizado por familia de rutas con traza `explain`, renderizado especulativo, caché binaria, salidas
 `--out` / `--warc`, streams de rastreo y lotes, fragmentación RAG según la estructura de bloques, control de calidad por página
 en PDF y exportación de imágenes, un pool de salidas y roles multiservidor (`gateway`, `worker`, `standby`).

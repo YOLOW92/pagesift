@@ -71,6 +71,8 @@ impl Scraper {
         // 持久化的任务要记下入队的 URL，重启后据此恢复队列和去重表
         let track = sink.tracks_frontier();
         let mut scheduled = 0usize;
+        // 汇总里的页数：成功交付的页面（出错的、被 robots 挡的不算），和 0.81 里绑定自己数的页数一致
+        let mut delivered = 0usize;
         // sitemap 里只在放宽一级后才在范围内的 URL：种子页的证据表明要放宽时再入队
         let mut deferred: Vec<Url> = Vec::new();
         if let Some(r) = sink.resume() {
@@ -274,6 +276,7 @@ impl Scraper {
                     if !wants_md {
                         doc.markdown = None;
                     }
+                    delivered += 1;
                     sink.page(doc).await;
                 }
                 Err(e) => sink.error(url.as_str(), e).await,
@@ -292,7 +295,7 @@ impl Scraper {
             stop_reason: stop_reason.into(),
             coverage: None,
             term_evidence: Default::default(),
-            pages: scheduled,
+            pages: delivered,
         })
         .await;
         Ok(())
