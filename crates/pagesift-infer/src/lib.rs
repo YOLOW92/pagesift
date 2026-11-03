@@ -4,7 +4,9 @@
 //! 约定：图像特征是 `[C, H, W]`（PyTorch 的 NCHW 去掉 N），序列是 `[T, C]`。各算子的语义与
 //! PyTorch 同名算子一致（`torch.nn.functional`），实现上可以换更快的算法，但结果只允许浮点舍入差。
 
+mod fastmath;
 mod nn;
+mod par;
 pub mod ops;
 mod safetensors;
 

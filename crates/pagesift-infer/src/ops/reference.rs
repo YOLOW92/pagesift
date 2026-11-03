@@ -1,12 +1,8 @@
-//! 无参数的算子（语义同 `torch.nn.functional` 的同名函数）。这里先给直接按定义写的实现，
-//! 作为正确性的基准；快速实现替换时，测试拿它对照。
+//! 按定义直接写的朴素实现（改快之前的原版），只在测试里作对照基准。
 
 use crate::Tensor;
 
-/// 二维卷积（`F.conv2d`）。`x` 是 `[C, H, W]`，`w` 是 `[O, C/groups, kh, kw]`；
-/// `pad` 是上下、左右各补的 0，`stride`、`dilation` 按 (行, 列)。
-#[allow(clippy::too_many_arguments)]
-pub fn conv2d(
+pub(super) fn conv2d(
     x: &Tensor,
     w: &Tensor,
     bias: Option<&[f32]>,
@@ -54,8 +50,7 @@ pub fn conv2d(
     Tensor::new(vec![o, oh, ow], out)
 }
 
-/// 二维转置卷积（`F.conv_transpose2d`，groups = 1，无输出补边）。`w` 是 `[C, O, kh, kw]`。
-pub fn conv_transpose2d(
+pub(super) fn conv_transpose2d(
     x: &Tensor,
     w: &Tensor,
     bias: Option<&[f32]>,
@@ -98,22 +93,7 @@ pub fn conv_transpose2d(
     Tensor::new(vec![o, oh, ow], out)
 }
 
-/// 在右边补 `right` 列、下边补 `bottom` 行 0（`F.pad(x, (0, right, 0, bottom))`）。
-pub fn pad_right_bottom(x: &Tensor, right: usize, bottom: usize) -> Tensor {
-    let (c, h, w) = x.chw();
-    let (nh, nw) = (h + bottom, w + right);
-    let mut out = vec![0f32; c * nh * nw];
-    for ch in 0..c {
-        for y in 0..h {
-            let src = &x.data[(ch * h + y) * w..(ch * h + y + 1) * w];
-            out[(ch * nh + y) * nw..(ch * nh + y) * nw + w].copy_from_slice(src);
-        }
-    }
-    Tensor::new(vec![c, nh, nw], out)
-}
-
-/// 最大池化（`F.max_pool2d`，无补边）。`ceil_mode` 为真时输出尺寸向上取整，越界的窗口只取界内。
-pub fn max_pool2d(
+pub(super) fn max_pool2d(
     x: &Tensor,
     k: (usize, usize),
     stride: (usize, usize),
@@ -154,8 +134,7 @@ pub fn max_pool2d(
     Tensor::new(vec![c, oh, ow], out)
 }
 
-/// 平均池化（`F.avg_pool2d(x, k)`：步长等于核大小、无补边、向下取整）。
-pub fn avg_pool2d(x: &Tensor, k: (usize, usize)) -> Tensor {
+pub(super) fn avg_pool2d(x: &Tensor, k: (usize, usize)) -> Tensor {
     let (c, h, w) = x.chw();
     let (oh, ow) = (h / k.0, w / k.1);
     let n = (k.0 * k.1) as f32;
@@ -176,49 +155,7 @@ pub fn avg_pool2d(x: &Tensor, k: (usize, usize)) -> Tensor {
     Tensor::new(vec![c, oh, ow], out)
 }
 
-/// 每个通道的全局平均（`AdaptiveAvgPool2d(1)`），结果 `[C]`。
-pub fn global_avg_pool(x: &Tensor) -> Vec<f32> {
-    let (c, h, w) = x.chw();
-    let n = (h * w) as f32;
-    (0..c)
-        .map(|ch| x.data[ch * h * w..(ch + 1) * h * w].iter().sum::<f32>() / n)
-        .collect()
-}
-
-/// 每个通道乘一个系数（SE 注意力的重标定）。
-pub fn scale_channels(x: &mut Tensor, s: &[f32]) {
-    let (c, h, w) = x.chw();
-    assert_eq!(c, s.len());
-    for (ch, &k) in s.iter().enumerate() {
-        for v in &mut x.data[ch * h * w..(ch + 1) * h * w] {
-            *v *= k;
-        }
-    }
-}
-
-/// 按通道拼接（`torch.cat(dim=0)`，各张量的 H、W 相同）。
-pub fn concat_channels(xs: &[&Tensor]) -> Tensor {
-    let (_, h, w) = xs[0].chw();
-    let mut data = Vec::new();
-    let mut c = 0;
-    for x in xs {
-        let (xc, xh, xw) = x.chw();
-        assert_eq!((xh, xw), (h, w), "拼接的张量尺寸不同");
-        data.extend_from_slice(&x.data);
-        c += xc;
-    }
-    Tensor::new(vec![c, h, w], data)
-}
-
-/// 逐元素相加，形状必须相同。
-pub fn add(a: &Tensor, b: &Tensor) -> Tensor {
-    assert_eq!(a.shape, b.shape, "相加的形状不同");
-    let data = a.data.iter().zip(&b.data).map(|(x, y)| x + y).collect();
-    Tensor::new(a.shape.clone(), data)
-}
-
-/// 最近邻插值到 `oh × ow`（`F.interpolate(mode="nearest")`：源坐标 = ⌊目标坐标 · 输入/输出⌋）。
-pub fn interpolate_nearest(x: &Tensor, oh: usize, ow: usize) -> Tensor {
+pub(super) fn interpolate_nearest(x: &Tensor, oh: usize, ow: usize) -> Tensor {
     let (c, h, w) = x.chw();
     let mut out = vec![0f32; c * oh * ow];
     for ch in 0..c {
@@ -233,8 +170,7 @@ pub fn interpolate_nearest(x: &Tensor, oh: usize, ow: usize) -> Tensor {
     Tensor::new(vec![c, oh, ow], out)
 }
 
-/// 矩阵乘：`a` 是 `[M, K]`，`b` 是 `[K, N]`，结果 `[M, N]`。
-pub fn matmul(a: &Tensor, b: &Tensor) -> Tensor {
+pub(super) fn matmul(a: &Tensor, b: &Tensor) -> Tensor {
     let (m, k) = a.tc();
     let (kb, n) = b.tc();
     assert_eq!(k, kb, "矩阵乘的内维不同");
@@ -251,8 +187,7 @@ pub fn matmul(a: &Tensor, b: &Tensor) -> Tensor {
     Tensor::new(vec![m, n], out)
 }
 
-/// 转置 `[M, N]` → `[N, M]`。
-pub fn transpose(a: &Tensor) -> Tensor {
+pub(super) fn transpose(a: &Tensor) -> Tensor {
     let (m, n) = a.tc();
     let mut out = vec![0f32; m * n];
     for i in 0..m {
@@ -261,34 +196,4 @@ pub fn transpose(a: &Tensor) -> Tensor {
         }
     }
     Tensor::new(vec![n, m], out)
-}
-
-/// 按行 softmax（`[T, C]` 的最后一维）。
-pub fn softmax_rows(x: &mut Tensor) {
-    let (_, c) = x.tc();
-    for row in x.data.chunks_mut(c) {
-        let m = row.iter().copied().fold(f32::NEG_INFINITY, f32::max);
-        let mut s = 0f32;
-        for v in row.iter_mut() {
-            *v = (*v - m).exp();
-            s += *v;
-        }
-        for v in row.iter_mut() {
-            *v /= s;
-        }
-    }
-}
-
-/// `[C, H, W]` 展平成序列 `[H·W, C]`（`flatten(2).transpose(1, 2)`）。
-pub fn chw_to_seq(x: &Tensor) -> Tensor {
-    let (c, h, w) = x.chw();
-    transpose(&Tensor::new(vec![c, h * w], x.data.clone()))
-}
-
-/// 序列 `[H·W, C]` 还原成 `[C, H, W]`。
-pub fn seq_to_chw(x: &Tensor, h: usize, w: usize) -> Tensor {
-    let (t, c) = x.tc();
-    assert_eq!(t, h * w);
-    let d = transpose(x);
-    Tensor::new(vec![c, h, w], d.data)
 }

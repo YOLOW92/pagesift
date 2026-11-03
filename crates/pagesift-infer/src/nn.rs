@@ -1,6 +1,6 @@
 //! 带权重的层（语义同 `torch.nn` 的同名模块），从 [`Weights`] 按前缀取参数。
 
-use crate::{Tensor, Weights, ops};
+use crate::{Tensor, Weights, fastmath, ops, par};
 
 /// 激活函数（语义同 transformers 的 `ACT2FN` 与 `torch.nn` 的同名模块）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,19 +22,47 @@ impl Activation {
         match self {
             Activation::Identity => x,
             Activation::Relu => x.max(0.0),
-            Activation::Silu => x / (1.0 + (-x).exp()),
-            Activation::Gelu => 0.5 * x * (1.0 + erf(x * std::f32::consts::FRAC_1_SQRT_2)),
+            Activation::Silu => fastmath::silu(x),
+            Activation::Gelu => fastmath::gelu(x),
             // [协议] PyTorch Hardsigmoid 的定义：0（x ≤ −3）、1（x ≥ 3）、x/6 + 1/2
             Activation::HardSigmoid => ((x + 3.0) / 6.0).clamp(0.0, 1.0),
-            Activation::Sigmoid => 1.0 / (1.0 + (-x).exp()),
+            Activation::Sigmoid => fastmath::sigmoid(x),
         }
     }
 
+    /// 对每个元素做 [`apply`](Self::apply)。大张量切段多线程，结果与逐个调用逐位相同。
     pub fn apply_all(self, t: &mut Tensor) {
-        if self != Activation::Identity {
-            for v in &mut t.data {
-                *v = self.apply(*v);
+        if self == Activation::Identity {
+            return;
+        }
+        // [推导] 每个元素折合的乘加次数（实测）：含 exp 的（GELU 里的 erf 也是）SSE2 下约 2.5 ns 一个，
+        // 单核矩阵乘约 0.02 ns 一次乘加，折合约 100 次；ReLU 这类只是一次比较，算 1 次
+        let cost = match self {
+            Activation::Silu | Activation::Gelu | Activation::Sigmoid => 100,
+            _ => 1,
+        };
+        let n = t.data.len();
+        let threads = par::threads_for(n * cost, usize::MAX);
+        par::for_chunks_mut(&mut t.data, n.div_ceil(threads), threads, |_, s| {
+            self.apply_slice(s)
+        });
+    }
+
+    /// 对一段切片逐个做 [`apply`](Self::apply)。分支放在循环外，每个循环体都能自动向量化。
+    fn apply_slice(self, s: &mut [f32]) {
+        // 泛型函数按每个 f 单独实例化，f 一定内联进循环
+        fn each(s: &mut [f32], f: impl Fn(f32) -> f32) {
+            for v in s {
+                *v = f(*v);
             }
+        }
+        match self {
+            Activation::Identity => {}
+            Activation::Relu => each(s, |x| Activation::Relu.apply(x)),
+            Activation::Silu => each(s, fastmath::silu),
+            Activation::Gelu => each(s, fastmath::gelu),
+            Activation::HardSigmoid => each(s, |x| Activation::HardSigmoid.apply(x)),
+            Activation::Sigmoid => each(s, fastmath::sigmoid),
         }
     }
 }
