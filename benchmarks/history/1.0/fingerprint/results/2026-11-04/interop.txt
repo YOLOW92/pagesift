@@ -1,0 +1,8 @@
+ok    TLS 1.3, server only accepts X25519MLKEM768 (ML-KEM really used)
+ok    TLS 1.3, server only accepts X25519
+ok    TLS 1.3, P-256 only (HelloRetryRequest)
+ok    TLS 1.2, ECDHE-RSA-AES128-GCM-SHA256
+ok    TLS 1.2, server prefers declared-only CBC (falls back, warns)
+ok    certificate from a CA outside the trust store is refused
+ok    robots.txt that disallows pagesift still applies
+ok    robots.txt that only disallows Mozilla does not apply

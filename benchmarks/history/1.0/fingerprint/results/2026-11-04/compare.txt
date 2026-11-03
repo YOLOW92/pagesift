@@ -1,0 +1,182 @@
+
+=== h2 ===
+same  record_version
+      0301
+same  legacy_version
+      0303
+same  session_id_len
+      32
+same  suites
+same  compression
+      00
+same  ext_set
+same  JA4
+      t13d1517h2_8daaf6152771_cb7bf5808d99
+same  JA4_r
+same  ext 0000 server_name
+      present
+same  ext 0005 status_request
+      0100000000
+same  ext 000a supported_groups
+      ['GREASE', '11ec', '001d', '0017', '0018']
+same  ext 000b ec_point_formats
+      0100
+same  ext 000d signature_algorithms
+      ['GREASE', '0904', '0905', '0906', '0403', '0804', '0401', '0503', '0805', '0501', '0806', '0601']
+same  ext 0010 alpn
+      ['h2', 'http/1.1']
+same  ext 0012 sct
+      
+same  ext 0017 extended_master_secret
+      
+same  ext 001b compress_certificate
+      020002
+same  ext 0023 session_ticket
+      
+same  ext 002b supported_versions
+      ['GREASE', '0304', '0303']
+same  ext 002d psk_kex_modes
+      0101
+same  ext 0033 key_share
+      [['GREASE', 1], ['11ec', 1216], ['001d', 32]]
+same  ext 44cd application_settings
+      0003026832
+same  ext ca34
+same  ext ff01 renegotiation_info
+      00
+same  ext grease_ext_len
+      [0, 1]
+info  ECH GREASE (chrome): {'type': 0, 'kdf': '0001', 'aead': '0001', 'enc_len': 32, 'payload_len': 240, 'total_len': 282}
+info  wire order (chrome): ['1a1a', '0023', '002b', '0010', '002d', 'ca34', '0017', 'ff01', '0000', '0005', '0012', '44cd', '000d', '0033', '001b', '000b', '000a', 'fe0d', '7a7a']
+info  ECH GREASE (pagesift): {'type': 0, 'kdf': '0001', 'aead': '0001', 'enc_len': 32, 'payload_len': 176, 'total_len': 218}
+info  wire order (pagesift): ['8a8a', '000d', '0023', '0010', '000b', '0033', '000a', '002d', '44cd', '001b', '0000', '0005', '0017', 'ca34', '002b', 'ff01', '0012', 'fe0d', '9a9a']
+same  negotiated
+      {'tls_version': 'TLSv1.3', 'alpn': 'h2'}
+info  cipher chrome=TLS_AES_256_GCM_SHA384 pagesift=TLS_AES_256_GCM_SHA384
+same  h2 akamai
+      1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p
+same  h2 headers_flags
+      37
+same  h2 headers_priority
+      {'exclusive': True, 'depends_on': 0, 'weight': 256}
+same  h2 first_frame_types
+      [4, 8, 1, 4]
+same  h2 header_order
+same  h2 header :authority
+      localhost:18443
+same  h2 header :method
+      GET
+same  h2 header :path
+      /
+same  h2 header :scheme
+      https
+same  h2 header accept
+same  h2 header accept-encoding
+      gzip, deflate, br, zstd
+same  h2 header accept-language
+      en-US,en;q=0.9
+same  h2 header priority
+      u=0, i
+same  h2 header sec-ch-ua
+      "Not:A-Brand";v="8", "Chromium";v="156", "Google Chrome";v="156"
+same  h2 header sec-ch-ua-mobile
+      ?0
+same  h2 header sec-ch-ua-platform
+      "Linux"
+same  h2 header sec-fetch-dest
+      document
+same  h2 header sec-fetch-mode
+      navigate
+same  h2 header sec-fetch-site
+      none
+same  h2 header sec-fetch-user
+      ?1
+same  h2 header upgrade-insecure-requests
+      1
+same  h2 header user-agent
+
+=== http1.1 ===
+same  record_version
+      0301
+same  legacy_version
+      0303
+same  session_id_len
+      32
+same  suites
+same  compression
+      00
+same  ext_set
+same  JA4
+      t13d1517h2_8daaf6152771_cb7bf5808d99
+same  JA4_r
+same  ext 0000 server_name
+      present
+same  ext 0005 status_request
+      0100000000
+same  ext 000a supported_groups
+      ['GREASE', '11ec', '001d', '0017', '0018']
+same  ext 000b ec_point_formats
+      0100
+same  ext 000d signature_algorithms
+      ['GREASE', '0904', '0905', '0906', '0403', '0804', '0401', '0503', '0805', '0501', '0806', '0601']
+same  ext 0010 alpn
+      ['h2', 'http/1.1']
+same  ext 0012 sct
+      
+same  ext 0017 extended_master_secret
+      
+same  ext 001b compress_certificate
+      020002
+same  ext 0023 session_ticket
+      
+same  ext 002b supported_versions
+      ['GREASE', '0304', '0303']
+same  ext 002d psk_kex_modes
+      0101
+same  ext 0033 key_share
+      [['GREASE', 1], ['11ec', 1216], ['001d', 32]]
+same  ext 44cd application_settings
+      0003026832
+same  ext ca34
+same  ext ff01 renegotiation_info
+      00
+same  ext grease_ext_len
+      [0, 1]
+info  ECH GREASE (chrome): {'type': 0, 'kdf': '0001', 'aead': '0001', 'enc_len': 32, 'payload_len': 176, 'total_len': 218}
+info  wire order (chrome): ['5a5a', '0017', '0023', '002b', '001b', '0010', '0033', '000a', '002d', 'fe0d', '000b', '0005', '0012', 'ca34', '000d', '0000', '44cd', 'ff01', '4a4a']
+info  ECH GREASE (pagesift): {'type': 0, 'kdf': '0001', 'aead': '0001', 'enc_len': 32, 'payload_len': 208, 'total_len': 250}
+info  wire order (pagesift): ['1a1a', 'fe0d', '000b', '000d', '002b', '0017', '0000', '002d', '0005', '001b', 'ff01', '0033', '0012', '44cd', 'ca34', '000a', '0023', '0010', '3a3a']
+same  negotiated
+      {'tls_version': 'TLSv1.3', 'alpn': 'http/1.1'}
+info  cipher chrome=TLS_AES_256_GCM_SHA384 pagesift=TLS_AES_256_GCM_SHA384
+same  h1 request_line
+      GET / HTTP/1.1
+same  h1 header names
+same  h1 line Host
+      Host: localhost:18443
+same  h1 line Connection
+      Connection: keep-alive
+same  h1 line sec-ch-ua
+      sec-ch-ua: "Not:A-Brand";v="8", "Chromium";v="156", "Google Chrome";v="156"
+same  h1 line sec-ch-ua-mobile
+      sec-ch-ua-mobile: ?0
+same  h1 line sec-ch-ua-platform
+      sec-ch-ua-platform: "Linux"
+same  h1 line Upgrade-Insecure-Requests
+      Upgrade-Insecure-Requests: 1
+same  h1 line User-Agent
+same  h1 line Accept
+same  h1 line Sec-Fetch-Site
+      Sec-Fetch-Site: none
+same  h1 line Sec-Fetch-Mode
+      Sec-Fetch-Mode: navigate
+same  h1 line Sec-Fetch-User
+      Sec-Fetch-User: ?1
+same  h1 line Sec-Fetch-Dest
+      Sec-Fetch-Dest: document
+same  h1 line Accept-Encoding
+      Accept-Encoding: gzip, deflate, br, zstd
+same  h1 line Accept-Language
+      Accept-Language: en-US,en;q=0.9
+
+MATCH

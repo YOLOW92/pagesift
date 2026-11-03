@@ -1,0 +1,17 @@
+live.py target/quick/pagesift --chrome (2026-11-04). Chrome 156.0.8078.79. One page per site.
+
+https://tls.peet.ws/api/all
+  pagesift  200  ja4=t13d1517h2_8daaf6152771_cb7bf5808d99  akamai=1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p
+  chrome         ja4=t13d1517h2_8daaf6152771_cb7bf5808d99  akamai=1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p
+https://tls.browserleaks.com/json
+  pagesift  200  ja4=t13d1517h2_8daaf6152771_cb7bf5808d99  akamai_hash=52d84b11737d980aef856699f885ca86
+  chrome         ja4=t13d1517h2_8daaf6152771_cb7bf5808d99  akamai_hash=52d84b11737d980aef856699f885ca86
+
+JA3 differs on every connection for both, because the extension order is random.
+
+https://www.cloudflare.com/  200, browserFingerprint chrome_156, no warnings
+https://www.google.com/      200, browserFingerprint chrome_156, no warnings
+https://www.example.com/     200, browserFingerprint chrome_156, no warnings
+
+https://www.cloudflare.com/cdn-cgi/trace: http=http/2 tls=TLSv1.3 kex=X25519MLKEM768
+www.google.com, rustls debug log: encrypted extensions contain 17613 (0x44cd, ALPS) and ALPN h2; the handshake completed.
