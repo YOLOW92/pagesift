@@ -36,6 +36,7 @@ impl Options {
         if_modified_since = None,
         export_images = false,
         extract_schema = None,
+        max_age = None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -55,6 +56,7 @@ impl Options {
         if_modified_since: Option<String>,
         export_images: bool,
         extract_schema: Option<String>,
+        max_age: Option<u64>,
     ) -> PyResult<Self> {
         let mut o = ScrapeOptions::default();
         if let Some(f) = formats {
@@ -73,6 +75,7 @@ impl Options {
         o.if_none_match = if_none_match;
         o.if_modified_since = if_modified_since;
         o.export_images = export_images;
+        o.max_age = max_age;
         if let Some(schema) = extract_schema {
             // schema 以 JSON 文本传进来（Python 层负责 dumps），格式选项里带上它
             let value: serde_json::Value = serde_json::from_str(&schema)

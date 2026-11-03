@@ -100,6 +100,9 @@ class Options:
         proxy: Optional[str] = None,
         if_none_match: Optional[str] = None,
         if_modified_since: Optional[str] = None,
+        export_images: bool = False,
+        extract_schema: Optional[str] = None,
+        max_age: Optional[int] = None,
     ) -> None: ...
 
 class Batch:

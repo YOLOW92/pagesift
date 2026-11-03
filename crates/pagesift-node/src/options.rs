@@ -177,6 +177,8 @@ macro_rules! scrape_options {
             /// 选择器失效时自动重定位并在 `warnings` 里报 `relocated`。
             #[napi(ts_type = "Record<string, unknown>")]
             pub extract_schema: Option<serde_json::Value>,
+            /// `storePath` 的页面缓存最多接受多旧的结果，毫秒；0 表示不读缓存、重新抓取。
+            pub max_age: Option<i64>,
         }
 
         impl $name {
@@ -192,6 +194,11 @@ macro_rules! scrape_options {
                     if_modified_since: self.if_modified_since.clone(),
                     proxy: self.proxy.clone(),
                     export_images: self.export_images.unwrap_or(false),
+                    max_age: self
+                        .max_age
+                        .map(u64::try_from)
+                        .transpose()
+                        .map_err(|_| ApiError::invalid("maxAge must not be negative"))?,
                     ..Default::default()
                 };
                 if let Some(v) = self.only_main_content {

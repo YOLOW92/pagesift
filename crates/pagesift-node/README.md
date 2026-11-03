@@ -55,7 +55,7 @@ await scraper.close()
 
 **Options.** `formats` (`'markdown' | 'html' | 'rawHtml' | 'links' | 'images'`, default `['markdown']`; only the listed outputs are computed),
 `onlyMainContent` (default `true`), `url` (convert only). Scraping adds `engine` (`auto` / `http` / `browser`), `timeout`, `waitFor`,
-`headers`, `ignoreRobotsTxt`, `mobile`, `blockAds`, `ifNoneMatch`, `ifModifiedSince`; batches add `concurrency` (default 16).
+`headers`, `ignoreRobotsTxt`, `mobile`, `blockAds`, `ifNoneMatch`, `ifModifiedSince`, `maxAge`; batches add `concurrency` (default 16).
 
 **`Page`.** `markdown`, `html`, `rawHtml`, `links`, `images` (`null` when not requested) and `metadata`
 (title, description, language, `statusCode`, `og*` keys, and `metadata.pagesift`: content hashes, redirect chain, ETag, engine used, timings).

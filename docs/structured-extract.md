@@ -40,6 +40,9 @@ so editing the schema starts a fresh memory.
 | Python | `Scraper(store_path=...)`; no store by default |
 | Node | `new Scraper({ storePath })`; no store by default |
 
+A store also caches pages, and a cached page never needs relocating. CLI `extract` always fetches; everywhere
+else pass `maxAge: 0` (Python `max_age=0`, Node `maxAge: 0`) when you need the page as it is now.
+
 Relocation covers `baseSelector` and top-level fields that have a `selector`. Sub-fields of `nested`,
 `list` and `nested_list` fields, `source` fields and `baseFields` are extracted exactly, never
 relocated, and a failed one produces no warning.

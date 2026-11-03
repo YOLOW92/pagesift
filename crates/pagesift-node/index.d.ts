@@ -247,6 +247,8 @@ export interface BatchOptions {
    * `Scraper` 配了 `storePath` 时，选择器失效会自动重定位并在 `warnings` 里报 `relocated`。
    */
   extractSchema?: Record<string, unknown>
+  /** `storePath` 的页面缓存最多接受多旧的结果，毫秒；0 表示不读缓存、重新抓取。 */
+  maxAge?: number
 }
 
 /** 把一段 HTML 转成 Markdown，在当前线程上同步执行（会阻塞事件循环，适合脚本和小页面）。 */
@@ -393,6 +395,8 @@ export interface ParseOptions {
    * `Scraper` 配了 `storePath` 时，选择器失效会自动重定位并在 `warnings` 里报 `relocated`。
    */
   extractSchema?: Record<string, unknown>
+  /** `storePath` 的页面缓存最多接受多旧的结果，毫秒；0 表示不读缓存、重新抓取。 */
+  maxAge?: number
 }
 
 /** 单页抓取选项。 */
@@ -428,6 +432,8 @@ export interface ScrapeOptions {
    * `Scraper` 配了 `storePath` 时，选择器失效会自动重定位并在 `warnings` 里报 `relocated`。
    */
   extractSchema?: Record<string, unknown>
+  /** `storePath` 的页面缓存最多接受多旧的结果，毫秒；0 表示不读缓存、重新抓取。 */
+  maxAge?: number
 }
 
 /** `Scraper` 的构造参数。 */

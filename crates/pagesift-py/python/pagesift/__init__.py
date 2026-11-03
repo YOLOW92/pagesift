@@ -106,7 +106,8 @@ class ScrapeOptions:
     - ``mobile``：浏览器渲染时模拟手机；
     - ``languages``：浏览器渲染时的 Accept-Language，例如 ``["zh-CN", "en"]``；
     - ``extract_schema``：按 CSS schema 抽取结构化数据（``baseSelector``、``fields``），结果在
-      ``Document.extract``；``Scraper`` 给了 ``store_path`` 时，选择器失效会自动重定位并在 ``warnings`` 里报 ``relocated``。
+      ``Document.extract``；``Scraper`` 给了 ``store_path`` 时，选择器失效会自动重定位并在 ``warnings`` 里报 ``relocated``；
+    - ``max_age``：``store_path`` 的页面缓存最多接受多旧的结果，毫秒；0 表示不读缓存、重新抓取。
     """
 
     formats: Sequence[Format] = ("markdown",)
@@ -124,6 +125,7 @@ class ScrapeOptions:
     if_none_match: Optional[str] = None
     if_modified_since: Optional[str] = None
     extract_schema: Optional[Mapping[str, Any]] = None
+    max_age: Optional[int] = None
     _native: _pagesift.Options = dataclasses.field(
         init=False, repr=False, compare=False, hash=False
     )
@@ -147,6 +149,7 @@ class ScrapeOptions:
             if_none_match=self.if_none_match,
             if_modified_since=self.if_modified_since,
             extract_schema=json.dumps(self.extract_schema) if self.extract_schema is not None else None,
+            max_age=self.max_age,
         )
         object.__setattr__(self, "_native", native)
 

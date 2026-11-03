@@ -1,6 +1,10 @@
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { Scraper, Page, PagesiftError } from '../index.js'
+import { createServer } from 'node:http'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { startServer } from './server.mjs'
 
 let srv
@@ -125,4 +129,29 @@ test('a closed Scraper refuses new work', async () => {
   await assert.rejects(s.scrape(`${srv.base}/article`), closed)
   await assert.rejects(s.scrapeMany([`${srv.base}/article`]), closed)
   assert.throws(() => s.scrapeStream([`${srv.base}/article`]), closed)
+})
+
+test('extract with a store relocates a changed selector when maxAge is 0', async () => {
+  let cls = 'title-v1'
+  const rows = Array.from({ length: 8 }, (_, i) => `<section><h2>Part ${i}</h2><p>Paragraph ${i} in words.</p></section>`).join('')
+  const server = createServer((_, res) => {
+    res.setHeader('content-type', 'text/html')
+    res.end(`<html><body><main><h1 class="${cls}">Hello Widget</h1>${rows}</main></body></html>`)
+  })
+  await new Promise((r) => server.listen(0, '127.0.0.1', r))
+  const url = `http://127.0.0.1:${server.address().port}/`
+  const dir = mkdtempSync(join(tmpdir(), 'pagesift-store-'))
+  const schema = { name: 't', baseSelector: 'main', fields: [{ name: 'title', selector: '.title-v1', type: 'text' }] }
+  try {
+    const s = new Scraper({ allowPrivateNetwork: true, requestIntervalMs: 0, storePath: dir })
+    await s.extract([url], schema, { maxAge: 0 })
+    cls = 'title-v2'
+    const { page } = (await s.extract([url], schema, { maxAge: 0 }))[0]
+    assert.deepEqual(page.extract, [{ title: 'Hello Widget' }])
+    assert.match(page.metadata.pagesift.warnings.join('\n'), /^relocated: fields\.title/m)
+    await s.close()
+  } finally {
+    server.close()
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
