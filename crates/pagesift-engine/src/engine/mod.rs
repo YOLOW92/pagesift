@@ -17,6 +17,7 @@ use pagesift_net::{FetchRequest, Fetcher, FetcherConfig, Url};
 use pagesift_policy::{Policy, PolicyConfig, RequestKind, RobotsMode};
 use tokio::sync::OnceCell;
 
+pub mod agent;
 mod autoschema;
 mod cache;
 mod cpu;
@@ -283,6 +284,29 @@ impl Engine for Scraper {
         owner: Option<&'a str>,
     ) -> BoxFuture<'a, Result<pagesift_api::types::InteractStopped, ApiError>> {
         Box::pin(Scraper::stop_interact(self, id, owner))
+    }
+
+    fn agent_check(&self, req: &pagesift_api::types::AgentRequest) -> Result<(), ApiError> {
+        agent::check(self.llm.is_some(), self.search.is_some(), req)
+    }
+
+    fn agent<'a>(
+        &'a self,
+        req: &'a pagesift_api::types::AgentRequest,
+        sink: Arc<dyn pagesift_api::AgentSink>,
+    ) -> BoxFuture<'a, pagesift_api::types::AgentOutcome> {
+        Box::pin(async move {
+            match &self.llm {
+                Some(llm) => agent::run(self, llm, self.search.is_some(), req, sink.as_ref()).await,
+                None => pagesift_api::types::AgentOutcome {
+                    finish_reason: "error".into(),
+                    error: Some(pagesift_api::types::AgentFailure::from(
+                        &ApiError::unsupported("agent needs an LLM: set [llm] in pagesift.toml"),
+                    )),
+                    ..Default::default()
+                },
+            }
+        })
     }
 
     /// 统一准入：批量任务的并发取当前全局在途数目标（限速器的 USL 控制器）。

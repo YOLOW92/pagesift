@@ -1,11 +1,16 @@
 //! Firecrawl v1/v2 request and response types.
 
+pub mod agent;
 pub mod attachment;
 pub mod interact;
 pub mod parse;
 pub mod request;
 pub mod response;
 
+pub use agent::{
+    AgentBudget, AgentEffort, AgentEvidence, AgentFailure, AgentOutcome, AgentRequest, AgentSource,
+    AgentStep, AgentUsage, FieldSource,
+};
 pub use attachment::Attachment;
 pub use interact::{
     InteractRequest, InteractResponse, InteractStopped, LIVE_VIEW_UNAVAILABLE, SESSION_REPLAYED,

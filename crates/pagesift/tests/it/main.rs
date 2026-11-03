@@ -5,6 +5,7 @@
 #[path = "../../../pagesift-net/tests/common/mod.rs"]
 mod common;
 
+mod agent;
 mod ai_content;
 mod autoschema;
 mod cli_fetch;

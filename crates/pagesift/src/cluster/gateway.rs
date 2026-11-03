@@ -370,6 +370,33 @@ impl Engine for ClusterEngine {
         Engine::extract(&*self.scraper, req)
     }
 
+    fn agent_check(&self, req: &pagesift_api::types::AgentRequest) -> Result<(), ApiError> {
+        Engine::agent_check(&*self.scraper, req)
+    }
+
+    /// 同一个循环，页面走网关的调度（`self` 的 scrape、map），模型和搜索用网关自己的配置。
+    fn agent<'a>(
+        &'a self,
+        req: &'a pagesift_api::types::AgentRequest,
+        sink: Arc<dyn pagesift_api::AgentSink>,
+    ) -> BoxFuture<'a, pagesift_api::types::AgentOutcome> {
+        Box::pin(async move {
+            match self.scraper.llm_client() {
+                Some(llm) => {
+                    crate::engine::agent::run(
+                        self,
+                        llm,
+                        self.scraper.has_search(),
+                        req,
+                        sink.as_ref(),
+                    )
+                    .await
+                }
+                None => Engine::agent(&*self.scraper, req, sink).await,
+            }
+        })
+    }
+
     fn supported_formats(&self) -> &'static [&'static str] {
         Engine::supported_formats(&*self.scraper)
     }

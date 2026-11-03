@@ -11,9 +11,10 @@ mod schema;
 mod summary;
 
 pub use client::{
-    ChatClient, ChatMessage, ChatRequest, ChatResponse, LlmConfig, ResponseFormat, Role, SchemaMode,
+    ChatClient, ChatMessage, ChatRequest, ChatResponse, LlmConfig, ResponseFormat, Role,
+    SchemaMode, TokenUsage,
 };
 pub use error::{LlmError, Result};
-pub use extract::{ExtractOptions, extract_json};
+pub use extract::{ExtractOptions, extract_json, parse_json};
 pub use schema::validate as validate_schema;
 pub use summary::{SummaryOptions, estimate_tokens, summarize};

@@ -115,6 +115,42 @@ impl WebhookConfig {
         Ok(cfg)
     }
 
+    /// agent 的 `webhook`：事件是 `started`、`action`、`completed`、`failed`、`cancelled`（也接受
+    /// `agent.started` 这样的全名，发送时总用全名），默认都要。
+    pub(crate) fn parse_agent(v: &Value, policy: &SsrfPolicy) -> Result<Self, ApiError> {
+        const AGENT_EVENTS: [&str; 5] = ["started", "action", "completed", "failed", "cancelled"]; // [协议] Firecrawl 的五个事件
+        let mut obj = match v {
+            Value::String(u) => serde_json::json!({ "url": u }),
+            Value::Object(_) => v.clone(),
+            _ => {
+                return Err(ApiError::invalid(
+                    "webhook must be a URL or an object with a url",
+                ));
+            }
+        };
+        let events = obj.get("events").cloned();
+        obj["events"] = serde_json::json!(["started"]);
+        let mut cfg = Self::parse(&obj, policy)?;
+        cfg.events = match events {
+            Some(e) => serde_json::from_value::<Vec<String>>(e)
+                .map_err(|e| ApiError::invalid(format!("invalid webhook events: {e}")))?
+                .into_iter()
+                .map(|e| e.strip_prefix("agent.").map(str::to_string).unwrap_or(e))
+                .collect(),
+            None => AGENT_EVENTS.iter().map(|e| e.to_string()).collect(),
+        };
+        if let Some(e) = cfg
+            .events
+            .iter()
+            .find(|e| !AGENT_EVENTS.contains(&e.as_str()))
+        {
+            return Err(ApiError::invalid(format!(
+                "unknown agent webhook event {e:?}: use started, action, completed, failed or cancelled"
+            )));
+        }
+        Ok(cfg)
+    }
+
     fn wants(&self, event: Event) -> bool {
         self.events.iter().any(|e| e == event.name())
     }

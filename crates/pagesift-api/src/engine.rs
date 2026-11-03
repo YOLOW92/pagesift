@@ -6,8 +6,9 @@ use std::sync::Arc;
 
 use crate::error::ApiError;
 use crate::types::{
-    CrawlRequest, CrawlSummary, Document, ExtractRequest, InteractRequest, InteractResponse,
-    InteractStopped, MapLink, MapRequest, ScrapeOptions, SearchRequest, Upload,
+    AgentFailure, AgentOutcome, AgentRequest, AgentStep, CrawlRequest, CrawlSummary, Document,
+    ExtractRequest, InteractRequest, InteractResponse, InteractStopped, MapLink, MapRequest,
+    ScrapeOptions, SearchRequest, Upload,
 };
 use serde_json::Value;
 
@@ -66,6 +67,29 @@ pub trait Engine: Send + Sync + 'static {
             Err(ApiError::unsupported(
                 "extract needs an LLM: set [llm] in pagesift.toml",
             ))
+        })
+    }
+
+    /// `/v2/agent` 开跑前的检查：没配 LLM、没有 `urls` 又没配搜索时，提交时就报错。
+    fn agent_check(&self, _req: &AgentRequest) -> Result<(), ApiError> {
+        Err(ApiError::unsupported(
+            "agent needs an LLM: set [llm] in pagesift.toml",
+        ))
+    }
+
+    /// `/v2/agent`：跑完一次（中途出错也回已经攒下的证据，错误在 `AgentOutcome::error`）。
+    fn agent<'a>(
+        &'a self,
+        _req: &'a AgentRequest,
+        _sink: Arc<dyn AgentSink>,
+    ) -> BoxFuture<'a, AgentOutcome> {
+        Box::pin(async {
+            AgentOutcome {
+                error: Some(AgentFailure::from(&ApiError::unsupported(
+                    "agent needs an LLM: set [llm] in pagesift.toml",
+                ))),
+                ..Default::default()
+            }
         })
     }
 
@@ -131,6 +155,28 @@ pub trait Engine: Send + Sync + 'static {
         None
     }
 }
+
+/// agent 运行的回报和额度，由 API 层的任务管理实现；`()` 是不回报、不限额的实现。
+pub trait AgentSink: Send + Sync {
+    /// 一次工具调用结束；`credits` 是到现在为止用掉的额度。
+    fn step<'a>(&'a self, _step: &'a AgentStep, _credits: u64) -> BoxFuture<'a, ()> {
+        Box::pin(async {})
+    }
+    /// 调用方要求取消：在两步之间生效。
+    fn cancelled(&self) -> bool {
+        false
+    }
+    /// 抓到一页：计入调用方的页面配额。
+    fn charge_page(&self) -> BoxFuture<'_, ()> {
+        Box::pin(async {})
+    }
+    /// 调用方今天还能抓多少页；没有配额时 `None`。
+    fn pages_left(&self) -> Option<u64> {
+        None
+    }
+}
+
+impl AgentSink for () {}
 
 /// 整站爬取的进度回报，由 API 层的任务管理实现。
 pub trait CrawlSink: Send + Sync {

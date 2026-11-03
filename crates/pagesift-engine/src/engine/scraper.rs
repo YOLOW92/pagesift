@@ -263,6 +263,16 @@ impl Scraper {
         self.audit.as_ref()
     }
 
+    /// 配置的 LLM 客户端（多服务器网关跑 agent 时用）。
+    pub fn llm_client(&self) -> Option<&pagesift_llm::ChatClient> {
+        self.llm.as_ref()
+    }
+
+    /// 配了搜索后端。
+    pub fn has_search(&self) -> bool {
+        self.search.is_some()
+    }
+
     pub fn policy(&self) -> &Policy {
         &self.policy
     }

@@ -245,6 +245,35 @@ pub(crate) enum Command {
         #[command(flatten)]
         allow: AllowCidrs,
     },
+    /// Research a question on the web with the configured LLM: search, read pages, stop when new
+    /// pages add nothing. Prints one JSON object (data, sources, fieldSources); needs [llm], and
+    /// [search] unless --urls is given. Exits 1 when the result is failed or incomplete.
+    Agent {
+        prompt: String,
+        /// Pages to start from
+        #[arg(long, num_args = 1..)]
+        urls: Vec<String>,
+        /// JSON Schema of the answer (file)
+        #[arg(long)]
+        schema: Option<PathBuf>,
+        /// Budget ceiling: pages, model calls and tokens
+        #[arg(long, value_parser = ["low", "medium", "high"])]
+        effort: Option<String>,
+        /// Open only the pages in --urls
+        #[arg(long)]
+        strict_constrain_to_urls: bool,
+        /// Stop after this many pages, searches and maps
+        #[arg(long)]
+        max_credits: Option<u64>,
+        /// Open only pages on these hosts (and their subdomains)
+        #[arg(long, num_args = 1..)]
+        allowed_hosts: Vec<String>,
+        /// Add the archived evidence text to the output
+        #[arg(long)]
+        include_evidence: bool,
+        #[command(flatten)]
+        allow: AllowCidrs,
+    },
     /// Extract structured data with a CSS schema (baseSelector, fields); one JSON line per URL.
     /// With a store ([cache]) selectors are remembered and relocated after a page redesign
     Extract {

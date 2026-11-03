@@ -5,6 +5,7 @@
 
 #![forbid(unsafe_code)]
 
+mod agent;
 pub mod attachments;
 mod engine;
 mod error;
@@ -23,7 +24,8 @@ pub mod types;
 mod validate;
 mod webhook;
 
-pub use engine::{BoxFuture, CrawlResume, CrawlSink, Engine};
+pub use agent::{Agents, agent_body, agent_body_with_evidence, check_agent_request};
+pub use engine::{AgentSink, BoxFuture, CrawlResume, CrawlSink, Engine};
 pub use error::{ApiError, ErrorCode};
 pub use jobs::mirror::{JobLog, JobMirror, apply_op};
 pub use jobs::{JOB_TTL, Job, JobKind, JobState, Jobs, rfc3339};

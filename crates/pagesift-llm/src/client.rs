@@ -92,10 +92,20 @@ pub struct ChatRequest {
     pub response_format: Option<ResponseFormat>,
 }
 
+/// 服务在响应里报的 token 用量（`usage`）。推理型模型的思考算在 `completion` 里。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TokenUsage {
+    pub prompt: usize,
+    pub completion: usize,
+    pub total: usize,
+}
+
 #[derive(Debug, Clone)]
 pub struct ChatResponse {
     pub content: String,
     pub finish_reason: Option<String>,
+    /// 服务不报时为 `None`（调用方自己估计）。
+    pub usage: Option<TokenUsage>,
 }
 
 #[derive(Clone)]
@@ -314,8 +324,15 @@ fn parse_success(text: &str) -> Result<ChatResponse> {
         .get("finish_reason")
         .and_then(Value::as_str)
         .map(str::to_owned);
+    let count = |key: &str| v.pointer(key).and_then(Value::as_u64).map(|n| n as usize);
+    let usage = count("/usage/total_tokens").map(|total| TokenUsage {
+        prompt: count("/usage/prompt_tokens").unwrap_or(0),
+        completion: count("/usage/completion_tokens").unwrap_or(0),
+        total,
+    });
     Ok(ChatResponse {
         content,
         finish_reason,
+        usage,
     })
 }

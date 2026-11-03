@@ -128,6 +128,7 @@ pub struct AppState {
     pub limiter: Arc<Limiter>,
     pub webhooks: Webhooks,
     pub extracts: Arc<Mutex<HashMap<String, ExtractJob>>>,
+    pub agents: crate::agent::Agents,
     pub(crate) monitors: crate::monitor::Monitors,
     pub metrics: Arc<Metrics>,
     pub extra_metrics: Option<ExtraMetrics>,
@@ -209,6 +210,11 @@ pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
     }
     let mut webhooks = Webhooks::new(config.webhook, metrics.clone());
     webhooks.mirror = config.job_mirror.clone();
+    let agents = crate::agent::Agents::new(
+        config.store.clone(),
+        Some(webhooks.clone()),
+        Some(limiter.clone()),
+    );
     let jobs = Jobs::new(
         config.store,
         limiter.clone(),
@@ -241,6 +247,7 @@ pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
         limiter,
         webhooks,
         extracts: Arc::default(),
+        agents,
         monitors: Default::default(),
         metrics,
         extra_metrics: config.extra_metrics,

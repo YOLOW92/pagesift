@@ -1,6 +1,7 @@
 //! Firecrawl v1 and v2 API protocol compatibility layer.
 //! Dual mounts endpoints to provide 100% backward compatibility with official Firecrawl SDKs.
 
+pub mod agent;
 pub mod batch;
 pub mod crawl;
 pub mod interact;
@@ -41,6 +42,8 @@ pub fn firecrawl_routes() -> Router<AppState> {
         .route("/v2/search", post(search::search))
         .route("/v2/extract", post(search::extract_start))
         .route("/v2/extract/{id}", get(search::extract_status))
+        .route("/v2/agent", post(agent::start))
+        .route("/v2/agent/{id}", get(agent::status).delete(agent::cancel))
         .route("/v2/crawl", post(crawl::crawl_start))
         .route("/v2/crawl/active", get(crawl::jobs_active))
         .route(

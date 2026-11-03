@@ -97,7 +97,7 @@ fn user_prompt(markdown: &str, opts: &ExtractOptions) -> String {
 }
 
 /// 容忍模型包上 ```json 围栏或前后多余文字。
-fn parse_json(text: &str) -> std::result::Result<Value, serde_json::Error> {
+pub fn parse_json(text: &str) -> std::result::Result<Value, serde_json::Error> {
     let t = text.trim();
     if let Ok(v) = serde_json::from_str(t) {
         return Ok(v);

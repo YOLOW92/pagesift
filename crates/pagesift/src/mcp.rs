@@ -42,6 +42,12 @@ pub fn engine_tools(
         tools.push(Arc::new(Interact(engine.clone())));
         tools.push(Arc::new(InteractStop(engine.clone())));
     }
+    // agent 要模型：没配 LLM 时不列出来（`json` 格式只有配了 LLM 才有）
+    if engine.supported_formats().contains(&"json") {
+        let agents = pagesift_api::Agents::default();
+        tools.push(Arc::new(AgentTool(engine.clone(), agents.clone())));
+        tools.push(Arc::new(AgentStatus(agents)));
+    }
     tools.push(Arc::new(Batch(engine, jobs, caps)));
     tools
 }
@@ -441,6 +447,67 @@ impl ToolHandler for Batch {
             Ok(ToolOutput::json(
                 json!({ "id": id, "status": "scraping", "invalidURLs": invalid }),
             ))
+        })
+    }
+}
+
+struct AgentTool(Arc<dyn Engine>, pagesift_api::Agents);
+
+impl ToolHandler for AgentTool {
+    fn definition(&self) -> ToolDef {
+        tools::agent_def()
+    }
+
+    fn call(&self, args: Map<String, Value>, _ctx: ToolContext) -> BoxFuture<'_, ToolResult> {
+        Box::pin(async move {
+            let req: pagesift_api::types::AgentRequest = parse(
+                Value::Object(args),
+                &[names::<pagesift_api::types::AgentRequest>()],
+            )?;
+            if req.webhook.is_some() {
+                return Err(tool_error(ApiError::unsupported(
+                    "webhooks are not available in this build",
+                )));
+            }
+            let id = self
+                .1
+                .start_local(self.0.clone(), req)
+                .await
+                .map_err(tool_error)?;
+            Ok(ToolOutput::json(json!({
+                "id": id,
+                "status": "processing",
+                "next": "call pagesift_agent_status with this id to get the result",
+            })))
+        })
+    }
+}
+
+struct AgentStatus(pagesift_api::Agents);
+
+impl ToolHandler for AgentStatus {
+    fn definition(&self) -> ToolDef {
+        tools::agent_status_def()
+    }
+
+    fn call(&self, args: Map<String, Value>, _ctx: ToolContext) -> BoxFuture<'_, ToolResult> {
+        Box::pin(async move {
+            pagesift_api::fields::reject_unknown(&args, &[&["id", "includeEvidence"]])
+                .map_err(tool_error)?;
+            let id = args
+                .get("id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| ToolError::new("missing id"))?;
+            let evidence = args
+                .get("includeEvidence")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let body = self
+                .0
+                .status(id, "anonymous", evidence)
+                .await
+                .map_err(tool_error)?;
+            Ok(ToolOutput::json(body))
         })
     }
 }

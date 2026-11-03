@@ -152,6 +152,30 @@ fn run(command: Command, cfg: pagesift::config::Config) -> Result<ExitCode> {
         | Command::Doctor
         | Command::Mcp { .. }) => commands::service::run(command, cfg),
         Command::Models { action } => commands::models::run(action, cfg),
+        Command::Agent {
+            prompt,
+            urls,
+            schema,
+            effort,
+            strict_constrain_to_urls,
+            max_credits,
+            allowed_hosts,
+            include_evidence,
+            allow,
+        } => commands::agent::run(
+            commands::agent::AgentArgs {
+                prompt,
+                urls,
+                schema,
+                effort,
+                strict_constrain_to_urls,
+                max_credits,
+                allowed_hosts,
+                include_evidence,
+                allow,
+            },
+            cfg,
+        ),
         Command::Extract {
             urls,
             schema,

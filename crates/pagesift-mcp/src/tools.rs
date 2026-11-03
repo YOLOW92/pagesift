@@ -23,6 +23,8 @@ pub const CRAWL_STATUS: &str = "pagesift_crawl_status";
 pub const BATCH_SCRAPE: &str = "pagesift_batch_scrape";
 pub const INTERACT: &str = "pagesift_interact";
 pub const INTERACT_STOP: &str = "pagesift_interact_stop";
+pub const AGENT: &str = "pagesift_agent";
+pub const AGENT_STATUS: &str = "pagesift_agent_status";
 
 /// 单页抓取选项（不含 `url`），由引擎能力生成，见 [`crate::options`]。
 pub fn scrape_options_schema(caps: &Capabilities) -> Value {
@@ -199,6 +201,56 @@ pub fn crawl_status_def() -> ToolDef {
         })
 }
 
+/// 只在配了 LLM 时注册，所以不在 [`definitions`] 里。
+pub fn agent_def() -> ToolDef {
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "prompt": { "type": "string", "maxLength": 10000, "description": "What to find out." }, // [协议] Firecrawl 文档的上限
+            "urls": { "type": "array", "items": { "type": "string", "format": "uri" }, "description": "Pages to start from. Needed when no search backend is configured." },
+            "schema": { "type": "object", "description": "JSON Schema of the answer." },
+            "effort": { "type": "string", "enum": ["low", "medium", "high"], "description": "Budget ceiling: pages, model calls and tokens. Default medium." },
+            "strictConstrainToURLs": { "type": "boolean", "description": "Open only the pages in urls." },
+            "maxCredits": { "type": "integer", "minimum": 1, "description": "Stop after this many pages, searches and maps." },
+            "allowedHosts": { "type": "array", "items": { "type": "string" }, "description": "Open only pages on these hosts and their subdomains." },
+        },
+        "required": ["prompt"],
+        "additionalProperties": false,
+    });
+    ToolDef::new(AGENT, schema)
+        .title("Research agent")
+        .description(
+            "Answer a question from the web when you do not know the URLs: the configured LLM plans \
+             searches and page reads, and the run stops when new pages add nothing or the budget \
+             ends. Respects robots.txt. Returns a job id right away; poll it with \
+             pagesift_agent_status. Uses model tokens; for one known page use pagesift_scrape.",
+        )
+        .annotations(annotations("pagesift agent", true))
+}
+
+pub fn agent_status_def() -> ToolDef {
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "id": { "type": "string", "description": "Job id returned by pagesift_agent." },
+            "includeEvidence": { "type": "boolean", "description": "Add the archived evidence text." },
+        },
+        "required": ["id"],
+        "additionalProperties": false,
+    });
+    ToolDef::new(AGENT_STATUS, schema)
+        .title("Agent status")
+        .description(
+            "Get the status of a pagesift_agent job: data (or partial and stopReason when it did not \
+             finish), sources, fieldSources (which source each field came from) and usage. Read-only.",
+        )
+        .annotations(ToolAnnotations {
+            open_world_hint: Some(false),
+            idempotent_hint: Some(true),
+            ..annotations("pagesift agent status", true)
+        })
+}
+
 pub fn batch_scrape_def(caps: &Capabilities) -> ToolDef {
     let schema = json!({
         "type": "object",
@@ -352,6 +404,17 @@ mod tests {
     }
 
     /// crawl、map 的每个属性都是请求类型的真实字段。
+    #[test]
+    fn agent_properties_are_real_fields() {
+        use pagesift_api::fields::names;
+        use pagesift_api::types::AgentRequest;
+        let def = agent_def();
+        let props = def.input_schema["properties"].as_object().unwrap();
+        for k in props.keys() {
+            assert!(names::<AgentRequest>().contains(&k.as_str()), "{k}");
+        }
+    }
+
     #[test]
     fn crawl_and_map_properties_are_real_fields() {
         use pagesift_api::fields::names;
