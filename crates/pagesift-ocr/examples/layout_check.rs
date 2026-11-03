@@ -58,6 +58,17 @@ fn main() {
     }
     eprintln!("载入 {:.0} ms", t.elapsed().as_secs_f64() * 1e3);
     let img = read_pnm(&a[1]);
+    // 设了 LAYOUT_RAW 就打印原始输出的左上角，和参考实现的集成测试对照
+    if std::env::var_os("LAYOUT_RAW").is_some() {
+        let r = m.raw(&img).unwrap();
+        let (_, k) = r.logits.tc();
+        let (q, _) = r.order.tc();
+        for i in 0..3 {
+            println!("logits {:?}", &r.logits.data[i * k..i * k + 3]);
+            println!("boxes {:?}", &r.boxes[i][..3]);
+            println!("order {:?}", &r.order.data[i * q..i * q + 3]);
+        }
+    }
     let t = Instant::now();
     let rs = m.detect(&img).unwrap();
     let ms = t.elapsed().as_secs_f64() * 1e3;
@@ -72,7 +83,7 @@ fn main() {
     for r in &rs {
         writeln!(
             s,
-            "{:.1} {:.1} {:.1} {:.1} {:.3} {} {}",
+            "{:.4} {:.4} {:.4} {:.4} {:.4} {} {}",
             r.x0, r.y0, r.x1, r.y1, r.score, r.label, r.kind
         )
         .unwrap();

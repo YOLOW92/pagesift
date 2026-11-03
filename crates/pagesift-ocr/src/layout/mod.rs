@@ -81,21 +81,7 @@ impl Layout {
 
     /// 检测整页图的版面区域，按预测的阅读顺序返回。
     pub fn detect(&self, img: &Image) -> Result<Vec<Region>, String> {
-        if img.width == 0 || img.height == 0 {
-            return Err("图像为空".into());
-        }
-        // [协议] `Image` 只有灰度（1）、RGB（3）两种
-        if img.channels != 1 && img.channels != 3 {
-            return Err(format!("只支持灰度或 RGB 图，实际 {} 通道", img.channels));
-        }
-        if img.data.len() != img.width * img.height * img.channels {
-            return Err("图像数据长度与宽高不符".into());
-        }
-        let x = self.pre.run(img);
-        let feats = self.backbone.forward(&x);
-        let enc = self.encoder.forward(&feats);
-        drop(feats);
-        let raw = self.decoder.forward(&enc.feats, &enc.mask_feat);
+        let raw = self.raw(img)?;
         let (q, classes) = raw.logits.tc();
         if classes != self.labels.len() {
             return Err(format!(
@@ -125,5 +111,24 @@ impl Layout {
                 score: d.score,
             })
             .collect())
+    }
+
+    /// 网络的原始输出（后处理之前），用来和参考实现逐数对照。
+    pub fn raw(&self, img: &Image) -> Result<decoder::Raw, String> {
+        if img.width == 0 || img.height == 0 {
+            return Err("图像为空".into());
+        }
+        // [协议] `Image` 只有灰度（1）、RGB（3）两种
+        if img.channels != 1 && img.channels != 3 {
+            return Err(format!("只支持灰度或 RGB 图，实际 {} 通道", img.channels));
+        }
+        if img.data.len() != img.width * img.height * img.channels {
+            return Err("图像数据长度与宽高不符".into());
+        }
+        let x = self.pre.run(img);
+        let feats = self.backbone.forward(&x);
+        let enc = self.encoder.forward(&feats);
+        drop(feats);
+        Ok(self.decoder.forward(&enc.feats, &enc.mask_feat))
     }
 }
