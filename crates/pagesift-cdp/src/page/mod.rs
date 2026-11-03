@@ -9,6 +9,7 @@ use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 
 mod actions;
+mod live;
 mod monitor;
 mod scroll;
 mod settle;
@@ -19,6 +20,9 @@ use monitor::{
     wait_ready,
 };
 use scroll::{scan_full_page, virtual_scroll};
+
+pub use live::AxNode;
+pub(crate) use live::LivePage;
 
 use crate::capture::{CaptureOptions, Captured, capture_html};
 use crate::conn::{Connection, Session};
@@ -248,6 +252,7 @@ impl PageCtx<'_> {
     }
 }
 
+#[derive(Clone, Copy)]
 struct Metrics {
     width: u32,
     height: u32,
@@ -267,6 +272,7 @@ impl Metrics {
     }
 }
 
+/// `keep` 给了时，渲染成功后把页面状态交给它：标签页、事件监听和子请求拦截都继续活着（`/interact`）。
 pub(crate) async fn render_page(
     conn: &Connection,
     res: &mut PageResources,
@@ -274,6 +280,7 @@ pub(crate) async fn render_page(
     url: &str,
     opts: &RenderOptions,
     timings: &mut Timings,
+    keep: Option<&mut Option<LivePage>>,
 ) -> Result<RenderedPage> {
     let setup_start = Instant::now();
     // 每个页面一个独立的浏览器上下文，cookie 和缓存不会串到别的请求。
@@ -599,6 +606,20 @@ pub(crate) async fn render_page(
         .drain(..)
         .map(|(_, b)| b)
         .collect();
+    let PageCtx {
+        metrics,
+        virtual_items,
+        ..
+    } = ctx;
+    if let Some(slot) = keep {
+        *slot = Some(LivePage::new(
+            session.clone(),
+            shared.clone(),
+            metrics,
+            virtual_items,
+            opts.clone(),
+        ));
+    }
     Ok(RenderedPage {
         final_url,
         status,

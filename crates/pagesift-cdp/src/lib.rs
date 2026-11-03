@@ -45,7 +45,9 @@ pub use guard::{
 };
 pub use launch::{detect_browser, running_as_root};
 pub use options::*;
+pub use page::AxNode;
 pub use pool::{
-    BrowserPool, BrowserSource, BrowserStats, PoolConfig, auto_browsers, auto_browsers_for,
+    BrowserPool, BrowserSource, BrowserStats, KeptPage, PoolConfig, SessionRoom, auto_browsers,
+    auto_browsers_for,
 };
 pub use proxy::BrowserProxy;

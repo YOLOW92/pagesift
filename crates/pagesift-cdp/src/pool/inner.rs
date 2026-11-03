@@ -163,6 +163,7 @@ impl PoolInner {
             process,
             user_agent: version["userAgent"].as_str().unwrap_or_default().to_owned(),
             in_use: 0,
+            pinned: 0,
             served: 0,
             retiring: false,
             dead: false,
@@ -260,8 +261,16 @@ impl PoolInner {
                     return Err(Error::PoolClosed);
                 }
                 let finished = Self::take_idle_finished(&mut st);
-                let idle = st.launching == 0 && st.slots.iter().all(|s| s.in_use == 0);
+                // 保留页面不算在渲染：只有它们时也算空闲，否则内存紧张时没有归还事件，新请求永远等不到
+                let idle = st.launching == 0 && st.slots.iter().all(|s| s.in_use == s.pinned);
                 let max_tabs = self.cfg.max_tabs_per_browser;
+                // 被保留页面占满的浏览器、等保留页面结束才能回收的浏览器，都不再提供新标签，
+                // 不计入目标数，否则新请求要等到这些页面被回收
+                let serving = st
+                    .slots
+                    .iter()
+                    .filter(|s| s.pinned < max_tabs && !(s.retiring && s.pinned > 0))
+                    .count();
                 // 每个浏览器、每个标签的内存：实测 PSS 的窗口均值（先验是 Footprint 表）
                 let (browser_mb, tab_mb) = (self.mem.browser_mb(), self.mem.tab_mb());
                 let idx = st
@@ -272,7 +281,7 @@ impl PoolInner {
                     Some(i) if idle || self.memory_allows(tab_mb) => {
                         Some(self.lease(&mut st.slots[i]))
                     }
-                    None if st.slots.len() + st.launching < self.target.load(Ordering::Relaxed)
+                    None if serving + st.launching < self.target.load(Ordering::Relaxed)
                         && (idle || self.memory_allows(browser_mb + tab_mb)) =>
                     {
                         // 启动浏览器要几百毫秒，放到锁外，别的页面照常取用和归还标签页。
@@ -338,6 +347,38 @@ impl PoolInner {
             }
             if let Some(s) = st.slots.iter_mut().find(|s| s.id == slot_id) {
                 s.in_use -= 1;
+                if s.in_use == 0 {
+                    self.open_idle(s);
+                }
+            }
+            Self::take_idle_finished(&mut st)
+        };
+        for s in finished {
+            s.shutdown().await;
+        }
+        self.notify.notify_waiters();
+    }
+
+    /// 标签页转成保留页面：这次渲染照常计入吞吐和占用时长（之后的空闲不算负载），名额不还。
+    pub(super) async fn pin(&self, slot_id: u64, held: Duration) {
+        let mut st = self.state.lock().await;
+        self.completed.fetch_add(1, Ordering::Relaxed);
+        st.busy += held;
+        if let Some(w) = st.service.push(held.as_secs_f64(), Delta::DEFAULT) {
+            st.service_mean = Some(w);
+        }
+        if let Some(s) = st.slots.iter_mut().find(|s| s.id == slot_id) {
+            s.pinned += 1;
+        }
+    }
+
+    /// 保留页面结束，名额归还。
+    pub(super) async fn unpin(&self, slot_id: u64) {
+        let finished = {
+            let mut st = self.state.lock().await;
+            if let Some(s) = st.slots.iter_mut().find(|s| s.id == slot_id) {
+                s.in_use -= 1;
+                s.pinned -= 1;
                 if s.in_use == 0 {
                     self.open_idle(s);
                 }
@@ -461,6 +502,19 @@ pub(super) struct Lease {
 }
 
 impl Lease {
+    /// 不关页面、不还名额，把标签页交给 [`KeptPage`]。
+    pub(super) async fn into_kept(mut self, live: crate::page::LivePage) -> KeptPage {
+        self.done = true;
+        self.pool.pin(self.slot_id, self.started.elapsed()).await;
+        KeptPage::new(
+            self.pool.clone(),
+            self.slot_id,
+            self.conn.clone(),
+            std::mem::take(&mut self.res),
+            live,
+        )
+    }
+
     pub(super) async fn finish(mut self) {
         self.done = true;
         let _ = tokio::time::timeout(Duration::from_secs(5), self.res.cleanup(&self.conn)).await;

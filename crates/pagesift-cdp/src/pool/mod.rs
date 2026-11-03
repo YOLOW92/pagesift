@@ -19,10 +19,12 @@ use crate::options::{RenderOptions, RenderedPage, Timings};
 use crate::page::{PageEnv, PageResources, render_page};
 
 mod inner;
+mod kept;
 mod memory;
 mod resources;
 
 use inner::*;
+pub use kept::{KeptPage, SessionRoom};
 use resources::*;
 pub use resources::{auto_browsers, auto_browsers_for};
 
@@ -116,6 +118,8 @@ struct Slot {
     process: Option<BrowserProcess>,
     user_agent: String,
     in_use: usize,
+    /// `in_use` 里被保留页面（[`KeptPage`]）占着的标签数：它们没有在渲染，不算负载。
+    pinned: usize,
     served: usize,
     retiring: bool,
     dead: bool,
@@ -320,6 +324,27 @@ impl BrowserPool {
 
     /// 渲染一个页面。`opts.timeout` 覆盖排队、导航、actions 在内的全部时间。
     pub async fn render(&self, url: &str, opts: &RenderOptions) -> Result<RenderedPage> {
+        self.render_inner(url, opts, None).await.map(|(p, _)| p)
+    }
+
+    /// 同 [`Self::render`]，渲染完不关页面：标签页交给返回的 [`KeptPage`]，它结束前一直占一个标签名额。
+    pub async fn render_kept(
+        &self,
+        url: &str,
+        opts: &RenderOptions,
+    ) -> Result<(RenderedPage, KeptPage)> {
+        let mut live = None;
+        let (page, kept) = self.render_inner(url, opts, Some(&mut live)).await?;
+        let kept = kept.ok_or(Error::PoolClosed)?;
+        Ok((page, kept))
+    }
+
+    async fn render_inner(
+        &self,
+        url: &str,
+        opts: &RenderOptions,
+        mut keep: Option<&mut Option<crate::page::LivePage>>,
+    ) -> Result<(RenderedPage, Option<KeptPage>)> {
         let start = Instant::now();
         opts.validate(self.inner.cfg.allow_execute_javascript)?;
         if opts.proxy.is_some() && self.engine() != EngineKind::Chrome {
@@ -339,13 +364,23 @@ impl BrowserPool {
                 intercept: !self.inner.cfg.engine_network_guard,
                 waits: self.inner.waits.clone(),
             };
-            render_page(&l.conn, &mut l.res, &env, url, opts, &mut timings).await
+            let slot = keep.as_deref_mut();
+            render_page(&l.conn, &mut l.res, &env, url, opts, &mut timings, slot).await
         })
         .await;
         let close_start = Instant::now();
         let acquired = lease.is_some();
+        // 要保留且渲染成功：标签页不还，转成保留页面；其余情况照常归还
+        let live = match &r {
+            Ok(Ok(_)) => keep.and_then(Option::take),
+            _ => None,
+        };
+        let mut kept = None;
         if let Some(l) = lease {
-            l.finish().await;
+            match live {
+                Some(live) => kept = Some(l.into_kept(live).await),
+                None => l.finish().await,
+            }
         }
         // 超时时还没拿到标签页：是池子太忙，不是页面慢
         let mut page = r.map_err(|_| {
@@ -357,7 +392,7 @@ impl BrowserPool {
         })??;
         page.timings.close = close_start.elapsed();
         page.timings.total = start.elapsed();
-        Ok(page)
+        Ok((page, kept))
     }
 
     /// 当前能同时渲染的标签数：目标浏览器数（USL 调出来的）× 每个浏览器的标签数。
