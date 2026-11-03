@@ -19,6 +19,11 @@ See [the release notes](docs/releases/0.91.0.md).
   where rendering always helped.
 - Attachments were lost on restart while the job results were kept; with a store they are now saved there.
 - CPU worker queues had no limit; queued plus running tasks are limited to twice the number of workers.
+- A standby reading the journal while the primary trimmed it could lose records or stop with a journal gap;
+  replay after a trim interrupted by a crash could skip the snapshot.
+- Attachments were not replicated to the standby.
+- A browser that was found but could not start returned `UNSUPPORTED_OPTION` or `UPSTREAM_ERROR` depending on
+  where it failed; it is now always `UPSTREAM_ERROR`.
 
 ### Security
 - Cluster: any authenticated worker could receive the gateway's journal (all job records), submit or cancel tasks,
@@ -26,7 +31,13 @@ See [the release notes](docs/releases/0.91.0.md).
   submit/cancel to `GatewayConfig::submitters`, and commits and renewals to the lease holder.
 
 ### Added
+- Lease fencing for the primary gateway (`[cluster] fencing`, default on with a configured standby): it refuses
+  writes when the standby stops acknowledging, so a split between primary and standby cannot give two writers.
+  Cluster protocol version 2 (`ShipAck`).
 - `[cluster] takeover = "auto" | "manual"` for the standby.
+- `[fetch] env_proxy` to ignore the proxy environment variables.
+- Keepalive comments in the Jina reader SSE stream while the page is fetched.
+- `Store::fail_writes` (fault injection for tests), `Tasks::list_get`.
 - Undelivered webhook events appear in the job's errors as `WEBHOOK_FAILED`; `/metrics` counts moves to the memory
   queue (`outcome="degraded"`).
 

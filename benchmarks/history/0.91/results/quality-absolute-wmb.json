@@ -1,0 +1,84 @@
+{
+  "pages": 545,
+  "recall>=0.5": {
+    "base_rate": 0.9541284403669725,
+    "bins": [
+      {
+        "mean_prediction": 0.8937519701616498,
+        "observed": 0.8455882352941176,
+        "pages": 136
+      },
+      {
+        "mean_prediction": 0.9782244641804619,
+        "observed": 0.9705882352941176,
+        "pages": 136
+      },
+      {
+        "mean_prediction": 0.987929471505183,
+        "observed": 1.0,
+        "pages": 136
+      },
+      {
+        "mean_prediction": 0.9908719796123825,
+        "observed": 1.0,
+        "pages": 137
+      }
+    ],
+    "brier_constant": 0.04376735964986022,
+    "brier_model": 0.027753068204424688
+  },
+  "recall>=0.8": {
+    "base_rate": 0.8862385321100917,
+    "bins": [
+      {
+        "mean_prediction": 0.8937519701616498,
+        "observed": 0.75,
+        "pages": 136
+      },
+      {
+        "mean_prediction": 0.9782244641804619,
+        "observed": 0.8970588235294118,
+        "pages": 136
+      },
+      {
+        "mean_prediction": 0.987929471505183,
+        "observed": 0.9411764705882353,
+        "pages": 136
+      },
+      {
+        "mean_prediction": 0.9908719796123825,
+        "observed": 0.9562043795620438,
+        "pages": 137
+      }
+    ],
+    "brier_constant": 0.1008197963134396,
+    "brier_model": 0.08913573828493378
+  },
+  "recall>=0.9": {
+    "base_rate": 0.8256880733944955,
+    "bins": [
+      {
+        "mean_prediction": 0.8937519701616498,
+        "observed": 0.7205882352941176,
+        "pages": 136
+      },
+      {
+        "mean_prediction": 0.9782244641804619,
+        "observed": 0.8161764705882353,
+        "pages": 136
+      },
+      {
+        "mean_prediction": 0.987929471505183,
+        "observed": 0.8529411764705882,
+        "pages": 136
+      },
+      {
+        "mean_prediction": 0.9908719796123825,
+        "observed": 0.9124087591240876,
+        "pages": 137
+      }
+    ],
+    "brier_constant": 0.1439272788485812,
+    "brier_model": 0.14636203831073574
+  }
+}
