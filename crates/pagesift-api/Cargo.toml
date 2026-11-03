@@ -30,4 +30,4 @@ uuid = { version = "1.26.1", features = ["v4"] }
 tempfile = "3.27.0"
 http-body-util = "0.1.5"
 tower = { version = "0.5.3", features = ["util"] }
-tokio = { version = "1.54.1", features = ["io-util"] }
+tokio = { version = "1.54.1", features = ["io-util", "test-util"] }

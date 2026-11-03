@@ -199,7 +199,10 @@ pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
     if let Some(s) = &config.store
         && tokio::runtime::Handle::try_current().is_ok()
     {
-        crate::attachments::sweep_expired(s.clone());
+        crate::attachments::sweep_expired(crate::attachments::Disk {
+            store: s.clone(),
+            mirror: config.job_mirror.clone(),
+        });
     }
     let mut webhooks = Webhooks::new(config.webhook, metrics.clone());
     webhooks.mirror = config.job_mirror.clone();

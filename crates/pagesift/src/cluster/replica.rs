@@ -11,6 +11,12 @@ use pagesift_store::Store;
 struct LedgerLog(Arc<Ledger>);
 
 impl JobLog for LedgerLog {
+    /// [推导] 一条记录不超过帧上限的一半：日志传送按帧上限的一半攒批，单条超过时独占一批，
+    /// 仍要装进一帧（`pagesift_cluster::transport::default_max_frame`）
+    fn max_op(&self) -> usize {
+        pagesift_cluster::transport::default_max_frame() / 2
+    }
+
     /// 失败交回给写入方（`pagesift_api` 让对应的任务失败），不只记日志。
     fn append(&self, op: Vec<u8>) -> Result<(), String> {
         self.0.append_app(op).map_err(|e| {

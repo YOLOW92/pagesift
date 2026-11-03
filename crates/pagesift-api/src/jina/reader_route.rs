@@ -139,8 +139,9 @@ async fn record_ok(s: &AppState, caller: Option<&Caller>) {
 }
 
 /// SSE：响应头立刻发出，抓取在流里进行；整页抓完、提取完之后才逐个写出 progress、各段 content 和 done
-/// （按段分帧写出，不拼成整块）。这不是边提取边推：第一个 `content` 的时刻等于整页提取完成的时刻，
-/// 不是"正文块一产出就推"（0.90 的发布说明写成了"一产出就写"，不准确）。
+/// （按段分帧写出，不拼成整块），抓取期间按心跳间隔写注释保活。不边提取边推：正文识别要看完整个 DOM
+/// 才知道哪些块是正文（打分、去模板），提取本身只占请求耗时的一小部分（0.91 发布说明里有本机实测），
+/// 第一个 `content` 的时刻等于整页提取完成的时刻（0.90 的发布说明写成了"一产出就写"，不准确）。
 /// 客户端中途断开就停止抓取。响应头发出后才失败的，用 `error` 事件报告。
 fn stream_scrape(
     s: AppState,
@@ -148,11 +149,34 @@ fn stream_scrape(
     url: String,
     opts: ScrapeOptions,
 ) -> Response {
+    stream_scrape_with(s, caller, url, opts, crate::firecrawl::stream::KEEPALIVE)
+}
+
+/// 同 [`stream_scrape`]，`keepalive` 是抓取期间写心跳注释（`: keepalive`）的间隔：渲染、慢站点
+/// 可能几十秒才有结果，期间不写字节，代理和客户端会按空闲超时断开（0.90 如此）。SSE 客户端忽略注释行，
+/// 事件本身的字节不变。
+fn stream_scrape_with(
+    s: AppState,
+    caller: Option<Caller>,
+    url: String,
+    opts: ScrapeOptions,
+    keepalive: std::time::Duration,
+) -> Response {
     let (tx, body) = crate::stream_body::channel();
     tokio::spawn(async move {
-        let r = tokio::select! {
-            r = s.engine.scrape(&url, &opts) => r,
-            () = tx.closed() => return,
+        let scrape = s.engine.scrape(&url, &opts);
+        tokio::pin!(scrape);
+        let mut tick = tokio::time::interval_at(tokio::time::Instant::now() + keepalive, keepalive);
+        let r = loop {
+            tokio::select! {
+                r = &mut scrape => break r,
+                () = tx.closed() => return,
+                _ = tick.tick() => {
+                    if tx.send(axum::body::Bytes::from_static(b": keepalive\n\n")).await.is_err() {
+                        return;
+                    }
+                }
+            }
         };
         match r {
             Ok(doc) => {

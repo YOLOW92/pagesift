@@ -108,9 +108,15 @@ impl Jobs {
         }
     }
 
-    /// 任务持久化用的存储（附件也写进去）。
-    pub(crate) fn store(&self) -> Option<&Store> {
-        self.inner.store.as_ref()
+    /// 附件写进的地方：任务存储和镜像（见 `attachments`）。
+    pub(crate) fn disk(&self) -> Option<crate::attachments::Disk> {
+        self.inner
+            .store
+            .clone()
+            .map(|store| crate::attachments::Disk {
+                store,
+                mirror: self.inner.mirror.clone(),
+            })
     }
 
     pub async fn get<R>(&self, id: &str, f: impl FnOnce(&Job) -> R) -> Option<R> {

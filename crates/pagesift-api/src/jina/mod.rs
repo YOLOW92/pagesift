@@ -93,4 +93,46 @@ mod tests {
             .unwrap();
         assert_eq!(body, want.as_bytes());
     }
+
+    /// 抓取很慢时（渲染、慢站点）流里每个心跳间隔有一行注释保活；去掉注释后事件字节和以前一样
+    /// （0.90 抓取期间一个字节都不写，代理可能按空闲超时断开）。暂停的时钟上跑，不读真实时间。
+    #[tokio::test(start_paused = true)]
+    async fn slow_scrapes_send_keepalive_comments_without_changing_events() {
+        use crate::test_engine::{FakeEngine, frames};
+        let gate = std::sync::Arc::new(tokio::sync::Semaphore::new(0));
+        let engine = FakeEngine {
+            title: Some("T".into()),
+            markdown: Some("# A\n\nB".into()),
+            gate: Some(gate.clone()),
+            ..FakeEngine::open()
+        };
+        let app = crate::router(std::sync::Arc::new(engine), crate::Config::default());
+        let open = gate.clone();
+        tokio::spawn(async move {
+            // 两个心跳间隔多一点之后放行
+            tokio::time::sleep(crate::firecrawl::stream::KEEPALIVE * 2 + KEEPALIVE_SLACK).await;
+            open.add_permits(1);
+        });
+        let url = "https://site.example/slow";
+        let req = axum::http::Request::get(format!("/r/{url}"))
+            .header("accept", "text/event-stream")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let (_, _, f) = frames(&app, req).await;
+        let keepalive: Vec<_> = f.iter().filter(|x| x.starts_with(b": keepalive")).collect();
+        assert_eq!(keepalive.len(), 2, "{f:?}");
+        let events: Vec<u8> = f
+            .iter()
+            .filter(|x| !x.starts_with(b":"))
+            .flatten()
+            .copied()
+            .collect();
+        assert_eq!(
+            String::from_utf8(events).unwrap(),
+            old_sse_text(url, Some("T"), "# A\n\nB")
+        );
+    }
+
+    /// 放行时刻比第二个心跳晚一点（不在心跳整点上）。
+    const KEEPALIVE_SLACK: std::time::Duration = std::time::Duration::from_secs(1);
 }

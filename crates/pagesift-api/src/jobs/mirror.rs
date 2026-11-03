@@ -22,6 +22,10 @@ use super::store::{list_key, meta_key};
 /// 复制写入的去处（网关：追加进账本日志）。失败时返回原因。
 pub trait JobLog: Send + Sync {
     fn append(&self, op: Vec<u8>) -> Result<(), String>;
+    /// 一条操作的编码字节上限（超过的写入不复制，例如很大的附件）。默认不限。
+    fn max_op(&self) -> usize {
+        usize::MAX
+    }
 }
 
 pub struct JobMirror {
@@ -199,6 +203,11 @@ impl JobMirror {
         })
     }
 
+    /// 一条复制操作的字节上限（见 [`JobLog::max_op`]）。
+    pub fn max_op(&self) -> usize {
+        self.log.max_op()
+    }
+
     /// 交给日志失败的写入组数（自进程启动）。
     pub fn failures(&self) -> u64 {
         self.failures.load(std::sync::atomic::Ordering::Relaxed)
@@ -254,6 +263,13 @@ impl JobMirror {
             out.push(op(SET_CLEAR, done.as_bytes(), None, None));
             for m in t.set_members(&done).unwrap_or_default() {
                 out.push(op(SET_INSERT, done.as_bytes(), None, Some(&m)));
+            }
+        }
+        // 附件（内容和到期时刻）：先内容后到期时刻，与在线写入的顺序相同；超过单条上限的不复制
+        for (data, exp) in crate::attachments::stored(&t) {
+            if data.1.len() <= self.max_op() {
+                out.push(op(KV_PUT, data.0.as_bytes(), None, Some(&data.1)));
+                out.push(op(KV_PUT, exp.0.as_bytes(), None, Some(&exp.1)));
             }
         }
         out

@@ -93,7 +93,7 @@ impl JobSink {
 
     /// 记一个完成的页面；`done` 是恢复时用来认出它的键（URL 或批量里的下标）。
     pub(super) async fn record_page(&self, done: String, doc: Document) {
-        crate::attachments::keep(&doc, self.store());
+        crate::attachments::keep_in(&doc, self.jobs.disk().as_ref());
         let inner = &self.jobs.inner;
         if !self.running().await || self.failed_store().is_some() {
             return;
