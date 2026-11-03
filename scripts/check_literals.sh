@@ -27,7 +27,8 @@ from pathlib import Path
 
 TAGS = ("[协议]", "[策略]", "[δ]", "[推导]", "[待迁移]")
 EXEMPT = {0, 0.5, 1, 2, 60, 3600, 86400} | {1000 ** k for k in range(1, 5)} | {1024 ** k for k in range(1, 5)}
-SKIP_CRATES = ("crates/pagesift-fuzz/", "crates/pagesift-testkit/")
+# pagesift-rustls 是上游 rustls 的源码（见它的 FORK.md），不按本仓库的规则改
+SKIP_CRATES = ("crates/pagesift-fuzz/", "crates/pagesift-testkit/", "crates/pagesift-rustls/")
 
 
 def runtime_file(path: str) -> bool:

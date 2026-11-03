@@ -1723,6 +1723,7 @@ dependencies = [
  "httpdate",
  "hyper",
  "hyper-util",
+ "pagesift-rustls",
  "pagesift-stat",
  "pagesift-testkit",
  "quick-xml",
@@ -1734,6 +1735,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "url",
+ "zeroize",
  "zstd",
 ]
 
@@ -1831,6 +1833,19 @@ dependencies = [
  "serde_json",
  "tokio",
  "url",
+]
+
+[[package]]
+name = "pagesift-rustls"
+version = "0.91.1"
+dependencies = [
+ "log",
+ "once_cell",
+ "ring",
+ "rustls-pki-types",
+ "rustls-webpki",
+ "subtle",
+ "zeroize",
 ]
 
 [[package]]

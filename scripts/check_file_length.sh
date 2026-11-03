@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 
 MAX_LINES=${1:-500}
 FAILED=0
-EXCLUDE_REGEX="entities\.rs"
+EXCLUDE_REGEX="entities\.rs|crates/pagesift-rustls/"
 
 echo "==> 检查 crates/*/src/**/*.rs 文件行数（限制: <= ${MAX_LINES} 行）..."
 

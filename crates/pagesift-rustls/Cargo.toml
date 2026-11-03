@@ -1,0 +1,36 @@
+[package]
+name = "pagesift-rustls"
+description = "rustls 0.23.46 with one added hook: a caller-supplied ClientHello writer. Used only by pagesift's optional browser fingerprint mode."
+version.workspace = true
+edition = "2021"
+rust-version.workspace = true
+license = "Apache-2.0 OR ISC OR MIT"
+repository.workspace = true
+include = ["src/**/*.rs", "Cargo.toml", "FORK.md", "LICENSE-APACHE", "LICENSE-ISC", "LICENSE-MIT", "rustfmt.toml"]
+
+# 上游的单元测试要 src/testdata 和一批 dev 依赖，这里不带；要测就在上游测。
+[lib]
+name = "pagesift_rustls"
+test = false
+doctest = false
+bench = false
+
+[features]
+default = ["logging", "ring", "std", "tls12"]
+logging = ["log"]
+ring = ["dep:ring", "webpki/ring"]
+std = ["webpki/std", "pki-types/std", "once_cell/std"]
+tls12 = []
+
+[dependencies]
+log = { version = "0.4.8", optional = true }
+once_cell = { version = "1.16", default-features = false, features = ["alloc", "race"] }
+pki-types = { package = "rustls-pki-types", version = "1.12", features = ["alloc"] }
+ring = { version = "0.17", optional = true }
+subtle = { version = "2.5.0", default-features = false }
+webpki = { package = "rustls-webpki", version = "0.103.14", default-features = false, features = ["alloc"] }
+zeroize = "1.8"
+
+# 上游代码里还有 aws_lc_rs、fips 等分支，这里不提供这些特性，那些分支不参与编译。
+[lints.rust]
+unexpected_cfgs = "allow"
