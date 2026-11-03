@@ -166,10 +166,10 @@ fn gray_image(
     let mut pos = 0usize;
     for _ in 0..bpp {
         let mut plane = if h.mmr {
-            // MMR：各位平面的码流首尾相接，按用掉的字节数前进
+            // MMR：各位平面的码流首尾相接（各以 EOFB 结尾），按用掉的字节数前进
             let rest = data.get(pos..).unwrap_or(&[]);
             let (b, used) = generic::mmr(rest, h.gw, h.gh)?;
-            pos = pos.saturating_add(skip_eofb(rest, used));
+            pos = pos.saturating_add(used);
             b
         } else {
             // [协议] 步骤 1：TPGDON = 0，USESKIP = HENABLESKIP，GBAT 用各模板的默认值
@@ -199,34 +199,6 @@ fn gray_image(
         prev = Some(plane);
     }
     Ok(vals)
-}
-
-/// [协议] EOFB：两个 T.6 的 EOL（000000000001），共 24 位（T.6 §2.4.3）
-const EOFB: u32 = 0x001001;
-/// [协议] EOFB 的位数
-const EOFB_BITS: usize = 24;
-
-/// MMR 位平面之后的 EOFB（T.88 §6.2.6：码流长度事先不知道时以 EOFB 结尾，灰度图的各位平面
-/// 就是这样首尾相接的）。`generic::mmr` 在解够行数后就停，不读后面的 EOFB，返回的字节数只到
-/// 最后一行所在的字节为止，EOFB 从这个字节中间某一位开始。这里在该字节内找 EOFB 的起点，
-/// 返回读掉 EOFB 并补齐到字节边界后的字节数（下一个位平面从字节边界开始）；找不到时原样返回。
-///
-/// [推导] 起点唯一：若在真正起点 p 之前同一字节内的 p′ 也匹配，p′ + 11 处应是 1，但
-/// p ≤ p′ + 11 < p + 11 落在 EOFB 前 11 个 0 里，矛盾。
-fn skip_eofb(data: &[u8], used: usize) -> usize {
-    let bit = |i: usize| (data.get(i / 8).copied().unwrap_or(0) >> (7 - i % 8)) & 1;
-    // [推导] 最后一行可能正好在上一个字节末尾结束，所以从 used − 1 字节的第 0 位找到 used 字节的第 0 位
-    let start = used.saturating_sub(1) * 8;
-    for p in start..=used * 8 {
-        if p + EOFB_BITS > data.len() * 8 {
-            break;
-        }
-        let v = (p..p + EOFB_BITS).fold(0u32, |v, i| (v << 1) | u32::from(bit(i)));
-        if v == EOFB {
-            return (p + EOFB_BITS).div_ceil(8);
-        }
-    }
-    used
 }
 
 /// 半色调区域段（类型 20、22、23）区域信息之后的数据；`patterns` 是引用的图样字典。
@@ -323,17 +295,17 @@ mod tests {
             .collect()
     }
 
+    /// MMR 位平面后跟 EOFB 时，用掉的字节数含 EOFB 并补齐到字节边界（下一平面从那里开始）
     #[test]
     fn eofb_after_plane() {
+        bitmap::set_budget(1 << 16);
         let eofb = "000000000001000000000001";
-        // 最后一行在第 0 字节第 3 位结束：EOFB 占到第 26 位，下一平面从第 4 字节开始
-        let d = pack(&format!("101{eofb}00000"));
-        assert_eq!(skip_eofb(&d, 1), 4);
-        // 最后一行正好用完第 0 字节：EOFB 从第 1 字节开始，占满 3 字节
-        let d = pack(&format!("10000001{eofb}"));
-        assert_eq!(skip_eofb(&d, 1), 4);
-        // 后面没有 EOFB：原样返回
-        assert_eq!(skip_eofb(&[0xFF, 0xFF, 0xFF, 0xFF], 1), 1);
+        // 8 像素宽、1 行全白：一个 V0（1 位），后跟 EOFB，共 25 位，占 4 字节
+        let d = pack(&format!("1{eofb}0000000"));
+        assert_eq!(generic::mmr(&d, 8, 1).unwrap().1, 4);
+        // 后面没有 EOFB：只用掉 1 字节
+        let d = pack("1000000011111111");
+        assert_eq!(generic::mmr(&d, 8, 1).unwrap().1, 1);
     }
 
     /// 只有一个图样时 HBPP = 0，不解码任何位平面

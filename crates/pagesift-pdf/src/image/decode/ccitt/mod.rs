@@ -73,6 +73,12 @@ pub(crate) fn decode_counted(
         refl.extend([w, w]);
         done += 1;
     }
+    // 行数已知、解够了就停的 T.6 码流后面可能还跟着 EOFB：一并读掉，用掉的字节数才指向下一段
+    // （JBIG2 半色调的灰度位平面就是这样首尾相接的，T.88 §6.2.6）
+    // [协议] EOFB 是两个 EOL，共 24 位（T.6 §2.4.3）
+    if p.k < 0 && done == rows && bits.peek(24) == 0x1001 {
+        bits.skip(24);
+    }
     if done == 0 {
         return Err("没有解出任何行".into());
     }
