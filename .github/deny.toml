@@ -32,6 +32,7 @@ exceptions = [
     { name = "pagesift-flow", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-frontier", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-fuzz", allow = ["AGPL-3.0-only"] },
+    { name = "pagesift-hooks", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-html", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-llm", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-mcp", allow = ["AGPL-3.0-only"] },
