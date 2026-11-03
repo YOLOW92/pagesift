@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use serde_json::{Value, json};
 
-use super::actions::{ActionError, run_action};
+use super::actions::{ActionError, js_str, run_action};
 use super::monitor::check_interception;
 use super::{Metrics, PageCtx, Shared};
 use crate::conn::{Connection, Session};
@@ -185,6 +185,45 @@ impl LivePage {
             });
         }
         Ok(r.pointer("/result/value").cloned().unwrap_or(Value::Null))
+    }
+
+    /// 节点在文档里的路径（CSS 选择器，逐层 `:nth-of-type`）：把无障碍树的节点对应到取回的 HTML 上。
+    pub(crate) async fn node_selector(&self, backend_id: i64) -> Result<Option<String>> {
+        let v = self
+            .on_node(
+                backend_id,
+                "const parts = []; \
+                 for (let n = e; n && n.nodeType === 1; n = n.parentElement) { \
+                   let i = 1; \
+                   for (let s = n.previousElementSibling; s; s = s.previousElementSibling) { \
+                     if (s.localName === n.localName) i++; \
+                   } \
+                   parts.unshift(CSS.escape(n.localName) + ':nth-of-type(' + i + ')'); \
+                 } \
+                 return parts.join(' > ');",
+            )
+            .await?;
+        Ok(v.as_str().filter(|s| !s.is_empty()).map(str::to_string))
+    }
+
+    /// 选择器命中的第一个元素的节点号；没有命中（或选择器在这个页面上不合法）时为 `None`。
+    pub(crate) async fn node_for_selector(&self, selector: &str) -> Result<Option<i64>> {
+        let expr = format!("document.querySelector({})", js_str(selector));
+        let r = self
+            .session
+            .call("Runtime.evaluate", json!({ "expression": expr }))
+            .await?;
+        if r.get("exceptionDetails").is_some() {
+            return Ok(None);
+        }
+        let Some(object) = r.pointer("/result/objectId").and_then(Value::as_str) else {
+            return Ok(None);
+        };
+        let d = self
+            .session
+            .call("DOM.describeNode", json!({ "objectId": object }))
+            .await?;
+        Ok(d.pointer("/node/backendNodeId").and_then(Value::as_i64))
     }
 
     pub(crate) async fn click_node(&self, conn: &Connection, backend_id: i64) -> Result<()> {

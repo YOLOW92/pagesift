@@ -26,10 +26,18 @@ impl Scraper {
         let choice = match opts.engine.as_deref() {
             Some("http") => EngineChoice::Http,
             Some("browser") => EngineChoice::Browser,
+            // 动作只能在浏览器里做（`engine: http` 在下面报错）
+            _ if !opts.actions.is_empty() => EngineChoice::Browser,
             // respondTiming html：只要原始 HTML，不执行脚本
             _ if opts.respond_timing.as_deref() == Some("html") => EngineChoice::Http,
             _ => EngineChoice::Auto,
         };
+        // 校验已经拦过；这里防的是规则（`[[rules]] engine`）把引擎改成 HTTP：动作不能被悄悄跳过
+        if choice == EngineChoice::Http && !opts.actions.is_empty() {
+            return Err(ApiError::invalid(
+                "actions run in a browser, but this request was set to the HTTP engine",
+            ));
+        }
         let mut timings = BTreeMap::new();
         let mut warnings = Vec::new();
 

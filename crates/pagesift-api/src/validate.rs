@@ -117,10 +117,20 @@ pub fn check_scrape_options(opts: &ScrapeOptions, engine: &dyn Engine) -> Result
             supported.join(", ")
         )));
     }
-    if !opts.actions.is_empty() && !engine.supports_actions() {
-        return Err(ApiError::unsupported(
-            "actions need browser rendering, which is not available in this build",
-        ));
+    if !opts.actions.is_empty() {
+        if !engine.supports_actions() {
+            return Err(ApiError::unsupported(engine.actions_unavailable()));
+        }
+        if opts.engine.as_deref() == Some("http") {
+            return Err(ApiError::invalid(
+                "actions run in a browser and cannot be combined with engine \"http\"",
+            ));
+        }
+        if opts.respond_timing.as_deref() == Some("html") {
+            return Err(ApiError::invalid(
+                "actions run in a browser and cannot be combined with respondTiming \"html\"",
+            ));
+        }
     }
     if let Some(t) = opts.timeout {
         if t < 1000 {

@@ -1,5 +1,6 @@
 //! Jina Reader 兼容：`/r/` 的请求头逐条（jina-ai/reader README “Using request headers”）和 `/s/`。
-//! 真实引擎抓本机站点；需要浏览器动作的头在没有动作能力的引擎上如实报 UNSUPPORTED_OPTION。
+//! 真实引擎抓本机站点。这里不启动浏览器：需要浏览器的头在真实 Chrome 上的行为见 `actions.rs`，
+//! 这里只测它们没有浏览器可用时明确报错。
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -183,12 +184,13 @@ header_case!(
     }
 );
 header_case!(
-    respond_with_screenshot_needs_browser_actions,
+    respond_with_screenshot_without_a_working_browser_is_an_error,
     "/page",
     [("x-respond-with", "screenshot")],
     |st, ct, w, b| {
-        assert_eq!(st, 400);
-        assert!(b.contains("UNSUPPORTED_OPTION"), "{b}");
+        // 这里的浏览器是个不存在的文件：明确报错，不返回没有截图的页面
+        assert_eq!(st, 502, "{b}");
+        assert!(b.contains("UPSTREAM_ERROR"), "{b}");
     }
 );
 header_case!(
@@ -224,12 +226,21 @@ header_case!(
     }
 );
 header_case!(
-    wait_for_selector_needs_browser_actions,
+    wait_for_selector_without_a_working_browser_is_an_error,
     "/page",
     [("x-wait-for-selector", "h1")],
     |st, ct, w, b| {
-        assert_eq!(st, 400);
-        assert!(b.contains("UNSUPPORTED_OPTION"), "{b}");
+        assert_eq!(st, 502, "{b}");
+        assert!(b.contains("UPSTREAM_ERROR"), "{b}");
+    }
+);
+header_case!(
+    wait_for_selector_cannot_use_the_http_engine,
+    "/page",
+    [("x-wait-for-selector", "h1"), ("x-engine", "curl")],
+    |st, ct, w, b| {
+        assert_eq!(st, 400, "{b}");
+        assert!(b.contains("INVALID_REQUEST"), "{b}");
     }
 );
 header_case!(

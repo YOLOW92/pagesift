@@ -663,6 +663,11 @@ fn the_gateway_refuses_interact_clearly() {
             ),
             (
                 "POST",
+                "/v2/scrape",
+                Some(json!({"url": "http://127.0.0.1:9/x", "actions": [{"type": "wait", "milliseconds": 1}]})),
+            ),
+            (
+                "POST",
                 "/v2/scrape/00000000-0000-4000-8000-000000000000/interact",
                 Some(json!({"actions": []})),
             ),

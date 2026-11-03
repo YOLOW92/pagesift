@@ -259,6 +259,15 @@ impl Engine for Scraper {
         self.interact_available()
     }
 
+    /// 动作只在 Chrome 上验证过，和 interact 同一个条件。
+    fn supports_actions(&self) -> bool {
+        self.interact_available()
+    }
+
+    fn actions_unavailable(&self) -> &'static str {
+        "actions need Chrome: no Chrome or Chromium was found on this machine (run `pagesift doctor`)"
+    }
+
     fn scrape_session<'a>(
         &'a self,
         url: &'a str,
@@ -413,6 +422,15 @@ mod tests {
     fn render_errors_are_classified() {
         use pagesift_cdp::Error as E;
         for (e, code) in [
+            (
+                E::Action {
+                    index: 0,
+                    message: "no element".into(),
+                },
+                ErrorCode::InvalidRequest,
+            ),
+            (E::InvalidOptions("x".into()), ErrorCode::InvalidRequest),
+            (E::ExecuteJavascriptDisabled, ErrorCode::UnsupportedOption),
             (E::Timeout, ErrorCode::Timeout),
             (E::Busy, ErrorCode::Busy),
             (

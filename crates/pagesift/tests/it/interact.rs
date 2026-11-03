@@ -24,7 +24,7 @@ const PAGE: &str = r#"<html><head><title>Interact</title></head><body><main>
 <a id="private" href="/private/x">Private page</a>
 </main></body></html>"#;
 
-fn available() -> bool {
+pub(super) fn available() -> bool {
     if pagesift_cdp::detect_browser().is_none() || pagesift_cdp::running_as_root() {
         eprintln!("skipping: no usable Chrome");
         return false;
@@ -69,7 +69,12 @@ fn serve(cfg: ScraperConfig) -> (Arc<Scraper>, Router) {
     (s, app)
 }
 
-async fn call(app: &Router, method: &str, uri: &str, body: Option<Value>) -> (StatusCode, Value) {
+pub(super) async fn call(
+    app: &Router,
+    method: &str,
+    uri: &str,
+    body: Option<Value>,
+) -> (StatusCode, Value) {
     let req = Request::builder()
         .method(method)
         .uri(uri)
@@ -412,7 +417,7 @@ async fn mcp_tools_drive_a_kept_page() {
 }
 
 /// 录制的 LLM：按调用顺序回复，回复里的 `"@名字"` 换成请求快照里这个名字的 id。
-async fn fake_llm(replies: Vec<Value>) -> (String, Arc<Mutex<Vec<String>>>) {
+pub(super) async fn fake_llm(replies: Vec<Value>) -> (String, Arc<Mutex<Vec<String>>>) {
     let replies = Arc::new(Mutex::new(VecDeque::from(replies)));
     let seen: Arc<Mutex<Vec<String>>> = Arc::default();
     let (r, b) = (replies, seen.clone());

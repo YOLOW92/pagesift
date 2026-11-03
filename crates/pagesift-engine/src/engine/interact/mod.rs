@@ -19,6 +19,7 @@ use serde_json::Value;
 use super::*;
 
 mod act;
+mod plan;
 mod registry;
 
 pub use registry::InteractLimits;

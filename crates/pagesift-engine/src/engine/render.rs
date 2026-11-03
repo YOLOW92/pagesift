@@ -26,6 +26,15 @@ impl Scraper {
         } = progress;
         // `keepSession`：只用能做 interact 的内核，渲染完不关页面
         let keep = super::interact::KEEP.try_with(Arc::clone).ok();
+        let actions = pagesift_cdp::parse_actions(&serde_json::Value::Array(opts.actions.clone()))
+            .map_err(|e| ApiError::invalid(e.to_string()))?;
+        // 要动作或要保留页面：只用 Chrome，这些路径只在它上面验证过
+        let chrome_only = keep.is_some() || !actions.is_empty();
+        if chrome_only && !self.interact_available() {
+            return Err(ApiError::unsupported(
+                "actions and keepSession need Chrome: no Chrome or Chromium was found on this machine (run `pagesift doctor`)",
+            ));
+        }
         if !self.has_browser().await {
             let why = format!(
                 "browser rendering is unavailable: {}",
@@ -54,7 +63,26 @@ impl Scraper {
         // 没给时（整站爬取）排队不限时，渲染从拿到名额起算默认时限。
         let acquire = self.policy.limiter().acquire(&host, crawl_delay);
         // 没给时限时用学到的渲染时限（先验 0.81 的 30 s，只收紧不放宽，见 render_stats）
-        let learn_deadline = request_deadline(opts, started).is_none();
+        // 带动作的渲染耗时由调用方的动作决定，不进“这个站要渲染多久”的统计
+        let learn_deadline = request_deadline(opts, started).is_none() && actions.is_empty();
+        // 没给时限时，动作里写明的等待加在学到的时限上（总量已由动作校验限制）
+        let action_wait: Duration = actions
+            .iter()
+            .map(|a| match a {
+                pagesift_cdp::Action::Wait {
+                    milliseconds: Some(ms),
+                    ..
+                } => Duration::from_millis(*ms),
+                _ => Duration::ZERO,
+            })
+            .sum();
+        // 截图和 PDF 要看到真实外观：字体也要加载
+        let visual = actions.iter().any(|a| {
+            matches!(
+                a,
+                pagesift_cdp::Action::Screenshot(_) | pagesift_cdp::Action::Pdf { .. }
+            )
+        });
         let (permit, deadline) = match request_deadline(opts, started) {
             Some(d) => match tokio::time::timeout_at(d.into(), acquire).await {
                 Ok(p) => (p, d),
@@ -67,7 +95,7 @@ impl Scraper {
             },
             None => (
                 acquire.await,
-                Instant::now() + self.render_stats.default_timeout(),
+                Instant::now() + self.render_stats.default_timeout() + action_wait,
             ),
         };
         let render_start = Instant::now();
@@ -89,13 +117,14 @@ impl Scraper {
                 .unwrap_or_default(),
             block: BlockResources {
                 ads: opts.block_ads,
-                fonts: true,
+                fonts: !visual,
                 media: true,
                 // 只取 HTML，图片不影响正文：src 属性还在，加载失败和离线时一样。以后支持截图时要放开。
-                // 保留的页面之后还要点击和截图，图片要加载（影响布局）。
-                images: keep.is_none(),
+                // 要动作或保留的页面还要点击和截图，图片要加载（影响布局）。
+                images: !chrome_only,
             },
             proxy,
+            actions,
             wait_until: wait_until(opts.respond_timing.as_deref()),
             ..RenderOptions::default()
         };
@@ -112,13 +141,13 @@ impl Scraper {
             .learner
             .start_engine(&host)
             .min(self.browsers.len().saturating_sub(1));
-        // 要保留页面时从头找能做 interact 的内核，不用按主机学到的起点
-        let from = if keep.is_some() { 0 } else { from };
+        // 只用 Chrome 时从头找，不用按主机学到的起点
+        let from = if chrome_only { 0 } else { from };
         for i in from..self.browsers.len() {
             if ropts.proxy.is_some() && !proxy_capable(&self.browsers[i].0) {
                 continue;
             }
-            if keep.is_some() && !super::interact::interact_capable(&self.browsers[i].0) {
+            if chrome_only && !super::interact::interact_capable(&self.browsers[i].0) {
                 continue;
             }
             if self.launch_failed[i]
@@ -211,6 +240,7 @@ impl Scraper {
                 iframes_inlined,
                 early_stopped,
                 first_content,
+                actions: outputs,
                 ..
             } = page;
             let mut missing_iframes = 0;
@@ -230,13 +260,15 @@ impl Scraper {
             let (doc, html) = process_html(html, &final_url, status, opts).await?;
             let extract = t.elapsed();
             let gained = http_chars.is_some_and(|n| text_weight(&doc.markdown) > n);
-            self.render_stats.note_render(
-                page_timings.navigation,
-                page_timings.wait,
-                page_timings.total,
-                first_content,
-                gained,
-            );
+            if ropts.actions.is_empty() {
+                self.render_stats.note_render(
+                    page_timings.navigation,
+                    page_timings.wait,
+                    page_timings.total,
+                    first_content,
+                    gained,
+                );
+            }
             if let Some((family, before)) = pending_fallback.take() {
                 let after = (
                     super::planner::quality(&doc, html.len()),
@@ -268,6 +300,7 @@ impl Scraper {
                 extract,
                 doc,
                 html,
+                actions: (!ropts.actions.is_empty()).then(|| outputs.to_firecrawl_json()),
             };
             // 早停拿到的就是当前 DOM 的快照，不再换内核重试。
             if early_stopped {
@@ -397,6 +430,7 @@ impl Scraper {
             extract: t.elapsed(),
             doc,
             html,
+            actions: None,
         };
         Ok(rendered_document(
             r,
@@ -446,6 +480,7 @@ fn rendered_document(
     let quality = super::planner::quality(&r.doc, r.html.len());
     let mut doc = document(r.doc, opts, r.html);
     doc.quality = quality;
+    doc.actions = r.actions;
     finish(
         doc,
         meta,
@@ -523,6 +558,11 @@ pub(super) fn render_error_code(e: &pagesift_cdp::Error) -> ErrorCode {
         pagesift_cdp::Error::Timeout => ErrorCode::Timeout,
         pagesift_cdp::Error::Busy => ErrorCode::Busy,
         pagesift_cdp::Error::Blocked { .. } => ErrorCode::SsrfBlocked,
+        // 调用方写的动作在这个页面上做不到，重试也一样
+        pagesift_cdp::Error::Action { .. } | pagesift_cdp::Error::InvalidOptions(_) => {
+            ErrorCode::InvalidRequest
+        }
+        pagesift_cdp::Error::ExecuteJavascriptDisabled => ErrorCode::UnsupportedOption,
         pagesift_cdp::Error::Navigation(m) if m.contains("ERR_NAME") => ErrorCode::DnsFailure,
         pagesift_cdp::Error::Navigation(m) if m.contains("ERR_CERT_DATE_INVALID") => {
             ErrorCode::TlsCertExpired
@@ -578,6 +618,8 @@ pub(super) struct Rendered {
     extract: Duration,
     doc: pagesift_content::Document,
     html: String,
+    /// `actions` 的产出（Firecrawl 的形状）；没有动作时为 `None`。
+    actions: Option<serde_json::Value>,
 }
 
 /// `respondTiming`（Jina 的 `x-respond-timing`）→ 浏览器的就绪条件：

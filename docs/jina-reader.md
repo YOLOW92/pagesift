@@ -11,7 +11,7 @@ silently ignored. Unknown `x-` headers are ignored (proxies add their own).
 | `x-respond-with` (old name `x-return-format`) | `markdown` (whole page, no main-content detection), `html` (the fetched HTML), `text`, `frontmatter` (YAML `title`/`description`/`url` + main content), `markdown+frontmatter` (whole page), `screenshot` / `pageshot` (a `data:` URL; needs browser actions); `vlm`, `readerlm-v2`, `content` → unsupported. Without the header: main-content Markdown, as before |
 | `x-engine` | `browser`, `curl` / `direct` (HTTP), `auto` |
 | `x-target-selector` / `x-remove-selector` | `includeTags` / `excludeTags` (CSS selectors; a target selector turns off main-content detection) |
-| `x-wait-for-selector` | a `wait` action before capture (needs browser actions) |
+| `x-wait-for-selector` | a `wait` action before capture. Runs in Chrome; without Chrome, or through a cluster gateway, `400 UNSUPPORTED_OPTION`; with `x-engine: curl`, `400 INVALID_REQUEST`. A selector that never appears ends in `408 TIMEOUT` |
 | `x-timeout` | seconds → `timeout`; ≥ 20 implies `network-idle` |
 | `x-respond-timing` | `html` (no scripts, HTTP), `visible-content` (DOMContentLoaded), `mutation-idle` (DOM mutations settle: quiet for ln(1/δ) × the mean gap between the mutations observed on that page, δ = 0.05), `resource-idle` (scripts, XHR/fetch and documents quiet; the browser default), `media-idle` / `network-idle` (the `load` event, then requests quiet). Also available as the `respondTiming` scrape option |
 | `x-max-tokens` | truncates at a token boundary; warning `output_truncated: <max> of <n> tokens` |

@@ -103,6 +103,11 @@ pub trait Engine: Send + Sync + 'static {
         false
     }
 
+    /// 不支持 `actions` 时给调用方的说明。
+    fn actions_unavailable(&self) -> &'static str {
+        "actions need browser rendering, which is not available in this build"
+    }
+
     /// 是否支持 `/v2/scrape/{id}/interact`。支持时 `/v2/scrape` 走 [`Engine::scrape_session`]。
     fn supports_interact(&self) -> bool {
         false

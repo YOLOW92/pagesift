@@ -324,11 +324,16 @@ pub fn fill_secrets(
 
 /// `intent` 的缓存键：注册域 + URL 形状 + 意图的 BLAKE3 前 16 个十六进制字符。
 pub fn cache_key(url: &str, intent: &str) -> Option<String> {
+    keyed("autoschema", url, intent)
+}
+
+/// `{kind}/注册域 + URL 形状#指令哈希`：同一类页面、同一句话共用一条缓存。
+pub fn keyed(kind: &str, url: &str, intent: &str) -> Option<String> {
     let u = url::Url::parse(url).ok()?;
     let site = pagesift_content::site_key(u.host_str()?);
     let shape = pagesift_frontier::focus::url_shape(&u);
     let h = blake3::hash(intent.trim().to_lowercase().as_bytes()).to_hex();
-    Some(format!("autoschema/{site}{shape}#{}", &h[..16]))
+    Some(format!("{kind}/{site}{shape}#{}", &h[..16]))
 }
 
 /// 选项里的意图（`{"type": "extract", "intent": "..."}`，没有 `schema` 时）。

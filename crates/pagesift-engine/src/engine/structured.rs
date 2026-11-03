@@ -309,12 +309,12 @@ impl Scraper {
         .map_err(|e| ApiError::new(ErrorCode::Internal, format!("extract: {e}")))
     }
 
-    fn kv_get(&self, key: &str) -> Option<Value> {
+    pub(super) fn kv_get(&self, key: &str) -> Option<Value> {
         let v = self.store.as_ref()?.tasks().kv_get(key).ok()??;
         serde_json::from_slice(&v).ok()
     }
 
-    fn kv_put(&self, key: &str, v: &Value) {
+    pub(super) fn kv_put(&self, key: &str, v: &Value) {
         if let (Some(store), Ok(bytes)) = (&self.store, serde_json::to_vec(v)) {
             let _ = store.tasks().kv_put(key, &bytes);
         }

@@ -401,12 +401,15 @@ impl Engine for ClusterEngine {
         Engine::supported_formats(&*self.scraper)
     }
 
+    // 动作和保留会话都在网关上明确报错。网关不知道哪个工人有 Chrome；保留会话还绑在一台机器上，
+    // 下一个请求未必到同一台，账本也没有按机器定向派活的路。`/v2/scrape` 的结果不带 `scrapeId`。
     fn supports_actions(&self) -> bool {
-        Engine::supports_actions(&*self.scraper)
+        false
     }
 
-    // 页面由工人执行，下一个请求未必到同一台机器，账本也没有按机器定向派活的路：
-    // 保留会话在网关上明确报错，`/v2/scrape` 的结果不带 `scrapeId`。
+    fn actions_unavailable(&self) -> &'static str {
+        "actions are not available through a cluster gateway: pages here run on whichever worker is free, and not every worker has Chrome; send the request to a standalone `pagesift serve`"
+    }
 
     fn scrape_session<'a>(
         &'a self,

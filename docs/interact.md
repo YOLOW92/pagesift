@@ -18,6 +18,23 @@ Every `POST /v2/scrape` response carries `data.metadata.scrapeId` when the serve
 `keepSession` is only accepted on `POST /v2/scrape` and on the MCP tool `pagesift_scrape`; anywhere else it
 is answered with `400 INVALID_REQUEST`. `/v1/scrape` responses have no `scrapeId`.
 
+A scrape may also carry `actions`; their output is in `data.actions` and the page they leave is what is extracted.
+A replay opens the URL and runs those actions again, including any side effects they have. `{{secret:NAME}}` is only
+replaced on interact, not in scrape `actions`.
+
+## Actions on scrape
+
+`actions` on `/v1/scrape`, `/v2/scrape`, batch and crawl options, and the Jina headers that map to them, run in Chrome.
+Results with actions are not cached.
+
+| Situation | Answer |
+|---|---|
+| No Chrome on the machine, or a cluster gateway | `400 UNSUPPORTED_OPTION` |
+| `engine: "http"`, or `respondTiming: "html"` | `400 INVALID_REQUEST` |
+| An action fails on the page (selector not found) | `400 INVALID_REQUEST`, naming the action |
+| `executeJavascript` while the server switch is off | `400 UNSUPPORTED_OPTION` |
+| A `wait` for a selector that never appears | `408 TIMEOUT` |
+
 ## The request
 
 | Field | pagesift |
@@ -35,8 +52,32 @@ is answered with `400 INVALID_REQUEST`. `/v1/scrape` responses have no `scrapeId
 ### `prompt`
 
 One call does one round: the model reads a snapshot of the page, chooses steps, pagesift performs them, and when
-steps ran the model reads the new snapshot and answers. So a call makes one LLM request when no step is needed and
-two otherwise. There is no retry loop and no cache of plans; split longer tasks into several calls.
+steps ran and the task asks for an answer, the model reads the new snapshot and answers. There is no retry loop; split
+longer tasks into several calls.
+
+With a store configured (`[cache]`), a plan that ran to the end is kept per registered domain, URL shape and prompt, and
+the next run on the same kind of page uses it without the planning request:
+
+| LLM requests | When |
+|---|---|
+| 0 | a cached plan and a task that needs no answer |
+| 1 | a cached plan and a task that asks for an answer; or no steps needed; or a new plan that needs no answer |
+| 2 | a new plan and a task that asks for an answer |
+
+Each element of a cached plan is looked up in this order, and the result says which applied:
+
+1. Its selector matches exactly one element with the same text: warning `act_plan: cached`.
+2. Otherwise `locate` finds it by its structural fingerprint, its text still shares a word with the recorded text, and the new selector is stored:
+   `act_plan: cached` and `selector_healed: steps[i] via locate`.
+3. If any element cannot be found, or `locate` will not decide, nothing runs from the plan: the model plans again,
+   `selector_healed: steps via llm` and `act_plan: generated`.
+
+A cached plan repeats the same elements without reading the page's meaning, so a task like "click the cheapest item" keeps
+clicking the element chosen the first time while that element's text stays the same. Plans whose steps failed are dropped. Answers
+are never cached, and a task that needs no step is never cached. Text typed literally into a password field is never stored:
+such a plan is not cached; `{{secret:NAME}}` placeholders are stored as placeholders.
+
+`Scraper::act` (the Rust API) uses the same lookup for its one element.
 
 - The snapshot comes from Chrome's accessibility tree (`Accessibility.getFullAXTree`), main frame only: one line per
   element with an id, role, name and value. Its token budget is derived from the model's context length and token

@@ -97,6 +97,16 @@ impl KeptPage {
         self.live.ax_nodes().await
     }
 
+    /// 节点在文档里的 CSS 路径（把无障碍树的节点对应到取回的 HTML 上）。
+    pub async fn node_selector(&self, backend_id: i64) -> Result<Option<String>> {
+        self.live.node_selector(backend_id).await
+    }
+
+    /// 选择器命中的第一个元素的节点号。
+    pub async fn node_for_selector(&self, selector: &str) -> Result<Option<i64>> {
+        self.live.node_for_selector(selector).await
+    }
+
     /// 点击无障碍树里的一个节点。
     pub async fn click_node(&self, backend_id: i64) -> Result<()> {
         self.live.click_node(&self.conn, backend_id).await
