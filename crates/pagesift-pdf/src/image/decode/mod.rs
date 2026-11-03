@@ -1,7 +1,7 @@
-//! 图像编码层的像素解码（给 OCR 用）：JPEG（ITU-T T.81）、CCITT 传真（T.4/T.6）。
-//! JBIG2（T.88）随后加入。导出（[`super::export`]）仍按原编码，不经过这里。
+//! 图像编码层的像素解码（给 OCR 用）：JPEG（ITU-T T.81）、CCITT 传真（T.4/T.6）、JBIG2（T.88）。导出（[`super::export`]）仍按原编码，不经过这里。
 
 pub(crate) mod ccitt;
+pub(crate) mod jbig2;
 pub(crate) mod jpeg;
 
 /// 解码出的像素，按行存放、无行间填充。

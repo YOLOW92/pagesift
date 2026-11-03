@@ -322,6 +322,16 @@ pub mod fuzzing {
         Ok((r.width, r.height, r.data))
     }
 
+    /// 解一段 JBIG2 码流（JBIG2Decode）：(宽, 高, 每像素一字节的灰度，黑 0 白 255)。
+    /// `globals` 是 /JBIG2Globals 流。内存上限取 [`Options::max_stream_bytes`] 的默认值。
+    pub fn decode_jbig2(
+        data: &[u8],
+        globals: Option<&[u8]>,
+    ) -> Result<(u32, u32, Vec<u8>), String> {
+        let r = image::decode::jbig2::decode(data, globals, Options::default().max_stream_bytes)?;
+        Ok((r.width, r.height, r.data))
+    }
+
     /// 返回操作符个数。
     pub fn lex(data: &[u8]) -> usize {
         let mut lx = lexer::Lexer::new(data);

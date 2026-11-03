@@ -18,6 +18,16 @@ use codes::{LOOKUP_BITS, Tables};
 /// 行数为 0（/Rows 缺省且不知道图高）时解到块结束码或数据末尾。中途出错时保留已解出的行，
 /// 其余行留白（受损的传真常见，能读的部分仍有用）；第一行就解不开才报错。
 pub(crate) fn decode(data: &[u8], p: &Ccitt, max_bytes: usize) -> Result<Raster, String> {
+    decode_counted(data, p, max_bytes).map(|(r, _)| r)
+}
+
+/// 同 [`decode`]，另外返回用掉的字节数（含块结束码，按字节补齐）。JBIG2 的 MMR 编码区域
+/// 一段数据里接连放几张图（半色调的灰度位平面），要知道下一张从哪里开始。
+pub(crate) fn decode_counted(
+    data: &[u8],
+    p: &Ccitt,
+    max_bytes: usize,
+) -> Result<(Raster, usize), String> {
     let w = p.columns as usize;
     let rows = p.rows as usize;
     if w == 0 {
@@ -68,12 +78,13 @@ pub(crate) fn decode(data: &[u8], p: &Ccitt, max_bytes: usize) -> Result<Raster,
     }
     let height = rows.max(done);
     out.resize(w * height, white);
-    Ok(Raster {
+    let r = Raster {
         width: p.columns,
         height: height as u32,
         channels: 1,
         data: out,
-    })
+    };
+    Ok((r, bits.bytes_read()))
 }
 
 /// 行首：读掉行尾码和对齐填充，判断这一行是一维还是二维。块结束（T.6 的 EOFB、T.4 的 RTC）
@@ -84,8 +95,14 @@ fn row_start(bits: &mut Bits, p: &Ccitt) -> Option<bool> {
         if p.byte_align {
             bits.align();
         }
-        // [协议] EOFB 是两个 EOL（T.6 §2.4.3），看到一个就够了
-        if bits.at_end() || bits.peek(12) == 1 {
+        // [协议] EOFB 是两个 EOL（T.6 §2.4.3），看到一个就够了；读掉它，用掉的字节数才准
+        if bits.at_end() {
+            return None;
+        }
+        if bits.peek(12) == 1 {
+            if bits.peek(24) == 0x1001 {
+                bits.skip(24); // [协议] EOFB 共 24 位
+            }
             return None;
         }
         return Some(true);

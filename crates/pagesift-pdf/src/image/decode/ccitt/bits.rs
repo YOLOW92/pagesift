@@ -40,6 +40,11 @@ impl<'a> Bits<'a> {
         self.pos = self.pos.next_multiple_of(8);
     }
 
+    /// 已读的字节数（不足一字节的算一字节）。
+    pub(super) fn bytes_read(&self) -> usize {
+        self.pos.div_ceil(8).min(self.data.len())
+    }
+
     pub(super) fn at_end(&self) -> bool {
         self.pos >= self.data.len() * 8
     }
