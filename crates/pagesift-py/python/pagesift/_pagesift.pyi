@@ -69,6 +69,8 @@ class Document:
     @property
     def warnings(self) -> List[str]: ...
     @property
+    def ocr(self) -> Optional[Dict[str, Any]]: ...
+    @property
     def redirect_chain(self) -> List[str]: ...
     @property
     def etag(self) -> Optional[str]: ...
@@ -103,6 +105,7 @@ class Options:
         export_images: bool = False,
         extract_schema: Optional[str] = None,
         max_age: Optional[int] = None,
+        parsers: Optional[str] = None,
     ) -> None: ...
 
 class Batch:
@@ -171,6 +174,11 @@ class Engine:
         browser_url: Optional[str] = None,
         max_browsers: int = 2,
         store_path: Optional[str] = None,
+        ocr: bool = False,
+        ocr_quality: Optional[str] = None,
+        ocr_formulas: bool = False,
+        models_dir: Optional[str] = None,
+        gpu: Optional[str] = None,
     ) -> None: ...
     def scrape(self, url: str, options: Options) -> Document: ...
     def ascrape(self, url: str, options: Options) -> Awaitable[Document]: ...

@@ -55,7 +55,7 @@ await scraper.close()
 
 **Options.** `formats` (`'markdown' | 'html' | 'rawHtml' | 'links' | 'images'`, default `['markdown']`; only the listed outputs are computed),
 `onlyMainContent` (default `true`), `url` (convert only). Scraping adds `engine` (`auto` / `http` / `browser`), `timeout`, `waitFor`,
-`headers`, `ignoreRobotsTxt`, `mobile`, `blockAds`, `ifNoneMatch`, `ifModifiedSince`, `maxAge`; batches add `concurrency` (default 16).
+`headers`, `ignoreRobotsTxt`, `mobile`, `blockAds`, `ifNoneMatch`, `ifModifiedSince`, `maxAge`, `parsers`; batches add `concurrency` (default 16).
 
 **`Page`.** `markdown`, `html`, `rawHtml`, `links`, `images` (`null` when not requested) and `metadata`
 (title, description, language, `statusCode`, `og*` keys, and `metadata.pagesift`: content hashes, redirect chain, ETag, engine used, timings).
@@ -83,7 +83,7 @@ crawls with `query` get it from the engine, other crawls report `limit_reached`,
 `UPSTREAM_ERROR`, `NETWORK_ERROR`, `DNS_FAILURE`, `BUSY`, `UNSUPPORTED_OPTION`, `INVALID_REQUEST`, `INTERNAL_ERROR`.
 When a site returns a block, pagesift reports it as an access barrier with `details` (vendor, kind, confidence) and does not retry to get past it. The optional server-side `browser_fingerprint` setting, off by default, changes what sites see on every request; see docs/bot.md.
 
-**`Scraper` config.** `userAgent`, `allowPrivateNetwork` (off by default), `requestIntervalMs` (per host, default 1000),
+**`Scraper` config.** OCR for scanned pages is off by default: `ocr`, `ocrQuality` (`auto` / `fast` / `accurate`), `ocrFormulas`, `modelsDir`, `gpu` (`auto` / `off` / `cuda` / `cuda:N`; text models use the GPU, layout and formula models stay on the CPU). Models download when the first scanned image arrives. Also `userAgent`, `allowPrivateNetwork` (off by default), `requestIntervalMs` (per host, default 1000),
 `perHostConcurrency` (default 2), `maxBrowsers`.
 
 ## Why it's shaped this way: benchmarks

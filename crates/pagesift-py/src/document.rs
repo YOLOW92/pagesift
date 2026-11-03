@@ -227,6 +227,17 @@ impl Document {
             None => Ok(None),
         }
     }
+    /// 这一页用了 OCR 时的引擎、模型、设备和页数；没用时为 None。
+    #[getter]
+    fn ocr<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        match self.ext().and_then(|e| e.ocr.as_ref()) {
+            Some(o) => Ok(Some(json(
+                py,
+                &serde_json::to_value(o).unwrap_or_default(),
+            )?)),
+            None => Ok(None),
+        }
+    }
     #[getter]
     fn engine(&self) -> Option<&str> {
         self.ext()?.engine.as_deref()
@@ -342,6 +353,7 @@ const FIELDS: &[&str] = &[
     "elapsed_ms",
     "timings",
     "warnings",
+    "ocr",
     "redirect_chain",
     "etag",
     "last_modified",

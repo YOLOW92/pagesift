@@ -3,6 +3,8 @@
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import pytest
+
 import pagesift
 
 SCHEMA = {
@@ -39,3 +41,14 @@ def test_extract_relocates_with_store_when_max_age_is_zero(tmp_path):
         assert any(w.startswith("relocated: fields.title") for w in d.warnings)
     finally:
         srv.shutdown()
+
+
+def test_ocr_options_are_checked():
+    with pytest.raises(ValueError, match="need OCR turned on"):
+        pagesift.Scraper(ocr_quality="fast")
+    with pytest.raises(ValueError, match="OCR quality must be"):
+        pagesift.Scraper(ocr=True, ocr_quality="best")
+    with pytest.raises(ValueError, match="gpu mode must be"):
+        pagesift.Scraper(ocr=True, gpu="metal")
+    with pytest.raises(pagesift.InvalidRequest):
+        pagesift.ScrapeOptions(parsers=[{"type": "pdf", "mode": "best"}])

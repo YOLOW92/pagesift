@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use pagesift::api::ApiError;
-use pagesift::api::types::{Format, Location, ScrapeOptions};
+use pagesift::api::types::{Format, Location, PdfParser, ScrapeOptions};
 use pyo3::prelude::*;
 
 use crate::errors::to_py_err;
@@ -37,6 +37,7 @@ impl Options {
         export_images = false,
         extract_schema = None,
         max_age = None,
+        parsers = None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -57,6 +58,7 @@ impl Options {
         export_images: bool,
         extract_schema: Option<String>,
         max_age: Option<u64>,
+        parsers: Option<String>,
     ) -> PyResult<Self> {
         let mut o = ScrapeOptions::default();
         if let Some(f) = formats {
@@ -76,6 +78,13 @@ impl Options {
         o.if_modified_since = if_modified_since;
         o.export_images = export_images;
         o.max_age = max_age;
+        if let Some(parsers) = parsers {
+            // 和 extract_schema 一样以 JSON 文本传进来
+            o.parsers = Some(
+                serde_json::from_str(&parsers)
+                    .map_err(|e| to_py_err(&ApiError::invalid(format!("parsers: {e}")), None))?,
+            );
+        }
         if let Some(schema) = extract_schema {
             // schema 以 JSON 文本传进来（Python 层负责 dumps），格式选项里带上它
             let value: serde_json::Value = serde_json::from_str(&schema)
@@ -112,6 +121,7 @@ fn format_name(k: &str) -> &str {
 }
 
 fn validate(o: &ScrapeOptions) -> Result<(), ApiError> {
+    PdfParser::from_parsers(o.parsers.as_ref())?;
     if let Some(f) = o
         .formats
         .iter()

@@ -57,6 +57,11 @@ impl Engine {
         browser_url = None,
         max_browsers = 2,
         store_path = None,
+        ocr = false,
+        ocr_quality = None,
+        ocr_formulas = false,
+        models_dir = None,
+        gpu = None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -71,6 +76,11 @@ impl Engine {
         browser_url: Option<String>,
         max_browsers: usize,
         store_path: Option<PathBuf>,
+        ocr: bool,
+        ocr_quality: Option<String>,
+        ocr_formulas: bool,
+        models_dir: Option<PathBuf>,
+        gpu: Option<String>,
     ) -> PyResult<Self> {
         if !(request_interval.is_finite() && request_interval >= 0.0) {
             return Err(PyValueError::new_err(
@@ -109,6 +119,15 @@ impl Engine {
                 PyValueError::new_err(format!("opening the store in {}: {e}", dir.display()))
             })?);
         }
+        cfg.ocr = pagesift::config::OcrOptions {
+            enabled: ocr,
+            quality: ocr_quality,
+            formulas: ocr_formulas,
+            models_dir,
+            gpu,
+        }
+        .engine(&cfg.fetcher)
+        .map_err(|e| PyValueError::new_err(format!("{e:#}")))?;
         // 用库的人就是管理员（和命令行一样）：crawl、map 的 ignore_robots_txt 由调用方自己决定
         cfg.policy.allow_crawl_ignore_robots = true;
         cfg.browser.source = match (browser_executable, browser_url) {

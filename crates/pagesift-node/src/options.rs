@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use napi_derive::napi;
 use pagesift::api::ApiError;
-use pagesift::api::types::{self as api, Format};
+use pagesift::api::types::{self as api, Format, PdfParser};
 
 use crate::error::Fallible;
 
@@ -31,6 +31,17 @@ pub struct ScraperConfig {
     /// 存储目录。给了才有页面缓存和选择器记忆（`extractSchema` 的自动重定位要它）；
     /// 一个目录同时只能被一个进程打开。
     pub store_path: Option<String>,
+    /// 扫描页走 OCR（默认关）。第一张扫描图来时才下载模型。
+    pub ocr: Option<bool>,
+    /// OCR 质量：`auto`（默认）、`fast` 或 `accurate`。
+    #[napi(ts_type = "'auto' | 'fast' | 'accurate'")]
+    pub ocr_quality: Option<String>,
+    /// 也识别行间公式，输出 `$$…$$`；要多下载 860 MB 模型。
+    pub ocr_formulas: Option<bool>,
+    /// 模型目录，默认在缓存目录下。
+    pub models_dir: Option<String>,
+    /// `auto`（默认）、`off`、`cuda` 或 `cuda:N`。文字模型用 GPU，版面和公式模型留在 CPU。
+    pub gpu: Option<String>,
 }
 
 impl ScraperConfig {
@@ -66,6 +77,15 @@ impl ScraperConfig {
         if let Some(n) = self.max_browsers {
             c.browser.max_browsers = n.max(1) as usize;
         }
+        c.ocr = pagesift::config::OcrOptions {
+            enabled: self.ocr.unwrap_or(false),
+            quality: self.ocr_quality,
+            formulas: self.ocr_formulas.unwrap_or(false),
+            models_dir: self.models_dir.map(Into::into),
+            gpu: self.gpu,
+        }
+        .engine(&c.fetcher)
+        .map_err(|e| ApiError::invalid(format!("{e:#}")))?;
         // 用库的人就是管理员（和命令行一样）：crawl、map 的 ignoreRobotsTxt 由调用方自己决定
         c.policy.allow_crawl_ignore_robots = true;
         Ok(c)
@@ -179,6 +199,9 @@ macro_rules! scrape_options {
             pub extract_schema: Option<serde_json::Value>,
             /// `storePath` 的页面缓存最多接受多旧的结果，毫秒；0 表示不读缓存、重新抓取。
             pub max_age: Option<i64>,
+            /// 和 HTTP 接口相同，例如 `[{ type: 'pdf', mode: 'ocr' }]`；`ocr` 模式要 `Scraper` 配了 `ocr`。
+            #[napi(ts_type = "Array<string | { type: string; mode?: 'fast' | 'auto' | 'ocr' }>")]
+            pub parsers: Option<serde_json::Value>,
         }
 
         impl $name {
@@ -199,8 +222,10 @@ macro_rules! scrape_options {
                         .map(u64::try_from)
                         .transpose()
                         .map_err(|_| ApiError::invalid("maxAge must not be negative"))?,
+                    parsers: self.parsers.clone(),
                     ..Default::default()
                 };
+                PdfParser::from_parsers(o.parsers.as_ref())?;
                 if let Some(v) = self.only_main_content {
                     o.only_main_content = v;
                 }

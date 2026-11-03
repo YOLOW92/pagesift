@@ -197,6 +197,11 @@ unknown keywords raise `TypeError`.
 | `user_agent` | pagesift's own | browser-impersonating user agents are refused |
 | `allow_private_network` | `False` | SSRF protection: local and private addresses are refused unless allowed |
 | `request_interval` | `1.0` | seconds between requests to the same host; robots.txt Crawl-delay wins |
+| `ocr` | `False` | OCR scanned pages; models download when the first scanned image arrives |
+| `ocr_quality` | `"auto"` | `auto`, `fast` or `accurate` |
+| `ocr_formulas` | `False` | also recognize display formulas as `$$…$$`; downloads 860 MB more |
+| `models_dir` | cache directory | where OCR models live |
+| `gpu` | `"auto"` | `auto`, `off`, `cuda` or `cuda:N`; text models use the GPU, layout and formula models stay on the CPU |
 | `per_host_concurrency` | `2` | |
 | `max_concurrency` | `64` | across all hosts |
 | `browser_executable` / `browser_url` | auto-detect | a Chrome binary, or a running browser (`ws://…`, `http://host:port`) |
@@ -219,6 +224,7 @@ apply, so a batch against one host is as polite as single requests.
 | `content_hash`, `raw_hash`, `text_hash` | content fingerprints for change detection |
 | `elapsed_ms`, `timings` | total and per-phase time, milliseconds |
 | `warnings`, `redirect_chain`, `etag`, `last_modified`, `not_modified` | |
+| `ocr` | `engine`, `model`, `device`, `pages`, `fallback` when OCR was used, else `None` |
 
 `to_dict()` converts every field at once; reading attributes is cheaper when you need only some.
 

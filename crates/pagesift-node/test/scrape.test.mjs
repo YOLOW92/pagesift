@@ -155,3 +155,9 @@ test('extract with a store relocates a changed selector when maxAge is 0', async
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+test('OCR options are checked', () => {
+  assert.throws(() => new Scraper({ ocrQuality: 'fast' }), /need OCR turned on/)
+  assert.throws(() => new Scraper({ ocr: true, ocrQuality: 'best' }), /OCR quality must be/)
+  assert.throws(() => new Scraper({ ocr: true, gpu: 'metal' }), /gpu mode must be/)
+})

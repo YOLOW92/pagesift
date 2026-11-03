@@ -107,7 +107,8 @@ class ScrapeOptions:
     - ``languages``：浏览器渲染时的 Accept-Language，例如 ``["zh-CN", "en"]``；
     - ``extract_schema``：按 CSS schema 抽取结构化数据（``baseSelector``、``fields``），结果在
       ``Document.extract``；``Scraper`` 给了 ``store_path`` 时，选择器失效会自动重定位并在 ``warnings`` 里报 ``relocated``；
-    - ``max_age``：``store_path`` 的页面缓存最多接受多旧的结果，毫秒；0 表示不读缓存、重新抓取。
+    - ``max_age``：``store_path`` 的页面缓存最多接受多旧的结果，毫秒；0 表示不读缓存、重新抓取；
+    - ``parsers``：和 HTTP 接口相同，例如 ``[{"type": "pdf", "mode": "ocr"}]``；``ocr`` 模式要 ``Scraper(ocr=True)``。
     """
 
     formats: Sequence[Format] = ("markdown",)
@@ -126,6 +127,7 @@ class ScrapeOptions:
     if_modified_since: Optional[str] = None
     extract_schema: Optional[Mapping[str, Any]] = None
     max_age: Optional[int] = None
+    parsers: Optional[Sequence[Any]] = None
     _native: _pagesift.Options = dataclasses.field(
         init=False, repr=False, compare=False, hash=False
     )
@@ -150,6 +152,7 @@ class ScrapeOptions:
             if_modified_since=self.if_modified_since,
             extract_schema=json.dumps(self.extract_schema) if self.extract_schema is not None else None,
             max_age=self.max_age,
+            parsers=json.dumps(list(self.parsers)) if self.parsers is not None else None,
         )
         object.__setattr__(self, "_native", native)
 
@@ -205,7 +208,10 @@ class Scraper:
       （``ws://…`` / ``http://host:port``）；
     - ``max_browsers``：浏览器池里最多几个浏览器进程；
     - ``store_path``：存储目录。给了才有页面缓存和选择器记忆（``extract_schema`` 的自动重定位要它）；
-      一个目录同时只能被一个进程打开。
+      一个目录同时只能被一个进程打开；
+    - ``ocr``：扫描页走 OCR（默认关）。第一张扫描图来时才下载模型；
+    - ``ocr_quality``：``auto``（默认）、``fast`` 或 ``accurate``；``ocr_formulas``：也识别行间公式，要多下载 860 MB 模型；
+    - ``models_dir``：模型目录；``gpu``：``auto``（默认）、``off``、``cuda`` 或 ``cuda:N``。
 
     所有方法都接受一个可选的 :class:`ScrapeOptions`，再加上覆盖其中字段的关键字参数。
     """
@@ -224,6 +230,11 @@ class Scraper:
         browser_url: Optional[str] = None,
         max_browsers: int = 2,
         store_path: Optional[str] = None,
+        ocr: bool = False,
+        ocr_quality: Optional[str] = None,
+        ocr_formulas: bool = False,
+        models_dir: Optional[str] = None,
+        gpu: Optional[str] = None,
     ) -> None:
         self._engine = _pagesift.Engine(
             user_agent=user_agent,
@@ -237,6 +248,11 @@ class Scraper:
             browser_url=browser_url,
             max_browsers=max_browsers,
             store_path=store_path,
+            ocr=ocr,
+            ocr_quality=ocr_quality,
+            ocr_formulas=ocr_formulas,
+            models_dir=models_dir,
+            gpu=gpu,
         )
 
     def scrape(self, url: str, options: Optional[ScrapeOptions] = None, **overrides: Any) -> Document:

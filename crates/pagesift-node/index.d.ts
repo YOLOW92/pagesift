@@ -69,6 +69,8 @@ export interface PageMetadata {
 }
 
 export interface PagesiftMetadata {
+  /** 用了 OCR 时的引擎、模型、设备和页数；`fallback` 为真表示想用 GPU 却退回了 CPU。 */
+  ocr?: { engine: string; model: string; device: string; pages: number; fallback: boolean }
   /** Markdown、原始 HTML、正文纯文本的 BLAKE3 哈希（十六进制）。 */
   contentHash?: string
   /** Computed only when change tracking is enabled in a supporting API surface. */
@@ -249,6 +251,8 @@ export interface BatchOptions {
   extractSchema?: Record<string, unknown>
   /** `storePath` 的页面缓存最多接受多旧的结果，毫秒；0 表示不读缓存、重新抓取。 */
   maxAge?: number
+  /** 和 HTTP 接口相同，例如 `[{ type: 'pdf', mode: 'ocr' }]`；`ocr` 模式要 `Scraper` 配了 `ocr`。 */
+  parsers?: Array<string | { type: string; mode?: 'fast' | 'auto' | 'ocr' }>
 }
 
 /** 把一段 HTML 转成 Markdown，在当前线程上同步执行（会阻塞事件循环，适合脚本和小页面）。 */
@@ -397,6 +401,8 @@ export interface ParseOptions {
   extractSchema?: Record<string, unknown>
   /** `storePath` 的页面缓存最多接受多旧的结果，毫秒；0 表示不读缓存、重新抓取。 */
   maxAge?: number
+  /** 和 HTTP 接口相同，例如 `[{ type: 'pdf', mode: 'ocr' }]`；`ocr` 模式要 `Scraper` 配了 `ocr`。 */
+  parsers?: Array<string | { type: string; mode?: 'fast' | 'auto' | 'ocr' }>
 }
 
 /** 单页抓取选项。 */
@@ -434,6 +440,8 @@ export interface ScrapeOptions {
   extractSchema?: Record<string, unknown>
   /** `storePath` 的页面缓存最多接受多旧的结果，毫秒；0 表示不读缓存、重新抓取。 */
   maxAge?: number
+  /** 和 HTTP 接口相同，例如 `[{ type: 'pdf', mode: 'ocr' }]`；`ocr` 模式要 `Scraper` 配了 `ocr`。 */
+  parsers?: Array<string | { type: string; mode?: 'fast' | 'auto' | 'ocr' }>
 }
 
 /** `Scraper` 的构造参数。 */
@@ -457,4 +465,14 @@ export interface ScraperConfig {
    * 一个目录同时只能被一个进程打开。
    */
   storePath?: string
+  /** 扫描页走 OCR（默认关）。第一张扫描图来时才下载模型。 */
+  ocr?: boolean
+  /** OCR 质量：`auto`（默认）、`fast` 或 `accurate`。 */
+  ocrQuality?: 'auto' | 'fast' | 'accurate'
+  /** 也识别行间公式，输出 `$$…$$`；要多下载 860 MB 模型。 */
+  ocrFormulas?: boolean
+  /** 模型目录，默认在缓存目录下。 */
+  modelsDir?: string
+  /** `auto`（默认）、`off`、`cuda` 或 `cuda:N`。文字模型用 GPU，版面和公式模型留在 CPU。 */
+  gpu?: string
 }

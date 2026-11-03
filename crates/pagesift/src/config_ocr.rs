@@ -93,6 +93,60 @@ impl From<OcrQuality> for Quality {
     }
 }
 
+/// 没有配置文件的入口（Python、Node）的 OCR 选项，取值和配置文件相同。
+#[derive(Debug, Default)]
+pub struct OcrOptions {
+    pub enabled: bool,
+    pub quality: Option<String>,
+    pub formulas: bool,
+    pub models_dir: Option<PathBuf>,
+    pub gpu: Option<String>,
+}
+
+impl OcrOptions {
+    /// 组装 OCR 引擎（懒加载）。没打开却给了只对 OCR 有意义的选项时报错，不悄悄忽略。
+    pub fn engine(
+        self,
+        fetcher: &pagesift_net::FetcherConfig,
+    ) -> Result<Option<Arc<dyn pagesift_pdf::PageOcr>>> {
+        if !self.enabled
+            && (self.quality.is_some()
+                || self.formulas
+                || self.models_dir.is_some()
+                || self.gpu.is_some())
+        {
+            return Err(anyhow!(
+                "the OCR quality, formulas, models directory and GPU options need OCR turned on"
+            ));
+        }
+        let quality = match self.quality.as_deref() {
+            None | Some("auto") => OcrQuality::Auto,
+            Some("fast") => OcrQuality::Fast,
+            Some("accurate") => OcrQuality::Accurate,
+            Some(q) => {
+                return Err(anyhow!(
+                    "OCR quality must be auto, fast or accurate, not {q:?}"
+                ));
+            }
+        };
+        let mode = match self.gpu.as_deref() {
+            None => GpuMode::Auto,
+            Some(g) => g.parse().map_err(|e: String| anyhow!(e))?,
+        };
+        Config {
+            ocr: Ocr {
+                enabled: self.enabled,
+                quality,
+                formulas: self.formulas,
+                models_dir: self.models_dir,
+            },
+            gpu: Gpu { mode },
+            ..Default::default()
+        }
+        .ocr_engine(fetcher)
+    }
+}
+
 impl Config {
     /// 实际生效的 GPU 模式：`PAGESIFT_GPU` 优先于 `[gpu] mode`。
     pub fn gpu_mode(&self) -> Result<GpuMode> {
