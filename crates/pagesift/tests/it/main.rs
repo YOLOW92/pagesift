@@ -20,6 +20,7 @@ mod focused_site;
 mod frontier;
 mod hooks;
 mod images;
+mod interact;
 mod jina;
 mod monitor;
 mod multihost;

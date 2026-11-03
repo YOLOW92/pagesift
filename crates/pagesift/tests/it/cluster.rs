@@ -648,6 +648,40 @@ fn render_step(doc: &Value) -> Value {
         .unwrap_or_else(|| panic!("no render step: {doc}"))
 }
 
+/// 浏览器会话绑在一台机器上，网关不能把下一个请求送到同一个工人：明确报错，不能悄悄失败。
+#[test]
+fn the_gateway_refuses_interact_clearly() {
+    let _serial = serial();
+    let rt = runtime();
+    let g = gateway(&rt);
+    rt.block_on(async {
+        for (method, uri, body) in [
+            (
+                "POST",
+                "/v2/scrape",
+                Some(json!({"url": "http://127.0.0.1:9/x", "keepSession": true})),
+            ),
+            (
+                "POST",
+                "/v2/scrape/00000000-0000-4000-8000-000000000000/interact",
+                Some(json!({"actions": []})),
+            ),
+            (
+                "DELETE",
+                "/v2/scrape/00000000-0000-4000-8000-000000000000/interact",
+                None,
+            ),
+        ] {
+            let v = call(&g.app, method, uri, body).await;
+            assert_eq!(v["code"], "UNSUPPORTED_OPTION", "{method} {uri}: {v}");
+            assert!(
+                v["error"].as_str().unwrap().contains("cluster gateway"),
+                "{v}"
+            );
+        }
+    });
+}
+
 /// 统计汇聚、robots 判定、审计与监控：
 /// - 工人 A 在站点上学到"需要渲染"后被杀，站点换到工人 B，B 第一次就按网关下发的先验决策（`learned`）；
 /// - robots 由网关判定：工人本机不遵守 robots，网关说遵守时照样被 robots 挡住；请求忽略 robots 时才抓；
