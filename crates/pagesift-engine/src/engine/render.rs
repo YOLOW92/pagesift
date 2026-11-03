@@ -93,6 +93,7 @@ impl Scraper {
                 images: true,
             },
             proxy,
+            wait_until: wait_until(opts.respond_timing.as_deref()),
             ..RenderOptions::default()
         };
 
@@ -509,4 +510,18 @@ pub(super) struct Rendered {
     extract: Duration,
     doc: pagesift_content::Document,
     html: String,
+}
+
+/// `respondTiming`（Jina 的 `x-respond-timing`）→ 浏览器的就绪条件：
+/// `visible-content` 到 DOMContentLoaded；`mutation-idle` 等 DOM 变化停下；`resource-idle`（默认）
+/// 等脚本、XHR、文档类请求静默；`media-idle`、`network-idle` 先等 `load`（图片、字体、iframe），
+/// 再等请求静默。`html` 不走浏览器（引擎直接用 HTTP），这里不会出现。
+fn wait_until(t: Option<&str>) -> pagesift_cdp::WaitUntil {
+    use pagesift_cdp::WaitUntil;
+    match t {
+        Some("visible-content") => WaitUntil::DomContentLoaded,
+        Some("mutation-idle") => WaitUntil::MutationIdle,
+        Some("media-idle" | "network-idle") => WaitUntil::LoadIdle,
+        _ => WaitUntil::NetworkIdle,
+    }
 }

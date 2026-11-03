@@ -77,10 +77,13 @@ async fn process_jina_scrape(
         return e.into_response();
     }
 
-    let opts = ScrapeOptions {
-        only_main_content: true,
-        ..Default::default()
+    let (opts, params) = match super::headers::parse(&headers) {
+        Ok(v) => v,
+        Err(e) => return e.into_response(),
     };
+    if let Err(e) = crate::validate::check_scrape_options(&opts, s.engine.as_ref()) {
+        return e.into_response();
+    }
     let accept = headers
         .get(header::ACCEPT)
         .and_then(|v| v.to_str().ok())
@@ -97,30 +100,50 @@ async fn process_jina_scrape(
     match s.engine.scrape(target_url, &opts).await {
         Ok(doc) => {
             record_ok(&s, caller.as_ref().map(|Extension(c)| c)).await;
-            let markdown = doc.markdown.unwrap_or_default();
-            let title = doc.metadata.title.as_deref();
-
+            let r = match super::respond::render(&doc, target_url, &params) {
+                Ok(r) => r,
+                Err(e) => return e.into_response(),
+            };
+            let mut warnings = doc
+                .metadata
+                .pagesift
+                .as_ref()
+                .map(|m| m.warnings.clone())
+                .unwrap_or_default();
+            warnings.extend(r.warnings.iter().cloned());
             if accept.contains("application/json") {
-                let json_data = serde_json::json!({
-                    "code": 200,
-                    "status": 20000,
-                    "data": {
-                        "title": title.unwrap_or(""),
-                        "description": doc.metadata.description.unwrap_or_default(),
-                        "url": target_url,
-                        "content": markdown,
-                    }
+                let mut data = serde_json::json!({
+                    "title": doc.metadata.title.as_deref().unwrap_or(""),
+                    "description": doc.metadata.description.clone().unwrap_or_default(),
+                    "url": target_url,
+                    "content": r.body,
                 });
-                Json(json_data).into_response()
+                if let Some(chunks) = &r.chunks {
+                    data["chunks"] = serde_json::json!(chunks);
+                }
+                if !warnings.is_empty() {
+                    data["warnings"] = serde_json::json!(warnings);
+                }
+                // [协议] Jina Reader JSON 响应的固定外壳：code 200、status 20000
+                Json(serde_json::json!({ "code": 200, "status": 20000, "data": data }))
+                    .into_response()
             } else {
-                // Default: Direct Raw Markdown for LLM Agents
-                Response::builder()
-                    .header(header::CONTENT_TYPE, "text/markdown; charset=utf-8")
-                    .body(axum::body::Body::from(markdown))
-                    .unwrap_or_else(|_| {
-                        (StatusCode::INTERNAL_SERVER_ERROR, "response builder error")
-                            .into_response()
-                    })
+                // 分块时按 Jina 的纯文本形式：块之间用一行分隔
+                let body = match &r.chunks {
+                    Some(c) => c.join(CHUNK_SEPARATOR),
+                    None => r.body,
+                };
+                let mut resp = Response::builder().header(header::CONTENT_TYPE, r.content_type);
+                // 纯文本响应没有放警告的字段：写进响应头（`x-pagesift-warnings`，多条用 `; ` 隔开）
+                if let Some(v) = (!warnings.is_empty())
+                    .then(|| warnings.join("; "))
+                    .and_then(|w| axum::http::HeaderValue::from_str(&w).ok())
+                {
+                    resp = resp.header("x-pagesift-warnings", v);
+                }
+                resp.body(axum::body::Body::from(body)).unwrap_or_else(|_| {
+                    (StatusCode::INTERNAL_SERVER_ERROR, "response builder error").into_response()
+                })
             }
         }
         Err(e) => {
@@ -129,6 +152,9 @@ async fn process_jina_scrape(
         }
     }
 }
+
+/// 纯文本分块响应里块与块之间的分隔：一个空行加 `---` 再一个空行（Markdown 的分隔线，不和正文混淆）。
+const CHUNK_SEPARATOR: &str = "\n\n---\n\n";
 
 async fn record_ok(s: &AppState, caller: Option<&Caller>) {
     s.metrics.scrape_ok.fetch_add(1, Ordering::Relaxed);

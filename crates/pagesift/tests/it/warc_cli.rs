@@ -144,3 +144,44 @@ fn crawl_from_warc_converts_archived_pages_offline() {
         assert_eq!(p["markdown"], twin["markdown"], "{src}");
     }
 }
+
+/// warcio 写的存档：gzip + 分块传输的 response 解出正文；404 的响应和非页面记录跳过。
+#[test]
+fn scrape_reads_warcio_archives() {
+    let data =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../pagesift-store/tests/data");
+    let dir = tempfile::tempdir().unwrap();
+    for name in ["warcio-1.0.warc.gz", "warcio-1.1.warc"] {
+        let path = data.join(name);
+        let out = pagesift(
+            dir.path(),
+            &["scrape", path.to_str().unwrap(), "--format", "json"],
+        );
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let pages: Vec<serde_json::Value> = String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .map(|l| serde_json::from_str(l).unwrap())
+            .collect();
+        let urls: Vec<&str> = pages
+            .iter()
+            .map(|p| p["data"]["metadata"]["sourceURL"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            urls,
+            ["https://fixture.test/one", "https://fixture.test/two"],
+            "{name}"
+        );
+        assert!(
+            pages[0]["data"]["markdown"]
+                .as_str()
+                .unwrap()
+                .contains("Archived with warcio")
+        );
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(stderr.contains("archive_records_skipped: 1"), "{stderr}");
+    }
+}

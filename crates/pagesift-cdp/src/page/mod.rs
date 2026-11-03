@@ -11,6 +11,7 @@ use tokio::task::JoinHandle;
 mod actions;
 mod monitor;
 mod scroll;
+mod settle;
 
 use actions::{ActionError, capture, eval_value, run_action};
 use monitor::{
@@ -424,7 +425,7 @@ pub(crate) async fn render_page(
         .and_then(Value::as_str)
         .map(str::to_owned);
     let first_event = match opts.wait_until {
-        WaitUntil::Load => "load",
+        WaitUntil::Load | WaitUntil::LoadIdle => "load",
         _ => "DOMContentLoaded",
     };
     tracing::trace!(?loader, first_event, "render: waiting for navigation");
@@ -517,8 +518,17 @@ pub(crate) async fn render_page(
             early_stopped: false,
             first_content: Some(timings.navigation),
         }
-    } else if opts.wait_until == WaitUntil::NetworkIdle {
+    } else if matches!(
+        opts.wait_until,
+        WaitUntil::NetworkIdle | WaitUntil::LoadIdle
+    ) {
         wait_ready(&ctx, timings.navigation).await
+    } else if opts.wait_until == WaitUntil::MutationIdle {
+        settle::wait_mutation_idle(&ctx).await;
+        monitor::ReadyOutcome {
+            early_stopped: false,
+            first_content: None,
+        }
     } else {
         monitor::ReadyOutcome {
             early_stopped: false,

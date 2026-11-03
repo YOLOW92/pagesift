@@ -13,6 +13,7 @@ http-body = "1.1.0"
 hyper = { version = "1.12.0", features = ["server", "http1", "http2"] }
 hyper-util = { version = "0.1.21", features = ["server-auto", "server-graceful", "service", "tokio"] }
 pagesift-cluster = { version = "0.91.1", path = "../pagesift-cluster" }
+pagesift-extract = { version = "0.91.1", path = "../pagesift-extract" }
 pagesift-net = { version = "0.91.1", path = "../pagesift-net" }
 pagesift-office = { version = "0.91.1", path = "../pagesift-office" }
 pagesift-store = { version = "0.91.1", path = "../pagesift-store" }

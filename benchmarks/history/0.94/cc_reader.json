@@ -1,0 +1,9 @@
+{
+  "records": 51,
+  "warcio_2xx_responses": 39,
+  "pagesift_pages": 39,
+  "same_urls": true,
+  "pages_without_markdown": 1,
+  "exit_code": 0,
+  "seconds": 0.172
+}

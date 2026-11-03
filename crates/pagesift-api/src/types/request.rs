@@ -144,7 +144,21 @@ pub struct ScrapeOptions {
     /// PageSift extension: chunking options (`{"type": "recursive", "size": 400}`, etc.).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chunking: Option<Value>,
+    /// PageSift extension: when a rendered page counts as ready (Jina's `x-respond-timing`), one of
+    /// [`RESPOND_TIMINGS`]. `html` does not run scripts; the others need the browser.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub respond_timing: Option<String>,
 }
+
+/// `respondTiming` values, from the earliest to the most complete (Jina Reader's six levels).
+pub const RESPOND_TIMINGS: &[&str] = &[
+    "html",
+    "visible-content",
+    "mutation-idle",
+    "resource-idle",
+    "media-idle",
+    "network-idle",
+];
 
 /// PageSift extension `queryFilter`: filter main content markdown by query relevance.
 #[derive(Debug, Clone, PartialEq, Serialize)]

@@ -206,6 +206,14 @@ pub fn scrape_options_schema(caps: &Capabilities) -> Value {
         }),
     );
     put(
+        "respondTiming",
+        json!({
+            "type": "string",
+            "enum": ["html", "visible-content", "mutation-idle", "resource-idle", "media-idle", "network-idle"],
+            "description": "When a rendered page counts as ready: html does not run scripts; the others wait for visible content, DOM mutations to settle, scripts/XHR to go quiet, or media to load."
+        }),
+    );
+    put(
         "chunking",
         json!({
             "type": "object",

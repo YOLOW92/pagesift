@@ -1,7 +1,10 @@
 //! Jina Reader protocol adapter for PageSift.
 //! Implements `GET /r/{*url}` and `POST /r` for direct markdown and SSE event streaming.
 
+pub mod headers;
 pub mod reader_route;
+pub mod respond;
+pub mod search_route;
 pub mod stream_sse;
 
 use axum::Router;
@@ -17,6 +20,7 @@ pub(crate) fn jina_routes() -> Router<AppState> {
         .route("/r/{*url}", get(handle_jina_get))
         .route("/r", post(handle_jina_post))
         .route("/r/", post(handle_jina_post))
+        .route("/s/{*query}", get(search_route::handle_jina_search))
 }
 
 #[cfg(test)]

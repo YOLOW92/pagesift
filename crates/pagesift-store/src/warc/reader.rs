@@ -239,6 +239,33 @@ mod tests {
         }
     }
 
+    /// warcio 写的样本（`benchmarks/history/0.94/make_warcio_fixture.py`）：1.0 gzip 和 1.1 不压缩。
+    #[test]
+    fn reads_warcio_fixtures() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data");
+        for (name, version) in [
+            ("warcio-1.0.warc.gz", "WARC/1.0"),
+            ("warcio-1.1.warc", "WARC/1.1"),
+        ] {
+            let recs: Vec<ReadRecord> = open(&dir.join(name), u64::MAX)
+                .unwrap()
+                .map(Result::unwrap)
+                .collect();
+            let types: Vec<String> = recs.iter().map(ReadRecord::record_type).collect();
+            assert_eq!(
+                types,
+                [
+                    "warcinfo", "response", "request", "resource", "metadata", "response",
+                    "revisit"
+                ],
+                "{name}"
+            );
+            assert!(recs.iter().all(|r| r.version == version));
+            assert_eq!(recs[3].target_uri(), Some("https://fixture.test/two"));
+            assert!(recs[1].block.starts_with(b"HTTP/1.1 200 OK"));
+        }
+    }
+
     #[test]
     fn warc_1_0_folding_lf_only_and_oversized_blocks() {
         let text = b"WARC/1.0\nWARC-Type: metadata\nWARC-Target-URI: <http://a.test/>\nX-Long: one\n two\nContent-Length: 5\n\nhello\n\nWARC/1.0\r\nWARC-Type: resource\r\nContent-Length: 10\r\n\r\n0123456789\r\n\r\n";

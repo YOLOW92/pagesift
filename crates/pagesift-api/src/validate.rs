@@ -67,6 +67,19 @@ pub fn check_scrape_options(opts: &ScrapeOptions, engine: &dyn Engine) -> Result
             "engine must be http, browser or auto, got {e:?}"
         )));
     }
+    if let Some(t) = opts.respond_timing.as_deref() {
+        if !crate::types::RESPOND_TIMINGS.contains(&t) {
+            return Err(ApiError::invalid(format!(
+                "respondTiming must be one of {}",
+                crate::types::RESPOND_TIMINGS.join(", ")
+            )));
+        }
+        if t != "html" && opts.engine.as_deref() == Some("http") {
+            return Err(ApiError::invalid(format!(
+                "respondTiming {t:?} waits for the rendered page and needs engine browser or auto"
+            )));
+        }
+    }
     if let Some(c) = &opts.chunking {
         const KINDS: [&str; 8] = [
             "recursive",

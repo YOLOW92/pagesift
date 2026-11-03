@@ -10,7 +10,8 @@ pub use parse::{PdfParser, Upload, UploadKind};
 
 pub use request::{
     AdaptiveOptions, BatchScrapeRequest, CrawlRequest, CrawlScope, ExtractRequest, Format,
-    Location, MapRequest, QueryFilter, ScrapeOptions, ScrapeRequest, SearchRequest,
+    Location, MapRequest, QueryFilter, RESPOND_TIMINGS, ScrapeOptions, ScrapeRequest,
+    SearchRequest,
 };
 pub use response::{
     ChangeTracking, CrawlSummary, CrawlTrace, DocChunk, Document, JobError, JobErrors, JobStarted,

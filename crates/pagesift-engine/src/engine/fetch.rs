@@ -26,6 +26,8 @@ impl Scraper {
         let choice = match opts.engine.as_deref() {
             Some("http") => EngineChoice::Http,
             Some("browser") => EngineChoice::Browser,
+            // respondTiming html：只要原始 HTML，不执行脚本
+            _ if opts.respond_timing.as_deref() == Some("html") => EngineChoice::Http,
             _ => EngineChoice::Auto,
         };
         let mut timings = BTreeMap::new();

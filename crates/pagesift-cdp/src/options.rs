@@ -108,6 +108,12 @@ pub enum WaitUntil {
     #[default]
     #[serde(rename = "networkidle")]
     NetworkIdle,
+    /// DOMContentLoaded 之后，DOM 变化停下来（静默窗口由观测到的变化间隔推出，见 `page/settle.rs`）。
+    #[serde(rename = "mutationidle")]
+    MutationIdle,
+    /// `load`（图片、字体、iframe 都加载完）之后，再等脚本、XHR/fetch、文档类请求静默。
+    #[serde(rename = "loadidle")]
+    LoadIdle,
 }
 
 #[derive(Debug, Clone, PartialEq)]
