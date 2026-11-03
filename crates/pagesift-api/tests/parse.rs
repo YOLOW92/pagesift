@@ -230,10 +230,6 @@ async fn options_must_be_a_json_object() {
         (br#"{"timeout": 999999}"#, "INVALID_REQUEST"),
         (br#"{"formats": 5}"#, "INVALID_REQUEST"),
         (
-            br#"{"parsers":[{"type":"pdf","mode":"ocr"}]}"#,
-            "UNSUPPORTED_OPTION",
-        ),
-        (
             br#"{"parsers":[{"type":"pdf","blocks":true}]}"#,
             "UNSUPPORTED_OPTION",
         ),

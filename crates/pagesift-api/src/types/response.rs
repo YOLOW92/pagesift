@@ -39,6 +39,20 @@ pub struct CrawlTrace {
     pub attachment_of: Option<String>,
 }
 
+/// `metadata.pagesift.ocr`。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OcrMeta {
+    pub engine: String,
+    pub model: String,
+    /// `cpu` 或 `cuda:N`。
+    pub device: String,
+    /// 文字来自 OCR 的页数。
+    pub pages: usize,
+    /// 想用 GPU 却退回 CPU 时为真（原因在 `gpu_fallback` 警告里）。
+    pub fallback: bool,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PagesiftMeta {
@@ -67,6 +81,9 @@ pub struct PagesiftMeta {
     /// Timing per phase in milliseconds.
     #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
     pub timings: BTreeMap<String, f64>,
+    /// OCR：哪个引擎和设备识别了多少页。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ocr: Option<OcrMeta>,
     /// Duplicate canonical reference URL.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duplicate_of: Option<String>,

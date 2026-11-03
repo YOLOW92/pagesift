@@ -42,7 +42,7 @@ use crate::obj::{deref, text_string};
 use crate::run::run;
 
 pub use crate::image::{ImageEncoding, ImagePlacement, PdfImage};
-pub use crate::ocr::{OcrLine, PageOcr};
+pub use crate::ocr::{OcrInfo, OcrLine, PageOcr};
 pub use crate::quality::PageQuality;
 pub use crate::timeout::{observe_parse, parse_timeout};
 
@@ -68,6 +68,9 @@ pub struct Options {
     /// 扫描页 OCR 的识别引擎（默认没有：扫描页只写一行说明）。有引擎时，扫描页上的图解成
     /// 灰度交给它识别，识别出的文字照常参与版面重建。
     pub ocr: Option<std::sync::Arc<dyn PageOcr>>,
+    /// 有引擎时，不只扫描页，所有带图的页都交给它识别，识别出文字就替换这页的文字层
+    /// （Firecrawl 的 `mode: "ocr"`；文字层是错的、或扫描判定漏掉的页）。没有图的页保留文字层。
+    pub force_ocr: bool,
 }
 
 /// 图片识别与导出。
@@ -96,6 +99,7 @@ impl Default for Options {
         Options {
             timeout: None,
             adaptive_timeout: true,
+            force_ocr: false,
             max_input_bytes: 256 << 20,
             max_pages: 5000,
             max_stream_bytes: 64 << 20,
@@ -160,6 +164,8 @@ pub struct PdfPage {
     pub quality: PageQuality,
     /// 这页画的图在 [`PdfDocument::images`] 里的下标，按阅读顺序，同一张图可能出现多次。
     pub images: Vec<usize>,
+    /// 这页的文字来自 OCR。
+    pub ocr: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]

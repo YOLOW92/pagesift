@@ -12,7 +12,7 @@ impl Scraper {
         &self,
         bytes: Vec<u8>,
         opts: &ScrapeOptions,
-        (mut meta, ext): (Metadata, PagesiftMeta),
+        (mut meta, mut ext): (Metadata, PagesiftMeta),
         mut p: Progress,
         deadline: Option<Instant>,
     ) -> Result<Document, ApiError> {
@@ -29,6 +29,19 @@ impl Scraper {
                 doc, meta, ext, p.timings, p.warnings, None, false, p.started,
             ));
         }
+        // Firecrawl 的三种模式：fast 只读文字层；auto（默认）扫描页才 OCR；ocr 强制 OCR。
+        // OCR 要服务端先打开（`[ocr] enabled`，打开才会下载模型），按请求只能选用不能开启
+        let force_ocr = parser.mode.as_deref() == Some("ocr");
+        if force_ocr && self.ocr.is_none() {
+            return Err(ApiError::unsupported(
+                "parsers[].mode \"ocr\" needs OCR turned on on this server: [ocr] enabled = true or --ocr",
+            ));
+        }
+        let ocr = match parser.mode.as_deref() {
+            Some("fast") => None,
+            _ => self.ocr.clone(),
+        };
+        let engine = ocr.clone();
         let stage = self
             .policy
             .fetcher()
@@ -43,6 +56,10 @@ impl Scraper {
         let result = cpu_task(move || {
             let popts = pagesift_pdf::Options {
                 timeout: deadline.map(|d| d.saturating_duration_since(Instant::now())),
+                // 按字节数估的时限没算 OCR 的耗时：开着 OCR 时只看请求的截止时间
+                adaptive_timeout: ocr.is_none(),
+                force_ocr,
+                ocr,
                 page_limit,
                 images: pagesift_pdf::ImageOptions {
                     list: export,
@@ -65,15 +82,38 @@ impl Scraper {
             }
         };
         p.timings.insert("pdf".into(), ms(t.elapsed()));
-        if pdf.scanned {
-            if parser.mode.as_deref() == Some("fast") {
-                // Firecrawl 在 fast 模式遇到扫描件也是报错（SCRAPE_PDF_OCR_REQUIRED），不返回空正文
-                return Err(ApiError::unsupported(
-                    "this PDF is scanned and needs OCR, which pagesift does not support; parsers mode \"fast\" reads the text layer only",
-                ));
+        if pdf.scanned && parser.mode.as_deref() == Some("fast") {
+            // Firecrawl 在 fast 模式遇到扫描件也是报错（SCRAPE_PDF_OCR_REQUIRED），不返回空正文
+            return Err(ApiError::unsupported(
+                "this PDF is scanned and needs OCR; parsers mode \"fast\" reads the text layer only",
+            ));
+        }
+        let scanned_pages = pdf.pages.iter().filter(|p| p.scanned).count();
+        let ocr_pages = pdf.pages.iter().filter(|p| p.ocr).count();
+        match engine {
+            Some(engine) => {
+                let info = engine.info();
+                if let Some(error) = &info.error {
+                    p.warnings.push(format!("ocr_failed: {error}"));
+                }
+                if let Some(reason) = &info.fallback {
+                    p.warnings.push(format!("gpu_fallback: {reason}"));
+                }
+                if ocr_pages > 0 {
+                    ext.ocr = Some(pagesift_api::types::OcrMeta {
+                        engine: info.engine,
+                        model: info.model,
+                        device: info.device,
+                        pages: ocr_pages,
+                        fallback: info.fallback.is_some(),
+                    });
+                }
             }
-            p.warnings
-                .push("scanned PDF: pages have no text layer and OCR is not supported".into());
+            None if scanned_pages > 0 => p.warnings.push(format!(
+                "scanned_pages_without_ocr: {scanned_pages} of {} pages are scanned images with no text layer; turn on OCR with [ocr] enabled = true or --ocr",
+                pdf.pages.len()
+            )),
+            None => {}
         }
         let total = pdf.metadata.page_count;
         let converted = pdf.pages.len();

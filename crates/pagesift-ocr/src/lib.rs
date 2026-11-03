@@ -9,6 +9,7 @@ pub mod det;
 pub mod formula_enc;
 pub mod lcnet;
 pub mod models;
+pub mod pdf;
 pub mod pipeline;
 pub mod rec;
 mod script;

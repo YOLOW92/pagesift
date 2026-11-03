@@ -2,6 +2,7 @@
 
 pub(crate) mod assets;
 pub(crate) mod extract;
+pub(crate) mod models;
 pub(crate) mod pages;
 pub(crate) mod service;
 pub(crate) mod warc_in;

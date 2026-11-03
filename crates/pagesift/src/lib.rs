@@ -16,6 +16,7 @@ pub mod cluster;
 pub mod collect;
 pub mod config;
 pub mod mcp;
+pub mod models;
 pub mod session;
 
 pub use pagesift_api as api;

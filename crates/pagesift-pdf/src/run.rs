@@ -63,6 +63,7 @@ pub(crate) fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<P
     let mut frags = Vec::with_capacity(page_ids.len());
     let mut heights = Vec::with_capacity(page_ids.len());
     let mut stats = Vec::with_capacity(page_ids.len());
+    let mut ocr_pages = Vec::with_capacity(page_ids.len());
     for (index, &id) in page_ids.iter().enumerate() {
         check_deadline(deadline)?;
         let page = match doc.get_object(id).map(|o| deref(&doc, o)) {
@@ -94,7 +95,8 @@ pub(crate) fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<P
             && text_chars < SCANNED_MAX_CHARS;
         stats.push((text_chars, ink.image_count, scanned));
         // 图片识别：画了哪些图、在哪；扫描页总要识别（说明里引用那张图）
-        let placed = page::wanted_images(&ink, scanned, &opts.images);
+        let force_ocr = opts.force_ocr && opts.ocr.is_some();
+        let placed = page::wanted_images(&ink, scanned || force_ocr, &opts.images);
         let idx = images.add(
             &doc,
             index + 1,
@@ -106,7 +108,9 @@ pub(crate) fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<P
         page_images.push(idx.iter().flatten().copied().collect::<Vec<_>>());
         // 扫描页 OCR：识别出文字就当作这页的文字层，不再写扫描页说明
         let mut ocred = false;
-        if scanned && let Some(engine) = &opts.ocr {
+        if (scanned || force_ocr)
+            && let Some(engine) = &opts.ocr
+        {
             let glyphs = ocr::recognize_page(
                 &doc,
                 &placed,
@@ -114,8 +118,13 @@ pub(crate) fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<P
                 opts.max_stream_bytes.saturating_mul(ocr::RASTER_BUDGET),
             );
             ocred = !glyphs.is_empty();
+            if ocred {
+                // 扫描页的文字层是零星的水印、页码；强制 OCR 时文字层被认为不可信
+                ink.glyphs.clear();
+            }
             ink.glyphs.extend(glyphs);
         }
+        ocr_pages.push(ocred);
         let note = scanned && !ocred;
         heights.push(ink.height);
         bases.push(ink.base);
@@ -308,6 +317,7 @@ pub(crate) fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<P
                 scanned,
                 quality,
                 images,
+                ocr: ocr_pages[i],
             },
         )
         .collect();

@@ -14,12 +14,12 @@ use serde_json::{Value, json};
 use tower::ServiceExt;
 
 /// 本地站点上 `/doc.pdf` 的地址，返回给定的字节。
-async fn pdf_url(bytes: Vec<u8>) -> String {
+pub(super) async fn pdf_url(bytes: Vec<u8>) -> String {
     format!("{}/doc.pdf", site(bytes).await)
 }
 
 /// 一页满版灰度图、没有文字层的“扫描件”。
-fn scanned_pdf() -> Vec<u8> {
+pub(super) fn scanned_pdf() -> Vec<u8> {
     let content = "q 612 0 0 792 0 0 cm BI /W 2 /H 2 /CS /G /BPC 8 ID \x7f\x7f\x7f\x7f EI Q";
     let objs = [
         "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
@@ -48,7 +48,7 @@ fn scanned_pdf() -> Vec<u8> {
 }
 
 /// 一页一行字的 PDF：每页一个内容流，`/Info` 里有标题。`encrypt` 时加一个打不开的 /Encrypt。
-fn pdf(pages: &[&str], title: &str, encrypt: bool) -> Vec<u8> {
+pub(super) fn pdf(pages: &[&str], title: &str, encrypt: bool) -> Vec<u8> {
     let n = pages.len();
     // 对象：1 Catalog，2 Pages，3 Font，4 Info，之后每页两个（Page、内容流），最后可能是 Encrypt
     let mut objs: Vec<String> = vec![
@@ -121,7 +121,7 @@ fn app() -> Router {
 }
 
 /// 本地站点：`/doc.pdf` 和 `/page.html` 返回给定的字节。
-async fn site(pdf: Vec<u8>) -> String {
+pub(super) async fn site(pdf: Vec<u8>) -> String {
     let app = Router::new()
         .route(
             "/doc.pdf",
@@ -192,7 +192,7 @@ async fn upload_with(
     send(app, req).await
 }
 
-async fn scrape(app: &Router, url: &str, options: Value) -> (StatusCode, Value) {
+pub(super) async fn scrape(app: &Router, url: &str, options: Value) -> (StatusCode, Value) {
     let mut req = options;
     req["url"] = json!(url);
     let req = Request::post("/v2/scrape")
@@ -529,7 +529,7 @@ async fn scrape_reports_bad_encrypted_and_scanned_pdfs_as_caller_errors() {
     let (s, v) = scrape(&app, &url, json!({"maxAge": 0})).await;
     assert_eq!(s, StatusCode::OK, "{v}");
     let warnings = v["data"]["metadata"]["pagesift"]["warnings"].to_string();
-    assert!(warnings.contains("scanned PDF"), "{warnings}");
+    assert!(warnings.contains("scanned_pages_without_ocr"), "{warnings}");
 }
 
 /// 没有 /Info 的 PDF：第一页一个大字号的标题行和几行正文。

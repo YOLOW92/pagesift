@@ -49,6 +49,7 @@ impl Scraper {
             secrets: config.secrets,
             llm,
             search: config.search,
+            ocr: config.ocr,
             browsers: {
                 // allow_ips 以 /32、/128 的形式一起交给 Lightpanda；allow_hosts 它不支持（cdp 侧会告警）
                 let chain = pagesift_cdp::engine_chain_with_allow_list(

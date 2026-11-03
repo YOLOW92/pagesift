@@ -167,6 +167,7 @@ pub async fn doctor(cfg: &pagesift::config::Config) -> Result<ExitCode> {
             None => "not configured (optional): /v2/search is unavailable".into(),
         },
     );
+    report_ocr(cfg, &warn)?;
     let mut sc = cfg.scraper(false)?;
     // 自检抓取不是真实流量：写进审计日志只会每次多一条可疑记录和快照
     sc.audit = None;
@@ -279,4 +280,46 @@ fn tempfile_in(dir: &std::path::Path) -> bool {
     let ok = std::fs::write(&probe, b"ok").is_ok();
     let _ = std::fs::remove_file(&probe);
     ok
+}
+
+/// doctor 的 OCR 和 GPU 部分：没打开 OCR、没有显卡都不算失败，只如实说明。
+fn report_ocr(cfg: &pagesift::config::Config, warn: &impl Fn(&str, String)) -> Result<()> {
+    use pagesift::config::GpuMode;
+    let mode = cfg.gpu_mode()?;
+    let gpu = if mode == GpuMode::Off {
+        "off".to_string()
+    } else {
+        match pagesift_gpu::Gpu::open() {
+            Ok(g) => {
+                let (major, minor) = g.compute_capability();
+                format!("{} (compute capability {major}.{minor})", g.name())
+            }
+            Err(e) => format!("not available, inference runs on the CPU: {e}"),
+        }
+    };
+    println!("ok   gpu: {gpu}");
+    let root = cfg.models_root()?;
+    let (det, rec) = cfg.ocr_models();
+    let missing: Vec<&str> = [det, rec]
+        .iter()
+        .filter(|m| !m.present(&root))
+        .map(|m| m.repo)
+        .collect();
+    let where_ = root.display();
+    if !cfg.ocr.enabled {
+        println!(
+            "ok   ocr: off (optional): scanned PDF pages have no text. Turn on with [ocr] enabled = true or --ocr"
+        );
+    } else if missing.is_empty() {
+        println!("ok   ocr: {} and {} in {where_}", det.repo, rec.repo);
+    } else {
+        warn(
+            "ocr",
+            format!(
+                "{} not in {where_}; downloaded the first time a scanned page needs them, or now with `pagesift models fetch`",
+                missing.join(", ")
+            ),
+        );
+    }
+    Ok(())
 }

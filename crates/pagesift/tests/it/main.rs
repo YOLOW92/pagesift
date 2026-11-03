@@ -23,6 +23,7 @@ mod images;
 mod jina;
 mod monitor;
 mod multihost;
+mod ocr;
 mod office;
 mod parse;
 mod scrape;

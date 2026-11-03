@@ -125,6 +125,8 @@ pub struct ScraperConfig {
     pub hooks: pagesift_hooks::Hooks,
     /// `[secrets]`：act 动作里 `{{secret:NAME}}` 在本地替换成的值（不经过模型）。
     pub secrets: std::collections::BTreeMap<String, String>,
+    /// 扫描页 OCR（`[ocr] enabled`）；不设时扫描页只有说明，并报 `scanned_pages_without_ocr`。
+    pub ocr: Option<Arc<dyn pagesift_pdf::PageOcr>>,
 }
 
 /// 创建 [`Scraper`] 失败：网络层或 LLM 客户端的配置不对。
@@ -157,6 +159,7 @@ pub struct Scraper {
     store: Option<pagesift_store::Store>,
     llm: Option<pagesift_llm::ChatClient>,
     search: Option<Arc<dyn pagesift_search::SearchBackend>>,
+    ocr: Option<Arc<dyn pagesift_pdf::PageOcr>>,
     /// 网络层放开了内网（`allowPrivateNetwork`）时，浏览器的子请求也一样放开。
     browser_private_network: bool,
     /// 浏览器子请求的细粒度内网放行名单（allow_hosts / allow_ips / allow_cidrs）。

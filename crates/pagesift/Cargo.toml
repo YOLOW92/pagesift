@@ -37,6 +37,8 @@ pagesift-media = { version = "0.91.1", path = "../pagesift-media" }
 pagesift-llm = { version = "0.91.1", path = "../pagesift-llm" }
 pagesift-mcp = { version = "0.91.1", path = "../pagesift-mcp" }
 pagesift-net = { version = "0.91.1", path = "../pagesift-net" }
+pagesift-gpu = { version = "0.91.1", path = "../pagesift-gpu" }
+pagesift-ocr = { version = "0.91.1", path = "../pagesift-ocr" }
 pagesift-office = { version = "0.91.1", path = "../pagesift-office" }
 pagesift-pdf = { version = "0.91.1", path = "../pagesift-pdf" }
 pagesift-policy = { version = "0.91.1", path = "../pagesift-policy" }

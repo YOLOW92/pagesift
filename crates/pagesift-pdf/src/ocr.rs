@@ -10,6 +10,24 @@ use crate::image::raster::raster;
 pub trait PageOcr: Send + Sync + std::fmt::Debug {
     /// 识别一张灰度图（每像素一字节，0 黑 255 白，文字是深色），返回图上的文字行。
     fn recognize(&self, width: u32, height: u32, gray: &[u8]) -> Result<Vec<OcrLine>, String>;
+
+    /// 如实报告：引擎、模型、设备、退回和失败的情况。解析完才问（设备和模型第一次用到时才定）。
+    fn info(&self) -> OcrInfo {
+        OcrInfo::default()
+    }
+}
+
+/// [`PageOcr::info`] 的结果。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OcrInfo {
+    pub engine: String,
+    pub model: String,
+    /// 实际用的设备，例如 `cpu`、`cuda:0`。
+    pub device: String,
+    /// 想用 GPU 却退回了 CPU 时的原因。
+    pub fallback: Option<String>,
+    /// 引擎没能启动（模型下载失败等）时的原因；这时扫描页照旧只有说明，没有文字。
+    pub error: Option<String>,
 }
 
 /// 识别出的一行：图上的外框（像素坐标，y 向下）、文字、置信度（0–1）。

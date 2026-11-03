@@ -23,6 +23,10 @@ pub use server::*;
 mod cluster;
 pub use cluster::*;
 
+#[path = "config_ocr.rs"]
+mod ocr;
+pub use ocr::*;
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
@@ -57,6 +61,12 @@ pub struct Config {
     /// 多服务器部署；没有这一段时是单主机。
     #[serde(default)]
     pub cluster: Cluster,
+    /// `[gpu]`：OCR 用哪块显卡。
+    #[serde(default)]
+    pub gpu: Gpu,
+    /// `[ocr]`：扫描页 OCR，默认关。
+    #[serde(default)]
+    pub ocr: Ocr,
     /// 实际加载的配置文件；内置默认值时为 `None`。
     #[serde(skip)]
     source: Option<PathBuf>,
@@ -558,6 +568,7 @@ impl Config {
         if let Some(s) = &self.search {
             c.search = Some(self.search_backend(s)?);
         }
+        c.ocr = self.ocr_engine(&c.fetcher)?;
         Ok(c)
     }
 

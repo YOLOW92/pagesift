@@ -26,6 +26,16 @@ pub(crate) fn parse_cidr(raw: &str) -> Result<pagesift_net::IpCidr, String> {
 }
 
 #[derive(Subcommand)]
+pub(crate) enum ModelsCommand {
+    /// Download the OCR models for offline use, from their pinned upstream versions, and verify their SHA-256
+    Fetch {
+        /// Which models: auto (what `[ocr] quality` would use), fast (small) or accurate (medium)
+        #[arg(long)]
+        quality: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
 pub(crate) enum Command {
     /// Inspect local form metadata and redacted technology/secret indicators
     Inspect {
@@ -379,6 +389,11 @@ pub(crate) enum Command {
     },
     /// Check the environment
     Doctor,
+    /// Manage the OCR models
+    Models {
+        #[command(subcommand)]
+        action: ModelsCommand,
+    },
     /// Evaluate content extraction on local dataset snapshots
     Bench {
         /// Directory holding 1-0-0.csv and snapshots/ (see benchmarks/common/fetch_snapshots.py)

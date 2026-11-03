@@ -6,46 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 
-use pagesift_ocr::Image;
-use pagesift_ocr::pipeline::Engine;
-use pagesift_pdf::{OcrLine, PageOcr};
-
-struct Ocr(Engine);
-
-impl std::fmt::Debug for Ocr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("PP-OCRv6")
-    }
-}
-
-impl PageOcr for Ocr {
-    fn recognize(&self, width: u32, height: u32, gray: &[u8]) -> Result<Vec<OcrLine>, String> {
-        let img = Image {
-            width: width as usize,
-            height: height as usize,
-            channels: 1,
-            data: gray.to_vec(),
-        };
-        let lines = self.0.run(&img)?;
-        Ok(lines
-            .into_iter()
-            .map(|l| {
-                let xs = l.quad.map(|p| p.0);
-                let ys = l.quad.map(|p| p.1);
-                let min = |v: [f32; 4]| v.into_iter().fold(f32::MAX, f32::min);
-                let max = |v: [f32; 4]| v.into_iter().fold(f32::MIN, f32::max);
-                OcrLine {
-                    x0: min(xs),
-                    y0: min(ys),
-                    x1: max(xs),
-                    y1: max(ys),
-                    text: l.text,
-                    score: l.score,
-                }
-            })
-            .collect())
-    }
-}
+use pagesift_ocr::pdf::PdfOcr;
 
 fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
     for e in std::fs::read_dir(dir).unwrap().flatten() {
@@ -61,10 +22,10 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
 fn main() {
     let a: Vec<PathBuf> = std::env::args().skip(1).map(PathBuf::from).collect();
     let (src, dst) = (&a[0], &a[1]);
-    let engine = Engine::load(&a[2], &a[3]).expect("载入模型");
+    let engine = PdfOcr::from_dirs(a[2].clone(), a[3].clone()).expect("载入模型");
     // 按字节数估的时限没算 OCR 的耗时：关掉，只靠逐页的识别
     let opts = pagesift_pdf::Options {
-        ocr: Some(Arc::new(Ocr(engine))),
+        ocr: Some(Arc::new(engine)),
         adaptive_timeout: false,
         ..Default::default()
     };

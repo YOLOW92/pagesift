@@ -87,7 +87,10 @@ mod tests {
         drop_stray_east_asian(&mut l);
         assert_eq!(
             texts(&l),
-            ["God then sends at Head quarters that no doubt", "2a-x - 1 x"]
+            [
+                "God then sends at Head quarters that no doubt",
+                "2a-x - 1 x"
+            ]
         );
     }
 

@@ -48,6 +48,15 @@ struct Cli {
     /// Ignore robots.txt for every request. Same as `[policy] robots = false`
     #[arg(long, global = true)]
     no_robots: bool,
+    /// Turn on OCR for scanned PDF pages; models are downloaded the first time they are needed. Same as `[ocr] enabled = true`
+    #[arg(long, global = true)]
+    ocr: bool,
+    /// GPU for OCR: auto, off, cuda or cuda:N. Same as `[gpu] mode`
+    #[arg(long, global = true, value_name = "MODE")]
+    gpu: Option<pagesift::config::GpuMode>,
+    /// Directory holding the OCR models. Same as `[ocr] models_dir`
+    #[arg(long, global = true, value_name = "PATH")]
+    models_dir: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,
 }
@@ -70,6 +79,13 @@ fn main() -> ExitCode {
         cfg.audit.path = cli.audit_log;
     }
     cfg.audit.source = matches.subcommand_name().map(String::from);
+    cfg.ocr.enabled |= cli.ocr;
+    if let Some(mode) = cli.gpu {
+        cfg.gpu.mode = mode;
+    }
+    if cli.models_dir.is_some() {
+        cfg.ocr.models_dir = cli.models_dir;
+    }
     for (flag, switch) in [
         (cli.no_politeness, &mut cfg.policy.politeness),
         (cli.no_backoff, &mut cfg.policy.backoff),
@@ -131,6 +147,7 @@ fn run(command: Command, cfg: pagesift::config::Config) -> Result<ExitCode> {
         | Command::Tune { .. }
         | Command::Doctor
         | Command::Mcp { .. }) => commands::service::run(command, cfg),
+        Command::Models { action } => commands::models::run(action, cfg),
         Command::Extract {
             urls,
             schema,

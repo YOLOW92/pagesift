@@ -85,7 +85,8 @@ impl PdfParser {
     /// 从 `parsers` 取 PDF 选项。接受 Firecrawl 的写法：`["pdf"]`、`[{type: "pdf", ...}]`，
     /// 以及 `"image"`（图片 OCR，这里本来就不支持图片，照收不报错，免得 Firecrawl SDK 的默认值被拒）。
     /// 列表里没有 `pdf` 时 PDF 不解析（[`Self::raw`]）。
-    /// 做不到的选项（OCR、版面块、分页标记）明确报 UNSUPPORTED_OPTION，不悄悄忽略。
+    /// 做不到的选项（版面块、分页标记）明确报 UNSUPPORTED_OPTION，不悄悄忽略；`mode: "ocr"` 要
+    /// 服务端打开了 OCR，这里不知道，由解析 PDF 时检查。
     pub fn from_parsers(parsers: Option<&Value>) -> Result<Self, ApiError> {
         let items = match parsers {
             None | Some(Value::Null) => return Ok(Self::default()),
@@ -122,12 +123,7 @@ impl PdfParser {
                 match key.as_str() {
                     "type" => {}
                     "mode" => match v.as_str() {
-                        Some(m @ ("fast" | "auto")) => out.mode = Some(m.into()),
-                        Some("ocr") => {
-                            return Err(ApiError::unsupported(
-                                "parsers[].mode \"ocr\" is not supported: pagesift reads the PDF text layer only",
-                            ));
-                        }
+                        Some(m @ ("fast" | "auto" | "ocr")) => out.mode = Some(m.into()),
                         _ => {
                             return Err(ApiError::invalid(
                                 "parsers[].mode must be fast, auto or ocr",
@@ -224,11 +220,14 @@ mod tests {
         assert!(!PdfParser::from_parsers(None).unwrap().raw);
         // 关着的 blocks / pageMarkers 不算请求
         assert!(p(json!([{"type": "pdf", "blocks": false, "pageMarkers": false}])).is_ok());
+        assert_eq!(
+            p(json!([{"type": "pdf", "mode": "ocr"}]))
+                .unwrap()
+                .mode
+                .as_deref(),
+            Some("ocr")
+        );
         for (v, code) in [
-            (
-                json!([{"type": "pdf", "mode": "ocr"}]),
-                ErrorCode::UnsupportedOption,
-            ),
             (
                 json!([{"type": "pdf", "blocks": true}]),
                 ErrorCode::UnsupportedOption,

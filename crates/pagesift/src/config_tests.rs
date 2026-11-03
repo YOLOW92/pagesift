@@ -319,3 +319,33 @@ fn limits_written_in_the_config_are_priors_and_hard_caps() {
         pagesift_net::FetcherConfig::default().max_body_bytes
     );
 }
+
+#[test]
+fn gpu_and_ocr_sections() {
+    let cfg: Config = toml::from_str(
+        "[gpu]\nmode = \"cuda:1\"\n[ocr]\nenabled = true\nquality = \"fast\"\nmodels_dir = \"/m\"\n",
+    )
+    .unwrap();
+    assert_eq!(cfg.gpu.mode, GpuMode::Cuda(1));
+    assert!(cfg.ocr.enabled);
+    assert_eq!(cfg.ocr.quality, OcrQuality::Fast);
+    assert_eq!(cfg.models_root().unwrap(), PathBuf::from("/m"));
+    assert_eq!(
+        cfg.ocr_models().1.repo,
+        pagesift_ocr::models::SMALL_REC.repo
+    );
+    // 打开时组装引擎但不碰网络和模型文件；默认关
+    assert!(cfg.scraper(false).unwrap().ocr.is_some());
+    let off = Config::default();
+    assert_eq!(off.gpu.mode, GpuMode::Auto);
+    assert!(off.scraper(false).unwrap().ocr.is_none());
+    for bad in [
+        "[gpu]\nmode = \"cuda:x\"\n",
+        "[gpu]\nmode = \"metal\"\n",
+        "[gpu]\nother = 1\n",
+        "[ocr]\nquality = \"best\"\n",
+        "[ocr]\nother = 1\n",
+    ] {
+        assert!(toml::from_str::<Config>(bad).is_err(), "{bad}");
+    }
+}
