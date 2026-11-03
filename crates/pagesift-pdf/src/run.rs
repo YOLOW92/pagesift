@@ -104,6 +104,19 @@ pub(crate) fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<P
             opts.max_stream_bytes,
         );
         page_images.push(idx.iter().flatten().copied().collect::<Vec<_>>());
+        // 扫描页 OCR：识别出文字就当作这页的文字层，不再写扫描页说明
+        let mut ocred = false;
+        if scanned && let Some(engine) = &opts.ocr {
+            let glyphs = ocr::recognize_page(
+                &doc,
+                &placed,
+                engine.as_ref(),
+                opts.max_stream_bytes.saturating_mul(ocr::RASTER_BUDGET),
+            );
+            ocred = !glyphs.is_empty();
+            ink.glyphs.extend(glyphs);
+        }
+        let note = scanned && !ocred;
         heights.push(ink.height);
         bases.push(ink.base);
         let mut page_frags =
@@ -220,14 +233,14 @@ pub(crate) fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<P
             &images,
             &placed,
             &idx,
-            scanned,
+            note,
             index + 1,
             opts.images.markdown,
             &mut referenced,
             size,
         );
         // 扫描页的图读不出来：只写说明，放在页顶
-        if scanned && !lines.iter().any(|l| l.keep) {
+        if note && !lines.iter().any(|l| l.keep) {
             lines.push(layout::Line {
                 text: page::scan_note(index + 1),
                 x0: 0.0,

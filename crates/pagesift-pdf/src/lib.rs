@@ -23,6 +23,7 @@ mod layout;
 mod lexer;
 mod math;
 mod obj;
+mod ocr;
 mod orient;
 mod page;
 mod quality;
@@ -41,6 +42,7 @@ use crate::obj::{deref, text_string};
 use crate::run::run;
 
 pub use crate::image::{ImageEncoding, ImagePlacement, PdfImage};
+pub use crate::ocr::{OcrLine, PageOcr};
 pub use crate::quality::PageQuality;
 pub use crate::timeout::{observe_parse, parse_timeout};
 
@@ -63,6 +65,9 @@ pub struct Options {
     pub page_limit: Option<usize>,
     /// 图片识别与导出（默认只标出扫描页）。
     pub images: ImageOptions,
+    /// 扫描页 OCR 的识别引擎（默认没有：扫描页只写一行说明）。有引擎时，扫描页上的图解成
+    /// 灰度交给它识别，识别出的文字照常参与版面重建。
+    pub ocr: Option<std::sync::Arc<dyn PageOcr>>,
 }
 
 /// 图片识别与导出。
@@ -96,6 +101,7 @@ impl Default for Options {
             max_stream_bytes: 64 << 20,
             page_limit: None,
             images: ImageOptions::default(),
+            ocr: None,
         }
     }
 }

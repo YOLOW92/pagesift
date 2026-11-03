@@ -1749,6 +1749,7 @@ name = "pagesift-ocr"
 version = "0.91.1"
 dependencies = [
  "pagesift-infer",
+ "pagesift-pdf",
  "serde_json",
 ]
 

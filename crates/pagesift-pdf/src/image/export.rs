@@ -69,7 +69,7 @@ pub(crate) fn export(
 }
 
 /// /Decode 的前两项是 [1 0]：一分量图像（含模板蒙版）显示反相。
-fn decode_inverted(doc: &Document, s: &Source) -> bool {
+pub(super) fn decode_inverted(doc: &Document, s: &Source) -> bool {
     get(doc, &s.dict, b"Decode")
         .map(|o| num_array(doc, o))
         .is_some_and(|d| d.len() >= 2 && d[0] > d[1])
@@ -188,7 +188,7 @@ pub(crate) fn color_space(doc: &Document, o: Option<&Object>) -> ColorSpace {
 }
 
 /// 取一行里第 `i` 个样本（`bpc` 位，高位在前；ISO 32000-2 §8.9.2）。
-fn sample(row: &[u8], i: usize, bpc: usize) -> u32 {
+pub(super) fn sample(row: &[u8], i: usize, bpc: usize) -> u32 {
     match bpc {
         8 => u32::from(row.get(i).copied().unwrap_or(0)), // [协议] 样本位深 1/2/4/8/16、分量数、8 位取值 0–255（ISO 32000-2 §8.9.2、§8.6）
         // [协议] 16 位样本取高字节（PNG 位深按 8 位写）
@@ -203,7 +203,7 @@ fn sample(row: &[u8], i: usize, bpc: usize) -> u32 {
 }
 
 /// 把 `bpc` 位的值放大到 0–255。
-fn scale(v: u32, bpc: usize) -> u8 {
+pub(super) fn scale(v: u32, bpc: usize) -> u8 {
     // [协议] 样本位深 1/2/4/8/16、分量数、8 位取值（ISO 32000-2 §8.9.2、§8.6）
     if bpc >= 8 {
         return v.min(255) as u8; // [协议] 样本位深 1/2/4/8/16、分量数、8 位取值 0–255（ISO 32000-2 §8.9.2、§8.6）
@@ -220,7 +220,7 @@ fn cmyk_rgb(c: u8, m: u8, y: u8, k: u8) -> [u8; 3] {
 
 /// 一个颜色（base 色彩空间的分量，0–255）换成 RGB。
 // [协议] 样本位深 1/2/4/8/16、分量数、8 位取值（ISO 32000-2 §8.9.2、§8.6）
-fn to_rgb(cs: &ColorSpace, v: &[u8]) -> Option<[u8; 3]> {
+pub(super) fn to_rgb(cs: &ColorSpace, v: &[u8]) -> Option<[u8; 3]> {
     Some(match cs {
         ColorSpace::Gray(_) => [v[0]; 3], // [协议] 样本位深 1/2/4/8/16、分量数、8 位取值 0–255（ISO 32000-2 §8.9.2、§8.6）
         ColorSpace::Rgb(_) => [v[0], v[1], v[2]],

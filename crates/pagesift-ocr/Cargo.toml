@@ -10,3 +10,7 @@ rust-version.workspace = true
 [dependencies]
 pagesift-infer = { version = "0.91.1", path = "../pagesift-infer" }
 serde_json = "1.0.154"
+
+[dev-dependencies]
+# 测评示例：带 OCR 的 PDF 批量转换
+pagesift-pdf = { path = "../pagesift-pdf" }
