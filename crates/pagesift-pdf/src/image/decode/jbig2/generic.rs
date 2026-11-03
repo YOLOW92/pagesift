@@ -15,7 +15,8 @@ pub(super) struct Params<'a> {
     pub(super) template: u8,
     pub(super) tpgdon: bool,
     /// GBAT：自适应模板像素相对当前像素的偏移 (x, y)；模板 0 用 4 个，其余用第 1 个。
-    pub(super) at: [(i8, i8); 4],
+    /// 段里写的是有符号字节，图样字典的 A1 = (−HDPW, 0) 可到 −255，所以用 i16。
+    pub(super) at: [(i16, i16); 4],
     /// USESKIP 时的 SKIP 位图：为 1 的像素不解码、置 0。
     pub(super) skip: Option<&'a Bitmap>,
 }
@@ -27,7 +28,7 @@ pub(super) fn context_count(template: u8) -> usize {
 }
 
 /// [协议] 各模板默认的 AT 像素（T.88 §6.2.5.3 图 3–6 里 A1–A4 的位置）
-pub(super) fn default_at(template: u8) -> [(i8, i8); 4] {
+pub(super) fn default_at(template: u8) -> [(i16, i16); 4] {
     match template {
         0 => [(3, -1), (-3, -1), (2, -2), (-2, -2)],
         1 => [(3, -1), (0, 0), (0, 0), (0, 0)],
@@ -45,7 +46,7 @@ pub(super) enum Px {
 
 /// 测试用：按 TEMPLATES 逐像素算上下文，与滑动分组的结果对照。
 #[cfg(test)]
-pub(super) fn context_slow(b: &Bitmap, t: usize, at: &[(i8, i8); 4], x: i64, y: i64) -> usize {
+pub(super) fn context_slow(b: &Bitmap, t: usize, at: &[(i16, i16); 4], x: i64, y: i64) -> usize {
     TEMPLATES[t].iter().enumerate().fold(0, |c, (bit, &px)| {
         let (dx, dy) = match px {
             At(k) => (i64::from(at[k].0), i64::from(at[k].1)),
@@ -57,7 +58,7 @@ pub(super) fn context_slow(b: &Bitmap, t: usize, at: &[(i8, i8); 4], x: i64, y: 
 
 /// 测试用：按 GROUPS、AT_BITS 算上下文。
 #[cfg(test)]
-pub(super) fn context_fast(b: &Bitmap, t: usize, at: &[(i8, i8); 4], x: i64, y: i64) -> usize {
+pub(super) fn context_fast(b: &Bitmap, t: usize, at: &[(i16, i16); 4], x: i64, y: i64) -> usize {
     let mut c = 0;
     for g in GROUPS[t] {
         for i in 0..g.n {
@@ -270,7 +271,10 @@ pub(super) fn segment(data: &[u8], info: &RegionInfo) -> Result<Bitmap, String> 
         .ok_or("通用区域段的 AT 像素不全")?;
     let mut at = default_at(template);
     for (k, a) in at.iter_mut().take(pairs).enumerate() {
-        *a = (at_bytes[2 * k] as i8, at_bytes[2 * k + 1] as i8);
+        *a = (
+            i16::from(at_bytes[2 * k] as i8),
+            i16::from(at_bytes[2 * k + 1] as i8),
+        );
     }
     let mut mq = Mq::new(&data[1 + 2 * pairs..]);
     let mut cx = contexts(context_count(template));

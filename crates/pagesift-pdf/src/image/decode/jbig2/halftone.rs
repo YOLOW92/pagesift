@@ -34,8 +34,8 @@ pub(super) fn pattern_dict(data: &[u8]) -> Result<Vec<Bitmap>, String> {
     } else {
         // [协议] GBAT：A1 = (−HDPW, 0)，模板 0 另三个是 (−3, −1)、(2, −2)、(−2, −2)
         // （§6.7.5 步骤 1 表 27）
-        let a1 = i8::try_from(-(pw as i64))
-            .map_err(|_| format!("HDPW = {pw} 超出 AT 像素偏移能表示的范围（−128..）"))?;
+        // HDPW 是 1 字节（§7.4.4.1.2），−HDPW 至少 −255，i16 放得下
+        let a1 = -i16::from(u8::try_from(pw).map_err(|_| format!("HDPW = {pw} 超过 1 字节"))?);
         let at = [(a1, 0), (-3, -1), (2, -2), (-2, -2)];
         let mut mq = Mq::new(body);
         let mut cx = contexts(generic::context_count(template));

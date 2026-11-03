@@ -51,10 +51,10 @@ fn generic_context_groups_match_templates() {
     for t in 0..4 {
         let mut ats = vec![default_at(t as u8)];
         for _ in 0..8 {
-            let mut at = [(0i8, 0i8); 4];
+            let mut at = [(0i16, 0i16); 4];
             for a in &mut at {
                 // [策略] AT 偏移取 −8…7、行 −8…0，覆盖图外取 0
-                *a = ((rnd() % 16) as i8 - 8, -((rnd() % 9) as i8));
+                *a = ((rnd() % 16) as i16 - 8, -((rnd() % 9) as i16));
             }
             ats.push(at);
         }
