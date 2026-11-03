@@ -65,3 +65,7 @@ pagesift-store = { path = "../pagesift-store" }
 serde_json = "1.0.154"
 tempfile = "3.27.0"
 tower = { version = "0.5.3", features = ["util"] }
+
+[[example]]
+name = "agent_corpus"
+path = "../../benchmarks/history/1.0/agent/corpus_server.rs"

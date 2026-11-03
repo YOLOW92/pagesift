@@ -1,0 +1,1130 @@
+{
+ "mode": "recorded",
+ "model": "recorded",
+ "effort": "low",
+ "summary": {
+  "questions": 22,
+  "correct": 22,
+  "accuracy": 1.0,
+  "pagesMean": 0.95,
+  "pagesMax": 2,
+  "tokensMean": 3164.3,
+  "tokensTotal": 69615,
+  "tokensEstimated": true,
+  "llmCallsMean": 3.0,
+  "goldSourceFound": 18,
+  "questionsWithGold": 19,
+  "fieldsVerified": 27,
+  "fieldsReported": 28,
+  "searchRecallAt5": 1.0,
+  "failed": []
+ },
+ "rows": [
+  {
+   "id": "q01",
+   "status": "completed",
+   "finishReason": "answered",
+   "stopReason": null,
+   "pages": 1,
+   "searches": 1,
+   "llmCalls": 3,
+   "tokens": 2935,
+   "tokensEstimated": true,
+   "seconds": 3.0,
+   "answer": {
+    "address": "89 East Strand Street"
+   },
+   "warnings": [],
+   "error": null,
+   "gold": [
+    "923"
+   ],
+   "searchHit": true,
+   "steps": [
+    {
+     "detail": "5 results",
+     "input": {
+      "limit": 5,
+      "query": "Trolley Museum of New York address"
+     },
+     "result": "ok",
+     "tool": "search",
+     "turn": 1
+    },
+    {
+     "detail": "evidence E6",
+     "input": {
+      "query": "What is the street address of the Trolley Museum of New York?",
+      "url": "http://127.0.0.1:46621/p/923"
+     },
+     "result": "ok",
+     "tool": "scrape",
+     "turn": 2
+    }
+   ],
+   "correct": true,
+   "fieldsCorrect": 1,
+   "fields": 1,
+   "goldSourceFound": true,
+   "fieldsVerified": 1,
+   "fieldsWithSource": 1,
+   "fieldsReported": 1
+  },
+  {
+   "id": "q02",
+   "status": "completed",
+   "finishReason": "answered",
+   "stopReason": null,
+   "pages": 1,
+   "searches": 1,
+   "llmCalls": 3,
+   "tokens": 3087,
+   "tokensEstimated": true,
+   "seconds": 2.3,
+   "answer": {
+    "opening_day": "May 9th 2026"
+   },
+   "warnings": [],
+   "error": null,
+   "gold": [
+    "923"
+   ],
+   "searchHit": true,
+   "steps": [
+    {
+     "detail": "5 results",
+     "input": {
+      "limit": 5,
+      "query": "Trolley Museum of New York opening day"
+     },
+     "result": "ok",
+     "tool": "search",
+     "turn": 1
+    },
+    {
+     "detail": "evidence E6",
+     "input": {
+      "query": "On what date does the Trolley Museum of New York open for the 2026 season?",
+      "url": "http://127.0.0.1:46621/p/923"
+     },
+     "result": "ok",
+     "tool": "scrape",
+     "turn": 2
+    }
+   ],
+   "correct": true,
+   "fieldsCorrect": 1,
+   "fields": 1,
+   "goldSourceFound": true,
+   "fieldsVerified": 1,
+   "fieldsWithSource": 1,
+   "fieldsReported": 1
+  },
+  {
+   "id": "q03",
+   "status": "completed",
+   "finishReason": "answered",
+   "stopReason": null,
+   "pages": 1,
+   "searches": 1,
+   "llmCalls": 3,
+   "tokens": 3378,
+   "tokensEstimated": true,
+   "seconds": 3.5,
+   "answer": {
+    "family": "Eremiaphilidae"
+   },
+   "warnings": [],
+   "error": null,
+   "gold": [
+    "410"
+   ],
+   "searchHit": true,
+   "steps": [
+    {
+     "detail": "5 results",
+     "input": {
+      "limit": 5,
+      "query": "Eremiaphila aristidis classification family"
+     },
+     "result": "ok",
+     "tool": "search",
+     "turn": 1
+    },
+    {
+     "detail": "evidence E6",
+     "input": {
+      "query": "Which taxonomic family does the mantis Eremiaphila aristidis belong to?",
+      "url": "http://127.0.0.1:46621/p/410"
+     },
+     "result": "ok",
+     "tool": "scrape",
+     "turn": 2
+    }
+   ],
+   "correct": true,
+   "fieldsCorrect": 1,
+   "fields": 1,
+   "goldSourceFound": true,
+   "fieldsVerified": 1,
+   "fieldsWithSource": 1,
+   "fieldsReported": 1
+  },
+  {
+   "id": "q04",
+   "status": "completed",
+   "finishReason": "answered",
+   "stopReason": null,
+   "pages": 1,
+   "searches": 1,
+   "llmCalls": 3,
+   "tokens": 3089,
+   "tokensEstimated": true,
+   "seconds": 2.7,
+   "answer": {
+    "order": "Mantodea"
+   },
+   "warnings": [],
+   "error": null,
+   "gold": [
+    "410"
+   ],
+   "searchHit": true,
+   "steps": [
+    {
+     "detail": "5 results",
+     "input": {
+      "limit": 5,
+      "query": "Eremiaphila aristidis order"
+     },
+     "result": "ok",
+     "tool": "search",
+     "turn": 1
+    },
+    {
+     "detail": "evidence E6",
+     "input": {
+      "query": "Which taxonomic order does Eremiaphila aristidis belong to?",
+      "url": "http://127.0.0.1:46621/p/410"
+     },
+     "result": "ok",
+     "tool": "scrape",
+     "turn": 2
+    }
+   ],
+   "correct": true,
+   "fieldsCorrect": 1,
+   "fields": 1,
+   "goldSourceFound": true,
+   "fieldsVerified": 1,
+   "fieldsWithSource": 1,
+   "fieldsReported": 1
+  },
+  {
+   "id": "q05",
+   "status": "completed",
+   "finishReason": "answered",
+   "stopReason": null,
+   "pages": 1,
+   "searches": 1,
+   "llmCalls": 3,
+   "tokens": 3271,
+   "tokensEstimated": true,
+   "seconds": 2.7,
+   "answer": {
+    "difficulty": "Intermediate"
+   },
+   "warnings": [],
+   "error": null,
+   "gold": [
+    "622"
+   ],
+   "searchHit": true,
+   "steps": [
+    {
+     "detail": "5 results",
+     "input": {
+      "limit": 5,
+      "query": "yoga pose Locust III shalabhasana difficulty"
+     },
+     "result": "ok",
+     "tool": "search",
+     "turn": 1
+    },
+    {
+     "detail": "evidence E6",
+     "input": {
+      "query": "What difficulty level is the yoga pose Locust III (shalabhasana c)?",
+      "url": "http://127.0.0.1:46621/p/622"
+     },
+     "result": "ok",
+     "tool": "scrape",
+     "turn": 2
+    }
+   ],
+   "correct": true,
+   "fieldsCorrect": 1,
+   "fields": 1,
+   "goldSourceFound": true,
+   "fieldsVerified": 1,
+   "fieldsWithSource": 1,
+   "fieldsReported": 1
+  },
+  {
+   "id": "q06",
+   "status": "completed",
+   "finishReason": "answered",
+   "stopReason": null,
+   "pages": 1,
+   "searches": 1,
+   "llmCalls": 3,
+   "tokens": 2728,
+   "tokensEstimated": true,
+   "seconds": 2.5,
+   "answer": {
+    "count": "8",
+    "newest": "0.2.0"
+   },
+   "warnings": [],
+   "error": null,
+   "gold": [
+    "935"
+   ],
+   "searchHit": true,
+   "steps": [
+    {
+     "detail": "5 results",
+     "input": {
+      "limit": 5,
+      "query": "org.typelevel alleycats_2.10 versions"
+     },
+     "result": "ok",
+     "tool": "search",
+     "turn": 1
+    },
+    {
+     "detail": "evidence E6",
+     "input": {
+      "query": "How many versions of org.typelevel:alleycats_2.10 are listed, and which is the newest?",
+      "url": "http://127.0.0.1:46621/p/935"
+     },
+     "result": "ok",
+     "tool": "scrape",
+     "turn": 2
+    }
+   ],
+   "correct": true,
+   "fieldsCorrect": 2,
+   "fields": 2,
+   "goldSourceFound": true,
+   "fieldsVerified": 2,
+   "fieldsWithSource": 2,
+   "fieldsReported": 2
+  },
+  {
+   "id": "q07",
+   "status": "completed",
+   "finishReason": "answered",
+   "stopReason": null,
+   "pages": 1,
+   "searches": 1,
+   "llmCalls": 3,
+   "tokens": 3631,
+   "tokensEstimated": true,
+   "seconds": 2.6,
+   "answer": {
+    "publisher": "0x4c6565",
+    "version": "2.7.0"
+   },
+   "warnings": [],
+   "error": null,
+   "gold": [
+    "295"
+   ],
+   "searchHit": true,
+   "steps": [
+    {
+     "detail": "5 results",
+     "input": {
+      "limit": 5,
+      "query": "ukfast ecloud terraform provider version"
+     },
+     "result": "ok",
+     "tool": "search",
+     "turn": 1
+    },
+    {
+     "detail": "evidence E6",
+     "input": {
+      "query": "What is the latest version of the ukfast/ecloud Terraform provider, and who published it?",
+      "url": "http://127.0.0.1:46621/p/295"
+     },
+     "result": "ok",
+     "tool": "scrape",
+     "turn": 2
+    }
+   ],
+   "correct": true,
+   "fieldsCorrect": 2,
+   "fields": 2,
+   "goldSourceFound": true,
+   "fieldsVerified": 2,
+   "fieldsWithSource": 2,
+   "fieldsReported": 2
+  },
+  {
+   "id": "q08",
+   "status": "completed",
+   "finishReason": "answered",
+   "stopReason": null,
+   "pages": 1,
+   "searches": 1,
+   "llmCalls": 3,
+   "tokens": 3336,
+   "tokensEstimated": true,
+   "seconds": 2.6,
+   "answer": {
+    "address": "618 17th Ave SW",
+    "phone": "403.453.1183"
+   },
+   "warnings": [],
+   "error": null,
+   "gold": [
+    "379"
+   ],
+   "searchHit": true,
+   "steps": [
+    {
+     "detail": "5 results",
+     "input": {
+      "limit": 5,
+      "query": "UNA pizza wine Calgary 17th Ave"
+     },
+     "result": "ok",
+     "tool": "search",
+     "turn": 1
+    },
+    {
+     "detail": "evidence E6",
+     "input": {
+      "query": "What are the street address and the phone number of UNA pizza + wine on 17th Ave in Calgary?",
+      "url": "http://127.0.0.1:46621/p/379"
+     },
+     "result": "ok",
+     "tool": "scrape",
+     "turn": 2
+    }
+   ],
+   "correct": true,
+   "fieldsCorrect": 2,
+   "fields": 2,
+   "goldSourceFound": true,
+   "fieldsVerified": 2,
+   "fieldsWithSource": 2,
+   "fieldsReported": 2
+  },
+  {
+   "id": "q10",
+   "status": "completed",
+   "finishReason": "answered",
+   "stopReason": null,
+   "pages": 1,
+   "searches": 1,
+   "llmCalls": 3,
+   "tokens": 3150,
+   "tokensEstimated": true,
+   "seconds": 2.7,
+   "answer": {
+    "phone": "307-326-5206"
+   },
+   "warnings": [
+    "agent_unverified_fields: /phone"
+   ],
+   "error": null,
+   "gold": [
+    "312"
+   ],
+   "searchHit": true,
+   "steps": [
+    {
+     "detail": "5 results",
+     "input": {
+      "limit": 5,
+      "query": "Carbon Power and Light call us phone"
+     },
+     "result": "ok",
+     "tool": "search",
+     "turn": 1
+    },
+    {
+     "detail": "evidence E6",
+     "input": {
+      "query": "What phone number does Carbon Power and Light list for calling them?",
+      "url": "http://127.0.0.1:46621/p/312"
+     },
+     "result": "ok",
+     "tool": "scrape",
+     "turn": 2
+    }
+   ],
+   "correct": true,
+   "fieldsCorrect": 1,
+   "fields": 1,
+   "goldSourceFound": false,
+   "fieldsVerified": 0,
+   "fieldsWithSource": 0,
+   "fieldsReported": 1
+  },
+  {
+   "id": "q11",
+   "status": "completed",
+   "finishReason": "answered",
+   "stopReason": null,
+   "pages": 1,
+   "searches": 1,
+   "llmCalls": 3,
+   "tokens": 3422,
+   "tokensEstimated": true,
+   "seconds": 2.2,
+   "answer": {
+    "hours": "Monday - Thursday 7:00 am - 5:30 pm"
+   },
+   "warnings": [],
+   "error": null,
+   "gold": [
+    "312"
+   ],
+   "searchHit": true,
+   "steps": [
+    {
+     "detail": "5 results",
+     "input": {
+      "limit": 5,
+      "query": "Carbon Power and Light summer hours"
+     },
+     "result": "ok",
+     "tool": "search",
+     "turn": 1
+    },
+    {
+     "detail": "evidence E6",
+     "input": {
+      "query": "What are the summer office hours of Carbon Power and Light?",
+      "url": "http://127.0.0.1:46621/p/312"
+     },
+     "result": "ok",
+     "tool": "scrape",
+     "turn": 2
+    }
+   ],
+   "correct": true,
+   "fieldsCorrect": 1,
+   "fields": 1,
+   "goldSourceFound": true,
+   "fieldsVerified": 1,
+   "fieldsWithSource": 1,
+   "fieldsReported": 1
+  },
+  {
+   "id": "q12",
+   "status": "completed",
+   "finishReason": "answered",
+   "stopReason": null,
+   "pages": 1,
+   "searches": 1,
+   "llmCalls": 3,
+   "tokens": 3117,
+   "tokensEstimated": true,
+   "seconds": 2.3,
+   "answer": {
+    "phone": "01933 670 499"
+   },
+   "warnings": [],
+   "error": null,
+   "gold": [
+    "20"
+   ],
+   "searchHit": true,
+   "steps": [
+    {
+     "detail": "5 results",
+     "input": {
+      "limit": 5,
+      "query": "ProPrint Group contact phone"
+     },
+     "result": "ok",
+     "tool": "search",
+     "turn": 1
+    },
+    {
+     "detail": "evidence E6",
+     "input": {
+      "query": "What is the phone number of ProPrint Group?",
+      "url": "http://127.0.0.1:46621/p/20"
+     },
+     "result": "ok",
+     "tool": "scrape",
+     "turn": 2
+    }
+   ],
+   "correct": true,
+   "fieldsCorrect": 1,
+   "fields": 1,
+   "goldSourceFound": true,
+   "fieldsVerified": 1,
+   "fieldsWithSource": 1,
+   "fieldsReported": 1
+  },
+  {
+   "id": "q13",
+   "status": "completed",
+   "finishReason": "answered",
+   "stopReason": null,
+   "pages": 1,
+   "searches": 1,
+   "llmCalls": 3,
+   "tokens": 3680,
+   "tokensEstimated": true,
+   "seconds": 2.3,
+   "answer": {
+    "organization": "Lethbridge Police Service"
+   },
+   "warnings": [],
+   "error": null,
+   "gold": [
+    "546"
+   ],
+   "searchHit": true,
+   "steps": [
+    {
+     "detail": "5 results",
+     "input": {
+      "limit": 5,
+      "query": "Lethbridge police services law enforcement"
+     },
+     "result": "ok",
+     "tool": "search",
+     "turn": 1
+    },
+    {
+     "detail": "evidence E6",
+     "input": {
+      "query": "Which organization provides law enforcement and police services for the community of Lethbridge?",
+      "url": "http://127.0.0.1:46621/p/546"
+     },
+     "result": "ok",
+     "tool": "scrape",
+     "turn": 2
+    }
+   ],
+   "correct": true,
+   "fieldsCorrect": 1,
+   "fields": 1,
+   "goldSourceFound": true,
+   "fieldsVerified": 1,
+   "fieldsWithSource": 1,
+   "fieldsReported": 1
+  },
+  {
+   "id": "q14",
+   "status": "completed",
+   "finishReason": "answered",
+   "stopReason": null,
+   "pages": 1,
+   "searches": 1,
+   "llmCalls": 3,
+   "tokens": 3702,
+   "tokensEstimated": true,
+   "seconds": 3.0,
+   "answer": {
+    "date": "Sep 27, 2024"
+   },
+   "warnings": [],
+   "error": null,
+   "gold": [
+    "805"
+   ],
+   "searchHit": true,
+   "steps": [
+    {
+     "detail": "5 results",
+     "input": {
+      "limit": 5,
+      "query": "Are credit card payments on Minted secure"
+     },
+     "result": "ok",
+     "tool": "search",
+     "turn": 1
+    },
+    {
+     "detail": "evidence E6",
+     "input": {
+      "query": "On what date was the Minted help article on whether credit card payments are secure published?",
+      "url": "http://127.0.0.1:46621/p/805"
+     },
+     "result": "ok",
+     "tool": "scrape",
+     "turn": 2
+    }
+   ],
+   "correct": true,
+   "fieldsCorrect": 1,
+   "fields": 1,
+   "goldSourceFound": true,
+   "fieldsVerified": 1,
+   "fieldsWithSource": 1,
+   "fieldsReported": 1
+  },
+  {
+   "id": "q15",
+   "status": "completed",
+   "finishReason": "answered",
+   "stopReason": null,
+   "pages": 1,
+   "searches": 1,
+   "llmCalls": 3,
+   "tokens": 2560,
+   "tokensEstimated": true,
+   "seconds": 2.5,
+   "answer": {
+    "articles": "3"
+   },
+   "warnings": [],
+   "error": null,
+   "gold": [
+    "399"
+   ],
+   "searchHit": true,
+   "steps": [
+    {
+     "detail": "5 results",
+     "input": {
+      "limit": 5,
+      "query": "More.com Ticketing Platform edit existing events articles"
+     },
+     "result": "ok",
+     "tool": "search",
+     "turn": 1
+    },
+    {
+     "detail": "evidence E6",
+     "input": {
+      "query": "How many articles are in the More.com help center collection on editing existing events?",
+      "url": "http://127.0.0.1:46621/p/399"
+     },
+     "result": "ok",
+     "tool": "scrape",
+     "turn": 2
+    }
+   ],
+   "correct": true,
+   "fieldsCorrect": 1,
+   "fields": 1,
+   "goldSourceFound": true,
+   "fieldsVerified": 1,
+   "fieldsWithSource": 1,
+   "fieldsReported": 1
+  },
+  {
+   "id": "q16",
+   "status": "completed",
+   "finishReason": "answered",
+   "stopReason": null,
+   "pages": 2,
+   "searches": 2,
+   "llmCalls": 5,
+   "tokens": 6567,
+   "tokensEstimated": true,
+   "seconds": 4.7,
+   "answer": {
+    "alleycats": "0.2.0",
+    "ecloud": "2.7.0"
+   },
+   "warnings": [],
+   "error": null,
+   "gold": [
+    "295",
+    "935"
+   ],
+   "searchHit": true,
+   "steps": [
+    {
+     "detail": "5 results",
+     "input": {
+      "limit": 5,
+      "query": "ukfast ecloud terraform provider version"
+     },
+     "result": "ok",
+     "tool": "search",
+     "turn": 1
+    },
+    {
+     "detail": "evidence E6",
+     "input": {
+      "query": "Give the latest version of the ukfast/ecloud Terraform provider and the newest version of org.typelevel:alleycats_2.10.",
+      "url": "http://127.0.0.1:46621/p/295"
+     },
+     "result": "ok",
+     "tool": "scrape",
+     "turn": 2
+    },
+    {
+     "detail": "5 results",
+     "input": {
+      "limit": 5,
+      "query": "org.typelevel alleycats_2.10 versions"
+     },
+     "result": "ok",
+     "tool": "search",
+     "turn": 3
+    },
+    {
+     "detail": "evidence E12",
+     "input": {
+      "query": "Give the latest version of the ukfast/ecloud Terraform provider and the newest version of org.typelevel:alleycats_2.10.",
+      "url": "http://127.0.0.1:46621/p/935"
+     },
+     "result": "ok",
+     "tool": "scrape",
+     "turn": 4
+    }
+   ],
+   "correct": true,
+   "fieldsCorrect": 2,
+   "fields": 2,
+   "goldSourceFound": true,
+   "fieldsVerified": 2,
+   "fieldsWithSource": 2,
+   "fieldsReported": 2
+  },
+  {
+   "id": "q17",
+   "status": "completed",
+   "finishReason": "answered",
+   "stopReason": null,
+   "pages": 1,
+   "searches": 1,
+   "llmCalls": 3,
+   "tokens": 2899,
+   "tokensEstimated": true,
+   "seconds": 3.0,
+   "answer": {
+    "country": "Japan"
+   },
+   "warnings": [],
+   "error": null,
+   "gold": [
+    "649"
+   ],
+   "searchHit": true,
+   "steps": [
+    {
+     "detail": "5 results",
+     "input": {
+      "limit": 5,
+      "query": "Michibiki Guide private tours"
+     },
+     "result": "ok",
+     "tool": "search",
+     "turn": 1
+    },
+    {
+     "detail": "evidence E6",
+     "input": {
+      "query": "In which country are the Michibiki Guide private tours?",
+      "url": "http://127.0.0.1:46621/p/649"
+     },
+     "result": "ok",
+     "tool": "scrape",
+     "turn": 2
+    }
+   ],
+   "correct": true,
+   "fieldsCorrect": 1,
+   "fields": 1,
+   "goldSourceFound": true,
+   "fieldsVerified": 1,
+   "fieldsWithSource": 1,
+   "fieldsReported": 1
+  },
+  {
+   "id": "q18",
+   "status": "completed",
+   "finishReason": "answered",
+   "stopReason": null,
+   "pages": 1,
+   "searches": 1,
+   "llmCalls": 3,
+   "tokens": 2996,
+   "tokensEstimated": true,
+   "seconds": 1.2,
+   "answer": {
+    "revenue": null
+   },
+   "warnings": [
+    "agent_incomplete: missing: revenue"
+   ],
+   "error": null,
+   "gold": [],
+   "searchHit": null,
+   "steps": [
+    {
+     "detail": "5 results",
+     "input": {
+      "limit": 5,
+      "query": "Trolley Museum of New York annual revenue"
+     },
+     "result": "ok",
+     "tool": "search",
+     "turn": 1
+    },
+    {
+     "detail": "evidence E6",
+     "input": {
+      "query": "What is the annual revenue of the Trolley Museum of New York?",
+      "url": "http://127.0.0.1:46621/p/923"
+     },
+     "result": "ok",
+     "tool": "scrape",
+     "turn": 2
+    }
+   ],
+   "correct": true,
+   "fieldsCorrect": 1,
+   "fields": 1,
+   "goldSourceFound": false,
+   "fieldsVerified": 0,
+   "fieldsWithSource": 0,
+   "fieldsReported": 0
+  },
+  {
+   "id": "q19",
+   "status": "completed",
+   "finishReason": "answered",
+   "stopReason": null,
+   "pages": 0,
+   "searches": 1,
+   "llmCalls": 3,
+   "tokens": 2515,
+   "tokensEstimated": true,
+   "seconds": 1.2,
+   "answer": {
+    "year": null
+   },
+   "warnings": [
+    "agent_robots_disallowed: http://127.0.0.1:46621/private/200",
+    "agent_incomplete: missing: year"
+   ],
+   "error": null,
+   "gold": [],
+   "searchHit": null,
+   "steps": [
+    {
+     "detail": "5 results",
+     "input": {
+      "limit": 5,
+      "query": "Buffalo Bayou Resources started"
+     },
+     "result": "ok",
+     "tool": "search",
+     "turn": 1
+    },
+    {
+     "detail": "disallowed by robots.txt: http://127.0.0.1:46621/private/200",
+     "input": {
+      "query": "year started",
+      "url": "http://127.0.0.1:46621/private/200"
+     },
+     "result": "ROBOTS_DISALLOWED",
+     "tool": "scrape",
+     "turn": 2
+    }
+   ],
+   "correct": true,
+   "fieldsCorrect": 1,
+   "fields": 1,
+   "goldSourceFound": false,
+   "fieldsVerified": 0,
+   "fieldsWithSource": 0,
+   "fieldsReported": 0
+  },
+  {
+   "id": "q20",
+   "status": "completed",
+   "finishReason": "answered",
+   "stopReason": null,
+   "pages": 1,
+   "searches": 0,
+   "llmCalls": 2,
+   "tokens": 2312,
+   "tokensEstimated": true,
+   "seconds": 0.2,
+   "answer": {
+    "institution": "Cincinnati Museum Center"
+   },
+   "warnings": [],
+   "error": null,
+   "gold": [
+    "668"
+   ],
+   "searchHit": null,
+   "steps": [
+    {
+     "detail": "evidence E1",
+     "input": {
+      "query": "Which institution offers Programs-on-Wheels?",
+      "url": "http://127.0.0.1:46621/p/668"
+     },
+     "result": "ok",
+     "tool": "scrape",
+     "turn": 1
+    }
+   ],
+   "correct": true,
+   "fieldsCorrect": 1,
+   "fields": 1,
+   "goldSourceFound": true,
+   "fieldsVerified": 1,
+   "fieldsWithSource": 1,
+   "fieldsReported": 1
+  },
+  {
+   "id": "q21",
+   "status": "completed",
+   "finishReason": "answered",
+   "stopReason": null,
+   "pages": 1,
+   "searches": 1,
+   "llmCalls": 3,
+   "tokens": 3696,
+   "tokensEstimated": true,
+   "seconds": 2.3,
+   "answer": {
+    "topic": "农村生活污水"
+   },
+   "warnings": [],
+   "error": null,
+   "gold": [
+    "450"
+   ],
+   "searchHit": true,
+   "steps": [
+    {
+     "detail": "4 results",
+     "input": {
+      "limit": 5,
+      "query": "澄迈 治理 污水"
+     },
+     "result": "ok",
+     "tool": "search",
+     "turn": 1
+    },
+    {
+     "detail": "evidence E5",
+     "input": {
+      "query": "澄迈加快治理的是什么？",
+      "url": "http://127.0.0.1:46621/p/450"
+     },
+     "result": "ok",
+     "tool": "scrape",
+     "turn": 2
+    }
+   ],
+   "correct": true,
+   "fieldsCorrect": 1,
+   "fields": 1,
+   "goldSourceFound": true,
+   "fieldsVerified": 1,
+   "fieldsWithSource": 1,
+   "fieldsReported": 1
+  },
+  {
+   "id": "q22",
+   "status": "failed",
+   "finishReason": "budget_exhausted",
+   "stopReason": "credit_limit_reached",
+   "pages": 0,
+   "searches": 1,
+   "llmCalls": 2,
+   "tokens": 1645,
+   "tokensEstimated": true,
+   "seconds": 1.2,
+   "answer": {
+    "address": null,
+    "phone": null
+   },
+   "warnings": [
+    "agent_incomplete: missing: address, phone"
+   ],
+   "error": null,
+   "gold": [],
+   "searchHit": null,
+   "steps": [
+    {
+     "detail": "5 results",
+     "input": {
+      "limit": 5,
+      "query": "Trolley Museum of New York address"
+     },
+     "result": "ok",
+     "tool": "search",
+     "turn": 1
+    }
+   ],
+   "correct": true,
+   "fieldsCorrect": 2,
+   "fields": 2,
+   "goldSourceFound": false,
+   "fieldsVerified": 0,
+   "fieldsWithSource": 0,
+   "fieldsReported": 0
+  },
+  {
+   "id": "q23",
+   "status": "completed",
+   "finishReason": "answered",
+   "stopReason": null,
+   "pages": 1,
+   "searches": 0,
+   "llmCalls": 3,
+   "tokens": 1899,
+   "tokensEstimated": true,
+   "seconds": 0.2,
+   "answer": {
+    "versions": [
+     "0.2.0",
+     "0.1.9",
+     "0.1.8",
+     "0.1.7",
+     "0.1.6",
+     "0.1.5"
+    ]
+   },
+   "warnings": [],
+   "error": null,
+   "gold": [
+    "935"
+   ],
+   "searchHit": null,
+   "steps": [
+    {
+     "detail": "evidence E1",
+     "input": {
+      "intent": "version numbers in the table",
+      "url": "http://127.0.0.1:46621/p/935"
+     },
+     "result": "ok",
+     "tool": "extract",
+     "turn": 1
+    }
+   ],
+   "correct": true,
+   "fieldsCorrect": 1,
+   "fields": 1,
+   "goldSourceFound": true,
+   "fieldsVerified": 6,
+   "fieldsWithSource": 6,
+   "fieldsReported": 6
+  }
+ ]
+}
