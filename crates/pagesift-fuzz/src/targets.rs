@@ -48,6 +48,32 @@ pub const TARGETS: &[Target] = &[
         max_len: 1 << 20,
         timeout: Duration::from_secs(5),
     },
+    Target {
+        name: "ccitt",
+        run: ccitt,
+        dict: CCITT_DICT,
+        max_len: 1 << 20,
+        timeout: Duration::from_secs(5),
+    },
+];
+
+/// CCITT 码（T.4 表 2–4）：EOL、EOFB、各二维模式码、长的组合码，按字节对齐放。
+const CCITT_DICT: &[&[u8]] = &[
+    b"\x00\x10",
+    b"\x00\x10\x01",
+    b"\x00\x00",
+    b"\x80",
+    b"\x20",
+    b"\x10",
+    b"\x60",
+    b"\x40",
+    b"\x0c",
+    b"\x08",
+    b"\x06",
+    b"\x04",
+    b"\x02",
+    b"\x01\xf0",
+    b"\xff",
 ];
 
 /// JPEG 标记（T.81 表 B.1）：SOI、SOF0/1/2、DHT、DQT、DRI、SOS、RST0、EOI、APP14、填充。
@@ -389,6 +415,21 @@ fn pdf(data: &[u8], _iter: u64) {
         ..Default::default()
     };
     let _ = std::hint::black_box(pagesift_pdf::fuzzing::extract_unguarded(data, &opts));
+}
+
+fn ccitt(data: &[u8], iter: u64) {
+    // 码流不带参数：行宽轮流取种子里的宽度（testdata 的三张、B5 常见宽度、/Columns 缺省 1728）
+    // 和几个边界值，/K 轮流取三种编码方式，偶尔字节对齐、给定行数或 BlackIs1
+    const COLS: &[u32] = &[1211, 2200, 32, 2763, 1013, 1728, 1, 7, 65, 4000];
+    let n = COLS.len() as u64;
+    let cols = COLS[(iter % n) as usize];
+    let k = [-1, 0, 1][((iter / n) % 3) as usize];
+    let rows = if (iter / 7).is_multiple_of(2) { 0 } else { 33 };
+    let align = (iter / 11).is_multiple_of(4);
+    let black1 = (iter / 13).is_multiple_of(5);
+    let _ = std::hint::black_box(pagesift_pdf::fuzzing::decode_ccitt(
+        data, k, cols, rows, black1, align,
+    ));
 }
 
 fn jpeg(data: &[u8], iter: u64) {

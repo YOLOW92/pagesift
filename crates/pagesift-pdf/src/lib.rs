@@ -300,6 +300,28 @@ pub mod fuzzing {
         Ok((r.width, r.height, r.channels, r.data))
     }
 
+    /// 解一段 CCITT 传真码流（CCITTFaxDecode）：(宽, 高, 每像素一字节的灰度)。参数同
+    /// ISO 32000-2 表 11 的 /K、/Columns、/Rows、/BlackIs1、/EncodedByteAlign；`rows` 为 0 时
+    /// 解到块结束码或数据末尾。内存上限取 [`Options::max_stream_bytes`] 的默认值。
+    pub fn decode_ccitt(
+        data: &[u8],
+        k: i64,
+        columns: u32,
+        rows: u32,
+        black_is_1: bool,
+        byte_align: bool,
+    ) -> Result<(u32, u32, Vec<u8>), String> {
+        let p = image::tiff::Ccitt {
+            k,
+            columns,
+            rows,
+            black_is_1,
+            byte_align,
+        };
+        let r = image::decode::ccitt::decode(data, &p, Options::default().max_stream_bytes)?;
+        Ok((r.width, r.height, r.data))
+    }
+
     /// 返回操作符个数。
     pub fn lex(data: &[u8]) -> usize {
         let mut lx = lexer::Lexer::new(data);

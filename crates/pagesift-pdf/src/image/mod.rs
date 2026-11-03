@@ -12,7 +12,7 @@ pub(crate) mod decode;
 mod export;
 mod jbig2;
 mod png;
-mod tiff;
+pub(crate) mod tiff;
 
 use std::collections::HashMap;
 

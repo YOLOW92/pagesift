@@ -36,6 +36,8 @@ seeds() {
         find crates/pagesift-pdf -name '*.pdf' -size -2M | sort; } ;;
     jpeg)
       find crates/pagesift-pdf -name '*.jpg' -size -1024k | sort ;;
+    ccitt)
+      find crates/pagesift-pdf -name '*.ccitt' -size -1024k | sort ;;
   esac
 }
 
