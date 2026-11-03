@@ -1648,6 +1648,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "pagesift-infer"
+version = "0.91.1"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
 name = "pagesift-llm"
 version = "0.91.1"
 dependencies = [
@@ -1735,6 +1742,14 @@ dependencies = [
  "serde_json",
  "tokio",
  "url",
+]
+
+[[package]]
+name = "pagesift-ocr"
+version = "0.91.1"
+dependencies = [
+ "pagesift-infer",
+ "serde_json",
 ]
 
 [[package]]

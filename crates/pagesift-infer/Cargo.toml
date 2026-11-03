@@ -1,0 +1,11 @@
+[package]
+description = "Small pure-Rust neural network inference: tensors, convolution and transformer layers, safetensors loading."
+name = "pagesift-infer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde_json = "1.0.154"

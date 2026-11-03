@@ -1,0 +1,108 @@
+//! safetensors 权重文件：8 字节小端头长度、JSON 头（各张量的 dtype、shape、data_offsets）、
+//! 紧接着的原始数据（https://github.com/huggingface/safetensors 的格式说明）。
+
+use std::collections::HashMap;
+
+use crate::Tensor;
+
+/// 按名字取张量。
+#[derive(Debug, Default)]
+pub struct Weights {
+    map: HashMap<String, Tensor>,
+}
+
+impl Weights {
+    pub fn from_bytes(b: &[u8]) -> Result<Weights, String> {
+        // [协议] 头长度是 8 字节小端 u64
+        let n = u64::from_le_bytes(b.get(..8).ok_or("文件太短")?.try_into().unwrap()) as usize;
+        let head = b.get(8..8 + n).ok_or("头长度越界")?;
+        let data = &b[8 + n..];
+        let json: serde_json::Value =
+            serde_json::from_slice(head).map_err(|e| format!("头不是合法 JSON：{e}"))?;
+        let obj = json.as_object().ok_or("头不是 JSON 对象")?;
+        let mut map = HashMap::new();
+        for (name, v) in obj {
+            if name == "__metadata__" {
+                continue;
+            }
+            let dtype = v["dtype"]
+                .as_str()
+                .ok_or_else(|| format!("{name} 没有 dtype"))?;
+            let shape: Vec<usize> = v["shape"]
+                .as_array()
+                .ok_or_else(|| format!("{name} 没有 shape"))?
+                .iter()
+                .map(|d| d.as_u64().map(|d| d as usize).ok_or("shape 不是整数"))
+                .collect::<Result<_, _>>()?;
+            let off = v["data_offsets"]
+                .as_array()
+                .ok_or_else(|| format!("{name} 没有 data_offsets"))?;
+            let (s, e) = (
+                off[0].as_u64().ok_or("偏移不是整数")? as usize,
+                off[1].as_u64().ok_or("偏移不是整数")? as usize,
+            );
+            let raw = data.get(s..e).ok_or_else(|| format!("{name} 的数据越界"))?;
+            let values: Vec<f32> = match dtype {
+                // [协议] F32 是 4 字节小端 IEEE 754
+                "F32" => raw
+                    .chunks_exact(4)
+                    .map(|c| f32::from_le_bytes(c.try_into().unwrap()))
+                    .collect(),
+                // [协议] F16、BF16 是 2 字节小端
+                "F16" => raw
+                    .chunks_exact(2)
+                    .map(|c| f16_to_f32(u16::from_le_bytes([c[0], c[1]])))
+                    .collect(),
+                // [协议] BF16 是 f32 的高 16 位
+                "BF16" => raw
+                    .chunks_exact(2)
+                    .map(|c| f32::from_bits(u32::from(u16::from_le_bytes([c[0], c[1]])) << 16))
+                    .collect(),
+                _ => return Err(format!("{name}：不支持的 dtype {dtype}")),
+            };
+            if values.len() != shape.iter().product::<usize>() {
+                return Err(format!("{name}：数据长度与形状不符"));
+            }
+            map.insert(name.clone(), Tensor::new(shape, values));
+        }
+        Ok(Weights { map })
+    }
+
+    pub fn get(&self, name: &str) -> Result<&Tensor, String> {
+        self.map
+            .get(name)
+            .ok_or_else(|| format!("权重里没有 {name}"))
+    }
+
+    pub fn opt(&self, name: &str) -> Option<&Tensor> {
+        self.map.get(name)
+    }
+
+    pub fn names(&self) -> impl Iterator<Item = &str> {
+        self.map.keys().map(String::as_str)
+    }
+}
+
+/// IEEE 754 半精度转单精度。
+fn f16_to_f32(h: u16) -> f32 {
+    // [协议] 半精度：1 位符号、5 位指数（偏移 15）、10 位尾数
+    let s = u32::from(h >> 15) << 31;
+    let e = u32::from((h >> 10) & 0x1F);
+    let m = u32::from(h & 0x3FF);
+    let bits = match e {
+        0 if m == 0 => s,
+        0 => {
+            // 非规格化数：规格化后再拼
+            let mut e = 127 - 15 + 1;
+            let mut m = m;
+            while m & 0x400 == 0 {
+                m <<= 1;
+                e -= 1;
+            }
+            s | (e << 23) | ((m & 0x3FF) << 13)
+        }
+        0x1F => s | 0x7F80_0000 | (m << 13),
+        _ => s | ((e + 127 - 15) << 23) | (m << 13),
+    };
+    f32::from_bits(bits)
+}
