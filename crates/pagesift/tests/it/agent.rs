@@ -641,7 +641,12 @@ async fn finished_runs_survive_a_restart_and_unfinished_ones_are_reported_failed
     let base = site().await;
     let dir = tempfile::tempdir().unwrap();
     let store = pagesift_store::Store::open_dir(dir.path()).unwrap();
-    let llm = model(vec![json!({"action": "finish", "data": {"a": 1}})]).await;
+    // 两个任务同时跑，谁先拿到回复不一定：两条录制回复一样
+    let llm = model(vec![
+        json!({"action": "finish", "data": {"a": 1}}),
+        json!({"action": "finish", "data": {"a": 1}}),
+    ])
+    .await;
     let config = || pagesift::api::Config {
         store: Some(store.clone()),
         ..Default::default()
@@ -842,4 +847,55 @@ fn cli_runs_the_same_loop_and_says_what_is_missing() {
     assert_eq!(v["budget"]["maxPages"], 5);
     let err = String::from_utf8_lossy(&out.stderr);
     assert!(err.contains("turn 1: scrape"), "{err}");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_run_is_visible_only_to_the_key_that_started_it() {
+    let base = site().await;
+    let llm = model(vec![json!({"action": "finish", "data": {"a": 1}})]).await;
+    let config = pagesift::api::Config {
+        api_keys: vec!["key-a".into(), "key-b".into()],
+        ..Default::default()
+    };
+    let a = pagesift::api::router(scraper(Some(&llm), None), config);
+    let call = |method: &'static str, path: String, key: &'static str, body: Option<Value>| {
+        let a = a.clone();
+        async move {
+            let req = Request::builder()
+                .method(method)
+                .uri(path)
+                .header("authorization", format!("Bearer {key}"))
+                .header("content-type", "application/json")
+                .body(body.map_or(Body::empty(), |b| Body::from(b.to_string())))
+                .unwrap();
+            let resp = a.oneshot(req).await.unwrap();
+            let status = resp.status();
+            let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+            (
+                status,
+                serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null),
+            )
+        }
+    };
+    let (_, started) = call(
+        "POST",
+        "/v2/agent".into(),
+        "key-a",
+        Some(json!({"prompt": "x", "urls": [format!("{base}/p/a")]})),
+    )
+    .await;
+    let id = started["id"].as_str().unwrap();
+    let path = format!("/v2/agent/{id}");
+    assert_eq!(
+        call("GET", path.clone(), "key-a", None).await.0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        call("GET", path.clone(), "key-b", None).await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        call("DELETE", path, "key-b", None).await.0,
+        StatusCode::NOT_FOUND
+    );
 }

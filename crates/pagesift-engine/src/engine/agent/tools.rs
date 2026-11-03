@@ -11,6 +11,7 @@ use url::Url;
 
 use super::Run;
 use super::protocol::clip;
+use crate::engine::autoschema::model_tokens;
 use crate::engine::cpu::cpu_task;
 use crate::focus::is_blind;
 
@@ -30,6 +31,42 @@ pub(super) struct Candidate {
 fn options(formats: Value) -> Result<ScrapeOptions, ApiError> {
     serde_json::from_value(json!({ "formats": formats }))
         .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))
+}
+
+/// 整页的文字（不做正文识别）：电话、营业时间、版本号常在页头页脚，正文识别会去掉它们，
+/// 而 queryFilter 已经按查询筛选了。停止判据仍然看正文（它的门槛是按正文标定的）。
+/// PDF 等没有 HTML 的文档返回 `None`。
+async fn full_page(doc: &Document, url: Option<&Url>) -> Option<String> {
+    let (html, url) = (doc.raw_html.clone()?, url?);
+    let opts = ScrapeOptions {
+        only_main_content: false,
+        ..Default::default()
+    };
+    let status = Some(doc.metadata.status_code);
+    let (full, _) = crate::engine::output::process_html(html, url, status, &opts)
+        .await
+        .ok()?;
+    Some(full.markdown).filter(|m| !m.trim().is_empty())
+}
+
+/// queryFilter，结果不超过 `cap` 个模型 token。queryFilter 的上限按它自己的估计算，比模型的分词
+/// 宽松；超了就按实际比例收紧、重新选一次（按分数取舍），不从结尾硬截（结果是文档顺序，截掉的可能正是最相关的）。
+fn filter_to_cap(markdown: &str, query: &str, cap: usize) -> String {
+    let run = |limit: usize| {
+        let defaults = QueryFilterOptions::default();
+        let opts = QueryFilterOptions {
+            max_tokens: Some(limit),
+            min_tokens: defaults.min_tokens.map(|m| m.min(limit)),
+            ..defaults
+        };
+        pagesift_extract::filter_markdown_by_query(markdown, query, &opts).markdown
+    };
+    let first = run(cap);
+    let tokens = model_tokens(&first);
+    if tokens <= cap {
+        return first;
+    }
+    run((cap * pagesift_content::estimate_tokens(&first) / tokens).max(1))
 }
 
 impl Run<'_> {
@@ -228,7 +265,7 @@ impl Run<'_> {
                 skipped.join(", ")
             ));
         }
-        let opts = match options(json!(["markdown", "links"])) {
+        let opts = match options(json!(["markdown", "links", "rawHtml"])) {
             Ok(o) => o,
             Err(e) => {
                 self.last.push_str(&e.message);
@@ -294,17 +331,10 @@ impl Run<'_> {
         }
 
         let cap = self.budget.page_tokens;
-        let defaults = QueryFilterOptions::default();
-        let opts = QueryFilterOptions {
-            max_tokens: Some(cap),
-            min_tokens: defaults.min_tokens.map(|m| m.min(cap)),
-            ..defaults
-        };
         let q = query.to_string();
-        let md = markdown;
-        let kept = cpu_task(move || pagesift_extract::filter_markdown_by_query(&md, &q, &opts))
+        let md = full_page(&doc, parsed.as_ref()).await.unwrap_or(markdown);
+        let kept = cpu_task(move || filter_to_cap(&md, &q, cap))
             .await
-            .map(|f| f.markdown)
             .unwrap_or_default();
         let text = clip(&kept, cap).to_string();
         if text.trim().is_empty() {
@@ -447,5 +477,24 @@ impl Run<'_> {
                 content_hash: hash,
             }),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn filter_keeps_the_best_part_within_the_cap() {
+        let filler: String = (0..200)
+            .map(|i| {
+                format!("Paragraph {i} talks about gardening and tomatoes at length today.\n\n")
+            })
+            .collect();
+        // 最相关的一段在文档末尾：从结尾硬截会丢掉它
+        let md = format!("{filler}Call us at 307-326-5206 for the outage phone line.\n");
+        let kept = filter_to_cap(&md, "outage phone line", 100);
+        assert!(kept.contains("307-326-5206"), "{kept}");
+        assert!(model_tokens(&kept) <= 100, "{}", model_tokens(&kept));
     }
 }
