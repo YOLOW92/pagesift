@@ -10,6 +10,8 @@ use pagesift_infer::Tensor;
 
 use crate::Image;
 
+/// [协议] 模型输入是三通道（config.json 的 `num_channels`）
+const CHANNELS: usize = 3;
 /// [协议] processor_config.json 的 `size`：768×768
 pub const SIZE: usize = 768;
 /// [协议] `image_mean`，三通道相同
@@ -19,7 +21,7 @@ const STD: f32 = 0.1738;
 /// [协议] `crop_margin(gray_threshold=200)`：拉伸到 0–255 后低于 200 的算内容
 const GRAY_THRESHOLD: f32 = 200.0;
 /// [协议] torchvision `rgb_to_grayscale` 的系数（ITU-R 601-2 亮度）
-const LUMA: [f32; 3] = [0.2989, 0.587, 0.114];
+const LUMA: [f32; CHANNELS] = [0.2989, 0.587, 0.114];
 /// [策略] 第一次缩放（短边到 768）的中间图最多这么多像素。参考实现对极扁的图（宽高比上百）
 /// 会生成上亿像素的中间图；超过时把中间图的长边压到这个上限内（仍不小于 768），
 /// 之后的 thumbnail 反正要缩到 768，只影响抗锯齿核的取样，不影响输出尺寸。
@@ -37,15 +39,15 @@ pub fn preprocess(img: &Image) -> Tensor {
     let n = SIZE * SIZE;
     // [协议] 补边值 0，归一化后为 (0 − mean)/std
     let pad_val = -MEAN / STD;
-    let mut out = vec![pad_val; 3 * n];
+    let mut out = vec![pad_val; CHANNELS * n];
     if img.width == 0 || img.height == 0 {
-        return Tensor::new(vec![3, SIZE, SIZE], out);
+        return Tensor::new(vec![CHANNELS, SIZE, SIZE], out);
     }
     let (x0, y0, cw, ch) = crop_box(img);
     let (mh, mw) = mid_size(ch, cw);
     let (th, tw) = thumb_size(mh, mw);
     // 灰度图三个通道相同，只算一次
-    let planes = if img.channels == 1 { 1 } else { 3 };
+    let planes = if img.channels == 1 { 1 } else { CHANNELS };
     let (top, left) = ((SIZE - th) / 2, (SIZE - tw) / 2);
     for c in 0..planes {
         let mut p = Plane {
@@ -74,7 +76,7 @@ pub fn preprocess(img: &Image) -> Tensor {
         rest[..n].copy_from_slice(first);
         rest[n..].copy_from_slice(first);
     }
-    Tensor::new(vec![3, SIZE, SIZE], out)
+    Tensor::new(vec![CHANNELS, SIZE, SIZE], out)
 }
 
 /// 裁白边的框 (x0, y0, 宽, 高)：灰度拉伸到 0–255 后小于 200 的像素的外接矩形；
@@ -84,7 +86,9 @@ fn crop_box(img: &Image) -> (usize, usize, usize, usize) {
     let gray: Vec<u8> = (0..h)
         .flat_map(|y| (0..w).map(move |x| (x, y)))
         .map(|(x, y)| {
-            let l: f32 = (0..3).map(|c| f32::from(img.at(x, y, c)) * LUMA[c]).sum();
+            let l: f32 = (0..CHANNELS)
+                .map(|c| f32::from(img.at(x, y, c)) * LUMA[c])
+                .sum();
             // [协议] torchvision 对整数图的灰度结果舍入后转回 uint8
             l.round_ties_even().clamp(0.0, 255.0) as u8
         })
@@ -165,6 +169,7 @@ impl Filter {
                 // [协议] PyTorch `upsample_aa` 的 bicubic 用 a = −0.5（与 PIL 相同）
                 let a = -0.5;
                 if x < 1.0 {
+                    // [推导] Keys 三次卷积核在 |x| < 1 段：(a+2)|x|³ − (a+3)|x|² + 1
                     ((a + 2.0) * x - (a + 3.0)) * x * x + 1.0
                 } else if x < 2.0 {
                     // [推导] Keys 三次卷积核在 1 ≤ |x| < 2 段：a·(|x|³ − 5|x|² + 8|x| − 4)
@@ -212,6 +217,7 @@ fn taps(inp: usize, out: usize, f: Filter) -> Taps {
 
 /// 舍入回 8 位（先截到 0–255 再四舍六入五成双，同 torch 的 `clamp_` + `round_`）。
 fn to_u8(v: f32) -> u8 {
+    // [协议] 8 位像素的范围
     v.clamp(0.0, 255.0).round_ties_even() as u8
 }
 

@@ -181,6 +181,7 @@ impl Encoder {
         mut trace: impl FnMut(&str, &Tensor),
     ) -> Result<Tensor, String> {
         let s = self.cfg.image_size;
+        // [协议] 输入三通道（`num_channels`）
         if x.shape != [3, s, s] {
             return Err(format!("输入应为 [3, {s}, {s}]，实际 {:?}", x.shape));
         }

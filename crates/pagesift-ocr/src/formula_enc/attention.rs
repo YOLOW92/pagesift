@@ -15,6 +15,9 @@ use pagesift_infer::{Linear, Tensor, Weights, ops};
 
 use super::par;
 
+/// [协议] qkv 线性层一次出 q、k、v 三份，输出维是 3·C
+const QKV_PARTS: usize = 3;
+
 /// `F.interpolate(mode="linear", align_corners=False)` 沿第 0 维把 `[len, d]` 的表插值到 `out` 行。
 /// 源坐标 = (目标 + 0.5)·len/out − 0.5，负数截到 0。
 pub(crate) fn interp_linear(table: &[f32], d: usize, out: usize) -> Vec<f32> {
@@ -72,7 +75,7 @@ impl Attention {
         let qkv = Linear::load(w, &format!("{p}.qkv"))?;
         let proj = Linear::load(w, &format!("{p}.proj"))?;
         let c = proj.weight_t.shape[1];
-        if c % heads != 0 || qkv.weight_t.shape[1] != 3 * c {
+        if !c.is_multiple_of(heads) || qkv.weight_t.shape[1] != QKV_PARTS * c {
             return Err(format!("{p}：通道 {c} 与头数 {heads} 或 qkv 形状不符"));
         }
         let hd = c / heads;
@@ -134,7 +137,8 @@ impl Attention {
         let scale = (hd as f32).powf(-0.5);
         let take = |part: usize| -> Vec<f32> {
             let mut d = Vec::with_capacity(t * hd);
-            for row in qkv[g * t * 3 * c..(g + 1) * t * 3 * c].chunks_exact(3 * c) {
+            let per = QKV_PARTS * c;
+            for row in qkv[g * t * per..(g + 1) * t * per].chunks_exact(per) {
                 let at = part * c + h * hd;
                 d.extend_from_slice(&row[at..at + hd]);
             }
@@ -224,6 +228,133 @@ mod tests {
         let r = rel_pos(&short, 1, 4, 4);
         assert_eq!(r[3], 0.0); // i=0, j=3 → 第 0 行
         assert_eq!(r[12], 4.0); // i=3, j=0 → 第 6 行（插值后末行 = 原末行）
+    }
+
+    /// 确定性的伪随机数，范围 [−1, 1)。
+    fn rnd(seed: &mut u32) -> f32 {
+        *seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        (*seed >> 8) as f32 / (1u32 << 24) as f32 * 2.0 - 1.0
+    }
+
+    fn rand_vec(n: usize, seed: &mut u32) -> Vec<f32> {
+        (0..n).map(|_| rnd(seed)).collect()
+    }
+
+    fn rand_linear(i: usize, o: usize, seed: &mut u32) -> Linear {
+        Linear {
+            weight_t: Tensor::new(vec![i, o], rand_vec(i * o, seed)),
+            bias: Some(rand_vec(o, seed)),
+        }
+    }
+
+    /// 按定义逐元素算的线性层。
+    fn naive_linear(l: &Linear, row: &[f32]) -> Vec<f32> {
+        let (i, o) = l.weight_t.tc();
+        (0..o)
+            .map(|j| {
+                let s: f32 = (0..i).map(|k| row[k] * l.weight_t.data[k * o + j]).sum();
+                s + l.bias.as_ref().map_or(0.0, |b| b[j])
+            })
+            .collect()
+    }
+
+    /// 照参考实现的公式逐元素算的注意力，不共用被测代码的取头、相对位置和矩阵乘。
+    fn naive_attention(a: &Attention, x: &Tensor, hd: usize, tables: (&[f32], &[f32])) -> Vec<f32> {
+        let (n, c) = x.tc();
+        let s = a.side;
+        let t = s * s;
+        let scale = (hd as f32).powf(-0.5);
+        let mut mid = vec![0f32; n * c];
+        for g in 0..n / t {
+            let qkv: Vec<Vec<f32>> = (0..t)
+                .map(|i| naive_linear(&a.qkv, &x.data[(g * t + i) * c..(g * t + i + 1) * c]))
+                .collect();
+            for h in 0..a.heads {
+                let part = |p: usize, i: usize| &qkv[i][p * c + h * hd..p * c + (h + 1) * hd];
+                for i in 0..t {
+                    let (qy, qx) = (i / s, i % s);
+                    let q = part(0, i);
+                    let mut row: Vec<f32> = (0..t)
+                        .map(|j| {
+                            let (ky, kx) = (j / s, j % s);
+                            let rh = &tables.0[(qy + s - 1 - ky) * hd..][..hd];
+                            let rw = &tables.1[(qx + s - 1 - kx) * hd..][..hd];
+                            let k = part(1, j);
+                            (0..hd)
+                                .map(|d| q[d] * scale * k[d] + q[d] * rh[d] + q[d] * rw[d])
+                                .sum()
+                        })
+                        .collect();
+                    let sum: f32 = row.iter().map(|v| v.exp()).sum();
+                    for v in &mut row {
+                        *v = v.exp() / sum;
+                    }
+                    for d in 0..hd {
+                        let v: f32 = (0..t).map(|j| row[j] * part(2, j)[d]).sum();
+                        mid[(g * t + i) * c + h * hd + d] = v;
+                    }
+                }
+            }
+        }
+        mid.chunks_exact(c)
+            .flat_map(|r| naive_linear(&a.proj, r))
+            .collect()
+    }
+
+    #[test]
+    fn 注意力与按定义的逐元素计算一致() {
+        let (c, heads, side) = (8, 2, 3);
+        let hd = c / heads;
+        let mut seed = 7u32;
+        let len = 2 * side - 1;
+        let th = rand_vec(len * hd, &mut seed);
+        let tw = rand_vec(len * hd, &mut seed);
+        let a = Attention {
+            qkv: rand_linear(c, QKV_PARTS * c, &mut seed),
+            proj: rand_linear(c, c, &mut seed),
+            heads,
+            side,
+            rel_h: rel_pos(&th, hd, side, side),
+            rel_w: rel_pos(&tw, hd, side, side),
+        };
+        // groups = 1 走全局路径（逐头、softmax 多线程），groups = 3 走窗口路径（任务并行）
+        for groups in [1, 3] {
+            let n = groups * side * side;
+            let x = Tensor::new(vec![n, c], rand_vec(n * c, &mut seed));
+            let got = a.forward(&x);
+            let want = naive_attention(&a, &x, hd, (&th, &tw));
+            assert_eq!(got.shape, vec![n, c]);
+            for (i, (g, w)) in got.data.iter().zip(&want).enumerate() {
+                assert!(
+                    (g - w).abs() <= 1e-4 * w.abs().max(1.0),
+                    "groups={groups} 第 {i} 个：{g} ≠ {w}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn 每组互不影响() {
+        let (c, heads, side) = (8, 2, 3);
+        let hd = c / heads;
+        let mut seed = 11u32;
+        let t = side * side;
+        let len = 2 * side - 1;
+        let a = Attention {
+            qkv: rand_linear(c, QKV_PARTS * c, &mut seed),
+            proj: rand_linear(c, c, &mut seed),
+            heads,
+            side,
+            rel_h: rel_pos(&rand_vec(len * hd, &mut seed), hd, side, side),
+            rel_w: rel_pos(&rand_vec(len * hd, &mut seed), hd, side, side),
+        };
+        let g0 = rand_vec(t * c, &mut seed);
+        let g1 = rand_vec(t * c, &mut seed);
+        let both = a.forward(&Tensor::new(vec![2 * t, c], [g0.clone(), g1].concat()));
+        let one = a.forward(&Tensor::new(vec![t, c], g0));
+        for (x, y) in both.data[..t * c].iter().zip(&one.data) {
+            assert!((x - y).abs() < 1e-5, "{x} ≠ {y}");
+        }
     }
 
     #[test]
