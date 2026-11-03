@@ -9,6 +9,11 @@
 //! - 没有存储时用有界内存队列，满了发送方等待（背压），爬取跟着慢下来，事件不丢。
 //! - 存储读写出错时降级：这个任务之后的事件改走内存队列（同样有界、背压），投递任务把盘上读得出的
 //!   事件发完后转去投内存队列，不停下等重启。出错时盘上读不出来的事件留在盘上，重启后续投。
+//!   降级后的事件只在内存里，进程崩溃就没了；降级记进 `/metrics`（`outcome="degraded"`）。
+//!
+//! 一个事件的四种状态：落盘待投（`job/{id}/hook`）、已送达（游标推进）、最终没送达（重试用尽或地址
+//! 被拦：游标照样推进，事件记成死信，进任务的错误列表 `GET /v2/crawl/{id}/errors`，`code` 为
+//! `WEBHOOK_FAILED`，带 `eventId`）、降级到内存（见上）。所以"有结果"不等于"送达"。
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -55,8 +60,10 @@ struct Bell {
 }
 
 impl Bell {
-    fn degrade(&self) {
-        self.degraded.store(true, Ordering::SeqCst);
+    fn degrade(&self, metrics: &Metrics) {
+        if !self.degraded.swap(true, Ordering::SeqCst) {
+            metrics.webhook("degraded");
+        }
         self.notify.notify_one();
     }
 
@@ -158,7 +165,8 @@ impl Webhooks {
 
     async fn drain_memory(&self, mut rx: mpsc::Receiver<Value>, cfg: &WebhookConfig) {
         while let Some(body) = rx.recv().await {
-            self.deliver(cfg, &body).await;
+            // 没有存储（或已降级）：没送达的只记进指标和日志（deliver 里）
+            let _ = self.deliver(cfg, &body).await;
         }
     }
 
@@ -171,7 +179,7 @@ impl Webhooks {
             Ok(n) => n,
             Err(e) => {
                 tracing::error!(job, error = %e, "reading the webhook cursor failed; switching to the memory queue");
-                bell.degrade();
+                bell.degrade(&self.metrics);
                 return;
             }
         };
@@ -183,7 +191,7 @@ impl Webhooks {
                 Ok(f) => f,
                 Err(e) => {
                     tracing::error!(job, error = %e, "reading the webhook queue failed; switching to the memory queue");
-                    bell.degrade();
+                    bell.degrade(&self.metrics);
                     return;
                 }
             };
@@ -201,18 +209,22 @@ impl Webhooks {
             let body = serde_json::from_slice::<Value>(&raw).ok();
             let seq = body.as_ref().and_then(|b| b["seq"].as_u64());
             // 读不懂的，或者确认后、弹出前崩溃留下的（序号不大于游标）：直接弹出
-            let fresh = match (&body, seq) {
+            let (fresh, dead) = match (&body, seq) {
                 (Some(b), Some(seq)) if seq > acked => {
-                    self.deliver(cfg, b).await;
+                    let failed = self.deliver(cfg, b).await;
                     acked = seq;
-                    Some(seq)
+                    (Some(seq), failed.map(|why| dead_letter(cfg, b, &why)))
                 }
-                _ => None,
+                _ => (None, None),
             };
             let (l, a, m) = (list.clone(), ack.clone(), self.mirror.clone());
+            let notes = crate::jobs::store::list_key(job, "notes");
             let r = store
                 .blocking(move |s| -> pagesift_store::Result<()> {
                     crate::jobs::mirror::write(s, m.as_deref(), |t| {
+                        if let Some(d) = &dead {
+                            t.list_push(&notes, d)?;
+                        }
                         if let Some(seq) = fresh {
                             t.kv_put(&a, seq.to_string().as_bytes())?;
                         }
@@ -223,11 +235,27 @@ impl Webhooks {
             if let Err(e) = r {
                 // 这个事件已经投过了；弹不掉的话重启后会再投一次（接收方按 eventId 去重）
                 tracing::error!(job, error = %e, "advancing the webhook cursor failed; switching to the memory queue");
-                bell.degrade();
+                bell.degrade(&self.metrics);
                 return;
             }
         }
     }
+}
+
+/// 没送达的事件记成任务错误（`JobError` 的 JSON）：`url` 是 webhook 地址，`error` 里带 `eventId` 和原因。
+fn dead_letter(cfg: &WebhookConfig, body: &Value, why: &str) -> Vec<u8> {
+    let e = crate::types::JobError {
+        id: uuid::Uuid::new_v4().to_string(),
+        timestamp: crate::jobs::time::rfc3339(std::time::SystemTime::now()),
+        url: cfg.url.clone(),
+        code: "WEBHOOK_FAILED".into(),
+        error: format!(
+            "webhook event {} ({}) was not delivered: {why}",
+            body["eventId"].as_str().unwrap_or_default(),
+            body["type"].as_str().unwrap_or_default()
+        ),
+    };
+    serde_json::to_vec(&e).unwrap_or_default()
 }
 
 impl Hook {
@@ -309,7 +337,7 @@ impl Core {
             }
             Err(e) => {
                 tracing::error!(job = %self.job_id, seq, error = %e, "queueing a webhook event on disk failed; switching to the memory queue");
-                bell.degrade();
+                bell.degrade(&self.metrics);
                 true
             }
         }

@@ -30,7 +30,7 @@ use crate::webhook::{Event, Hook, Webhooks};
 pub mod mirror;
 mod sink;
 pub mod state;
-mod store;
+pub(crate) mod store;
 pub mod time;
 
 pub use state::{JOB_TTL, Job, JobKind, JobState, Start, StatusPage};
@@ -108,6 +108,11 @@ impl Jobs {
         }
     }
 
+    /// 任务持久化用的存储（附件也写进去）。
+    pub(crate) fn store(&self) -> Option<&Store> {
+        self.inner.store.as_ref()
+    }
+
     pub async fn get<R>(&self, id: &str, f: impl FnOnce(&Job) -> R) -> Option<R> {
         self.sweep().await;
         self.inner.map.lock().await.get(id).map(f)
@@ -173,11 +178,16 @@ impl Jobs {
             (job.errors.clone(), job.robots_blocked.clone())
         };
         if let Some(store) = &self.inner.store {
-            let key = list_key(id, "errors");
+            // 页面错误，然后是任务级的错误（配额、失败原因、投不出去的 webhook 事件）
+            let (key, notes) = (list_key(id, "errors"), list_key(id, "notes"));
             let stored = store
-                .blocking(move |s| s.tasks().list_items(key, usize::MAX))
-                .await
-                .unwrap_or_default();
+                .blocking(move |s| {
+                    let t = s.tasks();
+                    let mut v = t.list_items(key, usize::MAX).unwrap_or_default();
+                    v.extend(t.list_items(notes, usize::MAX).unwrap_or_default());
+                    v
+                })
+                .await;
             for v in stored {
                 if let Ok(e) = serde_json::from_slice::<JobError>(&v) {
                     if e.code == ErrorCode::RobotsDisallowed.as_str() {
@@ -349,6 +359,7 @@ impl Jobs {
             resume: StdMutex::new(resume),
             quota_hit: AtomicBool::new(false),
             keep_summary: true,
+            store_failed: StdMutex::new(None),
         })
     }
 

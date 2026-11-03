@@ -18,6 +18,9 @@
 //! `[cluster.tls] ca`（不写用系统根证书）、`server_name`，双向 TLS 时 `cert` + `key` 是客户端证书。
 //! 温备：`role = "standby"`、`id`、`token`、`primary`，以及接管后作为网关要用的 `listen`、`[cluster.tls]`、
 //! `[[cluster.workers]]`。不用 TLS 时必须显式写 `h2c = true`（只用于可信内网）。
+//! `takeover = "manual"` 时温备判定主网关失联后不自动接管，只报告，由运维隔离旧主网关后把它作为网关重启。
+//! 自动接管（默认 `"auto"`）没有外部的单写权威：只在旧主网关确实停了或已与工人隔离时安全，
+//! 主备之间断网而旧主网关仍在服务工人时两边会同时接受写入。
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -47,6 +50,8 @@ pub struct Cluster {
     /// 网关：温备的 id（它的令牌也要在 `[[cluster.workers]]` 里登记）。设了就自动打开账本日志，
     /// 任务记录随日志复制到温备。
     pub standby: Option<String>,
+    /// 温备：判定主网关失联后 `auto`（默认）自动接管，`manual` 只报告、等运维处理（见模块说明）。
+    pub takeover: Option<String>,
     /// 网关：把账本写进数据目录的日志（网关重启后从它恢复租约；日志按快照压缩）。
     /// 默认：设了 `standby` 时开，否则关。
     pub journal: Option<bool>,
@@ -126,6 +131,17 @@ impl Cluster {
 
     pub fn primary(&self) -> Result<&str> {
         self.need(&self.primary, "primary").map(String::as_str)
+    }
+
+    /// 温备是否只在运维确认后接管（`takeover = "manual"`）。
+    pub fn manual_takeover(&self) -> Result<bool> {
+        match self.takeover.as_deref() {
+            None | Some("auto") => Ok(false),
+            Some("manual") => Ok(true),
+            Some(other) => {
+                bail!("[cluster] takeover = {other:?} (expected \"auto\" or \"manual\")")
+            }
+        }
     }
 
     /// 登记的工人令牌（只有哈希）。

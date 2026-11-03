@@ -106,7 +106,22 @@ impl Standby {
 
     /// 接管：账本任期加一，之后旧任期的日志与旧网关发出的租约令牌都被栅栏拒绝。
     /// 返回新任期；之后用同一个账本建 [`crate::GatewayCoordinator`] 对外服务。
+    ///
+    /// 回放上层状态（任务记录）失败过时拒绝（[`Ledger::app_failures`]）：这份副本与主网关不一致，
+    /// 接管会让已完成的结果缺失、任务重复执行。要接管就从空的数据目录重新同步，或由运维确认后
+    /// 手动把它作为网关启动。
+    ///
+    /// 这里的"失联"只是温备自己收不到心跳，没有外部的单写权威：主网关与温备之间断网、
+    /// 但主网关仍能服务一部分工人时，两边会同时接受写入。只有确认旧主网关已停止或已隔离时，
+    /// 自动接管才是安全的；不能确认时用手动接管（`[cluster] takeover = "manual"`）。
     pub fn take_over(&self) -> Result<u64, Error> {
+        let failed = self.ledger.app_failures();
+        if failed > 0 {
+            return Err(Error::Rejected(format!(
+                "{failed} replicated job records failed to apply on this standby; \
+                 resync it from an empty data directory before it takes over"
+            )));
+        }
         self.ledger.take_over()
     }
 
@@ -141,5 +156,39 @@ impl Standby {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::clock::ManualClock;
+    use crate::journal::{Record, encode};
+    use crate::ledger::{AppState, LedgerConfig};
+
+    struct Failing;
+
+    impl AppState for Failing {
+        fn apply(&self, _op: &[u8]) -> Result<(), String> {
+            Err("disk full".into())
+        }
+        fn dump(&self) -> Vec<Vec<u8>> {
+            Vec::new()
+        }
+    }
+
+    /// 回放任务记录失败过的温备不接管（0.90 只记一条警告，照样接管）。
+    #[test]
+    fn a_standby_with_unapplied_job_records_refuses_to_take_over() {
+        let ledger =
+            Arc::new(Ledger::follower(LedgerConfig::new(ManualClock::new(), false)).unwrap());
+        assert!(ledger.set_app(Arc::new(Failing)));
+        let sb = Standby::new(ledger.clone());
+        let raw = encode(1, &Record::App { op: vec![1] });
+        sb.on_records(0, Duration::from_secs(1), &[raw]).unwrap();
+        assert_eq!(ledger.app_failures(), 1);
+        let e = sb.take_over().unwrap_err().to_string();
+        assert!(e.contains("failed to apply"), "{e}");
+        assert!(ledger.is_follower());
     }
 }

@@ -2,6 +2,44 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## [0.91.0] — 2026-11-03
+
+Fixes from a code review of 0.90.0: failures that 0.90 logged and reported as success are now reported.
+See [the release notes](docs/releases/0.91.0.md).
+
+### Fixed
+- A crawl or batch page that could not be saved (or replicated to the standby) was counted as completed and the
+  job ended `completed`; the job now stops and fails, and the unsaved page is not counted.
+- Job-level errors (quota, failure reason) were stored with page errors and counted as completed pages after a
+  restart; they were not replicated to the standby.
+- Page data islands with fewer than 20 string values (typical JSON-LD articles) gave no text.
+- The block merge of two candidates could allocate a matrix quadratic in the number of blocks; its cost is now
+  limited to the candidates' text size.
+- Learned render decisions used `1 − quality score` as an absolute probability and stopped rendering in families
+  where rendering always helped.
+- Attachments were lost on restart while the job results were kept; with a store they are now saved there.
+- CPU worker queues had no limit; queued plus running tasks are limited to twice the number of workers.
+
+### Security
+- Cluster: any authenticated worker could receive the gateway's journal (all job records), submit or cancel tasks,
+  and commit or renew another worker's lease. Journal shipping is now limited to the configured standby, wire
+  submit/cancel to `GatewayConfig::submitters`, and commits and renewals to the lease holder.
+
+### Added
+- `[cluster] takeover = "auto" | "manual"` for the standby.
+- Undelivered webhook events appear in the job's errors as `WEBHOOK_FAILED`; `/metrics` counts moves to the memory
+  queue (`outcome="degraded"`).
+
+### Changed
+- `JobLog::append` and `AppState::apply` return `Result`; `RenderPlanner::decide` no longer takes the HTTP quality;
+  `GatewayConfig` has `standby` and `submitters`; `Ledger::commit_by`, `Ledger::app_failures`;
+  `pagesift_api::attachments::keep` takes the store to save into (`None`: memory only).
+- A standby that failed to apply a replicated job record refuses to take over.
+
+### Documentation
+- The quality score, the Jina SSE stream and warm-standby takeover are described with their actual limits;
+  corrections to the 0.90.0 release notes are in the 0.91.0 notes.
+
 ## [0.90.0] — 2026-11-03
 
 Limits, timeouts and thresholds estimated from observed data; render decisions per path family; multi-server

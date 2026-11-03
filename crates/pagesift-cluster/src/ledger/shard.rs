@@ -311,6 +311,7 @@ impl Shard {
         if self.check(id, fence)? {
             return Ok(Renewal::Cancel);
         }
+        self.check_holder(id, worker)?;
         let until = now.saturating_add(ms(ttl));
         let e = self.entries.get_mut(&id).expect("checked above");
         match &mut e.st {
@@ -330,11 +331,37 @@ impl Shard {
         })
     }
 
+    /// 租约在别的工人手里时拒绝 `by`（`None`：进程内调用，不查）。令牌是可以猜的小整数，
+    /// 只凭令牌，任何通过认证的工人都能提交或续约别人的任务（0.90）。
+    fn check_holder(&self, id: TaskId, by: Option<&WorkerId>) -> Result<(), Error> {
+        if let (
+            Some(by),
+            Some(St::Leased {
+                worker: Some(h), ..
+            }),
+        ) = (by, self.entries.get(&id).map(|e| &e.st))
+            && h != by
+        {
+            return Err(Error::Rejected(format!(
+                "task {} is leased to another worker",
+                id.0
+            )));
+        }
+        Ok(())
+    }
+
     /// 提交前检查令牌。接受当前分配；租约过期但还没重新分配的也接受（没有别人在做）。
-    pub(crate) fn check_commit(&self, id: TaskId, fence: Fence) -> Result<Commit, Error> {
+    /// `by` 是提交的工人：租约在别的工人手里时拒绝。
+    pub(crate) fn check_commit(
+        &self,
+        id: TaskId,
+        fence: Fence,
+        by: Option<&WorkerId>,
+    ) -> Result<Commit, Error> {
         if self.check(id, fence)? {
             return Ok(Commit::Duplicate);
         }
+        self.check_holder(id, by)?;
         match self.entries[&id].st {
             St::Cancelled => Err(Error::Cancelled),
             St::Leased { .. } | St::Queued => Ok(Commit::Fresh),

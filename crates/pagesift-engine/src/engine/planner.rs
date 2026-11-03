@@ -117,14 +117,9 @@ impl super::Scraper {
         });
         let render_secs = self.render_stats.budget().unwrap_or(fallback).as_secs_f64();
         let family = render_family(url, hints.client_code);
-        let (go, why) = self.planner.decide(
-            &family,
-            true,
-            q.unwrap_or(0.0),
-            render_secs,
-            remaining.as_secs_f64(),
-            0.0,
-        );
+        let (go, why) =
+            self.planner
+                .decide(&family, true, render_secs, remaining.as_secs_f64(), 0.0);
         let step = PlanStep {
             action: "render".into(),
             chosen: go,
@@ -139,7 +134,7 @@ impl super::Scraper {
     }
 
     /// 当前内核渲染出的正文太少（0.81 的规则，`thin`）时，是否换下一个内核再试：
-    /// 换 ⇔ `P(下一个内核更好 | 族) · (1 − Q_当前) > E[渲染秒] · (λ_browser + 1/剩余期限)`，
+    /// 换 ⇔ `P(下一个内核更好 | 族) > E[渲染秒] · (λ_browser + 1/剩余期限)`（同 `RenderPlanner::decide`），
     /// 族里还没有数据时照 0.81 的规则换。结果出来后用 [`Self::record_fallback`] 记下有没有变好。
     pub(super) fn plan_fallback(
         &self,
@@ -164,14 +159,9 @@ impl super::Scraper {
             d.saturating_duration_since(std::time::Instant::now())
         });
         let render_secs = self.render_stats.budget().unwrap_or(fallback).as_secs_f64();
-        let (go, why) = self.planner.decide(
-            family,
-            true,
-            current_quality.unwrap_or(0.0),
-            render_secs,
-            remaining.as_secs_f64(),
-            0.0,
-        );
+        let (go, why) =
+            self.planner
+                .decide(family, true, render_secs, remaining.as_secs_f64(), 0.0);
         let step = PlanStep {
             action: "fallback".into(),
             chosen: go,
@@ -268,32 +258,43 @@ mod tests {
     fn cold_start_follows_the_heuristic_then_learns() {
         let p = RenderPlanner::default();
         let url = &family("https://example.com/docs/a");
-        assert!(p.decide(url, true, 0.5, 1.0, 30.0, 0.0).0);
-        assert!(!p.decide(url, false, 0.5, 1.0, 30.0, 0.0).0);
+        assert!(p.decide(url, true, 1.0, 30.0, 0.0).0);
+        assert!(!p.decide(url, false, 1.0, 30.0, 0.0).0);
         // 同族多次渲染都没有增益之后，即使启发式说要渲染，也基本不再渲染
         for _ in 0..200 {
             p.record(&family("https://example.com/docs/b"), false);
         }
         let renders = (0..100)
-            .filter(|_| p.decide(url, true, 0.5, 1.0, 30.0, 0.0).0)
+            .filter(|_| p.decide(url, true, 1.0, 30.0, 0.0).0)
             .count();
         assert!(renders < 10, "{renders}");
         // 别的族不受影响
         assert!(
-            p.decide(
-                &family("https://example.com/app/x"),
-                true,
-                0.5,
-                1.0,
-                30.0,
-                0.0
-            )
-            .0
+            p.decide(&family("https://example.com/app/x"), true, 1.0, 30.0, 0.0)
+                .0
         );
         assert_eq!(
             family("https://example.com/docs/a?x=1"),
             "https://example.com/docs"
         );
+    }
+
+    /// 0.90 用 `p·(1 − Q_http)` 比较代价：HTTP 结果质量分 0.97（基本率 0.951 附近的常见值）时
+    /// 即使这一族每次渲染都有增益也不再渲染。现在只看 `p` 与代价。
+    #[test]
+    fn a_family_where_rendering_always_helps_keeps_rendering() {
+        let p = RenderPlanner::default();
+        let url = &family("https://example.com/spa/a");
+        for _ in 0..50 {
+            p.record(url, true);
+        }
+        let renders = (0..100)
+            .filter(|_| p.decide(url, true, 1.0, 30.0, 0.0).0)
+            .count();
+        assert!(renders > 90, "{renders}");
+        let (_, why) = p.decide(url, true, 1.0, 30.0, 0.0);
+        assert!(why.learned);
+        assert_eq!(why.value, 1.0);
     }
 
     #[test]
@@ -319,9 +320,10 @@ mod tests {
         let opts = pagesift_content::Options::default();
         let mut doc = pagesift_content::process(&html, &opts);
         let before = doc.markdown.clone();
-        let Some(step) = embedded_json(&mut doc, &html) else {
-            return; // 内置质量模型没加载时不做
-        };
+        // 内置质量模型随二进制发布（`pagesift_plan::quality` 的测试保证它能解码），这里必须出候选：
+        // 0.90 的这个测试在取不到候选时直接 return，掩盖了小数据岛总是取空的问题
+        assert!(pagesift_plan::quality::QualityModel::builtin().is_some());
+        let step = embedded_json(&mut doc, &html).expect("a candidate from the JSON-LD island");
         assert_eq!(step.action, "embedded-json");
         // HTTP 只拿到空壳，数据岛补进整篇正文：质量分应当更高
         assert!(step.chosen, "{step:?}");

@@ -362,3 +362,47 @@ async fn wrong_token_is_rejected() {
     let r = pagesift_cluster::RemoteCoordinator::<Vec<u8>>::connect(a, cfg, clock).await;
     assert!(matches!(r, Err(Error::Rejected(m)) if m.contains("unauthorized")));
 }
+
+/// 通过认证的工人只能动分给自己的任务（0.90：任何工人都能经帧协议提交任务、取消任意任务、
+/// 凭可猜的令牌提交别人的租约，还能请求日志传送拿到全部任务记录）。
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn authenticated_workers_only_touch_their_own_leases() {
+    let h = Harness::new(Mode::Cluster(2)).await;
+    let site = 3;
+    let rejected = |r: Result<_, Error>| matches!(r, Err(Error::Rejected(_)));
+    assert!(rejected(
+        Coordinator::<Vec<u8>>::submit(&*h.remotes[0], task(site, "x"))
+            .await
+            .map(drop)
+    ));
+    let id = h.front.submit(task(site, "x")).await.unwrap();
+    assert!(rejected(
+        Coordinator::<Vec<u8>>::cancel(&*h.remotes[0], id)
+            .await
+            .map(drop)
+    ));
+    let holder = owner_name(&h, site);
+    let other = 1 - holder;
+    let lease = h.workers[holder].pull(free()).await.unwrap();
+    assert_eq!(lease.task, id);
+    assert!(rejected(
+        h.workers[other].commit(&lease, b"forged".to_vec()).await
+    ));
+    assert!(rejected(h.workers[other].renew(&lease).await.map(drop)));
+    h.workers[holder].renew(&lease).await.unwrap();
+    h.workers[holder]
+        .commit(&lease, b"x".to_vec())
+        .await
+        .unwrap();
+
+    // 日志传送只给配置的温备
+    let gw = h.gateway.clone().unwrap();
+    let follower = Ledger::follower(LedgerConfig::new(h.clock.clone(), false)).unwrap();
+    let standby = Standby::new(Arc::new(follower));
+    let (a, b) = tokio::io::duplex(1 << 16);
+    tokio::spawn(async move {
+        let _ = gw.serve(b).await;
+    });
+    let r = standby.follow(a, &common::dial("w0")).await;
+    assert!(rejected(r), "a worker must not receive the journal");
+}

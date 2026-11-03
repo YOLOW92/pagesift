@@ -58,8 +58,10 @@ impl<A: Send + 'static> LedgerFront<A> {
     }
 
     /// 提交；`ran` 是工人上报的执行耗时（`None` 时按分配到提交的时间算）。
+    /// `by`：提交的工人（网关收到的提交），租约在别的工人手里时拒绝；进程内为 `None`。
     pub(crate) fn commit_with(
         &self,
+        by: Option<&WorkerId>,
         task: TaskId,
         fence: Fence,
         result: A,
@@ -67,12 +69,15 @@ impl<A: Send + 'static> LedgerFront<A> {
     ) -> Result<(), Error> {
         let sink = &self.sink;
         match self.journaled {
-            Some((to, from)) => self.ledger.commit(task, fence, Some(to(result)), ran, |b| {
-                sink.deliver(task, from(b.unwrap_or_default()))
-            }),
+            Some((to, from)) => {
+                self.ledger
+                    .commit_by(by, task, fence, Some(to(result)), ran, |b| {
+                        sink.deliver(task, from(b.unwrap_or_default()))
+                    })
+            }
             None => self
                 .ledger
-                .commit(task, fence, None, ran, |_| sink.deliver(task, result)),
+                .commit_by(by, task, fence, None, ran, |_| sink.deliver(task, result)),
         }
         .map(drop)
     }
@@ -96,7 +101,7 @@ impl<A: Send + 'static> Coordinator<A> for LedgerFront<A> {
     }
 
     fn commit<'a>(&'a self, lease: &'a Lease, result: A) -> BoxFuture<'a, Result<(), Error>> {
-        Box::pin(async move { self.commit_with(lease.task, lease.fence(), result, None) })
+        Box::pin(async move { self.commit_with(None, lease.task, lease.fence(), result, None) })
     }
 
     fn cancel(&self, task: TaskId) -> BoxFuture<'_, Result<bool, Error>> {

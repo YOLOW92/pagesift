@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.90.0
+# pagesift 0.91.0
 
 **Convierte páginas web, PDF y archivos de Office en Markdown limpio para LLM y agentes de IA.**  
 Un único binario en Rust, autoalojado: CLI, API HTTP compatible con Firecrawl, endpoint de Jina Reader, servidor MCP, paquetes para Python y Node.js.
@@ -42,7 +42,7 @@ Puede sustituir o acompañar a: **Firecrawl** (la misma API v1/v2, autoalojada),
 - **Memoria:** pico de 14–380 MB por trabajador en las pruebas de 0.81 (el mínimo, con 16 trabajadores en HTML y PDF); la capacidad se ajusta al límite de memoria del cgroup (sin OOM con 768 MiB)
 - **No sirve para:** OCR de PDF escaneados o imágenes; pagesift solo lee la capa de texto (ver *cuándo usarlo* más abajo)
 - **Licencia:** AGPL-3.0, o una [licencia comercial](COMMERCIAL.md)
-- **Última versión:** 0.90.0 · [notas de la versión](releases/0.90.0.md)
+- **Última versión:** 0.91.0 · [notas de la versión](releases/0.91.0.md)
 
 <!-- section: install -->
 ## Instalación y uso
@@ -52,7 +52,7 @@ Puede sustituir o acompañar a: **Firecrawl** (la misma API v1/v2, autoalojada),
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await scrape("https://example.com")).markdown` |
-| Servidor | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:0.90.0` | `curl localhost:3002/r/https://example.com` |
+| Servidor | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:0.91.0` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -95,7 +95,7 @@ for await (const p of scrapeMany(['https://a.com', 'https://b.com'], { concurren
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.90.0
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.91.0
 ```
 
 ```python
@@ -190,14 +190,14 @@ Arquitectura: [architecture.md](architecture.md).
 [licencia comercial](COMMERCIAL.md) o escribe a `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
-## Novedades en 0.90.0
+## Novedades en 0.91.0
 
-La mayoría de los límites, tiempos de espera y umbrales que antes eran fijos ahora se estiman a partir de lo que observa
-el proceso: parten de los valores de 0.81.5 y solo cambian cuando la diferencia es estadísticamente significativa. Además:
-decisiones de renderizado por familia de rutas con traza `explain`, renderizado especulativo, caché binaria, salidas
-`--out` / `--warc`, streams de rastreo y lotes, fragmentación RAG según la estructura de bloques, control de calidad por página
-en PDF y exportación de imágenes, un pool de salidas y roles multiservidor (`gateway`, `worker`, `standby`).
-[Notas de la versión](releases/0.90.0.md) · [todas las versiones](releases/) · [CHANGELOG](../CHANGELOG.md)
+Correcciones de una revisión de código de 0.90.0. Las páginas de trabajos que no se pudieron guardar ni replicar y los
+eventos de webhook que nunca se entregaron ahora se informan en lugar de contarse como hechos; las islas de datos JSON-LD
+pequeñas vuelven a dar texto; el coste de la fusión por bloques está acotado; los adjuntos sobreviven a un reinicio cuando
+los trabajos son persistentes; los workers del clúster ya no pueden leer el journal ni tocar los leases de otros workers;
+y un standby se puede configurar con `takeover = "manual"`.
+[Notas de la versión](releases/0.91.0.md) · [todas las versiones](releases/) · [CHANGELOG](../CHANGELOG.md)
 
 ---
 
@@ -213,7 +213,7 @@ Preguntas o comentarios: [Discord](https://discord.gg/esA3wMZVvA) · [Issues](ht
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 0.90.0}
+  note   = {Version 0.91.0}
 }
 ```
 

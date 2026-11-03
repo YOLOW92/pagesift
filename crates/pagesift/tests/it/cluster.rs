@@ -348,11 +348,15 @@ fn cluster_app(
     mirror: Arc<pagesift::api::JobMirror>,
     listener: tokio::net::TcpListener,
     ids: &[&str],
+    standby: Option<&str>,
 ) -> Router {
     let d = Dispatch::new(
         ledger.clone(),
         tokens(ids),
-        GatewayConfig::default(),
+        GatewayConfig {
+            standby: standby.map(WorkerId::new),
+            ..GatewayConfig::default()
+        },
         Duration::from_secs(30),
     );
     let gw = d.coordinator().clone();
@@ -388,6 +392,70 @@ fn standby_joining_after_the_first_snapshot_takes_over() {
     takeover(true, "c");
 }
 
+/// `takeover = "manual"`：主网关失联后温备只报告、继续重连，不自动接管（运维隔离旧主网关后再手动提升）。
+#[test]
+fn manual_standby_does_not_take_over() {
+    let _serial = serial();
+    let sb_id = "m-sb";
+    let (pd, sd) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let gw_rt = runtime();
+    let (primary, gw_addr) = gw_rt.block_on(async {
+        let s = store(pd.path());
+        let ledger = Arc::new(
+            Ledger::open(
+                LedgerConfig::new(MonoClock::new(), false).with_journal(Journal::new(s.clone())),
+            )
+            .unwrap(),
+        );
+        let l = tokio::net::TcpListener::bind((loopback(1), 0))
+            .await
+            .unwrap();
+        let addr = l.local_addr().unwrap().to_string();
+        let mirror = pagesift::cluster::replicate_jobs(&ledger, &s);
+        (
+            cluster_app(ledger, s, mirror, l, &[sb_id], Some(sb_id)),
+            addr,
+        )
+    });
+    let sb_store = store(sd.path());
+    let ledger = Arc::new(
+        Ledger::follower(
+            LedgerConfig::new(MonoClock::new(), false).with_journal(Journal::new(sb_store.clone())),
+        )
+        .unwrap(),
+    );
+    let opts = pagesift::cluster::StandbyOptions {
+        primary: gw_addr,
+        link: Link {
+            id: WorkerId::new(sb_id),
+            token: token(sb_id),
+            tls: None,
+        },
+        manual: true,
+    };
+    let sb_rt = runtime();
+    let l = ledger.clone();
+    let follow = sb_rt.spawn(async move {
+        let _mirror = pagesift::cluster::replicate_jobs(&l, &sb_store);
+        pagesift::cluster::follow_until_lost(l, &opts, std::future::pending()).await
+    });
+    sb_rt.block_on(async {
+        for i in 0.. {
+            if ledger.shipped_len() > 0 {
+                break;
+            }
+            assert!(i < 4000, "standby never heard from the primary");
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    });
+    drop(primary);
+    drop(gw_rt);
+    // 失联判定最多两个心跳间隔（没有间隔样本时），多等几倍
+    sb_rt.block_on(async { tokio::time::sleep(Duration::from_secs(5)).await });
+    assert!(!follow.is_finished(), "a manual standby took over");
+    assert!(ledger.is_follower());
+}
+
 fn takeover(late: bool, tag: &str) {
     let (worker_id, sb_id) = (format!("{tag}-w0"), format!("{tag}-sb"));
     let ids: Vec<String> = vec![worker_id.clone(), sb_id.clone()];
@@ -418,7 +486,7 @@ fn takeover(late: bool, tag: &str) {
         let addr = l.local_addr().unwrap().to_string();
         let mirror = pagesift::cluster::replicate_jobs(&ledger, &s);
         (
-            cluster_app(ledger.clone(), s, mirror, l, &ids_ref),
+            cluster_app(ledger.clone(), s, mirror, l, &ids_ref, Some(sb_id.as_str())),
             ledger,
             addr,
         )
@@ -448,6 +516,7 @@ fn takeover(late: bool, tag: &str) {
                 token: token(&sb_id),
                 tls: None,
             },
+            manual: false,
         };
         let ids = ids.clone();
         let (tx, rx) = tokio::sync::oneshot::channel();
@@ -460,7 +529,7 @@ fn takeover(late: bool, tag: &str) {
                     .unwrap();
             assert!(term.is_some());
             let ids: Vec<&str> = ids.iter().map(String::as_str).collect();
-            let _ = tx.send(cluster_app(ledger, s, mirror, listener, &ids));
+            let _ = tx.send(cluster_app(ledger, s, mirror, listener, &ids, None));
         });
         rx
     };

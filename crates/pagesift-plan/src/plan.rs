@@ -78,6 +78,7 @@ pub fn choose_plan(
 }
 
 /// 是否追加执行器 `e` 做校验：`(1 − Q)·p·价值 > Σ λ·成本`，`p` 从"`e` 有增益"的后验抽样。
+/// `quality` 必须是绝对的"结果完整"概率；内置的 `crate::quality` 分数不是（见那里的说明），不要直接传进来。
 pub fn should_verify(
     quality: f64,
     gain: &Posterior,

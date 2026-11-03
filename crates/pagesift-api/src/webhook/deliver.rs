@@ -76,14 +76,14 @@ pub(super) fn client(settings: &WebhookSettings) -> reqwest::Client {
 
 impl Webhooks {
     /// 投递一个事件，失败时按指数退避重试。返回时事件已有结果（送达、重试用尽或地址被拦），
-    /// 调用方据此推进已确认游标。
-    pub(super) async fn deliver(&self, cfg: &WebhookConfig, body: &Value) {
+    /// 调用方据此推进已确认游标。送达返回 `None`，没送达返回原因（调用方记成死信）。
+    pub(super) async fn deliver(&self, cfg: &WebhookConfig, body: &Value) -> Option<String> {
         let s = &self.settings;
         // IP 字面量不经过解析器，这里再按当前策略校验一次（任务可能是重启前按旧配置收下的）
         if let Err(e) = s.ssrf.check_url(&cfg.url) {
             self.metrics.webhook("blocked");
             tracing::warn!(url = %cfg.url, error = %e, "webhook target blocked by the SSRF policy");
-            return;
+            return Some(format!("target blocked: {e}"));
         }
         let payload = body.to_string();
         let signature = s.secret.as_deref().map(|k| sign(k, payload.as_bytes()));
@@ -103,7 +103,7 @@ impl Webhooks {
             let (retry, why) = match req.send().await {
                 Ok(r) if r.status().is_success() => {
                     self.metrics.webhook("delivered");
-                    return;
+                    return None;
                 }
                 Ok(r) => {
                     let st = r.status();
@@ -116,20 +116,21 @@ impl Webhooks {
                 Err(e) if is_blocked(&e) => {
                     self.metrics.webhook("blocked");
                     tracing::warn!(url = %cfg.url, error = %e, "webhook target blocked by the SSRF policy");
-                    return;
+                    return Some(format!("target blocked: {e}"));
                 }
                 Err(e) => (true, e.to_string()),
             };
             if !retry || attempt == s.max_attempts {
                 self.metrics.webhook("failed");
                 tracing::warn!(url = %cfg.url, attempt, reason = %why, "webhook delivery failed");
-                return;
+                return Some(format!("{why} after {attempt} attempts"));
             }
             self.metrics.webhook("retried");
             tracing::debug!(url = %cfg.url, attempt, reason = %why, ?backoff, "retrying webhook");
             tokio::time::sleep(backoff).await;
             backoff = (backoff * 2).min(s.max_backoff);
         }
+        Some("no delivery attempt".into())
     }
 }
 

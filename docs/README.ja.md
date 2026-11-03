@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.90.0
+# pagesift 0.91.0
 
 **Web ページ、PDF、Office ファイルを LLM と AI エージェント向けのクリーンな Markdown に変換します。**  
 セルフホストできる単一の Rust バイナリ：CLI、Firecrawl 互換 HTTP API、Jina Reader エンドポイント、MCP サーバー、Python・Node.js パッケージ。
@@ -42,7 +42,7 @@ pagesift は URL を取得する（JavaScript のレンダリングはページ�
 - **メモリ：** 0.81 の各ベンチマークでワーカーあたりピーク 14–380 MB（16 ワーカーで HTML・PDF を処理するときが最小）。容量は cgroup のメモリ上限から自動で決まります（768 MiB で OOM なし）
 - **向かない用途：** スキャン PDF や画像の OCR。pagesift はテキスト層のみを読みます（下の「向いている場面、向いていない場面」を参照）
 - **ライセンス：** AGPL-3.0、または[商用ライセンス](COMMERCIAL.md)
-- **最新版：** 0.90.0 · [リリースノート](releases/0.90.0.md)
+- **最新版：** 0.91.0 · [リリースノート](releases/0.91.0.md)
 
 <!-- section: install -->
 ## インストールと使い方
@@ -52,7 +52,7 @@ pagesift は URL を取得する（JavaScript のレンダリングはページ�
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await scrape("https://example.com")).markdown` |
-| サーバー | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:0.90.0` | `curl localhost:3002/r/https://example.com` |
+| サーバー | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:0.91.0` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -95,7 +95,7 @@ for await (const p of scrapeMany(['https://a.com', 'https://b.com'], { concurren
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.90.0
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.91.0
 ```
 
 ```python
@@ -190,13 +190,13 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 [商用ライセンス](COMMERCIAL.md)を確認するか、`licensing@pagesift.dev` までご連絡ください。
 
 <!-- section: changelog -->
-## 0.90.0 の変更
+## 0.91.0 の変更
 
-これまで固定値だった上限・タイムアウト・しきい値の多くを、プロセスが実際に観測したデータから推定するようにしました。
-0.81.5 の値から始め、統計的に有意な差があるときだけ変更します。ほかに、パスファミリー単位のレンダリング判断（`explain` で各手順を確認可能）、
-投機的レンダリング、バイナリキャッシュ、`--out` / `--warc` 出力、クロールとバッチのストリーム、ブロック構造に沿った RAG チャンク分割、
-PDF のページ品質チェックと画像エクスポート、出口プール、マルチサーバーのロール（`gateway`、`worker`、`standby`）を追加しました。
-[リリースノート](releases/0.90.0.md) · [全リリース](releases/) · [CHANGELOG](../CHANGELOG.md)
+0.90.0 のコードレビューで見つかった問題を修正しました。保存または温備への複製ができなかったジョブのページや、届かなかった webhook
+イベントは、完了扱いにせず報告するようになりました。小さな JSON-LD データアイランドから再び本文を取り出せます。ブロック単位のマージの
+コストに上限を設けました。ジョブを永続化している場合、添付ファイルは再起動後もダウンロードできます。クラスターのワーカーはジャーナルを
+読んだり他のワーカーのリースを操作したりできなくなりました。温備は `takeover = "manual"` に設定できます。
+[リリースノート](releases/0.91.0.md) · [全リリース](releases/) · [CHANGELOG](../CHANGELOG.md)
 
 ---
 
@@ -212,7 +212,7 @@ PDF のページ品質チェックと画像エクスポート、出口プール�
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 0.90.0}
+  note   = {Version 0.91.0}
 }
 ```
 

@@ -1,0 +1,6 @@
+concurrency 1 old p50_ms: median 5.101 range 4.882–5.29 (n=5)
+concurrency 1 new p50_ms: median 5.187 range 4.993–5.698 (n=5)
+concurrency 1 old p95_ms: median 18.158 range 17.347–19.419 (n=5)
+concurrency 1 new p95_ms: median 18.128 range 17.766–19.852 (n=5)
+concurrency 16 old pages_per_s: median 274.0 range 269.7–286.9 (n=5)
+concurrency 16 new pages_per_s: median 275.4 range 259.3–282.9 (n=5)

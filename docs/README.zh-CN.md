@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.90.0
+# pagesift 0.91.0
 
 **把网页、PDF 和 Office 文件转成供 LLM 和 AI 智能体使用的干净 Markdown。**  
 一个自托管的 Rust 二进制：CLI、兼容 Firecrawl 的 HTTP API、Jina Reader 端点、MCP 服务器、Python 和 Node.js 包。
@@ -42,7 +42,7 @@ pagesift 抓取一个 URL（只在页面需要时才渲染 JavaScript）或读�
 - **内存：** 0.81 各项基准中每个 worker 峰值 14–380 MB（16 路处理 HTML、PDF 时最低）；容量按 cgroup 内存上限自动确定（768 MiB 下无 OOM）
 - **不适用：** 扫描版 PDF 或图片的 OCR；pagesift 只读取文本层（见下文“什么时候用”）
 - **许可证：** AGPL-3.0，或[商业许可](COMMERCIAL.md)
-- **最新版本：** 0.90.0 · [发行说明](releases/0.90.0.md)
+- **最新版本：** 0.91.0 · [发行说明](releases/0.91.0.md)
 
 <!-- section: install -->
 ## 安装与使用
@@ -52,7 +52,7 @@ pagesift 抓取一个 URL（只在页面需要时才渲染 JavaScript）或读�
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await scrape("https://example.com")).markdown` |
-| 服务器 | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:0.90.0` | `curl localhost:3002/r/https://example.com` |
+| 服务器 | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:0.91.0` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -95,7 +95,7 @@ for await (const p of scrapeMany(['https://a.com', 'https://b.com'], { concurren
 
 ```bash
 docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.90.0
+  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.91.0
 ```
 
 ```python
@@ -190,12 +190,12 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 [商业许可](COMMERCIAL.md) 或写信到 `licensing@pagesift.dev`。
 
 <!-- section: changelog -->
-## 0.90.0 更新
+## 0.91.0 更新
 
-以前写死的大部分上限、超时和阈值，现在按进程实际观测到的数据估计：从 0.81.5 的值起步，只在统计上显著时才改变。
-其他新增：按路径族的渲染决策（可用 `explain` 查看每一步）、推测执行、二进制缓存、`--out` / `--warc` 输出、爬取和批量任务的
-流式输出、按块结构的 RAG 分块、PDF 按页质量检查和图片导出、出口池，以及多服务器角色（`gateway`、`worker`、`standby`）。
-[发行说明](releases/0.90.0.md) · [全部版本](releases/) · [CHANGELOG](../CHANGELOG.md)
+修复 0.90.0 代码审查发现的问题：存不进去或复制不到温备的任务页面、没有送达的 webhook 事件，现在如实报告，不再算作完成；
+小的 JSON-LD 数据岛重新能取出正文；按块合并的开销有了上限；开了任务持久化时附件重启后仍可下载；集群工人不能再读取账本日志、
+动别的工人的租约；温备可以设为 `takeover = "manual"`。
+[发行说明](releases/0.91.0.md) · [全部版本](releases/) · [CHANGELOG](../CHANGELOG.md)
 
 ---
 
@@ -211,7 +211,7 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 0.90.0}
+  note   = {Version 0.91.0}
 }
 ```
 

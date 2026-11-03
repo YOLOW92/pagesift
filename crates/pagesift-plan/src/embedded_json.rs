@@ -4,6 +4,12 @@
 //!
 //! 哪些字符串是"正文"：同一页所有字符串叶子的长度分布里，长度超过 `q(1−δ)` 的离群值，
 //! 并且像自然语言（含空白分隔的词）。不设固定的字数门槛。字符串本身是 HTML 时按 HTML 提取。
+//!
+//! 叶子少于 `⌈1/δ⌉` 个时经验分位点 `q(1−δ)` 就是最大值本身（`⌈(1−δ)n⌉ = n`），按"大于它"
+//! 取不到任何叶子：0.90 对只有 `@type`、`headline`、`articleBody` 几个字段的 JSON-LD 因此总是空的。
+//! 这时改用长度分布的最大断点：排好序的长度里相邻两项比值（取对数后的差）最大的位置，
+//! 断点之上的叶子是离群的长文本。所有长度相同（没有断点）时不做长度筛选，只看像不像自然语言。
+//! 用不用候选仍由质量分决定。
 
 use pagesift_stat::Delta;
 use serde_json::Value;
@@ -57,8 +63,7 @@ pub fn extract(html: &str, delta: Delta) -> Vec<Block> {
     }
     let mut lens: Vec<usize> = leaves.iter().map(|l| l.text.chars().count()).collect();
     lens.sort_unstable();
-    let k = ((1.0 - delta.get()) * lens.len() as f64).ceil() as usize;
-    let cut = lens[k.clamp(1, lens.len()) - 1];
+    let cut = cutoff(&lens, delta);
     let mut out = vec![];
     let mut seen = std::collections::HashSet::new();
     for leaf in leaves {
@@ -74,6 +79,22 @@ pub fn extract(html: &str, delta: Delta) -> Vec<Block> {
         out.extend(text_blocks(leaf.text));
     }
     out
+}
+
+/// 正文叶子的长度下限（不含）：`q(1−δ)`；样本少到分位点等于最大值时取最大断点（见模块说明）。
+/// `lens` 已排序、非空。
+fn cutoff(lens: &[usize], delta: Delta) -> usize {
+    let n = lens.len();
+    let k = ((1.0 - delta.get()) * n as f64).ceil() as usize;
+    if k < n {
+        return lens[k.max(1) - 1];
+    }
+    // 相邻长度的对数比最大处；加一避免长度 0。只有一个叶子时没有间隔，下限为 0
+    let gap = |i: usize| ((lens[i + 1] + 1) as f64).ln() - ((lens[i] + 1) as f64).ln();
+    match (0..n - 1).max_by(|&a, &b| gap(a).total_cmp(&gap(b))) {
+        Some(i) if gap(i) > 0.0 => lens[i],
+        _ => 0,
+    }
 }
 
 struct Leaf<'a> {
@@ -142,5 +163,95 @@ mod tests {
         );
         assert!(!blocks.iter().any(|b| b.text.starts_with("id-")));
         assert!(extract("<html><body><p>plain</p></body></html>", Delta::default()).is_empty());
+    }
+
+    const BODY: &str = "The council approved the new transit plan on Tuesday after a long debate. \
+                        Supporters said the plan would cut commute times across the city.";
+
+    fn ld(fields: &str) -> String {
+        format!(
+            r#"<html><head><script type="application/ld+json">{{{fields}}}</script></head><body></body></html>"#
+        )
+    }
+
+    fn texts(html: &str) -> Vec<String> {
+        extract(html, Delta::default())
+            .into_iter()
+            .map(|b| b.text)
+            .collect()
+    }
+
+    /// 0.90 在字符串叶子少于 20 个时总是返回空（分位点等于最大值）。n = 1…20 都要取出正文、
+    /// 不带进短字段。
+    #[test]
+    fn small_islands_yield_the_article_body() {
+        for n in [1usize, 2, 3, 5, 10, 19, 20] {
+            let mut fields = vec![format!(r#""articleBody":"{BODY}""#)];
+            if n >= 2 {
+                fields.push(r#""headline":"Transit plan""#.into());
+            }
+            for i in 2..n {
+                fields.push(format!(r#""k{i}":"id-{i}""#));
+            }
+            let t = texts(&ld(&fields.join(",")));
+            assert!(t.iter().any(|x| x == BODY.trim()), "n={n}: {t:?}");
+            assert!(!t.iter().any(|x| x.starts_with("id-")), "n={n}: {t:?}");
+            if n >= 2 {
+                assert_eq!(t[0], "# Transit plan", "n={n}");
+            }
+        }
+    }
+
+    #[test]
+    fn typical_news_article_json_ld() {
+        let html = ld(&format!(
+            r#""@context":"https://schema.org","@type":"NewsArticle","headline":"Transit plan",
+               "datePublished":"2026-11-03","author":{{"@type":"Person","name":"A. Writer"}},
+               "articleBody":"{BODY}""#
+        ));
+        let t = texts(&html);
+        assert_eq!(t, ["# Transit plan", BODY.trim()]);
+    }
+
+    #[test]
+    fn edge_cases_of_the_small_sample_rule() {
+        // 没有像自然语言的字段：什么也不出
+        assert!(texts(&ld(r#""@type":"Thing","sku":"A-1","gtin":"0123""#)).is_empty());
+        // 长度全相同（没有断点）：只按是否像自然语言取
+        let t = texts(&ld(r#""a":"one two","b":"thr fou""#));
+        assert_eq!(t, ["one two", "thr fou"]);
+        // 很长的正文、多个数据岛：短字段不进来
+        let long = BODY.repeat(40);
+        let html = format!(
+            r#"<script type="application/ld+json">{{"@type":"Article","articleBody":"{long}"}}</script>
+               <script type="application/ld+json">{{"@type":"WebPage","name":"Home"}}</script>"#
+        );
+        let t = texts(&html);
+        assert!(t.iter().any(|x| x.len() > BODY.len() * 30), "{t:?}");
+        assert!(
+            !t.iter().any(|x| x == "Home" || x.contains("Article")),
+            "{t:?}"
+        );
+        // 字符串本身是 HTML：按 HTML 提取
+        let html = format!(
+            r#"<script id="__NEXT_DATA__">{{"props":{{"html":"<p>{BODY}</p>","id":"x"}}}}</script>"#
+        );
+        let t = texts(&html);
+        assert_eq!(t.len(), 1, "{t:?}");
+        assert!(
+            t[0].contains("council approved") && !t[0].contains("<p>"),
+            "{t:?}"
+        );
+    }
+
+    #[test]
+    fn cutoff_rule() {
+        let d = Delta::default();
+        assert_eq!(cutoff(&[7], d), 0);
+        assert_eq!(cutoff(&[11, 12, 300], d), 12);
+        assert_eq!(cutoff(&[5, 5, 5], d), 0);
+        // 20 个及以上照旧取 q(1−δ)
+        let lens: Vec<usize> = (1..=20).collect();
+        assert_eq!(cutoff(&lens, d), 19);
     }
 }

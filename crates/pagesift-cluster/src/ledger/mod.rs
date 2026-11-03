@@ -137,6 +137,8 @@ pub struct Ledger {
     snapshotting: AtomicBool,
     /// 上层状态（API 任务记录）：随日志复制到温备，随快照一起压缩。
     app: std::sync::OnceLock<Arc<dyn AppState>>,
+    /// 回放上层写入失败的次数（见 [`Ledger::app_failures`]）。
+    app_failures: AtomicU64,
 }
 
 static LEDGER_IDS: AtomicU64 = AtomicU64::new(0);
@@ -186,6 +188,7 @@ impl Ledger {
             snap_begin: AtomicU64::new(0),
             snapshotting: AtomicBool::new(false),
             app: std::sync::OnceLock::new(),
+            app_failures: AtomicU64::new(0),
         }
     }
 
@@ -510,13 +513,27 @@ impl Ledger {
         ran: Option<Duration>,
         deliver: impl FnOnce(Option<Vec<u8>>),
     ) -> Result<Commit, Error> {
-        let r = self.commit_inner(id, fence, result, ran, deliver);
+        self.commit_by(None, id, fence, result, ran, deliver)
+    }
+
+    /// 同 [`commit`](Self::commit)，`by` 是提交的工人：租约在别的工人手里时拒绝（网关收到的提交）。
+    pub fn commit_by(
+        &self,
+        by: Option<&WorkerId>,
+        id: TaskId,
+        fence: Fence,
+        result: Option<Vec<u8>>,
+        ran: Option<Duration>,
+        deliver: impl FnOnce(Option<Vec<u8>>),
+    ) -> Result<Commit, Error> {
+        let r = self.commit_inner(by, id, fence, result, ran, deliver);
         self.maybe_snapshot();
         r
     }
 
     fn commit_inner(
         &self,
+        by: Option<&WorkerId>,
         id: TaskId,
         fence: Fence,
         result: Option<Vec<u8>>,
@@ -526,7 +543,7 @@ impl Ledger {
         let term = self.writable()?;
         let slot = self.slot_of_id(id);
         let mut s = lock(&slot.shard);
-        if s.check_commit(id, fence)? == Commit::Duplicate {
+        if s.check_commit(id, fence, by)? == Commit::Duplicate {
             return Ok(Commit::Duplicate);
         }
         let now = self.clock.now_ms();

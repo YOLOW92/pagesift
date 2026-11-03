@@ -39,7 +39,7 @@ pub(super) fn meta_key(id: &str) -> String {
     format!("job/{id}")
 }
 
-pub(super) fn list_key(id: &str, what: &str) -> String {
+pub(crate) fn list_key(id: &str, what: &str) -> String {
     format!("job/{id}/{what}")
 }
 
@@ -283,7 +283,7 @@ impl Jobs {
 /// 删除一个任务在存储里的全部数据。
 pub(super) fn delete_job(store: &Store, mirror: Option<&super::mirror::JobMirror>, id: &str) {
     let r = super::mirror::write(store, mirror, |t| {
-        for what in ["pages", "errors", "frontier"] {
+        for what in ["pages", "errors", "frontier", "notes"] {
             t.list_clear(&list_key(id, what))?;
         }
         t.set_clear(&list_key(id, "done"))?;

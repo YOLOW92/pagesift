@@ -67,7 +67,10 @@ pub fn gateway(
         ledger,
         Arc::new(tx),
         TokenStore::new(),
-        GatewayConfig::default(),
+        GatewayConfig {
+            standby: Some(WorkerId::new("standby")),
+            ..GatewayConfig::default()
+        },
     );
     (gw, rx)
 }

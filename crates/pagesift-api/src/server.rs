@@ -195,6 +195,12 @@ pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
         }
         None => Limiter::new(config.store.clone()),
     });
+    // 附件跟任务结果一样写进存储，重启后链接仍然有效（见 `attachments`）
+    if let Some(s) = &config.store
+        && tokio::runtime::Handle::try_current().is_ok()
+    {
+        crate::attachments::sweep_expired(s.clone());
+    }
     let mut webhooks = Webhooks::new(config.webhook, metrics.clone());
     webhooks.mirror = config.job_mirror.clone();
     let jobs = Jobs::new(

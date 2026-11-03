@@ -37,6 +37,10 @@ pub struct GatewayConfig {
     pub heartbeat: Duration,
     /// 网关自己发统计时用的启动编号（区分重启，见 [`Origin`]）。
     pub boot: u64,
+    /// 温备的 id：只有它能请求日志传送（日志里有全部任务记录）。`None` 时谁也不能。
+    pub standby: Option<WorkerId>,
+    /// 允许经帧协议提交、取消任务的 id（默认没有：工人只拉取、续约、提交分给自己的任务）。
+    pub submitters: Vec<WorkerId>,
 }
 
 impl Default for GatewayConfig {
@@ -47,6 +51,8 @@ impl Default for GatewayConfig {
             // 见 standby）；每秒一个约 40 字节的帧对带宽可以忽略，秒级发现满足"温备接管"的可用性目标
             heartbeat: Duration::from_secs(1),
             boot: 0,
+            standby: None,
+            submitters: Vec::new(),
         }
     }
 }
@@ -198,7 +204,17 @@ impl Gw {
         out: Outbox,
     ) {
         match reader.next().await {
-            Ok(Some((_, Msg::Ship { from }))) => self.ship(from, reader, out).await,
+            Ok(Some((corr, Msg::Ship { from }))) => {
+                if self.cfg.standby.as_ref() != Some(&worker) {
+                    let r = Err(Error::Rejected(format!(
+                        "{} is not the configured standby",
+                        worker.as_str()
+                    )));
+                    let _ = out.send(corr, &Msg::Ack { r });
+                    return;
+                }
+                self.ship(from, reader, out).await
+            }
             Ok(Some((
                 corr,
                 Msg::Hello {
@@ -291,6 +307,17 @@ impl Gw {
         }
     }
 
+    fn control(&self, w: &WorkerId) -> Result<(), Error> {
+        if self.cfg.submitters.contains(w) {
+            Ok(())
+        } else {
+            Err(Error::Rejected(format!(
+                "{} may not submit or cancel tasks",
+                w.as_str()
+            )))
+        }
+    }
+
     fn dispatch(&self, w: &WorkerId, origin: &Origin, msg: Msg) -> Option<Msg> {
         let l = self.ledger();
         Some(match msg {
@@ -325,10 +352,18 @@ impl Gw {
                 ran,
                 result,
             } => Msg::Ack {
-                r: self.front.commit_with(task, fence, result, Some(ran)),
+                r: self
+                    .front
+                    .commit_with(Some(w), task, fence, result, Some(ran)),
             },
-            Msg::Submit { task } => Msg::Submitted { r: l.submit(task) },
-            Msg::Cancel { task } => Msg::Cancelled { r: l.cancel(task) },
+            // 工人只执行分到的任务：经帧协议提交、取消任务要在 `GatewayConfig::submitters` 里
+            // （0.90 任何通过认证的工人都能提交任务、取消任意任务）
+            Msg::Submit { task } => Msg::Submitted {
+                r: self.control(w).and_then(|()| l.submit(task)),
+            },
+            Msg::Cancel { task } => Msg::Cancelled {
+                r: self.control(w).and_then(|()| l.cancel(task)),
+            },
             Msg::PriorsReq { scope } => Msg::Priors {
                 tables: l.priors(scope).tables,
             },

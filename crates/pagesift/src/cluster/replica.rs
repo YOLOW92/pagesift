@@ -11,10 +11,12 @@ use pagesift_store::Store;
 struct LedgerLog(Arc<Ledger>);
 
 impl JobLog for LedgerLog {
-    fn append(&self, op: Vec<u8>) {
-        if let Err(e) = self.0.append_app(op) {
-            tracing::warn!("replicating a job record failed: {e}");
-        }
+    /// 失败交回给写入方（`pagesift_api` 让对应的任务失败），不只记日志。
+    fn append(&self, op: Vec<u8>) -> Result<(), String> {
+        self.0.append_app(op).map_err(|e| {
+            tracing::error!("replicating a job record failed: {e}");
+            e.to_string()
+        })
     }
 }
 
@@ -24,10 +26,12 @@ struct JobRecords {
 }
 
 impl AppState for JobRecords {
-    fn apply(&self, op: &[u8]) {
-        if let Err(e) = apply_op(&self.store, op) {
-            tracing::warn!("applying a replicated job record failed: {e}");
-        }
+    /// 失败交回账本：温备记下"任务记录不完整"，不再自动接管（`pagesift_cluster::Standby::take_over`）。
+    fn apply(&self, op: &[u8]) -> Result<(), String> {
+        apply_op(&self.store, op).map_err(|e| {
+            tracing::error!("standby: applying a replicated job record failed: {e}");
+            e.to_string()
+        })
     }
 
     fn dump(&self) -> Vec<Vec<u8>> {

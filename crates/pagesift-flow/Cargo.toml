@@ -8,9 +8,9 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-pagesift-net = { version = "0.90.0", path = "../pagesift-net" }
-pagesift-policy = { version = "0.90.0", path = "../pagesift-policy" }
-pagesift-stat = { version = "0.90.0", path = "../pagesift-stat" }
+pagesift-net = { version = "0.91.0", path = "../pagesift-net" }
+pagesift-policy = { version = "0.91.0", path = "../pagesift-policy" }
+pagesift-stat = { version = "0.91.0", path = "../pagesift-stat" }
 tokio = { version = "1.54.1", features = ["sync"] }
 
 [dev-dependencies]

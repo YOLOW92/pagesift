@@ -106,6 +106,7 @@ pub(crate) fn run(command: Command, mut cfg: pagesift::config::Config) -> Result
                     let opts = pagesift::cluster::StandbyOptions {
                         primary: cfg.cluster.primary()?.to_owned(),
                         link: cfg.cluster.link()?,
+                        manual: cfg.cluster.manual_takeover()?,
                     };
                     eprintln!("pagesift standby: following {}", opts.primary);
                     let followed = pagesift::cluster::follow_until_lost(
@@ -257,8 +258,10 @@ async fn start_gateway(
     let boot = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_millis() as u64);
+    // 只有配置的温备能请求日志传送（日志里有全部任务记录）；工人不能经帧协议提交、取消任务
     let gcfg = pagesift_cluster::GatewayConfig {
         boot,
+        standby: c.standby.as_deref().map(pagesift_cluster::WorkerId::new),
         ..Default::default()
     };
     let d = pagesift::cluster::Dispatch::new(ledger, c.tokens()?, gcfg, page_budget);

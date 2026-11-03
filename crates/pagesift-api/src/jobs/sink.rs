@@ -35,11 +35,28 @@ pub(super) struct JobSink {
     /// 停止摘要要不要存进任务状态（API 的 `pagesift` 字段）。引擎对所有爬取都回调摘要，
     /// 但 API 只在带查询的爬取里给这个字段，响应的形状和以前一样。
     pub(super) keep_summary: bool,
+    /// 持久化（或复制到温备）失败的第一个原因。设上之后任务停止、以 `failed` 结束，
+    /// 失败的那一页不算完成、不发 `page` 事件（0.90 只记警告，照样计为完成，重启后这一页就没了）。
+    pub(super) store_failed: StdMutex<Option<String>>,
 }
 
 impl JobSink {
     fn store(&self) -> Option<&Store> {
         self.jobs.inner.store.as_ref()
+    }
+
+    fn failed_store(&self) -> Option<String> {
+        self.store_failed
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+
+    /// 记下持久化失败（只留第一个原因）。
+    fn persist_failed(&self, what: &str, e: &pagesift_store::Error) {
+        tracing::error!(job = %self.id, error = %e, "saving {what} failed; stopping the job");
+        let mut f = self.store_failed.lock().unwrap_or_else(|e| e.into_inner());
+        f.get_or_insert_with(|| format!("saving {what} failed: {e}"));
     }
 
     async fn owner(&self) -> Option<Caller> {
@@ -53,8 +70,11 @@ impl JobSink {
             .is_some_and(|j| j.state == JobState::Scraping)
     }
 
-    /// 任务被取消，或者调用方的配额用完了。
+    /// 任务被取消、调用方的配额用完了，或者结果存不进去了。
     pub(super) async fn stopped(&self) -> bool {
+        if self.failed_store().is_some() {
+            return true;
+        }
         let owner = {
             let map = self.jobs.inner.map.lock().await;
             match map.get(&self.id) {
@@ -73,9 +93,9 @@ impl JobSink {
 
     /// 记一个完成的页面；`done` 是恢复时用来认出它的键（URL 或批量里的下标）。
     pub(super) async fn record_page(&self, done: String, doc: Document) {
-        crate::attachments::keep(&doc);
+        crate::attachments::keep(&doc, self.store());
         let inner = &self.jobs.inner;
-        if !self.running().await {
+        if !self.running().await || self.failed_store().is_some() {
             return;
         }
         let page_doc = self.hook.as_ref().map(|_| doc.clone());
@@ -98,7 +118,11 @@ impl JobSink {
                 })
                 .await;
             if let Err(e) = r {
-                tracing::warn!(job = %self.id, error = %e, "saving a job page failed");
+                self.persist_failed("a job page", &e);
+                // 本地已经存下（只是没复制到温备）的照常算完成，轮询和重启后看到的一致
+                if !super::mirror::unreplicated(&e) {
+                    return;
+                }
             }
         }
         let owner = {
@@ -129,7 +153,7 @@ impl JobSink {
 
     pub(super) async fn record_error(&self, done: String, url: String, err: ApiError) {
         let inner = &self.jobs.inner;
-        if !self.running().await {
+        if !self.running().await || self.failed_store().is_some() {
             return;
         }
         inner.metrics.error(err.code.as_str(), "job");
@@ -153,7 +177,10 @@ impl JobSink {
                 })
                 .await;
             if let Err(e) = r {
-                tracing::warn!(job = %self.id, error = %e, "saving a job error failed");
+                self.persist_failed("a job error", &e);
+                if !super::mirror::unreplicated(&e) {
+                    return;
+                }
             }
         }
         let mut map = inner.map.lock().await;
@@ -175,6 +202,10 @@ impl JobSink {
 
     /// 任务跑完：定下最终状态、落盘、发结束事件。
     pub(super) async fn finish(&self, result: Result<(), (String, ApiError)>) {
+        let result = match (result, self.failed_store()) {
+            (Ok(()), Some(why)) => Err((String::new(), ApiError::new(ErrorCode::Internal, why))),
+            (r, _) => r,
+        };
         let inner = &self.jobs.inner;
         let quota = self.quota_hit.load(Ordering::Relaxed);
         let mut extra = Vec::new();
@@ -184,17 +215,24 @@ impl JobSink {
         if let Err((url, e)) = &result {
             extra.push(job_error(url.clone(), e));
         }
+        // 任务级的错误（配额、失败原因）进单独的列表：0.90 放在页面错误里，重启后被算进完成数；
+        // 也经过镜像复制（0.90 直接写本地存储，温备上没有）
         if let (Some(store), false) = (self.store(), extra.is_empty()) {
-            let (key, items) = (list_key(&self.id, "errors"), extra.clone());
-            store
+            let (key, items) = (list_key(&self.id, "notes"), extra.clone());
+            let m = inner.mirror.clone();
+            let r = store
                 .blocking(move |s| {
-                    for e in items {
-                        let _ = s
-                            .tasks()
-                            .list_push(&key, &serde_json::to_vec(&e).unwrap_or_default());
-                    }
+                    super::mirror::write(s, m.as_deref(), |t| {
+                        for e in items {
+                            t.list_push(&key, &serde_json::to_vec(&e).unwrap_or_default())?;
+                        }
+                        Ok(())
+                    })
                 })
                 .await;
+            if let Err(e) = r {
+                tracing::error!(job = %self.id, error = %e, "saving the job's final errors failed");
+            }
         }
         let final_state = {
             let mut map = inner.map.lock().await;
@@ -300,7 +338,8 @@ impl CrawlSink for JobSink {
                 })
                 .await;
             if let Err(e) = r {
-                tracing::warn!(job = %self.id, error = %e, "saving the crawl queue failed");
+                // 恢复时的队列不完整了：和页面存不进去一样处理
+                self.persist_failed("the crawl queue", &e);
             }
         })
     }

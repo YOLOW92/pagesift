@@ -106,7 +106,7 @@ pub async fn parse(
         url: page_url,
     };
     let data = s.engine.parse(upload, &opts).await?;
-    crate::attachments::keep(&data);
+    crate::attachments::keep(&data, s.jobs.store());
     s.metrics.page(PageSource::Parse);
     if let Some(Extension(c)) = &caller {
         s.limiter.consume_pages(c, 1).await;

@@ -7,6 +7,12 @@
 //! 4. 只有一方有的块：模板概率 < ½（更可能是正文）且所在候选的质量区间不劣于对方（上界 ≥ 对方下界）才补入。
 //!
 //! 第 6 步"合并后的质量不显著低于最好的单个候选"要对合并结果重新打分，由调用方做。
+//!
+//! 第 2 步的动态规划在一个空隙里要 `n×m` 个单元（时间和内存）。两个候选都来自不可信的页面，
+//! 块数可以很大而几乎没有锚点（0.90 里两边各 10 000 个互不相同的块就是一亿个单元、几 GB 内存），
+//! 所以全部空隙的单元数合计不超过两个候选正文的总字节数：合并的代价与读入候选同阶（线性）。
+//! 超出预算的空隙不再逐块配对，整段取质量均值高的一方（与第 3 步冲突时的取法相同），
+//! 不会把两边相似的块各留一份。
 
 use std::collections::{HashMap, HashSet};
 
@@ -14,7 +20,7 @@ use pagesift_stat::Delta;
 
 use crate::block::{Block, jaccard};
 
-/// 候选的质量：校准后的 P(完整可用) 及其区间。
+/// 候选的质量：校准后的相对质量分（`crate::quality`，只用来比较两个候选）及其区间。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Quality {
     pub mean: f64,
@@ -60,6 +66,8 @@ pub fn merge(left: &Candidate, right: &Candidate, delta: Delta) -> Merged {
     let wa: Vec<HashSet<String>> = left.blocks.iter().map(Block::words).collect();
     let wb: Vec<HashSet<String>> = right.blocks.iter().map(Block::words).collect();
     let tau = same_block_threshold(&anchors, &wa, &wb, delta);
+    let bytes = |c: &Candidate| c.blocks.iter().map(|b| b.text.len()).sum::<usize>();
+    let mut budget = bytes(left) + bytes(right);
 
     let mut out = Merged {
         blocks: vec![],
@@ -67,7 +75,12 @@ pub fn merge(left: &Candidate, right: &Candidate, delta: Delta) -> Merged {
     };
     let (mut i0, mut j0) = (0, 0);
     for &(i, j) in anchors.iter().chain(std::iter::once(&(a.len(), b.len()))) {
-        gap(left, right, (i0, i), (j0, j), &wa, &wb, tau, &mut out);
+        let g = Gap {
+            is: i0..i,
+            js: j0..j,
+            tau,
+        };
+        gap(left, right, g, &wa, &wb, &mut budget, &mut out);
         if i < a.len() {
             out.blocks.push(left.blocks[i].clone());
             out.from.push(From::Both);
@@ -101,18 +114,52 @@ fn same_block_threshold(
     null[k.clamp(1, null.len()) - 1]
 }
 
-#[allow(clippy::too_many_arguments)] // 一个空隙的两侧范围和各自的词集合，只在 merge 里调用
+/// 两个锚点之间的一段空隙：左右两边的块范围和"同一块"的门槛。
+struct Gap {
+    is: std::ops::Range<usize>,
+    js: std::ops::Range<usize>,
+    tau: f64,
+}
+
+/// 空隙超出剩余预算时整段取哪一边：质量均值高的一方；均值相同按块数、再按文字定序，与参数顺序无关。
+fn left_side_wins(left: &Candidate, right: &Candidate, g: &Gap) -> bool {
+    fn text<'a>(c: &'a Candidate, r: &std::ops::Range<usize>) -> Vec<&'a str> {
+        c.blocks[r.clone()]
+            .iter()
+            .map(|b| b.text.as_str())
+            .collect()
+    }
+    (left.quality.mean, g.is.len(), text(left, &g.is))
+        > (right.quality.mean, g.js.len(), text(right, &g.js))
+}
+
 fn gap(
     left: &Candidate,
     right: &Candidate,
-    (i0, i1): (usize, usize),
-    (j0, j1): (usize, usize),
+    g: Gap,
     wa: &[HashSet<String>],
     wb: &[HashSet<String>],
-    tau: f64,
+    budget: &mut usize,
     out: &mut Merged,
 ) {
-    let pairs = monotone_matching(i0..i1, j0..j1, |i, j| {
+    let cells = g.is.len().saturating_mul(g.js.len());
+    if cells > *budget {
+        let (c, r, from) = if left_side_wins(left, right, &g) {
+            (left, g.is.clone(), From::Left)
+        } else {
+            (right, g.js.clone(), From::Right)
+        };
+        for k in r {
+            if c.blocks[k].template_prob.is_none_or(|p| p < 0.5) {
+                out.blocks.push(c.blocks[k].clone());
+                out.from.push(from);
+            }
+        }
+        return;
+    }
+    *budget -= cells;
+    let (i0, j0, i1, j1, tau) = (g.is.start, g.js.start, g.is.end, g.js.end, g.tau);
+    let pairs = monotone_matching(g.is, g.js, |i, j| {
         let s = jaccard(&wa[i], &wb[j]);
         (s > tau).then_some(s)
     });
@@ -271,5 +318,58 @@ mod tests {
         });
         let m = merge(&x, &y, Delta::default());
         assert!(!m.blocks.iter().any(|b| b.text == "Subscribe now"));
+    }
+
+    /// 两边各几千个互不相同、没有锚点的块：0.90 要建 n×m 的矩阵（一万对一万是一亿个单元）。
+    /// 现在超出线性预算的空隙整段取质量高的一方，很快返回，也不重复留相似的块。
+    #[test]
+    fn huge_unanchored_gap_stays_linear_and_keeps_the_better_side() {
+        let side = |tag: &str, n: usize| -> String {
+            (0..n)
+                .map(|i| format!("{tag} block number {i} with words w{i}x\n\n"))
+                .collect()
+        };
+        let n = 5000;
+        let (x, y) = (cand(&side("left", n), 0.9), cand(&side("right", n), 0.5));
+        let (m, took) = pagesift_testkit::cpu_time(|| merge(&x, &y, Delta::default()));
+        assert_eq!(m.blocks.len(), n);
+        assert!(m.from.iter().all(|f| *f == From::Left));
+        assert_eq!(
+            set(&merge(&y, &x, Delta::default())),
+            set(&m),
+            "argument order"
+        );
+        // 本线程的 CPU 时间，宽松的上限。0.91 开发机（quick 档）上：二次的做法两次合并共 9.4 s、
+        // 峰值 598 MB，现在 0.03 s
+        assert!(
+            took < pagesift_testkit::budget(std::time::Duration::from_millis(100)),
+            "{took:?}"
+        );
+    }
+
+    /// 预算内的小空隙照旧逐块配对。
+    #[test]
+    fn small_gaps_still_match_block_by_block() {
+        let x = cand(
+            "# Title\n\nFirst paragraph about rust.\n\nSecond paragraph about cats.\n\nFourth paragraph about birds.\n",
+            0.7,
+        );
+        let y = cand(
+            "# Title\n\nFirst paragraph about rust.\n\nSecond paragraph about cats!\n\nThird paragraph about dogs.\n\nFourth paragraph about birds.\n",
+            0.7,
+        );
+        let m = merge(&x, &y, Delta::default());
+        assert!(
+            m.blocks
+                .iter()
+                .any(|b| b.text == "Third paragraph about dogs.")
+        );
+        assert_eq!(
+            m.blocks
+                .iter()
+                .filter(|b| b.text.starts_with("Second"))
+                .count(),
+            1
+        );
     }
 }

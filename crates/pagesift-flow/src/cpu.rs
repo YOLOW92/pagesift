@@ -5,6 +5,11 @@
 //!
 //! 同时在跑的 CPU 任务数等于工人数，与原来的许可数相同；排队的任务不占线程。
 //!
+//! 排队有上限：在跑加排队的任务合计不超过 2 × 工人数（每个工人一个在跑、一个排着）。
+//! [`Pool::run`] 拿不到名额时异步地等（FIFO），等待中的调用方被取消就不占名额；
+//! [`Pool::spawn`]（不等结果的解压）拿不到名额时在调用方线程就地执行，与"不值得交出去"时相同。
+//! 0.90 的队列没有上限：慢任务加大量提交时排队数和它们持有的输入一起无界增长。
+//!
 //! 工人不逐核硬绑，只绑到所在 NUMA 节点的 CPU 集合，节点内由调度器安排：
 //! - 逐核硬绑时工人和同核的异步线程互相抢、又迁不走，本机并发 16 吞吐掉一半；0.70 在 192 vCPU 上
 //!   逐逻辑核硬绑 -33.9%、绑节点集合 +8.63%（docs/history/0.70_p2_step2_numa_executor.md）；
@@ -70,6 +75,8 @@ thread_local! {
 
 struct Shared {
     slots: Vec<Slot>,
+    /// 在跑加排队的名额（见模块说明）。
+    permits: Arc<tokio::sync::Semaphore>,
     /// 已入队、还没被取走的任务数。
     pending: Padded<AtomicUsize>,
     shutdown: AtomicBool,
@@ -216,6 +223,9 @@ impl Pool {
                     steal: steal_order(i),
                 })
                 .collect(),
+            // [推导] 每个工人一个在跑、一个排队：工人做完手上的立刻有下一个，不空等异步一侧补货；
+            // 再多排只是把等待从异步任务挪进队列，不增加吞吐
+            permits: Arc::new(tokio::sync::Semaphore::new(n * 2)),
             pending: Padded(AtomicUsize::new(0)),
             shutdown: AtomicBool::new(false),
             next: Padded(AtomicUsize::new(0)),
@@ -238,6 +248,16 @@ impl Pool {
 
     pub fn workers(&self) -> usize {
         self.shared.slots.len()
+    }
+
+    /// 在跑加排队的任务数上限。
+    pub fn capacity(&self) -> usize {
+        self.workers() * 2
+    }
+
+    /// 已入队、还没开始执行的任务数。
+    pub fn queued(&self) -> usize {
+        self.shared.pending.0.load(Ordering::Relaxed)
     }
 
     /// 一次跨线程往返（交给工人、再把结果交回）的平均耗时估计：派发延迟的均值 × 2
@@ -283,11 +303,16 @@ impl Pool {
         key: Option<u64>,
         f: impl FnOnce() -> T + Send + 'static,
     ) -> Result<T, Panicked> {
+        let permit = Arc::clone(&self.shared.permits)
+            .acquire_owned()
+            .await
+            .map_err(|_| Panicked)?;
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.submit(
             key,
             Box::new(move || {
                 let _ = tx.send(catch_unwind(AssertUnwindSafe(f)));
+                drop(permit);
             }),
         );
         match rx.await {
@@ -297,11 +322,17 @@ impl Pool {
     }
 
     /// 把一个不需要结果的任务交给工人（例如交给 `pagesift-net` 的解压）。
+    /// 名额用完时在当前线程就地执行（见模块说明）。
     pub fn spawn(&self, f: impl FnOnce() + Send + 'static) {
+        let Ok(permit) = Arc::clone(&self.shared.permits).try_acquire_owned() else {
+            let _ = catch_unwind(AssertUnwindSafe(f));
+            return;
+        };
         self.submit(
             None,
             Box::new(move || {
                 let _ = catch_unwind(AssertUnwindSafe(f));
+                drop(permit);
             }),
         );
     }
@@ -380,5 +411,56 @@ mod tests {
             assert_eq!(rt.block_on(pool.run(None, move || i)), Ok(i));
         }
         // 不断言 round_trip：它要等窗口均值精度达标才发布，机器满载时唤醒延迟抖动大，可能一直是 None
+    }
+
+    /// 慢任务加大量提交：排队数不超过上限，等待中被取消的调用方不留在队列里。
+    #[tokio::test(flavor = "multi_thread")]
+    async fn queue_is_bounded_and_cancelled_waiters_leave_no_work() {
+        let pool = Arc::new(Pool::new(2).unwrap());
+        let gate = Arc::new(std::sync::Barrier::new(3));
+        let ran = Arc::new(AtomicUsize::new(0));
+        let mut tasks = Vec::new();
+        for _ in 0..100 {
+            let (pool, gate, ran) = (pool.clone(), gate.clone(), ran.clone());
+            tasks.push(tokio::spawn(async move {
+                pool.run(None, move || {
+                    if ran.fetch_add(1, Ordering::SeqCst) < 2 {
+                        gate.wait();
+                    }
+                })
+                .await
+            }));
+        }
+        // 两个工人卡在 gate 上：队列里最多再有 capacity − workers 个
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert!(
+            pool.queued() <= pool.capacity() - pool.workers(),
+            "{}",
+            pool.queued()
+        );
+        // 取消一半等待者，放开工人
+        for t in tasks.iter().skip(50) {
+            t.abort();
+        }
+        gate.wait();
+        let mut done = 0;
+        for t in tasks {
+            if let Ok(r) = t.await {
+                r.unwrap();
+                done += 1;
+            }
+        }
+        assert!(done >= 50);
+        assert_eq!(ran.load(Ordering::SeqCst), done);
+        assert_eq!(pool.queued(), 0);
+        // 名额用完时 spawn 就地执行
+        let here = std::thread::current().id();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let held: Vec<_> = (0..pool.capacity())
+            .map(|_| pool.shared.permits.clone().try_acquire_owned().unwrap())
+            .collect();
+        pool.spawn(move || tx.send(std::thread::current().id()).unwrap());
+        assert_eq!(rx.recv().unwrap(), here);
+        drop(held);
     }
 }

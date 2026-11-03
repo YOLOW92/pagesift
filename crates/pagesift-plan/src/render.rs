@@ -31,6 +31,8 @@ pub struct RenderWhy {
     /// 是否来自学到的后验（否则是冷启动的启发式）。
     pub learned: bool,
     pub p: f64,
+    /// 一次增益的价值。0.91 起恒为 1（以"一次增益"为单位）；0.90 取 `1 − Q_http`，
+    /// 把相对质量分当成了绝对的"不完整概率"（见 [`RenderPlanner::decide`]）。
     pub value: f64,
     pub charge: f64,
 }
@@ -69,17 +71,21 @@ impl RenderPlanner {
 
     /// 是否渲染。`heuristic` 是 0.81 规则的结论；`render_secs` 是预计渲染耗时（秒）；
     /// `remaining_secs` 是这个请求剩下的期限；`browser_price` 是浏览器的影子价格（每标签秒）。
+    ///
+    /// 学过的族：渲染 ⇔ `p > E[渲染秒]·(λ_browser + 1/剩余期限)`，`p` 是"渲染有增益"的后验抽样，
+    /// 一次增益记为 1。0.90 在左边再乘 `1 − Q_http`，但质量分的训练标签是"召回不在所在评测集最差 δ"
+    /// （正例率 0.951），只能用来比较两个结果，不是"结果不完整"的绝对概率；乘上它让学过的族几乎不再渲染。
+    /// 调用方只在 0.81 规则说要渲染时调用（候选闸门），所以渲染不会比 0.81 多。
     pub fn decide(
         &self,
         family: &str,
         heuristic: bool,
-        http_quality: f64,
         render_secs: f64,
         remaining_secs: f64,
         browser_price: f64,
     ) -> (bool, RenderWhy) {
         let counts = self.with(family, |m, k| m.get(&k).copied());
-        let value = 1.0 - http_quality.clamp(0.0, 1.0);
+        let value = 1.0;
         let charge = render_secs * (browser_price + 1.0 / remaining_secs.max(f64::MIN_POSITIVE));
         match counts.filter(|c| c.trials() > 0.0) {
             None => (

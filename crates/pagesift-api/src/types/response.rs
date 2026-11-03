@@ -207,7 +207,8 @@ pub struct Document {
     /// 页面声明的其他语言版本（`hreflang`）：(语言, 地址)。爬虫找英文版用；不进 JSON。
     #[serde(skip)]
     pub alternates: Vec<(String, String)>,
-    /// 引擎内部用的校准质量分 `P(完整可用)`，渲染决策和按块合并用；不进 JSON、不进缓存。
+    /// 引擎内部用的校准相对质量分（`pagesift_plan::quality`：只用来比较同一页的结果，不是绝对概率），
+    /// 采用渲染结果和按块合并时用；不进 JSON、不进缓存。
     #[serde(skip)]
     pub quality: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]

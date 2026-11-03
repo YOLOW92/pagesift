@@ -168,7 +168,7 @@ impl ToolHandler for Scrape {
             let mut out = ToolOutput::text(text);
             out.structured_content = serde_json::to_value(&doc).ok();
             // 导出的图片：内容存起来，结果里给资源链接（`resources/read` 取）
-            pagesift_api::attachments::keep(&doc);
+            pagesift_api::attachments::keep(&doc, None);
             out.content.extend(doc.attachments.iter().map(|a| {
                 pagesift_mcp::Content::ResourceLink {
                     uri: format!("{ATTACHMENT_URI}{}", a.id),

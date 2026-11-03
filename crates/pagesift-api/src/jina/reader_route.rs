@@ -138,8 +138,10 @@ async fn record_ok(s: &AppState, caller: Option<&Caller>) {
     }
 }
 
-/// SSE：响应头立刻发出，抓取在流里进行；抓完逐个写出 progress、各段 content 和 done，
-/// 每段一产出就写，不拼成整块。客户端中途断开就停止抓取。响应头发出后才失败的，用 `error` 事件报告。
+/// SSE：响应头立刻发出，抓取在流里进行；整页抓完、提取完之后才逐个写出 progress、各段 content 和 done
+/// （按段分帧写出，不拼成整块）。这不是边提取边推：第一个 `content` 的时刻等于整页提取完成的时刻，
+/// 不是"正文块一产出就推"（0.90 的发布说明写成了"一产出就写"，不准确）。
+/// 客户端中途断开就停止抓取。响应头发出后才失败的，用 `error` 事件报告。
 fn stream_scrape(
     s: AppState,
     caller: Option<Caller>,

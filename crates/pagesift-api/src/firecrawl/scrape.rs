@@ -25,7 +25,7 @@ pub async fn scrape(
     }
     match s.engine.scrape(&req.url, &req.options).await {
         Ok(data) => {
-            crate::attachments::keep(&data);
+            crate::attachments::keep(&data, s.jobs.store());
             s.metrics.scrape_ok.fetch_add(1, Ordering::Relaxed);
             s.metrics.page(PageSource::Scrape);
             if let Some(Extension(c)) = &caller {

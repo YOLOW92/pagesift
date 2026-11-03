@@ -7,6 +7,10 @@
 //! 已投过的事件，投递时也按已确认游标跳过，不重发。
 //! 写存储与交给日志在同一把锁里完成，日志顺序就是写入顺序；快照拿同一把锁，得到一致的切面。
 //!
+//! 交给日志失败（账本日志写不进去）时 [`write`] 返回错误：本地已经写进去的部分不撤回，但调用方知道
+//! 这组写入没有复制到温备（任务因此失败，见 `jobs::sink`），不会像 0.90 那样只在日志里记一笔警告。
+//! 镜像同时记下失败次数（[`JobMirror::failures`]）。
+//!
 //! 单主机没有 `JobMirror`，任务存储的写法不变。
 
 use std::sync::{Arc, Mutex};
@@ -15,14 +19,15 @@ use pagesift_store::{Store, Tasks};
 
 use super::store::{list_key, meta_key};
 
-/// 复制写入的去处（网关：追加进账本日志）。
+/// 复制写入的去处（网关：追加进账本日志）。失败时返回原因。
 pub trait JobLog: Send + Sync {
-    fn append(&self, op: Vec<u8>);
+    fn append(&self, op: Vec<u8>) -> Result<(), String>;
 }
 
 pub struct JobMirror {
     log: Arc<dyn JobLog>,
     lock: Mutex<()>,
+    failures: std::sync::atomic::AtomicU64,
 }
 
 // [协议] 本模块自定的操作标签
@@ -35,7 +40,7 @@ const SET_CLEAR: u8 = 6; // [协议] 同上
 const LIST_POP: u8 = 7; // [协议] 同上
 
 /// 任务的列表（与 `store.rs` 的布局一致）。
-const LISTS: &[&str] = &["pages", "errors", "frontier"];
+const LISTS: &[&str] = &["pages", "errors", "frontier", "notes"];
 
 fn put_bytes(out: &mut Vec<u8>, b: &[u8]) {
     out.extend_from_slice(&(b.len() as u64).to_le_bytes());
@@ -149,11 +154,40 @@ pub(crate) fn write<R>(
         ops: Some(Vec::new()),
     };
     let r = f(&mut w);
-    // 失败的一组里已经写进本地的部分也照样复制，两边保持一致
+    // 失败的一组里已经写进本地的部分也照样复制，两边保持一致；一条交不出去就不再交后面的
+    // （温备按序号追加列表，跳过一条后后面的会错位）
+    let mut failed = None;
     for o in w.ops.take().unwrap_or_default() {
-        m.log.append(o);
+        if let Err(e) = m.log.append(o) {
+            m.failures
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            failed = Some(e);
+            break;
+        }
     }
-    r
+    match (r, failed) {
+        (Ok(_), Some(e)) => Err(pagesift_store::Error::Io(std::io::Error::other(
+            Unreplicated(e),
+        ))),
+        (r, _) => r,
+    }
+}
+
+/// 本地已经写进去、只是没能交给复制日志：[`write`] 的这种错误里装的是它（[`unreplicated`] 判断）。
+#[derive(Debug)]
+struct Unreplicated(String);
+
+impl std::fmt::Display for Unreplicated {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "replicating to the standby failed: {}", self.0)
+    }
+}
+
+impl std::error::Error for Unreplicated {}
+
+/// `e` 是不是"本地写成了、复制失败"（见 [`write`]）。
+pub(crate) fn unreplicated(e: &pagesift_store::Error) -> bool {
+    matches!(e, pagesift_store::Error::Io(io) if io.get_ref().is_some_and(|x| x.is::<Unreplicated>()))
 }
 
 impl JobMirror {
@@ -161,7 +195,13 @@ impl JobMirror {
         Arc::new(Self {
             log,
             lock: Mutex::new(()),
+            failures: std::sync::atomic::AtomicU64::new(0),
         })
+    }
+
+    /// 交给日志失败的写入组数（自进程启动）。
+    pub fn failures(&self) -> u64 {
+        self.failures.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// 存储里全部任务记录，编码成复制操作（快照用）：每个列表、集合先清空再按序号写入，
@@ -272,9 +312,44 @@ mod tests {
     struct Vec2(Mutex<Vec<Vec<u8>>>);
 
     impl JobLog for Vec2 {
-        fn append(&self, op: Vec<u8>) {
+        fn append(&self, op: Vec<u8>) -> Result<(), String> {
             self.0.lock().unwrap().push(op);
+            Ok(())
         }
+    }
+
+    /// 日志写不进去（第二条起）：写入报错、计数加一，不再交后面的操作。
+    struct Broken(Mutex<usize>);
+
+    impl JobLog for Broken {
+        fn append(&self, _op: Vec<u8>) -> Result<(), String> {
+            let mut n = self.0.lock().unwrap();
+            *n += 1;
+            if *n > 1 {
+                Err("journal full".into())
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    #[test]
+    fn a_failed_append_is_reported_to_the_writer() {
+        let a = tempfile::tempdir().unwrap();
+        let src = Store::open_dir(a.path()).unwrap();
+        let log = Arc::new(Broken(Mutex::new(0)));
+        let m = JobMirror::new(log.clone());
+        let r = write(&src, Some(&m), |w| {
+            w.list_push(&list_key("j1", "pages"), b"a")?;
+            w.list_push(&list_key("j1", "pages"), b"b")?;
+            w.set_insert(&list_key("j1", "done"), b"a")
+        });
+        let e = r.unwrap_err();
+        assert!(unreplicated(&e));
+        let e = e.to_string();
+        assert!(e.contains("journal full"), "{e}");
+        assert_eq!(m.failures(), 1);
+        assert_eq!(*log.0.lock().unwrap(), 2);
     }
 
     /// 网关的写入复制到另一个存储后逐项相同；重放两遍、再叠加一次快照，结果不变。

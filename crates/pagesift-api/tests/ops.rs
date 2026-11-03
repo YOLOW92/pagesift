@@ -572,6 +572,52 @@ async fn webhook_gives_up_after_max_attempts_without_blocking_the_job() {
     assert!(got.iter().all(|(_, b, _)| b["type"] == "crawl.completed"));
 }
 
+/// 有存储时，重试用尽的事件记成死信：任务错误里有 `WEBHOOK_FAILED` 和它的 `eventId`，重启后还在。
+/// 0.90 只计数、记日志，游标推进后这个事件就查不到了。
+#[test]
+fn undelivered_webhook_events_are_kept_as_job_errors() {
+    let dir = tempfile::tempdir().unwrap();
+    let (fake, _) = Fake::new(1);
+    let rt = runtime();
+    let path = rt.block_on(async {
+        let (url, _got) = receiver(usize::MAX).await;
+        let app = router(
+            fake.clone(),
+            Config {
+                webhook: hook_settings(None),
+                store: Some(store(dir.path())),
+                public_url: Some("http://pagesift.test".into()),
+                ..Default::default()
+            },
+        );
+        let (_, _, v) = call(
+            &app,
+            "POST",
+            "/v2/crawl",
+            Some(json!({"url": format!("{BASE}/p/0"), "limit": 3,
+                        "webhook": {"url": url, "events": ["completed"]}})),
+            None,
+        )
+        .await;
+        let path = format!("/v2/crawl/{}", v["id"].as_str().unwrap());
+        wait(&app, &path, |v| v["status"] == "completed").await;
+        let errors = format!("{path}/errors");
+        let e = wait(&app, &errors, |v| v.to_string().contains("WEBHOOK_FAILED")).await;
+        let s = e.to_string();
+        assert!(s.contains(":1") && s.contains("crawl.completed"), "{s}");
+        path
+    });
+    drop(rt);
+    let rt = runtime();
+    rt.block_on(async {
+        let app = persisted(fake.clone(), dir.path());
+        let (_, _, v) = call(&app, "GET", &path, None, None).await;
+        assert_eq!(v["completed"], 3, "dead letters are not pages: {v}");
+        let (_, _, e) = call(&app, "GET", &format!("{path}/errors"), None, None).await;
+        assert!(e.to_string().contains("WEBHOOK_FAILED"), "{e}");
+    });
+}
+
 /// 把所有域名都解析到一个内网地址。
 struct PrivateDns;
 
@@ -1090,4 +1136,83 @@ fn saved_completion_receipts_repair_missing_done_marks() {
             }
         }
     }
+}
+
+/// 复制日志：攒到 `ok` 条之后全部失败（账本日志写不进去）。
+struct BreakingLog {
+    appended: std::sync::atomic::AtomicUsize,
+    ok: usize,
+}
+
+impl pagesift_api::JobLog for BreakingLog {
+    fn append(&self, _op: Vec<u8>) -> Result<(), String> {
+        let n = self
+            .appended
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        if n < self.ok {
+            Ok(())
+        } else {
+            Err("journal full".into())
+        }
+    }
+}
+
+/// 结果写不进去（这里是复制到温备的日志失败）时任务失败，不把那一页算成完成：完成数、轮询到的文档数
+/// 一致，错误里说明原因。0.90 只记一条警告，任务照样 `completed`，重启后缺页。
+/// 重启（存储恢复正常）后任务从断点接着跑完，页面不重不漏。
+#[test]
+fn a_failed_result_write_fails_the_job_instead_of_counting_the_page() {
+    let dir = tempfile::tempdir().unwrap();
+    let limit = 30;
+    let (fake, _) = Fake::new(1);
+    let rt = runtime();
+    let id = rt.block_on(async {
+        let log = Arc::new(BreakingLog {
+            appended: Default::default(),
+            ok: 40,
+        });
+        let app = router(
+            fake.clone(),
+            Config {
+                public_url: Some("http://pagesift.test".into()),
+                store: Some(store(dir.path())),
+                job_mirror: Some(pagesift_api::JobMirror::new(log)),
+                ..Default::default()
+            },
+        );
+        let (status, _, v) = call(
+            &app,
+            "POST",
+            "/v2/crawl",
+            Some(json!({"url": format!("{BASE}/p/0"), "limit": limit})),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{v}");
+        let id = v["id"].as_str().unwrap().to_string();
+        let path = format!("/v2/crawl/{id}");
+        let v = wait(&app, &path, |v| v["status"] != "scraping").await;
+        assert_eq!(v["status"], "failed", "{v}");
+        let completed = v["completed"].as_u64().unwrap() as usize;
+        assert!(completed > 0 && completed < limit, "{v}");
+        assert_eq!(all_sources(&app, &path).await.len(), completed);
+        let (_, _, e) = call(&app, "GET", &format!("{path}/errors"), None, None).await;
+        assert!(e.to_string().contains("journal full"), "{e}");
+        id
+    });
+    drop(rt);
+    let rt = runtime();
+    rt.block_on(async {
+        let app = persisted(fake.clone(), dir.path());
+        let path = format!("/v2/crawl/{id}");
+        let (_, _, v) = call(&app, "GET", &path, None, None).await;
+        let sources = all_sources(&app, &path).await;
+        assert_eq!(
+            v["completed"].as_u64().unwrap() as usize,
+            sources.len(),
+            "{v}"
+        );
+        let unique: HashSet<&String> = sources.iter().collect();
+        assert_eq!(unique.len(), sources.len());
+    });
 }

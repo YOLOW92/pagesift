@@ -2,6 +2,7 @@
 //!
 //! [`sse_events`] 逐个产出事件文本，路由按段写进流式响应体（见 `reader_route`），不拼成一个大字符串；
 //! [`stream_markdown_sse`] 保留旧的整块接口，字节和流式拼起来一样。
+//! 事件在整页提取完成之后才产生：分帧发送，不是提取过程中的增量输出。
 
 use axum::body::Body;
 use axum::http::header;
