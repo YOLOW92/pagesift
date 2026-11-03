@@ -22,7 +22,6 @@ pub const CONTENT_RISK: &[&str] = &[
     "cells_truncated",
     "columns_dropped",
     "epub_item_missing",
-    "scanned PDF",
     "decode",
     "body_truncated",
     "scanned_pages_without_ocr",
