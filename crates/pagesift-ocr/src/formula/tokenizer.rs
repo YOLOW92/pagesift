@@ -87,6 +87,7 @@ fn token_bytes(tok: &str, table: &[Option<u8>]) -> Vec<u8> {
 fn byte_table() -> Vec<Option<u8>> {
     // [协议] GPT-2 encoder.py 的 bytes_to_unicode：三段可见字节区间与表外字节的起始码位 256
     let visible = |b: u8| (33..=126).contains(&b) || (161..=172).contains(&b) || b >= 174;
+    // [协议] 同上：表外字节从 U+0100 起
     const SHIFT: usize = 256;
     let mut table = vec![None; SHIFT * 2];
     let mut n = 0;

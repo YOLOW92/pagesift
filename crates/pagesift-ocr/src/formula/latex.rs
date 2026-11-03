@@ -38,14 +38,7 @@ fn is_noletter(c: char) -> bool {
 }
 
 fn starts_with(c: &[char], i: usize, s: &str) -> bool {
-    let mut k = i;
-    for x in s.chars() {
-        if c.get(k) != Some(&x) {
-            return false;
-        }
-        k += 1;
-    }
-    true
+    (i..).zip(s.chars()).all(|(k, x)| c.get(k) == Some(&x))
 }
 
 /// `re.sub(r"\\text\s*{([^{}]*[\u4e00-\u9fff]+[^{}]*)}", r"\1", s)` 后去掉所有 `"`。
