@@ -118,3 +118,16 @@ enabled = true
 # drop_fields = ["links", "extract.internal_id"]
 # rename_fields = { title = "headline" }
 # priority = 0
+
+# 扫描 PDF 页的 OCR，默认关。打开后，第一张扫描图来时才从上游的锁定版本下载模型并校验 SHA-256
+# （权重不随 pagesift 分发）；离线环境用 `pagesift models fetch` 提前下好。
+# [ocr]
+# enabled = true
+# quality = "auto"       # auto：有 GPU 且显存放得下时用中模型，否则小模型；fast：小模型；accurate：中模型
+# formulas = false       # 也把行间公式认成 LaTeX（多下载约 860 MB，每个公式要几秒）
+# models_dir = "/data/pagesift/models"   # 缺省 $XDG_CACHE_HOME/pagesift/models
+
+# OCR 用哪块显卡：auto（默认）、off、cuda、cuda:N。环境变量 PAGESIFT_GPU 优先。用不了时退回 CPU，
+# 并报 gpu_fallback 警告（auto 在没有 N 卡的机器上用 CPU 不算退回）。
+# [gpu]
+# mode = "auto"

@@ -68,7 +68,9 @@ Excel（`xl/workbook.xml`）、PowerPoint（`ppt/presentation.xml`）、EPUB（`
 | :--- | :--- |
 | 不给、`["pdf"]`、`["pdf", "image"]` | 正常解析 PDF。`"image"`（图片 OCR）照收：pagesift 本来就不处理图片，图片网址照旧回 `UNSUPPORTED_OPTION`。 |
 | `[]`、`["image"]` | PDF 不解析，和 Firecrawl 一样把原文件按 base64 放进 `markdown`（要了 `html` 时也放进 `html`）。 |
-| `{"type": "pdf", "mode": "fast" \| "auto"}` | 都读文字层。`fast` 遇到扫描件（没有文字层）回 400 `UNSUPPORTED_OPTION`（Firecrawl 是 `SCRAPE_PDF_OCR_REQUIRED`）；`auto` 照常返回并给 `scanned PDF` 警告。`ocr` 不支持（回 `UNSUPPORTED_OPTION`）。 |
+| `{"type": "pdf", "mode": "fast"}` | 只读文字层。遇到扫描件（没有文字层）回 400 `UNSUPPORTED_OPTION`（Firecrawl 是 `SCRAPE_PDF_OCR_REQUIRED`）。 |
+| `{"type": "pdf", "mode": "auto"}` | 默认。先读文字层；服务端打开了 OCR（`[ocr] enabled`）时扫描页走 OCR，没打开时照常返回并给 `scanned_pages_without_ocr` 警告。 |
+| `{"type": "pdf", "mode": "ocr"}` | 所有带图的页都走 OCR，识别出文字就替换这页的文字层；没有图的页保留文字层。服务端没打开 OCR 时回 `UNSUPPORTED_OPTION`：按请求只能选用，不能开启，因为开启会下载模型。 |
 | `{"type": "pdf", "maxPages": N}` | 1–10000。**只解析前 N 页**，后面的页不解释、不排版；给 `max_pages` 警告。`metadata.numPages` 是转换的页数，`metadata.totalPages` 是文件的页数（和 Firecrawl 相同）。 |
 | `{"type": "pdf", "pages": true}` | 另给每页的 Markdown：`data.pages: [{pageNumber, markdown}]`（scrape 也给）。 |
 | `blocks`、`pageMarkers` | 不支持，设为 `true` 回 `UNSUPPORTED_OPTION`。 |
@@ -139,7 +141,8 @@ Excel（`xl/workbook.xml`）、PowerPoint（`ppt/presentation.xml`）、EPUB（`
 | 坏 PDF / 坏文档 | 500 | 400 `INVALID_REQUEST` | 是文件的问题，不是服务端故障 |
 | 加密 PDF / Office / DRM 的 EPUB | — | 400 `UNSUPPORTED_OPTION` | 需要口令或密钥，做不到 |
 | 类型判断 | 先扩展名，再 MIME | 先看内容（`%PDF-`、ZIP 里的部件），再扩展名、MIME | 文件名写错也能认出 |
-| `mode: ocr`、`blocks`、`pageMarkers` | 支持 | 明确报不支持 | 不悄悄降级 |
+| `mode: ocr` | 支持 | 服务端打开 `[ocr] enabled` 后支持，否则报不支持 | 不悄悄降级 |
+| `blocks`、`pageMarkers` | 支持 | 明确报不支持 | 不悄悄降级 |
 | `mode: fast` 遇到扫描件 | `SCRAPE_PDF_OCR_REQUIRED` | 400 `UNSUPPORTED_OPTION` | 同样报错，错误码用现有的 |
 | `image` 解析器（图片 OCR） | 支持 | 照收，不做 OCR | 不处理图片；收下是为了 Firecrawl SDK 的默认值不被拒 |
 | 文档的 `html` 格式 | Markdown 转出的 HTML | 只给 `markdown` | 不为文档另造 HTML |

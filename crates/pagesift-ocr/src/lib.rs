@@ -56,13 +56,13 @@ pub struct Line {
 /// 读模型目录下的 config.json。
 pub(crate) fn read_json(dir: &std::path::Path, name: &str) -> Result<serde_json::Value, String> {
     let p = dir.join(name);
-    let s = std::fs::read(&p).map_err(|e| format!("读 {} 失败：{e}", p.display()))?;
-    serde_json::from_slice(&s).map_err(|e| format!("{} 不是合法 JSON：{e}", p.display()))
+    let s = std::fs::read(&p).map_err(|e| format!("reading {}: {e}", p.display()))?;
+    serde_json::from_slice(&s).map_err(|e| format!("{} is not valid JSON: {e}", p.display()))
 }
 
 /// 读模型目录下的 model.safetensors。
 pub(crate) fn read_weights(dir: &std::path::Path) -> Result<pagesift_infer::Weights, String> {
     let p = dir.join("model.safetensors");
-    let b = std::fs::read(&p).map_err(|e| format!("读 {} 失败：{e}", p.display()))?;
+    let b = std::fs::read(&p).map_err(|e| format!("reading {}: {e}", p.display()))?;
     pagesift_infer::Weights::from_bytes(&b)
 }
