@@ -33,7 +33,7 @@ def test_extract_relocates_with_store_when_max_age_is_zero(tmp_path):
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     url = f"http://127.0.0.1:{srv.server_port}/"
     try:
-        s = pagesift.Scraper(allow_private_network=True, request_interval=0, store_path=str(tmp_path / "store"))
+        s = pagesift.Scraper(allow_private_network=True, request_interval_ms=0, store_path=str(tmp_path / "store"))
         s.extract([url], SCHEMA, max_age=0)
         state["cls"] = "title-v2"
         d = s.extract([url], SCHEMA, max_age=0)[0]

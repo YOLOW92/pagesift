@@ -121,7 +121,7 @@ async fn per_host_wait_is_reported_separately_from_fetch_time() {
             .warnings
             .iter()
             .any(|w| {
-                w.starts_with("request waited ")
+                w.starts_with("queue_wait: request waited ")
                     && w.ends_with(" in the rate-limit/admission queue")
             })
     });

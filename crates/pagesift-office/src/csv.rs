@@ -47,7 +47,7 @@ pub(crate) fn convert_text(text: &str, opts: &Options<'_>) -> Result<Converted, 
         }
         if n > budget {
             out.warnings.push(format!(
-                "CSV truncated at the cell limit ({} cells)",
+                "cells_truncated: CSV truncated at the cell limit ({} cells)",
                 opts.limits.max_cells
             ));
             break;
@@ -68,8 +68,9 @@ pub(crate) fn convert_text(text: &str, opts: &Options<'_>) -> Result<Converted, 
     }
     grid.truncate_rows(grid.rows() - empty_tail);
     if wide {
-        out.warnings
-            .push(format!("columns beyond {max_cols} were dropped"));
+        out.warnings.push(format!(
+            "columns_dropped: columns beyond {max_cols} were dropped"
+        ));
     }
     out.parts = grid.rows();
     out.markdown = if grid.rows() == 0 {

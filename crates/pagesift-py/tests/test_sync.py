@@ -127,7 +127,7 @@ def test_module_level_default_blocks_private_network(server):
 
 def test_scraper_constructor_validation():
     with pytest.raises(ValueError):
-        pagesift.Scraper(request_interval=-1)
+        pagesift.Scraper(request_interval_ms=-1)
     with pytest.raises(ValueError):
         pagesift.Scraper(per_host_concurrency=0)
     with pytest.raises(ValueError):

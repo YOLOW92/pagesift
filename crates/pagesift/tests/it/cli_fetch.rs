@@ -405,7 +405,7 @@ fn crawl_and_map_can_ignore_robots_on_the_command_line() {
         "{}",
         String::from_utf8_lossy(&respected.stderr)
     );
-    let ignored = crawl(&["--ignore-robots"]);
+    let ignored = crawl(&["--ignore-robots-txt"]);
     assert!(
         ignored.status.success(),
         "{}",

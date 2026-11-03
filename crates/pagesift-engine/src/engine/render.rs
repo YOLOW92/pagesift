@@ -361,12 +361,12 @@ impl Scraper {
         if paced && queued > t.total {
             match queue_note {
                 Some(interval) => warnings.push(format!(
-                    "request waited {:.0} ms in the rate-limit/admission queue; robots.txt Crawl-delay applies with an effective {:.0} ms interval",
+                    "queue_wait: request waited {:.0} ms in the rate-limit/admission queue; robots.txt Crawl-delay applies with an effective {:.0} ms interval",
                     ms(queued),
                     ms(interval)
                 )),
                 None => warnings.push(format!(
-                    "request waited {:.0} ms in the rate-limit/admission queue",
+                    "queue_wait: request waited {:.0} ms in the rate-limit/admission queue",
                     ms(queued)
                 )),
             }

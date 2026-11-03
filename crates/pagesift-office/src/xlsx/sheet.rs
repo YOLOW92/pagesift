@@ -103,7 +103,9 @@ pub(super) fn read(
         }
     }
     if dropped_cols {
-        warnings.push(format!("columns beyond {max_cols} were dropped"));
+        warnings.push(format!(
+            "columns_dropped: columns beyond {max_cols} were dropped"
+        ));
     }
     if cells.is_empty() {
         return Ok(Vec::new());
@@ -164,7 +166,7 @@ pub(super) fn read(
     }
     if truncated || cut {
         warnings.push(format!(
-            "sheet truncated at the cell limit ({} cells)",
+            "cells_truncated: sheet truncated at the cell limit ({} cells)",
             opts.limits.max_cells
         ));
     }

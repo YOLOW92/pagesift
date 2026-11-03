@@ -145,7 +145,7 @@ def slow_probe():
 def scraper():
     """每个测试一个新的 Scraper：冷却等主机状态互不影响。本机地址需要显式放行。"""
     with pagesift.Scraper(
-        allow_private_network=True, request_interval=0, per_host_concurrency=16
+        allow_private_network=True, request_interval_ms=0, per_host_concurrency=16
     ) as s:
         yield s
 

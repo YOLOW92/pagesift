@@ -222,7 +222,7 @@ pub(crate) enum Command {
         #[arg(long)]
         full: bool,
         /// Ignore robots.txt for this page
-        #[arg(long)]
+        #[arg(long = "ignore-robots-txt", alias = "ignore-robots")]
         ignore_robots: bool,
         /// Egress proxy URL (e.g. http://127.0.0.1:7890, socks5://127.0.0.1:1080)
         #[arg(long)]
@@ -285,7 +285,7 @@ pub(crate) enum Command {
         #[arg(long, default_value = "auto", value_parser = ["http", "browser", "auto"])]
         engine: String,
         /// Ignore robots.txt for this page
-        #[arg(long)]
+        #[arg(long = "ignore-robots-txt", alias = "ignore-robots")]
         ignore_robots: bool,
         #[command(flatten)]
         allow: AllowCidrs,
@@ -303,7 +303,7 @@ pub(crate) enum Command {
         #[arg(long, default_value = "auto", value_parser = ["http", "browser", "auto"])]
         engine: String,
         /// Ignore robots.txt for these pages
-        #[arg(long)]
+        #[arg(long = "ignore-robots-txt", alias = "ignore-robots")]
         ignore_robots: bool,
         /// Pages in flight at once; by default the admission controller's current target
         /// (per-host politeness limits apply either way)
@@ -327,7 +327,7 @@ pub(crate) enum Command {
         #[arg(long)]
         warc: Option<PathBuf>,
         /// Maximum discovery depth from the start page
-        #[arg(long)]
+        #[arg(long = "max-depth", alias = "depth")]
         depth: Option<usize>,
         /// Only follow paths matching this regex (repeatable)
         #[arg(long)]
@@ -354,7 +354,7 @@ pub(crate) enum Command {
         engine: String,
         /// Ignore robots.txt. On the command line this flag is the permission itself; the HTTP API
         /// also needs `allow_crawl_ignore_robots = true` in the config (the operator's switch)
-        #[arg(long)]
+        #[arg(long = "ignore-robots-txt", alias = "ignore-robots")]
         ignore_robots: bool,
         /// Follow bounded same-origin external JS candidates (requires --engine http)
         #[arg(long)]
@@ -419,7 +419,7 @@ pub(crate) enum Command {
         sitemap: String,
         /// Ignore robots.txt. On the command line this flag is the permission itself; the HTTP API
         /// also needs `allow_crawl_ignore_robots = true` in the config (the operator's switch)
-        #[arg(long)]
+        #[arg(long = "ignore-robots-txt", alias = "ignore-robots")]
         ignore_robots: bool,
         #[command(flatten)]
         allow: AllowCidrs,

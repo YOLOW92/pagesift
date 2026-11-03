@@ -121,7 +121,7 @@ refetches robots.txt.
 |---|---|
 | `scrape(url, options=None, **overrides) -> Document` | one page; raises a `PagesiftError` subclass on failure |
 | `await ascrape(url, options=None, **overrides) -> Document` | async `scrape` |
-| `scrape_many(urls, options=None, *, concurrency=16, request_interval=None, per_host_concurrency=None, max_concurrency=None, **overrides) -> list[Document]` | waits for all, input order; module-level rate settings use a temporary scraper |
+| `scrape_many(urls, options=None, *, concurrency=16, request_interval_ms=None, per_host_concurrency=None, max_concurrency=None, **overrides) -> list[Document]` | waits for all, input order; module-level rate settings use a temporary scraper |
 | `scrape_iter(urls, options=None, *, concurrency=16, **overrides) -> Batch` | `for doc in …`, completion order |
 | `ascrape_many(urls, options=None, *, concurrency=16, **overrides) -> Batch` | `async for doc in …`, completion order |
 | `convert(html, url=None, only_main_content=True) -> Document` | HTML → Markdown, no network |
@@ -196,7 +196,7 @@ unknown keywords raise `TypeError`.
 |---|---|---|
 | `user_agent` | pagesift's own | browser-impersonating user agents are refused |
 | `allow_private_network` | `False` | SSRF protection: local and private addresses are refused unless allowed |
-| `request_interval` | `1.0` | seconds between requests to the same host; robots.txt Crawl-delay wins |
+| `request_interval_ms` | `1000` | milliseconds between requests to the same host; robots.txt Crawl-delay wins |
 | `ocr` | `False` | OCR scanned pages; models download when the first scanned image arrives |
 | `ocr_quality` | `"auto"` | `auto`, `fast` or `accurate` |
 | `ocr_formulas` | `False` | also recognize display formulas as `$$…$$`; downloads 860 MB more |

@@ -91,13 +91,13 @@ impl Scraper {
         if !permit.interval().is_zero() && queued > resp.timings.total {
             if permit.robots_crawl_delay() {
                 warnings.push(format!(
-                    "request waited {:.0} ms in the rate-limit/admission queue; robots.txt Crawl-delay applies with an effective {:.0} ms interval",
+                    "queue_wait: request waited {:.0} ms in the rate-limit/admission queue; robots.txt Crawl-delay applies with an effective {:.0} ms interval",
                     ms(queued),
                     ms(permit.interval())
                 ));
             } else {
                 warnings.push(format!(
-                    "request waited {:.0} ms in the rate-limit/admission queue",
+                    "queue_wait: request waited {:.0} ms in the rate-limit/admission queue",
                     ms(queued)
                 ));
             }
@@ -124,7 +124,9 @@ impl Scraper {
         // 网络层的解码提示（多层压缩、声明与实际不符、部分解压失败）原样带出去
         warnings.extend(resp.warnings.iter().cloned());
         if resp.truncated {
-            warnings.push("response body exceeded the size limit and was truncated".into());
+            warnings.push(
+                "body_truncated: response body exceeded the size limit and was truncated".into(),
+            );
         }
         let mut meta = Metadata {
             url: Some(resp.final_url.to_string()),

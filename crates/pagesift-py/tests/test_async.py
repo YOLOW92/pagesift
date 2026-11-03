@@ -151,7 +151,7 @@ def test_module_level_iter(server):
 
 def test_async_context_manager_closes(server):
     async def main():
-        s = pagesift.Scraper(allow_private_network=True, request_interval=0)
+        s = pagesift.Scraper(allow_private_network=True, request_interval_ms=0)
         async with s:
             d = await s.ascrape(f"{server}/article", engine="http")
         await s.aclose()  # 重复关闭没问题

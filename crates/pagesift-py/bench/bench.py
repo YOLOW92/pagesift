@@ -87,7 +87,7 @@ def main() -> None:
 def run(pagesift, base: str) -> None:
     opts = pagesift.ScrapeOptions(engine="http")
     mk = lambda: pagesift.Scraper(  # noqa: E731
-        allow_private_network=True, request_interval=0, per_host_concurrency=32, max_concurrency=64
+        allow_private_network=True, request_interval_ms=0, per_host_concurrency=32, max_concurrency=64
     )
     s = mk()
     s.scrape(f"{base}/warm", opts)

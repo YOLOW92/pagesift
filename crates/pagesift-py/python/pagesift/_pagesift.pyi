@@ -167,7 +167,7 @@ class Engine:
         allow_private_network: bool = False,
         allow_cidrs: Optional[Sequence[str]] = None,
         proxy: Optional[str] = None,
-        request_interval: float = 1.0,
+        request_interval_ms: int = 1000,
         per_host_concurrency: int = 2,
         max_concurrency: int = 64,
         browser_executable: Optional[str] = None,

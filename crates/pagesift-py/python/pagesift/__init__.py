@@ -202,7 +202,7 @@ class Scraper:
 
     - ``user_agent``：自定义 UA（不允许冒充浏览器）；
     - ``allow_private_network``：允许抓内网和本机地址（默认拒绝，防 SSRF）；
-    - ``request_interval``：同一主机两次请求之间的最小间隔，秒；robots.txt 的 Crawl-delay 优先；
+    - ``request_interval_ms``：同一主机两次请求之间的最小间隔，毫秒；robots.txt 的 Crawl-delay 优先；
     - ``per_host_concurrency``、``max_concurrency``：单主机和全局的并发上限；
     - ``browser_executable``、``browser_url``：指定 Chrome 路径，或连接已经在运行的浏览器
       （``ws://…`` / ``http://host:port``）；
@@ -223,7 +223,7 @@ class Scraper:
         allow_private_network: bool = False,
         allow_cidrs: Optional[Sequence[str]] = None,
         proxy: Optional[str] = None,
-        request_interval: float = 1.0,
+        request_interval_ms: int = 1000,
         per_host_concurrency: int = 2,
         max_concurrency: int = 64,
         browser_executable: Optional[str] = None,
@@ -241,7 +241,7 @@ class Scraper:
             allow_private_network=allow_private_network,
             allow_cidrs=list(allow_cidrs) if allow_cidrs else None,
             proxy=proxy,
-            request_interval=request_interval,
+            request_interval_ms=request_interval_ms,
             per_host_concurrency=per_host_concurrency,
             max_concurrency=max_concurrency,
             browser_executable=browser_executable,
@@ -516,21 +516,21 @@ def scrape_many(
     options: Optional[ScrapeOptions] = None,
     *,
     concurrency: int = DEFAULT_CONCURRENCY,
-    request_interval: Optional[float] = None,
+    request_interval_ms: Optional[int] = None,
     per_host_concurrency: Optional[int] = None,
     max_concurrency: Optional[int] = None,
     **overrides: Any,
 ) -> List[Document]:
     """批量抓取，全部完成后按输入顺序返回；单个失败不影响整批。
 
-    ``request_interval``、``per_host_concurrency`` 和 ``max_concurrency``
+    ``request_interval_ms``、``per_host_concurrency`` 和 ``max_concurrency``
     配置这一次批量使用的临时抓取器。robots.txt 的 Crawl-delay 仍优先于
-    ``request_interval``；``concurrency`` 只控制这批同时在途的任务数。
+    ``request_interval_ms``；``concurrency`` 只控制这批同时在途的任务数。
     """
-    if any(v is not None for v in (request_interval, per_host_concurrency, max_concurrency)):
+    if any(v is not None for v in (request_interval_ms, per_host_concurrency, max_concurrency)):
         config = {}
-        if request_interval is not None:
-            config["request_interval"] = request_interval
+        if request_interval_ms is not None:
+            config["request_interval_ms"] = request_interval_ms
         if per_host_concurrency is not None:
             config["per_host_concurrency"] = per_host_concurrency
         if max_concurrency is not None:

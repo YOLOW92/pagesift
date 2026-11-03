@@ -67,7 +67,8 @@ pub(crate) fn convert(zip: &Zip<'_>, opts: &Options<'_>) -> Result<Converted, Er
         check_deadline(opts)?;
         let path = resolve(base, href);
         let Some(doc) = zip.read_text(&path)? else {
-            out.warnings.push(format!("spine item {path} is missing"));
+            out.warnings
+                .push(format!("epub_item_missing: spine item {path} is missing"));
             continue;
         };
         // 输出预算（见 `budget` 模块）：一章就可能有上百 MB。转换前按余量截短输入

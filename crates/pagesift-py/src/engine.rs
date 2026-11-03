@@ -50,7 +50,7 @@ impl Engine {
         allow_private_network = false,
         allow_cidrs = None,
         proxy = None,
-        request_interval = 1.0,
+        request_interval_ms = 1000,
         per_host_concurrency = 2,
         max_concurrency = 64,
         browser_executable = None,
@@ -69,7 +69,7 @@ impl Engine {
         allow_private_network: bool,
         allow_cidrs: Option<Vec<String>>,
         proxy: Option<String>,
-        request_interval: f64,
+        request_interval_ms: i64,
         per_host_concurrency: usize,
         max_concurrency: usize,
         browser_executable: Option<PathBuf>,
@@ -82,11 +82,9 @@ impl Engine {
         models_dir: Option<PathBuf>,
         gpu: Option<String>,
     ) -> PyResult<Self> {
-        if !(request_interval.is_finite() && request_interval >= 0.0) {
-            return Err(PyValueError::new_err(
-                "request_interval must be >= 0 seconds",
-            ));
-        }
+        let Ok(request_interval_ms) = u64::try_from(request_interval_ms) else {
+            return Err(PyValueError::new_err("request_interval_ms must be >= 0"));
+        };
         if per_host_concurrency == 0 || max_concurrency == 0 || max_browsers == 0 {
             return Err(PyValueError::new_err(
                 "concurrency limits must be at least 1",
@@ -108,7 +106,7 @@ impl Engine {
                 }
             }
         }
-        cfg.policy.rate.default_interval = Duration::from_secs_f64(request_interval);
+        cfg.policy.rate.default_interval = Duration::from_millis(request_interval_ms);
         cfg.policy.rate.per_host_concurrency = per_host_concurrency;
         // `max_concurrency` 是用户给的上限：在线调整只在它之下（冷启动就是它，和 0.81 一样）
         cfg.policy.rate.global_concurrency = max_concurrency;
