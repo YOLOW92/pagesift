@@ -8,6 +8,7 @@
 | [Incremental collection](incremental-collection.md) | Business anchors, item revisions, pagination and acknowledgement |
 | [Monitors](monitor.md) | `/v2/monitor`: schedules, change detection, webhooks |
 | [Jina Reader compatibility](jina-reader.md) | `/r/` request headers, `/s/` search |
+| [Research agent](agent-api.md) | `/v2/agent`: effort budgets, stopping, field sources |
 | [File upload API](parse-api.md) | `POST /v2/parse`: PDF/HTML upload, options, errors and limits |
 | [HTTP sessions](http-sessions.md) | Origin isolation, persisted Cookie state and retirement |
 | [Media archives](media-archive.md) | Validated resume, checksums and recovery |
