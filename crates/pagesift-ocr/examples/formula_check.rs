@@ -98,4 +98,10 @@ fn main() {
         println!("  原始：{}", tok.decode(&ids));
         println!("  LaTeX：{}", to_latex(&tok.decode(&ids)));
     }
+    // 内存峰值（Linux 才有这个文件）
+    if let Ok(s) = std::fs::read_to_string("/proc/self/status")
+        && let Some(l) = s.lines().find(|l| l.starts_with("VmHWM"))
+    {
+        println!("{l}");
+    }
 }
