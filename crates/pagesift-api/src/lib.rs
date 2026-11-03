@@ -14,6 +14,7 @@ pub mod jina;
 mod jobs;
 mod limits;
 mod metrics;
+pub mod monitor;
 pub(crate) mod server;
 mod stream_body;
 #[cfg(test)]

@@ -108,6 +108,11 @@ impl Jobs {
         }
     }
 
+    /// 任务存储（监控也落在这里）。
+    pub(crate) fn store(&self) -> Option<&Store> {
+        self.inner.store.as_ref()
+    }
+
     /// 附件写进的地方：任务存储和镜像（见 `attachments`）。
     pub(crate) fn disk(&self) -> Option<crate::attachments::Disk> {
         self.inner

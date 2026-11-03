@@ -145,6 +145,10 @@ pub(crate) fn run(command: Command, mut cfg: pagesift::config::Config) -> Result
                 api.public_url = public_url;
             }
             api.store = store.filter(|_| persist);
+            // 监控只由持有网关租约的机器调度：租约过期（温备可能正在接管）时停下
+            api.monitor_leader = ledger_for_api.clone().map(|l| {
+                Arc::new(move || l.holds_lease()) as pagesift::api::monitor::Leader
+            });
             api.ledger = ledger_for_api;
             api.job_mirror = job_mirror;
             api.extra_metrics = extra_metrics;

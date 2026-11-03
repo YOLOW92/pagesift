@@ -15,6 +15,7 @@ pub mod hazard;
 pub mod hll;
 pub mod limit;
 pub mod moments;
+pub mod poisson;
 pub mod regress;
 pub mod rng;
 pub mod shrink;

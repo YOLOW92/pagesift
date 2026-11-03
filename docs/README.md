@@ -6,6 +6,7 @@
 | [Architecture](architecture.md) | Rust modules, request pipeline, collection and archive state diagrams |
 | [Configuration](pagesift.example.toml) | Service, policies, caches and browser configuration |
 | [Incremental collection](incremental-collection.md) | Business anchors, item revisions, pagination and acknowledgement |
+| [Monitors](monitor.md) | `/v2/monitor`: schedules, change detection, webhooks |
 | [Jina Reader compatibility](jina-reader.md) | `/r/` request headers, `/s/` search |
 | [File upload API](parse-api.md) | `POST /v2/parse`: PDF/HTML upload, options, errors and limits |
 | [HTTP sessions](http-sessions.md) | Origin isolation, persisted Cookie state and retirement |

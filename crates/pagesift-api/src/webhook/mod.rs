@@ -83,6 +83,38 @@ impl WebhookConfig {
         Ok(cfg)
     }
 
+    /// 监控的 `webhook`：事件是 `monitor.page`、`monitor.check.completed`（照 Firecrawl），默认两个都要。
+    pub(crate) fn parse_monitor(v: &Value, policy: &SsrfPolicy) -> Result<Self, ApiError> {
+        const MONITOR_EVENTS: [&str; 2] = ["monitor.page", "monitor.check.completed"];
+        let mut obj = match v {
+            Value::String(u) => serde_json::json!({ "url": u }),
+            Value::Object(_) => v.clone(),
+            _ => {
+                return Err(ApiError::invalid(
+                    "webhook must be a URL or an object with a url",
+                ));
+            }
+        };
+        let events = obj.get("events").cloned();
+        obj["events"] = serde_json::json!(["started"]);
+        let mut cfg = Self::parse(&obj, policy)?;
+        cfg.events = match events {
+            Some(e) => serde_json::from_value(e)
+                .map_err(|e| ApiError::invalid(format!("invalid webhook events: {e}")))?,
+            None => MONITOR_EVENTS.iter().map(|e| e.to_string()).collect(),
+        };
+        if let Some(e) = cfg
+            .events
+            .iter()
+            .find(|e| !MONITOR_EVENTS.contains(&e.as_str()))
+        {
+            return Err(ApiError::invalid(format!(
+                "unknown monitor webhook event {e:?}: use monitor.page or monitor.check.completed"
+            )));
+        }
+        Ok(cfg)
+    }
+
     fn wants(&self, event: Event) -> bool {
         self.events.iter().any(|e| e == event.name())
     }
@@ -166,7 +198,7 @@ impl std::fmt::Debug for WebhookSettings {
 #[derive(Clone)]
 pub(crate) struct Webhooks {
     client: reqwest::Client,
-    settings: Arc<WebhookSettings>,
+    pub(crate) settings: Arc<WebhookSettings>,
     metrics: Arc<Metrics>,
     /// 多服务器网关：落盘队列的写入同时复制到温备（与任务记录同一个镜像）。
     pub(crate) mirror: Option<Arc<crate::jobs::mirror::JobMirror>>,

@@ -91,6 +91,8 @@ pub struct Config {
     pub job_mirror: Option<Arc<crate::JobMirror>>,
     /// 追加在 `/metrics` 后面的指标（多服务器网关：按工人加标签的统计）。
     pub extra_metrics: Option<ExtraMetrics>,
+    /// 监控调度者：多服务器时只有持有网关租约的机器调度（返回真才检查）。单主机不设，总是调度。
+    pub monitor_leader: Option<crate::monitor::Leader>,
 }
 
 /// 生成额外指标文本（Prometheus 文本格式）的回调。
@@ -126,6 +128,7 @@ pub struct AppState {
     pub limiter: Arc<Limiter>,
     pub webhooks: Webhooks,
     pub extracts: Arc<Mutex<HashMap<String, ExtractJob>>>,
+    pub(crate) monitors: crate::monitor::Monitors,
     pub metrics: Arc<Metrics>,
     pub extra_metrics: Option<ExtraMetrics>,
 }
@@ -238,13 +241,18 @@ pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
         limiter,
         webhooks,
         extracts: Arc::default(),
+        monitors: Default::default(),
         metrics,
         extra_metrics: config.extra_metrics,
     };
 
     // Jina Reader 路由也会抓取页面，和 Firecrawl 路由一起放在鉴权、限流和配额之后
+    if tokio::runtime::Handle::try_current().is_ok() {
+        crate::monitor::start_scheduler(state.clone(), config.monitor_leader.clone());
+    }
     let api = crate::firecrawl::firecrawl_routes()
         .merge(crate::jina::jina_routes())
+        .merge(crate::monitor::routes())
         .route_layer(middleware::from_fn_with_state(state.clone(), auth));
 
     Router::new()

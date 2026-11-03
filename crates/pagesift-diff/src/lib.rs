@@ -67,6 +67,7 @@ impl Default for DiffOptions {
                 NoiseCategory::Price,
                 NoiseCategory::Count,
                 NoiseCategory::Number,
+                NoiseCategory::Advertisement,
             ],
             moved_is_noise: false,
             similarity_threshold: 0.5,
@@ -231,14 +232,27 @@ pub fn diff_with(old: &str, new: &str, opts: &DiffOptions) -> DiffReport {
         }
     }
 
+    // 广告位整块出现、消失、换成别的广告：按噪声算（启用了 Advertisement 时）
+    let ads_noise = opts
+        .noise_categories
+        .contains(&NoiseCategory::Advertisement);
+    let ad_block = |text: &str| ads_noise && noise::is_ad(text);
+    let sig = |text: &str| {
+        if ad_block(text) {
+            (Significance::Noise, vec![NoiseCategory::Advertisement])
+        } else {
+            (Significance::Substantive, vec![])
+        }
+    };
     let added = |p: usize, j: usize| {
+        let (significance, noise_categories) = sig(&nb[j].text);
         (
             p,
             BlockChange {
                 change: ChangeType::Added,
                 block_type: nb[j].kind,
-                significance: Significance::Substantive,
-                noise_categories: vec![],
+                significance,
+                noise_categories,
                 old_index: None,
                 new_index: Some(j),
                 old_text: None,
@@ -250,13 +264,14 @@ pub fn diff_with(old: &str, new: &str, opts: &DiffOptions) -> DiffReport {
         )
     };
     let removed = |p: usize, i: usize| {
+        let (significance, noise_categories) = sig(&ob[i].text);
         (
             p,
             BlockChange {
                 change: ChangeType::Removed,
                 block_type: ob[i].kind,
-                significance: Significance::Substantive,
-                noise_categories: vec![],
+                significance,
+                noise_categories,
                 old_index: Some(i),
                 new_index: None,
                 old_text: Some(ob[i].text.clone()),

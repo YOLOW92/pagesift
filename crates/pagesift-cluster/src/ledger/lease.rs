@@ -52,6 +52,11 @@ impl Ledger {
         }
     }
 
+    /// 本机现在持有租约（或没有租约要求）：可以写入，也可以做只该有一台机器做的事（监控调度）。
+    pub fn holds_lease(&self) -> bool {
+        self.check_lease().is_ok()
+    }
+
     /// 租约过期（到期时刻及之后）时拒绝写入。
     pub(super) fn check_lease(&self) -> Result<(), Error> {
         let until = self.lease_until.load(Ordering::Acquire);

@@ -14,6 +14,32 @@ pub enum NoiseCategory {
     Price,
     Count,
     Number,
+    /// 广告位：新旧两块都以广告标注开头（“Sponsored”“Advertisement”“广告”……），轮换的广告内容。
+    Advertisement,
+}
+
+/// 广告标注词：各地法规要求的广告披露标签（美国 FTC 背书指南的 “Sponsored”/“Ad”、欧盟《数字服务法》
+/// 第 26 条的 “Advertisement”、中国《互联网广告管理办法》第九条的“广告”）及常见的写法。
+const AD_LABELS: &[&str] = &[
+    "sponsored",
+    "advertisement",
+    "advertising",
+    "ad:",
+    "ads by",
+    "promoted",
+    "anzeige",
+    "publicidad",
+    "publicité",
+    "広告",
+    "スポンサー",
+    "广告",
+    "推广",
+    "赞助",
+];
+
+pub(crate) fn is_ad(s: &str) -> bool {
+    let t = s.trim_start().to_lowercase();
+    AD_LABELS.iter().any(|l| t.starts_with(l))
 }
 
 const MONTHS: &str = "jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec";
@@ -91,6 +117,8 @@ fn mask(s: &str) -> (String, Vec<Entity<'_>>) {
             NoiseCategory::Price => 'p',
             NoiseCategory::Count => 'c',
             NoiseCategory::Number => 'n',
+            // 广告位按整块判断（`is_ad`），不是行内实体
+            NoiseCategory::Advertisement => 'a',
         });
         last = m.end();
         ents.push(Entity {
@@ -108,6 +136,11 @@ pub(crate) fn classify(
     new: &str,
     enabled: &[NoiseCategory],
 ) -> Option<Vec<NoiseCategory>> {
+    if is_ad(old) && is_ad(new) {
+        return enabled
+            .contains(&NoiseCategory::Advertisement)
+            .then(|| vec![NoiseCategory::Advertisement]);
+    }
     let (mo, eo) = mask(old);
     let (mn, en) = mask(new);
     if mo != mn {
@@ -132,7 +165,41 @@ mod tests {
     use super::*;
     use NoiseCategory::*;
 
-    const ALL: [NoiseCategory; 5] = [Date, RelativeTime, Price, Count, Number];
+    const ALL: [NoiseCategory; 6] = [Date, RelativeTime, Price, Count, Number, Advertisement];
+
+    #[test]
+    fn timestamps_with_clock_times_are_dates() {
+        let got = classify(
+            "Updated 2026-11-02 03:00 · 1111 views",
+            "Updated 2026-11-03 04:00 · 1148 views",
+            &[Date, RelativeTime, Count, Advertisement],
+        );
+        assert!(
+            got.is_some(),
+            "{got:?} {:?}",
+            mask("Updated 2026-11-03 04:00 · 1148 views")
+                .1
+                .iter()
+                .map(|e| (e.kind, e.text))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn rotating_ad_slots_are_noise() {
+        assert_eq!(
+            c(
+                "Sponsored: Spring sale on tools",
+                "Sponsored: New phones in stock"
+            ),
+            Some(vec![Advertisement])
+        );
+        assert_eq!(
+            c("广告：新品上市", "广告：限时优惠"),
+            Some(vec![Advertisement])
+        );
+        assert_eq!(c("Our new product", "Sponsored: x"), None);
+    }
 
     fn c(a: &str, b: &str) -> Option<Vec<NoiseCategory>> {
         classify(a, b, &ALL)

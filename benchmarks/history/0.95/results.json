@@ -1,0 +1,34 @@
+{
+  "adaptive": {
+    "false_alarm_rate": 0.020527859237536656,
+    "mean_delay_hours": 0.6454965425480829,
+    "miss_rate": 0.09370988446726572,
+    "notifications": 682,
+    "policy": "adaptive",
+    "requests": 12680,
+    "requests_per_detected_change": 17.960339943342778,
+    "substantive_changes": 779
+  },
+  "adaptive_per_url": {
+    "false_alarm_rate": 0.017543859649122806,
+    "mean_delay_hours": 0.8965697004742686,
+    "miss_rate": 0.09114249037227215,
+    "notifications": 684,
+    "policy": "adaptive_per_url",
+    "requests": 12639,
+    "requests_per_detected_change": 17.85169491525424,
+    "substantive_changes": 779
+  },
+  "fixed": {
+    "false_alarm_rate": 0.01791044776119403,
+    "mean_delay_hours": 0.7952367375300597,
+    "miss_rate": 0.0962772785622593,
+    "notifications": 670,
+    "policy": "fixed",
+    "requests": 12663,
+    "requests_per_detected_change": 17.98721590909091,
+    "substantive_changes": 779
+  },
+  "fixed_interval_hours": 1.5363945309412788,
+  "pages": 27
+}

@@ -19,6 +19,7 @@ mod focused_site;
 mod frontier;
 mod images;
 mod jina;
+mod monitor;
 mod multihost;
 mod office;
 mod parse;

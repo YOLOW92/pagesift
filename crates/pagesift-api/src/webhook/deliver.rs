@@ -77,7 +77,7 @@ pub(super) fn client(settings: &WebhookSettings) -> reqwest::Client {
 impl Webhooks {
     /// 投递一个事件，失败时按指数退避重试。返回时事件已有结果（送达、重试用尽或地址被拦），
     /// 调用方据此推进已确认游标。送达返回 `None`，没送达返回原因（调用方记成死信）。
-    pub(super) async fn deliver(&self, cfg: &WebhookConfig, body: &Value) -> Option<String> {
+    pub(crate) async fn deliver(&self, cfg: &WebhookConfig, body: &Value) -> Option<String> {
         let s = &self.settings;
         // IP 字面量不经过解析器，这里再按当前策略校验一次（任务可能是重启前按旧配置收下的）
         if let Err(e) = s.ssrf.check_url(&cfg.url) {
