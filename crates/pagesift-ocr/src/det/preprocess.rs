@@ -77,7 +77,9 @@ impl Preprocess {
         let lim = self.limit_side_len as f64;
         let ratio = match self.limit_type {
             LimitType::Max if hf.max(wf) > lim => lim / hf.max(wf),
-            LimitType::Min if hf.min(wf) < lim => lim / hf.min(wf),
+            // [策略] 参考实现只放大短边不足的图；这里大图也缩到短边 = limit_side_len：
+            // 300 dpi 整页扫描按原尺寸检测会漏行（手写页实测），且慢十几倍；识别从原图切行，不受影响
+            LimitType::Min => lim / hf.min(wf),
             LimitType::ResizeLong => lim / hf.max(wf),
             _ => 1.0,
         };
@@ -220,8 +222,8 @@ mod tests {
     #[test]
     fn 尺寸规则() {
         let p = pre(LimitType::Min);
-        // 短边已够 736：不缩放，只对齐到 32
-        assert_eq!(p.target_size(2902, 2244), (2912, 2240));
+        // 短边超过 736：缩到 736（与参考实现不同，见 target_size）
+        assert_eq!(p.target_size(2902, 2244), (960, 736));
         // 短边不足：放大到 736
         assert_eq!(p.target_size(500, 300), (1216, 736));
         // 长边超过 4000 再缩回
