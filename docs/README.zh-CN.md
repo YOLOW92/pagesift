@@ -192,7 +192,7 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 <!-- section: changelog -->
 ## 0.91.1 更新
 
-修复了一个小 bug（开启"警告即错误"时，集群 crate 在较新的稳定版 Rust 上编译不过），并且不再发布 macOS x86_64（Intel）版本。0.91.0 修复了 0.90.0
+**不再支持 Intel 芯片的 Mac（macOS x86_64）。** 另外修复了一个小 bug（开启"警告即错误"时，集群 crate 在较新的稳定版 Rust 上编译不过）。0.91.0 修复了 0.90.0
 代码审查发现的问题（失败如实报告、温备租约隔离、小 JSON-LD 数据岛、按块合并有上限、附件持久化等）。
 [发行说明](releases/0.91.1.md) · [0.91.0](releases/0.91.0.md) · [全部版本](releases/) · [CHANGELOG](../CHANGELOG.md)
 

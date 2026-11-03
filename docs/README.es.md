@@ -192,8 +192,8 @@ Arquitectura: [architecture.md](architecture.md).
 <!-- section: changelog -->
 ## Novedades en 0.91.1
 
-Corrige un pequeño error (el crate del clúster no compilaba con Rust estable reciente cuando los avisos se tratan
-como errores) y deja de publicar compilaciones para macOS x86_64 (Intel). 0.91.0 corrigió los problemas encontrados en una revisión de código
+**Los Mac con Intel (macOS x86_64) ya no tienen soporte.** Además corrige un pequeño error (el crate del clúster
+no compilaba con Rust estable reciente cuando los avisos se tratan como errores). 0.91.0 corrigió los problemas encontrados en una revisión de código
 de 0.90.0.
 [Notas de la versión](releases/0.91.1.md) · [0.91.0](releases/0.91.0.md) · [todas las versiones](releases/) · [CHANGELOG](../CHANGELOG.md)
 

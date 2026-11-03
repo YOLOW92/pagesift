@@ -192,8 +192,8 @@ Architecture: [docs/architecture.md](docs/architecture.md).
 <!-- section: changelog -->
 ## What's new in 0.91.1
 
-Fixes a small bug (the cluster crate did not compile with newer stable Rust when warnings are denied) and stops
-building for macOS x86_64 (Intel). 0.91.0 fixed the problems found in a code review of 0.90.0 (failures reported instead of
+**Intel Macs (macOS x86_64) are no longer supported.** Also fixes a small bug (the cluster crate did not compile
+with newer stable Rust when warnings are denied). 0.91.0 fixed the problems found in a code review of 0.90.0 (failures reported instead of
 counted as done, lease fencing for the standby, small JSON-LD islands, bounded block merge, persisted
 attachments).
 [Release notes](docs/releases/0.91.1.md) · [0.91.0](docs/releases/0.91.0.md) · [all releases](docs/releases/) · [CHANGELOG](CHANGELOG.md)
