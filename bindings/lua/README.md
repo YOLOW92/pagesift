@@ -1,19 +1,16 @@
-# libpagesift：LuaJIT 绑定（ffi）
+# pagesift for LuaJIT
 
-`pagesift.lua` 用 LuaJIT 自带的 `ffi` 调用 C ABI，没有依赖。只支持 LuaJIT，不支持 PUC Lua。
+A binding of [pagesift](https://github.com/YOLOW92/pagesift) using LuaJIT's `ffi`. It works with LuaJIT only, not PUC Lua.
 
-## 测试
-
-先在仓库根目录构建库，再跑测试：
+## Install
 
 ```sh
-CARGO_TARGET_DIR=target/f cargo build --profile quick -p pagesift-ffi
-./bindings/lua/run_tests.sh
+luarocks --lua-version 5.1 install pagesift
 ```
 
-`run_tests.sh` 用 conda-forge 的 luajit（`~/mix-tools/toolchains/luajit`，2.1），可用 `LUAJIT=...` 覆盖。测试 10 项，不联网。
+The package does not include the library. Download `pagesift-ffi-<tag>-<target>.tar.gz` from [GitHub Releases](https://github.com/YOLOW92/pagesift/releases) (Linux x86_64, Linux aarch64, macOS arm64), or build it with `cargo build --release -p pagesift-ffi`.
 
-## 用法
+## Usage
 
 ```lua
 local pagesift = require("pagesift")
@@ -23,18 +20,24 @@ local doc = e:parse(csv_bytes, "scores.csv")
 e:close()
 ```
 
-返回 Document JSON 字符串，不解析。
+Functions return the Document as a JSON string and do not parse it.
 
-## 库的查找
+## Finding the library
 
-加载顺序：环境变量 `PAGESIFT_LIB`（库文件完整路径）；然后系统库名 `pagesift`（`ffi.load` 补成 `libpagesift.so` / `.dylib`）。`run_tests.sh` 默认把 `PAGESIFT_LIB` 设为仓库里的 `target/f/quick/libpagesift.so`。
+1. The environment variable `PAGESIFT_LIB` (full path to the library file).
+2. The system library name (`libpagesift.so`, `libpagesift.dylib`).
 
-## 安装
+## Tests
 
-包发布后（LuaRocks，包名 `pagesift`，只支持 LuaJIT）：`luarocks install pagesift`。rockspec 用 builtin 构建，source 指向主仓库的 Git 标签 `v<版本>`。包里不带库：先安装 GitHub Release 里的 C 库，或设置 `PAGESIFT_LIB`。
+From the repository root:
 
-打包脚本是 `package.sh`（`--ffi-dir` 用 Release 里解开的三个平台的 C 库，或 `--local-lib` 用本机一个库），它会在干净目录里从打好的包安装并跑一次 convert 和 parse。
+```sh
+CARGO_TARGET_DIR=target/f cargo build --profile quick -p pagesift-ffi
+./bindings/lua/run_tests.sh
+```
 
-## 发布时需要的产物
+The tests do not use the network. Set `LUAJIT` to choose the interpreter.
 
-`libpagesift.so`（或 `.dylib`、`.dll`）和 `pagesift.lua`。
+## License
+
+AGPL-3.0-only, with commercial licensing available. See the [main repository](https://github.com/YOLOW92/pagesift).

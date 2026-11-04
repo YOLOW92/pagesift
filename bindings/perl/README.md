@@ -1,19 +1,8 @@
-# libpagesift：Perl 绑定（FFI::Platypus）
+# pagesift for Perl
 
-`Pagesift.pm` 用 CPAN 的 FFI::Platypus 调用 C ABI；Perl 核心没有 FFI，所以这个模块是必须的。测试用核心的 Test::More。
+A binding of [pagesift](https://github.com/YOLOW92/pagesift) using [FFI::Platypus](https://metacpan.org/pod/FFI::Platypus). It is not published to CPAN; use it from this repository.
 
-## 测试
-
-先在仓库根目录构建库，再跑测试：
-
-```sh
-CARGO_TARGET_DIR=target/f cargo build --profile quick -p pagesift-ffi
-./bindings/perl/run_tests.sh
-```
-
-`run_tests.sh` 用系统 perl 5.40，FFI::Platypus 2.12 装在 `~/mix-tools/toolchains/perl5`（`cpanm --notest -L ~/mix-tools/toolchains/perl5 FFI::Platypus`；用 `cpan` 装会改 `~/.bashrc`，别用），可用 `PERL5_LOCAL` 指别处。测试 11 项，不联网。
-
-## 用法
+## Usage
 
 ```perl
 use Pagesift;
@@ -23,12 +12,23 @@ my $doc = $e->parse($csv_bytes, "scores.csv");
 $e->close;
 ```
 
-返回 Document JSON 字符串，不解析。
+Functions return the Document as a JSON string and do not parse it.
 
-## 库的查找
+## Finding the library
 
-环境变量 `PAGESIFT_LIB` 给出库文件的完整路径；没设时按 `Pagesift.pm` 的位置找仓库里的 `target/f/quick/libpagesift.so`。
+Set `PAGESIFT_LIB` to the full path of the library file. Without it, the module looks for `target/f/quick/libpagesift.so` in this repository.
 
-## 发布时需要的产物
+## Tests
 
-`libpagesift.so`（或 `.dylib`、`.dll`）和 `Pagesift.pm`；用户要装 FFI::Platypus。
+From the repository root:
+
+```sh
+CARGO_TARGET_DIR=target/f cargo build --profile quick -p pagesift-ffi
+./bindings/perl/run_tests.sh
+```
+
+The tests do not use the network.
+
+## License
+
+AGPL-3.0-only, with commercial licensing available. See the [main repository](https://github.com/YOLOW92/pagesift).

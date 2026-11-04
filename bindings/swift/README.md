@@ -1,19 +1,18 @@
-# libpagesift：Swift 绑定
+# pagesift for Swift
 
-`Pagesift.swift` 通过 `CPagesift/module.modulemap`（指向 `crates/pagesift-ffi/include/pagesift.h`）调用 C ABI。测试直接用 `swiftc`，不用 SwiftPM 和 XCTest。
+A Swift binding of [pagesift](https://github.com/YOLOW92/pagesift) over its C ABI.
 
-## 测试
+## Install
 
-先在仓库根目录构建库，再跑测试：
-
-```sh
-CARGO_TARGET_DIR=target/f cargo build --profile quick -p pagesift-ffi
-./bindings/swift/run_tests.sh
+```swift
+.package(url: "https://github.com/YOLOW92/pagesift.git", from: "1.1.0")
 ```
 
-`run_tests.sh` 用官方 Linux 工具链（`~/mix-tools/toolchains/swift`，6.4.2），可用 `SWIFT_BIN` 指别处。测试 10 项，不联网。
+The product is `Pagesift`.
 
-## 用法
+The package does not include the library. Download `pagesift-ffi-<tag>-<target>.tar.gz` from [GitHub Releases](https://github.com/YOLOW92/pagesift/releases) (Linux x86_64, Linux aarch64, macOS arm64), or build it with `cargo build --release -p pagesift-ffi`. Build with `-Xlinker -L<lib dir>`, and at run time set `LD_LIBRARY_PATH` or `DYLD_LIBRARY_PATH`.
+
+## Usage
 
 ```swift
 let md = Pagesift.convert("<h1>Hi</h1>")
@@ -21,18 +20,19 @@ let e = try Pagesift.Engine()
 let doc = try e.parse(Array(csv.utf8), filename: "scores.csv")
 ```
 
-返回 Document JSON 字符串，不解析。
+Functions return the Document as a JSON string and do not parse it.
 
-## 库的查找
+## Tests
 
-`swiftc` 的 `-I bindings/swift/CPagesift` 找头文件模块，库文件用 `PAGESIFT_LIB`（完整路径）传给链接器，默认仓库里的 `target/f/quick/libpagesift.so`，并写入 rpath。
+From the repository root:
 
-## 安装
+```sh
+CARGO_TARGET_DIR=target/f cargo build --profile quick -p pagesift-ffi
+./bindings/swift/run_tests.sh
+```
 
-Swift Package Manager：`.package(url: "https://github.com/YOLOW92/pagesift.git", from: "<版本>")`，产品名 `Pagesift`。`Package.swift` 在仓库根，版本来自主仓库的标签 `v<版本>`，不用另外打标签。包里不带库：先安装 GitHub Release 里的 C 库，构建时加 `-Xlinker -L<库目录>`，运行时设 `LD_LIBRARY_PATH` / `DYLD_LIBRARY_PATH`。
+The tests do not use the network. Set `SWIFT_BIN` to choose the toolchain.
 
-打包脚本是 `package.sh`（`--ffi-dir` 用 Release 里解开的三个平台的 C 库，或 `--local-lib` 用本机一个库），它会在干净目录里从打好的包安装并跑一次 convert 和 parse。
+## License
 
-## 发布时需要的产物
-
-`libpagesift.so`（或 `.dylib`）、`pagesift.h` 和 `CPagesift/module.modulemap`、`Pagesift.swift`。
+AGPL-3.0-only, with commercial licensing available. See the [main repository](https://github.com/YOLOW92/pagesift).

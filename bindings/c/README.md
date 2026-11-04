@@ -1,33 +1,42 @@
-# libpagesift：C 示例与测试
+# libpagesift: C
 
-C 是 C ABI 的参考用法，头文件是 `../../crates/pagesift-ffi/include/pagesift.h`。
+The C ABI of [pagesift](https://github.com/YOLOW92/pagesift). The header is `crates/pagesift-ffi/include/pagesift.h`.
 
-## 编译和测试
+## Install
 
-需要 `cc`（gcc 或 clang）。先在仓库根目录构建库：
+The package does not include the library. Download `pagesift-ffi-<tag>-<target>.tar.gz` from [GitHub Releases](https://github.com/YOLOW92/pagesift/releases) (Linux x86_64, Linux aarch64, macOS arm64), or build it with `cargo build --release -p pagesift-ffi`. The archive holds the library and the header.
 
-```sh
-CARGO_TARGET_DIR=target/f cargo build --profile quick -p pagesift-ffi
-./bindings/c/run_tests.sh
-```
+C is not published to a package registry.
 
-库默认从 `target/f/quick` 找；其他位置用 `PAGESIFT_LIB_DIR=/path/to/lib ./bindings/c/run_tests.sh`。
-测试不联网：只跑 HTML 转 Markdown、字节输入的 CSV 解析和错误路径。
-
-## 用法
+## Usage
 
 ```c
 #include "pagesift.h"
 
 char *doc = pagesift_convert("<h1>Hi</h1>", NULL);   /* Document JSON */
 puts(doc);
-pagesift_string_free(doc);                           /* 用 pagesift_string_free 释放，不要 free */
+pagesift_string_free(doc);   /* free with pagesift_string_free, not free */
 ```
 
-返回值都是 JSON。成功的结果里 `"success":true`；失败时有 `error_code` 和 `error_message`。
-`example.c` 是完整示例，`gcc example.c -I../../crates/pagesift-ffi/include -L<lib> -lpagesift` 即可编译。
+Every result is JSON. On success it has `"success":true`; on failure it has `error_code` and `error_message`. `example.c` is a full example:
 
-## 发布时需要的产物
+```sh
+gcc example.c -Icrates/pagesift-ffi/include -L<lib dir> -lpagesift
+```
 
-`libpagesift.so`（Linux）、`libpagesift.dylib`（macOS）、`pagesift.dll`（Windows）和 `pagesift.h`。
-只依赖系统的 libc、libm、libgcc_s。
+The library depends only on the system libc, libm and libgcc_s.
+
+## Tests
+
+From the repository root:
+
+```sh
+CARGO_TARGET_DIR=target/f cargo build --profile quick -p pagesift-ffi
+./bindings/c/run_tests.sh
+```
+
+The tests do not use the network. Set `PAGESIFT_LIB_DIR` to use a library elsewhere.
+
+## License
+
+AGPL-3.0-only, with commercial licensing available. See the [main repository](https://github.com/YOLOW92/pagesift).
