@@ -220,6 +220,44 @@ fn kotlin_defs() {
     );
 }
 
+/// 顶层只有一个作用域容器时，分段落在它的成员上。
+#[test]
+fn single_scope_splits_inside() {
+    let titles = |tag: &str, src: &str| {
+        outline(tag, src)
+            .unwrap()
+            .sections
+            .into_iter()
+            .map(|s| s.title.unwrap_or_default())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        titles(
+            "csharp",
+            "using X;\nnamespace N {\n  class A {}\n  class B {}\n}\n"
+        ),
+        ["", "class A", "class B"]
+    );
+    assert_eq!(
+        titles("cpp", "namespace n {\nvoid f() {}\nvoid g() {}\n}\n"),
+        ["", "function f", "function g"]
+    );
+    assert_eq!(
+        titles("rust", "mod m {\n    fn a() {}\n    fn b() {}\n}\n"),
+        ["", "function a", "function b"]
+    );
+    // 容器里没有符号：保持原样，一个容器一段
+    assert_eq!(titles("cpp", "namespace n { int x; }\n"), ["namespace n"]);
+    // 两个容器：不往里切
+    assert_eq!(
+        titles(
+            "cpp",
+            "namespace a { void f() {} }\nnamespace b { void g() {} }\n"
+        ),
+        ["namespace a", "namespace b"]
+    );
+}
+
 #[test]
 fn unsupported_or_symbol_free_is_none() {
     assert!(outline("cobol", "x").is_none());

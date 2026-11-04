@@ -92,9 +92,13 @@ fn run(lang: Lang, source: &str) -> Option<Outline> {
     let mut elements = Vec::new();
     w.flatten(nodes.top(), 0, &mut elements);
     let mut anchors = Vec::new();
+    let single_scope = w.single_scope(&elements);
     for (i, &e) in elements.iter().enumerate() {
         let before = w.out.symbols.len();
         let mut first = None;
+        if single_scope == Some(i) && w.scope_inner(e, &mut anchors) {
+            continue;
+        }
         w.walk(e, false, 0, 0, &mut first);
         if w.out.symbols.len() > before
             && let Some(title) = first
@@ -375,6 +379,50 @@ impl Walker<'_> {
             .iter()
             .map(|&c| c as usize)
             .collect()
+    }
+
+    /// 顶层只有一个作用域容器（命名空间、`mod`），其余元素都不产生符号时，返回它的下标。
+    fn single_scope(&self, elements: &[usize]) -> Option<usize> {
+        let mut found = None;
+        for (i, &e) in elements.iter().enumerate() {
+            match rule(self.lang, self.nodes.n[e].kind) {
+                Rule::Sym(_, _, Cont::Scope) if found.is_none() => found = Some(i),
+                Rule::Skip | Rule::Import => {}
+                _ => return None,
+            }
+        }
+        found
+    }
+
+    /// 往作用域容器里切一层：容器自己记一个符号，分段锚点落在它的直接成员上。
+    /// 成员里一个符号都没有时撤销并返回假，由调用方按普通符号处理。
+    fn scope_inner(&mut self, id: usize, anchors: &mut Vec<(usize, usize, String)>) -> bool {
+        let Rule::Sym(k, label, _) = rule(self.lang, self.nodes.n[id].kind) else {
+            return false;
+        };
+        let base = self.out.symbols.len();
+        let name = self.name(id);
+        self.push(k, label, name, id, 0, &mut None);
+        let body = self.nodes.field(id, "body").unwrap_or(id);
+        let mut inner = Vec::new();
+        self.flatten(body, 1, &mut inner);
+        let mut found = Vec::new();
+        for (j, &e) in inner.iter().enumerate() {
+            let before = self.out.symbols.len();
+            let mut first = None;
+            self.walk(e, false, 1, 1, &mut first);
+            if self.out.symbols.len() > before
+                && let Some(title) = first
+            {
+                found.push((self.anchor_start(&inner, j), self.nodes.n[e].end, title));
+            }
+        }
+        if found.is_empty() {
+            self.out.symbols.truncate(base);
+            return false;
+        }
+        anchors.extend(found);
+        true
     }
 
     /// `budget`：还能穿过几层不认识的节点（容器的 body）。顶层为 0，不往普通语句里找符号。
