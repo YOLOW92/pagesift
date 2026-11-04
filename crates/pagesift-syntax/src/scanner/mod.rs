@@ -33,6 +33,7 @@ pub mod rust;
 pub mod svelte;
 pub mod toml;
 pub mod ts;
+pub mod vue;
 
 /// 序列化缓冲上限（与官方 `TREE_SITTER_SERIALIZATION_BUFFER_SIZE` 相同）。
 pub const MAX_SERIALIZED: usize = 1024;
@@ -65,6 +66,7 @@ pub fn create(name: &str) -> Option<Box<dyn Scanner>> {
         "dart" => Box::new(dart::Dart),
         "html" => Box::new(html::Html::default()),
         "svelte" => Box::new(html::Html::svelte()),
+        "vue" => Box::new(html::Html::vue()),
         "python" => Box::new(python::Python::default()),
         "cpp" => Box::new(cpp::Cpp::default()),
         "lua" => Box::new(lua::Lua::default()),

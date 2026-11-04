@@ -229,6 +229,8 @@ pub struct Html {
     tags: Vec<Tag>,
     /// Svelte 变体：标签名保留大小写、允许 `.`，并多出花括号相关的记号。
     svelte: bool,
+    /// Vue 变体：多出文本片段、插值文本和 `<template>` 开始标签名。
+    vue: bool,
 }
 
 impl Html {
@@ -236,6 +238,15 @@ impl Html {
         Html {
             tags: Vec::new(),
             svelte: true,
+            vue: false,
+        }
+    }
+
+    pub fn vue() -> Html {
+        Html {
+            tags: Vec::new(),
+            svelte: false,
+            vue: true,
         }
     }
 }
@@ -359,7 +370,9 @@ impl Html {
             return false;
         }
         let tag = Tag::for_name(name, self.svelte);
-        let sym = if type_is(tag.kind, "SCRIPT") {
+        let sym = if self.vue && type_is(tag.kind, "TEMPLATE") {
+            super::vue::TEMPLATE_START_TAG_NAME
+        } else if type_is(tag.kind, "SCRIPT") {
             SCRIPT_START_TAG_NAME
         } else if type_is(tag.kind, "STYLE") {
             STYLE_START_TAG_NAME
@@ -389,6 +402,11 @@ impl Html {
 
 impl Scanner for Html {
     fn scan(&mut self, lx: &mut ScanLexer, v: &[bool]) -> bool {
+        if self.vue
+            && let Some(r) = super::vue::pre_scan(lx, v)
+        {
+            return r;
+        }
         if v[RAW_TEXT] && !v[START_TAG_NAME] && !v[END_TAG_NAME] {
             return self.scan_raw_text(lx);
         }

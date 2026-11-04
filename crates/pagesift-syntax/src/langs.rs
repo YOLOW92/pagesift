@@ -47,9 +47,10 @@ pub enum Lang {
     CMake,
     Erlang,
     Hcl,
+    Vue,
 }
 
-const COUNT: usize = 37;
+const COUNT: usize = 38;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -92,6 +93,7 @@ impl Lang {
             "cmake" => Lang::CMake,
             "erlang" | "erl" | "hrl" => Lang::Erlang,
             "hcl" | "terraform" | "tf" => Lang::Hcl,
+            "vue" => Lang::Vue,
             _ => return None,
         })
     }
@@ -139,6 +141,7 @@ impl Lang {
             Lang::CMake => include_bytes!("../tables/cmake.pslg.z"),
             Lang::Erlang => include_bytes!("../tables/erlang.pslg.z"),
             Lang::Hcl => include_bytes!("../tables/hcl.pslg.z"),
+            Lang::Vue => include_bytes!("../tables/vue.pslg.z"),
         }
     }
 
@@ -445,5 +448,6 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
             _ => Skip,
         },
         Lang::Hcl => Skip,
+        Lang::Vue => Skip,
     }
 }
