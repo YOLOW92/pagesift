@@ -478,13 +478,30 @@ fn block(b: &[u8], st: &mut State, out: &mut Vec<u8>, start: usize, max_out: usi
     let (mut sum_ll, mut sum_ml) = (0u64, 0u64);
     for i in 0..nseq {
         let (cl, co, cm) = (ll.cells[sl], of.cells[so], ml.cells[sm]);
-        let ofv = co.val + r.read(co.eb as u32);
-        let mlen = cm.val + r.read(cm.eb as u32);
-        let llen = cl.val + r.read(cl.eb as u32);
+        // 三个额外位字段合并成一次读取（先读到的在高位），三个状态更新同理，缩短位缓冲上的串行链
+        r.refill_wide();
+        let (eo, em, el) = (co.eb as u32, cm.eb as u32, cl.eb as u32);
+        let (xo, xm, xl);
+        if eo + em + el <= 56 {
+            let v = r.read_wide(eo + em + el);
+            xo = (v >> (em + el)) as u32;
+            xm = ((v >> el) & ((1u64 << em) - 1)) as u32;
+            xl = (v & ((1u64 << el) - 1)) as u32;
+        } else {
+            xo = r.read(eo);
+            xm = r.read(em);
+            xl = r.read(el);
+        }
+        let ofv = co.val + xo;
+        let mlen = cm.val + xm;
+        let llen = cl.val + xl;
         if i + 1 < nseq {
-            sl = cl.base as usize + r.read(cl.nb as u32) as usize;
-            sm = cm.base as usize + r.read(cm.nb as u32) as usize;
-            so = co.base as usize + r.read(co.nb as u32) as usize;
+            let (nl, nm, no) = (cl.nb as u32, cm.nb as u32, co.nb as u32);
+            r.refill_wide();
+            let v = r.read_wide(nl + nm + no);
+            sl = cl.base as usize + ((v >> (nm + no)) & ((1u64 << nl) - 1)) as usize;
+            sm = cm.base as usize + ((v >> no) & ((1u64 << nm) - 1)) as usize;
+            so = co.base as usize + (v & ((1u64 << no) - 1)) as usize;
         }
         let off = if ofv > 3 {
             let o = (ofv - 3) as usize;

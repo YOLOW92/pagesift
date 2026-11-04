@@ -90,6 +90,33 @@ impl<'a> RevBits<'a> {
         }
     }
     /// 读 `n` 位(n ≤ 32);越过开头的部分补 0 并让 `overflow()` 为真。
+    /// 补到至少 56 位(数据够时)。
+    #[inline(always)]
+    pub fn refill_wide(&mut self) {
+        if self.have < 56 {
+            if self.idx >= 8 {
+                let b = &self.data[self.idx - 8..self.idx];
+                let w = u64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]);
+                let k = (63 - self.have) >> 3; // 1..=7 字节
+                self.buf |= (w >> (64 - 8 * k)) << (64 - self.have - 8 * k);
+                self.have += 8 * k;
+                self.idx -= k as usize;
+            } else {
+                while self.have <= 56 && self.idx > 0 {
+                    self.idx -= 1;
+                    self.buf |= (self.data[self.idx] as u64) << (56 - self.have);
+                    self.have += 8;
+                }
+            }
+        }
+    }
+    /// 一次读 `n` 位(n ≤ 56),先读到的在高位。调用方保证刚 `refill_wide` 过。
+    #[inline(always)]
+    pub fn read_wide(&mut self, n: u32) -> u64 {
+        let v = (self.buf >> 8) >> (56 - n);
+        self.skip(n);
+        v
+    }
     #[inline(always)]
     pub fn read(&mut self, n: u32) -> u32 {
         if n == 0 {
