@@ -658,6 +658,7 @@ fn is_identifier(kind: &str) -> bool {
             | "type_constructor"
             | "class_name"
             | "module_type_name"
+            | "moduleName"
             | "method_identifier"
             | "destructor_name"
             | "operator_name"

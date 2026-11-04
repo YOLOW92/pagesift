@@ -365,6 +365,16 @@ fn commonlisp_defs() {
 }
 
 #[test]
+fn pascal_defs() {
+    check(
+        "pascal",
+        "unit u;\ninterface\nimplementation\nprocedure Foo(x: integer);\nbegin\nend;\nfunction Bar: integer;\nbegin\nend;\nend.\n",
+        &[(K::Module, "u"), (K::Function, "Foo"), (K::Function, "Bar")],
+        0,
+    );
+}
+
+#[test]
 fn unsupported_or_symbol_free_is_none() {
     assert!(outline("cobol", "x").is_none());
     assert!(outline("python", "x = 1\n").is_none());

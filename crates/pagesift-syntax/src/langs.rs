@@ -41,9 +41,10 @@ pub enum Lang {
     Make,
     Scheme,
     CommonLisp,
+    Pascal,
 }
 
-const COUNT: usize = 31;
+const COUNT: usize = 32;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -80,6 +81,7 @@ impl Lang {
             "make" | "makefile" | "mk" => Lang::Make,
             "scheme" | "scm" => Lang::Scheme,
             "commonlisp" | "lisp" | "cl" => Lang::CommonLisp,
+            "pascal" | "pas" | "delphi" => Lang::Pascal,
             _ => return None,
         })
     }
@@ -121,6 +123,7 @@ impl Lang {
             Lang::Make => include_bytes!("../tables/make.pslg.z"),
             Lang::Scheme => include_bytes!("../tables/scheme.pslg.z"),
             Lang::CommonLisp => include_bytes!("../tables/commonlisp.pslg.z"),
+            Lang::Pascal => include_bytes!("../tables/pascal.pslg.z"),
         }
     }
 
@@ -390,6 +393,13 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
         Lang::CommonLisp => match kind {
             "list_lit" => Wrap,
             "defun" => Sym(K::Function, "defun", No),
+            _ => Skip,
+        },
+        Lang::Pascal => match kind {
+            "unit" | "program" => Sym(K::Module, "unit", Scope),
+            "defProc" => Wrap,
+            "declProc" => Sym(K::Function, "procedure", No),
+            "declUses" => Import,
             _ => Skip,
         },
     }
