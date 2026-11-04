@@ -79,7 +79,7 @@ impl<'a> Snapshots<'a> {
         let compressed = if deduped {
             Vec::new()
         } else {
-            pagesift_zstd::compress(html, cfg.snapshot_zstd_level)
+            pagesift_compress::compress(html, cfg.snapshot_compress_level)
         };
         let mut item = Vec::with_capacity(36);
         item.extend_from_slice(&hash.0);
@@ -89,7 +89,7 @@ impl<'a> Snapshots<'a> {
         let mut stored_bytes = 0;
         if !tx.contains(ns::SNAP_BLOB, &hash.0)? {
             let data = if deduped {
-                pagesift_zstd::compress(html, cfg.snapshot_zstd_level)
+                pagesift_compress::compress(html, cfg.snapshot_compress_level)
             } else {
                 compressed
             };
@@ -111,7 +111,7 @@ impl<'a> Snapshots<'a> {
         let Some((_, data)) = self.store.get(ns::SNAP_BLOB, &hash.0)? else {
             return Ok(None);
         };
-        let html = pagesift_zstd::decompress(data.as_slice(), MAX_SNAPSHOT)
+        let html = pagesift_compress::decompress(data.as_slice(), MAX_SNAPSHOT)
             .map_err(|e| Error::Corrupt(format!("snapshot {hash}: {e}")))?;
         Ok(Some(html))
     }

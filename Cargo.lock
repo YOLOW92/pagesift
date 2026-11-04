@@ -1491,6 +1491,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "pagesift-compress"
+version = "1.1.0"
+
+[[package]]
 name = "pagesift-content"
 version = "1.1.0"
 dependencies = [
@@ -1724,10 +1728,10 @@ dependencies = [
  "httpdate",
  "hyper",
  "hyper-util",
+ "pagesift-compress",
  "pagesift-rustls",
  "pagesift-stat",
  "pagesift-testkit",
- "pagesift-zstd",
  "quick-xml",
  "reqwest",
  "rustls-native-certs",
@@ -1889,9 +1893,9 @@ dependencies = [
  "blake3",
  "crc32fast",
  "flate2",
+ "pagesift-compress",
  "pagesift-stat",
  "pagesift-testkit",
- "pagesift-zstd",
  "proptest",
  "sha2",
  "tempfile",
@@ -1919,10 +1923,6 @@ version = "1.1.0"
 dependencies = [
  "libc",
 ]
-
-[[package]]
-name = "pagesift-zstd"
-version = "1.1.0"
 
 [[package]]
 name = "percent-encoding"

@@ -149,9 +149,9 @@ pub(super) fn decode_layer(
         "zstd" => {
             // 自研解码器一次解完；超限时留下已解好的完整块并标记截断
             let mut out = Vec::with_capacity(data.len().saturating_mul(4).min(max));
-            return match pagesift_zstd::decompress_into(data, &mut out, max) {
+            return match pagesift_compress::decompress_into(data, &mut out, max) {
                 Ok(()) => (out, false, None),
-                Err(pagesift_zstd::Error::TooLarge) => (out, true, None),
+                Err(pagesift_compress::Error::TooLarge) => (out, true, None),
                 Err(e) => (out, false, Some(e.into())),
             };
         }

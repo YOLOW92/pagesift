@@ -77,7 +77,7 @@ pub struct Config {
     pub background: bool,
     /// 单个快照（压缩前）的大小上限。
     pub snapshot_max_bytes: usize,
-    pub snapshot_zstd_level: i32,
+    pub snapshot_compress_level: i32,
     /// 测试用：把哈希截短以制造冲突。
     pub(crate) hash_mask: u64,
 }
@@ -103,7 +103,7 @@ impl Config {
             // [策略] 先验包 v0：0.81 的现值；单个快照的大小上限（用户可改）
             snapshot_max_bytes: 512 << 10,
             // [待迁移] 0.87 开机自标定决定 zstd 级别
-            snapshot_zstd_level: 3,
+            snapshot_compress_level: 3,
             hash_mask: u64::MAX,
         }
     }

@@ -21,7 +21,7 @@ pagesift-stat = { version = "1.1.0", path = "../pagesift-stat" }
 quick-xml = "0.42.0"
 rustls-native-certs = "0.8.5"
 tokio-rustls = { version = "0.26.6", default-features = false, features = ["ring", "tls12", "logging"] }
-pagesift-zstd = { version = "1.1.0", path = "../pagesift-zstd" }
+pagesift-compress = { version = "1.1.0", path = "../pagesift-compress" }
 encoding_rs = "0.8.35"
 httpdate = "1.0.3"
 reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls-native-roots", "http2", "gzip", "brotli", "deflate", "socks"] }

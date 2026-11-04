@@ -1,5 +1,5 @@
-//! 往返、真实样本（环境变量 PAGESIFT_ZSTD_SAMPLES 指向的目录里的 *.zst 与同名原文）、随机变异。
-use pagesift_zstd::{compress, decompress};
+//! 往返、真实样本（环境变量 PAGESIFT_COMPRESS_SAMPLES 指向的目录里的 *.zst 与同名原文）、随机变异。
+use pagesift_compress::{compress, decompress};
 
 fn lcg(s: &mut u64) -> u64 {
     *s = s
@@ -70,7 +70,7 @@ fn mutation_never_panics() {
 
 #[test]
 fn real_samples() {
-    let Ok(dir) = std::env::var("PAGESIFT_ZSTD_SAMPLES") else {
+    let Ok(dir) = std::env::var("PAGESIFT_COMPRESS_SAMPLES") else {
         return;
     };
     let mut n = 0;
@@ -94,12 +94,12 @@ fn real_samples() {
     eprintln!("real samples ok: {n}");
 }
 
-/// 把本编码器的输出写到 PAGESIFT_ZSTD_DUMP 目录，供官方 `zstd -d` 验证。
+/// 把本编码器的输出写到 PAGESIFT_COMPRESS_DUMP 目录，供官方 `zstd -d` 验证。
 #[test]
 fn dump_for_official_decoder() {
     let (Ok(src), Ok(dst)) = (
-        std::env::var("PAGESIFT_ZSTD_SAMPLES"),
-        std::env::var("PAGESIFT_ZSTD_DUMP"),
+        std::env::var("PAGESIFT_COMPRESS_SAMPLES"),
+        std::env::var("PAGESIFT_COMPRESS_DUMP"),
     ) else {
         return;
     };
@@ -109,10 +109,10 @@ fn dump_for_official_decoder() {
     }
 }
 
-/// 解码速度：PAGESIFT_ZSTD_SAMPLES 目录里的 b.txt.l3.zst，与官方 `zstd -d` 命令交替各跑 15 次。
+/// 解码速度：PAGESIFT_COMPRESS_SAMPLES 目录里的 b.txt.l3.zst，与官方 `zstd -d` 命令交替各跑 15 次。
 #[test]
 fn bench_vs_cli() {
-    let Ok(src) = std::env::var("PAGESIFT_ZSTD_SAMPLES") else {
+    let Ok(src) = std::env::var("PAGESIFT_COMPRESS_SAMPLES") else {
         return;
     };
     use std::time::Instant;
@@ -168,7 +168,7 @@ fn huffman_literals_roundtrip() {
 
 #[test]
 fn dump_skewed() {
-    if let Ok(dst) = std::env::var("PAGESIFT_ZSTD_DUMP") {
+    if let Ok(dst) = std::env::var("PAGESIFT_COMPRESS_DUMP") {
         std::fs::write(
             format!("{dst}/skewed.zst"),
             compress(&skewed(300_000, 5), 3),
@@ -181,7 +181,7 @@ fn dump_skewed() {
 /// 编码速度:与官方 `zstd -3` 命令交替各跑 5 次(取最快)。
 #[test]
 fn bench_encode_vs_cli() {
-    let Ok(src) = std::env::var("PAGESIFT_ZSTD_SAMPLES") else {
+    let Ok(src) = std::env::var("PAGESIFT_COMPRESS_SAMPLES") else {
         return;
     };
     use std::time::Instant;

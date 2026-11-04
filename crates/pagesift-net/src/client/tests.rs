@@ -52,7 +52,7 @@ fn decodes_every_supported_encoding() {
     z.write_all(&text).unwrap();
     let mut d = flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::fast());
     d.write_all(&text).unwrap();
-    let zs = pagesift_zstd::compress(&text[..], 1);
+    let zs = pagesift_compress::compress(&text[..], 1);
     for (enc, raw) in [
         ("deflate", z.finish().unwrap()),
         ("deflate", d.finish().unwrap()),
@@ -103,7 +103,7 @@ fn decodes_stacked_codings_in_reverse_order() {
     assert!(!cut);
     assert!(h.get(header::CONTENT_ENCODING).is_none());
     // gzip, zstd：先 gzip 后 zstd，解码时先解 zstd
-    let raw = pagesift_zstd::compress(&gzip(&text)[..], 1);
+    let raw = pagesift_compress::compress(&gzip(&text)[..], 1);
     let (d, _) = decode_full("gzip, zstd", raw, 1 << 20, false);
     let d = d.unwrap();
     assert_eq!(d.body, text);
