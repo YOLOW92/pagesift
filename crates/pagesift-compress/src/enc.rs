@@ -90,6 +90,7 @@ struct Seq {
 }
 
 /// 三张预定义表,及每个符号对应的格子下标(只建一次)。
+#[derive(Clone)]
 struct EncTables {
     ll: (FseTable, Vec<Vec<u16>>),
     of: (FseTable, Vec<Vec<u16>>),
@@ -100,6 +101,9 @@ fn by_symbol(t: FseTable) -> (FseTable, Vec<Vec<u16>>) {
     let mut v = vec![Vec::new(); 64];
     for (i, c) in t.cells.iter().enumerate() {
         v[c.sym as usize].push(i as u16);
+    }
+    for l in v.iter_mut() {
+        l.sort_by_key(|&i| t.cells[i as usize].base);
     }
     (t, v)
 }
@@ -116,23 +120,79 @@ impl EncTables {
 }
 
 /// 选下一个状态:符号 `sym` 的格子里,覆盖 `next` 的那个(`next` 为 None 时取第一个)。
+/// 同一符号的格子按 base 排序后,各自的区间 [base, base + 2^nb) 恰好铺满整张表,所以二分即可。
 fn pick(t: &(FseTable, Vec<Vec<u16>>), sym: u32, next: Option<usize>) -> (usize, u32, u32) {
     let list = &t.1[sym as usize];
     match next {
         None => (list[0] as usize, 0, 0),
         Some(x) => {
-            for &i in list {
-                let c = t.0.cells[i as usize];
-                if x >= c.base as usize && x < c.base as usize + (1usize << c.nb) {
-                    return (i as usize, c.nb as u32, (x - c.base as usize) as u32);
-                }
-            }
-            unreachable!("预定义表覆盖所有合法转移")
+            let k = list.partition_point(|&i| t.0.cells[i as usize].base as usize <= x) - 1;
+            let i = list[k] as usize;
+            let c = t.0.cells[i];
+            (i, c.nb as u32, (x - c.base as usize) as u32)
         }
     }
 }
 
-fn encode_seqs(seqs: &[Seq], t: &EncTables) -> Vec<u8> {
+/// 三类序列码的表:预定义(None)或自定义(分布表头 + 表)。
+struct SeqTables {
+    modes: u8,
+    desc: Vec<u8>,
+    ll: (FseTable, Vec<Vec<u16>>),
+    of: (FseTable, Vec<Vec<u16>>),
+    ml: (FseTable, Vec<Vec<u16>>),
+}
+
+/// 按统计做自定义 FSE 表:（分布表头, 表）。序列太少不划算,返回 None。
+fn custom_table(cnt: &[u32], al: u32, nseq: usize) -> Option<(Vec<u8>, (FseTable, Vec<Vec<u16>>))> {
+    if nseq < 24 {
+        return None;
+    }
+    let p = crate::henc::normalize(cnt, al)?;
+    let head = crate::henc::write_dist(&p, al)?;
+    let dist: Vec<i16> = p.iter().map(|&x| x as i16).collect();
+    Some((head, by_symbol(fse::build(&dist, al).ok()?)))
+}
+
+/// 统计各码出现次数,够多就做自定义表,否则用预定义表。
+fn choose_tables(seqs: &[Seq], pre: &EncTables) -> SeqTables {
+    let mut cl = [0u32; 36];
+    let mut co = [0u32; 32];
+    let mut cm = [0u32; 53];
+    for s in seqs {
+        cl[ll_code(s.ll).0 as usize] += 1;
+        let ofv = if s.rep { 1 } else { s.off + 3 };
+        co[(31 - ofv.leading_zeros()) as usize] += 1;
+        cm[ml_code(s.ml).0 as usize] += 1;
+    }
+    let mut modes = 0u8;
+    let mut desc = Vec::new();
+    let mut custom =
+        |cnt: &[u32], al: u32, shift: u32, pre: &(FseTable, Vec<Vec<u16>>)| match custom_table(
+            cnt,
+            al,
+            seqs.len(),
+        ) {
+            Some((head, t)) => {
+                modes |= 2 << shift;
+                desc.extend_from_slice(&head);
+                t
+            }
+            None => pre.clone(),
+        };
+    let ll = custom(&cl, 9, 6, &pre.ll);
+    let of = custom(&co, 8, 4, &pre.of);
+    let ml = custom(&cm, 9, 2, &pre.ml);
+    SeqTables {
+        modes,
+        desc,
+        ll,
+        of,
+        ml,
+    }
+}
+
+fn encode_seqs(seqs: &[Seq], t: &SeqTables) -> Vec<u8> {
     let (tl, to, tm) = (&t.ll, &t.of, &t.ml);
     let mut w = BitWriter::new();
     let (mut cl, mut co, mut cm) = (0usize, 0usize, 0usize);
@@ -143,17 +203,17 @@ fn encode_seqs(seqs: &[Seq], t: &EncTables) -> Vec<u8> {
         let oc = 31 - ofv.leading_zeros();
         let (ob, ov) = (oc, ofv - (1 << oc));
         if k + 1 == seqs.len() {
-            cl = pick(&tl, lc, None).0;
-            co = pick(&to, oc, None).0;
-            cm = pick(&tm, mc, None).0;
+            cl = pick(tl, lc, None).0;
+            co = pick(to, oc, None).0;
+            cm = pick(tm, mc, None).0;
         } else {
-            let (i, n, v) = pick(&to, oc, Some(co));
+            let (i, n, v) = pick(to, oc, Some(co));
             w.put(v, n);
             co = i;
-            let (i, n, v) = pick(&tm, mc, Some(cm));
+            let (i, n, v) = pick(tm, mc, Some(cm));
             w.put(v, n);
             cm = i;
-            let (i, n, v) = pick(&tl, lc, Some(cl));
+            let (i, n, v) = pick(tl, lc, Some(cl));
             w.put(v, n);
             cl = i;
         }
@@ -161,9 +221,9 @@ fn encode_seqs(seqs: &[Seq], t: &EncTables) -> Vec<u8> {
         w.put(mv, mb);
         w.put(ov, ob);
     }
-    w.put(cm as u32, 6);
-    w.put(co as u32, 5);
-    w.put(cl as u32, 6);
+    w.put(cm as u32, tm.0.al);
+    w.put(co as u32, to.0.al);
+    w.put(cl as u32, tl.0.al);
     w.finish()
 }
 
@@ -267,7 +327,7 @@ pub fn compress(data: &[u8], level: i32) -> Vec<u8> {
         depth: if level >= 9 {
             32
         } else if level >= 3 {
-            2
+            4
         } else {
             2
         },
@@ -361,8 +421,10 @@ pub fn compress(data: &[u8], level: i32) -> Vec<u8> {
                 body.push(255);
                 body.extend_from_slice(&((n - 0x7F00) as u16).to_le_bytes());
             }
-            body.push(0);
-            body.extend_from_slice(&encode_seqs(&seqs, &tabs));
+            let st = choose_tables(&seqs, &tabs);
+            body.push(st.modes);
+            body.extend_from_slice(&st.desc);
+            body.extend_from_slice(&encode_seqs(&seqs, &st));
         }
         if body.len() >= blk.len() {
             raw_block(&mut out, blk, last);

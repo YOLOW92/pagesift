@@ -52,35 +52,32 @@ fn lengths(freq: &[u32; 256], max_len: u8) -> [u8; 256] {
     }
 }
 
-/// 把权重表写成 FSE 压缩形式；失败返回 None。
-fn fse_weights(w: &[u8]) -> Option<Vec<u8>> {
-    const AL: u32 = 6;
-    let n = w.len();
-    if n < 3 {
+/// 把计数归一化到总和 2^al(每个出现的符号至少 1);做不到返回 None。
+pub(crate) fn normalize(cnt: &[u32], al: u32) -> Option<Vec<i32>> {
+    let size = 1i64 << al;
+    let n: u64 = cnt.iter().map(|&c| c as u64).sum();
+    if n == 0 {
         return None;
     }
-    let last = *w.iter().max()? as usize;
-    let mut cnt = vec![0u32; last + 1];
-    for &x in w {
-        cnt[x as usize] += 1;
-    }
-    let mut probs = vec![0i32; last + 1];
-    let mut sum = 0i32;
+    let mut probs = vec![0i32; cnt.len()];
+    let mut sum = 0i64;
     for (i, &c) in cnt.iter().enumerate() {
         if c > 0 {
-            probs[i] = (((c as u64 * 64 + n as u64 / 2) / n as u64) as i32).max(1);
-            sum += probs[i];
+            probs[i] = (((c as u64 * size as u64 + n / 2) / n) as i32).max(1);
+            sum += probs[i] as i64;
         }
     }
-    let big = (0..=last).max_by_key(|&i| probs[i])?;
-    probs[big] += 64 - sum;
-    if probs[big] < 1 {
-        return None;
-    }
-    // 分布表头
+    let big = (0..probs.len()).max_by_key(|&i| probs[i])?;
+    probs[big] += (size - sum) as i32;
+    (probs[big] >= 1).then_some(probs)
+}
+
+/// 写 FSE 分布表头(`probs` 非负;到最后一个出现的符号为止),补齐到整字节。
+pub(crate) fn write_dist(probs: &[i32], al: u32) -> Option<Vec<u8>> {
+    let last = probs.iter().rposition(|&p| p > 0)?;
     let mut h = BitWriter::new();
-    h.put(AL - 5, 4);
-    let (mut remaining, mut thr, mut nbits) = (65i32, 64i32, AL + 1);
+    h.put(al - 5, 4);
+    let (mut remaining, mut thr, mut nbits) = ((1i32 << al) + 1, 1i32 << al, al + 1);
     let mut s = 0;
     while remaining > 1 && s <= last {
         let x = probs[s] + 1;
@@ -113,10 +110,23 @@ fn fse_weights(w: &[u8]) -> Option<Vec<u8>> {
             thr >>= 1;
         }
     }
-    if remaining != 1 {
+    (remaining == 1).then(|| h.flush_bytes())
+}
+
+/// 把权重表写成 FSE 压缩形式；失败返回 None。
+fn fse_weights(w: &[u8]) -> Option<Vec<u8>> {
+    const AL: u32 = 6;
+    let n = w.len();
+    if n < 3 {
         return None;
     }
-    let head = h.flush_bytes();
+    let last = *w.iter().max()? as usize;
+    let mut cnt = vec![0u32; last + 1];
+    for &x in w {
+        cnt[x as usize] += 1;
+    }
+    let probs = normalize(&cnt, AL)?;
+    let head = write_dist(&probs, AL)?;
     let dist: Vec<i16> = probs.iter().map(|&p| p as i16).collect();
     let t = fse::build(&dist, AL).ok()?;
     // 两条交错状态链:偶数下标一条,奇数下标一条
