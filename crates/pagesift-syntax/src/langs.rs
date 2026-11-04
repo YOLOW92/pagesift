@@ -31,9 +31,10 @@ pub enum Lang {
     Dart,
     Julia,
     Nix,
+    Dockerfile,
 }
 
-const COUNT: usize = 21;
+const COUNT: usize = 22;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -60,6 +61,7 @@ impl Lang {
             "dart" => Lang::Dart,
             "julia" | "jl" => Lang::Julia,
             "nix" => Lang::Nix,
+            "dockerfile" => Lang::Dockerfile,
             _ => return None,
         })
     }
@@ -91,6 +93,7 @@ impl Lang {
             Lang::Dart => include_bytes!("../tables/dart.pslg.z"),
             Lang::Julia => include_bytes!("../tables/julia.pslg.z"),
             Lang::Nix => include_bytes!("../tables/nix.pslg.z"),
+            Lang::Dockerfile => include_bytes!("../tables/dockerfile.pslg.z"),
         }
     }
 
@@ -314,5 +317,6 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
             _ => Skip,
         },
         Lang::Nix => Skip,
+        Lang::Dockerfile => Skip,
     }
 }

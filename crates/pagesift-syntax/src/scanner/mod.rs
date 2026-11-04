@@ -11,6 +11,7 @@ pub mod cpp;
 pub mod csharp;
 pub mod css;
 pub mod dart;
+pub mod dockerfile;
 pub mod html;
 pub mod js;
 pub mod julia;
@@ -41,6 +42,7 @@ pub fn create(name: &str) -> Option<Box<dyn Scanner>> {
         "ruby" => Box::new(ruby::Ruby::default()),
         "kotlin" => Box::new(kotlin::Kotlin::default()),
         "css" => Box::new(css::Css),
+        "dockerfile" => Box::new(dockerfile::Dockerfile::default()),
         "nix" => Box::new(nix::Nix),
         "julia" => Box::new(julia::Julia),
         "dart" => Box::new(dart::Dart),
