@@ -29,6 +29,7 @@ mod fetch;
 mod frames;
 mod hooked;
 mod http_extract;
+mod image_file;
 mod images;
 mod interact;
 mod office;

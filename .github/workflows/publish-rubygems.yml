@@ -1,0 +1,95 @@
+# RubyGems 包 pagesift：Ruby 绑定 + 三个平台的原生库。和 release.yml 分开，这里失败不影响主发布。
+# 走 RubyGems 可信发布（OIDC）：先在 rubygems.org 的“待定可信发布者”页面登记 gem 名 pagesift、
+# 仓库 YOLOW92/pagesift、工作流 publish-rubygems.yml、环境 release。待定登记约 12 小时过期，首发成功后转成长期配置。
+# 首次推送必须声明账号 owner=255536，否则被拒。configure-rubygems-credentials 没有 owner 输入，
+# 而服务端 exchange_token 接口收这个参数，所以这里直接调接口换凭据；gem 已存在时带上也无妨。
+name: Publish RubyGems
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 要发布的版本标签，例如 v1.1.0（对应的 GitHub 版本页面要已经公开，且带 C 库产物）
+        required: true
+      dry_run:
+        description: 只构建和测试，不发布
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 解析标签
+        id: ver
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "标签格式应为 v1.2.3，得到：$TAG"; exit 1; }
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ver.outputs.tag }}
+      - name: 取 Release 里的 C 库并校验
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p dl ffi
+          for t in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu aarch64-apple-darwin; do
+            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -D dl \
+              -p "pagesift-ffi-$TAG-$t.tar.gz" -p "pagesift-ffi-$TAG-$t.tar.gz.sha256"
+          done
+          (cd dl && sha256sum -c ./*.sha256)
+          for t in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu aarch64-apple-darwin; do
+            mkdir -p "ffi/$t"
+            tar xzf "dl/pagesift-ffi-$TAG-$t.tar.gz" -C "ffi/$t" --strip-components=1
+          done
+          ls -R ffi | head -30
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+      - name: 打包并从 gem 安装实测（convert 和 parse）
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: bash bindings/ruby/package.sh --version "$VERSION" --ffi-dir ffi --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gem-dist
+          path: dist/*.gem
+
+  publish:
+    needs: build
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: gem-dist
+          path: dist
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+      - name: RubyGems 可信发布凭据（OIDC，声明 owner）
+        run: |
+          set -euo pipefail
+          jwt="$(curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=rubygems.org" | jq -r .value)"
+          echo "::add-mask::$jwt"
+          key="$(jq -n --arg jwt "$jwt" --arg owner 255536 '{jwt: $jwt, owner: $owner}' \
+            | curl -sS --fail-with-body -X POST -H 'Content-Type: application/json' --data @- \
+              https://rubygems.org/api/v1/oidc/trusted_publisher/exchange_token \
+            | jq -r .rubygems_api_key)"
+          echo "::add-mask::$key"
+          echo "GEM_HOST_API_KEY=$key" >> "$GITHUB_ENV"
+      - name: 推送
+        run: gem push dist/pagesift-*.gem

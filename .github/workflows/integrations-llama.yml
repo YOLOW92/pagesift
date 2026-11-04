@@ -1,0 +1,49 @@
+# llama-index-readers-pagesift 发到 PyPI。和 release.yml 分开：这里失败不影响主发布。
+# 依赖 pagesift>=1.1，所以要等主包发布之后再手动触发。
+name: integrations-llama
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build only, publish nothing
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build
+        run: |
+          python -m pip install build
+          python -m build integrations/llama-index-readers-pagesift --outdir dist
+          ls -l dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: integrations-dist
+          path: dist/*
+
+  publish:
+    if: ${{ !inputs.dry_run }}
+    needs: build
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: integrations-dist
+          path: dist
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true

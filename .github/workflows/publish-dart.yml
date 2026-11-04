@@ -1,0 +1,87 @@
+# pub.dev 包 pagesift：Dart 绑定 + 三个平台的原生库。和 release.yml 分开，这里失败不影响主发布。
+# pub.dev 的自动发布只接受“推送 Git 标签”触发的 GitHub Actions，所以由 dart-v1.1.0 这样的标签触发（pub.dev 管理页里
+# 标签模式填 dart-v{{version}}，并勾选“要求 GitHub Actions 环境”，环境名 release）。同一提交上另外有主仓库的 v1.1.0 标签，C 库从它的 Release 取。
+# 第一次发布必须手动：pub.dev 不能自动发布还不存在的包。在本机运行
+#   bindings/dart/package.sh --version 1.1.0 --ffi-dir <解开的 C 库目录> --out /tmp/dart-out && (cd /tmp/dart-out/pagesift && dart pub publish)
+# 首次发布后到 pub.dev/packages/pagesift/admin 打开自动发布。workflow_dispatch 只用来 dry run（pub.dev 会拒绝非标签触发的发布）。
+name: Publish Dart
+
+on:
+  push:
+    tags:
+      - "dart-v[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 要发布的版本标签，例如 v1.1.0（对应的 GitHub 版本页面要已经公开，且带 C 库产物）
+        required: true
+      dry_run:
+        description: 只构建和测试，不发布
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 解析标签
+        id: ver
+        env:
+          DTAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ "$DTAG" =~ ^dart-v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "标签格式应为 dart-v1.2.3，得到：$DTAG"; exit 1; }
+          version="${DTAG#dart-v}"
+          echo "dtag=$DTAG" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ver.outputs.dtag }}
+      - name: 取 Release 里的 C 库并校验
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p dl ffi
+          for t in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu aarch64-apple-darwin; do
+            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -D dl \
+              -p "pagesift-ffi-$TAG-$t.tar.gz" -p "pagesift-ffi-$TAG-$t.tar.gz.sha256"
+          done
+          (cd dl && sha256sum -c ./*.sha256)
+          for t in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu aarch64-apple-darwin; do
+            mkdir -p "ffi/$t"
+            tar xzf "dl/pagesift-ffi-$TAG-$t.tar.gz" -C "ffi/$t" --strip-components=1
+          done
+      - uses: dart-lang/setup-dart@v1
+      - name: 整理包目录、pub 发布前检查、path 依赖安装实测（convert 和 parse）
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          export DART="$(command -v dart)"
+          bash bindings/dart/package.sh --version "$VERSION" --ffi-dir ffi --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dart-package
+          path: dist/pagesift
+
+  publish:
+    needs: build
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      id-token: write # pub.dev 用 GitHub 的 OIDC 令牌认证
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dart-package
+          path: pagesift
+      - uses: dart-lang/setup-dart@v1
+      - name: 发布到 pub.dev
+        working-directory: pagesift
+        run: dart pub publish --force

@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.0.0
+# pagesift 1.1.0
 
 **AI 智能体的网页和文档层：输入任意 URL、PDF 或 Office 文件，输出干净的 Markdown 或 JSON。**  
 一个自托管的 Rust 二进制：CLI、Firecrawl 和 Jina Reader API、MCP 服务器、Python 和 Node.js 包。
@@ -29,19 +29,19 @@ pagesift 替会思考的软件读取网页和文档：它抓取一个 URL（只�
 以及由你自己的模型驱动的调研任务。
 
 可以替代或配合使用：**Firecrawl**（同样的 v1/v2 API，自托管）、**Jina Reader**（`/r/` 和 `/s/`）、
-**Crawl4AI**、**trafilatura**、**Readability**、**pymupdf4llm**、**Docling**、**Kreuzberg**。
+**Crawl4AI**、**trafilatura**、**Readability**、**pymupdf4llm**、**Docling**、**Kreuzberg**、**xberg**。
 
 <!-- section: facts -->
 ## 速览
 
-- **输入：** URL、HTML、PDF（含扫描页，用 OCR）、Word、Excel、PowerPoint、EPUB、CSV、WARC 归档
+- **输入：** URL、HTML、PDF（含扫描页，用 OCR）、图片文件（OCR）、Word（.docx、.doc）、Excel（.xlsx、.xlsb、.xls）、PowerPoint（.pptx、.ppt）、OpenDocument、RTF、WordPerfect、HWP、EPUB、MOBI、FB2、邮件（.eml、.mbox、.msg）、压缩包（zip、tar、gz、bz2、xz、7z）、SQLite、dBASE、CSV、Markdown 等文本格式、373 种源代码和配置语言、WARC 归档
 - **输出：** Markdown、HTML、原始 HTML、链接、图片、元数据、基于 schema 的 JSON；结果不完整时给出警告
-- **接口：** CLI · Firecrawl v1/v2 HTTP API · Jina Reader · MCP（stdio 或 HTTP）· Python · Node.js / TypeScript · Rust crate
+- **接口：** CLI · Firecrawl v1/v2 HTTP API · Jina Reader · MCP（stdio 或 HTTP）· Python · Node.js / TypeScript · Rust crate · C ABI 及 Go、Java、Kotlin、C#、Ruby、PHP、Lua、Perl、Dart、Swift、Zig 绑定 · LangChain 和 LlamaIndex
 - **平台：** Linux x86_64 / aarch64（glibc ≥ 2.28 和 musl）、macOS arm64、Windows x86_64；Docker 镜像 `ghcr.io/yolow92/pagesift`
 - **运行环境：** HTTP、PDF 和 Office 无需额外安装。可选：处理 JavaScript 页面的浏览器、用于 OCR 的 NVIDIA GPU、供 `/v2/agent` 使用的你自己的模型
-- **内存：** 1.0 各项基准中，不带浏览器时每个 worker 峰值 17–395 MB；带公式模型的 OCR 约需 1.7 GB；容量按 cgroup 上限确定
+- **内存：** 1.1 各项基准中，不带浏览器时每个 worker 峰值 18–377 MB；带公式模型的 OCR 约需 1.7 GB；容量按 cgroup 上限确定
 - **许可证：** AGPL-3.0，或[商业许可](COMMERCIAL.md)
-- **最新版本：** 1.0.0 · [发行说明](releases/1.0.0.md)
+- **最新版本：** 1.1.0 · [发行说明](releases/1.1.0.md)
 
 <!-- section: install -->
 ## 安装与使用
@@ -51,14 +51,14 @@ pagesift 替会思考的软件读取网页和文档：它抓取一个 URL（只�
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| 服务器 | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.0.0` | `curl localhost:3002/r/https://example.com` |
+| 服务器 | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.1.0` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
 
 ```bash
 pagesift scrape https://example.com                          # Markdown 输出到 stdout
-pagesift scrape report.pdf                                   # 本地 PDF、Office、EPUB、CSV、HTML 或 WARC 文件
+pagesift scrape report.pdf                                   # 本地 PDF、Office、电子书、邮件、压缩包、图片、代码或 WARC 文件
 pagesift --ocr scrape scan.pdf                               # 对扫描页做 OCR；模型在首次使用时下载
 pagesift crawl https://docs.rs --limit 500 --out ./data/     # 每页一个文件
 pagesift crawl https://www.example.edu --query "graduate admission" --adaptive
@@ -95,7 +95,7 @@ const items = await scraper.scrapeMany(['https://example.com', 'https://example.
 **HTTP 服务器**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.0.0
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.1.0
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'                        # Firecrawl API
@@ -124,7 +124,7 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 | 能力 | 你能得到什么 | 文档 |
 |---|---|---|
 | **干净内容** | 正文识别，Markdown 保留标题、列表、表格、代码和数学公式 | [基准](benchmarks.md) |
-| **文档** | 自研的 Rust 读取器，支持 PDF、Word、Excel、PowerPoint、EPUB 和 CSV，包括损坏文件和 CJK 字体 | [上传 API](parse-api.md) |
+| **文档** | 自研的 Rust 读取器，支持 PDF、新旧版 Office、OpenDocument、电子书、邮件、压缩包、图片、数据库和文本格式，包括损坏文件和 CJK 字体 | [上传 API](parse-api.md) |
 | **OCR** | 扫描版 PDF 页面用 PP-OCRv6，行间公式用 PP-FormulaNet，纯 Rust 实现，运行在 CPU 或 NVIDIA GPU 上 | [上传 API](parse-api.md) |
 | **结构化提取** | 按 CSS 选择器输出 JSON，站点变化时重新定位选择器；或按 schema 提取，schema 由你的模型写一次，pagesift 缓存 | [提取](structured-extract.md) |
 | **浏览器操作** | 在页面上点击、输入和滚动，还有可以继续使用的会话 | [交互](interact.md) |
@@ -167,18 +167,17 @@ robots.txt、限速和网络防护对每个页面都生效。模型选择 URL �
 
 | 任务 | 指标 | PageSift | 最好的其他工具 | 差距 |
 |---|---|---:|---|---:|
-| PDF → Markdown — olmOCR-bench 1,269 页，单页（单线程） | 单页耗时 ↓ | **2.4** | pypdf 50.0 | **×20.83** |
-| PDF → Markdown — B1 144 页，1 路，常驻服务 | 吞吐 ↑ | **234.5** | pdf_oxide 100.6 | **×2.33** |
+| PDF → Markdown — olmOCR-bench 1,269 页，单页（单线程） | 单页耗时 ↓ | **2.4** | pypdf 50.0 | **×20.49** |
+| PDF → Markdown — B1 144 页，1 路，常驻服务 | 吞吐 ↑ | **176.5** | pdf_oxide 100.6 | **×1.75** |
 | PDF → Markdown — olmOCR-bench 1,269 页 | 官方总分 ↑ | **0.645** | pymupdf4llm 0.484 | **+0.161** |
 | HTML → Markdown — 600 篇生成文档，单页 | 单页耗时 ↓ | **0.24** | Turndown 1.9 | **×8.12** |
 | HTML → Markdown — 600 篇生成文档，保真度 | 平均 F1 ↑ | **1.000** | markdownify 0.936 | **+0.064** |
 | 网页正文 — Firecrawl 597 页，单线程 | 单页中位耗时 ↓ | **1.0** | crw 7.4 | **×7.26** |
-| 网页正文 — A2 随机 269 页，16 路 | 吞吐 ↑ | **656.1** | Resiliparse 559.3 | **×1.17** |
 | 网页正文 — WCXB 测试集 150 页 | F1 ↑ | **0.866** | Readability + Turndown 0.848 | **+0.018** |
 | 发布日期 — htmldate 1,000 页，日期搜索 | 单页耗时 ↓ | **0.31** | htmldate (fast) 2.0 | **×6.45** |
 | RAG 分块 — 5 份语料，1.4 MB | 总耗时 ↓ | **7** | chonkie recursive 35 | **×5.01** |
-| Office / 电子书 — B4 81 份，单进程 | 吞吐 ↑ | **93.6** | Kreuzberg 19.5 | **×4.80** |
-| Office / 电子书 — B4 留出集 39 份，结构保留率 | 结构保留率 ↑ | **0.988** | Kreuzberg 0.816 | **+0.172** |
+| Office / 电子书 — B4 81 份，单进程 | 吞吐 ↑ | **91.7** | xberg 27.0 | **×3.40** |
+| Office / 电子书 — B4 留出集 39 份，结构保留率 | 结构保留率 ↑ | **0.988** | xberg 0.878 | **+0.110** |
 | RAG 查询过滤 — 472 题，默认配置 | 答案召回 ↑ | **0.929** | Crawl4AI BM25 0.673 | **+0.256** |
 | 真实站点抓取 — polite，40 站 × 60 页，覆盖 | 覆盖率 ↑ | **0.740** | Crawl4AI (HTTP) 0.529 | **+0.211** |
 | 真实站点抓取 — fast，40 站 × 60 页，覆盖 | 覆盖率 ↑ | **0.687** | Crawl4AI (HTTP) 0.499 | **+0.188** |
@@ -188,23 +187,38 @@ robots.txt、限速和网络防护对每个页面都生效。模型选择 URL �
 
 | 每 worker 峰值内存 | PageSift MB ↓ | 其他工具 MB | 内存少 |
 |---|---:|---|---:|
-| PDF，B1 | **34** | Docling (CPU) 3,675 (2026-10-28) | **×106.5** |
-| 网页正文，A2 | **28** | Readability + Turndown 1,200 (2026-10-28) | **×43.0** |
+| PDF，B1 | **32** | Docling (CPU) 3,675 (2026-10-28) | **×113.1** |
+| 网页正文，A2 | **20** | Readability + Turndown 1,200 (2026-10-28) | **×60.8** |
 | 抓取，200 站 × 100 页 | **218** | spider 5,500 (2026-10-21) | **×25.2** |
-| Office 和电子书，B4 | **46** | Kreuzberg 231 (2026-10-28) | **×5.0** |
-| 网页正文，A2 | **28** | trafilatura 123 (2026-10-28) | **×4.4** |
+| 网页正文，A2 | **20** | trafilatura 123 (2026-10-28) | **×6.2** |
+| Office 和电子书，B4 | **47** | Kreuzberg 231 (2026-10-28) | **×4.9** |
 | 带浏览器抓取，200 站 × 100 页 | **669** | Google Chrome 2,300 (2026-10-21) | **×3.4** |
-| PDF，B1 | **34** | Kreuzberg 76 (2026-10-28) | **×2.2** |
+| PDF，B1 | **32** | Kreuzberg 76 (2026-10-28) | **×2.3** |
 | 需要 JS 的页面，A3（实网） | **520** | Crawl4AI 982 (2026-10-28) | **×1.9** |
+
+**PageSift 1.1 和 xberg 1.3.9。** xberg 测于 2026-11-04；范围是两轮的结果。加粗的是该行最好的值。
+
+| 指标 | PageSift CLI | PageSift 服务 | xberg | xberg 版面模式 |
+|---|---:|---:|---:|---:|
+| PDF B1，olmOCR 总分 1,269 页 ↑ | **0.645** | — | 0.436 | 0.472 |
+| Office B4，结构保留率，留出集 39 份 ↑ | **0.988** | — | 0.878 | — |
+| PDF B1，1 路，份/秒 ↑ | 161.4 | **176.5** | 29.5–29.9 | 1.35 |
+| PDF B1，16 路，份/秒 ↑ | **539.3** | 305.1 | 65.8–68.4 | 1.41 |
+| Office B4，1 路，份/秒 ↑ | **91.7** | 69.1 | 27.0 | — |
+| Office B4，16 路，份/秒 ↑ | **314.0** | 147.0 | 73.4–74.2 | — |
+| PDF B1，1 路，峰值 MB ↓ | **32** | 211 | 147–172 | 1118 |
+| Office B4，1 路，峰值 MB ↓ | **47** | 252 | 112 | — |
+| Office B4，1 路，单份中位毫秒 ↓ | 4.5 | **2.2** | 3.2–3.3 | — |
+
 
 <details>
 <summary>仍落后</summary>
 
-fast，40 站 × 60 页，耗时（spider 覆盖的页面约为一半） 16.1 seconds vs spider 1.4 seconds；A2 回放 269 页，只抓 HTTP、不限速，1 路 47.5 pages/s vs spider 156.6 pages/s；A2 随机 269 页，常驻 worker，单页 5.2 ms/page vs Resiliparse 2.1 ms/page。
+fast，40 站 × 60 页，耗时（spider 覆盖的页面约为一半） 16.1 seconds vs spider 1.4 seconds；A2 回放 269 页，只抓 HTTP、不限速，1 路 47.5 pages/s vs spider 156.6 pages/s；A2 随机 269 页，常驻 worker，单页 4.5 ms/page vs Resiliparse 2.1 ms/page。
 
 </details>
 
-[完整报告](../benchmarks/history/1.0/results/final/new/report.md)
+[完整报告](../benchmarks/history/1.1/results/final/new/report.md)
 
 <!-- /perf-glance -->
 
@@ -217,7 +231,7 @@ fast，40 站 × 60 页，耗时（spider 覆盖的页面约为一半） 16.1 se
 flowchart TD
     CLI[CLI / Rust 调用方] --> Engine[pagesift-engine]
     HTTP[Firecrawl 和 Jina HTTP API] --> Engine
-    Bindings[Python / Node / MCP] --> Engine
+    Bindings[Python / Node / MCP / C ABI：Go、Java、C#、Ruby、PHP 等] --> Engine
     Engine --> Hooks[pagesift-hooks：规则和钩子]
     Hooks --> Policy[pagesift-policy：robots、限速、退避]
     Policy --> Net[pagesift-net：HTTP、SSRF 防护、可选 TLS 指纹]
@@ -226,7 +240,11 @@ flowchart TD
     Plan -->|是| CDP[pagesift-cdp：浏览器池]
     CDP --> DOM
     Net -->|PDF| PDF[pagesift-pdf]
-    Net -->|Office、EPUB、CSV| Office[pagesift-office]
+    Net -->|Office、电子书、邮件、压缩包、文本| Office[pagesift-office]
+    Net -->|图片| OCR[pagesift-ocr, pagesift-infer, pagesift-gpu]
+    Office -->|压缩包成员、邮件附件| Office
+    Office -->|压缩包成员、邮件附件| PDF
+    Office -->|源代码| Syntax[pagesift-syntax]
     PDF -->|扫描页| OCR[pagesift-ocr、pagesift-infer、pagesift-gpu]
     DOM --> Content[pagesift-content：正文、Markdown、元数据]
     DOM --> Extract[pagesift-extract：选择器、重新定位、分块]
@@ -239,7 +257,7 @@ flowchart TD
 ```
 
 **自研代码，一直到格式层。** 解析在进程内运行，背后没有 Python、JVM 或 Node 运行时。
-pagesift 有自己的零拷贝 HTML5 解析器、带 JPEG、CCITT 和 JBIG2 解码器的 PDF 文件层、Office 和 EPUB 读取器、
+pagesift 有自己的零拷贝 HTML5 解析器、带 JPEG、CCITT 和 JBIG2 解码器的 PDF 文件层、Office、电子书、邮件和压缩包读取器、
 神经网络推理（GPU 内核由 Rust 编译）、Chrome DevTools 客户端、MCP 服务器和只追加存储。
 一个 worker 只占几十 MB，而不是一个加载好的解释器，启动只要几毫秒。
 
@@ -295,14 +313,13 @@ flowchart LR
 [商业许可](COMMERCIAL.md) 或写信到 `licensing@pagesift.dev`。
 
 <!-- section: changelog -->
-## 1.0.0 更新
+## 1.1.0 新增
 
-扫描版 PDF 的 OCR（CPU 或 NVIDIA GPU）、带选择器修复的结构化提取、浏览器操作和会话、
-`/v2/agent`、变化监控、完整的 Jina Reader API、WARC 输入、钩子和规则，以及可选的浏览器 TLS 指纹。
-自 0.81 起，限额在运行时测量，渲染决定按路径族学习，
-一个二进制就能作为多服务器网关、worker 和温备运行。部分名称有变化，见发行说明。
+新增输入格式：旧版 Word、Excel、PowerPoint，Excel 二进制工作簿，OpenDocument、RTF、WordPerfect、HWP、MOBI、FB2、邮件、
+递归读取的压缩包、走 OCR 的图片文件、SQLite、dBASE、DocBook、JATS、字幕、笔记本，以及 373 种源代码和配置语言（放进代码块；C、C++、C#、Go、Java、JavaScript、TypeScript、Lua、PHP、Python、Rust 按函数和类分段）。
+新增集成：LangChain、LlamaIndex，以及 C ABI 和多语言绑定。
 
-[发行说明](releases/1.0.0.md) · [0.90.0](releases/0.90.0.md) · [全部版本](releases/) · [CHANGELOG](../CHANGELOG.md)
+[发布说明](releases/1.1.0.md) · [1.0.0](releases/1.0.0.md) · [全部版本](releases/) · [CHANGELOG](../CHANGELOG.md)
 
 ---
 
@@ -318,7 +335,7 @@ flowchart LR
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.0.0}
+  note   = {Version 1.1.0}
 }
 ```
 

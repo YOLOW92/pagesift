@@ -1,0 +1,105 @@
+run	/home/yolow92/mix-tools/runs-110/final/new
+archive	/home/yolow92/pagesift/benchmarks/history/1.1/results/final/new
+started	2026-11-04T15:43:33+09:00
+pagesift	pagesift 1.1.0
+binary	/home/yolow92/mix-tools/bin/new-110/pagesift
+binary_sha256	48241ac59f9f40800552433b1bfc6741a306d66d0eec6ac2b0682de1a246f489
+git_head	5dcdb2584192b26346ac2ae2da926415fd544ba1
+git_status_begin
+ M .github/SECURITY.md
+ M .github/deny.toml
+ M .github/workflows/release.yml
+ M CHANGELOG.md
+ M Cargo.lock
+ M Cargo.toml
+ M README.md
+ M benchmarks/mix/adapters/py_worker.py
+ M benchmarks/mix/driver.py
+ M benchmarks/mix/v2/tools.lock.md
+ M crates/pagesift-api/Cargo.toml
+ M crates/pagesift-api/src/types/parse.rs
+ M crates/pagesift-api/tests/parse.rs
+ M crates/pagesift-cdp/Cargo.toml
+ M crates/pagesift-cluster/Cargo.toml
+ M crates/pagesift-content/Cargo.toml
+ M crates/pagesift-engine/Cargo.toml
+ M crates/pagesift-engine/src/engine/fetch.rs
+ M crates/pagesift-engine/src/engine/mod.rs
+ M crates/pagesift-engine/src/engine/office.rs
+ M crates/pagesift-engine/src/engine/parse.rs
+ M crates/pagesift-extract/Cargo.toml
+ M crates/pagesift-flow/Cargo.toml
+ M crates/pagesift-frontier/Cargo.toml
+ M crates/pagesift-fuzz/Cargo.toml
+ M crates/pagesift-fuzz/src/targets.rs
+ M crates/pagesift-gpu/Cargo.toml
+ M crates/pagesift-hooks/Cargo.toml
+ M crates/pagesift-mcp/Cargo.toml
+ M crates/pagesift-media/Cargo.toml
+ M crates/pagesift-net/Cargo.toml
+ M crates/pagesift-node/Cargo.toml
+ M crates/pagesift-node/README.md
+ M crates/pagesift-node/npm/darwin-arm64/package.json
+ M crates/pagesift-node/npm/linux-arm64-gnu/package.json
+ M crates/pagesift-node/npm/linux-x64-gnu/package.json
+ M crates/pagesift-node/npm/linux-x64-musl/package.json
+ M crates/pagesift-node/npm/win32-x64-msvc/package.json
+ M crates/pagesift-node/package-lock.json
+ M crates/pagesift-node/package.json
+ M crates/pagesift-node/test/scrape.test.mjs
+ M crates/pagesift-ocr/Cargo.toml
+ M crates/pagesift-office/Cargo.toml
+ M crates/pagesift-office/src/lib.rs
+ M crates/pagesift-office/src/media.rs
+ M crates/pagesift-pdf/Cargo.toml
+ M crates/pagesift-pdf/src/image/decode/mod.rs
+ M crates/pagesift-pdf/src/lib.rs
+ M crates/pagesift-plan/Cargo.toml
+ M crates/pagesift-policy/Cargo.toml
+ M crates/pagesift-py/Cargo.toml
+ M crates/pagesift-py/README.md
+ M crates/pagesift-sink/Cargo.toml
+ M crates/pagesift-store/Cargo.toml
+ M crates/pagesift/Cargo.toml
+ M crates/pagesift/src/commands/warc_in.rs
+ M docs/README.es.md
+ M docs/README.ja.md
+ M docs/README.zh-CN.md
+ M docs/architecture.md
+ M docs/parse-api.md
+ M llms.txt
+?? .github/workflows/integrations.yml
+?? benchmarks/formats/
+?? benchmarks/history/1.1/
+?? benchmarks/mix/v2/locks/py/xberg.in
+?? benchmarks/mix/v2/locks/py/xberg.txt
+?? bindings/
+?? crates/pagesift-engine/src/engine/image_file.rs
+?? crates/pagesift-ffi/
+?? crates/pagesift-office/src/archive.rs
+?? crates/pagesift-office/src/code.rs
+?? crates/pagesift-office/src/compress/
+?? crates/pagesift-office/src/dbf.rs
+?? crates/pagesift-office/src/email/
+?? crates/pagesift-office/src/fb2.rs
+?? crates/pagesift-office/src/format.rs
+?? crates/pagesift-office/src/hwpx.rs
+?? crates/pagesift-office/src/ipynb.rs
+?? crates/pagesift-office/src/legacy/
+?? crates/pagesift-office/src/mobi.rs
+?? crates/pagesift-office/src/odf.rs
+?? crates/pagesift-office/src/ole.rs
+?? crates/pagesift-office/src/opml.rs
+?? crates/pagesift-office/src/rtf.rs
+?? crates/pagesift-office/src/sqlite.rs
+?? crates/pagesift-office/src/subtitle.rs
+?? crates/pagesift-office/src/tar.rs
+?? crates/pagesift-office/src/text.rs
+?? crates/pagesift-office/src/wordperfect.rs
+?? crates/pagesift-office/src/xmldoc.rs
+?? crates/pagesift-office/tests/
+?? crates/pagesift-pdf/src/image/decode/file/
+?? crates/pagesift-pdf/tests/webp_files.rs
+?? docs/releases/1.1.0.md
+?? integrations/
+finished	2026-11-04T15:51:16+09:00

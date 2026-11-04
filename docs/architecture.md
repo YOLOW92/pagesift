@@ -9,7 +9,7 @@ for OCR and a model for `/v2/agent` are optional and found at run time.
 flowchart TD
     CLI[CLI / Rust caller] --> Engine[pagesift-engine]
     HTTP[Firecrawl and Jina HTTP API] --> Engine
-    Bindings[Python / Node / MCP] --> Engine
+    Bindings[Python / Node / MCP / C ABI: Go, Java, C#, Ruby, PHP and more] --> Engine
     Engine --> Hooks[pagesift-hooks: rules and hooks]
     Hooks --> Policy[pagesift-policy: robots, rate limits, backoff]
     Policy --> Net[pagesift-net: HTTP, SSRF guards, optional TLS fingerprint]
@@ -18,8 +18,12 @@ flowchart TD
     Plan -->|Yes| CDP[pagesift-cdp: browser pool]
     CDP --> DOM
     Net -->|PDF| PDF[pagesift-pdf]
-    Net -->|Office, EPUB, CSV| Office[pagesift-office]
-    PDF -->|scanned page| OCR[pagesift-ocr, pagesift-infer, pagesift-gpu]
+    Net -->|Office, e-books, email, archives, text| Office[pagesift-office]
+    Net -->|Image| OCR[pagesift-ocr, pagesift-infer, pagesift-gpu]
+    Office -->|archive member, attachment| Office
+    Office -->|archive member, attachment| PDF
+    Office -->|source code| Syntax[pagesift-syntax]
+    PDF -->|scanned page| OCR
     DOM --> Content[pagesift-content: main content, Markdown, metadata]
     DOM --> Extract[pagesift-extract: selectors, relocation, chunking]
     PDF --> Sink[pagesift-sink: outputs and cache format]
@@ -37,11 +41,11 @@ to `metadata.pagesift.plan.steps`.
 
 | Area | Crates |
 |---|---|
-| Entry points | `pagesift` (CLI and library), `pagesift-api` (HTTP), `pagesift-mcp`, `pagesift-py`, `pagesift-node` |
+| Entry points | `pagesift` (CLI and library), `pagesift-api` (HTTP), `pagesift-mcp`, `pagesift-py`, `pagesift-node`, `pagesift-ffi` |
 | Engine | `pagesift-engine`, `pagesift-plan`, `pagesift-hooks`, `pagesift-llm`, `pagesift-search` |
 | Network | `pagesift-net`, `pagesift-policy`, `pagesift-rustls`, `pagesift-cdp`, `pagesift-media` |
 | Content | `pagesift-html`, `pagesift-content`, `pagesift-extract`, `pagesift-diff`, `pagesift-frontier` |
-| Documents | `pagesift-pdf`, `pagesift-office`, `pagesift-ocr`, `pagesift-infer`, `pagesift-gpu` |
+| Documents | `pagesift-pdf`, `pagesift-office`, `pagesift-syntax`, `pagesift-ocr`, `pagesift-infer`, `pagesift-gpu` |
 | Runtime | `pagesift-flow` (workers and admission), `pagesift-stat` (online statistics), `pagesift-sys`, `pagesift-store`, `pagesift-sink`, `pagesift-cluster` |
 
 ## Execution

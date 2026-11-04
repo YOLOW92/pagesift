@@ -41,6 +41,7 @@ use crate::file::{Document, Object};
 use crate::obj::{deref, text_string};
 use crate::run::run;
 
+pub use crate::image::decode::file::{GrayImage, decode_image_file, image_mime};
 pub use crate::image::{ImageEncoding, ImagePlacement, PdfImage};
 pub use crate::ocr::{OcrInfo, OcrLine, OcrOutput, OcrReport, PageOcr};
 pub use crate::quality::PageQuality;

@@ -35,6 +35,7 @@ impl Engine for Fake {
                 UploadKind::Pdf => "pdf",
                 UploadKind::Html => "html",
                 UploadKind::Office(f) => f.extension(),
+                UploadKind::Image(_) => "image",
             };
             Ok(Document {
                 markdown: opts.wants("markdown").then(|| {
@@ -177,9 +178,26 @@ async fn file_type_comes_from_content_then_name_then_mime() {
         v["data"]["markdown"].as_str().unwrap().starts_with("docx"),
         "{v}"
     );
-    // 认不出的类型拒绝（OpenDocument、旧版 .doc 不支持）
-    for name in ["a.odt", "a.doc", "a.zip"] {
-        let (s, v) = parse(&[("file", Some(name), None, b"PK\x03\x04")]).await;
+    // 文本类、OpenDocument、压缩包也认（ZIP 坏了同样由引擎报错）
+    for (name, body, kind) in [
+        ("a.odt", b"PK\x03\x04".as_slice(), "odt"),
+        ("a.zip", b"PK\x03\x04".as_slice(), "zip"),
+        ("a.md", b"# x".as_slice(), "md"),
+    ] {
+        let (s, v) = parse(&[("file", Some(name), None, body)]).await;
+        assert_eq!(s, StatusCode::OK, "{name}");
+        assert!(
+            v["data"]["markdown"].as_str().unwrap().starts_with(kind),
+            "{v}"
+        );
+    }
+    // 认不出的类型拒绝
+    for (name, body) in [
+        ("a.xyz", b"data".as_slice()),
+        ("a.xyz", b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1".as_slice()),
+        ("a.txt", b"\0\x01binary".as_slice()),
+    ] {
+        let (s, v) = parse(&[("file", Some(name), None, body)]).await;
         assert_eq!(s, StatusCode::BAD_REQUEST, "{name}");
         assert_eq!(v["code"], "UNSUPPORTED_OPTION");
     }

@@ -2,7 +2,7 @@
 
 > The web and document layer for AI agents: any URL, PDF or Office file in, clean Markdown or JSON out. One self-hosted Rust binary with a CLI, Firecrawl v1/v2 and Jina Reader HTTP APIs, an MCP server, and Python and Node.js packages. AGPL-3.0 or commercial license.
 
-- Input: URLs (HTTP, or a browser when rendering adds content), HTML, PDF including scanned pages (OCR on CPU or NVIDIA GPU), DOCX, XLSX, PPTX, EPUB, CSV, WARC
+- Input: URLs (HTTP, or a browser when rendering adds content), HTML, PDF including scanned pages (OCR on CPU or NVIDIA GPU), DOCX, DOC, XLSX, XLS, XLSB, PPTX, PPT, OpenDocument, RTF, WordPerfect, HWP, EPUB, MOBI, FB2, EML, MBOX, MSG, ZIP, TAR, 7Z, images (OCR), SQLite, dBASE, CSV, Markdown and other text formats, 373 code languages as fenced blocks, WARC
 - Output: Markdown, HTML, raw HTML, links, images, metadata, schema-based JSON; warnings when a result is incomplete
 - Install: `cargo install pagesift --locked` · `pip install pagesift` · `npm install @pagesift/node` · `docker run -p 3002:3002 ghcr.io/yolow92/pagesift`
 - First call: `pagesift scrape https://example.com` · `pagesift.scrape(url).markdown` · `(await new Scraper().scrape(url)).markdown` · `curl localhost:3002/r/https://example.com`
@@ -25,6 +25,6 @@
 
 ## Optional
 
-- [Release notes](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.0.0.md): changes, migration and known limits
+- [Release notes](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.1.0.md): changes, migration and known limits
 - [Changelog](https://github.com/YOLOW92/pagesift/blob/main/CHANGELOG.md)
 - [Commercial license](https://github.com/YOLOW92/pagesift/blob/main/docs/COMMERCIAL.md)

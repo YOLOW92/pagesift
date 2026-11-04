@@ -2,6 +2,13 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## 1.1.0
+
+New input formats: `.doc`, `.xls`, `.ppt`, `.xlsb`, OpenDocument including flat XML, RTF, WordPerfect, HWP and HWPX, MOBI,
+FB2, email (`.eml`, `.mbox`, `.msg`), archives read recursively, image files through OCR, SQLite, dBASE, DocBook, JATS, SVG,
+OPML, subtitles, notebooks, and 373 source-code and config languages as fenced code blocks, with C, C++, C#, Go, Java, JavaScript, TypeScript, Lua, PHP, Python and Rust split by function and class. New LangChain and LlamaIndex
+integrations and a C ABI with language bindings. Full list and known limits: [release notes](docs/releases/1.1.0.md).
+
 ## 1.0.0
 
 OCR for scanned PDFs on CPU or NVIDIA GPU (`--ocr`, `[ocr]`, `[gpu]`, `parsers[].mode: "ocr"`). Structured extraction with

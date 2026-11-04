@@ -1,6 +1,6 @@
-//! Word、Excel、PowerPoint、EPUB、CSV → 文档：抓到的（`/v2/scrape`）和上传的（`/v2/parse`）
-//! 走同一段代码。转换在 pagesift-office 里；EPUB 的 XHTML 章节交给和网页相同的 HTML 提取器
-//! （保留整页，不做正文筛选：书的每一章都是正文）。
+//! Office、邮件、压缩包、文本类 → 文档：抓到的（`/v2/scrape`）和上传的（`/v2/parse`）走同一段代码。
+//! 转换在 pagesift-office 里；EPUB 的 XHTML 章节和邮件的 HTML 正文交给和网页相同的 HTML 提取器
+//! （保留整页，不做正文筛选）。压缩包成员和邮件附件回到这里递归转换，内层 PDF 只读文字层。
 
 use pagesift_office::{Converted, Format};
 
@@ -40,6 +40,84 @@ pub fn office_markdown(
     office_markdown_from(bytes, format, None, deadline)
 }
 
+/// HTML 转 Markdown：保留整页，相对路径按包里的位置解析。
+fn html_to_markdown(xhtml: &str, path: &str) -> String {
+    let base = Url::parse("file:///")
+        .ok()
+        .and_then(|b| b.join(&path.replace(' ', "%20")).ok());
+    let opts = pagesift_content::Options {
+        base_url: base,
+        only_main_content: false,
+        detect_barrier: false,
+        ..Default::default()
+    };
+    pagesift_content::process(xhtml, &opts).markdown
+}
+
+/// 压缩包成员或邮件附件：按内容和文件名认类型，转不了的返回 `None`（只留在清单里）。
+fn member_markdown(
+    bytes: &[u8],
+    name: &str,
+    room: usize,
+    deadline: Option<Instant>,
+) -> Result<Option<Converted>, pagesift_office::Error> {
+    use pagesift_office::Error as E;
+    if bytes.starts_with(b"%PDF-") {
+        let popts = pagesift_pdf::Options {
+            timeout: deadline.map(|d| d.saturating_duration_since(Instant::now())),
+            ..Default::default()
+        };
+        return match pagesift_pdf::extract_with(bytes, &popts) {
+            Ok(pdf) => Ok(Some(Converted {
+                parts: pdf.pages.len(),
+                markdown: pdf.markdown,
+                title: pdf.metadata.title,
+                ..Default::default()
+            })),
+            Err(pagesift_pdf::Error::Timeout) => Err(E::Timeout),
+            Err(e) => Err(E::Malformed(e.to_string())),
+        };
+    }
+    let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase());
+    if matches!(ext.as_deref(), Some("html" | "htm" | "xhtml")) {
+        let decoded = pagesift_net::decode(bytes, None, None);
+        return Ok(Some(Converted {
+            markdown: html_to_markdown(&decoded.text, name),
+            ..Default::default()
+        }));
+    }
+    let Some(format) = Format::detect(bytes, Some(name), None) else {
+        return Ok(None);
+    };
+    convert_with_room(bytes, format, None, deadline, Some(room)).map(Some)
+}
+
+fn convert_with_room(
+    bytes: &[u8],
+    format: Format,
+    content_type: Option<&str>,
+    deadline: Option<Instant>,
+    room: Option<usize>,
+) -> Result<Converted, pagesift_office::Error> {
+    let member = |data: &[u8], name: &str, room: usize| member_markdown(data, name, room, deadline);
+    let mut opts = pagesift_office::Options {
+        deadline,
+        html: Some(&html_to_markdown),
+        member: Some(&member),
+        ..Default::default()
+    };
+    if let Some(room) = room {
+        opts.limits.max_output_bytes = room;
+    }
+    if format.decodes_text() {
+        let (text, warning) = csv_text::decode(bytes, content_type);
+        let mut doc = pagesift_office::convert_text(&text, format, &opts)?;
+        doc.warnings.extend(warning);
+        return Ok(doc);
+    }
+    pagesift_office::convert(bytes, format, &opts)
+}
+
 /// 同 [`office_markdown`]，另给文件来源的 Content-Type（响应头或上传时的）：CSV 按它的
 /// `charset` 解码，和网页一样；声明和正文对不上时纠正并给 `decode:` 警告。
 pub fn office_markdown_from(
@@ -48,30 +126,7 @@ pub fn office_markdown_from(
     content_type: Option<&str>,
     deadline: Option<Instant>,
 ) -> Result<Converted, pagesift_office::Error> {
-    let html = |xhtml: &str, path: &str| {
-        let base = Url::parse("file:///")
-            .ok()
-            .and_then(|b| b.join(&path.replace(' ', "%20")).ok());
-        let opts = pagesift_content::Options {
-            base_url: base,
-            only_main_content: false,
-            detect_barrier: false,
-            ..Default::default()
-        };
-        pagesift_content::process(xhtml, &opts).markdown
-    };
-    let opts = pagesift_office::Options {
-        deadline,
-        html: Some(&html),
-        ..Default::default()
-    };
-    if format == Format::Csv {
-        let (text, warning) = csv_text::decode(bytes, content_type);
-        let mut doc = pagesift_office::convert_csv_text(&text, &opts)?;
-        doc.warnings.extend(warning);
-        return Ok(doc);
-    }
-    pagesift_office::convert(bytes, format, &opts)
+    convert_with_room(bytes, format, content_type, deadline, None)
 }
 
 /// Office/EPUB 里的媒体文件作为附件：来源是部件路径（与 Markdown 里的图片引用一致，空格写成 `%20`）。
@@ -103,11 +158,13 @@ fn office_media(
     (out, warnings)
 }
 
-/// 文件名或网址路径的扩展名、Content-Type、内容一起判断是不是 Office/EPUB/CSV。
-/// 服务器明说是 HTML 的不当 CSV（`/data.csv` 返回的也可能是网页）。
+/// 文件名或网址路径的扩展名、Content-Type、内容一起判断是不是要转换的文档。
+/// 文本类不走这里（网上的 text/plain、XML、JSON 还是网页路径）；
+/// 服务器明说是 HTML 的不信扩展名（`/data.csv` 返回的也可能是网页）。
 pub(super) fn office_format(body: &[u8], name: &str, content_type: Option<&str>) -> Option<Format> {
     let html = content_type.is_some_and(|c| c.to_ascii_lowercase().contains("html"));
-    Format::detect(body, Some(name), content_type).filter(|f| !(html && *f == Format::Csv))
+    Format::detect(body, Some(name), content_type)
+        .filter(|f| f.fetchable() && !(html && f.is_text_based()))
 }
 
 /// 一份待转换的文档：字节、格式，以及来源的 Content-Type（响应头或上传字段；CSV 按它的 `charset` 解码）。
@@ -226,5 +283,17 @@ mod tests {
         );
         assert_eq!(office_format(b"<p>", "/data.csv", Some("text/html")), None);
         assert_eq!(office_format(b"<p>", "/page", None), None);
+        // 文本类不抢网页路径；邮件和 RTF 这种内容明确的才接
+        assert_eq!(office_format(b"x", "/a.txt", Some("text/plain")), None);
+        assert_eq!(
+            office_format(b"{}", "/a.json", Some("application/json")),
+            None
+        );
+        assert_eq!(office_format(b"<p>", "/m.eml", Some("text/html")), None);
+        assert_eq!(
+            office_format(b"Subject: x\n\ny", "/m.eml", None),
+            Some(Format::Eml)
+        );
+        assert_eq!(office_format(b"{\\rtf1 x}", "/f", None), Some(Format::Rtf));
     }
 }

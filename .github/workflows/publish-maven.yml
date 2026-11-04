@@ -1,0 +1,118 @@
+# Maven Central：io.github.yolow92:pagesift（Java 包名 dev.pagesift，Kotlin 直接用）。不用 Maven/Gradle：
+# javac 打 jar，加 sources、javadoc、pom，签名并算 md5/sha1 后打成 bundle zip，用 curl 传到 Central Portal。
+# 环境密钥：MAVEN_GPG_PRIVATE_KEY、MAVEN_GPG_PASSPHRASE、MAVEN_CENTRAL_TOKEN（Portal 用户令牌 base64(用户名:口令)）。
+name: Publish Maven
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 要发布的版本标签，例如 v1.1.0（对应的 GitHub 版本页面要已经公开，且带 C 库产物）
+        required: true
+      dry_run:
+        description: 只构建和测试，不发布
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 解析标签
+        id: ver
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "标签格式应为 v1.2.3，得到：$TAG"; exit 1; }
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ver.outputs.tag }}
+      - name: 取 Release 里的 C 库并校验
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p dl ffi
+          for t in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu aarch64-apple-darwin; do
+            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -D dl \
+              -p "pagesift-ffi-$TAG-$t.tar.gz" -p "pagesift-ffi-$TAG-$t.tar.gz.sha256"
+          done
+          (cd dl && sha256sum -c ./*.sha256)
+          for t in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu aarch64-apple-darwin; do
+            mkdir -p "ffi/$t"
+            tar xzf "dl/pagesift-ffi-$TAG-$t.tar.gz" -C "ffi/$t" --strip-components=1
+          done
+          ls -R ffi | head -30
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: 打包并从 jar 安装实测（convert 和 parse）
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          bash bindings/java/package.sh --version "$VERSION" --ffi-dir ffi --out dist
+          rm -f dist/central-bundle-unsigned.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: maven-layout
+          path: dist/maven
+          # 目录结构 io/github/... 要原样保留
+          include-hidden-files: false
+
+  publish:
+    needs: build
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: maven-layout
+          path: dist/maven
+      - name: 导入签名密钥
+        env:
+          MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          echo "$MAVEN_GPG_PRIVATE_KEY" | gpg --batch --import
+          gpg --list-secret-keys --keyid-format long
+      - name: 签名、校验和、打 bundle
+        env:
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+        run: bash bindings/java/bundle.sh dist/maven dist/central-bundle.zip --sign
+      - name: 上传到 Central Portal 并等待校验
+        env:
+          MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          # 校验通过后自动发布，不用去网页点（Maven Central 发布后不能撤回，dry_run 默认只构建）
+          id=$(curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer $MAVEN_CENTRAL_TOKEN" \
+            -F "bundle=@dist/central-bundle.zip" \
+            "https://central.sonatype.com/api/v1/publisher/upload?name=io.github.yolow92:pagesift:$version&publishingType=AUTOMATIC")
+          echo "deployment id: $id"
+          for i in $(seq 1 60); do
+            out=$(curl -sS -X POST -H "Authorization: Bearer $MAVEN_CENTRAL_TOKEN" \
+              "https://central.sonatype.com/api/v1/publisher/status?id=$id")
+            state=$(printf '%s' "$out" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("deploymentState",""))')
+            echo "[$i] $state"
+            case "$state" in
+              PUBLISHING|PUBLISHED) echo "校验通过，已开始发布：$state"; exit 0 ;;
+              FAILED) echo "$out"; exit 1 ;;
+            esac
+            sleep 30
+          done
+          echo "等了 30 分钟还没出结果，去 Portal 看 deployment $id"; exit 1

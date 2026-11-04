@@ -152,7 +152,10 @@ test('extract with a store relocates a changed selector when maxAge is 0', async
     await s.close()
   } finally {
     server.close()
-    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+    // Windows 释放句柄慢：临时目录清不掉不算测试失败（1.0.0 发布就被这里挡住过）
+    try {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+    } catch {}
   }
 })
 

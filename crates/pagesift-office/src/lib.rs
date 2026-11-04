@@ -1,4 +1,4 @@
-//! Office 文档转 Markdown：Word（.docx）、Excel（.xlsx）、PowerPoint（.pptx）、EPUB 和 CSV。
+//! 文档转 Markdown：Word、Excel、PowerPoint、EPUB、CSV、OpenDocument、RTF、FB2、邮件、压缩包和文本类格式。
 //!
 //! 照 ECMA-376（OOXML）、EPUB 3（OCF/OPF）、RFC 4180 自己实现，ZIP 目录和 XML 解析也是自己写的
 //! （见 [`zip`]、[`xml`]），只有 deflate 解压用 miniz_oxide。所有输入都按不可信处理：
@@ -11,150 +11,41 @@
 use std::fmt;
 use std::time::Instant;
 
+mod archive;
 mod budget;
+mod code;
+mod compress;
 mod csv;
+mod dbf;
 mod docx;
+mod email;
 mod epub;
+mod fb2;
+mod format;
+mod hwpx;
+mod ipynb;
+mod legacy;
 mod md;
 mod media;
+mod mobi;
+mod odf;
+mod ole;
 mod opc;
+mod opml;
 mod pptx;
+mod rtf;
+mod sqlite;
+mod subtitle;
+mod tar;
+mod text;
+mod wordperfect;
 mod xlsx;
 mod xml;
+mod xmldoc;
 mod zip;
 
+pub use format::Format;
 pub use media::{Media, MediaLocation, media, media_bytes};
-
-/// 支持的格式。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Format {
-    Docx,
-    Xlsx,
-    Pptx,
-    Epub,
-    Csv,
-}
-
-impl Format {
-    pub fn mime(self) -> &'static str {
-        match self {
-            Format::Docx => {
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            }
-            Format::Xlsx => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            Format::Pptx => {
-                "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            }
-            Format::Epub => "application/epub+zip",
-            Format::Csv => "text/csv",
-        }
-    }
-
-    pub fn extension(self) -> &'static str {
-        match self {
-            Format::Docx => "docx",
-            Format::Xlsx => "xlsx",
-            Format::Pptx => "pptx",
-            Format::Epub => "epub",
-            Format::Csv => "csv",
-        }
-    }
-
-    /// 按扩展名（不分大小写，可带点）。带宏的 docm/xlsm/pptm 结构相同，宏本身不执行也不输出。
-    pub fn from_extension(ext: &str) -> Option<Format> {
-        match ext.trim_start_matches('.').to_ascii_lowercase().as_str() {
-            "docx" | "docm" | "dotx" | "dotm" => Some(Format::Docx),
-            "xlsx" | "xlsm" | "xltx" | "xltm" => Some(Format::Xlsx),
-            "pptx" | "pptm" | "ppsx" | "ppsm" | "potx" | "potm" => Some(Format::Pptx),
-            "epub" => Some(Format::Epub),
-            "csv" | "tsv" => Some(Format::Csv),
-            _ => None,
-        }
-    }
-
-    /// 按 Content-Type（忽略参数）。
-    pub fn from_mime(mime: &str) -> Option<Format> {
-        let m = mime
-            .split(';')
-            .next()
-            .unwrap_or("")
-            .trim()
-            .to_ascii_lowercase();
-        match m.as_str() {
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            | "application/vnd.ms-word.document.macroenabled.12"
-            | "application/vnd.openxmlformats-officedocument.wordprocessingml.template" => {
-                Some(Format::Docx)
-            }
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            | "application/vnd.ms-excel.sheet.macroenabled.12"
-            | "application/vnd.openxmlformats-officedocument.spreadsheetml.template" => {
-                Some(Format::Xlsx)
-            }
-            "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            | "application/vnd.ms-powerpoint.presentation.macroenabled.12"
-            | "application/vnd.openxmlformats-officedocument.presentationml.slideshow" => {
-                Some(Format::Pptx)
-            }
-            "application/epub+zip" => Some(Format::Epub),
-            "text/csv" | "application/csv" | "text/tab-separated-values" => Some(Format::Csv),
-            _ => None,
-        }
-    }
-
-    /// 识别格式：ZIP 容器看里面的部件（内容优先，文件名和类型可能写错），
-    /// CSV 没有签名，只能靠扩展名或 Content-Type。认不出返回 `None`。
-    pub fn detect(
-        bytes: &[u8],
-        filename: Option<&str>,
-        content_type: Option<&str>,
-    ) -> Option<Format> {
-        let ext = filename
-            .and_then(|n| n.rsplit_once('.'))
-            .and_then(|(_, e)| Format::from_extension(e));
-        let mime = content_type.and_then(Format::from_mime);
-        if bytes.starts_with(b"PK\x03\x04") || bytes.starts_with(b"PK\x05\x06") {
-            if let Some(f) = sniff_zip(bytes) {
-                return Some(f);
-            }
-            return ext.or(mime).filter(|f| *f != Format::Csv);
-        }
-        let hinted = mime.or(ext)?;
-        // 加了口令的 docx/xlsx/pptx 是 OLE 复合文件：照样认成该格式，转换时报“已加密”
-        if is_ole_encrypted(bytes) && matches!(hinted, Format::Docx | Format::Xlsx | Format::Pptx) {
-            return Some(hinted);
-        }
-        (hinted == Format::Csv).then_some(Format::Csv)
-    }
-}
-
-fn sniff_zip(bytes: &[u8]) -> Option<Format> {
-    let zip = zip::Zip::open(bytes, &Limits::default()).ok()?;
-    if zip.contains("word/document.xml") {
-        return Some(Format::Docx);
-    }
-    if zip.contains("xl/workbook.xml") {
-        return Some(Format::Xlsx);
-    }
-    if zip.contains("ppt/presentation.xml") {
-        return Some(Format::Pptx);
-    }
-    if zip.contains("META-INF/container.xml") {
-        return Some(Format::Epub);
-    }
-    // 主部件不在默认位置时按 _rels/.rels 指向的部件判断
-    let rels = zip.read_text("_rels/.rels").ok()??;
-    let target = opc::Rels::parse(&rels, "").ok()?.office_document()?;
-    let t = target.to_ascii_lowercase();
-    [
-        ("word/", Format::Docx),
-        ("xl/", Format::Xlsx),
-        ("ppt/", Format::Pptx),
-    ]
-    .into_iter()
-    .find(|(p, _)| t.contains(p))
-    .map(|(_, f)| f)
-}
 
 /// 资源上限。默认值足够正常文档用，又能挡住炸弹。
 #[derive(Debug, Clone)]
@@ -193,6 +84,11 @@ impl Default for Limits {
 /// EPUB 正文（XHTML）转 Markdown 的函数：参数是 XHTML 和它在包里的路径。
 pub type HtmlToMarkdown<'a> = &'a (dyn Fn(&str, &str) -> String + Sync);
 
+/// 转换压缩包或邮件里的一个文件：参数是字节、文件名和还能输出多少字节。
+/// 类型不支持时返回 `Ok(None)`，只列在清单里。
+pub type MemberToMarkdown<'a> =
+    &'a (dyn Fn(&[u8], &str, usize) -> Result<Option<Converted>, Error> + Sync);
+
 #[derive(Clone, Default)]
 pub struct Options<'a> {
     pub limits: Limits,
@@ -200,6 +96,8 @@ pub struct Options<'a> {
     pub deadline: Option<Instant>,
     /// EPUB 必须给；没给时 EPUB 报 [`Error::Unsupported`]。
     pub html: Option<HtmlToMarkdown<'a>>,
+    /// 压缩包成员和邮件附件的转换函数。没给时只列清单。
+    pub member: Option<MemberToMarkdown<'a>>,
 }
 
 /// 转换结果。
@@ -251,6 +149,24 @@ pub fn convert_csv_text(text: &str, opts: &Options<'_>) -> Result<Converted, Err
     budgeted(opts, || csv::convert_text(text, opts))
 }
 
+/// 转换一份已经解码成 UTF-8 的文本类文档（[`Format::decodes_text`] 为真的格式）。
+pub fn convert_text(text: &str, format: Format, opts: &Options<'_>) -> Result<Converted, Error> {
+    budgeted(opts, || text_format(text, format, opts))
+}
+
+fn text_format(text: &str, format: Format, opts: &Options<'_>) -> Result<Converted, Error> {
+    match format {
+        Format::Csv => csv::convert_text(text, opts),
+        Format::Subtitle => subtitle::convert(text, opts),
+        Format::Notebook => ipynb::convert(text, opts),
+        Format::Text | Format::Markdown | Format::Fenced(_) => text::convert(text, format, opts),
+        other => Err(Error::Unsupported(format!(
+            "{} is not a text format",
+            other.extension()
+        ))),
+    }
+}
+
 /// 在输出预算下运行一次转换；预算用完提前停下时加 `output_truncated` 警告。
 /// 依赖代码在畸形输入上万一 panic，也转成错误返回。
 fn budgeted(
@@ -278,6 +194,29 @@ fn budgeted(
 pub fn convert(bytes: &[u8], format: Format, opts: &Options<'_>) -> Result<Converted, Error> {
     budgeted(opts, || match format {
         Format::Csv => csv::convert(bytes, opts),
+        Format::Text
+        | Format::Markdown
+        | Format::Fenced(_)
+        | Format::Subtitle
+        | Format::Notebook => text_format(&String::from_utf8_lossy(bytes), format, opts),
+        Format::Outline => opml::convert(bytes, opts),
+        Format::Fb2 => fb2::convert(bytes, opts),
+        Format::Docbook | Format::Jats => xmldoc::convert_article(bytes, opts),
+        Format::Svg => xmldoc::convert_svg(bytes, opts),
+        Format::WordPerfect => wordperfect::convert(bytes, opts),
+        Format::Rtf => rtf::convert(bytes, opts),
+        Format::Eml => email::convert_eml(bytes, opts),
+        Format::Mbox => email::convert_mbox(bytes, opts),
+        Format::Msg => email::convert_msg(bytes, opts),
+        Format::Archive => archive::convert(bytes, opts),
+        Format::Doc => legacy::doc::convert(bytes, opts),
+        Format::Xls => legacy::xls::convert(bytes, opts),
+        Format::Ppt => legacy::ppt::convert(bytes, opts),
+        Format::Hwp => legacy::hwp::convert(bytes, opts),
+        Format::FlatOdf => odf::convert_flat(bytes, opts),
+        Format::Dbf => dbf::convert(bytes, opts),
+        Format::Sqlite => sqlite::convert(bytes, opts),
+        Format::Mobi => mobi::convert(bytes, opts),
         _ => {
             if is_ole_encrypted(bytes) {
                 return Err(Error::Encrypted);
@@ -288,7 +227,10 @@ pub fn convert(bytes: &[u8], format: Format, opts: &Options<'_>) -> Result<Conve
                 Format::Xlsx => xlsx::convert(&zip, opts),
                 Format::Pptx => pptx::convert(&zip, opts),
                 Format::Epub => epub::convert(&zip, opts),
-                Format::Csv => unreachable!(),
+                Format::Odt | Format::Ods | Format::Odp => odf::convert(&zip, format, opts),
+                Format::Xlsb => legacy::xlsb::convert(&zip, opts),
+                Format::Hwpx => hwpx::convert(&zip, opts),
+                _ => unreachable!("handled above"),
             }
         }
     })
@@ -323,7 +265,10 @@ mod tests {
             Format::detect(&other, Some("a.PPTX"), None),
             Some(Format::Pptx)
         );
-        assert_eq!(Format::detect(&other, Some("a.zip"), None), None);
+        assert_eq!(
+            Format::detect(&other, Some("a.zip"), None),
+            Some(Format::Archive)
+        );
         assert_eq!(
             Format::detect(b"a,b\n1,2", Some("data.csv"), None),
             Some(Format::Csv)
@@ -339,7 +284,11 @@ mod tests {
             Format::detect(&ole, Some("locked.xlsx"), None),
             Some(Format::Xlsx)
         );
-        assert_eq!(Format::detect(&ole, Some("old.doc"), None), None);
+        assert_eq!(
+            Format::detect(&ole, Some("old.doc"), None),
+            Some(Format::Doc)
+        );
+        assert_eq!(Format::detect(&ole, Some("old.xyz"), None), None);
     }
 
     #[test]

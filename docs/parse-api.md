@@ -17,9 +17,21 @@ Supported files:
 | EPUB | `.epub` | In spine order; each chapter goes through the HTML extractor, keeping the whole chapter |
 | CSV | `.csv`, `.tsv` | One table (RFC 4180, delimiter detected). Charset as for web pages: BOM, `charset` in Content-Type, then detection from the body; a declaration that disagrees with the body is corrected with a `decode:` warning |
 
-Legacy binary formats (`.doc`, `.xls`, `.ppt`), OpenDocument (`.odt` and others) and RTF are not supported and return a
-clear error rather than a guess. `/v2/scrape` uses the same conversion code when it fetches these formats (see the
-end of this page), as does `pagesift scrape <local file>`.
+| Legacy Office | `.doc`, `.xls`, `.ppt`, `.xlsb` | Word: headings, lists, tables, footnotes. Excel: same output as `.xlsx`. PowerPoint: slide markers, text, notes. Word 6/95 is text only |
+| OpenDocument | `.odt`, `.ods`, `.odp`, flat `.fodt`, `.fods`, `.fodp`, `.fodg` | Headings, lists, tables, one heading per sheet, slide markers |
+| Other word processors | `.rtf`, `.wpd`, `.wp`, `.hwp`, `.hwpx` | Text and tables where the format has them. WordPerfect for Mac 1.x and 3.x is not read |
+| E-books | `.mobi`, `.azw`, `.azw3`, `.prc`, `.fb2` | MOBI goes through the HTML extractor; DRM reports that the file is encrypted |
+| Email | `.eml`, `.mbox`, `.msg` | Headers, body, attachments converted when their type is supported |
+| Archives | `.zip`, `.tar`, `.tgz`, `.gz`, `.bz2`, `.xz`, `.7z` | A file list, then each supported member. Nested up to 3 levels, 1,000 members |
+| Images | `.png`, `.jpg`, `.gif`, `.bmp`, `.tif`, `.webp` | OCR when it is on; otherwise `UNSUPPORTED_OPTION`. Animated WebP returns a clear error |
+| Databases | `.sqlite`, `.db`, `.gpkg`, `.dbf` | One table per database table, read from the file format, no SQL is run. Blobs show their size; dBASE memo files are not read |
+| XML documents | `.dbk`, `.docbook`, `.jats`, `.nxml`, `.svg`, `.opml` | Sections, lists and tables; SVG keeps text only |
+| Text and notebooks | `.md`, `.txt`, `.rst`, `.adoc`, `.org`, `.tex`, `.typ`, `.bib`, `.ris`, `.srt`, `.vtt`, `.ipynb` | As written; subtitles lose their timings; notebooks keep cells and text outputs |
+| Data | `.json`, `.jsonl`, `.yaml`, `.toml`, `.xml`, `.ini` | One fenced code block |
+| Source code | 373 languages by extension or file name | One fenced code block with the language tag. C, C++, C#, Go, Java, JavaScript, TypeScript, Lua, PHP, Python and Rust are split into one section per top-level function or class, with function, class and import names in the metadata. Other languages, and files that are over 2 MB or do not parse cleanly, stay one block |
+
+`/v2/scrape` uses the same conversion code when it fetches these formats (see the end of this page), except text, data
+and source code, which stay web pages when fetched. `pagesift scrape <local file>` uses it too.
 
 ## Request
 
@@ -39,9 +51,9 @@ curl -s http://localhost:3002/v2/parse \
 ```
 
 How the file type is decided: content starting with `%PDF-` is a PDF. A ZIP container is recognized by its parts: Word
-(`word/document.xml`), Excel (`xl/workbook.xml`), PowerPoint (`ppt/presentation.xml`), EPUB (`META-INF/container.xml`), so
-a wrong file name or type does not matter. A password-protected Office file (an OLE compound file) is recognized by its
-extension and reports that it is encrypted. Anything else goes by extension, then by this field's Content-Type. CSV has
+(`word/document.xml`), Excel (`xl/workbook.xml`), PowerPoint (`ppt/presentation.xml`), EPUB (`META-INF/container.xml`), and
+a legacy Office or HWP file by the streams inside its OLE container, so a wrong file name or type does not matter. A
+password-protected OOXML file (also an OLE container) is recognized by its extension and reports that it is encrypted. Anything else goes by extension, then by this field's Content-Type. CSV has
 no signature, so it needs the extension or `text/csv`.
 
 ### options
@@ -155,8 +167,8 @@ HTML) → everything else as a web page. Conversion is identical to uploads, wit
 | `mode: ocr` | Supported | Supported once `[ocr] enabled` is set, otherwise reported as unsupported | No silent downgrade |
 | `blocks`, `pageMarkers` | Supported | Reported as unsupported | No silent downgrade |
 | `mode: fast` on a scan | `SCRAPE_PDF_OCR_REQUIRED` | 400 `UNSUPPORTED_OPTION` | Same failure, existing code |
-| `image` parser (image OCR) | Supported | Accepted, no OCR | Images are not processed; accepted so that Firecrawl SDK defaults are not rejected |
+| `image` parser (image OCR) | Supported | Image files use OCR when it is on | Without OCR the request fails with a message saying so |
 | `html` format for documents | HTML converted from Markdown | `markdown` only | No separately invented HTML |
-| Document formats | Also doc, xls, ppt, odt/ods/odp, rtf | docx, xlsx, pptx, epub, csv | |
+| Document formats | Includes doc, xls, ppt, odt/ods/odp, rtf | Includes these and the formats listed at the top of this page | |
 | Word headers and footers | Before and after the body | Not output | Content repeated on every page would mix into the body |
 | Hidden rows and columns in Excel | Not verified (Firecrawl converts with anydoc; MarkItDown outputs them) | Not output | Users cannot see them in a spreadsheet |

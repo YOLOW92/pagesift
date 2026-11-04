@@ -71,6 +71,9 @@ TOOLS = {
     "newspaper4k": py("newspaper4k", per_worker_mb=300),
     "crawlee": py("crawlee", per_worker_mb=300, url=True),
     "kreuzberg": py("kreuzberg", per_worker_mb=800),
+    "xberg": py("xberg", per_worker_mb=800),
+    "xberg-layout": py("xberg-layout", venv="xberg", per_worker_mb=1200, startup_s=300),  # 版面模型模式，CPU；预扣按它自家评测的 840 MB 取整放宽
+    "xberg-layout-latex": py("xberg-layout-latex", venv="xberg", per_worker_mb=1500, startup_s=300),  # 再加公式模型 latex_ocr
     "mineru-flash": py("mineru-flash", venv="mineru", env={"MINERU_HOME": str(MIX / "mineru-home")}, per_worker_mb=1500, startup_s=120),  # 实测单 worker 峰值 B1 1.7 GB、B2 3.3 GB；按平均预扣、多开，靠 v2/mem_guard.sh 兜底
     "mineru": py("mineru", env={"MINERU_HOME": str(MIX / "mineru-home")}, per_worker_mb=4000, startup_s=900),  # 默认档：默认安装用上了 GTX 1070（每个 worker 约 2 GB 显存、GPU 利用率 100%）；实测单 worker 内存峰值 4.0 GB
     # Marker：默认安装的 torch 是 CUDA 13 版，GTX 1070 用不了，主成绩用 CPU；GPU 附表用 cu126 的 torch（marker-cu126 环境）

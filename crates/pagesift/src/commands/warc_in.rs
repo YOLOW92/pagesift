@@ -75,7 +75,10 @@ pub(crate) fn for_each_page(path: &Path, mut each: impl FnMut(ArchivedPage)) -> 
             })
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| "index.html".into());
-        let Some(kind) = UploadKind::detect(&bytes, &filename, content_type.as_deref()) else {
+        // 存档和抓取一个口径：文本类和图片不转（存档里的 robots.txt、接口 JSON、图片都不算页面）
+        let Some(kind) = UploadKind::detect(&bytes, &filename, content_type.as_deref())
+            .filter(|k| k.fetchable())
+        else {
             skipped += 1;
             continue;
         };

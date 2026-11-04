@@ -1,0 +1,22 @@
+# frozen_string_literal: true
+
+# gem 的描述文件模板；@VERSION@ 由 package.sh 替换。
+Gem::Specification.new do |s|
+  s.name        = 'pagesift'
+  s.version     = '@VERSION@'
+  s.summary     = 'Ruby binding of libpagesift: HTML, PDF, Office and other documents to Markdown and JSON'
+  s.description = 'Calls the libpagesift C ABI through fiddle. Bundles the native library for x86_64-linux, aarch64-linux and arm64-darwin.'
+  s.authors     = ['YOLOW92']
+  s.homepage    = 'https://github.com/YOLOW92/pagesift'
+  s.license     = 'AGPL-3.0-only'
+  s.required_ruby_version = '>= 3.1'
+  s.files       = Dir['lib/**/*'] + %w[README.md LICENSE NOTICE]
+  s.require_paths = ['lib']
+  s.metadata = {
+    'homepage_uri' => 'https://github.com/YOLOW92/pagesift',
+    'source_code_uri' => 'https://github.com/YOLOW92/pagesift/tree/main/bindings/ruby',
+    'rubygems_mfa_required' => 'true'
+  }
+  # Ruby 3.5 起 fiddle 不再是默认 gem，要声明依赖
+  s.add_dependency 'fiddle'
+end

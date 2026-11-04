@@ -1,0 +1,22 @@
+{
+    "name": "yolow92/pagesift",
+    "description": "PHP (ext-ffi) binding of libpagesift: HTML, PDF, Office and other documents to Markdown and JSON. The native library is not bundled; install it from the GitHub Release.",
+    "type": "library",
+    "license": "AGPL-3.0-only",
+    "homepage": "https://github.com/YOLOW92/pagesift",
+    "keywords": ["markdown", "pdf", "html", "scraping", "ffi"],
+    "authors": [
+        {"name": "YOLOW92", "homepage": "https://github.com/YOLOW92"}
+    ],
+    "support": {
+        "issues": "https://github.com/YOLOW92/pagesift/issues",
+        "source": "https://github.com/YOLOW92/pagesift/tree/main/bindings/php"
+    },
+    "require": {
+        "php": ">=8.1",
+        "ext-ffi": "*"
+    },
+    "autoload": {
+        "files": ["src/Pagesift.php"]
+    }
+}

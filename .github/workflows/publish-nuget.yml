@@ -1,0 +1,92 @@
+# NuGet 包 Pagesift：C# 绑定 + 三个平台的原生库（runtimes/<rid>/native）。
+# 和 release.yml 分开，这里失败不影响主发布。用 NuGet 可信发布（OIDC），不存 API 密钥。
+# NuGet 侧要登记：用户 YOLOW92，仓库 YOLOW92/pagesift，工作流文件 publish-nuget.yml，环境 release。
+name: Publish NuGet
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 要发布的版本标签，例如 v1.1.0（对应的 GitHub 版本页面要已经公开，且带 C 库产物）
+        required: true
+      dry_run:
+        description: 只构建和测试，不发布
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - name: 解析标签
+        id: ver
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "标签格式应为 v1.2.3，得到：$TAG"; exit 1; }
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ver.outputs.tag }}
+      - name: 取 Release 里的 C 库并校验
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p dl ffi
+          for t in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu aarch64-apple-darwin; do
+            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -D dl \
+              -p "pagesift-ffi-$TAG-$t.tar.gz" -p "pagesift-ffi-$TAG-$t.tar.gz.sha256"
+          done
+          (cd dl && sha256sum -c ./*.sha256)
+          for t in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu aarch64-apple-darwin; do
+            mkdir -p "ffi/$t"
+            tar xzf "dl/pagesift-ffi-$TAG-$t.tar.gz" -C "ffi/$t" --strip-components=1
+          done
+          ls -R ffi | head -30
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: 打包并从包安装实测（convert 和 parse）
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: bash bindings/csharp/package.sh --version "$VERSION" --ffi-dir ffi --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nuget-dist
+          path: dist/*.nupkg
+
+  publish:
+    needs: build
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: nuget-dist
+          path: dist
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: NuGet 可信发布登录（换短期 API 密钥）
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: YOLOW92
+      - name: 推送
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          dotnet nuget push "dist/*.nupkg" --api-key "$NUGET_API_KEY" \
+            --source https://api.nuget.org/v3/index.json --skip-duplicate

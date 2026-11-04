@@ -30,24 +30,24 @@
 <text x="520.86677" y="265" fill="#0b0b0b" font-size="13" font-weight="600" text-anchor="start">0.687</text>
 <path d="M300 270h150.7a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-150.7z" fill="#eb6834"/>
 <text x="462.69" y="283" fill="#52514e" font-size="13" font-weight="400" text-anchor="start">0.499 Crawl4AI (HTTP)</text>
-<text x="0" y="317" fill="#0b0b0b" font-size="13" font-weight="600" text-anchor="start">Office / e-books</text>
-<text x="0" y="334" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">B4 hold-out 39 files, structure kept</text>
-<path d="M300 306h302.2a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-302.2z" fill="#2a78d6"/>
-<text x="614.23102" y="319" fill="#0b0b0b" font-size="13" font-weight="600" text-anchor="start">0.988</text>
-<path d="M300 324h249.0a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-249.0z" fill="#eb6834"/>
-<text x="560.96" y="337" fill="#52514e" font-size="13" font-weight="400" text-anchor="start">0.816 Kreuzberg</text>
-<text x="0" y="371" fill="#0b0b0b" font-size="13" font-weight="600" text-anchor="start">PDF → Markdown</text>
-<text x="0" y="388" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">olmOCR-bench 1,269 pages</text>
-<path d="M300 360h195.8a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-195.8z" fill="#2a78d6"/>
-<text x="507.8353" y="373" fill="#0b0b0b" font-size="13" font-weight="600" text-anchor="start">0.645</text>
-<path d="M300 378h146.0a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-146.0z" fill="#eb6834"/>
-<text x="458.03999999999996" y="391" fill="#52514e" font-size="13" font-weight="400" text-anchor="start">0.484 pymupdf4llm</text>
-<text x="0" y="425" fill="#0b0b0b" font-size="13" font-weight="600" text-anchor="start">Scanned PDFs</text>
-<text x="0" y="442" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">B5 134 pages, olmOCR score with baseline, OCR on</text>
-<path d="M300 414h164.3a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-164.3z" fill="#2a78d6"/>
-<text x="476.33000000000004" y="427" fill="#0b0b0b" font-size="13" font-weight="600" text-anchor="start">0.543</text>
-<path d="M300 432h123.1a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-123.1z" fill="#eb6834"/>
-<text x="435.1" y="445" fill="#52514e" font-size="13" font-weight="400" text-anchor="start">0.410 Docling (GPU)</text>
+<text x="0" y="317" fill="#0b0b0b" font-size="13" font-weight="600" text-anchor="start">PDF → Markdown</text>
+<text x="0" y="334" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">olmOCR-bench 1,269 pages</text>
+<path d="M300 306h195.9a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-195.9z" fill="#2a78d6"/>
+<text x="507.87622" y="319" fill="#0b0b0b" font-size="13" font-weight="600" text-anchor="start">0.645</text>
+<path d="M300 324h146.0a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-146.0z" fill="#eb6834"/>
+<text x="458.03999999999996" y="337" fill="#52514e" font-size="13" font-weight="400" text-anchor="start">0.484 pymupdf4llm</text>
+<text x="0" y="371" fill="#0b0b0b" font-size="13" font-weight="600" text-anchor="start">Scanned PDFs</text>
+<text x="0" y="388" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">B5 134 pages, olmOCR score with baseline, OCR on</text>
+<path d="M300 360h164.3a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-164.3z" fill="#2a78d6"/>
+<text x="476.33000000000004" y="373" fill="#0b0b0b" font-size="13" font-weight="600" text-anchor="start">0.543</text>
+<path d="M300 378h123.1a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-123.1z" fill="#eb6834"/>
+<text x="435.1" y="391" fill="#52514e" font-size="13" font-weight="400" text-anchor="start">0.410 Docling (GPU)</text>
+<text x="0" y="425" fill="#0b0b0b" font-size="13" font-weight="600" text-anchor="start">Office / e-books</text>
+<text x="0" y="442" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">B4 hold-out 39 files, structure kept</text>
+<path d="M300 414h302.2a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-302.2z" fill="#2a78d6"/>
+<text x="614.23102" y="427" fill="#0b0b0b" font-size="13" font-weight="600" text-anchor="start">0.988</text>
+<path d="M300 432h268.2a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-268.2z" fill="#eb6834"/>
+<text x="580.1800000000001" y="445" fill="#52514e" font-size="13" font-weight="400" text-anchor="start">0.878 xberg</text>
 <text x="0" y="479" fill="#0b0b0b" font-size="13" font-weight="600" text-anchor="start">HTML → Markdown</text>
 <text x="0" y="496" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">600 generated documents, fidelity</text>
 <path d="M300 468h306.0a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-306.0z" fill="#2a78d6"/>

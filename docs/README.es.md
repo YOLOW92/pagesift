@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.0.0
+# pagesift 1.1.0
 
 **La capa de web y documentos para agentes de IA: entra cualquier URL, PDF o archivo de Office y sale Markdown limpio o JSON.**  
 Un único binario en Rust, autoalojado, con CLI, API de Firecrawl y de Jina Reader, servidor MCP y paquetes para Python y Node.js.
@@ -29,19 +29,19 @@ aporta contenido, o abre un archivo local, y devuelve el contenido como Markdown
 sitios completos, PDF escaneados, acciones de navegador, monitorización de cambios y ejecuciones de investigación guiadas por tu propio modelo.
 
 Puede sustituir o acompañar a: **Firecrawl** (la misma API v1/v2, autoalojada), **Jina Reader** (`/r/` y `/s/`),
-**Crawl4AI**, **trafilatura**, **Readability**, **pymupdf4llm**, **Docling**, **Kreuzberg**.
+**Crawl4AI**, **trafilatura**, **Readability**, **pymupdf4llm**, **Docling**, **Kreuzberg**, **xberg**.
 
 <!-- section: facts -->
 ## De un vistazo
 
-- **Entrada:** URL, HTML, PDF incluidas páginas escaneadas (OCR), Word, Excel, PowerPoint, EPUB, CSV, archivos WARC
+- **Entrada:** URL, HTML, PDF incluidas páginas escaneadas (OCR), imágenes (OCR), Word (.docx, .doc), Excel (.xlsx, .xlsb, .xls), PowerPoint (.pptx, .ppt), OpenDocument, RTF, WordPerfect, HWP, EPUB, MOBI, FB2, correo (.eml, .mbox, .msg), archivos comprimidos (zip, tar, gz, bz2, xz, 7z), SQLite, dBASE, CSV, Markdown y otros formatos de texto, 373 lenguajes de código y configuración, archivos WARC
 - **Salida:** Markdown, HTML, HTML sin procesar, enlaces, imágenes, metadatos, JSON basado en esquemas; avisos cuando un resultado está incompleto
-- **Interfaces:** CLI · API HTTP Firecrawl v1/v2 · Jina Reader · MCP (stdio o HTTP) · Python · Node.js / TypeScript · crate de Rust
+- **Interfaces:** CLI · API HTTP Firecrawl v1/v2 · Jina Reader · MCP (stdio o HTTP) · Python · Node.js / TypeScript · crate de Rust · ABI de C con enlaces para Go, Java, Kotlin, C#, Ruby, PHP, Lua, Perl, Dart, Swift y Zig · LangChain y LlamaIndex
 - **Plataformas:** Linux x86_64 / aarch64 (glibc ≥ 2.28 y musl), macOS arm64, Windows x86_64; imagen Docker `ghcr.io/yolow92/pagesift`
 - **Entorno de ejecución:** nada que instalar para HTTP, PDF y Office. Opcional: un navegador para páginas con JavaScript, una GPU NVIDIA para OCR, tu propio modelo para `/v2/agent`
-- **Memoria:** pico de 17–395 MB por trabajador en las pruebas de 1.0 sin navegador; el OCR con modelos de fórmulas necesita unos 1.7 GB; la capacidad se dimensiona a partir del límite del cgroup
+- **Memoria:** pico de 18–377 MB por trabajador en las pruebas de 1.1 sin navegador; el OCR con modelos de fórmulas necesita unos 1.7 GB; la capacidad se dimensiona a partir del límite del cgroup
 - **Licencia:** AGPL-3.0, o una [licencia comercial](COMMERCIAL.md)
-- **Última versión:** 1.0.0 · [notas de la versión](releases/1.0.0.md)
+- **Última versión:** 1.1.0 · [notas de la versión](releases/1.1.0.md)
 
 <!-- section: install -->
 ## Instalación y uso
@@ -51,14 +51,14 @@ Puede sustituir o acompañar a: **Firecrawl** (la misma API v1/v2, autoalojada),
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| Servidor | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.0.0` | `curl localhost:3002/r/https://example.com` |
+| Servidor | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.1.0` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
 
 ```bash
 pagesift scrape https://example.com                          # Markdown a stdout
-pagesift scrape report.pdf                                   # archivo local PDF, Office, EPUB, CSV, HTML o WARC
+pagesift scrape report.pdf                                   # archivo local PDF, Office, libro electrónico, correo, comprimido, imagen, código o WARC
 pagesift --ocr scrape scan.pdf                               # OCR de páginas escaneadas; los modelos se descargan en el primer uso
 pagesift crawl https://docs.rs --limit 500 --out ./data/     # un archivo por página
 pagesift crawl https://www.example.edu --query "graduate admission" --adaptive
@@ -95,7 +95,7 @@ const items = await scraper.scrapeMany(['https://example.com', 'https://example.
 **Servidor HTTP**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.0.0
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.1.0
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'                        # API de Firecrawl
@@ -124,7 +124,7 @@ Herramientas: `pagesift_scrape`, `pagesift_batch_scrape`, `pagesift_crawl`, `pag
 | Capacidad | Qué obtienes | Documentación |
 |---|---|---|
 | **Contenido limpio** | Detección del contenido principal y Markdown que conserva encabezados, listas, tablas, código y fórmulas | [Benchmarks](benchmarks.md) |
-| **Documentos** | Lectores propios en Rust para PDF, Word, Excel, PowerPoint, EPUB y CSV, incluidos archivos dañados y fuentes CJK | [API de subida](parse-api.md) |
+| **Documentos** | Lectores propios en Rust para PDF, Office actual y antiguo, OpenDocument, libros electrónicos, correo, archivos comprimidos, imágenes, bases de datos y formatos de texto, incluidos archivos dañados y fuentes CJK | [API de subida](parse-api.md) |
 | **OCR** | Páginas de PDF escaneadas con PP-OCRv6 y fórmulas en bloque con PP-FormulaNet, en Rust puro sobre CPU o GPU NVIDIA | [API de subida](parse-api.md) |
 | **Extracción estructurada** | JSON mediante selectores CSS que se reubican cuando cambia un sitio, o mediante un esquema que tu modelo escribe una vez y pagesift guarda en caché | [Extracción](structured-extract.md) |
 | **Acciones de navegador** | Clics, escritura y desplazamiento en la página, además de sesiones en las que puedes seguir trabajando | [Interacción](interact.md) |
@@ -167,18 +167,17 @@ robots.txt, los límites de tasa y las protecciones de red se aplican a cada pá
 
 | Tarea | Métrica | PageSift | Mejor otra herramienta | Diferencia |
 |---|---|---:|---|---:|
-| PDF → Markdown — olmOCR-bench 1,269 pages, per page (single thread) | ms/page ↓ | **2.4** | pypdf 50.0 | **×20.83** |
-| PDF → Markdown — B1 144 pages, 1 worker, resident server | files/s ↑ | **234.5** | pdf_oxide 100.6 | **×2.33** |
+| PDF → Markdown — olmOCR-bench 1,269 pages, per page (single thread) | ms/page ↓ | **2.4** | pypdf 50.0 | **×20.49** |
+| PDF → Markdown — B1 144 pages, 1 worker, resident server | files/s ↑ | **176.5** | pdf_oxide 100.6 | **×1.75** |
 | PDF → Markdown — olmOCR-bench 1,269 pages | official score ↑ | **0.645** | pymupdf4llm 0.484 | **+0.161** |
 | HTML → Markdown — 600 generated documents, per page | ms/page ↓ | **0.24** | Turndown 1.9 | **×8.12** |
 | HTML → Markdown — 600 generated documents, fidelity | mean F1 ↑ | **1.000** | markdownify 0.936 | **+0.064** |
 | Main content — Firecrawl 597 pages, single thread | p50 ms/page ↓ | **1.0** | crw 7.4 | **×7.26** |
-| Main content — A2 269 random pages, 16 workers | pages/s ↑ | **656.1** | Resiliparse 559.3 | **×1.17** |
 | Main content — WCXB test split, 150 pages | F1 ↑ | **0.866** | Readability + Turndown 0.848 | **+0.018** |
 | Publication dates — htmldate 1,000 pages, date search | ms/page ↓ | **0.31** | htmldate (fast) 2.0 | **×6.45** |
 | RAG chunking — 5 corpora, 1.4 MB | total ms ↓ | **7** | chonkie recursive 35 | **×5.01** |
-| Office / e-books — B4 81 files, in-process | files/s ↑ | **93.6** | Kreuzberg 19.5 | **×4.80** |
-| Office / e-books — B4 hold-out 39 files, structure kept | structure kept ↑ | **0.988** | Kreuzberg 0.816 | **+0.172** |
+| Office / e-books — B4 81 files, in-process | files/s ↑ | **91.7** | xberg 27.0 | **×3.40** |
+| Office / e-books — B4 hold-out 39 files, structure kept | structure kept ↑ | **0.988** | xberg 0.878 | **+0.110** |
 | RAG query filter — 472 questions, default settings | answer recall ↑ | **0.929** | Crawl4AI BM25 0.673 | **+0.256** |
 | Wild crawl — polite, 40 sites × 60 pages, coverage | coverage ↑ | **0.740** | Crawl4AI (HTTP) 0.529 | **+0.211** |
 | Wild crawl — fast, 40 sites × 60 pages, coverage | coverage ↑ | **0.687** | Crawl4AI (HTTP) 0.499 | **+0.188** |
@@ -188,23 +187,38 @@ robots.txt, los límites de tasa y las protecciones de red se aplican a cada pá
 
 | Memoria pico por worker | PageSift MB ↓ | Otra herramienta MB | Menos memoria |
 |---|---:|---|---:|
-| PDF, B1 pages | **34** | Docling (CPU) 3,675 (2026-10-28) | **×106.5** |
-| HTML main content, A2 pages | **28** | Readability + Turndown 1,200 (2026-10-28) | **×43.0** |
+| PDF, B1 pages | **32** | Docling (CPU) 3,675 (2026-10-28) | **×113.1** |
+| HTML main content, A2 pages | **20** | Readability + Turndown 1,200 (2026-10-28) | **×60.8** |
 | Crawl, 200 sites × 100 pages | **218** | spider 5,500 (2026-10-21) | **×25.2** |
-| Office and e-books, B4 files | **46** | Kreuzberg 231 (2026-10-28) | **×5.0** |
-| HTML main content, A2 pages | **28** | trafilatura 123 (2026-10-28) | **×4.4** |
+| HTML main content, A2 pages | **20** | trafilatura 123 (2026-10-28) | **×6.2** |
+| Office and e-books, B4 files | **47** | Kreuzberg 231 (2026-10-28) | **×4.9** |
 | Crawl with browser, 200 sites × 100 pages | **669** | Google Chrome 2,300 (2026-10-21) | **×3.4** |
-| PDF, B1 pages | **34** | Kreuzberg 76 (2026-10-28) | **×2.2** |
+| PDF, B1 pages | **32** | Kreuzberg 76 (2026-10-28) | **×2.3** |
 | JavaScript pages, A3 (live web) | **520** | Crawl4AI 982 (2026-10-28) | **×1.9** |
+
+**PageSift 1.1 y xberg 1.3.9.** xberg medido el 2026-11-04; un rango son dos ejecuciones. En negrita, el mejor valor de la fila.
+
+| Métrica | PageSift CLI | PageSift servidor | xberg | xberg modo de maquetación |
+|---|---:|---:|---:|---:|
+| PDF B1, puntuación olmOCR 1.269 páginas ↑ | **0.645** | — | 0.436 | 0.472 |
+| Office B4, estructura conservada, reserva 39 archivos ↑ | **0.988** | — | 0.878 | — |
+| PDF B1, 1 worker, archivos/s ↑ | 161.4 | **176.5** | 29.5–29.9 | 1.35 |
+| PDF B1, 16 workers, archivos/s ↑ | **539.3** | 305.1 | 65.8–68.4 | 1.41 |
+| Office B4, 1 worker, archivos/s ↑ | **91.7** | 69.1 | 27.0 | — |
+| Office B4, 16 workers, archivos/s ↑ | **314.0** | 147.0 | 73.4–74.2 | — |
+| PDF B1, 1 worker, MB pico ↓ | **32** | 211 | 147–172 | 1118 |
+| Office B4, 1 worker, MB pico ↓ | **47** | 252 | 112 | — |
+| Office B4, 1 worker, mediana ms por archivo ↓ | 4.5 | **2.2** | 3.2–3.3 | — |
+
 
 <details>
 <summary>Aún por detrás</summary>
 
-fast, 40 sites × 60 pages, time (spider covered about half as many pages) 16.1 seconds vs spider 1.4 seconds; A2 replay, 269 pages, HTTP only, no rate limit, 1 worker 47.5 pages/s vs spider 156.6 pages/s; A2 269 random pages, resident worker, per page 5.2 ms/page vs Resiliparse 2.1 ms/page.
+fast, 40 sites × 60 pages, time (spider covered about half as many pages) 16.1 seconds vs spider 1.4 seconds; A2 replay, 269 pages, HTTP only, no rate limit, 1 worker 47.5 pages/s vs spider 156.6 pages/s; A2 269 random pages, resident worker, per page 4.5 ms/page vs Resiliparse 2.1 ms/page.
 
 </details>
 
-[Informe completo](../benchmarks/history/1.0/results/final/new/report.md)
+[Informe completo](../benchmarks/history/1.1/results/final/new/report.md)
 
 <!-- /perf-glance -->
 
@@ -217,7 +231,7 @@ El núcleo está escrito en Rust desde el formato de archivo hacia arriba, y los
 flowchart TD
     CLI[CLI / llamador en Rust] --> Engine[pagesift-engine]
     HTTP[API HTTP de Firecrawl y Jina] --> Engine
-    Bindings[Python / Node / MCP] --> Engine
+    Bindings[Python / Node / MCP / ABI de C: Go, Java, C#, Ruby, PHP y más] --> Engine
     Engine --> Hooks[pagesift-hooks: reglas y hooks]
     Hooks --> Policy[pagesift-policy: robots, límites de tasa, espera progresiva]
     Policy --> Net[pagesift-net: HTTP, protecciones SSRF, huella TLS opcional]
@@ -226,8 +240,12 @@ flowchart TD
     Plan -->|Sí| CDP[pagesift-cdp: pool de navegadores]
     CDP --> DOM
     Net -->|PDF| PDF[pagesift-pdf]
-    Net -->|Office, EPUB, CSV| Office[pagesift-office]
-    PDF -->|página escaneada| OCR[pagesift-ocr, pagesift-infer, pagesift-gpu]
+    Net -->|Office, libros electrónicos, correo, comprimidos, texto| Office[pagesift-office]
+    Net -->|Imagen| OCR[pagesift-ocr, pagesift-infer, pagesift-gpu]
+    Office -->|miembro de archivo, adjunto| Office
+    Office -->|miembro de archivo, adjunto| PDF
+    Office -->|código fuente| Syntax[pagesift-syntax]
+    PDF -->|página escaneada| OCR
     DOM --> Content[pagesift-content: contenido principal, Markdown, metadatos]
     DOM --> Extract[pagesift-extract: selectores, reubicación, fragmentación]
     PDF --> Sink[pagesift-sink: salidas y formato de caché]
@@ -239,7 +257,7 @@ flowchart TD
 ```
 
 **Código propio hasta el formato.** El análisis se ejecuta dentro del proceso, sin ningún runtime de Python, JVM o Node detrás. pagesift tiene
-su propio analizador HTML5 sin copias, capa de archivos PDF con decodificadores JPEG, CCITT y JBIG2, lectores de Office y EPUB, inferencia de redes
+su propio analizador HTML5 sin copias, capa de archivos PDF con decodificadores JPEG, CCITT y JBIG2, lectores de Office, libros electrónicos, correo y archivos comprimidos, inferencia de redes
 neuronales con kernels de GPU compilados desde Rust, cliente de Chrome DevTools, servidor MCP y almacén de solo anexado. Un
 trabajador cuesta decenas de megabytes, no un intérprete cargado, y arranca en milisegundos.
 
@@ -295,14 +313,13 @@ flowchart LR
 [licencia comercial](COMMERCIAL.md) o escribe a `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
-## Novedades en 1.0.0
+## Novedades de 1.1.0
 
-OCR para PDF escaneados en CPU o GPU NVIDIA, extracción estructurada con reparación de selectores, acciones de navegador y sesiones,
-`/v2/agent`, monitorización de cambios, la API completa de Jina Reader, entrada WARC, hooks y reglas, y una huella TLS de navegador
-opcional. Desde 0.81, los límites se miden en tiempo de ejecución, las decisiones de renderizado se aprenden por familia de rutas y un solo binario
-funciona como gateway multiservidor, trabajadores y nodo en espera. Algunos nombres han cambiado; la lista está en las notas de la versión.
+Nuevos formatos de entrada: Word, Excel y PowerPoint antiguos, Excel binario, OpenDocument, RTF, WordPerfect, HWP, MOBI, FB2, correo,
+archivos comprimidos leídos de forma recursiva, imágenes con OCR, SQLite, dBASE, DocBook, JATS, subtítulos, notebooks y 373 lenguajes de
+código y configuración como bloques de código; C, C++, C#, Go, Java, JavaScript, TypeScript, Lua, PHP, Python y Rust se dividen por función y clase. Nuevas integraciones: LangChain, LlamaIndex y una ABI de C con enlaces para otros lenguajes.
 
-[Notas de la versión](releases/1.0.0.md) · [0.90.0](releases/0.90.0.md) · [todas las versiones](releases/) · [CHANGELOG](../CHANGELOG.md)
+[Notas de la versión](releases/1.1.0.md) · [1.0.0](releases/1.0.0.md) · [todas las versiones](releases/) · [CHANGELOG](../CHANGELOG.md)
 
 ---
 
@@ -318,7 +335,7 @@ Preguntas o comentarios: [Discord](https://discord.gg/esA3wMZVvA) · [Issues](ht
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.0.0}
+  note   = {Version 1.1.0}
 }
 ```
 

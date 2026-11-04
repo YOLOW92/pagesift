@@ -42,6 +42,35 @@ pub const TARGETS: &[Target] = &[
         timeout: Duration::from_secs(20),
     },
     Target {
+        name: "office",
+        run: office,
+        dict: &[
+            b"PK\x03\x04",
+            b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1",
+            b"SQLite format 3\0",
+            b"BOOKMOBI",
+            b"\xFFWPC",
+        ],
+        max_len: 8 << 20,
+        // 转换本身有 5 秒的截止时间，看门狗留出余量
+        timeout: Duration::from_secs(15),
+    },
+    Target {
+        name: "image",
+        run: image,
+        dict: &[
+            b"RIFF",
+            b"WEBPVP8 ",
+            b"WEBPVP8L",
+            b"\x89PNG",
+            b"GIF89a",
+            b"II*\0",
+            b"BM",
+        ],
+        max_len: 4 << 20,
+        timeout: Duration::from_secs(20),
+    },
+    Target {
         name: "jpeg",
         run: jpeg,
         dict: JPEG_DICT,
@@ -467,6 +496,55 @@ fn jbig2(data: &[u8], iter: u64) {
         (None, data)
     };
     let _ = std::hint::black_box(pagesift_pdf::fuzzing::decode_jbig2(page, g));
+}
+
+/// 文档解析器：先按内容识别；再轮流强制走每种二进制格式，让变异过的文件进到更深的路径。
+fn office(data: &[u8], iter: u64) {
+    use pagesift_office::{Format, Limits, Options, convert};
+    const FORMATS: &[Format] = &[
+        Format::Doc,
+        Format::Xls,
+        Format::Ppt,
+        Format::Xlsb,
+        Format::Hwp,
+        Format::Hwpx,
+        Format::Dbf,
+        Format::Sqlite,
+        Format::Mobi,
+        Format::Msg,
+        Format::Eml,
+        Format::Mbox,
+        Format::Archive,
+        Format::Rtf,
+        Format::WordPerfect,
+        Format::Odt,
+        Format::FlatOdf,
+        Format::Docbook,
+        Format::Svg,
+        Format::Fb2,
+    ];
+    let html = |body: &str, _: &str| body.chars().take(64).collect::<String>();
+    let opts = Options {
+        limits: Limits {
+            max_output_bytes: 1 << 20,
+            ..Default::default()
+        },
+        deadline: Some(std::time::Instant::now() + Duration::from_secs(5)),
+        html: Some(&html),
+        member: None,
+    };
+    let format = if iter.is_multiple_of(2) {
+        Format::detect(data, None, None)
+    } else {
+        Some(FORMATS[(iter as usize / 2) % FORMATS.len()])
+    };
+    if let Some(format) = format {
+        let _ = std::hint::black_box(convert(data, format, &opts));
+    }
+}
+
+fn image(data: &[u8], _iter: u64) {
+    let _ = std::hint::black_box(pagesift_pdf::decode_image_file(data, 4_000_000));
 }
 
 fn jpeg(data: &[u8], iter: u64) {

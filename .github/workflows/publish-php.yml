@@ -1,0 +1,106 @@
+# Packagist 包 yolow92/pagesift：主仓库太大（128 MB），所以把 bindings/php 同步到单独的仓库 YOLOW92/pagesift-php，
+# 并打同名标签（v1.1.0）；Packagist 从拆分仓库读标签。需要环境密钥 PHP_SPLIT_DEPLOY_KEY（拆分仓库的 SSH 部署密钥，带写权限）。
+# Packagist 上要先提交一次 https://github.com/YOLOW92/pagesift-php 并开启自动更新。PHP 包不带库，用户装 Release 里的 C 库。
+name: Publish PHP
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 要发布的版本标签，例如 v1.1.0（对应的 GitHub 版本页面要已经公开，且带 C 库产物）
+        required: true
+      dry_run:
+        description: 只构建和测试，不发布
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 解析标签
+        id: ver
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "标签格式应为 v1.2.3，得到：$TAG"; exit 1; }
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ver.outputs.tag }}
+      - name: 取 Release 里的 C 库并校验
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p dl ffi
+          for t in x86_64-unknown-linux-gnu; do
+            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -D dl \
+              -p "pagesift-ffi-$TAG-$t.tar.gz" -p "pagesift-ffi-$TAG-$t.tar.gz.sha256"
+          done
+          (cd dl && sha256sum -c ./*.sha256)
+          for t in x86_64-unknown-linux-gnu; do
+            mkdir -p "ffi/$t"
+            tar xzf "dl/pagesift-ffi-$TAG-$t.tar.gz" -C "ffi/$t" --strip-components=1
+          done
+          ls -R ffi | head -30
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: ffi
+          ini-values: ffi.enable=1
+      - name: 整理拆分仓库内容并实测（convert 和 parse）
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          export PHP="$(command -v php)"
+          bash bindings/php/package.sh --version "$VERSION" --ffi-dir ffi --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: php-split
+          path: dist/pagesift-php
+          include-hidden-files: true
+
+  publish:
+    needs: build
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: php-split
+          path: split
+      - name: 同步到 YOLOW92/pagesift-php 并打标签
+        env:
+          DEPLOY_KEY: ${{ secrets.PHP_SPLIT_DEPLOY_KEY }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          key="$RUNNER_TEMP/split_key"
+          umask 077
+          printf '%s\n' "$DEPLOY_KEY" > "$key"
+          export GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          git clone git@github.com:YOLOW92/pagesift-php.git repo
+          cd repo
+          git checkout -B main
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "拆分仓库已有标签 $TAG，不覆盖"; rm -f "$key"; exit 1
+          fi
+          # 先清空工作区（保留 .git），再放入新内容
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a ../split/. .
+          git config user.name YOLOW92
+          git config user.email "YOLOW92@users.noreply.github.com"
+          git add -A
+          git commit -q --allow-empty -m "release: ${TAG#v}"
+          git tag "$TAG"
+          git push origin main "refs/tags/$TAG"
+          rm -f "$key"

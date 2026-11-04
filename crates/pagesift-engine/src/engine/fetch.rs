@@ -172,6 +172,24 @@ impl Scraper {
                 .await;
         }
 
+        // 图片：打开了 OCR 才转换；没开时说明怎么开（其他媒体类型仍按原来的提示）
+        if pagesift_pdf::image_mime(&resp.body).is_some() {
+            let progress = Progress {
+                started,
+                timings,
+                warnings,
+            };
+            return self
+                .image_document(
+                    resp.body,
+                    opts,
+                    (meta, ext),
+                    progress,
+                    request_deadline(opts, started),
+                )
+                .await;
+        }
+
         if let Some(kind) = unsupported_content_type(resp.content_type(), &resp.body) {
             return Err(ApiError::unsupported(format!(
                 "unsupported content type `{kind}`: pagesift extracts HTML/text; use `pagesift download` or `media-extract` for binary media"

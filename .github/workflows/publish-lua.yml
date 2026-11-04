@@ -1,0 +1,89 @@
+# LuaRocks 包 pagesift：LuaJIT 绑定（纯 Lua 模块，builtin 构建），source 指向主仓库的 Git 标签 v<版本>。
+# 需要环境密钥 LUAROCKS_API_KEY。包不带库，用户装 Release 里的 C 库或设置 PAGESIFT_LIB。
+name: Publish Lua
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 要发布的版本标签，例如 v1.1.0（对应的 GitHub 版本页面要已经公开，且带 C 库产物）
+        required: true
+      dry_run:
+        description: 只构建和测试，不发布
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 解析标签
+        id: ver
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "标签格式应为 v1.2.3，得到：$TAG"; exit 1; }
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ver.outputs.tag }}
+      - name: 取 Release 里的 C 库并校验
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p dl ffi
+          for t in x86_64-unknown-linux-gnu; do
+            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -D dl \
+              -p "pagesift-ffi-$TAG-$t.tar.gz" -p "pagesift-ffi-$TAG-$t.tar.gz.sha256"
+          done
+          (cd dl && sha256sum -c ./*.sha256)
+          for t in x86_64-unknown-linux-gnu; do
+            mkdir -p "ffi/$t"
+            tar xzf "dl/pagesift-ffi-$TAG-$t.tar.gz" -C "ffi/$t" --strip-components=1
+          done
+          ls -R ffi | head -30
+      - name: 装 LuaJIT 和 LuaRocks
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq luajit luarocks
+      - name: 渲染 rockspec 并实测（convert 和 parse）
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          export LUAJIT="$(command -v luajit)"
+          bash bindings/lua/package.sh --version "$VERSION" --ffi-dir ffi --out dist
+      - name: 用 luarocks 按 rockspec 安装一次（临时目录）
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          tree="$RUNNER_TEMP/lr"
+          luarocks --lua-version 5.1 --tree "$tree" build dist/pagesift-$VERSION-1.rockspec
+          find "$tree" -name 'pagesift.lua'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rockspec
+          path: dist/*.rockspec
+
+  publish:
+    needs: build
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: rockspec
+          path: dist
+      - name: 装 LuaRocks
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq luarocks
+      - name: 上传 rockspec
+        env:
+          LUAROCKS_API_KEY: ${{ secrets.LUAROCKS_API_KEY }}
+        run: luarocks upload dist/*.rockspec --skip-pack --api-key="$LUAROCKS_API_KEY"

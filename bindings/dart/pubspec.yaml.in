@@ -1,0 +1,14 @@
+# pubspec 模板；@VERSION@ 由 package.sh 替换。
+name: pagesift
+description: Dart binding of libpagesift (dart:ffi). Converts HTML, PDF, Office and other documents to Markdown and JSON. Bundles the native library for linux-x64, linux-arm64 and macos-arm64.
+version: @VERSION@
+homepage: https://github.com/YOLOW92/pagesift
+repository: https://github.com/YOLOW92/pagesift/tree/main/bindings/dart
+issue_tracker: https://github.com/YOLOW92/pagesift/issues
+topics:
+  - markdown
+  - pdf
+  - scraping
+  - ffi
+environment:
+  sdk: ^3.3.0

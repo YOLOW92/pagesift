@@ -53,9 +53,12 @@ impl Media {
     }
 }
 
-/// 列出文档里的媒体文件和位置。CSV 没有媒体，返回空表。
+/// 列出文档里的媒体文件和位置。其他格式没有媒体部件，返回空表。
 pub fn media(bytes: &[u8], format: Format, opts: &Options<'_>) -> Result<Vec<Media>, Error> {
-    if format == Format::Csv {
+    if !matches!(
+        format,
+        Format::Docx | Format::Pptx | Format::Xlsx | Format::Epub
+    ) {
         return Ok(Vec::new());
     }
     let zip = Zip::open(bytes, &opts.limits)?;
@@ -65,7 +68,7 @@ pub fn media(bytes: &[u8], format: Format, opts: &Options<'_>) -> Result<Vec<Med
         Format::Pptx => pptx(&zip, &mut found, opts)?,
         Format::Xlsx => xlsx(&zip, &mut found, opts)?,
         Format::Epub => epub(&zip, &mut found, opts)?,
-        Format::Csv => {}
+        _ => {}
     }
     // 没被引用的媒体部件也列上
     let parts: Vec<String> = zip

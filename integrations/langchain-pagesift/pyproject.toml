@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling>=1.25,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "langchain-pagesift"
+version = "1.1.0"
+description = "LangChain document loader for pagesift: web pages, sites and local files as Markdown, no API key."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "AGPL-3.0-only" }
+dependencies = ["pagesift>=1.1,<2", "langchain-core>=0.3,<2"]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.urls]
+Repository = "https://github.com/YOLOW92/pagesift"
+
+[tool.hatch.build.targets.wheel]
+packages = ["langchain_pagesift"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

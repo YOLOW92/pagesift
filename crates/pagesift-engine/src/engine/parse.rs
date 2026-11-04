@@ -40,7 +40,7 @@ impl Scraper {
                 .content_type
                 .clone()
                 .filter(|c| c.to_ascii_lowercase().contains("html")),
-            UploadKind::Pdf | UploadKind::Office(_) => None,
+            UploadKind::Pdf | UploadKind::Office(_) | UploadKind::Image(_) => None,
         };
         // 调用方给了页面的原地址时，它就是来源；否则用文件名
         let source = upload
@@ -79,6 +79,10 @@ impl Scraper {
                     content_type: upload.content_type,
                 };
                 self.office_document(input, opts, (meta, ext), progress, Some(deadline))
+                    .await
+            }
+            UploadKind::Image(_) => {
+                self.image_document(upload.bytes, opts, (meta, ext), progress, Some(deadline))
                     .await
             }
             UploadKind::Html => {

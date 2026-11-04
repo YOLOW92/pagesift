@@ -24,8 +24,10 @@ pub struct Upload {
 pub enum UploadKind {
     Pdf,
     Html,
-    /// Word、Excel、PowerPoint、EPUB、CSV（见 pagesift-office）。
+    /// Word、Excel、PowerPoint、EPUB、CSV、邮件、压缩包、文本类（见 pagesift-office）。
     Office(pagesift_office::Format),
+    /// 图片（要服务端打开 OCR）。参数是按内容认出的 MIME 类型。
+    Image(&'static str),
 }
 
 impl UploadKind {
@@ -35,6 +37,9 @@ impl UploadKind {
     pub fn detect(bytes: &[u8], filename: &str, content_type: Option<&str>) -> Option<Self> {
         if bytes.starts_with(b"%PDF-") {
             return Some(UploadKind::Pdf);
+        }
+        if let Some(mime) = image_mime(bytes) {
+            return Some(UploadKind::Image(mime));
         }
         if let Some(f) = pagesift_office::Format::detect(bytes, Some(filename), content_type) {
             return Some(UploadKind::Office(f));
@@ -63,7 +68,44 @@ impl UploadKind {
             UploadKind::Pdf => "application/pdf",
             UploadKind::Html => "text/html",
             UploadKind::Office(f) => f.mime(),
+            UploadKind::Image(mime) => mime,
         }
+    }
+
+    /// 网页存档里也按这种类型转换吗？和抓取时一致：文本类和图片不转。
+    pub fn fetchable(self) -> bool {
+        match self {
+            UploadKind::Pdf | UploadKind::Html => true,
+            UploadKind::Office(f) => f.fetchable(),
+            UploadKind::Image(_) => false,
+        }
+    }
+}
+
+/// 按签名认图片。pagesift-api 不依赖 PDF 解码，这里只看开头几个字节。
+fn image_mime(b: &[u8]) -> Option<&'static str> {
+    if b.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]) {
+        Some("image/png")
+    } else if b.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        Some("image/jpeg")
+    } else if b.starts_with(b"GIF87a") || b.starts_with(b"GIF89a") {
+        Some("image/gif")
+    } else if b.starts_with(b"II*\0") || b.starts_with(b"MM\0*") {
+        Some("image/tiff")
+    } else if b.len() >= 12 && &b[..4] == b"RIFF" && &b[8..12] == b"WEBP" {
+        Some("image/webp")
+    } else if b.starts_with(b"BM")
+        // `BM` 太短，文字也可能这样开头：再看信息头的长度字段
+        && b.get(14..18).is_some_and(|s| {
+            matches!(
+                u32::from_le_bytes([s[0], s[1], s[2], s[3]]),
+                12 | 40 | 52 | 56 | 64 | 108 | 124
+            )
+        })
+    {
+        Some("image/bmp")
+    } else {
+        None
     }
 }
 
@@ -83,7 +125,7 @@ pub struct PdfParser {
 
 impl PdfParser {
     /// 从 `parsers` 取 PDF 选项。接受 Firecrawl 的写法：`["pdf"]`、`[{type: "pdf", ...}]`，
-    /// 以及 `"image"`（图片 OCR，这里本来就不支持图片，照收不报错，免得 Firecrawl SDK 的默认值被拒）。
+    /// 以及 `"image"`（图片 OCR，由服务端的 OCR 开关决定，这里照收）。
     /// 列表里没有 `pdf` 时 PDF 不解析（[`Self::raw`]）。
     /// 做不到的选项（版面块、分页标记）明确报 UNSUPPORTED_OPTION，不悄悄忽略；`mode: "ocr"` 要
     /// 服务端打开了 OCR，这里不知道，由解析 PDF 时检查。
@@ -197,6 +239,18 @@ mod tests {
             Some(UploadKind::Office(pagesift_office::Format::Csv))
         );
         assert_eq!(d(b"x", "upload", Some("application/octet-stream")), None);
+        assert_eq!(
+            d(b"\x89PNG\r\n\x1a\nrest", "a.txt", None),
+            Some(UploadKind::Image("image/png"))
+        );
+        assert!(!UploadKind::Image("image/png").fetchable());
+        assert!(!UploadKind::Office(pagesift_office::Format::Text).fetchable());
+        assert!(UploadKind::Office(pagesift_office::Format::Eml).fetchable());
+        // a.html 以 text/plain 上传仍然是 HTML
+        assert_eq!(
+            d(b"<p>", "a.html", Some("text/plain")),
+            Some(UploadKind::Html)
+        );
     }
 
     #[test]

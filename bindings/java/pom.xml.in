@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Maven Central 要求的 pom 元数据；@VERSION@ 由 package.sh 替换。包没有依赖。 -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io.github.yolow92</groupId>
+  <artifactId>pagesift</artifactId>
+  <version>@VERSION@</version>
+  <packaging>jar</packaging>
+
+  <name>pagesift</name>
+  <description>Java (FFM) binding of libpagesift: HTML, PDF, Office and other documents to Markdown and JSON. Bundles the native library for linux-x86_64, linux-aarch64 and macos-aarch64.</description>
+  <url>https://github.com/YOLOW92/pagesift</url>
+
+  <licenses>
+    <license>
+      <name>GNU Affero General Public License v3.0 only</name>
+      <url>https://www.gnu.org/licenses/agpl-3.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <name>YOLOW92</name>
+      <url>https://github.com/YOLOW92</url>
+    </developer>
+  </developers>
+
+  <scm>
+    <connection>scm:git:https://github.com/YOLOW92/pagesift.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/YOLOW92/pagesift.git</developerConnection>
+    <url>https://github.com/YOLOW92/pagesift</url>
+    <tag>v@VERSION@</tag>
+  </scm>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>22</maven.compiler.release>
+  </properties>
+</project>

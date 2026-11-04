@@ -19,6 +19,7 @@
 | 网页正文 | newspaper4k | 0.9.6 | MIT | `newspaper4k[nlp,zh,ja,th,hi,bn,ta,np]` | `fetch_images=False`：默认 `parse()` 会联网下载页面图片挑头图，本基准所有工具只读快照、不联网。只装基础包时中、日、韩、阿拉伯文页面直接 ImportError，所以装语言扩展。只出纯文本 |
 | 抓取 | Crawlee（Python） | 1.11.0 | Apache-2.0 | `locks/py/crawlee.txt` | `HttpCrawler`，内存存储；`HttpCrawler` 不解码，适配器按响应头 charset、否则 UTF-8 解码，所以它的乱码数不代表 Crawlee 本身 |
 | PDF、Office | Kreuzberg | 4.10.4 | MIT | `locks/py/kreuzberg.txt` | `output_format="markdown"`；`use_cache=False`（默认开结果缓存，同一文件第二遍直接读缓存，测速就不准了） |
+| PDF、Office | xberg（Kreuzberg 的下一代，2026-11-04 增测） | 1.3.9 | MIT | `locks/py/xberg.txt` | 和 Kreuzberg 同样的配置；只有异步的 `extract`，用常驻事件循环逐份跑 |
 | PDF、Office | MinerU | 4.0.12 | MinerU Open Source License（基于 Apache-2.0） | `locks/py/mineru.txt`（默认安装：ONNX + llama.cpp）；`mineru-kit models download --tier standard` | 进程内调用 `mineru.parser.parse`（`mineru-kit parse` 的本地路径）。`mineru`：默认档 standard；`mineru-flash`：flash 档（官方“最快、不用模型”档）。Office/EPUB/CSV 官方只走 flash |
 | Office | pandoc | 3.13 | GPL-2.0-or-later | GitHub 发布页 `pandoc-3.13-linux-amd64.tar.gz`（SHA-256 38aa33b3…） | `-t gfm`，按扩展名选读入格式 |
 

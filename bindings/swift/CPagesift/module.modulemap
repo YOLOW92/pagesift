@@ -1,0 +1,4 @@
+module CPagesift [system] {
+    header "../../../crates/pagesift-ffi/include/pagesift.h"
+    export *
+}

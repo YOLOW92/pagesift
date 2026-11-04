@@ -285,6 +285,25 @@ def kreuzberg_main():
     run_sync("kreuzberg", version("kreuzberg"), lambda p: extract_file_sync(p, config=cfg).content)
 
 
+def xberg_main(layout=False, formula=None):
+    # Kreuzberg 的下一代。和 kreuzberg_main 同样的配置：默认参数，Markdown，关结果缓存。
+    # 这个包只有异步的 extract，所以一个常驻事件循环逐份跑；一份里有多个结果时全部拼上，空结果照实算空。
+    # layout=True 是版面模型模式，开法同 xberg 自家评测（tools/benchmark-harness/src/adapters/xberg.rs）。
+    import asyncio
+
+    from xberg import ExtractInput, ExtractionConfig, LayoutDetectionConfig, extract
+
+    extra = {"layout": LayoutDetectionConfig(formula_model=formula), "use_layout_for_markdown": True} if layout else {}
+    cfg = ExtractionConfig(output_format="markdown", use_cache=False, **extra)
+    loop = asyncio.new_event_loop()
+
+    def convert(path):
+        output = loop.run_until_complete(extract(ExtractInput(kind="uri", uri=path), cfg))
+        return "\n\n".join(r.content or "" for r in output.results)
+
+    run_sync("xberg", version("xberg"), convert)
+
+
 def mineru_main(tier=None):
     # 第 2 版。照 `mineru-kit parse` 的本地路径在进程内调用（常驻，不每份起进程）：mineru.parser.parse(path, tier=…)，
     # 取 result.markdown()。tier 不给就照 mineru-kit 的默认：PDF 用 standard（默认安装 = ONNX + llama.cpp Vulkan），
@@ -357,6 +376,9 @@ MAINS = {
     "newspaper4k": newspaper4k_main,
     "crawlee": crawlee_main,
     "kreuzberg": kreuzberg_main,
+    "xberg": xberg_main,
+    "xberg-layout": lambda: xberg_main(layout=True),
+    "xberg-layout-latex": lambda: xberg_main(layout=True, formula="latex_ocr"),
     "mineru": mineru_main,
     "mineru-flash": lambda: mineru_main("flash"),
     "marker": marker_main,
