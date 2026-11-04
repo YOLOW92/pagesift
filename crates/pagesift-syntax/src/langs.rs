@@ -29,9 +29,10 @@ pub enum Lang {
     Html,
     ObjC,
     Dart,
+    Julia,
 }
 
-const COUNT: usize = 19;
+const COUNT: usize = 20;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -56,6 +57,7 @@ impl Lang {
             "html" | "htm" => Lang::Html,
             "objc" | "objective-c" | "objectivec" => Lang::ObjC,
             "dart" => Lang::Dart,
+            "julia" | "jl" => Lang::Julia,
             _ => return None,
         })
     }
@@ -85,6 +87,7 @@ impl Lang {
             Lang::Html => include_bytes!("../tables/html.pslg.z"),
             Lang::ObjC => include_bytes!("../tables/objc.pslg.z"),
             Lang::Dart => include_bytes!("../tables/dart.pslg.z"),
+            Lang::Julia => include_bytes!("../tables/julia.pslg.z"),
         }
     }
 
@@ -297,6 +300,14 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
             | "constant_constructor_signature" => Sym(K::Method, "constructor", No),
             "method_signature" | "declaration" => Wrap,
             "import_or_export" => Import,
+            _ => Skip,
+        },
+        Lang::Julia => match kind {
+            "function_definition" | "macro_definition" => Sym(K::Function, "function", No),
+            "struct_definition" => Sym(K::Struct, "struct", No),
+            "abstract_definition" | "primitive_definition" => Sym(K::Type, "type", No),
+            "module_definition" => Sym(K::Module, "module", Scope),
+            "import_statement" | "using_statement" => Import,
             _ => Skip,
         },
     }

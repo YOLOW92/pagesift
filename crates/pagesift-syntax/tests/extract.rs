@@ -290,6 +290,16 @@ fn dart_defs() {
 }
 
 #[test]
+fn julia_defs() {
+    check(
+        "julia",
+        "using LinearAlgebra\nfunction f(x)\n  x\nend\nstruct P\n  a::Int\nend\n",
+        &[(K::Function, "f"), (K::Struct, "P")],
+        1,
+    );
+}
+
+#[test]
 fn unsupported_or_symbol_free_is_none() {
     assert!(outline("cobol", "x").is_none());
     assert!(outline("python", "x = 1\n").is_none());

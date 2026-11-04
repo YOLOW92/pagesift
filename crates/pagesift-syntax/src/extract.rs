@@ -324,7 +324,17 @@ impl Walker<'_> {
                     .map(|&c| c as usize)
                     .find(|&c| {
                         let k = self.nodes.n[c].kind;
-                        k.ends_with("declarator") || is_identifier(k)
+                        k.ends_with("declarator")
+                            || is_identifier(k)
+                            || matches!(
+                                k,
+                                "signature"
+                                    | "type_head"
+                                    | "call_expression"
+                                    | "where_expression"
+                                    | "typed_expression"
+                                    | "parametrized_type_expression"
+                            )
                     })
             });
             match next {
