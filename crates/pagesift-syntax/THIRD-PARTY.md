@@ -39,6 +39,7 @@
 | OCaml | tree-sitter/tree-sitter-ocaml | 0.26.0 / 3b2e14e | Copyright (c) 2020 Max Brunsfeld and Pieter Goetschalckx；外部扫描器移植自该仓库 common/scanner.h |
 | Elixir | elixir-lang/tree-sitter-elixir | 0.3.5 / cb32ccb | Apache License 2.0；外部扫描器移植自该仓库 src/scanner.c |
 | R | r-lib/tree-sitter-r | 1.3.0 / 58a2279 | Copyright (c) 2025 tree-sitter-r authors；外部扫描器移植自该仓库 src/scanner.c |
+| Svelte | tree-sitter-grammars/tree-sitter-svelte | 1.0.2 / ae5199d | Copyright (c) 2024 Amaan Qureshi；标签栈扫描与 HTML 共用，花括号文本部分移植自该仓库 src/scanner.c |
 | TOML | tree-sitter-grammars/tree-sitter-toml | 0.7.0 / 64b5683 | Copyright (c) Ika；外部扫描器移植自该仓库 src/scanner.c |
 | PHP、PHP-only | tree-sitter/tree-sitter-php | 0.25.1 / 58d5643 | Copyright (c) 2017 Josh Vera, GitHub；外部扫描器移植自该仓库 src/scanner.c |
 | C# | tree-sitter/tree-sitter-c-sharp | 0.23.5 / 8c0abe0 | Copyright (c) 2014-2023 Max Brunsfeld, Damien Guard, Amaan Qureshi, and contributors；外部扫描器移植自该仓库 src/scanner.c |

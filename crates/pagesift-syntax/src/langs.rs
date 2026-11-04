@@ -35,9 +35,10 @@ pub enum Lang {
     Ocaml,
     Elixir,
     R,
+    Svelte,
 }
 
-const COUNT: usize = 25;
+const COUNT: usize = 26;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -68,6 +69,7 @@ impl Lang {
             "ocaml" | "ml" => Lang::Ocaml,
             "elixir" | "ex" | "exs" => Lang::Elixir,
             "r" => Lang::R,
+            "svelte" => Lang::Svelte,
             _ => return None,
         })
     }
@@ -103,6 +105,7 @@ impl Lang {
             Lang::Ocaml => include_bytes!("../tables/ocaml.pslg.z"),
             Lang::Elixir => include_bytes!("../tables/elixir.pslg.z"),
             Lang::R => include_bytes!("../tables/r.pslg.z"),
+            Lang::Svelte => include_bytes!("../tables/svelte.pslg.z"),
         }
     }
 
@@ -349,5 +352,6 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
             "binary_operator" => Rule::Special(Sp::RAssign),
             _ => Skip,
         },
+        Lang::Svelte => Skip,
     }
 }

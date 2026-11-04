@@ -163,23 +163,31 @@ struct Tag {
     custom: Vec<u8>,
 }
 
-fn type_for_name(name: &[u8]) -> u8 {
-    if let Some(i) = VOID_NAMES.iter().position(|n| n.as_bytes() == name) {
+/// `lower`：Svelte 的标签名保留大小写，表里的名字按小写比较（大写开头的是组件，算自定义）。
+fn type_for_name(name: &[u8], lower: bool) -> u8 {
+    let eq = |n: &str| {
+        if lower {
+            n.to_ascii_lowercase().as_bytes() == name
+        } else {
+            n.as_bytes() == name
+        }
+    };
+    if let Some(i) = VOID_NAMES.iter().position(|n| eq(n)) {
         return i as u8;
     }
-    if let Some(i) = OTHER_NAMES.iter().position(|n| n.as_bytes() == name) {
+    if let Some(i) = OTHER_NAMES.iter().position(|n| eq(n)) {
         return END_OF_VOID_TAGS + 1 + i as u8;
     }
     CUSTOM
 }
 
 fn type_is(kind: u8, name: &str) -> bool {
-    kind != CUSTOM && type_for_name(name.as_bytes()) == kind
+    kind != CUSTOM && type_for_name(name.as_bytes(), false) == kind
 }
 
 impl Tag {
-    fn for_name(name: Vec<u8>) -> Tag {
-        let kind = type_for_name(&name);
+    fn for_name(name: Vec<u8>, lower: bool) -> Tag {
+        let kind = type_for_name(&name, lower);
         Tag {
             kind,
             custom: if kind == CUSTOM { name } else { Vec::new() },
@@ -219,16 +227,34 @@ impl Tag {
 #[derive(Default)]
 pub struct Html {
     tags: Vec<Tag>,
+    /// Svelte 变体：标签名保留大小写、允许 `.`，并多出花括号相关的记号。
+    svelte: bool,
+}
+
+impl Html {
+    pub fn svelte() -> Html {
+        Html {
+            tags: Vec::new(),
+            svelte: true,
+        }
+    }
 }
 
 fn upper(c: char) -> u8 {
     c.to_uppercase().next().unwrap_or(c) as u32 as u8
 }
 
-fn scan_tag_name(lx: &mut ScanLexer) -> Vec<u8> {
+fn scan_tag_name(lx: &mut ScanLexer, svelte: bool) -> Vec<u8> {
     let mut name = Vec::new();
-    while lx.lookahead().is_alphanumeric() || matches!(lx.lookahead(), '-' | ':') {
-        name.push(upper(lx.lookahead()));
+    while lx.lookahead().is_alphanumeric()
+        || matches!(lx.lookahead(), '-' | ':')
+        || (svelte && lx.lookahead() == '.')
+    {
+        name.push(if svelte {
+            lx.lookahead() as u32 as u8
+        } else {
+            upper(lx.lookahead())
+        });
         lx.next();
     }
     name
@@ -299,11 +325,11 @@ impl Html {
             lx.set_result(IMPLICIT_END_TAG as u16);
             return true;
         }
-        let name = scan_tag_name(lx);
+        let name = scan_tag_name(lx, self.svelte);
         if name.is_empty() && !lx.eof() {
             return false;
         }
-        let next = Tag::for_name(name);
+        let next = Tag::for_name(name, self.svelte);
         if closing {
             if self.tags.last() == Some(&next) {
                 return false;
@@ -328,11 +354,11 @@ impl Html {
     }
 
     fn scan_start_tag_name(&mut self, lx: &mut ScanLexer) -> bool {
-        let name = scan_tag_name(lx);
+        let name = scan_tag_name(lx, self.svelte);
         if name.is_empty() {
             return false;
         }
-        let tag = Tag::for_name(name);
+        let tag = Tag::for_name(name, self.svelte);
         let sym = if type_is(tag.kind, "SCRIPT") {
             SCRIPT_START_TAG_NAME
         } else if type_is(tag.kind, "STYLE") {
@@ -346,11 +372,11 @@ impl Html {
     }
 
     fn scan_end_tag_name(&mut self, lx: &mut ScanLexer) -> bool {
-        let name = scan_tag_name(lx);
+        let name = scan_tag_name(lx, self.svelte);
         if name.is_empty() {
             return false;
         }
-        let tag = Tag::for_name(name);
+        let tag = Tag::for_name(name, self.svelte);
         if self.tags.last() == Some(&tag) {
             self.tags.pop();
             lx.set_result(END_TAG_NAME as u16);
@@ -365,6 +391,11 @@ impl Scanner for Html {
     fn scan(&mut self, lx: &mut ScanLexer, v: &[bool]) -> bool {
         if v[RAW_TEXT] && !v[START_TAG_NAME] && !v[END_TAG_NAME] {
             return self.scan_raw_text(lx);
+        }
+        if self.svelte
+            && let Some(r) = super::svelte::pre_scan(lx, v)
+        {
+            return r;
         }
         while is_space(lx.lookahead()) {
             lx.skip();
@@ -381,7 +412,7 @@ impl Scanner for Html {
                     return self.scan_implicit_end_tag(lx);
                 }
             }
-            '\0' => {
+            c @ ('\0' | '{') if c == '\0' || self.svelte => {
                 if v[IMPLICIT_END_TAG] {
                     return self.scan_implicit_end_tag(lx);
                 }

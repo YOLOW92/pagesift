@@ -25,6 +25,7 @@ pub mod python;
 pub mod r;
 pub mod ruby;
 pub mod rust;
+pub mod svelte;
 pub mod toml;
 pub mod ts;
 
@@ -53,6 +54,7 @@ pub fn create(name: &str) -> Option<Box<dyn Scanner>> {
         "julia" => Box::new(julia::Julia),
         "dart" => Box::new(dart::Dart),
         "html" => Box::new(html::Html::default()),
+        "svelte" => Box::new(html::Html::svelte()),
         "python" => Box::new(python::Python::default()),
         "cpp" => Box::new(cpp::Cpp::default()),
         "lua" => Box::new(lua::Lua::default()),
