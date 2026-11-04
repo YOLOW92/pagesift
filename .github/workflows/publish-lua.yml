@@ -83,7 +83,10 @@ jobs:
           name: rockspec
           path: dist
       - name: 装 LuaRocks
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq luarocks
+        # luarocks upload 要 JSON 库，apt 版不带
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq luarocks
+          sudo luarocks install dkjson
       - name: 上传 rockspec
         env:
           LUAROCKS_API_KEY: ${{ secrets.LUAROCKS_API_KEY }}
