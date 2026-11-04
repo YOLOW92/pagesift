@@ -206,6 +206,21 @@ fn ruby_defs() {
 }
 
 #[test]
+fn kotlin_defs() {
+    check(
+        "kotlin",
+        "import a.b\nfun top() {}\nclass C {\n  fun m() {}\n}\nobject O\n",
+        &[
+            (K::Function, "top"),
+            (K::Class, "C"),
+            (K::Method, "m"),
+            (K::Class, "O"),
+        ],
+        1,
+    );
+}
+
+#[test]
 fn unsupported_or_symbol_free_is_none() {
     assert!(outline("cobol", "x").is_none());
     assert!(outline("python", "x = 1\n").is_none());

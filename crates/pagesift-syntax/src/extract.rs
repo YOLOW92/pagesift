@@ -512,6 +512,7 @@ fn is_identifier(kind: &str) -> bool {
     matches!(
         kind,
         "identifier"
+            | "simple_identifier"
             | "field_identifier"
             | "qualified_identifier"
             | "type_identifier"

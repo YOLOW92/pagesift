@@ -24,9 +24,10 @@ pub enum Lang {
     Lua,
     Bash,
     Ruby,
+    Kotlin,
 }
 
-const COUNT: usize = 14;
+const COUNT: usize = 15;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -46,6 +47,7 @@ impl Lang {
             "lua" => Lang::Lua,
             "bash" | "sh" | "shell" | "zsh" => Lang::Bash,
             "ruby" => Lang::Ruby,
+            "kotlin" => Lang::Kotlin,
             _ => return None,
         })
     }
@@ -70,6 +72,7 @@ impl Lang {
             Lang::Lua => include_bytes!("../tables/lua.pslg.z"),
             Lang::Bash => include_bytes!("../tables/bash.pslg.z"),
             Lang::Ruby => include_bytes!("../tables/ruby.pslg.z"),
+            Lang::Kotlin => include_bytes!("../tables/kotlin.pslg.z"),
         }
     }
 
@@ -237,6 +240,15 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
         },
         Lang::Lua => match kind {
             "function_declaration" => Sym(K::Function, "function", No),
+            _ => Skip,
+        },
+        Lang::Kotlin => match kind {
+            "function_declaration" => Sym(K::Function, "function", No),
+            "class_declaration" => Sym(K::Class, "class", Ty),
+            "object_declaration" => Sym(K::Class, "object", Ty),
+            "type_alias" => Sym(K::Type, "typealias", No),
+            "import_list" => Rule::Flat,
+            "import_header" => Import,
             _ => Skip,
         },
         Lang::Ruby => match kind {
