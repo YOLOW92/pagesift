@@ -10,7 +10,7 @@ rust-version.workspace = true
 [dependencies]
 pagesift-sys = { version = "1.1.0", path = "../pagesift-sys" }
 anyhow = "1.0.104"
-blake3 = "1.8.7"
+blake3 = { version = "1.8.7", features = ["pure"] }
 axum = "0.8.9"
 csv = "1.4.0"
 encoding_rs = "0.8.42"

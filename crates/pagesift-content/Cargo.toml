@@ -13,7 +13,7 @@ memchr = "2.8.3"
 pagesift-html = { version = "1.1.0", path = "../pagesift-html" }
 regex = "1.13.1"
 serde_json = "1.0.154"
-blake3 = "1.8.7"
+blake3 = { version = "1.8.7", features = ["pure"] }
 unicode-normalization = "0.1.26"
 url = "2.5.8"
 
