@@ -21,6 +21,11 @@ on:
         description: Republish this existing tag, built from the tag's own commit (dry_run must be false)
         type: string
         default: ""
+      reuse_run:
+        # 重发时不再构建：直接发布这次运行里已经构建好的产物，只跑 identity 和 publish
+        description: Publish the artifacts of this earlier run instead of building (needs tag, dry_run false)
+        type: string
+        default: ""
 
 env:
   CARGO_TERM_COLOR: always
@@ -74,6 +79,7 @@ jobs:
 
   binaries:
     needs: identity
+    if: inputs.reuse_run == ''
     name: binary ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -167,6 +173,7 @@ jobs:
   docker:
     # 镜像在 Dockerfile 里从源码编译，不用其他任务的产物，和它们同时进行
     needs: identity
+    if: inputs.reuse_run == ''
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -209,6 +216,7 @@ jobs:
 
   wheels:
     needs: identity
+    if: inputs.reuse_run == ''
     name: wheels ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -241,6 +249,7 @@ jobs:
 
   sdist:
     needs: identity
+    if: inputs.reuse_run == ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -258,6 +267,7 @@ jobs:
 
   npm:
     needs: identity
+    if: inputs.reuse_run == ''
     name: npm ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -307,6 +317,7 @@ jobs:
   # 任何一项失败都挡住发布（publish 依赖它）。
   npm-node:
     needs: [identity, npm]
+    if: inputs.reuse_run == ''
     name: node ${{ matrix.node }} ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -347,6 +358,7 @@ jobs:
 
   npm-musl:
     needs: identity
+    if: inputs.reuse_run == ''
     name: npm x86_64-unknown-linux-musl
     runs-on: ubuntu-latest
     steps:
@@ -374,7 +386,7 @@ jobs:
     # cargo publish 自己打包、编译校验每个 crate，不用其他任务的产物；
     # 依次发 15 个 crate 要等索引，单独先跑，不再排在所有编译之后
     needs: identity
-    if: github.event_name == 'push' || inputs.dry_run == false
+    if: inputs.reuse_run == '' && (github.event_name == 'push' || inputs.dry_run == false)
     runs-on: ubuntu-latest
     environment: release
     timeout-minutes: 300
@@ -390,13 +402,18 @@ jobs:
 
   publish:
     needs: [identity, binaries, docker, wheels, sdist, npm, npm-node, npm-musl, crates]
-    if: github.event_name == 'push' || inputs.dry_run == false
+    # 复用产物时构建任务都被跳过，所以要明确写；其余情况和默认一样：前面全部成功才发布
+    if: >-
+      !cancelled() && needs.identity.result == 'success'
+      && (github.event_name == 'push' || inputs.dry_run == false)
+      && (inputs.reuse_run != '' || !(contains(needs.*.result, 'failure') || contains(needs.*.result, 'skipped') || contains(needs.*.result, 'cancelled')))
     runs-on: ubuntu-latest
     environment: release
     timeout-minutes: 300
     permissions:
       contents: write
       id-token: write
+      actions: read
     steps:
       - uses: actions/checkout@v7
         with:
@@ -406,6 +423,8 @@ jobs:
           path: artifacts
           # 只要程序、wheel 和 npm 包；Docker 的构建记录不是普通压缩包，一起下载会失败
           pattern: "{bin,wheels,npm}-*"
+          run-id: ${{ inputs.reuse_run || github.run_id }}
+          github-token: ${{ github.token }}
       - name: Release notes
         run: python3 scripts/release_notes.py > release-notes.md
       # 先上传草稿；所有渠道成功后才公开为 latest。

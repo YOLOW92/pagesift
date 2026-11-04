@@ -152,7 +152,7 @@ test('extract with a store relocates a changed selector when maxAge is 0', async
     await s.close()
   } finally {
     server.close()
-    rmSync(dir, { recursive: true, force: true })
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 

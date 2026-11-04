@@ -14,6 +14,8 @@ env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
   RUST_TEST_THREADS: 2
+  # debug 没有优化，异步调用每层占几十到几百 KB，整条抓取链路会超过测试线程默认的 2 MiB
+  RUST_MIN_STACK: 8388608
 
 jobs:
   test:
