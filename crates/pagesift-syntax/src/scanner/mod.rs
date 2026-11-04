@@ -7,12 +7,18 @@ use crate::lexer::Lexer;
 use crate::table::EOF_CP;
 
 pub mod bash;
+pub mod cmake;
 pub mod cpp;
 pub mod csharp;
 pub mod css;
+pub mod d;
 pub mod dart;
 pub mod dockerfile;
 pub mod elixir;
+pub mod elm;
+pub mod erlang;
+pub mod gleam;
+pub mod hcl;
 pub mod html;
 pub mod js;
 pub mod julia;
@@ -21,6 +27,7 @@ pub mod lua;
 pub mod nix;
 pub mod ocaml;
 pub mod php;
+pub mod powershell;
 pub mod python;
 pub mod r;
 pub mod ruby;
@@ -28,6 +35,7 @@ pub mod rust;
 pub mod svelte;
 pub mod toml;
 pub mod ts;
+pub mod vue;
 
 /// 序列化缓冲上限（与官方 `TREE_SITTER_SERIALIZATION_BUFFER_SIZE` 相同）。
 pub const MAX_SERIALIZED: usize = 1024;
@@ -46,6 +54,13 @@ pub fn create(name: &str) -> Option<Box<dyn Scanner>> {
         "ruby" => Box::new(ruby::Ruby::default()),
         "kotlin" => Box::new(kotlin::Kotlin::default()),
         "css" => Box::new(css::Css),
+        "elm" => Box::new(elm::Elm::default()),
+        "d" => Box::new(d::D),
+        "hcl" => Box::new(hcl::Hcl::default()),
+        "cmake" => Box::new(cmake::CMake::default()),
+        "erlang" => Box::new(erlang::Erlang),
+        "gleam" => Box::new(gleam::Gleam),
+        "powershell" => Box::new(powershell::PowerShell),
         "r" => Box::new(r::R::default()),
         "elixir" => Box::new(elixir::Elixir),
         "ocaml" | "ocaml_interface" | "ocaml_type" => Box::new(ocaml::Ocaml::default()),
@@ -55,6 +70,7 @@ pub fn create(name: &str) -> Option<Box<dyn Scanner>> {
         "dart" => Box::new(dart::Dart),
         "html" => Box::new(html::Html::default()),
         "svelte" => Box::new(html::Html::svelte()),
+        "vue" => Box::new(html::Html::vue()),
         "python" => Box::new(python::Python::default()),
         "cpp" => Box::new(cpp::Cpp::default()),
         "lua" => Box::new(lua::Lua::default()),

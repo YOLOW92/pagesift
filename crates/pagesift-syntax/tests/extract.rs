@@ -335,6 +335,125 @@ fn r_defs() {
 }
 
 #[test]
+fn solidity_defs() {
+    check(
+        "solidity",
+        "import \"a.sol\";\ncontract C {\n  struct S { uint a; }\n  function f() public {}\n}\n",
+        &[(K::Class, "C"), (K::Struct, "S"), (K::Method, "f")],
+        1,
+    );
+}
+
+#[test]
+fn groovy_defs() {
+    check(
+        "groovy",
+        "import a.b.C\nclass K {\n  def m(x) { x }\n}\ndef top() { 1 }\n",
+        &[(K::Class, "K"), (K::Method, "m"), (K::Function, "top")],
+        1,
+    );
+}
+
+#[test]
+fn commonlisp_defs() {
+    check(
+        "commonlisp",
+        "(defpackage :p)\n(defun foo (x) (+ x 1))\n(defun bar () 2)\n",
+        &[(K::Function, "foo"), (K::Function, "bar")],
+        0,
+    );
+}
+
+#[test]
+fn pascal_defs() {
+    check(
+        "pascal",
+        "unit u;\ninterface\nimplementation\nprocedure Foo(x: integer);\nbegin\nend;\nfunction Bar: integer;\nbegin\nend;\nend.\n",
+        &[(K::Module, "u"), (K::Function, "Foo"), (K::Function, "Bar")],
+        0,
+    );
+}
+
+#[test]
+fn gleam_defs() {
+    check(
+        "gleam",
+        "import gleam/io\npub type T { A }\npub fn main() { 1 }\nfn helper(x) { x }\n",
+        &[
+            (K::Type, "T"),
+            (K::Function, "main"),
+            (K::Function, "helper"),
+        ],
+        1,
+    );
+}
+
+#[test]
+fn powershell_defs() {
+    check(
+        "powershell",
+        "function Get-Foo {\n  param($a)\n  $a\n}\nclass C {\n  [int] M() { return 1 }\n}\n",
+        &[(K::Function, "Get-Foo"), (K::Class, "C"), (K::Method, "M")],
+        0,
+    );
+}
+
+#[test]
+fn cmake_defs() {
+    check(
+        "cmake",
+        "function(foo a)\n  message(\"x\")\nendfunction()\nmacro(bar)\nendmacro()\n",
+        &[(K::Function, "foo"), (K::Function, "bar")],
+        0,
+    );
+}
+
+#[test]
+fn erlang_defs() {
+    check(
+        "erlang",
+        "-module(m).\n-record(r, {a}).\nf(X) -> X.\ng() -> ok.\n",
+        &[
+            (K::Module, "m"),
+            (K::Struct, "r"),
+            (K::Function, "f"),
+            (K::Function, "g"),
+        ],
+        0,
+    );
+}
+
+#[test]
+fn d_defs() {
+    check(
+        "d",
+        "module m;\nimport std.stdio;\nclass C {\n  void m() {}\n}\nstruct S { int a; }\nint add(int a, int b) { return a+b; }\n",
+        &[
+            (K::Class, "C"),
+            (K::Method, "m"),
+            (K::Struct, "S"),
+            (K::Function, "add"),
+        ],
+        1,
+    );
+}
+
+#[test]
+fn elm_defs() {
+    check(
+        "elm",
+        "module Main exposing (..)\n\nimport Html\n\ntype Msg = A | B\n\ntype alias Model = { a : Int }\n\nupdate : Msg -> Int\nupdate m =\n    1\n",
+        &[
+            (K::Module, "Main"),
+            (K::Enum, "Msg"),
+            (K::Type, "Model"),
+            (K::Function, "update"),
+        ],
+        1,
+    );
+}
+
+#[test]
 fn unsupported_or_symbol_free_is_none() {
     assert!(outline("cobol", "x").is_none());
     assert!(outline("python", "x = 1\n").is_none());

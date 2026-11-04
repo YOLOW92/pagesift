@@ -40,6 +40,20 @@
 | Elixir | elixir-lang/tree-sitter-elixir | 0.3.5 / cb32ccb | Apache License 2.0；外部扫描器移植自该仓库 src/scanner.c |
 | R | r-lib/tree-sitter-r | 1.3.0 / 58a2279 | Copyright (c) 2025 tree-sitter-r authors；外部扫描器移植自该仓库 src/scanner.c |
 | Svelte | tree-sitter-grammars/tree-sitter-svelte | 1.0.2 / ae5199d | Copyright (c) 2024 Amaan Qureshi；标签栈扫描与 HTML 共用，花括号文本部分移植自该仓库 src/scanner.c |
+| Solidity | JoranHonig/tree-sitter-solidity | 1.2.13 / 048fe68 | Copyright (c) 2020 Joran Honig |
+| Groovy | murtaza64/tree-sitter-groovy | 0.0.1 / 2a6ddd5 | Copyright (c) 2024 Murtaza Javaid |
+| Make | tree-sitter-grammars/tree-sitter-make | 1.1.1 / 70613f3 | Copyright (c) 2021 Alexandre A. Muller |
+| Scheme | 6cdh/tree-sitter-scheme | 0.25.0 / 45c7246 | Copyright (c) 2022 6cdh |
+| Common Lisp | tree-sitter-grammars/tree-sitter-commonlisp | 0.4.1 / 3232350 | Copyright (c) 2021 Stephan Seitz |
+| Pascal | Isopod/tree-sitter-pascal | 0.10.2 / 042119e | Copyright (c) 2018 Benjamin Gray |
+| Gleam | gleam-lang/tree-sitter-gleam | 1.0.0 / fa6d0d9 | Apache License 2.0；外部扫描器移植自该仓库 src/scanner.c |
+| PowerShell | airbus-cert/tree-sitter-powershell | 0.26.6 / 65ea691 | Copyright (c) 2023 Airbus CERT；外部扫描器移植自该仓库 src/scanner.c（Copyright (c) Microsoft Corporation，MIT） |
+| CMake | uyha/tree-sitter-cmake | 0.7.6 / a3ec2b2 | Copyright (c) 2025 Uy Ha；外部扫描器移植自该仓库 src/scanner.c |
+| Erlang | WhatsApp/tree-sitter-erlang | 0.0.0 / 62c82e6 | Apache License 2.0，Copyright (c) Meta Platforms, Inc. and affiliates；外部扫描器移植自该仓库 src/scanner.c |
+| HCL | tree-sitter-grammars/tree-sitter-hcl | 1.2.0 / 64ad627 | Apache License 2.0；外部扫描器移植自该仓库 src/scanner.c |
+| Vue | tree-sitter-grammars/tree-sitter-vue | 0.1.0 / ce8011a | Copyright (c) 2024 Amaan Qureshi；标签栈扫描与 HTML 共用，文本片段部分移植自该仓库 src/scanner.c |
+| D | gdamore/tree-sitter-d | 0.8.2 / 64f2793 | Copyright 2024 Garrett D'Amore；外部扫描器移植自该仓库 src/scanner.c |
+| Elm | elm-tooling/tree-sitter-elm | 5.9.4 / e1e8fea | Copyright (c) 2018 Kolja Lampe；外部扫描器移植自该仓库 src/scanner.c |
 | TOML | tree-sitter-grammars/tree-sitter-toml | 0.7.0 / 64b5683 | Copyright (c) Ika；外部扫描器移植自该仓库 src/scanner.c |
 | PHP、PHP-only | tree-sitter/tree-sitter-php | 0.25.1 / 58d5643 | Copyright (c) 2017 Josh Vera, GitHub；外部扫描器移植自该仓库 src/scanner.c |
 | C# | tree-sitter/tree-sitter-c-sharp | 0.23.5 / 8c0abe0 | Copyright (c) 2014-2023 Max Brunsfeld, Damien Guard, Amaan Qureshi, and contributors；外部扫描器移植自该仓库 src/scanner.c |
