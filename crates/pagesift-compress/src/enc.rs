@@ -90,14 +90,16 @@ struct Seq {
 }
 
 /// 三张预定义表,及每个符号对应的格子下标(只建一次)。
+type SymTable = (FseTable, Vec<Vec<u16>>);
+
 #[derive(Clone)]
 struct EncTables {
-    ll: (FseTable, Vec<Vec<u16>>),
-    of: (FseTable, Vec<Vec<u16>>),
-    ml: (FseTable, Vec<Vec<u16>>),
+    ll: SymTable,
+    of: SymTable,
+    ml: SymTable,
 }
 
-fn by_symbol(t: FseTable) -> (FseTable, Vec<Vec<u16>>) {
+fn by_symbol(t: FseTable) -> SymTable {
     let mut v = vec![Vec::new(); 64];
     for (i, c) in t.cells.iter().enumerate() {
         v[c.sym as usize].push(i as u16);
@@ -121,7 +123,7 @@ impl EncTables {
 
 /// 选下一个状态:符号 `sym` 的格子里,覆盖 `next` 的那个(`next` 为 None 时取第一个)。
 /// 同一符号的格子按 base 排序后,各自的区间 [base, base + 2^nb) 恰好铺满整张表,所以二分即可。
-fn pick(t: &(FseTable, Vec<Vec<u16>>), sym: u32, next: Option<usize>) -> (usize, u32, u32) {
+fn pick(t: &SymTable, sym: u32, next: Option<usize>) -> (usize, u32, u32) {
     let list = &t.1[sym as usize];
     match next {
         None => (list[0] as usize, 0, 0),
@@ -138,13 +140,13 @@ fn pick(t: &(FseTable, Vec<Vec<u16>>), sym: u32, next: Option<usize>) -> (usize,
 struct SeqTables {
     modes: u8,
     desc: Vec<u8>,
-    ll: (FseTable, Vec<Vec<u16>>),
-    of: (FseTable, Vec<Vec<u16>>),
-    ml: (FseTable, Vec<Vec<u16>>),
+    ll: SymTable,
+    of: SymTable,
+    ml: SymTable,
 }
 
 /// 按统计做自定义 FSE 表:（分布表头, 表）。序列太少不划算,返回 None。
-fn custom_table(cnt: &[u32], al: u32, nseq: usize) -> Option<(Vec<u8>, (FseTable, Vec<Vec<u16>>))> {
+fn custom_table(cnt: &[u32], al: u32, nseq: usize) -> Option<(Vec<u8>, SymTable)> {
     if nseq < 24 {
         return None;
     }
@@ -167,19 +169,18 @@ fn choose_tables(seqs: &[Seq], pre: &EncTables) -> SeqTables {
     }
     let mut modes = 0u8;
     let mut desc = Vec::new();
-    let mut custom =
-        |cnt: &[u32], al: u32, shift: u32, pre: &(FseTable, Vec<Vec<u16>>)| match custom_table(
-            cnt,
-            al,
-            seqs.len(),
-        ) {
-            Some((head, t)) => {
-                modes |= 2 << shift;
-                desc.extend_from_slice(&head);
-                t
-            }
-            None => pre.clone(),
-        };
+    let mut custom = |cnt: &[u32], al: u32, shift: u32, pre: &SymTable| match custom_table(
+        cnt,
+        al,
+        seqs.len(),
+    ) {
+        Some((head, t)) => {
+            modes |= 2 << shift;
+            desc.extend_from_slice(&head);
+            t
+        }
+        None => pre.clone(),
+    };
     let ll = custom(&cl, 9, 6, &pre.ll);
     let of = custom(&co, 8, 4, &pre.of);
     let ml = custom(&cm, 9, 2, &pre.ml);
