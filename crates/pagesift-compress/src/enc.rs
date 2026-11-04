@@ -1,4 +1,4 @@
-//! 基础编码器：贪心 LZ 匹配，序列用预定义 FSE 表，字面量原样存放。
+//! 基础编码器：哈希链 LZ 匹配（level ≥ 3 带懒匹配），序列用按块统计的自定义 FSE 表（太短的块用预定义表），字面量做 Huffman（不划算时原样）。
 use crate::dec::{LL_DEFAULT, ML_DEFAULT, OF_DEFAULT};
 use crate::fse::{self, FseTable};
 
@@ -21,8 +21,11 @@ impl BitWriter {
     }
     /// 补齐到整字节(不写哨兵),用于 FSE 表头。
     pub fn flush_bytes(mut self) -> Vec<u8> {
-        if self.n > 0 {
+        let mut n = self.n;
+        while n > 0 {
             self.out.push(self.acc as u8);
+            self.acc >>= 8;
+            n = n.saturating_sub(8);
         }
         self.out
     }
@@ -32,19 +35,16 @@ impl BitWriter {
         }
         self.acc |= (v as u64 & ((1u64 << bits) - 1)) << self.n;
         self.n += bits;
-        while self.n >= 8 {
-            self.out.push(self.acc as u8);
-            self.acc >>= 8;
-            self.n -= 8;
+        if self.n >= 32 {
+            self.out.extend_from_slice(&(self.acc as u32).to_le_bytes());
+            self.acc >>= 32;
+            self.n -= 32;
         }
     }
     /// 写结束哨兵位并补齐字节。
     pub fn finish(mut self) -> Vec<u8> {
         self.put(1, 1);
-        if self.n > 0 {
-            self.out.push(self.acc as u8);
-        }
-        self.out
+        self.flush_bytes()
     }
 }
 
@@ -90,7 +90,8 @@ struct Seq {
 }
 
 /// 三张预定义表,及每个符号对应的格子下标(只建一次)。
-type SymTable = (FseTable, Vec<Vec<u16>>);
+/// 编码用的表:每个符号一串 (base, 格子下标, nb),按 base 排序。
+type SymTable = (FseTable, Vec<Vec<(u16, u16, u8)>>);
 
 #[derive(Clone)]
 struct EncTables {
@@ -102,10 +103,10 @@ struct EncTables {
 fn by_symbol(t: FseTable) -> SymTable {
     let mut v = vec![Vec::new(); 64];
     for (i, c) in t.cells.iter().enumerate() {
-        v[c.sym as usize].push(i as u16);
+        v[c.sym as usize].push((c.base, i as u16, c.nb));
     }
     for l in v.iter_mut() {
-        l.sort_by_key(|&i| t.cells[i as usize].base);
+        l.sort_unstable();
     }
     (t, v)
 }
@@ -126,17 +127,16 @@ impl EncTables {
 fn pick(t: &SymTable, sym: u32, next: Option<usize>) -> (usize, u32, u32) {
     let list = &t.1[sym as usize];
     match next {
-        None => (list[0] as usize, 0, 0),
+        None => (list[0].1 as usize, 0, 0),
         Some(x) => {
-            let k = list.partition_point(|&i| t.0.cells[i as usize].base as usize <= x) - 1;
-            let i = list[k] as usize;
-            let c = t.0.cells[i];
-            (i, c.nb as u32, (x - c.base as usize) as u32)
+            let k = list.partition_point(|c| c.0 as usize <= x) - 1;
+            let (base, i, nb) = list[k];
+            (i as usize, nb as u32, (x - base as usize) as u32)
         }
     }
 }
 
-/// 三类序列码的表:预定义(None)或自定义(分布表头 + 表)。
+/// 三类序列码的表,及模式字节和自定义表的分布表头。
 struct SeqTables {
     modes: u8,
     desc: Vec<u8>,
@@ -290,6 +290,17 @@ impl<'a> Matcher<'a> {
                 break;
             }
             let cp = c as usize;
+            // 先比 4 字节和已有最佳长度处的一个字节,多数候选在这里就被淘汰
+            if self.d[cp..cp + 4] != self.d[i..i + 4]
+                || (best.0 > 0 && i + best.0 < end && self.d[cp + best.0] != self.d[i + best.0])
+            {
+                let n = self.prev[cp & (WINDOW - 1)];
+                if n != u32::MAX && n >= c {
+                    break;
+                }
+                c = n;
+                continue;
+            }
             let l = self.mlen(cp, i, end);
             if l > best.0 && l >= MIN_MATCH {
                 best = (l, i - cp, l);
@@ -330,7 +341,7 @@ pub fn compress(data: &[u8], level: i32) -> Vec<u8> {
         } else if level >= 3 {
             4
         } else {
-            2
+            1
         },
     };
     let tabs = EncTables::new();
@@ -359,7 +370,7 @@ pub fn compress(data: &[u8], level: i32) -> Vec<u8> {
             let mut cur = m.find(i, end, rep);
             if cur.0 >= MIN_MATCH {
                 // 懒匹配:下一个位置明显更长就先吐一个字面量
-                while cur.0 < 32 && i + 1 + MIN_MATCH <= end {
+                while level >= 3 && cur.0 < 16 && i + 1 + MIN_MATCH <= end {
                     while ni <= i {
                         m.insert(ni);
                         ni += 1;
