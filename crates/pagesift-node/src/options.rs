@@ -198,7 +198,7 @@ macro_rules! scrape_options {
             #[napi(ts_type = "Record<string, unknown>")]
             pub extract_schema: Option<serde_json::Value>,
             /// `storePath` 的页面缓存最多接受多旧的结果，毫秒；0 表示不读缓存、重新抓取。
-            pub max_age: Option<i64>,
+            pub max_age: Option<f64>,
             /// 和 HTTP 接口相同，例如 `[{ type: 'pdf', mode: 'ocr' }]`；`ocr` 模式要 `Scraper` 配了 `ocr`。
             #[napi(ts_type = "Array<string | { type: string; mode?: 'fast' | 'auto' | 'ocr' }>")]
             pub parsers: Option<serde_json::Value>,
@@ -217,11 +217,12 @@ macro_rules! scrape_options {
                     if_modified_since: self.if_modified_since.clone(),
                     proxy: self.proxy.clone(),
                     export_images: self.export_images.unwrap_or(false),
-                    max_age: self
-                        .max_age
-                        .map(u64::try_from)
-                        .transpose()
-                        .map_err(|_| ApiError::invalid("maxAge must not be negative"))?,
+                    max_age: match self.max_age {
+                        Some(v) if !(v >= 0.0 && v.is_finite()) => {
+                            return Err(ApiError::invalid("maxAge must not be negative").into());
+                        }
+                        v => v.map(|v| v as u64),
+                    },
                     parsers: self.parsers.clone(),
                     ..Default::default()
                 };

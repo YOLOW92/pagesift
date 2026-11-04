@@ -20,12 +20,18 @@ pub const CONTENT_RISK: &[&str] = &[
     "max_pages",
     "output_truncated",
     "cells_truncated",
+    // 升级前缓存里的旧写法，缓存过期前还会读到
+    "CSV truncated at the cell limit",
+    "sheet truncated at the cell limit",
+    "response body exceeded the size limit",
+    "scanned PDF",
     "columns_dropped",
     "epub_item_missing",
     "decode",
     "body_truncated",
     "scanned_pages_without_ocr",
     "ocr_failed",
+    "ocr_incomplete",
     // 拿到的不是正常的 200 页面
     "http_error_status",
     "http_redirect_status",

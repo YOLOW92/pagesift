@@ -39,7 +39,17 @@ const AD_LABELS: &[&str] = &[
 
 pub(crate) fn is_ad(s: &str) -> bool {
     let t = s.trim_start().to_lowercase();
-    AD_LABELS.iter().any(|l| t.starts_with(l))
+    AD_LABELS.iter().any(|l| {
+        // 是标注才算：后面是结尾或分隔符。“Promoted to CEO”“广告费用上涨”是正文
+        t.strip_prefix(l).is_some_and(|rest| {
+            matches!(*l, "ad:" | "ads by")
+                || rest
+                    .trim_start()
+                    .chars()
+                    .next()
+                    .is_none_or(|c| matches!(c, ':' | '：' | '-' | '–' | '—' | '|' | '·' | '•'))
+        })
+    })
 }
 
 const MONTHS: &str = "jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec";

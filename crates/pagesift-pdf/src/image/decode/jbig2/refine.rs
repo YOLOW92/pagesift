@@ -125,6 +125,7 @@ pub(super) fn decode(mq: &mut Mq, cx: &mut [Cx], p: &Params) -> Result<Bitmap, S
     // §6.3.5.6 步骤 1：LTP = 0
     let mut ltp = 0u8;
     for y in 0..p.h {
+        super::bitmap::check_time()?;
         let yy = y as i64;
         // 参照图里与本行对应的行
         let ry = yy - rdy;

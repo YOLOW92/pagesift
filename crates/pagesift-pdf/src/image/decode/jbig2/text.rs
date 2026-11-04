@@ -111,6 +111,8 @@ pub(super) fn decode(src: &mut dyn Source, p: &Params, syms: &Symbols) -> Result
         first_s = first_s.saturating_add(i64::from(dfs));
         let mut cur_s = first_s;
         loop {
+            // 实例数和符号大小相乘没有上限（分配上限只管住了区域本身）
+            super::bitmap::check_time()?;
             // 3c iii：T 坐标（§6.4.9）
             let cur_t = if p.log_strips == 0 {
                 0

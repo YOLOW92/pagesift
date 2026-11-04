@@ -90,6 +90,8 @@ pub(super) struct OpenPage {
     pub url: String,
     /// 这个会话用过的 `{{secret:NAME}}`：它们的值不进模型，也不进响应。
     pub secrets: BTreeSet<String>,
+    /// 跑过调用方的脚本：页面上可能已经有监听器，不能再往里填秘密。
+    pub scripted: bool,
 }
 
 pub(super) enum PageState {
@@ -108,6 +110,7 @@ pub(super) struct Record {
     pub state: tokio::sync::Mutex<PageState>,
     /// 记录占的字节数（估计）。
     bytes: usize,
+    created: Instant,
 }
 
 #[derive(Default)]
@@ -116,10 +119,30 @@ struct Table {
     /// 可以淘汰的记录，最早的在前；可能有已经开了页面或已被淘汰的旧项，取出时再看。
     order: VecDeque<String>,
     open: HashSet<String>,
+    /// 已经准入、页面还在打开的名额（打开要好几秒，同时来的请求不能都算还有空位）。
+    pending: usize,
     bytes: usize,
 }
 
 impl Table {
+    /// 去掉超过 `ttl` 还没打开过的记录：它们带着调用方的请求头，过了会话时限也用不上了。
+    fn expire(&mut self, ttl: Duration) {
+        while let Some(id) = self.order.front() {
+            if self.map.get(id).is_some_and(|r| r.created.elapsed() < ttl) {
+                return;
+            }
+            let Some(id) = self.order.pop_front() else {
+                return;
+            };
+            // 开着页面的不去掉：关闭时重新排队
+            if !self.open.contains(&id)
+                && let Some(r) = self.map.remove(&id)
+            {
+                self.bytes -= r.bytes;
+            }
+        }
+    }
+
     fn evict(&mut self, max_bytes: usize) {
         while self.bytes > max_bytes {
             let Some(id) = self.order.pop_front() else {
@@ -133,6 +156,15 @@ impl Table {
                 self.bytes -= r.bytes;
             }
         }
+    }
+}
+
+/// 占着一个保留页面的名额；页面登记之后放开。
+pub(super) struct Reserved(Arc<Sessions>);
+
+impl Drop for Reserved {
+    fn drop(&mut self) {
+        self.0.table().pending -= 1;
     }
 }
 
@@ -183,6 +215,7 @@ impl Sessions {
             mode,
             state: tokio::sync::Mutex::new(state),
             bytes,
+            created: Instant::now(),
         });
         let mut t = self.table();
         if let Some(old) = t.map.insert(id.clone(), record) {
@@ -193,6 +226,7 @@ impl Sessions {
         if opened {
             t.open.insert(id.clone());
         }
+        t.expire(self.limits.ttl);
         t.evict(self.max_record_bytes);
         id
     }
@@ -220,9 +254,27 @@ impl Sessions {
         Ok(r)
     }
 
-    /// 记录从“没开页面”变成开着。
-    pub(super) fn mark_open(&self, id: &str) {
-        self.table().open.insert(id.to_string());
+    /// 记录从“没开页面”变成开着。打开页面的那几秒里它可能已被淘汰：放回去，不然 `open` 里的 id
+    /// 再也找不到记录，名额永远还不回来。
+    pub(super) fn mark_open(&self, id: &str, record: &Arc<Record>) {
+        let mut t = self.table();
+        if !t.map.contains_key(id) {
+            t.map.insert(id.to_string(), record.clone());
+            t.bytes += record.bytes;
+        }
+        t.open.insert(id.to_string());
+    }
+
+    /// 占一个名额；放不下时返回已占的数量。
+    pub(super) fn reserve(self: &Arc<Self>, cap: usize) -> Result<Reserved, usize> {
+        let mut t = self.table();
+        let taken = t.open.len() + t.pending;
+        if taken >= cap {
+            return Err(taken);
+        }
+        t.pending += 1;
+        drop(t);
+        Ok(Reserved(self.clone()))
     }
 
     /// 页面关了：记录重新变成可淘汰的。
@@ -232,10 +284,6 @@ impl Sessions {
             t.order.push_back(id.to_string());
         }
         t.evict(self.max_record_bytes);
-    }
-
-    pub(super) fn open_count(&self) -> usize {
-        self.table().open.len()
     }
 
     fn open_records(&self) -> Vec<(String, Arc<Record>)> {
@@ -274,7 +322,7 @@ impl Sessions {
     /// 回收：死掉的、超过总时长的、按内存该关的。`extra` 是马上要新开的页面数。
     /// 返回算出来放得下多少个（`room` 为 `None` 且没有开着的页面时不用算，返回 0）。
     pub(super) async fn sweep(&self, room: Option<SessionRoom>, extra: usize) -> usize {
-        let mut idle = Vec::new();
+        let mut idle: Vec<(String, Arc<Record>, Instant)> = Vec::new();
         let mut busy = 0;
         let mut gone = Vec::new();
         let mut room = room;
@@ -313,7 +361,14 @@ impl Sessions {
         let waits: Vec<Duration> = idle.iter().map(|(_, _, u)| now - *u).collect();
         let open = idle.len() + busy;
         let cap = session_cap(&room, open);
+        let extra = extra + self.table().pending;
         let n = reclaim_count(&waits, busy + extra, self.limits.idle, cap);
+        // 关几个按空闲时间算；关谁先看账户：占得最多的账户先让出，一个账户开再多也挤不掉别人的
+        let mut held: HashMap<Option<String>, usize> = HashMap::new();
+        for (_, r, _) in &idle {
+            *held.entry(r.owner.clone()).or_default() += 1;
+        }
+        idle.sort_by_key(|(_, r, used)| (std::cmp::Reverse(held[&r.owner]), *used));
         for (id, r, used) in idle.into_iter().take(n) {
             let why = format!(
                 "it was idle for {} s; {open} sessions were open and memory admits {cap}",
@@ -418,6 +473,48 @@ mod tests {
         assert_eq!(reclaim_count(&[s(2), s(1)], 1, PRIOR, 2), 1);
         // 正在用的不在列表里，但占名额：放不下时关空闲的，关完还放不下就没有可关的了
         assert_eq!(reclaim_count(&[s(1)], 3, PRIOR, 2), 1);
+    }
+
+    /// 打开页面的几秒里记录被淘汰了：名额要能还回来，不然最终所有保留页面都报 429。
+    #[test]
+    fn a_record_evicted_while_opening_can_still_be_closed() {
+        let s = Arc::new(Sessions::new(InteractLimits::default(), 4096));
+        let opts = ScrapeOptions::default();
+        let id = s.insert(
+            None,
+            None,
+            "https://a.test/",
+            &opts,
+            RobotsMode::Respect,
+            PageState::NotOpened,
+        );
+        let record = s.get(&id, None).unwrap();
+        for _ in 0..64 {
+            s.insert(
+                None,
+                None,
+                "https://a.test/",
+                &opts,
+                RobotsMode::Respect,
+                PageState::NotOpened,
+            );
+        }
+        assert!(s.get(&id, None).is_err(), "应该已被淘汰");
+        s.mark_open(&id, &record);
+        assert!(s.get(&id, None).is_ok());
+        assert!(s.reserve(1).is_err(), "开着的页面占名额");
+        s.mark_closed(&id);
+        assert!(s.table().open.is_empty());
+    }
+
+    /// 同时来的请求不能都算还有空位。
+    #[test]
+    fn reservations_count_until_released() {
+        let s = Arc::new(Sessions::new(InteractLimits::default(), 4096));
+        let first = s.reserve(1).unwrap();
+        assert_eq!(s.reserve(1).err(), Some(1));
+        drop(first);
+        assert!(s.reserve(1).is_ok());
     }
 
     #[test]

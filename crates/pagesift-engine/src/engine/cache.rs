@@ -67,7 +67,13 @@ impl Scraper {
         let mut doc = self.fetch_and_extract(url, fetch_opts, mode).await?;
         doc.metadata.cache_state = Some("miss".into());
         let captured = if capture { doc.raw_html.take() } else { None };
-        if policy.store_in_cache {
+        // OCR 没做成（模型还在下载、识别出错）的结果不进缓存：下次要能重新识别
+        let ocr_missed = doc.metadata.pagesift.as_ref().is_some_and(|m| {
+            m.warnings
+                .iter()
+                .any(|w| w.starts_with("ocr_failed") || w.starts_with("ocr_incomplete"))
+        });
+        if policy.store_in_cache && !ocr_missed {
             // 编码和写入一起交给 CPU 工人，写完把文档交回来（不拷贝）
             let (back, r) = cpu_task(move || {
                 let r =
@@ -121,6 +127,10 @@ impl Scraper {
         // PDF 的 parsers 改变结果；没给时不加这一项，已有的缓存键不变
         if let (Some(p), Some(items)) = (&opts.parsers, key.as_array_mut()) {
             items.push(p.clone());
+        }
+        // respondTiming 决定等到页面的哪个阶段；带标签，不和上面按位置的 parsers 相撞
+        if let (Some(t), Some(items)) = (&opts.respond_timing, key.as_array_mut()) {
+            items.push(serde_json::json!({ "respondTiming": t }));
         }
         Some((store, key.to_string().into_bytes()))
     }

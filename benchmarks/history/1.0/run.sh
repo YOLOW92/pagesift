@@ -33,6 +33,7 @@ stages:
   scale       10M local scale smoke
   api         deployment / API appendix
   b5ocr       B5 with OCR: olmOCR score per configuration
+  a2fast      A2 replay without rate limits or rendering
   hash        archive summaries and output hashes
   report      build the two-tier view and detailed report
   all         all of the above in this order
@@ -109,6 +110,7 @@ run_stage() {
         scale)     "$HIST_DIR/domains/scale.sh" ;;
         api)       "$HIST_DIR/domains/api.sh" ;;
         b5ocr)     "$HIST_DIR/domains/b5ocr.sh" ;;
+        a2fast)    "$HIST_DIR/domains/a2fast.sh" ;;
         hash)      archive ;;
         report)
             archive

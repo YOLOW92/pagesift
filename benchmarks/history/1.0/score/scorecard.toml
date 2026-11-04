@@ -15,10 +15,11 @@
 # `gap = true` marks the rows used for the one-line "largest gaps" sentence.
 
 [meta]
-date = "2026-10-29"
+date = "2026-11-04"
 machine = "Intel Core i7-10700 (8C/16T), 15 GB RAM, NVMe, Linux 7.0"
 pagesift = "1.0"
 rival_note = "competitor numbers are the recorded 2026-10-21/22/27/28 runs; they were not re-run for 1.0"
+network = "live-web stages (A3, wild) ran over a phone hotspot on 4G; the recorded competitor runs used a different network"
 
 [[row]]
 id = "a1-firecrawl"
@@ -158,20 +159,35 @@ rival_date = "2026-10-28"
 id = "fetch-speed"
 domain_zh = "抓取"
 domain_en = "Fetching"
-workload_zh = "A2 回放 269 页，1 路"
-workload_en = "A2 replay, 269 pages, 1 worker"
+workload_zh = "A2 回放 269 页，只抓 HTTP、不限速，1 路"
+workload_en = "A2 replay, 269 pages, HTTP only, no rate limit, 1 worker"
 metric_zh = "吞吐"
 metric_en = "pages/s"
 direction = "up"
 kind = "speed"
-psift = "v2.a2crawl.cli.1w.tput"
+psift = "v2.a2fast.cli.1w.tput"
 rival_name = "spider"
 rival = 156.6
 rival_source = "mixed benchmark v2, 2026-10-28, A2 speed"
 rival_date = "2026-10-28"
 gap = true
-psift_mem = "v2.a2crawl.cli.1w.peak"
-rival_mem = 39
+
+[[row]]
+id = "fetch-speed-16w"
+domain_zh = "抓取"
+domain_en = "Fetching"
+workload_zh = "A2 回放 269 页，只抓 HTTP、不限速，16 路"
+workload_en = "A2 replay, 269 pages, HTTP only, no rate limit, 16 workers"
+metric_zh = "吞吐"
+metric_en = "pages/s"
+direction = "up"
+kind = "speed"
+psift = "v2.a2fast.cli.16w.tput"
+rival_name = "spider"
+rival = 674.2
+rival_source = "mixed benchmark v2, 2026-10-28, A2 speed"
+rival_date = "2026-10-28"
+gap = true
 
 [[row]]
 id = "dates-f1"
@@ -338,8 +354,8 @@ rival_date = "2026-10-22"
 id = "pdf-1w"
 domain_zh = "PDF → Markdown"
 domain_en = "PDF → Markdown"
-workload_zh = "B1 144 页，1 路"
-workload_en = "B1 144 pages, 1 worker"
+workload_zh = "B1 144 页，1 路，常驻服务"
+workload_en = "B1 144 pages, 1 worker, resident server"
 metric_zh = "吞吐"
 metric_en = "files/s"
 direction = "up"
@@ -608,8 +624,8 @@ rival_date = "2026-10-21"
 id = "wild-fast-time"
 domain_zh = "真实站点抓取"
 domain_en = "Wild crawl"
-workload_zh = "fast，40 站 × 60 页，耗时"
-workload_en = "fast, 40 sites × 60 pages, time"
+workload_zh = "fast，40 站 × 60 页，耗时（spider 覆盖的页面约为一半）"
+workload_en = "fast, 40 sites × 60 pages, time (spider covered about half as many pages)"
 metric_zh = "耗时"
 metric_en = "seconds"
 direction = "down"
@@ -801,3 +817,138 @@ rival_source = "no same-method competitor measured"
 rival_date = "—"
 appendix = true
 headline = false
+
+# Peak MB per worker, PageSift from metrics.tsv against the recorded peak of a named tool on the same workload.
+# PageSift uses its one-worker peak, which is the higher of its 1 and 16 worker numbers on these workloads.
+[[memory]]
+label_en = "PDF, B1 pages"
+label_zh = "PDF，B1"
+psift = "v2.b1.cli.1w.peak"
+rival_name = "Docling (CPU)"
+rival = 3675
+rival_date = "2026-10-28"
+
+[[memory]]
+label_en = "HTML main content, A2 pages"
+label_zh = "网页正文，A2"
+psift = "v2.a2.cli.1w.peak"
+rival_name = "Readability + Turndown"
+rival = 1200
+rival_date = "2026-10-28"
+
+[[memory]]
+label_en = "Crawl, 200 sites × 100 pages"
+label_zh = "抓取，200 站 × 100 页"
+psift = "crawl.wide.peak"
+rival_name = "spider"
+rival = 5500
+rival_date = "2026-10-21"
+
+[[memory]]
+label_en = "Office and e-books, B4 files"
+label_zh = "Office 和电子书，B4"
+psift = "v2.b4.cli.1w.peak"
+rival_name = "Kreuzberg"
+rival = 231
+rival_date = "2026-10-28"
+
+[[memory]]
+label_en = "HTML main content, A2 pages"
+label_zh = "网页正文，A2"
+psift = "v2.a2.cli.1w.peak"
+rival_name = "trafilatura"
+rival = 123
+rival_date = "2026-10-28"
+
+[[memory]]
+label_en = "Crawl with browser, 200 sites × 100 pages"
+label_zh = "带浏览器抓取，200 站 × 100 页"
+psift = "browser.auto.peak"
+rival_name = "Google Chrome"
+rival = 2300
+rival_date = "2026-10-21"
+
+[[memory]]
+label_en = "PDF, B1 pages"
+label_zh = "PDF，B1"
+psift = "v2.b1.cli.1w.peak"
+rival_name = "Kreuzberg"
+rival = 76
+rival_date = "2026-10-28"
+
+[[memory]]
+label_en = "JavaScript pages, A3 (live web)"
+label_zh = "需要 JS 的页面，A3（实网）"
+psift = "a3.peak"
+rival_name = "Crawl4AI"
+rival = 982
+rival_date = "2026-10-28"
+
+# Throughput at 1 and 16 workers. Other tools are the recorded 2026-10-28 runs on the same inputs.
+[[scale]]
+panel = "PDF, 144 pages"
+tool = "PageSift"
+psift_1w = "v2.b1.cli.1w.tput"
+psift_16w = "v2.b1.cli.16w.tput"
+
+[[scale]]
+panel = "PDF, 144 pages"
+tool = "pdf_oxide"
+w1 = 100.6
+w16 = 501.7
+
+[[scale]]
+panel = "PDF, 144 pages"
+tool = "Kreuzberg"
+w1 = 31.8
+w16 = 120.3
+
+[[scale]]
+panel = "PDF, 144 pages"
+tool = "pymupdf4llm"
+w1 = 3.9
+w16 = 5.2
+
+[[scale]]
+panel = "PDF, 144 pages"
+tool = "Docling (GPU)"
+w1 = 1.3
+w16 = 1.5
+
+[[scale]]
+panel = "Office and e-books, 81 files"
+tool = "PageSift"
+psift_1w = "v2.b4.cli.1w.tput"
+psift_16w = "v2.b4.cli.16w.tput"
+
+[[scale]]
+panel = "Office and e-books, 81 files"
+tool = "Kreuzberg"
+w1 = 19.5
+w16 = 34.5
+
+[[scale]]
+panel = "Office and e-books, 81 files"
+tool = "extractous"
+w1 = 10.0
+w16 = 34.0
+
+[[scale]]
+panel = "Office and e-books, 81 files"
+tool = "MarkItDown"
+w1 = 1.6
+w16 = 3.5
+
+[[scale]]
+panel = "Office and e-books, 81 files"
+tool = "Docling (CPU)"
+w1 = 0.8
+w16 = 1.1
+
+# Scanned PDFs (B5) by version; Docling is the recorded GPU run of 2026-10-28.
+[versions]
+history = "../../0.81/results/20261029-102426/metrics.tsv"
+series = [
+    { name = "With baseline", base = "quality.b5.olmocr", ocr = "b5ocr.small_math_ocr.olmocr", rival = 0.410 },
+    { name = "Without baseline", base = "quality.b5.nobase", ocr = "b5ocr.small_math_ocr.nobase", rival = 0.125 },
+]

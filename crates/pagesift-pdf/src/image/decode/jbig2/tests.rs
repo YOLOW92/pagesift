@@ -71,3 +71,126 @@ fn generic_context_groups_match_templates() {
         }
     }
 }
+
+use std::rc::Rc;
+
+use super::bitmap::{Bitmap, set_budget};
+use super::segment::Segment;
+use super::{State, Stored, kind};
+
+/// 一段：段号 0、页关联 1 字节，没有引用。
+fn raw_segment(kind: u8, data: &[u8]) -> Vec<u8> {
+    let mut b = vec![0, 0, 0, 0, kind, 0, 1];
+    b.extend_from_slice(&(data.len() as u32).to_be_bytes());
+    b.extend_from_slice(data);
+    b
+}
+
+/// 页信息段：宽、高、两个分辨率、标志、条带信息（§7.4.8）。
+fn page_info(w: u32, h: u32) -> Vec<u8> {
+    let mut d = Vec::new();
+    for v in [w, h, 0, 0] {
+        d.extend_from_slice(&v.to_be_bytes());
+    }
+    d.extend_from_slice(&[0, 0, 0]);
+    raw_segment(kind::PAGE_INFO, &d)
+}
+
+/// 分配上限刚够一页时页也交得出去：收尾是原地换算，不再计费。
+#[test]
+fn a_page_that_fits_the_budget_is_delivered() {
+    let r = super::decode(&page_info(10, 10), None, 100).unwrap();
+    assert_eq!((r.width, r.height), (10, 10));
+    assert_eq!(r.data, vec![255; 100]);
+    assert!(super::decode(&page_info(10, 10), None, 99).is_err());
+}
+
+/// 符号字典被反复引用：指针也计入分配上限。
+#[test]
+fn repeated_dictionary_references_are_charged() {
+    let symbol = |n: usize| {
+        set_budget(1 << 20);
+        let b = Rc::new(Bitmap::new(1, 1, 0).unwrap());
+        vec![b; n]
+    };
+    let mut st = State::default();
+    st.stored.insert(1, Stored::Symbols(symbol(1000), None));
+    let seg = Segment {
+        number: 2,
+        kind: kind::TEXT[1],
+        refs: vec![1; 2000],
+        data: &[],
+    };
+    // 2000 × 1000 个指针 = 16 MB，上限 1 MB 时在分配前就拒绝
+    set_budget(1 << 20);
+    let e = st.referred_symbols(&seg).unwrap_err();
+    assert!(e.contains("上限"), "{e}");
+    // 上限够时拼得出来，并且扣掉了指针的字节
+    set_budget(32 << 20);
+    assert_eq!(st.referred_symbols(&seg).unwrap().len(), 2_000_000);
+    set_budget(2_000_000 * size_of::<Rc<Bitmap>>());
+    st.referred_symbols(&seg).unwrap();
+    let e = super::bitmap::charge(1).unwrap_err();
+    assert!(e.contains("上限"), "{e}");
+}
+
+/// 保留的上下文计入分配上限：空字典段只有几十字节，却要留下上百 KB。
+#[test]
+fn retained_contexts_are_charged() {
+    // [协议] 标志 0x0200：上下文保留、算术编码、模板 0；AT 4 对；导出数、新符号数都是 0
+    let mut data = vec![0x02, 0x00];
+    data.extend_from_slice(&[0; 8 + 8]);
+    let segs: Vec<Vec<u8>> = (0..64).map(|_| data.clone()).collect();
+    let mut st = State::default();
+    set_budget(1 << 20);
+    let mut failed = None;
+    for (i, d) in segs.iter().enumerate() {
+        let seg = Segment {
+            number: i as u32,
+            kind: kind::SYMBOL_DICT,
+            refs: Vec::new(),
+            data: d,
+        };
+        if let Err(e) = st.process(&seg) {
+            failed = Some((i, e));
+            break;
+        }
+    }
+    let (at, e) = failed.expect("上限应该挡住");
+    assert!(at > 0 && e.contains("上限"), "{at}: {e}");
+}
+
+/// 图样字典里每个图样的 `Bitmap` 头也计费：1×1 的图样不能只算 1 字节。
+#[test]
+fn pattern_headers_are_charged() {
+    // [协议] 标志 0、HDPW 1、HDPH 1、GRAYMAX 0xFFFF：65536 个 1×1 图样
+    let data = [0, 1, 1, 0, 0, 0xFF, 0xFF];
+    set_budget(1 << 18);
+    assert!(super::halftone::pattern_dict(&data).is_err());
+    set_budget(16 << 20);
+    assert_eq!(super::halftone::pattern_dict(&data).unwrap().len(), 65536);
+}
+
+/// 过了截止时间，半色调的合成循环要停（单图样 + 4000×4000 格能要上万亿次运算）。
+#[test]
+fn halftone_stops_at_the_deadline() {
+    set_budget(256 << 20);
+    let pattern = Bitmap::new(255, 255, 1).unwrap();
+    // [协议] 半色调区域段头：标志 0、HGW、HGH 各 4000、HGX、HGY 0、HRX、HRY 0（§7.4.5.1）
+    let mut head = vec![0u8];
+    for v in [4000u32, 4000, 0, 0] {
+        head.extend_from_slice(&v.to_be_bytes());
+    }
+    head.extend_from_slice(&[0; 4]);
+    let info = super::RegionInfo {
+        w: 16,
+        h: 16,
+        x: 0,
+        y: 0,
+        op: super::bitmap::Op::Or,
+    };
+    // wall-clock: 截止时间已经过了，什么机器上都一样
+    let _b = crate::budget::enter(Some(std::time::Instant::now()));
+    let e = super::halftone::region(&head, &info, &[pattern]).unwrap_err();
+    assert!(e.contains("时限"), "{e}");
+}

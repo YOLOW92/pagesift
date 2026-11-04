@@ -80,6 +80,11 @@ impl Parsed {
     }
 }
 
+/// [策略] 一张图的扫描次数上限：正常的渐进图十来次（libjpeg 缺省脚本彩色 10 次、灰度 6 次），
+/// 手工脚本也到不了几百次；每次扫描都要走完所有块，而 10 字节就能写一个扫描，不设上限时小文件
+/// 能占住工人很久。超过时整张图解码失败（libjpeg-turbo 的 -maxscans 同样如此）
+const MAX_SCANS: usize = 1000;
+
 /// 解这一帧大约要占的内存：各分量的系数（i16，块数按 MCU 补齐）加输出像素。
 fn footprint(f: &Frame) -> u64 {
     let (mx, my) = f.mcus();
@@ -151,6 +156,9 @@ fn parse(data: &[u8], max_bytes: usize) -> Result<Parsed, String> {
                     0xDA => {
                         // [协议] SOS
                         let f = frame.as_ref().ok_or("扫描出现在帧头之前")?;
+                        if scans >= MAX_SCANS {
+                            return Err(format!("扫描超过 {MAX_SCANS} 次"));
+                        }
                         let s = marker::scan(body, f)?;
                         let t = scan::Tables {
                             dc: &dc,

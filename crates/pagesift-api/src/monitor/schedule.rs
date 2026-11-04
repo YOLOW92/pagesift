@@ -7,6 +7,8 @@ use crate::error::ApiError;
 
 /// [协议] Firecrawl 文档：“The minimum interval is 5 minutes.”
 pub const MIN_INTERVAL_SECS: u64 = 300;
+/// [策略] 最长间隔一年：再长的监控没有意义，算到期时间也不会溢出
+pub const MAX_INTERVAL_SECS: u64 = 366 * DAY;
 
 const MINUTE: u64 = 60;
 const HOUR: u64 = 3600;
@@ -31,11 +33,13 @@ pub fn cron_period(cron: &str) -> Result<u64, ApiError> {
     let every = |s: &str| s.strip_prefix("*/").and_then(num);
     let rest_any = f[2] == "*" && f[3] == "*";
     match (f[0], f[1], rest_any, f[4]) {
-        (m, "*", true, "*") if every(m).is_some() => Ok(every(m).unwrap_or(1) * MINUTE),
+        (m, "*", true, "*") if every(m).is_some() => {
+            Ok(every(m).unwrap_or(1).saturating_mul(MINUTE))
+        }
         ("*", "*", true, "*") => Ok(MINUTE),
         (m, "*", true, "*") if num(m).is_some() => Ok(HOUR),
         (m, h, true, "*") if num(m).is_some() && every(h).is_some() => {
-            Ok(every(h).unwrap_or(1) * HOUR)
+            Ok(every(h).unwrap_or(1).saturating_mul(HOUR))
         }
         (m, h, true, "*") if num(m).is_some() && num(h).is_some() => Ok(DAY),
         (m, h, true, d) if num(m).is_some() && num(h).is_some() && num(d).is_some() => Ok(WEEK),
@@ -60,10 +64,10 @@ pub fn text_period(text: &str) -> Result<u64, ApiError> {
         ["every", _, unit, ..] => n(1).and_then(|k| {
             let u = unit.trim_end_matches('s');
             match u {
-                "minute" | "min" => Some(k * MINUTE),
-                "hour" => Some(k * HOUR),
-                "day" => Some(k * DAY),
-                "week" => Some(k * WEEK),
+                "minute" | "min" => Some(k.saturating_mul(MINUTE)),
+                "hour" => Some(k.saturating_mul(HOUR)),
+                "day" => Some(k.saturating_mul(DAY)),
+                "week" => Some(k.saturating_mul(WEEK)),
                 _ => None,
             }
         }),

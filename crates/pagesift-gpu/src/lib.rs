@@ -33,7 +33,7 @@ pub use buffer::{DeviceBuffer, Timer};
 pub use exec::{BatchExec, Ctx, DevTensor, Owner};
 pub use ops::ConvShape;
 pub use pool::{OOM_TAG, is_oom};
-pub use worker::{SharedWorker, Worker};
+pub use worker::{SharedWorker, WaitError, Worker};
 
 use driver::{
     ATTR_CC_MAJOR, ATTR_CC_MINOR, Driver, Handle, JIT_ERROR_LOG_BUFFER,

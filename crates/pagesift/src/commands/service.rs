@@ -36,6 +36,7 @@ pub(crate) fn run(command: Command, mut cfg: pagesift::config::Config) -> Result
             } else {
                 None
             };
+            cfg.ocr.background_download = true;
             let mut config = cfg.scraper(false)?;
             allow.apply(&mut config);
             config.store = store.clone().filter(|_| cache);
@@ -200,10 +201,11 @@ pub(crate) fn run(command: Command, mut cfg: pagesift::config::Config) -> Result
         Command::Mcp { transport, port } => runtime()?.block_on(async move {
             let mut cfg = cfg;
             cfg.audit.source = Some(format!("mcp-{transport}"));
+            cfg.ocr.background_download = transport == "http";
             let mut sc = cfg.scraper(false)?;
-            // 按配置开存储（缓存和选择器记忆）。存储不能多进程共用：数据目录被别的进程（serve、
-            // 另一个 stdio 客户端）占着时照常运行，只是没有缓存和记忆
-            if commands::extract::attach_store(&cfg, &mut sc)? {
+            // http 传输是一个常驻进程，按配置开存储（缓存和选择器记忆）；stdio 每个客户端各起一个进程，
+            // 开了会占住 serve 要用的存储，还会让抓取默认读缓存，所以不开。数据目录被别的进程占着时照常运行
+            if transport == "http" && commands::extract::attach_store(&cfg, &mut sc)? {
                 eprintln!("cache: {}", cfg.data_dir().join("store").display());
             }
             let scraper = Arc::new(pagesift::Scraper::new(sc)?);

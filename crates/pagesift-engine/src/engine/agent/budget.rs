@@ -180,6 +180,7 @@ mod tests {
 
     #[test]
     fn pacer_waits_for_the_oldest_to_expire() {
+        // wall-clock: 只取一个起点做加减，没有等待
         let t0 = Instant::now();
         let mut p = Pacer::new(Some(1000));
         assert_eq!(p.wait_for(600, t0), Duration::ZERO);

@@ -20,7 +20,7 @@ Firecrawl's monitor API shape: `POST /v2/monitor`, `GET /v2/monitor`, `GET` / `D
 | `webhook` | `monitor.page` for every page that is not `same`, `monitor.check.completed` after each check; payloads as in Firecrawl, signed like job webhooks |
 | `notify` | pagesift: `substantive` (default) or `any` |
 | `goal` | stored; changes are not judged against it (`monitor_goal_not_judged` warning). `judgeEnabled: true`, `notification` (email, Slack) → `UNSUPPORTED_OPTION` |
-| `retentionDays` | 1–365, default 30 |
+| `retentionDays` | 1–365, default 30; at most the latest 1000 checks are kept per monitor |
 
 Page statuses: `same`, `new`, `changed`, `removed` (404/410, or no longer found by a crawl that ran
 to completion; reported once, later 404s are `same`), `error` (fetch failed, including other 4xx/5xx
@@ -42,6 +42,10 @@ their total request rate is the monitor's budget, split across its URLs as T_i �
 that minimises the mean detection delay for that budget), clamped to `minIntervalMs` (≥ 5 min) and
 `maxIntervalMs`. Checks go through the scraper's per-host rate limits and robots.txt like any scrape.
 Measured against fixed polling with the same number of requests: [benchmarks/history/0.95](../benchmarks/history/0.95/README.md).
+
+Limits: 1000 monitors per account, 10,000 URLs per monitor, a crawl target's `limit` at most 10,000, and intervals of at
+most 366 days. Checks of different monitors run independently, so one slow crawl or unreachable webhook does not delay the
+others. A monitor whose check crashes moves to status `paused` with the warning `monitor_paused`.
 
 Monitors are kept in the job store when one is configured and resume after a restart. With several
 servers only the gateway that holds the lease schedules checks. Monitors are not replicated to the

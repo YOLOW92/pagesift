@@ -21,6 +21,11 @@ impl Drop for Guard {
     }
 }
 
+/// 换掉当前的截止时间（OCR 花的时间不算进按字节估的时限，要把它后移）。原值仍由守卫恢复。
+pub(crate) fn set(deadline: Option<Instant>) {
+    DEADLINE.with(|d| d.set(deadline));
+}
+
 /// 已经过了截止时间。
 pub(crate) fn expired() -> bool {
     DEADLINE.with(|d| d.get().is_some_and(|t| Instant::now() >= t))

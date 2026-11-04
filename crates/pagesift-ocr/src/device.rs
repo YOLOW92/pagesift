@@ -21,8 +21,8 @@ pub struct DeviceStatus {
     pub actual: Device,
     /// `actual` 是 GPU 时它的情况（显存空闲量是打开时的值）。
     pub gpu: Option<GpuInfo>,
-    /// 退回 CPU 的原因；没有退回（包括本来就要 CPU）时为 None。`actual` 仍是 GPU 而这里有值，
-    /// 说明只有个别页、行因为显存不够在 CPU 上算过。
+    /// 永久退回 CPU 的原因；没有退回（包括本来就要 CPU）时为 None。个别页、行显存不够只算那一页的事，
+    /// 不记在这里，见 [`PageRun::fallback`](crate::pipeline::PageRun::fallback)。
     pub fallback: Option<String>,
 }
 

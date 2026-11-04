@@ -170,6 +170,7 @@ async fn actions_change_the_kept_page_until_it_is_stopped() {
     assert!(v["error"].as_str().unwrap().contains("#missing"), "{v}");
 
     // 超时：killed，按时返回，会话还在
+    // wall-clock: 上界远大于 1 s 的时限（见下面的断言），忙的机器只是更接近它，没按时返回的 bug 会一直挂着
     let started = Instant::now();
     let (status, v) = interact(
         &app,
@@ -263,6 +264,7 @@ async fn sessions_are_reclaimed_and_old_ids_get_a_clear_error() {
     };
     let (s, app) = serve(cfg);
     let id = scrape(&app, &format!("{base}/page"), true).await;
+    // wall-clock: 轮询循环的上界，慢机器只是多等几轮
     let started = Instant::now();
     let mut last = (StatusCode::OK, json!({}));
     while started.elapsed() < Duration::from_secs(20) && last.0 == StatusCode::OK {
@@ -500,8 +502,8 @@ async fn prompt_acts_on_the_real_page_and_secrets_stay_local() {
     let mut cfg = config();
     cfg.llm = Some(pagesift_llm::LlmConfig::new(llm, "fixture-model", None));
     cfg.secrets = [
-        ("PW".to_string(), "hunter2-secret".to_string()),
-        ("OTHER".to_string(), "other-secret".to_string()),
+        ("PW".to_string(), secret("hunter2-secret")),
+        ("OTHER".to_string(), secret("other-secret")),
     ]
     .into();
     let (s, app) = serve(cfg);
@@ -575,4 +577,11 @@ async fn prompt_acts_on_the_real_page_and_secrets_stay_local() {
     );
     assert_eq!(info["element"]["name"], "Load more");
     s.shutdown().await;
+}
+
+fn secret(value: &str) -> pagesift::engine::ActionSecret {
+    pagesift::engine::ActionSecret {
+        value: value.to_string(),
+        hosts: vec!["127.0.0.1".to_string()],
+    }
 }

@@ -1,19 +1,28 @@
 //! 一份 PDF 的处理流程：打开文件 → 逐页解释、复核、识别图片、认表格和图区 → 去页眉页脚 →
 //! 分段 → 定标题 → 渲染 Markdown。
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::file::{Document, Object, OpenError};
 use crate::obj::deref;
 use crate::*;
 
 const SCANNED_MAX_CHARS: usize = 32;
-const SCANNED_MIN_COVERAGE: f64 = 0.3;
+/// [策略] 图盖住页面这么大比例才可能是扫描页（0.3 是原值，只是改成 crate 内可见，OCR 也用它）
+pub(crate) const SCANNED_MIN_COVERAGE: f64 = 0.3;
 
 /// `use_structure`：用不用写入方声明的结构（结构树、书签）。关掉只用于评测推断本身的水平。
-pub(crate) fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<PdfDocument, Error> {
+/// `hard` 是用户给的时限；`opts.timeout` 已经和按字节估的时限取过小，那个估计没算 OCR，要按 OCR 的
+/// 耗时后移（但不超过 `hard`）。
+pub(crate) fn run(
+    bytes: &[u8],
+    opts: &Options,
+    hard: Option<Duration>,
+    use_structure: bool,
+) -> Result<PdfDocument, Error> {
     let start = Instant::now();
-    let deadline = opts.timeout.map(|t| start + t);
+    let mut deadline = opts.timeout.map(|t| start + t);
+    let hard = hard.and_then(|t| start.checked_add(t));
     let _budget = budget::enter(deadline);
     if bytes.len() > opts.max_input_bytes {
         return Err(Error::TooLarge("input size"));
@@ -64,6 +73,7 @@ pub(crate) fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<P
     let mut heights = Vec::with_capacity(page_ids.len());
     let mut stats = Vec::with_capacity(page_ids.len());
     let mut ocr_pages = Vec::with_capacity(page_ids.len());
+    let mut ocr_report = ocr::OcrReport::default();
     for (index, &id) in page_ids.iter().enumerate() {
         check_deadline(deadline)?;
         let page = match doc.get_object(id).map(|o| deref(&doc, o)) {
@@ -112,19 +122,27 @@ pub(crate) fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<P
         if (scanned || force_ocr)
             && let Some(engine) = &opts.ocr
         {
+            let ocr_start = Instant::now();
             let found = ocr::recognize_page(
                 &doc,
-                &placed,
+                &ink.images,
+                !opts.images.any(),
                 engine.as_ref(),
                 opts.max_stream_bytes.saturating_mul(ocr::RASTER_BUDGET),
+                ink.width * ink.height,
+                hard,
             );
+            deadline = ocr::extend_deadline(deadline, ocr_start.elapsed(), hard);
+            budget::set(deadline);
             ocred = !found.is_empty();
-            if ocred {
-                // 扫描页的文字层是零星的水印、页码；强制 OCR 时文字层被认为不可信
+            // 扫描页的文字层是零星的水印、页码；强制 OCR 时，认出字的图盖住了足够大的一块才认为文字层
+            // 不可信（只认出一个 logo 不能丢掉整页正文）
+            if ocred && (scanned || found.covers_page) {
                 ink.glyphs.clear();
             }
             ink.glyphs.extend(found.glyphs);
             ocr_formulas = found.formulas;
+            ocr_report.merge(found.report);
         }
         ocr_pages.push(ocred);
         let note = scanned && !ocred;
@@ -361,5 +379,6 @@ pub(crate) fn run(bytes: &[u8], opts: &Options, use_structure: bool) -> Result<P
         inferred_title,
         warnings,
         images: images.into_list(),
+        ocr: ocr_report,
     })
 }

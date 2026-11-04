@@ -233,7 +233,13 @@ impl Scraper {
         })?;
         let started = Instant::now();
         let mut used = LlmUse::default();
-        let key = keyed(PLAN_KIND, &open.url, prompt).filter(|_| self.store.is_some());
+        // 计划按账户和完整主机分开：别的账户在自己页面上诱导出来的计划（含输入的文字）不能直接用到
+        // 这里；注册域不查公共后缀表，`alice.github.io` 和 `bob.github.io` 也不算一个站
+        let owner = record.owner.as_deref().unwrap_or_default();
+        let host = Url::parse(&open.url).ok();
+        let host = host.as_ref().and_then(Url::host_str).unwrap_or_default();
+        let key = keyed(PLAN_KIND, &open.url, &format!("{owner}\n{host}\n{prompt}"))
+            .filter(|_| self.store.is_some());
         let names = open.secrets.clone();
         let secrets = self.named_secrets(&names);
         let lookup = match &key {
@@ -276,7 +282,8 @@ impl Scraper {
                         Ready {
                             node: n.map(|n| n.backend_id),
                             role: n.map(|n| n.role.clone()).unwrap_or_default(),
-                            name: n.map(|n| n.name.clone()).unwrap_or_default(),
+                            // 这个名字会写进缓存：页面回显的秘密不能跟着落盘
+                            name: n.map(|n| redact(&n.name, &secrets)).unwrap_or_default(),
                             step,
                         }
                     })
@@ -358,9 +365,27 @@ impl Scraper {
                         ));
                         return Ok(false);
                     }
+                    if secret_names(raw).next().is_some() && open.scripted {
+                        resp.fail(format!(
+                            "step {i}: this session ran executeJavascript, so it cannot use secrets"
+                        ));
+                        return Ok(false);
+                    }
                     open.secrets.extend(secret_names(raw).map(str::to_string));
+                    // 前面的步骤可能已经跳走：值只能填给页面此刻所在的主机
+                    let here = if secret_names(raw).next().is_some() {
+                        match open.page.capture().await {
+                            Ok(page) => page.final_url,
+                            Err(e) => {
+                                action_failure(e, resp)?;
+                                return Ok(false);
+                            }
+                        }
+                    } else {
+                        open.url.clone()
+                    };
                     let mut filled = [json!({ "text": raw })];
-                    fill_secrets(&mut filled, &self.secrets)?;
+                    fill_secrets(&mut filled, &self.secrets, &here)?;
                     let text = filled[0]["text"].as_str().unwrap_or_default();
                     open.page.write_node(n, text).await
                 }
@@ -488,7 +513,7 @@ impl Scraper {
         let acted = match text {
             Some(t) => {
                 let mut filled = [json!({ "text": t })];
-                fill_secrets(&mut filled, &self.secrets)?;
+                fill_secrets(&mut filled, &self.secrets, url)?;
                 let text = filled[0]["text"].as_str().unwrap_or_default();
                 page.write_node(node, text).await
             }

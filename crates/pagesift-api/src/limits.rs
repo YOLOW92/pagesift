@@ -63,7 +63,7 @@ fn fingerprint(key: &str) -> String {
         h ^= u64::from(b);
         h = h.wrapping_mul(0x0100_0000_01b3);
     }
-    format!("key-{:08x}", h >> 32)
+    format!("key-{h:016x}")
 }
 
 struct Bucket {

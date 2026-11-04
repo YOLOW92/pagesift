@@ -7,7 +7,7 @@ use std::time::Duration;
 use axum::Router;
 use axum::http::StatusCode;
 use pagesift::{Scraper, ScraperConfig};
-use pagesift_pdf::{OcrInfo, OcrLine, PageOcr};
+use pagesift_pdf::{OcrInfo, OcrLine, OcrOutput, PageOcr};
 use serde_json::json;
 
 use super::parse::{pdf, pdf_url, scanned_pdf, scrape};
@@ -16,23 +16,39 @@ use super::parse::{pdf, pdf_url, scanned_pdf, scrape};
 struct Fake {
     calls: AtomicUsize,
     fail: bool,
+    /// 认不出字（解得开，但没出字）。
+    blank: bool,
 }
 
 impl PageOcr for Fake {
-    fn recognize(&self, width: u32, height: u32, _gray: &[u8]) -> Result<Vec<OcrLine>, String> {
+    fn recognize(
+        &self,
+        width: u32,
+        height: u32,
+        _gray: &[u8],
+        _deadline: Option<std::time::Instant>,
+    ) -> Result<OcrOutput, String> {
         self.calls.fetch_add(1, Ordering::Relaxed);
         if self.fail {
             return Err("no models".into());
         }
-        Ok(vec![OcrLine {
-            x0: 0.0,
-            y0: 0.0,
-            x1: width as f32,
-            y1: height as f32 / 2.0,
-            text: "Recognized words".into(),
-            score: 0.9,
-            formula: false,
-        }])
+        if self.blank {
+            return Ok(OcrOutput::default());
+        }
+        Ok(OcrOutput {
+            lines: vec![OcrLine {
+                x0: 0.0,
+                y0: 0.0,
+                x1: width as f32,
+                y1: height as f32 / 2.0,
+                text: "Recognized words".into(),
+                score: 0.9,
+                formula: false,
+            }],
+            device: Some("cuda:0".into()),
+            fallback: Some("no driver".into()),
+            ..Default::default()
+        })
     }
 
     fn info(&self) -> OcrInfo {
@@ -40,8 +56,9 @@ impl PageOcr for Fake {
             engine: "fake".into(),
             model: "fake-small".into(),
             device: "cpu".into(),
-            fallback: Some("no driver".into()),
-            error: self.fail.then(|| "no models".to_string()),
+            // 引擎当前的状态，不属于某一份文档：警告不能看这里
+            fallback: Some("sticky".into()),
+            error: Some("sticky".into()),
         }
     }
 }
@@ -72,7 +89,7 @@ async fn auto_mode_recognizes_scanned_pages_and_reports_it() {
     let meta = &v["data"]["metadata"]["pagesift"];
     assert_eq!(
         meta["ocr"],
-        json!({"engine": "fake", "model": "fake-small", "device": "cpu", "pages": 1, "fallback": true})
+        json!({"engine": "fake", "model": "fake-small", "device": "cuda:0", "pages": 1, "fallback": true})
     );
     let warnings = meta["warnings"].to_string();
     assert!(warnings.contains("gpu_fallback: no driver"), "{warnings}");
@@ -90,8 +107,32 @@ async fn text_pages_do_not_touch_the_engine() {
     let url = pdf_url(pdf(&["Plain text page."], "T", false)).await;
     let (s, v) = scrape(&app, &url, json!({"maxAge": 0})).await;
     assert_eq!(s, StatusCode::OK, "{v}");
-    assert!(v["data"]["metadata"]["pagesift"]["ocr"].is_null(), "{v}");
+    let meta = &v["data"]["metadata"]["pagesift"];
+    assert!(meta["ocr"].is_null(), "{v}");
     assert_eq!(fake.calls.load(Ordering::Relaxed), 0);
+    // 引擎上遗留的退回和失败不算到没走 OCR 的文档上
+    assert!(!meta["warnings"].to_string().contains("sticky"), "{v}");
+}
+
+#[tokio::test]
+async fn scanned_pages_without_ocr_text_are_reported() {
+    let fake = Arc::new(Fake {
+        blank: true,
+        ..Default::default()
+    });
+    let url = pdf_url(scanned_pdf()).await;
+    let (s, v) = scrape(&app(Some(fake)), &url, json!({"maxAge": 0})).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert!(
+        v["data"]["metadata"]["pagesift"]["warnings"]
+            .to_string()
+            .contains("ocr_incomplete: 1 of 1 scanned pages have no OCR text"),
+        "{v}"
+    );
+    assert!(
+        v["data"]["warning"].to_string().contains("ocr_incomplete"),
+        "{v}"
+    );
 }
 
 #[tokio::test]

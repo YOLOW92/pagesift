@@ -30,6 +30,8 @@ pub(crate) fn best() -> Kernel {
 /// 本机能跑的全部内核（测试逐一对照用）。
 #[cfg(test)]
 pub(crate) fn all() -> Vec<Kernel> {
+    // 只有 x86_64 才往里加
+    #[allow(unused_mut)]
     let mut v: Vec<Kernel> = vec![generic];
     #[cfg(target_arch = "x86_64")]
     if is_x86_feature_detected!("avx2") && is_x86_feature_detected!("fma") {

@@ -50,6 +50,12 @@ pub(super) const TEXT_LEN: &str = "(() => { const b = document.body; return b ? 
 pub(super) const TRACKED: &[&str] = &["Document", "Script", "XHR", "Fetch"];
 /// 同一个 GET URL 已经请求过这么多次，再请求就当作轮询或心跳，不再等它。
 const POLL_REPEATS: u32 = 2;
+/// [策略] 一个页面最多记这么多条被拦的请求：够看出页面在拦什么，保留页面上也不会无限涨
+const MAX_BLOCKED: usize = 256;
+/// [策略] 记录的网址长度上限：浏览器的网址能到 2 MB，诊断用不着（常见网址远短于它）
+const MAX_TRACKED_URL: usize = 2048;
+/// [策略] 轮询判断最多跟踪这么多个不同的网址：真在轮询的页面只有几个
+const MAX_TRACKED_GETS: usize = 4096;
 
 pub(crate) struct PageEnv {
     pub guard: Arc<dyn RequestGuard>,
@@ -176,6 +182,12 @@ impl Shared {
     /// 同时不再等它之前还没结束的几次（长轮询会一直挂着）。
     pub(super) fn is_polling(&self, url: &str) -> bool {
         let mut net = self.net.lock().unwrap();
+        // 轮询的网址不会很长、也不会有几千个；再多的是页面在造请求，不记（不记就当不是轮询）
+        if url.len() > MAX_TRACKED_URL
+            || (net.gets.len() >= MAX_TRACKED_GETS && !net.gets.contains_key(url))
+        {
+            return false;
+        }
         let n = net.gets.entry(url.to_owned()).or_default();
         *n += 1;
         if *n <= POLL_REPEATS {

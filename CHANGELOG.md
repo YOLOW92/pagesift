@@ -2,6 +2,15 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## 1.0.0
+
+OCR for scanned PDFs on CPU or NVIDIA GPU (`--ocr`, `[ocr]`, `[gpu]`, `parsers[].mode: "ocr"`). Structured extraction with
+selector memory and relocation (`extract` format, `pagesift extract`, `pagesift similar`). Browser actions and sessions
+(`actions`, `keepSession`, `/v2/scrape/{id}/interact`). `/v2/agent`. `/v2/monitor`. Full Jina Reader API (`/r/`, `/s/`). WARC
+input. Hooks and `[[rules]]`. Optional browser TLS fingerprint. Python and Node gain OCR, `max_age` / `maxAge` and
+`parsers`. Some names changed, including Python `request_interval` → `request_interval_ms` and warnings that had no code.
+Full list and known limits: [release notes](docs/releases/1.0.0.md).
+
 ## [0.91.1] — 2026-11-03
 
 **Intel Macs (macOS x86_64) are no longer supported.** Also fixes a small bug. See

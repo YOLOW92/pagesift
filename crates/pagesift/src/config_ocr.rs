@@ -71,6 +71,10 @@ pub struct Ocr {
     pub formulas: bool,
     /// 模型目录；缺省 `$XDG_CACHE_HOME/pagesift/models`（`~/.cache/pagesift/models`）。
     pub models_dir: Option<PathBuf>,
+    /// 缺模型时放到独立线程下载，这期间扫描页只带警告（常驻服务：`serve`、`mcp --transport http`）；
+    /// 否则等下载完。不是配置项，由入口决定。
+    #[serde(skip)]
+    pub background_download: bool,
 }
 
 /// `auto`：有 GPU 且显存放得下时用中模型，否则小模型；`fast`：小模型；`accurate`：中模型。
@@ -139,6 +143,7 @@ impl OcrOptions {
                 quality,
                 formulas: self.formulas,
                 models_dir: self.models_dir,
+                background_download: false,
             },
             gpu: Gpu { mode },
             ..Default::default()
@@ -211,6 +216,7 @@ impl Config {
             gpu_required,
             formulas: self.ocr.formulas,
             fetch: Some(fetch),
+            background_download: self.ocr.background_download,
         }))))
     }
 }

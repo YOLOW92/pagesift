@@ -1,11 +1,13 @@
 //! 监控的调度和一次检查：到期的网址抓一遍（带条件请求），和上次的内容做块级 diff，
 //! 更新变化率后验、算下次到期时间，记检查结果，发 webhook，落盘。
 
+use std::collections::HashSet;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use pagesift_stat::poisson::ChangeRate;
 use serde_json::{Value, json};
+use tokio::task::JoinSet;
 
 use super::crawl::check_crawl;
 use super::{Check, Leader, MonitorState, PageResult, PageState};
@@ -16,6 +18,8 @@ use crate::types::{Document, ScrapeOptions};
 
 /// [δ] 全局风险水平：下次检查放在“漏掉变化的后验概率”到 δ 的时刻。
 const DELTA: f64 = 0.05;
+/// [策略] 每个网址记多少次“变了”的区间：够后验收敛，计算量也不会一直涨
+const MAX_CHANGE_HISTORY: usize = 1024;
 
 pub(crate) fn now_secs() -> f64 {
     SystemTime::now()
@@ -24,7 +28,11 @@ pub(crate) fn now_secs() -> f64 {
 }
 
 pub(crate) fn rfc3339_secs(t: f64) -> String {
-    crate::jobs::rfc3339(UNIX_EPOCH + Duration::from_secs_f64(t.max(0.0)))
+    let at = Duration::try_from_secs_f64(t.max(0.0))
+        .ok()
+        .and_then(|d| UNIX_EPOCH.checked_add(d))
+        .unwrap_or(UNIX_EPOCH);
+    crate::jobs::rfc3339(at)
 }
 
 fn key(id: &str) -> String {
@@ -99,28 +107,35 @@ pub(crate) fn ensure_running(s: &AppState) {
         .unwrap_or_else(|e| e.into_inner())
         .clone();
     tokio::spawn(async move {
+        let _flag = RunningFlag(s.monitors.running.clone());
+        // 每个监控的检查各跑各的：一个爬得久、webhook 不通的监控不耽误别人到期
+        let mut checks: JoinSet<(String, bool)> = JoinSet::new();
+        let mut busy: HashSet<String> = HashSet::new();
         loop {
+            while let Some(done) = checks.try_join_next() {
+                settle(&s, &mut busy, done).await;
+            }
             let due = {
                 let map = s.monitors.map.lock().await;
-                if map.is_empty() {
+                if map.is_empty() && checks.is_empty() {
                     s.monitors.running.store(false, Ordering::SeqCst);
                     return;
                 }
                 map.values()
-                    .filter(|m| m.status == "active")
+                    .filter(|m| m.status == "active" && !busy.contains(&m.id))
                     .filter_map(MonitorState::next_due)
                     .fold(f64::INFINITY, f64::min)
             };
             let wait = (due - now_secs()).max(0.0);
             if wait > 0.0 {
-                let sleep = if wait.is_finite() {
-                    Duration::from_secs_f64(wait)
-                } else {
-                    Duration::MAX
-                };
+                let sleep = Duration::try_from_secs_f64(wait).unwrap_or(Duration::MAX);
                 tokio::select! {
                     () = tokio::time::sleep(sleep.min(Duration::from_secs(86_400))) => {}
                     () = s.monitors.wake.notified() => continue,
+                    Some(done) = checks.join_next(), if !checks.is_empty() => {
+                        settle(&s, &mut busy, done).await;
+                        continue;
+                    }
                 }
             }
             if leader.as_ref().is_some_and(|l| !l()) {
@@ -132,15 +147,56 @@ pub(crate) fn ensure_running(s: &AppState) {
                 let map = s.monitors.map.lock().await;
                 let now = now_secs();
                 map.values()
-                    .filter(|m| m.status == "active" && m.next_due().is_some_and(|d| d <= now))
+                    .filter(|m| m.status == "active" && !busy.contains(&m.id))
+                    .filter(|m| m.next_due().is_some_and(|d| d <= now))
                     .map(|m| m.id.clone())
                     .collect()
             };
             for id in ids {
-                run_check(&s, &id).await;
+                busy.insert(id.clone());
+                let s = s.clone();
+                checks.spawn(async move {
+                    let task = id.clone();
+                    let panicked = tokio::spawn(async move { run_check(&s, &task).await })
+                        .await
+                        .is_err();
+                    (id, panicked)
+                });
             }
         }
     });
+}
+
+/// 调度任务万一 panic 也要放开 `running`，下一个请求才能再启动它。正常退出时已经放开了，不再动。
+struct RunningFlag(std::sync::Arc<std::sync::atomic::AtomicBool>);
+
+impl Drop for RunningFlag {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            self.0.store(false, Ordering::SeqCst);
+        }
+    }
+}
+
+/// 一次检查结束。panic 的监控停下来：它的到期时间没动，不停就会立刻再 panic 一次，重启后也一样。
+async fn settle(
+    s: &AppState,
+    busy: &mut HashSet<String>,
+    done: Result<(String, bool), tokio::task::JoinError>,
+) {
+    let Ok((id, panicked)) = done else { return };
+    busy.remove(&id);
+    if !panicked {
+        return;
+    }
+    tracing::error!(monitor = %id, "a monitor check panicked; the monitor is paused");
+    let mut map = s.monitors.map.lock().await;
+    if let Some(m) = map.get_mut(&id) {
+        m.status = "paused".into();
+        m.warnings
+            .push("monitor_paused: a check crashed, so this monitor stopped running".into());
+        persist(s, m);
+    }
 }
 
 /// 一次检查：只查到期的网址（自适应时各网址的到期时间不同）。
@@ -233,9 +289,19 @@ pub(crate) async fn run_check(s: &AppState, id: &str) {
         {
             m.checks.pop_front();
         }
+        while m.checks.len() > super::MAX_CHECKS_KEPT {
+            m.checks.pop_front();
+        }
         m.clone()
     };
-    persist(s, &saved);
+    // 序列化和写盘可能很久（状态里有页面全文），不占异步线程
+    let writer = s.clone();
+    let saved = tokio::task::spawn_blocking(move || {
+        persist(&writer, &saved);
+        saved
+    })
+    .await;
+    let Ok(saved) = saved else { return };
     notify(s, &saved, &check).await;
 }
 
@@ -285,7 +351,7 @@ pub(super) fn allocate(m: &mut MonitorState) {
         };
         let t = (s / (budget * l.sqrt())).max(min);
         let t = m.max_interval.map_or(t, |mx| t.min(mx as f64));
-        p.next_due = last + t;
+        p.next_due = last + t.min(super::schedule::MAX_INTERVAL_SECS as f64);
     }
 }
 
@@ -324,6 +390,12 @@ pub(super) fn observe(m: &MonitorState, p: &mut PageState, now: f64, changed: Op
         }
         p.last_check = Some(now);
     }
+    // 后验的计算量随变化次数线性增长。太长时忘掉较早的一半，变和没变按同样比例忘，估计不偏
+    if rate.changed.len() > MAX_CHANGE_HISTORY {
+        let half = rate.changed.len() / 2;
+        rate.changed.drain(..half);
+        rate.exposure /= 2.0;
+    }
     p.exposure = Some(rate.exposure);
     p.changed_intervals = rate.changed.clone();
     p.rate_mean = Some(rate.mean());
@@ -337,7 +409,7 @@ pub(super) fn observe(m: &MonitorState, p: &mut PageState, now: f64, changed: Op
             m.max_interval.map_or(t, |mx| t.min(mx as f64))
         }
     };
-    p.next_due = now + interval;
+    p.next_due = now + interval.min(super::schedule::MAX_INTERVAL_SECS as f64);
 }
 
 async fn check_page(

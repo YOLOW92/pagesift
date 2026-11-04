@@ -2,14 +2,24 @@
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
-use std::sync::mpsc::{Sender, channel};
+use std::sync::mpsc::{RecvTimeoutError, Sender, channel};
 use std::thread::JoinHandle;
+use std::time::Duration;
 
 use crate::exec::Ctx;
 use crate::{Gpu, GpuInfo};
 
 /// 工人线程上执行的一段工作。
 type Job = Box<dyn for<'c, 'g> FnOnce(&'c Ctx<'g>) + Send + 'static>;
+
+/// [`Worker::call_timeout`] 没等到结果的原因。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WaitError {
+    /// 到时间了工作还没做完（它留在队列里或继续跑，结果没人要了）。
+    TimedOut,
+    /// 工人线程没了，或工作 panic 了。
+    Failed(String),
+}
 
 /// 工人句柄，丢掉时线程退出并释放上下文。
 pub struct Worker {
@@ -84,6 +94,32 @@ impl Worker {
     }
 }
 
+impl Worker {
+    /// 同 [`Worker::call`]，但最多等 `wait`。调用方到时间可以走开，所以闭包不能借东西（`'static`）。
+    pub fn call_timeout<R: Send + 'static>(
+        &self,
+        f: impl for<'c, 'g> FnOnce(&'c Ctx<'g>) -> R + Send + 'static,
+        wait: Duration,
+    ) -> Result<R, WaitError> {
+        let (tx, rx) = channel();
+        let job: Job = Box::new(move |ctx: &Ctx<'_>| {
+            // 回复通道断开说明调用方已不在，这时没有人关心结果
+            let _ = tx.send(catch_unwind(AssertUnwindSafe(|| f(ctx))));
+        });
+        let tx = self.tx.as_ref().expect("工人只在 Drop 里关闭");
+        tx.send(job)
+            .map_err(|_| WaitError::Failed("the GPU worker thread has exited".into()))?;
+        match rx.recv_timeout(wait) {
+            Ok(Ok(r)) => Ok(r),
+            Ok(Err(_)) => Err(WaitError::Failed("a job on the GPU worker panicked".into())),
+            Err(RecvTimeoutError::Timeout) => Err(WaitError::TimedOut),
+            Err(RecvTimeoutError::Disconnected) => {
+                Err(WaitError::Failed("the GPU worker thread has exited".into()))
+            }
+        }
+    }
+}
+
 impl Drop for Worker {
     fn drop(&mut self) {
         drop(self.tx.take());
@@ -96,3 +132,24 @@ impl Drop for Worker {
 
 /// 把工人包成可以共享的句柄。
 pub type SharedWorker = Arc<Worker>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 工作没做完时调用方能走开，之后的工作照常；没有显卡时跳过。
+    #[test]
+    fn call_timeout_walks_away_from_a_slow_job() {
+        let Ok(w) = Worker::spawn(0) else {
+            eprintln!("没有能用的 N 卡，跳过");
+            return;
+        };
+        let slow = w.call_timeout(
+            |_: &Ctx<'_>| std::thread::sleep(Duration::from_millis(200)),
+            Duration::from_millis(1),
+        );
+        assert_eq!(slow, Err(WaitError::TimedOut));
+        let next = w.call_timeout(|_: &Ctx<'_>| 7, Duration::from_secs(60));
+        assert_eq!(next, Ok(7));
+    }
+}

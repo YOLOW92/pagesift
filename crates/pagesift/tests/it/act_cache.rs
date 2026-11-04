@@ -92,7 +92,14 @@ impl Fx {
             "fixture-model",
             None,
         ));
-        cfg.secrets = [("PW".to_string(), "hunter2-secret".to_string())].into();
+        cfg.secrets = [(
+            "PW".to_string(),
+            pagesift::engine::ActionSecret {
+                value: "hunter2-secret".to_string(),
+                hosts: vec!["127.0.0.1".to_string()],
+            },
+        )]
+        .into();
         Arc::new(Scraper::new(cfg).unwrap())
     }
 

@@ -56,8 +56,6 @@ impl Scraper {
         let result = cpu_task(move || {
             let popts = pagesift_pdf::Options {
                 timeout: deadline.map(|d| d.saturating_duration_since(Instant::now())),
-                // 按字节数估的时限没算 OCR 的耗时：开着 OCR 时只看请求的截止时间
-                adaptive_timeout: ocr.is_none(),
                 force_ocr,
                 ocr,
                 page_limit,
@@ -92,25 +90,34 @@ impl Scraper {
         let ocr_pages = pdf.pages.iter().filter(|p| p.ocr).count();
         match engine {
             Some(engine) => {
+                // 只报这份文档的情况：引擎是共用的，别的文档的退回和失败不算到这里
                 let info = engine.info();
-                if let Some(error) = &info.error {
+                if let Some(error) = &pdf.ocr.error {
                     p.warnings.push(format!("ocr_failed: {error}"));
                 }
-                if let Some(reason) = &info.fallback {
+                if let Some(reason) = &pdf.ocr.fallback {
                     p.warnings.push(format!("gpu_fallback: {reason}"));
+                }
+                let no_text = pdf.pages.iter().filter(|p| p.scanned && !p.ocr).count();
+                if no_text > 0 {
+                    p.warnings.push(format!(
+                        "ocr_incomplete: {no_text} of {scanned_pages} scanned pages have no OCR text"
+                    ));
                 }
                 if ocr_pages > 0 {
                     ext.ocr = Some(pagesift_api::types::OcrMeta {
                         engine: info.engine,
                         model: info.model,
-                        device: info.device,
+                        device: pdf.ocr.device.clone().unwrap_or(info.device),
                         pages: ocr_pages,
-                        fallback: info.fallback.is_some(),
+                        fallback: pdf.ocr.fallback.is_some(),
                     });
                 }
             }
             None if scanned_pages > 0 => p.warnings.push(format!(
-                "scanned_pages_without_ocr: {scanned_pages} of {} pages are scanned images with no text layer; turn on OCR with [ocr] enabled = true or --ocr",
+                "{}: {scanned_pages} of {} pages are scanned images with no text layer; turn on OCR with [ocr] enabled = true or --ocr",
+                // 整份是扫描件才算结果有风险；文字 PDF 里夹一页整页图（如封面）只提示
+                if pdf.scanned { "scanned_pages_without_ocr" } else { "some_pages_scanned" },
                 pdf.pages.len()
             )),
             None => {}

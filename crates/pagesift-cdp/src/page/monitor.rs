@@ -255,14 +255,28 @@ pub(super) async fn on_request(
         }
         Verdict::Block(reason) => {
             tracing::debug!(url = %req.url, %reason, "blocked sub-request");
-            shared.blocked.lock().unwrap().push((
-                req.is_main_document,
-                BlockedRequest {
-                    url: req.url,
-                    resource_type: req.resource_type,
-                    reason,
-                },
-            ));
+            // 保留页面可以开很久：页面反复请求被拦的长网址，不能让这张表一直涨
+            {
+                let mut blocked = shared.blocked.lock().unwrap();
+                if blocked.len() < super::MAX_BLOCKED {
+                    let mut url = req.url;
+                    if url.len() > super::MAX_TRACKED_URL {
+                        let mut cut = super::MAX_TRACKED_URL;
+                        while !url.is_char_boundary(cut) {
+                            cut -= 1;
+                        }
+                        url.truncate(cut);
+                    }
+                    blocked.push((
+                        req.is_main_document,
+                        BlockedRequest {
+                            url,
+                            resource_type: req.resource_type,
+                            reason,
+                        },
+                    ));
+                }
+            }
             let _ = session
                 .call(
                     "Fetch.failRequest",

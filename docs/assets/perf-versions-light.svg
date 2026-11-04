@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 390" width="860" height="390" role="img" aria-label="Scanned PDFs: olmOCR score by version" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+<title>Scanned PDFs: olmOCR score by version</title>
+<text x="0" y="22" fill="#0b0b0b" font-size="17" font-weight="600" text-anchor="start">Scanned PDFs: olmOCR score by version</text>
+<text x="0" y="44" fill="#52514e" font-size="13" font-weight="400" text-anchor="start">134 scanned pages. Higher is better. Dashed lines are Docling on a GPU.</text>
+<line x1="50" y1="340.0" x2="610" y2="340.0" stroke="#e4e3df"/>
+<text x="42" y="344.0" fill="#52514e" font-size="11" font-weight="400" text-anchor="end">0.0</text>
+<line x1="50" y1="265.7" x2="610" y2="265.7" stroke="#e4e3df"/>
+<text x="42" y="269.7142857142857" fill="#52514e" font-size="11" font-weight="400" text-anchor="end">0.2</text>
+<line x1="50" y1="191.4" x2="610" y2="191.4" stroke="#e4e3df"/>
+<text x="42" y="195.42857142857142" fill="#52514e" font-size="11" font-weight="400" text-anchor="end">0.4</text>
+<line x1="50" y1="117.1" x2="610" y2="117.1" stroke="#e4e3df"/>
+<text x="42" y="121.14285714285714" fill="#52514e" font-size="11" font-weight="400" text-anchor="end">0.6</text>
+<text x="50.0" y="378" fill="#52514e" font-size="12" font-weight="400" text-anchor="middle">0.81</text>
+<text x="330.0" y="378" fill="#52514e" font-size="12" font-weight="400" text-anchor="middle">0.91.1</text>
+<text x="610.0" y="378" fill="#52514e" font-size="12" font-weight="400" text-anchor="middle">1.0 with OCR</text>
+<line x1="50" y1="187.7" x2="610" y2="187.7" stroke="#2a78d6" stroke-width="1.5" stroke-dasharray="5 5"/>
+<polyline points="50.0,326.1 330.0,199.7 610.0,138.3" fill="none" stroke="#2a78d6" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="50.0" cy="326.1" r="4.5" fill="#2a78d6"/>
+<text x="50.0" y="315.14088571428573" fill="#0b0b0b" font-size="12" font-weight="600" text-anchor="middle">0.037</text>
+<circle cx="330.0" cy="199.7" r="4.5" fill="#2a78d6"/>
+<text x="330.0" y="188.71402857142857" fill="#0b0b0b" font-size="12" font-weight="600" text-anchor="middle">0.378</text>
+<circle cx="610.0" cy="138.3" r="4.5" fill="#2a78d6"/>
+<text x="610.0" y="127.31428571428569" fill="#0b0b0b" font-size="12" font-weight="600" text-anchor="middle">0.543</text>
+<text x="620" y="142.3142857142857" fill="#0b0b0b" font-size="12" font-weight="600" text-anchor="start">PageSift, with baseline</text>
+<text x="620" y="191.71428571428572" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">Docling (GPU) 0.410</text>
+<line x1="50" y1="293.6" x2="610" y2="293.6" stroke="#eb6834" stroke-width="1.5" stroke-dasharray="5 5"/>
+<polyline points="50.0,340.0 330.0,315.3 610.0,223.4" fill="none" stroke="#eb6834" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="50.0" cy="340.0" r="4.5" fill="#eb6834"/>
+<text x="50.0" y="360.0" fill="#0b0b0b" font-size="12" font-weight="600" text-anchor="middle">0.000</text>
+<circle cx="330.0" cy="315.3" r="4.5" fill="#eb6834"/>
+<text x="330.0" y="335.28514285714283" fill="#0b0b0b" font-size="12" font-weight="600" text-anchor="middle">0.067</text>
+<circle cx="610.0" cy="223.4" r="4.5" fill="#eb6834"/>
+<text x="610.0" y="243.37142857142857" fill="#0b0b0b" font-size="12" font-weight="600" text-anchor="middle">0.314</text>
+<text x="620" y="227.37142857142857" fill="#0b0b0b" font-size="12" font-weight="600" text-anchor="start">PageSift, without baseline</text>
+<text x="620" y="297.57142857142856" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">Docling (GPU) 0.125</text>
+</svg>

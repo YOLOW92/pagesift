@@ -119,7 +119,24 @@ impl State {
         })
     }
 
+    /// 引用的各符号字典导出的符号，按引用顺序拼起来。同一本字典可以被引用很多次（每次只占 1 字节），
+    /// 这里全是 `Rc` 克隆，不走 `Bitmap::new`；不计费的话几层互相引用的字典就能要上百 GB 指针。
+    fn referred_symbols(&self, seg: &Segment) -> Result<Vec<Rc<Bitmap>>, String> {
+        let lists = self.referred(seg, |s| match s {
+            Stored::Symbols(v, _) => Some(v),
+            _ => None,
+        });
+        let n = lists
+            .iter()
+            .try_fold(0usize, |n, v| n.checked_add(v.len()))
+            .and_then(|n| n.checked_mul(size_of::<Rc<Bitmap>>()))
+            .ok_or("符号数溢出")?;
+        bitmap::charge(n)?;
+        Ok(lists.into_iter().flatten().cloned().collect())
+    }
+
     fn process(&mut self, seg: &Segment) -> Result<Flow, String> {
+        bitmap::check_time()?;
         let k = seg.kind;
         match k {
             kind::PAGE_INFO => self.page_info(seg.data)?,
@@ -136,14 +153,7 @@ impl State {
                 self.stored.insert(seg.number, Stored::Table(Rc::new(t)));
             }
             kind::SYMBOL_DICT => {
-                let input: Vec<Rc<Bitmap>> = self
-                    .referred(seg, |s| match s {
-                        Stored::Symbols(v, _) => Some(v.iter().cloned()),
-                        _ => None,
-                    })
-                    .into_iter()
-                    .flatten()
-                    .collect();
+                let input = self.referred_symbols(seg)?;
                 // 沿用上下文时取引用的最后一个符号字典留下的（§7.4.2.2 步骤 3）
                 let prior = self
                     .referred(seg, |s| match s {
@@ -207,14 +217,7 @@ impl State {
         let bm = if kind::GENERIC.contains(&k) {
             generic::segment(body, &info)?
         } else if kind::TEXT.contains(&k) {
-            let symbols: Vec<Rc<Bitmap>> = self
-                .referred(seg, |s| match s {
-                    Stored::Symbols(v, _) => Some(v.iter().cloned()),
-                    _ => None,
-                })
-                .into_iter()
-                .flatten()
-                .collect();
+            let symbols = self.referred_symbols(seg)?;
             text::region(body, &info, &symbols, &self.tables(seg))?
         } else if kind::HALFTONE.contains(&k) {
             let patterns = self
@@ -298,17 +301,16 @@ pub(crate) fn decode(
         (None, Some(e)) => return Err(e),
         (None, None) => return Err("没有页信息段".into()),
     };
-    let b = page.bitmap;
-    bitmap::charge(b.data.len())?;
+    let mut b = page.bitmap;
+    // 原地换算，不再分配也不再计费：预算耗尽时已经合成好的页仍然交得出去
+    // [协议] JBIG2 的 1 是黑；输出灰度里黑是 0
+    b.data
+        .iter_mut()
+        .for_each(|v| *v = if *v == 1 { 0 } else { 255 });
     Ok(Raster {
         width: u32::try_from(b.w).map_err(|_| "页太宽")?,
         height: u32::try_from(b.h).map_err(|_| "页太高")?,
         channels: 1,
-        // [协议] JBIG2 的 1 是黑；输出灰度里黑是 0
-        data: b
-            .data
-            .iter()
-            .map(|&v| if v == 1 { 0 } else { 255 })
-            .collect(),
+        data: b.data,
     })
 }

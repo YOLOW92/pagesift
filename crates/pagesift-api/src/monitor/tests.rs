@@ -384,6 +384,31 @@ async fn crawl_options_are_checked_when_the_monitor_is_created() {
     }
 }
 
+/// 这些写法以前会让调度任务 panic，所有监控从此停摆，重启后依旧。
+#[tokio::test]
+async fn schedules_and_schemas_that_could_crash_the_scheduler_are_refused() {
+    let script = Arc::new(Script::default());
+    let api = scripted(&script, Config::default());
+    let target = json!([{"type": "scrape", "urls": [SEED]}]);
+    for schedule in [
+        json!({"text": "every 307445734561825860 minutes"}),
+        json!({"text": "every 300000000000000000 minutes"}),
+        json!({"cron": "*/307445734561825860 * * * *"}),
+        json!({"maxIntervalMs": u64::MAX}),
+        json!({"minIntervalMs": u64::MAX}),
+    ] {
+        let body = json!({"targets": target, "schedule": schedule});
+        let (st, v) = call(&api, "POST", "/v2/monitor", Some(body)).await;
+        assert_eq!(st, StatusCode::BAD_REQUEST, "{schedule}: {v}");
+    }
+    let body = json!({"targets": [{
+        "type": "scrape", "urls": [SEED],
+        "scrapeOptions": {"formats": [{"type": "extract", "schema": "x"}]},
+    }]});
+    let (st, v) = call(&api, "POST", "/v2/monitor", Some(body)).await;
+    assert_eq!(st, StatusCode::BAD_REQUEST, "{v}");
+}
+
 /// 404 只报一次 removed；之后还是 404 就是 same，不重复通知；回来了报 new。
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_gone_page_is_reported_once() {

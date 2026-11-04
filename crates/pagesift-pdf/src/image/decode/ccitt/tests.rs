@@ -106,3 +106,35 @@ fn rejects_garbage_and_bombs() {
     // 声明 10 万 × 10 万像素：分配之前就拒绝
     assert!(decode(&[0x80], &params(-1, 100_000, 100_000, false), MAX).is_err());
 }
+
+/// 一维行里连续的 0 游程不推进位置：变化元素有上限，不能跟着码流无限增长。
+#[test]
+fn zero_runs_in_a_1d_row_are_bounded() {
+    // [协议] 白 0 游程 00110101、黑 0 游程 0000110111（T.4 表 2）
+    let mut bits = String::new();
+    for _ in 0..64 {
+        bits.push_str("00110101");
+        bits.push_str("0000110111");
+    }
+    let bytes: Vec<u8> = bits
+        .as_bytes()
+        .chunks(8)
+        .map(|c| {
+            c.iter()
+                .enumerate()
+                .fold(0u8, |a, (i, &b)| a | ((b - b'0') << (7 - i)))
+        })
+        .collect();
+    let e = decode(&bytes, &params(0, 8, 1, false), MAX).unwrap_err();
+    assert!(e.contains("变化元素过多"), "{e}");
+}
+
+/// 过了截止时间不再解新行。
+#[test]
+fn stops_at_the_deadline() {
+    let (name, w, h) = IMAGES[0];
+    let data = file(&format!("{name}-g4.ccitt"));
+    // wall-clock: 截止时间已经过了，什么机器上都一样
+    let _b = crate::budget::enter(Some(std::time::Instant::now()));
+    assert!(decode(&data, &params(-1, w, h, false), MAX).is_err());
+}

@@ -36,6 +36,14 @@ pub fn check_url(raw: &str) -> Result<(), ApiError> {
 }
 
 pub fn check_scrape_options(opts: &ScrapeOptions, engine: &dyn Engine) -> Result<(), ApiError> {
+    if opts
+        .formats
+        .iter()
+        .filter_map(|f| f.options.get("schema"))
+        .any(|schema| !schema.is_object())
+    {
+        return Err(ApiError::invalid("formats[].schema must be an object"));
+    }
     // `POST /v2/scrape` 和 MCP 的 `pagesift_scrape` 在校验前取走这个字段；走到这里的是别的入口
     if opts.keep_session {
         return Err(ApiError::invalid(

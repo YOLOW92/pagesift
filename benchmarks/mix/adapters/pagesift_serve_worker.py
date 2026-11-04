@@ -20,6 +20,7 @@ import time
 import uuid
 
 BIN = os.environ["MIX_PAGESIFT_BIN"]
+FAST = "fast" in sys.argv[2:]  # 和不限速、不渲染的工具同条件比：--no-politeness，engine http
 MODE = sys.argv[1]
 ENV = {**os.environ, "PAGESIFT_CONFIG": ""}  # 空值 = 不读配置文件，全用默认
 
@@ -41,6 +42,8 @@ def start_server():
     cmd = [BIN, "serve", "--host", "127.0.0.1", "--port", str(port), "--no-cache", "--data-dir", data]
     if MODE == "url":
         cmd += ["--allow-cidr", "127.0.0.1/32"]
+    if FAST:
+        cmd.append("--no-politeness")
     proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=sys.stderr, env=ENV)
     deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
@@ -66,7 +69,10 @@ def multipart(path):
 
 def request(conn, job):
     if MODE == "url":
-        body = json.dumps({"url": job["input"], "formats": ["markdown"]}).encode()
+        req = {"url": job["input"], "formats": ["markdown"]}
+        if FAST:
+            req["engine"] = "http"
+        body = json.dumps(req).encode()
         ctype, path = "application/json", "/v2/scrape"
     else:
         body, ctype = multipart(job["input"])

@@ -88,6 +88,9 @@ fn pixels(doc: &Document, s: &Source, img: &super::PdfImage, limit: usize) -> Op
     let mut data = Vec::with_capacity(w * h);
     let mut v = vec![0u8; comps];
     for y in 0..h {
+        if crate::budget::expired() {
+            return None;
+        }
         let a = (y * row_in).min(s.data.len());
         let row = &s.data[a..(a + row_in).min(s.data.len())];
         for x in 0..w {

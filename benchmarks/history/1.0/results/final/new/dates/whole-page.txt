@@ -1,0 +1,1 @@
+pagesift: 1000 pages, 0.94 ms/page

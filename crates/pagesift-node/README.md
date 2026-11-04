@@ -1,6 +1,6 @@
 # pagesift (Node.js)
 
-0.20.0: see the [release and migration guide](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/0.20.0.md). New collection/archive cores are available through Rust and CLI; this package keeps its documented scraping interface.
+1.0.0: see the [release notes](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.0.0.md).
 
 The npm package `pagesift`: pagesift's Rust engine for Node.js, built with [napi-rs](https://napi.rs).
 Prebuilt binaries, so you don't need a Rust toolchain or a headless-browser download.
@@ -155,7 +155,6 @@ Asynchronous conversion shares at most `max(1, logical CPUs - 1)` Rust worker sl
 leaving capacity for Node's event loop. `convertMany` validates and copies all inputs before starting
 CPU workers, so parser work does not compete with the main thread while it copies strings.
 Large string batches still copy synchronously; use UTF-8 buffers or smaller batches when needed.
-The timing figures above predate this 0.20.0 scheduling change; rerun them on your deployment hardware.
 
 ## Platforms
 

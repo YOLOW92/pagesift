@@ -1,30 +1,67 @@
 # Architecture
 
-The product core and all new 0.20.0 modules are Rust. Python and Node embed that engine; benchmark drivers use their existing Python/Node environments. Optional browser rendering is separate from persistent interaction or autonomous Agent workflows.
-
-![Engine overview](assets/overview.svg)
+The product is one Rust binary. Python and Node embed the same engine. A browser for JavaScript pages, an NVIDIA GPU
+for OCR and a model for `/v2/agent` are optional and found at run time.
 
 ## Request pipeline
 
 ```mermaid
 flowchart TD
-    CLI[CLI / Rust caller] --> Engine[pagesift engine]
-    HTTP[Firecrawl-compatible HTTP API] --> Engine
-    Bindings[Native Python / Node + MCP] --> Engine
-    Engine --> Policy[Deadline / origin policy / robots / rate limits]
-    Policy --> Net[pagesift-net: HTTP and explicit Cookie sessions]
-    Net --> Decide{Rendering needed?}
-    Decide -->|No| DOM[pagesift-html: HTML5 DOM]
-    Decide -->|Yes| CDP[pagesift-cdp: optional browser pool]
+    CLI[CLI / Rust caller] --> Engine[pagesift-engine]
+    HTTP[Firecrawl and Jina HTTP API] --> Engine
+    Bindings[Python / Node / MCP] --> Engine
+    Engine --> Hooks[pagesift-hooks: rules and hooks]
+    Hooks --> Policy[pagesift-policy: robots, rate limits, backoff]
+    Policy --> Net[pagesift-net: HTTP, SSRF guards, optional TLS fingerprint]
+    Net --> Plan{pagesift-plan: render?}
+    Plan -->|No| DOM[pagesift-html: arena DOM]
+    Plan -->|Yes| CDP[pagesift-cdp: browser pool]
     CDP --> DOM
-    DOM --> Content[pagesift-content: article / Markdown / metadata / links]
-    DOM --> Extract[pagesift-extract: identity / fuzzy / forms / indicators]
-    Content --> Result[Document / API response]
-    Extract --> Result
-    Engine --> Store[pagesift-store: cache / durable records]
+    Net -->|PDF| PDF[pagesift-pdf]
+    Net -->|Office, EPUB, CSV| Office[pagesift-office]
+    PDF -->|scanned page| OCR[pagesift-ocr, pagesift-infer, pagesift-gpu]
+    DOM --> Content[pagesift-content: main content, Markdown, metadata]
+    DOM --> Extract[pagesift-extract: selectors, relocation, chunking]
+    PDF --> Sink[pagesift-sink: outputs and cache format]
+    Office --> Sink
+    OCR --> Sink
+    Content --> Sink
+    Extract --> Sink
+    Engine --> Store[pagesift-store: cache, selector memory, records]
 ```
 
-The HTTP layer validates options before execution. Fuzzy similarity is an optional candidate mechanism: it does not override business identity. External module discovery is bounded, same-origin and opt-in, with normal crawl scope and robots checks applied to discovered URLs. New core operations are exposed through the Rust/CLI surfaces described in their own guides; the diagram does not promise every operation in every binding.
+The HTTP layer validates options before execution. `"explain": true` (`scrape --explain`) writes every render decision
+to `metadata.pagesift.plan.steps`.
+
+## Crates
+
+| Area | Crates |
+|---|---|
+| Entry points | `pagesift` (CLI and library), `pagesift-api` (HTTP), `pagesift-mcp`, `pagesift-py`, `pagesift-node` |
+| Engine | `pagesift-engine`, `pagesift-plan`, `pagesift-hooks`, `pagesift-llm`, `pagesift-search` |
+| Network | `pagesift-net`, `pagesift-policy`, `pagesift-rustls`, `pagesift-cdp`, `pagesift-media` |
+| Content | `pagesift-html`, `pagesift-content`, `pagesift-extract`, `pagesift-diff`, `pagesift-frontier` |
+| Documents | `pagesift-pdf`, `pagesift-office`, `pagesift-ocr`, `pagesift-infer`, `pagesift-gpu` |
+| Runtime | `pagesift-flow` (workers and admission), `pagesift-stat` (online statistics), `pagesift-sys`, `pagesift-store`, `pagesift-sink`, `pagesift-cluster` |
+
+## Execution
+
+CPU work runs on one resident worker per core, grouped by NUMA node, stealing inside the node first. Admission is one
+path for CPU, memory and browser tabs, and capacity is sized from the cgroup limit and measured browser memory.
+
+## Measured values
+
+Most limits start from a safe default and move only when the evidence is statistically significant (δ = 0.05). Global
+concurrency follows a Universal Scalability Law fit, per-host concurrency a latency gradient, stage timeouts
+Kaplan–Meier survival, retries per-class success rates. Whether to render is learned per path family by Thompson
+sampling. User settings, safety limits and protocol values stay hard limits.
+[Every replaced value](history/0.86_fixed_values.md)
+
+## Several servers
+
+`serve --role gateway`, `worker` and `standby` run from the same binary. Sites are assigned to workers by rendezvous
+hashing, the standby takes over through leases with fencing, and jobs and webhooks resume after a restart.
+Browser sessions (`/interact`) are not available through the gateway.
 
 ## Incremental delivery
 

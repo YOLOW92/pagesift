@@ -1,0 +1,5 @@
+baseline	134/134	1.000
+old_scans	117/526	0.222
+old_scans_math	104/458	0.227
+总分（各类平均，含 baseline）	0.483
+去掉 baseline	0.225

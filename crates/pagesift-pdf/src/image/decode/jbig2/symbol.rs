@@ -141,7 +141,13 @@ pub(super) fn dictionary(
         let (gb, gr) = src.into_contexts();
         (ex, gb, gr)
     };
-    let retained = h.ctx_retained.then_some(Retained { gb, gr });
+    // 保留的上下文一直存到解码结束：空字典段只有几十字节，却能留下上百 KB
+    let retained = if h.ctx_retained {
+        bitmap::charge(size_of_val(gb.as_slice()) + size_of_val(gr.as_slice()))?;
+        Some(Retained { gb, gr })
+    } else {
+        None
+    };
     Ok((exported, retained))
 }
 
@@ -295,6 +301,8 @@ fn export(
             .filter(|&e| e <= total)
             .ok_or("导出标志游程超出了符号总数")?;
         if flag {
+            // 导出结果存到解码结束，引用来的符号也算：指针不走 `Bitmap::new`
+            bitmap::charge((end - i).saturating_mul(size_of::<Rc<Bitmap>>()))?;
             let n = input.len();
             out.extend((i..end).map(|k| {
                 if k < n {

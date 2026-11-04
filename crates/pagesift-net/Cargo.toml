@@ -16,8 +16,8 @@ flate2 = "1.1.10"
 http-body-util = "0.1.5"
 hyper = { version = "1.12.0", features = ["client", "http1", "http2"] }
 hyper-util = { version = "0.1.21", features = ["tokio"] }
-pagesift-rustls = { version = "0.91.1", path = "../pagesift-rustls" }
-pagesift-stat = { version = "0.91.1", path = "../pagesift-stat" }
+pagesift-rustls = { version = "1.0.0", path = "../pagesift-rustls" }
+pagesift-stat = { version = "1.0.0", path = "../pagesift-stat" }
 quick-xml = "0.42.0"
 rustls-native-certs = "0.8.5"
 tokio-rustls = { version = "0.26.6", default-features = false, features = ["ring", "tls12", "logging"] }

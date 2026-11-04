@@ -1,8 +1,11 @@
 //! 下载模型：从上游的锁定版本下载，边下边校验大小和 SHA-256，校验过才放到最终位置。走
 //! `pagesift-net`，遵守代理等网络设置。权重不随本仓库分发。
 
+use std::collections::HashMap;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
@@ -14,6 +17,25 @@ use pagesift_ocr::models::{File, Hasher, Model};
 const MIN_SPEED: u64 = 64 << 10;
 /// [策略] 小文件的时限下限
 const MIN_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// 同一进程里每个模型目录一把锁：一个进程可以有好几个引擎（Python、Node 各建一个 Scraper）。
+fn model_lock(dir: &Path) -> Arc<tokio::sync::Mutex<()>> {
+    static LOCKS: OnceLock<Mutex<HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>>> = OnceLock::new();
+    LOCKS
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .entry(dir.to_owned())
+        .or_default()
+        .clone()
+}
+
+/// 临时文件的路径：进程号区分同时下载的进程，计数区分进程内的每次下载。
+fn part_path(dir: &Path, name: &str) -> PathBuf {
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let n = NEXT.fetch_add(1, Ordering::Relaxed);
+    dir.join(format!("{name}.part.{}.{n}", std::process::id()))
+}
 
 async fn fetch_file(fetcher: &Fetcher, model: &Model, file: &File, dir: &Path) -> Result<()> {
     let url = model.url(file);
@@ -27,8 +49,8 @@ async fn fetch_file(fetcher: &Fetcher, model: &Model, file: &File, dir: &Path) -
     if body.status != 200 {
         bail!("downloading {url}: HTTP {}", body.status);
     }
-    // 进程号区分同时下载的进程；校验过才改名，别的进程只会看到完整的文件
-    let part = dir.join(format!("{}.part.{}", file.name, std::process::id()));
+    // 临时名各不相同，校验过才改名，别人只会看到完整的文件
+    let part = part_path(dir, file.name);
     let result = async {
         let mut out =
             std::fs::File::create(&part).with_context(|| format!("creating {}", part.display()))?;
@@ -67,6 +89,9 @@ pub async fn fetch(
     let dir = model.dir(root);
     std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
     let fetcher = Fetcher::new(config.clone())?;
+    // 持锁下载整个模型；等到锁时别人可能已经下好了，所以持锁之后才看文件在不在
+    let lock = model_lock(&dir);
+    let _guard = lock.lock().await;
     for file in model.files {
         let have = std::fs::metadata(dir.join(file.name)).is_ok_and(|m| m.len() == file.size);
         if !have {
@@ -97,4 +122,23 @@ pub(crate) fn fetch_blocking(
         .join()
         .unwrap_or_else(|_| Err("the model download thread panicked".into()))
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 同一进程里并发下载同一个文件时，临时名不能相同（否则互相截断，写出大小对、内容坏的权重）。
+    #[test]
+    fn part_paths_never_repeat() {
+        let dir = Path::new("/models");
+        assert_ne!(part_path(dir, "a"), part_path(dir, "a"));
+    }
+
+    #[test]
+    fn one_lock_per_model_directory() {
+        let (a, b) = (Path::new("/models/a"), Path::new("/models/b"));
+        assert!(Arc::ptr_eq(&model_lock(a), &model_lock(a)));
+        assert!(!Arc::ptr_eq(&model_lock(a), &model_lock(b)));
+    }
 }

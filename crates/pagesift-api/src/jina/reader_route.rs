@@ -134,7 +134,7 @@ async fn process_jina_scrape(
                 // 纯文本响应没有放警告的字段：写进响应头（`x-pagesift-warnings`，多条用 `; ` 隔开）
                 if let Some(v) = (!warnings.is_empty())
                     .then(|| warnings.join("; "))
-                    .and_then(|w| axum::http::HeaderValue::from_str(&w).ok())
+                    .and_then(|w| axum::http::HeaderValue::from_str(&header_safe(&w)).ok())
                 {
                     resp = resp.header("x-pagesift-warnings", v);
                 }
@@ -243,4 +243,17 @@ fn stream_scrape_with(
         }
     });
     sse_response(body)
+}
+
+/// 响应头只能放可见 ASCII：其余字节（比如警告里的中文文件名）写成百分号编码，不让整个头丢掉。
+fn header_safe(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        if (b' '..=b'~').contains(&b) && b != b'%' {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
 }

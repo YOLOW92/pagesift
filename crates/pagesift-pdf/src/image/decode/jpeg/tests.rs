@@ -113,3 +113,56 @@ fn rejects_oversized_frame() {
     assert!(super::decode(&jpg, None, need).is_ok());
     assert!(super::decode(&jpg, None, need - 1).is_err());
 }
+
+/// 帧头：宽高 8×8，`n` 个分量（各 1×1 采样，量化表 0）。
+fn sof(marker: u8, n: u8) -> Vec<u8> {
+    let mut b = vec![0xFF, marker];
+    b.extend_from_slice(&(8 + 3 * u16::from(n)).to_be_bytes());
+    b.extend_from_slice(&[8, 0, 8, 0, 8, n]);
+    for id in 1..=n {
+        b.extend_from_slice(&[id, 0x11, 0]);
+    }
+    b
+}
+
+/// 超过 4 个分量的帧直接拒绝：输出的像素按不上 w×h，后面按下标取样会越界。
+#[test]
+fn rejects_more_than_four_components() {
+    let mut f = vec![0xFF, 0xD8];
+    f.extend(sof(0xC0, 5));
+    let e = super::parse(&f, MAX).err().unwrap();
+    assert!(e.contains("5 个分量"), "{e}");
+}
+
+/// 扫描次数有上限：一个 DC 细化扫描只要 10 字节，每次却要走完所有块。
+#[test]
+fn limits_the_number_of_scans() {
+    let build = |scans: usize| {
+        let mut f = vec![0xFF, 0xD8];
+        f.extend(sof(0xC2, 1));
+        for _ in 0..scans {
+            // SOS：1 个分量、Ss = Se = 0、Ah = 1（DC 细化，不用霍夫曼表），无熵编码数据
+            f.extend_from_slice(&[0xFF, 0xDA, 0, 8, 1, 1, 0, 0, 0, 0x10]);
+        }
+        f.extend_from_slice(&[0xFF, 0xD9]);
+        f
+    };
+    assert!(super::parse(&build(super::MAX_SCANS), MAX).is_ok());
+    let e = super::parse(&build(super::MAX_SCANS + 1), MAX)
+        .err()
+        .unwrap();
+    assert!(e.contains("扫描超过"), "{e}");
+}
+
+/// 过了截止时间，扫描不再走下去。
+#[test]
+fn stops_at_the_deadline() {
+    let dir = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/image/decode/jpeg/testdata/"
+    );
+    let jpg = std::fs::read(format!("{dir}gray.jpg")).unwrap();
+    // wall-clock: 截止时间已经过了，什么机器上都一样
+    let _b = crate::budget::enter(Some(std::time::Instant::now()));
+    assert!(super::parse(&jpg, MAX).is_err());
+}

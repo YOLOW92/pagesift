@@ -45,6 +45,10 @@ pub(crate) fn decode_counted(
     let mut cur: Vec<usize> = Vec::with_capacity(w + 2);
     let mut done = 0usize;
     while rows == 0 || done < rows {
+        // 到时限了就按“中途出错”处理：保留已解出的行
+        if crate::budget::expired() {
+            break;
+        }
         let two_d = match row_start(&mut bits, p) {
             Some(d) => d,
             None => break,
@@ -163,6 +167,10 @@ fn row_1d(bits: &mut Bits, t: &Tables, w: usize, cur: &mut Vec<usize>) -> Result
         pos = (pos + run(bits, t, white)?).min(w);
         cur.push(pos);
         white = !white;
+        // [推导] 同二维行：一行至多 w + 1 个变化元素；连续的 0 游程不推进位置，再多说明码流在原地打转
+        if cur.len() > w + 2 {
+            return Err("变化元素过多".into());
+        }
     }
     Ok(())
 }

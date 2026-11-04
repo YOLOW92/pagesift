@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 624" width="860" height="624" role="img" aria-label="Quality against the next best tool" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+<title>Quality against the next best tool</title>
+<text x="0" y="22" fill="#f0efec" font-size="17" font-weight="600" text-anchor="start">Quality against the next best tool</text>
+<text x="0" y="44" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start">Scores from 0 to 1. Higher is better.</text>
+<path d="M0 56h10.0a4 4 0 0 1 4 4v2a4 4 0 0 1 -4 4h-10.0z" fill="#3987e5"/>
+<text x="20" y="66" fill="#c3c2b7" font-size="12" font-weight="400" text-anchor="start">PageSift</text>
+<path d="M90 56h10.0a4 4 0 0 1 4 4v2a4 4 0 0 1 -4 4h-10.0z" fill="#d95926"/>
+<text x="110" y="66" fill="#c3c2b7" font-size="12" font-weight="400" text-anchor="start">Next best tool</text>
+<text x="0" y="101" fill="#f0efec" font-size="13" font-weight="600" text-anchor="start">RAG query filter</text>
+<text x="0" y="118" fill="#c3c2b7" font-size="12" font-weight="400" text-anchor="start">472 questions, default settings</text>
+<path d="M300 90h284.0a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-284.0z" fill="#3987e5"/>
+<text x="595.99" y="103" fill="#f0efec" font-size="13" font-weight="600" text-anchor="start">0.929</text>
+<path d="M300 108h204.6a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-204.6z" fill="#d95926"/>
+<text x="516.63" y="121" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start">0.673 Crawl4AI BM25</text>
+<text x="0" y="155" fill="#f0efec" font-size="13" font-weight="600" text-anchor="start">Wild crawl</text>
+<text x="0" y="172" fill="#c3c2b7" font-size="12" font-weight="400" text-anchor="start">polite, 40 sites × 60 pages, coverage</text>
+<path d="M300 144h225.3a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-225.3z" fill="#3987e5"/>
+<text x="537.27073" y="157" fill="#f0efec" font-size="13" font-weight="600" text-anchor="start">0.740</text>
+<path d="M300 162h160.0a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-160.0z" fill="#d95926"/>
+<text x="471.99" y="175" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start">0.529 Crawl4AI (HTTP)</text>
+<text x="0" y="209" fill="#f0efec" font-size="13" font-weight="600" text-anchor="start">Scanned PDFs</text>
+<text x="0" y="226" fill="#c3c2b7" font-size="12" font-weight="400" text-anchor="start">B5 134 pages, olmOCR score without baseline, OCR on</text>
+<path d="M300 198h93.3a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-93.3z" fill="#3987e5"/>
+<text x="405.34000000000003" y="211" fill="#f0efec" font-size="13" font-weight="600" text-anchor="start">0.314</text>
+<path d="M300 216h34.8a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-34.8z" fill="#d95926"/>
+<text x="346.75" y="229" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start">0.125 Docling (GPU)</text>
+<text x="0" y="263" fill="#f0efec" font-size="13" font-weight="600" text-anchor="start">Wild crawl</text>
+<text x="0" y="280" fill="#c3c2b7" font-size="12" font-weight="400" text-anchor="start">fast, 40 sites × 60 pages, coverage</text>
+<path d="M300 252h208.9a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-208.9z" fill="#3987e5"/>
+<text x="520.86677" y="265" fill="#f0efec" font-size="13" font-weight="600" text-anchor="start">0.687</text>
+<path d="M300 270h150.7a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-150.7z" fill="#d95926"/>
+<text x="462.69" y="283" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start">0.499 Crawl4AI (HTTP)</text>
+<text x="0" y="317" fill="#f0efec" font-size="13" font-weight="600" text-anchor="start">Office / e-books</text>
+<text x="0" y="334" fill="#c3c2b7" font-size="12" font-weight="400" text-anchor="start">B4 hold-out 39 files, structure kept</text>
+<path d="M300 306h302.2a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-302.2z" fill="#3987e5"/>
+<text x="614.23102" y="319" fill="#f0efec" font-size="13" font-weight="600" text-anchor="start">0.988</text>
+<path d="M300 324h249.0a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-249.0z" fill="#d95926"/>
+<text x="560.96" y="337" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start">0.816 Kreuzberg</text>
+<text x="0" y="371" fill="#f0efec" font-size="13" font-weight="600" text-anchor="start">PDF → Markdown</text>
+<text x="0" y="388" fill="#c3c2b7" font-size="12" font-weight="400" text-anchor="start">olmOCR-bench 1,269 pages</text>
+<path d="M300 360h195.8a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-195.8z" fill="#3987e5"/>
+<text x="507.8353" y="373" fill="#f0efec" font-size="13" font-weight="600" text-anchor="start">0.645</text>
+<path d="M300 378h146.0a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-146.0z" fill="#d95926"/>
+<text x="458.03999999999996" y="391" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start">0.484 pymupdf4llm</text>
+<text x="0" y="425" fill="#f0efec" font-size="13" font-weight="600" text-anchor="start">Scanned PDFs</text>
+<text x="0" y="442" fill="#c3c2b7" font-size="12" font-weight="400" text-anchor="start">B5 134 pages, olmOCR score with baseline, OCR on</text>
+<path d="M300 414h164.3a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-164.3z" fill="#3987e5"/>
+<text x="476.33000000000004" y="427" fill="#f0efec" font-size="13" font-weight="600" text-anchor="start">0.543</text>
+<path d="M300 432h123.1a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-123.1z" fill="#d95926"/>
+<text x="435.1" y="445" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start">0.410 Docling (GPU)</text>
+<text x="0" y="479" fill="#f0efec" font-size="13" font-weight="600" text-anchor="start">HTML → Markdown</text>
+<text x="0" y="496" fill="#c3c2b7" font-size="12" font-weight="400" text-anchor="start">600 generated documents, fidelity</text>
+<path d="M300 468h306.0a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-306.0z" fill="#3987e5"/>
+<text x="618.0" y="481" fill="#f0efec" font-size="13" font-weight="600" text-anchor="start">1.000</text>
+<path d="M300 486h286.2a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-286.2z" fill="#d95926"/>
+<text x="598.1600000000001" y="499" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start">0.936 markdownify</text>
+<text x="0" y="533" fill="#f0efec" font-size="13" font-weight="600" text-anchor="start">Hard PDFs</text>
+<text x="0" y="550" fill="#c3c2b7" font-size="12" font-weight="400" text-anchor="start">B3 100 pdf.js files, completion</text>
+<path d="M300 522h219.2a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-219.2z" fill="#3987e5"/>
+<text x="531.2" y="535" fill="#f0efec" font-size="13" font-weight="600" text-anchor="start">0.720</text>
+<path d="M300 540h206.8a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-206.8z" fill="#d95926"/>
+<text x="518.8" y="553" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start">0.680 pymupdf4llm</text>
+<text x="0" y="587" fill="#f0efec" font-size="13" font-weight="600" text-anchor="start">Main content</text>
+<text x="0" y="604" fill="#c3c2b7" font-size="12" font-weight="400" text-anchor="start">WCXB test split, 150 pages</text>
+<path d="M300 576h264.4a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-264.4z" fill="#3987e5"/>
+<text x="576.36266" y="589" fill="#f0efec" font-size="13" font-weight="600" text-anchor="start">0.866</text>
+<path d="M300 594h258.9a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-258.9z" fill="#d95926"/>
+<text x="570.88" y="607" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start">0.848 Readability + Turndown</text>
+</svg>

@@ -67,7 +67,6 @@ impl Default for DiffOptions {
                 NoiseCategory::Price,
                 NoiseCategory::Count,
                 NoiseCategory::Number,
-                NoiseCategory::Advertisement,
             ],
             moved_is_noise: false,
             similarity_threshold: 0.5,

@@ -27,6 +27,15 @@ pub(super) fn charge(bytes: usize) -> Result<(), String> {
     })
 }
 
+/// 过了本次处理的截止时间就报错：分配上限管不住时间（一个半色调区域能把一张大图样合成上亿次），
+/// 解码循环按段、行查这里。
+pub(super) fn check_time() -> Result<(), String> {
+    if crate::budget::expired() {
+        return Err("解码超过了时限".into());
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct Bitmap {
     pub(super) w: usize,

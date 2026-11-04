@@ -104,14 +104,13 @@ fn 退回_cpu_也能出结果并报告原因() {
         }
     }
     let e = Engine::load_with(&det, &rec, gpu).unwrap();
-    let lines = e.run(&img).unwrap();
-    assert_eq!(texts(&lines), texts(&cpu_lines));
-    let s = e.device_status();
+    let r = e.run_until(&img, None).unwrap();
+    assert_eq!(texts(&r.lines), texts(&cpu_lines));
     eprintln!(
         "显存占满后：{:?}，退回原因：{:?}",
         e.gpu_stats(),
-        s.fallback
+        r.fallback
     );
-    assert!(s.fell_back(), "显存占满却没有报告退回");
+    assert!(r.fallback.is_some(), "显存占满却没有报告退回");
     drop(held);
 }

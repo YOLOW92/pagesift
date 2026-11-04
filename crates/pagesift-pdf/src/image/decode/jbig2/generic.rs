@@ -159,6 +159,7 @@ pub(super) fn decode(mq: &mut Mq, cx: &mut [Cx], p: &Params) -> Result<Bitmap, S
     let mut out = Bitmap::new(p.w, p.h, 0)?;
     let mut ltp = 0u8;
     for y in 0..p.h {
+        bitmap::check_time()?;
         if p.tpgdon {
             ltp ^= mq.decode(&mut cx[SLTP[t]]);
             if ltp == 1 {

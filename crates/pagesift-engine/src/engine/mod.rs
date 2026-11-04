@@ -40,6 +40,7 @@ mod render;
 mod render_stats;
 mod scraper;
 mod speculate;
+pub use autoschema::ActionSecret;
 pub use hooked::ScraperBuilder;
 pub use interact::InteractLimits;
 mod similar;
@@ -128,7 +129,7 @@ pub struct ScraperConfig {
     /// 扩展点（`pagesift_hooks`）：代码注册的钩子和 `[[rules]]` 编译出的规则。空时不经过任何钩子。
     pub hooks: pagesift_hooks::Hooks,
     /// `[secrets]`：act 动作里 `{{secret:NAME}}` 在本地替换成的值（不经过模型）。
-    pub secrets: std::collections::BTreeMap<String, String>,
+    pub secrets: std::collections::BTreeMap<String, ActionSecret>,
     /// 扫描页 OCR（`[ocr] enabled`）；不设时扫描页只有说明，并报 `scanned_pages_without_ocr`。
     pub ocr: Option<Arc<dyn pagesift_pdf::PageOcr>>,
     /// `/interact` 保留会话的时长上限（默认 Firecrawl 文档的值）。
@@ -190,7 +191,7 @@ pub struct Scraper {
     render_stats: render_stats::RenderStats,
     audit: Option<Arc<crate::audit::Audit>>,
     hooks: pagesift_hooks::Hooks,
-    secrets: std::collections::BTreeMap<String, String>,
+    secrets: std::collections::BTreeMap<String, ActionSecret>,
     /// 多服务器网关：爬取里的页面交给它（工人执行，见 `pagesift` 的 `cluster` 模块）。单主机不设，路径不变。
     pages: std::sync::OnceLock<Arc<dyn crate::PageRunner>>,
     /// `/interact` 的会话表。

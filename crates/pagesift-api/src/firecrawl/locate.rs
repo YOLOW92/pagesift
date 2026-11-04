@@ -24,6 +24,12 @@ pub async fn observe(
     if req.instruction.trim().is_empty() {
         return Err(ApiError::invalid("`instruction` must not be empty"));
     }
+    if req.instruction.chars().count() > crate::types::interact::MAX_PROMPT_CHARS {
+        return Err(ApiError::invalid(format!(
+            "`instruction` must be at most {} characters",
+            crate::types::interact::MAX_PROMPT_CHARS
+        )));
+    }
     crate::validate::check_url(&req.url)?;
     if let Some(Extension(c)) = &caller {
         s.limiter.check_quota(c)?;

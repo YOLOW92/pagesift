@@ -7,12 +7,13 @@
 //!   某行补边浪费的时间累计超过 `a` 就另起一批。
 //! - **等不等下一批**：见 [`should_wait`]，用排队论的影子价格算。
 
-use std::sync::mpsc::{Sender, channel};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{RecvTimeoutError, Sender, channel};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-use pagesift_gpu::{Ctx, Owner, SharedWorker, Worker, is_oom};
+use pagesift_gpu::{Ctx, Owner, SharedWorker, WaitError, Worker, is_oom};
 use pagesift_infer::Tensor;
 use pagesift_infer::exec::Exec;
 use pagesift_stat::decide::shadow_price;
@@ -23,6 +24,34 @@ use crate::rec::Rec;
 
 /// [策略] 利用率和到达率的指数平滑系数：大约记住最近 10 个批次
 const EWMA: f64 = 0.1;
+
+/// [策略] 这么久等不到 GPU 的任何回复就当它卡死了：一批至多几秒，满载排队时也有几十倍余量
+const GPU_STALL: Duration = Duration::from_secs(300);
+
+/// 等 GPU 没等到结果的原因。
+pub(crate) enum GpuWait {
+    /// GPU 报了错。
+    Failed(String),
+    /// GPU 卡死了（[`GPU_STALL`]）。
+    Stalled,
+    /// 请求的截止时间到了；不是 GPU 的问题，GPU 上别的页还在正常跑。
+    Deadline,
+}
+
+/// 这次最多等多久，不超过请求的截止时间。
+fn wait_limit(deadline: Option<Instant>) -> Duration {
+    deadline.map_or(GPU_STALL, |d| {
+        GPU_STALL.min(d.saturating_duration_since(Instant::now()))
+    })
+}
+
+fn timed_out(deadline: Option<Instant>) -> GpuWait {
+    if deadline.is_some_and(|d| Instant::now() >= d) {
+        GpuWait::Deadline
+    } else {
+        GpuWait::Stalled
+    }
+}
 
 /// CTC 摘要：每步的（最大类，其概率）。
 pub(crate) type Digest = Vec<(u32, f32)>;
@@ -153,6 +182,8 @@ pub(crate) struct GpuRunner {
     det: Arc<Det>,
     shared: Arc<Shared>,
     thread: Option<JoinHandle<()>>,
+    /// GPU 卡死过：丢掉时不能再等工人线程退出。
+    stalled: AtomicBool,
 }
 
 /// 页面在 `run` 里时持有。
@@ -193,6 +224,7 @@ impl GpuRunner {
             det,
             shared,
             thread: Some(thread),
+            stalled: AtomicBool::new(false),
         })
     }
 
@@ -215,22 +247,47 @@ impl GpuRunner {
         s
     }
 
-    /// 检测网络：`[3, H, W]` → 概率图 (数据, 宽, 高)。
-    pub fn prob_map(&self, x: &Tensor) -> Result<(Vec<f32>, usize, usize), String> {
+    /// 检测网络：`[3, H, W]` → 概率图 (数据, 宽, 高)。输入交给工人：等不到结果时调用方可以走开。
+    pub fn prob_map(
+        &self,
+        x: Tensor,
+        deadline: Option<Instant>,
+    ) -> Result<(Vec<f32>, usize, usize), GpuWait> {
         let det = self.det.clone();
-        self.worker.call(move |ctx: &Ctx<'_>| {
-            let owner: Owner = det.clone();
-            let e = ctx.exec(1, owner);
-            let dx = e.upload(x);
-            let prob = det.prob_on(&e, &dx)?;
-            let shape = e.shape(&prob);
-            let data = e.download(&prob)?;
-            Ok((data, shape[2], shape[1]))
-        })?
+        let done = self.worker.call_timeout(
+            move |ctx: &Ctx<'_>| -> Result<(Vec<f32>, usize, usize), String> {
+                let owner: Owner = det.clone();
+                let e = ctx.exec(1, owner);
+                let dx = e.upload(&x);
+                let prob = det.prob_on(&e, &dx)?;
+                let shape = e.shape(&prob);
+                let data = e.download(&prob)?;
+                Ok((data, shape[2], shape[1]))
+            },
+            wait_limit(deadline),
+        );
+        match done {
+            Ok(r) => r.map_err(GpuWait::Failed),
+            Err(WaitError::Failed(e)) => Err(GpuWait::Failed(e)),
+            Err(WaitError::TimedOut) => Err(self.on_timeout(deadline)),
+        }
+    }
+
+    fn on_timeout(&self, deadline: Option<Instant>) -> GpuWait {
+        let why = timed_out(deadline);
+        if matches!(why, GpuWait::Stalled) {
+            self.stalled.store(true, Ordering::Relaxed);
+        }
+        why
     }
 
     /// 识别网络：一组 `[3, 48, W]`，返回各行的摘要，顺序同输入。出错的行各自带原因。
-    pub fn recognize_many(&self, xs: Vec<Tensor>) -> Vec<Result<Digest, String>> {
+    /// 迟迟等不到回复时放弃整页（还在队列里的行照常算完，结果没人要）。
+    pub fn recognize_many(
+        &self,
+        xs: Vec<Tensor>,
+        deadline: Option<Instant>,
+    ) -> Result<Vec<Result<Digest, String>>, GpuWait> {
         let n = xs.len();
         let (tx, rx) = channel();
         {
@@ -256,12 +313,23 @@ impl GpuRunner {
         let mut out: Vec<Result<Digest, String>> = (0..n)
             .map(|_| Err("the OCR batch thread exited".to_owned()))
             .collect();
-        for (i, r) in rx {
-            out[i] = r;
+        let mut gave_up = None;
+        loop {
+            match rx.recv_timeout(wait_limit(deadline)) {
+                Ok((i, r)) => out[i] = r,
+                Err(RecvTimeoutError::Disconnected) => break,
+                Err(RecvTimeoutError::Timeout) => {
+                    gave_up = Some(self.on_timeout(deadline));
+                    break;
+                }
+            }
         }
         self.shared.lock().pages_waiting -= 1;
         self.shared.wake.notify_all();
-        out
+        match gave_up {
+            Some(why) => Err(why),
+            None => Ok(out),
+        }
     }
 }
 
@@ -269,6 +337,12 @@ impl Drop for GpuRunner {
     fn drop(&mut self) {
         self.shared.lock().stop = true;
         self.shared.wake.notify_all();
+        // 卡死的 GPU 上线程永远等不回来：不等，也不让工人句柄在这里等（泄漏到进程结束）
+        if self.stalled.load(Ordering::Relaxed) {
+            std::mem::forget(self.worker.clone());
+            self.thread.take();
+            return;
+        }
         if let Some(t) = self.thread.take() {
             // 线程 panic 也不再往外传：Drop 里没有地方报
             let _ = t.join();

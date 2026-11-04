@@ -1,0 +1,9 @@
+run	/home/yolow92/mix-tools/runs-100/final/old
+archive	/home/yolow92/pagesift/benchmarks/history/1.0/results/final/old
+started	2026-11-04T09:14:17+09:00
+pagesift	pagesift 0.91.1
+binary	/home/yolow92/mix-tools/bin/old/pagesift
+binary_sha256	aa0843e3dd48a4a94a0c4a48a021f5abb9b2ddb6b012df7d61f314deba9230f4
+git_head	a05ba38b6148be1269c4682ec76cd59bda69e8d2
+git_status_begin
+finished	2026-11-04T09:15:25+09:00

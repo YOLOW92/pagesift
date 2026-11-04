@@ -69,6 +69,11 @@ fn filter_to_cap(markdown: &str, query: &str, cap: usize) -> String {
     run((cap * pagesift_content::estimate_tokens(&first) / tokens).max(1))
 }
 
+/// 比较网址时不看结尾的 `/`。
+fn known_key(url: &str) -> &str {
+    url.trim_end_matches('/')
+}
+
 impl Run<'_> {
     /// 这个网址能不能打开：协议合法、`strictConstrainToURLs`、`allowedHosts`。
     pub(super) fn url_allowed(&self, url: &str) -> Result<(), String> {
@@ -98,7 +103,53 @@ impl Run<'_> {
         Ok(())
     }
 
+    /// 这个网址是不是可以打开：[`Run::url_allowed`] 加来路检查。来路不明时只放行已知主机上不带
+    /// 查询串的网址：模型常在读过的站上试 `/pricing` 这样的路径，但带着内容发给陌生主机的不行。
+    fn url_openable(&self, url: &str) -> Result<(), String> {
+        self.url_allowed(url)?;
+        let guessable = Url::parse(url).is_ok_and(|u| u.query().is_none());
+        if self.untrusted
+            && !self.known.contains(known_key(url))
+            && !(guessable && self.host_known(url))
+        {
+            return Err(
+                "this URL did not come from the caller, a search, a map or a page you read".into(),
+            );
+        }
+        Ok(())
+    }
+
+    /// map 从一个站开始，不要求这个网址本身出现过，站要出现过。
+    fn map_openable(&self, url: &str) -> Result<(), String> {
+        self.url_allowed(url)?;
+        if self.untrusted && !self.host_known(url) {
+            return Err(
+                "this site did not come from the caller, a search or a page you read".into(),
+            );
+        }
+        Ok(())
+    }
+
+    fn host_known(&self, url: &str) -> bool {
+        let host = |u: &str| Url::parse(u).ok()?.host_str().map(str::to_string);
+        let wanted = host(url);
+        wanted.is_some() && self.known.iter().any(|k| host(k) == wanted)
+    }
+
+    /// 抓回来的页面最后落在哪：跳到了别的主机时，那个主机也要过 `allowedHosts` 和 `strictConstrainToURLs`。
+    fn redirect_refused(&self, url: &str, doc: &Document) -> Option<String> {
+        let last = doc.metadata.url.as_deref()?;
+        let host = |u: &str| Url::parse(u).ok()?.host_str().map(str::to_string);
+        if host(last) == host(url) {
+            return None;
+        }
+        self.url_allowed(last)
+            .err()
+            .map(|why| format!("it redirected to {last}: {why}"))
+    }
+
     fn add_candidate(&mut self, url: &str, title: &str, description: &str) {
+        self.known.insert(known_key(url).to_string());
         if self.read.contains(url) || self.url_allowed(url).is_err() {
             return;
         }
@@ -123,6 +174,13 @@ impl Run<'_> {
             self.seeds.insert(u.clone());
             self.add_candidate(u, "", "given by the caller");
         }
+        // prompt 里写明的网址也是调用方给的
+        for word in self.req.prompt.split_whitespace() {
+            let u = word.trim_matches(|c: char| !c.is_alphanumeric() && c != '/');
+            if u.starts_with("http://") || u.starts_with("https://") {
+                self.known.insert(known_key(u).to_string());
+            }
+        }
     }
 
     pub(super) async fn tool_search(&mut self, query: &str, limit: Option<usize>) {
@@ -146,6 +204,7 @@ impl Run<'_> {
             }
         };
         self.usage.searches += 1;
+        self.untrusted = true;
         let mut lines = Vec::new();
         for item in &web {
             let (Some(url), title, desc) = (
@@ -173,7 +232,7 @@ impl Run<'_> {
 
     pub(super) async fn tool_map(&mut self, url: &str, search: Option<&str>) {
         let input = json!({ "url": url, "search": search });
-        if let Err(why) = self.url_allowed(url) {
+        if let Err(why) = self.map_openable(url) {
             self.last = format!("map {url} refused: {why}");
             self.record("map", input, "REFUSED", Some(why)).await;
             return;
@@ -187,6 +246,7 @@ impl Run<'_> {
         match found {
             Ok(links) => {
                 self.usage.maps += 1;
+                self.untrusted = true;
                 let n = links.len();
                 for l in links {
                     self.add_candidate(
@@ -224,9 +284,13 @@ impl Run<'_> {
             .await;
     }
 
-    /// 还能抓几页（页数上限、额度上限、调用方配额中最小的）。
+    /// 还能抓几页（页数上限、额度上限、调用方配额中最小的）。失败的也占页数上限：
+    /// 它们不扣额度，但同样发了请求，不能靠一直失败无限试下去。
     pub(super) fn pages_room(&self) -> u64 {
-        let mut room = self.budget.max_pages.saturating_sub(self.usage.pages);
+        let mut room = self
+            .budget
+            .max_pages
+            .saturating_sub(self.usage.pages + self.usage.pages_failed);
         if let Some(c) = self.budget.max_credits {
             room = room.min(c.saturating_sub(self.usage.credits()));
         }
@@ -249,7 +313,7 @@ impl Run<'_> {
                     .push_str(&format!("{u} was already read; use your notes.\n"));
                 continue;
             }
-            if let Err(why) = self.url_allowed(&u) {
+            if let Err(why) = self.url_openable(&u) {
                 self.last.push_str(&format!("{u} refused: {why}\n"));
                 self.record("scrape", json!({ "url": u }), "REFUSED", Some(why))
                     .await;
@@ -287,6 +351,11 @@ impl Run<'_> {
                 Ok(doc) => {
                     self.usage.pages += 1;
                     self.sink.charge_page().await;
+                    if let Some(why) = self.redirect_refused(url, &doc) {
+                        self.last.push_str(&format!("{url} refused: {why}\n"));
+                        self.record("scrape", input, "REFUSED", Some(why)).await;
+                        continue;
+                    }
                     self.page(url, &query, input, doc).await;
                 }
                 Err(e) => {
@@ -301,6 +370,12 @@ impl Run<'_> {
 
     /// 一页抓回来：更新停止判据（整页的相关度），存档 queryFilter 留下的部分。
     async fn page(&mut self, url: &str, query: &str, input: Value, doc: Document) {
+        self.untrusted = true;
+        self.known
+            .extend(doc.links.iter().flatten().map(|l| known_key(l).to_string()));
+        if let Some(last) = &doc.metadata.url {
+            self.known.insert(known_key(last).to_string());
+        }
         let markdown = doc.markdown.clone().unwrap_or_default();
         let parsed = Url::parse(url).ok();
         let title = doc.metadata.title.clone();
@@ -369,7 +444,7 @@ impl Run<'_> {
             self.last = format!("{url} was already extracted; use your notes.");
             return;
         }
-        if let Err(why) = self.url_allowed(url) {
+        if let Err(why) = self.url_openable(url) {
             self.last = format!("{url} refused: {why}");
             self.record("extract", input, "REFUSED", Some(why)).await;
             return;
@@ -390,6 +465,12 @@ impl Run<'_> {
                 self.usage.pages += 1;
                 self.read.insert(url.to_string());
                 self.sink.charge_page().await;
+                if let Some(why) = self.redirect_refused(url, &doc) {
+                    self.last = format!("{url} refused: {why}");
+                    self.record("extract", input, "REFUSED", Some(why)).await;
+                    return;
+                }
+                self.untrusted = true;
                 let notes = doc.metadata.pagesift.as_ref().map(|m| m.warnings.clone());
                 self.count_tool_llm_use(notes.as_deref().unwrap_or_default());
                 let items = doc.extract.clone().unwrap_or(Value::Null);

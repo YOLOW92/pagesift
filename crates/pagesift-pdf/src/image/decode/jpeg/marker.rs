@@ -96,6 +96,11 @@ pub(super) fn frame(body: &[u8], progressive: bool) -> Result<Frame, String> {
     if body.len() < 6 + 3 * n || n == 0 {
         return Err("帧头分量表被截断".into());
     }
+    // [协议] PDF 的 DCTDecode 只有 1、3、4 个分量（ISO 32000-2 §7.4.8）；2 个分量只取第 0 个当灰度。
+    // 再多没有约定的解释，输出的像素也按不上 w×h
+    if n > 4 {
+        return Err(format!("不支持 {n} 个分量"));
+    }
     let comps = (0..n)
         .map(|i| {
             // [协议] 第 i 个分量的 3 字节 Ci、Hi/Vi、Tqi，排在 6 字节固定头之后（T.81 表 B.2）

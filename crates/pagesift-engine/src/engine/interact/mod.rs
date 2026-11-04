@@ -65,15 +65,30 @@ pub(super) fn record_budget(chain: &[PoolConfig]) -> usize {
         })
         .max()
         .unwrap_or(0) as usize;
-    mb * 1024 * 1024
+    (mb * 1024 * 1024).min(MAX_RECORD_BYTES)
 }
 
-/// 把用过的秘密的值换回占位符。
+/// [策略] 记录表最多占这么多内存：每次 `/v2/scrape` 都存一条，没人用 interact 的服务也不该涨上去
+const MAX_RECORD_BYTES: usize = 16 * 1024 * 1024;
+
+/// 把用过的秘密的值换回占位符：原文、URL 编码（GET 表单把它放进查询串）、HTML 转义几种写法都换。
 fn redact(text: &str, secrets: &[(&str, &str)]) -> String {
     let mut out = text.to_string();
     for (name, value) in secrets {
-        if !value.is_empty() && out.contains(value) {
-            out = out.replace(value, &format!("{{{{secret:{name}}}}}"));
+        if value.is_empty() {
+            continue;
+        }
+        let holder = format!("{{{{secret:{name}}}}}");
+        let encoded: String = url::form_urlencoded::byte_serialize(value.as_bytes()).collect();
+        let escaped = value
+            .replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;")
+            .replace('"', "&quot;");
+        for form in [value, &encoded.as_str(), &escaped.as_str()] {
+            if out.contains(*form) {
+                out = out.replace(*form, &holder);
+            }
         }
     }
     out
@@ -86,6 +101,17 @@ fn redact_json(v: &mut Value, secrets: &[(&str, &str)]) {
         Value::Object(m) => m.values_mut().for_each(|x| redact_json(x, secrets)),
         _ => {}
     }
+}
+
+fn has_secret(action: &Value) -> bool {
+    action
+        .get("text")
+        .and_then(Value::as_str)
+        .is_some_and(|t| t.contains("{{secret:"))
+}
+
+fn is_script(action: &Value) -> bool {
+    action.get("type").and_then(Value::as_str) == Some("executeJavascript")
 }
 
 /// 文字里出现的 `{{secret:NAME}}` 的名字。
@@ -119,20 +145,18 @@ impl Scraper {
         Err(self.interact_unavailable())
     }
 
-    /// 按内存和标签名额腾出一个保留页面的位置；腾不出来时报 429。
-    async fn admit_page(&self) -> Result<(), ApiError> {
+    /// 按内存和标签名额腾出一个保留页面的位置并占住，页面登记后放开；腾不出来时报 429。
+    async fn admit_page(&self) -> Result<registry::Reserved, ApiError> {
         let pool = self.interact_pool().await?;
         let cap = self.sessions.sweep(Some(pool.session_room()), 1).await;
-        let open = self.sessions.open_count();
-        if open >= cap {
-            return Err(ApiError::new(
+        self.sessions.reserve(cap).map_err(|open| {
+            ApiError::new(
                 ErrorCode::ConcurrencyLimitExceeded,
                 format!(
                     "cannot keep another browser session: {open} are open and in use, and this machine's memory and browser tabs admit {cap}"
                 ),
-            ));
-        }
-        Ok(())
+            )
+        })
     }
 
     /// 走完整的抓取流程打开页面，不关。
@@ -165,6 +189,7 @@ impl Scraper {
         pool: Arc<BrowserPool>,
         doc: &Document,
         url: &str,
+        opts: &ScrapeOptions,
     ) -> Box<OpenPage> {
         self.sessions.start_reaper();
         let now = Instant::now();
@@ -175,6 +200,7 @@ impl Scraper {
             last_used: now,
             url: doc.metadata.url.clone().unwrap_or_else(|| url.to_string()),
             secrets: BTreeSet::new(),
+            scripted: opts.actions.iter().any(is_script),
         })
     }
 
@@ -209,9 +235,9 @@ impl Scraper {
                 "keepSession keeps a browser page and cannot be combined with engine \"http\"",
             ));
         }
-        self.admit_page().await?;
+        let _reserved = self.admit_page().await?;
         let (mut doc, page, pool) = self.open_page(url, opts, mode).await?;
-        let open = self.opened(page, pool, &doc, url);
+        let open = self.opened(page, pool, &doc, url, opts);
         let id = self
             .sessions
             .insert(None, owner, url, opts, mode, PageState::Open(open));
@@ -285,18 +311,20 @@ impl Scraper {
         if matches!(&*state, PageState::NotOpened) {
             let opts = replay_options(&record.opts, limit);
             let opening = async {
-                self.admit_page().await?;
-                self.open_page(&record.url, &opts, record.mode).await
+                let reserved = self.admit_page().await?;
+                let opened = self.open_page(&record.url, &opts, record.mode).await?;
+                Ok::<_, ApiError>((reserved, opened))
             };
-            let (doc, page, pool) = match tokio::time::timeout_at(deadline, opening).await {
-                Ok(r) => r?,
-                Err(_) => {
-                    timed_out(&mut resp);
-                    return Ok(resp);
-                }
-            };
-            *state = PageState::Open(self.opened(page, pool, &doc, &record.url));
-            self.sessions.mark_open(id);
+            let (_reserved, (doc, page, pool)) =
+                match tokio::time::timeout_at(deadline, opening).await {
+                    Ok(r) => r?,
+                    Err(_) => {
+                        timed_out(&mut resp);
+                        return Ok(resp);
+                    }
+                };
+            *state = PageState::Open(self.opened(page, pool, &doc, &record.url, &opts));
+            self.sessions.mark_open(id, &record);
             resp.warnings.push(format!(
                 "{SESSION_REPLAYED}: the scrape did not keep its page (keepSession), so {} was opened again; the page may differ from the scrape result",
                 record.url
@@ -319,8 +347,19 @@ impl Scraper {
         let redacting: Vec<(String, String)> = open
             .secrets
             .iter()
-            .filter_map(|n| self.secrets.get(n).map(|v| (n.clone(), v.clone())))
+            .filter_map(|n| self.secrets.get(n).map(|v| (n.clone(), v.value.clone())))
             .collect();
+        // 错误消息也可能带着秘密（GET 表单的查询串跳到了 robots 不允许的页面）
+        let outcome = outcome.map(|r| {
+            r.map_err(|mut e| {
+                let pairs: Vec<(&str, &str)> = redacting
+                    .iter()
+                    .map(|(n, v)| (n.as_str(), v.as_str()))
+                    .collect();
+                e.message = redact(&e.message, &pairs);
+                e
+            })
+        });
         match outcome {
             Err(_) => timed_out(&mut resp),
             Ok(Ok(())) => {}
@@ -416,22 +455,66 @@ impl Scraper {
         mut actions: Vec<Value>,
         resp: &mut InteractResponse,
     ) -> Result<(), ApiError> {
+        // 占位符还在时先校验整批：写错了一步都不执行
+        pagesift_cdp::parse_actions(&Value::Array(actions.clone()))
+            .map_err(|e| ApiError::invalid(e.to_string()))?;
+        let filling = actions.iter().any(has_secret);
+        let scripting = actions.iter().any(is_script);
+        // 脚本能读到页面上填好的值，也能装监听器等着值填进来
+        if scripting && (filling || !open.secrets.is_empty()) || filling && open.scripted {
+            return Err(ApiError::invalid(
+                "a session cannot both run executeJavascript and use {{secret:...}}",
+            ));
+        }
+        open.scripted |= scripting;
         for a in &actions {
             if let Some(text) = a.get("text").and_then(Value::as_str) {
                 open.secrets.extend(secret_names(text).map(str::to_string));
             }
         }
-        super::autoschema::fill_secrets(&mut actions, &self.secrets)?;
-        let parsed = pagesift_cdp::parse_actions(&Value::Array(actions))
-            .map_err(|e| ApiError::invalid(e.to_string()))?;
         let permit = self.polite_permit(record, &open.url.clone()).await?;
         let started = Instant::now();
-        match open.page.run_actions(&parsed).await {
-            Ok(out) => {
+        let mut out = pagesift_cdp::ActionOutputs::default();
+        let mut failed = None;
+        let mut rest = actions.as_mut_slice();
+        while !rest.is_empty() && failed.is_none() {
+            // 要填秘密的动作单独跑：前面的动作可能已经跳走，值只能填给页面此刻所在的主机
+            let n = if has_secret(&rest[0]) {
+                1
+            } else {
+                rest.iter().position(has_secret).unwrap_or(rest.len())
+            };
+            let (chunk, tail) = std::mem::take(&mut rest).split_at_mut(n);
+            rest = tail;
+            if has_secret(&chunk[0]) {
+                match open.page.capture().await {
+                    Ok(page) => {
+                        super::autoschema::fill_secrets(chunk, &self.secrets, &page.final_url)?
+                    }
+                    Err(e) => {
+                        failed = Some(e);
+                        break;
+                    }
+                }
+            }
+            let parsed = pagesift_cdp::parse_actions(&Value::Array(chunk.to_vec()))
+                .map_err(|e| ApiError::invalid(e.to_string()))?;
+            match open.page.run_actions(&parsed).await {
+                Ok(o) => {
+                    out.screenshots.extend(o.screenshots);
+                    out.scrapes.extend(o.scrapes);
+                    out.javascript_returns.extend(o.javascript_returns);
+                    out.pdfs.extend(o.pdfs);
+                }
+                Err(e) => failed = Some(e),
+            }
+        }
+        match failed {
+            None => {
                 resp.result = out.javascript_returns.last().map(|j| j.value.to_string());
                 resp.actions = Some(out.to_firecrawl_json());
             }
-            Err(e) => action_failure(e, resp)?,
+            Some(e) => action_failure(e, resp)?,
         }
         drop(permit);
         self.fill_page(record, open, resp, started).await
@@ -482,7 +565,7 @@ impl Scraper {
     fn named_secrets<'a>(&'a self, names: &'a BTreeSet<String>) -> Vec<(&'a str, &'a str)> {
         names
             .iter()
-            .filter_map(|n| self.secrets.get(n).map(|v| (n.as_str(), v.as_str())))
+            .filter_map(|n| self.secrets.get(n).map(|v| (n.as_str(), v.value.as_str())))
             .collect()
     }
 }

@@ -42,7 +42,7 @@ use crate::obj::{deref, text_string};
 use crate::run::run;
 
 pub use crate::image::{ImageEncoding, ImagePlacement, PdfImage};
-pub use crate::ocr::{OcrInfo, OcrLine, PageOcr};
+pub use crate::ocr::{OcrInfo, OcrLine, OcrOutput, OcrReport, PageOcr};
 pub use crate::quality::PageQuality;
 pub use crate::timeout::{observe_parse, parse_timeout};
 
@@ -68,8 +68,9 @@ pub struct Options {
     /// 扫描页 OCR 的识别引擎（默认没有：扫描页只写一行说明）。有引擎时，扫描页上的图解成
     /// 灰度交给它识别，识别出的文字照常参与版面重建。
     pub ocr: Option<std::sync::Arc<dyn PageOcr>>,
-    /// 有引擎时，不只扫描页，所有带图的页都交给它识别，识别出文字就替换这页的文字层
-    /// （Firecrawl 的 `mode: "ocr"`；文字层是错的、或扫描判定漏掉的页）。没有图的页保留文字层。
+    /// 有引擎时，不只扫描页，所有带图的页都交给它识别（Firecrawl 的 `mode: "ocr"`；文字层是错的、
+    /// 或扫描判定漏掉的页）。认出字的图盖住了足够大的一块才替换这页的文字层；只是小图（logo）上的字
+    /// 就加在文字层后面。没有图的页保留文字层。
     pub force_ocr: bool,
 }
 
@@ -164,7 +165,7 @@ pub struct PdfPage {
     pub quality: PageQuality,
     /// 这页画的图在 [`PdfDocument::images`] 里的下标，按阅读顺序，同一张图可能出现多次。
     pub images: Vec<usize>,
-    /// 这页的文字来自 OCR。
+    /// 这页有 OCR 认出的文字。
     pub ocr: bool,
 }
 
@@ -184,6 +185,8 @@ pub struct PdfDocument {
     pub warnings: Vec<String>,
     /// 识别出的图片（同一张图只有一条）。没打开 [`ImageOptions::list`] 时只有扫描页的图。
     pub images: Vec<PdfImage>,
+    /// 这份文档走 OCR 的情况：实际用的设备、退回和失败的原因。
+    pub ocr: OcrReport,
 }
 
 /// 用默认选项提取。
@@ -194,11 +197,16 @@ pub fn extract(bytes: &[u8]) -> Result<PdfDocument, Error> {
 pub fn extract_with(bytes: &[u8], opts: &Options) -> Result<PdfDocument, Error> {
     let start = Instant::now();
     let mut opts = opts.clone();
+    let hard = opts.timeout;
     opts.timeout = effective_timeout(bytes.len(), &opts);
     // 兜底：依赖库在畸形输入上万一 panic，也转成错误返回
-    let out = catch_unwind(AssertUnwindSafe(|| run(bytes, &opts, true)))
+    let out = catch_unwind(AssertUnwindSafe(|| run(bytes, &opts, hard, true)))
         .unwrap_or_else(|_| Err(Error::Malformed("parser panicked".into())));
-    if out.is_ok() {
+    // 回归只学不含 OCR 的耗时：OCR 的时间混进去，同一工人上其他文档的时限会被放大
+    if let Ok(doc) = &out
+        && opts.adaptive_timeout
+        && !doc.ocr.ran
+    {
         observe_parse(bytes.len(), start.elapsed());
     }
     out
@@ -284,15 +292,17 @@ pub mod fuzzing {
 
     pub fn extract_unguarded(bytes: &[u8], opts: &Options) -> Result<PdfDocument, Error> {
         let mut opts = opts.clone();
+        let hard = opts.timeout;
         opts.timeout = effective_timeout(bytes.len(), &opts);
-        run(bytes, &opts, true)
+        run(bytes, &opts, hard, true)
     }
 
     /// 评测用：不读结构树和书签，只看版面推断出的标题。
     pub fn extract_inferred(bytes: &[u8], opts: &Options) -> Result<PdfDocument, Error> {
         let mut opts = opts.clone();
+        let hard = opts.timeout;
         opts.timeout = effective_timeout(bytes.len(), &opts);
-        run(bytes, &opts, false)
+        run(bytes, &opts, hard, false)
     }
 
     /// 解一段 JPEG（DCTDecode 的图像编码层数据）：(宽, 高, 分量数, 像素)。

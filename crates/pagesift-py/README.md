@@ -1,6 +1,6 @@
 # pagesift (Python)
 
-0.20.0: see the [release and migration guide](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/0.20.0.md). New collection/archive cores are available through Rust and CLI; this package keeps its documented scraping interface.
+1.0.0: see the [release notes](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.0.0.md).
 
 Python bindings for [pagesift](https://github.com/YOLOW92/pagesift): turn web pages into clean
 Markdown for LLMs. Fetching, robots.txt, rate limiting, content extraction, PDF parsing and browser

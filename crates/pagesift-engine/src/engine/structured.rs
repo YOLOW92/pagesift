@@ -34,9 +34,12 @@ pub fn parse_format(opts: &ScrapeOptions) -> Result<Option<(Schema, String)>, Ap
             )),
         };
     };
+    if !raw.is_object() {
+        return Err(ApiError::invalid("schema must be an object"));
+    }
     // 只写了 describe 的语义字段：类型、选择器要等 LLM 解析后才有，先按 text 校验其余部分
     let mut raw = raw.clone();
-    if let Some(fs) = raw["fields"].as_array_mut() {
+    if let Some(fs) = raw.get_mut("fields").and_then(Value::as_array_mut) {
         for f in fs
             .iter_mut()
             .filter(|f| f.get("describe").is_some() && f.get("type").is_none())

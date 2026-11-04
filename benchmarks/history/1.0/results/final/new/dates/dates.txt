@@ -1,0 +1,5 @@
+1000 pages (512 hold); URL given: False
+tool                   half   prec↑   rec↑   acc↑    F1↑  ms/page↓
+pagesift               all    0.909  0.992  0.903  0.949      0.31
+pagesift               tune   0.914  0.996  0.910  0.953      0.33
+pagesift               hold   0.905  0.989  0.896  0.945      0.29

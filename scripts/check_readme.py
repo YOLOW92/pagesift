@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """检查四种语言的 README 是否符合首页模板。
 
-模板 v1 的约定（README 里用 HTML 注释标出各节，标题文字各语言自己写）：
-  <!-- readme-template: v1 -->        放在 README 里，表示已按模板改版
+模板 v2 的约定（README 里用 HTML 注释标出各节，标题文字各语言自己写）：
+  <!-- readme-template: v2 -->        放在 README 里，表示已按模板改版
   <!-- section: overview -->          一句话定义 + 可替代哪些工具
   <!-- section: facts -->             事实速览：输入、输出、接口、平台、许可证、版本
   <!-- section: install -->           安装命令 + 最小示例 + MCP 配置，必须在前 INSTALL_BY 行内开始
-  <!-- section: choose -->            什么时候选、什么时候别选
+  <!-- section: capabilities -->      能做什么，每项链到详细文档
   <!-- section: performance -->       性能摘要（标方向和口径，完整表放链接）
-  <!-- section: features -->          功能与 API
+  <!-- section: architecture -->      架构：为什么快、为什么稳
+  <!-- section: choose -->            什么时候选、什么时候别选
   <!-- section: license -->           许可证与商业授权
   <!-- section: changelog -->         只留最新一版，其余放 CHANGELOG.md
 
@@ -24,8 +25,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FILES = ["README.md", "docs/README.zh-CN.md", "docs/README.ja.md", "docs/README.es.md"]
-MARKER = "<!-- readme-template: v1 -->"
-SECTIONS = ["overview", "facts", "install", "choose", "performance", "features", "license", "changelog"]
+MARKER = "<!-- readme-template: v2 -->"
+SECTIONS = ["overview", "facts", "install", "capabilities", "performance", "architecture", "choose", "license", "changelog"]
 INSTALL_BY = 60
 STRICT_FROM = (0, 90)
 # 徽章白名单：按链接目标认，不按显示文字认（各语言文字不同）
@@ -107,7 +108,7 @@ def main():
     if templated and len(templated) != len(FILES):
         problems.append(f"只有 {templated} 按模板改版了，四种语言要一起改")
     if not templated:
-        warnings.append(f"README 还没按模板 v1 改版（没有 {MARKER}），只查了徽章和措辞")
+        warnings.append(f"README 还没按模板 v2 改版（没有 {MARKER}），只查了徽章和措辞")
     if a.release:
         strict = tuple(int(x) for x in version.split(".")[:2]) >= STRICT_FROM
         for rel, text in texts.items():
@@ -115,7 +116,7 @@ def main():
             if not m or m.group(1) != version:
                 problems.append(f"{rel}: 一级标题的版本号 {m.group(1) if m else '缺失'} 不等于工作区版本 {version}")
         if strict and not templated:
-            problems.append(f"{version} >= {'.'.join(map(str, STRICT_FROM))}：README 必须已按模板 v1 改版")
+            problems.append(f"{version} >= {'.'.join(map(str, STRICT_FROM))}：README 必须已按模板 v2 改版")
         if strict and not (ROOT / "llms.txt").is_file():
             problems.append("缺少根目录 llms.txt")
     for w in warnings:
@@ -125,7 +126,7 @@ def main():
         for p in problems:
             print(f"  {p}", file=sys.stderr)
         sys.exit(1)
-    print(f"README OK ({'模板 v1' if templated else '旧版'}, {version})")
+    print(f"README OK ({'模板 v2' if templated else '旧版'}, {version})")
 
 
 if __name__ == "__main__":

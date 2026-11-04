@@ -2,10 +2,10 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 0.91.1
+# pagesift 1.0.0
 
-**把网页、PDF 和 Office 文件转成供 LLM 和 AI 智能体使用的干净 Markdown。**  
-一个自托管的 Rust 二进制：CLI、兼容 Firecrawl 的 HTTP API、Jina Reader 端点、MCP 服务器、Python 和 Node.js 包。
+**AI 智能体的网页和文档层：输入任意 URL、PDF 或 Office 文件，输出干净的 Markdown 或 JSON。**  
+一个自托管的 Rust 二进制：CLI、Firecrawl 和 Jina Reader API、MCP 服务器、Python 和 Node.js 包。
 
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](../LICENSE)
 [![Commercial license](https://img.shields.io/badge/commercial-license%20available-green.svg)](COMMERCIAL.md)
@@ -20,29 +20,28 @@
 
 </div>
 
-<!-- readme-template: v1 -->
+<!-- readme-template: v2 -->
 <!-- section: overview -->
 ## 它是什么
 
-pagesift 抓取一个 URL（只在页面需要时才渲染 JavaScript）或读取本地文件，保留正文，
-返回 Markdown 和元数据。它能抓单个页面、批量页面和整站，
-可以作为命令、库、HTTP 服务或 MCP 服务器运行。
+pagesift 替会思考的软件读取网页和文档：它抓取一个 URL（只在能多拿到内容时才渲染 JavaScript）或打开本地文件，
+以 Markdown 或结构化 JSON 返回内容。它能处理单个页面、整站、扫描版 PDF、浏览器操作、变化监控，
+以及由你自己的模型驱动的调研任务。
 
-可以替代或配合使用：**Firecrawl**（同样的 v1/v2 API，自托管）、**Jina Reader**（`/r/<url>`）、
-**Crawl4AI**、**trafilatura** / **Readability**、**pymupdf4llm** / **pypdf**、**Kreuzberg**。
+可以替代或配合使用：**Firecrawl**（同样的 v1/v2 API，自托管）、**Jina Reader**（`/r/` 和 `/s/`）、
+**Crawl4AI**、**trafilatura**、**Readability**、**pymupdf4llm**、**Docling**、**Kreuzberg**。
 
 <!-- section: facts -->
 ## 速览
 
-- **输入：** URL（HTTP，必要时用无头浏览器）、HTML、PDF、Word（.docx）、Excel（.xlsx）、PowerPoint（.pptx）、EPUB、CSV
-- **输出：** Markdown、HTML、原始 HTML、链接、图片、元数据（标题、发布日期……）、JSON；结果不完整时给出警告
-- **接口：** CLI · Firecrawl v1/v2 HTTP API · Jina Reader `/r/` · MCP（stdio 或 HTTP）· Python · Node.js / TypeScript · Rust crate
-- **平台：** Linux x86_64 / aarch64（glibc ≥ 2.28 和 musl）、macOS arm64（Apple Silicon）、Windows x86_64；Docker 镜像 `ghcr.io/yolow92/pagesift`
-- **爬取：** 默认遵守 robots.txt 并按主机限速，支持站点地图、按查询的聚焦爬取，内存有界
-- **内存：** 0.81 各项基准中每个 worker 峰值 14–380 MB（16 路处理 HTML、PDF 时最低）；容量按 cgroup 内存上限自动确定（768 MiB 下无 OOM）
-- **不适用：** 扫描版 PDF 或图片的 OCR；pagesift 只读取文本层（见下文“什么时候用”）
+- **输入：** URL、HTML、PDF（含扫描页，用 OCR）、Word、Excel、PowerPoint、EPUB、CSV、WARC 归档
+- **输出：** Markdown、HTML、原始 HTML、链接、图片、元数据、基于 schema 的 JSON；结果不完整时给出警告
+- **接口：** CLI · Firecrawl v1/v2 HTTP API · Jina Reader · MCP（stdio 或 HTTP）· Python · Node.js / TypeScript · Rust crate
+- **平台：** Linux x86_64 / aarch64（glibc ≥ 2.28 和 musl）、macOS arm64、Windows x86_64；Docker 镜像 `ghcr.io/yolow92/pagesift`
+- **运行环境：** HTTP、PDF 和 Office 无需额外安装。可选：处理 JavaScript 页面的浏览器、用于 OCR 的 NVIDIA GPU、供 `/v2/agent` 使用的你自己的模型
+- **内存：** 1.0 各项基准中，不带浏览器时每个 worker 峰值 17–395 MB；带公式模型的 OCR 约需 1.7 GB；容量按 cgroup 上限确定
 - **许可证：** AGPL-3.0，或[商业许可](COMMERCIAL.md)
-- **最新版本：** 0.91.1 · [发行说明](releases/0.91.1.md)
+- **最新版本：** 1.0.0 · [发行说明](releases/1.0.0.md)
 
 <!-- section: install -->
 ## 安装与使用
@@ -51,19 +50,20 @@ pagesift 抓取一个 URL（只在页面需要时才渲染 JavaScript）或读�
 |---|---|---|
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
-| Node.js | `npm install @pagesift/node` | `(await scrape("https://example.com")).markdown` |
-| 服务器 | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:0.91.1` | `curl localhost:3002/r/https://example.com` |
+| Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
+| 服务器 | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.0.0` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
 
 ```bash
-pagesift scrape "https://news.ycombinator.com"              # Markdown 输出到 stdout
-pagesift scrape report.pdf                                  # 本地 PDF、Office、EPUB、CSV 或 HTML 文件
-pagesift crawl "https://docs.rs" --limit 500 --out ./data/  # 每页一个 Markdown 文件
-pagesift crawl "https://www.example.edu" --query "graduate admission" --adaptive
-pagesift map "https://docs.rs"                              # 列出站点的 URL
-pagesift doctor                                             # 检查浏览器和运行环境
+pagesift scrape https://example.com                          # Markdown 输出到 stdout
+pagesift scrape report.pdf                                   # 本地 PDF、Office、EPUB、CSV、HTML 或 WARC 文件
+pagesift --ocr scrape scan.pdf                               # 对扫描页做 OCR；模型在首次使用时下载
+pagesift crawl https://docs.rs --limit 500 --out ./data/     # 每页一个文件
+pagesift crawl https://www.example.edu --query "graduate admission" --adaptive
+pagesift extract --schema schema.json https://example.com    # 按 CSS 选择器输出 JSON，页面变化时修复
+pagesift doctor                                              # 检查浏览器、GPU 和模型
 ```
 
 **Python**
@@ -71,117 +71,222 @@ pagesift doctor                                             # 检查浏览器和
 ```python
 import pagesift
 
-page = pagesift.scrape("https://example.com", formats=["markdown", "metadata"])
-print(page.markdown)
-print(page.metadata.title, page.metadata.published_date)
+page = pagesift.scrape("https://example.com", formats=["markdown", "links"])
+print(page.markdown, page.metadata["title"], page.links)
 
-results = pagesift.scrape_many(["https://site1.com", "https://site2.com"], concurrency=8)
+pages = pagesift.scrape_many(["https://example.com", "https://example.org"], concurrency=8)
+
+scanner = pagesift.Scraper(ocr=True)     # 第一个扫描页到来时才下载模型
+print(scanner.parse(open("scan.pdf", "rb").read(), "scan.pdf").markdown)
 ```
 
 **Node.js / TypeScript**
 
 ```typescript
-import { scrape, scrapeMany } from '@pagesift/node'
+import { Scraper } from '@pagesift/node'
 
-const page = await scrape('https://example.com', { formats: ['markdown', 'links'] })
-console.log(page.markdown)
+const scraper = new Scraper()
+const page = await scraper.scrape('https://example.com', { formats: ['markdown', 'links'] })
+console.log(page.markdown, page.metadata.title, page.links)
 
-for await (const p of scrapeMany(['https://a.com', 'https://b.com'], { concurrency: 4 })) {
-  console.log(p.url, p.elapsedMs)
-}
+const items = await scraper.scrapeMany(['https://example.com', 'https://example.org'], { concurrency: 4 })
 ```
 
-**HTTP 服务器（兼容 Firecrawl 和 Jina Reader）**
+**HTTP 服务器**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data \
-  -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:0.91.1
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.0.0
+
+curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
+  -d '{"url":"https://example.com","formats":["markdown"]}'                        # Firecrawl API
+curl -s localhost:3002/r/https://example.com -H 'Authorization: Bearer sk-test'    # Jina Reader
+curl -s localhost:3002/v2/parse -H 'Authorization: Bearer sk-test' \
+  -F file=@report.pdf -F 'options={"formats":["markdown"]}'                        # 上传文件
 ```
 
-```python
-from firecrawl import FirecrawlApp
+Firecrawl SDK 只需更换 API URL 即可使用。[上传 API](parse-api.md) · [Jina 请求头](jina-reader.md)
 
-app = FirecrawlApp(api_url="http://localhost:3002", api_key="sk-test")  # 现有 Firecrawl 代码，只换 URL
-print(app.scrape_url("https://example.com", params={"formats": ["markdown"]})["markdown"])
-```
+**MCP**
 
 ```bash
-curl -s http://localhost:3002/r/https://example.com -H 'Authorization: Bearer sk-test'   # Jina Reader 风格
-curl -s http://localhost:3002/v2/parse -H 'Authorization: Bearer sk-test' \
-  -F file=@report.pdf -F 'options={"formats":["markdown"]}'                            # 上传文件
-```
-
-端点：`/v1` 和 `/v2` 的 `scrape`、`batch/scrape`、`crawl`、`map`；`/v2/parse`（文件上传，最大 50 MB，
-[详情](parse-api.md)）；`/r/<url>`（纯 Markdown 或 `text/event-stream`）。
-
-**供 AI 智能体使用的 MCP 服务器**
-
-```bash
-pagesift mcp                                    # stdio，供单个智能体使用
-pagesift mcp http --port 3003                   # 一个共享的本地服务（仅 127.0.0.1）
+pagesift mcp                                                  # stdio，供单个智能体使用
+pagesift mcp http --port 3003                                 # 一个共享的本地服务
 claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 ```
 
-工具：`pagesift_scrape`、`pagesift_batch_scrape`、`pagesift_crawl`、`pagesift_crawl_status`、`pagesift_map`、`pagesift_interact`、`pagesift_interact_stop`。
-共享浏览器和缓存、审计日志和问题上报工具：[共享 MCP 服务](mcp-service.md)。
+工具：`pagesift_scrape`、`pagesift_batch_scrape`、`pagesift_crawl`、`pagesift_crawl_status`、`pagesift_map`、
+`pagesift_interact`、`pagesift_interact_stop`，配置模型后还有 `pagesift_agent`、`pagesift_agent_status`。
+[共享 MCP 服务](mcp-service.md)
+
+<!-- section: capabilities -->
+## 它能做什么
+
+| 能力 | 你能得到什么 | 文档 |
+|---|---|---|
+| **干净内容** | 正文识别，Markdown 保留标题、列表、表格、代码和数学公式 | [基准](benchmarks.md) |
+| **文档** | 自研的 Rust 读取器，支持 PDF、Word、Excel、PowerPoint、EPUB 和 CSV，包括损坏文件和 CJK 字体 | [上传 API](parse-api.md) |
+| **OCR** | 扫描版 PDF 页面用 PP-OCRv6，行间公式用 PP-FormulaNet，纯 Rust 实现，运行在 CPU 或 NVIDIA GPU 上 | [上传 API](parse-api.md) |
+| **结构化提取** | 按 CSS 选择器输出 JSON，站点变化时重新定位选择器；或按 schema 提取，schema 由你的模型写一次，pagesift 缓存 | [提取](structured-extract.md) |
+| **浏览器操作** | 在页面上点击、输入和滚动，还有可以继续使用的会话 | [交互](interact.md) |
+| **智能体** | `POST /v2/agent` 用你自己的模型从网上回答问题，并对照来源页面核对每个字段 | [智能体 API](agent-api.md) |
+| **监控** | 定时检查，把真实变化和日期、计数器、广告区分开，支持 webhook | [监控](monitor.md) |
+| **爬取** | 站点地图、页面不再有帮助时停止的聚焦爬取、陷阱处理、robots.txt 和按主机限速 | [基准](benchmarks.md) |
+| **归档** | 每次爬取都输出 WARC，也能以 WARC 文件为输入，不需要网络 | [发行说明](releases/1.0.0.md) |
+| **运维** | 多服务器网关、worker 和温备；任务持久化、持久化 webhook、指标、审计日志 | [架构](architecture.md) |
+| **安全** | 防护私有网络和 DNS 重绑定，每个不完整的结果都会报告警告 | [爬虫策略](bot.md) |
+
+**`/v2/agent` 如何回答问题**
+
+```mermaid
+flowchart LR
+    Q[问题 + schema] --> M[你的模型规划一步]
+    M --> T[pagesift 执行<br/>search、map、scrape、extract]
+    T --> E[文本存档作为证据]
+    E --> D{够了吗？}
+    D -->|否，预算还有剩余| M
+    D -->|是| A[按 schema 匹配的答案]
+    A --> V[对照证据<br/>核对每个字段]
+    V --> R[JSON + 来源 + 警告]
+```
+
+robots.txt、限速和网络防护对每个页面都生效。模型选择 URL 和查询，不选择抓取选项。
+
+<!-- section: performance -->
+## 性能
+
+<!-- perf-glance -->
+<picture><source media="(prefers-color-scheme: dark)" srcset="assets/perf-scaling-dark.svg"><img src="assets/perf-scaling-light.svg" alt="Throughput from 1 to 16 workers, PageSift against other tools" width="860"></picture>
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="assets/perf-versions-dark.svg"><img src="assets/perf-versions-light.svg" alt="Scanned-PDF olmOCR score by version against Docling" width="860"></picture>
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="assets/perf-memory-dark.svg"><img src="assets/perf-memory-light.svg" alt="Times less memory than other tools" width="860"></picture>
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="assets/perf-quality-dark.svg"><img src="assets/perf-quality-light.svg" alt="Quality against the next best tool" width="860"></picture>
+
+↑ 越高越好 · ↓ 越低越好。每个领域取最强的一项；方法和出处见完整报告。
+
+| 任务 | 指标 | PageSift | 最好的其他工具 | 差距 |
+|---|---|---:|---|---:|
+| PDF → Markdown — olmOCR-bench 1,269 页，单页（单线程） | 单页耗时 ↓ | **2.4** | pypdf 50.0 | **×20.83** |
+| PDF → Markdown — B1 144 页，1 路，常驻服务 | 吞吐 ↑ | **234.5** | pdf_oxide 100.6 | **×2.33** |
+| PDF → Markdown — olmOCR-bench 1,269 页 | 官方总分 ↑ | **0.645** | pymupdf4llm 0.484 | **+0.161** |
+| HTML → Markdown — 600 篇生成文档，单页 | 单页耗时 ↓ | **0.24** | Turndown 1.9 | **×8.12** |
+| HTML → Markdown — 600 篇生成文档，保真度 | 平均 F1 ↑ | **1.000** | markdownify 0.936 | **+0.064** |
+| 网页正文 — Firecrawl 597 页，单线程 | 单页中位耗时 ↓ | **1.0** | crw 7.4 | **×7.26** |
+| 网页正文 — A2 随机 269 页，16 路 | 吞吐 ↑ | **656.1** | Resiliparse 559.3 | **×1.17** |
+| 网页正文 — WCXB 测试集 150 页 | F1 ↑ | **0.866** | Readability + Turndown 0.848 | **+0.018** |
+| 发布日期 — htmldate 1,000 页，日期搜索 | 单页耗时 ↓ | **0.31** | htmldate (fast) 2.0 | **×6.45** |
+| RAG 分块 — 5 份语料，1.4 MB | 总耗时 ↓ | **7** | chonkie recursive 35 | **×5.01** |
+| Office / 电子书 — B4 81 份，单进程 | 吞吐 ↑ | **93.6** | Kreuzberg 19.5 | **×4.80** |
+| Office / 电子书 — B4 留出集 39 份，结构保留率 | 结构保留率 ↑ | **0.988** | Kreuzberg 0.816 | **+0.172** |
+| RAG 查询过滤 — 472 题，默认配置 | 答案召回 ↑ | **0.929** | Crawl4AI BM25 0.673 | **+0.256** |
+| 真实站点抓取 — polite，40 站 × 60 页，覆盖 | 覆盖率 ↑ | **0.740** | Crawl4AI (HTTP) 0.529 | **+0.211** |
+| 真实站点抓取 — fast，40 站 × 60 页，覆盖 | 覆盖率 ↑ | **0.687** | Crawl4AI (HTTP) 0.499 | **+0.188** |
+| 扫描件 PDF — B5 134 页，olmOCR 分（不含 baseline，开 OCR） | olmOCR 分 ↑ | **0.314** | Docling (GPU) 0.125 | **+0.189** |
+| 扫描件 PDF — B5 134 页，olmOCR 分（含 baseline，开 OCR） | olmOCR 分 ↑ | **0.543** | Docling (GPU) 0.410 | **+0.133** |
+| 难题 PDF — B3 100 份 pdf.js，完成率 | 完成率 ↑ | **0.720** | pymupdf4llm 0.680 | **+0.040** |
+
+| 每 worker 峰值内存 | PageSift MB ↓ | 其他工具 MB | 内存少 |
+|---|---:|---|---:|
+| PDF，B1 | **34** | Docling (CPU) 3,675 (2026-10-28) | **×106.5** |
+| 网页正文，A2 | **28** | Readability + Turndown 1,200 (2026-10-28) | **×43.0** |
+| 抓取，200 站 × 100 页 | **218** | spider 5,500 (2026-10-21) | **×25.2** |
+| Office 和电子书，B4 | **46** | Kreuzberg 231 (2026-10-28) | **×5.0** |
+| 网页正文，A2 | **28** | trafilatura 123 (2026-10-28) | **×4.4** |
+| 带浏览器抓取，200 站 × 100 页 | **669** | Google Chrome 2,300 (2026-10-21) | **×3.4** |
+| PDF，B1 | **34** | Kreuzberg 76 (2026-10-28) | **×2.2** |
+| 需要 JS 的页面，A3（实网） | **520** | Crawl4AI 982 (2026-10-28) | **×1.9** |
+
+<details>
+<summary>仍落后</summary>
+
+fast，40 站 × 60 页，耗时（spider 覆盖的页面约为一半） 16.1 seconds vs spider 1.4 seconds；A2 回放 269 页，只抓 HTTP、不限速，1 路 47.5 pages/s vs spider 156.6 pages/s；A2 随机 269 页，常驻 worker，单页 5.2 ms/page vs Resiliparse 2.1 ms/page。
+
+</details>
+
+[完整报告](../benchmarks/history/1.0/results/final/new/report.md)
+
+<!-- /perf-glance -->
+
+<!-- section: architecture -->
+## 架构
+
+核心从文件格式起全部用 Rust 编写，限额在运行时测量，而不是手工设定。
+
+```mermaid
+flowchart TD
+    CLI[CLI / Rust 调用方] --> Engine[pagesift-engine]
+    HTTP[Firecrawl 和 Jina HTTP API] --> Engine
+    Bindings[Python / Node / MCP] --> Engine
+    Engine --> Hooks[pagesift-hooks：规则和钩子]
+    Hooks --> Policy[pagesift-policy：robots、限速、退避]
+    Policy --> Net[pagesift-net：HTTP、SSRF 防护、可选 TLS 指纹]
+    Net --> Plan{pagesift-plan：要渲染吗？}
+    Plan -->|否| DOM[pagesift-html：arena DOM]
+    Plan -->|是| CDP[pagesift-cdp：浏览器池]
+    CDP --> DOM
+    Net -->|PDF| PDF[pagesift-pdf]
+    Net -->|Office、EPUB、CSV| Office[pagesift-office]
+    PDF -->|扫描页| OCR[pagesift-ocr、pagesift-infer、pagesift-gpu]
+    DOM --> Content[pagesift-content：正文、Markdown、元数据]
+    DOM --> Extract[pagesift-extract：选择器、重新定位、分块]
+    PDF --> Sink[pagesift-sink：输出和缓存格式]
+    Office --> Sink
+    OCR --> Sink
+    Content --> Sink
+    Extract --> Sink
+    Engine --> Store[pagesift-store：缓存、选择器记忆、记录]
+```
+
+**自研代码，一直到格式层。** 解析在进程内运行，背后没有 Python、JVM 或 Node 运行时。
+pagesift 有自己的零拷贝 HTML5 解析器、带 JPEG、CCITT 和 JBIG2 解码器的 PDF 文件层、Office 和 EPUB 读取器、
+神经网络推理（GPU 内核由 Rust 编译）、Chrome DevTools 客户端、MCP 服务器和只追加存储。
+一个 worker 只占几十 MB，而不是一个加载好的解释器，启动只要几毫秒。
+
+**每核一个 worker。** CPU 工作运行在按 NUMA 节点分组的常驻 worker 上，它们先在自己的节点内偷任务。
+CPU、内存和浏览器标签页走同一条准入路径，容量来自 cgroup 上限，
+因此容器会保持在内存限额内，而不会被杀掉。
+
+**测量而不是写死。** 并发度按通用可扩展性定律（Universal Scalability Law）拟合，按主机限额跟随延迟梯度，
+阶段超时用生存分析，重试用按类别统计的成功率。每一项都从安全的默认值开始，
+只在统计显著的证据（δ = 0.05）下才调整。用户设置和安全限制始终是硬上限。
+
+**只在值得时才用浏览器。** 对每一族 URL 路径，pagesift 学习渲染是否带来了更多内容，
+渲染结果只有得分更高才保留。`__NEXT_DATA__` 和 JSON-LD 这类页面数据不用浏览器就能读取。
+Lightpanda、moli 和 Chrome 组成回退链，`--explain` 记录每个决定。
+
+**如实报告结果。** 不完整的页面、被截断的文件或跳过的扫描页会返回警告码，而不是看起来像完整结果。
+智能体的回答会报告哪些值在证据中找到，选择器修复会报告新旧选择器。
+
+**从一个二进制到一个集群。** `serve --role gateway`、`worker` 和 `standby` 共用同一个二进制，
+站点亲和用 rendezvous 哈希，租约带隔离。任务和 webhook 在重启后恢复。
+
+```mermaid
+flowchart LR
+    C[客户端] --> G[网关<br/>API、任务、webhook]
+    G -->|同一站点，同一 worker| W1[Worker]
+    G --> W2[Worker]
+    G --> W3[Worker]
+    G -.->|任务记录| S[温备<br/>租约丢失时接管]
+```
+
+[完整架构](architecture.md)
 
 <!-- section: choose -->
 ## 什么时候用，什么时候不用
 
 **适合**
 
-- 把网页和文档喂给 LLM、RAG 索引或智能体，Markdown 保留标题、列表、表格和链接
-- 在自己的机器上自托管 Firecrawl 或 Jina Reader 式的服务，不按页付费
-- 混合输入：同一个调用处理 HTML、PDF、Office 文件和电子书
-- 小机器和容器：内存有界，按 cgroup 限额确定大小
+- 把网页和文档喂给 LLM、RAG 索引或智能体
+- 自托管 Firecrawl 或 Jina Reader 式的服务，不按页付费
+- 混合输入：同一个调用处理 HTML、PDF、扫描件、Office 文件和电子书
+- 小机器和容器：内存受 cgroup 上限约束
 
 **这些情况选别的**
 
-- **扫描版 PDF 或图片需要 OCR。** pagesift 只读文本层；在 134 页扫描件上完成率 0.112，GPU 上的 Docling 为 1.000。请用 Docling、olmOCR 或其他 OCR 流程。
-- **你要最快的爬取速度，不需要礼貌限速。** pagesift 对同一主机的请求之间会等待、遵守 robots.txt 并重试失败；spider 的纯爬取耗时快得多（40 站 × 60 页上 1.4 s 对 16.6 s）。
-- **AGPL 对你不合适**，商业许可也不可行：请用宽松许可证的工具。
-- **你现在就需要托管的云服务。** pagesift 是自托管的；托管 API 还没开放。
-
-<!-- section: performance -->
-## 性能
-
-<!-- perf-glance -->
-↑ 越高越好 · ↓ 越低越好。每个领域取最强的一项；方法和出处见完整报告。
-
-| 任务 | 指标 | PageSift | 最好的其他工具 | 差距 |
-|---|---|---:|---|---:|
-| PDF → Markdown — olmOCR-bench 1,269 页，单页（单线程） | 单页耗时 ↓ | **2.2** | pypdf 50.0 | **×22.32** |
-| HTML → Markdown — 600 篇生成文档，单页 | 单页耗时 ↓ | **0.24** | Turndown 1.9 | **×8.24** |
-| 网页正文 — Firecrawl 597 页，单线程 | 单页中位耗时 ↓ | **1.0** | crw 7.4 | **×7.23** |
-| 发布日期 — htmldate 1,000 页，日期搜索 | 单页耗时 ↓ | **0.31** | htmldate (fast) 2.0 | **×6.45** |
-| Office / 电子书 — B4 81 份，单进程 | 吞吐 ↑ | **94.1** | Kreuzberg 19.5 | **×4.82** |
-| RAG 分块 — 5 份语料，1.4 MB | 总耗时 ↓ | **11** | chonkie recursive 35 | **×3.24** |
-| RAG 查询过滤 — 472 题，默认配置 | 答案召回 ↑ | **0.929** | Crawl4AI BM25 0.673 | **+0.256** |
-| 真实站点抓取 — polite，40 站 × 60 页，覆盖 | 覆盖率 ↑ | **0.740** | Crawl4AI (HTTP) 0.529 | **+0.211** |
-
-**仍落后：** A2 回放 269 页，1 路 2.4 pages/s vs spider 156.6 pages/s；fast，40 站 × 60 页，耗时 16.6 seconds vs spider 1.4 seconds；B5 134 页，完成率 0.112 vs Docling (GPU) 1.000。
-
-*A2 吞吐是对一个回环地址上的回放服务测的，269 页都算同一个主机。PageSift 默认对同一主机两次请求之间间隔 1 秒，spider 不限速；这一行主要反映这个礼貌间隔，而不是引擎速度。*
-
-[完整报告](../benchmarks/history/0.81/results/20261029-102426/report.md)
-
-<!-- /perf-glance -->
-
-规模（0.70，合成的本地源站，不是真实互联网速度）：192 vCPU 上 200,000,000 次请求零失败，
-947,611 页/秒，峰值 RSS 888 MiB；在 768 MiB 的 cgroup 内仍维持 817,346 页/秒，没有 OOM。
-出处：[0.70 测试](history/0.70_200m_regression.md)、[全部基准](benchmarks.md)。
-
-<!-- section: features -->
-## 功能
-
-- **提取：** 正文识别；Markdown 能完整往返标题、列表、表格、代码和数学公式；发布日期；`includeTags` / `excludeTags` CSS 筛选；结果不完整时给出 `partial_content`、`pages_missing`、`output_truncated` 等警告，而不是悄悄返回残缺结果
-- **文档：** 自研的 Rust 读取器，支持 PDF（结构树、书签、页眉页脚、没有 ToUnicode 的 CJK 字体、损坏文件）、Word、Excel、PowerPoint、EPUB 和 CSV
-- **渲染：** `engine: auto` 先用 HTTP 抓取，只在能多拿到内容时才打开无头浏览器；Docker 镜像自带一个
-- **爬取：** 聚焦爬取（`--query … --adaptive`），页面不再带来相关内容时停止；附件（链接的 PDF 和 Office 文件）；每页的爬取轨迹；站点地图；重复和陷阱 URL 处理；按主机的令牌桶，遇到 429/503 退避
-- **运维：** 有界队列，容量按 CPU 和 cgroup 内存确定；服务器端有任务持久化、webhook、按 key 限额和指标；每次抓取都记审计日志
-- **安全：** 默认防护私有网络和 DNS 重绑定（用 `--allow-cidr` 放行），浏览器沙箱
-
-架构：[architecture.md](architecture.md)。
+- **你的输入是图片文件。** OCR 覆盖 PDF 内的扫描页，不处理独立图片。
+- **AGPL 对你不合适**，商业许可也不可行。
+- **你需要托管的云服务。** pagesift 是自托管的。
 
 <!-- section: license -->
 ## 许可证
@@ -190,11 +295,14 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 [商业许可](COMMERCIAL.md) 或写信到 `licensing@pagesift.dev`。
 
 <!-- section: changelog -->
-## 0.91.1 更新
+## 1.0.0 更新
 
-**不再支持 Intel 芯片的 Mac（macOS x86_64）。** 另外修复了一个小 bug（开启"警告即错误"时，集群 crate 在较新的稳定版 Rust 上编译不过）。0.91.0 修复了 0.90.0
-代码审查发现的问题（失败如实报告、温备租约隔离、小 JSON-LD 数据岛、按块合并有上限、附件持久化等）。
-[发行说明](releases/0.91.1.md) · [0.91.0](releases/0.91.0.md) · [全部版本](releases/) · [CHANGELOG](../CHANGELOG.md)
+扫描版 PDF 的 OCR（CPU 或 NVIDIA GPU）、带选择器修复的结构化提取、浏览器操作和会话、
+`/v2/agent`、变化监控、完整的 Jina Reader API、WARC 输入、钩子和规则，以及可选的浏览器 TLS 指纹。
+自 0.81 起，限额在运行时测量，渲染决定按路径族学习，
+一个二进制就能作为多服务器网关、worker 和温备运行。部分名称有变化，见发行说明。
+
+[发行说明](releases/1.0.0.md) · [0.90.0](releases/0.90.0.md) · [全部版本](releases/) · [CHANGELOG](../CHANGELOG.md)
 
 ---
 
@@ -210,7 +318,7 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 0.91.1}
+  note   = {Version 1.0.0}
 }
 ```
 

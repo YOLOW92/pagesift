@@ -28,6 +28,8 @@ pub(super) fn pattern_dict(data: &[u8]) -> Result<Vec<Bitmap>, String> {
     // §6.7.5 步骤 1：集合位图宽 (GRAYMAX + 1) × HDPW、高 HDPH
     let count = graymax.checked_add(1).ok_or("GRAYMAX 溢出")?;
     let width = count.checked_mul(pw).ok_or("集合位图太宽")?;
+    // 每个图样一个 `Bitmap` 头：1×1 的图样按位图字节只算 1，实际每个要几十字节
+    bitmap::charge(count.checked_mul(size_of::<Bitmap>()).ok_or("图样数溢出")?)?;
     let body = &data[HEAD..];
     let collective = if is_mmr {
         generic::mmr(body, width, ph)?.0
@@ -75,6 +77,10 @@ struct Header {
     rx: i64,
     ry: i64,
 }
+
+/// [策略] 半色调区域每合成这么多格查一次时限：一格至多 255×255 像素，查一次的开销相比可以忽略，
+/// 间隔内至多约 6600 万次字节运算（几十毫秒）
+const TIME_CHECK_CELLS: usize = 1 << 10;
 
 /// [协议] 半色调区域段头：标志 1、HGW 4、HGH 4、HGX 4、HGY 4、HRX 2、HRY 2 字节（§7.4.5.1）
 const HEADER_LEN: usize = 21;
@@ -165,6 +171,7 @@ fn gray_image(
     });
     let mut pos = 0usize;
     for _ in 0..bpp {
+        bitmap::check_time()?;
         let mut plane = if h.mmr {
             // MMR：各位平面的码流首尾相接（各以 EOFB 结尾），按用掉的字节数前进
             let rest = data.get(pos..).unwrap_or(&[]);
@@ -226,7 +233,11 @@ pub(super) fn region(
     let gray = gray_image(body, &h, bpp, skip.as_ref())?;
     // 步骤 5：逐格把图样 HPATS[GI[ng, mg]] 按 HCOMBOP 合成到区域上
     for mg in 0..h.gh {
+        bitmap::check_time()?;
         for ng in 0..h.gw {
+            if ng % TIME_CHECK_CELLS == 0 {
+                bitmap::check_time()?;
+            }
             // [策略] 编号超出图样个数的格子（码流有误）不画，保留缺省像素
             let Some(pat) = patterns.get(gray[mg * h.gw + ng] as usize) else {
                 continue;

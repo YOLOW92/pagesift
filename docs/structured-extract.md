@@ -36,7 +36,8 @@ so editing the schema starts a fresh memory.
 
 | Entry point | Store |
 |---|---|
-| HTTP (`serve`), MCP (http and stdio), CLI `extract` | `[cache]` in `pagesift.toml`, on by default. One process can hold a data directory: when another one has it, a warning goes to stderr and that process runs without cache and memory |
+| HTTP (`serve`), MCP over http, CLI `extract` | `[cache]` in `pagesift.toml`, on by default. One process can hold a data directory: when another one has it, a warning goes to stderr and that process runs without cache and memory |
+| MCP over stdio | No store: each client is its own process. Use `pagesift mcp http` for selector memory |
 | Python | `Scraper(store_path=...)`; no store by default |
 | Node | `new Scraper({ storePath })`; no store by default |
 

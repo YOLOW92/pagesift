@@ -300,7 +300,13 @@ fn tempfile_in(dir: &std::path::Path) -> bool {
 fn report_ocr(cfg: &pagesift::config::Config, warn: &impl Fn(&str, String)) -> Result<()> {
     use pagesift_ocr::device::Device;
     const MIB: u64 = 1 << 20; // [协议] 1 MiB
-    let (device, _) = cfg.ocr_device()?;
+    let device = match cfg.ocr_device() {
+        Ok((device, _)) => device,
+        Err(e) => {
+            warn("gpu", format!("{e:#}"));
+            return Ok(());
+        }
+    };
     let next = match device {
         Device::Cpu => {
             println!("ok   gpu: off");
@@ -325,6 +331,13 @@ fn report_ocr(cfg: &pagesift::config::Config, warn: &impl Fn(&str, String)) -> R
             }
         },
     };
+    // 没打开 OCR 时不看模型：HOME 没设之类的问题不该让 doctor 中止
+    if !cfg.ocr.enabled {
+        println!(
+            "ok   ocr: off (optional): scanned PDF pages have no text. Turn on with [ocr] enabled = true or --ocr"
+        );
+        return Ok(());
+    }
     let root = cfg.models_root()?;
     let choice = cfg.ocr_models()?;
     let math: &[pagesift_ocr::models::Model] = if cfg.ocr.formulas {
@@ -339,11 +352,7 @@ fn report_ocr(cfg: &pagesift::config::Config, warn: &impl Fn(&str, String)) -> R
         .map(|m| m.repo)
         .collect();
     let where_ = root.display();
-    if !cfg.ocr.enabled {
-        println!(
-            "ok   ocr: off (optional): scanned PDF pages have no text. Turn on with [ocr] enabled = true or --ocr"
-        );
-    } else if missing.is_empty() {
+    if missing.is_empty() {
         println!(
             "ok   ocr: {} and {} in {where_}; the next inference runs on {next}",
             choice.det.repo, choice.rec.repo

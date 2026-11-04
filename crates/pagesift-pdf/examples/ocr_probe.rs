@@ -7,10 +7,16 @@ use std::sync::{Arc, Mutex};
 struct Probe(Mutex<Vec<(u32, u32, f64)>>);
 
 impl pagesift_pdf::PageOcr for Probe {
-    fn recognize(&self, w: u32, h: u32, gray: &[u8]) -> Result<Vec<pagesift_pdf::OcrLine>, String> {
+    fn recognize(
+        &self,
+        w: u32,
+        h: u32,
+        gray: &[u8],
+        _deadline: Option<std::time::Instant>,
+    ) -> Result<pagesift_pdf::OcrOutput, String> {
         let dark = gray.iter().filter(|&&v| v < 128).count() as f64 / gray.len().max(1) as f64;
         self.0.lock().unwrap().push((w, h, dark));
-        Ok(Vec::new())
+        Ok(Default::default())
     }
 }
 

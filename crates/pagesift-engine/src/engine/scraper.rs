@@ -405,6 +405,16 @@ impl Scraper {
         }
         let mut result = self.scrape_document(source, opts).await;
         if let Ok(doc) = &mut result {
+            // 浏览器路径不带 `headers`：拿到的可能是未登录的页面，得说清楚
+            if !opts.headers.is_empty()
+                && let Some(meta) = &mut doc.metadata.pagesift
+                && meta.engine.as_deref() == Some("browser")
+            {
+                meta.warnings.push(
+                    "headers_not_sent: this page was rendered in a browser, which does not send the request's headers"
+                        .into(),
+                );
+            }
             crate::notice::fill_warning(doc);
         }
         result

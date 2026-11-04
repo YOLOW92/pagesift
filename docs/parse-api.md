@@ -1,34 +1,35 @@
-# 上传文件解析：`POST /v2/parse`（以及 scrape 抓到的文档）
+# File parsing: `POST /v2/parse` (and documents fetched by scrape)
 
-调用方直接上传文件的字节（不必先放到能访问的网址上），返回和 `POST /v2/scrape` 相同的文档。
-写法兼容 Firecrawl 现行的 `/v2/parse`
-（[接口文档](https://docs.firecrawl.dev/api-reference/endpoint/parse)，
-源码 `apps/api/src/controllers/v2/parse.ts`）。MCP 不提供这个接口：文件不经 MCP 传。
+Upload a file's bytes directly, without first putting it at a reachable URL, and get the same document as
+`POST /v2/scrape`. The request format follows Firecrawl's current `/v2/parse`
+([API reference](https://docs.firecrawl.dev/api-reference/endpoint/parse),
+source `apps/api/src/controllers/v2/parse.ts`). MCP does not offer this endpoint: files do not travel over MCP.
 
-支持的文件：
+Supported files:
 
-| 格式 | 扩展名 | 转换 |
+| Format | Extensions | Conversion |
 | :--- | :--- | :--- |
-| PDF | `.pdf` | pagesift-pdf（文字层） |
-| HTML | `.html`、`.htm`、`.xhtml` | 和网页相同的正文提取 |
-| Word | `.docx`（含 docm/dotx） | pagesift-office：标题、列表、表格、图片替代文字、链接、脚注、公式（LaTeX） |
-| Excel | `.xlsx`（含 xlsm/xltx） | 每个工作表一个二级标题和一张表，单元格是按数字格式显示的值 |
-| PowerPoint | `.pptx`（含 pptm/ppsx） | 每张幻灯片 `<!-- Slide N -->`、标题、要点、表格、图片、图表数据、演讲者备注 |
-| EPUB | `.epub` | 按 spine 顺序，每章交给和网页相同的 HTML 提取器（保留整章） |
-| CSV | `.csv`、`.tsv` | 一张表（RFC 4180，分隔符自动识别；字符集和网页一样：BOM、Content-Type 的 `charset`、正文探测，声明和正文对不上时纠正并给 `decode:` 警告） |
+| PDF | `.pdf` | pagesift-pdf: text layer, and OCR for scanned pages when turned on |
+| HTML | `.html`, `.htm`, `.xhtml` | The same main-content extraction as web pages |
+| Word | `.docx` (also docm, dotx) | pagesift-office: headings, lists, tables, image alt text, links, footnotes, formulas (LaTeX) |
+| Excel | `.xlsx` (also xlsm, xltx) | One second-level heading and one table per sheet; cells are values as displayed by their number format |
+| PowerPoint | `.pptx` (also pptm, ppsx) | `<!-- Slide N -->` per slide, titles, bullets, tables, images, chart data, speaker notes |
+| EPUB | `.epub` | In spine order; each chapter goes through the HTML extractor, keeping the whole chapter |
+| CSV | `.csv`, `.tsv` | One table (RFC 4180, delimiter detected). Charset as for web pages: BOM, `charset` in Content-Type, then detection from the body; a declaration that disagrees with the body is corrected with a `decode:` warning |
 
-旧版二进制格式（`.doc`、`.xls`、`.ppt`）、OpenDocument（`.odt` 等）、RTF 不支持，明确报错，不会猜。
-`/v2/scrape` 抓到这些格式时走同一段转换代码（见文末）；`pagesift scrape <本地文件>` 也一样。
+Legacy binary formats (`.doc`, `.xls`, `.ppt`), OpenDocument (`.odt` and others) and RTF are not supported and return a
+clear error rather than a guess. `/v2/scrape` uses the same conversion code when it fetches these formats (see the
+end of this page), as does `pagesift scrape <local file>`.
 
-## 请求
+## Request
 
-`multipart/form-data`，两个字段：
+`multipart/form-data` with these fields:
 
-| 字段 | 必填 | 内容 |
+| Field | Required | Content |
 | :--- | :--- | :--- |
-| `file` | 是 | 文件本身，上限 **50 MB**。文件名作为结果的 `metadata.sourceURL`（只保留最后一段路径）。 |
-| `options` | 否 | JSON 对象的字符串，字段同 scrape 的选项，见下表。 |
-| `url` | 否 | pagesift 扩展：上传的 HTML 原来所在的网址（http/https）。相对链接按它解析（页面里的 `<base href>` 仍然优先），它也作为 `metadata.sourceURL`。只用来解析地址，不会去抓。不给时相对链接解析成 `file:///…`，不进 `links`。 |
+| `file` | Yes | The file, up to **50 MB**. Its name becomes `metadata.sourceURL` (last path segment only). |
+| `options` | No | A JSON object as a string, with the scrape options below. |
+| `url` | No | pagesift extension: the http(s) address the uploaded HTML came from. Relative links resolve against it (a `<base href>` in the page still wins) and it becomes `metadata.sourceURL`. It is only used to resolve addresses and is never fetched. Without it, relative links resolve to `file:///…` and stay out of `links`. |
 
 ```bash
 curl -s http://localhost:3002/v2/parse \
@@ -37,115 +38,125 @@ curl -s http://localhost:3002/v2/parse \
   -F 'options={"formats":["markdown"],"parsers":[{"type":"pdf","maxPages":50,"pages":true}]};type=application/json'
 ```
 
-文件类型的判断顺序：内容以 `%PDF-` 开头就是 PDF；ZIP 容器按里面的部件认 Word（`word/document.xml`）、
-Excel（`xl/workbook.xml`）、PowerPoint（`ppt/presentation.xml`）、EPUB（`META-INF/container.xml`），
-文件名和类型写错也认得出；加了口令的 Office 文件（OLE 复合文件）按扩展名认，转换时报“已加密”；
-其余看扩展名，再看这个字段的 Content-Type。CSV 没有签名，只能靠扩展名或 `text/csv`。
+How the file type is decided: content starting with `%PDF-` is a PDF. A ZIP container is recognized by its parts: Word
+(`word/document.xml`), Excel (`xl/workbook.xml`), PowerPoint (`ppt/presentation.xml`), EPUB (`META-INF/container.xml`), so
+a wrong file name or type does not matter. A password-protected Office file (an OLE compound file) is recognized by its
+extension and reports that it is encrypted. Anything else goes by extension, then by this field's Content-Type. CSV has
+no signature, so it needs the extension or `text/csv`.
 
 ### options
 
-| 字段 | 默认 | 说明 |
+| Field | Default | Notes |
 | :--- | :--- | :--- |
-| `formats` | `["markdown"]` | `markdown`、`html`、`rawHtml`、`links`、`images`；配了 LLM 时还有 `summary`、`json`。`screenshot`、`branding`、`changeTracking` 不支持。PDF 和 Office 文档只有 `markdown`（另见 `parsers: []`）。 |
-| `onlyMainContent` | `true` | 对 HTML 生效：只保留正文。 |
-| `includeTags` / `excludeTags` | 无 | 同 scrape。 |
-| `timeout` | `30000` | 毫秒，1000–300000。超时回 408 `TIMEOUT`。 |
-| `parsers` | `["pdf", "image"]` | PDF 选项见下表。 |
-| `queryFilter`、`chunking` | 无 | pagesift 扩展，同 scrape。 |
-| `proxy` | 无 | 只接受 `basic`、`auto`（不联网，无实际作用）。 |
-| `headers`、`skipTlsVerification`、`removeBase64Images`、`blockAds`、`origin`、`integration` | | 照收，不影响结果。 |
-| 其他字段（如 `zeroDataRetention`） | | 照收、不起作用，在 `metadata.pagesift.warnings` 里列为 `ignored_fields: <字段名>`。 |
+| `formats` | `["markdown"]` | `markdown`, `html`, `rawHtml`, `links`, `images`; with a configured model also `summary`, `json`. `screenshot`, `branding`, `changeTracking` are not supported. PDF and Office documents have only `markdown` (see also `parsers: []`). |
+| `onlyMainContent` | `true` | For HTML: keep the main content only. |
+| `includeTags` / `excludeTags` | none | As in scrape. |
+| `timeout` | `30000` | Milliseconds, 1000–300000. A timeout returns 408 `TIMEOUT`. |
+| `parsers` | `["pdf", "image"]` | See below. |
+| `queryFilter`, `chunking` | none | pagesift extensions, as in scrape. |
+| `proxy` | none | Only `basic` and `auto` are accepted (no network is involved, so they do nothing). |
+| `headers`, `skipTlsVerification`, `removeBase64Images`, `blockAds`, `origin`, `integration` | | Accepted, no effect on the result. |
+| Other fields (such as `zeroDataRetention`) | | Accepted, no effect, listed in `metadata.pagesift.warnings` as `ignored_fields: <name>`. |
 
-不能用的选项回 400 `UNSUPPORTED_OPTION`：`actions`、`waitFor`、`location`、`mobile`、
-`engine: "browser"`、`egress`、`discoverScripts`、条件请求、`basic`/`auto` 以外的 `proxy`。
+Options that cannot apply return 400 `UNSUPPORTED_OPTION`: `actions`, `waitFor`, `location`, `mobile`,
+`engine: "browser"`, `egress`, `discoverScripts`, conditional requests, and `proxy` other than `basic` or `auto`.
 
-### `parsers`（parse 和 scrape 相同）
+### `parsers` (the same for parse and scrape)
 
-照 Firecrawl：每项是解析器名字（`"pdf"`、`"image"`）或对象（`{"type": "pdf", ...}`）。不给时等于默认值；
-给了列表时，列表里没有的解析器关闭。
+As in Firecrawl, each item is a parser name (`"pdf"`, `"image"`) or an object (`{"type": "pdf", ...}`). Omitting it means
+the default; with a list, parsers not in the list are off.
 
-| 写法 | 效果 |
+| Value | Effect |
 | :--- | :--- |
-| 不给、`["pdf"]`、`["pdf", "image"]` | 正常解析 PDF。`"image"`（图片 OCR）照收：pagesift 本来就不处理图片，图片网址照旧回 `UNSUPPORTED_OPTION`。 |
-| `[]`、`["image"]` | PDF 不解析，和 Firecrawl 一样把原文件按 base64 放进 `markdown`（要了 `html` 时也放进 `html`）。 |
-| `{"type": "pdf", "mode": "fast"}` | 只读文字层。遇到扫描件（没有文字层）回 400 `UNSUPPORTED_OPTION`（Firecrawl 是 `SCRAPE_PDF_OCR_REQUIRED`）。 |
-| `{"type": "pdf", "mode": "auto"}` | 默认。先读文字层；服务端打开了 OCR（`[ocr] enabled`）时扫描页走 OCR，没打开时照常返回并给 `scanned_pages_without_ocr` 警告。 |
-| `{"type": "pdf", "mode": "ocr"}` | 所有带图的页都走 OCR，识别出文字就替换这页的文字层；没有图的页保留文字层。服务端没打开 OCR 时回 `UNSUPPORTED_OPTION`：按请求只能选用，不能开启，因为开启会下载模型。 |
-| `{"type": "pdf", "maxPages": N}` | 1–10000。**只解析前 N 页**，后面的页不解释、不排版；给 `max_pages` 警告。`metadata.numPages` 是转换的页数，`metadata.totalPages` 是文件的页数（和 Firecrawl 相同）。 |
-| `{"type": "pdf", "pages": true}` | 另给每页的 Markdown：`data.pages: [{pageNumber, markdown}]`（scrape 也给）。 |
-| `blocks`、`pageMarkers` | 不支持，设为 `true` 回 `UNSUPPORTED_OPTION`。 |
+| Omitted, `["pdf"]`, `["pdf", "image"]` | PDFs are parsed normally. `"image"` is accepted, but pagesift does not process images: image URLs still return `UNSUPPORTED_OPTION`. |
+| `[]`, `["image"]` | PDFs are not parsed: as in Firecrawl, the original file goes into `markdown` as base64 (and into `html` if requested). |
+| `{"type": "pdf", "mode": "fast"}` | Text layer only. A scan with no text layer returns 400 `UNSUPPORTED_OPTION` (Firecrawl: `SCRAPE_PDF_OCR_REQUIRED`). |
+| `{"type": "pdf", "mode": "auto"}` | Default. Reads the text layer first. With OCR turned on (`[ocr] enabled`), scanned pages go through OCR; otherwise the result returns as usual with a `scanned_pages_without_ocr` warning. |
+| `{"type": "pdf", "mode": "ocr"}` | Every page with an image goes through OCR, and recognized text replaces that page's text layer; pages with no image keep theirs. Without OCR turned on this returns `UNSUPPORTED_OPTION`: a request can use OCR but not turn it on, since turning it on downloads models. |
+| `{"type": "pdf", "maxPages": N}` | 1–10000. **Parses only the first N pages**, with a `max_pages` warning. `metadata.numPages` is the pages converted, `metadata.totalPages` the pages in the file (as in Firecrawl). |
+| `{"type": "pdf", "pages": true}` | Adds Markdown per page: `data.pages: [{pageNumber, markdown}]` (scrape too). |
+| `blocks`, `pageMarkers` | Not supported; `true` returns `UNSUPPORTED_OPTION`. |
 
-写错的 `parsers`（非数组、未知项、取值越界）在 scrape 里也是抓取之前就回 400。`parsers` 参与缓存键
-（不给时缓存键和以前一样）。
+Invalid `parsers` (not an array, unknown items, values out of range) also return 400 in scrape, before anything is
+fetched. `parsers` is part of the cache key (without it the key is unchanged).
 
-## 响应
+### OCR
 
-和 `/v2/scrape` 相同：`{"success": true, "data": {markdown, ..., metadata}}`。
+Turn it on with `[ocr] enabled = true` or `--ocr`. Models download when the first scanned image arrives, or ahead of time
+with `pagesift models fetch`. `metadata.pagesift.ocr` reports `engine`, `model`, `device`, `pages` and `fallback`. Text
+models use an NVIDIA GPU when one is available and fall back to the CPU with a `gpu_fallback` warning; layout and
+formula models run on the CPU. `[ocr] formulas = true` also recognizes display formulas as `$$…$$`.
 
-- PDF：`markdown` 与用 `/v2/scrape` 抓同一份文件逐字相同；`metadata.title`、`numPages`、`totalPages` 也相同。
-  `/Info` 里没有 `/Title` 时，`metadata.title` 是版面推断的标题（第一页的一级标题），并给
-  `metadata.titleSource: "inferred"`；文件自带标题时没有这个字段。
-  损坏的文件能恢复多少给多少，但会说明：`pdf_repaired`（交叉引用表不可用或偏移指错，对象是扫描
-  全文找到的）、`pages_missing`（页树引用的页面对象丢了，例如截断的文件：`2 of 5 pages could not be
-  recovered ...; 3 converted`，`numPages`、`totalPages` 是恢复出的页数）。审计日志把 `pages_missing` 算作可疑结果。
-- HTML：正文提取和 scrape 相同。没有 `<base href>` 时相对链接按 `file:///<文件名>` 解析，不冒充任何网址；
-  `links` 只收 http(s) 链接，所以这些相对链接不出现在 `links` 里。
-  上传的页面看起来像拦截页时照样提取，只给 `access_barrier` 警告（抓取时这是错误）。
-- Office、EPUB、CSV：`metadata.title` 取文档属性（docProps/core.xml、OPF 的 dc:title）；截断等提示进
-  `metadata.pagesift.warnings`；耗时记在 `metadata.pagesift.timings.<扩展名>`。
-- `metadata.sourceURL` 是文件名，`statusCode` 是 200，`contentType` 是格式对应的 MIME（HTML 是上传时的类型），
-  `metadata.pagesift.engine` 是 `upload`。
+## Response
 
-## 错误
+The same as `/v2/scrape`: `{"success": true, "data": {markdown, ..., metadata}}`.
 
-响应体和其他接口一样是 `{"success": false, "code", "error"}`。**scrape 抓到的 PDF、Office 文档出错时状态码与此相同**
-（以前 scrape 一律回 502）：
+- PDF: `markdown` is identical to fetching the same file with `/v2/scrape`, as are `metadata.title`, `numPages` and
+  `totalPages`. When `/Info` has no `/Title`, `metadata.title` is the title inferred from the layout (the first page's
+  top-level heading) and `metadata.titleSource` is `"inferred"`. A damaged file gives whatever can be recovered and says so:
+  `pdf_repaired` (the cross-reference table was unusable or wrong, and objects were found by scanning the file) and
+  `pages_missing` (page objects referenced by the page tree are gone, such as in a truncated file:
+  `2 of 5 pages could not be recovered ...; 3 converted`, with `numPages` and `totalPages` counting recovered pages). The
+  audit log counts `pages_missing` as a suspect result.
+- HTML: extraction as in scrape. Without `<base href>`, relative links resolve against `file:///<file name>` and do not
+  pretend to be any URL; `links` takes only http(s) links, so they stay out of it. An uploaded page that looks like a
+  block page is still extracted, with an `access_barrier` warning (when fetching, this is an error).
+- Office, EPUB, CSV: `metadata.title` comes from the document properties (docProps/core.xml, the OPF's dc:title).
+  Notices such as truncation go into `metadata.pagesift.warnings`, and timing into `metadata.pagesift.timings.<extension>`.
+- `metadata.sourceURL` is the file name, `statusCode` is 200, `contentType` is the format's MIME type (for HTML, the uploaded
+  type), and `metadata.pagesift.engine` is `upload`.
 
-| 情况 | 状态码 | `code` |
+## Errors
+
+The body is `{"success": false, "code", "error"}` as on other endpoints. **PDF and Office documents fetched by scrape use the
+same status codes.**
+
+| Case | Status | `code` |
 | :--- | :--- | :--- |
-| 不是 multipart、multipart 格式坏了、缺 `file`、文件为空、`options` 不是 JSON 对象、选项取值不对 | 400 | `INVALID_REQUEST`（Firecrawl 是 `BAD_REQUEST`） |
-| 文件类型不支持、加密的 PDF/Office/EPUB（DRM）、做不到的选项 | 400 | `UNSUPPORTED_OPTION`（Firecrawl 对类型是 `UNSUPPORTED_FILE_TYPE`） |
-| 文件损坏读不了 | 400 | `INVALID_REQUEST`，`error` 以 `could not read PDF`（或 `DOCX`、`XLSX`……）开头 |
-| 文件超过 50 MB（声明的 Content-Length 超限时不读请求体）；PDF 超过 5000 页；解压后超限（见下） | 413 | `TOO_LARGE` |
-| 请求体没在时限内传完（默认 120 秒，可配）；解析超过 `timeout` | 408 | `TIMEOUT` |
-| API key 不对；超过速率、并发或配额 | 401 / 429 | 同其他接口 |
+| Not multipart, malformed multipart, missing `file`, empty file, `options` is not a JSON object, invalid option values | 400 | `INVALID_REQUEST` (Firecrawl: `BAD_REQUEST`) |
+| Unsupported file type, encrypted PDF/Office/EPUB (DRM), options that cannot apply | 400 | `UNSUPPORTED_OPTION` (Firecrawl, for types: `UNSUPPORTED_FILE_TYPE`) |
+| Damaged file that cannot be read | 400 | `INVALID_REQUEST`, with `error` starting `could not read PDF` (or `DOCX`, `XLSX`, …) |
+| File over 50 MB (a declared Content-Length over the limit is refused without reading the body); PDF over 5000 pages; decompressed size over the limit (below) | 413 | `TOO_LARGE` |
+| Body not received in time (120 s by default, configurable); parsing longer than `timeout` | 408 | `TIMEOUT` |
+| Wrong API key; over rate, concurrency or quota limits | 401 / 429 | As on other endpoints |
 
-## 资源与安全
+## Resources and safety
 
-- 内存：文件只在内存里保留一份。按 Content-Length 一次分配好缓冲区，边收边追加，超限立刻停；
-  之后这块缓冲区原样交给解析器，解析完就释放。
-- Office/EPUB 的上限（`pagesift_office::Limits`）：ZIP 条目 2 万个；单个条目解压后 256 MB、整个文件累计 512 MB；
-  4 MB 以上的条目压缩比不超过 400:1（防 ZIP 炸弹）；XML 嵌套 512 层；表格（Excel、CSV）共 200 万个单元格、
-  1024 列，超出的部分截掉并给警告。XML 不展开任何 DOCTYPE 里声明的实体，没有外部实体（XXE）和实体膨胀的问题。
-- CPU：和抓取共用解析阶段的闸门与按核数限制的 CPU 名额，大量上传不会把机器压垮。
-- 时限：服务端的四个时限都能在 `pagesift.toml` 的 `[server.timeouts]` 里配（秒，必须大于 0）：
-  `header_read_secs`（读请求头，默认 30）、`body_secs`（读请求体，默认 30）、
-  `upload_body_secs`（`/v2/parse` 的请求体，默认 120）、`request_secs`（整个请求，默认 360）。
-  上传放宽的请求体时间会加到整请求时限上，传得慢也不会挤占解析的 `timeout`。
-- 审计日志：每次解析记一条 `kind: "parse"`，`url` 为 `upload:<文件名>`，另有 `fileBytes`；不存快照，
-  上传的文件往往不公开。
-- 监控：`pagesift_pages_scraped_total{source="parse"}`，以及按路由 `/v2/parse` 的请求数和延迟。
+- Memory: one copy of the file in memory. The buffer is allocated once from Content-Length, filled as bytes arrive, and
+  stopped at the limit. It is then handed to the parser as is and freed afterwards.
+- Office and EPUB limits (`pagesift_office::Limits`): 20,000 ZIP entries; 256 MB decompressed per entry and 512 MB per file;
+  at most 400:1 compression for entries over 4 MB (against ZIP bombs); 512 levels of XML nesting; 2,000,000 cells and 1024
+  columns for tables (Excel, CSV), with the excess cut and a warning. XML does not expand entities declared in a DOCTYPE,
+  so there is no external-entity (XXE) or entity-expansion problem.
+- CPU: shares the parsing gate and per-core CPU slots with fetching, so many uploads cannot overwhelm the machine.
+- Time limits: all four server limits can be set under `[server.timeouts]` in `pagesift.toml` (seconds, above 0):
+  `header_read_secs` (reading headers, default 30), `body_secs` (reading the body, default 30), `upload_body_secs` (the
+  `/v2/parse` body, default 120), `request_secs` (the whole request, default 360). The extra upload time is added to the
+  request limit, so a slow upload does not eat into the parse `timeout`.
+- Audit log: each parse writes `kind: "parse"`, `url` as `upload:<file name>`, and `fileBytes`. No snapshot is stored, since
+  uploaded files are often not public.
+- Metrics: `pagesift_pages_scraped_total{source="parse"}`, plus request counts and latency for the route `/v2/parse`.
 
-## `/v2/scrape` 抓到文档时
+## Documents fetched by `/v2/scrape`
 
-抓到的内容按这个顺序判断：PDF（`%PDF-` 开头或 `application/pdf`）→ Office/EPUB（ZIP 里的部件，或 Content-Type，
-或网址路径的扩展名）→ CSV（`text/csv`，或网址以 `.csv`/`.tsv` 结尾且服务器没说是 HTML）→ 其他按网页处理。
-转换和上传完全相同，`metadata.pagesift.engine` 是 `http`。
+Fetched content is classified in this order: PDF (starts with `%PDF-` or `application/pdf`) → Office/EPUB (parts inside the
+ZIP, Content-Type, or the URL's extension) → CSV (`text/csv`, or a URL ending in `.csv`/`.tsv` when the server did not say
+HTML) → everything else as a web page. Conversion is identical to uploads, with `metadata.pagesift.engine` as `http`.
 
-## 和 Firecrawl 有意不同的地方
+## Deliberate differences from Firecrawl
 
-| 项目 | Firecrawl | pagesift | 理由 |
+| Item | Firecrawl | pagesift | Why |
 | :--- | :--- | :--- | :--- |
-| 错误码名 | `BAD_REQUEST` / `UNSUPPORTED_FILE_TYPE` / `PARSE_UNSUPPORTED_OPTIONS` | `INVALID_REQUEST` / `UNSUPPORTED_OPTION` | 和现有 scrape 的错误码一致；状态码都是 400 |
-| 超限 | 文档未写 | 413 `TOO_LARGE` | 沿用现有的 `TOO_LARGE` |
-| 坏 PDF / 坏文档 | 500 | 400 `INVALID_REQUEST` | 是文件的问题，不是服务端故障 |
-| 加密 PDF / Office / DRM 的 EPUB | — | 400 `UNSUPPORTED_OPTION` | 需要口令或密钥，做不到 |
-| 类型判断 | 先扩展名，再 MIME | 先看内容（`%PDF-`、ZIP 里的部件），再扩展名、MIME | 文件名写错也能认出 |
-| `mode: ocr` | 支持 | 服务端打开 `[ocr] enabled` 后支持，否则报不支持 | 不悄悄降级 |
-| `blocks`、`pageMarkers` | 支持 | 明确报不支持 | 不悄悄降级 |
-| `mode: fast` 遇到扫描件 | `SCRAPE_PDF_OCR_REQUIRED` | 400 `UNSUPPORTED_OPTION` | 同样报错，错误码用现有的 |
-| `image` 解析器（图片 OCR） | 支持 | 照收，不做 OCR | 不处理图片；收下是为了 Firecrawl SDK 的默认值不被拒 |
-| 文档的 `html` 格式 | Markdown 转出的 HTML | 只给 `markdown` | 不为文档另造 HTML |
-| 支持的文档格式 | 另有 doc、xls、ppt、odt/ods/odp、rtf | docx、xlsx、pptx、epub、csv | 本轮范围；旧二进制格式和 OpenDocument 留待以后 |
-| Word 页眉页脚 | 放在正文前后 | 不输出 | 每页重复的内容会混进正文 |
-| Excel 隐藏的行列 | 未核实（Firecrawl 用 anydoc 转换；MarkItDown 照样输出） | 不输出 | 用户在表格软件里看不到 |
+| Error names | `BAD_REQUEST` / `UNSUPPORTED_FILE_TYPE` / `PARSE_UNSUPPORTED_OPTIONS` | `INVALID_REQUEST` / `UNSUPPORTED_OPTION` | Matches scrape's codes; the status is 400 either way |
+| Over the limit | Not documented | 413 `TOO_LARGE` | Uses the existing code |
+| Damaged PDF or document | 500 | 400 `INVALID_REQUEST` | The file is at fault, not the server |
+| Encrypted PDF/Office, DRM EPUB | — | 400 `UNSUPPORTED_OPTION` | Needs a password or key |
+| Type detection | Extension, then MIME | Content (`%PDF-`, parts inside the ZIP), then extension and MIME | A wrong file name still works |
+| `mode: ocr` | Supported | Supported once `[ocr] enabled` is set, otherwise reported as unsupported | No silent downgrade |
+| `blocks`, `pageMarkers` | Supported | Reported as unsupported | No silent downgrade |
+| `mode: fast` on a scan | `SCRAPE_PDF_OCR_REQUIRED` | 400 `UNSUPPORTED_OPTION` | Same failure, existing code |
+| `image` parser (image OCR) | Supported | Accepted, no OCR | Images are not processed; accepted so that Firecrawl SDK defaults are not rejected |
+| `html` format for documents | HTML converted from Markdown | `markdown` only | No separately invented HTML |
+| Document formats | Also doc, xls, ppt, odt/ods/odp, rtf | docx, xlsx, pptx, epub, csv | |
+| Word headers and footers | Before and after the body | Not output | Content repeated on every page would mix into the body |
+| Hidden rows and columns in Excel | Not verified (Firecrawl converts with anydoc; MarkItDown outputs them) | Not output | Users cannot see them in a spreadsheet |

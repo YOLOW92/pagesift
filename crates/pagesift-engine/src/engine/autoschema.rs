@@ -321,11 +321,39 @@ pub async fn observe(
     Ok(out)
 }
 
+/// `[secrets]` 的一项。
+#[derive(Debug, Clone, Default)]
+pub struct ActionSecret {
+    pub value: String,
+    /// 只有这些主机（含子域名）上的页面才能拿到值。
+    pub hosts: Vec<String>,
+}
+
+impl ActionSecret {
+    fn allows(&self, host: &str) -> bool {
+        self.hosts.iter().any(|h| {
+            let h = h.trim_end_matches('.');
+            host.eq_ignore_ascii_case(h)
+                || host.len().checked_sub(h.len() + 1).is_some_and(|i| {
+                    host.as_bytes()[i] == b'.' && host[i + 1..].eq_ignore_ascii_case(h)
+                })
+        })
+    }
+}
+
 /// act 的动作里 `{{secret:NAME}}` 换成本地配置的凭证；替换在发给浏览器之前做，模型看不到值。
+/// `page_url` 是值要填进去的页面。名字不存在和主机不符报同样的错：调用方不能用它探测配了哪些名字。
 pub fn fill_secrets(
     actions: &mut [Value],
-    credentials: &std::collections::BTreeMap<String, String>,
+    credentials: &std::collections::BTreeMap<String, ActionSecret>,
+    page_url: &str,
 ) -> Result<(), ApiError> {
+    let parsed = url::Url::parse(page_url).ok();
+    let host = parsed
+        .as_ref()
+        .and_then(url::Url::host_str)
+        .unwrap_or_default();
+    let host = host.trim_end_matches('.');
     for a in actions {
         let Some(text) = a.get("text").and_then(Value::as_str) else {
             continue;
@@ -339,10 +367,13 @@ pub fn fill_secrets(
                 return Err(ApiError::invalid("unterminated {{secret:...}} placeholder"));
             };
             let name = &after[..j];
-            let v = credentials.get(name).ok_or_else(|| {
-                ApiError::invalid(format!("no credential named {name:?} is configured"))
-            })?;
-            out.push_str(v);
+            let v = credentials
+                .get(name)
+                .filter(|c| c.allows(host))
+                .ok_or_else(|| {
+                    ApiError::invalid(format!("secret {name:?} is not available on this page"))
+                })?;
+            out.push_str(&v.value);
             rest = &after[j + 2..];
         }
         out.push_str(rest);
@@ -412,11 +443,29 @@ mod tests {
         assert!(!nodes.is_empty() && nodes.len() < 200);
         assert!(snap.contains("link <a> \"Product 0\" href=/p/0"), "{snap}");
         let mut acts = vec![json!({"type": "write", "text": "user {{secret:PW}}!"})];
-        let creds = [("PW".to_string(), "hunter2".to_string())].into();
-        fill_secrets(&mut acts, &creds).unwrap();
+        let creds = [(
+            "PW".to_string(),
+            ActionSecret {
+                value: "hunter2".to_string(),
+                hosts: vec!["example.com".to_string()],
+            },
+        )]
+        .into();
+        fill_secrets(&mut acts, &creds, "https://login.example.com/").unwrap();
         assert_eq!(acts[0]["text"], "user hunter2!");
         let mut bad = vec![json!({"type": "write", "text": "{{secret:NOPE}}"})];
-        assert!(fill_secrets(&mut bad, &creds).is_err());
+        let unknown = fill_secrets(&mut bad, &creds, "https://example.com/").unwrap_err();
+        // 主机不符和名字不存在说的一样；页面主机只是后缀相同也不算
+        for page in ["https://evil.test/", "https://notexample.com/", "not a url"] {
+            let mut acts = vec![json!({"type": "write", "text": "{{secret:PW}}"})];
+            let refused = fill_secrets(&mut acts, &creds, page).unwrap_err();
+            assert_eq!(acts[0]["text"], "{{secret:PW}}", "{page}");
+            assert!(
+                refused.message.contains("not available on this page"),
+                "{page}"
+            );
+            assert!(unknown.message.contains("not available on this page"));
+        }
         let a = cache_key("https://www.shop.example.co.uk/item/123?ref=x", "Prices").unwrap();
         let b = cache_key("https://a.example.co.uk/item/9?ref=1", " prices ").unwrap();
         assert_eq!(a, b);

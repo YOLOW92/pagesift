@@ -1,0 +1,21 @@
+472 questions (all)
+method                   R@100   P@100   R@250   P@250   R@500   P@500  R(kept)   words  P(kept)
+pagesift-default                                                          0.929    1157    0.038
+pagesift-old-default                                                      0.984   27513    0.007
+pagesift-para            0.240   0.095   0.353   0.064   0.479   0.050
+pagesift-rec100          0.525   0.279   0.714   0.142   0.813   0.075
+pagesift-rec100ctx       0.279   0.161   0.659   0.135   0.830   0.078
+pagesift-rec200          0.466   0.203   0.677   0.165   0.823   0.085
+pagesift-rec50           0.547   0.248   0.688   0.117   0.789   0.069
+rec100-abs1.0-default                                                     0.977   14044    0.013
+rec100-floor1000-default                                                    0.920    1192    0.038
+rec100-floor1300-default                                                    0.934    1435    0.031
+rec100-floor300-default                                                    0.885     734    0.080
+rec100-floor500-default                                                    0.894     838    0.060
+rec100-floor800-default                                                    0.907    1042    0.044
+rec100-rel0.3-default                                                     0.937    1914    0.060
+rec100-rel0.5-default                                                     0.860     664    0.144
+rec100-rel0.7-default                                                     0.739     273    0.224
+rec100-top10-default                                                      0.863     671    0.057
+rec100-top3-default                                                       0.705     200    0.147
+rec100-top5-default                                                       0.778     337    0.098

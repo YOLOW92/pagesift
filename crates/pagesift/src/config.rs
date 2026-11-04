@@ -35,10 +35,11 @@ pub struct Config {
     /// `[[rules]]`：按主机和路径匹配的抓取规则，启动时编译成钩子（`pagesift_hooks::rules`）。
     #[serde(default)]
     pub rules: Vec<pagesift_hooks::rules::Rule>,
-    /// `[secrets]`：`NAME = { env = "VAR" }`，act 动作里的 `{{secret:NAME}}` 在本地换成它（不经过模型）。
+    /// `[secrets]`：`NAME = { env = "VAR", hosts = ["example.com"] }`，act 动作里的 `{{secret:NAME}}` 在本地
+    /// 换成它（不经过模型），只在 `hosts` 列的主机上才换。
     /// （`[[credentials]]` 是另一回事：按主机下发的授权凭证。）
     #[serde(default)]
-    pub secrets: std::collections::BTreeMap<String, SecretValue>,
+    pub secrets: std::collections::BTreeMap<String, ActionSecret>,
     #[serde(default)]
     pub fetch: Fetch,
     #[serde(default)]
@@ -73,6 +74,33 @@ pub struct Config {
     /// `PAGESIFT_CONFIG=` 显式关闭了所有配置文件。
     #[serde(skip)]
     disabled: bool,
+}
+
+/// `[secrets]` 的一项：值来自环境变量（或直接写），只能填进 `hosts` 上的页面。没有缺省的主机：
+/// 不限主机时，任何调用方都能把它打进自己的页面取走。
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ActionSecret {
+    pub env: Option<String>,
+    pub value: Option<String>,
+    pub hosts: Vec<String>,
+}
+
+impl ActionSecret {
+    fn resolve(&self) -> Result<pagesift_engine::engine::ActionSecret> {
+        if self.hosts.is_empty() {
+            bail!("hosts must list at least one host");
+        }
+        let value = match (&self.env, &self.value) {
+            (Some(env), None) => SecretValue::Env { env: env.clone() },
+            (None, Some(v)) => SecretValue::Plain(v.clone()),
+            _ => bail!("set exactly one of env and value"),
+        };
+        Ok(pagesift_engine::engine::ActionSecret {
+            value: value.resolve()?,
+            hosts: self.hosts.clone(),
+        })
+    }
 }
 
 /// 直接写值，或者 `{ env = "VAR" }`。

@@ -101,6 +101,10 @@ pub(super) fn decode(
             .collect()
     };
     for (n, &(row, col)) in units.iter().enumerate() {
+        // 按行查时限（单个块的开销和查一次差不多）
+        if col == 0 && crate::budget::expired() {
+            return Err("解码超过了时限".into());
+        }
         if restart > 0 && n > 0 && n % restart == 0 {
             bits.restart();
             pred = [0; 4]; // [协议] 4 个分量的 DC 预测在重启处清零（T.81 附录 F）

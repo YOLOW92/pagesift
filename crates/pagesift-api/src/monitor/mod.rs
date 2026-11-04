@@ -232,6 +232,10 @@ const DEFAULT_RETENTION_DAYS: u32 = 30;
 const MAX_RETENTION_DAYS: u32 = 365; // [协议] 同上
 /// [协议] Firecrawl 文档：每个监控 1–50 个目标。
 const MAX_TARGETS: usize = 50;
+/// [策略] 一个账户最多这么多个监控：每个监控都存页面全文，常驻内存
+const MAX_MONITORS_PER_ACCOUNT: usize = 1000;
+/// [策略] 每个监控保留的检查记录条数上限，和 `retentionDays` 同时生效：5 分钟一次时一年有 10 万次
+const MAX_CHECKS_KEPT: usize = 1000;
 
 /// 所有监控（进程内），配了存储时同时落盘（`monitor/<id>`）。
 #[derive(Clone, Default)]
@@ -324,6 +328,18 @@ pub(crate) async fn create(
     if period.is_some_and(|p| p < schedule::MIN_INTERVAL_SECS) {
         return Err(ApiError::invalid("the minimum interval is 5 minutes"));
     }
+    if period.is_some_and(|p| p > schedule::MAX_INTERVAL_SECS)
+        || sched
+            .min_interval_ms
+            .into_iter()
+            .chain(sched.max_interval_ms)
+            .any(|ms| ms / 1000 > schedule::MAX_INTERVAL_SECS)
+    {
+        return Err(ApiError::invalid(format!(
+            "the maximum interval is {} days",
+            schedule::MAX_INTERVAL_SECS / 86_400
+        )));
+    }
     warnings.extend(schedule::unsupported(&sched, period));
     let adaptive =
         sched.min_interval_ms.is_some() || sched.max_interval_ms.is_some() || period.is_none();
@@ -341,6 +357,22 @@ pub(crate) async fn create(
         Some(v) => Some(WebhookConfig::parse_monitor(v, &s.webhooks.settings.ssrf)?),
         None => None,
     };
+    crate::validate::check_url_count(req.targets.iter().map(|t| t.urls.len()).sum())?;
+    let owner = owner_of(&caller);
+    let held = s
+        .monitors
+        .map
+        .lock()
+        .await
+        .values()
+        .filter(|m| m.owner == owner)
+        .count();
+    if held >= MAX_MONITORS_PER_ACCOUNT {
+        return Err(ApiError::new(
+            ErrorCode::ConcurrencyLimitExceeded,
+            format!("this account already has {held} monitors, the maximum"),
+        ));
+    }
     let now = run::now_secs();
     let id = uuid::Uuid::new_v4().to_string();
     let mut pages = BTreeMap::new();
@@ -373,6 +405,7 @@ pub(crate) async fn create(
                     .ok_or_else(|| ApiError::invalid("a crawl target needs url"))?;
                 crate::validate::check_url(&u)?;
                 crawl::crawl_request(t, &u).and_then(|r| {
+                    crate::validate::check_url_count(r.limit)?;
                     crate::firecrawl::crawl::check_crawl_request(&r, s.engine.as_ref())
                 })?;
                 // 爬取目标的“网址”是起始页：整个目标一起检查，变化率按“有没有任何页面变化”记
@@ -397,7 +430,7 @@ pub(crate) async fn create(
     req.targets = targets;
     let state = MonitorState {
         id: id.clone(),
-        owner: owner_of(&caller),
+        owner,
         req,
         created_at: run::rfc3339_secs(now),
         status: "active".into(),

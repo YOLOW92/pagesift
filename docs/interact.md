@@ -89,7 +89,17 @@ such a plan is not cached; `{{secret:NAME}}` placeholders are stored as placehol
 ### Secrets
 
 `{{secret:NAME}}` in `actions[].text` or in text the model types is replaced locally with the value of `NAME` from
-`[secrets]` in `pagesift.toml`.
+`[secrets]` in `pagesift.toml`:
+
+```toml
+[secrets]
+SHOP_PASSWORD = { env = "SHOP_PASSWORD", hosts = ["shop.example.com"] }
+```
+
+- `hosts` is required. The value is filled in only while the page is on one of these hosts or their subdomains.
+  Elsewhere the call returns an error that does not say whether the name exists.
+- A session cannot both run `executeJavascript` and use secrets.
+- Every API key on the server can use a configured secret on its hosts.
 
 - A model may use only names that appear in the `prompt`, so text on a page cannot make it use another secret.
 - Values do not reach the model: once used in a session, a value is replaced by its placeholder in later snapshots.
@@ -125,7 +135,7 @@ such a plan is not cached; `{{secret:NAME}}` placeholders are stored as placehol
 | 403 | `ROBOTS_DISALLOWED` | robots.txt disallows the page; the page's content is not returned and the session ends |
 | 404 | `NOT_FOUND` | no such id, or its record expired. `DELETE` also answers 404 when no session is open |
 | 410 | `SESSION_GONE` | the session was stopped or reclaimed, the browser exited, or the id comes from an earlier server process (the server restarted). The message says which |
-| 429 | `CONCURRENCY_LIMIT_EXCEEDED` | no room for another session and none is idle |
+| 429 | `CONCURRENCY_LIMIT_EXCEEDED` | no room for another session and none is idle. When a session must be closed to make room, the account holding the most sessions gives one up first |
 | 502 | `UPSTREAM_ERROR` | the LLM or the browser failed |
 
 Calls on one session run one at a time; a call waiting for its turn counts against its own `timeout`.
@@ -153,7 +163,8 @@ one browser with one tab, oldest first.
 ## What stays in force on a kept page
 
 - Network checks: the page's request interception keeps running, so navigations and subrequests started by clicks pass
-  the same private-network rules as the first load.
+  the same private-network rules as the first load. The browser resolves the host itself, so DNS rebinding is not
+  stopped on this path; pop-ups and WebSockets opened by the page were not tested against these rules.
 - robots.txt: before each call for the current page, and again when a call navigated elsewhere.
 - Per-host rate limits: each call that acts on the page takes one permit for the page's host. Subrequests the page sends
   by itself are not counted, as with rendering.

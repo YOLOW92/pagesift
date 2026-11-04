@@ -15,6 +15,7 @@ import time
 
 BIN = os.environ["MIX_PAGESIFT_BIN"]
 MODE = sys.argv[1]
+FAST = "fast" in sys.argv[2:]
 ENV = {**os.environ, "PAGESIFT_CONFIG": ""}  # 空值 = 不读配置文件，全用默认
 
 
@@ -31,6 +32,8 @@ def cmd(job):
         return c
     if MODE == "url":
         # 快照在本地回放服务（127.0.0.1）上；pagesift 默认拦截内网地址（SSRF 防护），用官方的 --allow-cidr 只放行回环这一个地址
+        if FAST:  # 和不限速、不渲染的工具同条件比
+            return [BIN, "--no-politeness", "scrape", "--engine", "http", "--allow-cidr", "127.0.0.1/32", job["input"]]
         return [BIN, "scrape", "--allow-cidr", "127.0.0.1/32", job["input"]]
     return [BIN, "scrape", job["input"]]
 

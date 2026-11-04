@@ -1,0 +1,6 @@
+prepared_at	2026-10-29T10:17:12+09:00
+git_head	8c1c799a40447bf33e5c772075e63a917903bb41
+pagesift_version	pagesift 0.81.0
+pagesift_sha256	38a33392f9ae69579765e2628326423a461d0093e9407198b7573bf86bbc6208
+run	/home/yolow92/mix-tools/runs-081/20261029-101705
+archive	/home/yolow92/pagesift/benchmarks/history/0.81/results/20261029-101705

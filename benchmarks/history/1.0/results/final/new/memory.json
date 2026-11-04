@@ -1,0 +1,82 @@
+[
+ {
+  "label_en": "PDF, B1 pages",
+  "label_zh": "PDF，B1",
+  "psift": "v2.b1.cli.1w.peak",
+  "rival_name": "Docling (CPU)",
+  "rival": 3675,
+  "rival_date": "2026-10-28",
+  "psift_value": 34.5,
+  "ratio": 106.52173913043478
+ },
+ {
+  "label_en": "HTML main content, A2 pages",
+  "label_zh": "网页正文，A2",
+  "psift": "v2.a2.cli.1w.peak",
+  "rival_name": "Readability + Turndown",
+  "rival": 1200,
+  "rival_date": "2026-10-28",
+  "psift_value": 27.9,
+  "ratio": 43.01075268817205
+ },
+ {
+  "label_en": "Crawl, 200 sites × 100 pages",
+  "label_zh": "抓取，200 站 × 100 页",
+  "psift": "crawl.wide.peak",
+  "rival_name": "spider",
+  "rival": 5500,
+  "rival_date": "2026-10-21",
+  "psift_value": 218.3,
+  "ratio": 25.194686211635364
+ },
+ {
+  "label_en": "Office and e-books, B4 files",
+  "label_zh": "Office 和电子书，B4",
+  "psift": "v2.b4.cli.1w.peak",
+  "rival_name": "Kreuzberg",
+  "rival": 231,
+  "rival_date": "2026-10-28",
+  "psift_value": 46.0,
+  "ratio": 5.021739130434782
+ },
+ {
+  "label_en": "HTML main content, A2 pages",
+  "label_zh": "网页正文，A2",
+  "psift": "v2.a2.cli.1w.peak",
+  "rival_name": "trafilatura",
+  "rival": 123,
+  "rival_date": "2026-10-28",
+  "psift_value": 27.9,
+  "ratio": 4.408602150537635
+ },
+ {
+  "label_en": "Crawl with browser, 200 sites × 100 pages",
+  "label_zh": "带浏览器抓取，200 站 × 100 页",
+  "psift": "browser.auto.peak",
+  "rival_name": "Google Chrome",
+  "rival": 2300,
+  "rival_date": "2026-10-21",
+  "psift_value": 669.1,
+  "ratio": 3.4374532954715287
+ },
+ {
+  "label_en": "PDF, B1 pages",
+  "label_zh": "PDF，B1",
+  "psift": "v2.b1.cli.1w.peak",
+  "rival_name": "Kreuzberg",
+  "rival": 76,
+  "rival_date": "2026-10-28",
+  "psift_value": 34.5,
+  "ratio": 2.2028985507246377
+ },
+ {
+  "label_en": "JavaScript pages, A3 (live web)",
+  "label_zh": "需要 JS 的页面，A3（实网）",
+  "psift": "a3.peak",
+  "rival_name": "Crawl4AI",
+  "rival": 982,
+  "rival_date": "2026-10-28",
+  "psift_value": 519.7,
+  "ratio": 1.8895516644217816
+ }
+]

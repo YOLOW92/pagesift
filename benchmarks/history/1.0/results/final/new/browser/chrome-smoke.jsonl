@@ -1,0 +1,1 @@
+{"label": "smoke/chrome", "wall_s": 4.46, "cpu_s": 0.39, "peak_tree_rss_mb": 4038.8, "peak_tree_pss_mb": 989.4, "exit": 0, "served_pages": 30, "pages_per_s": 6.7, "killed": null, "summary": "pagesift: 30 pages from 3 sites in 4.39 s = 7 pages/s, errors 0, markdown 0.3 MB"}

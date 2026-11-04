@@ -1,0 +1,24 @@
+The 0.91.1 column is one run; the 1.0 column uses four-round medians for crawl, chunking and Office. For those rows and for serve latency read repeat.txt, where both builds took turns.
+
+| Metric | 0.91.1 | Final | Change |
+|---|---|---|---|
+| api.binary_bytes ↓ | 3.0583e+07 | 3.80186e+07 | +24.3% |
+| browser.auto.tput ↑ | 44.1 | 39.1 | -11.3% |
+| crawl.huge.tput ↑ | 2443.4 | 2120.9 | -13.2% |
+| crawl.huge.wall ↓ | 18.67 | 21.63 | +15.9% |
+| crawl.wide.tput ↑ | 2676 | 2244.55 | -16.1% |
+| crawl.wide.wall ↓ | 6.87 | 8.155 | +18.7% |
+| office.median_mb ↓ | 14.1 | 22.55 | +59.9% |
+| office.peak_mb ↓ | 41.8 | 50 | +19.6% |
+| rag.qf.ms ↓ | 1.17 | 1.31 | +12.0% |
+| v2.a2.serve.1w.p50 ↓ | 3.89126 | 5.1731 | +32.9% |
+| v2.a2.serve.1w.p95 ↓ | 17.2457 | 24.3482 | +41.2% |
+| v2.a2.serve.1w.tput ↑ | 144.857 | 113.263 | -21.8% |
+| v2.a2crawl.serve.16w.tput ↑ | 9.72383 | 7.99524 | -17.8% |
+| v2.b4.serve.1w.p50 ↓ | 1.62422 | 1.97108 | +21.4% |
+| v2.b4.serve.1w.p95 ↓ | 51.0013 | 57.6923 | +13.1% |
+
+Worse: 15. Better: 16. Within the limit: 154.
+No direction: api.jina_reader.keys, browser.auto.pages, browser.chrome.pages, crawl.huge.pages, crawl.wide.pages, dates.pages, extract.1t.mean, extract.1t.pages, extract.pages, extract.tput16, hashes.api.bytes, hashes.api.files, hashes.b3b5.bytes, hashes.b3b5.files, hashes.browser.bytes, hashes.browser.files, hashes.crawl.bytes, hashes.crawl.files, hashes.dates.bytes, hashes.dates.files, hashes.extract.bytes, hashes.extract.files, hashes.markdown.bytes, hashes.markdown.files, hashes.office.bytes, hashes.office.files, hashes.pdf.bytes, hashes.pdf.files, hashes.quality.bytes, hashes.quality.files, hashes.rag.bytes, hashes.rag.files, hashes.v2speed.bytes, hashes.v2speed.files, markdown.docs, office.dev, office.files, office.files_s, office.holdout, pdf.files, quality.a2.garble_pages, quality.b4.dev, rag.chunk.chunks, rag.chunk.recall1000, rag.chunk.recall500, rag.chunk.words, rag.chunk_hold.chunks, rag.chunk_hold.recall1000, rag.chunk_hold.recall250, rag.chunk_hold.recall500, rag.chunk_hold.words, rag.qf.words, rag.qf_hold.words, v2.a2.cli.16w.live, v2.a2.cli.16w.n, v2.a2.cli.1w.live, v2.a2.cli.1w.n, v2.a2.serve.16w.live, v2.a2.serve.16w.n, v2.a2.serve.1w.live, v2.a2.serve.1w.n, v2.a2crawl.cli.16w.live, v2.a2crawl.cli.16w.n, v2.a2crawl.cli.1w.live, v2.a2crawl.cli.1w.n, v2.a2crawl.serve.16w.live, v2.a2crawl.serve.16w.n, v2.a2crawl.serve.1w.live, v2.a2crawl.serve.1w.n, v2.b1.cli.16w.live, v2.b1.cli.16w.n, v2.b1.cli.1w.live, v2.b1.cli.1w.n, v2.b1.serve.16w.live, v2.b1.serve.16w.n, v2.b1.serve.1w.live, v2.b1.serve.1w.n, v2.b4.cli.16w.live, v2.b4.cli.16w.n, v2.b4.cli.1w.live, v2.b4.cli.1w.n, v2.b4.serve.16w.live, v2.b4.serve.16w.n, v2.b4.serve.1w.live, v2.b4.serve.1w.n
+Only in 0.91.1: none
+Only in final: a3.common, a3.completion, a3.coverage_all, a3.coverage_common, a3.p50, a3.p95, a3.pages, a3.peak, a3.ref_pages, b5ocr.small_math_auto.baseline, b5ocr.small_math_auto.completion, b5ocr.small_math_auto.nobase, b5ocr.small_math_auto.old_scans, b5ocr.small_math_auto.old_scans_math, b5ocr.small_math_auto.olmocr, b5ocr.small_math_auto.pages_s, b5ocr.small_math_ocr.baseline, b5ocr.small_math_ocr.completion, b5ocr.small_math_ocr.nobase, b5ocr.small_math_ocr.old_scans, b5ocr.small_math_ocr.old_scans_math, b5ocr.small_math_ocr.olmocr, b5ocr.small_math_ocr.pages_s, hashes.a3.bytes, hashes.a3.files, hashes.wild.bytes, hashes.wild.files, v2.a2fast.cli.16w.ok, v2.a2fast.cli.16w.p50, v2.a2fast.cli.16w.tput, v2.a2fast.cli.1w.ok, v2.a2fast.cli.1w.p50, v2.a2fast.cli.1w.tput, v2.a2fast.serve.16w.ok, v2.a2fast.serve.16w.p50, v2.a2fast.serve.16w.tput, v2.a2fast.serve.1w.ok, v2.a2fast.serve.1w.p50, v2.a2fast.serve.1w.tput, wild.fast.429, wild.fast.content, wild.fast.coverage, wild.fast.peak, wild.fast.requests, wild.fast.robots, wild.fast.wall, wild.fast.waste, wild.polite.429, wild.polite.content, wild.polite.coverage, wild.polite.peak, wild.polite.requests, wild.polite.robots, wild.polite.wall, wild.polite.waste

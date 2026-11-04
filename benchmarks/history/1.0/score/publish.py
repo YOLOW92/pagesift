@@ -153,16 +153,22 @@ def row_strength(r):
     return 1.0 + (r.get("delta") or 0.0)
 
 
-def compact_rows(data, n=8):
-    """首页精简表：领先的行里每个领域取最强的一行，最多 n 行。"""
+def compact_rows(data):
+    """首页表：全部领先的行，按领域聚在一起，领域按它最强的一行排序。"""
     rows = sorted([r for r in data["rows"] if r["tier"] in ("far", "ahead") and r.get("headline", True) and not r.get("appendix")],
                   key=row_strength, reverse=True)
-    out, seen = [], set()
+    order = {}
     for r in rows:
-        if r["domain_en"] not in seen:
-            seen.add(r["domain_en"])
-            out.append(r)
-    return out[:n]
+        order.setdefault(r["domain_en"], len(order))
+    return sorted(rows, key=lambda r: order[r["domain_en"]])
+
+
+MEM_HEAD = {
+    "en": ["Peak memory per worker", "PageSift MB ↓", "Other tool MB", "Less memory"],
+    "zh": ["每 worker 峰值内存", "PageSift MB ↓", "其他工具 MB", "内存少"],
+    "ja": ["ワーカーあたりのピークメモリ", "PageSift MB ↓", "他ツール MB", "メモリ削減"],
+    "es": ["Memoria pico por worker", "PageSift MB ↓", "Otra herramienta MB", "Menos memoria"],
+}
 
 
 def compact_block(data, lang, link):
@@ -178,9 +184,23 @@ def compact_block(data, lang, link):
                    f"{r['rival_name']} {fmt(r, r['rival'])} | **{gap(r)}** |")
     gaps, gap_kind = gap_rows(data)
     label = L["behind"] if gap_kind == "behind" else L["closest"]
-    sep = "：" if lang in ("zh", "ja") else ":"
-    return "\n".join([C["legend"] + "\n", *out, f"\n**{label}{sep}** {gap_line(gaps, lang)}",
-                      f"\n*{L['a2rate']}*", f"\n[{L['report']}]({link})\n"])
+    base = "docs/assets" if lang == "en" else "assets"
+    charts = []
+    for name, alt in (("scaling", "Throughput from 1 to 16 workers, PageSift against other tools"),
+                      ("versions", "Scanned-PDF olmOCR score by version against Docling"),
+                      ("memory", "Times less memory than other tools"), ("quality", "Quality against the next best tool")):
+        if (REPO / "docs/assets" / f"perf-{name}-light.svg").exists():
+            charts.append(f'<picture><source media="(prefers-color-scheme: dark)" srcset="{base}/perf-{name}-dark.svg">'
+                          f'<img src="{base}/perf-{name}-light.svg" alt="{alt}" width="860"></picture>\n')
+    mem_rows = []
+    if data.get("_memory"):
+        mem_rows = ["\n| " + " | ".join(MEM_HEAD[lang]) + " |", "|---|---:|---|---:|"]
+        for m in data["_memory"]:
+            mem_rows.append(f"| {m['label_zh'] if lang == 'zh' else m['label_en']} | **{m['psift_value']:.0f}** | "
+                            f"{m['rival_name']} {m['rival']:,} ({m['rival_date']}) | **×{m['ratio']:.1f}** |")
+    return "\n".join([*charts, C["legend"] + "\n", *out, *mem_rows,
+                      f"\n<details>\n<summary>{label}</summary>\n\n{gap_line(gaps, lang)}\n\n</details>",
+                      f"\n[{L['report']}]({link})\n"])
 
 
 def perf_block(data, lang, link, show_gaps=True):
@@ -209,11 +229,14 @@ def main():
     ap.add_argument("--homepage", action="store_true", help="also replace the old Behind tables in README.md")
     a = ap.parse_args()
     data = json.loads(a.scorecard.read_text(encoding="utf-8"))
+    mem = a.scorecard.with_name("memory.json")
+    if mem.exists():
+        data["_memory"] = json.loads(mem.read_text(encoding="utf-8"))
     stamp = a.stamp or a.scorecard.parent.name
     for lang, path in FILES.items():
         link = f"benchmarks/history/1.0/results/{stamp}/report.md" if lang == "en" else f"../benchmarks/history/1.0/results/{stamp}/report.md"
         s = path.read_text(encoding="utf-8")
-        if "<!-- readme-template: v1 -->" in s:
+        if "<!-- readme-template: v2 -->" in s:
             # 按模板改版后：性能段里只放精简表，不再有首页大表和 How PageSift compares
             block = f"<!-- perf-glance -->\n{compact_block(data, lang, link)}\n<!-- /perf-glance -->"
             s = re.sub(r"<!-- perf-glance -->.*?<!-- /perf-glance -->", lambda _: block, s, flags=re.S)
