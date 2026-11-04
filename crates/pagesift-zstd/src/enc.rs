@@ -221,14 +221,15 @@ pub fn compress(data: &[u8], level: i32) -> Vec<u8> {
     out.extend_from_slice(&0xFD2FB528u32.to_le_bytes());
     // 单段帧:窗口等于内容大小,内容大小用 4 或 8 字节
     if data.len() <= u32::MAX as usize {
-        out.push(0x80 | 0x20);
+        out.push(0x80 | 0x20 | 0x04);
         out.extend_from_slice(&(data.len() as u32).to_le_bytes());
     } else {
-        out.push(0xC0 | 0x20);
+        out.push(0xC0 | 0x20 | 0x04);
         out.extend_from_slice(&(data.len() as u64).to_le_bytes());
     }
     if data.is_empty() {
         raw_block(&mut out, &[], true);
+        out.extend_from_slice(&(crate::xxh::xxh64(data) as u32).to_le_bytes());
         return out;
     }
     let mut m = Matcher {
@@ -333,5 +334,6 @@ pub fn compress(data: &[u8], level: i32) -> Vec<u8> {
         }
         start = end;
     }
+    out.extend_from_slice(&(crate::xxh::xxh64(data) as u32).to_le_bytes());
     out
 }

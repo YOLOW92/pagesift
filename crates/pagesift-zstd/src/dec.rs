@@ -248,8 +248,13 @@ fn frame(d: &[u8], out: &mut Vec<u8>, max_out: usize) -> Result<usize> {
         }
     }
     if checksum {
-        d.get(p..p + 4)
+        let c = d
+            .get(p..p + 4)
             .ok_or(Error::Corrupt("truncated checksum"))?;
+        let want = u32::from_le_bytes([c[0], c[1], c[2], c[3]]);
+        if crate::xxh::xxh64(&out[start..]) as u32 != want {
+            return Err(Error::Corrupt("checksum mismatch"));
+        }
         p += 4;
     }
     Ok(p)

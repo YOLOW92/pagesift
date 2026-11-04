@@ -210,3 +210,13 @@ fn bench_encode_vs_cli() {
         );
     }
 }
+
+#[test]
+fn checksum_is_verified() {
+    let d = sample(50_000, 3);
+    let mut z = compress(&d, 3);
+    assert_eq!(decompress(&z, usize::MAX).unwrap(), d);
+    let n = z.len();
+    z[n - 1] ^= 1;
+    assert!(decompress(&z, usize::MAX).is_err());
+}

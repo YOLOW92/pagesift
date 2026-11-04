@@ -2,7 +2,7 @@
 //!
 //! - [`decompress`]：输入不可信，输出有上限，坏输入返回 [`Error`]，不会 panic。
 //!   支持多帧、跳过帧、Raw/RLE/压缩块、FSE 与 Huffman（含 4 流、无树复用）、重复偏移。
-//!   不支持字典（字典 ID 非 0 的帧报错）；帧尾的校验和只跳过、不核对。
+//!   不支持字典（字典 ID 非 0 的帧报错）；有帧尾校验和(XXH64 低 32 位)就核对,不一致报错。
 //! - [`compress`]：输出合法帧，贪心 LZ 匹配 + 预定义 FSE 表，字面量不做 Huffman（压缩率低于 C 版）。
 #![forbid(unsafe_code)]
 
@@ -12,6 +12,7 @@ mod enc;
 mod fse;
 mod henc;
 mod huff;
+mod xxh;
 
 pub use dec::{decompress, decompress_into};
 pub use enc::compress;
