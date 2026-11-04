@@ -129,10 +129,15 @@ fn word97_blocks(
         word,
         pair(FIB_FC_PLCF_PAPX).unwrap_or(&[]),
         pair(FIB_FC_STSHF).unwrap_or(&[]),
-        Lists::read(
-            pair(FIB_FC_PLF_LST).unwrap_or(&[]),
-            pair(FIB_FC_PLF_LFO).unwrap_or(&[]),
-        ),
+        {
+            let lst_at = u32_at(word, fc_at + FIB_FC_PLF_LST * 8).unwrap_or(0) as usize;
+            let lst_len = u32_at(word, fc_at + FIB_FC_PLF_LST * 8 + 4).unwrap_or(0) as usize;
+            Lists::read(
+                table.get(lst_at..).unwrap_or(&[]),
+                lst_len,
+                pair(FIB_FC_PLF_LFO).unwrap_or(&[]),
+            )
+        },
     );
     let at = |index: usize| text.fc_of(index).and_then(|fc| styles.kind_at(fc));
     let mut blocks = to_blocks(&text.chars, 0, main, &at);

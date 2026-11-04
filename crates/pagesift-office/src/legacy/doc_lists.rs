@@ -33,21 +33,23 @@ pub(super) struct Lists {
 }
 
 impl Lists {
-    pub(super) fn read(plf_lst: &[u8], plf_lfo: &[u8]) -> Lists {
+    /// `plf_lst` 是表流里从 PlfLst 开头一直到流末尾的字节，`lst_len` 是 PlfLst 自己的长度：
+    /// 每级的 LVL 紧跟在 PlfLst 之后，不算在它的长度里。
+    pub(super) fn read(plf_lst: &[u8], lst_len: usize, plf_lfo: &[u8]) -> Lists {
         let mut lists = Lists::default();
         let n = u32_at(plf_lfo, 0).unwrap_or(0) as usize;
         let n = n.min(plf_lfo.len().saturating_sub(4) / LFO_LEN);
         lists.lfo = (0..n)
             .filter_map(|i| u32_at(plf_lfo, 4 + i * LFO_LEN))
             .collect();
-        lists.read_templates(plf_lst);
+        lists.read_templates(plf_lst, lst_len);
         lists
     }
 
-    fn read_templates(&mut self, d: &[u8]) {
+    fn read_templates(&mut self, d: &[u8], lst_len: usize) {
         let Some(count) = u16_at(d, 0) else { return };
-        let count = usize::from(count).min(d.len().saturating_sub(2) / LSTF_LEN);
-        let mut at = 2 + count * LSTF_LEN;
+        let count = usize::from(count).min(lst_len.saturating_sub(2) / LSTF_LEN);
+        let mut at = lst_len;
         for i in 0..count {
             let head = 2 + i * LSTF_LEN;
             let (Some(lsid), Some(flags)) = (u32_at(d, head), d.get(head + 26)) else {
@@ -116,6 +118,7 @@ mod tests {
         let mut lst = vec![2, 0];
         lst.extend(lstf(77));
         lst.extend(lstf(88));
+        // LVL 在 PlfLst 的长度之外，紧跟其后
         for _ in 0..9 {
             lst.extend(lvl(0, 3));
         }
@@ -128,7 +131,7 @@ mod tests {
             e[..4].copy_from_slice(&id.to_le_bytes());
             lfo.extend(e);
         }
-        let l = Lists::read(&lst, &lfo);
+        let l = Lists::read(&lst, 2 + 2 * LSTF_LEN, &lfo);
         let (id, a) = l.level(1, 0).unwrap();
         assert!(!a.ordered && id == 88);
         let (id, b) = l.level(2, 4).unwrap();
@@ -138,7 +141,11 @@ mod tests {
 
     #[test]
     fn garbage_gives_nothing() {
-        assert!(Lists::read(&[9, 9], &[1, 0, 0]).level(1, 0).is_none());
-        assert!(Lists::read(&[0xFF; 40], &[0xFF; 40]).level(1, 0).is_none());
+        assert!(Lists::read(&[9, 9], 2, &[1, 0, 0]).level(1, 0).is_none());
+        assert!(
+            Lists::read(&[0xFF; 40], 40, &[0xFF; 40])
+                .level(1, 0)
+                .is_none()
+        );
     }
 }
