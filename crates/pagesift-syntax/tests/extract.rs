@@ -399,6 +399,16 @@ fn powershell_defs() {
 }
 
 #[test]
+fn cmake_defs() {
+    check(
+        "cmake",
+        "function(foo a)\n  message(\"x\")\nendfunction()\nmacro(bar)\nendmacro()\n",
+        &[(K::Function, "foo"), (K::Function, "bar")],
+        0,
+    );
+}
+
+#[test]
 fn unsupported_or_symbol_free_is_none() {
     assert!(outline("cobol", "x").is_none());
     assert!(outline("python", "x = 1\n").is_none());

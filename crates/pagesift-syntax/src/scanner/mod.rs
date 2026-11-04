@@ -7,12 +7,14 @@ use crate::lexer::Lexer;
 use crate::table::EOF_CP;
 
 pub mod bash;
+pub mod cmake;
 pub mod cpp;
 pub mod csharp;
 pub mod css;
 pub mod dart;
 pub mod dockerfile;
 pub mod elixir;
+pub mod erlang;
 pub mod gleam;
 pub mod html;
 pub mod js;
@@ -48,6 +50,8 @@ pub fn create(name: &str) -> Option<Box<dyn Scanner>> {
         "ruby" => Box::new(ruby::Ruby::default()),
         "kotlin" => Box::new(kotlin::Kotlin::default()),
         "css" => Box::new(css::Css),
+        "cmake" => Box::new(cmake::CMake::default()),
+        "erlang" => Box::new(erlang::Erlang),
         "gleam" => Box::new(gleam::Gleam),
         "powershell" => Box::new(powershell::PowerShell),
         "r" => Box::new(r::R::default()),
