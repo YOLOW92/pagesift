@@ -208,18 +208,15 @@ fn encode_seqs(seqs: &[Seq], t: &SeqTables) -> Vec<u8> {
             co = pick(to, oc, None).0;
             cm = pick(tm, mc, None).0;
         } else {
-            let (i, n, v) = pick(to, oc, Some(co));
-            w.put(v, n);
-            co = i;
-            let (i, n, v) = pick(tm, mc, Some(cm));
-            w.put(v, n);
-            cm = i;
-            let (i, n, v) = pick(tl, lc, Some(cl));
-            w.put(v, n);
-            cl = i;
+            // 写入顺序（反向）：of、ml、ll 的状态转移位，合并成一次 put
+            let (i1, n1, v1) = pick(to, oc, Some(co));
+            let (i2, n2, v2) = pick(tm, mc, Some(cm));
+            let (i3, n3, v3) = pick(tl, lc, Some(cl));
+            (co, cm, cl) = (i1, i2, i3);
+            w.put(v1 | v2 << n1 | v3 << (n1 + n2), n1 + n2 + n3);
         }
-        w.put(lv, lb);
-        w.put(mv, mb);
+        // 额外位：ll、ml 合并（各 ≤ 16 位），of 单独（≤ 31 位）
+        w.put(lv | mv << lb, lb + mb);
         w.put(ov, ob);
     }
     w.put(cm as u32, tm.0.al);
