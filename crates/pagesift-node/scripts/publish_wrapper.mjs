@@ -62,6 +62,32 @@ if (dryRun) {
   } catch {
     // A missing version is expected on the first publish.
   }
+  // 主包发布后约 8 分钟才在注册表可见；包装包抢先发布会让 `npm install pagesift` 在这段时间失败。
+  // 所以先等主包可见（最长 30 分钟，每 20 秒查一次），等不到就不发包装包。
+  if (!published) {
+    const main = `@pagesift/node@${version}`
+    const deadline = Date.now() + 30 * 60 * 1000
+    for (;;) {
+      let seen = false
+      try {
+        const out = execSync(`npm view ${main} version --json`, {
+          cwd: tmpDir,
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'ignore']
+        })
+        seen = JSON.parse(out) === version
+      } catch {
+        // 还没有：继续等
+      }
+      if (seen) break
+      if (Date.now() > deadline) {
+        console.error(`${main} is still not visible after 30 minutes; not publishing the wrapper.`)
+        process.exit(1)
+      }
+      console.log(`waiting for ${main} to appear in the registry...`)
+      await new Promise((r) => setTimeout(r, 20000))
+    }
+  }
   if (published) {
     console.log(`pagesift wrapper ${version} is already published.`)
   } else {
