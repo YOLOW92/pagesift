@@ -300,6 +300,21 @@ fn julia_defs() {
 }
 
 #[test]
+fn ocaml_defs() {
+    check(
+        "ocaml",
+        "open Foo\nlet f x = x\ntype t = int\nmodule M = struct\n  let g y = y\nend\n",
+        &[
+            (K::Function, "f"),
+            (K::Type, "t"),
+            (K::Module, "M"),
+            (K::Function, "g"),
+        ],
+        1,
+    );
+}
+
+#[test]
 fn unsupported_or_symbol_free_is_none() {
     assert!(outline("cobol", "x").is_none());
     assert!(outline("python", "x = 1\n").is_none());

@@ -32,9 +32,10 @@ pub enum Lang {
     Julia,
     Nix,
     Dockerfile,
+    Ocaml,
 }
 
-const COUNT: usize = 22;
+const COUNT: usize = 23;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -62,6 +63,7 @@ impl Lang {
             "julia" | "jl" => Lang::Julia,
             "nix" => Lang::Nix,
             "dockerfile" => Lang::Dockerfile,
+            "ocaml" | "ml" => Lang::Ocaml,
             _ => return None,
         })
     }
@@ -94,6 +96,7 @@ impl Lang {
             Lang::Julia => include_bytes!("../tables/julia.pslg.z"),
             Lang::Nix => include_bytes!("../tables/nix.pslg.z"),
             Lang::Dockerfile => include_bytes!("../tables/dockerfile.pslg.z"),
+            Lang::Ocaml => include_bytes!("../tables/ocaml.pslg.z"),
         }
     }
 
@@ -318,5 +321,17 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
         },
         Lang::Nix => Skip,
         Lang::Dockerfile => Skip,
+        Lang::Ocaml => match kind {
+            "value_definition" | "type_definition" | "module_definition" | "class_definition" => {
+                Wrap
+            }
+            "let_binding" => Sym(K::Function, "let", No),
+            "type_binding" => Sym(K::Type, "type", No),
+            "class_binding" => Sym(K::Class, "class", Ty),
+            "module_binding" => Sym(K::Module, "module", Scope),
+            "module_type_definition" => Sym(K::Interface, "module type", No),
+            "open_module" => Import,
+            _ => Skip,
+        },
     }
 }

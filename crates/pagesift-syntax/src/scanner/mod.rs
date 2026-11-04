@@ -18,6 +18,7 @@ pub mod julia;
 pub mod kotlin;
 pub mod lua;
 pub mod nix;
+pub mod ocaml;
 pub mod php;
 pub mod python;
 pub mod ruby;
@@ -42,6 +43,7 @@ pub fn create(name: &str) -> Option<Box<dyn Scanner>> {
         "ruby" => Box::new(ruby::Ruby::default()),
         "kotlin" => Box::new(kotlin::Kotlin::default()),
         "css" => Box::new(css::Css),
+        "ocaml" | "ocaml_interface" | "ocaml_type" => Box::new(ocaml::Ocaml::default()),
         "dockerfile" => Box::new(dockerfile::Dockerfile::default()),
         "nix" => Box::new(nix::Nix),
         "julia" => Box::new(julia::Julia),

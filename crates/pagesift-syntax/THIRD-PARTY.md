@@ -36,6 +36,7 @@
 | Julia | tree-sitter/tree-sitter-julia | 0.25.0 / e0f9dcd | Copyright (c) 2018 Max Brunsfeld, GitHub；外部扫描器移植自该仓库 src/scanner.c |
 | Nix | nix-community/tree-sitter-nix | 0.3.0 / e49c2f3 | Copyright (c) 2019 Charles Strahan；外部扫描器移植自该仓库 src/scanner.c |
 | Dockerfile | camdencheek/tree-sitter-dockerfile | 0.2.0 / 971acdd | Copyright (c) 2021 Camden Cheek；外部扫描器移植自该仓库 src/scanner.c |
+| OCaml | tree-sitter/tree-sitter-ocaml | 0.26.0 / 3b2e14e | Copyright (c) 2020 Max Brunsfeld and Pieter Goetschalckx；外部扫描器移植自该仓库 common/scanner.h |
 | TOML | tree-sitter-grammars/tree-sitter-toml | 0.7.0 / 64b5683 | Copyright (c) Ika；外部扫描器移植自该仓库 src/scanner.c |
 | PHP、PHP-only | tree-sitter/tree-sitter-php | 0.25.1 / 58d5643 | Copyright (c) 2017 Josh Vera, GitHub；外部扫描器移植自该仓库 src/scanner.c |
 | C# | tree-sitter/tree-sitter-c-sharp | 0.23.5 / 8c0abe0 | Copyright (c) 2014-2023 Max Brunsfeld, Damien Guard, Amaan Qureshi, and contributors；外部扫描器移植自该仓库 src/scanner.c |
