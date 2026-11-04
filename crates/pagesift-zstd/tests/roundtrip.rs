@@ -108,3 +108,36 @@ fn dump_for_official_decoder() {
         std::fs::write(format!("{dst}/{name}.zst"), compress(&d, 3)).unwrap();
     }
 }
+
+/// 解码速度：PAGESIFT_ZSTD_SAMPLES 目录里的 b.txt.l3.zst，与官方 `zstd -d` 命令交替各跑 15 次。
+#[test]
+fn bench_vs_cli() {
+    let Ok(src) = std::env::var("PAGESIFT_ZSTD_SAMPLES") else {
+        return;
+    };
+    use std::time::Instant;
+    for name in ["b.txt.l3.zst", "e.html.l3.zst", "b.txt.l19.zst"] {
+        let path = format!("{src}/{name}");
+        let z = std::fs::read(&path).unwrap();
+        let (mut ours, mut cli) = (f64::MAX, f64::MAX);
+        let mut size = 0;
+        for _ in 0..15 {
+            let t = Instant::now();
+            size = decompress(&z, usize::MAX).unwrap().len();
+            ours = ours.min(t.elapsed().as_secs_f64());
+            let t = Instant::now();
+            let o = std::process::Command::new("zstd")
+                .args(["-dcq", &path])
+                .output()
+                .unwrap();
+            assert_eq!(o.stdout.len(), size);
+            cli = cli.min(t.elapsed().as_secs_f64());
+        }
+        let mb = size as f64 / 1e6;
+        eprintln!(
+            "{name}: ours {:.0} MB/s, C cli(含进程启动与管道) {:.0} MB/s",
+            mb / ours,
+            mb / cli
+        );
+    }
+}
