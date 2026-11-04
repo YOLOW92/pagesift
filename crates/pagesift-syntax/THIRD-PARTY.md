@@ -42,6 +42,7 @@
 | Svelte | tree-sitter-grammars/tree-sitter-svelte | 1.0.2 / ae5199d | Copyright (c) 2024 Amaan Qureshi；标签栈扫描与 HTML 共用，花括号文本部分移植自该仓库 src/scanner.c |
 | Solidity | JoranHonig/tree-sitter-solidity | 1.2.13 / 048fe68 | Copyright (c) 2020 Joran Honig |
 | Groovy | murtaza64/tree-sitter-groovy | 0.0.1 / 2a6ddd5 | Copyright (c) 2024 Murtaza Javaid |
+| Make | tree-sitter-grammars/tree-sitter-make | 1.1.1 / 70613f3 | Copyright (c) 2021 Alexandre A. Muller |
 | TOML | tree-sitter-grammars/tree-sitter-toml | 0.7.0 / 64b5683 | Copyright (c) Ika；外部扫描器移植自该仓库 src/scanner.c |
 | PHP、PHP-only | tree-sitter/tree-sitter-php | 0.25.1 / 58d5643 | Copyright (c) 2017 Josh Vera, GitHub；外部扫描器移植自该仓库 src/scanner.c |
 | C# | tree-sitter/tree-sitter-c-sharp | 0.23.5 / 8c0abe0 | Copyright (c) 2014-2023 Max Brunsfeld, Damien Guard, Amaan Qureshi, and contributors；外部扫描器移植自该仓库 src/scanner.c |
