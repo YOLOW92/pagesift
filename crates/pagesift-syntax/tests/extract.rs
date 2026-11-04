@@ -190,6 +190,22 @@ fn bash_functions() {
 }
 
 #[test]
+fn ruby_defs() {
+    check(
+        "ruby",
+        "def top\n  1\nend\nmodule M\n  class C\n    def m; <<~T\n      x\n    T\n    end\n    def self.s; end\n  end\nend\n",
+        &[
+            (K::Function, "top"),
+            (K::Module, "M"),
+            (K::Class, "C"),
+            (K::Method, "m"),
+            (K::Method, "s"),
+        ],
+        0,
+    );
+}
+
+#[test]
 fn unsupported_or_symbol_free_is_none() {
     assert!(outline("cobol", "x").is_none());
     assert!(outline("python", "x = 1\n").is_none());

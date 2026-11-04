@@ -27,6 +27,7 @@
 | C++ | tree-sitter/tree-sitter-cpp | 0.23.4 / c009222 | Copyright (c) 2014 Max Brunsfeld；外部扫描器移植自该仓库 src/scanner.c |
 | Lua | MunifTanjim/tree-sitter-lua | 0.3.1-dev / 4fbec84 | Copyright (c) 2021 Munif Tanjim；外部扫描器移植自该仓库 src/scanner.c |
 | Bash | tree-sitter/tree-sitter-bash | 0.25.1 / a06c2e4 | Copyright (c) 2017 Max Brunsfeld；外部扫描器移植自该仓库 src/scanner.c |
+| Ruby | tree-sitter/tree-sitter-ruby | 0.23.1 / ad907a6 | Copyright (c) 2016 Rob Rix；外部扫描器移植自该仓库 src/scanner.c |
 | TOML | tree-sitter-grammars/tree-sitter-toml | 0.7.0 / 64b5683 | Copyright (c) Ika；外部扫描器移植自该仓库 src/scanner.c |
 | PHP、PHP-only | tree-sitter/tree-sitter-php | 0.25.1 / 58d5643 | Copyright (c) 2017 Josh Vera, GitHub；外部扫描器移植自该仓库 src/scanner.c |
 | C# | tree-sitter/tree-sitter-c-sharp | 0.23.5 / 8c0abe0 | Copyright (c) 2014-2023 Max Brunsfeld, Damien Guard, Amaan Qureshi, and contributors；外部扫描器移植自该仓库 src/scanner.c |

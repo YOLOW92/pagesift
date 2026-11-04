@@ -23,9 +23,10 @@ pub enum Lang {
     Rust,
     Lua,
     Bash,
+    Ruby,
 }
 
-const COUNT: usize = 13;
+const COUNT: usize = 14;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -44,6 +45,7 @@ impl Lang {
             "rust" => Lang::Rust,
             "lua" => Lang::Lua,
             "bash" | "sh" | "shell" | "zsh" => Lang::Bash,
+            "ruby" => Lang::Ruby,
             _ => return None,
         })
     }
@@ -67,6 +69,7 @@ impl Lang {
             Lang::Rust => include_bytes!("../tables/rust.pslg.z"),
             Lang::Lua => include_bytes!("../tables/lua.pslg.z"),
             Lang::Bash => include_bytes!("../tables/bash.pslg.z"),
+            Lang::Ruby => include_bytes!("../tables/ruby.pslg.z"),
         }
     }
 
@@ -234,6 +237,12 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
         },
         Lang::Lua => match kind {
             "function_declaration" => Sym(K::Function, "function", No),
+            _ => Skip,
+        },
+        Lang::Ruby => match kind {
+            "method" | "singleton_method" => Sym(K::Function, "method", No),
+            "class" => Sym(K::Class, "class", Ty),
+            "module" => Sym(K::Module, "module", Ty),
             _ => Skip,
         },
         Lang::Bash => match kind {

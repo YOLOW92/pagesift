@@ -13,6 +13,7 @@ pub mod js;
 pub mod lua;
 pub mod php;
 pub mod python;
+pub mod ruby;
 pub mod rust;
 pub mod toml;
 pub mod ts;
@@ -31,6 +32,7 @@ pub trait Scanner {
 pub fn create(name: &str) -> Option<Box<dyn Scanner>> {
     Some(match name {
         "bash" => Box::new(bash::Bash::default()),
+        "ruby" => Box::new(ruby::Ruby::default()),
         "python" => Box::new(python::Python::default()),
         "cpp" => Box::new(cpp::Cpp::default()),
         "lua" => Box::new(lua::Lua::default()),
