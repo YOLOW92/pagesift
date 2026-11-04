@@ -315,6 +315,16 @@ fn ocaml_defs() {
 }
 
 #[test]
+fn elixir_defs() {
+    check(
+        "elixir",
+        "import Enum\ndefmodule Foo do\n  def bar(x), do: x\n  defp baz(y) when y > 0 do\n    y\n  end\nend\n",
+        &[(K::Module, "Foo"), (K::Method, "bar"), (K::Method, "baz")],
+        1,
+    );
+}
+
+#[test]
 fn unsupported_or_symbol_free_is_none() {
     assert!(outline("cobol", "x").is_none());
     assert!(outline("python", "x = 1\n").is_none());

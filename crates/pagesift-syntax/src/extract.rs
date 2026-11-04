@@ -491,6 +491,7 @@ impl Walker<'_> {
     fn special(&mut self, sp: Sp, id: usize, depth: u32, first: &mut Option<String>) {
         match sp {
             Sp::GoImport => self.go_imports(id, 0),
+            Sp::ExCall => self.ex_call(id, depth, first),
             Sp::GoType => {
                 for c in self.children(id) {
                     if !matches!(self.nodes.n[c].kind, "type_spec" | "type_alias") {
@@ -551,6 +552,64 @@ impl Walker<'_> {
                         .map_or(String::new(), |c| self.clean(self.text(c)));
                 }
                 self.push(k, label, name, id, depth, first);
+            }
+        }
+    }
+
+    /// Elixir 里一切都是 `call`：按目标标识符判断是 `def*`、`defmodule` 还是导入。
+    fn ex_call(&mut self, id: usize, depth: u32, first: &mut Option<String>) {
+        let Some(t) = self.nodes.field(id, "target") else {
+            return;
+        };
+        if self.nodes.n[t].kind != "identifier" {
+            return;
+        }
+        let word = self.text(t).to_string();
+        let kids = self.children(id);
+        let args = kids
+            .iter()
+            .copied()
+            .find(|&c| self.nodes.n[c].kind == "arguments");
+        let first_arg = args.and_then(|a| {
+            self.children(a)
+                .into_iter()
+                .find(|&c| self.nodes.n[c].kind != "comment")
+        });
+        let (kind, label, container) = match word.as_str() {
+            "import" | "alias" | "use" | "require" => return self.import(id),
+            "defmodule" => (SymbolKind::Module, "module", true),
+            "defprotocol" => (SymbolKind::Interface, "protocol", true),
+            "defimpl" => (SymbolKind::Module, "impl", true),
+            "def" | "defp" | "defmacro" | "defmacrop" => {
+                if depth > 0 {
+                    (SymbolKind::Method, "method", false)
+                } else {
+                    (SymbolKind::Function, "function", false)
+                }
+            }
+            _ => return,
+        };
+        // 函数头可能是 `name(args)`、`name(args) when guard` 或单独的标识符
+        let mut at = first_arg;
+        for _ in 0..8 {
+            match at {
+                Some(a) if self.nodes.n[a].kind == "binary_operator" => {
+                    at = self.nodes.field(a, "left")
+                }
+                Some(a) if self.nodes.n[a].kind == "call" => at = self.nodes.field(a, "target"),
+                _ => break,
+            }
+        }
+        let name = at.map(|a| self.clean(self.text(a))).unwrap_or_default();
+        self.push(kind, label, name, id, depth, first);
+        if container {
+            for c in kids
+                .into_iter()
+                .filter(|&c| self.nodes.n[c].kind == "do_block")
+            {
+                for d in self.children(c) {
+                    self.walk(d, true, 1, depth + 1, first);
+                }
             }
         }
     }

@@ -12,6 +12,7 @@ pub mod csharp;
 pub mod css;
 pub mod dart;
 pub mod dockerfile;
+pub mod elixir;
 pub mod html;
 pub mod js;
 pub mod julia;
@@ -43,6 +44,7 @@ pub fn create(name: &str) -> Option<Box<dyn Scanner>> {
         "ruby" => Box::new(ruby::Ruby::default()),
         "kotlin" => Box::new(kotlin::Kotlin::default()),
         "css" => Box::new(css::Css),
+        "elixir" => Box::new(elixir::Elixir),
         "ocaml" | "ocaml_interface" | "ocaml_type" => Box::new(ocaml::Ocaml::default()),
         "dockerfile" => Box::new(dockerfile::Dockerfile::default()),
         "nix" => Box::new(nix::Nix),

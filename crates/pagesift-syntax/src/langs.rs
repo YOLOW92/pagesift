@@ -33,9 +33,10 @@ pub enum Lang {
     Nix,
     Dockerfile,
     Ocaml,
+    Elixir,
 }
 
-const COUNT: usize = 23;
+const COUNT: usize = 24;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -64,6 +65,7 @@ impl Lang {
             "nix" => Lang::Nix,
             "dockerfile" => Lang::Dockerfile,
             "ocaml" | "ml" => Lang::Ocaml,
+            "elixir" | "ex" | "exs" => Lang::Elixir,
             _ => return None,
         })
     }
@@ -97,6 +99,7 @@ impl Lang {
             Lang::Nix => include_bytes!("../tables/nix.pslg.z"),
             Lang::Dockerfile => include_bytes!("../tables/dockerfile.pslg.z"),
             Lang::Ocaml => include_bytes!("../tables/ocaml.pslg.z"),
+            Lang::Elixir => include_bytes!("../tables/elixir.pslg.z"),
         }
     }
 
@@ -139,6 +142,7 @@ pub(crate) enum Sp {
     GoImport,
     JsVar,
     CDecl,
+    ExCall,
 }
 
 #[derive(Clone, Copy)]
@@ -331,6 +335,10 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
             "module_binding" => Sym(K::Module, "module", Scope),
             "module_type_definition" => Sym(K::Interface, "module type", No),
             "open_module" => Import,
+            _ => Skip,
+        },
+        Lang::Elixir => match kind {
+            "call" => Rule::Special(Sp::ExCall),
             _ => Skip,
         },
     }
