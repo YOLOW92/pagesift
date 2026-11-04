@@ -9,6 +9,8 @@ fn u32_at(d: &[u8], i: usize) -> Option<u32> {
     Some(u32::from_le_bytes(d.get(i..i + 4)?.try_into().ok()?))
 }
 
+use super::doc_lists::Lists;
+
 const PAGE: usize = 512;
 const MAX_RUNS: usize = 2_000_000;
 /// 内置样式 Title。
@@ -20,7 +22,13 @@ const SPRM_ILFO: u16 = 0x460B;
 pub(super) enum Kind {
     Heading(u8),
     /// 列表项和层级。
-    Item(u8),
+    Item {
+        level: u8,
+        ordered: bool,
+        start: u32,
+        /// 同一个列表（lsid）的编号连续；查不到列表定义时是 ilfo。
+        list: u32,
+    },
 }
 
 #[derive(Debug)]
@@ -28,7 +36,7 @@ struct Run {
     start: u32,
     end: u32,
     istd: u16,
-    list: Option<u8>,
+    list: Option<(u16, u8)>,
 }
 
 /// 按字节位置查段落类型。
@@ -36,14 +44,16 @@ struct Run {
 pub(super) struct Styles {
     runs: Vec<Run>,
     headings: Vec<Option<u8>>,
+    lists: Lists,
 }
 
 impl Styles {
     /// `plc`、`stsh` 是表流里的 PlcBtePapx 和样式表。读不出来就返回空表（都当普通段落）。
-    pub(super) fn read(word: &[u8], plc: &[u8], stsh: &[u8]) -> Styles {
+    pub(super) fn read(word: &[u8], plc: &[u8], stsh: &[u8], lists: Lists) -> Styles {
         Styles {
             runs: runs(word, plc),
             headings: headings(stsh),
+            lists,
         }
     }
 
@@ -53,7 +63,21 @@ impl Styles {
         if let Some(level) = self.headings.get(usize::from(run.istd)).copied().flatten() {
             return Some(Kind::Heading(level));
         }
-        run.list.map(Kind::Item)
+        let (ilfo, level) = run.list?;
+        Some(match self.lists.level(ilfo, level) {
+            Some((list, l)) => Kind::Item {
+                level,
+                ordered: l.ordered,
+                start: l.start,
+                list,
+            },
+            None => Kind::Item {
+                level,
+                ordered: false,
+                start: 1,
+                list: u32::from(ilfo),
+            },
+        })
     }
 }
 
@@ -119,7 +143,7 @@ fn sorted(mut runs: Vec<Run>) -> Vec<Run> {
 }
 
 /// 走一遍 sprm：操作数长度由高 3 位决定（MS-DOC §2.6.1）。有 ilfo 且不为 0 就是列表项。
-fn list_level(mut p: &[u8]) -> Option<u8> {
+fn list_level(mut p: &[u8]) -> Option<(u16, u8)> {
     let (mut ilfo, mut level) = (0u16, 0u8);
     while p.len() >= 2 {
         let sprm = u16::from_le_bytes([p[0], p[1]]);
@@ -143,7 +167,7 @@ fn list_level(mut p: &[u8]) -> Option<u8> {
         }
         p = &p[len..];
     }
-    (ilfo != 0 && ilfo != 0xF801).then_some(level.min(8))
+    (ilfo != 0 && ilfo != 0xF801).then_some((ilfo, level.min(8)))
 }
 
 /// 每个样式号是不是标题：内置样式 Heading 1–9 和 Title，自定义样式跟着基样式走。
@@ -241,16 +265,29 @@ mod tests {
         for v in [100u32, 120, 1] {
             plc.extend_from_slice(&v.to_le_bytes());
         }
-        let s = Styles::read(&word, &plc, &stsh());
+        let s = Styles::read(&word, &plc, &stsh(), Lists::default());
         assert_eq!(s.kind_at(105), Some(Kind::Heading(2)));
-        assert_eq!(s.kind_at(115), Some(Kind::Item(2)));
+        assert_eq!(
+            s.kind_at(115),
+            Some(Kind::Item {
+                level: 2,
+                ordered: false,
+                start: 1,
+                list: 3
+            })
+        );
         assert_eq!(s.kind_at(99), None);
         assert_eq!(s.kind_at(120), None);
     }
 
     #[test]
     fn broken_tables_give_nothing() {
-        let s = Styles::read(&[], &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], &[]);
+        let s = Styles::read(
+            &[],
+            &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+            &[],
+            Lists::default(),
+        );
         assert_eq!(s.kind_at(0), None);
         assert_eq!(list_level(&[0x0B, 0x46]), None);
         assert_eq!(list_level(&[0x0B, 0xC6, 200, 1]), None);
