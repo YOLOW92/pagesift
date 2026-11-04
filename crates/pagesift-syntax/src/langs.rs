@@ -49,9 +49,10 @@ pub enum Lang {
     Hcl,
     Vue,
     D,
+    Elm,
 }
 
-const COUNT: usize = 39;
+const COUNT: usize = 40;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -96,6 +97,7 @@ impl Lang {
             "hcl" | "terraform" | "tf" => Lang::Hcl,
             "vue" => Lang::Vue,
             "d" => Lang::D,
+            "elm" => Lang::Elm,
             _ => return None,
         })
     }
@@ -145,6 +147,7 @@ impl Lang {
             Lang::Hcl => include_bytes!("../tables/hcl.pslg.z"),
             Lang::Vue => include_bytes!("../tables/vue.pslg.z"),
             Lang::D => include_bytes!("../tables/d.pslg.z"),
+            Lang::Elm => include_bytes!("../tables/elm.pslg.z"),
         }
     }
 
@@ -460,6 +463,15 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
             "enum_declaration" => Sym(K::Enum, "enum", No),
             "function_declaration" => Sym(K::Function, "function", No),
             "import_declaration" => Import,
+            _ => Skip,
+        },
+        Lang::Elm => match kind {
+            "module_declaration" => Sym(K::Module, "module", No),
+            "type_declaration" => Sym(K::Enum, "type", No),
+            "type_alias_declaration" => Sym(K::Type, "type alias", No),
+            "value_declaration" => Wrap,
+            "function_declaration_left" => Sym(K::Function, "function", No),
+            "import_clause" => Import,
             _ => Skip,
         },
     }

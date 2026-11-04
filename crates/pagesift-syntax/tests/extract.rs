@@ -439,6 +439,21 @@ fn d_defs() {
 }
 
 #[test]
+fn elm_defs() {
+    check(
+        "elm",
+        "module Main exposing (..)\n\nimport Html\n\ntype Msg = A | B\n\ntype alias Model = { a : Int }\n\nupdate : Msg -> Int\nupdate m =\n    1\n",
+        &[
+            (K::Module, "Main"),
+            (K::Enum, "Msg"),
+            (K::Type, "Model"),
+            (K::Function, "update"),
+        ],
+        1,
+    );
+}
+
+#[test]
 fn unsupported_or_symbol_free_is_none() {
     assert!(outline("cobol", "x").is_none());
     assert!(outline("python", "x = 1\n").is_none());

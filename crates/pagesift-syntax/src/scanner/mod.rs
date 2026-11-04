@@ -15,6 +15,7 @@ pub mod d;
 pub mod dart;
 pub mod dockerfile;
 pub mod elixir;
+pub mod elm;
 pub mod erlang;
 pub mod gleam;
 pub mod hcl;
@@ -53,6 +54,7 @@ pub fn create(name: &str) -> Option<Box<dyn Scanner>> {
         "ruby" => Box::new(ruby::Ruby::default()),
         "kotlin" => Box::new(kotlin::Kotlin::default()),
         "css" => Box::new(css::Css),
+        "elm" => Box::new(elm::Elm::default()),
         "d" => Box::new(d::D),
         "hcl" => Box::new(hcl::Hcl::default()),
         "cmake" => Box::new(cmake::CMake::default()),

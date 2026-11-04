@@ -669,6 +669,7 @@ fn is_identifier(kind: &str) -> bool {
             | "simple_name"
             | "atom"
             | "unquoted_argument"
+            | "lower_case_identifier"
             | "method_identifier"
             | "destructor_name"
             | "operator_name"
