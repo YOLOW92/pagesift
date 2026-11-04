@@ -100,8 +100,17 @@ pub(crate) struct Seq {
 }
 
 /// 三张预定义表,及每个符号对应的格子下标(只建一次)。
-/// 编码用的表:每个符号一串 (base, 格子下标, nb),按 base 排序。
-type SymTable = (FseTable, Vec<Vec<(u16, u16, u8)>>);
+/// 编码用的表。同一符号的格子区间 [base, base + 2^nb) 恰好铺满整张表，
+/// 所以按 `x >> 最小nb` 分桶后每个桶落在唯一一个区间里，转移查找是一次下标读取，没有搜索和分支。
+#[derive(Clone)]
+struct SymTable {
+    al: u32,
+    /// 每个符号在 `flat` 里的起点，以及分桶移位。
+    start: Vec<u32>,
+    shift: Vec<u8>,
+    /// （格子下标, nb, base）。
+    flat: Vec<(u16, u8, u16)>,
+}
 
 #[derive(Clone)]
 struct EncTables {
@@ -111,14 +120,34 @@ struct EncTables {
 }
 
 fn by_symbol(t: FseTable) -> SymTable {
-    let mut v = vec![Vec::new(); 64];
+    let size = t.cells.len();
+    let mut lists: Vec<Vec<(u16, u16, u8)>> = vec![Vec::new(); 64];
     for (i, c) in t.cells.iter().enumerate() {
-        v[c.sym as usize].push((c.base, i as u16, c.nb));
+        lists[c.sym as usize].push((c.base, i as u16, c.nb));
     }
-    for l in v.iter_mut() {
-        l.sort_unstable();
+    let (mut start, mut shift, mut flat) = (vec![0u32; 64], vec![0u8; 64], Vec::new());
+    for (s, l) in lists.iter().enumerate() {
+        start[s] = flat.len() as u32;
+        let Some(sh) = l.iter().map(|c| c.2).min() else {
+            continue;
+        };
+        shift[s] = sh;
+        flat.resize(flat.len() + (size >> sh), (0, 0, 0));
+        for &(base, idx, nb) in l {
+            let lo = (base as usize) >> sh;
+            for slot in
+                &mut flat[start[s] as usize + lo..start[s] as usize + lo + (1usize << (nb - sh))]
+            {
+                *slot = (idx, nb, base);
+            }
+        }
     }
-    (t, v)
+    SymTable {
+        al: t.al,
+        start,
+        shift,
+        flat,
+    }
 }
 
 impl EncTables {
@@ -132,18 +161,16 @@ impl EncTables {
     }
 }
 
-/// 选下一个状态:符号 `sym` 的格子里,覆盖 `next` 的那个(`next` 为 None 时取第一个)。
-/// 同一符号的格子按 base 排序后,各自的区间 [base, base + 2^nb) 恰好铺满整张表,所以二分即可。
+/// 选下一个状态：符号 `sym` 的格子里，覆盖 `next` 的那个（`next` 为 None 时随便取一个）。
+#[inline(always)]
 fn pick(t: &SymTable, sym: u32, next: Option<usize>) -> (usize, u32, u32) {
-    let list = &t.1[sym as usize];
-    match next {
-        None => (list[0].1 as usize, 0, 0),
-        Some(x) => {
-            let k = list.partition_point(|c| c.0 as usize <= x) - 1;
-            let (base, i, nb) = list[k];
-            (i as usize, nb as u32, (x - base as usize) as u32)
-        }
+    let s = sym as usize;
+    let x = next.unwrap_or(0);
+    let (idx, nb, base) = t.flat[t.start[s] as usize + (x >> t.shift[s])];
+    if next.is_none() {
+        return (idx as usize, 0, 0);
     }
+    (idx as usize, nb as u32, (x - base as usize) as u32)
 }
 
 /// 三类序列码的表,及模式字节和自定义表的分布表头。
@@ -229,9 +256,9 @@ fn encode_seqs(seqs: &[Seq], t: &SeqTables) -> Vec<u8> {
         w.put(lv | mv << lb, lb + mb);
         w.put(ov, ob);
     }
-    w.put(cm as u32, tm.0.al);
-    w.put(co as u32, to.0.al);
-    w.put(cl as u32, tl.0.al);
+    w.put(cm as u32, tm.al);
+    w.put(co as u32, to.al);
+    w.put(cl as u32, tl.al);
     w.finish()
 }
 
