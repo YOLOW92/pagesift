@@ -345,6 +345,16 @@ fn solidity_defs() {
 }
 
 #[test]
+fn groovy_defs() {
+    check(
+        "groovy",
+        "import a.b.C\nclass K {\n  def m(x) { x }\n}\ndef top() { 1 }\n",
+        &[(K::Class, "K"), (K::Method, "m"), (K::Function, "top")],
+        1,
+    );
+}
+
+#[test]
 fn unsupported_or_symbol_free_is_none() {
     assert!(outline("cobol", "x").is_none());
     assert!(outline("python", "x = 1\n").is_none());

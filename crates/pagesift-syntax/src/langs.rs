@@ -37,9 +37,10 @@ pub enum Lang {
     R,
     Svelte,
     Solidity,
+    Groovy,
 }
 
-const COUNT: usize = 27;
+const COUNT: usize = 28;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -72,6 +73,7 @@ impl Lang {
             "r" => Lang::R,
             "svelte" => Lang::Svelte,
             "solidity" | "sol" => Lang::Solidity,
+            "groovy" | "gradle" => Lang::Groovy,
             _ => return None,
         })
     }
@@ -109,6 +111,7 @@ impl Lang {
             Lang::R => include_bytes!("../tables/r.pslg.z"),
             Lang::Svelte => include_bytes!("../tables/svelte.pslg.z"),
             Lang::Solidity => include_bytes!("../tables/solidity.pslg.z"),
+            Lang::Groovy => include_bytes!("../tables/groovy.pslg.z"),
         }
     }
 
@@ -365,6 +368,12 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
             "function_definition" => Sym(K::Function, "function", No),
             "modifier_definition" => Sym(K::Function, "modifier", No),
             "import_directive" => Import,
+            _ => Skip,
+        },
+        Lang::Groovy => match kind {
+            "class_definition" => Sym(K::Class, "class", Ty),
+            "function_definition" | "function_declaration" => Sym(K::Function, "function", No),
+            "groovy_import" => Import,
             _ => Skip,
         },
     }
