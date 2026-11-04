@@ -7,6 +7,8 @@
 **La capa de web y documentos para agentes de IA: entra cualquier URL, documento, correo, archivo comprimido o código fuente y sale Markdown limpio o JSON.**  
 Un único binario en Rust, autoalojado, con CLI, API de Firecrawl y de Jina Reader, servidor MCP y paquetes para Python, Node.js, Go, Java, C#, Ruby, PHP y más.
 
+**Medido:** rendimiento en PDF 1,75 veces el del siguiente, Office 3,40 veces, HTML por página 8,12 veces más rápido (más alto es mejor); memoria máxima por proceso 18–377 MB (más bajo es mejor).
+
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](../LICENSE)
 [![Commercial license](https://img.shields.io/badge/commercial-license%20available-green.svg)](COMMERCIAL.md)
 [![Release](https://img.shields.io/github/v/release/YOLOW92/pagesift?include_prereleases)](https://github.com/YOLOW92/pagesift/releases)

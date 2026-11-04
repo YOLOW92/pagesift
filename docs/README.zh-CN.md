@@ -7,6 +7,8 @@
 **AI 智能体的网页和文档层：输入任意 URL、文档、邮件、压缩包或源代码文件，输出干净的 Markdown 或 JSON。**  
 一个自托管的 Rust 二进制：CLI、Firecrawl 和 Jina Reader API、MCP 服务器，以及 Python、Node.js、Go、Java、C#、Ruby、PHP 等语言的包。
 
+**实测：** PDF 吞吐是第二名的 1.75 倍，Office 吞吐是第二名的 3.40 倍，HTML 单页比第二名快 8.12 倍（均为越高越好）；每个工作进程峰值内存 18–377 MB（越低越好）。
+
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](../LICENSE)
 [![Commercial license](https://img.shields.io/badge/commercial-license%20available-green.svg)](COMMERCIAL.md)
 [![Release](https://img.shields.io/github/v/release/YOLOW92/pagesift?include_prereleases)](https://github.com/YOLOW92/pagesift/releases)

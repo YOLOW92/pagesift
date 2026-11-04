@@ -7,6 +7,8 @@
 **The web and document layer for AI agents: any URL, document, email, archive or source file in, clean Markdown or JSON out.**  
 One self-hosted Rust binary with a CLI, Firecrawl and Jina Reader APIs, an MCP server, and packages for Python, Node.js, Go, Java, C#, Ruby, PHP and more.
 
+**Measured:** PDF throughput 1.75× the next best tool, Office 3.40×, HTML per page 8.12× faster (higher is better); peak memory 18–377 MB per worker (lower is better).
+
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 [![Commercial license](https://img.shields.io/badge/commercial-license%20available-green.svg)](docs/COMMERCIAL.md)
 [![Release](https://img.shields.io/github/v/release/YOLOW92/pagesift?include_prereleases)](https://github.com/YOLOW92/pagesift/releases)
