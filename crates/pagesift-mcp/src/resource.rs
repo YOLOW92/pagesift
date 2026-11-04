@@ -1,7 +1,7 @@
 //! 资源：工具结果里的 `resource_link` 指向的内容，客户端用 `resources/read` 取
 //! （MCP 2025-06-18 规范 Server Features → Resources、Tools → Resource Links）。
 //!
-//! 只读、按 URI 取；不支持列举与订阅。
+//! 只读、按 URI 取；`resources/list` 与 `resources/templates/list` 返回空列表，不支持订阅。
 
 use base64::Engine as _;
 use serde_json::{Value, json};
