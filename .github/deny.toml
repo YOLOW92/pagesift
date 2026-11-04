@@ -43,6 +43,7 @@ exceptions = [
     { name = "pagesift-net", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-node", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-ocr", allow = ["AGPL-3.0-only"] },
+    { name = "pagesift-compress", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-office", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-syntax", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-pdf", allow = ["AGPL-3.0-only"] },

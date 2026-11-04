@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.1.0
+# pagesift 1.1.1
 
 **The web and document layer for AI agents: any URL, PDF or Office file in, clean Markdown or JSON out.**  
 One self-hosted Rust binary with a CLI, Firecrawl and Jina Reader APIs, an MCP server, and Python and Node.js packages.
@@ -41,7 +41,7 @@ Can replace or sit alongside: **Firecrawl** (same v1/v2 API, self-hosted), **Jin
 - **Runtime:** nothing to install for HTTP, PDF and Office. Optional: a browser for JavaScript pages, an NVIDIA GPU for OCR, your own model for `/v2/agent`
 - **Memory:** 18–377 MB peak per worker across the 1.1 benchmarks without a browser; OCR with formula models needs about 1.7 GB; capacity is sized from the cgroup limit
 - **License:** AGPL-3.0, or a [commercial license](docs/COMMERCIAL.md)
-- **Latest:** 1.1.0 · [release notes](docs/releases/1.1.0.md)
+- **Latest:** 1.1.1 · [release notes](docs/releases/1.1.1.md)
 
 <!-- section: install -->
 ## Install and use
@@ -51,7 +51,7 @@ Can replace or sit alongside: **Firecrawl** (same v1/v2 API, self-hosted), **Jin
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| Server | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.1.0` | `curl localhost:3002/r/https://example.com` |
+| Server | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.1.1` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -95,7 +95,7 @@ const items = await scraper.scrapeMany(['https://example.com', 'https://example.
 **HTTP server**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.1.0
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.1.1
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'                        # Firecrawl API
@@ -313,13 +313,12 @@ flowchart LR
 [commercial license](docs/COMMERCIAL.md) or write to `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
-## What's new in 1.1.0
+## What's new in 1.1.1
 
-New input formats: legacy Word, Excel and PowerPoint, Excel binary, OpenDocument, RTF, WordPerfect, HWP, MOBI, FB2, email,
-archives read recursively, image files through OCR, SQLite, dBASE, DocBook, JATS, subtitles, notebooks and 373 source-code
-and config languages as fenced code blocks; C, C++, C#, Go, Java, JavaScript, TypeScript, Lua, PHP, Python and Rust are split by function and class. New integrations: LangChain, LlamaIndex and a C ABI with language bindings.
+Source-code sections now cover 30 languages. `.doc` keeps list numbers and reads headers, footers and comments. dBASE memo
+columns read `.dbt` and `.fpt` from the same archive. The C zstd library is replaced by `pagesift-compress`, written in Rust.
 
-[Release notes](docs/releases/1.1.0.md) · [1.0.0](docs/releases/1.0.0.md) · [all releases](docs/releases/) · [CHANGELOG](CHANGELOG.md)
+[Release notes](docs/releases/1.1.1.md) · [1.1.0](docs/releases/1.1.0.md) · [all releases](docs/releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -335,7 +334,7 @@ Questions or feedback: [Discord](https://discord.gg/esA3wMZVvA) · [Issues](http
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.1.0}
+  note   = {Version 1.1.1}
 }
 ```
 

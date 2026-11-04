@@ -122,10 +122,10 @@ fn bench_vs_cli() {
         let (mut ours, mut cli) = (f64::MAX, f64::MAX);
         let mut size = 0;
         for _ in 0..15 {
-            let t = Instant::now();
+            let t = Instant::now(); // wall-clock: 只打印速度供人看，不做断言
             size = decompress(&z, usize::MAX).unwrap().len();
             ours = ours.min(t.elapsed().as_secs_f64());
-            let t = Instant::now();
+            let t = Instant::now(); // wall-clock: 只打印速度供人看，不做断言
             let o = std::process::Command::new("zstd")
                 .args(["-dcq", &path])
                 .output()
@@ -190,11 +190,11 @@ fn bench_encode_vs_cli() {
         let d = std::fs::read(&path).unwrap();
         let (mut ours, mut cli) = (f64::MAX, f64::MAX);
         for _ in 0..5 {
-            let t = Instant::now();
+            let t = Instant::now(); // wall-clock: 只打印速度供人看，不做断言
             let z = compress(&d, 3);
             ours = ours.min(t.elapsed().as_secs_f64());
             assert!(!z.is_empty());
-            let t = Instant::now();
+            let t = Instant::now(); // wall-clock: 只打印速度供人看，不做断言
             let o = std::process::Command::new("zstd")
                 .args(["-3cq", &path])
                 .output()

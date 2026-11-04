@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.1.0
+# pagesift 1.1.1
 
 **AI エージェントのための Web・文書レイヤー：URL、PDF、Office ファイルを入力すると、クリーンな Markdown または JSON を出力します。**  
 セルフホストできる単一の Rust バイナリ：CLI、Firecrawl・Jina Reader API、MCP サーバー、Python・Node.js パッケージ。
@@ -41,7 +41,7 @@ pagesift は、考えるソフトウェアのために Web と文書を読みま
 - **ランタイム：** HTTP、PDF、Office にはインストール不要。オプション：JavaScript ページ用のブラウザ、OCR 用の NVIDIA GPU、`/v2/agent` 用の自分のモデル
 - **メモリ：** ブラウザなしの 1.1 の各ベンチマークでワーカーあたりピーク 18–377 MB。数式モデルを使う OCR には約 1.7 GB が必要です。容量は cgroup の上限から決まります
 - **ライセンス：** AGPL-3.0、または[商用ライセンス](COMMERCIAL.md)
-- **最新版：** 1.1.0 · [リリースノート](releases/1.1.0.md)
+- **最新版：** 1.1.1 · [リリースノート](releases/1.1.1.md)
 
 <!-- section: install -->
 ## インストールと使い方
@@ -51,7 +51,7 @@ pagesift は、考えるソフトウェアのために Web と文書を読みま
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| サーバー | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.1.0` | `curl localhost:3002/r/https://example.com` |
+| サーバー | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.1.1` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -95,7 +95,7 @@ const items = await scraper.scrapeMany(['https://example.com', 'https://example.
 **HTTP サーバー**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.1.0
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.1.1
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'                        # Firecrawl API
@@ -313,13 +313,12 @@ flowchart LR
 [商用ライセンス](COMMERCIAL.md)を確認するか、`licensing@pagesift.dev` までご連絡ください。
 
 <!-- section: changelog -->
-## 1.1.0 の新機能
+## 1.1.1 の新機能
 
-新しい入力形式：旧 Word、Excel、PowerPoint、Excel バイナリ、OpenDocument、RTF、WordPerfect、HWP、MOBI、FB2、メール、
-再帰的に読む圧縮ファイル、OCR で読む画像ファイル、SQLite、dBASE、DocBook、JATS、字幕、ノートブック、373 種類のソースコードと
-設定言語（コードブロックとして出力。C、C++、C#、Go、Java、JavaScript、TypeScript、Lua、PHP、Python、Rust は関数とクラスごとに分割）。新しい連携：LangChain、LlamaIndex、C ABI と各言語バインディング。
+ソースコードの分割が 30 言語に拡大。`.doc` はリスト番号を保持し、ヘッダー、フッター、コメントを読みます。dBASE のメモ列は同じ圧縮ファイル内の
+`.dbt`、`.fpt` を読みます。C 版 zstd ライブラリは Rust で書いた `pagesift-compress` に置き換えました。
 
-[リリースノート](releases/1.1.0.md) · [1.0.0](releases/1.0.0.md) · [全リリース](releases/) · [CHANGELOG](../CHANGELOG.md)
+[リリースノート](releases/1.1.1.md) · [1.1.0](releases/1.1.0.md) · [全リリース](releases/) · [CHANGELOG](../CHANGELOG.md)
 
 ---
 
@@ -335,7 +334,7 @@ flowchart LR
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.1.0}
+  note   = {Version 1.1.1}
 }
 ```
 

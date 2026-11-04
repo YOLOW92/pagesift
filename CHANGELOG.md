@@ -2,6 +2,11 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## 1.1.1
+
+Source-code sections for 30 languages, `.doc` list numbers, headers, footers and comments, dBASE memo files inside archives, and
+`pagesift-compress` in place of the C zstd library. Full list and known limits: [release notes](docs/releases/1.1.1.md).
+
 ## 1.1.0
 
 New input formats: `.doc`, `.xls`, `.ppt`, `.xlsb`, OpenDocument including flat XML, RTF, WordPerfect, HWP and HWPX, MOBI,

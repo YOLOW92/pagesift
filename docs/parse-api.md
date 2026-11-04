@@ -28,7 +28,7 @@ Supported files:
 | XML documents | `.dbk`, `.docbook`, `.jats`, `.nxml`, `.svg`, `.opml` | Sections, lists and tables; SVG keeps text only |
 | Text and notebooks | `.md`, `.txt`, `.rst`, `.adoc`, `.org`, `.tex`, `.typ`, `.bib`, `.ris`, `.srt`, `.vtt`, `.ipynb` | As written; subtitles lose their timings; notebooks keep cells and text outputs |
 | Data | `.json`, `.jsonl`, `.yaml`, `.toml`, `.xml`, `.ini` | One fenced code block |
-| Source code | 373 languages by extension or file name | One fenced code block with the language tag. C, C++, C#, Go, Java, JavaScript, TypeScript, Lua, PHP, Python and Rust are split into one section per top-level function or class, with function, class and import names in the metadata. Other languages, and files that are over 2 MB or do not parse cleanly, stay one block |
+| Source code | 373 languages by extension or file name | One fenced code block with the language tag. C, C++, C#, Go, Java, JavaScript, TypeScript, Lua, PHP, Python, Rust, Bash, Ruby, Kotlin, Objective-C, Dart, Julia, OCaml, Elixir, R, Solidity, Pascal, Common Lisp, Groovy, Gleam, PowerShell, CMake, Erlang, D and Elm are split into one section per top-level function or class, with function, class and import names in the metadata. Other languages, and files that are over 2 MB or do not parse cleanly, stay one block |
 
 `/v2/scrape` uses the same conversion code when it fetches these formats (see the end of this page), except text, data
 and source code, which stay web pages when fetched. `pagesift scrape <local file>` uses it too.
