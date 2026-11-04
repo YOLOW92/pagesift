@@ -12,6 +12,7 @@ mod enc;
 mod fse;
 mod henc;
 mod huff;
+mod lz;
 mod xxh;
 
 pub use dec::{decompress, decompress_into};

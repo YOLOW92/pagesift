@@ -81,12 +81,12 @@ fn ml_code(v: u32) -> (u32, u32, u32) {
     (32 + i as u32, bits[i], v - bases[i])
 }
 
-struct Seq {
-    ll: u32,
-    ml: u32,
-    off: u32,
+pub(crate) struct Seq {
+    pub ll: u32,
+    pub ml: u32,
+    pub off: u32,
     /// 用重复偏移 1(上一次的偏移,且 ll > 0)。
-    rep: bool,
+    pub rep: bool,
 }
 
 /// 三张预定义表,及每个符号对应的格子下标(只建一次)。
@@ -341,6 +341,7 @@ pub fn compress(data: &[u8], level: i32) -> Vec<u8> {
             1
         },
     };
+    let mut fast = (level < 9).then(|| crate::lz::Fast::new(level >= 3));
     let tabs = EncTables::new();
     let mut rep = 1usize;
     let mut ni = 0usize;
@@ -356,55 +357,60 @@ pub fn compress(data: &[u8], level: i32) -> Vec<u8> {
         }
         let mut seqs: Vec<Seq> = Vec::new();
         let mut lits: Vec<u8> = Vec::new();
-        let mut i = start;
-        let mut anchor = start;
-        let mut miss = 0usize;
-        while i + MIN_MATCH <= end {
-            while ni < i {
-                m.insert(ni);
-                ni += 1;
-            }
-            let mut cur = m.find(i, end, rep);
-            if cur.0 >= MIN_MATCH {
-                // 懒匹配:下一个位置明显更长就先吐一个字面量
-                while level >= 3 && cur.0 < 16 && i + 1 + MIN_MATCH <= end {
-                    while ni <= i {
-                        m.insert(ni);
-                        ni += 1;
-                    }
-                    let nx = m.find(i + 1, end, rep);
-                    if nx.0 > cur.0 + 1 {
-                        i += 1;
-                        cur = nx;
-                    } else {
-                        break;
-                    }
-                }
-                miss = 0;
-                let (_, off, l) = cur;
-                let ll = i - anchor;
-                lits.extend_from_slice(&data[anchor..i]);
-                seqs.push(Seq {
-                    ll: ll as u32,
-                    ml: l as u32,
-                    off: off as u32,
-                    rep: off == rep && ll > 0,
-                });
-                rep = off;
-                // 匹配体内只登记开头 2 个和结尾 2 个位置,中间跳过(省时间,略损压缩率)
-                while ni < i + l.min(2) {
+        let anchor = if let Some(f) = fast.as_mut() {
+            f.parse(data, (start, end), &mut rep, &mut seqs, &mut lits)
+        } else {
+            let mut i = start;
+            let mut anchor = start;
+            let mut miss = 0usize;
+            while i + MIN_MATCH <= end {
+                while ni < i {
                     m.insert(ni);
                     ni += 1;
                 }
-                i += l;
-                ni = ni.max(i.saturating_sub(2));
-                anchor = i;
-            } else {
-                // 连续未命中越久步长越大,不可压缩的数据很快跳过
-                i += 1 + (miss >> 6);
-                miss += 1;
+                let mut cur = m.find(i, end, rep);
+                if cur.0 >= MIN_MATCH {
+                    // 懒匹配:下一个位置明显更长就先吐一个字面量
+                    while level >= 3 && cur.0 < 16 && i + 1 + MIN_MATCH <= end {
+                        while ni <= i {
+                            m.insert(ni);
+                            ni += 1;
+                        }
+                        let nx = m.find(i + 1, end, rep);
+                        if nx.0 > cur.0 + 1 {
+                            i += 1;
+                            cur = nx;
+                        } else {
+                            break;
+                        }
+                    }
+                    miss = 0;
+                    let (_, off, l) = cur;
+                    let ll = i - anchor;
+                    lits.extend_from_slice(&data[anchor..i]);
+                    seqs.push(Seq {
+                        ll: ll as u32,
+                        ml: l as u32,
+                        off: off as u32,
+                        rep: off == rep && ll > 0,
+                    });
+                    rep = off;
+                    // 匹配体内只登记开头 2 个和结尾 2 个位置,中间跳过(省时间,略损压缩率)
+                    while ni < i + l.min(2) {
+                        m.insert(ni);
+                        ni += 1;
+                    }
+                    i += l;
+                    ni = ni.max(i.saturating_sub(2));
+                    anchor = i;
+                } else {
+                    // 连续未命中越久步长越大,不可压缩的数据很快跳过
+                    i += 1 + (miss >> 6);
+                    miss += 1;
+                }
             }
-        }
+            anchor
+        };
         lits.extend_from_slice(&data[anchor..end]);
         let mut body = Vec::new();
         let n = lits.len();
