@@ -10,6 +10,7 @@ mod bits;
 mod dec;
 mod enc;
 mod fse;
+mod henc;
 mod huff;
 
 pub use dec::{decompress, decompress_into};

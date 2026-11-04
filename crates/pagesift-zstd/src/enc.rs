@@ -3,17 +3,30 @@ use crate::dec::{LL_DEFAULT, ML_DEFAULT, OF_DEFAULT};
 use crate::fse::{self, FseTable};
 
 const BLOCK: usize = 128 * 1024;
-const HASH_BITS: u32 = 16;
 const MIN_MATCH: usize = 4;
 
-struct BitWriter {
+pub(crate) struct BitWriter {
     out: Vec<u8>,
     acc: u64,
     n: u32,
 }
 
 impl BitWriter {
-    fn put(&mut self, v: u32, bits: u32) {
+    pub fn new() -> Self {
+        Self {
+            out: Vec::new(),
+            acc: 0,
+            n: 0,
+        }
+    }
+    /// 补齐到整字节(不写哨兵),用于 FSE 表头。
+    pub fn flush_bytes(mut self) -> Vec<u8> {
+        if self.n > 0 {
+            self.out.push(self.acc as u8);
+        }
+        self.out
+    }
+    pub fn put(&mut self, v: u32, bits: u32) {
         if bits == 0 {
             return;
         }
@@ -26,7 +39,7 @@ impl BitWriter {
         }
     }
     /// 写结束哨兵位并补齐字节。
-    fn finish(mut self) -> Vec<u8> {
+    pub fn finish(mut self) -> Vec<u8> {
         self.put(1, 1);
         if self.n > 0 {
             self.out.push(self.acc as u8);
@@ -72,6 +85,8 @@ struct Seq {
     ll: u32,
     ml: u32,
     off: u32,
+    /// 用重复偏移 1(上一次的偏移,且 ll > 0)。
+    rep: bool,
 }
 
 /// 选下一个状态：符号 `sym` 的格子里，覆盖 `next` 的那个（`next` 为 None 时取第一个）。
@@ -104,7 +119,7 @@ fn encode_seqs(seqs: &[Seq]) -> Vec<u8> {
     for (k, s) in seqs.iter().enumerate().rev() {
         let (lc, lb, lv) = ll_code(s.ll);
         let (mc, mb, mv) = ml_code(s.ml);
-        let ofv = s.off + 3;
+        let ofv = if s.rep { 1 } else { s.off + 3 };
         let oc = 31 - ofv.leading_zeros();
         let (ob, ov) = (oc, ofv - (1 << oc));
         if k + 1 == seqs.len() {
@@ -138,11 +153,73 @@ fn raw_block(out: &mut Vec<u8>, b: &[u8], last: bool) {
     out.extend_from_slice(b);
 }
 
-/// 压缩成一个 zstd 帧。`level <= 0` 只存放不匹配。
+const WINDOW: usize = 1 << 18;
+const HEAD_BITS: u32 = 17;
+
+/// 哈希链匹配器:覆盖全部输入,距离不超过 WINDOW。
+struct Matcher<'a> {
+    d: &'a [u8],
+    head: Vec<u32>,
+    prev: Vec<u32>,
+    depth: usize,
+}
+
+impl<'a> Matcher<'a> {
+    fn h(&self, p: usize) -> usize {
+        let v = u32::from_le_bytes([self.d[p], self.d[p + 1], self.d[p + 2], self.d[p + 3]]);
+        (v.wrapping_mul(2654435761) >> (32 - HEAD_BITS)) as usize
+    }
+    fn insert(&mut self, p: usize) {
+        if p + 4 <= self.d.len() {
+            let h = self.h(p);
+            self.prev[p & (WINDOW - 1)] = self.head[h];
+            self.head[h] = p as u32;
+        }
+    }
+    fn mlen(&self, a: usize, b: usize, end: usize) -> usize {
+        let mut l = 0;
+        while b + l < end && self.d[a + l] == self.d[b + l] {
+            l += 1;
+        }
+        l
+    }
+    /// 在 i 处找最优匹配:(长度, 偏移)。`rep` 是上一次的偏移,命中时略占便宜。
+    fn find(&self, i: usize, end: usize, rep: usize) -> (usize, usize, usize) {
+        let mut best = (0usize, 0usize, 0usize);
+        if i + MIN_MATCH > end {
+            return best;
+        }
+        if rep <= i {
+            let l = self.mlen(i - rep, i, end);
+            if l >= MIN_MATCH {
+                best = (l + 1, rep, l);
+            }
+        }
+        let mut c = self.head[self.h(i)];
+        for _ in 0..self.depth {
+            if c == u32::MAX || (c as usize) >= i || i - c as usize >= WINDOW {
+                break;
+            }
+            let cp = c as usize;
+            let l = self.mlen(cp, i, end);
+            if l > best.0 && l >= MIN_MATCH {
+                best = (l, i - cp, l);
+            }
+            let n = self.prev[cp & (WINDOW - 1)];
+            if n != u32::MAX && n >= c {
+                break;
+            }
+            c = n;
+        }
+        best
+    }
+}
+
+/// 压缩成一个 zstd 帧。`level <= 0` 只存放不匹配;更高的级别只影响搜索深度。
 pub fn compress(data: &[u8], level: i32) -> Vec<u8> {
     let mut out = Vec::with_capacity(data.len() / 2 + 32);
     out.extend_from_slice(&0xFD2FB528u32.to_le_bytes());
-    // 单段帧：窗口等于内容大小，内容大小用 4 或 8 字节
+    // 单段帧:窗口等于内容大小,内容大小用 4 或 8 字节
     if data.len() <= u32::MAX as usize {
         out.push(0x80 | 0x20);
         out.extend_from_slice(&(data.len() as u32).to_le_bytes());
@@ -154,11 +231,20 @@ pub fn compress(data: &[u8], level: i32) -> Vec<u8> {
         raw_block(&mut out, &[], true);
         return out;
     }
-    let mut table = vec![u32::MAX; 1 << HASH_BITS];
-    let hash = |p: usize| -> usize {
-        let v = u32::from_le_bytes([data[p], data[p + 1], data[p + 2], data[p + 3]]);
-        (v.wrapping_mul(2654435761) >> (32 - HASH_BITS)) as usize
+    let mut m = Matcher {
+        d: data,
+        head: vec![u32::MAX; 1 << HEAD_BITS],
+        prev: vec![u32::MAX; WINDOW],
+        depth: if level >= 9 {
+            64
+        } else if level >= 3 {
+            16
+        } else {
+            4
+        },
     };
+    let mut rep = 1usize;
+    let mut ni = 0usize;
     let mut start = 0;
     while start < data.len() {
         let end = (start + BLOCK).min(data.len());
@@ -174,36 +260,54 @@ pub fn compress(data: &[u8], level: i32) -> Vec<u8> {
         let mut i = start;
         let mut anchor = start;
         while i + MIN_MATCH <= end {
-            let h = hash(i);
-            let cand = table[h];
-            table[h] = i as u32;
-            if cand != u32::MAX {
-                let c = cand as usize;
-                let mut l = 0;
-                while i + l < end && data[c + l] == data[i + l] {
-                    l += 1;
-                }
-                if l >= MIN_MATCH {
-                    lits.extend_from_slice(&data[anchor..i]);
-                    seqs.push(Seq {
-                        ll: (i - anchor) as u32,
-                        ml: l as u32,
-                        off: (i - c) as u32,
-                    });
-                    i += l;
-                    anchor = i;
-                    continue;
-                }
+            while ni < i {
+                m.insert(ni);
+                ni += 1;
             }
-            i += 1;
+            let mut cur = m.find(i, end, rep);
+            if cur.0 >= MIN_MATCH {
+                // 懒匹配:下一个位置明显更长就先吐一个字面量
+                while i + 1 + MIN_MATCH <= end {
+                    while ni <= i {
+                        m.insert(ni);
+                        ni += 1;
+                    }
+                    let nx = m.find(i + 1, end, rep);
+                    if nx.0 > cur.0 + 1 {
+                        i += 1;
+                        cur = nx;
+                    } else {
+                        break;
+                    }
+                }
+                let (_, off, l) = cur;
+                let ll = i - anchor;
+                lits.extend_from_slice(&data[anchor..i]);
+                seqs.push(Seq {
+                    ll: ll as u32,
+                    ml: l as u32,
+                    off: off as u32,
+                    rep: off == rep && ll > 0,
+                });
+                rep = off;
+                i += l;
+                anchor = i;
+            } else {
+                i += 1;
+            }
         }
         lits.extend_from_slice(&data[anchor..end]);
         let mut body = Vec::new();
         let n = lits.len();
-        body.push(3 << 2 | ((n & 15) << 4) as u8);
-        body.push((n >> 4) as u8);
-        body.push((n >> 12) as u8);
-        body.extend_from_slice(&lits);
+        match crate::henc::encode_literals(&lits) {
+            Some(h) => body.extend_from_slice(&h),
+            None => {
+                body.push(3 << 2 | ((n & 15) << 4) as u8);
+                body.push((n >> 4) as u8);
+                body.push((n >> 12) as u8);
+                body.extend_from_slice(&lits);
+            }
+        }
         if seqs.is_empty() {
             body.push(0);
         } else {

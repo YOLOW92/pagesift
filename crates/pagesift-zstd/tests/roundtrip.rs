@@ -141,3 +141,72 @@ fn bench_vs_cli() {
         );
     }
 }
+
+/// 字节分布偏斜、覆盖全部 256 种取值(触发 FSE 压缩权重表和 4 流 Huffman)。
+fn skewed(n: usize, seed: u64) -> Vec<u8> {
+    let mut s = seed;
+    (0..n)
+        .map(|_| {
+            let r = lcg(&mut s);
+            let k = (r % 4096) as f64;
+            ((k * k / 4096.0 / 16.0) as u32 % 256) as u8
+        })
+        .collect()
+}
+
+#[test]
+fn huffman_literals_roundtrip() {
+    for n in [40usize, 300, 5000, 100_000, 300_000] {
+        let d = skewed(n, n as u64);
+        let z = compress(&d, 3);
+        assert_eq!(decompress(&z, usize::MAX).unwrap(), d, "n={n}");
+        if n >= 5000 {
+            assert!(z.len() < d.len(), "n={n} {}", z.len());
+        }
+    }
+}
+
+#[test]
+fn dump_skewed() {
+    if let Ok(dst) = std::env::var("PAGESIFT_ZSTD_DUMP") {
+        std::fs::write(
+            format!("{dst}/skewed.zst"),
+            compress(&skewed(300_000, 5), 3),
+        )
+        .unwrap();
+        std::fs::write(format!("{dst}/skewed.raw"), skewed(300_000, 5)).unwrap();
+    }
+}
+
+/// 编码速度:与官方 `zstd -3` 命令交替各跑 5 次(取最快)。
+#[test]
+fn bench_encode_vs_cli() {
+    let Ok(src) = std::env::var("PAGESIFT_ZSTD_SAMPLES") else {
+        return;
+    };
+    use std::time::Instant;
+    for name in ["b.txt", "e.html"] {
+        let path = format!("{src}/{name}");
+        let d = std::fs::read(&path).unwrap();
+        let (mut ours, mut cli) = (f64::MAX, f64::MAX);
+        for _ in 0..5 {
+            let t = Instant::now();
+            let z = compress(&d, 3);
+            ours = ours.min(t.elapsed().as_secs_f64());
+            assert!(!z.is_empty());
+            let t = Instant::now();
+            let o = std::process::Command::new("zstd")
+                .args(["-3cq", &path])
+                .output()
+                .unwrap();
+            assert!(!o.stdout.is_empty());
+            cli = cli.min(t.elapsed().as_secs_f64());
+        }
+        let mb = d.len() as f64 / 1e6;
+        eprintln!(
+            "encode {name}: ours {:.0} MB/s, C cli {:.0} MB/s",
+            mb / ours,
+            mb / cli
+        );
+    }
+}
