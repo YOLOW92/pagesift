@@ -335,6 +335,16 @@ fn r_defs() {
 }
 
 #[test]
+fn solidity_defs() {
+    check(
+        "solidity",
+        "import \"a.sol\";\ncontract C {\n  struct S { uint a; }\n  function f() public {}\n}\n",
+        &[(K::Class, "C"), (K::Struct, "S"), (K::Method, "f")],
+        1,
+    );
+}
+
+#[test]
 fn unsupported_or_symbol_free_is_none() {
     assert!(outline("cobol", "x").is_none());
     assert!(outline("python", "x = 1\n").is_none());

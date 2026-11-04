@@ -36,9 +36,10 @@ pub enum Lang {
     Elixir,
     R,
     Svelte,
+    Solidity,
 }
 
-const COUNT: usize = 26;
+const COUNT: usize = 27;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -70,6 +71,7 @@ impl Lang {
             "elixir" | "ex" | "exs" => Lang::Elixir,
             "r" => Lang::R,
             "svelte" => Lang::Svelte,
+            "solidity" | "sol" => Lang::Solidity,
             _ => return None,
         })
     }
@@ -106,6 +108,7 @@ impl Lang {
             Lang::Elixir => include_bytes!("../tables/elixir.pslg.z"),
             Lang::R => include_bytes!("../tables/r.pslg.z"),
             Lang::Svelte => include_bytes!("../tables/svelte.pslg.z"),
+            Lang::Solidity => include_bytes!("../tables/solidity.pslg.z"),
         }
     }
 
@@ -353,5 +356,16 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
             _ => Skip,
         },
         Lang::Svelte => Skip,
+        Lang::Solidity => match kind {
+            "contract_declaration" => Sym(K::Class, "contract", Ty),
+            "interface_declaration" => Sym(K::Interface, "interface", Ty),
+            "library_declaration" => Sym(K::Module, "library", Ty),
+            "struct_declaration" => Sym(K::Struct, "struct", No),
+            "enum_declaration" => Sym(K::Enum, "enum", No),
+            "function_definition" => Sym(K::Function, "function", No),
+            "modifier_definition" => Sym(K::Function, "modifier", No),
+            "import_directive" => Import,
+            _ => Skip,
+        },
     }
 }
