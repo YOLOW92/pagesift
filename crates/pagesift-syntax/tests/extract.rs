@@ -424,6 +424,21 @@ fn erlang_defs() {
 }
 
 #[test]
+fn d_defs() {
+    check(
+        "d",
+        "module m;\nimport std.stdio;\nclass C {\n  void m() {}\n}\nstruct S { int a; }\nint add(int a, int b) { return a+b; }\n",
+        &[
+            (K::Class, "C"),
+            (K::Method, "m"),
+            (K::Struct, "S"),
+            (K::Function, "add"),
+        ],
+        1,
+    );
+}
+
+#[test]
 fn unsupported_or_symbol_free_is_none() {
     assert!(outline("cobol", "x").is_none());
     assert!(outline("python", "x = 1\n").is_none());

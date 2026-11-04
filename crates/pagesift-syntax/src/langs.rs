@@ -48,9 +48,10 @@ pub enum Lang {
     Erlang,
     Hcl,
     Vue,
+    D,
 }
 
-const COUNT: usize = 38;
+const COUNT: usize = 39;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -94,6 +95,7 @@ impl Lang {
             "erlang" | "erl" | "hrl" => Lang::Erlang,
             "hcl" | "terraform" | "tf" => Lang::Hcl,
             "vue" => Lang::Vue,
+            "d" => Lang::D,
             _ => return None,
         })
     }
@@ -142,6 +144,7 @@ impl Lang {
             Lang::Erlang => include_bytes!("../tables/erlang.pslg.z"),
             Lang::Hcl => include_bytes!("../tables/hcl.pslg.z"),
             Lang::Vue => include_bytes!("../tables/vue.pslg.z"),
+            Lang::D => include_bytes!("../tables/d.pslg.z"),
         }
     }
 
@@ -449,5 +452,15 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
         },
         Lang::Hcl => Skip,
         Lang::Vue => Skip,
+        Lang::D => match kind {
+            "module_def" => Wrap,
+            "class_declaration" => Sym(K::Class, "class", Ty),
+            "struct_declaration" => Sym(K::Struct, "struct", Ty),
+            "interface_declaration" => Sym(K::Interface, "interface", Ty),
+            "enum_declaration" => Sym(K::Enum, "enum", No),
+            "function_declaration" => Sym(K::Function, "function", No),
+            "import_declaration" => Import,
+            _ => Skip,
+        },
     }
 }

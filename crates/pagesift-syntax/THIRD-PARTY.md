@@ -52,6 +52,7 @@
 | Erlang | WhatsApp/tree-sitter-erlang | 0.0.0 / 62c82e6 | Apache License 2.0，Copyright (c) Meta Platforms, Inc. and affiliates；外部扫描器移植自该仓库 src/scanner.c |
 | HCL | tree-sitter-grammars/tree-sitter-hcl | 1.2.0 / 64ad627 | Apache License 2.0；外部扫描器移植自该仓库 src/scanner.c |
 | Vue | tree-sitter-grammars/tree-sitter-vue | 0.1.0 / ce8011a | Copyright (c) 2024 Amaan Qureshi；标签栈扫描与 HTML 共用，文本片段部分移植自该仓库 src/scanner.c |
+| D | gdamore/tree-sitter-d | 0.8.2 / 64f2793 | Copyright 2024 Garrett D'Amore；外部扫描器移植自该仓库 src/scanner.c |
 | TOML | tree-sitter-grammars/tree-sitter-toml | 0.7.0 / 64b5683 | Copyright (c) Ika；外部扫描器移植自该仓库 src/scanner.c |
 | PHP、PHP-only | tree-sitter/tree-sitter-php | 0.25.1 / 58d5643 | Copyright (c) 2017 Josh Vera, GitHub；外部扫描器移植自该仓库 src/scanner.c |
 | C# | tree-sitter/tree-sitter-c-sharp | 0.23.5 / 8c0abe0 | Copyright (c) 2014-2023 Max Brunsfeld, Damien Guard, Amaan Qureshi, and contributors；外部扫描器移植自该仓库 src/scanner.c |

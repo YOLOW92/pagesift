@@ -11,6 +11,7 @@ pub mod cmake;
 pub mod cpp;
 pub mod csharp;
 pub mod css;
+pub mod d;
 pub mod dart;
 pub mod dockerfile;
 pub mod elixir;
@@ -52,6 +53,7 @@ pub fn create(name: &str) -> Option<Box<dyn Scanner>> {
         "ruby" => Box::new(ruby::Ruby::default()),
         "kotlin" => Box::new(kotlin::Kotlin::default()),
         "css" => Box::new(css::Css),
+        "d" => Box::new(d::D),
         "hcl" => Box::new(hcl::Hcl::default()),
         "cmake" => Box::new(cmake::CMake::default()),
         "erlang" => Box::new(erlang::Erlang),
