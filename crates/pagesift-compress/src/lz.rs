@@ -58,8 +58,30 @@ impl Fast {
         }
     }
 
-    /// 在 i 处找最佳匹配：（评分长度, 偏移, 真实长度）。
-    fn best(&self, d: &[u8], i: usize, end: usize, rep: usize) -> (usize, usize, usize) {
+    /// 在 i 处找最佳匹配：（评分长度, 偏移, 真实长度）。`store` 为真时顺手把 i 登记进表（哈希只算一次）。
+    #[inline(always)]
+    fn best(
+        &mut self,
+        d: &[u8],
+        i: usize,
+        end: usize,
+        rep: usize,
+        store: bool,
+    ) -> (usize, usize, usize) {
+        let v = rd(d, i);
+        let hs = h_short(v);
+        let cs = self.short[hs];
+        let (mut hl, mut cl) = (0, u32::MAX);
+        if self.dual {
+            hl = h_long(v);
+            cl = self.long[hl];
+        }
+        if store {
+            self.short[hs] = i as u32;
+            if self.dual {
+                self.long[hl] = i as u32;
+            }
+        }
         let mut best = (0, 0, 0);
         if rep <= i {
             let l = mlen(d, i - rep, i, end);
@@ -67,22 +89,15 @@ impl Fast {
                 best = (l + 1, rep, l);
             }
         }
-        let v = rd(d, i);
-        let mut try_cand = |c: u32| {
-            if c != u32::MAX {
-                let c = c as usize;
-                if c < i {
-                    let l = mlen(d, c, i, end);
-                    if l >= MIN && l > best.0 {
-                        best = (l, i - c, l);
-                    }
+        for c in [cl, cs] {
+            let c = c as usize;
+            if c < i {
+                let l = mlen(d, c, i, end);
+                if l >= MIN && l > best.0 {
+                    best = (l, i - c, l);
                 }
             }
-        };
-        if self.dual {
-            try_cand(self.long[h_long(v)]);
         }
-        try_cand(self.short[h_short(v)]);
         best
     }
 
@@ -99,8 +114,7 @@ impl Fast {
         let mut anchor = start;
         let mut miss = 0usize;
         while i + 8 <= end {
-            let mut cur = self.best(d, i, end, *rep);
-            self.put(d, i);
+            let mut cur = self.best(d, i, end, *rep, true);
             if cur.0 < MIN {
                 // 连续未命中越久步长越大
                 i += 1 + (miss >> 5);
@@ -110,9 +124,8 @@ impl Fast {
             miss = 0;
             // 一步前瞻：下一个位置明显更长就先吐一个字面量
             if self.dual && cur.0 < 24 && i + 9 <= end {
-                let nx = self.best(d, i + 1, end, *rep);
+                let nx = self.best(d, i + 1, end, *rep, true);
                 if nx.0 > cur.0 + 1 {
-                    self.put(d, i + 1);
                     i += 1;
                     cur = nx;
                 }
