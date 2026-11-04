@@ -322,8 +322,7 @@ impl McpServer {
                 }
                 None => Err(ErrorObject::method_not_found("resources/read")),
             },
-            // 声明了 resources 能力，客户端就可以列举（规范如此，Glama 的检查也会调）。
-            // 资源都是工具结果里 `resource_link` 指向的临时内容，没有可枚举的固定列表，所以是空的。
+            // 声明了 resources 能力就必须能列举：只按 URI 读，所以列表恒为空。
             (_, "resources/list") if self.inner.resources.is_some() => {
                 Ok(json!({ "resources": [] }))
             }
@@ -625,6 +624,42 @@ mod tests {
             .dispatch(req("tools/list", json!({"cursor": "x"})), l, None, None)
             .await;
         assert_eq!(r.payload.unwrap_err().code, jsonrpc::INVALID_PARAMS);
+    }
+
+    struct NoRes;
+    impl crate::resource::ResourceReader for NoRes {
+        fn read(&self, _uri: &str) -> Option<(String, Vec<u8>)> {
+            None
+        }
+    }
+
+    /// 声明 resources 能力后，两个列举方法在新旧两代都返回空列表；没有 resources 时仍是 method not found。
+    #[tokio::test]
+    async fn resources_list_methods() {
+        let with = McpServer::builder("t", "1")
+            .tool(Echo)
+            .resources(std::sync::Arc::new(NoRes))
+            .build()
+            .unwrap();
+        let without = server();
+        for era in [Era::Modern("2026-07-28"), Era::Legacy("2025-11-25")] {
+            for (m, key) in [
+                ("resources/list", "resources"),
+                ("resources/templates/list", "resourceTemplates"),
+            ] {
+                let v = with
+                    .dispatch(req(m, json!({})), era, None, None)
+                    .await
+                    .payload
+                    .unwrap();
+                assert_eq!(v[key], json!([]), "{m} {era:?}");
+                let r = without.dispatch(req(m, json!({})), era, None, None).await;
+                assert_eq!(r.payload.unwrap_err().code, jsonrpc::METHOD_NOT_FOUND);
+            }
+        }
+        let p = json!({"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": "c", "version": "1"}});
+        let (_, init) = with.initialize(&req("initialize", p)).unwrap();
+        assert!(init["capabilities"]["resources"].is_object());
     }
 
     #[tokio::test]
