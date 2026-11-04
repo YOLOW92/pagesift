@@ -30,9 +30,10 @@ pub enum Lang {
     ObjC,
     Dart,
     Julia,
+    Nix,
 }
 
-const COUNT: usize = 20;
+const COUNT: usize = 21;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -58,6 +59,7 @@ impl Lang {
             "objc" | "objective-c" | "objectivec" => Lang::ObjC,
             "dart" => Lang::Dart,
             "julia" | "jl" => Lang::Julia,
+            "nix" => Lang::Nix,
             _ => return None,
         })
     }
@@ -88,6 +90,7 @@ impl Lang {
             Lang::ObjC => include_bytes!("../tables/objc.pslg.z"),
             Lang::Dart => include_bytes!("../tables/dart.pslg.z"),
             Lang::Julia => include_bytes!("../tables/julia.pslg.z"),
+            Lang::Nix => include_bytes!("../tables/nix.pslg.z"),
         }
     }
 
@@ -310,5 +313,6 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
             "import_statement" | "using_statement" => Import,
             _ => Skip,
         },
+        Lang::Nix => Skip,
     }
 }

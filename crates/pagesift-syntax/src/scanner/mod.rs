@@ -16,6 +16,7 @@ pub mod js;
 pub mod julia;
 pub mod kotlin;
 pub mod lua;
+pub mod nix;
 pub mod php;
 pub mod python;
 pub mod ruby;
@@ -40,6 +41,7 @@ pub fn create(name: &str) -> Option<Box<dyn Scanner>> {
         "ruby" => Box::new(ruby::Ruby::default()),
         "kotlin" => Box::new(kotlin::Kotlin::default()),
         "css" => Box::new(css::Css),
+        "nix" => Box::new(nix::Nix),
         "julia" => Box::new(julia::Julia),
         "dart" => Box::new(dart::Dart),
         "html" => Box::new(html::Html::default()),
