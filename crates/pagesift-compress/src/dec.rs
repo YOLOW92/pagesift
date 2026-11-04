@@ -123,7 +123,7 @@ struct State {
 }
 
 /// 序列码展开后的解码格：状态转移（base、nb）加上额外位数和基值，省掉每条序列的查表。
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 struct SCell {
     base: u16,
     nb: u8,
@@ -134,7 +134,8 @@ struct SCell {
 #[derive(Clone)]
 struct SeqTable {
     al: u32,
-    cells: Vec<SCell>,
+    /// 定长 512 格（精度上限 9 位），用掩码下标，热循环里没有边界检查。
+    cells: Box<[SCell; 512]>,
 }
 
 #[derive(Clone, Copy)]
@@ -145,24 +146,21 @@ enum Kind {
 }
 
 fn expand(t: FseTable, kind: Kind) -> SeqTable {
-    let cells = t
-        .cells
-        .iter()
-        .map(|c| {
-            let sym = c.sym as usize;
-            let (val, eb) = match kind {
-                Kind::Ll => LL_BASE[sym.min(LL_BASE.len() - 1)],
-                Kind::Ml => ML_BASE[sym.min(ML_BASE.len() - 1)],
-                Kind::Of => (1u32 << sym.min(31), sym.min(31) as u32),
-            };
-            SCell {
-                base: c.base,
-                nb: c.nb,
-                eb: eb as u8,
-                val,
-            }
-        })
-        .collect();
+    let mut cells = Box::new([SCell::default(); 512]);
+    for (dst, c) in cells.iter_mut().zip(t.cells.iter()) {
+        let sym = c.sym as usize;
+        let (val, eb) = match kind {
+            Kind::Ll => LL_BASE[sym.min(LL_BASE.len() - 1)],
+            Kind::Ml => ML_BASE[sym.min(ML_BASE.len() - 1)],
+            Kind::Of => (1u32 << sym.min(31), sym.min(31) as u32),
+        };
+        *dst = SCell {
+            base: c.base,
+            nb: c.nb,
+            eb: eb as u8,
+            val,
+        };
+    }
     SeqTable { al: t.al, cells }
 }
 
@@ -476,33 +474,44 @@ fn block(b: &[u8], st: &mut State, out: &mut Vec<u8>, start: usize, max_out: usi
     seqs.clear();
     let mut hist = st.hist;
     let (mut sum_ll, mut sum_ml) = (0u64, 0u64);
-    for i in 0..nseq {
-        let (cl, co, cm) = (ll.cells[sl], of.cells[so], ml.cells[sm]);
-        // 三个额外位字段合并成一次读取（先读到的在高位），三个状态更新同理，缩短位缓冲上的串行链
-        r.refill_wide();
+    seqs.resize(nseq, (0, 0, 0));
+    for (i, slot) in seqs.iter_mut().enumerate() {
+        let (cl, co, cm) = (ll.cells[sl & 511], of.cells[so & 511], ml.cells[sm & 511]);
         let (eo, em, el) = (co.eb as u32, cm.eb as u32, cl.eb as u32);
-        let (xo, xm, xl);
-        if eo + em + el <= 56 {
-            let v = r.read_wide(eo + em + el);
-            xo = (v >> (em + el)) as u32;
-            xm = ((v >> el) & ((1u64 << em) - 1)) as u32;
-            xl = (v & ((1u64 << el) - 1)) as u32;
+        let (nl, nm, no) = (cl.nb as u32, cm.nb as u32, co.nb as u32);
+        let te = eo + em + el;
+        let tn = if i + 1 < nseq { nl + nm + no } else { 0 };
+        // 一次补缓冲、一次读出本条序列的全部位（额外位 of/ml/ll 在高位，状态更新 ll/ml/of 在低位），
+        // 再用移位掩码拆开：位缓冲上只有一条串行依赖
+        r.refill_wide();
+        let m = |n: u32| (1u64 << n) - 1;
+        let (xo, xm, xl, ul, um, uo);
+        if te + tn <= 56 {
+            let v = r.read_wide(te + tn);
+            uo = v & m(no);
+            um = (v >> no) & m(nm);
+            ul = (v >> (no + nm)) & m(nl);
+            xl = (v >> tn) & m(el);
+            xm = (v >> (tn + el)) & m(em);
+            xo = v >> (tn + el + em);
         } else {
-            xo = r.read(eo);
-            xm = r.read(em);
-            xl = r.read(el);
+            xo = r.read(eo) as u64;
+            xm = r.read(em) as u64;
+            xl = r.read(el) as u64;
+            if tn > 0 {
+                ul = r.read(nl) as u64;
+                um = r.read(nm) as u64;
+                uo = r.read(no) as u64;
+            } else {
+                (ul, um, uo) = (0, 0, 0);
+            }
         }
-        let ofv = co.val + xo;
-        let mlen = cm.val + xm;
-        let llen = cl.val + xl;
-        if i + 1 < nseq {
-            let (nl, nm, no) = (cl.nb as u32, cm.nb as u32, co.nb as u32);
-            r.refill_wide();
-            let v = r.read_wide(nl + nm + no);
-            sl = cl.base as usize + ((v >> (nm + no)) & ((1u64 << nl) - 1)) as usize;
-            sm = cm.base as usize + ((v >> no) & ((1u64 << nm) - 1)) as usize;
-            so = co.base as usize + (v & ((1u64 << no) - 1)) as usize;
-        }
+        sl = cl.base as usize + ul as usize;
+        sm = cm.base as usize + um as usize;
+        so = co.base as usize + uo as usize;
+        let ofv = co.val + xo as u32;
+        let mlen = cm.val + xm as u32;
+        let llen = cl.val + xl as u32;
         let off = if ofv > 3 {
             let o = (ofv - 3) as usize;
             hist = [o, hist[0], hist[1]];
@@ -531,7 +540,7 @@ fn block(b: &[u8], st: &mut State, out: &mut Vec<u8>, start: usize, max_out: usi
         };
         sum_ll += llen as u64;
         sum_ml += mlen as u64;
-        seqs.push((llen, mlen, off as u32));
+        *slot = (llen, mlen, off as u32);
     }
     if r.overflow() {
         return Err(Error::Corrupt("sequence bitstream overrun"));
