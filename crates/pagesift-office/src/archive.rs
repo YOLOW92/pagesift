@@ -220,7 +220,7 @@ fn render(
             stopped = Some("skipped: size limit");
             "skipped: size limit"
         } else {
-            let (result, ok) = member(m, opts, &mut sections, &mut warnings);
+            let (result, ok) = member(m, &members, opts, &mut sections, &mut warnings);
             converted += usize::from(ok);
             result
         };
@@ -247,9 +247,34 @@ fn render(
     })
 }
 
+/// 同目录同名的备注文件（.dbt 或 .fpt）：返回内容和是不是 FoxPro 的 .fpt。单个超过 16 MB 的不读。
+fn memo_of(m: &Member<'_>, all: &[Member<'_>]) -> Option<(Vec<u8>, bool)> {
+    const MAX: u64 = 16 << 20;
+    let stem = &m.path[..m.path.len() - 4];
+    let other = all.iter().find_map(|o| {
+        let p = &o.path;
+        let ext = p.get(stem.len()..)?;
+        (p.len() == stem.len() + 4
+            && p[..stem.len()].eq_ignore_ascii_case(stem)
+            && (ext.eq_ignore_ascii_case(".dbt") || ext.eq_ignore_ascii_case(".fpt")))
+        .then_some((o, ext.eq_ignore_ascii_case(".fpt")))
+    })?;
+    let (o, fox) = other;
+    if o.size > MAX || o.size > BYTES_LEFT.get() {
+        return None;
+    }
+    let data = match o.read {
+        Source::Borrowed(d) => d.to_vec(),
+        Source::Zip(z) => z.read(&o.path).ok()??,
+    };
+    BYTES_LEFT.set(BYTES_LEFT.get().saturating_sub(data.len() as u64));
+    Some((data, fox))
+}
+
 /// 转换一个文件，内容写进 `sections`。返回清单里的说明和是否转出了内容。
 fn member(
     m: &Member<'_>,
+    all: &[Member<'_>],
     opts: &Options<'_>,
     sections: &mut Vec<Block>,
     warnings: &mut Vec<String>,
@@ -271,7 +296,17 @@ fn member(
             Err(_) => return ("failed: unreadable", false),
         },
     };
-    match convert(data, &m.path, budget::left()) {
+    let memo = if m.path.to_ascii_lowercase().ends_with(".dbf") {
+        memo_of(m, all)
+    } else {
+        None
+    };
+    let run = || convert(data, &m.path, budget::left());
+    let result = match memo {
+        Some((bytes, fox)) => crate::dbf::with_memo(bytes, fox, run),
+        None => run(),
+    };
+    match result {
         Ok(Some(doc)) => {
             warnings.extend(doc.warnings.into_iter().map(|w| format!("{}: {w}", m.path)));
             let mut body = doc.markdown;
@@ -434,5 +469,29 @@ mod tests {
         let d = crate::convert(&z, Format::Archive, &Options::default()).unwrap();
         assert!(d.markdown.contains("| a.txt | 1 B | listed |"));
         assert!(!d.markdown.contains("## a.txt"));
+    }
+
+    fn dbf_sub(bytes: &[u8], name: &str, _room: usize) -> Result<Option<Converted>, Error> {
+        if name.to_ascii_lowercase().ends_with(".dbf") {
+            crate::dbf::convert(bytes, &Options::default()).map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    #[test]
+    fn dbf_in_an_archive_reads_its_memo_file() {
+        let mut dbt = vec![0u8; 512];
+        dbt.extend_from_slice(b"from the dbt\x1A");
+        let z = zip::tests::build(&[
+            ("d/Data.DBF", &crate::dbf::tests::memo_sample(), false),
+            ("d/data.dbt", &dbt, false),
+        ]);
+        let opts = Options {
+            member: Some(&dbf_sub),
+            ..Options::default()
+        };
+        let d = crate::convert(&z, Format::Archive, &opts).unwrap();
+        assert!(d.markdown.contains("| from the dbt |"), "{}", d.markdown);
     }
 }
