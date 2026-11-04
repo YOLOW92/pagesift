@@ -259,6 +259,21 @@ fn single_scope_splits_inside() {
 }
 
 #[test]
+fn objc_defs() {
+    check(
+        "objc",
+        "#import <Foo/Foo.h>\n@interface A : NSObject\n@end\n@implementation A\n- (void)run:(int)x {}\n@end\nint top(void) { return 0; }\n",
+        &[
+            (K::Class, "A"),
+            (K::Class, "A"),
+            (K::Method, "run"),
+            (K::Function, "top"),
+        ],
+        1,
+    );
+}
+
+#[test]
 fn unsupported_or_symbol_free_is_none() {
     assert!(outline("cobol", "x").is_none());
     assert!(outline("python", "x = 1\n").is_none());

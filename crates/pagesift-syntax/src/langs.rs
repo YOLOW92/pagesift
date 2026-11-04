@@ -27,9 +27,10 @@ pub enum Lang {
     Kotlin,
     Css,
     Html,
+    ObjC,
 }
 
-const COUNT: usize = 17;
+const COUNT: usize = 18;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -52,6 +53,7 @@ impl Lang {
             "kotlin" => Lang::Kotlin,
             "css" => Lang::Css,
             "html" | "htm" => Lang::Html,
+            "objc" | "objective-c" | "objectivec" => Lang::ObjC,
             _ => return None,
         })
     }
@@ -79,6 +81,7 @@ impl Lang {
             Lang::Kotlin => include_bytes!("../tables/kotlin.pslg.z"),
             Lang::Css => include_bytes!("../tables/css.pslg.z"),
             Lang::Html => include_bytes!("../tables/html.pslg.z"),
+            Lang::ObjC => include_bytes!("../tables/objc.pslg.z"),
         }
     }
 
@@ -267,6 +270,14 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
         },
         Lang::Bash => match kind {
             "function_definition" => Sym(K::Function, "function", No),
+            _ => Skip,
+        },
+        Lang::ObjC => match kind {
+            "class_interface" | "class_implementation" => Sym(K::Class, "class", Ty),
+            "protocol_declaration" => Sym(K::Interface, "protocol", Ty),
+            "method_definition" => Sym(K::Function, "method", No),
+            "function_definition" => Sym(K::Function, "function", No),
+            "preproc_include" | "module_import" => Import,
             _ => Skip,
         },
     }

@@ -564,6 +564,7 @@ fn is_identifier(kind: &str) -> bool {
             | "field_identifier"
             | "qualified_identifier"
             | "type_identifier"
+            | "method_identifier"
             | "destructor_name"
             | "operator_name"
     )
