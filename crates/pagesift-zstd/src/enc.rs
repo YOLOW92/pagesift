@@ -89,32 +89,52 @@ struct Seq {
     rep: bool,
 }
 
-/// 选下一个状态：符号 `sym` 的格子里，覆盖 `next` 的那个（`next` 为 None 时取第一个）。
-fn pick(t: &FseTable, sym: u32, next: Option<usize>) -> (usize, u32, u32) {
-    for (i, c) in t.cells.iter().enumerate() {
-        if c.sym as u32 != sym {
-            continue;
-        }
-        match next {
-            None => return (i, 0, 0),
-            Some(x) if x >= c.base as usize && x < c.base as usize + (1usize << c.nb) => {
-                return (i, c.nb as u32, (x - c.base as usize) as u32);
-            }
-            _ => {}
-        }
-    }
-    unreachable!("预定义表覆盖所有合法符号")
+/// 三张预定义表,及每个符号对应的格子下标(只建一次)。
+struct EncTables {
+    ll: (FseTable, Vec<Vec<u16>>),
+    of: (FseTable, Vec<Vec<u16>>),
+    ml: (FseTable, Vec<Vec<u16>>),
 }
 
-fn encode_seqs(seqs: &[Seq]) -> Vec<u8> {
-    let tl = fse::build(&LL_DEFAULT, 6).expect("预定义表合法");
-    let to = fse::build(&OF_DEFAULT, 5).expect("预定义表合法");
-    let tm = fse::build(&ML_DEFAULT, 6).expect("预定义表合法");
-    let mut w = BitWriter {
-        out: Vec::new(),
-        acc: 0,
-        n: 0,
-    };
+fn by_symbol(t: FseTable) -> (FseTable, Vec<Vec<u16>>) {
+    let mut v = vec![Vec::new(); 64];
+    for (i, c) in t.cells.iter().enumerate() {
+        v[c.sym as usize].push(i as u16);
+    }
+    (t, v)
+}
+
+impl EncTables {
+    fn new() -> Self {
+        let b = |d: &[i16], al| by_symbol(fse::build(d, al).expect("预定义表合法"));
+        Self {
+            ll: b(&LL_DEFAULT, 6),
+            of: b(&OF_DEFAULT, 5),
+            ml: b(&ML_DEFAULT, 6),
+        }
+    }
+}
+
+/// 选下一个状态:符号 `sym` 的格子里,覆盖 `next` 的那个(`next` 为 None 时取第一个)。
+fn pick(t: &(FseTable, Vec<Vec<u16>>), sym: u32, next: Option<usize>) -> (usize, u32, u32) {
+    let list = &t.1[sym as usize];
+    match next {
+        None => (list[0] as usize, 0, 0),
+        Some(x) => {
+            for &i in list {
+                let c = t.0.cells[i as usize];
+                if x >= c.base as usize && x < c.base as usize + (1usize << c.nb) {
+                    return (i as usize, c.nb as u32, (x - c.base as usize) as u32);
+                }
+            }
+            unreachable!("预定义表覆盖所有合法转移")
+        }
+    }
+}
+
+fn encode_seqs(seqs: &[Seq], t: &EncTables) -> Vec<u8> {
+    let (tl, to, tm) = (&t.ll, &t.of, &t.ml);
+    let mut w = BitWriter::new();
     let (mut cl, mut co, mut cm) = (0usize, 0usize, 0usize);
     for (k, s) in seqs.iter().enumerate().rev() {
         let (lc, lb, lv) = ll_code(s.ll);
@@ -153,8 +173,8 @@ fn raw_block(out: &mut Vec<u8>, b: &[u8], last: bool) {
     out.extend_from_slice(b);
 }
 
-const WINDOW: usize = 1 << 18;
-const HEAD_BITS: u32 = 17;
+const WINDOW: usize = 1 << 16;
+const HEAD_BITS: u32 = 15;
 
 /// 哈希链匹配器:覆盖全部输入,距离不超过 WINDOW。
 struct Matcher<'a> {
@@ -178,6 +198,14 @@ impl<'a> Matcher<'a> {
     }
     fn mlen(&self, a: usize, b: usize, end: usize) -> usize {
         let mut l = 0;
+        while b + l + 8 <= end {
+            let x = u64::from_le_bytes(self.d[a + l..a + l + 8].try_into().expect("8 字节"))
+                ^ u64::from_le_bytes(self.d[b + l..b + l + 8].try_into().expect("8 字节"));
+            if x != 0 {
+                return l + (x.trailing_zeros() / 8) as usize;
+            }
+            l += 8;
+        }
         while b + l < end && self.d[a + l] == self.d[b + l] {
             l += 1;
         }
@@ -237,13 +265,14 @@ pub fn compress(data: &[u8], level: i32) -> Vec<u8> {
         head: vec![u32::MAX; 1 << HEAD_BITS],
         prev: vec![u32::MAX; WINDOW],
         depth: if level >= 9 {
-            64
+            32
         } else if level >= 3 {
-            16
+            2
         } else {
-            4
+            2
         },
     };
+    let tabs = EncTables::new();
     let mut rep = 1usize;
     let mut ni = 0usize;
     let mut start = 0;
@@ -260,6 +289,7 @@ pub fn compress(data: &[u8], level: i32) -> Vec<u8> {
         let mut lits: Vec<u8> = Vec::new();
         let mut i = start;
         let mut anchor = start;
+        let mut miss = 0usize;
         while i + MIN_MATCH <= end {
             while ni < i {
                 m.insert(ni);
@@ -268,7 +298,7 @@ pub fn compress(data: &[u8], level: i32) -> Vec<u8> {
             let mut cur = m.find(i, end, rep);
             if cur.0 >= MIN_MATCH {
                 // 懒匹配:下一个位置明显更长就先吐一个字面量
-                while i + 1 + MIN_MATCH <= end {
+                while cur.0 < 32 && i + 1 + MIN_MATCH <= end {
                     while ni <= i {
                         m.insert(ni);
                         ni += 1;
@@ -281,6 +311,7 @@ pub fn compress(data: &[u8], level: i32) -> Vec<u8> {
                         break;
                     }
                 }
+                miss = 0;
                 let (_, off, l) = cur;
                 let ll = i - anchor;
                 lits.extend_from_slice(&data[anchor..i]);
@@ -291,10 +322,18 @@ pub fn compress(data: &[u8], level: i32) -> Vec<u8> {
                     rep: off == rep && ll > 0,
                 });
                 rep = off;
+                // 匹配体内只登记开头 2 个和结尾 2 个位置,中间跳过(省时间,略损压缩率)
+                while ni < i + l.min(2) {
+                    m.insert(ni);
+                    ni += 1;
+                }
                 i += l;
+                ni = ni.max(i.saturating_sub(2));
                 anchor = i;
             } else {
-                i += 1;
+                // 连续未命中越久步长越大,不可压缩的数据很快跳过
+                i += 1 + (miss >> 6);
+                miss += 1;
             }
         }
         lits.extend_from_slice(&data[anchor..end]);
@@ -323,7 +362,7 @@ pub fn compress(data: &[u8], level: i32) -> Vec<u8> {
                 body.extend_from_slice(&((n - 0x7F00) as u16).to_le_bytes());
             }
             body.push(0);
-            body.extend_from_slice(&encode_seqs(&seqs));
+            body.extend_from_slice(&encode_seqs(&seqs, &tabs));
         }
         if body.len() >= blk.len() {
             raw_block(&mut out, blk, last);

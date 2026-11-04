@@ -115,9 +115,55 @@ pub(crate) const OF_DEFAULT: [i16; 29] = [
 struct State {
     hist: [usize; 3],
     huff: Option<HuffTable>,
-    ll: Option<FseTable>,
-    of: Option<FseTable>,
-    ml: Option<FseTable>,
+    ll: Option<SeqTable>,
+    of: Option<SeqTable>,
+    ml: Option<SeqTable>,
+    /// 序列暂存（ll, ml, off），跨块复用。
+    seqs: Vec<(u32, u32, u32)>,
+}
+
+/// 序列码展开后的解码格：状态转移（base、nb）加上额外位数和基值，省掉每条序列的查表。
+#[derive(Clone, Copy)]
+struct SCell {
+    base: u16,
+    nb: u8,
+    eb: u8,
+    val: u32,
+}
+
+#[derive(Clone)]
+struct SeqTable {
+    al: u32,
+    cells: Vec<SCell>,
+}
+
+#[derive(Clone, Copy)]
+enum Kind {
+    Ll,
+    Of,
+    Ml,
+}
+
+fn expand(t: FseTable, kind: Kind) -> SeqTable {
+    let cells = t
+        .cells
+        .iter()
+        .map(|c| {
+            let sym = c.sym as usize;
+            let (val, eb) = match kind {
+                Kind::Ll => LL_BASE[sym.min(LL_BASE.len() - 1)],
+                Kind::Ml => ML_BASE[sym.min(ML_BASE.len() - 1)],
+                Kind::Of => (1u32 << sym.min(31), sym.min(31) as u32),
+            };
+            SCell {
+                base: c.base,
+                nb: c.nb,
+                eb: eb as u8,
+                val,
+            }
+        })
+        .collect();
+    SeqTable { al: t.al, cells }
 }
 
 /// 解压 `data`（可含多帧、跳过帧），输出不超过 `max_out` 字节。
@@ -200,6 +246,7 @@ fn frame(d: &[u8], out: &mut Vec<u8>, max_out: usize) -> Result<usize> {
         ll: None,
         of: None,
         ml: None,
+        seqs: Vec::new(),
     };
     loop {
         let h = d
@@ -339,24 +386,25 @@ fn seq_table(
     mode: u8,
     data: &[u8],
     pos: &mut usize,
-    prev: &Option<FseTable>,
+    prev: &Option<SeqTable>,
     spec: Spec,
-) -> Result<FseTable> {
+    kind: Kind,
+) -> Result<SeqTable> {
     let (default, default_al, max_sym, max_al) = spec;
     Ok(match mode {
-        0 => fse::build(default, default_al)?,
+        0 => expand(fse::build(default, default_al)?, kind),
         1 => {
             let s = *data.get(*pos).ok_or(Error::Corrupt("rle symbol"))?;
             if s as usize > max_sym {
                 return Err(Error::Corrupt("rle symbol out of range"));
             }
             *pos += 1;
-            fse::rle_table(s)
+            expand(fse::rle_table(s), kind)
         }
         2 => {
             let (t, used) = fse::read_table(data.get(*pos..).unwrap_or(&[]), max_sym, max_al)?;
             *pos += used;
-            t
+            expand(t, kind)
         }
         _ => prev
             .clone()
@@ -368,7 +416,8 @@ fn block(b: &[u8], st: &mut State, out: &mut Vec<u8>, start: usize, max_out: usi
     if b.is_empty() {
         return Err(Error::Corrupt("empty block"));
     }
-    let (lits, mut p) = literals(b, st)?;
+    let (mut lits, mut p) = literals(b, st)?;
+    let lit_len = lits.len();
     let n0 = *b.get(p).ok_or(Error::Corrupt("missing sequences header"))? as usize;
     p += 1;
     let nseq = if n0 == 0 {
@@ -392,85 +441,136 @@ fn block(b: &[u8], st: &mut State, out: &mut Vec<u8>, start: usize, max_out: usi
     if modes & 3 != 0 {
         return Err(Error::Corrupt("reserved modes bits"));
     }
-    let ll = seq_table(modes >> 6, b, &mut p, &st.ll, (&LL_DEFAULT, 6, 35, 9))?;
-    let of = seq_table((modes >> 4) & 3, b, &mut p, &st.of, (&OF_DEFAULT, 5, 31, 8))?;
-    let ml = seq_table((modes >> 2) & 3, b, &mut p, &st.ml, (&ML_DEFAULT, 6, 52, 9))?;
+    let ll = seq_table(
+        modes >> 6,
+        b,
+        &mut p,
+        &st.ll,
+        (&LL_DEFAULT, 6, 35, 9),
+        Kind::Ll,
+    )?;
+    let of = seq_table(
+        (modes >> 4) & 3,
+        b,
+        &mut p,
+        &st.of,
+        (&OF_DEFAULT, 5, 31, 8),
+        Kind::Of,
+    )?;
+    let ml = seq_table(
+        (modes >> 2) & 3,
+        b,
+        &mut p,
+        &st.ml,
+        (&ML_DEFAULT, 6, 52, 9),
+        Kind::Ml,
+    )?;
     let mut r = RevBits::new(b.get(p..).unwrap_or(&[]))?;
     let (mut sl, mut so, mut sm) = (
         r.read(ll.al) as usize,
         r.read(of.al) as usize,
         r.read(ml.al) as usize,
     );
-    let mut lp = 0usize;
+    // 第一遍：只解序列（位流工作），攒进暂存区并累计总长
+    let seqs = &mut st.seqs;
+    seqs.clear();
+    let mut hist = st.hist;
+    let (mut sum_ll, mut sum_ml) = (0u64, 0u64);
     for i in 0..nseq {
         let (cl, co, cm) = (ll.cells[sl], of.cells[so], ml.cells[sm]);
-        if cl.sym as usize >= LL_BASE.len() || cm.sym as usize >= ML_BASE.len() || co.sym > 31 {
-            return Err(Error::Corrupt("sequence code out of range"));
-        }
-        let ofv = (1u32 << co.sym) + r.read(co.sym as u32);
-        let (mb, mbits) = ML_BASE[cm.sym as usize];
-        let mlen = (mb + r.read(mbits)) as usize;
-        let (lb, lbits) = LL_BASE[cl.sym as usize];
-        let llen = (lb + r.read(lbits)) as usize;
+        let ofv = co.val + r.read(co.eb as u32);
+        let mlen = cm.val + r.read(cm.eb as u32);
+        let llen = cl.val + r.read(cl.eb as u32);
         if i + 1 < nseq {
             sl = cl.base as usize + r.read(cl.nb as u32) as usize;
             sm = cm.base as usize + r.read(cm.nb as u32) as usize;
             so = co.base as usize + r.read(co.nb as u32) as usize;
         }
-        if r.overflow() {
-            return Err(Error::Corrupt("sequence bitstream overrun"));
-        }
         let off = if ofv > 3 {
-            let o = ofv as usize - 3;
-            st.hist = [o, st.hist[0], st.hist[1]];
+            let o = (ofv - 3) as usize;
+            hist = [o, hist[0], hist[1]];
             o
         } else {
-            let k = if llen == 0 { ofv } else { ofv - 1 } as usize;
-            let h = st.hist;
+            let k = if llen == 0 { ofv } else { ofv - 1 };
             match k {
-                0 => h[0],
+                0 => hist[0],
                 1 => {
-                    st.hist = [h[1], h[0], h[2]];
-                    h[1]
+                    hist = [hist[1], hist[0], hist[2]];
+                    hist[0]
                 }
                 2 => {
-                    st.hist = [h[2], h[0], h[1]];
-                    h[2]
+                    hist = [hist[2], hist[0], hist[1]];
+                    hist[0]
                 }
                 _ => {
-                    let o = h[0]
+                    let o = hist[0]
                         .checked_sub(1)
                         .filter(|&o| o > 0)
                         .ok_or(Error::Corrupt("zero offset"))?;
-                    st.hist = [o, h[0], h[1]];
+                    hist = [o, hist[0], hist[1]];
                     o
                 }
             }
         };
-        let lit = lits
-            .get(lp..lp + llen)
-            .ok_or(Error::Corrupt("literal run overrun"))?;
-        lp += llen;
-        if out.len() + llen + mlen > max_out {
-            return Err(Error::TooLarge);
-        }
-        out.extend_from_slice(lit);
-        if off == 0 || off > out.len() - start {
-            return Err(Error::Corrupt("offset beyond history"));
-        }
-        let from = out.len() - off;
-        // 重叠时已写出的部分以 off 为周期,分段复制
-        let mut left = mlen;
-        while left > 0 {
-            let n = left.min(out.len() - from);
-            out.extend_from_within(from..from + n);
-            left -= n;
-        }
+        sum_ll += llen as u64;
+        sum_ml += mlen as u64;
+        seqs.push((llen, mlen, off as u32));
+    }
+    if r.overflow() {
+        return Err(Error::Corrupt("sequence bitstream overrun"));
     }
     if r.remaining() != 0 {
         return Err(Error::Corrupt("sequence bitstream not consumed"));
     }
-    push(out, &lits[lp..], start, max_out)?;
+    if sum_ll > lit_len as u64 {
+        return Err(Error::Corrupt("literal run overrun"));
+    }
+    let total = sum_ml + lit_len as u64;
+    if total > (max_out.saturating_sub(out.len())) as u64 {
+        return Err(Error::TooLarge);
+    }
+    st.hist = hist;
+    // 第二遍：复制。输出区先放大（带 32 字节余量），按 16 字节定长块复制，超出部分稍后被覆盖或截掉。
+    lits.resize(lit_len + 16, 0);
+    let base = out.len();
+    let end = base + total as usize;
+    out.resize(end + 32, 0);
+    let (mut pos, mut lp) = (base, 0usize);
+    for &(llen, mlen, off) in st.seqs.iter() {
+        let (llen, mlen, off) = (llen as usize, mlen as usize, off as usize);
+        let mut left = llen;
+        while left > 0 {
+            out[pos..pos + 16].copy_from_slice(&lits[lp..lp + 16]);
+            let n = left.min(16);
+            pos += n;
+            lp += n;
+            left -= n;
+        }
+        if off > pos - start {
+            out.truncate(base);
+            return Err(Error::Corrupt("offset beyond history"));
+        }
+        let from = pos - off;
+        if off >= 16 {
+            let mut done = 0;
+            while done < mlen {
+                out.copy_within(from + done..from + done + 16, pos + done);
+                done += 16;
+            }
+        } else {
+            // 重叠：已写出的部分以 off 为周期，分段复制
+            let mut done = 0;
+            while done < mlen {
+                let n = (mlen - done).min(pos + done - from);
+                out.copy_within(from..from + n, pos + done);
+                done += n;
+            }
+        }
+        pos += mlen;
+    }
+    let rest = lit_len - lp;
+    out[pos..pos + rest].copy_from_slice(&lits[lp..lp + rest]);
+    out.truncate(end);
     st.ll = Some(ll);
     st.of = Some(of);
     st.ml = Some(ml);
