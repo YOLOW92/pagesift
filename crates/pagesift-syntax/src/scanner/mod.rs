@@ -22,6 +22,7 @@ pub mod nix;
 pub mod ocaml;
 pub mod php;
 pub mod python;
+pub mod r;
 pub mod ruby;
 pub mod rust;
 pub mod toml;
@@ -44,6 +45,7 @@ pub fn create(name: &str) -> Option<Box<dyn Scanner>> {
         "ruby" => Box::new(ruby::Ruby::default()),
         "kotlin" => Box::new(kotlin::Kotlin::default()),
         "css" => Box::new(css::Css),
+        "r" => Box::new(r::R::default()),
         "elixir" => Box::new(elixir::Elixir),
         "ocaml" | "ocaml_interface" | "ocaml_type" => Box::new(ocaml::Ocaml::default()),
         "dockerfile" => Box::new(dockerfile::Dockerfile::default()),

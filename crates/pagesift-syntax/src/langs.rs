@@ -34,9 +34,10 @@ pub enum Lang {
     Dockerfile,
     Ocaml,
     Elixir,
+    R,
 }
 
-const COUNT: usize = 24;
+const COUNT: usize = 25;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -66,6 +67,7 @@ impl Lang {
             "dockerfile" => Lang::Dockerfile,
             "ocaml" | "ml" => Lang::Ocaml,
             "elixir" | "ex" | "exs" => Lang::Elixir,
+            "r" => Lang::R,
             _ => return None,
         })
     }
@@ -100,6 +102,7 @@ impl Lang {
             Lang::Dockerfile => include_bytes!("../tables/dockerfile.pslg.z"),
             Lang::Ocaml => include_bytes!("../tables/ocaml.pslg.z"),
             Lang::Elixir => include_bytes!("../tables/elixir.pslg.z"),
+            Lang::R => include_bytes!("../tables/r.pslg.z"),
         }
     }
 
@@ -143,6 +146,7 @@ pub(crate) enum Sp {
     JsVar,
     CDecl,
     ExCall,
+    RAssign,
 }
 
 #[derive(Clone, Copy)]
@@ -339,6 +343,10 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
         },
         Lang::Elixir => match kind {
             "call" => Rule::Special(Sp::ExCall),
+            _ => Skip,
+        },
+        Lang::R => match kind {
+            "binary_operator" => Rule::Special(Sp::RAssign),
             _ => Skip,
         },
     }

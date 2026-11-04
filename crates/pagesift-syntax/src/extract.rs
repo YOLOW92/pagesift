@@ -492,6 +492,18 @@ impl Walker<'_> {
         match sp {
             Sp::GoImport => self.go_imports(id, 0),
             Sp::ExCall => self.ex_call(id, depth, first),
+            Sp::RAssign => {
+                // `name <- function(...) ...`
+                let lhs = self.nodes.field(id, "lhs");
+                let rhs = self.nodes.field(id, "rhs");
+                if let (Some(l), Some(r)) = (lhs, rhs)
+                    && self.nodes.n[r].kind == "function_definition"
+                    && self.nodes.n[l].kind == "identifier"
+                {
+                    let name = self.clean(self.text(l));
+                    self.push(SymbolKind::Function, "function", name, id, depth, first);
+                }
+            }
             Sp::GoType => {
                 for c in self.children(id) {
                     if !matches!(self.nodes.n[c].kind, "type_spec" | "type_alias") {
