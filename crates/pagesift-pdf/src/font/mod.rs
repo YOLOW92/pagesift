@@ -243,7 +243,8 @@ impl Font {
             .is_some_and(|f| (f as i64) & 4 != 0);
         let builtin = ((!named || symbolic) && subtype != b"TrueType")
             .then(|| descriptor.and_then(|d| builtin_encoding(doc, d, stream_limit)))
-            .flatten();
+            .flatten()
+            .filter(|names| !names_repeat_codes(names));
         font.simple_map = match builtin {
             Some(names) => names
                 .iter()
@@ -450,6 +451,25 @@ impl Font {
         };
         w * self.scale
     }
+}
+
+/// 内建编码的字形名是不是只重复了字符码（码 65 上的字形叫 `C65`，一些排版系统这样命名）。
+/// 这种名字查不到字，也没说明字形是什么，等于没有内建编码，字符码按基础编码解读。
+/// 只认大写 `C`：TeX 的图形字体（XYATIP 的 `d15`、LASY 的 `a50`、LCIRCLE 的 `a0`）也用码命名，
+/// 但字形是箭头、线段和圆弧，按基础编码读会多出杂字。
+fn names_repeat_codes(names: &[Option<String>]) -> bool {
+    let mut named = names
+        .iter()
+        .enumerate()
+        .filter_map(|(code, name)| Some((code, name.as_deref()?)))
+        .filter(|(_, name)| *name != ".notdef")
+        .peekable();
+    named.peek().is_some()
+        && named.all(|(code, name)| {
+            name.strip_prefix('C').is_some_and(|digits| {
+                digits.bytes().all(|b| b.is_ascii_digit()) && digits.parse() == Ok(code)
+            })
+        })
 }
 
 impl Composite {
