@@ -355,6 +355,16 @@ fn groovy_defs() {
 }
 
 #[test]
+fn commonlisp_defs() {
+    check(
+        "commonlisp",
+        "(defpackage :p)\n(defun foo (x) (+ x 1))\n(defun bar () 2)\n",
+        &[(K::Function, "foo"), (K::Function, "bar")],
+        0,
+    );
+}
+
+#[test]
 fn unsupported_or_symbol_free_is_none() {
     assert!(outline("cobol", "x").is_none());
     assert!(outline("python", "x = 1\n").is_none());

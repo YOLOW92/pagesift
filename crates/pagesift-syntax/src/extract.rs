@@ -314,6 +314,14 @@ impl Walker<'_> {
         if let Some(c) = self.nodes.field(id, field) {
             return self.clean(self.text(c));
         }
+        // Common Lisp：名字在 defun_header 的 function_name 字段里
+        for c in self.children(id) {
+            if self.nodes.n[c].kind == "defun_header"
+                && let Some(n) = self.nodes.field(c, "function_name")
+            {
+                return self.clean(self.text(n));
+            }
+        }
         // C 系函数：名字藏在 declarator 链的最里面
         let mut at = id;
         for _ in 0..16 {

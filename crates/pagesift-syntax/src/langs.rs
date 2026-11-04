@@ -40,9 +40,10 @@ pub enum Lang {
     Groovy,
     Make,
     Scheme,
+    CommonLisp,
 }
 
-const COUNT: usize = 30;
+const COUNT: usize = 31;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -78,6 +79,7 @@ impl Lang {
             "groovy" | "gradle" => Lang::Groovy,
             "make" | "makefile" | "mk" => Lang::Make,
             "scheme" | "scm" => Lang::Scheme,
+            "commonlisp" | "lisp" | "cl" => Lang::CommonLisp,
             _ => return None,
         })
     }
@@ -118,6 +120,7 @@ impl Lang {
             Lang::Groovy => include_bytes!("../tables/groovy.pslg.z"),
             Lang::Make => include_bytes!("../tables/make.pslg.z"),
             Lang::Scheme => include_bytes!("../tables/scheme.pslg.z"),
+            Lang::CommonLisp => include_bytes!("../tables/commonlisp.pslg.z"),
         }
     }
 
@@ -384,5 +387,10 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
         },
         Lang::Make => Skip,
         Lang::Scheme => Skip,
+        Lang::CommonLisp => match kind {
+            "list_lit" => Wrap,
+            "defun" => Sym(K::Function, "defun", No),
+            _ => Skip,
+        },
     }
 }
