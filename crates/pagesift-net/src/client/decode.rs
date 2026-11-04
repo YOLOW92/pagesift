@@ -146,10 +146,15 @@ pub(super) fn decode_layer(
             }
         }
         "br" => Box::new(brotli_decompressor::Decompressor::new(data, 16 * 1024)),
-        "zstd" => match zstd::stream::read::Decoder::with_buffer(data) {
-            Ok(d) => Box::new(d),
-            Err(e) => return (Vec::new(), false, Some(e)),
-        },
+        "zstd" => {
+            // 自研解码器一次解完；超限时留下已解好的完整块并标记截断
+            let mut out = Vec::with_capacity(data.len().saturating_mul(4).min(max));
+            return match pagesift_compress::decompress_into(data, &mut out, max) {
+                Ok(()) => (out, false, None),
+                Err(pagesift_compress::Error::TooLarge) => (out, true, None),
+                Err(e) => (out, false, Some(e.into())),
+            };
+        }
         _ => unreachable!("decode_body 只传入已知编码"),
     };
     let mut out = Vec::with_capacity(data.len().saturating_mul(4).min(max));

@@ -1,0 +1,10 @@
+[package]
+description = "Pure-Rust zstd (RFC 8878) decoder and basic encoder for pagesift, no unsafe and no dependencies."
+name = "pagesift-compress"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]

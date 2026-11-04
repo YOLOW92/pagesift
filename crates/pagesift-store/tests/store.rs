@@ -339,7 +339,7 @@ fn snapshots_dedup_and_time_range() {
     assert!(!p1.deduped);
     assert!(
         p1.stored_bytes < page_a.len() / 10,
-        "zstd should compress repetitive html"
+        "snapshots should compress repetitive html"
     );
     let p2 = snaps
         .put_at("https://a.test/", page_a.as_bytes(), t0 + day)
@@ -503,4 +503,34 @@ fn a_second_open_of_the_same_directory_is_refused_until_the_first_is_dropped() {
     assert!(err.is_locked(), "{err}");
     drop(first);
     Store::open(config(dir.path())).expect("lock released with the store");
+}
+
+/// 兼容性：读旧版（C 版 zstd）写出的快照库。PAGESIFT_OLD_STORE=库目录，PAGESIFT_OLD_LIST=“哈希 原文路径”清单。
+#[test]
+fn reads_snapshots_written_by_c_library() {
+    let (Ok(dir), Ok(list)) = (
+        std::env::var("PAGESIFT_OLD_STORE"),
+        std::env::var("PAGESIFT_OLD_LIST"),
+    ) else {
+        return;
+    };
+    let mut c = Config::new(&dir);
+    c.background = false;
+    let store = Store::open(c).unwrap();
+    let mut n = 0;
+    for line in fs::read_to_string(list).unwrap().lines() {
+        let (hex, path) = line.split_once(' ').unwrap();
+        let mut h = [0u8; 32];
+        for (i, b) in h.iter_mut().enumerate() {
+            *b = u8::from_str_radix(&hex[2 * i..2 * i + 2], 16).unwrap();
+        }
+        let got = store
+            .snapshots()
+            .get(&pagesift_store::ContentHash(h))
+            .unwrap()
+            .unwrap();
+        assert_eq!(got, fs::read(path).unwrap(), "{path}");
+        n += 1;
+    }
+    eprintln!("old snapshots read back byte-exact: {n}");
 }
