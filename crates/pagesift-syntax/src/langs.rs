@@ -46,9 +46,10 @@ pub enum Lang {
     PowerShell,
     CMake,
     Erlang,
+    Hcl,
 }
 
-const COUNT: usize = 36;
+const COUNT: usize = 37;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -90,6 +91,7 @@ impl Lang {
             "powershell" | "ps1" | "pwsh" => Lang::PowerShell,
             "cmake" => Lang::CMake,
             "erlang" | "erl" | "hrl" => Lang::Erlang,
+            "hcl" | "terraform" | "tf" => Lang::Hcl,
             _ => return None,
         })
     }
@@ -136,6 +138,7 @@ impl Lang {
             Lang::PowerShell => include_bytes!("../tables/powershell.pslg.z"),
             Lang::CMake => include_bytes!("../tables/cmake.pslg.z"),
             Lang::Erlang => include_bytes!("../tables/erlang.pslg.z"),
+            Lang::Hcl => include_bytes!("../tables/hcl.pslg.z"),
         }
     }
 
@@ -441,5 +444,6 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
             "type_alias" | "opaque" => Sym(K::Type, "type", No),
             _ => Skip,
         },
+        Lang::Hcl => Skip,
     }
 }
