@@ -32,6 +32,7 @@
 | CSS | tree-sitter/tree-sitter-css | 0.25.0 / dda5cfc | Copyright (c) 2018 Max Brunsfeld；外部扫描器移植自该仓库 src/scanner.c |
 | HTML | tree-sitter/tree-sitter-html | 0.23.2 / 73a3947 | Copyright (c) 2014 Max Brunsfeld；外部扫描器移植自该仓库 src/scanner.c 和 src/tag.h |
 | Objective-C | tree-sitter-grammars/tree-sitter-objc | 3.0.2 / 181a81b | Copyright (c) 2023 Amaan Qureshi |
+| Dart | UserNobody14/tree-sitter-dart | 1.0.0 / 0038280 | Copyright (c) 2020-2023 UserNobody14 and others；外部扫描器移植自该仓库 src/scanner.c |
 | TOML | tree-sitter-grammars/tree-sitter-toml | 0.7.0 / 64b5683 | Copyright (c) Ika；外部扫描器移植自该仓库 src/scanner.c |
 | PHP、PHP-only | tree-sitter/tree-sitter-php | 0.25.1 / 58d5643 | Copyright (c) 2017 Josh Vera, GitHub；外部扫描器移植自该仓库 src/scanner.c |
 | C# | tree-sitter/tree-sitter-c-sharp | 0.23.5 / 8c0abe0 | Copyright (c) 2014-2023 Max Brunsfeld, Damien Guard, Amaan Qureshi, and contributors；外部扫描器移植自该仓库 src/scanner.c |

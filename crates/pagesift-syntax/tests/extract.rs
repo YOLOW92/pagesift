@@ -274,6 +274,22 @@ fn objc_defs() {
 }
 
 #[test]
+fn dart_defs() {
+    check(
+        "dart",
+        "import 'a.dart';\nvoid top() {}\nclass C {\n  C();\n  int m() => 1;\n}\nenum E { a }\n",
+        &[
+            (K::Function, "top"),
+            (K::Class, "C"),
+            (K::Method, "C"),
+            (K::Method, "m"),
+            (K::Enum, "E"),
+        ],
+        1,
+    );
+}
+
+#[test]
 fn unsupported_or_symbol_free_is_none() {
     assert!(outline("cobol", "x").is_none());
     assert!(outline("python", "x = 1\n").is_none());

@@ -28,9 +28,10 @@ pub enum Lang {
     Css,
     Html,
     ObjC,
+    Dart,
 }
 
-const COUNT: usize = 18;
+const COUNT: usize = 19;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -54,6 +55,7 @@ impl Lang {
             "css" => Lang::Css,
             "html" | "htm" => Lang::Html,
             "objc" | "objective-c" | "objectivec" => Lang::ObjC,
+            "dart" => Lang::Dart,
             _ => return None,
         })
     }
@@ -82,6 +84,7 @@ impl Lang {
             Lang::Css => include_bytes!("../tables/css.pslg.z"),
             Lang::Html => include_bytes!("../tables/html.pslg.z"),
             Lang::ObjC => include_bytes!("../tables/objc.pslg.z"),
+            Lang::Dart => include_bytes!("../tables/dart.pslg.z"),
         }
     }
 
@@ -278,6 +281,22 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
             "method_definition" => Sym(K::Function, "method", No),
             "function_definition" => Sym(K::Function, "function", No),
             "preproc_include" | "module_import" => Import,
+            _ => Skip,
+        },
+        Lang::Dart => match kind {
+            "class_definition" | "mixin_application_class" => Sym(K::Class, "class", Ty),
+            "mixin_declaration" => Sym(K::Trait, "mixin", Ty),
+            "extension_declaration" | "extension_type_declaration" => {
+                Sym(K::Module, "extension", Ty)
+            }
+            "enum_declaration" => Sym(K::Enum, "enum", Ty),
+            "type_alias" => Sym(K::Type, "typedef", No),
+            "function_signature" => Sym(K::Function, "function", No),
+            "constructor_signature"
+            | "factory_constructor_signature"
+            | "constant_constructor_signature" => Sym(K::Method, "constructor", No),
+            "method_signature" | "declaration" => Wrap,
+            "import_or_export" => Import,
             _ => Skip,
         },
     }
