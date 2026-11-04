@@ -409,6 +409,21 @@ fn cmake_defs() {
 }
 
 #[test]
+fn erlang_defs() {
+    check(
+        "erlang",
+        "-module(m).\n-record(r, {a}).\nf(X) -> X.\ng() -> ok.\n",
+        &[
+            (K::Module, "m"),
+            (K::Struct, "r"),
+            (K::Function, "f"),
+            (K::Function, "g"),
+        ],
+        0,
+    );
+}
+
+#[test]
 fn unsupported_or_symbol_free_is_none() {
     assert!(outline("cobol", "x").is_none());
     assert!(outline("python", "x = 1\n").is_none());

@@ -45,9 +45,10 @@ pub enum Lang {
     Gleam,
     PowerShell,
     CMake,
+    Erlang,
 }
 
-const COUNT: usize = 35;
+const COUNT: usize = 36;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -88,6 +89,7 @@ impl Lang {
             "gleam" => Lang::Gleam,
             "powershell" | "ps1" | "pwsh" => Lang::PowerShell,
             "cmake" => Lang::CMake,
+            "erlang" | "erl" | "hrl" => Lang::Erlang,
             _ => return None,
         })
     }
@@ -133,6 +135,7 @@ impl Lang {
             Lang::Gleam => include_bytes!("../tables/gleam.pslg.z"),
             Lang::PowerShell => include_bytes!("../tables/powershell.pslg.z"),
             Lang::CMake => include_bytes!("../tables/cmake.pslg.z"),
+            Lang::Erlang => include_bytes!("../tables/erlang.pslg.z"),
         }
     }
 
@@ -429,6 +432,13 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
         Lang::CMake => match kind {
             "function_def" => Sym(K::Function, "function", No),
             "macro_def" => Sym(K::Function, "macro", No),
+            _ => Skip,
+        },
+        Lang::Erlang => match kind {
+            "fun_decl" => Sym(K::Function, "function", No),
+            "module_attribute" => Sym(K::Module, "module", No),
+            "record_decl" => Sym(K::Struct, "record", No),
+            "type_alias" | "opaque" => Sym(K::Type, "type", No),
             _ => Skip,
         },
     }
