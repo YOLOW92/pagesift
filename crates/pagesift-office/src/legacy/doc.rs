@@ -136,7 +136,7 @@ fn word97_blocks(
     );
     let at = |index: usize| text.fc_of(index).and_then(|fc| styles.kind_at(fc));
     let mut blocks = to_blocks(&text.chars, 0, main, &at);
-    // 脚注、尾注、文本框排在正文后面；页眉页脚和批注不要
+    // 脚注、尾注、文本框排在正文后面，再接页眉页脚和批注；相同的页眉页脚（每节重复）只留一份
     let spans = [
         (main, ftn),
         (main + ftn + hdd + atn, edn),
@@ -144,6 +144,16 @@ fn word97_blocks(
     ];
     for (start, len) in spans {
         blocks.extend(to_blocks(&text.chars, start, len, &|_| None));
+    }
+    let mut seen = std::collections::HashSet::new();
+    for (start, len, tag) in [(main + ftn, hdd, ""), (main + ftn + hdd, atn, "[comment] ")] {
+        for b in to_blocks(&text.chars, start, len, &|_| None) {
+            if let Block::Para(t) = b
+                && seen.insert((tag, t.clone()))
+            {
+                blocks.push(Block::Para(format!("{tag}{t}")));
+            }
+        }
     }
     Ok(blocks)
 }
@@ -484,5 +494,15 @@ mod tests {
                 Block::Para("after".into()),
             ]
         );
+    }
+
+    #[test]
+    fn ordered_numbers_continue_and_restart() {
+        let mut c = HashMap::new();
+        let got: Vec<u32> = [(0, 1), (0, 1), (1, 1), (1, 1), (0, 1)]
+            .iter()
+            .map(|&(level, start)| next_number(&mut c, 7, level, start))
+            .collect();
+        assert_eq!(got, vec![1, 2, 1, 2, 3]);
     }
 }
