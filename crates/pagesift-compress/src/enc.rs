@@ -1,5 +1,5 @@
 //! 基础编码器：哈希链 LZ 匹配（level ≥ 3 带懒匹配），序列用按块统计的自定义 FSE 表（太短的块用预定义表），字面量做 Huffman（不划算时原样）。
-use crate::dec::{LL_DEFAULT, ML_DEFAULT, OF_DEFAULT};
+use crate::dec::{LL_BASE, LL_DEFAULT, ML_BASE, ML_DEFAULT, OF_DEFAULT};
 use crate::fse::{self, FseTable};
 
 const BLOCK: usize = 128 * 1024;
@@ -48,37 +48,47 @@ impl BitWriter {
     }
 }
 
-fn ll_code(v: u32) -> (u32, u32, u32) {
-    // 返回（码，额外位数，额外值）
-    if v < 16 {
-        return (v, 0, 0);
+/// 小值（< N）直接查表得到码；用 `bases` 里的基值反推。
+const fn small_codes<const N: usize, const M: usize>(
+    bases: &[(u32, u32); M],
+    delta: u32,
+) -> [u8; N] {
+    let mut t = [0u8; N];
+    let mut v = 0;
+    let mut c = 0;
+    while v < N {
+        while c + 1 < M && (bases[c + 1].0 as usize) <= v + delta as usize {
+            c += 1;
+        }
+        t[v] = c as u8;
+        v += 1;
     }
-    let (bases, bits): (&[u32], &[u32]) = (
-        &[
-            16, 18, 20, 22, 24, 28, 32, 40, 48, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384,
-            32768, 65536,
-        ],
-        &[
-            1, 1, 1, 1, 2, 2, 3, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
-        ],
-    );
-    let i = bases.iter().rposition(|&b| b <= v).unwrap_or(0);
-    (16 + i as u32, bits[i], v - bases[i])
+    t
+}
+
+static LL_TAB: [u8; 64] = small_codes(&LL_BASE, 0);
+static ML_TAB: [u8; 128] = small_codes(&ML_BASE, 3);
+
+/// 返回（码，额外位数，额外值）。大值的码是 highbit 加常数，小值查表，没有循环。
+fn ll_code(v: u32) -> (u32, u32, u32) {
+    let c = if v < 64 {
+        LL_TAB[v as usize] as u32
+    } else {
+        19 + (31 - v.leading_zeros())
+    };
+    let (base, bits) = LL_BASE[c as usize];
+    (c, bits, v - base)
 }
 
 fn ml_code(v: u32) -> (u32, u32, u32) {
-    if v < 35 {
-        return (v - 3, 0, 0);
-    }
-    let bases = [
-        35u32, 37, 39, 41, 43, 47, 51, 59, 67, 83, 99, 131, 259, 515, 1027, 2051, 4099, 8195,
-        16387, 32771, 65539,
-    ];
-    let bits = [
-        1u32, 1, 1, 1, 2, 2, 3, 3, 4, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
-    ];
-    let i = bases.iter().rposition(|&b| b <= v).unwrap_or(0);
-    (32 + i as u32, bits[i], v - bases[i])
+    let m = v - 3;
+    let c = if m < 128 {
+        ML_TAB[m as usize] as u32
+    } else {
+        36 + (31 - m.leading_zeros())
+    };
+    let (base, bits) = ML_BASE[c as usize];
+    (c, bits, v - base)
 }
 
 pub(crate) struct Seq {

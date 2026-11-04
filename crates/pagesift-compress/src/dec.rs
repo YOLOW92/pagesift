@@ -6,7 +6,7 @@ use crate::{Error, Result};
 
 const MAX_BLOCK: usize = 128 * 1024;
 
-const LL_BASE: [(u32, u32); 36] = [
+pub(crate) const LL_BASE: [(u32, u32); 36] = [
     (0, 0),
     (1, 0),
     (2, 0),
@@ -44,7 +44,7 @@ const LL_BASE: [(u32, u32); 36] = [
     (32768, 15),
     (65536, 16),
 ];
-const ML_BASE: [(u32, u32); 53] = [
+pub(crate) const ML_BASE: [(u32, u32); 53] = [
     (3, 0),
     (4, 0),
     (5, 0),
