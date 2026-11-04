@@ -481,6 +481,19 @@ jobs:
             npm publish --access public
           fi
           node scripts/publish_wrapper.mjs
+      # Go 没有包仓库：版本来自模块子目录的标签 bindings/go/v<版本>。已存在就跳过（重跑发布时）。
+      - name: Go module tag
+        run: |
+          set -euo pipefail
+          gotag="bindings/go/${{ needs.identity.outputs.tag }}"
+          if [ -n "$(git ls-remote --tags origin "refs/tags/$gotag")" ]; then
+            echo "$gotag already exists."
+          else
+            git config user.name YOLOW92
+            git config user.email "YOLOW92@users.noreply.github.com"
+            git tag "$gotag" "${{ needs.identity.outputs.sha }}"
+            git push origin "refs/tags/$gotag"
+          fi
       - name: Publish GitHub release after all distributions succeed
         env:
           GH_TOKEN: ${{ github.token }}

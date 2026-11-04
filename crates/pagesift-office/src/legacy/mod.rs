@@ -1,6 +1,7 @@
 //! 旧版二进制 Office（OLE 复合文件）：Word、Excel、PowerPoint 97–2003 和 HWP 5。
 
 pub(crate) mod doc;
+mod doc_lists;
 mod doc_styles;
 pub(crate) mod hwp;
 pub(crate) mod ppt;

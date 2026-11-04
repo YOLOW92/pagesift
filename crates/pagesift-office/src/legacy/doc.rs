@@ -2,10 +2,12 @@
 //! WordDocument 流里的文字（压缩片段是 cp1252，其余是 UTF-16）。字段只留结果，表格按单元格标记还原。
 //! 标题和列表来自段落样式（见 `doc_styles`）；脚注、尾注、文本框排在正文后面。Word 6/95 另走单字节路径。
 
+use super::doc_lists::Lists;
 use super::doc_styles::{Kind, Styles};
 use crate::md::{self, Block};
 use crate::ole::Ole;
 use crate::{Converted, Error, Options, budget, check_deadline};
+use std::collections::HashMap;
 
 fn u16_at(d: &[u8], i: usize) -> Option<u16> {
     Some(u16::from_le_bytes(d.get(i..i + 2)?.try_into().ok()?))
@@ -31,6 +33,8 @@ const FIRST_97_FIB: u16 = 190;
 const FIB_FC_STSHF: usize = 1;
 const FIB_FC_PLCF_PAPX: usize = 13;
 const FIB_FC_CLX: usize = 33;
+const FIB_FC_PLF_LST: usize = 73;
+const FIB_FC_PLF_LFO: usize = 74;
 
 pub(crate) fn convert(bytes: &[u8], opts: &Options<'_>) -> Result<Converted, Error> {
     let ole = Ole::open(bytes)?;
@@ -125,10 +129,19 @@ fn word97_blocks(
         word,
         pair(FIB_FC_PLCF_PAPX).unwrap_or(&[]),
         pair(FIB_FC_STSHF).unwrap_or(&[]),
+        {
+            let lst_at = u32_at(word, fc_at + FIB_FC_PLF_LST * 8).unwrap_or(0) as usize;
+            let lst_len = u32_at(word, fc_at + FIB_FC_PLF_LST * 8 + 4).unwrap_or(0) as usize;
+            Lists::read(
+                table.get(lst_at..).unwrap_or(&[]),
+                lst_len,
+                pair(FIB_FC_PLF_LFO).unwrap_or(&[]),
+            )
+        },
     );
     let at = |index: usize| text.fc_of(index).and_then(|fc| styles.kind_at(fc));
     let mut blocks = to_blocks(&text.chars, 0, main, &at);
-    // 脚注、尾注、文本框排在正文后面；页眉页脚和批注不要
+    // 脚注、尾注、文本框排在正文后面，再接页眉页脚和批注；相同的页眉页脚（每节重复）只留一份
     let spans = [
         (main, ftn),
         (main + ftn + hdd + atn, edn),
@@ -136,6 +149,16 @@ fn word97_blocks(
     ];
     for (start, len) in spans {
         blocks.extend(to_blocks(&text.chars, start, len, &|_| None));
+    }
+    let mut seen = std::collections::HashSet::new();
+    for (start, len, tag) in [(main + ftn, hdd, ""), (main + ftn + hdd, atn, "[comment] ")] {
+        for b in to_blocks(&text.chars, start, len, &|_| None) {
+            if let Block::Para(t) = b
+                && seen.insert((tag, t.clone()))
+            {
+                blocks.push(Block::Para(format!("{tag}{t}")));
+            }
+        }
     }
     Ok(blocks)
 }
@@ -286,6 +309,19 @@ fn word6_codepage(lid: u16) -> u16 {
 
 /// 特殊字符还原成段落和表格。域：`0x13 指令 0x14 结果 0x15`，只留结果。
 /// `kind` 按字符序号查段落类型（参数是段落结束符的序号）。
+/// 同一个列表里每一级的计数：本级加一，更深的级别重新开始。
+fn next_number(counters: &mut HashMap<u32, [u32; 9]>, list: u32, level: u8, start: u32) -> u32 {
+    let c = counters.entry(list).or_insert([0; 9]);
+    let l = usize::from(level).min(8);
+    c[l] = if c[l] == 0 {
+        start.max(1)
+    } else {
+        c[l].saturating_add(1)
+    };
+    c[l + 1..].fill(0);
+    c[l]
+}
+
 fn to_blocks(
     chars: &[char],
     start: usize,
@@ -299,6 +335,7 @@ fn to_blocks(
     // 域可以嵌套：栈里记每层是否还在指令部分
     let mut fields: Vec<bool> = Vec::new();
     let mut prev_cell = false;
+    let mut counters: HashMap<u32, [u32; 9]> = HashMap::new();
     let flush_table = |rows: &mut Vec<Vec<String>>, blocks: &mut Vec<Block>| {
         if rows.is_empty() {
             return;
@@ -335,12 +372,24 @@ fn to_blocks(
                     let text = md::escape(t);
                     blocks.push(match kind(start + i) {
                         Some(Kind::Heading(level)) => Block::Heading(level, text),
-                        Some(Kind::Item(level)) => Block::Item {
+                        Some(Kind::Item {
                             level,
-                            ordered: false,
-                            number: 0,
-                            text,
-                        },
+                            ordered,
+                            start,
+                            list,
+                        }) => {
+                            let number = if ordered {
+                                next_number(&mut counters, list, level, start)
+                            } else {
+                                0
+                            };
+                            Block::Item {
+                                level,
+                                ordered,
+                                number,
+                                text,
+                            }
+                        }
                         None => Block::Para(text),
                     });
                 }
@@ -450,5 +499,15 @@ mod tests {
                 Block::Para("after".into()),
             ]
         );
+    }
+
+    #[test]
+    fn ordered_numbers_continue_and_restart() {
+        let mut c = HashMap::new();
+        let got: Vec<u32> = [(0, 1), (0, 1), (1, 1), (1, 1), (0, 1)]
+            .iter()
+            .map(|&(level, start)| next_number(&mut c, 7, level, start))
+            .collect();
+        assert_eq!(got, vec![1, 2, 1, 2, 3]);
     }
 }

@@ -1,10 +1,73 @@
 //! dBASE / FoxPro（.dbf）：32 字节文件头，字段描述表以 0x0D 结束，后面是定长记录。
-//! 字符集看文件头的语言驱动字节；能按 UTF-8 解的字段按 UTF-8。备注字段在单独的文件里，只留空格。
+//! 字符集看文件头的语言驱动字节；能按 UTF-8 解的字段按 UTF-8。备注字段的内容在单独的 .dbt/.fpt 里：压缩包里有同名配套文件时由 `archive` 交给 `with_memo`，
+//! 单个文件输入读不到它，备注列留空。
+
+use std::cell::RefCell;
 
 use encoding_rs::Encoding;
 
 use crate::md::{self, Block};
 use crate::{Converted, Error, Options, budget, check_deadline};
+
+/// 备注文件（.dbt 或 .fpt）。
+struct Memo {
+    fox: bool,
+    data: Vec<u8>,
+}
+
+thread_local! {
+    static MEMO: RefCell<Option<Memo>> = const { RefCell::new(None) };
+}
+
+/// 单个备注最多取这么多字节。
+const MAX_MEMO: usize = 64 * 1024;
+
+/// 转换 `f` 期间，把 `data` 当作当前 .dbf 的备注文件（`fox` 为真是 FoxPro 的 .fpt，否则是 .dbt）。
+pub(crate) fn with_memo<T>(data: Vec<u8>, fox: bool, f: impl FnOnce() -> T) -> T {
+    MEMO.with(|m| *m.borrow_mut() = Some(Memo { fox, data }));
+    let out = f();
+    MEMO.with(|m| *m.borrow_mut() = None);
+    out
+}
+
+impl Memo {
+    fn read(&self, raw: &[u8], enc: &'static Encoding) -> String {
+        let block = if raw.len() == 4 {
+            u32::from_le_bytes([raw[0], raw[1], raw[2], raw[3]]) as usize
+        } else {
+            String::from_utf8_lossy(raw).trim().parse().unwrap_or(0)
+        };
+        if block == 0 {
+            return String::new();
+        }
+        let d = &self.data;
+        let body: &[u8] = if self.fox {
+            let size = d
+                .get(6..8)
+                .map_or(0, |b| usize::from(u16::from_be_bytes([b[0], b[1]])));
+            let at = block.saturating_mul(size);
+            let (Some(head), true) = (d.get(at..at.saturating_add(8)), size > 0) else {
+                return String::new();
+            };
+            let len = u32::from_be_bytes([head[4], head[5], head[6], head[7]]) as usize;
+            d.get(at + 8..).map_or(&[][..], |r| &r[..len.min(r.len())])
+        } else {
+            let at = block.saturating_mul(512);
+            let Some(rest) = d.get(at..) else {
+                return String::new();
+            };
+            if rest.starts_with(&[0xFF, 0xFF, 0x08, 0x00]) && rest.len() >= 8 {
+                // dBASE IV：块头里的长度含这 8 字节
+                let len = u32::from_le_bytes([rest[4], rest[5], rest[6], rest[7]]) as usize;
+                &rest[8..len.clamp(8, rest.len())]
+            } else {
+                // dBASE III：以 0x1A 结尾
+                &rest[..rest.iter().position(|&b| b == 0x1A).unwrap_or(rest.len())]
+            }
+        };
+        text(&body[..body.len().min(MAX_MEMO)], enc)
+    }
+}
 
 struct Field {
     name: String,
@@ -149,8 +212,13 @@ fn value(kind: u8, raw: &[u8], enc: &'static Encoding) -> String {
         b'B' if raw.len() == 8 => {
             format!("{}", f64::from_le_bytes(raw.try_into().unwrap_or([0; 8])))
         }
-        // 备注和通用字段的内容在 .dbt/.fpt 里，这里只有块号
-        b'M' | b'G' | b'P' | b'B' => String::new(),
+        // 备注内容在 .dbt/.fpt 里，这里只有块号；没有配套文件（单个文件输入）就留空
+        b'M' => MEMO.with(|m| {
+            m.borrow()
+                .as_ref()
+                .map_or(String::new(), |m| m.read(raw, enc))
+        }),
+        b'G' | b'P' | b'B' => String::new(),
         _ => text(raw, enc).trim().to_owned(),
     }
 }
@@ -168,7 +236,7 @@ fn text(raw: &[u8], enc: &'static Encoding) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     fn dbf(ldid: u8, records: &[&[u8]]) -> Vec<u8> {
@@ -241,5 +309,51 @@ mod tests {
         let mut bytes = dbf(3, &[]);
         bytes[15] = 1;
         assert_eq!(convert(&bytes, &Options::default()), Err(Error::Encrypted));
+    }
+
+    /// 一个备注列、一条记录（块号 1）的 .dbf。
+    pub(crate) fn memo_sample() -> Vec<u8> {
+        let mut out = vec![0u8; 32];
+        out[0] = 3;
+        out[4] = 1;
+        out[8..10].copy_from_slice(&65u16.to_le_bytes());
+        out[10..12].copy_from_slice(&11u16.to_le_bytes());
+        let mut d = [0u8; 32];
+        d[..4].copy_from_slice(b"NOTE");
+        d[11] = b'M';
+        d[16] = 10;
+        out.extend_from_slice(&d);
+        out.push(0x0D);
+        out.extend_from_slice(b" 0000000001");
+        out
+    }
+
+    #[test]
+    fn memo_text_comes_from_the_companion_file() {
+        let bytes = memo_sample();
+        // dBASE III：块 1 从 512 字节处开始，0x1A 结尾
+        let mut dbt = vec![0u8; 512];
+        dbt.extend_from_slice(b"hello memo\x1A\x1A");
+        let d = with_memo(dbt, false, || convert(&bytes, &Options::default())).unwrap();
+        assert!(d.markdown.contains("| hello memo |"), "{}", d.markdown);
+        // 单个文件输入：没有配套文件，备注留空
+        let d = convert(&bytes, &Options::default()).unwrap();
+        assert!(!d.markdown.contains("hello"), "{}", d.markdown);
+        // dBASE IV 块头
+        let mut dbt = vec![0u8; 512];
+        dbt.extend_from_slice(&[0xFF, 0xFF, 0x08, 0x00, 13, 0, 0, 0]);
+        dbt.extend_from_slice(b"four\0");
+        let d = with_memo(dbt, false, || convert(&bytes, &Options::default())).unwrap();
+        assert!(d.markdown.contains("| four |"), "{}", d.markdown);
+        // FoxPro：块大小 64，块头是类型和长度（大端）
+        let mut fpt = vec![0u8; 64];
+        fpt[6..8].copy_from_slice(&64u16.to_be_bytes());
+        fpt.extend_from_slice(&[0, 0, 0, 1, 0, 0, 0, 3]);
+        fpt.extend_from_slice(b"fox");
+        let d = with_memo(fpt, true, || convert(&bytes, &Options::default())).unwrap();
+        assert!(d.markdown.contains("| fox |"), "{}", d.markdown);
+        // 坏的配套文件不报错
+        let d = with_memo(vec![1, 2, 3], true, || convert(&bytes, &Options::default())).unwrap();
+        assert_eq!(d.parts, 1);
     }
 }

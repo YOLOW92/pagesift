@@ -22,6 +22,8 @@ step "release identity"
 python3 scripts/check_release.py
 step "wall-clock reads in tests"
 python3 scripts/check_wall_clock.py
+step "workflow files"
+python3 scripts/check_workflows.py
 
 step "fmt"
 cargo fmt --all --check
