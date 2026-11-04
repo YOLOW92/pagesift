@@ -2,6 +2,10 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## 1.1.2
+
+The MCP server implements `resources/list` and `resources/templates/list`. Verilog source files are split by module. [Release notes](docs/releases/1.1.2.md).
+
 ## 1.1.1
 
 Source-code sections for 30 languages, `.doc` list numbers, headers, footers and comments, dBASE memo files inside archives, and

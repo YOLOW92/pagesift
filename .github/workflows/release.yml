@@ -124,6 +124,17 @@ jobs:
           [ -n "$profdata" ] || { echo "llvm-profdata not found in the rustup llvm-tools component" >&2; exit 1; }
           rm -rf "$PGO_DIR"
           mkdir -p "$PGO_DIR/profraw"
+          # 只编一遍：用最新 Release 里上次训练的画像。下载不到（第一次）或编译失败（比如 rustc 换了 LLVM，
+          # 画像格式对不上）才走下面的插桩加训练。要强制重训，删掉最新 Release 里的 pgo-*.profdata。
+          saved="pgo-$TARGET.profdata"
+          if curl -fsSL -o "$saved" "https://github.com/${{ github.repository }}/releases/latest/download/$saved"; then
+            if RUSTFLAGS="-Cprofile-use=$PWD/$saved" cargo build --release --locked -p pagesift --target "$TARGET"; then
+              "target/$TARGET/release/pagesift" --version
+              echo "::notice::PGO build for $TARGET from the saved profile (one pass)"
+              exit 0
+            fi
+            echo "::warning::saved profile failed for $TARGET; training again"
+          fi
           # 插桩版放在 target/ 之外的单独目录：不和正式产物混在一起，rust-cache 也不会把它存进缓存
           CARGO_TARGET_DIR="$PGO_DIR/target" RUSTFLAGS="-Cprofile-generate=$PGO_DIR/profraw" \
             cargo build --release --locked -p pagesift --target "$TARGET"
@@ -131,6 +142,8 @@ jobs:
           count=$(find "$PGO_DIR/profraw" -name '*.profraw' | wc -l | tr -d ' ')
           [ "$count" -gt 0 ] || { echo "training wrote no .profraw files" >&2; exit 1; }
           "$profdata" merge -o "$PGO_DIR/merged.profdata" "$PGO_DIR/profraw"
+          # 随 Release 发布，下一版直接用
+          cp "$PGO_DIR/merged.profdata" "$saved"
           # 不加 -Cllvm-args=-pgo-warn-missing-function：训练覆盖不到的函数很多，警告只会刷屏
           RUSTFLAGS="-Cprofile-use=$PGO_DIR/merged.profdata" \
             cargo build --release --locked -p pagesift --target "$TARGET"
@@ -187,7 +200,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: bin-${{ matrix.target }}
-          path: pagesift-*.tar.gz*
+          path: |
+            pagesift-*.tar.gz*
+            pgo-*.profdata
 
   docker:
     # 镜像在 Dockerfile 里从源码编译，不用其他任务的产物，和它们同时进行

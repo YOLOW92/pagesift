@@ -517,3 +517,9 @@ fn damaged_input_never_panics() {
         }
     }
 }
+
+#[test]
+fn verilog() {
+    let src = "module foo (input a, output b);\n  assign b = a;\nendmodule\n\n// bar\nmodule bar;\nendmodule\n";
+    check("verilog", src, &[(K::Class, "foo"), (K::Class, "bar")], 0);
+}

@@ -50,9 +50,10 @@ pub enum Lang {
     Vue,
     D,
     Elm,
+    Verilog,
 }
 
-const COUNT: usize = 40;
+const COUNT: usize = 41;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -98,6 +99,7 @@ impl Lang {
             "vue" => Lang::Vue,
             "d" => Lang::D,
             "elm" => Lang::Elm,
+            "verilog" | "systemverilog" => Lang::Verilog,
             _ => return None,
         })
     }
@@ -148,6 +150,7 @@ impl Lang {
             Lang::Vue => include_bytes!("../tables/vue.pslg.z"),
             Lang::D => include_bytes!("../tables/d.pslg.z"),
             Lang::Elm => include_bytes!("../tables/elm.pslg.z"),
+            Lang::Verilog => include_bytes!("../tables/verilog.pslg.z"),
         }
     }
 
@@ -463,6 +466,17 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
             "enum_declaration" => Sym(K::Enum, "enum", No),
             "function_declaration" => Sym(K::Function, "function", No),
             "import_declaration" => Import,
+            _ => Skip,
+        },
+        Lang::Verilog => match kind {
+            "module_declaration" => Sym(K::Class, "module", No),
+            "interface_declaration" => Sym(K::Interface, "interface", No),
+            "package_declaration" => Sym(K::Module, "package", No),
+            "class_declaration" => Sym(K::Class, "class", No),
+            "program_declaration" => Sym(K::Module, "program", No),
+            "function_declaration" => Sym(K::Function, "function", No),
+            "task_declaration" => Sym(K::Function, "task", No),
+            "include_compiler_directive" => Import,
             _ => Skip,
         },
         Lang::Elm => match kind {

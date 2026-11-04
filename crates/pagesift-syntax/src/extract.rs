@@ -305,6 +305,27 @@ impl Walker<'_> {
     }
 
     fn name(&self, id: usize) -> String {
+        // Verilog 的名字嵌在 header 里，没有 name 字段：取最先出现的标识符
+        if self.lang == Lang::Verilog {
+            let mut todo = vec![(id, 0u32)];
+            while let Some((at, depth)) = todo.pop() {
+                for &c in self.nodes.n[at].children.iter().rev() {
+                    let c = c as usize;
+                    if depth < 6
+                        && !matches!(
+                            self.nodes.n[c].kind,
+                            "list_of_port_declarations" | "data_type_or_void"
+                        )
+                    {
+                        todo.push((c, depth + 1));
+                    }
+                }
+                if self.nodes.n[at].kind == "simple_identifier" {
+                    return self.clean(self.text(at));
+                }
+            }
+            return String::new();
+        }
         // Rust 的 impl 没有 name，用它实现的类型当名字；C 的函数虽然也有 type 字段，那是返回类型
         let field = if self.nodes.n[id].kind == "impl_item" {
             "type"

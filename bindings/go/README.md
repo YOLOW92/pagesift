@@ -5,7 +5,7 @@ A cgo binding of [pagesift](https://github.com/YOLOW92/pagesift) with `Document`
 ## Install
 
 ```sh
-go get github.com/YOLOW92/pagesift/bindings/go@v1.1.1
+go get github.com/YOLOW92/pagesift/bindings/go@v1.1.2
 ```
 
 The package does not include the library. Download `pagesift-ffi-<tag>-<target>.tar.gz` from [GitHub Releases](https://github.com/YOLOW92/pagesift/releases) (Linux x86_64, Linux aarch64, macOS arm64), or build it with `cargo build --release -p pagesift-ffi`. Then tell cgo where it is, or put it on the system library path:
