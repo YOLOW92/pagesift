@@ -7,7 +7,7 @@
 **AI エージェントのための Web・文書レイヤー：URL、文書、メール、圧縮ファイル、ソースコードを入力すると、クリーンな Markdown または JSON を出力します。**  
 セルフホストできる単一の Rust バイナリ：CLI、Firecrawl・Jina Reader API、MCP サーバー、Python・Node.js・Go・Java・C#・Ruby・PHP などのパッケージ。
 
-**実測：** PDF のスループットは次点の 1.75 倍、Office は 3.40 倍、HTML の 1 ページ処理は 8.12 倍高速（いずれも高いほど良い）。ワーカーあたりのピークメモリ 18–377 MB（低いほど良い）。
+**実測：** PDF から Markdown は 1 ページ 2.4 ms で次点の 20.49 倍高速、HTML から Markdown は 0.24 ms で 8.12 倍、本文抽出は 1.0 ms で 7.26 倍（低いほど良い）。Office は毎秒 91.7 ファイルで次点の 3.40 倍（高いほど良い）。
 
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](../LICENSE)
 [![Commercial license](https://img.shields.io/badge/commercial-license%20available-green.svg)](COMMERCIAL.md)
