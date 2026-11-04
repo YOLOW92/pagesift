@@ -54,10 +54,10 @@ fn parse_header(lines: &[&str], first: Option<&str>, start: usize) -> Option<Pen
     let mut language: Option<String> = None;
     let mut i = start + 1;
     while i < lines.len() {
-        if let Some((_, cs)) = delim(lines[i], '=') {
-            if suffix_matches(first, cs) {
-                break;
-            }
+        if let Some((_, cs)) = delim(lines[i], '=')
+            && suffix_matches(first, cs)
+        {
+            break;
         }
         let t = lines[i].trim();
         if t.is_empty() && !marker {
@@ -110,11 +110,12 @@ fn build(body: &[&str], first: Option<&str>, p: Pending) -> Option<Case> {
     let mut best: Option<usize> = None;
     let mut best_len = 0;
     for (j, line) in body.iter().enumerate() {
-        if let Some((n, s)) = delim(line, '-') {
-            if suffix_matches(first, s) && n + s.len() >= best_len {
-                best = Some(j);
-                best_len = n + s.len();
-            }
+        if let Some((n, s)) = delim(line, '-')
+            && suffix_matches(first, s)
+            && n + s.len() >= best_len
+        {
+            best = Some(j);
+            best_len = n + s.len();
         }
     }
     let d = best?;
@@ -193,17 +194,17 @@ pub fn parse_corpus(content: &str) -> Vec<Case> {
         };
         let opening = i;
         i = p.body_start;
-        if let Some(pr) = prev.take() {
-            if let Some(c) = build(&lines[pr.body_start..opening], first, pr) {
-                out.push(c);
-            }
+        if let Some(pr) = prev.take()
+            && let Some(c) = build(&lines[pr.body_start..opening], first, pr)
+        {
+            out.push(c);
         }
         prev = Some(p);
     }
-    if let Some(pr) = prev {
-        if let Some(c) = build(&lines[pr.body_start..], first, pr) {
-            out.push(c);
-        }
+    if let Some(pr) = prev
+        && let Some(c) = build(&lines[pr.body_start..], first, pr)
+    {
+        out.push(c);
     }
     out
 }
@@ -249,16 +250,16 @@ pub fn run_cases(lang: &Language, file: &str, cases: &[Case], rep: &mut Report) 
         }
         rep.total += 1;
         let tree = parse(lang, &c.input, Limits::default());
-        let ok;
+
         let mut actual = String::new();
-        if c.error {
-            ok = tree.has_error();
+        let ok = if c.error {
+            tree.has_error()
         } else {
             let has_fields = c.expected.contains(": (");
             let s = tree.to_sexp(lang);
             actual = if has_fields { s } else { strip_fields(&s) };
-            ok = actual == c.expected;
-        }
+            actual == c.expected
+        };
         if ok {
             rep.passed += 1;
         } else {

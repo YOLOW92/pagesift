@@ -44,10 +44,11 @@ pub fn tokenize(src: &str) -> Result<(Vec<Tok>, HashMap<String, i64>), String> {
             }
             let line = &src[st..i.min(b.len())];
             let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() >= 3 && parts[0] == "#define" {
-                if let Some(v) = parse_int(parts[2]) {
-                    defs.insert(parts[1].to_string(), v);
-                }
+            if parts.len() >= 3
+                && parts[0] == "#define"
+                && let Some(v) = parse_int(parts[2])
+            {
+                defs.insert(parts[1].to_string(), v);
             }
         } else if c.is_ascii_alphabetic() || c == b'_' {
             let st = i;

@@ -92,9 +92,13 @@ fn run(lang: Lang, source: &str) -> Option<Outline> {
     let mut elements = Vec::new();
     w.flatten(nodes.top(), 0, &mut elements);
     let mut anchors = Vec::new();
+    let single_scope = w.single_scope(&elements);
     for (i, &e) in elements.iter().enumerate() {
         let before = w.out.symbols.len();
         let mut first = None;
+        if single_scope == Some(i) && w.scope_inner(e, &mut anchors) {
+            continue;
+        }
         w.walk(e, false, 0, 0, &mut first);
         if w.out.symbols.len() > before
             && let Some(title) = first
@@ -320,7 +324,17 @@ impl Walker<'_> {
                     .map(|&c| c as usize)
                     .find(|&c| {
                         let k = self.nodes.n[c].kind;
-                        k.ends_with("declarator") || is_identifier(k)
+                        k.ends_with("declarator")
+                            || is_identifier(k)
+                            || matches!(
+                                k,
+                                "signature"
+                                    | "type_head"
+                                    | "call_expression"
+                                    | "where_expression"
+                                    | "typed_expression"
+                                    | "parametrized_type_expression"
+                            )
                     })
             });
             match next {
@@ -375,6 +389,50 @@ impl Walker<'_> {
             .iter()
             .map(|&c| c as usize)
             .collect()
+    }
+
+    /// 顶层只有一个作用域容器（命名空间、`mod`），其余元素都不产生符号时，返回它的下标。
+    fn single_scope(&self, elements: &[usize]) -> Option<usize> {
+        let mut found = None;
+        for (i, &e) in elements.iter().enumerate() {
+            match rule(self.lang, self.nodes.n[e].kind) {
+                Rule::Sym(_, _, Cont::Scope) if found.is_none() => found = Some(i),
+                Rule::Skip | Rule::Import => {}
+                _ => return None,
+            }
+        }
+        found
+    }
+
+    /// 往作用域容器里切一层：容器自己记一个符号，分段锚点落在它的直接成员上。
+    /// 成员里一个符号都没有时撤销并返回假，由调用方按普通符号处理。
+    fn scope_inner(&mut self, id: usize, anchors: &mut Vec<(usize, usize, String)>) -> bool {
+        let Rule::Sym(k, label, _) = rule(self.lang, self.nodes.n[id].kind) else {
+            return false;
+        };
+        let base = self.out.symbols.len();
+        let name = self.name(id);
+        self.push(k, label, name, id, 0, &mut None);
+        let body = self.nodes.field(id, "body").unwrap_or(id);
+        let mut inner = Vec::new();
+        self.flatten(body, 1, &mut inner);
+        let mut found = Vec::new();
+        for (j, &e) in inner.iter().enumerate() {
+            let before = self.out.symbols.len();
+            let mut first = None;
+            self.walk(e, false, 1, 1, &mut first);
+            if self.out.symbols.len() > before
+                && let Some(title) = first
+            {
+                found.push((self.anchor_start(&inner, j), self.nodes.n[e].end, title));
+            }
+        }
+        if found.is_empty() {
+            self.out.symbols.truncate(base);
+            return false;
+        }
+        anchors.extend(found);
+        true
     }
 
     /// `budget`：还能穿过几层不认识的节点（容器的 body）。顶层为 0，不往普通语句里找符号。
@@ -433,6 +491,19 @@ impl Walker<'_> {
     fn special(&mut self, sp: Sp, id: usize, depth: u32, first: &mut Option<String>) {
         match sp {
             Sp::GoImport => self.go_imports(id, 0),
+            Sp::ExCall => self.ex_call(id, depth, first),
+            Sp::RAssign => {
+                // `name <- function(...) ...`
+                let lhs = self.nodes.field(id, "lhs");
+                let rhs = self.nodes.field(id, "rhs");
+                if let (Some(l), Some(r)) = (lhs, rhs)
+                    && self.nodes.n[r].kind == "function_definition"
+                    && self.nodes.n[l].kind == "identifier"
+                {
+                    let name = self.clean(self.text(l));
+                    self.push(SymbolKind::Function, "function", name, id, depth, first);
+                }
+            }
             Sp::GoType => {
                 for c in self.children(id) {
                     if !matches!(self.nodes.n[c].kind, "type_spec" | "type_alias") {
@@ -497,6 +568,64 @@ impl Walker<'_> {
         }
     }
 
+    /// Elixir 里一切都是 `call`：按目标标识符判断是 `def*`、`defmodule` 还是导入。
+    fn ex_call(&mut self, id: usize, depth: u32, first: &mut Option<String>) {
+        let Some(t) = self.nodes.field(id, "target") else {
+            return;
+        };
+        if self.nodes.n[t].kind != "identifier" {
+            return;
+        }
+        let word = self.text(t).to_string();
+        let kids = self.children(id);
+        let args = kids
+            .iter()
+            .copied()
+            .find(|&c| self.nodes.n[c].kind == "arguments");
+        let first_arg = args.and_then(|a| {
+            self.children(a)
+                .into_iter()
+                .find(|&c| self.nodes.n[c].kind != "comment")
+        });
+        let (kind, label, container) = match word.as_str() {
+            "import" | "alias" | "use" | "require" => return self.import(id),
+            "defmodule" => (SymbolKind::Module, "module", true),
+            "defprotocol" => (SymbolKind::Interface, "protocol", true),
+            "defimpl" => (SymbolKind::Module, "impl", true),
+            "def" | "defp" | "defmacro" | "defmacrop" => {
+                if depth > 0 {
+                    (SymbolKind::Method, "method", false)
+                } else {
+                    (SymbolKind::Function, "function", false)
+                }
+            }
+            _ => return,
+        };
+        // 函数头可能是 `name(args)`、`name(args) when guard` 或单独的标识符
+        let mut at = first_arg;
+        for _ in 0..8 {
+            match at {
+                Some(a) if self.nodes.n[a].kind == "binary_operator" => {
+                    at = self.nodes.field(a, "left")
+                }
+                Some(a) if self.nodes.n[a].kind == "call" => at = self.nodes.field(a, "target"),
+                _ => break,
+            }
+        }
+        let name = at.map(|a| self.clean(self.text(a))).unwrap_or_default();
+        self.push(kind, label, name, id, depth, first);
+        if container {
+            for c in kids
+                .into_iter()
+                .filter(|&c| self.nodes.n[c].kind == "do_block")
+            {
+                for d in self.children(c) {
+                    self.walk(d, true, 1, depth + 1, first);
+                }
+            }
+        }
+    }
+
     fn go_imports(&mut self, id: usize, depth: u32) {
         for c in self.children(id) {
             match self.nodes.n[c].kind {
@@ -512,9 +641,16 @@ fn is_identifier(kind: &str) -> bool {
     matches!(
         kind,
         "identifier"
+            | "simple_identifier"
             | "field_identifier"
             | "qualified_identifier"
             | "type_identifier"
+            | "value_name"
+            | "module_name"
+            | "type_constructor"
+            | "class_name"
+            | "module_type_name"
+            | "method_identifier"
             | "destructor_name"
             | "operator_name"
     )

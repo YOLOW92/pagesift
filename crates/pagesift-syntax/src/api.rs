@@ -239,7 +239,8 @@ impl ParseTree {
 
 fn char_repr(c: u32) -> String {
     match c {
-        0 => "'\\0'".into(),
+        // 输入末尾：官方的前瞻字符是 0
+        0 | crate::table::EOF_CP => "'\\0'".into(),
         10 => "'\\n'".into(),
         9 => "'\\t'".into(),
         13 => "'\\r'".into(),

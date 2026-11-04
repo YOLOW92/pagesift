@@ -6,13 +6,26 @@
 use crate::lexer::Lexer;
 use crate::table::EOF_CP;
 
+pub mod bash;
 pub mod cpp;
 pub mod csharp;
+pub mod css;
+pub mod dart;
+pub mod dockerfile;
+pub mod elixir;
+pub mod html;
 pub mod js;
+pub mod julia;
+pub mod kotlin;
 pub mod lua;
+pub mod nix;
+pub mod ocaml;
 pub mod php;
 pub mod python;
+pub mod r;
+pub mod ruby;
 pub mod rust;
+pub mod svelte;
 pub mod toml;
 pub mod ts;
 
@@ -29,6 +42,19 @@ pub trait Scanner {
 /// 按语法名创建扫描器，没有移植的语法返回 `None`。
 pub fn create(name: &str) -> Option<Box<dyn Scanner>> {
     Some(match name {
+        "bash" => Box::new(bash::Bash::default()),
+        "ruby" => Box::new(ruby::Ruby::default()),
+        "kotlin" => Box::new(kotlin::Kotlin::default()),
+        "css" => Box::new(css::Css),
+        "r" => Box::new(r::R::default()),
+        "elixir" => Box::new(elixir::Elixir),
+        "ocaml" | "ocaml_interface" | "ocaml_type" => Box::new(ocaml::Ocaml::default()),
+        "dockerfile" => Box::new(dockerfile::Dockerfile::default()),
+        "nix" => Box::new(nix::Nix),
+        "julia" => Box::new(julia::Julia),
+        "dart" => Box::new(dart::Dart),
+        "html" => Box::new(html::Html::default()),
+        "svelte" => Box::new(html::Html::svelte()),
         "python" => Box::new(python::Python::default()),
         "cpp" => Box::new(cpp::Cpp::default()),
         "lua" => Box::new(lua::Lua::default()),

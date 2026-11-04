@@ -116,6 +116,8 @@ impl<'a> Lexer<'a> {
             return false;
         }
         let mut found = false;
+        // 在输入末尾“前进”不会移动位置；词法表若在末尾处成环就永远不会停，所以限制连续次数
+        let mut stuck = 0u32;
         loop {
             let seg = t.find(state, self.look());
             if seg.accept != NO_SYM {
@@ -123,10 +125,19 @@ impl<'a> Lexer<'a> {
                 self.result = seg.accept;
                 self.mark_end();
             }
+            let before = self.pos.bytes;
             match seg.kind {
                 1 => self.advance(false),
                 2 => self.advance(true),
                 _ => return found,
+            }
+            if self.pos.bytes == before {
+                stuck += 1;
+                if stuck > 8 {
+                    return found;
+                }
+            } else {
+                stuck = 0;
             }
             if seg.target as usize >= t.state_count() {
                 return found;

@@ -22,9 +22,23 @@ pub enum Lang {
     Python,
     Rust,
     Lua,
+    Bash,
+    Ruby,
+    Kotlin,
+    Css,
+    Html,
+    ObjC,
+    Dart,
+    Julia,
+    Nix,
+    Dockerfile,
+    Ocaml,
+    Elixir,
+    R,
+    Svelte,
 }
 
-const COUNT: usize = 12;
+const COUNT: usize = 26;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -42,6 +56,20 @@ impl Lang {
             "python" => Lang::Python,
             "rust" => Lang::Rust,
             "lua" => Lang::Lua,
+            "bash" | "sh" | "shell" | "zsh" => Lang::Bash,
+            "ruby" => Lang::Ruby,
+            "kotlin" => Lang::Kotlin,
+            "css" => Lang::Css,
+            "html" | "htm" => Lang::Html,
+            "objc" | "objective-c" | "objectivec" => Lang::ObjC,
+            "dart" => Lang::Dart,
+            "julia" | "jl" => Lang::Julia,
+            "nix" => Lang::Nix,
+            "dockerfile" => Lang::Dockerfile,
+            "ocaml" | "ml" => Lang::Ocaml,
+            "elixir" | "ex" | "exs" => Lang::Elixir,
+            "r" => Lang::R,
+            "svelte" => Lang::Svelte,
             _ => return None,
         })
     }
@@ -64,6 +92,20 @@ impl Lang {
             Lang::Python => include_bytes!("../tables/python.pslg.z"),
             Lang::Rust => include_bytes!("../tables/rust.pslg.z"),
             Lang::Lua => include_bytes!("../tables/lua.pslg.z"),
+            Lang::Bash => include_bytes!("../tables/bash.pslg.z"),
+            Lang::Ruby => include_bytes!("../tables/ruby.pslg.z"),
+            Lang::Kotlin => include_bytes!("../tables/kotlin.pslg.z"),
+            Lang::Css => include_bytes!("../tables/css.pslg.z"),
+            Lang::Html => include_bytes!("../tables/html.pslg.z"),
+            Lang::ObjC => include_bytes!("../tables/objc.pslg.z"),
+            Lang::Dart => include_bytes!("../tables/dart.pslg.z"),
+            Lang::Julia => include_bytes!("../tables/julia.pslg.z"),
+            Lang::Nix => include_bytes!("../tables/nix.pslg.z"),
+            Lang::Dockerfile => include_bytes!("../tables/dockerfile.pslg.z"),
+            Lang::Ocaml => include_bytes!("../tables/ocaml.pslg.z"),
+            Lang::Elixir => include_bytes!("../tables/elixir.pslg.z"),
+            Lang::R => include_bytes!("../tables/r.pslg.z"),
+            Lang::Svelte => include_bytes!("../tables/svelte.pslg.z"),
         }
     }
 
@@ -106,6 +148,8 @@ pub(crate) enum Sp {
     GoImport,
     JsVar,
     CDecl,
+    ExCall,
+    RAssign,
 }
 
 #[derive(Clone, Copy)]
@@ -233,5 +277,81 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
             "function_declaration" => Sym(K::Function, "function", No),
             _ => Skip,
         },
+        // 标记语言没有“定义”可提：能解析，大纲为空
+        Lang::Css | Lang::Html => Skip,
+        Lang::Kotlin => match kind {
+            "function_declaration" => Sym(K::Function, "function", No),
+            "class_declaration" => Sym(K::Class, "class", Ty),
+            "object_declaration" => Sym(K::Class, "object", Ty),
+            "type_alias" => Sym(K::Type, "typealias", No),
+            "import_list" => Rule::Flat,
+            "import_header" => Import,
+            _ => Skip,
+        },
+        Lang::Ruby => match kind {
+            "method" | "singleton_method" => Sym(K::Function, "method", No),
+            "class" => Sym(K::Class, "class", Ty),
+            "module" => Sym(K::Module, "module", Ty),
+            _ => Skip,
+        },
+        Lang::Bash => match kind {
+            "function_definition" => Sym(K::Function, "function", No),
+            _ => Skip,
+        },
+        Lang::ObjC => match kind {
+            "class_interface" | "class_implementation" => Sym(K::Class, "class", Ty),
+            "protocol_declaration" => Sym(K::Interface, "protocol", Ty),
+            "method_definition" => Sym(K::Function, "method", No),
+            "function_definition" => Sym(K::Function, "function", No),
+            "preproc_include" | "module_import" => Import,
+            _ => Skip,
+        },
+        Lang::Dart => match kind {
+            "class_definition" | "mixin_application_class" => Sym(K::Class, "class", Ty),
+            "mixin_declaration" => Sym(K::Trait, "mixin", Ty),
+            "extension_declaration" | "extension_type_declaration" => {
+                Sym(K::Module, "extension", Ty)
+            }
+            "enum_declaration" => Sym(K::Enum, "enum", Ty),
+            "type_alias" => Sym(K::Type, "typedef", No),
+            "function_signature" => Sym(K::Function, "function", No),
+            "constructor_signature"
+            | "factory_constructor_signature"
+            | "constant_constructor_signature" => Sym(K::Method, "constructor", No),
+            "method_signature" | "declaration" => Wrap,
+            "import_or_export" => Import,
+            _ => Skip,
+        },
+        Lang::Julia => match kind {
+            "function_definition" | "macro_definition" => Sym(K::Function, "function", No),
+            "struct_definition" => Sym(K::Struct, "struct", No),
+            "abstract_definition" | "primitive_definition" => Sym(K::Type, "type", No),
+            "module_definition" => Sym(K::Module, "module", Scope),
+            "import_statement" | "using_statement" => Import,
+            _ => Skip,
+        },
+        Lang::Nix => Skip,
+        Lang::Dockerfile => Skip,
+        Lang::Ocaml => match kind {
+            "value_definition" | "type_definition" | "module_definition" | "class_definition" => {
+                Wrap
+            }
+            "let_binding" => Sym(K::Function, "let", No),
+            "type_binding" => Sym(K::Type, "type", No),
+            "class_binding" => Sym(K::Class, "class", Ty),
+            "module_binding" => Sym(K::Module, "module", Scope),
+            "module_type_definition" => Sym(K::Interface, "module type", No),
+            "open_module" => Import,
+            _ => Skip,
+        },
+        Lang::Elixir => match kind {
+            "call" => Rule::Special(Sp::ExCall),
+            _ => Skip,
+        },
+        Lang::R => match kind {
+            "binary_operator" => Rule::Special(Sp::RAssign),
+            _ => Skip,
+        },
+        Lang::Svelte => Skip,
     }
 }

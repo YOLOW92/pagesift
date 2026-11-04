@@ -144,10 +144,10 @@ pub fn convert(text: &str, fallback_name: &str) -> Result<Language, String> {
                     l.ext_valid.resize(need, false);
                 }
                 for (k2, x) in row.list() {
-                    if let Key::Idx(c) = k2 {
-                        if (*c as usize) < ec {
-                            l.ext_valid[*r as usize * ec + *c as usize] = x.int().unwrap_or(0) != 0;
-                        }
+                    if let Key::Idx(c) = k2
+                        && (*c as usize) < ec
+                    {
+                        l.ext_valid[*r as usize * ec + *c as usize] = x.int().unwrap_or(0) != 0;
                     }
                 }
             }
@@ -164,20 +164,20 @@ pub fn convert(text: &str, fallback_name: &str) -> Result<Language, String> {
     })?;
     l.reserved_set.resize(sc, 0);
     l.max_reserved = def(&src, "MAX_RESERVED_WORD_SET_SIZE");
-    if l.max_reserved > 0 {
-        if let Some(p) = src.find_init("ts_reserved_words") {
-            let v = src.parse_init_at(p)?;
-            let m = l.max_reserved as usize;
-            for (k, row) in v.list() {
-                if let Key::Idx(r) = k {
-                    let need = (*r as usize + 1) * m;
-                    if l.reserved_words.len() < need {
-                        l.reserved_words.resize(need, 0);
-                    }
-                    for (k2, x) in row.list() {
-                        if let Key::Idx(c) = k2 {
-                            l.reserved_words[*r as usize * m + *c as usize] = as_u16(x)?;
-                        }
+    if l.max_reserved > 0
+        && let Some(p) = src.find_init("ts_reserved_words")
+    {
+        let v = src.parse_init_at(p)?;
+        let m = l.max_reserved as usize;
+        for (k, row) in v.list() {
+            if let Key::Idx(r) = k {
+                let need = (*r as usize + 1) * m;
+                if l.reserved_words.len() < need {
+                    l.reserved_words.resize(need, 0);
+                }
+                for (k2, x) in row.list() {
+                    if let Key::Idx(c) = k2 {
+                        l.reserved_words[*r as usize * m + *c as usize] = as_u16(x)?;
                     }
                 }
             }

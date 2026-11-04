@@ -180,10 +180,167 @@ fn php_and_lua() {
 }
 
 #[test]
+fn bash_functions() {
+    check(
+        "bash",
+        "x=1\nf() { echo hi; }\nfunction g { cat <<EOF\nbody\nEOF\n}\n",
+        &[(K::Function, "f"), (K::Function, "g")],
+        0,
+    );
+}
+
+#[test]
+fn ruby_defs() {
+    check(
+        "ruby",
+        "def top\n  1\nend\nmodule M\n  class C\n    def m; <<~T\n      x\n    T\n    end\n    def self.s; end\n  end\nend\n",
+        &[
+            (K::Function, "top"),
+            (K::Module, "M"),
+            (K::Class, "C"),
+            (K::Method, "m"),
+            (K::Method, "s"),
+        ],
+        0,
+    );
+}
+
+#[test]
+fn kotlin_defs() {
+    check(
+        "kotlin",
+        "import a.b\nfun top() {}\nclass C {\n  fun m() {}\n}\nobject O\n",
+        &[
+            (K::Function, "top"),
+            (K::Class, "C"),
+            (K::Method, "m"),
+            (K::Class, "O"),
+        ],
+        1,
+    );
+}
+
+/// 顶层只有一个作用域容器时，分段落在它的成员上。
+#[test]
+fn single_scope_splits_inside() {
+    let titles = |tag: &str, src: &str| {
+        outline(tag, src)
+            .unwrap()
+            .sections
+            .into_iter()
+            .map(|s| s.title.unwrap_or_default())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        titles(
+            "csharp",
+            "using X;\nnamespace N {\n  class A {}\n  class B {}\n}\n"
+        ),
+        ["", "class A", "class B"]
+    );
+    assert_eq!(
+        titles("cpp", "namespace n {\nvoid f() {}\nvoid g() {}\n}\n"),
+        ["", "function f", "function g"]
+    );
+    assert_eq!(
+        titles("rust", "mod m {\n    fn a() {}\n    fn b() {}\n}\n"),
+        ["", "function a", "function b"]
+    );
+    // 容器里没有符号：保持原样，一个容器一段
+    assert_eq!(titles("cpp", "namespace n { int x; }\n"), ["namespace n"]);
+    // 两个容器：不往里切
+    assert_eq!(
+        titles(
+            "cpp",
+            "namespace a { void f() {} }\nnamespace b { void g() {} }\n"
+        ),
+        ["namespace a", "namespace b"]
+    );
+}
+
+#[test]
+fn objc_defs() {
+    check(
+        "objc",
+        "#import <Foo/Foo.h>\n@interface A : NSObject\n@end\n@implementation A\n- (void)run:(int)x {}\n@end\nint top(void) { return 0; }\n",
+        &[
+            (K::Class, "A"),
+            (K::Class, "A"),
+            (K::Method, "run"),
+            (K::Function, "top"),
+        ],
+        1,
+    );
+}
+
+#[test]
+fn dart_defs() {
+    check(
+        "dart",
+        "import 'a.dart';\nvoid top() {}\nclass C {\n  C();\n  int m() => 1;\n}\nenum E { a }\n",
+        &[
+            (K::Function, "top"),
+            (K::Class, "C"),
+            (K::Method, "C"),
+            (K::Method, "m"),
+            (K::Enum, "E"),
+        ],
+        1,
+    );
+}
+
+#[test]
+fn julia_defs() {
+    check(
+        "julia",
+        "using LinearAlgebra\nfunction f(x)\n  x\nend\nstruct P\n  a::Int\nend\n",
+        &[(K::Function, "f"), (K::Struct, "P")],
+        1,
+    );
+}
+
+#[test]
+fn ocaml_defs() {
+    check(
+        "ocaml",
+        "open Foo\nlet f x = x\ntype t = int\nmodule M = struct\n  let g y = y\nend\n",
+        &[
+            (K::Function, "f"),
+            (K::Type, "t"),
+            (K::Module, "M"),
+            (K::Function, "g"),
+        ],
+        1,
+    );
+}
+
+#[test]
+fn elixir_defs() {
+    check(
+        "elixir",
+        "import Enum\ndefmodule Foo do\n  def bar(x), do: x\n  defp baz(y) when y > 0 do\n    y\n  end\nend\n",
+        &[(K::Module, "Foo"), (K::Method, "bar"), (K::Method, "baz")],
+        1,
+    );
+}
+
+#[test]
+fn r_defs() {
+    check(
+        "r",
+        "x <- 1\nf <- function(a) {\n  a + 1\n}\ng = function() NULL\n",
+        &[(K::Function, "f"), (K::Function, "g")],
+        0,
+    );
+}
+
+#[test]
 fn unsupported_or_symbol_free_is_none() {
     assert!(outline("cobol", "x").is_none());
     assert!(outline("python", "x = 1\n").is_none());
     assert!(outline("python", "").is_none());
+    assert!(outline("html", "<p>x</p>").is_none());
+    assert!(outline("css", "a { color: red }").is_none());
 }
 
 /// 坏输入：随机截断和替换字节，不崩溃，能结束，大纲要么没有要么还能拼回原文。
