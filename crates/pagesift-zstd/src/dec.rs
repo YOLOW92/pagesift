@@ -459,13 +459,12 @@ fn block(b: &[u8], st: &mut State, out: &mut Vec<u8>, start: usize, max_out: usi
             return Err(Error::Corrupt("offset beyond history"));
         }
         let from = out.len() - off;
-        if off >= mlen {
-            out.extend_from_within(from..from + mlen);
-        } else {
-            for j in 0..mlen {
-                let c = out[from + j];
-                out.push(c);
-            }
+        // 重叠时已写出的部分以 off 为周期,分段复制
+        let mut left = mlen;
+        while left > 0 {
+            let n = left.min(out.len() - from);
+            out.extend_from_within(from..from + n);
+            left -= n;
         }
     }
     if r.remaining() != 0 {

@@ -7,7 +7,7 @@ use crate::{Error, Result};
 pub(crate) struct HuffTable {
     pub max_bits: u32,
     /// 下标是 max_bits 位前缀，值是（符号，码长）。
-    pub entries: Vec<(u8, u8)>,
+    pub entries: Vec<u16>,
 }
 
 /// 解析树描述，返回（表，消耗字节）。
@@ -78,7 +78,7 @@ pub(crate) fn read_tree(data: &[u8]) -> Result<(HuffTable, usize)> {
         return Err(Error::Corrupt("huffman weights do not complete"));
     }
     weights.push((rest.trailing_zeros() + 1) as u8);
-    let mut entries = vec![(0u8, 0u8); 1 << max_bits];
+    let mut entries = vec![0u16; 1 << max_bits];
     let mut pos = 0usize;
     for w in 1..=max_bits as u8 {
         for (sym, &sw) in weights.iter().enumerate() {
@@ -86,7 +86,7 @@ pub(crate) fn read_tree(data: &[u8]) -> Result<(HuffTable, usize)> {
                 let len = 1usize << (w - 1);
                 let nb = (max_bits as u8) + 1 - w;
                 for e in &mut entries[pos..pos + len] {
-                    *e = (sym as u8, nb);
+                    *e = (sym as u16) << 8 | nb as u16;
                 }
                 pos += len;
             }
@@ -98,9 +98,9 @@ pub(crate) fn read_tree(data: &[u8]) -> Result<(HuffTable, usize)> {
 fn decode_stream(t: &HuffTable, data: &[u8], out: &mut [u8]) -> Result<()> {
     let mut r = RevBits::new(data)?;
     for o in out.iter_mut() {
-        let (sym, nb) = t.entries[r.peek(t.max_bits) as usize];
-        r.skip(nb as u32);
-        *o = sym;
+        let e = t.entries[r.peek(t.max_bits) as usize];
+        r.skip((e & 0xff) as u32);
+        *o = (e >> 8) as u8;
     }
     if r.remaining() != 0 {
         return Err(Error::Corrupt("huffman stream length"));

@@ -43,10 +43,15 @@ impl<'a> FwdBits<'a> {
     }
 }
 
+/// 反向位读取器:从末尾哨兵位往前读,64 位缓冲高位对齐,读空后补 0 并记为越界。
 pub(crate) struct RevBits<'a> {
     data: &'a [u8],
-    /// 还剩多少位；读过头会变负。
-    pos: i64,
+    /// 还没装进缓冲的字节数(data[..idx])。
+    idx: usize,
+    buf: u64,
+    have: u32,
+    /// 剩余有效位数;读过头会变负。
+    rem: i64,
 }
 
 impl<'a> RevBits<'a> {
@@ -55,38 +60,63 @@ impl<'a> RevBits<'a> {
         if last == 0 {
             return Err(Error::Corrupt("bitstream without end mark"));
         }
-        let total = data.len() as i64 * 8 - (last.leading_zeros() as i64 + 1);
-        Ok(Self { data, pos: total })
+        let lz = last.leading_zeros();
+        let have = 7 - lz;
+        let idx = data.len() - 1;
+        Ok(Self {
+            data,
+            idx,
+            buf: ((last as u64) << 56) << (lz + 1),
+            have,
+            rem: have as i64 + 8 * idx as i64,
+        })
     }
-    /// 读 `n` 位（n ≤ 32）；越过开头的部分补 0 并让 `overflow()` 为真。
+    #[inline(always)]
+    fn refill(&mut self) {
+        if self.have < 32 {
+            if self.idx >= 4 {
+                let b = &self.data[self.idx - 4..self.idx];
+                let w = u32::from_le_bytes([b[0], b[1], b[2], b[3]]);
+                self.buf |= (w as u64) << (32 - self.have);
+                self.have += 32;
+                self.idx -= 4;
+            } else {
+                while self.have <= 56 && self.idx > 0 {
+                    self.idx -= 1;
+                    self.buf |= (self.data[self.idx] as u64) << (56 - self.have);
+                    self.have += 8;
+                }
+            }
+        }
+    }
+    /// 读 `n` 位(n ≤ 32);越过开头的部分补 0 并让 `overflow()` 为真。
+    #[inline(always)]
     pub fn read(&mut self, n: u32) -> u32 {
         if n == 0 {
             return 0;
         }
         let v = self.peek(n);
-        self.pos -= n as i64;
+        self.skip(n);
         v
     }
-    pub fn peek(&self, n: u32) -> u32 {
+    #[inline(always)]
+    pub fn peek(&mut self, n: u32) -> u32 {
         if n == 0 {
             return 0;
         }
-        let start = self.pos - n as i64;
-        if start >= 0 {
-            get_bits(self.data, start as usize, n) as u32
-        } else if self.pos > 0 {
-            (get_bits(self.data, 0, self.pos as u32) << (-start)) as u32
-        } else {
-            0
-        }
+        self.refill();
+        (self.buf >> (64 - n)) as u32
     }
+    #[inline(always)]
     pub fn skip(&mut self, n: u32) {
-        self.pos -= n as i64;
+        self.buf <<= n;
+        self.have = self.have.saturating_sub(n);
+        self.rem -= n as i64;
     }
     pub fn overflow(&self) -> bool {
-        self.pos < 0
+        self.rem < 0
     }
     pub fn remaining(&self) -> i64 {
-        self.pos
+        self.rem
     }
 }
