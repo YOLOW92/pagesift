@@ -42,9 +42,11 @@ pub enum Lang {
     Scheme,
     CommonLisp,
     Pascal,
+    Gleam,
+    PowerShell,
 }
 
-const COUNT: usize = 32;
+const COUNT: usize = 34;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -82,6 +84,8 @@ impl Lang {
             "scheme" | "scm" => Lang::Scheme,
             "commonlisp" | "lisp" | "cl" => Lang::CommonLisp,
             "pascal" | "pas" | "delphi" => Lang::Pascal,
+            "gleam" => Lang::Gleam,
+            "powershell" | "ps1" | "pwsh" => Lang::PowerShell,
             _ => return None,
         })
     }
@@ -124,6 +128,8 @@ impl Lang {
             Lang::Scheme => include_bytes!("../tables/scheme.pslg.z"),
             Lang::CommonLisp => include_bytes!("../tables/commonlisp.pslg.z"),
             Lang::Pascal => include_bytes!("../tables/pascal.pslg.z"),
+            Lang::Gleam => include_bytes!("../tables/gleam.pslg.z"),
+            Lang::PowerShell => include_bytes!("../tables/powershell.pslg.z"),
         }
     }
 
@@ -400,6 +406,21 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
             "defProc" => Wrap,
             "declProc" => Sym(K::Function, "procedure", No),
             "declUses" => Import,
+            _ => Skip,
+        },
+        Lang::Gleam => match kind {
+            "function" | "external_function" => Sym(K::Function, "fn", No),
+            "type_definition" => Sym(K::Type, "type", No),
+            "type_alias" => Sym(K::Type, "type", No),
+            "import" => Import,
+            _ => Skip,
+        },
+        Lang::PowerShell => match kind {
+            "statement_list" => Wrap,
+            "function_statement" => Sym(K::Function, "function", No),
+            "class_statement" => Sym(K::Class, "class", Ty),
+            "enum_statement" => Sym(K::Enum, "enum", No),
+            "class_method_definition" => Sym(K::Function, "method", No),
             _ => Skip,
         },
     }

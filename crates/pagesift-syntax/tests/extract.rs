@@ -375,6 +375,30 @@ fn pascal_defs() {
 }
 
 #[test]
+fn gleam_defs() {
+    check(
+        "gleam",
+        "import gleam/io\npub type T { A }\npub fn main() { 1 }\nfn helper(x) { x }\n",
+        &[
+            (K::Type, "T"),
+            (K::Function, "main"),
+            (K::Function, "helper"),
+        ],
+        1,
+    );
+}
+
+#[test]
+fn powershell_defs() {
+    check(
+        "powershell",
+        "function Get-Foo {\n  param($a)\n  $a\n}\nclass C {\n  [int] M() { return 1 }\n}\n",
+        &[(K::Function, "Get-Foo"), (K::Class, "C"), (K::Method, "M")],
+        0,
+    );
+}
+
+#[test]
 fn unsupported_or_symbol_free_is_none() {
     assert!(outline("cobol", "x").is_none());
     assert!(outline("python", "x = 1\n").is_none());

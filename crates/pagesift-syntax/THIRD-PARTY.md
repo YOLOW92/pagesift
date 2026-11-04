@@ -46,6 +46,8 @@
 | Scheme | 6cdh/tree-sitter-scheme | 0.25.0 / 45c7246 | Copyright (c) 2022 6cdh |
 | Common Lisp | tree-sitter-grammars/tree-sitter-commonlisp | 0.4.1 / 3232350 | Copyright (c) 2021 Stephan Seitz |
 | Pascal | Isopod/tree-sitter-pascal | 0.10.2 / 042119e | Copyright (c) 2018 Benjamin Gray |
+| Gleam | gleam-lang/tree-sitter-gleam | 1.0.0 / fa6d0d9 | Apache License 2.0；外部扫描器移植自该仓库 src/scanner.c |
+| PowerShell | airbus-cert/tree-sitter-powershell | 0.26.6 / 65ea691 | Copyright (c) 2023 Airbus CERT；外部扫描器移植自该仓库 src/scanner.c（Copyright (c) Microsoft Corporation，MIT） |
 | TOML | tree-sitter-grammars/tree-sitter-toml | 0.7.0 / 64b5683 | Copyright (c) Ika；外部扫描器移植自该仓库 src/scanner.c |
 | PHP、PHP-only | tree-sitter/tree-sitter-php | 0.25.1 / 58d5643 | Copyright (c) 2017 Josh Vera, GitHub；外部扫描器移植自该仓库 src/scanner.c |
 | C# | tree-sitter/tree-sitter-c-sharp | 0.23.5 / 8c0abe0 | Copyright (c) 2014-2023 Max Brunsfeld, Damien Guard, Amaan Qureshi, and contributors；外部扫描器移植自该仓库 src/scanner.c |

@@ -341,6 +341,7 @@ impl Walker<'_> {
                                     | "call_expression"
                                     | "where_expression"
                                     | "typed_expression"
+                                    | "type_name"
                                     | "parametrized_type_expression"
                             )
                     })
@@ -659,6 +660,8 @@ fn is_identifier(kind: &str) -> bool {
             | "class_name"
             | "module_type_name"
             | "moduleName"
+            | "function_name"
+            | "simple_name"
             | "method_identifier"
             | "destructor_name"
             | "operator_name"
