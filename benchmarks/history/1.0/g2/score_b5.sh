@@ -23,8 +23,12 @@ if [ "$det" = none ]; then
   cargo build --profile release-fast -q -p pagesift-pdf --example pdf_dir
   target/release-fast/examples/pdf_dir "$out/pdfs" "$out/cand" | tee "$out/convert.txt"
 else
-  cargo build --profile release-fast -q -p pagesift-ocr --example pdf_ocr_dir
-  target/release-fast/examples/pdf_ocr_dir "$out/pdfs" "$out/cand" "$det" "$rec" "${math[@]}" 2> "$out/times.tsv" | tee "$out/convert.txt"
+  ocr_bin=${PDF_OCR_BIN:-}
+  if [ -z "$ocr_bin" ]; then
+    cargo build --profile release-fast -q -p pagesift-ocr --example pdf_ocr_dir
+    ocr_bin=target/release-fast/examples/pdf_ocr_dir
+  fi
+  "$ocr_bin" "$out/pdfs" "$out/cand" "$det" "$rec" "${math[@]}" 2> "$out/times.tsv" | tee "$out/convert.txt"
 fi
 # 分片并发判分
 k=$(nproc)

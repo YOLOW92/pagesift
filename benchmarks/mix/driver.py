@@ -93,6 +93,12 @@ TOOLS = {
     "pagesift-081-serve": dict(cmd=["python3", "-I", str(ADAPTERS / "pagesift_serve_worker.py"), "html"], per_worker_mb=300, startup_s=60),
     "pagesift-081-serve-file": dict(cmd=["python3", "-I", str(ADAPTERS / "pagesift_serve_worker.py"), "file"], per_worker_mb=600, startup_s=60),
     "pagesift-081-serve-crawl": dict(cmd=["python3", "-I", str(ADAPTERS / "pagesift_serve_worker.py"), "url"], per_worker_mb=400, url=True, startup_s=60),
+    "pagesift-100": dict(cmd=["python3", "-I", str(ADAPTERS / "pagesift_worker.py"), "html"], per_worker_mb=300),
+    "pagesift-100-file": dict(cmd=["python3", "-I", str(ADAPTERS / "pagesift_worker.py"), "file"], per_worker_mb=600),
+    "pagesift-100-crawl": dict(cmd=["python3", "-I", str(ADAPTERS / "pagesift_worker.py"), "url"], per_worker_mb=300, url=True),
+    "pagesift-100-serve": dict(cmd=["python3", "-I", str(ADAPTERS / "pagesift_serve_worker.py"), "html"], per_worker_mb=300, startup_s=60),
+    "pagesift-100-serve-file": dict(cmd=["python3", "-I", str(ADAPTERS / "pagesift_serve_worker.py"), "file"], per_worker_mb=600, startup_s=60),
+    "pagesift-100-serve-crawl": dict(cmd=["python3", "-I", str(ADAPTERS / "pagesift_serve_worker.py"), "url"], per_worker_mb=400, url=True, startup_s=60),
 }
 
 CG_ROOT = Path("/sys/fs/cgroup")
