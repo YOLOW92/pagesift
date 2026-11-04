@@ -25,9 +25,11 @@ pub enum Lang {
     Bash,
     Ruby,
     Kotlin,
+    Css,
+    Html,
 }
 
-const COUNT: usize = 15;
+const COUNT: usize = 17;
 
 impl Lang {
     /// `pagesift-office` 的语言标记转语言，不支持的返回 `None`。
@@ -48,6 +50,8 @@ impl Lang {
             "bash" | "sh" | "shell" | "zsh" => Lang::Bash,
             "ruby" => Lang::Ruby,
             "kotlin" => Lang::Kotlin,
+            "css" => Lang::Css,
+            "html" | "htm" => Lang::Html,
             _ => return None,
         })
     }
@@ -73,6 +77,8 @@ impl Lang {
             Lang::Bash => include_bytes!("../tables/bash.pslg.z"),
             Lang::Ruby => include_bytes!("../tables/ruby.pslg.z"),
             Lang::Kotlin => include_bytes!("../tables/kotlin.pslg.z"),
+            Lang::Css => include_bytes!("../tables/css.pslg.z"),
+            Lang::Html => include_bytes!("../tables/html.pslg.z"),
         }
     }
 
@@ -242,6 +248,8 @@ pub(crate) fn rule(lang: Lang, kind: &str) -> Rule {
             "function_declaration" => Sym(K::Function, "function", No),
             _ => Skip,
         },
+        // 标记语言没有“定义”可提：能解析，大纲为空
+        Lang::Css | Lang::Html => Skip,
         Lang::Kotlin => match kind {
             "function_declaration" => Sym(K::Function, "function", No),
             "class_declaration" => Sym(K::Class, "class", Ty),

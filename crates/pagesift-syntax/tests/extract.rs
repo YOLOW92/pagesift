@@ -225,6 +225,8 @@ fn unsupported_or_symbol_free_is_none() {
     assert!(outline("cobol", "x").is_none());
     assert!(outline("python", "x = 1\n").is_none());
     assert!(outline("python", "").is_none());
+    assert!(outline("html", "<p>x</p>").is_none());
+    assert!(outline("css", "a { color: red }").is_none());
 }
 
 /// 坏输入：随机截断和替换字节，不崩溃，能结束，大纲要么没有要么还能拼回原文。

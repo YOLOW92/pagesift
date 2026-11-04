@@ -9,6 +9,8 @@ use crate::table::EOF_CP;
 pub mod bash;
 pub mod cpp;
 pub mod csharp;
+pub mod css;
+pub mod html;
 pub mod js;
 pub mod kotlin;
 pub mod lua;
@@ -35,6 +37,8 @@ pub fn create(name: &str) -> Option<Box<dyn Scanner>> {
         "bash" => Box::new(bash::Bash::default()),
         "ruby" => Box::new(ruby::Ruby::default()),
         "kotlin" => Box::new(kotlin::Kotlin::default()),
+        "css" => Box::new(css::Css),
+        "html" => Box::new(html::Html::default()),
         "python" => Box::new(python::Python::default()),
         "cpp" => Box::new(cpp::Cpp::default()),
         "lua" => Box::new(lua::Lua::default()),
