@@ -280,11 +280,21 @@ impl McpServer {
         match era {
             Era::Modern(_) => matches!(
                 method,
-                "server/discover" | "tools/list" | "tools/call" | "resources/read"
+                "server/discover"
+                    | "tools/list"
+                    | "tools/call"
+                    | "resources/read"
+                    | "resources/list"
+                    | "resources/templates/list"
             ),
             Era::Legacy(_) => matches!(
                 method,
-                "ping" | "tools/list" | "tools/call" | "resources/read"
+                "ping"
+                    | "tools/list"
+                    | "tools/call"
+                    | "resources/read"
+                    | "resources/list"
+                    | "resources/templates/list"
             ),
         }
     }
@@ -312,6 +322,14 @@ impl McpServer {
                 }
                 None => Err(ErrorObject::method_not_found("resources/read")),
             },
+            // 声明了 resources 能力，客户端就可以列举（规范如此，Glama 的检查也会调）。
+            // 资源都是工具结果里 `resource_link` 指向的临时内容，没有可枚举的固定列表，所以是空的。
+            (_, "resources/list") if self.inner.resources.is_some() => {
+                Ok(json!({ "resources": [] }))
+            }
+            (_, "resources/templates/list") if self.inner.resources.is_some() => {
+                Ok(json!({ "resourceTemplates": [] }))
+            }
             (_, m) => Err(ErrorObject::method_not_found(m)),
         };
         match outcome {
