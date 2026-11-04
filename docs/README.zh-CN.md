@@ -4,8 +4,8 @@
 
 # pagesift 1.1.1
 
-**AI 智能体的网页和文档层：输入任意 URL、PDF 或 Office 文件，输出干净的 Markdown 或 JSON。**  
-一个自托管的 Rust 二进制：CLI、Firecrawl 和 Jina Reader API、MCP 服务器、Python 和 Node.js 包。
+**AI 智能体的网页和文档层：输入任意 URL、文档、邮件、压缩包或源代码文件，输出干净的 Markdown 或 JSON。**  
+一个自托管的 Rust 二进制：CLI、Firecrawl 和 Jina Reader API、MCP 服务器，以及 Python、Node.js、Go、Java、C#、Ruby、PHP 等语言的包。
 
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](../LICENSE)
 [![Commercial license](https://img.shields.io/badge/commercial-license%20available-green.svg)](COMMERCIAL.md)

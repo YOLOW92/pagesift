@@ -4,8 +4,8 @@
 
 # pagesift 1.1.1
 
-**AI エージェントのための Web・文書レイヤー：URL、PDF、Office ファイルを入力すると、クリーンな Markdown または JSON を出力します。**  
-セルフホストできる単一の Rust バイナリ：CLI、Firecrawl・Jina Reader API、MCP サーバー、Python・Node.js パッケージ。
+**AI エージェントのための Web・文書レイヤー：URL、文書、メール、圧縮ファイル、ソースコードを入力すると、クリーンな Markdown または JSON を出力します。**  
+セルフホストできる単一の Rust バイナリ：CLI、Firecrawl・Jina Reader API、MCP サーバー、Python・Node.js・Go・Java・C#・Ruby・PHP などのパッケージ。
 
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](../LICENSE)
 [![Commercial license](https://img.shields.io/badge/commercial-license%20available-green.svg)](COMMERCIAL.md)

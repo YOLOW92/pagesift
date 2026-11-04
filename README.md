@@ -4,8 +4,8 @@
 
 # pagesift 1.1.1
 
-**The web and document layer for AI agents: any URL, PDF or Office file in, clean Markdown or JSON out.**  
-One self-hosted Rust binary with a CLI, Firecrawl and Jina Reader APIs, an MCP server, and Python and Node.js packages.
+**The web and document layer for AI agents: any URL, document, email, archive or source file in, clean Markdown or JSON out.**  
+One self-hosted Rust binary with a CLI, Firecrawl and Jina Reader APIs, an MCP server, and packages for Python, Node.js, Go, Java, C#, Ruby, PHP and more.
 
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 [![Commercial license](https://img.shields.io/badge/commercial-license%20available-green.svg)](docs/COMMERCIAL.md)
