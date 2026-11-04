@@ -180,6 +180,16 @@ fn php_and_lua() {
 }
 
 #[test]
+fn bash_functions() {
+    check(
+        "bash",
+        "x=1\nf() { echo hi; }\nfunction g { cat <<EOF\nbody\nEOF\n}\n",
+        &[(K::Function, "f"), (K::Function, "g")],
+        0,
+    );
+}
+
+#[test]
 fn unsupported_or_symbol_free_is_none() {
     assert!(outline("cobol", "x").is_none());
     assert!(outline("python", "x = 1\n").is_none());

@@ -14,11 +14,11 @@ fn union(a: &Set, b: &Set) -> Set {
     v.sort_unstable();
     let mut out: Set = Vec::new();
     for (lo, hi) in v {
-        if let Some(l) = out.last_mut() {
-            if lo <= l.1.saturating_add(1) {
-                l.1 = l.1.max(hi);
-                continue;
-            }
+        if let Some(l) = out.last_mut()
+            && lo <= l.1.saturating_add(1)
+        {
+            l.1 = l.1.max(hi);
+            continue;
         }
         out.push((lo, hi));
     }
@@ -155,10 +155,10 @@ impl P<'_> {
                     let mut s: Set = Vec::new();
                     for (_, r) in v.list() {
                         let l = r.list();
-                        if l.len() == 2 {
-                            if let (Some(a), Some(b)) = (l[0].1.int(), l[1].1.int()) {
-                                s.push((a as u32, b as u32));
-                            }
+                        if l.len() == 2
+                            && let (Some(a), Some(b)) = (l[0].1.int(), l[1].1.int())
+                        {
+                            s.push((a as u32, b as u32));
                         }
                     }
                     s.sort_unstable();

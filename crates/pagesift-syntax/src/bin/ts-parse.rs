@@ -28,22 +28,23 @@ fn main() {
     if a.iter().any(|x| x == "-e") {
         let mut shown = 0;
         tree.visit(&lang, |ev| {
-            if let pagesift_syntax::api::Ev::Open(n) = ev {
-                if (n.error || n.missing) && shown < 8 {
-                    shown += 1;
-                    let line = src[..n.start.min(src.len())]
-                        .iter()
-                        .filter(|b| **b == b'\n')
-                        .count()
-                        + 1;
-                    let end = (n.end.min(src.len())).min(n.start + 60);
-                    let text =
-                        String::from_utf8_lossy(&src[n.start.min(end)..end]).replace('\n', "\\n");
-                    eprintln!(
-                        "错误节点 {} 第 {} 行 [{}..{}]: {}",
-                        n.kind, line, n.start, n.end, text
-                    );
-                }
+            if let pagesift_syntax::api::Ev::Open(n) = ev
+                && (n.error || n.missing)
+                && shown < 8
+            {
+                shown += 1;
+                let line = src[..n.start.min(src.len())]
+                    .iter()
+                    .filter(|b| **b == b'\n')
+                    .count()
+                    + 1;
+                let end = (n.end.min(src.len())).min(n.start + 60);
+                let text =
+                    String::from_utf8_lossy(&src[n.start.min(end)..end]).replace('\n', "\\n");
+                eprintln!(
+                    "错误节点 {} 第 {} 行 [{}..{}]: {}",
+                    n.kind, line, n.start, n.end, text
+                );
             }
         });
     }

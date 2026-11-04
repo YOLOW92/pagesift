@@ -6,6 +6,7 @@
 use crate::lexer::Lexer;
 use crate::table::EOF_CP;
 
+pub mod bash;
 pub mod cpp;
 pub mod csharp;
 pub mod js;
@@ -29,6 +30,7 @@ pub trait Scanner {
 /// 按语法名创建扫描器，没有移植的语法返回 `None`。
 pub fn create(name: &str) -> Option<Box<dyn Scanner>> {
     Some(match name {
+        "bash" => Box::new(bash::Bash::default()),
         "python" => Box::new(python::Python::default()),
         "cpp" => Box::new(cpp::Cpp::default()),
         "lua" => Box::new(lua::Lua::default()),
