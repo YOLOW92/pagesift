@@ -7,27 +7,106 @@ use crate::{Error, Result};
 const MAX_BLOCK: usize = 128 * 1024;
 
 const LL_BASE: [(u32, u32); 36] = [
-    (0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0), (6, 0), (7, 0), (8, 0), (9, 0), (10, 0), (11, 0),
-    (12, 0), (13, 0), (14, 0), (15, 0), (16, 1), (18, 1), (20, 1), (22, 1), (24, 2), (28, 2), (32, 3),
-    (40, 3), (48, 4), (64, 6), (128, 7), (256, 8), (512, 9), (1024, 10), (2048, 11), (4096, 12),
-    (8192, 13), (16384, 14), (32768, 15), (65536, 16),
+    (0, 0),
+    (1, 0),
+    (2, 0),
+    (3, 0),
+    (4, 0),
+    (5, 0),
+    (6, 0),
+    (7, 0),
+    (8, 0),
+    (9, 0),
+    (10, 0),
+    (11, 0),
+    (12, 0),
+    (13, 0),
+    (14, 0),
+    (15, 0),
+    (16, 1),
+    (18, 1),
+    (20, 1),
+    (22, 1),
+    (24, 2),
+    (28, 2),
+    (32, 3),
+    (40, 3),
+    (48, 4),
+    (64, 6),
+    (128, 7),
+    (256, 8),
+    (512, 9),
+    (1024, 10),
+    (2048, 11),
+    (4096, 12),
+    (8192, 13),
+    (16384, 14),
+    (32768, 15),
+    (65536, 16),
 ];
 const ML_BASE: [(u32, u32); 53] = [
-    (3, 0), (4, 0), (5, 0), (6, 0), (7, 0), (8, 0), (9, 0), (10, 0), (11, 0), (12, 0), (13, 0), (14, 0),
-    (15, 0), (16, 0), (17, 0), (18, 0), (19, 0), (20, 0), (21, 0), (22, 0), (23, 0), (24, 0), (25, 0),
-    (26, 0), (27, 0), (28, 0), (29, 0), (30, 0), (31, 0), (32, 0), (33, 0), (34, 0), (35, 1), (37, 1),
-    (39, 1), (41, 1), (43, 2), (47, 2), (51, 3), (59, 3), (67, 4), (83, 4), (99, 5), (131, 7),
-    (259, 8), (515, 9), (1027, 10), (2051, 11), (4099, 12), (8195, 13), (16387, 14), (32771, 15),
+    (3, 0),
+    (4, 0),
+    (5, 0),
+    (6, 0),
+    (7, 0),
+    (8, 0),
+    (9, 0),
+    (10, 0),
+    (11, 0),
+    (12, 0),
+    (13, 0),
+    (14, 0),
+    (15, 0),
+    (16, 0),
+    (17, 0),
+    (18, 0),
+    (19, 0),
+    (20, 0),
+    (21, 0),
+    (22, 0),
+    (23, 0),
+    (24, 0),
+    (25, 0),
+    (26, 0),
+    (27, 0),
+    (28, 0),
+    (29, 0),
+    (30, 0),
+    (31, 0),
+    (32, 0),
+    (33, 0),
+    (34, 0),
+    (35, 1),
+    (37, 1),
+    (39, 1),
+    (41, 1),
+    (43, 2),
+    (47, 2),
+    (51, 3),
+    (59, 3),
+    (67, 4),
+    (83, 4),
+    (99, 5),
+    (131, 7),
+    (259, 8),
+    (515, 9),
+    (1027, 10),
+    (2051, 11),
+    (4099, 12),
+    (8195, 13),
+    (16387, 14),
+    (32771, 15),
     (65539, 16),
 ];
 
 pub(crate) const LL_DEFAULT: [i16; 36] = [
-    4, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 1, 1, 1, 1, 1, -1,
-    -1, -1, -1,
+    4, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 1, 1, 1, 1, 1,
+    -1, -1, -1, -1,
 ];
 pub(crate) const ML_DEFAULT: [i16; 53] = [
-    1, 4, 3, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1, -1, -1,
+    1, 4, 3, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1, -1, -1,
 ];
 pub(crate) const OF_DEFAULT: [i16; 29] = [
     1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1,
@@ -44,26 +123,39 @@ struct State {
 /// 解压 `data`（可含多帧、跳过帧），输出不超过 `max_out` 字节。
 pub fn decompress(data: &[u8], max_out: usize) -> Result<Vec<u8>> {
     let mut out = Vec::new();
+    decompress_into(data, &mut out, max_out)?;
+    Ok(out)
+}
+
+/// 同 [`decompress`]，但写入调用方的缓冲；出错时 `out` 里留着已解好的完整块（超限时按块截断）。
+pub fn decompress_into(data: &[u8], out: &mut Vec<u8>, max_out: usize) -> Result<()> {
     let mut pos = 0usize;
     if data.is_empty() {
         return Err(Error::Corrupt("empty input"));
     }
     while pos < data.len() {
-        let magic = data.get(pos..pos + 4).ok_or(Error::Corrupt("truncated magic"))?;
+        let magic = data
+            .get(pos..pos + 4)
+            .ok_or(Error::Corrupt("truncated magic"))?;
         let m = u32::from_le_bytes([magic[0], magic[1], magic[2], magic[3]]);
         pos += 4;
         if (0x184D2A50..=0x184D2A5F).contains(&m) {
-            let sz = data.get(pos..pos + 4).ok_or(Error::Corrupt("truncated skip frame"))?;
+            let sz = data
+                .get(pos..pos + 4)
+                .ok_or(Error::Corrupt("truncated skip frame"))?;
             let n = u32::from_le_bytes([sz[0], sz[1], sz[2], sz[3]]) as usize;
-            pos = pos.checked_add(4 + n).filter(|&p| p <= data.len()).ok_or(Error::Corrupt("skip frame size"))?;
+            pos = pos
+                .checked_add(4 + n)
+                .filter(|&p| p <= data.len())
+                .ok_or(Error::Corrupt("skip frame size"))?;
             continue;
         }
         if m != 0xFD2FB528 {
             return Err(Error::Corrupt("bad magic"));
         }
-        pos += frame(&data[pos..], &mut out, max_out)?;
+        pos += frame(&data[pos..], out, max_out)?;
     }
-    Ok(out)
+    Ok(())
 }
 
 /// 解一帧（不含魔数），返回消耗的字节数。
@@ -82,7 +174,9 @@ fn frame(d: &[u8], out: &mut Vec<u8>, max_out: usize) -> Result<usize> {
         _ => 8,
     };
     let mut p = 1 + usize::from(!single);
-    let hdr = d.get(p..p + did + fcs).ok_or(Error::Corrupt("truncated frame header"))?;
+    let hdr = d
+        .get(p..p + did + fcs)
+        .ok_or(Error::Corrupt("truncated frame header"))?;
     if hdr[..did].iter().any(|&b| b != 0) {
         return Err(Error::Unsupported("dictionary"));
     }
@@ -100,9 +194,17 @@ fn frame(d: &[u8], out: &mut Vec<u8>, max_out: usize) -> Result<usize> {
     }
     p += did + fcs;
     let start = out.len();
-    let mut st = State { hist: [1, 4, 8], huff: None, ll: None, of: None, ml: None };
+    let mut st = State {
+        hist: [1, 4, 8],
+        huff: None,
+        ll: None,
+        of: None,
+        ml: None,
+    };
     loop {
-        let h = d.get(p..p + 3).ok_or(Error::Corrupt("truncated block header"))?;
+        let h = d
+            .get(p..p + 3)
+            .ok_or(Error::Corrupt("truncated block header"))?;
         let v = h[0] as usize | (h[1] as usize) << 8 | (h[2] as usize) << 16;
         p += 3;
         let last = v & 1 != 0;
@@ -112,7 +214,9 @@ fn frame(d: &[u8], out: &mut Vec<u8>, max_out: usize) -> Result<usize> {
                 if size > MAX_BLOCK {
                     return Err(Error::Corrupt("raw block too large"));
                 }
-                let b = d.get(p..p + size).ok_or(Error::Corrupt("truncated raw block"))?;
+                let b = d
+                    .get(p..p + size)
+                    .ok_or(Error::Corrupt("truncated raw block"))?;
                 push(out, b, start, max_out)?;
                 p += size;
             }
@@ -131,7 +235,9 @@ fn frame(d: &[u8], out: &mut Vec<u8>, max_out: usize) -> Result<usize> {
                 if size > MAX_BLOCK {
                     return Err(Error::Corrupt("block too large"));
                 }
-                let b = d.get(p..p + size).ok_or(Error::Corrupt("truncated block"))?;
+                let b = d
+                    .get(p..p + size)
+                    .ok_or(Error::Corrupt("truncated block"))?;
                 block(b, &mut st, out, start, max_out)?;
                 p += size;
             }
@@ -142,7 +248,8 @@ fn frame(d: &[u8], out: &mut Vec<u8>, max_out: usize) -> Result<usize> {
         }
     }
     if checksum {
-        d.get(p..p + 4).ok_or(Error::Corrupt("truncated checksum"))?;
+        d.get(p..p + 4)
+            .ok_or(Error::Corrupt("truncated checksum"))?;
         p += 4;
     }
     Ok(p)
@@ -169,14 +276,19 @@ fn literals(b: &[u8], st: &mut State) -> Result<(Vec<u8>, usize)> {
             }
             _ => {
                 let x = b.get(1..3).ok_or(Error::Corrupt("literals header"))?;
-                ((b0 >> 4) as usize | (x[0] as usize) << 4 | (x[1] as usize) << 12, 3)
+                (
+                    (b0 >> 4) as usize | (x[0] as usize) << 4 | (x[1] as usize) << 12,
+                    3,
+                )
             }
         };
         if n > MAX_BLOCK {
             return Err(Error::Corrupt("literals too large"));
         }
         if ty == 0 {
-            let s = b.get(hl..hl + n).ok_or(Error::Corrupt("raw literals truncated"))?;
+            let s = b
+                .get(hl..hl + n)
+                .ok_or(Error::Corrupt("raw literals truncated"))?;
             return Ok((s.to_vec(), hl + n));
         }
         b.get(hl).ok_or(Error::Corrupt("rle literal truncated"))?;
@@ -198,7 +310,9 @@ fn literals(b: &[u8], st: &mut State) -> Result<(Vec<u8>, usize)> {
     if regen > MAX_BLOCK {
         return Err(Error::Corrupt("literals too large"));
     }
-    let body = b.get(hl..hl + comp).ok_or(Error::Corrupt("literals truncated"))?;
+    let body = b
+        .get(hl..hl + comp)
+        .ok_or(Error::Corrupt("literals truncated"))?;
     let streams = if ty == 2 {
         let (t, used) = huff::read_tree(body)?;
         st.huff = Some(t);
@@ -206,20 +320,24 @@ fn literals(b: &[u8], st: &mut State) -> Result<(Vec<u8>, usize)> {
     } else {
         body
     };
-    let t = st.huff.as_ref().ok_or(Error::Corrupt("missing huffman table"))?;
+    let t = st
+        .huff
+        .as_ref()
+        .ok_or(Error::Corrupt("missing huffman table"))?;
     Ok((huff::decode(t, streams, four, regen)?, hl + comp))
 }
+
+/// 某类序列码的表规格：（预定义分布，预定义精度，最大符号，精度上限）。
+type Spec<'a> = (&'a [i16], u32, usize, u32);
 
 fn seq_table(
     mode: u8,
     data: &[u8],
     pos: &mut usize,
     prev: &Option<FseTable>,
-    default: &[i16],
-    default_al: u32,
-    max_sym: usize,
-    max_al: u32,
+    spec: Spec,
 ) -> Result<FseTable> {
+    let (default, default_al, max_sym, max_al) = spec;
     Ok(match mode {
         0 => fse::build(default, default_al)?,
         1 => {
@@ -235,7 +353,9 @@ fn seq_table(
             *pos += used;
             t
         }
-        _ => prev.clone().ok_or(Error::Corrupt("repeat mode without table"))?,
+        _ => prev
+            .clone()
+            .ok_or(Error::Corrupt("repeat mode without table"))?,
     })
 }
 
@@ -267,11 +387,15 @@ fn block(b: &[u8], st: &mut State, out: &mut Vec<u8>, start: usize, max_out: usi
     if modes & 3 != 0 {
         return Err(Error::Corrupt("reserved modes bits"));
     }
-    let ll = seq_table(modes >> 6, b, &mut p, &st.ll, &LL_DEFAULT, 6, 35, 9)?;
-    let of = seq_table((modes >> 4) & 3, b, &mut p, &st.of, &OF_DEFAULT, 5, 31, 8)?;
-    let ml = seq_table((modes >> 2) & 3, b, &mut p, &st.ml, &ML_DEFAULT, 6, 52, 9)?;
+    let ll = seq_table(modes >> 6, b, &mut p, &st.ll, (&LL_DEFAULT, 6, 35, 9))?;
+    let of = seq_table((modes >> 4) & 3, b, &mut p, &st.of, (&OF_DEFAULT, 5, 31, 8))?;
+    let ml = seq_table((modes >> 2) & 3, b, &mut p, &st.ml, (&ML_DEFAULT, 6, 52, 9))?;
     let mut r = RevBits::new(b.get(p..).unwrap_or(&[]))?;
-    let (mut sl, mut so, mut sm) = (r.read(ll.al) as usize, r.read(of.al) as usize, r.read(ml.al) as usize);
+    let (mut sl, mut so, mut sm) = (
+        r.read(ll.al) as usize,
+        r.read(of.al) as usize,
+        r.read(ml.al) as usize,
+    );
     let mut lp = 0usize;
     for i in 0..nseq {
         let (cl, co, cm) = (ll.cells[sl], of.cells[so], ml.cells[sm]);
@@ -309,13 +433,18 @@ fn block(b: &[u8], st: &mut State, out: &mut Vec<u8>, start: usize, max_out: usi
                     h[2]
                 }
                 _ => {
-                    let o = h[0].checked_sub(1).filter(|&o| o > 0).ok_or(Error::Corrupt("zero offset"))?;
+                    let o = h[0]
+                        .checked_sub(1)
+                        .filter(|&o| o > 0)
+                        .ok_or(Error::Corrupt("zero offset"))?;
                     st.hist = [o, h[0], h[1]];
                     o
                 }
             }
         };
-        let lit = lits.get(lp..lp + llen).ok_or(Error::Corrupt("literal run overrun"))?;
+        let lit = lits
+            .get(lp..lp + llen)
+            .ok_or(Error::Corrupt("literal run overrun"))?;
         lp += llen;
         if out.len() + llen + mlen > max_out {
             return Err(Error::TooLarge);

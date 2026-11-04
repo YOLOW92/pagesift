@@ -14,18 +14,21 @@ pub(crate) struct HuffTable {
 pub(crate) fn read_tree(data: &[u8]) -> Result<(HuffTable, usize)> {
     let hb = *data.first().ok_or(Error::Corrupt("empty huffman header"))? as usize;
     let mut weights: Vec<u8> = Vec::new();
-    let used;
-    if hb >= 128 {
+    let used = if hb >= 128 {
         let n = hb - 127;
         let bytes = n.div_ceil(2);
-        let body = data.get(1..1 + bytes).ok_or(Error::Corrupt("huffman weights truncated"))?;
+        let body = data
+            .get(1..1 + bytes)
+            .ok_or(Error::Corrupt("huffman weights truncated"))?;
         for i in 0..n {
             let b = body[i / 2];
             weights.push(if i % 2 == 0 { b >> 4 } else { b & 15 });
         }
-        used = 1 + bytes;
+        1 + bytes
     } else {
-        let body = data.get(1..1 + hb).ok_or(Error::Corrupt("huffman fse truncated"))?;
+        let body = data
+            .get(1..1 + hb)
+            .ok_or(Error::Corrupt("huffman fse truncated"))?;
         let (t, off) = fse::read_table(body, 255, 6)?;
         let mut r = RevBits::new(body.get(off..).ok_or(Error::Corrupt("huffman fse"))?)?;
         let mut s1 = r.read(t.al) as usize;
@@ -49,8 +52,8 @@ pub(crate) fn read_tree(data: &[u8]) -> Result<(HuffTable, usize)> {
                 break;
             }
         }
-        used = 1 + hb;
-    }
+        1 + hb
+    };
     if weights.len() > 255 {
         return Err(Error::Corrupt("too many huffman weights"));
     }

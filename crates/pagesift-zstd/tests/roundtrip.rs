@@ -2,7 +2,9 @@
 use pagesift_zstd::{compress, decompress};
 
 fn lcg(s: &mut u64) -> u64 {
-    *s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    *s = s
+        .wrapping_mul(6364136223846793005)
+        .wrapping_add(1442695040888963407);
     *s >> 33
 }
 
@@ -12,7 +14,7 @@ fn sample(n: usize, seed: u64) -> Vec<u8> {
     let mut v = Vec::new();
     while v.len() < n {
         let r = lcg(&mut s);
-        if r % 5 == 0 {
+        if r.is_multiple_of(5) {
             v.push((r >> 8) as u8);
         } else {
             v.extend_from_slice(words[(r >> 4) as usize % 50].as_bytes());
@@ -24,11 +26,18 @@ fn sample(n: usize, seed: u64) -> Vec<u8> {
 
 #[test]
 fn roundtrip_sizes() {
-    for (i, n) in [0usize, 1, 3, 4, 100, 5000, 131072, 131073, 400_000].into_iter().enumerate() {
+    for (i, n) in [0usize, 1, 3, 4, 100, 5000, 131072, 131073, 400_000]
+        .into_iter()
+        .enumerate()
+    {
         let d = sample(n, i as u64 + 1);
         for level in [0, 3] {
             let z = compress(&d, level);
-            assert_eq!(decompress(&z, usize::MAX).unwrap(), d, "n={n} level={level}");
+            assert_eq!(
+                decompress(&z, usize::MAX).unwrap(),
+                d,
+                "n={n} level={level}"
+            );
         }
     }
 }
@@ -52,7 +61,7 @@ fn mutation_never_panics() {
             let i = lcg(&mut s) as usize % m.len();
             m[i] = lcg(&mut s) as u8;
         }
-        if lcg(&mut s) % 4 == 0 {
+        if lcg(&mut s).is_multiple_of(4) {
             m.truncate(lcg(&mut s) as usize % m.len());
         }
         let _ = decompress(&m, 1 << 20);
@@ -61,7 +70,9 @@ fn mutation_never_panics() {
 
 #[test]
 fn real_samples() {
-    let Ok(dir) = std::env::var("PAGESIFT_ZSTD_SAMPLES") else { return };
+    let Ok(dir) = std::env::var("PAGESIFT_ZSTD_SAMPLES") else {
+        return;
+    };
     let mut n = 0;
     let mut s = 1u64;
     for e in std::fs::read_dir(dir).unwrap() {
@@ -86,7 +97,12 @@ fn real_samples() {
 /// 把本编码器的输出写到 PAGESIFT_ZSTD_DUMP 目录，供官方 `zstd -d` 验证。
 #[test]
 fn dump_for_official_decoder() {
-    let (Ok(src), Ok(dst)) = (std::env::var("PAGESIFT_ZSTD_SAMPLES"), std::env::var("PAGESIFT_ZSTD_DUMP")) else { return };
+    let (Ok(src), Ok(dst)) = (
+        std::env::var("PAGESIFT_ZSTD_SAMPLES"),
+        std::env::var("PAGESIFT_ZSTD_DUMP"),
+    ) else {
+        return;
+    };
     for name in ["a.txt", "b.txt", "e.html", "d.bin", "g.bin", "f.bin"] {
         let d = std::fs::read(format!("{src}/{name}")).unwrap();
         std::fs::write(format!("{dst}/{name}.zst"), compress(&d, 3)).unwrap();

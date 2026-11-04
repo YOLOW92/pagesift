@@ -41,8 +41,13 @@ fn ll_code(v: u32) -> (u32, u32, u32) {
         return (v, 0, 0);
     }
     let (bases, bits): (&[u32], &[u32]) = (
-        &[16, 18, 20, 22, 24, 28, 32, 40, 48, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536],
-        &[1, 1, 1, 1, 2, 2, 3, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+        &[
+            16, 18, 20, 22, 24, 28, 32, 40, 48, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384,
+            32768, 65536,
+        ],
+        &[
+            1, 1, 1, 1, 2, 2, 3, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+        ],
     );
     let i = bases.iter().rposition(|&b| b <= v).unwrap_or(0);
     (16 + i as u32, bits[i], v - bases[i])
@@ -52,8 +57,13 @@ fn ml_code(v: u32) -> (u32, u32, u32) {
     if v < 35 {
         return (v - 3, 0, 0);
     }
-    let bases = [35u32, 37, 39, 41, 43, 47, 51, 59, 67, 83, 99, 131, 259, 515, 1027, 2051, 4099, 8195, 16387, 32771, 65539];
-    let bits = [1u32, 1, 1, 1, 2, 2, 3, 3, 4, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+    let bases = [
+        35u32, 37, 39, 41, 43, 47, 51, 59, 67, 83, 99, 131, 259, 515, 1027, 2051, 4099, 8195,
+        16387, 32771, 65539,
+    ];
+    let bits = [
+        1u32, 1, 1, 1, 2, 2, 3, 3, 4, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+    ];
     let i = bases.iter().rposition(|&b| b <= v).unwrap_or(0);
     (32 + i as u32, bits[i], v - bases[i])
 }
@@ -85,7 +95,11 @@ fn encode_seqs(seqs: &[Seq]) -> Vec<u8> {
     let tl = fse::build(&LL_DEFAULT, 6).expect("预定义表合法");
     let to = fse::build(&OF_DEFAULT, 5).expect("预定义表合法");
     let tm = fse::build(&ML_DEFAULT, 6).expect("预定义表合法");
-    let mut w = BitWriter { out: Vec::new(), acc: 0, n: 0 };
+    let mut w = BitWriter {
+        out: Vec::new(),
+        acc: 0,
+        n: 0,
+    };
     let (mut cl, mut co, mut cm) = (0usize, 0usize, 0usize);
     for (k, s) in seqs.iter().enumerate().rev() {
         let (lc, lb, lv) = ll_code(s.ll);
@@ -171,7 +185,11 @@ pub fn compress(data: &[u8], level: i32) -> Vec<u8> {
                 }
                 if l >= MIN_MATCH {
                     lits.extend_from_slice(&data[anchor..i]);
-                    seqs.push(Seq { ll: (i - anchor) as u32, ml: l as u32, off: (i - c) as u32 });
+                    seqs.push(Seq {
+                        ll: (i - anchor) as u32,
+                        ml: l as u32,
+                        off: (i - c) as u32,
+                    });
                     i += l;
                     anchor = i;
                     continue;

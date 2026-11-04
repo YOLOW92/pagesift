@@ -16,7 +16,11 @@ pub(crate) struct FseTable {
 }
 
 /// 读表头，返回（分布，精度位数，消耗字节）。`max_sym` 是允许的最大符号编号，`max_al` 是精度上限。
-pub(crate) fn read_dist(data: &[u8], max_sym: usize, max_al: u32) -> Result<(Vec<i16>, u32, usize)> {
+pub(crate) fn read_dist(
+    data: &[u8],
+    max_sym: usize,
+    max_al: u32,
+) -> Result<(Vec<i16>, u32, usize)> {
     let mut r = FwdBits::new(data);
     let al = r.read(4) + 5;
     if al > max_al {
@@ -119,5 +123,12 @@ pub(crate) fn read_table(data: &[u8], max_sym: usize, max_al: u32) -> Result<(Fs
 
 /// 单符号（RLE）表。
 pub(crate) fn rle_table(sym: u8) -> FseTable {
-    FseTable { al: 0, cells: vec![Cell { sym, nb: 0, base: 0 }] }
+    FseTable {
+        al: 0,
+        cells: vec![Cell {
+            sym,
+            nb: 0,
+            base: 0,
+        }],
+    }
 }

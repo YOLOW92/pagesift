@@ -12,7 +12,7 @@ mod enc;
 mod fse;
 mod huff;
 
-pub use dec::decompress;
+pub use dec::{decompress, decompress_into};
 pub use enc::compress;
 
 /// 解码错误。

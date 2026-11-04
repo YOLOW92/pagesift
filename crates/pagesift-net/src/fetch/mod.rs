@@ -191,14 +191,12 @@ impl Fetcher {
         let client = build(builder)
             .gzip(true)
             .brotli(true)
-            .zstd(true)
             .deflate(true)
             .build()
             .map_err(|e| Error::Config(e.to_string()))?;
         let raw = build(raw_builder)
             .gzip(false)
             .brotli(false)
-            .zstd(false)
             .deflate(false)
             .build()
             .map_err(|e| Error::Config(e.to_string()))?;
