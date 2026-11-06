@@ -120,6 +120,7 @@ struct State {
     ml: Option<SeqTable>,
     /// 序列暂存（ll, ml, off），跨块复用。
     seqs: Vec<(u32, u32, u32)>,
+    lits: Vec<u8>,
 }
 
 /// 序列码展开后的解码格：状态转移（base、nb）加上额外位数和基值，省掉每条序列的查表。
@@ -135,7 +136,7 @@ struct SCell {
 struct SeqTable {
     al: u32,
     /// 定长 512 格（精度上限 9 位），用掩码下标，热循环里没有边界检查。
-    cells: Box<[SCell; 512]>,
+    cells: std::sync::Arc<[SCell; 512]>,
 }
 
 #[derive(Clone, Copy)]
@@ -146,7 +147,7 @@ enum Kind {
 }
 
 fn expand(t: FseTable, kind: Kind) -> SeqTable {
-    let mut cells = Box::new([SCell::default(); 512]);
+    let mut cells = [SCell::default(); 512];
     for (dst, c) in cells.iter_mut().zip(t.cells.iter()) {
         let sym = c.sym as usize;
         let (val, eb) = match kind {
@@ -161,7 +162,10 @@ fn expand(t: FseTable, kind: Kind) -> SeqTable {
             val,
         };
     }
-    SeqTable { al: t.al, cells }
+    SeqTable {
+        al: t.al,
+        cells: std::sync::Arc::new(cells),
+    }
 }
 
 /// 解压 `data`（可含多帧、跳过帧），输出不超过 `max_out` 字节。
@@ -245,6 +249,7 @@ fn frame(d: &[u8], out: &mut Vec<u8>, max_out: usize) -> Result<usize> {
         of: None,
         ml: None,
         seqs: Vec::new(),
+        lits: Vec::new(),
     };
     loop {
         let h = d
@@ -313,7 +318,11 @@ fn push(out: &mut Vec<u8>, b: &[u8], _start: usize, max_out: usize) -> Result<()
     Ok(())
 }
 
-fn literals(b: &[u8], st: &mut State) -> Result<(Vec<u8>, usize)> {
+fn literals<'a>(
+    b: &'a [u8],
+    huff: &mut Option<HuffTable>,
+    scratch: &'a mut Vec<u8>,
+) -> Result<(&'a [u8], usize, usize)> {
     let b0 = b[0];
     let ty = b0 & 3;
     let sf = (b0 >> 2) & 3;
@@ -339,10 +348,18 @@ fn literals(b: &[u8], st: &mut State) -> Result<(Vec<u8>, usize)> {
             let s = b
                 .get(hl..hl + n)
                 .ok_or(Error::Corrupt("raw literals truncated"))?;
-            return Ok((s.to_vec(), hl + n));
+            if let Some(padded) = b.get(hl..hl + n + 16) {
+                return Ok((padded, n, hl + n));
+            }
+            scratch.clear();
+            scratch.extend_from_slice(s);
+            scratch.resize(n + 16, 0);
+            return Ok((scratch, n, hl + n));
         }
         b.get(hl).ok_or(Error::Corrupt("rle literal truncated"))?;
-        return Ok((vec![b[hl]; n], hl + 1));
+        scratch.clear();
+        scratch.resize(n + 16, b[hl]);
+        return Ok((scratch, n, hl + 1));
     }
     let (hl, bits, four) = match sf {
         0 => (3, 10, false),
@@ -365,32 +382,45 @@ fn literals(b: &[u8], st: &mut State) -> Result<(Vec<u8>, usize)> {
         .ok_or(Error::Corrupt("literals truncated"))?;
     let streams = if ty == 2 {
         let (t, used) = huff::read_tree(body)?;
-        st.huff = Some(t);
+        *huff = Some(t);
         &body[used..]
     } else {
         body
     };
-    let t = st
-        .huff
-        .as_ref()
+    let t = huff
+        .as_mut()
         .ok_or(Error::Corrupt("missing huffman table"))?;
-    Ok((huff::decode(t, streams, four, regen)?, hl + comp))
+    scratch.resize(regen + 16, 0);
+    huff::decode_into(t, streams, four, &mut scratch[..regen])?;
+    Ok((scratch, regen, hl + comp))
 }
-
-/// 某类序列码的表规格：（预定义分布，预定义精度，最大符号，精度上限）。
-type Spec<'a> = (&'a [i16], u32, usize, u32);
 
 fn seq_table(
     mode: u8,
     data: &[u8],
     pos: &mut usize,
     prev: &Option<SeqTable>,
-    spec: Spec,
+    spec: (usize, u32),
     kind: Kind,
 ) -> Result<SeqTable> {
-    let (default, default_al, max_sym, max_al) = spec;
+    let (max_sym, max_al) = spec;
     Ok(match mode {
-        0 => expand(fse::build(default, default_al)?, kind),
+        0 => {
+            static DEFAULTS: std::sync::OnceLock<[SeqTable; 3]> = std::sync::OnceLock::new();
+            let tables = DEFAULTS.get_or_init(|| {
+                [
+                    expand(fse::build(&LL_DEFAULT, 6).expect("预定义表合法"), Kind::Ll),
+                    expand(fse::build(&OF_DEFAULT, 5).expect("预定义表合法"), Kind::Of),
+                    expand(fse::build(&ML_DEFAULT, 6).expect("预定义表合法"), Kind::Ml),
+                ]
+            });
+            tables[match kind {
+                Kind::Ll => 0,
+                Kind::Of => 1,
+                Kind::Ml => 2,
+            }]
+            .clone()
+        }
         1 => {
             let s = *data.get(*pos).ok_or(Error::Corrupt("rle symbol"))?;
             if s as usize > max_sym {
@@ -414,8 +444,7 @@ fn block(b: &[u8], st: &mut State, out: &mut Vec<u8>, start: usize, max_out: usi
     if b.is_empty() {
         return Err(Error::Corrupt("empty block"));
     }
-    let (mut lits, mut p) = literals(b, st)?;
-    let lit_len = lits.len();
+    let (lits, lit_len, mut p) = literals(b, &mut st.huff, &mut st.lits)?;
     let n0 = *b.get(p).ok_or(Error::Corrupt("missing sequences header"))? as usize;
     p += 1;
     let nseq = if n0 == 0 {
@@ -432,44 +461,26 @@ fn block(b: &[u8], st: &mut State, out: &mut Vec<u8>, start: usize, max_out: usi
         x[0] as usize + ((x[1] as usize) << 8) + 0x7F00
     };
     if nseq == 0 {
-        return push(out, &lits, start, max_out);
+        return push(out, &lits[..lit_len], start, max_out);
+    }
+    if nseq > MAX_BLOCK / 3 {
+        return Err(Error::Corrupt("too many sequences"));
     }
     let modes = *b.get(p).ok_or(Error::Corrupt("missing modes"))?;
     p += 1;
     if modes & 3 != 0 {
         return Err(Error::Corrupt("reserved modes bits"));
     }
-    let ll = seq_table(
-        modes >> 6,
-        b,
-        &mut p,
-        &st.ll,
-        (&LL_DEFAULT, 6, 35, 9),
-        Kind::Ll,
-    )?;
-    let of = seq_table(
-        (modes >> 4) & 3,
-        b,
-        &mut p,
-        &st.of,
-        (&OF_DEFAULT, 5, 31, 8),
-        Kind::Of,
-    )?;
-    let ml = seq_table(
-        (modes >> 2) & 3,
-        b,
-        &mut p,
-        &st.ml,
-        (&ML_DEFAULT, 6, 52, 9),
-        Kind::Ml,
-    )?;
+    let ll = seq_table(modes >> 6, b, &mut p, &st.ll, (35, 9), Kind::Ll)?;
+    let of = seq_table((modes >> 4) & 3, b, &mut p, &st.of, (31, 8), Kind::Of)?;
+    let ml = seq_table((modes >> 2) & 3, b, &mut p, &st.ml, (52, 9), Kind::Ml)?;
     let mut r = RevBits::new(b.get(p..).unwrap_or(&[]))?;
     let (mut sl, mut so, mut sm) = (
         r.read(ll.al) as usize,
         r.read(of.al) as usize,
         r.read(ml.al) as usize,
     );
-    // 第一遍：只解序列（位流工作），攒进暂存区并累计总长
+    // 第一遍：只解序列（位流工作），攒进暂存区并累计总长。
     let seqs = &mut st.seqs;
     seqs.clear();
     let mut hist = st.hist;
@@ -552,37 +563,39 @@ fn block(b: &[u8], st: &mut State, out: &mut Vec<u8>, start: usize, max_out: usi
         return Err(Error::Corrupt("literal run overrun"));
     }
     let total = sum_ml + lit_len as u64;
+    if total > MAX_BLOCK as u64 {
+        return Err(Error::Corrupt("regenerated block too large"));
+    }
     if total > (max_out.saturating_sub(out.len())) as u64 {
         return Err(Error::TooLarge);
     }
     st.hist = hist;
-    // 第二遍：复制。输出区先放大（带 32 字节余量），按 16 字节定长块复制，超出部分稍后被覆盖或截掉。
-    lits.resize(lit_len + 16, 0);
+    // 第二遍：输出区带 32 字节余量，支持定长复制后截掉超出部分。
     let base = out.len();
     let end = base + total as usize;
     out.resize(end + 32, 0);
     let (mut pos, mut lp) = (base, 0usize);
     for &(llen, mlen, off) in st.seqs.iter() {
         let (llen, mlen, off) = (llen as usize, mlen as usize, off as usize);
-        let mut left = llen;
-        while left > 0 {
+        if llen <= 16 {
             out[pos..pos + 16].copy_from_slice(&lits[lp..lp + 16]);
-            let n = left.min(16);
-            pos += n;
-            lp += n;
-            left -= n;
+        } else {
+            out[pos..pos + llen].copy_from_slice(&lits[lp..lp + llen]);
         }
+        pos += llen;
+        lp += llen;
         if off > pos - start {
             out.truncate(base);
             return Err(Error::Corrupt("offset beyond history"));
         }
         let from = pos - off;
-        if off >= 16 {
-            let mut done = 0;
-            while done < mlen {
-                out.copy_within(from + done..from + done + 16, pos + done);
-                done += 16;
+        if off >= 16 && mlen <= 32 {
+            out.copy_within(from..from + 16, pos);
+            if mlen > 16 {
+                out.copy_within(from + 16..from + 32, pos + 16);
             }
+        } else if off >= mlen {
+            out.copy_within(from..from + mlen, pos);
         } else {
             // 重叠：已写出的部分以 off 为周期，分段复制
             let mut done = 0;

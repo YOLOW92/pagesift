@@ -79,7 +79,16 @@ fn real_samples() {
         let p = e.unwrap().path();
         if p.extension().is_some_and(|x| x == "zst") {
             let z = std::fs::read(&p).unwrap();
-            let want = std::fs::read(p.with_extension("")).unwrap();
+            let mut raw = p.with_extension("");
+            if !raw.exists() {
+                let name = raw.file_name().unwrap().to_str().unwrap();
+                if let Some((name, level)) = name.rsplit_once(".l")
+                    && level.parse::<u32>().is_ok()
+                {
+                    raw = raw.with_file_name(name);
+                }
+            }
+            let want = std::fs::read(raw).unwrap();
             assert_eq!(decompress(&z, usize::MAX).unwrap(), want, "{p:?}");
             // 对真实样本也做变异
             for _ in 0..300 {

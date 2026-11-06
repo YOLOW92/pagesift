@@ -2,6 +2,10 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## 1.1.3
+
+Pure-Rust zstd compression and decompression updates, cache-aware matching and Huffman tables, and corrected repeated offsets when falling back to raw blocks. [Release notes](docs/releases/1.1.3.md).
+
 ## 1.1.2
 
 The MCP server implements `resources/list` and `resources/templates/list`. Verilog source files are split by module. [Release notes](docs/releases/1.1.2.md).

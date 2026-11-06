@@ -68,8 +68,21 @@ pub(crate) fn normalize(cnt: &[u32], al: u32) -> Option<Vec<i32>> {
         }
     }
     let big = (0..probs.len()).max_by_key(|&i| probs[i])?;
-    probs[big] += (size - sum) as i32;
-    (probs[big] >= 1).then_some(probs)
+    if sum <= size {
+        probs[big] += (size - sum) as i32;
+    } else {
+        let mut excess = sum - size;
+        while excess > 0 {
+            let big = (0..probs.len()).max_by_key(|&i| probs[i])?;
+            let take = excess.min((probs[big] - 1) as i64);
+            if take <= 0 {
+                return None;
+            }
+            probs[big] -= take as i32;
+            excess -= take;
+        }
+    }
+    Some(probs)
 }
 
 /// 写 FSE 分布表头(`probs` 非负;到最后一个出现的符号为止),补齐到整字节。
@@ -179,6 +192,17 @@ pub(crate) fn encode_literals(lits: &[u8]) -> Option<Vec<u8>> {
     if maxlen == 0 {
         return None;
     }
+    // 先用码长得到严格的体积下界。即使不计真实树描述，仍不可能变小时就不写位流。
+    let bits: u64 = freq
+        .iter()
+        .zip(&len)
+        .map(|(&count, &length)| count as u64 * length as u64)
+        .sum();
+    let streams = if n >= 256 { 4 } else { 1 };
+    let lower_bound = (bits + streams).div_ceil(8) + if streams == 4 { 6 } else { 0 } + 1 + 3;
+    if lower_bound >= n as u64 {
+        return None;
+    }
     let lastsym = (0..256).rev().find(|&s| len[s] > 0)?;
     let weight: Vec<u8> = (0..=lastsym)
         .map(|s| if len[s] > 0 { maxlen + 1 - len[s] } else { 0 })
@@ -210,8 +234,8 @@ pub(crate) fn encode_literals(lits: &[u8]) -> Option<Vec<u8>> {
         (None, None) => return None,
     };
     // 自检:解码器读回的表必须与预期一致
-    let (t, used) = huff::read_tree(&desc).ok()?;
-    if used != desc.len() || t.max_bits != maxlen as u32 {
+    let (bits, used) = huff::check_tree(&desc).ok()?;
+    if used != desc.len() || bits != maxlen as u32 {
         return None;
     }
     // 规范码:与解码表一致的分配
@@ -227,8 +251,14 @@ pub(crate) fn encode_literals(lits: &[u8]) -> Option<Vec<u8>> {
         }
     }
     let enc = |part: &[u8]| -> Vec<u8> {
-        let mut w = BitWriter::new();
-        for &b in part.iter().rev() {
+        let mut w = BitWriter::with_capacity(part.len());
+        let mut pairs = part.rchunks_exact(2);
+        for pair in &mut pairs {
+            let (a, b) = (pair[0] as usize, pair[1] as usize);
+            let nb = len[b] as u32;
+            w.put(code[b] | code[a] << nb, nb + len[a] as u32);
+        }
+        if let Some(&b) = pairs.remainder().first() {
             w.put(code[b as usize], len[b as usize] as u32);
         }
         w.finish()
@@ -268,4 +298,19 @@ pub(crate) fn encode_literals(lits: &[u8]) -> Option<Vec<u8>> {
     out.extend_from_slice(&desc);
     out.extend_from_slice(&streams);
     Some(out)
+}
+
+#[cfg(test)]
+mod normalization_tests {
+    use super::normalize;
+
+    #[test]
+    fn rounding_preserves_every_present_symbol() {
+        let counts: Vec<u32> = (1..=256).collect();
+        let p = normalize(&counts, 8).unwrap();
+        assert_eq!(p.iter().sum::<i32>(), 256);
+        assert!(p.iter().all(|&v| v == 1));
+        assert!(normalize(&[1; 257], 8).is_none());
+        assert!(normalize(&[0; 32], 8).is_none());
+    }
 }
