@@ -4,7 +4,7 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## 1.1.3
 
-Pure-Rust zstd compression and decompression updates, cache-aware matching and Huffman tables, and corrected repeated offsets when falling back to raw blocks. [Release notes](docs/releases/1.1.3.md).
+Pure-Rust zstd compression and decompression updates, cache-aware matching and Huffman tables, and corrected repeated offsets when falling back to raw blocks. Development measurements and their comparison baseline are described in the [release notes](docs/releases/1.1.3.md).
 
 ## 1.1.2
 
