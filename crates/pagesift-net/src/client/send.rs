@@ -46,6 +46,7 @@ impl Client {
         stages: StageController,
         user_agent: HeaderValue,
         fingerprint: Option<crate::fingerprint::FingerprintProfile>,
+        proxy: Option<super::proxy::Proxy>,
     ) -> Result<Self> {
         Ok(Self(Arc::new(Inner {
             resolver,
@@ -63,6 +64,7 @@ impl Client {
             hosts: Mutex::new(HashMap::new()),
             stages,
             fingerprint: fingerprint.map(shaped::FingerprintState::new),
+            proxy,
         })))
     }
 

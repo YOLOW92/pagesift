@@ -155,6 +155,7 @@ pub(super) enum Transport {
     Direct(client::Client),
     Proxy {
         direct: client::Client,
+        shaped_proxy: Option<client::Client>,
         decoded: reqwest::Client,
         identity: reqwest::Client,
     },
@@ -178,11 +179,15 @@ impl Transport {
             Transport::Direct(c) => c.get(url, headers).await.map(Resp::Direct),
             Transport::Proxy {
                 direct: direct_client,
+                shaped_proxy,
                 decoded,
                 identity,
             } => {
                 if direct {
                     return direct_client.get(url, headers).await.map(Resp::Direct);
+                }
+                if let Some(client) = shaped_proxy {
+                    return client.get(url, headers).await.map(Resp::Direct);
                 }
                 (if raw { identity } else { decoded })
                     .get(url.clone())
@@ -234,7 +239,6 @@ impl Resp {
     pub(super) fn fingerprint(&self) -> client::FingerprintUse {
         match self {
             Resp::Direct(response) => response.fingerprint,
-            // 走代理时开不了指纹模拟（`new_inner` 拒绝这种配置）
             Resp::Proxy(_) => client::FingerprintUse::Off,
         }
     }

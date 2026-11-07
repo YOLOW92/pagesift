@@ -33,6 +33,11 @@ use crate::options::*;
 
 const DESKTOP: (u32, u32, f64) = (1920, 1080, 1.0);
 const MOBILE: (u32, u32, f64) = (390, 844, 3.0);
+
+fn chrome_major(user_agent: &str) -> Option<u32> {
+    let version = user_agent.split_once("Chrome/")?.1;
+    version.split('.').next()?.parse().ok()
+}
 pub(super) const MAX_CAPTURE_PX: f64 = 16384.0;
 /// 没指定 `languages` 时浏览器发的 Accept-Language：与 pagesift-net 的 HTTP 抓取（`client/send.rs`）一致。
 pub const DEFAULT_ACCEPT_LANGUAGE: &str = "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7";
@@ -56,6 +61,55 @@ const MAX_BLOCKED: usize = 256;
 const MAX_TRACKED_URL: usize = 2048;
 /// [策略] 轮询判断最多跟踪这么多个不同的网址：真在轮询的页面只有几个
 const MAX_TRACKED_GETS: usize = 4096;
+
+/// Installed before any document script. It only removes automation markers
+/// that the browser adds; it does not fabricate hardware or identity.
+const STEALTH_JS: &str = r#"(() => {
+  try {
+    Object.defineProperty(Navigator.prototype, 'webdriver', {
+      get: () => undefined,
+      configurable: true,
+    });
+  } catch (_) {}
+  if (typeof window.chrome === 'undefined') {
+    Object.defineProperty(window, 'chrome', { value: {}, configurable: true });
+  }
+})();"#;
+
+/// Returns 0 for a normal page, 1 for an unresolved non-interactive check and
+/// 2 for an interactive captcha that must be left to a human.
+const CHALLENGE_PROBE: &str = r#"(() => {
+  const text = ((document.body && (document.body.innerText || document.body.textContent)) || '')
+    .toLowerCase();
+  const title = (document.title || '').toLowerCase();
+  const interactive = !!document.querySelector(
+    '.g-recaptcha, .h-captcha, .cf-turnstile, #px-captcha, [id*="captcha" i], ' +
+    '[class*="captcha" i], iframe[src*="captcha" i], iframe[src*="challenge" i]'
+  );
+  const markers = [
+    'just a moment', 'checking your browser', 'checking if the site connection is secure',
+    'verifying you are human', 'please wait while we verify', '正在进行安全验证',
+    '正在验证您的浏览器',
+  ];
+  const matched = markers.some(m => title.includes(m) || (text.includes(m) && text.length < 4000));
+  return matched ? (interactive ? 2 : 1) : 0;
+})()"#;
+
+async fn wait_challenge(session: &Session, wait: Duration) {
+    let deadline = Instant::now() + wait;
+    loop {
+        let state = eval_value(session, CHALLENGE_PROBE)
+            .await
+            .ok()
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        if state != 1 || Instant::now() >= deadline {
+            return;
+        }
+        tokio::time::sleep(CONTENT_POLL.min(deadline.saturating_duration_since(Instant::now())))
+            .await;
+    }
+}
 
 pub(crate) struct PageEnv {
     pub guard: Arc<dyn RequestGuard>,
@@ -98,6 +152,8 @@ struct Net {
 }
 
 struct Shared {
+    network_budget: Option<Arc<pagesift_itna::NetworkBudget>>,
+    cookie_origin: Option<url::Url>,
     intercept: bool,
     main_frame: String,
     page_session: String,
@@ -295,6 +351,41 @@ pub(crate) async fn render_page(
     keep: Option<&mut Option<LivePage>>,
 ) -> Result<RenderedPage> {
     let setup_start = Instant::now();
+    if opts.network_budget.is_some() && !env.intercept {
+        return Err(Error::InvalidOptions(
+            "network budget requires CDP request interception".into(),
+        ));
+    }
+    let cookie_origin = opts
+        .cookie_bridge
+        .as_ref()
+        .map(|bridge| {
+            let u = url::Url::parse(&bridge.origin)
+                .map_err(|_| Error::InvalidOptions("invalid cookie origin".into()))?;
+            let target = url::Url::parse(url)
+                .map_err(|_| Error::InvalidOptions("invalid cookie target".into()))?;
+            if !matches!(u.scheme(), "http" | "https")
+                || u.origin() != target.origin()
+                || u.origin().ascii_serialization() != bridge.origin
+                || !env.intercept
+            {
+                return Err(Error::InvalidOptions(
+                    "cookie bridge requires exact origin and request interception".into(),
+                ));
+            }
+            Ok(u)
+        })
+        .transpose()?;
+    if let Some(expected) = opts
+        .cookie_bridge
+        .as_ref()
+        .and_then(|b| b.expected_chrome_major)
+        && chrome_major(&env.user_agent) != Some(expected)
+    {
+        return Err(Error::InvalidOptions(
+            "cookie identity browser version does not match HTTP fingerprint".into(),
+        ));
+    }
     // 每个页面一个独立的浏览器上下文，cookie 和缓存不会串到别的请求。
     // 指定了出口时上下文走它的代理；建不出来就不渲染，不能悄悄退回直连。
     let proxy = opts
@@ -312,6 +403,11 @@ pub(crate) async fn render_page(
         Some(p) => Some(conn.create_browser_context_via(Some(&p.server)).await?),
         None => conn.create_browser_context().await.ok(),
     };
+    if cookie_origin.is_some() && res.context_id.is_none() {
+        return Err(Error::InvalidOptions(
+            "cookie bridge requires an isolated browser context".into(),
+        ));
+    }
     let proxy_auth = proxy.and_then(|p| p.auth);
     let target = conn
         .create_target("about:blank", res.context_id.as_deref())
@@ -382,12 +478,22 @@ pub(crate) async fn render_page(
         touch,
         languages,
     )?;
+    if opts.stealth {
+        session
+            .call(
+                "Page.addScriptToEvaluateOnNewDocument",
+                json!({ "source": STEALTH_JS }),
+            )
+            .await?;
+    }
     let main_frame = tree
         .pointer("/frameTree/frame/id")
         .and_then(Value::as_str)
         .unwrap_or(&target)
         .to_owned();
     let shared = Arc::new(Shared {
+        network_budget: opts.network_budget.clone(),
+        cookie_origin,
         intercept: env.intercept,
         main_frame,
         page_session: session.id().to_owned(),
@@ -415,6 +521,28 @@ pub(crate) async fn render_page(
         env.guard.clone(),
         opts.block.clone(),
     )));
+
+    if let Some(bridge) = &opts.cookie_bridge {
+        // CookieSession does not store SameSite. Import as Strict so a bridged
+        // cookie is never sent from a cross-site subresource.
+        let cookies: Vec<Value> = bridge
+            .cookies
+            .iter()
+            .map(|c| {
+                let mut v = json!({"name": c.name, "value": c.value, "url": bridge.origin,
+                "path": c.path, "secure": c.secure, "httpOnly": c.http_only, "sameSite": "Strict"});
+                if let Some(expires) = c.expires_at {
+                    v["expires"] = json!(expires);
+                }
+                v
+            })
+            .collect();
+        if !cookies.is_empty() {
+            session
+                .call("Network.setCookies", json!({"cookies": cookies}))
+                .await?;
+        }
+    }
 
     timings.setup = setup_start.elapsed();
 
@@ -572,6 +700,11 @@ pub(crate) async fn render_page(
     }
     timings.wait = wait_start.elapsed();
     check_interception(&shared)?;
+
+    if !opts.challenge_wait.is_zero() {
+        wait_challenge(&session, opts.challenge_wait).await;
+        check_interception(&shared)?;
+    }
 
     let actions_start = Instant::now();
     let mut outputs = ActionOutputs::default();

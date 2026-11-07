@@ -39,11 +39,25 @@ impl Client {
                 }
             }
         };
+        if ips.is_empty() {
+            return Err(Error::Dns("no target addresses".into()));
+        }
         let handshake = self.0.stages.acquire(NetworkStage::Handshake).await;
         let tcp_started = Instant::now();
         let connect_deadline = tcp_started + wait.limit(Phase::Connect, self.0.connect_timeout);
         let stagger = self.0.waits.net.happy_eyeballs_delay();
-        let tcp = match happy_eyeballs(ips, key.port, connect_deadline, stagger).await {
+        let tcp = match &self.0.proxy {
+            Some(proxy) => proxy::connect(proxy, &ips, key.port, connect_deadline)
+                .await
+                .map(|tcp| (tcp, ips[0], Duration::ZERO)),
+            None => happy_eyeballs(ips, key.port, connect_deadline, stagger)
+                .await
+                .map(|(tcp, ip, elapsed)| {
+                    let _ = tcp.set_nodelay(true);
+                    (Box::new(tcp) as proxy::BoxStream, ip, elapsed)
+                }),
+        };
+        let tcp = match tcp {
             Ok((tcp, ip, own)) => {
                 wait.done(Phase::Connect, tcp_started.elapsed());
                 if ip.is_ipv6() {
@@ -75,7 +89,6 @@ impl Client {
                 return Err(error);
             }
         };
-        let _ = tcp.set_nodelay(true);
         if let Some(state) = shaped {
             return self.connect_shaped(key, wait, tcp, handshake, state).await;
         }

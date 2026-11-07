@@ -80,7 +80,7 @@ impl Client {
         &self,
         key: &Key,
         wait: &HostWait,
-        tcp: TcpStream,
+        tcp: super::proxy::BoxStream,
         handshake: StagePermit,
         state: &FingerprintState,
     ) -> Result<Conn> {

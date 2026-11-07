@@ -45,6 +45,8 @@ pub struct Config {
     #[serde(default)]
     pub policy: Policy,
     #[serde(default)]
+    pub itna: Itna,
+    #[serde(default)]
     pub browser: Browser,
     #[serde(default)]
     pub cache: Cache,
@@ -74,6 +76,12 @@ pub struct Config {
     /// `PAGESIFT_CONFIG=` 显式关闭了所有配置文件。
     #[serde(skip)]
     disabled: bool,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Itna {
+    pub enabled: bool,
 }
 
 /// `[secrets]` 的一项：值来自环境变量（或直接写），只能填进 `hosts` 上的页面。没有缺省的主机：
@@ -471,6 +479,7 @@ impl Config {
         check_rules(&self.rules)?;
         let mut c = ScraperConfig {
             audit: self.open_audit()?,
+            itna: self.itna.enabled,
             hooks: pagesift_hooks::rules::compile(&self.rules).map_err(anyhow::Error::msg)?,
             ..Default::default()
         };

@@ -77,10 +77,14 @@ async fn process_jina_scrape(
         return e.into_response();
     }
 
-    let (opts, params) = match super::headers::parse(&headers) {
+    let (mut opts, params) = match super::headers::parse(&headers) {
         Ok(v) => v,
         Err(e) => return e.into_response(),
     };
+    opts.owner = caller
+        .as_ref()
+        .map(|Extension(c)| c.account.to_string())
+        .filter(|owner| owner != "anonymous");
     if let Err(e) = crate::validate::check_scrape_options(&opts, s.engine.as_ref()) {
         return e.into_response();
     }

@@ -421,6 +421,7 @@ async fn check_page(
     caller: &Caller,
 ) -> (PageResult, PageState) {
     let mut o = opts.clone();
+    o.owner = Some(caller.account.to_string()).filter(|owner| owner != "anonymous");
     o.max_age = Some(0);
     if prev.markdown.is_some() {
         o.if_none_match = prev.etag.clone();

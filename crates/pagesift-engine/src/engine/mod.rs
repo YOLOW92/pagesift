@@ -17,6 +17,13 @@ use pagesift_net::{FetchRequest, Fetcher, FetcherConfig, Url};
 use pagesift_policy::{Policy, PolicyConfig, RequestKind, RobotsMode};
 use tokio::sync::OnceCell;
 
+tokio::task_local! {
+    static ITNA_NETWORK_BUDGET: Arc<pagesift_itna::NetworkBudget>;
+    static ITNA_COOKIE_SESSION: Option<Arc<pagesift_net::CookieSession>>;
+    static ITNA_EXPECTED_DIRECT: Option<bool>;
+    static ITNA_DEFAULT_PROXY: Option<String>;
+}
+
 pub mod agent;
 mod autoschema;
 mod cache;
@@ -113,6 +120,8 @@ pub struct EngineProbe {
 pub struct ScraperConfig {
     pub fetcher: FetcherConfig,
     pub policy: PolicyConfig,
+    /// Explicitly enable bounded access-barrier recovery.
+    pub itna: bool,
     pub browser: PoolConfig,
     /// 抓取结果缓存（`maxAge`、`minAge`、`storeInCache`）；不设时不缓存。
     pub store: Option<pagesift_store::Store>,
@@ -164,6 +173,10 @@ impl std::error::Error for ScraperError {
 
 pub struct Scraper {
     policy: Arc<Policy>,
+    itna: bool,
+    /// Reusable identities, scoped by owner, origin, egress and fingerprint.
+    /// A session is never shared between different owners.
+    identities: pagesift_policy::identity_pool::IdentityPool,
     store: Option<pagesift_store::Store>,
     llm: Option<pagesift_llm::ChatClient>,
     search: Option<Arc<dyn pagesift_search::SearchBackend>>,

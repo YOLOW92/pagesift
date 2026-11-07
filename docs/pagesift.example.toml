@@ -61,7 +61,8 @@ persist_jobs = true
 # user_agent = "acme-bot/1.0 (+https://acme.example/bot)"
 # Browser fingerprint mode, off by default. HTTP fetches then present Chrome's TLS, HTTP/2 and request headers, so
 # sites see Chrome and not pagesift. Whether that complies with a site's terms is the operator's responsibility.
-# robots.txt (matched against user_agent above) and rate limits still apply. Does not work through a proxy yet.
+# robots.txt (matched against user_agent above) and rate limits still apply. Works through HTTP CONNECT,
+# HTTPS and SOCKS proxies: the target is resolved and SSRF-checked locally, then the proxy opens the tunnel.
 # browser_fingerprint = "chrome"
 timeout_secs = 60
 max_body_mb = 15
@@ -78,6 +79,11 @@ per_host_concurrency = 2
 global_concurrency = 64
 # 允许 crawl 和 map 请求忽略 robots.txt（默认不允许）
 allow_crawl_ignore_robots = false
+
+[itna]
+# 可选、默认关闭的拦截恢复。开启后，HTTP 被拦截或返回挑战页时最多做一次同出口浏览器回退；
+# 429、登录墙和显式 engine = "http" 不升级。重定向和浏览器子请求共用一份网络预算。
+enabled = false
 
 [browser]
 # path = "/usr/bin/chromium"

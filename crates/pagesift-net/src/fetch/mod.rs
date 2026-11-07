@@ -75,13 +75,6 @@ impl Fetcher {
         {
             config.proxy = Some(env_p);
         }
-        // 代理走 reqwest，发的是 reqwest 的指纹。不悄悄降级：配置就不通过。
-        if config.browser_fingerprint.is_some() && config.proxy.is_some() {
-            return Err(Error::Config(
-                "browser_fingerprint does not work through a proxy yet; remove the proxy or the fingerprint (a proxy from the environment can be ignored with env_proxy = false)"
-                    .into(),
-            ));
-        }
         let mut exempt = Vec::new();
         let mut builder = reqwest::Client::builder();
         let mut raw_builder = reqwest::Client::builder();
@@ -98,7 +91,9 @@ impl Fetcher {
                     parsed.scheme()
                 )));
             }
-            if let Some(h) = parsed.host_str() {
+            if config.browser_fingerprint.is_none()
+                && let Some(h) = parsed.host_str()
+            {
                 exempt.push(h.trim_matches(['[', ']']).to_string());
             }
             let proxy = reqwest::Proxy::all(p.as_str())
@@ -148,7 +143,7 @@ impl Fetcher {
         {
             return Err(Error::Header(FIXED_USER_AGENT.into()));
         }
-        // 直连用自研客户端（内存可控）；有出口代理时交给 reqwest 处理代理协议。
+        // 直连用自研客户端；普通代理用 reqwest，指纹代理使用受校验的隧道。
         // 即使配了代理也保留直连客户端：NO_PROXY / allow_hosts / allow_cidrs 命中的目标
         // 必须绕过代理，否则内网地址会进出口代理日志。
         let direct = client::Client::new(
@@ -165,6 +160,7 @@ impl Fetcher {
             stages.clone(),
             ua.clone(),
             config.browser_fingerprint,
+            None,
         )?;
         if config.proxy.is_none() {
             return Ok(Self {
@@ -177,6 +173,28 @@ impl Fetcher {
                 waits,
             });
         }
+        let shaped_proxy = if let Some(profile) = config.browser_fingerprint {
+            let proxy =
+                client::proxy::Proxy::parse(config.proxy.as_deref().expect("proxy configured"))?;
+            Some(client::Client::new(
+                resolver.clone(),
+                config.connect_timeout,
+                config.dns_timeout,
+                config.tls_timeout,
+                config.first_byte_timeout,
+                waits.clone(),
+                config.pool_idle_timeout,
+                config.pool_max_idle_per_host,
+                config.adaptive_host_connections,
+                config.max_connections_per_host,
+                stages.clone(),
+                ua.clone(),
+                Some(profile),
+                Some(proxy),
+            )?)
+        } else {
+            None
+        };
         let build = |builder: reqwest::ClientBuilder| {
             builder
                 .redirect(redirect::Policy::none())
@@ -203,6 +221,7 @@ impl Fetcher {
         Ok(Self {
             transport: Transport::Proxy {
                 direct,
+                shaped_proxy,
                 decoded: client,
                 identity: raw,
             },
@@ -221,6 +240,17 @@ impl Fetcher {
         match &self.transport {
             Transport::Direct(client) => client,
             Transport::Proxy { direct, .. } => direct,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fingerprint_proxy_client(&self) -> &client::Client {
+        match &self.transport {
+            Transport::Proxy {
+                shaped_proxy: Some(client),
+                ..
+            } => client,
+            _ => panic!("fingerprint proxy not configured"),
         }
     }
 
@@ -268,6 +298,17 @@ impl Fetcher {
                 wait.gave_up(Phase::Dns, started.elapsed(), cap);
                 false
             }
+        }
+    }
+
+    /// The actual configured proxy for this URL after bypass rules and SSRF
+    /// checks. Used when a browser must stay on the HTTP request's egress.
+    pub async fn effective_proxy(&self, url: &str) -> Result<Option<String>> {
+        let url = self.check_url(url)?;
+        if self.direct_route(&url).await {
+            Ok(None)
+        } else {
+            Ok(self.config.proxy.clone())
         }
     }
 
@@ -403,6 +444,13 @@ impl Fetcher {
         let mut url = origin.clone();
         let mut chain = Vec::new();
         loop {
+            if req
+                .network_budget
+                .as_ref()
+                .is_some_and(|b| !b.reserve(true))
+            {
+                return Err(Error::Config("network navigation budget exhausted".into()));
+            }
             let mut headers = self.headers_for(&url, &origin, &extra, req.session.is_some());
             if let Some(session) = &req.session {
                 // Explicit sessions own Cookie completely, including when host
@@ -419,6 +467,14 @@ impl Fetcher {
                 );
             }
             let direct_route = self.direct_route(&url).await;
+            if req
+                .expected_direct
+                .is_some_and(|expected| expected != direct_route)
+            {
+                return Err(Error::Config(
+                    "proxy route changed across request or redirect".into(),
+                ));
+            }
             let send = self.transport.get(&url, headers, raw, direct_route);
             let mut resp = if direct_route {
                 // Direct transport enforces DNS, TCP, TLS and TTFB deadlines

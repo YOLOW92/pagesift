@@ -21,6 +21,10 @@ pub use snapshot::SessionSnapshot;
 
 #[derive(Clone, Debug)]
 pub struct SessionConfig {
+    /// Reject overlapping requests on the same identity.
+    pub exclusive: bool,
+    /// A cancelled request does not count as an identity failure.
+    pub neutral_on_cancel: bool,
     pub max_age: Duration,
     /// 一个身份最多用多少次（轮换预算，用户策略）。
     pub max_uses: u64,
@@ -37,6 +41,8 @@ pub struct SessionConfig {
 impl Default for SessionConfig {
     fn default() -> Self {
         Self {
+            exclusive: false,
+            neutral_on_cancel: false,
             max_age: Duration::from_secs(24 * 3600),
             // [策略] 用户策略：身份轮换预算（0.81 的现值）。与失效概率无关，不由数据推出
             max_uses: 10_000,
@@ -80,6 +86,8 @@ pub enum SessionError {
     Expired,
     #[error("session is retired")]
     Retired,
+    #[error("session is already in use")]
+    Busy,
     #[error("session use budget exhausted")]
     Exhausted,
     #[error("session cookie header exceeds its configured limit")]
@@ -96,7 +104,32 @@ pub struct SessionStats {
     pub retired: bool,
     pub expires_at: u64,
 }
+
+/// Explicit, secret-bearing cookie export for a browser in the same origin.
+/// Values must never be logged or exposed in API responses.
+#[derive(Clone)]
+pub struct BrowserCookie {
+    pub name: String,
+    pub value: String,
+    pub path: String,
+    pub secure: bool,
+    pub http_only: bool,
+    pub expires_at: Option<u64>,
+}
+
+impl fmt::Debug for BrowserCookie {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("BrowserCookie([REDACTED])")
+    }
+}
+
+impl Drop for BrowserCookie {
+    fn drop(&mut self) {
+        zeroize::Zeroize::zeroize(&mut self.value);
+    }
+}
 struct State {
+    in_flight: bool,
     cookies: Vec<Cookie>,
     created_at: u64,
     expires_at: u64,
@@ -140,6 +173,32 @@ impl fmt::Debug for CookieSession {
     }
 }
 impl CookieSession {
+    /// Export only the cookies belonging to this exact origin.
+    pub fn browser_cookies(&self, origin: &Url) -> Result<Vec<BrowserCookie>, SessionError> {
+        if origin_key(origin)? != self.origin {
+            return Err(SessionError::OriginMismatch);
+        }
+        let mut state = self.lock();
+        if state.retired {
+            return Err(SessionError::Retired);
+        }
+        if now() >= state.expires_at {
+            return Err(SessionError::Expired);
+        }
+        state.prune(now());
+        Ok(state
+            .cookies
+            .iter()
+            .map(|c| BrowserCookie {
+                name: c.name.clone(),
+                value: c.value.expose().to_owned(),
+                path: c.path.clone(),
+                secure: c.secure,
+                http_only: c.http_only,
+                expires_at: c.expires_at,
+            })
+            .collect())
+    }
     pub fn new(origin: &Url, config: SessionConfig) -> Result<Self, SessionError> {
         Self::new_at(origin, config, now())
     }
@@ -152,6 +211,7 @@ impl CookieSession {
             host: origin.host_str().unwrap_or_default().into(),
             config,
             state: Mutex::new(State {
+                in_flight: false,
                 cookies: Vec::new(),
                 created_at: time,
                 expires_at,
@@ -191,6 +251,12 @@ impl CookieSession {
         }
         let mut s = self.lock();
         s.active(now(), &self.config)?;
+        if self.config.exclusive && s.in_flight {
+            return Err(SessionError::Busy);
+        }
+        if self.config.exclusive {
+            s.in_flight = true;
+        }
         s.uses += 1;
         Ok(SessionUse {
             session: self.clone(),

@@ -79,6 +79,9 @@ pub struct PagesiftMeta {
     /// 这次 HTTP 抓取确实按这个档案发（如 `chrome_156`）：站点看到的是这个浏览器，不是 pagesift。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub browser_fingerprint: Option<String>,
+    /// Access-barrier recovery attempts, when itna is enabled.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub itna: Option<Value>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub warnings: Vec<String>,
     /// Timing per phase in milliseconds.

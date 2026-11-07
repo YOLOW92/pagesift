@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.1.3
+# pagesift 1.2.0
 
 **La capa de web y documentos para agentes de IA: entra cualquier URL, documento, correo, archivo comprimido o código fuente y sale Markdown limpio o JSON.**  
 Un único binario en Rust, autoalojado, con CLI, API de Firecrawl y de Jina Reader, servidor MCP y paquetes para Python, Node.js, Go, Java, C#, Ruby, PHP y más.
@@ -43,7 +43,7 @@ Puede sustituir o acompañar a: **Firecrawl** (la misma API v1/v2, autoalojada),
 - **Entorno de ejecución:** nada que instalar para HTTP, PDF y Office. Opcional: un navegador para páginas con JavaScript, una GPU NVIDIA para OCR, tu propio modelo para `/v2/agent`
 - **Memoria:** pico de 18–377 MB por trabajador en las pruebas de 1.1 sin navegador; el OCR con modelos de fórmulas necesita unos 1.7 GB; la capacidad se dimensiona a partir del límite del cgroup
 - **Licencia:** AGPL-3.0, o una [licencia comercial](COMMERCIAL.md)
-- **Última versión:** 1.1.3 · [notas de la versión](releases/1.1.3.md)
+- **Última versión:** 1.2.0 · [notas de la versión](releases/1.2.0.md)
 
 <!-- section: install -->
 ## Instalación y uso
@@ -53,7 +53,7 @@ Puede sustituir o acompañar a: **Firecrawl** (la misma API v1/v2, autoalojada),
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| Servidor | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.1.3` | `curl localhost:3002/r/https://example.com` |
+| Servidor | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.2.0` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -97,7 +97,7 @@ const items = await scraper.scrapeMany(['https://example.com', 'https://example.
 **Servidor HTTP**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.1.3
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.2.0
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'                        # API de Firecrawl
@@ -235,11 +235,11 @@ flowchart TD
     HTTP[API HTTP de Firecrawl y Jina] --> Engine
     Bindings[Python / Node / MCP / ABI de C: Go, Java, C#, Ruby, PHP y más] --> Engine
     Engine --> Hooks[pagesift-hooks: reglas y hooks]
-    Hooks --> Policy[pagesift-policy: robots, límites de tasa, espera progresiva]
-    Policy --> Net[pagesift-net: HTTP, protecciones SSRF, huella TLS opcional]
+    Hooks --> Policy[pagesift-policy: robots, límites de tasa, espera progresiva, concesiones de identidad]
+    Policy --> Net[pagesift-net: HTTP, protecciones SSRF, túneles de proxy validados, huella TLS opcional]
     Net --> Plan{pagesift-plan: ¿renderizar?}
     Plan -->|No| DOM[pagesift-html: DOM en arena]
-    Plan -->|Sí| CDP[pagesift-cdp: pool de navegadores]
+    Plan -->|Sí| CDP[pagesift-cdp: pool de navegadores, eliminación de marcas de automatización, espera de retos]
     CDP --> DOM
     Net -->|PDF| PDF[pagesift-pdf]
     Net -->|Office, libros electrónicos, correo, comprimidos, texto| Office[pagesift-office]
@@ -256,7 +256,18 @@ flowchart TD
     Content --> Sink
     Extract --> Sink
     Engine --> Store[pagesift-store: caché, memoria de selectores, registros]
+    Engine -.-> ITNA[pagesift-itna: clasificación de barreras, presupuestos de intentos y de red]
+    ITNA -.->|presupuesto compartido| Net
+    ITNA -.->|un fallback acotado| CDP
+    Net -.->|entrega restringida de cookies| CDP
 ```
+
+La recuperación de barreras de acceso es opcional (`[itna] enabled`, desactivada por defecto).
+`pagesift-itna` clasifica las barreras, permite como máximo un fallback acotado al navegador y comparte
+un único presupuesto de red entre redirecciones y subpeticiones del navegador. Las sesiones se alquilan
+por owner, origin, salida y huella; las cookies HTTP solo llegan al navegador mediante una entrega
+restringida al origin exacto. Los CAPTCHA interactivos se informan como tareas que necesitan una persona
+y no se resuelven.
 
 **Código propio hasta el formato.** El análisis se ejecuta dentro del proceso, sin ningún runtime de Python, JVM o Node detrás. pagesift tiene
 su propio analizador HTML5 sin copias, capa de archivos PDF con decodificadores JPEG, CCITT y JBIG2, lectores de Office, libros electrónicos, correo y archivos comprimidos, inferencia de redes
@@ -315,11 +326,11 @@ flowchart LR
 [licencia comercial](COMMERCIAL.md) o escribe a `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
-## Novedades de 1.1.3
+## Novedades de 1.2.0
 
-Actualizaciones de compresión y descompresión zstd en Rust puro, tablas de búsqueda y Huffman adaptadas a la caché y corrección del estado de offsets repetidos al recurrir a bloques sin comprimir.
+Recuperación opcional de barreras de acceso, desactivada por defecto: sesiones aisladas por owner y origin, túneles de proxy HTTP CONNECT/HTTPS/SOCKS validados para la huella TLS, entrega restringida de cookies de HTTP al navegador, eliminación de marcas de automatización y espera acotada para retos no interactivos. Los CAPTCHA interactivos devuelven `needsHuman`; no se incluye un solucionador de CAPTCHA.
 
-[Notas de la versión](releases/1.1.3.md) · [1.1.2](releases/1.1.2.md) · [todas las versiones](releases/) · [CHANGELOG](../CHANGELOG.md)
+[Notas de la versión](releases/1.2.0.md) · [1.1.3](releases/1.1.3.md) · [todas las versiones](releases/) · [CHANGELOG](../CHANGELOG.md)
 
 ---
 
@@ -335,7 +346,7 @@ Preguntas o comentarios: [Discord](https://discord.gg/esA3wMZVvA) · [Issues](ht
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.1.3}
+  note   = {Version 1.2.0}
 }
 ```
 

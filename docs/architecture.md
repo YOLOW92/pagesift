@@ -11,11 +11,11 @@ flowchart TD
     HTTP[Firecrawl and Jina HTTP API] --> Engine
     Bindings[Python / Node / MCP / C ABI: Go, Java, C#, Ruby, PHP and more] --> Engine
     Engine --> Hooks[pagesift-hooks: rules and hooks]
-    Hooks --> Policy[pagesift-policy: robots, rate limits, backoff]
-    Policy --> Net[pagesift-net: HTTP, SSRF guards, optional TLS fingerprint]
+    Hooks --> Policy[pagesift-policy: robots, rate limits, backoff, identity leases]
+    Policy --> Net[pagesift-net: HTTP, SSRF guards, validated proxy tunnels, optional TLS fingerprint]
     Net --> Plan{pagesift-plan: render?}
     Plan -->|No| DOM[pagesift-html: arena DOM]
-    Plan -->|Yes| CDP[pagesift-cdp: browser pool]
+    Plan -->|Yes| CDP[pagesift-cdp: browser pool, automation-marker removal, challenge settle]
     CDP --> DOM
     Net -->|PDF| PDF[pagesift-pdf]
     Net -->|Office, e-books, email, archives, text| Office[pagesift-office]
@@ -32,7 +32,16 @@ flowchart TD
     Content --> Sink
     Extract --> Sink
     Engine --> Store[pagesift-store: cache, selector memory, records]
+    Engine -.-> ITNA[pagesift-itna: barrier classification, attempt and network budgets]
+    ITNA -.->|shared budget| Net
+    ITNA -.->|one bounded fallback| CDP
+    Net -.->|restricted cookie handoff| CDP
 ```
+
+Access-barrier recovery is opt-in (`[itna] enabled`, off by default). `pagesift-itna` classifies barriers,
+allows one bounded browser fallback, and shares one network budget across redirects and browser sub-requests.
+Sessions are leased per owner, origin, egress and fingerprint; HTTP cookies reach the browser only through an
+exact-origin handoff. Interactive CAPTCHAs are reported as needing a human and are not solved.
 
 The HTTP layer validates options before execution. `"explain": true` (`scrape --explain`) writes every render decision
 to `metadata.pagesift.plan.steps`.
@@ -43,7 +52,7 @@ to `metadata.pagesift.plan.steps`.
 |---|---|
 | Entry points | `pagesift` (CLI and library), `pagesift-api` (HTTP), `pagesift-mcp`, `pagesift-py`, `pagesift-node`, `pagesift-ffi` |
 | Engine | `pagesift-engine`, `pagesift-plan`, `pagesift-hooks`, `pagesift-llm`, `pagesift-search` |
-| Network | `pagesift-net`, `pagesift-policy`, `pagesift-rustls`, `pagesift-cdp`, `pagesift-media` |
+| Network and recovery | `pagesift-net`, `pagesift-policy` (rate limits and identity leases), `pagesift-rustls`, `pagesift-cdp`, `pagesift-media`, `pagesift-itna` |
 | Content | `pagesift-html`, `pagesift-content`, `pagesift-extract`, `pagesift-diff`, `pagesift-frontier` |
 | Documents | `pagesift-pdf`, `pagesift-office`, `pagesift-syntax`, `pagesift-ocr`, `pagesift-infer`, `pagesift-gpu` |
 | Runtime | `pagesift-flow` (workers and admission), `pagesift-stat` (online statistics), `pagesift-sys`, `pagesift-store`, `pagesift-sink`, `pagesift-cluster` |

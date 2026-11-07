@@ -540,14 +540,164 @@ async fn declared_only_suite_falls_back_to_an_ordinary_connection() {
 }
 
 #[test]
-fn off_by_default_and_rejected_with_a_proxy() {
+fn off_by_default_and_can_configure_a_proxy() {
     assert!(FetcherConfig::default().browser_fingerprint.is_none());
-    let error = Fetcher::new(FetcherConfig {
+    let fetcher = Fetcher::new(FetcherConfig {
         proxy: Some("http://127.0.0.1:1".into()),
         ..config()
     })
-    .unwrap_err();
-    assert!(error.to_string().contains("browser_fingerprint"), "{error}");
+    .unwrap();
+    assert!(fetcher.config().browser_fingerprint.is_some());
+}
+
+#[tokio::test]
+async fn fingerprint_http_connect_preserves_tls_and_checks_certificate() {
+    let origin = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let origin_port = origin.local_addr().unwrap().port();
+    let server = tokio::spawn(serve_h2_once(origin, b"proxied"));
+    let proxy = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let proxy_port = proxy.local_addr().unwrap().port();
+    let tunnel = tokio::spawn(async move {
+        let (mut client, _) = proxy.accept().await.unwrap();
+        let mut head = Vec::new();
+        while !head.ends_with(b"\r\n\r\n") {
+            head.push(client.read_u8().await.unwrap());
+        }
+        assert!(
+            String::from_utf8_lossy(&head)
+                .starts_with(&format!("CONNECT 127.0.0.1:{origin_port} HTTP/1.1\r\n"))
+        );
+        let mut upstream = TcpStream::connect((Ipv4Addr::LOCALHOST, origin_port))
+            .await
+            .unwrap();
+        client
+            .write_all(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+            .await
+            .unwrap();
+        let _ = tokio::io::copy_bidirectional(&mut client, &mut upstream).await;
+    });
+    let fetcher = Fetcher::new_egress(FetcherConfig {
+        proxy: Some(format!("http://127.0.0.1:{proxy_port}")),
+        ..config()
+    })
+    .unwrap();
+    let mut roots = RootCertStore::empty();
+    for cert in CertificateDer::pem_slice_iter(CA) {
+        roots.add(cert.unwrap()).unwrap();
+    }
+    fetcher
+        .fingerprint_proxy_client()
+        .preset_fingerprint_roots(roots);
+    let response = fetcher
+        .fetch(FetchRequest::new(format!("https://fp.test:{origin_port}/")))
+        .await
+        .unwrap();
+    assert_eq!(response.body, b"proxied");
+    assert_eq!(
+        response.browser_fingerprint,
+        Some(FingerprintProfile::Chrome156)
+    );
+    let capture = server.await.unwrap();
+    assert!(parse_hello(&capture.client_hello).1.contains(&0xca34));
+    tunnel.abort();
+}
+
+#[tokio::test]
+async fn fingerprint_socks_auth_uses_validated_target_ip() {
+    let origin = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let origin_port = origin.local_addr().unwrap().port();
+    let server = tokio::spawn(serve_h1_once(origin, "socks"));
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let proxy_port = listener.local_addr().unwrap().port();
+    let proxy = tokio::spawn(async move {
+        let (mut client, _) = listener.accept().await.unwrap();
+        let mut greeting = [0; 3];
+        client.read_exact(&mut greeting).await.unwrap();
+        assert_eq!(greeting, [5, 1, 2]);
+        client.write_all(&[5, 2]).await.unwrap();
+        let mut auth = [0; 9];
+        client.read_exact(&mut auth).await.unwrap();
+        assert_eq!(&auth, b"\x01\x03bob\x03key");
+        client.write_all(&[1, 0]).await.unwrap();
+        let mut target = [0; 10];
+        client.read_exact(&mut target).await.unwrap();
+        assert_eq!(&target[..8], &[5, 1, 0, 1, 127, 0, 0, 1]);
+        assert_eq!(u16::from_be_bytes([target[8], target[9]]), origin_port);
+        let mut upstream = TcpStream::connect((Ipv4Addr::LOCALHOST, origin_port))
+            .await
+            .unwrap();
+        client
+            .write_all(&[5, 0, 0, 1, 127, 0, 0, 1, 0, 0])
+            .await
+            .unwrap();
+        let _ = tokio::io::copy_bidirectional(&mut client, &mut upstream).await;
+    });
+    let fetcher = Fetcher::new_egress(FetcherConfig {
+        proxy: Some(format!("socks5h://bob:key@127.0.0.1:{proxy_port}")),
+        ..config()
+    })
+    .unwrap();
+    let mut roots = RootCertStore::empty();
+    for cert in CertificateDer::pem_slice_iter(CA) {
+        roots.add(cert.unwrap()).unwrap();
+    }
+    fetcher
+        .fingerprint_proxy_client()
+        .preset_fingerprint_roots(roots);
+    let response = fetcher
+        .fetch(FetchRequest::new(format!("https://fp.test:{origin_port}/")))
+        .await
+        .unwrap();
+    assert_eq!(response.body, b"socks");
+    assert_eq!(
+        response.browser_fingerprint,
+        Some(FingerprintProfile::Chrome156)
+    );
+    assert!(server.await.unwrap().contains("Chrome/156"));
+    proxy.abort();
+}
+
+#[tokio::test]
+async fn fingerprint_proxy_rejects_private_target_before_connect() {
+    let proxy = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = proxy.local_addr().unwrap().port();
+    let fetcher = Fetcher::new_egress(FetcherConfig {
+        proxy: Some(format!("http://127.0.0.1:{port}")),
+        ssrf: SsrfPolicy::default(),
+        ..config()
+    })
+    .unwrap();
+    let error = fetcher
+        .fetch(FetchRequest::new("https://fp.test/"))
+        .await
+        .unwrap_err();
+    assert!(matches!(error, crate::Error::Blocked(_)), "{error:?}");
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(50), proxy.accept())
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn https_proxy_certificate_is_verified() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let _ = acceptor(b"http/1.1").accept(stream).await;
+    });
+    let fetcher = Fetcher::new_egress(FetcherConfig {
+        proxy: Some(format!("https://localhost:{port}")),
+        ..config()
+    })
+    .unwrap();
+    let error = fetcher
+        .fetch(FetchRequest::new("https://fp.test/"))
+        .await
+        .unwrap_err();
+    assert!(matches!(error, crate::Error::Tls { .. }), "{error:?}");
+    server.await.unwrap();
 }
 
 /// robots.txt 的匹配依据没变，一次请求也改不了线上的 UA。

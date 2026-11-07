@@ -46,7 +46,9 @@ pub use fingerprint::FingerprintProfile;
 pub use host_connections::HostConnectionStats;
 pub use offload::{CpuJob, set_cpu_executor};
 pub use reqwest::header::HeaderMap;
-pub use session::{CookieSession, SessionConfig, SessionError, SessionSnapshot, SessionStats};
+pub use session::{
+    BrowserCookie, CookieSession, SessionConfig, SessionError, SessionSnapshot, SessionStats,
+};
 pub use ssrf::{Blocked, IpCidr, SsrfPolicy, check_url, is_public};
 pub use stages::{
     NetworkStage, PhaseSnapshot, StageController, StageOutcome, StagePermit, StageSnapshot,

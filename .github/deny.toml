@@ -37,6 +37,7 @@ exceptions = [
     { name = "pagesift-gpu", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-html", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-infer", allow = ["AGPL-3.0-only"] },
+    { name = "pagesift-itna", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-llm", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-mcp", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-media", allow = ["AGPL-3.0-only"] },

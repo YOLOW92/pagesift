@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.1.3
+# pagesift 1.2.0
 
 **AI エージェントのための Web・文書レイヤー：URL、文書、メール、圧縮ファイル、ソースコードを入力すると、クリーンな Markdown または JSON を出力します。**  
 セルフホストできる単一の Rust バイナリ：CLI、Firecrawl・Jina Reader API、MCP サーバー、Python・Node.js・Go・Java・C#・Ruby・PHP などのパッケージ。
@@ -43,7 +43,7 @@ pagesift は、考えるソフトウェアのために Web と文書を読みま
 - **ランタイム：** HTTP、PDF、Office にはインストール不要。オプション：JavaScript ページ用のブラウザ、OCR 用の NVIDIA GPU、`/v2/agent` 用の自分のモデル
 - **メモリ：** ブラウザなしの 1.1 の各ベンチマークでワーカーあたりピーク 18–377 MB。数式モデルを使う OCR には約 1.7 GB が必要です。容量は cgroup の上限から決まります
 - **ライセンス：** AGPL-3.0、または[商用ライセンス](COMMERCIAL.md)
-- **最新版：** 1.1.3 · [リリースノート](releases/1.1.3.md)
+- **最新版：** 1.2.0 · [リリースノート](releases/1.2.0.md)
 
 <!-- section: install -->
 ## インストールと使い方
@@ -53,7 +53,7 @@ pagesift は、考えるソフトウェアのために Web と文書を読みま
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| サーバー | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.1.3` | `curl localhost:3002/r/https://example.com` |
+| サーバー | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.2.0` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -97,7 +97,7 @@ const items = await scraper.scrapeMany(['https://example.com', 'https://example.
 **HTTP サーバー**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.1.3
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.2.0
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'                        # Firecrawl API
@@ -235,11 +235,11 @@ flowchart TD
     HTTP[Firecrawl と Jina の HTTP API] --> Engine
     Bindings[Python / Node / MCP / C ABI：Go、Java、C#、Ruby、PHP など] --> Engine
     Engine --> Hooks[pagesift-hooks: ルールとフック]
-    Hooks --> Policy[pagesift-policy: robots、レート制限、バックオフ]
-    Policy --> Net[pagesift-net: HTTP、SSRF ガード、オプションの TLS フィンガープリント]
+    Hooks --> Policy[pagesift-policy: robots、レート制限、バックオフ、ID リース]
+    Policy --> Net[pagesift-net: HTTP、SSRF ガード、検証済みプロキシトンネル、オプションの TLS フィンガープリント]
     Net --> Plan{pagesift-plan: レンダリングする？}
     Plan -->|いいえ| DOM[pagesift-html: アリーナ DOM]
-    Plan -->|はい| CDP[pagesift-cdp: ブラウザプール]
+    Plan -->|はい| CDP[pagesift-cdp: ブラウザプール、自動化マーカー除去、チャレンジ待機]
     CDP --> DOM
     Net -->|PDF| PDF[pagesift-pdf]
     Net -->|Office、電子書籍、メール、圧縮ファイル、テキスト| Office[pagesift-office]
@@ -256,7 +256,17 @@ flowchart TD
     Content --> Sink
     Extract --> Sink
     Engine --> Store[pagesift-store: キャッシュ、セレクタ記憶、レコード]
+    Engine -.-> ITNA[pagesift-itna: バリア分類、試行とネットワークの予算]
+    ITNA -.->|共有予算| Net
+    ITNA -.->|上限付きフォールバック 1 回| CDP
+    Net -.->|制限付き Cookie 引き渡し| CDP
 ```
+
+アクセスバリア回復は任意です（`[itna] enabled`、既定は無効）。`pagesift-itna` がバリアを分類し、
+上限付きのブラウザフォールバックを最大 1 回許可し、リダイレクトとブラウザのサブリクエストで
+1 つのネットワーク予算を共有します。セッションは owner、origin、出口、フィンガープリントごとにリースされ、
+HTTP Cookie は完全一致の origin に対する制限付き引き渡しでのみブラウザに渡ります。
+対話型 CAPTCHA は人間による対応が必要として報告され、解決は行いません。
 
 **形式まで自前のコード。** パースはプロセス内で実行され、背後に Python、JVM、Node のランタイムはありません。
 pagesift は独自のゼロコピー HTML5 パーサー、JPEG・CCITT・JBIG2 デコーダーを備えた PDF ファイル層、Office・電子書籍・メール・圧縮ファイルのリーダー、
@@ -315,11 +325,11 @@ flowchart LR
 [商用ライセンス](COMMERCIAL.md)を確認するか、`licensing@pagesift.dev` までご連絡ください。
 
 <!-- section: changelog -->
-## 1.1.3 の新機能
+## 1.2.0 の新機能
 
-純 Rust の zstd 圧縮・展開を更新。キャッシュ容量に応じてマッチングと Huffman のテーブルを選択し、非圧縮ブロックへのフォールバック時の反復オフセット状態を修正しました。
+任意で有効化する（既定は無効）アクセスバリア回復：owner と origin ごとに分離したセッション、TLS フィンガープリント用の検証済み HTTP CONNECT/HTTPS/SOCKS プロキシトンネル、HTTP からブラウザへの制限付き Cookie 引き渡し、自動化マーカーの除去、非対話型チャレンジの上限付き待機。対話型 CAPTCHA は `needsHuman` を返し、CAPTCHA ソルバーは含みません。
 
-[リリースノート](releases/1.1.3.md) · [1.1.2](releases/1.1.2.md) · [全リリース](releases/) · [CHANGELOG](../CHANGELOG.md)
+[リリースノート](releases/1.2.0.md) · [1.1.3](releases/1.1.3.md) · [全リリース](releases/) · [CHANGELOG](../CHANGELOG.md)
 
 ---
 
@@ -335,7 +345,7 @@ flowchart LR
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.1.3}
+  note   = {Version 1.2.0}
 }
 ```
 

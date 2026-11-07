@@ -29,6 +29,64 @@ fn fetcher() -> Fetcher {
     Fetcher::new(config(FakeDns::new(&[]))).unwrap()
 }
 
+#[tokio::test]
+async fn network_budget_stops_redirect_hops_before_send() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let count = calls.clone();
+    let srv = serve(move |_| {
+        count.fetch_add(1, Ordering::SeqCst);
+        Some(redirect(302, "/again"))
+    })
+    .await;
+    let mut req = FetchRequest::new(srv.url("/"));
+    req.network_budget = Some(Arc::new(pagesift_itna::NetworkBudget::new(
+        Duration::from_secs(5),
+        2,
+        10,
+    )));
+    let err = fetcher().fetch(req).await.unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("network navigation budget exhausted")
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
+async fn effective_proxy_reports_explicit_egress_and_direct_routes() {
+    let f = Fetcher::new_egress(FetcherConfig {
+        env_proxy: false,
+        proxy: Some("http://127.0.0.1:9999".into()),
+        ssrf: SsrfPolicy {
+            allow_ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+    .unwrap();
+    assert_eq!(
+        f.effective_proxy("http://127.0.0.1/")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("http://127.0.0.1:9999")
+    );
+    assert_eq!(
+        f.effective_proxy("http://8.8.8.8/")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("http://127.0.0.1:9999")
+    );
+    assert_eq!(
+        fetcher()
+            .effective_proxy("http://127.0.0.1/")
+            .await
+            .unwrap(),
+        None
+    );
+}
+
 struct CountingDns {
     calls: AtomicUsize,
     ip: IpAddr,

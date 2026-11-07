@@ -2,6 +2,16 @@
 
 use super::*;
 
+#[test]
+fn itna_is_opt_in_and_passed_to_scraper() {
+    let default: Config = toml::from_str("").unwrap();
+    assert!(!default.itna.enabled);
+    assert!(!default.scraper(false).unwrap().itna);
+    let enabled: Config = toml::from_str("[itna]\nenabled = true").unwrap();
+    assert!(enabled.scraper(false).unwrap().itna);
+    assert!(toml::from_str::<Config>("[itna]\nenabeld = true").is_err());
+}
+
 /// `api()` 会解析 `api_keys` 里引用的环境变量；测试里只看 keys、限额和 webhook。
 fn cfg_without_env_keys(cfg: &Config) -> pagesift_api::Config {
     let mut c = Config::default();

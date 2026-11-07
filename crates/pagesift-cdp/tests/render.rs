@@ -147,6 +147,23 @@ fn route(r: &Req) -> Resp {
             r#"<!doctype html><html><head><script>location.replace('http://127.0.0.1:1/');</script></head>
                <body><p>original</p><script>for (const t = Date.now(); Date.now() - t < 300;) {}</script></body></html>"#,
         ),
+        // 自动化标记：脚本把 navigator.webdriver 和 window.chrome 写进标题。
+        "/stealth" => html(
+            r#"<script>document.title = 'wd:' + String(navigator.webdriver) + ',chrome:' + String(typeof window.chrome);</script>"#,
+        ),
+        // 非交互 JS 挑战：2.5 秒后才写入正文，超过普通壳页面的 1.5 秒宽限。
+        "/challenge" => html_raw(
+            r#"<!doctype html><html><head><title>Just a moment...</title></head>
+               <body><p>Checking your browser</p><script>setTimeout(() => {
+                 document.title = 'Ready';
+                 document.body.innerHTML = '<article><h1>Passed challenge</h1><p>Content after the non-interactive browser check.</p></article>';
+               }, 2500);</script></body></html>"#,
+        ),
+        // 交互式验证码：必须立即返回，不能等。
+        "/captcha" => html_raw(
+            r#"<!doctype html><html><head><title>Just a moment...</title></head>
+               <body><p>Verifying you are human</p><div class="g-recaptcha"></div></body></html>"#,
+        ),
         p if p.ends_with(".png") || p.starts_with("/secret") => not_found(),
         _ => html("<p>default</p>"),
     }
@@ -154,6 +171,123 @@ fn route(r: &Req) -> Resp {
 
 fn count(h: &str, needle: &str) -> usize {
     h.matches(needle).count()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn stealth_removes_the_automation_flag() {
+    require_browser!();
+    let (base, _) = serve(route).await;
+    let pool = BrowserPool::new(config(), allow_all()).await.unwrap();
+    let mut options = opts();
+    options.stealth = true;
+    let page = pool
+        .render(&format!("{base}/stealth"), &options)
+        .await
+        .unwrap();
+    assert!(
+        page.html.contains("wd:undefined") || page.html.contains("wd:false"),
+        "{}",
+        page.html
+    );
+    assert!(page.html.contains("chrome:object"), "{}", page.html);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn challenge_wait_follows_a_non_interactive_check() {
+    require_browser!();
+    let (base, _) = serve(route).await;
+    let pool = BrowserPool::new(config(), allow_all()).await.unwrap();
+    let mut options = opts();
+    options.challenge_wait = Duration::from_secs(4);
+    let page = pool
+        .render(&format!("{base}/challenge"), &options)
+        .await
+        .unwrap();
+    assert!(page.html.contains("Passed challenge"), "{}", page.html);
+    // Without the explicit wait a short shell grace captures the challenge.
+    let early = pool
+        .render(&format!("{base}/challenge"), &opts())
+        .await
+        .unwrap();
+    assert!(
+        early.html.contains("Just a moment") || early.html.contains("Checking your browser"),
+        "{}",
+        early.html
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn challenge_wait_does_not_block_on_an_interactive_captcha() {
+    require_browser!();
+    let (base, _) = serve(route).await;
+    let pool = BrowserPool::new(config(), allow_all()).await.unwrap();
+    let mut options = opts();
+    options.challenge_wait = Duration::from_secs(10);
+    // wall-clock: a normal render finishes in about 1.5 s; this bound is far below the 10 s wait.
+    let started = std::time::Instant::now();
+    let page = pool
+        .render(&format!("{base}/captcha"), &options)
+        .await
+        .unwrap();
+    assert!(
+        page.html.contains("Verifying you are human"),
+        "{}",
+        page.html
+    );
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "an interactive captcha must not be waited for"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn network_budget_fails_closed_on_subresource() {
+    require_browser!();
+    let (base, _) = serve(route).await;
+    let pool = BrowserPool::new(config(), allow_all()).await.unwrap();
+    let mut options = opts();
+    options.network_budget = Some(Arc::new(pagesift_itna::NetworkBudget::new(
+        Duration::from_secs(15),
+        2,
+        0,
+    )));
+    let err = pool
+        .render(&format!("{base}/sb/iframe.html"), &options)
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string().contains("network request budget exhausted"),
+        "{err}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn cookie_bridge_refuses_mismatched_browser_version() {
+    require_browser!();
+    let (base, _) = serve(route).await;
+    let pool = BrowserPool::new(config(), allow_all()).await.unwrap();
+    let mut options = opts();
+    options.cookie_bridge = Some(CookieBridge {
+        origin: base.clone(),
+        expected_chrome_major: Some(u32::MAX),
+        cookies: vec![BridgeCookie {
+            name: "sid".into(),
+            value: "secret".into(),
+            path: "/".into(),
+            secure: false,
+            http_only: true,
+            expires_at: None,
+        }],
+    });
+    let err = pool
+        .render(&format!("{base}/sb"), &options)
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string().contains("browser version does not match"),
+        "{err}"
+    );
+    assert!(!format!("{options:?}").contains("secret"));
 }
 
 #[tokio::test(flavor = "multi_thread")]

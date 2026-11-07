@@ -29,7 +29,7 @@ impl Scraper {
         let actions = pagesift_cdp::parse_actions(&serde_json::Value::Array(opts.actions.clone()))
             .map_err(|e| ApiError::invalid(e.to_string()))?;
         // 要动作或要保留页面：只用 Chrome，这些路径只在它上面验证过
-        let chrome_only = keep.is_some() || !actions.is_empty();
+        let chrome_only = keep.is_some() || !actions.is_empty() || self.itna;
         if chrome_only && !self.interact_available() {
             return Err(ApiError::unsupported(
                 "actions and keepSession need Chrome: no Chrome or Chromium was found on this machine (run `pagesift doctor`)",
@@ -107,6 +107,7 @@ impl Scraper {
         let queue_note = permit.robots_crawl_delay().then(|| permit.interval());
         let paced = !permit.interval().is_zero();
         let mut ropts = RenderOptions {
+            network_budget: ITNA_NETWORK_BUDGET.try_with(Arc::clone).ok(),
             wait_for: Duration::from_millis(opts.wait_for),
             timeout: deadline.saturating_duration_since(Instant::now()),
             mobile: opts.mobile,
@@ -126,8 +127,49 @@ impl Scraper {
             proxy,
             actions,
             wait_until: wait_until(opts.respond_timing.as_deref()),
+            stealth: self.itna,
             ..RenderOptions::default()
         };
+        // A JS challenge may need several seconds before it reloads or writes
+        // the final DOM. Interactive captchas are not waited for.
+        if self.itna {
+            ropts.challenge_wait = Duration::from_secs(8).min(ropts.timeout);
+        }
+        if let Ok(Some(session)) = ITNA_COOKIE_SESSION.try_with(Clone::clone) {
+            let cookies = session
+                .browser_cookies(&target)
+                .map_err(|e| ApiError::invalid(e.to_string()))?;
+            if !cookies.is_empty() {
+                ropts.cookie_bridge = Some(pagesift_cdp::CookieBridge {
+                    origin: target.origin().ascii_serialization(),
+                    expected_chrome_major: self
+                        .policy
+                        .fetcher()
+                        .config()
+                        .browser_fingerprint
+                        .and_then(|p| {
+                            p.user_agent()
+                                .split_once("Chrome/")?
+                                .1
+                                .split('.')
+                                .next()?
+                                .parse()
+                                .ok()
+                        }),
+                    cookies: cookies
+                        .into_iter()
+                        .map(|c| pagesift_cdp::BridgeCookie {
+                            name: c.name.clone(),
+                            value: c.value.clone(),
+                            path: c.path.clone(),
+                            secure: c.secure,
+                            http_only: c.http_only,
+                            expires_at: c.expires_at,
+                        })
+                        .collect(),
+                });
+            }
+        }
 
         // 按优先级逐个内核尝试：渲染失败、页面有 iframe 而内核不渲染 iframe、正文太少时换下一个。
         // 后面的内核都不可用或失败时，用前面拿到的结果。
@@ -193,6 +235,9 @@ impl Scraper {
                 break;
             };
             ropts.timeout = deadline.saturating_duration_since(Instant::now());
+            if let Some(budget) = &ropts.network_budget {
+                budget.browser_started();
+            }
             let rendered = match &keep {
                 Some(slot) => pool.render_kept(url, &ropts).await.map(|(p, kept)| {
                     slot.put(kept, pool.clone());
@@ -225,7 +270,7 @@ impl Scraper {
                     let final_err =
                         engine.renders_iframes() && matches!(e, pagesift_cdp::Error::Navigation(_));
                     last_err = Some(e);
-                    if final_err {
+                    if final_err || self.itna {
                         break;
                     }
                     continue;
@@ -383,7 +428,7 @@ impl Scraper {
             timings.insert(k.into(), ms(v));
         }
         timings.insert("extract".into(), ms(r.extract));
-        check_barrier(&r.doc)?;
+        check_barrier(&r.doc, &r.html)?;
         // 前一个内核只渲染出壳（正文太少），后面能接手的内核都失败了：照常返回，但要说出来
         let chars = text_weight(&r.doc.markdown);
         if !failed_after.is_empty()
@@ -419,7 +464,7 @@ impl Scraper {
             ..
         } = page;
         let (doc, html) = process_html(html, &final_url, status, opts).await?;
-        check_barrier(&doc)?;
+        check_barrier(&doc, &html)?;
         let r = Rendered {
             index: 0,
             engine: pagesift_cdp::EngineKind::Chrome.name(),

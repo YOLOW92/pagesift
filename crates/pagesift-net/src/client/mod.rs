@@ -1,4 +1,4 @@
-//! 直连用的 HTTP 客户端，直接建在 hyper 的连接层上（配置了出口代理时仍走 reqwest）。
+//! 基于 hyper 的 HTTP 客户端；支持直连，以及指纹档案通过显式代理隧道连接。
 //!
 //! 自己做这一层是为了内存：hyper 默认每条 HTTP/1 连接的读缓冲会自适应涨到约 400 KB，
 //! 连接回到池里以后这块缓冲一直留着。并发爬几百个站时，空闲连接的缓冲就占了堆的四成；
@@ -37,6 +37,7 @@ use crate::wait::{HostWait, Phase, WaitTable};
 
 mod connect;
 mod decode;
+pub(crate) mod proxy;
 mod send;
 mod shaped;
 #[cfg(test)]
@@ -108,6 +109,7 @@ struct Inner {
     stages: StageController,
     /// 开了指纹模拟时的档案和状态（默认 `None`）。
     fingerprint: Option<shaped::FingerprintState>,
+    proxy: Option<proxy::Proxy>,
 }
 
 #[derive(Clone)]

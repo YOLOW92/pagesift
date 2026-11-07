@@ -2,6 +2,10 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## 1.2.0
+
+Optional, default-off access-barrier recovery with owner- and origin-scoped sessions, validated proxy tunnels for the TLS fingerprint, a restricted HTTP-to-browser cookie handoff, automation-marker removal, and bounded waits for non-interactive challenges. Interactive CAPTCHAs return `needsHuman`; no CAPTCHA solver is included. [Release notes](docs/releases/1.2.0.md).
+
 ## 1.1.3
 
 Pure-Rust zstd compression and decompression updates, cache-aware matching and Huffman tables, and corrected repeated offsets when falling back to raw blocks. Development measurements and their comparison baseline are described in the [release notes](docs/releases/1.1.3.md).

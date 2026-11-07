@@ -10,6 +10,7 @@ mod concurrency;
 pub mod egress;
 mod error;
 pub mod gate;
+pub mod identity_pool;
 mod limiter;
 mod outage;
 mod policy;

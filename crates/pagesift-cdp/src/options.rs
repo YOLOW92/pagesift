@@ -58,6 +58,16 @@ impl std::fmt::Debug for EarlyStop {
 
 #[derive(Debug, Clone)]
 pub struct RenderOptions {
+    /// Secret cookies imported into a private context for an exact origin.
+    pub cookie_bridge: Option<CookieBridge>,
+    /// Remove common automation markers before any page script runs. Only
+    /// changes browser-side artifacts; it does not fake hardware or identity.
+    pub stealth: bool,
+    /// Keep waiting while the page is an unresolved non-interactive challenge.
+    /// Interactive captchas are returned immediately for a human.
+    pub challenge_wait: Duration,
+    /// Per-request network budget; requires CDP request interception.
+    pub network_budget: Option<Arc<pagesift_itna::NetworkBudget>>,
     /// 页面加载完成后再等多久（Firecrawl 的 `waitFor`）。
     pub wait_for: Duration,
     /// 整个渲染（含排队等标签页）的总时长上限。
@@ -166,6 +176,10 @@ pub enum ScrollBy {
 impl Default for RenderOptions {
     fn default() -> Self {
         RenderOptions {
+            cookie_bridge: None,
+            stealth: false,
+            challenge_wait: Duration::ZERO,
+            network_budget: None,
             wait_for: Duration::ZERO,
             timeout: Duration::from_secs(30),
             nav_patience: None,
@@ -185,6 +199,40 @@ impl Default for RenderOptions {
             virtual_scroll: None,
             proxy: None,
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct CookieBridge {
+    pub origin: String,
+    pub cookies: Vec<BridgeCookie>,
+    /// When the HTTP identity used a browser profile, prevent transfer into a
+    /// different Chromium major version.
+    pub expected_chrome_major: Option<u32>,
+}
+
+#[derive(Clone)]
+pub struct BridgeCookie {
+    pub name: String,
+    pub value: String,
+    pub path: String,
+    pub secure: bool,
+    pub http_only: bool,
+    pub expires_at: Option<u64>,
+}
+
+impl Drop for BridgeCookie {
+    fn drop(&mut self) {
+        zeroize::Zeroize::zeroize(&mut self.value);
+    }
+}
+
+impl std::fmt::Debug for CookieBridge {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CookieBridge")
+            .field("origin", &self.origin)
+            .field("cookies", &"[REDACTED]")
+            .finish()
     }
 }
 

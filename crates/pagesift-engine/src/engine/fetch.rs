@@ -42,7 +42,9 @@ impl Scraper {
         let mut warnings = Vec::new();
 
         // 出口的代理：浏览器上下文也走它（只有 Chrome 能做到；默认出口为 `None`）
-        let proxy = egress.and_then(|e| self.policy.egress_proxy(e));
+        let proxy = egress
+            .and_then(|e| self.policy.egress_proxy(e))
+            .or_else(|| ITNA_DEFAULT_PROXY.try_with(Clone::clone).ok().flatten());
         if let Some(name) = egress
             && proxy.is_none()
             && !self.policy.has_egress(name)
@@ -74,9 +76,11 @@ impl Scraper {
         }
 
         // 并发名额一直拿到提取结束：已下载、待提取的页面数不超过全局并发，机器忙时内存不会堆积
-        let fetch = self
-            .policy
-            .fetch_held_via(fetch_request(url, opts)?, mode, egress);
+        let mut request = fetch_request(url, opts)?;
+        request.network_budget = ITNA_NETWORK_BUDGET.try_with(Arc::clone).ok();
+        request.session = ITNA_COOKIE_SESSION.try_with(Clone::clone).ok().flatten();
+        request.expected_direct = ITNA_EXPECTED_DIRECT.try_with(|value| *value).ok().flatten();
+        let fetch = self.policy.fetch_held_via(request, mode, egress);
         let (mut resp, permit) = match request_deadline(opts, started) {
             Some(d) => tokio::time::timeout_at(d.into(), fetch)
                 .await
@@ -254,7 +258,7 @@ impl Scraper {
         let spec_baseline = Arc::new(std::sync::atomic::AtomicU64::new(
             super::speculate::BASELINE_UNKNOWN,
         ));
-        if auto && !render_blocked {
+        if auto && !render_blocked && !self.itna {
             let (go, step) = self.plan_speculate(url, &resp.body);
             if go && self.has_browser().await {
                 let early_stop = pagesift_cdp::EarlyStop {
@@ -336,7 +340,7 @@ impl Scraper {
             );
         }
         // 拦截页如实报告，不升级到浏览器：用真浏览器去过挑战页就是绕过
-        check_barrier(&doc)?;
+        check_barrier(&doc, &html)?;
 
         // 短页面不一定需要浏览器：没有脚本、HTML 本身也很小的静态页，渲染只会白抓一次
         // （crawl 时就是种子页被请求两次）。真正需要的是带客户端代码、或 HTML 很大却几乎

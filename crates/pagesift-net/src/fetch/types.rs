@@ -202,6 +202,10 @@ impl fmt::Debug for FetcherConfig {
 /// 单次请求。只支持 GET。
 #[derive(Clone, Default)]
 pub struct FetchRequest {
+    /// Reject any hop whose effective proxy/direct route differs from this value.
+    pub expected_direct: Option<bool>,
+    /// Optional shared request budget, charged once per HTTP redirect hop.
+    pub network_budget: Option<Arc<pagesift_itna::NetworkBudget>>,
     /// Reject a redirect before sending it if scheme/host/port differs from the
     /// initial URL. Useful for explicitly scoped dependency discovery.
     pub same_origin_redirects: bool,

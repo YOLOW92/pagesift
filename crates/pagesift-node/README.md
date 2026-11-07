@@ -1,6 +1,6 @@
 # pagesift (Node.js)
 
-1.1.3: see the [release notes](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.1.3.md).
+1.2.0: see the [release notes](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.2.0.md).
 
 The npm package `pagesift`: pagesift's Rust engine for Node.js, built with [napi-rs](https://napi.rs).
 Prebuilt binaries, so you don't need a Rust toolchain or a headless-browser download.

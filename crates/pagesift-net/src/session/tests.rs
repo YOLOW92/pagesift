@@ -157,3 +157,47 @@ fn leases_count_errors_retirement_and_use_budget() {
     s.begin(&url("/")).unwrap().finish(200);
     assert!(matches!(s.begin(&url("/")), Err(SessionError::Exhausted)));
 }
+
+#[test]
+fn throttling_and_outages_do_not_retire_identity() {
+    let s = Arc::new(CookieSession::new(&url("/"), SessionConfig::default()).unwrap());
+    for status in [429, 429, 503, 500] {
+        s.begin(&url("/")).unwrap().finish(status);
+    }
+    assert!(!s.stats().retired);
+    assert_eq!(s.stats().consecutive_errors, 0);
+}
+
+#[test]
+fn browser_cookie_export_is_origin_scoped_and_redacted() {
+    let origin = url("/a/page");
+    let s = CookieSession::new(&origin, SessionConfig::default()).unwrap();
+    assert!(s.set_cookie(&origin, "sid=secret; Path=/a; Secure; HttpOnly"));
+    let cookies = s.browser_cookies(&origin).unwrap();
+    assert_eq!(cookies.len(), 1);
+    assert_eq!(cookies[0].path, "/a");
+    assert!(cookies[0].secure && cookies[0].http_only);
+    assert!(!format!("{:?}", cookies).contains("secret"));
+    let other = Url::parse("https://example.com:444/a").unwrap();
+    assert!(matches!(
+        s.browser_cookies(&other),
+        Err(SessionError::OriginMismatch)
+    ));
+}
+
+#[test]
+fn exclusive_sessions_release_on_cancel_without_recording_failure() {
+    let config = SessionConfig {
+        exclusive: true,
+        neutral_on_cancel: true,
+        ..Default::default()
+    };
+    let session = Arc::new(CookieSession::new(&url("/"), config).unwrap());
+    let first = session.begin(&url("/")).unwrap();
+    assert!(matches!(session.begin(&url("/")), Err(SessionError::Busy)));
+    drop(first);
+    assert_eq!(session.stats().consecutive_errors, 0);
+    let next = session.begin(&url("/")).unwrap();
+    next.finish(429);
+    assert!(session.begin(&url("/")).is_ok());
+}

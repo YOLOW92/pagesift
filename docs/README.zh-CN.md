@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.1.3
+# pagesift 1.2.0
 
 **AI 智能体的网页和文档层：输入任意 URL、文档、邮件、压缩包或源代码文件，输出干净的 Markdown 或 JSON。**  
 一个自托管的 Rust 二进制：CLI、Firecrawl 和 Jina Reader API、MCP 服务器，以及 Python、Node.js、Go、Java、C#、Ruby、PHP 等语言的包。
@@ -43,7 +43,7 @@ pagesift 替会思考的软件读取网页和文档：它抓取一个 URL（只�
 - **运行环境：** HTTP、PDF 和 Office 无需额外安装。可选：处理 JavaScript 页面的浏览器、用于 OCR 的 NVIDIA GPU、供 `/v2/agent` 使用的你自己的模型
 - **内存：** 1.1 各项基准中，不带浏览器时每个 worker 峰值 18–377 MB；带公式模型的 OCR 约需 1.7 GB；容量按 cgroup 上限确定
 - **许可证：** AGPL-3.0，或[商业许可](COMMERCIAL.md)
-- **最新版本：** 1.1.3 · [发行说明](releases/1.1.3.md)
+- **最新版本：** 1.2.0 · [发行说明](releases/1.2.0.md)
 
 <!-- section: install -->
 ## 安装与使用
@@ -53,7 +53,7 @@ pagesift 替会思考的软件读取网页和文档：它抓取一个 URL（只�
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| 服务器 | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.1.3` | `curl localhost:3002/r/https://example.com` |
+| 服务器 | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.2.0` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -97,7 +97,7 @@ const items = await scraper.scrapeMany(['https://example.com', 'https://example.
 **HTTP 服务器**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.1.3
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.2.0
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'                        # Firecrawl API
@@ -235,11 +235,11 @@ flowchart TD
     HTTP[Firecrawl 和 Jina HTTP API] --> Engine
     Bindings[Python / Node / MCP / C ABI：Go、Java、C#、Ruby、PHP 等] --> Engine
     Engine --> Hooks[pagesift-hooks：规则和钩子]
-    Hooks --> Policy[pagesift-policy：robots、限速、退避]
-    Policy --> Net[pagesift-net：HTTP、SSRF 防护、可选 TLS 指纹]
+    Hooks --> Policy[pagesift-policy：robots、限速、退避、身份租约]
+    Policy --> Net[pagesift-net：HTTP、SSRF 防护、经校验的代理隧道、可选 TLS 指纹]
     Net --> Plan{pagesift-plan：要渲染吗？}
     Plan -->|否| DOM[pagesift-html：arena DOM]
-    Plan -->|是| CDP[pagesift-cdp：浏览器池]
+    Plan -->|是| CDP[pagesift-cdp：浏览器池、自动化标记清理、挑战等待]
     CDP --> DOM
     Net -->|PDF| PDF[pagesift-pdf]
     Net -->|Office、电子书、邮件、压缩包、文本| Office[pagesift-office]
@@ -256,7 +256,15 @@ flowchart TD
     Content --> Sink
     Extract --> Sink
     Engine --> Store[pagesift-store：缓存、选择器记忆、记录]
+    Engine -.-> ITNA[pagesift-itna：拦截分类、尝试和网络预算]
+    ITNA -.->|共享预算| Net
+    ITNA -.->|最多一次有界回退| CDP
+    Net -.->|受限 Cookie 交接| CDP
 ```
+
+拦截恢复是可选功能（`[itna] enabled`，默认关闭）。`pagesift-itna` 负责拦截分类、最多一次有界浏览器回退，
+并让重定向和浏览器子请求共用一份网络预算。会话按 owner、origin、出口和指纹租用；
+HTTP Cookie 只能通过精确 origin 的受限交接进入浏览器。交互式验证码会报告需要人工处理，不做求解。
 
 **自研代码，一直到格式层。** 解析在进程内运行，背后没有 Python、JVM 或 Node 运行时。
 pagesift 有自己的零拷贝 HTML5 解析器、带 JPEG、CCITT 和 JBIG2 解码器的 PDF 文件层、Office、电子书、邮件和压缩包读取器、
@@ -315,11 +323,11 @@ flowchart LR
 [商业许可](COMMERCIAL.md) 或写信到 `licensing@pagesift.dev`。
 
 <!-- section: changelog -->
-## 1.1.3 新增
+## 1.2.0 新增
 
-更新纯 Rust zstd 编解码，按缓存容量选择匹配及 Huffman 表，并修复回退到原始块时的重复偏移状态。
+可选、默认关闭的拦截恢复：按 owner 和 origin 隔离的会话，为 TLS 指纹提供经校验的 HTTP CONNECT/HTTPS/SOCKS 代理隧道，受限的 HTTP→浏览器 Cookie 交接，自动化标记清理，以及非交互挑战的有界等待。交互式验证码返回 `needsHuman`，不内置验证码求解器。
 
-[发布说明](releases/1.1.3.md) · [1.1.2](releases/1.1.2.md) · [全部版本](releases/) · [CHANGELOG](../CHANGELOG.md)
+[发布说明](releases/1.2.0.md) · [1.1.3](releases/1.1.3.md) · [全部版本](releases/) · [CHANGELOG](../CHANGELOG.md)
 
 ---
 
@@ -335,7 +343,7 @@ flowchart LR
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.1.3}
+  note   = {Version 1.2.0}
 }
 ```
 

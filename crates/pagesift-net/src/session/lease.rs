@@ -10,7 +10,12 @@ pub(crate) struct SessionUse {
 }
 impl SessionUse {
     pub(crate) fn finish(mut self, status: u16) {
-        self.record(!matches!(status, 401 | 403 | 429 | 500..=599));
+        // A rate limit or an upstream outage says nothing about the identity.
+        if status == 429 || (500..=599).contains(&status) {
+            self.neutral();
+        } else {
+            self.record(!matches!(status, 401 | 403));
+        }
     }
     fn record(&mut self, success: bool) {
         if self.finished {
@@ -18,6 +23,9 @@ impl SessionUse {
         }
         self.finished = true;
         let mut s = self.session.lock();
+        if self.session.config.exclusive {
+            s.in_flight = false;
+        }
         if success {
             s.errors = 0;
             s.finished_ok += 1;
@@ -34,6 +42,16 @@ impl SessionUse {
             ) {
                 s.retired = true;
             }
+        }
+    }
+
+    fn neutral(&mut self) {
+        if self.finished {
+            return;
+        }
+        self.finished = true;
+        if self.session.config.exclusive {
+            self.session.lock().in_flight = false;
         }
     }
 }
@@ -61,6 +79,10 @@ pub(super) fn invalidated(errors: u32, ok: u64, failed_before: u64, min_errors: 
 
 impl Drop for SessionUse {
     fn drop(&mut self) {
-        self.record(false);
+        if self.session.config.neutral_on_cancel {
+            self.neutral();
+        } else {
+            self.record(false);
+        }
     }
 }

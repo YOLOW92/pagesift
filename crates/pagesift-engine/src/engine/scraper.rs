@@ -1,10 +1,29 @@
 use super::*;
 
 impl Scraper {
-    pub fn new(config: ScraperConfig) -> Result<Self, ScraperError> {
+    pub fn new(mut config: ScraperConfig) -> Result<Self, ScraperError> {
         cpu::install();
         let browser_private_network = config.fetcher.ssrf.allow_private_network;
         let browser_allow = browser_allow_list(&config.fetcher.ssrf)?;
+        if config.itna && config.browser.args_override.is_none() {
+            // Removes the Blink automation marker at the source. The per-page
+            // script in pagesift-cdp covers remote browsers that ignore args.
+            if let Some(arg) = config
+                .browser
+                .extra_args
+                .iter_mut()
+                .find(|a| a.starts_with("--disable-blink-features="))
+            {
+                if !arg.contains("AutomationControlled") {
+                    arg.push_str(",AutomationControlled");
+                }
+            } else {
+                config
+                    .browser
+                    .extra_args
+                    .push("--disable-blink-features=AutomationControlled".into());
+            }
+        }
         let mut egress = Vec::new();
         for (name, proxy) in &config.egress {
             let mut fc = config.fetcher.clone();
@@ -43,6 +62,12 @@ impl Scraper {
         ));
         Ok(Self {
             crawl_slots,
+            itna: config.itna,
+            identities: pagesift_policy::identity_pool::IdentityPool::new(
+                pagesift_net::SessionConfig::default(),
+                512,
+                4,
+            ),
             policy: Arc::new({
                 // 网络层"继续等待"的价格由全局准入按负载发布（空闲时为 0，超时等于配置值）
                 let wait_price = fetcher.config().wait_price.clone();

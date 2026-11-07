@@ -126,6 +126,10 @@ pub struct ScrapeOptions {
     /// PageSift extension: bounded, stateless same-origin external JS discovery.
     #[serde(default)]
     pub discover_scripts: bool,
+    /// Internal: stable caller identity used to scope reusable sessions.
+    /// Never accepted from JSON and never serialized.
+    #[serde(skip)]
+    pub owner: Option<String>,
     /// PageSift extension: write how the result was produced (render and merge decisions with their
     /// inputs) to `metadata.pagesift.plan`.
     #[serde(default)]

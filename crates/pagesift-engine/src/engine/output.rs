@@ -145,12 +145,31 @@ pub fn tag_filter(opts: &ScrapeOptions) -> Result<Option<pagesift_content::TagFi
         .map_err(ApiError::invalid)
 }
 
-pub(super) fn check_barrier(doc: &pagesift_content::Document) -> Result<(), ApiError> {
+pub(super) fn check_barrier(
+    doc: &pagesift_content::Document,
+    raw_html: &str,
+) -> Result<(), ApiError> {
     let Some(b) = &doc.barrier else { return Ok(()) };
+    // A vendor challenge page can also embed an interactive widget. The
+    // primary rule may classify the page as a challenge, so inspect the raw
+    // document for widgets that need a human before saying it is automatic.
+    let interactive = {
+        let html = raw_html.to_ascii_lowercase();
+        [
+            "g-recaptcha",
+            "h-captcha",
+            "cf-turnstile",
+            "px-captcha",
+            "captcha-delivery",
+            "geetest",
+        ]
+        .iter()
+        .any(|marker| html.contains(marker))
+    };
     Err(ApiError::new(
         ErrorCode::AccessBarrier,
         format!(
-            "the site returned an access barrier ({} {}); pagesift reports it and does not retry to get past it",
+            "the site returned an access barrier ({} {})",
             b.vendor,
             b.kind.as_str()
         ),
@@ -160,6 +179,7 @@ pub(super) fn check_barrier(doc: &pagesift_content::Document) -> Result<(), ApiE
         "kind": b.kind.as_str(),
         "confidence": b.confidence,
         "ruleId": b.rule_id,
+        "needsHuman": interactive || matches!(b.kind, pagesift_content::BarrierKind::Captcha),
     })))
 }
 

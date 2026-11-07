@@ -40,6 +40,10 @@ async fn run(
     check_url(&req.url)?;
     // `keepSession` 只有这里认（校验拒收其余入口的）
     let keep = v2 && std::mem::take(&mut req.options.keep_session);
+    req.options.owner = caller
+        .as_ref()
+        .map(|Extension(c)| c.account.to_string())
+        .filter(|owner| owner != "anonymous");
     check_scrape_options(&req.options, s.engine.as_ref())?;
     if let Some(Extension(c)) = &caller {
         s.limiter.check_quota(c)?;

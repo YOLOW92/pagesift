@@ -14,6 +14,21 @@ use super::{
     TEXT_LEN, TRACKED,
 };
 
+/// A cookie imported for `origin` can only be sent to the same host. Browsers
+/// ignore ports and (for non-Secure cookies) the scheme, so any same-host
+/// request outside the exact origin is rejected except the site's own standard
+/// http:80 -> https:443 upgrade.
+fn cookie_scope_violation(origin: &url::Url, target: &url::Url) -> bool {
+    if target.origin() == origin.origin() || target.host_str() != origin.host_str() {
+        return false;
+    }
+    let standard_upgrade = origin.scheme() == "http"
+        && target.scheme() == "https"
+        && origin.port_or_known_default() == Some(80)
+        && target.port_or_known_default() == Some(443);
+    !standard_upgrade
+}
+
 /// 只用网络事件判断就绪，不读响应体：缓冲区设到最小，浏览器不必替每个请求保留一份内容。
 pub(super) async fn enable_network(session: &Session) -> Result<Value> {
     session
@@ -243,9 +258,31 @@ pub(super) async fn on_request(
             && p["frameId"] == shared.main_frame.as_str(),
         resource_type,
     };
+    // Imported cookies are host-only, so another host cannot receive them.
+    // Within the same host they are not port- or scheme-isolated; only an
+    // origin-initiated standard upgrade may move them from http to https.
+    let cross_origin_cookie_host = shared.cookie_origin.as_ref().is_some_and(|origin| {
+        url::Url::parse(&req.url)
+            .ok()
+            .is_some_and(|u| cookie_scope_violation(origin, &u))
+    });
     let verdict = match block.reason(&req) {
         Some(r) => Verdict::Block(r.to_owned()),
-        None => guard.check(&req).await,
+        None if cross_origin_cookie_host => Verdict::Block("cookie origin isolation".into()),
+        None => match guard.check(&req).await {
+            Verdict::Allow
+                if (req.url.starts_with("http://") || req.url.starts_with("https://"))
+                    && shared
+                        .network_budget
+                        .as_ref()
+                        .is_some_and(|b| !b.reserve(req.is_main_document)) =>
+            {
+                *shared.intercept_error.lock().unwrap() =
+                    Some("network request budget exhausted".into());
+                Verdict::Block("network request budget exhausted".into())
+            }
+            other => other,
+        },
     };
     match verdict {
         Verdict::Allow => {
