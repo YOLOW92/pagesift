@@ -316,7 +316,7 @@ async fn finished_crawl(app: &axum::Router, body: Value) -> Value {
 }
 
 #[tokio::test]
-async fn crawl_status_reports_the_stop_reason_of_focused_crawls() {
+async fn job_status_reports_the_stop_reason_of_focused_crawls() {
     let app = app(&[]);
     let plain = finished_crawl(&app, json!({"url": "https://example.com/"})).await;
     assert!(plain.get("pagesift").is_none(), "{plain}");

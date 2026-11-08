@@ -1,5 +1,6 @@
-//! MCP 工具：把 pagesift-mcp 定义的 5 个工具接到真正的抓取引擎上。
-//! crawl 和 batch scrape 复用 API 层的任务管理，`pagesift_crawl_status` 两种任务都能查。
+//! MCP 工具：把 pagesift-mcp 定义的工具接到真正的抓取引擎上。
+//! crawl 和 batch scrape 复用 API 层的任务管理，`pagesift_poll_job` 两种任务都能查，
+//! `pagesift_cancel_job` 两种任务都能停。
 //! 配置了审计日志时多一个 `pagesift_report_issue`，让调用方把看到的错误结果记下来。
 
 use std::sync::Arc;
@@ -33,7 +34,8 @@ pub fn engine_tools(
         Arc::new(Scrape(engine.clone(), caps.clone())),
         Arc::new(MapTool(engine.clone())),
         Arc::new(Crawl(engine.clone(), jobs.clone(), caps.clone())),
-        Arc::new(Status(jobs.clone())),
+        Arc::new(PollJob(jobs.clone())),
+        Arc::new(CancelJob(jobs.clone())),
     ];
     if let Some(audit) = audit {
         tools.push(Arc::new(Report(audit)));
@@ -328,6 +330,7 @@ impl ToolHandler for Report {
                  headings, garbage) so it can be investigated later. Writes one line to the local \
                  audit log; nothing is sent anywhere. Fall back to another fetch tool afterwards.",
             )
+            .output_schema(tools::report_issue_schema())
             .annotations(ToolAnnotations {
                 title: Some("pagesift report issue".into()),
                 read_only_hint: Some(false),
@@ -350,7 +353,10 @@ impl ToolHandler for Report {
                     audit.record_report(Value::Object(args));
                 })
                 .await;
-            Ok(ToolOutput::text("Recorded. Thank you."))
+            Ok(ToolOutput::json(json!({
+                "recorded": true,
+                "message": "Recorded. Thank you.",
+            })))
         })
     }
 }
@@ -396,7 +402,7 @@ impl ToolHandler for Crawl {
             Ok(ToolOutput::json(json!({
                 "id": id,
                 "status": "scraping",
-                "next": "call pagesift_crawl_status with this id to get progress and pages",
+                "next": "call pagesift_poll_job with this id to get progress and pages",
             })))
         })
     }
@@ -444,9 +450,12 @@ impl ToolHandler for Batch {
                 .1
                 .start_batch(self.0.clone(), urls, options, concurrency)
                 .await;
-            Ok(ToolOutput::json(
-                json!({ "id": id, "status": "scraping", "invalidURLs": invalid }),
-            ))
+            Ok(ToolOutput::json(json!({
+                "id": id,
+                "status": "scraping",
+                "invalidURLs": invalid,
+                "next": "call pagesift_poll_job with this id to get progress and pages",
+            })))
         })
     }
 }
@@ -512,11 +521,11 @@ impl ToolHandler for AgentStatus {
     }
 }
 
-struct Status(Jobs);
+struct PollJob(Jobs);
 
-impl ToolHandler for Status {
+impl ToolHandler for PollJob {
     fn definition(&self) -> ToolDef {
-        tools::crawl_status_def()
+        tools::poll_job_def()
     }
 
     fn call(&self, args: Map<String, Value>, _ctx: ToolContext) -> BoxFuture<'_, ToolResult> {
@@ -544,9 +553,61 @@ impl ToolHandler for Status {
     }
 }
 
+struct CancelJob(Jobs);
+
+impl ToolHandler for CancelJob {
+    fn definition(&self) -> ToolDef {
+        tools::cancel_job_def()
+    }
+
+    fn call(&self, args: Map<String, Value>, _ctx: ToolContext) -> BoxFuture<'_, ToolResult> {
+        Box::pin(async move {
+            let id = args
+                .get("id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| ToolError::new("missing id"))?
+                .to_string();
+            if !self.0.cancel(&id).await {
+                return Err(ToolError::new(format!("job {id} not found or expired")));
+            }
+            let body = self
+                .0
+                .get(&id, |job| {
+                    json!({
+                        "success": true,
+                        "status": job.state.as_str(),
+                        "completed": job.completed,
+                        "total": job.total,
+                    })
+                })
+                .await
+                .ok_or_else(|| ToolError::new(format!("job {id} not found or expired")))?;
+            Ok(ToolOutput::json(body))
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn base_tools_include_poll_and_cancel() {
+        let scraper = Arc::new(Scraper::new(crate::ScraperConfig::default()).unwrap());
+        let names: Vec<String> = tools(scraper).iter().map(|t| t.definition().name).collect();
+        assert!(
+            names.contains(&"pagesift_poll_job".to_string()),
+            "{names:?}"
+        );
+        assert!(
+            names.contains(&"pagesift_cancel_job".to_string()),
+            "{names:?}"
+        );
+        assert!(
+            !names.contains(&"pagesift_crawl_status".to_string()),
+            "{names:?}"
+        );
+    }
 
     #[test]
     fn warnings_reach_the_text_content() {
@@ -586,6 +647,7 @@ mod tests {
             .iter()
             .find(|h| h.definition().name == "pagesift_report_issue")
             .expect("report tool");
+        assert!(report.definition().output_schema.is_some());
         let args =
             json!({ "url": "https://example.com/a", "expected": "body", "actual": "nav only" });
         let Value::Object(args) = args else {

@@ -136,6 +136,8 @@ impl Scraper {
             url: Some(resp.final_url.to_string()),
             source_url: Some(url.to_string()),
             status_code: resp.status,
+            // 503 只有带 Retry-After 才算限速（RFC 9110 §15.6.4）；分类要用，输出里不出现
+            retry_after: resp.headers.contains_key("retry-after"),
             content_type: resp.content_type().map(str::to_string),
             proxy_used: egress.unwrap_or("basic").into(),
             ..Default::default()

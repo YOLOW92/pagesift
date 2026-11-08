@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.2.0
+# pagesift 1.2.1
 
 **The web and document layer for AI agents: any URL, document, email, archive or source file in, clean Markdown or JSON out.**  
 One self-hosted Rust binary with a CLI, Firecrawl and Jina Reader APIs, an MCP server, and packages for Python, Node.js, Go, Java, C#, Ruby, PHP and more.
@@ -43,7 +43,7 @@ Can replace or sit alongside: **Firecrawl** (same v1/v2 API, self-hosted), **Jin
 - **Runtime:** nothing to install for HTTP, PDF and Office. Optional: a browser for JavaScript pages, an NVIDIA GPU for OCR, your own model for `/v2/agent`
 - **Memory:** 18–377 MB peak per worker across the 1.1 benchmarks without a browser; OCR with formula models needs about 1.7 GB; capacity is sized from the cgroup limit
 - **License:** AGPL-3.0, or a [commercial license](docs/COMMERCIAL.md)
-- **Latest:** 1.2.0 · [release notes](docs/releases/1.2.0.md)
+- **Latest:** 1.2.1 · [release notes](docs/releases/1.2.1.md)
 
 <!-- section: install -->
 ## Install and use
@@ -53,7 +53,7 @@ Can replace or sit alongside: **Firecrawl** (same v1/v2 API, self-hosted), **Jin
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| Server | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.2.0` | `curl localhost:3002/r/https://example.com` |
+| Server | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.2.1` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -97,7 +97,7 @@ const items = await scraper.scrapeMany(['https://example.com', 'https://example.
 **HTTP server**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.2.0
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.2.1
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'                        # Firecrawl API
@@ -116,8 +116,9 @@ pagesift mcp http --port 3003                                 # one shared local
 claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 ```
 
-Tools: `pagesift_scrape`, `pagesift_batch_scrape`, `pagesift_crawl`, `pagesift_crawl_status`, `pagesift_map`,
-`pagesift_interact`, `pagesift_interact_stop`, and with a configured model `pagesift_agent`, `pagesift_agent_status`.
+Tools: `pagesift_scrape`, `pagesift_batch_scrape`, `pagesift_crawl`, `pagesift_poll_job`, `pagesift_cancel_job`,
+`pagesift_map`, `pagesift_interact`, `pagesift_interact_stop`, and with a configured model `pagesift_agent`,
+`pagesift_agent_status`.
 [Shared MCP service](docs/mcp-service.md)
 
 <!-- section: capabilities -->
@@ -324,11 +325,11 @@ flowchart LR
 [commercial license](docs/COMMERCIAL.md) or write to `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
-## What's new in 1.2.0
+## What's new in 1.2.1
 
-Optional, off-by-default access-barrier recovery: owner- and origin-scoped sessions, validated HTTP CONNECT/HTTPS/SOCKS proxy tunnels for the TLS fingerprint, a restricted HTTP-to-browser cookie handoff, automation-marker removal and a bounded wait for non-interactive challenges. Interactive CAPTCHAs return `needsHuman`; no CAPTCHA solver is included.
+Identity-scoped requests no longer read or write the shared result cache, so one API key cannot receive another key's personalized page. 503 responses with `Retry-After` are classified as throttled in attempt traces and egress statistics. MCP tools gain output schemas and complete parameter descriptions, `pagesift_crawl_status` is renamed to `pagesift_poll_job`, and `pagesift_cancel_job` stops running crawl and batch jobs.
 
-[Release notes](docs/releases/1.2.0.md) · [1.1.3](docs/releases/1.1.3.md) · [all releases](docs/releases/) · [CHANGELOG](CHANGELOG.md)
+[Release notes](docs/releases/1.2.1.md) · [1.2.0](docs/releases/1.2.0.md) · [all releases](docs/releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -344,7 +345,7 @@ Questions or feedback: [Discord](https://discord.gg/esA3wMZVvA) · [Issues](http
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.2.0}
+  note   = {Version 1.2.1}
 }
 ```
 

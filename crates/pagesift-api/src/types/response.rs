@@ -198,6 +198,9 @@ pub struct Metadata {
     #[serde(rename = "sourceURL", skip_serializing_if = "Option::is_none")]
     pub source_url: Option<String>,
     pub status_code: u16,
+    /// 响应带 `Retry-After`。只用于拦截分类（429/503 的限速判定），不进 JSON、不进缓存。
+    #[serde(skip)]
+    pub retry_after: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -99,7 +99,8 @@ async fn legacy_initialize_list_call() {
             "pagesift_scrape",
             "pagesift_map",
             "pagesift_crawl",
-            "pagesift_crawl_status",
+            "pagesift_poll_job",
+            "pagesift_cancel_job",
             "pagesift_batch_scrape"
         ]
     );
@@ -170,7 +171,7 @@ async fn modern_discover_list_call_with_progress() {
         .await;
     assert_eq!(r["result"]["cacheScope"], "public");
     assert!(r["result"]["ttlMs"].as_u64().is_some());
-    assert_eq!(r["result"]["tools"].as_array().unwrap().len(), 5);
+    assert_eq!(r["result"]["tools"].as_array().unwrap().len(), 6);
 
     let mut meta = modern_meta();
     meta["progressToken"] = json!("p1");

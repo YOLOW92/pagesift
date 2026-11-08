@@ -54,32 +54,32 @@ pub fn action_schema(actions: &[String]) -> Value {
     json!({
         "type": "object",
         "properties": {
-            "type": { "type": "string", "enum": actions },
-            "selector": { "type": "string" },
-            "all": { "type": "boolean" },
-            "milliseconds": { "type": "integer", "minimum": 0 },
-            "text": { "type": "string" },
-            "key": { "type": "string" },
-            "direction": { "type": "string", "enum": ["up", "down"] },
-            "script": { "type": "string" },
-            "fullPage": { "type": "boolean" },
+            "type": { "type": "string", "enum": actions, "description": "Action to run." },
+            "selector": { "type": "string", "description": "CSS selector of the element to act on." },
+            "all": { "type": "boolean", "description": "Act on every element matching the selector instead of the first one." },
+            "milliseconds": { "type": "integer", "minimum": 0, "description": "Wait time for wait actions, in milliseconds." },
+            "text": { "type": "string", "description": "Text to type or to use as the JavaScript expression, depending on the action." },
+            "key": { "type": "string", "description": "Key to press, for example Enter or ArrowDown." },
+            "direction": { "type": "string", "enum": ["up", "down"], "description": "Scroll direction." },
+            "script": { "type": "string", "description": "JavaScript source for executeJavascript." },
+            "fullPage": { "type": "boolean", "description": "Capture the full page instead of the viewport." },
             // [协议] JPEG 质量 1–100（CDP Page.captureScreenshot 的 quality）
-            "quality": { "type": "integer", "minimum": 1, "maximum": 100 },
+            "quality": { "type": "integer", "minimum": 1, "maximum": 100, "description": "JPEG quality from 1 to 100." },
             "viewport": {
                 "type": "object",
-                "properties": { "width": { "type": "integer" }, "height": { "type": "integer" } },
+                "description": "Viewport size for screenshot or PDF output.",
+                "properties": {
+                    "width": { "type": "integer", "description": "Viewport width in CSS pixels." },
+                    "height": { "type": "integer", "description": "Viewport height in CSS pixels." }
+                },
                 "required": ["width", "height"]
             },
-            "format": { "type": "string" },
-            "landscape": { "type": "boolean" },
-            "scale": { "type": "number" }
+            "format": { "type": "string", "description": "Output format for screenshot or PDF actions." },
+            "landscape": { "type": "boolean", "description": "Use landscape orientation for PDF output." },
+            "scale": { "type": "number", "description": "Scale factor for PDF output." }
         },
         "required": ["type"]
     })
-}
-
-fn str_array() -> Value {
-    json!({ "type": "array", "items": { "type": "string" } })
 }
 
 /// 单页抓取选项（不含 `url`）。
@@ -99,7 +99,7 @@ pub fn scrape_options_schema(caps: &Capabilities) -> Value {
                     {
                         "type": "object",
                         "properties": {
-                            "type": { "type": "string", "enum": formats },
+                            "type": { "type": "string", "enum": formats, "description": "Format name." },
                             "schema": { "type": "object", "description": "extract: CSS schema {baseSelector, fields}; json: JSON Schema for the LLM." },
                             "prompt": { "type": "string", "description": "json: what to extract." },
                             "intent": { "type": "string", "description": "extract without a schema: what to extract; the LLM writes the schema." },
@@ -117,8 +117,14 @@ pub fn scrape_options_schema(caps: &Capabilities) -> Value {
         "headers",
         json!({ "type": "object", "additionalProperties": { "type": "string" }, "description": "Extra request headers." }),
     );
-    put("includeTags", str_array());
-    put("excludeTags", str_array());
+    put(
+        "includeTags",
+        json!({ "type": "array", "items": { "type": "string" }, "description": "Only keep content inside these CSS selectors." }),
+    );
+    put(
+        "excludeTags",
+        json!({ "type": "array", "items": { "type": "string" }, "description": "Remove content inside these CSS selectors." }),
+    );
     put(
         "onlyMainContent",
         json!({ "type": "boolean", "description": "Keep only the main content. Defaults to true." }),
@@ -158,7 +164,11 @@ pub fn scrape_options_schema(caps: &Capabilities) -> Value {
         "location",
         json!({
             "type": "object",
-            "properties": { "country": { "type": "string" }, "languages": str_array() },
+            "description": "Geographic hint for the request, for example {country: \"US\", languages: [\"en\"]}.",
+            "properties": {
+                "country": { "type": "string", "description": "Two-letter country code." },
+                "languages": { "type": "array", "items": { "type": "string" }, "description": "Preferred language codes, most preferred first." }
+            },
             "additionalProperties": false
         }),
     );
@@ -166,7 +176,10 @@ pub fn scrape_options_schema(caps: &Capabilities) -> Value {
         "parsers",
         json!({ "type": "array", "description": "PDF parser selection, e.g. [\"pdf\"] or [{\"type\": \"pdf\", \"maxPages\": 10}]." }),
     );
-    put("removeBase64Images", json!({ "type": "boolean" }));
+    put(
+        "removeBase64Images",
+        json!({ "type": "boolean", "description": "Remove inline base64 image data from the output. Defaults to true." }),
+    );
     put(
         "blockAds",
         json!({ "type": "boolean", "description": "Block ads when rendering. Defaults to true." }),
@@ -190,7 +203,10 @@ pub fn scrape_options_schema(caps: &Capabilities) -> Value {
         "minAge",
         json!({ "type": "integer", "minimum": 0, "description": "Only return a cached copy at least this many milliseconds old." }),
     );
-    put("storeInCache", json!({ "type": "boolean" }));
+    put(
+        "storeInCache",
+        json!({ "type": "boolean", "description": "Store a successful result in the result cache. Defaults to true." }),
+    );
     put(
         "engine",
         json!({
@@ -242,7 +258,7 @@ pub fn scrape_options_schema(caps: &Capabilities) -> Value {
         "chunking",
         json!({
             "type": "object",
-            "properties": { "type": { "type": "string" } },
+            "properties": { "type": { "type": "string", "description": "Chunking strategy, for example recursive." } },
             "required": ["type"],
             "description": "Split markdown into chunks, e.g. {\"type\": \"recursive\", \"size\": 400}."
         }),
@@ -282,6 +298,33 @@ mod tests {
                 "{f}: exposed and hidden must differ"
             );
         }
+    }
+
+    /// 每个参数（包括嵌套对象和数组元素）都有说明，评分和调用方都不必猜。
+    #[test]
+    fn every_parameter_has_a_description() {
+        fn walk(schema: &Value, path: &str) {
+            if let Some(props) = schema.get("properties").and_then(Value::as_object) {
+                for (k, v) in props {
+                    let here = format!("{path}.{k}");
+                    let described = v
+                        .get("description")
+                        .and_then(Value::as_str)
+                        .is_some_and(|d| !d.trim().is_empty());
+                    assert!(described, "{here} has no description");
+                    walk(v, &here);
+                }
+            }
+            if let Some(items) = schema.get("items") {
+                walk(items, &format!("{path}[]"));
+            }
+            if let Some(alts) = schema.get("anyOf").and_then(Value::as_array) {
+                for (i, alt) in alts.iter().enumerate() {
+                    walk(alt, &format!("{path}<{i}>"));
+                }
+            }
+        }
+        walk(&scrape_options_schema(&full()), "options");
     }
 
     #[test]

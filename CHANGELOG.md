@@ -2,6 +2,10 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## 1.2.1
+
+Identity-scoped requests no longer use the shared result cache; 503 with `Retry-After` is classified as throttled. MCP tools gain output schemas and complete parameter descriptions, `pagesift_crawl_status` becomes `pagesift_poll_job`, and `pagesift_cancel_job` stops running jobs. [Release notes](docs/releases/1.2.1.md).
+
 ## 1.2.0
 
 Optional, default-off access-barrier recovery with owner- and origin-scoped sessions, validated proxy tunnels for the TLS fingerprint, a restricted HTTP-to-browser cookie handoff, automation-marker removal, and bounded waits for non-interactive challenges. Interactive CAPTCHAs return `needsHuman`; no CAPTCHA solver is included. [Release notes](docs/releases/1.2.0.md).

@@ -6,7 +6,7 @@
 - Output: Markdown, HTML, raw HTML, links, images, metadata, schema-based JSON; warnings when a result is incomplete
 - Install: `cargo install pagesift --locked` · `pip install pagesift` · `npm install @pagesift/node` · `docker run -p 3002:3002 ghcr.io/yolow92/pagesift`
 - First call: `pagesift scrape https://example.com` · `pagesift.scrape(url).markdown` · `(await new Scraper().scrape(url)).markdown` · `curl localhost:3002/r/https://example.com`
-- MCP: `pagesift mcp` (stdio) or `pagesift mcp http --port 3003`; tools `pagesift_scrape`, `pagesift_batch_scrape`, `pagesift_crawl`, `pagesift_crawl_status`, `pagesift_map`, `pagesift_interact`, `pagesift_interact_stop`, and with a configured model `pagesift_agent`, `pagesift_agent_status`
+- MCP: `pagesift mcp` (stdio) or `pagesift mcp http --port 3003`; tools `pagesift_scrape`, `pagesift_batch_scrape`, `pagesift_crawl`, `pagesift_poll_job`, `pagesift_cancel_job`, `pagesift_map`, `pagesift_interact`, `pagesift_interact_stop`, and with a configured model `pagesift_agent`, `pagesift_agent_status`
 - Not for: standalone image files (OCR covers scanned pages inside PDFs)
 
 ## Docs
@@ -25,6 +25,6 @@
 
 ## Optional
 
-- [Release notes](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.2.0.md): changes, migration and known limits
+- [Release notes](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.2.1.md): changes, migration and known limits
 - [Changelog](https://github.com/YOLOW92/pagesift/blob/main/CHANGELOG.md)
 - [Commercial license](https://github.com/YOLOW92/pagesift/blob/main/docs/COMMERCIAL.md)

@@ -131,7 +131,7 @@ async fn modern_stateless_flow() {
     let body =
         json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": { "_meta": meta() } });
     let v = json_of(modern_post(&c, &s.url, &body).send().await.unwrap()).await;
-    assert_eq!(v["result"]["tools"].as_array().unwrap().len(), 5);
+    assert_eq!(v["result"]["tools"].as_array().unwrap().len(), 6);
 
     // 没有 progressToken：直接返回 JSON。
     let body = json!({ "jsonrpc": "2.0", "id": 3, "method": "tools/call",
@@ -155,7 +155,7 @@ async fn modern_stateless_flow() {
 
     // 工具执行错误：isError 结果，HTTP 200。
     let body = json!({ "jsonrpc": "2.0", "id": 5, "method": "tools/call",
-        "params": { "name": "pagesift_crawl_status", "arguments": { "id": "missing" }, "_meta": meta() } });
+        "params": { "name": "pagesift_poll_job", "arguments": { "id": "missing" }, "_meta": meta() } });
     let v = json_of(modern_post(&c, &s.url, &body).send().await.unwrap()).await;
     assert_eq!(v["result"]["isError"], true);
     assert_eq!(v["result"]["structuredContent"]["code"], "INVALID_REQUEST");
@@ -370,7 +370,7 @@ async fn legacy_session_flow() {
         .unwrap(),
     )
     .await;
-    assert_eq!(v["result"]["tools"][4]["name"], "pagesift_batch_scrape");
+    assert_eq!(v["result"]["tools"][5]["name"], "pagesift_batch_scrape");
     assert!(v["result"].get("resultType").is_none());
 
     let body = json!({ "jsonrpc": "2.0", "id": 3, "method": "tools/call",

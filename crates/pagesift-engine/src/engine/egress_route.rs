@@ -314,7 +314,11 @@ fn add_itna_trace(result: &mut Result<Document, ApiError>, trace: serde_json::Va
 fn itna_outcome(result: &Result<Document, ApiError>) -> pagesift_itna::Outcome {
     use pagesift_itna::{Outcome, classify};
     match result {
-        Ok(doc) => classify(Some(doc.metadata.status_code), false, None),
+        Ok(doc) => classify(
+            Some(doc.metadata.status_code),
+            doc.metadata.retry_after,
+            None,
+        ),
         Err(e) => match e.code {
             ErrorCode::AccessBarrier => {
                 let field = |key| {
@@ -338,7 +342,7 @@ fn itna_outcome(result: &Result<Document, ApiError>) -> pagesift_itna::Outcome {
 /// 把一次结果按拦截分类归类（拦截页、状态码、网络错误）。
 fn outcome(result: &Result<Document, ApiError>) -> EgressOutcome {
     match result {
-        Ok(doc) => EgressOutcome::from_status(doc.metadata.status_code, false),
+        Ok(doc) => EgressOutcome::from_status(doc.metadata.status_code, doc.metadata.retry_after),
         Err(e) => match e.code {
             ErrorCode::AccessBarrier => {
                 let field = |k: &str| {
@@ -605,6 +609,57 @@ mod tests {
         assert_eq!(
             err.details.unwrap()["itna"]["attempts"][0]["outcome"],
             "throttled"
+        );
+    }
+
+    #[tokio::test]
+    async fn retry_after_on_503_is_classified_as_throttled() {
+        let app = Router::new()
+            .route(
+                "/",
+                get(|| async {
+                    (
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        [("retry-after", "5")],
+                        Html("<html><body><article><h1>Busy</h1><p>The origin asked the caller to retry later.</p></article></body></html>"),
+                    )
+                }),
+            )
+            .route(
+                "/plain",
+                get(|| async {
+                    (
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        Html("<html><body><article><h1>Down</h1><p>The origin is unavailable without a retry hint.</p></article></body></html>"),
+                    )
+                }),
+            );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let opts = ScrapeOptions {
+            engine: Some("http".into()),
+            ..Default::default()
+        };
+        let doc = scraper()
+            .fetch_and_extract(&format!("http://{addr}/"), &opts, RobotsMode::Ignore)
+            .await
+            .unwrap();
+        assert_eq!(doc.metadata.status_code, 503);
+        assert!(doc.metadata.retry_after);
+        assert_eq!(
+            doc.metadata.pagesift.clone().unwrap().itna.unwrap()["attempts"][0]["outcome"],
+            "throttled"
+        );
+        let plain = scraper()
+            .fetch_and_extract(&format!("http://{addr}/plain"), &opts, RobotsMode::Ignore)
+            .await
+            .unwrap();
+        assert_eq!(plain.metadata.status_code, 503);
+        assert!(!plain.metadata.retry_after);
+        assert_eq!(
+            plain.metadata.pagesift.unwrap().itna.unwrap()["attempts"][0]["outcome"],
+            "other"
         );
     }
 

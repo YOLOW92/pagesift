@@ -11,6 +11,7 @@ use std::sync::Arc;
 use serde_json::{Map, Value, json};
 
 use crate::options::Capabilities;
+use crate::output;
 use crate::tool::{
     BoxFuture, ToolAnnotations, ToolContext, ToolDef, ToolError, ToolHandler, ToolOutput,
     ToolResult,
@@ -19,7 +20,8 @@ use crate::tool::{
 pub const SCRAPE: &str = "pagesift_scrape";
 pub const MAP: &str = "pagesift_map";
 pub const CRAWL: &str = "pagesift_crawl";
-pub const CRAWL_STATUS: &str = "pagesift_crawl_status";
+pub const POLL_JOB: &str = "pagesift_poll_job";
+pub const CANCEL_JOB: &str = "pagesift_cancel_job";
 pub const BATCH_SCRAPE: &str = "pagesift_batch_scrape";
 pub const INTERACT: &str = "pagesift_interact";
 pub const INTERACT_STOP: &str = "pagesift_interact_stop";
@@ -44,7 +46,8 @@ fn annotations(title: &str, read_only: bool) -> ToolAnnotations {
         title: Some(title.into()),
         read_only_hint: Some(read_only),
         destructive_hint: Some(false),
-        idempotent_hint: None,
+        // 只读工具重复调用没有额外副作用；会启动任务或改页面的工具不标。
+        idempotent_hint: read_only.then_some(true),
         open_world_hint: Some(true),
     }
 }
@@ -62,8 +65,14 @@ pub fn scrape_def(caps: &Capabilities) -> ToolDef {
              images and metadata. Use it when you know the page you need. For several known URLs use \
              pagesift_batch_scrape; to find URLs on a site use pagesift_map; to collect a whole site use \
              pagesift_crawl. pagesift respects robots.txt and reports blocked pages as errors instead of \
-             returning their content.",
+             returning their content. Results are cached for 48 hours by default; set maxAge to 0 to \
+             force a live fetch. With keepSession the browser page stays open for pagesift_interact and \
+             its id is returned as metadata.scrapeId; kept pages expire after 10 minutes (sooner when \
+             idle under memory pressure). Advanced options: actions runs browser steps before capture, \
+             chunking splits Markdown, queryFilter keeps blocks relevant to a query, and parsers \
+             selects PDF pages.",
         )
+        .output_schema(output::document())
         .annotations(annotations("pagesift scrape", true))
 }
 
@@ -95,11 +104,14 @@ pub fn interact_def(actions: &[String]) -> ToolDef {
     ToolDef::new(INTERACT, schema)
         .title("Act on a kept page")
         .description(
-            "Continue on a browser page kept by pagesift_scrape with keepSession: click, type, press keys, \
-             then read the page again. State carries over between calls. Returns the page afterwards in \
-             data; with a prompt also output (the answer) and steps. No live view or CDP URL is offered. \
-             Sessions are reclaimed when idle (at most 5 minutes, sooner when memory is short) and after 10 minutes.",
+            "Continue on a browser page kept by pagesift_scrape with keepSession. Send either prompt \
+             (plain-language instruction; needs an LLM on the server) or actions (a list of browser \
+             actions), not both. Actions can permanently change the page or lose unsaved state. State \
+             carries over between calls. Returns the page afterwards in data; with a prompt also output \
+             (the answer) and steps. Finish with pagesift_interact_stop to free the page. No live view or \
+             CDP URL is offered.",
         )
+        .output_schema(output::interact())
         .annotations(acting_annotations("pagesift interact"))
 }
 
@@ -114,7 +126,14 @@ pub fn interact_stop_def() -> ToolDef {
     });
     ToolDef::new(INTERACT_STOP, schema)
         .title("Close a kept page")
-        .description("Close a browser page kept for pagesift_interact and free its memory.")
+        .description(
+            "Close a browser page kept by pagesift_scrape keepSession or pagesift_interact and free its \
+             memory. Data already returned stays with the caller; the scrapeId becomes invalid, so later \
+             calls with it fail. Calling stop twice or after expiry returns an error. Pages expire \
+             automatically after 10 minutes if never stopped, and are reclaimed sooner when idle under \
+             memory pressure.",
+        )
+        .output_schema(output::interact_stopped())
         .annotations(acting_annotations("pagesift interact stop"))
 }
 
@@ -123,11 +142,15 @@ pub fn map_def() -> ToolDef {
         "type": "object",
         "properties": {
             "url": { "type": "string", "format": "uri", "description": "The site to map." },
-            "search": { "type": "string", "description": "Only return URLs related to this term." },
-            "sitemap": { "type": "string", "enum": ["include", "skip", "only"] },
-            "includeSubdomains": { "type": "boolean" },
-            "limit": { "type": "integer", "minimum": 1 },
-            "ignoreQueryParameters": { "type": "boolean" },
+            "search": { "type": "string", "description": "Only rank URLs related to this term first; all other URLs stay in the list after them." },
+            "sitemap": {
+                "type": "string",
+                "enum": ["include", "skip", "only"],
+                "description": "include (default): use sitemaps plus homepage links; skip: ignore sitemaps; only: use sitemaps and skip the homepage."
+            },
+            "includeSubdomains": { "type": "boolean", "description": "Include other subdomains of the same site. Defaults to true." },
+            "limit": { "type": "integer", "minimum": 1, "description": "Maximum URLs to return after ranking. Defaults to 5000." },
+            "ignoreQueryParameters": { "type": "boolean", "description": "Treat URLs that differ only by query string as one. Defaults to true." },
             "timeout": { "type": "integer", "minimum": 1, "description": "Timeout in milliseconds." }
         },
         "required": ["url"],
@@ -136,9 +159,13 @@ pub fn map_def() -> ToolDef {
     ToolDef::new(MAP, schema)
         .title("Map a site")
         .description(
-            "List the URLs of a website from its sitemaps, robots.txt and homepage links, without \
-             fetching each page. Use it to find the right page before scraping, or to plan a batch scrape.",
+            "List a website's URLs from its sitemaps, robots.txt and homepage links without fetching \
+             each page. sitemap include (default) uses both sitemaps and page links, skip ignores \
+             sitemaps, only uses sitemaps without reading the homepage. If no sitemap is found it falls \
+             back to homepage links; limit truncates after search ranking. Use pagesift_scrape for one \
+             page and pagesift_crawl to fetch many pages.",
         )
+        .output_schema(output::map())
         .annotations(annotations("pagesift map", true))
 }
 
@@ -151,22 +178,26 @@ pub fn crawl_def(caps: &Capabilities) -> ToolDef {
             "url": { "type": "string", "description": "The URL to start crawling from." },
             "excludePaths": { "type": "array", "items": { "type": "string" }, "description": "Regular expressions for paths to skip." },
             "includePaths": { "type": "array", "items": { "type": "string" }, "description": "Regular expressions for paths to keep." },
-            "maxDiscoveryDepth": { "type": "integer", "minimum": 0 },
+            "maxDiscoveryDepth": { "type": "integer", "minimum": 0, "description": "How many links away from the seed to follow. Defaults to no limit." },
             "maxDepth": { "type": "integer", "minimum": 0, "description": "Firecrawl v1 name; only checked against the limit, maxDiscoveryDepth sets the depth." },
-            "sitemap": { "type": "string", "enum": ["skip", "include", "only"] },
-            "limit": { "type": "integer", "minimum": 1, "description": "Maximum number of pages to crawl." },
-            "allowExternalLinks": { "type": "boolean" },
-            "allowSubdomains": { "type": "boolean" },
-            "crawlEntireDomain": { "type": "boolean" },
+            "sitemap": {
+                "type": "string",
+                "enum": ["skip", "include", "only"],
+                "description": "include (default): crawl sitemap URLs and follow page links; skip: ignore sitemaps; only: crawl sitemap URLs without following page links."
+            },
+            "limit": { "type": "integer", "minimum": 1, "description": "Maximum number of pages to crawl. Defaults to 10000." },
+            "allowExternalLinks": { "type": "boolean", "description": "Follow links to other hosts. Defaults to false." },
+            "allowSubdomains": { "type": "boolean", "description": "Follow links to other subdomains of the same site. Defaults to true only when query is set." },
+            "crawlEntireDomain": { "type": "boolean", "description": "Crawl the whole host instead of the seed's path scope. Defaults to false." },
             "delay": { "type": "number", "description": "Seconds to wait between requests to the same host." },
-            "maxConcurrency": { "type": "integer", "minimum": 1 },
+            "maxConcurrency": { "type": "integer", "minimum": 1, "description": "Lower the job's share of fetch concurrency; it cannot exceed the server's per-host or global limit." },
             "webhook": { "type": ["string", "object"], "description": "URL, or {url, headers, metadata, events}." },
-            "ignoreQueryParameters": { "type": "boolean" },
-            "scope": { "type": "string", "enum": ["auto", "exact", "parent", "domain"], "description": "How far the crawl may leave the seed's directory." },
+            "ignoreQueryParameters": { "type": "boolean", "description": "Treat URLs that differ only by query string as one. Defaults to false." },
+            "scope": { "type": "string", "enum": ["auto", "exact", "parent", "domain"], "description": "How far the crawl may leave the seed's directory; auto widens one level when the seed looks like a leaf page." },
             "query": { "type": "string", "description": "Crawl the pages most relevant to this query first." },
             "adaptive": { "type": ["boolean", "object"], "description": "With query: stop once the collected pages cover it; an object sets coverageThreshold, evidencePerTerm, patience, minGain." },
             "attachments": { "type": "boolean", "description": "With query: also fetch PDF/Office documents linked from relevant pages." },
-            "attachmentLimit": { "type": "integer", "minimum": 0 },
+            "attachmentLimit": { "type": "integer", "minimum": 0, "description": "Maximum attachments to fetch; defaults to limit." },
             "scrapeOptions": scrape_options
         },
         "required": ["url"],
@@ -175,29 +206,69 @@ pub fn crawl_def(caps: &Capabilities) -> ToolDef {
     ToolDef::new(CRAWL, schema)
         .title("Crawl a site")
         .description(
-            "Start a crawl job that follows links from a URL and scrapes every page found. Returns a job \
-             id right away; poll it with pagesift_crawl_status. Results can be large, so set a \
-             conservative limit and use includePaths/excludePaths to stay on topic.",
+            "Start a crawl job that follows links from a URL and scrapes every page found. Use \
+             pagesift_scrape when you need one page and pagesift_map when you only need URLs. By default \
+             the crawl includes sitemap URLs, follows links within the seed's path scope, has no depth \
+             limit and uses per-host concurrency; maxDiscoveryDepth and maxConcurrency lower these. \
+             Pages blocked by robots.txt or failing are reported in the job's errors and the crawl \
+             continues. Returns a job id right away; poll it with pagesift_poll_job. Results can be \
+             large, so set a conservative limit and use includePaths/excludePaths to stay on topic.",
         )
+        .output_schema(output::job_started())
         .annotations(annotations("pagesift crawl", false))
 }
 
-pub fn crawl_status_def() -> ToolDef {
+pub fn poll_job_def() -> ToolDef {
     let schema = json!({
         "type": "object",
         "properties": { "id": { "type": "string", "description": "Job id returned by pagesift_crawl or pagesift_batch_scrape." } },
         "required": ["id"]
     });
-    ToolDef::new(CRAWL_STATUS, schema)
-        .title("Crawl status")
+    ToolDef::new(POLL_JOB, schema)
+        .title("Poll a job")
         .description(
-            "Get the status, progress and pages collected so far for a crawl or batch scrape job. \
-             Read-only.",
+            "Get the status, progress and pages collected so far for a pagesift_crawl or \
+             pagesift_batch_scrape job. status is scraping, completed, cancelled or failed; completed, \
+             cancelled and failed are final. While scraping, poll again after a few seconds; stop when \
+             the status is final. Pages collected so far are in data and remain available for 24 hours. \
+             Use pagesift_cancel_job to stop a running job.",
         )
+        .output_schema(output::job_status())
         .annotations(ToolAnnotations {
             open_world_hint: Some(false),
             idempotent_hint: Some(true),
-            ..annotations("pagesift crawl status", true)
+            ..annotations("pagesift poll job", true)
+        })
+}
+
+/// `pagesift_report_issue` 的输出 schema（定义在 `pagesift` crate，因为要写审计日志）。
+pub fn report_issue_schema() -> Value {
+    output::report_issue()
+}
+
+pub fn cancel_job_def() -> ToolDef {
+    let schema = json!({
+        "type": "object",
+        "properties": { "id": { "type": "string", "description": "Job id returned by pagesift_crawl or pagesift_batch_scrape." } },
+        "required": ["id"]
+    });
+    ToolDef::new(CANCEL_JOB, schema)
+        .title("Cancel a job")
+        .description(
+            "Cancel a running pagesift_crawl or pagesift_batch_scrape job. Use pagesift_poll_job to read \
+             a job and pagesift_cancel_job to stop it. No new pages are scheduled; pages already \
+             collected stay available through pagesift_poll_job, and work that finishes after the \
+             cancel is discarded. A completed, failed or already cancelled job is left unchanged and \
+             its current status is returned, so repeated calls are safe. An unknown or expired id is an \
+             error.",
+        )
+        .output_schema(output::job_cancelled())
+        .annotations(ToolAnnotations {
+            title: Some("pagesift cancel job".into()),
+            read_only_hint: Some(false),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(true),
+            open_world_hint: Some(false),
         })
 }
 
@@ -225,6 +296,7 @@ pub fn agent_def() -> ToolDef {
              ends. Respects robots.txt. Returns a job id right away; poll it with \
              pagesift_agent_status. Uses model tokens; for one known page use pagesift_scrape.",
         )
+        .output_schema(output::agent_started())
         .annotations(annotations("pagesift agent", true))
 }
 
@@ -242,8 +314,9 @@ pub fn agent_status_def() -> ToolDef {
         .title("Agent status")
         .description(
             "Get the status of a pagesift_agent job: data (or partial and stopReason when it did not \
-             finish), sources, fieldSources (which source each field came from) and usage. Read-only.",
+             finish), sources, fieldSources (which source each field came from) and usage.",
         )
+        .output_schema(output::agent_status())
         .annotations(ToolAnnotations {
             open_world_hint: Some(false),
             idempotent_hint: Some(true),
@@ -252,6 +325,9 @@ pub fn agent_status_def() -> ToolDef {
 }
 
 pub fn batch_scrape_def(caps: &Capabilities) -> ToolDef {
+    let mut options = scrape_options_schema(caps);
+    options["description"] =
+        json!("Scrape options applied to every URL; there are no per-URL overrides.");
     let schema = json!({
         "type": "object",
         "properties": {
@@ -259,9 +335,10 @@ pub fn batch_scrape_def(caps: &Capabilities) -> ToolDef {
                 "type": "array",
                 "items": { "type": "string", "format": "uri" },
                 "minItems": 1,
-                "description": "The URLs to scrape."
+                "maxItems": 10000,
+                "description": "The URLs to scrape, 1 to 10000."
             },
-            "options": scrape_options_schema(caps)
+            "options": options
         },
         "required": ["urls"],
         "additionalProperties": false
@@ -269,19 +346,25 @@ pub fn batch_scrape_def(caps: &Capabilities) -> ToolDef {
     ToolDef::new(BATCH_SCRAPE, schema)
         .title("Batch scrape")
         .description(
-            "Scrape a list of known URLs as one job with the same options. Returns a job id; poll it \
-             with pagesift_crawl_status.",
+            "Scrape a list of known URLs as one job with the same options. Use pagesift_scrape for one \
+             URL and pagesift_crawl when the URLs are not known yet. Invalid URLs are returned in \
+             invalidURLs instead of failing the job; a page that fails is recorded in the job's errors \
+             while the other pages still return. All requests share the server's concurrency and \
+             per-host rate limits. urls accepts up to 10000 entries and options applies to every URL \
+             (no per-URL overrides). Returns a job id; poll it with pagesift_poll_job.",
         )
+        .output_schema(output::job_started())
         .annotations(annotations("pagesift batch scrape", false))
 }
 
-/// 5 个工具的定义，顺序固定。
+/// 基础工具的定义，顺序固定。
 pub fn definitions(caps: &Capabilities) -> Vec<ToolDef> {
     vec![
         scrape_def(caps),
         map_def(),
         crawl_def(caps),
-        crawl_status_def(),
+        poll_job_def(),
+        cancel_job_def(),
         batch_scrape_def(caps),
     ]
 }
@@ -333,13 +416,21 @@ impl ToolHandler for Placeholder {
                 BATCH_SCRAPE => {
                     json!({ "success": true, "id": "placeholder-batch", "invalidURLs": [] })
                 }
-                CRAWL_STATUS => {
+                POLL_JOB => {
                     let id = s("id");
                     if !id.starts_with("placeholder-") {
                         return Err(ToolError::new(format!("Unknown job id: {id}"))
                             .with_details(json!({ "code": "INVALID_REQUEST" })));
                     }
                     json!({ "status": "completed", "total": 0, "completed": 0, "data": [] })
+                }
+                CANCEL_JOB => {
+                    let id = s("id");
+                    if !id.starts_with("placeholder-") {
+                        return Err(ToolError::new(format!("Unknown job id: {id}"))
+                            .with_details(json!({ "code": "INVALID_REQUEST" })));
+                    }
+                    json!({ "success": true, "status": "cancelled", "total": 0, "completed": 0 })
                 }
                 other => return Err(ToolError::new(format!("{other} is not implemented"))),
             };
@@ -358,16 +449,63 @@ mod tests {
         let caps = Capabilities::basic();
         let defs = definitions(&caps);
         let names: Vec<&str> = defs.iter().map(|d| d.name.as_str()).collect();
-        assert_eq!(names, [SCRAPE, MAP, CRAWL, CRAWL_STATUS, BATCH_SCRAPE]);
+        assert_eq!(
+            names,
+            [SCRAPE, MAP, CRAWL, POLL_JOB, CANCEL_JOB, BATCH_SCRAPE]
+        );
         for d in &defs {
             assert_eq!(d.input_schema["type"], "object", "{}", d.name);
             assert!(d.description.is_some());
+            assert!(d.output_schema.is_some(), "{} has no outputSchema", d.name);
+        }
+        assert!(interact_def(&["click".into()]).output_schema.is_some());
+        assert!(interact_stop_def().output_schema.is_some());
+        assert!(agent_def().output_schema.is_some());
+        assert!(agent_status_def().output_schema.is_some());
+        for d in &defs {
+            let out = d.output_schema.as_ref().unwrap();
+            assert_eq!(out["type"], "object", "{} outputSchema", d.name);
         }
         assert_eq!(scrape_def(&caps).input_schema["required"], json!(["url"]));
         assert!(
             crawl_def(&caps).input_schema["properties"]["scrapeOptions"]["properties"]["url"]
                 .is_null()
         );
+    }
+
+    /// 工具参数（含嵌套对象和数组元素）都有说明。
+    #[test]
+    fn every_tool_parameter_has_a_description() {
+        fn walk(schema: &Value, path: &str) {
+            if let Some(props) = schema.get("properties").and_then(Value::as_object) {
+                for (k, v) in props {
+                    let here = format!("{path}.{k}");
+                    let described = v
+                        .get("description")
+                        .and_then(Value::as_str)
+                        .is_some_and(|d| !d.trim().is_empty());
+                    assert!(described, "{here} has no description");
+                    walk(v, &here);
+                }
+            }
+            if let Some(items) = schema.get("items") {
+                walk(items, &format!("{path}[]"));
+            }
+            if let Some(alts) = schema.get("anyOf").and_then(Value::as_array) {
+                for (i, alt) in alts.iter().enumerate() {
+                    walk(alt, &format!("{path}<{i}>"));
+                }
+            }
+        }
+        let caps = Capabilities::basic();
+        let mut defs = definitions(&caps);
+        defs.push(interact_def(&["click".into()]));
+        defs.push(interact_stop_def());
+        defs.push(agent_def());
+        defs.push(agent_status_def());
+        for d in &defs {
+            walk(&d.input_schema, &d.name);
+        }
     }
 
     #[test]
@@ -400,7 +538,8 @@ mod tests {
             .is_err()
         );
         assert!(validate(&batch_scrape_def().input_schema, &json!({"urls": []})).is_err());
-        assert!(validate(&crawl_status_def().input_schema, &json!({})).is_err());
+        assert!(validate(&poll_job_def().input_schema, &json!({})).is_err());
+        assert!(validate(&cancel_job_def().input_schema, &json!({})).is_err());
     }
 
     /// crawl、map 的每个属性都是请求类型的真实字段。

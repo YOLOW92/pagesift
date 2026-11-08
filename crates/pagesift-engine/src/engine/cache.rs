@@ -99,7 +99,10 @@ impl Scraper {
         opts: &ScrapeOptions,
     ) -> Option<(pagesift_store::Store, Vec<u8>)> {
         let store = self.store.clone()?;
-        if !opts.headers.is_empty()
+        // 带调用方身份（owner）的结果可能来自该身份的会话，不能与匿名或其他身份共用缓存。
+        // 身份池按 owner × origin × egress × fingerprint 隔离，缓存键里没有这些维度，所以整类请求不走缓存。
+        if opts.owner.is_some()
+            || !opts.headers.is_empty()
             || opts.discover_scripts
             || opts.explain
             || !opts.actions.is_empty()
@@ -141,4 +144,129 @@ enum Cached {
     Hit(Box<Document>, std::time::SystemTime),
     NoData,
     Miss,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{Router, response::Html, routing::get};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    async fn site() -> (String, Arc<AtomicUsize>) {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let counter = calls.clone();
+        let app = Router::new().route(
+            "/",
+            get(move || {
+                let counter = counter.clone();
+                async move {
+                    let n = counter.fetch_add(1, Ordering::SeqCst) + 1;
+                    Html(format!(
+                        "<html><body><article><h1>Visit {n}</h1><p>This article is long enough \
+                         for the main-content extractor to keep it, and the visit number shows \
+                         whether this response came from the network or from the result cache.</p>\
+                         </article></body></html>"
+                    ))
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        (format!("http://{addr}/"), calls)
+    }
+
+    fn scraper(store: pagesift_store::Store) -> Scraper {
+        let mut cfg = ScraperConfig {
+            store: Some(store),
+            ..Default::default()
+        };
+        cfg.fetcher.env_proxy = false;
+        cfg.fetcher.ssrf.allow_private_network = true;
+        cfg.policy.rate.default_interval = Duration::ZERO;
+        Scraper::new(cfg).unwrap()
+    }
+
+    /// 带 owner 的请求既不读匿名缓存，也不把自己的结果写进匿名缓存。
+    #[tokio::test]
+    async fn owner_scoped_requests_bypass_the_shared_result_cache() {
+        let (url, calls) = site().await;
+        let dir = tempfile::tempdir().unwrap();
+        let store = pagesift_store::Store::open_dir(dir.path()).unwrap();
+        let scraper = scraper(store);
+
+        let anonymous = ScrapeOptions::default();
+        let first = scraper
+            .scrape_cached(&url, &anonymous, RobotsMode::Ignore)
+            .await
+            .unwrap();
+        assert!(first.markdown.as_deref().unwrap().contains("Visit 1"));
+        assert_eq!(first.metadata.cache_state.as_deref(), Some("miss"));
+
+        let hit = scraper
+            .scrape_cached(&url, &anonymous, RobotsMode::Ignore)
+            .await
+            .unwrap();
+        assert!(hit.markdown.as_deref().unwrap().contains("Visit 1"));
+        assert_eq!(hit.metadata.cache_state.as_deref(), Some("hit"));
+
+        let mut tenant = ScrapeOptions {
+            owner: Some("tenant-a".into()),
+            ..Default::default()
+        };
+        let tenant_first = scraper
+            .scrape_cached(&url, &tenant, RobotsMode::Ignore)
+            .await
+            .unwrap();
+        assert!(
+            tenant_first
+                .markdown
+                .as_deref()
+                .unwrap()
+                .contains("Visit 2")
+        );
+        assert_eq!(tenant_first.metadata.cache_state, None);
+
+        let tenant_again = scraper
+            .scrape_cached(&url, &tenant, RobotsMode::Ignore)
+            .await
+            .unwrap();
+        assert!(
+            tenant_again
+                .markdown
+                .as_deref()
+                .unwrap()
+                .contains("Visit 3")
+        );
+        assert_eq!(tenant_again.metadata.cache_state, None);
+
+        let still_anonymous = scraper
+            .scrape_cached(&url, &anonymous, RobotsMode::Ignore)
+            .await
+            .unwrap();
+        assert!(
+            still_anonymous
+                .markdown
+                .as_deref()
+                .unwrap()
+                .contains("Visit 1")
+        );
+        assert_eq!(still_anonymous.metadata.cache_state.as_deref(), Some("hit"));
+
+        tenant.owner = Some("tenant-b".into());
+        let other_tenant = scraper
+            .scrape_cached(&url, &tenant, RobotsMode::Ignore)
+            .await
+            .unwrap();
+        assert!(
+            other_tenant
+                .markdown
+                .as_deref()
+                .unwrap()
+                .contains("Visit 4")
+        );
+        assert_eq!(other_tenant.metadata.cache_state, None);
+        assert_eq!(calls.load(Ordering::SeqCst), 4);
+    }
 }
