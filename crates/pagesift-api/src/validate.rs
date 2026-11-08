@@ -36,6 +36,16 @@ pub fn check_url(raw: &str) -> Result<(), ApiError> {
 }
 
 pub fn check_scrape_options(opts: &ScrapeOptions, engine: &dyn Engine) -> Result<(), ApiError> {
+    if opts.store_snapshot {
+        return Err(ApiError::unsupported(
+            "storeSnapshot is not supported; use the changeTracking format",
+        ));
+    }
+    if !opts.remove_base64_images {
+        return Err(ApiError::unsupported(
+            "removeBase64Images: false is not supported",
+        ));
+    }
     if opts
         .formats
         .iter()

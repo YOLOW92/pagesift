@@ -284,10 +284,19 @@ impl Agents {
 
     /// 查询：只有提交者能看。`evidence` 为真时带上存档的证据全文。
     pub async fn status(&self, id: &str, owner: &str, evidence: bool) -> Result<Value, ApiError> {
-        let map = self.0.map.lock().await;
+        let mut map = self.0.map.lock().await;
+        if map
+            .get(id)
+            .is_some_and(|job| created_at(job) + JOB_TTL <= SystemTime::now())
+        {
+            map.remove(id);
+            if let Some(store) = &self.0.store {
+                let _ = store.tasks().kv_delete(key(id));
+            }
+        }
         let job = map
             .get(id)
-            .filter(|j| j.owner == owner)
+            .filter(|j| j.owner == owner && created_at(j) + JOB_TTL > SystemTime::now())
             .ok_or_else(|| not_found(id))?;
         let mut body = match &job.outcome {
             Some(o) if evidence => agent_body_with_evidence(o),
@@ -317,7 +326,7 @@ impl Agents {
         let map = self.0.map.lock().await;
         let job = map
             .get(id)
-            .filter(|j| j.owner == owner)
+            .filter(|j| j.owner == owner && created_at(j) + JOB_TTL > SystemTime::now())
             .ok_or_else(|| not_found(id))?;
         job.cancel.store(true, Ordering::SeqCst);
         Ok(())

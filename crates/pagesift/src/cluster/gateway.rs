@@ -370,6 +370,22 @@ impl Engine for ClusterEngine {
         Engine::extract(&*self.scraper, req)
     }
 
+    fn search_budgeted<'a>(
+        &'a self,
+        req: &'a SearchRequest,
+        budget: Arc<dyn pagesift_api::PageBudget>,
+    ) -> BoxFuture<'a, Result<serde_json::Value, ApiError>> {
+        Engine::search_budgeted(&*self.scraper, req, budget)
+    }
+
+    fn extract_budgeted<'a>(
+        &'a self,
+        req: &'a ExtractRequest,
+        budget: Arc<dyn pagesift_api::PageBudget>,
+    ) -> BoxFuture<'a, Result<serde_json::Value, ApiError>> {
+        Engine::extract_budgeted(&*self.scraper, req, budget)
+    }
+
     fn agent_check(&self, req: &pagesift_api::types::AgentRequest) -> Result<(), ApiError> {
         Engine::agent_check(&*self.scraper, req)
     }

@@ -67,7 +67,8 @@ no signature, so it needs the extension or `text/csv`.
 | `parsers` | `["pdf", "image"]` | See below. |
 | `queryFilter`, `chunking` | none | pagesift extensions, as in scrape. |
 | `proxy` | none | Only `basic` and `auto` are accepted (no network is involved, so they do nothing). |
-| `headers`, `skipTlsVerification`, `removeBase64Images`, `blockAds`, `origin`, `integration` | | Accepted, no effect on the result. |
+| `headers`, `skipTlsVerification`, `blockAds`, `origin`, `integration` | | Accepted, no effect on the result. |
+| `removeBase64Images` | `true` | `false` is rejected; inline base64 images are removed. |
 | Other fields (such as `zeroDataRetention`) | | Accepted, no effect, listed in `metadata.pagesift.warnings` as `ignored_fields: <name>`. |
 
 Options that cannot apply return 400 `UNSUPPORTED_OPTION`: `actions`, `waitFor`, `location`, `mobile`,

@@ -55,7 +55,7 @@ pub fn document() -> Value {
             "warning": string("Compatibility or deprecation warning from the scrape."),
             "changeTracking": object(
                 json!({
-                    "previousScrapeAt": string("Time of the previous scrape of this URL."),
+                    "previousScrapeAt": { "type": ["string", "null"], "description": "Time of the previous scrape of this URL, or null on the first scrape." },
                     "changeStatus": { "type": "string", "enum": ["new", "same", "changed", "removed"], "description": "How the page changed since the previous scrape." },
                     "visibility": { "type": "string", "enum": ["visible", "hidden"], "description": "Whether the change is visible on the page." },
                     "diff": json!({ "description": "Structured diff when one was requested." }),
@@ -82,7 +82,7 @@ pub fn document() -> Value {
                         "format": string("File format (extension)."),
                         "bytes": integer("Size in bytes."),
                         "hash": string("SHA-256 of the content."),
-                        "source": string("Original URL or document part, when known."),
+                        "source": { "type": ["string", "null"], "description": "Original URL or document part, when known." },
                     }),
                     &["id", "format", "bytes", "hash"],
                 ),

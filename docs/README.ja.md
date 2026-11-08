@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.2.1
+# pagesift 1.2.2
 
 **AI エージェントのための Web・文書レイヤー：URL、文書、メール、圧縮ファイル、ソースコードを入力すると、クリーンな Markdown または JSON を出力します。**  
 セルフホストできる単一の Rust バイナリ：CLI、Firecrawl・Jina Reader API、MCP サーバー、Python・Node.js・Go・Java・C#・Ruby・PHP などのパッケージ。
@@ -325,11 +325,11 @@ flowchart LR
 [商用ライセンス](COMMERCIAL.md)を確認するか、`licensing@pagesift.dev` までご連絡ください。
 
 <!-- section: changelog -->
-## 1.2.1 の新機能
+## 1.2.2 の新機能
 
-ID 付きのリクエストは共有結果キャッシュを読み書きしなくなり、ある API キーが別のキー向けのパーソナライズされたページを受け取ることはありません。`Retry-After` 付きの 503 は試行トレースと出口統計でスロットルとして分類されます。MCP ツールに出力スキーマと完全なパラメータ説明を追加し、`pagesift_crawl_status` を `pagesift_poll_job` に改名、実行中の crawl と batch ジョブを停止する `pagesift_cancel_job` を追加しました。
+crawl、batch、extract のジョブは作成したアカウントのみが利用できます。search と extract のページ取得は日次クォータに計上され、キャッシュも robots.txt を確認します。未対応のスナップショットと base64 画像のオプションはエラーになります。
 
-[リリースノート](releases/1.2.1.md) · [1.2.0](releases/1.2.0.md) · [全リリース](releases/) · [CHANGELOG](../CHANGELOG.md)
+[リリースノート](releases/1.2.2.md) · [1.2.1](releases/1.2.1.md) · [すべてのリリース](releases/) · [CHANGELOG](../CHANGELOG.md)
 
 ---
 

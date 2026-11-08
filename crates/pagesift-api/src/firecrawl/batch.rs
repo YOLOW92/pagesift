@@ -71,11 +71,13 @@ pub async fn batch_start(
 
 pub async fn job_status(
     State(s): State<AppState>,
+    caller: Option<Extension<Caller>>,
     headers: HeaderMap,
     uri: Uri,
     Path(id): Path<String>,
     Query(p): Query<Paging>,
 ) -> Result<Json<JobStatus>, ApiError> {
+    authorize_job(&s, &id, caller.as_ref().map(|Extension(c)| c)).await?;
     let base = base_url(&s, &headers);
     let path = uri.path().to_string();
     let page = s
@@ -100,8 +102,10 @@ pub async fn job_status(
 
 pub async fn job_cancel(
     State(s): State<AppState>,
+    caller: Option<Extension<Caller>>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
+    authorize_job(&s, &id, caller.as_ref().map(|Extension(c)| c)).await?;
     if s.jobs.cancel(&id).await {
         Ok(StatusCode::OK)
     } else {
@@ -114,13 +118,30 @@ pub async fn job_cancel(
 
 pub async fn job_errors(
     State(s): State<AppState>,
+    caller: Option<Extension<Caller>>,
     Path(id): Path<String>,
 ) -> Result<Json<JobErrors>, ApiError> {
+    authorize_job(&s, &id, caller.as_ref().map(|Extension(c)| c)).await?;
     if let Some((errors, blocked)) = s.jobs.errors(&id).await {
         Ok(Json(JobErrors {
             errors,
             robots_blocked: blocked,
         }))
+    } else {
+        Err(ApiError::new(
+            ErrorCode::NotFound,
+            format!("job {id} not found"),
+        ))
+    }
+}
+
+pub(super) async fn authorize_job(
+    s: &AppState,
+    id: &str,
+    caller: Option<&Caller>,
+) -> Result<(), ApiError> {
+    if s.jobs.owned_by(id, caller).await {
+        Ok(())
     } else {
         Err(ApiError::new(
             ErrorCode::NotFound,

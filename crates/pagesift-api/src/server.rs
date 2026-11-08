@@ -162,6 +162,7 @@ fn batch_concurrency(
 
 pub struct ExtractJob {
     pub status: &'static str,
+    pub(crate) owner: String,
     pub data: Option<serde_json::Value>,
     pub error: Option<ApiError>,
     pub created: std::time::SystemTime,

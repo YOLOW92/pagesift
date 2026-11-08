@@ -401,7 +401,7 @@ impl ToolHandler for Placeholder {
                     ctx.progress(1.0, Some(1.0), Some("done"));
                     json!({
                         "markdown": "# Example Domain\n\nThis is placeholder content from pagesift-mcp.",
-                        "metadata": { "sourceURL": url, "url": url, "statusCode": 200, "title": "Example Domain" },
+                        "metadata": { "sourceURL": url, "url": url, "statusCode": 200, "proxyUsed": "basic", "title": "Example Domain" },
                         "warning": "placeholder result: the scraping engine is not wired in yet"
                     })
                 }
@@ -412,9 +412,11 @@ impl ToolHandler for Placeholder {
                         { "url": format!("{base}/about") },
                     ]})
                 }
-                CRAWL => json!({ "success": true, "id": "placeholder-crawl", "url": s("url") }),
+                CRAWL => {
+                    json!({ "success": true, "id": "placeholder-crawl", "status": "scraping", "url": s("url") })
+                }
                 BATCH_SCRAPE => {
-                    json!({ "success": true, "id": "placeholder-batch", "invalidURLs": [] })
+                    json!({ "success": true, "id": "placeholder-batch", "status": "scraping", "invalidURLs": [] })
                 }
                 POLL_JOB => {
                     let id = s("id");
@@ -422,7 +424,7 @@ impl ToolHandler for Placeholder {
                         return Err(ToolError::new(format!("Unknown job id: {id}"))
                             .with_details(json!({ "code": "INVALID_REQUEST" })));
                     }
-                    json!({ "status": "completed", "total": 0, "completed": 0, "data": [] })
+                    json!({ "status": "completed", "total": 0, "completed": 0, "expiresAt": "2099-01-01T00:00:00Z", "data": [] })
                 }
                 CANCEL_JOB => {
                     let id = s("id");
@@ -589,5 +591,29 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.message.contains("Unknown job id"));
+    }
+
+    #[tokio::test]
+    async fn placeholder_outputs_match_schemas() {
+        let tools = placeholder_tools();
+        for (name, args) in [
+            (SCRAPE, json!({"url":"https://example.com"})),
+            (MAP, json!({"url":"https://example.com"})),
+            (CRAWL, json!({"url":"https://example.com"})),
+            (BATCH_SCRAPE, json!({"urls":["https://example.com"]})),
+            (POLL_JOB, json!({"id":"placeholder-crawl"})),
+            (CANCEL_JOB, json!({"id":"placeholder-crawl"})),
+        ] {
+            let tool = tools.iter().find(|t| t.definition().name == name).unwrap();
+            let output = tool
+                .call(args.as_object().unwrap().clone(), ToolContext::default())
+                .await
+                .unwrap();
+            validate(
+                tool.definition().output_schema.as_ref().unwrap(),
+                output.structured_content.as_ref().unwrap(),
+            )
+            .unwrap();
+        }
     }
 }

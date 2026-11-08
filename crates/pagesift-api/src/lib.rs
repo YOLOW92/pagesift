@@ -25,7 +25,7 @@ mod validate;
 mod webhook;
 
 pub use agent::{Agents, agent_body, agent_body_with_evidence, check_agent_request};
-pub use engine::{AgentSink, BoxFuture, CrawlResume, CrawlSink, Engine};
+pub use engine::{AgentSink, BoxFuture, CrawlResume, CrawlSink, Engine, PageBudget};
 pub use error::{ApiError, ErrorCode};
 pub use jobs::mirror::{JobLog, JobMirror, apply_op};
 pub use jobs::{JOB_TTL, Job, JobKind, JobState, Jobs, rfc3339};

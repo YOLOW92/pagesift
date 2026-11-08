@@ -177,13 +177,13 @@ mod tests {
     }
 
     impl FakeSite {
-        fn get(&mut self, cookie: Option<&str>) -> (u16, Option<String>) {
+        fn get(&mut self, cookie: Option<&str>) -> (u16, bool, Option<String>) {
             if self.rng.uniform() < 0.05 {
-                return (429, None);
+                return (429, false, None);
             }
             let Some(c) = cookie else {
                 self.next_cookie += 1;
-                return (403, Some(format!("sid=s{}", self.next_cookie)));
+                return (403, false, Some(format!("sid=s{}", self.next_cookie)));
             };
             let left = self.burn.entry(c.to_string()).or_insert_with(|| {
                 // 每个会话平均 20 次请求后被标记
@@ -194,10 +194,10 @@ mod tests {
                 k
             });
             if *left == 0 {
-                return (403, None);
+                return (403, false, None);
             }
             *left -= 1;
-            (200, None)
+            (200, false, None)
         }
     }
 
@@ -220,7 +220,7 @@ mod tests {
                 } else {
                     shared.clone()
                 };
-                let (status, set) = site.get(cookie.as_deref());
+                let (status, retry_after, set) = site.get(cookie.as_deref());
                 if let Some(c) = &set {
                     if pool {
                         p.set_cookies("site", slot.id, [c.as_str()]);
@@ -234,7 +234,7 @@ mod tests {
                 }
                 // 拿到新 cookie 的那次 403 不是被拦（只是还没有会话）
                 if pool && set.is_none() {
-                    p.report("site", slot.id, Outcome::from_status(status, false));
+                    p.report("site", slot.id, Outcome::from_status(status, retry_after));
                 }
             }
         }

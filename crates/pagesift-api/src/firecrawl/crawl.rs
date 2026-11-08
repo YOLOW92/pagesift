@@ -45,8 +45,14 @@ pub async fn crawl_start(
     }))
 }
 
-pub async fn jobs_active(State(s): State<AppState>) -> Json<serde_json::Value> {
-    let ids = s.jobs.active().await;
+pub async fn jobs_active(
+    State(s): State<AppState>,
+    caller: Option<Extension<Caller>>,
+) -> Json<serde_json::Value> {
+    let ids = s
+        .jobs
+        .active_for(caller.as_ref().map(|Extension(c)| c))
+        .await;
     Json(serde_json::json!({
         "success": true,
         "crawls": ids.into_iter().map(|id| serde_json::json!({ "id": id })).collect::<Vec<_>>(),

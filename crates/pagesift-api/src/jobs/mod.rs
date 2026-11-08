@@ -22,7 +22,7 @@ use tokio::sync::{Mutex, Semaphore};
 
 use crate::engine::{CrawlResume, Engine};
 use crate::error::{ApiError, ErrorCode};
-use crate::limits::Limiter;
+use crate::limits::{Caller, Limiter};
 use crate::metrics::Metrics;
 use crate::types::{CrawlRequest, JobError, ScrapeOptions};
 use crate::webhook::{Event, Hook, Webhooks};
@@ -235,6 +235,33 @@ impl Jobs {
         let map = self.inner.map.lock().await;
         map.iter()
             .filter(|(_, j)| j.state == JobState::Scraping)
+            .map(|(id, _)| id.clone())
+            .collect()
+    }
+
+    pub(crate) async fn owned_by(&self, id: &str, caller: Option<&Caller>) -> bool {
+        self.sweep().await;
+        let map = self.inner.map.lock().await;
+        map.get(id).is_some_and(|job| match (&job.owner, caller) {
+            (Some(owner), Some(caller)) => owner.account == caller.account,
+            (None, Some(caller)) => caller.account.as_ref() == "anonymous",
+            (None, None) => true,
+            _ => false,
+        })
+    }
+
+    pub(crate) async fn active_for(&self, caller: Option<&Caller>) -> Vec<String> {
+        let map = self.inner.map.lock().await;
+        map.iter()
+            .filter(|(_, job)| {
+                job.state == JobState::Scraping
+                    && match (&job.owner, caller) {
+                        (Some(owner), Some(caller)) => owner.account == caller.account,
+                        (None, Some(caller)) => caller.account.as_ref() == "anonymous",
+                        (None, None) => true,
+                        _ => false,
+                    }
+            })
             .map(|(id, _)| id.clone())
             .collect()
     }

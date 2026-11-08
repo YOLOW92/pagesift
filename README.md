@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.2.1
+# pagesift 1.2.2
 
 **The web and document layer for AI agents: any URL, document, email, archive or source file in, clean Markdown or JSON out.**  
 One self-hosted Rust binary with a CLI, Firecrawl and Jina Reader APIs, an MCP server, and packages for Python, Node.js, Go, Java, C#, Ruby, PHP and more.
@@ -325,11 +325,11 @@ flowchart LR
 [commercial license](docs/COMMERCIAL.md) or write to `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
-## What's new in 1.2.1
+## What's new in 1.2.2
 
-Identity-scoped requests no longer read or write the shared result cache, so one API key cannot receive another key's personalized page. 503 responses with `Retry-After` are classified as throttled in attempt traces and egress statistics. MCP tools gain output schemas and complete parameter descriptions, `pagesift_crawl_status` is renamed to `pagesift_poll_job`, and `pagesift_cancel_job` stops running crawl and batch jobs.
+Crawl, batch and extract jobs are restricted to their owner. Search and extract page attempts count against the daily quota, and cached pages are checked against robots.txt. Unsupported snapshot and base64-image options are now rejected instead of silently ignored.
 
-[Release notes](docs/releases/1.2.1.md) · [1.2.0](docs/releases/1.2.0.md) · [all releases](docs/releases/) · [CHANGELOG](CHANGELOG.md)
+[Release notes](docs/releases/1.2.2.md) · [1.2.1](docs/releases/1.2.1.md) · [all releases](docs/releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 

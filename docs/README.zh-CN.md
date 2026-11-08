@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.2.1
+# pagesift 1.2.2
 
 **AI 智能体的网页和文档层：输入任意 URL、文档、邮件、压缩包或源代码文件，输出干净的 Markdown 或 JSON。**  
 一个自托管的 Rust 二进制：CLI、Firecrawl 和 Jina Reader API、MCP 服务器，以及 Python、Node.js、Go、Java、C#、Ruby、PHP 等语言的包。
@@ -323,11 +323,11 @@ flowchart LR
 [商业许可](COMMERCIAL.md) 或写信到 `licensing@pagesift.dev`。
 
 <!-- section: changelog -->
-## 1.2.1 新增
+## 1.2.2 新增
 
-带身份的请求不再读写共享结果缓存，一个 API key 不会收到另一个 key 的个性化页面。带 `Retry-After` 的 503 在尝试轨迹和出口统计里归为限速。MCP 工具补齐输出 schema 和参数说明，`pagesift_crawl_status` 改名为 `pagesift_poll_job`，新增 `pagesift_cancel_job` 停止运行中的 crawl 和 batch 任务。
+crawl、batch 和 extract 任务仅对所属账号开放。search 和 extract 的页面抓取计入每日配额，缓存页面也会检查 robots.txt。不支持的快照和 base64 图片选项现在会明确报错。
 
-[发布说明](releases/1.2.1.md) · [1.2.0](releases/1.2.0.md) · [全部版本](releases/) · [CHANGELOG](../CHANGELOG.md)
+[发布说明](releases/1.2.2.md) · [1.2.1](releases/1.2.1.md) · [全部版本](releases/) · [CHANGELOG](../CHANGELOG.md)
 
 ---
 

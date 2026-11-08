@@ -8,7 +8,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-pagesift-infer = { version = "1.2.1", path = "../pagesift-infer" }
+pagesift-infer = { version = "1.2.2", path = "../pagesift-infer" }
 
 [[test]]
 name = "it"

@@ -47,6 +47,10 @@ pub const NOT_EXPOSED: &[(&str, &str)] = &[
         "ignoreRobotsTxt",
         "not offered to agents: whether robots.txt may be ignored is the operator's decision in pagesift.toml",
     ),
+    (
+        "storeSnapshot",
+        "not supported; use the changeTracking format",
+    ),
 ];
 
 /// 一个浏览器动作的参数表：抓取前的 `actions` 和 `pagesift_interact` 共用。
@@ -178,7 +182,7 @@ pub fn scrape_options_schema(caps: &Capabilities) -> Value {
     );
     put(
         "removeBase64Images",
-        json!({ "type": "boolean", "description": "Remove inline base64 image data from the output. Defaults to true." }),
+        json!({ "type": "boolean", "const": true, "description": "Inline base64 images are removed. Only true is supported." }),
     );
     put(
         "blockAds",
@@ -234,10 +238,6 @@ pub fn scrape_options_schema(caps: &Capabilities) -> Value {
     put(
         "ifModifiedSince",
         json!({ "type": "string", "description": "HTTP date for a conditional request." }),
-    );
-    put(
-        "storeSnapshot",
-        json!({ "type": "boolean", "description": "Keep a snapshot of this page for later change tracking." }),
     );
     put(
         "queryFilter",

@@ -25,6 +25,6 @@
 
 ## Optional
 
-- [Release notes](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.2.1.md): changes, migration and known limits
+- [Release notes](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.2.2.md): changes, migration and known limits
 - [Changelog](https://github.com/YOLOW92/pagesift/blob/main/CHANGELOG.md)
 - [Commercial license](https://github.com/YOLOW92/pagesift/blob/main/docs/COMMERCIAL.md)

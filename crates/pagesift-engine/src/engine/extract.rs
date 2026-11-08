@@ -12,6 +12,14 @@ impl Scraper {
         &self,
         req: &pagesift_api::types::SearchRequest,
     ) -> Result<serde_json::Value, ApiError> {
+        self.search_with_budget(req, None).await
+    }
+
+    pub async fn search_with_budget(
+        &self,
+        req: &pagesift_api::types::SearchRequest,
+        budget: Option<&dyn pagesift_api::PageBudget>,
+    ) -> Result<serde_json::Value, ApiError> {
         let Some(backend) = &self.search else {
             return Err(ApiError::unsupported(
                 "search is not configured: set [search] in pagesift.toml",
@@ -48,10 +56,19 @@ impl Scraper {
             .filter(|o| !o.formats.is_empty());
         let docs: Vec<Option<Document>> = match scrape {
             Some(opts) => {
-                let futs = results
-                    .iter()
-                    .map(|r| async move { self.scrape(&r.url, opts).await.ok() });
-                futures_util::future::join_all(futs).await
+                if let Some(budget) = budget {
+                    let mut docs = Vec::with_capacity(results.len());
+                    for result in &results {
+                        budget.acquire().await?;
+                        docs.push(self.scrape(&result.url, opts).await.ok());
+                    }
+                    docs
+                } else {
+                    let futs = results
+                        .iter()
+                        .map(|r| async move { self.scrape(&r.url, opts).await.ok() });
+                    futures_util::future::join_all(futs).await
+                }
             }
             None => vec![None; results.len()],
         };
@@ -83,6 +100,14 @@ impl Scraper {
         &self,
         req: &pagesift_api::types::ExtractRequest,
     ) -> Result<serde_json::Value, ApiError> {
+        self.extract_with_budget(req, None).await
+    }
+
+    pub async fn extract_with_budget(
+        &self,
+        req: &pagesift_api::types::ExtractRequest,
+        budget: Option<&dyn pagesift_api::PageBudget>,
+    ) -> Result<serde_json::Value, ApiError> {
         let Some(llm) = &self.llm else {
             return Err(ApiError::unsupported(
                 "extract needs an LLM: set [llm] in pagesift.toml",
@@ -103,12 +128,22 @@ impl Scraper {
         urls.truncate(EXTRACT_MAX_PAGES);
         let opts = req.scrape_options.clone().unwrap_or_default();
         let opts = &opts;
-        let futs = urls
-            .iter()
-            .map(|u| async move { (u, self.scrape(u, opts).await) });
+        let results = if let Some(budget) = budget {
+            let mut results = Vec::with_capacity(urls.len());
+            for u in &urls {
+                budget.acquire().await?;
+                results.push((u, self.scrape(u, opts).await));
+            }
+            results
+        } else {
+            let futs = urls
+                .iter()
+                .map(|u| async move { (u, self.scrape(u, opts).await) });
+            futures_util::future::join_all(futs).await
+        };
         let mut corpus = String::new();
         let mut errors = Vec::new();
-        for (u, r) in futures_util::future::join_all(futs).await {
+        for (u, r) in results {
             match r {
                 Ok(doc) => {
                     let md: String = doc

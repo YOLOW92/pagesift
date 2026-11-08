@@ -83,6 +83,7 @@ pub(crate) struct Limiter {
     usage: Mutex<HashMap<Arc<str>, Usage>>,
     store: Option<Store>,
     ledger: Option<Arc<pagesift_cluster::Ledger>>,
+    page_reservation: tokio::sync::Mutex<()>,
 }
 
 fn rate_error(rpm: u32, wait: u64) -> ApiError {
@@ -232,6 +233,22 @@ impl Limiter {
         Ok(())
     }
 
+    pub(crate) async fn reserve_page(&self, c: &Caller) -> Result<(), ApiError> {
+        let _guard = self.page_reservation.lock().await;
+        if c.limits.pages_per_day.is_some()
+            && let Some(ledger) = &self.ledger
+        {
+            let hold = ledger.reserve(&c.account, 1).map_err(|err| match err {
+                pagesift_cluster::Refusal::Error(err) => ledger_error(err),
+                _ => quota_error(c),
+            })?;
+            return ledger.settle(&hold, 1).map_err(ledger_error);
+        }
+        self.check_quota(c)?;
+        self.consume_pages(c, 1).await;
+        Ok(())
+    }
+
     /// 记入当天用掉的页数。只有设了配额的调用方才计数和落盘。
     pub(crate) async fn consume_pages(&self, c: &Caller, n: u64) {
         if c.limits.pages_per_day.is_none() || n == 0 {
@@ -364,6 +381,18 @@ mod tests {
         );
         // 不限额的调用方不受影响
         l.check_rate(&caller(KeyLimits::default())).unwrap();
+    }
+
+    #[tokio::test]
+    async fn concurrent_page_reservations_stop_at_quota() {
+        let c = caller(KeyLimits {
+            pages_per_day: Some(1),
+            ..Default::default()
+        });
+        let limiter = Limiter::new(None);
+        let (a, b) = tokio::join!(limiter.reserve_page(&c), limiter.reserve_page(&c));
+        assert_ne!(a.is_ok(), b.is_ok());
+        assert_eq!(limiter.remaining_pages(&c), Some(0));
     }
 
     #[tokio::test]

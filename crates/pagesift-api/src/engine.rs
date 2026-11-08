@@ -14,6 +14,11 @@ use serde_json::Value;
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
+/// 每次抓取前取得页面预算；拒绝时不得发出页面请求。
+pub trait PageBudget: Send + Sync {
+    fn acquire(&self) -> BoxFuture<'_, Result<(), ApiError>>;
+}
+
 pub trait Engine: Send + Sync + 'static {
     fn scrape<'a>(
         &'a self,
@@ -66,6 +71,30 @@ pub trait Engine: Send + Sync + 'static {
         Box::pin(async {
             Err(ApiError::unsupported(
                 "extract needs an LLM: set [llm] in pagesift.toml",
+            ))
+        })
+    }
+
+    fn search_budgeted<'a>(
+        &'a self,
+        _req: &'a SearchRequest,
+        _budget: Arc<dyn PageBudget>,
+    ) -> BoxFuture<'a, Result<Value, ApiError>> {
+        Box::pin(async {
+            Err(ApiError::unsupported(
+                "page quotas are not supported by this search engine",
+            ))
+        })
+    }
+
+    fn extract_budgeted<'a>(
+        &'a self,
+        _req: &'a ExtractRequest,
+        _budget: Arc<dyn PageBudget>,
+    ) -> BoxFuture<'a, Result<Value, ApiError>> {
+        Box::pin(async {
+            Err(ApiError::unsupported(
+                "page quotas are not supported by this extract engine",
             ))
         })
     }

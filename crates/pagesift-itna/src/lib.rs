@@ -154,7 +154,9 @@ impl Attempts {
         outcome: Outcome,
         browser_allowed: bool,
     ) -> Decision {
-        assert!(self.in_flight, "finish requires a reserved attempt");
+        if !self.in_flight {
+            return Decision::Finish;
+        }
         self.in_flight = false;
         if executor == Executor::Http
             && browser_allowed
@@ -173,6 +175,24 @@ impl Attempts {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn finish_without_reservation_is_safe() {
+        let mut attempts = Attempts::new(Duration::from_secs(10), 2, 1);
+        assert_eq!(
+            attempts.finish(Executor::Http, Outcome::Blocked, true),
+            Decision::Finish
+        );
+        assert!(attempts.reserve(Executor::Http));
+        assert_eq!(
+            attempts.finish(Executor::Http, Outcome::Served, true),
+            Decision::Finish
+        );
+        assert_eq!(
+            attempts.finish(Executor::Http, Outcome::Blocked, true),
+            Decision::Finish
+        );
+    }
 
     #[test]
     fn status_and_barriers_are_classified() {

@@ -13,6 +13,27 @@ use tower::ServiceExt;
 struct Fake;
 
 impl Engine for Fake {
+    fn search_budgeted<'a>(
+        &'a self,
+        _req: &'a pagesift_api::types::SearchRequest,
+        budget: Arc<dyn pagesift_api::PageBudget>,
+    ) -> BoxFuture<'a, Result<Value, ApiError>> {
+        Box::pin(async move {
+            budget.acquire().await?;
+            Ok(json!({"web": []}))
+        })
+    }
+
+    fn extract_budgeted<'a>(
+        &'a self,
+        _req: &'a pagesift_api::types::ExtractRequest,
+        budget: Arc<dyn pagesift_api::PageBudget>,
+    ) -> BoxFuture<'a, Result<Value, ApiError>> {
+        Box::pin(async move {
+            budget.acquire().await?;
+            Ok(json!({"result": "ok"}))
+        })
+    }
     fn scrape<'a>(
         &'a self,
         url: &'a str,
@@ -119,6 +140,135 @@ async fn scrape_returns_firecrawl_shape() {
     assert_eq!(v["data"]["markdown"], "# https://example.com/a");
     assert_eq!(v["data"]["metadata"]["sourceURL"], "https://example.com/a");
     assert_eq!(v["data"]["metadata"]["statusCode"], 200);
+}
+
+#[tokio::test]
+async fn jobs_are_private_to_their_owner() {
+    let app = app(&["key-a", "key-b"]);
+    let (status, started) = call(
+        &app,
+        "POST",
+        "/v2/crawl",
+        Some(json!({"url":"https://example.com/slow"})),
+        Some("key-a"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let id = started["id"].as_str().unwrap();
+    let (_, active) = call(&app, "GET", "/v2/crawl/active", None, Some("key-b")).await;
+    assert!(
+        !active["crawls"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["id"] == id)
+    );
+    for (method, suffix) in [
+        ("GET", ""),
+        ("GET", "/errors"),
+        ("GET", "/stream"),
+        ("DELETE", ""),
+    ] {
+        let (status, _) = call(
+            &app,
+            method,
+            &format!("/v2/crawl/{id}{suffix}"),
+            None,
+            Some("key-b"),
+        )
+        .await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{method} {suffix}");
+    }
+    let (status, _) = call(&app, "GET", &format!("/v2/crawl/{id}"), None, Some("key-a")).await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn search_and_extract_consume_page_quota() {
+    use pagesift_api::KeyLimits;
+    let app = router(
+        Arc::new(Fake),
+        Config {
+            key_limits: [(
+                "limited".to_string(),
+                KeyLimits {
+                    pages_per_day: Some(1),
+                    ..Default::default()
+                },
+            )]
+            .into(),
+            ..Default::default()
+        },
+    );
+    let (status, _) = call(
+        &app,
+        "POST",
+        "/v2/search",
+        Some(json!({"query":"hello", "scrapeOptions":{"formats":["markdown"]}})),
+        Some("limited"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, _) = call(
+        &app,
+        "POST",
+        "/v2/extract",
+        Some(json!({"urls":["https://example.com"],"prompt":"test"})),
+        Some("limited"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+}
+
+#[tokio::test]
+async fn extract_results_are_private_and_spend_quota() {
+    use pagesift_api::KeyLimits;
+    let app = router(
+        Arc::new(Fake),
+        Config {
+            api_keys: vec!["other".into()],
+            key_limits: [(
+                "limited".to_string(),
+                KeyLimits {
+                    pages_per_day: Some(1),
+                    ..Default::default()
+                },
+            )]
+            .into(),
+            ..Default::default()
+        },
+    );
+    let (status, started) = call(
+        &app,
+        "POST",
+        "/v2/extract",
+        Some(json!({"urls":["https://example.com"],"prompt":"test"})),
+        Some("limited"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let path = format!("/v2/extract/{}", started["id"].as_str().unwrap());
+    let (status, _) = call(&app, "GET", &path, None, Some("other")).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let mut finished = false;
+    for _ in 0..100 {
+        let (_, value) = call(&app, "GET", &path, None, Some("limited")).await;
+        if value["status"] == "completed" {
+            finished = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    assert!(finished);
+    let (status, _) = call(
+        &app,
+        "POST",
+        "/v2/scrape",
+        Some(json!({"url":"https://example.com"})),
+        Some("limited"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
 }
 
 /// 兼容接口照常接收未知字段，但在 warnings 里如实列出；客户端自报身份的字段不算。

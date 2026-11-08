@@ -162,7 +162,10 @@ async fn call(
 /// 轮询任务状态直到满足条件（最多约 10 秒）。带上不限额的 key，不鉴权的服务会忽略它。
 async fn wait(app: &axum::Router, path: &str, cond: impl Fn(&Value) -> bool) -> Value {
     for _ in 0..1000 {
-        let (_, _, v) = call(app, "GET", path, None, Some("plain")).await;
+        let (status, _, mut v) = call(app, "GET", path, None, Some("plain")).await;
+        if status == StatusCode::NOT_FOUND {
+            v = call(app, "GET", path, None, Some("limited")).await.2;
+        }
         if cond(&v) {
             return v;
         }

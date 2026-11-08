@@ -50,6 +50,30 @@ impl Scraper {
         match lookup {
             Ok(Cached::Hit(doc, stored_at)) => {
                 let mut doc = *doc;
+                if mode == RobotsMode::Respect {
+                    let target = Url::parse(url).map_err(|e| ApiError::invalid(e.to_string()))?;
+                    self.policy
+                        .check_robots(&target)
+                        .await
+                        .map_err(policy_error)?;
+                    if let Some(meta) = &doc.metadata.pagesift {
+                        for hop in &meta.redirect_chain {
+                            let hop =
+                                Url::parse(hop).map_err(|e| ApiError::invalid(e.to_string()))?;
+                            self.policy.check_robots(&hop).await.map_err(policy_error)?;
+                        }
+                    }
+                    if let Some(final_url) = doc.metadata.url.as_deref() {
+                        let final_url =
+                            Url::parse(final_url).map_err(|e| ApiError::invalid(e.to_string()))?;
+                        if final_url != target {
+                            self.policy
+                                .check_robots(&final_url)
+                                .await
+                                .map_err(policy_error)?;
+                        }
+                    }
+                }
                 doc.metadata.cache_state = Some("hit".into());
                 doc.metadata.cached_at = Some(pagesift_api::rfc3339(stored_at));
                 return Ok(doc);
@@ -152,6 +176,34 @@ mod tests {
     use axum::{Router, response::Html, routing::get};
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[tokio::test]
+    async fn cached_page_cannot_bypass_robots() {
+        let app = Router::new()
+            .route(
+                "/robots.txt",
+                get(|| async { "User-agent: *\nDisallow: /secret\n" }),
+            )
+            .route(
+                "/secret",
+                get(|| async { Html("<html><body><h1>Secret</h1></body></html>") }),
+            );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/secret", listener.local_addr().unwrap());
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let dir = tempfile::tempdir().unwrap();
+        let scraper = scraper(pagesift_store::Store::open_dir(dir.path()).unwrap());
+        let opts = ScrapeOptions::default();
+        scraper
+            .scrape_cached(&url, &opts, RobotsMode::Ignore)
+            .await
+            .unwrap();
+        let error = scraper
+            .scrape_cached(&url, &opts, RobotsMode::Respect)
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::RobotsDisallowed);
+    }
 
     async fn site() -> (String, Arc<AtomicUsize>) {
         let calls = Arc::new(AtomicUsize::new(0));

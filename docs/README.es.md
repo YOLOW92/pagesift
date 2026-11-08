@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.2.1
+# pagesift 1.2.2
 
 **La capa de web y documentos para agentes de IA: entra cualquier URL, documento, correo, archivo comprimido o código fuente y sale Markdown limpio o JSON.**  
 Un único binario en Rust, autoalojado, con CLI, API de Firecrawl y de Jina Reader, servidor MCP y paquetes para Python, Node.js, Go, Java, C#, Ruby, PHP y más.
@@ -326,11 +326,11 @@ flowchart LR
 [licencia comercial](COMMERCIAL.md) o escribe a `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
-## Novedades de 1.2.1
+## Novedades de 1.2.2
 
-Las solicitudes con identidad ya no leen ni escriben la caché de resultados compartida, así que una API key no recibe la página personalizada de otra. Las respuestas 503 con `Retry-After` se clasifican como limitadas por tasa en la traza de intentos y en las estadísticas de salida. Las herramientas MCP incorporan esquemas de salida y descripciones completas de parámetros, `pagesift_crawl_status` pasa a llamarse `pagesift_poll_job` y `pagesift_cancel_job` detiene trabajos de crawl y batch en ejecución.
+Los trabajos de crawl, batch y extract solo son accesibles para su cuenta propietaria. Las páginas solicitadas por search y extract cuentan para la cuota diaria y la caché respeta robots.txt. Las opciones de instantáneas e imágenes base64 no compatibles ahora devuelven un error.
 
-[Notas de la versión](releases/1.2.1.md) · [1.2.0](releases/1.2.0.md) · [todas las versiones](releases/) · [CHANGELOG](../CHANGELOG.md)
+[Notas de la versión](releases/1.2.2.md) · [1.2.1](releases/1.2.1.md) · [todas las versiones](releases/) · [CHANGELOG](../CHANGELOG.md)
 
 ---
 

@@ -271,6 +271,22 @@ impl Engine for Scraper {
         Box::pin(Scraper::extract(self, req))
     }
 
+    fn search_budgeted<'a>(
+        &'a self,
+        req: &'a pagesift_api::types::SearchRequest,
+        budget: Arc<dyn pagesift_api::PageBudget>,
+    ) -> BoxFuture<'a, Result<serde_json::Value, ApiError>> {
+        Box::pin(async move { self.search_with_budget(req, Some(budget.as_ref())).await })
+    }
+
+    fn extract_budgeted<'a>(
+        &'a self,
+        req: &'a pagesift_api::types::ExtractRequest,
+        budget: Arc<dyn pagesift_api::PageBudget>,
+    ) -> BoxFuture<'a, Result<serde_json::Value, ApiError>> {
+        Box::pin(async move { self.extract_with_budget(req, Some(budget.as_ref())).await })
+    }
+
     fn supports_interact(&self) -> bool {
         self.interact_available()
     }

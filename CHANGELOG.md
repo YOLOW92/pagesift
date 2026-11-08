@@ -2,6 +2,10 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## 1.2.2
+
+Crawl, batch and extract jobs are scoped to their owner; page quotas apply to search and extract; cached results respect robots.txt. MCP schemas and unsupported options are corrected. [Release notes](docs/releases/1.2.2.md).
+
 ## 1.2.1
 
 Identity-scoped requests no longer use the shared result cache; 503 with `Retry-After` is classified as throttled. MCP tools gain output schemas and complete parameter descriptions, `pagesift_crawl_status` becomes `pagesift_poll_job`, and `pagesift_cancel_job` stops running jobs. [Release notes](docs/releases/1.2.1.md).

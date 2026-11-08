@@ -111,10 +111,17 @@ fn start(q: &StreamQuery, headers: &HeaderMap) -> usize {
 
 pub async fn job_stream(
     State(s): State<AppState>,
+    caller: Option<axum::extract::Extension<crate::limits::Caller>>,
     headers: HeaderMap,
     Path(id): Path<String>,
     Query(q): Query<StreamQuery>,
 ) -> Result<Response, ApiError> {
+    super::batch::authorize_job(
+        &s,
+        &id,
+        caller.as_ref().map(|axum::extract::Extension(c)| c),
+    )
+    .await?;
     let changed = s
         .jobs
         .subscribe(&id)
