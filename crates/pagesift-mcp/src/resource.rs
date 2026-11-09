@@ -3,7 +3,6 @@
 //!
 //! 只读、按 URI 取；`resources/list` 与 `resources/templates/list` 返回空列表，不支持订阅。
 
-use base64::Engine as _;
 use serde_json::{Value, json};
 
 use crate::jsonrpc::ErrorObject;
@@ -29,7 +28,7 @@ pub(crate) fn read(reader: &dyn ResourceReader, params: &Value) -> Result<Value,
             "contents": [{
                 "uri": uri,
                 "mimeType": mime,
-                "blob": base64::engine::general_purpose::STANDARD.encode(data),
+                "blob": pagesift_base64::STANDARD.encode_to_string(&data).expect("base64 output length overflow"),
             }]
         })),
         None => Err(

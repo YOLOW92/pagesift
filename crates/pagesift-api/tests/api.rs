@@ -49,8 +49,19 @@ impl Engine for Fake {
                     "disallowed by robots.txt",
                 ));
             }
+            let mut attachments = Vec::new();
+            if opts.image_assets.is_some() {
+                let mut a = pagesift_api::types::Attachment::new(
+                    b"\x89PNG\r\n\x1a\nimage".to_vec(),
+                    "png",
+                    Some(url.into()),
+                );
+                a.inline_data = true;
+                attachments.push(a);
+            }
             Ok(Document {
                 markdown: opts.wants("markdown").then(|| format!("# {url}")),
+                attachments,
                 metadata: Metadata {
                     source_url: Some(url.to_string()),
                     url: Some(url.to_string()),
@@ -84,6 +95,86 @@ impl Engine for Fake {
             Ok(())
         })
     }
+}
+
+#[tokio::test]
+async fn batch_image_assets_carry_duplicate_content_only_once() {
+    let app = app(&[]);
+    let (status, started) = call(
+        &app,
+        "POST",
+        "/v2/batch/scrape",
+        Some(json!({
+            "urls": ["https://example.com/a", "https://example.com/b", "https://example.com/c"],
+            "imageAssets": "attach"
+        })),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{started}");
+    let path = format!("/v2/batch/scrape/{}", started["id"].as_str().unwrap());
+    for _ in 0..100 {
+        let (status, body) = call(&app, "GET", &path, None, None).await;
+        assert_eq!(status, StatusCode::OK);
+        if body["status"] == "completed" {
+            let pages = body["data"].as_array().unwrap();
+            assert_eq!(pages.len(), 3);
+            let attachments: Vec<_> = pages.iter().map(|p| &p["attachments"][0]).collect();
+            assert!(attachments.iter().all(|a| a["id"] == attachments[0]["id"]));
+            assert_eq!(
+                attachments
+                    .iter()
+                    .filter(|a| a.get("data").is_some())
+                    .count(),
+                1,
+                "{body}"
+            );
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    panic!("batch did not complete");
+}
+
+#[tokio::test]
+async fn scrape_and_crawl_carry_image_assets() {
+    let app = app(&[]);
+    let (status, body) = call(
+        &app,
+        "POST",
+        "/v2/scrape",
+        Some(json!({
+            "url": "https://example.com/a", "imageAssets": "attach"
+        })),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body["data"]["attachments"][0]["data"].is_string());
+    let (status, body) = call(
+        &app,
+        "POST",
+        "/v2/crawl",
+        Some(json!({
+            "url": "https://example.com/a", "limit": 1, "scrapeOptions": {"imageAssets": "rewrite"}
+        })),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let path = format!("/v2/crawl/{}", body["id"].as_str().unwrap());
+    for _ in 0..100 {
+        let (_, body) = call(&app, "GET", &path, None, None).await;
+        if body["status"] == "completed" {
+            assert!(
+                body["data"][0]["attachments"][0]["data"].is_string(),
+                "{body}"
+            );
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    panic!("crawl did not complete");
 }
 
 fn app(keys: &[&str]) -> axum::Router {

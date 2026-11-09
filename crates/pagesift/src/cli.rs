@@ -1,5 +1,6 @@
 //! CLI 辅助：crawl 的输出和 doctor 环境检查。
 
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::{Arc, Mutex};
@@ -15,6 +16,7 @@ pub struct CrawlOutput {
     dir: Option<Arc<DirOut>>,
     out: Fanout,
     counts: Mutex<(usize, usize)>,
+    asset_hashes: Mutex<HashSet<String>>,
     /// 输出阶段的钩子（`SinkHook`）：写出前改写或丢弃文档。
     hooks: pagesift_hooks::Hooks,
 }
@@ -34,6 +36,7 @@ impl CrawlOutput {
             dir,
             out,
             counts: Mutex::new((0, 0)),
+            asset_hashes: Mutex::new(HashSet::new()),
             hooks: Default::default(),
         })
     }
@@ -78,11 +81,24 @@ impl CrawlSink for CrawlOutput {
         } else {
             self.hooks.run_sink(doc)
         };
-        let Some(doc) = doc else {
+        let Some(mut doc) = doc else {
             return Box::pin(async {});
         };
+        // Serialize publication so a reference cannot precede its first bytes.
+        let mut seen = self.asset_hashes.lock().unwrap_or_else(|e| e.into_inner());
+        let mut published = HashSet::new();
+        for a in &mut doc.attachments {
+            if a.inline_data
+                && a.data.is_some()
+                && (seen.contains(&a.hash) || !published.insert(a.hash.clone()))
+            {
+                a.data = None;
+            }
+        }
         if let Err(e) = self.write_page(&doc) {
             eprintln!("could not write page: {e}");
+        } else {
+            seen.extend(published);
         }
         Box::pin(async {})
     }
@@ -367,4 +383,48 @@ fn report_ocr(cfg: &pagesift::config::Config, warn: &impl Fn(&str, String)) -> R
         );
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod image_asset_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn crawl_directory_reuses_one_asset_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = CrawlOutput::new(Some(dir.path().to_owned()), None).unwrap();
+        let mut a = pagesift::api::types::Attachment::new(
+            b"image".to_vec(),
+            "png",
+            Some("https://example.com/a.png".into()),
+        );
+        a.inline_data = true;
+        let id = a.id.clone();
+        for n in 0..2 {
+            let mut doc = Document {
+                markdown: Some(format!("![x](asset://{id})")),
+                attachments: vec![a.clone()],
+                ..Default::default()
+            };
+            doc.metadata.source_url = Some(format!("https://example.com/{n}"));
+            sink.page(doc).await;
+        }
+        assert_eq!(
+            std::fs::read_dir(dir.path().join("images"))
+                .unwrap()
+                .count(),
+            1
+        );
+        assert_eq!(
+            std::fs::read(dir.path().join("images").join(id)).unwrap(),
+            b"image"
+        );
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("index.jsonl"))
+                .unwrap()
+                .lines()
+                .count(),
+            2
+        );
+    }
 }

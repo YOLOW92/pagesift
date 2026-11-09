@@ -52,6 +52,8 @@ pub struct Options {
     pub base_url: Option<Url>,
     /// 只保留正文（对应 Firecrawl 的 `onlyMainContent`，默认开启）。
     pub only_main_content: bool,
+    /// 保留 Markdown 图片中的 data URI；默认关闭。
+    pub keep_data_images: bool,
     /// 响应的 HTTP 状态码（可选），拦截页识别会参考它。
     pub status: Option<u16>,
     /// 识别拦截页，结果放进 [`Document::barrier`]（默认开启）。
@@ -73,6 +75,7 @@ impl Default for Options {
         Self {
             base_url: None,
             only_main_content: true,
+            keep_data_images: false,
             status: None,
             detect_barrier: true,
             plain_text: false,
@@ -207,7 +210,14 @@ fn process_dom(
         && !home)
         .then(|| {
             let comments = &mut root_in_comments;
-            render_article(dom, &mut skipper, base.as_ref(), article_shaped, comments)
+            render_article(
+                dom,
+                &mut skipper,
+                base.as_ref(),
+                article_shaped,
+                comments,
+                opts.keep_data_images,
+            )
         })
         .flatten();
 
@@ -228,10 +238,10 @@ fn process_dom(
     let output_body = inferred.unwrap_or(body);
     let mut markdown = match article {
         Some(md) => md,
-        None if inferred.is_some() => {
-            markdown::Renderer::new(base.as_ref(), &skipper).render(&[output_body])
-        }
-        None => render_main(&mut skipper, body, base.as_ref()),
+        None if inferred.is_some() => markdown::Renderer::new(base.as_ref(), &skipper)
+            .keep_data_images(opts.keep_data_images)
+            .render(&[output_body]),
+        None => render_main(&mut skipper, body, base.as_ref(), opts.keep_data_images),
     };
     // 还是几乎为空、页面又有 <noscript>：有的单页应用只在 <noscript> 里给不跑脚本的抓取器留一份内容。
     // 按 HTML 规范 <noscript> 里是纯文本，拆掉这层标签重新解析整页再抽一次，明显更长才用
@@ -303,9 +313,13 @@ fn render_main(
     skipper: &mut extract::Skipper,
     body: pagesift_html::NodeRef<'_>,
     base: Option<&Url>,
+    keep_data_images: bool,
 ) -> String {
-    let render =
-        |skipper: &extract::Skipper| markdown::Renderer::new(base, skipper).render(&[body]);
+    let render = |skipper: &extract::Skipper| {
+        markdown::Renderer::new(base, skipper)
+            .keep_data_images(keep_data_images)
+            .render(&[body])
+    };
     let mut markdown = render(skipper);
     if skipper.only_main() {
         let total = skipper.total_chars();
@@ -402,6 +416,7 @@ fn render_article(
     base: Option<&Url>,
     shaped_only: bool,
     in_comments: &mut bool,
+    keep_data_images: bool,
 ) -> Option<String> {
     if skipper.is_relaxed() {
         // 默认规则已经放宽过：页面上可用的文字本来就少，不再收窄
@@ -489,9 +504,9 @@ fn render_article(
     // 正文本身就是列表、表格或成串的链接（维基的列表页、文档的目录式正文），这时按默认规则
     // 渲染这个区域，只收窄范围、不再细筛（同 trafilatura：严格结果太短时退回较宽的抽取）
     if (got as f64) < article_text as f64 * ARTICLE_MIN_STRICT_SHARE {
-        return render_relaxed(skipper, base, root);
+        return render_relaxed(skipper, base, root, keep_data_images);
     }
-    render_strict(skipper, base, Some(root))
+    render_strict(skipper, base, Some(root), keep_data_images)
 }
 
 /// 文章主体按默认规则渲染（不加严格规则）；主体外面的标题放在最前面。
@@ -499,8 +514,11 @@ fn render_relaxed(
     skipper: &mut extract::Skipper,
     base: Option<&Url>,
     root: article::Root<'_>,
+    keep_data_images: bool,
 ) -> Option<String> {
-    let md = markdown::Renderer::new(base, skipper).render(&root.nodes);
+    let md = markdown::Renderer::new(base, skipper)
+        .keep_data_images(keep_data_images)
+        .render(&root.nodes);
     Some(match root.headline {
         Some(h) => format!("# {h}\n\n{md}"),
         None => md,
@@ -512,12 +530,14 @@ fn render_strict(
     skipper: &mut extract::Skipper,
     base: Option<&Url>,
     root: Option<article::Root<'_>>,
+    keep_data_images: bool,
 ) -> Option<String> {
     let root = root?;
     let chars = root.nodes.iter().map(|n| skipper.content_chars(n)).sum();
     skipper.set_strict(true, chars);
     let whitelist = article::whitelist(&root.nodes, skipper);
     let md = markdown::Renderer::new(base, skipper)
+        .keep_data_images(keep_data_images)
         .whitelist(whitelist)
         .render(&root.nodes);
     skipper.set_strict(false, 0);

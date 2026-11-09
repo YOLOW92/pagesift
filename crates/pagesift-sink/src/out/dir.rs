@@ -83,6 +83,9 @@ pub(super) fn index_line(doc: &Document, url: &str, file: &str) -> serde_json::V
         line["images"] =
             serde_json::json!(doc.attachments.iter().map(|a| &a.id).collect::<Vec<_>>());
     }
+    if !doc.image_assets.is_empty() {
+        line["imageAssets"] = serde_json::json!(doc.image_assets);
+    }
     line["status"] = serde_json::json!(doc.metadata.status_code);
     // 结果有数据风险（正文薄、文件损坏……）时和 JSON 的 data.warning 一致
     if let Some(w) = &doc.warning {
@@ -111,7 +114,9 @@ impl DirOut {
                     std::fs::write(&path, data)?;
                 }
             }
-            if let Some(src) = &a.source {
+            if !a.inline_data
+                && let Some(src) = &a.source
+            {
                 let local = format!("images/{}", a.id);
                 md = md
                     .replace(&format!("]({src})"), &format!("]({local})"))
@@ -142,6 +147,47 @@ impl PageOut for DirOut {
 mod tests {
     use super::*;
     use pagesift_api::types::Attachment;
+
+    #[test]
+    fn asset_modes_keep_links_and_include_outcomes_in_index() {
+        let dir = std::env::temp_dir().join(format!("pagesift-dir-assets-{}", std::process::id()));
+        let out = DirOut::create(&dir).unwrap();
+        let mut a = Attachment::new(b"image".to_vec(), "png", Some("https://e.x/a.png".into()));
+        a.inline_data = true;
+        let mut doc = Document {
+            markdown: Some(format!("![a](https://e.x/a.png) ![b](asset://{})", a.id)),
+            image_assets: vec![pagesift_api::types::ImageAssetResult {
+                source: "https://e.x/a.png".into(),
+                status: pagesift_api::types::ImageAssetStatus::Ok,
+                id: Some(a.id.clone()),
+                mime: Some("image/png".into()),
+                bytes: Some(a.bytes),
+                reason: None,
+            }],
+            attachments: vec![a.clone()],
+            ..Default::default()
+        };
+        doc.metadata.source_url = Some("https://e.x/asset".into());
+        out.page(&doc).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(dir.join("e.x_asset.md")).unwrap(),
+            doc.markdown.unwrap()
+        );
+        assert_eq!(
+            std::fs::read(dir.join("images").join(&a.id)).unwrap(),
+            b"image"
+        );
+        let index: serde_json::Value = serde_json::from_str(
+            std::fs::read_to_string(dir.join("index.jsonl"))
+                .unwrap()
+                .lines()
+                .last()
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(index["imageAssets"][0]["id"], a.id);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 
     #[test]
     fn images_are_written_once_and_links_become_local() {

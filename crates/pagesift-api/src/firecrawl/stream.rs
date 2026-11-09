@@ -34,6 +34,9 @@ pub(crate) const KEEPALIVE: Duration = Duration::from_secs(30);
 pub struct StreamQuery {
     #[serde(default)]
     pub cursor: Option<u64>,
+    /// Provisional, non-replayable Markdown events in addition to final pages.
+    #[serde(default)]
+    pub previews: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -43,6 +46,13 @@ enum Format {
 }
 
 impl Format {
+    fn preview(self, preview: &crate::types::MarkdownPreview) -> Bytes {
+        let data = json!({"url": preview.url, "markdown": preview.markdown, "truncated": preview.truncated});
+        Bytes::from(match self {
+            Format::Sse => format!("event: markdown\ndata: {data}\n\n"),
+            Format::Ndjson => format!("{{\"type\":\"markdown\",\"data\":{data}}}\n"),
+        })
+    }
     fn content_type(self) -> &'static str {
         match self {
             Format::Sse => "text/event-stream; charset=utf-8",
@@ -128,15 +138,23 @@ pub async fn job_stream(
         .await
         .ok_or_else(|| ApiError::new(ErrorCode::NotFound, format!("job {id} not found")))?;
     let fmt = format(&headers);
+    let previews = if q.previews {
+        s.jobs.subscribe_previews(&id).await
+    } else {
+        None
+    };
     let (tx, body) = crate::stream_body::channel();
     tokio::spawn(pump(
         s.jobs.clone(),
-        id,
-        start(&q, &headers),
-        fmt,
-        changed,
-        tx,
-        KEEPALIVE,
+        PumpState {
+            id,
+            next: start(&q, &headers),
+            fmt,
+            changed,
+            tx,
+            keepalive: KEEPALIVE,
+            previews,
+        },
     ));
     Ok((
         [
@@ -150,16 +168,40 @@ pub async fn job_stream(
 
 /// 从 `next` 开始把任务的文档逐页写进流；读到头了就等任务的通知，等了 `keepalive` 还没有就写一次心跳；
 /// 任务结束时写 done 并返回。
-async fn pump(
-    jobs: Jobs,
+struct PumpState {
     id: String,
-    mut next: usize,
+    next: usize,
     fmt: Format,
-    mut changed: watch::Receiver<()>,
+    changed: watch::Receiver<()>,
     tx: mpsc::Sender<Bytes>,
     keepalive: Duration,
-) {
+    previews: Option<tokio::sync::broadcast::Receiver<crate::types::MarkdownPreview>>,
+}
+
+async fn pump(jobs: Jobs, state: PumpState) {
+    let PumpState {
+        id,
+        mut next,
+        fmt,
+        mut changed,
+        tx,
+        keepalive,
+        mut previews,
+    } = state;
     loop {
+        if let Some(rx) = &mut previews {
+            loop {
+                match rx.try_recv() {
+                    Ok(preview) => {
+                        if tx.send(fmt.preview(&preview)).await.is_err() {
+                            return;
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::TryRecvError::Lagged(_)) => continue,
+                    Err(_) => break,
+                }
+            }
+        }
         // 任务过期被删了：没有最终状态可报，直接关闭
         let Some(page) = jobs.status(&id, next, PAGE_SIZE).await else {
             return;
@@ -185,6 +227,14 @@ async fn pump(
                 }
             }
             () = tx.closed() => return,
+            preview = async {
+                match &mut previews {
+                    Some(rx) => rx.recv().await.ok(),
+                    None => std::future::pending().await,
+                }
+            } => {
+                if let Some(preview) = preview && tx.send(fmt.preview(&preview)).await.is_err() { return; }
+            }
         }
     }
 }

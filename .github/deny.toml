@@ -23,6 +23,7 @@ allow = [
 exceptions = [
     { name = "pagesift", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-api", allow = ["AGPL-3.0-only"] },
+    { name = "pagesift-base64", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-cdp", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-cluster", allow = ["AGPL-3.0-only"] },
     { name = "pagesift-content", allow = ["AGPL-3.0-only"] },

@@ -385,12 +385,8 @@ pub struct ActionOutputs {
 impl ActionOutputs {
     /// Firecrawl 响应里 `actions` 字段的形状；截图和 PDF 是 base64 的 data URL。
     pub fn to_firecrawl_json(&self) -> Value {
-        use base64::Engine as _;
         let b64 = |mime: &str, d: &[u8]| {
-            format!(
-                "data:{mime};base64,{}",
-                base64::engine::general_purpose::STANDARD.encode(d)
-            )
+            pagesift_base64::encode_data_url(mime, d).expect("base64 output length overflow")
         };
         serde_json::json!({
             "screenshots": self.screenshots.iter().map(|s| b64(s.format.mime(), &s.data)).collect::<Vec<_>>(),

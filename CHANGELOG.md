@@ -2,6 +2,10 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## 1.2.3
+
+Opt-in image assets for web pages, PDF XObject images and Office media: `imageAssets` can attach Base64 bytes, embed data URLs, or rewrite Markdown to `asset://` references, with per-image outcomes, byte-based MIME detection, task-level deduplication for `attach` and `rewrite`, bounded concurrent image retrieval, persistent restart recovery, CLI/HTTP/MCP delivery, and provisional Markdown stream events. `removeBase64Images: false` now preserves source-page data URLs. The new in-repository `pagesift-base64` crate replaces runtime Base64 use in CDP, MCP and proxy authentication; its published comparison against `base64` 0.23.1 and `base64-simd` 0.8.0 includes mixed small-input results. [Release notes](docs/releases/1.2.3.md) · [简体中文](docs/releases/1.2.3.zh-CN.md) · [日本語](docs/releases/1.2.3.ja.md) · [Español](docs/releases/1.2.3.es.md) · [Base64 measurements](docs/releases/1.2.3-benchmarks.md).
+
 ## 1.2.2
 
 Crawl, batch and extract jobs are scoped to their owner; page quotas apply to search and extract; cached results respect robots.txt. MCP schemas and unsupported options are corrected. [Release notes](docs/releases/1.2.2.md).

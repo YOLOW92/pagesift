@@ -25,13 +25,13 @@ pub use parse::{PdfParser, Upload, UploadKind};
 
 pub use request::{
     AdaptiveOptions, BatchScrapeRequest, CrawlRequest, CrawlScope, ExtractRequest, Format,
-    Location, MapRequest, QueryFilter, RESPOND_TIMINGS, ScrapeOptions, ScrapeRequest,
-    SearchRequest,
+    ImageAssetMode, Location, MapRequest, QueryFilter, RESPOND_TIMINGS, ScrapeOptions,
+    ScrapeRequest, SearchRequest,
 };
 pub use response::{
-    ChangeTracking, CrawlSummary, CrawlTrace, DocChunk, Document, JobError, JobErrors, JobStarted,
-    JobStatus, MapLink, MapResponse, Metadata, OcrMeta, PageMarkdown, PagesiftMeta, PlanStep,
-    PlanTrace, QueryFilterStats, ScrapeResponse,
+    ChangeTracking, CrawlSummary, CrawlTrace, DocChunk, Document, ImageAssetResult,
+    ImageAssetStatus, JobError, JobErrors, JobStarted, JobStatus, MapLink, MapResponse, Metadata,
+    OcrMeta, PageMarkdown, PagesiftMeta, PlanStep, PlanTrace, QueryFilterStats, ScrapeResponse,
 };
 
 #[cfg(test)]
@@ -188,3 +188,7 @@ mod tests {
         assert!(v.get("title").is_none());
     }
 }
+mod asset_cache;
+pub use asset_cache::AssetFetchCache;
+mod progress;
+pub use progress::{MarkdownPreview, MarkdownProgress};

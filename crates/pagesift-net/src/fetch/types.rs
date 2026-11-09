@@ -200,6 +200,38 @@ impl fmt::Debug for FetcherConfig {
 }
 
 /// 单次请求。只支持 GET。
+#[derive(Debug)]
+pub struct SharedBodyBudget(std::sync::atomic::AtomicUsize);
+
+impl SharedBodyBudget {
+    pub fn new(bytes: usize) -> Self {
+        Self(std::sync::atomic::AtomicUsize::new(bytes))
+    }
+    pub fn remaining(&self) -> usize {
+        self.0.load(std::sync::atomic::Ordering::Relaxed)
+    }
+    /// Atomically reserve at most `bytes`, returning the actual amount.
+    pub fn take(&self, bytes: usize) -> usize {
+        let mut old = self.remaining();
+        loop {
+            let taken = old.min(bytes);
+            match self.0.compare_exchange_weak(
+                old,
+                old - taken,
+                std::sync::atomic::Ordering::Relaxed,
+                std::sync::atomic::Ordering::Relaxed,
+            ) {
+                Ok(_) => return taken,
+                Err(now) => old = now,
+            }
+        }
+    }
+    pub fn give_back(&self, bytes: usize) {
+        self.0
+            .fetch_add(bytes, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct FetchRequest {
     /// Reject any hop whose effective proxy/direct route differs from this value.
@@ -218,6 +250,8 @@ pub struct FetchRequest {
     pub if_modified_since: Option<SystemTime>,
     /// 覆盖 [`FetcherConfig::max_body_bytes`]。
     pub max_body_bytes: Option<usize>,
+    /// Optional aggregate body budget shared by related requests.
+    pub shared_body_budget: Option<Arc<SharedBodyBudget>>,
     /// 覆盖 [`FetcherConfig::total_timeout`]。
     pub timeout: Option<Duration>,
 }

@@ -133,29 +133,67 @@ pub fn office_markdown_from(
 fn office_media(
     bytes: &[u8],
     format: Format,
-) -> (Vec<pagesift_api::types::Attachment>, Vec<String>) {
+) -> (
+    Vec<pagesift_api::types::Attachment>,
+    Vec<String>,
+    Vec<pagesift_api::types::ImageAssetResult>,
+) {
     let opts = pagesift_office::Options::default();
     let mut out = Vec::new();
     let mut warnings = Vec::new();
+    let mut failed = Vec::new();
     let list = match pagesift_office::media(bytes, format, &opts) {
         Ok(list) => list,
-        Err(e) => return (out, vec![format!("images_not_exported: {e}")]),
+        Err(e) => return (out, vec![format!("images_not_exported: {e}")], failed),
     };
     for m in list {
-        let name = m.file_name();
-        let ext = name.rsplit_once('.').map_or("bin", |(_, e)| e);
         match pagesift_office::media_bytes(bytes, &m.part, &opts) {
-            Ok(Some(data)) => out.push(pagesift_api::types::Attachment::with_hash(
-                m.hash.clone(),
-                ext,
-                data,
-                Some(m.part.replace(' ', "%20")),
-            )),
-            Ok(None) => warnings.push(format!("image_not_exported: {}: missing part", m.part)),
-            Err(e) => warnings.push(format!("image_not_exported: {}: {e}", m.part)),
+            Ok(Some(data)) => match pagesift_api::types::attachment::sniff_image_format(&data) {
+                Some(format) => out.push(pagesift_api::types::Attachment::new(
+                    data,
+                    format,
+                    Some(m.part.replace(' ', "%20")),
+                )),
+                None => {
+                    warnings.push(format!(
+                        "image_not_exported: {}: unrecognized image bytes",
+                        m.part
+                    ));
+                    failed.push(pagesift_api::types::ImageAssetResult {
+                        source: m.part.clone(),
+                        status: pagesift_api::types::ImageAssetStatus::Failed,
+                        id: None,
+                        mime: None,
+                        bytes: None,
+                        reason: Some("unrecognized_image_bytes".into()),
+                    });
+                }
+            },
+            Ok(None) => {
+                warnings.push(format!("image_not_exported: {}: missing part", m.part));
+                failed.push(pagesift_api::types::ImageAssetResult {
+                    source: m.part.clone(),
+                    status: pagesift_api::types::ImageAssetStatus::Failed,
+                    id: None,
+                    mime: None,
+                    bytes: None,
+                    reason: Some("missing_part".into()),
+                });
+            }
+            Err(e) => {
+                warnings.push(format!("image_not_exported: {}: {e}", m.part));
+                failed.push(pagesift_api::types::ImageAssetResult {
+                    source: m.part.clone(),
+                    status: pagesift_api::types::ImageAssetStatus::Failed,
+                    id: None,
+                    mime: None,
+                    bytes: None,
+                    reason: Some(e.to_string()),
+                });
+            }
         }
     }
-    (out, warnings)
+    (out, warnings, failed)
 }
 
 /// 文件名或网址路径的扩展名、Content-Type、内容一起判断是不是要转换的文档。
@@ -222,13 +260,17 @@ impl Scraper {
         };
         p.timings.insert(format.extension().into(), ms(t.elapsed()));
         p.warnings.extend(doc.warnings);
-        let (attachments, media_warnings) = media.unwrap_or_default();
+        let (attachments, media_warnings, mut image_assets) = media.unwrap_or_default();
+        if opts.image_assets.is_none() {
+            image_assets.clear();
+        }
         p.warnings.extend(media_warnings);
         meta.title = doc.title;
         Ok(finish(
             Document {
                 markdown: opts.wants("markdown").then_some(doc.markdown),
                 attachments,
+                image_assets,
                 ..Default::default()
             },
             meta,

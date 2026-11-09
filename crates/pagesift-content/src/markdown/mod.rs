@@ -32,6 +32,7 @@ pub(crate) struct Renderer<'a> {
     pub base: Option<&'a Url>,
     pub skipper: &'a Skipper,
     pub whitelist: Whitelist,
+    pub keep_data_images: bool,
     /// 扁平模式：处于表格单元格或排版表内部。此时 `table` 不再展开成子表，
     /// 内层表格只按普通容器把文字透传上来，避免嵌套表格被逐层重复渲染。
     flat: bool,
@@ -61,6 +62,7 @@ impl<'a> Renderer<'a> {
             base,
             skipper,
             whitelist: Whitelist::Off,
+            keep_data_images: false,
             flat: false,
             nest: Cell::new(0),
         }
@@ -72,6 +74,7 @@ impl<'a> Renderer<'a> {
             base: self.base,
             skipper: self.skipper,
             whitelist: self.whitelist,
+            keep_data_images: self.keep_data_images,
             flat: true,
             nest: Cell::new(self.nest.get()),
         }
@@ -88,6 +91,11 @@ impl<'a> Renderer<'a> {
 
     pub(crate) fn whitelist(mut self, w: Whitelist) -> Self {
         self.whitelist = w;
+        self
+    }
+
+    pub(crate) fn keep_data_images(mut self, keep: bool) -> Self {
+        self.keep_data_images = keep;
         self
     }
 

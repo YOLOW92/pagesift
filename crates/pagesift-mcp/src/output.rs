@@ -88,6 +88,17 @@ pub fn document() -> Value {
                 ),
                 "Exported files when exportImages was requested.",
             ),
+            "imageAssets": array(
+                object(json!({
+                    "source": string("Original image URL or document part."),
+                    "status": { "type": "string", "enum": ["ok", "skipped-limit", "failed"] },
+                    "id": string("Content-addressed attachment id when available."),
+                    "mime": string("MIME type detected from content."),
+                    "bytes": integer("Size in bytes."),
+                    "reason": string("Reason for failure or skipping."),
+                }), &["source", "status"]),
+                "Per-image asset results when imageAssets was requested.",
+            ),
             "metadata": metadata(),
         }),
         &["metadata"],

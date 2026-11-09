@@ -346,6 +346,7 @@ impl Fetcher {
         let max = req
             .max_body_bytes
             .unwrap_or_else(|| crate::resources::body_cap(self.config.max_body_bytes));
+        let shared = req.shared_body_budget.clone();
         let mut stream = self.open(req, guard, false).await?;
         let first_byte = stream.first_byte;
         let status = stream.status;
@@ -358,18 +359,47 @@ impl Fetcher {
             stream.deadline,
             stream.body_idle_timeout,
             &mut stream.wait,
+            shared.as_deref(),
         )
         .await?;
         let mut warnings = Vec::new();
         let body = if direct {
+            // Reserve the possible expansion before decoding so concurrent
+            // compressed responses cannot exceed the shared budget.
+            let raw_len = body.len();
+            let compressed = headers.get(header::CONTENT_ENCODING).is_some();
+            let extra = if compressed {
+                shared
+                    .as_ref()
+                    .map_or(0, |b| b.take(max.saturating_sub(raw_len)))
+            } else {
+                0
+            };
+            let decode_max = if shared.is_some() {
+                raw_len.saturating_add(extra)
+            } else {
+                max
+            };
             // 解压是纯 CPU 活：预计比跨线程往返还久时交给执行器（pagesift 的 CPU 工人），否则就地做
             let (decoded, h) = crate::offload::on_cpu(body.len(), move || {
-                let decoded = client::decode_body(&mut headers, body, max, truncated);
+                let decoded = client::decode_body(&mut headers, body, decode_max, truncated);
                 (decoded, headers)
             })
             .await;
             headers = h;
-            let decoded = decoded?;
+            let decoded = match decoded {
+                Ok(decoded) => decoded,
+                Err(e) => {
+                    if let Some(b) = &shared {
+                        b.give_back(extra);
+                    }
+                    return Err(e);
+                }
+            };
+            if let Some(b) = &shared {
+                let used_extra = decoded.body.len().saturating_sub(raw_len).min(extra);
+                b.give_back(extra - used_extra);
+            }
             truncated = decoded.truncated;
             warnings = decoded.warnings;
             decoded.body

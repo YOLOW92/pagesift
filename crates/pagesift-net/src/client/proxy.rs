@@ -5,7 +5,6 @@
 
 use std::net::IpAddr;
 
-use base64::Engine as _;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::time::{Instant, timeout_at};
@@ -136,8 +135,10 @@ async fn http_connect(io: &mut BoxStream, proxy: &Proxy, ip: IpAddr, port: u16) 
     let auth = if proxy.username.is_empty() && proxy.password.is_empty() {
         String::new()
     } else {
-        let value = base64::engine::general_purpose::STANDARD
-            .encode(format!("{}:{}", proxy.username, proxy.password));
+        let credentials = format!("{}:{}", proxy.username, proxy.password);
+        let value = pagesift_base64::STANDARD
+            .encode_to_string(credentials.as_bytes())
+            .map_err(|_| Error::Network("proxy credentials too large".into()))?;
         format!("Proxy-Authorization: Basic {value}\r\n")
     };
     let request = format!("CONNECT {authority} HTTP/1.1\r\nHost: {authority}\r\n{auth}\r\n");

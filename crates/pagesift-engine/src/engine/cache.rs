@@ -159,6 +159,13 @@ impl Scraper {
         if let (Some(t), Some(items)) = (&opts.respond_timing, key.as_array_mut()) {
             items.push(serde_json::json!({ "respondTiming": t }));
         }
+        // The default retains existing cache keys; the opt-in output must not
+        // share an entry with Markdown that removed embedded images.
+        if !opts.remove_base64_images
+            && let Some(items) = key.as_array_mut()
+        {
+            items.push(serde_json::json!({ "removeBase64Images": false }));
+        }
         Some((store, key.to_string().into_bytes()))
     }
 }
@@ -238,6 +245,41 @@ mod tests {
         cfg.fetcher.ssrf.allow_private_network = true;
         cfg.policy.rate.default_interval = Duration::ZERO;
         Scraper::new(cfg).unwrap()
+    }
+
+    #[tokio::test]
+    async fn embedded_image_option_isolated_in_cache() {
+        let app = Router::new().route(
+            "/",
+            get(|| async {
+                Html(r#"<html><body><p>A picture in this page.</p><img alt="x" src="data:image/png;base64,aGVsbG8="></body></html>"#)
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/", listener.local_addr().unwrap());
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let dir = tempfile::tempdir().unwrap();
+        let scraper = scraper(pagesift_store::Store::open_dir(dir.path()).unwrap());
+        let stripped = ScrapeOptions {
+            engine: Some("http".into()),
+            ..Default::default()
+        };
+        let kept = ScrapeOptions {
+            remove_base64_images: false,
+            ..stripped.clone()
+        };
+        for opts in [&stripped, &kept, &stripped, &kept] {
+            let doc = scraper
+                .scrape_cached(&url, opts, RobotsMode::Ignore)
+                .await
+                .unwrap();
+            assert_eq!(
+                doc.markdown
+                    .unwrap()
+                    .contains("data:image/png;base64,aGVsbG8="),
+                !opts.remove_base64_images
+            );
+        }
     }
 
     /// 带 owner 的请求既不读匿名缓存，也不把自己的结果写进匿名缓存。

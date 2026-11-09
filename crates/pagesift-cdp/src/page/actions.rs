@@ -3,8 +3,6 @@ use std::time::{Duration, Instant};
 
 use crate::learn::{CONTEXT_PRIOR, WaitCap};
 
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD as B64;
 use serde_json::{Value, json};
 
 use crate::capture::Captured;
@@ -333,7 +331,7 @@ pub(super) async fn capture_inner(session: &Session, s: &ScreenshotOptions) -> R
 
 pub(super) fn decode(r: &Value) -> Result<Vec<u8>> {
     let data = str_field(r, "data")?;
-    B64.decode(data.as_bytes())
+    pagesift_base64::decode_standard_compat(data.as_bytes())
         .map_err(|e| Error::UnexpectedResponse(format!("bad base64: {e}")))
 }
 

@@ -143,8 +143,12 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
             warc,
             explain,
             export_images,
+            image_assets,
             allow,
         } => light_runtime()?.block_on(async move {
+            if image_assets.as_deref().is_some_and(|m| m != "embed") && format != "json" && out.is_none() {
+                anyhow::bail!("--image-assets attach/rewrite requires --format json or --out to retain the assets");
+            }
             let mut sc = cfg.scraper(false)?;
             if let Some(p) = proxy {
                 sc.fetcher.proxy = Some(p);
@@ -157,6 +161,12 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
                 engine: Some(engine),
                 explain,
                 export_images,
+                image_assets: image_assets.as_deref().map(|mode| match mode {
+                    "attach" => pagesift::api::types::ImageAssetMode::Attach,
+                    "embed" => pagesift::api::types::ImageAssetMode::Embed,
+                    "rewrite" => pagesift::api::types::ImageAssetMode::Rewrite,
+                    _ => unreachable!("clap validates image asset mode"),
+                }),
                 ..Default::default()
             };
             if format == "json" {
@@ -251,6 +261,7 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
             attachment_limit,
             tuning_mode,
             export_images,
+            image_assets,
             from_warc,
             allow,
         } => runtime()?.block_on(async move {
@@ -275,6 +286,7 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
                         "engine": engine,
                         "discoverScripts": external_scripts,
                         "exportImages": export_images,
+                        "imageAssets": image_assets,
                     },
                     "query": query,
                     "adaptive": adaptive,

@@ -134,7 +134,7 @@ fn save(disk: Option<&Disk>, id: String, data: Arc<[u8]>) {
 }
 
 /// 从存储取（内存里没有时）。到期的顺手删掉。
-async fn load(disk: Option<Disk>, id: String) -> Option<(Arc<[u8]>, &'static str)> {
+pub(crate) async fn load(disk: Option<Disk>, id: String) -> Option<(Arc<[u8]>, &'static str)> {
     let d = disk?;
     let store = d.store.clone();
     store
@@ -193,6 +193,15 @@ pub fn keep(doc: &Document, disk: Option<&pagesift_store::Store>) {
 
 /// 同 [`keep`]，写进任务存储并经镜像复制到温备（HTTP API 用）。
 pub(crate) fn keep_in(doc: &Document, disk: Option<&Disk>) {
+    keep_inner(doc, disk, true);
+}
+
+/// Job pages persist opt-in assets synchronously with their receipt instead.
+pub(crate) fn keep_job_in(doc: &Document, disk: Option<&Disk>) {
+    keep_inner(doc, disk, false);
+}
+
+fn keep_inner(doc: &Document, disk: Option<&Disk>, save_inline: bool) {
     if doc.attachments.iter().all(|a| a.data.is_none()) {
         return;
     }
@@ -211,7 +220,9 @@ pub(crate) fn keep_in(doc: &Document, disk: Option<&Disk>) {
         let Some(data) = &a.data else { continue };
         if data.len() > cap {
             // 超过内存上限的只进存储（有的话）
-            save(disk, a.id.clone(), data.clone());
+            if save_inline || !a.inline_data {
+                save(disk, a.id.clone(), data.clone());
+            }
             continue;
         }
         if let Some(old) = st.map.remove(&a.id) {
@@ -234,8 +245,24 @@ pub(crate) fn keep_in(doc: &Document, disk: Option<&Disk>) {
                 expires,
             },
         );
-        save(disk, a.id.clone(), data.clone());
+        if save_inline || !a.inline_data {
+            save(disk, a.id.clone(), data.clone());
+        }
     }
+}
+
+/// Store the one canonical copy before the job receipt that refers to it.
+pub(crate) fn persist_job_asset(
+    w: &mut crate::jobs::mirror::Writer<'_>,
+    id: &str,
+    data: &[u8],
+) -> pagesift_store::Result<()> {
+    let key = data_key(id);
+    if w.kv_get(&key)?.is_none() {
+        w.kv_put(&key, data)?;
+    }
+    let exp = now_ms() + crate::jobs::JOB_TTL.as_millis() as u64;
+    w.kv_put(&exp_key(id), &exp.to_le_bytes())
 }
 
 fn drop_oldest(st: &mut Store) {
@@ -296,6 +323,30 @@ mod tests {
         assert_eq!(&*data, b"GIF89a-test");
         assert_eq!(mime, "image/gif");
         assert!(get("0000.png").is_none());
+    }
+
+    #[tokio::test]
+    async fn synchronous_job_asset_expires_and_is_removed() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = pagesift_store::Store::open_dir(dir.path()).unwrap();
+        let a = Attachment::new(b"\x89PNG\r\n\x1a\nexpiry-test".to_vec(), "png", None);
+        crate::jobs::mirror::write(&store, None, |w| {
+            persist_job_asset(w, &a.id, a.data.as_deref().unwrap())
+        })
+        .unwrap();
+        let disk = Disk {
+            store: store.clone(),
+            mirror: None,
+        };
+        let (bytes, mime) = load(Some(disk.clone()), a.id.clone()).await.unwrap();
+        assert_eq!(bytes.as_ref(), a.data.as_deref().unwrap());
+        assert_eq!(mime, "image/png");
+        store
+            .tasks()
+            .kv_put(exp_key(&a.id), &1u64.to_le_bytes())
+            .unwrap();
+        assert!(load(Some(disk), a.id.clone()).await.is_none());
+        assert!(store.tasks().kv_get(data_key(&a.id)).unwrap().is_none());
     }
 
     /// 有存储时，内存里没有了（重启、被挤掉）也能从存储读回；0.90 这时 404。

@@ -23,6 +23,7 @@ pub fn firecrawl_routes() -> Router<AppState> {
     Router::new()
         // Firecrawl v2 API endpoints
         .route("/v2/scrape", post(scrape::scrape_v2))
+        .route("/v2/scrape/stream", post(scrape::scrape_stream))
         .route(
             "/v2/scrape/{id}/interact",
             post(interact::interact).delete(interact::stop),

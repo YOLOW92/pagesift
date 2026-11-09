@@ -6,6 +6,22 @@ fn policy() -> SsrfPolicy {
 }
 
 #[test]
+fn shared_body_budget_never_overcommits_under_concurrency() {
+    let budget = Arc::new(SharedBodyBudget::new(100_000));
+    let threads: Vec<_> = (0..16)
+        .map(|_| {
+            let budget = budget.clone();
+            std::thread::spawn(move || (0..2000).map(|_| budget.take(7)).sum::<usize>())
+        })
+        .collect();
+    let consumed: usize = threads.into_iter().map(|t| t.join().unwrap()).sum();
+    assert_eq!(consumed, 100_000);
+    assert_eq!(budget.remaining(), 0);
+    budget.give_back(25);
+    assert_eq!(budget.take(30), 25);
+}
+
+#[test]
 fn no_proxy_parses_hosts_ports_and_cidrs() {
     let bypass = ProxyBypass::from_raw(
         Some("localhost, .internal.example, 10.0.0.0/8, 127.0.0.1, [::1]:8080, *.corp.example"),

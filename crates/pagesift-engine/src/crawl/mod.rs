@@ -284,6 +284,9 @@ impl Scraper {
         extra: &[&str],
     ) -> (Arc<ScrapeOptions>, usize) {
         let mut opts = req.scrape_options.clone();
+        if opts.image_assets.is_some() && opts.asset_fetch_cache.is_none() {
+            opts.asset_fetch_cache = Some(Default::default());
+        }
         for kind in std::iter::once("links").chain(extra.iter().copied()) {
             if !opts.wants(kind) {
                 opts.formats.push(Format::new(kind));

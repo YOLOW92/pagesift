@@ -1372,7 +1372,7 @@ checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
 name = "pagesift"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "anyhow",
  "axum",
@@ -1386,6 +1386,7 @@ dependencies = [
  "http-body-util",
  "httpdate",
  "pagesift-api",
+ "pagesift-base64",
  "pagesift-cdp",
  "pagesift-cluster",
  "pagesift-content",
@@ -1428,13 +1429,14 @@ dependencies = [
 
 [[package]]
 name = "pagesift-api"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "axum",
  "http-body",
  "http-body-util",
  "hyper",
  "hyper-util",
+ "pagesift-base64",
  "pagesift-cluster",
  "pagesift-diff",
  "pagesift-extract",
@@ -1456,12 +1458,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "pagesift-cdp"
-version = "1.2.2"
+name = "pagesift-base64"
+version = "1.2.3"
 dependencies = [
  "base64 0.23.1",
+]
+
+[[package]]
+name = "pagesift-cdp"
+version = "1.2.3"
+dependencies = [
  "futures-util",
  "nix",
+ "pagesift-base64",
  "pagesift-itna",
  "pagesift-stat",
  "serde",
@@ -1476,7 +1485,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-cluster"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "blake3",
  "bytes",
@@ -1494,11 +1503,11 @@ dependencies = [
 
 [[package]]
 name = "pagesift-compress"
-version = "1.2.2"
+version = "1.2.3"
 
 [[package]]
 name = "pagesift-content"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "aho-corasick",
  "blake3",
@@ -1514,7 +1523,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-diff"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "blake3",
  "pagesift-testkit",
@@ -1527,7 +1536,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-engine"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "anyhow",
  "axum",
@@ -1540,6 +1549,7 @@ dependencies = [
  "http-body-util",
  "httpdate",
  "pagesift-api",
+ "pagesift-base64",
  "pagesift-cdp",
  "pagesift-cluster",
  "pagesift-content",
@@ -1578,7 +1588,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-extract"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "memchr",
  "pagesift-html",
@@ -1592,7 +1602,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-ffi"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "pagesift",
  "pagesift-cdp",
@@ -1606,7 +1616,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-flow"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "pagesift-net",
  "pagesift-policy",
@@ -1616,7 +1626,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-frontier"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "pagesift-api",
  "pagesift-content",
@@ -1628,7 +1638,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-fuzz"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "pagesift-content",
  "pagesift-html",
@@ -1640,14 +1650,14 @@ dependencies = [
 
 [[package]]
 name = "pagesift-gpu"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "pagesift-infer",
 ]
 
 [[package]]
 name = "pagesift-hooks"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "pagesift-api",
  "serde",
@@ -1658,7 +1668,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-html"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "memchr",
  "pagesift-testkit",
@@ -1666,21 +1676,21 @@ dependencies = [
 
 [[package]]
 name = "pagesift-infer"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "pagesift-itna"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "pagesift-llm"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "reqwest",
  "serde",
@@ -1691,13 +1701,13 @@ dependencies = [
 
 [[package]]
 name = "pagesift-mcp"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "axum",
- "base64 0.23.1",
  "futures-util",
  "getrandom 0.4.3",
  "pagesift-api",
+ "pagesift-base64",
  "reqwest",
  "serde",
  "serde_json",
@@ -1707,7 +1717,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-media"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "anyhow",
  "blake3",
@@ -1726,9 +1736,8 @@ dependencies = [
 
 [[package]]
 name = "pagesift-net"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
- "base64 0.23.1",
  "blake3",
  "brotli-decompressor 5.0.3",
  "bytes",
@@ -1739,6 +1748,7 @@ dependencies = [
  "httpdate",
  "hyper",
  "hyper-util",
+ "pagesift-base64",
  "pagesift-compress",
  "pagesift-itna",
  "pagesift-rustls",
@@ -1759,7 +1769,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-node"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "napi",
  "napi-build",
@@ -1775,7 +1785,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-ocr"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "pagesift-gpu",
  "pagesift-infer",
@@ -1787,7 +1797,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-office"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "encoding_rs",
  "memchr",
@@ -1799,7 +1809,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-pdf"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "aes",
  "brotli-decompressor 6.0.1",
@@ -1816,7 +1826,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-plan"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "blake3",
  "pagesift-content",
@@ -1829,7 +1839,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-policy"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "httpdate",
  "pagesift-net",
@@ -1844,7 +1854,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-py"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "pagesift",
  "pagesift-cdp",
@@ -1859,7 +1869,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-rustls"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "log",
  "once_cell",
@@ -1872,7 +1882,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-search"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "reqwest",
  "serde_json",
@@ -1882,7 +1892,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-sink"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "pagesift-api",
  "pagesift-content",
@@ -1897,11 +1907,11 @@ dependencies = [
 
 [[package]]
 name = "pagesift-stat"
-version = "1.2.2"
+version = "1.2.3"
 
 [[package]]
 name = "pagesift-store"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "blake3",
  "crc32fast",
@@ -1918,21 +1928,21 @@ dependencies = [
 
 [[package]]
 name = "pagesift-syntax"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "miniz_oxide",
 ]
 
 [[package]]
 name = "pagesift-sys"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "libc",
 ]
 
 [[package]]
 name = "pagesift-testkit"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "libc",
 ]

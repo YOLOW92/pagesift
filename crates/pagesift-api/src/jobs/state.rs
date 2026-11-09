@@ -70,6 +70,7 @@ pub struct Job {
     pub(crate) owner: Option<Caller>,
     /// 新完成了文档或者状态变了就响一下，叫醒在等这个任务的流（`/stream`）。任务删掉时随之关闭。
     pub(crate) changed: watch::Sender<()>,
+    pub(crate) previews: tokio::sync::broadcast::Sender<crate::types::MarkdownPreview>,
 }
 
 impl Job {
@@ -87,6 +88,7 @@ impl Job {
             stored_docs: 0,
             owner,
             changed: watch::channel(()).0,
+            previews: tokio::sync::broadcast::channel(4).0,
         }
     }
 

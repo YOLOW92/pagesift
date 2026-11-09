@@ -22,6 +22,7 @@ const BASE: &str = "https://site.example";
 struct Fake {
     scraped: Arc<Mutex<Vec<String>>>,
     delay: Duration,
+    restored_asset_hits: std::sync::atomic::AtomicUsize,
 }
 
 impl Fake {
@@ -30,6 +31,7 @@ impl Fake {
         let fake = Arc::new(Fake {
             scraped: scraped.clone(),
             delay: Duration::from_millis(delay_ms),
+            restored_asset_hits: Default::default(),
         });
         (fake, scraped)
     }
@@ -61,9 +63,40 @@ impl Engine for Fake {
     fn scrape<'a>(
         &'a self,
         url: &'a str,
-        _opts: &'a ScrapeOptions,
+        opts: &'a ScrapeOptions,
     ) -> BoxFuture<'a, Result<Document, ApiError>> {
-        Box::pin(self.get(url))
+        Box::pin(async move {
+            let mut doc = self.get(url).await?;
+            if opts.image_assets.is_some() {
+                let image_url = "https://assets.example/logo.png";
+                if opts
+                    .asset_fetch_cache
+                    .as_ref()
+                    .and_then(|c| c.entry(image_url))
+                    .is_some_and(|c| c.get().is_some())
+                {
+                    self.restored_asset_hits
+                        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                }
+                let mut a = pagesift_api::types::Attachment::new(
+                    b"\x89PNG\r\n\x1a\nimage".to_vec(),
+                    "png",
+                    Some(image_url.into()),
+                );
+                a.inline_data = true;
+                doc.image_assets
+                    .push(pagesift_api::types::ImageAssetResult {
+                        source: image_url.into(),
+                        status: pagesift_api::types::ImageAssetStatus::Ok,
+                        id: Some(a.id.clone()),
+                        mime: Some(a.mime().into()),
+                        bytes: Some(a.bytes),
+                        reason: None,
+                    });
+                doc.attachments.push(a);
+            }
+            Ok(doc)
+        })
     }
 
     fn crawl<'a>(
@@ -336,6 +369,140 @@ fn batch_resumes_after_restart_and_keeps_errors() {
     assert!(crashed_at >= 10);
 }
 
+#[test]
+fn image_assets_are_deduplicated_after_restart_and_across_pages() {
+    let dir = tempfile::tempdir().unwrap();
+    let (fake, _) = Fake::new(10);
+    let rt = runtime();
+    let id = rt.block_on(async {
+        let app = persisted(fake.clone(), dir.path());
+        let urls: Vec<_> = (0..30).map(|i| format!("{BASE}/asset/{i}")).collect();
+        let (_, _, body) = call(
+            &app,
+            "POST",
+            "/v2/batch/scrape",
+            Some(json!({
+                "urls": urls, "maxConcurrency": 2, "imageAssets": "rewrite"
+            })),
+            None,
+        )
+        .await;
+        let id = body["id"].as_str().unwrap().to_owned();
+        wait(&app, &format!("/v2/batch/scrape/{id}"), |v| {
+            v["completed"].as_u64().unwrap_or(0) >= 4
+        })
+        .await;
+        id
+    });
+    drop(rt);
+    let rt = runtime();
+    rt.block_on(async {
+        let app = persisted(fake.clone(), dir.path());
+        let path = format!("/v2/batch/scrape/{id}?limit=3");
+        wait(&app, &path, |v| v["status"] == "completed").await;
+        let mut next = Some(path);
+        let mut count = 0;
+        let mut payloads = 0;
+        while let Some(path) = next {
+            let (_, _, body) = call(&app, "GET", &path, None, None).await;
+            for page in body["data"].as_array().unwrap() {
+                count += 1;
+                payloads += usize::from(page["attachments"][0].get("data").is_some());
+            }
+            next = body["next"]
+                .as_str()
+                .map(|n| n.trim_start_matches("http://pagesift.test").to_owned());
+        }
+        assert_eq!(count, 30);
+        assert_eq!(payloads, 1);
+        assert!(
+            fake.restored_asset_hits
+                .load(std::sync::atomic::Ordering::SeqCst)
+                > 0,
+            "saved image URL should be seeded on restart"
+        );
+    });
+    drop(rt);
+    let stored = store(dir.path());
+    let pages = stored
+        .tasks()
+        .list_range(format!("job/{id}/pages"), 0, 100)
+        .unwrap();
+    assert_eq!(pages.len(), 30);
+    let mut first_id = None;
+    for raw in pages {
+        let page: Value = serde_json::from_slice(&raw).unwrap();
+        let a = &page["attachments"][0];
+        assert!(
+            a.get("data").is_none(),
+            "task page must not duplicate stored bytes"
+        );
+        if a["inlineData"] == true {
+            first_id = a["id"].as_str().map(str::to_owned);
+        }
+    }
+    let id = first_id.expect("one receipt marks the original asset");
+    assert_eq!(
+        stored
+            .tasks()
+            .kv_get(format!("attachment/{id}"))
+            .unwrap()
+            .unwrap(),
+        b"\x89PNG\r\n\x1a\nimage"
+    );
+}
+
+#[test]
+fn asset_job_recovers_after_persistent_write_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    let (fake, _) = Fake::new(15);
+    let rt = runtime();
+    let id = rt.block_on(async {
+        let s = store(dir.path());
+        let app = router(
+            fake.clone(),
+            Config {
+                public_url: Some("http://pagesift.test".into()),
+                store: Some(s.clone()),
+                ..Default::default()
+            },
+        );
+        let urls: Vec<_> = (0..20).map(|i| format!("{BASE}/failure/{i}")).collect();
+        let (_, _, body) = call(
+            &app,
+            "POST",
+            "/v2/batch/scrape",
+            Some(json!({"urls": urls, "maxConcurrency": 1, "imageAssets": "attach"})),
+            None,
+        )
+        .await;
+        let id = body["id"].as_str().unwrap().to_owned();
+        let path = format!("/v2/batch/scrape/{id}");
+        wait(&app, &path, |v| v["completed"].as_u64().unwrap_or(0) >= 2).await;
+        s.fail_writes(true);
+        let failed = wait(&app, &path, |v| v["status"] == "failed").await;
+        assert!(failed["completed"].as_u64().unwrap() < 20);
+        s.fail_writes(false);
+        id
+    });
+    drop(rt);
+    let rt = runtime();
+    rt.block_on(async {
+        let app = persisted(fake, dir.path());
+        let path = format!("/v2/batch/scrape/{id}");
+        let done = wait(&app, &path, |v| v["status"] == "completed").await;
+        let pages = done["data"].as_array().unwrap();
+        assert_eq!(pages.len(), 20);
+        assert_eq!(
+            pages
+                .iter()
+                .filter(|p| p["attachments"][0].get("data").is_some())
+                .count(),
+            1
+        );
+    });
+}
+
 #[tokio::test]
 async fn crawl_summary_survives_restart() {
     let dir = tempfile::tempdir().unwrap();
@@ -531,6 +698,87 @@ async fn webhooks_deliver_in_order_with_retries() {
     assert!(
         m.contains("pagesift_webhook_deliveries_total{outcome=\"delivered\"} 4"),
         "{m}"
+    );
+}
+
+#[tokio::test]
+async fn webhook_retry_preserves_first_asset_and_deduplicates_later_pages() {
+    let got: Arc<Mutex<Vec<(Value, u16)>>> = Arc::default();
+    let capture = got.clone();
+    let server = axum::Router::new().route(
+        "/hook",
+        axum::routing::post(move |body: String| {
+            let capture = capture.clone();
+            async move {
+                let body: Value = serde_json::from_str(&body).unwrap();
+                let mut got = capture.lock().unwrap();
+                let first_page = body["type"] == "batch_scrape.page"
+                    && !got.iter().any(|(v, _)| v["type"] == "batch_scrape.page");
+                let status = if first_page { 500 } else { 200 };
+                got.push((body, status));
+                StatusCode::from_u16(status).unwrap()
+            }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/hook", listener.local_addr().unwrap());
+    tokio::spawn(async move { axum::serve(listener, server).await.unwrap() });
+    let (fake, _) = Fake::new(1);
+    let app = router(
+        fake,
+        Config {
+            webhook: hook_settings(None),
+            ..Default::default()
+        },
+    );
+    let (status, _, started) = call(
+        &app,
+        "POST",
+        "/v2/batch/scrape",
+        Some(json!({
+            "urls": [format!("{BASE}/a"), format!("{BASE}/b"), format!("{BASE}/c")],
+            "maxConcurrency": 3, "imageAssets": "rewrite", "webhook": {"url":url}
+        })),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{started}");
+    for _ in 0..500 {
+        if got
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|(v, status)| *status == 200 && v["type"] == "batch_scrape.completed")
+        {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    let got = got.lock().unwrap();
+    let pages: Vec<_> = got
+        .iter()
+        .filter(|(v, _)| v["type"] == "batch_scrape.page")
+        .collect();
+    assert_eq!(pages.len(), 4, "{got:?}");
+    assert_eq!(pages[0].1, 500);
+    assert_eq!(
+        pages[0].0, pages[1].0,
+        "retry must send the same first asset event"
+    );
+    let successful: Vec<_> = pages.iter().filter(|(_, status)| *status == 200).collect();
+    assert_eq!(successful.len(), 3);
+    assert_eq!(
+        successful
+            .iter()
+            .filter(|(v, _)| v["data"][0]["attachments"][0].get("data").is_some())
+            .count(),
+        1
+    );
+    let id = &successful[0].0["data"][0]["attachments"][0]["id"];
+    assert!(
+        successful
+            .iter()
+            .all(|(v, _)| &v["data"][0]["attachments"][0]["id"] == id)
     );
 }
 
@@ -1166,6 +1414,84 @@ fn saved_completion_receipts_repair_missing_done_marks() {
 struct BreakingLog {
     appended: std::sync::atomic::AtomicUsize,
     ok: usize,
+}
+
+#[derive(Default)]
+struct CapturingLog(Mutex<Vec<Vec<u8>>>);
+
+impl pagesift_api::JobLog for CapturingLog {
+    fn append(&self, op: Vec<u8>) -> Result<(), String> {
+        self.0.lock().unwrap().push(op);
+        Ok(())
+    }
+}
+
+#[test]
+fn asset_results_and_bytes_survive_mirror_replay() {
+    let primary_dir = tempfile::tempdir().unwrap();
+    let standby_dir = tempfile::tempdir().unwrap();
+    let (fake, _) = Fake::new(1);
+    let log = Arc::new(CapturingLog::default());
+    let rt = runtime();
+    let id = rt.block_on(async {
+        let primary = store(primary_dir.path());
+        let app = router(
+            fake.clone(),
+            Config {
+                store: Some(primary.clone()),
+                job_mirror: Some(pagesift_api::JobMirror::new(log.clone())),
+                ..Default::default()
+            },
+        );
+        let urls: Vec<_> = (0..4).map(|i| format!("{BASE}/mirror/{i}")).collect();
+        let (_, _, body) = call(
+            &app,
+            "POST",
+            "/v2/batch/scrape",
+            Some(json!({"urls":urls, "imageAssets":"attach"})),
+            None,
+        )
+        .await;
+        let id = body["id"].as_str().unwrap().to_owned();
+        wait(&app, &format!("/v2/batch/scrape/{id}"), |v| {
+            v["status"] == "completed"
+        })
+        .await;
+        for _ in 0..100 {
+            let meta = primary
+                .tasks()
+                .kv_get(format!("job/{id}"))
+                .unwrap()
+                .unwrap();
+            if serde_json::from_slice::<Value>(&meta).unwrap()["state"] == "completed" {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        id
+    });
+    drop(rt);
+    {
+        let standby = store(standby_dir.path());
+        for op in log.0.lock().unwrap().iter() {
+            pagesift_api::apply_op(&standby, op).unwrap();
+        }
+    }
+    runtime().block_on(async {
+        let app = persisted(fake, standby_dir.path());
+        let (_, _, body) = call(&app, "GET", &format!("/v2/batch/scrape/{id}"), None, None).await;
+        assert_eq!(body["status"], "completed", "{body}");
+        let pages = body["data"].as_array().unwrap();
+        assert_eq!(pages.len(), 4);
+        let with_data: Vec<_> = pages
+            .iter()
+            .filter(|p| p["attachments"][0].get("data").is_some())
+            .collect();
+        assert_eq!(with_data.len(), 1, "{body}");
+        let id = with_data[0]["attachments"][0]["id"].as_str().unwrap();
+        let (status, _, _) = call(&app, "GET", &format!("/v2/attachments/{id}"), None, None).await;
+        assert_eq!(status, StatusCode::OK);
+    });
 }
 
 impl pagesift_api::JobLog for BreakingLog {

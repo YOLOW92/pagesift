@@ -20,6 +20,23 @@ impl Renderer<'_> {
                     inline.clear();
                 }
                 self.block(child, &mut blocks);
+            } else if !keep
+                && self.keep_data_images
+                && child.descendants().any(|node| {
+                    node.tag() == Some(Tag::Img)
+                        && element(&node)
+                            .and_then(|el| image_src(el, true))
+                            .is_some_and(|src| {
+                                src.get(..5)
+                                    .is_some_and(|s| s.eq_ignore_ascii_case("data:"))
+                            })
+                })
+            {
+                // Article-mode whitelisting otherwise discards a standalone
+                // inline image between block elements together with stray text.
+                inline.clear();
+                self.inline_into(child, &mut inline);
+                flush_paragraph(&mut inline, &mut blocks);
             } else {
                 self.inline_into(child, &mut inline);
             }

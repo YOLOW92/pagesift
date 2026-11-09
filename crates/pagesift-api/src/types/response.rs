@@ -263,7 +263,34 @@ pub struct Document {
     /// the content is downloaded from `GET /v2/attachments/{id}`.
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub attachments: Vec<super::Attachment>,
+    /// Outcome for each requested image, including failed and skipped images.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub image_assets: Vec<ImageAssetResult>,
     pub metadata: Metadata,
+}
+
+/// Per-source outcome. A failed or skipped image has no content-derived id.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageAssetResult {
+    pub source: String,
+    pub status: ImageAssetStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ImageAssetStatus {
+    Ok,
+    SkippedLimit,
+    Failed,
 }
 
 /// Firecrawl `data.pages[]`。

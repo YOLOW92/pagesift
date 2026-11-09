@@ -112,6 +112,85 @@ async fn pages_are_pushed_as_they_complete_then_done() {
 }
 
 #[tokio::test]
+async fn opt_in_previews_arrive_before_final_page_without_cursor() {
+    struct PreviewEngine {
+        start: Arc<Semaphore>,
+        finish: Arc<Semaphore>,
+    }
+    impl crate::Engine for PreviewEngine {
+        fn scrape<'a>(
+            &'a self,
+            url: &'a str,
+            opts: &'a crate::types::ScrapeOptions,
+        ) -> crate::BoxFuture<'a, Result<crate::types::Document, crate::ApiError>> {
+            Box::pin(async move {
+                self.start.acquire().await.unwrap().forget();
+                if let Some(p) = &opts.markdown_progress {
+                    let _ = p.0.send(crate::types::MarkdownPreview {
+                        url: url.into(),
+                        markdown: "draft".into(),
+                        truncated: false,
+                    });
+                }
+                self.finish.acquire().await.unwrap().forget();
+                Ok(crate::types::Document {
+                    markdown: Some("final".into()),
+                    ..Default::default()
+                })
+            })
+        }
+    }
+    let start = Arc::new(Semaphore::new(0));
+    let finish = Arc::new(Semaphore::new(0));
+    let app = router(
+        Arc::new(PreviewEngine {
+            start: start.clone(),
+            finish: finish.clone(),
+        }),
+        Config::default(),
+    );
+    let req = Request::post("/v2/batch/scrape")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            json!({"urls":[BASE], "imageAssets":"attach"}).to_string(),
+        ))
+        .unwrap();
+    let id = json_of(&app, req).await["id"].as_str().unwrap().to_owned();
+    let response = app
+        .clone()
+        .oneshot(get(
+            &format!("/v2/batch/scrape/{id}/stream?previews=true"),
+            &[],
+        ))
+        .await
+        .unwrap();
+    let mut body = response.into_body();
+    start.add_permits(1);
+    let frame = tokio::time::timeout(Duration::from_secs(3), body.frame())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    let text = String::from_utf8(frame.into_data().unwrap().to_vec()).unwrap();
+    let preview = events(&text);
+    assert_eq!(preview[0].0, "markdown");
+    assert_eq!(preview[0].1, None);
+    assert_eq!(preview[0].2["markdown"], "draft");
+    finish.add_permits(1);
+    let rest = tokio::time::timeout(Duration::from_secs(3), body.collect())
+        .await
+        .unwrap()
+        .unwrap()
+        .to_bytes();
+    let rest = String::from_utf8(rest.to_vec()).unwrap();
+    let ev = events(&rest);
+    assert_eq!(ev[0].0, "page");
+    assert_eq!(ev[0].1.as_deref(), Some("0"));
+    assert_eq!(ev[0].2["markdown"], "final");
+    assert_eq!(ev[1].0, "done");
+}
+
+#[tokio::test]
 async fn resumes_after_the_cursor_and_speaks_ndjson() {
     let gate = Arc::new(Semaphore::new(3));
     let app = app_with_gate(gate).await;
@@ -164,7 +243,7 @@ async fn resumes_after_the_cursor_and_speaks_ndjson() {
 
 #[tokio::test]
 async fn idle_streams_send_keepalives() {
-    use super::{Format, pump};
+    use super::{Format, PumpState, pump};
     let ndjson: Value = serde_json::from_slice(&Format::Ndjson.keepalive()).unwrap();
     assert_eq!(ndjson, json!({"type": "keepalive"}));
 
@@ -180,7 +259,18 @@ async fn idle_streams_send_keepalives() {
     let changed = jobs.subscribe(&id).await.unwrap();
     let (tx, mut rx) = tokio::sync::mpsc::channel(1);
     let interval = Duration::from_millis(20);
-    tokio::spawn(pump(jobs, id, 0, Format::Sse, changed, tx, interval));
+    tokio::spawn(pump(
+        jobs,
+        PumpState {
+            id,
+            next: 0,
+            fmt: Format::Sse,
+            changed,
+            tx,
+            keepalive: interval,
+            previews: None,
+        },
+    ));
     // 页面卡在闸门上：先收到心跳
     for _ in 0..2 {
         let b = tokio::time::timeout(Duration::from_secs(10), rx.recv())

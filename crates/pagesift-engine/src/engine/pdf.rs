@@ -143,21 +143,63 @@ impl Scraper {
         meta.extra.insert("numPages".into(), converted.into());
         meta.extra.insert("totalPages".into(), total.into());
         let mut attachments = Vec::new();
+        let mut image_names = Vec::new();
+        let mut image_assets = Vec::new();
         for img in pdf.images {
+            let original_name = img.file_name();
             match img.data {
-                Some(data) => attachments.push(pagesift_api::types::Attachment::with_hash(
-                    img.hash,
-                    img.extension,
-                    data,
-                    None,
-                )),
-                None if export => p.warnings.push(format!(
-                    "image_not_exported: {}: {}",
-                    img.hash.get(..32).unwrap_or(&img.hash),
-                    img.export_error
+                Some(data) => {
+                    if let Some(format) = pagesift_api::types::attachment::sniff_image_format(&data)
+                    {
+                        // PDF's image hash describes the source stream. PNG,
+                        // TIFF and JBIG2 exports can contain different bytes,
+                        // so the attachment must hash the exported bytes.
+                        let attachment = pagesift_api::types::Attachment::new(data, format, None);
+                        if original_name != attachment.id {
+                            image_names.push((original_name, attachment.id.clone()));
+                        }
+                        if !attachments
+                            .iter()
+                            .any(|a: &pagesift_api::types::Attachment| a.hash == attachment.hash)
+                        {
+                            attachments.push(attachment);
+                        }
+                    } else {
+                        p.warnings.push(format!(
+                            "image_not_exported: {original_name}: unrecognized image bytes"
+                        ));
+                        if opts.image_assets.is_some() {
+                            image_assets.push(pagesift_api::types::ImageAssetResult {
+                                source: format!("images/{original_name}"),
+                                status: pagesift_api::types::ImageAssetStatus::Failed,
+                                id: None,
+                                mime: None,
+                                bytes: None,
+                                reason: Some("unrecognized_image_bytes".into()),
+                            });
+                        }
+                    }
+                }
+                None if export => {
+                    let reason = img
+                        .export_error
                         .as_deref()
-                        .unwrap_or("unsupported encoding")
-                )),
+                        .unwrap_or("unsupported encoding");
+                    p.warnings.push(format!(
+                        "image_not_exported: {}: {reason}",
+                        img.hash.get(..32).unwrap_or(&img.hash)
+                    ));
+                    if opts.image_assets.is_some() {
+                        image_assets.push(pagesift_api::types::ImageAssetResult {
+                            source: format!("images/{original_name}"),
+                            status: pagesift_api::types::ImageAssetStatus::Failed,
+                            id: None,
+                            mime: None,
+                            bytes: None,
+                            reason: Some(reason.to_string()),
+                        });
+                    }
+                }
                 None => {}
             }
         }
@@ -166,15 +208,18 @@ impl Scraper {
                 .into_iter()
                 .map(|page| PageMarkdown {
                     page_number: page.number,
-                    markdown: page.markdown,
+                    markdown: rewrite_exported_image_names(page.markdown, &image_names),
                 })
                 .collect()
         });
         Ok(finish(
             Document {
-                markdown: opts.wants("markdown").then_some(pdf.markdown),
+                markdown: opts
+                    .wants("markdown")
+                    .then(|| rewrite_exported_image_names(pdf.markdown, &image_names)),
                 pages,
                 attachments,
+                image_assets,
                 ..Default::default()
             },
             meta,
@@ -186,6 +231,16 @@ impl Scraper {
             p.started,
         ))
     }
+}
+
+/// Rename only generated PDF image destinations, keeping unrelated Markdown
+/// unchanged. The source PDF image id may hash compressed input rather than
+/// the actual bytes of the exported image.
+fn rewrite_exported_image_names(mut markdown: String, names: &[(String, String)]) -> String {
+    for (old, new) in names {
+        markdown = markdown.replace(&format!("](images/{old})"), &format!("](images/{new})"));
+    }
+    markdown
 }
 
 /// PDF 读不了是文件本身的问题（4xx），不是上游故障：坏文件 400 INVALID_REQUEST，
@@ -223,6 +278,16 @@ fn base64(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn exported_image_renaming_keeps_unrelated_text() {
+        let md = "![x](images/source.png) text images/source.png ![y](images/other.png)";
+        let names = [("source.png".to_string(), "content.png".to_string())];
+        assert_eq!(
+            rewrite_exported_image_names(md.into(), &names),
+            "![x](images/content.png) text images/source.png ![y](images/other.png)"
+        );
+    }
 
     #[test]
     fn base64_matches_rfc4648_vectors() {

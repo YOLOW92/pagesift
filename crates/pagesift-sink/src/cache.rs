@@ -66,6 +66,17 @@ mod tests {
     use pagesift_api::types::{Metadata, PagesiftMeta};
 
     #[test]
+    fn attachment_bytes_and_asset_flag_survive_binary_encoding() {
+        let mut attachment = pagesift_api::types::Attachment::new(b"image".to_vec(), "png", None);
+        attachment.inline_data = true;
+        let doc = Document {
+            attachments: vec![attachment],
+            ..Default::default()
+        };
+        assert_eq!(decode(&encode(&doc).unwrap()), Some(doc));
+    }
+
+    #[test]
     fn round_trips_the_fields_json_drops_and_rejects_other_versions() {
         let mut meta = Metadata {
             title: Some("T".into()),

@@ -335,3 +335,38 @@ fn executable_inline_script_navigation_is_separate_from_arbitrary_strings() {
         ]
     );
 }
+#[test]
+fn data_image_output_is_opt_in_and_independent_of_render_mode() {
+    let html = r#"<html><body><article><h1>Picture story</h1>
+        <p>This is the story surrounding the picture and its contents.</p>
+        <img alt="embedded" src="data:image/png;base64,aGVsbG8=">
+        <a href="https://example.org/image"><img alt="linked" src="data:image/gif;base64,R0lGODlh"></a>
+        <p>This closing paragraph is part of the same story.</p>
+        </article></body></html>"#;
+    for only_main_content in [false, true] {
+        let mut opts = pagesift_content::Options {
+            only_main_content,
+            ..Default::default()
+        };
+        let default = pagesift_content::process(html, &opts);
+        assert!(
+            !default.markdown.contains("data:image/"),
+            "{}",
+            default.markdown
+        );
+        opts.keep_data_images = true;
+        let kept = pagesift_content::process(html, &opts);
+        assert!(
+            kept.markdown
+                .contains("![embedded](data:image/png;base64,aGVsbG8=)"),
+            "only_main_content={only_main_content}: {}",
+            kept.markdown
+        );
+        assert!(
+            kept.markdown
+                .contains("![linked](data:image/gif;base64,R0lGODlh)"),
+            "only_main_content={only_main_content}: {}",
+            kept.markdown
+        );
+    }
+}

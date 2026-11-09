@@ -97,7 +97,7 @@ impl Renderer<'_> {
     }
 
     pub(super) fn image(&self, el: Element<'_>) -> String {
-        let Some(src) = image_src(el) else {
+        let Some(src) = image_src(el, self.keep_data_images) else {
             return String::new();
         };
         let alt = single_line(&collapse_whitespace(el.attr("alt").unwrap_or("")));
@@ -110,7 +110,15 @@ impl Renderer<'_> {
         format!(
             "![{}]({}{title})",
             alt.replace(['[', ']'], ""),
-            self.resolve(src)
+            if self.keep_data_images
+                && src
+                    .get(..5)
+                    .is_some_and(|s| s.eq_ignore_ascii_case("data:"))
+            {
+                src.to_string()
+            } else {
+                self.resolve(src)
+            }
         )
     }
 
@@ -136,13 +144,16 @@ pub(super) fn class_contains_el(el: Element<'_>, needle: &str) -> bool {
 }
 
 /// 图片地址。懒加载的图片 `src` 常是空的或 `data:` 占位图，真实地址在 `data-src`、
-/// `data-lazy-src`、`data-original` 或 `srcset` 里；`data:` 地址本身不输出。
-pub(super) fn image_src(el: Element<'_>) -> Option<&str> {
+/// `data-lazy-src`、`data-original` 或 `srcset` 里；默认不输出 `data:` 地址。
+pub(super) fn image_src(el: Element<'_>, keep_data_images: bool) -> Option<&str> {
     let usable = |s: &&str| {
         !s.is_empty()
             && !s.starts_with('#')
             && match Url::parse(s) {
-                Ok(u) => matches!(u.scheme(), "http" | "https"),
+                Ok(u) => {
+                    matches!(u.scheme(), "http" | "https")
+                        || (keep_data_images && u.scheme() == "data")
+                }
                 Err(_) => true,
             }
     };

@@ -425,7 +425,7 @@ impl Scraper {
     ) -> Result<Document, ApiError> {
         // 选择器写错了在抓取之前就报，不白抓一次
         tag_filter(opts)?;
-        if opts.export_images {
+        if opts.export_images || opts.image_assets.is_some() {
             return self.scrape_exporting_images(source, opts).await;
         }
         let mut result = self.scrape_document(source, opts).await;
@@ -457,6 +457,15 @@ impl Scraper {
             Source::Upload(_) => RobotsMode::Respect,
         };
         let mut inner = opts.clone();
+        if opts.image_assets.is_some() {
+            // Document formats produce their original media through this path.
+            inner.export_images = true;
+            if !inner.wants("markdown") {
+                inner
+                    .formats
+                    .push(pagesift_api::types::Format::new("markdown"));
+            }
+        }
         if !inner.wants("images") {
             inner
                 .formats
@@ -466,7 +475,29 @@ impl Scraper {
         inner.store_in_cache = false;
         let mut result = self.scrape_document(source, &inner).await;
         if let Ok(doc) = &mut result {
-            self.export_web_images(doc, mode).await;
+            if let Some(asset_mode) = opts.image_assets {
+                if let (Some(progress), Some(markdown)) = (&opts.markdown_progress, &doc.markdown)
+                    && progress.0.receiver_count() > 0
+                {
+                    let limit = 1024 * 1024;
+                    let mut end = markdown.len().min(limit);
+                    while !markdown.is_char_boundary(end) {
+                        end -= 1;
+                    }
+                    let _ = progress.0.send(pagesift_api::types::MarkdownPreview {
+                        url: doc.metadata.source_url.clone().unwrap_or_default(),
+                        markdown: markdown[..end].to_string(),
+                        truncated: end < markdown.len(),
+                    });
+                }
+                self.assetize_images(doc, mode, asset_mode, opts.asset_fetch_cache.as_ref())
+                    .await;
+                if !opts.wants("markdown") {
+                    doc.markdown = None;
+                }
+            } else {
+                self.export_web_images(doc, mode).await;
+            }
             if !opts.wants("images") {
                 doc.images = None;
             }

@@ -19,6 +19,19 @@ pub const MAX_MAP_LIMIT: usize = 100_000;
 /// batch scrape、extract 一次最多带多少个 URL。
 pub const MAX_URLS: usize = 10_000;
 
+#[cfg(test)]
+#[test]
+fn both_remove_base64_images_values_are_accepted() {
+    let engine = crate::test_engine::FakeEngine::open();
+    for keep in [false, true] {
+        let opts = ScrapeOptions {
+            remove_base64_images: keep,
+            ..Default::default()
+        };
+        assert!(check_scrape_options(&opts, &engine).is_ok());
+    }
+}
+
 pub fn check_url(raw: &str) -> Result<(), ApiError> {
     if raw.len() > MAX_URL_LEN {
         return Err(ApiError::invalid(format!(
@@ -39,11 +52,6 @@ pub fn check_scrape_options(opts: &ScrapeOptions, engine: &dyn Engine) -> Result
     if opts.store_snapshot {
         return Err(ApiError::unsupported(
             "storeSnapshot is not supported; use the changeTracking format",
-        ));
-    }
-    if !opts.remove_base64_images {
-        return Err(ApiError::unsupported(
-            "removeBase64Images: false is not supported",
         ));
     }
     if opts

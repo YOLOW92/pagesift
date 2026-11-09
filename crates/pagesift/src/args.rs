@@ -242,6 +242,9 @@ pub(crate) enum Command {
         /// files: with --out they go to images/<hash>.<ext> and Markdown links point there
         #[arg(long)]
         export_images: bool,
+        /// Image assets: attach Base64, embed data URIs, or rewrite to asset:// references
+        #[arg(long, value_parser = ["attach", "embed", "rewrite"])]
+        image_assets: Option<String>,
         #[command(flatten)]
         allow: AllowCidrs,
     },
@@ -380,6 +383,9 @@ pub(crate) enum Command {
         /// files: with --out they go to images/<hash>.<ext> and Markdown links point there
         #[arg(long)]
         export_images: bool,
+        /// Image assets: attach Base64, embed data URIs, or rewrite to asset:// references
+        #[arg(long, value_parser = ["attach", "embed", "rewrite"])]
+        image_assets: Option<String>,
         /// Read the pages from this WARC file (.warc or .warc.gz) instead of the network: archived
         /// pages on the start URL's host that pass --include/--exclude, up to --limit; links are
         /// not followed

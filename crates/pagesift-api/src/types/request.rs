@@ -64,6 +64,15 @@ pub struct Location {
     pub languages: Vec<String>,
 }
 
+/// Optional presentation for image assets extracted from pages or documents.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ImageAssetMode {
+    Attach,
+    Embed,
+    Rewrite,
+}
+
 /// Single page scrape options (`scrapeOptions`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -138,6 +147,15 @@ pub struct ScrapeOptions {
     /// encoding, Office media, and web page images (fetched politely, robots and SSRF rules apply).
     #[serde(default)]
     pub export_images: bool,
+    /// Optional image asset presentation; absent leaves existing behavior.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_assets: Option<ImageAssetMode>,
+    /// Internal cache scoped to one batch/crawl; not part of the public request.
+    #[serde(skip)]
+    pub asset_fetch_cache: Option<super::AssetFetchCache>,
+    /// Internal channel for provisional extracted Markdown; never serialized.
+    #[serde(skip)]
+    pub markdown_progress: Option<super::MarkdownProgress>,
     #[serde(default)]
     pub if_none_match: Option<String>,
     #[serde(default)]

@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.2.2
+# pagesift 1.2.3
 
 **La capa de web y documentos para agentes de IA: entra cualquier URL, documento, correo, archivo comprimido o código fuente y sale Markdown limpio o JSON.**  
 Un único binario en Rust, autoalojado, con CLI, API de Firecrawl y de Jina Reader, servidor MCP y paquetes para Python, Node.js, Go, Java, C#, Ruby, PHP y más.
@@ -53,7 +53,7 @@ Puede sustituir o acompañar a: **Firecrawl** (la misma API v1/v2, autoalojada),
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| Servidor | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.2.1` | `curl localhost:3002/r/https://example.com` |
+| Servidor | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.2.3` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -97,7 +97,7 @@ const items = await scraper.scrapeMany(['https://example.com', 'https://example.
 **Servidor HTTP**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.2.1
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.2.3
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'                        # API de Firecrawl
@@ -326,11 +326,11 @@ flowchart LR
 [licencia comercial](COMMERCIAL.md) o escribe a `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
-## Novedades de 1.2.2
+## Novedades de 1.2.3
 
-Los trabajos de crawl, batch y extract solo son accesibles para su cuenta propietaria. Las páginas solicitadas por search y extract cuentan para la cuota diaria y la caché respeta robots.txt. Las opciones de instantáneas e imágenes base64 no compatibles ahora devuelven un error.
+`imageAssets` opcional para imágenes web, PDF y Office: adjunta bytes Base64, inserta URL de datos o reescribe Markdown con referencias `asset://`, con resultado por imagen, MIME detectado por contenido y entrega única por tarea en `attach`/`rewrite`. Los flujos de batch/crawl pueden pedir eventos Markdown provisionales y `removeBase64Images: false` conserva las URL de datos originales. Un Base64 propio se compara con `base64` 0.23.1 y `base64-simd` 0.8.0; es más rápido en las entradas medidas desde 4 KiB, pero no en todos los casos pequeños.
 
-[Notas de la versión](releases/1.2.2.md) · [1.2.1](releases/1.2.1.md) · [todas las versiones](releases/) · [CHANGELOG](../CHANGELOG.md)
+[Notas de la versión](releases/1.2.3.es.md) · [Mediciones Base64](releases/1.2.3-benchmarks.md) · [1.2.2](releases/1.2.2.md) · [todas las versiones](releases/) · [CHANGELOG](../CHANGELOG.md)
 
 ---
 
@@ -346,7 +346,7 @@ Preguntas o comentarios: [Discord](https://discord.gg/esA3wMZVvA) · [Issues](ht
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.2.1}
+  note   = {Version 1.2.3}
 }
 ```
 

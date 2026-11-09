@@ -165,6 +165,15 @@ impl Jobs {
                 .iter()
                 .filter_map(|v| serde_json::from_slice(v).ok())
                 .collect();
+            for doc in &mut page.data {
+                for a in &mut doc.attachments {
+                    if a.inline_data && a.data.is_none() {
+                        a.data = crate::attachments::load(self.disk(), a.id.clone())
+                            .await
+                            .map(|(data, _)| data);
+                    }
+                }
+            }
         }
         Some(page)
     }
@@ -178,6 +187,18 @@ impl Jobs {
             .await
             .get(id)
             .map(|j| j.changed.subscribe())
+    }
+
+    pub(crate) async fn subscribe_previews(
+        &self,
+        id: &str,
+    ) -> Option<tokio::sync::broadcast::Receiver<crate::types::MarkdownPreview>> {
+        self.inner
+            .map
+            .lock()
+            .await
+            .get(id)
+            .map(|job| job.previews.subscribe())
     }
 
     /// 任务的页面错误和被 robots.txt 拦下的 URL。
@@ -398,6 +419,7 @@ impl Jobs {
             quota_hit: AtomicBool::new(false),
             keep_summary: true,
             store_failed: StdMutex::new(None),
+            asset_hashes: tokio::sync::Mutex::new(None),
         })
     }
 
@@ -406,13 +428,29 @@ impl Jobs {
         id: String,
         engine: Arc<dyn Engine>,
         pending: Vec<(usize, String)>,
-        opts: ScrapeOptions,
+        mut opts: ScrapeOptions,
         concurrency: usize,
         hook: Option<Hook>,
     ) {
         let sink = self.sink(&id, JobKind::BatchScrape, hook, None);
-        let opts = Arc::new(opts);
+        if opts.image_assets.is_some() {
+            opts.asset_fetch_cache = Some(Default::default());
+        }
         tokio::spawn(async move {
+            if opts.image_assets.is_some() {
+                opts.markdown_progress = sink
+                    .jobs
+                    .inner
+                    .map
+                    .lock()
+                    .await
+                    .get(&id)
+                    .map(|job| crate::types::MarkdownProgress(job.previews.clone()));
+            }
+            if let Some(cache) = &opts.asset_fetch_cache {
+                sink.jobs.seed_asset_cache(&id, cache).await;
+            }
+            let opts = Arc::new(opts);
             let sem = Arc::new(Semaphore::new(concurrency.max(1)));
             let mut tasks = tokio::task::JoinSet::new();
             for (i, url) in pending {
@@ -465,17 +503,83 @@ impl Jobs {
         &self,
         id: String,
         engine: Arc<dyn Engine>,
-        req: CrawlRequest,
+        mut req: CrawlRequest,
         hook: Option<Hook>,
         resume: Option<CrawlResume>,
     ) {
+        if req.scrape_options.image_assets.is_some() {
+            req.scrape_options.asset_fetch_cache = Some(Default::default());
+        }
         let mut sink = self.sink(&id, JobKind::Crawl, hook, resume);
         if let Some(s) = Arc::get_mut(&mut sink) {
             s.keep_summary = req.query.is_some();
         }
         tokio::spawn(async move {
+            if req.scrape_options.image_assets.is_some() {
+                req.scrape_options.markdown_progress = sink
+                    .jobs
+                    .inner
+                    .map
+                    .lock()
+                    .await
+                    .get(&id)
+                    .map(|job| crate::types::MarkdownProgress(job.previews.clone()));
+            }
+            if let Some(cache) = &req.scrape_options.asset_fetch_cache {
+                sink.jobs.seed_asset_cache(&id, cache).await;
+            }
             let result = engine.crawl(&req, sink.clone()).await;
             sink.finish(result.map_err(|e| (req.url.clone(), e))).await;
         });
+    }
+
+    /// Restore bounded URL-to-content entries from successful saved pages.
+    async fn seed_asset_cache(&self, id: &str, cache: &crate::types::AssetFetchCache) {
+        let Some(store) = &self.inner.store else {
+            return;
+        };
+        let key = list_key(id, "pages");
+        let pairs = store
+            .blocking(move |s| -> pagesift_store::Result<Vec<(String, String)>> {
+                let tasks = s.tasks();
+                let mut pairs = std::collections::BTreeMap::new();
+                for start in (0..tasks.list_len(&key)).step_by(256) {
+                    for raw in tasks.list_range(&key, start, 256)? {
+                        let doc: crate::types::Document =
+                            serde_json::from_slice(&raw).map_err(std::io::Error::other)?;
+                        for asset in doc.image_assets {
+                            if asset.status == crate::types::ImageAssetStatus::Ok
+                                && (asset.source.starts_with("http://")
+                                    || asset.source.starts_with("https://"))
+                                && let Some(id) = asset.id
+                            {
+                                pairs.entry(asset.source).or_insert(id);
+                            }
+                            if pairs.len() >= 32 {
+                                return Ok(pairs.into_iter().collect());
+                            }
+                        }
+                    }
+                }
+                Ok(pairs.into_iter().collect())
+            })
+            .await;
+        let Ok(pairs) = pairs else { return };
+        for (url, id) in pairs {
+            let Some((bytes, _)) = crate::attachments::load(self.disk(), id.clone()).await else {
+                continue;
+            };
+            if bytes.len() > 512 * 1024 {
+                continue;
+            }
+            let Some(format) = crate::types::attachment::sniff_image_format(&bytes) else {
+                continue;
+            };
+            let attachment =
+                crate::types::Attachment::new(bytes.to_vec(), format, Some(url.clone()));
+            if attachment.id == id {
+                cache.seed(&url, attachment);
+            }
+        }
     }
 }

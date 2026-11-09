@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.2.2
+# pagesift 1.2.3
 
 **AI エージェントのための Web・文書レイヤー：URL、文書、メール、圧縮ファイル、ソースコードを入力すると、クリーンな Markdown または JSON を出力します。**  
 セルフホストできる単一の Rust バイナリ：CLI、Firecrawl・Jina Reader API、MCP サーバー、Python・Node.js・Go・Java・C#・Ruby・PHP などのパッケージ。
@@ -53,7 +53,7 @@ pagesift は、考えるソフトウェアのために Web と文書を読みま
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| サーバー | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.2.1` | `curl localhost:3002/r/https://example.com` |
+| サーバー | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.2.3` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -97,7 +97,7 @@ const items = await scraper.scrapeMany(['https://example.com', 'https://example.
 **HTTP サーバー**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.2.1
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.2.3
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'                        # Firecrawl API
@@ -325,11 +325,11 @@ flowchart LR
 [商用ライセンス](COMMERCIAL.md)を確認するか、`licensing@pagesift.dev` までご連絡ください。
 
 <!-- section: changelog -->
-## 1.2.2 の新機能
+## 1.2.3 の新機能
 
-crawl、batch、extract のジョブは作成したアカウントのみが利用できます。search と extract のページ取得は日次クォータに計上され、キャッシュも robots.txt を確認します。未対応のスナップショットと base64 画像のオプションはエラーになります。
+任意の `imageAssets` で、Web・PDF・Office の画像を Base64 添付、data URL 埋め込み、`asset://` 参照への書き換えとして扱えます。画像ごとの結果、内容による MIME 判定、タスク内で一度だけ配信する `attach`/`rewrite` を備えます。batch/crawl のストリームではプレビュー事件を選択でき、`removeBase64Images: false` は元ページの data URL を保持します。独自 Base64 を `base64` 0.23.1 と `base64-simd` 0.8.0 と比較しました。測定した 4 KiB 以上では高速ですが、小さな入力のすべてで優位ではありません。
 
-[リリースノート](releases/1.2.2.md) · [1.2.1](releases/1.2.1.md) · [すべてのリリース](releases/) · [CHANGELOG](../CHANGELOG.md)
+[リリースノート](releases/1.2.3.ja.md) · [Base64 測定](releases/1.2.3-benchmarks.md) · [1.2.2](releases/1.2.2.md) · [すべてのリリース](releases/) · [CHANGELOG](../CHANGELOG.md)
 
 ---
 
@@ -345,7 +345,7 @@ crawl、batch、extract のジョブは作成したアカウントのみが利�
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.2.1}
+  note   = {Version 1.2.3}
 }
 ```
 

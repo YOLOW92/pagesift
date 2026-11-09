@@ -128,6 +128,7 @@ pub(super) fn content_options(
     pagesift_content::Options {
         base_url: Some(base.clone()),
         only_main_content: opts.only_main_content,
+        keep_data_images: !opts.remove_base64_images,
         status,
         detect_barrier: true,
         clean_html: opts.wants("html"),

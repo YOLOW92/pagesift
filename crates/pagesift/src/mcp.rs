@@ -218,6 +218,13 @@ impl ToolHandler for Scrape {
                         None => format!("# {title}\nURL: {url}\n\n{md}"),
                     }
                 }
+                None if req.options.image_assets.is_some() => {
+                    let mut metadata = doc.clone();
+                    for attachment in &mut metadata.attachments {
+                        attachment.inline_data = false;
+                    }
+                    serde_json::to_string_pretty(&metadata).unwrap_or_default()
+                }
                 None => serde_json::to_string_pretty(&doc).unwrap_or_default(),
             };
             // 保留了页面：调用方要靠这个 id 继续，放在最前面
@@ -228,17 +235,94 @@ impl ToolHandler for Scrape {
                 None => text,
             };
             let mut out = ToolOutput::text(text);
-            out.structured_content = serde_json::to_value(&doc).ok();
+            let native_images = req.options.image_assets.is_some();
+            if native_images {
+                // The image content blocks below carry the bytes; avoid also
+                // embedding the same bytes in structuredContent.
+                let mut structured = doc.clone();
+                for a in &mut structured.attachments {
+                    a.inline_data = false;
+                }
+                if req.options.image_assets == Some(pagesift_api::types::ImageAssetMode::Embed) {
+                    // The text block already carries self-contained Markdown.
+                    // Avoid a second copy of its data URLs in structuredContent.
+                    if structured
+                        .markdown
+                        .as_deref()
+                        .is_some_and(|m| m.contains("](data:image/"))
+                    {
+                        structured.markdown = None;
+                    }
+                    if structured.pages.as_ref().is_some_and(|pages| {
+                        pages.iter().any(|p| p.markdown.contains("](data:image/"))
+                    }) {
+                        structured.pages = None;
+                    }
+                }
+                out.structured_content = serde_json::to_value(&structured).ok();
+            } else {
+                out.structured_content = serde_json::to_value(&doc).ok();
+            }
             // 导出的图片：内容存起来，结果里给资源链接（`resources/read` 取）
             pagesift_api::attachments::keep(&doc, None);
-            out.content.extend(doc.attachments.iter().map(|a| {
-                pagesift_mcp::Content::ResourceLink {
-                    uri: format!("{ATTACHMENT_URI}{}", a.id),
-                    name: a.id.clone(),
-                    mime_type: a.mime().into(),
-                    size: Some(a.bytes),
+            for a in &doc.attachments {
+                if native_images
+                    && let Some(bytes) = a.data.as_deref()
+                    && let Ok(data) = pagesift_base64::STANDARD.encode_to_string(bytes)
+                {
+                    out.content.push(pagesift_mcp::Content::Image {
+                        data,
+                        mime_type: a.mime().into(),
+                    });
+                } else {
+                    out.content.push(pagesift_mcp::Content::ResourceLink {
+                        uri: format!("{ATTACHMENT_URI}{}", a.id),
+                        name: a.id.clone(),
+                        mime_type: a.mime().into(),
+                        size: Some(a.bytes),
+                    });
                 }
-            }));
+            }
+            if native_images
+                && req.options.image_assets == Some(pagesift_api::types::ImageAssetMode::Embed)
+                && let Some(md) = &doc.markdown
+            {
+                let mut emitted = std::collections::HashSet::new();
+                for part in md.split("](data:image/").skip(1) {
+                    let Some(end) = part.find(')') else { continue };
+                    let encoded = part[..end].split_ascii_whitespace().next().unwrap_or("");
+                    let Some((mime, data)) = encoded.split_once(";base64,") else {
+                        continue;
+                    };
+                    if mime == "svg+xml"
+                        || !mime
+                            .bytes()
+                            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'-' | b'.'))
+                    {
+                        continue;
+                    }
+                    let Ok(bytes) = pagesift_base64::STANDARD.decode_to_vec(data.as_bytes()) else {
+                        continue;
+                    };
+                    let Some(format) = pagesift_api::types::attachment::sniff_image_format(&bytes)
+                    else {
+                        continue;
+                    };
+                    let a = pagesift_api::types::Attachment::new(bytes, format, None);
+                    if a.mime() == format!("image/{mime}")
+                        && doc
+                            .image_assets
+                            .iter()
+                            .any(|asset| asset.id.as_deref() == Some(&a.id))
+                        && emitted.insert(a.hash)
+                    {
+                        out.content.push(pagesift_mcp::Content::Image {
+                            data: data.into(),
+                            mime_type: format!("image/{mime}"),
+                        });
+                    }
+                }
+            }
             Ok(out)
         })
     }
@@ -590,6 +674,104 @@ impl ToolHandler for CancelJob {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct ImageEngine;
+
+    impl pagesift_api::Engine for ImageEngine {
+        fn scrape<'a>(
+            &'a self,
+            _url: &'a str,
+            opts: &'a ScrapeOptions,
+        ) -> pagesift_api::BoxFuture<'a, Result<pagesift_api::types::Document, ApiError>> {
+            Box::pin(async {
+                let mut a = pagesift_api::types::Attachment::new(
+                    b"\x89PNG\r\n\x1a\nimage".to_vec(),
+                    "png",
+                    Some("https://example.com/a.png".into()),
+                );
+                if opts.image_assets == Some(pagesift_api::types::ImageAssetMode::Embed) {
+                    let data =
+                        pagesift_base64::encode_data_url(a.mime(), a.data.as_deref().unwrap())
+                            .unwrap();
+                    return Ok(pagesift_api::types::Document {
+                        markdown: Some(format!("![a]({data}) ![duplicate]({data})")),
+                        image_assets: vec![pagesift_api::types::ImageAssetResult {
+                            source: "https://example.com/a.png".into(),
+                            status: pagesift_api::types::ImageAssetStatus::Ok,
+                            id: Some(a.id.clone()),
+                            mime: Some(a.mime().into()),
+                            bytes: Some(a.bytes),
+                            reason: None,
+                        }],
+                        ..Default::default()
+                    });
+                }
+                a.inline_data = true;
+                Ok(pagesift_api::types::Document {
+                    markdown: Some("![a](https://example.com/a.png)".into()),
+                    attachments: vec![a],
+                    ..Default::default()
+                })
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn image_assets_use_native_mcp_content_without_structured_base64() {
+        let handlers = engine_tools(Arc::new(ImageEngine), None);
+        let scrape = handlers
+            .iter()
+            .find(|h| h.definition().name == "pagesift_scrape")
+            .unwrap();
+        let args = json!({"url":"https://example.com/", "imageAssets":"attach"})
+            .as_object()
+            .unwrap()
+            .clone();
+        let output = scrape.call(args, ToolContext::default()).await.unwrap();
+        let image = output
+            .content
+            .iter()
+            .find_map(|c| match c {
+                pagesift_mcp::Content::Image { data, mime_type } => Some((data, mime_type)),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(image.1, "image/png");
+        assert_eq!(
+            pagesift_base64::STANDARD
+                .decode_to_vec(image.0.as_bytes())
+                .unwrap(),
+            b"\x89PNG\r\n\x1a\nimage"
+        );
+        let structured = output.structured_content.unwrap();
+        assert!(structured["attachments"][0].get("data").is_none());
+    }
+
+    #[tokio::test]
+    async fn embedded_mcp_images_are_native_without_extra_structured_copy() {
+        let handlers = engine_tools(Arc::new(ImageEngine), None);
+        let scrape = handlers
+            .iter()
+            .find(|h| h.definition().name == "pagesift_scrape")
+            .unwrap();
+        let args = json!({"url":"https://example.com/", "imageAssets":"embed"})
+            .as_object()
+            .unwrap()
+            .clone();
+        let output = scrape.call(args, ToolContext::default()).await.unwrap();
+        assert_eq!(
+            output
+                .content
+                .iter()
+                .filter(|c| matches!(c, pagesift_mcp::Content::Image { .. }))
+                .count(),
+            1
+        );
+        assert!(output.content.iter().any(
+            |c| matches!(c, pagesift_mcp::Content::Text(t) if t.contains("data:image/png;base64,"))
+        ));
+        assert!(output.structured_content.unwrap().get("markdown").is_none());
+    }
 
     #[test]
     fn base_tools_include_poll_and_cancel() {

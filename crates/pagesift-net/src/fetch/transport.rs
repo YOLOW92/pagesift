@@ -112,6 +112,7 @@ pub(super) async fn read_body(
     deadline: Instant,
     body_idle_timeout: Duration,
     wait: &mut BodyWait,
+    shared: Option<&SharedBodyBudget>,
 ) -> Result<(Vec<u8>, bool)> {
     // 有 Content-Length 就一次分配到位，免得边读边扩容（扩容会多占一倍并反复拷贝）
     let hint = resp
@@ -120,7 +121,11 @@ pub(super) async fn read_body(
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.parse::<u64>().ok())
         .map_or(0, |n| n.min(max as u64) as usize);
-    let mut body = Vec::with_capacity(hint);
+    let mut body = Vec::with_capacity(if shared.is_some() {
+        hint.min(64 * 1024)
+    } else {
+        hint
+    });
     loop {
         let asked = Instant::now();
         let idle_deadline = (asked + body_idle_timeout).min(deadline);
@@ -141,6 +146,11 @@ pub(super) async fn read_body(
             return Ok((body, false));
         };
         let room = max - body.len();
+        let room = if let Some(shared) = shared {
+            shared.take(room.min(chunk.len()))
+        } else {
+            room
+        };
         if chunk.len() > room {
             body.extend_from_slice(&chunk[..room]);
             resp.abandon();

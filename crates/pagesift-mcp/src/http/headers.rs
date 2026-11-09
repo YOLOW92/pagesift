@@ -1,7 +1,6 @@
 //! 新版（无状态）请求的 `MCP-Protocol-Version`、`Mcp-Method`、`Mcp-Name` 头与请求体核对。
 
 use axum::http::HeaderMap;
-use base64::Engine as _;
 use serde_json::Value;
 
 use super::{METHOD_HEADER, NAME_HEADER, VERSION_HEADER, header_str};
@@ -87,7 +86,9 @@ pub(super) fn decode_header_value(raw: &str) -> Option<String> {
         .and_then(|r| r.strip_suffix("?="))
     {
         Some(b64) => {
-            let bytes = base64::engine::general_purpose::STANDARD.decode(b64).ok()?;
+            let bytes = pagesift_base64::STANDARD
+                .decode_to_vec(b64.as_bytes())
+                .ok()?;
             String::from_utf8(bytes).ok()
         }
         None => Some(raw.to_owned()),

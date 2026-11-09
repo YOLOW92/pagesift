@@ -182,7 +182,7 @@ pub fn scrape_options_schema(caps: &Capabilities) -> Value {
     );
     put(
         "removeBase64Images",
-        json!({ "type": "boolean", "const": true, "description": "Inline base64 images are removed. Only true is supported." }),
+        json!({ "type": "boolean", "description": "Remove data URI images from Markdown (default true); false retains them." }),
     );
     put(
         "blockAds",
@@ -230,6 +230,10 @@ pub fn scrape_options_schema(caps: &Capabilities) -> Value {
     put(
         "exportImages",
         json!({ "type": "boolean", "description": "Export the page's images (PDF embedded images, Office media, web images); returned as resource links." }),
+    );
+    put(
+        "imageAssets",
+        json!({ "type": "string", "enum": ["attach", "embed", "rewrite"], "description": "Optional image assets: attach bytes, embed data URIs, or rewrite to asset references. SVG is never embedded." }),
     );
     put(
         "ifNoneMatch",

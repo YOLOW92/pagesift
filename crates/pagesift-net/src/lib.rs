@@ -40,7 +40,7 @@ pub use credentials::{HostCredentials, Secret, redact_url};
 pub use dns::{BoxFuture, DnsLookup, SystemLookup, negative_ttl};
 pub use fetch::{
     BoxError, Error, FetchRequest, FetchResponse, FetchStream, Fetcher, FetcherConfig,
-    RedirectGuard, RedirectHop, Result, TimeoutPhase, Timings,
+    RedirectGuard, RedirectHop, Result, SharedBodyBudget, TimeoutPhase, Timings,
 };
 pub use fingerprint::FingerprintProfile;
 pub use host_connections::HostConnectionStats;

@@ -25,6 +25,7 @@ tokio::task_local! {
 }
 
 pub mod agent;
+mod asset_modes;
 mod autoschema;
 mod cache;
 mod cpu;

@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Mutex as StdMutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::SystemTime;
@@ -38,6 +39,9 @@ pub(super) struct JobSink {
     /// 持久化（或复制到温备）失败的第一个原因。设上之后任务停止、以 `failed` 结束，
     /// 失败的那一页不算完成、不发 `page` 事件（0.90 只记警告，照样计为完成，重启后这一页就没了）。
     pub(super) store_failed: StdMutex<Option<String>>,
+    /// Serialized per-job asset publication, initialized from persisted pages
+    /// when resuming so concurrent pages never carry the same bytes twice.
+    pub(super) asset_hashes: tokio::sync::Mutex<Option<HashSet<String>>>,
 }
 
 impl JobSink {
@@ -92,16 +96,112 @@ impl JobSink {
     }
 
     /// 记一个完成的页面；`done` 是恢复时用来认出它的键（URL 或批量里的下标）。
-    pub(super) async fn record_page(&self, done: String, doc: Document) {
-        crate::attachments::keep_in(&doc, self.jobs.disk().as_ref());
+    pub(super) async fn record_page(&self, done: String, mut doc: Document) {
         let inner = &self.jobs.inner;
         if !self.running().await || self.failed_store().is_some() {
             return;
         }
+        let needs_assets = doc
+            .attachments
+            .iter()
+            .any(|a| a.inline_data && a.data.is_some());
+        let mut guard = if needs_assets {
+            Some(self.asset_hashes.lock().await)
+        } else {
+            None
+        };
+        // Another page can fail persistence or cancel the job while this
+        // page waits for the publication lock.
+        if guard.is_some() && (!self.running().await || self.failed_store().is_some()) {
+            return;
+        }
+        if let Some(state) = guard.as_mut() {
+            if state.is_none() {
+                let hashes = if let Some(store) = self.store() {
+                    let key = list_key(&self.id, "pages");
+                    match store
+                        .blocking(move |s| -> pagesift_store::Result<HashSet<String>> {
+                            let tasks = s.tasks();
+                            let mut hashes = HashSet::new();
+                            for start in (0..tasks.list_len(&key)).step_by(256) {
+                                for raw in tasks.list_range(&key, start, 256)? {
+                                    let value: serde_json::Value = serde_json::from_slice(&raw)
+                                        .map_err(std::io::Error::other)?;
+                                    if let Some(attachments) =
+                                        value.get("attachments").and_then(|v| v.as_array())
+                                    {
+                                        for a in attachments {
+                                            if (a.get("data").is_some()
+                                                || a.get("inlineData").and_then(|v| v.as_bool())
+                                                    == Some(true))
+                                                && let Some(hash) =
+                                                    a.get("hash").and_then(|v| v.as_str())
+                                            {
+                                                hashes.insert(hash.to_owned());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Ok(hashes)
+                        })
+                        .await
+                    {
+                        Ok(hashes) => hashes,
+                        Err(e) => {
+                            self.persist_failed("asset index", &e);
+                            return;
+                        }
+                    }
+                } else {
+                    let jobs = inner.map.lock().await;
+                    jobs.get(&self.id)
+                        .map(|job| {
+                            job.data
+                                .iter()
+                                .flat_map(|d| &d.attachments)
+                                .filter(|a| a.inline_data && a.data.is_some())
+                                .map(|a| a.hash.clone())
+                                .collect()
+                        })
+                        .unwrap_or_default()
+                };
+                **state = Some(hashes);
+            }
+            let seen = state.as_mut().expect("initialized above");
+            let mut local = HashSet::new();
+            for attachment in &mut doc.attachments {
+                if attachment.inline_data
+                    && attachment.data.is_some()
+                    && (seen.contains(&attachment.hash) || !local.insert(attachment.hash.clone()))
+                {
+                    attachment.data = None;
+                    attachment.inline_data = false;
+                }
+            }
+        }
+        let published: Vec<String> = doc
+            .attachments
+            .iter()
+            .filter(|a| a.inline_data && a.data.is_some())
+            .map(|a| a.hash.clone())
+            .collect();
+        crate::attachments::keep_job_in(&doc, self.jobs.disk().as_ref());
         let page_doc = self.hook.as_ref().map(|_| doc.clone());
         let mut keep = Some(doc);
         if let Some(store) = self.store() {
-            let doc = keep.take().expect("set above");
+            let mut doc = keep.take().expect("set above");
+            let assets: Vec<_> = doc
+                .attachments
+                .iter_mut()
+                .filter_map(|a| {
+                    if a.inline_data {
+                        a.data.take().map(|data| (a.id.clone(), data))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
             let (pages, done_set) = (list_key(&self.id, "pages"), list_key(&self.id, "done"));
             let m = inner.mirror.clone();
             let r = store
@@ -112,6 +212,9 @@ impl JobSink {
                     })
                     .map_err(std::io::Error::other)?;
                     super::mirror::write(s, m.as_deref(), |t| {
+                        for (id, data) in &assets {
+                            crate::attachments::persist_job_asset(t, id, data)?;
+                        }
                         t.list_push(&pages, &value)?;
                         t.set_insert(&done_set, done.as_bytes())
                     })
@@ -142,6 +245,9 @@ impl JobSink {
             job.touch();
             job.owner.clone()
         };
+        if let Some(state) = guard.as_mut() {
+            state.as_mut().expect("initialized above").extend(published);
+        }
         inner.metrics.page(self.kind.pages());
         if let Some(c) = owner {
             inner.limiter.consume_pages(&c, 1).await;
