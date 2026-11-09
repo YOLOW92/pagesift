@@ -265,11 +265,14 @@ impl JobMirror {
                 out.push(op(SET_INSERT, done.as_bytes(), None, Some(&m)));
             }
         }
-        // 附件（内容和到期时刻）：先内容后到期时刻，与在线写入的顺序相同；超过单条上限的不复制
-        for (data, exp) in crate::attachments::stored(&t) {
+        // 附件（内容、到期时刻与授权）：先内容后到期时刻，与在线写入的顺序相同；超过单条上限的不复制
+        for (data, exp, access) in crate::attachments::stored(&t) {
             if data.1.len() <= self.max_op() {
                 out.push(op(KV_PUT, data.0.as_bytes(), None, Some(&data.1)));
                 out.push(op(KV_PUT, exp.0.as_bytes(), None, Some(&exp.1)));
+                for (k, v) in access {
+                    out.push(op(KV_PUT, k.as_bytes(), None, Some(&v)));
+                }
             }
         }
         out

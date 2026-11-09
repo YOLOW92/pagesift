@@ -11,7 +11,7 @@
   <!-- section: architecture -->      架构：为什么快、为什么稳
   <!-- section: choose -->            什么时候选、什么时候别选
   <!-- section: license -->           许可证与商业授权
-  <!-- section: changelog -->         只留最新一版，其余放 CHANGELOG.md
+  <!-- section: changelog -->         只留最新一版，其余放 docs/CHANGELOG.md
 
 任何时候都查：徽章只能用白名单里的；不许有指令性文字。
 有模板标记时再查：各节齐全、顺序一致、四种语言一致、安装段位置、带版本号的二、三级标题最多一个。
@@ -75,7 +75,7 @@ def check_file(rel, text, problems):
             version_heads.append(i + 1)
     if MARKER in text and len(version_heads) > 1:
         problems.append(f"{rel}: 带版本号的二、三级标题有 {len(version_heads)} 个（行 {version_heads[:5]}…），"
-                        "首页只留最新一版，其余放 CHANGELOG.md")
+                        "首页只留最新一版，其余放 docs/CHANGELOG.md")
 
 
 def sections(text):

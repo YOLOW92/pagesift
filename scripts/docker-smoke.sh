@@ -2,7 +2,7 @@
 # Docker 镜像的冒烟测试：起容器，检查健康检查、HTTP 抓取、Lightpanda 渲染、监控指标，
 # 爬到一半重启容器（SIGTERM），确认任务从数据卷恢复并跑完。用到真实站点（每个一两次请求，遵守 robots.txt）。
 #
-#   docker build -t pagesift:dev --build-arg JOBS=$(scripts/jobs.sh) .
+#   docker build -f docker/Dockerfile -t pagesift:dev --build-arg JOBS=$(scripts/jobs.sh) .
 #   scripts/docker-smoke.sh pagesift:dev
 set -euo pipefail
 

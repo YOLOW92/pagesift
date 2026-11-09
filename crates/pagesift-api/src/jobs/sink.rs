@@ -186,7 +186,12 @@ impl JobSink {
             .filter(|a| a.inline_data && a.data.is_some())
             .map(|a| a.hash.clone())
             .collect();
-        crate::attachments::keep_job_in(&doc, self.jobs.disk().as_ref());
+        let owner_caller = self.owner().await;
+        let owner_account = owner_caller
+            .as_ref()
+            .map(|c| c.account.to_string())
+            .unwrap_or_else(|| "anonymous".to_string());
+        crate::attachments::keep_job_in_for(&doc, self.jobs.disk().as_ref(), &owner_account);
         let page_doc = self.hook.as_ref().map(|_| doc.clone());
         let mut keep = Some(doc);
         if let Some(store) = self.store() {
@@ -202,8 +207,11 @@ impl JobSink {
                     }
                 })
                 .collect();
+            let attachment_ids: Vec<String> =
+                doc.attachments.iter().map(|a| a.id.clone()).collect();
             let (pages, done_set) = (list_key(&self.id, "pages"), list_key(&self.id, "done"));
             let m = inner.mirror.clone();
+            let owner_for_store = owner_account.clone();
             let r = store
                 .blocking(move |s| -> pagesift_store::Result<()> {
                     let value = serde_json::to_vec(&Completion {
@@ -214,6 +222,9 @@ impl JobSink {
                     super::mirror::write(s, m.as_deref(), |t| {
                         for (id, data) in &assets {
                             crate::attachments::persist_job_asset(t, id, data)?;
+                        }
+                        for id in &attachment_ids {
+                            crate::attachments::persist_access(t, &owner_for_store, id)?;
                         }
                         t.list_push(&pages, &value)?;
                         t.set_insert(&done_set, done.as_bytes())

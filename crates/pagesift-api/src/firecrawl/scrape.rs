@@ -122,7 +122,10 @@ async fn run(
                     .warnings
                     .push(w);
             }
-            crate::attachments::keep_in(&data, s.jobs.disk().as_ref());
+            let account = caller
+                .as_ref()
+                .map_or("anonymous", |Extension(c)| &*c.account);
+            crate::attachments::keep_in_for(&data, s.jobs.disk().as_ref(), account);
             s.metrics.scrape_ok.fetch_add(1, Ordering::Relaxed);
             s.metrics.page(PageSource::Scrape);
             if let Some(Extension(c)) = &caller {

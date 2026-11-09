@@ -2,41 +2,45 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## 1.2.4
+
+Attachment downloads are restricted to the account that received the attachment in a scrape, batch, crawl or parse result; unauthorized IDs return 404. Missing authorizations are backfilled from saved job results at startup. [Release notes](releases/1.2.4.md).
+
 ## 1.2.3
 
-Opt-in image assets for web pages, PDF XObject images and Office media: `imageAssets` can attach Base64 bytes, embed data URLs, or rewrite Markdown to `asset://` references, with per-image outcomes, byte-based MIME detection, task-level deduplication for `attach` and `rewrite`, bounded concurrent image retrieval, persistent restart recovery, CLI/HTTP/MCP delivery, and provisional Markdown stream events. `removeBase64Images: false` now preserves source-page data URLs. The new in-repository `pagesift-base64` crate replaces runtime Base64 use in CDP, MCP and proxy authentication; its published comparison against `base64` 0.23.1 and `base64-simd` 0.8.0 includes mixed small-input results. [Release notes](docs/releases/1.2.3.md) · [简体中文](docs/releases/1.2.3.zh-CN.md) · [日本語](docs/releases/1.2.3.ja.md) · [Español](docs/releases/1.2.3.es.md) · [Base64 measurements](docs/releases/1.2.3-benchmarks.md).
+Opt-in image assets for web pages, PDF XObject images and Office media: `imageAssets` can attach Base64 bytes, embed data URLs, or rewrite Markdown to `asset://` references, with per-image outcomes, byte-based MIME detection, task-level deduplication for `attach` and `rewrite`, bounded concurrent image retrieval, persistent restart recovery, CLI/HTTP/MCP delivery, and provisional Markdown stream events. `removeBase64Images: false` now preserves source-page data URLs. The new in-repository `pagesift-base64` crate replaces runtime Base64 use in CDP, MCP and proxy authentication; its published comparison against `base64` 0.23.1 and `base64-simd` 0.8.0 includes mixed small-input results. [Release notes](releases/1.2.3.md) · [简体中文](releases/1.2.3.zh-CN.md) · [日本語](releases/1.2.3.ja.md) · [Español](releases/1.2.3.es.md) · [Base64 measurements](releases/1.2.3-benchmarks.md).
 
 ## 1.2.2
 
-Crawl, batch and extract jobs are scoped to their owner; page quotas apply to search and extract; cached results respect robots.txt. MCP schemas and unsupported options are corrected. [Release notes](docs/releases/1.2.2.md).
+Crawl, batch and extract jobs are scoped to their owner; page quotas apply to search and extract; cached results respect robots.txt. MCP schemas and unsupported options are corrected. [Release notes](releases/1.2.2.md).
 
 ## 1.2.1
 
-Identity-scoped requests no longer use the shared result cache; 503 with `Retry-After` is classified as throttled. MCP tools gain output schemas and complete parameter descriptions, `pagesift_crawl_status` becomes `pagesift_poll_job`, and `pagesift_cancel_job` stops running jobs. [Release notes](docs/releases/1.2.1.md).
+Identity-scoped requests no longer use the shared result cache; 503 with `Retry-After` is classified as throttled. MCP tools gain output schemas and complete parameter descriptions, `pagesift_crawl_status` becomes `pagesift_poll_job`, and `pagesift_cancel_job` stops running jobs. [Release notes](releases/1.2.1.md).
 
 ## 1.2.0
 
-Optional, default-off access-barrier recovery with owner- and origin-scoped sessions, validated proxy tunnels for the TLS fingerprint, a restricted HTTP-to-browser cookie handoff, automation-marker removal, and bounded waits for non-interactive challenges. Interactive CAPTCHAs return `needsHuman`; no CAPTCHA solver is included. [Release notes](docs/releases/1.2.0.md).
+Optional, default-off access-barrier recovery with owner- and origin-scoped sessions, validated proxy tunnels for the TLS fingerprint, a restricted HTTP-to-browser cookie handoff, automation-marker removal, and bounded waits for non-interactive challenges. Interactive CAPTCHAs return `needsHuman`; no CAPTCHA solver is included. [Release notes](releases/1.2.0.md).
 
 ## 1.1.3
 
-Pure-Rust zstd compression and decompression updates, cache-aware matching and Huffman tables, and corrected repeated offsets when falling back to raw blocks. Development measurements and their comparison baseline are described in the [release notes](docs/releases/1.1.3.md).
+Pure-Rust zstd compression and decompression updates, cache-aware matching and Huffman tables, and corrected repeated offsets when falling back to raw blocks. Development measurements and their comparison baseline are described in the [release notes](releases/1.1.3.md).
 
 ## 1.1.2
 
-The MCP server implements `resources/list` and `resources/templates/list`. Verilog source files are split by module. [Release notes](docs/releases/1.1.2.md).
+The MCP server implements `resources/list` and `resources/templates/list`. Verilog source files are split by module. [Release notes](releases/1.1.2.md).
 
 ## 1.1.1
 
 Source-code sections for 30 languages, `.doc` list numbers, headers, footers and comments, dBASE memo files inside archives, and
-`pagesift-compress` in place of the C zstd library. Full list and known limits: [release notes](docs/releases/1.1.1.md).
+`pagesift-compress` in place of the C zstd library. Full list and known limits: [release notes](releases/1.1.1.md).
 
 ## 1.1.0
 
 New input formats: `.doc`, `.xls`, `.ppt`, `.xlsb`, OpenDocument including flat XML, RTF, WordPerfect, HWP and HWPX, MOBI,
 FB2, email (`.eml`, `.mbox`, `.msg`), archives read recursively, image files through OCR, SQLite, dBASE, DocBook, JATS, SVG,
 OPML, subtitles, notebooks, and 373 source-code and config languages as fenced code blocks, with C, C++, C#, Go, Java, JavaScript, TypeScript, Lua, PHP, Python and Rust split by function and class. New LangChain and LlamaIndex
-integrations and a C ABI with language bindings. Full list and known limits: [release notes](docs/releases/1.1.0.md).
+integrations and a C ABI with language bindings. Full list and known limits: [release notes](releases/1.1.0.md).
 
 ## 1.0.0
 
@@ -45,12 +49,12 @@ selector memory and relocation (`extract` format, `pagesift extract`, `pagesift 
 (`actions`, `keepSession`, `/v2/scrape/{id}/interact`). `/v2/agent`. `/v2/monitor`. Full Jina Reader API (`/r/`, `/s/`). WARC
 input. Hooks and `[[rules]]`. Optional browser TLS fingerprint. Python and Node gain OCR, `max_age` / `maxAge` and
 `parsers`. Some names changed, including Python `request_interval` → `request_interval_ms` and warnings that had no code.
-Full list and known limits: [release notes](docs/releases/1.0.0.md).
+Full list and known limits: [release notes](releases/1.0.0.md).
 
 ## [0.91.1] — 2026-11-03
 
 **Intel Macs (macOS x86_64) are no longer supported.** Also fixes a small bug. See
-[the release notes](docs/releases/0.91.1.md).
+[the release notes](releases/0.91.1.md).
 
 ### Removed
 - Support for Intel Macs (macOS x86_64): no command-line binary, Python wheel or Node package
@@ -63,7 +67,7 @@ Full list and known limits: [release notes](docs/releases/1.0.0.md).
 ## [0.91.0] — 2026-11-03
 
 Fixes from a code review of 0.90.0: failures that 0.90 logged and reported as success are now reported.
-See [the release notes](docs/releases/0.91.0.md).
+See [the release notes](releases/0.91.0.md).
 
 ### Fixed
 - A crawl or batch page that could not be saved (or replicated to the standby) was counted as completed and the
@@ -112,7 +116,7 @@ See [the release notes](docs/releases/0.91.0.md).
 ## [0.90.0] — 2026-11-03
 
 Limits, timeouts and thresholds estimated from observed data; render decisions per path family; multi-server
-roles and an egress pool. See [the release notes](docs/releases/0.90.0.md).
+roles and an egress pool. See [the release notes](releases/0.90.0.md).
 
 ### Added
 - `explain` scrape option (`scrape --explain`) writing render, merge and fallback decisions to `metadata.pagesift.plan`.
@@ -133,7 +137,7 @@ roles and an egress pool. See [the release notes](docs/releases/0.90.0.md).
 
 ## [0.81.5] — 2026-10-31
 
-Linux glibc builds now load on glibc 2.28 and newer. See [the release notes](docs/releases/0.81.5.md).
+Linux glibc builds now load on glibc 2.28 and newer. See [the release notes](releases/0.81.5.md).
 
 ### Fixed
 - The Linux gnu Node binding and command-line binary (x86_64 and aarch64) were built on a glibc 2.39
@@ -147,7 +151,7 @@ Linux glibc builds now load on glibc 2.28 and newer. See [the release notes](doc
 
 ## [0.81.4] — 2026-10-31
 
-Dependency security update. See [the release notes](docs/releases/0.81.4.md).
+Dependency security update. See [the release notes](releases/0.81.4.md).
 
 ### Security
 - tokio 1.54.0 → 1.54.1 (RUSTSEC-2026-0384), zstd 0.13.3 → 0.14.3 (RUSTSEC-2026-0391) and
@@ -162,7 +166,7 @@ Dependency security update. See [the release notes](docs/releases/0.81.4.md).
 
 Firecrawl's `includeTags` / `excludeTags` now work, and the Jina Reader routes sit behind the same
 authentication, rate limits and page quotas as the Firecrawl routes. See
-[the release notes](docs/releases/0.81.3.md).
+[the release notes](releases/0.81.3.md).
 
 ### Added
 - `includeTags` / `excludeTags` (HTTP API, MCP, Python `include_tags` / `exclude_tags`): CSS
@@ -188,7 +192,7 @@ Restore the content that 0.81.1 dropped on bare client-side redirect pages, with
 adaptive browser-upgrade stop. For a redirect page with no HTTP content, the browser now captures
 the target's DOM as soon as main-frame text appears, instead of waiting for `DOMContentLoaded` or
 network idle. The wait is bounded relative to the page's HTTP time and the caller's timeout, not by
-a fixed number of seconds. See [the release notes](docs/releases/0.81.2.md).
+a fixed number of seconds. See [the release notes](releases/0.81.2.md).
 
 ### Performance
 - A2 replay, 269 pages: 0.81.0 110.7 s / 21.9 s (1/16 workers) → 0.81.2 88.0 s / 13.5 s.
@@ -203,7 +207,7 @@ a fixed number of seconds. See [the release notes](docs/releases/0.81.2.md).
 result; a browser upgrade is stopped when the extracted main content stops improving, using
 running distributions of navigation, settle and first-content times instead of fixed seconds.
 Pages whose HTTP extraction was empty keep the full render time, and explicit
-`engine: browser` is unchanged. See [the release notes](docs/releases/0.81.1.md).
+`engine: browser` is unchanged. See [the release notes](releases/0.81.1.md).
 
 ### Performance
 - A2 replay, 269 pages: 1 worker 119.2 s → 77.3 s (2.3 → 3.5 pages/s); 16 workers 28.4 s → 10.5 s
@@ -223,7 +227,7 @@ Page relevance for focused crawls is rebuilt around the facets of the query, mea
 pages judged by reading their content; the whole pipeline is made faster by working with the
 hardware (contiguous data, fewer allocations, a small-block allocator cache aware of NUMA nodes,
 whole-program LTO, profile-guided optimisation of the release binaries). See
-[the release notes](docs/releases/0.81.0.md).
+[the release notes](releases/0.81.0.md).
 
 ### Changed
 - Focused crawl: page relevance scores how much a page is *about* each facet of the query instead
@@ -270,7 +274,7 @@ whole-program LTO, profile-guided optimisation of the release binaries). See
 The page limit of a focused crawl becomes adaptive, and the discovery problems from the
 fourteenth round of outside testing are fixed; three extraction problems from the AiSeek report
 (teasers instead of the body, sidebars kept, relative links in uploads) are fixed too. See
-[the release notes](docs/releases/0.80.10.md).
+[the release notes](releases/0.80.10.md).
 
 ### Added
 - `crawl --query … --adaptive` without `--limit`: the crawl decides how many pages it needs and
@@ -312,7 +316,7 @@ The last 0.80 release (0.80.6–0.80.8 were not released; everything since 0.80.
 engine discovery and `doctor` from the thirteenth round of outside testing, a wider focused-crawl
 check on 69 universities in five directions, work on the weak spots of the mixed benchmark
 (hard PDFs, one-process-per-file start-up, main-content recall), and four fixes from code review.
-Instruction counts stay within 2% of 0.80.0. See [the release notes](docs/releases/0.80.9.md).
+Instruction counts stay within 2% of 0.80.0. See [the release notes](releases/0.80.9.md).
 
 ### Added
 - `crawl --ignore-robots` and `map --ignore-robots`. On the command line the flag is the
@@ -381,7 +385,7 @@ Fixes from two more rounds of outside testing on 0.80.3 (there was no 0.80.4 rel
 since 0.80.3 is here): data-risk warnings reach Firecrawl's `data.warning`, age gates and block pages
 are recognised as barriers, Office/CSV/EPUB conversion has an output budget, PDF damage warnings
 count correctly, and rendering waits for pages that fill in after a timer. Instruction counts stay
-within 2% of 0.80.0. See [the release notes](docs/releases/0.80.5.md).
+within 2% of 0.80.0. See [the release notes](releases/0.80.5.md).
 
 ### Added
 - `crawl --out` writes `summary.json` next to `index.jsonl`: `stopReason`, `coverage` (with
@@ -452,7 +456,7 @@ within 2% of 0.80.0. See [the release notes](docs/releases/0.80.5.md).
 The focused crawl checked and fixed on 38 real university sites (0.80.2 had only synthetic ones),
 and the D-2 follow-up found on the real arXiv paper. On the 32 sites both versions reached, useful
 pages went from 29.6% (0.80.0) to 66.1%, international-student pages from 6.3% to 38.9%. See
-[the release notes](docs/releases/0.80.3.md) and `benchmarks/history/0.80.3/`.
+[the release notes](releases/0.80.3.md) and `benchmarks/history/0.80.3/`.
 
 ### Added
 - PDF warnings `content_missing` (pages of a repaired file whose content streams are gone, named
@@ -491,7 +495,7 @@ pages went from 29.6% (0.80.0) to 66.1%, international-student pages from 6.3% t
 The focused crawl (`query`) rewritten after a tester ran it over 159 university sites and got
 25.6% useful pages; two PDF follow-ups from the 0.80.1 review; two flaky macOS tests. All crawl
 changes are verified on synthetic sites only (the development container cannot reach the real
-ones). See [the release notes](docs/releases/0.80.2.md).
+ones). See [the release notes](releases/0.80.2.md).
 
 ### Added
 - Crawl: `attachments` (CLI `--attachments`) fetches PDFs and Office documents linked from
@@ -539,7 +543,7 @@ ones). See [the release notes](docs/releases/0.80.2.md).
 Fixes from the 0.80 review: CSV character sets, silent partial recovery of damaged PDFs,
 author-name footnote markers turned into formulas, missing PDF titles, IPv4-only machines, and the
 third-party notices that must travel with the binaries. See
-[the release notes](docs/releases/0.80.1.md).
+[the release notes](releases/0.80.1.md).
 
 ### Added
 - PDF: `metadata.title` falls back to the title inferred from the layout (the first page's
@@ -582,11 +586,11 @@ third-party notices that must travel with the binaries. See
 ## [0.80.0] — 2026-10-27
 
 Correctness and trust: PDFs keep their structure, results say when they may be incomplete, and
-speed and memory do not regress. See [the release notes](docs/releases/0.80.0.md).
+speed and memory do not regress. See [the release notes](releases/0.80.0.md).
 
 ### Added
 - `POST /v2/parse`: Firecrawl-compatible `multipart/form-data` upload of PDF and HTML files (up to
-  50 MB); same response as `/v2/scrape`. See [docs/parse-api.md](docs/parse-api.md).
+  50 MB); same response as `/v2/scrape`. See [docs/parse-api.md](parse-api.md).
 - Content warnings `partial_content` (article mode kept under 30% of the page's body text) and
   `replies_omitted` (forum replies dropped as comments), and `comments_omitted` (the page's
   comments were left out; not counted as lost content).
@@ -613,7 +617,7 @@ speed and memory do not regress. See [the release notes](docs/releases/0.80.0.md
   recognised across odd/even pages and chapters; a line repeated at the same height on three or
   more pages within the top or bottom 20% is a running head (chapter heads of annual reports);
   borderless tables are judged after columns.
-- Release notes follow written rules ([docs/releasing.md](docs/releasing.md)); README numbers were
+- Release notes follow written rules ([docs/releasing.md](releasing.md)); README numbers were
   checked against their result files and old ones are marked as historical.
 
 ### Fixed
@@ -644,8 +648,8 @@ speed and memory do not regress. See [the release notes](docs/releases/0.80.0.md
 
 Makes `pagesift mcp http` fit to run as one shared, long-lived service for every AI agent on a
 machine, and turns that service into a source of real-world bug reports. See
-[the release notes](docs/releases/0.73.1.md) and
-[Running pagesift as a shared MCP service](docs/mcp-service.md).
+[the release notes](releases/0.73.1.md) and
+[Running pagesift as a shared MCP service](mcp-service.md).
 
 ### Added
 - Audit log: `--audit-log <path>` (any command) or `[audit] path` appends one JSON line per fetch
@@ -675,7 +679,7 @@ machine, and turns that service into a source of real-world bug reports. See
 
 Fixes from a three-way code review and ~150 adversarial input tests. The headline fix: since
 0.70.0, `scrape`, `crawl` and `serve` ran all content extraction on a single core; the API server
-now handles 5–7× more requests per second. See [the release notes](docs/releases/0.73.0.md).
+now handles 5–7× more requests per second. See [the release notes](releases/0.73.0.md).
 
 ### Fixed
 - Content extraction used one CPU instead of all of them. The extraction semaphore read the
@@ -743,7 +747,7 @@ now handles 5–7× more requests per second. See [the release notes](docs/relea
 Truthful charset decoding and extraction signals, complete private-network allow-lists, default
 config discovery, and the fifth-to-eighth-round field-audit fixes: recipe asides, GitHub code
 views, author lists, barriers, RSS feeds, JSON-LD, image titles and video metadata.
-See [the release notes](docs/releases/0.72.8.md).
+See [the release notes](releases/0.72.8.md).
 
 ### Added
 - `--allow-cidr` is now available on `crawl`, `map`, `download`, `session-fetch`, `collect` and
@@ -785,7 +789,7 @@ See [the release notes](docs/releases/0.72.8.md).
 
 Bug-fix release for the 0.70.0 audit: crawl scope, charset handling, proxy bypass, honest
 content reporting, browser allow-lists, TLS classification, root diagnostics, exit codes and
-hidden-template filtering. See [the release notes](docs/releases/0.71.0.md).
+hidden-template filtering. See [the release notes](releases/0.71.0.md).
 
 ### Fixed
 - `crawl` scopes file-ending seeds by their directory, so `/index.html`-style seeds crawl the
@@ -815,7 +819,7 @@ hidden-template filtering. See [the release notes](docs/releases/0.71.0.md).
 ## [0.70.0] — 2026-10-26
 
 NUMA-local data-plane rewrite, cgroup-aware capacity, and seven public extraction benchmarks.
-See [the release notes](docs/releases/0.70.0.md).
+See [the release notes](releases/0.70.0.md).
 
 ### Added
 - Hand-written NUMA-local HTTP/1.1 data plane: fixed-slot NUMA executors, minimal reactor,
@@ -863,7 +867,7 @@ See [the release notes](docs/releases/0.70.0.md).
 
 ## [0.61.0] — 2026-10-24
 
-Batch scraping diagnostics and per-host admission controls. See [the release notes](docs/releases/0.61.0.md).
+Batch scraping diagnostics and per-host admission controls. See [the release notes](releases/0.61.0.md).
 
 ### Added
 - Added `metadata.pagesift.timings.queue` so callers can distinguish time spent waiting for global/per-host admission and request spacing from network fetch time.
@@ -879,7 +883,7 @@ Batch scraping diagnostics and per-host admission controls. See [the release not
 
 ## [0.60.0] — 2026-10-24
 
-Generational performance revolution: Share-Nothing multi-shard architecture breaking the single-thread dispatch bottleneck (431,412.37 pages/s on 80 vCPUs AMD EPYC, 2.85× speedup over 0.50, 64.9% wall-time reduction, 83.2% CPU utilization), Zero-Disk Retention streaming pipeline enabling 100,000,000 real public web page crawls with <100 MB disk footprint, strict 128 GB physical memory defense envelope (peak RSS 11.59 GB, zero OOM), RFC 7230 connection retry with modern browser fingerprint headers, and complete victory in the 100M-scale real public Internet WILD-X 2 showdown. See [the release notes](docs/releases/0.60.0.md).
+Generational performance revolution: Share-Nothing multi-shard architecture breaking the single-thread dispatch bottleneck (431,412.37 pages/s on 80 vCPUs AMD EPYC, 2.85× speedup over 0.50, 64.9% wall-time reduction, 83.2% CPU utilization), Zero-Disk Retention streaming pipeline enabling 100,000,000 real public web page crawls with <100 MB disk footprint, strict 128 GB physical memory defense envelope (peak RSS 11.59 GB, zero OOM), RFC 7230 connection retry with modern browser fingerprint headers, and complete victory in the 100M-scale real public Internet WILD-X 2 showdown. See [the release notes](releases/0.60.0.md).
 
 ### Added
 - **Share-Nothing Multi-Shard Architecture (`sharded_runner`)**:
@@ -901,7 +905,7 @@ Generational performance revolution: Share-Nothing multi-shard architecture brea
   - **WILD-X 1 (Extreme Limits)**: 100,000 real public domains from Tranco Top 1M crawled in 52.1s (1,921.1 p/s, 90.68% valid Markdown extraction rate, peak RSS 4.75 GB).
   - **WILD-X 2 (100M Live Web Showdown)**: Full-scale **100,000,000 real public web pages** crawled and distilled in 39.56 minutes at 42,124.1 p/s, yielding 199,422 rich Markdown documents (2.31 GB pure content) with zero OOM and zero disk overflow.
 - **Cross-Generation Benchmark Whitepaper & Reproducibility Suite**:
-  - Published [`docs/history/0.60_p5_cross_generation_rebench.md`](docs/history/0.60_p5_cross_generation_rebench.md) with complete 10-dimension comparison metrics.
+  - Published [`docs/history/0.60_p5_cross_generation_rebench.md`](history/0.60_p5_cross_generation_rebench.md) with complete 10-dimension comparison metrics.
   - Reproducible benchmark scripts provided in `benchmarks/scale/p0/`, `benchmarks/history/0.60/p1/`, `benchmarks/history/0.60/p4/`, and `benchmarks/history/0.60/p5/`.
 
 ### Changed
@@ -910,7 +914,7 @@ Generational performance revolution: Share-Nothing multi-shard architecture brea
 
 ## [0.51.0] — 2026-10-24
 
-Network egress transparency, granular SSRF CIDR whitelisting, pip MCP server distribution, precision arXiv boilerplate pruning, and end-to-end incremental scraping with HTTP 304 conditional requests. See [the release notes](docs/releases/0.51.0.md).
+Network egress transparency, granular SSRF CIDR whitelisting, pip MCP server distribution, precision arXiv boilerplate pruning, and end-to-end incremental scraping with HTTP 304 conditional requests. See [the release notes](releases/0.51.0.md).
 
 ### Added
 - **Full Proxy & Fake-IP / Remote-DNS Egress**:
@@ -931,14 +935,14 @@ Network egress transparency, granular SSRF CIDR whitelisting, pip MCP server dis
 - **Incremental Scraping & HTTP 304 Conditional Requests**:
   - Added `if_none_match` (ETag) and `if_modified_since` parameters to Python `ScrapeOptions` and `Scraper.scrape`.
   - Exposed `doc.not_modified` boolean and `doc.status_code` in Python SDK.
-  - Published comprehensive practical guide [docs/incremental-collection.md](docs/incremental-collection.md) covering Python, Node.js, Rust, and REST API.
+  - Published comprehensive practical guide [docs/incremental-collection.md](incremental-collection.md) covering Python, Node.js, Rust, and REST API.
 
 ### Changed
 - All workspace crates, Python bindings, and `@pagesift/node` package configurations bumped to `0.51.0`.
 
 ## [0.50.0] — 2026-10-23
 
-Web-scale industrial milestone: 100,000 real-world public web showdown vs Spider 2.53.9 (PageSift sustained 188.4 MB peak RSS vs Spider's 9.0 GB leakage and socket deadlock, 47.6× memory efficiency, 96.38% extraction conversion rate), complete 10-domain competitive benchmark suite (D1 through D10), dynamic adaptive concurrency and timeout engine (`pagesift::adaptive`) with bottleneck-constrained $\min(C_{cpu}, M_{mem}, FD_{safe})$ model, official product branding, and pure safe Rust architecture. See [the release notes](docs/releases/0.50.0.md).
+Web-scale industrial milestone: 100,000 real-world public web showdown vs Spider 2.53.9 (PageSift sustained 188.4 MB peak RSS vs Spider's 9.0 GB leakage and socket deadlock, 47.6× memory efficiency, 96.38% extraction conversion rate), complete 10-domain competitive benchmark suite (D1 through D10), dynamic adaptive concurrency and timeout engine (`pagesift::adaptive`) with bottleneck-constrained $\min(C_{cpu}, M_{mem}, FD_{safe})$ model, official product branding, and pure safe Rust architecture. See [the release notes](releases/0.50.0.md).
 
 ### Added
 - **Dynamic Adaptive Concurrency & Timeout Engine (`pagesift::adaptive`)**:
@@ -969,7 +973,7 @@ Web-scale industrial milestone: 100,000 real-world public web showdown vs Spider
 
 ## [0.40.0] — 2026-10-23
 
-Dual-protocol Firecrawl v1 and v2 API compatibility layer, Jina Reader protocol adapter with SSE streaming, comprehensive 8-domain competitive benchmarks, and 100,000-page chaos stress testing under a strict 12 GiB memory ceiling. See [the release and migration guide](docs/releases/0.40.0.md).
+Dual-protocol Firecrawl v1 and v2 API compatibility layer, Jina Reader protocol adapter with SSE streaming, comprehensive 8-domain competitive benchmarks, and 100,000-page chaos stress testing under a strict 12 GiB memory ceiling. See [the release and migration guide](releases/0.40.0.md).
 
 ### Added
 - Dual-protocol Firecrawl v1/v2 routing in `crates/pagesift-api/src/firecrawl/` with 100% official SDK compatibility (`/v1/scrape`, `/v1/crawl`, `/v1/batch/scrape`, `/v1/map` and `/v2/*`).
@@ -983,7 +987,7 @@ Dual-protocol Firecrawl v1 and v2 API compatibility layer, Jina Reader protocol 
 
 ## [0.30.0] — 2026-10-23
 
-Modular architecture refactoring, script navigation folding, metadata and publication date acceleration, RAG chunking and QueryFilter speedups, and comprehensive benchmark suite expansion under a strict 12 GiB memory ceiling. See [the release and migration guide](docs/releases/0.30.0.md).
+Modular architecture refactoring, script navigation folding, metadata and publication date acceleration, RAG chunking and QueryFilter speedups, and comprehensive benchmark suite expansion under a strict 12 GiB memory ceiling. See [the release and migration guide](releases/0.30.0.md).
 
 ### Added
 - Bounded pure string-helper folding in `pagesift-content::script_links` for arrow and function declarations (`const fn = (a, b) => a + b`), raising controlled navigation discovery from 12/13 to 13/13 (100%) with zero false navigation visits.
@@ -998,7 +1002,7 @@ Modular architecture refactoring, script navigation folding, metadata and public
 
 ## [0.20.0] — 2026-10-22
 
-Native Rust collection and archiving cores, with bounded external-script discovery and an auditable six-project comparison. See [the release and migration guide](docs/releases/0.20.0.md). Browser interaction and autonomous Agent tasks are outside the 0.20.0 scope.
+Native Rust collection and archiving cores, with bounded external-script discovery and an auditable six-project comparison. See [the release and migration guide](releases/0.20.0.md). Browser interaction and autonomous Agent tasks are outside the 0.20.0 scope.
 
 ### Migration
 - Rust workspace crates and all native package distributions move together to 0.20.0. Rust struct literals and exhaustive error matches may require changes; the HTTP API remains under `/v2`.

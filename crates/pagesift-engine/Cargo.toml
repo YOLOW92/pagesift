@@ -8,7 +8,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-pagesift-sys = { version = "1.2.3", path = "../pagesift-sys" }
+pagesift-sys = { version = "1.2.4", path = "../pagesift-sys" }
 anyhow = "1.0.104"
 blake3 = { version = "1.8.7", features = ["pure"] }
 axum = "0.8.9"
@@ -18,30 +18,30 @@ flate2 = "1.1.10"
 futures-util = "0.3.34"
 fs2 = "0.4.3"
 httpdate = "1.0.3"
-pagesift-api = { version = "1.2.3", path = "../pagesift-api" }
-pagesift-base64 = { version = "1.2.3", path = "../pagesift-base64" }
-pagesift-cdp = { version = "1.2.3", path = "../pagesift-cdp" }
-pagesift-cluster = { version = "1.2.3", path = "../pagesift-cluster" }
-pagesift-content = { version = "1.2.3", path = "../pagesift-content" }
-pagesift-flow = { version = "1.2.3", path = "../pagesift-flow" }
-pagesift-frontier = { version = "1.2.3", path = "../pagesift-frontier" }
-pagesift-plan = { version = "1.2.3", path = "../pagesift-plan" }
-pagesift-sink = { version = "1.2.3", path = "../pagesift-sink" }
-pagesift-stat = { version = "1.2.3", path = "../pagesift-stat" }
-pagesift-diff = { version = "1.2.3", path = "../pagesift-diff" }
-pagesift-extract = { version = "1.2.3", path = "../pagesift-extract" }
-pagesift-hooks = { version = "1.2.3", path = "../pagesift-hooks" }
-pagesift-html = { version = "1.2.3", path = "../pagesift-html" }
-pagesift-itna = { version = "1.2.3", path = "../pagesift-itna" }
-pagesift-media = { version = "1.2.3", path = "../pagesift-media" }
-pagesift-llm = { version = "1.2.3", path = "../pagesift-llm" }
-pagesift-mcp = { version = "1.2.3", path = "../pagesift-mcp" }
-pagesift-net = { version = "1.2.3", path = "../pagesift-net" }
-pagesift-office = { version = "1.2.3", path = "../pagesift-office" }
-pagesift-pdf = { version = "1.2.3", path = "../pagesift-pdf" }
-pagesift-policy = { version = "1.2.3", path = "../pagesift-policy" }
-pagesift-search = { version = "1.2.3", path = "../pagesift-search" }
-pagesift-store = { version = "1.2.3", path = "../pagesift-store" }
+pagesift-api = { version = "1.2.4", path = "../pagesift-api" }
+pagesift-base64 = { version = "1.2.4", path = "../pagesift-base64" }
+pagesift-cdp = { version = "1.2.4", path = "../pagesift-cdp" }
+pagesift-cluster = { version = "1.2.4", path = "../pagesift-cluster" }
+pagesift-content = { version = "1.2.4", path = "../pagesift-content" }
+pagesift-flow = { version = "1.2.4", path = "../pagesift-flow" }
+pagesift-frontier = { version = "1.2.4", path = "../pagesift-frontier" }
+pagesift-plan = { version = "1.2.4", path = "../pagesift-plan" }
+pagesift-sink = { version = "1.2.4", path = "../pagesift-sink" }
+pagesift-stat = { version = "1.2.4", path = "../pagesift-stat" }
+pagesift-diff = { version = "1.2.4", path = "../pagesift-diff" }
+pagesift-extract = { version = "1.2.4", path = "../pagesift-extract" }
+pagesift-hooks = { version = "1.2.4", path = "../pagesift-hooks" }
+pagesift-html = { version = "1.2.4", path = "../pagesift-html" }
+pagesift-itna = { version = "1.2.4", path = "../pagesift-itna" }
+pagesift-media = { version = "1.2.4", path = "../pagesift-media" }
+pagesift-llm = { version = "1.2.4", path = "../pagesift-llm" }
+pagesift-mcp = { version = "1.2.4", path = "../pagesift-mcp" }
+pagesift-net = { version = "1.2.4", path = "../pagesift-net" }
+pagesift-office = { version = "1.2.4", path = "../pagesift-office" }
+pagesift-pdf = { version = "1.2.4", path = "../pagesift-pdf" }
+pagesift-policy = { version = "1.2.4", path = "../pagesift-policy" }
+pagesift-search = { version = "1.2.4", path = "../pagesift-search" }
+pagesift-store = { version = "1.2.4", path = "../pagesift-store" }
 quick-xml = "0.42.0"
 regex = "1.13.1"
 tokio-rustls = { version = "0.26.6", default-features = false, features = ["ring", "tls12", "logging"] }

@@ -13,26 +13,26 @@ use super::{JOB_TTL, Job, JobKind, JobState, Jobs};
 
 /// 落盘的任务元数据。
 #[derive(Serialize, Deserialize)]
-pub(super) struct Meta {
-    pub(super) kind: JobKind,
-    pub(super) state: JobState,
-    pub(super) created_ms: u64,
-    pub(super) total: usize,
-    pub(super) completed: usize,
-    pub(super) owner: Option<String>,
-    pub(super) webhook: Option<WebhookConfig>,
-    pub(super) crawl: Option<CrawlRequest>,
-    pub(super) batch: Option<BatchSpec>,
+pub(crate) struct Meta {
+    pub(crate) kind: JobKind,
+    pub(crate) state: JobState,
+    pub(crate) created_ms: u64,
+    pub(crate) total: usize,
+    pub(crate) completed: usize,
+    pub(crate) owner: Option<String>,
+    pub(crate) webhook: Option<WebhookConfig>,
+    pub(crate) crawl: Option<CrawlRequest>,
+    pub(crate) batch: Option<BatchSpec>,
     /// 带查询的爬取结束后的说明；旧版本存的任务没有这个字段。
     #[serde(default)]
-    pub(super) summary: Option<CrawlSummary>,
+    pub(crate) summary: Option<CrawlSummary>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub(super) struct BatchSpec {
-    pub(super) urls: Vec<String>,
-    pub(super) options: ScrapeOptions,
-    pub(super) concurrency: usize,
+pub(crate) struct BatchSpec {
+    pub(crate) urls: Vec<String>,
+    pub(crate) options: ScrapeOptions,
+    pub(crate) concurrency: usize,
 }
 
 pub(super) fn meta_key(id: &str) -> String {

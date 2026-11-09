@@ -189,13 +189,13 @@ fn app(keys: &[&str]) -> axum::Router {
     )
 }
 
-async fn call(
+async fn call_bytes(
     app: &axum::Router,
     method: &str,
     uri: &str,
     body: Option<Value>,
     key: Option<&str>,
-) -> (StatusCode, Value) {
+) -> (StatusCode, Vec<u8>) {
     let mut req = Request::builder().method(method).uri(uri);
     if let Some(k) = key {
         req = req.header("authorization", format!("Bearer {k}"));
@@ -210,6 +210,17 @@ async fn call(
     let resp = app.clone().oneshot(req).await.unwrap();
     let status = resp.status();
     let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    (status, bytes.to_vec())
+}
+
+async fn call(
+    app: &axum::Router,
+    method: &str,
+    uri: &str,
+    body: Option<Value>,
+    key: Option<&str>,
+) -> (StatusCode, Value) {
+    let (status, bytes) = call_bytes(app, method, uri, body, key).await;
     let v = serde_json::from_slice(&bytes)
         .unwrap_or(Value::String(String::from_utf8_lossy(&bytes).into()));
     (status, v)
@@ -272,6 +283,113 @@ async fn jobs_are_private_to_their_owner() {
     }
     let (status, _) = call(&app, "GET", &format!("/v2/crawl/{id}"), None, Some("key-a")).await;
     assert_eq!(status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn attachments_are_private_to_their_owner() {
+    let app = app(&["key-a", "key-b"]);
+    // A 用 imageAssets=attach 抓取含图片的 fixture 页，拿到附件 id
+    let (status, v) = call(
+        &app,
+        "POST",
+        "/v2/scrape",
+        Some(json!({
+            "url": "https://example.com/has-image",
+            "imageAssets": "attach"
+        })),
+        Some("key-a"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{v}");
+    let attachments = v["data"]["attachments"]
+        .as_array()
+        .expect("attachments array");
+    assert!(!attachments.is_empty(), "expected at least 1 attachment");
+    let id = attachments[0]["id"].as_str().expect("attachment id");
+
+    // A 下载该 id → 200，字节与源图一致
+    let (status, bytes_a) = call_bytes(
+        &app,
+        "GET",
+        &format!("/v2/attachments/{id}"),
+        None,
+        Some("key-a"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(bytes_a.as_slice(), b"\x89PNG\r\n\x1a\nimage");
+
+    // B 下载该 id → 404（注意：断言 404，不是 403）
+    let (status, err_b) = call(
+        &app,
+        "GET",
+        &format!("/v2/attachments/{id}"),
+        None,
+        Some("key-b"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{err_b}");
+    assert_eq!(
+        err_b["error"],
+        format!("attachment {id} not found or expired")
+    );
+
+    // B 下载伪造 id → 404
+    let (status, err_fake) = call(
+        &app,
+        "GET",
+        "/v2/attachments/nonexistent.png",
+        None,
+        Some("key-b"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{err_fake}");
+
+    // 无 Key → 401
+    let (status, _) = call(&app, "GET", &format!("/v2/attachments/{id}"), None, None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    // B 自己抓取同一张图（同内容同 id）后，B 下载 → 200（去重保留、授权独立）
+    let (status, v_b) = call(
+        &app,
+        "POST",
+        "/v2/scrape",
+        Some(json!({
+            "url": "https://example.com/has-image",
+            "imageAssets": "attach"
+        })),
+        Some("key-b"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{v_b}");
+    let b_attachments = v_b["data"]["attachments"]
+        .as_array()
+        .expect("attachments array");
+    let b_id = b_attachments[0]["id"].as_str().expect("attachment id");
+    assert_eq!(b_id, id);
+
+    let (status, bytes_b) = call_bytes(
+        &app,
+        "GET",
+        &format!("/v2/attachments/{id}"),
+        None,
+        Some("key-b"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(bytes_b.as_slice(), b"\x89PNG\r\n\x1a\nimage");
+
+    // A 依然可以下载
+    let (status, bytes_a_again) = call_bytes(
+        &app,
+        "GET",
+        &format!("/v2/attachments/{id}"),
+        None,
+        Some("key-a"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(bytes_a_again.as_slice(), b"\x89PNG\r\n\x1a\nimage");
 }
 
 #[tokio::test]

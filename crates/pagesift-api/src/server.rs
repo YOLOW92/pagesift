@@ -208,6 +208,10 @@ pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
             store: s.clone(),
             mirror: config.job_mirror.clone(),
         });
+        crate::attachments::backfill_access(crate::attachments::Disk {
+            store: s.clone(),
+            mirror: config.job_mirror.clone(),
+        });
     }
     let mut webhooks = Webhooks::new(config.webhook, metrics.clone());
     webhooks.mirror = config.job_mirror.clone();

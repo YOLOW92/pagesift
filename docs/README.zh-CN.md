@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.2.3
+# pagesift 1.2.4
 
 **AI 智能体的网页和文档层：输入任意 URL、文档、邮件、压缩包或源代码文件，输出干净的 Markdown 或 JSON。**  
 一个自托管的 Rust 二进制：CLI、Firecrawl 和 Jina Reader API、MCP 服务器，以及 Python、Node.js、Go、Java、C#、Ruby、PHP 等语言的包。
@@ -43,7 +43,7 @@ pagesift 替会思考的软件读取网页和文档：它抓取一个 URL（只�
 - **运行环境：** HTTP、PDF 和 Office 无需额外安装。可选：处理 JavaScript 页面的浏览器、用于 OCR 的 NVIDIA GPU、供 `/v2/agent` 使用的你自己的模型
 - **内存：** 1.1 各项基准中，不带浏览器时每个 worker 峰值 18–377 MB；带公式模型的 OCR 约需 1.7 GB；容量按 cgroup 上限确定
 - **许可证：** AGPL-3.0，或[商业许可](COMMERCIAL.md)
-- **最新版本：** 1.2.3 · [发行说明](releases/1.2.3.zh-CN.md)
+- **最新版本：** 1.2.4 · [发行说明](releases/1.2.4.md)
 
 <!-- section: install -->
 ## 安装与使用
@@ -53,7 +53,7 @@ pagesift 替会思考的软件读取网页和文档：它抓取一个 URL（只�
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| 服务器 | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.2.3` | `curl localhost:3002/r/https://example.com` |
+| 服务器 | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.2.4` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -97,7 +97,7 @@ const items = await scraper.scrapeMany(['https://example.com', 'https://example.
 **HTTP 服务器**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.2.3
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.2.4
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'                        # Firecrawl API
@@ -323,11 +323,11 @@ flowchart LR
 [商业许可](COMMERCIAL.md) 或写信到 `licensing@pagesift.dev`。
 
 <!-- section: changelog -->
-## 1.2.3 新增
+## 1.2.4 新增
 
-可选 `imageAssets` 支持网页、PDF 和 Office 图片：可附带 Base64 字节、写入 data URL，或把 Markdown 改写为 `asset://` 引用；提供逐图结果、按内容识别 MIME，并让 `attach`/`rewrite` 在任务内只发布一次。batch/crawl 流可选正文初稿事件，`removeBase64Images: false` 会保留源页面 data URL。新增自研 Base64 并与 `base64` 0.23.1、`base64-simd` 0.8.0 对比：4 KiB 及以上的测量输入更快，但并非所有短输入都领先。
+附件下载现在只对收到它的账号开放：其他 API key、未知 id 和过期附件都返回同一个 404。内容寻址与跨账号去重不变；启动时会从已保存的任务结果回填授权。
 
-[发布说明](releases/1.2.3.zh-CN.md) · [Base64 测量](releases/1.2.3-benchmarks.md) · [1.2.2](releases/1.2.2.md) · [全部版本](releases/) · [CHANGELOG](../CHANGELOG.md)
+[发布说明](releases/1.2.4.md) · [1.2.3](releases/1.2.3.md) · [全部版本](releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -343,7 +343,7 @@ flowchart LR
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.2.3}
+  note   = {Version 1.2.4}
 }
 ```
 

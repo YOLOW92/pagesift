@@ -116,7 +116,10 @@ pub async fn parse(
             .warnings
             .push(w);
     }
-    crate::attachments::keep_in(&data, s.jobs.disk().as_ref());
+    let account = caller
+        .as_ref()
+        .map_or("anonymous", |Extension(c)| &*c.account);
+    crate::attachments::keep_in_for(&data, s.jobs.disk().as_ref(), account);
     s.metrics.page(PageSource::Parse);
     if let Some(Extension(c)) = &caller {
         s.limiter.consume_pages(c, 1).await;

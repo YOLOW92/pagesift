@@ -1,6 +1,6 @@
 # pagesift 服务镜像：Firecrawl v2 兼容的 HTTP API，自带 Lightpanda 做浏览器渲染。
 #
-#   docker build -t pagesift --build-arg JOBS=$(scripts/jobs.sh) .
+#   docker build -f docker/Dockerfile -t pagesift --build-arg JOBS=$(scripts/jobs.sh) .
 #   docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=change-me pagesift
 #
 # 数据（缓存、任务、配额记录）在 /data，挂卷后重启容器任务接着跑。配置文件挂到

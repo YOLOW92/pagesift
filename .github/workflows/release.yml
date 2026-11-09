@@ -205,7 +205,7 @@ jobs:
             pgo-*.profdata
 
   docker:
-    # 镜像在 Dockerfile 里从源码编译，不用其他任务的产物，和它们同时进行
+    # 镜像在 docker/Dockerfile 里从源码编译，不用其他任务的产物，和它们同时进行
     needs: identity
     if: inputs.reuse_run == ''
     runs-on: ubuntu-latest
@@ -240,6 +240,7 @@ jobs:
           DOCKER_BUILD_RECORD_UPLOAD: false   # 不上传构建记录，免得发布步骤下载产物时出错
         with:
           context: .
+          file: docker/Dockerfile
           platforms: linux/amd64
           push: ${{ env.PUBLISH == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
