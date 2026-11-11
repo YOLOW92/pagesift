@@ -45,8 +45,8 @@ impl<'a> Pdb<'a> {
     }
 }
 
-/// PalmDOC LZ77。
-fn palmdoc(input: &[u8], out: &mut Vec<u8>) {
+/// PalmDOC LZ77。每次写入之前先确认预算，超限立即报错，不先扩容再检查。
+fn palmdoc(input: &[u8], out: &mut Vec<u8>, limit: usize) -> Result<(), Error> {
     let start = out.len();
     let mut i = 0usize;
     while i < input.len() {
@@ -55,10 +55,14 @@ fn palmdoc(input: &[u8], out: &mut Vec<u8>) {
         match c {
             1..=8 => {
                 let end = (i + usize::from(c)).min(input.len());
+                room(out, end - i, limit)?;
                 out.extend_from_slice(&input[i..end]);
                 i = end;
             }
-            0 | 9..=0x7F => out.push(c),
+            0 | 9..=0x7F => {
+                room(out, 1, limit)?;
+                out.push(c);
+            }
             0x80..=0xBF => {
                 let Some(&next) = input.get(i) else { break };
                 i += 1;
@@ -69,14 +73,25 @@ fn palmdoc(input: &[u8], out: &mut Vec<u8>) {
                     continue;
                 }
                 for _ in 0..len {
+                    room(out, 1, limit)?;
                     out.push(out[out.len() - dist]);
                 }
             }
             _ => {
+                room(out, 2, limit)?;
                 out.push(b' ');
                 out.push(c ^ 0x80);
             }
         }
+    }
+    Ok(())
+}
+
+/// 再写入 `add` 字节后仍不超过解压预算。
+fn room(out: &[u8], add: usize, limit: usize) -> Result<(), Error> {
+    match out.len().checked_add(add) {
+        Some(n) if n <= limit => Ok(()),
+        _ => Err(Error::TooLarge("decompressed size")),
     }
 }
 
@@ -120,6 +135,8 @@ struct Huff<'a> {
     phrases: Vec<(&'a [u8], bool)>,
     /// 已经展开的短语。
     done: Vec<Option<Vec<u8>>>,
+    /// 缓存的展开结果总共多少字节（临时展开量也计入预算）。
+    cached: usize,
 }
 
 impl<'a> Huff<'a> {
@@ -173,12 +190,20 @@ impl<'a> Huff<'a> {
             maxcode,
             phrases,
             done,
+            cached: 0,
         })
     }
 
-    fn unpack(&mut self, data: &[u8], depth: usize, out: &mut Vec<u8>) -> Option<()> {
+    fn unpack(
+        &mut self,
+        data: &[u8],
+        depth: usize,
+        out: &mut Vec<u8>,
+        limit: usize,
+    ) -> Result<(), Error> {
+        let broken = || Error::Malformed("broken HUFF data".into());
         if depth > MAX_HUFF_DEPTH {
-            return None;
+            return Err(broken());
         }
         let mut bits_left = (data.len() as i64) * 8;
         let read = |pos: usize| -> u64 {
@@ -204,29 +229,40 @@ impl<'a> Huff<'a> {
                     len += 1;
                 }
                 if len > 32 {
-                    return None;
+                    return Err(broken());
                 }
                 max = self.maxcode[len as usize];
             }
             n -= len as i32;
             bits_left -= i64::from(len);
             if bits_left < 0 {
-                return Some(());
+                return Ok(());
             }
             let r = (max.wrapping_sub(code) >> (32 - len)) as usize;
-            let (slice, plain) = *self.phrases.get(r)?;
+            let (slice, plain) = *self.phrases.get(r).ok_or_else(broken)?;
             if plain {
+                room(out, slice.len(), limit)?;
                 out.extend_from_slice(slice);
             } else {
                 if self.done[r].is_none() {
                     let mut buf = Vec::new();
-                    self.unpack(slice, depth + 1, &mut buf)?;
+                    // 临时展开也占正文预算：不能只检查最终正文，让递归缓存无限累计
+                    let left = limit
+                        .checked_sub(out.len())
+                        .ok_or_else(|| Error::TooLarge("decompressed size"))?;
+                    self.unpack(slice, depth + 1, &mut buf, left)?;
+                    self.cached = self
+                        .cached
+                        .checked_add(buf.len())
+                        .ok_or_else(|| Error::TooLarge("decompressed size"))?;
+                    if self.cached > MAX_TEXT {
+                        return Err(Error::TooLarge("decompressed size"));
+                    }
                     self.done[r] = Some(buf);
                 }
-                out.extend_from_slice(self.done[r].as_deref()?);
-            }
-            if out.len() > MAX_TEXT {
-                return None;
+                let cached = self.done[r].as_deref().ok_or_else(broken)?;
+                room(out, cached.len(), limit)?;
+                out.extend_from_slice(cached);
             }
         }
     }
@@ -285,10 +321,8 @@ pub(crate) fn convert(bytes: &[u8], opts: &Options<'_>) -> Result<Converted, Err
         let Some(rec) = pdb.record(i) else { break };
         let rec = &rec[..rec.len() - trailing_size(rec, flags)];
         match (compression, huff.as_mut()) {
-            (2, _) => palmdoc(rec, &mut text),
-            (_, Some(h)) => h
-                .unpack(rec, 0, &mut text)
-                .ok_or_else(|| Error::Malformed("broken HUFF data".into()))?,
+            (2, _) => palmdoc(rec, &mut text, MAX_TEXT)?,
+            (_, Some(h)) => h.unpack(rec, 0, &mut text, MAX_TEXT)?,
             _ => text.extend_from_slice(rec),
         }
         if text.len() > MAX_TEXT {
@@ -396,17 +430,37 @@ mod tests {
     fn palmdoc_decoding() {
         let mut out = Vec::new();
         // 字面、带长度的字面、空格 + 字符、回指
-        palmdoc(&[b'a', 2, 0xFF, 0xFE, 0xE1], &mut out);
+        palmdoc(&[b'a', 2, 0xFF, 0xFE, 0xE1], &mut out, MAX_TEXT).unwrap();
         assert_eq!(out, vec![b'a', 0xFF, 0xFE, b' ', 0x61]);
         let mut out = Vec::new();
         // 回指距离 3、长度 3 + 2
         let v: u16 = 0x8000 | (3 << 3) | 2;
-        palmdoc(&[b'a', b'b', b'c', (v >> 8) as u8, v as u8], &mut out);
+        palmdoc(
+            &[b'a', b'b', b'c', (v >> 8) as u8, v as u8],
+            &mut out,
+            MAX_TEXT,
+        )
+        .unwrap();
         assert_eq!(out, b"abcabcab");
         // 回指超过已有内容不崩溃
         let mut out = Vec::new();
-        palmdoc(&[0x80 | 0x3F, 0xFF, 0x80], &mut out);
+        palmdoc(&[0x80 | 0x3F, 0xFF, 0x80], &mut out, MAX_TEXT).unwrap();
         assert!(out.len() <= 2);
+    }
+
+    #[test]
+    fn palmdoc_stops_at_the_budget() {
+        // 一条记录内部反复回指：预算 16 字节，必须在写入之前停下
+        let v: u16 = 0x8000 | (3 << 3) | 2;
+        let mut rec = vec![b'a', b'b', b'c'];
+        for _ in 0..16 {
+            rec.extend_from_slice(&[(v >> 8) as u8, v as u8]);
+        }
+        let mut out = Vec::new();
+        let (r, peak) = crate::test_probe::peak(|| palmdoc(&rec, &mut out, 16));
+        assert_eq!(r, Err(Error::TooLarge("decompressed size")));
+        assert!(out.len() <= 16);
+        assert!(peak < 64 << 10, "peak allocation {peak} bytes");
     }
 
     #[test]
@@ -451,8 +505,7 @@ mod tests {
         assert_eq!(convert(&bytes, &opts()), Err(Error::Encrypted));
     }
 
-    #[test]
-    fn huff_cdic_roundtrip() {
+    fn huff_cdic_book() -> Vec<u8> {
         // 一个 8 位定长码：编码 = 255 - 短语号，第二个短语是嵌套压缩
         let mut huff = vec![0u8; 24];
         huff[..4].copy_from_slice(b"HUFF");
@@ -486,7 +539,26 @@ mod tests {
         let mut h = header(17_480, 1, 0, "H");
         h[0x70..0x74].copy_from_slice(&2u32.to_be_bytes());
         h[0x74..0x78].copy_from_slice(&2u32.to_be_bytes());
-        let bytes = pdb(b"BOOKMOBI", &[h, body, huff, cdic]);
+        pdb(b"BOOKMOBI", &[h, body, huff, cdic])
+    }
+
+    #[test]
+    fn huff_cdic_roundtrip() {
+        let bytes = huff_cdic_book();
         assert_eq!(convert(&bytes, &opts()).unwrap().markdown, "abab");
+    }
+
+    #[test]
+    fn huff_stops_at_the_budget() {
+        // 同一条 HUFF 正文，只给 1 字节预算：短语展开前就拒绝
+        let bytes = huff_cdic_book();
+        let pdb = Pdb::open(&bytes).unwrap();
+        let mut huff = Huff::new(&pdb, 2, 2).unwrap();
+        let mut out = Vec::new();
+        assert_eq!(
+            huff.unpack(&[0xFE, 0xFF], 0, &mut out, 1),
+            Err(Error::TooLarge("decompressed size"))
+        );
+        assert!(out.len() <= 1);
     }
 }
