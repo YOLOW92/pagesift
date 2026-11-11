@@ -636,9 +636,9 @@ impl Fetcher {
                 }
             }
         }
-        // 请求自带的头只发给初始主机，且不从 https 降级到 http 后继续发送。
-        let same_origin = origin.host_str() == url.host_str()
-            && !(origin.scheme() == "https" && url.scheme() == "http");
+        // 请求自带的头只发给初始 Origin（scheme + 主机 + 有效端口）：同主机换端口、
+        // 或者从 https 降到 http，都不再转发调用方的认证头。
+        let same_origin = origin.origin() == url.origin();
         if same_origin {
             for (k, v) in extra {
                 if k == header::COOKIE {

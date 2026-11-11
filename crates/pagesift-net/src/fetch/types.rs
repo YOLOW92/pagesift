@@ -244,7 +244,7 @@ pub struct FetchRequest {
     /// Explicit identity-scoped Cookie session. Stateless by default.
     pub session: Option<Arc<crate::CookieSession>>,
     pub url: String,
-    /// 请求自带的头，只发给初始 URL 的主机。
+    /// 请求自带的头，只发给初始 URL 的 Origin（scheme + 主机 + 端口）。
     pub headers: Vec<(String, String)>,
     pub if_none_match: Option<String>,
     pub if_modified_since: Option<SystemTime>,

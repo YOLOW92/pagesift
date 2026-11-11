@@ -8,8 +8,8 @@ use std::time::{Duration, SystemTime};
 
 use common::{FakeDns, ok, redirect, response, serve};
 use pagesift_net::{
-    Blocked, BoxError, BoxFuture, DnsLookup, Error, FetchRequest, Fetcher, FetcherConfig,
-    HostCredentials, RedirectGuard, SsrfPolicy, TimeoutPhase, Url,
+    Blocked, BoxError, BoxFuture, CookieSession, DnsLookup, Error, FetchRequest, Fetcher,
+    FetcherConfig, HostCredentials, RedirectGuard, SessionConfig, SsrfPolicy, TimeoutPhase, Url,
 };
 
 /// 只放行测试服务器所在的 127.0.0.1，其余内网地址照常拦截。
@@ -478,6 +478,76 @@ async fn credentials_stay_on_their_host() {
     for h in ["authorization", "x-api-key", "cookie"] {
         assert_eq!(leaked.header(h), None, "{h} leaked");
     }
+}
+
+#[tokio::test]
+async fn request_headers_are_scoped_to_the_full_origin() {
+    let other = serve(|_| Some(ok("other"))).await;
+    let port = other.addr.port();
+    let origin = serve(move |s| {
+        Some(match s.path.as_str() {
+            "/start" => redirect(302, &format!("http://127.0.0.1:{port}/x")),
+            _ => ok("same"),
+        })
+    })
+    .await;
+    let req = FetchRequest::new(origin.url("/start"))
+        .header("Authorization", "Bearer user-token")
+        .header("X-Api-Key", "k-123")
+        .header("Cookie", "pref=1");
+    assert_eq!(fetcher().fetch(req).await.unwrap().body, b"other");
+    // 同主机、不同端口就是不同的 Origin
+    let leaked = &other.seen()[0];
+    for h in ["authorization", "x-api-key", "cookie"] {
+        assert_eq!(leaked.header(h), None, "{h} leaked across ports");
+    }
+    assert_eq!(origin.seen()[0].header("x-api-key"), Some("k-123"));
+}
+
+#[tokio::test]
+async fn same_origin_redirect_keeps_request_headers() {
+    let srv = serve(|s| {
+        Some(if s.path == "/start" {
+            redirect(302, "/next")
+        } else {
+            ok("next")
+        })
+    })
+    .await;
+    let req = FetchRequest::new(srv.url("/start"))
+        .header("Authorization", "Bearer user-token")
+        .header("X-Api-Key", "k-123")
+        .header("Cookie", "pref=1");
+    assert_eq!(fetcher().fetch(req).await.unwrap().body, b"next");
+    for s in srv.seen() {
+        assert_eq!(s.header("authorization"), Some("Bearer user-token"));
+        assert_eq!(s.header("x-api-key"), Some("k-123"));
+        assert_eq!(s.header("cookie"), Some("pref=1"));
+    }
+}
+
+#[tokio::test]
+async fn session_cookies_stay_on_their_origin() {
+    let other = serve(|_| Some(ok("other"))).await;
+    let port = other.addr.port();
+    let origin = serve(move |s| {
+        Some(match s.path.as_str() {
+            "/start" => redirect(302, &format!("http://127.0.0.1:{port}/x")),
+            _ => ok("same"),
+        })
+    })
+    .await;
+    let url = Url::parse(&origin.url("/start")).unwrap();
+    let session = Arc::new(CookieSession::new(&url, SessionConfig::default()).unwrap());
+    assert!(session.set_cookie(&url, "sid=s3cr3t; Path=/"));
+    let req = FetchRequest::new(origin.url("/start")).with_session(session);
+    assert_eq!(fetcher().fetch(req).await.unwrap().body, b"other");
+    assert_eq!(origin.seen()[0].header("cookie"), Some("sid=s3cr3t"));
+    assert_eq!(
+        other.seen()[0].header("cookie"),
+        None,
+        "session cookie leaked"
+    );
 }
 
 #[test]
