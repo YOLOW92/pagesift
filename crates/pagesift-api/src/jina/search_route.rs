@@ -9,9 +9,9 @@ use axum::extract::{Extension, Path, RawQuery, State};
 use axum::http::{HeaderMap, header};
 use axum::response::{IntoResponse, Response};
 
-use crate::limits::Caller;
+use crate::limits::{Caller, PageHold};
 use crate::server::AppState;
-use crate::types::SearchRequest;
+use crate::types::{Document, SearchRequest};
 
 /// [协议] Jina README：`s.jina.ai` 抓取前 5 条结果。
 const JINA_TOP_RESULTS: usize = 5;
@@ -62,20 +62,32 @@ pub(crate) async fn handle_jina_search(
         Ok(v) => v["web"].as_array().cloned().unwrap_or_default(),
         Err(e) => return e.into_response(),
     };
-    // 几条结果同时抓（各自仍受引擎的按主机限速约束），按搜索结果的顺序收回
-    let handles: Vec<_> = hits
-        .iter()
-        .take(JINA_TOP_RESULTS)
-        .map(|h| {
-            let url = h["url"].as_str().unwrap_or_default().to_string();
-            let (engine, opts) = (s.engine.clone(), opts.clone());
-            tokio::spawn(async move {
-                let r = engine.scrape(&url, &opts).await;
-                (url, r)
-            })
-        })
-        .collect();
-    let mut pages = Vec::with_capacity(handles.len());
+    // 几条结果同时抓（各自仍受引擎的按主机限速约束），按搜索结果的顺序收回。
+    // 每条的配额在发出抓取之前预留；抓取或渲染失败就退还，预算不够则根本不发请求。
+    let mut handles = Vec::new();
+    let mut pages: Vec<(
+        String,
+        Result<Document, crate::error::ApiError>,
+        Option<PageHold>,
+    )> = Vec::with_capacity(hits.len().min(JINA_TOP_RESULTS));
+    for h in hits.iter().take(JINA_TOP_RESULTS) {
+        let url = h["url"].as_str().unwrap_or_default().to_string();
+        let hold = match &caller {
+            Some(Extension(c)) => match s.limiter.reserve_page(c).await {
+                Ok(hold) => Some(hold),
+                Err(e) => {
+                    pages.push((url, Err(e), None));
+                    continue;
+                }
+            },
+            None => None,
+        };
+        let (engine, opts) = (s.engine.clone(), opts.clone());
+        handles.push(tokio::spawn(async move {
+            let r = engine.scrape(&url, &opts).await;
+            (url, r, hold)
+        }));
+    }
     for h in handles {
         match h.await {
             Ok(p) => pages.push(p),
@@ -85,18 +97,19 @@ pub(crate) async fn handle_jina_search(
                     crate::error::ErrorCode::Internal,
                     e.to_string(),
                 )),
+                None,
             )),
         }
     }
     let mut out = Vec::new();
-    for ((url, r), hit) in pages.into_iter().zip(&hits) {
+    for ((url, r, hold), hit) in pages.into_iter().zip(&hits) {
         let title = hit["title"].as_str().unwrap_or_default().to_string();
         let description = hit["description"].as_str().unwrap_or_default().to_string();
         let (content, chunks, warnings) =
             match r.and_then(|doc| super::respond::render(&doc, &url, &params).map(|x| (x, doc))) {
                 Ok((x, doc)) => {
-                    if let Some(Extension(c)) = &caller {
-                        s.limiter.consume_pages(c, 1).await;
+                    if let Some(hold) = hold {
+                        hold.commit().await;
                     }
                     let mut w = doc
                         .metadata

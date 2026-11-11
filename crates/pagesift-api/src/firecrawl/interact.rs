@@ -28,18 +28,19 @@ pub async fn interact(
     if let Some(u) = &req.url {
         crate::validate::check_url(u)?;
     }
-    if let Some(Extension(c)) = &caller {
-        s.limiter.check_quota(c)?;
-    }
+    let page_hold = match &caller {
+        Some(Extension(c)) => Some(s.limiter.reserve_page(c).await?),
+        None => None,
+    };
     let mut resp = s.engine.interact(&id, &req, owner(&caller)).await?;
     if let Some(w) = crate::fields::ignored_warning(&ignored) {
         resp.warnings.push(w);
     }
-    // 动作之后取回了页面：和 scrape 一样算一页
+    // 动作之后取回了页面：和 scrape 一样算一页；没取回页面就退还预留
     if resp.data.is_some()
-        && let Some(Extension(c)) = &caller
+        && let Some(hold) = page_hold
     {
-        s.limiter.consume_pages(c, 1).await;
+        hold.commit().await;
     }
     Ok(Json(resp))
 }

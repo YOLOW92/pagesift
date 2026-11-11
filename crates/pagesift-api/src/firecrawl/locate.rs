@@ -31,13 +31,14 @@ pub async fn observe(
         )));
     }
     crate::validate::check_url(&req.url)?;
-    if let Some(Extension(c)) = &caller {
-        s.limiter.check_quota(c)?;
-    }
+    let page_hold = match &caller {
+        Some(Extension(c)) => Some(s.limiter.reserve_page(c).await?),
+        None => None,
+    };
     let (data, mut warnings) = s.engine.observe(&req.url, &req.instruction).await?;
     warnings.extend(crate::fields::ignored_warning(&ignored));
-    if let Some(Extension(c)) = &caller {
-        s.limiter.consume_pages(c, 1).await;
+    if let Some(hold) = page_hold {
+        hold.commit().await;
     }
     Ok(Json(ObserveResponse {
         success: true,
@@ -63,15 +64,16 @@ pub async fn similar(
         ..Default::default()
     };
     crate::check_scrape_options(&opts, s.engine.as_ref())?;
-    if let Some(Extension(c)) = &caller {
-        s.limiter.check_quota(c)?;
-    }
+    let page_hold = match &caller {
+        Some(Extension(c)) => Some(s.limiter.reserve_page(c).await?),
+        None => None,
+    };
     let data = s
         .engine
         .find_similar(&req.url, &req.selector, &opts)
         .await?;
-    if let Some(Extension(c)) = &caller {
-        s.limiter.consume_pages(c, 1).await;
+    if let Some(hold) = page_hold {
+        hold.commit().await;
     }
     Ok(Json(SimilarResponse {
         success: true,

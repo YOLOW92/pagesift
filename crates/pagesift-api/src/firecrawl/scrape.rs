@@ -102,9 +102,10 @@ async fn run(
         .map(|Extension(c)| c.account.to_string())
         .filter(|owner| owner != "anonymous");
     check_scrape_options(&req.options, s.engine.as_ref())?;
-    if let Some(Extension(c)) = &caller {
-        s.limiter.check_quota(c)?;
-    }
+    let page_hold = match &caller {
+        Some(Extension(c)) => Some(s.limiter.reserve_page(c).await?),
+        None => None,
+    };
     let result = if v2 && (keep || s.engine.supports_interact()) {
         let owner = caller.as_ref().map(|Extension(c)| c.account.as_ref());
         s.engine
@@ -128,8 +129,8 @@ async fn run(
             crate::attachments::keep_in_for(&data, s.jobs.disk().as_ref(), account);
             s.metrics.scrape_ok.fetch_add(1, Ordering::Relaxed);
             s.metrics.page(PageSource::Scrape);
-            if let Some(Extension(c)) = &caller {
-                s.limiter.consume_pages(c, 1).await;
+            if let Some(hold) = page_hold {
+                hold.commit().await;
             }
             Ok(Json(ScrapeResponse {
                 success: true,

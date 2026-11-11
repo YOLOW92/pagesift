@@ -43,9 +43,10 @@ pub async fn parse(
             e.body_text()
         ))
     })?;
-    if let Some(Extension(c)) = &caller {
-        s.limiter.check_quota(c)?;
-    }
+    let page_hold = match &caller {
+        Some(Extension(c)) => Some(s.limiter.reserve_page(c).await?),
+        None => None,
+    };
 
     let mut file: Option<(Vec<u8>, String, Option<String>)> = None;
     let mut options: Option<ScrapeOptions> = None;
@@ -121,8 +122,8 @@ pub async fn parse(
         .map_or("anonymous", |Extension(c)| &*c.account);
     crate::attachments::keep_in_for(&data, s.jobs.disk().as_ref(), account);
     s.metrics.page(PageSource::Parse);
-    if let Some(Extension(c)) = &caller {
-        s.limiter.consume_pages(c, 1).await;
+    if let Some(hold) = page_hold {
+        hold.commit().await;
     }
     Ok(Json(ScrapeResponse {
         success: true,

@@ -392,6 +392,170 @@ async fn attachments_are_private_to_their_owner() {
     assert_eq!(bytes_a_again.as_slice(), b"\x89PNG\r\n\x1a\nimage");
 }
 
+/// 只做 scrape、带延迟的引擎：用来观察并发请求里实际发生了多少次外部抓取。
+struct Counting {
+    calls: Arc<std::sync::atomic::AtomicUsize>,
+    delay: Duration,
+}
+
+impl Engine for Counting {
+    fn scrape<'a>(
+        &'a self,
+        url: &'a str,
+        _opts: &'a ScrapeOptions,
+    ) -> BoxFuture<'a, Result<Document, ApiError>> {
+        Box::pin(async move {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            tokio::time::sleep(self.delay).await;
+            if url.contains("blocked") {
+                return Err(ApiError::new(ErrorCode::RobotsDisallowed, "disallowed"));
+            }
+            Ok(Document {
+                markdown: Some(format!("# {url}")),
+                metadata: Metadata {
+                    source_url: Some(url.to_string()),
+                    url: Some(url.to_string()),
+                    status_code: 200,
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
+        })
+    }
+}
+
+#[tokio::test]
+async fn concurrent_scrapes_never_exceed_the_page_quota() {
+    use pagesift_api::KeyLimits;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let calls = Arc::new(AtomicUsize::new(0));
+    let app = router(
+        Arc::new(Counting {
+            calls: calls.clone(),
+            delay: Duration::from_millis(40),
+        }),
+        Config {
+            key_limits: [(
+                "limited".to_string(),
+                KeyLimits {
+                    pages_per_day: Some(1),
+                    ..Default::default()
+                },
+            )]
+            .into(),
+            ..Default::default()
+        },
+    );
+    let mut tasks = Vec::new();
+    for i in 0..20 {
+        let app = app.clone();
+        tasks.push(tokio::spawn(async move {
+            call(
+                &app,
+                "POST",
+                "/v2/scrape",
+                Some(json!({"url": format!("https://example.com/{i}")})),
+                Some("limited"),
+            )
+            .await
+            .0
+        }));
+    }
+    let mut ok = 0;
+    for task in tasks {
+        let status = task.await.unwrap();
+        if status == StatusCode::OK {
+            ok += 1;
+        } else {
+            assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+        }
+    }
+    assert_eq!(ok, 1, "only one request may spend the single page");
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "rejected requests must not reach the engine"
+    );
+}
+
+#[tokio::test]
+async fn zero_quota_never_reaches_the_engine() {
+    use pagesift_api::KeyLimits;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let calls = Arc::new(AtomicUsize::new(0));
+    let app = router(
+        Arc::new(Counting {
+            calls: calls.clone(),
+            delay: Duration::ZERO,
+        }),
+        Config {
+            key_limits: [(
+                "limited".to_string(),
+                KeyLimits {
+                    pages_per_day: Some(0),
+                    ..Default::default()
+                },
+            )]
+            .into(),
+            ..Default::default()
+        },
+    );
+    let (status, _) = call(
+        &app,
+        "POST",
+        "/v2/scrape",
+        Some(json!({"url": "https://example.com/a"})),
+        Some("limited"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn failed_scrapes_refund_the_reservation() {
+    use pagesift_api::KeyLimits;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let calls = Arc::new(AtomicUsize::new(0));
+    let app = router(
+        Arc::new(Counting {
+            calls: calls.clone(),
+            delay: Duration::ZERO,
+        }),
+        Config {
+            key_limits: [(
+                "limited".to_string(),
+                KeyLimits {
+                    pages_per_day: Some(1),
+                    ..Default::default()
+                },
+            )]
+            .into(),
+            ..Default::default()
+        },
+    );
+    let (status, _) = call(
+        &app,
+        "POST",
+        "/v2/scrape",
+        Some(json!({"url": "https://example.com/blocked"})),
+        Some("limited"),
+    )
+    .await;
+    assert_ne!(status, StatusCode::OK);
+    // 失败不计费：下一次仍然有额度
+    let (status, _) = call(
+        &app,
+        "POST",
+        "/v2/scrape",
+        Some(json!({"url": "https://example.com/ok"})),
+        Some("limited"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+}
+
 #[tokio::test]
 async fn search_and_extract_consume_page_quota() {
     use pagesift_api::KeyLimits;

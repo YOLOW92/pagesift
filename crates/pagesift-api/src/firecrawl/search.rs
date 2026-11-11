@@ -20,7 +20,11 @@ struct AccountBudget {
 
 impl crate::PageBudget for AccountBudget {
     fn acquire(&self) -> crate::BoxFuture<'_, Result<(), ApiError>> {
-        Box::pin(self.limiter.reserve_page(&self.caller))
+        Box::pin(async move {
+            let hold = self.limiter.reserve_page(&self.caller).await?;
+            hold.commit().await;
+            Ok(())
+        })
     }
 }
 

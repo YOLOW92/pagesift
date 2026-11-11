@@ -9,7 +9,7 @@ use serde::Deserialize;
 use std::sync::atomic::Ordering;
 
 use super::stream_sse::{error_event, split_paragraphs, sse_parts, sse_response};
-use crate::limits::Caller;
+use crate::limits::{Caller, PageHold};
 use crate::metrics::PageSource;
 use crate::server::AppState;
 use crate::types::ScrapeOptions;
@@ -71,12 +71,6 @@ async fn process_jina_scrape(
     if let Err(e) = crate::validate::check_url(target_url) {
         return e.into_response();
     }
-    if let Some(Extension(c)) = &caller
-        && let Err(e) = s.limiter.check_quota(c)
-    {
-        return e.into_response();
-    }
-
     let (mut opts, params) = match super::headers::parse(&headers) {
         Ok(v) => v,
         Err(e) => return e.into_response(),
@@ -88,23 +82,25 @@ async fn process_jina_scrape(
     if let Err(e) = crate::validate::check_scrape_options(&opts, s.engine.as_ref()) {
         return e.into_response();
     }
+    // 抓取之前先占住这一页的配额；失败、取消或提前断开时由 PageHold 退还
+    let page_hold = match &caller {
+        Some(Extension(c)) => match s.limiter.reserve_page(c).await {
+            Ok(h) => Some(h),
+            Err(e) => return e.into_response(),
+        },
+        None => None,
+    };
     let accept = headers
         .get(header::ACCEPT)
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
     if accept.contains("text/event-stream") {
-        return stream_scrape(
-            s,
-            caller.map(|Extension(c)| c),
-            target_url.to_string(),
-            opts,
-            params,
-        );
+        return stream_scrape(s, target_url.to_string(), opts, params, page_hold);
     }
 
     match s.engine.scrape(target_url, &opts).await {
         Ok(doc) => {
-            record_ok(&s, caller.as_ref().map(|Extension(c)| c)).await;
+            record_ok(&s, page_hold).await;
             let r = match super::respond::render(&doc, target_url, &params) {
                 Ok(r) => r,
                 Err(e) => return e.into_response(),
@@ -154,11 +150,11 @@ async fn process_jina_scrape(
     }
 }
 
-async fn record_ok(s: &AppState, caller: Option<&Caller>) {
+async fn record_ok(s: &AppState, hold: Option<PageHold>) {
     s.metrics.scrape_ok.fetch_add(1, Ordering::Relaxed);
     s.metrics.page(PageSource::Scrape);
-    if let Some(c) = caller {
-        s.limiter.consume_pages(c, 1).await;
+    if let Some(hold) = hold {
+        hold.commit().await;
     }
 }
 
@@ -169,17 +165,17 @@ async fn record_ok(s: &AppState, caller: Option<&Caller>) {
 /// 客户端中途断开就停止抓取。响应头发出后才失败的，用 `error` 事件报告。
 fn stream_scrape(
     s: AppState,
-    caller: Option<Caller>,
     url: String,
     opts: ScrapeOptions,
     params: super::headers::JinaParams,
+    hold: Option<PageHold>,
 ) -> Response {
     stream_scrape_with(
         s,
-        caller,
         url,
         opts,
         params,
+        hold,
         crate::firecrawl::stream::KEEPALIVE,
     )
 }
@@ -189,10 +185,10 @@ fn stream_scrape(
 /// 事件本身的字节不变。
 fn stream_scrape_with(
     s: AppState,
-    caller: Option<Caller>,
     url: String,
     opts: ScrapeOptions,
     params: super::headers::JinaParams,
+    hold: Option<PageHold>,
     keepalive: std::time::Duration,
 ) -> Response {
     let (tx, body) = crate::stream_body::channel();
@@ -213,7 +209,7 @@ fn stream_scrape_with(
         };
         match r {
             Ok(doc) => {
-                record_ok(&s, caller.as_ref()).await;
+                record_ok(&s, hold).await;
                 // 和普通响应走同一份渲染：respond-with、保留方式、上限、分块都生效
                 let r = match super::respond::render(&doc, &url, &params) {
                     Ok(r) => r,

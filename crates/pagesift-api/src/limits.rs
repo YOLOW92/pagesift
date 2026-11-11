@@ -83,7 +83,6 @@ pub(crate) struct Limiter {
     usage: Mutex<HashMap<Arc<str>, Usage>>,
     store: Option<Store>,
     ledger: Option<Arc<pagesift_cluster::Ledger>>,
-    page_reservation: tokio::sync::Mutex<()>,
 }
 
 fn rate_error(rpm: u32, wait: u64) -> ApiError {
@@ -192,12 +191,7 @@ impl Limiter {
         }
     }
 
-    fn usage(&self, account: &Arc<str>) -> Usage {
-        let day = today();
-        let mut map = self.usage.lock().unwrap_or_else(|e| e.into_inner());
-        if let Some(u) = map.get(account).filter(|u| u.day == day) {
-            return *u;
-        }
+    fn load_usage(&self, account: &Arc<str>, day: u64) -> Usage {
         // 第一次用到这个调用方（或者跨天了）：从存储里读当天的记录
         let stored = self
             .store
@@ -212,12 +206,29 @@ impl Limiter {
                 })
             })
             .filter(|u| u.day == day);
-        let u = stored.unwrap_or(Usage { day, used: 0 });
-        map.insert(account.clone(), u);
-        u
+        stored.unwrap_or(Usage { day, used: 0 })
     }
 
-    /// 当天还剩多少页；没设配额时是 `None`。
+    fn usage_entry<'a>(
+        &self,
+        map: &'a mut HashMap<Arc<str>, Usage>,
+        account: &Arc<str>,
+        day: u64,
+    ) -> &'a mut Usage {
+        if map.get(account).is_none_or(|u| u.day != day) {
+            let u = self.load_usage(account, day);
+            map.insert(account.clone(), u);
+        }
+        map.get_mut(account).expect("inserted above")
+    }
+
+    fn usage(&self, account: &Arc<str>) -> Usage {
+        let day = today();
+        let mut map = self.usage.lock().unwrap_or_else(|e| e.into_inner());
+        *self.usage_entry(&mut map, account, day)
+    }
+
+    /// 当天还剩多少页；没设配额时是 `None`。已预留但还没结算的页也算在用量里。
     pub(crate) fn remaining_pages(&self, c: &Caller) -> Option<u64> {
         let max = c.limits.pages_per_day?;
         if let Some(l) = &self.ledger {
@@ -233,30 +244,96 @@ impl Limiter {
         Ok(())
     }
 
-    pub(crate) async fn reserve_page(&self, c: &Caller) -> Result<(), ApiError> {
-        let _guard = self.page_reservation.lock().await;
-        if c.limits.pages_per_day.is_some()
-            && let Some(ledger) = &self.ledger
-        {
-            let hold = ledger.reserve(&c.account, 1).map_err(|err| match err {
-                pagesift_cluster::Refusal::Error(err) => ledger_error(err),
-                _ => quota_error(c),
-            })?;
-            return ledger.settle(&hold, 1).map_err(ledger_error);
+    /// 可计费操作发出之前原子地预留一页。返回的 [`PageHold`] 在成功时 `commit`，
+    /// 失败/取消时直接丢弃即自动退还（[`Drop`] 里完成），不会出现 check-then-act 的并发窗口。
+    pub(crate) async fn reserve_page(self: &Arc<Self>, c: &Caller) -> Result<PageHold, ApiError> {
+        let day = today();
+        let amount = 1;
+        let Some(_) = c.limits.pages_per_day else {
+            return Ok(PageHold {
+                limiter: self.clone(),
+                account: c.account.clone(),
+                day,
+                amount,
+                ledger: None,
+                tracked: false,
+                settled: false,
+            });
+        };
+        if let Some(ledger) = &self.ledger {
+            let hold = ledger
+                .reserve(&c.account, amount)
+                .map_err(|err| match err {
+                    pagesift_cluster::Refusal::Error(err) => ledger_error(err),
+                    _ => quota_error(c),
+                })?;
+            return Ok(PageHold {
+                limiter: self.clone(),
+                account: c.account.clone(),
+                day,
+                amount,
+                ledger: Some(hold),
+                tracked: true,
+                settled: false,
+            });
         }
-        self.check_quota(c)?;
-        self.consume_pages(c, 1).await;
-        Ok(())
+        let max = c.limits.pages_per_day.unwrap_or(0);
+        {
+            let mut map = self.usage.lock().unwrap_or_else(|e| e.into_inner());
+            let u = self.usage_entry(&mut map, &c.account, day);
+            if u.used.saturating_add(amount) > max {
+                return Err(quota_error(c));
+            }
+            u.used += amount;
+        }
+        Ok(PageHold {
+            limiter: self.clone(),
+            account: c.account.clone(),
+            day,
+            amount,
+            ledger: None,
+            tracked: true,
+            settled: false,
+        })
     }
 
-    /// 记入当天用掉的页数。只有设了配额的调用方才计数和落盘。
+    /// 退还预留（没有结算就丢弃）。只退当天的记录，跨天时旧记录已经作废。
+    fn refund(&self, account: &Arc<str>, day: u64, amount: u64) {
+        let mut map = self.usage.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(u) = map.get_mut(account)
+            && u.day == day
+        {
+            u.used = u.used.saturating_sub(amount);
+        }
+    }
+
+    async fn persist_usage(&self, account: &Arc<str>) {
+        let Some(store) = &self.store else {
+            return;
+        };
+        let u = {
+            let map = self.usage.lock().unwrap_or_else(|e| e.into_inner());
+            match map.get(account) {
+                Some(u) => *u,
+                None => return,
+            }
+        };
+        let key = usage_key(account);
+        let value = format!("{} {}", u.day, u.used);
+        let r = store
+            .blocking(move |s| s.tasks().kv_put(key, value.as_bytes()))
+            .await;
+        if let Err(e) = r {
+            tracing::warn!(error = %e, "saving page quota usage failed");
+        }
+    }
+
+    /// 记入当天用掉的页数（已经发生、无法退还的用量）。只有设了配额的调用方才计数和落盘。
     pub(crate) async fn consume_pages(&self, c: &Caller, n: u64) {
         if c.limits.pages_per_day.is_none() || n == 0 {
             return;
         }
         if let Some(l) = &self.ledger {
-            // 冻结后立即按实际用量结算：页面已经抓完。余额不够冻结时（并发请求都通过了检查）
-            // 当天已经用满，不再记账，余额照样是 0
             match l.reserve(&c.account, n) {
                 Ok(hold) => {
                     if let Err(e) = l.settle(&hold, n) {
@@ -270,26 +347,60 @@ impl Limiter {
             }
             return;
         }
-        let u = self.usage(&c.account);
-        let u = {
+        let max = c.limits.pages_per_day.unwrap_or(0);
+        let day = today();
+        {
             let mut map = self.usage.lock().unwrap_or_else(|e| e.into_inner());
-            let e = map.entry(c.account.clone()).or_insert(u);
-            if e.day != u.day {
-                *e = u;
-            }
-            e.used += n;
-            *e
-        };
-        if let Some(store) = &self.store {
-            let key = usage_key(&c.account);
-            let value = format!("{} {}", u.day, u.used);
-            let r = store
-                .blocking(move |s| s.tasks().kv_put(key, value.as_bytes()))
-                .await;
-            if let Err(e) = r {
-                tracing::warn!(error = %e, "saving page quota usage failed");
-            }
+            let u = self.usage_entry(&mut map, &c.account, day);
+            u.used = u.used.saturating_add(n).min(max);
         }
+        self.persist_usage(&c.account).await;
+    }
+}
+
+/// 一页的预留。`commit` 结算；未结算就丢弃时自动退还（失败、取消、panic 都走同一条路）。
+pub(crate) struct PageHold {
+    limiter: Arc<Limiter>,
+    account: Arc<str>,
+    day: u64,
+    amount: u64,
+    ledger: Option<pagesift_cluster::Hold>,
+    tracked: bool,
+    settled: bool,
+}
+
+impl PageHold {
+    pub(crate) async fn commit(mut self) {
+        self.settled = true;
+        if !self.tracked {
+            return;
+        }
+        if let Some(ledger) = &self.limiter.ledger {
+            if let Some(hold) = self.ledger.take()
+                && let Err(e) = ledger.settle(&hold, self.amount)
+            {
+                tracing::warn!(error = %e, "settling page quota failed");
+            }
+            return;
+        }
+        self.limiter.persist_usage(&self.account).await;
+    }
+}
+
+impl Drop for PageHold {
+    fn drop(&mut self) {
+        if self.settled || !self.tracked {
+            return;
+        }
+        if let Some(ledger) = &self.limiter.ledger {
+            if let Some(hold) = self.ledger.take()
+                && let Err(e) = ledger.release(&hold)
+            {
+                tracing::warn!(error = %e, "releasing page quota failed");
+            }
+            return;
+        }
+        self.limiter.refund(&self.account, self.day, self.amount);
     }
 }
 
@@ -389,10 +500,118 @@ mod tests {
             pages_per_day: Some(1),
             ..Default::default()
         });
-        let limiter = Limiter::new(None);
+        let limiter = Arc::new(Limiter::new(None));
         let (a, b) = tokio::join!(limiter.reserve_page(&c), limiter.reserve_page(&c));
         assert_ne!(a.is_ok(), b.is_ok());
         assert_eq!(limiter.remaining_pages(&c), Some(0));
+        // 丢掉未结算的预留：额度回来
+        drop(a);
+        drop(b);
+        assert_eq!(limiter.remaining_pages(&c), Some(1));
+    }
+
+    #[tokio::test]
+    async fn twenty_concurrent_reservations_allow_exactly_one() {
+        let c = Arc::new(caller(KeyLimits {
+            pages_per_day: Some(1),
+            ..Default::default()
+        }));
+        let limiter = Arc::new(Limiter::new(None));
+        let mut tasks = Vec::new();
+        for _ in 0..20 {
+            let (limiter, c) = (limiter.clone(), c.clone());
+            tasks.push(tokio::spawn(async move { limiter.reserve_page(&c).await }));
+        }
+        let mut granted = 0;
+        let mut holds = Vec::new();
+        for task in tasks {
+            match task.await.unwrap() {
+                Ok(hold) => {
+                    granted += 1;
+                    holds.push(hold);
+                }
+                Err(e) => assert_eq!(e.code, ErrorCode::QuotaExceeded),
+            }
+        }
+        assert_eq!(granted, 1);
+        assert_eq!(limiter.remaining_pages(&c), Some(0));
+        drop(holds);
+        assert_eq!(limiter.remaining_pages(&c), Some(1));
+    }
+
+    #[tokio::test]
+    async fn committed_pages_survive_restart_and_holds_refund() {
+        let dir = tempfile::tempdir().unwrap();
+        let c = caller(KeyLimits {
+            pages_per_day: Some(2),
+            ..Default::default()
+        });
+        let limiter = Arc::new(Limiter::new(Some(Store::open_dir(dir.path()).unwrap())));
+        let hold = limiter.reserve_page(&c).await.unwrap();
+        assert_eq!(limiter.remaining_pages(&c), Some(1));
+        drop(hold);
+        assert_eq!(limiter.remaining_pages(&c), Some(2));
+        let hold = limiter.reserve_page(&c).await.unwrap();
+        hold.commit().await;
+        assert_eq!(limiter.remaining_pages(&c), Some(1));
+        drop(limiter);
+        // 重启：已结算的 1 页还在，未结算的预留不落盘
+        let limiter = Limiter::new(Some(Store::open_dir(dir.path()).unwrap()));
+        assert_eq!(limiter.remaining_pages(&c), Some(1));
+    }
+
+    #[tokio::test]
+    async fn consume_pages_never_overshoots_the_quota() {
+        let c = caller(KeyLimits {
+            pages_per_day: Some(2),
+            ..Default::default()
+        });
+        let limiter = Limiter::new(None);
+        limiter.consume_pages(&c, 5).await;
+        assert_eq!(limiter.remaining_pages(&c), Some(0));
+        assert_eq!(
+            limiter.check_quota(&c).unwrap_err().code,
+            ErrorCode::QuotaExceeded
+        );
+    }
+
+    #[tokio::test]
+    async fn ledger_reservations_are_atomic_across_limiter_instances() {
+        let ledger = Arc::new(
+            pagesift_cluster::Ledger::open(pagesift_cluster::LedgerConfig::new(
+                pagesift_cluster::MonoClock::new(),
+                false,
+            ))
+            .unwrap(),
+        );
+        let limits = Arc::new(KeyLimits {
+            pages_per_day: Some(1),
+            ..Default::default()
+        });
+        let c = Arc::new(Caller::new(Some("k"), limits.clone()));
+        let accounts = HashMap::from([(c.account.to_string(), limits)]);
+        let a = Arc::new(Limiter::with_ledger(ledger.clone(), &accounts));
+        let b = Arc::new(Limiter::with_ledger(ledger.clone(), &accounts));
+        let mut tasks = Vec::new();
+        for i in 0..20 {
+            let (l, c) = (if i % 2 == 0 { a.clone() } else { b.clone() }, c.clone());
+            tasks.push(tokio::spawn(async move { l.reserve_page(&c).await }));
+        }
+        let mut holds = Vec::new();
+        let mut granted = 0;
+        for task in tasks {
+            match task.await.unwrap() {
+                Ok(hold) => {
+                    granted += 1;
+                    holds.push(hold);
+                }
+                Err(e) => assert_eq!(e.code, ErrorCode::QuotaExceeded),
+            }
+        }
+        assert_eq!(granted, 1);
+        assert_eq!(a.remaining_pages(&c), Some(0));
+        drop(holds);
+        assert_eq!(a.remaining_pages(&c), Some(1));
     }
 
     #[tokio::test]
