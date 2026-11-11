@@ -6,10 +6,18 @@
 //!
 //! EPUB 的正文是 XHTML，转换交给调用方（[`Options::html`]），这样和网页走同一个 HTML 提取器。
 
-#![forbid(unsafe_code)]
+// 产品代码仍然不允许 unsafe；单元测试里的分配计数器需要实现 `GlobalAlloc`。
+#![cfg_attr(not(test), forbid(unsafe_code))]
 
 use std::fmt;
 use std::time::Instant;
+
+#[cfg(test)]
+mod test_probe;
+
+#[cfg(test)]
+#[global_allocator]
+static TEST_ALLOC: test_probe::Probe = test_probe::Probe;
 
 mod archive;
 mod budget;

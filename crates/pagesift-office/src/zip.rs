@@ -137,23 +137,33 @@ impl<'a> Zip<'a> {
         let at = usize::try_from(e.offset).map_err(|_| bad("entry offset"))?;
         let local = self
             .data
-            .get(at..at + 30)
+            .get(at..at.checked_add(30).ok_or_else(|| bad("entry offset"))?)
             .ok_or_else(|| bad("entry offset"))?;
         if u32_at(local, 0) != Some(LOCAL_SIG) {
             return Err(bad("missing local file header"));
         }
-        let skip = 30
-            + usize::from(u16_at(local, 26).unwrap_or(0))
-            + usize::from(u16_at(local, 28).unwrap_or(0));
-        let start = at + skip;
+        let skip = usize::from(u16_at(local, 26).unwrap_or(0))
+            .checked_add(usize::from(u16_at(local, 28).unwrap_or(0)))
+            .and_then(|n| n.checked_add(30))
+            .ok_or_else(|| bad("entry offset"))?;
+        let start = at.checked_add(skip).ok_or_else(|| bad("entry offset"))?;
         let raw = usize::try_from(e.compressed)
             .ok()
             .and_then(|n| self.data.get(start..start.checked_add(n)?))
             .ok_or_else(|| bad("entry data outside the file"))?;
         // 声明的大小不可信，解压上限按声明大小，多出来就是坏文件（或炸弹）
-        let want = e.size as usize;
+        let want = usize::try_from(e.size).map_err(|_| bad("entry size"))?;
         let out = match e.method {
-            0 => raw.to_vec(),
+            0 => {
+                // 压缩目录里的两个长度都来自不可信输入：先证明它们和实际切片一致，再复制。
+                if e.compressed != e.size || raw.len() != want {
+                    return Err(bad(&format!(
+                        "{}: stored size does not match the directory",
+                        e.name
+                    )));
+                }
+                raw.to_vec()
+            }
             8 => miniz_oxide::inflate::decompress_to_vec_with_limit(raw, want.max(1))
                 .map_err(|err| bad(&format!("could not inflate {}: {:?}", e.name, err.status)))?,
             m => return Err(Error::Unsupported(format!("ZIP compression method {m}"))),
@@ -322,6 +332,43 @@ pub(crate) mod tests {
         assert_eq!(
             zip.read("2").unwrap_err(),
             Error::TooLarge("total uncompressed size")
+        );
+    }
+
+    #[test]
+    fn stored_entry_sizes_are_verified_before_copying() {
+        // 中央目录把解压大小写成 1，压缩大小是 8 MiB：不能先复制 8 MiB 再发现不符
+        let data = vec![b'x'; 8 << 20];
+        let mut z = build(&[("a", &data, false)]);
+        let cd = z
+            .windows(4)
+            .rposition(|w| w == CENTRAL_SIG.to_le_bytes())
+            .unwrap();
+        z[cd + 24..cd + 28].copy_from_slice(&1u32.to_le_bytes());
+        let zip = Zip::open(&z, &Limits::default()).unwrap();
+        let (out, peak) = crate::test_probe::peak(|| zip.read("a"));
+        let err = out.unwrap_err();
+        assert!(format!("{err:?}").contains("stored size"), "{err:?}");
+        assert!(peak < 64 << 10, "peak allocation {peak} bytes");
+    }
+
+    #[test]
+    fn entry_size_boundary_is_inclusive() {
+        let z = build(&[("a", b"hello", false)]);
+        let exact = Limits {
+            max_entry_bytes: 5,
+            ..Limits::default()
+        };
+        let zip = Zip::open(&z, &exact).unwrap();
+        assert_eq!(zip.read("a").unwrap().unwrap(), b"hello");
+        let tight = Limits {
+            max_entry_bytes: 4,
+            ..Limits::default()
+        };
+        let zip = Zip::open(&z, &tight).unwrap();
+        assert_eq!(
+            zip.read("a").unwrap_err(),
+            Error::TooLarge("ZIP entry size")
         );
     }
 
