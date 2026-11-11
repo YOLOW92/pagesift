@@ -14,7 +14,7 @@ use tokio::sync::Mutex;
 use crate::engine::{AgentSink, BoxFuture, Engine};
 use crate::error::{ApiError, ErrorCode};
 use crate::jobs::{JOB_TTL, rfc3339};
-use crate::limits::{Caller, Limiter};
+use crate::limits::{Caller, Limiter, PageHold};
 use crate::types::{AgentFailure, AgentOutcome, AgentRequest, AgentStep};
 use crate::validate::{check_url, check_url_count};
 use crate::webhook::{WebhookConfig, Webhooks};
@@ -218,6 +218,7 @@ impl Agents {
             caller,
             webhook: job.webhook.clone(),
             metadata: job.clone(),
+            holds: Mutex::new(HashMap::new()),
         });
         let agents = self.clone();
         let job_id = id.clone();
@@ -404,6 +405,8 @@ struct JobSink {
     webhook: Option<WebhookConfig>,
     /// 发 webhook 用的任务快照。
     metadata: AgentJob,
+    /// 已预留的页面配额，按 URL 索引。
+    holds: Mutex<HashMap<String, PageHold>>,
 }
 
 impl AgentSink for JobSink {
@@ -430,11 +433,33 @@ impl AgentSink for JobSink {
         self.cancel.load(Ordering::SeqCst)
     }
 
-    fn charge_page(&self) -> BoxFuture<'_, ()> {
+    fn reserve_page<'a>(&'a self, url: &'a str) -> BoxFuture<'a, Result<(), ApiError>> {
         Box::pin(async move {
-            if let (Some(c), Some(l)) = (&self.caller, &self.agents.0.limiter) {
-                l.consume_pages(c, 1).await;
+            let mut holds = self.holds.lock().await;
+            if holds.contains_key(url) {
+                return Ok(());
             }
+            let (Some(c), Some(l)) = (&self.caller, &self.agents.0.limiter) else {
+                return Ok(());
+            };
+            let hold = l.reserve_page(c).await?;
+            holds.insert(url.to_string(), hold);
+            Ok(())
+        })
+    }
+
+    fn charge_page<'a>(&'a self, url: &'a str) -> BoxFuture<'a, ()> {
+        Box::pin(async move {
+            let hold = { self.holds.lock().await.remove(url) };
+            if let Some(hold) = hold {
+                hold.commit().await;
+            }
+        })
+    }
+
+    fn release_page<'a>(&'a self, url: &'a str) -> BoxFuture<'a, ()> {
+        Box::pin(async move {
+            drop(self.holds.lock().await.remove(url));
         })
     }
 

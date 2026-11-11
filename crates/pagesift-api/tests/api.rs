@@ -479,6 +479,71 @@ async fn concurrent_scrapes_never_exceed_the_page_quota() {
 }
 
 #[tokio::test]
+async fn batch_never_fetches_more_pages_than_the_quota() {
+    use pagesift_api::KeyLimits;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let calls = Arc::new(AtomicUsize::new(0));
+    let app = router(
+        Arc::new(Counting {
+            calls: calls.clone(),
+            delay: Duration::ZERO,
+        }),
+        Config {
+            key_limits: [(
+                "limited".to_string(),
+                KeyLimits {
+                    pages_per_day: Some(1),
+                    ..Default::default()
+                },
+            )]
+            .into(),
+            ..Default::default()
+        },
+    );
+    let (status, started) = call(
+        &app,
+        "POST",
+        "/v2/batch/scrape",
+        Some(json!({"urls": ["https://example.com/a", "https://example.com/b"]})),
+        Some("limited"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let id = started["id"].as_str().unwrap().to_string();
+    let mut last = Value::Null;
+    for _ in 0..200 {
+        let (_, s) = call(
+            &app,
+            "GET",
+            &format!("/v2/batch/scrape/{id}"),
+            None,
+            Some("limited"),
+        )
+        .await;
+        if s["status"] == "completed" {
+            last = s;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert_eq!(last["status"], "completed");
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "only the single paid page may be fetched"
+    );
+    let (_, errs) = call(
+        &app,
+        "GET",
+        &format!("/v2/batch/scrape/{id}/errors"),
+        None,
+        Some("limited"),
+    )
+    .await;
+    assert_eq!(errs["errors"][0]["code"], "QUOTA_EXCEEDED", "{errs}");
+}
+
+#[tokio::test]
 async fn zero_quota_never_reaches_the_engine() {
     use pagesift_api::KeyLimits;
     use std::sync::atomic::{AtomicUsize, Ordering};

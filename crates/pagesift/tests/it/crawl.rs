@@ -8,7 +8,7 @@ use axum::Router;
 use axum::response::Html;
 use axum::routing::get;
 use pagesift::api::types::{CrawlRequest, Document, MapRequest};
-use pagesift::api::{ApiError, BoxFuture, CrawlResume, CrawlSink};
+use pagesift::api::{ApiError, BoxFuture, CrawlResume, CrawlSink, ErrorCode};
 use pagesift::{Scraper, ScraperConfig};
 use serde_json::json;
 
@@ -124,6 +124,104 @@ fn titles(c: &Collect) -> Vec<String> {
         .collect();
     t.sort();
     t
+}
+
+/// 模拟每日页面配额：每次抓取前预留，成功结算、失败退还。`budget` 是剩余额度。
+#[derive(Default)]
+struct Budgeted {
+    pages: Mutex<usize>,
+    errors: Mutex<Vec<(String, String)>>,
+    settles: Mutex<Vec<String>>,
+    releases: Mutex<Vec<String>>,
+    budget: Mutex<usize>,
+}
+
+impl CrawlSink for Budgeted {
+    fn page(&self, _doc: Document) -> BoxFuture<'_, ()> {
+        *self.pages.lock().unwrap() += 1;
+        Box::pin(async {})
+    }
+    fn error<'a>(&'a self, url: &'a str, err: ApiError) -> BoxFuture<'a, ()> {
+        self.errors
+            .lock()
+            .unwrap()
+            .push((url.to_string(), err.code.as_str().to_string()));
+        Box::pin(async {})
+    }
+    fn total(&self, _: usize) -> BoxFuture<'_, ()> {
+        Box::pin(async {})
+    }
+    fn cancelled(&self) -> BoxFuture<'_, bool> {
+        Box::pin(async { false })
+    }
+    fn reserve_page<'a>(&'a self, _url: &'a str) -> BoxFuture<'a, Result<(), ApiError>> {
+        Box::pin(async move {
+            let mut budget = self.budget.lock().unwrap();
+            if *budget == 0 {
+                return Err(ApiError::new(
+                    ErrorCode::QuotaExceeded,
+                    "daily page quota exceeded",
+                ));
+            }
+            *budget -= 1;
+            Ok(())
+        })
+    }
+    fn settle_page<'a>(&'a self, url: &'a str) -> BoxFuture<'a, ()> {
+        self.settles.lock().unwrap().push(url.to_string());
+        Box::pin(async {})
+    }
+    fn release_page<'a>(&'a self, url: &'a str) -> BoxFuture<'a, ()> {
+        self.releases.lock().unwrap().push(url.to_string());
+        *self.budget.lock().unwrap() += 1;
+        Box::pin(async {})
+    }
+}
+
+#[tokio::test]
+async fn crawl_reserves_quota_before_fetching_and_stops_when_refused() {
+    let base = site().await;
+    let s = scraper();
+    let sink = Arc::new(Budgeted {
+        budget: Mutex::new(1),
+        ..Default::default()
+    });
+    s.crawl(
+        &crawl_req(&base, json!({ "sitemap": "skip" })),
+        sink.clone(),
+    )
+    .await
+    .unwrap();
+    // 额度只有一页：种子页之外不再发请求
+    assert_eq!(*sink.pages.lock().unwrap(), 1);
+    let errors = sink.errors.lock().unwrap();
+    assert!(
+        errors.iter().any(|(_, code)| code == "QUOTA_EXCEEDED"),
+        "{errors:?}"
+    );
+    assert_eq!(sink.settles.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn crawl_releases_the_reservation_of_failed_pages() {
+    let base = site().await;
+    let s = scraper();
+    let sink = Arc::new(Budgeted {
+        budget: Mutex::new(100),
+        ..Default::default()
+    });
+    s.crawl(
+        &crawl_req(&base, json!({ "sitemap": "skip" })),
+        sink.clone(),
+    )
+    .await
+    .unwrap();
+    let releases = sink.releases.lock().unwrap().clone();
+    assert!(
+        releases.iter().any(|u| u.ends_with("/docs/secret")),
+        "{releases:?}"
+    );
+    assert_eq!(sink.settles.lock().unwrap().len(), 5);
 }
 
 #[tokio::test]

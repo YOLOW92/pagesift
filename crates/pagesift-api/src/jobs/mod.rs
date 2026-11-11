@@ -20,7 +20,7 @@ use std::time::SystemTime;
 use pagesift_store::Store;
 use tokio::sync::{Mutex, Semaphore};
 
-use crate::engine::{CrawlResume, Engine};
+use crate::engine::{CrawlResume, CrawlSink, Engine};
 use crate::error::{ApiError, ErrorCode};
 use crate::limits::{Caller, Limiter};
 use crate::metrics::Metrics;
@@ -420,6 +420,7 @@ impl Jobs {
             keep_summary: true,
             store_failed: StdMutex::new(None),
             asset_hashes: tokio::sync::Mutex::new(None),
+            holds: tokio::sync::Mutex::new(Default::default()),
         })
     }
 
@@ -462,9 +463,20 @@ impl Jobs {
                         return;
                     }
                     let done = i.to_string();
+                    // 发请求之前原子预留；配额不够时这一页不抓，任务其余页面也会被 stopped() 拦住。
+                    if let Err(e) = sink.reserve_page(&url).await {
+                        sink.record_error(done, url, e).await;
+                        return;
+                    }
                     match engine.scrape(&url, &opts).await {
-                        Ok(doc) => sink.record_page(done, doc).await,
-                        Err(e) => sink.record_error(done, url, e).await,
+                        Ok(doc) => {
+                            sink.settle_page(&url).await;
+                            sink.record_page(done, doc).await;
+                        }
+                        Err(e) => {
+                            sink.release_page(&url).await;
+                            sink.record_error(done, url, e).await;
+                        }
                     }
                 });
             }

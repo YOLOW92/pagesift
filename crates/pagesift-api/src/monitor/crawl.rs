@@ -8,7 +8,9 @@ use serde_json::json;
 use super::run::{compare, failure, mark_gone};
 use super::{MonitorState, PageResult, PageState};
 use crate::error::{ApiError, ErrorCode};
-use crate::limits::{Caller, Limiter};
+use std::collections::HashMap;
+
+use crate::limits::{Caller, Limiter, PageHold};
 use crate::server::AppState;
 use crate::types::{CrawlRequest, CrawlSummary, Document, ScrapeOptions};
 
@@ -50,6 +52,7 @@ pub(super) async fn check_crawl(
         errors: Default::default(),
         stop: Default::default(),
         quota_hit: Default::default(),
+        holds: Default::default(),
     });
     let crawled = s.engine.crawl(&req, sink.clone()).await;
     let docs = std::mem::take(&mut *sink.docs.lock().await);
@@ -178,13 +181,53 @@ struct Collect {
     errors: tokio::sync::Mutex<Vec<(String, ApiError)>>,
     stop: tokio::sync::Mutex<Option<String>>,
     quota_hit: AtomicBool,
+    holds: tokio::sync::Mutex<HashMap<String, PageHold>>,
 }
 
 impl crate::CrawlSink for Collect {
     fn page(&self, doc: Document) -> crate::BoxFuture<'_, ()> {
         Box::pin(async move {
-            self.limiter.consume_pages(&self.caller, 1).await;
             self.docs.lock().await.push(doc);
+        })
+    }
+
+    fn reserve_page<'a>(&'a self, url: &'a str) -> crate::BoxFuture<'a, Result<(), ApiError>> {
+        Box::pin(async move {
+            let mut holds = self.holds.lock().await;
+            if holds.contains_key(url) {
+                return Ok(());
+            }
+            match self.limiter.reserve_page(&self.caller).await {
+                Ok(hold) => {
+                    holds.insert(url.to_string(), hold);
+                    Ok(())
+                }
+                Err(e) => {
+                    self.quota_hit.store(true, Ordering::Relaxed);
+                    Err(e)
+                }
+            }
+        })
+    }
+
+    fn settle_page<'a>(&'a self, url: &'a str) -> crate::BoxFuture<'a, ()> {
+        Box::pin(async move {
+            let hold = { self.holds.lock().await.remove(url) };
+            if let Some(hold) = hold {
+                hold.commit().await;
+            }
+        })
+    }
+
+    fn release_page<'a>(&'a self, url: &'a str) -> crate::BoxFuture<'a, ()> {
+        Box::pin(async move {
+            drop(self.holds.lock().await.remove(url));
+        })
+    }
+
+    fn release_pending(&self) -> crate::BoxFuture<'_, ()> {
+        Box::pin(async move {
+            self.holds.lock().await.clear();
         })
     }
     fn error<'a>(&'a self, url: &'a str, e: ApiError) -> crate::BoxFuture<'a, ()> {

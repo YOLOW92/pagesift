@@ -259,6 +259,12 @@ impl Scraper {
                 let Some((url, depth, attempt)) = pick else {
                     break;
                 };
+                // 配额在发请求之前预留；拒绝时停止调度（在途页面照常收尾）。
+                if let Err(e) = sink.reserve_page(url.as_str()).await {
+                    sink.error(url.as_str(), e).await;
+                    stop = Some("cancelled");
+                    break;
+                }
                 let opts = opts.clone();
                 inflight.push(async move {
                     let result = self.crawl_attempt(&url, &opts, mode, slots).await;
@@ -325,6 +331,7 @@ impl Scraper {
                 // 错误状态页（404 模板、400 桩页）不是内容：不输出、不跟它的链接，只占用预算
                 Ok(doc) if doc.metadata.status_code >= 400 => {
                     let status = doc.metadata.status_code;
+                    sink.release_page(url.as_str()).await;
                     if !is_attachment && refunds < req.limit {
                         refunds += 1;
                         scheduled -= 1;
@@ -342,6 +349,7 @@ impl Scraper {
                     // 和已经交付的某页全文相同（同一页的不同写法）：不交付、不占预算，
                     // 它的链接和那一页一样
                     if note_duplicate(&mut learner, &url, &mut doc) && !is_attachment {
+                        sink.release_page(url.as_str()).await;
                         if refunds < req.limit {
                             refunds += 1;
                             scheduled -= 1;
@@ -601,6 +609,7 @@ impl Scraper {
                         t.score = t.score.map(|s| (s * 1000.0).round() / 1000.0);
                         t
                     });
+                    sink.settle_page(url.as_str()).await;
                     sink.page(doc).await;
                 }
                 Err(e) => {
@@ -610,6 +619,7 @@ impl Scraper {
                     if seed && weight > 0 && !host_ok.contains(host) {
                         host_failures.add(host, weight);
                     }
+                    sink.release_page(url.as_str()).await;
                     if !is_attachment && refunds < req.limit {
                         refunds += 1;
                         scheduled -= 1;
@@ -623,6 +633,7 @@ impl Scraper {
                 .map_or(0, |a| a.scheduled + a.pending());
             sink.total((scheduled + pending).min(req.limit) + att).await;
         }
+        sink.release_pending().await;
         let stop_reason = stop.unwrap_or(
             if scheduled >= req.limit && (overflow || !queue.is_empty()) {
                 "limit_reached"

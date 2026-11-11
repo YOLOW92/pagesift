@@ -428,9 +428,15 @@ async fn check_page(
         o.if_modified_since = prev.last_modified.clone();
     }
     let mut next = prev.clone();
+    let hold = match s.limiter.reserve_page(caller).await {
+        Ok(hold) => Some(hold),
+        Err(e) => return (failure(url, &e), next),
+    };
     match s.engine.scrape(url, &o).await {
         Ok(doc) => {
-            s.limiter.consume_pages(caller, 1).await;
+            if let Some(hold) = hold {
+                hold.commit().await;
+            }
             let r = compare(url, prev, &doc, substantive_only, &mut next);
             (r, next)
         }

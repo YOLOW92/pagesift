@@ -336,10 +336,23 @@ impl Run<'_> {
                 return;
             }
         };
+        // 每一页在发请求之前先预留配额；预留失败的 URL 直接不抓
+        let sink = self.sink;
+        let mut allowed: Vec<String> = Vec::with_capacity(todo.len());
+        for u in todo {
+            match sink.reserve_page(&u).await {
+                Ok(()) => allowed.push(u),
+                Err(e) => {
+                    self.last
+                        .push_str(&format!("budget: {u} was not read: {}\n", e.message));
+                }
+            }
+        }
         let engine = self.engine;
         let opts = &opts;
         let results = futures_util::future::join_all(
-            todo.iter()
+            allowed
+                .iter()
                 .map(|u| async move { (u.as_str(), engine.scrape(u, opts).await) }),
         )
         .await;
@@ -350,7 +363,7 @@ impl Run<'_> {
             match r {
                 Ok(doc) => {
                     self.usage.pages += 1;
-                    self.sink.charge_page().await;
+                    self.sink.charge_page(url).await;
                     if let Some(why) = self.redirect_refused(url, &doc) {
                         self.last.push_str(&format!("{url} refused: {why}\n"));
                         self.record("scrape", input, "REFUSED", Some(why)).await;
@@ -360,6 +373,7 @@ impl Run<'_> {
                 }
                 Err(e) => {
                     self.usage.pages_failed += 1;
+                    self.sink.release_page(url).await;
                     self.note_failure("scrape", url, input, &e).await;
                 }
             }
@@ -453,6 +467,10 @@ impl Run<'_> {
             self.last = format!("budget: {url} was not read");
             return;
         }
+        if let Err(e) = self.sink.reserve_page(url).await {
+            self.last = format!("budget: {url} was not read: {}", e.message);
+            return;
+        }
         let opts = match options(json!([{ "type": "extract", "intent": intent }])) {
             Ok(o) => o,
             Err(e) => {
@@ -464,7 +482,7 @@ impl Run<'_> {
             Ok(doc) => {
                 self.usage.pages += 1;
                 self.read.insert(url.to_string());
-                self.sink.charge_page().await;
+                self.sink.charge_page(url).await;
                 if let Some(why) = self.redirect_refused(url, &doc) {
                     self.last = format!("{url} refused: {why}");
                     self.record("extract", input, "REFUSED", Some(why)).await;
@@ -490,6 +508,7 @@ impl Run<'_> {
             }
             Err(e) => {
                 self.usage.pages_failed += 1;
+                self.sink.release_page(url).await;
                 self.note_failure("extract", url, input, &e).await;
             }
         }

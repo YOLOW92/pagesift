@@ -227,8 +227,16 @@ pub trait AgentSink: Send + Sync {
     fn cancelled(&self) -> bool {
         false
     }
-    /// 抓到一页：计入调用方的页面配额。
-    fn charge_page(&self) -> BoxFuture<'_, ()> {
+    /// 发出一次页面抓取之前调用：原子预留这一页的配额；拒绝时不得发请求。
+    fn reserve_page<'a>(&'a self, _url: &'a str) -> BoxFuture<'a, Result<(), ApiError>> {
+        Box::pin(async { Ok(()) })
+    }
+    /// 这一页抓回并会交付：结算预留。
+    fn charge_page<'a>(&'a self, _url: &'a str) -> BoxFuture<'a, ()> {
+        Box::pin(async {})
+    }
+    /// 这一页失败或没有交付：退还预留。
+    fn release_page<'a>(&'a self, _url: &'a str) -> BoxFuture<'a, ()> {
         Box::pin(async {})
     }
     /// 调用方今天还能抓多少页；没有配额时 `None`。
@@ -243,6 +251,27 @@ impl AgentSink for () {}
 pub trait CrawlSink: Send + Sync {
     fn page(&self, doc: Document) -> BoxFuture<'_, ()>;
     fn error<'a>(&'a self, url: &'a str, err: ApiError) -> BoxFuture<'a, ()>;
+
+    /// 发出一次页面抓取之前调用：原子预留这一页的配额。返回 `Err` 时引擎必须停止调度、
+    /// 不得再发请求（重试同一 URL 会再次调用，实现要按 URL 幂等）。
+    fn reserve_page<'a>(&'a self, _url: &'a str) -> BoxFuture<'a, Result<(), ApiError>> {
+        Box::pin(async { Ok(()) })
+    }
+
+    /// 这一页已经成功抓回并会交付：结算预留。之后引擎才调用 [`CrawlSink::page`]。
+    fn settle_page<'a>(&'a self, _url: &'a str) -> BoxFuture<'a, ()> {
+        Box::pin(async {})
+    }
+
+    /// 这一页最终失败（不再重试）：退还预留。
+    fn release_page<'a>(&'a self, _url: &'a str) -> BoxFuture<'a, ()> {
+        Box::pin(async {})
+    }
+
+    /// 本次爬取结束：退还未结算的预留（取消、上限、客户端断开都走这里）。
+    fn release_pending(&self) -> BoxFuture<'_, ()> {
+        Box::pin(async {})
+    }
     /// 已经确定要抓的页面总数（随着发现新链接增长）。
     fn total(&self, total: usize) -> BoxFuture<'_, ()>;
     fn cancelled(&self) -> BoxFuture<'_, bool>;

@@ -246,6 +246,9 @@ impl Limiter {
 
     /// 可计费操作发出之前原子地预留一页。返回的 [`PageHold`] 在成功时 `commit`，
     /// 失败/取消时直接丢弃即自动退还（[`Drop`] 里完成），不会出现 check-then-act 的并发窗口。
+    ///
+    /// 账本模式下，进程在预留尚未结算时崩溃，冻结会保留到当天结束（UTC）：最多是崩溃瞬间
+    /// 在途的页数，不会双重扣费；单机模式的内存预留则随进程消失。
     pub(crate) async fn reserve_page(self: &Arc<Self>, c: &Caller) -> Result<PageHold, ApiError> {
         let day = today();
         let amount = 1;
@@ -326,35 +329,6 @@ impl Limiter {
         if let Err(e) = r {
             tracing::warn!(error = %e, "saving page quota usage failed");
         }
-    }
-
-    /// 记入当天用掉的页数（已经发生、无法退还的用量）。只有设了配额的调用方才计数和落盘。
-    pub(crate) async fn consume_pages(&self, c: &Caller, n: u64) {
-        if c.limits.pages_per_day.is_none() || n == 0 {
-            return;
-        }
-        if let Some(l) = &self.ledger {
-            match l.reserve(&c.account, n) {
-                Ok(hold) => {
-                    if let Err(e) = l.settle(&hold, n) {
-                        tracing::warn!(error = %e, "settling page quota failed");
-                    }
-                }
-                Err(pagesift_cluster::Refusal::Error(e)) => {
-                    tracing::warn!(error = %e, "reserving page quota failed");
-                }
-                Err(_) => {}
-            }
-            return;
-        }
-        let max = c.limits.pages_per_day.unwrap_or(0);
-        let day = today();
-        {
-            let mut map = self.usage.lock().unwrap_or_else(|e| e.into_inner());
-            let u = self.usage_entry(&mut map, &c.account, day);
-            u.used = u.used.saturating_add(n).min(max);
-        }
-        self.persist_usage(&c.account).await;
     }
 }
 
@@ -475,16 +449,16 @@ mod tests {
         });
         let c = Caller::new(Some("k"), limits.clone());
         let accounts = HashMap::from([(c.account.to_string(), limits)]);
-        let l = Limiter::with_ledger(ledger, &accounts);
+        let l = Arc::new(Limiter::with_ledger(ledger, &accounts));
         l.check_rate(&c).unwrap();
         l.check_rate(&c).unwrap();
         let e = l.check_rate(&c).unwrap_err();
         assert_eq!(e.code, ErrorCode::RateLimitExceeded);
         assert!(e.retry_after.unwrap() >= 1);
         assert_eq!(l.remaining_pages(&c), Some(2));
-        l.consume_pages(&c, 1).await;
+        l.reserve_page(&c).await.unwrap().commit().await;
         assert!(l.check_quota(&c).is_ok());
-        l.consume_pages(&c, 1).await;
+        l.reserve_page(&c).await.unwrap().commit().await;
         assert_eq!(l.remaining_pages(&c), Some(0));
         assert_eq!(
             l.check_quota(&c).unwrap_err().code,
@@ -561,21 +535,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn consume_pages_never_overshoots_the_quota() {
-        let c = caller(KeyLimits {
-            pages_per_day: Some(2),
-            ..Default::default()
-        });
-        let limiter = Limiter::new(None);
-        limiter.consume_pages(&c, 5).await;
-        assert_eq!(limiter.remaining_pages(&c), Some(0));
-        assert_eq!(
-            limiter.check_quota(&c).unwrap_err().code,
-            ErrorCode::QuotaExceeded
-        );
-    }
-
-    #[tokio::test]
     async fn ledger_reservations_are_atomic_across_limiter_instances() {
         let ledger = Arc::new(
             pagesift_cluster::Ledger::open(pagesift_cluster::LedgerConfig::new(
@@ -623,11 +582,13 @@ mod tests {
         });
         {
             let store = Store::open_dir(dir.path()).unwrap();
-            let l = Limiter::new(Some(store));
+            let l = Arc::new(Limiter::new(Some(store)));
             assert_eq!(l.remaining_pages(&c), Some(5));
-            l.consume_pages(&c, 4).await;
+            for _ in 0..4 {
+                l.reserve_page(&c).await.unwrap().commit().await;
+            }
             assert!(l.check_quota(&c).is_ok());
-            l.consume_pages(&c, 1).await;
+            l.reserve_page(&c).await.unwrap().commit().await;
             assert_eq!(
                 l.check_quota(&c).unwrap_err().code,
                 ErrorCode::QuotaExceeded

@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex as StdMutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::SystemTime;
@@ -7,7 +7,7 @@ use pagesift_store::Store;
 
 use crate::engine::{BoxFuture, CrawlResume, CrawlSink};
 use crate::error::{ApiError, ErrorCode};
-use crate::limits::{Caller, quota_error};
+use crate::limits::{Caller, PageHold, quota_error};
 use crate::types::{CrawlSummary, Document, JobError};
 use crate::webhook::{Event, Hook};
 
@@ -42,6 +42,8 @@ pub(super) struct JobSink {
     /// Serialized per-job asset publication, initialized from persisted pages
     /// when resuming so concurrent pages never carry the same bytes twice.
     pub(super) asset_hashes: tokio::sync::Mutex<Option<HashSet<String>>>,
+    /// 在途页面的配额预留，按抓取 URL 索引；重试同一 URL 不重复预留。
+    pub(super) holds: tokio::sync::Mutex<HashMap<String, PageHold>>,
 }
 
 impl JobSink {
@@ -239,7 +241,7 @@ impl JobSink {
                 }
             }
         }
-        let owner = {
+        {
             let mut map = inner.map.lock().await;
             let Some(job) = map.get_mut(&self.id) else {
                 return;
@@ -254,15 +256,11 @@ impl JobSink {
                 None => job.stored_docs += 1,
             }
             job.touch();
-            job.owner.clone()
-        };
+        }
         if let Some(state) = guard.as_mut() {
             state.as_mut().expect("initialized above").extend(published);
         }
         inner.metrics.page(self.kind.pages());
-        if let Some(c) = owner {
-            inner.limiter.consume_pages(&c, 1).await;
-        }
         if let (Some(hook), Some(doc)) = (&self.hook, page_doc) {
             hook.send(Event::Page, vec![doc], None).await;
         }
@@ -417,6 +415,50 @@ impl CrawlSink for JobSink {
 
     fn cancelled(&self) -> BoxFuture<'_, bool> {
         Box::pin(self.stopped())
+    }
+
+    fn reserve_page<'a>(&'a self, url: &'a str) -> BoxFuture<'a, Result<(), ApiError>> {
+        Box::pin(async move {
+            let mut holds = self.holds.lock().await;
+            if holds.contains_key(url) {
+                return Ok(());
+            }
+            let Some(caller) = self.owner().await else {
+                return Ok(());
+            };
+            let limiter = &self.jobs.inner.limiter;
+            match limiter.reserve_page(&caller).await {
+                Ok(hold) => {
+                    holds.insert(url.to_string(), hold);
+                    Ok(())
+                }
+                Err(e) => {
+                    self.quota_hit.store(true, Ordering::Relaxed);
+                    Err(e)
+                }
+            }
+        })
+    }
+
+    fn settle_page<'a>(&'a self, url: &'a str) -> BoxFuture<'a, ()> {
+        Box::pin(async move {
+            let hold = { self.holds.lock().await.remove(url) };
+            if let Some(hold) = hold {
+                hold.commit().await;
+            }
+        })
+    }
+
+    fn release_page<'a>(&'a self, url: &'a str) -> BoxFuture<'a, ()> {
+        Box::pin(async move {
+            drop(self.holds.lock().await.remove(url));
+        })
+    }
+
+    fn release_pending(&self) -> BoxFuture<'_, ()> {
+        Box::pin(async move {
+            self.holds.lock().await.clear();
+        })
     }
 
     fn resume(&self) -> Option<CrawlResume> {

@@ -157,6 +157,12 @@ impl Scraper {
                 let Some((url, depth, attempt, low)) = pick else {
                     break;
                 };
+                // 配额在发请求之前预留；拒绝时整次爬取立即停下，不再发任何页面请求。
+                if let Err(e) = sink.reserve_page(url.as_str()).await {
+                    sink.error(url.as_str(), e).await;
+                    cancelled = true;
+                    break;
+                }
                 normal_inflight += usize::from(!low);
                 *host_inflight.entry(frontier_host(&url)).or_default() += 1;
                 let opts = opts.clone();
@@ -277,12 +283,18 @@ impl Scraper {
                         doc.markdown = None;
                     }
                     delivered += 1;
+                    sink.settle_page(url.as_str()).await;
                     sink.page(doc).await;
                 }
-                Err(e) => sink.error(url.as_str(), e).await,
+                Err(e) => {
+                    sink.release_page(url.as_str()).await;
+                    sink.error(url.as_str(), e).await;
+                }
             }
             sink.total((scheduled + queue.len()).min(req.limit)).await;
         }
+        // 取消或提前停止时，在途页面的预留在这里退还
+        sink.release_pending().await;
         // 所有爬取结束时都报告停止原因（带查询的见 crawl_focused），绑定不用自己推断
         let stop_reason = if cancelled {
             "cancelled"
