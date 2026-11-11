@@ -7,7 +7,8 @@
 //! println!("{}", doc.markdown);
 //! ```
 
-#![forbid(unsafe_code)]
+// 产品代码仍然不允许 unsafe；单元测试里的分配计数器需要实现 `GlobalAlloc`。
+#![cfg_attr(not(test), forbid(unsafe_code))]
 
 mod budget;
 mod cmap;
