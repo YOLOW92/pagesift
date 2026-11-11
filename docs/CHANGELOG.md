@@ -2,6 +2,10 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## 1.2.6
+
+Single-node page quota persists only settled pages: failed reservations are no longer written to disk, and concurrent commits for one account are serialized so an older snapshot cannot overwrite a newer one. No API or configuration changes. [Release notes](releases/1.2.6.md).
+
 ## 1.2.5
 
 Redirect credentials are limited to the exact request origin (scheme, host and effective port). Daily page quota is reserved atomically before each billable page fetch — including crawl, batch, monitor and agent paths — settled when the page is delivered and released when it is not. ZIP stored entries are validated before copying, MOBI/PalmDOC and HUFF/CDIC decompression is budgeted per write, and PDF predictor row buffers plus ASCII85/ASCIIHex/RunLength/Crypt allocations are bounded before allocation; the PDF change is synced with yolowpdf 0.1.1. [Release notes](releases/1.2.5.md).

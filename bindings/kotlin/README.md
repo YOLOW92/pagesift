@@ -5,7 +5,7 @@ Kotlin uses the [Java binding](../java/README.md) of [pagesift](https://github.c
 ## Install
 
 ```kotlin
-implementation("io.github.yolow92:pagesift:1.2.5")
+implementation("io.github.yolow92:pagesift:1.2.6")
 ```
 
 The package includes the library for Linux x86_64, Linux aarch64 and macOS arm64. There is no Windows library.
