@@ -249,12 +249,12 @@ impl<'a> Huff<'a> {
                     // 临时展开也占正文预算：不能只检查最终正文，让递归缓存无限累计
                     let left = limit
                         .checked_sub(out.len())
-                        .ok_or_else(|| Error::TooLarge("decompressed size"))?;
+                        .ok_or(Error::TooLarge("decompressed size"))?;
                     self.unpack(slice, depth + 1, &mut buf, left)?;
                     self.cached = self
                         .cached
                         .checked_add(buf.len())
-                        .ok_or_else(|| Error::TooLarge("decompressed size"))?;
+                        .ok_or(Error::TooLarge("decompressed size"))?;
                     if self.cached > MAX_TEXT {
                         return Err(Error::TooLarge("decompressed size"));
                     }

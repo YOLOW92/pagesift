@@ -14,8 +14,8 @@ http-body = "1.1.0"
 http-body-util = "0.1.5"
 hyper = { version = "1.12.0", features = ["client", "server", "http2"] }
 hyper-util = { version = "0.1.21", features = ["tokio"] }
-pagesift-stat = { version = "1.2.4", path = "../pagesift-stat" }
-pagesift-store = { version = "1.2.4", path = "../pagesift-store" }
+pagesift-stat = { version = "1.2.5", path = "../pagesift-stat" }
+pagesift-store = { version = "1.2.5", path = "../pagesift-store" }
 tokio = { version = "1.54.1", features = ["sync", "rt", "macros", "time", "io-util", "net"] }
 tokio-rustls = { version = "0.26.6", default-features = false, features = ["ring", "tls12", "logging"] }
 

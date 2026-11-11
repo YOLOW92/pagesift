@@ -724,7 +724,7 @@ mod tests {
         assert_eq!(r, Err(DecodeError::TooLarge));
         assert!(peak < 64 << 10, "ASCIIHex peak {peak}");
 
-        let run_input = vec![0u8, b'a'].repeat(4 << 20);
+        let run_input = [0u8, b'a'].repeat(4 << 20);
         let (r, peak) = probe::peak(|| decode(&run_input, &[(b"RunLengthDecode", None)], 1024));
         assert_eq!(r, Err(DecodeError::TooLarge));
         assert!(peak < 64 << 10, "RunLength peak {peak}");
