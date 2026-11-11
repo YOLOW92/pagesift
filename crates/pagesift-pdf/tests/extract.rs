@@ -243,7 +243,9 @@ fn scanned_pages_are_flagged() {
     assert_eq!(img.encoding, pagesift_pdf::ImageEncoding::Pixels);
     assert_eq!(img.color_space, "DeviceGray");
     assert_eq!(img.extension, "png");
+    assert_eq!(img.mime_type(), "image/png");
     assert!(img.data.is_none());
+    assert!(img.data_url().is_none());
     let p = img.placements[0];
     assert_eq!(
         (p.page, p.x, p.y, p.width, p.height),
@@ -266,6 +268,8 @@ fn scanned_pages_are_flagged() {
     let doc = pagesift_pdf::extract_with(&Builder::new(vec![scan]).build(), &opts).unwrap();
     let png = doc.images[0].data.as_ref().unwrap();
     assert!(png.starts_with(b"\x89PNG\r\n\x1a\n"));
+    let data_url = doc.images[0].data_url().unwrap();
+    assert!(data_url.starts_with("data:image/png;base64,iVBORw0KGgo"));
 
     // 有图有字的页面不算扫描件
     let mixed = Page {

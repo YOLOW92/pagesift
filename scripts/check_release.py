@@ -56,6 +56,23 @@ def check(tag=None):
         f'CONTRIBUTING.md must say "Rust {msrv} or newer" (rust-version in Cargo.toml)'
     # 首页 README 的模板、徽章白名单、标题版本号（0.90 起必须按模板改版）
     subprocess.run([sys.executable, '-I', str(ROOT/'scripts/check_readme.py'), '--release'], check=True)
+    # 本机存在上游仓库 yolow64 / yolowpdf / yolowhtml 时，校验 Cargo.lock 已同步到最新版本
+    lock_toml = tomllib.loads((ROOT / 'Cargo.lock').read_text())
+    locked_pkgs = {p['name']: p['version'] for p in lock_toml.get('package', [])}
+    for up_name, up_toml, keys in [
+        ('yolow64', Path('/home/yolow92/yolow64/Cargo.toml'), ('package', 'version')),
+        ('yolowpdf', Path('/home/yolow92/yolowpdf/Cargo.toml'), ('workspace', 'package', 'version')),
+        ('yolowhtml', Path('/home/yolow92/yolowhtml/Cargo.toml'), ('workspace', 'package', 'version')),
+        ('yolowhtml-dom', Path('/home/yolow92/yolowhtml/Cargo.toml'), ('workspace', 'package', 'version')),
+    ]:
+        if up_toml.is_file():
+            d = tomllib.loads(up_toml.read_text())
+            for k in keys:
+                d = d[k]
+            assert locked_pkgs.get(up_name) == d, (
+                f'{up_name} in Cargo.lock is {locked_pkgs.get(up_name)}, '
+                f'but local {up_toml} is {d}; run `cargo update -p {up_name}`'
+            )
     print(f'Release identity OK: {version}, {len(names)} Rust packages, {len(platforms)} npm platforms, dynamic Python version')
     return metadata
 

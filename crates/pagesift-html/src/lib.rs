@@ -1,10 +1,4 @@
-//! 面向正文提取的 HTML 解析器。
-//!
-//! - 零拷贝：文本和属性值直接引用源字符串，只有含字符引用的部分才解码到一块共享缓冲区；
-//! - 紧凑的树：节点放在一个 `Vec` 里，用 u32 下标互相引用，标签是枚举；
-//! - HTML5 树构建规则里影响文本结构的部分都实现了（隐式标签、自动闭合、作用域、表格、
-//!   外部内容、raw text），见 `builder` 模块的说明；
-//! - CSS 选择器（[`Selector`]）和 HTML 序列化（[`NodeRef::html`]）。
+//! 面向正文提取的 HTML 解析器（由 [`yolowhtml_dom`] 驱动）。
 //!
 //! ```
 //! let doc = pagesift_html::Html::parse("<p>Fish &amp; chips<p>Peas");
@@ -19,21 +13,4 @@
 
 #![forbid(unsafe_code)]
 
-mod builder;
-mod dom;
-mod entities;
-mod entity;
-mod select;
-mod serialize;
-mod tag;
-
-pub use dom::{
-    Ancestors, Children, Descendants, Element, Html, Namespace, NodeId, NodeRef, ParseOptions,
-    ParseScratch,
-};
-pub use select::{Select, Selector, SelectorError};
-pub use tag::Tag;
-
-/// 建树次数计数器，只在 `count-builds` feature 下存在（测试用）。
-#[cfg(feature = "count-builds")]
-pub use builder::BUILDS as DOM_BUILDS;
+pub use yolowhtml_dom::*;

@@ -1,5 +1,5 @@
 [package]
-description = "PDF to clean Markdown: text extraction, layout reconstruction and scanned-page detection, built for LLM pipelines."
+description = "PDF to clean Markdown for PageSift (re-exports yolowpdf)."
 name = "pagesift-pdf"
 version.workspace = true
 edition.workspace = true
@@ -9,13 +9,7 @@ rust-version.workspace = true
 exclude = ["fuzz"]
 
 [dependencies]
-aes = "0.9.2"
-brotli-decompressor = "6.0.1"
-encoding_rs = "0.8.35"
-md-5 = "0.11.0"
-miniz_oxide = "0.9.1"
-pagesift-stat = { version = "1.2.6", path = "../pagesift-stat" }
-sha2 = "0.11.1"
+yolowpdf = "0.1.2"
 
 [dev-dependencies]
 pagesift-testkit = { path = "../pagesift-testkit" }
@@ -24,3 +18,4 @@ pagesift-sys = { path = "../pagesift-sys" }
 # 测试里用 lopdf 生成 PDF：独立的写入方，正好检验自研的读取
 lopdf = { version = "0.45.0", default-features = false }
 proptest = { version = "1.7.0", default-features = false, features = ["std"] }
+serde_json = "1.0.154"

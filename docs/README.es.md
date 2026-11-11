@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.2.6
+# pagesift 1.2.7
 
 **La capa de web y documentos para agentes de IA: entra cualquier URL, documento, correo, archivo comprimido o código fuente y sale Markdown limpio o JSON.**  
 Un único binario en Rust, autoalojado, con CLI, API de Firecrawl y de Jina Reader, servidor MCP y paquetes para Python, Node.js, Go, Java, C#, Ruby, PHP y más.
@@ -43,7 +43,7 @@ Puede sustituir o acompañar a: **Firecrawl** (la misma API v1/v2, autoalojada),
 - **Entorno de ejecución:** nada que instalar para HTTP, PDF y Office. Opcional: un navegador para páginas con JavaScript, una GPU NVIDIA para OCR, tu propio modelo para `/v2/agent`
 - **Memoria:** pico de 18–377 MB por trabajador en las pruebas de 1.1 sin navegador; el OCR con modelos de fórmulas necesita unos 1.7 GB; la capacidad se dimensiona a partir del límite del cgroup
 - **Licencia:** AGPL-3.0, o una [licencia comercial](COMMERCIAL.md)
-- **Última versión:** 1.2.6 · [notas de la versión](releases/1.2.6.md)
+- **Última versión:** 1.2.7 · [notas de la versión](releases/1.2.7.md)
 
 <!-- section: install -->
 ## Instalación y uso
@@ -53,7 +53,7 @@ Puede sustituir o acompañar a: **Firecrawl** (la misma API v1/v2, autoalojada),
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| Servidor | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.2.6` | `curl localhost:3002/r/https://example.com` |
+| Servidor | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.2.7` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -97,7 +97,7 @@ const items = await scraper.scrapeMany(['https://example.com', 'https://example.
 **Servidor HTTP**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.2.6
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.2.7
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'                        # API de Firecrawl
@@ -326,11 +326,11 @@ flowchart LR
 [licencia comercial](COMMERCIAL.md) o escribe a `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
-## Novedades de 1.2.6
+## Novedades de 1.2.7
 
-La cuota de páginas en un solo nodo ahora solo persiste las páginas liquidadas: la reserva de una petición fallida ya no se guarda en disco y las confirmaciones de una misma cuenta se escriben en orden, de modo que una instantánea antigua no sobrescribe otra más nueva. Las páginas fallidas dejan de cobrarse tras reiniciar. Sin cambios de API ni de configuración.
+`pagesift-base64` y `pagesift-pdf` ahora enlazan directamente con los crates originales `yolow64` y `yolowpdf`, incorporando seis núcleos AVX2+BMI2 `pext` para entradas cortas y colas Base64, correcciones en el decodificador por fragmentos, soporte para conteos personalizados de hilos en decodificación paralela y métodos auxiliares de Data URL en Base64 para imágenes PDF exportadas. Sin cambios de API ni de configuración.
 
-[Notas de la versión](releases/1.2.6.md) · [1.2.5](releases/1.2.5.md) · [todas las versiones](releases/) · [CHANGELOG](CHANGELOG.md)
+[Notas de la versión](releases/1.2.7.md) · [1.2.6](releases/1.2.6.md) · [todas las versiones](releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -346,7 +346,7 @@ Preguntas o comentarios: [Discord](https://discord.gg/esA3wMZVvA) · [Issues](ht
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.2.6}
+  note   = {Version 1.2.7}
 }
 ```
 

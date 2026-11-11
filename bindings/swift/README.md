@@ -5,7 +5,7 @@ A Swift binding of [pagesift](https://github.com/YOLOW92/pagesift) over its C AB
 ## Install
 
 ```swift
-.package(url: "https://github.com/YOLOW92/pagesift.git", from: "1.2.6")
+.package(url: "https://github.com/YOLOW92/pagesift.git", from: "1.2.7")
 ```
 
 The product is `Pagesift`.

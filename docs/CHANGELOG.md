@@ -2,6 +2,10 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## 1.2.7
+
+`pagesift-base64`, `pagesift-pdf`, `pagesift-html` and `pagesift-content` now delegate directly to upstream `yolow64` `0.3.0`, `yolowpdf` `0.1.2`, `yolowhtml-dom` `0.1.0` and `yolowhtml` `0.1.0`, adding dedicated AVX2+BMI2 `pext` short-input and tail Base64 decode kernels (`decode12`/`24`/`44`/`88` and `tail44`/`88`), fixing `Decoder::feed` partial-buffer state on rejected chunks and `decode_parallel_with_threads` custom thread limits, and exposing `PdfImage::mime_type()` and `PdfImage::data_url()`. No API or configuration changes. [Release notes](releases/1.2.7.md).
+
 ## 1.2.6
 
 Single-node page quota persists only settled pages: failed reservations are no longer written to disk, and concurrent commits for one account are serialized so an older snapshot cannot overwrite a newer one. No API or configuration changes. [Release notes](releases/1.2.6.md).

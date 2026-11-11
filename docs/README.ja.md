@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.2.6
+# pagesift 1.2.7
 
 **AI エージェントのための Web・文書レイヤー：URL、文書、メール、圧縮ファイル、ソースコードを入力すると、クリーンな Markdown または JSON を出力します。**  
 セルフホストできる単一の Rust バイナリ：CLI、Firecrawl・Jina Reader API、MCP サーバー、Python・Node.js・Go・Java・C#・Ruby・PHP などのパッケージ。
@@ -43,7 +43,7 @@ pagesift は、考えるソフトウェアのために Web と文書を読みま
 - **ランタイム：** HTTP、PDF、Office にはインストール不要。オプション：JavaScript ページ用のブラウザ、OCR 用の NVIDIA GPU、`/v2/agent` 用の自分のモデル
 - **メモリ：** ブラウザなしの 1.1 の各ベンチマークでワーカーあたりピーク 18–377 MB。数式モデルを使う OCR には約 1.7 GB が必要です。容量は cgroup の上限から決まります
 - **ライセンス：** AGPL-3.0、または[商用ライセンス](COMMERCIAL.md)
-- **最新版：** 1.2.6 · [リリースノート](releases/1.2.6.md)
+- **最新版：** 1.2.7 · [リリースノート](releases/1.2.7.md)
 
 <!-- section: install -->
 ## インストールと使い方
@@ -53,7 +53,7 @@ pagesift は、考えるソフトウェアのために Web と文書を読みま
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| サーバー | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.2.6` | `curl localhost:3002/r/https://example.com` |
+| サーバー | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.2.7` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -97,7 +97,7 @@ const items = await scraper.scrapeMany(['https://example.com', 'https://example.
 **HTTP サーバー**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.2.6
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.2.7
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'                        # Firecrawl API
@@ -325,11 +325,11 @@ flowchart LR
 [商用ライセンス](COMMERCIAL.md)を確認するか、`licensing@pagesift.dev` までご連絡ください。
 
 <!-- section: changelog -->
-## 1.2.6 の新機能
+## 1.2.7 の新機能
 
-単一ノードのページ配额は、確定したページだけを永続化するようになりました。失敗したリクエストの予約は書き込まれず、同一アカウントのコミットは順序どおりに書き込まれるため、古いスナップショットが新しいものを上書きしません。再起動後に失敗ページが課金されることはありません。API と設定は変わりません。
+`pagesift-base64` と `pagesift-pdf` は上流の `yolow64` および `yolowpdf` クレートを直接参照するようになりました。短入力および末尾向けの 6 つの AVX2+BMI2 `pext` Base64 デコードカーネル、不正チャンク後のストリーミングデコーダ状態修正、並列デコードのスレッド数上限修正、および PDF 画像の Base64 Data URL ヘルパーが含まれます。API と設定は変わりません。
 
-[リリースノート](releases/1.2.6.md) · [1.2.5](releases/1.2.5.md) · [すべてのリリース](releases/) · [CHANGELOG](CHANGELOG.md)
+[リリースノート](releases/1.2.7.md) · [1.2.6](releases/1.2.6.md) · [すべてのリリース](releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -345,7 +345,7 @@ flowchart LR
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.2.6}
+  note   = {Version 1.2.7}
 }
 ```
 
