@@ -74,7 +74,16 @@ struct Bucket {
 #[derive(Clone, Copy)]
 struct Usage {
     day: u64,
-    used: u64,
+    /// 已结算、真正消费掉的页数；写盘只写这个值。
+    settled: u64,
+    /// 已预留、还没结算的页数。只在内存里，进程重启即消失，绝不写盘。
+    held: u64,
+}
+
+impl Usage {
+    fn used(&self) -> u64 {
+        self.settled + self.held
+    }
 }
 
 #[derive(Default)]
@@ -83,6 +92,8 @@ pub(crate) struct Limiter {
     usage: Mutex<HashMap<Arc<str>, Usage>>,
     store: Option<Store>,
     ledger: Option<Arc<pagesift_cluster::Ledger>>,
+    /// 每个账户一把写盘锁：同一账户的配额快照按顺序落盘，旧的快照不会覆盖新的。
+    write_locks: Mutex<HashMap<Arc<str>, Arc<tokio::sync::Mutex<()>>>>,
 }
 
 fn rate_error(rpm: u32, wait: u64) -> ApiError {
@@ -202,11 +213,16 @@ impl Limiter {
                 let (d, n) = text.split_once(' ')?;
                 Some(Usage {
                     day: d.parse().ok()?,
-                    used: n.parse().ok()?,
+                    settled: n.parse().ok()?,
+                    held: 0,
                 })
             })
             .filter(|u| u.day == day);
-        stored.unwrap_or(Usage { day, used: 0 })
+        stored.unwrap_or(Usage {
+            day,
+            settled: 0,
+            held: 0,
+        })
     }
 
     fn usage_entry<'a>(
@@ -234,7 +250,7 @@ impl Limiter {
         if let Some(l) = &self.ledger {
             return l.balance(&c.account);
         }
-        Some(max.saturating_sub(self.usage(&c.account).used))
+        Some(max.saturating_sub(self.usage(&c.account).used()))
     }
 
     pub(crate) fn check_quota(&self, c: &Caller) -> Result<(), ApiError> {
@@ -284,10 +300,10 @@ impl Limiter {
         {
             let mut map = self.usage.lock().unwrap_or_else(|e| e.into_inner());
             let u = self.usage_entry(&mut map, &c.account, day);
-            if u.used.saturating_add(amount) > max {
+            if u.used().saturating_add(amount) > max {
                 return Err(quota_error(c));
             }
-            u.used += amount;
+            u.held += amount;
         }
         Ok(PageHold {
             limiter: self.clone(),
@@ -306,23 +322,43 @@ impl Limiter {
         if let Some(u) = map.get_mut(account)
             && u.day == day
         {
-            u.used = u.used.saturating_sub(amount);
+            u.held = u.held.saturating_sub(amount);
         }
     }
 
-    async fn persist_usage(&self, account: &Arc<str>) {
+    /// 结算：把 `amount` 从在途预留移到已结算，然后只持久化已结算值。
+    /// 同一账户的写盘用一把锁串行化，保证旧快照不会在新快照之后落盘。
+    async fn settle_usage(&self, account: &Arc<str>, day: u64, amount: u64) {
+        let lock = {
+            let mut locks = self.write_locks.lock().unwrap_or_else(|e| e.into_inner());
+            locks
+                .entry(account.clone())
+                .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
+                .clone()
+        };
+        let _guard = lock.lock().await;
+        let (day, settled) = {
+            let mut map = self.usage.lock().unwrap_or_else(|e| e.into_inner());
+            let Some(u) = map.get_mut(account) else {
+                return;
+            };
+            // 跨天：旧日的额度已经作废，不再记到新的一天
+            if u.day != day {
+                return;
+            }
+            u.held = u.held.saturating_sub(amount);
+            u.settled = u.settled.saturating_add(amount);
+            (u.day, u.settled)
+        };
+        self.write_usage(account, day, settled).await;
+    }
+
+    async fn write_usage(&self, account: &Arc<str>, day: u64, settled: u64) {
         let Some(store) = &self.store else {
             return;
         };
-        let u = {
-            let map = self.usage.lock().unwrap_or_else(|e| e.into_inner());
-            match map.get(account) {
-                Some(u) => *u,
-                None => return,
-            }
-        };
         let key = usage_key(account);
-        let value = format!("{} {}", u.day, u.used);
+        let value = format!("{day} {settled}");
         let r = store
             .blocking(move |s| s.tasks().kv_put(key, value.as_bytes()))
             .await;
@@ -357,7 +393,9 @@ impl PageHold {
             }
             return;
         }
-        self.limiter.persist_usage(&self.account).await;
+        self.limiter
+            .settle_usage(&self.account, self.day, self.amount)
+            .await;
     }
 }
 
@@ -532,6 +570,51 @@ mod tests {
         // 重启：已结算的 1 页还在，未结算的预留不落盘
         let limiter = Limiter::new(Some(Store::open_dir(dir.path()).unwrap()));
         assert_eq!(limiter.remaining_pages(&c), Some(1));
+    }
+
+    #[tokio::test]
+    async fn failed_reservation_is_not_persisted() {
+        let dir = tempfile::tempdir().unwrap();
+        let c = caller(KeyLimits {
+            pages_per_day: Some(2),
+            ..Default::default()
+        });
+        let limiter = Arc::new(Limiter::new(Some(Store::open_dir(dir.path()).unwrap())));
+        let a = limiter.reserve_page(&c).await.unwrap();
+        let b = limiter.reserve_page(&c).await.unwrap();
+        a.commit().await;
+        // B 失败：只退内存里的在途预留，磁盘上不能留下这一页
+        drop(b);
+        assert_eq!(limiter.remaining_pages(&c), Some(1));
+        drop(limiter);
+        let limiter = Limiter::new(Some(Store::open_dir(dir.path()).unwrap()));
+        assert_eq!(limiter.remaining_pages(&c), Some(1));
+    }
+
+    #[tokio::test]
+    async fn concurrent_commits_persist_every_settled_page_in_order() {
+        let dir = tempfile::tempdir().unwrap();
+        let c = Arc::new(caller(KeyLimits {
+            pages_per_day: Some(20),
+            ..Default::default()
+        }));
+        let limiter = Arc::new(Limiter::new(Some(Store::open_dir(dir.path()).unwrap())));
+        let mut tasks = Vec::new();
+        for _ in 0..20 {
+            let (limiter, c) = (limiter.clone(), c.clone());
+            tasks.push(tokio::spawn(async move {
+                let hold = limiter.reserve_page(&c).await.unwrap();
+                hold.commit().await;
+            }));
+        }
+        for task in tasks {
+            task.await.unwrap();
+        }
+        assert_eq!(limiter.remaining_pages(&c), Some(0));
+        drop(limiter);
+        // 任何一次乱序写盘都会让重启后的已用页数少于 20
+        let limiter = Limiter::new(Some(Store::open_dir(dir.path()).unwrap()));
+        assert_eq!(limiter.remaining_pages(&c), Some(0));
     }
 
     #[tokio::test]
