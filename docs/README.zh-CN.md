@@ -238,17 +238,17 @@ flowchart TD
     Hooks --> Policy[pagesift-policy：robots、限速、退避、身份租约]
     Policy --> Net[pagesift-net：HTTP、SSRF 防护、经校验的代理隧道、可选 TLS 指纹]
     Net --> Plan{pagesift-plan：要渲染吗？}
-    Plan -->|否| DOM[pagesift-html：arena DOM]
+    Plan -->|否| DOM["pagesift-html (yolowhtml-dom)：arena DOM"]
     Plan -->|是| CDP[pagesift-cdp：浏览器池、自动化标记清理、挑战等待]
     CDP --> DOM
-    Net -->|PDF| PDF[pagesift-pdf]
+    Net -->|PDF| PDF["pagesift-pdf (yolowpdf + yolow64)"]
     Net -->|Office、电子书、邮件、压缩包、文本| Office[pagesift-office]
     Net -->|图片| OCR[pagesift-ocr, pagesift-infer, pagesift-gpu]
     Office -->|压缩包成员、邮件附件| Office
     Office -->|压缩包成员、邮件附件| PDF
     Office -->|源代码| Syntax[pagesift-syntax]
     PDF -->|扫描页| OCR[pagesift-ocr、pagesift-infer、pagesift-gpu]
-    DOM --> Content[pagesift-content：正文、Markdown、元数据]
+    DOM --> Content["pagesift-content (yolowhtml)：正文、Markdown、元数据"]
     DOM --> Extract[pagesift-extract：选择器、重新定位、分块]
     PDF --> Sink[pagesift-sink：输出和缓存格式]
     Office --> Sink
@@ -325,7 +325,7 @@ flowchart LR
 <!-- section: changelog -->
 ## 1.2.7 新增
 
-`pagesift-base64` 与 `pagesift-pdf` 现直接依赖上游 `yolow64` 与 `yolowpdf`，合入 6 个面向短输入和尾部的 AVX2+BMI2 `pext` Base64 解码内核，修复流式解码器在非法分块后的残余缓冲状态与并行解码自定义线程上限问题，并为导出的 PDF 图片提供原生 Base64 Data URL 辅助方法。API 与配置不变。
+`pagesift-base64`、`pagesift-pdf`、`pagesift-html` 与 `pagesift-content` 现直接依赖上游 `yolow64`、`yolowpdf`、`yolowhtml-dom` 与 `yolowhtml`，合入 6 个面向短输入和尾部的 AVX2+BMI2 `pext` Base64 解码内核，修复流式解码器在非法分块后的残余缓冲状态与并行解码自定义线程上限问题，并为导出的 PDF 图片提供原生 Base64 Data URL 辅助方法。API 与配置不变。
 
 [发布说明](releases/1.2.7.md) · [1.2.6](releases/1.2.6.md) · [全部版本](releases/) · [CHANGELOG](CHANGELOG.md)
 

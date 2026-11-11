@@ -14,17 +14,17 @@ flowchart TD
     Hooks --> Policy[pagesift-policy: robots, rate limits, backoff, identity leases]
     Policy --> Net[pagesift-net: HTTP, SSRF guards, validated proxy tunnels, optional TLS fingerprint]
     Net --> Plan{pagesift-plan: render?}
-    Plan -->|No| DOM[pagesift-html: arena DOM]
+    Plan -->|No| DOM["pagesift-html (yolowhtml-dom): arena DOM"]
     Plan -->|Yes| CDP[pagesift-cdp: browser pool, automation-marker removal, challenge settle]
     CDP --> DOM
-    Net -->|PDF| PDF[pagesift-pdf]
+    Net -->|PDF| PDF["pagesift-pdf (yolowpdf + yolow64)"]
     Net -->|Office, e-books, email, archives, text| Office[pagesift-office]
     Net -->|Image| OCR[pagesift-ocr, pagesift-infer, pagesift-gpu]
     Office -->|archive member, attachment| Office
     Office -->|archive member, attachment| PDF
     Office -->|source code| Syntax[pagesift-syntax]
     PDF -->|scanned page| OCR
-    DOM --> Content[pagesift-content: main content, Markdown, metadata]
+    DOM --> Content["pagesift-content (yolowhtml): main content, Markdown, metadata"]
     DOM --> Extract[pagesift-extract: selectors, relocation, chunking]
     PDF --> Sink[pagesift-sink: outputs and cache format]
     Office --> Sink
@@ -53,9 +53,9 @@ to `metadata.pagesift.plan.steps`.
 | Entry points | `pagesift` (CLI and library), `pagesift-api` (HTTP), `pagesift-mcp`, `pagesift-py`, `pagesift-node`, `pagesift-ffi` |
 | Engine | `pagesift-engine`, `pagesift-plan`, `pagesift-hooks`, `pagesift-llm`, `pagesift-search` |
 | Network and recovery | `pagesift-net`, `pagesift-policy` (rate limits and identity leases), `pagesift-rustls`, `pagesift-cdp`, `pagesift-media`, `pagesift-itna` |
-| Content | `pagesift-html`, `pagesift-content`, `pagesift-extract`, `pagesift-diff`, `pagesift-frontier` |
-| Documents | `pagesift-pdf`, `pagesift-office`, `pagesift-syntax`, `pagesift-ocr`, `pagesift-infer`, `pagesift-gpu` |
-| Runtime | `pagesift-flow` (workers and admission), `pagesift-stat` (online statistics), `pagesift-sys`, `pagesift-store`, `pagesift-sink`, `pagesift-cluster` |
+| Content | `pagesift-html` (`yolowhtml-dom`), `pagesift-content` (`yolowhtml`), `pagesift-extract`, `pagesift-diff`, `pagesift-frontier` |
+| Documents | `pagesift-pdf` (`yolowpdf`), `pagesift-office`, `pagesift-syntax`, `pagesift-ocr`, `pagesift-infer`, `pagesift-gpu` |
+| Runtime | `pagesift-flow` (workers and admission), `pagesift-stat` (online statistics), `pagesift-base64` (`yolow64`), `pagesift-sys`, `pagesift-store`, `pagesift-sink`, `pagesift-cluster` |
 
 ## Execution
 

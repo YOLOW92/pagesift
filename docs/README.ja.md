@@ -238,17 +238,17 @@ flowchart TD
     Hooks --> Policy[pagesift-policy: robots、レート制限、バックオフ、ID リース]
     Policy --> Net[pagesift-net: HTTP、SSRF ガード、検証済みプロキシトンネル、オプションの TLS フィンガープリント]
     Net --> Plan{pagesift-plan: レンダリングする？}
-    Plan -->|いいえ| DOM[pagesift-html: アリーナ DOM]
+    Plan -->|いいえ| DOM["pagesift-html (yolowhtml-dom): アリーナ DOM"]
     Plan -->|はい| CDP[pagesift-cdp: ブラウザプール、自動化マーカー除去、チャレンジ待機]
     CDP --> DOM
-    Net -->|PDF| PDF[pagesift-pdf]
+    Net -->|PDF| PDF["pagesift-pdf (yolowpdf + yolow64)"]
     Net -->|Office、電子書籍、メール、圧縮ファイル、テキスト| Office[pagesift-office]
     Net -->|画像| OCR[pagesift-ocr, pagesift-infer, pagesift-gpu]
     Office -->|圧縮ファイルの中身、添付ファイル| Office
     Office -->|圧縮ファイルの中身、添付ファイル| PDF
     Office -->|ソースコード| Syntax[pagesift-syntax]
     PDF -->|スキャンページ| OCR
-    DOM --> Content[pagesift-content: 本文、Markdown、メタデータ]
+    DOM --> Content["pagesift-content (yolowhtml): 本文、Markdown、メタデータ"]
     DOM --> Extract[pagesift-extract: セレクタ、再配置、チャンク分割]
     PDF --> Sink[pagesift-sink: 出力とキャッシュ形式]
     Office --> Sink
@@ -327,7 +327,7 @@ flowchart LR
 <!-- section: changelog -->
 ## 1.2.7 の新機能
 
-`pagesift-base64` と `pagesift-pdf` は上流の `yolow64` および `yolowpdf` クレートを直接参照するようになりました。短入力および末尾向けの 6 つの AVX2+BMI2 `pext` Base64 デコードカーネル、不正チャンク後のストリーミングデコーダ状態修正、並列デコードのスレッド数上限修正、および PDF 画像の Base64 Data URL ヘルパーが含まれます。API と設定は変わりません。
+`pagesift-base64`、`pagesift-pdf`、`pagesift-html`、`pagesift-content` は上流の `yolow64`、`yolowpdf`、`yolowhtml-dom`、`yolowhtml` クレートを直接参照するようになりました。短入力および末尾向けの 6 つの AVX2+BMI2 `pext` Base64 デコードカーネル、不正チャンク後のストリーミングデコーダ状態修正、並列デコードのスレッド数上限修正、および PDF 画像の Base64 Data URL ヘルパーが含まれます。API と設定は変わりません。
 
 [リリースノート](releases/1.2.7.md) · [1.2.6](releases/1.2.6.md) · [すべてのリリース](releases/) · [CHANGELOG](CHANGELOG.md)
 

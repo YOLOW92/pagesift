@@ -238,17 +238,17 @@ flowchart TD
     Hooks --> Policy[pagesift-policy: robots, límites de tasa, espera progresiva, concesiones de identidad]
     Policy --> Net[pagesift-net: HTTP, protecciones SSRF, túneles de proxy validados, huella TLS opcional]
     Net --> Plan{pagesift-plan: ¿renderizar?}
-    Plan -->|No| DOM[pagesift-html: DOM en arena]
+    Plan -->|No| DOM["pagesift-html (yolowhtml-dom): DOM en arena"]
     Plan -->|Sí| CDP[pagesift-cdp: pool de navegadores, eliminación de marcas de automatización, espera de retos]
     CDP --> DOM
-    Net -->|PDF| PDF[pagesift-pdf]
+    Net -->|PDF| PDF["pagesift-pdf (yolowpdf + yolow64)"]
     Net -->|Office, libros electrónicos, correo, comprimidos, texto| Office[pagesift-office]
     Net -->|Imagen| OCR[pagesift-ocr, pagesift-infer, pagesift-gpu]
     Office -->|miembro de archivo, adjunto| Office
     Office -->|miembro de archivo, adjunto| PDF
     Office -->|código fuente| Syntax[pagesift-syntax]
     PDF -->|página escaneada| OCR
-    DOM --> Content[pagesift-content: contenido principal, Markdown, metadatos]
+    DOM --> Content["pagesift-content (yolowhtml): contenido principal, Markdown, metadatos"]
     DOM --> Extract[pagesift-extract: selectores, reubicación, fragmentación]
     PDF --> Sink[pagesift-sink: salidas y formato de caché]
     Office --> Sink
@@ -328,7 +328,7 @@ flowchart LR
 <!-- section: changelog -->
 ## Novedades de 1.2.7
 
-`pagesift-base64` y `pagesift-pdf` ahora enlazan directamente con los crates originales `yolow64` y `yolowpdf`, incorporando seis núcleos AVX2+BMI2 `pext` para entradas cortas y colas Base64, correcciones en el decodificador por fragmentos, soporte para conteos personalizados de hilos en decodificación paralela y métodos auxiliares de Data URL en Base64 para imágenes PDF exportadas. Sin cambios de API ni de configuración.
+`pagesift-base64`, `pagesift-pdf`, `pagesift-html` y `pagesift-content` ahora enlazan directamente con los crates originales `yolow64`, `yolowpdf`, `yolowhtml-dom` y `yolowhtml`, incorporando seis núcleos AVX2+BMI2 `pext` para entradas cortas y colas Base64, correcciones en el decodificador por fragmentos, soporte para conteos personalizados de hilos en decodificación paralela y métodos auxiliares de Data URL en Base64 para imágenes PDF exportadas. Sin cambios de API ni de configuración.
 
 [Notas de la versión](releases/1.2.7.md) · [1.2.6](releases/1.2.6.md) · [todas las versiones](releases/) · [CHANGELOG](CHANGELOG.md)
 

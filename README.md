@@ -239,17 +239,17 @@ flowchart TD
     Hooks --> Policy[pagesift-policy: robots, rate limits, backoff, identity leases]
     Policy --> Net[pagesift-net: HTTP, SSRF guards, validated proxy tunnels, optional TLS fingerprint]
     Net --> Plan{pagesift-plan: render?}
-    Plan -->|No| DOM[pagesift-html: arena DOM]
+    Plan -->|No| DOM["pagesift-html (yolowhtml-dom): arena DOM"]
     Plan -->|Yes| CDP[pagesift-cdp: browser pool, automation-marker removal, challenge settle]
     CDP --> DOM
-    Net -->|PDF| PDF[pagesift-pdf]
+    Net -->|PDF| PDF["pagesift-pdf (yolowpdf + yolow64)"]
     Net -->|Office, e-books, email, archives, text| Office[pagesift-office]
     Net -->|Image| OCR[pagesift-ocr, pagesift-infer, pagesift-gpu]
     Office -->|archive member, attachment| Office
     Office -->|archive member, attachment| PDF
     Office -->|source code| Syntax[pagesift-syntax]
     PDF -->|scanned page| OCR
-    DOM --> Content[pagesift-content: main content, Markdown, metadata]
+    DOM --> Content["pagesift-content (yolowhtml): main content, Markdown, metadata"]
     DOM --> Extract[pagesift-extract: selectors, relocation, chunking]
     PDF --> Sink[pagesift-sink: outputs and cache format]
     Office --> Sink
@@ -327,7 +327,7 @@ flowchart LR
 <!-- section: changelog -->
 ## What's new in 1.2.7
 
-`pagesift-base64` and `pagesift-pdf` now link directly to the upstream `yolow64` and `yolowpdf` crates, bringing six dedicated AVX2+BMI2 `pext` short-input and tail Base64 decode kernels, streaming decoder state fixes on rejected chunks, custom thread-count support in parallel decoding, and native Base64 Data URL helpers on exported PDF images. No API or configuration change.
+`pagesift-base64`, `pagesift-pdf`, `pagesift-html` and `pagesift-content` now link directly to the upstream `yolow64`, `yolowpdf`, `yolowhtml-dom` and `yolowhtml` crates, bringing six dedicated AVX2+BMI2 `pext` short-input and tail Base64 decode kernels, streaming decoder state fixes on rejected chunks, custom thread-count support in parallel decoding, and native Base64 Data URL helpers on exported PDF images. No API or configuration change.
 
 [Release notes](docs/releases/1.2.7.md) · [1.2.6](docs/releases/1.2.6.md) · [all releases](docs/releases/) · [CHANGELOG](docs/CHANGELOG.md)
 
