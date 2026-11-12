@@ -2,14 +2,14 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.2.7
+# pagesift 1.3.0
 
 **AI 智能体的网页和文档层：输入任意 URL、文档、邮件、压缩包或源代码文件，输出干净的 Markdown 或 JSON。**  
 一个自托管的 Rust 二进制：CLI、Firecrawl 和 Jina Reader API、MCP 服务器，以及 Python、Node.js、Go、Java、C#、Ruby、PHP 等语言的包。
 
 **实测：** PDF 转 Markdown 每页 2.4 ms，比第二名快 20.49 倍；HTML 转 Markdown 每页 0.24 ms，快 8.12 倍；正文提取每页 1.0 ms，快 7.26 倍（越低越好）；Office 每秒 91.7 个文件，是第二名的 3.40 倍（越高越好）。
 
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](../LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](../LICENSE)
 [![Commercial license](https://img.shields.io/badge/commercial-license%20available-green.svg)](COMMERCIAL.md)
 [![Release](https://img.shields.io/github/v/release/YOLOW92/pagesift?include_prereleases)](https://github.com/YOLOW92/pagesift/releases)
 [![crates.io](https://img.shields.io/crates/v/pagesift.svg)](https://crates.io/crates/pagesift)
@@ -42,8 +42,8 @@ pagesift 替会思考的软件读取网页和文档：它抓取一个 URL（只�
 - **平台：** Linux x86_64 / aarch64（glibc ≥ 2.28 和 musl）、macOS arm64、Windows x86_64；Docker 镜像 `ghcr.io/yolow92/pagesift`
 - **运行环境：** HTTP、PDF 和 Office 无需额外安装。可选：处理 JavaScript 页面的浏览器、用于 OCR 的 NVIDIA GPU、供 `/v2/agent` 使用的你自己的模型
 - **内存：** 1.1 各项基准中，不带浏览器时每个 worker 峰值 18–377 MB；带公式模型的 OCR 约需 1.7 GB；容量按 cgroup 上限确定
-- **许可证：** AGPL-3.0，或[商业许可](COMMERCIAL.md)
-- **最新版本：** 1.2.7 · [发行说明](releases/1.2.7.md)
+- **许可证：** Apache-2.0，或[商业支持](COMMERCIAL.md)
+- **最新版本：** 1.3.0 · [发行说明](releases/1.3.0.md)
 
 <!-- section: install -->
 ## 安装与使用
@@ -313,21 +313,20 @@ flowchart LR
 **这些情况选别的**
 
 - **你的输入是图片文件。** OCR 覆盖 PDF 内的扫描页，不处理独立图片。
-- **AGPL 对你不合适**，商业许可也不可行。
 - **你需要托管的云服务。** pagesift 是自托管的。
 
 <!-- section: license -->
 ## 许可证
 
-[AGPL-3.0](../LICENSE)。如需专有链接或不承担 AGPL 义务的私有部署，请见
-[商业许可](COMMERCIAL.md) 或写信到 `licensing@pagesift.dev`。
+[Apache-2.0](../LICENSE)。如需专属技术支持、SLA 保障或企业级合作协议，请查阅
+[商业许可与支持](COMMERCIAL.md) 或写信到 `licensing@pagesift.dev`。
 
 <!-- section: changelog -->
-## 1.2.7 新增
+## 1.3.0 新增
 
-`pagesift-base64`、`pagesift-pdf`、`pagesift-html` 与 `pagesift-content` 现直接依赖上游 `yolow64`、`yolowpdf`、`yolowhtml-dom` 与 `yolowhtml`，合入 6 个面向短输入和尾部的 AVX2+BMI2 `pext` Base64 解码内核，修复流式解码器在非法分块后的残余缓冲状态与并行解码自定义线程上限问题，并为导出的 PDF 图片提供原生 Base64 Data URL 辅助方法。API 与配置不变。
+PageSift 开源许可证正式从 AGPL-3.0-only 切换为 **Apache-2.0**，全面消除网络传染（copyleft）义务，方便企业商用与嵌入集成。API、CLI 和各项配置保持不变。
 
-[发布说明](releases/1.2.7.md) · [1.2.6](releases/1.2.6.md) · [全部版本](releases/) · [CHANGELOG](CHANGELOG.md)
+[发布说明](releases/1.3.0.md) · [1.2.7](releases/1.2.7.md) · [全部版本](releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 

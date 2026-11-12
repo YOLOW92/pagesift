@@ -5,7 +5,7 @@ Kotlin uses the [Java binding](../java/README.md) of [pagesift](https://github.c
 ## Install
 
 ```kotlin
-implementation("io.github.yolow92:pagesift:1.2.7")
+implementation("io.github.yolow92:pagesift:1.3.0")
 ```
 
 The package includes the library for Linux x86_64, Linux aarch64 and macOS arm64. There is no Windows library.
@@ -38,4 +38,4 @@ The tests do not use the network. Set `KOTLIN_HOME` and `JAVA_HOME` to choose th
 
 ## License
 
-AGPL-3.0-only, with commercial licensing available. See the [main repository](https://github.com/YOLOW92/pagesift).
+Apache-2.0. See the [main repository](https://github.com/YOLOW92/pagesift).

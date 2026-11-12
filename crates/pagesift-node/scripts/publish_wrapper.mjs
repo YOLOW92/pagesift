@@ -17,7 +17,7 @@ const pkgJson = {
   name: 'pagesift',
   version,
   description: 'Turn web pages into clean Markdown for LLMs: a polite, Firecrawl-compatible scraping engine written in Rust.',
-  license: 'AGPL-3.0-only',
+  license: 'Apache-2.0',
   repository: {
     type: 'git',
     url: 'git+https://github.com/YOLOW92/pagesift.git',

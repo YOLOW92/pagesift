@@ -10,7 +10,7 @@ description = {
   summary = "LuaJIT binding of libpagesift: documents to Markdown and JSON",
   detailed = "Calls the libpagesift C ABI through LuaJIT ffi. LuaJIT only. The native library is not bundled.",
   homepage = "https://github.com/YOLOW92/pagesift",
-  license = "AGPL-3.0-only",
+  license = "Apache-2.0",
 }
 dependencies = {
   "lua == 5.1",

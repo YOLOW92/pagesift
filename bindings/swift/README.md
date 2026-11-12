@@ -5,7 +5,7 @@ A Swift binding of [pagesift](https://github.com/YOLOW92/pagesift) over its C AB
 ## Install
 
 ```swift
-.package(url: "https://github.com/YOLOW92/pagesift.git", from: "1.2.7")
+.package(url: "https://github.com/YOLOW92/pagesift.git", from: "1.3.0")
 ```
 
 The product is `Pagesift`.
@@ -35,4 +35,4 @@ The tests do not use the network. Set `SWIFT_BIN` to choose the toolchain.
 
 ## License
 
-AGPL-3.0-only, with commercial licensing available. See the [main repository](https://github.com/YOLOW92/pagesift).
+Apache-2.0. See the [main repository](https://github.com/YOLOW92/pagesift).

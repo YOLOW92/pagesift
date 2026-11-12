@@ -2,11 +2,11 @@
 
 <!-- TODO(owner): have this text reviewed by a lawyer before accepting outside contributions. -->
 
-Thank you for contributing to pagesift. pagesift is offered under the AGPL-3.0 and under a commercial license (see [COMMERCIAL.md](../docs/COMMERCIAL.md)). To keep offering both, the project needs permission to distribute your contribution under either license. This agreement gives that permission while you keep the copyright in your work.
+Thank you for contributing to pagesift. pagesift is offered under the Apache-2.0 license (see [LICENSE](../LICENSE)). This agreement gives permission to distribute your contribution while you keep the copyright in your work.
 
 By submitting a Contribution (a pull request, patch, or other material intentionally sent for inclusion in pagesift), you ("You") agree to the following with the pagesift maintainer, YOLOW92 ("the Maintainer"):
 
-1. **Copyright license.** You grant the Maintainer and recipients of software distributed by the Maintainer a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable license to reproduce, prepare derivative works of, publicly display, publicly perform, sublicense and distribute Your Contributions and such derivative works, **under any license terms, including the AGPL-3.0 and proprietary commercial licenses**.
+1. **Copyright license.** You grant the Maintainer and recipients of software distributed by the Maintainer a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable license to reproduce, prepare derivative works of, publicly display, publicly perform, sublicense and distribute Your Contributions and such derivative works, **under any license terms, including the Apache-2.0 and proprietary commercial licenses**.
 
 2. **Patent license.** You grant the Maintainer and recipients of software distributed by the Maintainer a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable patent license to make, have made, use, offer to sell, sell, import and otherwise transfer Your Contributions, where such license applies only to patent claims licensable by You that are necessarily infringed by Your Contribution alone or by its combination with pagesift.
 
@@ -18,7 +18,7 @@ By submitting a Contribution (a pull request, patch, or other material intention
 
 6. **No warranty.** Unless required by law or agreed in writing, You provide Your Contributions "as is", without warranties or conditions of any kind.
 
-7. **Open-source availability.** The Maintainer will keep every Contribution that is included in a release available under the AGPL-3.0 or another OSI-approved open-source license.
+7. **Open-source availability.** The Maintainer will keep every Contribution that is included in a release available under the Apache-2.0 or another OSI-approved open-source license.
 
 ## How to sign
 

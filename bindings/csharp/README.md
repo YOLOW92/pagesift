@@ -41,4 +41,4 @@ The tests do not use the network.
 
 ## License
 
-AGPL-3.0-only, with commercial licensing available. See the [main repository](https://github.com/YOLOW92/pagesift).
+Apache-2.0. See the [main repository](https://github.com/YOLOW92/pagesift).

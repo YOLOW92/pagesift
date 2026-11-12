@@ -8,7 +8,7 @@ version = "1.1.0"
 description = "LangChain document loader for pagesift: web pages, sites and local files as Markdown, no API key."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "AGPL-3.0-only" }
+license = { text = "Apache-2.0" }
 dependencies = ["pagesift>=1.1,<2", "langchain-core>=0.3,<2"]
 
 [project.optional-dependencies]

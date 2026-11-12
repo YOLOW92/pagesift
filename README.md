@@ -2,14 +2,14 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.2.7
+# pagesift 1.3.0
 
 **The web and document layer for AI agents: any URL, document, email, archive or source file in, clean Markdown or JSON out.**  
 One self-hosted Rust binary with a CLI, Firecrawl and Jina Reader APIs, an MCP server, and packages for Python, Node.js, Go, Java, C#, Ruby, PHP and more.
 
 **Measured:** PDF to Markdown 2.4 ms per page, 20.49× faster than the next best tool; HTML to Markdown 0.24 ms per page, 8.12× faster; main content 1.0 ms per page, 7.26× faster (lower is better); Office 91.7 files/s, 3.40× the next best (higher is better).
 
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Commercial license](https://img.shields.io/badge/commercial-license%20available-green.svg)](docs/COMMERCIAL.md)
 [![Release](https://img.shields.io/github/v/release/YOLOW92/pagesift?include_prereleases)](https://github.com/YOLOW92/pagesift/releases)
 [![crates.io](https://img.shields.io/crates/v/pagesift.svg)](https://crates.io/crates/pagesift)
@@ -42,8 +42,8 @@ Can replace or sit alongside: **Firecrawl** (same v1/v2 API, self-hosted), **Jin
 - **Platforms:** Linux x86_64 / aarch64 (glibc ≥ 2.28 and musl), macOS arm64, Windows x86_64; Docker image `ghcr.io/yolow92/pagesift`
 - **Runtime:** nothing to install for HTTP, PDF and Office. Optional: a browser for JavaScript pages, an NVIDIA GPU for OCR, your own model for `/v2/agent`
 - **Memory:** 18–377 MB peak per worker across the 1.1 benchmarks without a browser; OCR with formula models needs about 1.7 GB; capacity is sized from the cgroup limit
-- **License:** AGPL-3.0, or a [commercial license](docs/COMMERCIAL.md)
-- **Latest:** 1.2.7 · [release notes](docs/releases/1.2.7.md)
+- **License:** Apache-2.0, or [commercial support](docs/COMMERCIAL.md)
+- **Latest:** 1.3.0 · [release notes](docs/releases/1.3.0.md)
 
 <!-- section: install -->
 ## Install and use
@@ -315,21 +315,20 @@ flowchart LR
 **Pick something else when**
 
 - **Your input is image files.** OCR covers scanned pages inside PDFs, not standalone images.
-- **AGPL does not work for you** and a commercial license is not an option.
 - **You need a managed cloud service.** pagesift is self-hosted.
 
 <!-- section: license -->
 ## License
 
-[AGPL-3.0](LICENSE). For proprietary linking or private deployment without AGPL obligations, see the
-[commercial license](docs/COMMERCIAL.md) or write to `licensing@pagesift.dev`.
+[Apache-2.0](LICENSE). For dedicated support, SLAs or enterprise agreements, see
+[commercial license and support](docs/COMMERCIAL.md) or write to `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
-## What's new in 1.2.7
+## What's new in 1.3.0
 
-`pagesift-base64`, `pagesift-pdf`, `pagesift-html` and `pagesift-content` now link directly to the upstream `yolow64`, `yolowpdf`, `yolowhtml-dom` and `yolowhtml` crates, bringing six dedicated AVX2+BMI2 `pext` short-input and tail Base64 decode kernels, streaming decoder state fixes on rejected chunks, custom thread-count support in parallel decoding, and native Base64 Data URL helpers on exported PDF images. No API or configuration change.
+PageSift is now open-source under the **Apache-2.0** license (switched from AGPL-3.0-only), removing network copyleft obligations for enterprise and commercial adoption. No API, CLI, or configuration changes.
 
-[Release notes](docs/releases/1.2.7.md) · [1.2.6](docs/releases/1.2.6.md) · [all releases](docs/releases/) · [CHANGELOG](docs/CHANGELOG.md)
+[Release notes](docs/releases/1.3.0.md) · [1.2.7](docs/releases/1.2.7.md) · [all releases](docs/releases/) · [CHANGELOG](docs/CHANGELOG.md)
 
 ---
 

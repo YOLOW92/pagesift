@@ -2,14 +2,14 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.2.7
+# pagesift 1.3.0
 
 **La capa de web y documentos para agentes de IA: entra cualquier URL, documento, correo, archivo comprimido o código fuente y sale Markdown limpio o JSON.**  
 Un único binario en Rust, autoalojado, con CLI, API de Firecrawl y de Jina Reader, servidor MCP y paquetes para Python, Node.js, Go, Java, C#, Ruby, PHP y más.
 
 **Medido:** PDF a Markdown 2,4 ms por página, 20,49 veces más rápido que el siguiente; HTML a Markdown 0,24 ms, 8,12 veces; contenido principal 1,0 ms, 7,26 veces (más bajo es mejor); Office 91,7 archivos/s, 3,40 veces el siguiente (más alto es mejor).
 
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](../LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](../LICENSE)
 [![Commercial license](https://img.shields.io/badge/commercial-license%20available-green.svg)](COMMERCIAL.md)
 [![Release](https://img.shields.io/github/v/release/YOLOW92/pagesift?include_prereleases)](https://github.com/YOLOW92/pagesift/releases)
 [![crates.io](https://img.shields.io/crates/v/pagesift.svg)](https://crates.io/crates/pagesift)
@@ -42,8 +42,8 @@ Puede sustituir o acompañar a: **Firecrawl** (la misma API v1/v2, autoalojada),
 - **Plataformas:** Linux x86_64 / aarch64 (glibc ≥ 2.28 y musl), macOS arm64, Windows x86_64; imagen Docker `ghcr.io/yolow92/pagesift`
 - **Entorno de ejecución:** nada que instalar para HTTP, PDF y Office. Opcional: un navegador para páginas con JavaScript, una GPU NVIDIA para OCR, tu propio modelo para `/v2/agent`
 - **Memoria:** pico de 18–377 MB por trabajador en las pruebas de 1.1 sin navegador; el OCR con modelos de fórmulas necesita unos 1.7 GB; la capacidad se dimensiona a partir del límite del cgroup
-- **Licencia:** AGPL-3.0, o una [licencia comercial](COMMERCIAL.md)
-- **Última versión:** 1.2.7 · [notas de la versión](releases/1.2.7.md)
+- **Licencia:** Apache-2.0, o [soporte comercial](COMMERCIAL.md)
+- **Última versión:** 1.3.0 · [notas de la versión](releases/1.3.0.md)
 
 <!-- section: install -->
 ## Instalación y uso
@@ -316,21 +316,20 @@ flowchart LR
 **Elige otra cosa cuando**
 
 - **Tu entrada son archivos de imagen.** El OCR cubre páginas escaneadas dentro de PDF, no imágenes sueltas.
-- **La AGPL no te sirve** y una licencia comercial no es una opción.
 - **Necesitas un servicio gestionado en la nube.** pagesift es autoalojado.
 
 <!-- section: license -->
 ## Licencia
 
-[AGPL-3.0](../LICENSE). Para enlazar con software propietario o desplegar en privado sin las obligaciones de la AGPL, consulta la
-[licencia comercial](COMMERCIAL.md) o escribe a `licensing@pagesift.dev`.
+[Apache-2.0](../LICENSE). Para soporte empresarial, SLAs personalizados o asistencia dedicada de despliegue, consulta la
+[licencia y soporte comercial](COMMERCIAL.md) o escribe a `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
-## Novedades de 1.2.7
+## Novedades de 1.3.0
 
-`pagesift-base64`, `pagesift-pdf`, `pagesift-html` y `pagesift-content` ahora enlazan directamente con los crates originales `yolow64`, `yolowpdf`, `yolowhtml-dom` y `yolowhtml`, incorporando seis núcleos AVX2+BMI2 `pext` para entradas cortas y colas Base64, correcciones en el decodificador por fragmentos, soporte para conteos personalizados de hilos en decodificación paralela y métodos auxiliares de Data URL en Base64 para imágenes PDF exportadas. Sin cambios de API ni de configuración.
+PageSift ahora es de código abierto bajo la licencia **Apache-2.0** (cambiada desde AGPL-3.0-only), eliminando las obligaciones de copyleft de red para facilitar la adopción empresarial y comercial. Sin cambios de API ni de configuración.
 
-[Notas de la versión](releases/1.2.7.md) · [1.2.6](releases/1.2.6.md) · [todas las versiones](releases/) · [CHANGELOG](CHANGELOG.md)
+[Notas de la versión](releases/1.3.0.md) · [1.2.7](releases/1.2.7.md) · [todas las versiones](releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 

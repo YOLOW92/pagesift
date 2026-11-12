@@ -8,7 +8,7 @@ Gem::Specification.new do |s|
   s.description = 'Calls the libpagesift C ABI through fiddle. Bundles the native library for x86_64-linux, aarch64-linux and arm64-darwin.'
   s.authors     = ['YOLOW92']
   s.homepage    = 'https://github.com/YOLOW92/pagesift'
-  s.license     = 'AGPL-3.0-only'
+  s.license     = 'Apache-2.0'
   s.required_ruby_version = '>= 3.1'
   s.files       = Dir['lib/**/*'] + %w[README.md LICENSE NOTICE]
   s.require_paths = ['lib']

@@ -1,6 +1,6 @@
 {
   "name": "@pagesift/node-win32-x64-msvc",
-  "version": "1.2.7",
+  "version": "1.3.0",
   "cpu": [
     "x64"
   ],
@@ -18,7 +18,7 @@
     "html-to-markdown",
     "napi-rs"
   ],
-  "license": "AGPL-3.0-only",
+  "license": "Apache-2.0",
   "engines": {
     "node": ">= 18"
   },

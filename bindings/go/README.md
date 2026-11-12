@@ -5,7 +5,7 @@ A cgo binding of [pagesift](https://github.com/YOLOW92/pagesift) with `Document`
 ## Install
 
 ```sh
-go get github.com/YOLOW92/pagesift/bindings/go@v1.2.7
+go get github.com/YOLOW92/pagesift/bindings/go@v1.3.0
 ```
 
 The package does not include the library. Download `pagesift-ffi-<tag>-<target>.tar.gz` from [GitHub Releases](https://github.com/YOLOW92/pagesift/releases) (Linux x86_64, Linux aarch64, macOS arm64), or build it with `cargo build --release -p pagesift-ffi`. Then tell cgo where it is, or put it on the system library path:
@@ -44,4 +44,4 @@ The tests do not use the network. Set `PAGESIFT_LIB_DIR` to use a library elsewh
 
 ## License
 
-AGPL-3.0-only, with commercial licensing available. See the [main repository](https://github.com/YOLOW92/pagesift).
+Apache-2.0. See the [main repository](https://github.com/YOLOW92/pagesift).

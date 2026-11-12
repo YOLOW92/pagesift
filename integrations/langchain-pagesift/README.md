@@ -31,4 +31,4 @@ Give exactly one of `urls`, `crawl` or `files`. Other keyword arguments are page
 
 Each document's metadata has `source`, then `title`, `description`, `language`, `author`, `published_time`, `content_type`, `status_code` and `content_hash` when known. `warnings` is present when pagesift says a result may be incomplete.
 
-License: AGPL-3.0, or a [commercial license](https://github.com/YOLOW92/pagesift/blob/main/docs/COMMERCIAL.md).
+License: Apache-2.0.

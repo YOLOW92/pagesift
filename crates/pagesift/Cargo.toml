@@ -8,7 +8,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-pagesift-sys = { version = "1.2.7", path = "../pagesift-sys" }
+pagesift-sys = { version = "1.3.0", path = "../pagesift-sys" }
 anyhow = "1.0.104"
 blake3 = { version = "1.8.7", features = ["pure"] }
 axum = "0.8.9"
@@ -19,32 +19,32 @@ flate2 = "1.1.10"
 futures-util = "0.3.34"
 fs2 = "0.4.3"
 httpdate = "1.0.3"
-pagesift-api = { version = "1.2.7", path = "../pagesift-api" }
-pagesift-base64 = { version = "1.2.7", path = "../pagesift-base64" }
-pagesift-hooks = { version = "1.2.7", path = "../pagesift-hooks" }
-pagesift-cdp = { version = "1.2.7", path = "../pagesift-cdp" }
-pagesift-cluster = { version = "1.2.7", path = "../pagesift-cluster" }
-pagesift-content = { version = "1.2.7", path = "../pagesift-content" }
-pagesift-engine = { version = "1.2.7", path = "../pagesift-engine" }
-pagesift-flow = { version = "1.2.7", path = "../pagesift-flow" }
-pagesift-frontier = { version = "1.2.7", path = "../pagesift-frontier" }
-pagesift-plan = { version = "1.2.7", path = "../pagesift-plan" }
-pagesift-sink = { version = "1.2.7", path = "../pagesift-sink" }
-pagesift-stat = { version = "1.2.7", path = "../pagesift-stat" }
-pagesift-diff = { version = "1.2.7", path = "../pagesift-diff" }
-pagesift-extract = { version = "1.2.7", path = "../pagesift-extract" }
-pagesift-html = { version = "1.2.7", path = "../pagesift-html" }
-pagesift-media = { version = "1.2.7", path = "../pagesift-media" }
-pagesift-llm = { version = "1.2.7", path = "../pagesift-llm" }
-pagesift-mcp = { version = "1.2.7", path = "../pagesift-mcp" }
-pagesift-net = { version = "1.2.7", path = "../pagesift-net" }
-pagesift-gpu = { version = "1.2.7", path = "../pagesift-gpu" }
-pagesift-ocr = { version = "1.2.7", path = "../pagesift-ocr" }
-pagesift-office = { version = "1.2.7", path = "../pagesift-office" }
-pagesift-pdf = { version = "1.2.7", path = "../pagesift-pdf" }
-pagesift-policy = { version = "1.2.7", path = "../pagesift-policy" }
-pagesift-search = { version = "1.2.7", path = "../pagesift-search" }
-pagesift-store = { version = "1.2.7", path = "../pagesift-store" }
+pagesift-api = { version = "1.3.0", path = "../pagesift-api" }
+pagesift-base64 = { version = "1.3.0", path = "../pagesift-base64" }
+pagesift-hooks = { version = "1.3.0", path = "../pagesift-hooks" }
+pagesift-cdp = { version = "1.3.0", path = "../pagesift-cdp" }
+pagesift-cluster = { version = "1.3.0", path = "../pagesift-cluster" }
+pagesift-content = { version = "1.3.0", path = "../pagesift-content" }
+pagesift-engine = { version = "1.3.0", path = "../pagesift-engine" }
+pagesift-flow = { version = "1.3.0", path = "../pagesift-flow" }
+pagesift-frontier = { version = "1.3.0", path = "../pagesift-frontier" }
+pagesift-plan = { version = "1.3.0", path = "../pagesift-plan" }
+pagesift-sink = { version = "1.3.0", path = "../pagesift-sink" }
+pagesift-stat = { version = "1.3.0", path = "../pagesift-stat" }
+pagesift-diff = { version = "1.3.0", path = "../pagesift-diff" }
+pagesift-extract = { version = "1.3.0", path = "../pagesift-extract" }
+pagesift-html = { version = "1.3.0", path = "../pagesift-html" }
+pagesift-media = { version = "1.3.0", path = "../pagesift-media" }
+pagesift-llm = { version = "1.3.0", path = "../pagesift-llm" }
+pagesift-mcp = { version = "1.3.0", path = "../pagesift-mcp" }
+pagesift-net = { version = "1.3.0", path = "../pagesift-net" }
+pagesift-gpu = { version = "1.3.0", path = "../pagesift-gpu" }
+pagesift-ocr = { version = "1.3.0", path = "../pagesift-ocr" }
+pagesift-office = { version = "1.3.0", path = "../pagesift-office" }
+pagesift-pdf = { version = "1.3.0", path = "../pagesift-pdf" }
+pagesift-policy = { version = "1.3.0", path = "../pagesift-policy" }
+pagesift-search = { version = "1.3.0", path = "../pagesift-search" }
+pagesift-store = { version = "1.3.0", path = "../pagesift-store" }
 quick-xml = "0.42.0"
 regex = "1.13.1"
 # 多服务器模式的网关证书与工人信任根（workspace 里已有，见 pagesift-net、pagesift-cluster）

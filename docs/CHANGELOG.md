@@ -2,6 +2,10 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## 1.3.0
+
+PageSift is now licensed under the **Apache-2.0** license (re-licensed from AGPL-3.0-only) across the Rust workspace, CLI, server, native packages, MCP servers, and language bindings. No API or configuration changes. [Release notes](releases/1.3.0.md).
+
 ## 1.2.7
 
 `pagesift-base64`, `pagesift-pdf`, `pagesift-html` and `pagesift-content` now delegate directly to upstream `yolow64` `0.3.0`, `yolowpdf` `0.1.2`, `yolowhtml-dom` `0.1.0` and `yolowhtml` `0.1.0`, adding dedicated AVX2+BMI2 `pext` short-input and tail Base64 decode kernels (`decode12`/`24`/`44`/`88` and `tail44`/`88`), fixing `Decoder::feed` partial-buffer state on rejected chunks and `decode_parallel_with_threads` custom thread limits, and exposing `PdfImage::mime_type()` and `PdfImage::data_url()`. No API or configuration changes. [Release notes](releases/1.2.7.md).

@@ -5,7 +5,7 @@ A Zig binding of [pagesift](https://github.com/YOLOW92/pagesift) that declares t
 ## Install
 
 ```sh
-zig fetch --save https://github.com/YOLOW92/pagesift/archive/refs/tags/v1.2.7.tar.gz
+zig fetch --save https://github.com/YOLOW92/pagesift/archive/refs/tags/v1.3.0.tar.gz
 ```
 
 Then in `build.zig`:
@@ -41,4 +41,4 @@ The tests do not use the network. Set `ZIG` to choose the compiler.
 
 ## License
 
-AGPL-3.0-only, with commercial licensing available. See the [main repository](https://github.com/YOLOW92/pagesift).
+Apache-2.0. See the [main repository](https://github.com/YOLOW92/pagesift).

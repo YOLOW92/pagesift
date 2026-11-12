@@ -18,47 +18,8 @@ allow = [
     "Unlicense",
     "CC0-1.0",
 ]
-# pagesift 自己的 crate 用 AGPL-3.0（另有商业许可证，见 docs/COMMERCIAL.md）。第三方依赖仍然只允许上面的宽松许可证：
-# 混进 copyleft 依赖就没法给企业发商业许可证了。
-exceptions = [
-    { name = "pagesift", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-api", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-base64", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-cdp", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-cluster", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-content", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-diff", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-engine", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-extract", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-flow", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-frontier", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-fuzz", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-ffi", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-hooks", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-gpu", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-html", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-infer", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-itna", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-llm", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-mcp", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-media", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-net", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-node", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-ocr", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-compress", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-office", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-syntax", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-pdf", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-plan", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-policy", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-py", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-search", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-sink", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-stat", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-store", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-sys", allow = ["AGPL-3.0-only"] },
-    { name = "pagesift-testkit", allow = ["AGPL-3.0-only"] },
-]
+# pagesift 自身及其依赖均使用宽松许可证（Apache-2.0 / MIT 等）。
+exceptions = []
 
 [bans]
 multiple-versions = "allow"

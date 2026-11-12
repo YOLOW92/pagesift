@@ -8,7 +8,7 @@ A binding of [pagesift](https://github.com/YOLOW92/pagesift) using the JDK's bui
 <dependency>
   <groupId>io.github.yolow92</groupId>
   <artifactId>pagesift</artifactId>
-  <version>1.2.7</version>
+  <version>1.3.0</version>
 </dependency>
 ```
 
@@ -46,4 +46,4 @@ The tests do not use the network. Set `JAVA_HOME` to choose the JDK.
 
 ## License
 
-AGPL-3.0-only, with commercial licensing available. See the [main repository](https://github.com/YOLOW92/pagesift).
+Apache-2.0. See the [main repository](https://github.com/YOLOW92/pagesift).

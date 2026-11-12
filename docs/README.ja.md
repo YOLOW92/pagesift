@@ -2,14 +2,14 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.2.7
+# pagesift 1.3.0
 
 **AI エージェントのための Web・文書レイヤー：URL、文書、メール、圧縮ファイル、ソースコードを入力すると、クリーンな Markdown または JSON を出力します。**  
 セルフホストできる単一の Rust バイナリ：CLI、Firecrawl・Jina Reader API、MCP サーバー、Python・Node.js・Go・Java・C#・Ruby・PHP などのパッケージ。
 
 **実測：** PDF から Markdown は 1 ページ 2.4 ms で次点の 20.49 倍高速、HTML から Markdown は 0.24 ms で 8.12 倍、本文抽出は 1.0 ms で 7.26 倍（低いほど良い）。Office は毎秒 91.7 ファイルで次点の 3.40 倍（高いほど良い）。
 
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](../LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](../LICENSE)
 [![Commercial license](https://img.shields.io/badge/commercial-license%20available-green.svg)](COMMERCIAL.md)
 [![Release](https://img.shields.io/github/v/release/YOLOW92/pagesift?include_prereleases)](https://github.com/YOLOW92/pagesift/releases)
 [![crates.io](https://img.shields.io/crates/v/pagesift.svg)](https://crates.io/crates/pagesift)
@@ -42,8 +42,8 @@ pagesift は、考えるソフトウェアのために Web と文書を読みま
 - **プラットフォーム：** Linux x86_64 / aarch64（glibc 2.28 以上と musl）、macOS arm64、Windows x86_64。Docker イメージ `ghcr.io/yolow92/pagesift`
 - **ランタイム：** HTTP、PDF、Office にはインストール不要。オプション：JavaScript ページ用のブラウザ、OCR 用の NVIDIA GPU、`/v2/agent` 用の自分のモデル
 - **メモリ：** ブラウザなしの 1.1 の各ベンチマークでワーカーあたりピーク 18–377 MB。数式モデルを使う OCR には約 1.7 GB が必要です。容量は cgroup の上限から決まります
-- **ライセンス：** AGPL-3.0、または[商用ライセンス](COMMERCIAL.md)
-- **最新版：** 1.2.7 · [リリースノート](releases/1.2.7.md)
+- **ライセンス：** Apache-2.0、または[商用サポート](COMMERCIAL.md)
+- **最新版：** 1.3.0 · [リリースノート](releases/1.3.0.md)
 
 <!-- section: install -->
 ## インストールと使い方
@@ -315,21 +315,20 @@ flowchart LR
 **別のツールを選ぶべき場合**
 
 - **入力が画像ファイル。** OCR の対象は PDF 内のスキャンページで、単独の画像は対象外です。
-- **AGPL が使えず**、商用ライセンスも選択肢にない場合。
 - **マネージドのクラウドサービスが必要。** pagesift はセルフホストです。
 
 <!-- section: license -->
 ## ライセンス
 
-[AGPL-3.0](../LICENSE)。AGPL の義務なしでのプロプライエタリなリンクや非公開デプロイについては、
-[商用ライセンス](COMMERCIAL.md)を確認するか、`licensing@pagesift.dev` までご連絡ください。
+[Apache-2.0](../LICENSE)。エンタープライズサポート、カスタム SLA、専用導入支援の詳細については、
+[商用ライセンス・サポート](COMMERCIAL.md)を確認するか、`licensing@pagesift.dev` までご連絡ください。
 
 <!-- section: changelog -->
-## 1.2.7 の新機能
+## 1.3.0 の新機能
 
-`pagesift-base64`、`pagesift-pdf`、`pagesift-html`、`pagesift-content` は上流の `yolow64`、`yolowpdf`、`yolowhtml-dom`、`yolowhtml` クレートを直接参照するようになりました。短入力および末尾向けの 6 つの AVX2+BMI2 `pext` Base64 デコードカーネル、不正チャンク後のストリーミングデコーダ状態修正、並列デコードのスレッド数上限修正、および PDF 画像の Base64 Data URL ヘルパーが含まれます。API と設定は変わりません。
+PageSift のオープンソースライセンスを AGPL-3.0-only から **Apache-2.0** に変更し、ネットワークコピーレフト義務を撤回して企業や商用での導入を容易にしました。API、CLI、および設定の変更はありません。
 
-[リリースノート](releases/1.2.7.md) · [1.2.6](releases/1.2.6.md) · [すべてのリリース](releases/) · [CHANGELOG](CHANGELOG.md)
+[リリースノート](releases/1.3.0.md) · [1.2.7](releases/1.2.7.md) · [すべてのリリース](releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
