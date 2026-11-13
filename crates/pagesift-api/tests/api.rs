@@ -83,6 +83,54 @@ impl Engine for Fake {
         Box::pin(async move {
             let doc = self.scrape(&req.url, &req.scrape_options).await?;
             sink.page(doc).await;
+            if let Some(opts) = &req.graph {
+                let mut builder = pagesift_graph::StreamingGraphBuilder::new(opts.clone());
+                let mk =
+                    |url: &str, ts: u64, md: &str, fields: Value| pagesift_graph::DocumentInput {
+                        requested_url: url.into(),
+                        final_url: url.into(),
+                        canonical_url: None,
+                        canonical_from_header: false,
+                        source_kind: pagesift_graph::SourceKind::Html,
+                        observed_at_ms: ts,
+                        status_code: 200,
+                        engine: "mock".into(),
+                        content_hash: None,
+                        raw_hash: None,
+                        text_hash: None,
+                        etag: None,
+                        last_modified: None,
+                        title: None,
+                        markdown: md.into(),
+                        redirect_chain: Vec::new(),
+                        links: Vec::new(),
+                        alternates: Vec::new(),
+                        duplicate_of: None,
+                        attachments: Vec::new(),
+                        structured_json_ld: Vec::new(),
+                        extracted_fields: Some(fields),
+                        raw_traces: Vec::new(),
+                        chunk_spans: Vec::new(),
+                        previous_version: None,
+                        version_diff_stats: None,
+                        changed_block_ids: Vec::new(),
+                    };
+                let d1 = builder.ingest(mk(
+                    &req.url,
+                    1_000,
+                    "Standard plan is $10/month",
+                    json!({"sku": "PRO-1", "price": "$10"}),
+                ));
+                sink.graph_delta(d1).await;
+                let d2 = builder.ingest(mk(
+                    "https://example.com/blog/pro",
+                    2_000,
+                    "Standard plan costs $12/month",
+                    json!({"sku": "PRO-1", "price": "$12"}),
+                ));
+                sink.graph_delta(d2).await;
+                sink.graph_summary(builder.finalize()).await;
+            }
             if req.query.is_some() {
                 sink.summary(CrawlSummary {
                     stop_reason: "coverage_reached".into(),
@@ -957,4 +1005,85 @@ async fn unknown_routes_jobs_and_metrics() {
         "{m}"
     );
     assert!(m.contains("route=\"/v2/scrape\",status=\"200\""), "{m}");
+}
+
+#[tokio::test]
+async fn crawl_graph_history_and_conflicts_endpoints() {
+    let app = app(&[]);
+    let (status, started) = call(
+        &app,
+        "POST",
+        "/v2/crawl",
+        Some(json!({
+            "url": "https://example.com/pricing",
+            "graph": { "subjectKeys": ["sku"] }
+        })),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{started}");
+    let id = started["id"].as_str().unwrap().to_string();
+    for _ in 0..200 {
+        let (_, s) = call(&app, "GET", &format!("/v2/crawl/{id}"), None, None).await;
+        if s["status"] == "completed" {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    let (status, graph) = call(&app, "GET", &format!("/v2/crawl/{id}/graph"), None, None).await;
+    assert_eq!(status, StatusCode::OK, "{graph}");
+    assert_eq!(graph["success"], true);
+    assert_eq!(graph["id"], id);
+    assert_eq!(graph["stats"]["nodes"], 2, "{graph}");
+    assert_eq!(graph["stats"]["conflicts"], 1, "{graph}");
+
+    let (status, missing_url) = call(&app, "GET", "/v2/graph/history", None, None).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{missing_url}");
+
+    let (status, history) = call(
+        &app,
+        "GET",
+        "/v2/graph/history?url=https://example.com/pricing",
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{history}");
+    assert_eq!(history["resourceKey"], "https://example.com/pricing");
+    assert_eq!(
+        history["versions"].as_array().unwrap().len(),
+        1,
+        "{history}"
+    );
+
+    let (status, conflicts) = call(&app, "GET", "/v2/graph/conflicts", None, None).await;
+    assert_eq!(status, StatusCode::OK, "{conflicts}");
+    assert_eq!(conflicts["total"], 1, "{conflicts}");
+    let subject = conflicts["conflicts"][0]["subjectKey"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let (status, filtered) = call(
+        &app,
+        "GET",
+        &format!("/v2/graph/conflicts?subject={subject}"),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{filtered}");
+    assert_eq!(filtered["total"], 1, "{filtered}");
+
+    let (status, empty) = call(
+        &app,
+        "GET",
+        "/v2/graph/conflicts?subject=sku:MISSING",
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{empty}");
+    assert_eq!(empty["total"], 0, "{empty}");
 }

@@ -159,7 +159,23 @@ impl Scraper {
         p.warnings.extend(doc.coverage.warnings());
         let raw_bytes = Some(thin_basis_bytes(&html, &doc.markdown));
         let video_fallback = doc.metadata.video_fallback;
-        Ok(finish(
+        let graph_opts = crate::graph::effective_graph_options(opts);
+        let graph_payload = graph_opts.as_ref().map(|g| {
+            let dom = crate::graph::dom_links::extract_from_html_str(
+                &html,
+                &doc.metadata,
+                doc.fingerprints.as_ref(),
+                Some(base.as_str()),
+            );
+            let traces = if g.evidence || g.facts || g.conflicts {
+                crate::graph::evidence::collect_structured_html_traces(&html, Some(base.as_str()))
+            } else {
+                Vec::new()
+            };
+            let md_fallback = (!opts.wants("markdown")).then(|| doc.markdown.clone());
+            (dom, traces, md_fallback)
+        });
+        let mut out = finish(
             document(doc, opts, html),
             meta,
             ext,
@@ -168,7 +184,22 @@ impl Scraper {
             raw_bytes,
             video_fallback,
             p.started,
-        ))
+        );
+        if let (Some(gopts), Some((dom_data, traces, md_fallback))) = (graph_opts, graph_payload) {
+            crate::graph::attach_html_graph(
+                None,
+                &gopts,
+                &mut out,
+                dom_data,
+                traces,
+                Vec::new(),
+                false,
+                &[],
+                "upload",
+                md_fallback,
+            );
+        }
+        Ok(out)
     }
 }
 

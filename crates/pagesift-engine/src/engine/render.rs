@@ -441,7 +441,15 @@ impl Scraper {
                 failed_after.join(", ")
             ));
         }
-        Ok(rendered_document(r, url, opts, timings, warnings, started))
+        Ok(rendered_document(
+            r,
+            url,
+            opts,
+            timings,
+            warnings,
+            started,
+            self.store.as_ref(),
+        ))
     }
 
     /// 保留页面上取到的结果 → 文档（`/interact`）：和渲染的结果走同一段组装。
@@ -484,6 +492,7 @@ impl Scraper {
             BTreeMap::new(),
             warnings,
             started,
+            self.store.as_ref(),
         ))
     }
 }
@@ -496,6 +505,7 @@ fn rendered_document(
     timings: BTreeMap<String, f64>,
     mut warnings: Vec<String>,
     started: Instant,
+    store: Option<&pagesift_store::Store>,
 ) -> Document {
     let mut meta = Metadata {
         url: Some(r.final_url.to_string()),
@@ -523,10 +533,29 @@ fn rendered_document(
     let video_fallback = r.doc.metadata.video_fallback;
     // 渲染结果的质量分：HTTP 结果按块合并时用（`fetch.rs`），内容层的覆盖率等特征到这里还在
     let quality = super::planner::quality(&r.doc, r.html.len());
+    let graph_opts = crate::graph::effective_graph_options(opts);
+    let graph_payload = graph_opts.as_ref().map(|g| {
+        let dom = crate::graph::dom_links::extract_from_html_str(
+            &r.html,
+            &r.doc.metadata,
+            r.doc.fingerprints.as_ref(),
+            Some(r.final_url.as_str()),
+        );
+        let traces = if g.evidence || g.facts || g.conflicts {
+            crate::graph::evidence::collect_structured_html_traces(
+                &r.html,
+                Some(r.final_url.as_str()),
+            )
+        } else {
+            Vec::new()
+        };
+        let md_fallback = (!opts.wants("markdown")).then(|| r.doc.markdown.clone());
+        (dom, traces, md_fallback)
+    });
     let mut doc = document(r.doc, opts, r.html);
     doc.quality = quality;
     doc.actions = r.actions;
-    finish(
+    let mut out = finish(
         doc,
         meta,
         ext,
@@ -535,7 +564,22 @@ fn rendered_document(
         raw_bytes,
         video_fallback,
         started,
-    )
+    );
+    if let (Some(gopts), Some((dom_data, traces, md_fallback))) = (graph_opts, graph_payload) {
+        crate::graph::attach_html_graph(
+            store,
+            &gopts,
+            &mut out,
+            dom_data,
+            traces,
+            Vec::new(),
+            false,
+            &[],
+            "browser",
+            md_fallback,
+        );
+    }
+    out
 }
 
 /// 正文提取是纯 CPU 计算，放到阻塞线程池里，不占异步运行时的线程。

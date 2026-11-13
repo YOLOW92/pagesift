@@ -11,8 +11,8 @@ use std::sync::{Arc, Mutex};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use pagesift::api::types::{
-    CrawlRequest, CrawlSummary as ApiSummary, Document as ApiDocument, MapLink as ApiMapLink,
-    MapRequest,
+    CrawlRequest, CrawlSummary as ApiSummary, Document as ApiDocument,
+    GraphSummary as ApiGraphSummary, MapLink as ApiMapLink, MapRequest,
 };
 use pagesift::api::{
     ApiError, BoxFuture, CrawlSink, MAX_CRAWL_DEPTH, MAX_CRAWL_LIMIT, MAX_MAP_LIMIT,
@@ -60,6 +60,9 @@ pub struct CrawlOptions {
     /// `auto`（默认）、`http` 或 `browser`。
     #[napi(ts_type = "'auto' | 'http' | 'browser'")]
     pub engine: Option<String>,
+    /// 开启 DataGraph 跨来源关系与证据抽取：`true` 或配置对象。
+    #[napi(ts_type = "boolean | Record<string, unknown>")]
+    pub graph: Option<Value>,
 }
 
 /// `Scraper.map` 的选项。
@@ -153,6 +156,7 @@ struct Shared {
     total: AtomicUsize,
     /// 带 `query` 的爬取由引擎给出；普通爬取在结束时由 [`Shared::finish`] 按页数补上。
     summary: Mutex<Option<ApiSummary>>,
+    graph_summary: Mutex<Option<ApiGraphSummary>>,
 }
 
 impl Shared {
@@ -249,6 +253,13 @@ impl CrawlSink for ChannelSink {
         }
         Box::pin(async {})
     }
+
+    fn graph_summary(&self, s: ApiGraphSummary) -> BoxFuture<'_, ()> {
+        if let Ok(mut slot) = self.shared.graph_summary.lock() {
+            *slot = Some(s);
+        }
+        Box::pin(async {})
+    }
 }
 
 fn check_sitemap(s: &str) -> Fallible<()> {
@@ -284,6 +295,7 @@ fn crawl_request(core: &pagesift::Scraper, url: String, o: CrawlOptions) -> Fall
         only_main_content: o.only_main_content,
         engine: o.engine,
         ignore_robots_txt: Some(ignore_robots),
+        graph: o.graph,
         ..Default::default()
     }
     .to_api()?;
@@ -311,6 +323,9 @@ fn crawl_request(core: &pagesift::Scraper, url: String, o: CrawlOptions) -> Fall
         return Err(ApiError::invalid(format!(
             "limit must not exceed {MAX_CRAWL_LIMIT}"
         )));
+    }
+    if req.graph.is_none() {
+        req.graph = page.graph.clone();
     }
     req.scrape_options = page;
     Ok(req)
@@ -437,6 +452,13 @@ impl CrawlStream {
     pub fn summary(&self) -> Option<CrawlSummary> {
         let s = self.guard.0.summary.lock().ok()?.clone()?;
         Some(s.into())
+    }
+
+    /// DataGraph 汇总结果；未启用或爬取尚未完成时为 null。
+    #[napi(getter, ts_return_type = "Record<string, unknown> | null")]
+    pub fn graph(&self) -> Option<Value> {
+        let g = self.guard.0.graph_summary.lock().ok()?.clone()?;
+        serde_json::to_value(g).ok()
     }
 }
 

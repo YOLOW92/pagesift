@@ -178,6 +178,9 @@ pub fn check_scrape_options(opts: &ScrapeOptions, engine: &dyn Engine) -> Result
     }
     // 抓到的是 PDF 时才用得上，但写错的 parsers 在抓取前就报出来（parse 也走这里）
     PdfParser::from_parsers(opts.parsers.as_ref())?;
+    if let Some(g) = &opts.graph {
+        crate::types::graph::check_graph_options(g)?;
+    }
     Ok(())
 }
 

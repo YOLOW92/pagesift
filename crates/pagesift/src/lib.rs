@@ -16,6 +16,7 @@ pub mod cluster;
 pub mod collect;
 pub mod config;
 pub mod mcp;
+mod mcp_graph;
 pub mod models;
 pub mod session;
 

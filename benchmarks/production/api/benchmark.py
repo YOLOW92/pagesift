@@ -10,7 +10,9 @@ import urllib.request
 import urllib.error
 
 ROOT = Path(__file__).resolve().parents[3]
-PY = ROOT / "benchmarks/data/six/venv/bin/python"
+_VENV_PY = ROOT / "benchmarks/data/six/venv/bin/python"
+_ALT_PY = ROOT / "benchmarks/venv/bin/python"
+PY = _VENV_PY if _VENV_PY.exists() else (_ALT_PY if _ALT_PY.exists() else Path(sys.executable))
 BIN = ROOT / "target/release/pagesift"
 
 def get_peak_rss_mb(pid):

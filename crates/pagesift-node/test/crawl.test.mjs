@@ -114,3 +114,23 @@ test('parseStream yields every file with its index', async () => {
   assert.equal(items[1].error.code, 'UNSUPPORTED_OPTION')
   assert.ok(items[2].page)
 })
+
+test('crawl collects DataGraph summary when graph option is enabled', async () => {
+  const s = local()
+  const stream = s.crawl(`${srv.base}/site/`, {
+    engine: 'http',
+    sitemap: 'skip',
+    limit: 10,
+    graph: true,
+  })
+  assert.equal(stream.graph, null)
+  const pages = []
+  for await (const item of stream) {
+    if (item.page) pages.push(item.page)
+  }
+  assert.equal(pages.length, 3)
+  assert.ok(pages.some((p) => p.graph !== null))
+  assert.ok(stream.graph && Array.isArray(stream.graph.nodes))
+  assert.equal(stream.graph.nodes.length, 3)
+  await s.close()
+})

@@ -31,7 +31,14 @@ fn split_field(value: &str, delimiter: char) -> Vec<&str> {
     parts
 }
 
-pub fn header_links<'a>(base: &Url, fields: impl Iterator<Item = &'a str>) -> Vec<String> {
+struct ParsedLinkItem {
+    url: String,
+    rels: Vec<String>,
+    hreflang: Option<String>,
+    media_type: Option<String>,
+}
+
+fn parse_link_header<'a>(base: &Url, fields: impl Iterator<Item = &'a str>) -> Vec<ParsedLinkItem> {
     let mut out = Vec::new();
     for field in fields {
         for item in split_field(field, ',') {
@@ -45,42 +52,85 @@ pub fn header_links<'a>(base: &Url, fields: impl Iterator<Item = &'a str>) -> Ve
             if !params.trim_start().starts_with(';') {
                 continue;
             }
-            let mut navigation = false;
+            let mut rels = Vec::new();
+            let mut hreflang = None;
+            let mut media_type = None;
             let mut anchored = false;
             for param in split_field(params, ';') {
                 let Some((name, value)) = param.trim().split_once('=') else {
                     continue;
                 };
                 let name = name.trim();
-                let value = value.trim();
+                let value = value
+                    .trim()
+                    .strip_prefix('"')
+                    .and_then(|v| v.strip_suffix('"'))
+                    .unwrap_or(value.trim());
                 // An anchor changes the link context: do not treat it as a
-                // navigation edge from the fetched document.
+                // navigation or canonical edge from the fetched document.
                 anchored |= name.eq_ignore_ascii_case("anchor");
                 if name.eq_ignore_ascii_case("rel") {
-                    let value = value
-                        .strip_prefix('"')
-                        .and_then(|v| v.strip_suffix('"'))
-                        .unwrap_or(value);
-                    navigation |= value
-                        .split_ascii_whitespace()
-                        .any(|r| r.eq_ignore_ascii_case("next") || r.eq_ignore_ascii_case("prev"));
+                    for r in value.split_ascii_whitespace() {
+                        rels.push(r.to_ascii_lowercase());
+                    }
+                } else if name.eq_ignore_ascii_case("hreflang") && !value.is_empty() {
+                    hreflang = Some(value.to_string());
+                } else if name.eq_ignore_ascii_case("type") && !value.is_empty() {
+                    media_type = Some(value.to_string());
                 }
             }
-            if !navigation || anchored || target.trim().is_empty() || target.starts_with('#') {
+            if anchored || target.trim().is_empty() || target.starts_with('#') {
                 continue;
             }
-            if let Ok(mut url) = base.join(target)
+            if let Ok(mut url) = base.join(target.trim())
                 && matches!(url.scheme(), "http" | "https")
             {
                 url.set_fragment(None);
-                let url = url.to_string();
-                if !out.contains(&url) {
-                    out.push(url);
-                }
+                out.push(ParsedLinkItem {
+                    url: url.to_string(),
+                    rels,
+                    hreflang,
+                    media_type,
+                });
             }
         }
     }
     out
+}
+
+pub fn header_links<'a>(base: &Url, fields: impl Iterator<Item = &'a str>) -> Vec<String> {
+    let mut out = Vec::new();
+    for item in parse_link_header(base, fields) {
+        if item.rels.iter().any(|r| r == "next" || r == "prev") && !out.contains(&item.url) {
+            out.push(item.url);
+        }
+    }
+    out
+}
+
+/// Extract HTTP `Link: <...>; rel="canonical"` and `rel="alternate"` targets.
+pub fn header_canonical_and_alternates<'a>(
+    base: &Url,
+    fields: impl Iterator<Item = &'a str>,
+) -> (Option<String>, Vec<(String, String)>) {
+    let mut canonical = None;
+    let mut alternates = Vec::new();
+    for item in parse_link_header(base, fields) {
+        if canonical.is_none() && item.rels.iter().any(|r| r == "canonical") {
+            canonical = Some(item.url.clone());
+        }
+        if item.rels.iter().any(|r| r == "alternate") {
+            let label = item
+                .hreflang
+                .or(item.media_type)
+                .unwrap_or_else(|| "alternate".to_string());
+            let pair = (label, item.url);
+            if !alternates.contains(&pair) {
+                alternates.push(pair);
+            }
+        }
+    }
+    (canonical, alternates)
 }
 
 #[cfg(test)]
@@ -100,6 +150,33 @@ mod tests {
             [
                 "https://example.com/articles/2?a=1,2",
                 "https://example.com/previous"
+            ]
+        );
+    }
+
+    #[test]
+    fn canonical_and_alternate_headers_are_extracted() {
+        let base = Url::parse("https://example.com/files/spec.pdf").unwrap();
+        let fields = [
+            r#"</canonical/spec.pdf>; rel="canonical", </es/spec.pdf>; rel="alternate"; hreflang="es""#,
+            r#"</spec.json>; rel="alternate"; type="application/json""#,
+        ];
+        let (canonical, alternates) = header_canonical_and_alternates(&base, fields.into_iter());
+        assert_eq!(
+            canonical.as_deref(),
+            Some("https://example.com/canonical/spec.pdf")
+        );
+        assert_eq!(
+            alternates,
+            [
+                (
+                    "es".to_string(),
+                    "https://example.com/es/spec.pdf".to_string()
+                ),
+                (
+                    "application/json".to_string(),
+                    "https://example.com/spec.json".to_string()
+                ),
             ]
         );
     }

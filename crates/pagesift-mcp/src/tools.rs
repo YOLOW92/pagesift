@@ -27,6 +27,7 @@ pub const INTERACT: &str = "pagesift_interact";
 pub const INTERACT_STOP: &str = "pagesift_interact_stop";
 pub const AGENT: &str = "pagesift_agent";
 pub const AGENT_STATUS: &str = "pagesift_agent_status";
+pub const GRAPH_QUERY: &str = "pagesift_graph_query";
 
 /// 单页抓取选项（不含 `url`），由引擎能力生成，见 [`crate::options`]。
 pub fn scrape_options_schema(caps: &Capabilities) -> Value {
@@ -198,6 +199,21 @@ pub fn crawl_def(caps: &Capabilities) -> ToolDef {
             "adaptive": { "type": ["boolean", "object"], "description": "With query: stop once the collected pages cover it; an object sets coverageThreshold, evidencePerTerm, patience, minGain." },
             "attachments": { "type": "boolean", "description": "With query: also fetch PDF/Office documents linked from relevant pages." },
             "attachmentLimit": { "type": "integer", "minimum": 0, "description": "Maximum attachments to fetch; defaults to limit." },
+            "graph": {
+                "type": ["boolean", "object"],
+                "properties": {
+                    "enabled": { "type": "boolean", "description": "Enable DataGraph provenance, citations, version lineage, evidence, facts, and conflicts." },
+                    "blocks": { "type": "boolean", "description": "Index stable block references for provenance and evidence alignment." },
+                    "citations": { "type": "boolean", "description": "Extract document-to-document citation edges." },
+                    "provenance": { "type": "boolean", "description": "Record redirect, canonical, alternate, duplicate, and attachment provenance." },
+                    "versions": { "type": "boolean", "description": "Link consecutive versions of the same logical resource." },
+                    "evidence": { "type": "boolean", "description": "Bind extracted fields to supporting block spans." },
+                    "facts": { "type": "boolean", "description": "Normalize and corroborate claims across multiple sources." },
+                    "conflicts": { "type": "boolean", "description": "Detect and record cross-source value conflicts." },
+                    "subjectKeys": { "type": "array", "items": { "type": "string", "description": "Field name used to key entities." }, "description": "Entity identifier keys for cross-source matching, e.g. [\"sku\"]." }
+                },
+                "description": "Build a site-wide DataGraph summary across crawled pages: true or an object with toggles and subjectKeys."
+            },
             "scrapeOptions": scrape_options
         },
         "required": ["url"],
@@ -357,6 +373,32 @@ pub fn batch_scrape_def(caps: &Capabilities) -> ToolDef {
         .annotations(annotations("pagesift batch scrape", false))
 }
 
+pub fn graph_query_def() -> ToolDef {
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "jobId": { "type": "string", "description": "Crawl job id from pagesift_crawl to summarize its DataGraph." },
+            "historyUrl": { "type": "string", "description": "URL or normalized resource key to query historical versions and diff edges." },
+            "conflicts": { "type": "boolean", "description": "When true, return detected cross-source conflicts instead of a single job or URL." },
+            "subject": { "type": "string", "description": "Optional subject key filter for conflicts (e.g. sku:PRO-1); implies conflicts=true when set alone." }
+        },
+        "additionalProperties": false
+    });
+    ToolDef::new(GRAPH_QUERY, schema)
+        .title("Query DataGraph")
+        .description(
+            "Query PageSift DataGraph results produced during crawls or archived in the store: \
+             pass jobId for a crawl's GraphSummary, historyUrl for cross-time version lineage, \
+             or conflicts/subject for cross-source conflicts.",
+        )
+        .output_schema(output::graph_query())
+        .annotations(ToolAnnotations {
+            open_world_hint: Some(false),
+            idempotent_hint: Some(true),
+            ..annotations("pagesift graph query", true)
+        })
+}
+
 /// 基础工具的定义，顺序固定。
 pub fn definitions(caps: &Capabilities) -> Vec<ToolDef> {
     vec![
@@ -464,6 +506,7 @@ mod tests {
         assert!(interact_stop_def().output_schema.is_some());
         assert!(agent_def().output_schema.is_some());
         assert!(agent_status_def().output_schema.is_some());
+        assert!(graph_query_def().output_schema.is_some());
         for d in &defs {
             let out = d.output_schema.as_ref().unwrap();
             assert_eq!(out["type"], "object", "{} outputSchema", d.name);
@@ -505,6 +548,7 @@ mod tests {
         defs.push(interact_stop_def());
         defs.push(agent_def());
         defs.push(agent_status_def());
+        defs.push(graph_query_def());
         for d in &defs {
             walk(&d.input_schema, &d.name);
         }

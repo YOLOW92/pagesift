@@ -19,6 +19,9 @@
 
 mod cache;
 mod engine;
+mod graph;
+#[cfg(test)]
+mod graph_tests;
 mod index;
 mod items;
 mod record;
@@ -36,6 +39,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub use cache::{Cache, CacheEntry, CacheLookup, CachePolicy};
 pub use engine::Store;
+pub use graph::GraphStore;
 pub use items::Items;
 pub use selectors::{SelectorEntry, Selectors};
 pub use snapshot::{ContentHash, SnapshotMeta, SnapshotPut, Snapshots};

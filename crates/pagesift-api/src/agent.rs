@@ -394,6 +394,9 @@ pub fn agent_body(o: &AgentOutcome) -> Value {
 pub fn agent_body_with_evidence(o: &AgentOutcome) -> Value {
     let mut b = agent_body(o);
     b["evidence"] = json!(o.evidence);
+    if !o.evidence_spans.is_empty() {
+        b["evidenceSpans"] = json!(o.evidence_spans);
+    }
     b
 }
 
@@ -466,5 +469,47 @@ impl AgentSink for JobSink {
     fn pages_left(&self) -> Option<u64> {
         let (c, l) = (self.caller.as_ref()?, self.agents.0.limiter.as_ref()?);
         l.remaining_pages(c)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::AgentOutcome;
+    use pagesift_graph::{EvidenceAlignment, EvidenceSpan, ExtractionMethod};
+
+    #[test]
+    fn agent_body_with_evidence_emits_evidence_spans_only_when_non_empty() {
+        let mut outcome = AgentOutcome {
+            finish_reason: "answered".into(),
+            complete: true,
+            ..Default::default()
+        };
+        let empty = agent_body_with_evidence(&outcome);
+        assert!(empty.get("evidenceSpans").is_none());
+
+        outcome.evidence_spans.push(EvidenceSpan {
+            doc_id: "doc-1".into(),
+            url: "https://example.com".into(),
+            block_id: Some("b0".into()),
+            chunk_idx: Some(0),
+            start: Some(0),
+            end: Some(12),
+            excerpt: "Enterprise $99".into(),
+            confidence: 1.0,
+            alignment: EvidenceAlignment::ExactBlock,
+            verified: true,
+            field_path: "$.price".into(),
+            method: ExtractionMethod::Agent {
+                cited_evidence_ids: vec!["ev-1".into()],
+            },
+        });
+        let populated = agent_body_with_evidence(&outcome);
+        let spans = populated["evidenceSpans"]
+            .as_array()
+            .expect("evidenceSpans should be serialized");
+        assert_eq!(spans.len(), 1);
+        assert_eq!(spans[0]["fieldPath"], "$.price");
+        assert_eq!(spans[0]["blockId"], "b0");
     }
 }

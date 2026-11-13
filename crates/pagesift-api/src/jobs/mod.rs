@@ -27,6 +27,7 @@ use crate::metrics::Metrics;
 use crate::types::{CrawlRequest, JobError, ScrapeOptions};
 use crate::webhook::{Event, Hook, Webhooks};
 
+mod graph;
 pub mod mirror;
 mod sink;
 pub mod state;
@@ -62,6 +63,11 @@ impl Default for Jobs {
 }
 
 impl Jobs {
+    /// 构建带可选持久化存储的任务管理器（无外部配额/webhook，适合 MCP 或轻量嵌入）。
+    pub fn with_store(store: Option<Store>) -> Self {
+        Self::new(store, Arc::default(), None, Arc::default(), None)
+    }
+
     pub(crate) fn new(
         store: Option<Store>,
         limiter: Arc<Limiter>,

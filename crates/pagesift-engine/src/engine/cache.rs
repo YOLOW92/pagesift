@@ -166,6 +166,11 @@ impl Scraper {
         {
             items.push(serde_json::json!({ "removeBase64Images": false }));
         }
+        if let Some(g) = opts.graph.as_ref().filter(|g| g.enabled)
+            && let Some(items) = key.as_array_mut()
+        {
+            items.push(serde_json::json!({ "graph": g }));
+        }
         Some((store, key.to_string().into_bytes()))
     }
 }

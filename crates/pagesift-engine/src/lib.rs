@@ -7,6 +7,7 @@ pub mod change;
 pub mod crawl;
 pub mod discovery;
 pub mod engine;
+pub mod graph;
 pub mod notice;
 pub mod scripts;
 

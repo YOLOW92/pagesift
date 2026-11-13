@@ -100,6 +100,9 @@ fn crawl_request(
     }
     check_scrape_options(opts, scraper)?;
     req.scrape_options = opts.clone();
+    if req.graph.is_none() {
+        req.graph = opts.graph.clone();
+    }
     Ok(req)
 }
 
@@ -108,6 +111,7 @@ fn crawl_request(
 struct Collector {
     documents: Mutex<Vec<Value>>,
     summary: Mutex<Option<CrawlSummary>>,
+    graph_summary: Mutex<Option<pagesift_graph::GraphSummary>>,
     pages: AtomicUsize,
     errors: AtomicUsize,
 }
@@ -161,6 +165,13 @@ impl CrawlSink for Collector {
         }
         Box::pin(async {})
     }
+
+    fn graph_summary(&self, s: pagesift_graph::GraphSummary) -> BoxFuture<'_, ()> {
+        if let Ok(mut slot) = self.graph_summary.lock() {
+            *slot = Some(s);
+        }
+        Box::pin(async {})
+    }
 }
 
 pub fn crawl(rt: &Runtime, s: &Arc<Scraper>, url: &str, options: Option<&str>) -> Value {
@@ -200,8 +211,15 @@ pub fn crawl(rt: &Runtime, s: &Arc<Scraper>, url: &str, options: Option<&str>) -
         "coverage": summary.coverage,
         "term_evidence": summary.term_evidence,
     });
+    let graph = sink.graph_summary.lock().ok().and_then(|mut g| g.take());
     match result {
-        Ok(()) => json!({"success": true, "documents": documents, "summary": summary}),
+        Ok(()) => {
+            let mut out = json!({"success": true, "documents": documents, "summary": summary});
+            if let (Some(g), Value::Object(m)) = (graph, &mut out) {
+                m.insert("graph".into(), json!(g));
+            }
+            out
+        }
         Err(e) => {
             // 爬取本身出错（比如路径规则写错）：已经抓到的页面也还给调用方
             let mut v = failure_value(&e);

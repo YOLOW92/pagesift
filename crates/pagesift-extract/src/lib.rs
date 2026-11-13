@@ -27,6 +27,7 @@ pub mod classifier;
 mod css;
 mod engine;
 mod error;
+pub mod evidence;
 mod forms;
 mod identity;
 mod knowledge;
@@ -48,6 +49,10 @@ pub use bm25::{Bm25Options, ScoredBlock, bm25_filter, bm25_scores, filter_markdo
 pub use chunk::{Chunk, ChunkStrategy, TokenIndex, chunk};
 pub use css::JsonCssExtractor;
 pub use error::Error;
+pub use evidence::{
+    AdaptiveWithEvidence, StructuredWithEvidence, extract_adaptive_with_evidence,
+    extract_structured_traces, extract_structured_with_evidence,
+};
 pub use forms::{Control, Form, discover_forms, plan_form_get};
 pub use identity::{IdentifiedItem, discover_items};
 pub use knowledge::{EvidenceRule, Finding, FindingKind, Knowledge, KnowledgeExtractor};

@@ -164,3 +164,22 @@ test('OCR options are checked', () => {
   assert.throws(() => new Scraper({ ocr: true, ocrQuality: 'best' }), /OCR quality must be/)
   assert.throws(() => new Scraper({ ocr: true, gpu: 'metal' }), /gpu mode must be/)
 })
+
+test('canonicalUrl and DataGraph work on scrape and reject invalid graph config', async () => {
+  const s = local()
+  const page = await s.scrape(`${srv.base}/canonical`, {
+    engine: 'http',
+    formats: ['markdown', 'graph'],
+    graph: true,
+  })
+  assert.equal(page.metadata.canonicalUrl, 'https://canonical.example/post')
+  assert.ok(page.graph && typeof page.graph === 'object')
+  assert.equal(typeof page.graph.docId, 'string')
+  assert.ok(page.graph.provenance.some((e) => e.kind === 'canonicalizesTo' && e.canonical_url === 'https://canonical.example/post'))
+  assert.ok(page.toJSON().graph)
+  await assert.rejects(
+    s.scrape(`${srv.base}/article`, { engine: 'http', graph: { subjectKeys: [''] } }),
+    (e) => e instanceof PagesiftError && e.code === 'INVALID_REQUEST',
+  )
+  await s.close()
+})

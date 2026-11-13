@@ -14,6 +14,7 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use pagesift_api::types::Document;
+use pagesift_graph::GraphSummary;
 use pagesift_store::warc::{RecordType, WarcRecord, WarcWriter};
 
 use super::{PageOut, page_url};
@@ -64,6 +65,13 @@ impl PageOut for WarcOut {
             "application/json",
             serde_json::to_vec(&doc.metadata).map_err(std::io::Error::other)?,
         ));
+        if let Some(slice) = &doc.graph {
+            records.push(WarcRecord::new(
+                RecordType::Metadata,
+                "application/vnd.pagesift.graph+json",
+                serde_json::to_vec(slice).map_err(std::io::Error::other)?,
+            ));
+        }
         let mut w = self.writer.lock().unwrap_or_else(|e| e.into_inner());
         w.write_record(&head)?;
         for mut r in records {
@@ -72,6 +80,19 @@ impl PageOut for WarcOut {
             w.write_record(&r)?;
         }
         Ok(())
+    }
+
+    fn graph_summary(&self, summary: &GraphSummary) -> std::io::Result<()> {
+        let payload = serde_json::to_vec(summary).map_err(std::io::Error::other)?;
+        let rec = WarcRecord::new(
+            RecordType::Metadata,
+            "application/vnd.pagesift.graph-summary+json",
+            payload,
+        );
+        self.writer
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .write_record(&rec)
     }
 
     fn finish(&self) -> std::io::Result<()> {
@@ -112,5 +133,63 @@ mod tests {
         }
         assert_eq!(text.matches("WARC-Concurrent-To").count(), 2);
         assert!(text.contains("<h1>Hi</h1>") && text.contains("# Hi"));
+    }
+
+    #[test]
+    fn writes_optional_graph_slice_and_summary_records() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("graph.warc");
+        let out = WarcOut::create(&path).unwrap();
+        let mut builder =
+            pagesift_graph::StreamingGraphBuilder::new(pagesift_graph::GraphOptions::enabled());
+        let delta = builder.ingest(pagesift_graph::DocumentInput {
+            requested_url: "https://e.com/".into(),
+            final_url: "https://e.com/".into(),
+            canonical_url: None,
+            canonical_from_header: false,
+            source_kind: pagesift_graph::SourceKind::Html,
+            observed_at_ms: 100,
+            status_code: 200,
+            engine: "http".into(),
+            content_hash: Some("h1".into()),
+            raw_hash: None,
+            text_hash: None,
+            etag: None,
+            last_modified: None,
+            title: Some("Hi".into()),
+            markdown: "# Hi".into(),
+            redirect_chain: Vec::new(),
+            links: Vec::new(),
+            alternates: Vec::new(),
+            duplicate_of: None,
+            attachments: Vec::new(),
+            structured_json_ld: Vec::new(),
+            extracted_fields: None,
+            raw_traces: Vec::new(),
+            chunk_spans: Vec::new(),
+            previous_version: None,
+            version_diff_stats: None,
+            changed_block_ids: Vec::new(),
+        });
+        let summary = builder.finalize();
+        let doc = Document {
+            markdown: Some("# Hi".into()),
+            raw_html: Some("<h1>Hi</h1>".into()),
+            graph: Some(pagesift_graph::GraphSlice::from(delta)),
+            metadata: Metadata {
+                source_url: Some("https://e.com/".into()),
+                status_code: 200,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        out.page(&doc).unwrap();
+        out.graph_summary(&summary).unwrap();
+        out.finish().unwrap();
+
+        let text = String::from_utf8(std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(text.matches("WARC-Concurrent-To").count(), 3);
+        assert!(text.contains("Content-Type: application/vnd.pagesift.graph+json"));
+        assert!(text.contains("Content-Type: application/vnd.pagesift.graph-summary+json"));
     }
 }

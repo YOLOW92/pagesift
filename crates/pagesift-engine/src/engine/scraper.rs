@@ -338,6 +338,10 @@ impl Scraper {
         &self.crawl_slots
     }
 
+    pub fn store_ref(&self) -> Option<&pagesift_store::Store> {
+        self.store.as_ref()
+    }
+
     /// 当前的全局并发目标（限速器的 USL 控制器给出，冷启动等于配置的全局并发）。
     ///
     /// 多服务器网关上页面由工人执行：取在线工人报告的准入容量之和（至少 1），
@@ -569,6 +573,9 @@ impl Scraper {
                 doc.markdown.as_deref().unwrap_or_default(),
                 c,
             )?);
+            if let Some(gopts) = crate::graph::effective_graph_options(opts) {
+                crate::graph::update_graph_from_chunks(&mut doc, &gopts);
+            }
         }
         let md = doc.markdown.clone().unwrap_or_default();
         if let Some(llm) = self.llm.as_ref().filter(|_| wants_llm) {

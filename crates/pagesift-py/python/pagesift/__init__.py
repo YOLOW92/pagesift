@@ -83,7 +83,7 @@ __all__ = [
     "UpstreamError",
 ]
 
-Format = Literal["markdown", "html", "raw_html", "links", "images"]
+Format = Literal["markdown", "html", "raw_html", "links", "images", "graph"]
 EngineName = Literal["http", "browser", "auto"]
 SitemapMode = Literal["include", "skip", "only"]
 BytesLike = Union[bytes, bytearray, memoryview]
@@ -108,7 +108,8 @@ class ScrapeOptions:
     - ``extract_schema``：按 CSS schema 抽取结构化数据（``baseSelector``、``fields``），结果在
       ``Document.extract``；``Scraper`` 给了 ``store_path`` 时，选择器失效会自动重定位并在 ``warnings`` 里报 ``relocated``；
     - ``max_age``：``store_path`` 的页面缓存最多接受多旧的结果，毫秒；0 表示不读缓存、重新抓取；
-    - ``parsers``：和 HTTP 接口相同，例如 ``[{"type": "pdf", "mode": "ocr"}]``；``ocr`` 模式要 ``Scraper(ocr=True)``。
+    - ``parsers``：和 HTTP 接口相同，例如 ``[{"type": "pdf", "mode": "ocr"}]``；``ocr`` 模式要 ``Scraper(ocr=True)``；
+    - ``graph``：传 ``True`` 或配置 dict（如 ``{"subjectKeys": ["..."]}``）启用 DataGraph 关系与证据输出。
     """
 
     formats: Sequence[Format] = ("markdown",)
@@ -128,6 +129,7 @@ class ScrapeOptions:
     extract_schema: Optional[Mapping[str, Any]] = None
     max_age: Optional[int] = None
     parsers: Optional[Sequence[Any]] = None
+    graph: Optional[Union[bool, Mapping[str, Any]]] = None
     _native: _pagesift.Options = dataclasses.field(
         init=False, repr=False, compare=False, hash=False
     )
@@ -153,6 +155,7 @@ class ScrapeOptions:
             extract_schema=json.dumps(self.extract_schema) if self.extract_schema is not None else None,
             max_age=self.max_age,
             parsers=json.dumps(list(self.parsers)) if self.parsers is not None else None,
+            graph=json.dumps(self.graph) if self.graph is not None else None,
         )
         object.__setattr__(self, "_native", native)
 

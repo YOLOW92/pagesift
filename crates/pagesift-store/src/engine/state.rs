@@ -102,7 +102,7 @@ impl State {
 
     fn update_group(&mut self, ns: u8, key: &[u8], added: bool) {
         let is_list = match ns {
-            ns::LIST_ITEM | ns::SNAP_ITEM => true,
+            ns::LIST_ITEM | ns::SNAP_ITEM | ns::GRAPH_NODE | ns::GRAPH_EDGE => true,
             ns::SET_MEMBER => false,
             _ => return,
         };

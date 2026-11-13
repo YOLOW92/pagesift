@@ -20,7 +20,8 @@ use crate::Scraper;
 
 pub fn tools(scraper: Arc<Scraper>) -> Vec<Arc<dyn ToolHandler>> {
     let audit = scraper.audit().cloned();
-    engine_tools(scraper, audit)
+    let store = scraper.store_ref().cloned();
+    engine_tools_with(scraper, audit, store)
 }
 
 /// 同 [`tools`]，页面交给任意引擎执行：多服务器网关传 `ClusterEngine`，MCP 的抓取和任务走网关的任务系统。
@@ -28,7 +29,15 @@ pub fn engine_tools(
     engine: Arc<dyn Engine>,
     audit: Option<Arc<crate::audit::Audit>>,
 ) -> Vec<Arc<dyn ToolHandler>> {
-    let jobs = Jobs::default();
+    engine_tools_with(engine, audit, None)
+}
+
+fn engine_tools_with(
+    engine: Arc<dyn Engine>,
+    audit: Option<Arc<crate::audit::Audit>>,
+    store: Option<pagesift_store::Store>,
+) -> Vec<Arc<dyn ToolHandler>> {
+    let jobs = Jobs::with_store(store);
     let caps = capabilities(engine.as_ref());
     let mut tools: Vec<Arc<dyn ToolHandler>> = vec![
         Arc::new(Scrape(engine.clone(), caps.clone())),
@@ -50,7 +59,8 @@ pub fn engine_tools(
         tools.push(Arc::new(AgentTool(engine.clone(), agents.clone())));
         tools.push(Arc::new(AgentStatus(agents)));
     }
-    tools.push(Arc::new(Batch(engine, jobs, caps)));
+    tools.push(Arc::new(Batch(engine, jobs.clone(), caps)));
+    tools.push(Arc::new(crate::mcp_graph::GraphQueryTool(jobs)));
     tools
 }
 
@@ -477,6 +487,9 @@ impl ToolHandler for Crawl {
             let req: CrawlRequest = parse(Value::Object(args), &[names::<CrawlRequest>()])?;
             check_url(&req.url).map_err(tool_error)?;
             check_scrape_options(&req.scrape_options, self.0.as_ref()).map_err(tool_error)?;
+            if let Some(g) = &req.graph {
+                pagesift_api::types::graph::check_graph_options(g).map_err(tool_error)?;
+            }
             if req.webhook.is_some() {
                 return Err(tool_error(ApiError::unsupported(
                     "webhooks are not available in this build",

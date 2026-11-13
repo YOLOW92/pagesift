@@ -391,14 +391,31 @@ mod tests {
     use pagesift_api::types::ScrapeOptions;
     use serde_json::json;
 
+    fn crc32(data: &[u8]) -> u32 {
+        let mut c = !0u32;
+        for &b in data {
+            c ^= u32::from(b);
+            for _ in 0..8 {
+                c = if c & 1 != 0 {
+                    (c >> 1) ^ 0xEDB8_8320
+                } else {
+                    c >> 1
+                };
+            }
+        }
+        !c
+    }
+
     fn stored_zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
         let mut out = Vec::new();
         let mut central = Vec::new();
         for (name, data) in entries {
             let offset = out.len() as u32;
+            let crc = crc32(data).to_le_bytes();
             out.extend_from_slice(&0x04034b50u32.to_le_bytes());
             out.extend_from_slice(&[20, 0, 0, 0, 0, 0]);
-            out.extend_from_slice(&[0; 8]);
+            out.extend_from_slice(&[0; 4]);
+            out.extend_from_slice(&crc);
             out.extend_from_slice(&(data.len() as u32).to_le_bytes());
             out.extend_from_slice(&(data.len() as u32).to_le_bytes());
             out.extend_from_slice(&(name.len() as u16).to_le_bytes());
@@ -407,7 +424,8 @@ mod tests {
             out.extend_from_slice(data);
             central.extend_from_slice(&0x02014b50u32.to_le_bytes());
             central.extend_from_slice(&[20, 0, 20, 0, 0, 0, 0, 0]);
-            central.extend_from_slice(&[0; 8]);
+            central.extend_from_slice(&[0; 4]);
+            central.extend_from_slice(&crc);
             central.extend_from_slice(&(data.len() as u32).to_le_bytes());
             central.extend_from_slice(&(data.len() as u32).to_le_bytes());
             central.extend_from_slice(&(name.len() as u16).to_le_bytes());

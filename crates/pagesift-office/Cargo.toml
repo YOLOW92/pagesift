@@ -1,5 +1,5 @@
 [package]
-description = "Office documents to Markdown: Word (.docx), Excel (.xlsx), PowerPoint (.pptx), EPUB and CSV, with its own ZIP and XML readers."
+description = "Office documents and archives to Markdown for pagesift, powered by yolowdoc."
 name = "pagesift-office"
 version.workspace = true
 edition.workspace = true
@@ -7,16 +7,15 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+[features]
+default = ["syntax", "zstd"]
+# 代码文件大纲提取（函数、类、导入）
+syntax = ["yolowdoc/syntax"]
+# .zst / .tar.zst 压缩包解压
+zstd = ["yolowdoc/zstd"]
+
 [dependencies]
-# 代码文件按函数和类分段
-pagesift-syntax = { version = "1.3.0", path = "../pagesift-syntax" }
-# ZIP 里的 deflate 解压（pagesift-pdf 也用它）；其余（ZIP 目录、XML、各格式）都是自己实现的
-miniz_oxide = "0.9.1"
-# CSV 按字节成段扫描（找分隔符、引号、换行用 SIMD）；工作区里别的 crate 已经在用，不增加依赖
-memchr = "2.8.3"
-# 媒体文件的内容哈希（SHA-256）；pagesift-pdf 已经在用，不增加依赖
-sha2 = "0.11.1"
-# RTF 代码页和邮件字符集；pagesift-engine 已经在用，不增加依赖
-encoding_rs = "0.8.42"
-# Jupyter 笔记本；工作区别的 crate 已经在用，不增加依赖
-serde_json = "1.0.154"
+yolowdoc = "0.1.1"
+
+[dev-dependencies]
+pagesift-compress = { path = "../pagesift-compress" }

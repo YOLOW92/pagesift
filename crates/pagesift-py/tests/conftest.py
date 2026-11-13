@@ -81,6 +81,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send(200, SITE[p])
         elif p.startswith("/page/") or p == "/article" or p.startswith("/private"):
             self.send(200, article(f"Page {p}"))
+        elif p == "/canonical":
+            self.send(200, article("Canonical").replace("<head>", '<head><link rel="canonical" href="https://canonical.example/post">'))
         elif p == "/slow":
             probe = q.get("probe", [None])[0]
             if probe:

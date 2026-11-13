@@ -1,0 +1,22 @@
+{
+  "delta_bytes": 7956789,
+  "docs": 1000,
+  "docs_s": 18458.131715160613,
+  "finalize_ms": 7.981541,
+  "ingest_ms": 46.195122999999995,
+  "stats": {
+    "blocks": 3000,
+    "canonicalClusters": 250,
+    "citations": 2000,
+    "claims": 4000,
+    "conflicts": 91,
+    "evidenceSpans": 4000,
+    "factClusters": 841,
+    "nodes": 1000,
+    "provenanceEdges": 3000,
+    "versionEdges": 750
+  },
+  "summary_bytes": 4100357,
+  "total_ms": 54.176663999999995,
+  "vm_hwm_mb": 26.515625
+}

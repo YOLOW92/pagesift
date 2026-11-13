@@ -35,6 +35,9 @@ pub fn fill(meta: &mut Metadata, m: &pagesift_content::Metadata) {
     meta.published_time = m.published_time.clone();
     meta.author = m.author.clone();
     meta.modified_time = m.modified_time.clone();
+    if let Some(canonical) = &m.canonical_url {
+        meta.canonical_url = Some(canonical.clone());
+    }
     for (k, v) in extra(m) {
         meta.extra.entry(k).or_insert_with(|| v.clone().into());
     }
@@ -84,6 +87,7 @@ mod tests {
         assert_eq!(snake_case(&key("og:image")), "og_image");
         let m = pagesift_content::Metadata {
             author: Some("A".into()),
+            canonical_url: Some("https://example.com/canon".into()),
             extra: vec![
                 ("og:image".into(), "1".into()),
                 ("og_image".into(), "2".into()),
@@ -93,6 +97,10 @@ mod tests {
         let mut meta = Metadata::default();
         fill(&mut meta, &m);
         assert_eq!(meta.author.as_deref(), Some("A"));
+        assert_eq!(
+            meta.canonical_url.as_deref(),
+            Some("https://example.com/canon")
+        );
         assert_eq!(meta.extra["ogImage"], "1");
         assert!(
             standard(&m)

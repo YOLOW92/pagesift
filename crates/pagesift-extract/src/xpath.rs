@@ -7,8 +7,10 @@ use serde_json::Value;
 use xpath_eval::{EvaluationContext, ExpandedName, Expr, NodeKind, evaluate, parse};
 
 use crate::engine::{self, Backend, Compiled, Role};
+use crate::evidence::to_xpath_traces;
 use crate::text::node_text;
 use crate::{Error, Schema};
+use pagesift_graph::evidence::RawFieldTrace;
 
 /// 文档嵌套超过这个深度就拒绝求值：`xpath-eval` 的后代轴是递归实现。
 /// pagesift-html 建树时已经把深度限制在这以内，这里是兜底。
@@ -58,6 +60,36 @@ impl JsonXPathExtractor {
             root: XNode::new(root, &order),
         };
         engine::run(&backend, &self.compiled)
+    }
+
+    /// Extract values along with XPath evidence traces for DataGraph alignment.
+    pub fn extract_with_evidence(
+        &self,
+        html: &str,
+        source_url: Option<&str>,
+    ) -> Result<(Vec<Value>, Vec<RawFieldTrace>), Error> {
+        self.extract_document_with_evidence(&Html::parse(html), source_url)
+    }
+
+    /// Extract values and XPath evidence traces from a pre-parsed HTML document.
+    pub fn extract_document_with_evidence(
+        &self,
+        doc: &Html<'_>,
+        source_url: Option<&str>,
+    ) -> Result<(Vec<Value>, Vec<RawFieldTrace>), Error> {
+        let root = doc.root();
+        let (order, depth) = document_order(doc);
+        if depth > MAX_DEPTH {
+            return Err(Error::TooDeep {
+                depth,
+                limit: MAX_DEPTH,
+            });
+        }
+        let backend = XPath {
+            root: XNode::new(root, &order),
+        };
+        let (items, raw) = engine::run_with_evidence(&backend, &self.compiled)?;
+        Ok((items, to_xpath_traces(raw, source_url)))
     }
 }
 

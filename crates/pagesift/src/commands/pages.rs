@@ -144,6 +144,8 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
             explain,
             export_images,
             image_assets,
+            graph,
+            subject_keys,
             allow,
         } => light_runtime()?.block_on(async move {
             if image_assets.as_deref().is_some_and(|m| m != "embed") && format != "json" && out.is_none() {
@@ -155,6 +157,7 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
             }
             allow.apply(&mut sc);
             let scraper = pagesift::Scraper::new(sc)?;
+            let want_graph = graph || !subject_keys.is_empty();
             let mut opts = pagesift::api::types::ScrapeOptions {
                 only_main_content: !full,
                 ignore_robots_txt: ignore_robots,
@@ -166,6 +169,10 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
                     "embed" => pagesift::api::types::ImageAssetMode::Embed,
                     "rewrite" => pagesift::api::types::ImageAssetMode::Rewrite,
                     _ => unreachable!("clap validates image asset mode"),
+                }),
+                graph: want_graph.then(|| pagesift_graph::GraphOptions {
+                    subject_keys,
+                    ..pagesift_graph::GraphOptions::enabled()
                 }),
                 ..Default::default()
             };
@@ -200,7 +207,12 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
                         doc.raw_html = None;
                     }
                     if let Some(dir) = &out {
-                        pagesift_sink::out::DirOut::create(dir)?.page(&doc)?;
+                        let out_dir = pagesift_sink::out::DirOut::create(dir)?;
+                        out_dir.page(&doc)?;
+                        if let Some(slice) = &doc.graph {
+                            let delta = pagesift_engine::graph::page_delta_from_document(&doc, slice);
+                            out_dir.graph_delta(&delta)?;
+                        }
                     }
                     Ok(())
                 })();
@@ -263,6 +275,8 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
             export_images,
             image_assets,
             from_warc,
+            graph,
+            subject_keys,
             allow,
         } => runtime()?.block_on(async move {
             // 自适应时页数由停止规则决定，没给 --limit 时只留一个防失控的上限
@@ -270,6 +284,12 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
                 CRAWL_ADAPTIVE_CAP
             } else {
                 CRAWL_DEFAULT_LIMIT
+            });
+            let graph_cfg = (graph || !subject_keys.is_empty()).then(|| {
+                serde_json::json!({
+                    "enabled": true,
+                    "subjectKeys": subject_keys,
+                })
             });
             let mut req: pagesift::api::types::CrawlRequest =
                 serde_json::from_value(serde_json::json!({
@@ -293,6 +313,7 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
                     "attachments": attachments,
                     "attachmentLimit": attachment_limit,
                     "ignoreRobotsTxt": ignore_robots,
+                    "graph": graph_cfg,
                 }))?;
             let mut scraper_config = cfg.scraper(false)?;
             allow.apply(&mut scraper_config);

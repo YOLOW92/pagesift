@@ -107,8 +107,14 @@ impl Scraper {
                 .and_then(|u| u.host_str().map(pagesift_content::site_key)),
             Source::Upload(_) => None,
         };
+        let graph_opts = crate::graph::effective_graph_options(opts);
         let mut inner = opts.clone();
         inner.formats.retain(|f| f.kind != EXTRACT);
+        let wants_md = inner.wants("markdown");
+        let pushed_md_for_graph = graph_opts.is_some() && !wants_md;
+        if pushed_md_for_graph {
+            inner.formats.push(Format::new("markdown"));
+        }
         let wants_raw = inner.wants("rawHtml");
         if !wants_raw {
             inner.formats.push(Format::new("rawHtml"));
@@ -201,10 +207,20 @@ impl Scraper {
                 ));
             }
         }
+        let evidence_url = graph_opts
+            .as_ref()
+            .filter(|g| g.evidence || g.facts || g.conflicts)
+            .map(|_| doc.metadata.url.clone().unwrap_or_else(|| url.clone()));
         let schema =
             Schema::from_json(&raw).map_err(|e| ApiError::invalid(format!("schema: {e}")))?;
-        let mut outcome = self
-            .extract_with(&html, &schema, site.clone(), &mem_id)
+        let (mut outcome, mut traces) = self
+            .extract_with(
+                &html,
+                &schema,
+                site.clone(),
+                &mem_id,
+                evidence_url.as_deref(),
+            )
             .await?;
         // LLM 兜底：缓存的选择器和 locate 都没找回的，让 LLM 重新解析一次。先修列表项，字段要在列表项里找
         if let Some(llm) = self.llm.as_ref() {
@@ -223,7 +239,9 @@ impl Scraper {
                 if compiles(&trial) {
                     raw = trial;
                     healed.push(BASE_KEY.to_string());
-                    outcome = self.extract_raw(&html, &raw, site.clone(), &mem_id).await?;
+                    (outcome, traces) = self
+                        .extract_raw(&html, &raw, site.clone(), &mem_id, evidence_url.as_deref())
+                        .await?;
                 }
             }
             let fields: Vec<String> = outcome
@@ -256,7 +274,9 @@ impl Scraper {
                     }
                 }
                 if patched {
-                    outcome = self.extract_raw(&html, &raw, site.clone(), &mem_id).await?;
+                    (outcome, traces) = self
+                        .extract_raw(&html, &raw, site.clone(), &mem_id, evidence_url.as_deref())
+                        .await?;
                 }
             }
             // 模型给的选择器真的命中了才算修好
@@ -287,6 +307,12 @@ impl Scraper {
                 .extend(warnings);
         }
         doc.extract = Some(Value::Array(outcome.items));
+        if let Some(gopts) = &graph_opts {
+            crate::graph::evidence::enrich_doc_with_extract_traces(&mut doc, &traces, None, gopts);
+        }
+        if pushed_md_for_graph {
+            doc.markdown = None;
+        }
         Ok(doc)
     }
 }
@@ -355,10 +381,18 @@ impl Scraper {
         raw: &Value,
         site: Option<String>,
         id: &str,
-    ) -> Result<pagesift_extract::AdaptiveOutcome, ApiError> {
+        evidence_url: Option<&str>,
+    ) -> Result<
+        (
+            pagesift_extract::AdaptiveOutcome,
+            Vec<pagesift_graph::RawFieldTrace>,
+        ),
+        ApiError,
+    > {
         let schema =
             Schema::from_json(raw).map_err(|e| ApiError::invalid(format!("schema: {e}")))?;
-        self.extract_with(html, &schema, site, id).await
+        self.extract_with(html, &schema, site, id, evidence_url)
+            .await
     }
 
     async fn extract_with(
@@ -367,7 +401,14 @@ impl Scraper {
         schema: &Schema,
         site: Option<String>,
         id: &str,
-    ) -> Result<pagesift_extract::AdaptiveOutcome, ApiError> {
+        evidence_url: Option<&str>,
+    ) -> Result<
+        (
+            pagesift_extract::AdaptiveOutcome,
+            Vec<pagesift_graph::RawFieldTrace>,
+        ),
+        ApiError,
+    > {
         let memory = match (&self.store, site) {
             (Some(store), Some(site)) => Some(StoreMemory {
                 store: store.clone(),
@@ -376,16 +417,28 @@ impl Scraper {
             }),
             _ => None,
         };
-        let (html, schema) = (html.to_string(), schema.clone());
-        cpu_task(move || {
+        let (html, schema, evidence_url) = (
+            html.to_string(),
+            schema.clone(),
+            evidence_url.map(str::to_string),
+        );
+        cpu_task(move || -> Result<_, pagesift_extract::Error> {
             let parsed = pagesift_html::Html::parse(&html);
-            match &memory {
-                Some(m) => pagesift_extract::extract_adaptive(&parsed, &schema, m),
-                None => pagesift_extract::extract_adaptive(
+            let mem: &dyn SelectorMemory = match &memory {
+                Some(m) => m,
+                None => &pagesift_extract::NoMemory,
+            };
+            if let Some(url) = evidence_url.as_deref() {
+                let res = pagesift_extract::evidence::extract_adaptive_with_evidence(
                     &parsed,
                     &schema,
-                    &pagesift_extract::NoMemory,
-                ),
+                    mem,
+                    Some(url),
+                )?;
+                Ok((res.outcome, res.traces))
+            } else {
+                let outcome = pagesift_extract::extract_adaptive(&parsed, &schema, mem)?;
+                Ok((outcome, Vec::new()))
             }
         })
         .await?

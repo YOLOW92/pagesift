@@ -40,6 +40,7 @@ pub fn document_value(o: &Outcome) -> Value {
         "links": doc.and_then(|d| d.links.as_ref()),
         "images": doc.and_then(|d| d.images.as_ref()),
         "extract": doc.and_then(|d| d.extract.as_ref()),
+        "graph": doc.and_then(|d| d.graph.as_ref()),
         "metadata": meta.map_or_else(|| Value::Object(Map::new()), metadata),
         "attachments": doc.map_or_else(Vec::new, attachments),
         "error_code": err.map(|e| e.code.as_str()),
@@ -73,6 +74,7 @@ fn metadata(m: &Metadata) -> Value {
         ("author", &m.author),
         ("modified_time", &m.modified_time),
         ("content_type", &m.content_type),
+        ("canonical_url", &m.canonical_url),
     ] {
         if let Some(v) = v {
             d.insert(k.into(), Value::String(v.clone()));

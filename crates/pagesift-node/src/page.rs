@@ -23,6 +23,9 @@ pub struct Page {
     /// `extractSchema` 抽出的列表。
     #[serde(skip_serializing_if = "Option::is_none")]
     extract: Option<Value>,
+    /// 单页 DataGraph 增量（开启 `graph` 或 `formats` 含 `'graph'` 时才有）。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    graph: Option<Value>,
     /// 导出的文件；`toJSON` 里只列元数据（字节不进 JSON）。
     #[serde(skip_serializing_if = "Vec::is_empty")]
     attachments: Vec<pagesift::api::types::Attachment>,
@@ -55,6 +58,7 @@ impl Page {
             links: doc.links,
             images: doc.images,
             extract: doc.extract,
+            graph: doc.graph.and_then(|g| serde_json::to_value(g).ok()),
             attachments: doc.attachments,
             metadata: serde_json::to_value(&doc.metadata).unwrap_or(Value::Null),
         }
@@ -75,6 +79,7 @@ impl Page {
             links,
             images,
             extract: None,
+            graph: None,
             attachments: Vec::new(),
             metadata,
         }
@@ -137,6 +142,15 @@ impl Page {
     #[napi(getter, ts_return_type = "Array<Record<string, unknown>> | null")]
     pub fn extract<'e>(&self, env: &'e Env) -> Result<Unknown<'e>> {
         match &self.extract {
+            Some(v) => env.to_js_value(v),
+            None => env.to_js_value(&Value::Null),
+        }
+    }
+
+    /// 开启 `graph` 选项或 `'graph'` 格式时的单页 DataGraph 增量；未启用时为 null。
+    #[napi(getter, ts_return_type = "Record<string, unknown> | null")]
+    pub fn graph<'e>(&self, env: &'e Env) -> Result<Unknown<'e>> {
+        match &self.graph {
             Some(v) => env.to_js_value(v),
             None => env.to_js_value(&Value::Null),
         }

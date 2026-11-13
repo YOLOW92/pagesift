@@ -9,12 +9,14 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use pagesift_api::types::Document;
+use pagesift_graph::{GraphSummary, PageGraphDelta};
 
 use super::{PageOut, page_url};
 
 pub struct DirOut {
     dir: PathBuf,
     used: Mutex<HashSet<String>>,
+    graph_lock: Mutex<()>,
 }
 
 impl DirOut {
@@ -25,6 +27,7 @@ impl DirOut {
         Ok(Self {
             dir,
             used: Mutex::new(HashSet::new()),
+            graph_lock: Mutex::new(()),
         })
     }
 
@@ -86,6 +89,9 @@ pub(super) fn index_line(doc: &Document, url: &str, file: &str) -> serde_json::V
     if !doc.image_assets.is_empty() {
         line["imageAssets"] = serde_json::json!(doc.image_assets);
     }
+    if let Some(canonical) = &doc.metadata.canonical_url {
+        line["canonicalUrl"] = serde_json::json!(canonical);
+    }
     line["status"] = serde_json::json!(doc.metadata.status_code);
     // 结果有数据风险（正文薄、文件损坏……）时和 JSON 的 data.warning 一致
     if let Some(w) = &doc.warning {
@@ -140,6 +146,21 @@ impl PageOut for DirOut {
         writeln!(index, "{}", index_line(doc, &url, &name))?;
         eprintln!("{url} -> {name}");
         Ok(())
+    }
+
+    fn graph_delta(&self, delta: &PageGraphDelta) -> std::io::Result<()> {
+        let line = serde_json::to_string(delta).map_err(std::io::Error::other)?;
+        let _guard = self.graph_lock.lock().unwrap_or_else(|e| e.into_inner());
+        let mut f = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(self.dir.join("graph.jsonl"))?;
+        writeln!(f, "{line}")
+    }
+
+    fn graph_summary(&self, summary: &GraphSummary) -> std::io::Result<()> {
+        let json = serde_json::to_vec_pretty(summary).map_err(std::io::Error::other)?;
+        std::fs::write(self.dir.join("graph_summary.json"), json)
     }
 }
 
@@ -224,5 +245,64 @@ mod tests {
         let index = std::fs::read_to_string(dir.join("index.jsonl")).unwrap();
         assert!(index.contains(&web.id));
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn writes_canonical_url_graph_deltas_and_summary() {
+        let tmp = tempfile::tempdir().unwrap();
+        let out = DirOut::create(tmp.path()).unwrap();
+        let mut builder =
+            pagesift_graph::StreamingGraphBuilder::new(pagesift_graph::GraphOptions::enabled());
+        let delta = builder.ingest(pagesift_graph::DocumentInput {
+            requested_url: "https://e.x/page".into(),
+            final_url: "https://e.x/page".into(),
+            canonical_url: Some("https://e.x/canonical".into()),
+            canonical_from_header: false,
+            source_kind: pagesift_graph::SourceKind::Html,
+            observed_at_ms: 100,
+            status_code: 200,
+            engine: "http".into(),
+            content_hash: Some("h1".into()),
+            raw_hash: None,
+            text_hash: None,
+            etag: None,
+            last_modified: None,
+            title: Some("Page".into()),
+            markdown: "# Page\n\nBody".into(),
+            redirect_chain: Vec::new(),
+            links: Vec::new(),
+            alternates: Vec::new(),
+            duplicate_of: None,
+            attachments: Vec::new(),
+            structured_json_ld: Vec::new(),
+            extracted_fields: None,
+            raw_traces: Vec::new(),
+            chunk_spans: Vec::new(),
+            previous_version: None,
+            version_diff_stats: None,
+            changed_block_ids: Vec::new(),
+        });
+        let summary = builder.finalize();
+
+        let mut doc = Document {
+            markdown: Some("# Page".into()),
+            graph: Some(pagesift_graph::GraphSlice::from(delta.clone())),
+            ..Default::default()
+        };
+        doc.metadata.source_url = Some("https://e.x/page".into());
+        doc.metadata.canonical_url = Some("https://e.x/canonical".into());
+        out.page(&doc).unwrap();
+        out.graph_delta(&delta).unwrap();
+        out.graph_summary(&summary).unwrap();
+
+        let index = std::fs::read_to_string(tmp.path().join("index.jsonl")).unwrap();
+        assert!(index.contains("\"canonicalUrl\":\"https://e.x/canonical\""));
+        let graph_jsonl = std::fs::read_to_string(tmp.path().join("graph.jsonl")).unwrap();
+        assert_eq!(graph_jsonl.lines().count(), 1);
+        let summary_json: GraphSummary = serde_json::from_str(
+            &std::fs::read_to_string(tmp.path().join("graph_summary.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(summary_json.stats.nodes, 1);
     }
 }

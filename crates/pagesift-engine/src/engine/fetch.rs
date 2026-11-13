@@ -132,9 +132,36 @@ impl Scraper {
                 "body_truncated: response body exceeded the size limit and was truncated".into(),
             );
         }
+        let graph_opts = crate::graph::effective_graph_options(opts);
+        let (header_canonical, header_alternates) =
+            crate::discovery::header_canonical_and_alternates(
+                &resp.final_url,
+                resp.headers
+                    .get_all("link")
+                    .iter()
+                    .filter_map(|h| h.to_str().ok()),
+            );
+        let redirect_hops: Vec<(String, String, u16, pagesift_graph::RedirectKind)> =
+            if graph_opts.is_some() {
+                (0..resp.redirect_chain.len())
+                    .map(|i| {
+                        let from_u = resp.redirect_chain[i].url.to_string();
+                        let to_u = resp
+                            .redirect_chain
+                            .get(i + 1)
+                            .map(|h| h.url.to_string())
+                            .unwrap_or_else(|| resp.final_url.to_string());
+                        let st = resp.redirect_chain[i].status;
+                        (from_u, to_u, st, crate::graph::redirect_kind(st))
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
         let mut meta = Metadata {
             url: Some(resp.final_url.to_string()),
             source_url: Some(url.to_string()),
+            canonical_url: header_canonical.clone(),
             status_code: resp.status,
             // 503 只有带 Retry-After 才算限速（RFC 9110 §15.6.4）；分类要用，输出里不出现
             retry_after: resp.headers.contains_key("retry-after"),
@@ -152,11 +179,27 @@ impl Scraper {
             }
             ext.timings = timings;
             ext.warnings = warnings;
-            meta.pagesift = Some(ext);
-            return Ok(Document {
+            meta.pagesift = Some(ext.clone());
+            let mut out = Document {
                 metadata: meta,
+                alternates: header_alternates.clone(),
                 ..Default::default()
-            });
+            };
+            if let Some(gopts) = &graph_opts {
+                crate::graph::build_and_attach_page_graph(
+                    self.store.as_ref(),
+                    gopts,
+                    &mut out,
+                    crate::graph::PageGraphSeed {
+                        canonical_from_header: header_canonical.is_some(),
+                        etag: ext.etag,
+                        last_modified: ext.last_modified,
+                        redirect_chain: redirect_hops,
+                        ..Default::default()
+                    },
+                );
+            }
+            return Ok(out);
         }
 
         // Word、Excel、PowerPoint、EPUB、CSV：内容、Content-Type、网址的扩展名一起判断
@@ -173,9 +216,23 @@ impl Scraper {
                 bytes: resp.body,
                 format,
             };
-            return self
+            let mut out = self
                 .office_document(input, opts, (meta, ext), progress, deadline)
-                .await;
+                .await?;
+            merge_header_alternates(&mut out, &header_alternates);
+            if let Some(gopts) = &graph_opts {
+                let canon_from_header =
+                    header_canonical.is_some() && out.metadata.canonical_url == header_canonical;
+                crate::graph::apply_http_provenance(
+                    self.store.as_ref(),
+                    gopts,
+                    &mut out,
+                    &redirect_hops,
+                    canon_from_header,
+                    &header_alternates,
+                );
+            }
+            return Ok(out);
         }
 
         // 图片：打开了 OCR 才转换；没开时说明怎么开（其他媒体类型仍按原来的提示）
@@ -185,7 +242,7 @@ impl Scraper {
                 timings,
                 warnings,
             };
-            return self
+            let mut out = self
                 .image_document(
                     resp.body,
                     opts,
@@ -193,7 +250,21 @@ impl Scraper {
                     progress,
                     request_deadline(opts, started),
                 )
-                .await;
+                .await?;
+            merge_header_alternates(&mut out, &header_alternates);
+            if let Some(gopts) = &graph_opts {
+                let canon_from_header =
+                    header_canonical.is_some() && out.metadata.canonical_url == header_canonical;
+                crate::graph::apply_http_provenance(
+                    self.store.as_ref(),
+                    gopts,
+                    &mut out,
+                    &redirect_hops,
+                    canon_from_header,
+                    &header_alternates,
+                );
+            }
+            return Ok(out);
         }
 
         if let Some(kind) = unsupported_content_type(resp.content_type(), &resp.body) {
@@ -208,7 +279,7 @@ impl Scraper {
                 timings,
                 warnings,
             };
-            return self
+            let mut out = self
                 .pdf_document(
                     resp.body,
                     opts,
@@ -216,13 +287,37 @@ impl Scraper {
                     progress,
                     request_deadline(opts, started),
                 )
-                .await;
+                .await?;
+            merge_header_alternates(&mut out, &header_alternates);
+            if let Some(gopts) = &graph_opts {
+                let canon_from_header =
+                    header_canonical.is_some() && out.metadata.canonical_url == header_canonical;
+                crate::graph::apply_http_provenance(
+                    self.store.as_ref(),
+                    gopts,
+                    &mut out,
+                    &redirect_hops,
+                    canon_from_header,
+                    &header_alternates,
+                );
+            }
+            return Ok(out);
         }
 
         if let Some(markdown) = json_markdown(resp.content_type(), &resp.body) {
-            return Ok(finish(
+            let raw_json_traces = if graph_opts
+                .as_ref()
+                .is_some_and(|g| g.evidence || g.facts || g.conflicts)
+                && let Ok(raw_str) = std::str::from_utf8(&resp.body)
+            {
+                crate::graph::evidence::collect_json_document_traces(raw_str, meta.url.as_deref())
+            } else {
+                Vec::new()
+            };
+            let mut out = finish(
                 Document {
-                    markdown: opts.wants("markdown").then_some(markdown),
+                    markdown: Some(markdown),
+                    alternates: header_alternates.clone(),
                     ..Default::default()
                 },
                 meta,
@@ -232,7 +327,31 @@ impl Scraper {
                 None,
                 false,
                 started,
-            ));
+            );
+            if let Some(gopts) = &graph_opts {
+                let ps = out.metadata.pagesift.as_ref();
+                let etag = ps.and_then(|p| p.etag.clone());
+                let last_modified = ps.and_then(|p| p.last_modified.clone());
+                crate::graph::build_and_attach_page_graph(
+                    self.store.as_ref(),
+                    gopts,
+                    &mut out,
+                    crate::graph::PageGraphSeed {
+                        source_kind: pagesift_graph::SourceKind::Api,
+                        engine: "http".to_string(),
+                        canonical_from_header: header_canonical.is_some(),
+                        etag,
+                        last_modified,
+                        redirect_chain: redirect_hops,
+                        raw_traces: raw_json_traces,
+                        ..Default::default()
+                    },
+                );
+            }
+            if !opts.wants("markdown") {
+                out.markdown = None;
+            }
+            return Ok(out);
         }
 
         let navigation = if opts.wants("links") {
@@ -326,6 +445,8 @@ impl Scraper {
             http_chars,
             render: hints,
             embedded,
+            mut graph_dom,
+            graph_traces,
         } = fetched;
         if let Some(warning) = decode_warning {
             warnings.push(warning);
@@ -463,6 +584,22 @@ impl Scraper {
                                 plan.push(step);
                             }
                             if let Some(mut better) = better {
+                                if better.metadata.canonical_url.is_none() {
+                                    better.metadata.canonical_url = header_canonical.clone();
+                                }
+                                merge_header_alternates(&mut better, &header_alternates);
+                                if let Some(gopts) = &graph_opts {
+                                    let canon_from_header = header_canonical.is_some()
+                                        && better.metadata.canonical_url == header_canonical;
+                                    crate::graph::apply_http_provenance(
+                                        self.store.as_ref(),
+                                        gopts,
+                                        &mut better,
+                                        &redirect_hops,
+                                        canon_from_header,
+                                        &header_alternates,
+                                    );
+                                }
                                 if opts.explain {
                                     better
                                         .metadata
@@ -539,6 +676,10 @@ impl Scraper {
         warnings.extend(doc.coverage.warnings());
         let raw_bytes = Some(thin_basis_bytes(&html, &doc.markdown));
         let video_fallback = doc.metadata.video_fallback;
+        let canonical_from_header =
+            doc.metadata.canonical_url.is_none() && header_canonical.is_some();
+        let md_for_graph =
+            (graph_opts.is_some() && !opts.wants("markdown")).then(|| doc.markdown.clone());
         let mut result = document(doc, opts, html);
         if let Some(links) = result.links.as_mut() {
             for link in navigation {
@@ -547,7 +688,7 @@ impl Scraper {
                 }
             }
         }
-        Ok(finish(
+        let mut out = finish(
             result,
             meta,
             ext,
@@ -556,6 +697,27 @@ impl Scraper {
             raw_bytes,
             video_fallback,
             started,
-        ))
+        );
+        if let Some(gopts) = &graph_opts {
+            crate::graph::attach_html_graph(
+                self.store.as_ref(),
+                gopts,
+                &mut out,
+                graph_dom.take().unwrap_or_default(),
+                graph_traces,
+                redirect_hops,
+                canonical_from_header,
+                &header_alternates,
+                "http",
+                md_for_graph,
+            );
+        } else {
+            merge_header_alternates(&mut out, &header_alternates);
+        }
+        Ok(out)
     }
+}
+
+fn merge_header_alternates(doc: &mut Document, alts: &[(String, String)]) {
+    crate::graph::merge_header_alternates(doc, alts);
 }

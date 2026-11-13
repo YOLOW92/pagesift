@@ -15,10 +15,21 @@ pub use lines::LinesOut;
 pub use warc::WarcOut;
 
 use pagesift_api::types::Document;
+use pagesift_graph::{GraphSummary, PageGraphDelta};
 
 /// 一个页面出口。
 pub trait PageOut: Send + Sync {
     fn page(&self, doc: &Document) -> std::io::Result<()>;
+
+    /// Stream one per-page DataGraph delta (optional for outputs that support it).
+    fn graph_delta(&self, _delta: &PageGraphDelta) -> std::io::Result<()> {
+        Ok(())
+    }
+
+    /// Persist the final job-level DataGraph summary (optional for outputs that support it).
+    fn graph_summary(&self, _summary: &GraphSummary) -> std::io::Result<()> {
+        Ok(())
+    }
 
     /// 所有页面写完时调用（落盘缓冲）。
     fn finish(&self) -> std::io::Result<()> {
@@ -33,6 +44,14 @@ pub struct Fanout(pub Vec<Box<dyn PageOut>>);
 impl PageOut for Fanout {
     fn page(&self, doc: &Document) -> std::io::Result<()> {
         each(&self.0, |o| o.page(doc))
+    }
+
+    fn graph_delta(&self, delta: &PageGraphDelta) -> std::io::Result<()> {
+        each(&self.0, |o| o.graph_delta(delta))
+    }
+
+    fn graph_summary(&self, summary: &GraphSummary) -> std::io::Result<()> {
+        each(&self.0, |o| o.graph_summary(summary))
     }
 
     fn finish(&self) -> std::io::Result<()> {

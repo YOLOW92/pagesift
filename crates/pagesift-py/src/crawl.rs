@@ -8,7 +8,9 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use pagesift::Scraper;
-use pagesift::api::types::{CrawlRequest, CrawlSummary, Document as ApiDocument, MapRequest};
+use pagesift::api::types::{
+    CrawlRequest, CrawlSummary, Document as ApiDocument, GraphSummary, MapRequest,
+};
 use pagesift::api::{
     ApiError, BoxFuture, CrawlSink, MAX_CRAWL_DEPTH, MAX_CRAWL_LIMIT, MAX_MAP_LIMIT,
     check_scrape_options, check_url,
@@ -38,6 +40,7 @@ struct Shared {
     total: AtomicUsize,
     /// 带 `query` 的爬取由引擎给出；普通爬取在结束时由 [`Shared::finish`] 按页数补上。
     summary: Mutex<Option<CrawlSummary>>,
+    graph_summary: Mutex<Option<GraphSummary>>,
 }
 
 impl Shared {
@@ -134,6 +137,13 @@ impl CrawlSink for ChannelSink {
         }
         Box::pin(async {})
     }
+
+    fn graph_summary(&self, s: GraphSummary) -> BoxFuture<'_, ()> {
+        if let Ok(mut slot) = self.shared.graph_summary.lock() {
+            *slot = Some(s);
+        }
+        Box::pin(async {})
+    }
 }
 
 /// `Engine.crawl` 的参数（Python 层的关键字参数原样传进来）。
@@ -200,6 +210,9 @@ fn crawl_request(
     }
     check_scrape_options(opts, scraper)?;
     req.scrape_options = opts.clone();
+    if req.graph.is_none() {
+        req.graph = opts.graph.clone();
+    }
     Ok(req)
 }
 
@@ -359,6 +372,23 @@ impl Crawl {
         d.set_item("coverage", s.coverage)?;
         d.set_item("term_evidence", s.term_evidence)?;
         Ok(Some(d))
+    }
+
+    /// DataGraph 汇总结果，未启用或爬取尚未完成时为 None。
+    #[getter]
+    fn graph<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        let Some(g) = self
+            .shared
+            .graph_summary
+            .lock()
+            .ok()
+            .and_then(|s| s.clone())
+        else {
+            return Ok(None);
+        };
+        let v = serde_json::to_value(&g)
+            .map_err(|e| to_py_err(&ApiError::invalid(e.to_string()), None))?;
+        Ok(Some(crate::errors::json(py, &v)?))
     }
 }
 

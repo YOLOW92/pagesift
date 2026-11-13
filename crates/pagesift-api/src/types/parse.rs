@@ -4,6 +4,8 @@
 
 use serde_json::Value;
 
+use pagesift_office::FormatExt;
+
 use crate::error::ApiError;
 
 /// 调用方上传的文件。字节只有这一份，交给引擎后不再复制。

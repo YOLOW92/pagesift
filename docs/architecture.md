@@ -18,20 +18,28 @@ flowchart TD
     Plan -->|Yes| CDP[pagesift-cdp: browser pool, automation-marker removal, challenge settle]
     CDP --> DOM
     Net -->|PDF| PDF["pagesift-pdf (yolowpdf + yolow64)"]
-    Net -->|Office, e-books, email, archives, text| Office[pagesift-office]
+    Net -->|Office, e-books, email, archives, text| Office["pagesift-office (yolowdoc)"]
     Net -->|Image| OCR[pagesift-ocr, pagesift-infer, pagesift-gpu]
     Office -->|archive member, attachment| Office
     Office -->|archive member, attachment| PDF
     Office -->|source code| Syntax["pagesift-syntax (yolowsyntax)"]
     PDF -->|scanned page| OCR
     DOM --> Content["pagesift-content (yolowhtml): main content, Markdown, metadata"]
-    DOM --> Extract[pagesift-extract: selectors, relocation, chunking]
-    PDF --> Sink[pagesift-sink: outputs and cache format]
+    DOM --> Extract[pagesift-extract: selectors, field evidence, chunking]
+    Content --> Graph["pagesift-graph (DataGraph): citations, provenance, versions, conflicts"]
+    Extract --> Graph
+    PDF --> Graph
+    Office --> Graph
+    Graph --> Sink[pagesift-sink: outputs, graph.jsonl, cache format]
+    PDF --> Sink
     Office --> Sink
     OCR --> Sink
     Content --> Sink
     Extract --> Sink
-    Engine --> Store[pagesift-store: cache, selector memory, records]
+    Graph --> Store[pagesift-store: cache, graph snapshots, selector memory]
+    Engine --> Store
+    Net --> Compress["pagesift-compress (yolowzstd): HTTP and cache zstd codecs"]
+    Store --> Compress
     Engine -.-> ITNA[pagesift-itna: barrier classification, attempt and network budgets]
     ITNA -.->|shared budget| Net
     ITNA -.->|one bounded fallback| CDP
@@ -46,16 +54,21 @@ exact-origin handoff. Interactive CAPTCHAs are reported as needing a human and a
 The HTTP layer validates options before execution. `"explain": true` (`scrape --explain`) writes every render decision
 to `metadata.pagesift.plan.steps`.
 
+When DataGraph is enabled (`"graph"` format or `--graph`), `pagesift-graph` links extracted blocks, citations,
+redirect/canonical/attachment provenance, cross-version lineage, field-level evidence spans, cross-source fact clusters,
+and conflict records across single scrapes and multi-page crawls (`graph.jsonl`, `graph_summary.json`, HTTP `/v2/crawl/{id}/graph`,
+`/v2/graph/history`, `/v2/graph/conflicts`, and MCP `pagesift_graph_query`).
+
 ## Crates
 
 | Area | Crates |
 |---|---|
 | Entry points | `pagesift` (CLI and library), `pagesift-api` (HTTP), `pagesift-mcp`, `pagesift-py`, `pagesift-node`, `pagesift-ffi` |
-| Engine | `pagesift-engine`, `pagesift-plan`, `pagesift-hooks`, `pagesift-llm`, `pagesift-search` |
+| Engine | `pagesift-engine`, `pagesift-plan`, `pagesift-hooks`, `pagesift-llm`, `pagesift-search`, `pagesift-graph` |
 | Network and recovery | `pagesift-net`, `pagesift-policy` (rate limits and identity leases), `pagesift-rustls`, `pagesift-cdp`, `pagesift-media`, `pagesift-itna` |
 | Content | `pagesift-html` (`yolowhtml-dom`), `pagesift-content` (`yolowhtml`), `pagesift-extract`, `pagesift-diff`, `pagesift-frontier` |
-| Documents | `pagesift-pdf` (`yolowpdf`), `pagesift-office`, `pagesift-syntax` (`yolowsyntax`), `pagesift-ocr`, `pagesift-infer`, `pagesift-gpu` |
-| Runtime | `pagesift-flow` (workers and admission), `pagesift-stat` (online statistics), `pagesift-base64` (`yolow64`), `pagesift-sys`, `pagesift-store`, `pagesift-sink`, `pagesift-cluster` |
+| Documents | `pagesift-pdf` (`yolowpdf`), `pagesift-office` (`yolowdoc`), `pagesift-syntax` (`yolowsyntax`), `pagesift-ocr`, `pagesift-infer`, `pagesift-gpu` |
+| Runtime | `pagesift-flow` (workers and admission), `pagesift-stat` (online statistics), `pagesift-base64` (`yolow64`), `pagesift-compress` (`yolowzstd`), `pagesift-sys`, `pagesift-store`, `pagesift-sink`, `pagesift-cluster` |
 
 ## Execution
 

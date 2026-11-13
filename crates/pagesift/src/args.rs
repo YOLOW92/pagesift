@@ -36,6 +36,24 @@ pub(crate) enum ModelsCommand {
 }
 
 #[derive(Subcommand)]
+pub(crate) enum GraphCommand {
+    /// Inspect DataGraph artifacts in a crawl `--out` directory, graph JSON/JSONL file, or data store directory
+    Inspect {
+        /// Path to `--out` directory, `graph_summary.json` / `graph.jsonl` file, or store data directory
+        path: PathBuf,
+        /// Filter version history by URL or normalized resource key (for store or delta inspection)
+        #[arg(long)]
+        url: Option<String>,
+        /// Filter recorded conflicts by entity subject key (e.g. sku:PRO-1)
+        #[arg(long)]
+        subject: Option<String>,
+        /// Output raw inspection result as JSON
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
 pub(crate) enum Command {
     /// Inspect local form metadata and redacted technology/secret indicators
     Inspect {
@@ -245,6 +263,12 @@ pub(crate) enum Command {
         /// Image assets: attach Base64, embed data URIs, or rewrite to asset:// references
         #[arg(long, value_parser = ["attach", "embed", "rewrite"])]
         image_assets: Option<String>,
+        /// Enable per-page DataGraph extraction (provenance, citations, blocks, evidence, claims)
+        #[arg(long)]
+        graph: bool,
+        /// Entity subject keys for DataGraph correlation (comma-separated, e.g. sku,product_id)
+        #[arg(long, value_delimiter = ',')]
+        subject_keys: Vec<String>,
         #[command(flatten)]
         allow: AllowCidrs,
     },
@@ -391,6 +415,12 @@ pub(crate) enum Command {
         /// not followed
         #[arg(long)]
         from_warc: Option<PathBuf>,
+        /// Enable cross-source DataGraph (writes graph.jsonl and graph_summary.json with --out)
+        #[arg(long)]
+        graph: bool,
+        /// Entity subject keys for cross-source correlation and conflict detection (comma-separated)
+        #[arg(long, value_delimiter = ',')]
+        subject_keys: Vec<String>,
         #[command(flatten)]
         allow: AllowCidrs,
     },
@@ -445,6 +475,11 @@ pub(crate) enum Command {
     Models {
         #[command(subcommand)]
         action: ModelsCommand,
+    },
+    /// Inspect persisted or exported DataGraph outputs
+    Graph {
+        #[command(subcommand)]
+        action: GraphCommand,
     },
     /// Evaluate content extraction on local dataset snapshots
     Bench {

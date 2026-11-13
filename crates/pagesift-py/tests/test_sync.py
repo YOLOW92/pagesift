@@ -163,3 +163,22 @@ def test_fields_convert_lazily_and_cache(scraper, server):
 def test_urls_must_not_be_a_string(scraper):
     with pytest.raises(TypeError):
         scraper.scrape_many("https://example.com")
+
+
+def test_canonical_url_and_datagraph(scraper, http, server):
+    d = scraper.scrape(f"{server}/canonical", http, formats=["markdown", "graph"], graph=True)
+    assert d.canonical_url == "https://canonical.example/post"
+    assert d.metadata["canonical_url"] == "https://canonical.example/post"
+    assert isinstance(d.graph, dict)
+    assert isinstance(d.graph.get("docId"), str)
+    assert any(
+        e.get("kind") == "canonicalizesTo"
+        and e.get("canonical_url") == "https://canonical.example/post"
+        for e in d.graph.get("provenance", [])
+    )
+    assert d.to_dict()["canonical_url"] == "https://canonical.example/post"
+    assert d.to_dict()["graph"] == d.graph
+    with pytest.raises(pagesift.InvalidRequest):
+        pagesift.ScrapeOptions(graph="yes")
+    with pytest.raises(pagesift.InvalidRequest):
+        pagesift.ScrapeOptions(graph={"subjectKeys": [""]})

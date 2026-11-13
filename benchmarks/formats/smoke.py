@@ -17,9 +17,23 @@ def scrape(binary, path):
     return r.returncode, r.stdout.decode("utf-8", "replace"), r.stderr.decode("utf-8", "replace")
 
 
+def _code_source() -> Path:
+    root = Path(__file__).resolve().parents[2]
+    for candidate in (
+        root / "crates/pagesift-office/src/code.rs",
+        root.parent / "yolow/yolowdoc/src/code.rs",
+    ):
+        if candidate.is_file():
+            return candidate
+    cargo_home = Path.home() / ".cargo/registry/src"
+    matches = sorted(cargo_home.glob("*/yolowdoc-*/src/code.rs"))
+    if matches:
+        return matches[-1]
+    raise FileNotFoundError("找不到 yolowdoc/src/code.rs")
+
+
 def code_languages(binary, tmp):
-    src = Path(__file__).resolve().parents[2] / "crates/pagesift-office/src/code.rs"
-    text = src.read_text(encoding="utf-8")
+    text = _code_source().read_text(encoding="utf-8")
     body = text[text.index("Some(match ext {") : text.index("/// 没有扩展名的常见文件")]
     table = {}
     for pats, lang in re.findall(r'((?:"[^"]+"(?:\s*\|\s*)?)+)\s*=>\s*"([^"]+)",', body):

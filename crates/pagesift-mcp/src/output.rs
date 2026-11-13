@@ -99,6 +99,7 @@ pub fn document() -> Value {
                 }), &["source", "status"]),
                 "Per-image asset results when imageAssets was requested.",
             ),
+            "graph": json!({ "type": "object", "description": "Per-page DataGraph slice (node, blocks, citations, provenance, version, evidenceSpans, claims) when graph was requested." }),
             "metadata": metadata(),
         }),
         &["metadata"],
@@ -120,6 +121,7 @@ pub fn metadata() -> Value {
             "author": string("Author declared by the page."),
             "modifiedTime": string("Modified time declared by the page."),
             "url": string("Final URL after redirects."),
+            "canonicalUrl": string("Canonical URL declared via HTTP Link header or HTML canonical link."),
             "sourceURL": string("URL that was requested."),
             "statusCode": integer("HTTP status code of the response."),
             "contentType": string("Response Content-Type."),
@@ -296,11 +298,34 @@ pub fn agent_status() -> Value {
                 "evidenceIds": array(string("Evidence id"), "Evidence taken from this source."),
             }), &["url"]), "Sources used by the answer."),
             "fieldSources": json!({ "type": "object", "description": "Which sources support each field of data, keyed by JSON Pointer." }),
+            "evidenceSpans": array(json!({ "type": "object", "description": "Aligned source block span supporting a fieldSource." }), "Aligned source block spans backing agent fieldSources."),
             "usage": json!({ "type": "object", "description": "Pages, searches, model calls and tokens used." }),
             "warnings": array(string("Warning"), "Warnings from the run."),
             "stopReason": string("Why the run stopped."),
             "error": json!({ "description": "Failure details when status is failed." }),
         }),
         &["success", "status"],
+    )
+}
+
+/// `pagesift_graph_query`。
+pub fn graph_query() -> Value {
+    object(
+        json!({
+            "success": boolean("Whether the graph query succeeded."),
+            "id": string("Crawl job id when querying a job graph summary."),
+            "status": string("Crawl job state when querying a job graph summary."),
+            "stats": json!({ "type": "object", "description": "Counters for nodes, blocks, citations, provenanceEdges, versionEdges, evidenceSpans, claims, factClusters, conflicts, canonicalClusters." }),
+            "nodes": array(json!({ "type": "object", "description": "Document graph node." }), "Document nodes in the job graph."),
+            "factClusters": array(json!({ "type": "object", "description": "Corroborated fact cluster across sources." }), "Corroborated multi-source fact clusters."),
+            "url": string("Queried URL or resource key for history queries."),
+            "resourceKey": string("Normalized logical resource key."),
+            "versions": array(json!({ "type": "object", "description": "Version snapshot record." }), "Historical versions of the resource."),
+            "edges": array(json!({ "type": "object", "description": "Version transition edge." }), "Version diff edges between observations."),
+            "subject": string("Filtered entity subject key for conflict queries."),
+            "total": integer("Number of conflict records returned."),
+            "conflicts": array(json!({ "type": "object", "description": "Cross-source conflict record." }), "Detected cross-source conflicts."),
+        }),
+        &["success"],
     )
 }

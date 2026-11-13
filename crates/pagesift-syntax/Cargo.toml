@@ -13,7 +13,7 @@ include = ["src/**", "tests/**", "THIRD-PARTY.md", "Cargo.toml"]
 tools = ["yolowsyntax/tools"]
 
 [dependencies]
-yolowsyntax = "0.1.0"
+yolowsyntax = "0.1.2"
 
 [[test]]
 name = "grammars"

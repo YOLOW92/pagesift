@@ -66,6 +66,8 @@ pub struct Job {
     pub robots_blocked: Vec<String>,
     pub created: SystemTime,
     pub summary: Option<CrawlSummary>,
+    pub graph_deltas: Vec<pagesift_graph::PageGraphDelta>,
+    pub graph_summary: Option<pagesift_graph::GraphSummary>,
     pub(crate) stored_docs: usize,
     pub(crate) owner: Option<Caller>,
     /// 新完成了文档或者状态变了就响一下，叫醒在等这个任务的流（`/stream`）。任务删掉时随之关闭。
@@ -85,6 +87,8 @@ impl Job {
             robots_blocked: Vec::new(),
             created: SystemTime::now(),
             summary: None,
+            graph_deltas: Vec::new(),
+            graph_summary: None,
             stored_docs: 0,
             owner,
             changed: watch::channel(()).0,

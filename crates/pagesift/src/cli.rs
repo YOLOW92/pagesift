@@ -72,6 +72,14 @@ impl PageOut for Shared {
     fn page(&self, doc: &Document) -> std::io::Result<()> {
         self.0.page(doc)
     }
+
+    fn graph_delta(&self, delta: &pagesift_graph::PageGraphDelta) -> std::io::Result<()> {
+        self.0.graph_delta(delta)
+    }
+
+    fn graph_summary(&self, summary: &pagesift_graph::GraphSummary) -> std::io::Result<()> {
+        self.0.graph_summary(summary)
+    }
 }
 
 impl CrawlSink for CrawlOutput {
@@ -134,6 +142,28 @@ impl CrawlSink for CrawlOutput {
         }
         if let Err(e) = self.out.finish() {
             eprintln!("could not finish output: {e}");
+        }
+        Box::pin(async {})
+    }
+
+    fn graph_delta(&self, delta: pagesift_graph::PageGraphDelta) -> BoxFuture<'_, ()> {
+        if let Err(e) = self.out.graph_delta(&delta) {
+            eprintln!("could not write graph delta: {e}");
+        }
+        Box::pin(async {})
+    }
+
+    fn graph_summary(&self, s: pagesift_graph::GraphSummary) -> BoxFuture<'_, ()> {
+        eprintln!(
+            "graph: {} nodes, {} citations, {} versions, {} fact clusters, {} conflicts",
+            s.stats.nodes,
+            s.stats.citations,
+            s.stats.version_edges,
+            s.stats.fact_clusters,
+            s.stats.conflicts
+        );
+        if let Err(e) = self.out.graph_summary(&s) {
+            eprintln!("could not write graph_summary.json: {e}");
         }
         Box::pin(async {})
     }

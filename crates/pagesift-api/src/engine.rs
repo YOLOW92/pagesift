@@ -296,6 +296,16 @@ pub trait CrawlSink: Send + Sync {
     fn summary(&self, _summary: CrawlSummary) -> BoxFuture<'_, ()> {
         Box::pin(async {})
     }
+
+    /// Emit one page's streaming DataGraph delta during a graph-enabled crawl.
+    fn graph_delta(&self, _delta: pagesift_graph::PageGraphDelta) -> BoxFuture<'_, ()> {
+        Box::pin(async {})
+    }
+
+    /// Emit the reconciled job-level DataGraph summary when a graph-enabled crawl finishes.
+    fn graph_summary(&self, _summary: pagesift_graph::GraphSummary) -> BoxFuture<'_, ()> {
+        Box::pin(async {})
+    }
 }
 
 /// 中断的爬取任务恢复时的进度。完成的页面以文档的 `metadata.sourceURL`（失败的以出错的 URL）为准。

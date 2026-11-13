@@ -1165,8 +1165,8 @@ async fn concurrent_jobs_are_capped_per_key() {
     assert_eq!(status, StatusCode::OK);
 }
 
-#[tokio::test]
-async fn daily_page_quota_stops_jobs_and_survives_restart() {
+#[test]
+fn daily_page_quota_stops_jobs_and_survives_restart() {
     let dir = tempfile::tempdir().unwrap();
     let (fake, scraped) = Fake::new(0);
     let limits = KeyLimits {
@@ -1174,7 +1174,8 @@ async fn daily_page_quota_stops_jobs_and_survives_restart() {
         pages_per_day: Some(5),
         ..Default::default()
     };
-    {
+    let rt = runtime();
+    rt.block_on(async {
         let app = limited(limits.clone(), fake.clone(), Some(dir.path()));
         for i in 0..2 {
             let (status, _, _) = call(
@@ -1210,42 +1211,46 @@ async fn daily_page_quota_stops_jobs_and_survives_restart() {
         )
         .await;
         assert_eq!(errs["errors"][0]["code"], "QUOTA_EXCEEDED", "{errs}");
-    }
+    });
+    drop(rt);
     assert_eq!(scraped.lock().unwrap().len(), 5);
     // 重启后配额不清零
-    let app = limited(limits, fake, Some(dir.path()));
-    let (status, headers, v) = call(
-        &app,
-        "POST",
-        "/v2/scrape",
-        Some(json!({"url": format!("{BASE}/q/9")})),
-        Some("limited"),
-    )
-    .await;
-    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
-    assert_eq!(v["code"], "QUOTA_EXCEEDED");
-    assert!(headers.contains_key("retry-after"));
-    let (status, _, v) = call(
-        &app,
-        "POST",
-        "/v2/crawl",
-        Some(json!({"url": format!("{BASE}/p/0")})),
-        Some("limited"),
-    )
-    .await;
-    assert_eq!(
-        (status, v["code"].as_str()),
-        (StatusCode::TOO_MANY_REQUESTS, Some("QUOTA_EXCEEDED"))
-    );
-    let (status, _, _) = call(
-        &app,
-        "POST",
-        "/v2/scrape",
-        Some(json!({"url": format!("{BASE}/q/9")})),
-        Some("plain"),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK, "unlimited keys are unaffected");
+    let rt = runtime();
+    rt.block_on(async {
+        let app = limited(limits, fake, Some(dir.path()));
+        let (status, headers, v) = call(
+            &app,
+            "POST",
+            "/v2/scrape",
+            Some(json!({"url": format!("{BASE}/q/9")})),
+            Some("limited"),
+        )
+        .await;
+        assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(v["code"], "QUOTA_EXCEEDED");
+        assert!(headers.contains_key("retry-after"));
+        let (status, _, v) = call(
+            &app,
+            "POST",
+            "/v2/crawl",
+            Some(json!({"url": format!("{BASE}/p/0")})),
+            Some("limited"),
+        )
+        .await;
+        assert_eq!(
+            (status, v["code"].as_str()),
+            (StatusCode::TOO_MANY_REQUESTS, Some("QUOTA_EXCEEDED"))
+        );
+        let (status, _, _) = call(
+            &app,
+            "POST",
+            "/v2/scrape",
+            Some(json!({"url": format!("{BASE}/q/9")})),
+            Some("plain"),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "unlimited keys are unaffected");
+    });
 }
 
 #[tokio::test]

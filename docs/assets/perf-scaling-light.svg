@@ -3,71 +3,71 @@
 <text x="0" y="22" fill="#0b0b0b" font-size="17" font-weight="600" text-anchor="start">Throughput as workers increase</text>
 <text x="0" y="44" fill="#52514e" font-size="13" font-weight="400" text-anchor="start">Items per second, log scale, PageSift run as a CLI. Higher is better.</text>
 <text x="0" y="80" fill="#0b0b0b" font-size="14" font-weight="600" text-anchor="start">PDF, 144 pages</text>
-<line x1="44" y1="391.8" x2="270" y2="391.8" stroke="#e4e3df"/>
-<text x="36" y="395.7903926590135" fill="#52514e" font-size="11" font-weight="400" text-anchor="end">1</text>
-<line x1="44" y1="289.0" x2="270" y2="289.0" stroke="#e4e3df"/>
-<text x="36" y="293.0132823141612" fill="#52514e" font-size="11" font-weight="400" text-anchor="end">10</text>
-<line x1="44" y1="186.2" x2="270" y2="186.2" stroke="#e4e3df"/>
-<text x="36" y="190.23617196930877" fill="#52514e" font-size="11" font-weight="400" text-anchor="end">100</text>
+<line x1="44" y1="391.7" x2="270" y2="391.7" stroke="#e4e3df"/>
+<text x="36" y="395.7446055500651" fill="#52514e" font-size="11" font-weight="400" text-anchor="end">1</text>
+<line x1="44" y1="287.8" x2="270" y2="287.8" stroke="#e4e3df"/>
+<text x="36" y="291.84960786618547" fill="#52514e" font-size="11" font-weight="400" text-anchor="end">10</text>
+<line x1="44" y1="184.0" x2="270" y2="184.0" stroke="#e4e3df"/>
+<text x="36" y="187.9546101823058" fill="#52514e" font-size="11" font-weight="400" text-anchor="end">100</text>
 <text x="44" y="416" fill="#52514e" font-size="12" font-weight="400" text-anchor="middle">1 worker</text>
 <text x="270" y="416" fill="#52514e" font-size="12" font-weight="400" text-anchor="middle">16 workers</text>
-<line x1="44" y1="380.1" x2="270" y2="373.7" stroke="#2a78d6" stroke-width="2" stroke-linecap="round"/>
-<circle cx="44" cy="380.1" r="4" fill="#2a78d6"/>
-<circle cx="270" cy="373.7" r="4" fill="#2a78d6"/>
-<text x="280" y="377.6922418962838" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">Docling (GPU) 1.5</text>
-<line x1="44" y1="331.0" x2="270" y2="318.2" stroke="#e87ba4" stroke-width="2" stroke-linecap="round"/>
-<circle cx="44" cy="331.0" r="4" fill="#e87ba4"/>
-<circle cx="270" cy="318.2" r="4" fill="#e87ba4"/>
-<text x="280" y="322.2016380029765" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">pymupdf4llm 5.2</text>
-<line x1="44" y1="240.4" x2="270" y2="204.0" stroke="#eda100" stroke-width="2" stroke-linecap="round"/>
-<circle cx="44" cy="240.4" r="4" fill="#eda100"/>
-<circle cx="270" cy="204.0" r="4" fill="#eda100"/>
-<text x="280" y="208.04513063417824" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">xberg 67.1</text>
-<line x1="44" y1="237.4" x2="270" y2="178.0" stroke="#1baf7a" stroke-width="2" stroke-linecap="round"/>
-<circle cx="44" cy="237.4" r="4" fill="#1baf7a"/>
-<circle cx="270" cy="178.0" r="4" fill="#1baf7a"/>
-<text x="280" y="181.98670273130278" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">Kreuzberg 120</text>
-<line x1="44" y1="186.0" x2="270" y2="114.2" stroke="#eb6834" stroke-width="2" stroke-linecap="round"/>
-<circle cx="44" cy="186.0" r="4" fill="#eb6834"/>
-<circle cx="270" cy="114.2" r="4" fill="#eb6834"/>
-<text x="280" y="130.01861724737876" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">pdf_oxide 502</text>
-<line x1="44" y1="164.9" x2="270" y2="111.0" stroke="#2a78d6" stroke-width="3" stroke-linecap="round"/>
-<circle cx="44" cy="164.9" r="4" fill="#2a78d6"/>
-<circle cx="270" cy="111.0" r="4" fill="#2a78d6"/>
-<text x="280" y="115.01861724737876" fill="#0b0b0b" font-size="12" font-weight="600" text-anchor="start">PageSift 539</text>
-<text x="52" y="157.87379091828126" fill="#52514e" font-size="11" font-weight="400" text-anchor="start">161</text>
+<line x1="44" y1="379.9" x2="270" y2="373.4" stroke="#2a78d6" stroke-width="2" stroke-linecap="round"/>
+<circle cx="44" cy="379.9" r="4" fill="#2a78d6"/>
+<circle cx="270" cy="373.4" r="4" fill="#2a78d6"/>
+<text x="280" y="377.4496045983236" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">Docling (GPU) 1.5</text>
+<line x1="44" y1="330.3" x2="270" y2="317.4" stroke="#e87ba4" stroke-width="2" stroke-linecap="round"/>
+<circle cx="44" cy="330.3" r="4" fill="#e87ba4"/>
+<circle cx="270" cy="317.4" r="4" fill="#e87ba4"/>
+<text x="280" y="321.35543982147755" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">pymupdf4llm 5.2</text>
+<line x1="44" y1="238.7" x2="270" y2="202.0" stroke="#eda100" stroke-width="2" stroke-linecap="round"/>
+<circle cx="44" cy="238.7" r="4" fill="#eda100"/>
+<circle cx="270" cy="202.0" r="4" fill="#eda100"/>
+<text x="280" y="205.95727354801693" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">xberg 67.1</text>
+<line x1="44" y1="235.6" x2="270" y2="175.6" stroke="#1baf7a" stroke-width="2" stroke-linecap="round"/>
+<circle cx="44" cy="235.6" r="4" fill="#1baf7a"/>
+<circle cx="270" cy="175.6" r="4" fill="#1baf7a"/>
+<text x="280" y="179.61541301573752" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">Kreuzberg 120</text>
+<line x1="44" y1="183.7" x2="270" y2="111.2" stroke="#eb6834" stroke-width="2" stroke-linecap="round"/>
+<circle cx="44" cy="183.7" r="4" fill="#eb6834"/>
+<circle cx="270" cy="111.2" r="4" fill="#eb6834"/>
+<text x="280" y="115.18197192834043" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">pdf_oxide 502</text>
+<line x1="44" y1="167.2" x2="270" y2="113.6" stroke="#2a78d6" stroke-width="3" stroke-linecap="round"/>
+<circle cx="44" cy="167.2" r="4" fill="#2a78d6"/>
+<circle cx="270" cy="113.6" r="4" fill="#2a78d6"/>
+<text x="280" y="130.18197192834043" fill="#0b0b0b" font-size="12" font-weight="600" text-anchor="start">PageSift 475</text>
+<text x="52" y="160.18458153150817" fill="#52514e" font-size="11" font-weight="400" text-anchor="start">145</text>
 <text x="440" y="80" fill="#0b0b0b" font-size="14" font-weight="600" text-anchor="start">Office and e-books, 81 files</text>
-<line x1="484" y1="369.9" x2="710" y2="369.9" stroke="#e4e3df"/>
-<text x="476" y="373.9037401416184" fill="#52514e" font-size="11" font-weight="400" text-anchor="end">1</text>
-<line x1="484" y1="266.3" x2="710" y2="266.3" stroke="#e4e3df"/>
-<text x="476" y="270.26982810748274" fill="#52514e" font-size="11" font-weight="400" text-anchor="end">10</text>
-<line x1="484" y1="162.6" x2="710" y2="162.6" stroke="#e4e3df"/>
-<text x="476" y="166.6359160733471" fill="#52514e" font-size="11" font-weight="400" text-anchor="end">100</text>
+<line x1="484" y1="369.5" x2="710" y2="369.5" stroke="#e4e3df"/>
+<text x="476" y="373.4940251921764" fill="#52514e" font-size="11" font-weight="400" text-anchor="end">1</text>
+<line x1="484" y1="264.2" x2="710" y2="264.2" stroke="#e4e3df"/>
+<text x="476" y="268.233046166067" fill="#52514e" font-size="11" font-weight="400" text-anchor="end">10</text>
+<line x1="484" y1="159.0" x2="710" y2="159.0" stroke="#e4e3df"/>
+<text x="476" y="162.97206713995766" fill="#52514e" font-size="11" font-weight="400" text-anchor="end">100</text>
 <text x="484" y="416" fill="#52514e" font-size="12" font-weight="400" text-anchor="middle">1 worker</text>
 <text x="710" y="416" fill="#52514e" font-size="12" font-weight="400" text-anchor="middle">16 workers</text>
-<line x1="484" y1="379.9" x2="710" y2="365.6" stroke="#2a78d6" stroke-width="2" stroke-linecap="round"/>
-<circle cx="484" cy="379.9" r="4" fill="#2a78d6"/>
-<circle cx="710" cy="365.6" r="4" fill="#2a78d6"/>
-<text x="720" y="369.61405424907423" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">Docling (CPU) 1.1</text>
-<line x1="484" y1="348.7" x2="710" y2="313.5" stroke="#e87ba4" stroke-width="2" stroke-linecap="round"/>
-<circle cx="484" cy="348.7" r="4" fill="#e87ba4"/>
-<circle cx="710" cy="313.5" r="4" fill="#e87ba4"/>
-<text x="720" y="317.5198402928377" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">MarkItDown 3.5</text>
-<line x1="484" y1="266.3" x2="710" y2="211.2" stroke="#eda100" stroke-width="2" stroke-linecap="round"/>
-<circle cx="484" cy="266.3" r="4" fill="#eda100"/>
-<circle cx="710" cy="211.2" r="4" fill="#eda100"/>
-<text x="720" y="229.53353131838062" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">extractous 34.0</text>
-<line x1="484" y1="221.6" x2="710" y2="176.3" stroke="#1baf7a" stroke-width="2" stroke-linecap="round"/>
-<circle cx="484" cy="221.6" r="4" fill="#1baf7a"/>
-<circle cx="710" cy="176.3" r="4" fill="#1baf7a"/>
-<text x="720" y="180.3097514656418" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">xberg 73.8</text>
-<line x1="484" y1="236.2" x2="710" y2="210.5" stroke="#eb6834" stroke-width="2" stroke-linecap="round"/>
-<circle cx="484" cy="236.2" r="4" fill="#eb6834"/>
-<circle cx="710" cy="210.5" r="4" fill="#eb6834"/>
-<text x="720" y="214.53353131838062" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">Kreuzberg 34.5</text>
-<line x1="484" y1="166.5" x2="710" y2="111.1" stroke="#2a78d6" stroke-width="3" stroke-linecap="round"/>
-<circle cx="484" cy="166.5" r="4" fill="#2a78d6"/>
-<circle cx="710" cy="111.1" r="4" fill="#2a78d6"/>
-<text x="720" y="115.14381999519958" fill="#0b0b0b" font-size="12" font-weight="600" text-anchor="start">PageSift 314</text>
-<text x="492" y="159.51597319851803" fill="#52514e" font-size="11" font-weight="400" text-anchor="start">91.7</text>
+<line x1="484" y1="379.7" x2="710" y2="365.1" stroke="#2a78d6" stroke-width="2" stroke-linecap="round"/>
+<circle cx="484" cy="379.7" r="4" fill="#2a78d6"/>
+<circle cx="710" cy="365.1" r="4" fill="#2a78d6"/>
+<text x="720" y="369.13699062790215" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">Docling (CPU) 1.1</text>
+<line x1="484" y1="348.0" x2="710" y2="312.2" stroke="#e87ba4" stroke-width="2" stroke-linecap="round"/>
+<circle cx="484" cy="348.0" r="4" fill="#e87ba4"/>
+<circle cx="710" cy="312.2" r="4" fill="#e87ba4"/>
+<text x="720" y="316.22489018704573" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">MarkItDown 3.5</text>
+<line x1="484" y1="264.2" x2="710" y2="208.3" stroke="#eda100" stroke-width="2" stroke-linecap="round"/>
+<circle cx="484" cy="264.2" r="4" fill="#eda100"/>
+<circle cx="710" cy="208.3" r="4" fill="#eda100"/>
+<text x="720" y="226.62168167971802" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">extractous 34.0</text>
+<line x1="484" y1="218.8" x2="710" y2="172.9" stroke="#1baf7a" stroke-width="2" stroke-linecap="round"/>
+<circle cx="484" cy="218.8" r="4" fill="#1baf7a"/>
+<circle cx="710" cy="172.9" r="4" fill="#1baf7a"/>
+<text x="720" y="176.86058367073105" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">xberg 73.8</text>
+<line x1="484" y1="233.7" x2="710" y2="207.6" stroke="#eb6834" stroke-width="2" stroke-linecap="round"/>
+<circle cx="484" cy="233.7" r="4" fill="#eb6834"/>
+<circle cx="710" cy="207.6" r="4" fill="#eb6834"/>
+<text x="720" y="211.62168167971802" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">Kreuzberg 34.5</text>
+<line x1="484" y1="168.1" x2="710" y2="111.4" stroke="#2a78d6" stroke-width="3" stroke-linecap="round"/>
+<circle cx="484" cy="168.1" r="4" fill="#2a78d6"/>
+<circle cx="710" cy="111.4" r="4" fill="#2a78d6"/>
+<text x="720" y="115.38158009865361" fill="#0b0b0b" font-size="12" font-weight="600" text-anchor="start">PageSift 283</text>
+<text x="492" y="161.0993806045538" fill="#52514e" font-size="11" font-weight="400" text-anchor="start">81.9</text>
 </svg>

@@ -63,6 +63,9 @@ export async function startServer(host = '127.0.0.1') {
       return res.end('User-agent: *\nDisallow: /private\nDisallow: /site/secret\n')
     }
     if (path === '/article') return html(200, article, { etag: '"v1"' })
+    if (path === '/canonical') {
+      return html(200, article.replace('<head>', '<head>\n<link rel="canonical" href="https://canonical.example/post">'))
+    }
     if (site[path]) return html(200, site[path])
     if (path === '/etag') {
       if (req.headers['if-none-match'] === '"v1"') {

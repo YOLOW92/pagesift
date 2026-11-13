@@ -1,0 +1,8 @@
+c.c	c	78797	4.468	17.64	59	60	true	8052
+go.go	go	36112	3.465	10.42	38	39	true	8052
+java.java	java	31280	1.249	25.04	85	2	true	8052
+python.py	python	102236	6.292	16.25	161	30	true	10980
+javascript.js	javascript	176435	11.044	15.98	0	0	true	17240
+typescript.ts	typescript	153859	12.214	12.60	372	161	true	21496
+rust.rs	rust	39771	1.544	25.76	72	23	true	21496
+bash.sh	bash	148844	9.582	15.53	0	0	true	21716

@@ -77,6 +77,9 @@ pub(crate) fn check_crawl_request(
         )));
     }
     check_scrape_options(&req.scrape_options, engine)?;
+    if let Some(g) = &req.graph {
+        crate::types::graph::check_graph_options(g)?;
+    }
     for pattern in req.include_paths.iter().chain(&req.exclude_paths) {
         regex_check(pattern)?;
     }

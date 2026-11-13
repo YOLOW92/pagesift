@@ -129,11 +129,7 @@ pub fn convert(html: &str, options: Option<&str>) -> Value {
     let out = pagesift_content::process(html, &opts);
     let mut metadata = pagesift_core::api::types::Metadata::default();
     pagesift_sink::meta::fill(&mut metadata, &out.metadata);
-    if let Some(c) = out.metadata.canonical_url {
-        metadata
-            .extra
-            .insert("canonicalUrl".into(), Value::String(c));
-    }
+    metadata.canonical_url = out.metadata.canonical_url;
     document_value(&Outcome {
         index: None,
         url: None,

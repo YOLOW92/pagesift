@@ -2,7 +2,7 @@
 //! 转换在 pagesift-office 里；EPUB 的 XHTML 章节和邮件的 HTML 正文交给和网页相同的 HTML 提取器
 //! （保留整页，不做正文筛选）。压缩包成员和邮件附件回到这里递归转换，内层 PDF 只读文字层。
 
-use pagesift_office::{Converted, Format};
+use pagesift_office::{Converted, Format, FormatExt};
 
 use super::*;
 
@@ -60,46 +60,100 @@ fn member_markdown(
     name: &str,
     room: usize,
     deadline: Option<Instant>,
+    capture: Option<(
+        &std::sync::Mutex<Vec<crate::graph::evidence::CapturedMember>>,
+        bool,
+    )>,
 ) -> Result<Option<Converted>, pagesift_office::Error> {
     use pagesift_office::Error as E;
-    if bytes.starts_with(b"%PDF-") {
+    let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase());
+    let out = if bytes.starts_with(b"%PDF-") {
         let popts = pagesift_pdf::Options {
             timeout: deadline.map(|d| d.saturating_duration_since(Instant::now())),
             ..Default::default()
         };
-        return match pagesift_pdf::extract_with(bytes, &popts) {
-            Ok(pdf) => Ok(Some(Converted {
-                parts: pdf.pages.len(),
-                markdown: pdf.markdown,
-                title: pdf.metadata.title,
-                ..Default::default()
-            })),
+        match pagesift_pdf::extract_with(bytes, &popts) {
+            Ok(pdf) => Ok(Some((
+                Converted {
+                    parts: pdf.pages.len(),
+                    markdown: pdf.markdown,
+                    title: pdf.metadata.title,
+                    ..Default::default()
+                },
+                "pdf".to_string(),
+                None,
+                None,
+            ))),
             Err(pagesift_pdf::Error::Timeout) => Err(E::Timeout),
             Err(e) => Err(E::Malformed(e.to_string())),
-        };
-    }
-    let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase());
-    if matches!(ext.as_deref(), Some("html" | "htm" | "xhtml")) {
+        }
+    } else if matches!(ext.as_deref(), Some("html" | "htm" | "xhtml")) {
         let decoded = pagesift_net::decode(bytes, None, None);
-        return Ok(Some(Converted {
-            markdown: html_to_markdown(&decoded.text, name),
-            ..Default::default()
-        }));
-    }
-    let Some(format) = Format::detect(bytes, Some(name), None) else {
-        return Ok(None);
+        let md = html_to_markdown(&decoded.text, name);
+        let raw_html = capture.map(|_| decoded.text);
+        Ok(Some((
+            Converted {
+                markdown: md,
+                ..Default::default()
+            },
+            "html".to_string(),
+            None,
+            raw_html,
+        )))
+    } else {
+        let Some(format) = Format::detect(bytes, Some(name), None) else {
+            return Ok(None);
+        };
+        let label = format.extension().to_string();
+        let raw_json =
+            if capture.is_some() && matches!(ext.as_deref(), Some("json" | "jsonl" | "geojson")) {
+                std::str::from_utf8(bytes).ok().map(str::to_string)
+            } else {
+                None
+            };
+        let doc = convert_with_room_inner(bytes, format, None, deadline, Some(room), capture)?;
+        Ok(Some((doc, label, raw_json, None)))
     };
-    convert_with_room(bytes, format, None, deadline, Some(room)).map(Some)
+
+    match out {
+        Ok(Some((conv, format_label, raw_json, raw_html))) => {
+            if let Some((buf, is_email_part)) = capture
+                && let Ok(mut guard) = buf.lock()
+            {
+                guard.push(crate::graph::evidence::CapturedMember {
+                    path: name.to_string(),
+                    title: conv.title.clone(),
+                    markdown: conv.markdown.clone(),
+                    format_label,
+                    is_email_part,
+                    raw_json,
+                    raw_html,
+                });
+            }
+            Ok(Some(conv))
+        }
+        Ok(None) => Ok(None),
+        Err(e) => Err(e),
+    }
 }
 
-fn convert_with_room(
+fn convert_with_room_inner(
     bytes: &[u8],
     format: Format,
     content_type: Option<&str>,
     deadline: Option<Instant>,
     room: Option<usize>,
+    capture: Option<(
+        &std::sync::Mutex<Vec<crate::graph::evidence::CapturedMember>>,
+        bool,
+    )>,
 ) -> Result<Converted, pagesift_office::Error> {
-    let member = |data: &[u8], name: &str, room: usize| member_markdown(data, name, room, deadline);
+    let is_email = matches!(format, Format::Eml | Format::Mbox | Format::Msg)
+        || capture.is_some_and(|(_, e)| e);
+    let member_buf = capture.map(|(buf, _)| (buf, is_email));
+    let member = |data: &[u8], name: &str, room: usize| {
+        member_markdown(data, name, room, deadline, member_buf)
+    };
     let mut opts = pagesift_office::Options {
         deadline,
         html: Some(&html_to_markdown),
@@ -126,7 +180,7 @@ pub fn office_markdown_from(
     content_type: Option<&str>,
     deadline: Option<Instant>,
 ) -> Result<Converted, pagesift_office::Error> {
-    convert_with_room(bytes, format, content_type, deadline, None)
+    convert_with_room_inner(bytes, format, content_type, deadline, None, None)
 }
 
 /// Office/EPUB 里的媒体文件作为附件：来源是部件路径（与 Markdown 里的图片引用一致，空格写成 `%20`）。
@@ -217,7 +271,7 @@ impl Scraper {
         &self,
         input: OfficeInput,
         opts: &ScrapeOptions,
-        (mut meta, ext): (Metadata, PagesiftMeta),
+        (mut meta, mut ext): (Metadata, PagesiftMeta),
         mut p: Progress,
         deadline: Option<Instant>,
     ) -> Result<Document, ApiError> {
@@ -229,15 +283,20 @@ impl Scraper {
         let t = Instant::now();
         let format = input.format;
         let export = opts.export_images;
-        let (result, media) = cpu_task(move || {
+        let graph_opts = crate::graph::effective_graph_options(opts);
+        let want_members = graph_opts.is_some();
+        let (result, media, members) = cpu_task(move || {
             let started = Instant::now();
             let bytes = input.bytes.len();
             let deadline = office_deadline(bytes, started, deadline);
-            let result = office_markdown_from(
+            let cap_buf = std::sync::Mutex::new(Vec::new());
+            let result = convert_with_room_inner(
                 &input.bytes,
                 input.format,
                 input.content_type.as_deref(),
                 Some(deadline),
+                None,
+                want_members.then_some((&cap_buf, false)),
             );
             if result.is_ok() {
                 OFFICE_TIME.with_borrow_mut(|m| m.observe(bytes, started.elapsed()));
@@ -245,7 +304,11 @@ impl Scraper {
             // `exportImages`：文档里的媒体原样从 ZIP 取出
             let media =
                 (export && result.is_ok()).then(|| office_media(&input.bytes, input.format));
-            (result, media)
+            (
+                result,
+                media,
+                cap_buf.into_inner().unwrap_or_else(|e| e.into_inner()),
+            )
         })
         .await?;
         let doc = match result {
@@ -266,9 +329,28 @@ impl Scraper {
         }
         p.warnings.extend(media_warnings);
         meta.title = doc.title;
-        Ok(finish(
+        let content_hash = pagesift_graph::sha256_hex(doc.markdown.as_bytes());
+        if ext.content_hash.is_none() {
+            ext.content_hash = Some(content_hash.clone());
+        }
+        let office_attachments: Vec<(String, Option<String>, Option<String>)> = attachments
+            .iter()
+            .map(|a| {
+                let path = a
+                    .source
+                    .clone()
+                    .unwrap_or_else(|| format!("images/{}", a.id));
+                (
+                    path.clone(),
+                    Some(format!("image/{}", a.format)),
+                    Some(path),
+                )
+            })
+            .collect();
+        let is_upload = ext.engine.as_deref() == Some("upload");
+        let mut out = finish(
             Document {
-                markdown: opts.wants("markdown").then_some(doc.markdown),
+                markdown: (opts.wants("markdown") || graph_opts.is_some()).then_some(doc.markdown),
                 attachments,
                 image_assets,
                 ..Default::default()
@@ -280,7 +362,73 @@ impl Scraper {
             None,
             false,
             p.started,
-        ))
+        );
+        if let Some(gopts) = &graph_opts {
+            let ps = out.metadata.pagesift.as_ref();
+            let engine = ps
+                .and_then(|m| m.engine.clone())
+                .unwrap_or_else(|| format!("office:{}", format.extension()));
+            let etag = ps.and_then(|m| m.etag.clone());
+            let last_modified = ps.and_then(|m| m.last_modified.clone());
+            let store = self.store.as_ref().filter(|_| !is_upload);
+            let format_ext = format.extension().to_string();
+            let is_json_format = matches!(format, Format::Fenced("json") | Format::Fenced("jsonl"));
+            let source_kind = if is_json_format {
+                pagesift_graph::SourceKind::Api
+            } else {
+                pagesift_graph::SourceKind::Office { format: format_ext }
+            };
+            crate::graph::build_and_attach_page_graph(
+                store,
+                gopts,
+                &mut out,
+                crate::graph::PageGraphSeed {
+                    source_kind,
+                    engine,
+                    content_hash: Some(content_hash),
+                    etag,
+                    last_modified,
+                    attachments: office_attachments,
+                    ..Default::default()
+                },
+            );
+            if !members.is_empty()
+                && let Some(slice) = out.graph.as_mut()
+            {
+                let parent_url = out
+                    .metadata
+                    .url
+                    .clone()
+                    .or_else(|| out.metadata.source_url.clone())
+                    .unwrap_or_else(|| slice.resource_key.clone());
+                let parent_doc_id = slice.doc_id.clone();
+                let obs = slice.observed_at_ms;
+                for m in &members {
+                    let m_delta = crate::graph::evidence::build_member_delta(
+                        &parent_url,
+                        &parent_doc_id,
+                        gopts,
+                        obs,
+                        m,
+                    );
+                    let att_edge = pagesift_graph::ProvenanceEdge::AttachmentOf {
+                        attachment_url: m_delta.node.final_url.clone(),
+                        parent_url: parent_url.clone(),
+                        parent_doc_id: Some(parent_doc_id.clone()),
+                        media_id: None,
+                        member_path: Some(m.path.clone()),
+                    };
+                    if !slice.provenance.contains(&att_edge) {
+                        slice.provenance.push(att_edge);
+                    }
+                    slice.member_deltas.push(m_delta);
+                }
+            }
+            if !opts.wants("markdown") {
+                out.markdown = None;
+            }
+        }
+        Ok(out)
     }
 }
 

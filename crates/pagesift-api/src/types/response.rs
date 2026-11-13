@@ -197,6 +197,8 @@ pub struct Metadata {
     pub url: Option<String>,
     #[serde(rename = "sourceURL", skip_serializing_if = "Option::is_none")]
     pub source_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canonical_url: Option<String>,
     pub status_code: u16,
     /// 响应带 `Retry-After`。只用于拦截分类（429/503 的限速判定），不进 JSON、不进缓存。
     #[serde(skip)]
@@ -266,6 +268,8 @@ pub struct Document {
     /// Outcome for each requested image, including failed and skipped images.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub image_assets: Vec<ImageAssetResult>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub graph: Option<pagesift_graph::GraphSlice>,
     pub metadata: Metadata,
 }
 

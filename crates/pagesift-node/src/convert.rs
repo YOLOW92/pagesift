@@ -48,6 +48,9 @@ fn run(html: &str, plan: &ConvertPlan) -> Page {
             meta.insert(k.into(), v.clone().into());
         }
     }
+    if let Some(canonical) = &doc.metadata.canonical_url {
+        meta.insert("canonicalUrl".into(), canonical.clone().into());
+    }
     if let Some(url) = &plan.url {
         meta.insert("url".into(), url.clone().into());
         meta.insert("sourceURL".into(), url.clone().into());

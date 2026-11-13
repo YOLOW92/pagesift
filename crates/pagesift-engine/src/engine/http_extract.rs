@@ -24,6 +24,8 @@ pub(super) struct Fetched {
     /// 试过 `embedded-json` 候选时：采用时的合并 Markdown（只在最后返回 HTTP 结果时用），以及依据
     /// （`metadata.pagesift.plan`）。
     pub embedded: Option<(Option<String>, pagesift_api::types::PlanStep)>,
+    pub graph_dom: Option<crate::graph::dom_links::DomGraphData>,
+    pub graph_traces: Vec<pagesift_graph::RawFieldTrace>,
 }
 
 /// [策略] 先验包 v0：0.81 的现值。"小页面"的 HTML 字节数，只用作候选门：没有脚本的小页面浏览器没东西可执行，
@@ -40,12 +42,24 @@ pub(super) async fn extract_fetched(
     let copts = content_options(base, status, opts);
     let tags = tag_filter(opts)?;
     let tagged = tags.is_some();
+    let graph_opts = crate::graph::effective_graph_options(opts);
+    let want_dom = graph_opts.is_some();
+    let want_traces = graph_opts
+        .as_ref()
+        .is_some_and(|g| g.evidence || g.facts || g.conflicts);
+    let base_str = want_dom.then(|| base.to_string());
     cpu_task(move || {
         let decoded = decode();
         let decode_warning = decoded.warning();
         let html = decoded.text;
+        let mut dom_links_captured: Option<(
+            Vec<pagesift_graph::RawLinkObservation>,
+            Option<String>,
+        )> = None;
+        let mut is_feed = false;
         // feed 和标签筛选的提取不用原页面的 DOM，要判断客户端代码时再解析一次原页面
         let (doc, client_code) = if let Some(doc) = super::feed::parse(&html, copts.links) {
+            is_feed = true;
             (doc, None)
         } else if let Some(t) = tags {
             let filtered = t.apply(&html);
@@ -59,9 +73,52 @@ pub(super) async fn extract_fetched(
                     &html,
                     &copts,
                     &mut ws.borrow_mut(),
-                    |dom, doc| (auto && needs_render(doc)).then(|| client_code_in(dom)),
+                    |dom, doc| {
+                        if want_dom && let Some(b) = base_str.as_deref() {
+                            dom_links_captured =
+                                Some(crate::graph::dom_links::collect_from_dom(dom, Some(b)));
+                        }
+                        (auto && needs_render(doc)).then(|| client_code_in(dom))
+                    },
                 )
             })
+        };
+        let graph_dom = if let Some(b) = base_str.as_deref() {
+            if let Some((links, dom_canon)) = dom_links_captured {
+                Some(crate::graph::dom_links::DomGraphData {
+                    links,
+                    canonical_url: doc.metadata.canonical_url.clone().or(dom_canon),
+                    alternates: doc.metadata.alternates.clone(),
+                    json_ld: doc.metadata.json_ld.clone(),
+                    raw_html_hash: doc.fingerprints.as_ref().map(|f| f.raw_html.clone()),
+                    markdown_hash: doc.fingerprints.as_ref().map(|f| f.markdown.clone()),
+                    text_hash: doc.fingerprints.as_ref().map(|f| f.text.clone()),
+                })
+            } else if tagged {
+                Some(crate::graph::dom_links::extract_from_html_str(
+                    &html,
+                    &doc.metadata,
+                    doc.fingerprints.as_ref(),
+                    Some(b),
+                ))
+            } else {
+                Some(crate::graph::dom_links::DomGraphData {
+                    canonical_url: doc.metadata.canonical_url.clone(),
+                    alternates: doc.metadata.alternates.clone(),
+                    json_ld: doc.metadata.json_ld.clone(),
+                    raw_html_hash: doc.fingerprints.as_ref().map(|f| f.raw_html.clone()),
+                    markdown_hash: doc.fingerprints.as_ref().map(|f| f.markdown.clone()),
+                    text_hash: doc.fingerprints.as_ref().map(|f| f.text.clone()),
+                    ..Default::default()
+                })
+            }
+        } else {
+            None
+        };
+        let graph_traces = if want_traces && !is_feed {
+            crate::graph::evidence::collect_structured_html_traces(&html, base_str.as_deref())
+        } else {
+            Vec::new()
         };
         // 正文不够时看页面数据岛里有没有正文（不用浏览器）。合并结果只用在最后返回 HTTP 结果的时候：
         // 要不要渲染、渲染有没有增益都按 HTTP 本身的结果判断——质量分不看篇幅，补进一个标题和一段简介
@@ -88,6 +145,8 @@ pub(super) async fn extract_fetched(
             http_chars,
             render,
             embedded,
+            graph_dom,
+            graph_traces,
         }
     })
     .await

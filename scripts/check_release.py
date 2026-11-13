@@ -56,7 +56,7 @@ def check(tag=None):
         f'CONTRIBUTING.md must say "Rust {msrv} or newer" (rust-version in Cargo.toml)'
     # 首页 README 的模板、徽章白名单、标题版本号（0.90 起必须按模板改版）
     subprocess.run([sys.executable, '-I', str(ROOT/'scripts/check_readme.py'), '--release'], check=True)
-    # 本机存在上游仓库 yolow64 / yolowpdf / yolowhtml / yolowsyntax 时，校验 Cargo.lock 已同步到最新版本
+    # 本机存在上游仓库 yolow64 / yolowpdf / yolowhtml / yolowsyntax / yolowzstd / yolowdoc 时，校验 Cargo.lock 已同步到最新版本
     lock_toml = tomllib.loads((ROOT / 'Cargo.lock').read_text())
     locked_pkgs = {p['name']: p['version'] for p in lock_toml.get('package', [])}
     for up_name, up_toml, keys in [
@@ -65,6 +65,8 @@ def check(tag=None):
         ('yolowhtml', Path('/home/yolow92/yolow/yolowhtml/Cargo.toml'), ('workspace', 'package', 'version')),
         ('yolowhtml-dom', Path('/home/yolow92/yolow/yolowhtml/Cargo.toml'), ('workspace', 'package', 'version')),
         ('yolowsyntax', Path('/home/yolow92/yolow/yolowsyntax/Cargo.toml'), ('package', 'version')),
+        ('yolowzstd', Path('/home/yolow92/yolow/yolowzstd/Cargo.toml'), ('package', 'version')),
+        ('yolowdoc', Path('/home/yolow92/yolow/yolowdoc/Cargo.toml'), ('package', 'version')),
     ]:
         if up_toml.is_file():
             d = tomllib.loads(up_toml.read_text())

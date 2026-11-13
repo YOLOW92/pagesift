@@ -32,6 +32,10 @@ pub(crate) mod ns {
     pub const SET_MEMBER: u8 = 6;
     pub const ITEM: u8 = 7;
     pub const SELECTOR: u8 = 8; // [协议] 本存储格式的命名空间编号（接在 ITEM = 7 之后）
+    pub const GRAPH_NODE: u8 = 9; // [协议] DataGraph 版本节点命名空间
+    pub const GRAPH_EDGE: u8 = 10; // [协议] DataGraph 版本迁移边命名空间
+    pub const GRAPH_FACT: u8 = 11; // [协议] DataGraph 别名与冲突事实命名空间
+    pub const GRAPH_JOB: u8 = 12; // [协议] DataGraph 作业摘要与增量命名空间
 }
 
 fn evictable(n: u8) -> bool {
@@ -283,6 +287,10 @@ impl Store {
 
     pub fn selectors(&self) -> crate::Selectors<'_> {
         crate::Selectors::new(self)
+    }
+
+    pub fn graph(&self) -> crate::GraphStore<'_> {
+        crate::GraphStore::new(self)
     }
 
     pub fn tasks(&self) -> Tasks<'_> {

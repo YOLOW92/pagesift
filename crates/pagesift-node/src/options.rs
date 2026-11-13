@@ -92,7 +92,7 @@ impl ScraperConfig {
     }
 }
 
-const FORMATS: &[&str] = &["markdown", "html", "rawHtml", "links", "images"];
+const FORMATS: &[&str] = &["markdown", "html", "rawHtml", "links", "images", "graph"];
 
 fn parse_formats(formats: &Option<Vec<String>>) -> Fallible<Vec<Format>> {
     let Some(list) = formats else {
@@ -132,6 +132,11 @@ impl ConvertOptions {
     pub fn plan(&self) -> Fallible<ConvertPlan> {
         let formats = parse_formats(&self.formats)?;
         let wants = |k: &str| formats.iter().any(|f| f.kind == k);
+        if wants("graph") {
+            return Err(ApiError::unsupported(
+                "format \"graph\" is only supported by Scraper, not convert",
+            ));
+        }
         let base_url = match &self.url {
             Some(u) => Some(
                 url::Url::parse(u)
@@ -202,6 +207,9 @@ macro_rules! scrape_options {
             /// 和 HTTP 接口相同，例如 `[{ type: 'pdf', mode: 'ocr' }]`；`ocr` 模式要 `Scraper` 配了 `ocr`。
             #[napi(ts_type = "Array<string | { type: string; mode?: 'fast' | 'auto' | 'ocr' }>")]
             pub parsers: Option<serde_json::Value>,
+            /// 开启 DataGraph 跨来源关系与证据抽取：`true` 或配置对象（含 `subjectKeys` 等）。
+            #[napi(ts_type = "boolean | Record<string, unknown>")]
+            pub graph: Option<serde_json::Value>,
         }
 
         impl $name {
@@ -224,6 +232,7 @@ macro_rules! scrape_options {
                         v => v.map(|v| v as u64),
                     },
                     parsers: self.parsers.clone(),
+                    graph: api::parse_graph_value(self.graph.clone())?,
                     ..Default::default()
                 };
                 PdfParser::from_parsers(o.parsers.as_ref())?;

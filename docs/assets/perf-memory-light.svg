@@ -3,35 +3,35 @@
 <text x="0" y="22" fill="#0b0b0b" font-size="17" font-weight="600" text-anchor="start">Times less memory than other tools</text>
 <text x="0" y="44" fill="#52514e" font-size="13" font-weight="400" text-anchor="start">Peak MB per worker on the same workload. Higher is better. Bars use a log scale.</text>
 <text x="0" y="77" fill="#0b0b0b" font-size="13" font-weight="400" text-anchor="start">PDF, B1 pages</text>
-<text x="0" y="94" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">32.5 MB vs Docling (CPU) 3,675 MB</text>
+<text x="0" y="94" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">30.3 MB vs Docling (CPU) 3,675 MB</text>
 <path d="M300 66h306.0a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-306.0z" fill="#2a78d6"/>
-<text x="618.0" y="79" fill="#0b0b0b" font-size="14" font-weight="600" text-anchor="start">×113.1</text>
+<text x="618.0" y="79" fill="#0b0b0b" font-size="14" font-weight="600" text-anchor="start">×121.3</text>
 <text x="0" y="123" fill="#0b0b0b" font-size="13" font-weight="400" text-anchor="start">HTML main content, A2 pages</text>
-<text x="0" y="140" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">19.8 MB vs Readability + Turndown 1,200 MB</text>
-<path d="M300 112h265.3a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-265.3z" fill="#2a78d6"/>
-<text x="577.2740776957764" y="125" fill="#0b0b0b" font-size="14" font-weight="600" text-anchor="start">×60.8</text>
+<text x="0" y="140" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">27.9 MB vs Readability + Turndown 1,200 MB</text>
+<path d="M300 112h239.0a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-239.0z" fill="#2a78d6"/>
+<text x="551.0201109698461" y="125" fill="#0b0b0b" font-size="14" font-weight="600" text-anchor="start">×43.0</text>
 <text x="0" y="169" fill="#0b0b0b" font-size="13" font-weight="400" text-anchor="start">Crawl, 200 sites × 100 pages</text>
 <text x="0" y="186" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">218 MB vs spider 5,500 MB</text>
-<path d="M300 158h207.6a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-207.6z" fill="#2a78d6"/>
-<text x="519.5570662665648" y="171" fill="#0b0b0b" font-size="14" font-weight="600" text-anchor="start">×25.2</text>
-<text x="0" y="215" fill="#0b0b0b" font-size="13" font-weight="400" text-anchor="start">HTML main content, A2 pages</text>
-<text x="0" y="232" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">19.8 MB vs trafilatura 123 MB</text>
-<path d="M300 204h115.9a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-115.9z" fill="#2a78d6"/>
-<text x="427.9220335231259" y="217" fill="#0b0b0b" font-size="14" font-weight="600" text-anchor="start">×6.2</text>
-<text x="0" y="261" fill="#0b0b0b" font-size="13" font-weight="400" text-anchor="start">Office and e-books, B4 files</text>
-<text x="0" y="278" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">47.0 MB vs Kreuzberg 231 MB</text>
-<path d="M300 250h100.3a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-100.3z" fill="#2a78d6"/>
-<text x="412.3288903978646" y="263" fill="#0b0b0b" font-size="14" font-weight="600" text-anchor="start">×4.9</text>
+<path d="M300 158h204.5a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-204.5z" fill="#2a78d6"/>
+<text x="516.4666033709699" y="171" fill="#0b0b0b" font-size="14" font-weight="600" text-anchor="start">×25.2</text>
+<text x="0" y="215" fill="#0b0b0b" font-size="13" font-weight="400" text-anchor="start">Office and e-books, B4 files</text>
+<text x="0" y="232" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">42.1 MB vs Kreuzberg 231 MB</text>
+<path d="M300 204h106.0a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-106.0z" fill="#2a78d6"/>
+<text x="417.9868728331427" y="217" fill="#0b0b0b" font-size="14" font-weight="600" text-anchor="start">×5.5</text>
+<text x="0" y="261" fill="#0b0b0b" font-size="13" font-weight="400" text-anchor="start">HTML main content, A2 pages</text>
+<text x="0" y="278" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">27.9 MB vs trafilatura 123 MB</text>
+<path d="M300 250h91.8a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-91.8z" fill="#2a78d6"/>
+<text x="403.84982777092375" y="263" fill="#0b0b0b" font-size="14" font-weight="600" text-anchor="start">×4.4</text>
 <text x="0" y="307" fill="#0b0b0b" font-size="13" font-weight="400" text-anchor="start">Crawl with browser, 200 sites × 100 pages</text>
 <text x="0" y="324" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">669 MB vs Google Chrome 2,300 MB</text>
-<path d="M300 296h77.0a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-77.0z" fill="#2a78d6"/>
-<text x="388.95622683656904" y="309" fill="#0b0b0b" font-size="14" font-weight="600" text-anchor="start">×3.4</text>
+<path d="M300 296h75.8a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-75.8z" fill="#2a78d6"/>
+<text x="387.7736040122833" y="309" fill="#0b0b0b" font-size="14" font-weight="600" text-anchor="start">×3.4</text>
 <text x="0" y="353" fill="#0b0b0b" font-size="13" font-weight="400" text-anchor="start">PDF, B1 pages</text>
-<text x="0" y="370" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">32.5 MB vs Kreuzberg 76.0 MB</text>
-<path d="M300 342h51.7a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-51.7z" fill="#2a78d6"/>
-<text x="363.6977796940902" y="355" fill="#0b0b0b" font-size="14" font-weight="600" text-anchor="start">×2.3</text>
+<text x="0" y="370" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">30.3 MB vs Kreuzberg 76.0 MB</text>
+<path d="M300 342h55.4a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-55.4z" fill="#2a78d6"/>
+<text x="367.41267133062166" y="355" fill="#0b0b0b" font-size="14" font-weight="600" text-anchor="start">×2.5</text>
 <text x="0" y="399" fill="#0b0b0b" font-size="13" font-weight="400" text-anchor="start">JavaScript pages, A3 (live web)</text>
 <text x="0" y="416" fill="#52514e" font-size="12" font-weight="400" text-anchor="start">520 MB vs Crawl4AI 982 MB</text>
-<path d="M300 388h37.7a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-37.7z" fill="#2a78d6"/>
-<text x="349.72217030675046" y="401" fill="#0b0b0b" font-size="14" font-weight="600" text-anchor="start">×1.9</text>
+<path d="M300 388h37.1a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-37.1z" fill="#2a78d6"/>
+<text x="349.1126854924062" y="401" fill="#0b0b0b" font-size="14" font-weight="600" text-anchor="start">×1.9</text>
 </svg>

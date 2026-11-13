@@ -31,7 +31,7 @@ export declare class PagesiftError extends Error {
   readonly retryAfter?: number
 }
 
-export type Format = 'markdown' | 'html' | 'rawHtml' | 'links' | 'images'
+export type Format = 'markdown' | 'html' | 'rawHtml' | 'links' | 'images' | 'graph'
 
 /** `Page.toJSON()` 的结果：一次取出全部字段的普通对象，没请求的格式不出现。 */
 export interface PageJSON {
@@ -40,6 +40,7 @@ export interface PageJSON {
   rawHtml?: string
   links?: string[]
   images?: string[]
+  graph?: Record<string, unknown>
   metadata: PageMetadata
 }
 
@@ -52,6 +53,8 @@ export interface PageMetadata {
   favicon?: string
   publishedTime?: string
   modifiedTime?: string
+  /** Canonical URL extracted from HTML `link[rel=canonical]` or HTTP `Link` header. */
+  canonicalUrl?: string
   /** 最终地址（跟随重定向之后）。 */
   url?: string
   /** 请求的地址。 */
@@ -127,6 +130,8 @@ export declare class CrawlStream {
   get errors(): number
   /** 爬取结束后的说明；结束前为 null。 */
   get summary(): CrawlSummary | null
+  /** DataGraph 汇总结果；未启用或爬取尚未完成时为 null。 */
+  get graph(): Record<string, unknown> | null
 
   [globalThis.Symbol.asyncIterator](): globalThis.__NapiRsAsyncGenerator<CrawlStream, CrawlItem, void, undefined>
 }
@@ -145,6 +150,8 @@ export declare class Page {
   get images(): Array<string> | null
   /** `extractSchema` 按 CSS schema 抽出的列表（每个列表项一个对象）；没要时为 null。 */
   get extract(): Array<Record<string, unknown>> | null
+  /** 开启 `graph` 选项或 `'graph'` 格式时的单页 DataGraph 增量；未启用时为 null。 */
+  get graph(): Record<string, unknown> | null
   /** 标题、描述、状态码、`og:*` 等元数据，以及 `pagesift` 扩展字段。 */
   get metadata(): PageMetadata
   /** 一次性取出全部字段，得到普通对象（`JSON.stringify(page)` 也会调用它）。 */
@@ -253,6 +260,8 @@ export interface BatchOptions {
   maxAge?: number
   /** 和 HTTP 接口相同，例如 `[{ type: 'pdf', mode: 'ocr' }]`；`ocr` 模式要 `Scraper` 配了 `ocr`。 */
   parsers?: Array<string | { type: string; mode?: 'fast' | 'auto' | 'ocr' }>
+  /** 开启 DataGraph 跨来源关系与证据抽取：`true` 或配置对象（含 `subjectKeys` 等）。 */
+  graph?: boolean | Record<string, unknown>
 }
 
 /** 把一段 HTML 转成 Markdown，在当前线程上同步执行（会阻塞事件循环，适合脚本和小页面）。 */
@@ -315,6 +324,8 @@ export interface CrawlOptions {
   onlyMainContent?: boolean
   /** `auto`（默认）、`http` 或 `browser`。 */
   engine?: 'auto' | 'http' | 'browser'
+  /** 开启 DataGraph 跨来源关系与证据抽取：`true` 或配置对象。 */
+  graph?: boolean | Record<string, unknown>
 }
 
 /** 爬取结束后的说明。 */
@@ -403,6 +414,8 @@ export interface ParseOptions {
   maxAge?: number
   /** 和 HTTP 接口相同，例如 `[{ type: 'pdf', mode: 'ocr' }]`；`ocr` 模式要 `Scraper` 配了 `ocr`。 */
   parsers?: Array<string | { type: string; mode?: 'fast' | 'auto' | 'ocr' }>
+  /** 开启 DataGraph 跨来源关系与证据抽取：`true` 或配置对象（含 `subjectKeys` 等）。 */
+  graph?: boolean | Record<string, unknown>
 }
 
 /** 单页抓取选项。 */
@@ -442,6 +455,8 @@ export interface ScrapeOptions {
   maxAge?: number
   /** 和 HTTP 接口相同，例如 `[{ type: 'pdf', mode: 'ocr' }]`；`ocr` 模式要 `Scraper` 配了 `ocr`。 */
   parsers?: Array<string | { type: string; mode?: 'fast' | 'auto' | 'ocr' }>
+  /** 开启 DataGraph 跨来源关系与证据抽取：`true` 或配置对象（含 `subjectKeys` 等）。 */
+  graph?: boolean | Record<string, unknown>
 }
 
 /** `Scraper` 的构造参数。 */

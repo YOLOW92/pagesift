@@ -212,11 +212,30 @@ impl Scraper {
                 })
                 .collect()
         });
-        Ok(finish(
+        let graph_opts = crate::graph::effective_graph_options(opts);
+        let full_markdown = rewrite_exported_image_names(pdf.markdown, &image_names);
+        let content_hash = pagesift_graph::sha256_hex(full_markdown.as_bytes());
+        if ext.content_hash.is_none() {
+            ext.content_hash = Some(content_hash.clone());
+        }
+        let pdf_attachments: Vec<(String, Option<String>, Option<String>)> = attachments
+            .iter()
+            .map(|a| {
+                let path = a
+                    .source
+                    .clone()
+                    .unwrap_or_else(|| format!("images/{}", a.id));
+                (
+                    path.clone(),
+                    Some(format!("image/{}", a.format)),
+                    Some(path),
+                )
+            })
+            .collect();
+        let is_upload = ext.engine.as_deref() == Some("upload");
+        let mut out = finish(
             Document {
-                markdown: opts
-                    .wants("markdown")
-                    .then(|| rewrite_exported_image_names(pdf.markdown, &image_names)),
+                markdown: (opts.wants("markdown") || graph_opts.is_some()).then_some(full_markdown),
                 pages,
                 attachments,
                 image_assets,
@@ -229,7 +248,34 @@ impl Scraper {
             None,
             false,
             p.started,
-        ))
+        );
+        if let Some(gopts) = &graph_opts {
+            let ps = out.metadata.pagesift.as_ref();
+            let engine = ps
+                .and_then(|m| m.engine.clone())
+                .unwrap_or_else(|| "pdf".to_string());
+            let etag = ps.and_then(|m| m.etag.clone());
+            let last_modified = ps.and_then(|m| m.last_modified.clone());
+            let store = self.store.as_ref().filter(|_| !is_upload);
+            crate::graph::build_and_attach_page_graph(
+                store,
+                gopts,
+                &mut out,
+                crate::graph::PageGraphSeed {
+                    source_kind: pagesift_graph::SourceKind::Pdf,
+                    engine,
+                    content_hash: Some(content_hash),
+                    etag,
+                    last_modified,
+                    attachments: pdf_attachments,
+                    ..Default::default()
+                },
+            );
+            if !opts.wants("markdown") {
+                out.markdown = None;
+            }
+        }
+        Ok(out)
     }
 }
 

@@ -87,6 +87,7 @@ test('an invalid url throws or rejects with PagesiftError', async () => {
 
 test('an unknown format is UNSUPPORTED_OPTION', async () => {
   assert.throws(() => convert('<p>x</p>', { formats: ['screenshot'] }), unsupported)
+  assert.throws(() => convert('<p>x</p>', { formats: ['graph'] }), unsupported)
   await assert.rejects(convertMany(['<p>x</p>'], { formats: ['screenshot'] }), unsupported)
 })
 

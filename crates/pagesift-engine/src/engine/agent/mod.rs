@@ -467,6 +467,7 @@ impl Run<'_> {
         o.data = Some(data);
         o.schema_valid = schema_valid;
         o.field_sources = field_sources;
+        o.evidence_spans = provenance::to_evidence_spans(&o.field_sources, &o.evidence);
         o.missing = missing;
         o.message = message;
         o

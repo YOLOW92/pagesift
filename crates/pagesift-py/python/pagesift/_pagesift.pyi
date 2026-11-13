@@ -23,6 +23,9 @@ class Document:
     def final_url(self) -> Optional[str]:
         """跟随重定向后的最终地址。"""
     @property
+    def canonical_url(self) -> Optional[str]:
+        """页面的 canonical 链接（从 HTML link[rel=canonical] 或 Link 头提取）。"""
+    @property
     def success(self) -> bool: ...
     @property
     def status_code(self) -> Optional[int]: ...
@@ -42,9 +45,12 @@ class Document:
     def extract(self) -> Optional[List[Dict[str, Any]]]:
         """``extract_schema`` 抽出的列表（每个列表项一个对象）；没要时为 None。"""
     @property
+    def graph(self) -> Optional[Dict[str, Any]]:
+        """单页 DataGraph 增量（启用 ``graph`` 选项或 ``formats`` 含 ``"graph"`` 时返回）；否则为 None。"""
+    @property
     def metadata(self) -> Dict[str, Any]:
         """页面元数据：title、description、language、keywords、robots、favicon、
-        published_time、author、modified_time、content_type，以及 og_image 等其他 meta 标签（scrape 和 convert 键名相同）。"""
+        published_time、author、modified_time、content_type、canonical_url，以及 og_image 等其他 meta 标签（scrape 和 convert 键名相同）。"""
     @property
     def error(self) -> Optional[PagesiftError]: ...
     @property
@@ -106,6 +112,7 @@ class Options:
         extract_schema: Optional[str] = None,
         max_age: Optional[int] = None,
         parsers: Optional[str] = None,
+        graph: Optional[str] = None,
     ) -> None: ...
 
 class Batch:
@@ -158,6 +165,9 @@ class Crawl:
     @property
     def summary(self) -> Optional[CrawlSummary]:
         """爬取结束后的说明，结束前为 None。"""
+    @property
+    def graph(self) -> Optional[Dict[str, Any]]:
+        """DataGraph 汇总结果，未启用或爬取尚未完成时为 None。"""
 
 class Engine:
     def __init__(

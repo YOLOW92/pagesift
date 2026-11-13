@@ -1,0 +1,3 @@
+pagesift+ocr: 134 files, 0 failed, 9654 ms/file, wall 1293.7 s, 0.10 pages/s
+device: Gpu { index: 0 }, fallback: None
+gpu: peak 6722 MiB, needed 2128 MiB, 641 batches, 5437 lines, 8.5 lines/batch, 0 splits, 0 offloaded ops

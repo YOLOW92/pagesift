@@ -1,0 +1,40 @@
+{
+  "v1_ms": 4006.32,
+  "v2_ms": 3987.33,
+  "v1_stats": {
+    "nodes": 6,
+    "blocks": 13,
+    "citations": 8,
+    "provenanceEdges": 3,
+    "versionEdges": 2,
+    "evidenceSpans": 18,
+    "claims": 18,
+    "factClusters": 4,
+    "conflicts": 1,
+    "canonicalClusters": 1
+  },
+  "v2_stats": {
+    "nodes": 6,
+    "blocks": 13,
+    "citations": 8,
+    "provenanceEdges": 3,
+    "versionEdges": 2,
+    "evidenceSpans": 18,
+    "claims": 18,
+    "factClusters": 5,
+    "conflicts": 2,
+    "canonicalClusters": 1
+  },
+  "combined_stats": {
+    "nodes": 12,
+    "blocks": 26,
+    "citations": 16,
+    "provenanceEdges": 6,
+    "versionEdges": 8,
+    "evidenceSpans": 36,
+    "claims": 36,
+    "factClusters": 6,
+    "conflicts": 2,
+    "canonicalClusters": 1
+  }
+}

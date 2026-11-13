@@ -131,6 +131,68 @@ pub(super) fn attribute(
     (out, unverified)
 }
 
+/// Map agent-verified `FieldSource` citations onto `pagesift_graph::EvidenceSpan` entries.
+pub(crate) fn to_evidence_spans(
+    fields: &std::collections::BTreeMap<String, FieldSource>,
+    evidence: &[AgentEvidence],
+) -> Vec<pagesift_graph::EvidenceSpan> {
+    let mut by_id: std::collections::HashMap<&str, &AgentEvidence> =
+        std::collections::HashMap::with_capacity(evidence.len());
+    for item in evidence {
+        by_id.insert(item.id.as_str(), item);
+    }
+    let mut spans = Vec::new();
+    for (field_path, src) in fields {
+        let normalized_path = field_path.trim_start_matches('/').replace('/', ".");
+        let method = pagesift_graph::ExtractionMethod::Agent {
+            cited_evidence_ids: src.evidence_ids.clone(),
+        };
+        if src.evidence_ids.is_empty() {
+            if let Some(fallback_url) = src.sources.first() {
+                spans.push(pagesift_graph::EvidenceSpan {
+                    doc_id: pagesift_graph::DocNode::compute_doc_id(fallback_url, 0, None),
+                    url: fallback_url.clone(),
+                    block_id: None,
+                    chunk_idx: None,
+                    start: None,
+                    end: None,
+                    excerpt: String::new(),
+                    confidence: if src.verified { 0.85 } else { 0.2 }, // [策略] 无 evidence_id 时按已核验/未核验区分初始置信度
+                    alignment: pagesift_graph::EvidenceAlignment::Unaligned,
+                    verified: src.verified,
+                    field_path: normalized_path,
+                    method,
+                });
+            }
+            continue;
+        }
+        for id in &src.evidence_ids {
+            if let Some(ev) = by_id.get(id.as_str()) {
+                let text_hash = pagesift_graph::sha256_hex(ev.text.as_bytes());
+                spans.push(pagesift_graph::EvidenceSpan {
+                    doc_id: pagesift_graph::DocNode::compute_doc_id(&ev.url, 0, Some(&text_hash)),
+                    url: ev.url.clone(),
+                    block_id: None,
+                    chunk_idx: None,
+                    start: None,
+                    end: None,
+                    excerpt: pagesift_graph::compact_excerpt(&ev.text, 240), // [策略] agent 证据摘要预览长度
+                    confidence: if src.verified { 1.0 } else { 0.35 }, // [策略] 有 evidence_id 未核验时保留较低置信度
+                    alignment: if src.verified {
+                        pagesift_graph::EvidenceAlignment::ExactBlock
+                    } else {
+                        pagesift_graph::EvidenceAlignment::Unaligned
+                    },
+                    verified: src.verified,
+                    field_path: normalized_path.clone(),
+                    method: method.clone(),
+                });
+            }
+        }
+    }
+    spans
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -196,5 +258,29 @@ mod tests {
         let cjk = [ev("E1", "https://a.test/", "澄迈加快农村生活污水治理")];
         let (f, _) = attribute(&json!({"t": "污水治理"}), &Map::new(), &cjk);
         assert!(f["/t"].verified);
+    }
+
+    #[test]
+    fn maps_field_sources_into_evidence_spans() {
+        let evidence = [
+            ev("E1", "https://a.test/", "Founded in 1999 by Ada."),
+            ev("E2", "https://b.test/", "The office is in Oslo."),
+        ];
+        let data = json!({"founder": "Ada", "ceo": "Grace"});
+        let cited = json!({"/founder": ["E1"], "/ceo": ["E2"]});
+        let (fields, _) = attribute(&data, cited.as_object().unwrap(), &evidence);
+        let spans = to_evidence_spans(&fields, &evidence);
+        assert_eq!(spans.len(), 2);
+        let founder = spans.iter().find(|s| s.field_path == "founder").unwrap();
+        assert!(founder.verified);
+        assert_eq!(founder.url, "https://a.test/");
+        assert!(matches!(
+            founder.method,
+            pagesift_graph::ExtractionMethod::Agent { ref cited_evidence_ids }
+            if cited_evidence_ids == &vec!["E1".to_string()]
+        ));
+        let ceo = spans.iter().find(|s| s.field_path == "ceo").unwrap();
+        assert!(!ceo.verified);
+        assert_eq!(ceo.alignment, pagesift_graph::EvidenceAlignment::Unaligned);
     }
 }

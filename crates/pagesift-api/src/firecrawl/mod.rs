@@ -4,6 +4,7 @@
 pub mod agent;
 pub mod batch;
 pub mod crawl;
+pub mod graph;
 pub mod interact;
 pub mod locate;
 pub mod map;
@@ -56,6 +57,9 @@ pub fn firecrawl_routes() -> Router<AppState> {
         )
         .route("/v2/crawl/{id}/errors", get(batch::job_errors))
         .route("/v2/crawl/{id}/stream", get(stream::job_stream))
+        .route("/v2/crawl/{id}/graph", get(graph::crawl_graph))
+        .route("/v2/graph/history", get(graph::graph_history))
+        .route("/v2/graph/conflicts", get(graph::graph_conflicts))
         // Firecrawl v1 API endpoints (full backward compatibility with v1 Python & Node SDKs)
         .route("/v1/scrape", post(scrape::scrape))
         .route("/v1/batch/scrape", post(batch::batch_start))

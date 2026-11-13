@@ -125,6 +125,7 @@ pub(super) fn content_options(
     status: Option<u16>,
     opts: &ScrapeOptions,
 ) -> pagesift_content::Options {
+    let graph_versions = crate::graph::effective_graph_options(opts).is_some_and(|g| g.versions);
     pagesift_content::Options {
         base_url: Some(base.clone()),
         only_main_content: opts.only_main_content,
@@ -134,8 +135,8 @@ pub(super) fn content_options(
         clean_html: opts.wants("html"),
         links: opts.wants("links"),
         images: opts.wants("images"),
-        // 完整指纹（原始 HTML 的哈希、再渲染一遍纯文本做规范化哈希）约占提取 CPU 的一成，只在变化检测要用时算
-        fingerprints: opts.wants("changeTracking"),
+        // 完整指纹（原始 HTML 的哈希、再渲染一遍纯文本做规范化哈希）约占提取 CPU 的一成，只在变化检测或 DataGraph 版本追踪要用时算
+        fingerprints: opts.wants("changeTracking") || graph_versions,
         ..Default::default()
     }
 }

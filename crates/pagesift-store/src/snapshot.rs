@@ -3,12 +3,31 @@
 //! 每个 URL 一个追加列表，元素是 (时间, 内容哈希, 原始长度)；内容本身按哈希只存一份。
 //! 内容可能被 LRU 淘汰，这时 [`SnapshotMeta::available`] 为 false。
 
+use std::cell::RefCell;
 use std::fmt;
 use std::ops::RangeBounds;
 use std::time::SystemTime;
 
 /// 解压快照的输出上限（存储文件不可全信）。
 const MAX_SNAPSHOT: usize = 1 << 30;
+/// 单次快照超过此长度时压缩完回收 TLS encoder 缓冲，避免常驻 worker 长期占大内存。
+const MAX_RETAINED_SNAPSHOT_INPUT: usize = 4 << 20; // [策略] 超过 4 MiB 时回收 TLS 压缩器缓冲
+
+thread_local! {
+    static SNAPSHOT_ENCODER: RefCell<pagesift_compress::Compressor> =
+        RefCell::new(pagesift_compress::Compressor::new());
+}
+
+pub(crate) fn compress_snapshot(html: &[u8], level: i32) -> Vec<u8> {
+    SNAPSHOT_ENCODER.with(|cell| {
+        let mut comp = cell.borrow_mut();
+        let out = comp.compress(html, level);
+        if html.len() > MAX_RETAINED_SNAPSHOT_INPUT {
+            comp.shrink_to_fit();
+        }
+        out
+    })
+}
 
 use crate::engine::ns;
 use crate::tasks::{list_push, list_scan};
@@ -79,7 +98,7 @@ impl<'a> Snapshots<'a> {
         let compressed = if deduped {
             Vec::new()
         } else {
-            pagesift_compress::compress(html, cfg.snapshot_compress_level)
+            compress_snapshot(html, cfg.snapshot_compress_level)
         };
         let mut item = Vec::with_capacity(36);
         item.extend_from_slice(&hash.0);
@@ -89,7 +108,7 @@ impl<'a> Snapshots<'a> {
         let mut stored_bytes = 0;
         if !tx.contains(ns::SNAP_BLOB, &hash.0)? {
             let data = if deduped {
-                pagesift_compress::compress(html, cfg.snapshot_compress_level)
+                compress_snapshot(html, cfg.snapshot_compress_level)
             } else {
                 compressed
             };

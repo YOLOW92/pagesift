@@ -2,12 +2,12 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.3.0
+# pagesift 1.4.0
 
-**AI エージェントのための Web・文書レイヤー：URL、文書、メール、圧縮ファイル、ソースコードを入力すると、クリーンな Markdown または JSON を出力します。**  
+**AI エージェントのための Web・文書レイヤー：URL、文書、メール、圧縮ファイル、ソースコードを入力すると、クリーンな Markdown、構造化 JSON、または DataGraph 関係グラフを出力します。**  
 セルフホストできる単一の Rust バイナリ：CLI、Firecrawl・Jina Reader API、MCP サーバー、Python・Node.js・Go・Java・C#・Ruby・PHP などのパッケージ。
 
-**実測：** PDF から Markdown は 1 ページ 2.4 ms で次点の 20.49 倍高速、HTML から Markdown は 0.24 ms で 8.12 倍、本文抽出は 1.0 ms で 7.26 倍（低いほど良い）。Office は毎秒 91.7 ファイルで次点の 3.40 倍（高いほど良い）。
+**実測：** PDF から Markdown は 1 ページ 2.5 ms で次点の 20.08 倍高速、HTML から Markdown は 0.23 ms で 8.36 倍、本文抽出は 1.0 ms で 7.26 倍（低いほど良い）。Office は毎秒 81.9 ファイルで次点の 3.03 倍（高いほど良い）。
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](../LICENSE)
 [![Commercial license](https://img.shields.io/badge/commercial-license%20available-green.svg)](COMMERCIAL.md)
@@ -37,13 +37,13 @@ pagesift は、考えるソフトウェアのために Web と文書を読みま
 ## 早見表
 
 - **入力：** URL、HTML、PDF（スキャンページの OCR を含む）、画像ファイル（OCR）、Word（.docx、.doc）、Excel（.xlsx、.xlsb、.xls）、PowerPoint（.pptx、.ppt）、OpenDocument、RTF、WordPerfect、HWP、EPUB、MOBI、FB2、メール（.eml、.mbox、.msg）、圧縮ファイル（zip、tar、gz、bz2、xz、7z）、SQLite、dBASE、CSV、Markdown などのテキスト形式、373 種類のソースコードと設定言語、WARC アーカイブ
-- **出力：** Markdown、HTML、生 HTML、リンク、画像、メタデータ、スキーマに基づく JSON。結果が不完全な場合は警告
+- **出力：** Markdown、HTML、生 HTML、リンク、画像、メタデータ、スキーマに基づく JSON、DataGraph のクロスソース関係・証拠。結果が不完全な場合は警告
 - **インターフェース：** CLI · Firecrawl v1/v2 HTTP API · Jina Reader · MCP（stdio または HTTP）· Python · Node.js / TypeScript · Rust crate · C ABI と Go、Java、Kotlin、C#、Ruby、PHP、Lua、Perl、Dart、Swift、Zig バインディング · LangChain、LlamaIndex
 - **プラットフォーム：** Linux x86_64 / aarch64（glibc 2.28 以上と musl）、macOS arm64、Windows x86_64。Docker イメージ `ghcr.io/yolow92/pagesift`
 - **ランタイム：** HTTP、PDF、Office にはインストール不要。オプション：JavaScript ページ用のブラウザ、OCR 用の NVIDIA GPU、`/v2/agent` 用の自分のモデル
-- **メモリ：** ブラウザなしの 1.1 の各ベンチマークでワーカーあたりピーク 18–377 MB。数式モデルを使う OCR には約 1.7 GB が必要です。容量は cgroup の上限から決まります
+- **メモリ：** ブラウザなしの 1.4 の各ベンチマークでワーカーあたりピーク 17–395 MB。数式モデルを使う OCR には約 1.7 GB が必要です。容量は cgroup の上限から決まります
 - **ライセンス：** Apache-2.0、または[商用サポート](COMMERCIAL.md)
-- **最新版：** 1.3.0 · [リリースノート](releases/1.3.0.md)
+- **最新版：** 1.4.0 · [リリースノート](releases/1.4.0.md)
 
 <!-- section: install -->
 ## インストールと使い方
@@ -53,17 +53,18 @@ pagesift は、考えるソフトウェアのために Web と文書を読みま
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| サーバー | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.2.7` | `curl localhost:3002/r/https://example.com` |
+| サーバー | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.4.0` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
 
 ```bash
 pagesift scrape https://example.com                          # Markdown を標準出力へ
+pagesift scrape --graph https://example.com                  # Markdown + DataGraph の関係と証拠
 pagesift scrape report.pdf                                   # ローカルの PDF、Office、電子書籍、メール、圧縮ファイル、画像、コード、WARC ファイル
 pagesift --ocr scrape scan.pdf                               # スキャンページを OCR。モデルは初回使用時にダウンロード
-pagesift crawl https://docs.rs --limit 500 --out ./data/     # 1 ページにつき 1 ファイル
-pagesift crawl https://www.example.edu --query "graduate admission" --adaptive
+pagesift crawl https://docs.rs --limit 500 --out ./data/     # 1 ページにつき 1 ファイル（--graph で graph.jsonl も出力）
+pagesift graph inspect ./data/graph.jsonl                    # 引用、出典、バージョン履歴、矛盾を検査
 pagesift extract --schema schema.json https://example.com    # CSS セレクタで JSON を抽出。ページが変わると修復
 pagesift doctor                                              # ブラウザ、GPU、モデルをチェック
 ```
@@ -97,7 +98,7 @@ const items = await scraper.scrapeMany(['https://example.com', 'https://example.
 **HTTP サーバー**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.2.7
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.4.0
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'                        # Firecrawl API
@@ -117,7 +118,7 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 ```
 
 ツール：`pagesift_scrape`、`pagesift_batch_scrape`、`pagesift_crawl`、`pagesift_poll_job`、`pagesift_cancel_job`、
-`pagesift_map`、`pagesift_interact`、`pagesift_interact_stop`。モデルを設定すると `pagesift_agent`、`pagesift_agent_status` も使えます。
+`pagesift_map`、`pagesift_interact`、`pagesift_interact_stop`、`pagesift_graph_query`。モデルを設定すると `pagesift_agent`、`pagesift_agent_status` も使えます。
 [共有 MCP サービス](mcp-service.md)
 
 <!-- section: capabilities -->
@@ -126,9 +127,10 @@ claude mcp add --scope user --transport http pagesift http://127.0.0.1:3003/mcp
 | 機能 | 得られるもの | ドキュメント |
 |---|---|---|
 | **クリーンな本文** | 本文検出と、見出し・リスト・表・コード・数式を保った Markdown | [ベンチマーク](benchmarks.md) |
-| **文書** | PDF、新旧 Office、OpenDocument、電子書籍、メール、圧縮ファイル、画像、データベース、テキスト形式の自前 Rust リーダー。破損ファイルや CJK フォントにも対応 | [アップロード API](parse-api.md) |
+| **文書** | PDF、Office、電子書籍、メール、圧縮ファイル、画像、SQLite、テキスト形式の独立 Rust リーダー（`yolowpdf`、`yolowdoc`、`yolowsyntax`、`yolowzstd`、`yolowhtml`、`yolow64`） | [アップロード API](parse-api.md) |
 | **OCR** | スキャン PDF ページは PP-OCRv6、ディスプレイ数式は PP-FormulaNet で処理。純粋な Rust で CPU または NVIDIA GPU 上で動作 | [アップロード API](parse-api.md) |
 | **構造化抽出** | サイトが変わると再配置される CSS セレクタ、または自分のモデルが一度だけ書いて pagesift がキャッシュするスキーマによる JSON | [抽出](structured-extract.md) |
+| **DataGraph** | 文書間の引用、リダイレクト・canonical・添付の出典、バージョン履歴、フィールド証拠、同一事実クラスタと矛盾記録（`graph`） | [アーキテクチャ](architecture.md) |
 | **ブラウザ操作** | ページ上のクリック、入力、スクロール。作業を続けられるセッションも利用可能 | [ブラウザ操作](interact.md) |
 | **エージェント** | `POST /v2/agent` は自分のモデルを使って Web から質問に答え、各フィールドを取得元のページと照合します | [エージェント API](agent-api.md) |
 | **監視** | 実際の変更を日付・カウンター・広告と区別する定期チェック。webhook に対応 | [監視](monitor.md) |
@@ -169,16 +171,17 @@ robots.txt、レート制限、ネットワークガードはすべてのペー�
 
 | タスク | 指標 | PageSift | 最良の他ツール | 差 |
 |---|---|---:|---|---:|
-| PDF → Markdown — olmOCR-bench 1,269 pages, per page (single thread) | ms/page ↓ | **2.4** | pypdf 50.0 | **×20.49** |
-| PDF → Markdown — B1 144 pages, 1 worker, resident server | files/s ↑ | **176.5** | pdf_oxide 100.6 | **×1.75** |
+| PDF → Markdown — olmOCR-bench 1,269 pages, per page (single thread) | ms/page ↓ | **2.5** | pypdf 50.0 | **×20.08** |
+| PDF → Markdown — B1 144 pages, 1 worker, resident server | files/s ↑ | **224.0** | pdf_oxide 100.6 | **×2.23** |
 | PDF → Markdown — olmOCR-bench 1,269 pages | official score ↑ | **0.645** | pymupdf4llm 0.484 | **+0.161** |
-| HTML → Markdown — 600 generated documents, per page | ms/page ↓ | **0.24** | Turndown 1.9 | **×8.12** |
+| HTML → Markdown — 600 generated documents, per page | ms/page ↓ | **0.23** | Turndown 1.9 | **×8.36** |
 | HTML → Markdown — 600 generated documents, fidelity | mean F1 ↑ | **1.000** | markdownify 0.936 | **+0.064** |
 | Main content — Firecrawl 597 pages, single thread | p50 ms/page ↓ | **1.0** | crw 7.4 | **×7.26** |
+| Main content — A2 269 random pages, 16 workers | pages/s ↑ | **656.1** | Resiliparse 559.3 | **×1.17** |
 | Main content — WCXB test split, 150 pages | F1 ↑ | **0.866** | Readability + Turndown 0.848 | **+0.018** |
 | Publication dates — htmldate 1,000 pages, date search | ms/page ↓ | **0.31** | htmldate (fast) 2.0 | **×6.45** |
 | RAG chunking — 5 corpora, 1.4 MB | total ms ↓ | **7** | chonkie recursive 35 | **×5.01** |
-| Office / e-books — B4 81 files, in-process | files/s ↑ | **91.7** | xberg 27.0 | **×3.40** |
+| Office / e-books — B4 81 files, in-process | files/s ↑ | **81.9** | xberg 27.0 | **×3.03** |
 | Office / e-books — B4 hold-out 39 files, structure kept | structure kept ↑ | **0.988** | xberg 0.878 | **+0.110** |
 | RAG query filter — 472 questions, default settings | answer recall ↑ | **0.929** | Crawl4AI BM25 0.673 | **+0.256** |
 | Wild crawl — polite, 40 sites × 60 pages, coverage | coverage ↑ | **0.740** | Crawl4AI (HTTP) 0.529 | **+0.211** |
@@ -189,38 +192,38 @@ robots.txt、レート制限、ネットワークガードはすべてのペー�
 
 | ワーカーあたりのピークメモリ | PageSift MB ↓ | 他ツール MB | メモリ削減 |
 |---|---:|---|---:|
-| PDF, B1 pages | **32** | Docling (CPU) 3,675 (2026-10-28) | **×113.1** |
-| HTML main content, A2 pages | **20** | Readability + Turndown 1,200 (2026-10-28) | **×60.8** |
+| PDF, B1 pages | **30** | Docling (CPU) 3,675 (2026-10-28) | **×121.3** |
+| HTML main content, A2 pages | **28** | Readability + Turndown 1,200 (2026-10-28) | **×43.0** |
 | Crawl, 200 sites × 100 pages | **218** | spider 5,500 (2026-10-21) | **×25.2** |
-| HTML main content, A2 pages | **20** | trafilatura 123 (2026-10-28) | **×6.2** |
-| Office and e-books, B4 files | **47** | Kreuzberg 231 (2026-10-28) | **×4.9** |
+| Office and e-books, B4 files | **42** | Kreuzberg 231 (2026-10-28) | **×5.5** |
+| HTML main content, A2 pages | **28** | trafilatura 123 (2026-10-28) | **×4.4** |
 | Crawl with browser, 200 sites × 100 pages | **669** | Google Chrome 2,300 (2026-10-21) | **×3.4** |
-| PDF, B1 pages | **32** | Kreuzberg 76 (2026-10-28) | **×2.3** |
+| PDF, B1 pages | **30** | Kreuzberg 76 (2026-10-28) | **×2.5** |
 | JavaScript pages, A3 (live web) | **520** | Crawl4AI 982 (2026-10-28) | **×1.9** |
 
-**PageSift 1.1 と xberg 1.3.9。** xberg は 2026-11-04 に測定。範囲は 2 回の結果。太字は行内で最良の値。
+**PageSift 1.4 と xberg 1.3.9。** xberg は 2026-11-04 に測定。範囲は 2 回の結果。太字は行内で最良の値。
 
 | 指標 | PageSift CLI | PageSift サーバー | xberg | xberg レイアウトモード |
 |---|---:|---:|---:|---:|
 | PDF B1、olmOCR スコア 1,269 ページ ↑ | **0.645** | — | 0.436 | 0.472 |
 | Office B4、構造保持率、ホールドアウト 39 件 ↑ | **0.988** | — | 0.878 | — |
-| PDF B1、1 ワーカー、件/秒 ↑ | 161.4 | **176.5** | 29.5–29.9 | 1.35 |
-| PDF B1、16 ワーカー、件/秒 ↑ | **539.3** | 305.1 | 65.8–68.4 | 1.41 |
-| Office B4、1 ワーカー、件/秒 ↑ | **91.7** | 69.1 | 27.0 | — |
-| Office B4、16 ワーカー、件/秒 ↑ | **314.0** | 147.0 | 73.4–74.2 | — |
-| PDF B1、1 ワーカー、ピーク MB ↓ | **32** | 211 | 147–172 | 1118 |
-| Office B4、1 ワーカー、ピーク MB ↓ | **47** | 252 | 112 | — |
-| Office B4、1 ワーカー、1 件の中央値 ms ↓ | 4.5 | **2.2** | 3.2–3.3 | — |
+| PDF B1、1 ワーカー、件/秒 ↑ | 145.0 | **224.0** | 29.5–29.9 | 1.35 |
+| PDF B1、16 ワーカー、件/秒 ↑ | **475.2** | 282.9 | 65.8–68.4 | 1.41 |
+| Office B4、1 ワーカー、件/秒 ↑ | 81.9 | **89.4** | 27.0 | — |
+| Office B4、16 ワーカー、件/秒 ↑ | **283.2** | 142.4 | 73.4–74.2 | — |
+| PDF B1、1 ワーカー、ピーク MB ↓ | **30** | 211 | 147–172 | 1118 |
+| Office B4、1 ワーカー、ピーク MB ↓ | **42** | 254 | 112 | — |
+| Office B4、1 ワーカー、1 件の中央値 ms ↓ | 5.5 | **1.8** | 3.2–3.3 | — |
 
 
 <details>
 <summary>まだ後れている項目</summary>
 
-fast, 40 sites × 60 pages, time (spider covered about half as many pages) 16.1 seconds vs spider 1.4 seconds; A2 replay, 269 pages, HTTP only, no rate limit, 1 worker 47.5 pages/s vs spider 156.6 pages/s; A2 269 random pages, resident worker, per page 4.5 ms/page vs Resiliparse 2.1 ms/page.
+fast, 40 sites × 60 pages, time (spider covered about half as many pages) 16.1 seconds vs spider 1.4 seconds; A2 replay, 269 pages, HTTP only, no rate limit, 1 worker 47.5 pages/s vs spider 156.6 pages/s; A2 269 random pages, resident worker, per page 5.2 ms/page vs Resiliparse 2.1 ms/page.
 
 </details>
 
-[完全なレポート](../benchmarks/history/1.1/results/final/new/report.md)
+[完全なレポート](../benchmarks/history/1.4/results/final/new/report.md)
 
 <!-- /perf-glance -->
 
@@ -242,20 +245,28 @@ flowchart TD
     Plan -->|はい| CDP[pagesift-cdp: ブラウザプール、自動化マーカー除去、チャレンジ待機]
     CDP --> DOM
     Net -->|PDF| PDF["pagesift-pdf (yolowpdf + yolow64)"]
-    Net -->|Office、電子書籍、メール、圧縮ファイル、テキスト| Office[pagesift-office]
+    Net -->|Office、電子書籍、メール、圧縮ファイル、テキスト| Office["pagesift-office (yolowdoc)"]
     Net -->|画像| OCR[pagesift-ocr, pagesift-infer, pagesift-gpu]
     Office -->|圧縮ファイルの中身、添付ファイル| Office
     Office -->|圧縮ファイルの中身、添付ファイル| PDF
     Office -->|ソースコード| Syntax["pagesift-syntax (yolowsyntax)"]
     PDF -->|スキャンページ| OCR
     DOM --> Content["pagesift-content (yolowhtml): 本文、Markdown、メタデータ"]
-    DOM --> Extract[pagesift-extract: セレクタ、再配置、チャンク分割]
-    PDF --> Sink[pagesift-sink: 出力とキャッシュ形式]
+    DOM --> Extract[pagesift-extract: セレクタ、フィールド証拠、チャンク分割]
+    Content --> Graph["pagesift-graph (DataGraph): 引用、出典、バージョン履歴、矛盾"]
+    Extract --> Graph
+    PDF --> Graph
+    Office --> Graph
+    Graph --> Sink[pagesift-sink: 出力、graph.jsonl、キャッシュ形式]
+    PDF --> Sink
     Office --> Sink
     OCR --> Sink
     Content --> Sink
     Extract --> Sink
-    Engine --> Store[pagesift-store: キャッシュ、セレクタ記憶、レコード]
+    Graph --> Store[pagesift-store: キャッシュ、グラフスナップショット、セレクタ記憶]
+    Engine --> Store
+    Net --> Compress["pagesift-compress (yolowzstd): HTTP・キャッシュ用 zstd コーデック"]
+    Store --> Compress
     Engine -.-> ITNA[pagesift-itna: バリア分類、試行とネットワークの予算]
     ITNA -.->|共有予算| Net
     ITNA -.->|上限付きフォールバック 1 回| CDP
@@ -269,8 +280,9 @@ HTTP Cookie は完全一致の origin に対する制限付き引き渡しでの
 対話型 CAPTCHA は人間による対応が必要として報告され、解決は行いません。
 
 **形式まで自前のコード。** パースはプロセス内で実行され、背後に Python、JVM、Node のランタイムはありません。
-pagesift は独自のゼロコピー HTML5 パーサー、JPEG・CCITT・JBIG2 デコーダーを備えた PDF ファイル層、Office・電子書籍・メール・圧縮ファイルのリーダー、
-Rust からコンパイルした GPU カーネルによるニューラルネットワーク推論、Chrome DevTools クライアント、MCP サーバー、追記専用ストアを備えています。
+pagesift は独立した `yolowhtml`、`yolowpdf`、`yolowdoc`、`yolowsyntax`、`yolowzstd`、`yolow64` crate を基盤とし、
+Rust からコンパイルした GPU カーネルによるニューラルネットワーク推論、Chrome DevTools クライアント、MCP サーバー、
+`pagesift-graph`（DataGraph）、追記専用ストアを備えています。
 ワーカーのコストは読み込み済みのインタープリタではなく数十メガバイトで、起動はミリ秒単位です。
 
 **コアごとに 1 ワーカー。** CPU 処理は NUMA ノードごとにまとめた常駐ワーカーで実行し、ワーカーはまず自分のノード内でワークスティールを行います。
@@ -324,11 +336,11 @@ flowchart LR
 [商用ライセンス・サポート](COMMERCIAL.md)を確認するか、`licensing@pagesift.dev` までご連絡ください。
 
 <!-- section: changelog -->
-## 1.3.0 の新機能
+## 1.4.0 の新機能
 
-PageSift のオープンソースライセンスを AGPL-3.0-only から **Apache-2.0** に変更し、ネットワークコピーレフト義務を撤回して企業や商用での導入を容易にしました。API、CLI、および設定の変更はありません。
+PageSift 1.4.0 ではコア形式・圧縮モジュールを独立クレート `yolowdoc 0.1.1`（Office、電子書籍、圧縮ファイル、SQLite）、`yolowsyntax 0.1.2`（373 言語）、`yolowzstd 0.1.2`（Zstandard コーデック）へ分離し、単一取得・クロール・監視間でドキュメント間の引用、リダイレクト・canonical・添付の出典、バージョン履歴、フィールド証拠スパン、同一事実クラスタ、矛盾記録を生成する **PageSift DataGraph**（`pagesift-graph`）を追加しました（CLI `--graph` / `pagesift graph inspect`、HTTP `/v2/crawl/{id}/graph`・`/v2/graph/{history,conflicts}`、MCP `pagesift_graph_query`、Python / Node 対応）。
 
-[リリースノート](releases/1.3.0.md) · [1.2.7](releases/1.2.7.md) · [すべてのリリース](releases/) · [CHANGELOG](CHANGELOG.md)
+[リリースノート](releases/1.4.0.md) · [1.3.0](releases/1.3.0.md) · [1.2.7](releases/1.2.7.md) · [すべてのリリース](releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -344,7 +356,7 @@ PageSift のオープンソースライセンスを AGPL-3.0-only から **Apach
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.2.7}
+  note   = {Version 1.4.0}
 }
 ```
 

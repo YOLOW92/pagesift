@@ -482,6 +482,18 @@ impl CrawlSink for JobSink {
         })
     }
 
+    fn graph_delta(&self, delta: pagesift_graph::PageGraphDelta) -> BoxFuture<'_, ()> {
+        Box::pin(async move {
+            super::graph::record_delta(&self.jobs, &self.id, delta).await;
+        })
+    }
+
+    fn graph_summary(&self, summary: pagesift_graph::GraphSummary) -> BoxFuture<'_, ()> {
+        Box::pin(async move {
+            super::graph::record_summary(&self.jobs, &self.id, summary).await;
+        })
+    }
+
     fn enqueued(&self, urls: Vec<(String, usize)>) -> BoxFuture<'_, ()> {
         Box::pin(async move {
             let (Some(store), false) = (self.store(), urls.is_empty()) else {

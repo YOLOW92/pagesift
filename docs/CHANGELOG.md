@@ -2,6 +2,10 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## 1.4.0
+
+`pagesift-office`, `pagesift-syntax`, and `pagesift-compress` now delegate to standalone upstream crates `yolowdoc 0.1.1`, `yolowsyntax 0.1.2`, and `yolowzstd 0.1.2`. Adds **PageSift DataGraph** (`pagesift-graph`) for document citations, redirect/canonical/attachment provenance, cross-version lineage, field-level evidence spans, cross-source fact clusters, and conflict records across CLI (`--graph`, `pagesift graph inspect`), HTTP API (`/v2/crawl/{id}/graph`, `/v2/graph/history`, `/v2/graph/conflicts`), MCP (`pagesift_graph_query`), Python, and Node.js. [Release notes](releases/1.4.0.md).
+
 ## 1.3.0
 
 PageSift is now licensed under the **Apache-2.0** license (re-licensed from AGPL-3.0-only) across the Rust workspace, CLI, server, native packages, MCP servers, and language bindings. No API or configuration changes. [Release notes](releases/1.3.0.md).

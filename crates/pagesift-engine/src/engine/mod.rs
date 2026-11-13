@@ -386,12 +386,14 @@ impl Engine for Scraper {
                 "links",
                 "images",
                 "extract",
+                "graph",
                 "summary",
                 "json",
                 "changeTracking",
             ],
             (true, false) => &[
-                "markdown", "html", "rawHtml", "links", "images", "extract", "summary", "json",
+                "markdown", "html", "rawHtml", "links", "images", "extract", "graph", "summary",
+                "json",
             ],
             (false, true) => &[
                 "markdown",
@@ -400,9 +402,12 @@ impl Engine for Scraper {
                 "links",
                 "images",
                 "extract",
+                "graph",
                 "changeTracking",
             ],
-            (false, false) => &["markdown", "html", "rawHtml", "links", "images", "extract"],
+            (false, false) => &[
+                "markdown", "html", "rawHtml", "links", "images", "extract", "graph",
+            ],
         }
     }
 }

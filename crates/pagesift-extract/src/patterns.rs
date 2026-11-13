@@ -295,6 +295,25 @@ impl RegexExtractor {
         self.patterns.iter().map(|p| p.label.as_str())
     }
 
+    /// Look up the compiled pattern string for a label.
+    pub(crate) fn pattern_for(&self, label: &str) -> Option<&str> {
+        self.patterns
+            .iter()
+            .find(|p| p.label == label)
+            .map(|p| p.re.as_str())
+    }
+
+    /// Extract regex entities together with pattern-level evidence traces.
+    pub fn extract_with_evidence(
+        &self,
+        text: &str,
+        source_url: Option<&str>,
+    ) -> (RegexOutput, Vec<pagesift_graph::evidence::RawFieldTrace>) {
+        let out = self.extract(text);
+        let traces = crate::evidence::build_regex_traces(self, &out, source_url);
+        (out, traces)
+    }
+
     pub fn extract(&self, text: &str) -> RegexOutput {
         let mut out = RegexOutput::default();
         let mut seen: HashMap<(usize, &str), usize> = HashMap::new();

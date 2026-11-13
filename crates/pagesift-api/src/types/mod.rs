@@ -2,6 +2,7 @@
 
 pub mod agent;
 pub mod attachment;
+pub mod graph;
 pub mod interact;
 pub mod locate;
 pub mod parse;
@@ -13,6 +14,10 @@ pub use agent::{
     AgentStep, AgentUsage, FieldSource,
 };
 pub use attachment::Attachment;
+pub use graph::{
+    CrawlGraphResponse, GraphConflictsResponse, GraphHistoryResponse, check_graph_options,
+    parse_graph_options, parse_graph_value,
+};
 pub use interact::{
     InteractRequest, InteractResponse, InteractStopped, LIVE_VIEW_UNAVAILABLE, SESSION_REPLAYED,
     instance_tag, is_scrape_id, issued_elsewhere, scrape_id, session_gone,
@@ -21,6 +26,7 @@ pub use locate::{
     ObserveRequest, ObserveResponse, Observed, SimilarData, SimilarItem, SimilarRequest,
     SimilarResponse,
 };
+pub use pagesift_graph::{GraphOptions, GraphSlice, GraphSummary};
 pub use parse::{PdfParser, Upload, UploadKind};
 
 pub use request::{
@@ -186,6 +192,42 @@ mod tests {
         assert_eq!(v["ogImage"], "https://example.com/i.png");
         assert_eq!(v["pagesift"]["contentHash"], "ab");
         assert!(v.get("title").is_none());
+        assert!(v.get("canonicalUrl").is_none());
+
+        meta.canonical_url = Some("https://example.com/canonical".into());
+        let v = serde_json::to_value(&meta).unwrap();
+        assert_eq!(v["canonicalUrl"], "https://example.com/canonical");
+    }
+
+    #[test]
+    fn graph_options_parse_bool_object_and_document_graph_slice() {
+        let off: ScrapeOptions = serde_json::from_value(json!({})).unwrap();
+        assert_eq!(off.graph, None);
+        let flag_off: ScrapeOptions = serde_json::from_value(json!({"graph": false})).unwrap();
+        assert_eq!(flag_off.graph, None);
+        let explicit_off: ScrapeOptions =
+            serde_json::from_value(json!({"graph": {"enabled": false}})).unwrap();
+        assert_eq!(explicit_off.graph, None);
+
+        let on: ScrapeOptions = serde_json::from_value(json!({"graph": true})).unwrap();
+        assert_eq!(on.graph, Some(pagesift_graph::GraphOptions::enabled()));
+
+        let custom: CrawlRequest = serde_json::from_value(json!({
+            "url": "https://example.com",
+            "graph": {"subjectKeys": ["sku"], "conflicts": false}
+        }))
+        .unwrap();
+        let g = custom.graph.unwrap();
+        assert!(g.enabled);
+        assert_eq!(g.subject_keys, ["sku"]);
+        assert!(!g.conflicts);
+
+        assert!(
+            serde_json::to_value(Document::default())
+                .unwrap()
+                .get("graph")
+                .is_none()
+        );
     }
 }
 mod asset_cache;

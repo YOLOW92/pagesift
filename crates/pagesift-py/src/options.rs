@@ -38,6 +38,7 @@ impl Options {
         extract_schema = None,
         max_age = None,
         parsers = None,
+        graph = None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -59,6 +60,7 @@ impl Options {
         extract_schema: Option<String>,
         max_age: Option<u64>,
         parsers: Option<String>,
+        graph: Option<String>,
     ) -> PyResult<Self> {
         let mut o = ScrapeOptions::default();
         if let Some(f) = formats {
@@ -85,6 +87,12 @@ impl Options {
                     .map_err(|e| to_py_err(&ApiError::invalid(format!("parsers: {e}")), None))?,
             );
         }
+        if let Some(graph) = graph {
+            let value: serde_json::Value = serde_json::from_str(&graph)
+                .map_err(|e| to_py_err(&ApiError::invalid(format!("graph: {e}")), None))?;
+            o.graph = pagesift::api::types::parse_graph_value(Some(value))
+                .map_err(|e| to_py_err(&e, None))?;
+        }
         if let Some(schema) = extract_schema {
             // schema 以 JSON 文本传进来（Python 层负责 dumps），格式选项里带上它
             let value: serde_json::Value = serde_json::from_str(&schema)
@@ -110,7 +118,7 @@ impl Options {
 }
 
 /// `pagesift::Scraper` 支持的格式（和它的 `Engine::supported_formats` 一致）。
-const FORMATS: &[&str] = &["markdown", "html", "rawHtml", "links", "images"];
+const FORMATS: &[&str] = &["markdown", "html", "rawHtml", "links", "images", "graph"];
 
 /// Python 里用 snake_case（`raw_html`），Firecrawl 用 camelCase（`rawHtml`），两种都接受。
 fn format_name(k: &str) -> &str {
@@ -128,7 +136,7 @@ fn validate(o: &ScrapeOptions) -> Result<(), ApiError> {
         .find(|f| !FORMATS.contains(&f.kind.as_str()) && f.kind != "extract")
     {
         return Err(ApiError::unsupported(format!(
-            "format {:?} is not supported (supported: markdown, html, raw_html, links, images)",
+            "format {:?} is not supported (supported: markdown, html, raw_html, links, images, graph)",
             f.kind
         )));
     }

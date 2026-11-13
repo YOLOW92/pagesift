@@ -70,6 +70,8 @@ pub struct AgentOutcome {
     /// 键是 `data` 里叶子字段的 JSON Pointer。
     pub field_sources: BTreeMap<String, FieldSource>,
     pub evidence: Vec<AgentEvidence>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evidence_spans: Vec<pagesift_graph::EvidenceSpan>,
     pub steps: Vec<AgentStep>,
     pub usage: AgentUsage,
     pub budget: AgentBudget,

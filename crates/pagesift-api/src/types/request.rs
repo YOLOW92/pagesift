@@ -175,6 +175,13 @@ pub struct ScrapeOptions {
     /// [`RESPOND_TIMINGS`]. `html` does not run scripts; the others need the browser.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub respond_timing: Option<String>,
+    /// PageSift extension: opt-in DataGraph relation/evidence extraction (`bool | GraphOptions`).
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "super::graph::parse_graph_options"
+    )]
+    pub graph: Option<pagesift_graph::GraphOptions>,
 }
 
 /// `respondTiming` values, from the earliest to the most complete (Jina Reader's six levels).
@@ -374,6 +381,13 @@ pub struct CrawlRequest {
     /// 附件的数量上限，默认等于 `limit`。
     #[serde(default)]
     pub attachment_limit: Option<usize>,
+    /// PageSift extension: job-level DataGraph assembly (`bool | GraphOptions`).
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "super::graph::parse_graph_options"
+    )]
+    pub graph: Option<pagesift_graph::GraphOptions>,
 }
 
 /// crawl 的路径范围。

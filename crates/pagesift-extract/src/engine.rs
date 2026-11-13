@@ -39,14 +39,47 @@ pub(crate) trait Backend {
 
 pub(crate) struct Compiled<S> {
     pub base: S,
+    pub base_raw: String,
     base_fields: Vec<CField<S>>,
     fields: Vec<CField<S>>,
+}
+
+/// Extracted leaf trace before selector-method attribution (CSS vs XPath vs Adaptive).
+#[derive(Debug, Clone)]
+pub(crate) struct EngineTrace {
+    pub field_path: String,
+    pub field_name: String,
+    pub value: Value,
+    pub raw_quote: Option<String>,
+    pub attr_name: Option<String>,
+    pub raw_selector: Option<String>,
+}
+
+trait TraceSink {
+    const ENABLED: bool;
+    fn push(&mut self, trace: EngineTrace);
+}
+
+struct NoTrace;
+
+impl TraceSink for NoTrace {
+    const ENABLED: bool = false;
+    #[inline(always)]
+    fn push(&mut self, _: EngineTrace) {}
+}
+
+impl TraceSink for Vec<EngineTrace> {
+    const ENABLED: bool = true;
+    fn push(&mut self, trace: EngineTrace) {
+        Vec::push(self, trace);
+    }
 }
 
 struct CField<S> {
     name: String,
     path: String,
     sel: Option<S>,
+    raw_sel: Option<String>,
     source: Option<S>,
     kind: CKind<S>,
     default: Option<Value>,
@@ -73,6 +106,7 @@ impl<S> Compiled<S> {
     pub fn compile(schema: &Schema, compile: &mut SelCompiler<'_, S>) -> Result<Self, Error> {
         Ok(Compiled {
             base: compile(&schema.base_selector, "baseSelector", Role::Base)?,
+            base_raw: schema.base_selector.trim().to_owned(),
             base_fields: compile_fields(&schema.base_fields, "baseFields", compile)?,
             fields: compile_fields(&schema.fields, "fields", compile)?,
         })
@@ -134,10 +168,12 @@ fn compile_field<S>(
         FieldKind::List(fs) | FieldKind::NestedList(fs) => CKind::List(sub(fs, compile)?),
         FieldKind::Computed => CKind::Computed,
     };
+    let raw_sel = f.selector.as_ref().map(|s| s.trim().to_owned());
     Ok(CField {
         name: f.name.clone(),
         path: path.to_owned(),
         sel,
+        raw_sel,
         source,
         kind,
         default: f.default.clone(),
@@ -170,27 +206,85 @@ fn compile_step(step: &Step, path: &str) -> Result<CStep, Error> {
 }
 
 pub(crate) fn run<B: Backend>(b: &B, c: &Compiled<B::Sel>) -> Result<Vec<Value>, Error> {
+    run_with_sink(b, c, &mut NoTrace)
+}
+
+pub(crate) fn run_with_evidence<B: Backend>(
+    b: &B,
+    c: &Compiled<B::Sel>,
+) -> Result<(Vec<Value>, Vec<EngineTrace>), Error> {
+    let mut traces = Vec::new();
+    let items = run_with_sink(b, c, &mut traces)?;
+    Ok((items, traces))
+}
+
+fn run_with_sink<B: Backend, T: TraceSink>(
+    b: &B,
+    c: &Compiled<B::Sel>,
+    sink: &mut T,
+) -> Result<Vec<Value>, Error> {
     let mut out = Vec::new();
     for el in b.select_base(&c.base)? {
         let mut item = Map::new();
-        extract_into(b, &el, &c.base_fields, &mut item)?;
-        extract_into(b, &el, &c.fields, &mut item)?;
-        if !item.is_empty() {
-            out.push(Value::Object(item));
+        let prefix = if T::ENABLED {
+            format!("/{}", out.len())
+        } else {
+            String::new()
+        };
+        if T::ENABLED {
+            let mut item_traces = Vec::new();
+            extract_into(
+                b,
+                &el,
+                &c.base_fields,
+                &mut item,
+                &c.base_raw,
+                &prefix,
+                &mut item_traces,
+            )?;
+            extract_into(
+                b,
+                &el,
+                &c.fields,
+                &mut item,
+                &c.base_raw,
+                &prefix,
+                &mut item_traces,
+            )?;
+            if !item.is_empty() {
+                out.push(Value::Object(item));
+                for t in item_traces {
+                    sink.push(t);
+                }
+            }
+        } else {
+            extract_into(b, &el, &c.base_fields, &mut item, &c.base_raw, "", sink)?;
+            extract_into(b, &el, &c.fields, &mut item, &c.base_raw, "", sink)?;
+            if !item.is_empty() {
+                out.push(Value::Object(item));
+            }
         }
     }
     Ok(out)
 }
 
-fn extract_into<B: Backend>(
+fn extract_into<B: Backend, T: TraceSink>(
     b: &B,
     el: &B::Item,
     fields: &[CField<B::Sel>],
     item: &mut Map<String, Value>,
+    base_raw: &str,
+    prefix: &str,
+    sink: &mut T,
 ) -> Result<(), Error> {
     for f in fields {
+        let pointer = if T::ENABLED {
+            format!("{prefix}/{}", f.name)
+        } else {
+            String::new()
+        };
         // 和 Crawl4AI 一样，值为 None（包括 default: null）的字段不出现在结果里
-        if let Some(v) = extract_field(b, el, f)?
+        if let Some(v) = extract_field(b, el, f, base_raw, &pointer, sink)?
             && !v.is_null()
         {
             item.insert(f.name.clone(), v);
@@ -199,10 +293,28 @@ fn extract_into<B: Backend>(
     Ok(())
 }
 
-fn extract_field<B: Backend>(
+fn push_default<T: TraceSink>(sink: &mut T, f: &CField<impl Sized>, base_raw: &str, pointer: &str) {
+    if T::ENABLED
+        && let Some(val) = f.default.as_ref().filter(|v| !v.is_null())
+    {
+        sink.push(EngineTrace {
+            field_path: pointer.to_owned(),
+            field_name: f.name.clone(),
+            value: val.clone(),
+            raw_quote: None,
+            attr_name: None,
+            raw_selector: f.raw_sel.clone().or_else(|| Some(base_raw.to_owned())),
+        });
+    }
+}
+
+fn extract_field<B: Backend, T: TraceSink>(
     b: &B,
     el: &B::Item,
     f: &CField<B::Sel>,
+    base_raw: &str,
+    pointer: &str,
+    sink: &mut T,
 ) -> Result<Option<Value>, Error> {
     let sibling;
     let el = match &f.source {
@@ -211,13 +323,19 @@ fn extract_field<B: Backend>(
                 sibling = s;
                 &sibling
             }
-            None => return Ok(f.default.clone()),
+            None => {
+                push_default(sink, f, base_raw, pointer);
+                return Ok(f.default.clone());
+            }
         },
         None => el,
     };
     match &f.kind {
-        CKind::Value(steps) => single_value(b, el, f, steps),
-        CKind::Computed => Ok(f.default.clone()),
+        CKind::Value(steps) => single_value(b, el, f, steps, base_raw, pointer, sink),
+        CKind::Computed => {
+            push_default(sink, f, base_raw, pointer);
+            Ok(f.default.clone())
+        }
         CKind::Nested(sub) => {
             let sel = f
                 .sel
@@ -225,7 +343,15 @@ fn extract_field<B: Backend>(
                 .expect("nested fields always have a selector");
             let mut obj = Map::new();
             if let Some(n) = b.select(el, sel, &f.path, true)?.first() {
-                extract_into(b, n, sub, &mut obj)?;
+                extract_into(
+                    b,
+                    n,
+                    sub,
+                    &mut obj,
+                    f.raw_sel.as_deref().unwrap_or(base_raw),
+                    pointer,
+                    sink,
+                )?;
             }
             Ok(Some(Value::Object(obj)))
         }
@@ -234,7 +360,20 @@ fn extract_field<B: Backend>(
             let mut arr = Vec::new();
             for n in b.select(el, sel, &f.path, false)? {
                 let mut obj = Map::new();
-                extract_into(b, &n, sub, &mut obj)?;
+                let elem_ptr = if T::ENABLED {
+                    format!("{pointer}/{}", arr.len())
+                } else {
+                    String::new()
+                };
+                extract_into(
+                    b,
+                    &n,
+                    sub,
+                    &mut obj,
+                    f.raw_sel.as_deref().unwrap_or(base_raw),
+                    &elem_ptr,
+                    sink,
+                )?;
                 arr.push(Value::Object(obj));
             }
             Ok(Some(Value::Array(arr)))
@@ -247,32 +386,64 @@ enum Cur<I> {
     Str(String),
 }
 
-fn single_value<B: Backend>(
+fn single_value<B: Backend, T: TraceSink>(
     b: &B,
     el: &B::Item,
     f: &CField<B::Sel>,
     steps: &[CStep],
+    base_raw: &str,
+    pointer: &str,
+    sink: &mut T,
 ) -> Result<Option<Value>, Error> {
     let target = match &f.sel {
         Some(sel) => match b.select(el, sel, &f.path, true)?.into_iter().next() {
             Some(t) => t,
-            None => return Ok(f.default.clone()),
+            None => {
+                push_default(sink, f, base_raw, pointer);
+                return Ok(f.default.clone());
+            }
         },
         None => el.clone(),
     };
+    let mut raw_quote: Option<String> = None;
+    let mut attr_name: Option<String> = None;
     let mut cur = Some(Cur::Item(target));
     for step in steps {
         let Some(c) = cur.take() else { break };
         cur = match (step, Some(c)) {
             (_, None) => None,
-            (CStep::Text, Some(Cur::Item(i))) => Some(Cur::Str(b.text(&i))),
-            (CStep::Html, Some(Cur::Item(i))) => Some(Cur::Str(b.html(&i))),
+            (CStep::Text, Some(Cur::Item(i))) => {
+                let txt = b.text(&i);
+                if T::ENABLED && raw_quote.is_none() {
+                    raw_quote = Some(txt.clone());
+                }
+                Some(Cur::Str(txt))
+            }
+            (CStep::Html, Some(Cur::Item(i))) => {
+                if T::ENABLED && raw_quote.is_none() {
+                    raw_quote = Some(b.text(&i));
+                }
+                Some(Cur::Str(b.html(&i)))
+            }
             (CStep::Text | CStep::Html, Some(s)) => Some(s),
-            (CStep::Attr(a), Some(Cur::Item(i))) => b.attr(&i, a).map(Cur::Str),
+            (CStep::Attr(a), Some(Cur::Item(i))) => {
+                let attr_val = b.attr(&i, a);
+                if T::ENABLED && raw_quote.is_none() {
+                    attr_name = Some(a.clone());
+                    raw_quote = attr_val.clone();
+                }
+                attr_val.map(Cur::Str)
+            }
             (CStep::Attr(_), Some(Cur::Str(_))) => None,
             (CStep::Regex(re, group), Some(c)) => {
                 let s = match c {
-                    Cur::Item(i) => b.text(&i),
+                    Cur::Item(i) => {
+                        let txt = b.text(&i);
+                        if T::ENABLED && raw_quote.is_none() {
+                            raw_quote = Some(txt.clone());
+                        }
+                        txt
+                    }
                     Cur::Str(s) => s,
                 };
                 re.captures(&s)
@@ -281,14 +452,37 @@ fn single_value<B: Backend>(
             }
         };
     }
-    let value = match cur {
+    let matched_value = match cur {
         Some(Cur::Str(s)) => Some(match f.transform {
             Some(t) => t.apply(&s),
             None => s,
         }),
         // 流水线没有产生字符串（例如只有选择器没有步骤），按文本处理
-        Some(Cur::Item(i)) => Some(b.text(&i)),
+        Some(Cur::Item(i)) => {
+            let txt = b.text(&i);
+            if T::ENABLED && raw_quote.is_none() {
+                raw_quote = Some(txt.clone());
+            }
+            Some(txt)
+        }
         None => None,
     };
-    Ok(value.map(Value::String).or_else(|| f.default.clone()))
+    let final_val = matched_value
+        .as_ref()
+        .map(|s| Value::String(s.clone()))
+        .or_else(|| f.default.clone());
+    if T::ENABLED
+        && let Some(val) = final_val.as_ref().filter(|v| !v.is_null())
+    {
+        let came_from_match = matched_value.is_some();
+        sink.push(EngineTrace {
+            field_path: pointer.to_owned(),
+            field_name: f.name.clone(),
+            value: val.clone(),
+            raw_quote: if came_from_match { raw_quote } else { None },
+            attr_name: if came_from_match { attr_name } else { None },
+            raw_selector: f.raw_sel.clone().or_else(|| Some(base_raw.to_owned())),
+        });
+    }
+    Ok(final_val)
 }

@@ -63,3 +63,12 @@ def test_map(scraper, server):
     assert asyncio.run(scraper.amap(f"{server}/site/", sitemap="skip")) == links
     with pytest.raises(pagesift.InvalidRequest):
         scraper.map("not a url")
+
+
+def test_crawl_datagraph(scraper, http, server):
+    crawl = scraper.crawl(f"{server}/site/", http, sitemap="skip", limit=10, graph=True)
+    docs = list(crawl)
+    assert any(d.success and d.graph is not None for d in docs)
+    g = crawl.graph
+    assert isinstance(g, dict)
+    assert len(g["nodes"]) == 3

@@ -7,7 +7,6 @@ use pagesift::api::types::{self, Metadata, PagesiftMeta};
 use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
 use pyo3::types::{PyBytes, PyDict, PyList, PyString};
-use serde_json::Value;
 
 use crate::engine::Outcome;
 use crate::errors::{exception, json};
@@ -63,12 +62,6 @@ impl Document {
     pub fn converted(doc: pagesift_content::Document) -> Self {
         let mut metadata = Metadata::default();
         pagesift_sink::meta::fill(&mut metadata, &doc.metadata);
-        // 抓取结果没有这一项（Firecrawl 不给），convert 以前给，保留
-        if let Some(c) = doc.metadata.canonical_url {
-            metadata
-                .extra
-                .insert("canonicalUrl".into(), Value::String(c));
-        }
         let d = types::Document {
             markdown: Some(doc.markdown),
             metadata,
@@ -190,6 +183,7 @@ impl Document {
             ("author", &m.author),
             ("modified_time", &m.modified_time),
             ("content_type", &m.content_type),
+            ("canonical_url", &m.canonical_url),
         ] {
             if let Some(v) = v {
                 d.set_item(k, v)?;
@@ -219,11 +213,28 @@ impl Document {
         self.err.as_ref().map(|e| e.message.as_str())
     }
     /// 实际使用的引擎：`http` 或 `browser`。
+    #[getter]
+    fn canonical_url(&self) -> Option<&str> {
+        self.meta()?.canonical_url.as_deref()
+    }
     /// ``extract`` 格式（``extract_schema``）抽出的列表；没要时为 None。
     #[getter]
     fn extract<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
         match self.doc.as_ref().and_then(|d| d.extract.as_ref()) {
             Some(v) => Ok(Some(json(py, v)?)),
+            None => Ok(None),
+        }
+    }
+    /// 单页 DataGraph 增量；未启用时为 None。
+    #[getter]
+    fn graph<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        match self.doc.as_ref().and_then(|d| d.graph.as_ref()) {
+            Some(g) => {
+                let v = serde_json::to_value(g).map_err(|e| {
+                    crate::errors::to_py_err(&ApiError::invalid(e.to_string()), None)
+                })?;
+                Ok(Some(json(py, &v)?))
+            }
             None => Ok(None),
         }
     }
@@ -335,6 +346,7 @@ const FIELDS: &[&str] = &[
     "index",
     "url",
     "final_url",
+    "canonical_url",
     "success",
     "status_code",
     "markdown",
@@ -343,6 +355,7 @@ const FIELDS: &[&str] = &[
     "links",
     "images",
     "extract",
+    "graph",
     "metadata",
     "error_code",
     "error_message",

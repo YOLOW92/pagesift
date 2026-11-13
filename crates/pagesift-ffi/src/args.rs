@@ -75,10 +75,11 @@ struct ScrapeArgs {
     extract_schema: Option<Value>,
     max_age: Option<u64>,
     parsers: Option<Value>,
+    graph: Option<Value>,
 }
 
 /// `pagesift::Scraper` 支持的格式（和它的 `Engine::supported_formats` 一致）。
-const FORMATS: &[&str] = &["markdown", "html", "rawHtml", "links", "images"];
+const FORMATS: &[&str] = &["markdown", "html", "rawHtml", "links", "images", "graph"];
 
 /// 剩下的键都当抓取选项解析并校验（和 Python 的 `Options` 同样的规则）。
 pub fn scrape_options(m: Map<String, Value>) -> Result<Arc<ScrapeOptions>, ApiError> {
@@ -110,6 +111,7 @@ pub fn scrape_options(m: Map<String, Value>) -> Result<Arc<ScrapeOptions>, ApiEr
                 .map_err(|e| ApiError::invalid(format!("parsers: {e}")))?,
         );
     }
+    o.graph = pagesift_core::api::types::parse_graph_value(a.graph)?;
     if let Some(schema) = a.extract_schema {
         let mut f = Format::new("extract");
         f.options.insert("schema".into(), schema);
@@ -134,7 +136,7 @@ fn validate(o: &ScrapeOptions) -> Result<(), ApiError> {
         .find(|f| !FORMATS.contains(&f.kind.as_str()) && f.kind != "extract")
     {
         return Err(ApiError::unsupported(format!(
-            "format {:?} is not supported (supported: markdown, html, raw_html, links, images)",
+            "format {:?} is not supported (supported: markdown, html, raw_html, links, images, graph)",
             f.kind
         )));
     }
@@ -244,4 +246,39 @@ pub fn engine_config(m: Map<String, Value>) -> Result<ScraperConfig, ApiError> {
         (None, None) => BrowserSource::Auto,
     };
     Ok(cfg)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ops::convert;
+
+    #[test]
+    fn scrape_options_accept_graph_format_and_option() {
+        let m = object(Some(r#"{"formats":["markdown","graph"],"graph":true}"#)).unwrap();
+        let o = scrape_options(m).unwrap();
+        assert!(o.formats.iter().any(|f| f.kind == "graph"));
+        assert!(o.graph.as_ref().is_some_and(|g| g.enabled));
+
+        let m2 = object(Some(
+            r#"{"graph":{"enabled":true,"subjectKeys":["acme.pricing"]}}"#,
+        ))
+        .unwrap();
+        let o2 = scrape_options(m2).unwrap();
+        assert_eq!(
+            o2.graph.as_ref().unwrap().subject_keys,
+            vec!["acme.pricing".to_string()]
+        );
+
+        let bad = object(Some(r#"{"graph":"yes"}"#)).unwrap();
+        assert!(scrape_options(bad).is_err());
+    }
+
+    #[test]
+    fn convert_populates_canonical_url_in_metadata() {
+        let html = r#"<!DOCTYPE html><html><head><title>T</title><link rel="canonical" href="https://example.com/c"></head><body><article><h1>Hello</h1><p>Body text enough to extract cleanly.</p></article></body></html>"#;
+        let out = convert(html, Some(r#"{"url":"https://example.com/orig"}"#));
+        assert_eq!(out["success"], true);
+        assert_eq!(out["metadata"]["canonical_url"], "https://example.com/c");
+    }
 }

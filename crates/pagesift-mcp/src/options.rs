@@ -267,6 +267,24 @@ pub fn scrape_options_schema(caps: &Capabilities) -> Value {
             "description": "Split markdown into chunks, e.g. {\"type\": \"recursive\", \"size\": 400}."
         }),
     );
+    put(
+        "graph",
+        json!({
+            "type": ["boolean", "object"],
+            "properties": {
+                "enabled": { "type": "boolean", "description": "Enable DataGraph provenance, citations, version lineage, evidence, facts, and conflicts." },
+                "blocks": { "type": "boolean", "description": "Index stable block references for provenance and evidence alignment." },
+                "citations": { "type": "boolean", "description": "Extract document-to-document citation edges." },
+                "provenance": { "type": "boolean", "description": "Record redirect, canonical, alternate, duplicate, and attachment provenance." },
+                "versions": { "type": "boolean", "description": "Link consecutive versions of the same logical resource." },
+                "evidence": { "type": "boolean", "description": "Bind extracted fields to supporting block spans." },
+                "facts": { "type": "boolean", "description": "Normalize and corroborate claims across multiple sources." },
+                "conflicts": { "type": "boolean", "description": "Detect and record cross-source value conflicts." },
+                "subjectKeys": { "type": "array", "items": { "type": "string", "description": "Field name used to key entities." }, "description": "Entity identifier keys for cross-source matching, e.g. [\"sku\"]." }
+            },
+            "description": "Enable per-page DataGraph output: true, false, or an object with toggle flags and subjectKeys."
+        }),
+    );
     json!({ "type": "object", "properties": Value::Object(p), "additionalProperties": false })
 }
 

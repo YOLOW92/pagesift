@@ -31,7 +31,7 @@ export declare class PagesiftError extends Error {
   readonly retryAfter?: number
 }
 
-export type Format = 'markdown' | 'html' | 'rawHtml' | 'links' | 'images'
+export type Format = 'markdown' | 'html' | 'rawHtml' | 'links' | 'images' | 'graph'
 
 /** `Page.toJSON()` 的结果：一次取出全部字段的普通对象，没请求的格式不出现。 */
 export interface PageJSON {
@@ -40,6 +40,7 @@ export interface PageJSON {
   rawHtml?: string
   links?: string[]
   images?: string[]
+  graph?: Record<string, unknown>
   metadata: PageMetadata
 }
 
@@ -52,6 +53,8 @@ export interface PageMetadata {
   favicon?: string
   publishedTime?: string
   modifiedTime?: string
+  /** Canonical URL extracted from HTML `link[rel=canonical]` or HTTP `Link` header. */
+  canonicalUrl?: string
   /** 最终地址（跟随重定向之后）。 */
   url?: string
   /** 请求的地址。 */

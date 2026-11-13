@@ -68,9 +68,20 @@ impl Scraper {
             pages: 1,
             fallback: output.fallback.is_some(),
         });
-        Ok(finish(
+        let graph_opts = crate::graph::effective_graph_options(opts);
+        let content_hash = pagesift_graph::sha256_hex(markdown.as_bytes());
+        if ext.content_hash.is_none() {
+            ext.content_hash = Some(content_hash.clone());
+        }
+        let is_upload = ext.engine.as_deref() == Some("upload");
+        let parent_url = meta
+            .url
+            .clone()
+            .or_else(|| meta.source_url.clone())
+            .unwrap_or_default();
+        let mut out = finish(
             Document {
-                markdown: opts.wants("markdown").then_some(markdown),
+                markdown: (opts.wants("markdown") || graph_opts.is_some()).then_some(markdown),
                 ..Default::default()
             },
             meta,
@@ -80,7 +91,28 @@ impl Scraper {
             None,
             false,
             p.started,
-        ))
+        );
+        if let Some(gopts) = &graph_opts {
+            let store = self.store.as_ref().filter(|_| !is_upload);
+            crate::graph::build_and_attach_page_graph(
+                store,
+                gopts,
+                &mut out,
+                crate::graph::PageGraphSeed {
+                    source_kind: pagesift_graph::SourceKind::ImageAsset {
+                        parent_url,
+                        media_id: content_hash.clone(),
+                    },
+                    engine: "ocr".to_string(),
+                    content_hash: Some(content_hash),
+                    ..Default::default()
+                },
+            );
+            if !opts.wants("markdown") {
+                out.markdown = None;
+            }
+        }
+        Ok(out)
     }
 }
 

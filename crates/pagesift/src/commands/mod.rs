@@ -3,6 +3,7 @@
 pub(crate) mod agent;
 pub(crate) mod assets;
 pub(crate) mod extract;
+pub(crate) mod graph;
 pub(crate) mod models;
 pub(crate) mod pages;
 pub(crate) mod service;

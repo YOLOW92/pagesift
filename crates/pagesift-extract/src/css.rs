@@ -2,8 +2,10 @@ use pagesift_html::{Html, NodeRef, Selector};
 use serde_json::Value;
 
 use crate::engine::{self, Backend, Compiled, Role};
+use crate::evidence::to_css_traces;
 use crate::text::node_text;
 use crate::{Error, Schema};
+use pagesift_graph::evidence::RawFieldTrace;
 
 /// 按 CSS schema 提取，对应 Crawl4AI 的 `JsonCssExtractionStrategy`。
 /// 选择器在构造时编译一次，之后可以在多个页面、多个线程上复用。
@@ -41,6 +43,27 @@ impl JsonCssExtractor {
     pub fn extract_document(&self, doc: &Html<'_>) -> Vec<Value> {
         // CSS 后端的所有操作都不会失败
         engine::run(&Css { doc }, &self.compiled).unwrap_or_default()
+    }
+
+    /// Extract values along with selector-level evidence traces for DataGraph alignment.
+    pub fn extract_with_evidence(
+        &self,
+        html: &str,
+        source_url: Option<&str>,
+    ) -> (Vec<Value>, Vec<RawFieldTrace>) {
+        self.extract_document_with_evidence(&Html::parse(html), source_url)
+    }
+
+    /// Extract values and evidence traces from a pre-parsed HTML document.
+    pub fn extract_document_with_evidence(
+        &self,
+        doc: &Html<'_>,
+        source_url: Option<&str>,
+    ) -> (Vec<Value>, Vec<RawFieldTrace>) {
+        let (items, raw) = engine::run_with_evidence(&Css { doc }, &self.compiled)
+            .unwrap_or_else(|_| (Vec::new(), Vec::new()));
+        let traces = to_css_traces(raw, &[], source_url);
+        (items, traces)
     }
 }
 

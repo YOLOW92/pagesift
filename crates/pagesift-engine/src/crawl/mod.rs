@@ -284,6 +284,11 @@ impl Scraper {
         extra: &[&str],
     ) -> (Arc<ScrapeOptions>, usize) {
         let mut opts = req.scrape_options.clone();
+        if let Some(req_graph) = &req.graph
+            && (opts.graph.is_none() || req_graph.enabled)
+        {
+            opts.graph = Some(req_graph.clone());
+        }
         if opts.image_assets.is_some() && opts.asset_fetch_cache.is_none() {
             opts.asset_fetch_cache = Some(Default::default());
         }

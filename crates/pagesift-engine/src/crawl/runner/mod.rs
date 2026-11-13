@@ -118,6 +118,13 @@ impl Scraper {
         let wants_md = req.scrape_options.wants("markdown");
         // 判断重复内容要看正文
         let (opts, _) = self.crawl_settings(req, &["markdown"]);
+        let mut graph_collector = crate::graph::effective_graph_options(&opts).map(|g| {
+            crate::graph::crawl_builder::CrawlGraphCollector::new(
+                g,
+                self.store_ref().cloned(),
+                None,
+            )
+        });
         let concurrency_ceiling = req.max_concurrency.unwrap_or(usize::MAX).max(1);
         let slots = self.crawl_slots();
         let delay = req.delay.map(Duration::from_secs_f64);
@@ -203,6 +210,19 @@ impl Scraper {
                         .and_then(|u| Url::parse(u).ok())
                         .unwrap_or(url.clone());
                     note_duplicate(&mut learner, &url, &mut doc);
+                    if let Some(dup_of) = doc
+                        .metadata
+                        .pagesift
+                        .as_ref()
+                        .and_then(|p| p.duplicate_of.clone())
+                    {
+                        crate::graph::enrich_duplicate_provenance(
+                            self.store_ref(),
+                            &mut doc,
+                            &dup_of,
+                            "content_duplicate",
+                        );
+                    }
                     let mut fresh: Vec<(String, usize)> = Vec::new();
                     if depth == 0 && url == start && scope.can_widen() {
                         let links: Vec<Url> = doc
@@ -276,6 +296,9 @@ impl Scraper {
                     if !fresh.is_empty() {
                         sink.enqueued(fresh).await;
                     }
+                    if let Some(gc) = graph_collector.as_mut() {
+                        gc.ingest_doc(&mut doc, sink).await;
+                    }
                     if !wants_links {
                         doc.links = None;
                     }
@@ -295,6 +318,9 @@ impl Scraper {
         }
         // 取消或提前停止时，在途页面的预留在这里退还
         sink.release_pending().await;
+        if let Some(gc) = graph_collector.take() {
+            gc.finish(sink).await;
+        }
         // 所有爬取结束时都报告停止原因（带查询的见 crawl_focused），绑定不用自己推断
         let stop_reason = if cancelled {
             "cancelled"

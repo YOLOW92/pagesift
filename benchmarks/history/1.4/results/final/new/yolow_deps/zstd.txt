@@ -1,0 +1,12 @@
+/home/yolow92/yolow/yolowzstd/benchmarks/corpus/silesia/dickens level 3: 3827095 bytes, 115.2 MB/s
+/home/yolow92/yolow/yolowzstd/benchmarks/corpus/silesia/dickens level 9: 3408191 bytes, 18.4 MB/s
+/home/yolow92/yolow/yolowzstd/benchmarks/corpus/silesia/mozilla level 3: 18599409 bytes, 170.3 MB/s
+/home/yolow92/yolow/yolowzstd/benchmarks/corpus/silesia/mozilla level 9: 17011505 bytes, 17.1 MB/s
+/home/yolow92/yolow/yolowzstd/benchmarks/corpus/silesia/ooffice level 3: 3219102 bytes, 123.9 MB/s
+/home/yolow92/yolow/yolowzstd/benchmarks/corpus/silesia/ooffice level 9: 2859623 bytes, 10.9 MB/s
+/home/yolow92/yolow/yolowzstd/benchmarks/corpus/silesia/xml level 3: 630844 bytes, 364.6 MB/s
+/home/yolow92/yolow/yolowzstd/benchmarks/corpus/silesia/xml level 9: 533329 bytes, 80.6 MB/s
+/home/yolow92/mix-tools/runs-140/final/yolow_deps/zstd/dickens.zst decode 649.1 MB/s
+/home/yolow92/mix-tools/runs-140/final/yolow_deps/zstd/mozilla.zst decode 600.6 MB/s
+/home/yolow92/mix-tools/runs-140/final/yolow_deps/zstd/ooffice.zst decode 617.5 MB/s
+/home/yolow92/mix-tools/runs-140/final/yolow_deps/zstd/xml.zst decode 1380.5 MB/s

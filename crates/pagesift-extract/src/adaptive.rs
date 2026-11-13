@@ -96,6 +96,20 @@ pub fn extract_adaptive(
     schema: &Schema,
     memory: &dyn SelectorMemory,
 ) -> Result<AdaptiveOutcome, Error> {
+    let (mut out, patched, empty_base) = resolve_adaptive_schema(doc, schema, memory)?;
+    if empty_base {
+        return Ok(out);
+    }
+    out.items = JsonCssExtractor::new(&patched)?.extract_document(doc);
+    Ok(out)
+}
+
+/// Resolve adaptive relocations against `memory` and return `(outcome, patched_schema, empty_base)`.
+pub(crate) fn resolve_adaptive_schema(
+    doc: &Html<'_>,
+    schema: &Schema,
+    memory: &dyn SelectorMemory,
+) -> Result<(AdaptiveOutcome, Schema, bool), Error> {
     let mut patched = schema.clone();
     let mut out = AdaptiveOutcome::default();
     let root = doc.root();
@@ -134,7 +148,7 @@ pub fn extract_adaptive(
     };
     // 列表项都没找到：字段没有作用域，报列表项一条就够
     if items.is_empty() {
-        return Ok(out);
+        return Ok((out, patched, true));
     }
     for (i, field) in schema.fields.iter().enumerate() {
         let (Some(sel_text), None) = (&field.selector, &field.source) else {
@@ -197,8 +211,7 @@ pub fn extract_adaptive(
         }
     }
 
-    out.items = JsonCssExtractor::new(&patched)?.extract_document(doc);
-    Ok(out)
+    Ok((out, patched, false))
 }
 
 /// 记下命中的元素。配了身份属性而元素上没有时不记（没有身份的记忆会退回相似度去猜）。

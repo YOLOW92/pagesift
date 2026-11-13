@@ -155,6 +155,13 @@ impl Scraper {
         let wants_links = req.scrape_options.wants("links");
         let wants_md = req.scrape_options.wants("markdown");
         let (opts, _) = self.crawl_settings(req, &["markdown"]);
+        let mut graph_collector = crate::graph::effective_graph_options(&opts).map(|g| {
+            crate::graph::crawl_builder::CrawlGraphCollector::new(
+                g,
+                self.store_ref().cloned(),
+                None,
+            )
+        });
         let concurrency_ceiling = req.max_concurrency.unwrap_or(usize::MAX).max(1);
         let slots = self.crawl_slots();
         let delay = req.delay.map(Duration::from_secs_f64);
@@ -349,6 +356,22 @@ impl Scraper {
                     // 和已经交付的某页全文相同（同一页的不同写法）：不交付、不占预算，
                     // 它的链接和那一页一样
                     if note_duplicate(&mut learner, &url, &mut doc) && !is_attachment {
+                        if let Some(dup_of) = doc
+                            .metadata
+                            .pagesift
+                            .as_ref()
+                            .and_then(|p| p.duplicate_of.clone())
+                        {
+                            crate::graph::enrich_duplicate_provenance(
+                                self.store_ref(),
+                                &mut doc,
+                                &dup_of,
+                                "content_duplicate",
+                            );
+                        }
+                        if let Some(gc) = graph_collector.as_mut() {
+                            gc.ingest_provenance_only(&doc);
+                        }
                         sink.release_page(url.as_str()).await;
                         if refunds < req.limit {
                             refunds += 1;
@@ -367,6 +390,9 @@ impl Scraper {
                     let landed = seen_hash(&base, ignore_query);
                     seen.insert(landed);
                     if !delivered.insert(landed) {
+                        if let Some(gc) = graph_collector.as_mut() {
+                            gc.ingest_provenance_only(&doc);
+                        }
                         if !is_attachment {
                             scheduled -= 1;
                         }
@@ -597,6 +623,9 @@ impl Scraper {
                     if let Some(w) = scope_note {
                         push_warning(&mut doc, w);
                     }
+                    if let Some(gc) = graph_collector.as_mut() {
+                        gc.ingest_doc(&mut doc, sink).await;
+                    }
                     if !wants_links {
                         doc.links = None;
                     }
@@ -634,6 +663,9 @@ impl Scraper {
             sink.total((scheduled + pending).min(req.limit) + att).await;
         }
         sink.release_pending().await;
+        if let Some(gc) = graph_collector.take() {
+            gc.finish(sink).await;
+        }
         let stop_reason = stop.unwrap_or(
             if scheduled >= req.limit && (overflow || !queue.is_empty()) {
                 "limit_reached"
