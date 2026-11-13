@@ -247,7 +247,7 @@ flowchart TD
     Net -->|Image| OCR[pagesift-ocr, pagesift-infer, pagesift-gpu]
     Office -->|archive member, attachment| Office
     Office -->|archive member, attachment| PDF
-    Office -->|source code| Syntax[pagesift-syntax]
+    Office -->|source code| Syntax["pagesift-syntax (yolowsyntax)"]
     PDF -->|scanned page| OCR
     DOM --> Content["pagesift-content (yolowhtml): main content, Markdown, metadata"]
     DOM --> Extract[pagesift-extract: selectors, relocation, chunking]

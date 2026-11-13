@@ -246,7 +246,7 @@ flowchart TD
     Net -->|图片| OCR[pagesift-ocr, pagesift-infer, pagesift-gpu]
     Office -->|压缩包成员、邮件附件| Office
     Office -->|压缩包成员、邮件附件| PDF
-    Office -->|源代码| Syntax[pagesift-syntax]
+    Office -->|源代码| Syntax["pagesift-syntax (yolowsyntax)"]
     PDF -->|扫描页| OCR[pagesift-ocr、pagesift-infer、pagesift-gpu]
     DOM --> Content["pagesift-content (yolowhtml)：正文、Markdown、元数据"]
     DOM --> Extract[pagesift-extract：选择器、重新定位、分块]

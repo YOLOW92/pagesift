@@ -22,7 +22,7 @@ flowchart TD
     Net -->|Image| OCR[pagesift-ocr, pagesift-infer, pagesift-gpu]
     Office -->|archive member, attachment| Office
     Office -->|archive member, attachment| PDF
-    Office -->|source code| Syntax[pagesift-syntax]
+    Office -->|source code| Syntax["pagesift-syntax (yolowsyntax)"]
     PDF -->|scanned page| OCR
     DOM --> Content["pagesift-content (yolowhtml): main content, Markdown, metadata"]
     DOM --> Extract[pagesift-extract: selectors, relocation, chunking]
@@ -54,7 +54,7 @@ to `metadata.pagesift.plan.steps`.
 | Engine | `pagesift-engine`, `pagesift-plan`, `pagesift-hooks`, `pagesift-llm`, `pagesift-search` |
 | Network and recovery | `pagesift-net`, `pagesift-policy` (rate limits and identity leases), `pagesift-rustls`, `pagesift-cdp`, `pagesift-media`, `pagesift-itna` |
 | Content | `pagesift-html` (`yolowhtml-dom`), `pagesift-content` (`yolowhtml`), `pagesift-extract`, `pagesift-diff`, `pagesift-frontier` |
-| Documents | `pagesift-pdf` (`yolowpdf`), `pagesift-office`, `pagesift-syntax`, `pagesift-ocr`, `pagesift-infer`, `pagesift-gpu` |
+| Documents | `pagesift-pdf` (`yolowpdf`), `pagesift-office`, `pagesift-syntax` (`yolowsyntax`), `pagesift-ocr`, `pagesift-infer`, `pagesift-gpu` |
 | Runtime | `pagesift-flow` (workers and admission), `pagesift-stat` (online statistics), `pagesift-base64` (`yolow64`), `pagesift-sys`, `pagesift-store`, `pagesift-sink`, `pagesift-cluster` |
 
 ## Execution

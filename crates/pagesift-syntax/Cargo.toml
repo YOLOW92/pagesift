@@ -1,36 +1,19 @@
 [package]
 name = "pagesift-syntax"
-description = "A pure-Rust runtime compatible with tree-sitter grammar tables, with code outline extraction (symbols, imports, sections) for 13 languages."
+description = "Code outline extraction and pure-Rust tree-sitter runtime for PageSift (re-exports yolowsyntax)."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-# 打包只带源码、内嵌的语法表和测试；测试里引用的外部数据不进包
-include = ["src/**", "tables/*.pslg.z", "tests/**", "THIRD-PARTY.md", "Cargo.toml"]
+include = ["src/**", "tests/**", "THIRD-PARTY.md", "Cargo.toml"]
 
 [features]
 # 转换器、corpus 验证和命令行工具；默认不编
-tools = []
+tools = ["yolowsyntax/tools"]
 
 [dependencies]
-# 语法表按需 zlib 解压；工作区里别的 crate 已经在用
-miniz_oxide = "0.9.1"
-
-[[bin]]
-name = "ts-convert"
-path = "src/bin/ts-convert.rs"
-required-features = ["tools"]
-
-[[bin]]
-name = "ts-corpus"
-path = "src/bin/ts-corpus.rs"
-required-features = ["tools"]
-
-[[bin]]
-name = "ts-parse"
-path = "src/bin/ts-parse.rs"
-required-features = ["tools"]
+yolowsyntax = "0.1.0"
 
 [[test]]
 name = "grammars"
