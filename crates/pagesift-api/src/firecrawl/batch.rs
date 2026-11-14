@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 use crate::error::{ApiError, ErrorCode};
 use crate::jobs::{Start, rfc3339};
-use crate::limits::Caller;
+use crate::limits::{Caller, apply_http_caller_scope};
 use crate::server::{AppState, PAGE_SIZE, base_url, lenient_body, webhook};
 use crate::types::{BatchScrapeRequest, JobErrors, JobStarted, JobStatus};
 use crate::validate::{check_scrape_options, check_url, check_url_count};
@@ -32,8 +32,12 @@ pub async fn batch_start(
         fields::names::<crate::types::ScrapeOptions>(),
         fields::CLIENT_IDENTITY,
     ];
-    let (req, ignored): (BatchScrapeRequest, _) = lenient_body(req, &known)?;
+    let (mut req, ignored): (BatchScrapeRequest, _) = lenient_body(req, &known)?;
     check_url_count(req.urls.len())?;
+    let eff_caller = caller
+        .map(|Extension(c)| c)
+        .unwrap_or_else(|| Caller::new(None, s.default_limits.clone()));
+    apply_http_caller_scope(&mut req.options, Some(&eff_caller), Some(&headers));
     check_scrape_options(&req.options, s.engine.as_ref())?;
     let (mut valid, mut invalid) = (Vec::new(), Vec::new());
     for u in req.urls {
@@ -47,7 +51,7 @@ pub async fn batch_start(
         return Err(ApiError::invalid("no valid URLs"));
     }
     let start = Start {
-        owner: caller.map(|Extension(c)| c),
+        owner: Some(eff_caller),
         webhook: webhook(&s, req.webhook.as_ref())?,
     };
     let concurrency = s.batch_concurrency_for(req.max_concurrency);

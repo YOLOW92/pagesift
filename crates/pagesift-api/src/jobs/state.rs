@@ -70,6 +70,9 @@ pub struct Job {
     pub graph_summary: Option<pagesift_graph::GraphSummary>,
     pub(crate) stored_docs: usize,
     pub(crate) owner: Option<Caller>,
+    pub(crate) tenant: Option<String>,
+    pub(crate) graph_options: pagesift_graph::GraphOptions,
+    pub(crate) graph_versions: bool,
     /// 新完成了文档或者状态变了就响一下，叫醒在等这个任务的流（`/stream`）。任务删掉时随之关闭。
     pub(crate) changed: watch::Sender<()>,
     pub(crate) previews: tokio::sync::broadcast::Sender<crate::types::MarkdownPreview>,
@@ -77,6 +80,7 @@ pub struct Job {
 
 impl Job {
     pub(crate) fn new(kind: JobKind, total: usize, owner: Option<Caller>) -> Self {
+        let tenant = owner.as_ref().map(Caller::tenant_owner);
         Self {
             kind,
             state: JobState::Scraping,
@@ -91,6 +95,9 @@ impl Job {
             graph_summary: None,
             stored_docs: 0,
             owner,
+            tenant,
+            graph_options: pagesift_graph::GraphOptions::enabled(),
+            graph_versions: true,
             changed: watch::channel(()).0,
             previews: tokio::sync::broadcast::channel(4).0,
         }

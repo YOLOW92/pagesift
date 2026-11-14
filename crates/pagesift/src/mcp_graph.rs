@@ -40,6 +40,7 @@ impl ToolHandler for GraphQueryTool {
                     .0
                     .crawl_graph(id)
                     .await
+                    .map_err(bad)?
                     .ok_or_else(|| ToolError::new(format!("Unknown job id: {id}")))?;
                 let resp = CrawlGraphResponse {
                     success: true,
@@ -57,14 +58,18 @@ impl ToolHandler for GraphQueryTool {
                 if target.is_empty() {
                     return Err(ToolError::new("historyUrl must not be blank"));
                 }
-                let (resource_key, versions, edges) =
-                    self.0.graph_history(target).await.map_err(bad)?;
+                let res = self
+                    .0
+                    .graph_history_for(None, target, pagesift_store::DEFAULT_GRAPH_HISTORY_LIMIT)
+                    .await
+                    .map_err(bad)?;
                 let resp = GraphHistoryResponse {
                     success: true,
                     url: target.to_string(),
-                    resource_key,
-                    versions,
-                    edges,
+                    resource_key: res.resource_key,
+                    versions: res.versions,
+                    edges: res.edges,
+                    truncated: res.truncated,
                 };
                 return Ok(ToolOutput::json(
                     serde_json::to_value(resp).map_err(|e| ToolError::new(e.to_string()))?,
@@ -80,16 +85,22 @@ impl ToolHandler for GraphQueryTool {
             let want_conflicts =
                 args.get("conflicts").and_then(Value::as_bool) == Some(true) || subject.is_some();
             if want_conflicts {
-                let conflicts = self
+                let (total, conflicts, truncated) = self
                     .0
-                    .graph_conflicts(subject.as_deref())
+                    .graph_conflicts_for(
+                        None,
+                        subject.as_deref(),
+                        pagesift_store::DEFAULT_GRAPH_CONFLICTS_LIMIT,
+                        0,
+                    )
                     .await
                     .map_err(bad)?;
                 let resp = GraphConflictsResponse {
                     success: true,
                     subject,
-                    total: conflicts.len(),
+                    total,
                     conflicts,
+                    truncated,
                 };
                 return Ok(ToolOutput::json(
                     serde_json::to_value(resp).map_err(|e| ToolError::new(e.to_string()))?,
@@ -168,7 +179,11 @@ mod tests {
             Box::pin(async move {
                 let mut builder = StreamingGraphBuilder::new(GraphOptions::enabled());
                 let d1 = builder.ingest(sample_doc("https://example.com/pricing", "$20", 1_000));
-                let d2 = builder.ingest(sample_doc("https://other.example/pricing", "$30", 2_000));
+                let d2 = builder.ingest(sample_doc(
+                    "https://example.com/pricing-legacy",
+                    "$30",
+                    2_000,
+                ));
                 let summary = builder.finalize();
                 sink.graph_delta(d1).await;
                 sink.graph_delta(d2).await;

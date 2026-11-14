@@ -39,7 +39,11 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub use cache::{Cache, CacheEntry, CacheLookup, CachePolicy};
 pub use engine::Store;
-pub use graph::GraphStore;
+pub use graph::{
+    DEFAULT_GRAPH_CONFLICTS_LIMIT, DEFAULT_GRAPH_DELTAS_LIMIT, DEFAULT_GRAPH_HISTORY_LIMIT,
+    GraphHistoryResult, GraphStore, LoadedVersionSnapshot, VersionCommitOutcome,
+    VersionCommitRequest,
+};
 pub use items::Items;
 pub use selectors::{SelectorEntry, Selectors};
 pub use snapshot::{ContentHash, SnapshotMeta, SnapshotPut, Snapshots};

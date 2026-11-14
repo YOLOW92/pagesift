@@ -290,7 +290,11 @@ impl Store {
     }
 
     pub fn graph(&self) -> crate::GraphStore<'_> {
-        crate::GraphStore::new(self)
+        crate::GraphStore::new(self, None)
+    }
+
+    pub fn graph_for<'a>(&'a self, tenant: Option<&'a str>) -> crate::GraphStore<'a> {
+        crate::GraphStore::new(self, tenant)
     }
 
     pub fn tasks(&self) -> Tasks<'_> {

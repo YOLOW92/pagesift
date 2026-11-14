@@ -4,7 +4,7 @@
 
 - Input: URLs (HTTP, or a browser when rendering adds content), HTML, PDF including scanned pages (OCR on CPU or NVIDIA GPU), DOCX, DOC, XLSX, XLS, XLSB, PPTX, PPT, OpenDocument, RTF, WordPerfect, HWP, EPUB, MOBI, FB2, EML, MBOX, MSG, ZIP, TAR, 7Z, images (OCR), SQLite, dBASE, CSV, Markdown and other text formats, 373 code languages as fenced blocks, WARC
 - Output: Markdown, HTML, raw HTML, links, images, metadata, schema-based JSON, DataGraph relations & evidence (`graph`); warnings when a result is incomplete
-- Install: `cargo install pagesift --locked` · `pip install pagesift` · `npm install @pagesift/node` · `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.4.0`
+- Install: `cargo install pagesift --locked` · `pip install pagesift` · `npm install @pagesift/node` · `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.4.1`
 - First call: `pagesift scrape --graph https://example.com` · `pagesift graph inspect ./data/graph.jsonl` · `pagesift.scrape(url).markdown` · `(await new Scraper().scrape(url)).markdown` · `curl localhost:3002/r/https://example.com`
 - MCP: `pagesift mcp` (stdio) or `pagesift mcp http --port 3003`; tools `pagesift_scrape`, `pagesift_batch_scrape`, `pagesift_crawl`, `pagesift_poll_job`, `pagesift_cancel_job`, `pagesift_map`, `pagesift_interact`, `pagesift_interact_stop`, `pagesift_graph_query`, and with a configured model `pagesift_agent`, `pagesift_agent_status`
 - Not for: standalone image files (OCR covers scanned pages inside PDFs)

@@ -46,8 +46,26 @@ impl Client {
         let tcp_started = Instant::now();
         let connect_deadline = tcp_started + wait.limit(Phase::Connect, self.0.connect_timeout);
         let stagger = self.0.waits.net.happy_eyeballs_delay();
+        let proxy_ips = match &self.0.proxy {
+            Some(proxy) => match self
+                .0
+                .resolver
+                .resolve_host_for_proxy(&proxy.host, proxy.exempt_host)
+                .await
+            {
+                Ok(ips) => ips,
+                Err(ResolveError::Blocked(Blocked::NoAddress(h))) => {
+                    return Err(Error::Dns(format!("no address for `{h}`")));
+                }
+                Err(ResolveError::Blocked(b)) => return Err(Error::Blocked(b)),
+                Err(ResolveError::Io(e)) => {
+                    return Err(Error::Dns(format!("{}: {e}", proxy.host)));
+                }
+            },
+            None => Vec::new(),
+        };
         let tcp = match &self.0.proxy {
-            Some(proxy) => proxy::connect(proxy, &ips, key.port, connect_deadline)
+            Some(proxy) => proxy::connect(proxy, &proxy_ips, &ips, key.port, connect_deadline)
                 .await
                 .map(|tcp| (tcp, ips[0], Duration::ZERO)),
             None => happy_eyeballs(ips, key.port, connect_deadline, stagger)

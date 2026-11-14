@@ -9,7 +9,8 @@ use tokio::sync::Notify;
 struct GateState {
     limit: AtomicUsize,
     active: AtomicUsize,
-    notify: Notify,
+    notify_acquire: Notify,
+    notify_idle: Notify,
 }
 
 /// Limits active work while allowing the target to change without recreating a semaphore.
@@ -30,7 +31,8 @@ impl AdaptiveConcurrencyGate {
             state: Arc::new(GateState {
                 limit: AtomicUsize::new(limit.max(1)),
                 active: AtomicUsize::new(0),
-                notify: Notify::new(),
+                notify_acquire: Notify::new(),
+                notify_idle: Notify::new(),
             }),
         }
     }
@@ -44,27 +46,32 @@ impl AdaptiveConcurrencyGate {
     }
 
     pub fn set_limit(&self, limit: usize) {
-        self.state.limit.store(limit.max(1), Ordering::Release);
-        self.state.notify.notify_waiters();
+        self.state.limit.store(limit.max(1), Ordering::SeqCst);
+        self.state.notify_acquire.notify_waiters();
     }
 
     pub async fn acquire(&self) -> AdaptiveConcurrencyPermit {
         loop {
-            // Register before checking so a release cannot be lost between the
-            // failed CAS and awaiting the notification.
-            let notified = self.state.notify.notified();
-            let active = self.state.active.load(Ordering::Acquire);
-            let limit = self.state.limit.load(Ordering::Acquire);
-            if active < limit
-                && self
+            // 先调用 enable 把等待者挂进通知队列，再检查容量，避免 set_limit/release 与休眠之间丢唤醒。
+            let notified = self.state.notify_acquire.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
+            loop {
+                let active = self.state.active.load(Ordering::SeqCst);
+                let limit = self.state.limit.load(Ordering::SeqCst);
+                if active >= limit {
+                    break;
+                }
+                if self
                     .state
                     .active
-                    .compare_exchange_weak(active, active + 1, Ordering::AcqRel, Ordering::Acquire)
+                    .compare_exchange_weak(active, active + 1, Ordering::SeqCst, Ordering::Acquire)
                     .is_ok()
-            {
-                return AdaptiveConcurrencyPermit {
-                    state: self.state.clone(),
-                };
+                {
+                    return AdaptiveConcurrencyPermit {
+                        state: self.state.clone(),
+                    };
+                }
             }
             notified.await;
         }
@@ -73,8 +80,10 @@ impl AdaptiveConcurrencyGate {
     /// Waits until all currently active permits have been released.
     pub async fn wait_idle(&self) {
         loop {
-            let notified = self.state.notify.notified();
-            if self.active() == 0 {
+            let notified = self.state.notify_idle.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
+            if self.state.active.load(Ordering::SeqCst) == 0 {
                 return;
             }
             notified.await;
@@ -84,14 +93,18 @@ impl AdaptiveConcurrencyGate {
 
 impl Drop for AdaptiveConcurrencyPermit {
     fn drop(&mut self) {
-        self.state.active.fetch_sub(1, Ordering::AcqRel);
-        self.state.notify.notify_one();
+        let prev = self.state.active.fetch_sub(1, Ordering::SeqCst);
+        if prev == 1 {
+            self.state.notify_idle.notify_waiters();
+        }
+        self.state.notify_acquire.notify_one();
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
     #[tokio::test]
     async fn lowering_limit_blocks_new_work_until_active_drops_below_target() {
@@ -142,5 +155,68 @@ mod tests {
         assert!(!waiter.is_finished());
         drop(permit);
         assert!(waiter.await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn multiple_wait_idle_waiters_and_acquire_coexist_without_starvation() {
+        let gate = AdaptiveConcurrencyGate::new(1);
+        let p1 = gate.acquire().await;
+
+        let idle1 = tokio::spawn({
+            let g = gate.clone();
+            async move { g.wait_idle().await }
+        });
+        let idle2 = tokio::spawn({
+            let g = gate.clone();
+            async move { g.wait_idle().await }
+        });
+        let idle3 = tokio::spawn({
+            let g = gate.clone();
+            async move { g.wait_idle().await }
+        });
+        let acq = tokio::spawn({
+            let g = gate.clone();
+            async move {
+                let p = g.acquire().await;
+                drop(p);
+            }
+        });
+        tokio::task::yield_now().await;
+        drop(p1);
+
+        tokio::time::timeout(Duration::from_secs(2), async {
+            idle1.await.unwrap();
+            idle2.await.unwrap();
+            idle3.await.unwrap();
+            acq.await.unwrap();
+        })
+        .await
+        .expect("all wait_idle and acquire waiters must wake cleanly");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn high_contention_cas_and_dynamic_limits_never_stall() {
+        let gate = AdaptiveConcurrencyGate::new(8);
+        let mut set = tokio::task::JoinSet::new();
+        for i in 0..200usize {
+            let g = gate.clone();
+            set.spawn(async move {
+                let permit = g.acquire().await;
+                if i % 17 == 0 {
+                    g.set_limit(if i % 34 == 0 { 2 } else { 12 });
+                }
+                tokio::task::yield_now().await;
+                drop(permit);
+            });
+        }
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while let Some(res) = set.join_next().await {
+                res.unwrap();
+            }
+            gate.wait_idle().await;
+        })
+        .await
+        .expect("contended gate must complete and become idle");
+        assert_eq!(gate.active(), 0);
     }
 }

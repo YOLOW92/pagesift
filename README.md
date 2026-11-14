@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.4.0
+# pagesift 1.4.1
 
 **The web and document layer for AI agents: any URL, document, email, archive or source file in, clean Markdown, structured JSON or DataGraph relations out.**  
 One self-hosted Rust binary with a CLI, Firecrawl and Jina Reader APIs, an MCP server, and packages for Python, Node.js, Go, Java, C#, Ruby, PHP and more.
@@ -43,7 +43,7 @@ Can replace or sit alongside: **Firecrawl** (same v1/v2 API, self-hosted), **Jin
 - **Runtime:** nothing to install for HTTP, PDF and Office. Optional: a browser for JavaScript pages, an NVIDIA GPU for OCR, your own model for `/v2/agent`
 - **Memory:** 17–395 MB peak per worker across the 1.4 benchmarks without a browser; OCR with formula models needs about 1.7 GB; capacity is sized from the cgroup limit
 - **License:** Apache-2.0, or [commercial support](docs/COMMERCIAL.md)
-- **Latest:** 1.4.0 · [release notes](docs/releases/1.4.0.md)
+- **Latest:** 1.4.1 · [release notes](docs/releases/1.4.1.md)
 
 <!-- section: install -->
 ## Install and use
@@ -53,7 +53,7 @@ Can replace or sit alongside: **Firecrawl** (same v1/v2 API, self-hosted), **Jin
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| Server | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.4.0` | `curl localhost:3002/r/https://example.com` |
+| Server | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.4.1` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -98,7 +98,7 @@ const items = await scraper.scrapeMany(['https://example.com', 'https://example.
 **HTTP server**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.4.0
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.4.1
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'                        # Firecrawl API
@@ -335,11 +335,11 @@ flowchart LR
 [commercial license and support](docs/COMMERCIAL.md) or write to `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
-## What's new in 1.4.0
+## What's new in 1.4.1
 
-PageSift 1.4.0 completes extraction of core format crates into standalone upstream dependencies — `yolowdoc 0.1.1` (Office, e-books, archives, SQLite), `yolowsyntax 0.1.2` (373 languages), and `yolowzstd 0.1.2` (Zstandard codec) — and introduces **PageSift DataGraph** (`pagesift-graph`) to emit document citations, redirect/canonical/attachment provenance, cross-version lineage, field-level evidence spans, cross-source fact clusters, and conflict records across CLI (`--graph`, `pagesift graph inspect`), HTTP (`/v2/crawl/{id}/graph`, `/v2/graph/history`, `/v2/graph/conflicts`), MCP (`pagesift_graph_query`), Python, and Node.
+PageSift 1.4.1 hardens the `1.4.x` line with tenant/session isolation for ChangeTracking and DataGraph endpoints (`/v2/graph/history`, `/v2/graph/conflicts`, jobs, cluster RPC), corroborated canonical/redirect identity rules, independent `evidence`/`facts`/`conflicts` graph switches, aligned `queryFilter`/chunk block IDs, snapshot-bound linear version CAS, bounded crawl-level DataGraph memory & paginated store reads, adaptive gate / CPU pool scheduling fixes, proxy remote-DNS SSRF enforcement, and `pagesift-office` `default-features = false` forwarding.
 
-[Release notes](docs/releases/1.4.0.md) · [1.3.0](docs/releases/1.3.0.md) · [1.2.7](docs/releases/1.2.7.md) · [all releases](docs/releases/) · [CHANGELOG](docs/CHANGELOG.md)
+[Release notes](docs/releases/1.4.1.md) · [1.4.0](docs/releases/1.4.0.md) · [1.3.0](docs/releases/1.3.0.md) · [all releases](docs/releases/) · [CHANGELOG](docs/CHANGELOG.md)
 
 ---
 
@@ -355,7 +355,7 @@ Questions or feedback: [Discord](https://discord.gg/esA3wMZVvA) · [Issues](http
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.4.0}
+  note   = {Version 1.4.1}
 }
 ```
 

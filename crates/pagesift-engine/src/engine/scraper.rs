@@ -565,6 +565,9 @@ impl Scraper {
             inner.max_age = Some(0);
         }
         let mut doc = self.base_document(source, &inner).await?;
+        let pre_filter_md = (opts.query_filter.is_some() && doc.graph.is_some())
+            .then(|| doc.markdown.clone())
+            .flatten();
         if let Some(q) = &opts.query_filter {
             apply_query_filter(&mut doc, q).await?;
         }
@@ -573,9 +576,11 @@ impl Scraper {
                 doc.markdown.as_deref().unwrap_or_default(),
                 c,
             )?);
-            if let Some(gopts) = crate::graph::effective_graph_options(opts) {
-                crate::graph::update_graph_from_chunks(&mut doc, &gopts);
-            }
+        }
+        if (opts.query_filter.is_some() || opts.chunking.is_some())
+            && let Some(gopts) = crate::graph::effective_graph_options(opts)
+        {
+            crate::graph::resync_graph_after_transform(&mut doc, &gopts, pre_filter_md.as_deref());
         }
         let md = doc.markdown.clone().unwrap_or_default();
         if let Some(llm) = self.llm.as_ref().filter(|_| wants_llm) {
@@ -606,7 +611,7 @@ impl Scraper {
             }
         }
         if let (Some(t), Some(store), Some(url)) = (&tracking, &self.store, url) {
-            self.track_changes(store, t, url, &mut doc).await?;
+            self.track_changes(store, t, url, opts, &mut doc).await?;
         }
         if !wants_md {
             doc.markdown = None;
@@ -625,15 +630,16 @@ impl Scraper {
         }
     }
 
-    /// `changeTracking`：和上一次的正文比较，结果放进 `doc.change_tracking`。
+    /// `changeTracking`：在服务端可信作用域下和上一次的正文比较，结果放进 `doc.change_tracking`。
     pub(super) async fn track_changes(
         &self,
         store: &pagesift_store::Store,
         t: &crate::change::Tracking,
         url: &str,
+        opts: &ScrapeOptions,
         doc: &mut Document,
     ) -> Result<(), ApiError> {
-        use crate::change::{Current, Previous};
+        use crate::change::{ChangeScope, Current, Previous};
         let ext = doc.metadata.pagesift.get_or_insert_with(Default::default);
         let current = if ext.not_modified {
             Current::NotModified
@@ -642,7 +648,8 @@ impl Scraper {
         } else {
             Current::Page(doc.markdown.as_deref().unwrap_or_default())
         };
-        let mut outcome = crate::change::track(store, t, url, current).await?;
+        let scope = ChangeScope::from_scrape_options(opts);
+        let mut outcome = crate::change::track_scoped(store, t, &scope, url, current).await?;
         ext.warnings.append(&mut outcome.warnings);
         if let (true, "changed", Previous::Page(prev), Some(llm)) = (
             t.json,

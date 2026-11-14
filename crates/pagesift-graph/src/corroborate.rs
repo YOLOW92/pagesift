@@ -76,12 +76,18 @@ pub fn resolve_subject_key(
     }
 
     if let Some(can) = canonical_url.filter(|c| !c.trim().is_empty()) {
-        let key = normalize_resource_key(can);
-        return SubjectKey {
-            key: format!("canonical:{key}"),
-            source: SubjectKeySource::CanonicalCluster,
-            raw: can.to_owned(),
-        };
+        let can_host = host_of(can);
+        let res_host = host_of(resource_key);
+        if (!res_host.is_empty() && can_host == res_host)
+            || (res_host.is_empty() && can_host.is_empty())
+        {
+            let key = normalize_resource_key(can);
+            return SubjectKey {
+                key: format!("canonical:{key}"),
+                source: SubjectKeySource::CanonicalCluster,
+                raw: can.to_owned(),
+            };
+        }
     }
 
     SubjectKey {

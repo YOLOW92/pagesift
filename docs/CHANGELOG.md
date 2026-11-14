@@ -2,6 +2,10 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## 1.4.1
+
+Hardening and correctness patch release for `1.4.x`: isolates ChangeTracking (`Caller` identity and anonymous HTTP `Cookie`/`X-Session-Id`/`Authorization` session digests across HTTP/cluster routes) and DataGraph multi-tenant storage/queries (`/v2/graph/history`, `/v2/graph/conflicts`, jobs), enforces canonical/redirect trust verification and remote-DNS proxy SSRF boundaries, decouples DataGraph `evidence` vs. `facts`/`conflicts`, fixes `changed_block_ids` / `queryFilter` / `chunking` alignment, binds version diffs cleanly to per-document snapshots with per-resource CAS linearization, adds crawl-level DataGraph ingestion budgets and symmetric bounded store reads, fixes `AdaptiveConcurrencyGate` / CPU pool concurrency edge cases and `pagesift-office` `default-features = false` forwarding. [Release notes](releases/1.4.1.md).
+
 ## 1.4.0
 
 `pagesift-office`, `pagesift-syntax`, and `pagesift-compress` now delegate to standalone upstream crates `yolowdoc 0.1.1`, `yolowsyntax 0.1.2`, and `yolowzstd 0.1.2`. Adds **PageSift DataGraph** (`pagesift-graph`) for document citations, redirect/canonical/attachment provenance, cross-version lineage, field-level evidence spans, cross-source fact clusters, and conflict records across CLI (`--graph`, `pagesift graph inspect`), HTTP API (`/v2/crawl/{id}/graph`, `/v2/graph/history`, `/v2/graph/conflicts`), MCP (`pagesift_graph_query`), Python, and Node.js. [Release notes](releases/1.4.0.md).

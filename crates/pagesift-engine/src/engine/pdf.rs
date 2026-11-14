@@ -268,6 +268,7 @@ impl Scraper {
                     etag,
                     last_modified,
                     attachments: pdf_attachments,
+                    tenant: opts.owner.clone(),
                     ..Default::default()
                 },
             );

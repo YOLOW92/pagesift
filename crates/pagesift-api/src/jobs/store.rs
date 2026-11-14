@@ -20,6 +20,8 @@ pub(crate) struct Meta {
     pub(crate) total: usize,
     pub(crate) completed: usize,
     pub(crate) owner: Option<String>,
+    #[serde(default)]
+    pub(crate) owner_authenticated: Option<bool>,
     pub(crate) webhook: Option<WebhookConfig>,
     pub(crate) crawl: Option<CrawlRequest>,
     pub(crate) batch: Option<BatchSpec>,
@@ -155,19 +157,40 @@ impl Jobs {
                 .and_then(|v| serde_json::from_slice::<Meta>(&v).ok())
             else {
                 tracing::warn!(job = %id, "dropping an unreadable saved job");
-                delete_job(store, self.inner.mirror.as_deref(), &id);
+                delete_job(store, self.inner.mirror.as_deref(), &id, None);
                 continue;
             };
+            let owner = meta
+                .owner
+                .as_deref()
+                .map(|a| Caller::restored(a, meta.owner_authenticated, limits(a)));
+            let tenant = owner.as_ref().map(Caller::tenant_owner);
             let created = UNIX_EPOCH + Duration::from_millis(meta.created_ms);
             if created + JOB_TTL <= now {
-                delete_job(store, self.inner.mirror.as_deref(), &id);
+                delete_job(store, self.inner.mirror.as_deref(), &id, tenant.as_deref());
                 expired += 1;
                 continue;
             }
             let pages = t.list_len(list_key(&id, "pages")) as usize;
             let errors = t.list_len(list_key(&id, "errors")) as usize;
-            let owner = meta.owner.as_deref().map(|a| Caller::named(a, limits(a)));
             let mut job = Job::new(meta.kind, meta.total, owner);
+            if let Some(ref req) = meta.crawl {
+                let g = req
+                    .graph
+                    .clone()
+                    .or_else(|| req.scrape_options.graph.clone())
+                    .unwrap_or_else(pagesift_graph::GraphOptions::enabled);
+                job.graph_versions = g.versions;
+                job.graph_options = g;
+            } else if let Some(ref spec) = meta.batch {
+                let g = spec
+                    .options
+                    .graph
+                    .clone()
+                    .unwrap_or_else(pagesift_graph::GraphOptions::enabled);
+                job.graph_versions = g.versions;
+                job.graph_options = g;
+            }
             job.created = created;
             job.state = meta.state;
             job.summary = meta.summary;
@@ -203,7 +226,10 @@ impl Jobs {
                 _ => None,
             };
             match (meta.kind, meta.crawl, meta.batch) {
-                (JobKind::BatchScrape, _, Some(spec)) => {
+                (JobKind::BatchScrape, _, Some(mut spec)) => {
+                    if let Some(ref t) = tenant {
+                        spec.options.owner = Some(t.clone());
+                    }
                     let pending: Vec<(usize, String)> = spec
                         .urls
                         .into_iter()
@@ -226,7 +252,10 @@ impl Jobs {
                         hook,
                     );
                 }
-                (JobKind::Crawl, Some(req), _) => {
+                (JobKind::Crawl, Some(mut req), _) => {
+                    if let Some(ref t) = tenant {
+                        req.scrape_options.owner = Some(t.clone());
+                    }
                     let frontier: Vec<(String, usize)> = t
                         .list_items(list_key(&id, "frontier"), usize::MAX)
                         .unwrap_or_default()
@@ -280,8 +309,13 @@ impl Jobs {
     }
 }
 
-/// 删除一个任务在存储里的全部数据。
-pub(super) fn delete_job(store: &Store, mirror: Option<&super::mirror::JobMirror>, id: &str) {
+/// 删除一个任务在存储里的全部数据（包含该租户作用域下的 DataGraph 任务增量和摘要）。
+pub(super) fn delete_job(
+    store: &Store,
+    mirror: Option<&super::mirror::JobMirror>,
+    id: &str,
+    tenant: Option<&str>,
+) {
     let r = super::mirror::write(store, mirror, |t| {
         for what in ["pages", "errors", "frontier", "notes"] {
             t.list_clear(&list_key(id, what))?;
@@ -295,5 +329,8 @@ pub(super) fn delete_job(store: &Store, mirror: Option<&super::mirror::JobMirror
     });
     if let Err(e) = r {
         tracing::warn!(job = %id, error = %e, "deleting an expired job failed");
+    }
+    if let Err(e) = store.graph_for(tenant).purge_job(id) {
+        tracing::warn!(job = %id, error = %e, "purging expired job graph failed");
     }
 }

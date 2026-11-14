@@ -8,10 +8,10 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-pagesift-gpu = { version = "1.4.0", path = "../pagesift-gpu" }
-pagesift-infer = { version = "1.4.0", path = "../pagesift-infer" }
+pagesift-gpu = { version = "1.4.1", path = "../pagesift-gpu" }
+pagesift-infer = { version = "1.4.1", path = "../pagesift-infer" }
 # 适配 PDF 的扫描页接口（pagesift-pdf 本身不依赖模型）
-pagesift-pdf = { version = "1.4.0", path = "../pagesift-pdf" }
-pagesift-stat = { version = "1.4.0", path = "../pagesift-stat" }
+pagesift-pdf = { version = "1.4.1", path = "../pagesift-pdf" }
+pagesift-stat = { version = "1.4.1", path = "../pagesift-stat" }
 sha2 = "0.11.1"
 serde_json = "1.0.154"

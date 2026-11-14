@@ -43,6 +43,7 @@ pub(super) async fn check_crawl(
         }
     };
     let mut o = opts.clone();
+    crate::limits::apply_http_caller_scope(&mut o, Some(caller), None);
     o.max_age = Some(0);
     req.scrape_options = o;
     let sink = Arc::new(Collect {

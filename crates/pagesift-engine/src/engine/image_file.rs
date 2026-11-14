@@ -105,6 +105,7 @@ impl Scraper {
                     },
                     engine: "ocr".to_string(),
                     content_hash: Some(content_hash),
+                    tenant: opts.owner.clone(),
                     ..Default::default()
                 },
             );

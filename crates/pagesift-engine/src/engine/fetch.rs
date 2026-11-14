@@ -51,6 +51,15 @@ impl Scraper {
         {
             return Err(ApiError::invalid(format!("unknown egress `{name}`")));
         }
+        if choice == EngineChoice::Browser
+            && let Some(name) = egress
+            && !self.policy.has_egress(name)
+        {
+            self.policy
+                .check_caller_proxy(name)
+                .await
+                .map_err(policy_error)?;
+        }
         let render_blocked = proxy.as_deref().is_some_and(|p| !self.can_render_via(p));
         if choice == EngineChoice::Browser && render_blocked {
             return Err(ApiError::unsupported(
@@ -195,6 +204,7 @@ impl Scraper {
                         etag: ext.etag,
                         last_modified: ext.last_modified,
                         redirect_chain: redirect_hops,
+                        tenant: opts.owner.clone(),
                         ..Default::default()
                     },
                 );
@@ -226,6 +236,7 @@ impl Scraper {
                 crate::graph::apply_http_provenance(
                     self.store.as_ref(),
                     gopts,
+                    opts.owner.as_deref(),
                     &mut out,
                     &redirect_hops,
                     canon_from_header,
@@ -258,6 +269,7 @@ impl Scraper {
                 crate::graph::apply_http_provenance(
                     self.store.as_ref(),
                     gopts,
+                    opts.owner.as_deref(),
                     &mut out,
                     &redirect_hops,
                     canon_from_header,
@@ -295,6 +307,7 @@ impl Scraper {
                 crate::graph::apply_http_provenance(
                     self.store.as_ref(),
                     gopts,
+                    opts.owner.as_deref(),
                     &mut out,
                     &redirect_hops,
                     canon_from_header,
@@ -344,6 +357,7 @@ impl Scraper {
                         last_modified,
                         redirect_chain: redirect_hops,
                         raw_traces: raw_json_traces,
+                        tenant: opts.owner.clone(),
                         ..Default::default()
                     },
                 );
@@ -594,6 +608,7 @@ impl Scraper {
                                     crate::graph::apply_http_provenance(
                                         self.store.as_ref(),
                                         gopts,
+                                        opts.owner.as_deref(),
                                         &mut better,
                                         &redirect_hops,
                                         canon_from_header,
@@ -710,6 +725,7 @@ impl Scraper {
                 &header_alternates,
                 "http",
                 md_for_graph,
+                opts.owner.as_deref(),
             );
         } else {
             merge_header_alternates(&mut out, &header_alternates);

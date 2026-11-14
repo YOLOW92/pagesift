@@ -2,7 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::hash::{compact_excerpt, normalize_resource_key, normalize_url, sha256_hex, short_id};
+use crate::hash::{
+    compact_excerpt, host_of, normalize_resource_key, normalize_url, sha256_hex, short_id,
+};
 
 /// Hard bounds keeping streaming DataGraph memory and per-document fan-out predictable.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -13,16 +15,28 @@ pub struct GraphLimits {
     pub max_claims_per_bucket: usize,
     pub max_blocks_per_doc: usize,
     pub max_excerpt_chars: usize,
+    pub max_nodes: usize,
+    pub max_citations: usize,
+    pub max_provenance_edges: usize,
+    pub max_versions: usize,
+    pub max_claim_buckets: usize,
+    pub max_claims: usize,
 }
 
 impl Default for GraphLimits {
     fn default() -> Self {
         Self {
-            max_edges_per_doc: 256,    // [策略] 单文档默认最大边数
-            max_anchor_samples: 3,     // [策略] 单引用边默认保留锚文本样本数
-            max_claims_per_bucket: 64, // [策略] 单分桶默认声明上限
-            max_blocks_per_doc: 4096,  // [策略] 单文档默认索引块上限
-            max_excerpt_chars: 160,    // [策略] 默认块摘要截断字符数
+            max_edges_per_doc: 256,        // [策略] 单文档默认最大边数
+            max_anchor_samples: 3,         // [策略] 单引用边默认保留锚文本样本数
+            max_claims_per_bucket: 64,     // [策略] 单分桶默认声明上限
+            max_blocks_per_doc: 4096,      // [策略] 单文档默认索引块上限
+            max_excerpt_chars: 160,        // [策略] 默认块摘要截断字符数
+            max_nodes: 50_000,             // [策略] 单任务默认节点数上限
+            max_citations: 500_000,        // [策略] 单任务默认引用边上限
+            max_provenance_edges: 250_000, // [策略] 单任务默认溯源边上限
+            max_versions: 100_000,         // [策略] 单任务默认版本边上限
+            max_claim_buckets: 100_000,    // [策略] 单任务默认声明分桶上限
+            max_claims: 500_000,           // [策略] 单任务默认声明总数上限
         }
     }
 }
@@ -149,6 +163,30 @@ pub struct DocNode {
 }
 
 impl DocNode {
+    /// Validate whether a declared canonical URL shares the fetched host and can anchor identity.
+    pub fn is_trusted_canonical(canonical_url: &str, final_url: &str) -> bool {
+        let trimmed = canonical_url.trim();
+        if trimmed.is_empty() {
+            return false;
+        }
+        let final_host = host_of(final_url);
+        let can_host = host_of(trimmed);
+        (!final_host.is_empty() && can_host == final_host)
+            || normalize_url(trimmed) == normalize_url(final_url)
+    }
+
+    /// Return normalized canonical URL when non-empty and same-host trusted for identity.
+    pub fn trusted_canonical_url(canonical_url: Option<&str>, final_url: &str) -> Option<String> {
+        let can = canonical_url.map(str::trim).filter(|c| !c.is_empty())?;
+        Self::is_trusted_canonical(can, final_url).then(|| normalize_url(can))
+    }
+
+    /// Unified logical URL: trusted same-host canonical URL if present, else normalized `final_url`.
+    pub fn logical_url_for(canonical_url: Option<&str>, final_url: &str) -> String {
+        Self::trusted_canonical_url(canonical_url, final_url)
+            .unwrap_or_else(|| normalize_url(final_url))
+    }
+
     /// Deterministic observation id from canonical/final URL, timestamp, and content hash.
     pub fn compute_doc_id(
         canonical_or_final_url: &str,
@@ -160,14 +198,29 @@ impl DocNode {
         short_id("doc", &[&norm, &ts, content_hash.unwrap_or("")])
     }
 
-    /// Best logical key: canonical URL when present, otherwise final URL.
-    pub fn logical_url(&self) -> &str {
-        self.canonical_url.as_deref().unwrap_or(&self.final_url)
+    /// Deterministic observation id unified with [`crate::builder::StreamingGraphBuilder::ingest`].
+    pub fn compute_observation_doc_id(
+        canonical_url: Option<&str>,
+        final_url: &str,
+        observed_at_ms: u64,
+        content_hash: Option<&str>,
+        raw_hash: Option<&str>,
+    ) -> String {
+        let logical = Self::logical_url_for(canonical_url, final_url);
+        Self::compute_doc_id(&logical, observed_at_ms, content_hash.or(raw_hash))
     }
 
-    /// Compute normalized `resource_key` from canonical or final URL.
+    /// Best logical key: same-host trusted canonical URL when present, otherwise final URL.
+    pub fn logical_url(&self) -> &str {
+        self.canonical_url
+            .as_deref()
+            .filter(|c| Self::is_trusted_canonical(c, &self.final_url))
+            .unwrap_or(&self.final_url)
+    }
+
+    /// Compute normalized `resource_key` from same-host trusted canonical or final URL.
     pub fn derive_resource_key(canonical_url: Option<&str>, final_url: &str) -> String {
-        normalize_resource_key(canonical_url.unwrap_or(final_url))
+        normalize_resource_key(&Self::logical_url_for(canonical_url, final_url))
     }
 }
 

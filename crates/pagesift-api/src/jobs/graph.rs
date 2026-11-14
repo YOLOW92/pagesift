@@ -12,7 +12,7 @@ use super::state::JobState;
 use crate::error::{ApiError, ErrorCode};
 
 pub(super) async fn record_delta(jobs: &Jobs, id: &str, delta: PageGraphDelta) {
-    {
+    let (tenant, versions_enabled) = {
         let mut map = jobs.inner.map.lock().await;
         let Some(job) = map.get_mut(id) else {
             return;
@@ -20,18 +20,24 @@ pub(super) async fn record_delta(jobs: &Jobs, id: &str, delta: PageGraphDelta) {
         if job.state == JobState::Cancelled {
             return;
         }
+        let tenant = job.tenant.clone();
+        let versions_enabled = job.graph_versions;
         if jobs.inner.store.is_none() {
             job.graph_deltas.push(delta.clone());
         }
         job.touch();
-    }
+        (tenant, versions_enabled)
+    };
     if let Some(store) = &jobs.inner.store {
         let jid = id.to_string();
         if let Err(e) = store
             .blocking(move |s| {
-                let g = s.graph();
+                let g = s.graph_for(tenant.as_deref());
                 g.append_job_delta(&jid, &delta)?;
-                g.record_version(&version_record(&delta.node), delta.version.as_ref())
+                if versions_enabled {
+                    g.record_version(&version_record(&delta.node), delta.version.as_ref())?;
+                }
+                Ok::<_, pagesift_store::Error>(())
             })
             .await
         {
@@ -41,12 +47,22 @@ pub(super) async fn record_delta(jobs: &Jobs, id: &str, delta: PageGraphDelta) {
 }
 
 pub(super) async fn record_summary(jobs: &Jobs, id: &str, summary: GraphSummary) {
+    let tenant = {
+        let map = jobs.inner.map.lock().await;
+        let Some(job) = map.get(id) else {
+            return;
+        };
+        if job.state == JobState::Cancelled {
+            return;
+        }
+        job.tenant.clone()
+    };
     if let Some(store) = &jobs.inner.store {
         let jid = id.to_string();
         let copy = summary.clone();
         if let Err(e) = store
             .blocking(move |s| {
-                let g = s.graph();
+                let g = s.graph_for(tenant.as_deref());
                 if !copy.conflicts.is_empty() {
                     g.put_conflicts(&copy.conflicts)?;
                 }
@@ -67,15 +83,15 @@ pub(super) async fn record_summary(jobs: &Jobs, id: &str, summary: GraphSummary)
     }
 }
 
-fn summarize_deltas(deltas: &[PageGraphDelta]) -> GraphSummary {
+fn summarize_deltas(deltas: &[PageGraphDelta], opts: &GraphOptions) -> GraphSummary {
     if deltas.is_empty() {
         return GraphSummary::default();
     }
-    let mut builder = StreamingGraphBuilder::new(GraphOptions::enabled());
+    let mut builder = StreamingGraphBuilder::new(opts.clone());
     for delta in deltas {
         builder.ingest_delta(delta.clone());
     }
-    builder.finalize()
+    builder.into_summary()
 }
 
 fn version_record(node: &DocNode) -> VersionRecord {
@@ -94,49 +110,79 @@ fn version_record(node: &DocNode) -> VersionRecord {
 }
 
 impl Jobs {
-    /// Return the DataGraph summary for a crawl job, synthesizing from deltas if still in progress.
-    pub async fn crawl_graph(&self, id: &str) -> Option<(JobState, GraphSummary)> {
+    /// Return the DataGraph summary for a crawl job, synthesizing from bounded deltas if in progress.
+    pub async fn crawl_graph(
+        &self,
+        id: &str,
+    ) -> Result<Option<(JobState, GraphSummary)>, ApiError> {
         self.sweep().await;
-        let (state, mem_summary, mem_deltas) = {
+        let (state, tenant, graph_opts, mem_summary, mem_deltas) = {
             let map = self.inner.map.lock().await;
-            let job = map.get(id)?;
+            let Some(job) = map.get(id) else {
+                return Ok(None);
+            };
             (
                 job.state,
+                job.tenant.clone(),
+                job.graph_options.clone(),
                 job.graph_summary.clone(),
                 job.graph_deltas.clone(),
             )
         };
         if let Some(summary) = mem_summary {
-            return Some((state, summary));
+            return Ok(Some((state, summary)));
         }
         if let Some(store) = &self.inner.store {
             let jid = id.to_string();
-            let stored = store
+            let opts = graph_opts.clone();
+            let summary = store
                 .blocking(move |s| {
-                    let g = s.graph();
+                    let g = s.graph_for(tenant.as_deref());
                     if let Some(summary) = g.get_job_summary(&jid)? {
-                        return Ok(Some(summary));
+                        return Ok(summary);
                     }
-                    let deltas = g.job_deltas(&jid)?;
-                    Ok::<_, pagesift_store::Error>(Some(summarize_deltas(&deltas)))
+                    let mut builder = StreamingGraphBuilder::new(opts);
+                    let truncated = g.visit_job_deltas(
+                        &jid,
+                        pagesift_store::DEFAULT_GRAPH_DELTAS_LIMIT,
+                        |delta| {
+                            builder.ingest_delta(delta);
+                            Ok(())
+                        },
+                    )?;
+                    let mut out = builder.into_summary();
+                    if truncated {
+                        out.stats.truncated = true;
+                        out.stats
+                            .truncation_reasons
+                            .push("job_deltas_limit_reached".into());
+                    }
+                    Ok::<_, pagesift_store::Error>(out)
                 })
-                .await;
-            if let Ok(Some(summary)) = stored {
-                return Some((state, summary));
-            }
+                .await
+                .map_err(|e| {
+                    ApiError::new(ErrorCode::Internal, format!("crawl graph failed: {e}"))
+                })?;
+            return Ok(Some((state, summary)));
         }
-        Some((state, summarize_deltas(&mem_deltas)))
+        Ok(Some((state, summarize_deltas(&mem_deltas, &graph_opts))))
     }
 
-    /// Query version lineage for a URL or resource key across the persistent or in-memory graph store.
-    pub async fn graph_history(
+    /// Query version lineage for a URL or resource key for one isolated tenant (or local `None`).
+    pub async fn graph_history_for(
         &self,
+        tenant: Option<&str>,
         url_or_key: &str,
-    ) -> Result<(String, Vec<VersionRecord>, Vec<VersionEdge>), ApiError> {
+        limit: usize,
+    ) -> Result<pagesift_store::GraphHistoryResult, ApiError> {
         if let Some(store) = &self.inner.store {
             let target = url_or_key.to_string();
+            let scope = tenant.map(str::to_string);
             return store
-                .blocking(move |s| s.graph().history(&target))
+                .blocking(move |s| {
+                    s.graph_for(scope.as_deref())
+                        .history_bounded(&target, limit)
+                })
                 .await
                 .map_err(|e| {
                     ApiError::new(ErrorCode::Internal, format!("graph history failed: {e}"))
@@ -151,7 +197,7 @@ impl Jobs {
         let mut versions_by_id: BTreeMap<String, VersionRecord> = BTreeMap::new();
         let mut edges_by_key: BTreeMap<(Option<String>, String), VersionEdge> = BTreeMap::new();
         let mut matching_docs = BTreeSet::new();
-        for job in map.values() {
+        for job in map.values().filter(|j| j.tenant.as_deref() == tenant) {
             for delta in &job.graph_deltas {
                 if delta.node.resource_key == target_key {
                     matching_docs.insert(delta.node.doc_id.clone());
@@ -195,31 +241,78 @@ impl Jobs {
                 .cmp(&b.observed_at_ms)
                 .then_with(|| a.doc_id.cmp(&b.doc_id))
         });
-        let edges: Vec<VersionEdge> = edges_by_key.into_values().collect();
-        Ok((target_key, versions, edges))
+        let mut edges: Vec<VersionEdge> = edges_by_key.into_values().collect();
+        edges.sort_by(|a, b| {
+            a.curr_observed_at_ms
+                .cmp(&b.curr_observed_at_ms)
+                .then_with(|| a.curr_doc_id.cmp(&b.curr_doc_id))
+        });
+        let mut truncated = false;
+        if versions.len() > limit {
+            let skip = versions.len() - limit;
+            versions.drain(..skip);
+            truncated = true;
+        }
+        if edges.len() > limit {
+            let skip = edges.len() - limit;
+            edges.drain(..skip);
+            truncated = true;
+        }
+        Ok(pagesift_store::GraphHistoryResult {
+            resource_key: target_key,
+            versions,
+            edges,
+            truncated,
+        })
     }
 
-    /// List recorded DataGraph conflicts, optionally filtered by subject key.
-    pub async fn graph_conflicts(
+    /// Query bounded local (unscoped) version lineage for embedded/MCP callers.
+    pub async fn graph_history(
         &self,
+        url_or_key: &str,
+    ) -> Result<(String, Vec<VersionRecord>, Vec<VersionEdge>), ApiError> {
+        let res = self
+            .graph_history_for(
+                None,
+                url_or_key,
+                pagesift_store::DEFAULT_GRAPH_HISTORY_LIMIT,
+            )
+            .await?;
+        Ok((res.resource_key, res.versions, res.edges))
+    }
+
+    /// List paginated DataGraph conflicts for one isolated tenant (or local `None`).
+    pub async fn graph_conflicts_for(
+        &self,
+        tenant: Option<&str>,
         subject: Option<&str>,
-    ) -> Result<Vec<ConflictRecord>, ApiError> {
+        limit: usize,
+        offset: usize,
+    ) -> Result<(usize, Vec<ConflictRecord>, bool), ApiError> {
         if let Some(store) = &self.inner.store {
             let subj = subject.map(str::to_string);
-            return store
-                .blocking(move |s| s.graph().list_conflicts(subj.as_deref()))
+            let scope = tenant.map(str::to_string);
+            let (items, total, has_more) = store
+                .blocking(move |s| {
+                    s.graph_for(scope.as_deref()).list_conflicts_bounded(
+                        subj.as_deref(),
+                        limit,
+                        offset,
+                    )
+                })
                 .await
                 .map_err(|e| {
                     ApiError::new(ErrorCode::Internal, format!("graph conflicts failed: {e}"))
-                });
+                })?;
+            return Ok((total, items, has_more));
         }
         let map = self.inner.map.lock().await;
         let mut by_id: BTreeMap<String, ConflictRecord> = BTreeMap::new();
-        for job in map.values() {
+        for job in map.values().filter(|j| j.tenant.as_deref() == tenant) {
             let summary = if let Some(s) = &job.graph_summary {
                 s.clone()
             } else if !job.graph_deltas.is_empty() {
-                summarize_deltas(&job.graph_deltas)
+                summarize_deltas(&job.graph_deltas, &job.graph_options)
             } else {
                 continue;
             };
@@ -231,6 +324,33 @@ impl Jobs {
                 }
             }
         }
-        Ok(by_id.into_values().collect())
+        let total = by_id.len();
+        if offset >= total || limit == 0 {
+            return Ok((total, Vec::new(), offset < total));
+        }
+        let end = total.min(offset.saturating_add(limit));
+        let has_more = end < total;
+        let page: Vec<ConflictRecord> = by_id
+            .into_values()
+            .skip(offset)
+            .take(end - offset)
+            .collect();
+        Ok((total, page, has_more))
+    }
+
+    /// List bounded local (unscoped) DataGraph conflicts for embedded/MCP callers.
+    pub async fn graph_conflicts(
+        &self,
+        subject: Option<&str>,
+    ) -> Result<Vec<ConflictRecord>, ApiError> {
+        let (_, page, _) = self
+            .graph_conflicts_for(
+                None,
+                subject,
+                pagesift_store::DEFAULT_GRAPH_CONFLICTS_LIMIT,
+                0,
+            )
+            .await?;
+        Ok(page)
     }
 }

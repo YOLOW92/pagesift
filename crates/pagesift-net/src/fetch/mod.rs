@@ -58,16 +58,31 @@ impl fmt::Debug for Fetcher {
 
 impl Fetcher {
     pub fn new(config: FetcherConfig) -> Result<Self> {
-        Self::new_inner(config, true)
+        Self::new_inner(config, true, true)
     }
 
-    /// 命名出口专用：这是调用方为本次请求显式选择的代理，不能被环境里的
-    /// `NO_PROXY` 或 SSRF 放行名单悄悄改成直连。
+    /// 命名出口专用：这是管理员配置的出口代理，不能被环境里的
+    /// `NO_PROXY` 或 SSRF 放行名单悄悄改成直连；允许代理服务器本身位于内网。
     pub fn new_egress(config: FetcherConfig) -> Result<Self> {
-        Self::new_inner(config, false)
+        Self::new_inner(config, false, true)
     }
 
-    fn new_inner(mut config: FetcherConfig, honor_bypass: bool) -> Result<Self> {
+    /// 请求参数临时传入的代理专用：代理主机本身也必须接受 SSRF 检查，防止通过自定义代理探测内网或云元数据。
+    pub fn new_caller_proxy(config: FetcherConfig) -> Result<Self> {
+        if let Some(p) = &config.proxy {
+            config.ssrf.check_proxy_url(p).map_err(|b| match b {
+                Blocked::InvalidUrl => Error::InvalidUrl(redact_url(p)),
+                b => Error::Blocked(b),
+            })?;
+        }
+        Self::new_inner(config, false, false)
+    }
+
+    fn new_inner(
+        mut config: FetcherConfig,
+        honor_bypass: bool,
+        exempt_proxy_host: bool,
+    ) -> Result<Self> {
         validate_user_agent(&config.user_agent)?;
         if config.proxy.is_none()
             && config.env_proxy
@@ -91,7 +106,8 @@ impl Fetcher {
                     parsed.scheme()
                 )));
             }
-            if config.browser_fingerprint.is_none()
+            if exempt_proxy_host
+                && config.browser_fingerprint.is_none()
                 && let Some(h) = parsed.host_str()
             {
                 exempt.push(h.trim_matches(['[', ']']).to_string());
@@ -174,8 +190,9 @@ impl Fetcher {
             });
         }
         let shaped_proxy = if let Some(profile) = config.browser_fingerprint {
-            let proxy =
+            let mut proxy =
                 client::proxy::Proxy::parse(config.proxy.as_deref().expect("proxy configured"))?;
+            proxy.exempt_host = exempt_proxy_host;
             Some(client::Client::new(
                 resolver.clone(),
                 config.connect_timeout,
@@ -331,6 +348,33 @@ impl Fetcher {
             Blocked::InvalidUrl => Error::InvalidUrl(redact_url(url)),
             b => Error::Blocked(b),
         })
+    }
+
+    /// 校验调用方随请求传入的代理 URL（含代理主机名经本机 DNS 解析后的 SSRF 检查）。
+    pub async fn check_caller_proxy(&self, raw: &str) -> Result<Url> {
+        let parsed = self.config.ssrf.check_proxy_url(raw).map_err(|b| match b {
+            Blocked::InvalidUrl => Error::InvalidUrl(redact_url(raw)),
+            b => Error::Blocked(b),
+        })?;
+        if let Some(url::Host::Domain(host)) = parsed.host()
+            && !self.config.ssrf.host_allowed(host)
+        {
+            match self.resolver.resolve_checked(host).await {
+                Ok(ips) => {
+                    for ip in ips {
+                        if let Err(b) = self.config.ssrf.check_ip(ip) {
+                            return Err(Error::Blocked(b));
+                        }
+                    }
+                }
+                Err(ResolveError::Blocked(Blocked::NoAddress(h))) => {
+                    return Err(Error::Dns(format!("no address for `{h}`")));
+                }
+                Err(ResolveError::Blocked(b)) => return Err(Error::Blocked(b)),
+                Err(ResolveError::Io(e)) => return Err(Error::Dns(format!("{host}: {e}"))),
+            }
+        }
+        Ok(parsed)
     }
 
     pub async fn fetch(&self, req: FetchRequest) -> Result<FetchResponse> {

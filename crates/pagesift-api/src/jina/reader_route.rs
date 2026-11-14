@@ -75,10 +75,11 @@ async fn process_jina_scrape(
         Ok(v) => v,
         Err(e) => return e.into_response(),
     };
-    opts.owner = caller
-        .as_ref()
-        .map(|Extension(c)| c.account.to_string())
-        .filter(|owner| owner != "anonymous");
+    crate::limits::apply_http_caller_scope(
+        &mut opts,
+        caller.as_ref().map(|Extension(c)| c),
+        Some(&headers),
+    );
     if let Err(e) = crate::validate::check_scrape_options(&opts, s.engine.as_ref()) {
         return e.into_response();
     }

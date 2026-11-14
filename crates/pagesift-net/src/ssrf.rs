@@ -98,6 +98,15 @@ impl std::str::FromStr for IpCidr {
 
 impl SsrfPolicy {
     pub fn check_url(&self, url: &str) -> Result<Url, Blocked> {
+        self.check_url_schemes(url, &["http", "https"])
+    }
+
+    /// 校验调用方传入的代理 URL（允许 `http`、`https`、`socks5`、`socks5h`），拒绝内网字面量、混淆 IP 和内网域名。
+    pub fn check_proxy_url(&self, url: &str) -> Result<Url, Blocked> {
+        self.check_url_schemes(url, &["http", "https", "socks5", "socks5h"])
+    }
+
+    fn check_url_schemes(&self, url: &str, schemes: &[&str]) -> Result<Url, Blocked> {
         let parsed = Url::parse(url).map_err(|_| Blocked::InvalidUrl)?;
         if let Some(raw) = raw_host(url)
             && let Some(Host::Ipv4(ip)) = parsed.host()
@@ -107,15 +116,19 @@ impl SsrfPolicy {
                 return Err(Blocked::ObfuscatedIp(raw));
             }
         }
-        self.check_parsed(&parsed)?;
+        self.check_parsed_schemes(&parsed, schemes)?;
         Ok(parsed)
     }
 
     /// 校验已解析的 URL（不检查原始写法，重定向的 Location 也先走 [`Self::check_url`]）。
     pub fn check_parsed(&self, url: &Url) -> Result<(), Blocked> {
-        match url.scheme() {
-            "http" | "https" => {}
-            other => return Err(Blocked::Scheme(other.to_string())),
+        self.check_parsed_schemes(url, &["http", "https"])
+    }
+
+    fn check_parsed_schemes(&self, url: &Url, schemes: &[&str]) -> Result<(), Blocked> {
+        let scheme = url.scheme();
+        if !schemes.contains(&scheme) {
+            return Err(Blocked::Scheme(scheme.to_string()));
         }
         match url.host() {
             None => Err(Blocked::InvalidUrl),

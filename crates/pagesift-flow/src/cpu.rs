@@ -291,8 +291,9 @@ impl Pool {
             }
             job();
         });
-        lock(&shared.slots[at].queue).push_back(job);
+        // 先发布待处理计数再入队：工人不会在 pending 增加之前偷走任务导致 fetch_sub 下溢。
         shared.pending.0.fetch_add(1, Ordering::SeqCst);
+        lock(&shared.slots[at].queue).push_back(job);
         shared.wake_one(at);
     }
 
@@ -311,6 +312,11 @@ impl Pool {
         self.submit(
             key,
             Box::new(move || {
+                // 调用方在排队期间已取消（接收端释放）：直接放弃尚未开始的任务并归还名额。
+                if tx.is_closed() {
+                    drop(permit);
+                    return;
+                }
                 let _ = tx.send(catch_unwind(AssertUnwindSafe(f)));
                 drop(permit);
             }),
@@ -462,5 +468,53 @@ mod tests {
         pool.spawn(move || tx.send(std::thread::current().id()).unwrap());
         assert_eq!(rx.recv().unwrap(), here);
         drop(held);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn cancelled_queued_run_skips_closure_execution_and_keeps_pending_exact() {
+        let pool = Arc::new(Pool::new(1).unwrap());
+        let entered = Arc::new(std::sync::Barrier::new(2));
+        let release = Arc::new(std::sync::Barrier::new(2));
+        let blocker = tokio::spawn({
+            let (pool, entered, release) = (pool.clone(), entered.clone(), release.clone());
+            async move {
+                pool.run(None, move || {
+                    entered.wait();
+                    release.wait();
+                })
+                .await
+            }
+        });
+        entered.wait();
+
+        let executed = Arc::new(AtomicUsize::new(0));
+        let (done_tx, mut done_rx) = tokio::sync::oneshot::channel::<()>();
+        let executed_clone = executed.clone();
+        let victim = tokio::spawn({
+            let pool = pool.clone();
+            async move {
+                pool.run(None, move || {
+                    executed_clone.fetch_add(1, Ordering::SeqCst);
+                    let _ = done_tx.send(());
+                })
+                .await
+            }
+        });
+        // 等待 queued task 入队后中止任务，再放行阻塞中的唯一工人。
+        for _ in 0..100 {
+            if pool.queued() > 0 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+        victim.abort();
+        let _ = victim.await;
+        // 确认 receiver 已关闭后再放行工人，确保受害任务在弹出后跳过闭包的执行。
+        assert!(done_rx.try_recv().is_err());
+        release.wait();
+        blocker.await.unwrap().unwrap();
+        assert_eq!(pool.run(None, || 42).await, Ok(42));
+        assert_eq!(executed.load(Ordering::SeqCst), 0);
+        assert!(pool.queued() <= pool.capacity());
     }
 }

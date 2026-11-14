@@ -118,11 +118,14 @@ impl Scraper {
         let wants_md = req.scrape_options.wants("markdown");
         // 判断重复内容要看正文
         let (opts, _) = self.crawl_settings(req, &["markdown"]);
+        let graph_versions =
+            crate::graph::effective_graph_options(&opts).is_some_and(|g| g.versions);
         let mut graph_collector = crate::graph::effective_graph_options(&opts).map(|g| {
             crate::graph::crawl_builder::CrawlGraphCollector::new(
                 g,
                 self.store_ref().cloned(),
                 None,
+                opts.owner.clone(),
             )
         });
         let concurrency_ceiling = req.max_concurrency.unwrap_or(usize::MAX).max(1);
@@ -218,6 +221,8 @@ impl Scraper {
                     {
                         crate::graph::enrich_duplicate_provenance(
                             self.store_ref(),
+                            graph_versions,
+                            opts.owner.as_deref(),
                             &mut doc,
                             &dup_of,
                             "content_duplicate",

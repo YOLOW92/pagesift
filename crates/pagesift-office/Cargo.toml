@@ -15,7 +15,7 @@ syntax = ["yolowdoc/syntax"]
 zstd = ["yolowdoc/zstd"]
 
 [dependencies]
-yolowdoc = "0.1.1"
+yolowdoc = { version = "0.1.1", default-features = false }
 
 [dev-dependencies]
 pagesift-compress = { path = "../pagesift-compress" }

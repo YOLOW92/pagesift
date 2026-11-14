@@ -20,11 +20,12 @@ pub(super) type BoxStream = Box<dyn AsyncIo>;
 
 #[derive(Clone)]
 pub(crate) struct Proxy {
-    host: String,
+    pub(super) host: String,
     port: u16,
     scheme: String,
     username: String,
     password: String,
+    pub(crate) exempt_host: bool,
 }
 
 impl Drop for Proxy {
@@ -76,32 +77,45 @@ impl Proxy {
             scheme: url.scheme().into(),
             username,
             password,
+            exempt_host: false,
         })
     }
 }
 
 pub(super) async fn connect(
     proxy: &Proxy,
+    proxy_ips: &[IpAddr],
     targets: &[IpAddr],
     port: u16,
     deadline: Instant,
 ) -> Result<BoxStream> {
+    if proxy_ips.is_empty() {
+        return Err(Error::Network("no validated proxy address".into()));
+    }
     if targets.is_empty() {
         return Err(Error::Network("no validated target address".into()));
     }
     let mut last = None;
-    for target in targets {
-        match timeout_at(deadline, connect_one(proxy, *target, port)).await {
-            Ok(Ok(io)) => return Ok(io),
-            Ok(Err(e)) => last = Some(e),
-            Err(_) => return Err(Error::Timeout(TimeoutPhase::Connect)),
+    for &proxy_ip in proxy_ips {
+        for &target in targets {
+            match timeout_at(deadline, connect_one(proxy, proxy_ip, target, port)).await {
+                Ok(Ok(io)) => return Ok(io),
+                Ok(Err(e @ Error::Tls { .. })) => return Err(e),
+                Ok(Err(e)) => last = Some(e),
+                Err(_) => return Err(Error::Timeout(TimeoutPhase::Connect)),
+            }
         }
     }
     Err(last.unwrap_or_else(|| Error::Network("proxy tunnel failed".into())))
 }
 
-async fn connect_one(proxy: &Proxy, target: IpAddr, port: u16) -> Result<BoxStream> {
-    let tcp = TcpStream::connect((proxy.host.as_str(), proxy.port))
+async fn connect_one(
+    proxy: &Proxy,
+    proxy_ip: IpAddr,
+    target: IpAddr,
+    port: u16,
+) -> Result<BoxStream> {
+    let tcp = TcpStream::connect(std::net::SocketAddr::new(proxy_ip, proxy.port))
         .await
         .map_err(|_| Error::Network("proxy connection failed".into()))?;
     let _ = tcp.set_nodelay(true);

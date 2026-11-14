@@ -543,3 +543,370 @@ async fn persistent_versions_bridge_redirects_noise_and_substantive_edits() {
     assert_eq!(latest.url, new_url);
     let _map: HashMap<String, String> = HashMap::new();
 }
+
+#[tokio::test]
+async fn changed_block_ids_resolve_to_doc_block_ids_with_canonical() {
+    let phase = Arc::new(Mutex::new(0usize));
+    let phase_r = Arc::clone(&phase);
+    let app = Router::new().route(
+        "/item",
+        get(move || {
+            let p = *phase_r.lock().unwrap();
+            async move {
+                if p == 0 {
+                    Html(
+                        "<html><head><link rel=\"canonical\" href=\"/item-canonical\"></head>\
+                         <body><h1>Product Spec</h1>\
+                         <p>Alpha baseline paragraph stays untouched across revisions.</p>\
+                         <p>Beta price starts at $100 with standard warranty coverage.</p></body></html>",
+                    )
+                } else {
+                    Html(
+                        "<html><head><link rel=\"canonical\" href=\"/item-canonical\"></head>\
+                         <body><h1>Product Spec</h1>\
+                         <p>Alpha baseline paragraph stays untouched across revisions.</p>\
+                         <p>Beta price rises to $150 with extended warranty coverage.</p></body></html>",
+                    )
+                }
+            }
+        }),
+    );
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let url = format!("http://{addr}/item");
+
+    let store_dir = tempfile::tempdir().unwrap();
+    let store = Store::open_dir(store_dir.path()).unwrap();
+    let scraper = test_scraper(Some(store));
+    let opts = ScrapeOptions {
+        engine: Some("http".into()),
+        max_age: Some(0),
+        formats: vec![Format::new("markdown"), Format::new("graph")],
+        graph: Some(GraphOptions::enabled()),
+        ..Default::default()
+    };
+
+    let d1 = scraper.scrape(&url, &opts).await.expect("v1");
+    let s1 = d1.graph.as_ref().expect("s1");
+    assert_eq!(s1.resource_key, format!("http://{addr}/item-canonical"));
+    assert!(!s1.blocks.is_empty());
+
+    *phase.lock().unwrap() = 1;
+    let d2 = scraper.scrape(&url, &opts).await.expect("v2");
+    let s2 = d2.graph.as_ref().expect("s2");
+    let edge = s2.version.as_ref().expect("v2 edge");
+    assert!(!edge.changed_block_ids.is_empty());
+    for cid in &edge.changed_block_ids {
+        let matched = s2
+            .blocks
+            .iter()
+            .find(|b| &b.block_id == cid && b.doc_id == s2.doc_id);
+        assert!(
+            matched.is_some(),
+            "changed_block_id {cid} missing from slice.blocks under doc_id {}",
+            s2.doc_id
+        );
+    }
+}
+
+#[tokio::test]
+async fn query_filter_and_chunking_keep_graph_coordinates_aligned() {
+    use pagesift_graph::EvidenceAlignment;
+
+    let app = Router::new().route(
+        "/offer",
+        get(|| async {
+            Html(
+                "<html><head>\
+                 <title>Acme Widget Overview</title>\
+                 <meta name=\"description\" content=\"Leading overview description\">\
+                 </head><body>\
+                 <h1>Company Overview</h1>\
+                 <p>Founded in 2010 in Osaka with global headquarters and overview story.</p>\
+                 <h1>Enterprise Pricing Tiers</h1>\
+                 <p>Enterprise plan costs $299 per month with dedicated SLA support and billing.</p>\
+                 </body></html>",
+            )
+        }),
+    );
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let url = format!("http://{addr}/offer");
+
+    let scraper = test_scraper(None);
+
+    // 1) QueryFilter without chunking
+    let opts_filtered = ScrapeOptions {
+        engine: Some("http".into()),
+        max_age: Some(0),
+        formats: vec![Format::new("markdown"), Format::new("graph")],
+        graph: Some(GraphOptions::enabled()),
+        query_filter: Some(
+            serde_json::from_value(serde_json::json!({
+                "query": "Enterprise Pricing Tiers $299 SLA",
+                "minTokens": 1,
+                "relative": 0.9
+            }))
+            .unwrap(),
+        ),
+        ..Default::default()
+    };
+    let doc1 = scraper
+        .scrape(&url, &opts_filtered)
+        .await
+        .expect("filtered");
+    let md1 = doc1.markdown.as_deref().unwrap_or("");
+    assert!(
+        md1.contains("$299"),
+        "expected pricing kept in filtered md: {md1}"
+    );
+    assert!(
+        !md1.contains("Osaka"),
+        "expected prefix overview dropped by queryFilter: {md1}"
+    );
+    let g1 = doc1.graph.as_ref().expect("g1");
+    assert!(!g1.blocks.is_empty());
+    for b in &g1.blocks {
+        assert!(b.start <= b.end && b.end <= md1.len());
+        assert!(md1.is_char_boundary(b.start) && md1.is_char_boundary(b.end));
+    }
+    for claim in &g1.claims {
+        let ev = &claim.evidence;
+        if let (Some(s), Some(e)) = (ev.start, ev.end) {
+            assert!(s <= e && e <= md1.len());
+            assert!(md1.is_char_boundary(s) && md1.is_char_boundary(e));
+            let bid = ev.block_id.as_ref().expect("aligned block_id");
+            assert!(g1.blocks.iter().any(|b| &b.block_id == bid));
+        } else {
+            assert!(ev.block_id.is_none());
+            assert!(ev.chunk_idx.is_none());
+            assert!(matches!(
+                ev.alignment,
+                EvidenceAlignment::Unaligned | EvidenceAlignment::MetadataIsland
+            ));
+        }
+    }
+    assert_eq!(g1.resource_key, url);
+
+    // 2) QueryFilter combined with chunking
+    let mut opts_chunked = opts_filtered;
+    opts_chunked.chunking = Some(serde_json::json!({ "type": "recursive", "size": 90 }));
+    let doc2 = scraper.scrape(&url, &opts_chunked).await.expect("chunked");
+    let md2 = doc2.markdown.as_deref().unwrap_or("");
+    let chunks2 = doc2.chunks.as_deref().expect("chunks2");
+    assert!(!chunks2.is_empty());
+    let g2 = doc2.graph.as_ref().expect("g2");
+    for ev in g2
+        .evidence
+        .iter()
+        .chain(g2.claims.iter().map(|c| &c.evidence))
+    {
+        if let (Some(s), Some(e)) = (ev.start, ev.end) {
+            assert!(s <= e && e <= md2.len());
+            if let Some(cidx) = ev.chunk_idx {
+                let c = &chunks2[cidx];
+                assert!(s < c.end && e > c.start, "span must overlap assigned chunk");
+            }
+        } else {
+            assert!(ev.chunk_idx.is_none());
+            assert!(ev.block_id.is_none());
+        }
+    }
+}
+
+#[tokio::test]
+async fn oversize_and_evicted_snapshots_mark_version_diff_unavailable() {
+    let phase = Arc::new(Mutex::new(0usize));
+    let phase_r = Arc::clone(&phase);
+    let app = Router::new().route(
+        "/ver",
+        get(move || {
+            let p = *phase_r.lock().unwrap();
+            async move {
+                match p {
+                    0 => Html("<html><body><p>Version 1 short body.</p></body></html>".to_string()),
+                    1 => {
+                        let pad = "Oversize payload word ".repeat(30);
+                        Html(format!("<html><body><p>Version 2 {pad}</p></body></html>"))
+                    }
+                    2 => Html("<html><body><p>Version 3 short body.</p></body></html>".to_string()),
+                    _ => Html("<html><body><p>Version 4 short body.</p></body></html>".to_string()),
+                }
+            }
+        }),
+    );
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let url = format!("http://{addr}/ver");
+
+    let store_dir = tempfile::tempdir().unwrap();
+    let mut cfg = pagesift_store::Config::new(store_dir.path());
+    cfg.snapshot_max_bytes = 96;
+    cfg.max_bytes = Some(1);
+    cfg.background = false;
+    let store = Store::open(cfg).expect("open store");
+    let scraper = test_scraper(Some(store.clone()));
+
+    let opts = ScrapeOptions {
+        engine: Some("http".into()),
+        max_age: Some(0),
+        formats: vec![Format::new("markdown"), Format::new("graph")],
+        graph: Some(GraphOptions::enabled()),
+        ..Default::default()
+    };
+
+    // V1 normal (<96 bytes)
+    let d1 = scraper.scrape(&url, &opts).await.expect("v1");
+    assert!(d1.graph.as_ref().unwrap().version.is_none());
+
+    // V2 oversize (>96 bytes): version commits + emits snapshot warning
+    *phase.lock().unwrap() = 1;
+    let d2 = scraper.scrape(&url, &opts).await.expect("v2");
+    let w2 = d2
+        .metadata
+        .pagesift
+        .as_ref()
+        .map(|p| p.warnings.as_slice())
+        .unwrap_or(&[]);
+    assert!(
+        w2.iter()
+            .any(|w| w.contains("exceeds limit") || w.contains("too_large")),
+        "expected oversize snapshot warning, got {w2:?}"
+    );
+
+    // V3 after oversize V2: MUST NOT fall back to V1 markdown; diff_stats is None and reason is reported
+    *phase.lock().unwrap() = 2;
+    let d3 = scraper.scrape(&url, &opts).await.expect("v3");
+    let e3 = d3
+        .graph
+        .as_ref()
+        .unwrap()
+        .version
+        .as_ref()
+        .expect("v3 edge");
+    assert_eq!(e3.diff_stats, None);
+    assert!(
+        e3.diff_unavailable_reason
+            .as_deref()
+            .is_some_and(|r| r.contains("snapshot_too_large")),
+        "expected snapshot_too_large reason, got {:?}",
+        e3.diff_unavailable_reason
+    );
+
+    // Evict V3 snapshot via Store::gc(), then V4 must report previous_snapshot_evicted (never V1!)
+    let report = store.gc().expect("gc");
+    assert!(report.evicted_entries >= 1);
+    *phase.lock().unwrap() = 3;
+    let d4 = scraper.scrape(&url, &opts).await.expect("v4");
+    let e4 = d4
+        .graph
+        .as_ref()
+        .unwrap()
+        .version
+        .as_ref()
+        .expect("v4 edge");
+    assert_eq!(e4.diff_stats, None);
+    assert_eq!(
+        e4.diff_unavailable_reason.as_deref(),
+        Some("previous_snapshot_evicted")
+    );
+}
+
+#[tokio::test]
+async fn concurrent_scrapes_on_same_url_commit_linear_version_chain() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let seq = Arc::new(AtomicUsize::new(0));
+    let seq_r = Arc::clone(&seq);
+    let app = Router::new().route(
+        "/race",
+        get(move || {
+            let n = seq_r.fetch_add(1, Ordering::Relaxed) + 1;
+            async move {
+                tokio::time::sleep(Duration::from_millis((n % 3) as u64 * 10)).await;
+                Html(format!(
+                    "<html><body><h1>Revision {n}</h1><p>Unique concurrent body #{n}.</p></body></html>"
+                ))
+            }
+        }),
+    );
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let url = format!("http://{addr}/race");
+
+    let store_dir = tempfile::tempdir().unwrap();
+    let store = Store::open_dir(store_dir.path()).unwrap();
+    let scraper = Arc::new(test_scraper(Some(store.clone())));
+
+    let opts = ScrapeOptions {
+        engine: Some("http".into()),
+        max_age: Some(0),
+        formats: vec![Format::new("markdown"), Format::new("graph")],
+        graph: Some(GraphOptions::enabled()),
+        ..Default::default()
+    };
+
+    let mut handles = Vec::new();
+    for _ in 0..4 {
+        let s = Arc::clone(&scraper);
+        let u = url.clone();
+        let o = opts.clone();
+        handles.push(tokio::spawn(async move { s.scrape(&u, &o).await }));
+    }
+    for h in handles {
+        h.await.unwrap().expect("concurrent scrape ok");
+    }
+
+    let gs = store.graph();
+    let (_, versions, edges) = gs.history(&url).expect("history");
+    assert_eq!(
+        versions.len(),
+        4,
+        "expected 4 serialized versions: {versions:?}"
+    );
+    assert_eq!(edges.len(), 3, "expected 3 linear version edges: {edges:?}");
+    for (idx, edge) in edges.iter().enumerate() {
+        assert_eq!(
+            edge.prev_doc_id.as_deref(),
+            Some(versions[idx].doc_id.as_str())
+        );
+        assert_eq!(edge.curr_doc_id, versions[idx + 1].doc_id);
+        assert!(versions[idx + 1].observed_at_ms > versions[idx].observed_at_ms);
+    }
+}
+
+#[tokio::test]
+async fn browser_engine_rejects_caller_ssrf_proxy_before_launch() {
+    let mut cfg = ScraperConfig::default();
+    cfg.fetcher.env_proxy = false;
+    cfg.fetcher.ssrf.allow_private_network = false;
+    let scraper = Scraper::new(cfg).expect("ssrf scraper");
+
+    let opts = ScrapeOptions {
+        engine: Some("browser".into()),
+        max_age: Some(0),
+        proxy: Some("http://127.0.0.1:8080".into()),
+        ..Default::default()
+    };
+
+    let err = scraper
+        .scrape("https://example.com/", &opts)
+        .await
+        .expect_err("loopback caller proxy must be rejected");
+    let msg = err.to_string().to_ascii_lowercase();
+    assert!(
+        msg.contains("loopback")
+            || msg.contains("private")
+            || msg.contains("proxy")
+            || msg.contains("ssrf"),
+        "unexpected error message: {err}"
+    );
+}

@@ -13,16 +13,23 @@ pub struct CrawlGraphCollector {
     builder: StreamingGraphBuilder,
     store: Option<Store>,
     job_id: Option<String>,
+    tenant: Option<String>,
 }
 
 impl CrawlGraphCollector {
-    pub fn new(options: GraphOptions, store: Option<Store>, job_id: Option<String>) -> Self {
+    pub fn new(
+        options: GraphOptions,
+        store: Option<Store>,
+        job_id: Option<String>,
+        tenant: Option<String>,
+    ) -> Self {
         let builder = StreamingGraphBuilder::new(options.clone());
         Self {
             options,
             builder,
             store,
             job_id,
+            tenant,
         }
     }
 
@@ -49,6 +56,7 @@ impl CrawlGraphCollector {
                 PageGraphSeed {
                     source_kind,
                     engine: "crawl".to_string(),
+                    tenant: self.tenant.clone(),
                     ..Default::default()
                 },
             );
@@ -66,14 +74,18 @@ impl CrawlGraphCollector {
         }
         sink.graph_delta(enriched.clone()).await;
         if let (Some(st), Some(jid)) = (&self.store, &self.job_id) {
-            let _ = st.graph().append_job_delta(jid, &enriched);
+            let _ = st
+                .graph_for(self.tenant.as_deref())
+                .append_job_delta(jid, &enriched);
         }
 
         for member_delta in slice.member_deltas {
             let enriched_member = self.builder.ingest_delta(member_delta);
             sink.graph_delta(enriched_member.clone()).await;
             if let (Some(st), Some(jid)) = (&self.store, &self.job_id) {
-                let _ = st.graph().append_job_delta(jid, &enriched_member);
+                let _ = st
+                    .graph_for(self.tenant.as_deref())
+                    .append_job_delta(jid, &enriched_member);
             }
         }
     }
@@ -84,8 +96,10 @@ impl CrawlGraphCollector {
             return;
         };
         self.builder.extend_provenance(slice.provenance.clone());
-        if let Some(st) = &self.store {
-            let gs = st.graph();
+        if self.options.versions
+            && let Some(st) = &self.store
+        {
+            let gs = st.graph_for(self.tenant.as_deref());
             for edge in &slice.provenance {
                 match edge {
                     ProvenanceEdge::Redirect {
@@ -95,12 +109,22 @@ impl CrawlGraphCollector {
                         source_url: from_url,
                         canonical_url: to_url,
                         ..
+                    } => {
+                        let from_k = DocNode::derive_resource_key(None, from_url);
+                        let to_k = DocNode::derive_resource_key(None, to_url);
+                        if from_k != to_k {
+                            let _ = gs.bind_alias(&from_k, &to_k);
+                        }
                     }
-                    | ProvenanceEdge::CanonicalizesTo {
+                    ProvenanceEdge::CanonicalizesTo {
                         source_url: from_url,
                         canonical_url: to_url,
+                        cross_host,
                         ..
                     } => {
+                        if *cross_host {
+                            continue;
+                        }
                         let from_k = DocNode::derive_resource_key(None, from_url);
                         let to_k = DocNode::derive_resource_key(None, to_url);
                         if from_k != to_k {
@@ -116,14 +140,17 @@ impl CrawlGraphCollector {
     }
 
     pub async fn finish(self, sink: &dyn CrawlSink) -> GraphSummary {
-        let summary = self.builder.finalize();
+        let summary = self.builder.into_summary();
         if let Some(st) = &self.store {
-            let gs = st.graph();
-            if !summary.conflicts.is_empty() {
-                let _ = gs.put_conflicts(&summary.conflicts);
-            }
+            let gs = st.graph_for(self.tenant.as_deref());
             if let Some(jid) = &self.job_id {
+                if !summary.conflicts.is_empty() {
+                    let _ = gs.put_conflicts(&summary.conflicts);
+                }
                 let _ = gs.put_job_summary(jid, &summary);
+            } else if !summary.conflicts.is_empty() {
+                // CLI 等无后台任务标识的场景同样需要写入租户内冲突索引；Put 按 conflict_id 幂等覆盖。
+                let _ = gs.put_conflicts(&summary.conflicts);
             }
         }
         sink.graph_summary(summary.clone()).await;

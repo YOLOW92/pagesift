@@ -1087,3 +1087,54 @@ async fn proxy_raw_stream_preserves_byte_representation_and_rejects_encoding() {
             .is_err()
     );
 }
+
+#[tokio::test]
+async fn caller_supplied_proxy_is_checked_against_ssrf_and_dns_rebinding() {
+    for bad in [
+        "http://127.0.0.1:8080",
+        "http://169.254.169.254:80",
+        "socks5h://[::1]:1080",
+        "socks5://localhost:1080",
+        "http://2130706433:8080",
+        "http://rebind.internal:8080",
+    ] {
+        let cfg = FetcherConfig {
+            env_proxy: false,
+            proxy: Some(bad.into()),
+            ..Default::default()
+        };
+        assert!(
+            matches!(Fetcher::new_caller_proxy(cfg), Err(Error::Blocked(_))),
+            "{bad} must be blocked as a caller proxy"
+        );
+    }
+
+    let base = Fetcher::new(FetcherConfig {
+        env_proxy: false,
+        dns: FakeDns::new(&[("rebind.attacker.example", &["127.0.0.1"])]),
+        ..Default::default()
+    })
+    .unwrap();
+    let err = base
+        .check_caller_proxy("socks5h://rebind.attacker.example:1080")
+        .await
+        .unwrap_err();
+    assert!(matches!(err, Error::Blocked(_)), "{err:?}");
+
+    let shaped = Fetcher::new_caller_proxy(FetcherConfig {
+        env_proxy: false,
+        proxy: Some("http://rebind.attacker.example:8080".into()),
+        dns: FakeDns::new(&[
+            ("rebind.attacker.example", &["127.0.0.1"]),
+            ("example.com", &["93.184.216.34"]),
+        ]),
+        browser_fingerprint: Some(pagesift_net::FingerprintProfile::Chrome156),
+        ..Default::default()
+    })
+    .unwrap();
+    let err = shaped
+        .fetch(FetchRequest::new("http://example.com/"))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, Error::Blocked(_)), "{err:?}");
+}

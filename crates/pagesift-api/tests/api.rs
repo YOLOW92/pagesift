@@ -1087,3 +1087,319 @@ async fn crawl_graph_history_and_conflicts_endpoints() {
     assert_eq!(status, StatusCode::OK, "{empty}");
     assert_eq!(empty["total"], 0, "{empty}");
 }
+
+#[tokio::test]
+async fn graph_history_and_conflicts_isolate_tenants_and_legacy_data() {
+    // 1) In-memory mode tenant isolation (`store: None`)
+    let mem_app = app(&["key-a", "key-b"]);
+    let (status, started) = call(
+        &mem_app,
+        "POST",
+        "/v2/crawl",
+        Some(json!({
+            "url": "https://example.com/pricing",
+            "graph": { "subjectKeys": ["sku"] }
+        })),
+        Some("key-a"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{started}");
+    let mem_job = started["id"].as_str().unwrap().to_string();
+    for _ in 0..200 {
+        let (_, s) = call(
+            &mem_app,
+            "GET",
+            &format!("/v2/crawl/{mem_job}"),
+            None,
+            Some("key-a"),
+        )
+        .await;
+        if s["status"] == "completed" {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    let (status, a_hist) = call(
+        &mem_app,
+        "GET",
+        "/v2/graph/history?url=https://example.com/pricing",
+        None,
+        Some("key-a"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(a_hist["versions"].as_array().unwrap().len(), 1, "{a_hist}");
+
+    let (status, b_hist) = call(
+        &mem_app,
+        "GET",
+        "/v2/graph/history?url=https://example.com/pricing",
+        None,
+        Some("key-b"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        b_hist
+            .get("versions")
+            .and_then(|v| v.as_array())
+            .is_none_or(Vec::is_empty),
+        "tenant B leaked tenant A in-memory history: {b_hist}"
+    );
+    let (status, b_conf) = call(&mem_app, "GET", "/v2/graph/conflicts", None, Some("key-b")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        b_conf["total"], 0,
+        "tenant B leaked tenant A conflicts: {b_conf}"
+    );
+
+    // 2) Persistent Store mode + legacy unscoped 1.4.0 data isolation
+    let dir = tempfile::tempdir().unwrap();
+    let store = pagesift_store::Store::open_dir(dir.path()).unwrap();
+    {
+        let mut builder =
+            pagesift_graph::StreamingGraphBuilder::new(pagesift_graph::GraphOptions {
+                subject_keys: vec!["sku".into()],
+                ..pagesift_graph::GraphOptions::enabled()
+            });
+        let mk_legacy = |u: &str, ts: u64, fields: Value| pagesift_graph::DocumentInput {
+            requested_url: u.into(),
+            final_url: u.into(),
+            canonical_url: None,
+            canonical_from_header: false,
+            source_kind: pagesift_graph::SourceKind::Html,
+            observed_at_ms: ts,
+            status_code: 200,
+            engine: "legacy".into(),
+            content_hash: Some(format!("h{ts}")),
+            raw_hash: None,
+            text_hash: None,
+            etag: None,
+            last_modified: None,
+            title: None,
+            markdown: "Legacy price $99".into(),
+            redirect_chain: Vec::new(),
+            links: Vec::new(),
+            alternates: Vec::new(),
+            duplicate_of: None,
+            attachments: Vec::new(),
+            structured_json_ld: Vec::new(),
+            extracted_fields: Some(fields),
+            raw_traces: Vec::new(),
+            chunk_spans: Vec::new(),
+            previous_version: None,
+            version_diff_stats: None,
+            changed_block_ids: Vec::new(),
+        };
+        let d1 = builder.ingest(mk_legacy(
+            "https://example.com/legacy",
+            100,
+            json!({"sku": "LEGACY-1", "price": "$10"}),
+        ));
+        let d2 = builder.ingest(mk_legacy(
+            "https://example.com/legacy-b",
+            200,
+            json!({"sku": "LEGACY-1", "price": "$20"}),
+        ));
+        let summary = builder.into_summary();
+        let legacy_gs = store.graph();
+        legacy_gs
+            .record_version(
+                &pagesift_graph::VersionRecord {
+                    resource_key: d1.node.resource_key.clone(),
+                    doc_id: d1.node.doc_id.clone(),
+                    url: d1.node.final_url.clone(),
+                    canonical_url: None,
+                    observed_at_ms: d1.node.observed_at_ms,
+                    content_hash: d1.node.content_hash.clone(),
+                    text_hash: None,
+                    status_code: 200,
+                    etag: None,
+                    last_modified: None,
+                },
+                d2.version.as_ref(),
+            )
+            .unwrap();
+        legacy_gs.put_conflicts(&summary.conflicts).unwrap();
+    }
+
+    let disk_app = router(
+        Arc::new(Fake),
+        Config {
+            api_keys: vec!["key-a".into(), "key-b".into()],
+            public_url: Some("http://pagesift.test".into()),
+            store: Some(store.clone()),
+            ..Default::default()
+        },
+    );
+
+    let (status, started) = call(
+        &disk_app,
+        "POST",
+        "/v2/crawl",
+        Some(json!({
+            "url": "https://example.com/pricing",
+            "graph": { "subjectKeys": ["sku"] }
+        })),
+        Some("key-a"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{started}");
+    let disk_job = started["id"].as_str().unwrap().to_string();
+    for _ in 0..200 {
+        let (_, s) = call(
+            &disk_app,
+            "GET",
+            &format!("/v2/crawl/{disk_job}"),
+            None,
+            Some("key-a"),
+        )
+        .await;
+        if s["status"] == "completed" {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    // Tenant A cannot see legacy unscoped records
+    let (_, a_leg) = call(
+        &disk_app,
+        "GET",
+        "/v2/graph/history?url=https://example.com/legacy",
+        None,
+        Some("key-a"),
+    )
+    .await;
+    assert!(
+        a_leg
+            .get("versions")
+            .and_then(|v| v.as_array())
+            .is_none_or(Vec::is_empty),
+        "legacy unscoped history leaked to tenant A: {a_leg}"
+    );
+    let (_, a_confs) = call(&disk_app, "GET", "/v2/graph/conflicts", None, Some("key-a")).await;
+    assert_eq!(
+        a_confs["total"], 1,
+        "expected only tenant A conflict, got {a_confs}"
+    );
+
+    // Tenant B sees neither Tenant A nor legacy unscoped records
+    let (_, b_disk_hist) = call(
+        &disk_app,
+        "GET",
+        "/v2/graph/history?url=https://example.com/pricing",
+        None,
+        Some("key-b"),
+    )
+    .await;
+    assert!(
+        b_disk_hist
+            .get("versions")
+            .and_then(|v| v.as_array())
+            .is_none_or(Vec::is_empty),
+        "tenant A persistent history leaked to tenant B: {b_disk_hist}"
+    );
+    let (_, b_disk_confs) =
+        call(&disk_app, "GET", "/v2/graph/conflicts", None, Some("key-b")).await;
+    assert_eq!(
+        b_disk_confs["total"], 0,
+        "tenant B saw conflicts: {b_disk_confs}"
+    );
+
+    // Anonymous HTTP router backed by same Store MUST NOT access legacy unscoped global data either
+    let anon_app = router(
+        Arc::new(Fake),
+        Config {
+            public_url: Some("http://pagesift.test".into()),
+            store: Some(store),
+            ..Default::default()
+        },
+    );
+    let (_, anon_leg) = call(
+        &anon_app,
+        "GET",
+        "/v2/graph/history?url=https://example.com/legacy",
+        None,
+        None,
+    )
+    .await;
+    assert!(
+        anon_leg
+            .get("versions")
+            .and_then(|v| v.as_array())
+            .is_none_or(Vec::is_empty),
+        "legacy unscoped data leaked to anonymous HTTP caller: {anon_leg}"
+    );
+    let (_, anon_confs) = call(&anon_app, "GET", "/v2/graph/conflicts", None, None).await;
+    assert_eq!(
+        anon_confs["total"], 0,
+        "legacy conflict leaked to anonymous HTTP caller: {anon_confs}"
+    );
+}
+
+#[tokio::test]
+async fn graph_queries_enforce_pagination_bounds_and_versions_false() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = pagesift_store::Store::open_dir(dir.path()).unwrap();
+    let app = router(
+        Arc::new(Fake),
+        Config {
+            api_keys: vec!["k1".into()],
+            public_url: Some("http://pagesift.test".into()),
+            store: Some(store),
+            ..Default::default()
+        },
+    );
+
+    // Crawl with versions: false -> ZERO VersionRecords persisted
+    let (status, started) = call(
+        &app,
+        "POST",
+        "/v2/crawl",
+        Some(json!({
+            "url": "https://example.com/no-vers",
+            "graph": { "enabled": true, "versions": false, "subjectKeys": ["sku"] }
+        })),
+        Some("k1"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{started}");
+    let id = started["id"].as_str().unwrap().to_string();
+    for _ in 0..200 {
+        let (_, s) = call(&app, "GET", &format!("/v2/crawl/{id}"), None, Some("k1")).await;
+        if s["status"] == "completed" {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    let (status, hist) = call(
+        &app,
+        "GET",
+        "/v2/graph/history?url=https://example.com/no-vers",
+        None,
+        Some("k1"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        hist.get("versions")
+            .and_then(|v| v.as_array())
+            .is_none_or(Vec::is_empty),
+        "versions:false must not record versions: {hist}"
+    );
+
+    // Bounds validation on limit
+    let (status, _) = call(
+        &app,
+        "GET",
+        "/v2/graph/history?url=https://example.com/no-vers&limit=0",
+        None,
+        Some("k1"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, _) = call(&app, "GET", "/v2/graph/conflicts?limit=0", None, Some("k1")).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}

@@ -1,6 +1,6 @@
 # pagesift (Python)
 
-1.4.0: see the [release notes](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.4.0.md) (adds DataGraph via `formats=["graph"]`, `graph` options, and `Document.graph`).
+1.4.1: see the [release notes](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.4.1.md) (security, tenant isolation, DataGraph correctness, and stability hardening for `1.4.x`, building on [1.4.0 DataGraph](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.4.0.md)).
 
 Python bindings for [pagesift](https://github.com/YOLOW92/pagesift): turn web pages into clean
 Markdown for LLMs. Fetching, robots.txt, rate limiting, content extraction, PDF parsing and browser

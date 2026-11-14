@@ -6,7 +6,7 @@
 
 use std::time::SystemTime;
 
-use pagesift_api::types::{ChangeTracking, Format};
+use pagesift_api::types::{ChangeTracking, Format, ScrapeOptions};
 use pagesift_api::{ApiError, rfc3339};
 use pagesift_net::Url;
 use pagesift_store::{ContentHash, Store};
@@ -16,6 +16,92 @@ const PAGE: u8 = b'M';
 const GONE: u8 = b'R';
 /// git diff 默认的上下文行数。
 const CONTEXT_LINES: usize = 3;
+
+/// 服务端可信的变化检测隔离作用域：由认证租户、鉴权/Cookie 头部指纹和会话标识共同决定，
+/// 不信任客户端通过 `tag` 自行声明的隔离值。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ChangeScope {
+    pub owner: Option<String>,
+    pub credentials_hash: Option<String>,
+    pub session_scope: Option<String>,
+}
+
+impl ChangeScope {
+    pub fn from_scrape_options(opts: &ScrapeOptions) -> Self {
+        let mut creds: Vec<(String, &str)> = opts
+            .headers
+            .iter()
+            .filter_map(|(k, v)| {
+                let lower = k.to_ascii_lowercase();
+                is_identity_header(&lower).then_some((lower, v.as_str()))
+            })
+            .collect();
+        creds.sort_unstable();
+        let credentials_hash = (!creds.is_empty()).then(|| {
+            let mut h = blake3::Hasher::new();
+            h.update(b"pagesift:changeTracking:creds:v1");
+            for (k, v) in creds {
+                update_len_prefixed(&mut h, k.as_bytes());
+                update_len_prefixed(&mut h, v.as_bytes());
+            }
+            h.finalize().to_hex().to_string()
+        });
+        let session_scope = match (opts.client_session.as_deref(), opts.keep_session) {
+            (Some(s), true) => Some(format!("{s}:keep_session")),
+            (Some(s), false) => Some(s.to_string()),
+            (None, true) => Some("keep_session".to_string()),
+            (None, false) => None,
+        };
+        Self {
+            owner: opts.owner.clone(),
+            credentials_hash,
+            session_scope,
+        }
+    }
+}
+
+fn is_identity_header(lower: &str) -> bool {
+    matches!(
+        lower,
+        "authorization"
+            | "proxy-authorization"
+            | "cookie"
+            | "cookie2"
+            | "x-api-key"
+            | "api-key"
+            | "x-auth-token"
+            | "x-access-token"
+            | "x-session-id"
+            | "x-session-token"
+            | "x-csrf-token"
+            | "x-xsrf-token"
+            | "x-user-id"
+            | "x-tenant-id"
+            | "x-org-id"
+    ) || [
+        "auth", "cookie", "session", "token", "secret", "key", "csrf", "xsrf", "cred", "user",
+        "tenant",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle))
+}
+
+fn update_len_prefixed(h: &mut blake3::Hasher, bytes: &[u8]) {
+    h.update(&(bytes.len() as u64).to_le_bytes());
+    h.update(bytes);
+}
+
+fn update_opt_field(h: &mut blake3::Hasher, value: Option<&str>) {
+    match value {
+        Some(v) => {
+            h.update(&[1]);
+            update_len_prefixed(h, v.as_bytes());
+        }
+        None => {
+            h.update(&[0]);
+        }
+    }
+}
 
 /// 解析好的 `changeTracking` 格式参数。
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -67,15 +153,25 @@ impl Tracking {
         Ok(t)
     }
 
-    /// 快照在存储里的键：同一 URL 的不同 `tag` 各自一条历史。
-    fn key(&self, url: &str) -> String {
+    /// 按隔离作用域生成存储键：同一 URL 在不同认证租户、鉴权请求头、会话或 `tag` 下各自独立。
+    pub fn key_for(&self, scope: &ChangeScope, url: &str) -> String {
         let url = Url::parse(url)
             .map(|u| crate::crawl::normalize(&u, false))
             .unwrap_or_else(|_| url.to_string());
-        format!(
-            "changeTracking\u{1f}{}\u{1f}{url}",
-            self.tag.as_deref().unwrap_or("")
-        )
+        let mut h = blake3::Hasher::new();
+        h.update(b"pagesift:changeTracking:v2");
+        update_len_prefixed(&mut h, url.as_bytes());
+        update_opt_field(&mut h, self.tag.as_deref());
+        update_opt_field(&mut h, scope.owner.as_deref());
+        update_opt_field(&mut h, scope.credentials_hash.as_deref());
+        update_opt_field(&mut h, scope.session_scope.as_deref());
+        format!("ct:v2:{}", h.finalize().to_hex())
+    }
+
+    /// 默认无租户、无凭据头部作用域下的存储键。
+    #[cfg(test)]
+    fn key(&self, url: &str) -> String {
+        self.key_for(&ChangeScope::default(), url)
     }
 }
 
@@ -159,14 +255,15 @@ fn load_and_store(
     Ok((previous, warnings))
 }
 
-/// 和上一次比较并记录这一次。
-pub async fn track(
+/// 在可信作用域下与上一次比较并记录这一次。
+pub async fn track_scoped(
     store: &Store,
     tracking: &Tracking,
+    scope: &ChangeScope,
     url: &str,
     current: Current<'_>,
 ) -> Result<Outcome, ApiError> {
-    let key = tracking.key(url);
+    let key = tracking.key_for(scope, url);
     let bytes = encode(current);
     let hash = ContentHash::of(&bytes);
     let now = SystemTime::now();
@@ -232,6 +329,16 @@ pub async fn track(
         previous: prev,
         warnings,
     })
+}
+
+/// 在默认作用域下与上一次比较并记录这一次（仅供本地/单测直连路径使用）。
+pub async fn track(
+    store: &Store,
+    tracking: &Tracking,
+    url: &str,
+    current: Current<'_>,
+) -> Result<Outcome, ApiError> {
+    track_scoped(store, tracking, &ChangeScope::default(), url, current).await
 }
 
 fn result(
@@ -486,5 +593,107 @@ mod tests {
         assert_eq!(o.tracking.change_status, "changed");
         assert!(o.tracking.diff.is_none(), "git-diff mode not requested");
         assert_eq!(o.tracking.pagesift.unwrap()["substantive"], false);
+    }
+
+    #[tokio::test]
+    async fn isolates_owners_anonymous_credentials_and_tag_delimiters() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open_dir(dir.path()).unwrap();
+        let url = "https://example.com/account";
+        let t = Tracking {
+            git_diff: true,
+            tag: Some("daily".into()),
+            ..Default::default()
+        };
+
+        let mut opts_a = ScrapeOptions {
+            owner: Some("acct:alice".into()),
+            ..Default::default()
+        };
+        opts_a
+            .headers
+            .insert("Cookie".into(), "session=alice-secret".into());
+        let scope_a = ChangeScope::from_scrape_options(&opts_a);
+
+        let opts_b = ScrapeOptions {
+            owner: Some("acct:bob".into()),
+            ..Default::default()
+        };
+        let scope_b = ChangeScope::from_scrape_options(&opts_b);
+
+        let opts_anon = ScrapeOptions {
+            owner: Some(ScrapeOptions::ANONYMOUS_OWNER.into()),
+            ..Default::default()
+        };
+        let scope_anon = ChangeScope::from_scrape_options(&opts_anon);
+
+        let a1 = track_scoped(&store, &t, &scope_a, url, Current::Page("secret A"))
+            .await
+            .unwrap();
+        assert_eq!(a1.tracking.change_status, "new");
+
+        // 不同租户（同 URL + 同 tag）不能读到 Alice 的历史或 diff
+        let b1 = track_scoped(&store, &t, &scope_b, url, Current::Page("public B"))
+            .await
+            .unwrap();
+        assert_eq!(b1.tracking.change_status, "new");
+        assert!(b1.tracking.diff.is_none());
+
+        // 匿名 HTTP 不能读到认证租户或本地无作用域的历史
+        let anon1 = track_scoped(&store, &t, &scope_anon, url, Current::Page("anon"))
+            .await
+            .unwrap();
+        assert_eq!(anon1.tracking.change_status, "new");
+        let local1 = track_scoped(
+            &store,
+            &t,
+            &ChangeScope::default(),
+            url,
+            Current::Page("local"),
+        )
+        .await
+        .unwrap();
+        assert_eq!(local1.tracking.change_status, "new");
+
+        // 同租户下不同 Cookie / Authorization 头也必须隔离（忽略 header 大小写差异）
+        let mut opts_a_other_cookie = ScrapeOptions {
+            owner: Some("acct:alice".into()),
+            ..Default::default()
+        };
+        opts_a_other_cookie
+            .headers
+            .insert("cookie".into(), "session=other".into());
+        let scope_a_other = ChangeScope::from_scrape_options(&opts_a_other_cookie);
+        let a_other = track_scoped(&store, &t, &scope_a_other, url, Current::Page("other"))
+            .await
+            .unwrap();
+        assert_eq!(a_other.tracking.change_status, "new");
+
+        // 大小写不同但同名 Cookie 的同一租户请求应命中同一历史
+        let mut opts_a_same = ScrapeOptions {
+            owner: Some("acct:alice".into()),
+            ..Default::default()
+        };
+        opts_a_same
+            .headers
+            .insert("COOKIE".into(), "session=alice-secret".into());
+        let scope_a_same = ChangeScope::from_scrape_options(&opts_a_same);
+        let a2 = track_scoped(&store, &t, &scope_a_same, url, Current::Page("secret A v2"))
+            .await
+            .unwrap();
+        assert_eq!(a2.tracking.change_status, "changed");
+        assert_eq!(a2.previous, Previous::Page("secret A".into()));
+
+        // 客户端在 tag 中注入 `\u{1f}` 或目标 owner 字符串无法越界碰撞
+        let forged_tag = Tracking {
+            git_diff: true,
+            tag: Some("daily\u{1f}acct:alice".into()),
+            ..Default::default()
+        };
+        let forged = track_scoped(&store, &forged_tag, &scope_b, url, Current::Page("forged"))
+            .await
+            .unwrap();
+        assert_eq!(forged.tracking.change_status, "new");
+        assert!(forged.tracking.diff.is_none());
     }
 }

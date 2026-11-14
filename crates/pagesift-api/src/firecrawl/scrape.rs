@@ -4,12 +4,12 @@ use axum::Json;
 use axum::body::Bytes;
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{Extension, State};
-use axum::http::header;
+use axum::http::{HeaderMap, header};
 use axum::response::{IntoResponse, Response};
 use std::sync::atomic::Ordering;
 
 use crate::error::ApiError;
-use crate::limits::Caller;
+use crate::limits::{Caller, apply_http_caller_scope};
 use crate::metrics::PageSource;
 use crate::server::{AppState, lenient_body};
 use crate::types::{ScrapeRequest, ScrapeResponse};
@@ -18,24 +18,27 @@ use crate::validate::{check_scrape_options, check_url};
 pub async fn scrape(
     State(s): State<AppState>,
     caller: Option<Extension<Caller>>,
+    headers: HeaderMap,
     req: Result<Json<serde_json::Value>, JsonRejection>,
 ) -> Result<Json<ScrapeResponse>, ApiError> {
-    run(s, caller, req, false, None).await
+    run(s, caller, headers, req, false, None).await
 }
 
 /// `/v2/scrape`：引擎支持 `/interact` 时结果带 `metadata.scrapeId`（v1 没有这个接口，响应不变）。
 pub async fn scrape_v2(
     State(s): State<AppState>,
     caller: Option<Extension<Caller>>,
+    headers: HeaderMap,
     req: Result<Json<serde_json::Value>, JsonRejection>,
 ) -> Result<Json<ScrapeResponse>, ApiError> {
-    run(s, caller, req, true, None).await
+    run(s, caller, headers, req, true, None).await
 }
 
 /// Stream the extracted Markdown before optional image downloads finish.
 pub async fn scrape_stream(
     State(s): State<AppState>,
     caller: Option<Extension<Caller>>,
+    headers: HeaderMap,
     req: Result<Json<serde_json::Value>, JsonRejection>,
 ) -> Response {
     let (progress, mut updates) = tokio::sync::broadcast::channel(1);
@@ -43,6 +46,7 @@ pub async fn scrape_stream(
     let mut worker = tokio::spawn(run(
         s,
         caller,
+        headers,
         req,
         true,
         Some(crate::types::MarkdownProgress(progress)),
@@ -87,6 +91,7 @@ pub async fn scrape_stream(
 async fn run(
     s: AppState,
     caller: Option<Extension<Caller>>,
+    headers: HeaderMap,
     req: Result<Json<serde_json::Value>, JsonRejection>,
     v2: bool,
     progress: Option<crate::types::MarkdownProgress>,
@@ -97,10 +102,11 @@ async fn run(
     check_url(&req.url)?;
     // `keepSession` 只有这里认（校验拒收其余入口的）
     let keep = v2 && std::mem::take(&mut req.options.keep_session);
-    req.options.owner = caller
-        .as_ref()
-        .map(|Extension(c)| c.account.to_string())
-        .filter(|owner| owner != "anonymous");
+    apply_http_caller_scope(
+        &mut req.options,
+        caller.as_ref().map(|Extension(c)| c),
+        Some(&headers),
+    );
     check_scrape_options(&req.options, s.engine.as_ref())?;
     let page_hold = match &caller {
         Some(Extension(c)) => Some(s.limiter.reserve_page(c).await?),

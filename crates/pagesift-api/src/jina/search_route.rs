@@ -39,11 +39,16 @@ pub(crate) async fn handle_jina_search(
         let any: Vec<String> = sites.iter().map(|d| format!("site:{d}")).collect();
         q = format!("{q} ({})", any.join(" OR "));
     }
-    let (opts, mut params) = match super::headers::parse(&headers) {
+    let (mut opts, mut params) = match super::headers::parse(&headers) {
         Ok(v) => v,
         Err(e) => return e.into_response(),
     };
     params.token_budget = None;
+    crate::limits::apply_http_caller_scope(
+        &mut opts,
+        caller.as_ref().map(|Extension(c)| c),
+        Some(&headers),
+    );
     if let Err(e) = crate::validate::check_scrape_options(&opts, s.engine.as_ref()) {
         return e.into_response();
     }

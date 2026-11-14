@@ -8,9 +8,9 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-pagesift-api = { version = "1.4.0", path = "../pagesift-api" }
-pagesift-content = { version = "1.4.0", path = "../pagesift-content" }
-pagesift-extract = { version = "1.4.0", path = "../pagesift-extract" }
-pagesift-stat = { version = "1.4.0", path = "../pagesift-stat" }
+pagesift-api = { version = "1.4.1", path = "../pagesift-api" }
+pagesift-content = { version = "1.4.1", path = "../pagesift-content" }
+pagesift-extract = { version = "1.4.1", path = "../pagesift-extract" }
+pagesift-stat = { version = "1.4.1", path = "../pagesift-stat" }
 regex = "1.13.1"
 url = "2.5.8"

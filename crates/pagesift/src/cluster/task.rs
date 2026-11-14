@@ -21,6 +21,9 @@ struct PageTaskRef<'a> {
     opts: &'a ScrapeOptions,
     /// robots 由网关判定（请求类型 + 管理员开关），工人照做。
     ignore_robots: bool,
+    /// 服务端可信调用方租户（因 `ScrapeOptions.owner` 带有 `serde(skip)`）。
+    owner: Option<&'a str>,
+    client_session: Option<&'a str>,
 }
 
 /// 工人一侧解出的页面任务。
@@ -30,6 +33,10 @@ pub(crate) struct PageTask {
     pub url: String,
     pub opts: ScrapeOptions,
     pub ignore_robots: bool,
+    #[serde(default)]
+    pub owner: Option<String>,
+    #[serde(default)]
+    pub client_session: Option<String>,
 }
 
 impl PageTask {
@@ -134,13 +141,17 @@ pub(crate) fn encode_task(
         url,
         opts,
         ignore_robots: mode == RobotsMode::Ignore,
+        owner: opts.owner.as_deref(),
+        client_session: opts.client_session.as_deref(),
     };
     framed(nonce, |out| pagesift_sink::codec::to_writer(out, &t))
 }
 
 pub(crate) fn decode_task(bytes: &[u8]) -> Result<(u64, PageTask), String> {
     let (nonce, rest) = split(bytes).ok_or("task body too short")?;
-    let t = pagesift_sink::codec::from_slice(rest).map_err(|e| e.to_string())?;
+    let mut t: PageTask = pagesift_sink::codec::from_slice(rest).map_err(|e| e.to_string())?;
+    t.opts.owner = t.owner.clone();
+    t.opts.client_session = t.client_session.clone();
     Ok((nonce, t))
 }
 
@@ -246,11 +257,15 @@ mod tests {
 
     #[test]
     fn task_round_trips() {
-        let o = opts();
+        let mut o = opts();
+        o.owner = Some("acct:alice".into());
+        o.client_session = Some("sess-42".into());
         let b = encode_task(7, "crawl", "https://a.test/x", &o, RobotsMode::Ignore);
         let (n, t) = decode_task(&b).unwrap();
         assert_eq!(n, 7);
         assert_eq!(t.opts, o);
+        assert_eq!(t.opts.owner.as_deref(), Some("acct:alice"));
+        assert_eq!(t.opts.client_session.as_deref(), Some("sess-42"));
         assert_eq!(
             (t.kind.as_str(), t.url.as_str()),
             ("crawl", "https://a.test/x")

@@ -30,10 +30,12 @@ pub struct KeyLimits {
 pub(crate) struct Caller {
     pub account: Arc<str>,
     pub limits: Arc<KeyLimits>,
+    pub authenticated: bool,
 }
 
 impl Caller {
     pub(crate) fn new(key: Option<&str>, limits: Arc<KeyLimits>) -> Self {
+        let authenticated = key.is_some();
         let account = match (&limits.name, key) {
             (Some(n), _) => n.clone(),
             (None, Some(k)) => fingerprint(k),
@@ -42,17 +44,98 @@ impl Caller {
         Self {
             account: account.into(),
             limits,
+            authenticated,
         }
     }
 }
 
 impl Caller {
-    /// 恢复任务时按保存的名字找回调用方。
+    /// 恢复任务或监控时按保存的名字找回调用方。
     pub(crate) fn named(account: &str, limits: Arc<KeyLimits>) -> Self {
+        Self::restored(account, None, limits)
+    }
+
+    pub(crate) fn restored(
+        account: &str,
+        authenticated: Option<bool>,
+        limits: Arc<KeyLimits>,
+    ) -> Self {
         Self {
             account: account.into(),
             limits,
+            authenticated: authenticated.unwrap_or_else(|| {
+                account != "anonymous" && !crate::types::ScrapeOptions::is_anonymous_owner(account)
+            }),
         }
+    }
+
+    /// Server-trusted tenant namespace isolating DataGraph/ChangeTracking per authenticated key
+    /// vs unauthenticated HTTP requests (`__http_anon__`).
+    pub(crate) fn tenant_owner(&self) -> String {
+        if self.authenticated {
+            format!("acct:{}", self.account)
+        } else {
+            crate::types::ScrapeOptions::ANONYMOUS_OWNER.to_string()
+        }
+    }
+}
+
+pub(crate) fn caller_tenant(caller: Option<&Caller>) -> String {
+    caller.map_or_else(
+        || crate::types::ScrapeOptions::ANONYMOUS_OWNER.to_string(),
+        Caller::tenant_owner,
+    )
+}
+
+/// Hash incoming HTTP identity/session headers (`Cookie`, `X-Session-Id`, `Authorization`)
+/// for unauthenticated requests so concurrent anonymous HTTP users do not share change state.
+pub(crate) fn client_session_for_headers(
+    caller: Option<&Caller>,
+    headers: &axum::http::HeaderMap,
+) -> Option<String> {
+    if caller.is_some_and(|c| c.authenticated) {
+        return None;
+    }
+    const SESSION_HEADERS: [&str; 3] = ["cookie", "x-session-id", "authorization"]; // [策略] 参与匿名 HTTP 会话隔离的身份请求头数量
+    let mut parts: Vec<(&str, &str)> = Vec::new();
+    for name in SESSION_HEADERS {
+        for value in headers.get_all(name) {
+            if let Ok(s) = value.to_str()
+                && !s.is_empty()
+            {
+                parts.push((name, s));
+            }
+        }
+    }
+    if parts.is_empty() {
+        return None;
+    }
+    let mut ctx = ring::digest::Context::new(&ring::digest::SHA256);
+    ctx.update(b"pagesift:http_session:v1");
+    for (k, v) in parts {
+        ctx.update(&(k.len() as u64).to_le_bytes());
+        ctx.update(k.as_bytes());
+        ctx.update(&(v.len() as u64).to_le_bytes());
+        ctx.update(v.as_bytes());
+    }
+    let digest = ctx.finish();
+    const SESSION_HASH_BYTES: usize = 16; // [策略] 匿名 HTTP 会话指纹字节长度
+    let hex: String = digest.as_ref()[..SESSION_HASH_BYTES]
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    Some(hex)
+}
+
+/// Bind server-trusted tenant and anonymous HTTP session scope onto `ScrapeOptions`.
+pub(crate) fn apply_http_caller_scope(
+    opts: &mut crate::types::ScrapeOptions,
+    caller: Option<&Caller>,
+    headers: Option<&axum::http::HeaderMap>,
+) {
+    opts.owner = Some(caller_tenant(caller));
+    if let Some(hdrs) = headers {
+        opts.client_session = client_session_for_headers(caller, hdrs);
     }
 }
 

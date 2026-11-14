@@ -1,9 +1,10 @@
 //! Firecrawl v1 and v2 `/search` and `/extract` endpoints.
 
-use crate::limits::Caller;
+use crate::limits::{Caller, apply_http_caller_scope};
 use axum::Json;
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{Extension, Path, State};
+use axum::http::HeaderMap;
 
 use crate::error::{ApiError, ErrorCode};
 use crate::fields;
@@ -31,6 +32,7 @@ impl crate::PageBudget for AccountBudget {
 pub async fn search(
     State(s): State<AppState>,
     caller: Option<Extension<Caller>>,
+    headers: HeaderMap,
     req: Result<Json<serde_json::Value>, JsonRejection>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let known = [fields::names::<SearchRequest>(), fields::CLIENT_IDENTITY];
@@ -42,10 +44,7 @@ pub async fn search(
         return Err(ApiError::invalid("limit must be between 1 and 100"));
     }
     if let Some(o) = &mut req.scrape_options {
-        o.owner = caller
-            .as_ref()
-            .map(|Extension(c)| c.account.to_string())
-            .filter(|s| s != "anonymous");
+        apply_http_caller_scope(o, caller.as_ref().map(|Extension(c)| c), Some(&headers));
         check_scrape_options(o, s.engine.as_ref())?;
     }
     let data = if req
@@ -84,6 +83,7 @@ pub async fn search(
 pub async fn extract_start(
     State(s): State<AppState>,
     caller: Option<Extension<Caller>>,
+    headers: HeaderMap,
     req: Result<Json<serde_json::Value>, JsonRejection>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     if let Some(Extension(c)) = &caller {
@@ -92,10 +92,7 @@ pub async fn extract_start(
     let known = [fields::names::<ExtractRequest>(), fields::CLIENT_IDENTITY];
     let (mut req, ignored): (ExtractRequest, _) = lenient_body(req, &known)?;
     let opts = req.scrape_options.get_or_insert_with(Default::default);
-    opts.owner = caller
-        .as_ref()
-        .map(|Extension(c)| c.account.to_string())
-        .filter(|s| s != "anonymous");
+    apply_http_caller_scope(opts, caller.as_ref().map(|Extension(c)| c), Some(&headers));
     check_scrape_options(opts, s.engine.as_ref())?;
     if req.urls.is_empty() {
         return Err(ApiError::invalid("urls must not be empty"));
@@ -128,10 +125,7 @@ pub async fn extract_start(
             id.clone(),
             ExtractJob {
                 status: "processing",
-                owner: caller.as_ref().map_or_else(
-                    || "anonymous".to_string(),
-                    |Extension(c)| c.account.to_string(),
-                ),
+                owner: crate::limits::caller_tenant(caller.as_ref().map(|Extension(c)| c)),
                 data: None,
                 error: None,
                 created: now,
@@ -179,14 +173,10 @@ pub async fn extract_status(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let mut map = s.extracts.lock().await;
     map.retain(|_, job| job.created + JOB_TTL > std::time::SystemTime::now());
+    let viewer_owner = crate::limits::caller_tenant(caller.as_ref().map(|Extension(c)| c));
     let job = map
         .get(&id)
-        .filter(|j| {
-            caller
-                .as_ref()
-                .map_or("anonymous", |Extension(c)| c.account.as_ref())
-                == j.owner
-        })
+        .filter(|j| viewer_owner == j.owner)
         .ok_or_else(|| ApiError::new(ErrorCode::NotFound, format!("extract job {id} not found")))?;
     let mut body = serde_json::json!({
         "success": job.error.is_none(),

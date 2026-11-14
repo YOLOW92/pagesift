@@ -102,6 +102,57 @@ impl GuardedResolver {
         }
     }
 
+    pub(crate) fn is_exempt(&self, host: &str) -> bool {
+        let host = host.trim_matches(['[', ']']);
+        self.exempt.iter().any(|e| e.eq_ignore_ascii_case(host))
+    }
+
+    /// 解析主机（含 IP 字面量）并按当前 `SsrfPolicy` / `exempt` 检查地址；
+    /// `proxy_exempt = true` 仅用于运维显式配置的出口代理连接本身，不放行目标请求。
+    pub(crate) async fn resolve_host_for_proxy(
+        &self,
+        host: &str,
+        proxy_exempt: bool,
+    ) -> Result<Vec<IpAddr>, ResolveError> {
+        let bare = host.trim_matches(['[', ']']);
+        if let Ok(ip) = bare.parse::<IpAddr>() {
+            if !proxy_exempt
+                && !self.is_exempt(bare)
+                && let Err(error) = self.policy.check_ip(ip)
+            {
+                return Err(ResolveError::Blocked(error));
+            }
+            return Ok(vec![ip]);
+        }
+        if proxy_exempt {
+            if let Some(ips) = crate::localhost::loopback(host) {
+                return Ok(ips);
+            }
+            let permit = self.stages.acquire(NetworkStage::Dns).await;
+            let (result, _) = self.lookup.lookup_ttl(host).await;
+            return match result {
+                Ok(ips) if ips.is_empty() => {
+                    permit.finish(StageOutcome::DeterministicFailure);
+                    Err(ResolveError::Blocked(Blocked::NoAddress(host.to_string())))
+                }
+                Ok(ips) => {
+                    permit.finish(StageOutcome::Success);
+                    Ok(ips)
+                }
+                Err(error) => {
+                    let outcome = if is_transient(&error) {
+                        StageOutcome::TransientFailure
+                    } else {
+                        StageOutcome::DeterministicFailure
+                    };
+                    permit.finish(outcome);
+                    Err(ResolveError::Io(error))
+                }
+            };
+        }
+        self.resolve_checked(host).await
+    }
+
     pub async fn resolve_checked(&self, host: &str) -> Result<Vec<IpAddr>, ResolveError> {
         let permit = self.stages.acquire(NetworkStage::Dns).await;
         // localhost 和 *.localhost 是回环地址，不查系统解析器（它可能不认子域名，或者没有 IPv6）
@@ -201,7 +252,7 @@ impl GuardedResolver {
             permit.finish(StageOutcome::DeterministicFailure);
             return Err(ResolveError::Blocked(Blocked::NoAddress(host.to_string())));
         }
-        if !self.exempt.iter().any(|e| e.eq_ignore_ascii_case(host)) {
+        if !self.is_exempt(host) {
             // 只要有一个地址不合格就整体拒绝。
             for ip in &ips {
                 if let Err(error) = self.policy.check_ip(*ip) {

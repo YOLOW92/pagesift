@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.4.0
+# pagesift 1.4.1
 
 **AI 智能体的网页和文档层：输入任意 URL、文档、邮件、压缩包或源代码文件，输出干净的 Markdown、结构化 JSON 或 DataGraph 关系图谱。**  
 一个自托管的 Rust 二进制：CLI、Firecrawl 和 Jina Reader API、MCP 服务器，以及 Python、Node.js、Go、Java、C#、Ruby、PHP 等语言的包。
@@ -43,7 +43,7 @@ pagesift 替会思考的软件读取网页和文档：它抓取一个 URL（只�
 - **运行环境：** HTTP、PDF 和 Office 无需额外安装。可选：处理 JavaScript 页面的浏览器、用于 OCR 的 NVIDIA GPU、供 `/v2/agent` 使用的你自己的模型
 - **内存：** 1.4 各项基准中，不带浏览器时每个 worker 峰值 17–395 MB；带公式模型的 OCR 约需 1.7 GB；容量按 cgroup 上限确定
 - **许可证：** Apache-2.0，或[商业支持](COMMERCIAL.md)
-- **最新版本：** 1.4.0 · [发行说明](releases/1.4.0.md)
+- **最新版本：** 1.4.1 · [发行说明](releases/1.4.1.md)
 
 <!-- section: install -->
 ## 安装与使用
@@ -53,7 +53,7 @@ pagesift 替会思考的软件读取网页和文档：它抓取一个 URL（只�
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| 服务器 | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.4.0` | `curl localhost:3002/r/https://example.com` |
+| 服务器 | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.4.1` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -98,7 +98,7 @@ const items = await scraper.scrapeMany(['https://example.com', 'https://example.
 **HTTP 服务器**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.4.0
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.4.1
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'                        # Firecrawl API
@@ -333,11 +333,11 @@ flowchart LR
 [商业许可与支持](COMMERCIAL.md) 或写信到 `licensing@pagesift.dev`。
 
 <!-- section: changelog -->
-## 1.4.0 新增
+## 1.4.1 新增
 
-PageSift 1.4.0 将核心格式与编解码模块正式切换为独立上游 crate —— `yolowdoc 0.1.1`（Office、电子书、压缩包、SQLite）、`yolowsyntax 0.1.2`（373 种语言）和 `yolowzstd 0.1.2`（Zstandard 编解码），并推出 **PageSift DataGraph**（`pagesift-graph`）：为单页抓取、整站爬取和版本监控建立跨文档引用、重定向/canonical/附件来源归属、跨版本演化、结构化字段证据片段、同事实聚类与信息冲突记录，覆盖 CLI（`--graph`、`pagesift graph inspect`）、HTTP（`/v2/crawl/{id}/graph`、`/v2/graph/history`、`/v2/graph/conflicts`）、MCP（`pagesift_graph_query`）、Python 与 Node。
+PageSift 1.4.1 对 `1.4.x` 系列进行安全性、正确性与稳定性加固：补充 ChangeTracking 与 DataGraph 租户/会话隔离（HTTP、集群任务、`/v2/graph/history` 与 `/v2/graph/conflicts`），建立 canonical/重定向可信归属校验，解耦 DataGraph 的 `evidence` 与 `facts`/`conflicts` 开关，修复 `changed_block_ids` 与 `queryFilter`/分块偏移一致性，将版本差异绑定到各版本独立快照并使用单资源 CAS 序列化更新，增加爬取级 DataGraph 预算控制与对称读写限制，修复自适应并发闸门与 CPU 工人池调度竞态、`pagesift-office` `default-features = false` 透传以及远端 DNS 代理 SSRF 校验。
 
-[发布说明](releases/1.4.0.md) · [1.3.0](releases/1.3.0.md) · [1.2.7](releases/1.2.7.md) · [全部版本](releases/) · [CHANGELOG](CHANGELOG.md)
+[发布说明](releases/1.4.1.md) · [1.4.0](releases/1.4.0.md) · [1.3.0](releases/1.3.0.md) · [全部版本](releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -353,7 +353,7 @@ PageSift 1.4.0 将核心格式与编解码模块正式切换为独立上游 crat
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.4.0}
+  note   = {Version 1.4.1}
 }
 ```
 

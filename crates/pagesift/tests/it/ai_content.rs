@@ -350,3 +350,151 @@ async fn change_tracking_needs_a_store_and_json_mode_needs_an_llm() {
         .unwrap_err();
     assert_eq!(err.code.as_str(), "INVALID_REQUEST");
 }
+
+#[tokio::test]
+async fn http_change_tracking_isolates_api_keys_cookies_and_auth_headers() {
+    use axum::body::Body;
+    use axum::http::Request;
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+
+    let state: PageState = Arc::new(Mutex::new((
+        200,
+        "<h1>Plan</h1><p>Initial plan text for isolation checks.</p>".into(),
+    )));
+    let base = site(state.clone()).await;
+    let target_url = format!("{base}/p");
+
+    let dir = tempfile::tempdir().unwrap();
+    let s = Arc::new(scraper(Some(&dir), None));
+
+    // 1) Authenticated API keys isolate identical URL + identical tag
+    let authed_app = pagesift::api::router(
+        s.clone(),
+        pagesift::api::Config {
+            api_keys: vec!["tenant-alpha".into(), "tenant-beta".into()],
+            ..Default::default()
+        },
+    );
+
+    async fn post_scrape(
+        router: Router,
+        target_url: &str,
+        headers: Vec<(&str, &str)>,
+        extra: Value,
+    ) -> (StatusCode, Value) {
+        let mut payload = json!({
+            "url": target_url,
+            "engine": "http",
+            "ignoreRobotsTxt": true,
+            "formats": ["markdown", { "type": "changeTracking", "modes": ["git-diff"], "tag": "shared-tag" }],
+        });
+        if let Some(obj) = extra.as_object() {
+            payload.as_object_mut().unwrap().extend(obj.clone());
+        }
+        let mut builder = Request::builder()
+            .method("POST")
+            .uri("/v2/scrape")
+            .header("content-type", "application/json");
+        for (k, v) in headers {
+            builder = builder.header(k, v);
+        }
+        let req = builder.body(Body::from(payload.to_string())).unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+        let status = resp.status();
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        let json: Value = serde_json::from_slice(&bytes).unwrap();
+        (status, json)
+    }
+
+    let (st, r1) = post_scrape(
+        authed_app.clone(),
+        &target_url,
+        vec![("authorization", "Bearer tenant-alpha")],
+        json!({}),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK, "{r1}");
+    assert_eq!(r1["data"]["changeTracking"]["changeStatus"], "new");
+
+    // Mutate content before tenant-beta scrapes the exact same URL + tag:
+    // tenant-beta MUST get "new" (must not diff against tenant-alpha's snapshot!).
+    state.lock().unwrap().1 =
+        "<h1>Plan</h1><p>Updated confidential revision seen only by alpha next.</p>".into();
+    let (st, r2) = post_scrape(
+        authed_app.clone(),
+        &target_url,
+        vec![("authorization", "Bearer tenant-beta")],
+        json!({}),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK, "{r2}");
+    assert_eq!(r2["data"]["changeTracking"]["changeStatus"], "new");
+
+    // tenant-alpha scrapes again -> sees "changed" against alpha's initial snapshot (diff shows "Initial plan")
+    let (st, r3) = post_scrape(
+        authed_app.clone(),
+        &target_url,
+        vec![("authorization", "Bearer tenant-alpha")],
+        json!({}),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK, "{r3}");
+    assert_eq!(r3["data"]["changeTracking"]["changeStatus"], "changed");
+    assert!(
+        r3["data"]["changeTracking"]["diff"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("Initial plan"),
+        "expected diff against alpha's initial snapshot: {r3}"
+    );
+
+    // 2) Unauthenticated HTTP router isolates distinct client Cookies & target Authorization headers
+    let open_app = pagesift::api::router(s, Default::default());
+    let (st, c1) = post_scrape(
+        open_app.clone(),
+        &target_url,
+        vec![("cookie", "sid=user1")],
+        json!({}),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK, "{c1}");
+    assert_eq!(c1["data"]["changeTracking"]["changeStatus"], "new");
+
+    let (st, c2) = post_scrape(
+        open_app.clone(),
+        &target_url,
+        vec![("cookie", "sid=user2")],
+        json!({}),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK, "{c2}");
+    assert_eq!(
+        c2["data"]["changeTracking"]["changeStatus"], "new",
+        "different HTTP Cookie must not reuse anonymous change snapshot"
+    );
+
+    // Distinct target-request Authorization headers in JSON options are isolated too
+    let (st, h1) = post_scrape(
+        open_app.clone(),
+        &target_url,
+        vec![],
+        json!({ "headers": { "Authorization": "Bearer upstream-1" } }),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK, "{h1}");
+    assert_eq!(h1["data"]["changeTracking"]["changeStatus"], "new");
+
+    let (st, h2) = post_scrape(
+        open_app,
+        &target_url,
+        vec![],
+        json!({ "headers": { "Authorization": "Bearer upstream-2" } }),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK, "{h2}");
+    assert_eq!(
+        h2["data"]["changeTracking"]["changeStatus"], "new",
+        "distinct request credentials must not share anonymous change snapshots"
+    );
+}

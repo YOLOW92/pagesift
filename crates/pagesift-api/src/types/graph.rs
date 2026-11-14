@@ -107,6 +107,10 @@ pub struct CrawlGraphResponse {
     pub summary: GraphSummary,
 }
 
+fn is_false(v: &bool) -> bool {
+    !*v
+}
+
 /// Response payload for `GET /v2/graph/history?url=...`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -118,6 +122,8 @@ pub struct GraphHistoryResponse {
     pub versions: Vec<VersionRecord>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub edges: Vec<VersionEdge>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub truncated: bool,
 }
 
 /// Response payload for `GET /v2/graph/conflicts?subject=...`.
@@ -130,4 +136,6 @@ pub struct GraphConflictsResponse {
     pub total: usize,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub conflicts: Vec<ConflictRecord>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub truncated: bool,
 }

@@ -123,9 +123,9 @@ impl Scraper {
         opts: &ScrapeOptions,
     ) -> Option<(pagesift_store::Store, Vec<u8>)> {
         let store = self.store.clone()?;
-        // 带调用方身份（owner）的结果可能来自该身份的会话，不能与匿名或其他身份共用缓存。
+        // 带已认证调用方身份（owner）的结果可能来自该身份的会话，不能与匿名或其他身份共用缓存。
         // 身份池按 owner × origin × egress × fingerprint 隔离，缓存键里没有这些维度，所以整类请求不走缓存。
-        if opts.owner.is_some()
+        if opts.authenticated_owner().is_some()
             || !opts.headers.is_empty()
             || opts.discover_scripts
             || opts.explain

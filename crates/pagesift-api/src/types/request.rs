@@ -135,10 +135,14 @@ pub struct ScrapeOptions {
     /// PageSift extension: bounded, stateless same-origin external JS discovery.
     #[serde(default)]
     pub discover_scripts: bool,
-    /// Internal: stable caller identity used to scope reusable sessions.
+    /// Internal: stable caller identity used to scope reusable sessions and DataGraph/change state.
     /// Never accepted from JSON and never serialized.
     #[serde(skip)]
     pub owner: Option<String>,
+    /// Internal: incoming HTTP session/cookie/auth header fingerprint for anonymous isolation.
+    /// Never accepted from JSON and never serialized.
+    #[serde(skip)]
+    pub client_session: Option<String>,
     /// PageSift extension: write how the result was produced (render and merge decisions with their
     /// inputs) to `metadata.pagesift.plan`.
     #[serde(default)]
@@ -286,6 +290,23 @@ impl Default for ScrapeOptions {
 }
 
 impl ScrapeOptions {
+    /// Internal sentinel marking unauthenticated HTTP callers so they remain
+    /// isolated from unscoped local callers (`None`) and authenticated tenants.
+    pub const ANONYMOUS_OWNER: &str = "__http_anon__";
+    pub const ANONYMOUS_OWNER_PREFIX: &str = "__http_anon__:";
+
+    /// Returns whether `owner` represents an unauthenticated HTTP caller.
+    pub fn is_anonymous_owner(owner: &str) -> bool {
+        owner == Self::ANONYMOUS_OWNER || owner.starts_with(Self::ANONYMOUS_OWNER_PREFIX)
+    }
+
+    /// Authenticated caller owner (`None` for local unscoped or anonymous HTTP callers).
+    pub fn authenticated_owner(&self) -> Option<&str> {
+        self.owner
+            .as_deref()
+            .filter(|o| !Self::is_anonymous_owner(o))
+    }
+
     pub fn wants(&self, kind: &str) -> bool {
         self.formats.iter().any(|f| f.kind == kind)
     }

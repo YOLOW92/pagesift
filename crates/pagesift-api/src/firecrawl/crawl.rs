@@ -7,7 +7,7 @@ use axum::http::{HeaderMap, Uri};
 
 use crate::error::ApiError;
 use crate::jobs::Start;
-use crate::limits::Caller;
+use crate::limits::{Caller, apply_http_caller_scope};
 use crate::server::{AppState, base_url, lenient_body, webhook};
 use crate::types::{CrawlRequest, JobStarted};
 use crate::validate::{MAX_CRAWL_DEPTH, MAX_CRAWL_LIMIT, check_scrape_options, check_url};
@@ -21,10 +21,14 @@ pub async fn crawl_start(
 ) -> Result<Json<JobStarted>, ApiError> {
     use crate::fields;
     let known = [fields::names::<CrawlRequest>(), fields::CLIENT_IDENTITY];
-    let (req, ignored): (CrawlRequest, _) = lenient_body(req, &known)?;
+    let (mut req, ignored): (CrawlRequest, _) = lenient_body(req, &known)?;
+    let eff_caller = caller
+        .map(|Extension(c)| c)
+        .unwrap_or_else(|| Caller::new(None, s.default_limits.clone()));
+    apply_http_caller_scope(&mut req.scrape_options, Some(&eff_caller), Some(&headers));
     check_crawl_request(&req, s.engine.as_ref())?;
     let start = Start {
-        owner: caller.map(|Extension(c)| c),
+        owner: Some(eff_caller),
         webhook: webhook(&s, req.webhook.as_ref())?,
     };
     let id = s

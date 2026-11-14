@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.4.0
+# pagesift 1.4.1
 
 **La capa de web y documentos para agentes de IA: entra cualquier URL, documento, correo, archivo comprimido o código fuente y salen Markdown limpio, JSON estructurado o relaciones DataGraph.**  
 Un único binario en Rust, autoalojado, con CLI, API de Firecrawl y de Jina Reader, servidor MCP y paquetes para Python, Node.js, Go, Java, C#, Ruby, PHP y más.
@@ -43,7 +43,7 @@ Puede sustituir o acompañar a: **Firecrawl** (la misma API v1/v2, autoalojada),
 - **Entorno de ejecución:** nada que instalar para HTTP, PDF y Office. Opcional: un navegador para páginas con JavaScript, una GPU NVIDIA para OCR, tu propio modelo para `/v2/agent`
 - **Memoria:** pico de 17–395 MB por trabajador en las pruebas de 1.4 sin navegador; el OCR con modelos de fórmulas necesita unos 1.7 GB; la capacidad se dimensiona a partir del límite del cgroup
 - **Licencia:** Apache-2.0, o [soporte comercial](COMMERCIAL.md)
-- **Última versión:** 1.4.0 · [notas de la versión](releases/1.4.0.md)
+- **Última versión:** 1.4.1 · [notas de la versión](releases/1.4.1.md)
 
 <!-- section: install -->
 ## Instalación y uso
@@ -53,7 +53,7 @@ Puede sustituir o acompañar a: **Firecrawl** (la misma API v1/v2, autoalojada),
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| Servidor | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.4.0` | `curl localhost:3002/r/https://example.com` |
+| Servidor | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.4.1` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -98,7 +98,7 @@ const items = await scraper.scrapeMany(['https://example.com', 'https://example.
 **Servidor HTTP**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.4.0
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.4.1
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'                        # API de Firecrawl
@@ -336,11 +336,11 @@ flowchart LR
 [licencia y soporte comercial](COMMERCIAL.md) o escribe a `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
-## Novedades de 1.4.0
+## Novedades de 1.4.1
 
-PageSift 1.4.0 completa la extracción de los módulos centrales de formato e I/O hacia crates independientes (`yolowdoc 0.1.1` para Office, libros electrónicos, comprimidos y SQLite; `yolowsyntax 0.1.2` para 373 lenguajes; y `yolowzstd 0.1.2` para Zstandard) e incorpora **PageSift DataGraph** (`pagesift-graph`) para construir relaciones de citas entre documentos, procedencia de redirecciones/canonical/adjuntos, linaje entre versiones, evidencias por campo, agrupación de hechos y conflictos en CLI (`--graph`, `pagesift graph inspect`), HTTP (`/v2/crawl/{id}/graph`, `/v2/graph/{history,conflicts}`), MCP (`pagesift_graph_query`), Python y Node.
+PageSift 1.4.1 refuerza la seguridad, corrección y estabilidad de la serie `1.4.x`: aislamiento por inquilino y sesión en ChangeTracking y DataGraph (`/v2/graph/history`, `/v2/graph/conflicts`, tareas en segundo plano y RPC de clúster), verificación de confianza para declaraciones canonical y redirecciones, independencia de `evidence` frente a `facts`/`conflicts`, alineación de `changed_block_ids` con `queryFilter` y fragmentos, historial lineal por versión vinculado a su instantánea exacta con CAS por recurso, presupuestos de memoria por rastreo y consultas paginadas simétricas, mejoras en `AdaptiveConcurrencyGate` y cancelación del pool de CPU, propagación de `default-features = false` en `pagesift-office` y comprobaciones SSRF en proxies con DNS remoto.
 
-[Notas de la versión](releases/1.4.0.md) · [1.3.0](releases/1.3.0.md) · [1.2.7](releases/1.2.7.md) · [todas las versiones](releases/) · [CHANGELOG](CHANGELOG.md)
+[Notas de la versión](releases/1.4.1.md) · [1.4.0](releases/1.4.0.md) · [1.3.0](releases/1.3.0.md) · [todas las versiones](releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -356,7 +356,7 @@ Preguntas o comentarios: [Discord](https://discord.gg/esA3wMZVvA) · [Issues](ht
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.4.0}
+  note   = {Version 1.4.1}
 }
 ```
 

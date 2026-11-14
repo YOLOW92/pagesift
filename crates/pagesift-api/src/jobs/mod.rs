@@ -90,24 +90,24 @@ impl Jobs {
     /// 清掉过期任务（连同存储里的数据）。
     async fn sweep(&self) {
         let now = SystemTime::now();
-        let expired: Vec<String> = {
+        let expired: Vec<(String, Option<String>)> = {
             let mut map = self.inner.map.lock().await;
-            let ids: Vec<String> = map
+            let entries: Vec<(String, Option<String>)> = map
                 .iter()
                 .filter(|(_, j)| j.expires_at() <= now)
-                .map(|(id, _)| id.clone())
+                .map(|(id, j)| (id.clone(), j.tenant.clone()))
                 .collect();
-            for id in &ids {
+            for (id, _) in &entries {
                 map.remove(id);
             }
-            ids
+            entries
         };
         if let (Some(store), false) = (&self.inner.store, expired.is_empty()) {
             let m = self.inner.mirror.clone();
             store
                 .blocking(move |s| {
-                    for id in expired {
-                        delete_job(s, m.as_deref(), &id);
+                    for (id, tenant) in expired {
+                        delete_job(s, m.as_deref(), &id, tenant.as_deref());
                     }
                 })
                 .await;
@@ -269,25 +269,15 @@ impl Jobs {
     pub(crate) async fn owned_by(&self, id: &str, caller: Option<&Caller>) -> bool {
         self.sweep().await;
         let map = self.inner.map.lock().await;
-        map.get(id).is_some_and(|job| match (&job.owner, caller) {
-            (Some(owner), Some(caller)) => owner.account == caller.account,
-            (None, Some(caller)) => caller.account.as_ref() == "anonymous",
-            (None, None) => true,
-            _ => false,
-        })
+        map.get(id)
+            .is_some_and(|job| same_owner(job.owner.as_ref(), caller))
     }
 
     pub(crate) async fn active_for(&self, caller: Option<&Caller>) -> Vec<String> {
         let map = self.inner.map.lock().await;
         map.iter()
             .filter(|(_, job)| {
-                job.state == JobState::Scraping
-                    && match (&job.owner, caller) {
-                        (Some(owner), Some(caller)) => owner.account == caller.account,
-                        (None, Some(caller)) => caller.account.as_ref() == "anonymous",
-                        (None, None) => true,
-                        _ => false,
-                    }
+                job.state == JobState::Scraping && same_owner(job.owner.as_ref(), caller)
             })
             .map(|(id, _)| id.clone())
             .collect()
@@ -310,9 +300,12 @@ impl Jobs {
         start: Start,
         crawl: Option<CrawlRequest>,
         batch: Option<BatchSpec>,
+        graph_options: pagesift_graph::GraphOptions,
     ) -> Result<(String, Option<Hook>), ApiError> {
         let id = uuid::Uuid::new_v4().to_string();
-        let job = Job::new(kind, total, start.owner.clone());
+        let mut job = Job::new(kind, total, start.owner.clone());
+        job.graph_versions = graph_options.versions;
+        job.graph_options = graph_options;
         let meta = Meta {
             kind,
             state: JobState::Scraping,
@@ -320,6 +313,7 @@ impl Jobs {
             total,
             completed: 0,
             owner: start.owner.as_ref().map(|c| c.account.to_string()),
+            owner_authenticated: start.owner.as_ref().map(|c| c.authenticated),
             webhook: start.webhook.clone(),
             crawl,
             batch,
@@ -333,7 +327,9 @@ impl Jobs {
                         .values()
                         .filter(|j| {
                             j.state == JobState::Scraping
-                                && j.owner.as_ref().is_some_and(|o| o.account == c.account)
+                                && j.owner.as_ref().is_some_and(|o| {
+                                    o.authenticated == c.authenticated && o.account == c.account
+                                })
                         })
                         .count();
                     self.inner.limiter.check_jobs(c, active)?;
@@ -394,6 +390,11 @@ impl Jobs {
             options: opts,
             concurrency,
         };
+        let graph_options = spec
+            .options
+            .graph
+            .clone()
+            .unwrap_or_else(pagesift_graph::GraphOptions::enabled);
         let total = spec.urls.len();
         let (id, hook) = self
             .register(
@@ -402,6 +403,7 @@ impl Jobs {
                 start,
                 None,
                 self.inner.store.is_some().then(|| spec.clone()),
+                graph_options,
             )
             .await?;
         let pending = spec.urls.into_iter().enumerate().collect();
@@ -504,6 +506,11 @@ impl Jobs {
         req: CrawlRequest,
         start: Start,
     ) -> Result<String, ApiError> {
+        let graph_options = req
+            .graph
+            .clone()
+            .or_else(|| req.scrape_options.graph.clone())
+            .unwrap_or_else(pagesift_graph::GraphOptions::enabled);
         let (id, hook) = self
             .register(
                 JobKind::Crawl,
@@ -511,6 +518,7 @@ impl Jobs {
                 start,
                 self.inner.store.is_some().then(|| req.clone()),
                 None,
+                graph_options,
             )
             .await?;
         self.spawn_crawl(id.clone(), engine, req, hook, None);
@@ -599,5 +607,16 @@ impl Jobs {
                 cache.seed(&url, attachment);
             }
         }
+    }
+}
+
+fn same_owner(job_owner: Option<&Caller>, caller: Option<&Caller>) -> bool {
+    match (job_owner, caller) {
+        (Some(owner), Some(caller)) => {
+            owner.authenticated == caller.authenticated && owner.account == caller.account
+        }
+        (None, Some(caller)) => !caller.authenticated && caller.account.as_ref() == "anonymous",
+        (None, None) => true,
+        _ => false,
     }
 }

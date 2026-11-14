@@ -350,6 +350,18 @@ impl Policy {
         &self.fetcher
     }
 
+    /// 校验调用方随请求传入的临时代理 URL（仅当 `raw` 不是管理员预置的命名出口名时检查）。
+    pub async fn check_caller_proxy(&self, raw: &str) -> Result<(), Error> {
+        if self.egress.contains_key(raw) {
+            return Ok(());
+        }
+        self.fetcher
+            .check_caller_proxy(raw)
+            .await
+            .map(|_| ())
+            .map_err(Error::from)
+    }
+
     pub fn robots_cache(&self) -> &RobotsCache {
         &self.robots
     }
@@ -431,9 +443,13 @@ impl Policy {
             Some(name) => match self.egress.get(name) {
                 Some(f) => f.as_ref(),
                 None if is_proxy_url(name) => {
+                    self.fetcher
+                        .check_caller_proxy(name)
+                        .await
+                        .map_err(Error::from)?;
                     let mut fc = self.fetcher.config().clone();
                     fc.proxy = Some(name.to_string());
-                    dynamic_fetcher = Arc::new(Fetcher::new_egress(fc)?);
+                    dynamic_fetcher = Arc::new(Fetcher::new_caller_proxy(fc)?);
                     dynamic_fetcher.as_ref()
                 }
                 None => return Err(Error::InvalidRequest(format!("unknown egress `{name}`"))),
@@ -617,5 +633,25 @@ mod tests {
                 assert_eq!(robots_mode(kind, asked, &off).unwrap(), RobotsMode::Ignore);
             }
         }
+    }
+
+    #[tokio::test]
+    async fn caller_proxy_url_is_blocked_by_ssrf_policy() {
+        let fetcher = Arc::new(Fetcher::new(pagesift_net::FetcherConfig::default()).unwrap());
+        let policy = Policy::new(fetcher, PolicyConfig::default());
+        let err = policy
+            .fetch_held_via(
+                FetchRequest::new("https://example.com/"),
+                RobotsMode::Ignore,
+                Some("http://127.0.0.1:8080"),
+            )
+            .await
+            .unwrap_err();
+        assert!(matches!(err, Error::SsrfBlocked(_)), "{err:?}");
+        let err = policy
+            .check_caller_proxy("socks5h://169.254.169.254:1080")
+            .await
+            .unwrap_err();
+        assert!(matches!(err, Error::SsrfBlocked(_)), "{err:?}");
     }
 }

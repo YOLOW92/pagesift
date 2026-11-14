@@ -66,6 +66,8 @@ pub struct VersionEdge {
     pub change_kind: VersionChangeKind,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diff_stats: Option<VersionDiffStats>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diff_unavailable_reason: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub changed_block_ids: Vec<String>,
 }
@@ -124,6 +126,7 @@ pub fn link_version_pair(
         curr_observed_at_ms: curr.observed_at_ms,
         change_kind,
         diff_stats,
+        diff_unavailable_reason: None,
         changed_block_ids,
     }
 }

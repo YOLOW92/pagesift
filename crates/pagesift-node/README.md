@@ -1,6 +1,6 @@
 # pagesift (Node.js)
 
-1.4.0: see the [release notes](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.4.0.md) (adds DataGraph via `formats: ['graph']`, `graph` options, and `Page.graph` / `CrawlStream.graph`).
+1.4.1: see the [release notes](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.4.1.md) (security, tenant isolation, DataGraph correctness, and stability hardening for `1.4.x`, building on [1.4.0 DataGraph](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.4.0.md)).
 
 The npm package `pagesift`: pagesift's Rust engine for Node.js, built with [napi-rs](https://napi.rs).
 Prebuilt binaries, so you don't need a Rust toolchain or a headless-browser download.

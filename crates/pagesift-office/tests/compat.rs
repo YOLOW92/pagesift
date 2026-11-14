@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use pagesift_office::{Converted, Error, Format, FormatExt, Options, convert, is_fetchable};
+use pagesift_office::{Error, Format, FormatExt, Options, convert, is_fetchable};
 
 fn tar_single_file(name: &str, content: &[u8]) -> Vec<u8> {
     let mut blk = vec![0u8; 512];
@@ -82,6 +82,7 @@ fn fetchable_policy_matches_pagesift_contract() {
     }
 }
 
+#[cfg(feature = "zstd")]
 #[test]
 fn zstd_archive_is_detected_and_converted() {
     let tar = tar_single_file("hello.txt", b"Hello from tar.zst!\n");
@@ -91,7 +92,10 @@ fn zstd_archive_is_detected_and_converted() {
     assert_eq!(fmt, Some(Format::Archive));
     assert!(fmt.unwrap().fetchable());
 
-    let member = |bytes: &[u8], name: &str, _budget: usize| -> Result<Option<Converted>, Error> {
+    let member = |bytes: &[u8],
+                  name: &str,
+                  _budget: usize|
+     -> Result<Option<pagesift_office::Converted>, Error> {
         let Some(f) = Format::detect(bytes, Some(name), None) else {
             return Ok(None);
         };
@@ -103,6 +107,21 @@ fn zstd_archive_is_detected_and_converted() {
     };
     let out = convert(&zst, Format::Archive, &opts).unwrap();
     assert!(out.markdown.contains("Hello from tar.zst!"));
+}
+
+#[cfg(not(feature = "zstd"))]
+#[test]
+fn zstd_archive_requires_zstd_feature() {
+    let tar = tar_single_file("hello.txt", b"Hello from tar.zst!\n");
+    let zst = pagesift_compress::compress(&tar, 3);
+
+    let fmt = Format::detect(&zst, Some("bundle.tar.zst"), Some("application/zstd"));
+    assert_eq!(fmt, None);
+    let err = convert(&zst, Format::Archive, &Options::default()).unwrap_err();
+    assert!(
+        !matches!(err, Error::Timeout),
+        "unexpected timeout: {err:?}"
+    );
 }
 
 #[test]

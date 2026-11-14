@@ -5,7 +5,7 @@ use axum::extract::{Extension, Path, Query, State};
 use serde::Deserialize;
 
 use crate::error::{ApiError, ErrorCode};
-use crate::limits::Caller;
+use crate::limits::{Caller, caller_tenant};
 use crate::server::AppState;
 use crate::types::{CrawlGraphResponse, GraphConflictsResponse, GraphHistoryResponse};
 
@@ -15,11 +15,17 @@ use super::batch::authorize_job;
 pub struct HistoryQuery {
     pub url: Option<String>,
     pub key: Option<String>,
+    #[serde(default)]
+    pub limit: Option<usize>,
 }
 
 #[derive(Deserialize)]
 pub struct ConflictsQuery {
     pub subject: Option<String>,
+    #[serde(default)]
+    pub limit: Option<usize>,
+    #[serde(default)]
+    pub offset: Option<usize>,
 }
 
 /// `GET /v2/crawl/{id}/graph`: return job-level DataGraph summary, stats, clusters, and conflicts.
@@ -32,7 +38,7 @@ pub async fn crawl_graph(
     let (state, summary) = s
         .jobs
         .crawl_graph(&id)
-        .await
+        .await?
         .ok_or_else(|| ApiError::new(ErrorCode::NotFound, format!("job {id} not found")))?;
     Ok(Json(CrawlGraphResponse {
         success: true,
@@ -42,9 +48,10 @@ pub async fn crawl_graph(
     }))
 }
 
-/// `GET /v2/graph/history?url=...`: return historical versions and version diff edges for a URL/key.
+/// `GET /v2/graph/history?url=...`: return bounded tenant-isolated historical versions and diff edges.
 pub async fn graph_history(
     State(s): State<AppState>,
+    caller: Option<Extension<Caller>>,
     Query(q): Query<HistoryQuery>,
 ) -> Result<Json<GraphHistoryResponse>, ApiError> {
     let target = q
@@ -55,19 +62,36 @@ pub async fn graph_history(
         .filter(|v| !v.is_empty())
         .ok_or_else(|| ApiError::invalid("url query parameter is required"))?
         .to_string();
-    let (resource_key, versions, edges) = s.jobs.graph_history(&target).await?;
+    let max_limit = pagesift_store::DEFAULT_GRAPH_HISTORY_LIMIT;
+    let limit = match q.limit {
+        Some(0) => return Err(ApiError::invalid("limit must be at least 1")),
+        Some(n) if n > max_limit => {
+            return Err(ApiError::invalid(format!(
+                "limit must not exceed {max_limit}"
+            )));
+        }
+        Some(n) => n,
+        None => max_limit,
+    };
+    let tenant = caller_tenant(caller.as_ref().map(|Extension(c)| c));
+    let res = s
+        .jobs
+        .graph_history_for(Some(&tenant), &target, limit)
+        .await?;
     Ok(Json(GraphHistoryResponse {
         success: true,
         url: target,
-        resource_key,
-        versions,
-        edges,
+        resource_key: res.resource_key,
+        versions: res.versions,
+        edges: res.edges,
+        truncated: res.truncated,
     }))
 }
 
-/// `GET /v2/graph/conflicts?subject=...`: list cross-source conflicts detected by DataGraph.
+/// `GET /v2/graph/conflicts?subject=...`: list tenant-isolated cross-source conflicts with pagination.
 pub async fn graph_conflicts(
     State(s): State<AppState>,
+    caller: Option<Extension<Caller>>,
     Query(q): Query<ConflictsQuery>,
 ) -> Result<Json<GraphConflictsResponse>, ApiError> {
     let subject = q
@@ -76,11 +100,28 @@ pub async fn graph_conflicts(
         .map(str::trim)
         .filter(|v| !v.is_empty())
         .map(str::to_string);
-    let conflicts = s.jobs.graph_conflicts(subject.as_deref()).await?;
+    let max_limit = pagesift_store::DEFAULT_GRAPH_CONFLICTS_LIMIT;
+    let limit = match q.limit {
+        Some(0) => return Err(ApiError::invalid("limit must be at least 1")),
+        Some(n) if n > max_limit => {
+            return Err(ApiError::invalid(format!(
+                "limit must not exceed {max_limit}"
+            )));
+        }
+        Some(n) => n,
+        None => max_limit,
+    };
+    let offset = q.offset.unwrap_or(0);
+    let tenant = caller_tenant(caller.as_ref().map(|Extension(c)| c));
+    let (total, conflicts, truncated) = s
+        .jobs
+        .graph_conflicts_for(Some(&tenant), subject.as_deref(), limit, offset)
+        .await?;
     Ok(Json(GraphConflictsResponse {
         success: true,
         subject,
-        total: conflicts.len(),
+        total,
         conflicts,
+        truncated,
     }))
 }

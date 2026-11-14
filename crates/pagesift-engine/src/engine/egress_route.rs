@@ -116,7 +116,7 @@ impl Scraper {
         };
         let mut _lease = None;
         let session = if !sensitive && opts.headers.is_empty() && !opts.discover_scripts {
-            match opts.owner.as_deref() {
+            match opts.authenticated_owner() {
                 Some(owner) => {
                     let key = pagesift_policy::identity_pool::IdentityKey {
                         owner: owner.to_owned(),

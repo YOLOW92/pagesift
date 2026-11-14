@@ -126,6 +126,14 @@ pub struct GraphStats {
     pub fact_clusters: usize,
     pub conflicts: usize,
     pub canonical_clusters: usize,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub truncated: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub truncation_reasons: Vec<String>,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 /// Complete job-level DataGraph summary (`graph_summary.json` and `GET /v2/crawl/{id}/graph`).

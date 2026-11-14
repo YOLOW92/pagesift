@@ -750,6 +750,7 @@ mod tests {
             total: 1,
             completed: 1,
             owner: Some("alice".into()),
+            owner_authenticated: Some(true),
             webhook: None,
             crawl: None,
             batch: None,
