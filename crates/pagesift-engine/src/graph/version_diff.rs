@@ -169,8 +169,16 @@ pub(super) fn load_prev_snapshot_for_version(
     }
 }
 
-pub(super) fn remap_delta_doc_id(
-    delta: &mut PageGraphDelta,
+#[allow(clippy::too_many_arguments)]
+fn remap_graph_fields_doc_id(
+    node: &mut DocNode,
+    temporal: &mut Option<pagesift_graph::TemporalSemantics>,
+    blocks: &mut [pagesift_graph::BlockRef],
+    citations: &mut [pagesift_graph::CitationEdge],
+    evidence: &mut [pagesift_graph::EvidenceSpan],
+    claims: &mut [pagesift_graph::ClaimRecord],
+    provenance: &mut [pagesift_graph::ProvenanceEdge],
+    version: &mut Option<VersionEdge>,
     new_doc_id: String,
     observed_at_ms: u64,
     prev_version: Option<&VersionRecord>,
@@ -178,23 +186,23 @@ pub(super) fn remap_delta_doc_id(
     changed_block_ids: Vec<String>,
     diff_unavailable_reason: Option<String>,
 ) {
-    let old_doc_id = std::mem::replace(&mut delta.node.doc_id, new_doc_id.clone());
+    let old_doc_id = std::mem::replace(&mut node.doc_id, new_doc_id.clone());
     let old_prefix = format!("{old_doc_id}#");
-    delta.node.observed_at_ms = observed_at_ms;
-    if let Some(ref mut t) = delta.temporal {
+    node.observed_at_ms = observed_at_ms;
+    if let Some(t) = temporal.as_mut() {
         t.observed_at_ms = observed_at_ms;
     }
 
-    for b in &mut delta.blocks {
+    for b in blocks {
         b.doc_id = new_doc_id.clone();
         b.block_id = format!("{new_doc_id}#b{}", b.block_idx);
     }
-    for c in &mut delta.citations {
+    for c in citations {
         if c.from_doc_id == old_doc_id {
             c.from_doc_id = new_doc_id.clone();
         }
     }
-    for ev in &mut delta.evidence {
+    for ev in evidence {
         ev.doc_id = new_doc_id.clone();
         if let Some(bid) = ev.block_id.as_mut()
             && let Some(suffix) = bid.strip_prefix(&old_prefix)
@@ -202,10 +210,10 @@ pub(super) fn remap_delta_doc_id(
             *bid = format!("{new_doc_id}#{suffix}");
         }
     }
-    for claim in &mut delta.claims {
+    for claim in claims {
         claim.doc_id = new_doc_id.clone();
         claim.observed_at_ms = observed_at_ms;
-        if let Some(ref mut t) = claim.temporal {
+        if let Some(t) = claim.temporal.as_mut() {
             t.observed_at_ms = observed_at_ms;
         }
         claim.evidence.doc_id = new_doc_id.clone();
@@ -215,7 +223,7 @@ pub(super) fn remap_delta_doc_id(
             *bid = format!("{new_doc_id}#{suffix}");
         }
     }
-    for edge in &mut delta.provenance {
+    for edge in provenance {
         match edge {
             pagesift_graph::ProvenanceEdge::AttachmentOf { parent_doc_id, .. } => {
                 if parent_doc_id.as_deref() == Some(old_doc_id.as_str()) {
@@ -227,7 +235,7 @@ pub(super) fn remap_delta_doc_id(
                 parent_doc_id,
                 ..
             } => {
-                if doc_id == &old_doc_id {
+                if *doc_id == old_doc_id {
                     *doc_id = new_doc_id.clone();
                 }
                 if parent_doc_id.as_deref() == Some(old_doc_id.as_str()) {
@@ -239,23 +247,81 @@ pub(super) fn remap_delta_doc_id(
     }
 
     let curr_record = VersionRecord {
-        resource_key: delta.node.resource_key.clone(),
-        doc_id: delta.node.doc_id.clone(),
-        url: delta.node.final_url.clone(),
-        canonical_url: delta.node.canonical_url.clone(),
-        observed_at_ms: delta.node.observed_at_ms,
-        content_hash: delta.node.content_hash.clone(),
-        text_hash: delta.node.text_hash.clone(),
-        status_code: delta.node.status_code,
-        etag: delta.node.etag.clone(),
-        last_modified: delta.node.last_modified.clone(),
+        resource_key: node.resource_key.clone(),
+        doc_id: node.doc_id.clone(),
+        url: node.final_url.clone(),
+        canonical_url: node.canonical_url.clone(),
+        observed_at_ms: node.observed_at_ms,
+        content_hash: node.content_hash.clone(),
+        text_hash: node.text_hash.clone(),
+        status_code: node.status_code,
+        etag: node.etag.clone(),
+        last_modified: node.last_modified.clone(),
     };
     let mut next_edge: Option<VersionEdge> = prev_version
         .map(|prev| link_version_pair(prev, &curr_record, diff_stats, changed_block_ids));
     if let (Some(edge), Some(reason)) = (next_edge.as_mut(), diff_unavailable_reason) {
         edge.diff_unavailable_reason = Some(reason);
     }
-    delta.version = next_edge;
+    *version = next_edge;
+}
+
+pub(super) fn remap_delta_doc_id(
+    delta: &mut PageGraphDelta,
+    new_doc_id: String,
+    observed_at_ms: u64,
+    prev_version: Option<&VersionRecord>,
+    diff_stats: Option<VersionDiffStats>,
+    changed_block_ids: Vec<String>,
+    diff_unavailable_reason: Option<String>,
+) {
+    remap_graph_fields_doc_id(
+        &mut delta.node,
+        &mut delta.temporal,
+        &mut delta.blocks,
+        &mut delta.citations,
+        &mut delta.evidence,
+        &mut delta.claims,
+        &mut delta.provenance,
+        &mut delta.version,
+        new_doc_id,
+        observed_at_ms,
+        prev_version,
+        diff_stats,
+        changed_block_ids,
+        diff_unavailable_reason,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn remap_slice_doc_id(
+    slice: &mut pagesift_graph::GraphSlice,
+    node: &mut DocNode,
+    new_doc_id: String,
+    observed_at_ms: u64,
+    prev_version: Option<&VersionRecord>,
+    diff_stats: Option<VersionDiffStats>,
+    changed_block_ids: Vec<String>,
+    diff_unavailable_reason: Option<String>,
+) {
+    slice.doc_id = new_doc_id.clone();
+    slice.observed_at_ms = observed_at_ms;
+    remap_graph_fields_doc_id(
+        node,
+        &mut slice.temporal,
+        &mut slice.blocks,
+        &mut slice.citations,
+        &mut slice.evidence,
+        &mut slice.claims,
+        &mut slice.provenance,
+        &mut slice.version,
+        new_doc_id,
+        observed_at_ms,
+        prev_version,
+        diff_stats,
+        changed_block_ids,
+        diff_unavailable_reason,
+    );
 }
 
 pub(super) fn resolve_304_snapshot(

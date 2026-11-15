@@ -17,7 +17,7 @@ fn key(id: &str) -> String {
 
 fn parse_snapshot_ref(raw: &str) -> Option<ContentHash> {
     let hex = raw.strip_prefix(SNAP_PREFIX)?;
-    if hex.len() != 64 {
+    if hex.len() != 64 || !hex.is_ascii() {
         return None;
     }
     let mut bytes = [0u8; 32];
@@ -60,8 +60,14 @@ pub(super) fn offload_monitor_snapshots(store: &Store, m: &MonitorState) -> Moni
     slim
 }
 
-/// 从 `Store::snapshots()` 按 `snapshot_ref` 水合页面正文，保持重启后 diff 语义不变。
+/// 从 `Store::snapshots()` 按 `snapshot_ref` 水合页面正文，保持重启后 diff 语义不变；
+/// 若快照已被淘汰或损坏，则追加明确 `baseline_unavailable` 告警（R08）。
 pub(super) fn hydrate_monitor_snapshots(store: &Store, m: &mut MonitorState) {
+    let mut push_warn = |msg: String| {
+        if !m.warnings.iter().any(|existing| existing == &msg) {
+            m.warnings.push(msg);
+        }
+    };
     for (url, page) in &mut m.pages {
         if page.markdown.is_some() {
             continue;
@@ -71,23 +77,37 @@ pub(super) fn hydrate_monitor_snapshots(store: &Store, m: &mut MonitorState) {
         };
         let Some(hash) = parse_snapshot_ref(ref_str) else {
             tracing::warn!(monitor = %m.id, url = %url, snapshot_ref = %ref_str, "invalid snapshotRef");
+            push_warn(format!(
+                "baseline_unavailable: invalid snapshotRef for {url}"
+            ));
             continue;
         };
         match store.snapshots().get(&hash) {
             Ok(Some(bytes)) => match String::from_utf8(bytes) {
                 Ok(md) => page.markdown = Some(md),
-                Err(err) => tracing::warn!(
-                    monitor = %m.id,
-                    url = %url,
-                    error = %err,
-                    "non-UTF-8 monitor snapshot payload"
-                ),
+                Err(err) => {
+                    tracing::warn!(
+                        monitor = %m.id,
+                        url = %url,
+                        error = %err,
+                        "non-UTF-8 monitor snapshot payload"
+                    );
+                    push_warn(format!(
+                        "baseline_unavailable: non-UTF-8 snapshot payload for {url}"
+                    ));
+                }
             },
             Ok(None) => {
                 tracing::warn!(monitor = %m.id, url = %url, snapshot_ref = %ref_str, "snapshot evicted or missing");
+                push_warn(format!(
+                    "baseline_unavailable: snapshot evicted or missing for {url}"
+                ));
             }
             Err(err) => {
                 tracing::warn!(monitor = %m.id, url = %url, error = %err, "failed to load monitor snapshot");
+                push_warn(format!(
+                    "baseline_unavailable: failed to load snapshot for {url}"
+                ));
             }
         }
     }
@@ -269,5 +289,113 @@ mod tests {
         let body2: serde_json::Value =
             serde_json::from_slice(&resp2.into_body().collect().await.unwrap().to_bytes()).unwrap();
         assert_eq!(body2["data"]["pages"][0]["status"], "same");
+    }
+
+    #[test]
+    fn parse_snapshot_ref_rejects_multibyte_utf8_64_byte_payload_without_panic() {
+        let payload = format!("{SNAP_PREFIX}{}", "é".repeat(32));
+        assert_eq!(payload.len(), SNAP_PREFIX.len() + 64);
+        assert_eq!(parse_snapshot_ref(&payload), None);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn evicted_snapshot_never_falsifies_new_or_same_baseline_r08() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let store = Store::open(pagesift_store::Config::new(dir.path())).expect("store");
+        let body = "# Product\n\nPrice: $49";
+
+        let app1 = router(
+            Arc::new(StaticEngine(body.into())),
+            Config {
+                store: Some(store.clone()),
+                ..Default::default()
+            },
+        );
+        let create_req = Request::builder()
+            .method("POST")
+            .uri("/v2/monitor")
+            .header("content-type", "application/json")
+            .body(Body::from(
+                serde_json::json!({
+                    "targets": [{ "type": "scrape", "urls": ["https://example.com/evict"] }]
+                })
+                .to_string(),
+            ))
+            .unwrap();
+        let resp = app1.clone().oneshot(create_req).await.unwrap();
+        let created: serde_json::Value =
+            serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        let id = created["data"]["id"].as_str().unwrap().to_string();
+
+        let run1 = Request::builder()
+            .method("POST")
+            .uri(format!("/v2/monitor/{id}/run"))
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(app1.oneshot(run1).await.unwrap().status(), StatusCode::OK);
+
+        // Corrupt the stored snapshot ref to simulate snapshot eviction / missing payload.
+        let mut raw_mon: MonitorState =
+            serde_json::from_slice(&store.tasks().kv_get(key(&id)).unwrap().expect("monitor"))
+                .unwrap();
+        raw_mon
+            .pages
+            .get_mut("https://example.com/evict")
+            .unwrap()
+            .snapshot_ref = Some(format!("{SNAP_PREFIX}{}", "f".repeat(64)));
+        store
+            .tasks()
+            .kv_put(key(&id), &serde_json::to_vec(&raw_mon).unwrap())
+            .unwrap();
+
+        let app2 = router(
+            Arc::new(StaticEngine(body.into())),
+            Config {
+                store: Some(store),
+                ..Default::default()
+            },
+        );
+        let get_req = Request::builder()
+            .method("GET")
+            .uri(format!("/v2/monitor/{id}"))
+            .body(Body::empty())
+            .unwrap();
+        let get_resp = app2.clone().oneshot(get_req).await.unwrap();
+        let get_body: serde_json::Value =
+            serde_json::from_slice(&get_resp.into_body().collect().await.unwrap().to_bytes())
+                .unwrap();
+        assert!(
+            get_body["data"]["warnings"].as_array().is_some_and(|w| w
+                .iter()
+                .any(|x| x.as_str().unwrap_or("").contains("baseline_unavailable"))),
+            "expected baseline_unavailable warning: {get_body}"
+        );
+
+        let run2 = Request::builder()
+            .method("POST")
+            .uri(format!("/v2/monitor/{id}/run"))
+            .body(Body::empty())
+            .unwrap();
+        let resp2 = app2.clone().oneshot(run2).await.unwrap();
+        let body2: serde_json::Value =
+            serde_json::from_slice(&resp2.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert_eq!(body2["data"]["pages"][0]["status"], "error", "{body2}");
+        assert!(
+            body2["data"]["pages"][0]["error"]
+                .as_str()
+                .is_some_and(|e| e.contains("baseline_snapshot_unavailable")),
+            "{body2}"
+        );
+
+        // Next check heals baseline cleanly back to `same`.
+        let run3 = Request::builder()
+            .method("POST")
+            .uri(format!("/v2/monitor/{id}/run"))
+            .body(Body::empty())
+            .unwrap();
+        let resp3 = app2.oneshot(run3).await.unwrap();
+        let body3: serde_json::Value =
+            serde_json::from_slice(&resp3.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert_eq!(body3["data"]["pages"][0]["status"], "same", "{body3}");
     }
 }

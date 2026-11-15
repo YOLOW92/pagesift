@@ -1,6 +1,6 @@
 # pagesift (Python)
 
-1.5.0: see the [release notes](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.5.0.md) (Loop Sync/Adapt/Evidence pipeline, `Scraper.sync` & `Scraper.query_graph`, building on [1.4.2](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.4.2.md) and [1.4.0 DataGraph](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.4.0.md)).
+1.5.1: see the [release notes](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.5.1.md) (Sync/Adapt/Evidence correctness and stability fixes, building on [1.5.0](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.5.0.md), [1.4.2](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.4.2.md) and [1.4.0 DataGraph](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.4.0.md)).
 
 Python bindings for [pagesift](https://github.com/YOLOW92/pagesift): turn web pages into clean
 Markdown for LLMs. Fetching, robots.txt, rate limiting, content extraction, PDF parsing and browser

@@ -1,7 +1,9 @@
 //! CUDA 驱动 API 的最小绑定：运行时 `dlopen("libcuda.so.1")`，用 `dlsym` 取函数指针。
 //! 不链接 CUDA 工具链，也不需要它；机器上只要有 NVIDIA 驱动。函数签名照 `cuda.h`（驱动 API）。
 
-use std::ffi::{CStr, CString, c_char, c_int, c_uint, c_void};
+#[cfg(unix)]
+use std::ffi::CString;
+use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 
 /// `CUresult`：0 是成功，其余是错误码。
 pub(crate) type CuResult = c_int;

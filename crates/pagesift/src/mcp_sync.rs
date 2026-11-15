@@ -115,8 +115,9 @@ impl ToolHandler for SyncTool {
                     let seeds = string_vec(&args, "seeds")?;
                     let mut budget = SyncBudget::default();
                     if let Some(n) = args.get("maxRequestsPerTick").and_then(Value::as_u64) {
-                        budget.max_requests_per_tick = usize::try_from(n)
+                        let parsed = usize::try_from(n)
                             .map_err(|_| ToolError::new("maxRequestsPerTick is out of range"))?;
+                        budget.max_requests_per_tick = parsed;
                     }
                     if let Some(n) = args.get("targetItems").and_then(Value::as_u64) {
                         budget.target_items = Some(
@@ -153,17 +154,9 @@ impl ToolHandler for SyncTool {
                             .and_then(Value::as_bool)
                             .unwrap_or(true),
                     };
-                    let mut spec = build_source_spec(req, None).map_err(bad)?;
-                    let id = spec.id.clone();
+                    let spec = build_source_spec(req, None).map_err(bad)?;
                     let saved = store
-                        .blocking(move |st| {
-                            let sync = st.sync();
-                            if let Some(prev) = sync.get_source(&id)? {
-                                spec.created_at_ms = prev.created_at_ms;
-                            }
-                            sync.put_source(&spec)?;
-                            Ok::<_, pagesift_store::Error>(spec)
-                        })
+                        .blocking(move |st| st.sync().upsert_source(spec))
                         .await
                         .map_err(|e| ToolError::new(format!("save source failed: {e}")))?;
                     Ok(ToolOutput::json(
@@ -218,7 +211,11 @@ impl ToolHandler for SyncTool {
                         .unwrap_or(false);
                     let max_requests = match args.get("maxRequests").and_then(Value::as_u64) {
                         Some(0) => return Err(ToolError::new("maxRequests must be >= 1")),
-                        Some(n) => Some(usize::try_from(n).unwrap_or(usize::MAX)),
+                        Some(n) => {
+                            let v = usize::try_from(n)
+                                .map_err(|_| ToolError::new("maxRequests is out of range"))?;
+                            pagesift_api::sources::validate_max_requests(Some(v)).map_err(bad)?
+                        }
                         None => None,
                     };
                     let delta = self

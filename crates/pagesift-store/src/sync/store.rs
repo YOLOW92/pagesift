@@ -1,13 +1,30 @@
-//! `SyncStore` 存储读写与历史时刻状态重建。
+//! `SyncStore` 存储读写、原子 Tick 提交、CAS 修订并发控制与精确历史状态重建（C03 / C05 / C06 / C30 / R02）。
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use pagesift_graph::{ClaimStatus, detect_conflicts};
+use pagesift_graph::{ClaimStatus, ConflictRecord};
 
-use crate::engine::ns;
+use super::{
+    DataSourceSpec, MAX_CHECKPOINTS_PER_SOURCE, MAX_DELTAS_PER_SOURCE, ResourceRecord, SourceMeta,
+    SourceSpecRevision, SourceStateCheckpoint, SourceStateView, SpecCasOutcome, SyncDelta,
+    TickCommitOutcome,
+};
+use crate::engine::{AtomicTx, ns};
+use crate::graph::PreparedVersionBundle;
 use crate::{Error, Result, Store};
 
-use super::{DataSourceSpec, MAX_DELTAS_PER_SOURCE, ResourceRecord, SourceStateView, SyncDelta};
+/// 单次同步周期原子提交参数（C05 / C06 / R02）。
+pub struct TickCommitRequest<'a> {
+    pub source_id: &'a str,
+    pub expected_spec_revision: u64,
+    pub spec_revision_used: u64,
+    pub inventory: &'a mut Vec<ResourceRecord>,
+    pub experience_bytes: &'a [u8],
+    pub delta: &'a mut SyncDelta,
+    pub graph_bundles: Vec<PreparedVersionBundle>,
+    pub conflict_subjects: &'a BTreeSet<String>,
+    pub conflicts: &'a [ConflictRecord],
+}
 
 /// 持续数据同步存储视图。
 pub struct SyncStore<'a> {
@@ -34,15 +51,108 @@ impl<'a> SyncStore<'a> {
         }
     }
 
-    pub fn put_source(&self, spec: &DataSourceSpec) -> Result<()> {
-        let bytes = serde_json::to_vec(spec).map_err(|e| Error::Corrupt(e.to_string()))?;
-        self.store.put(
+    fn stage_source_write_in_tx(
+        &self,
+        tx: &mut AtomicTx<'_>,
+        stored: &DataSourceSpec,
+    ) -> Result<()> {
+        let spec_bytes = serde_json::to_vec(stored).map_err(|e| Error::Corrupt(e.to_string()))?;
+        let rev_entry = SourceSpecRevision {
+            revision: stored.revision,
+            updated_at_ms: stored.updated_at_ms,
+            spec: stored.clone(),
+        };
+        let rev_bytes =
+            serde_json::to_vec(&rev_entry).map_err(|e| Error::Corrupt(e.to_string()))?;
+        let rev_key = self.key(
+            "srev:",
+            &format!(
+                "{}:{:020}:{:020}",
+                stored.id, stored.updated_at_ms, stored.revision
+            ),
+        );
+        tx.put(
             ns::SYNC_STATE,
-            &self.key("src:", &spec.id),
-            &bytes,
-            spec.updated_at_ms.max(1),
+            &self.key("src:", &stored.id),
+            &spec_bytes,
+            stored.updated_at_ms.max(1),
         )?;
+        tx.put(
+            ns::SYNC_STATE,
+            &rev_key,
+            &rev_bytes,
+            stored.updated_at_ms.max(1),
+        )?;
+        let meta_key = self.key("smeta:", &stored.id);
+        if !tx.contains(ns::SYNC_STATE, &meta_key)? {
+            let meta_bytes = serde_json::to_vec(&SourceMeta::default())
+                .map_err(|e| Error::Corrupt(e.to_string()))?;
+            tx.put(
+                ns::SYNC_STATE,
+                &meta_key,
+                &meta_bytes,
+                stored.created_at_ms.max(1),
+            )?;
+        }
         Ok(())
+    }
+
+    pub fn put_source(&self, spec: &DataSourceSpec) -> Result<()> {
+        let mut stored = spec.clone();
+        if stored.revision == 0 {
+            stored.revision = 1;
+        }
+        let mut tx = self.store.atomic_tx();
+        self.stage_source_write_in_tx(&mut tx, &stored)?;
+        tx.commit()
+    }
+
+    /// 原子创建或更新数据源规范：若已存在则保留 `created_at_ms` 并单调递增 `revision`（R02）。
+    pub fn upsert_source(&self, mut spec: DataSourceSpec) -> Result<DataSourceSpec> {
+        let mut tx = self.store.atomic_tx();
+        let src_key = self.key("src:", &spec.id);
+        if let Some((_, raw)) = tx.get(ns::SYNC_STATE, &src_key)? {
+            let current: DataSourceSpec =
+                serde_json::from_slice(&raw).map_err(|e| Error::Corrupt(e.to_string()))?;
+            spec.revision = current.revision.saturating_add(1);
+            spec.created_at_ms = current.created_at_ms;
+            if spec.updated_at_ms <= current.updated_at_ms {
+                spec.updated_at_ms = current.updated_at_ms.saturating_add(1);
+            }
+        } else if spec.revision == 0 {
+            spec.revision = 1;
+        }
+        self.stage_source_write_in_tx(&mut tx, &spec)?;
+        tx.commit()?;
+        Ok(spec)
+    }
+
+    /// 原子校验并更新 `DataSourceSpec`，若已被并发修改或删除则中止（C05 / R02）。
+    pub fn update_source_cas(
+        &self,
+        mut spec: DataSourceSpec,
+        expected_revision: Option<u64>,
+    ) -> Result<SpecCasOutcome> {
+        let mut tx = self.store.atomic_tx();
+        let src_key = self.key("src:", &spec.id);
+        let Some((_, raw)) = tx.get(ns::SYNC_STATE, &src_key)? else {
+            return Ok(SpecCasOutcome::NotFound);
+        };
+        let current: DataSourceSpec =
+            serde_json::from_slice(&raw).map_err(|e| Error::Corrupt(e.to_string()))?;
+        if let Some(exp) = expected_revision
+            && current.revision != exp
+        {
+            return Ok(SpecCasOutcome::Conflict { current });
+        }
+        spec.revision = current.revision.saturating_add(1);
+        spec.created_at_ms = current.created_at_ms;
+        if spec.updated_at_ms <= current.updated_at_ms {
+            spec.updated_at_ms = current.updated_at_ms.saturating_add(1);
+        }
+        self.stage_source_write_in_tx(&mut tx, &spec)?;
+        tx.commit()?;
+        Ok(SpecCasOutcome::Updated(spec))
     }
 
     pub fn get_source(&self, source_id: &str) -> Result<Option<DataSourceSpec>> {
@@ -71,25 +181,20 @@ impl<'a> SyncStore<'a> {
         Ok(out)
     }
 
+    /// 原子清理数据源及其清单、经验、增量、检查点、规格修订历史（R02 传播存储错误，绝不静默丢弃）。
     pub fn delete_source(&self, source_id: &str) -> Result<bool> {
-        let existed = self
-            .store
-            .delete(ns::SYNC_STATE, &self.key("src:", source_id))?;
-        let _ = self
-            .store
-            .delete(ns::SYNC_STATE, &self.key("inv:", source_id));
-        let _ = self
-            .store
-            .delete(ns::SYNC_STATE, &self.key("exp:", source_id));
-        let delta_pfx = self.key("dlt:", &format!("{source_id}:"));
-        if let Ok(keys) = self
-            .store
-            .keys(ns::SYNC_STATE, |k| k.starts_with(&delta_pfx))
-        {
-            for k in keys {
-                let _ = self.store.delete(ns::SYNC_STATE, &k);
+        let mut tx = self.store.atomic_tx();
+        let existed = tx.delete(ns::SYNC_STATE, &self.key("src:", source_id))?;
+        tx.delete(ns::SYNC_STATE, &self.key("inv:", source_id))?;
+        tx.delete(ns::SYNC_STATE, &self.key("exp:", source_id))?;
+        tx.delete(ns::SYNC_STATE, &self.key("smeta:", source_id))?;
+        for prefix_name in ["dlt:", "sck:", "srev:"] {
+            let pfx = self.key(prefix_name, &format!("{source_id}:"));
+            for k in tx.keys_matching(ns::SYNC_STATE, &pfx)? {
+                tx.delete(ns::SYNC_STATE, &k)?;
             }
         }
+        tx.commit()?;
         Ok(existed)
     }
 
@@ -129,27 +234,212 @@ impl<'a> SyncStore<'a> {
     }
 
     pub fn append_delta(&self, delta: &SyncDelta) -> Result<()> {
-        let bytes = serde_json::to_vec(delta).map_err(|e| Error::Corrupt(e.to_string()))?;
-        let key = self.key(
+        let mut tx = self.store.atomic_tx();
+        let meta_key = self.key("smeta:", &delta.source_id);
+        let mut meta: SourceMeta = match tx.get(ns::SYNC_STATE, &meta_key)? {
+            Some((_, raw)) => {
+                serde_json::from_slice(&raw).map_err(|e| Error::Corrupt(e.to_string()))?
+            }
+            None => SourceMeta::default(),
+        };
+        meta.total_ticks = meta.total_ticks.saturating_add(1).max(delta.tick_seq);
+        if meta.first_tick_at_ms.is_none() {
+            meta.first_tick_at_ms = Some(delta.completed_at_ms);
+        }
+        let mut stored_delta = delta.clone();
+        if stored_delta.tick_seq == 0 {
+            stored_delta.tick_seq = meta.total_ticks;
+        }
+        let bytes = serde_json::to_vec(&stored_delta).map_err(|e| Error::Corrupt(e.to_string()))?;
+        let dlt_key = self.key(
             "dlt:",
             &format!(
                 "{}:{:020}:{}",
                 delta.source_id, delta.completed_at_ms, delta.tick_id
             ),
         );
-        self.store
-            .put(ns::SYNC_STATE, &key, &bytes, delta.completed_at_ms.max(1))?;
+        tx.put(
+            ns::SYNC_STATE,
+            &dlt_key,
+            &bytes,
+            delta.completed_at_ms.max(1),
+        )?;
+        let meta_bytes = serde_json::to_vec(&meta).map_err(|e| Error::Corrupt(e.to_string()))?;
+        tx.put(
+            ns::SYNC_STATE,
+            &meta_key,
+            &meta_bytes,
+            delta.completed_at_ms.max(1),
+        )?;
 
         let pfx = self.key("dlt:", &format!("{}:", delta.source_id));
-        let mut all_keys = self.store.keys(ns::SYNC_STATE, |k| k.starts_with(&pfx))?;
+        let mut all_keys = tx.keys_matching(ns::SYNC_STATE, &pfx)?;
         if all_keys.len() > MAX_DELTAS_PER_SOURCE {
             all_keys.sort();
             let remove_count = all_keys.len() - MAX_DELTAS_PER_SOURCE;
             for old_key in all_keys.into_iter().take(remove_count) {
-                let _ = self.store.delete(ns::SYNC_STATE, &old_key);
+                tx.delete(ns::SYNC_STATE, &old_key)?;
             }
         }
-        Ok(())
+        tx.commit()
+    }
+
+    /// 单个 `AtomicTx` 提交整轮 Sync Tick：校验 Source 存在及 `revision` -> 写图版本/声明/冲突 -> 写清单/经验/增量/检查点/总计数（C05 / C06 / C30 / R02）。
+    pub fn commit_tick_atomic(&self, req: TickCommitRequest<'_>) -> Result<TickCommitOutcome> {
+        let mut tx = self.store.atomic_tx();
+        let src_key = self.key("src:", req.source_id);
+        let Some((_, src_raw)) = tx.get(ns::SYNC_STATE, &src_key)? else {
+            return Ok(TickCommitOutcome::SourceDeleted);
+        };
+        let current_spec: DataSourceSpec =
+            serde_json::from_slice(&src_raw).map_err(|e| Error::Corrupt(e.to_string()))?;
+        if current_spec.revision != req.expected_spec_revision {
+            return Ok(TickCommitOutcome::StaleSpec {
+                current: Box::new(current_spec),
+            });
+        }
+
+        let meta_key = self.key("smeta:", req.source_id);
+        let mut meta: SourceMeta = match tx.get(ns::SYNC_STATE, &meta_key)? {
+            Some((_, raw)) => {
+                serde_json::from_slice(&raw).map_err(|e| Error::Corrupt(e.to_string()))?
+            }
+            None => SourceMeta::default(),
+        };
+        meta.total_ticks = meta.total_ticks.saturating_add(1);
+        if meta.first_tick_at_ms.is_none() {
+            meta.first_tick_at_ms = Some(req.delta.completed_at_ms);
+        }
+        if meta.earliest_retained_checkpoint_at_ms.is_none() {
+            meta.earliest_retained_checkpoint_at_ms = Some(req.delta.completed_at_ms);
+        }
+        let tick_seq = meta.total_ticks;
+        req.delta.tick_seq = tick_seq;
+
+        let gs = self.store.graph_for(self.tenant);
+        for bundle in &req.graph_bundles {
+            match gs.stage_prepared_bundle_in_tx(&mut tx, bundle)? {
+                crate::VersionBundleOutcome::Committed {
+                    claims,
+                    claim_transitions,
+                    ..
+                } => {
+                    req.delta.claim_transitions.extend(claim_transitions);
+                    // 用事务内协调后的真实 active+unverified 数量刷新资源记录 claim_count
+                    if let Some(first_claim) = claims.first()
+                        && let Some(rec) = req
+                            .inventory
+                            .iter_mut()
+                            .find(|r| r.resource_key == first_claim.claim.resource_key)
+                    {
+                        rec.claim_count = claims
+                            .iter()
+                            .filter(|c| {
+                                matches!(
+                                    c.status,
+                                    ClaimStatus::Active | ClaimStatus::Unverified { .. }
+                                )
+                            })
+                            .count();
+                    }
+                }
+                crate::VersionBundleOutcome::StaleParent { .. } => {}
+            }
+        }
+
+        if !req.conflicts.is_empty() {
+            gs.stage_conflicts_for_subjects_in_tx(
+                &mut tx,
+                req.conflict_subjects,
+                req.conflicts,
+                req.delta.completed_at_ms,
+            )?;
+            req.delta.conflicts = req.conflicts.to_vec();
+        } else if !req.conflict_subjects.is_empty() {
+            let recomputed = gs.recompute_conflicts_for_subjects_in_tx(
+                &mut tx,
+                req.conflict_subjects,
+                req.delta.completed_at_ms,
+            )?;
+            req.delta.conflicts = recomputed;
+        }
+
+        let ts = req.delta.completed_at_ms.max(1);
+        let inv_bytes =
+            serde_json::to_vec(req.inventory).map_err(|e| Error::Corrupt(e.to_string()))?;
+        tx.put(
+            ns::SYNC_STATE,
+            &self.key("inv:", req.source_id),
+            &inv_bytes,
+            ts,
+        )?;
+        tx.put(
+            ns::SYNC_STATE,
+            &self.key("exp:", req.source_id),
+            req.experience_bytes,
+            ts,
+        )?;
+
+        let delta_bytes =
+            serde_json::to_vec(req.delta).map_err(|e| Error::Corrupt(e.to_string()))?;
+        let dlt_key = self.key(
+            "dlt:",
+            &format!(
+                "{}:{:020}:{}",
+                req.source_id, req.delta.completed_at_ms, req.delta.tick_id
+            ),
+        );
+        tx.put(ns::SYNC_STATE, &dlt_key, &delta_bytes, ts)?;
+
+        let dlt_pfx = self.key("dlt:", &format!("{}:", req.source_id));
+        let mut dlt_keys = tx.keys_matching(ns::SYNC_STATE, &dlt_pfx)?;
+        if dlt_keys.len() > MAX_DELTAS_PER_SOURCE {
+            dlt_keys.sort();
+            let remove_count = dlt_keys.len() - MAX_DELTAS_PER_SOURCE;
+            for old_key in dlt_keys.into_iter().take(remove_count) {
+                tx.delete(ns::SYNC_STATE, &old_key)?;
+            }
+        }
+
+        let ck = SourceStateCheckpoint {
+            tick_seq,
+            tick_id: req.delta.tick_id.clone(),
+            completed_at_ms: req.delta.completed_at_ms,
+            spec_revision: req.spec_revision_used,
+            coverage_status: req.delta.coverage_status.clone(),
+            resources: req.inventory.clone(),
+        };
+        let ck_bytes = serde_json::to_vec(&ck).map_err(|e| Error::Corrupt(e.to_string()))?;
+        let ck_key = self.key(
+            "sck:",
+            &format!(
+                "{}:{:020}:{:020}",
+                req.source_id, req.delta.completed_at_ms, tick_seq
+            ),
+        );
+        tx.put(ns::SYNC_STATE, &ck_key, &ck_bytes, ts)?;
+
+        let ck_pfx = self.key("sck:", &format!("{}:", req.source_id));
+        let mut ck_keys = tx.keys_matching(ns::SYNC_STATE, &ck_pfx)?;
+        if ck_keys.len() > MAX_CHECKPOINTS_PER_SOURCE {
+            ck_keys.sort();
+            let remove_count = ck_keys.len() - MAX_CHECKPOINTS_PER_SOURCE;
+            for old_key in &ck_keys[..remove_count] {
+                tx.delete(ns::SYNC_STATE, old_key)?;
+            }
+            if let Some(earliest_key) = ck_keys.get(remove_count)
+                && let Some((_, raw)) = tx.get(ns::SYNC_STATE, earliest_key)?
+                && let Ok(earliest) = serde_json::from_slice::<SourceStateCheckpoint>(&raw)
+            {
+                meta.earliest_retained_checkpoint_at_ms = Some(earliest.completed_at_ms);
+            }
+        }
+
+        let meta_bytes = serde_json::to_vec(&meta).map_err(|e| Error::Corrupt(e.to_string()))?;
+        tx.put(ns::SYNC_STATE, &meta_key, &meta_bytes, ts)?;
+
+        tx.commit()?;
+        Ok(TickCommitOutcome::Committed { tick_seq })
     }
 
     pub fn list_deltas(&self, source_id: &str, limit: usize) -> Result<Vec<SyncDelta>> {
@@ -183,159 +473,11 @@ impl<'a> SyncStore<'a> {
         }
         Ok(None)
     }
-
-    pub fn build_state_view(
-        &self,
-        source_id: &str,
-        as_of_ms: Option<u64>,
-    ) -> Result<Option<SourceStateView>> {
-        let Some(spec) = self.get_source(source_id)? else {
-            return Ok(None);
-        };
-        let mut resources = self.get_inventory(source_id)?;
-        if let Some(cutoff) = as_of_ms {
-            resources.retain(|r| r.discovered_at_ms <= cutoff);
-        }
-        let mut inventory_counts = BTreeMap::new();
-        for r in &resources {
-            *inventory_counts
-                .entry(r.state.as_str().to_string())
-                .or_insert(0) += 1;
-        }
-
-        let gs = self.store.graph_for(self.tenant);
-        let mut active_claims = Vec::new();
-        for r in &resources {
-            if let Ok(claims) = gs.claims_for_resource_as_of(&r.resource_key, as_of_ms) {
-                for c in claims {
-                    if matches!(
-                        c.status,
-                        ClaimStatus::Active | ClaimStatus::Unverified { .. }
-                    ) {
-                        active_claims.push(c);
-                    }
-                }
-            }
-        }
-        let raw_claims: Vec<_> = active_claims.iter().map(|c| c.claim.clone()).collect();
-        let conflicts = detect_conflicts(&raw_claims);
-
-        let deltas = self.list_deltas(source_id, MAX_DELTAS_PER_SOURCE)?;
-        let filtered_deltas: Vec<&SyncDelta> = deltas
-            .iter()
-            .filter(|d| as_of_ms.is_none_or(|cutoff| d.completed_at_ms <= cutoff))
-            .collect();
-        let latest_delta = filtered_deltas.first().copied();
-
-        Ok(Some(SourceStateView {
-            spec,
-            as_of_ms,
-            last_tick_id: latest_delta.map(|d| d.tick_id.clone()),
-            last_synced_at_ms: latest_delta.map(|d| d.completed_at_ms),
-            total_ticks: filtered_deltas.len() as u64,
-            coverage_status: latest_delta.map(|d| d.coverage_status.clone()),
-            inventory_counts,
-            resources,
-            active_claims,
-            conflicts,
-        }))
-    }
 }
+
+#[path = "store_view.rs"]
+mod store_view;
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::sync::{
-        FreshnessPolicy, ResourceLifecycleState, ResourceRole, SyncBudget, SyncTickStats,
-    };
-
-    #[test]
-    fn sync_store_persists_sources_inventory_deltas_and_as_of_view() {
-        let dir = tempfile::tempdir().unwrap();
-        let store = Store::open_dir(dir.path()).unwrap();
-        let ss = store.sync();
-
-        let spec = DataSourceSpec {
-            id: "docs-src".to_string(),
-            name: Some("Docs".to_string()),
-            seeds: vec!["https://docs.example.com/".to_string()],
-            include_paths: Vec::new(),
-            exclude_paths: Vec::new(),
-            max_depth: 2,
-            allow_subdomains: false,
-            freshness: FreshnessPolicy::default(),
-            budget: SyncBudget::default(),
-            extract_schema: None,
-            extract_prompt: None,
-            required_fields: Vec::new(),
-            allow_browser: true,
-            created_at_ms: 1000,
-            updated_at_ms: 1000,
-        };
-        ss.put_source(&spec).unwrap();
-        assert_eq!(ss.list_sources().unwrap().len(), 1);
-
-        let rec = ResourceRecord {
-            resource_key: "rk1".to_string(),
-            url: "https://docs.example.com/".to_string(),
-            canonical_url: None,
-            migrated_to: None,
-            parent_url: None,
-            depth: 0,
-            role: ResourceRole::Seed,
-            state: ResourceLifecycleState::Active,
-            discovered_at_ms: 1000,
-            last_checked_at_ms: Some(1500),
-            last_substantive_change_at_ms: Some(1500),
-            next_due_at_ms: 5100,
-            etag: Some("\"v1\"".to_string()),
-            last_modified: None,
-            content_hash: Some("h1".to_string()),
-            latest_doc_id: Some("doc1".to_string()),
-            last_status_code: Some(200),
-            consecutive_failures: 0,
-            consecutive_404s: 0,
-            importance_weight: 1.0,
-            last_strategy: Some("lightweight_http".to_string()),
-            title: Some("Home".to_string()),
-            claim_count: 1,
-        };
-        ss.put_inventory("docs-src", &[rec], 1500).unwrap();
-
-        let delta = SyncDelta {
-            source_id: "docs-src".to_string(),
-            tick_id: "tick-1500".to_string(),
-            started_at_ms: 1400,
-            completed_at_ms: 1500,
-            coverage_status: "complete_within_scope".to_string(),
-            coverage_reasons: vec!["all_in_scope_resources_verified".to_string()],
-            stats: SyncTickStats::default(),
-            added_resources: Vec::new(),
-            modified_resources: Vec::new(),
-            migrated_resources: Vec::new(),
-            disappeared_resources: Vec::new(),
-            claim_transitions: Vec::new(),
-            conflicts: Vec::new(),
-            adapt_decisions: Vec::new(),
-        };
-        ss.append_delta(&delta).unwrap();
-        assert_eq!(
-            ss.get_delta("docs-src", "tick-1500")
-                .unwrap()
-                .unwrap()
-                .tick_id,
-            "tick-1500"
-        );
-
-        let view = ss.build_state_view("docs-src", None).unwrap().unwrap();
-        assert_eq!(view.total_ticks, 1);
-        assert_eq!(view.inventory_counts.get("active"), Some(&1));
-
-        let early_view = ss.build_state_view("docs-src", Some(500)).unwrap().unwrap();
-        assert_eq!(early_view.total_ticks, 0);
-        assert!(early_view.resources.is_empty());
-
-        assert!(ss.delete_source("docs-src").unwrap());
-        assert!(ss.get_source("docs-src").unwrap().is_none());
-    }
-}
+#[path = "store_tests.rs"]
+mod tests;

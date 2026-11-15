@@ -57,6 +57,7 @@ impl Engine for SyncMockEngine {
             let delta = SyncDelta {
                 source_id: source_id.to_string(),
                 tick_id: "tick-1000".to_string(),
+                tick_seq: 1,
                 started_at_ms: 950,
                 completed_at_ms: 1000,
                 coverage_status: "complete_within_scope".to_string(),
@@ -284,4 +285,89 @@ async fn graph_claims_and_history_as_of_endpoints_filter_correctly() {
     assert_eq!(status, StatusCode::OK, "claims failed: {claims}");
     assert_eq!(claims["total"], 1);
     assert_eq!(claims["claims"][0]["claim"]["subjectKey"], "sku:pro");
+}
+
+#[tokio::test]
+async fn max_requests_bounds_and_invalid_seed_parity_t08_c21_r02() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let store = Store::open(StoreConfig::new(dir.path())).expect("open store");
+    let app_cfg = Config {
+        store: Some(store.clone()),
+        ..Default::default()
+    };
+    let engine: Arc<dyn Engine> = Arc::new(SyncMockEngine {
+        store: store.clone(),
+    });
+    let app = router(engine, app_cfg);
+
+    // C21: 全部 Seed 均被 excludePaths 排除时，创建数据源必须明确返回 400 Invalid
+    let (status, bad_src) = send_json(
+        &app,
+        "POST",
+        "/v2/sources",
+        Some(json!({
+            "id": "bad-seed",
+            "seeds": ["https://example.com/private/secret"],
+            "excludePaths": ["/private/"]
+        })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "excluded seed must reject: {bad_src}"
+    );
+
+    let (status, created) = send_json(
+        &app,
+        "POST",
+        "/v2/sources",
+        Some(json!({
+            "id": "src-t08",
+            "seeds": ["https://example.com/"]
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "create failed: {created}");
+
+    // T08: maxRequests 边界统一校验（0 -> 400, 10/11/10000 -> 200, 10001 -> 400）
+    for (max_req, expected_status) in [
+        (0usize, StatusCode::BAD_REQUEST),
+        (10, StatusCode::OK),
+        (11, StatusCode::OK),
+        (pagesift_store::MAX_REQUESTS_PER_TICK_CAP, StatusCode::OK),
+        (
+            pagesift_store::MAX_REQUESTS_PER_TICK_CAP + 1,
+            StatusCode::BAD_REQUEST,
+        ),
+    ] {
+        let (st, body) = send_json(
+            &app,
+            "POST",
+            "/v2/sources/src-t08/sync",
+            Some(json!({ "maxRequests": max_req })),
+        )
+        .await;
+        assert_eq!(st, expected_status, "maxRequests={max_req} body={body}");
+    }
+
+    // R02: 旧修订号不得覆盖新修订号（CAS 冲突拒绝，upsert 单调递增不回退）
+    let ss = store.sync_for(Some(crate::types::ScrapeOptions::ANONYMOUS_OWNER));
+    let mut spec = ss.get_source("src-t08").unwrap().unwrap();
+    spec.name = Some("Updated".into());
+    let rev2 = ss.upsert_source(spec).unwrap();
+    assert!(rev2.revision >= 2);
+    let mut stale = rev2.clone();
+    stale.revision = 1;
+    let cas = ss.update_source_cas(stale.clone(), Some(1)).unwrap();
+    assert!(
+        matches!(cas, pagesift_store::SpecCasOutcome::Conflict { ref current } if current.revision == rev2.revision),
+        "expected Conflict at rev {}, got {cas:?}",
+        rev2.revision
+    );
+    let rev3 = ss.upsert_source(stale).unwrap();
+    assert!(
+        rev3.revision > rev2.revision,
+        "revision must stay monotonic: {rev3:?}"
+    );
 }

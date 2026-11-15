@@ -88,6 +88,14 @@ impl Default for GraphLimits {
     }
 }
 
+fn default_true() -> bool {
+    true
+}
+
+fn is_true(v: &bool) -> bool {
+    *v
+}
+
 /// Opt-in configuration for building cross-source DataGraph outputs.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -103,6 +111,9 @@ pub struct GraphOptions {
     #[serde(default)]
     pub subject_keys: Vec<String>,
     pub limits: GraphLimits,
+    /// When `false`, build slices and version diffs in-memory without persisting into `Store`.
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub persist: bool,
 }
 
 impl Default for GraphOptions {
@@ -118,6 +129,7 @@ impl Default for GraphOptions {
             conflicts: true,
             subject_keys: Vec::new(),
             limits: GraphLimits::default(),
+            persist: true,
         }
     }
 }
@@ -129,6 +141,13 @@ impl GraphOptions {
             enabled: true,
             ..Self::default()
         }
+    }
+
+    /// Return a copy that builds graph slices in-memory without mutating persistent `Store`.
+    pub fn as_attempt(&self) -> Self {
+        let mut copy = self.clone();
+        copy.persist = false;
+        copy
     }
 }
 

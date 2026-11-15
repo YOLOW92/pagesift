@@ -4,22 +4,22 @@ use std::collections::{BTreeMap, HashSet};
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 use crate::citation::{CitationEdge, aggregate_citations, extract_markdown_links};
-use crate::conflict::{ConflictRecord, detect_conflicts};
-use crate::corroborate::{
-    ClaimRecord, FactCluster, build_fact_clusters_with_lineage, resolve_subject_key,
-};
-use crate::delta::{DocumentInput, GraphStats, GraphSummary, PageGraphDelta};
+use crate::corroborate::{ClaimRecord, resolve_subject_key};
+use crate::delta::{DocumentInput, PageGraphDelta};
 use crate::evidence::align_traces;
 use crate::evidence_json::collect_all_traces;
 use crate::hash::{normalize_resource_key, normalize_url};
-use crate::independence::compute_source_lineage;
 use crate::lifecycle::{
-    ClaimLifecycleRecord, ClaimTransition, ObservationOutcome, reconcile_resource_claims,
+    ClaimLifecycleRecord, ClaimTransition, ObservationOutcome, outcome_for_scrape,
+    reconcile_resource_claims,
 };
 use crate::model::{BlockRef, DocNode, GraphOptions, build_indexed_blocks};
-use crate::provenance::{CanonicalCluster, ProvenanceEdge, build_provenance, cluster_canonicals};
+use crate::provenance::{ProvenanceEdge, build_provenance};
 use crate::temporal::TemporalSemantics;
 use crate::version::{VersionEdge, VersionRecord, link_version_pair};
+
+#[path = "builder_summary.rs"]
+mod builder_summary;
 
 /// Incrementally ingests scraped/parsed documents without retaining DOMs or full page text.
 pub struct StreamingGraphBuilder {
@@ -180,10 +180,7 @@ impl StreamingGraphBuilder {
             input.last_modified.as_deref(),
             &input.structured_json_ld,
         );
-        let has_rich_temporal = temporal.published_at_ms.is_some()
-            || temporal.modified_at_ms.is_some()
-            || temporal.valid_from.is_some()
-            || temporal.valid_until.is_some();
+        let has_rich_temporal = temporal.has_rich_metadata();
 
         let node = DocNode {
             doc_id: doc_id.clone(),
@@ -303,8 +300,14 @@ impl StreamingGraphBuilder {
                     trace,
                     span.clone(),
                 );
-                if has_rich_temporal {
-                    claim.temporal = Some(temporal.clone());
+                let claim_temporal = TemporalSemantics::for_claim(
+                    &temporal,
+                    &input.structured_json_ld,
+                    &trace.field_name,
+                    &trace.value,
+                );
+                if claim_temporal.has_rich_metadata() {
+                    claim.temporal = Some(claim_temporal);
                 }
                 if self.push_claim_bounded(&claim) {
                     page_claims.push(claim);
@@ -475,114 +478,14 @@ impl StreamingGraphBuilder {
             self.push_provenance_edge(edge);
         }
     }
-
-    /// Reconcile crawled status, corroborated fact clusters, and conflicts without cloning buffers.
-    pub fn into_summary(mut self) -> GraphSummary {
-        let summary = self.finalize();
-        self.crawled_resources = HashSet::new();
-        self.latest_versions = BTreeMap::new();
-        self.claim_bucket_counts = BTreeMap::new();
-        self.provenance_hashes = HashSet::new();
-        self.resource_claim_lifecycles = BTreeMap::new();
-        self.claims = Vec::new();
-        summary
-    }
-
-    /// Reconcile crawled status, corroborated fact clusters, and conflicts across all ingested documents.
-    pub fn finalize(&self) -> GraphSummary {
-        let citations: Vec<CitationEdge> = self
-            .citations
-            .iter()
-            .cloned()
-            .map(|mut edge| {
-                edge.crawled = self.crawled_resources.contains(&edge.to_resource_key);
-                edge
-            })
-            .collect();
-        let (canonical_clusters, fact_clusters, conflicts) = summarize_vectors(
-            &self.options,
-            &self.nodes,
-            &self.provenance,
-            &citations,
-            &self.claims,
-        );
-
-        GraphSummary {
-            stats: GraphStats {
-                nodes: self.nodes.len(),
-                blocks: self.total_blocks,
-                citations: citations.len(),
-                provenance_edges: self.provenance.len(),
-                version_edges: self.versions.len(),
-                evidence_spans: self.total_evidence,
-                claims: self.claims.len(),
-                fact_clusters: fact_clusters.len(),
-                conflicts: conflicts.len(),
-                canonical_clusters: canonical_clusters.len(),
-                truncated: self.truncated,
-                truncation_reasons: self.truncation_reasons.clone(),
-            },
-            nodes: self.nodes.clone(),
-            canonical_clusters,
-            citations,
-            provenance: self.provenance.clone(),
-            versions: self.versions.clone(),
-            fact_clusters,
-            conflicts,
-            claim_transitions: self.claim_transitions.clone(),
-        }
-    }
 }
 
 fn outcome_for_status(status_code: u16) -> ObservationOutcome {
-    match status_code {
-        304 => ObservationOutcome::NotModified304,
-        404 => ObservationOutcome::SuspectedGone {
-            status_code: Some(404),
-        },
-        410 => ObservationOutcome::ConfirmedGone {
-            reason: "HTTP 410 Gone".into(),
-        },
-        429 | 500..=599 => ObservationOutcome::TransientFetchError {
-            error: format!("HTTP {status_code}"),
-        },
-        _ => ObservationOutcome::VerifiedContent,
-    }
+    outcome_for_scrape(status_code, false, true, false, false, None)
 }
 
 fn provenance_hash(edge: &ProvenanceEdge) -> u64 {
     let mut hasher = DefaultHasher::new();
     edge.hash(&mut hasher);
     hasher.finish()
-}
-
-fn summarize_vectors(
-    options: &GraphOptions,
-    nodes: &[DocNode],
-    provenance: &[ProvenanceEdge],
-    citations: &[CitationEdge],
-    claims: &[ClaimRecord],
-) -> (Vec<CanonicalCluster>, Vec<FactCluster>, Vec<ConflictRecord>) {
-    let canonical_clusters = if options.provenance {
-        cluster_canonicals(provenance)
-    } else {
-        Vec::new()
-    };
-    let fact_clusters = if options.facts {
-        let lineage = compute_source_lineage(nodes, provenance);
-        build_fact_clusters_with_lineage(
-            claims,
-            options.limits.max_claims_per_bucket,
-            &lineage,
-            citations,
-        )
-    } else {
-        Vec::new()
-    };
-    let conflicts = if options.conflicts {
-        detect_conflicts(claims)
-    } else {
-        Vec::new()
-    };
-    (canonical_clusters, fact_clusters, conflicts)
 }

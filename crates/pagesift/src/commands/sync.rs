@@ -6,7 +6,9 @@ use std::process::ExitCode;
 use anyhow::{Context, Result, bail};
 use clap::Subcommand;
 use pagesift_api::Engine;
-use pagesift_api::sources::{CreateSourceRequest, build_source_spec, validate_source_id};
+use pagesift_api::sources::{
+    CreateSourceRequest, build_source_spec, validate_max_requests, validate_source_id,
+};
 use pagesift_store::{FreshnessPolicy, MAX_DELTAS_PER_SOURCE, Store, SyncBudget};
 
 use crate::{AllowCidrs, runtime};
@@ -191,14 +193,10 @@ pub(crate) fn run(action: SyncCommand, cfg: pagesift::config::Config) -> Result<
                 required_fields,
                 allow_browser: !no_browser,
             };
-            let mut spec = build_source_spec(req, None)
+            let spec = build_source_spec(req, None)
                 .map_err(|e| anyhow::anyhow!("{}: {}", e.code.as_str(), e.message))?;
             let st = open_sync_store(&cfg, store.as_deref())?;
-            let sync = st.sync();
-            if let Some(prev) = sync.get_source(&spec.id)? {
-                spec.created_at_ms = prev.created_at_ms;
-            }
-            sync.put_source(&spec)?;
+            let spec = st.sync().upsert_source(spec)?;
             if json {
                 println!("{}", serde_json::to_string_pretty(&spec)?);
             } else {
@@ -234,6 +232,8 @@ pub(crate) fn run(action: SyncCommand, cfg: pagesift::config::Config) -> Result<
             json,
         } => {
             let id = validate_source_id(&id)
+                .map_err(|e| anyhow::anyhow!("{}: {}", e.code.as_str(), e.message))?;
+            validate_max_requests(max_requests)
                 .map_err(|e| anyhow::anyhow!("{}: {}", e.code.as_str(), e.message))?;
             let st = open_sync_store(&cfg, store.as_deref())?;
             let delta = runtime()?.block_on(async move {

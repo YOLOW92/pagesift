@@ -67,7 +67,9 @@ test('sync source lifecycle and graph queries with persistent storePath', async 
     )
   } finally {
     await s.close()
-    rmSync(dir, { recursive: true, force: true })
+    try {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+    } catch {}
   }
 })
 

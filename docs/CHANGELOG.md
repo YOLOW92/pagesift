@@ -2,6 +2,10 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## 1.5.1
+
+Stability, correctness, and resource-lifecycle patch release for `1.5.x`: releases `pagesift-store` directory handles synchronously in Node.js `Scraper.close()` (fixing Windows `ENOTEMPTY` teardown errors), hardens strict temporal parsing, billing-period normalization, same-evidence independence clustering, whole-token/field-context evidence alignment, claim contract-ID inheritance across `reconcile_claims`, immutable interval-start claim timelines and `PREFIX_PROV` provenance timestamps, bounded-timeline `HistoryUnavailable` reporting, `AtomicTx` single-transaction sync-tick commits with CAS spec revisions, evicted monitor snapshot rejection, exact-origin scope/redirect gating, per-field capture sufficiency guards, validator-reset and 404/503 recovery rules, pauseable `TickBudgetLedger` caps, non-polluting `FamilyExperienceTable` updates, and uniform `maxRequests`/seed validation across HTTP `/v2/sources`, CLI, and MCP. [Release notes](releases/1.5.1.md).
+
 ## 1.5.0
 
 Introduces the **Loop** architecture integrating **Sync** (persistent `DataSourceSpec`, resource inventory lifecycle, bounded `SyncDelta`, `SourceStateView`, and monitor Markdown snapshot offloading), **Adapt** (persistent `FamilyExperienceTable`, falsifiable URL rewrite rules, evidence-driven `CaptureAssessment`, and explainable `AdaptDecision`), and **Evidence** (`TemporalSemantics`, `OriginRelation` independent roots, `ClaimLifecycleRecord` transitions, conflict temporal deduplication, and `asOf` point-in-time reconstruction). Exposed across HTTP (`/v2/sources`, `/v2/graph/claims`, `?asOf=`), CLI (`pagesift sync`, `pagesift graph inspect --as-of`), MCP (`pagesift_sync`, `pagesift_graph_query`), C ABI (`pagesift_sync`, `pagesift_graph_query`), Node.js (`Scraper.sync`, `Scraper.queryGraph`), and Python (`Scraper.sync`/`async_sync`, `Scraper.query_graph`/`aquery_graph`). [Release notes](releases/1.5.0.md).

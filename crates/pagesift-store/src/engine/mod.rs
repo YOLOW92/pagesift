@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fs::{self, File, OpenOptions};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::{Instant, SystemTime};
 
@@ -19,6 +19,10 @@ use crate::{
 mod segments;
 mod state;
 mod tx;
+mod tx_atomic;
+
+pub(crate) use tx::TxOps;
+pub(crate) use tx_atomic::AtomicTx;
 
 use segments::*;
 
@@ -122,6 +126,8 @@ pub(crate) struct Inner {
     last_error: Mutex<Option<String>>,
     /// 故障注入：为真时每次写入都失败（[`Store::fail_writes`]）。
     fail_writes: AtomicBool,
+    /// 故障注入：非负时允许成功写入的剩余次数，归零后拒绝后续写入（[`Store::set_fail_after_writes`]）。
+    fail_after_writes: AtomicI64,
     open: OpenReport,
     /// 持有期间其他进程打不开同一个目录；随存储一起释放。
     _lock: File,
@@ -260,6 +266,7 @@ impl Store {
             last_maint_garbage: AtomicU64::new(0),
             last_error: Mutex::new(None),
             fail_writes: AtomicBool::new(false),
+            fail_after_writes: AtomicI64::new(-1),
             open: report,
             _lock: lock,
         })))
@@ -393,9 +400,38 @@ impl Store {
     /// 读不受影响。
     #[doc(hidden)]
     pub fn fail_writes(&self, on: bool) {
-        self.0
-            .fail_writes
-            .store(on, std::sync::atomic::Ordering::Relaxed);
+        self.0.fail_writes.store(on, Ordering::Relaxed);
+    }
+
+    /// 故障注入（测试用）：允许后续 `Some(n)` 次写事务/段追加成功后触发 `StorageFull`；`None` 关闭计数注入。
+    #[doc(hidden)]
+    pub fn set_fail_after_writes(&self, n: Option<usize>) {
+        let val = n.map_or(-1, |v| i64::try_from(v).unwrap_or(i64::MAX));
+        self.0.fail_after_writes.store(val, Ordering::Relaxed);
+    }
+
+    pub(crate) fn should_fail_write(&self) -> bool {
+        if self.0.fail_writes.load(Ordering::Relaxed) {
+            return true;
+        }
+        let mut cur = self.0.fail_after_writes.load(Ordering::Relaxed);
+        loop {
+            if cur < 0 {
+                return false;
+            }
+            if cur == 0 {
+                return true;
+            }
+            match self.0.fail_after_writes.compare_exchange_weak(
+                cur,
+                cur - 1,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => return false,
+                Err(actual) => cur = actual,
+            }
+        }
     }
 
     /// 在 tokio 的阻塞线程池里调用存储，例如
@@ -429,60 +465,9 @@ impl Store {
     fn writer(&self) -> MutexGuard<'_, Writer> {
         lock(&self.0.writer)
     }
-
-    /// 拿到写锁，期间的读写对其他写者是原子的。
-    pub(crate) fn tx(&self) -> Tx<'_> {
-        Tx {
-            store: self,
-            w: self.writer(),
-        }
-    }
-
-    pub(crate) fn get(&self, ns: u8, key: &[u8]) -> Result<Option<(u64, Vec<u8>)>> {
-        let st = self.state_r();
-        let Some((loc, ts, value)) = st.get_full(ns, key)? else {
-            return Ok(None);
-        };
-        if evictable(ns) {
-            loc.touch(now_secs());
-        }
-        Ok(Some((ts, value)))
-    }
-
-    pub(crate) fn contains(&self, ns: u8, key: &[u8]) -> Result<bool> {
-        Ok(self.state_r().find(ns, key)?.is_some())
-    }
-
-    pub(crate) fn put(&self, ns: u8, key: &[u8], value: &[u8], ts_ms: u64) -> Result<bool> {
-        let r = self.tx().put(ns, key, value, ts_ms);
-        self.maybe_maintain();
-        r
-    }
-
-    pub(crate) fn delete(&self, ns: u8, key: &[u8]) -> Result<bool> {
-        let r = self.tx().delete(ns, key);
-        self.maybe_maintain();
-        r
-    }
-
-    /// 某个命名空间里满足条件的所有键（要逐条读盘，只用于低频操作）。
-    pub(crate) fn keys(&self, ns: u8, mut keep: impl FnMut(&[u8]) -> bool) -> Result<Vec<Vec<u8>>> {
-        let st = self.state_r();
-        let mut out = Vec::new();
-        for loc in st.index.iter().filter(|l| l.ns() == ns) {
-            let key = st.read_key(loc)?;
-            if keep(&key) {
-                out.push(key);
-            }
-        }
-        out.sort_unstable();
-        Ok(out)
-    }
-
-    pub(crate) fn group(&self, ns: u8, name: &[u8]) -> Option<Group> {
-        self.state_r().groups.get(&(ns, Box::from(name))).copied()
-    }
 }
+
+mod ops;
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(PoisonError::into_inner)

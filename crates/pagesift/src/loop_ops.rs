@@ -1,9 +1,9 @@
 //! Shared 1.5 Loop helpers for FFI, Node, and Python bindings.
 
 use pagesift_api::sources::{
-    CreateSourceRequest, DeleteSourceResponse, SourceDeltaResponse, SourceDeltasResponse,
-    SourceResponse, SourceStateResponse, SourcesListResponse, SyncTickResponse, build_source_spec,
-    validate_source_id,
+    CreateSourceRequest, DeleteSourceResponse, MAX_REQUESTS_PER_TICK_CAP, SourceDeltaResponse,
+    SourceDeltasResponse, SourceResponse, SourceStateResponse, SourcesListResponse,
+    SyncTickResponse, build_source_spec, validate_source_id,
 };
 use pagesift_api::types::{GraphClaimsResponse, GraphConflictsResponse, GraphHistoryResponse};
 use pagesift_api::{
@@ -121,7 +121,7 @@ pub async fn sync(scraper: &Scraper, request: Value) -> Result<Value, ApiError> 
             )?;
             let id = require_id(&args)?;
             let force_all = optional_bool(&args, "forceAll")?.unwrap_or(false);
-            let max_requests = optional_bound(&args, "maxRequests", 1, usize::MAX)?;
+            let max_requests = optional_bound(&args, "maxRequests", 1, MAX_REQUESTS_PER_TICK_CAP)?;
             let delta =
                 <Scraper as Engine>::sync_source(scraper, &id, None, force_all, max_requests)
                     .await?;
@@ -236,17 +236,9 @@ async fn sync_create(store: &Store, args: &mut Map<String, Value>) -> Result<Val
 
     let req: CreateSourceRequest = serde_json::from_value(Value::Object(std::mem::take(args)))
         .map_err(|e| ApiError::invalid(format!("invalid create source payload: {e}")))?;
-    let mut spec = build_source_spec(req, None)?;
-    let source_id = spec.id.clone();
+    let spec = build_source_spec(req, None)?;
     let saved = store
-        .blocking(move |st| {
-            let sync = st.sync();
-            if let Some(prev) = sync.get_source(&source_id)? {
-                spec.created_at_ms = prev.created_at_ms;
-            }
-            sync.put_source(&spec)?;
-            Ok::<_, pagesift_store::Error>(spec)
-        })
+        .blocking(move |st| st.sync().upsert_source(spec))
         .await
         .map_err(|e| internal("save source", e))?;
     to_json(SourceResponse {

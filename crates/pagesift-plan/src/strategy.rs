@@ -112,6 +112,7 @@ pub fn select_acquisition_strategy(
         && st.barrier_rate.trials() >= 4.0
         && st.barrier_rate.mean() >= 0.80
         && !input.is_hub_or_seed
+        && input.staleness_ratio < 3.0
     {
         reasons.push(format!(
             "family_high_barrier_rate={:.2}",
@@ -127,6 +128,14 @@ pub fn select_acquisition_strategy(
                 reasons,
             };
         }
+    }
+
+    if let Some(st) = stats
+        && st.barrier_rate.trials() >= 4.0
+        && st.barrier_rate.mean() >= 0.80
+        && input.staleness_ratio >= 3.0
+    {
+        reasons.push("high_barrier_staleness_exploration_probe".to_string());
     }
 
     if input.has_validators {
@@ -148,8 +157,12 @@ pub fn select_acquisition_strategy(
         };
     }
 
+    let learned_embedded_json =
+        stats.is_some_and(|st| st.embedded_json.trials() >= 2.0 && st.embedded_json.mean() >= 0.60);
+    let prefer_embedded_json = input.has_embedded_json_hint || learned_embedded_json;
+
     if let Some(st) = stats
-        && st.total_observations >= 3
+        && st.http_sufficient.trials() >= 3.0
     {
         let http_ok = st.http_sufficient.mean();
         let b_gain = st.browser_gain.mean();
@@ -167,8 +180,12 @@ pub fn select_acquisition_strategy(
         }
         if http_ok >= 0.80 {
             reasons.push(format!("family_http_sufficient_high={http_ok:.2}"));
-            let strat = if input.has_embedded_json_hint {
-                reasons.push("embedded_json_hint".to_string());
+            let strat = if prefer_embedded_json {
+                reasons.push(if input.has_embedded_json_hint {
+                    "embedded_json_hint".to_string()
+                } else {
+                    "learned_embedded_json_family".to_string()
+                });
                 AcquisitionStrategy::HttpWithEmbeddedJson
             } else {
                 AcquisitionStrategy::LightweightHttp
@@ -183,8 +200,12 @@ pub fn select_acquisition_strategy(
         }
     }
 
-    if input.has_embedded_json_hint {
-        reasons.push("embedded_json_hint".to_string());
+    if prefer_embedded_json {
+        reasons.push(if input.has_embedded_json_hint {
+            "embedded_json_hint".to_string()
+        } else {
+            "learned_embedded_json_family".to_string()
+        });
         return AdaptDecision {
             family: fam,
             strategy: AcquisitionStrategy::HttpWithEmbeddedJson,
@@ -237,10 +258,14 @@ impl Default for CaptureGoal {
 pub struct CaptureSignals {
     pub status_code: u16,
     pub not_modified_304: bool,
+    /// 仅在 `not_modified_304 == true` 时检查：已知权威 baseline 是否与当前任务契约一致且已满足质量门。
+    pub baseline_matches_contract: bool,
     pub markdown_chars: usize,
     pub has_embedded_json: bool,
     pub has_client_shell_markers: bool,
     pub extracted_fields_present: Vec<String>,
+    /// 经逐字段 `EvidenceSpan` 与字段值一致对齐的字段名集合。
+    pub grounded_fields_present: Vec<String>,
     pub grounded_evidence_count: usize,
     pub unaligned_claim_count: usize,
     pub outgoing_links_count: usize,
@@ -255,6 +280,8 @@ pub struct CaptureAssessment {
     pub needs_browser_escalation: bool,
     pub confidence: f64,
     pub missing_fields: Vec<String>,
+    #[serde(default)]
+    pub ungrounded_fields: Vec<String>,
     pub reasons: Vec<String>,
 }
 
@@ -264,12 +291,23 @@ pub fn evaluate_capture_sufficiency(
     signals: &CaptureSignals,
 ) -> CaptureAssessment {
     if signals.not_modified_304 {
+        if signals.baseline_matches_contract {
+            return CaptureAssessment {
+                sufficient: true,
+                needs_browser_escalation: false,
+                confidence: 1.0,
+                missing_fields: Vec::new(),
+                ungrounded_fields: Vec::new(),
+                reasons: vec!["http_304_not_modified".to_string()],
+            };
+        }
         return CaptureAssessment {
-            sufficient: true,
+            sufficient: false,
             needs_browser_escalation: false,
-            confidence: 1.0,
-            missing_fields: Vec::new(),
-            reasons: vec!["http_304_not_modified".to_string()],
+            confidence: 0.25,
+            missing_fields: goal.required_fields.clone(),
+            ungrounded_fields: Vec::new(),
+            reasons: vec!["http_304_baseline_contract_mismatch".to_string()],
         };
     }
 
@@ -279,16 +317,18 @@ pub fn evaluate_capture_sufficiency(
             needs_browser_escalation: false,
             confidence: 0.0,
             missing_fields: goal.required_fields.clone(),
+            ungrounded_fields: Vec::new(),
             reasons: vec!["barrier_detected".to_string()],
         };
     }
 
-    if signals.status_code >= 400 {
+    if signals.status_code >= 400 || signals.status_code == 0 {
         return CaptureAssessment {
             sufficient: false,
             needs_browser_escalation: false,
             confidence: 0.0,
             missing_fields: goal.required_fields.clone(),
+            ungrounded_fields: Vec::new(),
             reasons: vec![format!("http_error_status_{}", signals.status_code)],
         };
     }
@@ -308,8 +348,27 @@ pub fn evaluate_capture_sufficiency(
         ));
     }
 
+    let ungrounded_fields: Vec<String> = if goal.require_evidence_grounded {
+        goal.required_fields
+            .iter()
+            .filter(|req| {
+                signals.extracted_fields_present.iter().any(|p| p == *req)
+                    && !signals.grounded_fields_present.iter().any(|g| g == *req)
+            })
+            .cloned()
+            .collect()
+    } else {
+        Vec::new()
+    };
+
     if goal.require_evidence_grounded {
-        if signals.grounded_evidence_count == 0 && !goal.required_fields.is_empty() {
+        if !ungrounded_fields.is_empty() {
+            reasons.push(format!(
+                "ungrounded_required_fields={}",
+                ungrounded_fields.join(",")
+            ));
+        }
+        if signals.grounded_evidence_count == 0 {
             reasons.push("no_grounded_evidence_for_extracted_fields".to_string());
         }
         if signals.unaligned_claim_count > 0 {
@@ -336,8 +395,13 @@ pub fn evaluate_capture_sufficiency(
         reasons.push("client_shell_markers_detected".to_string());
     }
 
+    let grounding_ok = !goal.require_evidence_grounded
+        || (ungrounded_fields.is_empty()
+            && signals.unaligned_claim_count == 0
+            && signals.grounded_evidence_count > 0);
+
     let sufficient = missing_fields.is_empty()
-        && (!goal.require_evidence_grounded || signals.unaligned_claim_count == 0)
+        && grounding_ok
         && (!goal.expect_links_for_hub || signals.outgoing_links_count > 0)
         && !content_thin;
 
@@ -345,7 +409,9 @@ pub fn evaluate_capture_sufficiency(
         && (signals.has_client_shell_markers
             || content_thin
             || !missing_fields.is_empty()
-            || (goal.expect_links_for_hub && signals.outgoing_links_count == 0));
+            || !ungrounded_fields.is_empty()
+            || (goal.expect_links_for_hub && signals.outgoing_links_count == 0)
+            || !grounding_ok);
 
     let confidence = if sufficient {
         if signals.grounded_evidence_count > 0 || signals.has_embedded_json {
@@ -366,161 +432,18 @@ pub fn evaluate_capture_sufficiency(
         needs_browser_escalation,
         confidence,
         missing_fields,
+        ungrounded_fields,
         reasons,
     }
 }
 
 /// 同步周期或发现任务的覆盖完整性状态。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CoverageStatus {
-    /// 范围内所有已发现资源均已完成检查，未发生预算截断或访问受限。
-    CompleteWithinScope,
-    /// 已达到调用方设定的目标条目数或结构化声明目标。
-    TargetGoalSatisfied,
-    /// 因达到请求数、渲染数或时间预算上限而截断，队列中仍有待处理资源。
-    BudgetCapped,
-    /// 因 robots.txt、403/429 或反爬挑战导致部分或全部关键入口受限。
-    AccessRestricted,
-    /// 队列已处理完，但存在临时网络故障或待复核缺口。
-    PartialWithGaps,
-}
-
-/// 范围覆盖评估报告。
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CoverageReport {
-    pub status: CoverageStatus,
-    pub discovered_total: usize,
-    pub processed_total: usize,
-    pub deferred_count: usize,
-    pub transient_failures: usize,
-    pub access_restricted_count: usize,
-    pub reasons: Vec<String>,
-}
-
-/// 根据周期执行统计评估本次同步的覆盖完整性状态。
-pub fn evaluate_coverage_status(
-    discovered_total: usize,
-    processed_total: usize,
-    deferred_count: usize,
-    transient_failures: usize,
-    access_restricted_count: usize,
-    target_goal_reached: bool,
-    budget_exhausted: bool,
-) -> CoverageReport {
-    let mut reasons = Vec::new();
-    let status = if target_goal_reached {
-        reasons.push("target_goal_satisfied".to_string());
-        CoverageStatus::TargetGoalSatisfied
-    } else if budget_exhausted && deferred_count > 0 {
-        reasons.push(format!("budget_capped_with_{deferred_count}_deferred"));
-        CoverageStatus::BudgetCapped
-    } else if access_restricted_count > 0 && processed_total == 0 {
-        reasons.push(format!(
-            "access_restricted_on_{access_restricted_count}_resources"
-        ));
-        CoverageStatus::AccessRestricted
-    } else if transient_failures > 0 || access_restricted_count > 0 || deferred_count > 0 {
-        if transient_failures > 0 {
-            reasons.push(format!("transient_failures={transient_failures}"));
-        }
-        if access_restricted_count > 0 {
-            reasons.push(format!("access_restricted={access_restricted_count}"));
-        }
-        if deferred_count > 0 {
-            reasons.push(format!("deferred={deferred_count}"));
-        }
-        CoverageStatus::PartialWithGaps
-    } else {
-        reasons.push("all_in_scope_resources_verified".to_string());
-        CoverageStatus::CompleteWithinScope
-    };
-
-    CoverageReport {
-        status,
-        discovered_total,
-        processed_total,
-        deferred_count,
-        transient_failures,
-        access_restricted_count,
-        reasons,
-    }
-}
+#[path = "strategy_coverage.rs"]
+mod strategy_coverage;
+pub use strategy_coverage::{
+    CoverageInput, CoverageReport, CoverageStatus, evaluate_coverage_status,
+};
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::experience::FamilyObservation;
-
-    #[test]
-    fn strategy_prefers_conditional_http_when_validators_exist() {
-        let input = StrategyInput {
-            url: "https://example.com/pricing".to_string(),
-            has_validators: true,
-            has_embedded_json_hint: false,
-            is_hub_or_seed: false,
-            importance_weight: 1.0,
-            staleness_ratio: 1.2,
-            remaining_budget_fraction: 0.8,
-            allow_browser: true,
-        };
-        let dec = select_acquisition_strategy(&input, None);
-        assert_eq!(dec.strategy, AcquisitionStrategy::ConditionalHttp);
-    }
-
-    #[test]
-    fn strategy_escalates_to_direct_browser_when_family_learns_http_insufficient() {
-        let mut stats = FamilyStats::new("https://spa.example.com/app");
-        for i in 0..6 {
-            stats.observe(&FamilyObservation {
-                observed_at_ms: 1000 + i * 100,
-                http_sufficient: false,
-                browser_gain: Some(true),
-                conditional_hit: None,
-                substantive_change: None,
-                yielded_claims_or_links: true,
-                encountered_barrier: false,
-                cost_ms: 600.0,
-            });
-        }
-        let input = StrategyInput {
-            url: "https://spa.example.com/app/dashboard".to_string(),
-            has_validators: false,
-            has_embedded_json_hint: false,
-            is_hub_or_seed: false,
-            importance_weight: 1.0,
-            staleness_ratio: 1.0,
-            remaining_budget_fraction: 0.9,
-            allow_browser: true,
-        };
-        let dec = select_acquisition_strategy(&input, Some(&stats));
-        assert_eq!(dec.strategy, AcquisitionStrategy::DirectBrowser);
-    }
-
-    #[test]
-    fn capture_sufficiency_checks_fields_and_evidence() {
-        let goal = CaptureGoal {
-            min_markdown_chars: 50,
-            required_fields: vec!["price".to_string(), "sku".to_string()],
-            require_evidence_grounded: true,
-            expect_links_for_hub: false,
-        };
-        let incomplete = CaptureSignals {
-            status_code: 200,
-            not_modified_304: false,
-            markdown_chars: 120,
-            has_embedded_json: false,
-            has_client_shell_markers: true,
-            extracted_fields_present: vec!["price".to_string()],
-            grounded_evidence_count: 1,
-            unaligned_claim_count: 0,
-            outgoing_links_count: 2,
-            is_barrier: false,
-        };
-        let res = evaluate_capture_sufficiency(&goal, &incomplete);
-        assert!(!res.sufficient);
-        assert!(res.needs_browser_escalation);
-        assert_eq!(res.missing_fields, vec!["sku".to_string()]);
-    }
-}
+#[path = "strategy_tests.rs"]
+mod tests;

@@ -40,6 +40,9 @@ pub enum ExtractionMethod {
     OpenGraph {
         property: String,
     },
+    HydrationJson {
+        script_id: String,
+    },
     Agent {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         cited_evidence_ids: Vec<String>,
@@ -50,7 +53,10 @@ impl ExtractionMethod {
     pub fn is_metadata_island(&self) -> bool {
         matches!(
             self,
-            Self::JsonLd { .. } | Self::Microdata { .. } | Self::OpenGraph { .. }
+            Self::JsonLd { .. }
+                | Self::Microdata { .. }
+                | Self::OpenGraph { .. }
+                | Self::HydrationJson { .. }
         )
     }
 }

@@ -41,17 +41,20 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 pub use cache::{Cache, CacheEntry, CacheLookup, CachePolicy};
 pub use engine::Store;
 pub use graph::{
-    DEFAULT_GRAPH_CLAIMS_LIMIT, DEFAULT_GRAPH_CONFLICTS_LIMIT, DEFAULT_GRAPH_DELTAS_LIMIT,
-    DEFAULT_GRAPH_HISTORY_LIMIT, GraphHistoryResult, GraphStore, LoadedVersionSnapshot,
-    VersionCommitOutcome, VersionCommitRequest,
+    AsOfClaimsResult, DEFAULT_GRAPH_CLAIMS_LIMIT, DEFAULT_GRAPH_CONFLICTS_LIMIT,
+    DEFAULT_GRAPH_DELTAS_LIMIT, DEFAULT_GRAPH_HISTORY_LIMIT, GraphHistoryResult, GraphStore,
+    LoadedVersionSnapshot, PreparedVersionBundle, StoredProvenance, VersionBundleOutcome,
+    VersionBundleRequest, VersionCommitOutcome, VersionCommitRequest,
 };
 pub use items::Items;
 pub use selectors::{SelectorEntry, Selectors};
 pub use snapshot::{ContentHash, SnapshotMeta, SnapshotPut, Snapshots};
 pub use sync::{
-    DataSourceSpec, FreshnessPolicy, MAX_DELTAS_PER_SOURCE, ResourceChangeEntry,
-    ResourceLifecycleState, ResourceRecord, ResourceRole, SourceStateView, SyncBudget, SyncDelta,
-    SyncStore, SyncTickStats, now_store_ms,
+    DataSourceSpec, FreshnessPolicy, MAX_CHECKPOINTS_PER_SOURCE, MAX_DELTAS_PER_SOURCE,
+    MAX_REQUESTS_PER_TICK_CAP, ResourceChangeEntry, ResourceLifecycleState, ResourceRecord,
+    ResourceRole, SourceMeta, SourceSpecRevision, SourceStateCheckpoint, SourceStateView,
+    SpecCasOutcome, SyncBudget, SyncDelta, SyncStore, SyncTickStats, TickCommitOutcome,
+    TickCommitRequest, now_store_ms,
 };
 pub use tasks::Tasks;
 pub use warc::{

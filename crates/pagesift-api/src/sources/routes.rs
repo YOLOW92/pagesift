@@ -42,18 +42,10 @@ async fn create_source(
 ) -> Result<Json<SourceResponse>, ApiError> {
     let store = require_store(&s)?;
     let tenant = caller_graph_tenant(caller.as_ref().map(|Extension(c)| c), &headers);
-    let mut spec = build_source_spec(req, None)?;
-    let source_id = spec.id.clone();
+    let spec = build_source_spec(req, None)?;
 
     let saved = store
-        .blocking(move |st| {
-            let sync = st.sync_for(Some(&tenant));
-            if let Some(prev) = sync.get_source(&source_id)? {
-                spec.created_at_ms = prev.created_at_ms;
-            }
-            sync.put_source(&spec)?;
-            Ok::<_, pagesift_store::Error>(spec)
-        })
+        .blocking(move |st| st.sync_for(Some(&tenant)).upsert_source(spec))
         .await
         .map_err(|e| ApiError::new(ErrorCode::Internal, format!("save source failed: {e}")))?;
 
@@ -149,9 +141,7 @@ async fn trigger_sync(
         serde_json::from_slice(&body)
             .map_err(|e| ApiError::invalid(format!("invalid sync trigger payload: {e}")))?
     };
-    if let Some(0) = req.max_requests {
-        return Err(ApiError::invalid("maxRequests must be >= 1"));
-    }
+    super::validate_max_requests(req.max_requests)?;
 
     let tenant = caller_graph_tenant(caller.as_ref().map(|Extension(c)| c), &headers);
     let delta = s

@@ -20,12 +20,35 @@ pub struct CapturedMember {
     pub raw_html: Option<String>,
 }
 
-/// Extract evidence traces from HTML metadata islands (JSON-LD, Microdata, OpenGraph).
+/// Extract evidence traces from HTML metadata islands (JSON-LD, Microdata, OpenGraph) and hydration JSON.
 pub fn collect_structured_html_traces(html: &str, url: Option<&str>) -> Vec<RawFieldTrace> {
     if html.is_empty() {
         return Vec::new();
     }
-    extract_structured_with_evidence(html, url).traces
+    let mut traces = extract_structured_with_evidence(html, url).traces;
+    if html.contains("__NEXT_DATA__") || html.contains("__NUXT_DATA__") {
+        let dom = pagesift_html::Html::parse(html);
+        if let Ok(sel) =
+            pagesift_html::Selector::parse("script#__NEXT_DATA__, script#__NUXT_DATA__")
+        {
+            for el in dom.select(&sel) {
+                let script_id = el
+                    .as_element()
+                    .and_then(|e| e.attr("id"))
+                    .unwrap_or("hydration")
+                    .to_string();
+                let raw = el.text();
+                let trimmed = raw.trim();
+                if !trimmed.is_empty()
+                    && let Ok(val) = serde_json::from_str::<Value>(trimmed)
+                {
+                    let method = ExtractionMethod::HydrationJson { script_id };
+                    collect_json_traces(&val, "", &method, false, url, &mut traces);
+                }
+            }
+        }
+    }
+    traces
 }
 
 /// Parse raw JSON text into recursive field traces.

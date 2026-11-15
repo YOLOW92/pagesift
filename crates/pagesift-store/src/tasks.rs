@@ -5,7 +5,7 @@
 
 use std::time::SystemTime;
 
-use crate::engine::{Tx, group_key, ns};
+use crate::engine::{Tx, TxOps, group_key, ns};
 use crate::{Result, Store, to_ms};
 
 pub struct Tasks<'a> {
@@ -227,7 +227,13 @@ fn now_ms() -> u64 {
     to_ms(SystemTime::now())
 }
 
-pub(crate) fn list_push(tx: &mut Tx<'_>, n: u8, list: &[u8], item: &[u8], ts: u64) -> Result<u64> {
+pub(crate) fn list_push<T: TxOps + ?Sized>(
+    tx: &mut T,
+    n: u8,
+    list: &[u8],
+    item: &[u8],
+    ts: u64,
+) -> Result<u64> {
     let seq = tx.group(n, list).map_or(0, |g| g.next);
     tx.put(n, &group_key(list, &seq.to_be_bytes())?, item, ts)?;
     Ok(seq)

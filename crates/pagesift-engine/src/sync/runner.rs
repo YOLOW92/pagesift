@@ -1,86 +1,43 @@
 //! 持续数据同步 5 步闭环执行器（Sync → Adapt → Capture → Evidence → Feedback）。
 
-use std::collections::BTreeMap;
-use std::time::Instant;
+use std::collections::{BTreeMap, BTreeSet};
 
-use pagesift_api::types::{Format, ScrapeOptions};
 use pagesift_api::{ApiError, ErrorCode};
-use pagesift_graph::{ClaimStatus, GraphOptions, detect_conflicts};
 use pagesift_net::Url;
 use pagesift_plan::experience::FamilyExperienceTable;
-use pagesift_plan::strategy::{
-    AcquisitionStrategy, CaptureGoal, CaptureSignals, evaluate_capture_sufficiency,
-    evaluate_coverage_status,
-};
+use pagesift_plan::strategy::{AcquisitionStrategy, CaptureGoal};
 use pagesift_store::{
-    DataSourceSpec, ResourceLifecycleState, ResourceRecord, SyncDelta, SyncTickStats,
+    MAX_REQUESTS_PER_TICK_CAP, ResourceLifecycleState, ResourceRecord, SyncDelta, SyncTickStats,
 };
+use tokio::time::Instant;
 
 use crate::engine::Scraper;
 use crate::graph::now_ms;
+use crate::graph::stage::with_graph_stage;
 
-use super::inventory::ensure_seeds_in_inventory;
-use super::reconcile::reconcile_candidate_success;
-use super::scheduler::{compute_next_due_at_ms, select_tick_candidates};
+use super::budget::TickBudgetLedger;
+use super::capture::{
+    assess_document_capture, build_seeded_learner, is_barrier_doc, maybe_falsify_rewritten_rules,
+    should_adopt_browser_escalation,
+};
+use super::inventory::{
+    ensure_seeds_in_inventory, normalize_in_scope_url, prune_out_of_scope_inventory,
+};
+use super::reconcile::{reconcile_candidate_failure, reconcile_candidate_success};
+use super::scheduler::select_tick_candidates;
 
 /// 触发一次同步周期的运行选项。
 #[derive(Debug, Clone, Default)]
 pub struct SyncRunOptions {
     pub tenant: Option<String>,
-    /// 是否忽略 `next_due_at_ms` 强制检查所有未失联资源。
+    /// 是否忽略 `next_due_at_ms` 强制检查所有活跃资源。
     pub force_all: bool,
     pub max_requests_override: Option<usize>,
 }
 
-fn build_scrape_options_for_strategy(
-    spec: &DataSourceSpec,
-    rec: &ResourceRecord,
-    strategy: AcquisitionStrategy,
-    tenant: Option<&str>,
-) -> ScrapeOptions {
-    let mut formats = vec![Format::new("markdown"), Format::new("links")];
-    if spec.extract_schema.is_some() || spec.extract_prompt.is_some() {
-        let mut fmt = Format::new("json");
-        if let Some(ref schema) = spec.extract_schema {
-            fmt.options.insert("schema".to_string(), schema.clone());
-        }
-        if let Some(ref prompt) = spec.extract_prompt {
-            fmt.options.insert(
-                "prompt".to_string(),
-                serde_json::Value::String(prompt.clone()),
-            );
-        }
-        formats.push(fmt);
-    }
-
-    let engine = match strategy {
-        AcquisitionStrategy::DirectBrowser => Some("browser".to_string()),
-        AcquisitionStrategy::ConditionalHttp
-        | AcquisitionStrategy::LightweightHttp
-        | AcquisitionStrategy::HttpWithEmbeddedJson
-        | AcquisitionStrategy::HttpVerifyBrowser
-        | AcquisitionStrategy::DeferOrSkip => Some("http".to_string()),
-    };
-
-    let (if_none_match, if_modified_since) = if strategy == AcquisitionStrategy::ConditionalHttp {
-        (rec.etag.clone(), rec.last_modified.clone())
-    } else {
-        (None, None)
-    };
-
-    ScrapeOptions {
-        formats,
-        engine,
-        max_age: Some(0),
-        store_in_cache: true,
-        store_snapshot: true,
-        if_none_match,
-        if_modified_since,
-        owner: tenant.map(str::to_string),
-        graph: Some(GraphOptions::enabled()),
-        ..Default::default()
-    }
-}
+#[path = "runner_commit.rs"]
+mod commit;
+use commit::{TickCommitInputs, build_scrape_options_for_strategy, finalize_and_commit_sync_tick};
 
 impl Scraper {
     /// 执行指定数据源的一次完整 1.5 Loop 闭环同步周期（Tick）。
@@ -95,6 +52,10 @@ impl Scraper {
             ));
         };
         let tenant = run_opts.tenant.as_deref();
+        // C05: 单数据源单飞互斥锁，防止并发触发互相覆盖库存与 Delta
+        let source_lock = self.sync_source_lock(tenant, source_id);
+        let _source_guard = source_lock.lock().await;
+
         let sync_store = store.sync_for(tenant);
         let graph_store = store.graph_for(tenant);
 
@@ -110,14 +71,32 @@ impl Scraper {
                 format!("data source '{source_id}' not found"),
             ));
         };
+        let expected_spec_revision = spec.revision;
 
         if let Some(max_req) = run_opts.max_requests_override {
-            spec.budget.max_requests_per_tick = max_req.max(1);
+            if max_req == 0 || max_req > MAX_REQUESTS_PER_TICK_CAP {
+                return Err(ApiError::invalid(format!(
+                    "maxRequests must be between 1 and {MAX_REQUESTS_PER_TICK_CAP}"
+                )));
+            }
+            spec.budget.max_requests_per_tick = max_req;
+        }
+        spec.budget.max_requests_per_tick = spec
+            .budget
+            .max_requests_per_tick
+            .clamp(1, MAX_REQUESTS_PER_TICK_CAP);
+
+        if spec.extract_prompt.is_some() && self.llm_client().is_none() {
+            return Err(ApiError::unsupported(
+                "extract_prompt requires an LLM: set [llm] in pagesift.toml",
+            ));
         }
 
         let started_at_ms = now_ms();
-        let start_inst = Instant::now();
+        let wall_start = Instant::now();
         let tick_id = format!("tick-{started_at_ms}");
+        let contract_id = spec.contract_id();
+        let has_llm = self.llm_client().is_some();
 
         let existing_inv = sync_store.get_inventory(source_id).map_err(|e| {
             ApiError::new(
@@ -129,46 +108,40 @@ impl Scraper {
             .into_iter()
             .map(|r| (r.resource_key.clone(), r))
             .collect();
+        prune_out_of_scope_inventory(&spec, &mut inventory);
         ensure_seeds_in_inventory(&spec, &mut inventory, started_at_ms);
 
         let experience = FamilyExperienceTable::new();
         if let Ok(Some(exp_bytes)) = sync_store.get_experience_bytes(source_id) {
             let _ = experience.decode_merge_json(&exp_bytes);
         }
+        let mut learner = build_seeded_learner(&inventory, &experience);
 
-        let inv_vec: Vec<ResourceRecord> = inventory.values().cloned().collect();
-        let (candidates, mut deferred_count, candidates_due) = select_tick_candidates(
-            &spec,
-            &inv_vec,
-            &experience,
-            started_at_ms,
-            run_opts.force_all,
-        );
-
+        let mut ledger = TickBudgetLedger::new(&spec.budget);
         let mut stats = SyncTickStats {
             discovered_total: inventory.len(),
-            candidates_due,
             ..Default::default()
         };
         let mut added_resources = Vec::new();
         let mut modified_resources = Vec::new();
         let mut migrated_resources = Vec::new();
         let mut disappeared_resources = Vec::new();
-        let mut claim_transitions = Vec::new();
         let mut adapt_decisions = Vec::new();
-        let mut budget_exhausted = deferred_count > 0;
+        let mut prepared_bundles = Vec::new();
+        let mut active_subjects: BTreeSet<String> = BTreeSet::new();
+        let mut visited_keys: BTreeSet<String> = BTreeSet::new();
+        let mut budget_exhausted = false;
+        let mut early_stopped_reasons = Vec::new();
 
         let capture_goal = CaptureGoal {
-            min_markdown_chars: 48,
+            min_markdown_chars: 32,
             required_fields: spec.required_fields.clone(),
             require_evidence_grounded: !spec.required_fields.is_empty(),
             expect_links_for_hub: false,
         };
 
-        for (idx, cand) in candidates.iter().enumerate() {
-            if start_inst.elapsed().as_millis() as u64 >= spec.budget.max_wall_clock_ms {
-                deferred_count += candidates.len().saturating_sub(idx);
-                budget_exhausted = true;
+        loop {
+            if ledger.is_expired() || ledger.requests_used >= ledger.max_requests {
                 break;
             }
             if let Some(target_items) = spec.budget.target_items {
@@ -176,242 +149,306 @@ impl Scraper {
                     .values()
                     .filter(|r| r.state == ResourceLifecycleState::Active)
                     .count();
-                if active_count >= target_items && idx > 0 {
+                if active_count >= target_items && stats.attempted_total > 0 {
+                    early_stopped_reasons.push(format!(
+                        "stopped early after reaching targetItems={target_items}"
+                    ));
                     break;
                 }
             }
 
-            let rec_key = cand.record.resource_key.clone();
-            let prev_state = inventory.get(&rec_key).map(|r| r.state);
-            let prev_doc_id = inventory
-                .get(&rec_key)
-                .and_then(|r| r.latest_doc_id.clone());
+            let unvisited_vec: Vec<ResourceRecord> = inventory
+                .values()
+                .filter(|r| !visited_keys.contains(&r.resource_key))
+                .cloned()
+                .collect();
+            if unvisited_vec.is_empty() {
+                break;
+            }
+            let mut wave_spec = spec.clone();
+            wave_spec.budget.max_requests_per_tick = ledger
+                .max_requests
+                .saturating_sub(ledger.requests_used)
+                .clamp(1, MAX_REQUESTS_PER_TICK_CAP);
+            let wave_now_ms = now_ms().max(started_at_ms);
+            let (candidates, _, wave_due) = select_tick_candidates(
+                &wave_spec,
+                &unvisited_vec,
+                &experience,
+                wave_now_ms,
+                run_opts.force_all,
+            );
+            if stats.candidates_due == 0 {
+                stats.candidates_due = wave_due;
+            }
+            if candidates.is_empty() {
+                break;
+            }
 
-            let mut fetch_url = cand.record.url.clone();
-            let mut applied_rules = Vec::new();
-            if let Ok(mut parsed_u) = Url::parse(&fetch_url) {
-                applied_rules = experience.rewrite_url(&mut parsed_u);
-                if !applied_rules.is_empty() {
-                    fetch_url = parsed_u.to_string();
+            for cand in candidates {
+                if ledger.is_expired() {
+                    budget_exhausted = true;
+                    break;
                 }
-            }
+                if let Some(target_items) = spec.budget.target_items {
+                    let active_count = inventory
+                        .values()
+                        .filter(|r| r.state == ResourceLifecycleState::Active)
+                        .count();
+                    if active_count >= target_items && stats.attempted_total > 0 {
+                        early_stopped_reasons.push(format!(
+                            "stopped early after reaching targetItems={target_items}"
+                        ));
+                        break;
+                    }
+                }
 
-            let mut strategy_used = cand.decision.strategy;
-            if strategy_used == AcquisitionStrategy::DirectBrowser
-                && stats.browser_renders_used >= spec.budget.max_browser_renders_per_tick
-            {
-                strategy_used = AcquisitionStrategy::LightweightHttp;
-            }
+                let mut executed_strategy = cand.decision.strategy;
+                if executed_strategy == AcquisitionStrategy::DirectBrowser
+                    && !ledger.can_afford_browser()
+                {
+                    executed_strategy = AcquisitionStrategy::LightweightHttp;
+                }
+                if executed_strategy == AcquisitionStrategy::ConditionalHttp
+                    && (cand.record.last_validator_contract_id.as_deref()
+                        != Some(contract_id.as_str())
+                        || !cand.record.baseline_sufficient)
+                {
+                    executed_strategy = AcquisitionStrategy::LightweightHttp;
+                }
 
-            let mut scrape_opts =
-                build_scrape_options_for_strategy(&spec, &cand.record, strategy_used, tenant);
-            let step_start = Instant::now();
-            let mut scrape_res = self.scrape(&fetch_url, &scrape_opts).await;
-            stats.requests_executed += 1;
-            if strategy_used == AcquisitionStrategy::DirectBrowser {
-                stats.browser_renders_used += 1;
-            }
+                if !ledger.try_reserve(executed_strategy == AcquisitionStrategy::DirectBrowser) {
+                    budget_exhausted = true;
+                    break;
+                }
+                visited_keys.insert(cand.record.resource_key.clone());
+                stats.attempted_total += 1;
 
-            if !applied_rules.is_empty() {
-                let bad_rewrite = match &scrape_res {
-                    Ok(doc) => doc.metadata.status_code >= 400,
-                    Err(_) => true,
-                };
-                if bad_rewrite {
-                    if let Ok(u) = Url::parse(&cand.record.url)
-                        && let Some(host) = u.host_str()
-                    {
-                        let t = now_ms();
-                        for r in &applied_rules {
-                            experience.falsify_url_rule(host, r, t);
+                let cand = &cand;
+
+                let rec_key = cand.record.resource_key.clone();
+                if let Ok(prev_claims) = graph_store.get_resource_claims(&rec_key) {
+                    for c in prev_claims {
+                        active_subjects.insert(c.claim.subject_key);
+                    }
+                }
+                let prev_state = inventory.get(&rec_key).map(|r| r.state);
+                let prev_doc_id = inventory
+                    .get(&rec_key)
+                    .and_then(|r| r.latest_doc_id.clone());
+
+                let mut fetch_url = cand.record.url.clone();
+                let mut applied_rules = Vec::new();
+                if let Ok(mut parsed_u) = Url::parse(&fetch_url) {
+                    applied_rules = experience.rewrite_url(&mut parsed_u);
+                    if !applied_rules.is_empty() {
+                        let cand_rewritten = parsed_u.to_string();
+                        if normalize_in_scope_url(&spec, &cand_rewritten).is_some() {
+                            fetch_url = cand_rewritten;
+                        } else {
+                            // URL 重写越出 Scope 时立即废止改写，保留合法原 URL（C21）
+                            if let Ok(orig_u) = Url::parse(&cand.record.url)
+                                && let Some(h) = orig_u.host_str()
+                            {
+                                for r in &applied_rules {
+                                    experience.falsify_url_rule(h, r, now_ms());
+                                }
+                            }
+                            applied_rules.clear();
                         }
                     }
-                    fetch_url = cand.record.url.clone();
-                    scrape_res = self.scrape(&fetch_url, &scrape_opts).await;
-                    stats.requests_executed += 1;
                 }
-            }
 
-            let mut browser_gain_obs = None;
-            if strategy_used == AcquisitionStrategy::HttpVerifyBrowser
-                && let Ok(ref http_doc) = scrape_res
-            {
-                let mut goal_for_rec = capture_goal.clone();
-                goal_for_rec.expect_links_for_hub = cand.record.role.is_hub_like();
-                let md_chars = http_doc.markdown.as_deref().map_or(0, str::len);
-                let not_mod = http_doc
-                    .metadata
-                    .pagesift
-                    .as_ref()
-                    .is_some_and(|p| p.not_modified);
-                let extracted_keys: Vec<String> = http_doc
-                    .extract
-                    .as_ref()
-                    .and_then(|v| v.as_object())
-                    .map(|m| m.keys().cloned().collect())
-                    .unwrap_or_default();
-                let grounded_count = http_doc.graph.as_ref().map_or(0, |g| g.evidence.len());
-                let assessment = evaluate_capture_sufficiency(
-                    &goal_for_rec,
-                    &CaptureSignals {
-                        status_code: http_doc.metadata.status_code,
-                        not_modified_304: not_mod,
-                        markdown_chars: md_chars,
-                        has_embedded_json: grounded_count > 0,
-                        has_client_shell_markers: md_chars < 48,
-                        extracted_fields_present: extracted_keys,
-                        grounded_evidence_count: grounded_count,
-                        unaligned_claim_count: 0,
-                        outgoing_links_count: http_doc.links.as_ref().map_or(0, Vec::len),
-                        is_barrier: matches!(http_doc.metadata.status_code, 403 | 429),
-                    },
+                let mut scrape_opts = build_scrape_options_for_strategy(
+                    &spec,
+                    &cand.record,
+                    executed_strategy,
+                    tenant,
+                    &contract_id,
+                    has_llm,
                 );
-                if assessment.needs_browser_escalation
-                    && stats.browser_renders_used < spec.budget.max_browser_renders_per_tick
+                scrape_opts.timeout = Some(ledger.remaining_ms().max(1));
+
+                let step_start = Instant::now();
+                let (mut scrape_res, mut staged_map) =
+                    with_graph_stage(ledger.run_bounded(self.scrape(&fetch_url, &scrape_opts)))
+                        .await;
+
+                // URL 重写命中 4xx/5xx/拦截或内容背离时，受预算约束撤销规则并回退原 URL（C09 / R04）
+                if maybe_falsify_rewritten_rules(
+                    &mut learner,
+                    &experience,
+                    &cand.record.url,
+                    &applied_rules,
+                    scrape_res.as_ref(),
+                    &cand.record,
+                    now_ms(),
+                ) {
+                    if ledger.try_reserve(executed_strategy == AcquisitionStrategy::DirectBrowser) {
+                        scrape_opts.timeout = Some(ledger.remaining_ms().max(1));
+                        let (retry_res, retry_staged) = with_graph_stage(
+                            ledger.run_bounded(self.scrape(&cand.record.url, &scrape_opts)),
+                        )
+                        .await;
+                        scrape_res = retry_res;
+                        staged_map = retry_staged;
+                        fetch_url = cand.record.url.clone();
+                    } else {
+                        budget_exhausted = true;
+                    }
+                }
+
+                let mut http_assessment = None;
+                let mut browser_gain_obs = None;
+                let mut browser_attempted = executed_strategy == AcquisitionStrategy::DirectBrowser;
+
+                if executed_strategy != AcquisitionStrategy::DirectBrowser
+                    && let Ok(ref http_doc) = scrape_res
                 {
-                    let http_claims = http_doc.graph.as_ref().map_or(0, |g| g.claims.len());
-                    scrape_opts.engine = Some("browser".to_string());
-                    scrape_opts.if_none_match = None;
-                    scrape_opts.if_modified_since = None;
-                    if let Ok(b_doc) = self.scrape(&fetch_url, &scrape_opts).await {
-                        stats.requests_executed += 1;
-                        stats.browser_renders_used += 1;
-                        let b_chars = b_doc.markdown.as_deref().map_or(0, str::len);
-                        let b_claims = b_doc.graph.as_ref().map_or(0, |g| g.claims.len());
-                        browser_gain_obs = Some(b_chars > md_chars + 32 || b_claims > http_claims);
-                        scrape_res = Ok(b_doc);
+                    let h_assess =
+                        assess_document_capture(&spec, &cand.record, http_doc, &capture_goal);
+                    let should_try_browser = spec.allow_browser
+                        && !is_barrier_doc(http_doc)
+                        && http_doc.metadata.status_code < 400
+                        && (!h_assess.sufficient || h_assess.needs_browser_escalation);
+                    if should_try_browser {
+                        if ledger.try_reserve(true) {
+                            browser_attempted = true;
+                            let mut b_opts = scrape_opts.clone();
+                            b_opts.engine = Some("browser".to_string());
+                            b_opts.if_none_match = None;
+                            b_opts.if_modified_since = None;
+                            b_opts.timeout = Some(ledger.remaining_ms().max(1));
+                            let (b_res, mut b_staged) = with_graph_stage(
+                                ledger.run_bounded(self.scrape(&fetch_url, &b_opts)),
+                            )
+                            .await;
+                            match b_res {
+                                Ok(b_doc) => {
+                                    let b_assess = assess_document_capture(
+                                        &spec,
+                                        &cand.record,
+                                        &b_doc,
+                                        &capture_goal,
+                                    );
+                                    let (adopt, gained) = should_adopt_browser_escalation(
+                                        http_doc, &h_assess, &b_doc, &b_assess,
+                                    );
+                                    browser_gain_obs = Some(gained);
+                                    if adopt {
+                                        executed_strategy = AcquisitionStrategy::HttpVerifyBrowser;
+                                        scrape_res = Ok(b_doc);
+                                        staged_map.extend(b_staged.drain());
+                                    }
+                                }
+                                Err(_) => {
+                                    browser_gain_obs = Some(false);
+                                }
+                            }
+                        } else {
+                            budget_exhausted = true;
+                        }
+                    }
+                    http_assessment = Some(h_assess);
+                }
+
+                let step_cost_ms = step_start.elapsed().as_millis() as f64;
+                let obs_time_ms = now_ms();
+                let mut recorded_dec = cand.decision.clone();
+                recorded_dec.strategy = executed_strategy;
+                if let Ok(serde_dec) = serde_json::to_value(&recorded_dec) {
+                    adapt_decisions.push(serde_dec);
+                }
+
+                match scrape_res {
+                    Ok(doc) => {
+                        let final_assessment =
+                            assess_document_capture(&spec, &cand.record, &doc, &capture_goal);
+                        let staged = doc
+                            .graph
+                            .as_ref()
+                            .and_then(|g| staged_map.remove(&g.doc_id));
+                        if let Some(g) = doc.graph.as_ref() {
+                            active_subjects.insert(g.subject_key.key.clone());
+                            for c in &g.claims {
+                                active_subjects.insert(c.subject_key.clone());
+                            }
+                        }
+                        reconcile_candidate_success(
+                            &spec,
+                            cand,
+                            &doc,
+                            staged,
+                            executed_strategy,
+                            http_assessment.as_ref(),
+                            &final_assessment,
+                            browser_gain_obs,
+                            step_cost_ms,
+                            obs_time_ms,
+                            prev_state,
+                            prev_doc_id,
+                            &mut inventory,
+                            &experience,
+                            &mut learner,
+                            &graph_store,
+                            &mut prepared_bundles,
+                            &mut stats,
+                            &mut added_resources,
+                            &mut modified_resources,
+                            &mut migrated_resources,
+                            &mut disappeared_resources,
+                        )?;
+                    }
+                    Err(e) => {
+                        reconcile_candidate_failure(
+                            &spec,
+                            cand,
+                            executed_strategy,
+                            browser_attempted,
+                            step_cost_ms,
+                            obs_time_ms,
+                            &e.message,
+                            &mut inventory,
+                            &experience,
+                            &graph_store,
+                            &mut prepared_bundles,
+                            &mut stats,
+                        )?;
                     }
                 }
             }
-
-            let step_cost_ms = step_start.elapsed().as_millis() as f64;
-            let obs_time_ms = now_ms();
-            if let Ok(serde_dec) = serde_json::to_value(&cand.decision) {
-                adapt_decisions.push(serde_dec);
-            }
-
-            match scrape_res {
-                Ok(doc) => {
-                    reconcile_candidate_success(
-                        &spec,
-                        cand,
-                        &doc,
-                        strategy_used,
-                        browser_gain_obs,
-                        step_cost_ms,
-                        obs_time_ms,
-                        prev_state,
-                        prev_doc_id,
-                        &mut inventory,
-                        &experience,
-                        &graph_store,
-                        &mut stats,
-                        &mut added_resources,
-                        &mut modified_resources,
-                        &mut migrated_resources,
-                        &mut disappeared_resources,
-                        &mut claim_transitions,
-                    );
-                }
-                Err(_) => {
-                    stats.transient_failures += 1;
-                    if let Some(rec_mut) = inventory.get_mut(&rec_key) {
-                        rec_mut.consecutive_failures =
-                            rec_mut.consecutive_failures.saturating_add(1);
-                        rec_mut.state = ResourceLifecycleState::TransientFailure;
-                        rec_mut.last_checked_at_ms = Some(obs_time_ms);
-                        rec_mut.next_due_at_ms =
-                            compute_next_due_at_ms(&spec, rec_mut, None, obs_time_ms, false);
-                    }
-                }
-            }
-        }
-
-        let completed_at_ms = now_ms().max(started_at_ms + 1);
-        stats.discovered_total = inventory.len();
-        stats.deferred_count = deferred_count;
-        stats.elapsed_ms = start_inst.elapsed().as_millis() as u64;
-
-        let target_reached = spec.budget.target_items.is_some_and(|t| {
-            inventory
-                .values()
-                .filter(|r| r.state == ResourceLifecycleState::Active)
-                .count()
-                >= t
-        });
-        let cov = evaluate_coverage_status(
-            stats.discovered_total,
-            stats.requests_executed,
-            stats.deferred_count,
-            stats.transient_failures,
-            stats.access_restricted_count,
-            target_reached,
-            budget_exhausted,
-        );
-        let cov_status_str = serde_json::to_value(cov.status)
-            .ok()
-            .and_then(|v| v.as_str().map(str::to_string))
-            .unwrap_or_else(|| "complete_within_scope".to_string());
-
-        let inv_final: Vec<ResourceRecord> = inventory.into_values().collect();
-        sync_store
-            .put_inventory(source_id, &inv_final, completed_at_ms)
-            .map_err(|e| {
-                ApiError::new(
-                    ErrorCode::Internal,
-                    format!("failed to persist inventory: {e}"),
-                )
-            })?;
-        let exp_bytes = experience.encode_json();
-        sync_store
-            .put_experience_bytes(source_id, &exp_bytes, completed_at_ms)
-            .map_err(|e| {
-                ApiError::new(
-                    ErrorCode::Internal,
-                    format!("failed to persist experience: {e}"),
-                )
-            })?;
-
-        let mut active_raw_claims = Vec::new();
-        for r in &inv_final {
-            if r.state == ResourceLifecycleState::Active
-                && let Ok(claims) = graph_store.get_resource_claims(&r.resource_key)
+            if early_stopped_reasons
+                .last()
+                .is_some_and(|r| r.contains("targetItems="))
+                || ledger.is_expired()
             {
-                for c in claims {
-                    if matches!(
-                        c.status,
-                        ClaimStatus::Active | ClaimStatus::Unverified { .. }
-                    ) {
-                        active_raw_claims.push(c.claim);
-                    }
-                }
+                break;
             }
         }
-        let conflicts = detect_conflicts(&active_raw_claims);
 
-        let delta = SyncDelta {
-            source_id: source_id.to_string(),
+        finalize_and_commit_sync_tick(TickCommitInputs {
+            source_id,
+            sync_store: &sync_store,
+            spec: &spec,
+            expected_spec_revision,
             tick_id,
             started_at_ms,
-            completed_at_ms,
-            coverage_status: cov_status_str,
-            coverage_reasons: cov.reasons,
+            wall_start,
+            force_all: run_opts.force_all,
+            inventory,
+            visited_keys: &visited_keys,
+            experience: &experience,
+            ledger: &ledger,
             stats,
+            budget_exhausted,
+            early_stopped_reasons,
             added_resources,
             modified_resources,
             migrated_resources,
             disappeared_resources,
-            claim_transitions,
-            conflicts,
             adapt_decisions,
-        };
-        sync_store.append_delta(&delta).map_err(|e| {
-            ApiError::new(
-                ErrorCode::Internal,
-                format!("failed to persist sync delta: {e}"),
-            )
-        })?;
-
-        Ok(delta)
+            prepared_bundles,
+            active_subjects,
+        })
     }
 }

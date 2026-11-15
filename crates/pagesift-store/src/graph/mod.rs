@@ -5,6 +5,7 @@
 //! - `GRAPH_FACT` (`ns 11`): alias resolution (`alias\0`, `rev\0`), [`ClaimLifecycleRecord`], and [`ConflictRecord`] entries.
 //! - `GRAPH_JOB` (`ns 12`): zstd-compressed job [`GraphSummary`] and [`PageGraphDelta`] records.
 
+mod bundle;
 mod claims;
 mod history;
 mod job;
@@ -12,16 +13,17 @@ mod job;
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 
-pub use claims::DEFAULT_GRAPH_CLAIMS_LIMIT;
-pub use history::GraphHistoryResult;
-use pagesift_graph::{VersionEdge, VersionRecord, normalize_resource_key};
-use serde::Serialize;
-use serde::de::DeserializeOwned;
-
-use crate::engine::{Tx, group_key, ns};
+use crate::engine::{AtomicTx, TxOps, ns};
 use crate::snapshot::{ContentHash, compress_snapshot};
 use crate::tasks::list_push;
 use crate::{Error, Result, Store, to_ms};
+pub use bundle::{
+    AsOfClaimsResult, PreparedVersionBundle, StoredProvenance, VersionBundleOutcome,
+    VersionBundleRequest,
+};
+pub use claims::DEFAULT_GRAPH_CLAIMS_LIMIT;
+pub use history::GraphHistoryResult;
+use pagesift_graph::{VersionEdge, VersionRecord, normalize_resource_key};
 
 pub(super) const MAX_ALIAS_HOPS: usize = 16; // [策略] 规范 URL 别名解析最大跳数
 pub(super) const MAX_REV_ALIASES: usize = 128; // [策略] 反向别名列表读取上限
@@ -34,6 +36,7 @@ pub(super) const PREFIX_ALIAS: &[u8] = b"alias\0";
 pub(super) const PREFIX_REV: &[u8] = b"rev\0";
 pub(super) const PREFIX_CONFLICT: &[u8] = b"conflict\0";
 pub(super) const PREFIX_CLAIM_LC: &[u8] = b"claimlc\0";
+pub(super) const PREFIX_PROV: &[u8] = b"prov\0";
 pub(super) const PREFIX_DOC_SNAP: &[u8] = b"docsnap\0";
 pub(super) const PREFIX_DOC_VER: &[u8] = b"docver\0";
 pub(super) const PREFIX_SUMMARY: &[u8] = b"summary\0";
@@ -138,7 +141,7 @@ impl<'a> GraphStore<'a> {
             candidate_keys.insert(member);
         }
 
-        let mut tx = self.store.tx();
+        let mut tx = self.store.atomic_tx();
         if tx.contains(ns::GRAPH_FACT, &doc_snap_key)?
             || tx.contains(ns::GRAPH_FACT, &doc_ver_key)?
         {
@@ -185,13 +188,24 @@ impl<'a> GraphStore<'a> {
             let edge_key = self.scoped_key(ek);
             list_push(&mut tx, ns::GRAPH_EDGE, &edge_key, &bytes, ts)?;
         }
-        drop(tx);
-        self.store.finish();
-        Ok(())
+        tx.commit()
     }
 
     /// Atomically commit a version, aliases, and bound snapshot only if the tail matches `expected_prev_doc_id`.
     pub fn commit_version(&self, req: VersionCommitRequest<'_>) -> Result<VersionCommitOutcome> {
+        let prepared = self.prepare_version_commit(&req)?;
+        let mut tx = self.store.atomic_tx();
+        let outcome = self.stage_prepared_version_in_tx(&mut tx, &prepared)?;
+        if matches!(outcome, VersionCommitOutcome::Committed { .. }) {
+            tx.commit()?;
+        }
+        Ok(outcome)
+    }
+
+    pub(super) fn prepare_version_commit(
+        &self,
+        req: &VersionCommitRequest<'_>,
+    ) -> Result<PreparedVersionCommit> {
         let rec_bytes = encode_json(req.record, "version record")?;
         let edge_bytes = req
             .edge
@@ -199,18 +213,6 @@ impl<'a> GraphStore<'a> {
             .transpose()?;
         let ts = record_ts(req.record);
         let cfg = self.store.config();
-
-        enum PreparedSnap {
-            Store {
-                hash: ContentHash,
-                raw_len: u32,
-                compressed: Option<Vec<u8>>,
-            },
-            Unavailable {
-                reason: String,
-                warning: Option<String>,
-            },
-        }
 
         let prepared_snap = match req.snapshot_bytes {
             Some(bytes) if bytes.len() > cfg.snapshot_max_bytes => {
@@ -240,6 +242,7 @@ impl<'a> GraphStore<'a> {
                     hash,
                     raw_len: bytes.len() as u32,
                     compressed,
+                    raw_bytes: bytes.to_vec(),
                 }
             }
             None => PreparedSnap::Unavailable {
@@ -262,15 +265,41 @@ impl<'a> GraphStore<'a> {
             candidate_keys.insert(member);
         }
 
-        let scope = self.scope_str();
-        let rec_key = self.scoped_key(&req.record.resource_key);
-        let snap_list_key = self.snapshot_key(&req.record.resource_key);
-        let doc_snap_key = self.scoped_prefixed(PREFIX_DOC_SNAP, &req.record.doc_id);
+        let edge_resource_key = req
+            .edge
+            .map_or(req.record.resource_key.as_str(), |e| {
+                e.resource_key.as_str()
+            })
+            .to_string();
 
-        let mut tx = self.store.tx();
+        Ok(PreparedVersionCommit {
+            resource_key: req.record.resource_key.clone(),
+            doc_id: req.record.doc_id.clone(),
+            expected_prev_doc_id: req.expected_prev_doc_id.map(str::to_string),
+            alias_keys: req.alias_keys.to_vec(),
+            candidate_keys,
+            rec_bytes,
+            edge_bytes,
+            edge_resource_key,
+            ts,
+            compress_level: cfg.snapshot_compress_level,
+            prepared_snap,
+        })
+    }
+
+    pub(super) fn stage_prepared_version_in_tx(
+        &self,
+        tx: &mut AtomicTx<'_>,
+        prep: &PreparedVersionCommit,
+    ) -> Result<VersionCommitOutcome> {
+        let scope = self.scope_str();
+        let rec_key = self.scoped_key(&prep.resource_key);
+        let snap_list_key = self.snapshot_key(&prep.resource_key);
+        let doc_snap_key = self.scoped_prefixed(PREFIX_DOC_SNAP, &prep.doc_id);
+
         let mut current_latest: Option<VersionRecord> = None;
-        for key in &candidate_keys {
-            if let Some(rec) = latest_tail_in_tx(&tx, scope, key)? {
+        for key in &prep.candidate_keys {
+            if let Some(rec) = latest_tail_in_tx(tx, scope, key)? {
                 let replace = current_latest
                     .as_ref()
                     .is_none_or(|b| rec.observed_at_ms >= b.observed_at_ms);
@@ -280,65 +309,62 @@ impl<'a> GraphStore<'a> {
             }
         }
         if let Some(ref curr) = current_latest {
-            let matches_expected = req.expected_prev_doc_id == Some(curr.doc_id.as_str());
+            let matches_expected =
+                prep.expected_prev_doc_id.as_deref() == Some(curr.doc_id.as_str());
             if !matches_expected {
-                drop(tx);
                 return Ok(VersionCommitOutcome::StaleParent {
                     current_latest: curr.clone(),
                 });
             }
         }
 
-        for alias in req.alias_keys {
-            history::bind_alias_in_tx(&mut tx, scope, alias, &req.record.resource_key, ts)?;
+        for alias in &prep.alias_keys {
+            history::bind_alias_in_tx(tx, scope, alias, &prep.resource_key, prep.ts)?;
         }
 
-        let (snapshot_stored, snapshot_warning) = match prepared_snap {
+        let (snapshot_stored, snapshot_warning) = match &prep.prepared_snap {
             PreparedSnap::Store {
                 hash,
                 raw_len,
                 compressed,
+                raw_bytes,
             } => {
                 if !tx.contains(ns::SNAP_BLOB, &hash.0)? {
+                    let owned;
                     let blob = match compressed {
-                        Some(c) => c,
-                        None => compress_snapshot(
-                            req.snapshot_bytes.unwrap_or(&[]),
-                            cfg.snapshot_compress_level,
-                        ),
+                        Some(c) => c.as_slice(),
+                        None => {
+                            owned = compress_snapshot(raw_bytes, prep.compress_level);
+                            &owned
+                        }
                     };
-                    tx.put(ns::SNAP_BLOB, &hash.0, &blob, ts)?;
+                    tx.put(ns::SNAP_BLOB, &hash.0, blob, prep.ts)?;
                 }
-                let mut item = Vec::with_capacity(36); // [协议] 32 字节 BLAKE3 + 4 字节小端长度
+                let mut item = Vec::with_capacity(36);
                 item.extend_from_slice(&hash.0);
                 item.extend_from_slice(&raw_len.to_le_bytes());
-                list_push(&mut tx, ns::SNAP_ITEM, snap_list_key.as_bytes(), &item, ts)?;
+                list_push(tx, ns::SNAP_ITEM, snap_list_key.as_bytes(), &item, prep.ts)?;
 
-                let mut flag_val = Vec::with_capacity(33); // [协议] 1 字节状态标志 + 32 字节哈希
+                let mut flag_val = Vec::with_capacity(33);
                 flag_val.push(SNAP_FLAG_HASH);
                 flag_val.extend_from_slice(&hash.0);
-                tx.put(ns::GRAPH_FACT, &doc_snap_key, &flag_val, ts)?;
+                tx.put(ns::GRAPH_FACT, &doc_snap_key, &flag_val, prep.ts)?;
                 (true, None)
             }
             PreparedSnap::Unavailable { reason, warning } => {
                 let mut flag_val = Vec::with_capacity(1 + reason.len());
                 flag_val.push(SNAP_FLAG_UNAVAILABLE);
                 flag_val.extend_from_slice(reason.as_bytes());
-                tx.put(ns::GRAPH_FACT, &doc_snap_key, &flag_val, ts)?;
-                (false, warning)
+                tx.put(ns::GRAPH_FACT, &doc_snap_key, &flag_val, prep.ts)?;
+                (false, warning.clone())
             }
         };
 
-        list_push(&mut tx, ns::GRAPH_NODE, &rec_key, &rec_bytes, ts)?;
-        if let Some(bytes) = edge_bytes {
-            let ek = req.edge.map_or(req.record.resource_key.as_str(), |e| {
-                e.resource_key.as_str()
-            });
-            let edge_key = self.scoped_key(ek);
-            list_push(&mut tx, ns::GRAPH_EDGE, &edge_key, &bytes, ts)?;
+        list_push(tx, ns::GRAPH_NODE, &rec_key, &prep.rec_bytes, prep.ts)?;
+        if let Some(ref bytes) = prep.edge_bytes {
+            let edge_key = self.scoped_key(&prep.edge_resource_key);
+            list_push(tx, ns::GRAPH_EDGE, &edge_key, bytes, prep.ts)?;
         }
-        drop(tx);
-        self.store.finish();
         Ok(VersionCommitOutcome::Committed {
             snapshot_stored,
             snapshot_warning,
@@ -387,73 +413,9 @@ impl<'a> GraphStore<'a> {
     }
 }
 
-pub(crate) fn encode_tenant_prefix(tenant: &str) -> String {
-    let hash = blake3::hash(tenant.as_bytes());
-    let mut out = String::with_capacity(35); // [协议] 固定前缀 "t:" + 32 位 hex + "\0" 共 35 字节
-    out.push_str("t:");
-    for b in &hash.as_bytes()[..16] {
-        let _ = write!(out, "{b:02x}");
-    }
-    out.push('\0');
-    out
-}
-
-pub(super) fn scope_prefixed_key(scope: &str, prefix: &[u8], body: &str) -> Vec<u8> {
-    let mut out = Vec::with_capacity(scope.len() + prefix.len() + body.len());
-    out.extend_from_slice(scope.as_bytes());
-    out.extend_from_slice(prefix);
-    out.extend_from_slice(body.as_bytes());
-    out
-}
-
-pub(super) fn scope_list_key(scope: &str, key: &str) -> Vec<u8> {
-    let mut out = Vec::with_capacity(scope.len() + key.len());
-    out.extend_from_slice(scope.as_bytes());
-    out.extend_from_slice(key.as_bytes());
-    out
-}
-
-pub(super) fn latest_tail_in_tx(
-    tx: &Tx<'_>,
-    scope: &str,
-    resource_key: &str,
-) -> Result<Option<VersionRecord>> {
-    let list_key = scope_list_key(scope, resource_key);
-    let Some(g) = tx.group(ns::GRAPH_NODE, &list_key) else {
-        return Ok(None);
-    };
-    if g.live == 0 || g.next <= g.head {
-        return Ok(None);
-    }
-    for seq in (g.head..g.next).rev() {
-        let key = group_key(&list_key, &seq.to_be_bytes())?;
-        if let Some((_, raw)) = tx.get(ns::GRAPH_NODE, &key)? {
-            return decode_json(&raw, "version record").map(Some);
-        }
-    }
-    Ok(None)
-}
-
-fn record_ts(record: &VersionRecord) -> u64 {
-    if record.observed_at_ms > 0 {
-        record.observed_at_ms
-    } else {
-        to_ms(std::time::SystemTime::now())
-    }
-}
-
-pub(super) fn initial_key(url_or_key: &str) -> String {
-    if url_or_key.contains("://") {
-        normalize_resource_key(url_or_key)
-    } else {
-        url_or_key.to_string()
-    }
-}
-
-pub(super) fn encode_json<T: Serialize + ?Sized>(value: &T, label: &str) -> Result<Vec<u8>> {
-    serde_json::to_vec(value).map_err(|e| Error::Corrupt(format!("encode {label}: {e}")))
-}
-
-pub(super) fn decode_json<T: DeserializeOwned>(raw: &[u8], label: &str) -> Result<T> {
-    serde_json::from_slice(raw).map_err(|e| Error::Corrupt(format!("decode {label}: {e}")))
-}
+mod codec;
+pub(crate) use codec::encode_tenant_prefix;
+pub(super) use codec::{
+    PreparedSnap, PreparedVersionCommit, decode_json, encode_json, initial_key, latest_tail_in_tx,
+    record_ts, scope_prefixed_key,
+};

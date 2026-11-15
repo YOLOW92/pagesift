@@ -32,11 +32,7 @@ pub(super) fn create_segment(dir: &Path, id: u32) -> Result<Arc<File>> {
 
 impl Store {
     pub(super) fn append(&self, w: &mut Writer, raw: &[u8], tomb: bool) -> Result<(u32, u32)> {
-        if self
-            .0
-            .fail_writes
-            .load(std::sync::atomic::Ordering::Relaxed)
-        {
+        if self.should_fail_write() {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::StorageFull,
                 "injected write failure",
@@ -66,7 +62,7 @@ impl Store {
     }
 
     /// 换一个新的活动段。旧段总是先 fsync，压缩依赖这一点。
-    fn roll(&self, w: &mut Writer) -> Result<()> {
+    pub(super) fn roll(&self, w: &mut Writer) -> Result<()> {
         w.file.sync_data()?;
         let id = w.active + 1;
         let file = create_segment(&self.0.cfg.dir, id)?;

@@ -90,7 +90,7 @@ impl Scraper {
         request.session = ITNA_COOKIE_SESSION.try_with(Clone::clone).ok().flatten();
         request.expected_direct = ITNA_EXPECTED_DIRECT.try_with(|value| *value).ok().flatten();
         let fetch = self.policy.fetch_held_via(request, mode, egress);
-        let (mut resp, permit) = match request_deadline(opts, started) {
+        let (resp, permit) = match request_deadline(opts, started) {
             Some(d) => tokio::time::timeout_at(d.into(), fetch)
                 .await
                 .map_err(|_| ApiError::new(ErrorCode::Timeout, "request deadline passed"))?,
@@ -121,7 +121,7 @@ impl Scraper {
         // the HTTP path must not try to drop it twice.
         let mut permit = Some(permit);
         timings.insert("fetch".into(), ms(resp.timings.total));
-        let mut ext = PagesiftMeta {
+        let ext = PagesiftMeta {
             redirect_chain: resp
                 .redirect_chain
                 .iter()
@@ -167,7 +167,7 @@ impl Scraper {
             } else {
                 Vec::new()
             };
-        let mut meta = Metadata {
+        let meta = Metadata {
             url: Some(resp.final_url.to_string()),
             source_url: Some(url.to_string()),
             canonical_url: header_canonical.clone(),
@@ -179,211 +179,35 @@ impl Scraper {
             ..Default::default()
         };
         let graph_tenant = opts.effective_graph_tenant();
-        if resp.not_modified {
-            let req_inm = opts.if_none_match.clone().or_else(|| {
-                opts.headers
-                    .iter()
-                    .find(|(k, _)| k.eq_ignore_ascii_case("if-none-match"))
-                    .map(|(_, v)| v.clone())
-            });
-            let req_ims = opts.if_modified_since.clone().or_else(|| {
-                opts.headers
-                    .iter()
-                    .find(|(k, _)| k.eq_ignore_ascii_case("if-modified-since"))
-                    .map(|(_, v)| v.clone())
-            });
-            let unconditional = req_inm.is_none() && req_ims.is_none();
-            if unconditional {
-                // 没发条件请求却拿到 304：服务器行为异常，这里也没有缓存可用。
-                warnings.push(
-                    "not_modified: HTTP 304 for an unconditional request; no content was returned"
-                        .into(),
-                );
-            }
-            ext.timings = timings;
-            ext.warnings = warnings;
-            meta.pagesift = Some(ext.clone());
-            let mut out = Document {
-                metadata: meta,
-                alternates: header_alternates.clone(),
-                ..Default::default()
-            };
-            if let Some(gopts) = &graph_opts {
-                crate::graph::build_and_attach_page_graph(
-                    self.store.as_ref(),
-                    gopts,
-                    &mut out,
-                    crate::graph::PageGraphSeed {
-                        canonical_from_header: header_canonical.is_some(),
-                        etag: ext.etag,
-                        last_modified: ext.last_modified,
-                        if_none_match: req_inm,
-                        if_modified_since: req_ims,
-                        unconditional_not_modified: unconditional,
-                        redirect_chain: redirect_hops,
-                        tenant: graph_tenant.clone(),
-                        ..Default::default()
-                    },
-                );
-            }
-            return Ok(out);
-        }
-
-        // Word、Excel、PowerPoint、EPUB、CSV：内容、Content-Type、网址的扩展名一起判断
-        if let Some(format) = office_format(&resp.body, resp.final_url.path(), resp.content_type())
+        let head_state = super::fetch_non_html::FetchHeadState {
+            meta,
+            ext,
+            timings,
+            warnings,
+            header_canonical,
+            header_alternates,
+            redirect_hops,
+            graph_opts,
+            graph_tenant,
+        };
+        let (mut resp, head_state) = match self
+            .try_extract_non_html(resp, opts, started, head_state)
+            .await?
         {
-            let progress = Progress {
-                started,
-                timings,
-                warnings,
-            };
-            let deadline = request_deadline(opts, started);
-            let input = office::OfficeInput {
-                content_type: resp.content_type().map(str::to_owned),
-                bytes: resp.body,
-                format,
-            };
-            let mut out = self
-                .office_document(input, opts, (meta, ext), progress, deadline)
-                .await?;
-            merge_header_alternates(&mut out, &header_alternates);
-            if let Some(gopts) = &graph_opts {
-                let canon_from_header =
-                    header_canonical.is_some() && out.metadata.canonical_url == header_canonical;
-                crate::graph::apply_http_provenance(
-                    self.store.as_ref(),
-                    gopts,
-                    graph_tenant.as_deref(),
-                    &mut out,
-                    &redirect_hops,
-                    canon_from_header,
-                    &header_alternates,
-                );
-            }
-            return Ok(out);
-        }
-
-        // 图片：打开了 OCR 才转换；没开时说明怎么开（其他媒体类型仍按原来的提示）
-        if pagesift_pdf::image_mime(&resp.body).is_some() {
-            let progress = Progress {
-                started,
-                timings,
-                warnings,
-            };
-            let mut out = self
-                .image_document(
-                    resp.body,
-                    opts,
-                    (meta, ext),
-                    progress,
-                    request_deadline(opts, started),
-                )
-                .await?;
-            merge_header_alternates(&mut out, &header_alternates);
-            if let Some(gopts) = &graph_opts {
-                let canon_from_header =
-                    header_canonical.is_some() && out.metadata.canonical_url == header_canonical;
-                crate::graph::apply_http_provenance(
-                    self.store.as_ref(),
-                    gopts,
-                    graph_tenant.as_deref(),
-                    &mut out,
-                    &redirect_hops,
-                    canon_from_header,
-                    &header_alternates,
-                );
-            }
-            return Ok(out);
-        }
-
-        if let Some(kind) = unsupported_content_type(resp.content_type(), &resp.body) {
-            return Err(ApiError::unsupported(format!(
-                "unsupported content type `{kind}`: pagesift extracts HTML/text; use `pagesift download` or `media-extract` for binary media"
-            )));
-        }
-
-        if is_pdf(&resp.body, resp.content_type()) {
-            let progress = Progress {
-                started,
-                timings,
-                warnings,
-            };
-            let mut out = self
-                .pdf_document(
-                    resp.body,
-                    opts,
-                    (meta, ext),
-                    progress,
-                    request_deadline(opts, started),
-                )
-                .await?;
-            merge_header_alternates(&mut out, &header_alternates);
-            if let Some(gopts) = &graph_opts {
-                let canon_from_header =
-                    header_canonical.is_some() && out.metadata.canonical_url == header_canonical;
-                crate::graph::apply_http_provenance(
-                    self.store.as_ref(),
-                    gopts,
-                    graph_tenant.as_deref(),
-                    &mut out,
-                    &redirect_hops,
-                    canon_from_header,
-                    &header_alternates,
-                );
-            }
-            return Ok(out);
-        }
-
-        if let Some(markdown) = json_markdown(resp.content_type(), &resp.body) {
-            let raw_json_traces = if graph_opts
-                .as_ref()
-                .is_some_and(|g| g.evidence || g.facts || g.conflicts)
-                && let Ok(raw_str) = std::str::from_utf8(&resp.body)
-            {
-                crate::graph::evidence::collect_json_document_traces(raw_str, meta.url.as_deref())
-            } else {
-                Vec::new()
-            };
-            let mut out = finish(
-                Document {
-                    markdown: Some(markdown),
-                    alternates: header_alternates.clone(),
-                    ..Default::default()
-                },
-                meta,
-                ext,
-                timings,
-                warnings,
-                None,
-                false,
-                started,
-            );
-            if let Some(gopts) = &graph_opts {
-                let ps = out.metadata.pagesift.as_ref();
-                let etag = ps.and_then(|p| p.etag.clone());
-                let last_modified = ps.and_then(|p| p.last_modified.clone());
-                crate::graph::build_and_attach_page_graph(
-                    self.store.as_ref(),
-                    gopts,
-                    &mut out,
-                    crate::graph::PageGraphSeed {
-                        source_kind: pagesift_graph::SourceKind::Api,
-                        engine: "http".to_string(),
-                        canonical_from_header: header_canonical.is_some(),
-                        etag,
-                        last_modified,
-                        redirect_chain: redirect_hops,
-                        raw_traces: raw_json_traces,
-                        tenant: graph_tenant.clone(),
-                        ..Default::default()
-                    },
-                );
-            }
-            if !opts.wants("markdown") {
-                out.markdown = None;
-            }
-            return Ok(out);
-        }
+            super::fetch_non_html::NonHtmlStep::Done(out) => return Ok(*out),
+            super::fetch_non_html::NonHtmlStep::Continue(boxed) => *boxed,
+        };
+        let super::fetch_non_html::FetchHeadState {
+            mut meta,
+            mut ext,
+            mut timings,
+            mut warnings,
+            header_canonical,
+            header_alternates,
+            redirect_hops,
+            graph_opts,
+            graph_tenant,
+        } = head_state;
 
         let navigation = if opts.wants("links") {
             crate::discovery::header_links(
@@ -406,6 +230,12 @@ impl Scraper {
         // 推测执行：正文到手、还没提取时，按学到的"需要渲染"概率和浏览器影子价格决定是否同时开浏览器
         let body_bytes = resp.body.len();
         let mut spec_step = None;
+        let render_attempt_opts = graph_opts.as_ref().filter(|g| g.persist).map(|g| {
+            let mut o = opts.clone();
+            o.graph = Some(g.as_attempt());
+            o
+        });
+        let render_opts = render_attempt_opts.as_ref().unwrap_or(opts);
         let mut speculative = None;
         let spec_baseline = Arc::new(std::sync::atomic::AtomicU64::new(
             super::speculate::BASELINE_UNKNOWN,
@@ -430,9 +260,9 @@ impl Scraper {
                     timings: timings.clone(),
                     warnings: warnings.clone(),
                 };
-                let fut = Box::pin(self.render(
+                let fut: super::fetch_upgrade::SpecRenderFut<'_> = Box::pin(self.render(
                     url,
-                    opts,
+                    render_opts,
                     mode,
                     progress,
                     None,
@@ -505,163 +335,38 @@ impl Scraper {
             .into_iter()
             .chain(embedded_step.filter(|_| opts.explain))
             .collect();
-        if let Some(hints) = hints.filter(|h| h.worth) {
-            let (go, step) = if render_blocked {
-                (true, Default::default())
-            } else {
-                self.plan_render(url, &doc, html.len(), &hints, opts, started)
-            };
-            if opts.explain && !render_blocked {
-                plan.push(step);
-            }
-            if render_blocked {
-                // 浏览器用不了这个出口（没有 Chrome，或带认证的 SOCKS 代理）：换个出口渲染，地址就不一致了
-                warnings.push("render_skipped_egress".into());
-            } else if !go {
-                warnings.push("render_skipped_learned".into());
-            } else if self.has_browser().await {
-                // HTTP extraction no longer needs its admission slots. Rendering
-                // takes a fresh slot below; retaining both can deadlock a batch
-                // when every per-host slot is held by an auto-upgrade.
-                permit.take();
-                // Auto-upgrade is opportunistic: the HTTP document is already a
-                // valid result. The probe compares the *extracted* content of
-                // the live DOM with what HTTP already produced, so navigation
-                // bars and ad text cannot masquerade as a gain. The budget and
-                // probe time come from observed render distributions, not from
-                // fixed seconds.
-                let budget = self.render_stats.budget();
-                let (render, spec) = match speculative.take() {
-                    // 推测出去的那一路接着用：已经跑了这么久，预算里扣掉
-                    Some((at, warned, fut)) => (fut, Some((at, warned))),
-                    None => {
-                        spec_baseline
-                            .store(http_chars as u64, std::sync::atomic::Ordering::Relaxed);
-                        let early_stop = pagesift_cdp::EarlyStop {
-                            baseline_chars: http_chars as u64,
-                            cap_navigation: hints.client_redirect,
-                            http_elapsed: resp.timings.total,
-                            after: self.render_stats.early_stop_after(),
-                            probe: super::speculate::render_probe(
-                                opts,
-                                resp.final_url.clone(),
-                                spec_baseline.clone(),
-                            ),
-                        };
-                        let progress = Progress {
-                            started,
-                            timings: timings.clone(),
-                            warnings: warnings.clone(),
-                        };
-                        let fut = Box::pin(self.render(
-                            url,
-                            opts,
-                            mode,
-                            progress,
-                            Some(http_chars),
-                            Some(early_stop),
-                            proxy.clone(),
-                        ));
-                        (fut, None)
-                    }
-                };
-                let budget =
-                    budget.map(|b| spec.map_or(b, |(at, _)| b.saturating_sub(at.elapsed())));
-                let outcome = match spec_done.take() {
-                    Some(done) => Some(done),
-                    None => match budget {
-                        Some(budget) => match tokio::time::timeout(budget, render).await {
-                            Ok(result) => Some(result),
-                            Err(_) => {
-                                warnings.push(format!(
-                                    "render_timeout_http_fallback: browser exceeded the learned {:.0} ms budget",
-                                    budget.as_millis()
-                                ));
-                                None
-                            }
-                        },
-                        None => Some(render.await),
-                    },
-                };
-                // 推测的那一路是在提取之前出发的：补上之后才有的 HTTP 侧耗时和警告，与不推测时一致
-                let outcome = match (outcome, spec) {
-                    (Some(Ok(mut rendered)), Some((_, warned))) => {
-                        let ext = rendered
-                            .metadata
-                            .pagesift
-                            .get_or_insert_with(Default::default);
-                        for (k, v) in &timings {
-                            ext.timings.entry(k.clone()).or_insert(*v);
-                        }
-                        let late = warnings[warned.min(warnings.len())..].to_vec();
-                        let at = warned.min(ext.warnings.len());
-                        ext.warnings.splice(at..at, late);
-                        Some(Ok(rendered))
-                    }
-                    (o, _) => o,
-                };
-                if let Some(outcome) = outcome {
-                    match outcome {
-                        Ok(rendered) => {
-                            let (better, step) = self.adopt_render(
-                                url,
-                                &doc,
-                                html.len(),
-                                hints.client_code,
-                                http_chars,
-                                rendered,
-                            );
-                            if opts.explain {
-                                plan.push(step);
-                            }
-                            if let Some(mut better) = better {
-                                if better.metadata.canonical_url.is_none() {
-                                    better.metadata.canonical_url = header_canonical.clone();
-                                }
-                                merge_header_alternates(&mut better, &header_alternates);
-                                if let Some(gopts) = &graph_opts {
-                                    let canon_from_header = header_canonical.is_some()
-                                        && better.metadata.canonical_url == header_canonical;
-                                    crate::graph::apply_http_provenance(
-                                        self.store.as_ref(),
-                                        gopts,
-                                        graph_tenant.as_deref(),
-                                        &mut better,
-                                        &redirect_hops,
-                                        canon_from_header,
-                                        &header_alternates,
-                                    );
-                                }
-                                if opts.explain {
-                                    better
-                                        .metadata
-                                        .pagesift
-                                        .get_or_insert_with(Default::default)
-                                        .plan =
-                                        Some(pagesift_api::types::PlanTrace { steps: plan });
-                                }
-                                return Ok(better);
-                            }
-                            // 渲染没有补到正文：留 HTTP 的结果，占内存也少
-                            warnings.push("render_no_gain_http_fallback".into());
-                        }
-                        Err(e) => {
-                            // A failed upgrade is not a failed scrape: keep the
-                            // HTTP result and say why the browser was not used.
-                            warnings.push(format!("render_failed_http_fallback: {}", e.message));
-                        }
-                    }
-                }
-            } else {
-                warnings.push(format!(
-                    "render_unavailable: {}",
-                    self.browser_unavailable_reason()
-                ));
-            }
+        if let Some(better) = self
+            .maybe_upgrade_to_browser(super::fetch_upgrade::UpgradeInputs {
+                url,
+                final_url: &resp.final_url,
+                opts,
+                render_opts,
+                mode,
+                started,
+                http_elapsed: resp.timings.total,
+                timings: &timings,
+                warnings: &mut warnings,
+                proxy: &proxy,
+                render_blocked,
+                speculative,
+                spec_done,
+                spec_baseline: &spec_baseline,
+                permit: &mut permit,
+                doc: &doc,
+                html_len: html.len(),
+                http_chars,
+                hints,
+                plan: &mut plan,
+                header_canonical: &header_canonical,
+                header_alternates: &header_alternates,
+                graph_opts: &graph_opts,
+                graph_tenant: &graph_tenant,
+                redirect_hops: &redirect_hops,
+            })
+            .await
+        {
+            return Ok(better);
         }
-
-        // 推测出去、最后没用上的渲染：现在就取消，归还标签
-        drop(speculative.take());
         let mut navigation = navigation;
         if opts.discover_scripts {
             // Release the document's admission permit before dependency fetches:

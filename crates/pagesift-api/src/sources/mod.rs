@@ -14,9 +14,22 @@ use crate::error::ApiError;
 
 pub(crate) use routes::routes;
 
+pub use pagesift_store::MAX_REQUESTS_PER_TICK_CAP;
+
 const MAX_SOURCE_ID_LEN: usize = 96;
 const MAX_SEEDS_PER_SOURCE: usize = 64;
-const MAX_REQUESTS_PER_TICK_CAP: usize = 10_000;
+
+/// 校验单次运行覆盖的 `maxRequests` 参数，所有入口共用统一上限（C11）。
+pub fn validate_max_requests(raw: Option<usize>) -> Result<Option<usize>, ApiError> {
+    if let Some(n) = raw
+        && (n == 0 || n > MAX_REQUESTS_PER_TICK_CAP)
+    {
+        return Err(ApiError::invalid(format!(
+            "maxRequests must be in 1..={MAX_REQUESTS_PER_TICK_CAP}"
+        )));
+    }
+    Ok(raw)
+}
 
 /// `POST /v2/sources` 请求体。
 #[derive(Debug, Clone, Deserialize)]
@@ -202,8 +215,9 @@ pub fn build_source_spec(
         return Err(ApiError::invalid("extractSchema must be a JSON object"));
     }
     let ts = now_ms.unwrap_or_else(now_store_ms);
-    Ok(DataSourceSpec {
+    let spec = DataSourceSpec {
         id,
+        revision: 1,
         name: req.name.and_then(|v| {
             let t = v.trim().to_string();
             (!t.is_empty()).then_some(t)
@@ -224,5 +238,15 @@ pub fn build_source_spec(
         allow_browser: req.allow_browser,
         created_at_ms: ts,
         updated_at_ms: ts,
-    })
+    };
+    for seed in &spec.seeds {
+        let parsed = url::Url::parse(seed)
+            .map_err(|_| ApiError::invalid(format!("invalid seed URL '{seed}'")))?;
+        if !spec.allows_path(parsed.path()) {
+            return Err(ApiError::invalid(format!(
+                "seed URL '{seed}' violates includePaths/excludePaths scope"
+            )));
+        }
+    }
+    Ok(spec)
 }

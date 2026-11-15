@@ -153,6 +153,16 @@ fn scalar_to_nonempty_string(v: &Value) -> Option<String> {
     (!s.is_empty()).then_some(s)
 }
 
+pub const DEFAULT_CONTRACT_ID: &str = "default";
+
+fn default_contract_id() -> String {
+    DEFAULT_CONTRACT_ID.to_string()
+}
+
+fn is_default_contract(s: &str) -> bool {
+    s.is_empty() || s == DEFAULT_CONTRACT_ID
+}
+
 /// Normalized claim extracted from one document along with its grounded evidence span.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -175,6 +185,11 @@ pub struct ClaimRecord {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub canonical_url: Option<String>,
     pub evidence: EvidenceSpan,
+    #[serde(
+        default = "default_contract_id",
+        skip_serializing_if = "is_default_contract"
+    )]
+    pub contract_id: String,
 }
 
 impl ClaimRecord {
@@ -219,11 +234,22 @@ impl ClaimRecord {
             temporal: None,
             canonical_url,
             evidence,
+            contract_id: default_contract_id(),
         }
     }
 
     pub fn with_temporal(mut self, temporal: TemporalSemantics) -> Self {
         self.temporal = Some(temporal);
+        self
+    }
+
+    pub fn with_contract(mut self, contract_id: impl Into<String>) -> Self {
+        let c = contract_id.into();
+        self.contract_id = if c.trim().is_empty() {
+            default_contract_id()
+        } else {
+            c
+        };
         self
     }
 }

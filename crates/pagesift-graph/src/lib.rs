@@ -18,6 +18,7 @@ mod evidence_json;
 mod hash;
 pub mod independence;
 pub mod lifecycle;
+mod lifecycle_as_of;
 pub mod model;
 pub mod norm;
 mod norm_parse;
@@ -32,11 +33,11 @@ pub use citation::{
 };
 pub use conflict::{
     ConflictKind, ConflictRecord, ConflictSeverity, ConflictVariant, PreferredHint,
-    detect_conflicts,
+    detect_conflicts, detect_conflicts_with_lineage,
 };
 pub use corroborate::{
-    ClaimRecord, FactCluster, SubjectKey, SubjectKeySource, build_fact_clusters,
-    build_fact_clusters_with_lineage, resolve_subject_key,
+    ClaimRecord, DEFAULT_CONTRACT_ID, FactCluster, SubjectKey, SubjectKeySource,
+    build_fact_clusters, build_fact_clusters_with_lineage, resolve_subject_key,
 };
 pub use delta::{DocumentInput, GraphSlice, GraphStats, GraphSummary, PageGraphDelta};
 pub use evidence::{
@@ -48,10 +49,11 @@ pub use independence::{
     OriginRelation, SourceLineage, compute_source_lineage, independent_roots_for_claim_group,
 };
 pub use lifecycle::{
-    ClaimLifecycleRecord, ClaimStatus, ClaimTransition, ClaimTransitionKind, HistoricalClaimEntry,
-    KnowledgeDelta, ObservationOutcome, WithdrawalReason, claims_as_of, latest_claims_per_resource,
-    reconcile_resource_claims,
+    ClaimLifecycleRecord, ClaimStatus, ClaimTimelineEntry, ClaimTransition, ClaimTransitionKind,
+    HistoricalClaimEntry, KnowledgeDelta, ObservationOutcome, WithdrawalReason, outcome_for_scrape,
+    reconcile_resource_claims, reconcile_resource_claims_for_contract,
 };
+pub use lifecycle_as_of::{claims_as_of, claims_as_of_checked, latest_claims_per_resource};
 pub use model::{
     BlockKind, BlockRef, DocNode, GraphLimits, GraphOptions, IndexedBlock, SourceKind,
     build_block_refs, build_indexed_blocks,

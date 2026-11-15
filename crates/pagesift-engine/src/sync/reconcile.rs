@@ -2,36 +2,65 @@
 
 use std::collections::BTreeMap;
 
+use pagesift_api::ApiError;
 use pagesift_api::types::Document;
-use pagesift_graph::{ClaimTransition, DocNode, ObservationOutcome, ProvenanceEdge, RedirectKind};
+use pagesift_graph::{
+    ClaimTransitionKind, DocNode, ObservationOutcome, ProvenanceEdge, RedirectKind,
+};
 use pagesift_plan::experience::{FamilyExperienceTable, FamilyObservation};
 use pagesift_plan::render::family;
-use pagesift_plan::strategy::AcquisitionStrategy;
+use pagesift_plan::strategy::{AcquisitionStrategy, CaptureAssessment};
 use pagesift_store::{
-    DataSourceSpec, GraphStore, ResourceChangeEntry, ResourceLifecycleState, ResourceRecord,
-    SyncTickStats,
+    DataSourceSpec, GraphStore, PreparedVersionBundle, ResourceChangeEntry, ResourceLifecycleState,
+    ResourceRecord, SyncTickStats,
 };
 
-use super::inventory::{
-    InventoryObservation, apply_observation_to_record, classify_resource_role,
-    normalize_in_scope_url,
-};
+use super::capture::{has_embedded_json_signal, is_barrier_doc, sync_learner_into_experience};
+use super::inventory::{InventoryObservation, apply_observation_to_record, normalize_in_scope_url};
 use super::scheduler::{ScheduledCandidate, compute_next_due_at_ms};
+use crate::frontier::Learner;
+use crate::graph::stage::StagedGraphCommit;
 
+#[path = "reconcile_stage.rs"]
+mod stage;
+pub(super) use stage::reconcile_candidate_failure;
+use stage::{insert_discovered_resource, stage_bundle_for_candidate};
+
+/// 沿重定向尾部检查仅当通向 `final_url` 的连续永久重定向链成立时返回迁移目标（C22）。
 pub(super) fn permanent_redirect_target_from_provenance(
     provenance: &[ProvenanceEdge],
+    requested_url: &str,
     final_url: &str,
 ) -> Option<String> {
-    let has_perm = provenance.iter().any(|edge| {
-        matches!(
-            edge,
+    let mut expected_to = DocNode::derive_resource_key(None, final_url);
+    let mut found_perm_for_requested = false;
+    let req_key = DocNode::derive_resource_key(None, requested_url);
+
+    let redirects: Vec<(&str, &str, RedirectKind)> = provenance
+        .iter()
+        .filter_map(|e| match e {
             ProvenanceEdge::Redirect {
-                redirect_kind: RedirectKind::HttpPermanent,
+                from_url,
+                to_url,
+                redirect_kind,
                 ..
-            }
-        )
-    });
-    has_perm.then(|| final_url.to_string())
+            } => Some((from_url.as_str(), to_url.as_str(), *redirect_kind)),
+            _ => None,
+        })
+        .collect();
+
+    for (from_u, to_u, kind) in redirects.into_iter().rev() {
+        let to_key = DocNode::derive_resource_key(None, to_u);
+        if to_key != expected_to || kind != RedirectKind::HttpPermanent {
+            break;
+        }
+        let from_key = DocNode::derive_resource_key(None, from_u);
+        if from_key == req_key {
+            found_perm_for_requested = true;
+        }
+        expected_to = from_key;
+    }
+    found_perm_for_requested.then(|| final_url.to_string())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -39,7 +68,10 @@ pub(super) fn reconcile_candidate_success(
     spec: &DataSourceSpec,
     cand: &ScheduledCandidate,
     doc: &Document,
+    staged: Option<StagedGraphCommit>,
     strategy_used: AcquisitionStrategy,
+    http_assessment: Option<&CaptureAssessment>,
+    final_assessment: &CaptureAssessment,
     browser_gain_obs: Option<bool>,
     step_cost_ms: f64,
     obs_time_ms: u64,
@@ -47,14 +79,15 @@ pub(super) fn reconcile_candidate_success(
     prev_doc_id: Option<String>,
     inventory: &mut BTreeMap<String, ResourceRecord>,
     experience: &FamilyExperienceTable,
+    learner: &mut Learner,
     graph_store: &GraphStore<'_>,
+    prepared_bundles: &mut Vec<PreparedVersionBundle>,
     stats: &mut SyncTickStats,
     added_resources: &mut Vec<ResourceChangeEntry>,
     modified_resources: &mut Vec<ResourceChangeEntry>,
     migrated_resources: &mut Vec<ResourceChangeEntry>,
     disappeared_resources: &mut Vec<ResourceChangeEntry>,
-    claim_transitions: &mut Vec<ClaimTransition>,
-) {
+) -> Result<(), ApiError> {
     let rec_key = cand.record.resource_key.clone();
     let status_code = doc.metadata.status_code;
     let not_modified_304 = doc
@@ -62,14 +95,19 @@ pub(super) fn reconcile_candidate_success(
         .pagesift
         .as_ref()
         .is_some_and(|p| p.not_modified);
-    if not_modified_304 {
+    let is_barrier = is_barrier_doc(doc);
+    let http_ok = !is_barrier && status_code < 400;
+    let capture_sufficient = final_assessment.sufficient;
+
+    if not_modified_304 && capture_sufficient {
         stats.conditional_304_hits += 1;
     }
-    let is_barrier = matches!(status_code, 403 | 429);
     if is_barrier {
         stats.access_restricted_count += 1;
     } else if status_code >= 500 {
         stats.transient_failures += 1;
+    } else if !not_modified_304 && status_code < 400 && !capture_sufficient {
+        stats.insufficient_captures += 1;
     }
 
     let slice = doc.graph.as_ref();
@@ -77,28 +115,39 @@ pub(super) fn reconcile_candidate_success(
         .and_then(|g| g.version.as_ref())
         .and_then(|v| v.diff_stats.as_ref())
         .map_or((0, 0), |d| (d.substantive, d.noise));
-
-    let page_transitions = slice
-        .map(|g| g.claim_transitions.clone())
-        .unwrap_or_default();
+    let page_transitions = slice.map(|g| &g.claim_transitions[..]).unwrap_or(&[]);
     let claim_count = slice.map_or(0, |g| g.claims.len());
-    let substantive_changed = !not_modified_304
-        && status_code < 400
-        && (sub_blocks > 0 || !page_transitions.is_empty() || prev_doc_id.is_none());
-    let noise_only =
-        !not_modified_304 && status_code < 400 && !substantive_changed && noise_blocks > 0;
 
-    if !not_modified_304 && status_code < 400 {
-        if substantive_changed && prev_doc_id.is_some() {
-            stats.substantive_updates += 1;
-        } else if noise_only {
-            stats.noise_only_updates += 1;
-        } else if prev_doc_id.is_some() {
-            stats.unchanged_200_hits += 1;
+    let non_confirm_transition = page_transitions
+        .iter()
+        .any(|t| !matches!(t.kind, ClaimTransitionKind::Confirmed));
+    let substantive_changed = if not_modified_304 {
+        capture_sufficient && sub_blocks > 0
+    } else if http_ok && capture_sufficient {
+        prev_doc_id.is_none() || sub_blocks > 0 || non_confirm_transition
+    } else {
+        false
+    };
+    let noise_only = !not_modified_304
+        && http_ok
+        && capture_sufficient
+        && !substantive_changed
+        && noise_blocks > 0;
+
+    if !not_modified_304 && http_ok && capture_sufficient {
+        stats.authoritative_successes += 1;
+        if prev_doc_id.is_some() {
+            if substantive_changed {
+                stats.substantive_updates += 1;
+            } else if noise_only {
+                stats.noise_only_updates += 1;
+            } else {
+                stats.unchanged_200_hits += 1;
+            }
         }
+    } else if not_modified_304 && capture_sufficient {
+        stats.authoritative_successes += 1;
     }
-
-    claim_transitions.extend(page_transitions);
 
     let fam_name = family(&cand.record.url);
     let dt_secs = cand
@@ -106,16 +155,32 @@ pub(super) fn reconcile_candidate_success(
         .last_checked_at_ms
         .map(|last| (obs_time_ms.saturating_sub(last) as f64 / 1000.0).max(1.0));
     let has_links = doc.links.as_ref().is_some_and(|l| !l.is_empty());
+    let has_embedded = has_embedded_json_signal(doc);
+    let md_str = doc.markdown.as_deref().unwrap_or_default();
+    let text_sig = (http_ok && capture_sufficient && !not_modified_304)
+        .then(|| Learner::content_signature(md_str));
+
+    if http_ok && capture_sufficient && !not_modified_304 {
+        sync_learner_into_experience(learner, experience, &cand.record.url, md_str, obs_time_ms);
+    }
+
     experience.record_observation(
         &fam_name,
         &FamilyObservation {
             observed_at_ms: obs_time_ms,
-            http_sufficient: browser_gain_obs != Some(true) && status_code < 400,
+            http_sufficient: (http_ok && strategy_used != AcquisitionStrategy::DirectBrowser)
+                .then(|| http_assessment.is_some_and(|a| a.sufficient)),
             browser_gain: browser_gain_obs,
-            conditional_hit: (strategy_used == AcquisitionStrategy::ConditionalHttp)
-                .then_some(not_modified_304),
-            substantive_change: dt_secs.map(|dt| (dt, substantive_changed)),
-            yielded_claims_or_links: claim_count > 0 || has_links,
+            conditional_hit: (strategy_used == AcquisitionStrategy::ConditionalHttp && http_ok)
+                .then_some(not_modified_304 && capture_sufficient),
+            embedded_json_observed: (http_ok
+                && strategy_used != AcquisitionStrategy::DirectBrowser)
+                .then_some(has_embedded),
+            substantive_change: (http_ok && capture_sufficient && prev_doc_id.is_some())
+                .then(|| dt_secs.map(|dt| (dt, substantive_changed)))
+                .flatten(),
+            yielded_claims_or_links: (http_ok && capture_sufficient)
+                .then_some(claim_count > 0 || has_links),
             encountered_barrier: is_barrier,
             cost_ms: step_cost_ms,
         },
@@ -127,24 +192,17 @@ pub(super) fn reconcile_candidate_success(
         .url
         .clone()
         .unwrap_or_else(|| cand.record.url.clone());
-    let perm_target =
-        slice.and_then(|g| permanent_redirect_target_from_provenance(&g.provenance, &final_url));
+    let perm_target = slice.and_then(|g| {
+        permanent_redirect_target_from_provenance(&g.provenance, &cand.record.url, &final_url)
+            .and_then(|t| normalize_in_scope_url(spec, &t))
+    });
+    let ps_meta = doc.metadata.pagesift.as_ref();
     let doc_id = slice.map(|g| g.doc_id.clone());
-    let latest_ver = graph_store
-        .latest_version_for_urls(&[rec_key.as_str(), final_url.as_str()])
-        .ok()
-        .flatten();
+    let contract_id = spec.contract_id();
 
     let mut migrated_to_url = None;
-    let mut current_state = ResourceLifecycleState::Active;
+    let mut current_state = cand.record.state;
     if let Some(rec_mut) = inventory.get_mut(&rec_key) {
-        let next_due = compute_next_due_at_ms(
-            spec,
-            rec_mut,
-            fam_stats.as_ref(),
-            obs_time_ms,
-            substantive_changed,
-        );
         migrated_to_url = apply_observation_to_record(
             spec,
             rec_mut,
@@ -153,36 +211,68 @@ pub(super) fn reconcile_candidate_success(
                 status_code,
                 not_modified_304,
                 is_barrier_or_error: is_barrier,
-                final_url,
+                had_transport_error: false,
+                final_url: final_url.clone(),
                 canonical_url: doc.metadata.canonical_url.clone(),
                 permanent_redirect_target: perm_target,
-                etag: latest_ver.as_ref().and_then(|v| v.etag.clone()),
-                last_modified: latest_ver.as_ref().and_then(|v| v.last_modified.clone()),
-                content_hash: latest_ver.as_ref().and_then(|v| v.content_hash.clone()),
+                etag: ps_meta.and_then(|p| p.etag.clone()),
+                last_modified: ps_meta.and_then(|p| p.last_modified.clone()),
+                contract_id: contract_id.clone(),
+                capture_sufficient,
+                has_embedded_json: has_embedded,
+                text_signature: text_sig,
+                content_hash: ps_meta.and_then(|p| p.content_hash.clone()),
                 doc_id: doc_id.clone(),
                 title: doc.metadata.title.clone(),
                 claim_count,
                 substantive_changed,
                 strategy_used: strategy_used.as_str().to_string(),
-                next_due_at_ms: next_due,
             },
+        );
+        // C19: 状态、连续失败与权重迁移完毕后，再基于最新状态计算 next_due_at_ms
+        rec_mut.next_due_at_ms = compute_next_due_at_ms(
+            spec,
+            rec_mut,
+            fam_stats.as_ref(),
+            obs_time_ms,
+            substantive_changed,
         );
         current_state = rec_mut.state;
     }
 
-    if current_state == ResourceLifecycleState::ConfirmedGone
-        && prev_state != Some(ResourceLifecycleState::ConfirmedGone)
-        && let Ok((_, gone_transitions)) = graph_store.reconcile_and_store_resource_claims(
-            &rec_key,
-            &ObservationOutcome::ConfirmedGone {
-                reason: format!("HTTP {status_code}"),
+    let obs_outcome = if not_modified_304 && capture_sufficient {
+        ObservationOutcome::NotModified304
+    } else if status_code == 410 || current_state == ResourceLifecycleState::ConfirmedGone {
+        ObservationOutcome::ConfirmedGone {
+            reason: format!("HTTP {status_code}"),
+        }
+    } else if status_code == 404 {
+        ObservationOutcome::SuspectedGone {
+            status_code: Some(404),
+        }
+    } else if is_barrier || status_code >= 400 || !capture_sufficient {
+        ObservationOutcome::TransientFetchError {
+            error: if !capture_sufficient {
+                format!("capture_insufficient: {:?}", final_assessment.reasons)
+            } else {
+                format!("HTTP {status_code}")
             },
-            &[],
-            obs_time_ms,
-        )
-    {
-        claim_transitions.extend(gone_transitions);
-    }
+        }
+    } else {
+        ObservationOutcome::VerifiedContent
+    };
+
+    stage_bundle_for_candidate(
+        graph_store,
+        prepared_bundles,
+        &rec_key,
+        &contract_id,
+        &obs_outcome,
+        slice,
+        staged.as_ref(),
+        doc,
+        obs_time_ms,
+    )?;
 
     let change_entry = ResourceChangeEntry {
         resource_key: rec_key,
@@ -195,18 +285,33 @@ pub(super) fn reconcile_candidate_success(
         substantive_blocks_changed: sub_blocks,
         noise_blocks_changed: noise_blocks,
         strategy_used: strategy_used.as_str().to_string(),
-        not_modified_304,
+        not_modified_304: not_modified_304 && capture_sufficient,
     };
 
     match current_state {
-        ResourceLifecycleState::Migrated => migrated_resources.push(change_entry),
-        ResourceLifecycleState::SuspectedGone | ResourceLifecycleState::ConfirmedGone => {
+        ResourceLifecycleState::Migrated
+            if prev_state != Some(ResourceLifecycleState::Migrated) =>
+        {
+            migrated_resources.push(change_entry);
+        }
+        ResourceLifecycleState::SuspectedGone | ResourceLifecycleState::ConfirmedGone
+            if prev_state != Some(current_state) =>
+        {
             disappeared_resources.push(change_entry);
         }
-        ResourceLifecycleState::Active => {
+        ResourceLifecycleState::Active if http_ok && capture_sufficient => {
             if prev_state == Some(ResourceLifecycleState::Discovered) || prev_doc_id.is_none() {
                 added_resources.push(change_entry);
-            } else if substantive_changed {
+            } else if substantive_changed
+                || matches!(
+                    prev_state,
+                    Some(
+                        ResourceLifecycleState::ConfirmedGone
+                            | ResourceLifecycleState::SuspectedGone
+                            | ResourceLifecycleState::Migrated
+                    )
+                )
+            {
                 modified_resources.push(change_entry);
             }
         }
@@ -226,7 +331,7 @@ pub(super) fn reconcile_candidate_success(
         );
     }
 
-    if cand.record.depth < spec.max_depth && status_code < 400 {
+    if cand.record.depth < spec.max_depth && http_ok && capture_sufficient {
         let next_depth = cand.record.depth + 1;
         for link in doc.links.as_deref().unwrap_or(&[]) {
             if let Some(norm_link) = normalize_in_scope_url(spec, link) {
@@ -241,42 +346,5 @@ pub(super) fn reconcile_candidate_success(
             }
         }
     }
-}
-
-fn insert_discovered_resource(
-    inventory: &mut BTreeMap<String, ResourceRecord>,
-    norm_url: String,
-    parent_url: Option<String>,
-    depth: usize,
-    importance_weight: f64,
-    now_ms: u64,
-) {
-    let key = DocNode::derive_resource_key(None, &norm_url);
-    inventory
-        .entry(key.clone())
-        .or_insert_with(|| ResourceRecord {
-            resource_key: key,
-            url: norm_url.clone(),
-            canonical_url: None,
-            migrated_to: None,
-            parent_url,
-            depth,
-            role: classify_resource_role(&norm_url, depth, false),
-            state: ResourceLifecycleState::Discovered,
-            discovered_at_ms: now_ms,
-            last_checked_at_ms: None,
-            last_substantive_change_at_ms: None,
-            next_due_at_ms: now_ms,
-            etag: None,
-            last_modified: None,
-            content_hash: None,
-            latest_doc_id: None,
-            last_status_code: None,
-            consecutive_failures: 0,
-            consecutive_404s: 0,
-            importance_weight,
-            last_strategy: None,
-            title: None,
-            claim_count: 0,
-        });
+    Ok(())
 }

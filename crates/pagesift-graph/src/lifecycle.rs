@@ -7,18 +7,61 @@
 //! 4. PageSift failed to fetch the source or received a suspect empty/barrier shell (`Unverified`);
 //! 5. Supporting block evidence degraded (`EvidenceChanged`).
 
-use std::collections::{BTreeMap, BTreeSet};
-
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::conflict::ConflictRecord;
-use crate::corroborate::ClaimRecord;
+use crate::corroborate::{ClaimRecord, DEFAULT_CONTRACT_ID};
 use crate::evidence::{EvidenceAlignment, EvidenceSpan};
 use crate::hash::short_id;
 use crate::norm::NormalizedValue;
 
-const MAX_CLAIM_HISTORY_LEN: usize = 32; // [策略] 单声明保留历史版本链上限
+pub(crate) const MAX_CLAIM_HISTORY_LEN: usize = 32; // [策略] 旧版摘要历史链上限
+pub(crate) const MAX_CLAIM_TIMELINE_LEN: usize = 256; // [策略] 单声明时序区间历史上限
+
+fn is_false(v: &bool) -> bool {
+    !*v
+}
+
+/// Unified semantic classification of one resource observation across HTTP, render, and Sync.
+pub fn outcome_for_scrape(
+    status_code: u16,
+    not_modified: bool,
+    capture_sufficient: bool,
+    is_barrier: bool,
+    fetch_failed: bool,
+    detail: Option<&str>,
+) -> ObservationOutcome {
+    if fetch_failed || status_code == 0 {
+        return ObservationOutcome::TransientFetchError {
+            error: detail.unwrap_or("fetch failed").to_string(),
+        };
+    }
+    match status_code {
+        404 => ObservationOutcome::SuspectedGone {
+            status_code: Some(404),
+        },
+        410 => ObservationOutcome::ConfirmedGone {
+            reason: "HTTP 410 Gone".into(),
+        },
+        400..=599 => ObservationOutcome::TransientFetchError {
+            error: detail
+                .map(|d| format!("HTTP {status_code}: {d}"))
+                .unwrap_or_else(|| format!("HTTP {status_code}")),
+        },
+        _ if not_modified => ObservationOutcome::NotModified304,
+        _ if is_barrier || !capture_sufficient => ObservationOutcome::SuspectEmptyOrBarrier {
+            reason: detail
+                .unwrap_or(if is_barrier {
+                    "access barrier or challenge detected"
+                } else {
+                    "insufficient capture coverage"
+                })
+                .to_string(),
+        },
+        _ => ObservationOutcome::VerifiedContent,
+    }
+}
 
 /// Semantic classification of a resource observation outcome.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -92,7 +135,19 @@ pub struct HistoricalClaimEntry {
     pub evidence: EvidenceSpan,
 }
 
-/// Persistent lifecycle record tracking one `(subject_key, resource_key, normalized_field)` slot.
+/// State-interval history snapshot used for point-in-time `claims_as_of` reconstruction.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaimTimelineEntry {
+    pub since_ms: u64,
+    pub until_ms: u64,
+    pub status: ClaimStatus,
+    pub claim: ClaimRecord,
+    pub last_confirmed_at_ms: u64,
+    pub observation_count: u32,
+}
+
+/// Persistent lifecycle record tracking one `(subject_key, resource_key, contract_id, field, occurrence)` slot.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClaimLifecycleRecord {
@@ -104,6 +159,10 @@ pub struct ClaimLifecycleRecord {
     pub observation_count: u32,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub history: Vec<HistoricalClaimEntry>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub timeline: Vec<ClaimTimelineEntry>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub history_truncated: bool,
 }
 
 impl ClaimLifecycleRecord {
@@ -111,22 +170,71 @@ impl ClaimLifecycleRecord {
         short_id("clc", &[subject_key, resource_key, normalized_field])
     }
 
+    pub fn slot_key_for_claim(claim: &ClaimRecord, occurrence_idx: usize) -> String {
+        let is_default = claim.contract_id.is_empty() || claim.contract_id == DEFAULT_CONTRACT_ID;
+        if is_default && occurrence_idx == 0 {
+            Self::slot_key(
+                &claim.subject_key,
+                &claim.resource_key,
+                &claim.normalized_field,
+            )
+        } else {
+            let occ = occurrence_idx.to_string();
+            let cid = if claim.contract_id.is_empty() {
+                DEFAULT_CONTRACT_ID
+            } else {
+                &claim.contract_id
+            };
+            short_id(
+                "clc",
+                &[
+                    &claim.subject_key,
+                    &claim.resource_key,
+                    cid,
+                    &claim.normalized_field,
+                    &occ,
+                ],
+            )
+        }
+    }
+
     pub fn new_active(claim: ClaimRecord) -> Self {
+        Self::new_observed(claim, 0)
+    }
+
+    pub fn new_observed(claim: ClaimRecord, occurrence_idx: usize) -> Self {
         let ts = claim.observed_at_ms;
-        let lifecycle_id = Self::slot_key(
-            &claim.subject_key,
-            &claim.resource_key,
-            &claim.normalized_field,
-        );
-        Self {
+        let lifecycle_id = Self::slot_key_for_claim(&claim, occurrence_idx);
+        let status = if claim.evidence.alignment == EvidenceAlignment::Unaligned {
+            ClaimStatus::EvidenceDegraded {
+                reason: degradation_reason(&claim.evidence.alignment),
+            }
+        } else {
+            ClaimStatus::Active
+        };
+        let mut rec = Self {
             lifecycle_id,
             claim,
-            status: ClaimStatus::Active,
+            status,
             first_observed_at_ms: ts,
             last_confirmed_at_ms: ts,
             observation_count: 1,
             history: Vec::new(),
+            timeline: Vec::new(),
+            history_truncated: false,
+        };
+        record_timeline(&mut rec, ts);
+        rec
+    }
+}
+
+fn degradation_reason(alignment: &EvidenceAlignment) -> String {
+    match alignment {
+        EvidenceAlignment::MetadataIsland => {
+            "visible block evidence degraded to metadata island".to_owned()
         }
+        EvidenceAlignment::Unaligned => "claim value ungrounded in visible blocks".to_owned(),
+        _ => "evidence verification degraded".to_owned(),
     }
 }
 
@@ -182,392 +290,8 @@ pub struct KnowledgeDelta {
     pub resolved_conflict_ids: Vec<String>,
 }
 
-struct TransitionSide {
-    value: Option<NormalizedValue>,
-    evidence: Option<EvidenceSpan>,
-}
-
-impl TransitionSide {
-    const fn empty() -> Self {
-        Self {
-            value: None,
-            evidence: None,
-        }
-    }
-
-    fn of(claim: &ClaimRecord) -> Self {
-        Self {
-            value: Some(claim.normalized_value.clone()),
-            evidence: Some(claim.evidence.clone()),
-        }
-    }
-
-    fn value_only(claim: &ClaimRecord) -> Self {
-        Self {
-            value: Some(claim.normalized_value.clone()),
-            evidence: None,
-        }
-    }
-}
-
-fn make_transition(
-    rec: &ClaimLifecycleRecord,
-    kind: ClaimTransitionKind,
-    observed_at_ms: u64,
-    before: TransitionSide,
-    after: TransitionSide,
-    explanation: String,
-) -> ClaimTransition {
-    ClaimTransition {
-        lifecycle_id: rec.lifecycle_id.clone(),
-        kind,
-        subject_key: rec.claim.subject_key.clone(),
-        resource_key: rec.claim.resource_key.clone(),
-        normalized_field: rec.claim.normalized_field.clone(),
-        field_path: rec.claim.field_path.clone(),
-        observed_at_ms,
-        before_value: before.value,
-        after_value: after.value,
-        before_evidence: before.evidence,
-        after_evidence: after.evidence,
-        explanation,
-    }
-}
-
-/// Reconcile previous claim lifecycles for a single logical resource against a new observation.
-pub fn reconcile_resource_claims(
-    previous: &[ClaimLifecycleRecord],
-    outcome: &ObservationOutcome,
-    new_claims: &[ClaimRecord],
-    observed_at_ms: u64,
-) -> (Vec<ClaimLifecycleRecord>, Vec<ClaimTransition>) {
-    let mut updated_records = Vec::new();
-    let mut transitions = Vec::new();
-
-    match outcome {
-        ObservationOutcome::NotModified304 => {
-            for rec in previous {
-                let mut next = rec.clone();
-                if next.status.is_active_or_unverified() {
-                    let was_unverified = matches!(next.status, ClaimStatus::Unverified { .. });
-                    next.status = ClaimStatus::Active;
-                    next.last_confirmed_at_ms = observed_at_ms;
-                    next.observation_count = next.observation_count.saturating_add(1);
-                    let kind = if was_unverified {
-                        ClaimTransitionKind::Restored
-                    } else {
-                        ClaimTransitionKind::Confirmed
-                    };
-                    transitions.push(make_transition(
-                        &next,
-                        kind,
-                        observed_at_ms,
-                        TransitionSide::of(&next.claim),
-                        TransitionSide::of(&next.claim),
-                        "confirmed unchanged via conditional check".into(),
-                    ));
-                }
-                updated_records.push(next);
-            }
-            return (updated_records, transitions);
-        }
-        ObservationOutcome::TransientFetchError { error }
-        | ObservationOutcome::SuspectEmptyOrBarrier { reason: error } => {
-            let msg =
-                format!("observation inconclusive ({error}); retaining prior claim as unverified");
-            return mark_all_unverified(previous, observed_at_ms, error, &msg);
-        }
-        ObservationOutcome::SuspectedGone { status_code } => {
-            let reason = format!(
-                "resource suspected gone (status={:?}); awaiting confirmation",
-                status_code
-            );
-            return mark_all_unverified(previous, observed_at_ms, &reason, &reason);
-        }
-        ObservationOutcome::ConfirmedGone { reason } => {
-            for rec in previous {
-                let mut next = rec.clone();
-                if next.status.is_active_or_unverified() {
-                    push_history(&mut next);
-                    next.status = ClaimStatus::Withdrawn {
-                        at_ms: observed_at_ms,
-                        reason: WithdrawalReason::ResourceConfirmedGone,
-                    };
-                    transitions.push(make_transition(
-                        &next,
-                        ClaimTransitionKind::Withdrawn,
-                        observed_at_ms,
-                        TransitionSide::of(&next.claim),
-                        TransitionSide::empty(),
-                        format!("resource confirmed gone: {reason}"),
-                    ));
-                }
-                updated_records.push(next);
-            }
-            return (updated_records, transitions);
-        }
-        ObservationOutcome::VerifiedContent => {}
-    }
-
-    let mut prev_by_field: BTreeMap<(String, String), &ClaimLifecycleRecord> = BTreeMap::new();
-    for rec in previous {
-        prev_by_field.insert(
-            (
-                rec.claim.subject_key.clone(),
-                rec.claim.normalized_field.clone(),
-            ),
-            rec,
-        );
-    }
-
-    let mut matched_keys: BTreeSet<(String, String)> = BTreeSet::new();
-    for new_claim in new_claims {
-        let key = (
-            new_claim.subject_key.clone(),
-            new_claim.normalized_field.clone(),
-        );
-        if !matched_keys.insert(key.clone()) {
-            continue;
-        }
-        match prev_by_field.get(&key) {
-            None => {
-                let rec = ClaimLifecycleRecord::new_active(new_claim.clone());
-                transitions.push(make_transition(
-                    &rec,
-                    ClaimTransitionKind::Appeared,
-                    observed_at_ms,
-                    TransitionSide::empty(),
-                    TransitionSide::of(new_claim),
-                    format!(
-                        "claim first observed with value {}",
-                        new_claim.normalized_value.raw()
-                    ),
-                ));
-                updated_records.push(rec);
-            }
-            Some(old_rec) => {
-                let mut next = (*old_rec).clone();
-                let same_val = old_rec.claim.normalized_value.bucket_key()
-                    == new_claim.normalized_value.bucket_key();
-                let was_withdrawn = matches!(old_rec.status, ClaimStatus::Withdrawn { .. });
-                let was_unverified = matches!(old_rec.status, ClaimStatus::Unverified { .. });
-
-                if same_val && !was_withdrawn {
-                    let ev_degraded =
-                        old_rec.claim.evidence.verified && !new_claim.evidence.verified;
-                    next.claim = new_claim.clone();
-                    next.last_confirmed_at_ms = observed_at_ms;
-                    next.observation_count = next.observation_count.saturating_add(1);
-                    if ev_degraded {
-                        let reason = match new_claim.evidence.alignment {
-                            EvidenceAlignment::MetadataIsland => {
-                                "visible block evidence degraded to metadata island".to_owned()
-                            }
-                            EvidenceAlignment::Unaligned => {
-                                "claim value ungrounded in visible blocks".to_owned()
-                            }
-                            _ => "evidence verification degraded".to_owned(),
-                        };
-                        next.status = ClaimStatus::EvidenceDegraded {
-                            reason: reason.clone(),
-                        };
-                        transitions.push(make_transition(
-                            &next,
-                            ClaimTransitionKind::EvidenceChanged,
-                            observed_at_ms,
-                            TransitionSide::of(&old_rec.claim),
-                            TransitionSide::of(new_claim),
-                            reason,
-                        ));
-                    } else {
-                        next.status = ClaimStatus::Active;
-                        let (kind, msg) = if was_unverified {
-                            (
-                                ClaimTransitionKind::Restored,
-                                "claim re-verified after prior inconclusive observation",
-                            )
-                        } else {
-                            (
-                                ClaimTransitionKind::Confirmed,
-                                "claim value and evidence confirmed",
-                            )
-                        };
-                        transitions.push(make_transition(
-                            &next,
-                            kind,
-                            observed_at_ms,
-                            TransitionSide::of(&old_rec.claim),
-                            TransitionSide::of(new_claim),
-                            msg.into(),
-                        ));
-                    }
-                } else {
-                    push_history(&mut next);
-                    next.claim = new_claim.clone();
-                    next.status = ClaimStatus::Active;
-                    next.last_confirmed_at_ms = observed_at_ms;
-                    next.observation_count = next.observation_count.saturating_add(1);
-                    let (kind, msg) = if was_withdrawn {
-                        (
-                            ClaimTransitionKind::Restored,
-                            format!(
-                                "previously withdrawn claim re-appeared with value {}",
-                                new_claim.normalized_value.raw()
-                            ),
-                        )
-                    } else {
-                        (
-                            ClaimTransitionKind::Updated,
-                            format!(
-                                "value updated from {} to {}",
-                                old_rec.claim.normalized_value.raw(),
-                                new_claim.normalized_value.raw()
-                            ),
-                        )
-                    };
-                    transitions.push(make_transition(
-                        &next,
-                        kind,
-                        observed_at_ms,
-                        TransitionSide::of(&old_rec.claim),
-                        TransitionSide::of(new_claim),
-                        msg,
-                    ));
-                }
-                updated_records.push(next);
-            }
-        }
-    }
-
-    for (key, old_rec) in prev_by_field {
-        if matched_keys.contains(&key) {
-            continue;
-        }
-        let mut next = old_rec.clone();
-        if next.status.is_active_or_unverified() {
-            push_history(&mut next);
-            next.status = ClaimStatus::Withdrawn {
-                at_ms: observed_at_ms,
-                reason: WithdrawalReason::OmittedInVerifiedVersion,
-            };
-            transitions.push(make_transition(
-                &next,
-                ClaimTransitionKind::Withdrawn,
-                observed_at_ms,
-                TransitionSide::of(&next.claim),
-                TransitionSide::empty(),
-                "claim omitted in latest verified document version".into(),
-            ));
-        }
-        updated_records.push(next);
-    }
-
-    (updated_records, transitions)
-}
-
-fn mark_all_unverified(
-    previous: &[ClaimLifecycleRecord],
-    observed_at_ms: u64,
-    reason: &str,
-    explanation: &str,
-) -> (Vec<ClaimLifecycleRecord>, Vec<ClaimTransition>) {
-    let mut updated_records = Vec::new();
-    let mut transitions = Vec::new();
-    for rec in previous {
-        let mut next = rec.clone();
-        if next.status.is_active_or_unverified() {
-            next.status = ClaimStatus::Unverified {
-                since_ms: observed_at_ms,
-                reason: reason.to_owned(),
-            };
-            transitions.push(make_transition(
-                &next,
-                ClaimTransitionKind::Unverified,
-                observed_at_ms,
-                TransitionSide::of(&next.claim),
-                TransitionSide::value_only(&next.claim),
-                explanation.to_owned(),
-            ));
-        }
-        updated_records.push(next);
-    }
-    (updated_records, transitions)
-}
-
-fn push_history(rec: &mut ClaimLifecycleRecord) {
-    if rec.history.len() >= MAX_CLAIM_HISTORY_LEN {
-        rec.history.remove(0);
-    }
-    rec.history.push(HistoricalClaimEntry {
-        claim_id: rec.claim.claim_id.clone(),
-        doc_id: rec.claim.doc_id.clone(),
-        value: rec.claim.normalized_value.clone(),
-        raw_value: rec.claim.raw_value.clone(),
-        observed_at_ms: rec.claim.observed_at_ms,
-        evidence: rec.claim.evidence.clone(),
-    });
-}
-
-/// Filter a multi-version claim slice so only the latest observation per `(resource_key, engine)`
-/// participates in cross-source conflict detection.
-pub fn latest_claims_per_resource(claims: &[ClaimRecord]) -> Vec<&ClaimRecord> {
-    let mut latest_ts: BTreeMap<(&str, &str), u64> = BTreeMap::new();
-    for c in claims {
-        let entry = latest_ts
-            .entry((c.resource_key.as_str(), c.engine.as_str()))
-            .or_insert(0);
-        if c.observed_at_ms > *entry {
-            *entry = c.observed_at_ms;
-        }
-    }
-    claims
-        .iter()
-        .filter(|c| {
-            latest_ts
-                .get(&(c.resource_key.as_str(), c.engine.as_str()))
-                .is_none_or(|&max_ts| c.observed_at_ms == max_ts)
-        })
-        .collect()
-}
-
-/// Reconstruct the effective state of claim lifecycles as of `as_of_ms`.
-pub fn claims_as_of(records: &[ClaimLifecycleRecord], as_of_ms: u64) -> Vec<ClaimLifecycleRecord> {
-    let mut out = Vec::new();
-    for rec in records {
-        if rec.first_observed_at_ms > as_of_ms {
-            continue;
-        }
-        if rec.claim.observed_at_ms <= as_of_ms {
-            let mut copy = rec.clone();
-            copy.history.retain(|h| h.observed_at_ms <= as_of_ms);
-            if let ClaimStatus::Withdrawn { at_ms, .. } | ClaimStatus::Superseded { at_ms, .. } =
-                copy.status
-                && at_ms > as_of_ms
-            {
-                copy.status = ClaimStatus::Active;
-            }
-            out.push(copy);
-            continue;
-        }
-        if let Some((idx, hist)) = rec
-            .history
-            .iter()
-            .enumerate()
-            .rev()
-            .find(|(_, h)| h.observed_at_ms <= as_of_ms)
-        {
-            let mut restored = rec.clone();
-            restored.claim.claim_id = hist.claim_id.clone();
-            restored.claim.doc_id = hist.doc_id.clone();
-            restored.claim.normalized_value = hist.value.clone();
-            restored.claim.raw_value = hist.raw_value.clone();
-            restored.claim.observed_at_ms = hist.observed_at_ms;
-            restored.claim.evidence = hist.evidence.clone();
-            restored.last_confirmed_at_ms = hist.observed_at_ms;
-            restored.status = ClaimStatus::Active;
-            restored.history = rec.history[..idx].to_vec();
-            out.push(restored);
-        }
-    }
-    out
-}
+#[path = "lifecycle_reconcile.rs"]
+mod lifecycle_reconcile;
+use crate::lifecycle_as_of::record_timeline;
+pub use crate::lifecycle_as_of::{claims_as_of, claims_as_of_checked, latest_claims_per_resource};
+pub use lifecycle_reconcile::{reconcile_resource_claims, reconcile_resource_claims_for_contract};

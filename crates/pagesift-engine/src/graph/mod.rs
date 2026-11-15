@@ -1,10 +1,13 @@
+mod align;
 pub mod commit;
 pub mod crawl_builder;
 pub mod dom_links;
 pub mod evidence;
 pub mod post;
+pub mod stage;
 pub mod version_diff;
 
+pub use commit::commit_staged_document;
 pub use post::{
     apply_http_provenance, attach_html_graph, enrich_duplicate_provenance, merge_header_alternates,
     page_delta_from_document, resync_graph_after_transform, update_graph_from_chunks,
@@ -219,7 +222,7 @@ pub fn build_and_attach_page_graph(
 
     let resource_key = DocNode::derive_resource_key(canonical_url.as_deref(), &final_url);
     let tenant = seed.tenant.take();
-    let _stripe_guard = (opts.versions && store.is_some())
+    let _stripe_guard = (opts.persist && opts.versions && store.is_some())
         .then(|| lock_resource_stripe(tenant.as_deref(), &resource_key));
 
     let mut observed_at_ms = now_ms();
@@ -426,7 +429,8 @@ pub fn build_and_attach_page_graph(
         }
     }
 
-    if opts.versions
+    if opts.persist
+        && opts.versions
         && let Some(st) = store
     {
         let gs = st.graph_for(tenant.as_deref());
@@ -449,6 +453,28 @@ pub fn build_and_attach_page_graph(
             previous_version,
             &mut warnings_to_push,
         );
+    } else if !opts.persist {
+        let alias_keys: Vec<String> = alias_candidates
+            .iter()
+            .filter(|a| *a != &resource_key)
+            .cloned()
+            .collect();
+        stage::push_staged_commit(stage::StagedGraphCommit {
+            doc_id: delta.node.doc_id.clone(),
+            resource_key: resource_key.clone(),
+            node: delta.node.clone(),
+            alias_keys,
+            markdown: (!markdown.is_empty()).then(|| markdown.clone()),
+            matched_304_md,
+            not_modified,
+            not_modified_unavail_reason,
+            had_initial_prev: previous_version.is_some(),
+            previous_version,
+            matched_304_version,
+            chunk_spans,
+            seed_content_hash,
+            seed_raw_hash,
+        });
     }
 
     for w in warnings_to_push {

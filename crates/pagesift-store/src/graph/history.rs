@@ -10,7 +10,7 @@ use super::{
     DEFAULT_GRAPH_HISTORY_LIMIT, GraphStore, MAX_ALIAS_HOPS, MAX_REV_ALIASES, PREFIX_ALIAS,
     PREFIX_REV, decode_json, encode_json, initial_key, scope_prefixed_key,
 };
-use crate::engine::{Tx, group_key, ns};
+use crate::engine::{TxOps, group_key, ns};
 use crate::{Error, Result, to_ms};
 
 /// Paginated/bounded history result for a resource key across its verified aliases.
@@ -78,11 +78,9 @@ impl<'a> GraphStore<'a> {
     /// Bind `alias_key -> canonical_key` so URL moves and same-site canonical declarations share history.
     pub fn bind_alias(&self, alias_key: &str, canonical_key: &str) -> Result<()> {
         let now = to_ms(SystemTime::now());
-        let mut tx = self.store.tx();
+        let mut tx = self.store.atomic_tx();
         bind_alias_in_tx(&mut tx, self.scope_str(), alias_key, canonical_key, now)?;
-        drop(tx);
-        self.store.finish();
-        Ok(())
+        tx.commit()
     }
 
     /// Return the canonical resource key reached by following stored forward aliases.
@@ -361,7 +359,11 @@ impl<'a> GraphStore<'a> {
     }
 }
 
-fn resolve_forward_in_tx(tx: &Tx<'_>, scope: &str, start_key: &str) -> Result<String> {
+pub(super) fn resolve_forward_in_tx<T: TxOps + ?Sized>(
+    tx: &T,
+    scope: &str,
+    start_key: &str,
+) -> Result<String> {
     let mut curr = start_key.to_string();
     let mut seen = BTreeSet::new();
     seen.insert(curr.clone());
@@ -383,7 +385,12 @@ fn resolve_forward_in_tx(tx: &Tx<'_>, scope: &str, start_key: &str) -> Result<St
     Ok(curr)
 }
 
-fn forward_reaches_in_tx(tx: &Tx<'_>, scope: &str, start_key: &str, needle: &str) -> Result<bool> {
+fn forward_reaches_in_tx<T: TxOps + ?Sized>(
+    tx: &T,
+    scope: &str,
+    start_key: &str,
+    needle: &str,
+) -> Result<bool> {
     let mut curr = start_key.to_string();
     let mut seen = BTreeSet::new();
     seen.insert(curr.clone());
@@ -408,8 +415,8 @@ fn forward_reaches_in_tx(tx: &Tx<'_>, scope: &str, start_key: &str, needle: &str
     Ok(curr == needle)
 }
 
-pub(super) fn bind_alias_in_tx(
-    tx: &mut Tx<'_>,
+pub(super) fn bind_alias_in_tx<T: TxOps + ?Sized>(
+    tx: &mut T,
     scope: &str,
     alias_key: &str,
     canonical_key: &str,

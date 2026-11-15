@@ -5,9 +5,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::citation::CitationEdge;
 use crate::corroborate::ClaimRecord;
 use crate::evidence::EvidenceSpan;
 use crate::hash::{normalize_resource_key, short_id};
+use crate::independence::{SourceLineage, independent_roots_for_claim_group};
 use crate::lifecycle::latest_claims_per_resource;
 use crate::norm::{NormalizedValue, ValueComparison, compare_normalized};
 
@@ -38,6 +40,8 @@ pub struct ConflictVariant {
     pub value: NormalizedValue,
     pub raw_values: Vec<Value>,
     pub support_count: usize,
+    #[serde(default)]
+    pub independent_source_count: usize,
     pub latest_observed_at_ms: u64,
     pub sources: Vec<String>,
     pub formats: Vec<String>,
@@ -73,6 +77,15 @@ pub struct ConflictRecord {
 /// Automatically filters out superseded historical claims from the same `(resource_key, engine)`
 /// so a single resource updating its own value over time does not conflict with its past self.
 pub fn detect_conflicts(claims: &[ClaimRecord]) -> Vec<ConflictRecord> {
+    detect_conflicts_with_lineage(claims, &BTreeMap::new(), &[])
+}
+
+/// Detect cross-source conflicts while weighting variant support by independent origin roots.
+pub fn detect_conflicts_with_lineage(
+    claims: &[ClaimRecord],
+    lineage: &BTreeMap<String, SourceLineage>,
+    citations: &[CitationEdge],
+) -> Vec<ConflictRecord> {
     let active_claims = latest_claims_per_resource(claims);
     let mut by_slot: BTreeMap<(String, String), Vec<&ClaimRecord>> = BTreeMap::new();
     for claim in active_claims {
@@ -84,7 +97,13 @@ pub fn detect_conflicts(claims: &[ClaimRecord]) -> Vec<ConflictRecord> {
 
     let mut conflicts = Vec::new();
     for ((subject_key, normalized_field), slot_claims) in by_slot {
-        if let Some(rec) = build_conflict(&subject_key, &normalized_field, &slot_claims) {
+        if let Some(rec) = build_conflict(
+            &subject_key,
+            &normalized_field,
+            &slot_claims,
+            lineage,
+            citations,
+        ) {
             conflicts.push(rec);
         }
     }
@@ -95,6 +114,8 @@ fn build_conflict(
     subject_key: &str,
     normalized_field: &str,
     claims: &[&ClaimRecord],
+    lineage: &BTreeMap<String, SourceLineage>,
+    citations: &[CitationEdge],
 ) -> Option<ConflictRecord> {
     let mut by_value: BTreeMap<String, Vec<&ClaimRecord>> = BTreeMap::new();
     for &claim in claims {
@@ -111,7 +132,10 @@ fn build_conflict(
     let kind = classify_conflict(&groups);
     let severity = severity_for(kind, claims);
 
-    let variants: Vec<ConflictVariant> = groups.iter().map(|g| to_variant(g)).collect();
+    let variants: Vec<ConflictVariant> = groups
+        .iter()
+        .map(|g| to_variant(g, lineage, citations))
+        .collect();
     let preferred_hint = pick_preferred_hint(&groups, &variants);
     let field_path = claims[0].field_path.clone();
 
@@ -229,7 +253,11 @@ fn severity_for(kind: ConflictKind, claims: &[&ClaimRecord]) -> ConflictSeverity
     }
 }
 
-fn to_variant(group: &[&ClaimRecord]) -> ConflictVariant {
+fn to_variant(
+    group: &[&ClaimRecord],
+    lineage: &BTreeMap<String, SourceLineage>,
+    citations: &[CitationEdge],
+) -> ConflictVariant {
     let mut raw_values = Vec::new();
     for c in group {
         if !raw_values.contains(&c.raw_value) {
@@ -240,10 +268,13 @@ fn to_variant(group: &[&ClaimRecord]) -> ConflictVariant {
     let formats: BTreeSet<String> = group.iter().map(|c| c.source_kind.format_label()).collect();
     let engines: BTreeSet<String> = group.iter().map(|c| c.engine.clone()).collect();
     let latest_observed_at_ms = group.iter().map(|c| c.observed_at_ms).max().unwrap_or(0);
+    let independent_source_count =
+        independent_roots_for_claim_group(group, lineage, citations).len();
     ConflictVariant {
         value: group[0].normalized_value.clone(),
         raw_values,
         support_count: group.len(),
+        independent_source_count,
         latest_observed_at_ms,
         sources: sources.into_iter().collect(),
         formats: formats.into_iter().collect(),
@@ -256,20 +287,19 @@ fn pick_preferred_hint(
     groups: &[Vec<&ClaimRecord>],
     variants: &[ConflictVariant],
 ) -> Option<PreferredHint> {
-    let mut best: Option<(usize, (usize, usize, u64, usize))> = None;
+    type VariantRank = (bool, bool, usize, u64, usize);
+    let mut best: Option<(usize, VariantRank)> = None;
     for (idx, (group, var)) in groups.iter().zip(variants.iter()).enumerate() {
-        let verified = group.iter().filter(|c| c.evidence.verified).count();
-        let canonical_hits = group
-            .iter()
-            .filter(|c| {
-                c.canonical_url
-                    .as_ref()
-                    .is_some_and(|u| normalize_resource_key(u) == c.resource_key)
-            })
-            .count();
+        let has_verified = group.iter().any(|c| c.evidence.verified);
+        let has_canonical = group.iter().any(|c| {
+            c.canonical_url
+                .as_ref()
+                .is_some_and(|u| normalize_resource_key(u) == c.resource_key)
+        });
         let score = (
-            verified,
-            canonical_hits,
+            has_verified,
+            has_canonical,
+            var.independent_source_count,
             var.latest_observed_at_ms,
             var.support_count,
         );
@@ -277,13 +307,16 @@ fn pick_preferred_hint(
             best = Some((idx, score));
         }
     }
-    let (idx, (verified, canonical_hits, _, _)) = best?;
+    let (idx, (has_verified, has_canonical, indep, _, _)) = best?;
     let mut reasons = Vec::new();
-    if verified > 0 {
+    if has_verified {
         reasons.push("verified visible evidence");
     }
-    if canonical_hits > 0 {
+    if has_canonical {
         reasons.push("canonical URL source");
+    }
+    if indep > 1 {
+        reasons.push("independent corroboration");
     }
     reasons.push("highest recency/support");
     Some(PreferredHint {

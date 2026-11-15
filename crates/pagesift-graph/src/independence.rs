@@ -13,7 +13,7 @@ use crate::hash::{host_of, normalize_resource_key};
 use crate::model::DocNode;
 use crate::provenance::{ProvenanceEdge, RedirectKind};
 
-const MAX_LINEAGE_HOPS: usize = 16; // [策略] 来源派生链溯源最大跳数
+const MAX_LINEAGE_HOPS: usize = 64; // [策略] 来源派生链溯源最大跳数
 
 /// How a document or claim source relates to its underlying evidentiary origin.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -58,6 +58,11 @@ pub fn compute_source_lineage(
     provenance: &[ProvenanceEdge],
 ) -> BTreeMap<String, SourceLineage> {
     let mut parent_map: BTreeMap<String, (String, OriginRelation)> = BTreeMap::new();
+
+    let doc_id_to_key: BTreeMap<&str, String> = nodes
+        .iter()
+        .map(|n| (n.doc_id.as_str(), n.resource_key.clone()))
+        .collect();
 
     for edge in provenance {
         match edge {
@@ -112,14 +117,27 @@ pub fn compute_source_lineage(
                 }
             }
             ProvenanceEdge::DerivedFrom {
+                doc_id,
                 source_url,
+                parent_doc_id,
                 relation,
-                ..
             } => {
-                // `DerivedFrom` links a derived doc back to its parent `source_url`.
-                let parent_k = normalize_resource_key(source_url);
-                if let Some(node) = nodes.iter().find(|n| n.final_url == *source_url) {
-                    let _ = (node, parent_k, relation);
+                let child_k = doc_id_to_key
+                    .get(doc_id.as_str())
+                    .cloned()
+                    .unwrap_or_default();
+                let parent_k = parent_doc_id
+                    .as_deref()
+                    .and_then(|pid| doc_id_to_key.get(pid).cloned())
+                    .unwrap_or_else(|| normalize_resource_key(source_url));
+                if !child_k.is_empty() && !parent_k.is_empty() && child_k != parent_k {
+                    parent_map.entry(child_k).or_insert((
+                        parent_k.clone(),
+                        OriginRelation::DerivedArtifact {
+                            parent_key: parent_k,
+                            relation: relation.clone(),
+                        },
+                    ));
                 }
             }
             ProvenanceEdge::AttachmentOf {
@@ -187,7 +205,9 @@ fn resolve_root(
             break;
         };
         if !visited.insert(next.as_str()) {
-            break;
+            // Break provenance cycles deterministically on the lexicographically smallest member.
+            let cycle_rep = visited.iter().min().copied().unwrap_or(curr);
+            return (cycle_rep.to_owned(), first_rel.clone());
         }
         curr = next;
     }
@@ -218,13 +238,26 @@ pub fn independent_roots_for_claim_group(
         })
         .collect();
 
-    // Build citation dependency among roots present in this same fact cluster.
-    let mut cited_target_in_group: BTreeMap<String, String> = BTreeMap::new();
+    // Build multi-target citation adjacency among roots present in this same fact cluster.
+    // Navigation/header/footer/internal chrome links never collapse source independence.
+    let mut adj: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for edge in citations {
-        if !matches!(
-            edge.role,
-            LinkRole::Citation | LinkRole::Attachment | LinkRole::External | LinkRole::Internal
-        ) {
+        let is_citation_role = match edge.role {
+            LinkRole::Citation | LinkRole::Attachment => true,
+            LinkRole::External => {
+                edge.samples.is_empty()
+                    || edge.samples.iter().any(|s| {
+                        matches!(
+                            s.section,
+                            crate::citation::LinkSection::MainContent
+                                | crate::citation::LinkSection::ReferenceList
+                                | crate::citation::LinkSection::Unknown
+                        )
+                    })
+            }
+            _ => false,
+        };
+        if !is_citation_role {
             continue;
         }
         let from_root = lineage
@@ -235,27 +268,48 @@ pub fn independent_roots_for_claim_group(
             .get(&edge.to_resource_key)
             .map(|l| l.origin_root_key.as_str())
             .unwrap_or(&edge.to_resource_key);
-        if from_root != to_root
-            && group_roots.contains(from_root)
-            && group_roots.contains(to_root)
-            && !cited_target_in_group.contains_key(to_root)
+        if from_root != to_root && group_roots.contains(from_root) && group_roots.contains(to_root)
         {
-            cited_target_in_group.insert(from_root.to_owned(), to_root.to_owned());
+            adj.entry(from_root.to_owned())
+                .or_default()
+                .insert(to_root.to_owned());
         }
     }
 
+    // Roots reachable via non-cyclic citations collapse onto their sink primary roots;
+    // mutually citing cycles contribute a single deterministic cycle representative.
     let mut final_roots = BTreeSet::new();
     for root in &group_roots {
-        let mut curr = root.as_str();
-        let mut seen = BTreeSet::new();
-        seen.insert(curr);
-        while let Some(target) = cited_target_in_group.get(curr) {
-            if !seen.insert(target.as_str()) {
-                break;
+        let mut stack = vec![root.as_str()];
+        let mut visited = BTreeSet::new();
+        let mut sinks = BTreeSet::new();
+        let mut cycle_members = BTreeSet::new();
+        while let Some(curr) = stack.pop() {
+            if !visited.insert(curr) {
+                continue;
             }
-            curr = target.as_str();
+            if let Some(targets) = adj.get(curr)
+                && !targets.is_empty()
+            {
+                for target in targets {
+                    if target.as_str() == root.as_str() {
+                        cycle_members.insert(curr.to_owned());
+                    }
+                    if !visited.contains(target.as_str()) {
+                        stack.push(target.as_str());
+                    }
+                }
+            } else {
+                sinks.insert(curr.to_owned());
+            }
         }
-        final_roots.insert(curr.to_owned());
+        if !sinks.is_empty() {
+            final_roots.extend(sinks);
+        } else if let Some(rep) = cycle_members.into_iter().next() {
+            final_roots.insert(rep);
+        } else {
+            final_roots.insert(root.clone());
+        }
     }
     final_roots.into_iter().collect()
 }

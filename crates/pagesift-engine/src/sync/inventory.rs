@@ -1,4 +1,4 @@
-//! 数据源资源清单（`ResourceInventory`）管理、拓扑角色分类与防误删状态机迁移。
+//! 数据源资源清单（`ResourceInventory`）管理、拓扑角色分类、Scope 清洗与生命周期状态机（C18–C23 / R03）。
 
 use std::collections::BTreeMap;
 
@@ -39,16 +39,21 @@ pub fn classify_resource_role(url: &str, depth: usize, is_seed: bool) -> Resourc
     {
         return ResourceRole::Pagination;
     }
-    if depth <= 1
-        || path.ends_with('/')
+    let _ = depth;
+    if path.ends_with('/')
         || [
             "/docs",
             "/blog",
             "/news",
             "/products",
             "/catalog",
+            "/category",
+            "/categories",
+            "/collections",
             "/list",
             "/index",
+            "/index.html",
+            "/index.htm",
         ]
         .iter()
         .any(|p| path.ends_with(p))
@@ -58,22 +63,18 @@ pub fn classify_resource_role(url: &str, depth: usize, is_seed: bool) -> Resourc
     ResourceRole::Detail
 }
 
-/// 检查候选链接是否落在 `DataSourceSpec` 允许的站点与路径范围内，返回清洗后的规范 URL。
-pub fn normalize_in_scope_url(spec: &DataSourceSpec, raw_url: &str) -> Option<String> {
-    let mut u = Url::parse(raw_url).ok()?;
-    if !matches!(u.scheme(), "http" | "https") {
-        return None;
-    }
-    frontier::clean(&mut u);
-    if frontier::skip(&u) {
-        return None;
-    }
-    let cand_host = u.host_str()?.to_ascii_lowercase();
-
-    let host_allowed = spec.seeds.iter().any(|seed| {
+fn origin_allowed_by_spec(spec: &DataSourceSpec, u: &Url) -> bool {
+    let Some(cand_host) = u.host_str().map(str::to_ascii_lowercase) else {
+        return false;
+    };
+    let cand_port = u.port_or_known_default();
+    spec.seeds.iter().any(|seed| {
         let Ok(su) = Url::parse(seed) else {
             return false;
         };
+        if su.scheme() != u.scheme() || su.port_or_known_default() != cand_port {
+            return false;
+        }
         let Some(sh) = su.host_str().map(str::to_ascii_lowercase) else {
             return false;
         };
@@ -84,162 +85,225 @@ pub fn normalize_in_scope_url(spec: &DataSourceSpec, raw_url: &str) -> Option<St
             return true;
         }
         spec.allow_subdomains && cand_host.ends_with(&format!(".{sh}"))
-    });
-    if !host_allowed {
-        return None;
-    }
+    })
+}
 
-    let path = u.path();
-    if !spec.include_paths.is_empty()
-        && !spec
-            .include_paths
-            .iter()
-            .any(|inc| path.starts_with(inc.as_str()))
-    {
-        return None;
-    }
-    if spec
-        .exclude_paths
-        .iter()
-        .any(|exc| !exc.is_empty() && path.starts_with(exc.as_str()))
-    {
-        return None;
-    }
+fn path_allowed_by_spec(spec: &DataSourceSpec, path: &str) -> bool {
+    spec.allows_path(path)
+}
 
+/// 检查候选链接是否落在 `DataSourceSpec` 允许的站点与路径范围内，返回清洗后的规范 URL（C21）。
+pub fn normalize_in_scope_url(spec: &DataSourceSpec, raw_url: &str) -> Option<String> {
+    let mut u = Url::parse(raw_url).ok()?;
+    if !matches!(u.scheme(), "http" | "https") {
+        return None;
+    }
+    frontier::clean(&mut u);
+    if frontier::skip(&u) {
+        return None;
+    }
+    if !origin_allowed_by_spec(spec, &u) {
+        return None;
+    }
+    if !path_allowed_by_spec(spec, u.path()) {
+        return None;
+    }
     Some(crate::crawl::normalize(&u, false))
 }
 
-/// 确保种子 URL 均已注册在资源清单中。
+/// 当数据源配置更新了 `include_paths` / `exclude_paths` / `max_depth` / `seeds` 时，清理不再合规的旧库存（R03）。
+pub fn prune_out_of_scope_inventory(
+    spec: &DataSourceSpec,
+    inventory: &mut BTreeMap<String, ResourceRecord>,
+) -> usize {
+    let before = inventory.len();
+    inventory.retain(|_, rec| {
+        rec.depth <= spec.max_depth && normalize_in_scope_url(spec, &rec.url).is_some()
+    });
+    before.saturating_sub(inventory.len())
+}
+
+pub(crate) fn new_discovered_record(
+    norm_url: String,
+    parent_url: Option<String>,
+    depth: usize,
+    is_seed: bool,
+    importance_weight: f64,
+    now_ms: u64,
+) -> ResourceRecord {
+    let key = DocNode::derive_resource_key(None, &norm_url);
+    ResourceRecord {
+        resource_key: key,
+        url: norm_url.clone(),
+        canonical_url: None,
+        migrated_to: None,
+        parent_url,
+        depth,
+        role: classify_resource_role(&norm_url, depth, is_seed),
+        state: ResourceLifecycleState::Discovered,
+        discovered_at_ms: now_ms,
+        last_checked_at_ms: None,
+        last_substantive_change_at_ms: None,
+        next_due_at_ms: now_ms,
+        etag: None,
+        last_modified: None,
+        last_validator_contract_id: None,
+        last_authoritative_status: None,
+        baseline_sufficient: false,
+        has_embedded_json: false,
+        text_signature: None,
+        confirmed_gone_at_ms: None,
+        content_hash: None,
+        latest_doc_id: None,
+        last_status_code: None,
+        consecutive_failures: 0,
+        consecutive_404s: 0,
+        importance_weight,
+        last_strategy: None,
+        title: None,
+        claim_count: 0,
+    }
+}
+
+/// 确保合法且落在 Scope 内的种子 URL 已注册在资源清单中（C21）。
 pub fn ensure_seeds_in_inventory(
     spec: &DataSourceSpec,
     inventory: &mut BTreeMap<String, ResourceRecord>,
     now_ms: u64,
 ) {
     for seed in &spec.seeds {
-        let norm = normalize_in_scope_url(spec, seed).unwrap_or_else(|| seed.clone());
+        let Some(norm) = normalize_in_scope_url(spec, seed) else {
+            continue;
+        };
         let key = DocNode::derive_resource_key(None, &norm);
         inventory
-            .entry(key.clone())
-            .or_insert_with(|| ResourceRecord {
-                resource_key: key,
-                url: norm,
-                canonical_url: None,
-                migrated_to: None,
-                parent_url: None,
-                depth: 0,
-                role: ResourceRole::Seed,
-                state: ResourceLifecycleState::Discovered,
-                discovered_at_ms: now_ms,
-                last_checked_at_ms: None,
-                last_substantive_change_at_ms: None,
-                next_due_at_ms: now_ms,
-                etag: None,
-                last_modified: None,
-                content_hash: None,
-                latest_doc_id: None,
-                last_status_code: None,
-                consecutive_failures: 0,
-                consecutive_404s: 0,
-                importance_weight: 1.5,
-                last_strategy: None,
-                title: None,
-                claim_count: 0,
-            });
+            .entry(key)
+            .or_insert_with(|| new_discovered_record(norm, None, 0, true, 1.5, now_ms));
     }
 }
 
-/// 单次抓取结果对清单条目的观测输入。
+/// 单次抓取结果对清单条目的观测输入（不再接收预计算 `next_due_at_ms`，强制先状态迁移再算退避，C19）。
 #[derive(Debug, Clone)]
 pub struct InventoryObservation {
     pub now_ms: u64,
     pub status_code: u16,
     pub not_modified_304: bool,
     pub is_barrier_or_error: bool,
+    pub had_transport_error: bool,
     pub final_url: String,
     pub canonical_url: Option<String>,
     pub permanent_redirect_target: Option<String>,
     pub etag: Option<String>,
     pub last_modified: Option<String>,
+    pub contract_id: String,
+    pub capture_sufficient: bool,
+    pub has_embedded_json: bool,
+    pub text_signature: Option<u64>,
     pub content_hash: Option<String>,
     pub doc_id: Option<String>,
     pub title: Option<String>,
     pub claim_count: usize,
     pub substantive_changed: bool,
     pub strategy_used: String,
-    pub next_due_at_ms: u64,
 }
 
-/// 将单次观测应用到资源记录，执行防误删生命周期迁移：
-/// - 单次 404 先进入 `SuspectedGone`，达到 `confirm_gone_after_404s` 或遇 410 才进入 `ConfirmedGone`；
-/// - 5xx / 429 / 网络错误 / 拦截挑战进入 `TransientFailure`，保留历史快照哈希与校验子；
-/// - 永久重定向或规范 URL 迁移进入 `Migrated`，并返回需要注入清单的新目标 URL。
+/// 将单次观测应用到资源记录，执行状态迁移与防污染更新（C18 / C20 / C21 / C23）：
+/// 若发生允许范围内的永久迁移，返回需注入清单的合法目标 URL。
 pub fn apply_observation_to_record(
     spec: &DataSourceSpec,
     rec: &mut ResourceRecord,
     obs: &InventoryObservation,
 ) -> Option<String> {
     rec.last_checked_at_ms = Some(obs.now_ms);
-    rec.last_status_code = Some(obs.status_code);
+    if !obs.had_transport_error {
+        rec.last_status_code = Some(obs.status_code);
+    }
     rec.last_strategy = Some(obs.strategy_used.clone());
-    rec.next_due_at_ms = obs.next_due_at_ms;
 
     if obs.not_modified_304 {
-        rec.state = ResourceLifecycleState::Active;
         rec.consecutive_failures = 0;
         rec.consecutive_404s = 0;
-        if obs.etag.is_some() {
-            rec.etag = obs.etag.clone();
-        }
-        if obs.last_modified.is_some() {
-            rec.last_modified = obs.last_modified.clone();
+        rec.confirmed_gone_at_ms = None;
+        if obs.capture_sufficient {
+            rec.state = ResourceLifecycleState::Active;
+            rec.baseline_sufficient = true;
+            rec.last_validator_contract_id = Some(obs.contract_id.clone());
+            if obs.etag.is_some() {
+                rec.etag = obs.etag.clone();
+            }
+            if obs.last_modified.is_some() {
+                rec.last_modified = obs.last_modified.clone();
+            }
+        } else {
+            // 304 与当前契约基线不匹配：保留旧数据等待重抓，不宣称为充分快照（C15）
+            rec.baseline_sufficient = false;
+            rec.state = ResourceLifecycleState::TransientFailure;
         }
         return None;
     }
 
-    if obs.status_code == 410 {
+    if obs.status_code == 410 && !obs.had_transport_error {
         rec.state = ResourceLifecycleState::ConfirmedGone;
         rec.consecutive_404s = rec.consecutive_404s.saturating_add(1);
+        rec.consecutive_failures = 0;
+        rec.confirmed_gone_at_ms.get_or_insert(obs.now_ms);
         return None;
     }
 
-    if obs.status_code == 404 {
+    if obs.status_code == 404 && !obs.had_transport_error {
         rec.consecutive_404s = rec.consecutive_404s.saturating_add(1);
+        rec.consecutive_failures = 0;
         let threshold = spec.freshness.confirm_gone_after_404s.max(1);
         if rec.consecutive_404s >= threshold {
             rec.state = ResourceLifecycleState::ConfirmedGone;
+            rec.confirmed_gone_at_ms.get_or_insert(obs.now_ms);
         } else {
             rec.state = ResourceLifecycleState::SuspectedGone;
         }
         return None;
     }
 
-    if obs.is_barrier_or_error || obs.status_code >= 400 {
+    if obs.had_transport_error
+        || obs.is_barrier_or_error
+        || obs.status_code >= 400
+        || !obs.capture_sufficient
+    {
+        // 非 404 故障/拦截/弱结果壳打断“连续 404”链条（C18），且绝不覆盖旧验证器与健康哈希（C02/C14）
         rec.consecutive_failures = rec.consecutive_failures.saturating_add(1);
+        rec.consecutive_404s = 0;
         rec.state = ResourceLifecycleState::TransientFailure;
         return None;
     }
 
-    // 检查是否发生同站永久重定向或规范 URL 迁移
     if let Some(ref target) = obs.permanent_redirect_target {
         let target_key = DocNode::derive_resource_key(obs.canonical_url.as_deref(), target);
         if target_key != rec.resource_key {
             rec.state = ResourceLifecycleState::Migrated;
             rec.migrated_to = Some(target.clone());
+            rec.confirmed_gone_at_ms.get_or_insert(obs.now_ms);
             rec.consecutive_failures = 0;
             rec.consecutive_404s = 0;
-            return Some(target.clone());
+            return normalize_in_scope_url(spec, target);
         }
     }
 
+    let first_baseline = rec.latest_doc_id.is_none();
     rec.state = ResourceLifecycleState::Active;
     rec.consecutive_failures = 0;
     rec.consecutive_404s = 0;
+    rec.confirmed_gone_at_ms = None;
+    rec.migrated_to = None;
     rec.canonical_url = obs.canonical_url.clone();
-    if obs.etag.is_some() {
-        rec.etag = obs.etag.clone();
-    }
-    if obs.last_modified.is_some() {
-        rec.last_modified = obs.last_modified.clone();
+
+    // 权威非 304 响应：全量替换 ETag / Last-Modified（服务端不再返回时必须清除旧验证器，C23）
+    rec.etag = obs.etag.clone();
+    rec.last_modified = obs.last_modified.clone();
+    rec.last_validator_contract_id = Some(obs.contract_id.clone());
+    rec.last_authoritative_status = Some(obs.status_code);
+    rec.baseline_sufficient = obs.capture_sufficient;
+    rec.has_embedded_json = obs.has_embedded_json;
+    if obs.text_signature.is_some() {
+        rec.text_signature = obs.text_signature;
     }
     if obs.content_hash.is_some() {
         rec.content_hash = obs.content_hash.clone();
@@ -252,7 +316,9 @@ pub fn apply_observation_to_record(
     }
     rec.claim_count = obs.claim_count;
 
-    if obs.substantive_changed || rec.last_substantive_change_at_ms.is_none() {
+    if first_baseline {
+        rec.last_substantive_change_at_ms = Some(obs.now_ms);
+    } else if obs.substantive_changed {
         rec.last_substantive_change_at_ms = Some(obs.now_ms);
         rec.importance_weight = (rec.importance_weight * 1.15).clamp(0.2, 5.0);
     } else {
@@ -269,6 +335,7 @@ mod tests {
     fn dummy_spec() -> DataSourceSpec {
         DataSourceSpec {
             id: "s1".to_string(),
+            revision: 1,
             name: None,
             seeds: vec!["https://example.com/docs/".to_string()],
             include_paths: vec!["/docs".to_string()],
@@ -286,91 +353,93 @@ mod tests {
         }
     }
 
-    #[test]
-    fn scope_and_lifecycle_transitions_prevent_false_disappearance() {
-        let spec = dummy_spec();
-        assert!(normalize_in_scope_url(&spec, "https://example.com/docs/guide").is_some());
-        assert!(normalize_in_scope_url(&spec, "https://example.com/docs/private/a").is_none());
-        assert!(normalize_in_scope_url(&spec, "https://other.com/docs/guide").is_none());
+    fn base_obs(
+        url: &str,
+        now_ms: u64,
+        status_code: u16,
+        etag: Option<&str>,
+    ) -> InventoryObservation {
+        InventoryObservation {
+            now_ms,
+            status_code,
+            not_modified_304: status_code == 304,
+            is_barrier_or_error: false,
+            had_transport_error: false,
+            final_url: url.to_string(),
+            canonical_url: None,
+            permanent_redirect_target: None,
+            etag: etag.map(str::to_string),
+            last_modified: None,
+            contract_id: "c1".to_string(),
+            capture_sufficient: true,
+            has_embedded_json: false,
+            text_signature: Some(123),
+            content_hash: Some("h1".to_string()),
+            doc_id: Some("d1".to_string()),
+            title: Some("Docs".to_string()),
+            claim_count: 1,
+            substantive_changed: false,
+            strategy_used: "lightweight_http".to_string(),
+        }
+    }
 
+    #[test]
+    fn scope_excluded_seed_and_pruning_enforced_c21_r03() {
+        let mut spec = dummy_spec();
+        spec.seeds
+            .push("https://example.com/docs/private/secret".to_string());
+        let mut inv = BTreeMap::new();
+        ensure_seeds_in_inventory(&spec, &mut inv, 1000);
+        assert_eq!(inv.len(), 1);
+        assert!(!inv.values().any(|r| r.url.contains("/private")));
+
+        inv.insert(
+            "https://example.com/docs/old".to_string(),
+            new_discovered_record(
+                "https://example.com/docs/old".to_string(),
+                None,
+                1,
+                false,
+                1.0,
+                1000,
+            ),
+        );
+        spec.exclude_paths.push("/docs/old".to_string());
+        let removed = prune_out_of_scope_inventory(&spec, &mut inv);
+        assert_eq!(removed, 1);
+        assert_eq!(inv.len(), 1);
+    }
+
+    #[test]
+    fn consecutive_404_resets_across_503_and_clears_omitted_etag_c18_c23() {
+        let spec = dummy_spec();
         let mut inv = BTreeMap::new();
         ensure_seeds_in_inventory(&spec, &mut inv, 1000);
         let rec = inv.values_mut().next().unwrap();
 
-        // 首次 200 激活
-        apply_observation_to_record(
-            &spec,
-            rec,
-            &InventoryObservation {
-                now_ms: 2000,
-                status_code: 200,
-                not_modified_304: false,
-                is_barrier_or_error: false,
-                final_url: rec.url.clone(),
-                canonical_url: None,
-                permanent_redirect_target: None,
-                etag: Some("\"e1\"".to_string()),
-                last_modified: None,
-                content_hash: Some("h1".to_string()),
-                doc_id: Some("d1".to_string()),
-                title: Some("Docs".to_string()),
-                claim_count: 2,
-                substantive_changed: true,
-                strategy_used: "lightweight_http".to_string(),
-                next_due_at_ms: 3000,
-            },
-        );
-        assert_eq!(rec.state, ResourceLifecycleState::Active);
-
-        // 临时 503 故障保留历史哈希与 ETag
-        apply_observation_to_record(
-            &spec,
-            rec,
-            &InventoryObservation {
-                now_ms: 3000,
-                status_code: 503,
-                not_modified_304: false,
-                is_barrier_or_error: false,
-                final_url: rec.url.clone(),
-                canonical_url: None,
-                permanent_redirect_target: None,
-                etag: None,
-                last_modified: None,
-                content_hash: None,
-                doc_id: None,
-                title: None,
-                claim_count: 0,
-                substantive_changed: false,
-                strategy_used: "conditional_http".to_string(),
-                next_due_at_ms: 3500,
-            },
-        );
-        assert_eq!(rec.state, ResourceLifecycleState::TransientFailure);
+        let url = rec.url.clone();
+        apply_observation_to_record(&spec, rec, &base_obs(&url, 2000, 200, Some("\"e1\"")));
         assert_eq!(rec.etag.as_deref(), Some("\"e1\""));
 
-        // 单次 404 先进入 SuspectedGone，第二次 404 才进入 ConfirmedGone
-        let mut obs_404 = InventoryObservation {
-            now_ms: 4000,
-            status_code: 404,
-            not_modified_304: false,
-            is_barrier_or_error: false,
-            final_url: rec.url.clone(),
-            canonical_url: None,
-            permanent_redirect_target: None,
-            etag: None,
-            last_modified: None,
-            content_hash: None,
-            doc_id: None,
-            title: None,
-            claim_count: 0,
-            substantive_changed: false,
-            strategy_used: "conditional_http".to_string(),
-            next_due_at_ms: 4500,
-        };
-        apply_observation_to_record(&spec, rec, &obs_404);
+        // 新 200 未携带 ETag -> 必须清除旧 ETag（C23）
+        apply_observation_to_record(&spec, rec, &base_obs(&url, 2500, 200, None));
+        assert_eq!(rec.etag, None);
+
+        // 404 -> 503 -> 404 不应直接 ConfirmedGone（C18）
+        apply_observation_to_record(&spec, rec, &base_obs(&url, 3000, 404, None));
         assert_eq!(rec.state, ResourceLifecycleState::SuspectedGone);
-        obs_404.now_ms = 5000;
-        apply_observation_to_record(&spec, rec, &obs_404);
+        assert_eq!(rec.consecutive_404s, 1);
+
+        apply_observation_to_record(&spec, rec, &base_obs(&url, 4000, 503, None));
+        assert_eq!(rec.state, ResourceLifecycleState::TransientFailure);
+        assert_eq!(rec.consecutive_404s, 0);
+
+        apply_observation_to_record(&spec, rec, &base_obs(&url, 5000, 404, None));
+        assert_eq!(rec.state, ResourceLifecycleState::SuspectedGone);
+        assert_eq!(rec.consecutive_404s, 1);
+
+        apply_observation_to_record(&spec, rec, &base_obs(&url, 6000, 404, None));
         assert_eq!(rec.state, ResourceLifecycleState::ConfirmedGone);
+        assert_eq!(rec.consecutive_404s, 2);
     }
 }

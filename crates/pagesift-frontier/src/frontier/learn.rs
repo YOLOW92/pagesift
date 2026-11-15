@@ -264,6 +264,16 @@ fn text_bytes(markdown: &str) -> impl Iterator<Item = u8> + '_ {
 }
 
 impl Learner {
+    /// 正文去空白/标点后的稳定内容签名（供跨周期发现等价 URL 对）。
+    pub fn content_signature(markdown: &str) -> u64 {
+        fnv(text_bytes(markdown))
+    }
+
+    /// 预载已知规范页面的签名，使跨周期新发现的同正文 URL 变体可被识别并学习改写规则（R04）。
+    pub fn seed_known_page(&mut self, url: &Url, sig: u64) {
+        self.exact.entry(sig).or_insert_with(|| url.to_string());
+    }
+
     /// 记下抓到的一页，返回它是新内容还是重复。
     pub fn observe(&mut self, url: &Url, markdown: &str) -> Seen {
         let exact = fnv(text_bytes(markdown));

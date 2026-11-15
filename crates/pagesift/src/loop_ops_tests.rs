@@ -142,3 +142,85 @@ async fn loop_ops_require_persistent_store() {
         .unwrap_err();
     assert_eq!(gerr.code, ErrorCode::InvalidRequest);
 }
+
+#[tokio::test]
+async fn loop_ops_sync_enforces_max_requests_cap_t08() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open_dir(dir.path()).unwrap();
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let (sd_tx, mut sd_rx) = tokio::sync::oneshot::channel::<()>();
+    tokio::spawn(async move {
+        let html = "<!doctype html><html><head><title>Item</title></head><body><main><h1>Item</h1><p>Unit specification details with sufficient text length for capture quality checks in sync loop tests.</p></main></body></html>";
+        let resp = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            html.len(),
+            html
+        );
+        loop {
+            tokio::select! {
+                _ = &mut sd_rx => break,
+                accepted = listener.accept() => {
+                    if let Ok((mut sock, _)) = accepted {
+                        let r = resp.clone();
+                        tokio::spawn(async move {
+                            let mut buf = [0u8; 512];
+                            let _ = sock.read(&mut buf).await;
+                            let _ = sock.write_all(r.as_bytes()).await;
+                        });
+                    }
+                }
+            }
+        }
+    });
+
+    let mut cfg = ScraperConfig::default();
+    cfg.fetcher.env_proxy = false;
+    cfg.fetcher.ssrf.allow_private_network = true;
+    cfg.policy.rate.default_interval = std::time::Duration::ZERO;
+    cfg.store = Some(store);
+    let scraper = Scraper::new(cfg).unwrap();
+
+    sync(
+        &scraper,
+        json!({
+            "action": "create",
+            "id": "loop-t08",
+            "seeds": [format!("http://127.0.0.1:{port}/")]
+        }),
+    )
+    .await
+    .unwrap();
+
+    for (max_req, expect_ok) in [
+        (0usize, false),
+        (10, true),
+        (11, true),
+        (pagesift_store::MAX_REQUESTS_PER_TICK_CAP, true),
+        (pagesift_store::MAX_REQUESTS_PER_TICK_CAP + 1, false),
+    ] {
+        let res = sync(
+            &scraper,
+            json!({
+                "action": "run",
+                "id": "loop-t08",
+                "forceAll": true,
+                "maxRequests": max_req
+            }),
+        )
+        .await;
+        assert_eq!(
+            res.is_ok(),
+            expect_ok,
+            "loop_ops maxRequests={max_req} got {res:?}"
+        );
+        if !expect_ok {
+            assert_eq!(res.unwrap_err().code, ErrorCode::InvalidRequest);
+        }
+    }
+
+    let _ = sd_tx.send(());
+}

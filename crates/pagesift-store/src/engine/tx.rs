@@ -2,6 +2,34 @@
 
 use super::*;
 
+/// `Tx` 与 `AtomicTx` 共享的事务读写原语。
+pub(crate) trait TxOps {
+    fn get(&self, ns: u8, key: &[u8]) -> Result<Option<(u64, Vec<u8>)>>;
+    #[allow(dead_code)]
+    fn contains(&self, ns: u8, key: &[u8]) -> Result<bool>;
+    fn group(&self, ns: u8, name: &[u8]) -> Option<Group>;
+    fn put(&mut self, ns: u8, key: &[u8], value: &[u8], ts_ms: u64) -> Result<bool>;
+    fn delete(&mut self, ns: u8, key: &[u8]) -> Result<bool>;
+}
+
+impl TxOps for Tx<'_> {
+    fn get(&self, ns: u8, key: &[u8]) -> Result<Option<(u64, Vec<u8>)>> {
+        Tx::get(self, ns, key)
+    }
+    fn contains(&self, ns: u8, key: &[u8]) -> Result<bool> {
+        Tx::contains(self, ns, key)
+    }
+    fn group(&self, ns: u8, name: &[u8]) -> Option<Group> {
+        Tx::group(self, ns, name)
+    }
+    fn put(&mut self, ns: u8, key: &[u8], value: &[u8], ts_ms: u64) -> Result<bool> {
+        Tx::put(self, ns, key, value, ts_ms)
+    }
+    fn delete(&mut self, ns: u8, key: &[u8]) -> Result<bool> {
+        Tx::delete(self, ns, key)
+    }
+}
+
 impl Tx<'_> {
     pub fn put(&mut self, ns: u8, key: &[u8], value: &[u8], ts_ms: u64) -> Result<bool> {
         if key.len() > MAX_KEY {

@@ -51,7 +51,7 @@ impl BatchItem {
 /// 抓取器：连接池、robots.txt 缓存、限速状态和浏览器池都在它里面，长期复用一个实例最快。
 #[napi]
 pub struct Scraper {
-    inner: Core,
+    inner: std::sync::RwLock<Option<Core>>,
     closed: AtomicBool,
 }
 
@@ -70,7 +70,7 @@ impl Scraper {
         })
         .map_err(|e| error::to_js(env, &ApiError::new(ErrorCode::Internal, e.to_string())))?;
         Ok(Self {
-            inner: Arc::new(inner),
+            inner: std::sync::RwLock::new(Some(Arc::new(inner))),
             closed: AtomicBool::new(false),
         })
     }
@@ -298,11 +298,15 @@ impl Scraper {
         })
     }
 
-    /// 关闭浏览器进程。之后再调用抓取方法会报错。
+    /// 关闭浏览器进程并释放底层存储句柄。之后再调用抓取方法会报错。
     #[napi]
     pub async fn close(&self) -> Result<()> {
         if !self.closed.swap(true, Ordering::SeqCst) {
-            self.inner.shutdown().await;
+            let core = self.inner.write().unwrap_or_else(|e| e.into_inner()).take();
+            if let Some(core) = core {
+                core.shutdown().await;
+                drop(core);
+            }
         }
         Ok(())
     }
@@ -349,7 +353,12 @@ impl Scraper {
         if self.closed.load(Ordering::SeqCst) {
             return Err(ApiError::invalid("this Scraper has been closed"));
         }
-        Ok(self.inner.clone())
+        self.inner
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .cloned()
+            .ok_or_else(|| ApiError::invalid("this Scraper has been closed"))
     }
 
     fn batch(

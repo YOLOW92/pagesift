@@ -10,142 +10,16 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use pagesift_stat::Delta;
-use pagesift_stat::beta::{BetaCounts, Prior};
-use pagesift_stat::poisson::ChangeRate;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::render::family_key;
 
+#[path = "experience_rates.rs"]
+mod experience_rates;
+pub use experience_rates::{BetaSnapshot, ChangeRateSnapshot, FamilyObservation};
+
 const DEFAULT_MIN_RULE_CONFIRMATIONS: u32 = 2; // [推导] 对应 p₀ = √δ 下 p₀^k ≤ δ 的最小独立证实数 k* = 2
-
-/// 单次采集对路径族经验的观测输入。
-#[derive(Debug, Clone)]
-pub struct FamilyObservation {
-    pub observed_at_ms: u64,
-    /// 轻量 HTTP（含内嵌 JSON）是否已满足本次采集目标。
-    pub http_sufficient: bool,
-    /// 若实际启动了浏览器，浏览器是否带来正文或结构化声明增益。
-    pub browser_gain: Option<bool>,
-    /// 若发送了条件请求（`If-None-Match` / `If-Modified-Since`），是否命中 304。
-    pub conditional_hit: Option<bool>,
-    /// 距上次观测的时间间隔（秒）及是否发生**实质内容变化**（排除纯时间/计数噪声）。
-    pub substantive_change: Option<(f64, bool)>,
-    /// 本次采集是否产出至少 1 条结构化声明或新发现链接。
-    pub yielded_claims_or_links: bool,
-    /// 本次采集是否遭遇拦截（403 / 429 / 验证码挑战）。
-    pub encountered_barrier: bool,
-    /// 本次采集耗时（毫秒）。
-    pub cost_ms: f64,
-}
-
-/// 可序列化的 Beta 计数快照。
-#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BetaSnapshot {
-    pub success: f64,
-    pub failure: f64,
-}
-
-impl From<BetaCounts> for BetaSnapshot {
-    fn from(c: BetaCounts) -> Self {
-        Self {
-            success: c.success,
-            failure: c.failure,
-        }
-    }
-}
-
-impl From<BetaSnapshot> for BetaCounts {
-    fn from(s: BetaSnapshot) -> Self {
-        Self {
-            success: s.success.max(0.0),
-            failure: s.failure.max(0.0),
-        }
-    }
-}
-
-impl BetaSnapshot {
-    pub fn observe_decayed(&mut self, ok: bool, keep: f64) {
-        self.success *= keep;
-        self.failure *= keep;
-        if ok {
-            self.success += 1.0;
-        } else {
-            self.failure += 1.0;
-        }
-    }
-
-    pub fn merge(&mut self, other: &Self) {
-        self.success += other.success;
-        self.failure += other.failure;
-    }
-
-    pub fn mean(self) -> f64 {
-        BetaCounts::from(self).posterior(Prior::UNIFORM).mean()
-    }
-
-    pub fn trials(self) -> f64 {
-        self.success + self.failure
-    }
-}
-
-/// 可序列化的泊松变化率快照。
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ChangeRateSnapshot {
-    pub shape: f64,
-    pub exposure_secs: f64,
-    pub changed_intervals_secs: Vec<f64>,
-}
-
-impl Default for ChangeRateSnapshot {
-    fn default() -> Self {
-        let cr = ChangeRate::default();
-        Self {
-            shape: cr.shape,
-            exposure_secs: cr.exposure,
-            changed_intervals_secs: cr.changed,
-        }
-    }
-}
-
-impl ChangeRateSnapshot {
-    pub fn to_change_rate(&self) -> ChangeRate {
-        ChangeRate {
-            shape: self.shape.max(1e-6),
-            exposure: self.exposure_secs.max(1.0),
-            changed: self.changed_intervals_secs.clone(),
-        }
-    }
-
-    pub fn observe(&mut self, dt_secs: f64, substantive_changed: bool) {
-        if !(dt_secs > 0.0 && dt_secs.is_finite()) {
-            return;
-        }
-        if substantive_changed {
-            self.changed_intervals_secs.push(dt_secs);
-            // 保留最近 32 个变化区间，防止长周期运行无限增长同时保持近期变化灵敏度
-            if self.changed_intervals_secs.len() > 32 {
-                let drain = self.changed_intervals_secs.len() - 32;
-                self.changed_intervals_secs.drain(0..drain);
-            }
-        } else {
-            self.exposure_secs += dt_secs;
-        }
-    }
-
-    pub fn merge(&mut self, other: &Self) {
-        let default_exp = ChangeRate::default().exposure;
-        let added_exp = (other.exposure_secs - default_exp).max(0.0);
-        self.exposure_secs += added_exp;
-        for &dt in &other.changed_intervals_secs {
-            if self.changed_intervals_secs.len() < 32 {
-                self.changed_intervals_secs.push(dt);
-            }
-        }
-    }
-}
 
 /// 单个路径族的跨周期经验统计。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -155,6 +29,8 @@ pub struct FamilyStats {
     pub http_sufficient: BetaSnapshot,
     pub browser_gain: BetaSnapshot,
     pub conditional_hit: BetaSnapshot,
+    #[serde(default)]
+    pub embedded_json: BetaSnapshot,
     pub substantive_change: ChangeRateSnapshot,
     pub claim_yield: BetaSnapshot,
     pub barrier_rate: BetaSnapshot,
@@ -170,6 +46,7 @@ impl FamilyStats {
             http_sufficient: BetaSnapshot::default(),
             browser_gain: BetaSnapshot::default(),
             conditional_hit: BetaSnapshot::default(),
+            embedded_json: BetaSnapshot::default(),
             substantive_change: ChangeRateSnapshot::default(),
             claim_yield: BetaSnapshot::default(),
             barrier_rate: BetaSnapshot::default(),
@@ -181,19 +58,24 @@ impl FamilyStats {
 
     pub fn observe(&mut self, obs: &FamilyObservation) {
         let keep = 1.0 - Delta::DEFAULT.get();
-        self.http_sufficient
-            .observe_decayed(obs.http_sufficient, keep);
+        if let Some(http_ok) = obs.http_sufficient {
+            self.http_sufficient.observe_decayed(http_ok, keep);
+        }
         if let Some(gain) = obs.browser_gain {
             self.browser_gain.observe_decayed(gain, keep);
         }
         if let Some(hit) = obs.conditional_hit {
             self.conditional_hit.observe_decayed(hit, keep);
         }
+        if let Some(ej) = obs.embedded_json_observed {
+            self.embedded_json.observe_decayed(ej, keep);
+        }
         if let Some((dt, changed)) = obs.substantive_change {
             self.substantive_change.observe(dt, changed);
         }
-        self.claim_yield
-            .observe_decayed(obs.yielded_claims_or_links, keep);
+        if let Some(yielded) = obs.yielded_claims_or_links {
+            self.claim_yield.observe_decayed(yielded, keep);
+        }
         self.barrier_rate
             .observe_decayed(obs.encountered_barrier, keep);
         if obs.cost_ms >= 0.0 && obs.cost_ms.is_finite() {
@@ -214,6 +96,7 @@ impl FamilyStats {
         self.http_sufficient.merge(&other.http_sufficient);
         self.browser_gain.merge(&other.browser_gain);
         self.conditional_hit.merge(&other.conditional_hit);
+        self.embedded_json.merge(&other.embedded_json);
         self.substantive_change.merge(&other.substantive_change);
         self.claim_yield.merge(&other.claim_yield);
         self.barrier_rate.merge(&other.barrier_rate);
@@ -496,59 +379,5 @@ impl FamilyExperienceTable {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn family_experience_tracks_rates_and_roundtrips_json() {
-        let table = FamilyExperienceTable::new();
-        let fam = "https://docs.example.com/guide";
-        for i in 0..8 {
-            table.record_observation(
-                fam,
-                &FamilyObservation {
-                    observed_at_ms: 1000 + i * 1000,
-                    http_sufficient: true,
-                    browser_gain: Some(false),
-                    conditional_hit: Some(i > 0),
-                    substantive_change: Some((3600.0, false)),
-                    yielded_claims_or_links: true,
-                    encountered_barrier: false,
-                    cost_ms: 42.0,
-                },
-            );
-        }
-        let stats = table.get_family(fam).expect("family exists");
-        assert!(stats.http_sufficient.mean() > 0.8);
-        assert!(stats.conditional_hit.mean() > 0.7);
-        assert!(stats.barrier_rate.mean() < 0.2);
-
-        let encoded = table.encode_json();
-        let restored = FamilyExperienceTable::new();
-        assert!(restored.decode_merge_json(&encoded));
-        let stats2 = restored.get_family(fam).expect("restored family");
-        assert_eq!(stats2.total_observations, 8);
-    }
-
-    #[test]
-    fn learned_url_rule_activates_and_revokes_on_falsification() {
-        let table = FamilyExperienceTable::new();
-        let rule = RuleKind::DropParam {
-            name: "ref".to_string(),
-        };
-        table.confirm_url_rule("example.com", rule.clone(), 100);
-        let mut u = Url::parse("https://example.com/item?id=1&ref=nav").unwrap();
-        assert!(table.rewrite_url(&mut u).is_empty());
-
-        table.confirm_url_rule("example.com", rule.clone(), 200);
-        let applied = table.rewrite_url(&mut u);
-        assert_eq!(applied, vec![rule.clone()]);
-        assert_eq!(u.as_str(), "https://example.com/item?id=1");
-
-        // 证伪后立即撤销，不再改写
-        table.falsify_url_rule("example.com", &rule, 300);
-        let mut u2 = Url::parse("https://example.com/item?id=1&ref=important").unwrap();
-        assert!(table.rewrite_url(&mut u2).is_empty());
-        assert_eq!(u2.as_str(), "https://example.com/item?id=1&ref=important");
-    }
-}
+#[path = "experience_tests.rs"]
+mod tests;
