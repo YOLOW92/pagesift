@@ -36,7 +36,8 @@ pub struct StreamingGraphBuilder {
 }
 
 impl StreamingGraphBuilder {
-    pub fn new(options: GraphOptions) -> Self {
+    pub fn new(mut options: GraphOptions) -> Self {
+        options.limits = options.limits.clamped();
         Self {
             options,
             nodes: Vec::new(),
@@ -319,6 +320,7 @@ impl StreamingGraphBuilder {
             citations,
             provenance,
             version,
+            version_rejected: false,
             evidence,
             claims: page_claims,
         }
@@ -347,12 +349,12 @@ impl StreamingGraphBuilder {
             self.push_provenance_edge(edge.clone());
         }
 
-        let mut version = if self.options.versions {
+        let mut version = if self.options.versions && !delta.version_rejected {
             delta.version.clone()
         } else {
             None
         };
-        if self.options.versions {
+        if self.options.versions && !delta.version_rejected {
             let trusted_canonical = DocNode::trusted_canonical_url(
                 delta.node.canonical_url.as_deref(),
                 &delta.node.final_url,

@@ -22,6 +22,8 @@ pub(crate) struct Meta {
     pub(crate) owner: Option<String>,
     #[serde(default)]
     pub(crate) owner_authenticated: Option<bool>,
+    #[serde(default)]
+    pub(crate) tenant: Option<String>,
     pub(crate) webhook: Option<WebhookConfig>,
     pub(crate) crawl: Option<CrawlRequest>,
     pub(crate) batch: Option<BatchSpec>,
@@ -164,7 +166,20 @@ impl Jobs {
                 .owner
                 .as_deref()
                 .map(|a| Caller::restored(a, meta.owner_authenticated, limits(a)));
-            let tenant = owner.as_ref().map(Caller::tenant_owner);
+            let tenant = meta
+                .tenant
+                .clone()
+                .or_else(|| {
+                    meta.crawl
+                        .as_ref()
+                        .and_then(|c| c.scrape_options.effective_graph_tenant())
+                })
+                .or_else(|| {
+                    meta.batch
+                        .as_ref()
+                        .and_then(|b| b.options.effective_graph_tenant())
+                })
+                .or_else(|| owner.as_ref().map(Caller::tenant_owner));
             let created = UNIX_EPOCH + Duration::from_millis(meta.created_ms);
             if created + JOB_TTL <= now {
                 delete_job(store, self.inner.mirror.as_deref(), &id, tenant.as_deref());
@@ -174,6 +189,7 @@ impl Jobs {
             let pages = t.list_len(list_key(&id, "pages")) as usize;
             let errors = t.list_len(list_key(&id, "errors")) as usize;
             let mut job = Job::new(meta.kind, meta.total, owner);
+            job.tenant = tenant.clone();
             if let Some(ref req) = meta.crawl {
                 let g = req
                     .graph

@@ -50,6 +50,9 @@ impl Scraper {
         match lookup {
             Ok(Cached::Hit(doc, stored_at)) => {
                 let mut doc = *doc;
+                if crate::graph::effective_graph_options(opts).is_none() {
+                    doc.graph = None;
+                }
                 if mode == RobotsMode::Respect {
                     let target = Url::parse(url).map_err(|e| ApiError::invalid(e.to_string()))?;
                     self.policy
@@ -126,10 +129,9 @@ impl Scraper {
         // 带已认证调用方身份（owner）的结果可能来自该身份的会话，不能与匿名或其他身份共用缓存。
         // 身份池按 owner × origin × egress × fingerprint 隔离，缓存键里没有这些维度，所以整类请求不走缓存。
         if opts.authenticated_owner().is_some()
-            || !opts.headers.is_empty()
+            || opts.has_private_target_context()
             || opts.discover_scripts
             || opts.explain
-            || !opts.actions.is_empty()
             || opts.if_none_match.is_some()
             || opts.if_modified_since.is_some()
         {
@@ -166,10 +168,13 @@ impl Scraper {
         {
             items.push(serde_json::json!({ "removeBase64Images": false }));
         }
-        if let Some(g) = opts.graph.as_ref().filter(|g| g.enabled)
+        if let Some(g) = crate::graph::effective_graph_options(opts)
             && let Some(items) = key.as_array_mut()
         {
-            items.push(serde_json::json!({ "graph": g }));
+            items.push(serde_json::json!({
+                "graph": g,
+                "graphScope": opts.effective_graph_tenant().unwrap_or_else(|| "local".to_string()),
+            }));
         }
         Some((store, key.to_string().into_bytes()))
     }

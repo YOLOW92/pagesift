@@ -23,6 +23,52 @@ pub struct GraphLimits {
     pub max_claims: usize,
 }
 
+impl GraphLimits {
+    pub const HARD_MAX_EDGES_PER_DOC: usize = 4_096; // [策略] 单文档引用边硬上限
+    pub const HARD_MAX_ANCHOR_SAMPLES: usize = 32; // [策略] 单条引用边保留的锚文本样本硬上限
+    pub const HARD_MAX_CLAIMS_PER_BUCKET: usize = 512; // [策略] 单事实聚类桶内保留的声明硬上限
+    pub const HARD_MAX_BLOCKS_PER_DOC: usize = 32_768; // [策略] 单文档结构化块硬上限
+    pub const HARD_MAX_EXCERPT_CHARS: usize = 4_096; // [策略] 块摘录最大字符数硬上限
+    pub const HARD_MAX_NODES: usize = 100_000; // [策略] 单次爬取图谱聚合的文档节点硬上限
+    pub const HARD_MAX_CITATIONS: usize = 1_000_000; // [策略] 单次爬取图谱聚合的引用边硬上限
+    pub const HARD_MAX_PROVENANCE_EDGES: usize = 500_000; // [策略] 单次爬取图谱聚合的来源归属边硬上限
+    pub const HARD_MAX_VERSIONS: usize = 200_000; // [策略] 单次爬取图谱聚合的版本边硬上限
+    pub const HARD_MAX_CLAIM_BUCKETS: usize = 200_000; // [策略] 单次爬取图谱聚合的事实桶硬上限
+    pub const HARD_MAX_CLAIMS: usize = 1_000_000; // [策略] 单次爬取图谱聚合的总声明数硬上限
+    pub const MIN_EXCERPT_CHARS: usize = 16; // [策略] 块摘录最小字符数下限
+
+    /// Clamps all limit fields to safe `[1, HARD_MAX_*]` bounds.
+    pub fn clamped(&self) -> Self {
+        Self {
+            max_edges_per_doc: self
+                .max_edges_per_doc
+                .clamp(1, Self::HARD_MAX_EDGES_PER_DOC),
+            max_anchor_samples: self
+                .max_anchor_samples
+                .clamp(1, Self::HARD_MAX_ANCHOR_SAMPLES),
+            max_claims_per_bucket: self
+                .max_claims_per_bucket
+                .clamp(1, Self::HARD_MAX_CLAIMS_PER_BUCKET),
+            max_blocks_per_doc: self
+                .max_blocks_per_doc
+                .clamp(1, Self::HARD_MAX_BLOCKS_PER_DOC),
+            max_excerpt_chars: self
+                .max_excerpt_chars
+                .clamp(Self::MIN_EXCERPT_CHARS, Self::HARD_MAX_EXCERPT_CHARS),
+            max_nodes: self.max_nodes.clamp(1, Self::HARD_MAX_NODES),
+            max_citations: self.max_citations.clamp(1, Self::HARD_MAX_CITATIONS),
+            max_provenance_edges: self
+                .max_provenance_edges
+                .clamp(1, Self::HARD_MAX_PROVENANCE_EDGES),
+            max_versions: self.max_versions.clamp(1, Self::HARD_MAX_VERSIONS),
+            max_claim_buckets: self
+                .max_claim_buckets
+                .clamp(1, Self::HARD_MAX_CLAIM_BUCKETS),
+            max_claims: self.max_claims.clamp(1, Self::HARD_MAX_CLAIMS),
+        }
+    }
+}
+
 impl Default for GraphLimits {
     fn default() -> Self {
         Self {

@@ -307,6 +307,53 @@ impl ScrapeOptions {
             .filter(|o| !Self::is_anonymous_owner(o))
     }
 
+    /// Returns whether this request carries target-site credentials, session state, or browser actions
+    /// that must not be shared into the public anonymous DataGraph scope.
+    pub fn has_private_target_context(&self) -> bool {
+        !self.headers.is_empty() || self.keep_session || !self.actions.is_empty()
+    }
+
+    /// Resolve the isolated DataGraph tenant key (`None` for local unscoped callers).
+    pub fn effective_graph_tenant(&self) -> Option<String> {
+        let owner = self.owner.as_deref()?;
+        if !Self::is_anonymous_owner(owner) {
+            return Some(owner.to_string());
+        }
+        if self.has_private_target_context() {
+            let mut pairs: Vec<(&str, &str)> = self
+                .headers
+                .iter()
+                .map(|(k, v)| (k.as_str(), v.as_str()))
+                .collect();
+            pairs.sort_unstable();
+            let payload = serde_json::json!({
+                "owner": owner,
+                "session": self.client_session.as_deref().unwrap_or(""),
+                "keepSession": self.keep_session,
+                "headers": pairs,
+                "actions": &self.actions,
+            });
+            let digest = pagesift_graph::sha256_hex(payload.to_string().as_bytes());
+            return Some(format!(
+                "{}priv:{}",
+                Self::ANONYMOUS_OWNER_PREFIX,
+                &digest[..24]
+            ));
+        }
+        if owner.starts_with(Self::ANONYMOUS_OWNER_PREFIX) {
+            return Some(owner.to_string());
+        }
+        if let Some(sess) = self
+            .client_session
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            return Some(format!("{}{sess}", Self::ANONYMOUS_OWNER_PREFIX));
+        }
+        Some(Self::ANONYMOUS_OWNER.to_string())
+    }
+
     pub fn wants(&self, kind: &str) -> bool {
         self.formats.iter().any(|f| f.kind == kind)
     }

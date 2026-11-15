@@ -319,13 +319,22 @@ pub(crate) enum ResolveError {
     Io(io::Error),
 }
 
-pub(crate) struct ReqwestResolver(pub Arc<GuardedResolver>);
+pub(crate) struct ReqwestResolver {
+    pub inner: Arc<GuardedResolver>,
+    pub proxy_exempt_host: Option<String>,
+}
 
 impl Resolve for ReqwestResolver {
     fn resolve(&self, name: Name) -> Resolving {
-        let inner = self.0.clone();
+        let inner = self.inner.clone();
+        let is_proxy_host = self
+            .proxy_exempt_host
+            .as_deref()
+            .is_some_and(|p| p.eq_ignore_ascii_case(name.as_str().trim_matches(['[', ']'])));
         Box::pin(async move {
-            let ips = inner.resolve_checked(name.as_str()).await?;
+            let ips = inner
+                .resolve_host_for_proxy(name.as_str(), is_proxy_host)
+                .await?;
             let addrs: Addrs = Box::new(ips.into_iter().map(|ip| SocketAddr::new(ip, 0)));
             Ok(addrs)
         })

@@ -34,7 +34,7 @@ pub(super) async fn record_delta(jobs: &Jobs, id: &str, delta: PageGraphDelta) {
             .blocking(move |s| {
                 let g = s.graph_for(tenant.as_deref());
                 g.append_job_delta(&jid, &delta)?;
-                if versions_enabled {
+                if versions_enabled && !delta.version_rejected {
                     g.record_version(&version_record(&delta.node), delta.version.as_ref())?;
                 }
                 Ok::<_, pagesift_store::Error>(())
@@ -197,8 +197,14 @@ impl Jobs {
         let mut versions_by_id: BTreeMap<String, VersionRecord> = BTreeMap::new();
         let mut edges_by_key: BTreeMap<(Option<String>, String), VersionEdge> = BTreeMap::new();
         let mut matching_docs = BTreeSet::new();
-        for job in map.values().filter(|j| j.tenant.as_deref() == tenant) {
+        for job in map
+            .values()
+            .filter(|j| j.tenant.as_deref() == tenant && j.graph_versions)
+        {
             for delta in &job.graph_deltas {
+                if delta.version_rejected {
+                    continue;
+                }
                 if delta.node.resource_key == target_key {
                     matching_docs.insert(delta.node.doc_id.clone());
                     versions_by_id
@@ -258,11 +264,15 @@ impl Jobs {
             edges.drain(..skip);
             truncated = true;
         }
+        let max_buffered_versions = versions.len();
+        let max_buffered_edges = edges.len();
         Ok(pagesift_store::GraphHistoryResult {
             resource_key: target_key,
             versions,
             edges,
             truncated,
+            max_buffered_versions,
+            max_buffered_edges,
         })
     }
 

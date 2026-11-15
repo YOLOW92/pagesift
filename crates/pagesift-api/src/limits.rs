@@ -127,6 +127,24 @@ pub(crate) fn client_session_for_headers(
     Some(hex)
 }
 
+pub(crate) fn caller_graph_tenant(
+    caller: Option<&Caller>,
+    headers: &axum::http::HeaderMap,
+) -> String {
+    if let Some(c) = caller
+        && c.authenticated
+    {
+        return c.tenant_owner();
+    }
+    if let Some(sess) = client_session_for_headers(caller, headers) {
+        return format!(
+            "{}{sess}",
+            crate::types::ScrapeOptions::ANONYMOUS_OWNER_PREFIX
+        );
+    }
+    crate::types::ScrapeOptions::ANONYMOUS_OWNER.to_string()
+}
+
 /// Bind server-trusted tenant and anonymous HTTP session scope onto `ScrapeOptions`.
 pub(crate) fn apply_http_caller_scope(
     opts: &mut crate::types::ScrapeOptions,
@@ -137,6 +155,7 @@ pub(crate) fn apply_http_caller_scope(
     if let Some(hdrs) = headers {
         opts.client_session = client_session_for_headers(caller, hdrs);
     }
+    opts.owner = opts.effective_graph_tenant();
 }
 
 /// key 的指纹（FNV-1a 64 位），稳定、不可逆到能用的程度，用来区分调用方。

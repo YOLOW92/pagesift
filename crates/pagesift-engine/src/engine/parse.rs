@@ -186,6 +186,7 @@ impl Scraper {
             p.started,
         );
         if let (Some(gopts), Some((dom_data, traces, md_fallback))) = (graph_opts, graph_payload) {
+            let graph_tenant = opts.effective_graph_tenant();
             crate::graph::attach_html_graph(
                 None,
                 &gopts,
@@ -197,7 +198,7 @@ impl Scraper {
                 &[],
                 "upload",
                 md_fallback,
-                opts.owner.as_deref(),
+                graph_tenant.as_deref(),
             );
         }
         Ok(out)

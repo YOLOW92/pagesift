@@ -389,7 +389,7 @@ impl Scraper {
                     etag,
                     last_modified,
                     attachments: office_attachments,
-                    tenant: opts.owner.clone(),
+                    tenant: opts.effective_graph_tenant(),
                     ..Default::default()
                 },
             );

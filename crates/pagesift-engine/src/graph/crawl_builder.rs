@@ -67,10 +67,14 @@ impl CrawlGraphCollector {
         };
         let delta = page_delta_from_document(doc, &slice);
         let enriched = self.builder.ingest_delta(delta);
-        if let Some(g) = doc.graph.as_mut()
-            && enriched.version.is_some()
-        {
-            g.version = enriched.version.clone();
+        if let Some(g) = doc.graph.as_mut() {
+            if enriched.version.is_some() {
+                g.version = enriched.version.clone();
+            }
+            if enriched.version_rejected {
+                g.version = None;
+                g.version_rejected = true;
+            }
         }
         sink.graph_delta(enriched.clone()).await;
         if let (Some(st), Some(jid)) = (&self.store, &self.job_id) {
@@ -103,13 +107,14 @@ impl CrawlGraphCollector {
             for edge in &slice.provenance {
                 match edge {
                     ProvenanceEdge::Redirect {
-                        from_url, to_url, ..
-                    }
-                    | ProvenanceEdge::DuplicateOf {
-                        source_url: from_url,
-                        canonical_url: to_url,
+                        from_url,
+                        to_url,
+                        redirect_kind: pagesift_graph::RedirectKind::HttpPermanent,
                         ..
                     } => {
+                        if pagesift_graph::host_of(from_url) != pagesift_graph::host_of(to_url) {
+                            continue;
+                        }
                         let from_k = DocNode::derive_resource_key(None, from_url);
                         let to_k = DocNode::derive_resource_key(None, to_url);
                         if from_k != to_k {
@@ -131,7 +136,9 @@ impl CrawlGraphCollector {
                             let _ = gs.bind_alias(&from_k, &to_k);
                         }
                     }
-                    ProvenanceEdge::HasAlternate { .. }
+                    ProvenanceEdge::Redirect { .. }
+                    | ProvenanceEdge::DuplicateOf { .. }
+                    | ProvenanceEdge::HasAlternate { .. }
                     | ProvenanceEdge::DerivedFrom { .. }
                     | ProvenanceEdge::AttachmentOf { .. } => {}
                 }

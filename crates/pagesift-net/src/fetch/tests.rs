@@ -171,3 +171,50 @@ fn same_host_https_to_http_redirects_stay_on_https() {
     );
     assert_eq!(seen.scheme(), "http");
 }
+
+struct StaticDns(Vec<IpAddr>);
+
+impl DnsLookup for StaticDns {
+    fn lookup<'a>(&'a self, _host: &'a str) -> BoxFuture<'a, std::io::Result<Vec<IpAddr>>> {
+        let ips = self.0.clone();
+        Box::pin(async move { Ok(ips) })
+    }
+}
+
+#[tokio::test]
+async fn proxy_exemption_is_not_target_exemption() {
+    let cfg = FetcherConfig {
+        proxy: Some("http://proxy.internal:3128".to_string()),
+        dns: Arc::new(StaticDns(vec![IpAddr::V4(Ipv4Addr::new(10, 0, 0, 5))])),
+        ..Default::default()
+    };
+    let fetcher = Fetcher::new(cfg).expect("fetcher should build");
+
+    // 1. GuardedResolver.exempt must NOT include proxy.internal, so direct_route / resolve_checked rejects it.
+    assert!(
+        !fetcher.resolver.is_exempt("proxy.internal"),
+        "proxy host must not be added to shared SSRF exempt list"
+    );
+    let direct_check = fetcher.resolver.resolve_checked("proxy.internal").await;
+    assert!(
+        matches!(direct_check, Err(ResolveError::Blocked(_))),
+        "target resolution for proxy hostname must be blocked by SSRF policy"
+    );
+
+    // 2. Proxy connection resolution (proxy_exempt = true) still allows the configured internal proxy.
+    let proxy_check = fetcher
+        .resolver
+        .resolve_host_for_proxy("proxy.internal", true)
+        .await
+        .expect("proxy connection resolution should allow configured proxy host");
+    assert_eq!(proxy_check, vec![IpAddr::V4(Ipv4Addr::new(10, 0, 0, 5))]);
+
+    // 3. Target fetch to http://proxy.internal/admin must be rejected by SSRF before sending.
+    let res = fetcher
+        .fetch(FetchRequest::new("http://proxy.internal:8080/admin"))
+        .await;
+    assert!(
+        matches!(res, Err(Error::Blocked(_))),
+        "target request to proxy hostname must be blocked: {res:?}"
+    );
+}

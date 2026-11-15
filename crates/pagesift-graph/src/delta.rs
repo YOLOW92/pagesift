@@ -62,6 +62,8 @@ pub struct PageGraphDelta {
     pub provenance: Vec<ProvenanceEdge>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<VersionEdge>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub version_rejected: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evidence: Vec<EvidenceSpan>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -85,6 +87,8 @@ pub struct GraphSlice {
     pub provenance: Vec<ProvenanceEdge>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<VersionEdge>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub version_rejected: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evidence: Vec<EvidenceSpan>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -105,6 +109,7 @@ impl From<PageGraphDelta> for GraphSlice {
             citations: d.citations,
             provenance: d.provenance,
             version: d.version,
+            version_rejected: d.version_rejected,
             evidence: d.evidence,
             claims: d.claims,
             member_deltas: Vec::new(),

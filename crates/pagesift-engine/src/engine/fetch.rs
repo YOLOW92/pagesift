@@ -178,8 +178,22 @@ impl Scraper {
             proxy_used: egress.unwrap_or("basic").into(),
             ..Default::default()
         };
+        let graph_tenant = opts.effective_graph_tenant();
         if resp.not_modified {
-            if opts.if_none_match.is_none() && opts.if_modified_since.is_none() {
+            let req_inm = opts.if_none_match.clone().or_else(|| {
+                opts.headers
+                    .iter()
+                    .find(|(k, _)| k.eq_ignore_ascii_case("if-none-match"))
+                    .map(|(_, v)| v.clone())
+            });
+            let req_ims = opts.if_modified_since.clone().or_else(|| {
+                opts.headers
+                    .iter()
+                    .find(|(k, _)| k.eq_ignore_ascii_case("if-modified-since"))
+                    .map(|(_, v)| v.clone())
+            });
+            let unconditional = req_inm.is_none() && req_ims.is_none();
+            if unconditional {
                 // 没发条件请求却拿到 304：服务器行为异常，这里也没有缓存可用。
                 warnings.push(
                     "not_modified: HTTP 304 for an unconditional request; no content was returned"
@@ -203,8 +217,11 @@ impl Scraper {
                         canonical_from_header: header_canonical.is_some(),
                         etag: ext.etag,
                         last_modified: ext.last_modified,
+                        if_none_match: req_inm,
+                        if_modified_since: req_ims,
+                        unconditional_not_modified: unconditional,
                         redirect_chain: redirect_hops,
-                        tenant: opts.owner.clone(),
+                        tenant: graph_tenant.clone(),
                         ..Default::default()
                     },
                 );
@@ -236,7 +253,7 @@ impl Scraper {
                 crate::graph::apply_http_provenance(
                     self.store.as_ref(),
                     gopts,
-                    opts.owner.as_deref(),
+                    graph_tenant.as_deref(),
                     &mut out,
                     &redirect_hops,
                     canon_from_header,
@@ -269,7 +286,7 @@ impl Scraper {
                 crate::graph::apply_http_provenance(
                     self.store.as_ref(),
                     gopts,
-                    opts.owner.as_deref(),
+                    graph_tenant.as_deref(),
                     &mut out,
                     &redirect_hops,
                     canon_from_header,
@@ -307,7 +324,7 @@ impl Scraper {
                 crate::graph::apply_http_provenance(
                     self.store.as_ref(),
                     gopts,
-                    opts.owner.as_deref(),
+                    graph_tenant.as_deref(),
                     &mut out,
                     &redirect_hops,
                     canon_from_header,
@@ -357,7 +374,7 @@ impl Scraper {
                         last_modified,
                         redirect_chain: redirect_hops,
                         raw_traces: raw_json_traces,
-                        tenant: opts.owner.clone(),
+                        tenant: graph_tenant.clone(),
                         ..Default::default()
                     },
                 );
@@ -608,7 +625,7 @@ impl Scraper {
                                     crate::graph::apply_http_provenance(
                                         self.store.as_ref(),
                                         gopts,
-                                        opts.owner.as_deref(),
+                                        graph_tenant.as_deref(),
                                         &mut better,
                                         &redirect_hops,
                                         canon_from_header,
@@ -725,7 +742,7 @@ impl Scraper {
                 &header_alternates,
                 "http",
                 md_for_graph,
-                opts.owner.as_deref(),
+                graph_tenant.as_deref(),
             );
         } else {
             merge_header_alternates(&mut out, &header_alternates);

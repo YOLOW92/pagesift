@@ -293,17 +293,22 @@ impl Jobs {
     }
 
     /// 登记新任务：检查调用方的并发任务数，落盘元数据，发 `started` 事件。
+    #[allow(clippy::too_many_arguments)]
     async fn register(
         &self,
         kind: JobKind,
         total: usize,
         start: Start,
+        tenant_override: Option<String>,
         crawl: Option<CrawlRequest>,
         batch: Option<BatchSpec>,
         graph_options: pagesift_graph::GraphOptions,
     ) -> Result<(String, Option<Hook>), ApiError> {
         let id = uuid::Uuid::new_v4().to_string();
         let mut job = Job::new(kind, total, start.owner.clone());
+        if let Some(t) = tenant_override {
+            job.tenant = Some(t);
+        }
         job.graph_versions = graph_options.versions;
         job.graph_options = graph_options;
         let meta = Meta {
@@ -314,6 +319,7 @@ impl Jobs {
             completed: 0,
             owner: start.owner.as_ref().map(|c| c.account.to_string()),
             owner_authenticated: start.owner.as_ref().map(|c| c.authenticated),
+            tenant: job.tenant.clone(),
             webhook: start.webhook.clone(),
             crawl,
             batch,
@@ -395,12 +401,14 @@ impl Jobs {
             .graph
             .clone()
             .unwrap_or_else(pagesift_graph::GraphOptions::enabled);
+        let tenant_override = spec.options.effective_graph_tenant();
         let total = spec.urls.len();
         let (id, hook) = self
             .register(
                 JobKind::BatchScrape,
                 total,
                 start,
+                tenant_override,
                 None,
                 self.inner.store.is_some().then(|| spec.clone()),
                 graph_options,
@@ -511,11 +519,13 @@ impl Jobs {
             .clone()
             .or_else(|| req.scrape_options.graph.clone())
             .unwrap_or_else(pagesift_graph::GraphOptions::enabled);
+        let tenant_override = req.scrape_options.effective_graph_tenant();
         let (id, hook) = self
             .register(
                 JobKind::Crawl,
                 0,
                 start,
+                tenant_override,
                 self.inner.store.is_some().then(|| req.clone()),
                 None,
                 graph_options,

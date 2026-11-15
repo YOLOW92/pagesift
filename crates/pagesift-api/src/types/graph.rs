@@ -55,6 +55,12 @@ pub fn check_graph_options(opts: &GraphOptions) -> Result<(), ApiError> {
     const MAX_CLAIMS_PER_BUCKET: usize = 1024; // [策略] 单分桶声明上限
     const MAX_BLOCKS_PER_DOC: usize = 65536; // [策略] 单文档块数上限
     const MAX_EXCERPT_CHARS: usize = 2048; // [策略] 摘录截断字符上限
+    const MAX_NODES: usize = 100_000; // [策略] 单任务节点数硬上限
+    const MAX_CITATIONS: usize = 1_000_000; // [策略] 单任务引用边硬上限
+    const MAX_PROVENANCE_EDGES: usize = 500_000; // [策略] 单任务溯源边硬上限
+    const MAX_VERSIONS: usize = 200_000; // [策略] 单任务版本边硬上限
+    const MAX_CLAIM_BUCKETS: usize = 200_000; // [策略] 单任务声明分桶硬上限
+    const MAX_CLAIMS: usize = 1_000_000; // [策略] 单任务声明总数硬上限
     const MAX_SUBJECT_KEYS: usize = 32; // [策略] 实体键数量上限
 
     let l = &opts.limits;
@@ -81,6 +87,36 @@ pub fn check_graph_options(opts: &GraphOptions) -> Result<(), ApiError> {
     if l.max_excerpt_chars == 0 || l.max_excerpt_chars > MAX_EXCERPT_CHARS {
         return Err(ApiError::invalid(
             "graph.limits.maxExcerptChars must be between 1 and 2048",
+        ));
+    }
+    if l.max_nodes == 0 || l.max_nodes > MAX_NODES {
+        return Err(ApiError::invalid(
+            "graph.limits.maxNodes must be between 1 and 100000",
+        ));
+    }
+    if l.max_citations == 0 || l.max_citations > MAX_CITATIONS {
+        return Err(ApiError::invalid(
+            "graph.limits.maxCitations must be between 1 and 1000000",
+        ));
+    }
+    if l.max_provenance_edges == 0 || l.max_provenance_edges > MAX_PROVENANCE_EDGES {
+        return Err(ApiError::invalid(
+            "graph.limits.maxProvenanceEdges must be between 1 and 500000",
+        ));
+    }
+    if l.max_versions == 0 || l.max_versions > MAX_VERSIONS {
+        return Err(ApiError::invalid(
+            "graph.limits.maxVersions must be between 1 and 200000",
+        ));
+    }
+    if l.max_claim_buckets == 0 || l.max_claim_buckets > MAX_CLAIM_BUCKETS {
+        return Err(ApiError::invalid(
+            "graph.limits.maxClaimBuckets must be between 1 and 200000",
+        ));
+    }
+    if l.max_claims == 0 || l.max_claims > MAX_CLAIMS {
+        return Err(ApiError::invalid(
+            "graph.limits.maxClaims must be between 1 and 1000000",
         ));
     }
     if opts.subject_keys.len() > MAX_SUBJECT_KEYS {

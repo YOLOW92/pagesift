@@ -910,3 +910,623 @@ async fn browser_engine_rejects_caller_ssrf_proxy_before_launch() {
         "unexpected error message: {err}"
     );
 }
+
+#[tokio::test]
+async fn filtered_evidence_never_matches_numeric_substring() {
+    use pagesift_graph::EvidenceAlignment;
+
+    let app = Router::new().route(
+        "/pricing",
+        get(|| async {
+            Html(
+                "<html><head>\
+                 <script type=\"application/ld+json\">{\
+                   \"@context\":\"https://schema.org\",\
+                   \"@type\":\"Product\",\
+                   \"name\":\"Cloud Widget\",\
+                   \"offers\":{\"@type\":\"Offer\",\"price\":\"10\",\"priceCurrency\":\"USD\"}\
+                 }</script>\
+                 </head><body>\
+                 <h1>Starter Tier</h1>\
+                 <p>Starter plan costs $10 per seat for small teams.</p>\
+                 <h1>Enterprise Tier</h1>\
+                 <p>Enterprise plan costs $100 per seat with priority SLA and dedicated billing.</p>\
+                 </body></html>",
+            )
+        }),
+    );
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let url = format!("http://{addr}/pricing");
+
+    let scraper = test_scraper(None);
+    let opts = ScrapeOptions {
+        engine: Some("http".into()),
+        max_age: Some(0),
+        formats: vec![Format::new("markdown"), Format::new("graph")],
+        graph: Some(GraphOptions::enabled()),
+        query_filter: Some(
+            serde_json::from_value(serde_json::json!({
+                "query": "Enterprise Tier $100 priority SLA dedicated billing",
+                "minTokens": 1,
+                "relative": 0.9
+            }))
+            .unwrap(),
+        ),
+        ..Default::default()
+    };
+
+    let doc = scraper.scrape(&url, &opts).await.expect("scrape");
+    let md = doc.markdown.as_deref().unwrap_or("");
+    assert!(md.contains("$100"), "expected $100 in retained md: {md}");
+    assert!(!md.contains("$10 "), "expected $10 dropped by filter: {md}");
+
+    let g = doc.graph.as_ref().expect("graph");
+    for claim in &g.claims {
+        if claim.raw_value.as_str() == Some("10") {
+            assert_eq!(claim.evidence.alignment, EvidenceAlignment::MetadataIsland);
+            assert!(
+                claim.evidence.block_id.is_none(),
+                "value '10' must not bind to '$100' block: {:?}",
+                claim.evidence
+            );
+            assert!(claim.evidence.start.is_none());
+            assert!(claim.evidence.end.is_none());
+        }
+    }
+}
+
+#[tokio::test]
+async fn filtered_claim_and_evidence_stay_consistent() {
+    let app = Router::new().route(
+        "/consistent",
+        get(|| async {
+            Html(
+                "<html><head>\
+                 <script type=\"application/ld+json\">{\
+                   \"@context\":\"https://schema.org\",\
+                   \"@type\":\"Product\",\
+                   \"name\":\"Consistent Widget\",\
+                   \"sku\":\"SKU-900\",\
+                   \"offers\":{\"@type\":\"Offer\",\"price\":\"299\",\"priceCurrency\":\"USD\"}\
+                 }</script>\
+                 </head><body>\
+                 <h1>Legacy Notes</h1>\
+                 <p>Deprecated SKU-900 notes for old deployments.</p>\
+                 <h1>Active Pricing</h1>\
+                 <p>Active plan price is $299 USD per month with full support.</p>\
+                 </body></html>",
+            )
+        }),
+    );
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let url = format!("http://{addr}/consistent");
+
+    let scraper = test_scraper(None);
+    let opts = ScrapeOptions {
+        engine: Some("http".into()),
+        max_age: Some(0),
+        formats: vec![Format::new("markdown"), Format::new("graph")],
+        graph: Some(GraphOptions::enabled()),
+        chunking: Some(serde_json::json!({ "type": "recursive", "size": 80 })),
+        query_filter: Some(
+            serde_json::from_value(serde_json::json!({
+                "query": "Active Pricing $299 USD full support",
+                "minTokens": 1,
+                "relative": 0.9
+            }))
+            .unwrap(),
+        ),
+        ..Default::default()
+    };
+
+    let doc = scraper.scrape(&url, &opts).await.expect("scrape");
+    let g = doc.graph.as_ref().expect("graph");
+    assert_eq!(g.claims.len(), g.evidence.len());
+    for (claim, top_ev) in g.claims.iter().zip(g.evidence.iter()) {
+        assert_eq!(
+            &claim.evidence, top_ev,
+            "claim.evidence and slice.evidence diverged for {}",
+            claim.claim_id
+        );
+    }
+}
+
+#[tokio::test]
+async fn filtered_metadata_evidence_requires_valid_match() {
+    use pagesift_graph::EvidenceAlignment;
+
+    let app = Router::new().route(
+        "/meta-match",
+        get(|| async {
+            Html(
+                "<html><head>\
+                 <script type=\"application/ld+json\">{\
+                   \"@context\":\"https://schema.org\",\
+                   \"@type\":\"Product\",\
+                   \"name\":\"Precision Meter\",\
+                   \"offers\":{\"@type\":\"Offer\",\"price\":\"42\",\"priceCurrency\":\"USD\"}\
+                 }</script>\
+                 </head><body>\
+                 <h1>Pricing</h1>\
+                 <p>Standard unit price is $42 USD.</p>\
+                 <h1>Warehouse Address</h1>\
+                 <p>Located at Building 42 on North Avenue with loading dock access.</p>\
+                 </body></html>",
+            )
+        }),
+    );
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let url = format!("http://{addr}/meta-match");
+
+    let scraper = test_scraper(None);
+    let opts = ScrapeOptions {
+        engine: Some("http".into()),
+        max_age: Some(0),
+        formats: vec![Format::new("markdown"), Format::new("graph")],
+        graph: Some(GraphOptions::enabled()),
+        query_filter: Some(
+            serde_json::from_value(serde_json::json!({
+                "query": "Warehouse Address Building 42 North Avenue loading dock",
+                "minTokens": 1,
+                "relative": 0.9
+            }))
+            .unwrap(),
+        ),
+        ..Default::default()
+    };
+
+    let doc = scraper.scrape(&url, &opts).await.expect("scrape");
+    let md = doc.markdown.as_deref().unwrap_or("");
+    assert!(
+        !md.contains("Standard unit price"),
+        "expected Pricing section dropped: {md}"
+    );
+    let g = doc.graph.as_ref().expect("graph");
+    let price_claim = g
+        .claims
+        .iter()
+        .find(|c| c.normalized_field == "price" && c.raw_value.as_str() == Some("42"))
+        .expect("price claim");
+    assert_eq!(
+        price_claim.evidence.alignment,
+        EvidenceAlignment::MetadataIsland,
+        "price '42' must not bind to 'Building 42' without field context"
+    );
+    assert!(price_claim.evidence.block_id.is_none());
+}
+
+#[tokio::test]
+async fn not_modified_uses_matching_validator_snapshot() {
+    let phase = Arc::new(Mutex::new(0usize));
+    let phase_r = Arc::clone(&phase);
+    let app = Router::new().route(
+        "/etag-doc",
+        get(move |headers: HeaderMap| {
+            let p = *phase_r.lock().unwrap();
+            async move {
+                let inm = headers
+                    .get(header::IF_NONE_MATCH)
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or("");
+                match p {
+                    0 => (
+                        StatusCode::OK,
+                        [(header::ETAG, "\"v1\"")],
+                        Html("<html><body><p>Price is $10.</p></body></html>"),
+                    )
+                        .into_response(),
+                    1 => (
+                        StatusCode::OK,
+                        [(header::ETAG, "\"v2\"")],
+                        Html("<html><body><p>Price is $20.</p></body></html>"),
+                    )
+                        .into_response(),
+                    _ => {
+                        if inm.contains("v1") {
+                            (StatusCode::NOT_MODIFIED, [(header::ETAG, "W/\"v1\"")], "")
+                                .into_response()
+                        } else {
+                            (StatusCode::NOT_MODIFIED, [(header::ETAG, "\"v2\"")], "")
+                                .into_response()
+                        }
+                    }
+                }
+            }
+        }),
+    );
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let url = format!("http://{addr}/etag-doc");
+
+    let store_dir = tempfile::tempdir().unwrap();
+    let store = Store::open_dir(store_dir.path()).unwrap();
+    let scraper = test_scraper(Some(store));
+
+    let base_opts = ScrapeOptions {
+        engine: Some("http".into()),
+        max_age: Some(0),
+        formats: vec![Format::new("markdown"), Format::new("graph")],
+        graph: Some(GraphOptions::enabled()),
+        ..Default::default()
+    };
+
+    // V1: ETag "v1", Price is $10
+    let _d1 = scraper.scrape(&url, &base_opts).await.expect("v1");
+    // V2: ETag "v2", Price is $20
+    *phase.lock().unwrap() = 1;
+    let _d2 = scraper.scrape(&url, &base_opts).await.expect("v2");
+
+    // V3: Conditional request with If-None-Match: "v1" receives 304 for "v1".
+    // Because previous_version is V2 ($20) while 304 matches V1 ($10), V2 -> V3 is Substantive!
+    *phase.lock().unwrap() = 2;
+    let mut opts_v1 = base_opts.clone();
+    opts_v1.if_none_match = Some("\"v1\"".into());
+    let d3 = scraper.scrape(&url, &opts_v1).await.expect("v3");
+    let e3 = d3
+        .graph
+        .as_ref()
+        .unwrap()
+        .version
+        .as_ref()
+        .expect("v3 edge");
+    assert_eq!(e3.change_kind, VersionChangeKind::Substantive);
+    assert!(e3.diff_stats.is_some());
+    assert!(e3.diff_unavailable_reason.is_none());
+
+    // V4: Second conditional request with If-None-Match: "v1" receives 304 for "v1".
+    // Now previous_version (V3) already carries V1's content hash and snapshot, so V3 -> V4 is Unchanged!
+    let d4 = scraper.scrape(&url, &opts_v1).await.expect("v4");
+    let e4 = d4
+        .graph
+        .as_ref()
+        .unwrap()
+        .version
+        .as_ref()
+        .expect("v4 edge");
+    assert_eq!(e4.change_kind, VersionChangeKind::Unchanged);
+    assert_eq!(e4.diff_stats.as_ref().unwrap().modified, 0);
+}
+
+#[tokio::test]
+async fn not_modified_without_matching_snapshot_is_unavailable() {
+    let phase = Arc::new(Mutex::new(0usize));
+    let phase_r = Arc::clone(&phase);
+    let app = Router::new().route(
+        "/etag-miss",
+        get(move || {
+            let p = *phase_r.lock().unwrap();
+            async move {
+                if p == 0 {
+                    (
+                        StatusCode::OK,
+                        [(header::ETAG, "\"v1\"")],
+                        Html("<html><body><p>Initial body.</p></body></html>"),
+                    )
+                        .into_response()
+                } else {
+                    (
+                        StatusCode::NOT_MODIFIED,
+                        [(header::ETAG, "\"ghost-etag\"")],
+                        "",
+                    )
+                        .into_response()
+                }
+            }
+        }),
+    );
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let url = format!("http://{addr}/etag-miss");
+
+    let store_dir = tempfile::tempdir().unwrap();
+    let store = Store::open_dir(store_dir.path()).unwrap();
+    let scraper = test_scraper(Some(store));
+
+    let base_opts = ScrapeOptions {
+        engine: Some("http".into()),
+        max_age: Some(0),
+        formats: vec![Format::new("markdown"), Format::new("graph")],
+        graph: Some(GraphOptions::enabled()),
+        ..Default::default()
+    };
+
+    let _d1 = scraper.scrape(&url, &base_opts).await.expect("v1");
+
+    *phase.lock().unwrap() = 1;
+    let mut opts_cond = base_opts.clone();
+    opts_cond.if_none_match = Some("\"ghost-etag\"".into());
+    let d2 = scraper.scrape(&url, &opts_cond).await.expect("v2");
+    let e2 = d2
+        .graph
+        .as_ref()
+        .unwrap()
+        .version
+        .as_ref()
+        .expect("v2 edge");
+    assert_eq!(e2.diff_stats, None);
+    assert_eq!(
+        e2.diff_unavailable_reason.as_deref(),
+        Some("validator_mismatch")
+    );
+
+    // Unconditional 304 must report unconditional_not_modified
+    let d3 = scraper.scrape(&url, &base_opts).await.expect("v3");
+    let e3 = d3
+        .graph
+        .as_ref()
+        .unwrap()
+        .version
+        .as_ref()
+        .expect("v3 edge");
+    assert_eq!(e3.diff_stats, None);
+    assert_eq!(
+        e3.diff_unavailable_reason.as_deref(),
+        Some("unconditional_not_modified")
+    );
+}
+
+#[tokio::test]
+async fn temporary_redirect_does_not_merge_target_histories() {
+    let target_choice = Arc::new(Mutex::new(0usize));
+    let tc = Arc::clone(&target_choice);
+    let app = Router::new()
+        .route(
+            "/promo",
+            get(move || {
+                let c = *tc.lock().unwrap();
+                async move {
+                    if c == 0 {
+                        Redirect::temporary("/target-a").into_response()
+                    } else {
+                        Redirect::temporary("/target-b").into_response()
+                    }
+                }
+            }),
+        )
+        .route(
+            "/target-a",
+            get(|| async {
+                Html("<html><body><h1>Target A</h1><p>Alpha content.</p></body></html>")
+            }),
+        )
+        .route(
+            "/target-b",
+            get(|| async {
+                Html("<html><body><h1>Target B</h1><p>Beta content.</p></body></html>")
+            }),
+        );
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let promo_url = format!("http://{addr}/promo");
+    let url_a = format!("http://{addr}/target-a");
+    let url_b = format!("http://{addr}/target-b");
+
+    let store_dir = tempfile::tempdir().unwrap();
+    let store = Store::open_dir(store_dir.path()).unwrap();
+    let scraper = test_scraper(Some(store.clone()));
+
+    let opts = ScrapeOptions {
+        engine: Some("http".into()),
+        max_age: Some(0),
+        formats: vec![Format::new("markdown"), Format::new("graph")],
+        graph: Some(GraphOptions::enabled()),
+        ..Default::default()
+    };
+
+    let d1 = scraper.scrape(&promo_url, &opts).await.expect("promo -> a");
+    assert_eq!(d1.graph.as_ref().unwrap().resource_key, url_a);
+
+    *target_choice.lock().unwrap() = 1;
+    let d2 = scraper.scrape(&promo_url, &opts).await.expect("promo -> b");
+    let g2 = d2.graph.as_ref().unwrap();
+    assert_eq!(g2.resource_key, url_b);
+    assert!(
+        g2.version.is_none(),
+        "temporary redirect /promo -> /target-b must not inherit /target-a as previous version: {:?}",
+        g2.version
+    );
+
+    let gs = store.graph();
+    let (_, vers_a, edges_a) = gs.history(&url_a).unwrap();
+    let (_, vers_b, edges_b) = gs.history(&url_b).unwrap();
+    assert_eq!(vers_a.len(), 1);
+    assert!(edges_a.is_empty());
+    assert_eq!(vers_b.len(), 1);
+    assert!(edges_b.is_empty());
+}
+
+#[tokio::test]
+async fn trusted_permanent_redirect_preserves_lineage() {
+    let moved = Arc::new(Mutex::new(false));
+    let mv = Arc::clone(&moved);
+    let app = Router::new()
+        .route(
+            "/legacy-doc",
+            get(move || {
+                let m = *mv.lock().unwrap();
+                async move {
+                    if !m {
+                        Html("<html><body><h1>Doc</h1><p>Revision 1.</p></body></html>")
+                            .into_response()
+                    } else {
+                        Redirect::permanent("/modern-doc").into_response()
+                    }
+                }
+            }),
+        )
+        .route(
+            "/modern-doc",
+            get(|| async { Html("<html><body><h1>Doc</h1><p>Revision 2.</p></body></html>") }),
+        );
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let legacy_url = format!("http://{addr}/legacy-doc");
+    let modern_url = format!("http://{addr}/modern-doc");
+
+    let store_dir = tempfile::tempdir().unwrap();
+    let store = Store::open_dir(store_dir.path()).unwrap();
+    let scraper = test_scraper(Some(store.clone()));
+
+    let opts = ScrapeOptions {
+        engine: Some("http".into()),
+        max_age: Some(0),
+        formats: vec![Format::new("markdown"), Format::new("graph")],
+        graph: Some(GraphOptions::enabled()),
+        ..Default::default()
+    };
+
+    let _d1 = scraper.scrape(&legacy_url, &opts).await.expect("v1");
+    *moved.lock().unwrap() = true;
+    let d2 = scraper.scrape(&legacy_url, &opts).await.expect("v2");
+    assert!(d2.graph.as_ref().unwrap().version.is_some());
+
+    let gs = store.graph();
+    let (canon, versions, edges) = gs.history(&legacy_url).unwrap();
+    assert_eq!(canon, modern_url);
+    assert_eq!(versions.len(), 2);
+    assert_eq!(edges.len(), 1);
+}
+
+#[tokio::test]
+async fn crawl_sink_cannot_persist_rejected_version_and_replay_is_idempotent() {
+    use pagesift_graph::{VersionEdge, VersionRecord};
+    use pagesift_store::LoadedVersionSnapshot;
+
+    let store_dir = tempfile::tempdir().unwrap();
+    let store = Store::open_dir(store_dir.path()).unwrap();
+    let gs = store.graph();
+    let url = "https://example.com/crawl-ver";
+
+    let rec1 = VersionRecord {
+        resource_key: url.to_string(),
+        doc_id: "doc:v1".to_string(),
+        url: url.to_string(),
+        canonical_url: None,
+        observed_at_ms: 1000,
+        content_hash: Some("h1".to_string()),
+        text_hash: None,
+        status_code: 200,
+        etag: None,
+        last_modified: None,
+    };
+    gs.record_version(&rec1, None).expect("record v1");
+    // Replaying identical record is idempotent
+    gs.record_version(&rec1, None).expect("replay v1");
+    let (_, vers1, _) = gs.history(url).unwrap();
+    assert_eq!(vers1.len(), 1);
+
+    // Stale/conflicting parent (prev_doc_id = doc:stale != doc:v1) must be rejected by CAS
+    let rec_bad = VersionRecord {
+        resource_key: url.to_string(),
+        doc_id: "doc:bad".to_string(),
+        url: url.to_string(),
+        canonical_url: None,
+        observed_at_ms: 2000,
+        content_hash: Some("h_bad".to_string()),
+        text_hash: None,
+        status_code: 200,
+        etag: None,
+        last_modified: None,
+    };
+    let edge_bad = VersionEdge {
+        resource_key: url.to_string(),
+        prev_doc_id: Some("doc:stale".to_string()),
+        curr_doc_id: "doc:bad".to_string(),
+        prev_url: Some(url.to_string()),
+        curr_url: url.to_string(),
+        prev_observed_at_ms: Some(1000),
+        curr_observed_at_ms: 2000,
+        change_kind: VersionChangeKind::Substantive,
+        changed_block_ids: Vec::new(),
+        diff_stats: None,
+        diff_unavailable_reason: None,
+    };
+    assert!(
+        gs.record_version(&rec_bad, Some(&edge_bad)).is_err(),
+        "record_version must reject non-linear parent"
+    );
+    let (_, vers_after_bad, edges_after_bad) = gs.history(url).unwrap();
+    assert_eq!(vers_after_bad.len(), 1);
+    assert!(edges_after_bad.is_empty());
+
+    // Snapshot recorded via record_version without markdown must be marked snapshot_omitted
+    let snap = gs.load_version_snapshot(&rec1).unwrap();
+    assert_eq!(
+        snap,
+        LoadedVersionSnapshot::Unavailable {
+            reason: "snapshot_omitted".to_string()
+        }
+    );
+}
+
+#[tokio::test]
+async fn graph_cache_isolated_between_local_and_http_and_legacy_stripped() {
+    let app = Router::new().route(
+        "/cached-graph",
+        get(|| async { Html("<html><body><h1>Cached Page</h1><p>Body text.</p></body></html>") }),
+    );
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let url = format!("http://{addr}/cached-graph");
+
+    let store_dir = tempfile::tempdir().unwrap();
+    let store = Store::open_dir(store_dir.path()).unwrap();
+    let scraper = test_scraper(Some(store));
+
+    let local_opts = ScrapeOptions {
+        engine: Some("http".into()),
+        formats: vec![Format::new("markdown"), Format::new("graph")],
+        graph: Some(GraphOptions::enabled()),
+        owner: None,
+        ..Default::default()
+    };
+    let d_local_1 = scraper.scrape(&url, &local_opts).await.expect("local 1");
+    assert_eq!(d_local_1.metadata.cache_state.as_deref(), Some("miss"));
+    assert!(d_local_1.graph.is_some());
+
+    let d_local_2 = scraper.scrape(&url, &local_opts).await.expect("local 2");
+    assert_eq!(d_local_2.metadata.cache_state.as_deref(), Some("hit"));
+
+    // Anonymous HTTP caller (__http_anon__) must NOT hit local caller's cached graph document
+    let mut http_anon_opts = local_opts.clone();
+    http_anon_opts.owner = Some(ScrapeOptions::ANONYMOUS_OWNER.into());
+    let d_http = scraper
+        .scrape(&url, &http_anon_opts)
+        .await
+        .expect("http anon");
+    assert_eq!(
+        d_http.metadata.cache_state.as_deref(),
+        Some("miss"),
+        "HTTP anonymous scope must not share graph cache with local unscoped caller"
+    );
+
+    // Non-graph request must never return a graph slice even if a legacy entry had one
+    let plain_opts = ScrapeOptions {
+        engine: Some("http".into()),
+        formats: vec![Format::new("markdown")],
+        graph: None,
+        owner: None,
+        ..Default::default()
+    };
+    let d_plain = scraper.scrape(&url, &plain_opts).await.expect("plain");
+    assert!(d_plain.graph.is_none());
+}

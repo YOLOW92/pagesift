@@ -63,6 +63,7 @@ fn sample_delta(url: &str, doc_id: &str, ts: u64) -> PageGraphDelta {
         citations: Vec::new(),
         provenance: Vec::new(),
         version: None,
+        version_rejected: false,
         evidence: Vec::new(),
         claims: Vec::new(),
     }
@@ -380,4 +381,91 @@ fn record_version_is_idempotent_after_commit_version_and_replays() {
         "versions must not duplicate: {versions:?}"
     );
     assert_eq!(edges.len(), 1, "edges must not duplicate: {edges:?}");
+}
+
+#[test]
+fn history_limit_bounds_intermediate_buffer() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open_dir(dir.path()).unwrap();
+    let gs = store.graph();
+    let canonical = "https://example.com/root";
+
+    // Create 128 aliases, each with 50 versions and 49 edges (6,400 versions total)
+    for a_idx in 0..128u64 {
+        let alias = format!("https://example.com/alias-{a_idx}");
+        gs.bind_alias(&alias, canonical).unwrap();
+        let mut prev: Option<VersionRecord> = None;
+        for v_idx in 0..50u64 {
+            let ts = (a_idx + 1) * 1_000 + v_idx;
+            let doc_id = format!("d_{a_idx}_{v_idx}");
+            let rec = vr(&alias, &doc_id, ts, &doc_id);
+            let edge = prev
+                .as_ref()
+                .map(|p| link_version_pair(p, &rec, None, Vec::new()));
+            gs.record_version(&rec, edge.as_ref()).unwrap();
+            prev = Some(rec);
+        }
+    }
+
+    let limit = 15;
+    let res = gs.history_bounded(canonical, limit).unwrap();
+    assert!(res.truncated);
+    assert_eq!(res.versions.len(), limit);
+    assert_eq!(res.edges.len(), limit);
+    assert!(
+        res.max_buffered_versions <= limit,
+        "intermediate version buffer {} exceeded limit {limit}",
+        res.max_buffered_versions
+    );
+    assert!(
+        res.max_buffered_edges <= limit,
+        "intermediate edge buffer {} exceeded limit {limit}",
+        res.max_buffered_edges
+    );
+}
+
+#[test]
+fn history_top_k_preserves_order_and_truncation() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open_dir(dir.path()).unwrap();
+    let gs = store.graph();
+    let canonical = "https://example.com/canonical";
+    let alias_a = "https://example.com/a";
+    let alias_b = "https://example.com/b";
+    gs.bind_alias(alias_a, canonical).unwrap();
+    gs.bind_alias(alias_b, canonical).unwrap();
+
+    // Interleaved timestamps across canonical, alias_a, alias_b, plus a duplicate entry
+    let r1 = vr(alias_a, "d1", 10, "h1");
+    let r2 = vr(alias_b, "d2", 20, "h2");
+    let r3 = vr(canonical, "d3", 30, "h3");
+    let r4 = vr(alias_a, "d4", 40, "h4");
+    let r5 = vr(alias_b, "d5", 50, "h5");
+
+    gs.record_version(&r1, None).unwrap();
+    gs.record_version(&r2, None).unwrap();
+    gs.record_version(&r3, None).unwrap();
+    gs.record_version(&r4, None).unwrap();
+    gs.record_version(&r5, None).unwrap();
+
+    let top3 = gs.history_bounded(canonical, 3).unwrap();
+    assert!(top3.truncated);
+    assert_eq!(
+        top3.versions
+            .iter()
+            .map(|v| v.doc_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["d3", "d4", "d5"]
+    );
+    assert_eq!(top3.max_buffered_versions, 3);
+
+    let all5 = gs.history_bounded(canonical, 5).unwrap();
+    assert!(!all5.truncated);
+    assert_eq!(
+        all5.versions
+            .iter()
+            .map(|v| v.doc_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["d1", "d2", "d3", "d4", "d5"]
+    );
 }

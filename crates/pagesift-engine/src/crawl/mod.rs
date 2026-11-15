@@ -284,6 +284,7 @@ impl Scraper {
         extra: &[&str],
     ) -> (Arc<ScrapeOptions>, usize) {
         let mut opts = req.scrape_options.clone();
+        opts.owner = opts.effective_graph_tenant();
         if let Some(req_graph) = &req.graph
             && (opts.graph.is_none() || req_graph.enabled)
         {

@@ -62,6 +62,9 @@ pub struct PageGraphSeed {
     pub raw_traces: Vec<RawFieldTrace>,
     pub member_deltas: Vec<PageGraphDelta>,
     pub tenant: Option<String>,
+    pub if_none_match: Option<String>,
+    pub if_modified_since: Option<String>,
+    pub unconditional_not_modified: bool,
 }
 
 impl Default for PageGraphSeed {
@@ -83,8 +86,44 @@ impl Default for PageGraphSeed {
             raw_traces: Vec::new(),
             member_deltas: Vec::new(),
             tenant: None,
+            if_none_match: None,
+            if_modified_since: None,
+            unconditional_not_modified: false,
         }
     }
+}
+
+/// Collect resource keys from `redirect_chain` that form a contiguous suffix of
+/// same-host permanent redirects (`RedirectKind::HttpPermanent`, 301/308) leading into `final_url`.
+pub fn trusted_permanent_redirect_keys(
+    redirect_chain: &[(String, String, u16, RedirectKind)],
+    final_url: &str,
+) -> BTreeSet<String> {
+    let mut keys = BTreeSet::new();
+    let final_host = pagesift_graph::host_of(final_url);
+    if final_host.is_empty() {
+        return keys;
+    }
+    let mut expected_to = DocNode::derive_resource_key(None, final_url);
+    for (from_u, to_u, _, kind) in redirect_chain.iter().rev() {
+        if *kind != RedirectKind::HttpPermanent {
+            break;
+        }
+        let to_key = DocNode::derive_resource_key(None, to_u);
+        if to_key != expected_to {
+            break;
+        }
+        if pagesift_graph::host_of(from_u) != final_host
+            || pagesift_graph::host_of(to_u) != final_host
+        {
+            break;
+        }
+        let from_key = DocNode::derive_resource_key(None, from_u);
+        keys.insert(from_key.clone());
+        keys.insert(to_key);
+        expected_to = from_key;
+    }
+    keys
 }
 
 /// Resolve effective DataGraph options when enabled via `opts.graph` or `formats: ["graph"]`.
@@ -363,6 +402,90 @@ fn remap_delta_doc_id(
     delta.version = next_edge;
 }
 
+fn resolve_304_snapshot(
+    gs: &pagesift_store::GraphStore<'_>,
+    lookup_refs: &[&str],
+    resource_key: &str,
+    final_url: &str,
+    seed: &PageGraphSeed,
+) -> (Option<VersionRecord>, Option<String>, Option<String>) {
+    if seed.unconditional_not_modified {
+        return (None, None, Some("unconditional_not_modified".to_string()));
+    }
+    let resp_etag = seed
+        .etag
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let req_inm = seed
+        .if_none_match
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let resp_lm = seed
+        .last_modified
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let req_ims = seed
+        .if_modified_since
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+
+    // If both request If-None-Match and response ETag are present, they must be consistent.
+    if let (Some(inm), Some(etag)) = (req_inm, resp_etag)
+        && inm != "*"
+        && !pagesift_graph::if_none_match_matches(inm, etag)
+    {
+        return (None, None, Some("validator_mismatch".to_string()));
+    }
+
+    let has_specific_etag = resp_etag.is_some() || req_inm.is_some_and(|v| v != "*");
+    let target_lm = resp_lm.or(req_ims);
+    if !has_specific_etag && target_lm.is_none() {
+        return (None, None, Some("validator_mismatch".to_string()));
+    }
+
+    let norm_final = pagesift_graph::normalize_url(final_url);
+    let matched_rec = gs
+        .find_version_for_urls(lookup_refs, |rec| {
+            let rec_key = DocNode::derive_resource_key(rec.canonical_url.as_deref(), &rec.url);
+            let same_repr =
+                rec_key == resource_key || pagesift_graph::normalize_url(&rec.url) == norm_final;
+            if !same_repr {
+                return false;
+            }
+            if let Some(etag) = resp_etag {
+                return rec
+                    .etag
+                    .as_deref()
+                    .is_some_and(|re| pagesift_graph::etag_weak_match(re, etag));
+            }
+            if let Some(inm) = req_inm.filter(|v| *v != "*") {
+                return rec
+                    .etag
+                    .as_deref()
+                    .is_some_and(|re| pagesift_graph::if_none_match_matches(inm, re));
+            }
+            if let Some(lm) = target_lm {
+                return rec
+                    .last_modified
+                    .as_deref()
+                    .is_some_and(|rlm| rlm.trim() == lm);
+            }
+            false
+        })
+        .ok()
+        .flatten();
+
+    let Some(matched) = matched_rec else {
+        return (None, None, Some("validator_mismatch".to_string()));
+    };
+    let (md, unavail, _) = load_prev_snapshot_for_version(gs, &matched);
+    (Some(matched), md, unavail)
+}
+
 /// Build per-document DataGraph slice, run version diffing & store persistence when enabled.
 pub fn build_and_attach_page_graph(
     store: Option<&Store>,
@@ -423,37 +546,72 @@ pub fn build_and_attach_page_graph(
     let mut previous_version: Option<VersionRecord> = None;
     let mut version_diff_stats: Option<VersionDiffStats> = None;
     let mut changed_block_ids: Vec<String> = Vec::new();
-    let mut prev_md_loaded: Option<String> = None;
+    let mut prev_md_loaded: Option<String>;
+    let mut matched_304_version: Option<VersionRecord> = None;
+    let mut matched_304_md: Option<String> = None;
+    let mut not_modified_unavail_reason: Option<String> = None;
     let mut diff_unavailable_reason: Option<String> = None;
     let mut warnings_to_push: Vec<String> = Vec::new();
 
-    // 仅允许同站可信 canonical 与实际重定向链参与历史别名查询和绑定，防止恶意跨站 canonical 污染他站历史。
+    // 仅允许同站可信 canonical 与同站永久重定向链（301/308）参与历史别名查询和绑定，
+    // 防止临时重定向（302/303/307）或跨站 canonical 将不同目标资源的历史串连。
     let trusted_canonical = DocNode::trusted_canonical_url(canonical_url.as_deref(), &final_url);
+    let perm_redirect_keys = trusted_permanent_redirect_keys(&seed.redirect_chain, &final_url);
     let mut alias_candidates = BTreeSet::new();
-    alias_candidates.insert(DocNode::derive_resource_key(None, &requested_url));
     alias_candidates.insert(DocNode::derive_resource_key(None, &final_url));
-    for (from_u, to_u, _, _) in &seed.redirect_chain {
-        alias_candidates.insert(DocNode::derive_resource_key(None, from_u));
-        alias_candidates.insert(DocNode::derive_resource_key(None, to_u));
+    for k in &perm_redirect_keys {
+        alias_candidates.insert(k.clone());
+    }
+    if seed.redirect_chain.is_empty()
+        && pagesift_graph::host_of(&requested_url) == pagesift_graph::host_of(&final_url)
+    {
+        alias_candidates.insert(DocNode::derive_resource_key(None, &requested_url));
     }
 
     if opts.versions
         && let Some(st) = store
     {
         let gs = st.graph_for(tenant.as_deref());
-        let mut lookup = vec![
-            resource_key.clone(),
-            final_url.clone(),
-            requested_url.clone(),
-        ];
+        let mut raw_lookup = vec![resource_key.clone(), final_url.clone()];
         if let Some(c) = &trusted_canonical {
-            lookup.push(c.clone());
+            raw_lookup.push(c.clone());
         }
-        for (from_u, to_u, _, _) in &seed.redirect_chain {
-            lookup.push(from_u.clone());
-            lookup.push(to_u.clone());
+        for k in &alias_candidates {
+            raw_lookup.push(k.clone());
+        }
+        let mut lookup = Vec::with_capacity(raw_lookup.len());
+        for cand in raw_lookup {
+            if !gs
+                .is_foreign_alias_pointer(&cand, &resource_key)
+                .unwrap_or(false)
+            {
+                lookup.push(cand);
+            }
         }
         let lookup_refs: Vec<&str> = lookup.iter().map(String::as_str).collect();
+
+        if not_modified && markdown.is_empty() {
+            let (m_ver, m_md, m_unavail) =
+                resolve_304_snapshot(&gs, &lookup_refs, &resource_key, &final_url, &seed);
+            if let Some(ref mv) = m_ver {
+                if seed.content_hash.is_none() {
+                    seed.content_hash = mv.content_hash.clone();
+                }
+                if seed.text_hash.is_none() {
+                    seed.text_hash = mv.text_hash.clone();
+                }
+                if seed.etag.is_none() {
+                    seed.etag = mv.etag.clone();
+                }
+                if seed.last_modified.is_none() {
+                    seed.last_modified = mv.last_modified.clone();
+                }
+            }
+            matched_304_version = m_ver;
+            matched_304_md = m_md;
+            not_modified_unavail_reason = m_unavail;
+        }
+
         if let Ok(Some(prev)) = gs.latest_version_for_urls(&lookup_refs) {
             if observed_at_ms <= prev.observed_at_ms {
                 observed_at_ms = prev.observed_at_ms + 1;
@@ -461,12 +619,7 @@ pub fn build_and_attach_page_graph(
             let (prev_md, unavail_reason, unavail_warn) =
                 load_prev_snapshot_for_version(&gs, &prev);
             prev_md_loaded = prev_md;
-            if !not_modified {
-                diff_unavailable_reason = unavail_reason;
-                if let Some(w) = unavail_warn {
-                    warnings_to_push.push(w);
-                }
-            }
+
             let new_doc_id = DocNode::compute_observation_doc_id(
                 canonical_url.as_deref(),
                 &final_url,
@@ -474,17 +627,61 @@ pub fn build_and_attach_page_graph(
                 seed.content_hash.as_deref(),
                 seed.raw_hash.as_deref(),
             );
-            let (stats, changed) = compute_version_diff(
-                prev_md_loaded.as_deref(),
-                &markdown,
-                not_modified,
-                &new_doc_id,
-                &chunk_spans,
-                opts,
-            );
-            version_diff_stats = stats;
-            changed_block_ids = changed;
+
+            if not_modified && markdown.is_empty() {
+                if let Some(ref body_304) = matched_304_md {
+                    let same_as_prev = matched_304_version
+                        .as_ref()
+                        .is_some_and(|mv| mv.doc_id == prev.doc_id);
+                    if same_as_prev {
+                        version_diff_stats = Some(VersionDiffStats::default());
+                        changed_block_ids = Vec::new();
+                    } else if prev_md_loaded.is_some() {
+                        let (stats, changed) = compute_version_diff(
+                            prev_md_loaded.as_deref(),
+                            body_304,
+                            false,
+                            &new_doc_id,
+                            &chunk_spans,
+                            opts,
+                        );
+                        version_diff_stats = stats;
+                        changed_block_ids = changed;
+                    } else {
+                        diff_unavailable_reason = unavail_reason;
+                        if let Some(w) = unavail_warn {
+                            warnings_to_push.push(w);
+                        }
+                    }
+                } else {
+                    let reason = not_modified_unavail_reason
+                        .clone()
+                        .unwrap_or_else(|| "validator_mismatch".to_string());
+                    warnings_to_push.push(format!("graph_version_diff_unavailable: {reason}"));
+                    diff_unavailable_reason = Some(reason);
+                }
+            } else {
+                diff_unavailable_reason = unavail_reason;
+                if let Some(w) = unavail_warn {
+                    warnings_to_push.push(w);
+                }
+                let (stats, changed) = compute_version_diff(
+                    prev_md_loaded.as_deref(),
+                    &markdown,
+                    false,
+                    &new_doc_id,
+                    &chunk_spans,
+                    opts,
+                );
+                version_diff_stats = stats;
+                changed_block_ids = changed;
+            }
             previous_version = Some(prev);
+        } else if not_modified && markdown.is_empty() && matched_304_md.is_none() {
+            let reason = not_modified_unavail_reason
+                .clone()
+                .unwrap_or_else(|| "validator_mismatch".to_string());
+            warnings_to_push.push(format!("graph_version_diff_unavailable: {reason}"));
         }
     }
 
@@ -536,13 +733,10 @@ pub fn build_and_attach_page_graph(
     {
         let gs = st.graph_for(tenant.as_deref());
         for attempt in 0..MAX_VERSION_COMMIT_RETRIES {
-            let mut turn_aliases = alias_candidates.clone();
-            if let Some(prev) = &previous_version {
-                turn_aliases.insert(prev.resource_key.clone());
-            }
-            let alias_keys: Vec<String> = turn_aliases
-                .into_iter()
-                .filter(|a| a != &resource_key)
+            let alias_keys: Vec<String> = alias_candidates
+                .iter()
+                .filter(|a| *a != &resource_key)
+                .cloned()
                 .collect();
 
             let curr_record = VersionRecord {
@@ -561,8 +755,19 @@ pub fn build_and_attach_page_graph(
             let (snapshot_bytes, snapshot_unavail): (Option<&[u8]>, Option<&str>) =
                 if !markdown.is_empty() {
                     (Some(markdown.as_bytes()), None)
-                } else if not_modified && let Some(ref prev_md) = prev_md_loaded {
-                    (Some(prev_md.as_bytes()), None)
+                } else if not_modified {
+                    if let Some(ref body_304) = matched_304_md {
+                        (Some(body_304.as_bytes()), None)
+                    } else {
+                        (
+                            None,
+                            Some(
+                                not_modified_unavail_reason
+                                    .as_deref()
+                                    .unwrap_or("validator_mismatch"),
+                            ),
+                        )
+                    }
                 } else {
                     (None, Some("empty_markdown"))
                 };
@@ -589,6 +794,8 @@ pub fn build_and_attach_page_graph(
                             "graph_version_commit_conflict: concurrent commits exhausted retries"
                                 .to_string(),
                         );
+                        delta.version = None;
+                        delta.version_rejected = true;
                         break;
                     }
                     // 清空本轮因旧父节点失效产生的临时提示，使用最新已提交父节点重算 diff 并重试。
@@ -619,15 +826,47 @@ pub fn build_and_attach_page_graph(
                         seed_content_hash.as_deref(),
                         seed_raw_hash.as_deref(),
                     );
-                    let (stats, changed) = if previous_version.is_some() {
-                        compute_version_diff(
-                            prev_md_loaded.as_deref(),
-                            &markdown,
-                            not_modified,
-                            &new_doc_id,
-                            &chunk_spans,
-                            opts,
-                        )
+                    let (stats, changed) = if let Some(ref prev) = previous_version {
+                        if not_modified && markdown.is_empty() {
+                            if let Some(ref body_304) = matched_304_md {
+                                let same_as_prev = matched_304_version
+                                    .as_ref()
+                                    .is_some_and(|mv| mv.doc_id == prev.doc_id);
+                                if same_as_prev {
+                                    (Some(VersionDiffStats::default()), Vec::new())
+                                } else if prev_md_loaded.is_some() {
+                                    compute_version_diff(
+                                        prev_md_loaded.as_deref(),
+                                        body_304,
+                                        false,
+                                        &new_doc_id,
+                                        &chunk_spans,
+                                        opts,
+                                    )
+                                } else {
+                                    diff_unavailable_reason =
+                                        Some("previous_snapshot_unavailable".to_string());
+                                    (None, Vec::new())
+                                }
+                            } else {
+                                let reason = not_modified_unavail_reason
+                                    .clone()
+                                    .unwrap_or_else(|| "validator_mismatch".to_string());
+                                warnings_to_push
+                                    .push(format!("graph_version_diff_unavailable: {reason}"));
+                                diff_unavailable_reason = Some(reason);
+                                (None, Vec::new())
+                            }
+                        } else {
+                            compute_version_diff(
+                                prev_md_loaded.as_deref(),
+                                &markdown,
+                                false,
+                                &new_doc_id,
+                                &chunk_spans,
+                                opts,
+                            )
+                        }
                     } else {
                         (None, Vec::new())
                     };
@@ -643,6 +882,8 @@ pub fn build_and_attach_page_graph(
                 }
                 Err(e) => {
                     warnings_to_push.push(format!("graph_version_persist_failed: {e}"));
+                    delta.version = None;
+                    delta.version_rejected = true;
                     break;
                 }
             }

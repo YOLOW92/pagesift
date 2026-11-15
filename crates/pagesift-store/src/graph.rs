@@ -5,7 +5,7 @@
 //! - `GRAPH_FACT` (`ns 11`): alias resolution (`alias\0`, `rev\0`) and [`ConflictRecord`] entries.
 //! - `GRAPH_JOB` (`ns 12`): zstd-compressed job [`GraphSummary`] and [`PageGraphDelta`] records.
 
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fmt::Write as _;
 use std::time::SystemTime;
 
@@ -46,6 +46,58 @@ pub struct GraphHistoryResult {
     pub versions: Vec<VersionRecord>,
     pub edges: Vec<VersionEdge>,
     pub truncated: bool,
+    pub max_buffered_versions: usize,
+    pub max_buffered_edges: usize,
+}
+
+struct BoundedTopK<K, V> {
+    limit: usize,
+    map: BTreeMap<K, V>,
+    truncated: bool,
+    max_len_observed: usize,
+}
+
+impl<K: Ord, V> BoundedTopK<K, V> {
+    fn new(limit: usize) -> Self {
+        Self {
+            limit,
+            map: BTreeMap::new(),
+            truncated: false,
+            max_len_observed: 0,
+        }
+    }
+
+    fn insert(&mut self, key: K, val: V) {
+        if self.map.contains_key(&key) {
+            return;
+        }
+        if self.limit == 0 {
+            self.truncated = true;
+            return;
+        }
+        if self.map.len() < self.limit {
+            self.map.insert(key, val);
+            self.max_len_observed = self.max_len_observed.max(self.map.len());
+            return;
+        }
+        self.truncated = true;
+        let replace = self
+            .map
+            .first_key_value()
+            .is_some_and(|(min_k, _)| &key > min_k);
+        if replace {
+            self.map.pop_first();
+            self.map.insert(key, val);
+            self.max_len_observed = self.max_len_observed.max(self.map.len());
+        }
+    }
+
+    fn into_sorted_vec(self) -> (Vec<V>, bool, usize) {
+        let truncated = self.truncated;
+        let max_len = self.max_len_observed;
+        let vec = self.map.into_values().collect();
+        (vec, truncated, max_len)
+    }
 }
 
 /// Snapshot lookup outcome tied to a specific [`VersionRecord`] rather than resource latest.
@@ -138,16 +190,53 @@ impl<'a> GraphStore<'a> {
         let doc_ver_key = self.scoped_prefixed(PREFIX_DOC_VER, &record.doc_id);
         let scope = self.scope_str();
 
+        let mut candidate_keys = BTreeSet::new();
+        candidate_keys.insert(record.resource_key.clone());
+        for member in self.alias_component(&record.resource_key)? {
+            candidate_keys.insert(member);
+        }
+
         let mut tx = self.store.tx();
         if tx.contains(ns::GRAPH_FACT, &doc_snap_key)?
             || tx.contains(ns::GRAPH_FACT, &doc_ver_key)?
-            || latest_tail_in_tx(&tx, scope, &record.resource_key)?
-                .is_some_and(|tail| tail.doc_id == record.doc_id)
         {
             drop(tx);
             return Ok(());
         }
+        let mut current_latest: Option<VersionRecord> = None;
+        for key in &candidate_keys {
+            if let Some(rec) = latest_tail_in_tx(&tx, scope, key)? {
+                if rec.doc_id == record.doc_id {
+                    drop(tx);
+                    return Ok(());
+                }
+                let replace = current_latest
+                    .as_ref()
+                    .is_none_or(|b| rec.observed_at_ms >= b.observed_at_ms);
+                if replace {
+                    current_latest = Some(rec);
+                }
+            }
+        }
+        if let Some(e) = edge {
+            let expected_prev = e.prev_doc_id.as_deref();
+            let actual_prev = current_latest.as_ref().map(|c| c.doc_id.as_str());
+            if expected_prev != actual_prev {
+                drop(tx);
+                return Err(Error::Corrupt(format!(
+                    "stale parent in record_version for {}: expected {:?}, current {:?}",
+                    record.resource_key, expected_prev, actual_prev
+                )));
+            }
+        }
         tx.put(ns::GRAPH_FACT, &doc_ver_key, &[1], ts)?;
+        if !tx.contains(ns::GRAPH_FACT, &doc_snap_key)? {
+            let reason = b"snapshot_omitted";
+            let mut flag_val = Vec::with_capacity(1 + reason.len());
+            flag_val.push(SNAP_FLAG_UNAVAILABLE);
+            flag_val.extend_from_slice(reason);
+            tx.put(ns::GRAPH_FACT, &doc_snap_key, &flag_val, ts)?;
+        }
         list_push(&mut tx, ns::GRAPH_NODE, &rec_key, &rec_bytes, ts)?;
         if let Some(bytes) = edge_bytes {
             let ek = edge.map_or(record.resource_key.as_str(), |e| e.resource_key.as_str());
@@ -223,7 +312,9 @@ impl<'a> GraphStore<'a> {
         let mut candidate_keys = BTreeSet::new();
         candidate_keys.insert(req.record.resource_key.clone());
         for a in req.alias_keys {
-            candidate_keys.insert(a.clone());
+            if !self.is_foreign_alias_pointer(a, &req.record.resource_key)? {
+                candidate_keys.insert(a.clone());
+            }
         }
         for member in self.alias_component(&req.record.resource_key)? {
             candidate_keys.insert(member);
@@ -369,6 +460,25 @@ impl<'a> GraphStore<'a> {
         self.resolve_forward(&initial)
     }
 
+    /// Returns true if `url_or_key` has no direct `VersionRecord` entries of its own
+    /// and currently points via forward alias to a canonical key other than `expected_target`.
+    pub fn is_foreign_alias_pointer(
+        &self,
+        url_or_key: &str,
+        expected_target: &str,
+    ) -> Result<bool> {
+        let k = initial_key(url_or_key);
+        let target = self.resolve_forward(&initial_key(expected_target))?;
+        if k == target {
+            return Ok(false);
+        }
+        if self.latest_tail(&k)?.is_some() {
+            return Ok(false);
+        }
+        let resolved = self.resolve_forward(&k)?;
+        Ok(resolved != k && resolved != target)
+    }
+
     /// Look up the most recent [`VersionRecord`] for any URL or alias sharing `urls`.
     pub fn latest_version_for_urls(&self, urls: &[&str]) -> Result<Option<VersionRecord>> {
         let mut keys = BTreeSet::new();
@@ -392,6 +502,55 @@ impl<'a> GraphStore<'a> {
         Ok(best)
     }
 
+    /// Search stored versions across `urls` (and their alias components) newest-first,
+    /// returning the most recent [`VersionRecord`] that satisfies `predicate`.
+    pub fn find_version_for_urls(
+        &self,
+        urls: &[&str],
+        mut predicate: impl FnMut(&VersionRecord) -> bool,
+    ) -> Result<Option<VersionRecord>> {
+        let mut keys = BTreeSet::new();
+        for url in urls {
+            let k = initial_key(url);
+            for member in self.alias_component(&k)? {
+                keys.insert(member);
+            }
+        }
+        let mut best: Option<VersionRecord> = None;
+        for key in keys {
+            let scoped = self.scoped_key(&key);
+            let Some(g) = self.store.group(ns::GRAPH_NODE, &scoped) else {
+                continue;
+            };
+            if g.live == 0 || g.next <= g.head {
+                continue;
+            }
+            let mut scanned = 0usize;
+            for seq in (g.head..g.next).rev() {
+                if scanned >= DEFAULT_GRAPH_HISTORY_LIMIT {
+                    break;
+                }
+                if let Some((_, raw)) = self
+                    .store
+                    .get(ns::GRAPH_NODE, &group_key(&scoped, &seq.to_be_bytes())?)?
+                {
+                    scanned += 1;
+                    let rec = decode_json::<VersionRecord>(&raw, "version record")?;
+                    if predicate(&rec) {
+                        let is_newer = best.as_ref().is_none_or(|b| {
+                            (rec.observed_at_ms, rec.doc_id.as_str())
+                                >= (b.observed_at_ms, b.doc_id.as_str())
+                        });
+                        if is_newer {
+                            best = Some(rec);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(best)
+    }
+
     /// Return `(canonical_resource_key, versions, edges)` bounded to the latest [`DEFAULT_GRAPH_HISTORY_LIMIT`].
     pub fn history(
         &self,
@@ -407,52 +566,36 @@ impl<'a> GraphStore<'a> {
         let canonical = self.resolve_forward(&start)?;
         let component = self.alias_component(&start)?;
 
-        let mut versions = Vec::new();
-        let mut edges = Vec::new();
-        let mut truncated = false;
+        let mut version_top = BoundedTopK::<(u64, String), VersionRecord>::new(limit);
+        let mut edge_top = BoundedTopK::<(u64, String), VersionEdge>::new(limit);
         for key in component {
             let scoped = self.scoped_key(&key);
-            let (rec_raws, rec_more) = self.list_scan_tail(ns::GRAPH_NODE, &scoped, limit)?;
-            truncated |= rec_more;
-            for raw in rec_raws {
-                versions.push(decode_json::<VersionRecord>(&raw, "version record")?);
-            }
-            let (edge_raws, edge_more) = self.list_scan_tail(ns::GRAPH_EDGE, &scoped, limit)?;
-            truncated |= edge_more;
-            for raw in edge_raws {
-                edges.push(decode_json::<VersionEdge>(&raw, "version edge")?);
-            }
+            self.scan_tail_into_top_k(
+                ns::GRAPH_NODE,
+                &scoped,
+                limit,
+                "version record",
+                |rec: VersionRecord| ((rec.observed_at_ms, rec.doc_id.clone()), rec),
+                &mut version_top,
+            )?;
+            self.scan_tail_into_top_k(
+                ns::GRAPH_EDGE,
+                &scoped,
+                limit,
+                "version edge",
+                |edge: VersionEdge| ((edge.curr_observed_at_ms, edge.curr_doc_id.clone()), edge),
+                &mut edge_top,
+            )?;
         }
-        versions.sort_by(|a, b| {
-            a.observed_at_ms
-                .cmp(&b.observed_at_ms)
-                .then_with(|| a.doc_id.cmp(&b.doc_id))
-        });
-        versions.dedup_by(|a, b| a.observed_at_ms == b.observed_at_ms && a.doc_id == b.doc_id);
-        if versions.len() > limit {
-            truncated = true;
-            let drop_n = versions.len() - limit;
-            versions.drain(..drop_n);
-        }
-
-        edges.sort_by(|a, b| {
-            a.curr_observed_at_ms
-                .cmp(&b.curr_observed_at_ms)
-                .then_with(|| a.curr_doc_id.cmp(&b.curr_doc_id))
-        });
-        edges.dedup_by(|a, b| {
-            a.curr_observed_at_ms == b.curr_observed_at_ms && a.curr_doc_id == b.curr_doc_id
-        });
-        if edges.len() > limit {
-            truncated = true;
-            let drop_n = edges.len() - limit;
-            edges.drain(..drop_n);
-        }
+        let (versions, ver_trunc, max_buffered_versions) = version_top.into_sorted_vec();
+        let (edges, edge_trunc, max_buffered_edges) = edge_top.into_sorted_vec();
         Ok(GraphHistoryResult {
             resource_key: canonical,
             versions,
             edges,
-            truncated,
+            truncated: ver_trunc || edge_trunc,
+            max_buffered_versions,
+            max_buffered_edges,
         })
     }
 
@@ -645,32 +788,42 @@ impl<'a> GraphStore<'a> {
         Ok(removed)
     }
 
-    fn list_scan_tail(&self, n: u8, list_key: &[u8], limit: usize) -> Result<(Vec<Vec<u8>>, bool)> {
+    fn scan_tail_into_top_k<K: Ord, V: DeserializeOwned>(
+        &self,
+        n: u8,
+        list_key: &[u8],
+        limit: usize,
+        label: &str,
+        key_fn: impl Fn(V) -> (K, V),
+        top_k: &mut BoundedTopK<K, V>,
+    ) -> Result<()> {
         let Some(g) = self.store.group(n, list_key) else {
-            return Ok((Vec::new(), false));
+            return Ok(());
         };
         if g.live == 0 || g.next <= g.head {
-            return Ok((Vec::new(), false));
+            return Ok(());
         }
         if limit == 0 {
-            return Ok((Vec::new(), true));
+            top_k.truncated = true;
+            return Ok(());
         }
-        let mut out = Vec::with_capacity(limit.min(g.live as usize));
-        let mut has_more = false;
+        let mut scanned = 0usize;
         for seq in (g.head..g.next).rev() {
-            if let Some((_, v)) = self
+            if let Some((_, raw)) = self
                 .store
                 .get(n, &group_key(list_key, &seq.to_be_bytes())?)?
             {
-                if out.len() >= limit {
-                    has_more = true;
+                if scanned >= limit {
+                    top_k.truncated = true;
                     break;
                 }
-                out.push(v);
+                scanned += 1;
+                let item = decode_json::<V>(&raw, label)?;
+                let (k, v) = key_fn(item);
+                top_k.insert(k, v);
             }
         }
-        out.reverse();
-        Ok((out, has_more))
+        Ok(())
     }
 
     fn latest_tail(&self, resource_key: &str) -> Result<Option<VersionRecord>> {

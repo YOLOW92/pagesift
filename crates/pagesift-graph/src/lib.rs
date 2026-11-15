@@ -52,5 +52,6 @@ pub use provenance::{
 };
 pub use version::{
     VersionChangeKind, VersionDiffStats, VersionEdge, VersionRecord, build_version_chain,
-    classify_version_change, link_version_pair,
+    classify_version_change, etag_weak_match, if_none_match_matches, link_version_pair,
+    normalize_etag_opaque,
 };

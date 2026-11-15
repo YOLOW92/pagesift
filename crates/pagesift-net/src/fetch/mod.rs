@@ -36,6 +36,7 @@ pub struct Fetcher {
     credentials: Vec<(HostCredentials, HeaderMap)>,
     stages: StageController,
     resolver: Arc<GuardedResolver>,
+    proxy_exempt_host: Option<String>,
     bypass: ProxyBypass,
     waits: Arc<WaitTable>,
 }
@@ -91,6 +92,7 @@ impl Fetcher {
             config.proxy = Some(env_p);
         }
         let mut exempt = Vec::new();
+        let mut proxy_exempt_host = None;
         let mut builder = reqwest::Client::builder();
         let mut raw_builder = reqwest::Client::builder();
         let bypass = if honor_bypass {
@@ -106,11 +108,8 @@ impl Fetcher {
                     parsed.scheme()
                 )));
             }
-            if exempt_proxy_host
-                && config.browser_fingerprint.is_none()
-                && let Some(h) = parsed.host_str()
-            {
-                exempt.push(h.trim_matches(['[', ']']).to_string());
+            if exempt_proxy_host && let Some(h) = parsed.host_str() {
+                proxy_exempt_host = Some(h.trim_matches(['[', ']']).to_string());
             }
             let proxy = reqwest::Proxy::all(p.as_str())
                 .map_err(|_| Error::Config("invalid proxy URL".into()))?;
@@ -185,6 +184,7 @@ impl Fetcher {
                 credentials,
                 stages,
                 resolver,
+                proxy_exempt_host,
                 bypass,
                 waits,
             });
@@ -216,7 +216,10 @@ impl Fetcher {
             builder
                 .redirect(redirect::Policy::none())
                 .referer(false)
-                .dns_resolver(Arc::new(ReqwestResolver(resolver.clone())))
+                .dns_resolver(Arc::new(ReqwestResolver {
+                    inner: resolver.clone(),
+                    proxy_exempt_host: proxy_exempt_host.clone(),
+                }))
                 .connect_timeout(config.connect_timeout)
                 .pool_idle_timeout(config.pool_idle_timeout)
                 .pool_max_idle_per_host(config.pool_max_idle_per_host)
@@ -246,6 +249,7 @@ impl Fetcher {
             credentials,
             stages,
             resolver,
+            proxy_exempt_host,
             bypass,
             waits,
         })
@@ -548,6 +552,23 @@ impl Fetcher {
                 return Err(Error::Config(
                     "proxy route changed across request or redirect".into(),
                 ));
+            }
+            if let Some(proxy_host) = &self.proxy_exempt_host
+                && let Some(target_host) = url.host_str()
+                && target_host
+                    .trim_matches(['[', ']'])
+                    .eq_ignore_ascii_case(proxy_host)
+            {
+                match self.resolver.resolve_checked(target_host).await {
+                    Ok(_) => {}
+                    Err(ResolveError::Blocked(Blocked::NoAddress(h))) => {
+                        return Err(Error::Dns(format!("no address for `{h}`")));
+                    }
+                    Err(ResolveError::Blocked(b)) => return Err(Error::Blocked(b)),
+                    Err(ResolveError::Io(e)) => {
+                        return Err(Error::Dns(format!("{target_host}: {e}")));
+                    }
+                }
             }
             let send = self.transport.get(&url, headers, raw, direct_route);
             let mut resp = if direct_route {

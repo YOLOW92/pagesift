@@ -2,6 +2,10 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## 1.4.2
+
+Correctness, isolation, and resource-bound patch release for `1.4.x`: deterministic `queryFilter`/chunk block mapping and whole-token/field-context evidence realignment, validator-matched snapshot resolution for `HTTP 304 Not Modified` version diffs, permanent-only (`301`/`308`) redirect alias binding without temporary-redirect or duplicate-content history merging, end-to-end linear CAS enforcement in `GraphStore::record_version` and crawl sinks, graph-scope result cache isolation, private target-context (`headers`/`keepSession`/`actions`) graph tenant isolation for anonymous HTTP callers, `1..=HARD_MAX_*` validation for global `GraphLimits` fields, honoring `graph.versions: false` on in-memory job history fallback, streaming bounded top-K buffer merging across multi-alias history scans, target-URL SSRF checks when matching a configured proxy hostname, and single-word atomic `(limit, active)` CAS in `AdaptiveConcurrencyGate`. [Release notes](releases/1.4.2.md).
+
 ## 1.4.1
 
 Hardening and correctness patch release for `1.4.x`: isolates ChangeTracking (`Caller` identity and anonymous HTTP `Cookie`/`X-Session-Id`/`Authorization` session digests across HTTP/cluster routes) and DataGraph multi-tenant storage/queries (`/v2/graph/history`, `/v2/graph/conflicts`, jobs), enforces canonical/redirect trust verification and remote-DNS proxy SSRF boundaries, decouples DataGraph `evidence` vs. `facts`/`conflicts`, fixes `changed_block_ids` / `queryFilter` / `chunking` alignment, binds version diffs cleanly to per-document snapshots with per-resource CAS linearization, adds crawl-level DataGraph ingestion budgets and symmetric bounded store reads, fixes `AdaptiveConcurrencyGate` / CPU pool concurrency edge cases and `pagesift-office` `default-features = false` forwarding. [Release notes](releases/1.4.1.md).

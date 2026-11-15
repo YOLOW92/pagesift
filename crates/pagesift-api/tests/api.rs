@@ -1218,9 +1218,10 @@ async fn graph_history_and_conflicts_isolate_tenants_and_legacy_data() {
                     etag: None,
                     last_modified: None,
                 },
-                d2.version.as_ref(),
+                None,
             )
             .unwrap();
+        let _ = d2;
         legacy_gs.put_conflicts(&summary.conflicts).unwrap();
     }
 
@@ -1402,4 +1403,167 @@ async fn graph_queries_enforce_pagination_bounds_and_versions_false() {
     assert_eq!(status, StatusCode::BAD_REQUEST);
     let (status, _) = call(&app, "GET", "/v2/graph/conflicts?limit=0", None, Some("k1")).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn anonymous_private_graph_is_not_publicly_queryable() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = pagesift_store::Store::open_dir(dir.path()).unwrap();
+    let anon_app = router(
+        Arc::new(Fake),
+        Config {
+            public_url: Some("http://pagesift.test".into()),
+            store: Some(store),
+            ..Default::default()
+        },
+    );
+
+    // Anonymous caller A crawls with target-site credentials (headers / keepSession)
+    let (status, started) = call(
+        &anon_app,
+        "POST",
+        "/v2/crawl",
+        Some(json!({
+            "url": "https://example.com/pricing",
+            "graph": { "subjectKeys": ["sku"] },
+            "scrapeOptions": {
+                "headers": { "Authorization": "Bearer target-secret-token" }
+            }
+        })),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{started}");
+    let id = started["id"].as_str().unwrap().to_string();
+    for _ in 0..200 {
+        let (_, s) = call(&anon_app, "GET", &format!("/v2/crawl/{id}"), None, None).await;
+        if s["status"] == "completed" {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    // Anonymous caller A can still inspect its own crawl job graph by job ID
+    let (status, job_graph) = call(
+        &anon_app,
+        "GET",
+        &format!("/v2/crawl/{id}/graph"),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{job_graph}");
+    assert_eq!(job_graph["stats"]["conflicts"], 1, "{job_graph}");
+
+    // Unrelated anonymous caller B querying global /v2/graph/conflicts and /v2/graph/history
+    // MUST NOT see caller A's private target conflicts or versions!
+    let (status, pub_confs) = call(&anon_app, "GET", "/v2/graph/conflicts", None, None).await;
+    assert_eq!(status, StatusCode::OK, "{pub_confs}");
+    assert_eq!(
+        pub_confs["total"], 0,
+        "anonymous private target crawl leaked conflicts to public anonymous scope: {pub_confs}"
+    );
+
+    let (status, pub_hist) = call(
+        &anon_app,
+        "GET",
+        "/v2/graph/history?url=https://example.com/pricing",
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{pub_hist}");
+    assert!(
+        pub_hist
+            .get("versions")
+            .and_then(|v| v.as_array())
+            .is_none_or(Vec::is_empty),
+        "anonymous private target crawl leaked version history to public anonymous scope: {pub_hist}"
+    );
+}
+
+#[tokio::test]
+async fn rejects_excessive_global_graph_limits() {
+    let app = app(&[]);
+    let cases = [
+        json!({"maxNodes": 0}),
+        json!({"maxNodes": 100_001}),
+        json!({"maxCitations": 0}),
+        json!({"maxCitations": 1_000_001}),
+        json!({"maxProvenanceEdges": 0}),
+        json!({"maxProvenanceEdges": 500_001}),
+        json!({"maxVersions": 0}),
+        json!({"maxVersions": 200_001}),
+        json!({"maxClaimBuckets": 0}),
+        json!({"maxClaimBuckets": 200_001}),
+        json!({"maxClaims": 0}),
+        json!({"maxClaims": 1_000_001}),
+    ];
+    for limits in cases {
+        let (status, body) = call(
+            &app,
+            "POST",
+            "/v2/scrape",
+            Some(json!({
+                "url": "https://example.com/pricing",
+                "graph": { "limits": limits }
+            })),
+            None,
+        )
+        .await;
+        assert_eq!(
+            status,
+            StatusCode::BAD_REQUEST,
+            "expected 400 for graph.limits={limits}, got {status}: {body}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn memory_history_respects_versions_disabled() {
+    // No-Store mode (`app(&["k1"])` uses `store: None`)
+    let mem_app = app(&["k1"]);
+    let (status, started) = call(
+        &mem_app,
+        "POST",
+        "/v2/crawl",
+        Some(json!({
+            "url": "https://example.com/pricing",
+            "graph": { "enabled": true, "versions": false, "subjectKeys": ["sku"] }
+        })),
+        Some("k1"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{started}");
+    let id = started["id"].as_str().unwrap().to_string();
+    for _ in 0..200 {
+        let (_, s) = call(
+            &mem_app,
+            "GET",
+            &format!("/v2/crawl/{id}"),
+            None,
+            Some("k1"),
+        )
+        .await;
+        if s["status"] == "completed" {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    let (status, hist) = call(
+        &mem_app,
+        "GET",
+        "/v2/graph/history?url=https://example.com/pricing",
+        None,
+        Some("k1"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{hist}");
+    assert!(
+        hist.get("versions")
+            .and_then(|v| v.as_array())
+            .is_none_or(Vec::is_empty),
+        "in-memory graph_history must respect versions:false, got {hist}"
+    );
 }

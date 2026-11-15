@@ -2,10 +2,11 @@
 
 use axum::Json;
 use axum::extract::{Extension, Path, Query, State};
+use axum::http::HeaderMap;
 use serde::Deserialize;
 
 use crate::error::{ApiError, ErrorCode};
-use crate::limits::{Caller, caller_tenant};
+use crate::limits::{Caller, caller_graph_tenant};
 use crate::server::AppState;
 use crate::types::{CrawlGraphResponse, GraphConflictsResponse, GraphHistoryResponse};
 
@@ -52,6 +53,7 @@ pub async fn crawl_graph(
 pub async fn graph_history(
     State(s): State<AppState>,
     caller: Option<Extension<Caller>>,
+    headers: HeaderMap,
     Query(q): Query<HistoryQuery>,
 ) -> Result<Json<GraphHistoryResponse>, ApiError> {
     let target = q
@@ -73,7 +75,7 @@ pub async fn graph_history(
         Some(n) => n,
         None => max_limit,
     };
-    let tenant = caller_tenant(caller.as_ref().map(|Extension(c)| c));
+    let tenant = caller_graph_tenant(caller.as_ref().map(|Extension(c)| c), &headers);
     let res = s
         .jobs
         .graph_history_for(Some(&tenant), &target, limit)
@@ -92,6 +94,7 @@ pub async fn graph_history(
 pub async fn graph_conflicts(
     State(s): State<AppState>,
     caller: Option<Extension<Caller>>,
+    headers: HeaderMap,
     Query(q): Query<ConflictsQuery>,
 ) -> Result<Json<GraphConflictsResponse>, ApiError> {
     let subject = q
@@ -112,7 +115,7 @@ pub async fn graph_conflicts(
         None => max_limit,
     };
     let offset = q.offset.unwrap_or(0);
-    let tenant = caller_tenant(caller.as_ref().map(|Extension(c)| c));
+    let tenant = caller_graph_tenant(caller.as_ref().map(|Extension(c)| c), &headers);
     let (total, conflicts, truncated) = s
         .jobs
         .graph_conflicts_for(Some(&tenant), subject.as_deref(), limit, offset)

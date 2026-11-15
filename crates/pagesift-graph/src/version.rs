@@ -72,6 +72,68 @@ pub struct VersionEdge {
     pub changed_block_ids: Vec<String>,
 }
 
+/// Strip optional `W/` weak prefix and surrounding quotes for RFC 9110 weak ETag comparison.
+pub fn normalize_etag_opaque(raw: &str) -> Option<&str> {
+    let s = raw.trim();
+    if s.is_empty() || s == "*" {
+        return None;
+    }
+    let s = s
+        .strip_prefix("W/")
+        .or_else(|| s.strip_prefix("w/"))
+        .map(str::trim)
+        .unwrap_or(s);
+    if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
+        Some(&s[1..s.len() - 1])
+    } else if !s.is_empty() {
+        Some(s)
+    } else {
+        None
+    }
+}
+
+/// RFC 9110 §8.8.3.2 weak comparison between two entity-tags.
+pub fn etag_weak_match(a: &str, b: &str) -> bool {
+    match (normalize_etag_opaque(a), normalize_etag_opaque(b)) {
+        (Some(x), Some(y)) => x == y,
+        _ => false,
+    }
+}
+
+/// Check whether an `If-None-Match` header value (possibly comma-separated list of entity-tags)
+/// weakly matches a specific stored `ETag` (wildcard `*` returns `false` because it cannot
+/// identify which historical representation was validated).
+pub fn if_none_match_matches(if_none_match: &str, stored_etag: &str) -> bool {
+    let trimmed = if_none_match.trim();
+    if trimmed.is_empty() || trimmed == "*" {
+        return false;
+    }
+    let Some(target) = normalize_etag_opaque(stored_etag) else {
+        return false;
+    };
+    let mut in_quotes = false;
+    let mut escaped = false;
+    let mut start = 0usize;
+    for (idx, ch) in trimmed.char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        match ch {
+            '\\' if in_quotes => escaped = true,
+            '"' => in_quotes = !in_quotes,
+            ',' if !in_quotes => {
+                if normalize_etag_opaque(&trimmed[start..idx]) == Some(target) {
+                    return true;
+                }
+                start = idx + 1;
+            }
+            _ => {}
+        }
+    }
+    normalize_etag_opaque(&trimmed[start..]) == Some(target)
+}
+
 /// Classify version transition between consecutive records.
 pub fn classify_version_change(
     prev: &VersionRecord,
@@ -83,9 +145,6 @@ pub fn classify_version_change(
     const HTTP_NOT_MODIFIED: u16 = 304; // [协议] HTTP 304 Not Modified
     if matches!(curr.status_code, HTTP_NOT_FOUND | HTTP_GONE) {
         return VersionChangeKind::Removed;
-    }
-    if curr.status_code == HTTP_NOT_MODIFIED {
-        return VersionChangeKind::Unchanged;
     }
     if let Some(stats) = diff_stats {
         if stats.substantive > 0 {
@@ -101,6 +160,26 @@ pub fn classify_version_change(
     }
     if prev.url != curr.url {
         return VersionChangeKind::UrlMoved;
+    }
+    if curr.status_code == HTTP_NOT_MODIFIED {
+        if let (Some(ph), Some(ch)) = (&prev.content_hash, &curr.content_hash)
+            && ph != ch
+        {
+            return VersionChangeKind::Substantive;
+        }
+        if let (Some(pe), Some(ce)) = (&prev.etag, &curr.etag)
+            && !etag_weak_match(pe, ce)
+        {
+            return VersionChangeKind::Substantive;
+        }
+        if prev.etag.is_none()
+            && curr.etag.is_none()
+            && let (Some(pl), Some(cl)) = (&prev.last_modified, &curr.last_modified)
+            && pl.trim() != cl.trim()
+        {
+            return VersionChangeKind::Substantive;
+        }
+        return VersionChangeKind::Unchanged;
     }
     if prev.content_hash.is_some() && prev.content_hash == curr.content_hash {
         return VersionChangeKind::Unchanged;
