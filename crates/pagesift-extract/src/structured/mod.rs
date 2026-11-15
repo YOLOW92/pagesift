@@ -9,7 +9,10 @@ use pagesift_html::Html;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-pub use json_ld::{ProductInfo, extract_json_ld, extract_product_view};
+pub use json_ld::{
+    JsonLdExtraction, ProductInfo, count_malformed_json_ld, count_malformed_json_ld_str,
+    extract_json_ld, extract_json_ld_with_diagnostics, extract_product_view,
+};
 pub use microdata::extract_microdata;
 pub use opengraph::extract_opengraph;
 

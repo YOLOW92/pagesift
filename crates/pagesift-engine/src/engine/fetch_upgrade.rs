@@ -224,16 +224,13 @@ impl Scraper {
             return;
         };
         let staged_fallback = better.graph.as_ref().map(|slice| {
+            let clean_url = strip_url_userinfo_str(url);
             let ps = better.metadata.pagesift.as_ref();
             let fallback_node = pagesift_graph::DocNode {
                 doc_id: slice.doc_id.clone(),
                 resource_key: slice.resource_key.clone(),
-                requested_url: url.to_string(),
-                final_url: better
-                    .metadata
-                    .url
-                    .clone()
-                    .unwrap_or_else(|| url.to_string()),
+                requested_url: clean_url.clone(),
+                final_url: better.metadata.url.clone().unwrap_or(clean_url),
                 canonical_url: better.metadata.canonical_url.clone(),
                 source_kind: slice.source_kind.clone(),
                 observed_at_ms: slice.observed_at_ms,

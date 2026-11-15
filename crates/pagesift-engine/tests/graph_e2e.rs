@@ -548,29 +548,34 @@ async fn persistent_versions_bridge_redirects_noise_and_substantive_edits() {
 async fn changed_block_ids_resolve_to_doc_block_ids_with_canonical() {
     let phase = Arc::new(Mutex::new(0usize));
     let phase_r = Arc::clone(&phase);
-    let app = Router::new().route(
-        "/item",
-        get(move || {
-            let p = *phase_r.lock().unwrap();
-            async move {
-                if p == 0 {
-                    Html(
-                        "<html><head><link rel=\"canonical\" href=\"/item-canonical\"></head>\
-                         <body><h1>Product Spec</h1>\
-                         <p>Alpha baseline paragraph stays untouched across revisions.</p>\
-                         <p>Beta price starts at $100 with standard warranty coverage.</p></body></html>",
-                    )
-                } else {
-                    Html(
-                        "<html><head><link rel=\"canonical\" href=\"/item-canonical\"></head>\
-                         <body><h1>Product Spec</h1>\
-                         <p>Alpha baseline paragraph stays untouched across revisions.</p>\
-                         <p>Beta price rises to $150 with extended warranty coverage.</p></body></html>",
-                    )
+    let app = Router::new()
+        .route(
+            "/item",
+            get(|| async { axum::response::Redirect::permanent("/item-canonical") }),
+        )
+        .route(
+            "/item-canonical",
+            get(move || {
+                let p = *phase_r.lock().unwrap();
+                async move {
+                    if p == 0 {
+                        Html(
+                            "<html><head><link rel=\"canonical\" href=\"/item-canonical\"></head>\
+                             <body><h1>Product Spec</h1>\
+                             <p>Alpha baseline paragraph stays untouched across revisions.</p>\
+                             <p>Beta price starts at $100 with standard warranty coverage.</p></body></html>",
+                        )
+                    } else {
+                        Html(
+                            "<html><head><link rel=\"canonical\" href=\"/item-canonical\"></head>\
+                             <body><h1>Product Spec</h1>\
+                             <p>Alpha baseline paragraph stays untouched across revisions.</p>\
+                             <p>Beta price rises to $150 with extended warranty coverage.</p></body></html>",
+                        )
+                    }
                 }
-            }
-        }),
-    );
+            }),
+        );
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -1529,4 +1534,332 @@ async fn graph_cache_isolated_between_local_and_http_and_legacy_stripped() {
     };
     let d_plain = scraper.scrape(&url, &plain_opts).await.expect("plain");
     assert!(d_plain.graph.is_none());
+}
+
+fn minimal_two_page_with_empty_second_pdf() -> Vec<u8> {
+    let page1_stream = "BT\n/F1 12 Tf\n1 0 0 1 72 720 Tm (Hello From Page One) Tj\nET";
+    let page2_stream = "BT\nET";
+    let objs = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
+        "<< /Type /Pages /Count 2 /Kids [5 0 R 7 0 R] >>".to_string(),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_string(),
+        "<< /Title (Two Page PDF) >>".to_string(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 6 0 R >>".to_string(),
+        format!(
+            "<< /Length {} >>\nstream\n{page1_stream}\nendstream",
+            page1_stream.len()
+        ),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 8 0 R >>".to_string(),
+        format!(
+            "<< /Length {} >>\nstream\n{page2_stream}\nendstream",
+            page2_stream.len()
+        ),
+    ];
+    let mut out = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, obj) in objs.iter().enumerate() {
+        offsets.push(out.len());
+        out.extend_from_slice(format!("{} 0 obj\n{obj}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref = out.len();
+    out.extend_from_slice(format!("xref\n0 {}\n0000000000 65535 f \n", objs.len() + 1).as_bytes());
+    for off in offsets {
+        out.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    out.extend_from_slice(
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R /Info 4 0 R >>\nstartxref\n{xref}\n%%EOF\n",
+            objs.len() + 1
+        )
+        .as_bytes(),
+    );
+    out
+}
+
+#[tokio::test]
+async fn e1_canonical_cross_port_and_uncorroborated_are_not_unified() {
+    let other_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let other_addr = other_listener.local_addr().unwrap();
+    let app_other = Router::new().route("/target", get(|| async { Html("<h1>Target</h1>") }));
+    tokio::spawn(async move { axum::serve(other_listener, app_other).await.unwrap() });
+
+    let other_canonical = format!("http://{other_addr}/target");
+    let canonical_hdr =
+        HeaderValue::from_str(&format!("<{other_canonical}>; rel=\"canonical\"")).unwrap();
+
+    let app = Router::new()
+        .route(
+            "/cross-port",
+            get(move || {
+                let hdr = canonical_hdr.clone();
+                let link_target = other_canonical.clone();
+                async move {
+                    let mut headers = HeaderMap::new();
+                    headers.insert(header::LINK, hdr);
+                    (
+                        headers,
+                        Html(format!(
+                            "<html><head><link rel=\"canonical\" href=\"{link_target}\"></head><body><p>Body</p></body></html>"
+                        )),
+                    )
+                }
+            }),
+        )
+        .route(
+            "/same-host-hijack",
+            get(|| async {
+                Html(
+                    "<html><head><link rel=\"canonical\" href=\"/unrelated-canonical\"></head><body><p>Body</p></body></html>",
+                )
+            }),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open_dir(dir.path()).unwrap();
+    let scraper = test_scraper(Some(store.clone()));
+    let opts = ScrapeOptions {
+        engine: Some("http".into()),
+        formats: vec![Format::new("markdown"), Format::new("graph")],
+        graph: Some(GraphOptions::enabled()),
+        ..Default::default()
+    };
+
+    let d1 = scraper
+        .scrape(&format!("http://{addr}/cross-port"), &opts)
+        .await
+        .unwrap();
+    let s1 = d1.graph.unwrap();
+    assert!(
+        s1.resource_key.contains(&addr.port().to_string()),
+        "cross-port canonical must not hijack resource_key: {}",
+        s1.resource_key
+    );
+
+    let d2 = scraper
+        .scrape(&format!("http://{addr}/same-host-hijack"), &opts)
+        .await
+        .unwrap();
+    let s2 = d2.graph.unwrap();
+    assert!(
+        s2.resource_key.ends_with("/same-host-hijack"),
+        "uncorroborated same-host canonical must not rewrite resource_key: {}",
+        s2.resource_key
+    );
+}
+
+#[tokio::test]
+async fn e2_e3_multi_product_isolation_and_same_page_price_conflict_persisted() {
+    let multi_html = r#"<!doctype html><html><head>
+        <script type="application/ld+json">[
+            {"@context":"https://schema.org","@type":"Product","name":"Alpha Widget","offers":{"@type":"Offer","price":"10.00","priceCurrency":"USD"}},
+            {"@context":"https://schema.org","@type":"Product","name":"Beta Widget","offers":{"@type":"Offer","price":"20.00","priceCurrency":"USD"}}
+        ]</script>
+    </head><body>
+        <div itemscope itemtype="https://schema.org/Product">
+            <span itemprop="name">Micro One</span>
+            <span itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="price" content="30.00"></span>
+        </div>
+        <div itemscope itemtype="https://schema.org/Product">
+            <span itemprop="name">Micro Two</span>
+            <span itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="price" content="40.00"></span>
+        </div>
+    </body></html>"#;
+
+    let conflict_html = r#"<!doctype html><html><head>
+        <meta property="product:price:amount" content="29.99">
+        <meta property="product:price:currency" content="USD">
+        <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Conflicted Item","sku":"CONF-1","offers":{"@type":"Offer","price":"10.00","priceCurrency":"USD"}}</script>
+    </head><body><table><tr><th>Price</th><td>19.99 USD</td></tr></table></body></html>"#;
+
+    let app = Router::new()
+        .route("/catalog", get(move || async move { Html(multi_html) }))
+        .route("/conflict", get(move || async move { Html(conflict_html) }));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open_dir(dir.path()).unwrap();
+    let scraper = test_scraper(Some(store.clone()));
+    let opts = ScrapeOptions {
+        engine: Some("http".into()),
+        formats: vec![Format::new("markdown"), Format::new("graph")],
+        graph: Some(GraphOptions::enabled()),
+        ..Default::default()
+    };
+
+    let d_catalog = scraper
+        .scrape(&format!("http://{addr}/catalog"), &opts)
+        .await
+        .unwrap();
+    let s_catalog = d_catalog.graph.unwrap();
+    assert!(
+        s_catalog.conflicts.is_empty(),
+        "isolated catalog products must not emit cross-product conflicts: {:?}",
+        s_catalog.conflicts
+    );
+
+    let d_conflict = scraper
+        .scrape(&format!("http://{addr}/conflict"), &opts)
+        .await
+        .unwrap();
+    let s_conflict = d_conflict.graph.unwrap();
+    assert!(
+        !s_conflict.conflicts.is_empty(),
+        "same-page conflicting JSON-LD vs product:price:amount / table must produce conflicts"
+    );
+    let stored_conflicts = store.graph().list_conflicts(None).unwrap();
+    assert!(
+        !stored_conflicts.is_empty(),
+        "intra-page conflicts must be persisted in GraphStore"
+    );
+}
+
+#[tokio::test]
+async fn e4_e5_e8_warnings_and_e7_credentials_stripped_and_e10_empty_pdf() {
+    let app = Router::new()
+        .route(
+            "/warn-html",
+            get(|| async {
+                Html(
+                    "<html><head><script type=\"application/ld+json\">{broken json</script></head><body><h1>Warn Heading</h1><p>Hello\0World</p><p>Second paragraph block.</p><p>Third paragraph block.</p></body></html>",
+                )
+            }),
+        )
+        .route(
+            "/redir-secret",
+            get(|| async { Redirect::temporary("/secret-page") }),
+        )
+        .route(
+            "/secret-page",
+            get(|| async {
+                Html(
+                    "<html><head><link rel=\"icon\" href=\"/favicon.ico\"><link rel=\"canonical\" href=\"/secret-page\"></head><body><h1>Secret</h1><a href=\"/next\">Next</a><img src=\"/pic.png\"><p>Body 1</p><p>Body 2</p></body></html>",
+                )
+            }),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open_dir(dir.path()).unwrap();
+    let scraper = test_scraper(Some(store.clone()));
+
+    // E4 + E8 on HTTP scrape + E5 graph truncation
+    let mut trunc_gopts = GraphOptions::enabled();
+    trunc_gopts.limits.max_blocks_per_doc = 1;
+    let warn_opts = ScrapeOptions {
+        engine: Some("http".into()),
+        formats: vec![Format::new("markdown"), Format::new("graph")],
+        graph: Some(trunc_gopts),
+        ..Default::default()
+    };
+    let d_warn = scraper
+        .scrape(&format!("http://{addr}/warn-html"), &warn_opts)
+        .await
+        .unwrap();
+    let slice_warn = d_warn.graph.as_ref().unwrap();
+    assert!(slice_warn.truncated);
+    assert!(!slice_warn.truncation_reasons.is_empty());
+    let ps_warnings = &d_warn.metadata.pagesift.as_ref().unwrap().warnings;
+    assert!(
+        ps_warnings
+            .iter()
+            .any(|w| w.starts_with("malformed_json_ld:")),
+        "missing malformed_json_ld in {ps_warnings:?}"
+    );
+    assert!(
+        ps_warnings
+            .iter()
+            .any(|w| w.starts_with("nul_bytes_stripped:")),
+        "missing nul_bytes_stripped in {ps_warnings:?}"
+    );
+    assert!(
+        ps_warnings
+            .iter()
+            .any(|w| w.starts_with("graph_truncated:")),
+        "missing graph_truncated in {ps_warnings:?}"
+    );
+    let top_warning = d_warn.warning.as_deref().unwrap_or("");
+    assert!(top_warning.contains("malformed_json_ld:"), "{top_warning}");
+    assert!(top_warning.contains("nul_bytes_stripped:"), "{top_warning}");
+    assert!(top_warning.contains("graph_truncated:"), "{top_warning}");
+
+    // E7 credentials stripped across HTTP fetch + redirect + graph + links + images + favicon
+    let cred_opts = ScrapeOptions {
+        engine: Some("http".into()),
+        formats: vec![
+            Format::new("markdown"),
+            Format::new("links"),
+            Format::new("images"),
+            Format::new("graph"),
+        ],
+        graph: Some(GraphOptions::enabled()),
+        ..Default::default()
+    };
+    let d_cred = scraper
+        .scrape(
+            &format!("http://alice:supersecret@{addr}/redir-secret"),
+            &cred_opts,
+        )
+        .await
+        .unwrap();
+    let dump = serde_json::to_string(&d_cred).unwrap();
+    assert!(!dump.contains("alice"), "credential leaked: {dump}");
+    assert!(!dump.contains("supersecret"), "password leaked: {dump}");
+    assert_eq!(
+        d_cred.metadata.url.as_deref(),
+        Some(format!("http://{addr}/secret-page").as_str())
+    );
+    assert_eq!(
+        d_cred.metadata.source_url.as_deref(),
+        Some(format!("http://{addr}/redir-secret").as_str())
+    );
+
+    // E7 + E4 + E8 on upload parse
+    let upload_html = pagesift_api::types::Upload {
+        bytes: b"<html><head><script type=\"application/ld+json\">{bad</script><link rel=\"icon\" href=\"/icon.png\"></head><body><a href=\"/p\">A\0B</a></body></html>".to_vec(),
+        filename: "up.html".into(),
+        content_type: Some("text/html".into()),
+        kind: pagesift_api::types::UploadKind::Html,
+        url: Some("http://bob:pw@example.com/u".parse().unwrap()),
+    };
+    let up_opts = ScrapeOptions {
+        formats: vec![Format::new("markdown"), Format::new("links")],
+        ..Default::default()
+    };
+    let d_up = scraper.parse(upload_html, &up_opts).await.unwrap();
+    let up_dump = serde_json::to_string(&d_up).unwrap();
+    assert!(
+        !up_dump.contains("bob") && !up_dump.contains("pw"),
+        "{up_dump}"
+    );
+    let up_top = d_up.warning.as_deref().unwrap_or("");
+    assert!(up_top.contains("malformed_json_ld:"), "{up_top}");
+    assert!(up_top.contains("nul_bytes_stripped:"), "{up_top}");
+
+    // E10 two-page PDF with empty non-scanned second page
+    let upload_pdf = pagesift_api::types::Upload {
+        bytes: minimal_two_page_with_empty_second_pdf(),
+        filename: "empty_p2.pdf".into(),
+        content_type: Some("application/pdf".into()),
+        kind: pagesift_api::types::UploadKind::Pdf,
+        url: None,
+    };
+    let d_pdf = scraper
+        .parse(
+            upload_pdf,
+            &ScrapeOptions {
+                formats: vec![Format::new("markdown")],
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let pdf_top = d_pdf.warning.as_deref().unwrap_or("");
+    assert!(pdf_top.contains("empty_pdf_pages:"), "{pdf_top}");
 }

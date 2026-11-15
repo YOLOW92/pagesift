@@ -4,8 +4,9 @@ use serde::{Deserialize, Serialize};
 
 pub use crate::block_index::{
     BlockKind, BlockRef, IndexedBlock, build_block_refs, build_indexed_blocks,
+    build_indexed_blocks_checked,
 };
-use crate::hash::{host_of, normalize_resource_key, normalize_url, short_id};
+use crate::hash::{normalize_resource_key, normalize_url, short_id};
 
 /// Hard bounds keeping streaming DataGraph memory and per-document fan-out predictable.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -229,16 +230,17 @@ pub struct DocNode {
 }
 
 impl DocNode {
-    /// Validate whether a declared canonical URL shares the fetched host and can anchor identity.
+    /// Validate whether a declared canonical URL matches the fetched origin and URL identity.
+    ///
+    /// Uncorroborated cross-path declarations on the same host (or cross-port / cross-scheme
+    /// origins) are recorded in provenance only and never rewrite `resource_key` or `doc_id`.
     pub fn is_trusted_canonical(canonical_url: &str, final_url: &str) -> bool {
         let trimmed = canonical_url.trim();
         if trimmed.is_empty() {
             return false;
         }
-        let final_host = host_of(final_url);
-        let can_host = host_of(trimmed);
-        (!final_host.is_empty() && can_host == final_host)
-            || normalize_url(trimmed) == normalize_url(final_url)
+        crate::hash::same_origin(trimmed, final_url)
+            && normalize_resource_key(trimmed) == normalize_resource_key(final_url)
     }
 
     /// Return normalized canonical URL when non-empty and same-host trusted for identity.

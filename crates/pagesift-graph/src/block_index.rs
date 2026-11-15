@@ -67,8 +67,22 @@ pub fn build_indexed_blocks(
     max_blocks: usize,
     max_excerpt_chars: usize,
 ) -> Vec<IndexedBlock> {
-    if markdown.is_empty() || max_blocks == 0 {
-        return Vec::new();
+    build_indexed_blocks_checked(doc_id, markdown, chunk_spans, max_blocks, max_excerpt_chars).0
+}
+
+/// Variant of [`build_indexed_blocks`] that also reports whether blocks were capped at `max_blocks`.
+pub fn build_indexed_blocks_checked(
+    doc_id: &str,
+    markdown: &str,
+    chunk_spans: &[(usize, usize, usize)],
+    max_blocks: usize,
+    max_excerpt_chars: usize,
+) -> (Vec<IndexedBlock>, bool) {
+    if markdown.trim().is_empty() {
+        return (Vec::new(), false);
+    }
+    if max_blocks == 0 {
+        return (Vec::new(), true);
     }
     let mut out = Vec::new();
     let mut heading_stack: Vec<(u8, String)> = Vec::new();
@@ -199,7 +213,8 @@ pub fn build_indexed_blocks(
         );
         pos = cur;
     }
-    out
+    let truncated = out.len() >= max_blocks && !markdown[pos..].trim().is_empty();
+    (out, truncated)
 }
 
 #[allow(clippy::too_many_arguments)]

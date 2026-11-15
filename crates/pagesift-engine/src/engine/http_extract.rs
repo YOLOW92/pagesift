@@ -17,6 +17,7 @@ pub(super) struct Fetched {
     pub doc: pagesift_content::Document,
     pub html: String,
     pub decode_warning: Option<String>,
+    pub html_warnings: Vec<String>,
     /// 正文的加权字数。
     pub http_chars: usize,
     /// 只有 `auto` 且正文不够、可能要渲染时才算。
@@ -57,12 +58,15 @@ pub(super) async fn extract_fetched(
             Option<String>,
         )> = None;
         let mut is_feed = false;
+        let mut html_warnings: Option<Vec<String>> = None;
         // feed 和标签筛选的提取不用原页面的 DOM，要判断客户端代码时再解析一次原页面
         let (doc, client_code) = if let Some(doc) = super::feed::parse(&html, copts.links) {
             is_feed = true;
+            html_warnings = Some(collect_html_text_warnings(&html, None));
             (doc, None)
         } else if let Some(t) = tags {
             let filtered = t.apply(&html);
+            html_warnings = Some(collect_html_text_warnings(&html, None));
             let doc = CONTENT_WORKSPACE.with(|ws| {
                 pagesift_content::process_with_workspace(&filtered, &copts, &mut ws.borrow_mut())
             });
@@ -78,6 +82,7 @@ pub(super) async fn extract_fetched(
                             dom_links_captured =
                                 Some(crate::graph::dom_links::collect_from_dom(dom, Some(b)));
                         }
+                        html_warnings = Some(collect_html_text_warnings(&html, Some(dom)));
                         (auto && needs_render(doc)).then(|| client_code_in(dom))
                     },
                 )
@@ -142,6 +147,7 @@ pub(super) async fn extract_fetched(
             doc,
             html,
             decode_warning,
+            html_warnings: html_warnings.unwrap_or_default(),
             http_chars,
             render,
             embedded,

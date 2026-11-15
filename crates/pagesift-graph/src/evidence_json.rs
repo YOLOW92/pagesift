@@ -15,24 +15,47 @@ pub(crate) fn collect_all_traces(final_url: &str, input: &DocumentInput) -> Vec<
         .iter()
         .map(|t| (t.field_path.clone(), t.raw_quote.clone()))
         .collect();
+    let has_json_ld_traces = traces.iter().any(|t| {
+        matches!(t.method, ExtractionMethod::JsonLd { .. }) || t.field_path.starts_with("/json-ld/")
+    });
+    let has_selector_traces = traces.iter().any(|t| {
+        matches!(
+            t.method,
+            ExtractionMethod::CssSelector { .. }
+                | ExtractionMethod::XPathSelector { .. }
+                | ExtractionMethod::RegexPattern { .. }
+        )
+    });
     let mut add_extra = Vec::new();
-    for item in &input.structured_json_ld {
-        let obj = item.as_object();
-        let entity_type = obj
-            .and_then(|m| m.get("@type"))
-            .and_then(Value::as_str)
-            .map(str::to_owned);
-        let entity_id = obj
-            .and_then(|m| m.get("@id"))
-            .and_then(Value::as_str)
-            .map(str::to_owned);
-        let method = ExtractionMethod::JsonLd {
-            entity_type,
-            entity_id,
-        };
-        collect_json_traces(item, "", &method, false, Some(final_url), &mut add_extra);
+    if !has_json_ld_traces {
+        for (idx, item) in input.structured_json_ld.iter().enumerate() {
+            let obj = item.as_object();
+            let entity_type = obj
+                .and_then(|m| m.get("@type"))
+                .and_then(|v| {
+                    v.as_str()
+                        .or_else(|| v.as_array().and_then(|a| a.first()?.as_str()))
+                })
+                .map(str::to_owned);
+            let entity_id = obj
+                .and_then(|m| m.get("@id"))
+                .and_then(Value::as_str)
+                .map(str::to_owned);
+            let method = ExtractionMethod::JsonLd {
+                entity_type,
+                entity_id,
+            };
+            collect_json_traces(
+                item,
+                &format!("/json-ld/{idx}"),
+                &method,
+                false,
+                Some(final_url),
+                &mut add_extra,
+            );
+        }
     }
-    if let Some(val) = &input.extracted_fields {
+    if !has_selector_traces && let Some(val) = &input.extracted_fields {
         let method = ExtractionMethod::CssSelector {
             selector: "schema".into(),
             relocated_from: None,
@@ -40,6 +63,7 @@ pub(crate) fn collect_all_traces(final_url: &str, input: &DocumentInput) -> Vec<
         };
         collect_json_traces(val, "", &method, true, Some(final_url), &mut add_extra);
     }
+    add_extra.retain(|t| t.field_name != "@context");
     for trace in add_extra {
         if seen.insert((trace.field_path.clone(), trace.raw_quote.clone())) {
             traces.push(trace);

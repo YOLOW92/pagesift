@@ -5,7 +5,7 @@ use crate::*;
 /// 细粒度内网放行：HTTP 抓取和浏览器子请求共用同一份名单。
 #[derive(clap::Args)]
 pub(crate) struct AllowCidrs {
-    /// Allow private CIDR subnets (e.g. 10.0.0.0/8, 198.18.0.0/15) for HTTP fetching and browser rendering
+    /// Allow private CIDR subnets across all ports (e.g. 127.0.0.0/8 permits every localhost port; 10.0.0.0/8, 198.18.0.0/15) for HTTP fetching and browser rendering
     #[arg(long = "allow-cidr", value_name = "CIDR", value_parser = parse_cidr)]
     allow_cidrs: Vec<pagesift_net::IpCidr>,
 }

@@ -4,34 +4,79 @@
 use pagesift_html::{Html, Tag};
 use serde_json::{Map, Value};
 
-/// 提取 HTML 中所有的 JSON-LD 对象（包含展开 `@graph` 后的独立实体）
-pub fn extract_json_ld(html: &Html<'_>) -> Vec<Value> {
-    let mut results = Vec::new();
+/// JSON-LD extraction result along with count of unparseable script blocks.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct JsonLdExtraction {
+    pub items: Vec<Value>,
+    pub malformed: usize,
+}
+
+fn ld_json_script_body(node: pagesift_html::NodeRef<'_>) -> Option<String> {
+    if node.tag() != Some(Tag::Script) {
+        return None;
+    }
+    let is_ld_json = node
+        .as_element()
+        .and_then(|e| e.attr("type"))
+        .and_then(|t| t.split(';').next())
+        .map(|t| t.trim().eq_ignore_ascii_case("application/ld+json"))
+        .unwrap_or(false);
+    is_ld_json.then(|| node.text())
+}
+
+/// Extract all JSON-LD entities and count `<script type="application/ld+json">` blocks that fail JSON parsing.
+pub fn extract_json_ld_with_diagnostics(html: &Html<'_>) -> JsonLdExtraction {
+    let mut out = JsonLdExtraction::default();
 
     for node in html.root().descendants() {
-        if node.tag() == Some(Tag::Script) {
-            let is_ld_json = node
-                .as_element()
-                .and_then(|e| e.attr("type"))
-                .map(|t| t.trim().eq_ignore_ascii_case("application/ld+json"))
-                .unwrap_or(false);
-
-            if is_ld_json {
-                let raw_text = node.text();
-                let trimmed = raw_text.trim();
-                if trimmed.is_empty() {
-                    continue;
-                }
-
-                // 尝试解析 JSON
-                if let Ok(val) = serde_json::from_str::<Value>(trimmed) {
-                    collect_entities(val, &mut results);
-                }
-            }
+        let Some(raw_text) = ld_json_script_body(node) else {
+            continue;
+        };
+        let trimmed = raw_text.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        match serde_json::from_str::<Value>(trimmed) {
+            Ok(val) => collect_entities(val, &mut out.items),
+            Err(_) => out.malformed += 1,
         }
     }
 
-    results
+    out
+}
+
+/// Count `<script type="application/ld+json">` blocks in a parsed DOM whose body is not valid JSON.
+pub fn count_malformed_json_ld(html: &Html<'_>) -> usize {
+    let mut malformed = 0usize;
+    for node in html.root().descendants() {
+        let Some(raw_text) = ld_json_script_body(node) else {
+            continue;
+        };
+        let trimmed = raw_text.trim();
+        if !trimmed.is_empty() && serde_json::from_str::<Value>(trimmed).is_err() {
+            malformed += 1;
+        }
+    }
+    malformed
+}
+
+/// Count malformed JSON-LD script blocks in raw HTML (skips parsing when `ld+json` does not appear).
+pub fn count_malformed_json_ld_str(html: &str) -> usize {
+    const NEEDLE: &[u8] = b"ld+json";
+    if !html
+        .as_bytes()
+        .windows(NEEDLE.len())
+        .any(|w| w.eq_ignore_ascii_case(NEEDLE))
+    {
+        return 0;
+    }
+    let doc = Html::parse(html);
+    count_malformed_json_ld(&doc)
+}
+
+/// 提取 HTML 中所有的 JSON-LD 对象（包含展开 `@graph` 后的独立实体）
+pub fn extract_json_ld(html: &Html<'_>) -> Vec<Value> {
+    extract_json_ld_with_diagnostics(html).items
 }
 
 /// 递归展开与收集顶层或 `@graph` 实体

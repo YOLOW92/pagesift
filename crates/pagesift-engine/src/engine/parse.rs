@@ -43,8 +43,8 @@ impl Scraper {
             UploadKind::Pdf | UploadKind::Office(_) | UploadKind::Image(_) => None,
         };
         // 调用方给了页面的原地址时，它就是来源；否则用文件名
-        let source = upload
-            .url
+        let clean_url = upload.url.map(|u| strip_url_userinfo(&u));
+        let source = clean_url
             .as_ref()
             .map_or_else(|| upload.filename.clone(), Url::to_string);
         let meta = Metadata {
@@ -87,7 +87,7 @@ impl Scraper {
             }
             UploadKind::Html => {
                 let html = pagesift_net::decode_owned(upload.bytes, content_type.as_deref(), None);
-                let base = upload.url.unwrap_or_else(|| upload_base(&upload.filename));
+                let base = clean_url.unwrap_or_else(|| upload_base(&upload.filename));
                 self.parse_html(html, &base, opts, (meta, ext), progress, deadline)
                     .await
             }
@@ -113,7 +113,8 @@ impl Scraper {
             .await;
         let t = Instant::now();
         let work = process_html(decoded.text, base, Some(200), opts);
-        let (doc, html) = match tokio::time::timeout_at(deadline.into(), work).await {
+        let (doc, html, html_warnings) = match tokio::time::timeout_at(deadline.into(), work).await
+        {
             Ok(Ok(result)) => {
                 stage.finish(pagesift_net::StageOutcome::Success);
                 result
@@ -130,6 +131,7 @@ impl Scraper {
                 ));
             }
         };
+        p.warnings.extend(html_warnings);
         p.timings.insert("extract".into(), ms(t.elapsed()));
         if doc.metadata.video_fallback {
             p.warnings.push(

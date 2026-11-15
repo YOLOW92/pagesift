@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.5.2
+# pagesift 1.5.3
 
 **AI エージェントのための Web・文書レイヤー：URL、文書、メール、圧縮ファイル、ソースコードを入力すると、クリーンな Markdown、構造化 JSON、または DataGraph 関係グラフを出力します。**  
 セルフホストできる単一の Rust バイナリ：CLI、Firecrawl・Jina Reader API、MCP サーバー、Python・Node.js・Go・Java・C#・Ruby・PHP などのパッケージ。
@@ -43,7 +43,7 @@ pagesift は、考えるソフトウェアのために Web と文書を読みま
 - **ランタイム：** HTTP、PDF、Office にはインストール不要。オプション：JavaScript ページ用のブラウザ、OCR 用の NVIDIA GPU、`/v2/agent` 用の自分のモデル
 - **メモリ：** ブラウザなしの 1.4 の各ベンチマークでワーカーあたりピーク 17–395 MB。数式モデルを使う OCR には約 1.7 GB が必要です。容量は cgroup の上限から決まります
 - **ライセンス：** Apache-2.0、または[商用サポート](COMMERCIAL.md)
-- **最新版：** 1.5.2 · [リリースノート](releases/1.5.2.md)
+- **最新版：** 1.5.3 · [リリースノート](releases/1.5.3.md)
 
 <!-- section: install -->
 ## インストールと使い方
@@ -53,7 +53,7 @@ pagesift は、考えるソフトウェアのために Web と文書を読みま
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| サーバー | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.5.2` | `curl localhost:3002/r/https://example.com` |
+| サーバー | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.5.3` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -340,11 +340,11 @@ flowchart LR
 [商用ライセンス・サポート](COMMERCIAL.md)を確認するか、`licensing@pagesift.dev` までご連絡ください。
 
 <!-- section: changelog -->
-## 1.5.2 の新機能
+## 1.5.3 の新機能
 
-PageSift 1.5.2 は 1.5 系のトランザクション・時系列・スケジューリング・観測整合性を修正するパッチリリースです：`pagesift-store` での BLAKE3 検証付き `TxPut`/`TxDel`/`TxCommit` によるクラッシュ原子性と同期/`ENOSPC` ロールバック、永続化 `sgen` + `instanceId` によるソース削除再作成 ABA 防止、構造化 `ErrorCode` に基づく通信・ブラウザ・予算エラーのセンサリング、`ClaimTimelineEntry` の非損失履歴化と `historyUnavailable` 伝播、大きな `minIntervalSecs` での tombstone 計算パニックと予算オーバーフローの解消、`load_spec_as_of`/`build_state_view` における `NotCreatedYet`/`HistoryUnavailable` の厳密分離および全件インベントリ疑似復元の廃止、Node.js バインディングでの安全な浮動小数点整数 `asOf` 対応を実装しました。
+PageSift 1.5.3 は 1.5 系のグラフエンティティ分離・同一ページ内矛盾検出・診断警告・URL 認証情報除去・ストレージ検証・HTTP ヘッダ上限を強化したパッチリリースです：canonical と恒久的リダイレクトの厳密な `same_origin`（標準ポート正規化を含む）検証および同期順序非依存化、同一ページ上の複数商品 JSON-LD / Microdata エンティティ分離による誤矛盾の解消、`product:price:*` OpenGraph 抽出と同一ページ内価格・表トレース矛盾の DataGraph 永続化、`graph_truncated`・`malformed_json_ld`・`nul_bytes_stripped`・`empty_pdf_pages`・`document exceeds the ...` 警告のトップレベル `warning` への露出、取得・解析メタデータやリンク・グラフノードからの `user:pass@` 認証情報除去、ディレクトリ削除後の `pagesift-store` 書き込み検出、HTTP/1.1 `max_headers` の `2048` への拡張を実装しました。
 
-[リリースノート](releases/1.5.2.md) · [1.5.1](releases/1.5.1.md) · [1.5.0](releases/1.5.0.md) · [1.4.2](releases/1.4.2.md) · [すべてのリリース](releases/) · [CHANGELOG](CHANGELOG.md)
+[リリースノート](releases/1.5.3.md) · [1.5.2](releases/1.5.2.md) · [1.5.1](releases/1.5.1.md) · [1.5.0](releases/1.5.0.md) · [すべてのリリース](releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -360,7 +360,7 @@ PageSift 1.5.2 は 1.5 系のトランザクション・時系列・スケジュ
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.5.2}
+  note   = {Version 1.5.3}
 }
 ```
 

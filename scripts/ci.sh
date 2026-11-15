@@ -6,13 +6,18 @@
 #   scripts/ci.sh --fast   推送前（.git/hooks/pre-push 调用）：GitHub macOS CI 会跑的检查——发版一致性、
 #                          测试里的计时、fmt、clippy 和测试（警告当错误，和 CI 的 RUSTFLAGS 一致），
 #                          以及对 macOS 的类型检查
+#   scripts/ci.sh --release-fast     在 --fast/--bindings 流程中改用 ThinLTO（--profile release-fast）做带优化校验
 #
 # 警告当错误的编译和日常编译共用 target/：RUSTFLAGS 不同时会重编，但磁盘上只留一份（单独目录会再占一整份）。
 set -euo pipefail
 cd "$(dirname "$0")/.."
-fast=; bindings=
+fast=; bindings=; test_profile=quick
 for a in "$@"; do
-    case "$a" in --fast) fast=1 ;; --bindings) bindings=1 ;; esac
+    case "$a" in
+        --fast) fast=1 ;;
+        --bindings) bindings=1 ;;
+        --release-fast) test_profile=release-fast ;;
+    esac
 done
 [ -z "$fast" ] && bindings=1
 
@@ -40,17 +45,17 @@ cargo fmt --all --check
 
 [ -n "${CI_TARGET_DIR:-}" ] && export CARGO_TARGET_DIR=$CI_TARGET_DIR
 step "clippy"
-RUSTFLAGS="-D warnings" scripts/build.sh cargo clippy --workspace --all-targets --locked --profile quick
+RUSTFLAGS="-D warnings" scripts/build.sh cargo clippy --workspace --all-targets --locked --profile "$test_profile"
 
 step "test"
-# 和 GitHub 的命令一致（不带目标参数：也编 examples、跑文档测试），只是换成 quick 档
-RUSTFLAGS="-D warnings" scripts/build.sh cargo test --workspace --locked --profile quick --exclude pagesift-cdp
-RUSTFLAGS="-D warnings" scripts/build.sh cargo test -p pagesift-cdp --locked --profile quick --lib --test protocol --test browser --test bench
+# 和 GitHub 的命令一致（不带目标参数：也编 examples、跑文档测试），默认换成 quick 档
+RUSTFLAGS="-D warnings" scripts/build.sh cargo test --workspace --locked --profile "$test_profile" --exclude pagesift-cdp
+RUSTFLAGS="-D warnings" scripts/build.sh cargo test -p pagesift-cdp --locked --profile "$test_profile" --lib --test protocol --test browser --test bench
 step "gpu consistency"
 # GPU 和 CPU 逐层比较，误差不超过 fp32 累加误差界（设计 G3）。检测到 N 卡才跑；一次只占一个工人，
 # 和上面的 workspace 测试分开跑，失败时一眼看出是数值问题
 if command -v nvidia-smi >/dev/null && nvidia-smi -L 2>/dev/null | grep -q '^GPU '; then
-    RUSTFLAGS="-D warnings" scripts/build.sh cargo test -p pagesift-ocr --locked --profile quick --test gpu_consistency -- --test-threads=1 --nocapture
+    RUSTFLAGS="-D warnings" scripts/build.sh cargo test -p pagesift-ocr --locked --profile "$test_profile" --test gpu_consistency -- --test-threads=1 --nocapture
 else
     echo "no NVIDIA GPU: skipped"
 fi
@@ -74,15 +79,14 @@ CC_aarch64_apple_darwin=$PWD/scripts/check-cc.sh AR_aarch64_apple_darwin=$PWD/sc
 if [ -n "$bindings" ]; then
     # 发布流程在打 npm 包、wheel 之前跑这两套测试；不在本地跑，引擎改了行为要到发版时才发现
     step "node binding tests"
-    scripts/build.sh cargo build --profile quick --locked -p pagesift-node
-    cp "${CARGO_TARGET_DIR:-target}/quick/libpagesift_node.so" crates/pagesift-node/pagesift.linux-x64-gnu.node
+    scripts/build.sh cargo build --profile "$test_profile" --locked -p pagesift-node
+    cp "${CARGO_TARGET_DIR:-target}/${test_profile}/libpagesift_node.so" crates/pagesift-node/pagesift.linux-x64-gnu.node
     (cd crates/pagesift-node && node --test --test-concurrency=1)
     step "python binding tests"
     venv=${PY_VENV:-benchmarks/venv}
     [ -x "$venv/bin/maturin" ] && [ -x "$venv/bin/pytest" ] \
         || { echo "missing maturin/pytest in $venv (PY_VENV)"; exit 1; }
-    (cd crates/pagesift-py && VIRTUAL_ENV=$PWD/../../$venv PATH=$PWD/../../$venv/bin:$PATH \
-        ../../$venv/bin/maturin develop --profile quick --locked)
+    scripts/build.sh bash -c "cd crates/pagesift-py && VIRTUAL_ENV=\"\$1\" PATH=\"\$1/bin:\$PATH\" \"\$1/bin/maturin\" develop --profile $test_profile --locked" _ "$PWD/$venv"
     "$venv/bin/python" -m pytest crates/pagesift-py/tests -q
 fi
 [ -n "$fast" ] && {
@@ -95,7 +99,7 @@ fi
 msrv=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["rust-version"])')
 step "msrv ($msrv)"
 rustup toolchain list | grep -q "^$msrv" || rustup toolchain install "$msrv" --profile minimal
-cargo "+$msrv" check --workspace --locked
+scripts/build.sh cargo "+$msrv" check --workspace --locked
 
 step "cargo deny"
 if command -v cargo-deny >/dev/null; then
@@ -105,10 +109,10 @@ else
 fi
 
 step "perf gate"
-cargo run --release --locked -p pagesift-content --example perf_gate
-cargo run --release --locked -p pagesift --example crawl_gate
-cargo run --release --locked -p pagesift --example focus_gate
-cargo run --release --locked -p pagesift --example focus_gate -- --auto
+scripts/build.sh cargo run --release --locked -p pagesift-content --example perf_gate
+scripts/build.sh cargo run --release --locked -p pagesift --example crawl_gate
+scripts/build.sh cargo run --release --locked -p pagesift --example focus_gate
+scripts/build.sh cargo run --release --locked -p pagesift --example focus_gate -- --auto
 
 record_ci_stamp full
 printf '\nall checks passed\n'

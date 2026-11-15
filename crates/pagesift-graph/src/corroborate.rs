@@ -43,14 +43,226 @@ pub fn resolve_subject_key(
     canonical_url: Option<&str>,
     resource_key: &str,
 ) -> SubjectKey {
+    let trace_refs: Vec<&RawFieldTrace> = traces.iter().collect();
+    if let Some(key) = resolve_identity_key(configured_keys, json_ld, &trace_refs) {
+        return key;
+    }
+    resolve_fallback_subject_key(canonical_url, resource_key)
+}
+
+/// Resolve per-trace entity anchors so multi-product/list pages isolate sibling entities while
+/// single-entity pages keep cross-format claims unified.
+pub fn resolve_entity_subject_keys(
+    configured_keys: &[String],
+    json_ld: &[Value],
+    traces: &[RawFieldTrace],
+    canonical_url: Option<&str>,
+    resource_key: &str,
+) -> (SubjectKey, Vec<SubjectKey>) {
+    let trace_groups: Vec<TraceEntityGroup> = traces.iter().map(entity_group_of).collect();
+    let mut json_ld_ids: BTreeSet<usize> = (0..json_ld.len()).collect();
+    let mut microdata_ids = BTreeSet::new();
+    let mut extract_ids = BTreeSet::new();
+    let mut grouped: BTreeMap<TraceEntityGroup, Vec<&RawFieldTrace>> = BTreeMap::new();
+
+    for (trace, group) in traces.iter().zip(trace_groups.iter()) {
+        match *group {
+            TraceEntityGroup::JsonLd(idx) => {
+                json_ld_ids.insert(idx);
+            }
+            TraceEntityGroup::Microdata(idx) => {
+                microdata_ids.insert(idx);
+            }
+            TraceEntityGroup::ExtractItem(idx) => {
+                extract_ids.insert(idx);
+            }
+            TraceEntityGroup::Page => {}
+        }
+        grouped.entry(*group).or_default().push(trace);
+    }
+
+    let multi_json_ld = json_ld_ids.len() > 1;
+    let multi_microdata = microdata_ids.len() > 1;
+    let multi_extract = extract_ids.len() > 1;
+    if !multi_json_ld && !multi_microdata && !multi_extract {
+        let page_key = resolve_subject_key(
+            configured_keys,
+            json_ld,
+            traces,
+            canonical_url,
+            resource_key,
+        );
+        let per_trace = vec![page_key.clone(); traces.len()];
+        return (page_key, per_trace);
+    }
+
+    let mut resolved_groups: BTreeMap<TraceEntityGroup, SubjectKey> = BTreeMap::new();
+    let mut primary_entity_keys: BTreeSet<String> = BTreeSet::new();
+
+    let mut assign_group = |group: TraceEntityGroup, multi_in_fmt: bool| {
+        let group_traces = grouped.get(&group).map(Vec::as_slice).unwrap_or(&[]);
+        let json_slice: &[Value] = match group {
+            TraceEntityGroup::JsonLd(idx) => {
+                json_ld.get(idx).map(std::slice::from_ref).unwrap_or(&[])
+            }
+            _ => &[],
+        };
+        if let Some(key) = resolve_identity_key(configured_keys, json_slice, group_traces) {
+            if !is_boilerplate_entity(json_slice, group_traces) {
+                primary_entity_keys.insert(key.key.clone());
+            }
+            resolved_groups.insert(group, key);
+        } else if multi_in_fmt {
+            let tag = group.fragment_tag();
+            let raw = format!("{resource_key}#{tag}");
+            let key = SubjectKey {
+                key: format!("resource:{raw}"),
+                source: SubjectKeySource::ResourceKey,
+                raw,
+            };
+            if !is_boilerplate_entity(json_slice, group_traces) {
+                primary_entity_keys.insert(key.key.clone());
+            }
+            resolved_groups.insert(group, key);
+        }
+    };
+
+    for idx in &json_ld_ids {
+        assign_group(TraceEntityGroup::JsonLd(*idx), multi_json_ld);
+    }
+    for idx in &microdata_ids {
+        assign_group(TraceEntityGroup::Microdata(*idx), multi_microdata);
+    }
+    for idx in &extract_ids {
+        assign_group(TraceEntityGroup::ExtractItem(*idx), multi_extract);
+    }
+
+    let page_traces = grouped
+        .get(&TraceEntityGroup::Page)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+    let page_key = if primary_entity_keys.len() == 1 {
+        let sole = primary_entity_keys.iter().next().unwrap();
+        resolved_groups
+            .values()
+            .find(|k| &k.key == sole)
+            .cloned()
+            .unwrap_or_else(|| resolve_fallback_subject_key(canonical_url, resource_key))
+    } else if let Some(key) = resolve_identity_key(configured_keys, &[], page_traces) {
+        key
+    } else {
+        resolve_fallback_subject_key(canonical_url, resource_key)
+    };
+
+    let per_trace = trace_groups
+        .into_iter()
+        .map(|g| {
+            resolved_groups
+                .get(&g)
+                .cloned()
+                .unwrap_or_else(|| page_key.clone())
+        })
+        .collect();
+    (page_key, per_trace)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+enum TraceEntityGroup {
+    JsonLd(usize),
+    Microdata(usize),
+    ExtractItem(usize),
+    Page,
+}
+
+impl TraceEntityGroup {
+    fn fragment_tag(self) -> String {
+        match self {
+            Self::JsonLd(idx) => format!("json-ld/{idx}"),
+            Self::Microdata(idx) => format!("microdata/{idx}"),
+            Self::ExtractItem(idx) => format!("item/{idx}"),
+            Self::Page => "page".to_owned(),
+        }
+    }
+}
+
+fn entity_group_of(trace: &RawFieldTrace) -> TraceEntityGroup {
+    if let Some(rest) = trace.field_path.strip_prefix("/json-ld/")
+        && let Some(idx) = parse_leading_index(rest)
+    {
+        return TraceEntityGroup::JsonLd(idx);
+    }
+    if let Some(rest) = trace.field_path.strip_prefix("/microdata/")
+        && let Some(idx) = parse_leading_index(rest)
+    {
+        return TraceEntityGroup::Microdata(idx);
+    }
+    if matches!(
+        trace.method,
+        crate::evidence::ExtractionMethod::CssSelector { .. }
+            | crate::evidence::ExtractionMethod::XPathSelector { .. }
+    ) && let Some(rest) = trace.field_path.strip_prefix('/')
+        && let Some(idx) = parse_leading_index(rest)
+    {
+        return TraceEntityGroup::ExtractItem(idx);
+    }
+    TraceEntityGroup::Page
+}
+
+fn parse_leading_index(rest: &str) -> Option<usize> {
+    let seg = rest.split('/').next()?;
+    (!seg.is_empty() && seg.bytes().all(|b| b.is_ascii_digit()))
+        .then(|| seg.parse().ok())
+        .flatten()
+}
+
+fn is_boilerplate_entity(json_ld: &[Value], traces: &[&RawFieldTrace]) -> bool {
+    const BOILERPLATE: &[&str] = &[
+        "website",
+        "webpage",
+        "organization",
+        "breadcrumblist",
+        "searchaction",
+        "sitenavigationelement",
+    ];
+    let has_boilerplate_type = |t: &str| {
+        let lower = t.to_ascii_lowercase();
+        BOILERPLATE
+            .iter()
+            .any(|b| lower == *b || lower.ends_with(&format!("/{b}")))
+    };
+    if let Some(obj) = json_ld.first().and_then(Value::as_object)
+        && let Some(ty) = obj.get("@type").and_then(|v| {
+            v.as_str()
+                .or_else(|| v.as_array().and_then(|a| a.first()?.as_str()))
+        })
+    {
+        return has_boilerplate_type(ty);
+    }
+    for trace in traces {
+        if let crate::evidence::ExtractionMethod::JsonLd {
+            entity_type: Some(ty),
+            ..
+        } = &trace.method
+        {
+            return has_boilerplate_type(ty);
+        }
+    }
+    false
+}
+
+fn resolve_identity_key(
+    configured_keys: &[String],
+    json_ld: &[Value],
+    traces: &[&RawFieldTrace],
+) -> Option<SubjectKey> {
     for wanted in configured_keys {
         let wanted_norm = normalize_field_key(wanted);
         if let Some(val) = find_key_value(&wanted_norm, json_ld, traces) {
-            return SubjectKey {
+            return Some(SubjectKey {
                 key: format!("{wanted_norm}:{}", val.trim().to_ascii_uppercase()),
                 source: SubjectKeySource::ExplicitConfig,
                 raw: val,
-            };
+            });
         }
     }
 
@@ -60,37 +272,52 @@ pub fn resolve_subject_key(
             && !id.trim().starts_with("_:")
         {
             let norm = normalize_resource_key(id);
-            return SubjectKey {
+            return Some(SubjectKey {
                 key: format!("id:{norm}"),
                 source: SubjectKeySource::JsonLdId,
                 raw: id.trim().to_owned(),
-            };
+            });
+        }
+    }
+    for trace in traces {
+        if let crate::evidence::ExtractionMethod::JsonLd {
+            entity_id: Some(id),
+            ..
+        } = &trace.method
+            && !id.trim().is_empty()
+            && !id.trim().starts_with("_:")
+        {
+            let norm = normalize_resource_key(id);
+            return Some(SubjectKey {
+                key: format!("id:{norm}"),
+                source: SubjectKeySource::JsonLdId,
+                raw: id.trim().to_owned(),
+            });
         }
     }
 
     for code in BUILTIN_PRODUCT_KEYS {
         if let Some(val) = find_key_value(code, json_ld, traces) {
-            return SubjectKey {
+            return Some(SubjectKey {
                 key: format!("{code}:{}", val.trim().to_ascii_uppercase()),
                 source: SubjectKeySource::ProductCode,
                 raw: val,
-            };
+            });
         }
     }
+    None
+}
 
-    if let Some(can) = canonical_url.filter(|c| !c.trim().is_empty()) {
-        let can_host = host_of(can);
-        let res_host = host_of(resource_key);
-        if (!res_host.is_empty() && can_host == res_host)
-            || (res_host.is_empty() && can_host.is_empty())
-        {
-            let key = normalize_resource_key(can);
-            return SubjectKey {
-                key: format!("canonical:{key}"),
-                source: SubjectKeySource::CanonicalCluster,
-                raw: can.to_owned(),
-            };
-        }
+fn resolve_fallback_subject_key(canonical_url: Option<&str>, resource_key: &str) -> SubjectKey {
+    if let Some(can) = canonical_url.filter(|c| !c.trim().is_empty())
+        && crate::model::DocNode::is_trusted_canonical(can, resource_key)
+    {
+        let key = normalize_resource_key(can);
+        return SubjectKey {
+            key: format!("canonical:{key}"),
+            source: SubjectKeySource::CanonicalCluster,
+            raw: can.to_owned(),
+        };
     }
 
     SubjectKey {
@@ -103,7 +330,7 @@ pub fn resolve_subject_key(
 fn find_key_value(
     wanted_norm: &str,
     json_ld: &[Value],
-    traces: &[RawFieldTrace],
+    traces: &[&RawFieldTrace],
 ) -> Option<String> {
     for trace in traces {
         if normalize_field_key(&trace.field_name) == wanted_norm
@@ -289,7 +516,18 @@ pub fn build_fact_clusters_with_lineage(
     lineage: &BTreeMap<String, SourceLineage>,
     citations: &[CitationEdge],
 ) -> Vec<FactCluster> {
+    build_fact_clusters_with_lineage_checked(claims, max_claims_per_bucket, lineage, citations).0
+}
+
+/// Variant of [`build_fact_clusters_with_lineage`] that also reports whether any bucket hit `max_claims_per_bucket`.
+pub fn build_fact_clusters_with_lineage_checked(
+    claims: &[ClaimRecord],
+    max_claims_per_bucket: usize,
+    lineage: &BTreeMap<String, SourceLineage>,
+    citations: &[CitationEdge],
+) -> (Vec<FactCluster>, bool) {
     let mut buckets: BTreeMap<(String, String, String), Vec<&ClaimRecord>> = BTreeMap::new();
+    let mut truncated = false;
     for claim in claims {
         let key = (
             claim.subject_key.clone(),
@@ -299,10 +537,12 @@ pub fn build_fact_clusters_with_lineage(
         let slot = buckets.entry(key).or_default();
         if slot.len() < max_claims_per_bucket {
             slot.push(claim);
+        } else {
+            truncated = true;
         }
     }
 
-    buckets
+    let clusters = buckets
         .into_iter()
         .map(|((subject_key, normalized_field, val_key), group)| {
             let distinct_sources: BTreeSet<&str> =
@@ -331,7 +571,8 @@ pub fn build_fact_clusters_with_lineage(
                 evidence: group.iter().map(|c| c.evidence.clone()).collect(),
             }
         })
-        .collect()
+        .collect();
+    (clusters, truncated)
 }
 
 #[cfg(test)]

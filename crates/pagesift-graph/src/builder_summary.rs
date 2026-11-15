@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, HashSet};
 use super::StreamingGraphBuilder;
 use crate::citation::CitationEdge;
 use crate::conflict::{ConflictRecord, detect_conflicts_with_lineage};
-use crate::corroborate::{ClaimRecord, FactCluster, build_fact_clusters_with_lineage};
+use crate::corroborate::{ClaimRecord, FactCluster, build_fact_clusters_with_lineage_checked};
 use crate::delta::{GraphStats, GraphSummary};
 use crate::independence::compute_source_lineage;
 use crate::model::{DocNode, GraphOptions};
@@ -35,13 +35,22 @@ impl StreamingGraphBuilder {
                 edge
             })
             .collect();
-        let (canonical_clusters, fact_clusters, conflicts) = summarize_vectors(
-            &self.options,
-            &self.nodes,
-            &self.provenance,
-            &citations,
-            &self.claims,
-        );
+        let (canonical_clusters, fact_clusters, conflicts, summary_bucket_truncated) =
+            summarize_vectors(
+                &self.options,
+                &self.nodes,
+                &self.provenance,
+                &citations,
+                &self.claims,
+            );
+        let mut truncation_reasons = self.truncation_reasons.clone();
+        if summary_bucket_truncated
+            && !truncation_reasons
+                .iter()
+                .any(|r| r == "max_claims_per_bucket")
+        {
+            truncation_reasons.push("max_claims_per_bucket".to_owned());
+        }
 
         GraphSummary {
             stats: GraphStats {
@@ -55,8 +64,8 @@ impl StreamingGraphBuilder {
                 fact_clusters: fact_clusters.len(),
                 conflicts: conflicts.len(),
                 canonical_clusters: canonical_clusters.len(),
-                truncated: self.truncated,
-                truncation_reasons: self.truncation_reasons.clone(),
+                truncated: self.truncated || summary_bucket_truncated,
+                truncation_reasons,
             },
             nodes: self.nodes.clone(),
             canonical_clusters,
@@ -76,7 +85,12 @@ fn summarize_vectors(
     provenance: &[ProvenanceEdge],
     citations: &[CitationEdge],
     claims: &[ClaimRecord],
-) -> (Vec<CanonicalCluster>, Vec<FactCluster>, Vec<ConflictRecord>) {
+) -> (
+    Vec<CanonicalCluster>,
+    Vec<FactCluster>,
+    Vec<ConflictRecord>,
+    bool,
+) {
     let canonical_clusters = if options.provenance {
         cluster_canonicals(provenance)
     } else {
@@ -87,20 +101,25 @@ fn summarize_vectors(
     } else {
         BTreeMap::new()
     };
-    let fact_clusters = if options.facts {
-        build_fact_clusters_with_lineage(
+    let (fact_clusters, bucket_truncated) = if options.facts {
+        build_fact_clusters_with_lineage_checked(
             claims,
             options.limits.max_claims_per_bucket,
             &lineage,
             citations,
         )
     } else {
-        Vec::new()
+        (Vec::new(), false)
     };
     let conflicts = if options.conflicts {
         detect_conflicts_with_lineage(claims, &lineage, citations)
     } else {
         Vec::new()
     };
-    (canonical_clusters, fact_clusters, conflicts)
+    (
+        canonical_clusters,
+        fact_clusters,
+        conflicts,
+        bucket_truncated,
+    )
 }

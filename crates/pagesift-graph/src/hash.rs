@@ -48,6 +48,16 @@ pub fn host_of(raw_url: &str) -> String {
         .unwrap_or_default()
 }
 
+/// Return whether two HTTP/HTTPS URLs share the exact origin (scheme, host, default-normalized port).
+pub fn same_origin(a: &str, b: &str) -> bool {
+    let (Ok(ua), Ok(ub)) = (Url::parse(a.trim()), Url::parse(b.trim())) else {
+        return false;
+    };
+    let oa = ua.origin();
+    let ob = ub.origin();
+    oa.is_tuple() && oa == ob
+}
+
 /// Strip fragments, default ports, and common tracking parameters; sort remaining query pairs.
 pub fn normalize_url(raw: &str) -> String {
     let trimmed = raw.trim();

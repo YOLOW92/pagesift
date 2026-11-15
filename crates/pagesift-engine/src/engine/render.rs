@@ -276,7 +276,8 @@ impl Scraper {
                     continue;
                 }
             };
-            let final_url = Url::parse(&page.final_url).unwrap_or_else(|_| target.clone());
+            let final_url =
+                strip_url_userinfo(&Url::parse(&page.final_url).unwrap_or_else(|_| target.clone()));
             let RenderedPage {
                 mut html,
                 status,
@@ -302,7 +303,7 @@ impl Scraper {
                 }
             }
             let t = Instant::now();
-            let (doc, html) = process_html(html, &final_url, status, opts).await?;
+            let (doc, html, html_warnings) = process_html(html, &final_url, status, opts).await?;
             let extract = t.elapsed();
             let gained = http_chars.is_some_and(|n| text_weight(&doc.markdown) > n);
             if ropts.actions.is_empty() {
@@ -345,6 +346,7 @@ impl Scraper {
                 extract,
                 doc,
                 html,
+                html_warnings,
                 actions: (!ropts.actions.is_empty()).then(|| outputs.to_firecrawl_json()),
             };
             // 早停拿到的就是当前 DOM 的快照，不再换内核重试。
@@ -461,8 +463,10 @@ impl Scraper {
         warnings: Vec<String>,
         started: Instant,
     ) -> Result<Document, ApiError> {
-        let final_url = Url::parse(&page.final_url)
-            .map_err(|e| ApiError::new(ErrorCode::UpstreamError, format!("page URL: {e}")))?;
+        let final_url = strip_url_userinfo(
+            &Url::parse(&page.final_url)
+                .map_err(|e| ApiError::new(ErrorCode::UpstreamError, format!("page URL: {e}")))?,
+        );
         let t = Instant::now();
         let RenderedPage {
             html,
@@ -471,7 +475,7 @@ impl Scraper {
             timings: page_timings,
             ..
         } = page;
-        let (doc, html) = process_html(html, &final_url, status, opts).await?;
+        let (doc, html, html_warnings) = process_html(html, &final_url, status, opts).await?;
         check_barrier(&doc, &html)?;
         let r = Rendered {
             index: 0,
@@ -483,6 +487,7 @@ impl Scraper {
             extract: t.elapsed(),
             doc,
             html,
+            html_warnings,
             actions: None,
         };
         Ok(rendered_document(
@@ -508,8 +513,8 @@ fn rendered_document(
     store: Option<&pagesift_store::Store>,
 ) -> Document {
     let mut meta = Metadata {
-        url: Some(r.final_url.to_string()),
-        source_url: Some(url.to_string()),
+        url: Some(strip_url_userinfo(&r.final_url).to_string()),
+        source_url: Some(strip_url_userinfo_str(url)),
         status_code: r.status.unwrap_or(200),
         content_type: r.content_type.clone(),
         proxy_used: "basic".into(),
@@ -528,6 +533,7 @@ fn rendered_document(
             "video_metadata: no readable body text; used the page's embedded video metadata".into(),
         );
     }
+    warnings.extend(r.html_warnings);
     warnings.extend(r.doc.coverage.warnings());
     let raw_bytes = Some(thin_basis_bytes(&r.html, &r.doc.markdown));
     let video_fallback = r.doc.metadata.video_fallback;
@@ -709,6 +715,7 @@ pub(super) struct Rendered {
     extract: Duration,
     doc: pagesift_content::Document,
     html: String,
+    html_warnings: Vec<String>,
     /// `actions` 的产出（Firecrawl 的形状）；没有动作时为 `None`。
     actions: Option<serde_json::Value>,
 }

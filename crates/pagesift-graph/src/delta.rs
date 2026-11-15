@@ -74,6 +74,12 @@ pub struct PageGraphDelta {
     pub claims: Vec<ClaimRecord>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub claim_transitions: Vec<ClaimTransition>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub conflicts: Vec<ConflictRecord>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub truncated: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub truncation_reasons: Vec<String>,
 }
 
 /// Per-document DataGraph slice optionally attached to API `Document.graph`.
@@ -104,6 +110,12 @@ pub struct GraphSlice {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub claim_transitions: Vec<ClaimTransition>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub conflicts: Vec<ConflictRecord>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub truncated: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub truncation_reasons: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub member_deltas: Vec<PageGraphDelta>,
 }
 
@@ -124,6 +136,9 @@ impl From<PageGraphDelta> for GraphSlice {
             evidence: d.evidence,
             claims: d.claims,
             claim_transitions: d.claim_transitions,
+            conflicts: d.conflicts,
+            truncated: d.truncated,
+            truncation_reasons: d.truncation_reasons,
             member_deltas: Vec::new(),
         }
     }

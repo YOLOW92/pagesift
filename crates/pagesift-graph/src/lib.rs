@@ -39,14 +39,17 @@ pub use conflict::{
 };
 pub use corroborate::{
     ClaimRecord, DEFAULT_CONTRACT_ID, FactCluster, SubjectKey, SubjectKeySource,
-    build_fact_clusters, build_fact_clusters_with_lineage, resolve_subject_key,
+    build_fact_clusters, build_fact_clusters_with_lineage,
+    build_fact_clusters_with_lineage_checked, resolve_entity_subject_keys, resolve_subject_key,
 };
 pub use delta::{DocumentInput, GraphSlice, GraphStats, GraphSummary, PageGraphDelta};
 pub use evidence::{
     EvidenceAlignment, EvidenceSpan, ExtractionMethod, RawFieldTrace, align_traces,
     collect_json_traces,
 };
-pub use hash::{compact_excerpt, host_of, normalize_resource_key, normalize_url, sha256_hex};
+pub use hash::{
+    compact_excerpt, host_of, normalize_resource_key, normalize_url, same_origin, sha256_hex,
+};
 pub use independence::{
     OriginRelation, SourceLineage, compute_source_lineage, independent_roots_for_claim_group,
 };
@@ -59,7 +62,7 @@ pub use lifecycle::{
 pub use lifecycle_as_of::{claims_as_of, claims_as_of_checked, latest_claims_per_resource};
 pub use model::{
     BlockKind, BlockRef, DocNode, GraphLimits, GraphOptions, IndexedBlock, SourceKind,
-    build_block_refs, build_indexed_blocks,
+    build_block_refs, build_indexed_blocks, build_indexed_blocks_checked,
 };
 pub use norm::{
     DatePrecision, MoneyPeriod, NormalizedValue, ValueComparison, compare_normalized,

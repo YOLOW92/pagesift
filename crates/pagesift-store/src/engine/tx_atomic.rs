@@ -170,6 +170,7 @@ impl<'a> AtomicTx<'a> {
     }
 
     pub fn commit(mut self) -> Result<()> {
+        self.store.verify_backing_paths(&self.w)?;
         if self.ops.is_empty() {
             return Ok(());
         }

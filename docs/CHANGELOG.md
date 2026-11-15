@@ -2,6 +2,10 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## 1.5.3
+
+Graph entity isolation, intra-document conflict detection, diagnostic warnings, credential redaction, storage safety, and HTTP/1.1 header hardening release on the `1.5.x` line: adds strict `same_origin` validation (scheme, host, normalized default port) for canonical and permanent-redirect resolution with order-invariant sync histories, isolates multi-product JSON-LD and Microdata entities onto distinct `#` subject keys, adds OpenGraph `product:price:*` extraction and intra-page price/table conflict detection persisted in `GraphStore`, surfaces `graph_truncated`, `malformed_json_ld`, `nul_bytes_stripped`, `empty_pdf_pages`, and `document exceeds the ...` warnings into top-level `warning`, strips `user:pass@` credentials from extracted URLs/links/favicon/DataGraph nodes, aborts `pagesift-store` writes with `NotFound` when the store directory or active segment is removed on disk, raises hyper HTTP/1.1 `max_headers` from `100` to `2048`, and clarifies `--allow-cidr` cross-port matching in CLI help. [Release notes](releases/1.5.3.md).
+
 ## 1.5.2
 
 Transaction, temporal, scheduling, and adaptive-observation correctness release on the `1.5.x` line: introduces `TxPut`/`TxDel`/`TxCommit` BLAKE3-verified `AtomicTx` crash atomicity and `ENOSPC`/sync rollback in `pagesift-store` (preserving `1.5.0`/`1.5.1` read compatibility), persistent `sgen:<source_id>` + `instanceId` anti-ABA validation across source deletes/recreates and tick commits, structured `ErrorCode` censoring of transport/browser/budget errors in `FamilyExperienceTable` and `BudgetExhausted` deferral handling, lossless claim lifecycle timelines with `historyUnavailable` propagation across GraphStore/HTTP/CLI/MCP/bindings, panic-safe tombstone intervals and overflow-safe `TickBudgetLedger` bounds, `NotCreatedYet`/`HistoryUnavailable` distinction in `load_spec_as_of`/`build_state_view` without live-inventory fallback, and safe-integer `f64` `asOf` support in Node.js bindings. [Release notes](releases/1.5.2.md).

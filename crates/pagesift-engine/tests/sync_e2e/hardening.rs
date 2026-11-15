@@ -173,3 +173,29 @@ async fn p1_03_budget_exhaustion_and_transport_errors_do_not_pollute_claims_or_f
 
     let _ = shutdown.send(());
 }
+
+#[tokio::test]
+async fn e6_sync_tick_aborts_when_store_directory_is_deleted() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open_dir(dir.path()).unwrap();
+    let scraper = test_scraper(Some(store.clone()));
+
+    let app = Router::new().route(
+        "/item",
+        get(|| async { Html(product_html("Item", "SKU-E6", "12.00", &[])) }),
+    );
+    let (base, shutdown) = spawn_server(app).await;
+
+    let spec = sample_spec("s-e6", format!("{base}/item"));
+    store.sync().upsert_source(spec).unwrap();
+
+    std::fs::remove_dir_all(dir.path()).unwrap();
+
+    let err = scraper
+        .run_sync_tick("s-e6", run_opts_forced())
+        .await
+        .expect_err("run_sync_tick must fail when store directory is removed");
+    assert_ne!(err.code, ErrorCode::InvalidRequest);
+
+    let _ = shutdown.send(());
+}

@@ -123,7 +123,12 @@ pub fn normalize_field_key(name: &str) -> String {
             prev_lower = false;
         }
     }
-    out.trim_matches('_').to_owned()
+    let key = out.trim_matches('_');
+    match key {
+        "og_price_amount" | "product_price_amount" => "price".to_owned(),
+        "og_price_currency" | "product_price_currency" => "price_currency".to_owned(),
+        _ => key.to_owned(),
+    }
 }
 
 /// Normalize a field value into a typed representation while keeping `raw`.

@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::citation::{CitationEdge, LinkRole};
 use crate::corroborate::ClaimRecord;
-use crate::hash::{host_of, normalize_resource_key};
+use crate::hash::{normalize_resource_key, same_origin};
 use crate::model::DocNode;
 use crate::provenance::{ProvenanceEdge, RedirectKind};
 
@@ -89,7 +89,7 @@ pub fn compute_source_lineage(
                 to_url,
                 redirect_kind: RedirectKind::HttpPermanent,
                 ..
-            } if host_of(from_url) == host_of(to_url) => {
+            } if same_origin(from_url, to_url) => {
                 let src = normalize_resource_key(from_url);
                 let dst = normalize_resource_key(to_url);
                 if src != dst && !src.is_empty() && !dst.is_empty() {

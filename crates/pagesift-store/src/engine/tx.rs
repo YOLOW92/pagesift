@@ -49,6 +49,7 @@ impl Tx<'_> {
     }
 
     pub fn delete(&mut self, ns: u8, key: &[u8]) -> Result<bool> {
+        self.store.verify_backing_paths(&self.w)?;
         if key.len() > MAX_KEY {
             return Err(Error::KeyTooLarge(key.len()));
         }

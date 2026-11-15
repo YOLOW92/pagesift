@@ -168,14 +168,23 @@ pub(super) fn stage_bundle_for_candidate(
         } else {
             (None, Some("empty_markdown"))
         };
-        bundle_req.version = Some(VersionCommitRequest {
-            expected_prev_doc_id: st.previous_version.as_ref().map(|p| p.doc_id.as_str()),
-            alias_keys: &st.alias_keys,
-            record: &curr_record,
-            edge: slice.version.as_ref(),
-            snapshot_bytes,
-            snapshot_unavailable_reason: snapshot_unavail,
-        });
+        let prior_doc_in_tick = prepared_bundles
+            .iter()
+            .rev()
+            .find(|b| b.version_resource_key() == Some(curr_record.resource_key.as_str()))
+            .and_then(|b| b.version_doc_id());
+        if prior_doc_in_tick != Some(curr_record.doc_id.as_str()) {
+            let expected_prev_doc_id = prior_doc_in_tick
+                .or_else(|| st.previous_version.as_ref().map(|p| p.doc_id.as_str()));
+            bundle_req.version = Some(VersionCommitRequest {
+                expected_prev_doc_id,
+                alias_keys: &st.alias_keys,
+                record: &curr_record,
+                edge: slice.version.as_ref(),
+                snapshot_bytes,
+                snapshot_unavailable_reason: snapshot_unavail,
+            });
+        }
         bundle_req.claims = &slice.claims;
         bundle_req.observed_at_ms = slice.observed_at_ms;
         bundle_req.doc_id = Some(&slice.doc_id);

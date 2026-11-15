@@ -1,0 +1,9 @@
+mod common;
+mod extract;
+mod font_code_names;
+mod fuzz;
+mod fuzz_regress;
+mod ocr;
+mod stress;
+mod timeouts;
+mod webp_files;

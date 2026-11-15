@@ -354,6 +354,7 @@ impl Store {
     /// 把活动段 fsync 到盘上。
     pub fn flush(&self) -> Result<()> {
         let mut w = self.writer();
+        self.verify_backing_paths(&w)?;
         w.file.sync_data()?;
         w.last_sync = Instant::now();
         Ok(())
@@ -482,6 +483,33 @@ impl Store {
 
     fn writer(&self) -> MutexGuard<'_, Writer> {
         lock(&self.0.writer)
+    }
+
+    /// Reject writes when the backing store directory or active segment was unlinked on disk.
+    fn verify_backing_paths(&self, w: &Writer) -> Result<()> {
+        let dir = &self.0.cfg.dir;
+        if !dir.is_dir() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("store directory missing: {}", dir.display()),
+            )
+            .into());
+        }
+        let seg = seg_path(dir, w.active);
+        let disk_meta = fs::metadata(&seg)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            let fd_meta = w.file.metadata()?;
+            if disk_meta.dev() != fd_meta.dev() || disk_meta.ino() != fd_meta.ino() {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    format!("active segment unlinked or replaced: {}", seg.display()),
+                )
+                .into());
+            }
+        }
+        Ok(())
     }
 }
 

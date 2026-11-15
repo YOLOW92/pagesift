@@ -120,12 +120,14 @@ impl Scraper {
         // and we fall back to HTTP, the permit is already gone and the rest of
         // the HTTP path must not try to drop it twice.
         let mut permit = Some(permit);
+        let clean_final_url = strip_url_userinfo(&resp.final_url);
+        let clean_source_url = strip_url_userinfo_str(url);
         timings.insert("fetch".into(), ms(resp.timings.total));
         let ext = PagesiftMeta {
             redirect_chain: resp
                 .redirect_chain
                 .iter()
-                .map(|h| h.url.to_string())
+                .map(|h| strip_url_userinfo(&h.url).to_string())
                 .collect(),
             etag: resp.etag().map(str::to_string),
             last_modified: resp.last_modified().map(str::to_string),
@@ -144,7 +146,7 @@ impl Scraper {
         let graph_opts = crate::graph::effective_graph_options(opts);
         let (header_canonical, header_alternates) =
             crate::discovery::header_canonical_and_alternates(
-                &resp.final_url,
+                &clean_final_url,
                 resp.headers
                     .get_all("link")
                     .iter()
@@ -154,12 +156,12 @@ impl Scraper {
             if graph_opts.is_some() {
                 (0..resp.redirect_chain.len())
                     .map(|i| {
-                        let from_u = resp.redirect_chain[i].url.to_string();
+                        let from_u = strip_url_userinfo(&resp.redirect_chain[i].url).to_string();
                         let to_u = resp
                             .redirect_chain
                             .get(i + 1)
-                            .map(|h| h.url.to_string())
-                            .unwrap_or_else(|| resp.final_url.to_string());
+                            .map(|h| strip_url_userinfo(&h.url).to_string())
+                            .unwrap_or_else(|| clean_final_url.to_string());
                         let st = resp.redirect_chain[i].status;
                         (from_u, to_u, st, crate::graph::redirect_kind(st))
                     })
@@ -168,8 +170,8 @@ impl Scraper {
                 Vec::new()
             };
         let meta = Metadata {
-            url: Some(resp.final_url.to_string()),
-            source_url: Some(url.to_string()),
+            url: Some(clean_final_url.to_string()),
+            source_url: Some(clean_source_url),
             canonical_url: header_canonical.clone(),
             status_code: resp.status,
             // 503 只有带 Retry-After 才算限速（RFC 9110 §15.6.4）；分类要用，输出里不出现
@@ -211,7 +213,7 @@ impl Scraper {
 
         let navigation = if opts.wants("links") {
             crate::discovery::header_links(
-                &resp.final_url,
+                &clean_final_url,
                 resp.headers
                     .get_all("link")
                     .iter()
@@ -251,7 +253,7 @@ impl Scraper {
                     after: None,
                     probe: super::speculate::render_probe(
                         opts,
-                        resp.final_url.clone(),
+                        clean_final_url.clone(),
                         spec_baseline.clone(),
                     ),
                 };
@@ -274,7 +276,7 @@ impl Scraper {
             spec_step = opts.explain.then_some(step);
         }
         let decode = resp.take_text_job();
-        let extract = extract_fetched(decode, &resp.final_url, Some(resp.status), opts, auto);
+        let extract = extract_fetched(decode, &clean_final_url, Some(resp.status), opts, auto);
         // 推测出去的渲染和提取一起推进；渲染先完成时把结果留着
         let mut spec_done = None;
         let extracted = match speculative.as_mut() {
@@ -303,6 +305,7 @@ impl Scraper {
             doc,
             html,
             decode_warning,
+            html_warnings,
             http_chars,
             render: hints,
             embedded,
@@ -312,6 +315,7 @@ impl Scraper {
         if let Some(warning) = decode_warning {
             warnings.push(warning);
         }
+        warnings.extend(html_warnings);
         timings.insert("extract".into(), ms(t.elapsed()));
         if auto {
             self.render_stats.note_extract(body_bytes, t.elapsed());
@@ -338,7 +342,7 @@ impl Scraper {
         if let Some(better) = self
             .maybe_upgrade_to_browser(super::fetch_upgrade::UpgradeInputs {
                 url,
-                final_url: &resp.final_url,
+                final_url: &clean_final_url,
                 opts,
                 render_opts,
                 mode,
@@ -377,7 +381,7 @@ impl Scraper {
             let work = crate::scripts::discover_script_graph(
                 &self.policy,
                 &html,
-                &resp.final_url,
+                &clean_final_url,
                 Default::default(),
             );
             let graph = match request_deadline(opts, started) {

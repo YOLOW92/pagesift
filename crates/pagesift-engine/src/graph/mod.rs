@@ -100,14 +100,13 @@ impl Default for PageGraphSeed {
 }
 
 /// Collect resource keys from `redirect_chain` that form a contiguous suffix of
-/// same-host permanent redirects (`RedirectKind::HttpPermanent`, 301/308) leading into `final_url`.
+/// same-origin permanent redirects (`RedirectKind::HttpPermanent`, 301/308) leading into `final_url`.
 pub fn trusted_permanent_redirect_keys(
     redirect_chain: &[(String, String, u16, RedirectKind)],
     final_url: &str,
 ) -> BTreeSet<String> {
     let mut keys = BTreeSet::new();
-    let final_host = pagesift_graph::host_of(final_url);
-    if final_host.is_empty() {
+    if pagesift_graph::host_of(final_url).is_empty() {
         return keys;
     }
     let mut expected_to = DocNode::derive_resource_key(None, final_url);
@@ -119,8 +118,8 @@ pub fn trusted_permanent_redirect_keys(
         if to_key != expected_to {
             break;
         }
-        if pagesift_graph::host_of(from_u) != final_host
-            || pagesift_graph::host_of(to_u) != final_host
+        if !pagesift_graph::same_origin(from_u, final_url)
+            || !pagesift_graph::same_origin(to_u, final_url)
         {
             break;
         }
@@ -162,7 +161,7 @@ pub fn now_ms() -> u64 {
         .as_millis() as u64
 }
 
-fn push_doc_warning(doc: &mut Document, warning: String) {
+pub(super) fn push_doc_warning(doc: &mut Document, warning: String) {
     let ext = doc.metadata.pagesift.get_or_insert_with(Default::default);
     if !ext.warnings.contains(&warning) {
         ext.warnings.push(warning);
@@ -212,12 +211,20 @@ pub fn build_and_attach_page_graph(
             })
             .collect();
     }
-    if seed.raw_traces.is_empty()
-        && !markdown.is_empty()
-        && seed.source_kind != SourceKind::Html
-        && (opts.evidence || opts.facts || opts.conflicts)
-    {
-        seed.raw_traces = evidence::collect_tabular_and_kv_traces(&markdown, Some(&final_url));
+    if !markdown.is_empty() && (opts.evidence || opts.facts || opts.conflicts) {
+        if seed.raw_traces.is_empty() && seed.source_kind != SourceKind::Html {
+            seed.raw_traces = evidence::collect_tabular_and_kv_traces(&markdown, Some(&final_url));
+        } else if opts.conflicts && seed.source_kind == SourceKind::Html {
+            for trace in evidence::collect_tabular_and_kv_traces(&markdown, Some(&final_url)) {
+                if !seed
+                    .raw_traces
+                    .iter()
+                    .any(|t| t.field_path == trace.field_path && t.raw_quote == trace.raw_quote)
+                {
+                    seed.raw_traces.push(trace);
+                }
+            }
+        }
     }
 
     let resource_key = DocNode::derive_resource_key(canonical_url.as_deref(), &final_url);
@@ -243,9 +250,7 @@ pub fn build_and_attach_page_graph(
     for k in &perm_redirect_keys {
         alias_candidates.insert(k.clone());
     }
-    if seed.redirect_chain.is_empty()
-        && pagesift_graph::host_of(&requested_url) == pagesift_graph::host_of(&final_url)
-    {
+    if seed.redirect_chain.is_empty() && pagesift_graph::same_origin(&requested_url, &final_url) {
         alias_candidates.insert(DocNode::derive_resource_key(None, &requested_url));
     }
 
@@ -407,6 +412,12 @@ pub fn build_and_attach_page_graph(
 
     let mut builder = StreamingGraphBuilder::new(opts.clone());
     let mut delta = builder.ingest(input);
+    if delta.truncated && !delta.truncation_reasons.is_empty() {
+        warnings_to_push.push(format!(
+            "graph_truncated: {}",
+            delta.truncation_reasons.join(", ")
+        ));
+    }
     if let (Some(edge), Some(reason)) = (delta.version.as_mut(), diff_unavailable_reason.clone()) {
         edge.diff_unavailable_reason = Some(reason);
     }
@@ -453,6 +464,15 @@ pub fn build_and_attach_page_graph(
             previous_version,
             &mut warnings_to_push,
         );
+    } else if opts.persist
+        && opts.conflicts
+        && !delta.conflicts.is_empty()
+        && delta.node.status_code < 400
+        && !not_modified
+        && let Some(st) = store
+    {
+        let gs = st.graph_for(tenant.as_deref());
+        let _ = gs.put_conflicts(&delta.conflicts);
     } else if !opts.persist {
         let alias_keys: Vec<String> = alias_candidates
             .iter()

@@ -4,8 +4,8 @@ use std::collections::BTreeSet;
 
 use pagesift_api::types::Document;
 use pagesift_graph::{
-    ClaimRecord, ClaimTransition, DEFAULT_CONTRACT_ID, DocNode, GraphOptions, GraphSlice,
-    ObservationOutcome, PageGraphDelta, ProvenanceEdge, VersionDiffStats, VersionEdge,
+    ClaimRecord, ClaimTransition, ConflictRecord, DEFAULT_CONTRACT_ID, DocNode, GraphOptions,
+    GraphSlice, ObservationOutcome, PageGraphDelta, ProvenanceEdge, VersionDiffStats, VersionEdge,
     VersionRecord,
 };
 use pagesift_store::{
@@ -89,6 +89,13 @@ impl<'a> CasTarget<'a> {
         match self {
             Self::Delta(d) => &d.provenance,
             Self::Slice { slice, .. } => &slice.provenance,
+        }
+    }
+
+    fn conflicts(&self) -> &[ConflictRecord] {
+        match self {
+            Self::Delta(d) => &d.conflicts,
+            Self::Slice { slice, .. } => &slice.conflicts,
         }
     }
 
@@ -210,6 +217,9 @@ fn execute_cas_commit_loop(
         {
             target.set_transitions(transitions);
         }
+        if opts.conflicts && !target.conflicts().is_empty() {
+            let _ = gs.put_conflicts(target.conflicts());
+        }
         return;
     }
 
@@ -269,6 +279,9 @@ fn execute_cas_commit_loop(
                     }
                     if had_prev {
                         target.set_transitions(claim_transitions);
+                    }
+                    if opts.conflicts && !target.conflicts().is_empty() {
+                        let _ = gs.put_conflicts(target.conflicts());
                     }
                     return;
                 }

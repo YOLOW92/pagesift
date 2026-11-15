@@ -73,6 +73,18 @@ pub struct PreparedVersionBundle {
     pub(super) prov_bytes: Option<Vec<u8>>,
 }
 
+impl PreparedVersionBundle {
+    /// Logical resource key targeted by this bundle's version commit, if any.
+    pub fn version_resource_key(&self) -> Option<&str> {
+        self.version.as_ref().map(|v| v.resource_key.as_str())
+    }
+
+    /// Document version ID produced by this bundle's version commit, if any.
+    pub fn version_doc_id(&self) -> Option<&str> {
+        self.version.as_ref().map(|v| v.doc_id.as_str())
+    }
+}
+
 impl<'a> GraphStore<'a> {
     /// 在写锁外预处理版本与快照压缩（C06）。
     pub fn prepare_version_bundle(

@@ -43,7 +43,7 @@ async fn full_page(doc: &Document, url: Option<&Url>) -> Option<String> {
         ..Default::default()
     };
     let status = Some(doc.metadata.status_code);
-    let (full, _) = crate::engine::output::process_html(html, url, status, &opts)
+    let (full, _, _) = crate::engine::output::process_html(html, url, status, &opts)
         .await
         .ok()?;
     Some(full.markdown).filter(|m| !m.trim().is_empty())

@@ -3,7 +3,8 @@ use std::collections::{BTreeSet, HashMap};
 use pagesift_api::types::Document;
 use pagesift_graph::{
     CanonicalSource, DocNode, GraphOptions, GraphSlice, PageGraphDelta, ProvenanceEdge,
-    RawFieldTrace, RedirectKind, SourceKind, build_indexed_blocks, canonical_edge,
+    RawFieldTrace, RedirectKind, SourceKind, build_indexed_blocks, build_indexed_blocks_checked,
+    canonical_edge,
 };
 use pagesift_store::Store;
 use serde_json::Value;
@@ -221,10 +222,10 @@ pub fn resync_graph_after_transform(
     let md = doc.markdown.as_deref().unwrap_or_default();
     let chunks = doc.chunks.as_deref();
     let spans = evidence::chunk_spans_of(chunks);
-    let indexed = if md.is_empty() {
-        Vec::new()
+    let (indexed, blocks_truncated) = if md.is_empty() {
+        (Vec::new(), false)
     } else {
-        build_indexed_blocks(
+        build_indexed_blocks_checked(
             &slice.doc_id,
             md,
             &spans,
@@ -232,6 +233,23 @@ pub fn resync_graph_after_transform(
             opts.limits.max_excerpt_chars,
         )
     };
+    let mut push_trunc_warning: Option<String> = None;
+    if blocks_truncated {
+        slice.truncated = true;
+        if !slice
+            .truncation_reasons
+            .iter()
+            .any(|r| r == "max_blocks_per_doc")
+        {
+            slice
+                .truncation_reasons
+                .push("max_blocks_per_doc".to_owned());
+        }
+        push_trunc_warning = Some(format!(
+            "graph_truncated: {}",
+            slice.truncation_reasons.join(", ")
+        ));
+    }
 
     if let Some(old_md) = pre_filter_md {
         let old_indexed = if old_md.is_empty() {
@@ -294,6 +312,9 @@ pub fn resync_graph_after_transform(
             ver.changed_block_ids = remapped;
         }
         super::stage::update_staged_transform(&slice.doc_id, md, &spans);
+        if let Some(w) = push_trunc_warning {
+            super::push_doc_warning(doc, w);
+        }
         return;
     }
 
@@ -313,6 +334,9 @@ pub fn resync_graph_after_transform(
         }
     }
     super::stage::update_staged_transform(&slice.doc_id, md, &spans);
+    if let Some(w) = push_trunc_warning {
+        super::push_doc_warning(doc, w);
+    }
 }
 
 /// Update `GraphSlice.blocks` and `EvidenceSpan.chunk_idx` once chunking completes in `scrape_content`.
@@ -366,5 +390,8 @@ pub fn page_delta_from_document(doc: &Document, slice: &GraphSlice) -> PageGraph
         evidence: slice.evidence.clone(),
         claims: slice.claims.clone(),
         claim_transitions: slice.claim_transitions.clone(),
+        conflicts: slice.conflicts.clone(),
+        truncated: slice.truncated,
+        truncation_reasons: slice.truncation_reasons.clone(),
     }
 }

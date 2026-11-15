@@ -1,6 +1,6 @@
 # pagesift (Python)
 
-1.5.2: see the [release notes](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.5.2.md) (crash-atomic `AtomicTx` commits, `instanceId` ABA protection, censored adaptive learning, point-in-time claim/state isolation, and scheduler bounds hardening, building on [1.5.1](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.5.1.md), [1.5.0](https://github.com/YOLow92/pagesift/blob/main/docs/releases/1.5.0.md), [1.4.2](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.4.2.md) and [1.4.0 DataGraph](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.4.0.md)).
+1.5.3: see the [release notes](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.5.3.md) (same-origin canonical trust, multi-product entity isolation, intra-page conflict detection, diagnostic warnings, URL credential stripping, deleted-store write detection, and HTTP/1.1 2048 header cap, building on [1.5.2](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.5.2.md), [1.5.1](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.5.1.md), [1.5.0](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.5.0.md), [1.4.2](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.4.2.md) and [1.4.0 DataGraph](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.4.0.md)).
 
 Python bindings for [pagesift](https://github.com/YOLOW92/pagesift): turn web pages into clean
 Markdown for LLMs. Fetching, robots.txt, rate limiting, content extraction, PDF parsing and browser

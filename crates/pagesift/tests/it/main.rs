@@ -2,7 +2,7 @@
 //! pagesift；合成一个后只链接一次。`dom_once` 数的是进程内的 DOM 构建次数，和别的测试同进程会数乱，
 //! 所以它仍是单独的测试程序。
 
-#[path = "../../../pagesift-net/tests/common/mod.rs"]
+#[path = "../../../pagesift-net/tests/it/common/mod.rs"]
 mod common;
 
 mod act_cache;

@@ -1,11 +1,13 @@
+use std::collections::{BTreeMap, BTreeSet};
+
 use pagesift_api::types::{DocChunk, Document};
 use pagesift_extract::evidence::extract_structured_with_evidence;
 use pagesift_graph::evidence::align_traces;
 use pagesift_graph::{
     ClaimRecord, DocNode, DocumentInput, EvidenceSpan, ExtractionMethod, GraphOptions,
     PageGraphDelta, ProvenanceEdge, RawFieldTrace, SourceKind, StreamingGraphBuilder,
-    SubjectKeySource, build_indexed_blocks, collect_json_traces, normalize_field_key,
-    resolve_subject_key,
+    SubjectKeySource, build_indexed_blocks_checked, collect_json_traces,
+    detect_conflicts_with_lineage, normalize_field_key, resolve_entity_subject_keys,
 };
 use serde_json::Value;
 
@@ -368,35 +370,55 @@ pub fn enrich_doc_with_extract_traces(
         .unwrap_or_default();
     let md = markdown.or(doc.markdown.as_deref()).unwrap_or_default();
     let spans = chunk_spans_of(doc.chunks.as_deref());
-    let blocks = build_indexed_blocks(
+    let (blocks, blocks_truncated) = build_indexed_blocks_checked(
         &slice.doc_id,
         md,
         &spans,
         opts.limits.max_blocks_per_doc,
         opts.limits.max_excerpt_chars,
     );
+    if blocks_truncated {
+        slice.truncated = true;
+        if !slice
+            .truncation_reasons
+            .iter()
+            .any(|r| r == "max_blocks_per_doc")
+        {
+            slice
+                .truncation_reasons
+                .push("max_blocks_per_doc".to_owned());
+        }
+        let reason = slice.truncation_reasons.join(", ");
+        let _ = reason;
+    }
 
+    let (resolved, trace_subjects) = resolve_entity_subject_keys(
+        &opts.subject_keys,
+        &[],
+        traces,
+        doc.metadata.canonical_url.as_deref(),
+        &slice.resource_key,
+    );
+    let rank = |s: SubjectKeySource| match s {
+        SubjectKeySource::ExplicitConfig => 0u8,
+        SubjectKeySource::JsonLdId => 1,
+        SubjectKeySource::ProductCode => 2,
+        SubjectKeySource::CanonicalCluster => 3, // [推导] 实体主键优先级序号
+        SubjectKeySource::ResourceKey => 4,      // [推导] 实体主键兜底序号
+    };
+    let old_page_key = slice.subject_key.key.clone();
+    let old_page_rank = rank(slice.subject_key.source);
+    let has_isolated_existing = slice.claims.iter().any(|c| c.subject_key.contains('#'));
     if matches!(
         slice.subject_key.source,
         SubjectKeySource::CanonicalCluster | SubjectKeySource::ResourceKey
-    ) {
-        let resolved = resolve_subject_key(
-            &opts.subject_keys,
-            &[],
-            traces,
-            doc.metadata.canonical_url.as_deref(),
-            &slice.resource_key,
-        );
-        let rank = |s: SubjectKeySource| match s {
-            SubjectKeySource::ExplicitConfig => 0u8,
-            SubjectKeySource::JsonLdId => 1,
-            SubjectKeySource::ProductCode => 2,
-            SubjectKeySource::CanonicalCluster => 3, // [推导] 实体主键优先级序号
-            SubjectKeySource::ResourceKey => 4,      // [推导] 实体主键兜底序号
-        };
-        if rank(resolved.source) < rank(slice.subject_key.source) {
-            slice.subject_key = resolved;
-            for claim in &mut slice.claims {
+    ) && !has_isolated_existing
+        && !trace_subjects.iter().any(|s| s.key.contains('#'))
+        && rank(resolved.source) < old_page_rank
+    {
+        slice.subject_key = resolved;
+        for claim in &mut slice.claims {
+            if claim.subject_key == old_page_key {
                 claim.subject_key = slice.subject_key.key.clone();
             }
         }
@@ -419,9 +441,28 @@ pub fn enrich_doc_with_extract_traces(
             .as_ref()
             .and_then(|p| p.engine.clone())
             .unwrap_or_else(|| "extract".to_string());
-        for (trace, ev) in traces.iter().zip(aligned.iter()) {
+        let mut bucket_counts: BTreeMap<(String, String), usize> = BTreeMap::new();
+        for c in &slice.claims {
+            *bucket_counts
+                .entry((c.subject_key.clone(), c.normalized_field.clone()))
+                .or_insert(0) += 1;
+        }
+        let limits = opts.limits.clamped();
+        let mut added_trunc_reasons: BTreeSet<&'static str> = BTreeSet::new();
+        for ((trace, subj), ev) in traces.iter().zip(trace_subjects.iter()).zip(aligned.iter()) {
+            let effective_key = if !subj.key.contains('#')
+                && matches!(
+                    subj.source,
+                    SubjectKeySource::CanonicalCluster | SubjectKeySource::ResourceKey
+                )
+                && rank(slice.subject_key.source) < rank(subj.source)
+            {
+                &slice.subject_key.key
+            } else {
+                &subj.key
+            };
             let claim = ClaimRecord::from_trace(
-                &slice.subject_key.key,
+                effective_key,
                 &slice.resource_key,
                 &slice.doc_id,
                 &url,
@@ -432,7 +473,39 @@ pub fn enrich_doc_with_extract_traces(
                 trace,
                 ev.clone(),
             );
+            let bucket = (claim.subject_key.clone(), claim.normalized_field.clone());
+            if !bucket_counts.contains_key(&bucket)
+                && bucket_counts.len() >= limits.max_claim_buckets
+            {
+                added_trunc_reasons.insert("max_claim_buckets");
+                continue;
+            }
+            if slice.claims.len() >= limits.max_claims {
+                added_trunc_reasons.insert("max_claims");
+                continue;
+            }
+            let cnt = bucket_counts.entry(bucket).or_insert(0);
+            if *cnt >= limits.max_claims_per_bucket {
+                added_trunc_reasons.insert("max_claims_per_bucket");
+                continue;
+            }
+            *cnt += 1;
             slice.claims.push(claim);
+        }
+        for reason in added_trunc_reasons {
+            slice.truncated = true;
+            if !slice.truncation_reasons.iter().any(|r| r == reason) {
+                slice.truncation_reasons.push(reason.to_owned());
+            }
+        }
+        if opts.conflicts && !slice.claims.is_empty() {
+            slice.conflicts = detect_conflicts_with_lineage(&slice.claims, &BTreeMap::new(), &[]);
+        }
+    }
+    if blocks_truncated || slice.truncated {
+        let reasons = slice.truncation_reasons.clone();
+        if !reasons.is_empty() {
+            super::push_doc_warning(doc, format!("graph_truncated: {}", reasons.join(", ")));
         }
     }
     let _ = DocNode::logical_url;

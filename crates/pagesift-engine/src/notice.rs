@@ -20,6 +20,11 @@ pub const CONTENT_RISK: &[&str] = &[
     "max_pages",
     "output_truncated",
     "cells_truncated",
+    "graph_truncated",
+    "malformed_json_ld",
+    "nul_bytes_stripped",
+    "document exceeds the ",
+    "empty_pdf_pages",
     // 升级前缓存里的旧写法，缓存过期前还会读到
     "CSV truncated at the cell limit",
     "sheet truncated at the cell limit",
@@ -92,15 +97,21 @@ mod tests {
             "pdf_repaired: the cross-reference table was unusable",
             "content_missing: 2 of 15 pages lost their content streams (pages 1, 4)",
             "fonts_missing: 1 of 15 pages lost font definitions (pages 2)",
+            "document exceeds the attachment nesting limit",
+            "empty_pdf_pages: 1 of 2 non-scanned pages yielded empty text",
+            "malformed_json_ld: 1 JSON-LD script block(s) failed to parse",
+            "nul_bytes_stripped: input contained 2 NUL byte(s) stripped during HTML parsing",
+            "graph_truncated: max_blocks_per_doc capped",
         ]);
         fill_warning(&mut d);
-        assert_eq!(
-            d.warning.as_deref(),
-            Some(
-                "content_missing: 2 of 15 pages lost their content streams (pages 1, 4); \
-                 fonts_missing: 1 of 15 pages lost font definitions (pages 2)"
-            )
-        );
+        let warning = d.warning.as_deref().unwrap();
+        assert!(warning.contains("content_missing:"));
+        assert!(warning.contains("fonts_missing:"));
+        assert!(warning.contains("document exceeds the attachment nesting limit"));
+        assert!(warning.contains("empty_pdf_pages:"));
+        assert!(warning.contains("malformed_json_ld:"));
+        assert!(warning.contains("nul_bytes_stripped:"));
+        assert!(warning.contains("graph_truncated:"));
     }
 
     #[test]

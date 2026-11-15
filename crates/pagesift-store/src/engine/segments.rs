@@ -32,6 +32,7 @@ pub(super) fn create_segment(dir: &Path, id: u32) -> Result<Arc<File>> {
 
 impl Store {
     pub(super) fn append(&self, w: &mut Writer, raw: &[u8], tomb: bool) -> Result<(u32, u32)> {
+        self.verify_backing_paths(w)?;
         if self.should_fail_write() {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::StorageFull,

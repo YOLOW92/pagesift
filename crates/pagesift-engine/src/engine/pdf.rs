@@ -131,6 +131,18 @@ impl Scraper {
         }
         // 损坏的文件部分恢复：pdf_repaired、pages_missing
         p.warnings.extend(pdf.warnings);
+        let empty_non_scanned = pdf
+            .pages
+            .iter()
+            .filter(|pg| !pg.scanned && pg.markdown.trim().is_empty())
+            .count();
+        if let Some(warning) = empty_pdf_pages_warning(
+            converted,
+            empty_non_scanned,
+            !pdf.markdown.trim().is_empty(),
+        ) {
+            p.warnings.push(warning);
+        }
         meta.title = pdf.metadata.title.clone();
         // /Info 没有标题时用版面推断的标题（第一页的一级标题），并标明来源
         if meta.title.is_none()
@@ -322,6 +334,25 @@ fn base64(bytes: &[u8]) -> String {
     out
 }
 
+fn empty_pdf_pages_warning(
+    converted: usize,
+    empty_non_scanned: usize,
+    has_markdown: bool,
+) -> Option<String> {
+    if empty_non_scanned == 0 || !has_markdown {
+        return None;
+    }
+    if empty_non_scanned >= 2 || empty_non_scanned * 2 >= converted {
+        Some(format!(
+            "empty_pdf_pages: {empty_non_scanned} of {converted} non-scanned pages yielded empty text"
+        ))
+    } else {
+        Some(format!(
+            "blank_pdf_pages: {empty_non_scanned} of {converted} non-scanned pages had no extractable text"
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -363,5 +394,23 @@ mod tests {
         ] {
             assert_eq!(pdf_error(e).code, code);
         }
+    }
+
+    #[test]
+    fn empty_pdf_pages_warns_when_significant_non_scanned_pages_are_empty() {
+        assert_eq!(empty_pdf_pages_warning(2, 0, true), None);
+        assert_eq!(empty_pdf_pages_warning(2, 2, false), None);
+
+        let risk = empty_pdf_pages_warning(2, 1, true).unwrap();
+        assert!(risk.starts_with("empty_pdf_pages:"), "{risk}");
+        assert!(crate::notice::is_content_risk(&risk));
+
+        let multi = empty_pdf_pages_warning(10, 2, true).unwrap();
+        assert!(multi.starts_with("empty_pdf_pages:"), "{multi}");
+        assert!(crate::notice::is_content_risk(&multi));
+
+        let minor = empty_pdf_pages_warning(10, 1, true).unwrap();
+        assert!(minor.starts_with("blank_pdf_pages:"), "{minor}");
+        assert!(!crate::notice::is_content_risk(&minor));
     }
 }

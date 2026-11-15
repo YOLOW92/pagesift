@@ -95,26 +95,93 @@ pub(super) async fn apply_query_filter(
     Ok(())
 }
 
+pub(super) fn strip_url_userinfo(url: &Url) -> Url {
+    if url.username().is_empty() && url.password().is_none() {
+        return url.clone();
+    }
+    let mut clean = url.clone();
+    let _ = clean.set_username("");
+    let _ = clean.set_password(None);
+    clean
+}
+
+pub(super) fn strip_url_userinfo_str(raw: &str) -> String {
+    let Ok(parsed) = Url::parse(raw) else {
+        return raw.to_string();
+    };
+    if parsed.username().is_empty() && parsed.password().is_none() {
+        raw.to_string()
+    } else {
+        strip_url_userinfo(&parsed).to_string()
+    }
+}
+
+pub(super) fn collect_html_text_warnings(
+    raw_html: &str,
+    dom: Option<&pagesift_content::yolowhtml_dom::Html<'_>>,
+) -> Vec<String> {
+    let mut warnings = Vec::new();
+    let nul_bytes = raw_html.as_bytes().iter().filter(|&&b| b == 0).count();
+    if nul_bytes > 0 {
+        warnings.push(format!(
+            "nul_bytes_stripped: input contained {nul_bytes} NUL byte(s) stripped during HTML parsing"
+        ));
+    }
+    const LD_JSON: &[u8] = b"ld+json";
+    if raw_html
+        .as_bytes()
+        .windows(LD_JSON.len())
+        .any(|w| w.eq_ignore_ascii_case(LD_JSON))
+    {
+        let malformed = match dom {
+            Some(doc) => pagesift_extract::structured::count_malformed_json_ld(doc),
+            None => pagesift_extract::structured::count_malformed_json_ld_str(raw_html),
+        };
+        if malformed > 0 {
+            warnings.push(format!(
+                "malformed_json_ld: {malformed} JSON-LD script block(s) failed to parse"
+            ));
+        }
+    }
+    warnings
+}
+
 pub(super) async fn process_html(
     html: String,
     base: &Url,
     status: Option<u16>,
     opts: &ScrapeOptions,
-) -> Result<(pagesift_content::Document, String), ApiError> {
+) -> Result<(pagesift_content::Document, String, Vec<String>), ApiError> {
     let copts = content_options(base, status, opts);
     let tags = tag_filter(opts)?;
     cpu_task(move || {
         // RSS / Atom / RDF feed 不是网页：按条目解析，别让 HTML 提取器把标签剥成一锅粥。
         if let Some(document) = super::feed::parse(&html, copts.links) {
-            return (document, html);
+            let html_warnings = collect_html_text_warnings(&html, None);
+            return (document, html, html_warnings);
         }
         // includeTags / excludeTags 只影响提取；rawHtml 仍是原始页面
-        let filtered = tags.map(|t| t.apply(&html));
-        let source = filtered.as_deref().unwrap_or(&html);
-        let document = CONTENT_WORKSPACE.with(|workspace| {
-            pagesift_content::process_with_workspace(source, &copts, &mut workspace.borrow_mut())
+        if let Some(t) = tags {
+            let filtered = t.apply(&html);
+            let html_warnings = collect_html_text_warnings(&html, None);
+            let document = CONTENT_WORKSPACE.with(|workspace| {
+                pagesift_content::process_with_workspace(
+                    &filtered,
+                    &copts,
+                    &mut workspace.borrow_mut(),
+                )
+            });
+            return (document, html, html_warnings);
+        }
+        let (document, html_warnings) = CONTENT_WORKSPACE.with(|workspace| {
+            pagesift_content::process_with_workspace_then(
+                &html,
+                &copts,
+                &mut workspace.borrow_mut(),
+                |dom, _| collect_html_text_warnings(&html, Some(dom)),
+            )
         });
-        (document, html)
+        (document, html, html_warnings)
     })
     .await
 }
@@ -127,7 +194,7 @@ pub(super) fn content_options(
 ) -> pagesift_content::Options {
     let graph_versions = crate::graph::effective_graph_options(opts).is_some_and(|g| g.versions);
     pagesift_content::Options {
-        base_url: Some(base.clone()),
+        base_url: Some(strip_url_userinfo(base)),
         only_main_content: opts.only_main_content,
         keep_data_images: !opts.remove_base64_images,
         status,
@@ -236,6 +303,20 @@ pub(super) fn finish(
     video_fallback: bool,
     started: Instant,
 ) -> Document {
+    for slot in [
+        &mut meta.url,
+        &mut meta.source_url,
+        &mut meta.canonical_url,
+        &mut meta.favicon,
+    ]
+    .into_iter()
+    .flatten()
+    {
+        *slot = strip_url_userinfo_str(slot);
+    }
+    for hop in &mut ext.redirect_chain {
+        *hop = strip_url_userinfo_str(hop);
+    }
     timings.insert("total".into(), ms(started.elapsed()));
     if meta.status_code >= 400 {
         warnings.push(format!("http_error_status: HTTP {}", meta.status_code));

@@ -3,8 +3,9 @@
 use std::collections::{BTreeMap, HashSet};
 use std::hash::{DefaultHasher, Hash, Hasher};
 
-use crate::citation::{CitationEdge, aggregate_citations, extract_markdown_links};
-use crate::corroborate::{ClaimRecord, resolve_subject_key};
+use crate::citation::{CitationEdge, aggregate_citations_checked, extract_markdown_links};
+use crate::conflict::detect_conflicts_with_lineage;
+use crate::corroborate::{ClaimRecord, resolve_entity_subject_keys};
 use crate::delta::{DocumentInput, PageGraphDelta};
 use crate::evidence::align_traces;
 use crate::evidence_json::collect_all_traces;
@@ -13,7 +14,7 @@ use crate::lifecycle::{
     ClaimLifecycleRecord, ClaimTransition, ObservationOutcome, outcome_for_scrape,
     reconcile_resource_claims,
 };
-use crate::model::{BlockRef, DocNode, GraphOptions, build_indexed_blocks};
+use crate::model::{BlockRef, DocNode, GraphOptions, build_indexed_blocks_checked};
 use crate::provenance::{ProvenanceEdge, build_provenance};
 use crate::temporal::TemporalSemantics;
 use crate::version::{VersionEdge, VersionRecord, link_version_pair};
@@ -71,7 +72,19 @@ impl StreamingGraphBuilder {
         }
     }
 
-    fn push_node_bounded(&mut self, node: DocNode, resource_key: &str) {
+    fn note_doc_truncation(&mut self, doc_reasons: &mut Vec<String>, reason: &'static str) {
+        self.mark_truncated(reason);
+        if !doc_reasons.iter().any(|r| r == reason) {
+            doc_reasons.push(reason.to_owned());
+        }
+    }
+
+    fn push_node_bounded(
+        &mut self,
+        node: DocNode,
+        resource_key: &str,
+        doc_reasons: &mut Vec<String>,
+    ) {
         let crawled_cap = self.options.limits.max_nodes.saturating_mul(2); // [策略] 已抓取键追踪集合按节点预算两倍设上限
         if self.crawled_resources.len() < crawled_cap
             || self.crawled_resources.contains(resource_key)
@@ -81,11 +94,15 @@ impl StreamingGraphBuilder {
         if self.nodes.len() < self.options.limits.max_nodes {
             self.nodes.push(node);
         } else {
-            self.mark_truncated("max_nodes");
+            self.note_doc_truncation(doc_reasons, "max_nodes");
         }
     }
 
-    fn push_citations_bounded(&mut self, citations: &[CitationEdge]) {
+    fn push_citations_bounded(
+        &mut self,
+        citations: &[CitationEdge],
+        doc_reasons: &mut Vec<String>,
+    ) {
         if !self.options.citations || citations.is_empty() {
             return;
         }
@@ -95,32 +112,33 @@ impl StreamingGraphBuilder {
             .max_citations
             .saturating_sub(self.citations.len());
         if citations.len() > avail {
-            self.mark_truncated("max_citations");
+            self.note_doc_truncation(doc_reasons, "max_citations");
         }
         self.citations.extend(citations.iter().take(avail).cloned());
     }
 
-    fn push_provenance_edge(&mut self, edge: ProvenanceEdge) {
+    fn push_provenance_edge(&mut self, edge: ProvenanceEdge) -> Option<&'static str> {
         if !self.options.provenance {
-            return;
+            return None;
         }
         let hash = provenance_hash(&edge);
         if self.provenance_hashes.contains(&hash) && self.provenance.contains(&edge) {
-            return;
+            return None;
         }
         if self.provenance.len() >= self.options.limits.max_provenance_edges {
             self.mark_truncated("max_provenance_edges");
-            return;
+            return Some("max_provenance_edges");
         }
         self.provenance_hashes.insert(hash);
         self.provenance.push(edge);
+        None
     }
 
-    fn push_version_bounded(&mut self, edge: VersionEdge) {
+    fn push_version_bounded(&mut self, edge: VersionEdge, doc_reasons: &mut Vec<String>) {
         if self.versions.len() < self.options.limits.max_versions {
             self.versions.push(edge);
         } else {
-            self.mark_truncated("max_versions");
+            self.note_doc_truncation(doc_reasons, "max_versions");
         }
     }
 
@@ -133,21 +151,21 @@ impl StreamingGraphBuilder {
         }
     }
 
-    fn push_claim_bounded(&mut self, claim: &ClaimRecord) -> bool {
+    fn push_claim_bounded(&mut self, claim: &ClaimRecord, doc_reasons: &mut Vec<String>) -> bool {
         let bucket = (claim.subject_key.clone(), claim.normalized_field.clone());
         if !self.claim_bucket_counts.contains_key(&bucket)
             && self.claim_bucket_counts.len() >= self.options.limits.max_claim_buckets
         {
-            self.mark_truncated("max_claim_buckets");
+            self.note_doc_truncation(doc_reasons, "max_claim_buckets");
             return false;
         }
         if self.claims.len() >= self.options.limits.max_claims {
-            self.mark_truncated("max_claims");
+            self.note_doc_truncation(doc_reasons, "max_claims");
             return false;
         }
         let cnt = self.claim_bucket_counts.entry(bucket).or_insert(0);
         if *cnt >= self.options.limits.max_claims_per_bucket {
-            self.mark_truncated("max_claims_per_bucket");
+            self.note_doc_truncation(doc_reasons, "max_claims_per_bucket");
             return false;
         }
         *cnt += 1;
@@ -200,12 +218,13 @@ impl StreamingGraphBuilder {
             title: input.title.clone(),
         };
 
+        let mut doc_reasons = Vec::new();
         let need_alignment = self.options.evidence || self.options.facts || self.options.conflicts;
         let need_blocks = self.options.blocks
             || need_alignment
             || (self.options.citations && input.links.is_empty() && !input.markdown.is_empty());
-        let indexed_blocks = if need_blocks {
-            build_indexed_blocks(
+        let (indexed_blocks, blocks_truncated) = if need_blocks {
+            build_indexed_blocks_checked(
                 &doc_id,
                 &input.markdown,
                 &input.chunk_spans,
@@ -213,16 +232,19 @@ impl StreamingGraphBuilder {
                 self.options.limits.max_excerpt_chars,
             )
         } else {
-            Vec::new()
+            (Vec::new(), false)
         };
+        if blocks_truncated {
+            self.note_doc_truncation(&mut doc_reasons, "max_blocks_per_doc");
+        }
         let blocks: Vec<BlockRef> = indexed_blocks.iter().map(|b| b.meta.clone()).collect();
 
-        let citations = if self.options.citations {
+        let (citations, citations_truncated) = if self.options.citations {
             let mut raw_links = input.links.clone();
             if raw_links.is_empty() && !input.markdown.is_empty() {
                 raw_links = extract_markdown_links(&input.markdown, Some(&final_url), &blocks);
             }
-            aggregate_citations(
+            aggregate_citations_checked(
                 &doc_id,
                 &final_url,
                 &resource_key,
@@ -231,8 +253,11 @@ impl StreamingGraphBuilder {
                 self.options.limits.max_anchor_samples,
             )
         } else {
-            Vec::new()
+            (Vec::new(), false)
         };
+        if citations_truncated {
+            self.note_doc_truncation(&mut doc_reasons, "max_edges_per_doc");
+        }
         let provenance = if self.options.provenance {
             build_provenance(&node, &input)
         } else {
@@ -271,7 +296,7 @@ impl StreamingGraphBuilder {
         };
 
         let all_traces = collect_all_traces(&final_url, &input);
-        let subject_key = resolve_subject_key(
+        let (subject_key, trace_subjects) = resolve_entity_subject_keys(
             &self.options.subject_keys,
             &input.structured_json_ld,
             &all_traces,
@@ -287,9 +312,13 @@ impl StreamingGraphBuilder {
 
         let mut page_claims = Vec::new();
         if self.options.facts || self.options.conflicts {
-            for (trace, span) in all_traces.iter().zip(aligned_evidence.iter()) {
+            for ((trace, trace_subject), span) in all_traces
+                .iter()
+                .zip(trace_subjects.iter())
+                .zip(aligned_evidence.iter())
+            {
                 let mut claim = ClaimRecord::from_trace(
-                    &subject_key.key,
+                    &trace_subject.key,
                     &resource_key,
                     &doc_id,
                     &final_url,
@@ -309,11 +338,16 @@ impl StreamingGraphBuilder {
                 if claim_temporal.has_rich_metadata() {
                     claim.temporal = Some(claim_temporal);
                 }
-                if self.push_claim_bounded(&claim) {
+                if self.push_claim_bounded(&claim, &mut doc_reasons) {
                     page_claims.push(claim);
                 }
             }
         }
+        let page_conflicts = if self.options.conflicts && !page_claims.is_empty() {
+            detect_conflicts_with_lineage(&page_claims, &BTreeMap::new(), &[])
+        } else {
+            Vec::new()
+        };
         let claim_transitions = self.reconcile_page_claim_lifecycles(
             &resource_key,
             input.status_code,
@@ -332,15 +366,20 @@ impl StreamingGraphBuilder {
         };
         self.total_blocks += kept_blocks.len();
         self.total_evidence += evidence.len();
-        self.push_node_bounded(node.clone(), &resource_key);
-        self.push_citations_bounded(&citations);
+        self.push_node_bounded(node.clone(), &resource_key, &mut doc_reasons);
+        self.push_citations_bounded(&citations, &mut doc_reasons);
         for edge in &provenance {
-            self.push_provenance_edge(edge.clone());
+            if let Some(reason) = self.push_provenance_edge(edge.clone())
+                && !doc_reasons.iter().any(|r| r == reason)
+            {
+                doc_reasons.push(reason.to_owned());
+            }
         }
         if let Some(ref v) = version {
-            self.push_version_bounded(v.clone());
+            self.push_version_bounded(v.clone(), &mut doc_reasons);
         }
 
+        let truncated = !doc_reasons.is_empty();
         PageGraphDelta {
             node,
             subject_key,
@@ -353,6 +392,9 @@ impl StreamingGraphBuilder {
             evidence,
             claims: page_claims,
             claim_transitions,
+            conflicts: page_conflicts,
+            truncated,
+            truncation_reasons: doc_reasons,
         }
     }
 
@@ -391,6 +433,15 @@ impl StreamingGraphBuilder {
     /// Ingest an already-constructed [`PageGraphDelta`] into the crawl/job summary without re-parsing text.
     pub fn ingest_delta(&mut self, mut delta: PageGraphDelta) -> PageGraphDelta {
         let resource_key = delta.node.resource_key.clone();
+        let mut doc_reasons = std::mem::take(&mut delta.truncation_reasons);
+        if delta.truncated {
+            self.truncated = true;
+            for r in &doc_reasons {
+                if !self.truncation_reasons.iter().any(|x| x == r) {
+                    self.truncation_reasons.push(r.clone());
+                }
+            }
+        }
         if !self.options.blocks {
             delta.blocks.clear();
         }
@@ -405,10 +456,14 @@ impl StreamingGraphBuilder {
         }
         self.total_blocks += delta.blocks.len();
         self.total_evidence += delta.evidence.len();
-        self.push_node_bounded(delta.node.clone(), &resource_key);
-        self.push_citations_bounded(&delta.citations);
+        self.push_node_bounded(delta.node.clone(), &resource_key, &mut doc_reasons);
+        self.push_citations_bounded(&delta.citations, &mut doc_reasons);
         for edge in &delta.provenance {
-            self.push_provenance_edge(edge.clone());
+            if let Some(reason) = self.push_provenance_edge(edge.clone())
+                && !doc_reasons.iter().any(|r| r == reason)
+            {
+                doc_reasons.push(reason.to_owned());
+            }
         }
 
         let mut version = if self.options.versions && !delta.version_rejected {
@@ -440,7 +495,7 @@ impl StreamingGraphBuilder {
                 version = Some(link_version_pair(prev, &curr_record, None, Vec::new()));
             }
             if let Some(ref v) = version {
-                self.push_version_bounded(v.clone());
+                self.push_version_bounded(v.clone(), &mut doc_reasons);
             }
             self.record_latest_version(resource_key.clone(), curr_record);
         }
@@ -448,7 +503,7 @@ impl StreamingGraphBuilder {
         if self.options.facts || self.options.conflicts {
             let mut kept_claims = Vec::with_capacity(delta.claims.len());
             for claim in &delta.claims {
-                if self.push_claim_bounded(claim) {
+                if self.push_claim_bounded(claim, &mut doc_reasons) {
                     kept_claims.push(claim.clone());
                 }
             }
@@ -469,7 +524,18 @@ impl StreamingGraphBuilder {
             delta.claims.clear();
             delta.claim_transitions.clear();
         }
-        PageGraphDelta { version, ..delta }
+        if !self.options.conflicts {
+            delta.conflicts.clear();
+        } else if delta.conflicts.is_empty() && !delta.claims.is_empty() {
+            delta.conflicts = detect_conflicts_with_lineage(&delta.claims, &BTreeMap::new(), &[]);
+        }
+        let truncated = delta.truncated || !doc_reasons.is_empty();
+        PageGraphDelta {
+            version,
+            truncated,
+            truncation_reasons: doc_reasons,
+            ..delta
+        }
     }
 
     /// Record additional provenance edges without duplicating document nodes or claims.

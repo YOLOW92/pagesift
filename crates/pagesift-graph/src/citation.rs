@@ -236,8 +236,29 @@ pub fn aggregate_citations(
     max_edges_per_doc: usize,
     max_samples: usize,
 ) -> Vec<CitationEdge> {
+    aggregate_citations_checked(
+        from_doc_id,
+        from_url,
+        from_resource_key,
+        observations,
+        max_edges_per_doc,
+        max_samples,
+    )
+    .0
+}
+
+/// Variant of [`aggregate_citations`] that also reports whether distinct edges exceeded `max_edges_per_doc`.
+pub fn aggregate_citations_checked(
+    from_doc_id: &str,
+    from_url: &str,
+    from_resource_key: &str,
+    observations: &[RawLinkObservation],
+    max_edges_per_doc: usize,
+    max_samples: usize,
+) -> (Vec<CitationEdge>, bool) {
     let mut edges: Vec<CitationEdge> = Vec::new();
     let mut index: HashMap<(String, LinkRole), usize> = HashMap::new();
+    let mut truncated = false;
 
     for obs in observations {
         let norm_target = normalize_url(&obs.target_url);
@@ -268,6 +289,7 @@ pub fn aggregate_citations(
             continue;
         }
         if edges.len() >= max_edges_per_doc {
+            truncated = true;
             continue;
         }
         index.insert(key, edges.len());
@@ -286,7 +308,7 @@ pub fn aggregate_citations(
             crawled: false,
         });
     }
-    edges
+    (edges, truncated)
 }
 
 #[cfg(test)]

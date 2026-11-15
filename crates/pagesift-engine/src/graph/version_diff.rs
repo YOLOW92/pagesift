@@ -177,6 +177,7 @@ fn remap_graph_fields_doc_id(
     citations: &mut [pagesift_graph::CitationEdge],
     evidence: &mut [pagesift_graph::EvidenceSpan],
     claims: &mut [pagesift_graph::ClaimRecord],
+    conflicts: &mut Vec<pagesift_graph::ConflictRecord>,
     provenance: &mut [pagesift_graph::ProvenanceEdge],
     version: &mut Option<VersionEdge>,
     new_doc_id: String,
@@ -210,7 +211,14 @@ fn remap_graph_fields_doc_id(
             *bid = format!("{new_doc_id}#{suffix}");
         }
     }
-    for claim in claims {
+    if !conflicts.is_empty() {
+        *conflicts = pagesift_graph::detect_conflicts_with_lineage(
+            claims,
+            &std::collections::BTreeMap::new(),
+            &[],
+        );
+    }
+    for claim in &mut *claims {
         claim.doc_id = new_doc_id.clone();
         claim.observed_at_ms = observed_at_ms;
         if let Some(t) = claim.temporal.as_mut() {
@@ -222,6 +230,13 @@ fn remap_graph_fields_doc_id(
         {
             *bid = format!("{new_doc_id}#{suffix}");
         }
+    }
+    if !conflicts.is_empty() {
+        *conflicts = pagesift_graph::detect_conflicts_with_lineage(
+            claims,
+            &std::collections::BTreeMap::new(),
+            &[],
+        );
     }
     for edge in provenance {
         match edge {
@@ -282,6 +297,7 @@ pub(super) fn remap_delta_doc_id(
         &mut delta.citations,
         &mut delta.evidence,
         &mut delta.claims,
+        &mut delta.conflicts,
         &mut delta.provenance,
         &mut delta.version,
         new_doc_id,
@@ -313,6 +329,7 @@ pub(super) fn remap_slice_doc_id(
         &mut slice.citations,
         &mut slice.evidence,
         &mut slice.claims,
+        &mut slice.conflicts,
         &mut slice.provenance,
         &mut slice.version,
         new_doc_id,

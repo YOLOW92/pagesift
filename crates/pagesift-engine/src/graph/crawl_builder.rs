@@ -112,7 +112,7 @@ impl CrawlGraphCollector {
                         redirect_kind: pagesift_graph::RedirectKind::HttpPermanent,
                         ..
                     } => {
-                        if pagesift_graph::host_of(from_url) != pagesift_graph::host_of(to_url) {
+                        if !pagesift_graph::same_origin(from_url, to_url) {
                             continue;
                         }
                         let from_k = DocNode::derive_resource_key(None, from_url);
@@ -121,20 +121,9 @@ impl CrawlGraphCollector {
                             let _ = gs.bind_alias(&from_k, &to_k);
                         }
                     }
-                    ProvenanceEdge::CanonicalizesTo {
-                        source_url: from_url,
-                        canonical_url: to_url,
-                        cross_host,
-                        ..
-                    } => {
-                        if *cross_host {
-                            continue;
-                        }
-                        let from_k = DocNode::derive_resource_key(None, from_url);
-                        let to_k = DocNode::derive_resource_key(None, to_url);
-                        if from_k != to_k {
-                            let _ = gs.bind_alias(&from_k, &to_k);
-                        }
+                    ProvenanceEdge::CanonicalizesTo { .. } => {
+                        // Uncorroborated <link rel="canonical"> / Link header declarations
+                        // must not hijack resource aliases in GraphStore (E1).
                     }
                     ProvenanceEdge::Redirect { .. }
                     | ProvenanceEdge::DuplicateOf { .. }

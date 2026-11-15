@@ -296,6 +296,7 @@ where
 {
     let (sender, conn) = http1::Builder::new()
         .read_buf_exact_size(Some(READ_BUF))
+        .max_headers(2048)
         .handshake(io)
         .await
         .map_err(|e| network(&e))?;

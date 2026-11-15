@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::delta::DocumentInput;
-use crate::hash::{host_of, normalize_resource_key, normalize_url};
+use crate::hash::{normalize_resource_key, normalize_url};
 use crate::model::{DocNode, SourceKind};
 
 /// How one URL transitioned to another during fetch or browser navigation.
@@ -105,7 +105,7 @@ pub fn canonical_edge(
     if src == can || can.is_empty() {
         return None;
     }
-    let cross_host = host_of(&src) != host_of(&can);
+    let cross_host = !crate::hash::same_origin(&src, &can);
     Some(ProvenanceEdge::CanonicalizesTo {
         source_url: src,
         canonical_url: can,
