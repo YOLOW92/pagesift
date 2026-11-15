@@ -63,6 +63,14 @@ pub(super) fn permanent_redirect_target_from_provenance(
     found_perm_for_requested.then(|| final_url.to_string())
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(super) struct HttpAttemptMeta {
+    pub http_ok: bool,
+    pub not_modified_304: bool,
+    pub sufficient: bool,
+    pub has_embedded_json: bool,
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn reconcile_candidate_success(
     spec: &DataSourceSpec,
@@ -70,7 +78,7 @@ pub(super) fn reconcile_candidate_success(
     doc: &Document,
     staged: Option<StagedGraphCommit>,
     strategy_used: AcquisitionStrategy,
-    http_assessment: Option<&CaptureAssessment>,
+    http_meta: Option<HttpAttemptMeta>,
     final_assessment: &CaptureAssessment,
     browser_gain_obs: Option<bool>,
     step_cost_ms: f64,
@@ -164,24 +172,33 @@ pub(super) fn reconcile_candidate_success(
         sync_learner_into_experience(learner, experience, &cand.record.url, md_str, obs_time_ms);
     }
 
+    let encountered_barrier = if is_barrier {
+        Some(true)
+    } else if status_code < 400 {
+        Some(false)
+    } else {
+        None
+    };
+
     experience.record_observation(
         &fam_name,
         &FamilyObservation {
             observed_at_ms: obs_time_ms,
-            http_sufficient: (http_ok && strategy_used != AcquisitionStrategy::DirectBrowser)
-                .then(|| http_assessment.is_some_and(|a| a.sufficient)),
+            http_sufficient: http_meta
+                .filter(|m| m.http_ok && !m.not_modified_304)
+                .map(|m| m.sufficient),
             browser_gain: browser_gain_obs,
             conditional_hit: (strategy_used == AcquisitionStrategy::ConditionalHttp && http_ok)
                 .then_some(not_modified_304 && capture_sufficient),
-            embedded_json_observed: (http_ok
-                && strategy_used != AcquisitionStrategy::DirectBrowser)
-                .then_some(has_embedded),
+            embedded_json_observed: http_meta
+                .filter(|m| m.http_ok && !m.not_modified_304)
+                .map(|m| m.has_embedded_json),
             substantive_change: (http_ok && capture_sufficient && prev_doc_id.is_some())
                 .then(|| dt_secs.map(|dt| (dt, substantive_changed)))
                 .flatten(),
-            yielded_claims_or_links: (http_ok && capture_sufficient)
+            yielded_claims_or_links: (http_ok && capture_sufficient && !not_modified_304)
                 .then_some(claim_count > 0 || has_links),
-            encountered_barrier: is_barrier,
+            encountered_barrier,
             cost_ms: step_cost_ms,
         },
     );

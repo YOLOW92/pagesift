@@ -33,6 +33,7 @@ pub fn run_opts_forced() -> SyncRunOptions {
 pub fn sample_spec(id: &str, seed_url: String) -> DataSourceSpec {
     DataSourceSpec {
         id: id.to_string(),
+        instance_id: String::new(),
         name: Some(format!("Source {id}")),
         seeds: vec![seed_url],
         include_paths: Vec::new(),

@@ -281,7 +281,7 @@ async fn t18_adapt_strategy_embedded_json_and_order_invariance() {
                 embedded_json_observed: None,
                 substantive_change: None,
                 yielded_claims_or_links: Some(false),
-                encountered_barrier: true,
+                encountered_barrier: Some(true),
                 cost_ms: 120.0,
             },
         );
@@ -412,7 +412,7 @@ fn t20_scaling_inventory_performance_and_checkpoint_bounds() {
         max_wall_clock_ms: 30_000,
         target_items: None,
     };
-    ss.upsert_source(spec.clone()).unwrap();
+    let stored = ss.upsert_source(spec.clone()).unwrap();
 
     let now_ms = 500_000;
     let mut inv = Vec::with_capacity(10_000);
@@ -438,6 +438,7 @@ fn t20_scaling_inventory_performance_and_checkpoint_bounds() {
         let ts = now_ms + step * 100;
         let mut delta = SyncDelta {
             source_id: "s-t20-scale".to_string(),
+            instance_id: stored.instance_id.clone(),
             tick_id: format!("tick-{step:03}"),
             tick_seq: step,
             started_at_ms: ts - 50,
@@ -457,6 +458,7 @@ fn t20_scaling_inventory_performance_and_checkpoint_bounds() {
         let subjects = BTreeSet::new();
         ss.commit_tick_atomic(TickCommitRequest {
             source_id: "s-t20-scale",
+            expected_instance_id: &stored.instance_id,
             expected_spec_revision: 1,
             spec_revision_used: 1,
             inventory: &mut inv,

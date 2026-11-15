@@ -2,6 +2,10 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## 1.5.2
+
+Transaction, temporal, scheduling, and adaptive-observation correctness release on the `1.5.x` line: introduces `TxPut`/`TxDel`/`TxCommit` BLAKE3-verified `AtomicTx` crash atomicity and `ENOSPC`/sync rollback in `pagesift-store` (preserving `1.5.0`/`1.5.1` read compatibility), persistent `sgen:<source_id>` + `instanceId` anti-ABA validation across source deletes/recreates and tick commits, structured `ErrorCode` censoring of transport/browser/budget errors in `FamilyExperienceTable` and `BudgetExhausted` deferral handling, lossless claim lifecycle timelines with `historyUnavailable` propagation across GraphStore/HTTP/CLI/MCP/bindings, panic-safe tombstone intervals and overflow-safe `TickBudgetLedger` bounds, `NotCreatedYet`/`HistoryUnavailable` distinction in `load_spec_as_of`/`build_state_view` without live-inventory fallback, and safe-integer `f64` `asOf` support in Node.js bindings. [Release notes](releases/1.5.2.md).
+
 ## 1.5.1
 
 Stability, correctness, and resource-lifecycle patch release for `1.5.x`: releases `pagesift-store` directory handles synchronously in Node.js `Scraper.close()` (fixing Windows `ENOTEMPTY` teardown errors), hardens strict temporal parsing, billing-period normalization, same-evidence independence clustering, whole-token/field-context evidence alignment, claim contract-ID inheritance across `reconcile_claims`, immutable interval-start claim timelines and `PREFIX_PROV` provenance timestamps, bounded-timeline `HistoryUnavailable` reporting, `AtomicTx` single-transaction sync-tick commits with CAS spec revisions, evicted monitor snapshot rejection, exact-origin scope/redirect gating, per-field capture sufficiency guards, validator-reset and 404/503 recovery rules, pauseable `TickBudgetLedger` caps, non-polluting `FamilyExperienceTable` updates, and uniform `maxRequests`/seed validation across HTTP `/v2/sources`, CLI, and MCP. [Release notes](releases/1.5.1.md).

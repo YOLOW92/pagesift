@@ -3,7 +3,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use pagesift_api::{ApiError, ErrorCode};
-use pagesift_net::Url;
 use pagesift_plan::experience::FamilyExperienceTable;
 use pagesift_plan::strategy::{AcquisitionStrategy, CaptureGoal};
 use pagesift_store::{
@@ -15,15 +14,13 @@ use crate::engine::Scraper;
 use crate::graph::now_ms;
 use crate::graph::stage::with_graph_stage;
 
-use super::budget::TickBudgetLedger;
+use super::budget::{TickBudgetLedger, is_budget_exhausted_step, unwrap_tick_step};
 use super::capture::{
-    assess_document_capture, build_seeded_learner, is_barrier_doc, maybe_falsify_rewritten_rules,
-    should_adopt_browser_escalation,
+    assess_document_capture, build_seeded_learner, has_embedded_json_signal, is_barrier_doc,
+    maybe_falsify_rewritten_rules, prepare_rewritten_fetch_url, should_adopt_browser_escalation,
 };
-use super::inventory::{
-    ensure_seeds_in_inventory, normalize_in_scope_url, prune_out_of_scope_inventory,
-};
-use super::reconcile::{reconcile_candidate_failure, reconcile_candidate_success};
+use super::inventory::{ensure_seeds_in_inventory, prune_out_of_scope_inventory};
+use super::reconcile::{HttpAttemptMeta, reconcile_candidate_failure, reconcile_candidate_success};
 use super::scheduler::select_tick_candidates;
 
 /// 触发一次同步周期的运行选项。
@@ -112,7 +109,13 @@ impl Scraper {
         ensure_seeds_in_inventory(&spec, &mut inventory, started_at_ms);
 
         let experience = FamilyExperienceTable::new();
-        if let Ok(Some(exp_bytes)) = sync_store.get_experience_bytes(source_id) {
+        if let Some(exp_bytes) = sync_store.get_experience_bytes(source_id).map_err(|e| {
+            ApiError::new(
+                ErrorCode::Internal,
+                format!("failed to load experience: {e}"),
+            )
+        })? && !exp_bytes.is_empty()
+        {
             let _ = experience.decode_merge_json(&exp_bytes);
         }
         let mut learner = build_seeded_learner(&inventory, &experience);
@@ -141,6 +144,18 @@ impl Scraper {
         };
 
         loop {
+            let live_spec = sync_store.get_source(source_id).map_err(|e| {
+                ApiError::new(
+                    ErrorCode::Internal,
+                    format!("failed to verify source '{source_id}': {e}"),
+                )
+            })?;
+            if !live_spec.is_some_and(|s| s.instance_id == spec.instance_id) {
+                return Err(ApiError::new(
+                    ErrorCode::NotFound,
+                    format!("data source '{source_id}' was deleted during sync tick"),
+                ));
+            }
             if ledger.is_expired() || ledger.requests_used >= ledger.max_requests {
                 break;
             }
@@ -227,37 +242,19 @@ impl Scraper {
                 let cand = &cand;
 
                 let rec_key = cand.record.resource_key.clone();
-                if let Ok(prev_claims) = graph_store.get_resource_claims(&rec_key) {
-                    for c in prev_claims {
-                        active_subjects.insert(c.claim.subject_key);
-                    }
+                let prev_claims = graph_store.get_resource_claims(&rec_key).map_err(|e| {
+                    ApiError::new(ErrorCode::Internal, format!("load resource claims: {e}"))
+                })?;
+                for c in prev_claims {
+                    active_subjects.insert(c.claim.subject_key);
                 }
                 let prev_state = inventory.get(&rec_key).map(|r| r.state);
                 let prev_doc_id = inventory
                     .get(&rec_key)
                     .and_then(|r| r.latest_doc_id.clone());
 
-                let mut fetch_url = cand.record.url.clone();
-                let mut applied_rules = Vec::new();
-                if let Ok(mut parsed_u) = Url::parse(&fetch_url) {
-                    applied_rules = experience.rewrite_url(&mut parsed_u);
-                    if !applied_rules.is_empty() {
-                        let cand_rewritten = parsed_u.to_string();
-                        if normalize_in_scope_url(&spec, &cand_rewritten).is_some() {
-                            fetch_url = cand_rewritten;
-                        } else {
-                            // URL 重写越出 Scope 时立即废止改写，保留合法原 URL（C21）
-                            if let Ok(orig_u) = Url::parse(&cand.record.url)
-                                && let Some(h) = orig_u.host_str()
-                            {
-                                for r in &applied_rules {
-                                    experience.falsify_url_rule(h, r, now_ms());
-                                }
-                            }
-                            applied_rules.clear();
-                        }
-                    }
-                }
+                let (mut fetch_url, applied_rules) =
+                    prepare_rewritten_fetch_url(&spec, &experience, &cand.record.url, now_ms());
 
                 let mut scrape_opts = build_scrape_options_for_strategy(
                     &spec,
@@ -270,11 +267,20 @@ impl Scraper {
                 scrape_opts.timeout = Some(ledger.remaining_ms().max(1));
 
                 let step_start = Instant::now();
-                let (mut scrape_res, mut staged_map) =
-                    with_graph_stage(ledger.run_bounded(self.scrape(&fetch_url, &scrape_opts)))
-                        .await;
+                let (mut step_res, mut staged_map) = with_graph_stage(
+                    ledger.run_tick_bounded(self.scrape(&fetch_url, &scrape_opts)),
+                )
+                .await;
 
-                // URL 重写命中 4xx/5xx/拦截或内容背离时，受预算约束撤销规则并回退原 URL（C09 / R04）
+                if is_budget_exhausted_step(&ledger, &step_res) {
+                    budget_exhausted = true;
+                    visited_keys.remove(&rec_key);
+                    stats.attempted_total = stats.attempted_total.saturating_sub(1);
+                    break;
+                }
+
+                // 仅确认改写目标明确 404/410 或 canonical/内容背离时才撤销规则；预算/超时/网络失败绝不误伤（R04 / P1-03）
+                let mut scrape_res = unwrap_tick_step(step_res);
                 if maybe_falsify_rewritten_rules(
                     &mut learner,
                     &experience,
@@ -286,11 +292,18 @@ impl Scraper {
                 ) {
                     if ledger.try_reserve(executed_strategy == AcquisitionStrategy::DirectBrowser) {
                         scrape_opts.timeout = Some(ledger.remaining_ms().max(1));
-                        let (retry_res, retry_staged) = with_graph_stage(
-                            ledger.run_bounded(self.scrape(&cand.record.url, &scrape_opts)),
+                        let (retry_step, retry_staged) = with_graph_stage(
+                            ledger.run_tick_bounded(self.scrape(&cand.record.url, &scrape_opts)),
                         )
                         .await;
-                        scrape_res = retry_res;
+                        if is_budget_exhausted_step(&ledger, &retry_step) {
+                            budget_exhausted = true;
+                            visited_keys.remove(&rec_key);
+                            stats.attempted_total = stats.attempted_total.saturating_sub(1);
+                            break;
+                        }
+                        step_res = retry_step;
+                        scrape_res = unwrap_tick_step(step_res);
                         staged_map = retry_staged;
                         fetch_url = cand.record.url.clone();
                     } else {
@@ -298,58 +311,72 @@ impl Scraper {
                     }
                 }
 
-                let mut http_assessment = None;
+                let mut http_meta = None;
                 let mut browser_gain_obs = None;
-                let mut browser_attempted = executed_strategy == AcquisitionStrategy::DirectBrowser;
 
                 if executed_strategy != AcquisitionStrategy::DirectBrowser
                     && let Ok(ref http_doc) = scrape_res
                 {
                     let h_assess =
                         assess_document_capture(&spec, &cand.record, http_doc, &capture_goal);
+                    let h_is_304 = http_doc
+                        .metadata
+                        .pagesift
+                        .as_ref()
+                        .is_some_and(|p| p.not_modified);
+                    let h_ok = !is_barrier_doc(http_doc) && http_doc.metadata.status_code < 400;
+                    http_meta = Some(HttpAttemptMeta {
+                        http_ok: h_ok,
+                        not_modified_304: h_is_304,
+                        sufficient: h_assess.sufficient,
+                        has_embedded_json: has_embedded_json_signal(http_doc),
+                    });
                     let should_try_browser = spec.allow_browser
-                        && !is_barrier_doc(http_doc)
-                        && http_doc.metadata.status_code < 400
+                        && h_ok
                         && (!h_assess.sufficient || h_assess.needs_browser_escalation);
                     if should_try_browser {
                         if ledger.try_reserve(true) {
-                            browser_attempted = true;
                             let mut b_opts = scrape_opts.clone();
                             b_opts.engine = Some("browser".to_string());
                             b_opts.if_none_match = None;
                             b_opts.if_modified_since = None;
                             b_opts.timeout = Some(ledger.remaining_ms().max(1));
-                            let (b_res, mut b_staged) = with_graph_stage(
-                                ledger.run_bounded(self.scrape(&fetch_url, &b_opts)),
+                            let (b_step, mut b_staged) = with_graph_stage(
+                                ledger.run_tick_bounded(self.scrape(&fetch_url, &b_opts)),
                             )
                             .await;
-                            match b_res {
-                                Ok(b_doc) => {
-                                    let b_assess = assess_document_capture(
-                                        &spec,
-                                        &cand.record,
-                                        &b_doc,
-                                        &capture_goal,
-                                    );
-                                    let (adopt, gained) = should_adopt_browser_escalation(
-                                        http_doc, &h_assess, &b_doc, &b_assess,
-                                    );
-                                    browser_gain_obs = Some(gained);
-                                    if adopt {
-                                        executed_strategy = AcquisitionStrategy::HttpVerifyBrowser;
-                                        scrape_res = Ok(b_doc);
-                                        staged_map.extend(b_staged.drain());
+                            if is_budget_exhausted_step(&ledger, &b_step) {
+                                budget_exhausted = true;
+                                browser_gain_obs = None;
+                            } else {
+                                match b_step {
+                                    Ok(b_doc) => {
+                                        let b_assess = assess_document_capture(
+                                            &spec,
+                                            &cand.record,
+                                            &b_doc,
+                                            &capture_goal,
+                                        );
+                                        let (adopt, gained_obs) = should_adopt_browser_escalation(
+                                            http_doc, &h_assess, &b_doc, &b_assess,
+                                        );
+                                        browser_gain_obs = if h_is_304 { None } else { gained_obs };
+                                        if adopt {
+                                            executed_strategy =
+                                                AcquisitionStrategy::HttpVerifyBrowser;
+                                            scrape_res = Ok(b_doc);
+                                            staged_map.extend(b_staged.drain());
+                                        }
                                     }
-                                }
-                                Err(_) => {
-                                    browser_gain_obs = Some(false);
+                                    Err(_) => {
+                                        browser_gain_obs = None;
+                                    }
                                 }
                             }
                         } else {
                             budget_exhausted = true;
                         }
                     }
-                    http_assessment = Some(h_assess);
                 }
 
                 let step_cost_ms = step_start.elapsed().as_millis() as f64;
@@ -380,7 +407,7 @@ impl Scraper {
                             &doc,
                             staged,
                             executed_strategy,
-                            http_assessment.as_ref(),
+                            http_meta,
                             &final_assessment,
                             browser_gain_obs,
                             step_cost_ms,
@@ -404,10 +431,9 @@ impl Scraper {
                             &spec,
                             cand,
                             executed_strategy,
-                            browser_attempted,
                             step_cost_ms,
                             obs_time_ms,
-                            &e.message,
+                            &e,
                             &mut inventory,
                             &experience,
                             &graph_store,
@@ -416,10 +442,15 @@ impl Scraper {
                         )?;
                     }
                 }
+                if budget_exhausted || ledger.is_expired() {
+                    budget_exhausted = true;
+                    break;
+                }
             }
             if early_stopped_reasons
                 .last()
                 .is_some_and(|r| r.contains("targetItems="))
+                || budget_exhausted
                 || ledger.is_expired()
             {
                 break;

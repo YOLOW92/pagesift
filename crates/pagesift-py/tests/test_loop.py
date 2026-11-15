@@ -26,6 +26,16 @@ def test_sync_lifecycle_and_graph_queries(server, tmp_path):
         )
         assert created["success"] is True
         assert created["source"]["id"] == "py-site"
+        assert isinstance(created["source"]["instanceId"], str)
+        assert created["source"]["instanceId"]
+
+        pre_create_state = s.sync(
+            action="state",
+            id="py-site",
+            as_of=created["source"]["createdAtMs"] - 1,
+        )
+        assert pre_create_state["state"]["historyStatus"] == "not_created_yet"
+        assert pre_create_state["state"].get("spec") is None
 
         listed = s.sync({"action": "list"})
         assert listed["total"] == 1
@@ -33,11 +43,13 @@ def test_sync_lifecycle_and_graph_queries(server, tmp_path):
         tick = s.sync(action="run", id="py-site", max_requests=3)
         assert tick["success"] is True
         assert tick["delta"]["sourceId"] == "py-site"
+        assert tick["delta"]["instanceId"] == created["source"]["instanceId"]
         assert tick["delta"]["stats"]["requestsExecuted"] >= 1
 
         state = s.sync(action="state", id="py-site")
         assert state["success"] is True
         assert state["state"]["spec"]["id"] == "py-site"
+        assert state["state"]["spec"]["instanceId"] == created["source"]["instanceId"]
 
         deltas = s.sync(action="deltas", id="py-site", limit=5)
         assert deltas["success"] is True
@@ -50,6 +62,7 @@ def test_sync_lifecycle_and_graph_queries(server, tmp_path):
         claims = s.query_graph({"claims": True, "url": f"{server}/site/"})
         assert claims["success"] is True
         assert isinstance(claims["total"], int)
+        assert claims.get("historyUnavailable", False) is False
         assert isinstance(claims.get("claims", []), list)
 
         deleted = s.sync(action="delete", id="py-site")
@@ -58,6 +71,19 @@ def test_sync_lifecycle_and_graph_queries(server, tmp_path):
         with pytest.raises(pagesift.PagesiftError) as exc:
             s.sync(action="get", id="py-site")
         assert exc.value.code == "NOT_FOUND"
+
+        recreated = s.sync(
+            action="create",
+            source_id="py-site",
+            seeds=[f"{server}/site/"],
+            max_depth=1,
+            max_requests_per_tick=5,
+            allow_browser=False,
+        )
+        assert recreated["success"] is True
+        assert recreated["source"]["instanceId"] != created["source"]["instanceId"]
+        recreated_deltas = s.sync(action="deltas", id="py-site", limit=5)
+        assert recreated_deltas["total"] == 0
 
 
 def test_async_sync_and_aquery_graph(server, tmp_path):

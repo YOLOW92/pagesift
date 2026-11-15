@@ -35,7 +35,7 @@ impl State {
         let rec = record::decode(&raw).ok_or_else(|| {
             Error::Corrupt(format!("checksum mismatch at {}:{}", loc.seg, loc.off))
         })?;
-        if rec.ns != ns || rec.key != key {
+        if rec.ns != ns || rec.key != key || !rec.op.is_put() {
             return Ok(None);
         }
         let ts = rec.ts_ms;

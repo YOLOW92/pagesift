@@ -1,6 +1,6 @@
 # pagesift (Node.js)
 
-1.5.1: see the [release notes](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.5.1.md) (Windows `Scraper.close()` store-lock release and Sync/Adapt/Evidence hardening, building on [1.5.0](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.5.0.md), [1.4.2](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.4.2.md) and [1.4.0 DataGraph](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.4.0.md)).
+1.5.2: see the [release notes](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.5.2.md) (crash-atomic `AtomicTx` commits, `instanceId` ABA protection, censored adaptive learning, point-in-time claim/state isolation, and scheduler bounds hardening, building on [1.5.1](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.5.1.md), [1.5.0](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.5.0.md), [1.4.2](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.4.2.md) and [1.4.0 DataGraph](https://github.com/YOLOW92/pagesift/blob/main/docs/releases/1.4.0.md)).
 
 The npm package `pagesift`: pagesift's Rust engine for Node.js, built with [napi-rs](https://napi.rs).
 Prebuilt binaries, so you don't need a Rust toolchain or a headless-browser download.

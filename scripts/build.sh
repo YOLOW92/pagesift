@@ -10,7 +10,13 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 LOCKS=${BENCH_LOCK_DIR:-tasks/0.80}
-jobs=$(scripts/jobs.sh)
+if [[ " $* " =~ (^|[[:space:]\'\"])(--release|--profile(=|[[:space:]])release)([[:space:]\'\"]|$) ]]; then
+    # [profile.release] 启用了 lto = "fat"，单链接进程峰值内存高，严格限制并发防 OOM
+    jobs=$(scripts/jobs.sh 2800 2560)
+else
+    # --profile quick / release-fast / clippy 无 fat LTO，可安全提高并发
+    jobs=$(scripts/jobs.sh 1200 2048)
+fi
 # 磁盘余量不到 10 GiB 时先删增量编译缓存（随时可重建）：增量缓存每次改动留一份旧的，cargo 不清理，
 # 几十次编译后能涨到十几 GB，曾把 100 GB 的分区写满、编译中途失败
 free_kib=$(df --output=avail -k "${CARGO_TARGET_DIR:-target}" 2>/dev/null | tail -1 || echo 0)

@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.5.1
+# pagesift 1.5.2
 
 **AI エージェントのための Web・文書レイヤー：URL、文書、メール、圧縮ファイル、ソースコードを入力すると、クリーンな Markdown、構造化 JSON、または DataGraph 関係グラフを出力します。**  
 セルフホストできる単一の Rust バイナリ：CLI、Firecrawl・Jina Reader API、MCP サーバー、Python・Node.js・Go・Java・C#・Ruby・PHP などのパッケージ。
@@ -43,7 +43,7 @@ pagesift は、考えるソフトウェアのために Web と文書を読みま
 - **ランタイム：** HTTP、PDF、Office にはインストール不要。オプション：JavaScript ページ用のブラウザ、OCR 用の NVIDIA GPU、`/v2/agent` 用の自分のモデル
 - **メモリ：** ブラウザなしの 1.4 の各ベンチマークでワーカーあたりピーク 17–395 MB。数式モデルを使う OCR には約 1.7 GB が必要です。容量は cgroup の上限から決まります
 - **ライセンス：** Apache-2.0、または[商用サポート](COMMERCIAL.md)
-- **最新版：** 1.5.1 · [リリースノート](releases/1.5.1.md)
+- **最新版：** 1.5.2 · [リリースノート](releases/1.5.2.md)
 
 <!-- section: install -->
 ## インストールと使い方
@@ -53,7 +53,7 @@ pagesift は、考えるソフトウェアのために Web と文書を読みま
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| サーバー | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.5.1` | `curl localhost:3002/r/https://example.com` |
+| サーバー | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.5.2` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -99,7 +99,7 @@ const items = await scraper.scrapeMany(['https://example.com', 'https://example.
 **HTTP サーバー**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.5.1
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.5.2
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'                        # Firecrawl API
@@ -340,11 +340,11 @@ flowchart LR
 [商用ライセンス・サポート](COMMERCIAL.md)を確認するか、`licensing@pagesift.dev` までご連絡ください。
 
 <!-- section: changelog -->
-## 1.5.1 の新機能
+## 1.5.2 の新機能
 
-PageSift 1.5.1 は 1.5 系の安定性・正確性パッチリリースです。Node.js `Scraper.close()` による `pagesift-store` ハンドルの即時解放（Windows の `ENOTEMPTY` 解消）に加え、厳格な日時解析・請求周期の正規化と矛盾検出・クレーム契約 ID の継承と履歴区間保持・`AtomicTx` による単一トランザクション原子コミットとリビジョン CAS・厳密な同一オリジン範囲とリダイレクト検証・フィールド単位の抽出十分性とバリデータ更新ルール・Tick 予算上限制御・`/v2/sources`／CLI／MCP 間の検証統一を実装しました。
+PageSift 1.5.2 は 1.5 系のトランザクション・時系列・スケジューリング・観測整合性を修正するパッチリリースです：`pagesift-store` での BLAKE3 検証付き `TxPut`/`TxDel`/`TxCommit` によるクラッシュ原子性と同期/`ENOSPC` ロールバック、永続化 `sgen` + `instanceId` によるソース削除再作成 ABA 防止、構造化 `ErrorCode` に基づく通信・ブラウザ・予算エラーのセンサリング、`ClaimTimelineEntry` の非損失履歴化と `historyUnavailable` 伝播、大きな `minIntervalSecs` での tombstone 計算パニックと予算オーバーフローの解消、`load_spec_as_of`/`build_state_view` における `NotCreatedYet`/`HistoryUnavailable` の厳密分離および全件インベントリ疑似復元の廃止、Node.js バインディングでの安全な浮動小数点整数 `asOf` 対応を実装しました。
 
-[リリースノート](releases/1.5.1.md) · [1.5.0](releases/1.5.0.md) · [1.4.2](releases/1.4.2.md) · [すべてのリリース](releases/) · [CHANGELOG](CHANGELOG.md)
+[リリースノート](releases/1.5.2.md) · [1.5.1](releases/1.5.1.md) · [1.5.0](releases/1.5.0.md) · [1.4.2](releases/1.4.2.md) · [すべてのリリース](releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -360,7 +360,7 @@ PageSift 1.5.1 は 1.5 系の安定性・正確性パッチリリースです。
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.5.1}
+  note   = {Version 1.5.2}
 }
 ```
 

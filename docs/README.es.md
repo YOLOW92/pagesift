@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.5.1
+# pagesift 1.5.2
 
 **La capa de web y documentos para agentes de IA: entra cualquier URL, documento, correo, archivo comprimido o código fuente y salen Markdown limpio, JSON estructurado o relaciones DataGraph.**  
 Un único binario en Rust, autoalojado, con CLI, API de Firecrawl y de Jina Reader, servidor MCP y paquetes para Python, Node.js, Go, Java, C#, Ruby, PHP y más.
@@ -43,7 +43,7 @@ Puede sustituir o acompañar a: **Firecrawl** (la misma API v1/v2, autoalojada),
 - **Entorno de ejecución:** nada que instalar para HTTP, PDF y Office. Opcional: un navegador para páginas con JavaScript, una GPU NVIDIA para OCR, tu propio modelo para `/v2/agent`
 - **Memoria:** pico de 17–395 MB por trabajador en las pruebas de 1.4 sin navegador; el OCR con modelos de fórmulas necesita unos 1.7 GB; la capacidad se dimensiona a partir del límite del cgroup
 - **Licencia:** Apache-2.0, o [soporte comercial](COMMERCIAL.md)
-- **Última versión:** 1.5.1 · [notas de la versión](releases/1.5.1.md)
+- **Última versión:** 1.5.2 · [notas de la versión](releases/1.5.2.md)
 
 <!-- section: install -->
 ## Instalación y uso
@@ -53,7 +53,7 @@ Puede sustituir o acompañar a: **Firecrawl** (la misma API v1/v2, autoalojada),
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| Servidor | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.5.1` | `curl localhost:3002/r/https://example.com` |
+| Servidor | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.5.2` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -99,7 +99,7 @@ const items = await scraper.scrapeMany(['https://example.com', 'https://example.
 **Servidor HTTP**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.5.1
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.5.2
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'                        # API de Firecrawl
@@ -340,11 +340,11 @@ flowchart LR
 [licencia y soporte comercial](COMMERCIAL.md) o escribe a `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
-## Novedades de 1.5.1
+## Novedades de 1.5.2
 
-PageSift 1.5.1 es una versión de corrección y estabilidad de la rama 1.5: libera de forma explícita los controladores de `pagesift-store` en `Scraper.close()` de Node.js (solucionando el error `ENOTEMPTY` en Windows) y refuerza el análisis temporal estricto, la normalización de periodos de facturación, la herencia de `contractId` e intervalos históricos en reclamaciones, el commit atómico mediante `AtomicTx` con CAS de revisión, la validación exacta de origen y redirecciones, los umbrales de suficiencia y validadores HTTP, los límites de presupuesto y la paridad de validación en `/v2/sources`, CLI y MCP.
+PageSift 1.5.2 corrige problemas clave de atomicidad transaccional, consistencia temporal, planificación y observación adaptativa en la rama 1.5: añade registros `TxPut`/`TxDel`/`TxCommit` con verificación BLAKE3 y reversión ante fallos de sincronización o `ENOSPC` en `pagesift-store`, protección anti-ABA mediante generaciones `sgen` + `instanceId` en fuentes eliminadas y recreadas, censurado estructurado por `ErrorCode` para fallos de transporte/navegador/presupuesto en `FamilyExperienceTable`, líneas temporales de reclamaciones sin pérdidas con propagación de `historyUnavailable`, límites numéricos seguros para intervalos tombstone y presupuestos, aislamiento `NotCreatedYet`/`HistoryUnavailable` en `load_spec_as_of` y `build_state_view` sin respaldo de inventario actual, y soporte de marcas temporales `asOf` en enteros seguros desde Node.js.
 
-[Notas de la versión](releases/1.5.1.md) · [1.5.0](releases/1.5.0.md) · [1.4.2](releases/1.4.2.md) · [todas las versiones](releases/) · [CHANGELOG](CHANGELOG.md)
+[Notas de la versión](releases/1.5.2.md) · [1.5.1](releases/1.5.1.md) · [1.5.0](releases/1.5.0.md) · [1.4.2](releases/1.4.2.md) · [todas las versiones](releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -360,7 +360,7 @@ Preguntas o comentarios: [Discord](https://discord.gg/esA3wMZVvA) · [Issues](ht
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.5.1}
+  note   = {Version 1.5.2}
 }
 ```
 

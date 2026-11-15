@@ -1,44 +1,61 @@
 //! Candidate failure reconciliation and storage staging helpers for sync ticks.
 
+use pagesift_api::{ApiError, ErrorCode};
 use pagesift_graph::VersionRecord;
 use pagesift_store::{VersionBundleRequest, VersionCommitRequest};
 
 use super::super::inventory::new_discovered_record;
 use super::*;
 
+fn is_site_barrier_code(code: ErrorCode) -> bool {
+    matches!(
+        code,
+        ErrorCode::AccessBarrier
+            | ErrorCode::RobotsDisallowed
+            | ErrorCode::RateLimited
+            | ErrorCode::HostCooldown
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(in crate::sync) fn reconcile_candidate_failure(
     spec: &DataSourceSpec,
     cand: &ScheduledCandidate,
     strategy_used: AcquisitionStrategy,
-    browser_attempted: bool,
     step_cost_ms: f64,
     obs_time_ms: u64,
-    error_msg: &str,
+    error: &ApiError,
     inventory: &mut BTreeMap<String, ResourceRecord>,
     experience: &FamilyExperienceTable,
     graph_store: &GraphStore<'_>,
     prepared_bundles: &mut Vec<PreparedVersionBundle>,
     stats: &mut SyncTickStats,
 ) -> Result<(), ApiError> {
-    stats.transient_failures += 1;
+    let is_barrier = is_site_barrier_code(error.code);
+    if is_barrier {
+        stats.access_restricted_count += 1;
+    } else {
+        stats.transient_failures += 1;
+    }
     let fam_name = family(&cand.record.url);
-    let is_barrier = error_msg.to_ascii_lowercase().contains("barrier");
-    experience.record_observation(
-        &fam_name,
-        &FamilyObservation {
-            observed_at_ms: obs_time_ms,
-            http_sufficient: (strategy_used != AcquisitionStrategy::DirectBrowser && !is_barrier)
-                .then_some(false),
-            browser_gain: browser_attempted.then_some(false),
-            conditional_hit: None,
-            embedded_json_observed: None,
-            substantive_change: None, // Censored on error (C16)
-            yielded_claims_or_links: None,
-            encountered_barrier: is_barrier,
-            cost_ms: step_cost_ms,
-        },
-    );
+    // 失败请求未获取有效内容：http_sufficient 与 browser_gain 必须保持 censored (None)；
+    // 仅结构化访问受限错误（AccessBarrier/RobotsDisallowed/RateLimited/HostCooldown）更新 barrier_rate（P1-03）。
+    if is_barrier {
+        experience.record_observation(
+            &fam_name,
+            &FamilyObservation {
+                observed_at_ms: obs_time_ms,
+                http_sufficient: None,
+                browser_gain: None,
+                conditional_hit: None,
+                embedded_json_observed: None,
+                substantive_change: None, // Censored on error (C16)
+                yielded_claims_or_links: None,
+                encountered_barrier: Some(true),
+                cost_ms: step_cost_ms,
+            },
+        );
+    }
 
     let fam_stats = experience.get_family(&fam_name);
     let contract_id = spec.contract_id();
@@ -75,7 +92,7 @@ pub(in crate::sync) fn reconcile_candidate_failure(
     }
 
     let obs_outcome = ObservationOutcome::TransientFetchError {
-        error: error_msg.to_string(),
+        error: error.message.clone(),
     };
     stage_bundle_for_candidate(
         graph_store,
@@ -206,4 +223,236 @@ pub(super) fn insert_discovered_resource(
             now_ms,
         )
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pagesift_plan::strategy::{AdaptDecision, CaptureAssessment};
+    use pagesift_store::{
+        FreshnessPolicy, ResourceLifecycleState, ResourceRole, Store, SyncBudget,
+    };
+
+    fn test_spec() -> DataSourceSpec {
+        DataSourceSpec {
+            id: "s-stage".to_string(),
+            instance_id: String::new(),
+            name: None,
+            seeds: vec!["https://example.com/docs/".to_string()],
+            include_paths: Vec::new(),
+            exclude_paths: Vec::new(),
+            max_depth: 2,
+            allow_subdomains: false,
+            freshness: FreshnessPolicy::default(),
+            budget: SyncBudget::default(),
+            extract_schema: None,
+            extract_prompt: None,
+            required_fields: Vec::new(),
+            allow_browser: true,
+            revision: 1,
+            created_at_ms: 1000,
+            updated_at_ms: 1000,
+        }
+    }
+
+    fn test_cand(url: &str) -> ScheduledCandidate {
+        let key = DocNode::derive_resource_key(None, url);
+        ScheduledCandidate {
+            record: ResourceRecord {
+                resource_key: key,
+                url: url.to_string(),
+                canonical_url: None,
+                migrated_to: None,
+                parent_url: None,
+                depth: 1,
+                role: ResourceRole::Detail,
+                state: ResourceLifecycleState::Active,
+                discovered_at_ms: 1000,
+                last_checked_at_ms: Some(1500),
+                last_substantive_change_at_ms: Some(1500),
+                next_due_at_ms: 2000,
+                etag: Some("\"v1\"".to_string()),
+                last_modified: None,
+                content_hash: None,
+                latest_doc_id: Some("doc-prev".to_string()),
+                last_status_code: Some(200),
+                consecutive_failures: 0,
+                consecutive_404s: 0,
+                importance_weight: 1.0,
+                last_strategy: None,
+                title: None,
+                claim_count: 1,
+                last_validator_contract_id: None,
+                last_authoritative_status: Some(200),
+                baseline_sufficient: true,
+                has_embedded_json: false,
+                text_signature: None,
+                confirmed_gone_at_ms: None,
+            },
+            decision: AdaptDecision {
+                family: family(url),
+                strategy: AcquisitionStrategy::LightweightHttp,
+                priority_score: 1.0,
+                expected_cost_ms: 50.0,
+                reasons: Vec::new(),
+            },
+        }
+    }
+
+    #[test]
+    fn p1_03_failure_censors_stats_for_transport_and_browser_errors() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open_dir(dir.path()).unwrap();
+        let gs = store.graph();
+        let spec = test_spec();
+        let cand = test_cand("https://example.com/docs/a");
+        let fam_name = family(&cand.record.url);
+
+        for (code, strat, msg) in [
+            (
+                ErrorCode::DnsFailure,
+                AcquisitionStrategy::LightweightHttp,
+                "dns lookup failed (contains word barrier cleanly ignored)",
+            ),
+            (
+                ErrorCode::Timeout,
+                AcquisitionStrategy::DirectBrowser,
+                "browser render timeout",
+            ),
+            (
+                ErrorCode::Busy,
+                AcquisitionStrategy::DirectBrowser,
+                "no idle browser",
+            ),
+        ] {
+            let mut inv = BTreeMap::from([(cand.record.resource_key.clone(), cand.record.clone())]);
+            let exp = FamilyExperienceTable::new();
+            let mut bundles = Vec::new();
+            let mut stats = SyncTickStats::default();
+            reconcile_candidate_failure(
+                &spec,
+                &cand,
+                strat,
+                9_999.0,
+                3000,
+                &ApiError::new(code, msg),
+                &mut inv,
+                &exp,
+                &gs,
+                &mut bundles,
+                &mut stats,
+            )
+            .unwrap();
+            assert_eq!(stats.transient_failures, 1);
+            assert_eq!(stats.access_restricted_count, 0);
+            assert!(
+                exp.get_family(&fam_name).is_none(),
+                "error {code:?} must not pollute family stats"
+            );
+        }
+
+        // Real AccessBarrier increments barrier_rate ONLY while leaving http_sufficient / browser_gain untouched.
+        let mut inv = BTreeMap::from([(cand.record.resource_key.clone(), cand.record.clone())]);
+        let exp = FamilyExperienceTable::new();
+        let mut bundles = Vec::new();
+        let mut stats = SyncTickStats::default();
+        reconcile_candidate_failure(
+            &spec,
+            &cand,
+            AcquisitionStrategy::DirectBrowser,
+            250.0,
+            3000,
+            &ApiError::new(ErrorCode::AccessBarrier, "cloudflare challenge"),
+            &mut inv,
+            &exp,
+            &gs,
+            &mut bundles,
+            &mut stats,
+        )
+        .unwrap();
+        assert_eq!(stats.access_restricted_count, 1);
+        assert_eq!(stats.transient_failures, 0);
+        let st = exp.get_family(&fam_name).unwrap();
+        assert_eq!(st.http_sufficient.trials(), 0.0);
+        assert_eq!(st.browser_gain.trials(), 0.0);
+        assert_eq!(st.barrier_rate.trials(), 1.0);
+        assert!(st.barrier_rate.mean() > 0.5);
+    }
+
+    #[test]
+    fn p1_03_capture_rewrite_and_browser_escalation_censoring() {
+        let cand = test_cand("https://example.com/docs/a?utm_source=x");
+        let exp = FamilyExperienceTable::new();
+        let mut learner = crate::frontier::Learner::default();
+        let rules = vec![pagesift_plan::experience::RuleKind::DropParam {
+            name: "utm_source".to_string(),
+        }];
+
+        // Network/timeout/5xx/429 must NOT falsify learned URL rewrite rules.
+        for code in [
+            ErrorCode::Timeout,
+            ErrorCode::NetworkError,
+            ErrorCode::AccessBarrier,
+            ErrorCode::RateLimited,
+        ] {
+            let err = ApiError::new(code, "transient");
+            assert!(!crate::sync::capture::maybe_falsify_rewritten_rules(
+                &mut learner,
+                &exp,
+                &cand.record.url,
+                &rules,
+                Err(&err),
+                &cand.record,
+                5000,
+            ));
+        }
+
+        // 503 or 429 Ok(doc) must NOT falsify rules either, while 404 DOES.
+        let mut doc503 = Document::default();
+        doc503.metadata.status_code = 503;
+        assert!(!crate::sync::capture::maybe_falsify_rewritten_rules(
+            &mut learner,
+            &exp,
+            &cand.record.url,
+            &rules,
+            Ok(&doc503),
+            &cand.record,
+            5000,
+        ));
+        let mut doc404 = Document::default();
+        doc404.metadata.status_code = 404;
+        assert!(crate::sync::capture::maybe_falsify_rewritten_rules(
+            &mut learner,
+            &exp,
+            &cand.record.url,
+            &rules,
+            Ok(&doc404),
+            &cand.record,
+            5000,
+        ));
+
+        // Browser escalation hitting 429/503 returns (false, None) so browser_gain isn't poisoned.
+        let http_doc = Document {
+            markdown: Some("thin shell".to_string()),
+            ..Default::default()
+        };
+        let mut b_doc = Document::default();
+        b_doc.metadata.status_code = 429;
+        let assess_bad = CaptureAssessment {
+            sufficient: false,
+            needs_browser_escalation: true,
+            confidence: 0.0,
+            missing_fields: Vec::new(),
+            ungrounded_fields: Vec::new(),
+            reasons: Vec::new(),
+        };
+        let (adopt, gain) = crate::sync::capture::should_adopt_browser_escalation(
+            &http_doc,
+            &assess_bad,
+            &b_doc,
+            &assess_bad,
+        );
+        assert!(!adopt);
+        assert_eq!(gain, None);
+    }
 }

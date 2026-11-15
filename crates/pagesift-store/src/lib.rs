@@ -31,6 +31,8 @@ pub mod sync;
 mod tasks;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tx_crash_tests;
 pub mod warc;
 
 use std::fmt;
@@ -52,9 +54,9 @@ pub use snapshot::{ContentHash, SnapshotMeta, SnapshotPut, Snapshots};
 pub use sync::{
     DataSourceSpec, FreshnessPolicy, MAX_CHECKPOINTS_PER_SOURCE, MAX_DELTAS_PER_SOURCE,
     MAX_REQUESTS_PER_TICK_CAP, ResourceChangeEntry, ResourceLifecycleState, ResourceRecord,
-    ResourceRole, SourceMeta, SourceSpecRevision, SourceStateCheckpoint, SourceStateView,
-    SpecCasOutcome, SyncBudget, SyncDelta, SyncStore, SyncTickStats, TickCommitOutcome,
-    TickCommitRequest, now_store_ms,
+    ResourceRole, SourceHistoryStatus, SourceMeta, SourceSpecRevision, SourceStateCheckpoint,
+    SourceStateView, SpecCasOutcome, SyncBudget, SyncDelta, SyncStore, SyncTickStats,
+    TickCommitOutcome, TickCommitRequest, now_store_ms,
 };
 pub use tasks::Tasks;
 pub use warc::{

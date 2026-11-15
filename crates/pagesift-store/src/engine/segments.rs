@@ -196,20 +196,39 @@ impl Store {
             let drop_tombs = st.segs.range(..id).all(|(_, s)| s.dead_puts() == 0);
             (s.file.clone(), s.total, drop_tombs)
         };
-        record::scan(&file, len, |off, raw, rec| -> Result<()> {
-            let mut w = self.writer();
+        record::scan(&file, len, |rec| -> Result<()> {
             match rec.op {
-                Op::Put => {
-                    if self.state_r().is_at(rec.ns, rec.key, id, off) {
-                        let (seg, noff) = self.append(&mut w, raw, false)?;
+                Op::Put | Op::TxPut => {
+                    if self.state_r().is_at(rec.ns, rec.key, id, rec.off) {
+                        let mut raw = vec![0; rec.len as usize];
+                        read_exact_at(&file, &mut raw, u64::from(rec.off))?;
+                        let out_raw = if rec.op == Op::Put {
+                            raw
+                        } else {
+                            let decoded = record::decode(&raw).ok_or_else(|| {
+                                Error::Corrupt(format!("checksum mismatch at {}:{}", id, rec.off))
+                            })?;
+                            record::encode(rec.ns, Op::Put, rec.ts_ms, rec.key, decoded.value)
+                        };
+                        let mut w = self.writer();
+                        let (seg, noff) = self.append(&mut w, &out_raw, false)?;
                         self.state_w().relocate(rec.ns, rec.key, seg, noff);
                     }
                 }
-                Op::Del => {
+                Op::Del | Op::TxDel => {
                     if !drop_tombs && self.state_r().find(rec.ns, rec.key)?.is_none() {
-                        self.append(&mut w, raw, true)?;
+                        let out_raw = if rec.op == Op::Del {
+                            let mut raw = vec![0; rec.len as usize];
+                            read_exact_at(&file, &mut raw, u64::from(rec.off))?;
+                            raw
+                        } else {
+                            record::encode(rec.ns, Op::Del, rec.ts_ms, rec.key, &[])
+                        };
+                        let mut w = self.writer();
+                        self.append(&mut w, &out_raw, true)?;
                     }
                 }
+                Op::TxCommit => {}
             }
             Ok(())
         })?;

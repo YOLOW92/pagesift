@@ -153,9 +153,15 @@ pub async fn graph_conflicts(
     let offset = q.offset.unwrap_or(0);
     let as_of_ms = parse_as_of_ms(q.as_of.as_deref())?;
     let tenant = caller_graph_tenant(caller.as_ref().map(|Extension(c)| c), &headers);
-    let (total, conflicts, truncated) = s
+    let (total, conflicts, truncated, history_unavailable) = s
         .jobs
-        .graph_conflicts_as_of_for(Some(&tenant), subject.as_deref(), as_of_ms, limit, offset)
+        .graph_conflicts_as_of_checked_for(
+            Some(&tenant),
+            subject.as_deref(),
+            as_of_ms,
+            limit,
+            offset,
+        )
         .await?;
     Ok(Json(GraphConflictsResponse {
         success: true,
@@ -163,6 +169,7 @@ pub async fn graph_conflicts(
         total,
         conflicts,
         truncated,
+        history_unavailable,
     }))
 }
 
@@ -200,9 +207,9 @@ pub async fn graph_claims(
     let offset = q.offset.unwrap_or(0);
     let as_of_ms = parse_as_of_ms(q.as_of.as_deref())?;
     let tenant = caller_graph_tenant(caller.as_ref().map(|Extension(c)| c), &headers);
-    let (total, claims, truncated) = s
+    let (total, claims, truncated, history_unavailable) = s
         .jobs
-        .graph_claims_for(
+        .graph_claims_checked_for(
             Some(&tenant),
             target.as_deref(),
             subject.as_deref(),
@@ -219,5 +226,6 @@ pub async fn graph_claims(
         total,
         claims,
         truncated,
+        history_unavailable,
     }))
 }

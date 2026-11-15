@@ -4,6 +4,10 @@ mod store;
 
 pub use store::{SyncStore, TickCommitRequest};
 
+fn default_history_status_complete() -> SourceHistoryStatus {
+    SourceHistoryStatus::Complete
+}
+
 use std::collections::BTreeMap;
 
 use pagesift_graph::{ClaimLifecycleRecord, ClaimTransition, ConflictRecord};
@@ -101,6 +105,8 @@ impl Default for SyncBudget {
 #[serde(rename_all = "camelCase")]
 pub struct DataSourceSpec {
     pub id: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub instance_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     pub seeds: Vec<String>,
@@ -328,6 +334,8 @@ pub struct SyncTickStats {
 #[serde(rename_all = "camelCase")]
 pub struct SyncDelta {
     pub source_id: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub instance_id: String,
     pub tick_id: String,
     #[serde(default)]
     pub tick_seq: u64,
@@ -358,6 +366,8 @@ pub struct SourceSpecRevision {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceStateCheckpoint {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub instance_id: String,
     pub tick_seq: u64,
     pub tick_id: String,
     pub completed_at_ms: u64,
@@ -370,11 +380,22 @@ pub struct SourceStateCheckpoint {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceMeta {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub instance_id: String,
     pub total_ticks: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub first_tick_at_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub earliest_retained_checkpoint_at_ms: Option<u64>,
+}
+
+/// 历史查询的可用性语义分类。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SourceHistoryStatus {
+    Complete,
+    NotCreatedYet,
+    HistoryUnavailable,
 }
 
 /// 数据源规格 CAS 更新结果（R02）。
@@ -397,7 +418,10 @@ pub enum TickCommitOutcome {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceStateView {
-    pub spec: DataSourceSpec,
+    #[serde(default)]
+    pub source_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spec: Option<DataSourceSpec>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub as_of_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -407,6 +431,8 @@ pub struct SourceStateView {
     pub total_ticks: u64,
     #[serde(default)]
     pub retained_ticks: u64,
+    #[serde(default = "default_history_status_complete")]
+    pub history_status: SourceHistoryStatus,
     #[serde(default)]
     pub history_unavailable: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]

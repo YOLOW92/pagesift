@@ -273,10 +273,13 @@ pub(crate) fn run(action: SyncCommand, cfg: pagesift::config::Config) -> Result<
                 println!(
                     "{}",
                     serde_json::to_string_pretty(&serde_json::json!({
-                        "id": view.spec.id,
+                        "id": view.source_id,
+                        "instanceId": view.spec.as_ref().map(|s| s.instance_id.as_str()),
                         "lastTickId": view.last_tick_id,
                         "lastSyncedAtMs": view.last_synced_at_ms,
                         "totalTicks": view.total_ticks,
+                        "historyStatus": view.history_status,
+                        "historyUnavailable": view.history_unavailable,
                         "coverageStatus": view.coverage_status,
                         "inventoryCounts": view.inventory_counts,
                         "activeClaims": view.active_claims.len(),
@@ -286,7 +289,7 @@ pub(crate) fn run(action: SyncCommand, cfg: pagesift::config::Config) -> Result<
             } else {
                 println!(
                     "source={} ticks={} coverage={} active_claims={} conflicts={}",
-                    view.spec.id,
+                    view.source_id,
                     view.total_ticks,
                     view.coverage_status.as_deref().unwrap_or("none"),
                     view.active_claims.len(),
@@ -316,8 +319,10 @@ pub(crate) fn run(action: SyncCommand, cfg: pagesift::config::Config) -> Result<
                 println!("{}", serde_json::to_string_pretty(&view)?);
             } else {
                 println!(
-                    "source={} resources={} active_claims={} conflicts={} coverage={}",
-                    view.spec.id,
+                    "source={} history_status={:?} history_unavailable={} resources={} active_claims={} conflicts={} coverage={}",
+                    view.source_id,
+                    view.history_status,
+                    view.history_unavailable,
                     view.resources.len(),
                     view.active_claims.len(),
                     view.conflicts.len(),
@@ -450,6 +455,18 @@ mod tests {
                     store: Some(store_path.clone()),
                     id: "pricing".into(),
                     as_of: Some("2026-01-01T00:00:00Z".into()),
+                    json: false,
+                },
+                pagesift::config::Config::default(),
+            )
+            .unwrap(),
+            ExitCode::SUCCESS
+        );
+        assert_eq!(
+            run(
+                SyncCommand::Status {
+                    store: Some(store_path.clone()),
+                    id: "pricing".into(),
                     json: true,
                 },
                 pagesift::config::Config::default(),

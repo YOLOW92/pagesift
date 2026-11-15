@@ -2,8 +2,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use pagesift_api::ApiError;
 use pagesift_api::types::Document;
+use pagesift_api::{ApiError, ErrorCode};
 use pagesift_graph::{ClaimRecord, EvidenceAlignment};
 use pagesift_net::Url;
 use pagesift_plan::experience::{FamilyExperienceTable, RuleKind};
@@ -227,14 +227,20 @@ pub fn assess_document_capture(
 }
 
 /// 多维质量向量比较决定是否采用 Browser 升级结果（C07）：绝不让劣质/拦截浏览器壳覆写健康 HTTP。
+/// 返回 `(是否采用, 合法可观测的 browser_gain)`；浏览器失败/4xx/5xx/拦截/304 返回 `(false, None)`，避免污染样本。
 pub fn should_adopt_browser_escalation(
     http_doc: &Document,
     http_assess: &CaptureAssessment,
     browser_doc: &Document,
     browser_assess: &CaptureAssessment,
-) -> (bool, bool) {
-    if browser_doc.metadata.status_code >= 400 || is_barrier_doc(browser_doc) {
-        return (false, false);
+) -> (bool, Option<bool>) {
+    let b_not_mod = browser_doc
+        .metadata
+        .pagesift
+        .as_ref()
+        .is_some_and(|p| p.not_modified);
+    if browser_doc.metadata.status_code >= 400 || is_barrier_doc(browser_doc) || b_not_mod {
+        return (false, None);
     }
     let h_weight = text_weight(http_doc.markdown.as_deref().unwrap_or_default());
     let b_weight = text_weight(browser_doc.markdown.as_deref().unwrap_or_default());
@@ -242,22 +248,22 @@ pub fn should_adopt_browser_escalation(
     let b_claims = browser_doc.graph.as_ref().map_or(0, |g| g.claims.len());
 
     if browser_assess.sufficient && !http_assess.sufficient {
-        return (true, true);
+        return (true, Some(true));
     }
     if http_assess.sufficient && !browser_assess.sufficient {
-        return (false, false);
+        return (false, Some(false));
     }
     if browser_assess.ungrounded_fields.len() < http_assess.ungrounded_fields.len() {
-        return (true, true);
+        return (true, Some(true));
     }
     if b_claims > h_claims {
-        return (true, true);
+        return (true, Some(true));
     }
     let text_improved = (h_weight == 0 && b_weight > 0) || b_weight > h_weight.saturating_add(32);
     if !http_assess.sufficient && text_improved {
-        return (true, true);
+        return (true, Some(true));
     }
-    (text_improved && b_claims >= h_claims, text_improved)
+    (text_improved && b_claims >= h_claims, Some(text_improved))
 }
 
 pub fn frontier_rule_to_plan(rule: &Rule) -> Option<(String, RuleKind)> {
@@ -341,7 +347,8 @@ pub fn sync_learner_into_experience(
     }
 }
 
-/// 检查规则改写抓取是否发生 4xx/5xx 失败或 200 内容/Canonical 背离，并双侧撤销（R04）。
+/// 检查规则改写抓取是否发生 404/410 等确定无效或 200 内容/Canonical 背离，并双侧撤销（R04）。
+/// 传输错误、超时、限流、拦截或 5xx 瞬态失败不得误伤已有 URL 改写规则（P1-03）。
 pub fn maybe_falsify_rewritten_rules(
     learner: &mut Learner,
     experience: &FamilyExperienceTable,
@@ -355,19 +362,31 @@ pub fn maybe_falsify_rewritten_rules(
         return false;
     }
     let bad = match res {
-        Err(_) => true,
+        Err(err) => matches!(err.code, ErrorCode::NotFound | ErrorCode::InvalidRequest),
         Ok(doc) => {
-            doc.metadata.status_code >= 400
-                || is_barrier_doc(doc)
-                || doc.metadata.canonical_url.as_deref().is_some_and(|c| {
+            let status = doc.metadata.status_code;
+            let not_modified_304 = doc
+                .metadata
+                .pagesift
+                .as_ref()
+                .is_some_and(|p| p.not_modified);
+            let client_path_invalid =
+                (400..500).contains(&status) && !matches!(status, 403 | 408 | 429);
+            let canonical_diverged = !is_barrier_doc(doc)
+                && status < 400
+                && doc.metadata.canonical_url.as_deref().is_some_and(|c| {
                     Url::parse(c).ok().and_then(|cu| {
                         Url::parse(original_url)
                             .ok()
                             .map(|ou| cu.path() != ou.path())
                     }) == Some(true)
-                })
-                || (prev_rec.baseline_sufficient
-                    && doc.markdown.as_deref().is_some_and(|m| m.trim().is_empty()))
+                });
+            let collapsed = !is_barrier_doc(doc)
+                && status < 400
+                && !not_modified_304
+                && prev_rec.baseline_sufficient
+                && doc.markdown.as_deref().is_some_and(|m| m.trim().is_empty());
+            client_path_invalid || canonical_diverged || collapsed
         }
     };
     if !bad {
@@ -382,4 +401,34 @@ pub fn maybe_falsify_rewritten_rules(
         }
     }
     true
+}
+
+pub(super) fn prepare_rewritten_fetch_url(
+    spec: &DataSourceSpec,
+    experience: &FamilyExperienceTable,
+    raw_url: &str,
+    now_ms_val: u64,
+) -> (String, Vec<RuleKind>) {
+    let mut fetch_url = raw_url.to_string();
+    let mut applied_rules = Vec::new();
+    if let Ok(mut parsed_u) = Url::parse(&fetch_url) {
+        applied_rules = experience.rewrite_url(&mut parsed_u);
+        if !applied_rules.is_empty() {
+            let cand_rewritten = parsed_u.to_string();
+            if super::inventory::normalize_in_scope_url(spec, &cand_rewritten).is_some() {
+                fetch_url = cand_rewritten;
+            } else {
+                // URL 重写越出 Scope 时立即废止改写，保留合法原 URL（C21）
+                if let Ok(orig_u) = Url::parse(raw_url)
+                    && let Some(h) = orig_u.host_str()
+                {
+                    for r in &applied_rules {
+                        experience.falsify_url_rule(h, r, now_ms_val);
+                    }
+                }
+                applied_rules.clear();
+            }
+        }
+    }
+    (fetch_url, applied_rules)
 }

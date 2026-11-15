@@ -6,9 +6,11 @@ use pagesift_graph::{
     ClaimLifecycleRecord, ConflictRecord, DocNode, GraphOptions, GraphSummary, PageGraphDelta,
     StreamingGraphBuilder, VersionEdge, VersionRecord, normalize_resource_key,
 };
-use pagesift_store::Store;
 
 use super::Jobs;
+use super::graph_queries::{
+    store_graph_claims_checked, store_graph_conflicts_checked, store_graph_history,
+};
 use super::state::JobState;
 use crate::error::{ApiError, ErrorCode};
 
@@ -321,13 +323,33 @@ impl Jobs {
         limit: usize,
         offset: usize,
     ) -> Result<(usize, Vec<ConflictRecord>, bool), ApiError> {
+        let (total, page, has_more, _) = self
+            .graph_conflicts_as_of_checked_for(tenant, subject, as_of_ms, limit, offset)
+            .await?;
+        Ok((total, page, has_more))
+    }
+
+    /// List paginated DataGraph conflicts with optional `as_of_ms` and explicit `history_unavailable`.
+    pub async fn graph_conflicts_as_of_checked_for(
+        &self,
+        tenant: Option<&str>,
+        subject: Option<&str>,
+        as_of_ms: Option<u64>,
+        limit: usize,
+        offset: usize,
+    ) -> Result<(usize, Vec<ConflictRecord>, bool, bool), ApiError> {
         if let Some(store) = &self.inner.store {
-            return store_graph_conflicts(store, tenant, subject, as_of_ms, limit, offset).await;
+            return store_graph_conflicts_checked(store, tenant, subject, as_of_ms, limit, offset)
+                .await;
         }
         let map = self.inner.map.lock().await;
         let mut by_id: BTreeMap<String, ConflictRecord> = BTreeMap::new();
+        let mut history_unavailable = false;
         for job in map.values().filter(|j| j.tenant.as_deref() == tenant) {
             let summary = if let Some(s) = &job.graph_summary {
+                if as_of_ms.is_some() && job.graph_deltas.is_empty() {
+                    history_unavailable = true;
+                }
                 s.clone()
             } else if !job.graph_deltas.is_empty() {
                 summarize_deltas(&job.graph_deltas, &job.graph_options)
@@ -352,7 +374,7 @@ impl Jobs {
         }
         let total = by_id.len();
         if offset >= total || limit == 0 {
-            return Ok((total, Vec::new(), offset < total));
+            return Ok((total, Vec::new(), offset < total, history_unavailable));
         }
         let end = total.min(offset.saturating_add(limit));
         let has_more = end < total;
@@ -361,7 +383,7 @@ impl Jobs {
             .skip(offset)
             .take(end - offset)
             .collect();
-        Ok((total, page, has_more))
+        Ok((total, page, has_more, history_unavailable))
     }
 
     /// List claim lifecycle records for a resource or subject with optional `as_of_ms`.
@@ -374,11 +396,29 @@ impl Jobs {
         limit: usize,
         offset: usize,
     ) -> Result<(usize, Vec<ClaimLifecycleRecord>, bool), ApiError> {
+        let (total, page, has_more, _) = self
+            .graph_claims_checked_for(tenant, url_or_key, subject, as_of_ms, limit, offset)
+            .await?;
+        Ok((total, page, has_more))
+    }
+
+    /// List claim lifecycle records with optional `as_of_ms` and explicit `history_unavailable`.
+    pub async fn graph_claims_checked_for(
+        &self,
+        tenant: Option<&str>,
+        url_or_key: Option<&str>,
+        subject: Option<&str>,
+        as_of_ms: Option<u64>,
+        limit: usize,
+        offset: usize,
+    ) -> Result<(usize, Vec<ClaimLifecycleRecord>, bool, bool), ApiError> {
         if let Some(store) = &self.inner.store {
-            return store_graph_claims(store, tenant, url_or_key, subject, as_of_ms, limit, offset)
-                .await;
+            return store_graph_claims_checked(
+                store, tenant, url_or_key, subject, as_of_ms, limit, offset,
+            )
+            .await;
         }
-        Ok((0, Vec::new(), false))
+        Ok((0, Vec::new(), false, false))
     }
 
     /// List bounded local (unscoped) DataGraph conflicts for embedded/MCP callers.
@@ -396,90 +436,4 @@ impl Jobs {
             .await?;
         Ok(page)
     }
-}
-
-/// Query persistent `GraphStore` version history with optional `as_of_ms`.
-pub async fn store_graph_history(
-    store: &Store,
-    tenant: Option<&str>,
-    url_or_key: &str,
-    as_of_ms: Option<u64>,
-    limit: usize,
-) -> Result<pagesift_store::GraphHistoryResult, ApiError> {
-    let target = url_or_key.to_string();
-    let scope = tenant.map(str::to_string);
-    store
-        .blocking(move |s| {
-            let g = s.graph_for(scope.as_deref());
-            match as_of_ms {
-                Some(cutoff) => g.history_as_of(&target, Some(cutoff), limit),
-                None => g.history_bounded(&target, limit),
-            }
-        })
-        .await
-        .map_err(|e| ApiError::new(ErrorCode::Internal, format!("graph history failed: {e}")))
-}
-
-/// Query persistent `GraphStore` conflicts with optional `subject`, `as_of_ms`, and pagination.
-pub async fn store_graph_conflicts(
-    store: &Store,
-    tenant: Option<&str>,
-    subject: Option<&str>,
-    as_of_ms: Option<u64>,
-    limit: usize,
-    offset: usize,
-) -> Result<(usize, Vec<ConflictRecord>, bool), ApiError> {
-    let subj = subject.map(str::to_string);
-    let scope = tenant.map(str::to_string);
-    let (items, total, has_more) = store
-        .blocking(move |s| {
-            s.graph_for(scope.as_deref()).list_conflicts_as_of(
-                subj.as_deref(),
-                as_of_ms,
-                limit,
-                offset,
-            )
-        })
-        .await
-        .map_err(|e| ApiError::new(ErrorCode::Internal, format!("graph conflicts failed: {e}")))?;
-    Ok((total, items, has_more))
-}
-
-/// Query persistent `GraphStore` claim lifecycle records with optional `url_or_key`, `subject`, `as_of_ms`, and pagination.
-pub async fn store_graph_claims(
-    store: &Store,
-    tenant: Option<&str>,
-    url_or_key: Option<&str>,
-    subject: Option<&str>,
-    as_of_ms: Option<u64>,
-    limit: usize,
-    offset: usize,
-) -> Result<(usize, Vec<ClaimLifecycleRecord>, bool), ApiError> {
-    let target = url_or_key.map(str::to_string);
-    let subj = subject.map(str::to_string);
-    let scope = tenant.map(str::to_string);
-    let (items, total, has_more) = store
-        .blocking(move |s| {
-            let g = s.graph_for(scope.as_deref());
-            if let Some(ref u) = target {
-                let mut claims = g.claims_for_resource_as_of(u, as_of_ms)?;
-                if let Some(ref sk) = subj {
-                    claims.retain(|c| &c.claim.subject_key == sk);
-                }
-                let total = claims.len();
-                let end = total.min(offset.saturating_add(limit));
-                let has_more = end < total;
-                let page = if offset >= total {
-                    Vec::new()
-                } else {
-                    claims.into_iter().skip(offset).take(end - offset).collect()
-                };
-                Ok::<_, pagesift_store::Error>((page, total, has_more))
-            } else {
-                g.list_claims_bounded(subj.as_deref(), as_of_ms, limit, offset)
-            }
-        })
-        .await
-        .map_err(|e| ApiError::new(ErrorCode::Internal, format!("graph claims failed: {e}")))?;
-    Ok((total, items, has_more))
 }

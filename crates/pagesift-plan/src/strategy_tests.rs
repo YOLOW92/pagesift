@@ -29,7 +29,7 @@ fn strategy_escalates_to_direct_browser_when_family_learns_http_insufficient() {
             embedded_json_observed: Some(false),
             substantive_change: None,
             yielded_claims_or_links: Some(true),
-            encountered_barrier: false,
+            encountered_barrier: Some(false),
             cost_ms: 600.0,
         });
     }
@@ -59,7 +59,7 @@ fn strategy_selects_embedded_json_from_learned_family_history() {
             embedded_json_observed: Some(true),
             substantive_change: Some((600.0, false)),
             yielded_claims_or_links: Some(true),
-            encountered_barrier: false,
+            encountered_barrier: Some(false),
             cost_ms: 35.0,
         });
     }
@@ -89,7 +89,7 @@ fn strategy_avoids_permanent_starvation_for_very_stale_high_barrier_family() {
             embedded_json_observed: None,
             substantive_change: None,
             yielded_claims_or_links: None,
-            encountered_barrier: true,
+            encountered_barrier: Some(true),
             cost_ms: 40.0,
         });
     }

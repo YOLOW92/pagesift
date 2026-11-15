@@ -243,19 +243,28 @@ async fn get_source_delta(
     let tenant = caller_graph_tenant(caller.as_ref().map(|Extension(c)| c), &headers);
     let lookup_id = id.clone();
     let lookup_tick = tick.clone();
-    let delta = store
-        .blocking(move |st| {
-            st.sync_for(Some(&tenant))
-                .get_delta(&lookup_id, &lookup_tick)
+    let (exists, delta) = store
+        .blocking(move |st| -> Result<_, pagesift_store::Error> {
+            let sync = st.sync_for(Some(&tenant));
+            if sync.get_source(&lookup_id)?.is_none() {
+                return Ok((false, None));
+            }
+            Ok((true, sync.get_delta(&lookup_id, &lookup_tick)?))
         })
         .await
-        .map_err(|e| ApiError::new(ErrorCode::Internal, format!("get delta failed: {e}")))?
-        .ok_or_else(|| {
-            ApiError::new(
-                ErrorCode::NotFound,
-                format!("delta '{tick}' for source '{id}' not found"),
-            )
-        })?;
+        .map_err(|e| ApiError::new(ErrorCode::Internal, format!("get delta failed: {e}")))?;
+    if !exists {
+        return Err(ApiError::new(
+            ErrorCode::NotFound,
+            format!("data source '{id}' not found"),
+        ));
+    }
+    let delta = delta.ok_or_else(|| {
+        ApiError::new(
+            ErrorCode::NotFound,
+            format!("delta '{tick}' for source '{id}' not found"),
+        )
+    })?;
 
     Ok(Json(SourceDeltaResponse {
         success: true,

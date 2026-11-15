@@ -49,6 +49,9 @@ impl Tx<'_> {
     }
 
     pub fn delete(&mut self, ns: u8, key: &[u8]) -> Result<bool> {
+        if key.len() > MAX_KEY {
+            return Err(Error::KeyTooLarge(key.len()));
+        }
         if !self.store.contains(ns, key)? {
             return Ok(false);
         }

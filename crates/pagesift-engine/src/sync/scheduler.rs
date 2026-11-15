@@ -12,6 +12,26 @@ use pagesift_store::{
     DataSourceSpec, MAX_REQUESTS_PER_TICK_CAP, ResourceLifecycleState, ResourceRecord,
 };
 
+fn sanitize_weight(w: f64) -> f64 {
+    if w.is_finite() {
+        w.clamp(0.2, 5.0)
+    } else {
+        1.0
+    }
+}
+
+fn secs_to_millis_saturated(secs: f64) -> u64 {
+    if !secs.is_finite() || secs <= 0.0 {
+        return 0;
+    }
+    let millis = secs * 1000.0;
+    if !millis.is_finite() || millis >= u64::MAX as f64 {
+        u64::MAX
+    } else {
+        millis as u64
+    }
+}
+
 /// 计算资源下一次应被检查的时间戳（毫秒）；Tombstone 资源在冷静期届满后安排低频复活探针（C20）。
 pub fn compute_next_due_at_ms(
     spec: &DataSourceSpec,
@@ -31,8 +51,10 @@ pub fn compute_next_due_at_ms(
         rec.state,
         ResourceLifecycleState::ConfirmedGone | ResourceLifecycleState::Migrated
     ) {
-        let tombstone_secs = (max_secs * 7.0).clamp(min_secs, 7.0 * 86_400.0);
-        return now_ms.saturating_add((tombstone_secs * 1000.0) as u64);
+        // 用户显式配置的 min_interval_secs 优先级高于 7 天上限，防止 min > 7 天时 clamp panic
+        let tombstone_upper = (7.0_f64 * 86_400.0).max(min_secs);
+        let tombstone_secs = (max_secs * 7.0).clamp(min_secs, tombstone_upper);
+        return now_ms.saturating_add(secs_to_millis_saturated(tombstone_secs));
     }
 
     // 临时故障或疑似失联：按指数退避尽快复核
@@ -45,10 +67,10 @@ pub fn compute_next_due_at_ms(
             .max(rec.consecutive_404s)
             .clamp(1, 6);
         let backoff_secs = (min_secs * (1u64 << (exp - 1)) as f64).clamp(min_secs, max_secs);
-        return now_ms.saturating_add((backoff_secs * 1000.0) as u64);
+        return now_ms.saturating_add(secs_to_millis_saturated(backoff_secs));
     }
 
-    let base_secs = match fam_stats.filter(|s| s.total_observations >= 2) {
+    let raw_base = match fam_stats.filter(|s| s.total_observations >= 2) {
         Some(st) => st.next_check_secs(Delta::DEFAULT.get()),
         None => {
             if substantive_changed {
@@ -58,11 +80,16 @@ pub fn compute_next_due_at_ms(
             }
         }
     };
+    let base_secs = if raw_base.is_finite() {
+        raw_base
+    } else {
+        default_secs
+    };
 
-    let weight = rec.importance_weight.clamp(0.2, 5.0);
+    let weight = sanitize_weight(rec.importance_weight);
     let hub_factor = if rec.role.is_hub_like() { 0.75 } else { 1.0 };
     let scaled_secs = (base_secs * hub_factor / weight.sqrt()).clamp(min_secs, max_secs);
-    now_ms.saturating_add((scaled_secs * 1000.0) as u64)
+    now_ms.saturating_add(secs_to_millis_saturated(scaled_secs))
 }
 
 #[derive(Debug, Clone)]
@@ -129,7 +156,7 @@ pub fn select_tick_candidates(
             has_validators: has_matching_validators,
             has_embedded_json_hint: rec.has_embedded_json,
             is_hub_or_seed: rec.role.is_hub_like(),
-            importance_weight: rec.importance_weight,
+            importance_weight: sanitize_weight(rec.importance_weight),
             staleness_ratio,
             remaining_budget_fraction: order_independent_budget_ratio,
             allow_browser: spec.allow_browser,
@@ -164,4 +191,95 @@ pub fn select_tick_candidates(
     }
 
     (selected, deferred, total_due)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pagesift_store::{FreshnessPolicy, ResourceRole, SyncBudget};
+
+    fn test_spec(min_s: u64, def_s: u64, max_s: u64) -> DataSourceSpec {
+        DataSourceSpec {
+            id: "sched-test".to_string(),
+            instance_id: String::new(),
+            name: None,
+            seeds: vec!["https://example.com/".to_string()],
+            include_paths: Vec::new(),
+            exclude_paths: Vec::new(),
+            max_depth: 2,
+            allow_subdomains: false,
+            freshness: FreshnessPolicy {
+                min_interval_secs: min_s,
+                default_interval_secs: def_s,
+                max_interval_secs: max_s,
+                confirm_gone_after_404s: 2,
+            },
+            budget: SyncBudget::default(),
+            extract_schema: None,
+            extract_prompt: None,
+            required_fields: Vec::new(),
+            allow_browser: true,
+            revision: 1,
+            created_at_ms: 1000,
+            updated_at_ms: 1000,
+        }
+    }
+
+    fn test_rec(state: ResourceLifecycleState, weight: f64) -> ResourceRecord {
+        ResourceRecord {
+            resource_key: "rk".to_string(),
+            url: "https://example.com/p".to_string(),
+            canonical_url: None,
+            migrated_to: None,
+            parent_url: None,
+            depth: 1,
+            role: ResourceRole::Detail,
+            state,
+            discovered_at_ms: 1000,
+            last_checked_at_ms: Some(1000),
+            last_substantive_change_at_ms: None,
+            next_due_at_ms: 1000,
+            etag: None,
+            last_modified: None,
+            content_hash: None,
+            latest_doc_id: None,
+            last_status_code: Some(404),
+            consecutive_failures: 1,
+            consecutive_404s: 2,
+            importance_weight: weight,
+            last_strategy: None,
+            title: None,
+            claim_count: 0,
+            last_validator_contract_id: None,
+            last_authoritative_status: None,
+            baseline_sufficient: false,
+            has_embedded_json: false,
+            text_signature: None,
+            confirmed_gone_at_ms: Some(1000),
+        }
+    }
+
+    #[test]
+    fn p1_05_large_min_interval_tombstone_and_extreme_bounds_never_panic() {
+        // Reproducer from P1-05: min=864000 (> 7 days), default=1296000, max=2592000.
+        let spec = test_spec(864_000, 1_296_000, 2_592_000);
+        for state in [
+            ResourceLifecycleState::ConfirmedGone,
+            ResourceLifecycleState::Migrated,
+        ] {
+            let rec = test_rec(state, 1.0);
+            let due = compute_next_due_at_ms(&spec, &rec, None, 10_000, false);
+            assert_eq!(due, 10_000 + 864_000 * 1000);
+        }
+
+        // Inverted persisted intervals, zero, NaN weight, and u64::MAX boundaries must saturate safely.
+        let huge = test_spec(u64::MAX, 0, u64::MAX);
+        let nan_rec = test_rec(ResourceLifecycleState::Active, f64::NAN);
+        let due_huge = compute_next_due_at_ms(&huge, &nan_rec, None, u64::MAX - 50, false);
+        assert_eq!(due_huge, u64::MAX);
+
+        let zero_spec = test_spec(0, 0, 0);
+        let due_zero = compute_next_due_at_ms(&zero_spec, &nan_rec, None, 5_000, false);
+        assert!(due_zero >= 6_000);
+    }
 }

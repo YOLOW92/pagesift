@@ -171,7 +171,7 @@ pub fn reconcile_resource_claims_for_contract(
             for rec in previous {
                 let mut next = rec.clone();
                 if next.status.is_active_or_unverified() {
-                    push_history(&mut next);
+                    push_history(&mut next, observed_at_ms);
                     next.status = ClaimStatus::Withdrawn {
                         at_ms: observed_at_ms,
                         reason: WithdrawalReason::ResourceConfirmedGone,
@@ -322,7 +322,7 @@ pub fn reconcile_resource_claims_for_contract(
                         ));
                     }
                 } else {
-                    push_history(&mut next);
+                    push_history(&mut next, observed_at_ms);
                     next.claim = claim_scoped.clone();
                     next.last_confirmed_at_ms = observed_at_ms;
                     next.observation_count = next.observation_count.saturating_add(1);
@@ -372,7 +372,7 @@ pub fn reconcile_resource_claims_for_contract(
         }
         let mut next = old_rec.clone();
         if next.status.is_active_or_unverified() {
-            push_history(&mut next);
+            push_history(&mut next, observed_at_ms);
             next.status = ClaimStatus::Withdrawn {
                 at_ms: observed_at_ms,
                 reason: WithdrawalReason::OmittedInVerifiedVersion,

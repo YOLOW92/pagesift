@@ -28,7 +28,11 @@ use crate::types::{CrawlRequest, JobError, ScrapeOptions};
 use crate::webhook::{Event, Hook, Webhooks};
 
 mod graph;
-pub use graph::{store_graph_claims, store_graph_conflicts, store_graph_history};
+mod graph_queries;
+pub use graph_queries::{
+    store_graph_claims, store_graph_claims_checked, store_graph_conflicts,
+    store_graph_conflicts_checked, store_graph_history,
+};
 pub mod mirror;
 mod sink;
 pub mod state;

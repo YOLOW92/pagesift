@@ -128,6 +128,11 @@ pub(crate) struct Inner {
     fail_writes: AtomicBool,
     /// 故障注入：非负时允许成功写入的剩余次数，归零后拒绝后续写入（[`Store::set_fail_after_writes`]）。
     fail_after_writes: AtomicI64,
+    next_tx_id: AtomicU64,
+    #[cfg(test)]
+    fail_sync: AtomicBool,
+    #[cfg(test)]
+    crash_after_tx_bytes: AtomicI64,
     open: OpenReport,
     /// 持有期间其他进程打不开同一个目录；随存储一起释放。
     _lock: File,
@@ -196,6 +201,7 @@ impl Store {
             ..OpenReport::default()
         };
         let mut last_len = 0;
+        let mut max_tx_id = 0u64;
         for &id in &ids {
             let path = seg_path(&cfg.dir, id);
             let file = OpenOptions::new().read(true).write(true).open(&path)?;
@@ -217,14 +223,21 @@ impl Store {
             let file = Arc::new(file);
             st.segs.insert(id, Seg::new(file.clone()));
             st.disk += SEG_HEADER;
-            let end = record::scan(&file, len, |off, raw, rec| -> Result<()> {
+            let end = record::scan(&file, len, |rec| -> Result<()> {
+                if rec.op == Op::TxCommit {
+                    st.account_append(id, u64::from(rec.len), true);
+                    max_tx_id = max_tx_id.max(rec.ts_ms);
+                    return Ok(());
+                }
                 if rec.ns >= 16 {
                     return Err(Error::Corrupt(format!("unknown namespace {}", rec.ns)));
                 }
-                let rlen = raw.len() as u64;
-                st.account_append(id, rlen, rec.op == Op::Del);
-                let new = (rec.op == Op::Put)
-                    .then(|| Loc::new(id, off, rlen as u32, rec.ns, (rec.ts_ms / 1000) as u32));
+                let rlen = u64::from(rec.len);
+                st.account_append(id, rlen, rec.op.is_del());
+                let new = rec
+                    .op
+                    .is_put()
+                    .then(|| Loc::new(id, rec.off, rec.len, rec.ns, (rec.ts_ms / 1000) as u32));
                 st.apply(rec.ns, rec.key, new)?;
                 report.records += 1;
                 Ok(())
@@ -267,6 +280,11 @@ impl Store {
             last_error: Mutex::new(None),
             fail_writes: AtomicBool::new(false),
             fail_after_writes: AtomicI64::new(-1),
+            next_tx_id: AtomicU64::new(max_tx_id.saturating_add(1)),
+            #[cfg(test)]
+            fail_sync: AtomicBool::new(false),
+            #[cfg(test)]
+            crash_after_tx_bytes: AtomicI64::new(-1),
             open: report,
             _lock: lock,
         })))

@@ -210,6 +210,7 @@ pub(super) fn finalize_and_commit_sync_tick(
 
     let mut delta = SyncDelta {
         source_id: source_id.to_string(),
+        instance_id: spec.instance_id.clone(),
         tick_id,
         tick_seq: 0,
         started_at_ms,
@@ -229,6 +230,7 @@ pub(super) fn finalize_and_commit_sync_tick(
     let commit_out = sync_store
         .commit_tick_atomic(TickCommitRequest {
             source_id,
+            expected_instance_id: &spec.instance_id,
             expected_spec_revision,
             spec_revision_used: spec.revision,
             inventory: &mut inv_final,

@@ -7,7 +7,8 @@ use pagesift_api::sources::{
 };
 use pagesift_api::types::{GraphClaimsResponse, GraphConflictsResponse, GraphHistoryResponse};
 use pagesift_api::{
-    ApiError, Engine, ErrorCode, store_graph_claims, store_graph_conflicts, store_graph_history,
+    ApiError, Engine, ErrorCode, store_graph_claims_checked, store_graph_conflicts_checked,
+    store_graph_history,
 };
 use pagesift_engine::Scraper;
 use pagesift_store::{
@@ -167,7 +168,7 @@ pub async fn query_graph(scraper: &Scraper, request: Value) -> Result<Value, Api
         let limit = optional_bound(&args, "limit", 1, DEFAULT_GRAPH_CONFLICTS_LIMIT)?
             .unwrap_or(DEFAULT_GRAPH_CONFLICTS_LIMIT);
         let offset = optional_bound(&args, "offset", 0, usize::MAX)?.unwrap_or(0);
-        let (total, claims, truncated) = store_graph_claims(
+        let (total, claims, truncated, history_unavailable) = store_graph_claims_checked(
             store,
             None,
             history_url.as_deref(),
@@ -185,6 +186,7 @@ pub async fn query_graph(scraper: &Scraper, request: Value) -> Result<Value, Api
             total,
             claims,
             truncated,
+            history_unavailable,
         });
     }
 
@@ -207,14 +209,16 @@ pub async fn query_graph(scraper: &Scraper, request: Value) -> Result<Value, Api
         let limit = optional_bound(&args, "limit", 1, DEFAULT_GRAPH_CONFLICTS_LIMIT)?
             .unwrap_or(DEFAULT_GRAPH_CONFLICTS_LIMIT);
         let offset = optional_bound(&args, "offset", 0, usize::MAX)?.unwrap_or(0);
-        let (total, conflicts, truncated) =
-            store_graph_conflicts(store, None, subject.as_deref(), as_of_ms, limit, offset).await?;
+        let (total, conflicts, truncated, history_unavailable) =
+            store_graph_conflicts_checked(store, None, subject.as_deref(), as_of_ms, limit, offset)
+                .await?;
         return to_json(GraphConflictsResponse {
             success: true,
             subject,
             total,
             conflicts,
             truncated,
+            history_unavailable,
         });
     }
 
@@ -253,16 +257,25 @@ async fn sync_deltas(store: &Store, args: &Map<String, Value>) -> Result<Value, 
     if let Some(tick) = optional_trimmed_str(args, "tickId")? {
         let lookup = id.clone();
         let lookup_tick = tick.clone();
-        let delta = store
-            .blocking(move |st| st.sync().get_delta(&lookup, &lookup_tick))
+        let (exists, delta) = store
+            .blocking(move |st| -> Result<_, pagesift_store::Error> {
+                let sync = st.sync();
+                if sync.get_source(&lookup)?.is_none() {
+                    return Ok((false, None));
+                }
+                Ok((true, sync.get_delta(&lookup, &lookup_tick)?))
+            })
             .await
-            .map_err(|e| internal("get delta", e))?
-            .ok_or_else(|| {
-                ApiError::new(
-                    ErrorCode::NotFound,
-                    format!("delta '{tick}' for source '{id}' not found"),
-                )
-            })?;
+            .map_err(|e| internal("get delta", e))?;
+        if !exists {
+            return Err(not_found_source(&id));
+        }
+        let delta = delta.ok_or_else(|| {
+            ApiError::new(
+                ErrorCode::NotFound,
+                format!("delta '{tick}' for source '{id}' not found"),
+            )
+        })?;
         return to_json(SourceDeltaResponse {
             success: true,
             delta,
@@ -409,6 +422,20 @@ fn optional_bool(map: &Map<String, Value>, key: &str) -> Result<Option<bool>, Ap
     }
 }
 
+fn json_number_as_u64(n: &serde_json::Number) -> Option<u64> {
+    if let Some(u) = n.as_u64() {
+        return Some(u);
+    }
+    let f = n.as_f64()?;
+    // `napi-rs` deserializes JS numbers above `i32::MAX` as `f64`-backed `serde_json::Number`.
+    const MAX_SAFE_INT_F64: f64 = 9_007_199_254_740_991.0;
+    if f.is_finite() && f >= 0.0 && f.fract() == 0.0 && f <= MAX_SAFE_INT_F64 {
+        Some(f as u64)
+    } else {
+        None
+    }
+}
+
 fn optional_bound(
     map: &Map<String, Value>,
     key: &str,
@@ -417,8 +444,8 @@ fn optional_bound(
 ) -> Result<Option<usize>, ApiError> {
     match map.get(key) {
         None | Some(Value::Null) => Ok(None),
-        Some(v) => {
-            let n = v.as_u64().ok_or_else(|| {
+        Some(Value::Number(n)) => {
+            let n = json_number_as_u64(n).ok_or_else(|| {
                 ApiError::invalid(format!("{key} must be a non-negative integer"))
             })?;
             let val = usize::try_from(n).unwrap_or(usize::MAX);
@@ -427,13 +454,16 @@ fn optional_bound(
             }
             Ok(Some(val))
         }
+        Some(_) => Err(ApiError::invalid(format!(
+            "{key} must be a non-negative integer"
+        ))),
     }
 }
 
 fn parse_as_of(value: Option<&Value>) -> Result<Option<u64>, ApiError> {
     match value {
         None | Some(Value::Null) => Ok(None),
-        Some(Value::Number(n)) => n.as_u64().map(Some).ok_or_else(|| {
+        Some(Value::Number(n)) => json_number_as_u64(n).map(Some).ok_or_else(|| {
             ApiError::invalid("asOf must be a non-negative integer or RFC-3339 string")
         }),
         Some(Value::String(raw)) => {

@@ -316,13 +316,18 @@ pub fn apply_observation_to_record(
     }
     rec.claim_count = obs.claim_count;
 
+    let base_weight = if rec.importance_weight.is_finite() {
+        rec.importance_weight
+    } else {
+        1.0
+    };
     if first_baseline {
         rec.last_substantive_change_at_ms = Some(obs.now_ms);
     } else if obs.substantive_changed {
         rec.last_substantive_change_at_ms = Some(obs.now_ms);
-        rec.importance_weight = (rec.importance_weight * 1.15).clamp(0.2, 5.0);
+        rec.importance_weight = (base_weight * 1.15).clamp(0.2, 5.0);
     } else {
-        rec.importance_weight = (rec.importance_weight * 0.98).clamp(0.2, 5.0);
+        rec.importance_weight = (base_weight * 0.98).clamp(0.2, 5.0);
     }
     None
 }
@@ -335,6 +340,7 @@ mod tests {
     fn dummy_spec() -> DataSourceSpec {
         DataSourceSpec {
             id: "s1".to_string(),
+            instance_id: String::new(),
             revision: 1,
             name: None,
             seeds: vec!["https://example.com/docs/".to_string()],

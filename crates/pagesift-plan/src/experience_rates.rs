@@ -11,7 +11,8 @@ pub struct FamilyObservation {
     /// 仅当实际发起轻量 HTTP 采集（含 Conditional 200 / EmbeddedJson）且响应可用时，
     /// 记录 HTTP 是否满足任务评估；未执行 HTTP（如 `DirectBrowser`、`304` 或错误）时为 `None`。
     pub http_sufficient: Option<bool>,
-    /// 若实际尝试了浏览器渲染（含失败/超时），浏览器是否带来正文或结构化声明增益。
+    /// 若实际尝试了浏览器渲染且取得有效响应，浏览器是否带来正文或结构化声明增益；
+    /// 浏览器启动失败、超时或网络异常为 `None`（删失）。
     pub browser_gain: Option<bool>,
     /// 若发送了条件请求（`If-None-Match` / `If-Modified-Since`）且未发生传输错误，是否命中 304。
     pub conditional_hit: Option<bool>,
@@ -21,10 +22,24 @@ pub struct FamilyObservation {
     pub substantive_change: Option<(f64, bool)>,
     /// 本次权威采集是否产出至少 1 条结构化声明或新发现链接（非 body 响应如 304/错误为 `None`）。
     pub yielded_claims_or_links: Option<bool>,
-    /// 本次采集是否遭遇拦截（403 / 429 / 验证码挑战）。
-    pub encountered_barrier: bool,
-    /// 本次采集实际花费的总耗时（毫秒）。
+    /// 若真实收到源站响应或结构化访问控制错误，是否遭遇拦截（403 / 429 / 验证码挑战）；
+    /// 传输层故障、预算超时或取消为 `None`（删失）。
+    pub encountered_barrier: Option<bool>,
+    /// 本次采集实际花费的总耗时（毫秒）；传输 timeout / 预算中止等非可比样本可传负值或随全删失忽略。
     pub cost_ms: f64,
+}
+
+impl FamilyObservation {
+    /// Returns whether this observation carries at least one non-censored signal.
+    pub fn has_signal(&self) -> bool {
+        self.http_sufficient.is_some()
+            || self.browser_gain.is_some()
+            || self.conditional_hit.is_some()
+            || self.embedded_json_observed.is_some()
+            || self.substantive_change.is_some()
+            || self.yielded_claims_or_links.is_some()
+            || self.encountered_barrier.is_some()
+    }
 }
 
 /// 可序列化的 Beta 计数快照。

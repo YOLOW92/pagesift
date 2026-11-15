@@ -30,8 +30,8 @@ pub use engine::{AgentSink, BoxFuture, CrawlResume, CrawlSink, Engine, PageBudge
 pub use error::{ApiError, ErrorCode};
 pub use jobs::mirror::{JobLog, JobMirror, apply_op};
 pub use jobs::{
-    JOB_TTL, Job, JobKind, JobState, Jobs, rfc3339, store_graph_claims, store_graph_conflicts,
-    store_graph_history,
+    JOB_TTL, Job, JobKind, JobState, Jobs, rfc3339, store_graph_claims, store_graph_claims_checked,
+    store_graph_conflicts, store_graph_conflicts_checked, store_graph_history,
 };
 pub use limits::KeyLimits;
 pub use server::{Config, ExtraMetrics, Timeouts, router, serve, serve_with};

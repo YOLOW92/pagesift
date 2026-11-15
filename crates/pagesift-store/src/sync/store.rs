@@ -1,13 +1,13 @@
-//! `SyncStore` 存储读写、原子 Tick 提交、CAS 修订并发控制与精确历史状态重建（C03 / C05 / C06 / C30 / R02）。
+//! `SyncStore` 存储读写、原子 Tick 提交、CAS 修订与防 ABA 实例隔离、以及严格错误处理（C03 / C05 / C06 / C30 / R02）。
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use pagesift_graph::{ClaimStatus, ConflictRecord};
 
 use super::{
-    DataSourceSpec, MAX_CHECKPOINTS_PER_SOURCE, MAX_DELTAS_PER_SOURCE, ResourceRecord, SourceMeta,
-    SourceSpecRevision, SourceStateCheckpoint, SourceStateView, SpecCasOutcome, SyncDelta,
-    TickCommitOutcome,
+    DataSourceSpec, MAX_CHECKPOINTS_PER_SOURCE, MAX_DELTAS_PER_SOURCE, ResourceRecord,
+    SourceHistoryStatus, SourceMeta, SourceSpecRevision, SourceStateCheckpoint, SourceStateView,
+    SpecCasOutcome, SyncDelta, TickCommitOutcome, now_store_ms,
 };
 use crate::engine::{AtomicTx, ns};
 use crate::graph::PreparedVersionBundle;
@@ -16,6 +16,7 @@ use crate::{Error, Result, Store};
 /// 单次同步周期原子提交参数（C05 / C06 / R02）。
 pub struct TickCommitRequest<'a> {
     pub source_id: &'a str,
+    pub expected_instance_id: &'a str,
     pub expected_spec_revision: u64,
     pub spec_revision_used: u64,
     pub inventory: &'a mut Vec<ResourceRecord>,
@@ -37,64 +38,18 @@ impl<'a> SyncStore<'a> {
         Self { store, tenant }
     }
 
-    fn key(&self, prefix: &str, rest: &str) -> Vec<u8> {
+    pub(super) fn key(&self, prefix: &str, rest: &str) -> Vec<u8> {
         match self.tenant.filter(|t| !t.is_empty()) {
             Some(t) => format!("t:{t}|{prefix}{rest}").into_bytes(),
             None => format!("{prefix}{rest}").into_bytes(),
         }
     }
 
-    fn prefix_bytes(&self, prefix: &str) -> Vec<u8> {
+    pub(super) fn prefix_bytes(&self, prefix: &str) -> Vec<u8> {
         match self.tenant.filter(|t| !t.is_empty()) {
             Some(t) => format!("t:{t}|{prefix}").into_bytes(),
             None => prefix.as_bytes().to_vec(),
         }
-    }
-
-    fn stage_source_write_in_tx(
-        &self,
-        tx: &mut AtomicTx<'_>,
-        stored: &DataSourceSpec,
-    ) -> Result<()> {
-        let spec_bytes = serde_json::to_vec(stored).map_err(|e| Error::Corrupt(e.to_string()))?;
-        let rev_entry = SourceSpecRevision {
-            revision: stored.revision,
-            updated_at_ms: stored.updated_at_ms,
-            spec: stored.clone(),
-        };
-        let rev_bytes =
-            serde_json::to_vec(&rev_entry).map_err(|e| Error::Corrupt(e.to_string()))?;
-        let rev_key = self.key(
-            "srev:",
-            &format!(
-                "{}:{:020}:{:020}",
-                stored.id, stored.updated_at_ms, stored.revision
-            ),
-        );
-        tx.put(
-            ns::SYNC_STATE,
-            &self.key("src:", &stored.id),
-            &spec_bytes,
-            stored.updated_at_ms.max(1),
-        )?;
-        tx.put(
-            ns::SYNC_STATE,
-            &rev_key,
-            &rev_bytes,
-            stored.updated_at_ms.max(1),
-        )?;
-        let meta_key = self.key("smeta:", &stored.id);
-        if !tx.contains(ns::SYNC_STATE, &meta_key)? {
-            let meta_bytes = serde_json::to_vec(&SourceMeta::default())
-                .map_err(|e| Error::Corrupt(e.to_string()))?;
-            tx.put(
-                ns::SYNC_STATE,
-                &meta_key,
-                &meta_bytes,
-                stored.created_at_ms.max(1),
-            )?;
-        }
-        Ok(())
     }
 
     pub fn put_source(&self, spec: &DataSourceSpec) -> Result<()> {
@@ -103,31 +58,49 @@ impl<'a> SyncStore<'a> {
             stored.revision = 1;
         }
         let mut tx = self.store.atomic_tx();
+        let src_key = self.key("src:", &stored.id);
+        let existing = match tx.get(ns::SYNC_STATE, &src_key)? {
+            Some((_, raw)) => Some(
+                serde_json::from_slice::<DataSourceSpec>(&raw)
+                    .map_err(|e| Error::Corrupt(e.to_string()))?,
+            ),
+            None => None,
+        };
+        self.resolve_instance_id_for_put(&mut tx, &mut stored, existing.as_ref())?;
         self.stage_source_write_in_tx(&mut tx, &stored)?;
         tx.commit()
     }
 
-    /// 原子创建或更新数据源规范：若已存在则保留 `created_at_ms` 并单调递增 `revision`（R02）。
+    /// 原子创建或更新数据源规范：若已存在则保留 `created_at_ms` 与 `instance_id` 并递增 `revision`，
+    /// 删除重建则生成单调递增的全新 `instance_id`（R02 / 防 ABA）。
     pub fn upsert_source(&self, mut spec: DataSourceSpec) -> Result<DataSourceSpec> {
         let mut tx = self.store.atomic_tx();
         let src_key = self.key("src:", &spec.id);
-        if let Some((_, raw)) = tx.get(ns::SYNC_STATE, &src_key)? {
-            let current: DataSourceSpec =
-                serde_json::from_slice(&raw).map_err(|e| Error::Corrupt(e.to_string()))?;
-            spec.revision = current.revision.saturating_add(1);
-            spec.created_at_ms = current.created_at_ms;
-            if spec.updated_at_ms <= current.updated_at_ms {
-                spec.updated_at_ms = current.updated_at_ms.saturating_add(1);
+        let existing = match tx.get(ns::SYNC_STATE, &src_key)? {
+            Some((_, raw)) => {
+                let current: DataSourceSpec =
+                    serde_json::from_slice(&raw).map_err(|e| Error::Corrupt(e.to_string()))?;
+                spec.revision = current.revision.saturating_add(1);
+                spec.created_at_ms = current.created_at_ms;
+                if spec.updated_at_ms <= current.updated_at_ms {
+                    spec.updated_at_ms = current.updated_at_ms.saturating_add(1);
+                }
+                Some(current)
             }
-        } else if spec.revision == 0 {
-            spec.revision = 1;
-        }
+            None => {
+                if spec.revision == 0 {
+                    spec.revision = 1;
+                }
+                None
+            }
+        };
+        self.resolve_instance_id_for_put(&mut tx, &mut spec, existing.as_ref())?;
         self.stage_source_write_in_tx(&mut tx, &spec)?;
         tx.commit()?;
         Ok(spec)
     }
 
-    /// 原子校验并更新 `DataSourceSpec`，若已被并发修改或删除则中止（C05 / R02）。
+    /// 原子校验并更新 `DataSourceSpec`，校验实例 `instance_id`（防 ABA）及 `revision`（C05 / R02）。
     pub fn update_source_cas(
         &self,
         mut spec: DataSourceSpec,
@@ -140,6 +113,9 @@ impl<'a> SyncStore<'a> {
         };
         let current: DataSourceSpec =
             serde_json::from_slice(&raw).map_err(|e| Error::Corrupt(e.to_string()))?;
+        if !spec.instance_id.is_empty() && spec.instance_id != current.instance_id {
+            return Ok(SpecCasOutcome::NotFound);
+        }
         if let Some(exp) = expected_revision
             && current.revision != exp
         {
@@ -150,6 +126,7 @@ impl<'a> SyncStore<'a> {
         if spec.updated_at_ms <= current.updated_at_ms {
             spec.updated_at_ms = current.updated_at_ms.saturating_add(1);
         }
+        self.resolve_instance_id_for_put(&mut tx, &mut spec, Some(&current))?;
         self.stage_source_write_in_tx(&mut tx, &spec)?;
         tx.commit()?;
         Ok(SpecCasOutcome::Updated(spec))
@@ -171,9 +148,9 @@ impl<'a> SyncStore<'a> {
         let keys = self.store.keys(ns::SYNC_STATE, |k| k.starts_with(&pfx))?;
         let mut out = Vec::with_capacity(keys.len());
         for k in keys {
-            if let Some((_, bytes)) = self.store.get(ns::SYNC_STATE, &k)?
-                && let Ok(spec) = serde_json::from_slice::<DataSourceSpec>(&bytes)
-            {
+            if let Some((_, bytes)) = self.store.get(ns::SYNC_STATE, &k)? {
+                let spec: DataSourceSpec =
+                    serde_json::from_slice(&bytes).map_err(|e| Error::Corrupt(e.to_string()))?;
                 out.push(spec);
             }
         }
@@ -181,10 +158,20 @@ impl<'a> SyncStore<'a> {
         Ok(out)
     }
 
-    /// 原子清理数据源及其清单、经验、增量、检查点、规格修订历史（R02 传播存储错误，绝不静默丢弃）。
+    /// 原子清理数据源及其清单、经验、增量、检查点、规格修订历史，并退役实例代数以防重建 ABA（R02）。
     pub fn delete_source(&self, source_id: &str) -> Result<bool> {
         let mut tx = self.store.atomic_tx();
-        let existed = tx.delete(ns::SYNC_STATE, &self.key("src:", source_id))?;
+        let src_key = self.key("src:", source_id);
+        let cur_instance = match tx.get(ns::SYNC_STATE, &src_key)? {
+            Some((_, raw)) => {
+                let spec: DataSourceSpec =
+                    serde_json::from_slice(&raw).map_err(|e| Error::Corrupt(e.to_string()))?;
+                Some(spec.instance_id)
+            }
+            None => None,
+        };
+        let existed = tx.delete(ns::SYNC_STATE, &src_key)?;
+        self.retire_instance_in_tx(&mut tx, source_id, cur_instance.as_deref(), now_store_ms())?;
         tx.delete(ns::SYNC_STATE, &self.key("inv:", source_id))?;
         tx.delete(ns::SYNC_STATE, &self.key("exp:", source_id))?;
         tx.delete(ns::SYNC_STATE, &self.key("smeta:", source_id))?;
@@ -233,58 +220,7 @@ impl<'a> SyncStore<'a> {
         Ok(())
     }
 
-    pub fn append_delta(&self, delta: &SyncDelta) -> Result<()> {
-        let mut tx = self.store.atomic_tx();
-        let meta_key = self.key("smeta:", &delta.source_id);
-        let mut meta: SourceMeta = match tx.get(ns::SYNC_STATE, &meta_key)? {
-            Some((_, raw)) => {
-                serde_json::from_slice(&raw).map_err(|e| Error::Corrupt(e.to_string()))?
-            }
-            None => SourceMeta::default(),
-        };
-        meta.total_ticks = meta.total_ticks.saturating_add(1).max(delta.tick_seq);
-        if meta.first_tick_at_ms.is_none() {
-            meta.first_tick_at_ms = Some(delta.completed_at_ms);
-        }
-        let mut stored_delta = delta.clone();
-        if stored_delta.tick_seq == 0 {
-            stored_delta.tick_seq = meta.total_ticks;
-        }
-        let bytes = serde_json::to_vec(&stored_delta).map_err(|e| Error::Corrupt(e.to_string()))?;
-        let dlt_key = self.key(
-            "dlt:",
-            &format!(
-                "{}:{:020}:{}",
-                delta.source_id, delta.completed_at_ms, delta.tick_id
-            ),
-        );
-        tx.put(
-            ns::SYNC_STATE,
-            &dlt_key,
-            &bytes,
-            delta.completed_at_ms.max(1),
-        )?;
-        let meta_bytes = serde_json::to_vec(&meta).map_err(|e| Error::Corrupt(e.to_string()))?;
-        tx.put(
-            ns::SYNC_STATE,
-            &meta_key,
-            &meta_bytes,
-            delta.completed_at_ms.max(1),
-        )?;
-
-        let pfx = self.key("dlt:", &format!("{}:", delta.source_id));
-        let mut all_keys = tx.keys_matching(ns::SYNC_STATE, &pfx)?;
-        if all_keys.len() > MAX_DELTAS_PER_SOURCE {
-            all_keys.sort();
-            let remove_count = all_keys.len() - MAX_DELTAS_PER_SOURCE;
-            for old_key in all_keys.into_iter().take(remove_count) {
-                tx.delete(ns::SYNC_STATE, &old_key)?;
-            }
-        }
-        tx.commit()
-    }
-
-    /// 单个 `AtomicTx` 提交整轮 Sync Tick：校验 Source 存在及 `revision` -> 写图版本/声明/冲突 -> 写清单/经验/增量/检查点/总计数（C05 / C06 / C30 / R02）。
+    /// 单个 `AtomicTx` 提交整轮 Sync Tick：校验 Source 存在、`instance_id`（防 ABA）及 `revision` -> 写图版本/声明/冲突 -> 写清单/经验/增量/检查点/总计数。
     pub fn commit_tick_atomic(&self, req: TickCommitRequest<'_>) -> Result<TickCommitOutcome> {
         let mut tx = self.store.atomic_tx();
         let src_key = self.key("src:", req.source_id);
@@ -293,6 +229,9 @@ impl<'a> SyncStore<'a> {
         };
         let current_spec: DataSourceSpec =
             serde_json::from_slice(&src_raw).map_err(|e| Error::Corrupt(e.to_string()))?;
+        if current_spec.instance_id != req.expected_instance_id {
+            return Ok(TickCommitOutcome::SourceDeleted);
+        }
         if current_spec.revision != req.expected_spec_revision {
             return Ok(TickCommitOutcome::StaleSpec {
                 current: Box::new(current_spec),
@@ -304,8 +243,21 @@ impl<'a> SyncStore<'a> {
             Some((_, raw)) => {
                 serde_json::from_slice(&raw).map_err(|e| Error::Corrupt(e.to_string()))?
             }
-            None => SourceMeta::default(),
+            None => SourceMeta {
+                instance_id: current_spec.instance_id.clone(),
+                ..SourceMeta::default()
+            },
         };
+        if !meta.instance_id.is_empty()
+            && !current_spec.instance_id.is_empty()
+            && meta.instance_id != current_spec.instance_id
+        {
+            return Ok(TickCommitOutcome::SourceDeleted);
+        }
+        if meta.instance_id.is_empty() {
+            meta.instance_id = current_spec.instance_id.clone();
+        }
+
         meta.total_ticks = meta.total_ticks.saturating_add(1);
         if meta.first_tick_at_ms.is_none() {
             meta.first_tick_at_ms = Some(req.delta.completed_at_ms);
@@ -315,6 +267,7 @@ impl<'a> SyncStore<'a> {
         }
         let tick_seq = meta.total_ticks;
         req.delta.tick_seq = tick_seq;
+        req.delta.instance_id = current_spec.instance_id.clone();
 
         let gs = self.store.graph_for(self.tenant);
         for bundle in &req.graph_bundles {
@@ -325,7 +278,6 @@ impl<'a> SyncStore<'a> {
                     ..
                 } => {
                     req.delta.claim_transitions.extend(claim_transitions);
-                    // 用事务内协调后的真实 active+unverified 数量刷新资源记录 claim_count
                     if let Some(first_claim) = claims.first()
                         && let Some(rec) = req
                             .inventory
@@ -402,6 +354,7 @@ impl<'a> SyncStore<'a> {
         }
 
         let ck = SourceStateCheckpoint {
+            instance_id: current_spec.instance_id,
             tick_seq,
             tick_id: req.delta.tick_id.clone(),
             completed_at_ms: req.delta.completed_at_ms,
@@ -429,8 +382,9 @@ impl<'a> SyncStore<'a> {
             }
             if let Some(earliest_key) = ck_keys.get(remove_count)
                 && let Some((_, raw)) = tx.get(ns::SYNC_STATE, earliest_key)?
-                && let Ok(earliest) = serde_json::from_slice::<SourceStateCheckpoint>(&raw)
             {
+                let earliest: SourceStateCheckpoint =
+                    serde_json::from_slice(&raw).map_err(|e| Error::Corrupt(e.to_string()))?;
                 meta.earliest_retained_checkpoint_at_ms = Some(earliest.completed_at_ms);
             }
         }
@@ -441,39 +395,10 @@ impl<'a> SyncStore<'a> {
         tx.commit()?;
         Ok(TickCommitOutcome::Committed { tick_seq })
     }
-
-    pub fn list_deltas(&self, source_id: &str, limit: usize) -> Result<Vec<SyncDelta>> {
-        let pfx = self.key("dlt:", &format!("{source_id}:"));
-        let mut keys = self.store.keys(ns::SYNC_STATE, |k| k.starts_with(&pfx))?;
-        keys.sort();
-        keys.reverse();
-        let mut out = Vec::new();
-        for k in keys.into_iter().take(limit.max(1)) {
-            if let Some((_, bytes)) = self.store.get(ns::SYNC_STATE, &k)?
-                && let Ok(d) = serde_json::from_slice::<SyncDelta>(&bytes)
-            {
-                out.push(d);
-            }
-        }
-        Ok(out)
-    }
-
-    pub fn get_delta(&self, source_id: &str, tick_id: &str) -> Result<Option<SyncDelta>> {
-        let pfx = self.key("dlt:", &format!("{source_id}:"));
-        let suffix = format!(":{tick_id}");
-        let keys = self.store.keys(ns::SYNC_STATE, |k| {
-            k.starts_with(&pfx) && std::str::from_utf8(k).is_ok_and(|s| s.ends_with(&suffix))
-        })?;
-        for k in keys.into_iter().rev() {
-            if let Some((_, bytes)) = self.store.get(ns::SYNC_STATE, &k)?
-                && let Ok(d) = serde_json::from_slice::<SyncDelta>(&bytes)
-            {
-                return Ok(Some(d));
-            }
-        }
-        Ok(None)
-    }
 }
+
+#[path = "store_meta.rs"]
+mod store_meta;
 
 #[path = "store_view.rs"]
 mod store_view;
@@ -481,3 +406,7 @@ mod store_view;
 #[cfg(test)]
 #[path = "store_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "store_aba_view_tests.rs"]
+mod aba_view_tests;

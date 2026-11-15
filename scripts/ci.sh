@@ -18,6 +18,16 @@ done
 
 step() { printf '\n==> %s\n' "$*"; }
 
+record_ci_stamp() {
+    level=$1
+    git_dir=$(git rev-parse --git-dir 2>/dev/null || true)
+    [ -n "$git_dir" ] || return 0
+    if git diff --quiet -- 2>/dev/null && [ -z "$(git ls-files --others --exclude-standard 2>/dev/null)" ]; then
+        tree_sha=$(git write-tree 2>/dev/null || true)
+        [ -n "$tree_sha" ] && printf '%s %s\n' "$tree_sha" "$level" > "$git_dir/ci-passed"
+    fi
+}
+
 step "release identity"
 python3 scripts/check_release.py
 step "wall-clock reads in tests"
@@ -75,7 +85,11 @@ if [ -n "$bindings" ]; then
         ../../$venv/bin/maturin develop --profile quick --locked)
     "$venv/bin/python" -m pytest crates/pagesift-py/tests -q
 fi
-[ -n "$fast" ] && { step "fast checks passed"; exit 0; }
+[ -n "$fast" ] && {
+    record_ci_stamp "${bindings:+bindings}${bindings:-fast}"
+    step "fast checks passed"
+    exit 0
+}
 
 # 最低版本取自 Cargo.toml 的 rust-version，没装就装上：不跳过（macOS CI 里也有同一步）
 msrv=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["rust-version"])')
@@ -96,4 +110,5 @@ cargo run --release --locked -p pagesift --example crawl_gate
 cargo run --release --locked -p pagesift --example focus_gate
 cargo run --release --locked -p pagesift --example focus_gate -- --auto
 
+record_ci_stamp full
 printf '\nall checks passed\n'

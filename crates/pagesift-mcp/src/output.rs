@@ -328,6 +328,7 @@ pub fn graph_query() -> Value {
             "conflicts": array(json!({ "type": "object", "description": "Cross-source conflict record." }), "Detected cross-source conflicts."),
             "claims": array(json!({ "type": "object", "description": "Claim lifecycle record." }), "Tracked claim lifecycle records."),
             "truncated": boolean("Whether results were truncated by limit bounds."),
+            "historyUnavailable": boolean("Whether complete point-in-time history could not be reconstructed for the queried timestamp."),
         }),
         &["success"],
     )

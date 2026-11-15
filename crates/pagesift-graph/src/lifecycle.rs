@@ -18,6 +18,7 @@ use crate::norm::NormalizedValue;
 
 pub(crate) const MAX_CLAIM_HISTORY_LEN: usize = 32; // [策略] 旧版摘要历史链上限
 pub(crate) const MAX_CLAIM_TIMELINE_LEN: usize = 256; // [策略] 单声明时序区间历史上限
+pub(crate) const MAX_TIMELINE_CONFIRMATIONS_PER_ENTRY: usize = 64; // [策略] 单区间内精确确认事件点上限
 
 fn is_false(v: &bool) -> bool {
     !*v
@@ -133,6 +134,18 @@ pub struct HistoricalClaimEntry {
     pub raw_value: Value,
     pub observed_at_ms: u64,
     pub evidence: EvidenceSpan,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub archived_at_ms: Option<u64>,
+}
+
+/// Exact confirmation event point recorded inside a coalesced [`ClaimTimelineEntry`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaimConfirmationPoint {
+    pub at_ms: u64,
+    pub observed_at_ms: u64,
+    pub last_confirmed_at_ms: u64,
+    pub observation_count: u32,
 }
 
 /// State-interval history snapshot used for point-in-time `claims_as_of` reconstruction.
@@ -145,6 +158,8 @@ pub struct ClaimTimelineEntry {
     pub claim: ClaimRecord,
     pub last_confirmed_at_ms: u64,
     pub observation_count: u32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub confirmations: Vec<ClaimConfirmationPoint>,
 }
 
 /// Persistent lifecycle record tracking one `(subject_key, resource_key, contract_id, field, occurrence)` slot.

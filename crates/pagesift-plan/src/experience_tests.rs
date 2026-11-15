@@ -15,7 +15,7 @@ fn family_experience_tracks_rates_and_roundtrips_json() {
                 embedded_json_observed: Some(i % 2 == 0),
                 substantive_change: Some((3600.0, false)),
                 yielded_claims_or_links: Some(true),
-                encountered_barrier: false,
+                encountered_barrier: Some(false),
                 cost_ms: 42.0,
             },
         );
@@ -47,7 +47,7 @@ fn direct_browser_and_censored_failures_do_not_pollute_http_sufficiency() {
                 embedded_json_observed: Some(false),
                 substantive_change: Some((600.0, false)),
                 yielded_claims_or_links: Some(true),
-                encountered_barrier: false,
+                encountered_barrier: Some(false),
                 cost_ms: 500.0,
             },
         );
@@ -66,7 +66,7 @@ fn direct_browser_and_censored_failures_do_not_pollute_http_sufficiency() {
                 embedded_json_observed: None,
                 substantive_change: None,
                 yielded_claims_or_links: None,
-                encountered_barrier: i % 3 == 0,
+                encountered_barrier: Some(i % 3 == 0),
                 cost_ms: 700.0,
             },
         );
@@ -124,4 +124,50 @@ fn learned_url_rule_activates_and_revokes_on_falsification() {
     let mut u2 = Url::parse("https://example.com/item?id=1&ref=important").unwrap();
     assert!(table.rewrite_url(&mut u2).is_empty());
     assert_eq!(u2.as_str(), "https://example.com/item?id=1&ref=important");
+}
+
+#[test]
+fn fully_censored_observations_do_not_pollute_any_family_statistics() {
+    let table = FamilyExperienceTable::new();
+    let fam = "https://docs.example.com/ref";
+    table.record_observation(
+        fam,
+        &FamilyObservation {
+            observed_at_ms: 1_000,
+            http_sufficient: Some(true),
+            browser_gain: None,
+            conditional_hit: Some(true),
+            embedded_json_observed: Some(false),
+            substantive_change: Some((300.0, false)),
+            yielded_claims_or_links: Some(true),
+            encountered_barrier: Some(false),
+            cost_ms: 50.0,
+        },
+    );
+    let baseline = table.get_family(fam).expect("baseline stats");
+
+    // Simulate repeated transport timeouts / budget exhaustion (all signals censored).
+    for i in 0..20 {
+        table.record_observation(
+            fam,
+            &FamilyObservation {
+                observed_at_ms: 2_000 + i * 100,
+                http_sufficient: None,
+                browser_gain: None,
+                conditional_hit: None,
+                embedded_json_observed: None,
+                substantive_change: None,
+                yielded_claims_or_links: None,
+                encountered_barrier: None,
+                cost_ms: 30_000.0,
+            },
+        );
+    }
+
+    let after = table.get_family(fam).expect("after censored batch");
+    assert_eq!(after.total_observations, baseline.total_observations);
+    assert_eq!(after.barrier_rate, baseline.barrier_rate);
+    assert_eq!(after.http_sufficient, baseline.http_sufficient);
+    assert_eq!(after.ewma_cost_ms, baseline.ewma_cost_ms);
+    assert_eq!(after.last_observed_at_ms, baseline.last_observed_at_ms);
 }

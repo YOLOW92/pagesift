@@ -89,6 +89,12 @@ async fn sync_and_query_graph_round_trip() {
     assert_eq!(created["success"], true);
     assert_eq!(created["source"]["id"], "docs-src");
     assert_eq!(created["source"]["budget"]["maxRequestsPerTick"], 12);
+    let inst1 = created["source"]["instanceId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(!inst1.is_empty());
+    let created_ms = created["source"]["createdAtMs"].as_u64().unwrap();
 
     let listed = sync(&scraper, json!({ "action": "list" })).await.unwrap();
     assert_eq!(listed["total"], 1);
@@ -100,6 +106,44 @@ async fn sync_and_query_graph_round_trip() {
     .await
     .unwrap();
     assert_eq!(state["state"]["spec"]["id"], "docs-src");
+    assert_eq!(state["state"]["spec"]["instanceId"], inst1);
+
+    let pre_state = sync(
+        &scraper,
+        json!({
+            "action": "state",
+            "sourceId": "docs-src",
+            "asOf": created_ms.saturating_sub(1),
+        }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(pre_state["state"]["historyStatus"], "not_created_yet");
+    assert!(pre_state["state"]["spec"].is_null());
+
+    // JS napi-rs passes timestamps > i32::MAX as f64-backed integral Numbers; non-integers still reject.
+    let pre_state_f64 = sync(
+        &scraper,
+        json!({
+            "action": "state",
+            "sourceId": "docs-src",
+            "asOf": created_ms.saturating_sub(1) as f64,
+        }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(pre_state_f64["state"]["historyStatus"], "not_created_yet");
+    let bad_as_of = sync(
+        &scraper,
+        json!({
+            "action": "state",
+            "sourceId": "docs-src",
+            "asOf": 12.5,
+        }),
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(bad_as_of.code, ErrorCode::InvalidRequest);
 
     let history = query_graph(
         &scraper,
@@ -117,7 +161,14 @@ async fn sync_and_query_graph_round_trip() {
     .await
     .unwrap();
     assert_eq!(claims["success"], true);
+    assert!(!claims["historyUnavailable"].as_bool().unwrap_or(false));
     assert!(claims["total"].as_u64().unwrap() >= 1);
+
+    let conflicts = query_graph(&scraper, json!({ "conflicts": true }))
+        .await
+        .unwrap();
+    assert_eq!(conflicts["success"], true);
+    assert!(!conflicts["historyUnavailable"].as_bool().unwrap_or(false));
 
     let deleted = sync(&scraper, json!({ "action": "delete", "id": "docs-src" }))
         .await
@@ -128,6 +179,22 @@ async fn sync_and_query_graph_round_trip() {
         .await
         .unwrap_err();
     assert_eq!(missing.code, ErrorCode::NotFound);
+
+    let recreated = sync(
+        &scraper,
+        json!({
+            "action": "create",
+            "source_id": "docs-src",
+            "seeds": ["https://example.com/pricing"],
+        }),
+    )
+    .await
+    .unwrap();
+    let inst2 = recreated["source"]["instanceId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(inst1, inst2);
 }
 
 #[tokio::test]

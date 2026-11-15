@@ -19,6 +19,8 @@ mod hash;
 pub mod independence;
 pub mod lifecycle;
 mod lifecycle_as_of;
+#[cfg(test)]
+mod lifecycle_tests;
 pub mod model;
 pub mod norm;
 mod norm_parse;
@@ -49,9 +51,10 @@ pub use independence::{
     OriginRelation, SourceLineage, compute_source_lineage, independent_roots_for_claim_group,
 };
 pub use lifecycle::{
-    ClaimLifecycleRecord, ClaimStatus, ClaimTimelineEntry, ClaimTransition, ClaimTransitionKind,
-    HistoricalClaimEntry, KnowledgeDelta, ObservationOutcome, WithdrawalReason, outcome_for_scrape,
-    reconcile_resource_claims, reconcile_resource_claims_for_contract,
+    ClaimConfirmationPoint, ClaimLifecycleRecord, ClaimStatus, ClaimTimelineEntry, ClaimTransition,
+    ClaimTransitionKind, HistoricalClaimEntry, KnowledgeDelta, ObservationOutcome,
+    WithdrawalReason, outcome_for_scrape, reconcile_resource_claims,
+    reconcile_resource_claims_for_contract,
 };
 pub use lifecycle_as_of::{claims_as_of, claims_as_of_checked, latest_claims_per_resource};
 pub use model::{

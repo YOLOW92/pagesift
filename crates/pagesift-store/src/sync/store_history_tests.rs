@@ -56,7 +56,7 @@ fn t04_claim_lifecycle_multi_transition_as_of_and_truncation_blind_spot() {
     let store = Store::open_dir(dir.path()).unwrap();
     let ss = store.sync();
     let gs = store.graph();
-    ss.upsert_source(base_spec("src-t04")).unwrap();
+    let spec_t04 = ss.upsert_source(base_spec("src-t04")).unwrap();
 
     let url = "https://docs.example.com/item";
     let key = pagesift_graph::normalize_resource_key(url);
@@ -141,6 +141,7 @@ fn t04_claim_lifecycle_multi_transition_as_of_and_truncation_blind_spot() {
         let mut inv = vec![base_rec(&key, url, ResourceLifecycleState::Active, *ts)];
         let mut delta = SyncDelta {
             source_id: "src-t04".into(),
+            instance_id: spec_t04.instance_id.clone(),
             tick_id: format!("t-{idx}"),
             tick_seq: 0,
             started_at_ms: *ts - 1,
@@ -158,6 +159,7 @@ fn t04_claim_lifecycle_multi_transition_as_of_and_truncation_blind_spot() {
         };
         ss.commit_tick_atomic(TickCommitRequest {
             source_id: "src-t04",
+            expected_instance_id: &spec_t04.instance_id,
             expected_spec_revision: 1,
             spec_revision_used: 1,
             inventory: &mut inv,
@@ -221,7 +223,7 @@ fn t06_crash_fault_injection_exhaustive_across_steps_and_reopen() {
             let store = Store::open_dir(dir.path()).unwrap();
             let ss = store.sync();
             let gs = store.graph();
-            ss.upsert_source(base_spec("src-crash")).unwrap();
+            let spec_crash = ss.upsert_source(base_spec("src-crash")).unwrap();
 
             let commit_step =
                 |step: u64, doc_id: &str, prev_doc: Option<&str>, price: &str, exp_rev: u64| {
@@ -264,6 +266,7 @@ fn t06_crash_fault_injection_exhaustive_across_steps_and_reopen() {
                     let mut inv = vec![rec];
                     let mut delta = SyncDelta {
                         source_id: "src-crash".into(),
+                        instance_id: spec_crash.instance_id.clone(),
                         tick_id: format!("t-{step}"),
                         tick_seq: 0,
                         started_at_ms: ts - 10,
@@ -281,6 +284,7 @@ fn t06_crash_fault_injection_exhaustive_across_steps_and_reopen() {
                     };
                     ss.commit_tick_atomic(TickCommitRequest {
                         source_id: "src-crash",
+                        expected_instance_id: &spec_crash.instance_id,
                         expected_spec_revision: exp_rev,
                         spec_revision_used: exp_rev,
                         inventory: &mut inv,

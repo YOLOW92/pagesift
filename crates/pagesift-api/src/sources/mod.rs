@@ -1,5 +1,7 @@
 //! 1.5 Loop 数据源（DataSource）API 类型定义与校验辅助函数。
 
+#[cfg(test)]
+mod aba_history_tests;
 pub mod routes;
 #[cfg(test)]
 mod tests;
@@ -217,6 +219,7 @@ pub fn build_source_spec(
     let ts = now_ms.unwrap_or_else(now_store_ms);
     let spec = DataSourceSpec {
         id,
+        instance_id: String::new(),
         revision: 1,
         name: req.name.and_then(|v| {
             let t = v.trim().to_string();

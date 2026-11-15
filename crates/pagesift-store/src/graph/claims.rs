@@ -5,8 +5,8 @@ use std::time::SystemTime;
 
 use pagesift_graph::{
     ClaimLifecycleRecord, ClaimRecord, ClaimTransition, ConflictRecord, DEFAULT_CONTRACT_ID,
-    DocNode, ObservationOutcome, ProvenanceEdge, claims_as_of, claims_as_of_checked,
-    compute_source_lineage, detect_conflicts_with_lineage, reconcile_resource_claims_for_contract,
+    DocNode, ObservationOutcome, ProvenanceEdge, claims_as_of_checked, compute_source_lineage,
+    detect_conflicts_with_lineage, reconcile_resource_claims_for_contract,
 };
 
 use super::bundle::{AsOfClaimsResult, StoredProvenance};
@@ -173,6 +173,19 @@ impl<'a> GraphStore<'a> {
         limit: usize,
         offset: usize,
     ) -> Result<(Vec<ConflictRecord>, usize, bool)> {
+        let (items, total, has_more, _) =
+            self.list_conflicts_as_of_checked(subject_key, as_of_ms, limit, offset)?;
+        Ok((items, total, has_more))
+    }
+
+    /// Paginated conflict listing at `as_of_ms` with explicit `history_unavailable` reporting.
+    pub fn list_conflicts_as_of_checked(
+        &self,
+        subject_key: Option<&str>,
+        as_of_ms: Option<u64>,
+        limit: usize,
+        offset: usize,
+    ) -> Result<(Vec<ConflictRecord>, usize, bool, bool)> {
         let Some(cutoff) = as_of_ms else {
             let mut prefix = self.scoped_prefixed(PREFIX_CONFLICT, "");
             if let Some(subj) = subject_key {
@@ -184,7 +197,7 @@ impl<'a> GraphStore<'a> {
                 .keys(ns::GRAPH_FACT, |k| k.starts_with(&prefix))?;
             let total = keys.len();
             if offset >= total || limit == 0 {
-                return Ok((Vec::new(), total, offset < total));
+                return Ok((Vec::new(), total, offset < total, false));
             }
             let end = total.min(offset.saturating_add(limit));
             let has_more = end < total;
@@ -194,7 +207,7 @@ impl<'a> GraphStore<'a> {
                     out.push(decode_json(&raw, "conflict record")?);
                 }
             }
-            return Ok((out, total, has_more));
+            return Ok((out, total, has_more, false));
         };
 
         // 历史查询必须从该时刻仍活跃的声明快照与当时溯源边重算，不能过滤可变 latest_observed_at_ms（C26）
@@ -205,12 +218,15 @@ impl<'a> GraphStore<'a> {
 
         if !claim_keys.is_empty() {
             let mut active_raw = Vec::new();
+            let mut history_unavailable = false;
             for key in claim_keys {
                 let Some((_, raw)) = self.store.get(ns::GRAPH_FACT, &key)? else {
                     continue;
                 };
                 let recs: Vec<ClaimLifecycleRecord> = decode_json(&raw, "claim lifecycle records")?;
-                for rec in claims_as_of(&recs, cutoff) {
+                let (as_of_recs, unavail) = claims_as_of_checked(&recs, cutoff);
+                history_unavailable |= unavail;
+                for rec in as_of_recs {
                     if rec.status.is_active_or_unverified()
                         && subject_key.is_none_or(|s| rec.claim.subject_key == s)
                     {
@@ -221,11 +237,16 @@ impl<'a> GraphStore<'a> {
             let filtered = self.detect_conflicts_for_claims(&active_raw, Some(cutoff))?;
             let total = filtered.len();
             if offset >= total || limit == 0 {
-                return Ok((Vec::new(), total, offset < total));
+                return Ok((Vec::new(), total, offset < total, history_unavailable));
             }
             let end = total.min(offset.saturating_add(limit));
             let has_more = end < total;
-            return Ok((filtered[offset..end].to_vec(), total, has_more));
+            return Ok((
+                filtered[offset..end].to_vec(),
+                total,
+                has_more,
+                history_unavailable,
+            ));
         }
 
         let mut prefix = self.scoped_prefixed(PREFIX_CONFLICT, "");
@@ -236,6 +257,7 @@ impl<'a> GraphStore<'a> {
         let keys = self
             .store
             .keys(ns::GRAPH_FACT, |k| k.starts_with(&prefix))?;
+        let history_unavailable = !keys.is_empty();
         let mut filtered = Vec::new();
         for key in &keys {
             let Some((_, raw)) = self.store.get(ns::GRAPH_FACT, key)? else {
@@ -258,11 +280,16 @@ impl<'a> GraphStore<'a> {
         }
         let total = filtered.len();
         if offset >= total || limit == 0 {
-            return Ok((Vec::new(), total, offset < total));
+            return Ok((Vec::new(), total, offset < total, history_unavailable));
         }
         let end = total.min(offset.saturating_add(limit));
         let has_more = end < total;
-        Ok((filtered[offset..end].to_vec(), total, has_more))
+        Ok((
+            filtered[offset..end].to_vec(),
+            total,
+            has_more,
+            history_unavailable,
+        ))
     }
 
     /// Load stored [`ClaimLifecycleRecord`] entries for `url_or_key` (resolving forward aliases).

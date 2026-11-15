@@ -400,6 +400,7 @@ async fn t05_concurrent_sync_and_spec_revision_cas() {
     let mut inv = store.sync().get_inventory("s-t05").unwrap();
     let mut delta = SyncDelta {
         source_id: "s-t05".to_string(),
+        instance_id: rev1.instance_id.clone(),
         tick_id: "stale-tick".to_string(),
         tick_seq: 99,
         started_at_ms: 100,
@@ -419,6 +420,7 @@ async fn t05_concurrent_sync_and_spec_revision_cas() {
         .sync()
         .commit_tick_atomic(TickCommitRequest {
             source_id: "s-t05",
+            expected_instance_id: &rev1.instance_id,
             expected_spec_revision: 1,
             spec_revision_used: 1,
             inventory: &mut inv,

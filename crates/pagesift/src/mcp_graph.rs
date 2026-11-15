@@ -121,9 +121,9 @@ impl ToolHandler for GraphQueryTool {
                 let max_limit = pagesift_store::DEFAULT_GRAPH_CONFLICTS_LIMIT;
                 let limit = parse_bound(&args, "limit", 1, max_limit, max_limit)?;
                 let offset = parse_bound(&args, "offset", 0, 0, usize::MAX)?;
-                let (total, claims, truncated) = self
+                let (total, claims, truncated, history_unavailable) = self
                     .0
-                    .graph_claims_for(
+                    .graph_claims_checked_for(
                         None,
                         history_url.as_deref(),
                         subject.as_deref(),
@@ -141,6 +141,7 @@ impl ToolHandler for GraphQueryTool {
                     total,
                     claims,
                     truncated,
+                    history_unavailable,
                 };
                 return Ok(ToolOutput::json(
                     serde_json::to_value(resp).map_err(|e| ToolError::new(e.to_string()))?,
@@ -174,9 +175,15 @@ impl ToolHandler for GraphQueryTool {
                 let max_limit = pagesift_store::DEFAULT_GRAPH_CONFLICTS_LIMIT;
                 let limit = parse_bound(&args, "limit", 1, max_limit, max_limit)?;
                 let offset = parse_bound(&args, "offset", 0, 0, usize::MAX)?;
-                let (total, conflicts, truncated) = self
+                let (total, conflicts, truncated, history_unavailable) = self
                     .0
-                    .graph_conflicts_as_of_for(None, subject.as_deref(), as_of_ms, limit, offset)
+                    .graph_conflicts_as_of_checked_for(
+                        None,
+                        subject.as_deref(),
+                        as_of_ms,
+                        limit,
+                        offset,
+                    )
                     .await
                     .map_err(bad)?;
                 let resp = GraphConflictsResponse {
@@ -185,6 +192,7 @@ impl ToolHandler for GraphQueryTool {
                     total,
                     conflicts,
                     truncated,
+                    history_unavailable,
                 };
                 return Ok(ToolOutput::json(
                     serde_json::to_value(resp).map_err(|e| ToolError::new(e.to_string()))?,

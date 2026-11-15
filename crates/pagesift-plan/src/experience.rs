@@ -57,6 +57,9 @@ impl FamilyStats {
     }
 
     pub fn observe(&mut self, obs: &FamilyObservation) {
+        if !obs.has_signal() {
+            return;
+        }
         let keep = 1.0 - Delta::DEFAULT.get();
         if let Some(http_ok) = obs.http_sufficient {
             self.http_sufficient.observe_decayed(http_ok, keep);
@@ -76,8 +79,9 @@ impl FamilyStats {
         if let Some(yielded) = obs.yielded_claims_or_links {
             self.claim_yield.observe_decayed(yielded, keep);
         }
-        self.barrier_rate
-            .observe_decayed(obs.encountered_barrier, keep);
+        if let Some(barrier) = obs.encountered_barrier {
+            self.barrier_rate.observe_decayed(barrier, keep);
+        }
         if obs.cost_ms >= 0.0 && obs.cost_ms.is_finite() {
             if self.total_observations == 0 {
                 self.ewma_cost_ms = obs.cost_ms;
@@ -211,6 +215,9 @@ impl FamilyExperienceTable {
     }
 
     pub fn record_observation(&self, family: &str, obs: &FamilyObservation) {
+        if !obs.has_signal() {
+            return;
+        }
         let key = family_key(family);
         let mut map = self.families.lock().unwrap_or_else(|e| e.into_inner());
         map.entry(key)

@@ -8,6 +8,7 @@ use crate::sync::{
 fn base_spec(id: &str) -> DataSourceSpec {
     DataSourceSpec {
         id: id.to_string(),
+        instance_id: String::new(),
         name: Some("Docs".to_string()),
         seeds: vec!["https://docs.example.com/".to_string()],
         include_paths: Vec::new(),
@@ -80,6 +81,7 @@ fn sync_store_persists_sources_inventory_deltas_and_as_of_view() {
 
     let delta = SyncDelta {
         source_id: "docs-src".to_string(),
+        instance_id: String::new(),
         tick_id: "tick-1500".to_string(),
         tick_seq: 1,
         started_at_ms: 1400,
@@ -105,10 +107,19 @@ fn sync_store_persists_sources_inventory_deltas_and_as_of_view() {
     );
 
     let view = ss.build_state_view("docs-src", None).unwrap().unwrap();
+    assert_eq!(view.history_status, SourceHistoryStatus::Complete);
+    assert!(!view.history_unavailable);
+    assert_eq!(view.spec.as_ref().unwrap().id, "docs-src");
     assert_eq!(view.total_ticks, 1);
     assert_eq!(view.inventory_counts.get("active"), Some(&1));
 
     let early_view = ss.build_state_view("docs-src", Some(500)).unwrap().unwrap();
+    assert_eq!(
+        early_view.history_status,
+        SourceHistoryStatus::NotCreatedYet
+    );
+    assert!(!early_view.history_unavailable);
+    assert!(early_view.spec.is_none());
     assert_eq!(early_view.total_ticks, 0);
     assert!(early_view.resources.is_empty());
 
@@ -125,6 +136,7 @@ fn point_in_time_view_isolates_future_spec_edits_state_mutations_and_pruning_c03
     let mut s1 = base_spec("src-c03");
     s1.include_paths = vec!["/v1".to_string()];
     ss.put_source(&s1).unwrap();
+    let s1 = ss.get_source("src-c03").unwrap().unwrap();
 
     let mut inv1 = vec![base_rec(
         "rk1",
@@ -134,6 +146,7 @@ fn point_in_time_view_isolates_future_spec_edits_state_mutations_and_pruning_c03
     )];
     let mut d1 = SyncDelta {
         source_id: "src-c03".to_string(),
+        instance_id: s1.instance_id.clone(),
         tick_id: "t1".to_string(),
         tick_seq: 0,
         started_at_ms: 1900,
@@ -152,6 +165,7 @@ fn point_in_time_view_isolates_future_spec_edits_state_mutations_and_pruning_c03
     assert_eq!(
         ss.commit_tick_atomic(TickCommitRequest {
             source_id: "src-c03",
+            expected_instance_id: &s1.instance_id,
             expected_spec_revision: 1,
             spec_revision_used: 1,
             inventory: &mut inv1,
@@ -187,6 +201,7 @@ fn point_in_time_view_isolates_future_spec_edits_state_mutations_and_pruning_c03
         let mut inv_i = vec![rec];
         let mut di = SyncDelta {
             source_id: "src-c03".to_string(),
+            instance_id: updated.instance_id.clone(),
             tick_id: format!("t{i}"),
             tick_seq: 0,
             started_at_ms: ts - 10,
@@ -204,6 +219,7 @@ fn point_in_time_view_isolates_future_spec_edits_state_mutations_and_pruning_c03
         };
         ss.commit_tick_atomic(TickCommitRequest {
             source_id: "src-c03",
+            expected_instance_id: &updated.instance_id,
             expected_spec_revision: 2,
             spec_revision_used: 2,
             inventory: &mut inv_i,
@@ -218,8 +234,9 @@ fn point_in_time_view_isolates_future_spec_edits_state_mutations_and_pruning_c03
 
     // 回溯到 t=2500：应看到 rev=1、Active、无 migrated_to、total_ticks=1（不被后续 70 轮污染）
     let past = ss.build_state_view("src-c03", Some(2500)).unwrap().unwrap();
-    assert_eq!(past.spec.revision, 1);
-    assert_eq!(past.spec.include_paths, vec!["/v1".to_string()]);
+    let past_spec = past.spec.as_ref().unwrap();
+    assert_eq!(past_spec.revision, 1);
+    assert_eq!(past_spec.include_paths, vec!["/v1".to_string()]);
     assert_eq!(past.total_ticks, 1);
     assert_eq!(past.resources.len(), 1);
     assert_eq!(past.resources[0].state, ResourceLifecycleState::Active);
@@ -236,7 +253,7 @@ fn atomic_tick_aborts_cleanly_on_fail_writes_and_stale_revision_or_delete_c05_c0
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open_dir(dir.path()).unwrap();
     let ss = store.sync();
-    ss.put_source(&base_spec("src-atom")).unwrap();
+    let atom_spec = ss.upsert_source(base_spec("src-atom")).unwrap();
 
     // 1. 注入 fail_writes：整轮应全回滚，零版本/声明/增量写入
     store.fail_writes(true);
@@ -248,6 +265,7 @@ fn atomic_tick_aborts_cleanly_on_fail_writes_and_stale_revision_or_delete_c05_c0
     )];
     let mut delta = SyncDelta {
         source_id: "src-atom".to_string(),
+        instance_id: atom_spec.instance_id.clone(),
         tick_id: "t-fail".to_string(),
         tick_seq: 0,
         started_at_ms: 1900,
@@ -265,6 +283,7 @@ fn atomic_tick_aborts_cleanly_on_fail_writes_and_stale_revision_or_delete_c05_c0
     };
     let err = ss.commit_tick_atomic(TickCommitRequest {
         source_id: "src-atom",
+        expected_instance_id: &atom_spec.instance_id,
         expected_spec_revision: 1,
         spec_revision_used: 1,
         inventory: &mut inv,
@@ -283,6 +302,7 @@ fn atomic_tick_aborts_cleanly_on_fail_writes_and_stale_revision_or_delete_c05_c0
     let stale = ss
         .commit_tick_atomic(TickCommitRequest {
             source_id: "src-atom",
+            expected_instance_id: &atom_spec.instance_id,
             expected_spec_revision: 99,
             spec_revision_used: 99,
             inventory: &mut inv,
@@ -301,6 +321,7 @@ fn atomic_tick_aborts_cleanly_on_fail_writes_and_stale_revision_or_delete_c05_c0
     let deleted = ss
         .commit_tick_atomic(TickCommitRequest {
             source_id: "src-atom",
+            expected_instance_id: &atom_spec.instance_id,
             expected_spec_revision: 1,
             spec_revision_used: 1,
             inventory: &mut inv,

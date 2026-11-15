@@ -31,6 +31,15 @@ test('sync source lifecycle and graph queries with persistent storePath', async 
     })
     assert.equal(created.success, true)
     assert.equal(created.source.id, 'local-site')
+    assert.ok(typeof created.source.instanceId === 'string' && created.source.instanceId.length > 0)
+
+    const preCreateState = await s.sync({
+      action: 'state',
+      id: 'local-site',
+      asOf: created.source.createdAtMs - 1,
+    })
+    assert.equal(preCreateState.state.historyStatus, 'not_created_yet')
+    assert.equal(preCreateState.state.spec ?? null, null)
 
     const listed = await s.sync({ action: 'list' })
     assert.equal(listed.total, 1)
@@ -38,11 +47,13 @@ test('sync source lifecycle and graph queries with persistent storePath', async 
     const tick = await s.sync({ action: 'run', id: 'local-site', maxRequests: 3 })
     assert.equal(tick.success, true)
     assert.equal(tick.delta.sourceId, 'local-site')
+    assert.equal(tick.delta.instanceId, created.source.instanceId)
     assert.ok(tick.delta.stats.requestsExecuted >= 1)
 
     const state = await s.sync({ action: 'state', id: 'local-site' })
     assert.equal(state.success, true)
     assert.equal(state.state.spec.id, 'local-site')
+    assert.equal(state.state.spec.instanceId, created.source.instanceId)
 
     const deltas = await s.sync({ action: 'deltas', id: 'local-site', limit: 5 })
     assert.equal(deltas.success, true)
@@ -56,6 +67,7 @@ test('sync source lifecycle and graph queries with persistent storePath', async 
     const claims = await s.queryGraph({ claims: true, url: `${srv.base}/site/` })
     assert.equal(claims.success, true)
     assert.equal(typeof claims.total, 'number')
+    assert.equal(claims.historyUnavailable ?? false, false)
     assert.ok(Array.isArray(claims.claims ?? []))
 
     const del = await s.sync({ action: 'delete', id: 'local-site' })
@@ -65,6 +77,19 @@ test('sync source lifecycle and graph queries with persistent storePath', async 
       () => s.sync({ action: 'get', id: 'local-site' }),
       (e) => e instanceof PagesiftError && e.code === 'NOT_FOUND'
     )
+
+    const recreated = await s.sync({
+      action: 'create',
+      sourceId: 'local-site',
+      seeds: [`${srv.base}/site/`],
+      maxDepth: 1,
+      maxRequestsPerTick: 5,
+      allowBrowser: false,
+    })
+    assert.equal(recreated.success, true)
+    assert.notEqual(recreated.source.instanceId, created.source.instanceId)
+    const recreatedDeltas = await s.sync({ action: 'deltas', id: 'local-site', limit: 5 })
+    assert.equal(recreatedDeltas.total, 0)
   } finally {
     await s.close()
     try {

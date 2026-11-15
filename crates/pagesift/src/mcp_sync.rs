@@ -255,13 +255,22 @@ impl ToolHandler for SyncTool {
                     if let Some(tick) = tick_id {
                         let lookup = id.clone();
                         let lookup_tick = tick.clone();
-                        let delta = store
-                            .blocking(move |st| st.sync().get_delta(&lookup, &lookup_tick))
+                        let (exists, delta) = store
+                            .blocking(move |st| -> Result<_, pagesift_store::Error> {
+                                let sync = st.sync();
+                                if sync.get_source(&lookup)?.is_none() {
+                                    return Ok((false, None));
+                                }
+                                Ok((true, sync.get_delta(&lookup, &lookup_tick)?))
+                            })
                             .await
-                            .map_err(|e| ToolError::new(format!("get delta failed: {e}")))?
-                            .ok_or_else(|| {
-                                ToolError::new(format!("delta '{tick}' for '{id}' not found"))
-                            })?;
+                            .map_err(|e| ToolError::new(format!("get delta failed: {e}")))?;
+                        if !exists {
+                            return Err(ToolError::new(format!("data source '{id}' not found")));
+                        }
+                        let delta = delta.ok_or_else(|| {
+                            ToolError::new(format!("delta '{tick}' for '{id}' not found"))
+                        })?;
                         return Ok(ToolOutput::json(json!({
                             "success": true,
                             "action": "deltas",
@@ -276,9 +285,16 @@ impl ToolHandler for SyncTool {
                         .clamp(1, MAX_DELTAS_PER_SOURCE);
                     let lookup = id.clone();
                     let deltas = store
-                        .blocking(move |st| st.sync().list_deltas(&lookup, limit))
+                        .blocking(move |st| {
+                            let sync = st.sync();
+                            if sync.get_source(&lookup)?.is_none() {
+                                return Ok::<_, pagesift_store::Error>(None);
+                            }
+                            Ok(Some(sync.list_deltas(&lookup, limit)?))
+                        })
                         .await
-                        .map_err(|e| ToolError::new(format!("list deltas failed: {e}")))?;
+                        .map_err(|e| ToolError::new(format!("list deltas failed: {e}")))?
+                        .ok_or_else(|| ToolError::new(format!("data source '{id}' not found")))?;
                     Ok(ToolOutput::json(json!({
                         "success": true,
                         "action": "deltas",
@@ -347,13 +363,19 @@ mod tests {
             .unwrap();
         assert_eq!(listed.structured_content.unwrap()["total"], 1);
 
+        let inst_a = created_json["source"]["instanceId"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert!(!inst_a.is_empty());
+
         let state = tool
             .call(
                 json!({"action": "state", "sourceId": "docs-src"})
                     .as_object()
                     .unwrap()
                     .clone(),
-                ctx,
+                ctx.clone(),
             )
             .await
             .unwrap();
@@ -361,5 +383,53 @@ mod tests {
             state.structured_content.unwrap()["state"]["spec"]["id"],
             "docs-src"
         );
+
+        let deleted = tool
+            .call(
+                json!({"action": "delete", "sourceId": "docs-src"})
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+                ctx.clone(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(deleted.structured_content.unwrap()["deleted"], true);
+
+        let miss_delta = tool
+            .call(
+                json!({"action": "deltas", "sourceId": "docs-src", "tickId": "t1"})
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+                ctx.clone(),
+            )
+            .await
+            .unwrap_err();
+        assert!(
+            miss_delta
+                .message
+                .contains("data source 'docs-src' not found")
+        );
+
+        let recreated = tool
+            .call(
+                json!({
+                    "action": "create",
+                    "sourceId": "docs-src",
+                    "seeds": ["https://example.com/docs"]
+                })
+                .as_object()
+                .unwrap()
+                .clone(),
+                ctx,
+            )
+            .await
+            .unwrap();
+        let inst_b = recreated.structured_content.unwrap()["source"]["instanceId"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert_ne!(inst_a, inst_b);
     }
 }

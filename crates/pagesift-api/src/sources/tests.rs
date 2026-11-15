@@ -45,7 +45,7 @@ impl Engine for SyncMockEngine {
         let store = self.store.clone();
         Box::pin(async move {
             let sync = store.sync_for(tenant);
-            let Some(_spec) = sync
+            let Some(spec) = sync
                 .get_source(source_id)
                 .map_err(|e| ApiError::new(ErrorCode::Internal, format!("sync mock error: {e}")))?
             else {
@@ -54,12 +54,17 @@ impl Engine for SyncMockEngine {
                     format!("data source '{source_id}' not found"),
                 ));
             };
-            let delta = SyncDelta {
+            let ts = spec
+                .created_at_ms
+                .max(pagesift_store::now_store_ms())
+                .max(1000);
+            let mut delta = SyncDelta {
                 source_id: source_id.to_string(),
+                instance_id: spec.instance_id.clone(),
                 tick_id: "tick-1000".to_string(),
                 tick_seq: 1,
-                started_at_ms: 950,
-                completed_at_ms: 1000,
+                started_at_ms: ts.saturating_sub(50),
+                completed_at_ms: ts,
                 coverage_status: "complete_within_scope".to_string(),
                 coverage_reasons: Vec::new(),
                 stats: SyncTickStats {
@@ -78,9 +83,23 @@ impl Engine for SyncMockEngine {
                 conflicts: Vec::new(),
                 adapt_decisions: Vec::new(),
             };
-            sync.append_delta(&delta).map_err(|e| {
-                ApiError::new(ErrorCode::Internal, format!("append mock delta: {e}"))
+            let mut inv = sync.get_inventory(source_id).map_err(|e| {
+                ApiError::new(ErrorCode::Internal, format!("load mock inventory: {e}"))
             })?;
+            let subjects = std::collections::BTreeSet::new();
+            sync.commit_tick_atomic(pagesift_store::TickCommitRequest {
+                source_id,
+                expected_instance_id: &spec.instance_id,
+                expected_spec_revision: spec.revision,
+                spec_revision_used: spec.revision,
+                inventory: &mut inv,
+                experience_bytes: &[],
+                delta: &mut delta,
+                graph_bundles: Vec::new(),
+                conflict_subjects: &subjects,
+                conflicts: &[],
+            })
+            .map_err(|e| ApiError::new(ErrorCode::Internal, format!("commit mock tick: {e}")))?;
             Ok(delta)
         })
     }
@@ -148,6 +167,9 @@ async fn sources_crud_sync_state_and_delta_endpoints_work() {
     let (status, synced) = send_json(&app, "POST", "/v2/sources/docs-site/sync", None).await;
     assert_eq!(status, StatusCode::OK, "sync failed: {synced}");
     assert_eq!(synced["delta"]["tickId"], "tick-1000");
+    let completed_ms = synced["delta"]["completedAtMs"]
+        .as_u64()
+        .expect("completedAtMs");
 
     let (status, deltas) = send_json(&app, "GET", "/v2/sources/docs-site/deltas", None).await;
     assert_eq!(status, StatusCode::OK);
@@ -158,10 +180,23 @@ async fn sources_crud_sync_state_and_delta_endpoints_work() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(delta["delta"]["coverageStatus"], "complete_within_scope");
 
-    let (status, state) =
-        send_json(&app, "GET", "/v2/sources/docs-site/state?asOf=1000", None).await;
+    let (status, pre_state) =
+        send_json(&app, "GET", "/v2/sources/docs-site/state?asOf=500", None).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(state["state"]["asOfMs"], 1000);
+    assert_eq!(pre_state["state"]["historyStatus"], "not_created_yet");
+    assert_eq!(pre_state["state"]["spec"], serde_json::Value::Null);
+    assert_eq!(pre_state["state"]["totalTicks"], 0);
+
+    let (status, state) = send_json(
+        &app,
+        "GET",
+        &format!("/v2/sources/docs-site/state?asOf={completed_ms}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(state["state"]["asOfMs"], completed_ms);
+    assert_eq!(state["state"]["historyStatus"], "complete");
     assert_eq!(state["state"]["totalTicks"], 1);
 
     let (status, deleted) = send_json(&app, "DELETE", "/v2/sources/docs-site", None).await;

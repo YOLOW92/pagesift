@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.5.1
+# pagesift 1.5.2
 
 **AI 智能体的网页和文档层：输入任意 URL、文档、邮件、压缩包或源代码文件，输出干净的 Markdown、结构化 JSON 或 DataGraph 关系图谱。**  
 一个自托管的 Rust 二进制：CLI、Firecrawl 和 Jina Reader API、MCP 服务器，以及 Python、Node.js、Go、Java、C#、Ruby、PHP 等语言的包。
@@ -43,7 +43,7 @@ pagesift 替会思考的软件读取网页和文档：它抓取一个 URL（只�
 - **运行环境：** HTTP、PDF 和 Office 无需额外安装。可选：处理 JavaScript 页面的浏览器、用于 OCR 的 NVIDIA GPU、供 `/v2/agent` 使用的你自己的模型
 - **内存：** 1.4 各项基准中，不带浏览器时每个 worker 峰值 17–395 MB；带公式模型的 OCR 约需 1.7 GB；容量按 cgroup 上限确定
 - **许可证：** Apache-2.0，或[商业支持](COMMERCIAL.md)
-- **最新版本：** 1.5.1 · [发行说明](releases/1.5.1.md)
+- **最新版本：** 1.5.2 · [发行说明](releases/1.5.2.md)
 
 <!-- section: install -->
 ## 安装与使用
@@ -53,7 +53,7 @@ pagesift 替会思考的软件读取网页和文档：它抓取一个 URL（只�
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| 服务器 | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.5.1` | `curl localhost:3002/r/https://example.com` |
+| 服务器 | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.5.2` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -99,7 +99,7 @@ const items = await scraper.scrapeMany(['https://example.com', 'https://example.
 **HTTP 服务器**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.5.1
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.5.2
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'                        # Firecrawl API
@@ -337,11 +337,11 @@ flowchart LR
 [商业许可与支持](COMMERCIAL.md) 或写信到 `licensing@pagesift.dev`。
 
 <!-- section: changelog -->
-## 1.5.1 新增
+## 1.5.2 新增
 
-PageSift 1.5.1 是 1.5 系列稳定性与正确性修复版本：在 Node.js `Scraper.close()` 中显式释放 `pagesift-store` 目录句柄（修复 Windows `ENOTEMPTY`），并加固了时间语意解析、计费周期归一化与冲突检测、声明契约 ID 继承与历史区间溯源、`AtomicTx` 单事务原子提交与修订号 CAS、严格同源作用域与重定向迁移门控、字段级采集充分性与校验器复位规则、同步预算约束以及 `/v2/sources` / CLI / MCP 一致性校验。
+PageSift 1.5.2 聚焦 1.5 系列的事务原子性、时间一致性和观测一致性修复：在 `pagesift-store` 中实现带 BLAKE3 校验的 `TxPut`/`TxDel`/`TxCommit` 崩溃原子事务及同步/空间不足回滚，新增持久化 `sgen` + `instanceId` 机制防止数据源删建 ABA 污染，按结构化 `ErrorCode` 对传输失败/浏览器异常/预算耗尽做删失处理并消除自适应误污染，取消失真式声明区间合并并在 GraphStore/HTTP/CLI/MCP/绑定层传播 `historyUnavailable`，消除大 `minIntervalSecs` 下的调度 clamp panic 与预算溢出，严格区分 `NotCreatedYet`/`HistoryUnavailable` 且移除无检查点时的现网库存回退，同时修复 Node.js 传入大整数 `asOf` 的兼容解析。
 
-[发布说明](releases/1.5.1.md) · [1.5.0](releases/1.5.0.md) · [1.4.2](releases/1.4.2.md) · [全部版本](releases/) · [CHANGELOG](CHANGELOG.md)
+[发布说明](releases/1.5.2.md) · [1.5.1](releases/1.5.1.md) · [1.5.0](releases/1.5.0.md) · [1.4.2](releases/1.4.2.md) · [全部版本](releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -357,7 +357,7 @@ PageSift 1.5.1 是 1.5 系列稳定性与正确性修复版本：在 Node.js `Sc
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.5.1}
+  note   = {Version 1.5.2}
 }
 ```
 

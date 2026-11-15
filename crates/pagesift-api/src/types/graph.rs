@@ -176,6 +176,8 @@ pub struct GraphConflictsResponse {
     pub conflicts: Vec<ConflictRecord>,
     #[serde(default, skip_serializing_if = "is_false")]
     pub truncated: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub history_unavailable: bool,
 }
 
 /// Response payload for `GET /v2/graph/claims?subject=...&url=...&asOf=...`.
@@ -194,4 +196,6 @@ pub struct GraphClaimsResponse {
     pub claims: Vec<ClaimLifecycleRecord>,
     #[serde(default, skip_serializing_if = "is_false")]
     pub truncated: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub history_unavailable: bool,
 }

@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.5.1
+# pagesift 1.5.2
 
 **The web and document layer for AI agents: any URL, document, email, archive or source file in, clean Markdown, structured JSON or DataGraph relations out.**  
 One self-hosted Rust binary with a CLI, Firecrawl and Jina Reader APIs, an MCP server, and packages for Python, Node.js, Go, Java, C#, Ruby, PHP and more.
@@ -43,7 +43,7 @@ Can replace or sit alongside: **Firecrawl** (same v1/v2 API, self-hosted), **Jin
 - **Runtime:** nothing to install for HTTP, PDF and Office. Optional: a browser for JavaScript pages, an NVIDIA GPU for OCR, your own model for `/v2/agent`
 - **Memory:** 17–395 MB peak per worker across the 1.4 benchmarks without a browser; OCR with formula models needs about 1.7 GB; capacity is sized from the cgroup limit
 - **License:** Apache-2.0, or [commercial support](docs/COMMERCIAL.md)
-- **Latest:** 1.5.1 · [release notes](docs/releases/1.5.1.md)
+- **Latest:** 1.5.2 · [release notes](docs/releases/1.5.2.md)
 
 <!-- section: install -->
 ## Install and use
@@ -53,7 +53,7 @@ Can replace or sit alongside: **Firecrawl** (same v1/v2 API, self-hosted), **Jin
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| Server | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.5.1` | `curl localhost:3002/r/https://example.com` |
+| Server | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.5.2` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -99,7 +99,7 @@ const items = await scraper.scrapeMany(['https://example.com', 'https://example.
 **HTTP server**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.5.1
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.5.2
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'                        # Firecrawl API
@@ -339,11 +339,11 @@ flowchart LR
 [commercial license and support](docs/COMMERCIAL.md) or write to `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
-## What's new in 1.5.1
+## What's new in 1.5.2
 
-PageSift 1.5.1 is a stability and correctness patch release on the 1.5 line: it releases `pagesift-store` directory handles explicitly in Node.js `Scraper.close()` and hardens temporal parsing, billing-period conflict normalization, claim contract inheritance and historical timeline fidelity, `AtomicTx` sync-tick commits, exact-origin scope/redirect gating, capture sufficiency and validator reset rules, tick budget caps, and uniform `/v2/sources`, CLI, and MCP validation.
+PageSift 1.5.2 hardens transaction, temporal, scheduling, and adaptive-observation correctness across the `1.5` line: it adds BLAKE3-verified `TxPut`/`TxDel`/`TxCommit` crash atomicity with sync/`ENOSPC` rollback in `pagesift-store`, persistent `sgen` + `instanceId` protection against delete-and-recreate ABA commits, structured `ErrorCode` censoring of transport/browser/budget failures in `FamilyExperienceTable`, lossless claim lifecycle history timelines with `historyUnavailable` propagation, panic-safe tombstone and budget-ledger numeric bounds, `NotCreatedYet`/`HistoryUnavailable` isolation in `load_spec_as_of` and `build_state_view` without live-inventory fallback, and safe-integer float `asOf` support in Node.js bindings.
 
-[Release notes](docs/releases/1.5.1.md) · [1.5.0](docs/releases/1.5.0.md) · [1.4.2](docs/releases/1.4.2.md) · [all releases](docs/releases/) · [CHANGELOG](docs/CHANGELOG.md)
+[Release notes](docs/releases/1.5.2.md) · [1.5.1](docs/releases/1.5.1.md) · [1.5.0](docs/releases/1.5.0.md) · [1.4.2](docs/releases/1.4.2.md) · [all releases](docs/releases/) · [CHANGELOG](docs/CHANGELOG.md)
 
 ---
 
@@ -359,7 +359,7 @@ Questions or feedback: [Discord](https://discord.gg/esA3wMZVvA) · [Issues](http
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.5.1}
+  note   = {Version 1.5.2}
 }
 ```
 

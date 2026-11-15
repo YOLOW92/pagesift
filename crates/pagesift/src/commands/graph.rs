@@ -223,14 +223,17 @@ fn inspect_store(
 ) -> Result<ExitCode> {
     let gs = store.graph();
     let max_limit = pagesift_store::DEFAULT_GRAPH_CONFLICTS_LIMIT;
-    let (conflicts, _, _) = gs.list_conflicts_as_of(subject, as_of_ms, max_limit, 0)?;
+    let (conflicts, _, _, conflicts_unavail) =
+        gs.list_conflicts_as_of_checked(subject, as_of_ms, max_limit, 0)?;
     if let Some(target) = url {
         let hist = gs.history_as_of(
             target,
             as_of_ms,
             pagesift_store::DEFAULT_GRAPH_HISTORY_LIMIT,
         )?;
-        let mut claims = gs.claims_for_resource_as_of(target, as_of_ms)?;
+        let res = gs.claims_for_resource_as_of_checked(target, as_of_ms)?;
+        let history_unavailable = conflicts_unavail || res.history_unavailable;
+        let mut claims = res.claims;
         if let Some(sk) = subject {
             claims.retain(|c| c.claim.subject_key == sk);
         }
@@ -244,16 +247,18 @@ fn inspect_store(
                     "edges": hist.edges,
                     "claims": claims,
                     "conflicts": conflicts,
+                    "historyUnavailable": history_unavailable,
                 }))?
             );
         } else {
             println!("resource_key: {}", hist.resource_key);
             println!(
-                "versions: {}, edges: {}, claims: {}, conflicts: {}",
+                "versions: {}, edges: {}, claims: {}, conflicts: {}, history_unavailable: {}",
                 hist.versions.len(),
                 hist.edges.len(),
                 claims.len(),
-                conflicts.len()
+                conflicts.len(),
+                history_unavailable
             );
             for v in &hist.versions {
                 println!(
@@ -264,7 +269,9 @@ fn inspect_store(
         }
         return Ok(ExitCode::SUCCESS);
     }
-    let (claims, _, _) = gs.list_claims_bounded(subject, as_of_ms, max_limit, 0)?;
+    let (claims, _, _, claims_unavail) =
+        gs.list_claims_as_of_checked(subject, as_of_ms, max_limit, 0)?;
+    let history_unavailable = conflicts_unavail || claims_unavail;
     if as_json {
         println!(
             "{}",
@@ -275,10 +282,16 @@ fn inspect_store(
                 "claims": claims,
                 "totalConflicts": conflicts.len(),
                 "conflicts": conflicts,
+                "historyUnavailable": history_unavailable,
             }))?
         );
     } else {
-        println!("claims: {}, conflicts: {}", claims.len(), conflicts.len());
+        println!(
+            "claims: {}, conflicts: {}, history_unavailable: {}",
+            claims.len(),
+            conflicts.len(),
+            history_unavailable
+        );
         for c in &conflicts {
             println!(
                 "conflict [{}] {} .{}: {} variants",
@@ -356,6 +369,53 @@ mod tests {
         );
         assert_eq!(
             inspect(&jsonl_path, None, None, None, false).unwrap(),
+            ExitCode::SUCCESS
+        );
+    }
+
+    #[test]
+    fn inspect_reads_store_dir_as_of() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = pagesift_store::Store::open_dir(dir.path()).unwrap();
+        let gs = store.graph();
+        let mut builder = StreamingGraphBuilder::new(GraphOptions::enabled());
+        let d1 = builder.ingest(doc("https://example.com/", "h1", 100));
+        gs.commit_version(pagesift_store::VersionCommitRequest {
+            expected_prev_doc_id: None,
+            alias_keys: &[],
+            record: &pagesift_graph::VersionRecord {
+                resource_key: d1.node.resource_key.clone(),
+                doc_id: d1.node.doc_id.clone(),
+                url: d1.node.final_url.clone(),
+                canonical_url: None,
+                observed_at_ms: 100,
+                content_hash: Some("h1".into()),
+                text_hash: None,
+                status_code: 200,
+                etag: None,
+                last_modified: None,
+            },
+            edge: None,
+            snapshot_bytes: Some(b"# Home"),
+            snapshot_unavailable_reason: None,
+        })
+        .unwrap();
+        drop(gs);
+        drop(store);
+
+        assert_eq!(
+            inspect(
+                dir.path(),
+                Some("https://example.com/"),
+                None,
+                Some("100"),
+                true
+            )
+            .unwrap(),
+            ExitCode::SUCCESS
+        );
+        assert_eq!(
+            inspect(dir.path(), None, Some("subject-1"), Some("100"), false).unwrap(),
             ExitCode::SUCCESS
         );
     }
