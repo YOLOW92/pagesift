@@ -60,6 +60,7 @@ pub fn firecrawl_routes() -> Router<AppState> {
         .route("/v2/crawl/{id}/graph", get(graph::crawl_graph))
         .route("/v2/graph/history", get(graph::graph_history))
         .route("/v2/graph/conflicts", get(graph::graph_conflicts))
+        .route("/v2/graph/claims", get(graph::graph_claims))
         // Firecrawl v1 API endpoints (full backward compatibility with v1 Python & Node SDKs)
         .route("/v1/scrape", post(scrape::scrape))
         .route("/v1/batch/scrape", post(batch::batch_start))

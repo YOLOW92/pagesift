@@ -2,6 +2,10 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## 1.5.0
+
+Introduces the **Loop** architecture integrating **Sync** (persistent `DataSourceSpec`, resource inventory lifecycle, bounded `SyncDelta`, `SourceStateView`, and monitor Markdown snapshot offloading), **Adapt** (persistent `FamilyExperienceTable`, falsifiable URL rewrite rules, evidence-driven `CaptureAssessment`, and explainable `AdaptDecision`), and **Evidence** (`TemporalSemantics`, `OriginRelation` independent roots, `ClaimLifecycleRecord` transitions, conflict temporal deduplication, and `asOf` point-in-time reconstruction). Exposed across HTTP (`/v2/sources`, `/v2/graph/claims`, `?asOf=`), CLI (`pagesift sync`, `pagesift graph inspect --as-of`), MCP (`pagesift_sync`, `pagesift_graph_query`), C ABI (`pagesift_sync`, `pagesift_graph_query`), Node.js (`Scraper.sync`, `Scraper.queryGraph`), and Python (`Scraper.sync`/`async_sync`, `Scraper.query_graph`/`aquery_graph`). [Release notes](releases/1.5.0.md).
+
 ## 1.4.2
 
 Correctness, isolation, and resource-bound patch release for `1.4.x`: deterministic `queryFilter`/chunk block mapping and whole-token/field-context evidence realignment, validator-matched snapshot resolution for `HTTP 304 Not Modified` version diffs, permanent-only (`301`/`308`) redirect alias binding without temporary-redirect or duplicate-content history merging, end-to-end linear CAS enforcement in `GraphStore::record_version` and crawl sinks, graph-scope result cache isolation, private target-context (`headers`/`keepSession`/`actions`) graph tenant isolation for anonymous HTTP callers, `1..=HARD_MAX_*` validation for global `GraphLimits` fields, honoring `graph.versions: false` on in-memory job history fallback, streaming bounded top-K buffer merging across multi-alias history scans, target-URL SSRF checks when matching a configured proxy hostname, and single-word atomic `(limit, active)` CAS in `AdaptiveConcurrencyGate`. [Release notes](releases/1.4.2.md).

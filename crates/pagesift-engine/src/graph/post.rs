@@ -678,6 +678,7 @@ pub fn page_delta_from_document(doc: &Document, slice: &GraphSlice) -> PageGraph
             title: doc.metadata.title.clone(),
         },
         subject_key: slice.subject_key.clone(),
+        temporal: slice.temporal.clone(),
         blocks: slice.blocks.clone(),
         citations: slice.citations.clone(),
         provenance: slice.provenance.clone(),
@@ -685,5 +686,6 @@ pub fn page_delta_from_document(doc: &Document, slice: &GraphSlice) -> PageGraph
         version_rejected: slice.version_rejected,
         evidence: slice.evidence.clone(),
         claims: slice.claims.clone(),
+        claim_transitions: slice.claim_transitions.clone(),
     }
 }

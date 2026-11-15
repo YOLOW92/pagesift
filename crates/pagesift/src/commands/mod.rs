@@ -7,4 +7,5 @@ pub(crate) mod graph;
 pub(crate) mod models;
 pub(crate) mod pages;
 pub(crate) mod service;
+pub(crate) mod sync;
 pub(crate) mod warc_in;

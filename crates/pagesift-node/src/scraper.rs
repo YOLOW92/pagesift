@@ -306,6 +306,32 @@ impl Scraper {
         }
         Ok(())
     }
+
+    /// 管理持久化 1.5 Loop 数据源并执行增量同步（需 `storePath`）。失败时拒绝为 `PagesiftError`。
+    #[napi(
+        ts_args_type = "request: SyncRequest",
+        ts_return_type = "Promise<Record<string, unknown>>"
+    )]
+    pub fn sync<'e>(&self, env: &'e Env, request: Option<Value>) -> Result<PromiseRaw<'e, Value>> {
+        crate::loop_api::spawn(env, self.live(), request, |core, req| async move {
+            pagesift::loop_ops::sync(&core, req).await
+        })
+    }
+
+    /// 查询持久化 DataGraph 历史版本、实体声明与跨来源冲突（需 `storePath`）。
+    #[napi(
+        ts_args_type = "request: GraphQueryRequest",
+        ts_return_type = "Promise<Record<string, unknown>>"
+    )]
+    pub fn query_graph<'e>(
+        &self,
+        env: &'e Env,
+        request: Option<Value>,
+    ) -> Result<PromiseRaw<'e, Value>> {
+        crate::loop_api::spawn(env, self.live(), request, |core, req| async move {
+            pagesift::loop_ops::query_graph(&core, req).await
+        })
+    }
 }
 
 /// 选项对象里加上 `extractSchema`（没给选项时新建一个）。

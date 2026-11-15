@@ -8,6 +8,7 @@ use serde_json::Value;
 use crate::corroborate::ClaimRecord;
 use crate::evidence::EvidenceSpan;
 use crate::hash::{normalize_resource_key, short_id};
+use crate::lifecycle::latest_claims_per_resource;
 use crate::norm::{NormalizedValue, ValueComparison, compare_normalized};
 
 /// Taxonomy of cross-source or cross-version claim disagreements.
@@ -68,9 +69,13 @@ pub struct ConflictRecord {
 }
 
 /// Detect and classify all disagreements across normalized `ClaimRecord` entries.
+///
+/// Automatically filters out superseded historical claims from the same `(resource_key, engine)`
+/// so a single resource updating its own value over time does not conflict with its past self.
 pub fn detect_conflicts(claims: &[ClaimRecord]) -> Vec<ConflictRecord> {
+    let active_claims = latest_claims_per_resource(claims);
     let mut by_slot: BTreeMap<(String, String), Vec<&ClaimRecord>> = BTreeMap::new();
-    for claim in claims {
+    for claim in active_claims {
         by_slot
             .entry((claim.subject_key.clone(), claim.normalized_field.clone()))
             .or_default()

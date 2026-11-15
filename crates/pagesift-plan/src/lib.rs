@@ -8,10 +8,12 @@
 
 pub mod block;
 pub mod embedded_json;
+pub mod experience;
 pub mod learn;
 pub mod merge;
 pub mod plan;
 pub mod quality;
 pub mod render;
 pub mod script;
+pub mod strategy;
 pub mod template;

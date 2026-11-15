@@ -38,7 +38,7 @@ pub(crate) fn runtime() -> &'static Runtime {
 
 #[pyclass(frozen, module = "pagesift._pagesift")]
 pub struct Engine {
-    scraper: Arc<Scraper>,
+    pub(crate) scraper: Arc<Scraper>,
 }
 
 #[pymethods]

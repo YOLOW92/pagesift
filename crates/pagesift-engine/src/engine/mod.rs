@@ -377,6 +377,24 @@ impl Engine for Scraper {
         Some(self.concurrency())
     }
 
+    fn sync_source<'a>(
+        &'a self,
+        source_id: &'a str,
+        tenant: Option<&'a str>,
+        force_all: bool,
+        max_requests: Option<usize>,
+    ) -> BoxFuture<'a, Result<pagesift_store::SyncDelta, ApiError>> {
+        Box::pin(Scraper::run_sync_tick(
+            self,
+            source_id,
+            crate::sync::SyncRunOptions {
+                tenant: tenant.map(str::to_string),
+                force_all,
+                max_requests_override: max_requests,
+            },
+        ))
+    }
+
     fn supported_formats(&self) -> &'static [&'static str] {
         match (self.llm.is_some(), self.store.is_some()) {
             (true, true) => &[

@@ -16,6 +16,7 @@ use tokio::runtime::Runtime;
 mod args;
 mod crawl;
 mod doc;
+mod loop_api;
 mod ops;
 
 use doc::failure_value;
@@ -307,5 +308,37 @@ pub unsafe extern "C" fn pagesift_crawl(
             )
         };
         Ok(crawl::crawl(runtime(), s, url, o))
+    })
+}
+
+/// 管理持久化 1.5 Loop 数据源（`create`/`list`/`get`/`delete`/`run`/`state`/`deltas`）。
+///
+/// # Safety
+/// 指针参数的要求见 `pagesift.h`。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn pagesift_sync(
+    engine: *const PagesiftEngine,
+    request_json: *const c_char,
+) -> *mut c_char {
+    guarded("pagesift_sync", || {
+        // SAFETY: 转述调用方的保证
+        let (s, req) = unsafe { (scraper(engine)?, optional(request_json, "request_json")?) };
+        Ok(loop_api::sync(runtime(), s, req))
+    })
+}
+
+/// 查询持久化 DataGraph 历史版本、实体声明与冲突。
+///
+/// # Safety
+/// 指针参数的要求见 `pagesift.h`。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn pagesift_graph_query(
+    engine: *const PagesiftEngine,
+    request_json: *const c_char,
+) -> *mut c_char {
+    guarded("pagesift_graph_query", || {
+        // SAFETY: 转述调用方的保证
+        let (s, req) = unsafe { (scraper(engine)?, optional(request_json, "request_json")?) };
+        Ok(loop_api::query_graph(runtime(), s, req))
     })
 }

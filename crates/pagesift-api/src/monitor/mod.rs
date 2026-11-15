@@ -18,6 +18,7 @@
 mod crawl;
 mod run;
 pub mod schedule;
+mod snapshot_ref;
 
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::Arc;
@@ -35,7 +36,7 @@ use crate::server::{AppState, lenient_body};
 use crate::types::ScrapeOptions;
 use crate::webhook::WebhookConfig;
 
-pub(crate) use run::start_scheduler;
+pub(crate) use snapshot_ref::start_scheduler;
 
 /// 监控能做什么判断：多服务器时由网关租约决定本机是否调度。
 pub type Leader = Arc<dyn Fn() -> bool + Send + Sync>;
@@ -101,7 +102,10 @@ pub struct Target {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PageState {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub markdown: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub snapshot_ref: Option<String>,
     pub extract: Option<Value>,
     pub etag: Option<String>,
     pub last_modified: Option<String>,
@@ -444,7 +448,7 @@ pub(crate) async fn create(
         warnings,
     };
     let view = state.view();
-    run::persist(&s, &state);
+    snapshot_ref::persist(&s, &state);
     s.monitors.map.lock().await.insert(id, state);
     s.monitors.wake.notify_one();
     run::ensure_running(&s);
@@ -490,7 +494,7 @@ pub(crate) async fn delete(
     let mut map = s.monitors.map.lock().await;
     owned(&mut map, &id, &owner_of(&caller)).await?;
     map.remove(&id);
-    run::forget(&s, &id);
+    snapshot_ref::forget(&s, &id);
     // 调度任务在等下一个到期时间：叫醒它，监控清空时让它退出
     s.monitors.wake.notify_one();
     Ok(Json(json!({ "success": true })))

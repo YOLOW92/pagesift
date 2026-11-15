@@ -4,7 +4,9 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::delta::DocumentInput;
 use crate::hash::{host_of, normalize_resource_key, normalize_url};
+use crate::model::{DocNode, SourceKind};
 
 /// How one URL transitioned to another during fetch or browser navigation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -160,6 +162,93 @@ pub fn cluster_canonicals(edges: &[ProvenanceEdge]) -> Vec<CanonicalCluster> {
             }
         })
         .collect()
+}
+
+/// Build provenance edges for a document node and its redirect/canonical/attachment inputs.
+pub fn build_provenance(node: &DocNode, input: &DocumentInput) -> Vec<ProvenanceEdge> {
+    let mut edges = Vec::new();
+    for (from_url, to_url, status, kind) in &input.redirect_chain {
+        edges.push(ProvenanceEdge::Redirect {
+            from_url: normalize_url(from_url),
+            to_url: normalize_url(to_url),
+            status: *status,
+            redirect_kind: *kind,
+        });
+    }
+    if let Some(can) = &node.canonical_url {
+        let declared_by = if input.canonical_from_header {
+            CanonicalSource::HttpHeader
+        } else {
+            CanonicalSource::HtmlLink
+        };
+        if let Some(edge) = canonical_edge(&node.final_url, can, declared_by) {
+            edges.push(edge);
+        }
+    }
+    for (alt_url, hreflang, media_type) in &input.alternates {
+        edges.push(ProvenanceEdge::HasAlternate {
+            primary_url: node.final_url.clone(),
+            alt_url: normalize_url(alt_url),
+            media_type: media_type.clone(),
+            hreflang: hreflang.clone(),
+        });
+    }
+    if let Some(dup) = &input.duplicate_of {
+        edges.push(ProvenanceEdge::DuplicateOf {
+            source_url: node.final_url.clone(),
+            canonical_url: normalize_url(dup),
+            reason: "content_duplicate".into(),
+        });
+    }
+    match &node.source_kind {
+        SourceKind::ArchiveMember {
+            archive_url,
+            member_path,
+        } => {
+            edges.push(ProvenanceEdge::AttachmentOf {
+                attachment_url: node.final_url.clone(),
+                parent_url: normalize_url(archive_url),
+                parent_doc_id: None,
+                media_id: None,
+                member_path: Some(member_path.clone()),
+            });
+        }
+        SourceKind::EmailPart {
+            mail_url,
+            part_name,
+        } => {
+            edges.push(ProvenanceEdge::AttachmentOf {
+                attachment_url: node.final_url.clone(),
+                parent_url: normalize_url(mail_url),
+                parent_doc_id: None,
+                media_id: None,
+                member_path: Some(part_name.clone()),
+            });
+        }
+        SourceKind::ImageAsset {
+            parent_url,
+            media_id,
+        } => {
+            edges.push(ProvenanceEdge::AttachmentOf {
+                attachment_url: node.final_url.clone(),
+                parent_url: normalize_url(parent_url),
+                parent_doc_id: None,
+                media_id: Some(media_id.clone()),
+                member_path: None,
+            });
+        }
+        _ => {}
+    }
+    for (att_url, media_id, member_path) in &input.attachments {
+        edges.push(ProvenanceEdge::AttachmentOf {
+            attachment_url: normalize_url(att_url),
+            parent_url: node.final_url.clone(),
+            parent_doc_id: Some(node.doc_id.clone()),
+            media_id: media_id.clone(),
+            member_path: member_path.clone(),
+        });
+    }
+    edges
 }
 
 #[cfg(test)]

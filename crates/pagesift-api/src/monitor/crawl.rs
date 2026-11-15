@@ -143,11 +143,12 @@ pub(super) async fn check_crawl(
             && p.target == tid
             && !u.starts_with("crawl:")
             && !seen.contains(u)
-            && p.markdown.is_some()
+            && (p.markdown.is_some() || p.snapshot_ref.is_some())
         {
             any = true;
             let mut gone = p.clone();
             gone.markdown = None;
+            gone.snapshot_ref = None;
             gone.extract = None;
             gone.etag = None;
             gone.last_modified = None;

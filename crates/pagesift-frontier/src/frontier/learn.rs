@@ -46,7 +46,7 @@ struct ShapeStats {
 /// 一次爬取里学到的内容重复情况。内存随抓过的页面数线性增长（每页一个哈希和一个 URL）。
 /// 从重复页面对里学到的 URL 改写规则，都限定在一个主机上。
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-enum Rule {
+pub enum Rule {
     /// 去掉这个查询参数（只限这个值）
     DropPair {
         host: String,
@@ -311,6 +311,33 @@ impl Learner {
     /// 这个 URL 的模板是否已经降级（大多抓到重复内容）。
     pub fn demoted(&self, url: &Url) -> bool {
         self.demoted_key(shape_key(url))
+    }
+
+    /// 导出本次爬取已生效的 URL 改写规则（供跨周期同步经验层持久化）。
+    pub fn export_active_rules(&self) -> Vec<Rule> {
+        self.rules.active.iter().cloned().collect()
+    }
+
+    /// 导入一条跨周期验证通过的 URL 改写规则。
+    pub fn import_active_rule(&mut self, rule: Rule) {
+        if let Rule::StripSuffix { host, suffix } = &rule {
+            let list = self.rules.suffixes.entry(host.clone()).or_default();
+            if !list.contains(suffix) {
+                list.push(suffix.clone());
+            }
+        }
+        self.rules.active.insert(rule);
+    }
+
+    /// 撤销一条被证伪的 URL 改写规则。
+    pub fn revoke_rule(&mut self, rule: &Rule) {
+        self.rules.active.remove(rule);
+        self.rules.evidence.remove(rule);
+        if let Rule::StripSuffix { host, suffix } = rule
+            && let Some(list) = self.rules.suffixes.get_mut(host)
+        {
+            list.retain(|s| s != suffix);
+        }
     }
 
     pub(super) fn demoted_key(&self, key: u64) -> bool {

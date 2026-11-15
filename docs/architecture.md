@@ -7,40 +7,43 @@ for OCR and a model for `/v2/agent` are optional and found at run time.
 
 ```mermaid
 flowchart TD
-    CLI[CLI / Rust caller] --> Engine[pagesift-engine]
-    HTTP[Firecrawl and Jina HTTP API] --> Engine
-    Bindings[Python / Node / MCP / C ABI: Go, Java, C#, Ruby, PHP and more] --> Engine
-    Engine --> Hooks[pagesift-hooks: rules and hooks]
-    Hooks --> Policy[pagesift-policy: robots, rate limits, backoff, identity leases]
-    Policy --> Net[pagesift-net: HTTP, SSRF guards, validated proxy tunnels, optional TLS fingerprint]
-    Net --> Plan{pagesift-plan: render?}
-    Plan -->|No| DOM["pagesift-html (yolowhtml-dom): arena DOM"]
-    Plan -->|Yes| CDP[pagesift-cdp: browser pool, automation-marker removal, challenge settle]
+    CLI["CLI / Rust caller"] --> Engine["pagesift-engine: scrape, crawl, Loop sync"]
+    HTTP["HTTP API: Firecrawl, Jina, /v2/sources, /v2/graph"] --> Engine
+    Bindings["Python / Node / MCP / C ABI: Go, Java, C#, Ruby, PHP and more"] --> Engine
+    Engine --> Hooks["pagesift-hooks: rules and hooks"]
+    Hooks --> Policy["pagesift-policy: robots, rate limits, backoff, identity leases"]
+    Policy --> Net["pagesift-net: HTTP, SSRF guards, validated proxy tunnels, optional TLS fingerprint"]
+    Net --> Plan{"pagesift-plan: strategy, render?"}
+    Plan -->|HTTP or embedded JSON| DOM["pagesift-html (yolowhtml-dom): arena DOM"]
+    Plan -->|Browser| CDP["pagesift-cdp: browser pool, automation-marker removal, challenge settle"]
     CDP --> DOM
     Net -->|PDF| PDF["pagesift-pdf (yolowpdf + yolow64)"]
     Net -->|Office, e-books, email, archives, text| Office["pagesift-office (yolowdoc)"]
-    Net -->|Image| OCR[pagesift-ocr, pagesift-infer, pagesift-gpu]
+    Net -->|Image| OCR["pagesift-ocr, pagesift-infer, pagesift-gpu"]
     Office -->|archive member, attachment| Office
     Office -->|archive member, attachment| PDF
     Office -->|source code| Syntax["pagesift-syntax (yolowsyntax)"]
     PDF -->|scanned page| OCR
+    DOM --> Frontier["pagesift-frontier: URL scoring, link usefulness"]
+    Frontier -.->|next crawl, sync URLs| Engine
     DOM --> Content["pagesift-content (yolowhtml): main content, Markdown, metadata"]
-    DOM --> Extract[pagesift-extract: selectors, field evidence, chunking]
-    Content --> Graph["pagesift-graph (DataGraph): citations, provenance, versions, conflicts"]
+    DOM --> Extract["pagesift-extract: selectors, field evidence, chunking"]
+    Content --> Graph["pagesift-graph (DataGraph): citations, claim lifecycle, independent roots, conflicts, asOf"]
     Extract --> Graph
     PDF --> Graph
     Office --> Graph
-    Graph --> Sink[pagesift-sink: outputs, graph.jsonl, cache format]
+    Graph --> Sink["pagesift-sink: outputs, graph.jsonl, cache format"]
     PDF --> Sink
     Office --> Sink
     OCR --> Sink
     Content --> Sink
     Extract --> Sink
-    Graph --> Store[pagesift-store: cache, graph snapshots, selector memory]
-    Engine --> Store
+    Graph --> Store["pagesift-store: inventories, claim history, experience, cache, offloaded snapshots"]
+    Engine <-->|SyncDelta, assessments, snapshots| Store
+    Store -.->|family experience, URL rewrites| Plan
     Net --> Compress["pagesift-compress (yolowzstd): HTTP and cache zstd codecs"]
     Store --> Compress
-    Engine -.-> ITNA[pagesift-itna: barrier classification, attempt and network budgets]
+    Engine -.-> ITNA["pagesift-itna: barrier classification, attempt and network budgets"]
     ITNA -.->|shared budget| Net
     ITNA -.->|one bounded fallback| CDP
     Net -.->|restricted cookie handoff| CDP
@@ -57,7 +60,9 @@ to `metadata.pagesift.plan.steps`.
 When DataGraph is enabled (`"graph"` format or `--graph`), `pagesift-graph` links extracted blocks, citations,
 redirect/canonical/attachment provenance, cross-version lineage, field-level evidence spans, cross-source fact clusters,
 and conflict records across single scrapes and multi-page crawls (`graph.jsonl`, `graph_summary.json`, HTTP `/v2/crawl/{id}/graph`,
-`/v2/graph/history`, `/v2/graph/conflicts`, and MCP `pagesift_graph_query`).
+`/v2/graph/history`, `/v2/graph/conflicts`, `/v2/graph/claims`, `?asOf=` historical reconstruction, and MCP `pagesift_graph_query`), while tracking claim lifecycles (`Active`, `Superseded`, `Withdrawn`, `Unverified`, `EvidenceDegraded`) and independent source roots (`OriginRelation`).
+
+Long-lived **Loop** collection ties `pagesift-store` source inventories (`DataSourceSpec`, `SyncDelta`, `SourceStateView`), `pagesift-plan` cross-tick `FamilyExperienceTable` statistics and explainable `AcquisitionStrategy` planning, and `pagesift-engine` incremental `sync_source` execution into `/v2/sources`, `pagesift sync`, `pagesift_sync`, and the Node.js / Python / C ABI bindings. Large captured monitor Markdown payloads are offloaded to content-addressed snapshots so monitor state metadata stays compact.
 
 ## Crates
 

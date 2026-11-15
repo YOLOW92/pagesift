@@ -12,6 +12,7 @@
 mod convert;
 mod crawl;
 mod error;
+mod loop_api;
 mod options;
 mod page;
 mod parse;

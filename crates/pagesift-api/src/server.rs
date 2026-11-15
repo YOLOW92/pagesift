@@ -270,6 +270,7 @@ pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
     let api = crate::firecrawl::firecrawl_routes()
         .merge(crate::jina::jina_routes())
         .merge(crate::monitor::routes())
+        .merge(crate::sources::routes())
         .route_layer(middleware::from_fn_with_state(state.clone(), auth));
 
     Router::new()

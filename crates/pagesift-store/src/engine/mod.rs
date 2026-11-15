@@ -36,6 +36,7 @@ pub(crate) mod ns {
     pub const GRAPH_EDGE: u8 = 10; // [协议] DataGraph 版本迁移边命名空间
     pub const GRAPH_FACT: u8 = 11; // [协议] DataGraph 别名与冲突事实命名空间
     pub const GRAPH_JOB: u8 = 12; // [协议] DataGraph 作业摘要与增量命名空间
+    pub const SYNC_STATE: u8 = 13; // [协议] 1.5 Loop 持续数据同步命名空间
 }
 
 fn evictable(n: u8) -> bool {
@@ -295,6 +296,14 @@ impl Store {
 
     pub fn graph_for<'a>(&'a self, tenant: Option<&'a str>) -> crate::GraphStore<'a> {
         crate::GraphStore::new(self, tenant)
+    }
+
+    pub fn sync(&self) -> crate::SyncStore<'_> {
+        crate::SyncStore::new(self, None)
+    }
+
+    pub fn sync_for<'a>(&'a self, tenant: Option<&'a str>) -> crate::SyncStore<'a> {
+        crate::SyncStore::new(self, tenant)
     }
 
     pub fn tasks(&self) -> Tasks<'_> {

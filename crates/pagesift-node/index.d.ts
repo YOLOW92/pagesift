@@ -187,6 +187,10 @@ export declare class Scraper {
   parseStream(files: Array<ParseFile>, options?: BatchOptions | undefined | null): ScrapeStream
   /** 关闭浏览器进程。之后再调用抓取方法会报错。 */
   close(): Promise<void>
+  /** 管理持久化 1.5 Loop 数据源并执行增量同步（需构造 `Scraper` 时传入 `storePath`）。 */
+  sync(request: SyncRequest): Promise<Record<string, unknown>>
+  /** 查询持久化 DataGraph 历史版本、实体声明与冲突（需构造 `Scraper` 时传入 `storePath`）。 */
+  queryGraph(request: GraphQueryRequest): Promise<Record<string, unknown>>
 }
 
 /**
@@ -490,4 +494,44 @@ export interface ScraperConfig {
   modelsDir?: string
   /** `auto`（默认）、`off`、`cuda` 或 `cuda:N`。文字模型用 GPU，版面和公式模型留在 CPU。 */
   gpu?: string
+}
+
+/** `Scraper.sync` 请求参数。 */
+export interface SyncRequest {
+  action: 'create' | 'list' | 'get' | 'delete' | 'run' | 'state' | 'deltas'
+  id?: string
+  sourceId?: string
+  name?: string
+  seeds?: Array<string>
+  includePaths?: Array<string>
+  excludePaths?: Array<string>
+  maxDepth?: number
+  allowSubdomains?: boolean
+  freshness?: Record<string, unknown>
+  budget?: Record<string, unknown>
+  maxRequestsPerTick?: number
+  maxBrowserRendersPerTick?: number
+  maxWallClockMs?: number
+  targetItems?: number
+  extractSchema?: Record<string, unknown>
+  extractPrompt?: string
+  requiredFields?: Array<string>
+  allowBrowser?: boolean
+  forceAll?: boolean
+  maxRequests?: number
+  asOf?: string | number
+  tickId?: string
+  limit?: number
+}
+
+/** `Scraper.queryGraph` 请求参数。 */
+export interface GraphQueryRequest {
+  historyUrl?: string
+  url?: string
+  claims?: boolean
+  conflicts?: boolean
+  subject?: string
+  asOf?: string | number
+  limit?: number
+  offset?: number
 }

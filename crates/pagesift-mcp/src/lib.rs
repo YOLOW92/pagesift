@@ -38,6 +38,7 @@ mod server;
 mod stdio;
 mod tool;
 pub mod tools;
+mod tools_loop;
 
 pub use http::{HttpConfig, router, serve_http, serve_listener};
 pub use options::Capabilities;

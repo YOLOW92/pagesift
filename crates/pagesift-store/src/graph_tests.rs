@@ -1,7 +1,7 @@
 use pagesift_graph::{
-    ConflictKind, ConflictRecord, ConflictSeverity, DocumentInput, GraphOptions, SourceKind,
-    StreamingGraphBuilder, VersionChangeKind, VersionRecord, link_version_pair,
-    normalize_resource_key,
+    ClaimStatus, ClaimTransitionKind, ConflictKind, ConflictRecord, ConflictSeverity,
+    DocumentInput, GraphOptions, ObservationOutcome, SourceKind, StreamingGraphBuilder,
+    VersionChangeKind, VersionRecord, link_version_pair, normalize_resource_key,
 };
 
 use crate::{Config, Store};
@@ -174,4 +174,109 @@ fn conflicts_and_zstd_job_summary_roundtrip() {
     assert_eq!(deltas.len(), 2);
     assert_eq!(deltas[0].node.observed_at_ms, 100);
     assert_eq!(deltas[1].node.observed_at_ms, 200);
+}
+
+#[test]
+fn history_as_of_and_claim_lifecycle_persistence_work() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open_dir(dir.path()).unwrap();
+    let g = store.graph();
+    let url = "https://example.com/pricing";
+    let key = normalize_resource_key(url);
+
+    let mut builder = StreamingGraphBuilder::new(GraphOptions::enabled());
+    let d1 = builder.ingest(sample_doc_input(url, "99", 1_000));
+    let d2 = builder.ingest(sample_doc_input(url, "89", 2_000));
+
+    let v1 = VersionRecord {
+        resource_key: key.clone(),
+        doc_id: d1.node.doc_id.clone(),
+        url: url.into(),
+        canonical_url: None,
+        observed_at_ms: 1_000,
+        content_hash: d1.node.content_hash.clone(),
+        text_hash: None,
+        status_code: 200,
+        etag: None,
+        last_modified: None,
+    };
+    let v2 = VersionRecord {
+        resource_key: key.clone(),
+        doc_id: d2.node.doc_id.clone(),
+        url: url.into(),
+        canonical_url: None,
+        observed_at_ms: 2_000,
+        content_hash: d2.node.content_hash.clone(),
+        text_hash: None,
+        status_code: 200,
+        etag: None,
+        last_modified: None,
+    };
+    let edge = link_version_pair(&v1, &v2, None, Vec::new());
+    g.record_version(&v1, None).unwrap();
+    g.record_version(&v2, Some(&edge)).unwrap();
+
+    let h_1500 = g.history_as_of(url, Some(1_500), 10).unwrap();
+    assert_eq!(h_1500.versions.len(), 1);
+    assert_eq!(h_1500.versions[0].doc_id, v1.doc_id);
+    assert!(h_1500.edges.is_empty());
+
+    let (_, trans1) = g
+        .reconcile_and_store_resource_claims(
+            url,
+            &ObservationOutcome::VerifiedContent,
+            &d1.claims,
+            1_000,
+        )
+        .unwrap();
+    assert!(
+        trans1
+            .iter()
+            .any(|t| t.kind == ClaimTransitionKind::Appeared)
+    );
+
+    let (_, trans2) = g
+        .reconcile_and_store_resource_claims(
+            url,
+            &ObservationOutcome::VerifiedContent,
+            &d2.claims,
+            2_000,
+        )
+        .unwrap();
+    assert!(
+        trans2
+            .iter()
+            .any(|t| t.kind == ClaimTransitionKind::Updated)
+    );
+
+    let (_, trans3) = g
+        .reconcile_and_store_resource_claims(
+            url,
+            &ObservationOutcome::TransientFetchError {
+                error: "timeout".into(),
+            },
+            &[],
+            3_000,
+        )
+        .unwrap();
+    assert!(
+        trans3
+            .iter()
+            .any(|t| t.kind == ClaimTransitionKind::Unverified)
+    );
+
+    let curr_claims = g.claims_for_resource_as_of(url, None).unwrap();
+    assert!(
+        curr_claims
+            .iter()
+            .all(|c| matches!(c.status, ClaimStatus::Unverified { .. }))
+    );
+
+    let past_claims = g.claims_for_resource_as_of(url, Some(1_500)).unwrap();
+    assert!(past_claims.iter().all(|c| c.status == ClaimStatus::Active));
+    let price_1500 = past_claims
+        .iter()
+        .find(|c| c.claim.normalized_field == "price")
+        .unwrap();
+    assert_eq!(price_1500.claim.normalized_value.raw(), "99");
 }

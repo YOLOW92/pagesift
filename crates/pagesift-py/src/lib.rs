@@ -7,6 +7,7 @@ mod crawl;
 mod document;
 mod engine;
 mod errors;
+mod loop_api;
 mod options;
 mod parse;
 
@@ -81,6 +82,10 @@ mod _pagesift {
 
     #[pymodule_init]
     fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
+        m.add_function(wrap_pyfunction!(crate::loop_api::engine_sync, m)?)?;
+        m.add_function(wrap_pyfunction!(crate::loop_api::aengine_sync, m)?)?;
+        m.add_function(wrap_pyfunction!(crate::loop_api::engine_query_graph, m)?)?;
+        m.add_function(wrap_pyfunction!(crate::loop_api::aengine_query_graph, m)?)?;
         m.add("__version__", env!("CARGO_PKG_VERSION"))
     }
 }

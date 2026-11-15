@@ -10,6 +10,7 @@ pub mod engine;
 pub mod graph;
 pub mod notice;
 pub mod scripts;
+pub mod sync;
 
 pub use pagesift_frontier::{focus, frontier};
 pub use pagesift_plan::learn;

@@ -32,7 +32,17 @@ import threading
 from typing import Any, Dict, Iterable, List, Literal, Mapping, Optional, Sequence, Tuple, Union
 
 from . import _pagesift
-from ._pagesift import Batch, Crawl, Document, __version__, convert
+from ._pagesift import (
+    Batch,
+    Crawl,
+    Document,
+    __version__,
+    aengine_query_graph as _aengine_query_graph,
+    aengine_sync as _aengine_sync,
+    convert,
+    engine_query_graph as _engine_query_graph,
+    engine_sync as _engine_sync,
+)
 from .errors import (
     AccessBarrier,
     Busy,
@@ -476,6 +486,30 @@ class Scraper:
     async def aclose(self) -> None:
         await self._engine.aclose()
 
+    def sync(self, request: Optional[Mapping[str, Any]] = None, **kwargs: Any) -> Dict[str, Any]:
+        """管理持久化 1.5 Loop 数据源并执行增量同步（需构造 ``Scraper`` 时传入 ``store_path``）。"""
+        return json.loads(_engine_sync(self._engine, _loop_payload(request, kwargs)))
+
+    async def async_sync(
+        self, request: Optional[Mapping[str, Any]] = None, **kwargs: Any
+    ) -> Dict[str, Any]:
+        """``sync`` 的异步版本。"""
+        return json.loads(await _aengine_sync(self._engine, _loop_payload(request, kwargs)))
+
+    def query_graph(
+        self, request: Optional[Mapping[str, Any]] = None, **kwargs: Any
+    ) -> Dict[str, Any]:
+        """查询持久化 DataGraph 历史版本、实体声明与冲突（需构造 ``Scraper`` 时传入 ``store_path``）。"""
+        return json.loads(_engine_query_graph(self._engine, _loop_payload(request, kwargs)))
+
+    async def aquery_graph(
+        self, request: Optional[Mapping[str, Any]] = None, **kwargs: Any
+    ) -> Dict[str, Any]:
+        """``query_graph`` 的异步版本。"""
+        return json.loads(
+            await _aengine_query_graph(self._engine, _loop_payload(request, kwargs))
+        )
+
     def __enter__(self) -> "Scraper":
         return self
 
@@ -491,6 +525,12 @@ class Scraper:
 
 _default_lock = threading.Lock()
 _default_scraper: Optional[Scraper] = None
+
+
+def _loop_payload(request: Optional[Mapping[str, Any]], kwargs: Dict[str, Any]) -> str:
+    payload: Dict[str, Any] = dict(request) if request is not None else {}
+    payload.update(kwargs)
+    return json.dumps(payload)
 
 
 def default_scraper() -> Scraper:

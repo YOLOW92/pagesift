@@ -10,7 +10,8 @@ use serde_json::{Value, json};
 use tokio::task::JoinSet;
 
 use super::crawl::check_crawl;
-use super::{Check, Leader, MonitorState, PageResult, PageState};
+use super::snapshot_ref::persist;
+use super::{Check, MonitorState, PageResult, PageState};
 use crate::error::ErrorCode;
 use crate::limits::Caller;
 use crate::server::AppState;
@@ -35,67 +36,8 @@ pub(crate) fn rfc3339_secs(t: f64) -> String {
     crate::jobs::rfc3339(at)
 }
 
-fn key(id: &str) -> String {
-    format!("monitor/{id}")
-}
-
-pub(super) fn persist(s: &AppState, m: &MonitorState) {
-    if let (Some(store), Ok(v)) = (s.jobs.store(), serde_json::to_vec(m))
-        && let Err(e) = store.tasks().kv_put(key(&m.id), &v)
-    {
-        tracing::warn!(monitor = %m.id, error = %e, "could not save the monitor");
-    }
-}
-
-pub(super) fn forget(s: &AppState, id: &str) {
-    if let Some(store) = s.jobs.store() {
-        let _ = store.tasks().kv_delete(key(id));
-    }
-}
-
-/// 读回落盘的监控；有监控时启动调度。`leader` 为假时（多服务器、本机不持有网关租约）不检查，只等。
-pub(crate) fn start_scheduler(s: AppState, leader: Option<Leader>) {
-    *s.monitors.leader.lock().unwrap_or_else(|e| e.into_inner()) = leader;
-    if let Some(store) = s.jobs.store()
-        && let Ok(keys) = store.tasks().kv_keys("monitor/")
-    {
-        let mut map = s
-            .monitors
-            .map
-            .try_lock()
-            .expect("monitors are not shared yet");
-        for k in keys {
-            let parsed = match store.tasks().kv_get(&k) {
-                Ok(Some(v)) => {
-                    serde_json::from_slice::<MonitorState>(&v).map_err(|e| e.to_string())
-                }
-                Ok(None) => continue,
-                Err(e) => Err(e.to_string()),
-            };
-            match parsed {
-                Ok(m) => {
-                    map.insert(m.id.clone(), m);
-                }
-                // 记录留在存储里，不删：修好之后还能读回来
-                Err(error) => {
-                    tracing::error!(record = %String::from_utf8_lossy(&k), %error, "could not read a saved monitor; it is not scheduled");
-                    s.metrics
-                        .monitor_load_failures
-                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                }
-            }
-        }
-        if map.is_empty() {
-            return;
-        }
-    } else {
-        return;
-    }
-    ensure_running(&s);
-}
-
 /// 没有在跑的调度任务时启动一个。监控全部删掉后它自己退出（释放它持有的服务状态和存储）。
-pub(crate) fn ensure_running(s: &AppState) {
+pub(super) fn ensure_running(s: &AppState) {
     if s.monitors.running.swap(true, Ordering::SeqCst) {
         return;
     }
@@ -423,7 +365,7 @@ async fn check_page(
     let mut o = opts.clone();
     crate::limits::apply_http_caller_scope(&mut o, Some(caller), None);
     o.max_age = Some(0);
-    if prev.markdown.is_some() {
+    if prev.markdown.is_some() || prev.snapshot_ref.is_some() {
         o.if_none_match = prev.etag.clone();
         o.if_modified_since = prev.last_modified.clone();
     }
@@ -454,10 +396,11 @@ pub(super) fn mark_gone(prev: &PageState, next: &mut PageState, r: &mut PageResu
     if prev.removed {
         r.status = "same".into();
         r.error = None;
-    } else if prev.markdown.is_some() {
+    } else if prev.markdown.is_some() || prev.snapshot_ref.is_some() {
         r.status = "removed".into();
         next.removed = true;
         next.markdown = None;
+        next.snapshot_ref = None;
         next.extract = None;
         next.etag = None;
         next.last_modified = None;
@@ -508,6 +451,7 @@ pub(super) fn compare(
     let Some(old_md) = prev.markdown.as_deref() else {
         r.status = "new".into();
         next.markdown = Some(new_md);
+        next.snapshot_ref = None;
         next.extract = doc.extract.clone();
         return r;
     };
@@ -534,6 +478,7 @@ pub(super) fn compare(
         }
     }
     next.markdown = Some(new_md);
+    next.snapshot_ref = None;
     next.extract = doc.extract.clone();
     r
 }

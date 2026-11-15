@@ -318,14 +318,36 @@ pub fn graph_query() -> Value {
             "stats": json!({ "type": "object", "description": "Counters for nodes, blocks, citations, provenanceEdges, versionEdges, evidenceSpans, claims, factClusters, conflicts, canonicalClusters." }),
             "nodes": array(json!({ "type": "object", "description": "Document graph node." }), "Document nodes in the job graph."),
             "factClusters": array(json!({ "type": "object", "description": "Corroborated fact cluster across sources." }), "Corroborated multi-source fact clusters."),
-            "url": string("Queried URL or resource key for history queries."),
+            "url": string("Queried URL or resource key for history or claim queries."),
             "resourceKey": string("Normalized logical resource key."),
+            "asOfMs": integer("Historical timestamp cutoff in Unix milliseconds, when supplied."),
             "versions": array(json!({ "type": "object", "description": "Version snapshot record." }), "Historical versions of the resource."),
             "edges": array(json!({ "type": "object", "description": "Version transition edge." }), "Version diff edges between observations."),
-            "subject": string("Filtered entity subject key for conflict queries."),
-            "total": integer("Number of conflict records returned."),
+            "subject": string("Filtered entity subject key for conflict or claim queries."),
+            "total": integer("Number of conflict or claim records returned."),
             "conflicts": array(json!({ "type": "object", "description": "Cross-source conflict record." }), "Detected cross-source conflicts."),
+            "claims": array(json!({ "type": "object", "description": "Claim lifecycle record." }), "Tracked claim lifecycle records."),
+            "truncated": boolean("Whether results were truncated by limit bounds."),
         }),
         &["success"],
+    )
+}
+
+/// `pagesift_sync`。
+pub fn sync_result() -> Value {
+    object(
+        json!({
+            "success": boolean("Whether the sync action succeeded."),
+            "action": string("Executed sync action name."),
+            "id": string("Target source identifier."),
+            "deleted": boolean("Whether the target data source was deleted."),
+            "total": integer("Total sources or deltas returned."),
+            "source": json!({ "type": "object", "description": "DataSource specification record." }),
+            "sources": array(json!({ "type": "object", "description": "DataSource specification entry." }), "Registered data sources."),
+            "delta": json!({ "type": "object", "description": "Structured incremental SyncDelta produced by a tick." }),
+            "deltas": array(json!({ "type": "object", "description": "SyncDelta record." }), "Recent sync deltas for the source."),
+            "state": json!({ "type": "object", "description": "SourceStateView showing inventory, claims, and conflicts." }),
+        }),
+        &["success", "action"],
     )
 }

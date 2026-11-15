@@ -15,8 +15,8 @@ pub use agent::{
 };
 pub use attachment::Attachment;
 pub use graph::{
-    CrawlGraphResponse, GraphConflictsResponse, GraphHistoryResponse, check_graph_options,
-    parse_graph_options, parse_graph_value,
+    CrawlGraphResponse, GraphClaimsResponse, GraphConflictsResponse, GraphHistoryResponse,
+    check_graph_options, parse_graph_options, parse_graph_value,
 };
 pub use interact::{
     InteractRequest, InteractResponse, InteractStopped, LIVE_VIEW_UNAVAILABLE, SESSION_REPLAYED,

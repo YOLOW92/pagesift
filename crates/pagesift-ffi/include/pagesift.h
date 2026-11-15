@@ -107,6 +107,18 @@ char *pagesift_map(const pagesift_engine *engine, const char *url, const char *o
  */
 char *pagesift_crawl(const pagesift_engine *engine, const char *url, const char *options_json);
 
+/*
+ * Manages persistent 1.5 Loop data sources (`create`, `list`, `get`, `delete`, `run`, `state`,
+ * `deltas`). Requires `store_path` in pagesift_engine_new() config_json.
+ */
+char *pagesift_sync(const pagesift_engine *engine, const char *request_json);
+
+/*
+ * Queries the persistent DataGraph store (`history_url` / `url`, `claims`, `conflicts`,
+ * `subject`, `as_of`, `limit`, `offset`). Requires `store_path` in config_json.
+ */
+char *pagesift_graph_query(const pagesift_engine *engine, const char *request_json);
+
 #ifdef __cplusplus
 }
 #endif

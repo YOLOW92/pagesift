@@ -59,6 +59,7 @@ fn sample_delta(url: &str, doc_id: &str, ts: u64) -> PageGraphDelta {
             source: SubjectKeySource::ResourceKey,
             raw: url.to_string(),
         },
+        temporal: None,
         blocks: Vec::new(),
         citations: Vec::new(),
         provenance: Vec::new(),
@@ -66,6 +67,7 @@ fn sample_delta(url: &str, doc_id: &str, ts: u64) -> PageGraphDelta {
         version_rejected: false,
         evidence: Vec::new(),
         claims: Vec::new(),
+        claim_transitions: Vec::new(),
     }
 }
 

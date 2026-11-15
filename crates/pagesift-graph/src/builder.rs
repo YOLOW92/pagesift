@@ -3,18 +3,22 @@
 use std::collections::{BTreeMap, HashSet};
 use std::hash::{DefaultHasher, Hash, Hasher};
 
-use serde_json::Value;
-
 use crate::citation::{CitationEdge, aggregate_citations, extract_markdown_links};
 use crate::conflict::{ConflictRecord, detect_conflicts};
-use crate::corroborate::{ClaimRecord, FactCluster, build_fact_clusters, resolve_subject_key};
-use crate::delta::{DocumentInput, GraphStats, GraphSummary, PageGraphDelta};
-use crate::evidence::{ExtractionMethod, RawFieldTrace, align_traces, collect_json_traces};
-use crate::hash::{normalize_resource_key, normalize_url};
-use crate::model::{BlockRef, DocNode, GraphOptions, SourceKind, build_indexed_blocks};
-use crate::provenance::{
-    CanonicalCluster, CanonicalSource, ProvenanceEdge, canonical_edge, cluster_canonicals,
+use crate::corroborate::{
+    ClaimRecord, FactCluster, build_fact_clusters_with_lineage, resolve_subject_key,
 };
+use crate::delta::{DocumentInput, GraphStats, GraphSummary, PageGraphDelta};
+use crate::evidence::align_traces;
+use crate::evidence_json::collect_all_traces;
+use crate::hash::{normalize_resource_key, normalize_url};
+use crate::independence::compute_source_lineage;
+use crate::lifecycle::{
+    ClaimLifecycleRecord, ClaimTransition, ObservationOutcome, reconcile_resource_claims,
+};
+use crate::model::{BlockRef, DocNode, GraphOptions, build_indexed_blocks};
+use crate::provenance::{CanonicalCluster, ProvenanceEdge, build_provenance, cluster_canonicals};
+use crate::temporal::TemporalSemantics;
 use crate::version::{VersionEdge, VersionRecord, link_version_pair};
 
 /// Incrementally ingests scraped/parsed documents without retaining DOMs or full page text.
@@ -29,6 +33,8 @@ pub struct StreamingGraphBuilder {
     latest_versions: BTreeMap<String, VersionRecord>,
     claims: Vec<ClaimRecord>,
     claim_bucket_counts: BTreeMap<(String, String), usize>,
+    resource_claim_lifecycles: BTreeMap<String, Vec<ClaimLifecycleRecord>>,
+    claim_transitions: Vec<ClaimTransition>,
     total_blocks: usize,
     total_evidence: usize,
     truncated: bool,
@@ -49,6 +55,8 @@ impl StreamingGraphBuilder {
             latest_versions: BTreeMap::new(),
             claims: Vec::new(),
             claim_bucket_counts: BTreeMap::new(),
+            resource_claim_lifecycles: BTreeMap::new(),
+            claim_transitions: Vec::new(),
             total_blocks: 0,
             total_evidence: 0,
             truncated: false,
@@ -165,6 +173,17 @@ impl StreamingGraphBuilder {
             input.observed_at_ms,
             input.content_hash.as_deref().or(input.raw_hash.as_deref()),
         );
+        let temporal = TemporalSemantics::from_document_sources(
+            input.observed_at_ms,
+            None,
+            None,
+            input.last_modified.as_deref(),
+            &input.structured_json_ld,
+        );
+        let has_rich_temporal = temporal.published_at_ms.is_some()
+            || temporal.modified_at_ms.is_some()
+            || temporal.valid_from.is_some()
+            || temporal.valid_until.is_some();
 
         let node = DocNode {
             doc_id: doc_id.clone(),
@@ -217,7 +236,6 @@ impl StreamingGraphBuilder {
         } else {
             Vec::new()
         };
-
         let provenance = if self.options.provenance {
             build_provenance(&node, &input)
         } else {
@@ -263,7 +281,6 @@ impl StreamingGraphBuilder {
             trusted_canonical.as_deref(),
             &resource_key,
         );
-
         let aligned_evidence = if need_alignment && !all_traces.is_empty() {
             align_traces(&doc_id, &final_url, &all_traces, &indexed_blocks)
         } else {
@@ -274,7 +291,7 @@ impl StreamingGraphBuilder {
         let mut page_claims = Vec::new();
         if self.options.facts || self.options.conflicts {
             for (trace, span) in all_traces.iter().zip(aligned_evidence.iter()) {
-                let claim = ClaimRecord::from_trace(
+                let mut claim = ClaimRecord::from_trace(
                     &subject_key.key,
                     &resource_key,
                     &doc_id,
@@ -286,17 +303,25 @@ impl StreamingGraphBuilder {
                     trace,
                     span.clone(),
                 );
+                if has_rich_temporal {
+                    claim.temporal = Some(temporal.clone());
+                }
                 if self.push_claim_bounded(&claim) {
                     page_claims.push(claim);
                 }
             }
         }
+        let claim_transitions = self.reconcile_page_claim_lifecycles(
+            &resource_key,
+            input.status_code,
+            input.observed_at_ms,
+            &page_claims,
+        );
         let evidence = if self.options.evidence {
             aligned_evidence
         } else {
             Vec::new()
         };
-
         let kept_blocks = if self.options.blocks {
             blocks
         } else {
@@ -316,6 +341,7 @@ impl StreamingGraphBuilder {
         PageGraphDelta {
             node,
             subject_key,
+            temporal: has_rich_temporal.then_some(temporal),
             blocks: kept_blocks,
             citations,
             provenance,
@@ -323,6 +349,39 @@ impl StreamingGraphBuilder {
             version_rejected: false,
             evidence,
             claims: page_claims,
+            claim_transitions,
+        }
+    }
+
+    fn reconcile_page_claim_lifecycles(
+        &mut self,
+        resource_key: &str,
+        status_code: u16,
+        observed_at_ms: u64,
+        page_claims: &[ClaimRecord],
+    ) -> Vec<ClaimTransition> {
+        if !(self.options.facts || self.options.conflicts) {
+            return Vec::new();
+        }
+        let outcome = outcome_for_status(status_code);
+        let had_prev = self.resource_claim_lifecycles.contains_key(resource_key);
+        let prev = self
+            .resource_claim_lifecycles
+            .get(resource_key)
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
+        let (updated, transitions) =
+            reconcile_resource_claims(prev, &outcome, page_claims, observed_at_ms);
+        let cap = self.options.limits.max_nodes.saturating_mul(2);
+        if had_prev || self.resource_claim_lifecycles.len() < cap {
+            self.resource_claim_lifecycles
+                .insert(resource_key.to_owned(), updated);
+        }
+        if had_prev {
+            self.claim_transitions.extend(transitions.clone());
+            transitions
+        } else {
+            Vec::new()
         }
     }
 
@@ -375,13 +434,12 @@ impl StreamingGraphBuilder {
                 && let Some(prev) = self.latest_versions.get(&resource_key)
                 && prev.doc_id != curr_record.doc_id
             {
-                let linked = link_version_pair(prev, &curr_record, None, Vec::new());
-                version = Some(linked);
+                version = Some(link_version_pair(prev, &curr_record, None, Vec::new()));
             }
             if let Some(ref v) = version {
                 self.push_version_bounded(v.clone());
             }
-            self.record_latest_version(resource_key, curr_record);
+            self.record_latest_version(resource_key.clone(), curr_record);
         }
 
         if self.options.facts || self.options.conflicts {
@@ -392,14 +450,26 @@ impl StreamingGraphBuilder {
                 }
             }
             delta.claims = kept_claims;
+            let transitions = self.reconcile_page_claim_lifecycles(
+                &resource_key,
+                delta.node.status_code,
+                delta.node.observed_at_ms,
+                &delta.claims,
+            );
+            if delta.claim_transitions.is_empty() {
+                delta.claim_transitions = transitions;
+            } else {
+                self.claim_transitions
+                    .extend(delta.claim_transitions.clone());
+            }
         } else {
             delta.claims.clear();
+            delta.claim_transitions.clear();
         }
-
         PageGraphDelta { version, ..delta }
     }
 
-    /// Record additional provenance edges (e.g. from skipped duplicate redirects) without duplicating document nodes or claims.
+    /// Record additional provenance edges without duplicating document nodes or claims.
     pub fn extend_provenance(&mut self, edges: impl IntoIterator<Item = ProvenanceEdge>) {
         for edge in edges {
             self.push_provenance_edge(edge);
@@ -408,42 +478,14 @@ impl StreamingGraphBuilder {
 
     /// Reconcile crawled status, corroborated fact clusters, and conflicts without cloning buffers.
     pub fn into_summary(mut self) -> GraphSummary {
-        for edge in &mut self.citations {
-            edge.crawled = self.crawled_resources.contains(&edge.to_resource_key);
-        }
+        let summary = self.finalize();
         self.crawled_resources = HashSet::new();
         self.latest_versions = BTreeMap::new();
         self.claim_bucket_counts = BTreeMap::new();
         self.provenance_hashes = HashSet::new();
-
-        let claims_count = self.claims.len();
-        let (canonical_clusters, fact_clusters, conflicts) =
-            summarize_vectors(&self.options, &self.provenance, &self.claims);
+        self.resource_claim_lifecycles = BTreeMap::new();
         self.claims = Vec::new();
-
-        GraphSummary {
-            stats: GraphStats {
-                nodes: self.nodes.len(),
-                blocks: self.total_blocks,
-                citations: self.citations.len(),
-                provenance_edges: self.provenance.len(),
-                version_edges: self.versions.len(),
-                evidence_spans: self.total_evidence,
-                claims: claims_count,
-                fact_clusters: fact_clusters.len(),
-                conflicts: conflicts.len(),
-                canonical_clusters: canonical_clusters.len(),
-                truncated: self.truncated,
-                truncation_reasons: self.truncation_reasons,
-            },
-            nodes: self.nodes,
-            canonical_clusters,
-            citations: self.citations,
-            provenance: self.provenance,
-            versions: self.versions,
-            fact_clusters,
-            conflicts,
-        }
+        summary
     }
 
     /// Reconcile crawled status, corroborated fact clusters, and conflicts across all ingested documents.
@@ -457,8 +499,13 @@ impl StreamingGraphBuilder {
                 edge
             })
             .collect();
-        let (canonical_clusters, fact_clusters, conflicts) =
-            summarize_vectors(&self.options, &self.provenance, &self.claims);
+        let (canonical_clusters, fact_clusters, conflicts) = summarize_vectors(
+            &self.options,
+            &self.nodes,
+            &self.provenance,
+            &citations,
+            &self.claims,
+        );
 
         GraphSummary {
             stats: GraphStats {
@@ -482,7 +529,24 @@ impl StreamingGraphBuilder {
             versions: self.versions.clone(),
             fact_clusters,
             conflicts,
+            claim_transitions: self.claim_transitions.clone(),
         }
+    }
+}
+
+fn outcome_for_status(status_code: u16) -> ObservationOutcome {
+    match status_code {
+        304 => ObservationOutcome::NotModified304,
+        404 => ObservationOutcome::SuspectedGone {
+            status_code: Some(404),
+        },
+        410 => ObservationOutcome::ConfirmedGone {
+            reason: "HTTP 410 Gone".into(),
+        },
+        429 | 500..=599 => ObservationOutcome::TransientFetchError {
+            error: format!("HTTP {status_code}"),
+        },
+        _ => ObservationOutcome::VerifiedContent,
     }
 }
 
@@ -494,7 +558,9 @@ fn provenance_hash(edge: &ProvenanceEdge) -> u64 {
 
 fn summarize_vectors(
     options: &GraphOptions,
+    nodes: &[DocNode],
     provenance: &[ProvenanceEdge],
+    citations: &[CitationEdge],
     claims: &[ClaimRecord],
 ) -> (Vec<CanonicalCluster>, Vec<FactCluster>, Vec<ConflictRecord>) {
     let canonical_clusters = if options.provenance {
@@ -503,7 +569,13 @@ fn summarize_vectors(
         Vec::new()
     };
     let fact_clusters = if options.facts {
-        build_fact_clusters(claims, options.limits.max_claims_per_bucket)
+        let lineage = compute_source_lineage(nodes, provenance);
+        build_fact_clusters_with_lineage(
+            claims,
+            options.limits.max_claims_per_bucket,
+            &lineage,
+            citations,
+        )
     } else {
         Vec::new()
     };
@@ -513,335 +585,4 @@ fn summarize_vectors(
         Vec::new()
     };
     (canonical_clusters, fact_clusters, conflicts)
-}
-
-fn build_provenance(node: &DocNode, input: &DocumentInput) -> Vec<ProvenanceEdge> {
-    let mut edges = Vec::new();
-    for (from_url, to_url, status, kind) in &input.redirect_chain {
-        edges.push(ProvenanceEdge::Redirect {
-            from_url: normalize_url(from_url),
-            to_url: normalize_url(to_url),
-            status: *status,
-            redirect_kind: *kind,
-        });
-    }
-    if let Some(can) = &node.canonical_url {
-        let declared_by = if input.canonical_from_header {
-            CanonicalSource::HttpHeader
-        } else {
-            CanonicalSource::HtmlLink
-        };
-        if let Some(edge) = canonical_edge(&node.final_url, can, declared_by) {
-            edges.push(edge);
-        }
-    }
-    for (alt_url, hreflang, media_type) in &input.alternates {
-        edges.push(ProvenanceEdge::HasAlternate {
-            primary_url: node.final_url.clone(),
-            alt_url: normalize_url(alt_url),
-            media_type: media_type.clone(),
-            hreflang: hreflang.clone(),
-        });
-    }
-    if let Some(dup) = &input.duplicate_of {
-        edges.push(ProvenanceEdge::DuplicateOf {
-            source_url: node.final_url.clone(),
-            canonical_url: normalize_url(dup),
-            reason: "content_duplicate".into(),
-        });
-    }
-    match &node.source_kind {
-        SourceKind::ArchiveMember {
-            archive_url,
-            member_path,
-        } => {
-            edges.push(ProvenanceEdge::AttachmentOf {
-                attachment_url: node.final_url.clone(),
-                parent_url: normalize_url(archive_url),
-                parent_doc_id: None,
-                media_id: None,
-                member_path: Some(member_path.clone()),
-            });
-        }
-        SourceKind::EmailPart {
-            mail_url,
-            part_name,
-        } => {
-            edges.push(ProvenanceEdge::AttachmentOf {
-                attachment_url: node.final_url.clone(),
-                parent_url: normalize_url(mail_url),
-                parent_doc_id: None,
-                media_id: None,
-                member_path: Some(part_name.clone()),
-            });
-        }
-        SourceKind::ImageAsset {
-            parent_url,
-            media_id,
-        } => {
-            edges.push(ProvenanceEdge::AttachmentOf {
-                attachment_url: node.final_url.clone(),
-                parent_url: normalize_url(parent_url),
-                parent_doc_id: None,
-                media_id: Some(media_id.clone()),
-                member_path: None,
-            });
-        }
-        _ => {}
-    }
-    for (att_url, media_id, member_path) in &input.attachments {
-        edges.push(ProvenanceEdge::AttachmentOf {
-            attachment_url: normalize_url(att_url),
-            parent_url: node.final_url.clone(),
-            parent_doc_id: Some(node.doc_id.clone()),
-            media_id: media_id.clone(),
-            member_path: member_path.clone(),
-        });
-    }
-    edges
-}
-
-fn collect_all_traces(final_url: &str, input: &DocumentInput) -> Vec<RawFieldTrace> {
-    let mut traces = input.raw_traces.clone();
-    let mut seen: HashSet<(String, String)> = traces
-        .iter()
-        .map(|t| (t.field_path.clone(), t.raw_quote.clone()))
-        .collect();
-
-    let mut add_extra = Vec::new();
-    for item in &input.structured_json_ld {
-        let obj = item.as_object();
-        let entity_type = obj
-            .and_then(|m| m.get("@type"))
-            .and_then(Value::as_str)
-            .map(str::to_owned);
-        let entity_id = obj
-            .and_then(|m| m.get("@id"))
-            .and_then(Value::as_str)
-            .map(str::to_owned);
-        let method = ExtractionMethod::JsonLd {
-            entity_type,
-            entity_id,
-        };
-        collect_json_traces(item, "", &method, false, Some(final_url), &mut add_extra);
-    }
-    if let Some(val) = &input.extracted_fields {
-        let method = ExtractionMethod::CssSelector {
-            selector: "schema".into(),
-            relocated_from: None,
-            step: None,
-        };
-        collect_json_traces(val, "", &method, true, Some(final_url), &mut add_extra);
-    }
-
-    for trace in add_extra {
-        if seen.insert((trace.field_path.clone(), trace.raw_quote.clone())) {
-            traces.push(trace);
-        }
-    }
-    traces
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::RedirectKind;
-    use serde_json::json;
-
-    #[test]
-    fn streams_multi_source_corporate_graph_end_to_end() {
-        let mut builder = StreamingGraphBuilder::new(GraphOptions {
-            subject_keys: vec!["sku".into()],
-            ..GraphOptions::enabled()
-        });
-        let html_delta = builder.ingest(DocumentInput {
-            requested_url: "https://shop.example.com/pro".into(),
-            final_url: "https://example.com/pro".into(),
-            canonical_url: Some("https://example.com/pro".into()),
-            canonical_from_header: false,
-            source_kind: SourceKind::Html,
-            observed_at_ms: 1_000,
-            status_code: 200,
-            engine: "http".into(),
-            content_hash: Some("h1".into()),
-            raw_hash: None,
-            text_hash: None,
-            etag: None,
-            last_modified: None,
-            title: Some("Pro Plan".into()),
-            markdown: "# Pro Plan\n\nPro tier costs $49/mo. See [Enterprise PDF](/docs/pro.pdf).\n"
-                .into(),
-            redirect_chain: vec![(
-                "https://shop.example.com/pro".into(),
-                "https://example.com/pro".into(),
-                301,
-                RedirectKind::HttpPermanent,
-            )],
-            links: Vec::new(),
-            alternates: Vec::new(),
-            duplicate_of: None,
-            attachments: vec![("https://example.com/docs/pro.pdf".into(), None, None)],
-            structured_json_ld: vec![
-                json!({"@type": "Product", "sku": "PRO-1", "price": "$49/mo"}),
-            ],
-            extracted_fields: None,
-            raw_traces: Vec::new(),
-            chunk_spans: vec![(0, 0, 72)],
-            previous_version: None,
-            version_diff_stats: None,
-            changed_block_ids: Vec::new(),
-        });
-        assert_eq!(html_delta.evidence[0].confidence, 0.95);
-        assert!(html_delta.evidence[0].verified);
-
-        builder.ingest(DocumentInput {
-            requested_url: "https://example.com/docs/pro.pdf".into(),
-            final_url: "https://example.com/docs/pro.pdf".into(),
-            canonical_url: None,
-            canonical_from_header: false,
-            source_kind: SourceKind::Pdf,
-            observed_at_ms: 2_000,
-            status_code: 200,
-            engine: "upload".into(),
-            content_hash: Some("h2".into()),
-            raw_hash: None,
-            text_hash: None,
-            etag: None,
-            last_modified: None,
-            title: Some("Pro Spec PDF".into()),
-            markdown: "Pro plan (SKU PRO-1) is billed at $59/mo as of 2026-11.\n".into(),
-            redirect_chain: Vec::new(),
-            links: Vec::new(),
-            alternates: Vec::new(),
-            duplicate_of: None,
-            attachments: Vec::new(),
-            structured_json_ld: Vec::new(),
-            extracted_fields: Some(json!({"sku": "PRO-1", "price": "$59/mo"})),
-            raw_traces: Vec::new(),
-            chunk_spans: Vec::new(),
-            previous_version: None,
-            version_diff_stats: None,
-            changed_block_ids: Vec::new(),
-        });
-
-        let summary = builder.finalize();
-        assert_eq!(summary.stats.nodes, 2);
-        assert!(summary.citations.iter().any(|c| c.crawled));
-        assert_eq!(summary.stats.conflicts, 1);
-        assert_eq!(summary.conflicts[0].variants.len(), 2);
-    }
-
-    fn sample_doc(url: &str, can: Option<&str>, ts: u64, price: &str) -> DocumentInput {
-        DocumentInput {
-            requested_url: url.into(),
-            final_url: url.into(),
-            canonical_url: can.map(str::to_owned),
-            canonical_from_header: false,
-            source_kind: SourceKind::Html,
-            observed_at_ms: ts,
-            status_code: 200,
-            engine: "http".into(),
-            content_hash: Some(format!("h_{ts}_{price}")),
-            raw_hash: None,
-            text_hash: None,
-            etag: None,
-            last_modified: None,
-            title: Some("Sample".into()),
-            markdown: format!("# Sample\n\nPrice is {price}.\n"),
-            redirect_chain: Vec::new(),
-            links: Vec::new(),
-            alternates: Vec::new(),
-            duplicate_of: None,
-            attachments: Vec::new(),
-            structured_json_ld: vec![json!({"@type": "Product", "sku": "SKU-9", "price": price})],
-            extracted_fields: None,
-            raw_traces: Vec::new(),
-            chunk_spans: Vec::new(),
-            previous_version: None,
-            version_diff_stats: None,
-            changed_block_ids: Vec::new(),
-        }
-    }
-
-    #[test]
-    fn cross_host_canonical_does_not_hijack_identity_or_subject_key_but_keeps_provenance() {
-        let mut builder = StreamingGraphBuilder::new(GraphOptions::enabled());
-        let evil = builder.ingest(sample_doc(
-            "https://attacker.example/fake",
-            Some("https://victim.example/pricing"),
-            100,
-            "$1/mo",
-        ));
-        assert_eq!(evil.node.resource_key, "https://attacker.example/fake");
-        assert!(evil.provenance.iter().any(|p| matches!(
-            p,
-            ProvenanceEdge::CanonicalizesTo { cross_host: true, canonical_url, .. }
-            if canonical_url == "https://victim.example/pricing"
-        )));
-        assert_eq!(
-            DocNode::derive_resource_key(
-                Some("https://victim.example/pricing"),
-                "https://attacker.example/fake"
-            ),
-            "https://attacker.example/fake"
-        );
-        let sk = resolve_subject_key(
-            &[],
-            &[],
-            &[],
-            Some("https://victim.example/pricing"),
-            "https://attacker.example/fake",
-        );
-        assert_eq!(sk.key, "resource:https://attacker.example/fake");
-    }
-
-    #[test]
-    fn facts_and_conflicts_still_work_when_evidence_is_disabled() {
-        let opts = GraphOptions {
-            enabled: true,
-            evidence: false,
-            facts: true,
-            conflicts: true,
-            ..GraphOptions::enabled()
-        };
-        let mut builder = StreamingGraphBuilder::new(opts);
-        let d1 = builder.ingest(sample_doc(
-            "https://example.com/a",
-            Some("https://example.com/a"),
-            100,
-            "$49/mo",
-        ));
-        let d2 = builder.ingest(sample_doc("https://example.com/b", None, 200, "$79/mo"));
-        assert!(d1.evidence.is_empty());
-        assert!(d2.evidence.is_empty());
-        assert!(!d1.claims.is_empty());
-        assert!(!d2.claims.is_empty());
-
-        let summary = builder.into_summary();
-        assert_eq!(summary.stats.evidence_spans, 0);
-        assert!(summary.stats.claims >= 2);
-        assert_eq!(summary.stats.conflicts, 1);
-    }
-
-    #[test]
-    fn task_level_budgets_mark_truncation_and_into_summary_matches_finalize() {
-        let mut opts = GraphOptions::enabled();
-        opts.limits.max_nodes = 1;
-        opts.limits.max_claims = 2;
-        let mut builder = StreamingGraphBuilder::new(opts);
-        builder.ingest(sample_doc("https://example.com/1", None, 100, "$10"));
-        builder.ingest(sample_doc("https://example.com/2", None, 200, "$20"));
-        let fin = builder.finalize();
-        let consumed = builder.into_summary();
-        assert_eq!(fin, consumed);
-        assert_eq!(consumed.stats.nodes, 1);
-        assert!(consumed.stats.truncated);
-        assert!(
-            consumed
-                .stats
-                .truncation_reasons
-                .iter()
-                .any(|r| r == "max_nodes")
-        );
-    }
 }

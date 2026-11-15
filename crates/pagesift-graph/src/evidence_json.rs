@@ -1,9 +1,52 @@
 //! JSON value flattening helpers emitting pre-alignment [`RawFieldTrace`] records.
 
+use std::collections::HashSet;
+
 use serde_json::Value;
 
+use crate::delta::DocumentInput;
 use crate::evidence::{ExtractionMethod, RawFieldTrace};
 use crate::hash::compact_excerpt;
+
+/// Merge explicit traces with flattened JSON-LD and schema extraction traces for a document.
+pub(crate) fn collect_all_traces(final_url: &str, input: &DocumentInput) -> Vec<RawFieldTrace> {
+    let mut traces = input.raw_traces.clone();
+    let mut seen: HashSet<(String, String)> = traces
+        .iter()
+        .map(|t| (t.field_path.clone(), t.raw_quote.clone()))
+        .collect();
+    let mut add_extra = Vec::new();
+    for item in &input.structured_json_ld {
+        let obj = item.as_object();
+        let entity_type = obj
+            .and_then(|m| m.get("@type"))
+            .and_then(Value::as_str)
+            .map(str::to_owned);
+        let entity_id = obj
+            .and_then(|m| m.get("@id"))
+            .and_then(Value::as_str)
+            .map(str::to_owned);
+        let method = ExtractionMethod::JsonLd {
+            entity_type,
+            entity_id,
+        };
+        collect_json_traces(item, "", &method, false, Some(final_url), &mut add_extra);
+    }
+    if let Some(val) = &input.extracted_fields {
+        let method = ExtractionMethod::CssSelector {
+            selector: "schema".into(),
+            relocated_from: None,
+            step: None,
+        };
+        collect_json_traces(val, "", &method, true, Some(final_url), &mut add_extra);
+    }
+    for trace in add_extra {
+        if seen.insert((trace.field_path.clone(), trace.raw_quote.clone())) {
+            traces.push(trace);
+        }
+    }
+    traces
+}
 
 /// Flatten arbitrary JSON value leaves into `RawFieldTrace` records with a shared method builder.
 pub fn collect_json_traces(

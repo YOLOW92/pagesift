@@ -37,7 +37,7 @@ fn engine_tools_with(
     audit: Option<Arc<crate::audit::Audit>>,
     store: Option<pagesift_store::Store>,
 ) -> Vec<Arc<dyn ToolHandler>> {
-    let jobs = Jobs::with_store(store);
+    let jobs = Jobs::with_store(store.clone());
     let caps = capabilities(engine.as_ref());
     let mut tools: Vec<Arc<dyn ToolHandler>> = vec![
         Arc::new(Scrape(engine.clone(), caps.clone())),
@@ -59,6 +59,10 @@ fn engine_tools_with(
         tools.push(Arc::new(AgentTool(engine.clone(), agents.clone())));
         tools.push(Arc::new(AgentStatus(agents)));
     }
+    tools.push(Arc::new(crate::mcp_sync::SyncTool {
+        engine: engine.clone(),
+        store,
+    }));
     tools.push(Arc::new(Batch(engine, jobs.clone(), caps)));
     tools.push(Arc::new(crate::mcp_graph::GraphQueryTool(jobs)));
     tools

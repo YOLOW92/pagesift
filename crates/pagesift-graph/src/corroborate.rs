@@ -5,10 +5,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::citation::CitationEdge;
 use crate::evidence::{EvidenceSpan, RawFieldTrace};
 use crate::hash::{host_of, normalize_resource_key, short_id};
+use crate::independence::{SourceLineage, independent_roots_for_claim_group};
 use crate::model::SourceKind;
 use crate::norm::{NormalizedValue, normalize_field_key, normalize_field_value};
+use crate::temporal::TemporalSemantics;
 
 const BUILTIN_PRODUCT_KEYS: &[&str] = &["sku", "gtin", "gtin13", "isbn", "doi", "lei_code", "mpn"];
 
@@ -167,6 +170,8 @@ pub struct ClaimRecord {
     pub source_kind: SourceKind,
     pub engine: String,
     pub observed_at_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub temporal: Option<TemporalSemantics>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub canonical_url: Option<String>,
     pub evidence: EvidenceSpan,
@@ -211,9 +216,15 @@ impl ClaimRecord {
             source_kind,
             engine: engine.to_owned(),
             observed_at_ms,
+            temporal: None,
             canonical_url,
             evidence,
         }
+    }
+
+    pub fn with_temporal(mut self, temporal: TemporalSemantics) -> Self {
+        self.temporal = Some(temporal);
+        self
     }
 }
 
@@ -227,6 +238,10 @@ pub struct FactCluster {
     pub value: NormalizedValue,
     pub support_count: usize,
     pub distinct_sources: usize,
+    #[serde(default)]
+    pub independent_sources: usize,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub origin_roots: Vec<String>,
     pub distinct_hosts: usize,
     pub distinct_formats: Vec<String>,
     pub claim_ids: Vec<String>,
@@ -237,6 +252,16 @@ pub struct FactCluster {
 pub fn build_fact_clusters(
     claims: &[ClaimRecord],
     max_claims_per_bucket: usize,
+) -> Vec<FactCluster> {
+    build_fact_clusters_with_lineage(claims, max_claims_per_bucket, &BTreeMap::new(), &[])
+}
+
+/// Aggregate claims into corroborated clusters while collapsing dependent/derived sources via `lineage`.
+pub fn build_fact_clusters_with_lineage(
+    claims: &[ClaimRecord],
+    max_claims_per_bucket: usize,
+    lineage: &BTreeMap<String, SourceLineage>,
+    citations: &[CitationEdge],
 ) -> Vec<FactCluster> {
     let mut buckets: BTreeMap<(String, String, String), Vec<&ClaimRecord>> = BTreeMap::new();
     for claim in claims {
@@ -256,6 +281,8 @@ pub fn build_fact_clusters(
         .map(|((subject_key, normalized_field, val_key), group)| {
             let distinct_sources: BTreeSet<&str> =
                 group.iter().map(|c| c.doc_id.as_str()).collect();
+            let origin_roots = independent_roots_for_claim_group(&group, lineage, citations);
+            let independent_sources = origin_roots.len();
             let distinct_hosts: BTreeSet<&str> = group
                 .iter()
                 .map(|c| c.host.as_str())
@@ -270,6 +297,8 @@ pub fn build_fact_clusters(
                 value: group[0].normalized_value.clone(),
                 support_count: group.len(),
                 distinct_sources: distinct_sources.len(),
+                independent_sources,
+                origin_roots,
                 distinct_hosts: distinct_hosts.len(),
                 distinct_formats: distinct_formats.into_iter().collect(),
                 claim_ids: group.iter().map(|c| c.claim_id.clone()).collect(),

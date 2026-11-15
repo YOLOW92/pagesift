@@ -36,24 +36,6 @@ pub(crate) enum ModelsCommand {
 }
 
 #[derive(Subcommand)]
-pub(crate) enum GraphCommand {
-    /// Inspect DataGraph artifacts in a crawl `--out` directory, graph JSON/JSONL file, or data store directory
-    Inspect {
-        /// Path to `--out` directory, `graph_summary.json` / `graph.jsonl` file, or store data directory
-        path: PathBuf,
-        /// Filter version history by URL or normalized resource key (for store or delta inspection)
-        #[arg(long)]
-        url: Option<String>,
-        /// Filter recorded conflicts by entity subject key (e.g. sku:PRO-1)
-        #[arg(long)]
-        subject: Option<String>,
-        /// Output raw inspection result as JSON
-        #[arg(long)]
-        json: bool,
-    },
-}
-
-#[derive(Subcommand)]
 pub(crate) enum Command {
     /// Inspect local form metadata and redacted technology/secret indicators
     Inspect {
@@ -479,7 +461,12 @@ pub(crate) enum Command {
     /// Inspect persisted or exported DataGraph outputs
     Graph {
         #[command(subcommand)]
-        action: GraphCommand,
+        action: commands::graph::GraphCommand,
+    },
+    /// Manage persistent Loop data sources and trigger incremental sync ticks
+    Sync {
+        #[command(subcommand)]
+        action: commands::sync::SyncCommand,
     },
     /// Evaluate content extraction on local dataset snapshots
     Bench {

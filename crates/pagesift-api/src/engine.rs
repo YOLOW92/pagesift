@@ -215,6 +215,17 @@ pub trait Engine: Send + Sync + 'static {
     fn admitted_concurrency(&self) -> Option<usize> {
         None
     }
+
+    /// Execute one closed-loop 1.5 sync tick for a persisted `DataSourceSpec`.
+    fn sync_source<'a>(
+        &'a self,
+        _source_id: &'a str,
+        _tenant: Option<&'a str>,
+        _force_all: bool,
+        _max_requests: Option<usize>,
+    ) -> BoxFuture<'a, Result<pagesift_store::SyncDelta, ApiError>> {
+        Box::pin(async { Err(ApiError::unsupported("sync is not available in this build")) })
+    }
 }
 
 /// agent 运行的回报和额度，由 API 层的任务管理实现；`()` 是不回报、不限额的实现。

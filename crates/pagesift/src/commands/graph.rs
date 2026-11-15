@@ -3,9 +3,43 @@
 use std::path::Path;
 
 use anyhow::{Context, bail};
+use clap::Subcommand;
 use pagesift_graph::{GraphOptions, GraphSummary, PageGraphDelta, StreamingGraphBuilder};
 
 use crate::*;
+
+#[derive(Subcommand)]
+pub(crate) enum GraphCommand {
+    /// Inspect DataGraph artifacts in a crawl `--out` directory, graph JSON/JSONL file, or data store directory
+    Inspect {
+        /// Path to `--out` directory, `graph_summary.json` / `graph.jsonl` file, or store data directory
+        path: PathBuf,
+        /// Filter version history by URL or normalized resource key (for store or delta inspection)
+        #[arg(long)]
+        url: Option<String>,
+        /// Filter recorded conflicts or claims by entity subject key (e.g. sku:PRO-1)
+        #[arg(long)]
+        subject: Option<String>,
+        /// Filter historical store state at or before Unix ms or RFC-3339 timestamp
+        #[arg(long)]
+        as_of: Option<String>,
+        /// Output raw inspection result as JSON
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+fn parse_as_of_cli(raw: Option<&str>) -> Result<Option<u64>> {
+    let Some(s) = raw.map(str::trim).filter(|v| !v.is_empty()) else {
+        return Ok(None);
+    };
+    if let Ok(ms) = s.parse::<u64>() {
+        return Ok(Some(ms));
+    }
+    pagesift_graph::parse_timestamp_ms(s)
+        .map(Some)
+        .with_context(|| format!("invalid --as-of timestamp {s:?}; expected Unix ms or RFC-3339"))
+}
 
 pub(crate) fn run(action: GraphCommand, _cfg: pagesift::config::Config) -> Result<ExitCode> {
     match action {
@@ -13,8 +47,15 @@ pub(crate) fn run(action: GraphCommand, _cfg: pagesift::config::Config) -> Resul
             path,
             url,
             subject,
+            as_of,
             json,
-        } => inspect(&path, url.as_deref(), subject.as_deref(), json),
+        } => inspect(
+            &path,
+            url.as_deref(),
+            subject.as_deref(),
+            as_of.as_deref(),
+            json,
+        ),
     }
 }
 
@@ -22,8 +63,10 @@ fn inspect(
     path: &Path,
     url: Option<&str>,
     subject: Option<&str>,
+    as_of: Option<&str>,
     as_json: bool,
 ) -> Result<ExitCode> {
+    let as_of_ms = parse_as_of_cli(as_of)?;
     if !path.exists() {
         bail!("path does not exist: {}", path.display());
     }
@@ -56,7 +99,7 @@ fn inspect(
 
     let store = pagesift_store::Store::open_dir(path)
         .with_context(|| format!("opening store at {}", path.display()))?;
-    inspect_store(&store, url, subject, as_json)
+    inspect_store(&store, url, subject, as_of_ms, as_json)
 }
 
 fn read_jsonl_summary(path: &Path) -> Result<GraphSummary> {
@@ -175,31 +218,44 @@ fn inspect_store(
     store: &pagesift_store::Store,
     url: Option<&str>,
     subject: Option<&str>,
+    as_of_ms: Option<u64>,
     as_json: bool,
 ) -> Result<ExitCode> {
     let gs = store.graph();
-    let conflicts = gs.list_conflicts(subject)?;
+    let max_limit = pagesift_store::DEFAULT_GRAPH_CONFLICTS_LIMIT;
+    let (conflicts, _, _) = gs.list_conflicts_as_of(subject, as_of_ms, max_limit, 0)?;
     if let Some(target) = url {
-        let (resource_key, versions, edges) = gs.history(target)?;
+        let hist = gs.history_as_of(
+            target,
+            as_of_ms,
+            pagesift_store::DEFAULT_GRAPH_HISTORY_LIMIT,
+        )?;
+        let mut claims = gs.claims_for_resource_as_of(target, as_of_ms)?;
+        if let Some(sk) = subject {
+            claims.retain(|c| c.claim.subject_key == sk);
+        }
         if as_json {
             println!(
                 "{}",
                 serde_json::to_string_pretty(&serde_json::json!({
-                    "resourceKey": resource_key,
-                    "versions": versions,
-                    "edges": edges,
+                    "resourceKey": hist.resource_key,
+                    "asOfMs": as_of_ms,
+                    "versions": hist.versions,
+                    "edges": hist.edges,
+                    "claims": claims,
                     "conflicts": conflicts,
                 }))?
             );
         } else {
-            println!("resource_key: {resource_key}");
+            println!("resource_key: {}", hist.resource_key);
             println!(
-                "versions: {}, edges: {}, conflicts: {}",
-                versions.len(),
-                edges.len(),
+                "versions: {}, edges: {}, claims: {}, conflicts: {}",
+                hist.versions.len(),
+                hist.edges.len(),
+                claims.len(),
                 conflicts.len()
             );
-            for v in &versions {
+            for v in &hist.versions {
                 println!(
                     "  {} doc={} status={} ts={}",
                     v.url, v.doc_id, v.status_code, v.observed_at_ms
@@ -208,17 +264,21 @@ fn inspect_store(
         }
         return Ok(ExitCode::SUCCESS);
     }
+    let (claims, _, _) = gs.list_claims_bounded(subject, as_of_ms, max_limit, 0)?;
     if as_json {
         println!(
             "{}",
             serde_json::to_string_pretty(&serde_json::json!({
                 "subject": subject,
+                "asOfMs": as_of_ms,
+                "totalClaims": claims.len(),
+                "claims": claims,
                 "totalConflicts": conflicts.len(),
                 "conflicts": conflicts,
             }))?
         );
     } else {
-        println!("conflicts: {}", conflicts.len());
+        println!("claims: {}, conflicts: {}", claims.len(), conflicts.len());
         for c in &conflicts {
             println!(
                 "conflict [{}] {} .{}: {} variants",
@@ -291,11 +351,11 @@ mod tests {
         let sum_path = dir.path().join("graph_summary.json");
         std::fs::write(&sum_path, serde_json::to_vec(&summary).unwrap()).unwrap();
         assert_eq!(
-            inspect(dir.path(), Some("https://example.com/"), None, true).unwrap(),
+            inspect(dir.path(), Some("https://example.com/"), None, None, true).unwrap(),
             ExitCode::SUCCESS
         );
         assert_eq!(
-            inspect(&jsonl_path, None, None, false).unwrap(),
+            inspect(&jsonl_path, None, None, None, false).unwrap(),
             ExitCode::SUCCESS
         );
     }

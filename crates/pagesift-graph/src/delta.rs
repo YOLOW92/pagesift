@@ -7,8 +7,10 @@ use crate::citation::{CitationEdge, RawLinkObservation};
 use crate::conflict::ConflictRecord;
 use crate::corroborate::{ClaimRecord, FactCluster, SubjectKey};
 use crate::evidence::{EvidenceSpan, RawFieldTrace};
+use crate::lifecycle::ClaimTransition;
 use crate::model::{BlockRef, DocNode, SourceKind};
 use crate::provenance::{CanonicalCluster, ProvenanceEdge, RedirectKind};
+use crate::temporal::TemporalSemantics;
 use crate::version::{VersionDiffStats, VersionEdge, VersionRecord};
 
 /// One processed document's inputs handed to [`crate::builder::StreamingGraphBuilder::ingest`].
@@ -54,6 +56,8 @@ pub struct DocumentInput {
 pub struct PageGraphDelta {
     pub node: DocNode,
     pub subject_key: SubjectKey,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub temporal: Option<TemporalSemantics>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub blocks: Vec<BlockRef>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -68,6 +72,8 @@ pub struct PageGraphDelta {
     pub evidence: Vec<EvidenceSpan>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub claims: Vec<ClaimRecord>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub claim_transitions: Vec<ClaimTransition>,
 }
 
 /// Per-document DataGraph slice optionally attached to API `Document.graph`.
@@ -78,6 +84,8 @@ pub struct GraphSlice {
     pub resource_key: String,
     pub source_kind: SourceKind,
     pub observed_at_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub temporal: Option<TemporalSemantics>,
     pub subject_key: SubjectKey,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub blocks: Vec<BlockRef>,
@@ -94,6 +102,8 @@ pub struct GraphSlice {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub claims: Vec<ClaimRecord>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub claim_transitions: Vec<ClaimTransition>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub member_deltas: Vec<PageGraphDelta>,
 }
 
@@ -104,6 +114,7 @@ impl From<PageGraphDelta> for GraphSlice {
             resource_key: d.node.resource_key,
             source_kind: d.node.source_kind,
             observed_at_ms: d.node.observed_at_ms,
+            temporal: d.temporal,
             subject_key: d.subject_key,
             blocks: d.blocks,
             citations: d.citations,
@@ -112,6 +123,7 @@ impl From<PageGraphDelta> for GraphSlice {
             version_rejected: d.version_rejected,
             evidence: d.evidence,
             claims: d.claims,
+            claim_transitions: d.claim_transitions,
             member_deltas: Vec::new(),
         }
     }
@@ -159,4 +171,6 @@ pub struct GraphSummary {
     pub fact_clusters: Vec<FactCluster>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub conflicts: Vec<ConflictRecord>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub claim_transitions: Vec<ClaimTransition>,
 }

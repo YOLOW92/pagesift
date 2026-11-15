@@ -1,6 +1,8 @@
 //! API request deserialization, option validation, and response types for PageSift DataGraph.
 
-use pagesift_graph::{ConflictRecord, GraphOptions, GraphSummary, VersionEdge, VersionRecord};
+use pagesift_graph::{
+    ClaimLifecycleRecord, ConflictRecord, GraphOptions, GraphSummary, VersionEdge, VersionRecord,
+};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
@@ -172,6 +174,24 @@ pub struct GraphConflictsResponse {
     pub total: usize,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub conflicts: Vec<ConflictRecord>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub truncated: bool,
+}
+
+/// Response payload for `GET /v2/graph/claims?subject=...&url=...&asOf=...`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GraphClaimsResponse {
+    pub success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subject: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub as_of_ms: Option<u64>,
+    pub total: usize,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub claims: Vec<ClaimLifecycleRecord>,
     #[serde(default, skip_serializing_if = "is_false")]
     pub truncated: bool,
 }
