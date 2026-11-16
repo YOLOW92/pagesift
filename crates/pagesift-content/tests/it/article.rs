@@ -45,13 +45,17 @@ fn article_mode_keeps_the_story_and_drops_comments_and_related() {
     let out = md(&news_page(ARTICLE_LD, &format!("{COMMENTS}{RELATED}")));
     assert!(out.contains("# Council approves budget"), "{out}");
     assert!(out.contains("The budget takes effect in January"), "{out}");
+    assert!(out.contains("![](/a.jpg)"), "{out}");
+    assert!(
+        out.contains("The council chamber on Tuesday."),
+        "legitimate figcaption should be kept:\n{out}"
+    );
     for gone in [
         "terrible decision",
         "Finally some investment",
         "cycling lanes",
         "Share on Facebook",
         "By Jane Doe",
-        "council chamber",
     ] {
         assert!(!out.contains(gone), "{gone:?} should be removed:\n{out}");
     }
@@ -242,4 +246,71 @@ fn a_section_name_in_h1_is_not_taken_for_the_headline() {
     assert!(out.contains("will be reviewed again"), "{out}");
     assert!(!out.contains("another news item"), "{out}");
     assert!(!out.contains("Asia"), "{out}");
+}
+
+#[test]
+fn strict_article_keeps_figure_caption_and_filters_noise_figures() {
+    let html = format!(
+        "<html><head><title>Convergence Study | Research</title>{OG_ARTICLE}</head><body>\
+         <nav><a href=\"/home\">HomeNavLink</a></nav>\
+         <article><h1>Convergence Study</h1>{BODY}\
+         <figure class=\"wp-caption\"><img src=\"https://example.org/fig1.png\" alt=\"Loss curve\">\
+         <figcaption class=\"wp-element-caption\">Figure 1: Convergence across epochs with \
+         <a href=\"https://example.org/app\">appendix notes</a>.</figcaption></figure>\
+         <figure class=\"ad\"><img src=\"https://ads.example.org/banner.png\" alt=\"Ad banner\">\
+         <figcaption>Sponsored banner caption</figcaption></figure>\
+         </article>\
+         <aside class=\"sidebar\"><figure><img src=\"https://example.org/side.png\" alt=\"\">\
+         <figcaption>Sidebar recommendation card</figcaption></figure></aside>\
+         </body></html>"
+    );
+    let doc = pagesift_content::process(
+        &html,
+        &pagesift_content::Options {
+            only_main_content: true,
+            clean_html: true,
+            images: true,
+            ..Default::default()
+        },
+    );
+    assert!(
+        doc.markdown
+            .contains("![Loss curve](https://example.org/fig1.png)"),
+        "{}",
+        doc.markdown
+    );
+    assert!(
+        doc.markdown.contains(
+            "Figure 1: Convergence across epochs with [appendix notes](https://example.org/app)."
+        ),
+        "{}",
+        doc.markdown
+    );
+    assert!(!doc.markdown.contains("HomeNavLink"), "{}", doc.markdown);
+    assert!(
+        !doc.markdown.contains("Sponsored banner caption"),
+        "{}",
+        doc.markdown
+    );
+    assert!(
+        !doc.markdown.contains("Sidebar recommendation card"),
+        "{}",
+        doc.markdown
+    );
+    let clean = doc.html.expect("clean_html enabled");
+    assert!(
+        clean.contains("Convergence across epochs"),
+        "clean_html should match:\n{clean}"
+    );
+    assert!(
+        !clean.contains("Sponsored banner caption"),
+        "clean_html should drop ad figure:\n{clean}"
+    );
+    assert!(
+        doc.images
+            .as_ref()
+            .is_some_and(|imgs| imgs.iter().any(|i| i.src == "https://example.org/fig1.png")),
+        "{:?}",
+        doc.images
+    );
 }

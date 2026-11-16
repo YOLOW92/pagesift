@@ -647,4 +647,61 @@ mod tests {
             Some("application/octet-stream".into())
         );
     }
+
+    #[tokio::test]
+    async fn process_html_preserves_figure_captions_and_drops_noise() {
+        let filler: String = (0..12)
+            .map(|i| {
+                format!(
+                    "<p>Paragraph {i}: detailed methodology discussion covering datasets, \
+                     evaluation metrics, and empirical ablation stability across trials.</p>"
+                )
+            })
+            .collect();
+        let html = format!(
+            "<html><head><title>Empirical Report</title>\
+             <meta property=\"og:type\" content=\"article\"></head><body>\
+             <nav><a href=\"/top\">TopNavigation chrome</a></nav>\
+             <article><h1>Empirical Report</h1>{filler}\
+             <figure class=\"wp-caption\"><img src=\"/fig/ablation.png\" alt=\"Ablation\">\
+             <figcaption class=\"figure-caption\">Figure 2: Ablation latency distribution.</figcaption></figure>\
+             <figure class=\"related\"><img src=\"/ad/promo.png\" alt=\"Promo\">\
+             <figcaption>Recommended promo item</figcaption></figure>\
+             </article></body></html>"
+        );
+        let base = super::Url::parse("https://example.org/report").unwrap();
+        let opts = super::ScrapeOptions {
+            formats: vec![
+                pagesift_api::types::Format::new("markdown"),
+                pagesift_api::types::Format::new("html"),
+                pagesift_api::types::Format::new("images"),
+            ],
+            only_main_content: true,
+            ..Default::default()
+        };
+        let (raw_doc, raw_html, _) = super::process_html(html, &base, Some(200), &opts)
+            .await
+            .unwrap();
+        let out = super::document(raw_doc, &opts, raw_html);
+        let md = out.markdown.as_deref().unwrap();
+        assert!(
+            md.contains("![Ablation](https://example.org/fig/ablation.png)"),
+            "{md}"
+        );
+        assert!(
+            md.contains("Figure 2: Ablation latency distribution."),
+            "{md}"
+        );
+        assert!(!md.contains("TopNavigation chrome"), "{md}");
+        assert!(!md.contains("Recommended promo item"), "{md}");
+        assert!(
+            out.html
+                .as_deref()
+                .is_some_and(|h| h.contains("Figure 2: Ablation latency distribution."))
+        );
+        assert!(out.images.as_ref().is_some_and(|imgs| {
+            imgs.iter()
+                .any(|i| i == "https://example.org/fig/ablation.png")
+        }));
+    }
 }
