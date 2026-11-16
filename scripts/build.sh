@@ -20,15 +20,7 @@ else
     # --profile quick / check / clippy 无 fat LTO，可安全提高并发
     jobs=$(scripts/jobs.sh 1200 2048)
 fi
-# 定期清掉过期的老版本增量/依赖碎片，避免 target/quick 无限膨胀；磁盘紧张时直接清增量缓存
-target_dir=${CARGO_TARGET_DIR:-target}
-free_kib=$(df --output=avail -k "$target_dir" 2>/dev/null | tail -1 || echo 0)
-if [ "${free_kib:-0}" -lt $((15 * 1024 * 1024)) ]; then
-    find "$target_dir" -maxdepth 2 -type d -name incremental -prune -exec rm -rf {} + 2>/dev/null || true
-elif [ -d "$target_dir" ]; then
-    find "$target_dir" -mindepth 3 -maxdepth 3 -path '*/incremental/*' -type d -mtime +3 -exec rm -rf {} + 2>/dev/null || true
-    find "$target_dir" -maxdepth 3 -path '*/deps/*' -type f -mtime +7 -delete 2>/dev/null || true
-fi
+# 先对真实路径拿目录锁再清理与执行，避免跨会话并发删缓存，也避免 target 为软链接时 find 不穿透
 dir=$(realpath -m "${CARGO_TARGET_DIR:-target}")
 slot=$(printf '%s' "$dir" | sha1sum | cut -c1-12)
 
@@ -37,9 +29,45 @@ slot=$(printf '%s' "$dir" | sha1sum | cut -c1-12)
 # 先排编译目录，轮到了再进闸门：在目录锁上排队的编译不占 bench.lock，测速只等真正在跑的那几个
 exec 9<>"$LOCKS/build-dir-$slot.lock"
 flock 9
+
+prune_target() {
+    local phase=$1
+    shift
+    [ -d "$dir" ] || return 0
+    # 清理跨版本/旧哈希残留、临时目标文件与膨胀产物，避免 /mnt/c 编译目录无限增长
+    local free_kib target_kib=0
+    free_kib=$(df --output=avail -k "$dir" 2>/dev/null | tail -1 || echo 0)
+    if [ "$phase" = "post" ]; then
+        find "$dir" -maxdepth 4 \( -path '*/deps/*' -o -path '*/examples/*' \) -type f -name '*.rcgu.o*' -delete 2>/dev/null || true
+        if [[ " $* " != *" --example"* ]]; then
+            find "$dir" -maxdepth 4 -path '*/examples/*' -type f -perm -111 -delete 2>/dev/null || true
+        fi
+        target_kib=$(du -sk "$dir" 2>/dev/null | cut -f1 || echo 0)
+    fi
+    if [ "${free_kib:-0}" -lt $((80 * 1024 * 1024)) ] || [ "${target_kib:-0}" -gt $((18 * 1024 * 1024)) ]; then
+        find "$dir" -maxdepth 4 -type d -name incremental -prune -exec rm -rf {} + 2>/dev/null || true
+        find "$dir" -maxdepth 4 -path '*/deps/*' -type f -mmin +30 \
+            -perm -111 ! -name '*.so' ! -name '*.dylib' ! -name '*.dll' -delete 2>/dev/null || true
+        find "$dir" -maxdepth 4 -path '*/deps/*' -type f -mmin +360 -delete 2>/dev/null || true
+    else
+        find "$dir" -mindepth 3 -maxdepth 4 -path '*/incremental/*' -type d -mmin +360 -prune -exec rm -rf {} + 2>/dev/null || true
+        find "$dir" -maxdepth 4 \( -path '*/deps/*' -o -path '*/examples/*' \) -type f -mmin +60 \
+            -perm -111 ! -name '*.so' ! -name '*.dylib' ! -name '*.dll' -delete 2>/dev/null || true
+        find "$dir" -maxdepth 4 -path '*/deps/*' -type f -mmin +1440 -delete 2>/dev/null || true
+    fi
+}
+
+prune_target pre "$@"
+
 exec 7<>"$LOCKS/bench-gate.lock"
 flock -s 7
 exec 8<>"$LOCKS/bench.lock"
 flock -s 8
 exec 7>&-
-exec env CARGO_BUILD_JOBS="$jobs" "$@"
+
+rc=0
+env CARGO_BUILD_JOBS="$jobs" "$@" || rc=$?
+exec 8>&-
+
+prune_target post "$@"
+exit "$rc"
