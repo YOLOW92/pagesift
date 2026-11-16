@@ -9,7 +9,14 @@
 #   scripts/jobs.sh 算出的并行度（按内存算）。用不同 CARGO_TARGET_DIR 的编译互不等待。
 set -euo pipefail
 cd "$(dirname "$0")/.."
-LOCKS=${BENCH_LOCK_DIR:-tasks/0.80}
+if [ -n "${BENCH_LOCK_DIR:-}" ]; then
+    LOCKS=$BENCH_LOCK_DIR
+elif [ -d tasks/0.80 ]; then
+    LOCKS=tasks/0.80
+else
+    LOCKS="${TMPDIR:-/tmp}/pagesift-build-locks"
+fi
+mkdir -p "$LOCKS"
 if [[ " $* " =~ (^|[[:space:]\'\"])(--release|--profile(=|[[:space:]])release)([[:space:]\'\"]|$) ]]; then
     # [profile.release] 启用了 lto = "fat"，单链接进程峰值内存高，严格限制并发防 OOM
     jobs=$(scripts/jobs.sh 2800 2560)

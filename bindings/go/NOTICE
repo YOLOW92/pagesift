@@ -10,34 +10,34 @@ carry this file so that the notices below travel with the binaries.
   Copyright (C) Adrien Barbaresi and contributors.
   Content-container class/id patterns, boilerplate patterns, the tag whitelist,
   link-density tests and the extraction arbitration heuristics used by the
-  article mode (crates/pagesift-content/src/features.rs, article.rs, lib.rs).
+  article mode (upstream crate yolowhtml, re-exported by crates/pagesift-content).
 
 - Mozilla Readability (https://github.com/mozilla/readability), Apache License 2.0,
   Copyright (c) 2010 Arc90 Inc and the Mozilla contributors.
-  The paragraph scoring, candidate selection and sibling rules
-  (crates/pagesift-content/src/readability.rs) and its class/id word lists.
+  The paragraph scoring, candidate selection and sibling rules and class/id word
+  lists (upstream crate yolowhtml, re-exported by crates/pagesift-content).
 
 - htmldate (https://github.com/adbar/htmldate), Apache License 2.0,
   Copyright (C) Adrien Barbaresi and contributors.
   The search order, meta attribute lists, date patterns, candidate selection and
-  plausibility rules of the publication-date search
-  (crates/pagesift-content/src/dates.rs). Its annotated evaluation set is used,
+  plausibility rules of the publication-date search (upstream crate yolowhtml,
+  re-exported by crates/pagesift-content). Its annotated evaluation set is used,
   unmodified and not redistributed, by benchmarks/dates/dates.py.
 
 - courlan (https://github.com/adbar/courlan), Apache License 2.0,
   Copyright (C) Adrien Barbaresi and contributors.
   The tracking-parameter rules used when cleaning crawl URLs
-  (crates/pagesift/src/frontier.rs).
+  (crates/pagesift-frontier/src/frontier/).
 
 - Heritrix (https://github.com/internetarchive/heritrix3), Apache License 2.0,
   Copyright (C) Internet Archive.
   The session-ID stripping and pathological-path rules of the crawl frontier
-  (crates/pagesift/src/frontier.rs).
+  (crates/pagesift-frontier/src/frontier/).
 
 - Scrapy (https://github.com/scrapy/scrapy), BSD 3-Clause License,
   Copyright (c) Scrapy developers.
   The retry policy (status codes, retry count, rescheduling instead of waiting)
-  of the crawler (crates/pagesift/src/crawl.rs).
+  of the crawler (crates/pagesift-engine/src/crawl/).
 
 - semchunk (https://github.com/isaacus-dev/semchunk), MIT License,
   Copyright (c) Isaacus.
@@ -47,11 +47,12 @@ carry this file so that the notices below travel with the binaries.
 - pdfplumber (https://github.com/jsvine/pdfplumber), MIT License,
   Copyright (c) 2015, Jeremy Singer-Vine.
   The lattice table algorithm: snapping and joining ruling lines, intersections,
-  smallest cells and grouping cells into tables (crates/pagesift-pdf/src/table.rs).
+  smallest cells and grouping cells into tables (upstream crate yolowpdf,
+  re-exported by crates/pagesift-pdf).
 
 - CFF standard strings (Adobe Technical Note #5176, Appendix A), as listed in
   pdfminer.six (https://github.com/pdfminer/pdfminer.six), MIT License
-  (crates/pagesift-pdf/src/fontfile.rs).
+  (upstream crate yolowpdf, re-exported by crates/pagesift-pdf).
 
 This product also includes data from the following project, compiled into the binaries.
 
@@ -59,8 +60,8 @@ This product also includes data from the following project, compiled into the bi
   BSD 3-Clause License, Copyright 1990-2019 Adobe. All rights reserved.
   The CID-to-Unicode tables of the Adobe-GB1, Adobe-CNS1, Adobe-Japan1 and Adobe-Korea1
   character collections (cid2code.txt), converted to the binary tables in
-  crates/pagesift-pdf/src/font/cid2uni/ and used to decode CJK text in PDFs whose
-  CID fonts carry no ToUnicode map. The license text follows.
+  upstream crate yolowpdf (re-exported by crates/pagesift-pdf) and used to decode
+  CJK text in PDFs whose CID fonts carry no ToUnicode map. The license text follows.
 
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions are
@@ -102,7 +103,8 @@ Schonfeld, "Do not crawl in the DUST: different URLs with similar text" (WWW 200
 and Dasgupta et al., "De-duping URLs via rewrite rules" (KDD 2008).
 
 - markup5ever (https://github.com/servo/html5ever), MIT OR Apache-2.0.
-  The HTML named character reference table (crates/pagesift-html/src/entities.rs).
+  The HTML named character reference table (upstream crate yolowhtml-dom,
+  re-exported by crates/pagesift-html).
 
 - rustls (https://github.com/rustls/rustls), Apache-2.0 OR ISC OR MIT.
   crates/pagesift-rustls is the rustls 0.23.46 source with one added hook; its
