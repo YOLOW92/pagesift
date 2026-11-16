@@ -22,6 +22,7 @@ pub(in crate::sync) fn reconcile_candidate_failure(
     spec: &DataSourceSpec,
     cand: &ScheduledCandidate,
     strategy_used: AcquisitionStrategy,
+    tenant_id: Option<&str>,
     step_cost_ms: f64,
     obs_time_ms: u64,
     error: &ApiError,
@@ -41,8 +42,9 @@ pub(in crate::sync) fn reconcile_candidate_failure(
     // 失败请求未获取有效内容：http_sufficient 与 browser_gain 必须保持 censored (None)；
     // 仅结构化访问受限错误（AccessBarrier/RobotsDisallowed/RateLimited/HostCooldown）更新 barrier_rate（P1-03）。
     if is_barrier {
-        experience.record_observation(
+        experience.record_observation_for_tenant(
             &fam_name,
+            tenant_id,
             &FamilyObservation {
                 observed_at_ms: obs_time_ms,
                 http_sufficient: None,
@@ -54,6 +56,8 @@ pub(in crate::sync) fn reconcile_candidate_failure(
                 encountered_barrier: Some(true),
                 cost_ms: step_cost_ms,
                 used_browser: strategy_used == AcquisitionStrategy::DirectBrowser,
+                browser_cost_ms: (strategy_used == AcquisitionStrategy::DirectBrowser)
+                    .then_some(step_cost_ms),
                 browser_failed: (strategy_used == AcquisitionStrategy::DirectBrowser)
                     .then_some(true),
                 ..Default::default()
@@ -285,10 +289,14 @@ mod tests {
                 state: ResourceLifecycleState::Active,
                 discovered_at_ms: 1000,
                 last_checked_at_ms: Some(1500),
+                last_attempted_at_ms: Some(1500),
+                last_valid_observed_at_ms: Some(1500),
                 last_substantive_change_at_ms: Some(1500),
                 next_due_at_ms: 2000,
                 etag: Some("\"v1\"".to_string()),
                 last_modified: None,
+                last_modified_at_ms: None,
+                last_modified_dynamic: false,
                 content_hash: None,
                 latest_doc_id: Some("doc-prev".to_string()),
                 last_status_code: Some(200),
@@ -315,6 +323,7 @@ mod tests {
                 shadow_price: 1.0,
                 reuse_source: None,
                 exploration_probe: false,
+                browser_escalation_permitted: false,
                 reasons: Vec::new(),
             },
         }
@@ -354,6 +363,7 @@ mod tests {
                 &spec,
                 &cand,
                 strat,
+                None,
                 9_999.0,
                 3000,
                 &ApiError::new(code, msg),
@@ -381,6 +391,7 @@ mod tests {
             &spec,
             &cand,
             AcquisitionStrategy::DirectBrowser,
+            None,
             250.0,
             3000,
             &ApiError::new(ErrorCode::AccessBarrier, "cloudflare challenge"),

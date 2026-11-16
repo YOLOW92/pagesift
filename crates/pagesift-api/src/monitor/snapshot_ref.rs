@@ -214,81 +214,100 @@ mod tests {
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn persist_offloads_markdown_to_snapshot_store_and_rehydrates_on_restart() {
+    fn monitor_rt() -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("tokio runtime")
+    }
+
+    #[test]
+    fn persist_offloads_markdown_to_snapshot_store_and_rehydrates_on_restart() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let store = Store::open(pagesift_store::Config::new(dir.path())).expect("store");
         let unique_body = "# Product\n\nUNIQUE_MONITOR_BODY_MARKER_987654\n\nPrice: $49";
 
-        let app1 = router(
-            Arc::new(StaticEngine(unique_body.into())),
-            Config {
-                store: Some(store.clone()),
-                ..Default::default()
-            },
-        );
-        let create_req = Request::builder()
-            .method("POST")
-            .uri("/v2/monitor")
-            .header("content-type", "application/json")
-            .body(Body::from(
-                serde_json::json!({
-                    "targets": [{ "type": "scrape", "urls": ["https://example.com/p"] }]
-                })
-                .to_string(),
-            ))
-            .unwrap();
-        let resp = app1.clone().oneshot(create_req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
-        let body: serde_json::Value =
-            serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
-        let id = body["data"]["id"].as_str().unwrap().to_string();
+        let rt1 = monitor_rt();
+        let id = rt1.block_on(async {
+            let store = Store::open(pagesift_store::Config::new(dir.path())).expect("store");
+            let app1 = router(
+                Arc::new(StaticEngine(unique_body.into())),
+                Config {
+                    store: Some(store),
+                    ..Default::default()
+                },
+            );
+            let create_req = Request::builder()
+                .method("POST")
+                .uri("/v2/monitor")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "targets": [{ "type": "scrape", "urls": ["https://example.com/p"] }]
+                    })
+                    .to_string(),
+                ))
+                .unwrap();
+            let resp = app1.clone().oneshot(create_req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
+            let body: serde_json::Value =
+                serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes())
+                    .unwrap();
+            let id = body["data"]["id"].as_str().unwrap().to_string();
 
-        let run_req = Request::builder()
-            .method("POST")
-            .uri(format!("/v2/monitor/{id}/run"))
-            .body(Body::empty())
-            .unwrap();
-        let resp = app1.oneshot(run_req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+            let run_req = Request::builder()
+                .method("POST")
+                .uri(format!("/v2/monitor/{id}/run"))
+                .body(Body::empty())
+                .unwrap();
+            let resp = app1.oneshot(run_req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
+            id
+        });
+        drop(rt1);
 
-        let raw_bytes = store
-            .tasks()
-            .kv_get(key(&id))
-            .expect("kv_get")
-            .expect("persisted monitor");
-        let raw_str = std::str::from_utf8(&raw_bytes).expect("utf8 json");
-        assert!(
-            !raw_str.contains("UNIQUE_MONITOR_BODY_MARKER_987654"),
-            "monitor metadata must not inline page markdown: {raw_str}"
-        );
-        let persisted: MonitorState = serde_json::from_slice(&raw_bytes).expect("json");
-        let page = persisted.pages.get("https://example.com/p").expect("page");
-        assert!(page.markdown.is_none());
-        assert!(
-            page.snapshot_ref
-                .as_deref()
-                .is_some_and(|r| r.starts_with("snap:"))
-        );
+        let rt2 = monitor_rt();
+        rt2.block_on(async {
+            let store = Store::open(pagesift_store::Config::new(dir.path())).expect("store");
+            let raw_bytes = store
+                .tasks()
+                .kv_get(key(&id))
+                .expect("kv_get")
+                .expect("persisted monitor");
+            let raw_str = std::str::from_utf8(&raw_bytes).expect("utf8 json");
+            assert!(
+                !raw_str.contains("UNIQUE_MONITOR_BODY_MARKER_987654"),
+                "monitor metadata must not inline page markdown: {raw_str}"
+            );
+            let persisted: MonitorState = serde_json::from_slice(&raw_bytes).expect("json");
+            let page = persisted.pages.get("https://example.com/p").expect("page");
+            assert!(page.markdown.is_none());
+            assert!(
+                page.snapshot_ref
+                    .as_deref()
+                    .is_some_and(|r| r.starts_with("snap:"))
+            );
 
-        // Simulated restart with identical body: check must recognize `same` using hydrated baseline
-        let app2 = router(
-            Arc::new(StaticEngine(unique_body.into())),
-            Config {
-                store: Some(store),
-                ..Default::default()
-            },
-        );
-        let run2 = Request::builder()
-            .method("POST")
-            .uri(format!("/v2/monitor/{id}/run"))
-            .body(Body::empty())
-            .unwrap();
-        let resp2 = app2.oneshot(run2).await.unwrap();
-        assert_eq!(resp2.status(), StatusCode::OK);
-        let body2: serde_json::Value =
-            serde_json::from_slice(&resp2.into_body().collect().await.unwrap().to_bytes()).unwrap();
-        assert_eq!(body2["data"]["pages"][0]["status"], "same");
+            // Simulated restart with identical body: check must recognize `same` using hydrated baseline
+            let app2 = router(
+                Arc::new(StaticEngine(unique_body.into())),
+                Config {
+                    store: Some(store),
+                    ..Default::default()
+                },
+            );
+            let run2 = Request::builder()
+                .method("POST")
+                .uri(format!("/v2/monitor/{id}/run"))
+                .body(Body::empty())
+                .unwrap();
+            let resp2 = app2.oneshot(run2).await.unwrap();
+            assert_eq!(resp2.status(), StatusCode::OK);
+            let body2: serde_json::Value =
+                serde_json::from_slice(&resp2.into_body().collect().await.unwrap().to_bytes())
+                    .unwrap();
+            assert_eq!(body2["data"]["pages"][0]["status"], "same");
+        });
     }
 
     #[test]
@@ -298,104 +317,116 @@ mod tests {
         assert_eq!(parse_snapshot_ref(&payload), None);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn evicted_snapshot_never_falsifies_new_or_same_baseline_r08() {
+    #[test]
+    fn evicted_snapshot_never_falsifies_new_or_same_baseline_r08() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let store = Store::open(pagesift_store::Config::new(dir.path())).expect("store");
         let body = "# Product\n\nPrice: $49";
 
-        let app1 = router(
-            Arc::new(StaticEngine(body.into())),
-            Config {
-                store: Some(store.clone()),
-                ..Default::default()
-            },
-        );
-        let create_req = Request::builder()
-            .method("POST")
-            .uri("/v2/monitor")
-            .header("content-type", "application/json")
-            .body(Body::from(
-                serde_json::json!({
-                    "targets": [{ "type": "scrape", "urls": ["https://example.com/evict"] }]
-                })
-                .to_string(),
-            ))
-            .unwrap();
-        let resp = app1.clone().oneshot(create_req).await.unwrap();
-        let created: serde_json::Value =
-            serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
-        let id = created["data"]["id"].as_str().unwrap().to_string();
-
-        let run1 = Request::builder()
-            .method("POST")
-            .uri(format!("/v2/monitor/{id}/run"))
-            .body(Body::empty())
-            .unwrap();
-        assert_eq!(app1.oneshot(run1).await.unwrap().status(), StatusCode::OK);
-
-        // Corrupt the stored snapshot ref to simulate snapshot eviction / missing payload.
-        let mut raw_mon: MonitorState =
-            serde_json::from_slice(&store.tasks().kv_get(key(&id)).unwrap().expect("monitor"))
+        let rt1 = monitor_rt();
+        let id = rt1.block_on(async {
+            let store = Store::open(pagesift_store::Config::new(dir.path())).expect("store");
+            let app1 = router(
+                Arc::new(StaticEngine(body.into())),
+                Config {
+                    store: Some(store),
+                    ..Default::default()
+                },
+            );
+            let create_req = Request::builder()
+                .method("POST")
+                .uri("/v2/monitor")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "targets": [{ "type": "scrape", "urls": ["https://example.com/evict"] }]
+                    })
+                    .to_string(),
+                ))
                 .unwrap();
-        raw_mon
-            .pages
-            .get_mut("https://example.com/evict")
-            .unwrap()
-            .snapshot_ref = Some(format!("{SNAP_PREFIX}{}", "f".repeat(64)));
-        store
-            .tasks()
-            .kv_put(key(&id), &serde_json::to_vec(&raw_mon).unwrap())
-            .unwrap();
+            let resp = app1.clone().oneshot(create_req).await.unwrap();
+            let created: serde_json::Value =
+                serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes())
+                    .unwrap();
+            let id = created["data"]["id"].as_str().unwrap().to_string();
 
-        let app2 = router(
-            Arc::new(StaticEngine(body.into())),
-            Config {
-                store: Some(store),
-                ..Default::default()
-            },
-        );
-        let get_req = Request::builder()
-            .method("GET")
-            .uri(format!("/v2/monitor/{id}"))
-            .body(Body::empty())
-            .unwrap();
-        let get_resp = app2.clone().oneshot(get_req).await.unwrap();
-        let get_body: serde_json::Value =
-            serde_json::from_slice(&get_resp.into_body().collect().await.unwrap().to_bytes())
+            let run1 = Request::builder()
+                .method("POST")
+                .uri(format!("/v2/monitor/{id}/run"))
+                .body(Body::empty())
                 .unwrap();
-        assert!(
-            get_body["data"]["warnings"].as_array().is_some_and(|w| w
-                .iter()
-                .any(|x| x.as_str().unwrap_or("").contains("baseline_unavailable"))),
-            "expected baseline_unavailable warning: {get_body}"
-        );
+            assert_eq!(app1.oneshot(run1).await.unwrap().status(), StatusCode::OK);
+            id
+        });
+        drop(rt1);
 
-        let run2 = Request::builder()
-            .method("POST")
-            .uri(format!("/v2/monitor/{id}/run"))
-            .body(Body::empty())
-            .unwrap();
-        let resp2 = app2.clone().oneshot(run2).await.unwrap();
-        let body2: serde_json::Value =
-            serde_json::from_slice(&resp2.into_body().collect().await.unwrap().to_bytes()).unwrap();
-        assert_eq!(body2["data"]["pages"][0]["status"], "error", "{body2}");
-        assert!(
-            body2["data"]["pages"][0]["error"]
-                .as_str()
-                .is_some_and(|e| e.contains("baseline_snapshot_unavailable")),
-            "{body2}"
-        );
+        let rt2 = monitor_rt();
+        rt2.block_on(async {
+            let store = Store::open(pagesift_store::Config::new(dir.path())).expect("store");
+            // Corrupt the stored snapshot ref after app1 shutdown to simulate snapshot eviction / missing payload.
+            let mut raw_mon: MonitorState =
+                serde_json::from_slice(&store.tasks().kv_get(key(&id)).unwrap().expect("monitor"))
+                    .unwrap();
+            raw_mon
+                .pages
+                .get_mut("https://example.com/evict")
+                .unwrap()
+                .snapshot_ref = Some(format!("{SNAP_PREFIX}{}", "f".repeat(64)));
+            store
+                .tasks()
+                .kv_put(key(&id), &serde_json::to_vec(&raw_mon).unwrap())
+                .unwrap();
 
-        // Next check heals baseline cleanly back to `same`.
-        let run3 = Request::builder()
-            .method("POST")
-            .uri(format!("/v2/monitor/{id}/run"))
-            .body(Body::empty())
-            .unwrap();
-        let resp3 = app2.oneshot(run3).await.unwrap();
-        let body3: serde_json::Value =
-            serde_json::from_slice(&resp3.into_body().collect().await.unwrap().to_bytes()).unwrap();
-        assert_eq!(body3["data"]["pages"][0]["status"], "same", "{body3}");
+            let app2 = router(
+                Arc::new(StaticEngine(body.into())),
+                Config {
+                    store: Some(store),
+                    ..Default::default()
+                },
+            );
+            let get_req = Request::builder()
+                .method("GET")
+                .uri(format!("/v2/monitor/{id}"))
+                .body(Body::empty())
+                .unwrap();
+            let get_resp = app2.clone().oneshot(get_req).await.unwrap();
+            let get_body: serde_json::Value =
+                serde_json::from_slice(&get_resp.into_body().collect().await.unwrap().to_bytes())
+                    .unwrap();
+            assert!(
+                get_body["data"]["warnings"].as_array().is_some_and(|w| w
+                    .iter()
+                    .any(|x| x.as_str().unwrap_or("").contains("baseline_unavailable"))),
+                "expected baseline_unavailable warning: {get_body}"
+            );
+
+            let run2 = Request::builder()
+                .method("POST")
+                .uri(format!("/v2/monitor/{id}/run"))
+                .body(Body::empty())
+                .unwrap();
+            let resp2 = app2.clone().oneshot(run2).await.unwrap();
+            let body2: serde_json::Value =
+                serde_json::from_slice(&resp2.into_body().collect().await.unwrap().to_bytes())
+                    .unwrap();
+            assert_eq!(body2["data"]["pages"][0]["status"], "error", "{body2}");
+            assert!(
+                body2["data"]["pages"][0]["error"]
+                    .as_str()
+                    .is_some_and(|e| e.contains("baseline_snapshot_unavailable")),
+                "{body2}"
+            );
+
+            // Next check heals baseline cleanly back to `same`.
+            let run3 = Request::builder()
+                .method("POST")
+                .uri(format!("/v2/monitor/{id}/run"))
+                .body(Body::empty())
+                .unwrap();
+            let resp3 = app2.oneshot(run3).await.unwrap();
+            let body3: serde_json::Value =
+                serde_json::from_slice(&resp3.into_body().collect().await.unwrap().to_bytes())
+                    .unwrap();
+            assert_eq!(body3["data"]["pages"][0]["status"], "same", "{body3}");
+        });
     }
 }

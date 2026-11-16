@@ -103,7 +103,11 @@ impl NormalizedValue {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueComparison {
     Equal,
+    /// Confirmed conflict between two distinct known currencies, billing periods, or measurement units.
     UnitOrCurrencyMismatch,
+    /// Insufficient unit, currency, or billing-period context on at least one side (`UNKNOWN` / `Unknown` / `None`);
+    /// must not be treated as a confirmed unit contradiction.
+    UnitOrCurrencyUnspecified,
     ValueMismatch,
 }
 
@@ -249,7 +253,8 @@ fn normalize_string_value(field_name: &str, raw: &str, fallback_currency: &str) 
     }
 }
 
-/// Compare two normalized values and flag unit/currency/period discrepancies distinctly.
+/// Compare two normalized values and flag confirmed unit/currency/period discrepancies
+/// distinctly from unspecified unit/currency/period metadata (`UNKNOWN` / `Unknown` / `None`).
 pub fn compare_normalized(a: &NormalizedValue, b: &NormalizedValue) -> ValueComparison {
     match (a, b) {
         (
@@ -266,8 +271,13 @@ pub fn compare_normalized(a: &NormalizedValue, b: &NormalizedValue) -> ValueComp
                 ..
             },
         ) => {
-            if c1 != c2 || p1 != p2 {
+            let known_currency_conflict = c1 != "UNKNOWN" && c2 != "UNKNOWN" && c1 != c2;
+            let known_period_conflict =
+                *p1 != MoneyPeriod::Unknown && *p2 != MoneyPeriod::Unknown && p1 != p2;
+            if known_currency_conflict || known_period_conflict {
                 ValueComparison::UnitOrCurrencyMismatch
+            } else if c1 != c2 || p1 != p2 {
+                ValueComparison::UnitOrCurrencyUnspecified
             } else if a1 == a2 {
                 ValueComparison::Equal
             } else {
@@ -285,18 +295,19 @@ pub fn compare_normalized(a: &NormalizedValue, b: &NormalizedValue) -> ValueComp
                 unit: u2,
                 ..
             },
-        ) => {
-            if u1 != u2 {
+        ) => match (u1.as_deref(), u2.as_deref()) {
+            (Some(s1), Some(s2)) if s1 != s2 => ValueComparison::UnitOrCurrencyMismatch,
+            (None, Some(_)) | (Some(_), None) => ValueComparison::UnitOrCurrencyUnspecified,
+            _ if v1 == v2 => ValueComparison::Equal,
+            _ => ValueComparison::ValueMismatch,
+        },
+        (NormalizedValue::Money { currency, .. }, NormalizedValue::Number { unit, .. })
+        | (NormalizedValue::Number { unit, .. }, NormalizedValue::Money { currency, .. }) => {
+            if currency != "UNKNOWN" && unit.is_some() {
                 ValueComparison::UnitOrCurrencyMismatch
-            } else if v1 == v2 {
-                ValueComparison::Equal
             } else {
-                ValueComparison::ValueMismatch
+                ValueComparison::UnitOrCurrencyUnspecified
             }
-        }
-        (NormalizedValue::Money { .. }, NormalizedValue::Number { .. })
-        | (NormalizedValue::Number { .. }, NormalizedValue::Money { .. }) => {
-            ValueComparison::UnitOrCurrencyMismatch
         }
         _ => {
             if a.bucket_key() == b.bucket_key() {
@@ -481,10 +492,31 @@ mod tests {
         let unknown_cur = normalize_field_value_with_currency("price", &json!(66), None);
         assert_eq!(
             compare_normalized(&unknown_cur, &str_usd),
-            ValueComparison::UnitOrCurrencyMismatch
+            ValueComparison::UnitOrCurrencyUnspecified
         );
         assert_eq!(
             compare_normalized(&unknown_cur, &ctx_eur),
+            ValueComparison::UnitOrCurrencyUnspecified
+        );
+        assert_eq!(
+            compare_normalized(&str_usd, &ctx_eur),
+            ValueComparison::UnitOrCurrencyMismatch
+        );
+
+        let no_period = normalize_field_value_with_currency("price", &json!("$49"), None);
+        assert_eq!(
+            compare_normalized(&no_period, &m),
+            ValueComparison::UnitOrCurrencyUnspecified
+        );
+        let missing_unit = normalize_field_value("memory", &json!("16"));
+        let with_gb = normalize_field_value("memory", &json!("16 GB"));
+        let with_mb = normalize_field_value("memory", &json!("16 MB"));
+        assert_eq!(
+            compare_normalized(&missing_unit, &with_gb),
+            ValueComparison::UnitOrCurrencyUnspecified
+        );
+        assert_eq!(
+            compare_normalized(&with_gb, &with_mb),
             ValueComparison::UnitOrCurrencyMismatch
         );
     }

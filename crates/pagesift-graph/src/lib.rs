@@ -39,8 +39,9 @@ pub use conflict::{
 };
 pub use corroborate::{
     ClaimRecord, DEFAULT_CONTRACT_ID, FactCluster, SubjectKey, SubjectKeySource,
-    build_fact_clusters, build_fact_clusters_with_lineage,
-    build_fact_clusters_with_lineage_checked, resolve_entity_subject_keys, resolve_subject_key,
+    build_fact_clusters, build_fact_clusters_from_lifecycles_checked,
+    build_fact_clusters_with_lineage, build_fact_clusters_with_lineage_checked,
+    resolve_entity_subject_keys, resolve_subject_key,
 };
 pub use delta::{DocumentInput, GraphSlice, GraphStats, GraphSummary, PageGraphDelta};
 pub use evidence::{

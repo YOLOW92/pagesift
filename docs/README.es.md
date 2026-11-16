@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.5.5
+# pagesift 1.5.6
 
 **Motor local-first en Rust para ingesta de web y documentos — captura HTTP/navegador, análisis con diseño para PDF/Office/OCR, sincronización persistente y grafos de datos verificables.**  
 Un único binario autoalojado en Rust con CLI, APIs HTTP compatibles con Firecrawl v1/v2 y Jina Reader, servidor MCP, ABI de C y paquetes nativos para Python y Node.js.
@@ -35,8 +35,8 @@ Alternativa o complemento para: **Firecrawl** (API v1/v2 autoalojada), **Jina Re
 - **Entradas:** URLs, HTML, PDF (capa de texto + PP-OCRv6 / fórmulas opcionales), imágenes subidas (OCR activo), Office y OpenDocument, RTF/WordPerfect/HWP, libros electrónicos, correo, archivos (`zip`, `tar`, `7z`), SQLite/CSV, 373 lenguajes de código y archivos WARC ([matriz de formatos](parse-api.md))
 - **Salidas:** Markdown, HTML, HTML sin procesar, enlaces, imágenes/adjuntos, fragmentos RAG, JSON con esquema, `DataGraph` (`graph.jsonl`, citas, ciclos de vida de claims, conflictos, `fact_clusters`, `?asOf=`) y avisos estructurados en capturas parciales
 - **Interfaces:** CLI · API HTTP Firecrawl v1/v2 · Jina Reader (`/r/`, `/s/`) · MCP (stdio / HTTP) · Python · Node.js / TypeScript · crate Rust · ABI de C (Go, Java, Kotlin, C#, Ruby, PHP, Lua, Perl, Dart, Swift, Zig) · LangChain y LlamaIndex
-- **Plataformas y despliegue:** Binario único (`serve --role gateway`, `worker`, `standby`), Linux x86_64/aarch64 (glibc ≥ 2.28 y musl), macOS arm64, Windows x86_64, Docker `ghcr.io/yolow92/pagesift:1.5.5`
-- **Índice y versión:** Índice legible por máquina [llms.txt](../llms.txt) · Apache-2.0 o [soporte comercial](COMMERCIAL.md) · **1.5.5** ([notas de versión](releases/1.5.5.md))
+- **Plataformas y despliegue:** Binario único (`serve --role gateway`, `worker`, `standby`), Linux x86_64/aarch64 (glibc ≥ 2.28 y musl), macOS arm64, Windows x86_64, Docker `ghcr.io/yolow92/pagesift:1.5.6`
+- **Índice y versión:** Índice legible por máquina [llms.txt](../llms.txt) · Apache-2.0 o [soporte comercial](COMMERCIAL.md) · **1.5.6** ([notas de versión](releases/1.5.6.md))
 
 <!-- section: install -->
 ## Instalación y comienzo rápido
@@ -46,7 +46,7 @@ Alternativa o complemento para: **Firecrawl** (API v1/v2 autoalojada), **Jina Re
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| Servidor | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.5.5` | `curl localhost:3002/r/https://example.com` |
+| Servidor | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.5.6` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 <details>
@@ -89,7 +89,7 @@ console.log(page.markdown, page.metadata.title, page.links)
 **Servidor HTTP (`Firecrawl v1/v2`, `Jina Reader`, `/v2/sources`, `/v2/graph`) y MCP**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.5.5
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.5.6
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'
@@ -125,7 +125,7 @@ Las métricas detalladas, condiciones de hardware, advertencias de metodología 
 
 - **Latencia (pruebas registradas, 1 trabajador, más bajo es mejor):** PDF → Markdown `2,5 ms/página` (1.269 páginas); HTML → Markdown `0,23 ms/página` (600 documentos); contenido principal `1,0 ms/página` (597 páginas).
 - **Rendimiento, fidelidad y memoria (pruebas registradas):** Office en proceso `81,9 archivos/s` (más alto es mejor); HTML → Markdown F1 medio `1,000`; WCXB F1 `0,866`; recuperación RAG `0,929` (más alto es mejor); pico de memoria `17–395 MB` por trabajador sin navegador.
-- **Informes completos y evaluación Loop:** [benchmarks.md](benchmarks.md) · [Informe completo de benchmarks](../benchmarks/history/1.4/results/final/new/report.md) · [Evaluación local más reciente de Loop](releases/1.5.5.md)
+- **Informes completos y evaluación Loop:** [benchmarks.md](benchmarks.md) · [Informe completo de benchmarks](../benchmarks/history/1.4/results/final/new/report.md) · [Evaluación local más reciente de Loop](releases/1.5.6.md)
 
 <!-- section: architecture -->
 ## Arquitectura y flujos principales
@@ -242,11 +242,11 @@ Consulta la [referencia completa de arquitectura](architecture.md) para dimensio
 [Apache-2.0](../LICENSE). Para soporte empresarial, SLAs personalizados o asistencia dedicada de despliegue, consulta la [licencia y soporte comercial](COMMERCIAL.md) o escribe a `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
-## Novedades de 1.5.5
+## Novedades de 1.5.6
 
-PageSift 1.5.5 cierra la serie `1.5.x` Loop en programación, adaptación, olvido/reutilización, fiabilidad de observación y grafo de evidencias: incorpora detección periódica sin aliasing con respaldo Poisson y asignación presupuestaria de Lagrange, propagación cooperativa en Hubs y recuento acumulado multi-oleada `candidates_due`, síntesis de JSON incrustado (`__NEXT_DATA__`/`__NUXT_DATA__`/JSON-LD) en sondas HTTP de Sync, separación de costes 304/HTTP/navegador con precio sombra por utilización de pestañas y sondas de recuperación `HttpVerifyBrowser` desde `DirectBrowser`, olvido por sorpresa bayesiana ante cambios de régimen, transferencia jerárquica aislada por inquilino con rechazo de transferencia negativa, preservación como `Unverified` ante avisos `decode:` o truncamiento, desambiguación contextual de divisas (`EUR`, `USD`, `UNKNOWN`) en `pagesift-graph` y persistencia de citas secundarias en `StoredProvenance` para `SourceStateView.fact_clusters`.
+PageSift 1.5.6 completa la corrección integral de Loop `1.5.x` y el endurecimiento transaccional del almacén: ejecuta `mirror::write` de trabajos de rastreo (`pages` y `done_set`) en una sola transacción atómica `TasksTx`; separa marcas de intento, última observación válida y cambio sustantivo, desacoplando la fiabilidad HTTP/navegador y propagando `uncertain_observations` sin resolver para bloquear `complete_within_scope`; integra y valida `Last-Modified` HTTP en la detección periódica mientras corrige la invalidación de ciclos perdidos/tardíos, el aislamiento de fases por recurso, la escritura real de intervalos mediante `apply_waterfill_schedules_to_inventory` y la deduplicación multi-oleada de `candidates_due`; aplica en ejecución el precio sombra del navegador dentro del tick (`browser_escalation_permitted`), elimina bloqueos por ETags obsoletos o sondas únicas, corrige el doble consumo al rechazar transferencia negativa y el aislamiento por inquilino en fallos; y separa recuentos `Active` frente a `Unverified`, `fact_clusters_truncated` y unidades/divisas `"UNKNOWN"` frente a conflictos confirmados.
 
-[Notas de la versión](releases/1.5.5.md) · [1.5.4](releases/1.5.4.md) · [1.5.3](releases/1.5.3.md) · [1.5.2](releases/1.5.2.md) · [1.5.1](releases/1.5.1.md) · [1.5.0](releases/1.5.0.md) · [todas las versiones](releases/) · [CHANGELOG](CHANGELOG.md)
+[Notas de la versión](releases/1.5.6.md) · [1.5.5](releases/1.5.5.md) · [1.5.4](releases/1.5.4.md) · [1.5.3](releases/1.5.3.md) · [1.5.2](releases/1.5.2.md) · [1.5.1](releases/1.5.1.md) · [1.5.0](releases/1.5.0.md) · [todas las versiones](releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -262,7 +262,7 @@ Preguntas o comentarios: [Discord](https://discord.gg/esA3wMZVvA) · [Issues](ht
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.5.5}
+  note   = {Version 1.5.6}
 }
 ```
 

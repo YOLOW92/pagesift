@@ -16,7 +16,7 @@ use tokio::time::Instant;
 use crate::graph::now_ms;
 
 use super::super::budget::TickBudgetLedger;
-use super::super::scheduler::select_tick_candidates;
+use super::super::scheduler::{apply_waterfill_schedules_to_inventory, select_tick_candidates};
 
 pub(super) struct TickCommitInputs<'a> {
     pub source_id: &'a str,
@@ -74,19 +74,24 @@ pub(super) fn build_scrape_options_for_strategy(
         | AcquisitionStrategy::HttpVerifyBrowser
         | AcquisitionStrategy::DeferOrSkip => Some("http".to_string()),
     };
-    let try_embedded_json = matches!(
-        strategy,
-        AcquisitionStrategy::ConditionalHttp
-            | AcquisitionStrategy::LightweightHttp
-            | AcquisitionStrategy::HttpWithEmbeddedJson
-            | AcquisitionStrategy::HttpVerifyBrowser
-    );
+    let try_embedded_json = match strategy {
+        AcquisitionStrategy::HttpWithEmbeddedJson
+        | AcquisitionStrategy::HttpVerifyBrowser
+        | AcquisitionStrategy::ConditionalHttp => true,
+        AcquisitionStrategy::LightweightHttp => !spec.allow_browser || rec.has_embedded_json,
+        AcquisitionStrategy::DirectBrowser | AcquisitionStrategy::DeferOrSkip => false,
+    };
 
     let validator_eligible = strategy == AcquisitionStrategy::ConditionalHttp
         && rec.last_validator_contract_id.as_deref() == Some(contract_id)
         && rec.baseline_sufficient;
     let (if_none_match, if_modified_since) = if validator_eligible {
-        (rec.etag.clone(), rec.last_modified.clone())
+        (
+            rec.etag.clone(),
+            rec.last_modified
+                .clone()
+                .filter(|lm| httpdate::parse_http_date(lm).is_ok()),
+        )
     } else {
         (None, None)
     };
@@ -118,7 +123,7 @@ pub(super) fn finalize_and_commit_sync_tick(
     let tick_id = inputs.tick_id;
     let started_at_ms = inputs.started_at_ms;
     let wall_start = inputs.wall_start;
-    let inventory = inputs.inventory;
+    let mut inventory = inputs.inventory;
     let visited_keys = inputs.visited_keys;
     let experience = inputs.experience;
     let ledger = inputs.ledger;
@@ -134,6 +139,14 @@ pub(super) fn finalize_and_commit_sync_tick(
     let active_subjects = inputs.active_subjects;
 
     let completed_at_ms = now_ms().max(started_at_ms + 1);
+    // 将全局拉格朗日注水最优间隔真实写入本次已执行活跃资源的 next_due_at_ms（紧预算下生效）
+    apply_waterfill_schedules_to_inventory(
+        spec,
+        &mut inventory,
+        experience,
+        completed_at_ms,
+        visited_keys,
+    );
     let remaining_unvisited: Vec<ResourceRecord> = inventory
         .values()
         .filter(|r| !visited_keys.contains(&r.resource_key))
@@ -169,6 +182,17 @@ pub(super) fn finalize_and_commit_sync_tick(
         .values()
         .filter(|r| r.state == ResourceLifecycleState::SuspectedGone)
         .count();
+    let unresolved_unreliable = inventory
+        .values()
+        .filter(|r| r.learn.last_observation_unreliable)
+        .count();
+    let unresolved_transient = inventory
+        .values()
+        .filter(|r| {
+            r.state == ResourceLifecycleState::TransientFailure
+                && !r.learn.last_observation_unreliable
+        })
+        .count();
     let fresh_unexpired = inventory
         .values()
         .filter(|r| {
@@ -177,7 +201,8 @@ pub(super) fn finalize_and_commit_sync_tick(
                 ResourceLifecycleState::Discovered
                     | ResourceLifecycleState::TransientFailure
                     | ResourceLifecycleState::SuspectedGone
-            ) && r.next_due_at_ms > completed_at_ms
+            ) && !r.learn.last_observation_unreliable
+                && r.next_due_at_ms > completed_at_ms
         })
         .count();
     let target_reached = spec.budget.target_items.is_some_and(|t| {
@@ -196,9 +221,10 @@ pub(super) fn finalize_and_commit_sync_tick(
         attempted_total: stats.attempted_total,
         deferred_count: stats.deferred_count,
         unchecked_total: stats.unchecked_discovered,
-        transient_failures: stats.transient_failures,
+        transient_failures: stats.transient_failures.max(unresolved_transient),
         access_restricted_count: stats.access_restricted_count,
         insufficient_captures: stats.insufficient_captures,
+        uncertain_observations: stats.uncertain_observations.max(unresolved_unreliable),
         pending_confirmation: suspected_gone_count,
         fresh_unexpired,
         target_goal_reached: target_reached,

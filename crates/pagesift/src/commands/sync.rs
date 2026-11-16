@@ -284,16 +284,24 @@ pub(crate) fn run(action: SyncCommand, cfg: pagesift::config::Config) -> Result<
                         "inventoryCounts": view.inventory_counts,
                         "activeClaims": view.active_claims.len(),
                         "conflicts": view.conflicts.len(),
+                        "factClusters": view.fact_clusters.len(),
+                        "factClustersTruncated": view.fact_clusters_truncated,
                     }))?
                 );
             } else {
                 println!(
-                    "source={} ticks={} coverage={} active_claims={} conflicts={}",
+                    "source={} ticks={} coverage={} active_claims={} conflicts={} fact_clusters={}{}",
                     view.source_id,
                     view.total_ticks,
                     view.coverage_status.as_deref().unwrap_or("none"),
                     view.active_claims.len(),
-                    view.conflicts.len()
+                    view.conflicts.len(),
+                    view.fact_clusters.len(),
+                    if view.fact_clusters_truncated {
+                        " (truncated)"
+                    } else {
+                        ""
+                    },
                 );
                 for (state, count) in &view.inventory_counts {
                     println!("  {state}: {count}");
@@ -319,15 +327,34 @@ pub(crate) fn run(action: SyncCommand, cfg: pagesift::config::Config) -> Result<
                 println!("{}", serde_json::to_string_pretty(&view)?);
             } else {
                 println!(
-                    "source={} history_status={:?} history_unavailable={} resources={} active_claims={} conflicts={} coverage={}",
+                    "source={} history_status={:?} history_unavailable={} resources={} active_claims={} conflicts={} fact_clusters={}{} coverage={}",
                     view.source_id,
                     view.history_status,
                     view.history_unavailable,
                     view.resources.len(),
                     view.active_claims.len(),
                     view.conflicts.len(),
+                    view.fact_clusters.len(),
+                    if view.fact_clusters_truncated {
+                        " (truncated)"
+                    } else {
+                        ""
+                    },
                     view.coverage_status.as_deref().unwrap_or("none")
                 );
+                for cl in &view.fact_clusters {
+                    if cl.unverified_support_count > 0 {
+                        println!(
+                            "  [cluster] {}={} verified={} unverified={} active_indep={} total_indep={}",
+                            cl.subject_key,
+                            cl.normalized_field,
+                            cl.verified_support_count,
+                            cl.unverified_support_count,
+                            cl.independent_sources,
+                            cl.total_independent_sources,
+                        );
+                    }
+                }
                 for r in &view.resources {
                     println!("  [{}] {} (role={:?})", r.state.as_str(), r.url, r.role);
                 }

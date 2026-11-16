@@ -17,14 +17,17 @@ use crate::graph::stage::with_graph_stage;
 
 use super::budget::{TickBudgetLedger, is_budget_exhausted_step, unwrap_tick_step};
 use super::capture::{
-    assess_document_capture, build_seeded_learner, has_embedded_json_signal, is_barrier_doc,
-    maybe_falsify_rewritten_rules, prepare_rewritten_fetch_url, should_adopt_browser_escalation,
+    assess_capture_reliability, assess_document_capture, build_seeded_learner,
+    has_embedded_json_signal, is_barrier_doc, maybe_falsify_rewritten_rules,
+    prepare_rewritten_fetch_url, should_adopt_browser_escalation,
 };
 use super::inventory::{ensure_seeds_in_inventory, prune_out_of_scope_inventory};
 use super::reconcile::{
     ExecutionTelemetry, HttpAttemptMeta, reconcile_candidate_failure, reconcile_candidate_success,
 };
-use super::scheduler::select_tick_candidates_with_context;
+use super::scheduler::{
+    is_record_due, refresh_candidate_decision, select_tick_candidates_with_context,
+};
 
 /// 触发一次同步周期的运行选项。
 #[derive(Debug, Clone, Default)]
@@ -177,6 +180,7 @@ impl Scraper {
         let mut prepared_bundles = Vec::new();
         let mut active_subjects: BTreeSet<String> = BTreeSet::new();
         let mut visited_keys: BTreeSet<String> = BTreeSet::new();
+        let mut due_keys_seen: BTreeSet<String> = BTreeSet::new();
         let mut budget_exhausted = false;
         let mut early_stopped_reasons = Vec::new();
 
@@ -230,7 +234,7 @@ impl Scraper {
                 .saturating_sub(ledger.requests_used)
                 .clamp(1, MAX_REQUESTS_PER_TICK_CAP);
             let wave_now_ms = now_ms().max(started_at_ms);
-            let (candidates, _, wave_due) = select_tick_candidates_with_context(
+            let (candidates, _, _) = select_tick_candidates_with_context(
                 &wave_spec,
                 &unvisited_vec,
                 &experience,
@@ -239,8 +243,13 @@ impl Scraper {
                 ledger.browser_remaining_fraction(),
                 self.tab_utilization(),
             );
-            // 跨波次增量不重叠累计本轮所有实际到期的独立资源数（C29 / G2）
-            stats.candidates_due += wave_due;
+            for r in &unvisited_vec {
+                if is_record_due(r, wave_now_ms, run_opts.force_all) {
+                    due_keys_seen.insert(r.resource_key.clone());
+                }
+            }
+            // 跨波次按唯一 resource_key 统计真实到期候选总数，防止多波次重复计入第 1 波未执行的到期项
+            stats.candidates_due = due_keys_seen.len();
             if candidates.is_empty() {
                 break;
             }
@@ -263,11 +272,26 @@ impl Scraper {
                     }
                 }
 
-                let mut executed_strategy = cand.decision.strategy;
+                let live_decision = refresh_candidate_decision(
+                    &spec,
+                    &cand.record,
+                    &cand.decision,
+                    &experience,
+                    ledger.remaining_request_fraction(),
+                    ledger.browser_remaining_fraction(),
+                    self.tab_utilization(),
+                );
+                let mut executed_strategy = live_decision.strategy;
+                let mut escalation_allowed = live_decision.browser_escalation_permitted;
+                if executed_strategy == AcquisitionStrategy::DeferOrSkip {
+                    // 高壁垒/极紧预算在波次中重评为延期时跳过本候选，不强耗预算
+                    continue;
+                }
                 if executed_strategy == AcquisitionStrategy::DirectBrowser
                     && !ledger.can_afford_browser()
                 {
                     executed_strategy = AcquisitionStrategy::LightweightHttp;
+                    escalation_allowed = false;
                 }
                 if executed_strategy == AcquisitionStrategy::ConditionalHttp
                     && (cand.record.last_validator_contract_id.as_deref()
@@ -360,23 +384,31 @@ impl Scraper {
                 let mut http_meta = None;
                 let mut browser_gain_obs = None;
                 let initial_elapsed_ms = step_start.elapsed().as_millis() as f64;
+                let direct_browser_unreliable = executed_strategy
+                    == AcquisitionStrategy::DirectBrowser
+                    && scrape_res
+                        .as_ref()
+                        .is_ok_and(|d| assess_capture_reliability(d).is_unreliable());
                 let mut exec_telemetry = ExecutionTelemetry {
                     used_browser: executed_strategy == AcquisitionStrategy::DirectBrowser,
                     browser_cost_ms: (executed_strategy == AcquisitionStrategy::DirectBrowser)
                         .then_some(initial_elapsed_ms),
                     browser_failed: (executed_strategy == AcquisitionStrategy::DirectBrowser).then(
                         || {
-                            scrape_res.as_ref().map_or(true, |d| {
-                                is_barrier_doc(d) || d.metadata.status_code >= 400
-                            })
+                            direct_browser_unreliable
+                                || scrape_res.as_ref().map_or(true, |d| {
+                                    is_barrier_doc(d) || d.metadata.status_code >= 400
+                                })
                         },
                     ),
+                    browser_unreliable: direct_browser_unreliable,
                     tenant_id: tenant.map(str::to_string),
                 };
 
                 if executed_strategy != AcquisitionStrategy::DirectBrowser
                     && let Ok(ref http_doc) = scrape_res
                 {
+                    let h_unreliable = assess_capture_reliability(http_doc).is_unreliable();
                     let h_assess =
                         assess_document_capture(&spec, &cand.record, http_doc, &capture_goal);
                     let h_is_304 = http_doc
@@ -388,13 +420,19 @@ impl Scraper {
                     http_meta = Some(HttpAttemptMeta {
                         http_ok: h_ok,
                         not_modified_304: h_is_304,
-                        sufficient: h_assess.sufficient,
+                        sufficient: h_assess.sufficient && !h_unreliable,
                         has_embedded_json: has_embedded_json_signal(http_doc),
+                        http_unreliable: h_unreliable,
                         http_cost_ms: initial_elapsed_ms,
                     });
-                    let should_try_browser = spec.allow_browser
+                    // 影子价格卸载、配额禁止或单源关闭浏览器时，`escalation_allowed == false`，
+                    // 严格禁止执行层无条件升阶绕过自适应策略决策。
+                    let should_try_browser = escalation_allowed
+                        && spec.allow_browser
                         && h_ok
-                        && (!h_assess.sufficient || h_assess.needs_browser_escalation);
+                        && (!h_assess.sufficient
+                            || h_assess.needs_browser_escalation
+                            || h_unreliable);
                     if should_try_browser {
                         if ledger.try_reserve(true) {
                             let b_start = Instant::now();
@@ -417,6 +455,8 @@ impl Scraper {
                             } else {
                                 match b_step {
                                     Ok(b_doc) => {
+                                        let b_unreliable =
+                                            assess_capture_reliability(&b_doc).is_unreliable();
                                         let b_assess = assess_document_capture(
                                             &spec,
                                             &cand.record,
@@ -425,7 +465,8 @@ impl Scraper {
                                         );
                                         let b_err = is_barrier_doc(&b_doc)
                                             || b_doc.metadata.status_code >= 400;
-                                        exec_telemetry.browser_failed = Some(b_err);
+                                        exec_telemetry.browser_unreliable = b_unreliable;
+                                        exec_telemetry.browser_failed = Some(b_err || b_unreliable);
                                         let (adopt, gained_obs) = should_adopt_browser_escalation(
                                             http_doc, &h_assess, &b_doc, &b_assess,
                                         );
@@ -451,8 +492,11 @@ impl Scraper {
 
                 let step_cost_ms = step_start.elapsed().as_millis() as f64;
                 let obs_time_ms = now_ms();
-                let mut recorded_dec = cand.decision.clone();
+                let mut live_cand = cand.clone();
+                live_cand.decision = live_decision.clone();
+                let mut recorded_dec = live_decision;
                 recorded_dec.strategy = executed_strategy;
+                recorded_dec.browser_escalation_permitted = escalation_allowed;
                 if let Ok(serde_dec) = serde_json::to_value(&recorded_dec) {
                     adapt_decisions.push(serde_dec);
                 }
@@ -460,7 +504,7 @@ impl Scraper {
                 match scrape_res {
                     Ok(doc) => {
                         let final_assessment =
-                            assess_document_capture(&spec, &cand.record, &doc, &capture_goal);
+                            assess_document_capture(&spec, &live_cand.record, &doc, &capture_goal);
                         let staged = doc
                             .graph
                             .as_ref()
@@ -473,7 +517,7 @@ impl Scraper {
                         }
                         reconcile_candidate_success(
                             &spec,
-                            cand,
+                            &live_cand,
                             &doc,
                             staged,
                             executed_strategy,
@@ -500,8 +544,9 @@ impl Scraper {
                     Err(e) => {
                         reconcile_candidate_failure(
                             &spec,
-                            cand,
+                            &live_cand,
                             executed_strategy,
+                            tenant,
                             step_cost_ms,
                             obs_time_ms,
                             &e,

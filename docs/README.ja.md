@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.5.5
+# pagesift 1.5.6
 
 **ローカルファーストな Rust 製 Web・文書取り込みエンジン — HTTP/ブラウザ収集、レイアウト認識 PDF/Office/OCR 解析、継続的同期、検証可能な DataGraph を単一バイナリに統合。**  
 セルフホストできる単一の Rust バイナリとして CLI、Firecrawl v1/v2・Jina Reader HTTP API、MCP サーバー、C ABI、Python / Node.js パッケージを提供します。
@@ -35,8 +35,8 @@
 - **入力：** URL、HTML、PDF（テキスト層＋オプション PP-OCRv6 / 数式認識）、アップロード画像（OCR 有効時）、Office・OpenDocument、RTF/WordPerfect/HWP、電子書籍、メール、書庫（`zip`、`tar`、`7z`）、SQLite/CSV、373 種類のソースコード言語、WARC アーカイブ（[形式一覧](parse-api.md)）
 - **出力：** Markdown、HTML、生 HTML、リンク、画像・添付データ、RAG チャンク、スキーマ JSON、`DataGraph`（`graph.jsonl`、引用、クレーム状態、競合、`fact_clusters`、`?asOf=`）、不完全取得時の構造化警告
 - **インターフェース：** CLI · Firecrawl v1/v2 HTTP API · Jina Reader（`/r/`、`/s/`）· MCP（stdio / HTTP）· Python · Node.js / TypeScript · Rust crate · C ABI（Go、Java、Kotlin、C#、Ruby、PHP、Lua、Perl、Dart、Swift、Zig）· LangChain / LlamaIndex
-- **プラットフォーム：** 単一バイナリ（`serve --role gateway`、`worker`、`standby`）、Linux x86_64/aarch64（glibc ≥ 2.28 / musl）、macOS arm64、Windows x86_64、Docker `ghcr.io/yolow92/pagesift:1.5.5`
-- **インデックスと版：** 機械可読インデックス [llms.txt](../llms.txt) · Apache-2.0 または[商用サポート](COMMERCIAL.md) · **1.5.5**（[リリースノート](releases/1.5.5.md)）
+- **プラットフォーム：** 単一バイナリ（`serve --role gateway`、`worker`、`standby`）、Linux x86_64/aarch64（glibc ≥ 2.28 / musl）、macOS arm64、Windows x86_64、Docker `ghcr.io/yolow92/pagesift:1.5.6`
+- **インデックスと版：** 機械可読インデックス [llms.txt](../llms.txt) · Apache-2.0 または[商用サポート](COMMERCIAL.md) · **1.5.6**（[リリースノート](releases/1.5.6.md)）
 
 <!-- section: install -->
 ## インストールと使い方
@@ -46,7 +46,7 @@
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| サーバー | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.5.5` | `curl localhost:3002/r/https://example.com` |
+| サーバー | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.5.6` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 <details>
@@ -89,7 +89,7 @@ console.log(page.markdown, page.metadata.title, page.links)
 **HTTP サーバー（`Firecrawl v1/v2`、`Jina Reader`、`/v2/sources`、`/v2/graph`）・MCP**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.5.5
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.5.6
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'
@@ -125,7 +125,7 @@ MCP ツール：`pagesift_scrape`、`pagesift_batch_scrape`、`pagesift_crawl`�
 
 - **レイテンシ（記録ベンチマーク・単一ワーカー・低いほど良い）：** PDF → Markdown `2.5 ms/ページ`（1,269 ページ）、HTML → Markdown `0.23 ms/ページ`（600 文書）、本文抽出 `1.0 ms/ページ`（597 ページ）。
 - **スループット・品質・メモリ（記録ベンチマーク）：** Office インプロセス処理 `81.9 ファイル/s`（高いほど良い）、HTML → Markdown 平均 F1 `1.000`、WCXB F1 `0.866`、RAG クエリ再現率 `0.929`（高いほど良い）、ブラウザ未使用時の各計測ピークメモリ `17–395 MB/ワーカー`。
-- **詳細スコアと Loop 検証：** [benchmarks.md](benchmarks.md) · [完全ベンチマークレポート](../benchmarks/history/1.4/results/final/new/report.md) · [最新 Loop リリース評価](releases/1.5.5.md)
+- **詳細スコアと Loop 検証：** [benchmarks.md](benchmarks.md) · [完全ベンチマークレポート](../benchmarks/history/1.4/results/final/new/report.md) · [最新 Loop リリース評価](releases/1.5.6.md)
 
 <!-- section: architecture -->
 ## アーキテクチャと主要フロー
@@ -242,11 +242,11 @@ cgroup による容量計算、統計的調整基準（`δ = 0.05` の USL・生
 [Apache-2.0](../LICENSE)。エンタープライズサポート、カスタム SLA、専用導入支援については[商用ライセンス・サポート](COMMERCIAL.md)または `licensing@pagesift.dev` をご確認ください。
 
 <!-- section: changelog -->
-## 1.5.5 の新機能
+## 1.5.6 の新機能
 
-PageSift 1.5.5 は `1.5.x` Loop シリーズの締めくくりとして、非エイリアス周期検出と予算制約ラグランジュ注水配分、Hub 実質更新時の子リンク協調前倒し、Sync HTTP での `__NEXT_DATA__`/`__NUXT_DATA__`/JSON-LD 合成有効化、304/HTTP/ブラウザ別のコスト分離とタブ負荷シャドウプライシング、長期 `DirectBrowser` からの回復プローブ、ベイズ予測サプライズによる体制変化忘却、テナント分離された経験ベイズ転移と負の転移拒否、不確実な `decode:`・切り捨て観測における `Active` クレームの `Unverified` 保持、文脈通貨（`EUR`/`USD`/`UNKNOWN`）判別、および `StoredProvenance` への二次引用永続化による `SourceStateView.fact_clusters` 算出を追加しました。
+PageSift 1.5.6 は `1.5.x` Loop の正しさ是正とトランザクション整合性の最終仕上げを行います：クロール状態 `mirror::write`（`pages` と `done_set`）の単一トランザクション `TasksTx` アトミックコミット、試行時刻・有効観測時刻・実質変化時刻の分離と HTTP/ブラウザ信頼性判定の独立化、`uncertain_observations` 未解消時の `complete_within_scope` 抑止、HTTP `Last-Modified` 検証の周期推定への接続と欠損周期・異資源位相混在・`apply_waterfill_schedules_to_inventory` 実反映・多波次 `candidates_due` 重複の修正、実行中タブ利用シャドウプライシング（`browser_escalation_permitted`）と古い ETag・単発回復プローブのロック解消、負の転移拒否時の二重消費防止とテナント失敗分離、`SourceStateView`/CLI/MCP における `Active`/`Unverified`・`fact_clusters_truncated` 区別および `"UNKNOWN"` 通貨・未指定単位と確定競合の分離を実装しました。
 
-[リリースノート](releases/1.5.5.md) · [1.5.4](releases/1.5.4.md) · [1.5.3](releases/1.5.3.md) · [1.5.2](releases/1.5.2.md) · [1.5.1](releases/1.5.1.md) · [1.5.0](releases/1.5.0.md) · [すべてのリリース](releases/) · [CHANGELOG](CHANGELOG.md)
+[リリースノート](releases/1.5.6.md) · [1.5.5](releases/1.5.5.md) · [1.5.4](releases/1.5.4.md) · [1.5.3](releases/1.5.3.md) · [1.5.2](releases/1.5.2.md) · [1.5.1](releases/1.5.1.md) · [1.5.0](releases/1.5.0.md) · [すべてのリリース](releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -262,7 +262,7 @@ PageSift 1.5.5 は `1.5.x` Loop シリーズの締めくくりとして、非エ
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.5.5}
+  note   = {Version 1.5.6}
 }
 ```
 

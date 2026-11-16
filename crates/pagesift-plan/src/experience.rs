@@ -27,6 +27,15 @@ pub use experience_transfer::TransferMeta;
 const DEFAULT_MIN_RULE_CONFIRMATIONS: u32 = 2; // [推导] 对应 p₀ = √δ 下 p₀^k ≤ δ 的最小独立证实数 k* = 2
 const SURPRISE_BETA_KEEP: f64 = 0.35;
 
+/// 族级共享周期先验：仅聚合各个资源自身经非混叠验证通过的周期长度分布，不混合跨资源时间戳相位。
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FamilyPeriodPrior {
+    pub mean_secs: f64,
+    pub std_secs: f64,
+    pub contributor_count: u32,
+}
+
 /// 单个路径族的跨周期经验统计。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -38,6 +47,9 @@ pub struct FamilyStats {
     #[serde(default)]
     pub embedded_json: BetaSnapshot,
     pub substantive_change: ChangeRateSnapshot,
+    /// 从单资源各自验证周期汇合的周期先验（不含跨资源原始时间序列相位）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shared_period: Option<FamilyPeriodPrior>,
     pub claim_yield: BetaSnapshot,
     pub barrier_rate: BetaSnapshot,
     pub ewma_cost_ms: f64,
@@ -51,6 +63,8 @@ pub struct FamilyStats {
     pub browser_failure_rate: BetaSnapshot,
     #[serde(default)]
     pub consecutive_direct_browser: u32,
+    #[serde(default)]
+    pub probe_positive_streak: u32,
     #[serde(default)]
     pub drift_count: u32,
     #[serde(default)]
@@ -68,6 +82,7 @@ impl FamilyStats {
             conditional_hit: BetaSnapshot::default(),
             embedded_json: BetaSnapshot::default(),
             substantive_change: ChangeRateSnapshot::default(),
+            shared_period: None,
             claim_yield: BetaSnapshot::default(),
             barrier_rate: BetaSnapshot::default(),
             ewma_cost_ms: 0.0,
@@ -76,6 +91,7 @@ impl FamilyStats {
             ewma_browser_cost_ms: 0.0,
             browser_failure_rate: BetaSnapshot::default(),
             consecutive_direct_browser: 0,
+            probe_positive_streak: 0,
             drift_count: 0,
             transfer: TransferMeta::default(),
             total_observations: 0,
@@ -89,23 +105,32 @@ impl FamilyStats {
         }
         let keep = 1.0 - Delta::DEFAULT.get();
 
-        // 若该家族正处于跨族迁移验证窗，先校验本地独立事实，必要时触发负迁移抹除
-        experience_transfer::validate_or_reject_transfer(self, obs);
+        // 若该家族正处于跨族迁移验证窗，先校验本地独立事实；若触发整体回滚，
+        // 返回 true 表示 4 项核心 Beta 后验已由含当前 obs 的 local_* 重建，禁止下方重复消费本次 obs。
+        let rebuilt_transfer = experience_transfer::validate_or_reject_transfer(self, obs);
 
         // 不可靠观测（uncertain_decode / truncated / invalid 304）仅记录外显成本/屏障，不污染核心充分性与变化率
         if !obs.unreliable_observation {
             if let Some(http_ok) = obs.http_sufficient {
-                if self
-                    .http_sufficient
-                    .observe_with_surprise(http_ok, keep, SURPRISE_BETA_KEEP)
+                if !rebuilt_transfer
+                    && self
+                        .http_sufficient
+                        .observe_with_surprise(http_ok, keep, SURPRISE_BETA_KEEP)
                 {
                     self.drift_count = self.drift_count.saturating_add(1);
                 }
                 self.consecutive_direct_browser = 0;
+                if http_ok {
+                    self.probe_positive_streak =
+                        self.probe_positive_streak.saturating_add(1).min(8);
+                } else {
+                    self.probe_positive_streak = 0;
+                }
             } else if obs.used_browser {
                 self.consecutive_direct_browser = self.consecutive_direct_browser.saturating_add(1);
             }
-            if let Some(gain) = obs.browser_gain
+            if !rebuilt_transfer
+                && let Some(gain) = obs.browser_gain
                 && self
                     .browser_gain
                     .observe_with_surprise(gain, keep, SURPRISE_BETA_KEEP)
@@ -115,7 +140,8 @@ impl FamilyStats {
             if let Some(hit) = obs.conditional_hit {
                 self.conditional_hit.observe_decayed(hit, keep);
             }
-            if let Some(ej) = obs.embedded_json_observed
+            if !rebuilt_transfer
+                && let Some(ej) = obs.embedded_json_observed
                 && self
                     .embedded_json
                     .observe_with_surprise(ej, keep, SURPRISE_BETA_KEEP)
@@ -123,20 +149,45 @@ impl FamilyStats {
                 self.drift_count = self.drift_count.saturating_add(1);
             }
             if let Some((dt, changed)) = obs.substantive_change
-                && self.substantive_change.observe_at(
-                    dt,
-                    changed,
-                    obs.observed_at_ms,
-                    obs.last_modified_at_ms,
-                )
+                && self.substantive_change.observe_rate_only(dt, changed)
             {
                 self.drift_count = self.drift_count.saturating_add(1);
+            }
+            if let Some((p_mean, p_std)) = obs.resource_detected_period_secs
+                && p_mean.is_finite()
+                && p_mean >= 1.0
+                && p_std.is_finite()
+                && p_std >= 0.0
+            {
+                match self.shared_period {
+                    Some(ref mut fp) => {
+                        let rel_diff = (p_mean - fp.mean_secs).abs() / fp.mean_secs.max(1.0);
+                        if rel_diff <= 0.30 {
+                            let n = (fp.contributor_count as f64).clamp(1.0, 8.0);
+                            fp.mean_secs = (fp.mean_secs * n + p_mean) / (n + 1.0);
+                            fp.std_secs = ((fp.std_secs * n + p_std) / (n + 1.0)).max(p_std);
+                            fp.contributor_count = fp.contributor_count.saturating_add(1);
+                        } else {
+                            // 跨样本周期明显转移：平滑转向最近经验证的新周期而非僵化保留旧周期
+                            fp.mean_secs = 0.35 * fp.mean_secs + 0.65 * p_mean;
+                            fp.std_secs = p_std.max(fp.mean_secs * 0.12);
+                            fp.contributor_count = 1;
+                        }
+                    }
+                    None => {
+                        self.shared_period = Some(FamilyPeriodPrior {
+                            mean_secs: p_mean,
+                            std_secs: p_std,
+                            contributor_count: 1,
+                        });
+                    }
+                }
             }
             if let Some(yielded) = obs.yielded_claims_or_links {
                 self.claim_yield.observe_decayed(yielded, keep);
             }
         }
-        if let Some(barrier) = obs.encountered_barrier {
+        if !rebuilt_transfer && let Some(barrier) = obs.encountered_barrier {
             self.barrier_rate.observe_decayed(barrier, keep);
         }
         if let Some(b_fail) = obs.browser_failed {
@@ -212,7 +263,19 @@ impl FamilyStats {
         self.consecutive_direct_browser = self
             .consecutive_direct_browser
             .min(other.consecutive_direct_browser);
+        self.probe_positive_streak = self.probe_positive_streak.max(other.probe_positive_streak);
         self.drift_count = self.drift_count.max(other.drift_count);
+        match (self.shared_period, other.shared_period) {
+            (Some(ref mut a), Some(b)) => {
+                let wa = a.contributor_count.max(1) as f64;
+                let wb = b.contributor_count.max(1) as f64;
+                a.mean_secs = (a.mean_secs * wa + b.mean_secs * wb) / (wa + wb);
+                a.std_secs = a.std_secs.max(b.std_secs);
+                a.contributor_count = a.contributor_count.saturating_add(b.contributor_count);
+            }
+            (None, Some(b)) => self.shared_period = Some(b),
+            _ => {}
+        }
         if self.transfer.donor_description.is_none() && other.transfer.donor_description.is_some() {
             self.transfer = other.transfer.clone();
         }
@@ -269,19 +332,28 @@ impl FamilyStats {
         }
     }
 
-    /// 建议的下次检查间隔（秒），优先使用经非混叠验证的周期估计，否则按泊松后验漏检上界计算。
+    /// 返回由单资源各自经非混叠验证周期汇合的族级共享周期长度先验（不含跨资源时间戳相位）。
+    pub fn shared_period_estimate(&self) -> Option<pagesift_stat::regularity::PeriodEstimate> {
+        let fp = self.shared_period?;
+        if fp.mean_secs >= 1.0 && fp.mean_secs.is_finite() {
+            Some(pagesift_stat::regularity::PeriodEstimate {
+                mean_secs: fp.mean_secs,
+                std_secs: fp.std_secs.max(0.0),
+                cv: fp.std_secs.max(0.0) / fp.mean_secs.max(1.0),
+                sample_count: (fp.contributor_count as usize).max(3),
+            })
+        } else {
+            None
+        }
+    }
+
+    /// 建议的下次检查间隔（秒），优先使用经非混叠验证的族共享周期长度先验，否则按泊松后验漏检上界计算。
     pub fn next_check_secs(&self, delta: f64) -> f64 {
-        if let Some(delay) = self.substantive_change.regularity.next_delay_secs(
-            self.last_observed_at_ms.max(
-                self.substantive_change
-                    .regularity
-                    .last_change_at_ms
-                    .unwrap_or(0),
-            ),
-            1.0,
-            365.0 * 86_400.0,
-        ) {
-            return delay;
+        if let Some(fp) = self.shared_period
+            && fp.mean_secs >= 1.0
+            && fp.mean_secs.is_finite()
+        {
+            return fp.mean_secs.clamp(1.0, 365.0 * 86_400.0);
         }
         self.substantive_change.to_change_rate().next_check(delta)
     }

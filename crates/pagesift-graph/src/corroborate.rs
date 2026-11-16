@@ -9,6 +9,7 @@ use crate::citation::CitationEdge;
 use crate::evidence::{EvidenceSpan, RawFieldTrace};
 use crate::hash::{host_of, normalize_resource_key, short_id};
 use crate::independence::{SourceLineage, independent_roots_for_claim_group};
+use crate::lifecycle::{ClaimLifecycleRecord, ClaimStatus};
 use crate::model::SourceKind;
 use crate::norm::{
     NormalizedValue, canonical_currency_code, normalize_field_key,
@@ -616,16 +617,37 @@ pub struct FactCluster {
     pub subject_key: String,
     pub normalized_field: String,
     pub value: NormalizedValue,
+    /// Verified (`Active`) supporting claims (equals all claims when constructed statelessly without lifecycle).
     pub support_count: usize,
+    /// Distinct verified (`Active`) supporting documents.
     pub distinct_sources: usize,
+    /// Currently valid independent origin roots backed by verified (`Active`) claims.
     #[serde(default)]
     pub independent_sources: usize,
+    /// Explicit verified (`Active`) support count (distinguished from `unverified_support_count`).
+    #[serde(default)]
+    pub verified_support_count: usize,
+    /// Unverified (`Unverified`) stale/pending-reverification support count; never counted as verified support.
+    #[serde(default)]
+    pub unverified_support_count: usize,
+    /// Distinct documents holding `Unverified` claims in this cluster.
+    #[serde(default)]
+    pub unverified_distinct_sources: usize,
+    /// Combined independent origin roots across both `Active` and `Unverified` claims.
+    #[serde(default)]
+    pub total_independent_sources: usize,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub origin_roots: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unverified_origin_roots: Vec<String>,
     pub distinct_hosts: usize,
     pub distinct_formats: Vec<String>,
     pub claim_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unverified_claim_ids: Vec<String>,
     pub evidence: Vec<EvidenceSpan>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unverified_evidence: Vec<EvidenceSpan>,
 }
 
 /// Aggregate claims into corroborated `(subject_key, normalized_field, canonical_value)` clusters.
@@ -653,9 +675,52 @@ pub fn build_fact_clusters_with_lineage_checked(
     lineage: &BTreeMap<String, SourceLineage>,
     citations: &[CitationEdge],
 ) -> (Vec<FactCluster>, bool) {
-    let mut buckets: BTreeMap<(String, String, String), Vec<&ClaimRecord>> = BTreeMap::new();
+    build_fact_clusters_internal(
+        claims.iter().map(|c| (c, true)),
+        max_claims_per_bucket,
+        lineage,
+        citations,
+    )
+}
+
+/// Aggregate lifecycle-aware claims into corroborated clusters while preserving the strict semantic
+/// distinction between currently verified (`Active`) support and pending-reverification (`Unverified`)
+/// support. Withdrawn and superseded claims are ignored.
+pub fn build_fact_clusters_from_lifecycles_checked(
+    records: &[ClaimLifecycleRecord],
+    max_claims_per_bucket: usize,
+    lineage: &BTreeMap<String, SourceLineage>,
+    citations: &[CitationEdge],
+) -> (Vec<FactCluster>, bool) {
+    // Active entries precede Unverified so Active support is never crowded out when a bucket caps out.
+    let active_iter = records
+        .iter()
+        .filter(|r| matches!(r.status, ClaimStatus::Active))
+        .map(|r| (&r.claim, true));
+    let unverified_iter = records
+        .iter()
+        .filter(|r| r.status.is_active_or_unverified() && !matches!(r.status, ClaimStatus::Active))
+        .map(|r| (&r.claim, false));
+    build_fact_clusters_internal(
+        active_iter.chain(unverified_iter),
+        max_claims_per_bucket,
+        lineage,
+        citations,
+    )
+}
+
+type FactClusterBucketKey = (String, String, String);
+type FactClusterBucket<'a> = Vec<(&'a ClaimRecord, bool)>;
+
+fn build_fact_clusters_internal<'a>(
+    items: impl Iterator<Item = (&'a ClaimRecord, bool)>,
+    max_claims_per_bucket: usize,
+    lineage: &BTreeMap<String, SourceLineage>,
+    citations: &[CitationEdge],
+) -> (Vec<FactCluster>, bool) {
+    let mut buckets: BTreeMap<FactClusterBucketKey, FactClusterBucket<'a>> = BTreeMap::new();
     let mut truncated = false;
-    for claim in claims {
+    for (claim, is_active) in items {
         let key = (
             claim.subject_key.clone(),
             claim.normalized_field.clone(),
@@ -663,7 +728,7 @@ pub fn build_fact_clusters_with_lineage_checked(
         );
         let slot = buckets.entry(key).or_default();
         if slot.len() < max_claims_per_bucket {
-            slot.push(claim);
+            slot.push((claim, is_active));
         } else {
             truncated = true;
         }
@@ -671,31 +736,73 @@ pub fn build_fact_clusters_with_lineage_checked(
 
     let clusters = buckets
         .into_iter()
-        .map(|((subject_key, normalized_field, val_key), group)| {
+        .map(|((subject_key, normalized_field, val_key), items)| {
+            let active_group: Vec<&ClaimRecord> = items
+                .iter()
+                .filter_map(|&(c, active)| active.then_some(c))
+                .collect();
+            let unverified_group: Vec<&ClaimRecord> = items
+                .iter()
+                .filter_map(|&(c, active)| (!active).then_some(c))
+                .collect();
+            let all_group: Vec<&ClaimRecord> = items.iter().map(|&(c, _)| c).collect();
+
             let distinct_sources: BTreeSet<&str> =
-                group.iter().map(|c| c.doc_id.as_str()).collect();
-            let origin_roots = independent_roots_for_claim_group(&group, lineage, citations);
-            let independent_sources = origin_roots.len();
-            let distinct_hosts: BTreeSet<&str> = group
+                active_group.iter().map(|c| c.doc_id.as_str()).collect();
+            let unverified_distinct_sources: BTreeSet<&str> =
+                unverified_group.iter().map(|c| c.doc_id.as_str()).collect();
+            let origin_roots = if active_group.is_empty() {
+                Vec::new()
+            } else {
+                independent_roots_for_claim_group(&active_group, lineage, citations)
+            };
+            let unverified_origin_roots = if unverified_group.is_empty() {
+                Vec::new()
+            } else {
+                independent_roots_for_claim_group(&unverified_group, lineage, citations)
+            };
+            let total_independent_sources = if unverified_group.is_empty() {
+                origin_roots.len()
+            } else {
+                independent_roots_for_claim_group(&all_group, lineage, citations).len()
+            };
+            let distinct_hosts: BTreeSet<&str> = all_group
                 .iter()
                 .map(|c| c.host.as_str())
                 .filter(|h| !h.is_empty())
                 .collect();
-            let distinct_formats: BTreeSet<String> =
-                group.iter().map(|c| c.source_kind.format_label()).collect();
+            let distinct_formats: BTreeSet<String> = all_group
+                .iter()
+                .map(|c| c.source_kind.format_label())
+                .collect();
+            let first = all_group[0];
+
             FactCluster {
                 cluster_id: short_id("fct", &[&subject_key, &normalized_field, &val_key]),
                 subject_key,
                 normalized_field,
-                value: group[0].normalized_value.clone(),
-                support_count: group.len(),
+                value: first.normalized_value.clone(),
+                support_count: active_group.len(),
                 distinct_sources: distinct_sources.len(),
-                independent_sources,
+                independent_sources: origin_roots.len(),
+                verified_support_count: active_group.len(),
+                unverified_support_count: unverified_group.len(),
+                unverified_distinct_sources: unverified_distinct_sources.len(),
+                total_independent_sources,
                 origin_roots,
+                unverified_origin_roots,
                 distinct_hosts: distinct_hosts.len(),
                 distinct_formats: distinct_formats.into_iter().collect(),
-                claim_ids: group.iter().map(|c| c.claim_id.clone()).collect(),
-                evidence: group.iter().map(|c| c.evidence.clone()).collect(),
+                claim_ids: active_group.iter().map(|c| c.claim_id.clone()).collect(),
+                unverified_claim_ids: unverified_group
+                    .iter()
+                    .map(|c| c.claim_id.clone())
+                    .collect(),
+                evidence: active_group.iter().map(|c| c.evidence.clone()).collect(),
+                unverified_evidence: unverified_group
+                    .iter()
+                    .map(|c| c.evidence.clone())
+                    .collect(),
             }
         })
         .collect();
@@ -781,5 +888,95 @@ mod tests {
         assert_eq!(clusters.len(), 1);
         assert_eq!(clusters[0].distinct_sources, 2);
         assert_eq!(clusters[0].distinct_formats, ["html", "pdf"]);
+    }
+
+    #[test]
+    fn lifecycle_clusters_distinguish_active_from_unverified_support_and_truncation() {
+        let mk_rec = |doc_id: &str, url: &str, active: bool| -> ClaimLifecycleRecord {
+            let span = EvidenceSpan {
+                doc_id: doc_id.into(),
+                url: url.into(),
+                block_id: None,
+                chunk_idx: None,
+                start: None,
+                end: None,
+                excerpt: "price: $49/mo".into(),
+                confidence: 0.9,
+                alignment: EvidenceAlignment::ExactBlock,
+                verified: true,
+                field_path: "price".into(),
+                method: ExtractionMethod::JsonLd {
+                    entity_type: None,
+                    entity_id: None,
+                },
+            };
+            let trace = RawFieldTrace {
+                field_path: "price".into(),
+                field_name: "price".into(),
+                value: serde_json::json!("$49/mo"),
+                raw_quote: "$49/mo".into(),
+                attr_name: None,
+                method: span.method.clone(),
+                source_url: None,
+                visible_in_dom: true,
+            };
+            let claim = ClaimRecord::from_trace(
+                "sku:PRO-100",
+                url,
+                doc_id,
+                url,
+                SourceKind::Html,
+                "http",
+                100,
+                None,
+                &trace,
+                span,
+            );
+            ClaimLifecycleRecord {
+                lifecycle_id: format!("clc-{doc_id}"),
+                claim,
+                status: if active {
+                    ClaimStatus::Active
+                } else {
+                    ClaimStatus::Unverified {
+                        reason: "transient decode error".into(),
+                        since_ms: 200,
+                    }
+                },
+                first_observed_at_ms: 100,
+                last_confirmed_at_ms: 100,
+                observation_count: 1,
+                history: Vec::new(),
+                timeline: Vec::new(),
+                history_truncated: false,
+            }
+        };
+
+        let r_active = mk_rec("d1", "https://a.example.com/p", true);
+        let r_unv = mk_rec("d2", "https://b.example.com/p", false);
+        let r_unv2 = mk_rec("d3", "https://c.example.com/p", false);
+
+        let (clusters, truncated) = build_fact_clusters_from_lifecycles_checked(
+            &[r_unv.clone(), r_active, r_unv2],
+            2,
+            &BTreeMap::new(),
+            &[],
+        );
+        assert!(truncated, "bucket cap=2 with 3 claims must set truncated");
+        assert_eq!(clusters.len(), 1);
+        assert_eq!(clusters[0].verified_support_count, 1);
+        assert_eq!(clusters[0].support_count, 1);
+        assert_eq!(clusters[0].unverified_support_count, 1);
+        assert_eq!(clusters[0].independent_sources, 1);
+        assert_eq!(clusters[0].total_independent_sources, 2);
+
+        let (only_unv, truncated_unv) =
+            build_fact_clusters_from_lifecycles_checked(&[r_unv], 64, &BTreeMap::new(), &[]);
+        assert!(!truncated_unv);
+        assert_eq!(only_unv[0].support_count, 0);
+        assert_eq!(only_unv[0].verified_support_count, 0);
+        assert_eq!(only_unv[0].independent_sources, 0);
+        assert_eq!(only_unv[0].unverified_support_count, 1);
+        assert_eq!(only_unv[0].total_independent_sources, 1);
     }
 }

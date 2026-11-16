@@ -35,6 +35,8 @@ pub struct CoverageInput {
     pub access_restricted_count: usize,
     /// 已拿到响应但未达到采集目标（如浏览器预算耗尽或缺少接地证据）的资源数。
     pub insufficient_captures: usize,
+    /// 未解决的不可靠观测缺口数（如 `decode:*` 乱码或 `body_truncated` 截断）；存在未解决缺口时绝不能报告 `complete_within_scope`。
+    pub uncertain_observations: usize,
     pub pending_confirmation: usize,
     pub target_goal_reached: bool,
     pub budget_exhausted: bool,
@@ -59,6 +61,8 @@ pub struct CoverageReport {
     pub access_restricted_count: usize,
     #[serde(default)]
     pub insufficient_captures: usize,
+    #[serde(default)]
+    pub uncertain_observations: usize,
     pub reasons: Vec<String>,
 }
 
@@ -80,6 +84,12 @@ pub fn evaluate_coverage_status(input: &CoverageInput) -> CoverageReport {
             input.insufficient_captures
         ));
     }
+    if input.uncertain_observations > 0 {
+        reasons.push(format!(
+            "uncertain_observations={}",
+            input.uncertain_observations
+        ));
+    }
     if input.pending_confirmation > 0 {
         reasons.push(format!(
             "pending_confirmation={}",
@@ -96,8 +106,10 @@ pub fn evaluate_coverage_status(input: &CoverageInput) -> CoverageReport {
         reasons.push("budget_exhausted".to_string());
     }
 
-    let has_pending_work =
-        input.deferred_count > 0 || input.unchecked_total > 0 || input.insufficient_captures > 0;
+    let has_pending_work = input.deferred_count > 0
+        || input.unchecked_total > 0
+        || input.insufficient_captures > 0
+        || input.uncertain_observations > 0;
     let status = if input.target_goal_reached {
         reasons.insert(0, "target_goal_satisfied".to_string());
         CoverageStatus::TargetGoalSatisfied
@@ -105,7 +117,8 @@ pub fn evaluate_coverage_status(input: &CoverageInput) -> CoverageReport {
         let pending = input.deferred_count.max(
             input
                 .unchecked_total
-                .saturating_add(input.insufficient_captures),
+                .saturating_add(input.insufficient_captures)
+                .saturating_add(input.uncertain_observations),
         );
         reasons.insert(0, format!("budget_capped_with_{pending}_pending"));
         CoverageStatus::BudgetCapped
@@ -123,6 +136,7 @@ pub fn evaluate_coverage_status(input: &CoverageInput) -> CoverageReport {
         || input.deferred_count > 0
         || input.unchecked_total > 0
         || input.insufficient_captures > 0
+        || input.uncertain_observations > 0
         || input.pending_confirmation > 0
         || (input.discovered_total > 0
             && input
@@ -158,6 +172,7 @@ pub fn evaluate_coverage_status(input: &CoverageInput) -> CoverageReport {
         transient_failures: input.transient_failures,
         access_restricted_count: input.access_restricted_count,
         insufficient_captures: input.insufficient_captures,
+        uncertain_observations: input.uncertain_observations,
         reasons,
     }
 }

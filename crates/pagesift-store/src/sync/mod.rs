@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 
 use pagesift_graph::{ClaimLifecycleRecord, ClaimTransition, ConflictRecord, FactCluster};
 use pagesift_stat::regularity::{
-    PeriodEstimate, estimate_period, next_periodic_delay_secs, non_aliased_change_interval_secs,
+    PeriodEstimate, estimate_period, next_periodic_delay_guarded, update_period_observations,
 };
 use serde::{Deserialize, Serialize};
 
@@ -251,12 +251,20 @@ pub struct ResourceRecord {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_checked_at_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_attempted_at_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_valid_observed_at_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_substantive_change_at_ms: Option<u64>,
     pub next_due_at_ms: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub etag: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_modified: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_modified_at_ms: Option<u64>,
+    #[serde(default)]
+    pub last_modified_dynamic: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub content_hash: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -285,6 +293,21 @@ pub struct ResourceRecord {
     pub confirmed_gone_at_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "ResourceLearnStats::is_empty")]
     pub learn: ResourceLearnStats,
+}
+
+impl ResourceRecord {
+    /// 返回最近一次“有效且充分可靠观测”的时间锚点；对旧版本（1.5.5 及以前无独立尝试时间）记录做兼容回退。
+    pub fn valid_observation_anchor_ms(&self) -> Option<u64> {
+        if self.last_valid_observed_at_ms.is_some() {
+            self.last_valid_observed_at_ms
+        } else if self.last_attempted_at_ms.is_none()
+            && !matches!(self.state, ResourceLifecycleState::TransientFailure)
+        {
+            self.last_checked_at_ms
+        } else {
+            None
+        }
+    }
 }
 
 /// 单个资源的独立变化统计、非混叠周期估计与最近观测可靠性（1.5.5 G1/G2）。
@@ -336,11 +359,28 @@ impl ResourceLearnStats {
         last_modified_at_ms: Option<u64>,
         prev_change_at_ms: Option<u64>,
     ) {
+        let _ = self.record_observation_with_change_ts(
+            dt_secs,
+            changed,
+            observed_at_ms,
+            last_modified_at_ms,
+            prev_change_at_ms,
+        );
+    }
+
+    /// 记录单资源有效观测变化并更新周期窗口；当 `changed == true` 时返回经校信后的有效变更时间戳。
+    pub fn record_observation_with_change_ts(
+        &mut self,
+        dt_secs: f64,
+        changed: bool,
+        observed_at_ms: u64,
+        last_modified_at_ms: Option<u64>,
+        prev_change_at_ms: Option<u64>,
+    ) -> Option<u64> {
         if !(dt_secs > 0.0 && dt_secs.is_finite()) {
-            return;
+            return None;
         }
         const MAX_RESOURCE_EXPOSURE_SECS: f64 = 180.0 * 86_400.0;
-        let existing = self.detected_period();
         if changed {
             // 长期静止单页突然改动时衰减旧曝光，快速重升采样频率
             if self.unchanged_count >= 3 && self.exposure_secs > 0.0 {
@@ -354,53 +394,23 @@ impl ResourceLearnStats {
             self.change_count = self.change_count.saturating_add(1);
             self.exposure_secs =
                 (self.exposure_secs * 0.70 + dt_secs).min(MAX_RESOURCE_EXPOSURE_SECS);
-            if let Some(prev) = prev_change_at_ms
-                && observed_at_ms > prev
-            {
-                let effective_ts = last_modified_at_ms
-                    .filter(|&m| m <= observed_at_ms.saturating_add(60_000))
-                    .unwrap_or(observed_at_ms);
-                let raw_dt_secs = effective_ts.saturating_sub(prev) as f64 / 1000.0;
-                if let Some(est) = existing
-                    && raw_dt_secs < est.mean_secs * 0.55
-                {
-                    self.early_changes = self.early_changes.saturating_add(1);
-                    if self.early_changes >= 2 {
-                        self.intervals_secs.clear();
-                    }
-                } else if let Some(valid_dt) = non_aliased_change_interval_secs(
-                    prev,
-                    self.last_confirmed_unchanged_at_ms,
-                    observed_at_ms,
-                    last_modified_at_ms,
-                    existing,
-                ) {
-                    self.intervals_secs.push(valid_dt);
-                    if self.intervals_secs.len() > 8 {
-                        let drain = self.intervals_secs.len() - 8;
-                        self.intervals_secs.drain(0..drain);
-                    }
-                    self.probe_misses = 0;
-                    self.early_changes = 0;
-                }
-            }
         } else {
             self.unchanged_count = self.unchanged_count.saturating_add(1);
             self.exposure_secs = (self.exposure_secs + dt_secs).min(MAX_RESOURCE_EXPOSURE_SECS);
-            if observed_at_ms > 0 {
-                self.last_confirmed_unchanged_at_ms = Some(observed_at_ms);
-                if let (Some(est), Some(prev)) = (existing, prev_change_at_ms) {
-                    let elapsed_secs = observed_at_ms.saturating_sub(prev) as f64 / 1000.0;
-                    let guard = (2.0 * est.std_secs).clamp(5.0, (est.mean_secs * 0.15).max(5.0));
-                    if elapsed_secs >= est.mean_secs + guard {
-                        self.probe_misses = self.probe_misses.saturating_add(1);
-                        if self.probe_misses >= 2 {
-                            self.intervals_secs.clear();
-                        }
-                    }
-                }
-            }
         }
+
+        update_period_observations(
+            &mut self.intervals_secs,
+            &mut self.probe_misses,
+            &mut self.early_changes,
+            &mut self.last_confirmed_unchanged_at_ms,
+            prev_change_at_ms,
+            observed_at_ms,
+            changed,
+            last_modified_at_ms,
+            0.22,
+            8,
+        )
     }
 
     pub fn next_periodic_delay_secs(
@@ -413,12 +423,7 @@ impl ResourceLearnStats {
         let est = self.detected_period()?;
         let prev = last_change_at_ms?;
         let elapsed_secs = now_ms.saturating_sub(prev) as f64 / 1000.0;
-        Some(next_periodic_delay_secs(
-            &est,
-            elapsed_secs,
-            min_secs,
-            max_secs,
-        ))
+        next_periodic_delay_guarded(&est, elapsed_secs, min_secs, max_secs)
     }
 }
 
@@ -589,6 +594,8 @@ pub struct SourceStateView {
     pub conflicts: Vec<ConflictRecord>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub fact_clusters: Vec<FactCluster>,
+    #[serde(default)]
+    pub fact_clusters_truncated: bool,
 }
 
 pub fn now_store_ms() -> u64 {

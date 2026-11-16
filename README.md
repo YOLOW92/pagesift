@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.5.5
+# pagesift 1.5.6
 
 **Local-first web & document ingestion engine in Rust — HTTP/browser capture, layout-aware PDF/Office/OCR parsing, persistent sync, and verifiable data graphs.**  
 One self-hosted Rust binary with a CLI, Firecrawl v1/v2 & Jina Reader HTTP APIs, an MCP server, a C ABI, and native Python / Node.js packages.
@@ -35,8 +35,8 @@ Drop-in or companion for: **Firecrawl** (self-hosted v1/v2 API), **Jina Reader**
 - **Inputs:** URLs, HTML, PDF (text + optional PP-OCRv6 / formulas), uploaded images (OCR when enabled), Office & OpenDocument, RTF/WordPerfect/HWP, e-books, emails, archives (`zip`, `tar`, `7z`), SQLite/CSV, 373 code languages, and WARC ([format matrix](docs/parse-api.md))
 - **Outputs:** Markdown, HTML, raw HTML, links, images/attachments, RAG chunks, schema JSON, `DataGraph` (`graph.jsonl`, citations, claim lifecycles, conflicts, `fact_clusters`, `?asOf=`), plus structured warnings on partial captures
 - **Interfaces:** CLI · Firecrawl v1/v2 HTTP API · Jina Reader (`/r/`, `/s/`) · MCP (stdio / HTTP) · Python · Node.js / TypeScript · Rust crate · C ABI (Go, Java, Kotlin, C#, Ruby, PHP, Lua, Perl, Dart, Swift, Zig) · LangChain & LlamaIndex
-- **Platforms & ops:** Single binary (`serve --role gateway`, `worker`, `standby`), Linux x86_64/aarch64 (glibc ≥ 2.28 & musl), macOS arm64, Windows x86_64, Docker `ghcr.io/yolow92/pagesift:1.5.5`
-- **Index & release:** Machine-readable index [llms.txt](llms.txt) · Apache-2.0 or [commercial support](docs/COMMERCIAL.md) · **1.5.5** ([release notes](docs/releases/1.5.5.md))
+- **Platforms & ops:** Single binary (`serve --role gateway`, `worker`, `standby`), Linux x86_64/aarch64 (glibc ≥ 2.28 & musl), macOS arm64, Windows x86_64, Docker `ghcr.io/yolow92/pagesift:1.5.6`
+- **Index & release:** Machine-readable index [llms.txt](llms.txt) · Apache-2.0 or [commercial support](docs/COMMERCIAL.md) · **1.5.6** ([release notes](docs/releases/1.5.6.md))
 
 <!-- section: install -->
 ## Install and quick start
@@ -46,7 +46,7 @@ Drop-in or companion for: **Firecrawl** (self-hosted v1/v2 API), **Jina Reader**
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| Server | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.5.5` | `curl localhost:3002/r/https://example.com` |
+| Server | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.5.6` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 <details>
@@ -89,7 +89,7 @@ console.log(page.markdown, page.metadata.title, page.links)
 **HTTP server (`Firecrawl v1/v2`, `Jina Reader`, `/v2/sources`, `/v2/graph`) & MCP**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.5.5
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.5.6
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'
@@ -125,7 +125,7 @@ Benchmarks are tracked separately so this page stays focused on system structure
 
 - **Latency (recorded benchmarks, single-worker, lower is better):** PDF → Markdown `2.5 ms/page` (1,269 pages); HTML → Markdown `0.23 ms/page` (600 docs); main-content extraction `1.0 ms/page` (597 pages).
 - **Throughput, quality & memory (recorded benchmarks):** Office in-process `81.9 files/s` (higher is better); HTML → Markdown `1.000` mean F1; WCXB `0.866` F1; RAG query filter `0.929` recall (higher is better); `17–395 MB` peak memory/worker without a browser across those runs.
-- **Full scorecards & Loop evaluation:** [benchmarks.md](docs/benchmarks.md) · [Full benchmark report](benchmarks/history/1.4/results/final/new/report.md) · [Latest Loop release evaluation](docs/releases/1.5.5.md)
+- **Full scorecards & Loop evaluation:** [benchmarks.md](docs/benchmarks.md) · [Full benchmark report](benchmarks/history/1.4/results/final/new/report.md) · [Latest Loop release evaluation](docs/releases/1.5.6.md)
 
 <!-- section: architecture -->
 ## Architecture and core flows
@@ -242,11 +242,11 @@ See [Architecture reference](docs/architecture.md) for cgroup sizing, statistica
 [Apache-2.0](LICENSE). For dedicated support, SLAs, or enterprise agreements, see [commercial license and support](docs/COMMERCIAL.md) or write to `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
-## What's new in 1.5.5
+## What's new in 1.5.6
 
-PageSift 1.5.5 closes the `1.5.x` Loop line across scheduling, adaptive strategy selection, forgetting/reuse, observation reliability, and contextual graph evidence: adds non-aliased periodic update detection and hierarchical Lagrange budget water-filling in `sync`, pulls forward linked active children on hub substantive updates, enables embedded JSON (`__NEXT_DATA__`/`__NUXT_DATA__`/JSON-LD) synthesis during Sync HTTP probes, separates 304/HTTP/browser cost tracking with live tab shadow pricing and bounded `HttpVerifyBrowser` recovery probes from `DirectBrowser`, accelerates regime-shift forgetting via predictive surprise, adds tenant-isolated empirical Bayes cold-start transfer with local negative-transfer rejection, preserves existing `Active` claims as `Unverified` under uncertain `decode:`/truncation warnings, disambiguates contextual currencies (`EUR`, `USD`, `UNKNOWN`) in `pagesift-graph`, and persists secondary citations in `StoredProvenance` for `SourceStateView.fact_clusters`.
+PageSift 1.5.6 completes the `1.5.x` Loop correctness remediation and transactional storage hardening: executes crawl job `mirror::write` (`pages` and `done_set`) inside atomic `TasksTx` transactions; separates attempt, valid-observation, and change timestamps, decouples HTTP/Browser capture reliability, and propagates unresolved `uncertain_observations` to `complete_within_scope`; wires HTTP `Last-Modified` validation into periodicity, fixes cross-resource phase isolation, invalidation on missed/late cycles, live `apply_waterfill_schedules_to_inventory` interval writes, and multi-wave `candidates_due` deduplication; enforces live mid-tick browser shadow pricing, prevents stale-ETag entrapment, and cleanly isolates negative-transfer rejection and tenant failure updates; surfaces `Active` vs `Unverified` claim counts and `fact_clusters_truncated` in `SourceStateView`/CLI/MCP while distinguishing `UNKNOWN`/unspecified units from confirmed conflicts.
 
-[Release notes](docs/releases/1.5.5.md) · [1.5.4](docs/releases/1.5.4.md) · [1.5.3](docs/releases/1.5.3.md) · [1.5.2](docs/releases/1.5.2.md) · [1.5.1](docs/releases/1.5.1.md) · [1.5.0](docs/releases/1.5.0.md) · [all releases](docs/releases/) · [CHANGELOG](docs/CHANGELOG.md)
+[Release notes](docs/releases/1.5.6.md) · [1.5.5](docs/releases/1.5.5.md) · [1.5.4](docs/releases/1.5.4.md) · [1.5.3](docs/releases/1.5.3.md) · [1.5.2](docs/releases/1.5.2.md) · [1.5.1](docs/releases/1.5.1.md) · [1.5.0](docs/releases/1.5.0.md) · [all releases](docs/releases/) · [CHANGELOG](docs/CHANGELOG.md)
 
 ---
 
@@ -262,7 +262,7 @@ Questions or feedback: [Discord](https://discord.gg/esA3wMZVvA) · [Issues](http
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.5.5}
+  note   = {Version 1.5.6}
 }
 ```
 

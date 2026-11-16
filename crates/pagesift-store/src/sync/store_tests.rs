@@ -39,10 +39,14 @@ fn base_rec(key: &str, url: &str, state: ResourceLifecycleState, ts: u64) -> Res
         state,
         discovered_at_ms: 1000,
         last_checked_at_ms: Some(ts),
+        last_attempted_at_ms: Some(ts),
+        last_valid_observed_at_ms: Some(ts),
         last_substantive_change_at_ms: Some(ts),
         next_due_at_ms: ts + 3600,
         etag: Some("\"v1\"".to_string()),
         last_modified: None,
+        last_modified_at_ms: None,
+        last_modified_dynamic: false,
         content_hash: Some("h1".to_string()),
         latest_doc_id: Some("doc1".to_string()),
         last_status_code: Some(200),
@@ -335,6 +339,57 @@ fn atomic_tick_aborts_cleanly_on_fail_writes_and_stale_revision_or_delete_c05_c0
         .unwrap();
     assert_eq!(deleted, TickCommitOutcome::SourceDeleted);
     assert!(ss.get_source("src-atom").unwrap().is_none());
+}
+
+#[test]
+fn decodes_legacy_v155_resource_record_and_state_view_with_defaults() {
+    let legacy_rec_json = serde_json::json!({
+        "resourceKey": "https://ex.com/a",
+        "url": "https://ex.com/a",
+        "depth": 0,
+        "role": "seed",
+        "state": "active",
+        "discoveredAtMs": 1000,
+        "lastCheckedAtMs": 5000,
+        "nextDueAtMs": 9000,
+        "consecutiveFailures": 0,
+        "consecutive404s": 0,
+        "importanceWeight": 1.0,
+        "claimCount": 2
+    });
+    let rec: ResourceRecord = serde_json::from_value(legacy_rec_json).expect("decode legacy rec");
+    assert_eq!(rec.valid_observation_anchor_ms(), Some(5000));
+    assert!(!rec.last_modified_dynamic);
+
+    let mut transient_legacy = rec.clone();
+    transient_legacy.state = ResourceLifecycleState::TransientFailure;
+    assert_eq!(transient_legacy.valid_observation_anchor_ms(), None);
+
+    let legacy_view_json = serde_json::json!({
+        "sourceId": "s-legacy",
+        "totalTicks": 1,
+        "inventoryCounts": {},
+        "resources": [],
+        "activeClaims": [],
+        "conflicts": [],
+        "factClusters": [{
+            "clusterId": "fct-1",
+            "subjectKey": "sku:1",
+            "normalizedField": "price",
+            "value": { "kind": "money", "amount_e4": 100000, "currency": "USD", "period": "unknown", "raw": "$10" },
+            "supportCount": 1,
+            "distinctSources": 1,
+            "independentSources": 1,
+            "distinctHosts": 1,
+            "distinctFormats": ["html"],
+            "claimIds": ["c1"],
+            "evidence": []
+        }]
+    });
+    let view: SourceStateView =
+        serde_json::from_value(legacy_view_json).expect("decode legacy state view");
+    assert!(!view.fact_clusters_truncated);
+    assert_eq!(view.fact_clusters[0].unverified_support_count, 0);
 }
 
 #[path = "store_history_tests.rs"]

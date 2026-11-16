@@ -1,7 +1,10 @@
-//! PageSift 1.5.5 闭环长周期对照与消融评测套件（G1–G6）。
+//! PageSift 1.5.6 闭环对照组与端到端评测套件（G1–G6）。
 //!
-//! 对固定 基线（fixed-poll）、v1.5.4 基线（1.5.4-ablation）与完整 v1.5.5 Loop 在相同受控/真实静态快照负载下执行
-//! 端到端与组件级长程对比，输出可复现 JSON 评分卡（含零收益/负迁移诚实成本分解）。
+//! 明确区分四类口径，不混用、不构造假对比值：
+//! 1. 理论目标函数对照（equal-uniform vs Lagrange waterfill）；
+//! 2. 消融对照（如 `try_embedded_json=false`、slow-decay 等关闭单机制的对照）；
+//! 3. 组件长周期仿真（非混叠周期、体制漂移与负迁移验证）；
+//! 4. 真实本地 Axum HTTP Sync 端到端闭环实测（影子价格浏览器抑制、注水间隔落地、`uncertain_observations` 覆盖、证据与引用血缘）。
 //!
 //! 运行：`cargo run --profile release-fast -p pagesift-engine --example loop_eval`
 
@@ -71,12 +74,15 @@ struct S2Result {
 
 #[derive(Serialize)]
 struct S3Result {
-    tight_budget_expected_missed_hazard_equal: f64,
-    tight_budget_expected_missed_hazard_v154_uniform: f64,
-    tight_budget_expected_missed_hazard_v155_waterfill: f64,
-    shadow_price_offload_triggered_v155: bool,
-    shadow_price_v154: f64,
-    shadow_price_v155: f64,
+    theoretical_equal_uniform_missed_hazard: f64,
+    theoretical_waterfill_missed_hazard: f64,
+    shadow_price_strategy_no_pressure: f64,
+    shadow_price_strategy_under_pressure: f64,
+    shadow_price_offload_strategy_selected: bool,
+    real_sync_waterfill_hot_due_offset_secs: f64,
+    real_sync_waterfill_cold_due_offset_secs: f64,
+    real_sync_shadow_price_renders_used: usize,
+    real_sync_shadow_price_offloaded_decisions: usize,
 }
 
 #[derive(Serialize)]
@@ -86,24 +92,30 @@ struct S4Result {
     negative_transfer_extra_probe_ticks_until_reject: usize,
     negative_transfer_rejected: bool,
     negative_transfer_post_reject_http_mean: f64,
+    negative_transfer_single_consume_trials: f64,
     cross_tenant_leaked: bool,
 }
 
 #[derive(Serialize)]
 struct S5Result {
     corrupted_ticks_tested: usize,
-    preserved_unverified_claims_v155: usize,
-    false_withdrawals_v155: usize,
-    baseline_etag_preserved_v155: bool,
-    family_stats_polluted_v155: bool,
+    preserved_unverified_claims: usize,
+    false_withdrawals: usize,
+    baseline_etag_preserved: bool,
+    family_stats_polluted: bool,
+    uncertain_blocks_complete_within_scope: bool,
+    valid_time_anchor_preserved: bool,
 }
 
 #[derive(Serialize)]
 struct S6Result {
     distinct_money_currencies_detected: Vec<String>,
-    currency_mismatch_conflicts: usize,
-    fact_cluster_support_count: usize,
+    currency_mismatch_conflicts_eur_usd_unknown: usize,
+    unknown_currency_alone_mismatch_conflicts: usize,
+    fact_cluster_verified_support_count: usize,
+    fact_cluster_unverified_support_count: usize,
     fact_cluster_independent_sources: usize,
+    fact_cluster_total_independent_sources: usize,
 }
 
 #[derive(Serialize)]
@@ -433,8 +445,8 @@ async fn eval_s2_drift_and_embedded() -> S2Result {
     }
 }
 
-fn eval_s3_waterfill_and_shadow() -> S3Result {
-    // 10 个热/高权重/低成本资源 + 10 个冷/重成本浏览器资源
+async fn eval_s3_waterfill_and_shadow() -> S3Result {
+    // 1. 理论目标函数对照：10 个热/高权重/低成本资源 + 10 个冷/重成本浏览器资源
     let mut items = Vec::new();
     for i in 0..20 {
         let is_hot = i < 10;
@@ -448,7 +460,6 @@ fn eval_s3_waterfill_and_shadow() -> S3Result {
     }
     let wf = lagrange_waterfill_intervals(&items, 4.0);
     let burn_wf: f64 = items.iter().zip(&wf).map(|(it, &t)| it.cost_ms / t).sum();
-    // 相等总成本消耗预算下对比均匀分配间隔与拉格朗日注水后的预期加权漏检危害 sum w * lambda * T
     let total_cost: f64 = items.iter().map(|it| it.cost_ms).sum();
     let equal_t = (total_cost / burn_wf.max(0.1)).clamp(30.0, 86_400.0);
     let hazard = |intervals: &[f64]| -> f64 {
@@ -461,7 +472,7 @@ fn eval_s3_waterfill_and_shadow() -> S3Result {
     let h_equal = hazard(&[equal_t; 20]);
     let h_wf = hazard(&wf);
 
-    // 影子价格测试：当浏览器剩余预算只剩 10% 且 Tab 利用率 90%，边际收益族降级走 HTTP/EmbeddedJson
+    // 2. 策略组件影子价格验证 + 真实 HTTP Sync 端到端闭环（真实 next_due_at_ms 分化 + 实际浏览器卸载）
     let mut marginal = FamilyStats::new("https://edge.example.com/item");
     for k in 0..6 {
         marginal.observe(&FamilyObservation {
@@ -494,16 +505,137 @@ fn eval_s3_waterfill_and_shadow() -> S3Result {
         Some(&marginal),
     );
 
+    let app = Router::new()
+        .route(
+            "/wf/hot",
+            get(|| async {
+                ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], "<!doctype html><html><body><p>Hot fast changing catalog page with real full prose content and complete specifications.</p></body></html>")
+            }),
+        )
+        .route(
+            "/wf/cold",
+            get(|| async {
+                ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], "<!doctype html><html><body><p>Cold low-priority archival reference document with static stable body text.</p></body></html>")
+            }),
+        )
+        .route(
+            "/edge/{id}",
+            get(|| async {
+                ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], "<!doctype html><html><body><div id=\"app\">Loading...</div><script>window.__APP__=1;</script></body></html>")
+            }),
+        );
+    let (base, shutdown) = spawn_srv(app).await;
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open_dir(dir.path()).unwrap();
+    let scraper = test_scraper(Some(store.clone()));
+
+    let mut wf_spec = base_spec("eval-s3-wf", format!("{base}/wf/hot"));
+    wf_spec.seeds = vec![format!("{base}/wf/hot"), format!("{base}/wf/cold")];
+    wf_spec.freshness = FreshnessPolicy {
+        min_interval_secs: 30,
+        default_interval_secs: 30,
+        max_interval_secs: 7200,
+        confirm_gone_after_404s: 2,
+    };
+    wf_spec.budget.max_requests_per_tick = 1;
+    store.sync().upsert_source(wf_spec).unwrap();
+    let _ = scraper
+        .run_sync_tick("eval-s3-wf", SyncRunOptions::default())
+        .await
+        .unwrap();
+    let now_wf = pagesift_store::now_store_ms();
+    let mut inv_wf = store.sync().get_inventory("eval-s3-wf").unwrap();
+    for r in &mut inv_wf {
+        r.next_due_at_ms = now_wf.saturating_sub(1_000);
+        if r.url.ends_with("/wf/hot") {
+            r.importance_weight = 3.0;
+            r.learn.change_count = 8;
+            r.learn.exposure_secs = 480.0;
+        } else {
+            r.importance_weight = 0.3;
+            r.learn.unchanged_count = 10;
+            r.learn.exposure_secs = 50_000.0;
+        }
+    }
+    store
+        .sync()
+        .put_inventory("eval-s3-wf", &inv_wf, now_wf)
+        .unwrap();
+    let mut wf_spec2 = store.sync().get_source("eval-s3-wf").unwrap().unwrap();
+    wf_spec2.budget.max_requests_per_tick = 2;
+    wf_spec2.revision += 1;
+    store.sync().upsert_source(wf_spec2).unwrap();
+    let d_wf = scraper
+        .run_sync_tick("eval-s3-wf", SyncRunOptions::default())
+        .await
+        .unwrap();
+    let inv_wf2 = store.sync().get_inventory("eval-s3-wf").unwrap();
+    let hot_off = inv_wf2
+        .iter()
+        .find(|r| r.url.ends_with("/wf/hot"))
+        .map_or(0.0, |r| {
+            r.next_due_at_ms.saturating_sub(d_wf.completed_at_ms) as f64 / 1000.0
+        });
+    let cold_off = inv_wf2
+        .iter()
+        .find(|r| r.url.ends_with("/wf/cold"))
+        .map_or(0.0, |r| {
+            r.next_due_at_ms.saturating_sub(d_wf.completed_at_ms) as f64 / 1000.0
+        });
+
+    let mut sp_spec = base_spec("eval-s3-sp", format!("{base}/edge/1"));
+    sp_spec.seeds = (1..=4).map(|i| format!("{base}/edge/{i}")).collect();
+    sp_spec.allow_browser = true;
+    sp_spec.budget.max_browser_renders_per_tick = 2;
+    sp_spec.budget.max_requests_per_tick = 12;
+    store.sync().upsert_source(sp_spec).unwrap();
+    let tbl_sp = FamilyExperienceTable::new();
+    let fam_sp = family(&format!("{base}/edge/1"));
+    for k in 0..8 {
+        tbl_sp.record_observation(
+            &fam_sp,
+            &FamilyObservation {
+                observed_at_ms: 1000 + k * 100,
+                http_sufficient: Some(k % 4 != 0),
+                browser_gain: Some(k % 4 == 0),
+                embedded_json_observed: Some(true),
+                http_cost_ms: Some(30.0),
+                browser_cost_ms: Some(1800.0),
+                cost_ms: 80.0,
+                ..Default::default()
+            },
+        );
+    }
+    store
+        .sync()
+        .put_experience_bytes("eval-s3-sp", &tbl_sp.encode_json(), 2_000)
+        .unwrap();
+    let d_sp = scraper
+        .run_sync_tick("eval-s3-sp", SyncRunOptions::default())
+        .await
+        .unwrap();
+    let offloaded_cnt = d_sp
+        .adapt_decisions
+        .iter()
+        .filter(|v| {
+            v.get("browserEscalationPermitted")
+                .and_then(|b| b.as_bool())
+                == Some(false)
+        })
+        .count();
+    let _ = shutdown.send(());
+
     S3Result {
-        tight_budget_expected_missed_hazard_equal: h_equal,
-        tight_budget_expected_missed_hazard_v154_uniform: h_equal * 0.85,
-        tight_budget_expected_missed_hazard_v155_waterfill: h_wf,
-        shadow_price_offload_triggered_v155: matches!(
-            pressured.strategy,
-            AcquisitionStrategy::HttpWithEmbeddedJson | AcquisitionStrategy::LightweightHttp
-        ) && pressured.shadow_price >= 3.5,
-        shadow_price_v154: unpressured.shadow_price,
-        shadow_price_v155: pressured.shadow_price,
+        theoretical_equal_uniform_missed_hazard: h_equal,
+        theoretical_waterfill_missed_hazard: h_wf,
+        shadow_price_strategy_no_pressure: unpressured.shadow_price,
+        shadow_price_strategy_under_pressure: pressured.shadow_price,
+        shadow_price_offload_strategy_selected: !pressured.browser_escalation_permitted
+            && pressured.shadow_price >= 3.5,
+        real_sync_waterfill_hot_due_offset_secs: hot_off,
+        real_sync_waterfill_cold_due_offset_secs: cold_off,
+        real_sync_shadow_price_renders_used: d_sp.stats.browser_renders_used,
+        real_sync_shadow_price_offloaded_decisions: offloaded_cnt,
     }
 }
 
@@ -594,6 +726,7 @@ fn eval_s4_transfer_and_negative_reject() -> S4Result {
         negative_transfer_extra_probe_ticks_until_reject: reject_step,
         negative_transfer_rejected: neg_st.transfer.rejected,
         negative_transfer_post_reject_http_mean: neg_st.http_sufficient.mean(),
+        negative_transfer_single_consume_trials: neg_st.http_sufficient.trials(),
         cross_tenant_leaked: beta_st.transfer.donor_description.is_some(),
     }
 }
@@ -656,7 +789,7 @@ async fn eval_s5_s6_and_s7_real() -> (S5Result, S6Result, S7RealResult) {
         .route(
             "/curr/index",
             get(|| async move {
-                ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], r#"<!doctype html><html><body><a href="/curr/eu">eu</a><a href="/curr/unk">unk</a><a href="/curr/us">us</a><a href="/cite/wire">wire</a><a href="/cite/m1">m1</a></body></html>"#)
+                ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], r#"<!doctype html><html><body><a href="/curr/eu">eu</a><a href="/curr/unk">unk</a><a href="/curr/us">us</a><a href="/curr/amb-usd">au</a><a href="/curr/amb-unk">an</a><a href="/cite/wire">wire</a><a href="/cite/m1">m1</a></body></html>"#)
             }),
         )
         .route(
@@ -675,6 +808,18 @@ async fn eval_s5_s6_and_s7_real() -> (S5Result, S6Result, S7RealResult) {
             "/curr/us",
             get(|| async move {
                 ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], r#"<!doctype html><html><head><script type="application/ld+json">{"@type":"Product","sku":"CUR-EVAL","offers":{"price":"$66"}}</script></head><body><p>US SKU CUR-EVAL priced at $66 USD.</p></body></html>"#)
+            }),
+        )
+        .route(
+            "/curr/amb-usd",
+            get(|| async move {
+                ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], r#"<!doctype html><html><head><script type="application/ld+json">{"@type":"Product","sku":"AMB-EVAL","offers":{"price":"$66"}}</script></head><body><p>US AMB-EVAL priced at $66 USD.</p></body></html>"#)
+            }),
+        )
+        .route(
+            "/curr/amb-unk",
+            get(|| async move {
+                ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], r#"<!doctype html><html><head><script type="application/ld+json">{"@type":"Product","sku":"AMB-EVAL","offers":{"price":66}}</script></head><body><p>Unitless numeric AMB-EVAL priced at 66.</p></body></html>"#)
             }),
         )
         .route(
@@ -756,6 +901,7 @@ async fn eval_s5_s6_and_s7_real() -> (S5Result, S6Result, S7RealResult) {
         .run_sync_tick("eval-s5", SyncRunOptions::default())
         .await
         .unwrap();
+    let valid_t1 = store.sync().get_inventory("eval-s5").unwrap()[0].last_valid_observed_at_ms;
     let tbl_before_bytes = store
         .sync()
         .get_experience_bytes("eval-s5")
@@ -766,8 +912,9 @@ async fn eval_s5_s6_and_s7_real() -> (S5Result, S6Result, S7RealResult) {
     let fam_b = tbl_b.get_family(&family(&format!("{base}/dec"))).unwrap();
 
     decode_phase.store(1, Ordering::SeqCst);
+    let mut last_bad_cov = String::new();
     for _ in 0..2 {
-        scraper
+        let d_bad = scraper
             .run_sync_tick(
                 "eval-s5",
                 SyncRunOptions {
@@ -777,6 +924,7 @@ async fn eval_s5_s6_and_s7_real() -> (S5Result, S6Result, S7RealResult) {
             )
             .await
             .unwrap();
+        last_bad_cov = d_bad.coverage_status;
     }
     let st_s5 = store
         .sync()
@@ -805,11 +953,14 @@ async fn eval_s5_s6_and_s7_real() -> (S5Result, S6Result, S7RealResult) {
         .count();
     let s5 = S5Result {
         corrupted_ticks_tested: 2,
-        preserved_unverified_claims_v155: unverified_cnt,
-        false_withdrawals_v155: withdrawn_cnt,
-        baseline_etag_preserved_v155: inv_s5[0].etag.as_deref() == Some("\"etag-ok\""),
-        family_stats_polluted_v155: fam_a.http_sufficient != fam_b.http_sufficient
+        preserved_unverified_claims: unverified_cnt,
+        false_withdrawals: withdrawn_cnt,
+        baseline_etag_preserved: inv_s5[0].etag.as_deref() == Some("\"etag-ok\""),
+        family_stats_polluted: fam_a.http_sufficient != fam_b.http_sufficient
             || fam_a.substantive_change != fam_b.substantive_change,
+        uncertain_blocks_complete_within_scope: last_bad_cov != "complete_within_scope",
+        valid_time_anchor_preserved: valid_t1.is_some()
+            && inv_s5[0].last_valid_observed_at_ms == valid_t1,
     };
 
     // S6 运行
@@ -840,7 +991,14 @@ async fn eval_s5_s6_and_s7_real() -> (S5Result, S6Result, S7RealResult) {
     let mm_conflicts = st_s6
         .conflicts
         .iter()
-        .filter(|c| c.kind == ConflictKind::UnitOrCurrencyMismatch)
+        .filter(|c| {
+            c.kind == ConflictKind::UnitOrCurrencyMismatch && c.subject_key.contains("CUR-EVAL")
+        })
+        .count();
+    let amb_mm_conflicts = st_s6
+        .conflicts
+        .iter()
+        .filter(|c| c.subject_key.contains("AMB-EVAL"))
         .count();
     let cite_cl = st_s6
         .fact_clusters
@@ -848,9 +1006,12 @@ async fn eval_s5_s6_and_s7_real() -> (S5Result, S6Result, S7RealResult) {
         .find(|c| c.normalized_field == "price" && c.subject_key.contains("CITE-EVAL"));
     let s6 = S6Result {
         distinct_money_currencies_detected: currs,
-        currency_mismatch_conflicts: mm_conflicts,
-        fact_cluster_support_count: cite_cl.map_or(0, |c| c.support_count),
+        currency_mismatch_conflicts_eur_usd_unknown: mm_conflicts,
+        unknown_currency_alone_mismatch_conflicts: amb_mm_conflicts,
+        fact_cluster_verified_support_count: cite_cl.map_or(0, |c| c.verified_support_count),
+        fact_cluster_unverified_support_count: cite_cl.map_or(0, |c| c.unverified_support_count),
         fact_cluster_independent_sources: cite_cl.map_or(0, |c| c.independent_sources),
+        fact_cluster_total_independent_sources: cite_cl.map_or(0, |c| c.total_independent_sources),
     };
 
     // S7 Hub + 真实本地 HTML 语料运行
@@ -939,7 +1100,7 @@ async fn eval_s5_s6_and_s7_real() -> (S5Result, S6Result, S7RealResult) {
 async fn main() {
     let s1 = eval_s1_periodic_and_aliasing();
     let s2 = eval_s2_drift_and_embedded().await;
-    let s3 = eval_s3_waterfill_and_shadow();
+    let s3 = eval_s3_waterfill_and_shadow().await;
     let s4 = eval_s4_transfer_and_negative_reject();
     let (s5, s6, s7) = eval_s5_s6_and_s7_real().await;
 

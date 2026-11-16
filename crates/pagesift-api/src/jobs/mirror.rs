@@ -15,7 +15,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use pagesift_store::{Store, Tasks};
+use pagesift_store::{Store, TasksTx};
 
 use super::store::{list_key, meta_key};
 
@@ -80,9 +80,9 @@ impl<'a> Reader<'a> {
     }
 }
 
-/// 记录写入的任务存储视图：每个写操作先写本地存储，再记下对应的复制操作。
+/// 记录写入的任务存储视图：先在同一 [`TasksTx`] 事务内缓冲并原子落盘，成功后再记下对应的复制操作。
 pub(crate) struct Writer<'a> {
-    t: Tasks<'a>,
+    t: TasksTx<'a>,
     ops: Option<Vec<Vec<u8>>>,
 }
 
@@ -140,41 +140,40 @@ impl Writer<'_> {
     }
 }
 
-/// 在任务存储上做一组写入；有 `mirror` 时在它的锁里写，并把这组写入按顺序交给日志。
+/// 在任务存储上以单个全有或全无事务执行一组写入；有 `mirror` 时在它的锁里提交并按顺序交给日志。
 pub(crate) fn write<R>(
     store: &Store,
     mirror: Option<&JobMirror>,
     f: impl FnOnce(&mut Writer<'_>) -> pagesift_store::Result<R>,
 ) -> pagesift_store::Result<R> {
     let Some(m) = mirror else {
-        return f(&mut Writer {
-            t: store.tasks(),
+        let mut w = Writer {
+            t: store.tasks().begin_tx(),
             ops: None,
-        });
+        };
+        let r = f(&mut w)?;
+        w.t.commit()?;
+        return Ok(r);
     };
     let _g = m.lock.lock().unwrap_or_else(|e| e.into_inner());
     let mut w = Writer {
-        t: store.tasks(),
+        t: store.tasks().begin_tx(),
         ops: Some(Vec::new()),
     };
-    let r = f(&mut w);
-    // 失败的一组里已经写进本地的部分也照样复制，两边保持一致；一条交不出去就不再交后面的
-    // （温备按序号追加列表，跳过一条后后面的会错位）
-    let mut failed = None;
-    for o in w.ops.take().unwrap_or_default() {
+    let r = f(&mut w)?;
+    let ops = w.ops.take().unwrap_or_default();
+    w.t.commit()?;
+    // 本地事务已原子落盘；复制失败时中止后续复制，让温备保持有序
+    for o in ops {
         if let Err(e) = m.log.append(o) {
             m.failures
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            failed = Some(e);
-            break;
+            return Err(pagesift_store::Error::Io(std::io::Error::other(
+                Unreplicated(e),
+            )));
         }
     }
-    match (r, failed) {
-        (Ok(_), Some(e)) => Err(pagesift_store::Error::Io(std::io::Error::other(
-            Unreplicated(e),
-        ))),
-        (r, _) => r,
-    }
+    Ok(r)
 }
 
 /// 本地已经写进去、只是没能交给复制日志：[`write`] 的这种错误里装的是它（[`unreplicated`] 判断）。

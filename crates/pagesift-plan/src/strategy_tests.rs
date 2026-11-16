@@ -279,4 +279,66 @@ fn coverage_status_distinguishes_unchecked_and_access_restricted() {
         ..Default::default()
     });
     assert_eq!(restricted.status, CoverageStatus::AccessRestricted);
+
+    // 存在未解决的不可靠观测缺口 -> 即使有权威成功也不能宣称 CompleteWithinScope
+    let uncertain = evaluate_coverage_status(&CoverageInput {
+        discovered_total: 2,
+        authoritative_successes: 1,
+        attempted_total: 2,
+        uncertain_observations: 1,
+        ..Default::default()
+    });
+    assert_eq!(uncertain.status, CoverageStatus::PartialWithGaps);
+}
+
+#[test]
+fn shadow_price_offload_disables_browser_escalation_and_spa_ignores_stale_etag() {
+    let mut stats = FamilyStats::new("https://hybrid.example.com/item");
+    for i in 0..6 {
+        stats.observe(&FamilyObservation {
+            observed_at_ms: 100 + i * 100,
+            http_sufficient: Some(i % 5 != 0),
+            browser_gain: Some(i % 5 == 0),
+            embedded_json_observed: Some(true),
+            http_cost_ms: Some(40.0),
+            browser_cost_ms: Some(1_600.0),
+            cost_ms: 120.0,
+            ..Default::default()
+        });
+    }
+    let offloaded = select_acquisition_strategy(
+        &StrategyInput {
+            url: "https://hybrid.example.com/item/1".to_string(),
+            remaining_budget_fraction: 0.8,
+            browser_budget_fraction: 0.1,
+            browser_tab_utilization: 0.9,
+            allow_browser: true,
+            ..Default::default()
+        },
+        Some(&stats),
+    );
+    assert!(!offloaded.browser_escalation_permitted);
+
+    // Confirm SPA family with stale shell ETag still chooses DirectBrowser / HttpVerifyBrowser
+    let mut spa = FamilyStats::new("https://spa-etag.example.com/app");
+    for i in 0..6 {
+        spa.observe(&FamilyObservation {
+            observed_at_ms: 100 + i * 100,
+            http_sufficient: Some(false),
+            browser_gain: Some(true),
+            used_browser: i > 0,
+            cost_ms: 700.0,
+            ..Default::default()
+        });
+    }
+    let dec = select_acquisition_strategy(
+        &StrategyInput {
+            url: "https://spa-etag.example.com/app/1".to_string(),
+            has_validators: true,
+            allow_browser: true,
+            ..Default::default()
+        },
+        Some(&spa),
+    );
+    assert_eq!(dec.strategy, AcquisitionStrategy::DirectBrowser);
 }

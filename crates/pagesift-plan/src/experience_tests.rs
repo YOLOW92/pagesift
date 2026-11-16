@@ -374,3 +374,87 @@ fn hierarchical_transfer_respects_tenant_isolation_and_rejects_negative_transfer
     );
     assert!(a_cold.http_sufficient.mean() > 0.70);
 }
+
+#[test]
+fn negative_transfer_rejection_consumes_trigger_once_and_clears_barrier_prior() {
+    let table = FamilyExperienceTable::new();
+    let tenant = Some("tenant-single-consume");
+    for d in [
+        "https://shop.example.com/a/1",
+        "https://shop.example.com/a/2",
+    ] {
+        for i in 0..5 {
+            table.record_observation_for_tenant(
+                d,
+                tenant,
+                &FamilyObservation {
+                    observed_at_ms: 1_000 + i * 200,
+                    http_sufficient: Some(false),
+                    browser_gain: Some(true),
+                    embedded_json_observed: Some(true),
+                    encountered_barrier: Some(true),
+                    cost_ms: 600.0,
+                    ..Default::default()
+                },
+            );
+        }
+    }
+
+    // 目标家族本地实际是 HTTP 充分 + 无拦截：前 2 次独立观测直接触发负迁移拒绝，
+    // 第 2 次触发回滚时的这次观测绝对只能记为 local=2（不得二次计入 3）且外源高 barrier_rate 先验必须被抹除！
+    let cold = "https://shop.example.com/a/new";
+    for i in 0..2 {
+        table.record_observation_for_tenant(
+            cold,
+            tenant,
+            &FamilyObservation {
+                observed_at_ms: 10_000 + i * 200,
+                http_sufficient: Some(true),
+                browser_gain: Some(false),
+                embedded_json_observed: Some(false),
+                encountered_barrier: Some(false),
+                cost_ms: 35.0,
+                ..Default::default()
+            },
+        );
+    }
+    let st = table.get_family(cold).unwrap();
+    assert!(st.transfer.rejected);
+    assert!(st.transfer.donor_description.is_some());
+    assert!(st.transfer.seeded_barrier_mean.is_none());
+    assert!(
+        (st.http_sufficient.success - 2.0).abs() < 1e-9 && st.http_sufficient.failure.abs() < 1e-9,
+        "triggering obs must be counted exactly once on reject, got {:?}",
+        st.http_sufficient
+    );
+    assert!(
+        st.barrier_rate.success.abs() < 1e-9 && (st.barrier_rate.failure - 2.0).abs() < 1e-9,
+        "foreign donor barrier_rate prior must be erased on reject, got {:?}",
+        st.barrier_rate
+    );
+}
+
+#[test]
+fn family_stats_does_not_mix_cross_resource_change_timestamps_into_period() {
+    let mut fam = FamilyStats::new("https://shop.example.com/p");
+    // 多个不同相位资源每隔 10s 轮流报告改动，族级速率会升高，但绝不能将交叉时间片混算成假周期
+    for k in 1..=8 {
+        fam.observe(&FamilyObservation {
+            observed_at_ms: 1_000 + k * 10_000,
+            http_sufficient: Some(true),
+            substantive_change: Some((600.0, k % 2 == 0)),
+            cost_ms: 40.0,
+            ..Default::default()
+        });
+    }
+    assert!(
+        fam.shared_period_estimate().is_none(),
+        "unverified cross-resource intervals must not forge a family period"
+    );
+    assert!(
+        fam.substantive_change
+            .regularity
+            .detected_period()
+            .is_none()
+    );
+}

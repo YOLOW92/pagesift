@@ -108,6 +108,9 @@ pub struct AdaptDecision {
     pub reuse_source: Option<String>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub exploration_probe: bool,
+    /// 执行层约束：若 HTTP 采集不充分，本策略决策是否允许升级浏览器；因高影子价格卸载、禁止或耗尽时为 `false`。
+    #[serde(default)]
+    pub browser_escalation_permitted: bool,
     pub reasons: Vec<String>,
 }
 
@@ -119,15 +122,23 @@ fn browser_shadow_price(input: &StrategyInput) -> f64 {
     1.0 + 3.0 * budget_tight + 2.5 * tab_pressure
 }
 
+struct DecisionCtx<'a> {
+    family: String,
+    input: &'a StrategyInput,
+    stats: Option<&'a FamilyStats>,
+}
+
 fn finish_decision(
-    fam: String,
+    ctx: DecisionCtx<'_>,
     strategy: AcquisitionStrategy,
-    input: &StrategyInput,
-    stats: Option<&FamilyStats>,
     priority_score: f64,
     exploration_probe: bool,
+    browser_escalation_permitted: bool,
     reasons: Vec<String>,
 ) -> AdaptDecision {
+    let fam = ctx.family;
+    let input = ctx.input;
+    let stats = ctx.stats;
     let shadow_price = browser_shadow_price(input);
     let expected_cost_ms = match strategy {
         AcquisitionStrategy::DeferOrSkip => 0.0,
@@ -175,6 +186,7 @@ fn finish_decision(
         shadow_price,
         reuse_source,
         exploration_probe,
+        browser_escalation_permitted,
         reasons,
     }
 }
@@ -208,11 +220,14 @@ pub fn select_acquisition_strategy(
     if input.remaining_budget_fraction <= 0.0 {
         reasons.push("budget_exhausted".to_string());
         return finish_decision(
-            fam,
+            DecisionCtx {
+                family: fam,
+                input,
+                stats,
+            },
             AcquisitionStrategy::DeferOrSkip,
-            input,
-            stats,
             priority_score,
+            false,
             false,
             reasons,
         );
@@ -231,11 +246,14 @@ pub fn select_acquisition_strategy(
         if input.remaining_budget_fraction < 0.35 {
             reasons.push("defer_due_to_barrier_and_tight_budget".to_string());
             return finish_decision(
-                fam,
+                DecisionCtx {
+                    family: fam,
+                    input,
+                    stats,
+                },
                 AcquisitionStrategy::DeferOrSkip,
-                input,
-                stats,
                 priority_score * 0.25,
+                false,
                 false,
                 reasons,
             );
@@ -250,6 +268,88 @@ pub fn select_acquisition_strategy(
         reasons.push("high_barrier_staleness_exploration_probe".to_string());
     }
 
+    let learned_embedded_json =
+        stats.is_some_and(|st| st.embedded_json.trials() >= 2.0 && st.embedded_json.mean() >= 0.55);
+    let prefer_embedded_json = input.has_embedded_json_hint || learned_embedded_json;
+    let browser_allowed_under_budget = input.allow_browser && input.browser_budget_fraction > 0.0;
+    let browser_fail_rate = stats
+        .filter(|st| st.browser_failure_rate.trials() >= 3.0)
+        .map_or(0.0, |st| st.browser_failure_rate.mean());
+
+    // 先检查已确认的强 SPA 依赖族：避免空 HTML 壳恰好携带 ETag 时被 ConditionalHttp 304 永久锁定而不进入 DirectBrowser / 恢复探测
+    if let Some(st) = stats
+        && st.http_sufficient.trials() >= 2.5
+    {
+        let http_ok = st.http_sufficient.mean();
+        let b_gain = st.browser_gain.mean();
+
+        if browser_allowed_under_budget
+            && http_ok < 0.25
+            && st.browser_gain.trials() >= 2.0
+            && b_gain > 0.60
+        {
+            if (input.probe_recovery_eligible
+                && (st.consecutive_direct_browser >= DIRECT_BROWSER_RECOVERY_PERIOD
+                    || st.probe_positive_streak > 0))
+                || input.has_embedded_json_hint
+                || browser_fail_rate >= 0.65
+            {
+                reasons.push("voi_probe_direct_browser_recovery".to_string());
+                if st.probe_positive_streak > 0 {
+                    reasons.push(format!(
+                        "recovery_positive_streak={}",
+                        st.probe_positive_streak
+                    ));
+                }
+                if browser_fail_rate >= 0.65 {
+                    reasons.push(format!("high_browser_failure_rate={browser_fail_rate:.2}"));
+                }
+                return finish_decision(
+                    DecisionCtx {
+                        family: fam,
+                        input,
+                        stats,
+                    },
+                    AcquisitionStrategy::HttpVerifyBrowser,
+                    priority_score,
+                    true,
+                    true,
+                    reasons,
+                );
+            }
+            // 在浏览器配额/标签池极度紧绷（影子价格高）且具备可降级路径或边际压力时，真实禁止浏览器升阶
+            if shadow_price >= 3.8 && prefer_embedded_json {
+                reasons.push(format!("browser_shadow_price_offload={shadow_price:.2}"));
+                return finish_decision(
+                    DecisionCtx {
+                        family: fam,
+                        input,
+                        stats,
+                    },
+                    AcquisitionStrategy::HttpWithEmbeddedJson,
+                    priority_score,
+                    false,
+                    false,
+                    reasons,
+                );
+            }
+            reasons.push(format!("family_http_sufficient_low={http_ok:.2}"));
+            reasons.push(format!("family_browser_gain_high={b_gain:.2}"));
+            return finish_decision(
+                DecisionCtx {
+                    family: fam,
+                    input,
+                    stats,
+                },
+                AcquisitionStrategy::DirectBrowser,
+                priority_score,
+                false,
+                false,
+                reasons,
+            );
+        }
+    }
+
     if input.has_validators {
         reasons.push("cached_validators_available".to_string());
         if let Some(st) = stats
@@ -260,84 +360,35 @@ pub fn select_acquisition_strategy(
                 st.conditional_hit.mean()
             ));
         }
+        let shadow_offloaded = shadow_price >= 3.5
+            && stats
+                .is_some_and(|st| st.browser_gain.trials() >= 2.0 && st.browser_gain.mean() < 0.55);
+        if shadow_offloaded {
+            reasons.push(format!(
+                "shadow_price_suppresses_browser_escalation={shadow_price:.2}"
+            ));
+        }
         return finish_decision(
-            fam,
+            DecisionCtx {
+                family: fam,
+                input,
+                stats,
+            },
             AcquisitionStrategy::ConditionalHttp,
-            input,
-            stats,
             priority_score,
             false,
+            browser_allowed_under_budget && browser_fail_rate < 0.75 && !shadow_offloaded,
             reasons,
         );
     }
-
-    let learned_embedded_json =
-        stats.is_some_and(|st| st.embedded_json.trials() >= 2.0 && st.embedded_json.mean() >= 0.55);
-    let prefer_embedded_json = input.has_embedded_json_hint || learned_embedded_json;
-    let browser_allowed_under_budget = input.allow_browser && input.browser_budget_fraction > 0.0;
-    let browser_fail_rate = stats
-        .filter(|st| st.browser_failure_rate.trials() >= 3.0)
-        .map_or(0.0, |st| st.browser_failure_rate.mean());
 
     if let Some(st) = stats
         && st.http_sufficient.trials() >= 2.5
     {
         let http_ok = st.http_sufficient.mean();
-        let b_gain = st.browser_gain.mean();
-
-        // 若站点此前锁定为 DirectBrowser，按 VOI/冷却计数主动安排一次 HTTP(+EmbeddedJson) 验证，打破 SPA->SSR 永久锁死
-        if browser_allowed_under_budget
-            && http_ok < 0.25
-            && st.browser_gain.trials() >= 2.0
-            && b_gain > 0.60
-        {
-            if (input.probe_recovery_eligible
-                && st.consecutive_direct_browser >= DIRECT_BROWSER_RECOVERY_PERIOD)
-                || input.has_embedded_json_hint
-                || browser_fail_rate >= 0.65
-            {
-                reasons.push("voi_probe_direct_browser_recovery".to_string());
-                if browser_fail_rate >= 0.65 {
-                    reasons.push(format!("high_browser_failure_rate={browser_fail_rate:.2}"));
-                }
-                return finish_decision(
-                    fam,
-                    AcquisitionStrategy::HttpVerifyBrowser,
-                    input,
-                    stats,
-                    priority_score,
-                    true,
-                    reasons,
-                );
-            }
-            // 在浏览器配额/标签池极度紧绷（影子价格高）且收益未达极高确定性时，优先用内嵌 JSON 降级承受压力
-            if shadow_price >= 3.8 && prefer_embedded_json {
-                reasons.push(format!("browser_shadow_price_offload={shadow_price:.2}"));
-                return finish_decision(
-                    fam,
-                    AcquisitionStrategy::HttpWithEmbeddedJson,
-                    input,
-                    stats,
-                    priority_score,
-                    false,
-                    reasons,
-                );
-            }
-            reasons.push(format!("family_http_sufficient_low={http_ok:.2}"));
-            reasons.push(format!("family_browser_gain_high={b_gain:.2}"));
-            return finish_decision(
-                fam,
-                AcquisitionStrategy::DirectBrowser,
-                input,
-                stats,
-                priority_score,
-                false,
-                reasons,
-            );
-        }
-
         if http_ok >= 0.78 || (shadow_price >= 3.5 && http_ok >= 0.55) {
             reasons.push(format!("family_http_sufficient_high={http_ok:.2}"));
+            let shadow_offloaded = shadow_price >= 3.5;
             if shadow_price >= 3.5 && http_ok < 0.78 {
                 reasons.push(format!("high_shadow_price_avoid_browser={shadow_price:.2}"));
             }
@@ -351,7 +402,18 @@ pub fn select_acquisition_strategy(
             } else {
                 AcquisitionStrategy::LightweightHttp
             };
-            return finish_decision(fam, strat, input, stats, priority_score, false, reasons);
+            return finish_decision(
+                DecisionCtx {
+                    family: fam,
+                    input,
+                    stats,
+                },
+                strat,
+                priority_score,
+                false,
+                browser_allowed_under_budget && browser_fail_rate < 0.75 && !shadow_offloaded,
+                reasons,
+            );
         }
     }
 
@@ -361,24 +423,33 @@ pub fn select_acquisition_strategy(
         } else {
             "learned_embedded_json_family".to_string()
         });
+        let shadow_offloaded = shadow_price >= 3.8;
+        if shadow_offloaded {
+            reasons.push(format!(
+                "shadow_price_offload_embedded_json={shadow_price:.2}"
+            ));
+        }
         return finish_decision(
-            fam,
+            DecisionCtx {
+                family: fam,
+                input,
+                stats,
+            },
             AcquisitionStrategy::HttpWithEmbeddedJson,
-            input,
-            stats,
             priority_score,
             false,
+            browser_allowed_under_budget && browser_fail_rate < 0.75 && !shadow_offloaded,
             reasons,
         );
     }
 
-    let strategy = if browser_allowed_under_budget && browser_fail_rate < 0.75 {
+    let (strategy, allow_esc) = if browser_allowed_under_budget && browser_fail_rate < 0.75 {
         if shadow_price >= 4.2 && !input.is_hub_or_seed && input.staleness_ratio < 1.5 {
             reasons.push(format!("shadow_price_prefer_lightweight={shadow_price:.2}"));
-            AcquisitionStrategy::LightweightHttp
+            (AcquisitionStrategy::LightweightHttp, false)
         } else {
             reasons.push("cold_start_http_with_browser_verification".to_string());
-            AcquisitionStrategy::HttpVerifyBrowser
+            (AcquisitionStrategy::HttpVerifyBrowser, true)
         }
     } else {
         reasons.push(if !browser_allowed_under_budget {
@@ -386,10 +457,21 @@ pub fn select_acquisition_strategy(
         } else {
             "browser_failure_fallback_http".to_string()
         });
-        AcquisitionStrategy::LightweightHttp
+        (AcquisitionStrategy::LightweightHttp, false)
     };
 
-    finish_decision(fam, strategy, input, stats, priority_score, false, reasons)
+    finish_decision(
+        DecisionCtx {
+            family: fam,
+            input,
+            stats,
+        },
+        strategy,
+        priority_score,
+        false,
+        allow_esc,
+        reasons,
+    )
 }
 
 /// 任务级采集充足性目标。

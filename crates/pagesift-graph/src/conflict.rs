@@ -128,7 +128,31 @@ fn build_conflict(
         return None;
     }
 
-    let groups: Vec<Vec<&ClaimRecord>> = by_value.into_values().collect();
+    let raw_groups: Vec<Vec<&ClaimRecord>> = by_value.into_values().collect();
+    // 信息不足（UNKNOWN 币种、未知计费周期、缺失单位）不能直接视为已确认矛盾，
+    // 仅保留与其他具体值存在明确非“信息缺失”冲突的变体分组。
+    let mut participates = vec![false; raw_groups.len()];
+    for i in 0..raw_groups.len() {
+        for j in (i + 1)..raw_groups.len() {
+            if compare_normalized(
+                &raw_groups[i][0].normalized_value,
+                &raw_groups[j][0].normalized_value,
+            ) != ValueComparison::UnitOrCurrencyUnspecified
+            {
+                participates[i] = true;
+                participates[j] = true;
+            }
+        }
+    }
+    let groups: Vec<Vec<&ClaimRecord>> = raw_groups
+        .into_iter()
+        .zip(participates)
+        .filter_map(|(g, keep)| keep.then_some(g))
+        .collect();
+    if groups.len() <= 1 {
+        return None;
+    }
+
     let kind = classify_conflict(&groups);
     let severity = severity_for(kind, claims);
 
@@ -545,5 +569,43 @@ mod tests {
             .expect("equal claims merge support_count");
         assert!(merged_var.raw_values.contains(&serde_json::json!("$66")));
         assert!(merged_var.raw_values.contains(&serde_json::json!(66)));
+    }
+
+    #[test]
+    fn missing_currency_period_or_unit_is_not_reported_as_confirmed_conflict() {
+        let mut c_usd = mk_claim("d1", "https://ex.com/us", None, "http", 100, "$66", true);
+        let mut c_unk = mk_claim("d2", "https://ex.com/uk", None, "http", 100, "66", true);
+        c_usd.subject_key = "SKU-1".into();
+        c_unk.subject_key = "SKU-1".into();
+        c_unk.normalized_value = NormalizedValue::Money {
+            amount_e4: 660_000,
+            currency: "UNKNOWN".into(),
+            period: crate::norm::MoneyPeriod::Unknown,
+            raw: "66".into(),
+        };
+        assert!(
+            detect_conflicts(&[c_usd.clone(), c_unk.clone()]).is_empty(),
+            "UNKNOWN currency alongside USD must not fabricate a confirmed conflict"
+        );
+
+        let mut c_eur = mk_claim("d3", "https://ex.com/eu", None, "http", 100, "€66", true);
+        c_eur.subject_key = "SKU-1".into();
+        let conf = detect_conflicts(&[c_usd, c_unk, c_eur]);
+        assert_eq!(conf.len(), 1);
+        assert_eq!(conf[0].kind, ConflictKind::UnitOrCurrencyMismatch);
+        assert_eq!(
+            conf[0].variants.len(),
+            2,
+            "UNKNOWN variant should not pollute conflicting EUR/USD variants"
+        );
+
+        let mut p_unknown = mk_claim("d4", "https://ex.com/p1", None, "http", 100, "$49", true);
+        let mut p_month = mk_claim("d5", "https://ex.com/p2", None, "http", 100, "$49/mo", true);
+        p_unknown.subject_key = "SKU-2".into();
+        p_month.subject_key = "SKU-2".into();
+        assert!(
+            detect_conflicts(&[p_unknown, p_month]).is_empty(),
+            "unspecified billing period must not conflict with monthly period"
+        );
     }
 }

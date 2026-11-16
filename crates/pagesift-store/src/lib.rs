@@ -58,7 +58,7 @@ pub use sync::{
     SourceStateCheckpoint, SourceStateView, SpecCasOutcome, SyncBudget, SyncDelta, SyncStore,
     SyncTickStats, TickCommitOutcome, TickCommitRequest, now_store_ms,
 };
-pub use tasks::Tasks;
+pub use tasks::{Tasks, TasksTx};
 pub use warc::{
     AssetSniffer, RecordType, SubresourceAsset, WarcDigests, WarcRecord, WarcWriter,
     WebpageSnapshot,

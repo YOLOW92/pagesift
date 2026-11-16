@@ -347,7 +347,7 @@ pub fn sync_result() -> Value {
             "sources": array(json!({ "type": "object", "description": "DataSource specification entry." }), "Registered data sources."),
             "delta": json!({ "type": "object", "description": "Structured incremental SyncDelta produced by a tick." }),
             "deltas": array(json!({ "type": "object", "description": "SyncDelta record." }), "Recent sync deltas for the source."),
-            "state": json!({ "type": "object", "description": "SourceStateView showing inventory, claims, conflicts, and factClusters." }),
+            "state": json!({ "type": "object", "description": "SourceStateView showing inventory, claims, conflicts, verified/unverified factClusters, and factClustersTruncated." }),
         }),
         &["success", "action"],
     )

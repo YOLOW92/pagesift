@@ -3,7 +3,7 @@
 use pagesift_stat::beta::{BetaCounts, Prior};
 use pagesift_stat::poisson::ChangeRate;
 use pagesift_stat::regularity::{
-    PeriodEstimate, estimate_period, next_periodic_delay_secs, non_aliased_change_interval_secs,
+    PeriodEstimate, estimate_period, next_periodic_delay_guarded, update_period_observations,
 };
 use serde::{Deserialize, Serialize};
 
@@ -43,6 +43,8 @@ pub struct FamilyObservation {
     pub browser_failed: Option<bool>,
     /// 服务端报告的精确修改时间戳（ms），可用于辅助非混叠周期判定。
     pub last_modified_at_ms: Option<u64>,
+    /// 单资源自身验证通过的非混叠周期先验 `(mean_secs, std_secs)`，用于在族级汇合周期长先验而不混入跨资源时间相位。
+    pub resource_detected_period_secs: Option<(f64, f64)>,
 }
 
 impl FamilyObservation {
@@ -56,6 +58,7 @@ impl FamilyObservation {
             || self.yielded_claims_or_links.is_some()
             || self.encountered_barrier.is_some()
             || self.browser_failed.is_some()
+            || self.resource_detected_period_secs.is_some()
     }
 }
 
@@ -157,54 +160,19 @@ impl RegularitySnapshot {
         changed: bool,
         last_modified_at_ms: Option<u64>,
     ) {
-        if observed_at_ms == 0 {
-            return;
-        }
-        let existing = self.detected_period();
-        if changed {
-            let effective_ts = last_modified_at_ms
-                .filter(|&m| m <= observed_at_ms.saturating_add(60_000))
-                .unwrap_or(observed_at_ms);
-            if let Some(prev) = self.last_change_at_ms
-                && effective_ts > prev
-            {
-                let raw_dt_secs = (effective_ts - prev) as f64 / 1000.0;
-                if let Some(est) = existing
-                    && raw_dt_secs < est.mean_secs * 0.55
-                {
-                    self.early_changes = self.early_changes.saturating_add(1);
-                    if self.early_changes >= 2 {
-                        self.intervals_secs.clear();
-                    }
-                } else if let Some(valid_dt) = non_aliased_change_interval_secs(
-                    prev,
-                    self.last_confirmed_unchanged_at_ms,
-                    observed_at_ms,
-                    last_modified_at_ms,
-                    existing,
-                ) {
-                    self.intervals_secs.push(valid_dt);
-                    if self.intervals_secs.len() > 8 {
-                        let drain = self.intervals_secs.len() - 8;
-                        self.intervals_secs.drain(0..drain);
-                    }
-                    self.probe_misses = 0;
-                    self.early_changes = 0;
-                }
-            }
+        if let Some(effective_ts) = update_period_observations(
+            &mut self.intervals_secs,
+            &mut self.probe_misses,
+            &mut self.early_changes,
+            &mut self.last_confirmed_unchanged_at_ms,
+            self.last_change_at_ms,
+            observed_at_ms,
+            changed,
+            last_modified_at_ms,
+            Self::MAX_CV,
+            8,
+        ) {
             self.last_change_at_ms = Some(effective_ts);
-        } else {
-            self.last_confirmed_unchanged_at_ms = Some(observed_at_ms);
-            if let (Some(est), Some(prev)) = (existing, self.last_change_at_ms) {
-                let elapsed_secs = observed_at_ms.saturating_sub(prev) as f64 / 1000.0;
-                let guard = (2.0 * est.std_secs).clamp(5.0, (est.mean_secs * 0.15).max(5.0));
-                if elapsed_secs >= est.mean_secs + guard {
-                    self.probe_misses = self.probe_misses.saturating_add(1);
-                    if self.probe_misses >= 2 {
-                        self.intervals_secs.clear();
-                    }
-                }
-            }
         }
     }
 
@@ -212,12 +180,7 @@ impl RegularitySnapshot {
         let est = self.detected_period()?;
         let last_chg = self.last_change_at_ms?;
         let elapsed_secs = now_ms.saturating_sub(last_chg) as f64 / 1000.0;
-        Some(next_periodic_delay_secs(
-            &est,
-            elapsed_secs,
-            min_secs,
-            max_secs,
-        ))
+        next_periodic_delay_guarded(&est, elapsed_secs, min_secs, max_secs)
     }
 
     pub fn merge(&mut self, other: &Self) {
@@ -288,6 +251,16 @@ impl ChangeRateSnapshot {
         observed_at_ms: u64,
         last_modified_at_ms: Option<u64>,
     ) -> bool {
+        let drifted = self.observe_rate_only(dt_secs, substantive_changed);
+        if observed_at_ms > 0 {
+            self.regularity
+                .observe(observed_at_ms, substantive_changed, last_modified_at_ms);
+        }
+        drifted
+    }
+
+    /// 仅更新聚合变化率后验与惊异遗忘（用于族级聚合速率学习，避免跨资源混叠各自时间相位与周期序列）。
+    pub fn observe_rate_only(&mut self, dt_secs: f64, substantive_changed: bool) -> bool {
         if !(dt_secs > 0.0 && dt_secs.is_finite()) {
             return false;
         }
@@ -350,10 +323,6 @@ impl ChangeRateSnapshot {
             }
         }
 
-        if observed_at_ms > 0 {
-            self.regularity
-                .observe(observed_at_ms, substantive_changed, last_modified_at_ms);
-        }
         drifted
     }
 

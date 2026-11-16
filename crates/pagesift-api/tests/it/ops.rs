@@ -503,12 +503,13 @@ fn asset_job_recovers_after_persistent_write_failure() {
     });
 }
 
-#[tokio::test]
-async fn crawl_summary_survives_restart() {
+#[test]
+fn crawl_summary_survives_restart() {
     let dir = tempfile::tempdir().unwrap();
     let (fake, _) = Fake::new(0);
     let expected = json!({"stopReason": "limit_reached", "pages": 3});
-    let id = {
+    let rt = runtime();
+    let id = rt.block_on(async {
         let app = persisted(fake.clone(), dir.path());
         let (_, _, v) = call(
             &app,
@@ -525,11 +526,15 @@ async fn crawl_summary_survives_restart() {
         .await;
         assert_eq!(done["pagesift"], expected);
         id
-    };
-    let app = persisted(fake, dir.path());
-    let (_, _, v) = call(&app, "GET", &format!("/v2/crawl/{id}"), None, None).await;
-    assert_eq!(v["status"], "completed");
-    assert_eq!(v["pagesift"], expected, "{v}");
+    });
+    drop(rt);
+    let rt = runtime();
+    rt.block_on(async {
+        let app = persisted(fake, dir.path());
+        let (_, _, v) = call(&app, "GET", &format!("/v2/crawl/{id}"), None, None).await;
+        assert_eq!(v["status"], "completed");
+        assert_eq!(v["pagesift"], expected, "{v}");
+    });
 }
 
 #[tokio::test]
@@ -1625,6 +1630,63 @@ fn a_full_disk_fails_the_job_and_the_job_resumes_after_a_restart() {
         let unique: HashSet<&String> = sources.iter().collect();
         assert_eq!(unique.len(), limit, "no page missing or duplicated");
     });
+}
+
+/// 确定性覆盖持久化关键事务点（`set_fail_after_writes`）：任意写入边界失败时，已提交页面与
+/// `completed` 计数严格一致，恢复后无丢页、无重复页。
+#[test]
+fn deterministic_write_failure_keeps_pages_and_completed_consistent_across_restart() {
+    let limit = 10usize;
+    let (fake, _) = Fake::new(0);
+    for fail_after in 1usize..=8 {
+        let dir = tempfile::tempdir().unwrap();
+        let rt = runtime();
+        let id = rt.block_on(async {
+            let s = store(dir.path());
+            s.set_fail_after_writes(Some(fail_after));
+            let app = router(
+                fake.clone(),
+                Config {
+                    public_url: Some("http://pagesift.test".into()),
+                    store: Some(s.clone()),
+                    ..Default::default()
+                },
+            );
+            let (status, _, v) = call(
+                &app,
+                "POST",
+                "/v2/crawl",
+                Some(json!({"url": format!("{BASE}/p/0"), "limit": limit})),
+                None,
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK, "{v}");
+            let id = v["id"].as_str().unwrap().to_string();
+            let path = format!("/v2/crawl/{id}");
+            let v = wait(&app, &path, |v| v["status"] != "scraping").await;
+            let completed = v["completed"].as_u64().unwrap() as usize;
+            assert_eq!(
+                all_sources(&app, &path).await.len(),
+                completed,
+                "fail_after={fail_after}: {v}"
+            );
+            s.set_fail_after_writes(None);
+            id
+        });
+        drop(rt);
+        let rt = runtime();
+        rt.block_on(async {
+            let app = persisted(fake.clone(), dir.path());
+            let path = format!("/v2/crawl/{id}");
+            let v = wait(&app, &path, |v| v["status"] != "scraping").await;
+            if v["status"] == "completed" {
+                let sources = all_sources(&app, &path).await;
+                assert_eq!(sources.len(), limit, "fail_after={fail_after}");
+                let unique: HashSet<&String> = sources.iter().collect();
+                assert_eq!(unique.len(), limit, "fail_after={fail_after}");
+            }
+        });
+    }
 }
 
 #[test]

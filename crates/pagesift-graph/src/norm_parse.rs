@@ -22,13 +22,15 @@ pub(crate) fn parse_number_with_unit(s: &str) -> Option<(i64, Option<String>)> {
         ("M", 1_000_000, ""),
         ("B", 1_000_000_000, ""),
     ] {
-        if let Some(rest) = t.strip_suffix(suffix)
-            && !rest.is_empty()
-            && rest.chars().last().is_some_and(|c| c.is_ascii_digit())
-            && let Some(v) = parse_scaled_e4(rest.trim(), scale)
-        {
-            let u = (!unit.is_empty()).then(|| unit.to_owned());
-            return Some((v, u));
+        if let Some(rest) = t.strip_suffix(suffix) {
+            let num_part = rest.trim_end();
+            if !num_part.is_empty()
+                && num_part.chars().last().is_some_and(|c| c.is_ascii_digit())
+                && let Some(v) = parse_scaled_e4(num_part, scale)
+            {
+                let u = (!unit.is_empty()).then(|| unit.to_owned());
+                return Some((v, u));
+            }
         }
     }
     parse_scaled_e4(t, 1).map(|v| (v, None))

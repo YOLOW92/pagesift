@@ -275,8 +275,11 @@ pub fn assess_document_capture(
     )
 }
 
-/// 多维质量向量比较决定是否采用 Browser 升级结果（C07）：绝不让劣质/拦截浏览器壳覆写健康 HTTP。
-/// 返回 `(是否采用, 合法可观测的 browser_gain)`；浏览器失败/4xx/5xx/拦截/304 返回 `(false, None)`，避免污染样本。
+/// 多维质量向量比较决定是否采用 Browser 升级结果（C07）：
+/// - 绝不让不可靠（不确定解码/截断/304/4xx/5xx/拦截）的浏览器结果替换健康 HTTP；
+/// - 当 HTTP 本身不可靠而 Browser 干净完整时允许采用 Browser 救回本次采集，但必须将 `browser_gain` 删失（`None`）以防误判 HTTP 能力；
+///
+/// 返回 `(是否采用, 合法可观测的 browser_gain)`。
 pub fn should_adopt_browser_escalation(
     http_doc: &Document,
     http_assess: &CaptureAssessment,
@@ -291,10 +294,22 @@ pub fn should_adopt_browser_escalation(
     if browser_doc.metadata.status_code >= 400 || is_barrier_doc(browser_doc) || b_not_mod {
         return (false, None);
     }
+    let b_unreliable = assess_capture_reliability(browser_doc).is_unreliable();
+    if b_unreliable {
+        return (false, None);
+    }
+    let h_unreliable = assess_capture_reliability(http_doc).is_unreliable();
     let h_weight = text_weight(http_doc.markdown.as_deref().unwrap_or_default());
     let b_weight = text_weight(browser_doc.markdown.as_deref().unwrap_or_default());
     let h_claims = http_doc.graph.as_ref().map_or(0, |g| g.claims.len());
     let b_claims = browser_doc.graph.as_ref().map_or(0, |g| g.claims.len());
+
+    if h_unreliable {
+        let rescue = browser_assess.sufficient
+            || b_claims > h_claims
+            || b_weight > h_weight.saturating_add(16);
+        return (rescue, None);
+    }
 
     if browser_assess.sufficient && !http_assess.sufficient {
         return (true, Some(true));
@@ -480,4 +495,63 @@ pub(super) fn prepare_rewritten_fetch_url(
         }
     }
     (fetch_url, applied_rules)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn browser_adoption_checks_independent_reliability() {
+        let ok_assess = CaptureAssessment {
+            sufficient: true,
+            needs_browser_escalation: false,
+            confidence: 1.0,
+            missing_fields: Vec::new(),
+            ungrounded_fields: Vec::new(),
+            reasons: Vec::new(),
+        };
+        let poor_assess = CaptureAssessment {
+            sufficient: false,
+            needs_browser_escalation: true,
+            confidence: 0.0,
+            missing_fields: Vec::new(),
+            ungrounded_fields: Vec::new(),
+            reasons: Vec::new(),
+        };
+
+        let clean_http = Document {
+            markdown: Some("Clean HTTP full catalog text with sufficient prose details.".into()),
+            ..Default::default()
+        };
+        let mut unreliable_browser = Document {
+            markdown: Some("Clean looking text but truncated".into()),
+            ..Default::default()
+        };
+        unreliable_browser.metadata.pagesift = Some(pagesift_api::types::PagesiftMeta {
+            warnings: vec!["body_truncated".into()],
+            ..Default::default()
+        });
+        let (adopt_bad_b, gain_bad_b) = should_adopt_browser_escalation(
+            &clean_http,
+            &ok_assess,
+            &unreliable_browser,
+            &ok_assess,
+        );
+        assert!(!adopt_bad_b);
+        assert_eq!(gain_bad_b, None);
+
+        let mut bad_http = Document {
+            markdown: Some("Garbled".into()),
+            ..Default::default()
+        };
+        bad_http.metadata.pagesift = Some(pagesift_api::types::PagesiftMeta {
+            warnings: vec!["decode:windows-1252".into()],
+            ..Default::default()
+        });
+        let (rescue, rescue_gain) =
+            should_adopt_browser_escalation(&bad_http, &poor_assess, &clean_http, &ok_assess);
+        assert!(rescue);
+        assert_eq!(rescue_gain, None);
+    }
 }

@@ -6,6 +6,7 @@ use pagesift_api::ApiError;
 use pagesift_api::types::Document;
 use pagesift_graph::{
     ClaimTransitionKind, DocNode, ObservationOutcome, ProvenanceEdge, RedirectKind,
+    parse_timestamp_ms,
 };
 use pagesift_plan::experience::{FamilyExperienceTable, FamilyObservation};
 use pagesift_plan::render::family;
@@ -72,6 +73,7 @@ pub(super) struct HttpAttemptMeta {
     pub not_modified_304: bool,
     pub sufficient: bool,
     pub has_embedded_json: bool,
+    pub http_unreliable: bool,
     pub http_cost_ms: f64,
 }
 
@@ -80,7 +82,59 @@ pub(super) struct ExecutionTelemetry {
     pub used_browser: bool,
     pub browser_cost_ms: Option<f64>,
     pub browser_failed: Option<bool>,
+    pub browser_unreliable: bool,
     pub tenant_id: Option<String>,
+}
+
+/// 解析并校验服务端 `Last-Modified` 响应头的可信度，严格区分真实内容更新时间与动态伪造/滞后头。
+fn validate_credible_last_modified(
+    rec: &ResourceRecord,
+    lm_raw: Option<&str>,
+    obs_time_ms: u64,
+    substantive_changed: bool,
+    not_modified_304: bool,
+) -> (Option<u64>, bool) {
+    if rec.last_modified_dynamic {
+        return (None, false);
+    }
+    let Some(raw) = lm_raw else {
+        return if not_modified_304 {
+            (rec.last_modified_at_ms, false)
+        } else {
+            (None, false)
+        };
+    };
+    let Some(parsed) = parse_timestamp_ms(raw) else {
+        return (None, false);
+    };
+    if parsed > obs_time_ms.saturating_add(5_000) {
+        return (None, false);
+    }
+    let bounded = parsed.min(obs_time_ms);
+    if not_modified_304 {
+        return (Some(bounded), false);
+    }
+    if !substantive_changed {
+        let hugs_now = obs_time_ms.saturating_sub(bounded) <= 1_500 && rec.latest_doc_id.is_some();
+        let drifted_without_content_change = rec
+            .last_modified_at_ms
+            .is_some_and(|prev_lm| bounded > prev_lm.saturating_add(2_000));
+        if hugs_now || drifted_without_content_change {
+            return (None, true);
+        }
+    } else {
+        let froze_across_edit = rec
+            .last_modified_at_ms
+            .is_some_and(|prev_lm| bounded <= prev_lm);
+        let older_than_unchanged = rec
+            .learn
+            .last_confirmed_unchanged_at_ms
+            .is_some_and(|unch| bounded < unch);
+        if froze_across_edit || older_than_unchanged {
+            return (None, false);
+        }
+    }
+    (Some(bounded), false)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -185,7 +239,7 @@ pub(super) fn reconcile_candidate_success(
     let fam_name = family(&cand.record.url);
     let dt_secs = cand
         .record
-        .last_checked_at_ms
+        .valid_observation_anchor_ms()
         .map(|last| (obs_time_ms.saturating_sub(last) as f64 / 1000.0).max(1.0));
     let has_links = doc.links.as_ref().is_some_and(|l| !l.is_empty());
     let has_embedded = has_embedded_json_signal(doc);
@@ -197,62 +251,6 @@ pub(super) fn reconcile_candidate_success(
         sync_learner_into_experience(learner, experience, &cand.record.url, md_str, obs_time_ms);
     }
 
-    let encountered_barrier = if is_barrier {
-        Some(true)
-    } else if status_code < 400 && !unreliable {
-        Some(false)
-    } else {
-        None
-    };
-
-    experience.record_observation_for_tenant(
-        &fam_name,
-        exec.tenant_id.as_deref(),
-        &FamilyObservation {
-            observed_at_ms: obs_time_ms,
-            http_sufficient: (!unreliable)
-                .then(|| {
-                    http_meta
-                        .filter(|m| m.http_ok && !m.not_modified_304)
-                        .map(|m| m.sufficient)
-                })
-                .flatten(),
-            browser_gain: (!unreliable).then_some(browser_gain_obs).flatten(),
-            conditional_hit: (!unreliable
-                && strategy_used == AcquisitionStrategy::ConditionalHttp
-                && http_ok)
-                .then_some(not_modified_304 && capture_sufficient),
-            embedded_json_observed: (!unreliable)
-                .then(|| {
-                    http_meta
-                        .filter(|m| m.http_ok && !m.not_modified_304)
-                        .map(|m| m.has_embedded_json)
-                })
-                .flatten(),
-            substantive_change: (!unreliable
-                && http_ok
-                && capture_sufficient
-                && prev_doc_id.is_some())
-            .then(|| dt_secs.map(|dt| (dt, substantive_changed)))
-            .flatten(),
-            yielded_claims_or_links: (!unreliable
-                && http_ok
-                && capture_sufficient
-                && !not_modified_304)
-                .then_some(claim_count > 0 || has_links),
-            encountered_barrier,
-            cost_ms: step_cost_ms,
-            unreliable_observation: unreliable,
-            used_browser: exec.used_browser,
-            is_304: not_modified_304 && capture_sufficient,
-            http_cost_ms: http_meta.map(|m| m.http_cost_ms),
-            browser_cost_ms: exec.browser_cost_ms,
-            browser_failed: exec.browser_failed,
-            last_modified_at_ms: None,
-        },
-    );
-
-    let fam_stats = experience.get_family(&fam_name);
     let final_url = doc
         .metadata
         .url
@@ -266,8 +264,21 @@ pub(super) fn reconcile_candidate_success(
     let doc_id = slice.map(|g| g.doc_id.clone());
     let contract_id = spec.contract_id();
 
+    let (trusted_lm_ms, mark_lm_dynamic) = if !unreliable && http_ok && capture_sufficient {
+        validate_credible_last_modified(
+            &cand.record,
+            ps_meta.and_then(|p| p.last_modified.as_deref()),
+            obs_time_ms,
+            substantive_changed,
+            not_modified_304,
+        )
+    } else {
+        (None, false)
+    };
+
     let mut migrated_to_url = None;
     let mut current_state = cand.record.state;
+    let mut detected_res_period = None;
     if let Some(rec_mut) = inventory.get_mut(&rec_key) {
         migrated_to_url = apply_observation_to_record(
             spec,
@@ -279,7 +290,8 @@ pub(super) fn reconcile_candidate_success(
                 is_barrier_or_error: is_barrier,
                 had_transport_error: false,
                 unreliable_observation: unreliable,
-                last_modified_at_ms: None,
+                last_modified_at_ms: trusted_lm_ms,
+                mark_last_modified_dynamic: mark_lm_dynamic,
                 final_url: final_url.clone(),
                 canonical_url: doc.metadata.canonical_url.clone(),
                 permanent_redirect_target: perm_target,
@@ -297,7 +309,72 @@ pub(super) fn reconcile_candidate_success(
                 strategy_used: strategy_used.as_str().to_string(),
             },
         );
-        // C19: 状态、连续失败与权重迁移完毕后，再基于最新状态计算 next_due_at_ms
+        if !unreliable && http_ok && capture_sufficient {
+            detected_res_period = rec_mut
+                .learn
+                .detected_period()
+                .map(|p| (p.mean_secs, p.std_secs));
+        }
+    }
+
+    let encountered_barrier = if is_barrier {
+        Some(true)
+    } else if status_code < 400 && !unreliable {
+        Some(false)
+    } else {
+        None
+    };
+
+    // 独立判断 HTTP 模态与 Browser 模态可靠性：
+    // - HTTP 可靠信号由 http_meta.http_unreliable 单独控制，不因 Browser 成功/失败或不可靠而连坐或误信任；
+    // - Browser 增益仅在 HTTP 与 Browser 均可靠时进入统计。
+    experience.record_observation_for_tenant(
+        &fam_name,
+        exec.tenant_id.as_deref(),
+        &FamilyObservation {
+            observed_at_ms: obs_time_ms,
+            http_sufficient: http_meta
+                .filter(|m| m.http_ok && !m.not_modified_304 && !m.http_unreliable)
+                .map(|m| m.sufficient),
+            browser_gain: browser_gain_obs.filter(|_| !exec.browser_unreliable),
+            conditional_hit: (!unreliable
+                && strategy_used == AcquisitionStrategy::ConditionalHttp
+                && http_ok)
+                .then_some(not_modified_304 && capture_sufficient),
+            embedded_json_observed: http_meta
+                .filter(|m| m.http_ok && !m.not_modified_304 && !m.http_unreliable)
+                .map(|m| m.has_embedded_json),
+            substantive_change: (!unreliable
+                && http_ok
+                && capture_sufficient
+                && prev_doc_id.is_some())
+            .then(|| dt_secs.map(|dt| (dt, substantive_changed)))
+            .flatten(),
+            yielded_claims_or_links: (!unreliable
+                && http_ok
+                && capture_sufficient
+                && !not_modified_304)
+                .then_some(claim_count > 0 || has_links),
+            encountered_barrier,
+            cost_ms: step_cost_ms,
+            unreliable_observation: unreliable,
+            used_browser: exec.used_browser,
+            is_304: not_modified_304 && capture_sufficient,
+            http_cost_ms: http_meta
+                .filter(|m| !m.http_unreliable)
+                .map(|m| m.http_cost_ms),
+            browser_cost_ms: exec.browser_cost_ms,
+            browser_failed: exec.browser_failed.map(|f| f || exec.browser_unreliable),
+            last_modified_at_ms: (!unreliable && http_ok && capture_sufficient)
+                .then_some(trusted_lm_ms)
+                .flatten(),
+            resource_detected_period_secs: detected_res_period,
+        },
+    );
+
+    let fam_stats = experience.get_family(&fam_name);
+    if let Some(rec_mut) = inventory.get_mut(&rec_key) {
+        // C19: 状态、连续失败与权重迁移完毕并更新族经验后，再基于最新状态计算 next_due_at_ms
         rec_mut.next_due_at_ms = compute_next_due_at_ms(
             spec,
             rec_mut,

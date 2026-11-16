@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.5.5
+# pagesift 1.5.6
 
 **本地优先的 Rust 网页与文档采集解析引擎——集 HTTP/浏览器抓捕、版面感知 PDF/Office/OCR 解析、持续同步与可验证数据图谱于一体。**  
 单个自托管 Rust 二进制，内置 CLI、Firecrawl v1/v2 与 Jina Reader HTTP API、MCP 服务、C ABI，以及 Python / Node.js 原生包。
@@ -35,8 +35,8 @@
 - **支持输入：** URL、HTML、PDF（文本层 + 可选 PP-OCRv6 / 公式识别）、上传图片文件（开启 OCR 时）、Office 与 OpenDocument、RTF/WordPerfect/HWP、电子书、邮件、嵌套压缩包（`zip`、`tar`、`7z`）、SQLite/CSV、373 种代码语言与 WARC 归档（[格式矩阵](parse-api.md)）
 - **输出产物：** Markdown、HTML、原始 HTML、链接、导出图片/附件、RAG 分块、Schema JSON、`DataGraph`（`graph.jsonl`、引用链、声明生命周期、冲突、`fact_clusters`、`?asOf=`），并在不完整抓捕时返回结构化告警
 - **调用接口：** CLI · Firecrawl v1/v2 HTTP API · Jina Reader（`/r/`、`/s/`）· MCP（stdio / HTTP）· Python · Node.js / TypeScript · Rust crate · C ABI（Go、Java、Kotlin、C#、Ruby、PHP、Lua、Perl、Dart、Swift、Zig）· LangChain / LlamaIndex
-- **平台与部署：** 单二进制（`serve --role gateway`、`worker`、`standby`），Linux x86_64/aarch64（glibc ≥ 2.28 与 musl）、macOS arm64、Windows x86_64、Docker `ghcr.io/yolow92/pagesift:1.5.5`
-- **索引与版本：** 机器可读文档索引 [llms.txt](../llms.txt) · Apache-2.0 或[商业支持](COMMERCIAL.md) · **1.5.5**（[发行说明](releases/1.5.5.md)）
+- **平台与部署：** 单二进制（`serve --role gateway`、`worker`、`standby`），Linux x86_64/aarch64（glibc ≥ 2.28 与 musl）、macOS arm64、Windows x86_64、Docker `ghcr.io/yolow92/pagesift:1.5.6`
+- **索引与版本：** 机器可读文档索引 [llms.txt](../llms.txt) · Apache-2.0 或[商业支持](COMMERCIAL.md) · **1.5.6**（[发行说明](releases/1.5.6.md)）
 
 <!-- section: install -->
 ## 安装与快速开始
@@ -46,7 +46,7 @@
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| 服务端 | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.5.5` | `curl localhost:3002/r/https://example.com` |
+| 服务端 | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.5.6` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 <details>
@@ -89,7 +89,7 @@ console.log(page.markdown, page.metadata.title, page.links)
 **HTTP 服务（`Firecrawl v1/v2`、`Jina Reader`、`/v2/sources`、`/v2/graph`）与 MCP**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.5.5
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.5.6
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'
@@ -125,7 +125,7 @@ MCP 提供 `pagesift_scrape`、`pagesift_batch_scrape`、`pagesift_crawl`、`pag
 
 - **时延表现（记录基准，单 worker，越低越好）：** PDF → Markdown `2.5 ms/页`（1,269 页）；HTML → Markdown `0.23 ms/页`（600 文档）；正文提取 `1.0 ms/页`（597 页）。
 - **吞吐、质量与内存（记录基准）：** Office 进程内 `81.9 文件/s`（越高越好）；HTML → Markdown 平均 F1 `1.000`；WCXB F1 `0.866`；RAG 查询召回 `0.929`（越高越好）；不带浏览器各项运行单 worker 峰值内存 `17–395 MB`。
-- **完整评分卡与 Loop 评测：** [benchmarks.md](benchmarks.md) · [完整基准报告](../benchmarks/history/1.4/results/final/new/report.md) · [最新 Loop 局部评测记录](releases/1.5.5.md)
+- **完整评分卡与 Loop 评测：** [benchmarks.md](benchmarks.md) · [完整基准报告](../benchmarks/history/1.4/results/final/new/report.md) · [最新 Loop 局部评测记录](releases/1.5.6.md)
 
 <!-- section: architecture -->
 ## 系统架构与核心流程
@@ -242,11 +242,11 @@ flowchart LR
 [Apache-2.0](../LICENSE)。如需专属技术支持、SLA 保障或企业级合作协议，请查阅[商业许可与支持](COMMERCIAL.md)或写信至 `licensing@pagesift.dev`。
 
 <!-- section: changelog -->
-## 1.5.5 新增
+## 1.5.6 新增
 
-PageSift 1.5.5 完成 `1.5.x` Loop 系列在调度、策略决策、遗忘复用、观测可靠性与图谱证据上的收尾交付：在 `sync` 中加入抗混叠周期更新识别、单资源与族分层的 Gamma-Poisson 收缩及预算约束 Lagrange 注水分配，并在 Hub/Feed 实质更新时前移已跟踪子资源到期时间；在 Sync HTTP 探测路径中启用 `__NEXT_DATA__`/`__NUXT_DATA__`/JSON-LD 内嵌 JSON 合成；分离 304/HTTP/浏览器分模态耗时并引入基于配额余量与实时标签占用率的影子价格调控及有冷却上界的 `DirectBrowser` 回探；在 `BetaSnapshot` 与变化率上引入贝叶斯预测惊异遗忘；按租户隔离边界实现基于同源相似族的冷启动先验迁移与本地连续矛盾负迁移回滚；对不确定非 UTF-8 `decode:` 与截断观测执行学习删失并将原有 `Active` 声明保留为 `Unverified`；在 `pagesift-graph` 实现上下文货币推理与缺失货币 `"UNKNOWN"` 标记，并在 `StoredProvenance` 持久化二次引用链以在 `SourceStateView.fact_clusters` 计算独立信源聚合。
+PageSift 1.5.6 完成 `1.5.x` Loop 的最终正确性整改与事务存储加固：将抓取任务 `mirror::write`（`pages` 与 `done_set`）纳入单事务 `TasksTx` 原子提交；分离尝试时间、最后有效观测时间与实质变化时间，解耦 HTTP 与 Browser 抓捕可靠性评估，并使未解决的 `uncertain_observations` 阻断 `complete_within_scope`；打通并过滤 HTTP `Last-Modified` 响应头参与周期估计，修复漏周期/过时周期失效、跨资源族级相位混叠、`apply_waterfill_schedules_to_inventory` 实际落盘间隔与多波次 `candidates_due` 去重；让实时标签页影子价格在单 tick 执行中生效（`browser_escalation_permitted`），消除陈旧 ETag 与单次探针导致的 `DirectBrowser` 锁定，修正负迁移回退的重复消费与租户隔离；在 `SourceStateView`/CLI/MCP 中区分 `Active` 与 `Unverified` 支持数及 `fact_clusters_truncated` 状态，并将 `"UNKNOWN"` 货币及缺失单位同已确认冲突明确分离。
 
-[发布说明](releases/1.5.5.md) · [1.5.4](releases/1.5.4.md) · [1.5.3](releases/1.5.3.md) · [1.5.2](releases/1.5.2.md) · [1.5.1](releases/1.5.1.md) · [1.5.0](releases/1.5.0.md) · [全部版本](releases/) · [CHANGELOG](CHANGELOG.md)
+[发布说明](releases/1.5.6.md) · [1.5.5](releases/1.5.5.md) · [1.5.4](releases/1.5.4.md) · [1.5.3](releases/1.5.3.md) · [1.5.2](releases/1.5.2.md) · [1.5.1](releases/1.5.1.md) · [1.5.0](releases/1.5.0.md) · [全部版本](releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -262,7 +262,7 @@ PageSift 1.5.5 完成 `1.5.x` Loop 系列在调度、策略决策、遗忘复用
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.5.5}
+  note   = {Version 1.5.6}
 }
 ```
 

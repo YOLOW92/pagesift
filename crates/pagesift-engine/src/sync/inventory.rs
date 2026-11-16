@@ -145,10 +145,14 @@ pub(crate) fn new_discovered_record(
         state: ResourceLifecycleState::Discovered,
         discovered_at_ms: now_ms,
         last_checked_at_ms: None,
+        last_attempted_at_ms: None,
+        last_valid_observed_at_ms: None,
         last_substantive_change_at_ms: None,
         next_due_at_ms: now_ms,
         etag: None,
         last_modified: None,
+        last_modified_at_ms: None,
+        last_modified_dynamic: false,
         last_validator_contract_id: None,
         last_authoritative_status: None,
         baseline_sufficient: false,
@@ -195,6 +199,7 @@ pub struct InventoryObservation {
     pub had_transport_error: bool,
     pub unreliable_observation: bool,
     pub last_modified_at_ms: Option<u64>,
+    pub mark_last_modified_dynamic: bool,
     pub final_url: String,
     pub canonical_url: Option<String>,
     pub permanent_redirect_target: Option<String>,
@@ -219,15 +224,20 @@ pub fn apply_observation_to_record(
     rec: &mut ResourceRecord,
     obs: &InventoryObservation,
 ) -> Option<String> {
-    let prev_checked_at_ms = rec.last_checked_at_ms;
+    let prev_valid_at_ms = rec.valid_observation_anchor_ms();
+    rec.last_attempted_at_ms = Some(obs.now_ms);
     rec.last_checked_at_ms = Some(obs.now_ms);
     if !obs.had_transport_error {
         rec.last_status_code = Some(obs.status_code);
     }
     rec.last_strategy = Some(obs.strategy_used.clone());
+    if obs.mark_last_modified_dynamic {
+        rec.last_modified_dynamic = true;
+        rec.last_modified_at_ms = None;
+    }
 
     // G1/G5 不可靠观测（uncertain decode / body_truncated / invalid 304）：
-    // 绝不覆写既有 ETag/Last-Modified/latest_doc_id/text_signature，仅转入温和重试态
+    // 绝不覆写既有 ETag/Last-Modified/latest_doc_id/text_signature/last_valid_observed_at_ms，仅转入温和重试态
     if obs.unreliable_observation {
         rec.learn.last_observation_unreliable = true;
         rec.consecutive_failures = rec.consecutive_failures.saturating_add(1);
@@ -242,9 +252,9 @@ pub fn apply_observation_to_record(
         rec.consecutive_404s = 0;
         rec.confirmed_gone_at_ms = None;
         if obs.capture_sufficient {
-            if let Some(prev_chk) = prev_checked_at_ms {
-                let dt_secs = (obs.now_ms.saturating_sub(prev_chk) as f64 / 1000.0).max(1.0);
-                rec.learn.record_observation(
+            if let Some(prev_valid) = prev_valid_at_ms {
+                let dt_secs = (obs.now_ms.saturating_sub(prev_valid) as f64 / 1000.0).max(1.0);
+                let _ = rec.learn.record_observation_with_change_ts(
                     dt_secs,
                     false,
                     obs.now_ms,
@@ -252,6 +262,7 @@ pub fn apply_observation_to_record(
                     rec.last_substantive_change_at_ms,
                 );
             }
+            rec.last_valid_observed_at_ms = Some(obs.now_ms);
             rec.state = ResourceLifecycleState::Active;
             rec.baseline_sufficient = true;
             rec.last_validator_contract_id = Some(obs.contract_id.clone());
@@ -261,8 +272,13 @@ pub fn apply_observation_to_record(
             if obs.last_modified.is_some() {
                 rec.last_modified = obs.last_modified.clone();
             }
+            if let Some(lm_ms) = obs.last_modified_at_ms
+                && !rec.last_modified_dynamic
+            {
+                rec.last_modified_at_ms = Some(lm_ms);
+            }
         } else {
-            // 304 与当前契约基线不匹配：保留旧数据等待重抓，不宣称为充分快照（C15）
+            // 304 与当前契约基线不匹配：保留旧数据等待重抓，不推进 last_valid_observed_at_ms（C15）
             rec.baseline_sufficient = false;
             rec.state = ResourceLifecycleState::TransientFailure;
         }
@@ -325,6 +341,10 @@ pub fn apply_observation_to_record(
     // 权威非 304 响应：全量替换 ETag / Last-Modified（服务端不再返回时必须清除旧验证器，C23）
     rec.etag = obs.etag.clone();
     rec.last_modified = obs.last_modified.clone();
+    if !rec.last_modified_dynamic {
+        rec.last_modified_at_ms = obs.last_modified_at_ms;
+    }
+    rec.last_valid_observed_at_ms = Some(obs.now_ms);
     rec.last_validator_contract_id = Some(obs.contract_id.clone());
     rec.last_authoritative_status = Some(obs.status_code);
     rec.baseline_sufficient = obs.capture_sufficient;
@@ -348,9 +368,10 @@ pub fn apply_observation_to_record(
     } else {
         1.0
     };
-    if !first_baseline && let Some(prev_chk) = prev_checked_at_ms {
-        let dt_secs = (obs.now_ms.saturating_sub(prev_chk) as f64 / 1000.0).max(1.0);
-        rec.learn.record_observation(
+    let mut effective_change_ts = None;
+    if !first_baseline && let Some(prev_valid) = prev_valid_at_ms {
+        let dt_secs = (obs.now_ms.saturating_sub(prev_valid) as f64 / 1000.0).max(1.0);
+        effective_change_ts = rec.learn.record_observation_with_change_ts(
             dt_secs,
             obs.substantive_changed,
             obs.now_ms,
@@ -359,9 +380,9 @@ pub fn apply_observation_to_record(
         );
     }
     if first_baseline {
-        rec.last_substantive_change_at_ms = Some(obs.now_ms);
+        rec.last_substantive_change_at_ms = Some(obs.last_modified_at_ms.unwrap_or(obs.now_ms));
     } else if obs.substantive_changed {
-        rec.last_substantive_change_at_ms = Some(obs.now_ms);
+        rec.last_substantive_change_at_ms = Some(effective_change_ts.unwrap_or(obs.now_ms));
         rec.importance_weight = (base_weight * 1.15).clamp(0.2, 5.0);
     } else {
         rec.importance_weight = (base_weight * 0.98).clamp(0.2, 5.0);

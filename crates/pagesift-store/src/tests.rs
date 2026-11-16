@@ -221,3 +221,57 @@ fn item_identity_versions_survive_compaction_and_are_not_cache_entries() {
     assert!(!store.items().matches(b"catalog", b"id-1", b"v1").unwrap());
     assert!(store.items().matches(b"catalog", b"id-0", b"v2").unwrap());
 }
+
+#[test]
+fn tasks_atomic_commits_all_or_nothing_on_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(config(dir.path(), u64::MAX)).unwrap();
+    let t = store.tasks();
+
+    t.atomic(|tx| {
+        tx.kv_put("meta", b"v1")?;
+        assert_eq!(tx.kv_get("meta")?.as_deref(), Some(&b"v1"[..]));
+        assert_eq!(tx.list_push("pages", b"p0")?, 0);
+        assert_eq!(tx.list_push("pages", b"p1")?, 1);
+        assert!(tx.set_insert("done", b"u0")?);
+        assert!(!tx.set_insert("done", b"u0")?);
+        assert_eq!(tx.list_pop_front("pages")?.as_deref(), Some(&b"p0"[..]));
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(t.kv_get("meta").unwrap().as_deref(), Some(&b"v1"[..]));
+    assert_eq!(t.list_len("pages"), 1);
+    assert_eq!(t.list_range("pages", 0, 10).unwrap(), vec![b"p1".to_vec()]);
+    assert!(t.set_contains("done", b"u0").unwrap());
+
+    // Fail commit via simulated StorageFull after staging list_push + set_insert + set_clear.
+    store.fail_writes(true);
+    let err = t
+        .atomic(|tx| {
+            tx.list_push("pages", b"p2")?;
+            tx.set_insert("done", b"u1")?;
+            tx.kv_put("meta", b"v2")?;
+            Ok(())
+        })
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        crate::Error::Io(e) if e.kind() == std::io::ErrorKind::StorageFull
+    ));
+    store.fail_writes(false);
+
+    // None of the failed batch's staged writes became visible.
+    assert_eq!(t.kv_get("meta").unwrap().as_deref(), Some(&b"v1"[..]));
+    assert_eq!(t.list_len("pages"), 1);
+    assert!(!t.set_contains("done", b"u1").unwrap());
+
+    // Closure abort leaves zero partial writes too.
+    let aborted = t.atomic(|tx| -> crate::Result<()> {
+        tx.list_push("pages", b"p3")?;
+        tx.set_clear("done")?;
+        Err(crate::Error::Io(std::io::Error::other("abort")))
+    });
+    assert!(aborted.is_err());
+    assert_eq!(t.list_len("pages"), 1);
+    assert!(t.set_contains("done", b"u0").unwrap());
+}

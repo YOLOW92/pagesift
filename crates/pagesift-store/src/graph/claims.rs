@@ -6,7 +6,8 @@ use std::time::SystemTime;
 use pagesift_graph::{
     CitationEdge, ClaimLifecycleRecord, ClaimRecord, ClaimTransition, ConflictRecord,
     DEFAULT_CONTRACT_ID, DocNode, FactCluster, GraphLimits, ObservationOutcome, ProvenanceEdge,
-    SourceLineage, build_fact_clusters_with_lineage, claims_as_of_checked, compute_source_lineage,
+    SourceLineage, build_fact_clusters_from_lifecycles_checked,
+    build_fact_clusters_with_lineage_checked, claims_as_of_checked, compute_source_lineage,
     detect_conflicts_with_lineage, reconcile_resource_claims_for_contract,
 };
 
@@ -160,24 +161,61 @@ impl<'a> GraphStore<'a> {
         Ok(detect_conflicts_with_lineage(claims, &lineage, &citations))
     }
 
-    /// 单次加载溯源与二次引用链，同时计算持久化声明冲突与跨源事实簇（`FactCluster`）。
+    /// 单次加载溯源与二次引用链，同时计算持久化声明冲突、跨源事实簇（`FactCluster`）及分桶截断状态。
     pub fn build_conflicts_and_clusters_for_claims(
         &self,
         claims: &[ClaimRecord],
         as_of_ms: Option<u64>,
     ) -> Result<(Vec<ConflictRecord>, Vec<FactCluster>)> {
+        let (conflicts, clusters, _) =
+            self.build_conflicts_and_clusters_for_claims_checked(claims, as_of_ms)?;
+        Ok((conflicts, clusters))
+    }
+
+    /// Variant of [`Self::build_conflicts_and_clusters_for_claims`] that also reports whether any
+    /// `FactCluster` bucket exceeded `max_claims_per_bucket`.
+    pub fn build_conflicts_and_clusters_for_claims_checked(
+        &self,
+        claims: &[ClaimRecord],
+        as_of_ms: Option<u64>,
+    ) -> Result<(Vec<ConflictRecord>, Vec<FactCluster>, bool)> {
         if claims.is_empty() {
-            return Ok((Vec::new(), Vec::new()));
+            return Ok((Vec::new(), Vec::new(), false));
         }
         let (lineage, citations) = self.load_lineage_and_citations(as_of_ms)?;
         let conflicts = detect_conflicts_with_lineage(claims, &lineage, &citations);
-        let clusters = build_fact_clusters_with_lineage(
+        let (clusters, truncated) = build_fact_clusters_with_lineage_checked(
             claims,
             GraphLimits::default().max_claims_per_bucket,
             &lineage,
             &citations,
         );
-        Ok((conflicts, clusters))
+        Ok((conflicts, clusters, truncated))
+    }
+
+    /// 基于完整声明生命周期计算冲突与事实簇，保留 `Active` 与 `Unverified` 支持度区分并回传截断标记。
+    pub fn build_conflicts_and_clusters_for_lifecycles_checked(
+        &self,
+        records: &[ClaimLifecycleRecord],
+        as_of_ms: Option<u64>,
+    ) -> Result<(Vec<ConflictRecord>, Vec<FactCluster>, bool)> {
+        let live_raw: Vec<ClaimRecord> = records
+            .iter()
+            .filter(|r| r.status.is_active_or_unverified())
+            .map(|r| r.claim.clone())
+            .collect();
+        if live_raw.is_empty() {
+            return Ok((Vec::new(), Vec::new(), false));
+        }
+        let (lineage, citations) = self.load_lineage_and_citations(as_of_ms)?;
+        let conflicts = detect_conflicts_with_lineage(&live_raw, &lineage, &citations);
+        let (clusters, truncated) = build_fact_clusters_from_lifecycles_checked(
+            records,
+            GraphLimits::default().max_claims_per_bucket,
+            &lineage,
+            &citations,
+        );
+        Ok((conflicts, clusters, truncated))
     }
 
     /// List up to [`DEFAULT_GRAPH_CONFLICTS_LIMIT`] stored conflicts, optionally filtered by `subject_key`.

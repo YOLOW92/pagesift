@@ -51,6 +51,7 @@ impl<'a> SyncStore<'a> {
                 active_claims: Vec::new(),
                 conflicts: Vec::new(),
                 fact_clusters: Vec::new(),
+                fact_clusters_truncated: false,
             }));
         }
 
@@ -140,9 +141,8 @@ impl<'a> SyncStore<'a> {
                 }
             }
         }
-        let raw_claims: Vec<_> = active_claims.iter().map(|c| c.claim.clone()).collect();
-        let (conflicts, fact_clusters) =
-            gs.build_conflicts_and_clusters_for_claims(&raw_claims, Some(cutoff))?;
+        let (conflicts, fact_clusters, fact_clusters_truncated) =
+            gs.build_conflicts_and_clusters_for_lifecycles_checked(&active_claims, Some(cutoff))?;
         let history_status = if history_unavailable {
             SourceHistoryStatus::HistoryUnavailable
         } else {
@@ -165,6 +165,7 @@ impl<'a> SyncStore<'a> {
             active_claims,
             conflicts,
             fact_clusters,
+            fact_clusters_truncated,
         }))
     }
 
@@ -197,9 +198,8 @@ impl<'a> SyncStore<'a> {
                 }
             }
         }
-        let raw_claims: Vec<_> = active_claims.iter().map(|c| c.claim.clone()).collect();
-        let (conflicts, fact_clusters) =
-            gs.build_conflicts_and_clusters_for_claims(&raw_claims, None)?;
+        let (conflicts, fact_clusters, fact_clusters_truncated) =
+            gs.build_conflicts_and_clusters_for_lifecycles_checked(&active_claims, None)?;
 
         Ok(Some(SourceStateView {
             source_id: current_spec.id.clone(),
@@ -217,6 +217,7 @@ impl<'a> SyncStore<'a> {
             active_claims,
             conflicts,
             fact_clusters,
+            fact_clusters_truncated,
         }))
     }
 

@@ -29,6 +29,10 @@ pub struct TransferMeta {
     pub seeded_http_mean: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub seeded_browser_mean: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seeded_ej_mean: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seeded_barrier_mean: Option<f64>,
     #[serde(default)]
     pub validation_remaining: u8,
     #[serde(default)]
@@ -47,6 +51,10 @@ pub struct TransferMeta {
     pub local_ej_succ: u32,
     #[serde(default)]
     pub local_ej_fail: u32,
+    #[serde(default)]
+    pub local_barrier_yes: u32,
+    #[serde(default)]
+    pub local_barrier_no: u32,
 }
 
 /// 提取标准化主机与结构化路径骨架（如 `("/products/{id}", "shop.example.com")`）。
@@ -206,9 +214,11 @@ pub fn build_cold_start_seed_with_sources(
         seeded.browser_gain = b;
     }
     if let Some(e) = ej_seed {
+        seeded.transfer.seeded_ej_mean = Some(e.mean());
         seeded.embedded_json = e;
     }
     if let Some(br) = barrier_seed {
+        seeded.transfer.seeded_barrier_mean = Some(br.mean());
         seeded.barrier_rate = br;
     }
     seeded.transfer.tenant_id = tenant_id.map(str::to_string);
@@ -218,7 +228,8 @@ pub fn build_cold_start_seed_with_sources(
     Some(seeded)
 }
 
-/// 在验证窗内检验本地独立观测是否与迁移先验矛盾；若触发负迁移，清除外源先验并仅保留本地后验。
+/// 在验证窗内检验本地独立观测是否与迁移先验矛盾；若触发负迁移，彻底抹除包含 `barrier_rate` 在内的全部外源先验并仅由本地观测重建干净后验。
+/// 返回 `true` 表示本次观测触发了回滚并用含本次观测在内的 `local_*` 计数直接重建了后验，调用方不得再次重复消费 `obs`。
 pub fn validate_or_reject_transfer(stats: &mut FamilyStats, obs: &FamilyObservation) -> bool {
     if stats.transfer.rejected
         || stats.transfer.validation_remaining == 0
@@ -256,10 +267,29 @@ pub fn validate_or_reject_transfer(stats: &mut FamilyStats, obs: &FamilyObservat
         }
     }
     if let Some(ej) = obs.embedded_json_observed {
+        recorded_local_check = true;
         if ej {
             stats.transfer.local_ej_succ = stats.transfer.local_ej_succ.saturating_add(1);
         } else {
             stats.transfer.local_ej_fail = stats.transfer.local_ej_fail.saturating_add(1);
+        }
+        if let Some(seed_mean) = stats.transfer.seeded_ej_mean
+            && ((seed_mean >= 0.65 && !ej) || (seed_mean <= 0.35 && ej))
+        {
+            contradicted = true;
+        }
+    }
+    if let Some(barrier) = obs.encountered_barrier {
+        recorded_local_check = true;
+        if barrier {
+            stats.transfer.local_barrier_yes = stats.transfer.local_barrier_yes.saturating_add(1);
+        } else {
+            stats.transfer.local_barrier_no = stats.transfer.local_barrier_no.saturating_add(1);
+        }
+        if let Some(seed_mean) = stats.transfer.seeded_barrier_mean
+            && ((seed_mean <= 0.25 && barrier) || (seed_mean >= 0.75 && !barrier))
+        {
+            contradicted = true;
         }
     }
 
@@ -272,7 +302,7 @@ pub fn validate_or_reject_transfer(stats: &mut FamilyStats, obs: &FamilyObservat
     stats.transfer.validation_remaining = stats.transfer.validation_remaining.saturating_sub(1);
 
     if stats.transfer.contradiction_count >= 2 {
-        // 负迁移触发回滚：彻底抹除捐赠先验，仅由本地记录重构干净 Beta 后验
+        // 负迁移触发整体回滚：彻底抹除包含 barrier_rate 在内的全部捐赠先验，仅由本地记录重构干净 Beta 后验
         stats.http_sufficient = BetaSnapshot {
             success: stats.transfer.local_http_succ as f64,
             failure: stats.transfer.local_http_fail as f64,
@@ -285,8 +315,16 @@ pub fn validate_or_reject_transfer(stats: &mut FamilyStats, obs: &FamilyObservat
             success: stats.transfer.local_ej_succ as f64,
             failure: stats.transfer.local_ej_fail as f64,
         };
+        stats.barrier_rate = BetaSnapshot {
+            success: stats.transfer.local_barrier_yes as f64,
+            failure: stats.transfer.local_barrier_no as f64,
+        };
         stats.transfer.rejected = true;
         stats.transfer.validation_remaining = 0;
+        stats.transfer.seeded_http_mean = None;
+        stats.transfer.seeded_browser_mean = None;
+        stats.transfer.seeded_ej_mean = None;
+        stats.transfer.seeded_barrier_mean = None;
         stats.drift_count = stats.drift_count.saturating_add(1);
         return true;
     }
