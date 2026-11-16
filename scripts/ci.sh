@@ -111,7 +111,11 @@ if [ -n "$bindings" ]; then
     "$venv/bin/python" -m pytest crates/pagesift-py/tests -q
 fi
 [ -n "$fast" ] && {
-    record_ci_stamp "${bindings:+bindings}${bindings:-fast}"
+    if [ -n "$bindings" ]; then
+        record_ci_stamp bindings
+    else
+        record_ci_stamp fast
+    fi
     step "fast checks passed"
     exit 0
 }
