@@ -55,6 +55,7 @@ fn p0_01_commit_tick_atomic_partial_write_crash_recovers_all_or_nothing() {
                 doc_id: Some("doc-1"),
                 doc_node: None,
                 provenance: &[],
+                citations: &[],
             })
             .unwrap();
         let mut inv1 = vec![rec_at(
@@ -114,6 +115,7 @@ fn p0_01_commit_tick_atomic_partial_write_crash_recovers_all_or_nothing() {
                 doc_id: Some("doc-2"),
                 doc_node: None,
                 provenance: &[],
+                citations: &[],
             })
             .unwrap();
         let mut rec2 = rec_at(&key, url, ResourceLifecycleState::Active, 1000, 2500);

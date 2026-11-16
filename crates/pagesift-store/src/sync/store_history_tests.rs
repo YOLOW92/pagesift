@@ -133,6 +133,7 @@ fn t04_claim_lifecycle_multi_transition_as_of_and_truncation_blind_spot() {
             doc_id: Some(doc_id),
             doc_node: None,
             provenance: &[],
+            citations: &[],
         };
         if include_ver {
             prev_doc = Some(*doc_id);
@@ -259,6 +260,7 @@ fn t06_crash_fault_injection_exhaustive_across_steps_and_reopen() {
                             doc_id: Some(doc_id),
                             doc_node: None,
                             provenance: &[],
+                            citations: &[],
                         })
                         .unwrap();
                     let mut rec = base_rec(&key, url, ResourceLifecycleState::Active, ts);

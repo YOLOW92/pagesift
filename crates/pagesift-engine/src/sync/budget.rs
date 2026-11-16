@@ -71,6 +71,17 @@ impl TickBudgetLedger {
             && self.browser_renders_used < self.max_browser_renders
     }
 
+    pub fn browser_remaining_fraction(&self) -> f64 {
+        if self.max_browser_renders == 0 {
+            return 0.0;
+        }
+        (self
+            .max_browser_renders
+            .saturating_sub(self.browser_renders_used) as f64
+            / self.max_browser_renders as f64)
+            .clamp(0.0, 1.0)
+    }
+
     /// 在实际执行任何网络请求（包含重写回退与浏览器升级）前原子占用配额。
     pub fn try_reserve(&mut self, is_browser: bool) -> bool {
         if self.is_expired() || self.requests_used >= self.max_requests {

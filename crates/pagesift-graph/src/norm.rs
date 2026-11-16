@@ -132,7 +132,21 @@ pub fn normalize_field_key(name: &str) -> String {
 }
 
 /// Normalize a field value into a typed representation while keeping `raw`.
+/// Normalize an arbitrary extracted JSON value using field-name semantics.
 pub fn normalize_field_value(field_name: &str, value: &Value) -> NormalizedValue {
+    normalize_field_value_with_currency(field_name, value, Some("USD"))
+}
+
+/// 带上下文货币线索的字段值归一化：若无显式货币标记，优先采用上下文推理货币（如同级 `priceCurrency`），
+/// 当上下文也完全缺省时显式标为 `"UNKNOWN"` 而非盲目假定 `"USD"`（1.5.5 G5）。
+pub fn normalize_field_value_with_currency(
+    field_name: &str,
+    value: &Value,
+    context_currency: Option<&str>,
+) -> NormalizedValue {
+    let fallback_currency = context_currency
+        .and_then(canonical_currency_code)
+        .unwrap_or_else(|| "UNKNOWN".to_owned());
     match value {
         Value::Bool(b) => NormalizedValue::Boolean {
             value: *b,
@@ -154,7 +168,7 @@ pub fn normalize_field_value(field_name: &str, value: &Value) -> NormalizedValue
             {
                 return NormalizedValue::Money {
                     amount_e4,
-                    currency: "USD".to_owned(),
+                    currency: fallback_currency,
                     period: MoneyPeriod::Unknown,
                     raw,
                 };
@@ -172,7 +186,7 @@ pub fn normalize_field_value(field_name: &str, value: &Value) -> NormalizedValue
                 }
             }
         }
-        Value::String(s) => normalize_string_value(field_name, s),
+        Value::String(s) => normalize_string_value(field_name, s, &fallback_currency),
         other => {
             let raw = other.to_string();
             NormalizedValue::Text {
@@ -183,7 +197,7 @@ pub fn normalize_field_value(field_name: &str, value: &Value) -> NormalizedValue
     }
 }
 
-fn normalize_string_value(field_name: &str, raw: &str) -> NormalizedValue {
+fn normalize_string_value(field_name: &str, raw: &str, fallback_currency: &str) -> NormalizedValue {
     let trimmed = raw.trim();
     if matches!(trimmed.to_ascii_lowercase().as_str(), "true" | "false") {
         return NormalizedValue::Boolean {
@@ -199,7 +213,9 @@ fn normalize_string_value(field_name: &str, raw: &str) -> NormalizedValue {
             raw: trimmed.to_owned(),
         };
     }
-    if let Some((amount_e4, currency, period)) = parse_money(field_name, trimmed) {
+    if let Some((amount_e4, currency, period)) =
+        parse_money_with_fallback(field_name, trimmed, fallback_currency)
+    {
         return NormalizedValue::Money {
             amount_e4,
             currency,
@@ -318,12 +334,44 @@ fn is_money_hint(field_name: &str) -> bool {
         || k.contains("salary")
 }
 
-fn parse_money(field_name: &str, s: &str) -> Option<(i64, String, MoneyPeriod)> {
+/// 仅当文本本身包含明确货币符号或 ISO 代码时返回标准 ISO-4217 代码（不猜测缺失货币）。
+pub fn canonical_currency_code(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("UNKNOWN") {
+        return None;
+    }
+    let upper = trimmed.to_ascii_uppercase();
+    for code in [
+        "USD", "EUR", "GBP", "JPY", "CNY", "RMB", "CHF", "CAD", "AUD", "KRW", "INR", "HKD", "SGD",
+        "TWD", "SEK", "NOK", "DKK",
+    ] {
+        if upper == code || upper.contains(code) {
+            return Some(if code == "RMB" { "CNY" } else { code }.to_owned());
+        }
+    }
+    if trimmed.contains('$') {
+        Some("USD".into())
+    } else if trimmed.contains('€') {
+        Some("EUR".into())
+    } else if trimmed.contains('£') {
+        Some("GBP".into())
+    } else if trimmed.contains('¥') || trimmed.contains('￥') {
+        Some("CNY".into())
+    } else {
+        None
+    }
+}
+
+fn parse_money_with_fallback(
+    field_name: &str,
+    s: &str,
+    fallback_currency: &str,
+) -> Option<(i64, String, MoneyPeriod)> {
     let lower = s.to_ascii_lowercase();
     let (period, body) = extract_period(&lower, s);
     let mut currency = detect_currency(body);
     if currency.is_none() && is_money_hint(field_name) {
-        currency = Some("USD".to_owned());
+        currency = Some(fallback_currency.to_owned());
     }
     let currency = currency?;
     let numeric_part = strip_currency_tokens(body.trim());
@@ -360,25 +408,7 @@ fn extract_period<'a>(lower: &str, orig: &'a str) -> (MoneyPeriod, &'a str) {
 }
 
 fn detect_currency(s: &str) -> Option<String> {
-    let upper = s.to_ascii_uppercase();
-    for code in [
-        "USD", "EUR", "GBP", "JPY", "CNY", "RMB", "CHF", "CAD", "AUD", "KRW",
-    ] {
-        if upper.contains(code) {
-            return Some(if code == "RMB" { "CNY" } else { code }.to_owned());
-        }
-    }
-    if s.contains('$') {
-        Some("USD".into())
-    } else if s.contains('€') {
-        Some("EUR".into())
-    } else if s.contains('£') {
-        Some("GBP".into())
-    } else if s.contains('¥') || s.contains('￥') {
-        Some("CNY".into())
-    } else {
-        None
-    }
+    canonical_currency_code(s)
 }
 
 fn strip_currency_tokens(s: &str) -> String {
@@ -438,6 +468,24 @@ mod tests {
         assert_eq!(
             compare_normalized(&str_usd, &num_usd),
             ValueComparison::Equal
+        );
+
+        // 带上下文与缺失上下文：同币种对齐，无币种标为 UNKNOWN 而非误认 USD
+        let ctx_eur = normalize_field_value_with_currency("price", &json!(66), Some("EUR"));
+        let explicit_eur = normalize_field_value_with_currency("price", &json!("€66"), None);
+        assert_eq!(
+            compare_normalized(&ctx_eur, &explicit_eur),
+            ValueComparison::Equal
+        );
+
+        let unknown_cur = normalize_field_value_with_currency("price", &json!(66), None);
+        assert_eq!(
+            compare_normalized(&unknown_cur, &str_usd),
+            ValueComparison::UnitOrCurrencyMismatch
+        );
+        assert_eq!(
+            compare_normalized(&unknown_cur, &ctx_eur),
+            ValueComparison::UnitOrCurrencyMismatch
         );
     }
 }

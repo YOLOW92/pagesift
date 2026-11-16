@@ -69,6 +69,7 @@ fn rec_at(
         has_embedded_json: false,
         text_signature: None,
         confirmed_gone_at_ms: None,
+        learn: crate::ResourceLearnStats::default(),
     }
 }
 
@@ -188,6 +189,7 @@ fn p0_02_delete_recreate_same_id_prevents_aba_and_persists_across_reopen() {
             doc_id: Some("doc-a"),
             doc_node: None,
             provenance: &[],
+            citations: &[],
         })
         .unwrap();
     let mut inv_a = vec![rec_at(

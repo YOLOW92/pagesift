@@ -2,12 +2,18 @@
 //!
 //! 理论依据：Cho & Garcia-Molina, "Effective Page Refresh Policies for Web Crawlers", ACM TODS 28(4), 2003。
 
+use std::collections::BTreeMap;
+
 use pagesift_plan::experience::{FamilyExperienceTable, FamilyStats};
 use pagesift_plan::render::family;
 use pagesift_plan::strategy::{
     AcquisitionStrategy, AdaptDecision, StrategyInput, select_acquisition_strategy,
 };
 use pagesift_stat::Delta;
+use pagesift_stat::poisson::ChangeRate;
+use pagesift_stat::regularity::{
+    WaterfillItem, hierarchical_change_rate, lagrange_waterfill_intervals,
+};
 use pagesift_store::{
     DataSourceSpec, MAX_REQUESTS_PER_TICK_CAP, ResourceLifecycleState, ResourceRecord,
 };
@@ -70,11 +76,65 @@ pub fn compute_next_due_at_ms(
         return now_ms.saturating_add(secs_to_millis_saturated(backoff_secs));
     }
 
+    // Priority 1: 单资源自身经非混叠验证的周期性规律（不混叠才触发，否则无缝回退层次泊松）
+    if !substantive_changed
+        && let Some(delay_secs) = rec.learn.next_periodic_delay_secs(
+            rec.last_substantive_change_at_ms,
+            now_ms,
+            min_secs,
+            max_secs,
+        )
+    {
+        return now_ms.saturating_add(secs_to_millis_saturated(delay_secs));
+    }
+
+    // Priority 2: 族级共享周期规律（针对冷启动/稀疏同构路径）
+    if !substantive_changed
+        && rec.learn.change_count < 2
+        && let Some(st) = fam_stats.filter(|s| s.total_observations >= 3)
+        && let Some(fam_delay) = st.substantive_change.regularity.next_delay_secs(
+            rec.last_substantive_change_at_ms.unwrap_or(now_ms),
+            min_secs,
+            max_secs,
+        )
+    {
+        return now_ms.saturating_add(secs_to_millis_saturated(fam_delay));
+    }
+
+    // Priority 3: Gamma-Poisson 层次收缩，融合族先验率与单资源实际变/未变暴露，区分长稳与突发个体
     let raw_base = match fam_stats.filter(|s| s.total_observations >= 2) {
-        Some(st) => st.next_check_secs(Delta::DEFAULT.get()),
+        Some(st) => {
+            if rec.learn.exposure_secs >= min_secs || rec.learn.change_count > 0 {
+                let fam_rate = st.substantive_change_rate_per_sec();
+                let prior_w = 7200.0;
+                let blended_rate = hierarchical_change_rate(
+                    fam_rate,
+                    prior_w,
+                    rec.learn.change_count,
+                    rec.learn.exposure_secs,
+                );
+                let eff_exp = (prior_w + rec.learn.exposure_secs).max(1.0);
+                let eff_k = blended_rate * eff_exp;
+                let mut intervals = Vec::new();
+                if eff_k >= 0.5 && blended_rate > 0.0 {
+                    intervals.push(1.0 / blended_rate);
+                }
+                ChangeRate {
+                    shape: 1.0 + eff_k,
+                    exposure: eff_exp,
+                    changed: intervals,
+                }
+                .next_check(Delta::DEFAULT.get())
+            } else {
+                st.next_check_secs(Delta::DEFAULT.get())
+            }
+        }
         None => {
             if substantive_changed {
                 (default_secs * 0.5).max(min_secs)
+            } else if rec.learn.unchanged_count >= 2 && rec.learn.change_count == 0 {
+                (default_secs * (1.0 + 0.35 * (rec.learn.unchanged_count.min(4) as f64)))
+                    .min(max_secs)
             } else {
                 default_secs
             }
@@ -106,17 +166,85 @@ pub fn select_tick_candidates(
     now_ms: u64,
     force_all_active: bool,
 ) -> (Vec<ScheduledCandidate>, usize, usize) {
+    select_tick_candidates_with_context(
+        spec,
+        inventory,
+        experience,
+        now_ms,
+        force_all_active,
+        1.0,
+        0.0,
+    )
+}
+
+/// 联合考虑预算约束拉格朗日注水间隔、浏览器配额余量及实时标签池占用率的候选调度选择（G2/G3）。
+pub fn select_tick_candidates_with_context(
+    spec: &DataSourceSpec,
+    inventory: &[ResourceRecord],
+    experience: &FamilyExperienceTable,
+    now_ms: u64,
+    force_all_active: bool,
+    browser_budget_fraction: f64,
+    browser_tab_utilization: f64,
+) -> (Vec<ScheduledCandidate>, usize, usize) {
     let max_reqs = spec
         .budget
         .max_requests_per_tick
         .clamp(1, MAX_REQUESTS_PER_TICK_CAP);
-    let default_interval_ms = (spec
+    let min_secs = spec.freshness.min_interval_secs.max(1) as f64;
+    let max_secs = spec
         .freshness
-        .default_interval_secs
-        .max(spec.freshness.min_interval_secs)
-        .max(1) as f64)
-        * 1000.0;
+        .max_interval_secs
+        .max(spec.freshness.min_interval_secs.max(1)) as f64;
+    let default_secs = (spec.freshness.default_interval_secs as f64).clamp(min_secs, max_secs);
+    let default_interval_ms = default_secs * 1000.0;
     let contract_id = spec.contract_id();
+
+    // 在活跃集合上计算受预算约束的拉格朗日最优间隔 T_j*
+    let active_records: Vec<&ResourceRecord> = inventory
+        .iter()
+        .filter(|r| {
+            !matches!(
+                r.state,
+                ResourceLifecycleState::ConfirmedGone | ResourceLifecycleState::Migrated
+            )
+        })
+        .collect();
+    let wf_items: Vec<WaterfillItem> = active_records
+        .iter()
+        .map(|rec| {
+            let fam_name = family(&rec.url);
+            let fam_stats = experience.get_family(&fam_name);
+            let fam_rate = fam_stats.as_ref().map_or(
+                1.0 / default_secs,
+                FamilyStats::substantive_change_rate_per_sec,
+            );
+            let rate = hierarchical_change_rate(
+                fam_rate,
+                7200.0,
+                rec.learn.change_count,
+                rec.learn.exposure_secs,
+            )
+            .max(1.0 / max_secs.max(3600.0));
+            let cost_ms = fam_stats.map_or(55.0, |s| s.ewma_cost_ms.max(15.0));
+            let weight = sanitize_weight(rec.importance_weight)
+                * if rec.role.is_hub_like() { 1.5 } else { 1.0 };
+            WaterfillItem {
+                weight,
+                rate_per_sec: rate,
+                cost_ms,
+                min_interval_secs: min_secs,
+                max_interval_secs: max_secs,
+            }
+        })
+        .collect();
+    let sustainable_budget_cost_per_sec = ((max_reqs as f64) * 140.0) / default_secs.max(1.0);
+    let wf_intervals = lagrange_waterfill_intervals(&wf_items, sustainable_budget_cost_per_sec);
+    let wf_by_key: BTreeMap<&str, f64> = active_records
+        .iter()
+        .zip(wf_intervals)
+        .map(|(r, t)| (r.resource_key.as_str(), t))
+        .collect();
 
     let due_records: Vec<&ResourceRecord> = inventory
         .iter()
@@ -146,7 +274,11 @@ pub fn select_tick_candidates(
             .map_or(default_interval_ms * 2.0, |last| {
                 now_ms.saturating_sub(last) as f64
             });
-        let staleness_ratio = (elapsed_ms / default_interval_ms).max(0.1);
+        let target_ms = wf_by_key
+            .get(rec.resource_key.as_str())
+            .map(|&s| s * 1000.0)
+            .unwrap_or(default_interval_ms);
+        let staleness_ratio = (elapsed_ms / target_ms.max(1000.0)).max(0.1);
         let has_matching_validators = (rec.etag.is_some() || rec.last_modified.is_some())
             && rec.last_validator_contract_id.as_deref() == Some(contract_id.as_str())
             && rec.baseline_sufficient;
@@ -160,6 +292,9 @@ pub fn select_tick_candidates(
             staleness_ratio,
             remaining_budget_fraction: order_independent_budget_ratio,
             allow_browser: spec.allow_browser,
+            browser_budget_fraction,
+            browser_tab_utilization,
+            probe_recovery_eligible: true,
         };
         let decision = select_acquisition_strategy(&input, fam_stats.as_ref());
         scored.push(ScheduledCandidate {
@@ -256,6 +391,7 @@ mod tests {
             has_embedded_json: false,
             text_signature: None,
             confirmed_gone_at_ms: Some(1000),
+            learn: pagesift_store::ResourceLearnStats::default(),
         }
     }
 

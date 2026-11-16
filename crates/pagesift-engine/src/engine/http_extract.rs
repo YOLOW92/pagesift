@@ -49,6 +49,7 @@ pub(super) async fn extract_fetched(
     let want_traces = graph_opts
         .as_ref()
         .is_some_and(|g| g.evidence || g.facts || g.conflicts);
+    let try_embedded_json = opts.try_embedded_json;
     let base_str = want_dom.then(|| base.to_string());
     cpu_task(move || {
         let decoded = decode();
@@ -135,7 +136,7 @@ pub(super) async fn extract_fetched(
         // 正文不够时看页面数据岛里有没有正文（不用浏览器）。合并结果只用在最后返回 HTTP 结果的时候：
         // 要不要渲染、渲染有没有增益都按 HTTP 本身的结果判断——质量分不看篇幅，补进一个标题和一段简介
         // 就会接近满分，拿它去和渲染出的整页比会把整页丢掉
-        let embedded = (auto && !tagged && needs_render(&doc))
+        let embedded = ((auto || try_embedded_json) && !tagged && needs_render(&doc))
             .then(|| {
                 let mut merged = doc.clone();
                 let step = super::planner::embedded_json(&mut merged, &html)?;

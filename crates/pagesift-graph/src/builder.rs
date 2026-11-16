@@ -5,7 +5,9 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 
 use crate::citation::{CitationEdge, aggregate_citations_checked, extract_markdown_links};
 use crate::conflict::detect_conflicts_with_lineage;
-use crate::corroborate::{ClaimRecord, resolve_entity_subject_keys};
+use crate::corroborate::{
+    ClaimRecord, resolve_entity_subject_keys, resolve_trace_context_currencies,
+};
 use crate::delta::{DocumentInput, PageGraphDelta};
 use crate::evidence::align_traces;
 use crate::evidence_json::collect_all_traces;
@@ -312,12 +314,14 @@ impl StreamingGraphBuilder {
 
         let mut page_claims = Vec::new();
         if self.options.facts || self.options.conflicts {
-            for ((trace, trace_subject), span) in all_traces
+            let context_currencies = resolve_trace_context_currencies(&all_traces);
+            for (((trace, trace_subject), span), ctx_currency) in all_traces
                 .iter()
                 .zip(trace_subjects.iter())
                 .zip(aligned_evidence.iter())
+                .zip(context_currencies.iter())
             {
-                let mut claim = ClaimRecord::from_trace(
+                let mut claim = ClaimRecord::from_trace_with_currency(
                     &trace_subject.key,
                     &resource_key,
                     &doc_id,
@@ -328,6 +332,7 @@ impl StreamingGraphBuilder {
                     trusted_canonical.clone(),
                     trace,
                     span.clone(),
+                    ctx_currency.as_deref(),
                 );
                 let claim_temporal = TemporalSemantics::for_claim(
                     &temporal,

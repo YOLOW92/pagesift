@@ -1,11 +1,12 @@
 //! Persistent conflict records and claim lifecycle (`ClaimLifecycleRecord`) storage and queries.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::time::SystemTime;
 
 use pagesift_graph::{
-    ClaimLifecycleRecord, ClaimRecord, ClaimTransition, ConflictRecord, DEFAULT_CONTRACT_ID,
-    DocNode, ObservationOutcome, ProvenanceEdge, claims_as_of_checked, compute_source_lineage,
+    CitationEdge, ClaimLifecycleRecord, ClaimRecord, ClaimTransition, ConflictRecord,
+    DEFAULT_CONTRACT_ID, DocNode, FactCluster, GraphLimits, ObservationOutcome, ProvenanceEdge,
+    SourceLineage, build_fact_clusters_with_lineage, claims_as_of_checked, compute_source_lineage,
     detect_conflicts_with_lineage, reconcile_resource_claims_for_contract,
 };
 
@@ -100,6 +101,7 @@ impl<'a> GraphStore<'a> {
         let prov_keys = tx.keys_matching(ns::GRAPH_FACT, &prov_prefix)?;
         let mut nodes: Vec<DocNode> = Vec::new();
         let mut edges: Vec<ProvenanceEdge> = Vec::new();
+        let mut citations: Vec<CitationEdge> = Vec::new();
         for key in prov_keys {
             let Some((_, raw)) = tx.get(ns::GRAPH_FACT, &key)? else {
                 continue;
@@ -109,28 +111,25 @@ impl<'a> GraphStore<'a> {
                 nodes.push(node);
             }
             edges.extend(prov.edges);
+            citations.extend(prov.citations);
         }
         let lineage = compute_source_lineage(&nodes, &edges);
-        let conflicts = detect_conflicts_with_lineage(&active_claims, &lineage, &[]);
+        let conflicts = detect_conflicts_with_lineage(&active_claims, &lineage, &citations);
         self.stage_conflicts_for_subjects_in_tx(tx, subjects, &conflicts, now_ms)?;
         Ok(conflicts)
     }
 
-    /// 结合持久化溯源图（`PREFIX_PROV`）按独立信源计算给定活跃声明集合的冲突列表（C26 / R06）。
-    pub fn detect_conflicts_for_claims(
+    fn load_lineage_and_citations(
         &self,
-        claims: &[ClaimRecord],
         as_of_ms: Option<u64>,
-    ) -> Result<Vec<ConflictRecord>> {
-        if claims.is_empty() {
-            return Ok(Vec::new());
-        }
+    ) -> Result<(BTreeMap<String, SourceLineage>, Vec<CitationEdge>)> {
         let prov_prefix = self.scoped_prefixed(PREFIX_PROV, "");
         let prov_keys = self
             .store
             .keys(ns::GRAPH_FACT, |k| k.starts_with(&prov_prefix))?;
         let mut nodes: Vec<DocNode> = Vec::new();
         let mut edges: Vec<ProvenanceEdge> = Vec::new();
+        let mut citations: Vec<CitationEdge> = Vec::new();
         for key in prov_keys {
             let Some((_, raw)) = self.store.get(ns::GRAPH_FACT, &key)? else {
                 continue;
@@ -143,9 +142,42 @@ impl<'a> GraphStore<'a> {
                 nodes.push(node);
             }
             edges.extend(prov.edges);
+            citations.extend(prov.citations);
         }
-        let lineage = compute_source_lineage(&nodes, &edges);
-        Ok(detect_conflicts_with_lineage(claims, &lineage, &[]))
+        Ok((compute_source_lineage(&nodes, &edges), citations))
+    }
+
+    /// 结合持久化溯源图（`PREFIX_PROV` 含二次引用 `citations`）按独立信源计算活跃声明的冲突列表（C26 / R06 / G5）。
+    pub fn detect_conflicts_for_claims(
+        &self,
+        claims: &[ClaimRecord],
+        as_of_ms: Option<u64>,
+    ) -> Result<Vec<ConflictRecord>> {
+        if claims.is_empty() {
+            return Ok(Vec::new());
+        }
+        let (lineage, citations) = self.load_lineage_and_citations(as_of_ms)?;
+        Ok(detect_conflicts_with_lineage(claims, &lineage, &citations))
+    }
+
+    /// 单次加载溯源与二次引用链，同时计算持久化声明冲突与跨源事实簇（`FactCluster`）。
+    pub fn build_conflicts_and_clusters_for_claims(
+        &self,
+        claims: &[ClaimRecord],
+        as_of_ms: Option<u64>,
+    ) -> Result<(Vec<ConflictRecord>, Vec<FactCluster>)> {
+        if claims.is_empty() {
+            return Ok((Vec::new(), Vec::new()));
+        }
+        let (lineage, citations) = self.load_lineage_and_citations(as_of_ms)?;
+        let conflicts = detect_conflicts_with_lineage(claims, &lineage, &citations);
+        let clusters = build_fact_clusters_with_lineage(
+            claims,
+            GraphLimits::default().max_claims_per_bucket,
+            &lineage,
+            &citations,
+        );
+        Ok((conflicts, clusters))
     }
 
     /// List up to [`DEFAULT_GRAPH_CONFLICTS_LIMIT`] stored conflicts, optionally filtered by `subject_key`.

@@ -4,7 +4,9 @@ use std::collections::BTreeMap;
 
 use pagesift_graph::DocNode;
 use pagesift_net::Url;
-use pagesift_store::{DataSourceSpec, ResourceLifecycleState, ResourceRecord, ResourceRole};
+use pagesift_store::{
+    DataSourceSpec, ResourceLearnStats, ResourceLifecycleState, ResourceRecord, ResourceRole,
+};
 
 use crate::frontier;
 
@@ -162,6 +164,7 @@ pub(crate) fn new_discovered_record(
         last_strategy: None,
         title: None,
         claim_count: 0,
+        learn: ResourceLearnStats::default(),
     }
 }
 
@@ -183,13 +186,15 @@ pub fn ensure_seeds_in_inventory(
 }
 
 /// 单次抓取结果对清单条目的观测输入（不再接收预计算 `next_due_at_ms`，强制先状态迁移再算退避，C19）。
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct InventoryObservation {
     pub now_ms: u64,
     pub status_code: u16,
     pub not_modified_304: bool,
     pub is_barrier_or_error: bool,
     pub had_transport_error: bool,
+    pub unreliable_observation: bool,
+    pub last_modified_at_ms: Option<u64>,
     pub final_url: String,
     pub canonical_url: Option<String>,
     pub permanent_redirect_target: Option<String>,
@@ -214,17 +219,39 @@ pub fn apply_observation_to_record(
     rec: &mut ResourceRecord,
     obs: &InventoryObservation,
 ) -> Option<String> {
+    let prev_checked_at_ms = rec.last_checked_at_ms;
     rec.last_checked_at_ms = Some(obs.now_ms);
     if !obs.had_transport_error {
         rec.last_status_code = Some(obs.status_code);
     }
     rec.last_strategy = Some(obs.strategy_used.clone());
 
+    // G1/G5 不可靠观测（uncertain decode / body_truncated / invalid 304）：
+    // 绝不覆写既有 ETag/Last-Modified/latest_doc_id/text_signature，仅转入温和重试态
+    if obs.unreliable_observation {
+        rec.learn.last_observation_unreliable = true;
+        rec.consecutive_failures = rec.consecutive_failures.saturating_add(1);
+        rec.consecutive_404s = 0;
+        rec.state = ResourceLifecycleState::TransientFailure;
+        return None;
+    }
+    rec.learn.last_observation_unreliable = false;
+
     if obs.not_modified_304 {
         rec.consecutive_failures = 0;
         rec.consecutive_404s = 0;
         rec.confirmed_gone_at_ms = None;
         if obs.capture_sufficient {
+            if let Some(prev_chk) = prev_checked_at_ms {
+                let dt_secs = (obs.now_ms.saturating_sub(prev_chk) as f64 / 1000.0).max(1.0);
+                rec.learn.record_observation(
+                    dt_secs,
+                    false,
+                    obs.now_ms,
+                    obs.last_modified_at_ms,
+                    rec.last_substantive_change_at_ms,
+                );
+            }
             rec.state = ResourceLifecycleState::Active;
             rec.baseline_sufficient = true;
             rec.last_validator_contract_id = Some(obs.contract_id.clone());
@@ -321,6 +348,16 @@ pub fn apply_observation_to_record(
     } else {
         1.0
     };
+    if !first_baseline && let Some(prev_chk) = prev_checked_at_ms {
+        let dt_secs = (obs.now_ms.saturating_sub(prev_chk) as f64 / 1000.0).max(1.0);
+        rec.learn.record_observation(
+            dt_secs,
+            obs.substantive_changed,
+            obs.now_ms,
+            obs.last_modified_at_ms,
+            rec.last_substantive_change_at_ms,
+        );
+    }
     if first_baseline {
         rec.last_substantive_change_at_ms = Some(obs.now_ms);
     } else if obs.substantive_changed {
@@ -386,6 +423,7 @@ mod tests {
             claim_count: 1,
             substantive_changed: false,
             strategy_used: "lightweight_http".to_string(),
+            ..Default::default()
         }
     }
 

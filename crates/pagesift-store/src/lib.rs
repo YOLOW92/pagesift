@@ -53,10 +53,10 @@ pub use selectors::{SelectorEntry, Selectors};
 pub use snapshot::{ContentHash, SnapshotMeta, SnapshotPut, Snapshots};
 pub use sync::{
     DataSourceSpec, FreshnessPolicy, MAX_CHECKPOINTS_PER_SOURCE, MAX_DELTAS_PER_SOURCE,
-    MAX_REQUESTS_PER_TICK_CAP, ResourceChangeEntry, ResourceLifecycleState, ResourceRecord,
-    ResourceRole, SourceHistoryStatus, SourceMeta, SourceSpecRevision, SourceStateCheckpoint,
-    SourceStateView, SpecCasOutcome, SyncBudget, SyncDelta, SyncStore, SyncTickStats,
-    TickCommitOutcome, TickCommitRequest, now_store_ms,
+    MAX_REQUESTS_PER_TICK_CAP, ResourceChangeEntry, ResourceLearnStats, ResourceLifecycleState,
+    ResourceRecord, ResourceRole, SourceHistoryStatus, SourceMeta, SourceSpecRevision,
+    SourceStateCheckpoint, SourceStateView, SpecCasOutcome, SyncBudget, SyncDelta, SyncStore,
+    SyncTickStats, TickCommitOutcome, TickCommitRequest, now_store_ms,
 };
 pub use tasks::Tasks;
 pub use warc::{

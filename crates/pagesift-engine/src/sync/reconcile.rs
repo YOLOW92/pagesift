@@ -15,7 +15,10 @@ use pagesift_store::{
     ResourceRecord, SyncTickStats,
 };
 
-use super::capture::{has_embedded_json_signal, is_barrier_doc, sync_learner_into_experience};
+use super::capture::{
+    assess_capture_reliability, has_embedded_json_signal, is_barrier_doc,
+    sync_learner_into_experience,
+};
 use super::inventory::{InventoryObservation, apply_observation_to_record, normalize_in_scope_url};
 use super::scheduler::{ScheduledCandidate, compute_next_due_at_ms};
 use crate::frontier::Learner;
@@ -69,6 +72,15 @@ pub(super) struct HttpAttemptMeta {
     pub not_modified_304: bool,
     pub sufficient: bool,
     pub has_embedded_json: bool,
+    pub http_cost_ms: f64,
+}
+
+#[derive(Debug, Clone, Default)]
+pub(super) struct ExecutionTelemetry {
+    pub used_browser: bool,
+    pub browser_cost_ms: Option<f64>,
+    pub browser_failed: Option<bool>,
+    pub tenant_id: Option<String>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -81,6 +93,7 @@ pub(super) fn reconcile_candidate_success(
     http_meta: Option<HttpAttemptMeta>,
     final_assessment: &CaptureAssessment,
     browser_gain_obs: Option<bool>,
+    exec: &ExecutionTelemetry,
     step_cost_ms: f64,
     obs_time_ms: u64,
     prev_state: Option<ResourceLifecycleState>,
@@ -98,15 +111,24 @@ pub(super) fn reconcile_candidate_success(
 ) -> Result<(), ApiError> {
     let rec_key = cand.record.resource_key.clone();
     let status_code = doc.metadata.status_code;
+    let reliability = assess_capture_reliability(doc);
     let not_modified_304 = doc
         .metadata
         .pagesift
         .as_ref()
-        .is_some_and(|p| p.not_modified);
+        .is_some_and(|p| p.not_modified)
+        && !reliability.invalid_304;
     let is_barrier = is_barrier_doc(doc);
+    let unreliable = reliability.is_unreliable();
     let http_ok = !is_barrier && status_code < 400;
-    let capture_sufficient = final_assessment.sufficient;
+    let capture_sufficient = final_assessment.sufficient && !unreliable;
 
+    if unreliable {
+        stats.uncertain_observations += 1;
+    }
+    if cand.decision.exploration_probe && !exec.used_browser && http_ok && capture_sufficient {
+        stats.probe_recoveries += 1;
+    }
     if not_modified_304 && capture_sufficient {
         stats.conditional_304_hits += 1;
     }
@@ -114,7 +136,7 @@ pub(super) fn reconcile_candidate_success(
         stats.access_restricted_count += 1;
     } else if status_code >= 500 {
         stats.transient_failures += 1;
-    } else if !not_modified_304 && status_code < 400 && !capture_sufficient {
+    } else if !unreliable && !not_modified_304 && status_code < 400 && !capture_sufficient {
         stats.insufficient_captures += 1;
     }
 
@@ -129,20 +151,23 @@ pub(super) fn reconcile_candidate_success(
     let non_confirm_transition = page_transitions
         .iter()
         .any(|t| !matches!(t.kind, ClaimTransitionKind::Confirmed));
-    let substantive_changed = if not_modified_304 {
+    let substantive_changed = if unreliable {
+        false
+    } else if not_modified_304 {
         capture_sufficient && sub_blocks > 0
     } else if http_ok && capture_sufficient {
         prev_doc_id.is_none() || sub_blocks > 0 || non_confirm_transition
     } else {
         false
     };
-    let noise_only = !not_modified_304
+    let noise_only = !unreliable
+        && !not_modified_304
         && http_ok
         && capture_sufficient
         && !substantive_changed
         && noise_blocks > 0;
 
-    if !not_modified_304 && http_ok && capture_sufficient {
+    if !unreliable && !not_modified_304 && http_ok && capture_sufficient {
         stats.authoritative_successes += 1;
         if prev_doc_id.is_some() {
             if substantive_changed {
@@ -165,41 +190,65 @@ pub(super) fn reconcile_candidate_success(
     let has_links = doc.links.as_ref().is_some_and(|l| !l.is_empty());
     let has_embedded = has_embedded_json_signal(doc);
     let md_str = doc.markdown.as_deref().unwrap_or_default();
-    let text_sig = (http_ok && capture_sufficient && !not_modified_304)
+    let text_sig = (!unreliable && http_ok && capture_sufficient && !not_modified_304)
         .then(|| Learner::content_signature(md_str));
 
-    if http_ok && capture_sufficient && !not_modified_304 {
+    if !unreliable && http_ok && capture_sufficient && !not_modified_304 {
         sync_learner_into_experience(learner, experience, &cand.record.url, md_str, obs_time_ms);
     }
 
     let encountered_barrier = if is_barrier {
         Some(true)
-    } else if status_code < 400 {
+    } else if status_code < 400 && !unreliable {
         Some(false)
     } else {
         None
     };
 
-    experience.record_observation(
+    experience.record_observation_for_tenant(
         &fam_name,
+        exec.tenant_id.as_deref(),
         &FamilyObservation {
             observed_at_ms: obs_time_ms,
-            http_sufficient: http_meta
-                .filter(|m| m.http_ok && !m.not_modified_304)
-                .map(|m| m.sufficient),
-            browser_gain: browser_gain_obs,
-            conditional_hit: (strategy_used == AcquisitionStrategy::ConditionalHttp && http_ok)
-                .then_some(not_modified_304 && capture_sufficient),
-            embedded_json_observed: http_meta
-                .filter(|m| m.http_ok && !m.not_modified_304)
-                .map(|m| m.has_embedded_json),
-            substantive_change: (http_ok && capture_sufficient && prev_doc_id.is_some())
-                .then(|| dt_secs.map(|dt| (dt, substantive_changed)))
+            http_sufficient: (!unreliable)
+                .then(|| {
+                    http_meta
+                        .filter(|m| m.http_ok && !m.not_modified_304)
+                        .map(|m| m.sufficient)
+                })
                 .flatten(),
-            yielded_claims_or_links: (http_ok && capture_sufficient && !not_modified_304)
+            browser_gain: (!unreliable).then_some(browser_gain_obs).flatten(),
+            conditional_hit: (!unreliable
+                && strategy_used == AcquisitionStrategy::ConditionalHttp
+                && http_ok)
+                .then_some(not_modified_304 && capture_sufficient),
+            embedded_json_observed: (!unreliable)
+                .then(|| {
+                    http_meta
+                        .filter(|m| m.http_ok && !m.not_modified_304)
+                        .map(|m| m.has_embedded_json)
+                })
+                .flatten(),
+            substantive_change: (!unreliable
+                && http_ok
+                && capture_sufficient
+                && prev_doc_id.is_some())
+            .then(|| dt_secs.map(|dt| (dt, substantive_changed)))
+            .flatten(),
+            yielded_claims_or_links: (!unreliable
+                && http_ok
+                && capture_sufficient
+                && !not_modified_304)
                 .then_some(claim_count > 0 || has_links),
             encountered_barrier,
             cost_ms: step_cost_ms,
+            unreliable_observation: unreliable,
+            used_browser: exec.used_browser,
+            is_304: not_modified_304 && capture_sufficient,
+            http_cost_ms: http_meta.map(|m| m.http_cost_ms),
+            browser_cost_ms: exec.browser_cost_ms,
+            browser_failed: exec.browser_failed,
+            last_modified_at_ms: None,
         },
     );
 
@@ -229,6 +278,8 @@ pub(super) fn reconcile_candidate_success(
                 not_modified_304,
                 is_barrier_or_error: is_barrier,
                 had_transport_error: false,
+                unreliable_observation: unreliable,
+                last_modified_at_ms: None,
                 final_url: final_url.clone(),
                 canonical_url: doc.metadata.canonical_url.clone(),
                 permanent_redirect_target: perm_target,
@@ -257,7 +308,12 @@ pub(super) fn reconcile_candidate_success(
         current_state = rec_mut.state;
     }
 
-    let obs_outcome = if not_modified_304 && capture_sufficient {
+    let obs_outcome = if unreliable {
+        // 不确定解码或截断观测不具备权威性，既有 Active 声明转为 Unverified 而非误撤销（G1/G5）
+        ObservationOutcome::TransientFetchError {
+            error: "unreliable_capture: uncertain_decode_or_truncated".to_string(),
+        }
+    } else if not_modified_304 && capture_sufficient {
         ObservationOutcome::NotModified304
     } else if status_code == 410 || current_state == ResourceLifecycleState::ConfirmedGone {
         ObservationOutcome::ConfirmedGone {
@@ -350,8 +406,24 @@ pub(super) fn reconcile_candidate_success(
 
     if cand.record.depth < spec.max_depth && http_ok && capture_sufficient {
         let next_depth = cand.record.depth + 1;
+        let hub_propagates = cand.record.role.is_hub_like() && substantive_changed && !unreliable;
+        let min_interval_ms = spec.freshness.min_interval_secs.max(1).saturating_mul(1000);
         for link in doc.links.as_deref().unwrap_or(&[]) {
             if let Some(norm_link) = normalize_in_scope_url(spec, link) {
+                if hub_propagates {
+                    let child_key = DocNode::derive_resource_key(None, &norm_link);
+                    if let Some(child) = inventory.get_mut(&child_key)
+                        && child.state == ResourceLifecycleState::Active
+                        && child.next_due_at_ms > obs_time_ms.saturating_add(min_interval_ms)
+                    {
+                        let remaining = child.next_due_at_ms.saturating_sub(obs_time_ms);
+                        let pulled = obs_time_ms.saturating_add(min_interval_ms.max(remaining / 4));
+                        if pulled < child.next_due_at_ms {
+                            child.next_due_at_ms = pulled;
+                            stats.co_changed_triggered += 1;
+                        }
+                    }
+                }
                 insert_discovered_resource(
                     inventory,
                     norm_link,

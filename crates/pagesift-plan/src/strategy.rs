@@ -62,10 +62,34 @@ pub struct StrategyInput {
     pub importance_weight: f64,
     /// 过期比：`距上次检查时间 / 目标检查间隔`（`>= 1.0` 表示已到期）。
     pub staleness_ratio: f64,
-    /// 当前周期剩余请求预算比例（`0.0..=1.0`）。
+    /// 当前周期剩余总请求预算比例（`0.0..=1.0`）。
     pub remaining_budget_fraction: f64,
     /// 当前环境与调用参数是否允许使用浏览器。
     pub allow_browser: bool,
+    /// 当前周期剩余浏览器名额比例（`0.0..=1.0`；默认 `1.0`）。
+    pub browser_budget_fraction: f64,
+    /// 当前实时浏览器标签占池上限利用率（`0.0..=1.0`；默认 `0.0`）。
+    pub browser_tab_utilization: f64,
+    /// 调度器允许在长期 `DirectBrowser` 后触发一次低成本 HTTP 回探验证 SSR 回迁。
+    pub probe_recovery_eligible: bool,
+}
+
+impl Default for StrategyInput {
+    fn default() -> Self {
+        Self {
+            url: String::new(),
+            has_validators: false,
+            has_embedded_json_hint: false,
+            is_hub_or_seed: false,
+            importance_weight: 1.0,
+            staleness_ratio: 1.0,
+            remaining_budget_fraction: 1.0,
+            allow_browser: false,
+            browser_budget_fraction: 1.0,
+            browser_tab_utilization: 0.0,
+            probe_recovery_eligible: true,
+        }
+    }
 }
 
 /// 可解释的自适应采集决策。
@@ -76,10 +100,86 @@ pub struct AdaptDecision {
     pub strategy: AcquisitionStrategy,
     pub priority_score: f64,
     pub expected_cost_ms: f64,
+    #[serde(default)]
+    pub expected_value: f64,
+    #[serde(default)]
+    pub shadow_price: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reuse_source: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub exploration_probe: bool,
     pub reasons: Vec<String>,
 }
 
-/// 根据资源信号与路径族跨周期经验选择采集策略与调度优先级。
+const DIRECT_BROWSER_RECOVERY_PERIOD: u32 = 6;
+
+fn browser_shadow_price(input: &StrategyInput) -> f64 {
+    let budget_tight = (1.0 - input.browser_budget_fraction.clamp(0.0, 1.0)).powi(2);
+    let tab_pressure = input.browser_tab_utilization.clamp(0.0, 1.0).powi(2);
+    1.0 + 3.0 * budget_tight + 2.5 * tab_pressure
+}
+
+fn finish_decision(
+    fam: String,
+    strategy: AcquisitionStrategy,
+    input: &StrategyInput,
+    stats: Option<&FamilyStats>,
+    priority_score: f64,
+    exploration_probe: bool,
+    reasons: Vec<String>,
+) -> AdaptDecision {
+    let shadow_price = browser_shadow_price(input);
+    let expected_cost_ms = match strategy {
+        AcquisitionStrategy::DeferOrSkip => 0.0,
+        other => stats.map_or(
+            match other {
+                AcquisitionStrategy::ConditionalHttp => 25.0,
+                AcquisitionStrategy::LightweightHttp => 45.0,
+                AcquisitionStrategy::HttpWithEmbeddedJson => 45.0,
+                AcquisitionStrategy::HttpVerifyBrowser => 140.0,
+                AcquisitionStrategy::DirectBrowser => 550.0,
+                AcquisitionStrategy::DeferOrSkip => 0.0,
+            },
+            |s| s.expected_cost_for(other),
+        ),
+    };
+    let yield_prob = stats.map_or(0.65, |s| s.claim_yield.mean().clamp(0.2, 1.0));
+    let pass_prob = stats.map_or(0.85, |s| (1.0 - s.barrier_rate.mean()).clamp(0.1, 1.0));
+    let raw_gain = input.importance_weight.max(0.1)
+        * input.staleness_ratio.clamp(0.25, 4.0)
+        * (if input.is_hub_or_seed { 1.35 } else { 1.0 })
+        * yield_prob
+        * pass_prob;
+    let effective_cost_penalty = if strategy.allows_browser() {
+        (expected_cost_ms / 500.0) * shadow_price
+    } else {
+        expected_cost_ms / 500.0
+    };
+    let expected_value = match strategy {
+        AcquisitionStrategy::DeferOrSkip => 0.0,
+        _ => (raw_gain - 0.12 * effective_cost_penalty).max(-1.0),
+    };
+    let reuse_source = stats.and_then(|s| {
+        if !s.transfer.rejected {
+            s.transfer.donor_description.clone()
+        } else {
+            None
+        }
+    });
+    AdaptDecision {
+        family: fam,
+        strategy,
+        priority_score,
+        expected_cost_ms,
+        expected_value,
+        shadow_price,
+        reuse_source,
+        exploration_probe,
+        reasons,
+    }
+}
+
+/// 根据资源信号、跨周期经验与资源影子价格选择采集策略与调度优先级。
 pub fn select_acquisition_strategy(
     input: &StrategyInput,
     stats: Option<&FamilyStats>,
@@ -88,6 +188,14 @@ pub fn select_acquisition_strategy(
         .map(|s| s.family.clone())
         .unwrap_or_else(|| family(&input.url));
     let mut reasons = Vec::new();
+    let shadow_price = browser_shadow_price(input);
+
+    if let Some(st) = stats
+        && !st.transfer.rejected
+        && let Some(ref donor) = st.transfer.donor_description
+    {
+        reasons.push(format!("transfer_seed={donor}"));
+    }
 
     let yield_factor = stats.map_or(1.0, |s| 0.5 + s.claim_yield.mean());
     let hub_bonus = if input.is_hub_or_seed { 1.35 } else { 1.0 };
@@ -99,13 +207,15 @@ pub fn select_acquisition_strategy(
 
     if input.remaining_budget_fraction <= 0.0 {
         reasons.push("budget_exhausted".to_string());
-        return AdaptDecision {
-            family: fam,
-            strategy: AcquisitionStrategy::DeferOrSkip,
+        return finish_decision(
+            fam,
+            AcquisitionStrategy::DeferOrSkip,
+            input,
+            stats,
             priority_score,
-            expected_cost_ms: 0.0,
+            false,
             reasons,
-        };
+        );
     }
 
     if let Some(st) = stats
@@ -120,13 +230,15 @@ pub fn select_acquisition_strategy(
         ));
         if input.remaining_budget_fraction < 0.35 {
             reasons.push("defer_due_to_barrier_and_tight_budget".to_string());
-            return AdaptDecision {
-                family: fam,
-                strategy: AcquisitionStrategy::DeferOrSkip,
-                priority_score: priority_score * 0.25,
-                expected_cost_ms: st.ewma_cost_ms,
+            return finish_decision(
+                fam,
+                AcquisitionStrategy::DeferOrSkip,
+                input,
+                stats,
+                priority_score * 0.25,
+                false,
                 reasons,
-            };
+            );
         }
     }
 
@@ -148,38 +260,87 @@ pub fn select_acquisition_strategy(
                 st.conditional_hit.mean()
             ));
         }
-        return AdaptDecision {
-            family: fam,
-            strategy: AcquisitionStrategy::ConditionalHttp,
+        return finish_decision(
+            fam,
+            AcquisitionStrategy::ConditionalHttp,
+            input,
+            stats,
             priority_score,
-            expected_cost_ms: stats.map_or(25.0, |s| (s.ewma_cost_ms * 0.5).max(10.0)),
+            false,
             reasons,
-        };
+        );
     }
 
     let learned_embedded_json =
-        stats.is_some_and(|st| st.embedded_json.trials() >= 2.0 && st.embedded_json.mean() >= 0.60);
+        stats.is_some_and(|st| st.embedded_json.trials() >= 2.0 && st.embedded_json.mean() >= 0.55);
     let prefer_embedded_json = input.has_embedded_json_hint || learned_embedded_json;
+    let browser_allowed_under_budget = input.allow_browser && input.browser_budget_fraction > 0.0;
+    let browser_fail_rate = stats
+        .filter(|st| st.browser_failure_rate.trials() >= 3.0)
+        .map_or(0.0, |st| st.browser_failure_rate.mean());
 
     if let Some(st) = stats
-        && st.http_sufficient.trials() >= 3.0
+        && st.http_sufficient.trials() >= 2.5
     {
         let http_ok = st.http_sufficient.mean();
         let b_gain = st.browser_gain.mean();
-        if input.allow_browser && http_ok < 0.25 && st.browser_gain.trials() >= 2.0 && b_gain > 0.60
+
+        // 若站点此前锁定为 DirectBrowser，按 VOI/冷却计数主动安排一次 HTTP(+EmbeddedJson) 验证，打破 SPA->SSR 永久锁死
+        if browser_allowed_under_budget
+            && http_ok < 0.25
+            && st.browser_gain.trials() >= 2.0
+            && b_gain > 0.60
         {
+            if (input.probe_recovery_eligible
+                && st.consecutive_direct_browser >= DIRECT_BROWSER_RECOVERY_PERIOD)
+                || input.has_embedded_json_hint
+                || browser_fail_rate >= 0.65
+            {
+                reasons.push("voi_probe_direct_browser_recovery".to_string());
+                if browser_fail_rate >= 0.65 {
+                    reasons.push(format!("high_browser_failure_rate={browser_fail_rate:.2}"));
+                }
+                return finish_decision(
+                    fam,
+                    AcquisitionStrategy::HttpVerifyBrowser,
+                    input,
+                    stats,
+                    priority_score,
+                    true,
+                    reasons,
+                );
+            }
+            // 在浏览器配额/标签池极度紧绷（影子价格高）且收益未达极高确定性时，优先用内嵌 JSON 降级承受压力
+            if shadow_price >= 3.8 && prefer_embedded_json {
+                reasons.push(format!("browser_shadow_price_offload={shadow_price:.2}"));
+                return finish_decision(
+                    fam,
+                    AcquisitionStrategy::HttpWithEmbeddedJson,
+                    input,
+                    stats,
+                    priority_score,
+                    false,
+                    reasons,
+                );
+            }
             reasons.push(format!("family_http_sufficient_low={http_ok:.2}"));
             reasons.push(format!("family_browser_gain_high={b_gain:.2}"));
-            return AdaptDecision {
-                family: fam,
-                strategy: AcquisitionStrategy::DirectBrowser,
+            return finish_decision(
+                fam,
+                AcquisitionStrategy::DirectBrowser,
+                input,
+                stats,
                 priority_score,
-                expected_cost_ms: st.ewma_cost_ms.max(450.0),
+                false,
                 reasons,
-            };
+            );
         }
-        if http_ok >= 0.80 {
+
+        if http_ok >= 0.78 || (shadow_price >= 3.5 && http_ok >= 0.55) {
             reasons.push(format!("family_http_sufficient_high={http_ok:.2}"));
+            if shadow_price >= 3.5 && http_ok < 0.78 {
+                reasons.push(format!("high_shadow_price_avoid_browser={shadow_price:.2}"));
+            }
             let strat = if prefer_embedded_json {
                 reasons.push(if input.has_embedded_json_hint {
                     "embedded_json_hint".to_string()
@@ -190,13 +351,7 @@ pub fn select_acquisition_strategy(
             } else {
                 AcquisitionStrategy::LightweightHttp
             };
-            return AdaptDecision {
-                family: fam,
-                strategy: strat,
-                priority_score,
-                expected_cost_ms: st.ewma_cost_ms.max(35.0),
-                reasons,
-            };
+            return finish_decision(fam, strat, input, stats, priority_score, false, reasons);
         }
     }
 
@@ -206,30 +361,35 @@ pub fn select_acquisition_strategy(
         } else {
             "learned_embedded_json_family".to_string()
         });
-        return AdaptDecision {
-            family: fam,
-            strategy: AcquisitionStrategy::HttpWithEmbeddedJson,
+        return finish_decision(
+            fam,
+            AcquisitionStrategy::HttpWithEmbeddedJson,
+            input,
+            stats,
             priority_score,
-            expected_cost_ms: stats.map_or(45.0, |s| s.ewma_cost_ms.max(35.0)),
+            false,
             reasons,
-        };
+        );
     }
 
-    let strategy = if input.allow_browser {
-        reasons.push("cold_start_http_with_browser_verification".to_string());
-        AcquisitionStrategy::HttpVerifyBrowser
+    let strategy = if browser_allowed_under_budget && browser_fail_rate < 0.75 {
+        if shadow_price >= 4.2 && !input.is_hub_or_seed && input.staleness_ratio < 1.5 {
+            reasons.push(format!("shadow_price_prefer_lightweight={shadow_price:.2}"));
+            AcquisitionStrategy::LightweightHttp
+        } else {
+            reasons.push("cold_start_http_with_browser_verification".to_string());
+            AcquisitionStrategy::HttpVerifyBrowser
+        }
     } else {
-        reasons.push("http_only_constraint".to_string());
+        reasons.push(if !browser_allowed_under_budget {
+            "http_only_or_browser_budget_exhausted".to_string()
+        } else {
+            "browser_failure_fallback_http".to_string()
+        });
         AcquisitionStrategy::LightweightHttp
     };
 
-    AdaptDecision {
-        family: fam,
-        strategy,
-        priority_score,
-        expected_cost_ms: stats.map_or(60.0, |s| s.ewma_cost_ms.max(40.0)),
-        reasons,
-    }
+    finish_decision(fam, strategy, input, stats, priority_score, false, reasons)
 }
 
 /// 任务级采集充足性目标。

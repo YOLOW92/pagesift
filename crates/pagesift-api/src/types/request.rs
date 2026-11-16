@@ -179,6 +179,11 @@ pub struct ScrapeOptions {
     /// [`RESPOND_TIMINGS`]. `html` does not run scripts; the others need the browser.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub respond_timing: Option<String>,
+    /// Internal: allow embedded JSON synthesis (`__NEXT_DATA__` / `__NUXT_DATA__` / JSON-LD)
+    /// during explicit `engine = "http"` Sync probes without triggering browser auto-upgrade.
+    /// Never accepted from JSON and never serialized.
+    #[serde(skip)]
+    pub try_embedded_json: bool,
     /// PageSift extension: opt-in DataGraph relation/evidence extraction (`bool | GraphOptions`).
     #[serde(
         default,

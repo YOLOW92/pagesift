@@ -17,9 +17,15 @@ use crate::render::family_key;
 
 #[path = "experience_rates.rs"]
 mod experience_rates;
-pub use experience_rates::{BetaSnapshot, ChangeRateSnapshot, FamilyObservation};
+#[path = "experience_transfer.rs"]
+pub mod experience_transfer;
+pub use experience_rates::{
+    BetaSnapshot, ChangeRateSnapshot, FamilyObservation, RegularitySnapshot,
+};
+pub use experience_transfer::TransferMeta;
 
 const DEFAULT_MIN_RULE_CONFIRMATIONS: u32 = 2; // [推导] 对应 p₀ = √δ 下 p₀^k ≤ δ 的最小独立证实数 k* = 2
+const SURPRISE_BETA_KEEP: f64 = 0.35;
 
 /// 单个路径族的跨周期经验统计。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -35,6 +41,20 @@ pub struct FamilyStats {
     pub claim_yield: BetaSnapshot,
     pub barrier_rate: BetaSnapshot,
     pub ewma_cost_ms: f64,
+    #[serde(default)]
+    pub ewma_304_cost_ms: f64,
+    #[serde(default)]
+    pub ewma_http_cost_ms: f64,
+    #[serde(default)]
+    pub ewma_browser_cost_ms: f64,
+    #[serde(default)]
+    pub browser_failure_rate: BetaSnapshot,
+    #[serde(default)]
+    pub consecutive_direct_browser: u32,
+    #[serde(default)]
+    pub drift_count: u32,
+    #[serde(default)]
+    pub transfer: TransferMeta,
     pub total_observations: u64,
     pub last_observed_at_ms: u64,
 }
@@ -51,6 +71,13 @@ impl FamilyStats {
             claim_yield: BetaSnapshot::default(),
             barrier_rate: BetaSnapshot::default(),
             ewma_cost_ms: 0.0,
+            ewma_304_cost_ms: 0.0,
+            ewma_http_cost_ms: 0.0,
+            ewma_browser_cost_ms: 0.0,
+            browser_failure_rate: BetaSnapshot::default(),
+            consecutive_direct_browser: 0,
+            drift_count: 0,
+            transfer: TransferMeta::default(),
             total_observations: 0,
             last_observed_at_ms: 0,
         }
@@ -61,35 +88,98 @@ impl FamilyStats {
             return;
         }
         let keep = 1.0 - Delta::DEFAULT.get();
-        if let Some(http_ok) = obs.http_sufficient {
-            self.http_sufficient.observe_decayed(http_ok, keep);
-        }
-        if let Some(gain) = obs.browser_gain {
-            self.browser_gain.observe_decayed(gain, keep);
-        }
-        if let Some(hit) = obs.conditional_hit {
-            self.conditional_hit.observe_decayed(hit, keep);
-        }
-        if let Some(ej) = obs.embedded_json_observed {
-            self.embedded_json.observe_decayed(ej, keep);
-        }
-        if let Some((dt, changed)) = obs.substantive_change {
-            self.substantive_change.observe(dt, changed);
-        }
-        if let Some(yielded) = obs.yielded_claims_or_links {
-            self.claim_yield.observe_decayed(yielded, keep);
+
+        // 若该家族正处于跨族迁移验证窗，先校验本地独立事实，必要时触发负迁移抹除
+        experience_transfer::validate_or_reject_transfer(self, obs);
+
+        // 不可靠观测（uncertain_decode / truncated / invalid 304）仅记录外显成本/屏障，不污染核心充分性与变化率
+        if !obs.unreliable_observation {
+            if let Some(http_ok) = obs.http_sufficient {
+                if self
+                    .http_sufficient
+                    .observe_with_surprise(http_ok, keep, SURPRISE_BETA_KEEP)
+                {
+                    self.drift_count = self.drift_count.saturating_add(1);
+                }
+                self.consecutive_direct_browser = 0;
+            } else if obs.used_browser {
+                self.consecutive_direct_browser = self.consecutive_direct_browser.saturating_add(1);
+            }
+            if let Some(gain) = obs.browser_gain
+                && self
+                    .browser_gain
+                    .observe_with_surprise(gain, keep, SURPRISE_BETA_KEEP)
+            {
+                self.drift_count = self.drift_count.saturating_add(1);
+            }
+            if let Some(hit) = obs.conditional_hit {
+                self.conditional_hit.observe_decayed(hit, keep);
+            }
+            if let Some(ej) = obs.embedded_json_observed
+                && self
+                    .embedded_json
+                    .observe_with_surprise(ej, keep, SURPRISE_BETA_KEEP)
+            {
+                self.drift_count = self.drift_count.saturating_add(1);
+            }
+            if let Some((dt, changed)) = obs.substantive_change
+                && self.substantive_change.observe_at(
+                    dt,
+                    changed,
+                    obs.observed_at_ms,
+                    obs.last_modified_at_ms,
+                )
+            {
+                self.drift_count = self.drift_count.saturating_add(1);
+            }
+            if let Some(yielded) = obs.yielded_claims_or_links {
+                self.claim_yield.observe_decayed(yielded, keep);
+            }
         }
         if let Some(barrier) = obs.encountered_barrier {
             self.barrier_rate.observe_decayed(barrier, keep);
         }
+        if let Some(b_fail) = obs.browser_failed {
+            self.browser_failure_rate.observe_decayed(b_fail, keep);
+        }
+
+        let alpha = Delta::DEFAULT.get();
+        let update_ewma = |cur: &mut f64, sample: f64| {
+            if sample >= 0.0 && sample.is_finite() {
+                if *cur <= 0.0 {
+                    *cur = sample;
+                } else {
+                    *cur = (1.0 - alpha) * *cur + alpha * sample;
+                }
+            }
+        };
         if obs.cost_ms >= 0.0 && obs.cost_ms.is_finite() {
             if self.total_observations == 0 {
                 self.ewma_cost_ms = obs.cost_ms;
             } else {
-                let alpha = Delta::DEFAULT.get();
                 self.ewma_cost_ms = (1.0 - alpha) * self.ewma_cost_ms + alpha * obs.cost_ms;
             }
         }
+        if obs.is_304 {
+            update_ewma(
+                &mut self.ewma_304_cost_ms,
+                obs.http_cost_ms.unwrap_or(obs.cost_ms),
+            );
+        } else if !obs.used_browser {
+            update_ewma(
+                &mut self.ewma_http_cost_ms,
+                obs.http_cost_ms.unwrap_or(obs.cost_ms),
+            );
+        } else {
+            if let Some(hc) = obs.http_cost_ms {
+                update_ewma(&mut self.ewma_http_cost_ms, hc);
+            }
+            update_ewma(
+                &mut self.ewma_browser_cost_ms,
+                obs.browser_cost_ms.unwrap_or(obs.cost_ms),
+            );
+        }
+
         self.total_observations = self.total_observations.saturating_add(1);
         if obs.observed_at_ms > self.last_observed_at_ms {
             self.last_observed_at_ms = obs.observed_at_ms;
@@ -104,10 +194,27 @@ impl FamilyStats {
         self.substantive_change.merge(&other.substantive_change);
         self.claim_yield.merge(&other.claim_yield);
         self.barrier_rate.merge(&other.barrier_rate);
-        if self.total_observations == 0 {
-            self.ewma_cost_ms = other.ewma_cost_ms;
-        } else if other.total_observations > 0 {
-            self.ewma_cost_ms = 0.5 * (self.ewma_cost_ms + other.ewma_cost_ms);
+        self.browser_failure_rate.merge(&other.browser_failure_rate);
+        let avg_nonzero = |a: f64, b: f64| -> f64 {
+            if a <= 0.0 {
+                b
+            } else if b <= 0.0 {
+                a
+            } else {
+                0.5 * (a + b)
+            }
+        };
+        self.ewma_cost_ms = avg_nonzero(self.ewma_cost_ms, other.ewma_cost_ms);
+        self.ewma_304_cost_ms = avg_nonzero(self.ewma_304_cost_ms, other.ewma_304_cost_ms);
+        self.ewma_http_cost_ms = avg_nonzero(self.ewma_http_cost_ms, other.ewma_http_cost_ms);
+        self.ewma_browser_cost_ms =
+            avg_nonzero(self.ewma_browser_cost_ms, other.ewma_browser_cost_ms);
+        self.consecutive_direct_browser = self
+            .consecutive_direct_browser
+            .min(other.consecutive_direct_browser);
+        self.drift_count = self.drift_count.max(other.drift_count);
+        if self.transfer.donor_description.is_none() && other.transfer.donor_description.is_some() {
+            self.transfer = other.transfer.clone();
         }
         self.total_observations = self
             .total_observations
@@ -115,8 +222,67 @@ impl FamilyStats {
         self.last_observed_at_ms = self.last_observed_at_ms.max(other.last_observed_at_ms);
     }
 
-    /// 建议的下次检查间隔（秒），使漏检实质变化的后验概率不超过 `delta`。
+    /// 返回按采集模态区分的期望成本估计（ms）。
+    pub fn expected_cost_for(&self, strategy: crate::strategy::AcquisitionStrategy) -> f64 {
+        use crate::strategy::AcquisitionStrategy;
+        let c_http = if self.ewma_http_cost_ms > 0.0 {
+            self.ewma_http_cost_ms
+        } else if self.ewma_cost_ms > 0.0 {
+            self.ewma_cost_ms
+        } else {
+            55.0
+        };
+        let c_304 = if self.ewma_304_cost_ms > 0.0 {
+            self.ewma_304_cost_ms
+        } else {
+            (c_http * 0.35).max(12.0)
+        };
+        let c_browser = if self.ewma_browser_cost_ms > 0.0 {
+            self.ewma_browser_cost_ms
+        } else if self.ewma_cost_ms > 0.0 {
+            self.ewma_cost_ms.max(450.0)
+        } else {
+            550.0
+        };
+        match strategy {
+            AcquisitionStrategy::ConditionalHttp => {
+                let p_304 = if self.conditional_hit.trials() >= 1.0 {
+                    self.conditional_hit.mean().clamp(0.10, 0.95)
+                } else {
+                    0.50
+                };
+                p_304 * c_304 + (1.0 - p_304) * c_http
+            }
+            AcquisitionStrategy::LightweightHttp | AcquisitionStrategy::HttpWithEmbeddedJson => {
+                c_http.max(15.0)
+            }
+            AcquisitionStrategy::HttpVerifyBrowser => {
+                let p_ok = if self.http_sufficient.trials() >= 1.0 {
+                    self.http_sufficient.mean()
+                } else {
+                    0.50
+                };
+                c_http + (1.0 - p_ok) * c_browser
+            }
+            AcquisitionStrategy::DirectBrowser => c_browser.max(250.0),
+            AcquisitionStrategy::DeferOrSkip => 0.0,
+        }
+    }
+
+    /// 建议的下次检查间隔（秒），优先使用经非混叠验证的周期估计，否则按泊松后验漏检上界计算。
     pub fn next_check_secs(&self, delta: f64) -> f64 {
+        if let Some(delay) = self.substantive_change.regularity.next_delay_secs(
+            self.last_observed_at_ms.max(
+                self.substantive_change
+                    .regularity
+                    .last_change_at_ms
+                    .unwrap_or(0),
+            ),
+            1.0,
+            365.0 * 86_400.0,
+        ) {
+            return delay;
+        }
         self.substantive_change.to_change_rate().next_check(delta)
     }
 
@@ -215,14 +381,66 @@ impl FamilyExperienceTable {
     }
 
     pub fn record_observation(&self, family: &str, obs: &FamilyObservation) {
+        self.record_observation_for_tenant(family, None, obs);
+    }
+
+    /// 带租户边界的跨周期观测写入；若为冷启动族且同租户存在成熟相似族，先做受控 Empirical Bayes 迁移。
+    pub fn record_observation_for_tenant(
+        &self,
+        family: &str,
+        tenant_id: Option<&str>,
+        obs: &FamilyObservation,
+    ) {
         if !obs.has_signal() {
             return;
         }
         let key = family_key(family);
         let mut map = self.families.lock().unwrap_or_else(|e| e.into_inner());
-        map.entry(key)
-            .or_insert_with(|| FamilyStats::new(family))
-            .observe(obs);
+        if !map.contains_key(&key) {
+            let peers: Vec<&FamilyStats> = map.values().collect();
+            let mut initial = experience_transfer::build_cold_start_seed(family, tenant_id, &peers)
+                .unwrap_or_else(|| {
+                    let mut f = FamilyStats::new(family);
+                    f.transfer.tenant_id = tenant_id.map(str::to_string);
+                    f
+                });
+            initial.observe(obs);
+            map.insert(key, initial);
+            return;
+        }
+        let stats = map.entry(key).or_insert_with(|| FamilyStats::new(family));
+        if stats.transfer.tenant_id.is_none() && tenant_id.is_some() {
+            stats.transfer.tenant_id = tenant_id.map(str::to_string);
+        }
+        stats.observe(obs);
+    }
+
+    /// 仅从同租户外部参考族（如同源历史源）为尚无本地观测的冷启动族接种受控先验；跨租户调用自动静默忽略。
+    pub fn ensure_cold_start_seeded_for_tenant(
+        &self,
+        family: &str,
+        tenant_id: Option<&str>,
+        external_peers: &[FamilyStats],
+    ) -> bool {
+        let key = family_key(family);
+        let mut map = self.families.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(existing) = map.get(&key)
+            && existing.total_observations > 0
+        {
+            return false;
+        }
+        let local_peers: Vec<&FamilyStats> = map.values().collect();
+        let ext_peers: Vec<&FamilyStats> = external_peers.iter().collect();
+        if let Some(seeded) = experience_transfer::build_cold_start_seed_with_sources(
+            family,
+            tenant_id,
+            &local_peers,
+            &ext_peers,
+        ) {
+            map.insert(key, seeded);
+            return true;
+        }
+        false
     }
 
     pub fn get_family(&self, family: &str) -> Option<FamilyStats> {

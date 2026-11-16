@@ -74,6 +74,13 @@ pub(super) fn build_scrape_options_for_strategy(
         | AcquisitionStrategy::HttpVerifyBrowser
         | AcquisitionStrategy::DeferOrSkip => Some("http".to_string()),
     };
+    let try_embedded_json = matches!(
+        strategy,
+        AcquisitionStrategy::ConditionalHttp
+            | AcquisitionStrategy::LightweightHttp
+            | AcquisitionStrategy::HttpWithEmbeddedJson
+            | AcquisitionStrategy::HttpVerifyBrowser
+    );
 
     let validator_eligible = strategy == AcquisitionStrategy::ConditionalHttp
         && rec.last_validator_contract_id.as_deref() == Some(contract_id)
@@ -93,6 +100,8 @@ pub(super) fn build_scrape_options_for_strategy(
         if_none_match,
         if_modified_since,
         owner: tenant.map(str::to_string),
+        explain: true,
+        try_embedded_json,
         // Sync Tick 统一在末尾通过 AtomicTx 提交图版本、声明与库存（C06）
         graph: Some(GraphOptions::enabled().as_attempt()),
         ..Default::default()

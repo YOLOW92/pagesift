@@ -4,9 +4,9 @@ use std::collections::BTreeSet;
 
 use pagesift_api::types::Document;
 use pagesift_graph::{
-    ClaimRecord, ClaimTransition, ConflictRecord, DEFAULT_CONTRACT_ID, DocNode, GraphOptions,
-    GraphSlice, ObservationOutcome, PageGraphDelta, ProvenanceEdge, VersionDiffStats, VersionEdge,
-    VersionRecord,
+    CitationEdge, ClaimRecord, ClaimTransition, ConflictRecord, DEFAULT_CONTRACT_ID, DocNode,
+    GraphOptions, GraphSlice, ObservationOutcome, PageGraphDelta, ProvenanceEdge, VersionDiffStats,
+    VersionEdge, VersionRecord,
 };
 use pagesift_store::{
     GraphStore, Store, VersionBundleOutcome, VersionBundleRequest, VersionCommitOutcome,
@@ -89,6 +89,13 @@ impl<'a> CasTarget<'a> {
         match self {
             Self::Delta(d) => &d.provenance,
             Self::Slice { slice, .. } => &slice.provenance,
+        }
+    }
+
+    fn citations(&self) -> &[CitationEdge] {
+        match self {
+            Self::Delta(d) => &d.citations,
+            Self::Slice { slice, .. } => &slice.citations,
         }
     }
 
@@ -267,6 +274,7 @@ fn execute_cas_commit_loop(
                 doc_id: Some(&node.doc_id),
                 doc_node: Some(node),
                 provenance: target.provenance(),
+                citations: target.citations(),
             };
             match gs.commit_version_bundle(&bundle_req) {
                 Ok(VersionBundleOutcome::Committed {

@@ -58,6 +58,7 @@ fn base_rec(key: &str, url: &str, state: ResourceLifecycleState, ts: u64) -> Res
         has_embedded_json: false,
         text_signature: None,
         confirmed_gone_at_ms: None,
+        learn: crate::ResourceLearnStats::default(),
     }
 }
 

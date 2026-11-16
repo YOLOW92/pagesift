@@ -10,7 +10,10 @@ use crate::evidence::{EvidenceSpan, RawFieldTrace};
 use crate::hash::{host_of, normalize_resource_key, short_id};
 use crate::independence::{SourceLineage, independent_roots_for_claim_group};
 use crate::model::SourceKind;
-use crate::norm::{NormalizedValue, normalize_field_key, normalize_field_value};
+use crate::norm::{
+    NormalizedValue, canonical_currency_code, normalize_field_key,
+    normalize_field_value_with_currency,
+};
 use crate::temporal::TemporalSemantics;
 
 const BUILTIN_PRODUCT_KEYS: &[&str] = &["sku", "gtin", "gtin13", "isbn", "doi", "lei_code", "mpn"];
@@ -433,8 +436,38 @@ impl ClaimRecord {
         trace: &RawFieldTrace,
         evidence: EvidenceSpan,
     ) -> Self {
+        Self::from_trace_with_currency(
+            subject_key,
+            resource_key,
+            doc_id,
+            source_url,
+            source_kind,
+            engine,
+            observed_at_ms,
+            canonical_url,
+            trace,
+            evidence,
+            Some("USD"),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_trace_with_currency(
+        subject_key: &str,
+        resource_key: &str,
+        doc_id: &str,
+        source_url: &str,
+        source_kind: SourceKind,
+        engine: &str,
+        observed_at_ms: u64,
+        canonical_url: Option<String>,
+        trace: &RawFieldTrace,
+        evidence: EvidenceSpan,
+        context_currency: Option<&str>,
+    ) -> Self {
         let normalized_field = normalize_field_key(&trace.field_name);
-        let normalized_value = normalize_field_value(&trace.field_name, &trace.value);
+        let normalized_value =
+            normalize_field_value_with_currency(&trace.field_name, &trace.value, context_currency);
         let claim_id = short_id(
             "clm",
             &[
@@ -479,6 +512,100 @@ impl ClaimRecord {
         };
         self
     }
+}
+
+fn is_currency_field(field_name: &str) -> bool {
+    let k = normalize_field_key(field_name);
+    matches!(
+        k.as_str(),
+        "price_currency" | "currency" | "currency_code" | "money_currency"
+    ) || k.ends_with("_currency")
+}
+
+fn parent_field_prefix(path: &str) -> &str {
+    match (path.rfind('.'), path.rfind(':')) {
+        (Some(d), Some(c)) => &path[..d.max(c)],
+        (Some(d), None) => &path[..d],
+        (None, Some(c)) => &path[..c],
+        (None, None) => "",
+    }
+}
+
+/// 为每个预对齐字段追踪推理上下文货币（同父前缀 `priceCurrency` -> 同实体组一致货币 -> 整页单一确认货币）。
+///
+/// 若当前页面与实体上下文完全缺少明确货币信号（或存在互相矛盾的货币），返回 `None`，
+/// 使下游归一化保留 `"UNKNOWN"` 而非盲目假定 `"USD"`（1.5.5 G5）。
+pub fn resolve_trace_context_currencies(traces: &[RawFieldTrace]) -> Vec<Option<String>> {
+    let mut sibling_currency: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut group_currencies: BTreeMap<TraceEntityGroup, BTreeSet<String>> = BTreeMap::new();
+    let mut doc_currencies: BTreeSet<String> = BTreeSet::new();
+
+    for trace in traces {
+        let group = entity_group_of(trace);
+        let iso = if is_currency_field(&trace.field_name) {
+            trace.value.as_str().and_then(canonical_currency_code)
+        } else {
+            let k = normalize_field_key(&trace.field_name);
+            let is_money_key = k.contains("price")
+                || k.contains("cost")
+                || k.contains("fee")
+                || k.contains("amount")
+                || k.contains("salary")
+                || k.contains("revenue");
+            trace.value.as_str().and_then(|s| {
+                if is_money_key && s.len() <= 36 {
+                    canonical_currency_code(s)
+                } else {
+                    None
+                }
+            })
+        };
+        if let Some(cur) = iso {
+            if is_currency_field(&trace.field_name) {
+                let prefix = parent_field_prefix(&trace.field_path).to_string();
+                sibling_currency
+                    .entry(prefix)
+                    .or_default()
+                    .insert(cur.clone());
+            }
+            group_currencies
+                .entry(group)
+                .or_default()
+                .insert(cur.clone());
+            doc_currencies.insert(cur);
+        }
+    }
+
+    traces
+        .iter()
+        .map(|trace| {
+            // 1. 精确同父路径兄弟货币键（如 offers.priceCurrency 对 offers.price）
+            let mut prefix = parent_field_prefix(&trace.field_path);
+            loop {
+                if let Some(set) = sibling_currency.get(prefix)
+                    && set.len() == 1
+                {
+                    return set.iter().next().cloned();
+                }
+                if prefix.is_empty() {
+                    break;
+                }
+                prefix = parent_field_prefix(prefix);
+            }
+            // 2. 同实体组内部一致货币
+            let group = entity_group_of(trace);
+            if let Some(set) = group_currencies.get(&group)
+                && set.len() == 1
+            {
+                return set.iter().next().cloned();
+            }
+            // 3. 整页所有明确货币线索一致
+            if doc_currencies.len() == 1 {
+                return doc_currencies.iter().next().cloned();
+            }
+            None
+        })
+        .collect()
 }
 
 /// Corroborated agreement cluster where one or more sources assert the same normalized fact.

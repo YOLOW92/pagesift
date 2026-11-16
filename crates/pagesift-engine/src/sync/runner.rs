@@ -3,7 +3,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use pagesift_api::{ApiError, ErrorCode};
-use pagesift_plan::experience::FamilyExperienceTable;
+use pagesift_plan::experience::{FamilyExperienceTable, FamilyStats};
+use pagesift_plan::render::family;
 use pagesift_plan::strategy::{AcquisitionStrategy, CaptureGoal};
 use pagesift_store::{
     MAX_REQUESTS_PER_TICK_CAP, ResourceLifecycleState, ResourceRecord, SyncDelta, SyncTickStats,
@@ -20,8 +21,10 @@ use super::capture::{
     maybe_falsify_rewritten_rules, prepare_rewritten_fetch_url, should_adopt_browser_escalation,
 };
 use super::inventory::{ensure_seeds_in_inventory, prune_out_of_scope_inventory};
-use super::reconcile::{HttpAttemptMeta, reconcile_candidate_failure, reconcile_candidate_success};
-use super::scheduler::select_tick_candidates;
+use super::reconcile::{
+    ExecutionTelemetry, HttpAttemptMeta, reconcile_candidate_failure, reconcile_candidate_success,
+};
+use super::scheduler::select_tick_candidates_with_context;
 
 /// 触发一次同步周期的运行选项。
 #[derive(Debug, Clone, Default)]
@@ -35,6 +38,18 @@ pub struct SyncRunOptions {
 #[path = "runner_commit.rs"]
 mod commit;
 use commit::{TickCommitInputs, build_scrape_options_for_strategy, finalize_and_commit_sync_tick};
+
+fn erase_scrape_fut<'a>(
+    fut: impl std::future::Future<Output = Result<pagesift_api::types::Document, ApiError>> + Send + 'a,
+) -> std::pin::Pin<
+    Box<
+        dyn std::future::Future<Output = Result<pagesift_api::types::Document, ApiError>>
+            + Send
+            + 'a,
+    >,
+> {
+    Box::pin(fut)
+}
 
 impl Scraper {
     /// 执行指定数据源的一次完整 1.5 Loop 闭环同步周期（Tick）。
@@ -118,6 +133,35 @@ impl Scraper {
         {
             let _ = experience.decode_merge_json(&exp_bytes);
         }
+
+        // G4 Reuse：同一租户作用域内若存在冷启动路径族，从同租户成熟兄弟源/族接种受控先验（严格禁止跨租户）
+        if let Ok(other_sources) = sync_store.list_sources() {
+            let mut peer_stats: Vec<FamilyStats> = Vec::new();
+            for other in other_sources {
+                if other.id == source_id {
+                    continue;
+                }
+                if let Ok(Some(bytes)) = sync_store.get_experience_bytes(&other.id)
+                    && !bytes.is_empty()
+                {
+                    let peer_tbl = FamilyExperienceTable::new();
+                    if peer_tbl.decode_merge_json(&bytes) {
+                        for mut st in peer_tbl.list_families() {
+                            if st.transfer.tenant_id.is_none() && tenant.is_some() {
+                                st.transfer.tenant_id = tenant.map(str::to_string);
+                            }
+                            peer_stats.push(st);
+                        }
+                    }
+                }
+            }
+            if !peer_stats.is_empty() {
+                for rec in inventory.values() {
+                    let fam_name = family(&rec.url);
+                    experience.ensure_cold_start_seeded_for_tenant(&fam_name, tenant, &peer_stats);
+                }
+            }
+        }
         let mut learner = build_seeded_learner(&inventory, &experience);
 
         let mut ledger = TickBudgetLedger::new(&spec.budget);
@@ -186,16 +230,17 @@ impl Scraper {
                 .saturating_sub(ledger.requests_used)
                 .clamp(1, MAX_REQUESTS_PER_TICK_CAP);
             let wave_now_ms = now_ms().max(started_at_ms);
-            let (candidates, _, wave_due) = select_tick_candidates(
+            let (candidates, _, wave_due) = select_tick_candidates_with_context(
                 &wave_spec,
                 &unvisited_vec,
                 &experience,
                 wave_now_ms,
                 run_opts.force_all,
+                ledger.browser_remaining_fraction(),
+                self.tab_utilization(),
             );
-            if stats.candidates_due == 0 {
-                stats.candidates_due = wave_due;
-            }
+            // 跨波次增量不重叠累计本轮所有实际到期的独立资源数（C29 / G2）
+            stats.candidates_due += wave_due;
             if candidates.is_empty() {
                 break;
             }
@@ -268,7 +313,8 @@ impl Scraper {
 
                 let step_start = Instant::now();
                 let (mut step_res, mut staged_map) = with_graph_stage(
-                    ledger.run_tick_bounded(self.scrape(&fetch_url, &scrape_opts)),
+                    ledger
+                        .run_tick_bounded(erase_scrape_fut(self.scrape(&fetch_url, &scrape_opts))),
                 )
                 .await;
 
@@ -292,9 +338,9 @@ impl Scraper {
                 ) {
                     if ledger.try_reserve(executed_strategy == AcquisitionStrategy::DirectBrowser) {
                         scrape_opts.timeout = Some(ledger.remaining_ms().max(1));
-                        let (retry_step, retry_staged) = with_graph_stage(
-                            ledger.run_tick_bounded(self.scrape(&cand.record.url, &scrape_opts)),
-                        )
+                        let (retry_step, retry_staged) = with_graph_stage(ledger.run_tick_bounded(
+                            erase_scrape_fut(self.scrape(&cand.record.url, &scrape_opts)),
+                        ))
                         .await;
                         if is_budget_exhausted_step(&ledger, &retry_step) {
                             budget_exhausted = true;
@@ -313,6 +359,20 @@ impl Scraper {
 
                 let mut http_meta = None;
                 let mut browser_gain_obs = None;
+                let initial_elapsed_ms = step_start.elapsed().as_millis() as f64;
+                let mut exec_telemetry = ExecutionTelemetry {
+                    used_browser: executed_strategy == AcquisitionStrategy::DirectBrowser,
+                    browser_cost_ms: (executed_strategy == AcquisitionStrategy::DirectBrowser)
+                        .then_some(initial_elapsed_ms),
+                    browser_failed: (executed_strategy == AcquisitionStrategy::DirectBrowser).then(
+                        || {
+                            scrape_res.as_ref().map_or(true, |d| {
+                                is_barrier_doc(d) || d.metadata.status_code >= 400
+                            })
+                        },
+                    ),
+                    tenant_id: tenant.map(str::to_string),
+                };
 
                 if executed_strategy != AcquisitionStrategy::DirectBrowser
                     && let Ok(ref http_doc) = scrape_res
@@ -330,24 +390,30 @@ impl Scraper {
                         not_modified_304: h_is_304,
                         sufficient: h_assess.sufficient,
                         has_embedded_json: has_embedded_json_signal(http_doc),
+                        http_cost_ms: initial_elapsed_ms,
                     });
                     let should_try_browser = spec.allow_browser
                         && h_ok
                         && (!h_assess.sufficient || h_assess.needs_browser_escalation);
                     if should_try_browser {
                         if ledger.try_reserve(true) {
+                            let b_start = Instant::now();
                             let mut b_opts = scrape_opts.clone();
                             b_opts.engine = Some("browser".to_string());
                             b_opts.if_none_match = None;
                             b_opts.if_modified_since = None;
                             b_opts.timeout = Some(ledger.remaining_ms().max(1));
-                            let (b_step, mut b_staged) = with_graph_stage(
-                                ledger.run_tick_bounded(self.scrape(&fetch_url, &b_opts)),
-                            )
+                            let (b_step, mut b_staged) = with_graph_stage(ledger.run_tick_bounded(
+                                erase_scrape_fut(self.scrape(&fetch_url, &b_opts)),
+                            ))
                             .await;
+                            let b_elapsed_ms = b_start.elapsed().as_millis() as f64;
+                            exec_telemetry.used_browser = true;
+                            exec_telemetry.browser_cost_ms = Some(b_elapsed_ms);
                             if is_budget_exhausted_step(&ledger, &b_step) {
                                 budget_exhausted = true;
                                 browser_gain_obs = None;
+                                exec_telemetry.browser_failed = Some(true);
                             } else {
                                 match b_step {
                                     Ok(b_doc) => {
@@ -357,6 +423,9 @@ impl Scraper {
                                             &b_doc,
                                             &capture_goal,
                                         );
+                                        let b_err = is_barrier_doc(&b_doc)
+                                            || b_doc.metadata.status_code >= 400;
+                                        exec_telemetry.browser_failed = Some(b_err);
                                         let (adopt, gained_obs) = should_adopt_browser_escalation(
                                             http_doc, &h_assess, &b_doc, &b_assess,
                                         );
@@ -370,6 +439,7 @@ impl Scraper {
                                     }
                                     Err(_) => {
                                         browser_gain_obs = None;
+                                        exec_telemetry.browser_failed = Some(true);
                                     }
                                 }
                             }
@@ -410,6 +480,7 @@ impl Scraper {
                             http_meta,
                             &final_assessment,
                             browser_gain_obs,
+                            &exec_telemetry,
                             step_cost_ms,
                             obs_time_ms,
                             prev_state,

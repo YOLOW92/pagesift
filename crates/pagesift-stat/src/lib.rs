@@ -17,6 +17,7 @@ pub mod limit;
 pub mod moments;
 pub mod poisson;
 pub mod regress;
+pub mod regularity;
 pub mod rng;
 pub mod shrink;
 pub mod size_time;

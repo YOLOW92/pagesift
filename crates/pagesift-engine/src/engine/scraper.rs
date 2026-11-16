@@ -1,6 +1,10 @@
 use super::*;
 
 impl Scraper {
+    pub(crate) fn tab_utilization(&self) -> f64 {
+        self.render_stats.tab_utilization()
+    }
+
     pub fn new(mut config: ScraperConfig) -> Result<Self, ScraperError> {
         cpu::install();
         let browser_private_network = config.fetcher.ssrf.allow_private_network;

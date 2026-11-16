@@ -53,6 +53,10 @@ pub(in crate::sync) fn reconcile_candidate_failure(
                 yielded_claims_or_links: None,
                 encountered_barrier: Some(true),
                 cost_ms: step_cost_ms,
+                used_browser: strategy_used == AcquisitionStrategy::DirectBrowser,
+                browser_failed: (strategy_used == AcquisitionStrategy::DirectBrowser)
+                    .then_some(true),
+                ..Default::default()
             },
         );
     }
@@ -85,6 +89,7 @@ pub(in crate::sync) fn reconcile_candidate_failure(
                 claim_count: 0,
                 substantive_changed: false,
                 strategy_used: strategy_used.as_str().to_string(),
+                ..Default::default()
             },
         );
         rec_mut.next_due_at_ms =
@@ -130,6 +135,7 @@ pub(super) fn stage_bundle_for_candidate(
         doc_id: None,
         doc_node: None,
         provenance: &[],
+        citations: &[],
     };
 
     if authoritative && let (Some(slice), Some(st)) = (slice, staged) {
@@ -190,6 +196,7 @@ pub(super) fn stage_bundle_for_candidate(
         bundle_req.doc_id = Some(&slice.doc_id);
         bundle_req.doc_node = Some(&st.node);
         bundle_req.provenance = &slice.provenance;
+        bundle_req.citations = &slice.citations;
         let prep = graph_store
             .prepare_version_bundle(&bundle_req)
             .map_err(|e| {
@@ -297,12 +304,17 @@ mod tests {
                 has_embedded_json: false,
                 text_signature: None,
                 confirmed_gone_at_ms: None,
+                learn: pagesift_store::ResourceLearnStats::default(),
             },
             decision: AdaptDecision {
                 family: family(url),
                 strategy: AcquisitionStrategy::LightweightHttp,
                 priority_score: 1.0,
                 expected_cost_ms: 50.0,
+                expected_value: 1.0,
+                shadow_price: 1.0,
+                reuse_source: None,
+                exploration_probe: false,
                 reasons: Vec::new(),
             },
         }

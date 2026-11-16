@@ -10,7 +10,10 @@ fn default_history_status_complete() -> SourceHistoryStatus {
 
 use std::collections::BTreeMap;
 
-use pagesift_graph::{ClaimLifecycleRecord, ClaimTransition, ConflictRecord};
+use pagesift_graph::{ClaimLifecycleRecord, ClaimTransition, ConflictRecord, FactCluster};
+use pagesift_stat::regularity::{
+    PeriodEstimate, estimate_period, next_periodic_delay_secs, non_aliased_change_interval_secs,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::to_ms;
@@ -280,6 +283,143 @@ pub struct ResourceRecord {
     pub text_signature: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub confirmed_gone_at_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "ResourceLearnStats::is_empty")]
+    pub learn: ResourceLearnStats,
+}
+
+/// 单个资源的独立变化统计、非混叠周期估计与最近观测可靠性（1.5.5 G1/G2）。
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceLearnStats {
+    #[serde(default)]
+    pub change_count: u32,
+    #[serde(default)]
+    pub unchanged_count: u32,
+    #[serde(default)]
+    pub exposure_secs: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_confirmed_unchanged_at_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub intervals_secs: Vec<f64>,
+    #[serde(default)]
+    pub probe_misses: u8,
+    #[serde(default)]
+    pub early_changes: u8,
+    #[serde(default)]
+    pub last_observation_unreliable: bool,
+}
+
+impl ResourceLearnStats {
+    pub fn is_empty(&self) -> bool {
+        self.change_count == 0
+            && self.unchanged_count == 0
+            && self.exposure_secs == 0.0
+            && self.last_confirmed_unchanged_at_ms.is_none()
+            && self.intervals_secs.is_empty()
+            && self.probe_misses == 0
+            && self.early_changes == 0
+            && !self.last_observation_unreliable
+    }
+
+    pub fn detected_period(&self) -> Option<PeriodEstimate> {
+        if self.probe_misses >= 2 || self.early_changes >= 2 {
+            return None;
+        }
+        estimate_period(&self.intervals_secs, 0.22)
+    }
+
+    pub fn record_observation(
+        &mut self,
+        dt_secs: f64,
+        changed: bool,
+        observed_at_ms: u64,
+        last_modified_at_ms: Option<u64>,
+        prev_change_at_ms: Option<u64>,
+    ) {
+        if !(dt_secs > 0.0 && dt_secs.is_finite()) {
+            return;
+        }
+        const MAX_RESOURCE_EXPOSURE_SECS: f64 = 180.0 * 86_400.0;
+        let existing = self.detected_period();
+        if changed {
+            // 长期静止单页突然改动时衰减旧曝光，快速重升采样频率
+            if self.unchanged_count >= 3 && self.exposure_secs > 0.0 {
+                let expected = (self.change_count as f64 / self.exposure_secs.max(1.0)) * dt_secs;
+                if expected < 0.18 {
+                    self.exposure_secs *= 0.25;
+                    self.change_count = (self.change_count / 2).max(1);
+                }
+            }
+            self.unchanged_count = 0;
+            self.change_count = self.change_count.saturating_add(1);
+            self.exposure_secs =
+                (self.exposure_secs * 0.70 + dt_secs).min(MAX_RESOURCE_EXPOSURE_SECS);
+            if let Some(prev) = prev_change_at_ms
+                && observed_at_ms > prev
+            {
+                let effective_ts = last_modified_at_ms
+                    .filter(|&m| m <= observed_at_ms.saturating_add(60_000))
+                    .unwrap_or(observed_at_ms);
+                let raw_dt_secs = effective_ts.saturating_sub(prev) as f64 / 1000.0;
+                if let Some(est) = existing
+                    && raw_dt_secs < est.mean_secs * 0.55
+                {
+                    self.early_changes = self.early_changes.saturating_add(1);
+                    if self.early_changes >= 2 {
+                        self.intervals_secs.clear();
+                    }
+                } else if let Some(valid_dt) = non_aliased_change_interval_secs(
+                    prev,
+                    self.last_confirmed_unchanged_at_ms,
+                    observed_at_ms,
+                    last_modified_at_ms,
+                    existing,
+                ) {
+                    self.intervals_secs.push(valid_dt);
+                    if self.intervals_secs.len() > 8 {
+                        let drain = self.intervals_secs.len() - 8;
+                        self.intervals_secs.drain(0..drain);
+                    }
+                    self.probe_misses = 0;
+                    self.early_changes = 0;
+                }
+            }
+        } else {
+            self.unchanged_count = self.unchanged_count.saturating_add(1);
+            self.exposure_secs = (self.exposure_secs + dt_secs).min(MAX_RESOURCE_EXPOSURE_SECS);
+            if observed_at_ms > 0 {
+                self.last_confirmed_unchanged_at_ms = Some(observed_at_ms);
+                if let (Some(est), Some(prev)) = (existing, prev_change_at_ms) {
+                    let elapsed_secs = observed_at_ms.saturating_sub(prev) as f64 / 1000.0;
+                    let guard = (2.0 * est.std_secs).clamp(5.0, (est.mean_secs * 0.15).max(5.0));
+                    if elapsed_secs >= est.mean_secs + guard {
+                        self.probe_misses = self.probe_misses.saturating_add(1);
+                        if self.probe_misses >= 2 {
+                            self.intervals_secs.clear();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn next_periodic_delay_secs(
+        &self,
+        last_change_at_ms: Option<u64>,
+        now_ms: u64,
+        min_secs: f64,
+        max_secs: f64,
+    ) -> Option<f64> {
+        let est = self.detected_period()?;
+        let prev = last_change_at_ms?;
+        let elapsed_secs = now_ms.saturating_sub(prev) as f64 / 1000.0;
+        Some(next_periodic_delay_secs(
+            &est,
+            elapsed_secs,
+            min_secs,
+            max_secs,
+        ))
+    }
 }
 
 /// 单条资源在一次同步周期中的变更摘要。
@@ -326,6 +466,12 @@ pub struct SyncTickStats {
     pub insufficient_captures: usize,
     #[serde(default)]
     pub unchecked_discovered: usize,
+    #[serde(default)]
+    pub uncertain_observations: usize,
+    #[serde(default)]
+    pub co_changed_triggered: usize,
+    #[serde(default)]
+    pub probe_recoveries: usize,
     pub elapsed_ms: u64,
 }
 
@@ -441,6 +587,8 @@ pub struct SourceStateView {
     pub resources: Vec<ResourceRecord>,
     pub active_claims: Vec<ClaimLifecycleRecord>,
     pub conflicts: Vec<ConflictRecord>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fact_clusters: Vec<FactCluster>,
 }
 
 pub fn now_store_ms() -> u64 {

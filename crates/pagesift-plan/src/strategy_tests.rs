@@ -6,45 +6,53 @@ fn strategy_prefers_conditional_http_when_validators_exist() {
     let input = StrategyInput {
         url: "https://example.com/pricing".to_string(),
         has_validators: true,
-        has_embedded_json_hint: false,
-        is_hub_or_seed: false,
-        importance_weight: 1.0,
         staleness_ratio: 1.2,
         remaining_budget_fraction: 0.8,
         allow_browser: true,
+        ..Default::default()
     };
     let dec = select_acquisition_strategy(&input, None);
     assert_eq!(dec.strategy, AcquisitionStrategy::ConditionalHttp);
 }
 
 #[test]
-fn strategy_escalates_to_direct_browser_when_family_learns_http_insufficient() {
+fn strategy_escalates_to_direct_browser_and_allows_periodic_recovery_probe() {
     let mut stats = FamilyStats::new("https://spa.example.com/app");
     for i in 0..6 {
         stats.observe(&FamilyObservation {
             observed_at_ms: 1000 + i * 100,
             http_sufficient: Some(false),
             browser_gain: Some(true),
-            conditional_hit: None,
             embedded_json_observed: Some(false),
-            substantive_change: None,
             yielded_claims_or_links: Some(true),
             encountered_barrier: Some(false),
+            used_browser: i > 0, // 先行建立 http_sufficient=false 后再走几次 DirectBrowser
             cost_ms: 600.0,
+            ..Default::default()
         });
     }
     let input = StrategyInput {
         url: "https://spa.example.com/app/dashboard".to_string(),
-        has_validators: false,
-        has_embedded_json_hint: false,
-        is_hub_or_seed: false,
-        importance_weight: 1.0,
-        staleness_ratio: 1.0,
         remaining_budget_fraction: 0.9,
         allow_browser: true,
+        ..Default::default()
     };
     let dec = select_acquisition_strategy(&input, Some(&stats));
     assert_eq!(dec.strategy, AcquisitionStrategy::DirectBrowser);
+
+    // 若长期 DirectBrowser 未探过 HTTP（>= 6 次），主动以 HttpVerifyBrowser 探测 SSR 回迁
+    for j in 0..6 {
+        stats.observe(&FamilyObservation {
+            observed_at_ms: 5000 + j * 100,
+            used_browser: true,
+            browser_gain: Some(true),
+            cost_ms: 600.0,
+            ..Default::default()
+        });
+    }
+    let probe_dec = select_acquisition_strategy(&input, Some(&stats));
+    assert_eq!(probe_dec.strategy, AcquisitionStrategy::HttpVerifyBrowser);
+    assert!(probe_dec.exploration_probe);
 }
 
 #[test]
@@ -54,24 +62,19 @@ fn strategy_selects_embedded_json_from_learned_family_history() {
         stats.observe(&FamilyObservation {
             observed_at_ms: 100 + i * 50,
             http_sufficient: Some(true),
-            browser_gain: None,
-            conditional_hit: None,
             embedded_json_observed: Some(true),
             substantive_change: Some((600.0, false)),
             yielded_claims_or_links: Some(true),
             encountered_barrier: Some(false),
             cost_ms: 35.0,
+            ..Default::default()
         });
     }
     let input = StrategyInput {
         url: "https://shop.example.com/p/42".to_string(),
-        has_validators: false,
-        has_embedded_json_hint: false,
-        is_hub_or_seed: false,
-        importance_weight: 1.0,
-        staleness_ratio: 1.0,
         remaining_budget_fraction: 0.8,
         allow_browser: true,
+        ..Default::default()
     };
     let dec = select_acquisition_strategy(&input, Some(&stats));
     assert_eq!(dec.strategy, AcquisitionStrategy::HttpWithEmbeddedJson);
@@ -83,25 +86,17 @@ fn strategy_avoids_permanent_starvation_for_very_stale_high_barrier_family() {
     for i in 0..6 {
         stats.observe(&FamilyObservation {
             observed_at_ms: 100 + i * 100,
-            http_sufficient: None,
-            browser_gain: None,
-            conditional_hit: None,
-            embedded_json_observed: None,
-            substantive_change: None,
-            yielded_claims_or_links: None,
             encountered_barrier: Some(true),
             cost_ms: 40.0,
+            ..Default::default()
         });
     }
     let normal_stale = StrategyInput {
         url: "https://strict.example.com/item/1".to_string(),
-        has_validators: false,
-        has_embedded_json_hint: false,
-        is_hub_or_seed: false,
-        importance_weight: 1.0,
         staleness_ratio: 1.2,
         remaining_budget_fraction: 0.2,
         allow_browser: true,
+        ..Default::default()
     };
     assert_eq!(
         select_acquisition_strategy(&normal_stale, Some(&stats)).strategy,
@@ -116,6 +111,34 @@ fn strategy_avoids_permanent_starvation_for_very_stale_high_barrier_family() {
         select_acquisition_strategy(&overdue, Some(&stats)).strategy,
         AcquisitionStrategy::DeferOrSkip
     );
+}
+
+#[test]
+fn high_shadow_price_offloads_marginal_browser_to_http_or_embedded() {
+    let mut stats = FamilyStats::new("https://hybrid.example.com/doc");
+    for i in 0..6 {
+        stats.observe(&FamilyObservation {
+            observed_at_ms: 100 + i * 100,
+            http_sufficient: Some(i % 5 != 0),
+            browser_gain: Some(i % 5 == 0),
+            embedded_json_observed: Some(true),
+            http_cost_ms: Some(40.0),
+            browser_cost_ms: Some(1_600.0),
+            cost_ms: 120.0,
+            ..Default::default()
+        });
+    }
+    let pressured = StrategyInput {
+        url: "https://hybrid.example.com/doc/123".to_string(),
+        remaining_budget_fraction: 0.8,
+        browser_budget_fraction: 0.1,
+        browser_tab_utilization: 0.9,
+        allow_browser: true,
+        ..Default::default()
+    };
+    let dec = select_acquisition_strategy(&pressured, Some(&stats));
+    assert_eq!(dec.strategy, AcquisitionStrategy::HttpWithEmbeddedJson);
+    assert!(dec.shadow_price >= 3.5);
 }
 
 #[test]

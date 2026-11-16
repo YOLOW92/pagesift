@@ -17,6 +17,7 @@ fn family_experience_tracks_rates_and_roundtrips_json() {
                 yielded_claims_or_links: Some(true),
                 encountered_barrier: Some(false),
                 cost_ms: 42.0,
+                ..Default::default()
             },
         );
     }
@@ -49,6 +50,7 @@ fn direct_browser_and_censored_failures_do_not_pollute_http_sufficiency() {
                 yielded_claims_or_links: Some(true),
                 encountered_barrier: Some(false),
                 cost_ms: 500.0,
+                ..Default::default()
             },
         );
     }
@@ -68,6 +70,7 @@ fn direct_browser_and_censored_failures_do_not_pollute_http_sufficiency() {
                 yielded_claims_or_links: None,
                 encountered_barrier: Some(i % 3 == 0),
                 cost_ms: 700.0,
+                ..Default::default()
             },
         );
     }
@@ -142,6 +145,7 @@ fn fully_censored_observations_do_not_pollute_any_family_statistics() {
             yielded_claims_or_links: Some(true),
             encountered_barrier: Some(false),
             cost_ms: 50.0,
+            ..Default::default()
         },
     );
     let baseline = table.get_family(fam).expect("baseline stats");
@@ -160,6 +164,7 @@ fn fully_censored_observations_do_not_pollute_any_family_statistics() {
                 yielded_claims_or_links: None,
                 encountered_barrier: None,
                 cost_ms: 30_000.0,
+                ..Default::default()
             },
         );
     }
@@ -170,4 +175,202 @@ fn fully_censored_observations_do_not_pollute_any_family_statistics() {
     assert_eq!(after.http_sufficient, baseline.http_sufficient);
     assert_eq!(after.ewma_cost_ms, baseline.ewma_cost_ms);
     assert_eq!(after.last_observed_at_ms, baseline.last_observed_at_ms);
+}
+
+#[test]
+fn unreliable_decode_censors_sufficiency_and_change_learning() {
+    let table = FamilyExperienceTable::new();
+    let fam = "https://charset.example.com/feed";
+    table.record_observation(
+        fam,
+        &FamilyObservation {
+            observed_at_ms: 1_000,
+            http_sufficient: Some(true),
+            conditional_hit: Some(true),
+            substantive_change: Some((300.0, false)),
+            yielded_claims_or_links: Some(true),
+            encountered_barrier: Some(false),
+            cost_ms: 40.0,
+            ..Default::default()
+        },
+    );
+    let before = table.get_family(fam).unwrap();
+    // 不确定编码（decode:*）或截断正文即便带着幻觉差异也不应污染 http_sufficient 与 substantive_change
+    for i in 0..5 {
+        table.record_observation(
+            fam,
+            &FamilyObservation {
+                observed_at_ms: 2_000 + i * 500,
+                http_sufficient: Some(false),
+                substantive_change: Some((60.0, true)),
+                yielded_claims_or_links: Some(false),
+                encountered_barrier: Some(false),
+                cost_ms: 120.0,
+                unreliable_observation: true,
+                ..Default::default()
+            },
+        );
+    }
+    let after = table.get_family(fam).unwrap();
+    assert_eq!(after.http_sufficient, before.http_sufficient);
+    assert_eq!(after.substantive_change, before.substantive_change);
+    assert_eq!(
+        after.yielded_claims_or_links_count(),
+        before.yielded_claims_or_links_count()
+    );
+}
+
+trait YieldHelper {
+    fn yielded_claims_or_links_count(&self) -> f64;
+}
+impl YieldHelper for FamilyStats {
+    fn yielded_claims_or_links_count(&self) -> f64 {
+        self.claim_yield.trials()
+    }
+}
+
+#[test]
+fn modality_separated_costs_and_surprise_forgetting_work() {
+    let mut st = FamilyStats::new("https://hybrid.example.com/p");
+    for i in 0..5 {
+        st.observe(&FamilyObservation {
+            observed_at_ms: 1_000 + i * 1_000,
+            http_sufficient: Some(false),
+            browser_gain: Some(true),
+            used_browser: true,
+            http_cost_ms: Some(40.0),
+            browser_cost_ms: Some(1_800.0),
+            cost_ms: 1_840.0,
+            ..Default::default()
+        });
+    }
+    st.observe(&FamilyObservation {
+        observed_at_ms: 7_000,
+        conditional_hit: Some(true),
+        is_304: true,
+        http_cost_ms: Some(18.0),
+        cost_ms: 18.0,
+        ..Default::default()
+    });
+    assert!(st.ewma_304_cost_ms < 25.0);
+    assert!(st.ewma_http_cost_ms < 60.0);
+    assert!(st.ewma_browser_cost_ms > 1_500.0);
+
+    // 突发从 DirectBrowser 回切为 SSR HTTP 充分：惊异遗忘应在 3 轮内翻越 0.5 门槛
+    for j in 0..3 {
+        st.observe(&FamilyObservation {
+            observed_at_ms: 10_000 + j * 1_000,
+            http_sufficient: Some(true),
+            browser_gain: Some(false),
+            used_browser: false,
+            http_cost_ms: Some(38.0),
+            cost_ms: 38.0,
+            ..Default::default()
+        });
+    }
+    assert!(
+        st.http_sufficient.mean() > 0.60 && st.drift_count >= 1,
+        "expected fast surprise recovery, got mean={}, drift={}",
+        st.http_sufficient.mean(),
+        st.drift_count
+    );
+}
+
+#[test]
+fn change_rate_learns_non_aliased_period_and_resists_aliasing() {
+    let mut snap = ChangeRateSnapshot::default();
+    // 反混叠：若每次粗轮询都在改且中间从未确认过“未变更”，不能锁定假周期
+    for k in 1..=5 {
+        snap.observe_at(300.0, true, k * 300_000, None);
+    }
+    assert!(
+        snap.regularity.detected_period().is_none(),
+        "aliased always-changing coarse polls must not lock a fake period"
+    );
+
+    // 真实周期 120s，在每个周期的 105s 确认未改、130s 确认改动（非混叠）
+    let mut reg = ChangeRateSnapshot::default();
+    reg.observe_at(60.0, true, 1_000_000, None);
+    for c in 1..=4 {
+        let base = 1_000_000 + (c - 1) * 120_000;
+        reg.observe_at(105.0, false, base + 105_000, None);
+        reg.observe_at(25.0, true, base + 125_000, None);
+    }
+    let est = reg
+        .regularity
+        .detected_period()
+        .expect("should detect valid regular period");
+    assert!((est.mean_secs - 122.0).abs() < 10.0, "est={est:?}");
+    let delay = reg
+        .regularity
+        .next_delay_secs(1_000_000 + 3 * 120_000 + 10_000, 10.0, 3600.0)
+        .expect("delay");
+    assert!((100.0..=160.0).contains(&delay), "delay={delay}");
+}
+
+#[test]
+fn hierarchical_transfer_respects_tenant_isolation_and_rejects_negative_transfer() {
+    let table = FamilyExperienceTable::new();
+    let tenant_a = Some("tenant-alpha");
+    let tenant_b = Some("tenant-beta");
+
+    // Tenant A 成熟同域同构族表现为 SPA（需要浏览器）
+    for fam in [
+        "https://shop.example.com/items/1",
+        "https://shop.example.com/items/2",
+    ] {
+        for i in 0..5 {
+            table.record_observation_for_tenant(
+                fam,
+                tenant_a,
+                &FamilyObservation {
+                    observed_at_ms: 1_000 + i * 500,
+                    http_sufficient: Some(false),
+                    browser_gain: Some(true),
+                    used_browser: true,
+                    cost_ms: 900.0,
+                    ..Default::default()
+                },
+            );
+        }
+    }
+
+    // Tenant B 访问同一域名但新族绝不可看到 Tenant A 的先验
+    table.record_observation_for_tenant(
+        "https://shop.example.com/items/99",
+        tenant_b,
+        &FamilyObservation {
+            observed_at_ms: 10_000,
+            http_sufficient: Some(true),
+            browser_gain: Some(false),
+            cost_ms: 40.0,
+            ..Default::default()
+        },
+    );
+    let b_stats = table
+        .get_family("https://shop.example.com/items/99")
+        .unwrap();
+    assert!(b_stats.transfer.donor_description.is_none());
+
+    // 同 Tenant A 出现新族但实际该分支为 SSR 负迁移场景（前 3 次本地观测全部打脸 SPA 先验）
+    let cold_a = "https://shop.example.com/items/new";
+    for i in 0..3 {
+        table.record_observation_for_tenant(
+            cold_a,
+            tenant_a,
+            &FamilyObservation {
+                observed_at_ms: 20_000 + i * 500,
+                http_sufficient: Some(true),
+                browser_gain: Some(false),
+                cost_ms: 35.0,
+                ..Default::default()
+            },
+        );
+    }
+    let a_cold = table.get_family(cold_a).unwrap();
+    assert!(
+        a_cold.transfer.rejected,
+        "expected negative transfer rejection"
+    );
+    assert!(a_cold.http_sufficient.mean() > 0.70);
 }

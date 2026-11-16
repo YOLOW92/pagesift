@@ -50,6 +50,7 @@ fn make_record(url: &str, key: &str, now_ms: u64, has_embedded: bool) -> Resourc
         has_embedded_json: has_embedded,
         text_signature: None,
         confirmed_gone_at_ms: None,
+        learn: pagesift_store::ResourceLearnStats::default(),
     }
 }
 
@@ -283,6 +284,7 @@ async fn t18_adapt_strategy_embedded_json_and_order_invariance() {
                 yielded_claims_or_links: Some(false),
                 encountered_barrier: Some(true),
                 cost_ms: 120.0,
+                ..Default::default()
             },
         );
     }

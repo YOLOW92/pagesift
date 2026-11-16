@@ -1,7 +1,7 @@
 //! 图版本+证据+声明+溯源边单事务捆绑提交与历史可用性查询模型。
 
 use pagesift_graph::{
-    ClaimLifecycleRecord, ClaimRecord, ClaimTransition, DocNode, ObservationOutcome,
+    CitationEdge, ClaimLifecycleRecord, ClaimRecord, ClaimTransition, DocNode, ObservationOutcome,
     ProvenanceEdge, VersionRecord,
 };
 use serde::{Deserialize, Serialize};
@@ -32,6 +32,8 @@ pub struct StoredProvenance {
     pub node: Option<DocNode>,
     #[serde(default)]
     pub edges: Vec<ProvenanceEdge>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub citations: Vec<CitationEdge>,
 }
 
 /// 版本记录、声明生命周期与溯源关系的捆绑提交请求（C06 / C24）。
@@ -45,6 +47,7 @@ pub struct VersionBundleRequest<'a> {
     pub doc_id: Option<&'a str>,
     pub doc_node: Option<&'a DocNode>,
     pub provenance: &'a [ProvenanceEdge],
+    pub citations: &'a [CitationEdge],
 }
 
 /// 捆绑提交结果。
@@ -97,7 +100,7 @@ impl<'a> GraphStore<'a> {
             .map(|v| self.prepare_version_commit(v))
             .transpose()?;
         let prov_bytes = if let Some(doc_id) = req.doc_id
-            && (req.doc_node.is_some() || !req.provenance.is_empty())
+            && (req.doc_node.is_some() || !req.provenance.is_empty() || !req.citations.is_empty())
         {
             Some(encode_json(
                 &StoredProvenance {
@@ -105,6 +108,7 @@ impl<'a> GraphStore<'a> {
                     observed_at_ms: req.observed_at_ms,
                     node: req.doc_node.cloned(),
                     edges: req.provenance.to_vec(),
+                    citations: req.citations.to_vec(),
                 },
                 "stored provenance",
             )?)

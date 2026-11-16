@@ -65,8 +65,9 @@ pub use model::{
     build_block_refs, build_indexed_blocks, build_indexed_blocks_checked,
 };
 pub use norm::{
-    DatePrecision, MoneyPeriod, NormalizedValue, ValueComparison, compare_normalized,
-    normalize_field_key, normalize_field_value,
+    DatePrecision, MoneyPeriod, NormalizedValue, ValueComparison, canonical_currency_code,
+    compare_normalized, normalize_field_key, normalize_field_value,
+    normalize_field_value_with_currency,
 };
 pub use provenance::{
     CanonicalCluster, CanonicalSource, ProvenanceEdge, RedirectKind, canonical_edge,

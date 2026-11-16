@@ -27,16 +27,53 @@ pub fn is_barrier_doc(doc: &Document) -> bool {
         })
 }
 
+/// 观测可靠性诊断（G1 Observe：识别非 UTF-8 不确定回退编码、体截断、图截断与无效 304）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CaptureReliability {
+    pub uncertain_decode: bool,
+    pub truncated: bool,
+    pub invalid_304: bool,
+}
+
+impl CaptureReliability {
+    pub fn is_unreliable(self) -> bool {
+        self.uncertain_decode || self.truncated || self.invalid_304
+    }
+}
+
+pub fn assess_capture_reliability(doc: &Document) -> CaptureReliability {
+    let Some(ps) = doc.metadata.pagesift.as_ref() else {
+        return CaptureReliability::default();
+    };
+    let mut out = CaptureReliability::default();
+    for w in &ps.warnings {
+        if w.starts_with("decode:") && !w.contains("valid UTF-8; decoded as UTF-8 instead") {
+            out.uncertain_decode = true;
+        }
+        if w.starts_with("body_truncated") || w.starts_with("graph_truncated") {
+            out.truncated = true;
+        }
+        if w.starts_with("not_modified:") {
+            out.invalid_304 = true;
+        }
+    }
+    out
+}
+
 pub fn has_embedded_json_signal(doc: &Document) -> bool {
-    doc.metadata
-        .pagesift
-        .as_ref()
-        .is_some_and(|p| !p.json_ld.is_empty())
-        || doc.graph.as_ref().is_some_and(|g| {
-            g.claims
-                .iter()
-                .any(|c| c.evidence.method.is_metadata_island())
-        })
+    doc.metadata.pagesift.as_ref().is_some_and(|p| {
+        !p.json_ld.is_empty()
+            || p.plan.as_ref().is_some_and(|steps| {
+                steps
+                    .steps
+                    .iter()
+                    .any(|s| s.action == "embedded-json" && s.chosen)
+            })
+    }) || doc.graph.as_ref().is_some_and(|g| {
+        g.claims
+            .iter()
+            .any(|c| c.evidence.method.is_metadata_island())
+    })
 }
 
 fn value_non_empty(v: &Value) -> bool {
@@ -150,7 +187,8 @@ pub fn assess_document_capture(
         .as_deref()
         .map_or(0, |m| m.chars().filter(|c| !c.is_whitespace()).count());
     let pagesift_meta = doc.metadata.pagesift.as_ref();
-    let not_mod = pagesift_meta.is_some_and(|p| p.not_modified);
+    let reliability = assess_capture_reliability(doc);
+    let not_mod = pagesift_meta.is_some_and(|p| p.not_modified) && !reliability.invalid_304;
     let has_empty_warning =
         pagesift_meta.is_some_and(|p| p.warnings.iter().any(|w| w.starts_with("empty_content:")));
     let has_thin_warning =
