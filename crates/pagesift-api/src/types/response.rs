@@ -109,6 +109,9 @@ pub struct PagesiftMeta {
     /// Only present when the request asks for an explanation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plan: Option<PlanTrace>,
+    /// Internal HTTP extraction hint set when the page has executable scripts and empty/shell DOM markers.
+    #[serde(skip)]
+    pub js_shell_hint: bool,
 }
 
 /// `metadata.pagesift.plan`：每一步决策的依据。
@@ -344,6 +347,14 @@ pub struct JobStarted {
     /// Request fields that were accepted but ignored (`ignored_fields: a, b`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JobCancelled {
+    pub success: bool,
+    pub id: String,
+    pub status: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

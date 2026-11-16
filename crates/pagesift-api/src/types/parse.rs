@@ -65,6 +65,93 @@ impl UploadKind {
         None
     }
 
+    /// Resolve declared format from filename extension and/or Content-Type without content sniffing.
+    pub fn declared(filename: &str, content_type: Option<&str>) -> Option<Self> {
+        let ext = filename
+            .rsplit_once('.')
+            .map(|(_, e)| e.to_ascii_lowercase())
+            .unwrap_or_default();
+        let ext_kind = Self::from_extension(&ext);
+        let mime = content_type
+            .and_then(|c| c.split(';').next())
+            .map(|c| c.trim().to_ascii_lowercase())
+            .unwrap_or_default();
+        let mime_kind = Self::from_mime(&mime);
+        match (mime_kind, ext_kind) {
+            (
+                Some(Self::Office(
+                    pagesift_office::Format::Text | pagesift_office::Format::Fenced(_),
+                )),
+                Some(e),
+            ) => Some(e),
+            (
+                Some(Self::Office(
+                    pagesift_office::Format::Text | pagesift_office::Format::Fenced(_),
+                )),
+                None,
+            ) if !ext.is_empty() => None,
+            (m, e) => m.or(e),
+        }
+    }
+
+    fn from_extension(ext: &str) -> Option<Self> {
+        match ext {
+            "pdf" => Some(Self::Pdf),
+            "html" | "htm" | "xhtml" => Some(Self::Html),
+            "png" => Some(Self::Image("image/png")),
+            "jpg" | "jpeg" => Some(Self::Image("image/jpeg")),
+            "gif" => Some(Self::Image("image/gif")),
+            "tif" | "tiff" => Some(Self::Image("image/tiff")),
+            "webp" => Some(Self::Image("image/webp")),
+            "bmp" => Some(Self::Image("image/bmp")),
+            _ => pagesift_office::Format::from_extension(ext).map(Self::Office),
+        }
+    }
+
+    fn from_mime(mime: &str) -> Option<Self> {
+        match mime {
+            "application/pdf" | "application/x-pdf" => Some(Self::Pdf),
+            "text/html" | "application/xhtml+xml" => Some(Self::Html),
+            "image/png" => Some(Self::Image("image/png")),
+            "image/jpeg" | "image/jpg" => Some(Self::Image("image/jpeg")),
+            "image/gif" => Some(Self::Image("image/gif")),
+            "image/tiff" => Some(Self::Image("image/tiff")),
+            "image/webp" => Some(Self::Image("image/webp")),
+            "image/bmp" => Some(Self::Image("image/bmp")),
+            _ => pagesift_office::Format::from_mime(mime).map(Self::Office),
+        }
+    }
+
+    /// Whether sniffing validates a binary magic/container header before accepting this format.
+    pub fn requires_magic(self) -> bool {
+        match self {
+            Self::Pdf | Self::Image(_) => true,
+            Self::Html => false,
+            Self::Office(f) => {
+                !f.is_text_based()
+                    && !matches!(
+                        f,
+                        pagesift_office::Format::WordPerfect | pagesift_office::Format::Dbf
+                    )
+            }
+        }
+    }
+
+    /// Build a descriptive `INVALID_REQUEST` error when a supported binary format fails content sniffing.
+    pub fn corrupt_declared_error(filename: &str, content_type: Option<&str>) -> Option<ApiError> {
+        let declared = Self::declared(filename, content_type).filter(|k| k.requires_magic())?;
+        let ext = match declared {
+            Self::Pdf => "pdf",
+            Self::Html => "html",
+            Self::Image(mime) => mime.strip_prefix("image/").unwrap_or("image"),
+            Self::Office(f) => f.extension(),
+        };
+        let label = ext.to_ascii_uppercase();
+        Some(ApiError::invalid(format!(
+            "could not read {label}: content is corrupt or does not match declared {ext} format (missing or invalid file signature); verify the source file is an intact .{ext}"
+        )))
+    }
+
     pub fn mime(self) -> &'static str {
         match self {
             UploadKind::Pdf => "application/pdf",

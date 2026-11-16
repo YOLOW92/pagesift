@@ -233,7 +233,11 @@ pub(crate) fn run(command: Command, cfg: pagesift::config::Config) -> Result<Exi
                 Ok(doc) if format == "json" => {
                     let code = scrape_exit_code(&doc);
                     print_scrape_warnings(&doc);
-                    let body = serde_json::json!({ "success": true, "data": doc });
+                    let body = pagesift::api::types::ScrapeResponse {
+                        success: true,
+                        warning: doc.warning.clone(),
+                        data: doc,
+                    };
                     println!("{}", serde_json::to_string_pretty(&body)?);
                     Ok(code)
                 }
@@ -470,6 +474,9 @@ async fn parse_local(
         .file_name()
         .map_or_else(|| "upload".into(), |n| n.to_string_lossy().into_owned());
     let Some(kind) = UploadKind::detect(&bytes, &filename, None) else {
+        if let Some(err) = UploadKind::corrupt_declared_error(&filename, None) {
+            return Ok(Err(err));
+        }
         return Ok(Err(pagesift::api::ApiError::unsupported(format!(
             "unsupported file type: {filename}"
         ))));

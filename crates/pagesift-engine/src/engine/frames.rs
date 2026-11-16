@@ -42,6 +42,48 @@ pub(super) fn client_code_in(dom: &pagesift_html::Html<'_>) -> bool {
     })
 }
 
+/// Detect existing thin/JS-shell clues inside a parsed DOM + extracted markdown without
+/// misclassifying normal short server-rendered pages (which may have analytics scripts).
+pub(super) fn detect_js_shell(
+    dom: &pagesift_html::Html<'_>,
+    markdown: &str,
+    client_code: bool,
+) -> bool {
+    if !client_code {
+        return false;
+    }
+    let md_non_ws = markdown.chars().filter(|c| !c.is_whitespace()).count();
+    if md_non_ws == 0 {
+        return true;
+    }
+    if md_non_ws >= 200 {
+        return false;
+    }
+    let has_empty_spa_mount = dom.root().descendants().any(|node| {
+        let Some(el) = node.as_element() else {
+            return false;
+        };
+        let is_mount_id = el.attr("id").is_some_and(|id| {
+            matches!(
+                id.to_ascii_lowercase().as_str(),
+                "app" | "root" | "__next" | "__nuxt" | "svelte"
+            )
+        });
+        let is_mount_tag = el.name().eq_ignore_ascii_case("app-root");
+        (is_mount_id || is_mount_tag) && node.text().trim().is_empty()
+    });
+    if has_empty_spa_mount {
+        return true;
+    }
+    let lower = markdown.trim().to_ascii_lowercase();
+    lower.contains("enable javascript")
+        || lower.contains("javascript is required")
+        || lower.contains("requires javascript")
+        || lower.contains("turn on javascript")
+        || matches!(lower.as_str(), "loading" | "loading..." | "please wait...")
+        || lower.starts_with("loading ")
+}
+
 /// 可能承载正文的 iframe：同源的 `src`（属性值和解析后的地址）或内联的 `srcdoc`
 /// （属性值是文档本身，地址为 `None`）。跨源的 iframe 多是统计、广告、视频和地图嵌入，正文提取本来就不要；
 /// 看不见的、空的和 `about:blank` 也不算。

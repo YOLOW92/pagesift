@@ -29,7 +29,18 @@ pub fn decode(bytes: &[u8], content_type: Option<&str>) -> (String, Option<Strin
     }
     if bytes.len() <= SAMPLE {
         let decoded = pagesift_net::decode(bytes, content_type, None);
-        let warning = decoded.warning();
+        let mut warning = decoded.warning();
+        if warning.is_none()
+            && !declared
+            && bom == 0
+            && decoded.encoding != encoding_rs::UTF_8
+            && decoded.encoding.is_single_byte()
+        {
+            warning = Some(format!(
+                "decode: input is not valid UTF-8 and no charset was declared; decoded as {}",
+                decoded.encoding_name
+            ));
+        }
         return (decoded.text, warning);
     }
     // 大文件：在样本上定编码（声明、探测、声明是否说谎都在这一步），再按它解码全文
@@ -43,8 +54,28 @@ pub fn decode(bytes: &[u8], content_type: Option<&str>) -> (String, Option<Strin
         let warning = decoded.warning();
         return (decoded.text, warning);
     }
-    let warning = sample.warning();
-    let (text, _) = sample.encoding.decode_without_bom_handling(&bytes[bom..]);
+    let mut warning = sample.warning();
+    let (text, had_errors) = sample.encoding.decode_without_bom_handling(&bytes[bom..]);
+    if warning.is_none() && had_errors {
+        let replacements = text.matches('\u{FFFD}').count();
+        if replacements > 0 {
+            warning = Some(format!(
+                "decode: {replacements} replacement characters under charset={}",
+                sample.encoding_name
+            ));
+        }
+    }
+    if warning.is_none()
+        && !declared
+        && bom == 0
+        && sample.encoding != encoding_rs::UTF_8
+        && sample.encoding.is_single_byte()
+    {
+        warning = Some(format!(
+            "decode: input is not valid UTF-8 and no charset was declared; decoded as {}",
+            sample.encoding_name
+        ));
+    }
     (text.into_owned(), warning)
 }
 
@@ -128,5 +159,14 @@ mod tests {
         let mut with_bom = vec![0xFF, 0xFE];
         with_bom.extend("a,b\n1,2\n".encode_utf16().flat_map(u16::to_le_bytes));
         assert_eq!(decode(&with_bom, None).0, "a,b\n1,2\n");
+    }
+
+    #[test]
+    fn invalid_utf8_csv_emits_fallback_decode_warning() {
+        let (text, warning) = decode(b"col\nval\xff\xfeue\n", Some("text/csv"));
+        assert!(text.contains("val\u{00FF}\u{015F}ue"), "{text:?}");
+        let w = warning.expect("invalid UTF-8 CSV must emit decode warning");
+        assert!(w.starts_with("decode:"), "{w}");
+        assert!(w.contains("windows-1254"), "{w}");
     }
 }

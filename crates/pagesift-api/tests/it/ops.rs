@@ -1626,3 +1626,67 @@ fn a_full_disk_fails_the_job_and_the_job_resumes_after_a_restart() {
         assert_eq!(unique.len(), limit, "no page missing or duplicated");
     });
 }
+
+#[test]
+fn batch_cancel_returns_json_envelope_and_missing_returns_404_json() {
+    let rt = runtime();
+    rt.block_on(async {
+        let (fake, _) = Fake::new(50);
+        let app = router(fake, Config::default());
+        let (status, _, started) = call(
+            &app,
+            "POST",
+            "/v2/batch/scrape",
+            Some(json!({"urls": [format!("{BASE}/a"), format!("{BASE}/b")]})),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{started}");
+        let id = started["id"].as_str().unwrap().to_string();
+
+        let del_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(format!("/v2/batch/scrape/{id}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let del_status = del_resp.status();
+        let del_bytes = del_resp.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(
+            del_status,
+            StatusCode::OK,
+            "{}",
+            String::from_utf8_lossy(&del_bytes)
+        );
+        assert!(
+            !del_bytes.is_empty(),
+            "DELETE must return a non-empty JSON body"
+        );
+        let del_json: Value = serde_json::from_slice(&del_bytes).unwrap();
+        assert_eq!(del_json["success"], true, "{del_json}");
+        assert_eq!(del_json["id"], id, "{del_json}");
+        assert!(
+            matches!(
+                del_json["status"].as_str(),
+                Some("cancelled" | "completed" | "failed")
+            ),
+            "{del_json}"
+        );
+
+        let (miss_status, _, miss_json) = call(
+            &app,
+            "DELETE",
+            "/v2/batch/scrape/does-not-exist",
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(miss_status, StatusCode::NOT_FOUND, "{miss_json}");
+        assert_eq!(miss_json["success"], false, "{miss_json}");
+    });
+}

@@ -199,3 +199,110 @@ async fn e6_sync_tick_aborts_when_store_directory_is_deleted() {
 
     let _ = shutdown.send(());
 }
+
+#[tokio::test]
+async fn bug2_js_shell_not_authoritative_and_short_ssr_preserved() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open_dir(dir.path()).unwrap();
+    let scraper = test_scraper(Some(store.clone()));
+
+    let app = Router::new()
+        .route(
+            "/js-empty-shell",
+            get(|| async {
+                Html(
+                    r#"<!doctype html>
+<html>
+<head><title>App Shell</title></head>
+<body>
+  <div id="app"></div>
+  <script>fetch('/api/items').then(r => r.json()).then(d => render(d));</script>
+</body>
+</html>"#,
+                )
+            }),
+        )
+        .route(
+            "/js-loading-shell",
+            get(|| async {
+                Html(
+                    r#"<!doctype html>
+<html>
+<head><title>Loading App</title></head>
+<body>
+  <main id="root">Loading...</main>
+  <script src="/app.js"></script>
+  <script>fetch('/api/catalog').then(r => r.json());</script>
+</body>
+</html>"#,
+                )
+            }),
+        )
+        .route(
+            "/short-ssr",
+            get(|| async {
+                Html(
+                    r#"<!doctype html>
+<html>
+<head><title>Branch Hours</title></head>
+<body>
+  <main>
+    <h1>Branch Hours</h1>
+    <p>Open Monday to Friday, 09:00 to 17:00.</p>
+  </main>
+</body>
+</html>"#,
+                )
+            }),
+        );
+    let (base, shutdown) = spawn_server(app).await;
+
+    for (id, path) in [
+        ("s-bug2-empty", "/js-empty-shell"),
+        ("s-bug2-loading", "/js-loading-shell"),
+    ] {
+        let mut spec = sample_spec(id, format!("{base}{path}"));
+        spec.extract_schema = None;
+        spec.required_fields.clear();
+        spec.allow_browser = true;
+        store.sync().upsert_source(spec).unwrap();
+
+        let (delta, inv) = tick_and_get(&scraper, &store, id, run_opts()).await;
+        assert_eq!(
+            delta.stats.insufficient_captures, 1,
+            "{id}: JS shell must count as insufficient capture: {delta:?}"
+        );
+        assert_ne!(
+            delta.coverage_status, "complete_within_scope",
+            "{id}: JS shell coverage must report gap, got {:?}",
+            delta.coverage_status
+        );
+        assert_eq!(inv.len(), 1);
+        assert_ne!(
+            inv[0].state,
+            ResourceLifecycleState::Active,
+            "{id}: JS shell must not become active"
+        );
+        assert!(
+            !inv[0].baseline_sufficient,
+            "{id}: JS shell must not mark baseline_sufficient=true"
+        );
+    }
+
+    let mut ssr_spec = sample_spec("s-bug2-ssr", format!("{base}/short-ssr"));
+    ssr_spec.extract_schema = None;
+    ssr_spec.required_fields.clear();
+    store.sync().upsert_source(ssr_spec).unwrap();
+
+    let (ssr_delta, ssr_inv) = tick_and_get(&scraper, &store, "s-bug2-ssr", run_opts()).await;
+    assert_eq!(
+        ssr_delta.stats.insufficient_captures, 0,
+        "short SSR page must remain sufficient: {ssr_delta:?}"
+    );
+    assert_eq!(ssr_delta.coverage_status, "complete_within_scope");
+    assert_eq!(ssr_inv.len(), 1);
+    assert_eq!(ssr_inv[0].state, ResourceLifecycleState::Active);
+    assert!(ssr_inv[0].baseline_sufficient);
+
+    let _ = shutdown.send(());
+}

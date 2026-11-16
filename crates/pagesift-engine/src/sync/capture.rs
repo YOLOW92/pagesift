@@ -145,12 +145,17 @@ pub fn assess_document_capture(
         rec.role,
         pagesift_store::ResourceRole::Pagination | pagesift_store::ResourceRole::FeedOrSitemap
     ) || (rec.role == pagesift_store::ResourceRole::Hub && !has_claims);
-    let md_chars = doc.markdown.as_deref().map_or(0, str::len);
-    let not_mod = doc
-        .metadata
-        .pagesift
-        .as_ref()
-        .is_some_and(|p| p.not_modified);
+    let md_chars = doc
+        .markdown
+        .as_deref()
+        .map_or(0, |m| m.chars().filter(|c| !c.is_whitespace()).count());
+    let pagesift_meta = doc.metadata.pagesift.as_ref();
+    let not_mod = pagesift_meta.is_some_and(|p| p.not_modified);
+    let has_empty_warning =
+        pagesift_meta.is_some_and(|p| p.warnings.iter().any(|w| w.starts_with("empty_content:")));
+    let has_thin_warning =
+        pagesift_meta.is_some_and(|p| p.warnings.iter().any(|w| w.starts_with("thin_content:")));
+    let js_shell_hint = pagesift_meta.is_some_and(|p| p.js_shell_hint);
     let barrier = is_barrier_doc(doc);
     let contract_id = spec.contract_id();
     let baseline_matches_contract = rec.baseline_sufficient
@@ -204,6 +209,15 @@ pub fn assess_document_capture(
         .count();
     let outgoing_links_count = doc.links.as_ref().map_or(0, Vec::len);
 
+    let has_client_shell_markers = !not_mod
+        && claims.is_empty()
+        && extracted_fields_present.is_empty()
+        && (has_empty_warning
+            || has_thin_warning
+            || js_shell_hint
+            || md_chars == 0
+            || (md_chars < goal.min_markdown_chars && outgoing_links_count == 0));
+
     evaluate_capture_sufficiency(
         &goal,
         &CaptureSignals {
@@ -212,10 +226,7 @@ pub fn assess_document_capture(
             baseline_matches_contract,
             markdown_chars: md_chars,
             has_embedded_json: has_embedded_json_signal(doc),
-            has_client_shell_markers: !not_mod
-                && md_chars < goal.min_markdown_chars
-                && outgoing_links_count == 0
-                && claims.is_empty(),
+            has_client_shell_markers,
             extracted_fields_present,
             grounded_fields_present,
             grounded_evidence_count,

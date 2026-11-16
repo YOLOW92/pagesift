@@ -135,12 +135,6 @@ impl Scraper {
             return Ok(NonHtmlStep::Done(Box::new(out)));
         }
 
-        if let Some(kind) = unsupported_content_type(resp.content_type(), &resp.body) {
-            return Err(ApiError::unsupported(format!(
-                "unsupported content type `{kind}`: pagesift extracts HTML/text; use `pagesift download` or `media-extract` for binary media"
-            )));
-        }
-
         if is_pdf(&resp.body, resp.content_type()) {
             let progress = Progress {
                 started,
@@ -165,6 +159,18 @@ impl Scraper {
                 &state.redirect_hops,
             );
             return Ok(NonHtmlStep::Done(Box::new(out)));
+        }
+
+        if let Some(err) =
+            corrupt_declared_binary_error(resp.final_url.path(), resp.content_type(), &resp.body)
+        {
+            return Err(err);
+        }
+
+        if let Some(kind) = unsupported_content_type(resp.content_type(), &resp.body) {
+            return Err(ApiError::unsupported(format!(
+                "unsupported content type `{kind}`: pagesift extracts HTML/text; use `pagesift download` or `media-extract` for binary media"
+            )));
         }
 
         if let Some(markdown) = json_markdown(resp.content_type(), &resp.body) {

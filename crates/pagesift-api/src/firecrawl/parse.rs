@@ -98,6 +98,9 @@ pub async fn parse(
     let opts = options.unwrap_or_else(default_options);
     check_parse_options(&opts, s.engine.as_ref())?;
     let Some(kind) = UploadKind::detect(&bytes, &filename, content_type.as_deref()) else {
+        if let Some(err) = UploadKind::corrupt_declared_error(&filename, content_type.as_deref()) {
+            return Err(err);
+        }
         return Err(ApiError::unsupported(
             "unsupported upload type: pagesift parses PDF (.pdf), HTML (.html, .htm, .xhtml), Word (.docx), Excel (.xlsx), PowerPoint (.pptx), EPUB (.epub) and CSV (.csv, .tsv) files",
         ));

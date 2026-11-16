@@ -23,15 +23,36 @@ done
 
 step() { printf '\n==> %s\n' "$*"; }
 
+worktree_tree_sha() {
+    git_dir=$(git rev-parse --git-dir 2>/dev/null || true)
+    [ -n "$git_dir" ] || return 0
+    tmp_dir=$(mktemp -d 2>/dev/null || true)
+    [ -n "$tmp_dir" ] || return 0
+    tmp_idx="$tmp_dir/index"
+    if [ -f "$git_dir/index" ]; then
+        cp "$git_dir/index" "$tmp_idx" || { rm -rf "$tmp_dir"; return 0; }
+    fi
+    tree_sha=$(
+        GIT_INDEX_FILE="$tmp_idx" git add -A >/dev/null 2>&1 \
+            && GIT_INDEX_FILE="$tmp_idx" git write-tree 2>/dev/null \
+            || true
+    )
+    rm -rf "$tmp_dir"
+    printf '%s\n' "$tree_sha"
+}
+
 record_ci_stamp() {
     level=$1
     git_dir=$(git rev-parse --git-dir 2>/dev/null || true)
-    [ -n "$git_dir" ] || return 0
-    if git diff --quiet -- 2>/dev/null && [ -z "$(git ls-files --others --exclude-standard 2>/dev/null)" ]; then
-        tree_sha=$(git write-tree 2>/dev/null || true)
-        [ -n "$tree_sha" ] && printf '%s %s\n' "$tree_sha" "$level" > "$git_dir/ci-passed"
+    [ -n "$git_dir" ] && [ -n "${start_tree:-}" ] || return 0
+    end_tree=$(worktree_tree_sha)
+    if [ -n "$end_tree" ] && [ "$end_tree" = "$start_tree" ]; then
+        printf '%s %s\n' "$end_tree" "$level" > "$git_dir/ci-passed"
     fi
 }
+
+# 用测试开始与结束时的真实工作区快照写入印章：提交前跑完 ci.sh 再 git add -A && commit，只要树一致即可直接放行推送
+start_tree=$(worktree_tree_sha)
 
 step "release identity"
 python3 scripts/check_release.py

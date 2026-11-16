@@ -39,6 +39,8 @@ pub struct Decoded {
     pub declared: Option<Declared>,
     /// 头/meta 的声明被正文证据推翻时，记录原因。
     pub overridden: Option<DecodeOverride>,
+    /// 非 UTF-8 且无明确字符集声明、高置信探测/统计均未命中，靠兜底猜测解码时为真。
+    pub uncertain_fallback: bool,
 }
 
 /// HTTP 头或 `<meta>` 声明的编码。
@@ -80,6 +82,7 @@ impl Decoded {
             replacement_chars,
             declared: None,
             overridden: None,
+            uncertain_fallback: false,
         }
     }
 
@@ -99,20 +102,25 @@ impl Decoded {
                 ),
             });
         }
-        if self.replacement_chars == 0 {
-            return None;
+        if self.replacement_chars > 0 {
+            return Some(match self.declared {
+                Some(declared) => format!(
+                    "decode: {} replacement characters under charset={} (declared by {})",
+                    self.replacement_chars,
+                    self.encoding_name,
+                    source_label(declared.source)
+                ),
+                None => format!(
+                    "decode: {} replacement characters under charset={}",
+                    self.replacement_chars, self.encoding_name
+                ),
+            });
         }
-        Some(match self.declared {
-            Some(declared) => format!(
-                "decode: {} replacement characters under charset={} (declared by {})",
-                self.replacement_chars,
-                self.encoding_name,
-                source_label(declared.source)
-            ),
-            None => format!(
-                "decode: {} replacement characters under charset={}",
-                self.replacement_chars, self.encoding_name
-            ),
+        self.uncertain_fallback.then(|| {
+            format!(
+                "decode: input is not valid UTF-8 and encoding could not be confirmed; decoded using fallback charset={}",
+                self.encoding_name
+            )
         })
     }
 }
@@ -128,7 +136,8 @@ fn source_label(source: CharsetSource) -> &'static str {
 
 /// 把响应体解码成 UTF-8。`tld` 是主机的顶级域（如 `b"jp"`），给启发式猜测做提示。
 pub fn decode_owned(mut bytes: Vec<u8>, content_type: Option<&str>, tld: Option<&[u8]>) -> Decoded {
-    let (encoding, encoding_name, source, skip) = detect(&bytes, content_type, tld);
+    let (encoding, encoding_name, source, skip, uncertain_fallback) =
+        detect_inner(&bytes, content_type, tld, true);
 
     // UTF-8 极速无分配通道。合法 UTF-8 不会被“单字节声明”误判，
     // 因此这里可以直接返回，不进入正文复核。
@@ -137,6 +146,7 @@ pub fn decode_owned(mut bytes: Vec<u8>, content_type: Option<&str>, tld: Option<
         match String::from_utf8(bytes) {
             Ok(text) => {
                 let mut decoded = Decoded::new(text, encoding, encoding_name, source, false);
+                decoded.uncertain_fallback = uncertain_fallback;
                 if matches!(source, CharsetSource::ContentType | CharsetSource::Meta) {
                     decoded.declared = Some(Declared {
                         encoding_name,
@@ -155,18 +165,22 @@ pub fn decode_owned(mut bytes: Vec<u8>, content_type: Option<&str>, tld: Option<
             source,
             had_errors,
         );
+        decoded.uncertain_fallback = uncertain_fallback;
         refine_against_body(&mut decoded, &bytes, tld);
         return decoded;
     }
 
     let mut decoded = decode_slice(&bytes, encoding, encoding_name, source, skip);
+    decoded.uncertain_fallback = uncertain_fallback;
     refine_against_body(&mut decoded, &bytes, tld);
     decoded
 }
 
 pub fn decode(bytes: &[u8], content_type: Option<&str>, tld: Option<&[u8]>) -> Decoded {
-    let (encoding, encoding_name, source, skip) = detect(bytes, content_type, tld);
+    let (encoding, encoding_name, source, skip, uncertain_fallback) =
+        detect_inner(bytes, content_type, tld, true);
     let mut decoded = decode_slice(bytes, encoding, encoding_name, source, skip);
+    decoded.uncertain_fallback = uncertain_fallback;
     refine_against_body(&mut decoded, bytes, tld);
     decoded
 }
@@ -297,7 +311,8 @@ pub fn detect(
     content_type: Option<&str>,
     tld: Option<&[u8]>,
 ) -> (&'static Encoding, &'static str, CharsetSource, usize) {
-    detect_inner(bytes, content_type, tld, true)
+    let (enc, name, source, skip, _) = detect_inner(bytes, content_type, tld, true);
+    (enc, name, source, skip)
 }
 
 /// 忽略 HTTP 头和 `<meta>` 的声明，只看正文。用于验证“声明是否说谎”。
@@ -305,7 +320,8 @@ fn detect_without_declarations(
     bytes: &[u8],
     tld: Option<&[u8]>,
 ) -> (&'static Encoding, &'static str, CharsetSource, usize) {
-    detect_inner(bytes, None, tld, false)
+    let (enc, name, source, skip, _) = detect_inner(bytes, None, tld, false);
+    (enc, name, source, skip)
 }
 
 /// chardetng 每个字节都要喂给几十个候选编码，是解码里最贵的一步（64 KiB 的 GBK 表格上占三成）。
@@ -351,10 +367,16 @@ fn detect_inner(
     content_type: Option<&str>,
     tld: Option<&[u8]>,
     trust_declarations: bool,
-) -> (&'static Encoding, &'static str, CharsetSource, usize) {
+) -> (&'static Encoding, &'static str, CharsetSource, usize, bool) {
     // 1. BOM 优先（支持 UTF-32, UTF-16, UTF-8）
     if let Some((enc, len)) = detect_bom(bytes) {
-        return (enc.whatwg_encoding(), enc.name(), CharsetSource::Bom, len);
+        return (
+            enc.whatwg_encoding(),
+            enc.name(),
+            CharsetSource::Bom,
+            len,
+            false,
+        );
     }
 
     if trust_declarations {
@@ -363,18 +385,18 @@ fn detect_inner(
             .and_then(charset_param)
             .and_then(|l| Encoding::for_label(l.as_bytes()))
         {
-            return (enc, enc.name(), CharsetSource::ContentType, 0);
+            return (enc, enc.name(), CharsetSource::ContentType, 0, false);
         }
 
         // 3. HTML <meta> 预检
         if let Some(enc) = prescan_meta(&bytes[..bytes.len().min(PRESCAN_BYTES)]) {
-            return (enc, enc.name(), CharsetSource::Meta, 0);
+            return (enc, enc.name(), CharsetSource::Meta, 0, false);
         }
     }
 
     // 4. UTF-7 探测（纯 ASCII + Base64 逃逸）
     if detect_utf7(bytes) {
-        return (UTF_8, "utf-7", CharsetSource::Detected, 0);
+        return (UTF_8, "utf-7", CharsetSource::Detected, 0, false);
     }
 
     // 5. 无 BOM 的多字节探测 (UTF-32LE, UTF-32BE, UTF-16LE, UTF-16BE)
@@ -384,20 +406,23 @@ fn detect_inner(
             enc.name(),
             CharsetSource::Detected,
             0,
+            false,
         );
     }
 
     // 6. 合法 UTF-8 校验 (极速直接返回)
     if std::str::from_utf8(bytes).is_ok() {
-        return (UTF_8, "UTF-8", CharsetSource::Detected, 0);
+        return (UTF_8, "UTF-8", CharsetSource::Detected, 0, false);
     }
 
     // 7. EBCDIC 模式快速识别 (0x40 空格高密度)
     if detect_ebcdic(bytes) {
-        return (WINDOWS_1252, "cp500", CharsetSource::Detected, 0);
+        return (WINDOWS_1252, "cp500", CharsetSource::Detected, 0, false);
     }
 
     // 8. chardetng 高置信度识别（猜测稳定下来就不再往下喂，见 [`feed_until_stable`]）
+    //    单字节编码仅靠少量孤立高字节时 chardetng 也会给出 high_conf，需结合统计特征或足量高字节确认，
+    //    否则当作低置信兜底并触发 decode 警告（防止像 `val\xff\xfeue` 这类损坏字节被静默按 windows-1254 解码）。
     let det = feed_until_stable(bytes, tld);
     let (guessed, high_conf) = det.guess_assess(tld, true);
     if high_conf {
@@ -408,17 +433,26 @@ fn detect_inner(
         } else {
             guessed.name()
         };
-        return (guessed, name, CharsetSource::Detected, 0);
+        let high_bytes = bytes.iter().filter(|&&b| b >= 0x80).take(8).count();
+        let unconfirmed_single_byte = guessed.is_single_byte()
+            && (high_bytes < 8 || (guessed == WINDOWS_1254 && score_turkish(bytes).is_none()));
+        return (
+            guessed,
+            name,
+            CharsetSource::Detected,
+            0,
+            unconfirmed_single_byte,
+        );
     }
 
     // 9. 自研统计与长尾 N-Gram 频次特征识别 (CJK、中欧、希腊、西里尔、土耳其)
     if let Some((enc, name)) = analyze_statistical(bytes, tld) {
-        return (enc, name, CharsetSource::Detected, 0);
+        return (enc, name, CharsetSource::Detected, 0, false);
     }
 
     // 10. DOS CP437 制表符特征模式 (兜底)
     if detect_cp437_box(bytes) {
-        return (IBM866, "cp437", CharsetSource::Detected, 0);
+        return (IBM866, "cp437", CharsetSource::Detected, 0, false);
     }
 
     let name = if guessed == WINDOWS_1254 {
@@ -428,7 +462,7 @@ fn detect_inner(
     } else {
         guessed.name()
     };
-    (guessed, name, CharsetSource::Detected, 0)
+    (guessed, name, CharsetSource::Detected, 0, true)
 }
 
 #[cfg(test)]
@@ -637,5 +671,19 @@ mod tests {
         let warning = d.warning().expect("warning");
         assert!(warning.contains("1 replacement characters"), "{warning}");
         assert!(warning.contains("Content-Type"), "{warning}");
+    }
+
+    #[test]
+    fn unconfirmed_invalid_utf8_fallback_emits_decode_warning() {
+        let raw = b"col\nval\xff\xfeue\n";
+        let d = decode(raw, Some("text/csv"), None);
+        assert!(d.uncertain_fallback);
+        let warning = d.warning().expect("fallback decode must warn");
+        assert!(warning.starts_with("decode:"), "{warning}");
+        assert!(
+            warning.contains(d.encoding_name),
+            "warning must name detected fallback encoding {}: {warning}",
+            d.encoding_name
+        );
     }
 }

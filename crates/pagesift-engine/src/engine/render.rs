@@ -394,6 +394,11 @@ impl Scraper {
                 None => ApiError::new(ErrorCode::UpstreamError, "no browser engine available"),
             });
         };
+        if let Some(err) =
+            corrupt_declared_binary_error(url, r.content_type.as_deref(), r.html.as_bytes())
+        {
+            return Err(err);
+        }
         if let Some(kind) = unsupported_content_type(r.content_type.as_deref(), r.html.as_bytes()) {
             return Err(ApiError::unsupported(format!(
                 "unsupported content type `{kind}`: pagesift extracts HTML/text; use `pagesift download` or `media-extract` for binary media"

@@ -244,7 +244,11 @@ impl Jobs {
     }
 
     pub async fn cancel(&self, id: &str) -> bool {
-        let found = {
+        self.cancel_status(id).await.is_some()
+    }
+
+    pub async fn cancel_status(&self, id: &str) -> Option<&'static str> {
+        let result = {
             let mut map = self.inner.map.lock().await;
             match map.get_mut(id) {
                 Some(j) => {
@@ -252,15 +256,15 @@ impl Jobs {
                         j.state = JobState::Cancelled;
                         j.touch();
                     }
-                    true
+                    Some(j.state.as_str())
                 }
-                None => false,
+                None => None,
             }
         };
-        if found {
+        if result.is_some() {
             self.save_state(id).await;
         }
-        found
+        result
     }
 
     pub async fn active(&self) -> Vec<String> {

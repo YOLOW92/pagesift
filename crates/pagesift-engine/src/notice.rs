@@ -24,6 +24,10 @@ pub const CONTENT_RISK: &[&str] = &[
     "malformed_json_ld",
     "nul_bytes_stripped",
     "document exceeds the ",
+    "email_truncated",
+    "attachments_truncated",
+    "archive_truncated",
+    "mbox_truncated",
     "empty_pdf_pages",
     // 升级前缓存里的旧写法，缓存过期前还会读到
     "CSV truncated at the cell limit",
@@ -49,7 +53,20 @@ pub const CONTENT_RISK: &[&str] = &[
 
 /// 这条 warning 是不是要让调用方直接看到的那类。
 pub fn is_content_risk(warning: &str) -> bool {
-    CONTENT_RISK.iter().any(|kind| warning.starts_with(kind))
+    let mut cur = warning;
+    loop {
+        if CONTENT_RISK.iter().any(|kind| cur.starts_with(kind)) {
+            return true;
+        }
+        // Nested archive/email members prefix warnings with "<member>: <inner>" (e.g. "m.eml: document exceeds the attachment nesting limit").
+        let Some((prefix, rest)) = cur.split_once(": ") else {
+            return false;
+        };
+        if prefix.is_empty() || prefix == "ignored_fields" {
+            return false;
+        }
+        cur = rest;
+    }
 }
 
 /// 把要让调用方看到的 warning 汇成 `data.warning`；已经有值时接在后面。
@@ -98,6 +115,8 @@ mod tests {
             "content_missing: 2 of 15 pages lost their content streams (pages 1, 4)",
             "fonts_missing: 1 of 15 pages lost font definitions (pages 2)",
             "document exceeds the attachment nesting limit",
+            "inner.eml: document exceeds the attachment nesting limit",
+            "email_truncated: the message nests too deep; some parts were left out",
             "empty_pdf_pages: 1 of 2 non-scanned pages yielded empty text",
             "malformed_json_ld: 1 JSON-LD script block(s) failed to parse",
             "nul_bytes_stripped: input contained 2 NUL byte(s) stripped during HTML parsing",
@@ -108,6 +127,8 @@ mod tests {
         assert!(warning.contains("content_missing:"));
         assert!(warning.contains("fonts_missing:"));
         assert!(warning.contains("document exceeds the attachment nesting limit"));
+        assert!(warning.contains("inner.eml: document exceeds the attachment nesting limit"));
+        assert!(warning.contains("email_truncated:"));
         assert!(warning.contains("empty_pdf_pages:"));
         assert!(warning.contains("malformed_json_ld:"));
         assert!(warning.contains("nul_bytes_stripped:"));

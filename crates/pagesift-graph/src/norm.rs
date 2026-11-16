@@ -149,6 +149,16 @@ pub fn normalize_field_value(field_name: &str, value: &Value) -> NormalizedValue
                     raw,
                 };
             }
+            if is_money_hint(field_name)
+                && let Some(amount_e4) = parse_scaled_e4(&raw, 1)
+            {
+                return NormalizedValue::Money {
+                    amount_e4,
+                    currency: "USD".to_owned(),
+                    period: MoneyPeriod::Unknown,
+                    raw,
+                };
+            }
             if let Some(amount_e4) = parse_scaled_e4(&raw, 1) {
                 NormalizedValue::Number {
                     value_e4: amount_e4,
@@ -419,5 +429,15 @@ mod tests {
         let d2 = normalize_field_value("publishedTime", &json!("2026年10月21日"));
         assert_eq!(compare_normalized(&d1, &d2), ValueComparison::Equal);
         assert_eq!(normalize_field_key("unitPrice"), "unit_price");
+
+        let str_usd = normalize_field_value("price", &json!("$66"));
+        let num_usd = normalize_field_value("price", &json!(66));
+        let plain_str = normalize_field_value("price", &json!("66"));
+        assert_eq!(str_usd.bucket_key(), num_usd.bucket_key());
+        assert_eq!(str_usd.bucket_key(), plain_str.bucket_key());
+        assert_eq!(
+            compare_normalized(&str_usd, &num_usd),
+            ValueComparison::Equal
+        );
     }
 }

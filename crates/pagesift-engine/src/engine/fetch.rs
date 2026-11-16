@@ -308,10 +308,12 @@ impl Scraper {
             html_warnings,
             http_chars,
             render: hints,
+            js_shell_hint,
             embedded,
             mut graph_dom,
             graph_traces,
         } = fetched;
+        ext.js_shell_hint = js_shell_hint;
         if let Some(warning) = decode_warning {
             warnings.push(warning);
         }

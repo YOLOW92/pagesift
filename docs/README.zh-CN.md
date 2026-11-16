@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.5.3
+# pagesift 1.5.4
 
 **AI 智能体的网页和文档层：输入任意 URL、文档、邮件、压缩包或源代码文件，输出干净的 Markdown、结构化 JSON 或 DataGraph 关系图谱。**  
 一个自托管的 Rust 二进制：CLI、Firecrawl 和 Jina Reader API、MCP 服务器，以及 Python、Node.js、Go、Java、C#、Ruby、PHP 等语言的包。
@@ -43,7 +43,7 @@ pagesift 替会思考的软件读取网页和文档：它抓取一个 URL（只�
 - **运行环境：** HTTP、PDF 和 Office 无需额外安装。可选：处理 JavaScript 页面的浏览器、用于 OCR 的 NVIDIA GPU、供 `/v2/agent` 使用的你自己的模型
 - **内存：** 1.4 各项基准中，不带浏览器时每个 worker 峰值 17–395 MB；带公式模型的 OCR 约需 1.7 GB；容量按 cgroup 上限确定
 - **许可证：** Apache-2.0，或[商业支持](COMMERCIAL.md)
-- **最新版本：** 1.5.3 · [发行说明](releases/1.5.3.md)
+- **最新版本：** 1.5.4 · [发行说明](releases/1.5.4.md)
 
 <!-- section: install -->
 ## 安装与使用
@@ -53,7 +53,7 @@ pagesift 替会思考的软件读取网页和文档：它抓取一个 URL（只�
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| 服务器 | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.5.3` | `curl localhost:3002/r/https://example.com` |
+| 服务器 | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.5.4` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -337,11 +337,11 @@ flowchart LR
 [商业许可与支持](COMMERCIAL.md) 或写信到 `licensing@pagesift.dev`。
 
 <!-- section: changelog -->
-## 1.5.3 新增
+## 1.5.4 新增
 
-PageSift 1.5.3 重点修复图谱实体隔离、同页冲突检测、异常诊断告警、URL 凭据脱敏、存储目录校验与 HTTP 响应头上限：为 canonical 与永久重定向加入严格同源（含标准化默认端口）校验并保障同步顺序无关性，隔离同页多商品 JSON-LD / Microdata 实体以避免误报冲突，支持 OpenGraph `product:price:*` 提取并将同页价格/表格冲突落盘至 DataGraph，将 `graph_truncated`、`malformed_json_ld`、`nul_bytes_stripped`、`empty_pdf_pages` 及 Office `document exceeds the ...` 超限告警提升到顶层 `warning`，从抓取/解析元数据、链接与图谱节点中全面剥离 `user:pass@` 凭据，`pagesift-store` 写入前校验存储目录与活动段 `(dev, ino)` 避免目录被删后静默成功，同时将 HTTP/1.1 响应头上限从 100 放宽到 2048。
+PageSift 1.5.4 修复 1.5 系列七项行为正确性、接口契约与诊断问题：将仅靠 JS 渲染的空壳与 Loading 占位页标记为 `sync` 抓取不充分（同时保留短正文服务端渲染页的正常权威判定），在 `POST /v2/monitor` 区间校验错误中如实说明 300 秒下限及抬升后的有效值并在钳位时附带告警，当无效 UTF-8 CSV/文本回退到未确认的单字节编码时向 `metadata.pagesift.warnings` 与顶层 `warning` 输出 `decode:` 警告，为 `DELETE /v2/batch/scrape/{id}` 返回统一 JSON 信封（`success`、`id`、`status`），在 `.epub`/`.sqlite` 等受支持类型嗅探失败时返回 `INVALID_REQUEST` 损坏诊断而非 `UNSUPPORTED_OPTION`，在 CLI 默认 Markdown 模式 `stderr` 与 `--format json` 顶层输出中打通嵌套 EML/归档超限告警通道，并在 `pagesift-graph` 中对数字金额做规范化合并以消除同页 `['$66', '66']` 伪冲突。
 
-[发布说明](releases/1.5.3.md) · [1.5.2](releases/1.5.2.md) · [1.5.1](releases/1.5.1.md) · [1.5.0](releases/1.5.0.md) · [全部版本](releases/) · [CHANGELOG](CHANGELOG.md)
+[发布说明](releases/1.5.4.md) · [1.5.3](releases/1.5.3.md) · [1.5.2](releases/1.5.2.md) · [1.5.1](releases/1.5.1.md) · [1.5.0](releases/1.5.0.md) · [全部版本](releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -357,7 +357,7 @@ PageSift 1.5.3 重点修复图谱实体隔离、同页冲突检测、异常诊�
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.5.3}
+  note   = {Version 1.5.4}
 }
 ```
 

@@ -22,6 +22,7 @@ pub(super) struct Fetched {
     pub http_chars: usize,
     /// 只有 `auto` 且正文不够、可能要渲染时才算。
     pub render: Option<RenderHints>,
+    pub js_shell_hint: bool,
     /// 试过 `embedded-json` 候选时：采用时的合并 Markdown（只在最后返回 HTTP 结果时用），以及依据
     /// （`metadata.pagesift.plan`）。
     pub embedded: Option<(Option<String>, pagesift_api::types::PlanStep)>,
@@ -59,6 +60,7 @@ pub(super) async fn extract_fetched(
         )> = None;
         let mut is_feed = false;
         let mut html_warnings: Option<Vec<String>> = None;
+        let mut js_shell_hint = false;
         // feed 和标签筛选的提取不用原页面的 DOM，要判断客户端代码时再解析一次原页面
         let (doc, client_code) = if let Some(doc) = super::feed::parse(&html, copts.links) {
             is_feed = true;
@@ -83,7 +85,12 @@ pub(super) async fn extract_fetched(
                                 Some(crate::graph::dom_links::collect_from_dom(dom, Some(b)));
                         }
                         html_warnings = Some(collect_html_text_warnings(&html, Some(dom)));
-                        (auto && needs_render(doc)).then(|| client_code_in(dom))
+                        let thin = needs_render(doc);
+                        let code = thin.then(|| client_code_in(dom));
+                        if let Some(has_code) = code {
+                            js_shell_hint = detect_js_shell(dom, &doc.markdown, has_code);
+                        }
+                        auto.then_some(code).flatten()
                     },
                 )
             })
@@ -150,6 +157,7 @@ pub(super) async fn extract_fetched(
             html_warnings: html_warnings.unwrap_or_default(),
             http_chars,
             render,
+            js_shell_hint,
             embedded,
             graph_dom,
             graph_traces,

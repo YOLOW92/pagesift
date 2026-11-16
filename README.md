@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="300" />
 
-# pagesift 1.5.3
+# pagesift 1.5.4
 
 **The web and document layer for AI agents: any URL, document, email, archive or source file in, clean Markdown, structured JSON or DataGraph relations out.**  
 One self-hosted Rust binary with a CLI, Firecrawl and Jina Reader APIs, an MCP server, and packages for Python, Node.js, Go, Java, C#, Ruby, PHP and more.
@@ -43,7 +43,7 @@ Can replace or sit alongside: **Firecrawl** (same v1/v2 API, self-hosted), **Jin
 - **Runtime:** nothing to install for HTTP, PDF and Office. Optional: a browser for JavaScript pages, an NVIDIA GPU for OCR, your own model for `/v2/agent`
 - **Memory:** 17–395 MB peak per worker across the 1.4 benchmarks without a browser; OCR with formula models needs about 1.7 GB; capacity is sized from the cgroup limit
 - **License:** Apache-2.0, or [commercial support](docs/COMMERCIAL.md)
-- **Latest:** 1.5.3 · [release notes](docs/releases/1.5.3.md)
+- **Latest:** 1.5.4 · [release notes](docs/releases/1.5.4.md)
 
 <!-- section: install -->
 ## Install and use
@@ -53,7 +53,7 @@ Can replace or sit alongside: **Firecrawl** (same v1/v2 API, self-hosted), **Jin
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| Server | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.5.3` | `curl localhost:3002/r/https://example.com` |
+| Server | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.5.4` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 **CLI**
@@ -339,11 +339,11 @@ flowchart LR
 [commercial license and support](docs/COMMERCIAL.md) or write to `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
-## What's new in 1.5.3
+## What's new in 1.5.4
 
-PageSift 1.5.3 hardens graph entity and origin guarantees, intra-document conflict detection, diagnostic warnings, URL credential redaction, storage safety, and HTTP/1.1 header handling: enforces strict `same_origin` checks on canonical and permanent-redirect resolution, isolates multi-product JSON-LD and Microdata entities, extracts `product:price:*` OpenGraph tags and persists same-page price/field conflicts into DataGraph, exposes `graph_truncated`, `malformed_json_ld`, `nul_bytes_stripped`, `empty_pdf_pages`, and `document exceeds the ...` warnings in top-level `warning`, strips `user:pass@` credentials from all extracted metadata/links/graph nodes, detects deleted backing directories in `pagesift-store`, and raises HTTP/1.1 `max_headers` to `2048`.
+PageSift 1.5.4 resolves seven behavioral, API-contract, and diagnostic bugs across sync capture sufficiency, API validation/envelopes, fallback decoding, format diagnostics, CLI warning propagation, and Graph variant deduplication: marks empty/loading JavaScript shells as insufficient sync captures without misclassifying short SSR pages, cites the enforced 300-second floor in `POST /v2/monitor` interval errors and clamped warnings, emits explicit `decode:` warnings on unconfirmed non-UTF-8 CSV/text fallbacks, returns a JSON `JobCancelled` envelope on `DELETE /v2/batch/scrape/{id}`, reports `INVALID_REQUEST` corrupt/mismatch errors instead of `UNSUPPORTED_OPTION` when magic sniffing fails on supported extensions (`.epub`, `.sqlite`), surfaces nested EML/archive limits to CLI markdown stderr and top-level `--format json` `warning`, and deduplicates numeric vs. currency money variants such as `66` and `$66` in `pagesift-graph`.
 
-[Release notes](docs/releases/1.5.3.md) · [1.5.2](docs/releases/1.5.2.md) · [1.5.1](docs/releases/1.5.1.md) · [1.5.0](docs/releases/1.5.0.md) · [all releases](docs/releases/) · [CHANGELOG](docs/CHANGELOG.md)
+[Release notes](docs/releases/1.5.4.md) · [1.5.3](docs/releases/1.5.3.md) · [1.5.2](docs/releases/1.5.2.md) · [1.5.1](docs/releases/1.5.1.md) · [1.5.0](docs/releases/1.5.0.md) · [all releases](docs/releases/) · [CHANGELOG](docs/CHANGELOG.md)
 
 ---
 
@@ -359,7 +359,7 @@ Questions or feedback: [Discord](https://discord.gg/esA3wMZVvA) · [Issues](http
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.5.3}
+  note   = {Version 1.5.4}
 }
 ```
 

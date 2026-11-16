@@ -328,7 +328,7 @@ fn pick_preferred_hint(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::evidence::{EvidenceAlignment, ExtractionMethod};
+    use crate::evidence::{EvidenceAlignment, ExtractionMethod, RawFieldTrace};
     use crate::model::SourceKind;
     use serde_json::json;
 
@@ -440,5 +440,110 @@ mod tests {
         let unit_conf = detect_conflicts(&[m, y]);
         assert_eq!(unit_conf[0].kind, ConflictKind::UnitOrCurrencyMismatch);
         assert_eq!(unit_conf[0].variants.len(), 2);
+    }
+
+    #[test]
+    fn equal_normalized_price_string_and_number_deduplicate_without_false_conflict() {
+        let span_kv = EvidenceSpan {
+            doc_id: "d1".into(),
+            url: "https://ex.com/p".into(),
+            block_id: Some("d1#b0".into()),
+            chunk_idx: None,
+            start: None,
+            end: None,
+            excerpt: "Price: $66".into(),
+            confidence: 0.95,
+            alignment: EvidenceAlignment::ExactBlock,
+            verified: true,
+            field_path: "kv.price".into(),
+            method: ExtractionMethod::RegexPattern {
+                pattern: "kv_line".into(),
+                label: Some("Price".into()),
+            },
+        };
+        let trace_kv = RawFieldTrace {
+            field_path: "kv.price".into(),
+            field_name: "Price".into(),
+            value: serde_json::json!("$66"),
+            raw_quote: "Price: $66".into(),
+            attr_name: None,
+            method: span_kv.method.clone(),
+            source_url: None,
+            visible_in_dom: true,
+        };
+        let c_kv = ClaimRecord::from_trace(
+            "https://ex.com/p",
+            &normalize_resource_key("https://ex.com/p"),
+            "d1",
+            "https://ex.com/p",
+            SourceKind::Html,
+            "http",
+            100,
+            None,
+            &trace_kv,
+            span_kv,
+        );
+
+        let trace_ld = RawFieldTrace {
+            field_path: "/json-ld/0/offers/price".into(),
+            field_name: "price".into(),
+            value: serde_json::json!(66),
+            raw_quote: "66".into(),
+            attr_name: None,
+            method: ExtractionMethod::JsonLd {
+                entity_type: Some("Product".into()),
+                entity_id: None,
+            },
+            source_url: None,
+            visible_in_dom: false,
+        };
+        let span_ld = EvidenceSpan {
+            doc_id: "d1".into(),
+            url: "https://ex.com/p".into(),
+            block_id: None,
+            chunk_idx: None,
+            start: None,
+            end: None,
+            excerpt: "66".into(),
+            confidence: 0.85,
+            alignment: EvidenceAlignment::MetadataIsland,
+            verified: false,
+            field_path: "/json-ld/0/offers/price".into(),
+            method: trace_ld.method.clone(),
+        };
+        let c_ld = ClaimRecord::from_trace(
+            "https://ex.com/p",
+            &normalize_resource_key("https://ex.com/p"),
+            "d1",
+            "https://ex.com/p",
+            SourceKind::Html,
+            "http",
+            100,
+            None,
+            &trace_ld,
+            span_ld,
+        );
+        assert!(
+            detect_conflicts(&[c_kv.clone(), c_ld.clone()]).is_empty(),
+            "$66 and 66 on the same page must normalize to one bucket without conflict"
+        );
+
+        let c_other = mk_claim("d1", "https://ex.com/p", None, "http", 100, "$99", true);
+        let mut c_other_same_subj = c_other;
+        c_other_same_subj.subject_key = "https://ex.com/p".into();
+        let conf = detect_conflicts(&[c_kv, c_ld, c_other_same_subj]);
+        assert_eq!(conf.len(), 1);
+        assert_eq!(
+            conf[0].variants.len(),
+            2,
+            "equivalent normalized values ($66 and 66) must collapse into one variant"
+        );
+        let merged_var = conf[0]
+            .variants
+            .iter()
+            .find(|v| v.support_count == 2)
+            .expect("equal claims merge support_count");
+        assert!(merged_var.raw_values.contains(&serde_json::json!("$66")));
+        assert!(merged_var.raw_values.contains(&serde_json::json!(66)));
     }
 }

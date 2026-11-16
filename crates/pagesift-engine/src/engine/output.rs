@@ -486,6 +486,20 @@ pub(super) fn unsupported_content_type(content_type: Option<&str>, body: &[u8]) 
     Some(kind)
 }
 
+/// 声明了受支持的二进制/容器格式但内容嗅探失败时，返回“内容损坏或与声明类型不符”错误，
+/// 避免误报 `UNSUPPORTED_OPTION "unsupported content type"`。
+pub(super) fn corrupt_declared_binary_error(
+    name: &str,
+    content_type: Option<&str>,
+    body: &[u8],
+) -> Option<ApiError> {
+    let is_html_ct = content_type.is_some_and(|c| c.to_ascii_lowercase().contains("html"));
+    if is_html_ct || looks_like_markup(body) {
+        return None;
+    }
+    pagesift_api::types::UploadKind::corrupt_declared_error(name, content_type)
+}
+
 fn looks_like_markup(body: &[u8]) -> bool {
     let head = &body[..body.len().min(1024)];
     let text = String::from_utf8_lossy(head);

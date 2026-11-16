@@ -595,3 +595,48 @@ async fn checks_spend_the_page_quota() {
         "{last}"
     );
 }
+
+#[tokio::test]
+async fn sub_floor_min_interval_and_max_conflict_explains_real_300s_constraint() {
+    let script = Arc::new(Script::default());
+    let api = scripted(&script, Config::default());
+    let (st, v) = call(
+        &api,
+        "POST",
+        "/v2/monitor",
+        Some(json!({
+            "schedule": {"minIntervalMs": 60_000, "maxIntervalMs": 120_000},
+            "targets": [{"type": "scrape", "urls": [A]}],
+        })),
+    )
+    .await;
+    assert_eq!(st, StatusCode::BAD_REQUEST, "{v}");
+    let err = v["error"].as_str().unwrap();
+    assert!(
+        err.contains("300s") && err.contains("300000 ms"),
+        "error must explain 300s/300000ms floor and effective raised min: {err}"
+    );
+    assert!(
+        !err.starts_with("maxIntervalMs ("),
+        "must not pretend user input max < user input min: {err}"
+    );
+
+    let (st_ok, v_ok) = call(
+        &api,
+        "POST",
+        "/v2/monitor",
+        Some(json!({
+            "schedule": {"minIntervalMs": 60_000, "maxIntervalMs": 600_000},
+            "targets": [{"type": "scrape", "urls": [A]}],
+        })),
+    )
+    .await;
+    assert_eq!(st_ok, StatusCode::OK, "{v_ok}");
+    assert_eq!(v_ok["data"]["schedule"]["minIntervalMs"], 300_000);
+    assert!(
+        v_ok["data"]["warnings"]
+            .to_string()
+            .contains("monitor_min_interval_raised"),
+        "{v_ok}"
+    );
+}

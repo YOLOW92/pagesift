@@ -383,15 +383,19 @@ pub fn evaluate_capture_sufficiency(
         reasons.push("hub_missing_outgoing_links".to_string());
     }
 
-    let content_thin =
-        signals.markdown_chars < goal.min_markdown_chars && !signals.has_embedded_json;
+    let empty_without_claims = signals.markdown_chars == 0
+        && signals.grounded_evidence_count == 0
+        && signals.extracted_fields_present.is_empty();
+    let content_thin = (signals.markdown_chars < goal.min_markdown_chars
+        && !signals.has_embedded_json)
+        || empty_without_claims;
     if content_thin {
         reasons.push(format!(
             "thin_markdown_chars={}<{}",
             signals.markdown_chars, goal.min_markdown_chars
         ));
     }
-    if signals.has_client_shell_markers && content_thin {
+    if signals.has_client_shell_markers {
         reasons.push("client_shell_markers_detected".to_string());
     }
 
@@ -403,7 +407,8 @@ pub fn evaluate_capture_sufficiency(
     let sufficient = missing_fields.is_empty()
         && grounding_ok
         && (!goal.expect_links_for_hub || signals.outgoing_links_count > 0)
-        && !content_thin;
+        && !content_thin
+        && !signals.has_client_shell_markers;
 
     let needs_browser_escalation = !sufficient
         && (signals.has_client_shell_markers

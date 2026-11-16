@@ -3,14 +3,14 @@
 use axum::Json;
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{Extension, Path, Query, State};
-use axum::http::{HeaderMap, StatusCode, Uri};
+use axum::http::{HeaderMap, Uri};
 use serde::Deserialize;
 
 use crate::error::{ApiError, ErrorCode};
 use crate::jobs::{Start, rfc3339};
 use crate::limits::{Caller, apply_http_caller_scope};
 use crate::server::{AppState, PAGE_SIZE, base_url, lenient_body, webhook};
-use crate::types::{BatchScrapeRequest, JobErrors, JobStarted, JobStatus};
+use crate::types::{BatchScrapeRequest, JobCancelled, JobErrors, JobStarted, JobStatus};
 use crate::validate::{check_scrape_options, check_url, check_url_count};
 
 #[derive(Deserialize)]
@@ -108,10 +108,14 @@ pub async fn job_cancel(
     State(s): State<AppState>,
     caller: Option<Extension<Caller>>,
     Path(id): Path<String>,
-) -> Result<StatusCode, ApiError> {
+) -> Result<Json<JobCancelled>, ApiError> {
     authorize_job(&s, &id, caller.as_ref().map(|Extension(c)| c)).await?;
-    if s.jobs.cancel(&id).await {
-        Ok(StatusCode::OK)
+    if let Some(status) = s.jobs.cancel_status(&id).await {
+        Ok(Json(JobCancelled {
+            success: true,
+            id,
+            status: status.to_owned(),
+        }))
     } else {
         Err(ApiError::new(
             ErrorCode::NotFound,

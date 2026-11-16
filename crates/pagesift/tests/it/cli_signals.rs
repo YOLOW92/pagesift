@@ -158,3 +158,93 @@ fn json_ld_is_exposed_in_pagesift_metadata() {
         "JSONLD_MARKER"
     );
 }
+
+fn nested_eml(depth: usize) -> Vec<u8> {
+    let mut current = b"From: leaf@example.com\r\nTo: dest@example.com\r\nSubject: Leaf\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nDeep body\r\n".to_vec();
+    for level in (0..depth).rev() {
+        let boundary = format!("b_{level}");
+        let mut msg = format!(
+            "From: s{level}@example.com\r\nTo: r{level}@example.com\r\nSubject: Level {level}\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"{boundary}\"\r\n\r\n--{boundary}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nMessage level {level}\r\n--{boundary}\r\nContent-Type: message/rfc822; name=\"inner{level}.eml\"\r\nContent-Disposition: attachment; filename=\"inner{level}.eml\"\r\n\r\n"
+        )
+        .into_bytes();
+        msg.extend_from_slice(&current);
+        msg.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+        current = msg;
+    }
+    current
+}
+
+#[test]
+fn eml_nesting_limit_warns_on_markdown_stderr_and_json_top_level() {
+    let dir = tempfile::tempdir().unwrap();
+    let eml_path = dir.path().join("deep.eml");
+    std::fs::write(&eml_path, nested_eml(5)).unwrap();
+
+    let mut md_cmd = Command::new(bin());
+    isolated(&mut md_cmd, dir.path());
+    let md_out = md_cmd
+        .args(["scrape", eml_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        md_out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&md_out.stderr)
+    );
+    let md_err = String::from_utf8_lossy(&md_out.stderr);
+    assert!(
+        md_err.contains("warning:") && md_err.contains("nesting limit"),
+        "markdown CLI mode must emit nesting limit warning on stderr: {md_err}"
+    );
+
+    let mut json_cmd = Command::new(bin());
+    isolated(&mut json_cmd, dir.path());
+    let json_out = json_cmd
+        .args(["scrape", eml_path.to_str().unwrap(), "--format", "json"])
+        .output()
+        .unwrap();
+    assert!(
+        json_out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&json_out.stderr)
+    );
+    let doc: serde_json::Value = serde_json::from_slice(&json_out.stdout).unwrap();
+    let top_warning = doc["warning"].as_str().unwrap_or("");
+    assert!(
+        top_warning.contains("nesting limit"),
+        "CLI JSON output must expose top-level warning: {doc}"
+    );
+    let ps_warnings = doc["data"]["metadata"]["pagesift"]["warnings"].to_string();
+    assert!(
+        ps_warnings.contains("nesting limit"),
+        "CLI JSON metadata.pagesift.warnings missing nesting warning: {ps_warnings}"
+    );
+}
+
+#[test]
+fn corrupt_supported_local_files_report_corrupt_not_unsupported_type() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("broken.epub");
+    let sqlite = dir.path().join("plain.sqlite");
+    std::fs::write(&epub, b"not-a-valid-epub-zip-header-bytes").unwrap();
+    std::fs::write(&sqlite, b"just plain text disguised as sqlite").unwrap();
+
+    for path in [&epub, &sqlite] {
+        let mut cmd = Command::new(bin());
+        isolated(&mut cmd, dir.path());
+        let out = cmd
+            .args(["scrape", path.to_str().unwrap()])
+            .output()
+            .unwrap();
+        assert!(!out.status.success(), "{path:?} unexpectedly succeeded");
+        let stderr = String::from_utf8_lossy(&out.stderr).to_lowercase();
+        assert!(
+            stderr.contains("corrupt"),
+            "{path:?}: expected corrupt error, got: {stderr}"
+        );
+        assert!(
+            !stderr.contains("unsupported_option") && !stderr.contains("unsupported content type"),
+            "{path:?}: must not claim unsupported content type: {stderr}"
+        );
+    }
+}

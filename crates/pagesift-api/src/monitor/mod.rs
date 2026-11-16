@@ -219,10 +219,41 @@ pub(crate) async fn create(
         .min_interval_ms
         .map_or(schedule::MIN_INTERVAL_SECS, |ms| ms.div_ceil(1000))
         .max(schedule::MIN_INTERVAL_SECS);
+    let min_floor_ms = schedule::MIN_INTERVAL_SECS * 1000;
+    let effective_min_ms = min_interval * 1000;
     let max_interval = sched.max_interval_ms.map(|ms| ms / 1000).or(period);
     if max_interval.is_some_and(|m| m < min_interval) {
-        return Err(ApiError::invalid(
-            "maxIntervalMs must not be shorter than minIntervalMs",
+        let requested_max_ms = sched
+            .max_interval_ms
+            .or_else(|| period.map(|p| p * 1000))
+            .unwrap_or(0);
+        let msg = if let Some(raw_min_ms) = sched
+            .min_interval_ms
+            .filter(|&ms| ms.div_ceil(1000) < schedule::MIN_INTERVAL_SECS)
+        {
+            format!(
+                "the minimum monitor interval is {}s ({min_floor_ms} ms), raising requested minIntervalMs ({raw_min_ms} ms) to effective minIntervalMs={effective_min_ms} ms; maxIntervalMs ({requested_max_ms} ms) must be at least {effective_min_ms} ms (valid range: >= {effective_min_ms} ms)",
+                schedule::MIN_INTERVAL_SECS
+            )
+        } else if sched.min_interval_ms.is_none() {
+            format!(
+                "the minimum monitor interval is {}s ({min_floor_ms} ms); maxIntervalMs ({requested_max_ms} ms) must be at least {effective_min_ms} ms (valid range: >= {effective_min_ms} ms)",
+                schedule::MIN_INTERVAL_SECS
+            )
+        } else {
+            format!(
+                "maxIntervalMs ({requested_max_ms} ms) must not be shorter than minIntervalMs ({effective_min_ms} ms)"
+            )
+        };
+        return Err(ApiError::invalid(msg));
+    }
+    if let Some(raw_min_ms) = sched
+        .min_interval_ms
+        .filter(|&ms| ms.div_ceil(1000) < schedule::MIN_INTERVAL_SECS)
+    {
+        warnings.push(format!(
+            "monitor_min_interval_raised: requested minIntervalMs ({raw_min_ms} ms) was raised to the {}s ({min_floor_ms} ms) minimum (effective minIntervalMs={effective_min_ms} ms)",
+            schedule::MIN_INTERVAL_SECS
         ));
     }
     let webhook = match &req.webhook {

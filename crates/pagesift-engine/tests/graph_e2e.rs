@@ -1863,3 +1863,209 @@ async fn e4_e5_e8_warnings_and_e7_credentials_stripped_and_e10_empty_pdf() {
     let pdf_top = d_pdf.warning.as_deref().unwrap_or("");
     assert!(pdf_top.contains("empty_pdf_pages:"), "{pdf_top}");
 }
+
+#[tokio::test]
+async fn bug4_bug6_and_e3_regressions() {
+    use axum::body::Bytes;
+    use pagesift_api::ErrorCode;
+
+    let app = Router::new()
+        .route(
+            "/bad.csv",
+            get(|| async {
+                let mut headers = HeaderMap::new();
+                headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("text/csv"));
+                (
+                    StatusCode::OK,
+                    headers,
+                    Bytes::from_static(b"col\nval\xff\xfeue\n"),
+                )
+            }),
+        )
+        .route(
+            "/bad.epub",
+            get(|| async {
+                let mut headers = HeaderMap::new();
+                headers.insert(
+                    header::CONTENT_TYPE,
+                    HeaderValue::from_static("application/epub+zip"),
+                );
+                (
+                    StatusCode::OK,
+                    headers,
+                    Bytes::from_static(b"not-a-zip-random-corrupt-epub-bytes"),
+                )
+            }),
+        )
+        .route(
+            "/fake.sqlite",
+            get(|| async {
+                let mut headers = HeaderMap::new();
+                headers.insert(
+                    header::CONTENT_TYPE,
+                    HeaderValue::from_static("application/x-sqlite3"),
+                );
+                (
+                    StatusCode::OK,
+                    headers,
+                    Bytes::from_static(b"plain text renamed to sqlite"),
+                )
+            }),
+        )
+        .route(
+            "/e3-same",
+            get(|| async {
+                Html(
+                    r#"<!doctype html>
+<html>
+<head>
+  <title>Widget</title>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"Product","name":"Widget","sku":"E3-66","offers":{"@type":"Offer","price":66,"priceCurrency":"USD"}}
+  </script>
+</head>
+<body>
+  <main>
+    <h1>Widget</h1>
+    <p>sku: E3-66</p>
+    <p>Price: $66</p>
+    <p>Specification details and warranty coverage for enterprise deployments.</p>
+  </main>
+</body>
+</html>"#,
+                )
+            }),
+        )
+        .route(
+            "/e3-mixed",
+            get(|| async {
+                Html(
+                    r#"<!doctype html>
+<html>
+<head>
+  <title>Widget</title>
+  <meta property="product:price:amount" content="66">
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"Product","name":"Widget","sku":"E3-MIX","offers":{"@type":"Offer","price":99,"priceCurrency":"USD"}}
+  </script>
+</head>
+<body>
+  <main>
+    <h1>Widget</h1>
+    <p>sku: E3-MIX</p>
+    <p>Price: $66</p>
+    <p>Specification details and warranty coverage for enterprise deployments.</p>
+  </main>
+</body>
+</html>"#,
+                )
+            }),
+        );
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+    let scraper = test_scraper(None);
+
+    // BUG-4: non-UTF-8 CSV fallback emits decode warning in both metadata.pagesift.warnings and top-level warning.
+    let csv_doc = scraper
+        .scrape(
+            &format!("http://{addr}/bad.csv"),
+            &ScrapeOptions {
+                engine: Some("http".into()),
+                formats: vec![Format::new("markdown")],
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let csv_warnings = &csv_doc.metadata.pagesift.as_ref().unwrap().warnings;
+    assert!(
+        csv_warnings.iter().any(|w| w.starts_with("decode:")),
+        "expected decode warning in pagesift.warnings: {csv_warnings:?}"
+    );
+    assert!(
+        csv_doc
+            .warning
+            .as_deref()
+            .is_some_and(|w| w.contains("decode:")),
+        "expected decode warning promoted to top-level warning: {:?}",
+        csv_doc.warning
+    );
+
+    // BUG-6: corrupt declared .epub / .sqlite fail with InvalidRequest corrupt diagnostics, not UnsupportedOption.
+    for path in ["/bad.epub", "/fake.sqlite"] {
+        let err = scraper
+            .scrape(
+                &format!("http://{addr}{path}"),
+                &ScrapeOptions {
+                    engine: Some("http".into()),
+                    formats: vec![Format::new("markdown")],
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect_err("corrupt declared file must error");
+        assert_eq!(err.code, ErrorCode::InvalidRequest, "{path}: {err:?}");
+        let msg = err.message.to_lowercase();
+        assert!(
+            msg.contains("corrupt"),
+            "{path}: expected corrupt diagnostic, got: {msg}"
+        );
+        assert!(
+            !msg.contains("unsupported content type"),
+            "{path}: must not claim unsupported content type: {msg}"
+        );
+    }
+
+    // E3: same-page "$66" visible KV and JSON-LD price 66 must not emit false price conflict.
+    let mut graph_opts_e3 = GraphOptions::enabled();
+    graph_opts_e3.subject_keys = vec!["sku".to_string()];
+    let graph_scrape_opts = ScrapeOptions {
+        engine: Some("http".into()),
+        formats: vec![Format::new("markdown"), Format::new("graph")],
+        graph: Some(graph_opts_e3),
+        ..Default::default()
+    };
+    let d_same = scraper
+        .scrape(&format!("http://{addr}/e3-same"), &graph_scrape_opts)
+        .await
+        .unwrap();
+    let s_same = d_same.graph.unwrap();
+    let price_conflicts_same: Vec<_> = s_same
+        .conflicts
+        .iter()
+        .filter(|c| c.normalized_field == "price")
+        .collect();
+    assert!(
+        price_conflicts_same.is_empty(),
+        "same value $66 vs 66 must not trigger false conflict: {price_conflicts_same:?}"
+    );
+
+    // Real conflict: "$66" + "66" vs 99 produces 2 deduplicated canonical variants (with merged support).
+    let d_mix = scraper
+        .scrape(&format!("http://{addr}/e3-mixed"), &graph_scrape_opts)
+        .await
+        .unwrap();
+    let s_mix = d_mix.graph.unwrap();
+    let mix_conflict = s_mix
+        .conflicts
+        .iter()
+        .find(|c| c.normalized_field == "price")
+        .expect("66 vs 99 must emit real price conflict");
+    assert_eq!(
+        mix_conflict.variants.len(),
+        2,
+        "$66 and 66 must merge into one variant vs 99: {:?}",
+        mix_conflict.variants
+    );
+    assert!(
+        mix_conflict
+            .variants
+            .iter()
+            .any(|v| v.support_count >= 2 && v.raw_values.len() >= 2),
+        "merged variant must retain support count & raw values: {:?}",
+        mix_conflict.variants
+    );
+}
