@@ -271,6 +271,7 @@ pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
         .merge(crate::jina::jina_routes())
         .merge(crate::monitor::routes())
         .merge(crate::sources::routes())
+        .merge(crate::context::routes())
         .route_layer(middleware::from_fn_with_state(state.clone(), auth));
 
     Router::new()

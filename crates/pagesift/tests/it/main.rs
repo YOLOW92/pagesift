@@ -15,6 +15,7 @@ mod cli_pipe;
 mod cli_signals;
 mod cluster;
 mod collect;
+mod context_it;
 mod crawl;
 mod download;
 mod extract;

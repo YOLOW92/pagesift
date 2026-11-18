@@ -573,7 +573,7 @@ impl Scraper {
             }
         }
 
-        finalize_and_commit_sync_tick(TickCommitInputs {
+        let delta = finalize_and_commit_sync_tick(TickCommitInputs {
             source_id,
             sync_store: &sync_store,
             spec: &spec,
@@ -596,6 +596,29 @@ impl Scraper {
             adapt_decisions,
             prepared_bundles,
             active_subjects,
-        })
+        })?;
+
+        // Release per-source Sync lock BEFORE optional Context catch-up so `sync_locks` and
+        // `context_locks` are never nested, eliminating lock-order inversion deadlocks.
+        drop(_source_guard);
+
+        // Opt-in 1.6 Context incremental maintenance: O(1) in-memory hash probe (`has_meta`),
+        // zero disk I/O and zero overhead when the source has not activated Context!
+        if store
+            .context_for(tenant)
+            .has_meta(source_id)
+            .unwrap_or(false)
+        {
+            let _ = crate::context::sync_source_context(
+                self,
+                tenant,
+                source_id,
+                pagesift_graph::context::UnitMatchMode::BoundedUot,
+                None,
+            )
+            .await;
+        }
+
+        Ok(delta)
     }
 }

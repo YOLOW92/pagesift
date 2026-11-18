@@ -173,17 +173,26 @@ impl Scraper {
             )));
         }
 
-        if let Some(markdown) = json_markdown(resp.content_type(), &resp.body) {
+        if let Some((markdown, json_val)) = parse_json_markdown(resp.content_type(), &resp.body) {
             let raw_json_traces = if state
                 .graph_opts
                 .as_ref()
                 .is_some_and(|g| g.evidence || g.facts || g.conflicts)
-                && let Ok(raw_str) = std::str::from_utf8(&resp.body)
             {
-                crate::graph::evidence::collect_json_document_traces(
-                    raw_str,
+                let mut traces = Vec::new();
+                let method = pagesift_graph::ExtractionMethod::RegexPattern {
+                    pattern: "json".to_string(),
+                    label: Some("json".to_string()),
+                };
+                pagesift_graph::collect_json_traces(
+                    &json_val,
+                    "",
+                    &method,
+                    true,
                     state.meta.url.as_deref(),
-                )
+                    &mut traces,
+                );
+                traces
             } else {
                 Vec::new()
             };

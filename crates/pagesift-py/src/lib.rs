@@ -86,6 +86,8 @@ mod _pagesift {
         m.add_function(wrap_pyfunction!(crate::loop_api::aengine_sync, m)?)?;
         m.add_function(wrap_pyfunction!(crate::loop_api::engine_query_graph, m)?)?;
         m.add_function(wrap_pyfunction!(crate::loop_api::aengine_query_graph, m)?)?;
+        m.add_function(wrap_pyfunction!(crate::loop_api::engine_context, m)?)?;
+        m.add_function(wrap_pyfunction!(crate::loop_api::aengine_context, m)?)?;
         m.add("__version__", env!("CARGO_PKG_VERSION"))
     }
 }

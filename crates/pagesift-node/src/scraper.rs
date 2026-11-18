@@ -336,6 +336,21 @@ impl Scraper {
             pagesift::loop_ops::query_graph(&core, req).await
         })
     }
+
+    /// 执行 1.6 Context 操作（`ingest`、`sync`、`search`、`pack`、`action`、`units`、`deltas`、`ack`、`learn`）。
+    #[napi(
+        ts_args_type = "request: ContextRequest",
+        ts_return_type = "Promise<Record<string, unknown>>"
+    )]
+    pub fn context<'e>(
+        &self,
+        env: &'e Env,
+        request: Option<Value>,
+    ) -> Result<PromiseRaw<'e, Value>> {
+        crate::loop_api::spawn(env, self.live(), request, |core, req| async move {
+            pagesift::loop_ops::context(&core, req).await
+        })
+    }
 }
 
 /// 选项对象里加上 `extractSchema`（没给选项时新建一个）。

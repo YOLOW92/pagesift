@@ -11,6 +11,7 @@ pub mod builder;
 mod builder_tests;
 pub mod citation;
 pub mod conflict;
+pub mod context;
 pub mod corroborate;
 pub mod delta;
 pub mod evidence;

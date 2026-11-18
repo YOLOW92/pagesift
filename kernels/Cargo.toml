@@ -3,7 +3,7 @@
 # 用 scripts/build_kernels.sh 生成 PTX，产物提交在 crates/pagesift-gpu/ptx/，主程序用 stable 编译。
 [package]
 name = "pagesift-kernels"
-version = "0.1.0"
+version = "1.6.0"
 edition = "2024"
 publish = false
 

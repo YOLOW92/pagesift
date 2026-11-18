@@ -283,6 +283,15 @@ impl RenderStats {
         self.tabs.tab_utilization()
     }
 
+    /// 采集统一四维硬件资源状态快照（CPU 工人队列、网络礼貌并发、进程内存水位、浏览器标签）。
+    pub fn admission_snapshot(
+        &self,
+        net: &pagesift_policy::RateLimiter,
+        cpu: Option<&pagesift_flow::Pool>,
+    ) -> pagesift_flow::Snapshot {
+        self.tabs.snapshot(net, cpu)
+    }
+
     /// 记一次 HTTP 正文提取：HTML 字节数和耗时。
     pub fn note_extract(&self, bytes: usize, t: Duration) {
         if bytes == 0 {

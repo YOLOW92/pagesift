@@ -5,6 +5,13 @@ impl Scraper {
         self.render_stats.tab_utilization()
     }
 
+    /// 实时计算四维硬件排队影子价格（CPU、Memory、Politeness、Browser），供 Context 与 VOI 调度消费。
+    pub fn shadow_prices(&self) -> pagesift_stat::decide::ShadowPrices {
+        self.render_stats
+            .admission_snapshot(self.policy.limiter(), Some(super::cpu::pool()))
+            .prices()
+    }
+
     pub fn new(mut config: ScraperConfig) -> Result<Self, ScraperError> {
         cpu::install();
         let browser_private_network = config.fetcher.ssrf.allow_private_network;
@@ -105,6 +112,8 @@ impl Scraper {
             pages: std::sync::OnceLock::new(),
             sessions,
             sync_locks: std::sync::Mutex::new(std::collections::HashMap::new()),
+            context_locks: std::sync::Mutex::new(std::collections::HashMap::new()),
+            context_cache: crate::context::cache::ContextIndexCache::new(),
         })
         .map(|mut s| {
             s.launch_failed = (0..s.browsers.len()).map(|_| Default::default()).collect();
@@ -358,6 +367,26 @@ impl Scraper {
             .entry(key)
             .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
             .clone()
+    }
+
+    pub(crate) fn context_source_lock(
+        &self,
+        tenant: Option<&str>,
+        source_id: &str,
+    ) -> Arc<tokio::sync::Mutex<()>> {
+        let key = (
+            tenant.filter(|t| !t.is_empty()).map(str::to_string),
+            source_id.to_string(),
+        );
+        let mut guard = self.context_locks.lock().unwrap_or_else(|e| e.into_inner());
+        guard
+            .entry(key)
+            .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
+            .clone()
+    }
+
+    pub(crate) fn context_cache(&self) -> &crate::context::cache::ContextIndexCache {
+        &self.context_cache
     }
 
     /// 当前的全局并发目标（限速器的 USL 控制器给出，冷启动等于配置的全局并发）。

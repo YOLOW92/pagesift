@@ -50,7 +50,10 @@ pub fn assess_capture_reliability(doc: &Document) -> CaptureReliability {
         if w.starts_with("decode:") && !w.contains("valid UTF-8; decoded as UTF-8 instead") {
             out.uncertain_decode = true;
         }
-        if w.starts_with("body_truncated") || w.starts_with("graph_truncated") {
+        if w.starts_with("body_truncated")
+            || w.starts_with("graph_truncated")
+            || w.starts_with("input_truncated")
+        {
             out.truncated = true;
         }
         if w.starts_with("not_modified:") {

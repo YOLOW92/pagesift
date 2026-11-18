@@ -120,12 +120,11 @@ impl Scraper {
             inner.formats.push(Format::new("rawHtml"));
         }
         let mut doc = Box::pin(self.scrape_content(source, &inner)).await?;
-        let html = if wants_raw {
-            doc.raw_html.clone()
+        let html: std::sync::Arc<str> = if wants_raw {
+            std::sync::Arc::from(doc.raw_html.as_deref().unwrap_or_default())
         } else {
-            doc.raw_html.take()
-        }
-        .unwrap_or_default();
+            std::sync::Arc::from(doc.raw_html.take().unwrap_or_default())
+        };
         let url = doc.metadata.source_url.clone().unwrap_or_default();
         let mut notes: Vec<String> = Vec::new();
         let mut used = super::autoschema::LlmUse::default();
@@ -176,7 +175,7 @@ impl Scraper {
         // 选择器记忆的命名空间在 LLM 修补前定下：按意图时用缓存键，给了 schema 时用请求里那份的 id，
         // 修补后的 schema 不另起一套记忆（否则改版时记下的列表项位置就丢了）
         let mem_id = cache_key.clone().unwrap_or_else(|| schema_id(&raw));
-        // 语义字段：只写了 describe 的字段，第一次用时让 LLM 解析选择器
+        // 语义字段：只写了 describe 的字段，第一次用时让 LLM 解析选择器（同一个列表项快照复用）
         let semantic: Vec<usize> = raw["fields"]
             .as_array()
             .map(|fs| {
@@ -194,12 +193,14 @@ impl Scraper {
                 )
             })?;
             let item = first_item_html(&html, raw["baseSelector"].as_str().unwrap_or("body"));
+            let item_snap = super::autoschema::item_snapshot(&item, budget);
             for i in semantic {
                 let d = raw["fields"][i]["describe"]
                     .as_str()
                     .unwrap_or_default()
                     .to_string();
-                let r = super::autoschema::resolve_field(llm, &d, &item, budget, &mut used).await?;
+                let r = super::autoschema::resolve_field(llm, &d, &item_snap, budget, &mut used)
+                    .await?;
                 patch_field(&mut raw["fields"][i], &r);
                 notes.push(format!(
                     "selector_resolved: fields.{} via llm",
@@ -215,7 +216,7 @@ impl Scraper {
             Schema::from_json(&raw).map_err(|e| ApiError::invalid(format!("schema: {e}")))?;
         let (mut outcome, mut traces) = self
             .extract_with(
-                &html,
+                html.clone(),
                 &schema,
                 site.clone(),
                 &mem_id,
@@ -240,7 +241,13 @@ impl Scraper {
                     raw = trial;
                     healed.push(BASE_KEY.to_string());
                     (outcome, traces) = self
-                        .extract_raw(&html, &raw, site.clone(), &mem_id, evidence_url.as_deref())
+                        .extract_raw(
+                            html.clone(),
+                            &raw,
+                            site.clone(),
+                            &mem_id,
+                            evidence_url.as_deref(),
+                        )
                         .await?;
                 }
             }
@@ -251,6 +258,7 @@ impl Scraper {
                 .collect();
             if !fields.is_empty() {
                 let item = first_item_html(&html, raw[BASE_KEY].as_str().unwrap_or("body"));
+                let item_snap = super::autoschema::item_snapshot(&item, budget);
                 let mut patched = false;
                 for name in fields {
                     let Some(i) = raw["fields"]
@@ -264,7 +272,8 @@ impl Scraper {
                         .unwrap_or(&name)
                         .to_string();
                     let r =
-                        super::autoschema::resolve_field(llm, &d, &item, budget, &mut used).await?;
+                        super::autoschema::resolve_field(llm, &d, &item_snap, budget, &mut used)
+                            .await?;
                     let mut trial = raw.clone();
                     patch_field(&mut trial["fields"][i], &r);
                     if compiles(&trial) {
@@ -275,7 +284,13 @@ impl Scraper {
                 }
                 if patched {
                     (outcome, traces) = self
-                        .extract_raw(&html, &raw, site.clone(), &mem_id, evidence_url.as_deref())
+                        .extract_raw(
+                            html.clone(),
+                            &raw,
+                            site.clone(),
+                            &mem_id,
+                            evidence_url.as_deref(),
+                        )
                         .await?;
                 }
             }
@@ -350,10 +365,10 @@ fn compiles(raw: &Value) -> bool {
 
 /// 第一个列表项的 HTML（找不到时整页）：语义字段和 LLM 兜底在它的快照里找选择器。
 fn first_item_html(html: &str, base: &str) -> String {
-    let doc = pagesift_html::Html::parse(html);
-    pagesift_html::Selector::parse(base)
-        .ok()
-        .and_then(|s| doc.select(&s).next().map(|n| n.html()))
+    let Ok(s) = pagesift_html::Selector::parse(base) else {
+        return html.to_string();
+    };
+    super::cpu::with_dom(html, |doc| doc.select(&s).next().map(|n| n.html()))
         .unwrap_or_else(|| html.to_string())
 }
 
@@ -377,7 +392,7 @@ fn patch_field(field: &mut Value, r: &Value) {
 impl Scraper {
     async fn extract_raw(
         &self,
-        html: &str,
+        html: std::sync::Arc<str>,
         raw: &Value,
         site: Option<String>,
         id: &str,
@@ -397,7 +412,7 @@ impl Scraper {
 
     async fn extract_with(
         &self,
-        html: &str,
+        html: std::sync::Arc<str>,
         schema: &Schema,
         site: Option<String>,
         id: &str,
@@ -417,29 +432,26 @@ impl Scraper {
             }),
             _ => None,
         };
-        let (html, schema, evidence_url) = (
-            html.to_string(),
-            schema.clone(),
-            evidence_url.map(str::to_string),
-        );
+        let (schema, evidence_url) = (schema.clone(), evidence_url.map(str::to_string));
         cpu_task(move || -> Result<_, pagesift_extract::Error> {
-            let parsed = pagesift_html::Html::parse(&html);
-            let mem: &dyn SelectorMemory = match &memory {
-                Some(m) => m,
-                None => &pagesift_extract::NoMemory,
-            };
-            if let Some(url) = evidence_url.as_deref() {
-                let res = pagesift_extract::evidence::extract_adaptive_with_evidence(
-                    &parsed,
-                    &schema,
-                    mem,
-                    Some(url),
-                )?;
-                Ok((res.outcome, res.traces))
-            } else {
-                let outcome = pagesift_extract::extract_adaptive(&parsed, &schema, mem)?;
-                Ok((outcome, Vec::new()))
-            }
+            super::cpu::with_dom(&html, |parsed| {
+                let mem: &dyn SelectorMemory = match &memory {
+                    Some(m) => m,
+                    None => &pagesift_extract::NoMemory,
+                };
+                if let Some(url) = evidence_url.as_deref() {
+                    let res = pagesift_extract::evidence::extract_adaptive_with_evidence(
+                        parsed,
+                        &schema,
+                        mem,
+                        Some(url),
+                    )?;
+                    Ok((res.outcome, res.traces))
+                } else {
+                    let outcome = pagesift_extract::extract_adaptive(parsed, &schema, mem)?;
+                    Ok((outcome, Vec::new()))
+                }
+            })
         })
         .await?
         .map_err(|e| ApiError::new(ErrorCode::Internal, format!("extract: {e}")))

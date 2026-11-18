@@ -302,8 +302,20 @@ impl Scraper {
                     .await;
                 }
             }
+            let graph_opts = crate::graph::effective_graph_options(opts);
+            let want_dom = graph_opts.is_some();
+            let want_traces = graph_opts
+                .as_ref()
+                .is_some_and(|g| g.evidence || g.facts || g.conflicts);
             let t = Instant::now();
-            let (doc, html, html_warnings) = process_html(html, &final_url, status, opts).await?;
+            let ProcessedHtml {
+                doc,
+                html,
+                warnings: html_warnings,
+                graph_dom,
+                graph_traces,
+            } = process_html_with_graph(html, &final_url, status, opts, want_dom, want_traces)
+                .await?;
             let extract = t.elapsed();
             let gained = http_chars.is_some_and(|n| text_weight(&doc.markdown) > n);
             if ropts.actions.is_empty() {
@@ -347,6 +359,8 @@ impl Scraper {
                 doc,
                 html,
                 html_warnings,
+                graph_dom,
+                graph_traces,
                 actions: (!ropts.actions.is_empty()).then(|| outputs.to_firecrawl_json()),
             };
             // 早停拿到的就是当前 DOM 的快照，不再换内核重试。
@@ -472,6 +486,11 @@ impl Scraper {
             &Url::parse(&page.final_url)
                 .map_err(|e| ApiError::new(ErrorCode::UpstreamError, format!("page URL: {e}")))?,
         );
+        let graph_opts = crate::graph::effective_graph_options(opts);
+        let want_dom = graph_opts.is_some();
+        let want_traces = graph_opts
+            .as_ref()
+            .is_some_and(|g| g.evidence || g.facts || g.conflicts);
         let t = Instant::now();
         let RenderedPage {
             html,
@@ -480,7 +499,13 @@ impl Scraper {
             timings: page_timings,
             ..
         } = page;
-        let (doc, html, html_warnings) = process_html(html, &final_url, status, opts).await?;
+        let ProcessedHtml {
+            doc,
+            html,
+            warnings: html_warnings,
+            graph_dom,
+            graph_traces,
+        } = process_html_with_graph(html, &final_url, status, opts, want_dom, want_traces).await?;
         check_barrier(&doc, &html)?;
         let r = Rendered {
             index: 0,
@@ -493,6 +518,8 @@ impl Scraper {
             doc,
             html,
             html_warnings,
+            graph_dom,
+            graph_traces,
             actions: None,
         };
         Ok(rendered_document(
@@ -545,24 +572,8 @@ fn rendered_document(
     // 渲染结果的质量分：HTTP 结果按块合并时用（`fetch.rs`），内容层的覆盖率等特征到这里还在
     let quality = super::planner::quality(&r.doc, r.html.len());
     let graph_opts = crate::graph::effective_graph_options(opts);
-    let graph_payload = graph_opts.as_ref().map(|g| {
-        let dom = crate::graph::dom_links::extract_from_html_str(
-            &r.html,
-            &r.doc.metadata,
-            r.doc.fingerprints.as_ref(),
-            Some(r.final_url.as_str()),
-        );
-        let traces = if g.evidence || g.facts || g.conflicts {
-            crate::graph::evidence::collect_structured_html_traces(
-                &r.html,
-                Some(r.final_url.as_str()),
-            )
-        } else {
-            Vec::new()
-        };
-        let md_fallback = (!opts.wants("markdown")).then(|| r.doc.markdown.clone());
-        (dom, traces, md_fallback)
-    });
+    let md_fallback =
+        (graph_opts.is_some() && !opts.wants("markdown")).then(|| r.doc.markdown.clone());
     let mut doc = document(r.doc, opts, r.html);
     doc.quality = quality;
     doc.actions = r.actions;
@@ -576,14 +587,14 @@ fn rendered_document(
         video_fallback,
         started,
     );
-    if let (Some(gopts), Some((dom_data, traces, md_fallback))) = (graph_opts, graph_payload) {
+    if let (Some(gopts), Some(dom_data)) = (graph_opts, r.graph_dom) {
         let graph_tenant = opts.effective_graph_tenant();
         crate::graph::attach_html_graph(
             store,
             &gopts,
             &mut out,
             dom_data,
-            traces,
+            r.graph_traces,
             Vec::new(),
             false,
             &[],
@@ -721,6 +732,8 @@ pub(super) struct Rendered {
     doc: pagesift_content::Document,
     html: String,
     html_warnings: Vec<String>,
+    graph_dom: Option<crate::graph::dom_links::DomGraphData>,
+    graph_traces: Vec<pagesift_graph::RawFieldTrace>,
     /// `actions` 的产出（Firecrawl 的形状）；没有动作时为 `None`。
     actions: Option<serde_json::Value>,
 }

@@ -117,3 +117,72 @@ def test_loop_requires_store_path(scraper):
         scraper.sync(action="list")
     with pytest.raises(pagesift.InvalidRequest):
         scraper.query_graph(conflicts=True)
+
+
+def test_context_inline_and_persistent_lifecycle(tmp_path):
+    with pagesift.Scraper() as ephemeral:
+        inline = ephemeral.context(
+            action="pack",
+            query="API Quotas Pro RPM",
+            budget_tokens=256,
+            documents=[
+                {
+                    "url": "https://docs.example.com/limits",
+                    "markdown": "# API Quotas\n\n| Tier | RPM |\n|---|---|\n| Pro | 600 |\n",
+                }
+            ],
+        )
+        assert inline["success"] is True
+        assert len(inline["pack"]["provenanceManifest"]) >= 1
+        assert "Tier" in inline["pack"]["compiledContext"]
+
+    with pagesift.Scraper(store_path=tmp_path) as s:
+        ingested = s.context(
+            action="ingest",
+            source_id="docs",
+            documents=[
+                {
+                    "url": "https://docs.example.com/pricing",
+                    "markdown": "# Enterprise Plan\n\nPrice: $49 per seat unless annual billing applies.\n",
+                }
+            ],
+        )
+        assert ingested["success"] is True
+        assert ingested["liveUnitCount"] >= 1
+        instance_id = ingested["delta"]["instanceId"]
+
+        searched = s.context(action="search", query="Enterprise seat price", source_id="docs")
+        assert searched["success"] is True
+        assert len(searched["report"]["hits"]) >= 1
+
+        polled = s.context(action="deltas", source_id="docs", consumer_id="worker-1")
+        assert polled["success"] is True
+        assert len(polled["poll"]["deltas"]) == 1
+
+        acked = s.context(
+            action="ack",
+            source_id="docs",
+            consumer_id="worker-1",
+            instance_id=instance_id,
+            acked_delta_seq=1,
+        )
+        assert acked["success"] is True
+        assert acked["checkpoint"]["ackedDeltaSeq"] == 1
+
+    del s
+    import gc
+
+    gc.collect()
+
+    async def verify_async():
+        async with pagesift.Scraper(store_path=tmp_path) as s:
+            act = await s.acontext(
+                action="action",
+                mode="context",
+                query="Enterprise seat price",
+                source_ids=["docs"],
+            )
+            assert act["success"] is True
+            assert act["outcome"]["reusedExistingContext"] is True
+
+    asyncio.run(verify_async())

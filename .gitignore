@@ -57,13 +57,8 @@ benchmarks/pdf/out/
 /out/
 /benchmarks/venv/
 /benchmarks/thirdparty/
-# 基准构建产物
+# 基准构建产物与本地评测目录
 /benchmarks/*/adapters/*/target/
-/benchmarks/web-extraction/compare/rust-tools/target/
-/benchmarks/web-extraction/webmainbench/target/
-/benchmarks/crawl/robots_spec/target/
-# 0.50 对照构建用的 worktree
-/.worktree/
 /benchmarks/fuzz-out/
 /bench/upstream
 /benchmarks/upstream/

@@ -111,10 +111,22 @@ impl Scraper {
             .fetcher()
             .acquire_stage(pagesift_net::NetworkStage::Parse)
             .await;
+        let graph_opts = crate::graph::effective_graph_options(opts);
+        let want_dom = graph_opts.is_some();
+        let want_traces = graph_opts
+            .as_ref()
+            .is_some_and(|g| g.evidence || g.facts || g.conflicts);
         let t = Instant::now();
-        let work = process_html(decoded.text, base, Some(200), opts);
-        let (doc, html, html_warnings) = match tokio::time::timeout_at(deadline.into(), work).await
-        {
+        // [协议] 本地上传 HTML 文档固定按 HTTP 200 状态码进入正文提取
+        let work =
+            process_html_with_graph(decoded.text, base, Some(200), opts, want_dom, want_traces);
+        let ProcessedHtml {
+            doc,
+            html,
+            warnings: html_warnings,
+            graph_dom,
+            graph_traces,
+        } = match tokio::time::timeout_at(deadline.into(), work).await {
             Ok(Ok(result)) => {
                 stage.finish(pagesift_net::StageOutcome::Success);
                 result
@@ -161,22 +173,8 @@ impl Scraper {
         p.warnings.extend(doc.coverage.warnings());
         let raw_bytes = Some(thin_basis_bytes(&html, &doc.markdown));
         let video_fallback = doc.metadata.video_fallback;
-        let graph_opts = crate::graph::effective_graph_options(opts);
-        let graph_payload = graph_opts.as_ref().map(|g| {
-            let dom = crate::graph::dom_links::extract_from_html_str(
-                &html,
-                &doc.metadata,
-                doc.fingerprints.as_ref(),
-                Some(base.as_str()),
-            );
-            let traces = if g.evidence || g.facts || g.conflicts {
-                crate::graph::evidence::collect_structured_html_traces(&html, Some(base.as_str()))
-            } else {
-                Vec::new()
-            };
-            let md_fallback = (!opts.wants("markdown")).then(|| doc.markdown.clone());
-            (dom, traces, md_fallback)
-        });
+        let md_fallback =
+            (graph_opts.is_some() && !opts.wants("markdown")).then(|| doc.markdown.clone());
         let mut out = finish(
             document(doc, opts, html),
             meta,
@@ -187,14 +185,14 @@ impl Scraper {
             video_fallback,
             p.started,
         );
-        if let (Some(gopts), Some((dom_data, traces, md_fallback))) = (graph_opts, graph_payload) {
+        if let (Some(gopts), Some(dom_data)) = (graph_opts, graph_dom) {
             let graph_tenant = opts.effective_graph_tenant();
             crate::graph::attach_html_graph(
                 None,
                 &gopts,
                 &mut out,
                 dom_data,
-                traces,
+                graph_traces,
                 Vec::new(),
                 false,
                 &[],

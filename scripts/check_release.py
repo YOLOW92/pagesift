@@ -35,6 +35,8 @@ def check(tag=None):
         assert json.loads(path.read_text())['version'] == version, path
     lock = json.loads((node/'package-lock.json').read_text())
     assert lock['version'] == lock['packages']['']['version'] == version
+    zon = (ROOT/'build.zig.zon').read_text()
+    assert f'.version = "{version}"' in zon, 'build.zig.zon version disagrees with workspace'
     pyproject = tomllib.loads((ROOT/'crates/pagesift-py/pyproject.toml').read_text())
     assert 'version' in pyproject['project']['dynamic']
     # Python 包目录里的 LICENSE、NOTICE 是根目录文件的副本（随 wheel 和 sdist 走），不能漂移。

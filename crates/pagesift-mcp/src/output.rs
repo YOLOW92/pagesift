@@ -352,3 +352,28 @@ pub fn sync_result() -> Value {
         &["success", "action"],
     )
 }
+
+/// `pagesift_context`。
+pub fn context_result() -> Value {
+    object(
+        json!({
+            "success": boolean("Whether the context operation succeeded."),
+            "sourceId": string("Target Context source identifier, when applicable."),
+            "persisted": boolean("Whether ingested units were persisted to Store."),
+            "liveUnitCount": integer("Count of live KnowledgeUnits in the source index."),
+            "total": integer("Total matching units returned for units queries."),
+            "visibility": json!({ "type": "object", "description": "IndexVisibility showing storeTickSeq, indexedTickSeq, lagTicks, and instanceMatched." }),
+            "visibilities": array(json!({ "type": "object", "description": "Per-source IndexVisibility entry." }), "Index visibility status across queried sources."),
+            "delta": json!({ "type": "object", "description": "ContextDelta describing unit transitions and invalidated/reused derived assets." }),
+            "report": json!({ "type": "object", "description": "ContextSearchReport with hits, six independent dimensions, conflicts, and originRoots." }),
+            "pack": json!({ "type": "object", "description": "Compiled ContextPack with compiledContext, provenanceManifest, preserved conflicts, and token/cost accounting." }),
+            "outcome": json!({ "type": "object", "description": "ContextActionOutcome with stoppingReason, coverage diagnosis, gaps, acquisitionSteps, and compiled pack." }),
+            "units": array(json!({ "type": "object", "description": "KnowledgeUnit record." }), "Returned KnowledgeUnits."),
+            "poll": json!({ "type": "object", "description": "ContextDeltaPollResult for external index consumers." }),
+            "checkpoint": json!({ "type": "object", "description": "Acknowledged ConsumerCheckpoint." }),
+            "driftTriggered": boolean("Whether online drift guard triggered a baseline fallback."),
+            "learn": json!({ "type": "object", "description": "ContextLearnState summary." }),
+        }),
+        &["success"],
+    )
+}

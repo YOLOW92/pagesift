@@ -206,18 +206,17 @@ pub async fn generate(
     budget: usize,
     used: &mut LlmUse,
 ) -> Result<Value, ApiError> {
-    let doc = Html::parse(html);
-    let (snap, _) = snapshot(&doc, budget);
+    let snap = super::cpu::with_dom(html, |doc| snapshot(doc, budget).0);
     let prompt = format!("URL: {url}\nWhat to extract: {intent}\n\nPage snapshot:\n{snap}");
     let first = ask(llm, SCHEMA_SYSTEM, prompt.clone(), budget, used).await?;
-    match validate_on(&doc, &first) {
+    match super::cpu::with_dom(html, |doc| validate_on(doc, &first)) {
         Ok(_) => Ok(first),
         Err(why) => {
             let retry = format!(
                 "{prompt}\n\nYour previous schema was:\n{first}\nIt failed on this page: {why}\nReturn a corrected schema."
             );
             let second = ask(llm, SCHEMA_SYSTEM, retry, budget, used).await?;
-            validate_on(&doc, &second).map_err(|why| {
+            super::cpu::with_dom(html, |doc| validate_on(doc, &second)).map_err(|why| {
                 ApiError::new(
                     ErrorCode::UpstreamError,
                     format!(
@@ -234,16 +233,19 @@ const FIELD_SYSTEM: &str = "You find CSS selectors for pagesift. Reply with one 
 {\"selector\": \"<CSS selector relative to the item element>\", \"type\": \"text\" | \"attribute\" | \"html\", \"attribute\": \"<attr or null>\"}. \
 Use only tags, classes and attributes that appear in the snapshot of the item.";
 
-/// 语义字段或失效字段：在第一个列表项的快照里让 LLM 找选择器。
+/// 为单个列表项构建一次快照文本，供多个语义/自愈字段复用，避免对同一片段循环解析 DOM。
+pub fn item_snapshot(item_html: &str, budget: usize) -> String {
+    super::cpu::with_dom(item_html, |doc| snapshot(doc, budget).0)
+}
+
+/// 语义字段或失效字段：在已构建好的第一个列表项快照 `snap` 里让 LLM 找选择器。
 pub async fn resolve_field(
     llm: &ChatClient,
     describe: &str,
-    item_html: &str,
+    snap: &str,
     budget: usize,
     used: &mut LlmUse,
 ) -> Result<Value, ApiError> {
-    let doc = Html::parse(item_html);
-    let (snap, _) = snapshot(&doc, budget);
     ask(
         llm,
         FIELD_SYSTEM,
@@ -266,8 +268,7 @@ pub async fn resolve_base(
     budget: usize,
     used: &mut LlmUse,
 ) -> Result<Value, ApiError> {
-    let doc = Html::parse(html);
-    let (snap, _) = snapshot(&doc, budget);
+    let snap = super::cpu::with_dom(html, |doc| snapshot(doc, budget).0);
     ask(
         llm,
         BASE_SYSTEM,

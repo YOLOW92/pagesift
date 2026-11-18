@@ -18,6 +18,7 @@
 //! 何时 fsync 由 [`SyncPolicy`] 决定。同一个目录同一时间只能被一个进程打开。
 
 mod cache;
+pub mod context;
 mod engine;
 mod graph;
 #[cfg(test)]
@@ -41,6 +42,10 @@ use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub use cache::{Cache, CacheEntry, CacheLookup, CachePolicy};
+pub use context::{
+    ContextCommitOutcome, ContextCommitRequest, ContextSourceMeta, ContextStore,
+    DEFAULT_DELTA_POLL_LIMIT, MAX_CONTEXT_DELTAS_PER_SOURCE, MAX_RETIRED_UNITS_PER_SOURCE,
+};
 pub use engine::Store;
 pub use graph::{
     AsOfClaimsResult, DEFAULT_GRAPH_CLAIMS_LIMIT, DEFAULT_GRAPH_CONFLICTS_LIMIT,

@@ -27,7 +27,7 @@ pub const INTERACT: &str = "pagesift_interact";
 pub const INTERACT_STOP: &str = "pagesift_interact_stop";
 pub const AGENT: &str = "pagesift_agent";
 pub const AGENT_STATUS: &str = "pagesift_agent_status";
-pub use crate::tools_loop::{GRAPH_QUERY, SYNC, graph_query_def, sync_def};
+pub use crate::tools_loop::{CONTEXT, GRAPH_QUERY, SYNC, context_def, graph_query_def, sync_def};
 
 /// 单页抓取选项（不含 `url`），由引擎能力生成，见 [`crate::options`]。
 pub fn scrape_options_schema(caps: &Capabilities) -> Value {

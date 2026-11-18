@@ -5,7 +5,7 @@ A Zig binding of [pagesift](https://github.com/YOLOW92/pagesift) that declares t
 ## Install
 
 ```sh
-zig fetch --save https://github.com/YOLOW92/pagesift/archive/refs/tags/v1.3.0.tar.gz
+zig fetch --save https://github.com/YOLOW92/pagesift/archive/refs/tags/v1.6.0.tar.gz
 ```
 
 Then in `build.zig`:

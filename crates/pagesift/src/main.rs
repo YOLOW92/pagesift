@@ -160,6 +160,7 @@ fn run(command: Command, cfg: pagesift::config::Config) -> Result<ExitCode> {
         Command::Models { action } => commands::models::run(action, cfg),
         Command::Graph { action } => commands::graph::run(action, cfg),
         Command::Sync { action } => commands::sync::run(action, cfg),
+        Command::Context { action } => commands::context::run(action, cfg),
         Command::Agent {
             prompt,
             urls,

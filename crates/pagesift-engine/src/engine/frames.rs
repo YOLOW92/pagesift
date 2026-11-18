@@ -5,7 +5,7 @@ use super::*;
 /// Data-only scripts do not invalidate that optimization. Unknown script types
 /// are conservative: an extra render is preferable to silently losing content.
 pub(super) fn has_client_code(html: &str) -> bool {
-    client_code_in(&pagesift_html::Html::parse(html))
+    super::cpu::with_dom(html, client_code_in)
 }
 
 /// [`has_client_code`] 在已经建好的 DOM 上判断（提取用的那棵），不再解析一遍。
@@ -84,38 +84,84 @@ pub(super) fn detect_js_shell(
         || lower.starts_with("loading ")
 }
 
+/// HTML 标签名后的合法边界字节（空白、`/` 或 `>`），防止 `<iframe-loader>` / `<body-shell>` 误匹配。
+#[inline]
+fn is_tag_boundary(b: Option<&u8>) -> bool {
+    matches!(
+        b,
+        Some(b' ' | b'\t' | b'\n' | b'\r' | b'\x0c' | b'/' | b'>')
+    )
+}
+
+/// 从 `from` 起查找大小写无关标签前缀 `pat`（如 `b"<body"` 或 `b"</iframe"`），且其后必须是标签名边界。
+fn find_html_tag(bytes: &[u8], pat: &[u8], mut from: usize) -> Option<usize> {
+    while from + pat.len() <= bytes.len() {
+        let off = bytes[from..]
+            .windows(pat.len())
+            .position(|w| w.eq_ignore_ascii_case(pat))?;
+        let idx = from + off;
+        if is_tag_boundary(bytes.get(idx + pat.len())) {
+            return Some(idx);
+        }
+        from = idx + 1;
+    }
+    None
+}
+
+/// 查找开标签结束的 `>`（返回闭合 `>` 之后的字节下标），严格跳过 `=` 后单/双引号属性值内的 `>`。
+fn find_open_tag_end(bytes: &[u8], tag_start: usize) -> Option<usize> {
+    let mut quote: Option<u8> = None;
+    let mut after_eq = false;
+    for (off, &c) in bytes[tag_start..].iter().enumerate() {
+        if let Some(q) = quote {
+            if c == q {
+                quote = None;
+            }
+            continue;
+        }
+        match c {
+            b'>' => return Some(tag_start + off + 1),
+            b'=' => after_eq = true,
+            b'"' | b'\'' if after_eq => {
+                quote = Some(c);
+                after_eq = false;
+            }
+            c if c.is_ascii_whitespace() => {}
+            _ => after_eq = false,
+        }
+    }
+    None
+}
+
 /// 可能承载正文的 iframe：同源的 `src`（属性值和解析后的地址）或内联的 `srcdoc`
 /// （属性值是文档本身，地址为 `None`）。跨源的 iframe 多是统计、广告、视频和地图嵌入，正文提取本来就不要；
 /// 看不见的、空的和 `about:blank` 也不算。
 pub(super) fn content_iframes(html: &str, base: &Url) -> Vec<(String, Option<Url>)> {
-    if !html
-        .as_bytes()
-        .windows(7)
-        .any(|w| w[0] == b'<' && w[1..].eq_ignore_ascii_case(b"iframe"))
-    {
+    if find_html_tag(html.as_bytes(), b"<iframe", 0).is_none() {
         return Vec::new();
     }
-    let doc = pagesift_html::Html::parse(html);
-    doc.root()
-        .descendants()
-        .filter_map(|n| {
-            let el = n
-                .as_element()
-                .filter(|e| e.tag() == pagesift_html::Tag::Iframe && !hidden_frame(e))?;
-            if let Some(doc) = el.attr("srcdoc").filter(|d| !d.trim().is_empty()) {
-                return Some((doc.to_string(), None));
-            }
-            let raw = el
-                .attr("src")
-                .map(str::trim)
-                .filter(|s| !s.is_empty() && !s.starts_with("about:"))?;
-            let u = base.join(raw).ok().filter(|u| {
-                u.host_str() == base.host_str()
-                    && u.port_or_known_default() == base.port_or_known_default()
-            })?;
-            Some((raw.to_string(), Some(u)))
-        })
-        .collect()
+    super::cpu::with_dom(html, |doc| {
+        doc.root()
+            .descendants()
+            .filter_map(|n| {
+                let el = n
+                    .as_element()
+                    .filter(|e| e.tag() == pagesift_html::Tag::Iframe && !hidden_frame(e))?;
+                if let Some(doc) = el.attr("srcdoc").filter(|d| !d.trim().is_empty()) {
+                    return Some((doc.to_string(), None));
+                }
+                let raw = el
+                    .attr("src")
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty() && !s.starts_with("about:"))?;
+                let u = base.join(raw).ok().filter(|u| {
+                    u.host_str() == base.host_str()
+                        && u.port_or_known_default() == base.port_or_known_default()
+                })?;
+                Some((raw.to_string(), Some(u)))
+            })
+            .collect()
+    })
 }
 
 /// [策略] 每页最多用 HTTP 内联几个 iframe，多出来的不管（Chrome 系也有上限）。这些请求用页面已占的名额、
@@ -193,24 +239,14 @@ pub(super) async fn inline_iframes_http(
 
 /// 文档 `<body>` 的内容；找不到 body 标签时返回整个文档。
 pub(super) fn body_inner(doc: &str) -> &str {
-    let lower = doc.as_bytes();
-    let find = |pat: &[u8], from: usize| {
-        lower[from..]
-            .windows(pat.len())
-            .position(|w| w.eq_ignore_ascii_case(pat))
-            .map(|p| p + from)
-    };
-    let Some(open) = find(b"<body", 0) else {
+    let bytes = doc.as_bytes();
+    let Some(open) = find_html_tag(bytes, b"<body", 0) else {
         return doc;
     };
-    let Some(start) = lower[open..]
-        .iter()
-        .position(|&c| c == b'>')
-        .map(|p| open + p + 1)
-    else {
+    let Some(start) = find_open_tag_end(bytes, open) else {
         return doc;
     };
-    let end = find(b"</body", start).unwrap_or(doc.len());
+    let end = find_html_tag(bytes, b"</body", start).unwrap_or(doc.len());
     &doc[start..end]
 }
 
@@ -226,37 +262,22 @@ pub(super) fn replace_iframe(
 ) -> bool {
     let b = html.as_bytes();
     let mut i = 0;
-    while let Some(off) = b[i..]
-        .windows(7)
-        .position(|w| w[0] == b'<' && w[1..].eq_ignore_ascii_case(b"iframe"))
-    {
-        let start = i + off;
-        let Some(tag_end) = b[start..]
-            .iter()
-            .position(|&c| c == b'>')
-            .map(|p| start + p + 1)
-        else {
+    while let Some(start) = find_html_tag(b, b"<iframe", i) {
+        let Some(tag_end) = find_open_tag_end(b, start) else {
             return false;
         };
         i = tag_end;
-        let tag = pagesift_html::Html::parse(&html[start..tag_end]);
-        let hit = tag.root().descendants().any(|n| {
-            n.as_element()
-                .is_some_and(|e| e.tag() == pagesift_html::Tag::Iframe && pred(&e))
+        let hit = super::cpu::with_dom(&html[start..tag_end], |tag| {
+            tag.root().descendants().any(|n| {
+                n.as_element()
+                    .is_some_and(|e| e.tag() == pagesift_html::Tag::Iframe && pred(&e))
+            })
         });
         if !hit {
             continue;
         }
-        let end = b[tag_end..]
-            .windows(8)
-            .position(|w| w.eq_ignore_ascii_case(b"</iframe"))
-            .and_then(|p| {
-                let close = tag_end + p;
-                b[close..]
-                    .iter()
-                    .position(|&c| c == b'>')
-                    .map(|q| close + q + 1)
-            })
+        let end = find_html_tag(b, b"</iframe", tag_end)
+            .and_then(|close| find_open_tag_end(b, close))
             .unwrap_or(tag_end);
         html.replace_range(start..end, replacement);
         return true;
@@ -288,14 +309,56 @@ pub(super) fn hidden_frame(el: &pagesift_html::Element<'_>) -> bool {
         return true;
     }
     el.attr("style").is_some_and(|s| {
-        let s: String = s
-            .chars()
-            .filter(|c| !c.is_whitespace())
-            .collect::<String>()
-            .to_ascii_lowercase();
-        s.contains("display:none")
-            || s.contains("visibility:hidden")
-            || s.contains("width:0")
-            || s.contains("height:0")
+        if s.is_empty() {
+            return false;
+        }
+        let mut norm = String::with_capacity(s.len());
+        for c in s.chars() {
+            if !c.is_whitespace() {
+                norm.push(c.to_ascii_lowercase());
+            }
+        }
+        norm.contains("display:none")
+            || norm.contains("visibility:hidden")
+            || norm.contains("width:0")
+            || norm.contains("height:0")
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn replace_iframe_handles_markup_gt_inside_quoted_srcdoc() {
+        let base = Url::parse("https://example.com/page").unwrap();
+        let mut html = String::from(
+            r#"<main><iframe-loader data-x="1"></iframe-loader><iframe srcdoc="<body data-note='a > b'><article><h1>Embedded Title</h1><p>2 > 1 inside markup</p></article></body>"></iframe></main>"#,
+        );
+        let frames = content_iframes(&html, &base);
+        assert_eq!(frames.len(), 1);
+        assert!(frames[0].1.is_none());
+        let raw = &frames[0].0;
+        let inner = body_inner(raw);
+        assert_eq!(
+            inner,
+            "<article><h1>Embedded Title</h1><p>2 > 1 inside markup</p></article>"
+        );
+        let replacement = format!("<div data-pagesift-iframe=\"about:srcdoc\">{inner}</div>");
+        let replaced = replace_iframe(&mut html, &replacement, |el| {
+            !hidden_frame(el) && el.attr("srcdoc") == Some(raw.as_str())
+        });
+        assert!(replaced, "srcdoc containing HTML tags must be matched");
+        assert!(html.contains("<iframe-loader data-x=\"1\"></iframe-loader>"));
+        assert!(html.contains(
+            "<div data-pagesift-iframe=\"about:srcdoc\"><article><h1>Embedded Title</h1><p>2 > 1 inside markup</p></article></div>"
+        ));
+        assert!(!html.contains("<iframe "));
+    }
+
+    #[test]
+    fn body_inner_skips_custom_body_prefix_and_quoted_gt() {
+        let doc = r#"<html><body-shell data-a="x"><body data-expr="a > b"><p>real body</p></body></body-shell></html>"#;
+        assert_eq!(body_inner(doc), "<p>real body</p>");
+    }
 }

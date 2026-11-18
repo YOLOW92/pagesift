@@ -226,6 +226,19 @@ pub trait Engine: Send + Sync + 'static {
     ) -> BoxFuture<'a, Result<pagesift_store::SyncDelta, ApiError>> {
         Box::pin(async { Err(ApiError::unsupported("sync is not available in this build")) })
     }
+
+    /// Execute a 1.6 Context operation (`ingest`, `sync`, `search`, `pack`, `action`, `units`, `deltas`, `learn`).
+    fn context<'a>(
+        &'a self,
+        _tenant: Option<&'a str>,
+        _request: Value,
+    ) -> BoxFuture<'a, Result<Value, ApiError>> {
+        Box::pin(async {
+            Err(ApiError::unsupported(
+                "context is not available in this build",
+            ))
+        })
+    }
 }
 
 /// agent 运行的回报和额度，由 API 层的任务管理实现；`()` 是不回报、不限额的实现。

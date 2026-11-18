@@ -64,6 +64,11 @@ const GRAPH_KEYS: &[&str] = &[
     "offset",
 ];
 
+/// Executes a 1.6 Context operation (`ingest`, `sync`, `search`, `pack`, `action`, `units`, `deltas`, `ack`, `learn`).
+pub async fn context(scraper: &Scraper, request: Value) -> Result<Value, ApiError> {
+    <Scraper as Engine>::context(scraper, None, request).await
+}
+
 /// Runs a persistent Loop sync source operation (`create`, `list`, `get`, `delete`, `run`, `state`, `deltas`).
 pub async fn sync(scraper: &Scraper, request: Value) -> Result<Value, ApiError> {
     let mut args = normalize_object(request, &["freshness", "budget"])?;

@@ -769,3 +769,18 @@ fn type3_font_with_unit_matrix_and_made_up_glyph_names() {
     let md = extract(&b.build()).unwrap().markdown;
     assert!(md.contains("Type three"), "{md}");
 }
+
+#[test]
+fn decode_image_file_rejects_malformed_and_empty_inputs_without_panicking() {
+    for bad in [
+        &b""[..],
+        &b"\x89PNG\r\n\x1a\ntruncated"[..],
+        &b"\xFF\xD8\xFF\xC0\x00\x02"[..],
+        &b"GIF89a\x00\x00"[..],
+        &b"BM\x00\x00\x00\x00"[..],
+        &b"II*\0\x08\x00\x00"[..],
+        &b"RIFF\x04\x00\x00\x00WEBP"[..],
+    ] {
+        assert!(pagesift_pdf::decode_image_file(bad, 1_000_000).is_err());
+    }
+}

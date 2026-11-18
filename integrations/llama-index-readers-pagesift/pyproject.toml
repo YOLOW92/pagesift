@@ -4,12 +4,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "llama-index-readers-pagesift"
-version = "1.1.0"
+version = "1.6.0"
 description = "LlamaIndex reader for pagesift: web pages, sites and local files as Markdown, no API key."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
-dependencies = ["pagesift>=1.1,<2", "llama-index-core>=0.12,<1"]
+dependencies = ["pagesift>=1.6,<2", "llama-index-core>=0.12,<1"]
 
 [project.optional-dependencies]
 test = ["pytest>=7"]

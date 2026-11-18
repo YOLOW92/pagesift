@@ -4,6 +4,7 @@
 #![forbid(unsafe_code)]
 
 pub mod change;
+pub mod context;
 pub mod crawl;
 pub mod discovery;
 pub mod engine;

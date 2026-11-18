@@ -3,6 +3,15 @@
 use crate::{DecodeError, Reader, Writer};
 
 pub(crate) fn sigmoid(z: f64) -> f64 {
+    if !z.is_finite() {
+        return if z.is_nan() {
+            f64::NAN
+        } else if z > 0.0 {
+            1.0
+        } else {
+            0.0
+        };
+    }
     if z >= 0.0 {
         1.0 / (1.0 + (-z).exp())
     } else {
@@ -26,25 +35,43 @@ impl Logistic {
     /// 修正后的 IRLS：工作响应 `z = η + (y − p + h(½ − p))/v`，权重 `v = p(1−p)`（McCullagh & Nelder,
     /// Generalized Linear Models, 1989, §4.4 的迭代加权最小二乘，得分换成 Firth 的修正得分）。
     /// 步长的相对大小小于 `√ε` 时停止：牛顿法二次收敛，下一步的误差已在机器精度以内。
-    /// 第一步就解不出（特征共线、某维恒定）时返回 `None`。
+    /// 第一步就解不出（特征共线、某维恒定、输入含非有限值或维度不一致）时返回 `None`。
     pub fn fit(xs: &[Vec<f64>], ys: &[bool]) -> Option<Self> {
+        if xs.is_empty() || xs.len() != ys.len() {
+            return None;
+        }
         let k = xs.first()?.len();
+        if k == 0
+            || xs
+                .iter()
+                .any(|x| x.len() != k || x.iter().any(|v| !v.is_finite()))
+        {
+            return None;
+        }
         let mut w = vec![0.0; k];
+        let mut scaled_x = vec![0.0; k];
+        let mut stats = Vec::with_capacity(xs.len());
         let tol = f64::EPSILON.sqrt();
-        for iter in 0..xs.len().max(k) {
+        // [策略] IRLS 牛顿迭代上限设为 max(min(N, 64), k)，正常 5~12 步内达到机器精度收敛
+        let max_iters = xs.len().min(64).max(k);
+        for iter in 0..max_iters {
             // 第一遍：当前权重下的 (XᵀVX)⁻¹
             let mut info = crate::regress::RegressionSums::new(k);
-            let stats: Vec<(f64, f64, f64)> = xs
-                .iter()
-                .map(|x| {
-                    let eta: f64 = w.iter().zip(x).map(|(a, b)| a * b).sum();
-                    let p = sigmoid(eta);
-                    let v = (p * (1.0 - p)).max(f64::EPSILON);
-                    let s = v.sqrt();
-                    info.push(&x.iter().map(|a| a * s).collect::<Vec<_>>(), 0.0);
-                    (eta, p, v)
-                })
-                .collect();
+            stats.clear();
+            for x in xs {
+                let eta: f64 = w.iter().zip(x).map(|(a, b)| a * b).sum();
+                if !eta.is_finite() {
+                    return if iter == 0 { None } else { Some(Self { w }) };
+                }
+                let p = sigmoid(eta);
+                let v = (p * (1.0 - p)).max(f64::EPSILON);
+                let s = v.sqrt();
+                for (dst, &xi) in scaled_x.iter_mut().zip(x) {
+                    *dst = xi * s;
+                }
+                info.push(&scaled_x, 0.0);
+                stats.push((eta, p, v));
+            }
             let Some(inv) = info.fit().map(|f| f.inv) else {
                 return if iter == 0 { None } else { Some(Self { w }) };
             };
@@ -56,12 +83,21 @@ impl Logistic {
                     .sum();
                 let h = v * lev;
                 let z = eta + (f64::from(u8::from(y)) - p + h * (0.5 - p)) / v;
+                if !z.is_finite() {
+                    return if iter == 0 { None } else { Some(Self { w }) };
+                }
                 let s = v.sqrt();
-                sums.push(&x.iter().map(|a| a * s).collect::<Vec<_>>(), z * s);
+                for (dst, &xi) in scaled_x.iter_mut().zip(x) {
+                    *dst = xi * s;
+                }
+                sums.push(&scaled_x, z * s);
             }
             let Some(next) = sums.fit().map(|f| f.beta) else {
                 return if iter == 0 { None } else { Some(Self { w }) };
             };
+            if next.iter().any(|v| !v.is_finite()) {
+                return if iter == 0 { None } else { Some(Self { w }) };
+            }
             let step = next
                 .iter()
                 .zip(&w)
@@ -76,6 +112,13 @@ impl Logistic {
     }
 
     pub fn predict(&self, x: &[f64]) -> f64 {
+        if self.w.is_empty()
+            || x.len() != self.w.len()
+            || x.iter().any(|v| !v.is_finite())
+            || self.w.iter().any(|v| !v.is_finite())
+        {
+            return f64::NAN;
+        }
         sigmoid(self.w.iter().zip(x).map(|(a, b)| a * b).sum())
     }
 
@@ -84,7 +127,11 @@ impl Logistic {
     }
 
     pub fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
-        Ok(Self { w: r.f64s()? })
+        let w = r.f64s()?;
+        if w.iter().any(|v| !v.is_finite()) {
+            return Err(DecodeError::Invalid("logistic weights"));
+        }
+        Ok(Self { w })
     }
 }
 
@@ -94,22 +141,23 @@ impl Logistic {
 /// Platt 这类光滑曲线画不出台阶。代价是样本少的一端方差大，要配合交叉拟合用足校准数据。
 #[derive(Debug, Clone, PartialEq)]
 pub struct Isotonic {
-    /// 各台阶的（分数上界，校准后的概率），分数升序。
+    /// 各台阶的（分数上界，校准后的概率），分数严格升序且均为有限值。
     steps: Vec<(f64, f64)>,
 }
 
 impl Isotonic {
     pub fn fit(scores: &[f64], ys: &[bool]) -> Self {
-        let mut idx: Vec<usize> = (0..scores.len()).collect();
+        let n_in = scores.len().min(ys.len());
+        let mut idx: Vec<usize> = (0..n_in).filter(|&i| scores[i].is_finite()).collect();
         idx.sort_by(|&a, &b| scores[a].total_cmp(&scores[b]));
         // 块：（分数上界，正例和，权重）
-        let mut blocks: Vec<(f64, f64, f64)> = Vec::new();
+        let mut blocks: Vec<(f64, f64, f64)> = Vec::with_capacity(idx.len());
         for i in idx {
             blocks.push((scores[i], f64::from(u8::from(ys[i])), 1.0));
             while blocks.len() >= 2 {
                 let n = blocks.len();
                 let (a, b) = (blocks[n - 2], blocks[n - 1]);
-                if a.1 / a.2 <= b.1 / b.2 {
+                if a.0 < b.0 && a.1 / a.2 <= b.1 / b.2 {
                     break;
                 }
                 blocks.truncate(n - 2);
@@ -117,15 +165,24 @@ impl Isotonic {
             }
         }
         Self {
-            steps: blocks.into_iter().map(|(s, y, w)| (s, y / w)).collect(),
+            steps: blocks
+                .into_iter()
+                .map(|(s, y, w)| (s, (y / w).clamp(0.0, 1.0)))
+                .collect(),
         }
     }
 
     /// 分数 `s` 的校准概率：第一个上界 ≥ `s` 的台阶；超出最大分数时取最后一级。
+    /// 当 `s` 为 `NaN` 或模型尚未拟合任何有效样本时返回 `NaN`。
     pub fn predict(&self, s: f64) -> f64 {
-        match self.steps.iter().find(|(hi, _)| s <= *hi) {
-            Some(&(_, p)) => p,
-            None => self.steps.last().map_or(f64::NAN, |&(_, p)| p),
+        if s.is_nan() || self.steps.is_empty() {
+            return f64::NAN;
+        }
+        let pos = self.steps.partition_point(|&(hi, _)| hi < s);
+        if pos < self.steps.len() {
+            self.steps[pos].1
+        } else {
+            self.steps[self.steps.len() - 1].1
         }
     }
 
@@ -138,7 +195,12 @@ impl Isotonic {
     pub fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
         let hi = r.f64s()?;
         let p = r.f64s()?;
-        if hi.len() != p.len() || p.windows(2).any(|w| w[0] > w[1]) {
+        if hi.len() != p.len()
+            || hi.iter().any(|x| !x.is_finite())
+            || p.iter().any(|x| !x.is_finite() || !(0.0..=1.0).contains(x))
+            || hi.windows(2).any(|w| w[0] >= w[1])
+            || p.windows(2).any(|w| w[0] > w[1])
+        {
             return Err(DecodeError::Invalid("isotonic steps"));
         }
         Ok(Self {
@@ -172,5 +234,40 @@ mod tests {
         let probs: Vec<f64> = xs.iter().map(|x| lr.predict(x)).collect();
         let iso = Isotonic::fit(&probs, &ys);
         assert!(iso.steps.windows(2).all(|w| w[0].1 <= w[1].1));
+    }
+
+    #[test]
+    fn isotonic_and_logistic_guard_nan_inf_empty_single_class_and_mismatched_lengths() {
+        // Empty input
+        let empty = Isotonic::fit(&[], &[]);
+        assert!(empty.predict(0.5).is_nan());
+
+        // Single-class samples (all true / all false)
+        let all_true = Isotonic::fit(&[0.1, 0.5, 0.9], &[true, true, true]);
+        assert_eq!(all_true.predict(0.0), 1.0);
+        assert_eq!(all_true.predict(0.5), 1.0);
+        assert_eq!(all_true.predict(2.0), 1.0);
+
+        let all_false = Isotonic::fit(&[0.2, 0.8], &[false, false]);
+        assert_eq!(all_false.predict(0.5), 0.0);
+
+        // NaN / Inf in training scores & mismatched slice lengths must not panic or poison steps
+        let dirty = Isotonic::fit(
+            &[f64::NAN, 0.2, f64::INFINITY, 0.8, f64::NEG_INFINITY, 0.99],
+            &[true, false, false, true, true],
+        );
+        assert!((dirty.predict(0.2) - 0.0).abs() < 1e-12);
+        assert!((dirty.predict(0.8) - 1.0).abs() < 1e-12);
+        // Predicting on NaN must return NaN rather than silently returning the top step!
+        assert!(dirty.predict(f64::NAN).is_nan());
+        assert!((dirty.predict(f64::INFINITY) - 1.0).abs() < 1e-12);
+        assert!((dirty.predict(f64::NEG_INFINITY) - 0.0).abs() < 1e-12);
+
+        // Logistic guards ragged / NaN / mismatched inputs without panicking
+        assert!(Logistic::fit(&[], &[]).is_none());
+        assert!(Logistic::fit(&[vec![]], &[true]).is_none());
+        assert!(Logistic::fit(&[vec![1.0, 0.5], vec![1.0]], &[true, false]).is_none());
+        assert!(Logistic::fit(&[vec![1.0, f64::NAN], vec![1.0, 2.0]], &[true, false]).is_none());
+        assert!(Logistic::fit(&[vec![1.0, 0.5]], &[true, false]).is_none());
     }
 }

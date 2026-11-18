@@ -523,3 +523,22 @@ fn verilog() {
     let src = "module foo (input a, output b);\n  assign b = a;\nendmodule\n\n// bar\nmodule bar;\nendmodule\n";
     check("verilog", src, &[(K::Class, "foo"), (K::Class, "bar")], 0);
 }
+
+#[test]
+fn multibyte_utf8_without_trailing_newline_and_malformed_parse_never_panic() {
+    // 含多字节中文/Emoji 且末尾无换行符：分段切片必须精确对齐 UTF-8 边界并首尾拼接还原原文
+    let src = "// 顶部说明 🚀\npub fn 计算_α(值: i32) -> i32 { 值 + 1 }\npub struct 结构_β { 字段: &'static str } // 尾部注释无换行🎯";
+    let o = outline("rust", src).expect("multibyte rust outline");
+    let joined: String = o.sections.iter().map(|s| &src[s.start..s.end]).collect();
+    assert_eq!(joined, src);
+
+    // 畸形非 UTF-8 字节与空输入直接调 api::parse 不 panic
+    let lang = pagesift_syntax::langs::Lang::from_tag("rust")
+        .and_then(|l| l.table())
+        .expect("rust grammar table");
+    let empty_tree = pagesift_syntax::api::parse(lang, b"", pagesift_syntax::Limits::default());
+    assert_eq!(empty_tree.input_len, 0);
+    let malformed = b"pub fn \xff\xfe\x00 { ((( [[[ \"unterminated";
+    let bad_tree = pagesift_syntax::api::parse(lang, malformed, pagesift_syntax::Limits::default());
+    assert_eq!(bad_tree.input_len, malformed.len());
+}

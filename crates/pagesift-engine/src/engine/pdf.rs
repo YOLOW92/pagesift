@@ -295,11 +295,63 @@ impl Scraper {
 /// Rename only generated PDF image destinations, keeping unrelated Markdown
 /// unchanged. The source PDF image id may hash compressed input rather than
 /// the actual bytes of the exported image.
-fn rewrite_exported_image_names(mut markdown: String, names: &[(String, String)]) -> String {
-    for (old, new) in names {
-        markdown = markdown.replace(&format!("](images/{old})"), &format!("](images/{new})"));
+fn rewrite_exported_image_names(markdown: String, names: &[(String, String)]) -> String {
+    const PREFIX: &str = "](images/";
+    if names.is_empty() || !markdown.contains(PREFIX) {
+        return markdown;
     }
-    markdown
+    // [策略] 少量重命名项（<= 8）直接切片线性查找省掉哈希表分配，更多项切到 HashMap
+    const LINEAR_LOOKUP_MAX: usize = 8;
+    // [策略] 新哈希文件名可能略长于旧名，预留 32 字节缓冲余量避免追加时二次扩容
+    const EXTRA_RESERVE: usize = 32;
+    let lookup_map: Option<std::collections::HashMap<&str, &str>> =
+        (names.len() > LINEAR_LOOKUP_MAX).then(|| {
+            names
+                .iter()
+                .map(|(old, new)| (old.as_str(), new.as_str()))
+                .collect()
+        });
+    let lookup = |old: &str| -> Option<&str> {
+        if let Some(map) = &lookup_map {
+            map.get(old).copied()
+        } else {
+            names
+                .iter()
+                .find_map(|(k, v)| (k == old).then_some(v.as_str()))
+        }
+    };
+    let mut out: Option<String> = None;
+    let mut last_copied = 0usize;
+    let mut cursor = 0usize;
+    while let Some(rel) = markdown[cursor..].find(PREFIX) {
+        let name_start = cursor + rel + PREFIX.len();
+        let Some(end_rel) = markdown[name_start..]
+            .bytes()
+            .position(|b| matches!(b, b')' | b'\r' | b'\n' | b' ' | b'\t'))
+        else {
+            break;
+        };
+        let name_end = name_start + end_rel;
+        if markdown.as_bytes().get(name_end) == Some(&b')')
+            && let Some(new_name) = lookup(&markdown[name_start..name_end])
+        {
+            let buf =
+                out.get_or_insert_with(|| String::with_capacity(markdown.len() + EXTRA_RESERVE));
+            buf.push_str(&markdown[last_copied..name_start]);
+            buf.push_str(new_name);
+            last_copied = name_end;
+            cursor = name_end + 1;
+            continue;
+        }
+        cursor = name_start;
+    }
+    match out {
+        Some(mut buf) => {
+            buf.push_str(&markdown[last_copied..]);
+            buf
+        }
+        None => markdown,
+    }
 }
 
 /// PDF 读不了是文件本身的问题（4xx），不是上游故障：坏文件 400 INVALID_REQUEST，
@@ -315,23 +367,11 @@ pub(super) fn pdf_error(e: pagesift_pdf::Error) -> ApiError {
     ApiError::new(code, format!("could not read PDF: {e}"))
 }
 
-/// 标准 base64（RFC 4648，带补位）。只在 `parsers: []` 时用一次，不值得为它加依赖。
+/// 标准 base64（RFC 4648，带补位）：复用 `pagesift-base64`（`yolow64` SIMD 加速）。
 fn base64(bytes: &[u8]) -> String {
-    const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
-    for c in bytes.chunks(3) {
-        let n = (u32::from(c[0]) << 16)
-            | (u32::from(*c.get(1).unwrap_or(&0)) << 8)
-            | u32::from(*c.get(2).unwrap_or(&0));
-        for i in 0..4 {
-            if i <= c.len() {
-                out.push(T[(n >> (18 - 6 * i) & 63) as usize] as char);
-            } else {
-                out.push('=');
-            }
-        }
-    }
-    out
+    pagesift_base64::STANDARD
+        .encode_to_string(bytes)
+        .expect("PDF byte slice fits within base64 usize capacity")
 }
 
 fn empty_pdf_pages_warning(
@@ -364,6 +404,15 @@ mod tests {
         assert_eq!(
             rewrite_exported_image_names(md.into(), &names),
             "![x](images/content.png) text images/source.png ![y](images/other.png)"
+        );
+        // 大量重命名映射走 HashMap 单遍替换，且不会出现链式二次替换（a->b, b->c 只把原 a 换成 b）
+        let pairs: Vec<(String, String)> = (0..12)
+            .map(|i| (format!("img{i}.png"), format!("img{}.png", i + 1)))
+            .collect();
+        let multi = "![0](images/img0.png) ![5](images/img5.png) ![keep](images/unlisted.png)";
+        assert_eq!(
+            rewrite_exported_image_names(multi.into(), &pairs),
+            "![0](images/img1.png) ![5](images/img6.png) ![keep](images/unlisted.png)"
         );
     }
 

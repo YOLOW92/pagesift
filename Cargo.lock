@@ -626,7 +626,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1372,7 +1372,7 @@ checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
 name = "pagesift"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1430,7 +1430,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-api"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "axum",
  "http-body",
@@ -1461,7 +1461,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-base64"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "base64 0.23.1",
  "yolow64",
@@ -1469,7 +1469,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-cdp"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "futures-util",
  "nix",
@@ -1488,7 +1488,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-cluster"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "blake3",
  "bytes",
@@ -1506,14 +1506,14 @@ dependencies = [
 
 [[package]]
 name = "pagesift-compress"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "yolowzstd",
 ]
 
 [[package]]
 name = "pagesift-content"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "pagesift-sys",
  "pagesift-testkit",
@@ -1524,7 +1524,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-diff"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "blake3",
  "pagesift-testkit",
@@ -1537,7 +1537,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-engine"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1591,11 +1591,14 @@ dependencies = [
 
 [[package]]
 name = "pagesift-extract"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
+ "blake3",
  "memchr",
+ "pagesift-diff",
  "pagesift-graph",
  "pagesift-html",
+ "pagesift-stat",
  "regex",
  "serde",
  "serde_json",
@@ -1606,7 +1609,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-ffi"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "pagesift",
  "pagesift-cdp",
@@ -1621,7 +1624,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-flow"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "pagesift-net",
  "pagesift-policy",
@@ -1631,7 +1634,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-frontier"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "pagesift-api",
  "pagesift-content",
@@ -1643,7 +1646,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-fuzz"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "pagesift-content",
  "pagesift-html",
@@ -1655,14 +1658,14 @@ dependencies = [
 
 [[package]]
 name = "pagesift-gpu"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "pagesift-infer",
 ]
 
 [[package]]
 name = "pagesift-graph"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1672,7 +1675,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-hooks"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "pagesift-api",
  "serde",
@@ -1683,7 +1686,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-html"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "pagesift-testkit",
  "yolowhtml-dom",
@@ -1691,21 +1694,21 @@ dependencies = [
 
 [[package]]
 name = "pagesift-infer"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "pagesift-itna"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "pagesift-llm"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "reqwest",
  "serde",
@@ -1716,7 +1719,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-mcp"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "axum",
  "futures-util",
@@ -1732,7 +1735,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-media"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "blake3",
@@ -1751,7 +1754,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-net"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "blake3",
  "brotli-decompressor 5.0.3",
@@ -1784,7 +1787,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-node"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "napi",
  "napi-build",
@@ -1800,7 +1803,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-ocr"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "pagesift-gpu",
  "pagesift-infer",
@@ -1812,7 +1815,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-office"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "pagesift-compress",
  "yolowdoc",
@@ -1820,7 +1823,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-pdf"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "lopdf",
  "pagesift-sys",
@@ -1832,7 +1835,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-plan"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "blake3",
  "pagesift-content",
@@ -1846,7 +1849,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-policy"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "httpdate",
  "pagesift-net",
@@ -1861,7 +1864,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-py"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "pagesift",
  "pagesift-cdp",
@@ -1876,7 +1879,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-rustls"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "log",
  "once_cell",
@@ -1889,7 +1892,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-search"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "reqwest",
  "serde_json",
@@ -1899,7 +1902,7 @@ dependencies = [
 
 [[package]]
 name = "pagesift-sink"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "pagesift-api",
  "pagesift-content",
@@ -1915,11 +1918,11 @@ dependencies = [
 
 [[package]]
 name = "pagesift-stat"
-version = "1.5.6"
+version = "1.6.0"
 
 [[package]]
 name = "pagesift-store"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "blake3",
  "crc32fast",
@@ -1939,21 +1942,21 @@ dependencies = [
 
 [[package]]
 name = "pagesift-syntax"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "yolowsyntax",
 ]
 
 [[package]]
 name = "pagesift-sys"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "libc",
 ]
 
 [[package]]
 name = "pagesift-testkit"
-version = "1.5.6"
+version = "1.6.0"
 dependencies = [
  "libc",
 ]
@@ -2162,7 +2165,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2319,7 +2322,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2687,7 +2690,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3378,9 +3381,9 @@ dependencies = [
 
 [[package]]
 name = "yolowhtml"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0004871cc01de95499c6d8430ea14136161b760aaa6f5c0b8aae4be5f97eaf68"
+checksum = "71e8dc203f82fd857c91508eb966497935d4fcffd52e6acfe58008d1b676ab1b"
 dependencies = [
  "aho-corasick",
  "blake3",
@@ -3394,9 +3397,9 @@ dependencies = [
 
 [[package]]
 name = "yolowhtml-dom"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cab2164070e62190d4be9e21a7688addce1140be98d8a62463699501ec403061"
+checksum = "6e7850de55dd93a8f096c56ba03e0d08742e84afb85fe39343a2dafc61140038"
 dependencies = [
  "memchr",
 ]

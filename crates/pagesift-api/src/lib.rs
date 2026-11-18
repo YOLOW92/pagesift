@@ -7,6 +7,7 @@
 
 mod agent;
 pub mod attachments;
+pub mod context;
 mod engine;
 mod error;
 pub mod fields;

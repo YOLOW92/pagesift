@@ -342,3 +342,19 @@ pub unsafe extern "C" fn pagesift_graph_query(
         Ok(loop_api::query_graph(runtime(), s, req))
     })
 }
+
+/// 执行 1.6 Context 操作（`ingest`/`sync`/`search`/`pack`/`action`/`units`/`deltas`/`ack`/`learn`）。
+///
+/// # Safety
+/// 指针参数的要求见 `pagesift.h`。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn pagesift_context(
+    engine: *const PagesiftEngine,
+    request_json: *const c_char,
+) -> *mut c_char {
+    guarded("pagesift_context", || {
+        // SAFETY: 转述调用方的保证
+        let (s, req) = unsafe { (scraper(engine)?, optional(request_json, "request_json")?) };
+        Ok(loop_api::context(runtime(), s, req))
+    })
+}

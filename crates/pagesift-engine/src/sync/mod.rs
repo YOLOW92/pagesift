@@ -1,7 +1,7 @@
 //! 1.5 Loop 持续数据同步引擎：资源清单生命周期、价值加权新鲜度调度与 5 步闭环执行。
 
 mod budget;
-mod capture;
+pub(crate) mod capture;
 pub mod inventory;
 mod reconcile;
 pub mod runner;

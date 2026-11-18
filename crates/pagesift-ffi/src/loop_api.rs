@@ -31,6 +31,17 @@ pub fn query_graph(rt: &Runtime, s: &Arc<Scraper>, request_json: Option<&str>) -
     }
 }
 
+pub fn context(rt: &Runtime, s: &Arc<Scraper>, request_json: Option<&str>) -> Value {
+    let req = match args::object(request_json) {
+        Ok(m) => Value::Object(m),
+        Err(e) => return failure_value(&e),
+    };
+    match rt.block_on(pagesift_core::loop_ops::context(s, req)) {
+        Ok(v) => v,
+        Err(e) => failure_value(&e),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::ffi::{CStr, CString};
@@ -38,8 +49,8 @@ mod tests {
     use serde_json::Value;
 
     use crate::{
-        pagesift_engine_free, pagesift_engine_new, pagesift_graph_query, pagesift_string_free,
-        pagesift_sync,
+        pagesift_context, pagesift_engine_free, pagesift_engine_new, pagesift_graph_query,
+        pagesift_string_free, pagesift_sync,
     };
 
     fn parse_c(ptr: *mut std::ffi::c_char) -> Value {
@@ -108,7 +119,62 @@ mod tests {
         assert_eq!(missing["success"], false);
         assert_eq!(missing["error_code"], "NOT_FOUND");
 
+        let ctx_ingest = CString::new(
+            serde_json::json!({
+                "action": "ingest",
+                "source_id": "ffi-ctx",
+                "documents": [{
+                    "url": "https://example.com/spec",
+                    "markdown": "# Spec\n\nMax payload: 64 MiB unless chunked.\n"
+                }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let ingested = parse_c(unsafe { pagesift_context(engine, ctx_ingest.as_ptr()) });
+        assert_eq!(ingested["success"], true);
+        assert!(ingested["liveUnitCount"].as_u64().unwrap_or(0) >= 1);
+
+        let ctx_pack = CString::new(
+            r#"{"action":"pack","source_id":"ffi-ctx","query":"Max payload MiB","budget_tokens":256}"#,
+        )
+        .unwrap();
+        let packed = parse_c(unsafe { pagesift_context(engine, ctx_pack.as_ptr()) });
+        assert_eq!(packed["success"], true);
+        assert!(
+            packed["pack"]["compiledContext"]
+                .as_str()
+                .unwrap_or("")
+                .contains("64 MiB")
+        );
+
+        // NULL engine, NULL request_json, invalid JSON, and out-of-range budget_tokens must all
+        // safely return structured JSON errors without panicking or leaking across FFI.
+        let null_engine_err =
+            parse_c(unsafe { pagesift_context(std::ptr::null(), ctx_pack.as_ptr()) });
+        assert_eq!(null_engine_err["success"], false);
+        assert_eq!(null_engine_err["error_code"], "INVALID_REQUEST");
+
+        let null_req_err = parse_c(unsafe { pagesift_context(engine, std::ptr::null()) });
+        assert_eq!(null_req_err["success"], false);
+        assert_eq!(null_req_err["error_code"], "INVALID_REQUEST");
+
+        let bad_json = CString::new("{unclosed").unwrap();
+        let bad_json_err = parse_c(unsafe { pagesift_context(engine, bad_json.as_ptr()) });
+        assert_eq!(bad_json_err["success"], false);
+        assert_eq!(bad_json_err["error_code"], "INVALID_REQUEST");
+
+        let huge_budget = CString::new(
+            r#"{"action":"pack","source_id":"ffi-ctx","query":"Max payload","budget_tokens":99999999}"#,
+        )
+        .unwrap();
+        let huge_err = parse_c(unsafe { pagesift_context(engine, huge_budget.as_ptr()) });
+        assert_eq!(huge_err["success"], false);
+        assert_eq!(huge_err["error_code"], "INVALID_REQUEST");
+
+        unsafe { pagesift_string_free(std::ptr::null_mut()) };
         unsafe { pagesift_engine_free(engine) };
+        unsafe { pagesift_engine_free(std::ptr::null_mut()) };
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

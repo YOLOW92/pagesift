@@ -146,4 +146,16 @@ fn encrypted_ole_and_compress_fixtures_behave_cleanly() {
         let out = convert(&bytes, Format::Archive, &Options::default()).unwrap();
         assert!(!out.markdown.is_empty(), "{name} should yield output");
     }
+
+    assert!(
+        pagesift_office::media(b"PK\x03\x04corrupt", Format::Docx, &Options::default()).is_err()
+    );
+    assert!(
+        pagesift_office::media_bytes(
+            b"PK\x03\x04corrupt",
+            "word/media/a.png",
+            &Options::default()
+        )
+        .is_err()
+    );
 }

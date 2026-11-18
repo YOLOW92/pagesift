@@ -21,8 +21,8 @@ Security fixes go into the latest release line only; upgrade to its newest patch
 
 | Version | Supported |
 |---|---|
-| 1.5.x | ✅ |
-| < 1.5 | ❌ |
+| 1.6.x | ✅ |
+| < 1.6 | ❌ |
 
 ## Reporting a vulnerability
 

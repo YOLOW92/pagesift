@@ -458,6 +458,24 @@ impl Engine for ClusterEngine {
     fn admitted_concurrency(&self) -> Option<usize> {
         Some(self.dispatch.capacity().max(1))
     }
+
+    fn sync_source<'a>(
+        &'a self,
+        source_id: &'a str,
+        tenant: Option<&'a str>,
+        force_all: bool,
+        max_requests: Option<usize>,
+    ) -> BoxFuture<'a, Result<pagesift_store::SyncDelta, ApiError>> {
+        Engine::sync_source(&*self.scraper, source_id, tenant, force_all, max_requests)
+    }
+
+    fn context<'a>(
+        &'a self,
+        tenant: Option<&'a str>,
+        request: serde_json::Value,
+    ) -> BoxFuture<'a, Result<serde_json::Value, ApiError>> {
+        Engine::context(&*self.scraper, tenant, request)
+    }
 }
 
 fn interact_on_gateway() -> ApiError {

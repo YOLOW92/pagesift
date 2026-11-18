@@ -42,7 +42,7 @@ pub(super) async fn extract_fetched(
     auto: bool,
 ) -> Result<Fetched, ApiError> {
     let copts = content_options(base, status, opts);
-    let tags = tag_filter(opts)?;
+    let tags = dom_tag_filter(opts)?;
     let tagged = tags.is_some();
     let graph_opts = crate::graph::effective_graph_options(opts);
     let want_dom = graph_opts.is_some();
@@ -50,7 +50,7 @@ pub(super) async fn extract_fetched(
         .as_ref()
         .is_some_and(|g| g.evidence || g.facts || g.conflicts);
     let try_embedded_json = opts.try_embedded_json;
-    let base_str = want_dom.then(|| base.to_string());
+    let base_str = (want_dom || want_traces).then(|| base.to_string());
     cpu_task(move || {
         let decoded = decode();
         let decode_warning = decoded.warning();
@@ -59,21 +59,35 @@ pub(super) async fn extract_fetched(
             Vec<pagesift_graph::RawLinkObservation>,
             Option<String>,
         )> = None;
-        let mut is_feed = false;
         let mut html_warnings: Option<Vec<String>> = None;
+        let mut graph_traces: Vec<pagesift_graph::RawFieldTrace> = Vec::new();
         let mut js_shell_hint = false;
-        // feed 和标签筛选的提取不用原页面的 DOM，要判断客户端代码时再解析一次原页面
+        // feed 不用 HTML DOM；标签筛选与常规提取都在原页面单棵 DOM 内一次性采集链接、诊断、轨迹与客户端代码提示
         let (doc, client_code) = if let Some(doc) = super::feed::parse(&html, copts.links) {
-            is_feed = true;
             html_warnings = Some(collect_html_text_warnings(&html, None));
             (doc, None)
         } else if let Some(t) = tags {
-            let filtered = t.apply(&html);
-            html_warnings = Some(collect_html_text_warnings(&html, None));
+            let (filtered, raw_code) = super::cpu::with_dom(&html, |raw_dom| {
+                let filtered = t.apply_dom(raw_dom);
+                if want_dom && let Some(b) = base_str.as_deref() {
+                    dom_links_captured =
+                        Some(crate::graph::dom_links::collect_from_dom(raw_dom, Some(b)));
+                }
+                let (warnings, traces) = collect_dom_warnings_and_traces(
+                    &html,
+                    raw_dom,
+                    want_traces,
+                    base_str.as_deref(),
+                );
+                html_warnings = Some(warnings);
+                graph_traces = traces;
+                let code = auto.then(|| client_code_in(raw_dom));
+                (filtered, code)
+            });
             let doc = CONTENT_WORKSPACE.with(|ws| {
                 pagesift_content::process_with_workspace(&filtered, &copts, &mut ws.borrow_mut())
             });
-            (doc, None)
+            (doc, raw_code)
         } else {
             CONTENT_WORKSPACE.with(|ws| {
                 pagesift_content::process_with_workspace_then(
@@ -85,7 +99,14 @@ pub(super) async fn extract_fetched(
                             dom_links_captured =
                                 Some(crate::graph::dom_links::collect_from_dom(dom, Some(b)));
                         }
-                        html_warnings = Some(collect_html_text_warnings(&html, Some(dom)));
+                        let (warnings, traces) = collect_dom_warnings_and_traces(
+                            &html,
+                            dom,
+                            want_traces,
+                            base_str.as_deref(),
+                        );
+                        html_warnings = Some(warnings);
+                        graph_traces = traces;
                         let thin = needs_render(doc);
                         let code = thin.then(|| client_code_in(dom));
                         if let Some(has_code) = code {
@@ -96,7 +117,7 @@ pub(super) async fn extract_fetched(
                 )
             })
         };
-        let graph_dom = if let Some(b) = base_str.as_deref() {
+        let graph_dom = if want_dom {
             if let Some((links, dom_canon)) = dom_links_captured {
                 Some(crate::graph::dom_links::DomGraphData {
                     links,
@@ -107,13 +128,6 @@ pub(super) async fn extract_fetched(
                     markdown_hash: doc.fingerprints.as_ref().map(|f| f.markdown.clone()),
                     text_hash: doc.fingerprints.as_ref().map(|f| f.text.clone()),
                 })
-            } else if tagged {
-                Some(crate::graph::dom_links::extract_from_html_str(
-                    &html,
-                    &doc.metadata,
-                    doc.fingerprints.as_ref(),
-                    Some(b),
-                ))
             } else {
                 Some(crate::graph::dom_links::DomGraphData {
                     canonical_url: doc.metadata.canonical_url.clone(),
@@ -127,11 +141,6 @@ pub(super) async fn extract_fetched(
             }
         } else {
             None
-        };
-        let graph_traces = if want_traces && !is_feed {
-            crate::graph::evidence::collect_structured_html_traces(&html, base_str.as_deref())
-        } else {
-            Vec::new()
         };
         // 正文不够时看页面数据岛里有没有正文（不用浏览器）。合并结果只用在最后返回 HTTP 结果的时候：
         // 要不要渲染、渲染有没有增益都按 HTTP 本身的结果判断——质量分不看篇幅，补进一个标题和一段简介

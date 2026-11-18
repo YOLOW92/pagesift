@@ -314,3 +314,27 @@ fn strict_article_keeps_figure_caption_and_filters_noise_figures() {
         doc.images
     );
 }
+
+#[test]
+fn strict_article_keeps_table_caption_and_until_found_section() {
+    let html = format!(
+        "<html><head><title>Pricing Matrix | Research</title>{OG_ARTICLE}</head><body>\
+         <article><h1>Pricing Matrix</h1>{BODY}\
+         <table><caption>Table 1: Regional compute pricing in USD/hour</caption>\
+         <thead><tr><th>Tier</th><th>Rate</th></tr></thead>\
+         <tbody><tr><td>Standard</td><td>$0.42</td></tr></tbody></table>\
+         <section hidden=\"until-found\"><h2>Collapsible methodology</h2>\
+         <p>Rates exclude regional VAT and committed-use discounts.</p></section>\
+         </article></body></html>"
+    );
+    let out = md(&html);
+    assert!(
+        out.contains("Table 1: Regional compute pricing in USD/hour"),
+        "{out}"
+    );
+    assert!(out.contains("| Standard | $0.42 |"), "{out}");
+    assert!(
+        out.contains("Rates exclude regional VAT and committed-use discounts."),
+        "{out}"
+    );
+}

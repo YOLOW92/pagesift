@@ -2,7 +2,7 @@
 
 use pagesift_api::ApiError;
 use pagesift_api::types::{ScrapeOptions, SimilarData, SimilarItem};
-use pagesift_html::{Html, Selector};
+use pagesift_html::Selector;
 
 use super::Scraper;
 use super::cpu::cpu_task;
@@ -15,36 +15,35 @@ impl Scraper {
         selector: &str,
         opts: &ScrapeOptions,
     ) -> Result<SimilarData, ApiError> {
-        // 写错的选择器在抓取前就报
-        Selector::parse(selector)
+        // 写错的选择器在抓取前就报，并直接传入 CPU 工人避免二次解析
+        let sel = Selector::parse(selector)
             .map_err(|e| ApiError::invalid(format!("selector {selector:?}: {e}")))?;
         let doc = self.scrape(url, opts).await?;
         let html = doc.raw_html.unwrap_or_default();
-        let selector = selector.to_string();
-        cpu_task(move || similar_in(&html, &selector)).await?
+        let raw_sel = selector.to_string();
+        cpu_task(move || similar_in(&html, &sel, &raw_sel)).await?
     }
 }
 
-fn similar_in(html: &str, selector: &str) -> Result<SimilarData, ApiError> {
-    let doc = Html::parse(html);
-    let sel = Selector::parse(selector)
-        .map_err(|e| ApiError::invalid(format!("selector {selector:?}: {e}")))?;
-    let example = doc.select(&sel).next().ok_or_else(|| {
-        ApiError::invalid(format!("selector {selector:?} matches nothing on the page"))
-    })?;
-    let Some(found) = pagesift_extract::locate::find_similar(example, doc.root()) else {
-        return Ok(SimilarData::default());
-    };
-    Ok(SimilarData {
-        selector: found.selector,
-        depth: Some(found.depth),
-        items: found
-            .items
-            .iter()
-            .map(|n| SimilarItem {
-                text: n.text().split_whitespace().collect::<Vec<_>>().join(" "),
-                html: n.html(),
-            })
-            .collect(),
+fn similar_in(html: &str, sel: &Selector, raw_sel: &str) -> Result<SimilarData, ApiError> {
+    super::cpu::with_dom(html, |doc| {
+        let example = doc.select(sel).next().ok_or_else(|| {
+            ApiError::invalid(format!("selector {raw_sel:?} matches nothing on the page"))
+        })?;
+        let Some(found) = pagesift_extract::locate::find_similar(example, doc.root()) else {
+            return Ok(SimilarData::default());
+        };
+        Ok(SimilarData {
+            selector: found.selector,
+            depth: Some(found.depth),
+            items: found
+                .items
+                .iter()
+                .map(|n| SimilarItem {
+                    text: n.text().split_whitespace().collect::<Vec<_>>().join(" "),
+                    html: n.html(),
+                })
+                .collect(),
+        })
     })
 }

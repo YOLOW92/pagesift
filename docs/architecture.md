@@ -7,14 +7,14 @@ for OCR and a model for `/v2/agent` are optional and found at run time.
 
 ```mermaid
 flowchart TD
-    CLI["CLI / Rust caller"] --> Engine["pagesift-engine: scrape, crawl, Loop sync"]
-    HTTP["HTTP API: Firecrawl, Jina, /v2/sources, /v2/graph"] --> Engine
+    CLI["CLI / Rust caller"] --> Engine["pagesift-engine: scrape, crawl, Loop sync, Context"]
+    HTTP["HTTP API: Firecrawl, Jina, /v2/sources, /v2/graph, /v2/context"] --> Engine
     Bindings["Python / Node / MCP / C ABI: Go, Java, C#, Ruby, PHP and more"] --> Engine
     Engine --> Hooks["pagesift-hooks: rules and hooks"]
     Hooks --> Policy["pagesift-policy: robots, rate limits, backoff, identity leases"]
     Policy --> Net["pagesift-net: HTTP, SSRF guards, validated proxy tunnels, optional TLS fingerprint"]
     Net --> Plan{"pagesift-plan: strategy, render?"}
-    Plan -->|HTTP or embedded JSON| DOM["pagesift-html (yolowhtml-dom): arena DOM"]
+    Plan -->|HTTP or embedded JSON| DOM["pagesift-html (yolowhtml-dom): single-pass arena DOM"]
     Plan -->|Browser| CDP["pagesift-cdp: browser pool, automation-marker removal, challenge settle"]
     CDP --> DOM
     Net -->|PDF| PDF["pagesift-pdf (yolowpdf + yolow64)"]
@@ -38,8 +38,11 @@ flowchart TD
     OCR --> Sink
     Content --> Sink
     Extract --> Sink
-    Graph --> Store["pagesift-store: inventories, claim history, experience, cache, offloaded snapshots"]
-    Engine <-->|SyncDelta, assessments, snapshots| Store
+    Graph --> Store["pagesift-store: inventories, claim history, Context units & deltas (ns::CONTEXT + chis), experience, cache, snapshots"]
+    Graph --> Ctx["Context (pagesift-graph + pagesift-extract + pagesift-stat): KnowledgeUnit (BoundedUot), ContextDelta, multi-strategy Search, ContextPack, VOI Action & Learn"]
+    Ctx <--> Store
+    Ctx -.->|VOI + 4D shadow-price bounded acquisition| Engine
+    Engine <-->|SyncDelta, ContextDelta, assessments, snapshots| Store
     Store -.->|family experience, URL rewrites| Plan
     Net --> Compress["pagesift-compress (yolowzstd): HTTP and cache zstd codecs"]
     Store --> Compress
@@ -63,6 +66,22 @@ and conflict records across single scrapes and multi-page crawls (`graph.jsonl`,
 `/v2/graph/history`, `/v2/graph/conflicts`, `/v2/graph/claims`, `?asOf=` historical reconstruction, and MCP `pagesift_graph_query`), while tracking claim lifecycles (`Active`, `Superseded`, `Withdrawn`, `Unverified`, `EvidenceDegraded`) and independent source roots (`OriginRelation`).
 
 Long-lived **Loop** collection ties `pagesift-store` source inventories (`DataSourceSpec`, `SyncDelta`, `SourceStateView`), `pagesift-plan` cross-tick `FamilyExperienceTable` statistics and explainable `AcquisitionStrategy` planning, and `pagesift-engine` incremental `sync_source` execution into `/v2/sources`, `pagesift sync`, `pagesift_sync`, and the Node.js / Python / C ABI bindings. Large captured monitor Markdown payloads are offloaded to content-addressed snapshots so monitor state metadata stays compact.
+
+On top of `DataGraph` and `Loop`, **Context** ([docs/context.md](context.md)) maintains cross-version `KnowledgeUnit` identities (separating `unitId`, `revisionId`, physical byte/page/table `location`, and `lineage` with explicit ambiguity records), commits atomic dependency-governed `ContextDelta` updates and idempotent consumer checkpoints in `pagesift-store` (`ns::CONTEXT`, immune to cache eviction, with `chis` point-in-time resource history), runs multi-strategy lexical/symbol/temporal/lineage `Search`, compiles token- and `MustKeep`-constrained `ContextPack` outputs with `provenanceManifest`, and executes bounded goal-oriented `Action` workflows (`context`, `research`, `verify`, `watch`, `changes`) governed by gated coverage diagnosis, sequential Value of Information, 4D admission shadow prices, and drift-guarded online calibration (`pagesift context`, `/v2/context`, `pagesift_context`, and SDK `context()`).
+
+```mermaid
+flowchart LR
+    U["Unit (pagesift-extract)<br/>Patience anchors + entity guards<br/>+ BoundedUot / GreedyDice"]
+    D["Delta (pagesift-store ns::CONTEXT)<br/>AtomicTx, AssetDependency stamps,<br/>chis history, anti-ABA checkpoints"]
+    S["Search (pagesift-extract)<br/>BM25 + symbols + headings,<br/>asOf & effectiveAt, conflict pairs"]
+    P["Pack (pagesift-extract)<br/>SubmodularClosure / BoundedDpp,<br/>MustKeep closures, EdgeSalience"]
+    A["Action (pagesift-engine + stat)<br/>Gated Good-Turing / Chapman,<br/>Howard VOI vs 4D shadow prices"]
+    L["Learn (pagesift-stat)<br/>Grounded PAV isotonic calibration,<br/>CusumPageHinkley / Bocpd guard"]
+
+    U --> D --> S --> P --> A --> L
+    A -.->|bounded sync / fetch when VOI > cost| U
+    L -.->|calibrated confidence| S
+```
 
 ## Crates
 

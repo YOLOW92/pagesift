@@ -119,6 +119,12 @@ char *pagesift_sync(const pagesift_engine *engine, const char *request_json);
  */
 char *pagesift_graph_query(const pagesift_engine *engine, const char *request_json);
 
+/*
+ * Executes a 1.6 Context operation (`ingest`, `sync`, `search`, `pack`, `action`, `units`,
+ * `deltas`, `ack`, `learn`). Supports stateless inline `documents` or persistent `store_path`.
+ */
+char *pagesift_context(const pagesift_engine *engine, const char *request_json);
+
 #ifdef __cplusplus
 }
 #endif

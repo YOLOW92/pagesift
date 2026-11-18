@@ -197,36 +197,44 @@ impl Store {
             let drop_tombs = st.segs.range(..id).all(|(_, s)| s.dead_puts() == 0);
             (s.file.clone(), s.total, drop_tombs)
         };
+        let mut raw = Vec::new();
         record::scan(&file, len, |rec| -> Result<()> {
             match rec.op {
                 Op::Put | Op::TxPut => {
                     if self.state_r().is_at(rec.ns, rec.key, id, rec.off) {
-                        let mut raw = vec![0; rec.len as usize];
+                        raw.resize(rec.len as usize, 0);
                         read_exact_at(&file, &mut raw, u64::from(rec.off))?;
-                        let out_raw = if rec.op == Op::Put {
-                            raw
-                        } else {
-                            let decoded = record::decode(&raw).ok_or_else(|| {
-                                Error::Corrupt(format!("checksum mismatch at {}:{}", id, rec.off))
-                            })?;
-                            record::encode(rec.ns, Op::Put, rec.ts_ms, rec.key, decoded.value)
-                        };
+                        if rec.op == Op::TxPut {
+                            if record::decode(&raw).is_none() {
+                                return Err(Error::Corrupt(format!(
+                                    "checksum mismatch at {}:{}",
+                                    id, rec.off
+                                )));
+                            }
+                            raw[REC_HEADER + 1] = Op::Put as u8;
+                            let crc = crc32fast::hash(&raw[REC_HEADER..]);
+                            // [协议] 记录头布局为 [len: u32 LE][crc32: u32 LE]，偏移 4..8 存放 4 字节 CRC32
+                            const CRC_OFFSET: usize = 4;
+                            const CRC_BYTES: usize = 4; // [协议] CRC32 校验和固定 4 字节
+                            raw[CRC_OFFSET..CRC_OFFSET + CRC_BYTES]
+                                .copy_from_slice(&crc.to_le_bytes());
+                        }
                         let mut w = self.writer();
-                        let (seg, noff) = self.append(&mut w, &out_raw, false)?;
+                        let (seg, noff) = self.append(&mut w, &raw, false)?;
                         self.state_w().relocate(rec.ns, rec.key, seg, noff);
                     }
                 }
                 Op::Del | Op::TxDel => {
                     if !drop_tombs && self.state_r().find(rec.ns, rec.key)?.is_none() {
-                        let out_raw = if rec.op == Op::Del {
-                            let mut raw = vec![0; rec.len as usize];
+                        if rec.op == Op::Del {
+                            raw.resize(rec.len as usize, 0);
                             read_exact_at(&file, &mut raw, u64::from(rec.off))?;
-                            raw
                         } else {
-                            record::encode(rec.ns, Op::Del, rec.ts_ms, rec.key, &[])
-                        };
+                            raw.clear();
+                            record::encode_into(&mut raw, rec.ns, Op::Del, rec.ts_ms, rec.key, &[]);
+                        }
                         let mut w = self.writer();
-                        self.append(&mut w, &out_raw, true)?;
+                        self.append(&mut w, &raw, true)?;
                     }
                 }
                 Op::TxCommit => {}
@@ -266,6 +274,7 @@ fn grown_since(last: (u64, u64), now: (u64, u64)) -> bool {
 #[cfg(test)]
 mod maint_tests {
     use super::grown_since;
+    use crate::{Config, Store, SyncPolicy};
 
     /// 增长不到上次磁盘总量的 δ 不算；垃圾或总量长够了就算；首次（上次为 0）任何增长都算。
     #[test]
@@ -275,5 +284,61 @@ mod maint_tests {
         assert!(grown_since(last, (1_010_000, 450_000)));
         assert!(grown_since(last, (1_050_000, 400_000)));
         assert!(grown_since((0, 0), (10, 0)));
+    }
+
+    #[test]
+    fn compact_segment_rewrites_tx_put_and_tx_del_in_place() {
+        let dir = std::env::temp_dir().join(format!(
+            "pagesift-store-compact-tx-{}-{}",
+            std::process::id(),
+            super::to_ms(std::time::SystemTime::now())
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut cfg = Config::new(&dir);
+        cfg.sync = SyncPolicy::Never;
+        cfg.background = false;
+        cfg.max_segment_bytes = 4096;
+
+        let large_val: Vec<u8> = (0..16_384).map(|i| (i * 31 % 251) as u8).collect();
+        {
+            let store = Store::open(cfg.clone()).unwrap();
+            // 段 1：写入将被覆盖的键（留死 put，使后续段 compact 时 drop_tombs == false）以及将被 TxDel 删除的键
+            store.tasks().kv_put(b"dead_holder", &[1u8; 2048]).unwrap();
+            store.tasks().kv_put(b"victim", b"old-value").unwrap();
+            store.tasks().kv_put(b"dead_holder", &[2u8; 2048]).unwrap();
+
+            // 事务写入大记录 TxPut 与删除标记 TxDel，触发滚动再封存该段
+            let mut tx = store.atomic_tx();
+            tx.put(super::ns::KV, b"tx_big", &large_val, 1_700_000_000_000)
+                .unwrap();
+            tx.delete(super::ns::KV, b"victim").unwrap();
+            tx.commit().unwrap();
+
+            // 推进到新活动段，使含 TxPut / TxDel 的段进入 sealed_segments
+            store.tasks().kv_put(b"tail", &[3u8; 4096]).unwrap();
+            let sealed = store.sealed_segments();
+            assert!(
+                sealed.len() >= 2,
+                "expected multiple sealed segments: {sealed:?}"
+            );
+            // 只压缩含事务记录的较新封存段（保留最老段的 dead_puts 以覆盖 !drop_tombs 分支）
+            for &seg_id in &sealed[1..] {
+                store.compact_segment(seg_id).unwrap();
+            }
+            assert_eq!(
+                store.tasks().kv_get(b"tx_big").unwrap().as_deref(),
+                Some(large_val.as_slice())
+            );
+            assert_eq!(store.tasks().kv_get(b"victim").unwrap(), None);
+        }
+
+        // 重新打开验证原地改写为 Op::Put / Op::Del 后的 CRC 与墓碑语义完好无损
+        let reopened = Store::open(cfg).unwrap();
+        assert_eq!(
+            reopened.tasks().kv_get(b"tx_big").unwrap().as_deref(),
+            Some(large_val.as_slice())
+        );
+        assert_eq!(reopened.tasks().kv_get(b"victim").unwrap(), None);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

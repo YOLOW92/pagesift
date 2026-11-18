@@ -1,5 +1,7 @@
 # Benchmarks
 
+> **1.6.0 Context, Loop & domain verification (2026-11-18):** Measured on the same machine (`Intel Core i7-10700 8C/16T`, `15 GiB RAM`, `Linux 7.0`, `pagesift 1.6.0` release binary and `context_eval` / `loop_eval`, seed `95028642840`): `Context` `BoundedUot` unit reconcile `63.9 µs` (`1.00` precision/recall, `1.00` ambiguity & split/merge lineage accuracy), incremental `ContextDelta` maintenance `3,440 µs` vs `15,041 µs` full rebuild (`4.37x` speedup, `98.6%` asset reuse), `ContextPack` compilation `67–225 µs` (`100%` table-header/qualifier/conflict retention at `192`/`384`-token budgets), multi-core `Search + Pack` `2,708.8 QPS` (`1w`, `p50 361 µs`, `25.9 MiB` RSS) scaling to `24,434.4 QPS` (`16w`, `9.02x` speedup, `p50 576 µs`, `28.8 MiB` RSS); domain verification confirms `1.000` mean F1 on `600` HTML → Markdown docs (`0.24 ms/page`), `0.645` olmOCR score on `1,269` born-digital PDFs (`2.58 ms/page`, `428.6 files/s` at `16w`), `0.988` hold-out structure kept on `81` Office/e-book files at `210.0 files/s` in-process (`4.76 ms/file`, `17.2 MB` median / `44.7 MB` peak RSS), and single-pass `yolowhtml-dom` `DataGraph` A/B on `181` AEB HTML pages at `0.841 ms` (`998.7 pages/s`, `graph=off`) vs `2.260 ms` (`355.7 pages/s`, `graph=on`). Full breakdown: [1.6.0 release notes](releases/1.6.0.md).
+
 <!-- 081-refresh -->
 ## 1.4 per-domain refresh (2026-11-14)
 

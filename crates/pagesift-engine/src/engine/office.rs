@@ -40,7 +40,7 @@ pub fn office_markdown(
     office_markdown_from(bytes, format, None, deadline)
 }
 
-/// HTML 转 Markdown：保留整页，相对路径按包里的位置解析。
+/// HTML 转 Markdown：保留整页，相对路径按包里的位置解析，复用当前 CPU 工人的 `CONTENT_WORKSPACE`。
 fn html_to_markdown(xhtml: &str, path: &str) -> String {
     let base = Url::parse("file:///")
         .ok()
@@ -51,7 +51,22 @@ fn html_to_markdown(xhtml: &str, path: &str) -> String {
         detect_barrier: false,
         ..Default::default()
     };
-    pagesift_content::process(xhtml, &opts).markdown
+    CONTENT_WORKSPACE.with(|ws| match ws.try_borrow_mut() {
+        Ok(mut w) => pagesift_content::process_with_workspace(xhtml, &opts, &mut w).markdown,
+        Err(_) => pagesift_content::process(xhtml, &opts).markdown,
+    })
+}
+
+fn clamp_member_budget(conv: &mut Converted, room: usize) {
+    if conv.markdown.len() > room {
+        let mut cut = room;
+        while cut > 0 && !conv.markdown.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        conv.markdown.truncate(cut);
+        conv.warnings
+            .push("output_truncated: archive member exceeded remaining output budget".to_string());
+    }
 }
 
 /// 压缩包成员或邮件附件：按内容和文件名认类型，转不了的返回 `None`（只留在清单里）。
@@ -73,17 +88,16 @@ fn member_markdown(
             ..Default::default()
         };
         match pagesift_pdf::extract_with(bytes, &popts) {
-            Ok(pdf) => Ok(Some((
-                Converted {
+            Ok(pdf) => {
+                let mut conv = Converted {
                     parts: pdf.pages.len(),
                     markdown: pdf.markdown,
                     title: pdf.metadata.title,
                     ..Default::default()
-                },
-                "pdf".to_string(),
-                None,
-                None,
-            ))),
+                };
+                clamp_member_budget(&mut conv, room);
+                Ok(Some((conv, "pdf".to_string(), None, None)))
+            }
             Err(pagesift_pdf::Error::Timeout) => Err(E::Timeout),
             Err(e) => Err(E::Malformed(e.to_string())),
         }
@@ -91,15 +105,12 @@ fn member_markdown(
         let decoded = pagesift_net::decode(bytes, None, None);
         let md = html_to_markdown(&decoded.text, name);
         let raw_html = capture.map(|_| decoded.text);
-        Ok(Some((
-            Converted {
-                markdown: md,
-                ..Default::default()
-            },
-            "html".to_string(),
-            None,
-            raw_html,
-        )))
+        let mut conv = Converted {
+            markdown: md,
+            ..Default::default()
+        };
+        clamp_member_budget(&mut conv, room);
+        Ok(Some((conv, "html".to_string(), None, raw_html)))
     } else {
         let Some(format) = Format::detect(bytes, Some(name), None) else {
             return Ok(None);
@@ -187,12 +198,16 @@ pub fn office_markdown_from(
 fn office_media(
     bytes: &[u8],
     format: Format,
+    deadline: Option<Instant>,
 ) -> (
     Vec<pagesift_api::types::Attachment>,
     Vec<String>,
     Vec<pagesift_api::types::ImageAssetResult>,
 ) {
-    let opts = pagesift_office::Options::default();
+    let opts = pagesift_office::Options {
+        deadline,
+        ..Default::default()
+    };
     let mut out = Vec::new();
     let mut warnings = Vec::new();
     let mut failed = Vec::new();
@@ -301,9 +316,9 @@ impl Scraper {
             if result.is_ok() {
                 OFFICE_TIME.with_borrow_mut(|m| m.observe(bytes, started.elapsed()));
             }
-            // `exportImages`：文档里的媒体原样从 ZIP 取出
-            let media =
-                (export && result.is_ok()).then(|| office_media(&input.bytes, input.format));
+            // `exportImages`：文档里的媒体原样从 ZIP 取出，沿用同一次转换的超时截止时间
+            let media = (export && result.is_ok())
+                .then(|| office_media(&input.bytes, input.format, Some(deadline)));
             (
                 result,
                 media,
@@ -486,5 +501,38 @@ mod tests {
             Some(Format::Eml)
         );
         assert_eq!(office_format(b"{\\rtf1 x}", "/f", None), Some(Format::Rtf));
+    }
+
+    #[test]
+    fn html_member_respects_utf8_room_budget_and_media_honors_deadline() {
+        let html = format!("<p>{}</p>", "中文段落测试内容".repeat(40));
+        let captured = std::sync::Mutex::new(Vec::new());
+        // room = 25 落在 3 字节中文字符中间，截断必须对齐到 <= 25 的字符边界且不 panic
+        let conv = member_markdown(
+            html.as_bytes(),
+            "chapter.xhtml",
+            25,
+            None,
+            Some((&captured, false)),
+        )
+        .unwrap()
+        .unwrap();
+        assert!(conv.markdown.len() <= 25);
+        assert!(!conv.warnings.is_empty());
+        let members = captured.into_inner().unwrap();
+        assert_eq!(members.len(), 1);
+        assert_eq!(members[0].markdown, conv.markdown);
+
+        // wall-clock: constructs an already-expired deadline in the past; never measures elapsed time.
+        let expired = Instant::now().checked_sub(Duration::from_secs(1));
+        if let Some(past) = expired {
+            let (_, warnings, _) = office_media(b"PK\x03\x04", Format::Docx, Some(past));
+            assert!(
+                warnings
+                    .iter()
+                    .any(|w| w.starts_with("images_not_exported:")),
+                "{warnings:?}"
+            );
+        }
     }
 }

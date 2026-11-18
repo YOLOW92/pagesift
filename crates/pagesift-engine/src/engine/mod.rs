@@ -29,6 +29,7 @@ mod asset_modes;
 mod autoschema;
 mod cache;
 mod cpu;
+pub(crate) use cpu::cpu_task_keyed;
 mod csv_text;
 mod egress_route;
 mod extract;
@@ -216,6 +217,9 @@ pub struct Scraper {
     sessions: Arc<interact::Sessions>,
     /// Sync 数据源级单飞执行锁（按 tenant × source_id 隔离，C05）。
     sync_locks: SyncLockMap,
+    /// Context 数据源级单飞写入锁与已提交索引内存缓存（1.6 Context）。
+    context_locks: SyncLockMap,
+    context_cache: crate::context::cache::ContextIndexCache,
 }
 
 type SyncLockMap = std::sync::Mutex<
@@ -402,6 +406,14 @@ impl Engine for Scraper {
                 max_requests_override: max_requests,
             },
         ))
+    }
+
+    fn context<'a>(
+        &'a self,
+        tenant: Option<&'a str>,
+        request: serde_json::Value,
+    ) -> BoxFuture<'a, Result<serde_json::Value, ApiError>> {
+        Box::pin(crate::context::dispatch(self, tenant, request))
     }
 
     fn supported_formats(&self) -> &'static [&'static str] {

@@ -120,6 +120,9 @@ pub(super) fn collect_html_text_warnings(
     raw_html: &str,
     dom: Option<&pagesift_content::yolowhtml_dom::Html<'_>>,
 ) -> Vec<String> {
+    if let Some(doc) = dom {
+        return collect_dom_warnings_and_traces(raw_html, doc, false, None).0;
+    }
     let mut warnings = Vec::new();
     let nul_bytes = raw_html.as_bytes().iter().filter(|&&b| b == 0).count();
     if nul_bytes > 0 {
@@ -133,10 +136,7 @@ pub(super) fn collect_html_text_warnings(
         .windows(LD_JSON.len())
         .any(|w| w.eq_ignore_ascii_case(LD_JSON))
     {
-        let malformed = match dom {
-            Some(doc) => pagesift_extract::structured::count_malformed_json_ld(doc),
-            None => pagesift_extract::structured::count_malformed_json_ld_str(raw_html),
-        };
+        let malformed = pagesift_extract::structured::count_malformed_json_ld_str(raw_html);
         if malformed > 0 {
             warnings.push(format!(
                 "malformed_json_ld: {malformed} JSON-LD script block(s) failed to parse"
@@ -146,24 +146,170 @@ pub(super) fn collect_html_text_warnings(
     warnings
 }
 
+/// 在同一棵已解析的 `dom` 上一次完成 HTML 文本诊断告警（NUL 字节、损坏的 JSON-LD）与
+/// 结构化证据轨迹（JSON-LD、Microdata、OpenGraph、`__NEXT_DATA__`/`__NUXT_DATA__`）提取，
+/// 消除额外的整页 DOM 构建与二次 JSON-LD 遍历。
+pub(super) fn collect_dom_warnings_and_traces(
+    raw_html: &str,
+    dom: &pagesift_content::yolowhtml_dom::Html<'_>,
+    want_traces: bool,
+    source_url: Option<&str>,
+) -> (Vec<String>, Vec<pagesift_graph::RawFieldTrace>) {
+    let mut warnings = Vec::new();
+    let nul_bytes = raw_html.as_bytes().iter().filter(|&&b| b == 0).count();
+    if nul_bytes > 0 {
+        warnings.push(format!(
+            "nul_bytes_stripped: input contained {nul_bytes} NUL byte(s) stripped during HTML parsing"
+        ));
+    }
+    if !want_traces || raw_html.is_empty() {
+        const LD_JSON: &[u8] = b"ld+json";
+        if raw_html
+            .as_bytes()
+            .windows(LD_JSON.len())
+            .any(|w| w.eq_ignore_ascii_case(LD_JSON))
+        {
+            let malformed = pagesift_extract::structured::count_malformed_json_ld(dom);
+            if malformed > 0 {
+                warnings.push(format!(
+                    "malformed_json_ld: {malformed} JSON-LD script block(s) failed to parse"
+                ));
+            }
+        }
+        return (warnings, Vec::new());
+    }
+    let diag = pagesift_extract::structured::extract_json_ld_with_diagnostics(dom);
+    if diag.malformed > 0 {
+        warnings.push(format!(
+            "malformed_json_ld: {} JSON-LD script block(s) failed to parse",
+            diag.malformed
+        ));
+    }
+    let structured = pagesift_extract::structured::StructuredData {
+        json_ld: diag.items,
+        microdata: pagesift_extract::structured::extract_microdata(dom),
+        opengraph: pagesift_extract::structured::extract_opengraph(dom),
+    };
+    let mut traces = pagesift_extract::evidence::extract_structured_traces(&structured, source_url);
+    if raw_html.contains("__NEXT_DATA__") || raw_html.contains("__NUXT_DATA__") {
+        for node in dom.root().descendants() {
+            let Some(el) = node.as_element() else {
+                continue;
+            };
+            if el.name() != "script" {
+                continue;
+            }
+            let Some(id) = el.attr("id") else {
+                continue;
+            };
+            if id != "__NEXT_DATA__" && id != "__NUXT_DATA__" {
+                continue;
+            }
+            let raw = node.text();
+            let trimmed = raw.trim();
+            if !trimmed.is_empty()
+                && let Ok(val) = serde_json::from_str::<serde_json::Value>(trimmed)
+            {
+                let method = pagesift_graph::ExtractionMethod::HydrationJson {
+                    script_id: id.to_string(),
+                };
+                pagesift_graph::collect_json_traces(
+                    &val,
+                    "",
+                    &method,
+                    false,
+                    source_url,
+                    &mut traces,
+                );
+            }
+        }
+    }
+    (warnings, traces)
+}
+
+pub(super) struct ProcessedHtml {
+    pub doc: pagesift_content::Document,
+    pub html: String,
+    pub warnings: Vec<String>,
+    pub graph_dom: Option<crate::graph::dom_links::DomGraphData>,
+    pub graph_traces: Vec<pagesift_graph::RawFieldTrace>,
+}
+
 pub(super) async fn process_html(
     html: String,
     base: &Url,
     status: Option<u16>,
     opts: &ScrapeOptions,
 ) -> Result<(pagesift_content::Document, String, Vec<String>), ApiError> {
+    let out = process_html_with_graph(html, base, status, opts, false, false).await?;
+    Ok((out.doc, out.html, out.warnings))
+}
+
+pub(super) async fn process_html_with_graph(
+    html: String,
+    base: &Url,
+    status: Option<u16>,
+    opts: &ScrapeOptions,
+    want_dom: bool,
+    want_traces: bool,
+) -> Result<ProcessedHtml, ApiError> {
     let copts = content_options(base, status, opts);
-    let tags = tag_filter(opts)?;
+    let tags = dom_tag_filter(opts)?;
+    let base_str = (want_dom || want_traces).then(|| base.to_string());
     cpu_task(move || {
         // RSS / Atom / RDF feed 不是网页：按条目解析，别让 HTML 提取器把标签剥成一锅粥。
         if let Some(document) = super::feed::parse(&html, copts.links) {
-            let html_warnings = collect_html_text_warnings(&html, None);
-            return (document, html, html_warnings);
+            if want_dom || want_traces {
+                let (warnings, graph_traces, graph_dom) = super::cpu::with_dom(&html, |dom| {
+                    let (warnings, traces) = collect_dom_warnings_and_traces(
+                        &html,
+                        dom,
+                        want_traces,
+                        base_str.as_deref(),
+                    );
+                    let dom_data = want_dom.then(|| {
+                        crate::graph::dom_links::collect_dom_graph_data(
+                            dom,
+                            &document.metadata,
+                            document.fingerprints.as_ref(),
+                            base_str.as_deref(),
+                        )
+                    });
+                    (warnings, traces, dom_data)
+                });
+                return ProcessedHtml {
+                    doc: document,
+                    html,
+                    warnings,
+                    graph_dom,
+                    graph_traces,
+                };
+            }
+            let warnings = collect_html_text_warnings(&html, None);
+            return ProcessedHtml {
+                doc: document,
+                html,
+                warnings,
+                graph_dom: None,
+                graph_traces: Vec::new(),
+            };
         }
-        // includeTags / excludeTags 只影响提取；rawHtml 仍是原始页面
+        // includeTags / excludeTags 只影响提取；rawHtml 与图谱链接/证据仍读原始页面单棵 DOM
         if let Some(t) = tags {
-            let filtered = t.apply(&html);
-            let html_warnings = collect_html_text_warnings(&html, None);
+            let (filtered, warnings, graph_traces, raw_links) =
+                super::cpu::with_dom(&html, |raw_dom| {
+                    let filtered = t.apply_dom(raw_dom);
+                    let (warnings, traces) = collect_dom_warnings_and_traces(
+                        &html,
+                        raw_dom,
+                        want_traces,
+                        base_str.as_deref(),
+                    );
+                    let links = want_dom.then(|| {
+                        crate::graph::dom_links::collect_from_dom(raw_dom, base_str.as_deref())
+                    });
+                    (filtered, warnings, traces, links)
+                });
             let document = CONTENT_WORKSPACE.with(|workspace| {
                 pagesift_content::process_with_workspace(
                     &filtered,
@@ -171,17 +317,55 @@ pub(super) async fn process_html(
                     &mut workspace.borrow_mut(),
                 )
             });
-            return (document, html, html_warnings);
+            let graph_dom =
+                raw_links.map(|(links, dom_canon)| crate::graph::dom_links::DomGraphData {
+                    links,
+                    canonical_url: document.metadata.canonical_url.clone().or(dom_canon),
+                    alternates: document.metadata.alternates.clone(),
+                    json_ld: document.metadata.json_ld.clone(),
+                    raw_html_hash: document.fingerprints.as_ref().map(|f| f.raw_html.clone()),
+                    markdown_hash: document.fingerprints.as_ref().map(|f| f.markdown.clone()),
+                    text_hash: document.fingerprints.as_ref().map(|f| f.text.clone()),
+                });
+            return ProcessedHtml {
+                doc: document,
+                html,
+                warnings,
+                graph_dom,
+                graph_traces,
+            };
         }
-        let (document, html_warnings) = CONTENT_WORKSPACE.with(|workspace| {
+        let (document, (warnings, graph_traces, graph_dom)) = CONTENT_WORKSPACE.with(|workspace| {
             pagesift_content::process_with_workspace_then(
                 &html,
                 &copts,
                 &mut workspace.borrow_mut(),
-                |dom, _| collect_html_text_warnings(&html, Some(dom)),
+                |dom, doc| {
+                    let (warnings, traces) = collect_dom_warnings_and_traces(
+                        &html,
+                        dom,
+                        want_traces,
+                        base_str.as_deref(),
+                    );
+                    let dom_data = want_dom.then(|| {
+                        crate::graph::dom_links::collect_dom_graph_data(
+                            dom,
+                            &doc.metadata,
+                            doc.fingerprints.as_ref(),
+                            base_str.as_deref(),
+                        )
+                    });
+                    (warnings, traces, dom_data)
+                },
             )
         });
-        (document, html, html_warnings)
+        ProcessedHtml {
+            doc: document,
+            html,
+            warnings,
+            graph_dom,
+            graph_traces,
+        }
     })
     .await
 }
@@ -214,6 +398,36 @@ pub fn tag_filter(opts: &ScrapeOptions) -> Result<Option<pagesift_content::TagFi
         .map_err(ApiError::invalid)
 }
 
+pub(super) fn dom_tag_filter(
+    opts: &ScrapeOptions,
+) -> Result<Option<pagesift_content::DomTagFilter>, ApiError> {
+    pagesift_content::DomTagFilter::new(&opts.include_tags, &opts.exclude_tags)
+        .map_err(ApiError::invalid)
+}
+
+fn contains_ascii_ci(haystack: &[u8], needle_lower: &[u8]) -> bool {
+    if needle_lower.is_empty() {
+        return true;
+    }
+    if haystack.len() < needle_lower.len() {
+        return false;
+    }
+    let first = needle_lower[0];
+    let first_up = first.to_ascii_uppercase();
+    let end = haystack.len() - needle_lower.len();
+    let mut i = 0;
+    while i <= end {
+        let b = haystack[i];
+        if (b == first || b == first_up)
+            && haystack[i + 1..i + needle_lower.len()].eq_ignore_ascii_case(&needle_lower[1..])
+        {
+            return true;
+        }
+        i += 1;
+    }
+    false
+}
+
 pub(super) fn check_barrier(
     doc: &pagesift_content::Document,
     raw_html: &str,
@@ -222,19 +436,17 @@ pub(super) fn check_barrier(
     // A vendor challenge page can also embed an interactive widget. The
     // primary rule may classify the page as a challenge, so inspect the raw
     // document for widgets that need a human before saying it is automatic.
-    let interactive = {
-        let html = raw_html.to_ascii_lowercase();
-        [
-            "g-recaptcha",
-            "h-captcha",
-            "cf-turnstile",
-            "px-captcha",
-            "captcha-delivery",
-            "geetest",
-        ]
-        .iter()
-        .any(|marker| html.contains(marker))
-    };
+    let raw_bytes = raw_html.as_bytes();
+    let interactive = [
+        &b"g-recaptcha"[..],
+        &b"h-captcha"[..],
+        &b"cf-turnstile"[..],
+        &b"px-captcha"[..],
+        &b"captcha-delivery"[..],
+        &b"geetest"[..],
+    ]
+    .iter()
+    .any(|marker| contains_ascii_ci(raw_bytes, marker));
     Err(ApiError::new(
         ErrorCode::AccessBarrier,
         format!(
@@ -374,8 +586,9 @@ pub(super) fn ms(d: Duration) -> f64 {
 }
 
 /// 判断 `thin_content` 用的页面体积。正文不薄时直接用 HTML 长度，不多扫一遍；
-/// 正文薄时扣掉 `<style>` 的内容和 `data:` 内嵌资源：一张 8 MB 的 base64 图片
-/// 不代表页面“有大量内容却没抽出来”。`<script>` 不扣：内联脚本大而正文薄正是 JS 壳页的特征。
+/// 正文薄时单遍零分配扣掉 `<style>` 的内容和不在 `<style>` 内的 `data:` 内嵌资源：
+/// 一张 8 MB 的 base64 图片不代表页面“有大量内容却没抽出来”。`<script>` 不扣：
+/// 内联脚本大而正文薄正是 JS 壳页的特征。
 pub(super) fn thin_basis_bytes(html: &str, markdown: &str) -> usize {
     // [策略] 与 THIN_MAX_CHARS 同值：正文不薄时不必扣减
     const ENOUGH: usize = 500;
@@ -388,36 +601,73 @@ pub(super) fn thin_basis_bytes(html: &str, markdown: &str) -> usize {
     {
         return html.len();
     }
-    let lower = html.to_ascii_lowercase();
+    const OPEN_STYLE: &[u8] = b"<style";
+    const CLOSE_STYLE: &[u8] = b"</style";
+    const DATA_URI: &[u8] = b"data:";
+    let bytes = html.as_bytes();
     let mut removed = 0usize;
-    for tag in ["style"] {
-        let (open, close) = (format!("<{tag}"), format!("</{tag}"));
-        let mut at = 0;
-        while let Some(i) = lower[at..].find(&open) {
-            let start = at + i;
-            let Some(j) = lower[start..].find(&close) else {
-                removed += lower.len() - start;
-                break;
+    let mut i = 0usize;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if b == b'<'
+            && i + OPEN_STYLE.len() <= bytes.len()
+            && bytes[i + 1..i + OPEN_STYLE.len()].eq_ignore_ascii_case(&OPEN_STYLE[1..])
+            && matches!(
+                bytes.get(i + OPEN_STYLE.len()),
+                Some(b' ' | b'\t' | b'\n' | b'\r' | b'\x0c' | b'/' | b'>')
+            )
+        {
+            let mut close_pos = i + OPEN_STYLE.len();
+            let end = loop {
+                let Some(off) = bytes[close_pos..].windows(CLOSE_STYLE.len()).position(|w| {
+                    w[0] == b'<' && w[1] == b'/' && w[2..].eq_ignore_ascii_case(&CLOSE_STYLE[2..])
+                }) else {
+                    break bytes.len();
+                };
+                let cand = close_pos + off;
+                let after_close = cand + CLOSE_STYLE.len();
+                if matches!(
+                    bytes.get(after_close),
+                    Some(b' ' | b'\t' | b'\n' | b'\r' | b'\x0c' | b'/' | b'>') | None
+                ) {
+                    break bytes[after_close..]
+                        .iter()
+                        .position(|&c| c == b'>')
+                        .map_or(bytes.len(), |q| after_close + q + 1);
+                }
+                close_pos = cand + 2;
             };
-            removed += j;
-            at = start + j + close.len();
+            removed += end - i;
+            i = end;
+            continue;
         }
+        if (b == b'd' || b == b'D')
+            && i + DATA_URI.len() <= bytes.len()
+            && bytes[i + 1..i + DATA_URI.len()].eq_ignore_ascii_case(&DATA_URI[1..])
+        {
+            let after_prefix = i + DATA_URI.len();
+            let len = bytes[after_prefix..]
+                .iter()
+                .position(|&c| {
+                    matches!(c, b'"' | b'\'' | b')' | b' ' | b'\t' | b'\n' | b'\r' | b'>')
+                })
+                .map_or(bytes.len() - i, |p| DATA_URI.len() + p);
+            removed += len;
+            i += len;
+            continue;
+        }
+        i += 1;
     }
-    let mut at = 0;
-    while let Some(i) = lower[at..].find("data:") {
-        let start = at + i;
-        let len = lower[start..]
-            .find(['"', '\'', ')', ' ', '>'])
-            .unwrap_or(lower.len() - start);
-        removed += len;
-        at = start + len.max(1);
-    }
-    html.len().saturating_sub(removed)
+    bytes.len().saturating_sub(removed)
 }
 
 /// JSON 响应（`application/json`、`*+json`）不是网页：当 HTML 解析只会剩下碎片。
-/// 合法 JSON 格式化后放进代码块；太大的不格式化，原样放进去。不是合法 JSON 时返回 `None`，按文本继续。
-pub(super) fn json_markdown(content_type: Option<&str>, body: &[u8]) -> Option<String> {
+/// 合法 JSON 格式化后放进代码块并返回已解析的 `Value` 供图谱证据直接复用；
+/// 太大的不格式化，原样放进去。不是合法 JSON 时返回 `None`，按文本继续。
+pub(super) fn parse_json_markdown(
+    content_type: Option<&str>,
+    body: &[u8],
+) -> Option<(String, serde_json::Value)> {
     // [策略] 安全上限：格式化会把 JSON 放大数倍（缩进、换行），超过它原样输出，防大响应撑爆内存
     const PRETTY_MAX_BYTES: usize = 5 * 1024 * 1024;
     let kind = content_type?.split(';').next()?.trim().to_ascii_lowercase();
@@ -436,7 +686,12 @@ pub(super) fn json_markdown(content_type: Option<&str>, body: &[u8]) -> Option<S
     while rendered.contains(fence.as_str()) {
         fence.push('`');
     }
-    Some(format!("{fence}json\n{rendered}\n{fence}\n"))
+    Some((format!("{fence}json\n{rendered}\n{fence}\n"), value))
+}
+
+#[cfg(test)]
+pub(super) fn json_markdown(content_type: Option<&str>, body: &[u8]) -> Option<String> {
+    parse_json_markdown(content_type, body).map(|(md, _)| md)
 }
 
 /// 魔数优先：`%PDF-` 开头就是 PDF（不管头怎么写）。只有头说是 PDF 时，正文明显是 HTML/XML
@@ -542,166 +797,4 @@ pub fn policy_error(e: pagesift_policy::Error) -> ApiError {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{is_pdf, json_markdown, thin_basis_bytes, unsupported_content_type};
-
-    #[test]
-    fn thin_basis_ignores_inline_payloads() {
-        let image = format!(
-            "<p>short</p><img src=\"data:image/png;base64,{}\">",
-            "A".repeat(100_000)
-        );
-        assert!(thin_basis_bytes(&image, "short") < 1_000);
-        let style = format!("<STYLE>{}</STYLE><p>x</p>", "y".repeat(50_000));
-        assert!(thin_basis_bytes(&style, "x") < 1_000);
-        let next = format!(
-            "<script id=\"__NEXT_DATA__\">{}</script><div id=\"app\"></div>",
-            "x".repeat(50_000)
-        );
-        assert_eq!(thin_basis_bytes(&next, ""), next.len());
-        let shell = format!("<div>{}</div>", "<span></span>".repeat(5_000));
-        assert_eq!(thin_basis_bytes(&shell, ""), shell.len());
-        let long = "word ".repeat(200);
-        assert_eq!(thin_basis_bytes(&image, &long), image.len());
-    }
-
-    #[test]
-    fn json_responses_become_code_blocks() {
-        let md = json_markdown(
-            Some("application/json; charset=utf-8"),
-            br#"{"html":"<h1>x</h1>","n":[1,2]}"#,
-        )
-        .unwrap();
-        assert!(md.starts_with("```json\n{"), "{md}");
-        assert!(md.contains("\"html\": \"<h1>x</h1>\""), "{md}");
-        assert!(md.ends_with("\n```\n"), "{md}");
-        let md = json_markdown(Some("application/ld+json"), br#"{"a":"```"}"#).unwrap();
-        assert!(md.starts_with("````json"), "{md}");
-        assert_eq!(json_markdown(Some("text/html"), b"{}"), None);
-        assert_eq!(json_markdown(Some("application/json"), b"<html>"), None);
-    }
-
-    #[test]
-    fn rejects_binary_content_types() {
-        for kind in [
-            "image/png",
-            "image/jpeg",
-            "image/svg+xml",
-            "audio/mpeg",
-            "video/mp4",
-            "font/woff2",
-            "application/zip",
-            "application/octet-stream",
-        ] {
-            assert_eq!(
-                unsupported_content_type(Some(kind), b"\x89PNG\r\n"),
-                Some(kind.to_string()),
-                "{kind}"
-            );
-        }
-    }
-
-    #[test]
-    fn accepts_text_and_mislabeled_markup() {
-        for kind in [
-            "text/html; charset=utf-8",
-            "text/plain",
-            "application/xhtml+xml",
-            "application/json",
-            "application/rss+xml",
-            "application/pdf",
-        ] {
-            assert_eq!(
-                unsupported_content_type(Some(kind), b"anything"),
-                None,
-                "{kind}"
-            );
-        }
-        assert_eq!(
-            unsupported_content_type(Some("application/octet-stream"), b"<!doctype html><p>x"),
-            None
-        );
-        assert_eq!(
-            unsupported_content_type(Some("application/octet-stream"), b"  <html><p>x"),
-            None
-        );
-        assert_eq!(unsupported_content_type(None, b"\x89PNG"), None);
-        for kind in ["application/octet-stream", "binary/octet-stream"] {
-            assert_eq!(
-                unsupported_content_type(Some(kind), b"%PDF-1.7\n1 0 obj"),
-                None
-            );
-            assert!(is_pdf(b"%PDF-1.7\n1 0 obj", Some(kind)));
-        }
-        // 头说是 PDF：正文是网页（拦截页、登录页）时按网页处理；不是网页的照样交给 PDF 解析
-        let pdf = Some("application/pdf");
-        assert!(!is_pdf(
-            b"<!DOCTYPE html><html><body>Access denied</body></html>",
-            pdf
-        ));
-        assert!(!is_pdf(b"\n  <html><body>x</body></html>", pdf));
-        assert!(is_pdf(b"junk before the header %PDF-1.4", pdf));
-        assert!(is_pdf(b"%PDF-1.4", Some("text/html")));
-        assert_eq!(
-            unsupported_content_type(Some("application/octet-stream"), b"\x00\x01binary"),
-            Some("application/octet-stream".into())
-        );
-    }
-
-    #[tokio::test]
-    async fn process_html_preserves_figure_captions_and_drops_noise() {
-        let filler: String = (0..12)
-            .map(|i| {
-                format!(
-                    "<p>Paragraph {i}: detailed methodology discussion covering datasets, \
-                     evaluation metrics, and empirical ablation stability across trials.</p>"
-                )
-            })
-            .collect();
-        let html = format!(
-            "<html><head><title>Empirical Report</title>\
-             <meta property=\"og:type\" content=\"article\"></head><body>\
-             <nav><a href=\"/top\">TopNavigation chrome</a></nav>\
-             <article><h1>Empirical Report</h1>{filler}\
-             <figure class=\"wp-caption\"><img src=\"/fig/ablation.png\" alt=\"Ablation\">\
-             <figcaption class=\"figure-caption\">Figure 2: Ablation latency distribution.</figcaption></figure>\
-             <figure class=\"related\"><img src=\"/ad/promo.png\" alt=\"Promo\">\
-             <figcaption>Recommended promo item</figcaption></figure>\
-             </article></body></html>"
-        );
-        let base = super::Url::parse("https://example.org/report").unwrap();
-        let opts = super::ScrapeOptions {
-            formats: vec![
-                pagesift_api::types::Format::new("markdown"),
-                pagesift_api::types::Format::new("html"),
-                pagesift_api::types::Format::new("images"),
-            ],
-            only_main_content: true,
-            ..Default::default()
-        };
-        let (raw_doc, raw_html, _) = super::process_html(html, &base, Some(200), &opts)
-            .await
-            .unwrap();
-        let out = super::document(raw_doc, &opts, raw_html);
-        let md = out.markdown.as_deref().unwrap();
-        assert!(
-            md.contains("![Ablation](https://example.org/fig/ablation.png)"),
-            "{md}"
-        );
-        assert!(
-            md.contains("Figure 2: Ablation latency distribution."),
-            "{md}"
-        );
-        assert!(!md.contains("TopNavigation chrome"), "{md}");
-        assert!(!md.contains("Recommended promo item"), "{md}");
-        assert!(
-            out.html
-                .as_deref()
-                .is_some_and(|h| h.contains("Figure 2: Ablation latency distribution."))
-        );
-        assert!(out.images.as_ref().is_some_and(|imgs| {
-            imgs.iter()
-                .any(|i| i == "https://example.org/fig/ablation.png")
-        }));
-    }
-}
+mod tests;

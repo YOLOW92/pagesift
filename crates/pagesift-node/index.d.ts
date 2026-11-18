@@ -191,6 +191,8 @@ export declare class Scraper {
   sync(request: SyncRequest): Promise<Record<string, unknown>>
   /** 查询持久化 DataGraph 历史版本、实体声明与冲突（需构造 `Scraper` 时传入 `storePath`）。 */
   queryGraph(request: GraphQueryRequest): Promise<Record<string, unknown>>
+  /** 执行 1.6 Context 操作（`ingest`、`sync`、`search`、`pack`、`action`、`units`、`deltas`、`ack`、`learn`）。 */
+  context(request: ContextRequest): Promise<Record<string, unknown>>
 }
 
 /**
@@ -534,4 +536,106 @@ export interface GraphQueryRequest {
   asOf?: string | number
   limit?: number
   offset?: number
+}
+
+/** 内联摄入或无状态检索的单文档输入。 */
+export interface ContextDocumentInput {
+  url: string
+  markdown?: string
+  title?: string
+  sourceKind?: string | Record<string, unknown>
+  observedAtMs?: number
+  validFrom?: string
+  validUntil?: string
+  subjectKey?: string
+  originRoot?: string
+  originIndependent?: boolean
+  statusCode?: number
+  unreliable?: boolean
+  confirmedGone?: boolean
+}
+
+/** Context 规范指纹印记（用于同 tick 规格演进重索引校验）。 */
+export interface ContextSpecStamp {
+  dataVersion?: number
+  algorithmVersion?: number
+  tokenizerVersion?: number
+  modelId?: string
+  evidencePolicyVersion?: number
+}
+
+/** 在线漂移受控校准反馈信号。 */
+export interface ContextLearnFeedback {
+  rawScore: number
+  groundedCorrect?: boolean
+  isHardGroundTruth?: boolean
+}
+
+/** `Scraper.context` 1.6 Context 请求参数。 */
+export interface ContextRequest {
+  action?:
+    | 'ingest'
+    | 'sync'
+    | 'search'
+    | 'pack'
+    | 'action'
+    | 'research'
+    | 'verify'
+    | 'watch'
+    | 'changes'
+    | 'units'
+    | 'deltas'
+    | 'ack'
+    | 'learn'
+  op?: ContextRequest['action']
+  mode?: 'context' | 'research' | 'verify' | 'watch' | 'changes'
+  query?: string
+  id?: string
+  sourceId?: string
+  sourceIds?: Array<string>
+  persist?: boolean
+  specStamp?: ContextSpecStamp
+  documents?: Array<ContextDocumentInput | Record<string, unknown>>
+  budgetTokens?: number
+  maxTokens?: number
+  tokenSafetyMargin?: number
+  selector?: 'submodularClosure' | 'boundedDpp' | 'mmrGreedy' | 'topKGreedy'
+  ordering?: 'edgeSalience' | 'scoreDescending' | 'documentOrder'
+  matchMode?: 'exactAnchorOnly' | 'greedyDice' | 'boundedUot'
+  subjectKey?: string
+  requiredFields?: Array<string>
+  asOf?: string | number
+  asOfMs?: number
+  effectiveAt?: string | number
+  effectiveAtMs?: number
+  limit?: number
+  mustKeepConflicts?: boolean
+  mustKeepTableHeaders?: boolean
+  mustKeepQualifiers?: boolean
+  includeUnverified?: boolean
+  includeConflicts?: boolean
+  enableSemanticSketch?: boolean
+  learnEnabled?: boolean
+  url?: string
+  urls?: Array<string>
+  candidateUrls?: Array<string>
+  minIndependentSources?: number
+  maxStalenessMs?: number
+  allowNetworkAcquisition?: boolean
+  allowExternalSearch?: boolean
+  strictConstrainToUrls?: boolean
+  allowedHosts?: Array<string>
+  maxAcquisitionRequests?: number
+  sinceDeltaSeq?: number
+  consumerId?: string
+  instanceId?: string
+  ackedDeltaSeq?: number
+  specFingerprint?: string
+  enabled?: boolean
+  frozen?: boolean
+  driftGuard?: 'cusumPageHinkley' | 'cusum' | 'bernoulliBocpd' | 'bocpd' | 'none'
+  feedback?: ContextLearnFeedback
+  search?: Record<string, unknown>
+  pack?: Record<string, unknown>
+  [key: string]: unknown
 }

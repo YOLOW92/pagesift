@@ -113,3 +113,82 @@ test('sync and queryGraph require storePath', async () => {
     await s.close()
   }
 })
+
+test('context supports inline compilation and persistent units/deltas/action', async () => {
+  const stateless = new Scraper()
+  try {
+    const inline = await stateless.context({
+      action: 'pack',
+      query: 'rate limit pro tier',
+      budgetTokens: 256,
+      documents: [
+        {
+          url: 'https://docs.example.com/limits',
+          markdown: '# API Quotas\n\n| Tier | RPM |\n|---|---|\n| Pro | 600 |\n',
+        },
+      ],
+    })
+    assert.equal(inline.success, true)
+    assert.ok(inline.pack.provenanceManifest.length >= 1)
+    assert.ok(inline.pack.compiledContext.includes('Tier'))
+  } finally {
+    await stateless.close()
+  }
+
+  const dir = mkdtempSync(join(tmpdir(), 'pagesift-node-ctx-'))
+  const s = new Scraper({ storePath: dir })
+  try {
+    const ingested = await s.context({
+      action: 'ingest',
+      sourceId: 'docs',
+      documents: [
+        {
+          url: 'https://docs.example.com/pricing',
+          markdown: '# Enterprise Plan\n\nPrice: $49 per seat unless annual billing applies.\n',
+        },
+      ],
+    })
+    assert.equal(ingested.success, true)
+    assert.ok(ingested.liveUnitCount >= 1)
+
+    const searched = await s.context({
+      action: 'search',
+      query: 'Enterprise seat price',
+      sourceId: 'docs',
+    })
+    assert.equal(searched.success, true)
+    assert.ok(searched.report.hits.length >= 1)
+
+    const polled = await s.context({
+      action: 'deltas',
+      sourceId: 'docs',
+      consumerId: 'node-worker',
+    })
+    assert.equal(polled.success, true)
+    assert.equal(polled.poll.deltas.length, 1)
+
+    const acked = await s.context({
+      action: 'ack',
+      sourceId: 'docs',
+      consumerId: 'node-worker',
+      instanceId: ingested.delta.instanceId,
+      ackedDeltaSeq: 1,
+    })
+    assert.equal(acked.success, true)
+    assert.equal(acked.checkpoint.ackedDeltaSeq, 1)
+
+    const act = await s.context({
+      action: 'action',
+      mode: 'context',
+      query: 'Enterprise seat price',
+      sourceIds: ['docs'],
+    })
+    assert.equal(act.success, true)
+    assert.equal(act.outcome.reusedExistingContext, true)
+  } finally {
+    await s.close()
+    try {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+    } catch {}
+  }
+})

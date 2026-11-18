@@ -120,7 +120,7 @@ impl<'a> GraphStore<'a> {
         Ok(conflicts)
     }
 
-    fn load_lineage_and_citations(
+    pub fn load_lineage_and_citations(
         &self,
         as_of_ms: Option<u64>,
     ) -> Result<(BTreeMap<String, SourceLineage>, Vec<CitationEdge>)> {

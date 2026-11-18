@@ -24,6 +24,7 @@ mod adaptive;
 pub mod bm25;
 pub mod chunk;
 pub mod classifier;
+pub mod context;
 mod css;
 mod engine;
 mod error;

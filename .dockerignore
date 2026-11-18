@@ -11,10 +11,13 @@ benchmarks/history/0.70/six/evidence
 
 # Build the product without benchmark, documentation or tool-workspace files
 bench
+benchmarks/upstream
+tasks
 docs
 !docs/COMMERCIAL.md
 .github
 .codex
 .agents
+.worktree
 CLAUDE.md
 AGENTS.md

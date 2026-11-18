@@ -6,10 +6,12 @@
 //! 唯一的元参数是风险水平 [`Delta`]；其余调优值都由数据和公式推出。
 
 pub mod beta;
+pub mod bocpd;
 pub mod calib;
 pub mod change;
 pub mod codec;
 pub mod countmin;
+pub mod coverage;
 pub mod decide;
 pub mod hazard;
 pub mod hll;

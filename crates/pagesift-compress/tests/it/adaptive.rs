@@ -127,3 +127,34 @@ fn official_interoperability() {
         assert_eq!(decompress(&z, data.len()).unwrap(), data, "{level}");
     }
 }
+
+#[test]
+fn raw_level_and_incompressible_blocks_keep_compact_capacity_and_roundtrip_large_blobs() {
+    let incompressible = random(512 * 1024);
+    let raw_frame = compress(&incompressible, 0);
+    assert!(
+        raw_frame.capacity() <= pagesift_compress::compress_bound(incompressible.len()),
+        "level 0 preallocation must not double-reallocate: len={}, cap={}",
+        raw_frame.len(),
+        raw_frame.capacity()
+    );
+    assert_eq!(
+        decompress(&raw_frame, incompressible.len()).unwrap(),
+        incompressible
+    );
+
+    let l3_frame = compress(&incompressible, 3);
+    assert!(
+        l3_frame.capacity() <= l3_frame.len() + (64 << 10),
+        "incompressible frame must trim excess Vec tail: len={}, cap={}",
+        l3_frame.len(),
+        l3_frame.capacity()
+    );
+
+    // Exercise >4 MiB working-set auto-reclamation path on both encoder and decoder TLS.
+    let huge = b"0123456789abcdef-context-snapshot-payload\n".repeat(110_000);
+    assert!(huge.len() > (4 << 20));
+    let compressed_huge = compress(&huge, 3);
+    let restored = decompress(&compressed_huge, huge.len()).unwrap();
+    assert_eq!(restored, huge);
+}

@@ -37,9 +37,11 @@ from ._pagesift import (
     Crawl,
     Document,
     __version__,
+    aengine_context as _aengine_context,
     aengine_query_graph as _aengine_query_graph,
     aengine_sync as _aengine_sync,
     convert,
+    engine_context as _engine_context,
     engine_query_graph as _engine_query_graph,
     engine_sync as _engine_sync,
 )
@@ -510,6 +512,20 @@ class Scraper:
             await _aengine_query_graph(self._engine, _loop_payload(request, kwargs))
         )
 
+    def context(
+        self, request: Optional[Mapping[str, Any]] = None, **kwargs: Any
+    ) -> Dict[str, Any]:
+        """执行 1.6 Context 证据级知识单元、ContextDelta、Search、ContextPack 与 Action。"""
+        return json.loads(_engine_context(self._engine, _loop_payload(request, kwargs)))
+
+    async def acontext(
+        self, request: Optional[Mapping[str, Any]] = None, **kwargs: Any
+    ) -> Dict[str, Any]:
+        """``context`` 的异步版本。"""
+        return json.loads(
+            await _aengine_context(self._engine, _loop_payload(request, kwargs))
+        )
+
     def __enter__(self) -> "Scraper":
         return self
 
@@ -528,9 +544,11 @@ _default_scraper: Optional[Scraper] = None
 
 
 def _loop_payload(request: Optional[Mapping[str, Any]], kwargs: Dict[str, Any]) -> str:
+    if request is not None and not isinstance(request, Mapping):
+        raise TypeError(f"request must be a Mapping, got {type(request).__name__}")
     payload: Dict[str, Any] = dict(request) if request is not None else {}
     payload.update(kwargs)
-    return json.dumps(payload)
+    return json.dumps(payload, allow_nan=False)
 
 
 def default_scraper() -> Scraper:

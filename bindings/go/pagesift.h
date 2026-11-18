@@ -57,13 +57,14 @@ void pagesift_engine_free(pagesift_engine *engine);
 
 /*
  * Scrape options, accepted by pagesift_scrape, pagesift_parse, pagesift_batch, pagesift_crawl:
- * formats (array of markdown, html, raw_html, links, images), only_main_content (true),
+ * formats (array of markdown, html, raw_html, links, images, graph), only_main_content (true),
  * engine (http, browser, auto), timeout (ms), wait_for (ms), headers, include_tags, exclude_tags,
  * ignore_robots_txt, mobile, languages, proxy, if_none_match, if_modified_since, export_images,
- * extract_schema (object), max_age (ms), parsers (array).
+ * extract_schema (object), max_age (ms), parsers (array), graph (bool or object).
  *
  * Document JSON: index, url, final_url, success, status_code, markdown, html, raw_html, links,
- * images, extract, metadata, attachments ([{id, format, bytes, hash, source, data}], data is base64),
+ * images, extract, graph, metadata (including canonical_url when present),
+ * attachments ([{id, format, bytes, hash, source, data}], data is base64),
  * error_code, error_message, error, engine, content_hash, raw_hash, text_hash, elapsed_ms, timings,
  * warnings, ocr, redirect_chain, etag, last_modified, not_modified.
  */
@@ -101,10 +102,28 @@ char *pagesift_map(const pagesift_engine *engine, const char *url, const char *o
  * Extra option keys: limit, max_depth, include_paths, exclude_paths, crawl_entire_domain,
  * allow_subdomains, sitemap, query, adaptive, max_concurrency.
  * Returns {"success": true, "documents": [Document...], "summary": {stop_reason, pages, coverage,
- * term_evidence}}. Documents are in completion order. If the crawl itself fails, the result has
- * "success": false plus the "documents" gathered so far.
+ * term_evidence}, "graph"?: GraphSummary}. Documents are in completion order. If the crawl itself
+ * fails, the result has "success": false plus the "documents" gathered so far.
  */
 char *pagesift_crawl(const pagesift_engine *engine, const char *url, const char *options_json);
+
+/*
+ * Manages persistent 1.5 Loop data sources (`create`, `list`, `get`, `delete`, `run`, `state`,
+ * `deltas`). Requires `store_path` in pagesift_engine_new() config_json.
+ */
+char *pagesift_sync(const pagesift_engine *engine, const char *request_json);
+
+/*
+ * Queries the persistent DataGraph store (`history_url` / `url`, `claims`, `conflicts`,
+ * `subject`, `as_of`, `limit`, `offset`). Requires `store_path` in config_json.
+ */
+char *pagesift_graph_query(const pagesift_engine *engine, const char *request_json);
+
+/*
+ * Executes a 1.6 Context operation (`ingest`, `sync`, `search`, `pack`, `action`, `units`,
+ * `deltas`, `ack`, `learn`). Supports stateless inline `documents` or persistent `store_path`.
+ */
+char *pagesift_context(const pagesift_engine *engine, const char *request_json);
 
 #ifdef __cplusplus
 }

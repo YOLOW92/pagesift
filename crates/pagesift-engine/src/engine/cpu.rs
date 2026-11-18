@@ -27,6 +27,20 @@ thread_local! {
     /// 也不会在别的线程的 malloc arena 上释放。
     pub(super) static CONTENT_WORKSPACE: std::cell::RefCell<pagesift_content::ProcessWorkspace> =
         std::cell::RefCell::new(pagesift_content::ProcessWorkspace::default());
+    /// 单次辅助 DOM 查询（CSS 自适应抽取、标签筛选、iframe 扫描、find_similar）复用的解析缓冲。
+    pub(super) static DOM_SCRATCH: std::cell::RefCell<pagesift_html::ParseScratch> =
+        std::cell::RefCell::new(pagesift_html::ParseScratch::default());
+}
+
+/// 在当前线程复用 [`DOM_SCRATCH`] 解析 `html` 并执行 `f`，结束后立即回收节点与属性缓冲。
+pub(super) fn with_dom<R>(html: &str, f: impl FnOnce(&pagesift_html::Html<'_>) -> R) -> R {
+    DOM_SCRATCH.with(|cell| match cell.try_borrow_mut() {
+        Ok(mut scratch) => pagesift_content::with_parsed_dom(html, &mut scratch, f),
+        Err(_) => {
+            let dom = pagesift_html::Html::parse(html);
+            f(&dom)
+        }
+    })
 }
 
 pub fn pool() -> &'static pagesift_flow::Pool {
@@ -59,6 +73,16 @@ pub(super) async fn cpu_task<T: Send + 'static>(
 ) -> Result<T, ApiError> {
     pool()
         .run(None, f)
+        .await
+        .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))
+}
+
+pub(crate) async fn cpu_task_keyed<T: Send + 'static>(
+    key: u64,
+    f: impl FnOnce() -> T + Send + 'static,
+) -> Result<T, ApiError> {
+    pool()
+        .run(Some(key), f)
         .await
         .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))
 }

@@ -468,6 +468,11 @@ pub(crate) enum Command {
         #[command(subcommand)]
         action: commands::sync::SyncCommand,
     },
+    /// Evidence-grounded 1.6 Context units, deltas, multi-strategy search, pack compilation, and actions
+    Context {
+        #[command(subcommand)]
+        action: commands::context::ContextCommand,
+    },
     /// Evaluate content extraction on local dataset snapshots
     Bench {
         /// Directory holding 1-0-0.csv and snapshots/ (see benchmarks/common/fetch_snapshots.py)
