@@ -55,10 +55,34 @@ impl Scraper {
         mode: RobotsMode,
     ) -> Result<Document, ApiError> {
         let timeout = Duration::from_millis(opts.timeout.unwrap_or(30_000));
-        let budget = Arc::new(pagesift_itna::NetworkBudget::new(timeout, 16, 128));
-        ITNA_NETWORK_BUDGET
-            .scope(budget, self.fetch_itna_inner(url, opts, mode))
+        if timeout.is_zero() {
+            return Err(ApiError::new(
+                ErrorCode::Timeout,
+                "itna request deadline passed",
+            ));
+        }
+        // [策略] ITNA 单次请求共享网络预算：最多 16 次导航
+        const ITNA_MAX_NAVIGATIONS: usize = 16;
+        // [策略] ITNA 单次请求共享网络预算：最多 128 次子资源请求
+        const ITNA_MAX_RESOURCES: usize = 128;
+        // Single entry deadline shared by NetworkBudget, Attempts, proxy resolution, and both attempts.
+        let deadline = Instant::now() + timeout;
+        let budget = Arc::new(pagesift_itna::NetworkBudget::with_deadline(
+            deadline,
+            ITNA_MAX_NAVIGATIONS,
+            ITNA_MAX_RESOURCES,
+        ));
+        let inner: pagesift_api::BoxFuture<'_, Result<Document, ApiError>> =
+            Box::pin(self.fetch_itna_inner(url, opts, mode, deadline));
+        match tokio::time::timeout_at(deadline.into(), ITNA_NETWORK_BUDGET.scope(budget, inner))
             .await
+        {
+            Ok(result) => result,
+            Err(_) => Err(ApiError::new(
+                ErrorCode::Timeout,
+                "itna request deadline passed",
+            )),
+        }
     }
 
     async fn fetch_itna_inner(
@@ -66,6 +90,7 @@ impl Scraper {
         url: &str,
         opts: &ScrapeOptions,
         mode: RobotsMode,
+        deadline: Instant,
     ) -> Result<Document, ApiError> {
         use pagesift_itna::{Attempts, Decision, Executor};
 
@@ -105,6 +130,8 @@ impl Scraper {
             None
         };
         let egress = selected;
+        let egress_label =
+            super::fetch::resolve_proxy_label(egress, default_proxy.as_deref(), &self.policy);
         let expected_direct = selected.is_none().then_some(default_proxy.is_none());
         // Identity reuse requires a stable caller. Without one, a private
         // session still carries cookies from HTTP to the browser retry but is
@@ -154,9 +181,8 @@ impl Scraper {
             } else {
                 Executor::Http
             };
-        // Apply one deadline even when the caller did not provide one.
-        let mut attempts =
-            Attempts::new(Duration::from_millis(opts.timeout.unwrap_or(30_000)), 2, 1);
+        // Share the exact entry deadline with NetworkBudget so pre-work latency cannot drift the cap.
+        let mut attempts = Attempts::with_deadline(deadline, 2, 1);
         if !attempts.reserve(first_executor) {
             return Err(ApiError::new(
                 ErrorCode::Timeout,
@@ -172,12 +198,24 @@ impl Scraper {
                     expected_direct,
                     ITNA_COOKIE_SESSION.scope(
                         session.clone(),
-                        self.fetch_and_extract_via(url, &first_opts, mode, egress),
+                        ITNA_RECOVERY.scope(
+                            false,
+                            self.fetch_and_extract_via(url, &first_opts, mode, egress),
+                        ),
                     ),
                 ),
             )
             .await;
         let assessment = itna_outcome(&first);
+        let first_browser_runs = ITNA_NETWORK_BUDGET
+            .try_with(|b| b.browser_executions())
+            .unwrap_or(0);
+        // Reconcile any internal `engine:auto` browser upgrade into Attempts so browserExecutions
+        // and Attempts stay consistent and a second browser run can never be authorized.
+        let auto_upgraded = first_executor == Executor::Http && first_browser_runs > 0;
+        if auto_upgraded {
+            attempts.note_browser_execution();
+        }
         if let (Some(pool), Some(pick)) = (pool, pick.as_ref()) {
             pool.report(site, pick, outcome(&first));
         }
@@ -185,22 +223,39 @@ impl Scraper {
             && opts.respond_timing.as_deref() != Some("html")
             && !opts.discover_scripts
             && !sensitive
-            && opts.headers.is_empty();
+            && opts.headers.is_empty()
+            && !auto_upgraded;
         if attempts.finish(first_executor, assessment, browser_allowed) != Decision::TryBrowser
             || !attempts.reserve(Executor::Browser)
         {
-            let engine = if opts.engine.as_deref() == Some("http") {
-                "http"
-            } else if first_executor == Executor::Browser {
-                "browser"
+            let attempts_trace = if auto_upgraded {
+                let adopted = first.as_ref().is_ok_and(|d| {
+                    d.metadata
+                        .pagesift
+                        .as_ref()
+                        .and_then(|p| p.engine.as_deref())
+                        == Some("browser")
+                });
+                serde_json::json!([
+                    {"engine": "http", "outcome": "served", "reason": "auto_upgrade_probe"},
+                    {"engine": "browser", "outcome": assessment, "reason": "auto_upgrade", "adopted": adopted}
+                ])
             } else {
-                "auto"
+                let engine = if opts.engine.as_deref() == Some("http") {
+                    "http"
+                } else if first_executor == Executor::Browser {
+                    "browser"
+                } else {
+                    "auto"
+                };
+                serde_json::json!([attempt_record(engine, assessment, &first)])
             };
             add_itna_trace(
                 &mut first,
                 serde_json::json!({
-                    "attempts": [{"engine": engine, "outcome": assessment}],
-                    "browserExecutions": ITNA_NETWORK_BUDGET.try_with(|b| b.browser_executions()).unwrap_or(0)
+                    "attempts": attempts_trace,
+                    "egress": egress_label,
+                    "browserExecutions": first_browser_runs,
                 }),
             );
             return first;
@@ -215,21 +270,67 @@ impl Scraper {
                     expected_direct,
                     ITNA_COOKIE_SESSION.scope(
                         session,
-                        self.fetch_and_extract_via(url, &browser_opts, mode, egress),
+                        ITNA_RECOVERY.scope(
+                            true,
+                            self.fetch_and_extract_via(url, &browser_opts, mode, egress),
+                        ),
                     ),
                 ),
             )
             .await;
-        attempts.finish(Executor::Browser, itna_outcome(&result), false);
-        let trace = serde_json::json!({
+        let second_assessment = itna_outcome(&result);
+        attempts.finish(Executor::Browser, second_assessment, false);
+        let browser_runs = ITNA_NETWORK_BUDGET
+            .try_with(|b| b.browser_executions())
+            .unwrap_or(0);
+        let mut trace = serde_json::json!({
             "attempts": [
-                {"engine": "http", "outcome": assessment},
-                {"engine": "browser", "outcome": itna_outcome(&result)}
+                attempt_record("http", assessment, &first),
+                attempt_record("browser", second_assessment, &result),
             ],
-            "browserExecutions": ITNA_NETWORK_BUDGET.try_with(|b| b.browser_executions()).unwrap_or(0)
+            "egress": egress_label,
+            "browserExecutions": browser_runs,
         });
-        add_itna_trace(&mut result, trace);
-        result
+        match &result {
+            Ok(_) => {
+                if let Err(ref first_err) = first {
+                    trace["firstError"] = error_summary(first_err);
+                }
+                add_itna_trace(&mut result, trace);
+                result
+            }
+            Err(browser_err) => {
+                // If the browser itself received an authoritative site verdict (e.g. interactive
+                // CAPTCHA or rate limit), return that verdict while preserving the initial error.
+                // Otherwise (Chrome missing, launch failure, proxy/timeout/budget failure), preserve
+                // the primary HTTP error/response so the real site barrier is never masked.
+                if matches!(
+                    browser_err.code,
+                    ErrorCode::AccessBarrier | ErrorCode::RateLimited
+                ) {
+                    if let Err(ref first_err) = first {
+                        trace["firstError"] = error_summary(first_err);
+                    }
+                    add_itna_trace(&mut result, trace);
+                    result
+                } else {
+                    trace["fallbackError"] = error_summary(browser_err);
+                    if let Ok(ref mut doc) = first {
+                        doc.metadata
+                            .pagesift
+                            .get_or_insert_with(Default::default)
+                            .warnings
+                            .push(format!(
+                                "itna_browser_fallback_failed: {}: {}",
+                                browser_err.code.as_str(),
+                                browser_err.message
+                            ));
+                    }
+                    add_itna_trace(&mut first, trace);
+                    first
+                }
+            }
+        }
     }
 
     async fn fetch_pooled(
@@ -309,6 +410,33 @@ fn add_itna_trace(result: &mut Result<Document, ApiError>, trace: serde_json::Va
         }
         Err(e) => add_detail(e, "itna", trace),
     }
+}
+
+fn error_summary(e: &ApiError) -> serde_json::Value {
+    let mut obj = serde_json::json!({
+        "code": e.code.as_str(),
+        "message": e.message,
+    });
+    if let Some(details) = &e.details {
+        obj["details"] = details.clone();
+    }
+    obj
+}
+
+fn attempt_record(
+    engine: &str,
+    outcome: pagesift_itna::Outcome,
+    res: &Result<Document, ApiError>,
+) -> serde_json::Value {
+    let mut entry = serde_json::json!({
+        "engine": engine,
+        "outcome": outcome,
+    });
+    if let Err(e) = res {
+        entry["errorCode"] = serde_json::json!(e.code.as_str());
+        entry["error"] = serde_json::json!(e.message);
+    }
+    entry
 }
 
 fn itna_outcome(result: &Result<Document, ApiError>) -> pagesift_itna::Outcome {

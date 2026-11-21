@@ -233,14 +233,45 @@ pub async fn ingest_documents(
                         && c_spec == m.spec_stamp
                     {
                         (*arc_idx).clone()
-                    } else if live_meta.is_some() {
-                        match ctx_st
-                            .load_index_blob(&sid_read)
-                            .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?
-                        {
-                            Some(raw) => serde_json::from_slice(&raw)
-                                .unwrap_or_else(|_| ContextIndex::new(spec_read)),
-                            None => ContextIndex::new(spec_read),
+                    } else if let Some(m) = live_meta {
+                        let loaded_idx = match ctx_st.load_index_blob(&sid_read) {
+                            Ok(Some(raw)) => match serde_json::from_slice::<ContextIndex>(&raw) {
+                                Ok(parsed) => Some(parsed),
+                                Err(e) => {
+                                    tracing::warn!(
+                                        source_id = %sid_read,
+                                        error = %e,
+                                        "corrupt context index JSON before ingest; rebuilding baseline from authoritative units"
+                                    );
+                                    None
+                                }
+                            },
+                            Ok(None) => None,
+                            Err(e) => {
+                                tracing::warn!(
+                                    source_id = %sid_read,
+                                    error = %e,
+                                    "corrupt context index blob before ingest; rebuilding baseline from authoritative units"
+                                );
+                                None
+                            }
+                        };
+                        match loaded_idx {
+                            Some(parsed) => parsed,
+                            None => {
+                                let mut rebuilt = ContextIndex::new(m.spec_stamp.clone());
+                                if !m.resource_keys.is_empty() {
+                                    let all_units = ctx_st
+                                        .load_all_live_units(&sid_read)
+                                        .map_err(|e| {
+                                            ApiError::new(ErrorCode::Internal, e.to_string())
+                                        })?;
+                                    if !all_units.is_empty() {
+                                        rebuilt.apply_updates(&all_units, &[], &m.spec_stamp);
+                                    }
+                                }
+                                rebuilt
+                            }
                         }
                     } else {
                         ContextIndex::new(spec_read)
@@ -417,13 +448,15 @@ pub async fn ingest_documents(
                 conflicts: Vec::new(),
                 fact_clusters: Vec::new(),
                 visibilities: Vec::new(),
+                warnings: Vec::new(),
             },
             Some(delta),
         ));
     }
 
     let store = scraper.store_ref().cloned().unwrap();
-    let idx_bytes = serde_json::to_vec(&*index_arc).unwrap_or_default();
+    let idx_bytes = serde_json::to_vec(&*index_arc)
+        .map_err(|e| ApiError::new(ErrorCode::Internal, format!("serialize context index: {e}")))?;
     let t_commit = tenant_owned.clone();
     let sid_commit = sid.clone();
     let (saved_delta, vis, saved_meta_opt) = store
@@ -477,6 +510,7 @@ pub async fn ingest_documents(
             conflicts: Vec::new(),
             fact_clusters: Vec::new(),
             visibilities: vec![vis],
+            warnings: Vec::new(),
         },
         Some(saved_delta),
     ))

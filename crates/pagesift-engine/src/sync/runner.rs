@@ -1,8 +1,9 @@
 //! 持续数据同步 5 步闭环执行器（Sync → Adapt → Capture → Evidence → Feedback）。
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
-use pagesift_api::{ApiError, ErrorCode};
+use pagesift_api::{ApiError, ErrorCode, PageBudget};
 use pagesift_plan::experience::{FamilyExperienceTable, FamilyStats};
 use pagesift_plan::render::family;
 use pagesift_plan::strategy::{AcquisitionStrategy, CaptureGoal};
@@ -30,12 +31,29 @@ use super::scheduler::{
 };
 
 /// 触发一次同步周期的运行选项。
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct SyncRunOptions {
     pub tenant: Option<String>,
     /// 是否忽略 `next_due_at_ms` 强制检查所有活跃资源。
     pub force_all: bool,
     pub max_requests_override: Option<usize>,
+    /// 可选的调用方每日页面配额；每个候选抓捕前原子预留，成功结算、失败退还。
+    pub page_budget: Option<Arc<dyn PageBudget>>,
+    /// 可选的域名白名单（例如 Context Action 传入的 `allowedHosts`）；
+    /// 非空时跳过白名单外的候选且阻止 HTTP/浏览器重定向越出白名单，不修改持久化库存。
+    pub allowed_hosts: Vec<String>,
+}
+
+impl std::fmt::Debug for SyncRunOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SyncRunOptions")
+            .field("tenant", &self.tenant)
+            .field("force_all", &self.force_all)
+            .field("max_requests_override", &self.max_requests_override)
+            .field("page_budget", &self.page_budget.is_some())
+            .field("allowed_hosts", &self.allowed_hosts)
+            .finish()
+    }
 }
 
 #[path = "runner_commit.rs"]
@@ -181,6 +199,9 @@ impl Scraper {
         let mut active_subjects: BTreeSet<String> = BTreeSet::new();
         let mut visited_keys: BTreeSet<String> = BTreeSet::new();
         let mut due_keys_seen: BTreeSet<String> = BTreeSet::new();
+        let mut allowed_hosts_blocked_keys: BTreeSet<String> = BTreeSet::new();
+        let allowed_hosts_arc =
+            (!run_opts.allowed_hosts.is_empty()).then(|| Arc::new(run_opts.allowed_hosts.clone()));
         let mut budget_exhausted = false;
         let mut early_stopped_reasons = Vec::new();
 
@@ -223,6 +244,17 @@ impl Scraper {
             let unvisited_vec: Vec<ResourceRecord> = inventory
                 .values()
                 .filter(|r| !visited_keys.contains(&r.resource_key))
+                .filter(|r| {
+                    if let Some(ref hosts) = allowed_hosts_arc {
+                        let permitted = pagesift_net::Url::parse(&r.url)
+                            .is_ok_and(|u| pagesift_net::host_allowed(&u, hosts));
+                        if !permitted {
+                            allowed_hosts_blocked_keys.insert(r.resource_key.clone());
+                            return false;
+                        }
+                    }
+                    true
+                })
                 .cloned()
                 .collect();
             if unvisited_vec.is_empty() {
@@ -301,7 +333,24 @@ impl Scraper {
                     executed_strategy = AcquisitionStrategy::LightweightHttp;
                 }
 
+                let page_lease = if let Some(ref page_budget) = run_opts.page_budget {
+                    match page_budget.reserve().await {
+                        Ok(lease) => Some(lease),
+                        Err(e) => {
+                            if stats.attempted_total == 0 {
+                                return Err(e);
+                            }
+                            budget_exhausted = true;
+                            early_stopped_reasons.push("daily_page_quota_exceeded".to_string());
+                            break;
+                        }
+                    }
+                } else {
+                    None
+                };
+
                 if !ledger.try_reserve(executed_strategy == AcquisitionStrategy::DirectBrowser) {
+                    drop(page_lease);
                     budget_exhausted = true;
                     break;
                 }
@@ -322,8 +371,15 @@ impl Scraper {
                     .get(&rec_key)
                     .and_then(|r| r.latest_doc_id.clone());
 
-                let (mut fetch_url, applied_rules) =
+                let (mut fetch_url, mut applied_rules) =
                     prepare_rewritten_fetch_url(&spec, &experience, &cand.record.url, now_ms());
+                if let Some(ref hosts) = allowed_hosts_arc
+                    && !pagesift_net::Url::parse(&fetch_url)
+                        .is_ok_and(|u| pagesift_net::host_allowed(&u, hosts))
+                {
+                    fetch_url = cand.record.url.clone();
+                    applied_rules.clear();
+                }
 
                 let mut scrape_opts = build_scrape_options_for_strategy(
                     &spec,
@@ -336,13 +392,20 @@ impl Scraper {
                 scrape_opts.timeout = Some(ledger.remaining_ms().max(1));
 
                 let step_start = Instant::now();
-                let (mut step_res, mut staged_map) = with_graph_stage(
-                    ledger
-                        .run_tick_bounded(erase_scrape_fut(self.scrape(&fetch_url, &scrape_opts))),
-                )
-                .await;
+                let scrape_fut = async {
+                    if let Some(ref hosts) = allowed_hosts_arc {
+                        crate::engine::ACTION_ALLOWED_HOSTS
+                            .scope(hosts.clone(), self.scrape(&fetch_url, &scrape_opts))
+                            .await
+                    } else {
+                        self.scrape(&fetch_url, &scrape_opts).await
+                    }
+                };
+                let (mut step_res, mut staged_map) =
+                    with_graph_stage(ledger.run_tick_bounded(erase_scrape_fut(scrape_fut))).await;
 
                 if is_budget_exhausted_step(&ledger, &step_res) {
+                    drop(page_lease);
                     budget_exhausted = true;
                     visited_keys.remove(&rec_key);
                     stats.attempted_total = stats.attempted_total.saturating_sub(1);
@@ -362,11 +425,23 @@ impl Scraper {
                 ) {
                     if ledger.try_reserve(executed_strategy == AcquisitionStrategy::DirectBrowser) {
                         scrape_opts.timeout = Some(ledger.remaining_ms().max(1));
-                        let (retry_step, retry_staged) = with_graph_stage(ledger.run_tick_bounded(
-                            erase_scrape_fut(self.scrape(&cand.record.url, &scrape_opts)),
-                        ))
-                        .await;
+                        let retry_fut = async {
+                            if let Some(ref hosts) = allowed_hosts_arc {
+                                crate::engine::ACTION_ALLOWED_HOSTS
+                                    .scope(
+                                        hosts.clone(),
+                                        self.scrape(&cand.record.url, &scrape_opts),
+                                    )
+                                    .await
+                            } else {
+                                self.scrape(&cand.record.url, &scrape_opts).await
+                            }
+                        };
+                        let (retry_step, retry_staged) =
+                            with_graph_stage(ledger.run_tick_bounded(erase_scrape_fut(retry_fut)))
+                                .await;
                         if is_budget_exhausted_step(&ledger, &retry_step) {
+                            drop(page_lease);
                             budget_exhausted = true;
                             visited_keys.remove(&rec_key);
                             stats.attempted_total = stats.attempted_total.saturating_sub(1);
@@ -441,10 +516,18 @@ impl Scraper {
                             b_opts.if_none_match = None;
                             b_opts.if_modified_since = None;
                             b_opts.timeout = Some(ledger.remaining_ms().max(1));
-                            let (b_step, mut b_staged) = with_graph_stage(ledger.run_tick_bounded(
-                                erase_scrape_fut(self.scrape(&fetch_url, &b_opts)),
-                            ))
-                            .await;
+                            let b_fut = async {
+                                if let Some(ref hosts) = allowed_hosts_arc {
+                                    crate::engine::ACTION_ALLOWED_HOSTS
+                                        .scope(hosts.clone(), self.scrape(&fetch_url, &b_opts))
+                                        .await
+                                } else {
+                                    self.scrape(&fetch_url, &b_opts).await
+                                }
+                            };
+                            let (b_step, mut b_staged) =
+                                with_graph_stage(ledger.run_tick_bounded(erase_scrape_fut(b_fut)))
+                                    .await;
                             let b_elapsed_ms = b_start.elapsed().as_millis() as f64;
                             exec_telemetry.used_browser = true;
                             exec_telemetry.browser_cost_ms = Some(b_elapsed_ms);
@@ -503,6 +586,9 @@ impl Scraper {
 
                 match scrape_res {
                     Ok(doc) => {
+                        if let Some(lease) = page_lease {
+                            lease.commit().await;
+                        }
                         let final_assessment =
                             assess_document_capture(&spec, &live_cand.record, &doc, &capture_goal);
                         let staged = doc
@@ -542,6 +628,7 @@ impl Scraper {
                         )?;
                     }
                     Err(e) => {
+                        drop(page_lease);
                         reconcile_candidate_failure(
                             &spec,
                             &live_cand,
@@ -571,6 +658,13 @@ impl Scraper {
             {
                 break;
             }
+        }
+
+        if !allowed_hosts_blocked_keys.is_empty() {
+            early_stopped_reasons.push(format!(
+                "allowed_hosts_filtered:{}",
+                allowed_hosts_blocked_keys.len()
+            ));
         }
 
         let delta = finalize_and_commit_sync_tick(TickCommitInputs {
@@ -608,15 +702,20 @@ impl Scraper {
             .context_for(tenant)
             .has_meta(source_id)
             .unwrap_or(false)
-        {
-            let _ = crate::context::sync_source_context(
+            && let Err(e) = crate::context::sync_source_context(
                 self,
                 tenant,
                 source_id,
                 pagesift_graph::context::UnitMatchMode::BoundedUot,
                 None,
             )
-            .await;
+            .await
+        {
+            tracing::warn!(
+                source_id,
+                error = %e,
+                "post-sync context catchup failed"
+            );
         }
 
         Ok(delta)

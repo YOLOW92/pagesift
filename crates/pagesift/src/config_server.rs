@@ -85,6 +85,7 @@ impl Limits {
     fn to_api(&self, name: Option<String>) -> pagesift_api::KeyLimits {
         pagesift_api::KeyLimits {
             name,
+            account: None,
             requests_per_minute: self.requests_per_minute,
             max_concurrent_jobs: self.max_concurrent_jobs,
             pages_per_day: self.pages_per_day,
@@ -96,8 +97,12 @@ impl Limits {
 #[serde(deny_unknown_fields)]
 pub struct ApiKey {
     pub key: SecretValue,
-    /// 日志、监控和配额记录里用的名字；不写时用 key 的指纹。
+    /// 日志、监控展示用的名字（纯标签，不用于合并租户或配额）；不写时回退到逻辑账户 ID。
     pub name: Option<String>,
+    /// 显式逻辑账户 ID：仅当多个 API key 显式配置相同 `account` 时，才共享配额、任务、
+    /// Context/Graph 租户空间与 ITNA Cookie 会话池；不写时每个 key 按指纹完全隔离。
+    #[serde(default)]
+    pub account: Option<String>,
     pub requests_per_minute: Option<u32>,
     pub max_concurrent_jobs: Option<usize>,
     pub pages_per_day: Option<u64>,
@@ -130,12 +135,34 @@ impl Config {
             timeouts: s.timeouts.to_api()?,
             ..Default::default()
         };
+        let mut account_limits = std::collections::HashMap::new();
         for k in &s.keys {
             let key = k.key.resolve().context("server.keys")?;
+            let account = match k.account.as_deref() {
+                Some(raw) => Some(
+                    pagesift_api::validate_account_id(raw)
+                        .map_err(|e| anyhow::anyhow!("invalid server.keys.account {raw:?}: {e}"))?,
+                ),
+                None => None,
+            };
+            let limit_tuple = (
+                k.requests_per_minute,
+                k.max_concurrent_jobs,
+                k.pages_per_day,
+            );
+            if let Some(acct) = &account
+                && let Some(prev) = account_limits.insert(acct.clone(), limit_tuple)
+                && prev != limit_tuple
+            {
+                bail!(
+                    "server.keys entries sharing account {acct:?} must declare identical requests_per_minute, max_concurrent_jobs, and pages_per_day"
+                );
+            }
             c.key_limits.insert(
                 key,
                 pagesift_api::KeyLimits {
                     name: k.name.clone(),
+                    account,
                     requests_per_minute: k.requests_per_minute,
                     max_concurrent_jobs: k.max_concurrent_jobs,
                     pages_per_day: k.pages_per_day,

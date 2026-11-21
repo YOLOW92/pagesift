@@ -159,11 +159,22 @@ pub(crate) fn run(command: Command, mut cfg: pagesift::config::Config) -> Result
             let port = port.or(cfg.server.port).unwrap_or(3002);
             // 请求头读取时限在连接层生效，其余在路由的中间件里
             let timeouts = api.timeouts;
+            let unauthenticated = api.api_keys.is_empty() && api.key_limits.is_empty();
             let app = pagesift::api::router(engine, api);
             let listener = tokio::net::TcpListener::bind((host.as_str(), port))
                 .await
                 .with_context(|| format!("binding {host}:{port}"))?;
-            eprintln!("pagesift listening on http://{}", listener.local_addr()?);
+            let local_addr = listener.local_addr()?;
+            if unauthenticated && !local_addr.ip().is_loopback() {
+                tracing::warn!(
+                    addr = %local_addr,
+                    "unauthenticated HTTP server bound to non-loopback address: anonymous mode does not provide strong tenant isolation; configure server.api_keys or [[server.keys]] for multi-user deployments"
+                );
+                eprintln!(
+                    "warning: listening on http://{local_addr} without API keys; anonymous mode has no strong tenant isolation and should not be exposed to untrusted multi-user traffic"
+                );
+            }
+            eprintln!("pagesift listening on http://{local_addr}");
             pagesift::api::serve_with(listener, app, timeouts, shutdown_signal()).await?;
             scraper.shutdown().await;
             Ok(ExitCode::SUCCESS)

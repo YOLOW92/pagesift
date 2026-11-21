@@ -513,6 +513,11 @@ impl Fetcher {
             return Err(Error::Header(FIXED_USER_AGENT.into()));
         }
         let origin = self.check_url(&req.url)?;
+        if !req.allowed_hosts.is_empty() && !host_allowed(&origin, &req.allowed_hosts) {
+            return Err(Error::Blocked(Blocked::Hostname(
+                origin.host_str().unwrap_or_default().to_owned(),
+            )));
+        }
         if req.session.is_some() && extra.contains_key(header::COOKIE) {
             return Err(Error::Header(
                 "cookie conflicts with explicit session".into(),
@@ -619,6 +624,11 @@ impl Fetcher {
                     return Err(Error::Config(
                         "cross-origin redirect outside request scope".into(),
                     ));
+                }
+                if !req.allowed_hosts.is_empty() && !host_allowed(&next, &req.allowed_hosts) {
+                    return Err(Error::Blocked(Blocked::Hostname(
+                        next.host_str().unwrap_or_default().to_owned(),
+                    )));
                 }
                 guard
                     .check(&url, &next)
@@ -737,4 +747,46 @@ fn upgrade_downgrade(from: &Url, mut next: Url, chain: &[RedirectHop]) -> Url {
     }
     let looped = next == *from || chain.iter().any(|hop| hop.url == next);
     if looped { http } else { next }
+}
+
+/// Check whether `url`'s host is permitted by `allowed_hosts` (exact host or subdomain match;
+/// IP literals require exact match). Empty `allowed_hosts` allows all hosts.
+pub fn host_allowed(url: &Url, allowed_hosts: &[String]) -> bool {
+    if allowed_hosts.is_empty() {
+        return true;
+    }
+    let Some(raw_host) = url.host_str() else {
+        return false;
+    };
+    let h = raw_host
+        .trim_matches(['[', ']'])
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    if h.is_empty() {
+        return false;
+    }
+    let mut has_any = false;
+    for entry in allowed_hosts {
+        let ah = entry
+            .trim()
+            .trim_matches(['[', ']'])
+            .trim_end_matches('.')
+            .to_ascii_lowercase();
+        if ah.is_empty() {
+            continue;
+        }
+        has_any = true;
+        if h == ah {
+            return true;
+        }
+        // IP literals only match exact equality; domain names also allow subdomains.
+        if ah.parse::<std::net::IpAddr>().is_err()
+            && h.len() > ah.len()
+            && h.ends_with(&ah)
+            && h.as_bytes()[h.len() - ah.len() - 1] == b'.'
+        {
+            return true;
+        }
+    }
+    !has_any
 }

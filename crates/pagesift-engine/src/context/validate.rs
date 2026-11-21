@@ -233,6 +233,40 @@ pub(crate) fn parse_string_list(v: Option<&Value>, field: &str) -> Result<Vec<St
     Ok(out)
 }
 
+pub(crate) fn parse_allowed_hosts(v: Option<&Value>) -> Result<Vec<String>, ApiError> {
+    let Some(val) = v else {
+        return Ok(Vec::new());
+    };
+    if val.is_null() {
+        return Ok(Vec::new());
+    }
+    let arr = val
+        .as_array()
+        .ok_or_else(|| ApiError::invalid("'allowedHosts' must be an array of host strings"))?;
+    let mut out = Vec::with_capacity(arr.len());
+    for item in arr {
+        let raw = item
+            .as_str()
+            .ok_or_else(|| ApiError::invalid("'allowedHosts' entries must be strings"))?;
+        let trimmed = raw.trim().trim_end_matches('.');
+        if trimmed.is_empty() {
+            return Err(ApiError::invalid(
+                "'allowedHosts' entries must not be empty",
+            ));
+        }
+        if trimmed.contains("://")
+            || trimmed.contains('/')
+            || trimmed.bytes().any(|b| b.is_ascii_control() || b == b' ')
+        {
+            return Err(ApiError::invalid(format!(
+                "invalid host '{raw}' in 'allowedHosts': provide hostnames or IPs without scheme/path"
+            )));
+        }
+        out.push(trimmed.to_ascii_lowercase());
+    }
+    Ok(out)
+}
+
 pub(crate) fn parse_opt_time(v: Option<&Value>, field: &str) -> Result<Option<u64>, ApiError> {
     match v {
         None | Some(Value::Null) => Ok(None),
@@ -536,7 +570,7 @@ pub(crate) fn build_action_request(
             .unwrap_or(matches!(mode, ActionMode::Research | ActionMode::Watch)),
         allow_external_search: opt_bool(obj, "allowExternalSearch")?.unwrap_or(false),
         strict_constrain_to_urls: opt_bool(obj, "strictConstrainToUrls")?.unwrap_or(false),
-        allowed_hosts: parse_string_list(obj.get("allowedHosts"), "allowedHosts")?,
+        allowed_hosts: parse_allowed_hosts(obj.get("allowedHosts"))?,
         max_acquisition_requests,
         since_delta_seq: opt_u64(obj, "sinceDeltaSeq")?,
     })

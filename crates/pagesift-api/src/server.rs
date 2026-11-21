@@ -179,15 +179,21 @@ pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
         .collect();
     keys.extend(config.key_limits.into_iter().map(|(k, l)| (k, Arc::new(l))));
 
-    let accounts: HashMap<String, Arc<KeyLimits>> = keys
-        .iter()
-        .map(|(k, l)| {
-            (
-                Caller::new(Some(k), l.clone()).account.to_string(),
-                l.clone(),
-            )
-        })
-        .collect();
+    let mut accounts: HashMap<String, Arc<KeyLimits>> = HashMap::with_capacity(keys.len());
+    for (k, l) in &keys {
+        let acct = Caller::new(Some(k), l.clone()).account.to_string();
+        if let Some(prev) = accounts.get(&acct)
+            && (prev.requests_per_minute != l.requests_per_minute
+                || prev.max_concurrent_jobs != l.max_concurrent_jobs
+                || prev.pages_per_day != l.pages_per_day)
+        {
+            tracing::warn!(
+                account = %acct,
+                "multiple API keys share the same explicit account with differing limits; keeping the tighter configuration is recommended"
+            );
+        }
+        accounts.insert(acct, l.clone());
+    }
 
     let metrics = Arc::new(Metrics::default());
     let limiter = Arc::new(match config.ledger {
@@ -514,9 +520,13 @@ async fn auth(
             }
         }
     };
-    // 计入每分钟请求数的是会抓取的请求：POST，以及 Jina 的 `GET /r/{url}`、`GET /s/{query}`；轮询类 GET 不算
+    // 计入每分钟请求数的是会执行抓取或存储计算工作的请求：POST、Jina 的 `GET /r/{url}` / `GET /s/{query}`，
+    // 以及 Context GET 查询端点（`/v2/context/*`）；低成本任务轮询类 GET（如 `/v2/crawl/{id}`）不计数。
     let path = req.uri().path();
-    if (req.method() == Method::POST || path.starts_with("/r/") || path.starts_with("/s/"))
+    if (req.method() == Method::POST
+        || path.starts_with("/r/")
+        || path.starts_with("/s/")
+        || path.starts_with("/v2/context/"))
         && let Err(e) = s.limiter.check_rate(&caller)
     {
         let mut resp = e.into_response();
@@ -547,12 +557,20 @@ async fn observe(State(s): State<AppState>, req: Request, next: Next) -> Respons
     if let Some(code) = code {
         s.metrics.error(code, "http");
     }
-    let account = resp.extensions().get::<Caller>().map(|c| c.account.clone());
+    let caller_meta = resp
+        .extensions()
+        .get::<Caller>()
+        .map(|c| (c.account.clone(), c.display_name.clone()));
+    let account = caller_meta.as_ref().map(|(a, _)| a.as_ref());
+    let key_name = caller_meta
+        .as_ref()
+        .filter(|(a, d)| a != d)
+        .map(|(_, d)| d.as_ref());
     let latency_ms = elapsed.as_secs_f64() * 1000.0;
     if route.starts_with("/v2/") || route.starts_with("/v1/") || route.starts_with("/r") {
         tracing::info!(
             target: "pagesift::http",
-            %method, %route, status, latency_ms, account = account.as_deref(), code,
+            %method, %route, status, latency_ms, account, key_name, code,
             "request"
         );
     } else {

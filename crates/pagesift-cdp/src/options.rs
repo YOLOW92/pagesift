@@ -68,6 +68,10 @@ pub struct RenderOptions {
     pub challenge_wait: Duration,
     /// Per-request network budget; requires CDP request interception.
     pub network_budget: Option<Arc<pagesift_itna::NetworkBudget>>,
+    /// Optional host allowlist enforced on every intercepted browser request and redirect.
+    pub allowed_hosts: Vec<String>,
+    /// Bypass Service Workers during page render so requests stay on the intercepted CDP path.
+    pub bypass_service_worker: bool,
     /// 页面加载完成后再等多久（Firecrawl 的 `waitFor`）。
     pub wait_for: Duration,
     /// 整个渲染（含排队等标签页）的总时长上限。
@@ -180,6 +184,8 @@ impl Default for RenderOptions {
             stealth: false,
             challenge_wait: Duration::ZERO,
             network_budget: None,
+            allowed_hosts: Vec::new(),
+            bypass_service_worker: false,
             wait_for: Duration::ZERO,
             timeout: Duration::from_secs(30),
             nav_patience: None,

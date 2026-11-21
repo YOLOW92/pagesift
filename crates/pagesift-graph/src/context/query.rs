@@ -310,6 +310,7 @@ pub enum StoppingReason {
     PermissionRestricted,
     NoNewEvidence,
     SourceUnavailable,
+    ResyncRequired,
 }
 
 /// Explicit missing evidence or coverage gap reported when Context is incomplete.

@@ -1,5 +1,7 @@
 //! 1.5 Loop `/v2/sources` HTTP 路由处理。
 
+use std::sync::Arc;
+
 use axum::body::Bytes;
 use axum::extract::{Extension, Path, Query, State};
 use axum::http::HeaderMap;
@@ -8,7 +10,7 @@ use axum::{Json, Router};
 
 use crate::error::{ApiError, ErrorCode};
 use crate::firecrawl::graph::parse_as_of_ms;
-use crate::limits::{Caller, caller_graph_tenant};
+use crate::limits::{Caller, QuotaBudget, caller_graph_tenant};
 use crate::server::AppState;
 
 use super::{
@@ -143,11 +145,20 @@ async fn trigger_sync(
     };
     super::validate_max_requests(req.max_requests)?;
 
-    let tenant = caller_graph_tenant(caller.as_ref().map(|Extension(c)| c), &headers);
-    let delta = s
-        .engine
-        .sync_source(&id, Some(&tenant), req.force_all, req.max_requests)
-        .await?;
+    let caller_ref = caller.as_ref().map(|Extension(c)| c);
+    let tenant = caller_graph_tenant(caller_ref, &headers);
+    let delta = if let Some(c) = caller_ref
+        && c.limits.pages_per_day.is_some()
+    {
+        let budget = Arc::new(QuotaBudget::new(s.limiter.clone(), c.clone()));
+        s.engine
+            .sync_source_budgeted(&id, Some(&tenant), req.force_all, req.max_requests, budget)
+            .await?
+    } else {
+        s.engine
+            .sync_source(&id, Some(&tenant), req.force_all, req.max_requests)
+            .await?
+    };
 
     Ok(Json(SyncTickResponse {
         success: true,

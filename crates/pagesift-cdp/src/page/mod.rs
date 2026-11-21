@@ -153,6 +153,7 @@ struct Net {
 
 struct Shared {
     network_budget: Option<Arc<pagesift_itna::NetworkBudget>>,
+    allowed_hosts: Vec<String>,
     cookie_origin: Option<url::Url>,
     intercept: bool,
     main_frame: String,
@@ -340,6 +341,28 @@ impl Metrics {
     }
 }
 
+/// Injected before any document or worker script when CDP request interception is enabled:
+/// `Fetch.enable` does not intercept WebSocket/WebTransport upgrades in Chromium, so blocking
+/// those constructors prevents pages/workers from bypassing SSRF, `allowedHosts`, cookie-origin
+/// isolation, or ITNA `NetworkBudget`.
+pub(super) const BLOCK_UNINTERCEPTED_TRANSPORT_JS: &str = r#"(() => {
+  const block = (name) => {
+    if (!(name in globalThis)) return;
+    const Blocked = function() {
+      throw new DOMException(name + ' is blocked by request interception policy', 'SecurityError');
+    };
+    try {
+      Object.defineProperty(globalThis, name, {
+        value: Blocked,
+        writable: false,
+        configurable: false,
+      });
+    } catch (_) {}
+  };
+  block('WebSocket');
+  block('WebTransport');
+})();"#;
+
 /// `keep` 给了时，渲染成功后把页面状态交给它：标签页、事件监听和子请求拦截都继续活着（`/interact`）。
 pub(crate) async fn render_page(
     conn: &Connection,
@@ -486,6 +509,36 @@ pub(crate) async fn render_page(
             )
             .await?;
     }
+    if env.intercept {
+        // Fetch.enable does not intercept WebSocket/WebTransport handshakes in Chromium;
+        // enforce both Network.setBlockedURLs and pre-document constructor blocking so pages
+        // and iframes cannot bypass SSRF, allowedHosts, cookie isolation, or NetworkBudget.
+        let _ = session
+            .call(
+                "Page.addScriptToEvaluateOnNewDocument",
+                json!({ "source": BLOCK_UNINTERCEPTED_TRANSPORT_JS }),
+            )
+            .await;
+        if let Err(e) = session
+            .call(
+                "Network.setBlockedURLs",
+                json!({ "urls": ["ws://*", "wss://*"] }),
+            )
+            .await
+        {
+            tracing::debug!(error = %e, "Network.setBlockedURLs unavailable");
+        }
+    }
+    if env.intercept
+        && (opts.bypass_service_worker
+            || opts.network_budget.is_some()
+            || opts.cookie_bridge.is_some())
+        && let Err(e) = session
+            .call("Network.setBypassServiceWorker", json!({ "bypass": true }))
+            .await
+    {
+        tracing::debug!(error = %e, "Network.setBypassServiceWorker unavailable");
+    }
     let main_frame = tree
         .pointer("/frameTree/frame/id")
         .and_then(Value::as_str)
@@ -493,6 +546,7 @@ pub(crate) async fn render_page(
         .to_owned();
     let shared = Arc::new(Shared {
         network_budget: opts.network_budget.clone(),
+        allowed_hosts: opts.allowed_hosts.clone(),
         cookie_origin,
         intercept: env.intercept,
         main_frame,

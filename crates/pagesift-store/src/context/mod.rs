@@ -85,6 +85,33 @@ pub enum ContextCommitOutcome {
     IdempotentReplaySkipped { existing_delta_seq: u64 },
 }
 
+/// Checked delta window inspection outcome distinguishing continuous streams, retention gaps,
+/// ABA instance replacement, and page-limit truncation.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DeltaWindowBatch {
+    Missing,
+    InstanceSuperseded {
+        instance_id: String,
+    },
+    RetentionGap {
+        instance_id: String,
+        requested_after_seq: u64,
+        earliest_retained_seq: u64,
+        latest_seq: u64,
+    },
+    SequenceAheadOrReset {
+        instance_id: String,
+        requested_after_seq: u64,
+        latest_seq: u64,
+    },
+    Continuous {
+        instance_id: String,
+        latest_seq: u64,
+        truncated: bool,
+        deltas: Vec<ContextDelta>,
+    },
+}
+
 /// Tenant-scoped persistent handle over `ns::CONTEXT`.
 pub struct ContextStore<'a> {
     pub(crate) store: &'a Store,
@@ -530,22 +557,38 @@ impl<'a> ContextStore<'a> {
 
     /// Load all live units across all resources of `source_id` via O(K) direct lookups (no full-ns key scan).
     pub fn load_all_live_units(&self, source_id: &str) -> Result<Vec<KnowledgeUnit>> {
+        let (_, units) = self.load_live_units_limited(source_id, usize::MAX)?;
+        Ok(units)
+    }
+
+    /// Stream live units across resources of `source_id`, keeping at most `limit` units in memory
+    /// while still returning the exact total live unit count.
+    pub fn load_live_units_limited(
+        &self,
+        source_id: &str,
+        limit: usize,
+    ) -> Result<(usize, Vec<KnowledgeUnit>)> {
         validate_ident(source_id, "source_id")?;
         let Some(meta) = self.get_meta(source_id)? else {
-            return Ok(Vec::new());
+            return Ok((0, Vec::new()));
         };
         if !self.is_meta_live(&meta)? {
-            return Ok(Vec::new());
+            return Ok((0, Vec::new()));
         }
         let mut out = Vec::new();
+        let mut total = 0usize;
         for rk in &meta.resource_keys {
             let k = self.res_key(source_id, rk);
             if let Some((_, raw)) = self.store.get(ns::CONTEXT, &k)? {
                 let batch: Vec<KnowledgeUnit> = decode_zstd_json(&raw, "resource units")?;
-                out.extend(batch);
+                total += batch.len();
+                if out.len() < limit {
+                    let take = limit - out.len();
+                    out.extend(batch.into_iter().take(take));
+                }
             }
         }
-        Ok(out)
+        Ok((total, out))
     }
 
     /// List distinct live indexed `source_id`s visible to this tenant (filtering deleted Sync ghosts).
@@ -620,6 +663,112 @@ impl<'a> ContextStore<'a> {
             }
         }
         Ok(out)
+    }
+
+    /// Read incremental [`ContextDelta`] records with explicit retention-window gap, ABA instance,
+    /// sequence-ahead, and truncation detection (unlike [`Self::list_deltas`], never silently clamps
+    /// `after_seq` into the retained ring).
+    pub fn list_deltas_checked(
+        &self,
+        source_id: &str,
+        after_seq: Option<u64>,
+        limit: usize,
+    ) -> Result<DeltaWindowBatch> {
+        validate_ident(source_id, "source_id")?;
+        let Some(meta) = self.get_meta(source_id)? else {
+            return Ok(DeltaWindowBatch::Missing);
+        };
+        if !self.is_meta_live(&meta)? {
+            return Ok(DeltaWindowBatch::InstanceSuperseded {
+                instance_id: meta.instance_id,
+            });
+        }
+        if meta.latest_delta_seq == 0 {
+            if let Some(req_after) = after_seq
+                && req_after > 0
+            {
+                return Ok(DeltaWindowBatch::SequenceAheadOrReset {
+                    instance_id: meta.instance_id,
+                    requested_after_seq: req_after,
+                    latest_seq: 0,
+                });
+            }
+            return Ok(DeltaWindowBatch::Continuous {
+                instance_id: meta.instance_id,
+                latest_seq: 0,
+                truncated: false,
+                deltas: Vec::new(),
+            });
+        }
+        let earliest = meta.earliest_retained_delta_seq.max(1);
+        let start_seq = match after_seq {
+            Some(req_after) => {
+                if req_after > meta.latest_delta_seq {
+                    return Ok(DeltaWindowBatch::SequenceAheadOrReset {
+                        instance_id: meta.instance_id,
+                        requested_after_seq: req_after,
+                        latest_seq: meta.latest_delta_seq,
+                    });
+                }
+                if req_after == meta.latest_delta_seq {
+                    return Ok(DeltaWindowBatch::Continuous {
+                        instance_id: meta.instance_id,
+                        latest_seq: meta.latest_delta_seq,
+                        truncated: false,
+                        deltas: Vec::new(),
+                    });
+                }
+                let next_seq = req_after.saturating_add(1);
+                if next_seq < earliest {
+                    return Ok(DeltaWindowBatch::RetentionGap {
+                        instance_id: meta.instance_id,
+                        requested_after_seq: req_after,
+                        earliest_retained_seq: earliest,
+                        latest_seq: meta.latest_delta_seq,
+                    });
+                }
+                next_seq
+            }
+            None => {
+                if earliest > 1 {
+                    return Ok(DeltaWindowBatch::RetentionGap {
+                        instance_id: meta.instance_id,
+                        requested_after_seq: 0,
+                        earliest_retained_seq: earliest,
+                        latest_seq: meta.latest_delta_seq,
+                    });
+                }
+                1
+            }
+        };
+
+        let cap = limit.max(1);
+        let mut out =
+            Vec::with_capacity((meta.latest_delta_seq - start_seq + 1).min(cap as u64) as usize);
+        let mut last_seq = start_seq.saturating_sub(1);
+        for seq in start_seq..=meta.latest_delta_seq {
+            if let Some((_, raw)) = self
+                .store
+                .get(ns::CONTEXT, &self.delta_key(source_id, seq))?
+            {
+                out.push(decode_zstd_json(&raw, "context delta")?);
+                last_seq = seq;
+                if out.len() >= cap {
+                    break;
+                }
+            } else {
+                return Err(Error::Corrupt(format!(
+                    "context delta missing in retained window: {source_id} seq={seq}"
+                )));
+            }
+        }
+        let truncated = last_seq < meta.latest_delta_seq;
+        Ok(DeltaWindowBatch::Continuous {
+            instance_id: meta.instance_id,
+            latest_seq: meta.latest_delta_seq,
+            truncated,
+            deltas: out,
+        })
     }
 
     /// Persist or load tenant-isolated `ContextLearnState` JSON bytes.

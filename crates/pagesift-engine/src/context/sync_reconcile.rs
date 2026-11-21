@@ -111,32 +111,69 @@ pub async fn sync_source_context(
                 {
                     ((*arc_idx).clone(), true)
                 } else {
-                    match ctx_st
-                        .load_index_blob(&sid_read)
-                        .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?
-                    {
-                        Some(bytes) => (
-                            serde_json::from_slice(&bytes)
-                                .unwrap_or_else(|_| ContextIndex::new(spec_for_read.clone())),
-                            true,
-                        ),
-                        None => (ContextIndex::new(spec_for_read.clone()), false),
+                    let loaded_idx = match ctx_st.load_index_blob(&sid_read) {
+                        Ok(Some(bytes)) => match serde_json::from_slice::<ContextIndex>(&bytes) {
+                            Ok(parsed) => Some(parsed),
+                            Err(e) => {
+                                tracing::warn!(
+                                    source_id = %sid_read,
+                                    error = %e,
+                                    "corrupt context index JSON before sync reconcile; rebuilding baseline from authoritative units"
+                                );
+                                None
+                            }
+                        },
+                        Ok(None) => None,
+                        Err(e) => {
+                            tracing::warn!(
+                                source_id = %sid_read,
+                                error = %e,
+                                "corrupt context index blob before sync reconcile; rebuilding baseline from authoritative units"
+                            );
+                            None
+                        }
+                    };
+                    match loaded_idx {
+                        Some(parsed) => (parsed, true),
+                        None => {
+                            let base_spec = existing_meta
+                                .as_ref()
+                                .map(|m| m.spec_stamp.clone())
+                                .unwrap_or_else(|| spec_for_read.clone());
+                            let mut rebuilt = ContextIndex::new(base_spec.clone());
+                            if existing_meta
+                                .as_ref()
+                                .is_some_and(|m| !m.resource_keys.is_empty())
+                            {
+                                let all_units = ctx_st
+                                    .load_all_live_units(&sid_read)
+                                    .map_err(|e| {
+                                        ApiError::new(ErrorCode::Internal, e.to_string())
+                                    })?;
+                                if !all_units.is_empty() {
+                                    rebuilt.apply_updates(&all_units, &[], &base_spec);
+                                }
+                            }
+                            (rebuilt, false)
+                        }
                     }
                 }
             } else {
                 (ContextIndex::new(spec_for_read.clone()), false)
             };
 
-            // Short-circuit if already caught up on the exact same instance, tick, and spec!
-            if existing_meta.as_ref().is_some_and(|m| {
-                m.instance_id == spec.instance_id
-                    && m.indexed_tick_seq == state_view.total_ticks
-                    && m.spec_stamp == spec_for_read
-            }) {
+            // Short-circuit if already caught up on the exact same instance, tick, spec, and intact index!
+            if has_persisted_index
+                && existing_meta.as_ref().is_some_and(|m| {
+                    m.instance_id == spec.instance_id
+                        && m.indexed_tick_seq == state_view.total_ticks
+                        && m.spec_stamp == spec_for_read
+                })
+            {
                 let latest_delta = ctx_st
                     .list_deltas(&sid_read, None, 1)
-                    .ok()
-                    .and_then(|mut v| v.pop())
+                    .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?
+                    .pop()
                     .unwrap_or(ContextDelta {
                         source_id: sid_read.clone(),
                         instance_id: spec.instance_id.clone(),
@@ -488,8 +525,16 @@ pub async fn sync_source_context(
 
             let (reused_assets, recomputed_assets, invalidated_assets, mode, maybe_index_bytes) =
                 if no_substantive_index_mutation {
-                    let bytes = touched_304_in_place
-                        .then(|| serde_json::to_vec(&index).unwrap_or_default());
+                    let bytes = if touched_304_in_place {
+                        Some(serde_json::to_vec(&index).map_err(|e| {
+                            ApiError::new(
+                                ErrorCode::Internal,
+                                format!("serialize context index: {e}"),
+                            )
+                        })?)
+                    } else {
+                        None
+                    };
                     (
                         // [协议] PageSift 1.6 §5.2：每个单元对应 4 类派生资产（词法倒排、符号锚点、草图向量、证据绑定）
                         index.units.len() * 4,
@@ -503,7 +548,9 @@ pub async fn sync_source_context(
                         all_retired.iter().map(|u| u.unit_id.clone()).collect();
                     let idx_summary =
                         index.apply_updates(&all_upserts, &retired_ids, &target_spec_cpu);
-                    let bytes = serde_json::to_vec(&index).unwrap_or_default();
+                    let bytes = serde_json::to_vec(&index).map_err(|e| {
+                        ApiError::new(ErrorCode::Internal, format!("serialize context index: {e}"))
+                    })?;
                     (
                         idx_summary.reused_asset_count,
                         idx_summary.recomputed_asset_count,
@@ -528,15 +575,15 @@ pub async fn sync_source_context(
                 maintenance_mode: mode,
                 knowledge_delta: None,
             };
-            (
+            Ok::<_, ApiError>((
                 updated_res_map,
                 all_retired,
                 maybe_index_bytes,
                 Arc::new(index),
                 delta,
-            )
+            ))
         })
-        .await?;
+        .await??;
 
     // Atomically commit updated units, optional index blob, and ContextDelta
     let inst_commit = spec.instance_id.clone();

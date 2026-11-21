@@ -469,12 +469,39 @@ impl Engine for ClusterEngine {
         Engine::sync_source(&*self.scraper, source_id, tenant, force_all, max_requests)
     }
 
+    fn sync_source_budgeted<'a>(
+        &'a self,
+        source_id: &'a str,
+        tenant: Option<&'a str>,
+        force_all: bool,
+        max_requests: Option<usize>,
+        budget: Arc<dyn pagesift_api::PageBudget>,
+    ) -> BoxFuture<'a, Result<pagesift_store::SyncDelta, ApiError>> {
+        Engine::sync_source_budgeted(
+            &*self.scraper,
+            source_id,
+            tenant,
+            force_all,
+            max_requests,
+            budget,
+        )
+    }
+
     fn context<'a>(
         &'a self,
         tenant: Option<&'a str>,
         request: serde_json::Value,
     ) -> BoxFuture<'a, Result<serde_json::Value, ApiError>> {
         Engine::context(&*self.scraper, tenant, request)
+    }
+
+    fn context_budgeted<'a>(
+        &'a self,
+        tenant: Option<&'a str>,
+        request: serde_json::Value,
+        budget: Arc<dyn pagesift_api::PageBudget>,
+    ) -> BoxFuture<'a, Result<serde_json::Value, ApiError>> {
+        Engine::context_budgeted(&*self.scraper, tenant, request, budget)
     }
 }
 

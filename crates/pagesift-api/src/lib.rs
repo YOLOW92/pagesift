@@ -27,14 +27,14 @@ mod validate;
 mod webhook;
 
 pub use agent::{Agents, agent_body, agent_body_with_evidence, check_agent_request};
-pub use engine::{AgentSink, BoxFuture, CrawlResume, CrawlSink, Engine, PageBudget};
+pub use engine::{AgentSink, BoxFuture, CrawlResume, CrawlSink, Engine, PageBudget, PageLease};
 pub use error::{ApiError, ErrorCode};
 pub use jobs::mirror::{JobLog, JobMirror, apply_op};
 pub use jobs::{
     JOB_TTL, Job, JobKind, JobState, Jobs, rfc3339, store_graph_claims, store_graph_claims_checked,
     store_graph_conflicts, store_graph_conflicts_checked, store_graph_history,
 };
-pub use limits::KeyLimits;
+pub use limits::{KeyLimits, validate_account_id};
 pub use server::{Config, ExtraMetrics, Timeouts, router, serve, serve_with};
 pub use validate::{
     MAX_CRAWL_DEPTH, MAX_CRAWL_LIMIT, MAX_MAP_LIMIT, MAX_PARSE_FILE_BYTES, MAX_SCRAPE_TIMEOUT_MS,

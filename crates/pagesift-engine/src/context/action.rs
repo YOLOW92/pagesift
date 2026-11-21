@@ -6,25 +6,28 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use pagesift_api::types::{Format, ScrapeOptions, SearchRequest};
-use pagesift_api::{ApiError, Engine, ErrorCode};
+use pagesift_api::{ApiError, Engine, ErrorCode, PageBudget};
 use pagesift_extract::context::{ContextLearnState, compile_context_pack};
 use pagesift_graph::context::{
     AcquisitionStepRecord, ActionMode, ContextActionOutcome, ContextActionRequest,
     ContextSearchReport, CoverageDiagnosis, InformationGap, StoppingReason, UnitMatchMode,
 };
-use pagesift_graph::{GraphOptions, host_of, normalize_resource_key};
-use pagesift_net::Url;
+use pagesift_graph::{GraphOptions, normalize_resource_key};
 use pagesift_stat::Delta;
 use pagesift_stat::beta::Posterior;
 use pagesift_stat::coverage::{CoverageEstimate, chapman_capture_recapture, good_turing_unseen};
 use pagesift_stat::decide::{Cost, Resource, value_of_information};
 use pagesift_store::{DataSourceSpec, FreshnessPolicy, SyncBudget, now_store_ms};
 
+use crate::context::action_support::{empty_coverage, execute_changes_mode, url_permitted};
+pub use crate::context::action_support::{
+    load_learn_state, load_learn_state_with_warning, save_learn_state, try_load_learn_state,
+};
 use crate::context::ingest::{
     ContextDocumentInput, LoadedContextCorpus, affinity_key, ingest_documents, load_corpus,
     sync_source_context,
 };
-use crate::engine::{Scraper, cpu_task_keyed};
+use crate::engine::{ACTION_ALLOWED_HOSTS, Scraper, cpu_task_keyed};
 use crate::sync::SyncRunOptions;
 
 // [策略] 先验期望一次有效网络补采动作的成功发现率 alpha=3.0, beta=2.0 (均值 0.60)
@@ -41,9 +44,22 @@ const MIN_ACTION_CHARGE_FLOOR: f64 = 0.04;
 pub async fn execute_action(
     scraper: &Scraper,
     tenant: Option<&str>,
+    req: ContextActionRequest,
+    inline_docs: Vec<ContextDocumentInput>,
+    match_mode: UnitMatchMode,
+) -> Result<ContextActionOutcome, ApiError> {
+    execute_action_with_budget(scraper, tenant, req, inline_docs, match_mode, None).await
+}
+
+/// Execute a goal-oriented [`ContextActionRequest`] while also enforcing a caller-level
+/// daily [`PageBudget`] across all triggered Loop sync and direct scrape acquisitions.
+pub async fn execute_action_with_budget(
+    scraper: &Scraper,
+    tenant: Option<&str>,
     mut req: ContextActionRequest,
     inline_docs: Vec<ContextDocumentInput>,
     match_mode: UnitMatchMode,
+    page_budget: Option<Arc<dyn PageBudget>>,
 ) -> Result<ContextActionOutcome, ApiError> {
     // Mode `Watch`: ensure a persistent Loop source exists for `candidate_urls` without clobbering existing scope rules
     if req.mode == ActionMode::Watch && !req.candidate_urls.is_empty() {
@@ -139,52 +155,13 @@ pub async fn execute_action(
             .map_err(|e| ApiError::new(ErrorCode::Internal, format!("upsert watch source: {e}")))?;
     }
 
-    // Mode `Changes`: return unit-level deltas since `since_delta_seq` without unnecessary LLM/pack work
+    // Mode `Changes`: return unit-level deltas since `since_delta_seq` with retention-gap & ABA detection
     if req.mode == ActionMode::Changes {
-        let store = scraper.store_ref().cloned().ok_or_else(|| {
-            ApiError::invalid("changes mode requires persistent store configured on Scraper")
-        })?;
-        let sids = req.pack.search.source_ids.clone();
-        let since = req.since_delta_seq;
-        let t_owned = tenant.map(str::to_owned);
-        let deltas = store
-            .blocking(move |st| -> Result<Vec<_>, ApiError> {
-                let ctx_st = st.context_for(t_owned.as_deref());
-                let targets = if sids.is_empty() {
-                    ctx_st
-                        .list_indexed_sources()
-                        .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?
-                        .into_iter()
-                        .map(|m| m.source_id)
-                        .collect()
-                } else {
-                    sids
-                };
-                let mut all = Vec::new();
-                for sid in targets {
-                    let batch = ctx_st
-                        .list_deltas(&sid, since, 64) // [策略] 单次 changes 最多汇总 64 条增量记录
-                        .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?;
-                    all.extend(batch);
-                }
-                Ok(all)
-            })
-            .await?;
-
-        return Ok(ContextActionOutcome {
-            mode: ActionMode::Changes,
-            stopping_reason: StoppingReason::Sufficient,
-            reused_existing_context: true,
-            coverage: empty_coverage(req.min_independent_sources, "changes_delta_stream"),
-            gaps: Vec::new(),
-            acquisition_steps: Vec::new(),
-            pack: None,
-            deltas,
-        });
+        return execute_changes_mode(scraper, tenant, &req).await;
     }
 
     // 1. Load existing Context (or ephemeral inline docs) and evaluate initial coverage BEFORE touching network!
-    let mut learn = load_learn_state(scraper, tenant).await;
+    let (mut learn, learn_warn) = load_learn_state_with_warning(scraper, tenant).await;
     let mut corpus = if !inline_docs.is_empty() {
         let persist = scraper.store_ref().is_some() && !req.pack.search.source_ids.is_empty();
         let sid = req
@@ -217,6 +194,13 @@ pub async fn execute_action(
 
     let mut steps: Vec<AcquisitionStepRecord> = Vec::new();
     let mut deltas = Vec::new();
+    let mut extra_warnings: Vec<String> = Vec::new();
+    if let Some(w) = learn_warn {
+        extra_warnings.push(w);
+    }
+    extra_warnings.extend(corpus.warnings.iter().cloned());
+    let mut acquired_any = false;
+    let mut quota_exhausted = false;
     let mut stopping_reason = if gaps.is_empty() {
         StoppingReason::Sufficient
     } else if !req.allow_network_acquisition {
@@ -242,6 +226,8 @@ pub async fn execute_action(
 
         // Track URLs already freshly synced in 2A so 2B/2C never double-scrapes them in the same Action call!
         let mut seen_url_keys: BTreeSet<String> = BTreeSet::new();
+        let allowed_hosts_arc =
+            (!req.allowed_hosts.is_empty()).then(|| Arc::new(req.allowed_hosts.clone()));
 
         // 2A: Refresh managed Loop sources first when stale or empty (skip pure manual-ingest Context sources)
         for sid in req.pack.search.source_ids.clone() {
@@ -257,7 +243,7 @@ pub async fn execute_action(
                 stopping_reason = StoppingReason::Sufficient;
                 break;
             }
-            if req_budget_left == 0 {
+            if req_budget_left == 0 || quota_exhausted {
                 stopping_reason = StoppingReason::BudgetExhausted;
                 break;
             }
@@ -297,13 +283,26 @@ pub async fn execute_action(
                         tenant: tenant.map(str::to_owned),
                         force_all: req.max_staleness_ms.is_some(),
                         max_requests_override: Some(step_reqs),
+                        page_budget: page_budget.clone(),
+                        allowed_hosts: req.allowed_hosts.clone(),
                     },
                 )
                 .await
             {
                 Ok(sync_d) => {
-                    req_budget_left =
-                        req_budget_left.saturating_sub(sync_d.stats.requests_executed.max(1));
+                    let filtered_by_hosts = sync_d
+                        .coverage_reasons
+                        .iter()
+                        .any(|r| r.starts_with("allowed_hosts_filtered:"));
+                    let hit_daily_quota = sync_d
+                        .coverage_reasons
+                        .iter()
+                        .any(|r| r == "daily_page_quota_exceeded");
+                    if sync_d.stats.requests_executed > 0 {
+                        acquired_any = true;
+                        req_budget_left =
+                            req_budget_left.saturating_sub(sync_d.stats.requests_executed);
+                    }
                     let (ctx_d, _) =
                         sync_source_context(scraper, tenant, &sid, match_mode, None).await?;
                     if let Some(store) = scraper.store_ref().cloned() {
@@ -331,15 +330,51 @@ pub async fn execute_action(
                     }
                     let changed_n = ctx_d.unit_transitions.len();
                     deltas.push(ctx_d);
+                    let step_note = if hit_daily_quota {
+                        quota_exhausted = true;
+                        stopping_reason = StoppingReason::BudgetExhausted;
+                        Some("QUOTA_EXCEEDED:daily_page_quota_exceeded".to_owned())
+                    } else if filtered_by_hosts && sync_d.stats.requests_executed == 0 {
+                        gaps.push(InformationGap {
+                            kind: "permission_blocked_host".to_owned(),
+                            target: sid.clone(),
+                            detail:
+                                "managed Loop source URLs excluded by Action allowedHosts policy"
+                                    .to_owned(),
+                        });
+                        stopping_reason = StoppingReason::PermissionRestricted;
+                        Some("blocked_by_allowed_hosts".to_owned())
+                    } else if filtered_by_hosts {
+                        Some("partial_filtered_by_allowed_hosts".to_owned())
+                    } else {
+                        None
+                    };
                     steps.push(AcquisitionStepRecord {
                         kind: "sync_source".to_owned(),
                         target: sid,
                         expected_voi: voi,
                         shadow_cost: base_charge,
-                        executed: true,
+                        executed: sync_d.stats.requests_executed > 0,
                         units_added_or_updated: changed_n,
-                        note: None,
+                        note: step_note,
                     });
+                }
+                Err(err) if err.code == ErrorCode::QuotaExceeded => {
+                    if !acquired_any && !reused_existing_context {
+                        return Err(err);
+                    }
+                    quota_exhausted = true;
+                    steps.push(AcquisitionStepRecord {
+                        kind: "sync_source".to_owned(),
+                        target: sid,
+                        expected_voi: voi,
+                        shadow_cost: base_charge,
+                        executed: false,
+                        units_added_or_updated: 0,
+                        note: Some(format!("{}:{}", err.code.as_str(), err.message)),
+                    });
+                    stopping_reason = StoppingReason::BudgetExhausted;
+                    break;
                 }
                 Err(err) => {
                     let perm = matches!(
@@ -363,6 +398,11 @@ pub async fn execute_action(
                 }
             }
 
+            let prev_perm_gaps: Vec<InformationGap> = gaps
+                .iter()
+                .filter(|g| g.kind == "permission_blocked_host")
+                .cloned()
+                .collect();
             corpus = load_corpus(
                 scraper,
                 tenant,
@@ -370,11 +410,19 @@ pub async fn execute_action(
                 req.pack.search.as_of_ms,
             )
             .await?;
+            for w in &corpus.warnings {
+                if !extra_warnings.contains(w) {
+                    extra_warnings.push(w.clone());
+                }
+            }
             let eval = evaluate_corpus_and_gaps(&corpus, &req, closed_scope, &mut learn).await?;
             report = eval.0;
             search_us = eval.1;
             cov = eval.2;
             gaps = eval.3;
+            if !gaps.is_empty() {
+                gaps.extend(prev_perm_gaps);
+            }
         }
 
         // 2B: Deduplicate candidate URLs (excluding those just synced in 2A) and optionally run budgeted external SearchBackend
@@ -386,6 +434,24 @@ pub async fn execute_action(
             }
         }
         if !gaps.is_empty()
+            && !quota_exhausted
+            && req_budget_left > 0
+            && req.allow_external_search
+            && !req.strict_constrain_to_urls
+            && !req.pack.search.query.trim().is_empty()
+            && page_budget.as_ref().and_then(|b| b.remaining()) == Some(0)
+        {
+            if !acquired_any && !reused_existing_context {
+                return Err(ApiError::new(
+                    ErrorCode::QuotaExceeded,
+                    "daily page quota exceeded before external search acquisition",
+                ));
+            }
+            quota_exhausted = true;
+            stopping_reason = StoppingReason::BudgetExhausted;
+        }
+        if !gaps.is_empty()
+            && !quota_exhausted
             && req_budget_left > 0
             && req.allow_external_search
             && !req.strict_constrain_to_urls
@@ -471,13 +537,14 @@ pub async fn execute_action(
             .cloned()
             .unwrap_or_else(|| "context-acquired".to_owned());
 
+        let mut action_gaps: Vec<InformationGap> = Vec::new();
         for url in extra_urls {
             if gaps.is_empty() {
                 stopping_reason = StoppingReason::Sufficient;
                 break;
             }
             if !url_permitted(&url, &req.allowed_hosts) {
-                gaps.push(InformationGap {
+                action_gaps.push(InformationGap {
                     kind: "permission_blocked_host".to_owned(),
                     target: url.clone(),
                     detail: "target URL scheme invalid or host excluded by allowedHosts policy"
@@ -495,7 +562,7 @@ pub async fn execute_action(
                 stopping_reason = StoppingReason::PermissionRestricted;
                 continue;
             }
-            if req_budget_left == 0 {
+            if req_budget_left == 0 || quota_exhausted {
                 stopping_reason = StoppingReason::BudgetExhausted;
                 break;
             }
@@ -526,15 +593,60 @@ pub async fn execute_action(
                 break;
             }
 
+            let page_lease = if let Some(ref budget) = page_budget {
+                match budget.reserve().await {
+                    Ok(lease) => Some(lease),
+                    Err(err) => {
+                        if !acquired_any && !reused_existing_context {
+                            return Err(err);
+                        }
+                        quota_exhausted = true;
+                        action_gaps.push(InformationGap {
+                            kind: "daily_page_quota_exceeded".to_owned(),
+                            target: url.clone(),
+                            detail: err.message.clone(),
+                        });
+                        steps.push(AcquisitionStepRecord {
+                            kind: "scrape_url".to_owned(),
+                            target: url,
+                            expected_voi: voi,
+                            shadow_cost: base_charge,
+                            executed: false,
+                            units_added_or_updated: 0,
+                            note: Some(format!("{}:{}", err.code.as_str(), err.message)),
+                        });
+                        stopping_reason = StoppingReason::BudgetExhausted;
+                        break;
+                    }
+                }
+            } else {
+                None
+            };
+
             req_budget_left -= 1;
             let sopts = ScrapeOptions {
                 formats: vec![Format::new("markdown"), Format::new("graph")],
                 graph: Some(GraphOptions::enabled()),
                 max_age: Some(req.max_staleness_ms.unwrap_or(0)),
+                owner: tenant.map(str::to_owned),
                 ..ScrapeOptions::default()
             };
-            match <Scraper as Engine>::scrape(scraper, &url, &sopts).await {
+            let scrape_res = if let Some(ref hosts) = allowed_hosts_arc {
+                ACTION_ALLOWED_HOSTS
+                    .scope(
+                        hosts.clone(),
+                        <Scraper as Engine>::scrape(scraper, &url, &sopts),
+                    )
+                    .await
+            } else {
+                <Scraper as Engine>::scrape(scraper, &url, &sopts).await
+            };
+            match scrape_res {
                 Ok(doc) => {
+                    if let Some(lease) = page_lease {
+                        lease.commit().await;
+                    }
+                    acquired_any = true;
                     let doc_in = ContextDocumentInput::from_api_document(&doc, &url);
                     let persist = scraper.store_ref().is_some();
                     let (new_corp, d_opt) = ingest_documents(
@@ -562,6 +674,11 @@ pub async fn execute_action(
                             req.pack.search.as_of_ms,
                         )
                         .await?;
+                        for w in &corpus.warnings {
+                            if !extra_warnings.contains(w) {
+                                extra_warnings.push(w.clone());
+                            }
+                        }
                     } else {
                         Arc::make_mut(&mut corpus.index).apply_updates(
                             &new_corp.index.units.values().cloned().collect::<Vec<_>>(),
@@ -580,12 +697,13 @@ pub async fn execute_action(
                     });
                 }
                 Err(err) => {
+                    drop(page_lease);
                     let policy_blocked = matches!(
                         err.code,
                         ErrorCode::SsrfBlocked | ErrorCode::RobotsDisallowed
                     );
                     if policy_blocked {
-                        gaps.push(InformationGap {
+                        action_gaps.push(InformationGap {
                             kind: "policy_blocked_url".to_owned(),
                             target: url.clone(),
                             detail: format!("{}: {}", err.code.as_str(), err.message),
@@ -617,12 +735,20 @@ pub async fn execute_action(
 
         if gaps.is_empty() {
             stopping_reason = StoppingReason::Sufficient;
-        } else if req_budget_left == 0 && stopping_reason == StoppingReason::NoNewEvidence {
+        } else if (req_budget_left == 0 || quota_exhausted)
+            && stopping_reason == StoppingReason::NoNewEvidence
+        {
             stopping_reason = StoppingReason::BudgetExhausted;
         }
+        gaps.extend(action_gaps);
     }
 
     // 3. Compile final constrained ContextPack on the resident CPU pool
+    for w in extra_warnings {
+        if !report.warnings.contains(&w) {
+            report.warnings.push(w);
+        }
+    }
     let pack_req = req.pack.clone();
     let key = affinity_key(&pack_req.search.query);
     let pack = cpu_task_keyed(key, move || {
@@ -826,87 +952,4 @@ fn compute_gap_utility(gaps: &[InformationGap], req: &ContextActionRequest) -> f
         u *= 1.5; // [策略] Verify 核验模式提升信息价值权重 1.5 倍防止过早停止
     }
     u
-}
-
-fn is_valid_http_url(url: &str) -> bool {
-    Url::parse(url).is_ok_and(|u| {
-        matches!(u.scheme(), "http" | "https") && u.host_str().is_some_and(|h| !h.is_empty())
-    })
-}
-
-fn url_permitted(url: &str, allowed_hosts: &[String]) -> bool {
-    if !is_valid_http_url(url) {
-        return false;
-    }
-    if allowed_hosts.is_empty() {
-        return true;
-    }
-    let h = host_of(url).trim_end_matches('.').to_ascii_lowercase();
-    if h.is_empty() {
-        return false;
-    }
-    let allowed_set: BTreeSet<String> = allowed_hosts
-        .iter()
-        .map(|s| s.trim().trim_end_matches('.').to_ascii_lowercase())
-        .filter(|s| !s.is_empty())
-        .collect();
-    if allowed_set.is_empty() {
-        return false;
-    }
-    allowed_set
-        .iter()
-        .any(|ah| h == *ah || h.ends_with(&format!(".{ah}")))
-}
-
-fn empty_coverage(min_indep: usize, reason: &str) -> CoverageDiagnosis {
-    CoverageDiagnosis {
-        term_coverage: 0.0,
-        required_field_coverage: 0.0,
-        independent_sources_observed: 0,
-        min_independent_sources_required: min_indep,
-        estimable: false,
-        good_turing_unseen: None,
-        good_turing_ci_high: None,
-        capture_recapture_total: None,
-        not_estimable_reason: Some(reason.to_owned()),
-    }
-}
-
-pub async fn load_learn_state(scraper: &Scraper, tenant: Option<&str>) -> ContextLearnState {
-    let Some(store) = scraper.store_ref().cloned() else {
-        return ContextLearnState::default();
-    };
-    let t = tenant.map(str::to_owned);
-    store
-        .blocking(move |st| {
-            st.context_for(t.as_deref())
-                .load_learn_bytes("default")
-                .ok()
-                .flatten()
-                .and_then(|b| serde_json::from_slice::<ContextLearnState>(&b).ok())
-                .unwrap_or_default()
-        })
-        .await
-}
-
-pub async fn save_learn_state(
-    scraper: &Scraper,
-    tenant: Option<&str>,
-    state: &ContextLearnState,
-) -> Result<(), ApiError> {
-    let Some(store) = scraper.store_ref().cloned() else {
-        return Err(ApiError::invalid(
-            "persisting context learn state requires store configured on Scraper",
-        ));
-    };
-    let bytes =
-        serde_json::to_vec(state).map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?;
-    let t = tenant.map(str::to_owned);
-    store
-        .blocking(move |st| {
-            st.context_for(t.as_deref())
-                .put_learn_bytes("default", &bytes)
-        })
-        .await
-        .map_err(|e| ApiError::new(ErrorCode::Internal, format!("save learn state: {e}")))
 }

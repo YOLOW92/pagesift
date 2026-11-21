@@ -45,6 +45,7 @@ impl Scraper {
         let proxy = egress
             .and_then(|e| self.policy.egress_proxy(e))
             .or_else(|| ITNA_DEFAULT_PROXY.try_with(Clone::clone).ok().flatten());
+        let proxy_label = resolve_proxy_label(egress, proxy.as_deref(), &self.policy);
         if let Some(name) = egress
             && proxy.is_none()
             && !self.policy.has_egress(name)
@@ -80,6 +81,7 @@ impl Scraper {
                     None,
                     None,
                     proxy,
+                    proxy_label,
                 )
                 .await;
         }
@@ -89,6 +91,9 @@ impl Scraper {
         request.network_budget = ITNA_NETWORK_BUDGET.try_with(Arc::clone).ok();
         request.session = ITNA_COOKIE_SESSION.try_with(Clone::clone).ok().flatten();
         request.expected_direct = ITNA_EXPECTED_DIRECT.try_with(|value| *value).ok().flatten();
+        request.allowed_hosts = ACTION_ALLOWED_HOSTS
+            .try_with(|hosts| hosts.as_ref().clone())
+            .unwrap_or_default();
         let fetch = self.policy.fetch_held_via(request, mode, egress);
         let (resp, permit) = match request_deadline(opts, started) {
             Some(d) => tokio::time::timeout_at(d.into(), fetch)
@@ -177,7 +182,7 @@ impl Scraper {
             // 503 只有带 Retry-After 才算限速（RFC 9110 §15.6.4）；分类要用，输出里不出现
             retry_after: resp.headers.contains_key("retry-after"),
             content_type: resp.content_type().map(str::to_string),
-            proxy_used: egress.unwrap_or("basic").into(),
+            proxy_used: proxy_label.clone(),
             ..Default::default()
         };
         let graph_tenant = opts.effective_graph_tenant();
@@ -270,6 +275,7 @@ impl Scraper {
                     None,
                     Some(early_stop),
                     proxy.clone(),
+                    proxy_label.clone(),
                 ));
                 speculative = Some((Instant::now(), warnings.len(), fut));
             }
@@ -350,9 +356,11 @@ impl Scraper {
                 mode,
                 started,
                 http_elapsed: resp.timings.total,
+                http_status: resp.status,
                 timings: &timings,
                 warnings: &mut warnings,
                 proxy: &proxy,
+                proxy_label: &proxy_label,
                 render_blocked,
                 speculative,
                 spec_done,
@@ -380,11 +388,13 @@ impl Scraper {
             // waiting on their own scripts.
             permit.take();
             let discovery_started = Instant::now();
-            let work = crate::scripts::discover_script_graph(
+            let itna_budget = ITNA_NETWORK_BUDGET.try_with(Arc::clone).ok();
+            let work = crate::scripts::discover_script_graph_with_budget(
                 &self.policy,
                 &html,
                 &clean_final_url,
                 Default::default(),
+                itna_budget,
             );
             let graph = match request_deadline(opts, started) {
                 Some(d) => tokio::time::timeout_at(d.into(), work).await.map_err(|_| {
@@ -464,4 +474,22 @@ impl Scraper {
 
 fn merge_header_alternates(doc: &mut Document, alts: &[(String, String)]) {
     crate::graph::merge_header_alternates(doc, alts);
+}
+
+/// Resolve an accurate, credential-safe provenance label for `metadata.proxy_used` and ITNA trace.
+pub(super) fn resolve_proxy_label(
+    egress: Option<&str>,
+    proxy: Option<&str>,
+    policy: &Policy,
+) -> String {
+    if let Some(name) = egress {
+        if policy.has_egress(name) {
+            return name.to_owned();
+        }
+        return pagesift_net::redact_url(name);
+    }
+    if proxy.is_some() {
+        return "default_proxy".to_owned();
+    }
+    "basic".to_owned()
 }

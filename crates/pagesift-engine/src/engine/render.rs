@@ -18,23 +18,97 @@ impl Scraper {
         early_stop: Option<pagesift_cdp::EarlyStop>,
         // 这次请求所用出口的代理：浏览器上下文也走它，只用支持按上下文设代理的 Chrome
         proxy: Option<String>,
+        // 写入文档 `metadata.proxy_used` 的脱敏出口/代理来源标签
+        proxy_used: String,
     ) -> Result<Document, ApiError> {
         let Progress {
             started,
             mut timings,
             mut warnings,
         } = progress;
+        let target = Url::parse(url).map_err(|e| ApiError::invalid(e.to_string()))?;
+        let allowed_hosts = ACTION_ALLOWED_HOSTS
+            .try_with(|hosts| hosts.as_ref().clone())
+            .unwrap_or_default();
+        if !allowed_hosts.is_empty() && !pagesift_net::host_allowed(&target, &allowed_hosts) {
+            return Err(ApiError::new(
+                ErrorCode::SsrfBlocked,
+                format!(
+                    "target host `{}` is outside allowedHosts policy",
+                    target.host_str().unwrap_or_default()
+                ),
+            ));
+        }
         // `keepSession`：只用能做 interact 的内核，渲染完不关页面
         let keep = super::interact::KEEP.try_with(Arc::clone).ok();
         let actions = pagesift_cdp::parse_actions(&serde_json::Value::Array(opts.actions.clone()))
             .map_err(|e| ApiError::invalid(e.to_string()))?;
-        // 要动作或要保留页面：只用 Chrome，这些路径只在它上面验证过
-        let chrome_only = keep.is_some() || !actions.is_empty() || self.itna;
-        if chrome_only && !self.interact_available() {
-            return Err(ApiError::unsupported(
-                "actions and keepSession need Chrome: no Chrome or Chromium was found on this machine (run `pagesift doctor`)",
-            ));
+        let cookie_bridge = if let Ok(Some(session)) = ITNA_COOKIE_SESSION.try_with(Clone::clone) {
+            let cookies = session
+                .browser_cookies(&target)
+                .map_err(|e| ApiError::invalid(e.to_string()))?;
+            if cookies.is_empty() {
+                None
+            } else {
+                Some(pagesift_cdp::CookieBridge {
+                    origin: target.origin().ascii_serialization(),
+                    expected_chrome_major: self
+                        .policy
+                        .fetcher()
+                        .config()
+                        .browser_fingerprint
+                        .and_then(|p| {
+                            p.user_agent()
+                                .split_once("Chrome/")?
+                                .1
+                                .split('.')
+                                .next()?
+                                .parse()
+                                .ok()
+                        }),
+                    cookies: cookies
+                        .into_iter()
+                        .map(|c| pagesift_cdp::BridgeCookie {
+                            name: c.name.clone(),
+                            value: c.value.clone(),
+                            path: c.path.clone(),
+                            secure: c.secure,
+                            http_only: c.http_only,
+                            expires_at: c.expires_at,
+                        })
+                        .collect(),
+                })
+            }
+        } else {
+            None
+        };
+        let itna_recovery = ITNA_RECOVERY.try_with(|v| *v).unwrap_or(false);
+        let needs_visual_interaction = keep.is_some() || !actions.is_empty();
+        // 必须由 Chrome 承担的安全/能力边界：动作、保留会话、上下文代理、Cookie 桥接、
+        // ITNA 阻断回退，以及需要 CDP 子请求拦截的 Action `allowedHosts` 约束。
+        let strict_chrome = needs_visual_interaction
+            || proxy.is_some()
+            || cookie_bridge.is_some()
+            || itna_recovery
+            || !allowed_hosts.is_empty();
+        let has_chrome = self.interact_available();
+        if strict_chrome && !has_chrome {
+            let why = if needs_visual_interaction {
+                "actions and keepSession need Chrome: no Chrome or Chromium was found on this machine (run `pagesift doctor`)"
+            } else if proxy.is_some() {
+                "browser rendering via a proxy requires Chrome: no Chrome or Chromium was found on this machine (run `pagesift doctor`)"
+            } else if !allowed_hosts.is_empty() {
+                "enforcing allowedHosts during browser rendering requires Chrome: no Chrome or Chromium was found on this machine (run `pagesift doctor`)"
+            } else {
+                "ITNA browser recovery and cookie bridging require Chrome: no Chrome or Chromium was found on this machine (run `pagesift doctor`)"
+            };
+            return Err(ApiError::unsupported(why));
         }
+        // 当开启全局 ITNA 且本机有 Chrome 时，优先使用 Chrome 以启用完整 CDP 子请求预算拦截；
+        // 当本机仅安装 Lightpanda/moli 等非 Chrome 内核时，普通非挑战页面（无代理、无 Cookie 桥接、
+        // 无阻断回退、无 allowedHosts）仍允许正常渲染，并通过警告明确说明子请求未纳入 CDP 预算。
+        let chrome_only = strict_chrome || (self.itna && has_chrome);
+        let non_chrome_itna_fallback = self.itna && !chrome_only;
         if !self.has_browser().await {
             let why = format!(
                 "browser rendering is unavailable: {}",
@@ -49,7 +123,6 @@ impl Scraper {
                 ApiError::unsupported(why)
             });
         }
-        let target = Url::parse(url).map_err(|e| ApiError::invalid(e.to_string()))?;
         let host = target.host_str().unwrap_or_default().to_string();
         let crawl_delay = match mode {
             RobotsMode::Respect => self
@@ -106,8 +179,22 @@ impl Scraper {
             .or_insert_with(|| ms(queued));
         let queue_note = permit.robots_crawl_delay().then(|| permit.interval());
         let paced = !permit.interval().is_zero();
+        let itna_budget = ITNA_NETWORK_BUDGET.try_with(Arc::clone).ok();
+        if non_chrome_itna_fallback
+            && let Some(ref budget) = itna_budget
+            && !budget.reserve(true)
+        {
+            return Err(ApiError::new(
+                ErrorCode::Timeout,
+                "network navigation budget exhausted",
+            ));
+        }
         let mut ropts = RenderOptions {
-            network_budget: ITNA_NETWORK_BUDGET.try_with(Arc::clone).ok(),
+            network_budget: (!non_chrome_itna_fallback)
+                .then(|| itna_budget.clone())
+                .flatten(),
+            allowed_hosts,
+            bypass_service_worker: self.itna && !non_chrome_itna_fallback,
             wait_for: Duration::from_millis(opts.wait_for),
             timeout: deadline.saturating_duration_since(Instant::now()),
             mobile: opts.mobile,
@@ -122,53 +209,19 @@ impl Scraper {
                 media: true,
                 // 只取 HTML，图片不影响正文：src 属性还在，加载失败和离线时一样。以后支持截图时要放开。
                 // 要动作或保留的页面还要点击和截图，图片要加载（影响布局）。
-                images: !chrome_only,
+                images: !needs_visual_interaction,
             },
             proxy,
             actions,
             wait_until: wait_until(opts.respond_timing.as_deref()),
-            stealth: self.itna,
+            stealth: self.itna && !non_chrome_itna_fallback,
+            cookie_bridge,
             ..RenderOptions::default()
         };
         // A JS challenge may need several seconds before it reloads or writes
         // the final DOM. Interactive captchas are not waited for.
-        if self.itna {
+        if self.itna && !non_chrome_itna_fallback {
             ropts.challenge_wait = Duration::from_secs(8).min(ropts.timeout);
-        }
-        if let Ok(Some(session)) = ITNA_COOKIE_SESSION.try_with(Clone::clone) {
-            let cookies = session
-                .browser_cookies(&target)
-                .map_err(|e| ApiError::invalid(e.to_string()))?;
-            if !cookies.is_empty() {
-                ropts.cookie_bridge = Some(pagesift_cdp::CookieBridge {
-                    origin: target.origin().ascii_serialization(),
-                    expected_chrome_major: self
-                        .policy
-                        .fetcher()
-                        .config()
-                        .browser_fingerprint
-                        .and_then(|p| {
-                            p.user_agent()
-                                .split_once("Chrome/")?
-                                .1
-                                .split('.')
-                                .next()?
-                                .parse()
-                                .ok()
-                        }),
-                    cookies: cookies
-                        .into_iter()
-                        .map(|c| pagesift_cdp::BridgeCookie {
-                            name: c.name.clone(),
-                            value: c.value.clone(),
-                            path: c.path.clone(),
-                            secure: c.secure,
-                            http_only: c.http_only,
-                            expires_at: c.expires_at,
-                        })
-                        .collect(),
-                });
-            }
         }
 
         // 按优先级逐个内核尝试：渲染失败、页面有 iframe 而内核不渲染 iframe、正文太少时换下一个。
@@ -235,7 +288,7 @@ impl Scraper {
                 break;
             };
             ropts.timeout = deadline.saturating_duration_since(Instant::now());
-            if let Some(budget) = &ropts.network_budget {
+            if let Some(budget) = &itna_budget {
                 budget.browser_started();
             }
             let rendered = match &keep {
@@ -462,6 +515,12 @@ impl Scraper {
                 failed_after.join(", ")
             ));
         }
+        if non_chrome_itna_fallback {
+            warnings.push(format!(
+                "itna_non_chrome_no_subrequest_budget: rendered non-challenge page with {} because Chrome is unavailable; sub-requests are guarded by engine SSRF rules but excluded from ITNA sub-request budget",
+                r.engine
+            ));
+        }
         Ok(rendered_document(
             r,
             url,
@@ -470,6 +529,7 @@ impl Scraper {
             warnings,
             started,
             self.store.as_ref(),
+            proxy_used,
         ))
     }
 
@@ -530,11 +590,13 @@ impl Scraper {
             warnings,
             started,
             self.store.as_ref(),
+            "basic".to_owned(),
         ))
     }
 }
 
 /// 渲染结果组装成文档。
+#[allow(clippy::too_many_arguments)]
 fn rendered_document(
     r: Rendered,
     url: &str,
@@ -543,13 +605,14 @@ fn rendered_document(
     mut warnings: Vec<String>,
     started: Instant,
     store: Option<&pagesift_store::Store>,
+    proxy_used: String,
 ) -> Document {
     let mut meta = Metadata {
         url: Some(strip_url_userinfo(&r.final_url).to_string()),
         source_url: Some(strip_url_userinfo_str(url)),
         status_code: r.status.unwrap_or(200),
         content_type: r.content_type.clone(),
-        proxy_used: "basic".into(),
+        proxy_used,
         ..Default::default()
     };
     fill_metadata(&mut meta, &r.doc.metadata);

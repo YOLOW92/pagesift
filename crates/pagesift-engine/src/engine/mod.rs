@@ -22,6 +22,10 @@ tokio::task_local! {
     static ITNA_COOKIE_SESSION: Option<Arc<pagesift_net::CookieSession>>;
     static ITNA_EXPECTED_DIRECT: Option<bool>;
     static ITNA_DEFAULT_PROXY: Option<String>;
+    /// True only during the ITNA browser fallback attempt triggered after an HTTP barrier.
+    static ITNA_RECOVERY: bool;
+    /// Optional Action-level host allowlist propagated into HTTP fetches, redirects, and browser requests.
+    pub(crate) static ACTION_ALLOWED_HOSTS: Arc<Vec<String>>;
 }
 
 pub mod agent;
@@ -404,6 +408,28 @@ impl Engine for Scraper {
                 tenant: tenant.map(str::to_string),
                 force_all,
                 max_requests_override: max_requests,
+                ..Default::default()
+            },
+        ))
+    }
+
+    fn sync_source_budgeted<'a>(
+        &'a self,
+        source_id: &'a str,
+        tenant: Option<&'a str>,
+        force_all: bool,
+        max_requests: Option<usize>,
+        budget: Arc<dyn pagesift_api::PageBudget>,
+    ) -> BoxFuture<'a, Result<pagesift_store::SyncDelta, ApiError>> {
+        Box::pin(Scraper::run_sync_tick(
+            self,
+            source_id,
+            crate::sync::SyncRunOptions {
+                tenant: tenant.map(str::to_string),
+                force_all,
+                max_requests_override: max_requests,
+                page_budget: Some(budget),
+                ..Default::default()
             },
         ))
     }
@@ -414,6 +440,20 @@ impl Engine for Scraper {
         request: serde_json::Value,
     ) -> BoxFuture<'a, Result<serde_json::Value, ApiError>> {
         Box::pin(crate::context::dispatch(self, tenant, request))
+    }
+
+    fn context_budgeted<'a>(
+        &'a self,
+        tenant: Option<&'a str>,
+        request: serde_json::Value,
+        budget: Arc<dyn pagesift_api::PageBudget>,
+    ) -> BoxFuture<'a, Result<serde_json::Value, ApiError>> {
+        Box::pin(crate::context::dispatch_with_budget(
+            self,
+            tenant,
+            request,
+            Some(budget),
+        ))
     }
 
     fn supported_formats(&self) -> &'static [&'static str] {

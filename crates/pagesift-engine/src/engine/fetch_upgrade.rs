@@ -13,9 +13,11 @@ pub(super) struct UpgradeInputs<'a> {
     pub mode: RobotsMode,
     pub started: Instant,
     pub http_elapsed: Duration,
+    pub http_status: u16,
     pub timings: &'a BTreeMap<String, f64>,
     pub warnings: &'a mut Vec<String>,
     pub proxy: &'a Option<String>,
+    pub proxy_label: &'a str,
     pub render_blocked: bool,
     pub speculative: Option<(Instant, usize, SpecRenderFut<'a>)>,
     pub spec_done: Option<Result<Document, ApiError>>,
@@ -41,6 +43,12 @@ impl Scraper {
     ) -> Option<Document> {
         let mut speculative = in_.speculative;
         let mut spec_done = in_.spec_done;
+        // [协议] HTTP 4xx/5xx（>= 400）在 ITNA 模式下交由 ITNA Attempts 状态机统一判定是否升级浏览器，
+        // 避免薄页升级失败后再次触发第二次浏览器回退。
+        if self.itna && in_.http_status >= 400 {
+            drop(speculative.take());
+            return None;
+        }
         let Some(hints) = in_.hints.as_ref().filter(|h| h.worth) else {
             drop(speculative.take());
             return None;
@@ -94,6 +102,7 @@ impl Scraper {
                         Some(in_.http_chars),
                         Some(early_stop),
                         in_.proxy.clone(),
+                        in_.proxy_label.to_owned(),
                     ));
                     (fut, None)
                 }

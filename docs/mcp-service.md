@@ -10,6 +10,13 @@ wrong.
 `pagesift mcp http` listens on `127.0.0.1` only (default port 3003) and checks `Host` and
 `Origin` on every request, so other machines and web pages cannot reach it.
 
+> **Trust boundary:** `pagesift mcp` (`stdio` and `http`) is designed for a single trusted local
+> user sharing one data directory with local CLI commands (`pagesift context`, `pagesift sync`,
+> `pagesift graph`). The MCP `clientInfo` name is self-reported and unauthenticated, so all local
+> MCP clients share the same local store namespace. Do not expose `pagesift mcp http` behind a
+> reverse proxy for untrusted multi-user traffic; use authenticated `pagesift serve` with
+> `server.api_keys` or `[[server.keys]]` for multi-tenant HTTP isolation.
+
 A systemd user unit, `~/.config/systemd/user/pagesift-mcp.service`:
 
 ```ini

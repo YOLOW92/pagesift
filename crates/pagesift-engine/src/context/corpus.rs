@@ -35,6 +35,7 @@ struct BlockingCorpusLoad {
     conflicts: Vec<ConflictRecord>,
     fact_clusters: Vec<FactCluster>,
     visibilities: Vec<IndexVisibility>,
+    warnings: Vec<String>,
     newly_loaded_single: Option<(pagesift_store::ContextSourceMeta, Arc<ContextIndex>)>,
     invalidated_single: Option<String>,
 }
@@ -45,6 +46,7 @@ pub struct LoadedContextCorpus {
     pub conflicts: Vec<ConflictRecord>,
     pub fact_clusters: Vec<FactCluster>,
     pub visibilities: Vec<IndexVisibility>,
+    pub warnings: Vec<String>,
 }
 
 /// Load a unified [`LoadedContextCorpus`] across requested `source_ids` (or all tenant sources when empty).
@@ -60,8 +62,11 @@ pub async fn load_corpus(
             conflicts: Vec::new(),
             fact_clusters: Vec::new(),
             visibilities: Vec::new(),
+            warnings: Vec::new(),
         });
     };
+
+    let mut load_warnings = Vec::new();
 
     // Auto-catchup Loop sources that are behind `SyncStore` when not querying historical `as_of_ms`
     if as_of_ms.is_none() {
@@ -69,49 +74,83 @@ pub async fn load_corpus(
             true
         } else {
             let ctx_probe = store.context_for(tenant);
-            source_ids
-                .iter()
-                .any(|sid| ctx_probe.has_sync_source(sid).unwrap_or(false))
+            let mut found = false;
+            for sid in source_ids {
+                if ctx_probe
+                    .has_sync_source(sid)
+                    .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?
+                {
+                    found = true;
+                    break;
+                }
+            }
+            found
         };
         let catchup_candidates: Vec<String> = if !any_sync {
             Vec::new()
         } else if source_ids.is_empty() {
             let t_owned = tenant.map(str::to_owned);
             store
-                .blocking(move |st| -> Vec<String> {
+                .blocking(move |st| -> Result<Vec<String>, ApiError> {
                     let ctx_st = st.context_for(t_owned.as_deref());
                     let sync_st = st.sync_for(t_owned.as_deref());
-                    sync_st
+                    let sources = sync_st
                         .list_sources()
-                        .unwrap_or_default()
-                        .into_iter()
-                        .filter(|s| {
-                            ctx_st.has_meta(&s.id).unwrap_or(false)
-                                && ctx_st.visibility(&s.id).is_ok_and(|v| !v.is_caught_up)
-                        })
-                        .map(|s| s.id)
-                        .collect()
+                        .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?;
+                    let mut out = Vec::new();
+                    for s in sources {
+                        if ctx_st
+                            .has_meta(&s.id)
+                            .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?
+                            && !ctx_st
+                                .visibility(&s.id)
+                                .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?
+                                .is_caught_up
+                        {
+                            out.push(s.id);
+                        }
+                    }
+                    Ok(out)
                 })
-                .await
+                .await?
         } else {
             let t_owned = tenant.map(str::to_owned);
             let sids_chk = source_ids.to_vec();
             store
-                .blocking(move |st| -> Vec<String> {
+                .blocking(move |st| -> Result<Vec<String>, ApiError> {
                     let ctx_st = st.context_for(t_owned.as_deref());
-                    sids_chk
-                        .into_iter()
-                        .filter(|sid| {
-                            ctx_st.has_sync_source(sid).unwrap_or(false)
-                                && ctx_st.visibility(sid).map_or(true, |v| !v.is_caught_up)
-                        })
-                        .collect()
+                    let mut out = Vec::new();
+                    for sid in sids_chk {
+                        if ctx_st
+                            .has_sync_source(&sid)
+                            .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?
+                            && !ctx_st
+                                .visibility(&sid)
+                                .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?
+                                .is_caught_up
+                        {
+                            out.push(sid);
+                        }
+                    }
+                    Ok(out)
                 })
-                .await
+                .await?
         };
         for sid in catchup_candidates {
-            let _ =
-                sync_source_context(scraper, tenant, &sid, UnitMatchMode::BoundedUot, None).await;
+            if let Err(e) =
+                sync_source_context(scraper, tenant, &sid, UnitMatchMode::BoundedUot, None).await
+            {
+                tracing::warn!(
+                    source_id = %sid,
+                    error = %e,
+                    "context auto-catchup failed"
+                );
+                load_warnings.push(format!(
+                    "context_auto_catchup_failed:{sid}:{}:{}",
+                    e.code.as_str(),
+                    e.message
+                ));
+            }
         }
     }
 
@@ -139,7 +178,10 @@ pub async fn load_corpus(
                     .map(|m| m.source_id)
                     .collect();
                 if as_of_ms.is_some() {
-                    for spec in sync_st.list_sources().unwrap_or_default() {
+                    let sync_sources = sync_st
+                        .list_sources()
+                        .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?;
+                    for spec in sync_sources {
                         if !sids.contains(&spec.id) {
                             sids.push(spec.id);
                         }
@@ -152,6 +194,7 @@ pub async fn load_corpus(
 
             let mut visibilities = Vec::with_capacity(target_sids.len());
             let mut fact_clusters = Vec::new();
+            let mut warnings = Vec::new();
             let mut newly_loaded_single = None;
             let mut invalidated_single = None;
             let mut fallback_hist_docs = Vec::new();
@@ -251,11 +294,19 @@ pub async fn load_corpus(
                     fact_clusters.extend(view.fact_clusters);
                 }
 
-                let live_meta = ctx_st
+                let raw_meta = ctx_st
                     .get_meta(sid)
-                    .ok()
-                    .flatten()
-                    .filter(|m| ctx_st.is_meta_live(m).unwrap_or(false));
+                    .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?;
+                let live_meta = match raw_meta {
+                    Some(m)
+                        if ctx_st
+                            .is_meta_live(&m)
+                            .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))? =>
+                    {
+                        Some(m)
+                    }
+                    _ => None,
+                };
 
                 if !vis.instance_matched || live_meta.is_none() {
                     invalidated_single = Some(sid.clone());
@@ -268,21 +319,56 @@ pub async fn load_corpus(
                     && c_spec == m.spec_stamp
                 {
                     (Some(arc_idx), Vec::new())
-                } else if let Some(raw) = ctx_st
-                    .load_index_blob(sid)
-                    .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?
-                    && let Ok(single_idx) = serde_json::from_slice::<ContextIndex>(&raw)
-                {
-                    let arc = Arc::new(single_idx);
-                    if let Some(meta) = live_meta {
-                        newly_loaded_single = Some((meta, arc.clone()));
-                    }
-                    (Some(arc), Vec::new())
                 } else {
-                    let units = ctx_st
-                        .load_all_live_units(sid)
-                        .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?;
-                    (None, units)
+                    match ctx_st.load_index_blob(sid) {
+                        Ok(Some(raw)) => match serde_json::from_slice::<ContextIndex>(&raw) {
+                            Ok(single_idx) => {
+                                let arc = Arc::new(single_idx);
+                                if let Some(meta) = live_meta {
+                                    newly_loaded_single = Some((meta, arc.clone()));
+                                }
+                                (Some(arc), Vec::new())
+                            }
+                            Err(e) => {
+                                tracing::warn!(
+                                    source_id = %sid,
+                                    error = %e,
+                                    "corrupt persisted context index JSON; rebuilding from authoritative live units"
+                                );
+                                warnings.push(format!(
+                                    "context_index_corrupt_rebuilt:{sid}:json_decode:{e}"
+                                ));
+                                let units = ctx_st
+                                    .load_all_live_units(sid)
+                                    .map_err(|err| {
+                                        ApiError::new(ErrorCode::Internal, err.to_string())
+                                    })?;
+                                (None, units)
+                            }
+                        },
+                        Ok(None) => {
+                            let units = ctx_st
+                                .load_all_live_units(sid)
+                                .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?;
+                            (None, units)
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                source_id = %sid,
+                                error = %e,
+                                "corrupt persisted context index blob; rebuilding from authoritative live units"
+                            );
+                            warnings.push(format!(
+                                "context_index_corrupt_rebuilt:{sid}:blob_read:{e}"
+                            ));
+                            let units = ctx_st
+                                .load_all_live_units(sid)
+                                .map_err(|err| {
+                                    ApiError::new(ErrorCode::Internal, err.to_string())
+                                })?;
+                            (None, units)
+                        }
+                    }
                 }
             } else {
                 let mut all_units = Vec::new();
@@ -317,11 +403,14 @@ pub async fn load_corpus(
                 conflicts,
                 fact_clusters,
                 visibilities,
+                warnings,
                 newly_loaded_single,
                 invalidated_single,
             })
         })
         .await?;
+
+    load_warnings.extend(loaded.warnings);
 
     if let Some(dead_sid) = loaded.invalidated_single {
         scraper.context_cache().invalidate(tenant, &dead_sid);
@@ -397,5 +486,6 @@ pub async fn load_corpus(
         conflicts: loaded.conflicts,
         fact_clusters: loaded.fact_clusters,
         visibilities: loaded.visibilities,
+        warnings: load_warnings,
     })
 }

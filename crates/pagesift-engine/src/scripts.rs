@@ -1,6 +1,7 @@
 //! Opt-in, origin-scoped external module traversal. Candidates carry provenance
 //! and remain separate from observed browser traffic or confirmed GET requests.
 use std::collections::{BTreeSet, VecDeque};
+use std::sync::Arc;
 
 use anyhow::{Result, ensure};
 use pagesift_html::Html;
@@ -48,6 +49,18 @@ pub async fn discover_script_graph(
     html: &str,
     page: &Url,
     budget: ScriptBudget,
+) -> Result<ScriptGraph> {
+    discover_script_graph_with_budget(policy, html, page, budget, None).await
+}
+
+/// Same as [`discover_script_graph`], optionally binding every dependency HTTP fetch
+/// and redirect hop to a shared ITNA [`pagesift_itna::NetworkBudget`].
+pub async fn discover_script_graph_with_budget(
+    policy: &Policy,
+    html: &str,
+    page: &Url,
+    budget: ScriptBudget,
+    network_budget: Option<Arc<pagesift_itna::NetworkBudget>>,
 ) -> Result<ScriptGraph> {
     ensure!(html.len() <= 4 * 1024 * 1024, "HTML exceeds 4 MiB");
     ensure!(
@@ -115,14 +128,21 @@ pub async fn discover_script_graph(
         }
         let mut req = FetchRequest::new(url.as_str());
         req.same_origin_redirects = true;
+        req.network_budget = network_budget.clone();
         req.max_body_bytes = Some((budget.max_bytes - out.fetched_bytes).min(1024 * 1024));
         out.attempted_files += 1;
         let response = match policy.fetch(req, RobotsMode::Respect).await {
             Ok(r) => r,
             Err(e) => {
+                let budget_exhausted = e
+                    .to_string()
+                    .contains("network navigation budget exhausted");
                 out.failures
                     .push(format!("{}: {e}", pagesift_net::redact_url(url.as_str())));
                 out.incomplete = true;
+                if budget_exhausted {
+                    break;
+                }
                 continue;
             }
         };

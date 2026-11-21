@@ -44,7 +44,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 pub use cache::{Cache, CacheEntry, CacheLookup, CachePolicy};
 pub use context::{
     ContextCommitOutcome, ContextCommitRequest, ContextSourceMeta, ContextStore,
-    DEFAULT_DELTA_POLL_LIMIT, MAX_CONTEXT_DELTAS_PER_SOURCE, MAX_RETIRED_UNITS_PER_SOURCE,
+    DEFAULT_DELTA_POLL_LIMIT, DeltaWindowBatch, MAX_CONTEXT_DELTAS_PER_SOURCE,
+    MAX_RETIRED_UNITS_PER_SOURCE,
 };
 pub use engine::Store;
 pub use graph::{

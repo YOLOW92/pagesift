@@ -18,17 +18,48 @@ use crate::error::{ApiError, ErrorCode};
 /// 一个 API key 的限额，各项不设就是不限。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct KeyLimits {
-    /// 日志、监控和配额记录里用的名字；不设时用 key 的指纹，key 本身不会写进日志或磁盘。
+    /// 日志和监控展示用的显示名（纯标签，不决定租户/配额/会话身份归属）。
     pub name: Option<String>,
+    /// 显式逻辑账户标识：仅当多个 API key 显式配置相同的 `account` 时，才作为同一逻辑账户
+    /// 共享配额、任务归属、Context/Graph 租户命名空间与 ITNA Cookie 会话池。
+    /// 不设时每个 key 独立使用自身的 SHA-256 指纹，互不共享。
+    pub account: Option<String>,
     pub requests_per_minute: Option<u32>,
     pub max_concurrent_jobs: Option<usize>,
     pub pages_per_day: Option<u64>,
 }
 
+/// 校验显式配置的逻辑账户 ID，拒绝空白、控制字符以及会与匿名/指纹命名空间冲突的保留前缀。
+pub fn validate_account_id(raw: &str) -> Result<String, &'static str> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err("account id must not be empty");
+    }
+    // [策略] 显式逻辑账户 ID 最大长度 128 字节，避免日志与存储键膨胀
+    const MAX_ACCOUNT_ID_BYTES: usize = 128;
+    if trimmed.len() > MAX_ACCOUNT_ID_BYTES {
+        return Err("account id must not exceed 128 bytes");
+    }
+    if trimmed.bytes().any(|b| b.is_ascii_control()) {
+        return Err("account id must not contain control characters");
+    }
+    if trimmed.eq_ignore_ascii_case("anonymous")
+        || crate::types::ScrapeOptions::is_anonymous_owner(trimmed)
+        || trimmed.starts_with(crate::types::ScrapeOptions::ANONYMOUS_OWNER)
+        || trimmed.starts_with("key-")
+    {
+        return Err("account id uses a reserved prefix ('anonymous', '__http_anon__', or 'key-')");
+    }
+    Ok(trimmed.to_owned())
+}
+
 /// 发起请求的调用方：鉴权中间件放进请求扩展里。
 #[derive(Debug, Clone)]
 pub(crate) struct Caller {
+    /// 稳定且可信的账户标识：显式 `KeyLimits.account` 或该 key 的密码学指纹（未鉴权为 `"anonymous"`）。
     pub account: Arc<str>,
+    /// 供结构化日志与观测展示的名字：优先取 `KeyLimits.name`，未设时回退到 `account`。
+    pub display_name: Arc<str>,
     pub limits: Arc<KeyLimits>,
     pub authenticated: bool,
 }
@@ -36,13 +67,25 @@ pub(crate) struct Caller {
 impl Caller {
     pub(crate) fn new(key: Option<&str>, limits: Arc<KeyLimits>) -> Self {
         let authenticated = key.is_some();
-        let account = match (&limits.name, key) {
-            (Some(n), _) => n.clone(),
+        let explicit_account = limits
+            .account
+            .as_deref()
+            .and_then(|raw| validate_account_id(raw).ok());
+        let account = match (explicit_account, key) {
+            (Some(acct), Some(_)) => acct,
             (None, Some(k)) => fingerprint(k),
-            (None, None) => "anonymous".into(),
+            (_, None) => "anonymous".into(),
         };
+        let display_name = limits
+            .name
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
+            .unwrap_or_else(|| account.clone());
         Self {
             account: account.into(),
+            display_name: display_name.into(),
             limits,
             authenticated,
         }
@@ -60,8 +103,15 @@ impl Caller {
         authenticated: Option<bool>,
         limits: Arc<KeyLimits>,
     ) -> Self {
+        let display_name = limits
+            .name
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or(account);
         Self {
             account: account.into(),
+            display_name: display_name.into(),
             limits,
             authenticated: authenticated.unwrap_or_else(|| {
                 account != "anonymous" && !crate::types::ScrapeOptions::is_anonymous_owner(account)
@@ -158,14 +208,20 @@ pub(crate) fn apply_http_caller_scope(
     opts.owner = opts.effective_graph_tenant();
 }
 
-/// key 的指纹（FNV-1a 64 位），稳定、不可逆到能用的程度，用来区分调用方。
+/// key 的密码学指纹（带域分隔的 SHA-256 截断 128 位），稳定、抗碰撞且绝不泄露明文 key。
 fn fingerprint(key: &str) -> String {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for b in key.bytes() {
-        h ^= u64::from(b);
-        h = h.wrapping_mul(0x0100_0000_01b3);
+    let mut ctx = ring::digest::Context::new(&ring::digest::SHA256);
+    ctx.update(b"pagesift:api_key:v2:");
+    ctx.update(key.as_bytes());
+    let digest = ctx.finish();
+    const KEY_HASH_BYTES: usize = 16; // [策略] 128 位指纹（32 位 hex）兼顾抗碰撞与键长简洁
+    let mut out = String::with_capacity(4 + KEY_HASH_BYTES * 2);
+    out.push_str("key-");
+    for b in &digest.as_ref()[..KEY_HASH_BYTES] {
+        use std::fmt::Write;
+        let _ = write!(out, "{b:02x}");
     }
-    format!("key-{h:016x}")
+    out
 }
 
 struct Bucket {
@@ -518,6 +574,53 @@ impl Drop for PageHold {
     }
 }
 
+/// 将 HTTP 层的 [`Limiter`] 与 [`Caller`] 封装成引擎可消费的 [`crate::PageBudget`]：
+/// 每次请求前原子预留 [`PageHold`]，成功时通过 [`crate::PageLease::commit`] 结算，失败或取消时自动退还。
+pub(crate) struct QuotaBudget {
+    limiter: Arc<Limiter>,
+    caller: Caller,
+}
+
+impl QuotaBudget {
+    pub(crate) fn new(limiter: Arc<Limiter>, caller: Caller) -> Self {
+        Self { limiter, caller }
+    }
+}
+
+struct PageHoldLease(Option<PageHold>);
+
+impl crate::PageLease for PageHoldLease {
+    fn commit(mut self: Box<Self>) -> crate::BoxFuture<'static, ()> {
+        let hold = self.0.take();
+        Box::pin(async move {
+            if let Some(h) = hold {
+                h.commit().await;
+            }
+        })
+    }
+}
+
+impl crate::PageBudget for QuotaBudget {
+    fn acquire(&self) -> crate::BoxFuture<'_, Result<(), ApiError>> {
+        Box::pin(async move {
+            let hold = self.limiter.reserve_page(&self.caller).await?;
+            hold.commit().await;
+            Ok(())
+        })
+    }
+
+    fn reserve(&self) -> crate::BoxFuture<'_, Result<Box<dyn crate::PageLease>, ApiError>> {
+        Box::pin(async move {
+            let hold = self.limiter.reserve_page(&self.caller).await?;
+            Ok(Box::new(PageHoldLease(Some(hold))) as Box<dyn crate::PageLease>)
+        })
+    }
+
+    fn remaining(&self) -> Option<u64> {
+        self.limiter.remaining_pages(&self.caller)
+    }
+}
+
 pub(crate) fn quota_error(c: &Caller) -> ApiError {
     ApiError::new(
         ErrorCode::QuotaExceeded,
@@ -558,17 +661,61 @@ mod tests {
     }
 
     #[test]
-    fn accounts_use_names_or_fingerprints() {
-        let named = Caller::new(
-            Some("k"),
+    fn accounts_isolate_same_display_name_and_share_only_explicit_account() {
+        // Two distinct keys with the same display `name` MUST NOT share tenant/account identity.
+        let key_a = Caller::new(
+            Some("secret-a"),
             Arc::new(KeyLimits {
                 name: Some("team-a".into()),
                 ..Default::default()
             }),
         );
-        assert_eq!(&*named.account, "team-a");
-        let anon = caller(KeyLimits::default());
-        assert!(anon.account.starts_with("key-") && !anon.account.contains("secret"));
+        let key_b = Caller::new(
+            Some("secret-b"),
+            Arc::new(KeyLimits {
+                name: Some("team-a".into()),
+                ..Default::default()
+            }),
+        );
+        assert_eq!(&*key_a.display_name, "team-a");
+        assert_eq!(&*key_b.display_name, "team-a");
+        assert!(key_a.account.starts_with("key-") && !key_a.account.contains("secret"));
+        assert!(key_b.account.starts_with("key-") && !key_b.account.contains("secret"));
+        assert_ne!(key_a.account, key_b.account);
+        assert_ne!(key_a.tenant_owner(), key_b.tenant_owner());
+
+        // Multi-key rotation/sharing works ONLY when `account` is explicitly configured.
+        let shared_a = Caller::new(
+            Some("secret-rot-1"),
+            Arc::new(KeyLimits {
+                name: Some("primary-key".into()),
+                account: Some("acme-prod".into()),
+                ..Default::default()
+            }),
+        );
+        let shared_b = Caller::new(
+            Some("secret-rot-2"),
+            Arc::new(KeyLimits {
+                name: Some("secondary-key".into()),
+                account: Some("acme-prod".into()),
+                ..Default::default()
+            }),
+        );
+        assert_eq!(&*shared_a.account, "acme-prod");
+        assert_eq!(shared_a.account, shared_b.account);
+        assert_eq!(shared_a.tenant_owner(), shared_b.tenant_owner());
+
+        // Reserved names in `account` are ignored and fall back to key fingerprint.
+        let reserved = Caller::new(
+            Some("secret-r"),
+            Arc::new(KeyLimits {
+                account: Some("anonymous".into()),
+                ..Default::default()
+            }),
+        );
+        assert!(reserved.account.starts_with("key-"));
+        assert!(reserved.authenticated);
+
         assert_eq!(&*Caller::new(None, Arc::default()).account, "anonymous");
     }
 

@@ -200,14 +200,26 @@ pub(super) async fn inline_iframes_http(
             }
         }
     }
-    let bodies = futures_util::future::join_all(fetches.iter().map(|(_, u)| async move {
-        let mut req = FetchRequest::new(u.as_str());
-        req.timeout = Some(timeout);
-        let mut resp = fetcher.fetch(req).await.ok()?;
-        let html_like = resp
-            .content_type()
-            .is_none_or(|t| t.contains("html") || t.contains("xml"));
-        Some(((200..300).contains(&resp.status) && html_like).then(|| resp.take_text().text))
+    let itna_budget = super::ITNA_NETWORK_BUDGET
+        .try_with(std::sync::Arc::clone)
+        .ok();
+    let allowed_hosts = super::ACTION_ALLOWED_HOSTS
+        .try_with(|hosts| hosts.as_ref().clone())
+        .unwrap_or_default();
+    let bodies = futures_util::future::join_all(fetches.iter().map(|(_, u)| {
+        let itna_budget = itna_budget.clone();
+        let allowed_hosts = allowed_hosts.clone();
+        async move {
+            let mut req = FetchRequest::new(u.as_str());
+            req.timeout = Some(timeout);
+            req.network_budget = itna_budget;
+            req.allowed_hosts = allowed_hosts;
+            let mut resp = fetcher.fetch(req).await.ok()?;
+            let html_like = resp
+                .content_type()
+                .is_none_or(|t| t.contains("html") || t.contains("xml"));
+            Some(((200..300).contains(&resp.status) && html_like).then(|| resp.take_text().text))
+        }
     }))
     .await;
     for ((raw, url), body) in fetches.iter().zip(bodies) {

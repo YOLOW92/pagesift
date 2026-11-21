@@ -14,9 +14,37 @@ use serde_json::Value;
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
+/// 单页配额的预留租约：成功交付时调用 [`PageLease::commit`] 结算，
+/// 失败、取消或提前丢弃时由 `Drop` 自动退还预留，绝不重复扣费。
+pub trait PageLease: Send {
+    fn commit(self: Box<Self>) -> BoxFuture<'static, ()>;
+}
+
+struct NoopLease;
+
+impl PageLease for NoopLease {
+    fn commit(self: Box<Self>) -> BoxFuture<'static, ()> {
+        Box::pin(async {})
+    }
+}
+
 /// 每次抓取前取得页面预算；拒绝时不得发出页面请求。
 pub trait PageBudget: Send + Sync {
     fn acquire(&self) -> BoxFuture<'_, Result<(), ApiError>>;
+
+    /// 原子预留一页配额并返回租约：成功时 `commit`，失败或取消时丢弃即退还。
+    /// 默认回落到 [`PageBudget::acquire`] 以兼容已有自定义实现。
+    fn reserve(&self) -> BoxFuture<'_, Result<Box<dyn PageLease>, ApiError>> {
+        Box::pin(async move {
+            self.acquire().await?;
+            Ok(Box::new(NoopLease) as Box<dyn PageLease>)
+        })
+    }
+
+    /// 调用方当天剩余页数；未设限额或不可查询时返回 `None`。
+    fn remaining(&self) -> Option<u64> {
+        None
+    }
 }
 
 pub trait Engine: Send + Sync + 'static {
@@ -227,6 +255,18 @@ pub trait Engine: Send + Sync + 'static {
         Box::pin(async { Err(ApiError::unsupported("sync is not available in this build")) })
     }
 
+    /// Execute one closed-loop 1.5 sync tick constrained by a caller's daily [`PageBudget`].
+    fn sync_source_budgeted<'a>(
+        &'a self,
+        source_id: &'a str,
+        tenant: Option<&'a str>,
+        force_all: bool,
+        max_requests: Option<usize>,
+        _budget: Arc<dyn PageBudget>,
+    ) -> BoxFuture<'a, Result<pagesift_store::SyncDelta, ApiError>> {
+        self.sync_source(source_id, tenant, force_all, max_requests)
+    }
+
     /// Execute a 1.6 Context operation (`ingest`, `sync`, `search`, `pack`, `action`, `units`, `deltas`, `learn`).
     fn context<'a>(
         &'a self,
@@ -238,6 +278,16 @@ pub trait Engine: Send + Sync + 'static {
                 "context is not available in this build",
             ))
         })
+    }
+
+    /// Execute a 1.6 Context operation constrained by a caller's daily [`PageBudget`] for network acquisition.
+    fn context_budgeted<'a>(
+        &'a self,
+        tenant: Option<&'a str>,
+        request: Value,
+        _budget: Arc<dyn PageBudget>,
+    ) -> BoxFuture<'a, Result<Value, ApiError>> {
+        self.context(tenant, request)
     }
 }
 

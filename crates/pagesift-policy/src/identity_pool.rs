@@ -1,6 +1,6 @@
 //! Origin- and owner-scoped identity leases. No cookie values enter diagnostics.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -31,12 +31,57 @@ struct Slot {
     id: u64,
     cookie: Arc<CookieSession>,
     leased: bool,
+    /// Present in `State::idle_lru` while unleased (`None` while leased).
+    idle_seq: Option<u64>,
 }
 
 #[derive(Default)]
 struct State {
     next_id: u64,
+    next_lru_seq: u64,
+    total_slots: usize,
     slots: HashMap<IdentityKey, Vec<Slot>>,
+    /// Ordered index of currently idle slots for O(log N) LRU eviction when the pool is full.
+    idle_lru: BTreeMap<u64, (IdentityKey, u64)>,
+}
+
+impl State {
+    fn alloc_lru_seq(&mut self) -> u64 {
+        let seq = self.next_lru_seq;
+        self.next_lru_seq = self.next_lru_seq.wrapping_add(1);
+        seq
+    }
+
+    fn remove_slot(&mut self, key: &IdentityKey, slot_id: u64) -> Option<Slot> {
+        let slots = self.slots.get_mut(key)?;
+        let pos = slots.iter().position(|s| s.id == slot_id)?;
+        let removed = slots.swap_remove(pos);
+        if let Some(seq) = removed.idle_seq {
+            self.idle_lru.remove(&seq);
+        }
+        self.total_slots = self.total_slots.saturating_sub(1);
+        if slots.is_empty() {
+            self.slots.remove(key);
+        }
+        Some(removed)
+    }
+
+    fn evict_one_idle(&mut self) -> bool {
+        while let Some((_, (victim_key, victim_id))) = self.idle_lru.pop_first() {
+            if let Some(slots) = self.slots.get_mut(&victim_key)
+                && let Some(pos) = slots.iter().position(|s| s.id == victim_id && !s.leased)
+            {
+                let victim = slots.swap_remove(pos);
+                victim.cookie.retire();
+                self.total_slots = self.total_slots.saturating_sub(1);
+                if slots.is_empty() {
+                    self.slots.remove(&victim_key);
+                }
+                return true;
+            }
+        }
+        false
+    }
 }
 
 struct Inner {
@@ -94,31 +139,55 @@ impl IdentityPool {
             .unwrap_or_default()
             .as_secs();
         let max_uses = self.0.config.max_uses;
-        state.slots.retain(|_, slots| {
-            slots.retain(|s| {
+
+        // O(1) lookup for the target key: prune expired/retired/exhausted idle slots for this key
+        // only, avoiding an O(pool) scan and nested CookieSession locks on every acquire.
+        let mut stale_ids = Vec::new();
+        let mut chosen_idx = None;
+        if let Some(slots) = state.slots.get(&key) {
+            for (idx, s) in slots.iter().enumerate() {
+                if s.leased {
+                    continue;
+                }
                 let stats = s.cookie.stats();
-                s.leased || (!stats.retired && stats.expires_at > now && stats.uses < max_uses)
-            });
-            !slots.is_empty()
-        });
-        if let Some(slot) = state
-            .slots
-            .get_mut(&key)
-            .and_then(|slots| slots.iter_mut().find(|s| !s.leased))
+                if stats.retired || stats.expires_at <= now || stats.uses >= max_uses {
+                    stale_ids.push(s.id);
+                } else if chosen_idx.is_none() {
+                    chosen_idx = Some(idx);
+                }
+            }
+        }
+        if let Some(idx) = chosen_idx
+            && let Some(slots) = state.slots.get_mut(&key)
         {
+            let slot = &mut slots[idx];
             slot.leased = true;
+            let old_seq = slot.idle_seq.take();
+            let id = slot.id;
+            let cookie = slot.cookie.clone();
+            if let Some(seq) = old_seq {
+                state.idle_lru.remove(&seq);
+            }
+            for sid in stale_ids {
+                state.remove_slot(&key, sid);
+            }
             return Ok(Some(IdentityLease {
                 pool: self.0.clone(),
                 key,
-                id: slot.id,
-                cookie: slot.cookie.clone(),
+                id,
+                cookie,
                 retire: false,
             }));
         }
-        let count: usize = state.slots.values().map(Vec::len).sum();
-        if count >= self.0.max_total
-            || state.slots.get(&key).map_or(0, Vec::len) >= self.0.max_per_key
+        for sid in stale_ids {
+            state.remove_slot(&key, sid);
+        }
+
+        if state.slots.get(&key).map_or(0, Vec::len) >= self.0.max_per_key || self.0.max_total == 0
         {
+            return Ok(None);
+        }
+        if state.total_slots >= self.0.max_total && !state.evict_one_idle() {
             return Ok(None);
         }
         let cookie = Arc::new(CookieSession::new(url, self.0.config.clone())?);
@@ -131,7 +200,9 @@ impl IdentityPool {
             id,
             cookie: cookie.clone(),
             leased: true,
+            idle_seq: None,
         });
+        state.total_slots += 1;
         Ok(Some(IdentityLease {
             pool: self.0.clone(),
             key,
@@ -156,16 +227,29 @@ impl IdentityLease {
 
 impl Drop for IdentityLease {
     fn drop(&mut self) {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let stats = self.cookie.stats();
+        let should_drop = self.retire
+            || stats.retired
+            || stats.expires_at <= now
+            || stats.uses >= self.pool.config.max_uses;
+        if self.retire {
+            self.cookie.retire();
+        }
         let mut state = self.pool.state.lock().unwrap_or_else(|e| e.into_inner());
-        if let Some(slots) = state.slots.get_mut(&self.key) {
-            if self.retire {
-                self.cookie.retire();
-                slots.retain(|s| s.id != self.id);
-            } else if let Some(slot) = slots.iter_mut().find(|s| s.id == self.id) {
+        if should_drop {
+            state.remove_slot(&self.key, self.id);
+        } else {
+            let seq = state.alloc_lru_seq();
+            if let Some(slots) = state.slots.get_mut(&self.key)
+                && let Some(slot) = slots.iter_mut().find(|s| s.id == self.id)
+            {
                 slot.leased = false;
-            }
-            if slots.is_empty() {
-                state.slots.remove(&self.key);
+                slot.idle_seq = Some(seq);
+                state.idle_lru.insert(seq, (self.key.clone(), self.id));
             }
         }
     }
@@ -231,5 +315,58 @@ mod tests {
         let debug = format!("{identity:?}");
         assert!(!debug.contains("secret"));
         assert!(!debug.contains("proxy.example"));
+    }
+
+    #[test]
+    fn evicts_least_recently_used_idle_slot_when_full_and_keeps_hot_origins_reusable() {
+        let pool = IdentityPool::new(SessionConfig::default(), 512, 4);
+        // Fill all 512 slots with distinct cold origins.
+        for i in 0..512 {
+            let u = Url::parse(&format!("https://origin-{i}.example/")).unwrap();
+            let lease = pool.try_acquire(key("tenant", &u), &u).unwrap().unwrap();
+            assert!(lease.cookies().set_cookie(&u, "c=1; Path=/; Secure"));
+        }
+        // Touch origin-0 again so it becomes hot (most recently used).
+        let hot = Url::parse("https://origin-0.example/").unwrap();
+        {
+            let lease = pool
+                .try_acquire(key("tenant", &hot), &hot)
+                .unwrap()
+                .unwrap();
+            assert_eq!(lease.cookies().stats().cookies, 1);
+        }
+        // Acquire a 513th distinct origin: should evict the coldest idle slot (origin-1),
+        // succeed, and allow subsequent reuse for the new origin while keeping origin-0 warm.
+        let new_origin = Url::parse("https://origin-512.example/").unwrap();
+        {
+            let lease = pool
+                .try_acquire(key("tenant", &new_origin), &new_origin)
+                .unwrap()
+                .expect("513th origin should evict coldest idle slot");
+            assert!(
+                lease
+                    .cookies()
+                    .set_cookie(&new_origin, "fresh=1; Path=/; Secure")
+            );
+        }
+        let reused_new = pool
+            .try_acquire(key("tenant", &new_origin), &new_origin)
+            .unwrap()
+            .unwrap();
+        assert_eq!(reused_new.cookies().stats().cookies, 1);
+        let reused_hot = pool
+            .try_acquire(key("tenant", &hot), &hot)
+            .unwrap()
+            .unwrap();
+        assert_eq!(reused_hot.cookies().stats().cookies, 1);
+
+        // When all slots are actively leased concurrently, eviction must NOT touch leased slots.
+        let small = IdentityPool::new(SessionConfig::default(), 2, 1);
+        let u1 = Url::parse("https://a.example/").unwrap();
+        let u2 = Url::parse("https://b.example/").unwrap();
+        let u3 = Url::parse("https://c.example/").unwrap();
+        let _l1 = small.try_acquire(key("t", &u1), &u1).unwrap().unwrap();
+        let _l2 = small.try_acquire(key("t", &u2), &u2).unwrap().unwrap();
+        assert!(small.try_acquire(key("t", &u3), &u3).unwrap().is_none());
     }
 }

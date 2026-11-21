@@ -15,16 +15,22 @@ port = 3002
 # 进行中的从断点继续
 persist_jobs = true
 
-# 每个 API key 的限额：每分钟请求数（只算发起工作的 POST）、同时进行的任务数、每天（UTC）的页面数。
+# 每个 API key 的限额：每分钟请求数（覆盖发起工作的 POST 以及 GET /v2/context/* 读端点）、
+# 同时进行的任务数、每天（UTC）的页面数（覆盖 scrape/crawl/batch/monitor/search/extract、
+# /v2/context/action 补采与 /v2/sources/{id}/sync）。
 # 超限返回 429，错误体 {success:false, code, error}，code 是 RATE_LIMIT_EXCEEDED、
 # CONCURRENCY_LIMIT_EXCEEDED 或 QUOTA_EXCEEDED。不写的项不限。
+# 未配置 api_keys 与 [[server.keys]] 时进入匿名模式（仅适合单用户/可信本机，不提供强多租户隔离；
+# 绑定非回环地址启动时会打印安全告警）。
 # [server.limits]            # 没单独配置的 key（不鉴权时所有调用方合用）
 # requests_per_minute = 600
 # max_concurrent_jobs = 10
 # pages_per_day = 100000
 # [[server.keys]]            # 单独设限额的 key，也是有效的 key
 # key = { env = "TEAM_A_KEY" }
-# name = "team-a"            # 日志、监控、配额记录里用的名字；不写时用 key 的指纹
+# name = "team-a"            # 仅用于日志和监控展示的标签，不合并租户、配额或 ITNA 会话
+# account = "acct-team-a"    # 可选显式逻辑账户 ID：仅当多个 key 配置相同 account（且限额一致）时才共享租户/配额/ITNA Cookie 池；
+#                            # 不可使用保留前缀 key-、anonymous、__http_anon__；不写时每个 key 按 SHA-256 指纹完全隔离
 # requests_per_minute = 60
 # max_concurrent_jobs = 2
 # pages_per_day = 5000

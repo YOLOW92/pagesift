@@ -27,6 +27,7 @@ fn cfg_without_env_keys(cfg: &Config) -> pagesift_api::Config {
         .map(|k| ApiKey {
             key: k.key.clone(),
             name: k.name.clone(),
+            account: k.account.clone(),
             requests_per_minute: k.requests_per_minute,
             max_concurrent_jobs: k.max_concurrent_jobs,
             pages_per_day: k.pages_per_day,
@@ -380,5 +381,83 @@ fn gpu_and_ocr_sections() {
         "[ocr]\nother = 1\n",
     ] {
         assert!(toml::from_str::<Config>(bad).is_err(), "{bad}");
+    }
+}
+
+#[test]
+fn server_keys_account_validation_and_conflict_rejection() {
+    // Two keys with same display `name` and no `account` are valid and isolated.
+    let ok_same_name: Config = toml::from_str(
+        r#"
+        [[server.keys]]
+        key = "k1"
+        name = "shared-label"
+        pages_per_day = 10
+
+        [[server.keys]]
+        key = "k2"
+        name = "shared-label"
+        pages_per_day = 20
+        "#,
+    )
+    .unwrap();
+    let api = ok_same_name.api().unwrap();
+    assert_eq!(api.key_limits["k1"].account, None);
+    assert_eq!(api.key_limits["k2"].account, None);
+
+    // Two keys sharing an explicit `account` with identical limits succeed.
+    let ok_shared_acct: Config = toml::from_str(
+        r#"
+        [[server.keys]]
+        key = "k1"
+        name = "east"
+        account = "acct-prod"
+        pages_per_day = 100
+
+        [[server.keys]]
+        key = "k2"
+        name = "west"
+        account = "acct-prod"
+        pages_per_day = 100
+        "#,
+    )
+    .unwrap();
+    let api_shared = ok_shared_acct.api().unwrap();
+    assert_eq!(
+        api_shared.key_limits["k1"].account.as_deref(),
+        Some("acct-prod")
+    );
+    assert_eq!(
+        api_shared.key_limits["k2"].account.as_deref(),
+        Some("acct-prod")
+    );
+
+    // Conflicting limits on the same explicit `account` must be rejected.
+    let bad_conflict: Config = toml::from_str(
+        r#"
+        [[server.keys]]
+        key = "k1"
+        account = "acct-prod"
+        pages_per_day = 100
+
+        [[server.keys]]
+        key = "k2"
+        account = "acct-prod"
+        pages_per_day = 200
+        "#,
+    )
+    .unwrap();
+    assert!(bad_conflict.api().is_err());
+
+    // Reserved prefixes (`key-`, `anonymous`, `__http_anon__`) are rejected.
+    for reserved in ["key-abc", "anonymous", "__http_anon__123", "   "] {
+        let cfg: Config = toml::from_str(&format!(
+            "[[server.keys]]\nkey = \"k1\"\naccount = \"{reserved}\"\n"
+        ))
+        .unwrap();
+        assert!(
+            cfg.api().is_err(),
+            "reserved account {reserved:?} must fail"
+        );
     }
 }

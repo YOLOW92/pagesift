@@ -7,7 +7,9 @@ use pagesift_graph::context::{
     UnitChangeKind, UnitKind, UnitLineage, UnitLocation, UnitStatus, UnitTransition,
 };
 
-use super::{ContextCommitOutcome, ContextCommitRequest};
+use super::{
+    ContextCommitOutcome, ContextCommitRequest, DeltaWindowBatch, MAX_CONTEXT_DELTAS_PER_SOURCE,
+};
 use crate::{Config, DataSourceSpec, FreshnessPolicy, Store, SyncBudget, SyncPolicy};
 
 fn make_unit(id_seed: &str, text: &str) -> KnowledgeUnit {
@@ -768,4 +770,116 @@ fn resource_history_replays_as_of_across_304_edits_410_and_aba_purge() {
             .is_empty()
     );
     assert_eq!(ctx.load_units_as_of("hist-src", 5_500).unwrap().1.len(), 1);
+}
+
+#[test]
+fn corrupt_history_blob_aborts_commit_without_overwriting_and_checked_deltas_detect_gaps() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cfg = Config::new(tmp.path());
+    cfg.background = false;
+    cfg.sync = SyncPolicy::Never;
+    let store = Store::open(cfg).unwrap();
+    let ctx = store.context();
+
+    let rk = "https://example.com/quota".to_owned();
+    let mut u1 = make_unit("u_v1", "Quota v1: 100 rpm.");
+    u1.location.resource_key = rk.clone();
+    u1.observed_at_ms = 1_000;
+    let mut m1 = BTreeMap::new();
+    m1.insert(rk.clone(), vec![u1.clone()]);
+    ctx.commit_delta(ContextCommitRequest {
+        source_id: "corrupt-src",
+        instance_id: "inst-1",
+        store_tick_seq: 1,
+        spec_stamp: AssetSpecStamp::default(),
+        resource_units: &m1,
+        retired_units: &[],
+        index_blob: None,
+        delta: empty_delta("corrupt-src", &u1),
+        allow_same_zero_tick: false,
+    })
+    .unwrap();
+
+    // Inject corrupt bytes into the persisted `chis` history key.
+    let hk = ctx.history_key("corrupt-src", &rk);
+    let corrupt_payload = b"not-valid-zstd-or-json-history";
+    store
+        .put(crate::engine::ns::CONTEXT, &hk, corrupt_payload, 1_500)
+        .unwrap();
+
+    // Submitting a new version MUST fail with Error::Corrupt and preserve the raw disk entry!
+    let mut u2 = make_unit("u_v2", "Quota v2: 200 rpm.");
+    u2.location.resource_key = rk.clone();
+    u2.observed_at_ms = 2_000;
+    let mut m2 = BTreeMap::new();
+    m2.insert(rk.clone(), vec![u2.clone()]);
+    let err = ctx
+        .commit_delta(ContextCommitRequest {
+            source_id: "corrupt-src",
+            instance_id: "inst-1",
+            store_tick_seq: 2,
+            spec_stamp: AssetSpecStamp::default(),
+            resource_units: &m2,
+            retired_units: &[],
+            index_blob: None,
+            delta: empty_delta("corrupt-src", &u2),
+            allow_same_zero_tick: false,
+        })
+        .unwrap_err();
+    assert!(matches!(err, crate::Error::Corrupt(_)), "got {err:?}");
+    let (_, raw_after) = store
+        .get(crate::engine::ns::CONTEXT, &hk)
+        .unwrap()
+        .expect("corrupt history entry must remain untouched");
+    assert_eq!(raw_after.as_slice(), corrupt_payload);
+
+    // Verify `list_deltas_checked` detects retention-window gaps and truncation on a healthy source.
+    for tick in 1..=(MAX_CONTEXT_DELTAS_PER_SOURCE as u64 + 5) {
+        let mut u = make_unit(&format!("u_{tick}"), &format!("Version {tick}"));
+        u.location.resource_key = format!("https://example.com/p/{tick}");
+        u.observed_at_ms = tick * 100;
+        let mut m = BTreeMap::new();
+        m.insert(u.location.resource_key.clone(), vec![u.clone()]);
+        ctx.commit_delta(ContextCommitRequest {
+            source_id: "ring-src",
+            instance_id: "inst-ring",
+            store_tick_seq: tick,
+            spec_stamp: AssetSpecStamp::default(),
+            resource_units: &m,
+            retired_units: &[],
+            index_blob: None,
+            delta: empty_delta("ring-src", &u),
+            allow_same_zero_tick: false,
+        })
+        .unwrap();
+    }
+    match ctx.list_deltas_checked("ring-src", Some(1), 64).unwrap() {
+        DeltaWindowBatch::RetentionGap {
+            requested_after_seq,
+            earliest_retained_seq,
+            ..
+        } => {
+            assert_eq!(requested_after_seq, 1);
+            assert_eq!(earliest_retained_seq, 6);
+        }
+        other => panic!("expected RetentionGap, got {other:?}"),
+    }
+    match ctx.list_deltas_checked("ring-src", Some(5), 10).unwrap() {
+        DeltaWindowBatch::Continuous {
+            truncated, deltas, ..
+        } => {
+            assert!(truncated);
+            assert_eq!(deltas.len(), 10);
+            assert_eq!(deltas[0].delta_seq, 6);
+        }
+        other => panic!("expected Continuous truncated batch, got {other:?}"),
+    }
+    match ctx.list_deltas_checked("ring-src", Some(999), 10).unwrap() {
+        DeltaWindowBatch::SequenceAheadOrReset { .. } => {}
+        other => panic!("expected SequenceAheadOrReset, got {other:?}"),
+    }
+    // Streaming limited load returns exact total while capping returned vector length.
+    let (total, capped) = ctx.load_live_units_limited("ring-src", 5).unwrap();
+    assert_eq!(total, MAX_CONTEXT_DELTAS_PER_SOURCE + 5);
+    assert_eq!(capped.len(), 5);
 }

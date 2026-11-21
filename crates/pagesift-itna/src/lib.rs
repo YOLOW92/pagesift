@@ -71,12 +71,25 @@ pub struct NetworkBudget {
 
 impl NetworkBudget {
     pub fn new(timeout: Duration, navigations: usize, resources: usize) -> Self {
+        Self::with_deadline(Instant::now() + timeout, navigations, resources)
+    }
+
+    /// Create a shared network budget anchored to an explicit entry deadline.
+    pub fn with_deadline(deadline: Instant, navigations: usize, resources: usize) -> Self {
         Self {
-            deadline: Instant::now() + timeout,
+            deadline,
             navigations: AtomicUsize::new(navigations),
             resources: AtomicUsize::new(resources),
             browser_executions: AtomicUsize::new(0),
         }
+    }
+
+    pub fn deadline(&self) -> Instant {
+        self.deadline
+    }
+
+    pub fn remaining(&self) -> Duration {
+        self.deadline.saturating_duration_since(Instant::now())
     }
 
     pub fn reserve(&self, navigation: bool) -> bool {
@@ -121,14 +134,38 @@ pub struct Attempts {
 
 impl Attempts {
     pub fn new(timeout: Duration, max_attempts: u32, max_browser_attempts: u32) -> Self {
+        Self::with_deadline(Instant::now() + timeout, max_attempts, max_browser_attempts)
+    }
+
+    /// Create attempt limits anchored to an explicit entry deadline shared with [`NetworkBudget`].
+    pub fn with_deadline(deadline: Instant, max_attempts: u32, max_browser_attempts: u32) -> Self {
         Self {
-            deadline: Instant::now() + timeout,
+            deadline,
             max_attempts,
             max_browser_attempts,
             attempts: 0,
             browsers: 0,
             in_flight: false,
         }
+    }
+
+    pub fn deadline(&self) -> Instant {
+        self.deadline
+    }
+
+    pub fn attempts(&self) -> u32 {
+        self.attempts
+    }
+
+    pub fn browser_attempts(&self) -> u32 {
+        self.browsers
+    }
+
+    /// Record an internal browser upgrade executed inside an `engine=auto` HTTP attempt
+    /// so the state machine reflects true browser executions and cannot authorize a second one.
+    pub fn note_browser_execution(&mut self) {
+        self.browsers = self.browsers.saturating_add(1);
+        self.attempts = self.attempts.saturating_add(1);
     }
 
     pub fn remaining(&self) -> Duration {
@@ -262,5 +299,24 @@ mod tests {
             3
         );
         assert!(!NetworkBudget::new(Duration::ZERO, 1, 1).reserve(true));
+    }
+
+    #[test]
+    fn shared_deadline_and_internal_browser_note_prevent_double_browser() {
+        // wall-clock: verifying shared Instant deadline equality across NetworkBudget and Attempts
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let budget = NetworkBudget::with_deadline(deadline, 4, 8);
+        let mut attempts = Attempts::with_deadline(deadline, 2, 1);
+        assert_eq!(budget.deadline(), attempts.deadline());
+        assert!(attempts.reserve(Executor::Http));
+        // Simulate engine=auto internally upgrading to browser during attempt 1.
+        attempts.note_browser_execution();
+        assert_eq!(attempts.attempts(), 2);
+        assert_eq!(attempts.browser_attempts(), 1);
+        assert_eq!(
+            attempts.finish(Executor::Http, Outcome::Blocked, true),
+            Decision::Finish
+        );
+        assert!(!attempts.reserve(Executor::Browser));
     }
 }

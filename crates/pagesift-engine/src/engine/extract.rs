@@ -59,8 +59,17 @@ impl Scraper {
                 if let Some(budget) = budget {
                     let mut docs = Vec::with_capacity(results.len());
                     for result in &results {
-                        budget.acquire().await?;
-                        docs.push(self.scrape(&result.url, opts).await.ok());
+                        let lease = budget.reserve().await?;
+                        match self.scrape(&result.url, opts).await {
+                            Ok(doc) => {
+                                lease.commit().await;
+                                docs.push(Some(doc));
+                            }
+                            Err(_) => {
+                                drop(lease);
+                                docs.push(None);
+                            }
+                        }
                     }
                     docs
                 } else {
@@ -131,8 +140,14 @@ impl Scraper {
         let results = if let Some(budget) = budget {
             let mut results = Vec::with_capacity(urls.len());
             for u in &urls {
-                budget.acquire().await?;
-                results.push((u, self.scrape(u, opts).await));
+                let lease = budget.reserve().await?;
+                let res = self.scrape(u, opts).await;
+                if res.is_ok() {
+                    lease.commit().await;
+                } else {
+                    drop(lease);
+                }
+                results.push((u, res));
             }
             results
         } else {

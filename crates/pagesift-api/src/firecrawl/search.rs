@@ -1,6 +1,6 @@
 //! Firecrawl v1 and v2 `/search` and `/extract` endpoints.
 
-use crate::limits::{Caller, apply_http_caller_scope};
+use crate::limits::{Caller, QuotaBudget, apply_http_caller_scope};
 use axum::Json;
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{Extension, Path, State};
@@ -13,21 +13,6 @@ use crate::server::{AppState, ExtractJob, lenient_body};
 use crate::types::{ExtractRequest, SearchRequest};
 use crate::validate::{check_scrape_options, check_url, check_url_count};
 use std::sync::Arc;
-
-struct AccountBudget {
-    limiter: Arc<crate::limits::Limiter>,
-    caller: Caller,
-}
-
-impl crate::PageBudget for AccountBudget {
-    fn acquire(&self) -> crate::BoxFuture<'_, Result<(), ApiError>> {
-        Box::pin(async move {
-            let hold = self.limiter.reserve_page(&self.caller).await?;
-            hold.commit().await;
-            Ok(())
-        })
-    }
-}
 
 pub async fn search(
     State(s): State<AppState>,
@@ -58,10 +43,7 @@ pub async fn search(
         s.engine
             .search_budgeted(
                 &req,
-                Arc::new(AccountBudget {
-                    limiter: s.limiter.clone(),
-                    caller: c.clone(),
-                }),
+                Arc::new(QuotaBudget::new(s.limiter.clone(), c.clone())),
             )
             .await?
     } else {
@@ -134,12 +116,9 @@ pub async fn extract_start(
     }
     let (engine, extracts, job_id) = (s.engine.clone(), s.extracts.clone(), id.clone());
     let budget = caller.and_then(|Extension(c)| {
-        c.limits.pages_per_day.map(|_| {
-            Arc::new(AccountBudget {
-                limiter: s.limiter.clone(),
-                caller: c,
-            }) as Arc<dyn crate::PageBudget>
-        })
+        c.limits
+            .pages_per_day
+            .map(|_| Arc::new(QuotaBudget::new(s.limiter.clone(), c)) as Arc<dyn crate::PageBudget>)
     });
     tokio::spawn(async move {
         let result = match budget {

@@ -241,6 +241,8 @@ pub struct FetchRequest {
     /// Reject a redirect before sending it if scheme/host/port differs from the
     /// initial URL. Useful for explicitly scoped dependency discovery.
     pub same_origin_redirects: bool,
+    /// Optional host allowlist checked on the initial URL and before every HTTP redirect hop.
+    pub allowed_hosts: Vec<String>,
     /// Explicit identity-scoped Cookie session. Stateless by default.
     pub session: Option<Arc<crate::CookieSession>>,
     pub url: String,

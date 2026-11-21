@@ -1,6 +1,7 @@
 //! 1.6 Context HTTP routes (`/v2/context` and sub-endpoints) with tenant isolation.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use axum::extract::{Extension, Query, State};
 use axum::http::HeaderMap;
@@ -9,7 +10,7 @@ use axum::{Json, Router};
 use serde_json::{Map, Value, json};
 
 use crate::error::ApiError;
-use crate::limits::{Caller, caller_graph_tenant};
+use crate::limits::{Caller, QuotaBudget, caller_graph_tenant};
 use crate::server::AppState;
 
 pub(crate) fn routes() -> Router<AppState> {
@@ -36,6 +37,39 @@ pub(crate) fn routes() -> Router<AppState> {
         )
 }
 
+fn fixed_route_accepts_op(fixed_op: &str, supplied: &str) -> bool {
+    match fixed_op {
+        "ingest" => supplied == "ingest",
+        "sync" => supplied == "sync",
+        "search" => supplied == "search",
+        "pack" => supplied == "pack",
+        "action" => matches!(
+            supplied,
+            "action" | "research" | "verify" | "watch" | "changes"
+        ),
+        "units" => supplied == "units",
+        "deltas" => matches!(supplied, "deltas" | "deltas_poll" | "deltaspoll"),
+        "ack" => matches!(supplied, "ack" | "deltas_ack" | "deltasack"),
+        "learn" => matches!(supplied, "learn" | "learn_status" | "learnstatus"),
+        "learn_status" => matches!(supplied, "learn" | "learn_status" | "learnstatus"),
+        _ => supplied == fixed_op,
+    }
+}
+
+fn extract_opt_op(map: &Map<String, Value>, key: &str) -> Result<Option<String>, ApiError> {
+    match map.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::String(s)) => {
+            let norm = s.trim().to_ascii_lowercase();
+            if norm.is_empty() {
+                return Err(ApiError::invalid(format!("'{key}' must not be empty")));
+            }
+            Ok(Some(norm))
+        }
+        Some(_) => Err(ApiError::invalid(format!("'{key}' must be a string"))),
+    }
+}
+
 async fn run_with_op(
     s: AppState,
     caller: Option<Extension<Caller>>,
@@ -46,8 +80,28 @@ async fn run_with_op(
     if let Some(op) = fixed_op {
         match &mut body {
             Value::Object(m) => {
-                m.entry("action".to_owned())
-                    .or_insert_with(|| Value::String(op.to_owned()));
+                let supplied_action = extract_opt_op(m, "action")?;
+                let supplied_op = extract_opt_op(m, "op")?;
+                if let (Some(a), Some(o)) = (&supplied_action, &supplied_op)
+                    && a != o
+                {
+                    return Err(ApiError::invalid(format!(
+                        "conflicting 'action' ('{a}') and 'op' ('{o}') in context request"
+                    )));
+                }
+                let effective = match supplied_action.or(supplied_op) {
+                    Some(sup) => {
+                        if !fixed_route_accepts_op(op, &sup) {
+                            return Err(ApiError::invalid(format!(
+                                "fixed context route '{op}' rejects conflicting operation '{sup}'"
+                            )));
+                        }
+                        if op == "action" { sup } else { op.to_owned() }
+                    }
+                    None => op.to_owned(),
+                };
+                m.remove("op");
+                m.insert("action".to_owned(), Value::String(effective));
             }
             Value::Null => {
                 let mut m = Map::new();
@@ -61,8 +115,18 @@ async fn run_with_op(
             }
         }
     }
-    let tenant = caller_graph_tenant(caller.as_ref().map(|Extension(c)| c), &headers);
-    let out = s.engine.context(Some(&tenant), body).await?;
+    let caller_ref = caller.as_ref().map(|Extension(c)| c);
+    let tenant = caller_graph_tenant(caller_ref, &headers);
+    let out = if let Some(c) = caller_ref
+        && c.limits.pages_per_day.is_some()
+    {
+        let budget = Arc::new(QuotaBudget::new(s.limiter.clone(), c.clone()));
+        s.engine
+            .context_budgeted(Some(&tenant), body, budget)
+            .await?
+    } else {
+        s.engine.context(Some(&tenant), body).await?
+    };
     Ok(Json(out))
 }
 
@@ -253,12 +317,23 @@ async fn handle_learn_get(
     headers: HeaderMap,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<Value>, ApiError> {
+    for k in params.keys() {
+        let low = k.to_ascii_lowercase();
+        if matches!(
+            low.as_str(),
+            "enabled" | "frozen" | "driftguard" | "drift_guard" | "feedback"
+        ) {
+            return Err(ApiError::invalid(format!(
+                "GET /v2/context/learn is read-only and rejects mutating parameter '{k}'; use POST /v2/context/learn to update learn state"
+            )));
+        }
+    }
     run_with_op(
         s,
         caller,
         headers,
         query_map_to_value(params),
-        Some("learn"),
+        Some("learn_status"),
     )
     .await
 }

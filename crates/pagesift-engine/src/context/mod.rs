@@ -2,21 +2,26 @@
 //! Python, Node.js, and C FFI.
 
 pub mod action;
+pub(crate) mod action_support;
 pub(crate) mod cache;
 pub mod corpus;
 pub mod ingest;
 pub mod sync_reconcile;
 pub(crate) mod validate;
 
+use std::sync::Arc;
 use std::time::Instant;
 
-use pagesift_api::{ApiError, ErrorCode};
+use pagesift_api::{ApiError, ErrorCode, PageBudget};
 use pagesift_extract::context::compile_context_pack;
 use pagesift_graph::context::ConsumerCheckpoint;
 use pagesift_store::DEFAULT_DELTA_POLL_LIMIT;
 use serde_json::{Map, Value, json};
 
-pub use action::{execute_action, load_learn_state, save_learn_state};
+pub use action::{
+    execute_action, execute_action_with_budget, load_learn_state, load_learn_state_with_warning,
+    save_learn_state, try_load_learn_state,
+};
 pub use ingest::{
     ContextDocumentInput, LoadedContextCorpus, affinity_key, ingest_documents, load_corpus,
     sync_source_context,
@@ -35,12 +40,38 @@ pub async fn dispatch(
     tenant: Option<&str>,
     raw_request: Value,
 ) -> Result<Value, ApiError> {
+    dispatch_with_budget(scraper, tenant, raw_request, None).await
+}
+
+/// Unified JSON-in / JSON-out dispatcher with optional caller-level daily page quota budget
+/// enforced on acquisition actions (`action` / `research` / `verify` / `watch`).
+pub async fn dispatch_with_budget(
+    scraper: &Scraper,
+    tenant: Option<&str>,
+    raw_request: Value,
+    page_budget: Option<Arc<dyn PageBudget>>,
+) -> Result<Value, ApiError> {
     let obj = normalize_keys(raw_request)?;
-    let op = match obj.get("action").or_else(|| obj.get("op")) {
-        None | Some(Value::Null) => "pack".to_owned(),
-        Some(Value::String(s)) => s.trim().to_ascii_lowercase(),
+    let action_field = match obj.get("action") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(s)) => Some(s.trim().to_ascii_lowercase()),
         Some(_) => return Err(ApiError::invalid("'action' must be a string")),
     };
+    let op_field = match obj.get("op") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(s)) => Some(s.trim().to_ascii_lowercase()),
+        Some(_) => return Err(ApiError::invalid("'op' must be a string")),
+    };
+    if let (Some(a), Some(o)) = (&action_field, &op_field)
+        && a != o
+    {
+        return Err(ApiError::invalid(format!(
+            "conflicting 'action' ('{a}') and 'op' ('{o}') fields in context request"
+        )));
+    }
+    let op = action_field
+        .or(op_field)
+        .unwrap_or_else(|| "pack".to_owned());
 
     match op.as_str() {
         "ingest" => handle_ingest(scraper, tenant, &obj).await,
@@ -48,12 +79,13 @@ pub async fn dispatch(
         "search" => handle_search(scraper, tenant, &obj).await,
         "pack" => handle_pack(scraper, tenant, &obj).await,
         "action" | "research" | "verify" | "watch" | "changes" => {
-            handle_action(scraper, tenant, &op, &obj).await
+            handle_action(scraper, tenant, &op, &obj, page_budget).await
         }
         "units" => handle_units(scraper, tenant, &obj).await,
         "deltas" | "deltas_poll" | "deltaspoll" => handle_deltas_poll(scraper, tenant, &obj).await,
         "deltas_ack" | "deltasack" | "ack" => handle_deltas_ack(scraper, tenant, &obj).await,
-        "learn" | "learn_status" | "learnstatus" => handle_learn(scraper, tenant, &obj).await,
+        "learn_status" | "learnstatus" => handle_learn(scraper, tenant, &obj, true).await,
+        "learn" => handle_learn(scraper, tenant, &obj, false).await,
         other => Err(ApiError::invalid(format!(
             "unsupported context operation '{other}'; expected ingest, sync, search, pack, action, research, verify, watch, changes, units, deltas, ack, or learn"
         ))),
@@ -129,14 +161,20 @@ async fn handle_search(
         load_corpus(scraper, tenant, &sreq.source_ids, sreq.as_of_ms).await?
     };
 
-    let mut learn = load_learn_state(scraper, tenant).await;
+    let (mut learn, learn_warn) = load_learn_state_with_warning(scraper, tenant).await;
     let key = affinity_key(&sreq.query);
     let idx = corpus.index;
     let conflicts = corpus.conflicts;
     let clusters = corpus.fact_clusters;
     let vis = corpus.visibilities;
+    let mut extra_warnings = corpus.warnings;
+    if let Some(w) = learn_warn {
+        extra_warnings.push(w);
+    }
     let report = cpu_task_keyed(key, move || {
-        idx.search(&sreq, &conflicts, &clusters, vis, &mut learn)
+        let mut r = idx.search(&sreq, &conflicts, &clusters, vis, &mut learn);
+        r.warnings.extend(extra_warnings);
+        r
     })
     .await?;
 
@@ -177,15 +215,20 @@ async fn handle_pack(
         .await?
     };
 
-    let mut learn = load_learn_state(scraper, tenant).await;
+    let (mut learn, learn_warn) = load_learn_state_with_warning(scraper, tenant).await;
     let key = affinity_key(&preq.search.query);
     let idx = corpus.index;
     let conflicts = corpus.conflicts;
     let clusters = corpus.fact_clusters;
     let vis = corpus.visibilities;
+    let mut extra_warnings = corpus.warnings;
+    if let Some(w) = learn_warn {
+        extra_warnings.push(w);
+    }
     let pack = cpu_task_keyed(key, move || {
         let t0 = Instant::now();
-        let report = idx.search(&preq.search, &conflicts, &clusters, vis, &mut learn);
+        let mut report = idx.search(&preq.search, &conflicts, &clusters, vis, &mut learn);
+        report.warnings.extend(extra_warnings);
         let search_us = t0.elapsed().as_micros() as u64;
         compile_context_pack(&preq, &report, search_us)
     })
@@ -202,11 +245,14 @@ async fn handle_action(
     tenant: Option<&str>,
     op: &str,
     obj: &Map<String, Value>,
+    page_budget: Option<Arc<dyn PageBudget>>,
 ) -> Result<Value, ApiError> {
     let areq = build_action_request(op, obj)?;
     let inline_docs = parse_inline_docs(obj.get("documents"))?;
     let match_mode = parse_match_mode(obj.get("matchMode"))?;
-    let outcome = execute_action(scraper, tenant, areq, inline_docs, match_mode).await?;
+    let outcome =
+        execute_action_with_budget(scraper, tenant, areq, inline_docs, match_mode, page_budget)
+            .await?;
     Ok(json!({
         "success": true,
         "outcome": outcome,
@@ -242,26 +288,29 @@ async fn handle_units(
             let vis = ctx_st
                 .visibility(&source_id)
                 .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?;
-            let mut units = match (as_of_ms, resource_url) {
+            let (total, units) = match (as_of_ms, resource_url) {
                 (Some(cutoff), opt_u) => {
-                    let (_, mut hist) = ctx_st
-                        .load_units_as_of(&source_id, cutoff)
+                    let target_rk = opt_u.map(|u| pagesift_graph::normalize_resource_key(&u));
+                    let (_, total, hist) = ctx_st
+                        .load_units_as_of_filtered(&source_id, cutoff, target_rk.as_deref(), limit)
                         .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?;
-                    if let Some(u) = opt_u {
-                        let target_rk = pagesift_graph::normalize_resource_key(&u);
-                        hist.retain(|item| item.location.resource_key == target_rk);
-                    }
-                    hist
+                    (total, hist)
                 }
-                (None, Some(u)) => ctx_st
-                    .load_resource_units(&source_id, &pagesift_graph::normalize_resource_key(&u))
-                    .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?,
+                (None, Some(u)) => {
+                    let mut list = ctx_st
+                        .load_resource_units(
+                            &source_id,
+                            &pagesift_graph::normalize_resource_key(&u),
+                        )
+                        .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?;
+                    let total = list.len();
+                    list.truncate(limit);
+                    (total, list)
+                }
                 (None, None) => ctx_st
-                    .load_all_live_units(&source_id)
+                    .load_live_units_limited(&source_id, limit)
                     .map_err(|e| ApiError::new(ErrorCode::Internal, e.to_string()))?,
             };
-            let total = units.len();
-            units.truncate(limit);
             Ok(json!({
                 "success": true,
                 "sourceId": source_id,
@@ -362,12 +411,24 @@ async fn handle_learn(
     scraper: &Scraper,
     tenant: Option<&str>,
     obj: &Map<String, Value>,
+    read_only: bool,
 ) -> Result<Value, ApiError> {
+    if read_only
+        && ["enabled", "frozen", "driftGuard", "feedback"]
+            .iter()
+            .any(|k| obj.get(*k).is_some_and(|v| !v.is_null()))
+    {
+        return Err(ApiError::invalid(
+            "learn_status (GET /v2/context/learn) is read-only and does not accept mutating parameters; use POST /v2/context/learn",
+        ));
+    }
     let _learn_guard = scraper
         .context_source_lock(tenant, "__learn__")
         .lock_owned()
         .await;
-    let mut state = load_learn_state(scraper, tenant).await;
+    let mut state = try_load_learn_state(scraper, tenant)
+        .await?
+        .unwrap_or_default();
     let mut mutated = false;
 
     if let Some(en) = opt_bool(obj, "enabled")? {

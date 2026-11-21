@@ -19,14 +19,67 @@ use super::{
 /// request outside the exact origin is rejected except the site's own standard
 /// http:80 -> https:443 upgrade.
 fn cookie_scope_violation(origin: &url::Url, target: &url::Url) -> bool {
-    if target.origin() == origin.origin() || target.host_str() != origin.host_str() {
+    let target_scheme = match target.scheme() {
+        "ws" => "http",
+        "wss" => "https",
+        other => other,
+    };
+    if target.host_str() != origin.host_str() {
+        return false;
+    }
+    if target_scheme == origin.scheme()
+        && target.port_or_known_default() == origin.port_or_known_default()
+    {
         return false;
     }
     let standard_upgrade = origin.scheme() == "http"
-        && target.scheme() == "https"
+        && target_scheme == "https"
         && origin.port_or_known_default() == Some(80)
         && target.port_or_known_default() == Some(443);
     !standard_upgrade
+}
+
+fn is_network_budget_scheme(scheme: &str) -> bool {
+    matches!(scheme, "http" | "https" | "ws" | "wss")
+}
+
+fn host_allowed_by_list(target: &url::Url, allowed_hosts: &[String]) -> bool {
+    if allowed_hosts.is_empty() {
+        return true;
+    }
+    let Some(raw_host) = target.host_str() else {
+        return false;
+    };
+    let h = raw_host
+        .trim_matches(['[', ']'])
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    if h.is_empty() {
+        return false;
+    }
+    let mut has_any = false;
+    for entry in allowed_hosts {
+        let ah = entry
+            .trim()
+            .trim_matches(['[', ']'])
+            .trim_end_matches('.')
+            .to_ascii_lowercase();
+        if ah.is_empty() {
+            continue;
+        }
+        has_any = true;
+        if h == ah {
+            return true;
+        }
+        if ah.parse::<std::net::IpAddr>().is_err()
+            && h.len() > ah.len()
+            && h.ends_with(&ah)
+            && h.as_bytes()[h.len() - ah.len() - 1] == b'.'
+        {
+            return true;
+        }
+    }
+    !has_any
 }
 
 /// 只用网络事件判断就绪，不读响应体：缓冲区设到最小，浏览器不必替每个请求保留一份内容。
@@ -206,13 +259,29 @@ pub(super) async fn monitor(
 /// 自动附加上来的子 target 在调试器放行前不会发出任何请求。
 pub(super) async fn attach_child(child: &Session, kind: &str, shared: &Shared) {
     if kind == "worker" {
-        // 专用 worker 没有 Fetch 域，它的请求由所属页面的拦截处理。
+        // 专用 worker 没有 Fetch 域，它的请求由所属页面的拦截处理；同时在 worker 启动前封禁 ws/wss。
         let _ = child
             .call(
                 "Target.setAutoAttach",
                 json!({ "autoAttach": true, "waitForDebuggerOnStart": true, "flatten": true }),
             )
             .await;
+        if shared.intercept {
+            let _ = child
+                .call(
+                    "Runtime.evaluate",
+                    json!({ "expression": super::BLOCK_UNINTERCEPTED_TRANSPORT_JS }),
+                )
+                .await;
+            if enable_network(child).await.is_ok() {
+                let _ = child
+                    .call(
+                        "Network.setBlockedURLs",
+                        json!({ "urls": ["ws://*", "wss://*"] }),
+                    )
+                    .await;
+            }
+        }
     } else if !shared.intercept {
         if kind == "iframe" {
             let _ = enable_network(child).await;
@@ -222,8 +291,15 @@ pub(super) async fn attach_child(child: &Session, kind: &str, shared: &Shared) {
         *shared.intercept_error.lock().unwrap() = Some(format!("{kind} target: {e}"));
         return;
     } else if kind == "iframe" {
-        // 跨进程 iframe 的请求也要计入网络静默。
-        let _ = enable_network(child).await;
+        // 跨进程 iframe 的请求也要计入网络静默，并封禁绕过 Fetch 的 ws/wss。
+        if enable_network(child).await.is_ok() {
+            let _ = child
+                .call(
+                    "Network.setBlockedURLs",
+                    json!({ "urls": ["ws://*", "wss://*"] }),
+                )
+                .await;
+        }
     }
     let _ = child
         .call("Runtime.runIfWaitingForDebugger", json!({}))
@@ -258,20 +334,30 @@ pub(super) async fn on_request(
             && p["frameId"] == shared.main_frame.as_str(),
         resource_type,
     };
+    let parsed_url = url::Url::parse(&req.url).ok();
+    let is_network_url = parsed_url
+        .as_ref()
+        .is_some_and(|u| is_network_budget_scheme(u.scheme()));
     // Imported cookies are host-only, so another host cannot receive them.
     // Within the same host they are not port- or scheme-isolated; only an
     // origin-initiated standard upgrade may move them from http to https.
     let cross_origin_cookie_host = shared.cookie_origin.as_ref().is_some_and(|origin| {
-        url::Url::parse(&req.url)
-            .ok()
-            .is_some_and(|u| cookie_scope_violation(origin, &u))
+        parsed_url
+            .as_ref()
+            .is_some_and(|u| cookie_scope_violation(origin, u))
     });
+    let host_outside_allowlist = !shared.allowed_hosts.is_empty()
+        && is_network_url
+        && parsed_url
+            .as_ref()
+            .is_none_or(|u| !host_allowed_by_list(u, &shared.allowed_hosts));
     let verdict = match block.reason(&req) {
         Some(r) => Verdict::Block(r.to_owned()),
+        None if host_outside_allowlist => Verdict::Block("host outside allowedHosts policy".into()),
         None if cross_origin_cookie_host => Verdict::Block("cookie origin isolation".into()),
         None => match guard.check(&req).await {
             Verdict::Allow
-                if (req.url.starts_with("http://") || req.url.starts_with("https://"))
+                if is_network_url
                     && shared
                         .network_budget
                         .as_ref()
