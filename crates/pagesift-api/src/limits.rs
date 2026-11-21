@@ -29,6 +29,44 @@ pub struct KeyLimits {
     pub pages_per_day: Option<u64>,
 }
 
+impl KeyLimits {
+    /// Create an empty [`KeyLimits`] with no caps (forward-compatible builder alternative to
+    /// exhaustive struct literals).
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the display/logging label (`name` does not merge tenants or quotas).
+    pub fn with_name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// Set an explicit logical account ID shared by all keys declaring the same `account`.
+    pub fn with_account(mut self, account: impl Into<String>) -> Self {
+        self.account = Some(account.into());
+        self
+    }
+
+    /// Cap requests per minute.
+    pub fn with_requests_per_minute(mut self, rpm: u32) -> Self {
+        self.requests_per_minute = Some(rpm);
+        self
+    }
+
+    /// Cap concurrent async jobs.
+    pub fn with_max_concurrent_jobs(mut self, jobs: usize) -> Self {
+        self.max_concurrent_jobs = Some(jobs);
+        self
+    }
+
+    /// Cap UTC daily pages.
+    pub fn with_pages_per_day(mut self, pages: u64) -> Self {
+        self.pages_per_day = Some(pages);
+        self
+    }
+}
+
 /// 校验显式配置的逻辑账户 ID，拒绝空白、控制字符以及会与匿名/指纹命名空间冲突的保留前缀。
 pub fn validate_account_id(raw: &str) -> Result<String, &'static str> {
     let trimmed = raw.trim();
@@ -76,6 +114,14 @@ impl Caller {
             (None, Some(k)) => fingerprint(k),
             (_, None) => "anonymous".into(),
         };
+        Self::with_resolved_account(account, limits, authenticated)
+    }
+
+    pub(crate) fn with_resolved_account(
+        account: String,
+        limits: Arc<KeyLimits>,
+        authenticated: bool,
+    ) -> Self {
         let display_name = limits
             .name
             .as_deref()
@@ -209,7 +255,7 @@ pub(crate) fn apply_http_caller_scope(
 }
 
 /// key 的密码学指纹（带域分隔的 SHA-256 截断 128 位），稳定、抗碰撞且绝不泄露明文 key。
-fn fingerprint(key: &str) -> String {
+pub(crate) fn fingerprint(key: &str) -> String {
     let mut ctx = ring::digest::Context::new(&ring::digest::SHA256);
     ctx.update(b"pagesift:api_key:v2:");
     ctx.update(key.as_bytes());
@@ -222,6 +268,18 @@ fn fingerprint(key: &str) -> String {
         let _ = write!(out, "{b:02x}");
     }
     out
+}
+
+/// 1.6.0 及更早版本的 64 位 FNV-1a key 指纹（`key-<16hex>`），仅用于启动时识别并兼容已落盘的旧租户数据。
+pub(crate) fn legacy_fnv1a_fingerprint(key: &str) -> String {
+    // [协议] FNV-1a 64 位偏移基数（与 1.6.0 历史落盘键一致）
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in key.bytes() {
+        h ^= u64::from(b);
+        // [协议] FNV-1a 64 位素数
+        h = h.wrapping_mul(0x0100_0000_01b3);
+    }
+    format!("key-{h:016x}")
 }
 
 struct Bucket {
@@ -281,7 +339,7 @@ fn secs_to_midnight() -> u64 {
     86_400 - now % 86_400
 }
 
-fn usage_key(account: &str) -> String {
+pub(crate) fn usage_key(account: &str) -> String {
     format!("quota/{account}")
 }
 
@@ -484,31 +542,50 @@ impl Limiter {
         }
     }
 
-    /// 结算：把 `amount` 从在途预留移到已结算，然后只持久化已结算值。
-    /// 同一账户的写盘用一把锁串行化，保证旧快照不会在新快照之后落盘。
-    async fn settle_usage(&self, account: &Arc<str>, day: u64, amount: u64) {
-        let lock = {
-            let mut locks = self.write_locks.lock().unwrap_or_else(|e| e.into_inner());
-            locks
-                .entry(account.clone())
-                .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
-                .clone()
+    /// 同步把 `amount` 从在途预留转入已结算（不跨越 `.await` 取消点，杜绝取消导致 `held` 永久泄漏）。
+    fn settle_in_memory(&self, account: &Arc<str>, day: u64, amount: u64) -> bool {
+        let mut map = self.usage.lock().unwrap_or_else(|e| e.into_inner());
+        let Some(u) = map.get_mut(account) else {
+            return false;
         };
-        let _guard = lock.lock().await;
-        let (day, settled) = {
-            let mut map = self.usage.lock().unwrap_or_else(|e| e.into_inner());
-            let Some(u) = map.get_mut(account) else {
-                return;
+        // 跨天：旧日的额度已经作废，不再记到新的一天
+        if u.day != day {
+            return false;
+        }
+        u.held = u.held.saturating_sub(amount);
+        u.settled = u.settled.saturating_add(amount);
+        true
+    }
+
+    /// 串行持久化账户当前最新的已结算值；在独立任务中持锁落盘并等待完成，
+    /// 即使调用方在 `.await` 期间被取消也不会提前释放写锁或丢失已结算记录。
+    async fn persist_usage(self: &Arc<Self>, account: &Arc<str>) {
+        if self.store.is_none() {
+            return;
+        }
+        let limiter = self.clone();
+        let account = account.clone();
+        let _ = tokio::spawn(async move {
+            let lock = {
+                let mut locks = limiter
+                    .write_locks
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner());
+                locks
+                    .entry(account.clone())
+                    .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
+                    .clone()
             };
-            // 跨天：旧日的额度已经作废，不再记到新的一天
-            if u.day != day {
-                return;
+            let _guard = lock.lock().await;
+            let snapshot = {
+                let map = limiter.usage.lock().unwrap_or_else(|e| e.into_inner());
+                map.get(&account).map(|u| (u.day, u.settled))
+            };
+            if let Some((day, settled)) = snapshot {
+                limiter.write_usage(&account, day, settled).await;
             }
-            u.held = u.held.saturating_sub(amount);
-            u.settled = u.settled.saturating_add(amount);
-            (u.day, u.settled)
-        };
-        self.write_usage(account, day, settled).await;
+        })
+        .await;
     }
 
     async fn write_usage(&self, account: &Arc<str>, day: u64, settled: u64) {
@@ -539,11 +616,12 @@ pub(crate) struct PageHold {
 
 impl PageHold {
     pub(crate) async fn commit(mut self) {
-        self.settled = true;
-        if !self.tracked {
+        if !self.tracked || self.settled {
+            self.settled = true;
             return;
         }
         if let Some(ledger) = &self.limiter.ledger {
+            self.settled = true;
             if let Some(hold) = self.ledger.take()
                 && let Err(e) = ledger.settle(&hold, self.amount)
             {
@@ -551,9 +629,13 @@ impl PageHold {
             }
             return;
         }
-        self.limiter
-            .settle_usage(&self.account, self.day, self.amount)
-            .await;
+        let changed = self
+            .limiter
+            .settle_in_memory(&self.account, self.day, self.amount);
+        self.settled = true;
+        if changed {
+            self.limiter.persist_usage(&self.account).await;
+        }
     }
 }
 
@@ -633,309 +715,5 @@ pub(crate) fn quota_error(c: &Caller) -> ApiError {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn caller(limits: KeyLimits) -> Caller {
-        Caller::new(Some("secret-key"), Arc::new(limits))
-    }
-
-    #[test]
-    fn token_bucket_allows_a_burst_then_429s() {
-        let l = Limiter::default();
-        let c = caller(KeyLimits {
-            requests_per_minute: Some(3),
-            ..Default::default()
-        });
-        for _ in 0..3 {
-            l.check_rate(&c).unwrap();
-        }
-        let e = l.check_rate(&c).unwrap_err();
-        assert_eq!(e.code, ErrorCode::RateLimitExceeded);
-        assert!(e.retry_after.unwrap() >= 1);
-        // 别的调用方有自己的桶
-        let other = Caller::new(Some("other"), c.limits.clone());
-        l.check_rate(&other).unwrap();
-        // 不限速的调用方不受影响
-        l.check_rate(&caller(KeyLimits::default())).unwrap();
-    }
-
-    #[test]
-    fn accounts_isolate_same_display_name_and_share_only_explicit_account() {
-        // Two distinct keys with the same display `name` MUST NOT share tenant/account identity.
-        let key_a = Caller::new(
-            Some("secret-a"),
-            Arc::new(KeyLimits {
-                name: Some("team-a".into()),
-                ..Default::default()
-            }),
-        );
-        let key_b = Caller::new(
-            Some("secret-b"),
-            Arc::new(KeyLimits {
-                name: Some("team-a".into()),
-                ..Default::default()
-            }),
-        );
-        assert_eq!(&*key_a.display_name, "team-a");
-        assert_eq!(&*key_b.display_name, "team-a");
-        assert!(key_a.account.starts_with("key-") && !key_a.account.contains("secret"));
-        assert!(key_b.account.starts_with("key-") && !key_b.account.contains("secret"));
-        assert_ne!(key_a.account, key_b.account);
-        assert_ne!(key_a.tenant_owner(), key_b.tenant_owner());
-
-        // Multi-key rotation/sharing works ONLY when `account` is explicitly configured.
-        let shared_a = Caller::new(
-            Some("secret-rot-1"),
-            Arc::new(KeyLimits {
-                name: Some("primary-key".into()),
-                account: Some("acme-prod".into()),
-                ..Default::default()
-            }),
-        );
-        let shared_b = Caller::new(
-            Some("secret-rot-2"),
-            Arc::new(KeyLimits {
-                name: Some("secondary-key".into()),
-                account: Some("acme-prod".into()),
-                ..Default::default()
-            }),
-        );
-        assert_eq!(&*shared_a.account, "acme-prod");
-        assert_eq!(shared_a.account, shared_b.account);
-        assert_eq!(shared_a.tenant_owner(), shared_b.tenant_owner());
-
-        // Reserved names in `account` are ignored and fall back to key fingerprint.
-        let reserved = Caller::new(
-            Some("secret-r"),
-            Arc::new(KeyLimits {
-                account: Some("anonymous".into()),
-                ..Default::default()
-            }),
-        );
-        assert!(reserved.account.starts_with("key-"));
-        assert!(reserved.authenticated);
-
-        assert_eq!(&*Caller::new(None, Arc::default()).account, "anonymous");
-    }
-
-    /// 网关：限额记在账本里，行为与单主机一致（桶先突发后 429，配额用完 QUOTA_EXCEEDED）。
-    #[tokio::test]
-    async fn ledger_backed_limits_match_the_local_ones() {
-        let ledger = Arc::new(
-            pagesift_cluster::Ledger::open(pagesift_cluster::LedgerConfig::new(
-                pagesift_cluster::MonoClock::new(),
-                false,
-            ))
-            .unwrap(),
-        );
-        let limits = Arc::new(KeyLimits {
-            requests_per_minute: Some(2),
-            pages_per_day: Some(2),
-            ..Default::default()
-        });
-        let c = Caller::new(Some("k"), limits.clone());
-        let accounts = HashMap::from([(c.account.to_string(), limits)]);
-        let l = Arc::new(Limiter::with_ledger(ledger, &accounts));
-        l.check_rate(&c).unwrap();
-        l.check_rate(&c).unwrap();
-        let e = l.check_rate(&c).unwrap_err();
-        assert_eq!(e.code, ErrorCode::RateLimitExceeded);
-        assert!(e.retry_after.unwrap() >= 1);
-        assert_eq!(l.remaining_pages(&c), Some(2));
-        l.reserve_page(&c).await.unwrap().commit().await;
-        assert!(l.check_quota(&c).is_ok());
-        l.reserve_page(&c).await.unwrap().commit().await;
-        assert_eq!(l.remaining_pages(&c), Some(0));
-        assert_eq!(
-            l.check_quota(&c).unwrap_err().code,
-            ErrorCode::QuotaExceeded
-        );
-        // 不限额的调用方不受影响
-        l.check_rate(&caller(KeyLimits::default())).unwrap();
-    }
-
-    #[tokio::test]
-    async fn concurrent_page_reservations_stop_at_quota() {
-        let c = caller(KeyLimits {
-            pages_per_day: Some(1),
-            ..Default::default()
-        });
-        let limiter = Arc::new(Limiter::new(None));
-        let (a, b) = tokio::join!(limiter.reserve_page(&c), limiter.reserve_page(&c));
-        assert_ne!(a.is_ok(), b.is_ok());
-        assert_eq!(limiter.remaining_pages(&c), Some(0));
-        // 丢掉未结算的预留：额度回来
-        drop(a);
-        drop(b);
-        assert_eq!(limiter.remaining_pages(&c), Some(1));
-    }
-
-    #[tokio::test]
-    async fn twenty_concurrent_reservations_allow_exactly_one() {
-        let c = Arc::new(caller(KeyLimits {
-            pages_per_day: Some(1),
-            ..Default::default()
-        }));
-        let limiter = Arc::new(Limiter::new(None));
-        let mut tasks = Vec::new();
-        for _ in 0..20 {
-            let (limiter, c) = (limiter.clone(), c.clone());
-            tasks.push(tokio::spawn(async move { limiter.reserve_page(&c).await }));
-        }
-        let mut granted = 0;
-        let mut holds = Vec::new();
-        for task in tasks {
-            match task.await.unwrap() {
-                Ok(hold) => {
-                    granted += 1;
-                    holds.push(hold);
-                }
-                Err(e) => assert_eq!(e.code, ErrorCode::QuotaExceeded),
-            }
-        }
-        assert_eq!(granted, 1);
-        assert_eq!(limiter.remaining_pages(&c), Some(0));
-        drop(holds);
-        assert_eq!(limiter.remaining_pages(&c), Some(1));
-    }
-
-    #[tokio::test]
-    async fn committed_pages_survive_restart_and_holds_refund() {
-        let dir = tempfile::tempdir().unwrap();
-        let c = caller(KeyLimits {
-            pages_per_day: Some(2),
-            ..Default::default()
-        });
-        let limiter = Arc::new(Limiter::new(Some(Store::open_dir(dir.path()).unwrap())));
-        let hold = limiter.reserve_page(&c).await.unwrap();
-        assert_eq!(limiter.remaining_pages(&c), Some(1));
-        drop(hold);
-        assert_eq!(limiter.remaining_pages(&c), Some(2));
-        let hold = limiter.reserve_page(&c).await.unwrap();
-        hold.commit().await;
-        assert_eq!(limiter.remaining_pages(&c), Some(1));
-        drop(limiter);
-        // 重启：已结算的 1 页还在，未结算的预留不落盘
-        let limiter = Limiter::new(Some(Store::open_dir(dir.path()).unwrap()));
-        assert_eq!(limiter.remaining_pages(&c), Some(1));
-    }
-
-    #[tokio::test]
-    async fn failed_reservation_is_not_persisted() {
-        let dir = tempfile::tempdir().unwrap();
-        let c = caller(KeyLimits {
-            pages_per_day: Some(2),
-            ..Default::default()
-        });
-        let limiter = Arc::new(Limiter::new(Some(Store::open_dir(dir.path()).unwrap())));
-        let a = limiter.reserve_page(&c).await.unwrap();
-        let b = limiter.reserve_page(&c).await.unwrap();
-        a.commit().await;
-        // B 失败：只退内存里的在途预留，磁盘上不能留下这一页
-        drop(b);
-        assert_eq!(limiter.remaining_pages(&c), Some(1));
-        drop(limiter);
-        let limiter = Limiter::new(Some(Store::open_dir(dir.path()).unwrap()));
-        assert_eq!(limiter.remaining_pages(&c), Some(1));
-    }
-
-    #[tokio::test]
-    async fn concurrent_commits_persist_every_settled_page_in_order() {
-        let dir = tempfile::tempdir().unwrap();
-        let c = Arc::new(caller(KeyLimits {
-            pages_per_day: Some(20),
-            ..Default::default()
-        }));
-        let limiter = Arc::new(Limiter::new(Some(Store::open_dir(dir.path()).unwrap())));
-        let mut tasks = Vec::new();
-        for _ in 0..20 {
-            let (limiter, c) = (limiter.clone(), c.clone());
-            tasks.push(tokio::spawn(async move {
-                let hold = limiter.reserve_page(&c).await.unwrap();
-                hold.commit().await;
-            }));
-        }
-        for task in tasks {
-            task.await.unwrap();
-        }
-        assert_eq!(limiter.remaining_pages(&c), Some(0));
-        drop(limiter);
-        // 任何一次乱序写盘都会让重启后的已用页数少于 20
-        let limiter = Limiter::new(Some(Store::open_dir(dir.path()).unwrap()));
-        assert_eq!(limiter.remaining_pages(&c), Some(0));
-    }
-
-    #[tokio::test]
-    async fn ledger_reservations_are_atomic_across_limiter_instances() {
-        let ledger = Arc::new(
-            pagesift_cluster::Ledger::open(pagesift_cluster::LedgerConfig::new(
-                pagesift_cluster::MonoClock::new(),
-                false,
-            ))
-            .unwrap(),
-        );
-        let limits = Arc::new(KeyLimits {
-            pages_per_day: Some(1),
-            ..Default::default()
-        });
-        let c = Arc::new(Caller::new(Some("k"), limits.clone()));
-        let accounts = HashMap::from([(c.account.to_string(), limits)]);
-        let a = Arc::new(Limiter::with_ledger(ledger.clone(), &accounts));
-        let b = Arc::new(Limiter::with_ledger(ledger.clone(), &accounts));
-        let mut tasks = Vec::new();
-        for i in 0..20 {
-            let (l, c) = (if i % 2 == 0 { a.clone() } else { b.clone() }, c.clone());
-            tasks.push(tokio::spawn(async move { l.reserve_page(&c).await }));
-        }
-        let mut holds = Vec::new();
-        let mut granted = 0;
-        for task in tasks {
-            match task.await.unwrap() {
-                Ok(hold) => {
-                    granted += 1;
-                    holds.push(hold);
-                }
-                Err(e) => assert_eq!(e.code, ErrorCode::QuotaExceeded),
-            }
-        }
-        assert_eq!(granted, 1);
-        assert_eq!(a.remaining_pages(&c), Some(0));
-        drop(holds);
-        assert_eq!(a.remaining_pages(&c), Some(1));
-    }
-
-    #[tokio::test]
-    async fn page_quota_survives_a_restart() {
-        let dir = tempfile::tempdir().unwrap();
-        let c = caller(KeyLimits {
-            pages_per_day: Some(5),
-            ..Default::default()
-        });
-        {
-            let store = Store::open_dir(dir.path()).unwrap();
-            let l = Arc::new(Limiter::new(Some(store)));
-            assert_eq!(l.remaining_pages(&c), Some(5));
-            for _ in 0..4 {
-                l.reserve_page(&c).await.unwrap().commit().await;
-            }
-            assert!(l.check_quota(&c).is_ok());
-            l.reserve_page(&c).await.unwrap().commit().await;
-            assert_eq!(
-                l.check_quota(&c).unwrap_err().code,
-                ErrorCode::QuotaExceeded
-            );
-        }
-        let l = Limiter::new(Some(Store::open_dir(dir.path()).unwrap()));
-        assert_eq!(l.remaining_pages(&c), Some(0));
-        let jobs = caller(KeyLimits {
-            max_concurrent_jobs: Some(1),
-            ..Default::default()
-        });
-        assert!(l.check_jobs(&jobs, 0).is_ok());
-        assert_eq!(
-            l.check_jobs(&jobs, 1).unwrap_err().code,
-            ErrorCode::ConcurrencyLimitExceeded
-        );
-    }
-}
+#[path = "limits_tests.rs"]
+mod tests;

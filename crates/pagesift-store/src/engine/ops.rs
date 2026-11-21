@@ -60,4 +60,53 @@ impl Store {
     pub(crate) fn group(&self, ns: u8, name: &[u8]) -> Option<Group> {
         self.state_r().groups.get(&(ns, Box::from(name))).copied()
     }
+
+    /// Inspect which tenant scopes (e.g. `"acct:<id>"`) already hold persisted data across
+    /// Context (`ns::CONTEXT`), Loop Sync (`ns::SYNC_STATE`), or DataGraph (`ns::GRAPH_*`)
+    /// in a single index pass without reading values.
+    pub fn existing_tenants(
+        &self,
+        tenants: &[String],
+    ) -> Result<std::collections::HashSet<String>> {
+        let mut found = std::collections::HashSet::new();
+        if tenants.is_empty() {
+            return Ok(found);
+        }
+        let mut plain_targets: Vec<(&str, Vec<u8>)> = Vec::with_capacity(tenants.len());
+        let mut graph_targets: Vec<(&str, Vec<u8>)> = Vec::with_capacity(tenants.len());
+        let mut seen = std::collections::HashSet::with_capacity(tenants.len());
+        for t in tenants {
+            if t.is_empty() || !seen.insert(t.as_str()) {
+                continue;
+            }
+            plain_targets.push((t.as_str(), format!("t:{t}|").into_bytes()));
+            graph_targets.push((
+                t.as_str(),
+                crate::graph::encode_tenant_prefix(t).into_bytes(),
+            ));
+        }
+        if plain_targets.is_empty() {
+            return Ok(found);
+        }
+        let target_count = plain_targets.len();
+        let st = self.state_r();
+        for loc in st.index.iter() {
+            if found.len() == target_count {
+                break;
+            }
+            let targets = match loc.ns() {
+                ns::CONTEXT | ns::SYNC_STATE => &plain_targets,
+                ns::GRAPH_NODE | ns::GRAPH_EDGE | ns::GRAPH_FACT | ns::GRAPH_JOB => &graph_targets,
+                _ => continue,
+            };
+            let key = st.read_key(loc)?;
+            for (tenant, prefix) in targets {
+                if !found.contains(*tenant) && key.starts_with(prefix) {
+                    found.insert((*tenant).to_owned());
+                    break;
+                }
+            }
+        }
+        Ok(found)
+    }
 }

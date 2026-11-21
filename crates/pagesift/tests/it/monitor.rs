@@ -100,7 +100,32 @@ async fn monitor_reports_substantive_changes_only() {
             .await
             .1
     };
-    let first = run(api.clone(), id.clone()).await;
+    // 创建后后台调度器会立刻执行首次基线检查；等待它完成后再按序触发 `/run`，
+    // 确保后续 304 / 噪声 / 实质变化步骤与首次抓取不发生竞态。
+    let first_id = {
+        let mut found = None;
+        for _ in 0..2000 {
+            let (_, v) = call(&api, "GET", &format!("/v2/monitor/{id}/checks"), None).await;
+            if let Some(cid) = v["data"]
+                .as_array()
+                .and_then(|c| c.first())
+                .and_then(|c| c["id"].as_str())
+            {
+                found = Some(cid.to_string());
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        found.expect("initial baseline check never finished")
+    };
+    let (st, first) = call(
+        &api,
+        "GET",
+        &format!("/v2/monitor/{id}/checks/{first_id}"),
+        None,
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK, "{first}");
     assert_eq!(first["data"]["pages"][0]["status"], "new", "{first}");
 
     // 没变：条件请求 304
@@ -133,8 +158,8 @@ async fn monitor_reports_substantive_changes_only() {
     );
 
     let (_, checks) = call(&api, "GET", &format!("/v2/monitor/{id}/checks"), None).await;
-    // 后台调度器创建后也会立即检查：至少是这里手动触发的 4 次
-    assert!(checks["data"].as_array().unwrap().len() >= 4, "{checks}");
+    // 1 次创建后的基线检查 + 3 次手动 `/run`
+    assert_eq!(checks["data"].as_array().unwrap().len(), 4, "{checks}");
     let (_, list) = call(&api, "GET", "/v2/monitor", None).await;
     assert_eq!(list["data"].as_array().unwrap().len(), 1);
     let (st, _) = call(&api, "DELETE", &format!("/v2/monitor/{id}"), None).await;

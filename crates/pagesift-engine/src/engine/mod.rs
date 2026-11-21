@@ -456,6 +456,10 @@ impl Engine for Scraper {
         ))
     }
 
+    fn store(&self) -> Option<&pagesift_store::Store> {
+        self.store_ref()
+    }
+
     fn supported_formats(&self) -> &'static [&'static str] {
         match (self.llm.is_some(), self.store.is_some()) {
             (true, true) => &[

@@ -113,6 +113,8 @@ const MAX_CHECKS_KEPT: usize = 1000;
 #[derive(Clone, Default)]
 pub(crate) struct Monitors {
     pub map: Arc<Mutex<HashMap<String, MonitorState>>>,
+    /// 按监控 ID 串行化后台定时检查与手动 `/run`，避免并发检查互相覆盖 `next_due` 或产生空检查。
+    pub run_locks: Arc<std::sync::Mutex<HashMap<String, Arc<Mutex<()>>>>>,
     pub wake: Arc<Notify>,
     /// 调度任务在跑：只在有监控时运行（它持有服务状态和存储，空闲时不该占着）。
     pub running: Arc<std::sync::atomic::AtomicBool>,
@@ -126,6 +128,14 @@ impl Monitors {
     fn caller(&self, owner: &str) -> Caller {
         let limits = self.accounts.get(owner).unwrap_or(&self.default_limits);
         Caller::named(owner, limits.clone())
+    }
+
+    pub(crate) fn run_lock(&self, id: &str) -> Arc<Mutex<()>> {
+        let mut locks = self.run_locks.lock().unwrap_or_else(|e| e.into_inner());
+        locks
+            .entry(id.to_owned())
+            .or_insert_with(|| Arc::new(Mutex::new(())))
+            .clone()
     }
 }
 
@@ -393,6 +403,11 @@ pub(crate) async fn delete(
     let mut map = s.monitors.map.lock().await;
     owned(&mut map, &id, &owner_of(&caller)).await?;
     map.remove(&id);
+    s.monitors
+        .run_locks
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .remove(&id);
     snapshot_ref::forget(&s, &id);
     // 调度任务在等下一个到期时间：叫醒它，监控清空时让它退出
     s.monitors.wake.notify_one();
@@ -438,20 +453,27 @@ pub(crate) async fn run_now(
     caller: Option<Extension<Caller>>,
     Path(id): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
+    let owner = owner_of(&caller);
     {
         let mut map = s.monitors.map.lock().await;
-        let m = owned(&mut map, &id, &owner_of(&caller)).await?;
+        let _ = owned(&mut map, &id, &owner).await?;
+    }
+    let run_lock = s.monitors.run_lock(&id);
+    let _run_guard = run_lock.lock().await;
+    {
+        let mut map = s.monitors.map.lock().await;
+        let m = owned(&mut map, &id, &owner).await?;
         let now = run::now_secs();
         for p in m.pages.values_mut().filter(|p| p.next_due.is_finite()) {
             p.next_due = p.next_due.min(now);
         }
     }
-    run::run_check(&s, &id).await;
+    let ran = run::run_check_locked(&s, &id).await;
     let map = s.monitors.map.lock().await;
     let m = map
         .get(&id)
         .ok_or_else(|| ApiError::new(ErrorCode::NotFound, format!("monitor {id} not found")))?;
-    let c = m.checks.back().cloned();
+    let c = ran.or_else(|| m.checks.back().cloned());
     Ok(Json(json!({ "success": true, "data": c.map(|c| json!({
         "id": c.id, "status": c.status, "summary": c.summary(), "pages": c.pages,
         "nextRunAt": m.next_due().map(run::rfc3339_secs),

@@ -5,6 +5,7 @@
 
 #![forbid(unsafe_code)]
 
+mod account_resolve;
 mod agent;
 pub mod attachments;
 pub mod context;

@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="180" />
 
-# pagesift 1.6.1
+# pagesift 1.6.2
 
 **本地优先的 Rust 网页与文档采集解析引擎——集 HTTP/浏览器抓捕、版面感知 PDF/Office/OCR 解析、持续同步、可验证数据图谱与证据级 AI 上下文编译于一体。**  
 单个自托管 Rust 二进制，内置 CLI、Firecrawl v1/v2 与 Jina Reader HTTP API、MCP 服务、C ABI，以及 Python / Node.js 原生包。
@@ -35,8 +35,8 @@
 - **支持输入：** URL、HTML、PDF（文本层 + 可选 PP-OCRv6 / 公式识别）、上传图片文件（开启 OCR 时）、Office 与 OpenDocument、RTF/WordPerfect/HWP、电子书、邮件、嵌套压缩包（`zip`、`tar`、`7z`）、SQLite/CSV、373 种代码语言与 WARC 归档（[格式矩阵](parse-api.md)）
 - **输出产物：** Markdown、HTML、原始 HTML、链接、导出图片/附件、RAG 分块、Schema JSON、`DataGraph`（`graph.jsonl`、引用链、声明生命周期、冲突、`fact_clusters`、`?asOf=`）、`ContextPack`（`KnowledgeUnit`、`ContextDelta`、`provenanceManifest`），并在不完整抓捕时返回结构化告警
 - **调用接口：** CLI · Firecrawl v1/v2 HTTP API · Jina Reader（`/r/`、`/s/`）· MCP（stdio / HTTP）· Python · Node.js / TypeScript · Rust crate · C ABI（Go、Java、Kotlin、C#、Ruby、PHP、Lua、Perl、Dart、Swift、Zig）· LangChain / LlamaIndex
-- **平台与部署：** 单二进制（`serve --role gateway`、`worker`、`standby`），Linux x86_64/aarch64（glibc ≥ 2.28 与 musl）、macOS arm64、Windows x86_64、Docker `ghcr.io/yolow92/pagesift:1.6.1`
-- **索引与版本：** 机器可读文档索引 [llms.txt](../llms.txt) · Apache-2.0 或[商业支持](COMMERCIAL.md) · **1.6.1**（[发行说明](releases/1.6.1.md)）
+- **平台与部署：** 单二进制（`serve --role gateway`、`worker`、`standby`），Linux x86_64/aarch64（glibc ≥ 2.28 与 musl）、macOS arm64、Windows x86_64、Docker `ghcr.io/yolow92/pagesift:1.6.2`
+- **索引与版本：** 机器可读文档索引 [llms.txt](../llms.txt) · Apache-2.0 或[商业支持](COMMERCIAL.md) · **1.6.2**（[发行说明](releases/1.6.2.md)）
 
 <!-- section: install -->
 ## 安装与快速开始
@@ -46,7 +46,7 @@
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| 服务端 | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.6.1` | `curl localhost:3002/r/https://example.com` |
+| 服务端 | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.6.2` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 <details>
@@ -92,7 +92,7 @@ console.log(page.markdown, pack.pack)
 **HTTP 服务（`Firecrawl v1/v2`、`Jina Reader`、`/v2/sources`、`/v2/graph`、`/v2/context`）与 MCP**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.6.1
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.6.2
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'
@@ -251,11 +251,11 @@ flowchart LR
 [Apache-2.0](../LICENSE)。如需专属技术支持、SLA 保障或企业级合作协议，请查阅[商业许可与支持](COMMERCIAL.md)或写信至 `licensing@pagesift.dev`。
 
 <!-- section: changelog -->
-## 1.6.1 新增
+## 1.6.2 新增
 
-PageSift 1.6.1 是 `1.6.x` 线的安全隔离、配额与策略收敛、存储损坏恢复及 `[itna]` 加固版本：将 `[[server.keys]].name`（仅日志展示标签）与显式 `[[server.keys]].account` 租户/配额/ITNA 会话共享解耦，未配置 `account` 时按 SHA-256 指纹完全隔离，并对非回环匿名模式启动发出安全告警；通过 RAII 预占/提交/失败退还机制在 `/v2/context/action`、`/v2/sources/{id}/sync`、`search`/`extract` 与集群网关强制执行 `pages_per_day` 每日配额；将认证租户的 Action 直接抓捕绑定到租户专属 `DataGraph` 命名空间，并贯穿 Loop 同步候选、每一跳 HTTP 重定向与 Chrome CDP 子请求强制实施 `allowedHosts`；固定 `/v2/context/*` 路由拒绝冲突的 `action`/`op` 参数、`GET /v2/context/learn` 严格只读、`GET /v2/context/*` 纳入 `requests_per_minute` 限流并流式限额读取单位、`ActionMode::Changes` 显式返回 `resyncRequired`、消除损坏 `chis`/`clrn`/`cidx` 静默覆盖；同时加固可选 `[itna]`：`discoverScripts` 与 HTTP iframe 共享 `NetworkBudget`、回退失败保留主 `AccessBarrier` 错误、浏览器回退透传真实 `proxy_used`、统一入口单截止时间、杜绝 `engine:auto` 双次启动浏览器、恢复非挑战页 Lightpanda 渲染、`IdentityPool` 升级为 O(1)/O(log N) LRU 驱逐，并在 CDP 拦截启用 `Network.setBypassServiceWorker` 与文档/iframe/Worker 级 `WebSocket`/`WebTransport` 封禁。
+PageSift 1.6.2 聚焦 `1.6.x` 线的持久化旧租户升级兼容、异步配额结算取消安全、Rust `KeyLimits` 构造器易用性与监控并发串行化：路由启动时统一探测现有 `Store`（`Store::existing_tenants`）与集群账本（`Ledger::has_account_usage`），使 `1.6.0` 无名 key（FNV-1a `key-<16hex>`）与唯一 `name` key 在升级后自动延续既有 `Context`、`DataGraph`、`Loop` 信源、监控、任务与每日配额访问，同时对同名多 key 保持严格 SHA-256 隔离并给出显式配置提示；在 `PageHold::commit()` 跨 `.await` 前同步完成内存 `held -> settled` 结算并在独立任务中持写锁落盘，彻底消除取消导致的配额泄漏窗口；补充 `KeyLimits::new().with_*()` 流式构造器并明确 Rust 结构体字面量对 `account` 字段的兼容边界；按监控 ID 串行化后台定时检查与 `POST /v2/monitor/{id}/run`，消除并发覆盖 `next_due` 导致的空检查竞态。
 
-[发布说明](releases/1.6.1.md) · [1.6.0](releases/1.6.0.md) · [1.5.6](releases/1.5.6.md) · [1.5.5](releases/1.5.5.md) · [1.5.4](releases/1.5.4.md) · [1.5.3](releases/1.5.3.md) · [1.5.2](releases/1.5.2.md) · [全部版本](releases/) · [CHANGELOG](CHANGELOG.md)
+[发布说明](releases/1.6.2.md) · [1.6.1](releases/1.6.1.md) · [1.6.0](releases/1.6.0.md) · [1.5.6](releases/1.5.6.md) · [1.5.5](releases/1.5.5.md) · [1.5.4](releases/1.5.4.md) · [1.5.3](releases/1.5.3.md) · [全部版本](releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -271,7 +271,7 @@ PageSift 1.6.1 是 `1.6.x` 线的安全隔离、配额与策略收敛、存储�
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.6.1}
+  note   = {Version 1.6.2}
 }
 ```
 

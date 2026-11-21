@@ -119,7 +119,7 @@ impl std::fmt::Debug for Config {
 #[derive(Clone)]
 pub struct AppState {
     pub engine: Arc<dyn Engine>,
-    pub keys: Arc<HashMap<String, Arc<KeyLimits>>>,
+    pub(crate) keys: Arc<HashMap<String, Caller>>,
     pub default_limits: Arc<KeyLimits>,
     pub public_url: Option<String>,
     /// 用户配置的批量并发上限（`max_batch_concurrency`），没配是 `None`。
@@ -172,28 +172,16 @@ pub struct ExtractJob {
 pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
     let timeouts = config.timeouts;
     let default_limits = Arc::new(config.default_limits);
-    let mut keys: HashMap<String, Arc<KeyLimits>> = config
+    let mut raw_keys: HashMap<String, Arc<KeyLimits>> = config
         .api_keys
         .into_iter()
         .map(|k| (k, default_limits.clone()))
         .collect();
-    keys.extend(config.key_limits.into_iter().map(|(k, l)| (k, Arc::new(l))));
+    raw_keys.extend(config.key_limits.into_iter().map(|(k, l)| (k, Arc::new(l))));
 
-    let mut accounts: HashMap<String, Arc<KeyLimits>> = HashMap::with_capacity(keys.len());
-    for (k, l) in &keys {
-        let acct = Caller::new(Some(k), l.clone()).account.to_string();
-        if let Some(prev) = accounts.get(&acct)
-            && (prev.requests_per_minute != l.requests_per_minute
-                || prev.max_concurrent_jobs != l.max_concurrent_jobs
-                || prev.pages_per_day != l.pages_per_day)
-        {
-            tracing::warn!(
-                account = %acct,
-                "multiple API keys share the same explicit account with differing limits; keeping the tighter configuration is recommended"
-            );
-        }
-        accounts.insert(acct, l.clone());
-    }
+    let probe_store = config.store.as_ref().or_else(|| engine.store());
+    let (keys, accounts) =
+        crate::account_resolve::resolve_callers(raw_keys, probe_store, config.ledger.as_deref());
 
     let metrics = Arc::new(Metrics::default());
     let limiter = Arc::new(match config.ledger {
@@ -512,8 +500,8 @@ async fn auth(
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.strip_prefix("Bearer "))
             .map(str::trim);
-        match key.and_then(|k| s.keys.get(k).map(|l| (k, l))) {
-            Some((k, l)) => Caller::new(Some(k), l.clone()),
+        match key.and_then(|k| s.keys.get(k)) {
+            Some(c) => c.clone(),
             None => {
                 return ApiError::new(ErrorCode::Unauthorized, "missing or invalid API key")
                     .into_response();

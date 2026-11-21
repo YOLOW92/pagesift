@@ -321,6 +321,13 @@ impl Ledger {
         q.balance(&account.into(), self.today())
     }
 
+    /// 账本中是否已有该账户的已结算或冻结配额记录（用于升级时识别旧租户命名空间）。
+    pub fn has_account_usage(&self, account: &str) -> bool {
+        let q = lock(&self.quota_slot(account).quota);
+        q.settled.keys().any(|(a, _)| a.as_ref() == account)
+            || q.holds.values().any(|(h, _)| h.account.as_ref() == account)
+    }
+
     fn quota_refusal(&self, limit: u64) -> Refusal {
         let now = self.clock.unix_ms();
         let retry_after = Duration::from_millis(DAY_MS - now % DAY_MS);

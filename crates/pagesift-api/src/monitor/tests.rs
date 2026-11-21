@@ -640,3 +640,66 @@ async fn sub_floor_min_interval_and_max_conflict_explains_real_300s_constraint()
         "{v_ok}"
     );
 }
+
+#[tokio::test]
+async fn concurrent_run_now_and_scheduler_never_produce_empty_check() {
+    let script = Arc::new(Script::default());
+    script.page(A, 200, "# A\n\nBody for concurrency check.");
+    let mut limits = HashMap::new();
+    limits.insert(
+        "key-race".to_string(),
+        KeyLimits::new().with_pages_per_day(2),
+    );
+    let api = scripted(
+        &script,
+        Config {
+            key_limits: limits,
+            ..Default::default()
+        },
+    );
+    let (st, v) = call_as(
+        &api,
+        Some("key-race"),
+        "POST",
+        "/v2/monitor",
+        Some(scrape_target()),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let id = v["data"]["id"].as_str().unwrap().to_string();
+
+    // Fire 6 concurrent `/run` requests while the background scheduler also races on creation.
+    let mut tasks = Vec::new();
+    for _ in 0..6 {
+        let api = api.clone();
+        let id = id.clone();
+        tasks.push(tokio::spawn(async move {
+            call_as(
+                &api,
+                Some("key-race"),
+                "POST",
+                &format!("/v2/monitor/{id}/run"),
+                None,
+            )
+            .await
+        }));
+    }
+    let mut saw_failed = false;
+    for task in tasks {
+        let (st, v) = task.await.unwrap();
+        assert_eq!(st, StatusCode::OK, "{v}");
+        let pages = v["data"]["pages"].as_array().unwrap();
+        assert!(
+            !pages.is_empty(),
+            "serialized /run must never return an empty ghost check: {v}"
+        );
+        if v["data"]["status"] == "failed" {
+            saw_failed = true;
+        }
+    }
+    assert!(
+        script.scrapes.load(Ordering::SeqCst) <= 2,
+        "quota of 2 exceeded"
+    );
+    assert!(saw_failed, "quota exhaustion must report failed checks");
+}

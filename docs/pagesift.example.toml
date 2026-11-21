@@ -30,7 +30,8 @@ persist_jobs = true
 # key = { env = "TEAM_A_KEY" }
 # name = "team-a"            # 仅用于日志和监控展示的标签，不合并租户、配额或 ITNA 会话
 # account = "acct-team-a"    # 可选显式逻辑账户 ID：仅当多个 key 配置相同 account（且限额一致）时才共享租户/配额/ITNA Cookie 池；
-#                            # 不可使用保留前缀 key-、anonymous、__http_anon__；不写时每个 key 按 SHA-256 指纹完全隔离
+#                            # 不可使用保留前缀 key-、anonymous、__http_anon__；不写时新 key 按 SHA-256 指纹完全隔离
+#                            # （从 1.6.0 升级且存在旧持久化存储时，无名旧 key 与唯一 name 旧 key 会自动沿用原命名空间；建议为命名 key 显式补写 account）
 # requests_per_minute = 60
 # max_concurrent_jobs = 2
 # pages_per_day = 5000

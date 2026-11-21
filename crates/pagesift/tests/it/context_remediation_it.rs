@@ -1288,3 +1288,237 @@ fn p2_06_p2_07_corruption_fault_injection_blocks_overwrite_and_rebuilds() {
         }
     });
 }
+
+#[test]
+fn upgrade_1_6_0_persisted_tenants_preserve_context_graph_sync_monitors_and_quota() {
+    fn legacy_fnv1a_160(key: &str) -> String {
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        for b in key.bytes() {
+            h ^= u64::from(b);
+            h = h.wrapping_mul(0x0100_0000_01b3);
+        }
+        format!("key-{h:016x}")
+    }
+
+    let rt = runtime();
+    rt.block_on(async {
+        let dir = tempfile::tempdir().unwrap();
+        let plain_key = "sk-160-plain";
+        let plain_legacy_acct = legacy_fnv1a_160(plain_key);
+        let named_key = "sk-160-named";
+        let named_legacy_acct = "team-160";
+        let dup_key_1 = "sk-160-dup1";
+        let dup_key_2 = "sk-160-dup2";
+        let dup_legacy_acct = "shared-160";
+
+        let today = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            / 86_400;
+
+        // Step 1: Seed persisted store using exact 1.6.0 tenant namespace conventions.
+        {
+            let mut sc_cfg = pagesift_store::Config::new(dir.path());
+            sc_cfg.background = false;
+            let store = Store::open(sc_cfg).unwrap();
+            let mut cfg = ScraperConfig {
+                store: Some(store.clone()),
+                ..Default::default()
+            };
+            cfg.fetcher.env_proxy = false;
+            let scraper = Scraper::new(cfg).unwrap();
+
+            for (acct, label) in [
+                (plain_legacy_acct.as_str(), "PlainLegacyDoc"),
+                (named_legacy_acct, "NamedLegacyDoc"),
+                (dup_legacy_acct, "DupLegacyDoc"),
+            ] {
+                let tenant = format!("acct:{acct}");
+                scraper
+                    .context(
+                        Some(&tenant),
+                        json!({
+                            "action": "ingest",
+                            "sourceId": "legacy-kb",
+                            "documents": [{
+                                "url": format!("https://legacy.example/{acct}"),
+                                "markdown": format!("# {label}\nPersisted 1.6.0 record for {label}.")
+                            }]
+                        }),
+                    )
+                    .await
+                    .unwrap();
+                store
+                    .sync_for(Some(&tenant))
+                    .put_source(&pagesift_store::DataSourceSpec {
+                        id: "legacy-loop".into(),
+                        name: Some("Legacy Loop".into()),
+                        seeds: vec![format!("https://legacy.example/{acct}")],
+                        include_paths: Vec::new(),
+                        exclude_paths: Vec::new(),
+                        max_depth: 1,
+                        allow_subdomains: false,
+                        freshness: pagesift_store::FreshnessPolicy::default(),
+                        budget: pagesift_store::SyncBudget::default(),
+                        extract_schema: None,
+                        extract_prompt: None,
+                        required_fields: Vec::new(),
+                        allow_browser: false,
+                        created_at_ms: 1_700_000_000_000,
+                        updated_at_ms: 1_700_000_000_000,
+                        revision: 1,
+                        instance_id: String::new(),
+                    })
+                    .unwrap();
+            }
+            // Seed 1.6.0 daily quota usage (already spent 1 of 1 page today for plain_key).
+            store
+                .tasks()
+                .kv_put(
+                    format!("quota/{plain_legacy_acct}"),
+                    format!("{today} 1").as_bytes(),
+                )
+                .unwrap();
+            store
+                .tasks()
+                .kv_put(
+                    format!("quota/{named_legacy_acct}"),
+                    format!("{today} 1").as_bytes(),
+                )
+                .unwrap();
+            store.flush().unwrap();
+        }
+
+        // Step 2: Boot 1.6.2 HTTP router over the existing 1.6.0 store (and verify stability across restart).
+        for boot in 0..2 {
+            let mut limits = HashMap::new();
+            limits.insert(
+                plain_key.into(),
+                KeyLimits::new().with_pages_per_day(1),
+            );
+            limits.insert(
+                named_key.into(),
+                KeyLimits::new()
+                    .with_name(named_legacy_acct)
+                    .with_pages_per_day(1),
+            );
+            limits.insert(
+                dup_key_1.into(),
+                KeyLimits::new().with_name(dup_legacy_acct),
+            );
+            limits.insert(
+                dup_key_2.into(),
+                KeyLimits::new().with_name(dup_legacy_acct),
+            );
+            let (app, _scraper, _store) = build_app(dir.path(), vec![], limits, false);
+
+            // Unnamed 1.6.0 key preserves its Context, Loop source, AND daily quota seamlessly.
+            let (st_p, res_p) = send_req(
+                &app,
+                "POST",
+                "/v2/context/search",
+                Some(plain_key),
+                &[],
+                Some(json!({ "sourceIds": ["legacy-kb"], "query": "PlainLegacyDoc" })),
+            )
+            .await;
+            assert_eq!(st_p, StatusCode::OK, "boot {boot} plain context: {res_p}");
+            assert!(!res_p["report"]["hits"].as_array().unwrap().is_empty());
+
+            let (st_ps, res_ps) =
+                send_req(&app, "GET", "/v2/sources/legacy-loop", Some(plain_key), &[], None).await;
+            assert_eq!(st_ps, StatusCode::OK, "boot {boot} plain source: {res_ps}");
+
+            // Daily quota (1/1 spent in 1.6.0) is still enforced on 1.6.2!
+            let (st_pq, _) = send_req(
+                &app,
+                "POST",
+                "/v2/scrape",
+                Some(plain_key),
+                &[],
+                Some(json!({ "url": "https://example.test/blocked-by-legacy-quota" })),
+            )
+            .await;
+            assert_eq!(st_pq, StatusCode::TOO_MANY_REQUESTS);
+
+            // Uniquely-named 1.6.0 key preserves its Context, Loop source, AND daily quota seamlessly.
+            let (st_n, res_n) = send_req(
+                &app,
+                "POST",
+                "/v2/context/search",
+                Some(named_key),
+                &[],
+                Some(json!({ "sourceIds": ["legacy-kb"], "query": "NamedLegacyDoc" })),
+            )
+            .await;
+            assert_eq!(st_n, StatusCode::OK, "boot {boot} named context: {res_n}");
+            assert!(!res_n["report"]["hits"].as_array().unwrap().is_empty());
+
+            let (st_nq, _) = send_req(
+                &app,
+                "POST",
+                "/v2/scrape",
+                Some(named_key),
+                &[],
+                Some(json!({ "url": "https://example.test/blocked-by-named-quota" })),
+            )
+            .await;
+            assert_eq!(st_nq, StatusCode::TOO_MANY_REQUESTS);
+
+            // Duplicate display-name keys remain strictly isolated (never silently merged into shared-160).
+            for k in [dup_key_1, dup_key_2] {
+                let (st_d, res_d) = send_req(
+                    &app,
+                    "POST",
+                    "/v2/context/search",
+                    Some(k),
+                    &[],
+                    Some(json!({ "sourceIds": ["legacy-kb"], "query": "DupLegacyDoc" })),
+                )
+                .await;
+                assert_eq!(st_d, StatusCode::OK);
+                assert!(
+                    res_d["report"]["hits"].as_array().unwrap().is_empty(),
+                    "duplicate display-name key {k} must NOT auto-attach shared legacy namespace"
+                );
+            }
+        }
+
+        // Step 3: Explicit `account = "shared-160"` attaches ONLY dup_key_1 to the legacy namespace.
+        let mut explicit_limits = HashMap::new();
+        explicit_limits.insert(
+            dup_key_1.into(),
+            KeyLimits::new()
+                .with_name(dup_legacy_acct)
+                .with_account(dup_legacy_acct),
+        );
+        explicit_limits.insert(
+            dup_key_2.into(),
+            KeyLimits::new().with_name(dup_legacy_acct),
+        );
+        let (app_exp, _scraper, _store) = build_app(dir.path(), vec![], explicit_limits, false);
+        let (st_d1, res_d1) = send_req(
+            &app_exp,
+            "POST",
+            "/v2/context/search",
+            Some(dup_key_1),
+            &[],
+            Some(json!({ "sourceIds": ["legacy-kb"], "query": "DupLegacyDoc" })),
+        )
+        .await;
+        assert_eq!(st_d1, StatusCode::OK);
+        assert!(!res_d1["report"]["hits"].as_array().unwrap().is_empty());
+        let (st_d2, res_d2) = send_req(
+            &app_exp,
+            "POST",
+            "/v2/context/search",
+            Some(dup_key_2),
+            &[],
+            Some(json!({ "sourceIds": ["legacy-kb"], "query": "DupLegacyDoc" })),
+        )
+        .await;
+        assert_eq!(st_d2, StatusCode::OK);
+        assert!(res_d2["report"]["hits"].as_array().unwrap().is_empty());
+    });
+}

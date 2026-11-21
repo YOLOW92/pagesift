@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="180" />
 
-# pagesift 1.6.1
+# pagesift 1.6.2
 
 **ローカルファーストな Rust 製 Web・文書取り込みエンジン — HTTP/ブラウザ収集、レイアウト認識 PDF/Office/OCR 解析、継続的同期、検証可能な DataGraph、証拠に基づく AI コンテキスト編成を単一バイナリに統合。**  
 セルフホストできる単一の Rust バイナリとして CLI、Firecrawl v1/v2・Jina Reader HTTP API、MCP サーバー、C ABI、Python / Node.js パッケージを提供します。
@@ -35,8 +35,8 @@
 - **入力：** URL、HTML、PDF（テキスト層＋オプション PP-OCRv6 / 数式認識）、アップロード画像（OCR 有効時）、Office・OpenDocument、RTF/WordPerfect/HWP、電子書籍、メール、書庫（`zip`、`tar`、`7z`）、SQLite/CSV、373 種類のソースコード言語、WARC アーカイブ（[形式一覧](parse-api.md)）
 - **出力：** Markdown、HTML、生 HTML、リンク、画像・添付データ、RAG チャンク、スキーマ JSON、`DataGraph`（`graph.jsonl`、引用、クレーム状態、競合、`fact_clusters`、`?asOf=`）、`ContextPack`（`KnowledgeUnit`、`ContextDelta`、`provenanceManifest`）、不完全取得時の構造化警告
 - **インターフェース：** CLI · Firecrawl v1/v2 HTTP API · Jina Reader（`/r/`、`/s/`）· MCP（stdio / HTTP）· Python · Node.js / TypeScript · Rust crate · C ABI（Go、Java、Kotlin、C#、Ruby、PHP、Lua、Perl、Dart、Swift、Zig）· LangChain / LlamaIndex
-- **プラットフォーム：** 単一バイナリ（`serve --role gateway`、`worker`、`standby`）、Linux x86_64/aarch64（glibc ≥ 2.28 / musl）、macOS arm64、Windows x86_64、Docker `ghcr.io/yolow92/pagesift:1.6.1`
-- **インデックスと版：** 機械可読インデックス [llms.txt](../llms.txt) · Apache-2.0 または[商用サポート](COMMERCIAL.md) · **1.6.1**（[リリースノート](releases/1.6.1.md)）
+- **プラットフォーム：** 単一バイナリ（`serve --role gateway`、`worker`、`standby`）、Linux x86_64/aarch64（glibc ≥ 2.28 / musl）、macOS arm64、Windows x86_64、Docker `ghcr.io/yolow92/pagesift:1.6.2`
+- **インデックスと版：** 機械可読インデックス [llms.txt](../llms.txt) · Apache-2.0 または[商用サポート](COMMERCIAL.md) · **1.6.2**（[リリースノート](releases/1.6.2.md)）
 
 <!-- section: install -->
 ## インストールと使い方
@@ -46,7 +46,7 @@
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| サーバー | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.6.1` | `curl localhost:3002/r/https://example.com` |
+| サーバー | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.6.2` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 <details>
@@ -92,7 +92,7 @@ console.log(page.markdown, pack.pack)
 **HTTP サーバー（`Firecrawl v1/v2`、`Jina Reader`、`/v2/sources`、`/v2/graph`、`/v2/context`）・MCP**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.6.1
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.6.2
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'
@@ -251,11 +251,11 @@ cgroup による容量計算、統計的調整基準（`δ = 0.05` の USL・生
 [Apache-2.0](../LICENSE)。エンタープライズサポート、カスタム SLA、専用導入支援については[商用ライセンス・サポート](COMMERCIAL.md)または `licensing@pagesift.dev` をご確認ください。
 
 <!-- section: changelog -->
-## 1.6.1 の新機能
+## 1.6.2 の新機能
 
-PageSift 1.6.1 は `1.6.x` 系列のセキュリティ・マルチテナント分離・クォータ／ホスト制約・破損耐性および `[itna]` 強化パッチリリースです：`[[server.keys]].name`（表示／ログ専用ラベル）を明示的な `[[server.keys]].account` テナント／クォータ／ITNA セッション共有から分離し、未設定キーは SHA-256 指紋で完全分離、非ループバック匿名起動時に警告を出力します。RAII の予約／確定／失敗時返還リースにより `/v2/context/action`、`/v2/sources/{id}/sync`、`search`/`extract`、クラスタゲートウェイ全体で日次 `pages_per_day` を原子的に適用します。認証テナントの Action 直接取得をテナント専用 `DataGraph` へ隔離し、Loop 同期候補・各 HTTP リダイレクト・Chrome CDP サブリクエスト全域で `allowedHosts` を強制します。固定 `/v2/context/*` ルートで競合する `action`/`op` を拒否、`GET /v2/context/learn` を読み取り専用化、`GET /v2/context/*` への `requests_per_minute` 適用と上限付きストリーム読み込み、`ActionMode::Changes` での `resyncRequired` 検出、破損した `chis`/`clrn`/`cidx` の無言上書き防止を追加しました。さらに任意 `[itna]` で `discoverScripts` と HTTP iframe の `NetworkBudget` 共有、フォールバック失敗時の主 `AccessBarrier` エラー保持、ブラウザフォールバック時の正確な `proxy_used` 伝播、単一エントリ締切の統一、`engine:auto` の二重ブラウザ起動防止、非チャレンジ頁での Lightpanda レンダリング回復、`IdentityPool` の O(1)/O(log N) LRU 退避、および CDP インターセプト時の `Network.setBypassServiceWorker` とドキュメント／iframe／Worker の `WebSocket`/`WebTransport` 遮断を実装しています。
+PageSift 1.6.2 は `1.6.x` 系列の旧テナント永続データ互換・非同期クォータ精算キャンセル安全性・Rust `KeyLimits` ビルダー・監視 `/run` 並列制御の強化リリースです：ルータ起動時に既存 `Store`（`Store::existing_tenants`）とクラスタ台帳（`Ledger::has_account_usage`）を検査し、`1.6.0` の無名キー（FNV-1a `key-<16hex>`）と一意な `name` キーが既存の `Context`・`DataGraph`・`Loop` ソース・監視・ジョブ・日次クォータへそのままアクセスできるよう自動継続しつつ、重複 `name` キーは SHA-256 指紋で厳格に分離し運用警告を出力します。`PageHold::commit()` で `.await` 前にメモリ上の `held -> settled` 遷移を同期完了し独立タスクで直列永続化することでキャンセルによるクォータ滞留窓を解消し、Rust 向けに `KeyLimits::new().with_*()` ビルダーと `KeyLimits.account` 互換境界の明示を追加、さらに監視 ID 単位の排他実行によりバックグラウンド定期検査と `POST /v2/monitor/{id}/run` の競合による空チェック発生を解消しました。
 
-[リリースノート](releases/1.6.1.md) · [1.6.0](releases/1.6.0.md) · [1.5.6](releases/1.5.6.md) · [1.5.5](releases/1.5.5.md) · [1.5.4](releases/1.5.4.md) · [1.5.3](releases/1.5.3.md) · [1.5.2](releases/1.5.2.md) · [すべてのリリース](releases/) · [CHANGELOG](CHANGELOG.md)
+[リリースノート](releases/1.6.2.md) · [1.6.1](releases/1.6.1.md) · [1.6.0](releases/1.6.0.md) · [1.5.6](releases/1.5.6.md) · [1.5.5](releases/1.5.5.md) · [1.5.4](releases/1.5.4.md) · [1.5.3](releases/1.5.3.md) · [すべてのリリース](releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -271,7 +271,7 @@ PageSift 1.6.1 は `1.6.x` 系列のセキュリティ・マルチテナント�
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.6.1}
+  note   = {Version 1.6.2}
 }
 ```
 

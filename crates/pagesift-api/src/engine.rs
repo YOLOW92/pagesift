@@ -150,6 +150,11 @@ pub trait Engine: Send + Sync + 'static {
         })
     }
 
+    /// 引擎是否挂接了持久化 [`pagesift_store::Store`]（用于路由初始化时兼容识别旧版持久化租户）。
+    fn store(&self) -> Option<&pagesift_store::Store> {
+        None
+    }
+
     /// 引擎支持的 `formats`；请求了不支持的格式时返回 UNSUPPORTED_OPTION，不悄悄忽略。
     fn supported_formats(&self) -> &'static [&'static str] {
         &["markdown", "html", "rawHtml", "links", "images"]

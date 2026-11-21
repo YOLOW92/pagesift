@@ -413,6 +413,10 @@ impl Engine for ClusterEngine {
         })
     }
 
+    fn store(&self) -> Option<&pagesift_store::Store> {
+        self.scraper.store_ref()
+    }
+
     fn supported_formats(&self) -> &'static [&'static str] {
         Engine::supported_formats(&*self.scraper)
     }

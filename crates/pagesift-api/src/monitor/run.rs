@@ -143,10 +143,16 @@ async fn settle(
 }
 
 /// 一次检查：只查到期的网址（自适应时各网址的到期时间不同）。
+/// 通过按监控 ID 的互斥锁与手动 `/run` 串行执行，避免并发覆盖 `next_due`。
 pub(crate) async fn run_check(s: &AppState, id: &str) {
-    let Some(snapshot) = s.monitors.map.lock().await.get(id).cloned() else {
-        return;
-    };
+    let lock = s.monitors.run_lock(id);
+    let _guard = lock.lock().await;
+    let _ = run_check_locked(s, id).await;
+}
+
+/// 在调用方已持有该监控 `run_lock` 的前提下执行一次检查。
+pub(crate) async fn run_check_locked(s: &AppState, id: &str) -> Option<Check> {
+    let snapshot = s.monitors.map.lock().await.get(id).cloned()?;
     let started = now_secs();
     let due: Vec<(String, PageState)> = snapshot
         .pages
@@ -154,6 +160,9 @@ pub(crate) async fn run_check(s: &AppState, id: &str) {
         .filter(|(_, p)| p.next_due <= started)
         .map(|(u, p)| (u.clone(), p.clone()))
         .collect();
+    if due.is_empty() {
+        return None;
+    }
     let mut results = Vec::new();
     let mut updates: Vec<(String, PageState)> = Vec::new();
     let substantive_only = snapshot.req.notify.as_deref() != Some("any");
@@ -213,7 +222,7 @@ pub(crate) async fn run_check(s: &AppState, id: &str) {
     };
     let saved = {
         let mut map = s.monitors.map.lock().await;
-        let Some(m) = map.get_mut(id) else { return };
+        let m = map.get_mut(id)?;
         for (u, p) in updates {
             m.pages.insert(u, p);
         }
@@ -244,8 +253,10 @@ pub(crate) async fn run_check(s: &AppState, id: &str) {
         saved
     })
     .await;
-    let Ok(saved) = saved else { return };
-    notify(s, &saved, &check).await;
+    if let Ok(saved) = saved {
+        notify(s, &saved, &check).await;
+    }
+    Some(check)
 }
 
 fn parse_rfc3339(s: &str) -> Option<f64> {
