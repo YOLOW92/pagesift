@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "langchain-pagesift"
-version = "1.6.2"
+version = "1.6.3"
 description = "LangChain document loader for pagesift: web pages, sites and local files as Markdown, no API key."
 readme = "README.md"
 requires-python = ">=3.10"

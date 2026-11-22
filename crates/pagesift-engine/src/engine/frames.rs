@@ -155,7 +155,8 @@ pub(super) fn content_iframes(html: &str, base: &Url) -> Vec<(String, Option<Url
                     .map(str::trim)
                     .filter(|s| !s.is_empty() && !s.starts_with("about:"))?;
                 let u = base.join(raw).ok().filter(|u| {
-                    u.host_str() == base.host_str()
+                    u.scheme() == base.scheme()
+                        && u.host_str() == base.host_str()
                         && u.port_or_known_default() == base.port_or_known_default()
                 })?;
                 Some((raw.to_string(), Some(u)))
@@ -203,6 +204,7 @@ pub(super) async fn inline_iframes_http(
     let itna_budget = super::ITNA_NETWORK_BUDGET
         .try_with(std::sync::Arc::clone)
         .ok();
+    let expected_direct = super::ITNA_EXPECTED_DIRECT.try_with(|v| *v).ok().flatten();
     let allowed_hosts = super::ACTION_ALLOWED_HOSTS
         .try_with(|hosts| hosts.as_ref().clone())
         .unwrap_or_default();
@@ -213,6 +215,7 @@ pub(super) async fn inline_iframes_http(
             let mut req = FetchRequest::new(u.as_str());
             req.timeout = Some(timeout);
             req.network_budget = itna_budget;
+            req.expected_direct = expected_direct;
             req.allowed_hosts = allowed_hosts;
             let mut resp = fetcher.fetch(req).await.ok()?;
             let html_like = resp

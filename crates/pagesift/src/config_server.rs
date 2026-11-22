@@ -158,7 +158,8 @@ impl Config {
                     "server.keys entries sharing account {acct:?} must declare identical requests_per_minute, max_concurrent_jobs, and pages_per_day"
                 );
             }
-            c.key_limits.insert(
+            let acct_cmp = account.clone();
+            if let Some(prev) = c.key_limits.insert(
                 key,
                 pagesift_api::KeyLimits {
                     name: k.name.clone(),
@@ -167,7 +168,16 @@ impl Config {
                     max_concurrent_jobs: k.max_concurrent_jobs,
                     pages_per_day: k.pages_per_day,
                 },
-            );
+            ) && (prev.name != k.name
+                || prev.account != acct_cmp
+                || prev.requests_per_minute != k.requests_per_minute
+                || prev.max_concurrent_jobs != k.max_concurrent_jobs
+                || prev.pages_per_day != k.pages_per_day)
+            {
+                bail!(
+                    "duplicate API key entry in server.keys with conflicting name, account, or limits"
+                );
+            }
         }
         c.webhook.ssrf.allow_private_network = s.webhook.allow_private_network;
         for cidr in &s.webhook.allow_cidrs {

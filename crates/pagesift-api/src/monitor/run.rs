@@ -2,6 +2,7 @@
 //! 更新变化率后验、算下次到期时间，记检查结果，发 webhook，落盘。
 
 use std::collections::HashSet;
+use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -9,8 +10,11 @@ use pagesift_stat::poisson::ChangeRate;
 use tokio::task::JoinSet;
 
 use super::crawl::check_crawl;
-use super::snapshot_ref::persist;
-use super::{Check, MonitorState, PageResult, PageState};
+use super::snapshot_ref::persist_blocking;
+use super::{
+    Check, MonitorLife, MonitorState, PAUSED_REASON_ACCOUNT_REVOKED, PAUSED_REASON_CHECK_PANICKED,
+    PageResult, PageState, WARNING_REVOKED_PREFIX,
+};
 use crate::error::ErrorCode;
 use crate::limits::Caller;
 use crate::server::AppState;
@@ -60,13 +64,20 @@ pub(super) fn ensure_running(s: &AppState) {
             }
             let due = {
                 let map = s.monitors.map.lock().await;
-                if map.is_empty() && checks.is_empty() {
+                let has_active = map
+                    .values()
+                    .any(|e| !e.life.is_deleted() && e.state.status == "active");
+                if !has_active && checks.is_empty() {
                     s.monitors.running.store(false, Ordering::SeqCst);
                     return;
                 }
                 map.values()
-                    .filter(|m| m.status == "active" && !busy.contains(&m.id))
-                    .filter_map(MonitorState::next_due)
+                    .filter(|e| {
+                        !e.life.is_deleted()
+                            && e.state.status == "active"
+                            && !busy.contains(&e.state.id)
+                    })
+                    .filter_map(|e| e.state.next_due())
                     .fold(f64::INFINITY, f64::min)
             };
             let wait = (due - now_secs()).max(0.0);
@@ -82,17 +93,27 @@ pub(super) fn ensure_running(s: &AppState) {
                 }
             }
             if leader.as_ref().is_some_and(|l| !l()) {
-                // 不是调度者：过一个最短间隔再看租约（没有哪个网址会比最短间隔更早到期两次）
-                tokio::time::sleep(Duration::from_secs(super::schedule::MIN_INTERVAL_SECS)).await;
+                // 不是调度者：过一个最短间隔再看租约，同时响应唤醒和已发检查收尾（删空监控时及时退出）
+                tokio::select! {
+                    () = tokio::time::sleep(Duration::from_secs(super::schedule::MIN_INTERVAL_SECS)) => {}
+                    () = s.monitors.wake.notified() => {}
+                    Some(done) = checks.join_next(), if !checks.is_empty() => {
+                        settle(&s, &mut busy, done).await;
+                    }
+                }
                 continue;
             }
             let ids: Vec<String> = {
                 let map = s.monitors.map.lock().await;
                 let now = now_secs();
                 map.values()
-                    .filter(|m| m.status == "active" && !busy.contains(&m.id))
-                    .filter(|m| m.next_due().is_some_and(|d| d <= now))
-                    .map(|m| m.id.clone())
+                    .filter(|e| {
+                        !e.life.is_deleted()
+                            && e.state.status == "active"
+                            && !busy.contains(&e.state.id)
+                    })
+                    .filter(|e| e.state.next_due().is_some_and(|d| d <= now))
+                    .map(|e| e.state.id.clone())
                     .collect()
             };
             for id in ids {
@@ -133,26 +154,130 @@ async fn settle(
         return;
     }
     tracing::error!(monitor = %id, "a monitor check panicked; the monitor is paused");
-    let mut map = s.monitors.map.lock().await;
-    if let Some(m) = map.get_mut(&id) {
-        m.status = "paused".into();
-        m.warnings
-            .push("monitor_paused: a check crashed, so this monitor stopped running".into());
-        persist(s, m);
+    let life = {
+        let map = s.monitors.map.lock().await;
+        match map.get(&id) {
+            Some(e) if !e.life.is_deleted() => e.life.clone(),
+            _ => return,
+        }
+    };
+    let persist_guard = life.persist_lock.clone().lock_owned().await;
+    if life.is_deleted() {
+        return;
+    }
+    let saved = {
+        let mut map = s.monitors.map.lock().await;
+        let Some(entry) = map.get_mut(&id) else {
+            return;
+        };
+        if !Arc::ptr_eq(&entry.life, &life) || life.is_deleted() {
+            return;
+        }
+        entry.state.status = "paused".into();
+        entry.state.paused_reason = Some(PAUSED_REASON_CHECK_PANICKED.into());
+        let warning = "monitor_paused: a check crashed, so this monitor stopped running";
+        if !entry.state.warnings.iter().any(|w| w == warning) {
+            entry.state.warnings.push(warning.into());
+        }
+        entry.state.clone()
+    };
+    let writer = s.clone();
+    let res = tokio::task::spawn_blocking(move || {
+        let _guard = persist_guard;
+        persist_blocking(&writer, &saved)
+    })
+    .await;
+    match res {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => {
+            tracing::error!(monitor = %id, %error, "could not persist panicked monitor pause")
+        }
+        Err(error) => tracing::error!(monitor = %id, %error, "monitor panic persist task failed"),
+    }
+}
+
+async fn pause_revoked_monitor(s: &AppState, id: &str, life: &Arc<MonitorLife>) {
+    let persist_guard = life.persist_lock.clone().lock_owned().await;
+    if life.is_deleted() {
+        return;
+    }
+    let saved = {
+        let mut map = s.monitors.map.lock().await;
+        let Some(entry) = map.get_mut(id) else {
+            return;
+        };
+        if !Arc::ptr_eq(&entry.life, life) || life.is_deleted() {
+            return;
+        }
+        let warning = format!(
+            "{WARNING_REVOKED_PREFIX} owner account {:?} is no longer configured; monitor paused without running under default limits",
+            entry.state.owner
+        );
+        entry.state.status = "paused".into();
+        entry.state.paused_reason = Some(PAUSED_REASON_ACCOUNT_REVOKED.into());
+        if !entry.state.warnings.iter().any(|w| w == &warning) {
+            entry.state.warnings.push(warning);
+        }
+        entry.state.clone()
+    };
+    s.metrics
+        .monitor_revoked_paused
+        .fetch_add(1, Ordering::Relaxed);
+    tracing::warn!(
+        monitor = %id,
+        owner = %saved.owner,
+        "monitor owner account is no longer configured during check; pausing monitor instead of falling back to default_limits"
+    );
+    let writer = s.clone();
+    let res = tokio::task::spawn_blocking(move || {
+        let _guard = persist_guard;
+        persist_blocking(&writer, &saved)
+    })
+    .await;
+    if let Ok(Err(error)) = res {
+        tracing::error!(monitor = %id, %error, "could not persist revoked-account pause state");
     }
 }
 
 /// 一次检查：只查到期的网址（自适应时各网址的到期时间不同）。
-/// 通过按监控 ID 的互斥锁与手动 `/run` 串行执行，避免并发覆盖 `next_due`。
+/// 通过条目自带的唯一 `life.run_lock` 与手动 `/run` 串行执行，避免并发覆盖 `next_due`。
 pub(crate) async fn run_check(s: &AppState, id: &str) {
-    let lock = s.monitors.run_lock(id);
-    let _guard = lock.lock().await;
-    let _ = run_check_locked(s, id).await;
+    let life = {
+        let map = s.monitors.map.lock().await;
+        let Some(entry) = map.get(id) else {
+            return;
+        };
+        if entry.life.is_deleted() || entry.state.status != "active" {
+            return;
+        }
+        entry.life.clone()
+    };
+    let _guard = life.run_lock.lock().await;
+    let _ = run_check_locked(s, id, &life).await;
 }
 
-/// 在调用方已持有该监控 `run_lock` 的前提下执行一次检查。
-pub(crate) async fn run_check_locked(s: &AppState, id: &str) -> Option<Check> {
-    let snapshot = s.monitors.map.lock().await.get(id).cloned()?;
+/// 在调用方已持有该监控 `life.run_lock` 的前提下执行一次检查。
+pub(crate) async fn run_check_locked(
+    s: &AppState,
+    id: &str,
+    life: &Arc<MonitorLife>,
+) -> Option<Check> {
+    if life.is_deleted() {
+        return None;
+    }
+    let snapshot = {
+        let map = s.monitors.map.lock().await;
+        let entry = map.get(id)?;
+        if !Arc::ptr_eq(&entry.life, life) || life.is_deleted() || entry.state.status == "deleting"
+        {
+            return None;
+        }
+        entry.state.clone()
+    };
+    let Some(caller) = s.monitors.resolve_caller(&snapshot.owner) else {
+        pause_revoked_monitor(s, id, life).await;
+        return None;
+    };
     let started = now_secs();
     let due: Vec<(String, PageState)> = snapshot
         .pages
@@ -166,8 +291,11 @@ pub(crate) async fn run_check_locked(s: &AppState, id: &str) -> Option<Check> {
     let mut results = Vec::new();
     let mut updates: Vec<(String, PageState)> = Vec::new();
     let substantive_only = snapshot.req.notify.as_deref() != Some("any");
-    let caller = s.monitors.caller(&snapshot.owner);
+    let mut cancel_rx = life.subscribe_cancel();
     for (url, prev) in due {
+        if life.is_deleted() {
+            return None;
+        }
         let target = snapshot
             .req
             .targets
@@ -184,16 +312,23 @@ pub(crate) async fn run_check_locked(s: &AppState, id: &str) -> Option<Check> {
             continue;
         }
         if let Some(seed) = url.strip_prefix("crawl:").and(target.url.clone()) {
-            let (pages, observed) = check_crawl(
-                s,
-                &snapshot,
-                &seed,
-                target,
-                &opts,
-                substantive_only,
-                &caller,
-            )
-            .await;
+            let (pages, observed) = tokio::select! {
+                biased;
+                () = MonitorLife::wait_cancelled(&mut cancel_rx) => return None,
+                res = check_crawl(
+                    s,
+                    &snapshot,
+                    &seed,
+                    target,
+                    &opts,
+                    substantive_only,
+                    &caller,
+                    life,
+                ) => res,
+            };
+            if life.is_deleted() {
+                return None;
+            }
             let mut next = prev.clone();
             observe(&snapshot, &mut next, started, observed);
             updates.push((url, next));
@@ -203,11 +338,33 @@ pub(crate) async fn run_check_locked(s: &AppState, id: &str) -> Option<Check> {
             }
             continue;
         }
-        let (result, next) = check_page(s, &url, &prev, &opts, substantive_only, &caller).await;
-        let mut next = next;
+        let (result, mut next) = tokio::select! {
+            biased;
+            () = MonitorLife::wait_cancelled(&mut cancel_rx) => return None,
+            res = check_page(s, &url, &prev, &opts, substantive_only, &caller) => res,
+        };
+        if life.is_deleted() {
+            return None;
+        }
         observe(&snapshot, &mut next, started, observation(&result));
         updates.push((url, next));
         results.push(result);
+    }
+    if life.is_deleted() {
+        return None;
+    }
+    #[cfg(test)]
+    {
+        let before_persist = s
+            .monitors
+            .hooks
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .and_then(|h| h.before_persist.clone());
+        if let Some(hook) = before_persist {
+            hook(id).await;
+        }
     }
     let check = Check {
         id: uuid::Uuid::new_v4().to_string(),
@@ -220,9 +377,17 @@ pub(crate) async fn run_check_locked(s: &AppState, id: &str) -> Option<Check> {
         },
         pages: results,
     };
+    let persist_guard = life.persist_lock.clone().lock_owned().await;
+    if life.is_deleted() {
+        return None;
+    }
     let saved = {
         let mut map = s.monitors.map.lock().await;
-        let m = map.get_mut(id)?;
+        let entry = map.get_mut(id)?;
+        if !Arc::ptr_eq(&entry.life, life) || life.is_deleted() {
+            return None;
+        }
+        let m = &mut entry.state;
         for (u, p) in updates {
             m.pages.insert(u, p);
         }
@@ -246,15 +411,26 @@ pub(crate) async fn run_check_locked(s: &AppState, id: &str) -> Option<Check> {
         }
         m.clone()
     };
-    // 序列化和写盘可能很久（状态里有页面全文），不占异步线程
+    // 序列化和写盘可能很久（状态里有页面全文），不占异步线程；
+    // 将 OwnedMutexGuard 移入 blocking 任务确保即使外层 future 被取消，物理写盘完成前 DELETE 也会等待。
     let writer = s.clone();
-    let saved = tokio::task::spawn_blocking(move || {
-        persist(&writer, &saved);
-        saved
+    let persist_state = saved.clone();
+    let persist_res = tokio::task::spawn_blocking(move || {
+        let _guard = persist_guard;
+        persist_blocking(&writer, &persist_state)
     })
     .await;
-    if let Ok(saved) = saved {
-        notify(s, &saved, &check).await;
+    match persist_res {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => {
+            tracing::error!(monitor = %id, %error, "could not persist monitor check result");
+        }
+        Err(error) => {
+            tracing::error!(monitor = %id, %error, "monitor persist task failed");
+        }
+    }
+    if !life.is_deleted() {
+        notify(s, &saved, &check, life).await;
     }
     Some(check)
 }
@@ -389,7 +565,16 @@ async fn check_page(
     match s.engine.scrape(url, &o).await {
         Ok(doc) => {
             if let Some(hold) = hold {
-                hold.commit().await;
+                let outcome = hold.commit().await;
+                if outcome.is_unrecoverable() {
+                    let err = crate::ApiError::new(
+                        ErrorCode::Internal,
+                        outcome
+                            .warning()
+                            .unwrap_or_else(|| "quota settlement failed".into()),
+                    );
+                    return (failure(url, &err), next);
+                }
             }
             let r = compare(url, prev, &doc, substantive_only, &mut next);
             (r, next)

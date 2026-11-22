@@ -101,7 +101,10 @@ async fn process_jina_scrape(
 
     match s.engine.scrape(target_url, &opts).await {
         Ok(doc) => {
-            record_ok(&s, page_hold).await;
+            let settle_warning = match record_ok(&s, page_hold).await {
+                Ok(w) => w,
+                Err(e) => return e.into_response(),
+            };
             let r = match super::respond::render(&doc, target_url, &params) {
                 Ok(r) => r,
                 Err(e) => return e.into_response(),
@@ -113,6 +116,7 @@ async fn process_jina_scrape(
                 .map(|m| m.warnings.clone())
                 .unwrap_or_default();
             warnings.extend(r.warnings.iter().cloned());
+            warnings.extend(settle_warning);
             if accept.contains("application/json") {
                 let mut data = serde_json::json!({
                     "title": doc.metadata.title.as_deref().unwrap_or(""),
@@ -151,12 +155,26 @@ async fn process_jina_scrape(
     }
 }
 
-async fn record_ok(s: &AppState, hold: Option<PageHold>) {
+async fn record_ok(
+    s: &AppState,
+    hold: Option<PageHold>,
+) -> Result<Option<String>, crate::ApiError> {
     s.metrics.scrape_ok.fetch_add(1, Ordering::Relaxed);
     s.metrics.page(PageSource::Scrape);
     if let Some(hold) = hold {
-        hold.commit().await;
+        let outcome = hold.commit().await;
+        if outcome.is_unrecoverable() {
+            return Err(crate::ApiError::new(
+                crate::ErrorCode::Internal,
+                format!(
+                    "quota ledger settlement failed: {}",
+                    outcome.message().unwrap_or("unrecoverable error")
+                ),
+            ));
+        }
+        return Ok(outcome.warning());
     }
+    Ok(None)
 }
 
 /// SSE：响应头立刻发出，抓取在流里进行；整页抓完、提取完之后才逐个写出 progress、各段 content 和 done
@@ -210,7 +228,13 @@ fn stream_scrape_with(
         };
         match r {
             Ok(doc) => {
-                record_ok(&s, hold).await;
+                let settle_warning = match record_ok(&s, hold).await {
+                    Ok(w) => w,
+                    Err(e) => {
+                        let _ = tx.send(error_event(&e).into()).await;
+                        return;
+                    }
+                };
                 // 和普通响应走同一份渲染：respond-with、保留方式、上限、分块都生效
                 let r = match super::respond::render(&doc, &url, &params) {
                     Ok(r) => r,
@@ -226,6 +250,7 @@ fn stream_scrape_with(
                     .map(|m| m.warnings.clone())
                     .unwrap_or_default();
                 warnings.extend(r.warnings.iter().cloned());
+                warnings.extend(settle_warning);
                 let parts: Vec<String> = match r.chunks {
                     Some(c) => c,
                     None => split_paragraphs(&r.body),

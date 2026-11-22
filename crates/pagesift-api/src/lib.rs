@@ -36,7 +36,7 @@ pub use jobs::{
     store_graph_conflicts, store_graph_conflicts_checked, store_graph_history,
 };
 pub use limits::{KeyLimits, validate_account_id};
-pub use server::{Config, ExtraMetrics, Timeouts, router, serve, serve_with};
+pub use server::{Config, ExtraMetrics, Timeouts, router, serve, serve_with, try_router};
 pub use validate::{
     MAX_CRAWL_DEPTH, MAX_CRAWL_LIMIT, MAX_MAP_LIMIT, MAX_PARSE_FILE_BYTES, MAX_SCRAPE_TIMEOUT_MS,
     MAX_URL_LEN, MAX_URLS, check_parse_options, check_scrape_options, check_url,

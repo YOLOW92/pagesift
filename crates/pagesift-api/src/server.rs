@@ -93,6 +93,8 @@ pub struct Config {
     pub extra_metrics: Option<ExtraMetrics>,
     /// 监控调度者：多服务器时只有持有网关租约的机器调度（返回真才检查）。单主机不设，总是调度。
     pub monitor_leader: Option<crate::monitor::Leader>,
+    #[cfg(test)]
+    pub(crate) monitor_hooks: Option<crate::monitor::MonitorTestHooks>,
 }
 
 /// 生成额外指标文本（Prometheus 文本格式）的回调。
@@ -169,8 +171,17 @@ pub struct ExtractJob {
 }
 
 /// Construct complete HTTP router with Firecrawl v1/v2, Jina Reader, and metrics.
-pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
+///
+/// Validates API key / shared-account configuration and legacy tenant storage probing fail-closed;
+/// returns `Err(ApiError)` when shared-account limits conflict, explicit account IDs are invalid,
+/// or persisted tenant storage is unreadable or ambiguous.
+pub fn try_router(engine: Arc<dyn Engine>, config: Config) -> Result<Router, ApiError> {
     let timeouts = config.timeouts;
+    if let Some(raw) = config.default_limits.account.as_deref() {
+        crate::limits::validate_account_id(raw).map_err(|e| {
+            ApiError::invalid(format!("invalid default_limits.account {raw:?}: {e}"))
+        })?;
+    }
     let default_limits = Arc::new(config.default_limits);
     let mut raw_keys: HashMap<String, Arc<KeyLimits>> = config
         .api_keys
@@ -178,22 +189,31 @@ pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
         .map(|k| (k, default_limits.clone()))
         .collect();
     raw_keys.extend(config.key_limits.into_iter().map(|(k, l)| (k, Arc::new(l))));
+    if raw_keys.is_empty() && default_limits.account.is_some() {
+        return Err(ApiError::invalid(
+            "default_limits.account is not supported when authentication is disabled (no api_keys or key_limits configured)",
+        ));
+    }
 
     let probe_store = config.store.as_ref().or_else(|| engine.store());
     let (keys, accounts) =
-        crate::account_resolve::resolve_callers(raw_keys, probe_store, config.ledger.as_deref());
+        crate::account_resolve::resolve_callers(raw_keys, probe_store, config.ledger.as_deref())?;
+    let auth_enabled = !keys.is_empty();
 
     let metrics = Arc::new(Metrics::default());
-    let limiter = Arc::new(match config.ledger {
-        Some(ledger) => {
-            // 所有账户的限额事先登记进账本（不在每个请求上登记）；没有 key 的调用方是 anonymous
-            let mut all = accounts.clone();
-            all.entry("anonymous".into())
-                .or_insert_with(|| default_limits.clone());
-            Limiter::with_ledger(ledger, &all)
+    let limiter = Arc::new(
+        match config.ledger {
+            Some(ledger) => {
+                // 所有账户的限额事先登记进账本（不在每个请求上登记）；没有 key 的调用方是 anonymous
+                let mut all = accounts.clone();
+                all.entry("anonymous".into())
+                    .or_insert_with(|| default_limits.clone());
+                Limiter::with_ledger(ledger, &all)
+            }
+            None => Limiter::new(config.store.clone()),
         }
-        None => Limiter::new(config.store.clone()),
-    });
+        .with_metrics(metrics.clone()),
+    );
     // 附件跟任务结果一样写进存储，重启后链接仍然有效（见 `attachments`）
     if let Some(s) = &config.store
         && tokio::runtime::Handle::try_current().is_ok()
@@ -224,19 +244,26 @@ pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
 
     if tokio::runtime::Handle::try_current().is_ok() {
         let fallback = default_limits.clone();
-        jobs.restore(&engine, &|account| {
-            accounts
-                .get(account)
-                .cloned()
-                .unwrap_or_else(|| fallback.clone())
+        jobs.restore(&engine, &|owner, owner_auth| {
+            if auth_enabled {
+                owner.and_then(|account| accounts.get(account).cloned())
+            } else if owner.is_none_or(|account| account == "anonymous") && owner_auth != Some(true)
+            {
+                Some(fallback.clone())
+            } else {
+                None
+            }
         });
     } else {
         tracing::warn!("router built outside a tokio runtime: saved jobs are not resumed");
     }
 
     let monitors = crate::monitor::Monitors {
+        auth_enabled,
         accounts: Arc::new(accounts),
         default_limits: default_limits.clone(),
+        #[cfg(test)]
+        hooks: Arc::new(std::sync::Mutex::new(config.monitor_hooks)),
         ..Default::default()
     };
     let state = AppState {
@@ -268,7 +295,7 @@ pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
         .merge(crate::context::routes())
         .route_layer(middleware::from_fn_with_state(state.clone(), auth));
 
-    Router::new()
+    Ok(Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .route("/metrics", get(render_metrics))
         .merge(api)
@@ -276,7 +303,16 @@ pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
         .fallback(|| async { ApiError::new(ErrorCode::NotFound, "no such endpoint") })
         .layer(middleware::from_fn(uniform_errors))
         .layer(middleware::from_fn_with_state(timeouts, deadline))
-        .layer(middleware::from_fn_with_state(state.clone(), observe))
+        .layer(middleware::from_fn_with_state(state.clone(), observe)))
+}
+
+/// Construct complete HTTP router with Firecrawl v1/v2, Jina Reader, and metrics.
+///
+/// Panics if [`try_router`] rejects the [`Config`] (e.g., conflicting shared-account limits or
+/// ambiguous/unreadable legacy tenant storage). Prefer [`try_router`] in library code that handles
+/// configuration errors explicitly.
+pub fn router(engine: Arc<dyn Engine>, config: Config) -> Router {
+    try_router(engine, config).unwrap_or_else(|e| panic!("invalid pagesift_api::Config: {e}"))
 }
 
 /// 用默认超时在 `listener` 上提供服务，`shutdown` 完成后优雅退出。
@@ -621,7 +657,9 @@ pub fn webhook(
 }
 
 async fn render_metrics(State(s): State<AppState>) -> impl IntoResponse {
-    let mut out = s.metrics.render(&s.jobs.counts().await);
+    let mut out = s
+        .metrics
+        .render_with_pending_quota(&s.jobs.counts().await, s.limiter.pending_settlement_count());
     if let Some(extra) = &s.extra_metrics {
         out.push_str(&extra());
     }

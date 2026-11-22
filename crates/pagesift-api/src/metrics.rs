@@ -48,6 +48,14 @@ pub(crate) struct Metrics {
     pub(crate) scrape_err: AtomicU64,
     /// 启动时读不回来的监控记录数。
     pub(crate) monitor_load_failures: AtomicU64,
+    /// 因所属账户被撤销/停用而暂停保留的监控数。
+    pub(crate) monitor_revoked_paused: AtomicU64,
+    /// 配额持久化结算或释放明确失败的次数。
+    pub(crate) quota_settlement_failures: AtomicU64,
+    /// 配额持久化结算结果模糊（I/O 错误或任务中止）的次数。
+    pub(crate) quota_settlement_uncertain: AtomicU64,
+    /// 无法继续排队等待核销而丢弃的失败结算次数。
+    pub(crate) quota_settlement_dropped: AtomicU64,
     pages: [AtomicU64; 4],
     /// (错误码, 来源)：`http` 是请求本身的错误响应，`job` 是任务里单个页面的错误。
     errors: Mutex<BTreeMap<(&'static str, &'static str), u64>>,
@@ -96,7 +104,17 @@ impl Metrics {
     }
 
     /// 输出 Prometheus 文本格式；`jobs` 是当前任务数，按 (类型, 状态) 分组。
+    #[cfg(test)]
     pub(crate) fn render(&self, jobs: &BTreeMap<(&'static str, &'static str), u64>) -> String {
+        self.render_with_pending_quota(jobs, 0)
+    }
+
+    /// 同 [`Self::render`]，附带当前挂起待核销的配额结算/释放数。
+    pub(crate) fn render_with_pending_quota(
+        &self,
+        jobs: &BTreeMap<(&'static str, &'static str), u64>,
+        pending_quota_settlements: usize,
+    ) -> String {
         let mut out = String::new();
 
         header(
@@ -187,6 +205,65 @@ impl Metrics {
             out,
             "pagesift_monitor_load_failures_total {}",
             self.monitor_load_failures.load(Ordering::Relaxed)
+        );
+
+        header(
+            &mut out,
+            "pagesift_monitor_revoked_paused_total",
+            "counter",
+            "Saved monitors paused at startup because their owning account is no longer active.",
+        );
+        let _ = writeln!(
+            out,
+            "pagesift_monitor_revoked_paused_total {}",
+            self.monitor_revoked_paused.load(Ordering::Relaxed)
+        );
+
+        header(
+            &mut out,
+            "pagesift_quota_settlement_failures_total",
+            "counter",
+            "Quota ledger/store settlement or release attempts that failed.",
+        );
+        let _ = writeln!(
+            out,
+            "pagesift_quota_settlement_failures_total {}",
+            self.quota_settlement_failures.load(Ordering::Relaxed)
+        );
+
+        header(
+            &mut out,
+            "pagesift_quota_settlement_uncertain_total",
+            "counter",
+            "Quota ledger/store settlement attempts with ambiguous durability outcome.",
+        );
+        let _ = writeln!(
+            out,
+            "pagesift_quota_settlement_uncertain_total {}",
+            self.quota_settlement_uncertain.load(Ordering::Relaxed)
+        );
+
+        header(
+            &mut out,
+            "pagesift_quota_settlement_dropped_total",
+            "counter",
+            "Unrecoverable or queue-overflowed quota settlements that could not be queued for reconciliation.",
+        );
+        let _ = writeln!(
+            out,
+            "pagesift_quota_settlement_dropped_total {}",
+            self.quota_settlement_dropped.load(Ordering::Relaxed)
+        );
+
+        header(
+            &mut out,
+            "pagesift_quota_pending_settlements",
+            "gauge",
+            "Pending quota settlements or releases awaiting idempotent reconciliation.",
+        );
+        let _ = writeln!(
+            out,
+            "pagesift_quota_pending_settlements {pending_quota_settlements}"
         );
 
         header(

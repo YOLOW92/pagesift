@@ -85,6 +85,9 @@ pub(super) fn to_ms(t: SystemTime) -> u64 {
         .map_or(0, |d| d.as_millis() as u64)
 }
 
+pub(crate) type LimitsResolver<'a> =
+    &'a dyn Fn(Option<&str>, Option<bool>) -> Option<Arc<KeyLimits>>;
+
 impl Jobs {
     /// 把任务的当前状态和计数写回存储。
     pub(super) async fn save_state(&self, id: &str) {
@@ -124,12 +127,10 @@ impl Jobs {
     }
 
     /// 服务启动时从存储恢复任务：结束的任务照样能查，进行中的从断点继续，过期的删掉。
-    /// `limits` 按调用方名字找回当前配置的限额。需要在 tokio 运行时里调用。
-    pub(crate) fn restore(
-        &self,
-        engine: &Arc<dyn Engine>,
-        limits: &dyn Fn(&str) -> Arc<KeyLimits>,
-    ) {
+    /// `resolve_limits` 按调用方账户及鉴权标记找回当前有效限额；返回 `None` 说明所属账户已被撤销
+    /// 或与当前部署模式不匹配，此时绝不回退到 `default_limits` 续跑进行中的抓取任务。
+    /// 需要在 tokio 运行时里调用。
+    pub(crate) fn restore(&self, engine: &Arc<dyn Engine>, resolve_limits: LimitsResolver<'_>) {
         let Some(store) = &self.inner.store else {
             return;
         };
@@ -142,7 +143,7 @@ impl Jobs {
             }
         };
         let now = SystemTime::now();
-        let (mut finished, mut resumed, mut expired) = (0, 0, 0);
+        let (mut finished, mut resumed, mut expired, mut revoked) = (0, 0, 0, 0);
         for key in keys {
             let Some(id) = std::str::from_utf8(&key)
                 .ok()
@@ -152,7 +153,7 @@ impl Jobs {
             else {
                 continue;
             };
-            let Some(meta) = t
+            let Some(mut meta) = t
                 .kv_get(&key)
                 .ok()
                 .flatten()
@@ -162,10 +163,13 @@ impl Jobs {
                 delete_job(store, self.inner.mirror.as_deref(), &id, None);
                 continue;
             };
-            let owner = meta
-                .owner
-                .as_deref()
-                .map(|a| Caller::restored(a, meta.owner_authenticated, limits(a)));
+            let resolved_limits = resolve_limits(meta.owner.as_deref(), meta.owner_authenticated);
+            let owner = meta.owner.as_deref().map(|a| {
+                let lim = resolved_limits
+                    .clone()
+                    .unwrap_or_else(|| Arc::new(KeyLimits::default()));
+                Caller::restored(a, meta.owner_authenticated, lim)
+            });
             let tenant = meta
                 .tenant
                 .clone()
@@ -209,17 +213,68 @@ impl Jobs {
             }
             job.created = created;
             job.state = meta.state;
-            job.summary = meta.summary;
+            job.summary = meta.summary.clone();
             job.stored_docs = pages;
             job.completed = pages + errors;
             job.total = job.total.max(job.completed);
             if job.state != JobState::Scraping {
                 finished += 1;
-                // 结束前还没投完的 webhook 事件（比如 completed）：起一个投递任务发完就退出
-                if let (Some(w), Some(cfg)) = (&self.inner.webhooks, meta.webhook)
+                // 结束前还没投完的 webhook 事件（比如 completed）：仅在账户仍有效时续投
+                if resolved_limits.is_some()
+                    && let (Some(w), Some(cfg)) = (&self.inner.webhooks, meta.webhook)
                     && t.list_len(outbox_key(&id)) > 0
                 {
                     drop(w.start(&id, meta.kind.as_str(), cfg, Some(store.clone())));
+                }
+                self.inner
+                    .map
+                    .try_lock()
+                    .expect("not shared yet")
+                    .insert(id, job);
+                continue;
+            }
+            if resolved_limits.is_none() {
+                revoked += 1;
+                let owner_name = meta.owner.as_deref().unwrap_or("unknown");
+                tracing::warn!(
+                    job = %id,
+                    owner = %owner_name,
+                    "saved in-progress job owner account is no longer configured; marking job failed instead of resuming under default_limits"
+                );
+                job.state = JobState::Failed;
+                meta.state = JobState::Failed;
+                meta.completed = job.completed;
+                meta.total = job.total;
+                let note = format!(
+                    "account_revoked: owner account {owner_name:?} is no longer configured; job not resumed under default limits"
+                );
+                let raw_meta = serde_json::to_vec(&meta);
+                let raw_note = serde_json::to_vec(&note);
+                match (raw_meta, raw_note) {
+                    (Ok(raw_meta), Ok(raw_note)) => {
+                        // Fail-closed 顺序：先将 meta.state = Failed 写入存储并复制到温备，再追加说明到 notes，
+                        // 避免污染 `job/{id}/errors`（其长度用于计算 completed）及温备半写状态。
+                        if let Err(e) =
+                            super::mirror::write(store, self.inner.mirror.as_deref(), |tasks| {
+                                tasks.kv_put(&meta_key(&id), &raw_meta)?;
+                                tasks.list_push(&list_key(&id, "notes"), &raw_note)?;
+                                Ok(())
+                            })
+                        {
+                            tracing::warn!(
+                                job = %id,
+                                error = %e,
+                                "persisting revoked-account job failure failed"
+                            );
+                        }
+                    }
+                    (Err(e), _) | (_, Err(e)) => {
+                        tracing::error!(
+                            job = %id,
+                            error = %e,
+                            "encoding revoked-account job failure metadata failed"
+                        );
+                    }
                 }
                 self.inner
                     .map
@@ -319,8 +374,8 @@ impl Jobs {
             }
             resumed += 1;
         }
-        if finished + resumed + expired > 0 {
-            tracing::info!(finished, resumed, expired, "restored saved jobs");
+        if finished + resumed + expired + revoked > 0 {
+            tracing::info!(finished, resumed, expired, revoked, "restored saved jobs");
         }
     }
 }

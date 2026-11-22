@@ -160,7 +160,8 @@ pub(crate) fn run(command: Command, mut cfg: pagesift::config::Config) -> Result
             // 请求头读取时限在连接层生效，其余在路由的中间件里
             let timeouts = api.timeouts;
             let unauthenticated = api.api_keys.is_empty() && api.key_limits.is_empty();
-            let app = pagesift::api::router(engine, api);
+            let app = pagesift::api::try_router(engine, api)
+                .map_err(|e| anyhow::anyhow!("invalid server API configuration: {e}"))?;
             let listener = tokio::net::TcpListener::bind((host.as_str(), port))
                 .await
                 .with_context(|| format!("binding {host}:{port}"))?;

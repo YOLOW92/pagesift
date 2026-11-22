@@ -460,4 +460,24 @@ fn server_keys_account_validation_and_conflict_rejection() {
             "reserved account {reserved:?} must fail"
         );
     }
+
+    // Duplicate `[[server.keys]]` for the same secret key with conflicting limits or account must fail.
+    let dup_conflict: Config = toml::from_str(
+        r#"
+        [[server.keys]]
+        key = "k-dup"
+        account = "acct-a"
+        pages_per_day = 10
+
+        [[server.keys]]
+        key = "k-dup"
+        account = "acct-a"
+        pages_per_day = 20
+        "#,
+    )
+    .unwrap();
+    assert!(
+        dup_conflict.api().is_err(),
+        "duplicate key with conflicting limits must be rejected"
+    );
 }

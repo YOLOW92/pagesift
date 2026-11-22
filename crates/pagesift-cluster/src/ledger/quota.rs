@@ -132,10 +132,12 @@ impl QuotaShard {
             .collect()
     }
 
-    /// 丢掉今天之前的日账（配额按 UTC 日重置）。
+    /// 丢掉今天之前的日账（配额按 UTC 日重置），同时清理跨天后残留的过期非任务冻结。
     pub(crate) fn prune(&mut self, today: u64) {
         self.settled.retain(|(_, d), _| *d >= today);
         self.reserved.retain(|(_, d), _| *d >= today);
+        self.holds
+            .retain(|_, (h, task)| h.day >= today || task.is_some());
     }
 
     fn close(&mut self, hold: u64) -> Option<Hold> {
@@ -265,7 +267,13 @@ impl QuotaShard {
         let Some(rpm) = self.limits(account).requests_per_minute else {
             return Ok(());
         };
-        let cap = f64::from(rpm.max(1));
+        if rpm == 0 {
+            return Err(Refusal::Rate {
+                limit: 0,
+                retry_after: Duration::from_secs(60),
+            });
+        }
+        let cap = f64::from(rpm);
         let recent = self.recent.get(account);
         let b = self.buckets.entry(account.clone()).or_insert_with(|| {
             // 没有桶：一分钟前按满桶算，依次扣掉窗口内放行的请求
@@ -321,11 +329,33 @@ impl Ledger {
         q.balance(&account.into(), self.today())
     }
 
-    /// 账本中是否已有该账户的已结算或冻结配额记录（用于升级时识别旧租户命名空间）。
+    /// 账本中是否已有该账户的配额、限流或任务历史记录（用于升级时识别旧租户命名空间）。
     pub fn has_account_usage(&self, account: &str) -> bool {
+        let in_quota = {
+            let q = lock(&self.quota_slot(account).quota);
+            q.settled.keys().any(|(a, _)| a.as_ref() == account)
+                || q.holds.values().any(|(h, _)| h.account.as_ref() == account)
+                || q.recent.contains_key(account)
+        };
+        in_quota || lock(&self.registry).contains_account(account)
+    }
+
+    /// 检查一笔冻结当前是否仍处于打开状态（未结算也未释放）。
+    pub fn is_hold_open(&self, hold: &Hold) -> bool {
+        if hold.id == 0 {
+            return false;
+        }
+        let q = lock(&self.quota_slot(&hold.account).quota);
+        q.holds.contains_key(&hold.id)
+    }
+
+    /// 某账户当前处于打开状态的冻结笔数（供诊断与恢复验证）。
+    pub fn open_hold_count(&self, account: &str) -> usize {
         let q = lock(&self.quota_slot(account).quota);
-        q.settled.keys().any(|(a, _)| a.as_ref() == account)
-            || q.holds.values().any(|(h, _)| h.account.as_ref() == account)
+        q.holds
+            .values()
+            .filter(|(h, _)| h.account.as_ref() == account)
+            .count()
     }
 
     fn quota_refusal(&self, limit: u64) -> Refusal {
@@ -421,6 +451,10 @@ impl Ledger {
         h: &Hold,
         settle: Option<u64>,
     ) -> Result<(), Error> {
+        // 幂等短路：已结算或已释放的冻结不再重复写日志（跨天过期后也不会误记账）。
+        if !q.holds.contains_key(&h.id) {
+            return Ok(());
+        }
         let (hold, account) = (h.id, h.account.clone());
         let rec = match settle {
             Some(actual) => Record::Settle {
@@ -563,5 +597,86 @@ mod tests {
         }
         assert!(matches!(r.check_rate(&a, 3_000), Err(Refusal::Rate { .. })));
         assert!(r.check_rate(&a, 23_000).is_ok());
+    }
+
+    #[test]
+    fn zero_rpm_refuses_immediately_and_prune_drops_stale_http_holds() {
+        let a: Arc<str> = "zero".into();
+        let mut q = QuotaShard::default();
+        q.set_limits(
+            &a,
+            AccountLimits {
+                pages_per_day: Some(5),
+                requests_per_minute: Some(0),
+            },
+        );
+        assert!(matches!(
+            q.check_rate(&a, 1_000),
+            Err(Refusal::Rate { limit: 0, .. })
+        ));
+
+        // Yesterday's orphaned HTTP hold (task: None) is pruned on UTC day rollover;
+        // duplicate Settle records during WAL replay remain strictly idempotent.
+        q.apply(&Record::Reserve {
+            hold: 10,
+            account: a.clone(),
+            day: 1,
+            amount: 2,
+            task: None,
+        });
+        q.apply(&Record::Reserve {
+            hold: 11,
+            account: a.clone(),
+            day: 2,
+            amount: 1,
+            task: None,
+        });
+        q.prune(2);
+        assert!(!q.holds.contains_key(&10), "stale day-1 HTTP hold pruned");
+        assert!(q.holds.contains_key(&11), "current day-2 hold kept");
+
+        // Replaying two Settle records for the same hold ID charges exactly once.
+        q.apply(&Record::Settle {
+            hold: 11,
+            account: a.clone(),
+            actual: 1,
+        });
+        q.apply(&Record::Settle {
+            hold: 11,
+            account: a.clone(),
+            actual: 1,
+        });
+        assert_eq!(q.balance(&a, 2), Some(4));
+    }
+
+    #[test]
+    fn ledger_close_hold_is_idempotent_on_journal_and_balance() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = pagesift_store::Store::open_dir(dir.path()).unwrap();
+        let clock = crate::clock::ManualClock::new();
+        let ledger = Ledger::open(
+            crate::ledger::LedgerConfig::new(clock, false)
+                .with_journal(crate::journal::Journal::new(store)),
+        )
+        .unwrap();
+        ledger.set_limits(
+            "acct",
+            AccountLimits {
+                pages_per_day: Some(3),
+                requests_per_minute: None,
+            },
+        );
+        let hold = ledger.reserve("acct", 1).unwrap();
+        assert!(ledger.is_hold_open(&hold));
+        assert_eq!(ledger.open_hold_count("acct"), 1);
+
+        ledger.settle(&hold, 1).unwrap();
+        assert!(!ledger.is_hold_open(&hold));
+        let len_after_first = ledger.journal().unwrap().len();
+        // Second settle and subsequent release on the same hold are strict no-ops.
+        ledger.settle(&hold, 1).unwrap();
+        ledger.release(&hold).unwrap();
+        assert_eq!(ledger.journal().unwrap().len(), len_after_first);
+        assert_eq!(ledger.balance("acct"), Some(2));
     }
 }

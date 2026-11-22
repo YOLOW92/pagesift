@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="180" />
 
-# pagesift 1.6.2
+# pagesift 1.6.3
 
 **Motor local-first en Rust para ingesta de web y documentos — captura HTTP/navegador, análisis con diseño para PDF/Office/OCR, sincronización persistente, grafos de datos verificables y compilación de contexto para IA basada en evidencias.**  
 Un único binario autoalojado en Rust con CLI, APIs HTTP compatibles con Firecrawl v1/v2 y Jina Reader, servidor MCP, ABI de C y paquetes nativos para Python y Node.js.
@@ -35,8 +35,8 @@ Alternativa o complemento para: **Firecrawl** (API v1/v2 autoalojada), **Jina Re
 - **Entradas:** URLs, HTML, PDF (capa de texto + PP-OCRv6 / fórmulas opcionales), imágenes subidas (OCR activo), Office y OpenDocument, RTF/WordPerfect/HWP, libros electrónicos, correo, archivos (`zip`, `tar`, `7z`), SQLite/CSV, 373 lenguajes de código y archivos WARC ([matriz de formatos](parse-api.md))
 - **Salidas:** Markdown, HTML, HTML sin procesar, enlaces, imágenes/adjuntos, fragmentos RAG, JSON con esquema, `DataGraph` (`graph.jsonl`, citas, ciclos de vida de claims, conflictos, `fact_clusters`, `?asOf=`), `ContextPack` (`KnowledgeUnit`, `ContextDelta`, `provenanceManifest`) y avisos estructurados en capturas parciales
 - **Interfaces:** CLI · API HTTP Firecrawl v1/v2 · Jina Reader (`/r/`, `/s/`) · MCP (stdio / HTTP) · Python · Node.js / TypeScript · crate Rust · ABI de C (Go, Java, Kotlin, C#, Ruby, PHP, Lua, Perl, Dart, Swift, Zig) · LangChain y LlamaIndex
-- **Plataformas y despliegue:** Binario único (`serve --role gateway`, `worker`, `standby`), Linux x86_64/aarch64 (glibc ≥ 2.28 y musl), macOS arm64, Windows x86_64, Docker `ghcr.io/yolow92/pagesift:1.6.2`
-- **Índice y versión:** Índice legible por máquina [llms.txt](../llms.txt) · Apache-2.0 o [soporte comercial](COMMERCIAL.md) · **1.6.2** ([notas de versión](releases/1.6.2.md))
+- **Plataformas y despliegue:** Binario único (`serve --role gateway`, `worker`, `standby`), Linux x86_64/aarch64 (glibc ≥ 2.28 y musl), macOS arm64, Windows x86_64, Docker `ghcr.io/yolow92/pagesift:1.6.3`
+- **Índice y versión:** Índice legible por máquina [llms.txt](../llms.txt) · Apache-2.0 o [soporte comercial](COMMERCIAL.md) · **1.6.3** ([notas de versión](releases/1.6.3.md))
 
 <!-- section: install -->
 ## Instalación y comienzo rápido
@@ -46,7 +46,7 @@ Alternativa o complemento para: **Firecrawl** (API v1/v2 autoalojada), **Jina Re
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| Servidor | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.6.2` | `curl localhost:3002/r/https://example.com` |
+| Servidor | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.6.3` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 <details>
@@ -92,7 +92,7 @@ console.log(page.markdown, pack.pack)
 **Servidor HTTP (`Firecrawl v1/v2`, `Jina Reader`, `/v2/sources`, `/v2/graph`, `/v2/context`) y MCP**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.6.2
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.6.3
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'
@@ -251,11 +251,11 @@ Consulta la [referencia completa de arquitectura](architecture.md) para dimensio
 [Apache-2.0](../LICENSE). Para soporte empresarial, SLAs personalizados o asistencia dedicada de despliegue, consulta la [licencia y soporte comercial](COMMERCIAL.md) o escribe a `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
-## Novedades de 1.6.2
+## Novedades de 1.6.3
 
-PageSift 1.6.2 añade continuidad automática para inquilinos persistidos de `1.6.0`, liquidación de cuotas segura ante cancelaciones, constructores fluidos en `KeyLimits` y serialización de ejecuciones por monitor en la rama `1.6.x`: al arrancar el enrutador inspecciona `Store` (`Store::existing_tenants`) y el libro mayor de clúster (`Ledger::has_account_usage`) para que las claves sin nombre (`key-<16hex>` FNV-1a) y las claves con `name` único conserven el acceso a sus `Context`, `DataGraph`, fuentes `Loop`, monitores, trabajos y cuotas diarias de `1.6.0`, manteniendo aisladas bajo huellas SHA-256 las claves con `name` duplicado junto con advertencias explícitas; `PageHold::commit()` transiciona `held -> settled` de forma síncrona antes de `.await` y persiste en disco mediante una tarea serializada por cuenta inmune a cancelaciones; agrega constructores `KeyLimits::new().with_*()` y documenta explícitamente la compatibilidad de literales Rust para `KeyLimits.account`; y serializa comprobaciones programadas frente a `POST /v2/monitor/{id}/run` por monitor para evitar comprobaciones vacías `pages: []`.
+PageSift 1.6.3 refuerza la coherencia de configuración, el ciclo de vida al eliminar monitores, el modo fail-closed en la inicialización de seguridad CDP, la detención de tareas de cuentas revocadas, la conciliación de cuotas en clúster y la detección segura de inquilinos heredados en la rama `1.6.x`: añade `pagesift_api::try_router()` con retorno de error (`router()` y `pagesift serve` comparten la misma fuente de validación) para rechazar límites en conflicto entre claves de un mismo `account`, identificadores con delimitadores o prefijos reservados, entradas duplicadas en conflicto de `[[server.keys]]` y discrepancias en límites `0` entre `Limiter` local y `Ledger` de clúster; sustituye la tabla global `run_locks` sin límite por `MonitorLife` por entrada para que `DELETE /v2/monitor/{id}` cancele de inmediato comprobaciones y webhooks en vuelo, se serialice frente a escrituras bloqueantes incluso con futuros cancelados y reporte fallos de borrado sin resurrecciones; hace fail-closed la inicialización de seguridad CDP en objetivos principales y secundarios (con canalización sin interbloqueo para ServiceWorker de Chromium) y las guardas de `allowedHosts`/`bypassServiceWorker` en motores sin interceptación preservando el renderizado normal de Lightpanda; pausa los monitores persistidos (`pausedReason: "account_revoked"`) y marca como `failed` los trabajos en curso de cuentas revocadas sin recurrir a `default_limits`; incorpora cierre idempotente de reservas, poda por cambio de día UTC, cola FIFO acotada de vuelo único y `SettleOutcome` triestado con advertencias/`500` HTTP y métricas Prometheus; y extiende la detección de inquilinos heredados a `agent/`, `attachment-access/` y claves agrupadas `GRAPH_NODE`/`GRAPH_EDGE` fallando en cerrado ante errores de lectura, registros corruptos o espacios de nombres duales.
 
-[Notas de la versión](releases/1.6.2.md) · [1.6.1](releases/1.6.1.md) · [1.6.0](releases/1.6.0.md) · [1.5.6](releases/1.5.6.md) · [1.5.5](releases/1.5.5.md) · [1.5.4](releases/1.5.4.md) · [1.5.3](releases/1.5.3.md) · [todas las versiones](releases/) · [CHANGELOG](CHANGELOG.md)
+[Notas de la versión](releases/1.6.3.md) · [1.6.2](releases/1.6.2.md) · [1.6.1](releases/1.6.1.md) · [1.6.0](releases/1.6.0.md) · [1.5.6](releases/1.5.6.md) · [1.5.5](releases/1.5.5.md) · [1.5.4](releases/1.5.4.md) · [todas las versiones](releases/) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -271,7 +271,7 @@ Preguntas o comentarios: [Discord](https://discord.gg/esA3wMZVvA) · [Issues](ht
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.6.2}
+  note   = {Version 1.6.3}
 }
 ```
 

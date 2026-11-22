@@ -444,7 +444,7 @@ impl CrawlSink for JobSink {
         Box::pin(async move {
             let hold = { self.holds.lock().await.remove(url) };
             if let Some(hold) = hold {
-                hold.commit().await;
+                let _ = hold.commit().await;
             }
         })
     }

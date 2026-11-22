@@ -256,49 +256,175 @@ pub(super) async fn monitor(
     }
 }
 
+pub(super) fn is_method_not_found(err: &Error) -> bool {
+    // [协议] JSON-RPC 2.0 Method not found 错误码
+    matches!(err, Error::Protocol { code: -32601, .. })
+}
+
+async fn block_child_websockets(child: &Session, kind: &str, shared: &Shared) -> bool {
+    if let Err(e) = enable_network(child).await {
+        if shared.strict_security || !is_method_not_found(&e) {
+            shared.fail_interception(format!("{kind} target Network.enable: {e}"));
+            return false;
+        }
+        tracing::warn!(target = kind, error = %e, "child Network.enable unsupported in non-strict mode");
+        return true;
+    }
+    if let Err(e) = child
+        .call(
+            "Network.setBlockedURLs",
+            json!({ "urls": ["ws://*", "wss://*"] }),
+        )
+        .await
+    {
+        if shared.strict_security || !is_method_not_found(&e) {
+            shared.fail_interception(format!("{kind} target Network.setBlockedURLs: {e}"));
+            return false;
+        }
+        tracing::warn!(target = kind, error = %e, "child Network.setBlockedURLs unsupported in non-strict mode");
+    }
+    true
+}
+
 /// 自动附加上来的子 target 在调试器放行前不会发出任何请求。
 pub(super) async fn attach_child(child: &Session, kind: &str, shared: &Shared) {
-    if kind == "worker" {
-        // 专用 worker 没有 Fetch 域，它的请求由所属页面的拦截处理；同时在 worker 启动前封禁 ws/wss。
+    if !shared.intercept {
+        if kind == "iframe" {
+            let _ = enable_network(child).await;
+        }
         let _ = child
+            .call("Runtime.runIfWaitingForDebugger", json!({}))
+            .await;
+        return;
+    }
+
+    if kind == "worker" {
+        // 专用 worker 没有 Fetch 域，它的请求由所属页面的拦截处理；
+        // 启动前必须建立嵌套子 worker 自动附加、WebSocket/WebTransport 构造器阻断及 ws/wss 封禁。
+        if let Err(e) = child
             .call(
                 "Target.setAutoAttach",
                 json!({ "autoAttach": true, "waitForDebuggerOnStart": true, "flatten": true }),
             )
-            .await;
-        if shared.intercept {
-            let _ = child
+            .await
+            && (shared.strict_security || !is_method_not_found(&e))
+        {
+            shared.fail_interception(format!("worker target Target.setAutoAttach: {e}"));
+            return;
+        }
+        if let Err(e) = child
+            .call(
+                "Runtime.evaluate",
+                json!({ "expression": super::BLOCK_UNINTERCEPTED_TRANSPORT_JS }),
+            )
+            .await
+        {
+            shared.fail_interception(format!("worker target transport blocker: {e}"));
+            return;
+        }
+        if !block_child_websockets(child, kind, shared).await {
+            return;
+        }
+    } else {
+        if let Err(e) = enable_interception(child, shared.proxy_auth.is_some()).await {
+            // 开不了拦截就让它一直停着，并让本次渲染失败。
+            shared.fail_interception(format!("{kind} target: {e}"));
+            return;
+        }
+        if matches!(kind, "iframe" | "page") {
+            // 跨进程 iframe 与弹窗/子 page 必须在放行前同时建立 WebSocket/WebTransport 构造器阻断、
+            // ws/wss 封禁，并按需绕过 Service Worker。
+            if let Err(e) = child.call("Page.enable", json!({})).await {
+                shared.fail_interception(format!("{kind} target Page.enable: {e}"));
+                return;
+            }
+            if let Err(e) = child
+                .call(
+                    "Page.addScriptToEvaluateOnNewDocument",
+                    json!({ "source": super::BLOCK_UNINTERCEPTED_TRANSPORT_JS }),
+                )
+                .await
+            {
+                shared.fail_interception(format!(
+                    "{kind} target Page.addScriptToEvaluateOnNewDocument: {e}"
+                ));
+                return;
+            }
+            if !block_child_websockets(child, kind, shared).await {
+                return;
+            }
+            if shared.bypass_service_worker
+                && let Err(e) = child
+                    .call("Network.setBypassServiceWorker", json!({ "bypass": true }))
+                    .await
+            {
+                shared.fail_interception(format!(
+                    "{kind} target Network.setBypassServiceWorker: {e}"
+                ));
+                return;
+            }
+        } else if matches!(kind, "shared_worker" | "service_worker") {
+            // Chromium 的 ServiceWorker / SharedWorker 在 waitForDebuggerOnStart 暂停态仅立即响应
+            // Browser 侧域（Fetch / Target）；Network / Runtime 域命令需等 Runtime.runIfWaitingForDebugger
+            // 启动 Worker 线程后才会完成，因此在此通过同一 session 管道化并发发出，避免启动互锁并检查结果。
+            let (net_en, block_ws, eval_js, _resume) = tokio::join!(
+                enable_network(child),
+                child.call(
+                    "Network.setBlockedURLs",
+                    json!({ "urls": ["ws://*", "wss://*"] }),
+                ),
+                child.call(
+                    "Runtime.evaluate",
+                    json!({ "expression": super::BLOCK_UNINTERCEPTED_TRANSPORT_JS }),
+                ),
+                child.call("Runtime.runIfWaitingForDebugger", json!({})),
+            );
+            if let Err(e) = net_en
+                && (shared.strict_security || !is_method_not_found(&e))
+            {
+                shared.fail_interception(format!("{kind} target Network.enable: {e}"));
+                return;
+            }
+            if let Err(e) = block_ws
+                && (shared.strict_security || !is_method_not_found(&e))
+            {
+                shared.fail_interception(format!("{kind} target Network.setBlockedURLs: {e}"));
+                return;
+            }
+            if let Err(e) = eval_js
+                && shared.strict_security
+            {
+                shared.fail_interception(format!("{kind} target transport blocker: {e}"));
+            }
+            return;
+        } else {
+            // 其他可执行脚本的子 target（worklet/webview 等）：
+            // 放行前先执行网络层 ws/wss 封禁与传输层构造器阻断，失败即 fail-closed 且绝不放行。
+            if !block_child_websockets(child, kind, shared).await {
+                return;
+            }
+            if let Err(e) = child
                 .call(
                     "Runtime.evaluate",
                     json!({ "expression": super::BLOCK_UNINTERCEPTED_TRANSPORT_JS }),
                 )
-                .await;
-            if enable_network(child).await.is_ok() {
-                let _ = child
-                    .call(
-                        "Network.setBlockedURLs",
-                        json!({ "urls": ["ws://*", "wss://*"] }),
-                    )
-                    .await;
+                .await
+                && (shared.strict_security || !is_method_not_found(&e))
+            {
+                shared.fail_interception(format!("{kind} target transport blocker: {e}"));
+                return;
             }
-        }
-    } else if !shared.intercept {
-        if kind == "iframe" {
-            let _ = enable_network(child).await;
-        }
-    } else if let Err(e) = enable_interception(child, shared.proxy_auth.is_some()).await {
-        // 开不了拦截就让它一直停着，并让本次渲染失败。
-        *shared.intercept_error.lock().unwrap() = Some(format!("{kind} target: {e}"));
-        return;
-    } else if kind == "iframe" {
-        // 跨进程 iframe 的请求也要计入网络静默，并封禁绕过 Fetch 的 ws/wss。
-        if enable_network(child).await.is_ok() {
-            let _ = child
-                .call(
-                    "Network.setBlockedURLs",
-                    json!({ "urls": ["ws://*", "wss://*"] }),
-                )
-                .await;
+            if shared.bypass_service_worker
+                && let Err(e) = child
+                    .call("Network.setBypassServiceWorker", json!({ "bypass": true }))
+                    .await
+                && (shared.strict_security || !is_method_not_found(&e))
+            {
+                shared.fail_interception(format!(
+                    "{kind} target Network.setBypassServiceWorker: {e}"
+                ));
+                return;
+            }
         }
     }
     let _ = child
@@ -363,8 +489,7 @@ pub(super) async fn on_request(
                         .as_ref()
                         .is_some_and(|b| !b.reserve(req.is_main_document)) =>
             {
-                *shared.intercept_error.lock().unwrap() =
-                    Some("network request budget exhausted".into());
+                shared.fail_interception("network request budget exhausted".into());
                 Verdict::Block("network request budget exhausted".into())
             }
             other => other,
@@ -491,6 +616,9 @@ pub(super) async fn wait_ready(ctx: &PageCtx<'_>, nav_elapsed: Duration) -> Read
         .as_ref()
         .filter(|_| ctx.opts.early_stop_probe);
     loop {
+        if shared.has_intercept_error() {
+            break;
+        }
         let left = deadline.saturating_duration_since(Instant::now());
         if left.is_zero() {
             note_ready(false);
@@ -509,6 +637,9 @@ pub(super) async fn wait_ready(ctx: &PageCtx<'_>, nav_elapsed: Duration) -> Read
                 .and_then(|s| s.after)
                 .is_some_and(|after| started.elapsed() >= after);
         if !shared.wait_idle(NET_QUIET, left.min(CONTENT_POLL)).await {
+            if shared.has_intercept_error() {
+                break;
+            }
             let len = tokio::time::timeout(left, eval_value(session, TEXT_LEN))
                 .await
                 .ok()

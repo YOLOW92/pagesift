@@ -57,6 +57,10 @@ impl Registry {
             _ => self.weight.remove(a),
         };
     }
+
+    pub(crate) fn contains_account(&self, account: &str) -> bool {
+        self.accounts.iter().any(|a| a.as_deref() == Some(account))
+    }
 }
 
 /// 一个线程上的轮转状态。

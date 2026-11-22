@@ -126,7 +126,23 @@ pub async fn parse(
     crate::attachments::keep_in_for(&data, s.jobs.disk().as_ref(), account);
     s.metrics.page(PageSource::Parse);
     if let Some(hold) = page_hold {
-        hold.commit().await;
+        let outcome = hold.commit().await;
+        if outcome.is_unrecoverable() {
+            return Err(ApiError::new(
+                ErrorCode::Internal,
+                format!(
+                    "quota ledger settlement failed: {}",
+                    outcome.message().unwrap_or("unrecoverable error")
+                ),
+            ));
+        }
+        if let Some(w) = outcome.warning() {
+            data.metadata
+                .pagesift
+                .get_or_insert_with(Default::default)
+                .warnings
+                .push(w);
+        }
     }
     Ok(Json(ScrapeResponse {
         success: true,

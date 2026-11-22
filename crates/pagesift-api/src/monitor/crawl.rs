@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use serde_json::json;
 
 use super::run::{compare, failure, mark_gone};
-use super::{MonitorState, PageResult, PageState};
+use super::{MonitorLife, MonitorState, PageResult, PageState};
 use crate::error::{ApiError, ErrorCode};
 use std::collections::HashMap;
 
@@ -26,6 +26,7 @@ pub(super) fn crawl_request(target: &super::Target, seed: &str) -> Result<CrawlR
 
 /// crawl 目标：爬一遍，逐页比较。只有完整爬完（没有被截断、没有页面出错）才能说上次有、这次没爬到的
 /// 页面消失了（removed）；否则只是不知道。第二个返回值是这次对变化率的观测。
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn check_crawl(
     s: &AppState,
     m: &MonitorState,
@@ -34,6 +35,7 @@ pub(super) async fn check_crawl(
     opts: &ScrapeOptions,
     substantive_only: bool,
     caller: &Caller,
+    life: &Arc<MonitorLife>,
 ) -> (Vec<(String, PageState, PageResult)>, Option<bool>) {
     let mut req = match crawl_request(target, seed) {
         Ok(r) => r,
@@ -49,13 +51,27 @@ pub(super) async fn check_crawl(
     let sink = Arc::new(Collect {
         limiter: s.limiter.clone(),
         caller: caller.clone(),
+        life: life.clone(),
         docs: Default::default(),
         errors: Default::default(),
         stop: Default::default(),
         quota_hit: Default::default(),
         holds: Default::default(),
     });
-    let crawled = s.engine.crawl(&req, sink.clone()).await;
+    let mut cancel_rx = life.subscribe_cancel();
+    let crawled = tokio::select! {
+        biased;
+        () = MonitorLife::wait_cancelled(&mut cancel_rx) => {
+            sink.holds.lock().await.clear();
+            return (Vec::new(), None);
+        }
+        r = s.engine.crawl(&req, sink.clone()) => r,
+    };
+    // 无论正常结束还是取消，释放所有未结算预留。
+    sink.holds.lock().await.clear();
+    if life.is_deleted() {
+        return (Vec::new(), None);
+    }
     let docs = std::mem::take(&mut *sink.docs.lock().await);
     let errors = std::mem::take(&mut *sink.errors.lock().await);
     let stop = sink.stop.lock().await.take();
@@ -179,6 +195,7 @@ pub(super) async fn check_crawl(
 struct Collect {
     limiter: Arc<Limiter>,
     caller: Caller,
+    life: Arc<MonitorLife>,
     docs: tokio::sync::Mutex<Vec<Document>>,
     errors: tokio::sync::Mutex<Vec<(String, ApiError)>>,
     stop: tokio::sync::Mutex<Option<String>>,
@@ -216,7 +233,7 @@ impl crate::CrawlSink for Collect {
         Box::pin(async move {
             let hold = { self.holds.lock().await.remove(url) };
             if let Some(hold) = hold {
-                hold.commit().await;
+                let _ = hold.commit().await;
             }
         })
     }
@@ -240,6 +257,9 @@ impl crate::CrawlSink for Collect {
     }
     fn cancelled(&self) -> crate::BoxFuture<'_, bool> {
         Box::pin(async {
+            if self.life.is_deleted() {
+                return true;
+            }
             let out = self.limiter.remaining_pages(&self.caller) == Some(0);
             if out {
                 self.quota_hit.store(true, Ordering::Relaxed);

@@ -156,6 +156,10 @@ struct Shared {
     allowed_hosts: Vec<String>,
     cookie_origin: Option<url::Url>,
     intercept: bool,
+    /// 是否启用了严格安全/策略防护（ITNA 预算、Cookie 隔离、allowedHosts、绕过 SW 或代理认证）。
+    strict_security: bool,
+    /// 是否要求主文档及跨进程 iframe 均绕过 Service Worker。
+    bypass_service_worker: bool,
     main_frame: String,
     page_session: String,
     status: Mutex<Option<u16>>,
@@ -175,6 +179,19 @@ struct Shared {
 }
 
 impl Shared {
+    pub(super) fn has_intercept_error(&self) -> bool {
+        self.intercept_error.lock().unwrap().is_some()
+    }
+
+    pub(super) fn fail_interception(&self, message: String) {
+        let mut slot = self.intercept_error.lock().unwrap();
+        if slot.is_none() {
+            *slot = Some(message);
+        }
+        drop(slot);
+        self.load_notify.notify_waiters();
+    }
+
     fn has_event(&self, loader_id: &str, name: &str) -> bool {
         self.lifecycle
             .lock()
@@ -187,7 +204,7 @@ impl Shared {
             let notified = self.load_notify.notified();
             tokio::pin!(notified);
             notified.as_mut().enable();
-            if self.has_event(loader_id, name) {
+            if self.has_event(loader_id, name) || self.has_intercept_error() {
                 return;
             }
             notified.await;
@@ -202,7 +219,8 @@ impl Shared {
             tokio::pin!(notified);
             notified.as_mut().enable();
             let current = self.main_loader.lock().unwrap().clone();
-            if self.has_event(loader_id, name)
+            if self.has_intercept_error()
+                || self.has_event(loader_id, name)
                 || current.is_some_and(|c| c != loader_id && self.has_event(&c, name))
             {
                 return;
@@ -215,6 +233,9 @@ impl Shared {
     pub(super) async fn wait_idle(&self, quiet: Duration, cap: Duration) -> bool {
         let deadline = Instant::now() + cap;
         loop {
+            if self.has_intercept_error() {
+                return false;
+            }
             let (n, since) = {
                 let net = self.net.lock().unwrap();
                 (net.inflight.len(), net.last_change.elapsed())
@@ -379,6 +400,16 @@ pub(crate) async fn render_page(
             "network budget requires CDP request interception".into(),
         ));
     }
+    if !opts.allowed_hosts.is_empty() && !env.intercept {
+        return Err(Error::InvalidOptions(
+            "allowedHosts requires CDP request interception".into(),
+        ));
+    }
+    if opts.bypass_service_worker && !env.intercept {
+        return Err(Error::InvalidOptions(
+            "bypassServiceWorker requires CDP request interception".into(),
+        ));
+    }
     let cookie_origin = opts
         .cookie_bridge
         .as_ref()
@@ -509,16 +540,28 @@ pub(crate) async fn render_page(
             )
             .await?;
     }
+    let bypass_service_worker = env.intercept
+        && (opts.bypass_service_worker
+            || opts.network_budget.is_some()
+            || opts.cookie_bridge.is_some()
+            || !opts.allowed_hosts.is_empty());
+    let strict_security = env.intercept && (bypass_service_worker || proxy_auth.is_some());
     if env.intercept {
         // Fetch.enable does not intercept WebSocket/WebTransport handshakes in Chromium;
-        // enforce both Network.setBlockedURLs and pre-document constructor blocking so pages
-        // and iframes cannot bypass SSRF, allowedHosts, cookie isolation, or NetworkBudget.
-        let _ = session
+        // enforce both pre-document constructor blocking and Network.setBlockedURLs BEFORE
+        // Page.navigate so pages/iframes cannot bypass SSRF, allowedHosts, cookie isolation,
+        // or NetworkBudget.
+        if let Err(e) = session
             .call(
                 "Page.addScriptToEvaluateOnNewDocument",
                 json!({ "source": BLOCK_UNINTERCEPTED_TRANSPORT_JS }),
             )
-            .await;
+            .await
+        {
+            return Err(Error::InterceptionUnavailable(format!(
+                "Page.addScriptToEvaluateOnNewDocument failed: {e}"
+            )));
+        }
         if let Err(e) = session
             .call(
                 "Network.setBlockedURLs",
@@ -526,18 +569,28 @@ pub(crate) async fn render_page(
             )
             .await
         {
-            tracing::debug!(error = %e, "Network.setBlockedURLs unavailable");
+            // Strict security modes always fail closed; ordinary Chrome interception also fails
+            // closed on any transport/protocol failure other than an explicit MethodNotFound
+            // (-32601) from a non-standard remote endpoint where constructor blocking succeeded.
+            if strict_security || !monitor::is_method_not_found(&e) {
+                return Err(Error::InterceptionUnavailable(format!(
+                    "Network.setBlockedURLs failed: {e}"
+                )));
+            }
+            tracing::warn!(
+                error = %e,
+                "Network.setBlockedURLs unsupported in non-strict mode; relying on constructor blocker"
+            );
         }
     }
-    if env.intercept
-        && (opts.bypass_service_worker
-            || opts.network_budget.is_some()
-            || opts.cookie_bridge.is_some())
+    if bypass_service_worker
         && let Err(e) = session
             .call("Network.setBypassServiceWorker", json!({ "bypass": true }))
             .await
     {
-        tracing::debug!(error = %e, "Network.setBypassServiceWorker unavailable");
+        return Err(Error::InterceptionUnavailable(format!(
+            "Network.setBypassServiceWorker failed: {e}"
+        )));
     }
     let main_frame = tree
         .pointer("/frameTree/frame/id")
@@ -549,6 +602,8 @@ pub(crate) async fn render_page(
         allowed_hosts: opts.allowed_hosts.clone(),
         cookie_origin,
         intercept: env.intercept,
+        strict_security,
+        bypass_service_worker,
         main_frame,
         page_session: session.id().to_owned(),
         status: Mutex::new(None),
@@ -658,6 +713,9 @@ pub(crate) async fn render_page(
                 let prior = redirect_prior.unwrap_or(patience);
                 let deadline = waited + patience;
                 loop {
+                    if shared.has_intercept_error() {
+                        break;
+                    }
                     if shared.has_event(l, first_event) {
                         if redirect_prior.is_some() {
                             env.waits.redirect.done(waited.elapsed(), prior);

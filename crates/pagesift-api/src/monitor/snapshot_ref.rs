@@ -4,9 +4,14 @@
 //! 并仅在状态 JSON 中保存内容寻址引用 `snap:<blake3>`；启动恢复时按需水合，
 //! 并清除失效记录中的悬空引用。
 
+use std::sync::atomic::Ordering;
+
 use pagesift_store::{ContentHash, Store};
 
-use super::MonitorState;
+use super::{
+    MonitorEntry, MonitorLife, MonitorState, PAUSED_REASON_ACCOUNT_REVOKED, WARNING_REVOKED_PREFIX,
+};
+use crate::error::{ApiError, ErrorCode};
 use crate::server::AppState;
 
 const SNAP_PREFIX: &str = "snap:";
@@ -113,35 +118,97 @@ pub(super) fn hydrate_monitor_snapshots(store: &Store, m: &mut MonitorState) {
     }
 }
 
-pub(super) fn persist(s: &AppState, m: &MonitorState) {
+pub(super) fn persist_checked(store: &Store, m: &MonitorState) -> Result<(), ApiError> {
+    let slim = offload_monitor_snapshots(store, m);
+    let v = serde_json::to_vec(&slim).map_err(|e| {
+        ApiError::new(
+            ErrorCode::Internal,
+            format!("could not encode monitor {}: {e}", m.id),
+        )
+    })?;
+    store.tasks().kv_put(key(&m.id), &v).map_err(|e| {
+        ApiError::new(
+            ErrorCode::Internal,
+            format!("could not persist monitor {}: {e}", m.id),
+        )
+    })
+}
+
+pub(super) fn persist_blocking(s: &AppState, m: &MonitorState) -> Result<(), ApiError> {
+    #[cfg(test)]
+    {
+        let hook = s
+            .monitors
+            .hooks
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .and_then(|h| h.during_persist.clone());
+        if let Some(hook) = hook {
+            hook(&m.id);
+        }
+    }
+    let Some(store) = s.jobs.store() else {
+        return Ok(());
+    };
+    persist_checked(store, m)
+}
+
+pub(super) async fn forget_async(s: &AppState, id: &str) -> Result<(), ApiError> {
+    #[cfg(test)]
+    {
+        let should_fail = s
+            .monitors
+            .hooks
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .and_then(|h| h.fail_delete.clone())
+            .is_some_and(|f| f(id));
+        if should_fail {
+            return Err(ApiError::new(
+                ErrorCode::Internal,
+                format!("could not delete monitor {id}: injected storage delete failure"),
+            ));
+        }
+    }
+    let Some(store) = s.jobs.store().cloned() else {
+        return Ok(());
+    };
+    let id = id.to_string();
+    let k = key(&id);
+    store
+        .blocking(move |st| st.tasks().kv_delete(&k))
+        .await
+        .map_err(|e| {
+            ApiError::new(
+                ErrorCode::Internal,
+                format!("could not delete monitor {id}: {e}"),
+            )
+        })?;
+    Ok(())
+}
+
+/// 读回落盘的监控；有活跃监控时启动调度。`leader` 为假时（多服务器、本机不持有网关租约）不检查，只等。
+pub(crate) fn start_scheduler(s: AppState, leader: Option<super::Leader>) {
+    *s.monitors.leader.lock().unwrap_or_else(|e| e.into_inner()) = leader;
     let Some(store) = s.jobs.store() else {
         return;
     };
-    let slim = offload_monitor_snapshots(store, m);
-    if let Ok(v) = serde_json::to_vec(&slim)
-        && let Err(e) = store.tasks().kv_put(key(&m.id), &v)
-    {
-        tracing::warn!(monitor = %m.id, error = %e, "could not save the monitor");
-    }
-}
-
-pub(super) fn forget(s: &AppState, id: &str) {
-    if let Some(store) = s.jobs.store() {
-        let _ = store.tasks().kv_delete(key(id));
-    }
-}
-
-/// 读回落盘的监控；有监控时启动调度。`leader` 为假时（多服务器、本机不持有网关租约）不检查，只等。
-pub(crate) fn start_scheduler(s: AppState, leader: Option<super::Leader>) {
-    *s.monitors.leader.lock().unwrap_or_else(|e| e.into_inner()) = leader;
-    if let Some(store) = s.jobs.store()
-        && let Ok(keys) = store.tasks().kv_keys("monitor/")
-    {
+    let keys = match store.tasks().kv_keys("monitor/") {
+        Ok(keys) => keys,
+        Err(error) => {
+            tracing::error!(%error, "could not list saved monitors; monitor scheduler not started");
+            return;
+        }
+    };
+    let any_active = {
         let mut map = s
             .monitors
             .map
             .try_lock()
             .expect("monitors are not shared yet");
+        let mut active = false;
         for k in keys {
             let parsed = match store.tasks().kv_get(&k) {
                 Ok(Some(v)) => {
@@ -153,7 +220,80 @@ pub(crate) fn start_scheduler(s: AppState, leader: Option<super::Leader>) {
             match parsed {
                 Ok(mut m) => {
                     hydrate_monitor_snapshots(store, &mut m);
-                    map.insert(m.id.clone(), m);
+                    let caller = s.monitors.resolve_caller(&m.owner);
+                    match caller {
+                        None => {
+                            // 保留原本即因崩溃或其他非撤销原因暂停（含旧版无 pausedReason 的 paused）的状态，
+                            // 防止账号先撤销再恢复时将其误自动切回 active。
+                            let already_other_paused = m.status == "paused"
+                                && m.paused_reason.as_deref()
+                                    != Some(PAUSED_REASON_ACCOUNT_REVOKED);
+                            if !already_other_paused {
+                                let warning = format!(
+                                    "{WARNING_REVOKED_PREFIX} owner account {:?} is no longer configured; monitor paused without running under default limits",
+                                    m.owner
+                                );
+                                let changed = m.status != "paused"
+                                    || m.paused_reason.as_deref()
+                                        != Some(PAUSED_REASON_ACCOUNT_REVOKED)
+                                    || !m.warnings.iter().any(|w| w == &warning);
+                                m.status = "paused".into();
+                                m.paused_reason = Some(PAUSED_REASON_ACCOUNT_REVOKED.into());
+                                if !m.warnings.iter().any(|w| w == &warning) {
+                                    m.warnings.push(warning);
+                                }
+                                if changed && let Err(e) = persist_checked(store, &m) {
+                                    tracing::warn!(
+                                        monitor = %m.id,
+                                        owner = %m.owner,
+                                        error = %e,
+                                        "failed to persist revoked-account pause state for monitor"
+                                    );
+                                }
+                                s.metrics
+                                    .monitor_revoked_paused
+                                    .fetch_add(1, Ordering::Relaxed);
+                                tracing::warn!(
+                                    monitor = %m.id,
+                                    owner = %m.owner,
+                                    "monitor owner account is no longer configured; pausing monitor instead of falling back to default_limits"
+                                );
+                            }
+                        }
+                        Some(_) => {
+                            if m.status == "paused"
+                                && m.paused_reason.as_deref() == Some(PAUSED_REASON_ACCOUNT_REVOKED)
+                            {
+                                m.status = "active".into();
+                                m.paused_reason = None;
+                                m.warnings
+                                    .retain(|w| !w.starts_with(WARNING_REVOKED_PREFIX));
+                                if let Err(e) = persist_checked(store, &m) {
+                                    tracing::warn!(
+                                        monitor = %m.id,
+                                        owner = %m.owner,
+                                        error = %e,
+                                        "failed to persist auto-resumed monitor state"
+                                    );
+                                }
+                                tracing::info!(
+                                    monitor = %m.id,
+                                    owner = %m.owner,
+                                    "monitor owner account restored; resuming previously account_revoked monitor"
+                                );
+                            }
+                        }
+                    }
+                    if m.status == "active" {
+                        active = true;
+                    }
+                    map.insert(
+                        m.id.clone(),
+                        MonitorEntry {
+                            state: m,
+                            life: MonitorLife::new(),
+                        },
+                    );
                 }
                 // 记录留在存储里，不删：修好之后还能读回来
                 Err(error) => {
@@ -164,17 +304,15 @@ pub(crate) fn start_scheduler(s: AppState, leader: Option<super::Leader>) {
                     );
                     s.metrics
                         .monitor_load_failures
-                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        .fetch_add(1, Ordering::Relaxed);
                 }
             }
         }
-        if map.is_empty() {
-            return;
-        }
-    } else {
-        return;
+        active
+    };
+    if any_active {
+        super::run::ensure_running(&s);
     }
-    super::run::ensure_running(&s);
 }
 
 #[cfg(test)]

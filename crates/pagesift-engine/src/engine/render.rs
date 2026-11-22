@@ -180,15 +180,6 @@ impl Scraper {
         let queue_note = permit.robots_crawl_delay().then(|| permit.interval());
         let paced = !permit.interval().is_zero();
         let itna_budget = ITNA_NETWORK_BUDGET.try_with(Arc::clone).ok();
-        if non_chrome_itna_fallback
-            && let Some(ref budget) = itna_budget
-            && !budget.reserve(true)
-        {
-            return Err(ApiError::new(
-                ErrorCode::Timeout,
-                "network navigation budget exhausted",
-            ));
-        }
         let mut ropts = RenderOptions {
             network_budget: (!non_chrome_itna_fallback)
                 .then(|| itna_budget.clone())
@@ -288,6 +279,15 @@ impl Scraper {
                 break;
             };
             ropts.timeout = deadline.saturating_duration_since(Instant::now());
+            if non_chrome_itna_fallback
+                && let Some(ref budget) = itna_budget
+                && !budget.reserve(true)
+            {
+                return Err(ApiError::new(
+                    ErrorCode::Timeout,
+                    "network navigation budget exhausted",
+                ));
+            }
             if let Some(budget) = &itna_budget {
                 budget.browser_started();
             }
@@ -421,8 +421,9 @@ impl Scraper {
                 best = Some(r);
                 break;
             }
-            // 完整内核（moli、Chrome 系）渲染结果一致：正文少就是页面本身少，不再换内核
-            if (missing_iframes == 0 && !thin) || engine.renders_iframes() {
+            // 完整内核（moli、Chrome 系）渲染结果一致：正文少就是页面本身少，不再换内核；
+            // ITNA 模式下单次请求最多执行一次浏览器，同样不跨内核二次渲染。
+            if (missing_iframes == 0 && !thin) || engine.renders_iframes() || self.itna {
                 let mut r = r;
                 // 内核间合并：前一个内核（不渲染 iframe 的）有完整内核没有的块时，
                 // 按块合并，合并后的质量分不低于完整内核的结果才用
@@ -751,6 +752,11 @@ pub(super) fn render_error_code(e: &pagesift_cdp::Error) -> ErrorCode {
         }
         pagesift_cdp::Error::Navigation(m) if m.contains("ERR_CERT") => ErrorCode::TlsError,
         pagesift_cdp::Error::Navigation(_) => ErrorCode::NetworkError,
+        pagesift_cdp::Error::InterceptionUnavailable(m)
+            if m.contains("network request budget exhausted") =>
+        {
+            ErrorCode::Timeout
+        }
         _ => ErrorCode::UpstreamError,
     }
 }

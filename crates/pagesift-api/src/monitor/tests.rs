@@ -512,6 +512,7 @@ fn a_failed_fetch_is_not_an_unchanged_observation() {
         req: serde_json::from_value(scrape_target()).unwrap(),
         created_at: String::new(),
         status: "active".into(),
+        paused_reason: None,
         period: None,
         min_interval: 300,
         max_interval: None,

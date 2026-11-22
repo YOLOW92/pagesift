@@ -113,15 +113,29 @@ pub(crate) async fn handle_jina_search(
         let (content, chunks, warnings) =
             match r.and_then(|doc| super::respond::render(&doc, &url, &params).map(|x| (x, doc))) {
                 Ok((x, doc)) => {
-                    if let Some(hold) = hold {
-                        hold.commit().await;
-                    }
+                    let settle_warning = if let Some(hold) = hold {
+                        let outcome = hold.commit().await;
+                        if outcome.is_unrecoverable() {
+                            return crate::error::ApiError::new(
+                                crate::error::ErrorCode::Internal,
+                                format!(
+                                    "quota ledger settlement failed: {}",
+                                    outcome.message().unwrap_or("unrecoverable error")
+                                ),
+                            )
+                            .into_response();
+                        }
+                        outcome.warning()
+                    } else {
+                        None
+                    };
                     let mut w = doc
                         .metadata
                         .pagesift
                         .map(|m| m.warnings)
                         .unwrap_or_default();
                     w.extend(x.warnings);
+                    w.extend(settle_warning);
                     (x.text, x.chunks, w)
                 }
                 // 单条失败不影响其他结果：如实写出错误

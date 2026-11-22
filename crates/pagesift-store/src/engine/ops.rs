@@ -94,14 +94,22 @@ impl Store {
             if found.len() == target_count {
                 break;
             }
-            let targets = match loc.ns() {
-                ns::CONTEXT | ns::SYNC_STATE => &plain_targets,
-                ns::GRAPH_NODE | ns::GRAPH_EDGE | ns::GRAPH_FACT | ns::GRAPH_JOB => &graph_targets,
+            let (targets, grouped) = match loc.ns() {
+                ns::CONTEXT | ns::SYNC_STATE => (&plain_targets, false),
+                ns::GRAPH_NODE | ns::GRAPH_EDGE => (&graph_targets, true),
+                ns::GRAPH_FACT | ns::GRAPH_JOB => (&graph_targets, false),
                 _ => continue,
             };
             let key = st.read_key(loc)?;
+            let logical = if grouped && key.len() >= 2 {
+                &key[2..]
+            } else {
+                &key[..]
+            };
             for (tenant, prefix) in targets {
-                if !found.contains(*tenant) && key.starts_with(prefix) {
+                if !found.contains(*tenant)
+                    && (logical.starts_with(prefix) || key.starts_with(prefix))
+                {
                     found.insert((*tenant).to_owned());
                     break;
                 }

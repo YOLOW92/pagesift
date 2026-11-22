@@ -3,7 +3,7 @@
 use serde_json::{Value, json};
 
 use super::run::mark_gone;
-use super::{Check, MonitorState, PageResult, PageState};
+use super::{Check, MonitorLife, MonitorState, PageResult, PageState};
 use crate::server::AppState;
 use crate::types::Document;
 
@@ -129,11 +129,19 @@ fn field_changes(old: Option<&Value>, new: Option<&Value>) -> Vec<Value> {
 }
 
 /// webhook：每个有变化的页面一条 `monitor.page`（`same` 不发），每次检查一条 `monitor.check.completed`。
-pub(super) async fn notify(s: &AppState, m: &MonitorState, c: &Check) {
+/// 投递前与投递中均响应删除取消信号，防止已删除监控产生幽灵通知。
+pub(super) async fn notify(s: &AppState, m: &MonitorState, c: &Check, life: &MonitorLife) {
     let Some(cfg) = &m.webhook else { return };
+    if life.is_deleted() {
+        return;
+    }
+    let mut cancel_rx = life.subscribe_cancel();
     let wants = |e: &str| cfg.events.iter().any(|x| x == e);
     if wants("monitor.page") {
         for p in c.pages.iter().filter(|p| p.status != "same") {
+            if life.is_deleted() {
+                return;
+            }
             let mut item = serde_json::to_value(p).unwrap_or(Value::Null);
             item["monitorId"] = json!(m.id);
             item["checkId"] = json!(c.id);
@@ -141,16 +149,24 @@ pub(super) async fn notify(s: &AppState, m: &MonitorState, c: &Check) {
                 "success": p.status != "error", "type": "monitor.page", "id": c.id,
                 "data": [item], "metadata": cfg.metadata,
             });
-            let _ = s.webhooks.deliver(cfg, &body).await;
+            tokio::select! {
+                biased;
+                () = MonitorLife::wait_cancelled(&mut cancel_rx) => return,
+                _ = s.webhooks.deliver(cfg, &body) => {}
+            }
         }
     }
-    if wants("monitor.check.completed") {
+    if wants("monitor.check.completed") && !life.is_deleted() {
         let body = json!({
             "success": c.status == "completed", "type": "monitor.check.completed", "id": c.id,
             "data": [{ "monitorId": m.id, "checkId": c.id, "status": c.status, "summary": c.summary() }],
             "metadata": cfg.metadata,
         });
-        let _ = s.webhooks.deliver(cfg, &body).await;
+        tokio::select! {
+            biased;
+            () = MonitorLife::wait_cancelled(&mut cancel_rx) => {}
+            _ = s.webhooks.deliver(cfg, &body) => {}
+        }
     }
 }
 

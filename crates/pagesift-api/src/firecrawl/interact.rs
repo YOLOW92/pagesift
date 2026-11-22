@@ -40,7 +40,19 @@ pub async fn interact(
     if resp.data.is_some()
         && let Some(hold) = page_hold
     {
-        hold.commit().await;
+        let outcome = hold.commit().await;
+        if outcome.is_unrecoverable() {
+            return Err(ApiError::new(
+                crate::error::ErrorCode::Internal,
+                format!(
+                    "quota ledger settlement failed: {}",
+                    outcome.message().unwrap_or("unrecoverable error")
+                ),
+            ));
+        }
+        if let Some(w) = outcome.warning() {
+            resp.warnings.push(w);
+        }
     }
     Ok(Json(resp))
 }

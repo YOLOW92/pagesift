@@ -38,7 +38,19 @@ pub async fn observe(
     let (data, mut warnings) = s.engine.observe(&req.url, &req.instruction).await?;
     warnings.extend(crate::fields::ignored_warning(&ignored));
     if let Some(hold) = page_hold {
-        hold.commit().await;
+        let outcome = hold.commit().await;
+        if outcome.is_unrecoverable() {
+            return Err(ApiError::new(
+                crate::error::ErrorCode::Internal,
+                format!(
+                    "quota ledger settlement failed: {}",
+                    outcome.message().unwrap_or("unrecoverable error")
+                ),
+            ));
+        }
+        if let Some(w) = outcome.warning() {
+            warnings.push(w);
+        }
     }
     Ok(Json(ObserveResponse {
         success: true,
@@ -72,14 +84,27 @@ pub async fn similar(
         .engine
         .find_similar(&req.url, &req.selector, &opts)
         .await?;
+    let mut warnings: Vec<String> = crate::fields::ignored_warning(&ignored)
+        .into_iter()
+        .collect();
     if let Some(hold) = page_hold {
-        hold.commit().await;
+        let outcome = hold.commit().await;
+        if outcome.is_unrecoverable() {
+            return Err(ApiError::new(
+                crate::error::ErrorCode::Internal,
+                format!(
+                    "quota ledger settlement failed: {}",
+                    outcome.message().unwrap_or("unrecoverable error")
+                ),
+            ));
+        }
+        if let Some(w) = outcome.warning() {
+            warnings.push(w);
+        }
     }
     Ok(Json(SimilarResponse {
         success: true,
         data,
-        warnings: crate::fields::ignored_warning(&ignored)
-            .into_iter()
-            .collect(),
+        warnings,
     }))
 }
