@@ -3381,9 +3381,9 @@ dependencies = [
 
 [[package]]
 name = "yolowhtml"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71e8dc203f82fd857c91508eb966497935d4fcffd52e6acfe58008d1b676ab1b"
+checksum = "bc0a0f94940a42cac8cb1d7710d15a26a126c8b6a2b95b283354c20e387e7d98"
 dependencies = [
  "aho-corasick",
  "blake3",
@@ -3397,9 +3397,9 @@ dependencies = [
 
 [[package]]
 name = "yolowhtml-dom"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e7850de55dd93a8f096c56ba03e0d08742e84afb85fe39343a2dafc61140038"
+checksum = "aaa1d6f67315636241d3394ca04f72e4a657fc13df4838ed8a0fe2b2cbb38272"
 dependencies = [
  "memchr",
 ]
