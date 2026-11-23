@@ -28,6 +28,15 @@ One self-hosted Rust binary with a CLI, Firecrawl v1/v2 & Jina Reader HTTP APIs,
 
 Drop-in or companion for: **Firecrawl** (self-hosted v1/v2 API), **Jina Reader** (`/r/` and `/s/`), **Crawl4AI**, **trafilatura**, **Readability**, **pymupdf4llm**, **Docling**, **Kreuzberg**, and **xberg**.
 
+<!-- section: sponsors -->
+## Sponsors
+
+<a href="https://proxy-seller.com/?partner=9CCCBD6151334AC0"><img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/sponsor-proxyseller.jpg" alt="Proxy-Seller: residential and ISP proxies, promo code PAGESIFT" width="720" /></a>
+
+> Affiliate link: the project may earn a commission on purchases.
+
+[**Proxy-Seller**](https://proxy-seller.com/?partner=9CCCBD6151334AC0) sponsors pagesift: residential, ISP and datacenter proxy IPs (IPv4/IPv6), 220+ geos, 24/7 support. Use promo code `PAGESIFT` for 15% off ISP / IPv4 / residential proxies.
+
 <!-- section: facts -->
 ## At a glance
 

@@ -28,6 +28,15 @@ Un único binario autoalojado en Rust con CLI, APIs HTTP compatibles con Firecra
 
 Alternativa o complemento para: **Firecrawl** (API v1/v2 autoalojada), **Jina Reader** (`/r/` y `/s/`), **Crawl4AI**, **trafilatura**, **Readability**, **pymupdf4llm**, **Docling**, **Kreuzberg** y **xberg**.
 
+<!-- section: sponsors -->
+## Patrocinadores
+
+<a href="https://proxy-seller.com/?partner=9CCCBD6151334AC0"><img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/sponsor-proxyseller.jpg" alt="Proxy-Seller: residential and ISP proxies, promo code PAGESIFT" width="720" /></a>
+
+> Enlace de afiliado: el proyecto puede recibir una comisión por las compras.
+
+[**Proxy-Seller**](https://proxy-seller.com/?partner=9CCCBD6151334AC0) patrocina pagesift: IP de proxy residenciales, ISP y de centro de datos (IPv4/IPv6), más de 220 ubicaciones, soporte 24/7. Use el código `PAGESIFT` para un 15 % de descuento en proxies ISP / IPv4 / residenciales.
+
 <!-- section: facts -->
 ## De un vistazo
 

@@ -28,6 +28,15 @@
 
 置き換えまたは併用できるツール：**Firecrawl**（セルフホスト v1/v2 API）、**Jina Reader**（`/r/` と `/s/`）、**Crawl4AI**、**trafilatura**、**Readability**、**pymupdf4llm**、**Docling**、**Kreuzberg**、**xberg**。
 
+<!-- section: sponsors -->
+## スポンサー
+
+<a href="https://proxy-seller.com/?partner=9CCCBD6151334AC0"><img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/sponsor-proxyseller.jpg" alt="Proxy-Seller: residential and ISP proxies, promo code PAGESIFT" width="720" /></a>
+
+> アフィリエイトリンク：購入によりプロジェクトに報酬が発生する場合があります。
+
+[**Proxy-Seller**](https://proxy-seller.com/?partner=9CCCBD6151334AC0) が pagesift をスポンサーしています。レジデンシャル／ISP／データセンター プロキシ IP（IPv4/IPv6）、220+ ロケーション、24時間365日サポート。プロモコード `PAGESIFT` で ISP / IPv4 / レジデンシャルが 15% オフ。*アフィリエイトリンク：購入によりプロジェクトに報酬が発生する場合があります。*
+
 <!-- section: facts -->
 ## 早見表
 

@@ -28,6 +28,15 @@
 
 可替代或协同使用：**Firecrawl**（自托管 v1/v2 API）、**Jina Reader**（`/r/` 与 `/s/`）、**Crawl4AI**、**trafilatura**、**Readability**、**pymupdf4llm**、**Docling**、**Kreuzberg** 与 **xberg**。
 
+<!-- section: sponsors -->
+## 赞助商
+
+<a href="https://proxy-seller.com/?partner=9CCCBD6151334AC0"><img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/sponsor-proxyseller.jpg" alt="Proxy-Seller: residential and ISP proxies, promo code PAGESIFT" width="720" /></a>
+
+> 推广链接：通过此链接购买，项目可能获得佣金。
+
+[**Proxy-Seller**](https://proxy-seller.com/?partner=9CCCBD6151334AC0) 赞助了 pagesift：住宅、ISP 与数据中心代理 IP（IPv4/IPv6），220+ 地区，7×24 支持。使用优惠码 `PAGESIFT`，ISP / IPv4 / 住宅代理可享 85 折。*推广链接：通过此链接购买，项目可能获得佣金。*
+
 <!-- section: facts -->
 ## 速览
 
