@@ -42,6 +42,17 @@ pub fn context(rt: &Runtime, s: &Arc<Scraper>, request_json: Option<&str>) -> Va
     }
 }
 
+pub fn resolve(rt: &Runtime, s: &Arc<Scraper>, request_json: Option<&str>) -> Value {
+    let req = match args::object(request_json) {
+        Ok(m) => Value::Object(m),
+        Err(e) => return failure_value(&e),
+    };
+    match rt.block_on(pagesift_core::loop_ops::resolve(s, req)) {
+        Ok(v) => v,
+        Err(e) => failure_value(&e),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::ffi::{CStr, CString};
@@ -50,7 +61,7 @@ mod tests {
 
     use crate::{
         pagesift_context, pagesift_engine_free, pagesift_engine_new, pagesift_graph_query,
-        pagesift_string_free, pagesift_sync,
+        pagesift_resolve, pagesift_string_free, pagesift_sync,
     };
 
     fn parse_c(ptr: *mut std::ffi::c_char) -> Value {
@@ -171,6 +182,37 @@ mod tests {
         let huge_err = parse_c(unsafe { pagesift_context(engine, huge_budget.as_ptr()) });
         assert_eq!(huge_err["success"], false);
         assert_eq!(huge_err["error_code"], "INVALID_REQUEST");
+
+        // 1.7 Resolve check (persisted) + get + NULL safety over C ABI
+        let res_check = CString::new(
+            serde_json::json!({
+                "action": "check",
+                "source_id": "ffi-ctx",
+                "answer": "Max payload is 64 MiB unless chunked.",
+                "persist": true
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let checked = parse_c(unsafe { pagesift_resolve(engine, res_check.as_ptr()) });
+        assert_eq!(checked["success"], true);
+        assert_eq!(checked["outcome"]["persisted"], true);
+        assert_eq!(checked["outcome"]["conclusion"]["state"], "supported");
+        let cid = checked["outcome"]["conclusion"]["conclusionId"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+
+        let res_get =
+            CString::new(serde_json::json!({ "action": "get", "conclusion_id": cid }).to_string())
+                .unwrap();
+        let got = parse_c(unsafe { pagesift_resolve(engine, res_get.as_ptr()) });
+        assert_eq!(got["success"], true);
+        assert_eq!(got["conclusion"]["state"], "supported");
+
+        let null_res = parse_c(unsafe { pagesift_resolve(std::ptr::null(), res_get.as_ptr()) });
+        assert_eq!(null_res["success"], false);
+        assert_eq!(null_res["error_code"], "INVALID_REQUEST");
 
         unsafe { pagesift_string_free(std::ptr::null_mut()) };
         unsafe { pagesift_engine_free(engine) };

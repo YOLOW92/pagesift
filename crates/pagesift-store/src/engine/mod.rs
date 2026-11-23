@@ -42,6 +42,7 @@ pub(crate) mod ns {
     pub const GRAPH_JOB: u8 = 12; // [协议] DataGraph 作业摘要与增量命名空间
     pub const SYNC_STATE: u8 = 13; // [协议] 1.5 Loop 持续数据同步命名空间
     pub const CONTEXT: u8 = 14; // [协议] 1.6 Context 持久知识单元、资产索引与幂等检查点命名空间
+    pub const RESOLVE: u8 = 15; // [协议] 1.7 Resolve 持久结论图、反向依赖、历史快照与事件命名空间（r<tag>\x1f 域前缀预留未来扩展）
 }
 
 fn evictable(n: u8) -> bool {
@@ -338,6 +339,14 @@ impl Store {
 
     pub fn context_for<'a>(&'a self, tenant: Option<&'a str>) -> crate::ContextStore<'a> {
         crate::ContextStore::new(self, tenant)
+    }
+
+    pub fn resolve(&self) -> crate::ResolveStore<'_> {
+        crate::ResolveStore::new(self, None)
+    }
+
+    pub fn resolve_for<'a>(&'a self, tenant: Option<&'a str>) -> crate::ResolveStore<'a> {
+        crate::ResolveStore::new(self, tenant)
     }
 
     pub fn tasks(&self) -> Tasks<'_> {

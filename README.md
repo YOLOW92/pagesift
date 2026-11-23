@@ -2,9 +2,9 @@
 
 <img src="https://raw.githubusercontent.com/YOLOW92/pagesift/main/docs/assets/logo.png" alt="PageSift Logo" width="180" />
 
-# pagesift 1.6.3
+# pagesift 1.7.0
 
-**Local-first web & document ingestion engine in Rust — HTTP/browser capture, layout-aware PDF/Office/OCR parsing, persistent sync, verifiable data graphs, and evidence-grounded AI context.**  
+**Local-first web & document ingestion engine in Rust — HTTP/browser capture, layout-aware PDF/Office/OCR parsing, persistent sync, verifiable data graphs, evidence-grounded AI context, and live claim resolution.**  
 One self-hosted Rust binary with a CLI, Firecrawl v1/v2 & Jina Reader HTTP APIs, an MCP server, a C ABI, and native Python / Node.js packages.
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
@@ -24,19 +24,19 @@ One self-hosted Rust binary with a CLI, Firecrawl v1/v2 & Jina Reader HTTP APIs,
 <!-- section: overview -->
 ## Overview
 
-`pagesift` turns live web pages, uploaded binary documents, archives, and long-lived monitored sources into clean Markdown, schema-validated JSON, provenance-tracked `DataGraph` relations, and budget-compiled `ContextPack` evidence inside a single memory-bounded Rust binary. HTTP fetching, native document readers, HTML extraction, adaptive sync state, incremental context indexing, and evidence storage run in-process without requiring Python, JVM, or Node workers; a headless browser pool, NVIDIA GPU OCR, and user-configured LLM endpoints attach only when requested.
+`pagesift` turns live web pages, uploaded binary documents, archives, and long-lived monitored sources into clean Markdown, schema-validated JSON, provenance-tracked `DataGraph` relations, budget-compiled `ContextPack` evidence, and persistent incrementally verified `Resolve` conclusions inside a single memory-bounded Rust binary. HTTP fetching, native document readers, HTML extraction, adaptive sync state, incremental context indexing, deterministic seven-layer claim resolution, and evidence storage run in-process without requiring Python, JVM, or Node workers; a headless browser pool, NVIDIA GPU OCR, and user-configured LLM endpoints attach only when requested.
 
 Drop-in or companion for: **Firecrawl** (self-hosted v1/v2 API), **Jina Reader** (`/r/` and `/s/`), **Crawl4AI**, **trafilatura**, **Readability**, **pymupdf4llm**, **Docling**, **Kreuzberg**, and **xberg**.
 
 <!-- section: facts -->
 ## At a glance
 
-- **Layered runtime:** Entry surfaces (`CLI` / `HTTP` / `MCP` / FFI) → policy & SSRF-guarded net → adaptive strategy (`HTTP` / embedded JSON / browser) → native format readers → `DataGraph`, `Context` & append-only store → cgroup-sized NUMA worker pool (`pagesift-flow`)
+- **Layered runtime:** Entry surfaces (`CLI` / `HTTP` / `MCP` / FFI) → policy & SSRF-guarded net → adaptive strategy (`HTTP` / embedded JSON / browser) → native format readers → `DataGraph`, `Context`, `Resolve` & append-only store → cgroup-sized NUMA worker pool (`pagesift-flow`)
 - **Inputs:** URLs, HTML, PDF (text + optional PP-OCRv6 / formulas), uploaded images (OCR when enabled), Office & OpenDocument, RTF/WordPerfect/HWP, e-books, emails, archives (`zip`, `tar`, `7z`), SQLite/CSV, 373 code languages, and WARC ([format matrix](docs/parse-api.md))
-- **Outputs:** Markdown, HTML, raw HTML, links, images/attachments, RAG chunks, schema JSON, `DataGraph` (`graph.jsonl`, citations, claim lifecycles, conflicts, `fact_clusters`, `?asOf=`), `ContextPack` (`KnowledgeUnit`, `ContextDelta`, `provenanceManifest`), plus structured warnings on partial captures
+- **Outputs:** Markdown, HTML, raw HTML, links, images/attachments, RAG chunks, schema JSON, `DataGraph` (`graph.jsonl`, citations, claim lifecycles, conflicts, `fact_clusters`, `?asOf=`), `ContextPack` (`KnowledgeUnit`, `ContextDelta`, `provenanceManifest`), `Resolve` (`ConclusionRecord`, `CounterSearchAudit`, `ResolveEvent`), plus structured warnings on partial captures
 - **Interfaces:** CLI · Firecrawl v1/v2 HTTP API · Jina Reader (`/r/`, `/s/`) · MCP (stdio / HTTP) · Python · Node.js / TypeScript · Rust crate · C ABI (Go, Java, Kotlin, C#, Ruby, PHP, Lua, Perl, Dart, Swift, Zig) · LangChain & LlamaIndex
-- **Platforms & ops:** Single binary (`serve --role gateway`, `worker`, `standby`), Linux x86_64/aarch64 (glibc ≥ 2.28 & musl), macOS arm64, Windows x86_64, Docker `ghcr.io/yolow92/pagesift:1.6.3`
-- **Index & release:** Machine-readable index [llms.txt](llms.txt) · Apache-2.0 or [commercial support](docs/COMMERCIAL.md) · **1.6.3** ([release notes](docs/releases/1.6.3.md))
+- **Platforms & ops:** Single binary (`serve --role gateway`, `worker`, `standby`), Linux x86_64/aarch64 (glibc ≥ 2.28 & musl), macOS arm64, Windows x86_64, Docker `ghcr.io/yolow92/pagesift:1.7.0`
+- **Index & release:** Machine-readable index [llms.txt](llms.txt) · Apache-2.0 or [commercial support](docs/COMMERCIAL.md) · **1.7.0** ([release notes](docs/releases/1.7.0.md))
 
 <!-- section: install -->
 ## Install and quick start
@@ -46,7 +46,7 @@ Drop-in or companion for: **Firecrawl** (self-hosted v1/v2 API), **Jina Reader**
 | CLI | `cargo install pagesift --locked` | `pagesift scrape https://example.com` |
 | Python | `pip install pagesift` | `pagesift.scrape("https://example.com").markdown` |
 | Node.js | `npm install @pagesift/node` | `(await new Scraper().scrape("https://example.com")).markdown` |
-| Server | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.6.3` | `curl localhost:3002/r/https://example.com` |
+| Server | `docker run -p 3002:3002 ghcr.io/yolow92/pagesift:1.7.0` | `curl localhost:3002/r/https://example.com` |
 | MCP | — | `claude mcp add pagesift -- pagesift mcp` |
 
 <details>
@@ -63,6 +63,7 @@ pagesift crawl https://docs.rs --limit 500 --out ./data/     # Crawl to disk (ad
 pagesift graph inspect ./data/graph.jsonl                    # Inspect citations, lineage, claims and conflicts
 pagesift sync init --id docs --seed https://example.com      # Initialize and run a persistent Loop sync source
 pagesift context pack --file report.pdf "rate limits"        # Compile a token-budgeted ContextPack with citations
+pagesift resolve check --store ./data/store --source-id docs "Plan Pro costs $99/yr." # Verify & persist conclusion
 pagesift extract --schema schema.json https://example.com    # Schema JSON with CSS selector relocation
 pagesift doctor                                              # Inspect local browsers, GPU and models
 ```
@@ -77,7 +78,8 @@ print(page.markdown, page.metadata["title"], page.links)
 
 with pagesift.Scraper(store_path="./data/store") as s:
     pack = s.context(action="pack", source_ids=["docs"], query="rate limits", budget_tokens=1024)
-    print(pack["pack"]["compiledContext"])
+    verdict = s.resolve(action="check", source_ids=["docs"], answer="Plan Pro costs $99/yr.")
+    print(pack["pack"]["compiledContext"], verdict["conclusion"]["state"])
 ```
 
 ```typescript
@@ -86,13 +88,14 @@ import { Scraper } from '@pagesift/node'
 const scraper = new Scraper({ storePath: './data/store' })
 const page = await scraper.scrape('https://example.com', { formats: ['markdown', 'links'] })
 const pack = await scraper.context({ action: 'pack', sourceIds: ['docs'], query: 'rate limits', budgetTokens: 1024 })
-console.log(page.markdown, pack.pack)
+const verdict = await scraper.resolve({ action: 'check', sourceIds: ['docs'], answer: 'Plan Pro costs $99/yr.' })
+console.log(page.markdown, pack.pack, verdict.conclusion?.state)
 ```
 
-**HTTP server (`Firecrawl v1/v2`, `Jina Reader`, `/v2/sources`, `/v2/graph`, `/v2/context`) & MCP**
+**HTTP server (`Firecrawl v1/v2`, `Jina Reader`, `/v2/sources`, `/v2/graph`, `/v2/context`, `/v2/resolve`) & MCP**
 
 ```bash
-docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.6.3
+docker run -d -p 3002:3002 -v pagesift-data:/data -e PAGESIFT_API_KEYS=sk-test ghcr.io/yolow92/pagesift:1.7.0
 
 curl -s localhost:3002/v2/scrape -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"]}'
@@ -100,6 +103,8 @@ curl -s localhost:3002/r/https://example.com -H 'Authorization: Bearer sk-test'
 curl -s localhost:3002/v2/parse -H 'Authorization: Bearer sk-test' -F file=@report.pdf -F 'options={"formats":["markdown"]}'
 curl -s localhost:3002/v2/context/pack -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
   -d '{"sourceIds":["docs"],"query":"rate limits","budgetTokens":1024}'
+curl -s localhost:3002/v2/resolve/check -H 'Authorization: Bearer sk-test' -H 'Content-Type: application/json' \
+  -d '{"sourceIds":["docs"],"answer":"Plan Pro costs $99/yr."}'
 
 pagesift mcp                                                 # stdio for a single agent
 pagesift mcp http --port 3003                                # shared local MCP daemon
@@ -107,7 +112,7 @@ pagesift mcp http --port 3003                                # shared local MCP 
 
 </details>
 
-MCP exposes `pagesift_scrape`, `pagesift_batch_scrape`, `pagesift_crawl`, `pagesift_poll_job`, `pagesift_cancel_job`, `pagesift_map`, `pagesift_interact`, `pagesift_interact_stop`, `pagesift_sync`, `pagesift_graph_query`, `pagesift_context`, and (with a configured model) `pagesift_agent` / `pagesift_agent_status`. See [Shared MCP service](docs/mcp-service.md) and [Context reference](docs/context.md).
+MCP exposes `pagesift_scrape`, `pagesift_batch_scrape`, `pagesift_crawl`, `pagesift_poll_job`, `pagesift_cancel_job`, `pagesift_map`, `pagesift_interact`, `pagesift_interact_stop`, `pagesift_sync`, `pagesift_graph_query`, `pagesift_context`, `pagesift_resolve`, and (with a configured model) `pagesift_agent` / `pagesift_agent_status`. See [Shared MCP service](docs/mcp-service.md), [Context reference](docs/context.md), and [Resolve reference](docs/resolve.md).
 
 <!-- section: capabilities -->
 ## Capabilities
@@ -116,22 +121,23 @@ Organized by architectural plane—showing implemented surfaces, data paths, and
 
 | Plane | Implemented capabilities | Reference |
 |---|---|---|
-| **Interfaces & compatibility** | Self-hosted CLI, Firecrawl v1/v2 HTTP API (`/v2/scrape`, `/v2/crawl`, `/v2/parse`, `/v2/monitor`, `/v2/sources`, `/v2/graph`, `/v2/context`, `/v2/agent`, `/interact`), Jina Reader (`/r/`, `/s/`), MCP (stdio/HTTP), Python, Node.js/TS, Rust library, C ABI bindings | [parse-api.md](docs/parse-api.md) · [context.md](docs/context.md) · [mcp-service.md](docs/mcp-service.md) |
+| **Interfaces & compatibility** | Self-hosted CLI, Firecrawl v1/v2 HTTP API (`/v2/scrape`, `/v2/crawl`, `/v2/parse`, `/v2/monitor`, `/v2/sources`, `/v2/graph`, `/v2/context`, `/v2/resolve`, `/v2/agent`, `/interact`), Jina Reader (`/r/`, `/s/`), MCP (stdio/HTTP), Python, Node.js/TS, Rust library, C ABI bindings | [parse-api.md](docs/parse-api.md) · [context.md](docs/context.md) · [resolve.md](docs/resolve.md) · [mcp-service.md](docs/mcp-service.md) |
 | **Acquisition & safety** | Conditional HTTP (`ETag`/`Last-Modified`), SSRF & DNS-rebinding guards, `robots.txt` & per-host rate limits, identity leases, embedded JSON synthesis (`__NEXT_DATA__`/`__NUXT_DATA__`/JSON-LD), optional CDP browser pool (`Lightpanda`/`moli`/Chrome) + interactive `/interact` sessions, opt-in `[itna]` access-barrier classification | [interact.md](docs/interact.md) · [http-sessions.md](docs/http-sessions.md) · [bot.md](docs/bot.md) |
 | **Native parsing & OCR** | Pure-Rust readers down to container/file level (`yolowhtml`, `yolowpdf`, `yolowdoc`, `yolowsyntax`, `yolowzstd`, `yolow64`) covering web, Office/ODF, e-books, email, nested archives, SQLite/CSV, 373 code languages (AST function/class splits for 32+ languages), WARC I/O, and PP-OCRv6 + PP-FormulaNet on CPU/GPU | [parse-api.md](docs/parse-api.md) |
 | **Extraction & agents** | Main-content Markdown with math/code/tables (`<caption>` & `hidden="until-found"`), RAG `queryFilter` & chunking, selector-memory schema extraction with automatic DOM relocation, and model-planned `/v2/agent` research verified against archived page evidence | [structured-extract.md](docs/structured-extract.md) · [agent-api.md](docs/agent-api.md) |
 | **Continuous Loop & monitors** | Persistent `pagesift sync` / `/v2/sources` sources with anti-aliased periodic detection, hierarchical Gamma-Poisson shrinkage & Lagrange water-filling under tick budgets, hub co-change propagation, modality cost & tab shadow pricing, bounded `DirectBrowser` recovery probes, surprise forgetting, tenant-isolated cold-start transfer, capture reliability censoring, and `/v2/monitor` webhooks & substantive block diffs | [monitor.md](docs/monitor.md) · [incremental-collection.md](docs/incremental-collection.md) |
 | **DataGraph & provenance** | Cross-page and cross-source evidence graph (`graph.jsonl`, `graph_summary.json`, `/v2/graph/claims`, `/history`, `/conflicts`, `?asOf=`): persisted document citations, redirect/canonical/attachment provenance, contextual unit/currency disambiguation, `OriginRelation` independent roots, `fact_clusters`, and claim lifecycles (`Active`, `Superseded`, `Withdrawn`, `Unverified`, `EvidenceDegraded`) | [architecture.md](docs/architecture.md) |
 | **Context & compilation** | Cross-version `KnowledgeUnit` identity & ambiguity tracking (`boundedUot` / `greedyDice` / `exactAnchorOnly`), atomic dependency-governed `ContextDelta` & idempotent consumer checkpoints, multi-strategy lexical/symbol/temporal/lineage `Search`, budget- & `MustKeep`-constrained `ContextPack` (`submodularClosure` / `boundedDpp` / `edgeSalience`) with `provenanceManifest`, and bounded VOI + shadow-price `Action` with drift-guarded online `Learn` | [context.md](docs/context.md) |
+| **Resolve & live verification** | Persistent `ConclusionRecord` graph in GC-immune `ns::RESOLVE`, context-preserving claim decomposition, deterministic seven-layer `Check` (entity, dual-axis `asOf`/`effectiveAt`, currency/billing-period/unit, polarity/qualifier, causal conservatism, `originRoot` mirror collapse, comparative/errata falsification), attribute-guarded `Counter` probes with `absence_is_not_proof` audit, VOI-bounded `Gap` acquisition, optional quote-grounded `HybridAssisted` judge, Salsa-style early-cutoff `Live` reconciliation, and `HardEvidence`-only PAV/CUSUM `Learn` | [resolve.md](docs/resolve.md) |
 
 <!-- section: performance -->
 ## Performance at a glance
 
 Benchmarks are tracked separately so this page stays focused on system structure; all recorded baselines, hardware details, caveats, and competitor comparisons live in [docs/benchmarks.md](docs/benchmarks.md):
 
-- **Latency (recorded benchmarks, single-worker, lower is better):** PDF → Markdown `2.5–2.58 ms/page` (1,269 pages); HTML → Markdown `0.23–0.24 ms/page` (600 docs); main-content extraction `1.0 ms/page` (597 pages); Context `BoundedUot` reconcile `63.9 µs` and `ContextPack` compile `67–225 µs` (`192`/`384`-token budgets).
-- **Throughput, quality & memory (recorded benchmarks):** Office in-process `81.9–210.0 files/s` (higher is better); HTML → Markdown `1.000` mean F1; WCXB `0.866` F1; RAG query filter `0.929` recall (higher is better); Context `Search + Pack` `2,708.8–24,434.4 QPS` across `1–16` threads (`25.9–28.8 MiB` RSS, higher QPS / lower RSS is better); `17–395 MB` peak memory/worker without a browser across domain runs.
-- **Full scorecards & evaluations:** [benchmarks.md](docs/benchmarks.md) · [Full benchmark report](benchmarks/history/1.4/results/final/new/report.md) · [Latest Context & Loop release evaluation](docs/releases/1.6.0.md)
+- **Latency (recorded benchmarks, single-worker, lower is better):** PDF → Markdown `2.5–2.58 ms/page` (1,269 pages); HTML → Markdown `0.23–0.24 ms/page` (600 docs); main-content extraction `1.0 ms/page` (597 pages); Context `BoundedUot` reconcile `63.9 µs` and `ContextPack` compile `67–225 µs` (`192`/`384`-token budgets); Resolve deterministic `Check` `p50 96 µs` / `p99 161 µs` (`400` checks) and `Live` incremental reconciliation `7,504 µs` vs `33,550 µs` full recheck (`4.47x` speedup across `60` persisted conclusions).
+- **Throughput, quality & memory (recorded benchmarks):** Office in-process `81.9–210.0 files/s` (higher is better); HTML → Markdown `1.000` mean F1; WCXB `0.866` F1; RAG query filter `0.929` recall (higher is better); Context `Search + Pack` `2,708.8–24,434.4 QPS` across `1–16` threads (`25.9–28.8 MiB` RSS); Resolve `Check` `9,448.4 QPS` (`31.25 MiB` RSS, `0.0000` false-support rate and `1.0000` supported precision/recall across `64` adversarial traps; QPS/precision/recall higher, false-support/RSS lower is better); `17–395 MB` peak memory/worker without a browser across domain runs.
+- **Full scorecards & evaluations:** [benchmarks.md](docs/benchmarks.md) · [Full benchmark report](benchmarks/history/1.4/results/final/new/report.md) · [1.7.0 Resolve evaluation](docs/releases/1.7.0.md) · [1.6.0 Context & Loop evaluation](docs/releases/1.6.0.md)
 
 <!-- section: architecture -->
 ## Architecture and core flows
@@ -141,53 +147,30 @@ The core runs as one compiled Rust binary with zero managed interpreter runtimes
 ### Request and ingestion pipeline
 
 ```mermaid
-flowchart TD
-    CLI["CLI / Rust caller"] --> Engine["pagesift-engine: scrape, crawl, Loop sync, Context"]
-    HTTP["HTTP API: Firecrawl v1/v2, Jina, /v2/sources, /v2/graph, /v2/context"] --> Engine
-    Bind["Python / Node / MCP / C ABI"] --> Engine
+flowchart LR
+    In["Interfaces<br/>CLI · HTTP · MCP · SDKs"]
+    Net["Fetch & Render<br/>Policy · HTTP · CDP"]
+    Parse["Native Parsers<br/>HTML · PDF · Office · OCR"]
+    Core["Graph & Context<br/>DataGraph · ContextPack"]
+    Res["Resolve<br/>Check · Counter · Live"]
+    Store[("Append-Only Store<br/>Sync · Context · Resolve")]
 
-    Engine --> Policy["pagesift-hooks & pagesift-policy<br/>robots, host rate limits, backoff, identity leases"]
-    Policy --> Net["pagesift-net + pagesift-compress (yolowzstd)<br/>HTTP/conditional fetch, SSRF guards, TLS/proxy"]
-    Net -.-> ITNA["pagesift-itna (opt-in)<br/>barrier class + shared budget"]
-    ITNA -.-> CDP
-
-    Net --> Plan{"pagesift-plan<br/>HTTP, JSON or browser?"}
-    Plan -->|HTTP or embedded JSON| DOM["pagesift-html (yolowhtml-dom): single-pass arena DOM"]
-    Plan -->|Browser escalation| CDP["pagesift-cdp: Lightpanda / moli / Chrome"]
-    CDP --> DOM
-
-    Net -->|PDF| PDF["pagesift-pdf (yolowpdf + yolow64)"]
-    Net -->|Office / e-book / email / archive / text| Office["pagesift-office (yolowdoc)"]
-    Net -->|Image / scanned PDF| OCR["pagesift-ocr, pagesift-infer, pagesift-gpu"]
-    Office -->|member / attachment| PDF
-    Office -->|source code| Syntax["pagesift-syntax (yolowsyntax)"]
-    PDF -->|scanned page| OCR
-
-    DOM --> Frontier["pagesift-frontier: URL scoring"]
-    Frontier -.->|next crawl / sync candidates| Engine
-    DOM --> Content["pagesift-content (yolowhtml) & pagesift-extract<br/>main content, selectors, evidence, chunks"]
-
-    Content --> Graph["pagesift-graph (DataGraph)<br/>citations, provenance, claims, conflicts, clusters, asOf"]
-    PDF --> Graph
-    Office --> Graph
-
-    Graph --> Ctx["Context (pagesift-graph + pagesift-extract + pagesift-stat)<br/>KnowledgeUnit (BoundedUot), ContextDelta, Search, ContextPack, VOI Action & Learn"]
-    Graph --> Out["pagesift-sink & pagesift-store<br/>graph.jsonl, offloaded snapshots, SyncStore, ContextStore (ns::CONTEXT + chis), Experience"]
-    Ctx <--> Out
-    Ctx -.->|VOI + 4D shadow-price bounded acquisition| Engine
-    Out -.->|priors, URL rewrites, checkpoints| Plan
+    In --> Net --> Parse --> Core --> Res
+    Core <--> Store
+    Res <--> Store
+    Store -.->|Loop / Gap| Net
 ```
 
 ### Continuous Sync closed loop (`Observe → Learn → Decide → Execute → Verify`)
 
-Long-lived sources registered via `pagesift sync` or `/v2/sources` run an adaptive closed loop per tick without discarding prior verified evidence on transient uncertainty, and optionally reconcile changed documents incrementally into `ContextStore`:
+Long-lived sources registered via `pagesift sync` or `/v2/sources` run an adaptive closed loop per tick without discarding prior verified evidence on transient uncertainty, and optionally reconcile changed documents incrementally into `ContextStore` and `ResolveStore`:
 
 ```mermaid
 flowchart LR
-    Obs["Observe & Schedule<br/>pagesift-store + pagesift-stat<br/>Non-aliased periodicity, Gamma-Poisson<br/>rates, Lagrange water-filling, Hub pull-forward"]
-    Dec["Decide Modality<br/>pagesift-plan<br/>304/HTTP/Browser cost + tab shadow price,<br/>bounded recovery probes, tenant transfer"]
-    Exe["Execute & Screen<br/>pagesift-engine/sync/capture<br/>HTTP / JSON synthesis / CDP / 304;<br/>censor decode:, truncation & bad 304s"]
-    Ver["Verify & Commit<br/>pagesift-graph + pagesift-store<br/>Active/Superseded/Withdrawn/Unverified claims,<br/>ContextDelta & unit lineage, snapshot offload"]
+    Obs["Observe<br/>Periodicity · Budget"]
+    Dec["Decide<br/>304 · HTTP · CDP"]
+    Exe["Execute<br/>Fetch · Screen"]
+    Ver["Verify & Commit<br/>Claims · Context · Resolve"]
 
     Obs --> Dec --> Exe --> Ver --> Obs
 ```
@@ -196,23 +179,23 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    subgraph Agent["Bounded /v2/agent research loop"]
-        Q[Question + Schema] --> M[User LLM step]
-        M --> T[search / map / scrape / extract<br/>enforced robots & SSRF policy]
-        T --> Ev[Archived evidence]
-        Ev --> Check{Complete?}
-        Check -->|budget left| M
-        Check -->|done| Verify[Schema match + field grounding + warnings]
+    subgraph Agent["/v2/agent loop"]
+        Q["Query + Schema"] --> M["User LLM"]
+        M --> T["Scrape / Search<br/>Policy guarded"]
+        T --> Ev["Evidence"]
+        Ev --> Check{"Done?"}
+        Check -->|more| M
+        Check -->|yes| Verify["Verified output"]
     end
 ```
 
 ```mermaid
 flowchart LR
-    subgraph Fleet["Single binary multi-node cluster (pagesift-cluster)"]
-        C[Clients] --> G[Gateway<br/>API, jobs, webhooks]
-        G -->|rendezvous host hash| W1[Worker]
-        G --> W2[Worker]
-        G -.->|fenced leases & checkpoints| S[Standby]
+    subgraph Fleet["Multi-node cluster"]
+        C["Clients"] --> G["Gateway<br/>API · Jobs"]
+        G -->|host hash| W1["Worker"]
+        G --> W2["Worker"]
+        G -.->|leases| S["Standby"]
     end
 ```
 
@@ -236,6 +219,7 @@ See [Architecture reference](docs/architecture.md) for cgroup sizing, statistica
 
 - Feeding live web pages, PDFs, Office suites, archives, or source code into AI agents, RAG pipelines, or downstream analytics with zero external runtime workers
 - Compiling token-budgeted, provenance-cited `ContextPack` prompts that preserve table headers, qualifiers, units, temporal validity, and opposing multi-source conflicts
+- Auditing LLM answers and factual claims into persistent `ConclusionRecord` graphs with deterministic seven-layer verification, active counterexample probing, and incremental `Live` revalidation when sources change
 - Self-hosting Firecrawl- or Jina Reader-compatible APIs and shared MCP tooling without per-page SaaS fees
 - Continuous monitoring/sync of changing sources where cost-aware browser escalation, lineage tracking, and claim-level conflict detection matter
 
@@ -251,11 +235,11 @@ See [Architecture reference](docs/architecture.md) for cgroup sizing, statistica
 [Apache-2.0](LICENSE). For dedicated support, SLAs, or enterprise agreements, see [commercial license and support](docs/COMMERCIAL.md) or write to `licensing@pagesift.dev`.
 
 <!-- section: changelog -->
-## What's new in 1.6.3
+## What's new in 1.7.0
 
-PageSift 1.6.3 hardens configuration consistency, monitor deletion lifecycles, CDP security setup, revoked-account execution boundaries, cluster quota reconciliation, and legacy-tenant probing on the `1.6.x` line: adds fallible `pagesift_api::try_router()` (with `router()` failing closed) to reject conflicting shared-account limits, delimiter/reserved account IDs, duplicate conflicting `[[server.keys]]` entries, and `0`-limit discrepancies across local `Limiter` and cluster `Ledger`; replaces the unbounded `run_locks` map with per-entry `MonitorLife` so `DELETE /v2/monitor/{id}` cancels in-flight checks and webhooks, serializes against blocking writes across cancelled futures, and reports storage delete failures without resurrection; makes CDP main/child-target security setup (with deadlock-free Chromium ServiceWorker pipelining) and non-intercept `allowedHosts`/`bypassServiceWorker` guards fail closed while preserving ordinary Lightpanda rendering; pauses persisted monitors (`pausedReason: "account_revoked"`) and fails in-progress jobs on revoked accounts instead of falling back to `default_limits`; adds idempotent cluster hold closure, UTC day-rollover pruning, bounded single-flight FIFO reconciliation, and tri-state `SettleOutcome` HTTP warnings/`500` responses plus Prometheus metrics; and extends legacy-tenant probing to `agent/`, `attachment-access/`, and grouped `GRAPH_NODE`/`GRAPH_EDGE` keys while failing closed on storage read errors, corrupt metadata, or dual legacy+SHA-256 namespaces.
+PageSift 1.7.0 introduces **Resolve**, an evidence-driven claim verification and live conclusion maintenance engine layered on `DataGraph`, `Loop`, and `Context` across Rust (`Engine::resolve`), HTTP (`/v2/resolve*` with Cluster Gateway routing and per-key rate limiting), CLI (`pagesift resolve`), MCP (`pagesift_resolve`), C ABI (`pagesift_resolve`), Python (`Scraper.resolve` / `aresolve`), and Node.js (`Scraper.resolve`): persists versioned `ConclusionRecord` graphs, revision histories, monotonic `ResolveEvent` streams, and dual `unitId` + `ScopeDependency` inverted indices atomically via `AtomicTx` in GC-immune `ns::RESOLVE`; performs context-preserving claim decomposition and deterministic seven-layer `Check` (subject isolation, dual-axis `asOf`/`effectiveAt`, currency/billing-period/unit normalization, sentence-focused polarity and qualifier preservation, causal conservatism, `originRoot` mirror collapse, and citation/comparative-counterexample falsification); runs attribute-guarded active `Counter` probes with explicit open-world `absence_is_not_proof` audit trails; gates optional `Gap` network acquisition behind explicit `allowNetworkAcquisition` / `allowedHosts` permissions and Howard VOI plus optional verbatim-quote-grounded `HybridAssisted` LLM judgment; maintains conclusions incrementally via Salsa-style early-cutoff `Live` reconciliation (`RelocatedOnly`/`Reconfirmed` skip, `ObservationLost` non-refutation, scope expansion, ABA fallback); and calibrates confidence strictly from `HardEvidence` feedback via CUSUM drift-guarded PAV isotonic `Learn`.
 
-[Release notes](docs/releases/1.6.3.md) · [1.6.2](docs/releases/1.6.2.md) · [1.6.1](docs/releases/1.6.1.md) · [1.6.0](docs/releases/1.6.0.md) · [1.5.6](docs/releases/1.5.6.md) · [1.5.5](docs/releases/1.5.5.md) · [1.5.4](docs/releases/1.5.4.md) · [all releases](docs/releases/) · [CHANGELOG](docs/CHANGELOG.md)
+[Release notes](docs/releases/1.7.0.md) · [1.6.3](docs/releases/1.6.3.md) · [1.6.2](docs/releases/1.6.2.md) · [1.6.1](docs/releases/1.6.1.md) · [1.6.0](docs/releases/1.6.0.md) · [1.5.6](docs/releases/1.5.6.md) · [1.5.5](docs/releases/1.5.5.md) · [all releases](docs/releases/) · [CHANGELOG](docs/CHANGELOG.md)
 
 ---
 
@@ -271,7 +255,7 @@ Questions or feedback: [Discord](https://discord.gg/esA3wMZVvA) · [Issues](http
   author = {YOLOW92},
   year   = {2026},
   url    = {https://github.com/YOLOW92/pagesift},
-  note   = {Version 1.6.3}
+  note   = {Version 1.7.0}
 }
 ```
 

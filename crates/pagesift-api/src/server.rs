@@ -293,6 +293,7 @@ pub fn try_router(engine: Arc<dyn Engine>, config: Config) -> Result<Router, Api
         .merge(crate::monitor::routes())
         .merge(crate::sources::routes())
         .merge(crate::context::routes())
+        .merge(crate::resolve::routes())
         .route_layer(middleware::from_fn_with_state(state.clone(), auth));
 
     Ok(Router::new()
@@ -544,13 +545,15 @@ async fn auth(
             }
         }
     };
-    // 计入每分钟请求数的是会执行抓取或存储计算工作的请求：POST、Jina 的 `GET /r/{url}` / `GET /s/{query}`，
-    // 以及 Context GET 查询端点（`/v2/context/*`）；低成本任务轮询类 GET（如 `/v2/crawl/{id}`）不计数。
+    // 计入每分钟请求数的是会执行抓取或存储计算工作的请求：POST、DELETE、Jina 的 `GET /r/{url}` / `GET /s/{query}`，
+    // 以及 Context/Resolve 查询端点（`/v2/context/*`、`/v2/resolve*`）；低成本任务轮询类 GET（如 `/v2/crawl/{id}`）不计数。
     let path = req.uri().path();
     if (req.method() == Method::POST
+        || req.method() == Method::DELETE
         || path.starts_with("/r/")
         || path.starts_with("/s/")
-        || path.starts_with("/v2/context/"))
+        || path.starts_with("/v2/context/")
+        || path.starts_with("/v2/resolve"))
         && let Err(e) = s.limiter.check_rate(&caller)
     {
         let mut resp = e.into_response();

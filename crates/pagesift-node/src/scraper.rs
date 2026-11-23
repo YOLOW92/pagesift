@@ -351,6 +351,21 @@ impl Scraper {
             pagesift::loop_ops::context(&core, req).await
         })
     }
+
+    /// 执行 1.7 Resolve 操作（`check`、`conclusions`、`get`、`history`、`graph`、`reconcile`、`revalidate`、`events`、`learn`、`delete`）。
+    #[napi(
+        ts_args_type = "request: ResolveRequest",
+        ts_return_type = "Promise<Record<string, unknown>>"
+    )]
+    pub fn resolve<'e>(
+        &self,
+        env: &'e Env,
+        request: Option<Value>,
+    ) -> Result<PromiseRaw<'e, Value>> {
+        crate::loop_api::spawn(env, self.live(), request, |core, req| async move {
+            pagesift::loop_ops::resolve(&core, req).await
+        })
+    }
 }
 
 /// 选项对象里加上 `extractSchema`（没给选项时新建一个）。

@@ -358,3 +358,19 @@ pub unsafe extern "C" fn pagesift_context(
         Ok(loop_api::context(runtime(), s, req))
     })
 }
+
+/// 执行 1.7 Resolve 操作（`check`/`conclusions`/`get`/`history`/`graph`/`reconcile`/`revalidate`/`events`/`learn`/`delete`）。
+///
+/// # Safety
+/// 指针参数的要求见 `pagesift.h`。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn pagesift_resolve(
+    engine: *const PagesiftEngine,
+    request_json: *const c_char,
+) -> *mut c_char {
+    guarded("pagesift_resolve", || {
+        // SAFETY: 转述调用方的保证
+        let (s, req) = unsafe { (scraper(engine)?, optional(request_json, "request_json")?) };
+        Ok(loop_api::resolve(runtime(), s, req))
+    })
+}

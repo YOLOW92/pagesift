@@ -66,6 +66,9 @@ fn engine_tools_with(
     tools.push(Arc::new(crate::mcp_context::ContextTool {
         engine: engine.clone(),
     }));
+    tools.push(Arc::new(crate::mcp_resolve::ResolveTool {
+        engine: engine.clone(),
+    }));
     tools.push(Arc::new(Batch(engine, jobs.clone(), caps)));
     tools.push(Arc::new(crate::mcp_graph::GraphQueryTool(jobs)));
     tools

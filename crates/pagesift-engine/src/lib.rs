@@ -10,6 +10,7 @@ pub mod discovery;
 pub mod engine;
 pub mod graph;
 pub mod notice;
+pub mod resolve;
 pub mod scripts;
 pub mod sync;
 

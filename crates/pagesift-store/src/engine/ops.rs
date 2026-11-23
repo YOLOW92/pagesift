@@ -95,7 +95,7 @@ impl Store {
                 break;
             }
             let (targets, grouped) = match loc.ns() {
-                ns::CONTEXT | ns::SYNC_STATE => (&plain_targets, false),
+                ns::CONTEXT | ns::SYNC_STATE | ns::RESOLVE => (&plain_targets, false),
                 ns::GRAPH_NODE | ns::GRAPH_EDGE => (&graph_targets, true),
                 ns::GRAPH_FACT | ns::GRAPH_JOB => (&graph_targets, false),
                 _ => continue,

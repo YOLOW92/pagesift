@@ -114,6 +114,7 @@ impl Scraper {
             sync_locks: std::sync::Mutex::new(std::collections::HashMap::new()),
             context_locks: std::sync::Mutex::new(std::collections::HashMap::new()),
             context_cache: crate::context::cache::ContextIndexCache::new(),
+            resolve_locks: std::sync::Mutex::new(std::collections::HashMap::new()),
         })
         .map(|mut s| {
             s.launch_failed = (0..s.browsers.len()).map(|_| Default::default()).collect();
@@ -387,6 +388,18 @@ impl Scraper {
 
     pub(crate) fn context_cache(&self) -> &crate::context::cache::ContextIndexCache {
         &self.context_cache
+    }
+
+    pub(crate) fn resolve_tenant_lock(&self, tenant: Option<&str>) -> Arc<tokio::sync::Mutex<()>> {
+        let key = (
+            tenant.filter(|t| !t.is_empty()).map(str::to_string),
+            "__resolve__".to_owned(),
+        );
+        let mut guard = self.resolve_locks.lock().unwrap_or_else(|e| e.into_inner());
+        guard
+            .entry(key)
+            .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
+            .clone()
     }
 
     /// 当前的全局并发目标（限速器的 USL 控制器给出，冷启动等于配置的全局并发）。

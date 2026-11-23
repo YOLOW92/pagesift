@@ -18,6 +18,7 @@ mod jobs;
 mod limits;
 mod metrics;
 pub mod monitor;
+pub mod resolve;
 pub(crate) mod server;
 pub mod sources;
 mod stream_body;

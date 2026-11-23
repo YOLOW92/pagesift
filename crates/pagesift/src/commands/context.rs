@@ -268,7 +268,10 @@ pub(crate) enum ContextCommand {
     },
 }
 
-fn open_context_store(cfg: &pagesift::config::Config, custom: Option<&Path>) -> Result<Store> {
+pub(crate) fn open_context_store(
+    cfg: &pagesift::config::Config,
+    custom: Option<&Path>,
+) -> Result<Store> {
     let dir = custom
         .map(PathBuf::from)
         .unwrap_or_else(|| cfg.data_dir().join("store"));
@@ -322,7 +325,7 @@ fn build_local_fallback_url(
     (Url::parse(&url_str).ok(), url_str)
 }
 
-async fn load_local_files(
+pub(crate) async fn load_local_files(
     scraper: &pagesift::Scraper,
     files: &[PathBuf],
     base_url: Option<&Url>,

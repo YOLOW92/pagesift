@@ -26,6 +26,7 @@ pub mod model;
 pub mod norm;
 mod norm_parse;
 pub mod provenance;
+pub mod resolve;
 pub mod temporal;
 pub mod version;
 

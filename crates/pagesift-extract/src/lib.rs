@@ -38,6 +38,7 @@ mod patterns;
 mod recursive;
 mod relevance;
 mod relocate;
+pub mod resolve;
 mod schema;
 pub mod structured;
 mod text;

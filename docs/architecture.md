@@ -7,8 +7,8 @@ for OCR and a model for `/v2/agent` are optional and found at run time.
 
 ```mermaid
 flowchart TD
-    CLI["CLI / Rust caller"] --> Engine["pagesift-engine: scrape, crawl, Loop sync, Context"]
-    HTTP["HTTP API: Firecrawl, Jina, /v2/sources, /v2/graph, /v2/context"] --> Engine
+    CLI["CLI / Rust caller"] --> Engine["pagesift-engine: scrape, crawl, Loop sync, Context, Resolve"]
+    HTTP["HTTP API: Firecrawl, Jina, /v2/sources, /v2/graph, /v2/context, /v2/resolve"] --> Engine
     Bindings["Python / Node / MCP / C ABI: Go, Java, C#, Ruby, PHP and more"] --> Engine
     Engine --> Hooks["pagesift-hooks: rules and hooks"]
     Hooks --> Policy["pagesift-policy: robots, rate limits, backoff, identity leases"]
@@ -38,10 +38,13 @@ flowchart TD
     OCR --> Sink
     Content --> Sink
     Extract --> Sink
-    Graph --> Store["pagesift-store: inventories, claim history, Context units & deltas (ns::CONTEXT + chis), experience, cache, snapshots"]
+    Graph --> Store["pagesift-store: inventories, claim history, Context (ns::CONTEXT + chis), Resolve (ns::RESOLVE), experience, cache, snapshots"]
     Graph --> Ctx["Context (pagesift-graph + pagesift-extract + pagesift-stat): KnowledgeUnit (BoundedUot), ContextDelta, multi-strategy Search, ContextPack, VOI Action & Learn"]
     Ctx <--> Store
+    Ctx --> Res["Resolve (pagesift-graph + pagesift-extract + pagesift-engine): Belnap/Carneades Check, Minimal Cut Sets, Counter probes, Gap VOI & Live maintenance"]
+    Res <--> Store
     Ctx -.->|VOI + 4D shadow-price bounded acquisition| Engine
+    Res -.->|bounded Gap/Counter acquisition via ContextAction| Ctx
     Engine <-->|SyncDelta, ContextDelta, assessments, snapshots| Store
     Store -.->|family experience, URL rewrites| Plan
     Net --> Compress["pagesift-compress (yolowzstd): HTTP and cache zstd codecs"]
@@ -82,6 +85,8 @@ flowchart LR
     A -.->|bounded sync / fetch when VOI > cost| U
     L -.->|calibrated confidence| S
 ```
+
+On top of `Context`, **Resolve** ([docs/resolve.md](resolve.md)) keeps candidate answers and derived conclusions strictly isolated from raw observations (`ns::RESOLVE`, GC-immune, tenant-scoped). It performs context-preserving atomic claim decomposition, seven-layer deterministic verification (citation `asOf` integrity, table-header/entity binding, billing-period/currency/unit checks, dual-axis temporal checks, polarity & qualifier guards, causal conservatism, and comparative counterexample scans), common-cause origin collapse with Minimal Cut Sets, MCS+VOI bounded Gap acquisition reusing `ContextAction` guardrails, proactive counter-evidence probing with `CounterSearchAudit`, ABA-safe incremental `ContextDelta` reconciliation (Early Cutoff on `RelocatedOnly`, `ObservationLost` separation, `ScopeDependency` negative-dependency invalidation), and conservative domain-stratified `Learn` calibration (`pagesift resolve`, `/v2/resolve*`, `pagesift_resolve`, and SDK `resolve()`).
 
 ## Crates
 

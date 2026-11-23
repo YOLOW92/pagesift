@@ -8,6 +8,7 @@ use crate::tool::{ToolAnnotations, ToolDef};
 pub const GRAPH_QUERY: &str = "pagesift_graph_query";
 pub const SYNC: &str = "pagesift_sync";
 pub const CONTEXT: &str = "pagesift_context";
+pub const RESOLVE: &str = "pagesift_resolve";
 
 pub fn graph_query_def() -> ToolDef {
     let schema = json!({
@@ -283,6 +284,167 @@ pub fn context_def() -> ToolDef {
         .output_schema(output::context_result())
         .annotations(ToolAnnotations {
             title: Some("pagesift context".into()),
+            read_only_hint: Some(false),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(true),
+        })
+}
+
+pub fn resolve_def() -> ToolDef {
+    let doc_item = json!({
+        "type": "object",
+        "required": ["url", "markdown"],
+        "properties": {
+            "url": { "type": "string", "description": "Document source URL or logical identifier." },
+            "markdown": { "type": "string", "description": "Extracted Markdown body of the document." },
+            "title": { "type": "string", "description": "Optional document title." },
+            "observedAtMs": { "type": "integer", "minimum": 0, "description": "Observation timestamp in Unix milliseconds." },
+            "validFrom": { "type": "string", "description": "Optional RFC-3339 effective start timestamp." },
+            "validUntil": { "type": "string", "description": "Optional RFC-3339 effective end timestamp." },
+            "subjectKey": { "type": "string", "description": "Optional entity subject key." },
+            "originRoot": { "type": "string", "description": "Optional independent evidentiary origin root key." },
+            "originIndependent": { "type": "boolean", "description": "Whether this document is an independent source rather than a mirror or reprint." }
+        },
+        "additionalProperties": false
+    });
+
+    let feedback_item = json!({
+        "type": "object",
+        "required": ["rawScore", "groundedSupported"],
+        "properties": {
+            "domain": { "type": "string", "description": "Domain bucket label (default: 'general')." },
+            "claimKind": { "type": "string", "description": "Claim quantifier kind label." },
+            "rawScore": { "type": "number", "minimum": 0.0, "maximum": 1.0, "description": "Raw alignment score in [0, 1]." },
+            "groundedSupported": { "type": "boolean", "description": "Externally verified ground-truth support label." },
+            "isHardGroundTruth": { "type": "boolean", "description": "Must be true for calibration updates; weak signals are ignored." },
+            "counterProbeKind": { "type": "string", "description": "Optional counter probe kind." },
+            "counterFound": { "type": "boolean", "description": "Whether counter probe surfaced relevant counter-evidence." },
+            "verifierVersion": { "type": "string", "description": "Verifier version tag." }
+        },
+        "additionalProperties": false
+    });
+
+    let mut props = serde_json::Map::new();
+    if let serde_json::Value::Object(core_props) = json!({
+        "action": {
+            "type": "string",
+            "enum": ["check", "verify", "conclusions", "list", "get", "history", "graph", "reconcile", "revalidate", "events", "learn", "learn_status", "delete"],
+            "description": "Resolve operation: check (default), conclusions, get, history, graph, reconcile, revalidate, events, learn, learn_status, or delete."
+        },
+        "op": { "type": "string", "description": "Alias for 'action'." },
+        "answer": { "type": "string", "description": "Candidate natural-language answer to decompose into atomic claims and verify." },
+        "text": { "type": "string", "description": "Alias for 'answer'." },
+        "claims": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Optional explicit atomic claim strings to verify."
+        },
+        "query": { "type": "string", "description": "Optional original question context." },
+        "domain": { "type": "string", "description": "Optional domain bucket for calibration and auditing." },
+        "conclusionId": { "type": "string", "description": "Target conclusion identifier for get, history, graph, revalidate, delete, or updating an existing conclusion." },
+        "conclusionIds": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Explicit conclusion IDs to revalidate."
+        },
+        "sourceId": { "type": "string", "description": "Single Context/Loop source ID filter." },
+        "sourceIds": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Context/Loop source IDs to verify against or reconcile."
+        },
+        "documents": {
+            "type": "array",
+            "items": doc_item,
+            "description": "Optional inline documents for ephemeral stateless verification."
+        },
+        "parentConclusionIds": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Upstream conclusion IDs this conclusion depends on (cycles are rejected)."
+        },
+        "assumptions": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Explicit assumptions required by this conclusion."
+        },
+        "proofStandard": {
+            "type": "string",
+            "enum": ["scintilla", "preponderance", "clear_and_convincing", "strict_universal"],
+            "description": "Carneades-style proof standard (default: preponderance)."
+        },
+        "domainKind": {
+            "type": "string",
+            "enum": ["open_world", "closed_observed_set"],
+            "description": "Whether the queried corpus represents an open world (default) or a closed observed set."
+        },
+        "verifierMode": {
+            "type": "string",
+            "enum": ["deterministic_only", "hybrid_assisted"],
+            "description": "Deterministic core only (default) or optional quote-grounded LLM assistance on inconclusive claims."
+        },
+        // [策略] 独立信源数上限 256、补采请求上限 64、分页上限 1000 与引擎 validate.rs 一致
+        "minIndependentSources": { "type": "integer", "minimum": 1, "maximum": 256, "description": "Minimum independent origin roots required." },
+        "asOf": { "type": "string", "description": "Observation time cutoff (Unix ms or RFC-3339) preventing future evidence leakage." },
+        "effectiveAt": { "type": "string", "description": "Business validity target time (Unix ms or RFC-3339)." },
+        "includeUnverified": { "type": "boolean", "description": "Whether to consider unverified/unreliable Context units." }
+    }) {
+        props.extend(core_props);
+    }
+
+    if let serde_json::Value::Object(extra_props) = json!({
+        "enableGapResolution": { "type": "boolean", "description": "Enable MCS+VOI prioritized gap resolution (default: true)." },
+        "enableCounterSearch": { "type": "boolean", "description": "Enable proactive counter-evidence probing and coverage audit (default: true)." },
+        "allowNetworkAcquisition": { "type": "boolean", "description": "Explicitly permit bounded network acquisition via 1.6 ContextAction guardrails (default: false)." },
+        "allowExternalSearch": { "type": "boolean", "description": "Permit configured external search queries during gap/counter acquisition (default: false)." },
+        "strictConstrainToUrls": { "type": "boolean", "description": "Restrict network acquisition strictly to candidateUrls and managed sources." },
+        "candidateUrls": {
+            "type": "array",
+            "items": { "type": "string", "format": "uri" },
+            "description": "Candidate URLs for bounded gap resolution."
+        },
+        "allowedHosts": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Strict host allowlist enforced across HTTP, redirects, and browser sub-requests."
+        },
+        // [策略] Resolve 单次网络补采请求硬上限 64（与引擎 validate.rs 边界一致）
+        "maxAcquisitionRequests": { "type": "integer", "minimum": 0, "maximum": 64, "description": "Hard cap on network requests during one Resolve call (default: 4)." },
+        "persist": { "type": "boolean", "description": "Persist versioned ConclusionRecord into Store ns::RESOLVE with reverse dependency & scope indexes." },
+        "learnEnabled": { "type": "boolean", "description": "Whether to attach calibrated probability when domain calibration is warm." },
+        "mode": { "type": "string", "enum": ["incremental", "full_source", "full"], "description": "Reconcile or revalidate mode." },
+        "state": { "type": "string", "description": "Optional ResolutionState filter when listing conclusions." },
+        "version": { "type": "integer", "minimum": 1, "description": "Specific historical revision version for action='get'." },
+        "afterSeq": { "type": "integer", "minimum": 0, "description": "Return ResolveEvents strictly after this monotonic sequence." },
+        "limit": { "type": "integer", "minimum": 1, "maximum": 1000, "description": "Maximum records returned." },
+        "enabled": { "type": "boolean", "description": "Enable or disable Resolve calibration when action='learn'." },
+        "frozen": { "type": "boolean", "description": "Freeze or unfreeze Resolve calibration when action='learn'." },
+        "reset": { "type": "boolean", "description": "Reset Resolve learn state when action='learn'." },
+        "verifierVersion": { "type": "string", "description": "Verifier version check/reset when action='learn'." },
+        "feedback": { "type": "array", "items": feedback_item, "description": "Hard ground-truth feedback samples for action='learn'." },
+        "reason": { "type": "string", "description": "Audit reason when action='delete'." }
+    }) {
+        props.extend(extra_props);
+    }
+
+    let schema = json!({
+        "type": "object",
+        "properties": serde_json::Value::Object(props),
+        "additionalProperties": false
+    });
+
+    ToolDef::new(RESOLVE, schema)
+        .title("Evidence-Driven Resolution Engine")
+        .description(
+            "Verify answers and claims against grounded Context evidence with context-preserving claim \
+             decomposition, Belnap four-valued verdicts, Carneades proof standards, common-cause origin \
+             collapse, Minimal Cut Set vulnerability analysis, proactive counter-evidence probing, \
+             bounded VOI gap resolution, and Live incremental conclusion maintenance.",
+        )
+        .output_schema(output::resolve_result())
+        .annotations(ToolAnnotations {
+            title: Some("pagesift resolve".into()),
             read_only_hint: Some(false),
             destructive_hint: Some(false),
             idempotent_hint: Some(false),

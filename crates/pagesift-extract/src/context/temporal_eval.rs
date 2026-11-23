@@ -93,7 +93,7 @@ fn days_from_civil(year: i64, month: u32, day: u32) -> i64 {
 
 /// Exact proleptic Gregorian UTC calendar year from Unix epoch milliseconds (Howard Hinnant algorithm).
 /// Eliminates Julian-year `365.25d` boundary drift around Dec 31 / Jan 1 across leap cycles.
-pub(super) fn utc_year_from_unix_ms(ms: u64) -> u64 {
+pub(crate) fn utc_year_from_unix_ms(ms: u64) -> u64 {
     // [协议] 每日毫秒数 86,400 * 1,000 = 86,400,000
     let days = (ms / 86_400_000) as i64;
     // [协议] 0000-03-01 至 1970-01-01 的格里高利历天数偏移常数 719,468（Hinnant 2021）
@@ -114,7 +114,7 @@ pub(super) fn utc_year_from_unix_ms(ms: u64) -> u64 {
     (y + i64::from(m <= 2)).max(0) as u64
 }
 
-pub(super) fn collect_unit_years(u: &KnowledgeUnit) -> BTreeSet<u64> {
+pub(crate) fn collect_unit_years(u: &KnowledgeUnit) -> BTreeSet<u64> {
     let mut years = BTreeSet::new();
     for a in &u.entity_anchors {
         if let Some(y_str) = a.strip_prefix("year:")
@@ -170,7 +170,7 @@ pub(super) fn extract_query_years(query_anchors: &[String]) -> BTreeSet<u64> {
 
 /// Evaluate validity of `u` strictly separating `as_of_ms` (observation cutoff) from `effective_at_ms`
 /// (business validity target), without fabricating certainty when validity is unknown!
-pub(super) fn evaluate_validity(
+pub(crate) fn evaluate_validity(
     u: &KnowledgeUnit,
     effective_at_ms: Option<u64>,
     as_of_ms: Option<u64>,

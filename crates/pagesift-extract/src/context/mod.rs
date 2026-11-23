@@ -7,7 +7,7 @@ mod index_maint;
 pub mod pack;
 mod pack_select;
 pub mod search;
-mod temporal_eval;
+pub(crate) mod temporal_eval;
 pub mod tokenize_unified;
 pub(crate) mod unit_cost;
 pub mod unit_match;

@@ -231,5 +231,80 @@ export interface ContextRequest {
   [key: string]: unknown
 }
 
+export interface ResolveLearnFeedback {
+  domain?: string
+  claimKind?: string
+  rawScore: number
+  groundedSupported: boolean
+  isHardGroundTruth?: boolean
+  counterProbeKind?: string
+  counterFound?: boolean
+  verifierVersion?: string
+}
+
+/** `Scraper.resolve` 1.7 Resolve 请求参数。 */
+export interface ResolveRequest {
+  action?:
+    | 'check'
+    | 'verify'
+    | 'conclusions'
+    | 'list'
+    | 'get'
+    | 'history'
+    | 'graph'
+    | 'reconcile'
+    | 'revalidate'
+    | 'events'
+    | 'learn'
+    | 'learn_status'
+    | 'delete'
+  op?: ResolveRequest['action']
+  answer?: string
+  text?: string
+  claims?: Array<string>
+  query?: string
+  domain?: string
+  conclusionId?: string
+  conclusionIds?: Array<string>
+  id?: string
+  sourceId?: string
+  sourceIds?: Array<string>
+  documents?: Array<ContextDocumentInput | Record<string, unknown>>
+  parentConclusionIds?: Array<string>
+  assumptions?: Array<string>
+  proofStandard?: 'scintilla' | 'preponderance' | 'clear_and_convincing' | 'strict_universal'
+  domainKind?: 'open_world' | 'closed_observed_set'
+  verifierMode?: 'deterministic_only' | 'hybrid_assisted'
+  minIndependentSources?: number
+  asOf?: string | number
+  asOfMs?: number
+  effectiveAt?: string | number
+  effectiveAtMs?: number
+  includeUnverified?: boolean
+  enableGapResolution?: boolean
+  enableCounterSearch?: boolean
+  allowNetworkAcquisition?: boolean
+  allowExternalSearch?: boolean
+  strictConstrainToUrls?: boolean
+  candidateUrls?: Array<string>
+  allowedHosts?: Array<string>
+  maxAcquisitionRequests?: number
+  persist?: boolean
+  learnEnabled?: boolean
+  mode?: 'incremental' | 'full_source' | 'full'
+  state?: string
+  version?: number
+  afterSeq?: number
+  limit?: number
+  enabled?: boolean
+  frozen?: boolean
+  reset?: boolean
+  verifierVersion?: string
+  feedback?: Array<ResolveLearnFeedback>
+  reason?: string
+  [key: string]: unknown
+}
+
+
 
 

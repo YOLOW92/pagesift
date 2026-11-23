@@ -19,6 +19,7 @@ pub mod loop_ops;
 pub mod mcp;
 mod mcp_context;
 mod mcp_graph;
+mod mcp_resolve;
 mod mcp_sync;
 pub mod models;
 pub mod session;

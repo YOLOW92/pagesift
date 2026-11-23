@@ -125,6 +125,13 @@ char *pagesift_graph_query(const pagesift_engine *engine, const char *request_js
  */
 char *pagesift_context(const pagesift_engine *engine, const char *request_json);
 
+/*
+ * Executes a 1.7 Resolve operation (`check`, `conclusions`, `get`, `history`, `graph`,
+ * `reconcile`, `revalidate`, `events`, `learn`, `delete`). Supports inline `documents` or
+ * persistent `store_path`.
+ */
+char *pagesift_resolve(const pagesift_engine *engine, const char *request_json);
+
 #ifdef __cplusplus
 }
 #endif

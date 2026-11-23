@@ -26,6 +26,7 @@ mod graph_tests;
 mod index;
 mod items;
 mod record;
+pub mod resolve;
 mod selectors;
 mod snapshot;
 pub mod sync;
@@ -55,6 +56,10 @@ pub use graph::{
     VersionBundleRequest, VersionCommitOutcome, VersionCommitRequest,
 };
 pub use items::Items;
+pub use resolve::{
+    MAX_CONCLUSION_REVISIONS, MAX_CONCLUSIONS_PER_TENANT, MAX_RESOLVE_EVENTS, ResolveCommitOutcome,
+    ResolveSourceCheckpoint, ResolveStore, ResolveStoreMeta,
+};
 pub use selectors::{SelectorEntry, Selectors};
 pub use snapshot::{ContentHash, SnapshotMeta, SnapshotPut, Snapshots};
 pub use sync::{

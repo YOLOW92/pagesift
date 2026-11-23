@@ -192,3 +192,72 @@ test('context supports inline compilation and persistent units/deltas/action', a
     } catch {}
   }
 })
+
+test('resolve verifies billing periods, persists conclusions, and reconciles Live changes', async () => {
+  const stateless = new Scraper()
+  try {
+    const trap = await stateless.resolve({
+      action: 'check',
+      answer: 'Plan Pro costs $99/mo.',
+      documents: [
+        {
+          url: 'https://vendor.example/pricing',
+          markdown: '# Pricing\n\n| Plan | Annual Price |\n|---|---|\n| Plan Pro | $99 |\n',
+        },
+      ],
+    })
+    assert.equal(trap.success, true)
+    assert.equal(trap.outcome.conclusion.state, 'refuted')
+  } finally {
+    await stateless.close()
+  }
+
+  const dir = mkdtempSync(join(tmpdir(), 'pagesift-node-res-'))
+  const s = new Scraper({ storePath: dir })
+  try {
+    await s.context({
+      action: 'ingest',
+      sourceId: 'pricing',
+      documents: [
+        {
+          url: 'https://vendor.example/pricing',
+          markdown: '# Pricing\n\nPlan Pro costs $99/yr.\n',
+        },
+      ],
+    })
+    const checked = await s.resolve({
+      action: 'check',
+      sourceId: 'pricing',
+      answer: 'Plan Pro costs $99/yr.',
+      persist: true,
+    })
+    assert.equal(checked.success, true)
+    assert.equal(checked.outcome.persisted, true)
+    assert.equal(checked.outcome.conclusion.state, 'supported')
+    const cid = checked.outcome.conclusion.conclusionId
+
+    await s.context({
+      action: 'ingest',
+      sourceId: 'pricing',
+      documents: [
+        {
+          url: 'https://vendor.example/pricing',
+          markdown: '# Pricing\n\nPlan Pro costs $149/yr.\n',
+        },
+      ],
+    })
+    const rec = await s.resolve({ action: 'reconcile', sourceIds: ['pricing'] })
+    assert.equal(rec.success, true)
+    assert.ok(rec.report.impactedConclusionIds.includes(cid))
+
+    const rev = await s.resolve({ action: 'revalidate', sourceIds: ['pricing'] })
+    assert.equal(rev.success, true)
+    assert.equal(rev.outcome.checkedCount, 1)
+    assert.equal(rev.outcome.conclusions[0].state, 'refuted')
+  } finally {
+    await s.close()
+    try {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+    } catch {}
+  }
+})

@@ -186,3 +186,69 @@ def test_context_inline_and_persistent_lifecycle(tmp_path):
             assert act["outcome"]["reusedExistingContext"] is True
 
     asyncio.run(verify_async())
+
+
+def test_resolve_check_and_live_revalidation(tmp_path):
+    with pagesift.Scraper() as ephemeral:
+        trap = ephemeral.resolve(
+            action="check",
+            answer="Plan Pro costs $99/mo.",
+            documents=[
+                {
+                    "url": "https://vendor.example/pricing",
+                    "markdown": "# Pricing\n\n| Plan | Annual Price |\n|---|---|\n| Plan Pro | $99 |\n",
+                }
+            ],
+        )
+        assert trap["success"] is True
+        assert trap["outcome"]["conclusion"]["state"] == "refuted"
+
+    with pagesift.Scraper(store_path=tmp_path) as s:
+        s.context(
+            action="ingest",
+            source_id="pricing",
+            documents=[
+                {
+                    "url": "https://vendor.example/pricing",
+                    "markdown": "# Pricing\n\nPlan Pro costs $99/yr.\n",
+                }
+            ],
+        )
+        checked = s.resolve(
+            action="check",
+            source_id="pricing",
+            answer="Plan Pro costs $99/yr.",
+            persist=True,
+        )
+        assert checked["success"] is True
+        assert checked["outcome"]["persisted"] is True
+        assert checked["outcome"]["conclusion"]["state"] == "supported"
+        cid = checked["outcome"]["conclusion"]["conclusionId"]
+
+        s.context(
+            action="ingest",
+            source_id="pricing",
+            documents=[
+                {
+                    "url": "https://vendor.example/pricing",
+                    "markdown": "# Pricing\n\nPlan Pro costs $149/yr.\n",
+                }
+            ],
+        )
+        rec = s.resolve(action="reconcile", source_ids=["pricing"])
+        assert rec["success"] is True
+        assert cid in rec["report"]["impactedConclusionIds"]
+
+    del s
+    import gc
+
+    gc.collect()
+
+    async def verify_async():
+        async with pagesift.Scraper(store_path=tmp_path) as s:
+            rev = await s.aresolve(action="revalidate", source_ids=["pricing"])
+            assert rev["success"] is True
+            assert rev["outcome"]["checkedCount"] == 1
+            assert rev["outcome"]["conclusions"][0]["state"] == "refuted"
+
+    asyncio.run(verify_async())

@@ -294,6 +294,31 @@ pub trait Engine: Send + Sync + 'static {
     ) -> BoxFuture<'a, Result<Value, ApiError>> {
         self.context(tenant, request)
     }
+
+    /// Execute a 1.7 Resolve operation (`check`, `graph`, `conclusions`, `get`, `history`,
+    /// `reconcile`, `revalidate`, `events`, `learn`, `learn_status`, `delete`).
+    fn resolve<'a>(
+        &'a self,
+        _tenant: Option<&'a str>,
+        _request: Value,
+    ) -> BoxFuture<'a, Result<Value, ApiError>> {
+        Box::pin(async {
+            Err(ApiError::unsupported(
+                "resolve is not available in this build",
+            ))
+        })
+    }
+
+    /// Execute a 1.7 Resolve operation constrained by a caller's daily [`PageBudget`] for bounded
+    /// gap-resolution and counter-evidence network acquisition.
+    fn resolve_budgeted<'a>(
+        &'a self,
+        tenant: Option<&'a str>,
+        request: Value,
+        _budget: Arc<dyn PageBudget>,
+    ) -> BoxFuture<'a, Result<Value, ApiError>> {
+        self.resolve(tenant, request)
+    }
 }
 
 /// agent 运行的回报和额度，由 API 层的任务管理实现；`()` 是不回报、不限额的实现。

@@ -507,6 +507,23 @@ impl Engine for ClusterEngine {
     ) -> BoxFuture<'a, Result<serde_json::Value, ApiError>> {
         Engine::context_budgeted(&*self.scraper, tenant, request, budget)
     }
+
+    fn resolve<'a>(
+        &'a self,
+        tenant: Option<&'a str>,
+        request: serde_json::Value,
+    ) -> BoxFuture<'a, Result<serde_json::Value, ApiError>> {
+        Engine::resolve(&*self.scraper, tenant, request)
+    }
+
+    fn resolve_budgeted<'a>(
+        &'a self,
+        tenant: Option<&'a str>,
+        request: serde_json::Value,
+        budget: Arc<dyn pagesift_api::PageBudget>,
+    ) -> BoxFuture<'a, Result<serde_json::Value, ApiError>> {
+        Engine::resolve_budgeted(&*self.scraper, tenant, request, budget)
+    }
 }
 
 fn interact_on_gateway() -> ApiError {

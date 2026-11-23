@@ -473,6 +473,11 @@ pub(crate) enum Command {
         #[command(subcommand)]
         action: commands::context::ContextCommand,
     },
+    /// Evidence-driven 1.7 Resolve verification, counter-evidence audit, gap resolution, and Live conclusion maintenance
+    Resolve {
+        #[command(subcommand)]
+        action: commands::resolve::ResolveCommand,
+    },
     /// Evaluate content extraction on local dataset snapshots
     Bench {
         /// Directory holding 1-0-0.csv and snapshots/ (see benchmarks/common/fetch_snapshots.py)

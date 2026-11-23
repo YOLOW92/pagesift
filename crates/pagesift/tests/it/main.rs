@@ -34,6 +34,7 @@ mod multihost;
 mod ocr;
 mod office;
 mod parse;
+mod resolve_it;
 mod root_fix_162_it;
 mod scrape;
 mod scripts;

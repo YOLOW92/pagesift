@@ -224,6 +224,8 @@ pub struct Scraper {
     /// Context 数据源级单飞写入锁与已提交索引内存缓存（1.6 Context）。
     context_locks: SyncLockMap,
     context_cache: crate::context::cache::ContextIndexCache,
+    /// Resolve 租户级单飞写入/对账锁（1.7 Resolve）。
+    resolve_locks: SyncLockMap,
 }
 
 type SyncLockMap = std::sync::Mutex<
@@ -449,6 +451,28 @@ impl Engine for Scraper {
         budget: Arc<dyn pagesift_api::PageBudget>,
     ) -> BoxFuture<'a, Result<serde_json::Value, ApiError>> {
         Box::pin(crate::context::dispatch_with_budget(
+            self,
+            tenant,
+            request,
+            Some(budget),
+        ))
+    }
+
+    fn resolve<'a>(
+        &'a self,
+        tenant: Option<&'a str>,
+        request: serde_json::Value,
+    ) -> BoxFuture<'a, Result<serde_json::Value, ApiError>> {
+        Box::pin(crate::resolve::dispatch(self, tenant, request))
+    }
+
+    fn resolve_budgeted<'a>(
+        &'a self,
+        tenant: Option<&'a str>,
+        request: serde_json::Value,
+        budget: Arc<dyn pagesift_api::PageBudget>,
+    ) -> BoxFuture<'a, Result<serde_json::Value, ApiError>> {
+        Box::pin(crate::resolve::dispatch_with_budget(
             self,
             tenant,
             request,

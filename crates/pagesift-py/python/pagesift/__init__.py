@@ -39,10 +39,12 @@ from ._pagesift import (
     __version__,
     aengine_context as _aengine_context,
     aengine_query_graph as _aengine_query_graph,
+    aengine_resolve as _aengine_resolve,
     aengine_sync as _aengine_sync,
     convert,
     engine_context as _engine_context,
     engine_query_graph as _engine_query_graph,
+    engine_resolve as _engine_resolve,
     engine_sync as _engine_sync,
 )
 from .errors import (
@@ -524,6 +526,20 @@ class Scraper:
         """``context`` 的异步版本。"""
         return json.loads(
             await _aengine_context(self._engine, _loop_payload(request, kwargs))
+        )
+
+    def resolve(
+        self, request: Optional[Mapping[str, Any]] = None, **kwargs: Any
+    ) -> Dict[str, Any]:
+        """执行 1.7 Resolve 证据驱动核验、主动反证、缺口补采与 Live 结论维护。"""
+        return json.loads(_engine_resolve(self._engine, _loop_payload(request, kwargs)))
+
+    async def aresolve(
+        self, request: Optional[Mapping[str, Any]] = None, **kwargs: Any
+    ) -> Dict[str, Any]:
+        """``resolve`` 的异步版本。"""
+        return json.loads(
+            await _aengine_resolve(self._engine, _loop_payload(request, kwargs))
         )
 
     def __enter__(self) -> "Scraper":

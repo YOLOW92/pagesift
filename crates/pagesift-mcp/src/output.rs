@@ -377,3 +377,26 @@ pub fn context_result() -> Value {
         &["success"],
     )
 }
+
+/// `pagesift_resolve`。
+pub fn resolve_result() -> Value {
+    object(
+        json!({
+            "success": boolean("Whether the Resolve operation succeeded."),
+            "outcome": json!({ "type": "object", "description": "ResolveCheckOutcome or RevalidateOutcome containing auditable ConclusionRecord, Belnap/Carneades verdicts, provenance cut sets, unresolved gaps, and CounterSearchAudit." }),
+            "conclusion": json!({ "type": "object", "description": "Persisted versioned ConclusionRecord." }),
+            "revision": json!({ "type": "object", "description": "Immutable historical ConclusionRevision snapshot." }),
+            "revisions": array(json!({ "type": "object", "description": "Immutable historical ConclusionRevision entry." }), "Revision history entries."),
+            "conclusions": array(json!({ "type": "object", "description": "Persisted ConclusionRecord entry." }), "Matching persisted conclusions."),
+            "total": integer("Total matching conclusions or graph nodes."),
+            "nodes": array(json!({ "type": "object", "description": "Conclusion graph summary node." }), "Conclusion dependency graph nodes."),
+            "edges": array(json!({ "type": "object", "description": "Directed conclusion dependency edge." }), "Conclusion dependency edges."),
+            "report": json!({ "type": "object", "description": "ReconcileImpactReport detailing delta consumption, early-cutoff conclusions, observation-lost conclusions, scope-impacted conclusions, and ABA fallbacks." }),
+            "events": array(json!({ "type": "object", "description": "Replayable ResolveEvent lifecycle record." }), "Monotonic conclusion lifecycle events."),
+            "summary": json!({ "type": "object", "description": "ResolveLearnSummary reporting hard-sample counts, verifier version, drift fallbacks, and probe utility rates." }),
+            "deleted": boolean("Whether the conclusion was deleted."),
+            "conclusionId": string("Target conclusion identifier."),
+        }),
+        &["success"],
+    )
+}

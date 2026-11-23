@@ -69,6 +69,11 @@ pub async fn context(scraper: &Scraper, request: Value) -> Result<Value, ApiErro
     <Scraper as Engine>::context(scraper, None, request).await
 }
 
+/// Executes a 1.7 Resolve operation (`check`, `conclusions`, `get`, `history`, `graph`, `reconcile`, `revalidate`, `events`, `learn`, `delete`).
+pub async fn resolve(scraper: &Scraper, request: Value) -> Result<Value, ApiError> {
+    <Scraper as Engine>::resolve(scraper, None, request).await
+}
+
 /// Runs a persistent Loop sync source operation (`create`, `list`, `get`, `delete`, `run`, `state`, `deltas`).
 pub async fn sync(scraper: &Scraper, request: Value) -> Result<Value, ApiError> {
     let mut args = normalize_object(request, &["freshness", "budget"])?;
