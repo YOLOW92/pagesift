@@ -4,6 +4,7 @@
 模板 v2 的约定（README 里用 HTML 注释标出各节，标题文字各语言自己写）：
   <!-- readme-template: v2 -->        放在 README 里，表示已按模板改版
   <!-- section: overview -->          一句话定义 + 可替代哪些工具
+  <!-- section: sponsors -->      赞助商（含推广链接披露）
   <!-- section: facts -->             事实速览：输入、输出、接口、平台、许可证、版本
   <!-- section: install -->           安装命令 + 最小示例 + MCP 配置，必须在前 INSTALL_BY 行内开始
   <!-- section: capabilities -->      能做什么，每项链到详细文档
@@ -26,7 +27,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 FILES = ["README.md", "docs/README.zh-CN.md", "docs/README.ja.md", "docs/README.es.md"]
 MARKER = "<!-- readme-template: v2 -->"
-SECTIONS = ["overview", "facts", "install", "capabilities", "performance", "architecture", "choose", "license", "changelog"]
+SECTIONS = ["overview", "sponsors", "facts", "install", "capabilities", "performance", "architecture", "choose", "license", "changelog"]
 INSTALL_BY = 60
 STRICT_FROM = (0, 90)
 # 徽章白名单：按链接目标认，不按显示文字认（各语言文字不同）
