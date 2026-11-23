@@ -8,7 +8,7 @@ A binding of [pagesift](https://github.com/YOLOW92/pagesift) using the JDK's bui
 <dependency>
   <groupId>io.github.yolow92</groupId>
   <artifactId>pagesift</artifactId>
-  <version>1.6.3</version>
+  <version>1.7.0</version>
 </dependency>
 ```
 
